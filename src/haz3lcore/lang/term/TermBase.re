@@ -81,6 +81,8 @@ module rec Any: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = any_t;
 
+  let sort: t => Sort.t;
+
   let map_term:
     (
       ~f_exp: (Exp.t => Exp.t, Exp.t) => Exp.t=?,
@@ -98,6 +100,16 @@ module rec Any: {
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = any_t;
+
+  let sort = (any: t): Sort.t =>
+    switch (any) {
+    | Exp(_) => Exp
+    | Pat(_) => Pat
+    | Typ(_) => Typ
+    | TPat(_) => TPat
+    | Rul(_) => Rul
+    | Any(_) => Any
+    };
 
   let map_term =
       (
@@ -210,11 +222,8 @@ and Exp: {
         switch (term) {
         | EmptyHole
         | Invalid(_)
-        | Bool(_)
-        | Int(_)
-        | Float(_)
+        | Atom(_)
         | Constructor(_)
-        | String(_)
         | Label(_)
         | Deferral(_)
         | Var(_)
@@ -241,6 +250,7 @@ and Exp: {
         | FixF(p, e, env) => FixF(pat_map_term(p), exp_map_term(e), env)
         | TyAlias(tp, t, e) =>
           TyAlias(tpat_map_term(tp), typ_map_term(t), exp_map_term(e))
+        | Use(t, e) => Use(typ_map_term(t), exp_map_term(e))
         | Ap(op, e1, e2) => Ap(op, exp_map_term(e1), exp_map_term(e2))
         | TypAp(e, t) => TypAp(exp_map_term(e), typ_map_term(t))
         | DeferredAp(e, es) =>
@@ -252,6 +262,7 @@ and Exp: {
         | Filter(f, e) => Filter(flt_map_term(f), exp_map_term(e))
         | Closure(env, e) => Closure(env, exp_map_term(e))
         | Parens(e) => Parens(exp_map_term(e))
+        | Probe(e, tag) => Probe(exp_map_term(e), tag)
         | Cons(e1, e2) => Cons(exp_map_term(e1), exp_map_term(e2))
         | ListConcat(e1, e2) =>
           ListConcat(exp_map_term(e1), exp_map_term(e2))
@@ -280,6 +291,11 @@ and Exp: {
     | (Parens(x), _) => fast_equal(x, e2)
     | (_, DynamicErrorHole(x, _))
     | (_, Parens(x)) => fast_equal(e1, x)
+    /* Hack to make EvalResult.calculate recalc after adding a probe.
+     * We should clarify syntactic/semantic equality here,
+     * See https://github.com/hazelgrove/hazel/issues/1563 */
+    | (Probe(x1, _), Probe(x2, _)) => fast_equal(x1, x2)
+    | (Probe(_, _), _) => false
     | (EmptyHole, EmptyHole) => true
     | (Undefined, Undefined) => true
     | (Invalid(s1), Invalid(s2)) => s1 == s2
@@ -290,15 +306,13 @@ and Exp: {
       && Typ.fast_equal(t1, t3)
       && Typ.fast_equal(t2, t4)
     | (Deferral(d1), Deferral(d2)) => d1 == d2
-    | (Bool(b1), Bool(b2)) => b1 == b2
-    | (Int(i1), Int(i2)) => i1 == i2
-    | (Float(f1), Float(f2)) => f1 == f2
-    | (String(s1), String(s2)) => s1 == s2
-    | (Label(s1), Label(s2)) => s1 == s2
+    | (Atom(c1), Atom(c2)) => c1 == c2
+    | (Label(l1), Label(l2)) => l1 == l2
     | (ListLit(xs), ListLit(ys)) =>
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
-    | (Constructor(c1, Some(ty1)), Constructor(c2, Some(ty2))) =>
+    | (Constructor(c1, Some(Some(ty1))), Constructor(c2, Some(Some(ty2)))) =>
       c1 == c2 && Typ.fast_equal(ty1, ty2)
+    | (Constructor(c1, Some(None)), Constructor(c2, Some(None)))
     | (Constructor(c1, None), Constructor(c2, None)) => c1 == c2
     | (Fun(p1, e1, t1, _), Fun(p2, e2, t2, _)) =>
       Pat.fast_equal(p1, p2)
@@ -319,6 +333,8 @@ and Exp: {
       TPat.fast_equal(tp1, tp2)
       && Typ.fast_equal(t1, t2)
       && fast_equal(e1, e2)
+    | (Use(t1, e1), Use(t2, e2)) =>
+      Typ.fast_equal(t1, t2) && fast_equal(e1, e2)
     | (Ap(d1, e1, e2), Ap(d2, e3, e4)) =>
       d1 == d2 && fast_equal(e1, e3) && fast_equal(e2, e4)
     | (TypAp(e1, t1), TypAp(e2, t2)) =>
@@ -362,10 +378,7 @@ and Exp: {
     | (Invalid(_), _)
     | (FailedCast(_), _)
     | (Deferral(_), _)
-    | (Bool(_), _)
-    | (Int(_), _)
-    | (Float(_), _)
-    | (String(_), _)
+    | (Atom(_), _)
     | (Label(_), _)
     | (ListLit(_), _)
     | (Constructor(_), _)
@@ -378,6 +391,7 @@ and Exp: {
     | (Let(_), _)
     | (FixF(_), _)
     | (TyAlias(_), _)
+    | (Use(_), _)
     | (Ap(_), _)
     | (TypAp(_), _)
     | (DeferredAp(_), _)
@@ -448,11 +462,8 @@ and Pat: {
         | EmptyHole
         | Invalid(_)
         | Wild
-        | Bool(_)
-        | Int(_)
-        | Float(_)
+        | Atom(_)
         | Constructor(_)
-        | String(_)
         | Label(_)
         | Var(_) => term
         | MultiHole(things) => MultiHole(List.map(any_map_term, things))
@@ -463,6 +474,7 @@ and Pat: {
         | TupLabel(label, e) =>
           TupLabel(pat_map_term(label), pat_map_term(e))
         | Parens(e) => Parens(pat_map_term(e))
+        | Probe(e, tag) => Probe(pat_map_term(e), tag)
         | Cast(e, t1, t2) =>
           Cast(pat_map_term(e), typ_map_term(t1), typ_map_term(t2))
         },
@@ -472,6 +484,10 @@ and Pat: {
 
   let rec fast_equal = (p1: t, p2: t) =>
     switch (p1 |> Grammar.Annotated.term_of, p2 |> Grammar.Annotated.term_of) {
+    /* Below is kind of a hack to make EvalResult.calculate go after adding a projector.
+     * We should clarify syntactic/semantic equality here */
+    | (Probe(x1, _), Probe(x2, _)) => fast_equal(x1, x2)
+    | (Probe(_, _), _) => false
     | (Parens(x), _) => fast_equal(x, p2)
     | (_, Parens(x)) => fast_equal(p1, x)
     | (EmptyHole, EmptyHole) => true
@@ -480,13 +496,11 @@ and Pat: {
       && List.equal(Any.fast_equal, xs, ys)
     | (Invalid(s1), Invalid(s2)) => s1 == s2
     | (Wild, Wild) => true
-    | (Bool(b1), Bool(b2)) => b1 == b2
-    | (Int(i1), Int(i2)) => i1 == i2
-    | (Float(f1), Float(f2)) => f1 == f2
-    | (String(s1), String(s2)) => s1 == s2
+    | (Atom(c1), Atom(c2)) => c1 == c2
     | (Label(s1), Label(s2)) => s1 == s2
-    | (Constructor(c1, Some(t1)), Constructor(c2, Some(t2))) =>
+    | (Constructor(c1, Some(Some(t1))), Constructor(c2, Some(Some(t2)))) =>
       c1 == c2 && Typ.fast_equal(t1, t2)
+    | (Constructor(c1, Some(None)), Constructor(c2, Some(None)))
     | (Constructor(c1, None), Constructor(c2, None)) => c1 == c2
     | (Var(v1), Var(v2)) => v1 == v2
     | (ListLit(xs), ListLit(ys)) =>
@@ -504,10 +518,7 @@ and Pat: {
     | (MultiHole(_), _)
     | (Invalid(_), _)
     | (Wild, _)
-    | (Bool(_), _)
-    | (Int(_), _)
-    | (Float(_), _)
-    | (String(_), _)
+    | (Atom(_), _)
     | (Label(_), _)
     | (ListLit(_), _)
     | (Constructor(_), _)
@@ -576,10 +587,7 @@ and Typ: {
         | Unknown(Hole(Invalid(_)))
         | Unknown(SynSwitch)
         | Unknown(Internal)
-        | Bool
-        | Int
-        | Float
-        | String
+        | Atom(_)
         | Label(_)
         | Var(_) => term
         | List(t) => List(typ_map_term(t))
@@ -614,11 +622,8 @@ and Typ: {
     | Some(str) =>
       let (term, rewrap) = Grammar.Annotated.unwrap(ty);
       switch (term) {
-      | Int => (Int: typ_term) |> rewrap
-      | Float => Float |> rewrap
-      | Bool => Bool |> rewrap
-      | String => String |> rewrap
-      | Label(name) => Label(name) |> rewrap
+      | Atom(_) => ty
+      | Label(name) => Grammar.Label(name) |> rewrap
       | Unknown(prov) => Unknown(prov) |> rewrap
       | Arrow(ty1, ty2) =>
         Arrow(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
@@ -660,7 +665,6 @@ and Typ: {
           subst({
             term: Var("=" ++ string_of_int(n)),
             annotation: {
-              copied: false,
               ids: [Id.invalid],
             },
           });
@@ -676,14 +680,8 @@ and Typ: {
       }
     | (Rec(_), _) => false
     | (Forall(_), _) => false
-    | (Int, Int) => true
-    | (Int, _) => false
-    | (Float, Float) => true
-    | (Float, _) => false
-    | (Bool, Bool) => true
-    | (Bool, _) => false
-    | (String, String) => true
-    | (String, _) => false
+    | (Atom(name1), Atom(name2)) => name1 == name2
+    | (Atom(_), _) => false
     | (Label(name1), Label(name2)) =>
       LabeledTuple.match_labels(name1, name2)
     | (Label(_), _) => false
@@ -891,56 +889,41 @@ and ClosureEnvironment: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = closure_environment_t;
 
-  let wrap: (Id.t, Environment.t) => t;
-
-  let id_of: t => Id.t;
-  let map_of: t => Environment.t;
-
-  let to_list: t => list((Var.t, Exp.t));
+  let empty: t;
 
   let of_environment: Environment.t => t;
 
+  let map_of: t => Environment.t;
+  let call_stack_of: t => Probe.call_stack;
+
   let id_equal: (closure_environment_t, closure_environment_t) => bool;
 
-  let empty: t;
-  let is_empty: t => bool;
-  let length: t => int;
-
   let lookup: (t, Var.t) => option(Exp.t);
-  let contains: (t, Var.t) => bool;
-  let update: (Environment.t => Environment.t, t) => t;
-  let update_keep_id: (Environment.t => Environment.t, t) => t;
-  let extend: (t, (Var.t, Exp.t)) => t;
-  let extend_keep_id: (t, (Var.t, Exp.t)) => t;
-  let union: (t, t) => t;
-  let union_keep_id: (t, t) => t;
-  let map: (((Var.t, Exp.t)) => Exp.t, t) => t;
-  let map_keep_id: (((Var.t, Exp.t)) => Exp.t, t) => t;
-  let filter: (((Var.t, Exp.t)) => bool, t) => t;
-  let filter_keep_id: (((Var.t, Exp.t)) => bool, t) => t;
-  let fold: (((Var.t, Exp.t), 'b) => 'b, 'b, t) => 'b;
+  let update_env: (Environment.t => Environment.t, t) => t;
+  let extend_eval:
+    (~ap_id: Id.t=?, ~call_stack: Probe.call_stack, Environment.t, t) => t;
 
-  let without_keys: (list(Var.t), t) => t;
-  let with_symbolic_keys: (list(Var.t), t) => t;
-
-  let placeholder: t;
+  let to_list: t => list((Var.t, Exp.t));
 } = {
   module Inner: {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = closure_environment_t;
 
-    let wrap: (Id.t, Environment.t) => t;
+    let wrap: (Id.t, Environment.t, Probe.call_stack) => t;
 
     let id_of: t => Id.t;
     let map_of: t => Environment.t;
+    let call_stack_of: t => Probe.call_stack;
   } = {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = closure_environment_t;
 
-    let wrap = (ei, map): t => (ei, map);
+    let wrap = (id, env, call_stack): t => {id, env, call_stack};
 
-    let id_of = ((ei, _)) => ei;
-    let map_of = ((_, map)) => map;
+    let id_of = (t: t) => t.id;
+    let map_of = (t: t) => t.env;
+    let call_stack_of = (t: t) => t.call_stack;
+
     let (sexp_of_t, t_of_sexp) =
       StructureShareSexp.structure_share_here(id_of, sexp_of_t, t_of_sexp);
   };
@@ -948,10 +931,7 @@ and ClosureEnvironment: {
 
   let to_list = env => env |> map_of |> Environment.to_listo;
 
-  let of_environment = map => {
-    let ei = Id.mk();
-    wrap(ei, map);
-  };
+  let of_environment = env => wrap(Id.mk(), env, []);
 
   /* Equals only needs to check environment id's (faster than structural equality
    * checking.) */
@@ -959,53 +939,28 @@ and ClosureEnvironment: {
 
   let empty = Environment.empty |> of_environment;
 
-  let is_empty = env => env |> map_of |> Environment.is_empty;
-
-  let length = env => Environment.length(map_of(env));
-
   let lookup = (env, x) =>
     env |> map_of |> (map => Environment.lookup(map, x));
 
-  let contains = (env, x) =>
-    env |> map_of |> (map => Environment.contains(map, x));
+  let update_env = (f, env) => env |> map_of |> f |> of_environment;
 
-  let update = (f, env) => env |> map_of |> f |> of_environment;
-
-  let update_keep_id = (f, env) => env |> map_of |> f |> wrap(env |> id_of);
-
-  let extend = (env, xr) =>
-    env |> update(map => Environment.extend(map, xr));
-
-  let extend_keep_id = (env, xr) =>
-    env |> update_keep_id(map => Environment.extend(map, xr));
-
-  let union = (env1, env2) =>
-    env2 |> update(map2 => Environment.union(env1 |> map_of, map2));
-
-  let union_keep_id = (env1, env2) =>
-    env2 |> update_keep_id(map2 => Environment.union(env1 |> map_of, map2));
-
-  let map = (f, env) => env |> update(Environment.mapo(f));
-
-  let map_keep_id = (f, env) => env |> update_keep_id(Environment.mapo(f));
-
-  let filter = (f, env) => env |> update(Environment.filtero(f));
-
-  let filter_keep_id = (f, env) =>
-    env |> update_keep_id(Environment.filtero(f));
-
-  let fold = (f, init, env) => env |> map_of |> Environment.foldo(f, init);
-
-  let placeholder = wrap(Id.invalid, Environment.empty);
-
-  let without_keys = keys => update(Environment.without_keys(keys));
-  let with_symbolic_keys = (keys, env) =>
-    List.fold_right(
-      (key, env) =>
-        extend(env, (key, (Var(key): exp_term) |> IdTagged.fresh)),
-      keys,
-      env,
-    );
+  /* Extend the environment with new bindings. ~ap_id is an optional argument which
+   * will add an entry in a stack of function application syntax ids, used to
+   * represent and track the call stack for use by live value probes. */
+  let extend_eval =
+      (
+        ~ap_id: option(Id.t)=?,
+        ~call_stack: Probe.call_stack,
+        new_bindings: Environment.t,
+        env_to_extend: t,
+      )
+      : t => {
+    {
+      id: Id.mk(),
+      env: Environment.union(new_bindings, map_of(env_to_extend)),
+      call_stack: Option.to_list(ap_id) @ call_stack,
+    };
+  };
 }
 and StepperFilterKind: {
   [@deriving (show({with_path: false}), sexp, yojson)]

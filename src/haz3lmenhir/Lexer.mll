@@ -126,6 +126,7 @@ rule token =
     | "type" {TYP}
     | "$" {DOLLAR_SIGN}
     | "~" {TILDE}
+    | "/~" {SLASH_TILDE}
     | "?t" {T_TYP}
     | "?p" {P_PAT}
     | "?tp" {TP_TPAT}

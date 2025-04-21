@@ -10,17 +10,17 @@ let int_unary_minus_ex = {
 let int_plus_ex = {
   sub_id: Int(Plus),
   term: mk_example("1 + 2"),
-  message: "1 added to 2 evalutes to 3.",
+  message: "1 added to 2 evaluates to 3.",
 };
 let int_minus_ex = {
   sub_id: Int(Minus),
   term: mk_example("2 - 1"),
-  message: "2 minus 1 evalutes to 1.",
+  message: "2 minus 1 evaluates to 1.",
 };
 let int_times_ex = {
   sub_id: Int(Times),
   term: mk_example("1 * 2"),
-  message: "1 multiplied be 2 evalutes to 2.",
+  message: "1 multiplied by 2 evaluates to 2.",
 };
 let int_power_ex = {
   sub_id: Int(Power),
@@ -30,12 +30,12 @@ let int_power_ex = {
 let int_divide_ex = {
   sub_id: Int(Divide),
   term: mk_example("6 / 3"),
-  message: "6 divided by 3 evalutes to 2.",
+  message: "6 divided by 3 evaluates to 2.",
 };
 let int_lt1_ex = {
   sub_id: Int(LessThanTrue),
   term: mk_example("1 < 2"),
-  message: "1 is less than 2, so the expression evalutes to true.",
+  message: "1 is less than 2, so the expression evaluates to true.",
 };
 let int_lt2_ex = {
   sub_id: Int(LessThanFalse),
@@ -45,7 +45,7 @@ let int_lt2_ex = {
 let int_lte1_ex = {
   sub_id: Int(LessThanEqualLess),
   term: mk_example("1 <= 2"),
-  message: "1 is less than 2, so the expression evalutes to true.",
+  message: "1 is less than 2, so the expression evaluates to true.",
 };
 let int_lte2_ex = {
   sub_id: Int(LessThanEqualFalse),
@@ -92,30 +92,35 @@ let int_eq2_ex = {
   term: mk_example("3 == 3"),
   message: "3 is equal to 3, so the expression evaluates to true.",
 };
-let int_poly_eq1_ex = {
+let poly_eq1_ex = {
   sub_id: Int(PolyEqualFalse),
   term: mk_example("1.0 == 2.0"),
   message: "1.0 does not equal 2.0, so the expression evaluates to false.",
 };
-let int_poly_eq2_ex = {
+let poly_eq2_ex = {
   sub_id: Int(PolyEqualTrue),
   term: mk_example("true == true"),
   message: "true is equal to true, so the expression evaluates to true.",
 };
+let poly_neq1_ex = {
+  sub_id: Int(PolyEqualTrue),
+  term: mk_example("true != false"),
+  message: "true is not equal to false, so the expression evaluates to true.",
+};
 let float_plus_ex = {
   sub_id: Float(Plus),
   term: mk_example("1. +. 2.1"),
-  message: "1. added to 2.1 evalutes to 3.1",
+  message: "1. added to 2.1 evaluates to 3.1",
 };
 let float_minus_ex = {
   sub_id: Float(Minus),
   term: mk_example("2. -. 1.1"),
-  message: "2. minus 1.1 evalutes to 0.9",
+  message: "2. minus 1.1 evaluates to 0.9",
 };
 let float_times_ex = {
   sub_id: Float(Times),
   term: mk_example("1. *. 2.2"),
-  message: "1 multiplied be 2.2 evalutes to 2.2.",
+  message: "1 multiplied by 2.2 evaluates to 2.2.",
 };
 let float_power_ex = {
   sub_id: Float(Power),
@@ -125,12 +130,12 @@ let float_power_ex = {
 let float_divide_ex = {
   sub_id: Float(Divide),
   term: mk_example("4.2 /. 2.1"),
-  message: "4.2 divided by 2.1 evalutes to 2.",
+  message: "4.2 divided by 2.1 evaluates to 2.",
 };
 let float_lt1_ex = {
   sub_id: Float(LessThanTrue),
   term: mk_example("1. <. 2.1"),
-  message: "1. is less than 2.1, so the expression evalutes to true.",
+  message: "1. is less than 2.1, so the expression evaluates to true.",
 };
 let float_lt2_ex = {
   sub_id: Float(LessThanFalse),
@@ -140,7 +145,7 @@ let float_lt2_ex = {
 let float_lte1_ex = {
   sub_id: Float(LessThanEqualLess),
   term: mk_example("1. <=. 2.1"),
-  message: "1. is less than 2.1, so the expression evalutes to true.",
+  message: "1. is less than 2.1, so the expression evaluates to true.",
 };
 let float_lte2_ex = {
   sub_id: Float(LessThanEqualFalse),
@@ -195,7 +200,7 @@ let bool_and1_ex = {
 let bool_and2_ex = {
   sub_id: AndTrue,
   term: mk_example("1 < 2 && 3 < 4"),
-  message: "The left operand evaluates to true, so evaluate the right operand. Since the right operand also evalutes to true, the whole expression evaluates to true.",
+  message: "The left operand evaluates to true, so evaluate the right operand. Since the right operand also evaluates to true, the whole expression evaluates to true.",
 };
 let bool_or1_ex = {
   sub_id: OrFalse,
@@ -205,7 +210,7 @@ let bool_or1_ex = {
 let bool_or2_ex = {
   sub_id: OrTrue,
   term: mk_example("3 < 4 \\/ false"),
-  message: "The left operand evalutes to true, so the right operand is not evaluated. The whole expression evaluates to true.",
+  message: "The left operand evaluates to true, so the right operand is not evaluated. The whole expression evaluates to true.",
 };
 let str_eq1_ex = {
   sub_id: StringEqualFalse,
@@ -441,13 +446,13 @@ let int_eq_exp_coloring_ids =
     ~right_id,
   );
 let int_eq_exp: form = {
-  let explanation = "Performs a structural comparison. If the [*left operand*](%s) is equal to the [*right operand*](%s), evaluates to `true`. Otherwise, evaluates to `false`.";
+  let explanation = "If the [*left operand*](%s) is equal to the [*right operand*](%s), evaluates to `true`. Otherwise, evaluates to `false`.";
   {
     id: BinOpExp(Int(Equals)),
     syntactic_form: [_exp1, space(), equals(), space(), _exp2],
     expandable_id: None,
     explanation,
-    examples: [int_eq1_ex, int_eq2_ex, int_poly_eq1_ex, int_poly_eq2_ex],
+    examples: [int_eq1_ex, int_eq2_ex],
   };
 };
 let _exp1 = exp("e1");
@@ -461,13 +466,53 @@ let int_neq_exp_coloring_ids =
     ~right_id,
   );
 let int_neq_exp: form = {
-  let explanation = "Performs a structural comparison. If the [*left operand*](%s) is not equal to the [*right operand*](%s), evaluates to `true`. Otherwise, evaluates to `false`.";
+  let explanation = "If the [*left operand*](%s) is not equal to the [*right operand*](%s), evaluates to `true`. Otherwise, evaluates to `false`.";
   {
     id: BinOpExp(Int(NotEquals)),
     syntactic_form: [_exp1, space(), not_equals(), space(), _exp2],
     expandable_id: None,
     explanation,
     examples: [],
+  };
+};
+let _exp1 = exp("e1");
+let _exp2 = exp("e2");
+let poly_eq_exp_coloring_ids =
+    (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
+  _binop_exp_coloring_ids(
+    Piece.id(_exp1),
+    Piece.id(_exp2),
+    ~left_id,
+    ~right_id,
+  );
+let poly_eq_exp: form = {
+  let explanation = "Performs a structural comparison. If the [*left operand*](%s) is equal to the [*right operand*](%s), evaluates to `true`. Otherwise, evaluates to `false`.";
+  {
+    id: BinOpExp(Poly(Equals)),
+    syntactic_form: [_exp1, space(), equals(), space(), _exp2],
+    expandable_id: None,
+    explanation,
+    examples: [poly_eq1_ex, poly_eq2_ex],
+  };
+};
+let _exp1 = exp("e1");
+let _exp2 = exp("e2");
+let poly_neq_exp_coloring_ids =
+    (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
+  _binop_exp_coloring_ids(
+    Piece.id(_exp1),
+    Piece.id(_exp2),
+    ~left_id,
+    ~right_id,
+  );
+let poly_neq_exp: form = {
+  let explanation = "Performs a structural comparison. If the [*left operand*](%s) is not equal to the [*right operand*](%s), evaluates to `true`. Otherwise, evaluates to `false`.";
+  {
+    id: BinOpExp(Poly(NotEquals)),
+    syntactic_form: [_exp1, space(), not_equals(), space(), _exp2],
+    expandable_id: None,
+    explanation,
+    examples: [poly_neq1_ex],
   };
 };
 let _exp1 = exp("e1");
@@ -887,4 +932,11 @@ let string_equal: group = {
 let string_concat: group = {
   id: BinOpExp(String(Concat)),
   forms: [str_concat_exp],
+};
+
+let poly_equal: group = {id: BinOpExp(Poly(Equals)), forms: [poly_eq_exp]};
+
+let poly_not_equal: group = {
+  id: BinOpExp(Poly(NotEquals)),
+  forms: [poly_eq_exp],
 };

@@ -9,12 +9,13 @@ let alco_check =
   )
   |> Alcotest.check;
 
-let strip_parens_and_add_builtins =
+let strip_Wrap_and_add_builtins =
   Exp.map_term(
     ~f_exp=
       (cont: TermBase.exp_t => TermBase.exp_t, e: TermBase.exp_t) =>
         switch (e.term) {
-        | Parens(e) => cont(e)
+        | Parens(e)
+        | Probe(e, _) => cont(e)
         | Var(x) =>
           let builtin =
             VarMap.lookup(Haz3lcore.Builtins.Pervasives.builtins, x);
@@ -30,7 +31,8 @@ let strip_parens_and_add_builtins =
     ~f_pat=
       (cont, e) =>
         switch (e.term) {
-        | Parens(e) => cont(e)
+        | Parens(e)
+        | Probe(e, _) => cont(e)
         | _ => cont(e)
         },
     ~f_typ=
@@ -44,7 +46,7 @@ let strip_parens_and_add_builtins =
 
 // Existing recovering parser
 let make_term_parse = (s: string) =>
-  strip_parens_and_add_builtins(
+  strip_Wrap_and_add_builtins(
     MakeTerm.from_zip_for_sem(Option.get(Printer.zipper_of_string(s))).term,
   );
 
@@ -53,7 +55,7 @@ let menhir_matches = (exp: Term.Exp.t, actual: string) =>
     "menhir matches expected parse",
     exp,
     Grammar.map_exp_annotation(
-      _: IdTagged.IdTag.t => {ids: [Id.invalid], copied: false},
+      _: IdTagged.IdTag.t => {ids: [Id.invalid]},
       Haz3lmenhir.Conversion.Exp.of_menhir_ast(
         Haz3lmenhir.Interface.parse_program(actual),
       ),
@@ -88,7 +90,7 @@ let menhir_maketerm_equivalent_test =
       "Menhir parse matches MakeTerm parse",
       make_term_parse(actual),
       Grammar.map_exp_annotation(
-        _: IdTagged.IdTag.t => {ids: [Id.invalid], copied: false},
+        _: IdTagged.IdTag.t => {ids: [Id.invalid]},
         Haz3lmenhir.Conversion.Exp.of_menhir_ast(
           Haz3lmenhir.Interface.parse_program(actual),
         ),
@@ -105,7 +107,11 @@ let qcheck_menhir_maketerm_equivalent_test =
   QCheck.Test.make(
     ~name="Menhir and maketerm are equivalent",
     ~count=100,
-    QCheck.make(~print=AST.show_exp, AST.gen_exp_sized(7)),
+    QCheck.make(
+      ~print=AST.show_exp,
+      ~shrink=AST.shrink_exp,
+      AST.gen_exp_sized(7),
+    ),
     exp => {
       let unit_exp = Conversion.Exp.of_menhir_ast(exp);
       let core_exp =
@@ -159,7 +165,11 @@ let qcheck_menhir_serialized_equivalent_test =
   QCheck.Test.make(
     ~name="Menhir through ExpToSegment and back",
     ~count=1000,
-    QCheck.make(~print=AST.show_exp, AST.gen_exp_sized(7)),
+    QCheck.make(
+      ~print=AST.show_exp,
+      ~shrink=AST.shrink_exp,
+      AST.gen_exp_sized(7),
+    ),
     exp => {
       let unit_exp = Conversion.Exp.of_menhir_ast(exp);
       let core_exp =
@@ -173,6 +183,7 @@ let qcheck_menhir_serialized_equivalent_test =
             hide_fixpoints: false,
             fold_cast_types: false,
             show_filters: true,
+            show_unknown_as_hole: true,
           },
           core_exp,
         );
@@ -186,7 +197,7 @@ let tests =
   Fresh.(
     "MenhirParser",
     Exp.[
-      full_parser_test("Integer Literal", int(8), "8"),
+      full_parser_test("Integer Literal", int(Bigint.of_int(8)), "8"),
       full_parser_test(
         "Fun",
         fn(Pat.var("x"), var("x"), None, None),
@@ -203,20 +214,27 @@ let tests =
       full_parser_test("Parens", parens(var("y")), "(y)"),
       full_parser_test(
         "bin_op",
-        bin_op(Int(Plus), int(4), int(5)),
+        bin_op(Int(Plus), int(Bigint.of_int(4)), int(Bigint.of_int(5))),
         "4 + 5",
       ),
       full_parser_test(
         "Let",
-        let_(Fresh.Pat.var("x"), int(5), var("x")),
+        let_(Fresh.Pat.var("x"), int(Bigint.of_int(5)), var("x")),
         "let x = 5 in x",
       ),
-      full_parser_test("Tuple", tuple([int(4), int(5)]), "(4, 5)"),
+      full_parser_test(
+        "Tuple",
+        tuple([int(Bigint.of_int(4)), int(Bigint.of_int(5))]),
+        "(4, 5)",
+      ),
       full_parser_test(
         "Match",
         match(
-          int(4),
-          [(Pat.int(1), string("hello")), (Pat.wild(), string("world"))],
+          int(Bigint.of_int(4)),
+          [
+            (Pat.int(Bigint.of_int(1)), string("hello")),
+            (Pat.wild(), string("world")),
+          ],
         ),
         {|case 4
        | 1 => "hello"
@@ -225,7 +243,7 @@ let tests =
       ),
       full_parser_test(
         "If",
-        if_(bool(true), int(8), int(6)),
+        if_(bool(true), int(Bigint.of_int(8)), int(Bigint.of_int(6))),
         "if true then 8 else 6",
       ),
       full_parser_test(
@@ -233,10 +251,18 @@ let tests =
         deferred_ap(var("x"), [deferral(InAp)]),
         "x(_)",
       ),
-      full_parser_test("Cons", cons(int(1), list_lit([])), "1 :: []"),
+      full_parser_test(
+        "Cons",
+        cons(int(Bigint.of_int(1)), list_lit([])),
+        "1 :: []",
+      ),
       full_parser_test(
         "ListLit",
-        list_lit([int(1), int(2), int(3)]),
+        list_lit([
+          int(Bigint.of_int(1)),
+          int(Bigint.of_int(2)),
+          int(Bigint.of_int(3)),
+        ]),
         "[1, 2, 3]",
       ),
       menhir_only_test("Unit", tuple([]), "()"),
@@ -248,13 +274,13 @@ let tests =
       ),
       menhir_only_test(
         "Constructor of specific sum type",
-        constructor("A", Some(Typ.int())),
+        constructor("A", Some(Some(Typ.int()))),
         "A ~ Int",
       ),
       // TODO Fix for the tests below
       menhir_only_test(
         "Constructor with Type Variable",
-        constructor("A", Some(Typ.var("T"))),
+        constructor("A", Some(Some(Typ.var("T")))),
         "A ~ T",
       ),
       full_parser_test(
@@ -268,35 +294,60 @@ let tests =
       ),
       full_parser_test(
         "Type Alias",
-        ty_alias(TPat.var("x"), Typ.int(), int(1)),
+        ty_alias(TPat.var("x"), Typ.int(), int(Bigint.of_int(1))),
         "type x = Int in 1",
       ),
       full_parser_test(
         "Test",
-        test(bin_op(Int(Equals), int(3), int(3))),
+        test(
+          bin_op(
+            Int(Equals),
+            int(Bigint.of_int(3)),
+            int(Bigint.of_int(3)),
+          ),
+        ),
         "test 3 == 3 end",
       ),
       full_parser_test(
         "Filter",
-        filter(Filter({act: (Eval, All), pat: int(3)}), int(3)),
+        filter(
+          Filter({act: (Eval, All), pat: int(Bigint.of_int(3))}),
+          int(Bigint.of_int(3)),
+        ),
         "eval 3 in 3" // TODO Use other filter commands
       ),
       full_parser_test(
         "List Concat",
         list_concat(
-          list_lit([int(1), int(2)]),
-          list_lit([int(3), int(4)]),
+          list_lit([int(Bigint.of_int(1)), int(Bigint.of_int(2))]),
+          list_lit([int(Bigint.of_int(3)), int(Bigint.of_int(4))]),
         ),
         "[1, 2] @ [3, 4]",
       ),
       full_parser_test(
         "times and divide precendence",
-        bin_op(Int(Divide), bin_op(Int(Times), int(1), int(2)), int(3)),
+        bin_op(
+          Int(Divide),
+          bin_op(
+            Int(Times),
+            int(Bigint.of_int(1)),
+            int(Bigint.of_int(2)),
+          ),
+          int(Bigint.of_int(3)),
+        ),
         "1 * 2 / 3",
       ),
       full_parser_test(
         "plus and minus precendence",
-        bin_op(Int(Plus), bin_op(Int(Minus), int(1), int(2)), int(3)),
+        bin_op(
+          Int(Plus),
+          bin_op(
+            Int(Minus),
+            int(Bigint.of_int(1)),
+            int(Bigint.of_int(2)),
+          ),
+          int(Bigint.of_int(3)),
+        ),
         "1 - 2 + 3",
       ),
       full_parser_test(
@@ -305,14 +356,26 @@ let tests =
           Int(GreaterThanOrEqual),
           bin_op(
             Int(Minus),
-            bin_op(Int(Plus), un_op(Int(Minus), int(1)), int(2)),
+            bin_op(
+              Int(Plus),
+              un_op(Int(Minus), int(Bigint.of_int(1))),
+              int(Bigint.of_int(2)),
+            ),
             bin_op(
               Int(Times),
-              bin_op(Int(Divide), int(3), int(4)),
-              bin_op(Int(Power), int(5), int(6)),
+              bin_op(
+                Int(Divide),
+                int(Bigint.of_int(3)),
+                int(Bigint.of_int(4)),
+              ),
+              bin_op(
+                Int(Power),
+                int(Bigint.of_int(5)),
+                int(Bigint.of_int(6)),
+              ),
             ),
           ),
-          int(8),
+          int(Bigint.of_int(8)),
         ),
         "-1 + 2 - 3 / 4 * 5 ** 6 >= 8",
       ),
@@ -338,7 +401,7 @@ let tests =
         "Let binding with type ascription",
         let_(
           Pat.cast(Pat.var("x"), Typ.int(), Typ.unknown(Internal)),
-          int(5),
+          int(Bigint.of_int(5)),
           var("x"),
         ),
         "let (x: Int) = 5 in x",
@@ -347,7 +410,7 @@ let tests =
         "named_function",
         fn(
           Pat.var("x"),
-          bin_op(Int(Plus), var("x"), int(5)),
+          bin_op(Int(Plus), var("x"), int(Bigint.of_int(5))),
           None,
           Some("f"),
         ),
@@ -365,7 +428,7 @@ let tests =
             ]),
             Typ.unknown(Internal),
           ),
-          ap(Forward, constructor("C", None), int(7)),
+          ap(Forward, constructor("C", None), int(Bigint.of_int(7))),
           var("x"),
         ),
         "let x : +A +B +C(Int) = C(7) in x",
@@ -398,7 +461,11 @@ let tests =
       ),
       full_parser_test(
         "multiargument function",
-        ap(Forward, var("f"), tuple([int(1), int(2)])),
+        ap(
+          Forward,
+          var("f"),
+          tuple([int(Bigint.of_int(1)), int(Bigint.of_int(2))]),
+        ),
         "f(1, 2)",
       ),
       menhir_maketerm_equivalent_test(

@@ -89,6 +89,30 @@ let elements_noun: Cls.t => string =
   | Exp(BinOp(Int(Equals))) => "Operands"
   | _ => failwith("elements_noun: Cls doesn't have elements");
 
+let code_view_settings: ExpToSegment.Settings.t = {
+  inline: true,
+  fold_case_clauses: false,
+  fold_fn_bodies: false,
+  hide_fixpoints: false,
+  fold_cast_types: false,
+  show_filters: false,
+  show_unknown_as_hole: true,
+};
+
+let view_any = (~globals, any: Term.Any.t) =>
+  any
+  |> CodeViewable.view_any(
+       ~globals,
+       ~settings=code_view_settings,
+       ~shape_map=ProjectorCore.Shape.Map.empty // assume no projectors
+     )
+  |> code_box_container;
+
+let view_type = (~globals, typ: Typ.t) =>
+  typ
+  |> CodeViewable.view_typ(~globals, ~settings=code_view_settings)
+  |> code_box_container;
+
 let common_err_view =
     (
       ~globals,
@@ -98,30 +122,8 @@ let common_err_view =
       cls: Cls.t,
       err: Info.error_common,
     ) => {
-  let code_view_settings: ExpToSegment.Settings.t = {
-    inline: true,
-    fold_case_clauses: false,
-    fold_fn_bodies: false,
-    hide_fixpoints: false,
-    fold_cast_types: false,
-    show_filters: false,
-  };
-  let view_type = x =>
-    x
-    |> CodeViewable.view_typ(
-         ~globals,
-         ~settings=code_view_settings,
-         ~info_map=Id.Map.empty,
-       )
-    |> code_box_container;
-  let view_any = x =>
-    x
-    |> CodeViewable.view_any(
-         ~globals,
-         ~settings=code_view_settings,
-         ~info_map=Id.Map.empty,
-       )
-    |> code_box_container;
+  let view_type = view_type(~globals);
+  let view_any = view_any(~globals);
   (
     switch (err) {
     | NoType(BadToken(token)) =>
@@ -129,6 +131,7 @@ let common_err_view =
       | BadInt => [text("Integer is too large or too small")]
       | Other => [text(Printf.sprintf("\"%s\" isn't a valid token", token))]
       }
+    | NoType(BadOperator(msg)) => [text("Invalid operator: "), text(msg)]
     | NoType(BadTrivAp(ty)) => [
         text("Function argument type"),
         view_type(ty),
@@ -219,6 +222,11 @@ let common_err_view =
         text(elements_noun(cls) ++ " have inconsistent types:"),
         ...ListUtil.join(text(","), List.map(view_type, tys)),
       ]
+    | InvalidUseMode({bad_typ, _}) => [
+        text("Cannot use type "),
+        view_type(bad_typ) |> code_box_container,
+        text(" for number operators and literals."),
+      ]
     }
   )
   @ (
@@ -240,19 +248,7 @@ let common_ok_view =
       cls: Cls.t,
       ok: Info.ok_common,
     ) => {
-  let view_type =
-    CodeViewable.view_typ(
-      ~globals,
-      ~info_map=Id.Map.empty,
-      ~settings={
-        inline: true,
-        fold_case_clauses: false,
-        fold_fn_bodies: false,
-        hide_fixpoints: false,
-        fold_cast_types: false,
-        show_filters: false,
-      },
-    );
+  let view_type = view_type(~globals);
   (
     switch (cls, ok) {
     | (Pat(EmptyHole), _) when label_sort => []
@@ -363,19 +359,7 @@ let common_ok_view =
 };
 
 let typ_ok_view = (~globals, cls: Cls.t, ok: Info.ok_typ) => {
-  let view_type =
-    CodeViewable.view_typ(
-      ~globals,
-      ~settings={
-        inline: true,
-        fold_case_clauses: false,
-        fold_fn_bodies: false,
-        hide_fixpoints: false,
-        fold_cast_types: false,
-        show_filters: false,
-      },
-      ~info_map=Id.Map.empty,
-    );
+  let view_type = view_type(~globals);
   switch (ok) {
   | EmptyLabel => []
   | Type(_) when cls == Typ(EmptyHole) => [text("Fillable by any type")]
@@ -406,22 +390,10 @@ let typ_ok_view = (~globals, cls: Cls.t, ok: Info.ok_typ) => {
 };
 
 let typ_err_view = (~globals, ok: Info.error_typ) => {
-  let view_type =
-    CodeViewable.view_typ(
-      ~globals,
-      ~settings={
-        inline: true,
-        fold_case_clauses: false,
-        fold_fn_bodies: false,
-        hide_fixpoints: false,
-        fold_cast_types: false,
-        show_filters: false,
-      },
-      ~info_map=Id.Map.empty,
-    );
+  let view_type = view_type(~globals);
   switch (ok) {
   | FreeTypeVariable(name) => [
-      view_type(Var(name) |> Typ.fresh) |> code_box_container,
+      view_type(Var(name) |> Typ.fresh),
       text("not found"),
     ]
   | BadToken(token) => [code(token), text("not a type or type operator")]
@@ -436,7 +408,7 @@ let typ_err_view = (~globals, ok: Info.error_typ) => {
     ]
   | Duplicate(name, _) => [text("Duplicate Label: "), code(name)]
   | DuplicateConstructor(name) => [
-      view_type(Var(name) |> Typ.fresh) |> code_box_container,
+      view_type(Var(name) |> Typ.fresh),
       text("already used in this sum"),
     ]
   };
@@ -480,19 +452,7 @@ let rec exp_view =
     | _ => None
     };
   let inferred_label = info.inferred_label;
-  let view_type =
-    CodeViewable.view_typ(
-      ~globals,
-      ~settings={
-        inline: true,
-        fold_case_clauses: false,
-        fold_fn_bodies: false,
-        hide_fixpoints: false,
-        fold_cast_types: false,
-        show_filters: false,
-      },
-      ~info_map=Id.Map.empty,
-    );
+  let view_type = view_type(~globals);
   switch (status) {
   | InHole(FreeVariable(name)) => div_err([code(name), text("not found")])
   | InHole(InexhaustiveMatch(additional_err)) =>
@@ -617,19 +577,7 @@ let typ_view = (~globals, cls: Cls.t, status: Info.status_typ) =>
   };
 
 let tpat_view = (~globals, _: Cls.t, status: Info.status_tpat) => {
-  let view_type =
-    CodeViewable.view_typ(
-      ~globals,
-      ~settings={
-        inline: true,
-        fold_case_clauses: false,
-        fold_fn_bodies: false,
-        hide_fixpoints: false,
-        fold_cast_types: false,
-        show_filters: false,
-      },
-      ~info_map=Id.Map.empty,
-    );
+  let view_type = view_type(~globals);
   switch (status) {
   | NotInHole(Empty) => div_ok([text("Fillable with a new alias")])
   | NotInHole(Var(name)) => div_ok([ContextInspector.alias_view(name)])
@@ -639,17 +587,17 @@ let tpat_view = (~globals, _: Cls.t, status: Info.status_tpat) => {
   | InHole(ShadowsType(name, BaseTyp)) =>
     div_err([
       text("Can't shadow base type"),
-      view_type(Var(name) |> Typ.fresh) |> code_box_container,
+      view_type(Var(name) |> Typ.fresh),
     ])
   | InHole(ShadowsType(name, TyAlias)) =>
     div_err([
       text("Can't shadow existing alias"),
-      view_type(Var(name) |> Typ.fresh) |> code_box_container,
+      view_type(Var(name) |> Typ.fresh),
     ])
   | InHole(ShadowsType(name, TyVar)) =>
     div_err([
       text("Can't shadow existing type variable"),
-      view_type(Var(name) |> Typ.fresh) |> code_box_container,
+      view_type(Var(name) |> Typ.fresh),
     ])
   };
 };

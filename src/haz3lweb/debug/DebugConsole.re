@@ -7,7 +7,7 @@ open Haz3lcore;
 let print =
     (~settings: Settings.t, editor: CodeWithStatics.Model.t, key: string)
     : unit => {
-  let {editor: {state: {zipper, _}, _}, statics}: CodeWithStatics.Model.t = editor;
+  let {editor: {state: {zipper, _}, _}, statics, _}: CodeWithStatics.Model.t = editor;
   let term = statics.term;
   let map = statics.info_map;
   let print = print_endline;
@@ -16,12 +16,14 @@ let print =
   | "F2" => zipper |> Zipper.unselect_and_zip |> Segment.show |> print
   | "F3" => term |> Exp.show |> print
   | "F4" => map |> Statics.Map.show |> print
-  | "F5" =>
+  | "F5" when settings.core.dynamics =>
     let env_init = Builtins.env_init;
     statics.elaborated
-    |> Evaluator.evaluate(~settings=settings.core, ~env=env_init)
-    |> ProgramResult.show(ProgramResult.pp_inner)
+    |> Evaluator.evaluate(~env=env_init)
+    |> fst
+    |> DHExp.show
     |> print;
+  | "F5" => print("Dynamics disabled, cannot show evaluation.")
   | "F6" =>
     let index = Indicated.index(zipper);
     switch (index) {

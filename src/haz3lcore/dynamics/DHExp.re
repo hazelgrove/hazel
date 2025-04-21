@@ -14,50 +14,10 @@ let mk = (ids, term): t => {
   {
     term,
     annotation: {
-      ids,
-      copied: true,
+      ids: ids,
     },
   };
 };
-
-// TODO: make this function emit a map of changes
-let repair_ids =
-  map_term(
-    ~f_exp=
-      (continue, exp) =>
-        if (IdTagged.copied(exp)) {
-          replace_all_ids(exp);
-        } else {
-          continue(exp);
-        },
-    ~f_typ=
-      (continue, typ) =>
-        if (Typ.rep_id(typ) == Id.invalid) {
-          replace_all_ids_typ(typ);
-        } else {
-          continue(typ);
-        },
-    _,
-  );
-
-let repair_ids_typ =
-  Typ.map_term(
-    ~f_exp=
-      (continue, exp) =>
-        if (Exp.rep_id(exp) == Id.invalid) {
-          replace_all_ids(exp);
-        } else {
-          continue(exp);
-        },
-    ~f_typ=
-      (continue, typ) =>
-        if (IdTagged.copied(typ)) {
-          replace_all_ids_typ(typ);
-        } else {
-          continue(typ);
-        },
-    _,
-  );
 
 // Also strips static error holes - kinda like unelaboration
 let rec strip_casts =
@@ -150,16 +110,15 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | Undefined
           | Constructor(_)
           | Var(_)
-          | Bool(_)
-          | Int(_)
-          | Float(_)
-          | String(_)
+          | Atom(_)
           | FailedCast(_, _, _)
           | MultiHole(_)
           | Deferral(_)
           | TyAlias(_)
+          | Use(_)
           | DeferredAp(_)
           | Parens(_)
+          | Probe(_)
           | UnOp(_) => continue(exp)
           },
       exp,
@@ -197,19 +156,16 @@ let rec ty_consistent = (d1, d2) => {
   | (UnOp(_), _)
   | (BinOp(_), _)
   | (Match(_), _)
+  | (Probe(_), _)
+  | (Use(_), _)
   | (Dot(_), _) => false
   | (Parens(d1), _) => ty_consistent(d1, d2)
   | (_, Parens(d2)) => ty_consistent(d1, d2)
   | (Cast(d1, _, _), _) => ty_consistent(d1, d2)
   | (_, Cast(d2, _, _)) => ty_consistent(d1, d2)
-  | (Int(_), Int(_)) => true
-  | (Int(_), _) => false
-  | (Float(_), Float(_)) => true
-  | (Float(_), _) => false
-  | (Bool(_), Bool(_)) => true
-  | (Bool(_), _) => false
-  | (String(_), String(_)) => true
-  | (String(_), _) => false
+  // TODO(zhiyao): are we allowed to compare int/sint/nat?
+  | (Atom(t1), Atom(t2)) => t1 == t2
+  | (Atom(_), _) => false
   | (Label(_), Label(_)) => true
   | (Label(_), _) => false
   | (TupLabel(l1, d1), TupLabel(l2, d2)) =>
@@ -234,12 +190,20 @@ let rec ty_consistent = (d1, d2) => {
     && List.for_all2(ty_consistent, ds1, ds2)
   | (Tuple(_), _) => false
   | (
-      Constructor(_, Some(t1)) |
-      Ap(_, {term: Constructor(_, Some({term: Arrow(_, t1), _})), _}, _),
-      Constructor(_, Some(t2)) |
-      Ap(_, {term: Constructor(_, Some({term: Arrow(_, t2), _})), _}, _),
+      Constructor(_, Some(Some(t1))) |
+      Ap(
+        _,
+        {term: Constructor(_, Some(Some({term: Arrow(_, t1), _}))), _},
+        _,
+      ),
+      Constructor(_, Some(Some(t2))) |
+      Ap(
+        _,
+        {term: Constructor(_, Some(Some({term: Arrow(_, t2), _}))), _},
+        _,
+      ),
     ) =>
-    Typ.is_consistent([], t1, t2)
+    Typ.is_consistent(Ctx.empty_post_elaboration, t1, t2)
   | (Constructor(_), _) => false
   | (Ap(_), _) => false
   };
@@ -271,10 +235,9 @@ let rec ty_has_arrow = (d: t): bool =>
   | BinOp(_)
   | Match(_)
   | Dot(_)
-  | Int(_)
-  | Float(_)
-  | Bool(_)
-  | String(_)
+  | Atom(_)
+  | Probe(_)
+  | Use(_)
   | Label(_) => false
   | Parens(d)
   | Cast(d, _, _)
@@ -284,12 +247,17 @@ let rec ty_has_arrow = (d: t): bool =>
   | TypFun(_) => true
   | ListLit(ds)
   | Tuple(ds) => List.exists(ty_has_arrow, ds)
-  | Constructor(_, Some(t)) => Typ.has_arrow([], t)
+  | Constructor(_, Some(Some(t))) =>
+    Typ.has_arrow(Ctx.empty_post_elaboration, t)
   | Constructor(_) => false
-  | Ap(_, {term: Constructor(_, Some({term: Arrow(_, t), _})), _}, d) =>
+  | Ap(
+      _,
+      {term: Constructor(_, Some(Some({term: Arrow(_, t), _}))), _},
+      d,
+    ) =>
     // Note(zhiyao): It's necessary to check the type of the argument because
     // elaborated types may contain Hole.
-    Typ.has_arrow([], t) || ty_has_arrow(d)
+    Typ.has_arrow(Ctx.empty_post_elaboration, t) || ty_has_arrow(d)
   | Ap(_, _, _) => false
   };
 
@@ -322,19 +290,16 @@ let rec poly_equal = (d1, d2): bool => {
   | (Dot(_), _)
   | (Fun(_), _)
   | (TypFun(_), _)
+  | (Probe(_), _)
+  | (Use(_), _)
   | (BuiltinFun(_), _) => false
   | (Parens(d1), _) => poly_equal(d1, d2)
   | (_, Parens(d2)) => poly_equal(d1, d2)
   | (Cast(d1, _, _), _) => poly_equal(d1, d2)
   | (_, Cast(d2, _, _)) => poly_equal(d1, d2)
-  | (Bool(b1), Bool(b2)) => b1 == b2
-  | (Bool(_), _) => false
-  | (Int(i1), Int(i2)) => i1 == i2
-  | (Int(_), _) => false
-  | (Float(f1), Float(f2)) => f1 == f2
-  | (Float(_), _) => false
-  | (String(s1), String(s2)) => s1 == s2
-  | (String(_), _) => false
+  // TODO(zhiyao): do we want to define equality for atom separately?
+  | (Atom(t1), Atom(t2)) => t1 == t2
+  | (Atom(_), _) => false
   | (Label(l1), Label(l2)) => l1 == l2
   | (Label(_), _) => false
   | (TupLabel(l1, d1), TupLabel(l2, d2)) =>

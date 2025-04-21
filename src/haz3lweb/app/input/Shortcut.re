@@ -96,6 +96,34 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       Globals(ActiveEditor(Select(All))),
     ),
     mk_shortcut(
+      ~hotkey="alt+f",
+      ~mdIcon="camera",
+      ~section="Projection",
+      "Fold",
+      Globals(ActiveEditor(Project(SetIndicated(Specific(Fold))))),
+    ),
+    mk_shortcut(
+      ~hotkey="alt+v",
+      ~mdIcon="camera",
+      ~section="Projection",
+      "Probe",
+      Globals(ActiveEditor(Project(SetIndicated(Specific(Probe))))),
+    ),
+    mk_shortcut(
+      ~hotkey="alt+t",
+      ~mdIcon="camera",
+      ~section="Projection",
+      "Type",
+      Globals(ActiveEditor(Project(SetIndicated(Specific(Info))))),
+    ),
+    mk_shortcut(
+      ~hotkey="alt+l",
+      ~mdIcon="camera",
+      ~section="Projection",
+      "Livelit",
+      Globals(ActiveEditor(Project(SetIndicated(ChooseLivelit)))),
+    ),
+    mk_shortcut(
       ~section="Settings",
       ~mdIcon="tune",
       "Toggle Statics",
@@ -217,6 +245,13 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       "Run Benchmark",
       Benchmark(Start),
     ),
+    mk_shortcut(
+      ~mdIcon="bolt",
+      ~section="Refactoring",
+      ~hotkey=Keyboard.meta(sys) ++ "+i",
+      "Introduce",
+      Globals(ActiveEditor(Introduce)),
+    ),
   ]
   @ (if (ExerciseSettings.show_instructor) {instructor_shortcuts} else {[]});
 
@@ -240,8 +275,7 @@ let from_shortcut =
      val section = Js.Optdef.option(shortcut.section);
      val handler =
        () => {
-         let foo = shortcut.update_action;
-         switch (foo) {
+         switch (shortcut.update_action) {
          | Some(update) => schedule_action(update)
          | None =>
            print_endline("Could not find action for " ++ shortcut.label)

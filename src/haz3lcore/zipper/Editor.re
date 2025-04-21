@@ -6,7 +6,6 @@ module CachedSyntax = {
     segment: Segment.t,
     measured: Measured.t,
     tiles: TileMap.t,
-    holes: list(Grout.t),
     selection_ids: list(Id.t),
     /* The term-derived data structured below, may differ
      * from the term used for semantics. These terms are identical when
@@ -23,7 +22,13 @@ module CachedSyntax = {
      * certain ids to be present/non-present unexpectedly. */
     term_ranges: TermRanges.t,
     terms: TermMap.t,
+    /* Since the introduction of shape_map below, caching projectors
+     * here is almost vesigial (currently used only for error deco) */
     projectors: Id.Map.t(Base.projector),
+    /* The shape_map is used to leave space for projectors in the
+     * underlying editor. In principle calculating this can involve
+     * both static and dynamic information, so we cache this for perf */
+    shape_map: ProjectorCore.Shape.Map.t,
   };
 
   // should not be serializing
@@ -32,27 +37,29 @@ module CachedSyntax = {
   let yojson_of_t = _ => failwith("Editor.Meta.yojson_of_t");
   let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 
-  let init = (z, info_map): t => {
+  let init = (~info_map, ~dyn_map, z): t => {
     let segment = Zipper.unselect_and_zip(z);
     let MakeTerm.{term: _, terms, projectors} = MakeTerm.go(segment);
+    let projector_shapes =
+      ProjectorInfo.ShapeMapSemantics.mk(projectors, info_map, dyn_map);
     {
       old: false,
       segment,
       term_ranges: TermRanges.mk(segment),
       tiles: TileMap.mk(segment),
-      holes: Segment.holes(segment),
-      measured: Measured.of_segment(segment, info_map),
+      measured: Measured.of_segment(segment, projector_shapes),
       selection_ids: Selection.selection_ids(z.selection),
       terms,
       projectors,
+      shape_map: projector_shapes,
     };
   };
 
   let mark_old: t => t = old => {...old, old: true};
 
-  let calculate = (z: Zipper.t, info_map, old: t) =>
+  let calculate = (z: Zipper.t, info_map, dyn_map, old: t) =>
     old.old
-      ? init(z, info_map)
+      ? init(z, ~info_map, ~dyn_map)
       : {...old, selection_ids: Selection.selection_ids(z.selection)};
 };
 
@@ -95,7 +102,12 @@ module Model = {
       col_target: None,
     },
     history: History.empty,
-    syntax: CachedSyntax.init(zipper, Id.Map.empty),
+    syntax:
+      CachedSyntax.init(
+        zipper,
+        ~info_map=Id.Map.empty,
+        ~dyn_map=Id.Map.empty,
+      ),
   };
 
   type persistent = PersistentZipper.t;
@@ -127,9 +139,6 @@ module Model = {
       };
     };
   };
-
-  let indicated_projector = (editor: t) =>
-    Projector.indicated(editor.state.zipper);
 };
 
 module Update = {
@@ -195,6 +204,9 @@ module Update = {
         state.zipper,
       );
 
+    settings.flip_animations && Action.should_animate(a)
+      ? Animation.request([Animation.Actions.move("caret")]) : ();
+
     // Recombine
     Model.{
       state: {
@@ -239,6 +251,7 @@ module Update = {
         ~settings: CoreSettings.t,
         ~is_edited,
         new_statics,
+        dyn_map,
         {syntax, state, history}: Model.t,
       ) => {
     // 1. Recalculate the autocomplete buffer if necessary
@@ -262,7 +275,8 @@ module Update = {
     // 2. Recalculate syntax cache
     let syntax = is_edited ? CachedSyntax.mark_old(syntax) : syntax;
 
-    let syntax = CachedSyntax.calculate(zipper, new_statics.info_map, syntax);
+    let syntax =
+      CachedSyntax.calculate(zipper, new_statics.info_map, dyn_map, syntax);
 
     // Recombine
     Model.{

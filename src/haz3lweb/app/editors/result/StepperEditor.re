@@ -35,11 +35,19 @@ module Update = {
         ~settings,
         ~is_edited,
         ~stitch,
+        ~dynamics: Dynamics.Map.t,
         {editor, taken_steps, next_steps}: Model.t,
       )
       : Model.t => {
     let editor =
-      CodeSelectable.Update.calculate(~settings, ~is_edited, ~stitch, editor);
+      CodeSelectable.Update.calculate(
+        ~settings,
+        ~is_edited,
+        ~stitch,
+        ~dynamics,
+        ~is_dynamic_term=true,
+        editor,
+      );
     {editor, taken_steps, next_steps};
   };
 };

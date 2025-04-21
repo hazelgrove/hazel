@@ -81,6 +81,10 @@ let show = id =>
     to_string(id),
   );
 
+let str3 = (id: t) => id |> to_string |> String.sub(_, 0, 3);
+let str8 = (id: t) => id |> to_string |> String.sub(_, 0, 8);
+let cls = (id: t) => "id" ++ str8(id);
+
 [@deriving (sexp, yojson)]
 type binding('v) = (t, 'v);
 
