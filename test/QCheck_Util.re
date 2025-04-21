@@ -7,7 +7,7 @@ open Haz3lmenhir;
  * This uses the generator from the Haz3lmenhir AST to produce random instances of `Exp.t`
  * for property-based testing.
  */
-let arb_exp: arbitrary(Exp.t) = {
+let arb_exp = (~minimal_idents: bool, size: int) => {
   let show_core_exp = exp =>
     exp
     |> ExpToSegment.exp_to_segment(
@@ -27,7 +27,7 @@ let arb_exp: arbitrary(Exp.t) = {
       (menhir_exp: AST.exp) =>
         Conversion.Exp.of_menhir_ast(menhir_exp)
         |> Grammar.map_exp_annotation(_ => IdTagged.IdTag.fresh()),
-      AST.arb_exp,
+      AST.arb_exp(~minimal_idents, size),
     );
   set_print(show_core_exp, arb_exp);
 };

@@ -970,7 +970,7 @@ in 1|},
       QCheck.Test.make(
         ~name="Elaboration does not crash",
         ~count=1000,
-        QCheck_Util.arb_exp,
+        QCheck_Util.arb_exp(~minimal_idents=true, 50),
         exp => {
           let _ = dhexp_of_uexp(exp);
           true;

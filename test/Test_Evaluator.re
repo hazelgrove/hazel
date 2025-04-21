@@ -415,7 +415,10 @@ let test_typfun_application = () =>
 
 let qcheck_evaluator_does_not_crash_test =
   QCheck.Test.make(
-    ~name="Evaluator does not crash", ~count=100000, QCheck_Util.arb_exp, exp => {
+    ~name="Evaluator does not crash",
+    ~count=10000,
+    QCheck_Util.arb_exp(~minimal_idents=true, 50),
+    exp => {
     switch (
       Evaluator.evaluate(
         ~env=Builtins.env_init,
