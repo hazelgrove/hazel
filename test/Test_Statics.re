@@ -158,7 +158,7 @@ let qcheck_statics_does_not_crash =
   QCheck.Test.make(
     ~name="Statics does not crash",
     ~count=10000,
-    QCheck_Util.arb_exp,
+    QCheck_Util.arb_exp(~minimal_idents=true, 50),
     exp => {
       let _ = statics(exp);
       true;
