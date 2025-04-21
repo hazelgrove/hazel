@@ -502,7 +502,7 @@ module Selection = {
     };
   };
 
-  let handle_key_event = (~selection: t, ~event, model: Model.t) => {
+  let handle_key_event = (~selection: t, ~event, model: Model.t): option(Update.t) => {
     switch (selection) {
     | Cell(pos, s) =>
       switch (Exercise.get_stitched(pos, model.cells)) {
