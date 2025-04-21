@@ -1,6 +1,6 @@
+open Haz3lcore;
 open Haz3lmenhir;
 open Alcotest;
-open Haz3lcore;
 module Fresh = IdTagged.FreshGrammar;
 let alco_check =
   testable(
