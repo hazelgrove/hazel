@@ -3,3 +3,12 @@
 
 (rule
  (copy ../worker.bc.js worker.js))
+
+(rule
+ (targets bundled.js)
+ (action
+  (run
+   %{project_root}/node_modules/esbuild/bin/esbuild
+   prebundle.js
+   --bundle
+   --outfile=bundled.js)))

@@ -39,6 +39,7 @@ let exp_to_segment_settings: ExpToSegment.Settings.t = {
   hide_fixpoints: false,
   fold_cast_types: false,
   show_filters: true,
+  show_unknown_as_hole: true,
 };
 let equivalent_to_make_term = (serialized: string) => {
   switch (Printer.zipper_of_string(serialized)) {
@@ -84,7 +85,7 @@ let tests = (
               children: [],
             }),
           ],
-          exp_to_segment(Exp.temp(Int(1))),
+          exp_to_segment(Exp.temp(Atom(Int(Bigint.of_int(1))))),
         );
         check(
           segment,
@@ -98,7 +99,7 @@ let tests = (
               children: [],
             }),
           ],
-          exp_to_segment(Exp.temp(String("hello"))),
+          exp_to_segment(Exp.temp(Atom(String("hello")))),
         );
       },
     ),
@@ -120,7 +121,7 @@ let tests = (
               Cast(
                 ListLit([]) |> Pat.fresh,
                 Sum([Variant("Jg", [], None)]) |> Typ.fresh,
-                Float |> Typ.fresh,
+                Atom(Float) |> Typ.fresh,
               )
               |> Pat.fresh,
               EmptyHole |> Exp.fresh,
@@ -162,7 +163,12 @@ let tests = (
           zipper_parse("(1, 2)"),
           Some(
             exp_to_segment(
-              Exp.temp(Tuple([Exp.temp(Int(1)), Exp.temp(Int(2))])),
+              Exp.temp(
+                Tuple([
+                  Exp.temp(Atom(Int(Bigint.of_int(1)))),
+                  Exp.temp(Atom(Int(Bigint.of_int(2)))),
+                ]),
+              ),
             ),
           ),
         );
@@ -181,7 +187,10 @@ let tests = (
               Exp.temp(
                 Tuple([
                   Exp.temp(
-                    TupLabel(Exp.temp(Label("x")), Exp.temp(Int(1))),
+                    TupLabel(
+                      Exp.temp(Label("x")),
+                      Exp.temp(Atom(Int(Bigint.of_int(1)))),
+                    ),
                   ),
                 ]),
               ),
@@ -205,8 +214,14 @@ let tests = (
             Match(
               Var("x") |> Exp.fresh,
               [
-                (Constructor("A", None) |> Pat.fresh, Int(1) |> Exp.fresh),
-                (Constructor("B", None) |> Pat.fresh, Int(2) |> Exp.fresh),
+                (
+                  Constructor("A", None) |> Pat.fresh,
+                  Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
+                ),
+                (
+                  Constructor("B", None) |> Pat.fresh,
+                  Atom(Int(Bigint.of_int(2))) |> Exp.fresh,
+                ),
               ],
             )
             |> Exp.fresh,
@@ -230,8 +245,8 @@ let tests = (
             DeferredAp(
               Var("string_sub") |> Exp.fresh,
               [
-                String("hello") |> Exp.fresh,
-                Int(1) |> Exp.fresh,
+                Atom(String("hello")) |> Exp.fresh,
+                Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
                 Deferral(InAp) |> Exp.fresh,
               ],
             )
@@ -252,7 +267,7 @@ let tests = (
       `Quick,
       () => {
         let segment =
-          segmentize(Test(Bool(true) |> Exp.fresh) |> Exp.fresh);
+          segmentize(Test(Atom(Bool(true)) |> Exp.fresh) |> Exp.fresh);
         let serialized = Printer.of_segment(~holes=Some("?"), segment);
 
         check(string, "Test of true", {|test true end|}, serialized);
@@ -265,8 +280,11 @@ let tests = (
         let segment =
           segmentize(
             Filter(
-              Filter({pat: Int(1) |> Exp.fresh, act: (Step, One)}),
-              Int(2) |> Exp.fresh,
+              Filter({
+                pat: Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
+                act: (Step, One),
+              }),
+              Atom(Int(Bigint.of_int(2))) |> Exp.fresh,
             )
             |> Exp.fresh,
           );
@@ -287,8 +305,12 @@ let tests = (
             segmentize(
               BinOp(
                 Int(Power),
-                Int(2) |> Exp.fresh,
-                BinOp(Int(Power), Int(3) |> Exp.fresh, Int(4) |> Exp.fresh)
+                Atom(Int(Bigint.of_int(2))) |> Exp.fresh,
+                BinOp(
+                  Int(Power),
+                  Atom(Int(Bigint.of_int(3))) |> Exp.fresh,
+                  Atom(Int(Bigint.of_int(4))) |> Exp.fresh,
+                )
                 |> Exp.fresh,
               )
               |> Exp.fresh,
@@ -304,9 +326,13 @@ let tests = (
             segmentize(
               BinOp(
                 Int(Power),
-                BinOp(Int(Power), Int(2) |> Exp.fresh, Int(3) |> Exp.fresh)
+                BinOp(
+                  Int(Power),
+                  Atom(Int(Bigint.of_int(2))) |> Exp.fresh,
+                  Atom(Int(Bigint.of_int(3))) |> Exp.fresh,
+                )
                 |> Exp.fresh,
-                Int(4) |> Exp.fresh,
+                Atom(Int(Bigint.of_int(4))) |> Exp.fresh,
               )
               |> Exp.fresh,
             ),
@@ -322,11 +348,12 @@ let tests = (
               TyAlias(
                 Var("x") |> TPat.fresh,
                 Arrow(
-                  Arrow(Int |> Typ.fresh, Bool |> Typ.fresh) |> Typ.fresh,
+                  Arrow(Atom(Int) |> Typ.fresh, Atom(Bool) |> Typ.fresh)
+                  |> Typ.fresh,
                   Var("x") |> Typ.fresh,
                 )
                 |> Typ.fresh,
-                Int(1) |> Exp.fresh,
+                Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
               )
               |> Exp.fresh,
             ),
@@ -351,6 +378,28 @@ let tests = (
     }),
     test_case("Function call", `Quick, () => {
       equivalent_to_make_term("a(1, 2)")
+    }),
+    test_case("Unit pattern", `Quick, () => {
+      check(
+        string,
+        "Unit pattern",
+        "()",
+        Printer.of_segment(
+          ~holes=Some("?"),
+          ExpToSegment.any_to_segment(
+            ~settings={
+              inline: true,
+              fold_case_clauses: false,
+              fold_fn_bodies: false,
+              hide_fixpoints: false,
+              fold_cast_types: false,
+              show_filters: true,
+              show_unknown_as_hole: true,
+            },
+            Pat(Tuple([]) |> Pat.fresh),
+          ),
+        ),
+      )
     }),
   ],
 );

@@ -24,6 +24,7 @@ type fun_examples =
   | Basic
   | Wild
   | IntLit
+  | SIntLit
   | FloatLit
   | BoolLit
   | StrLit
@@ -80,7 +81,8 @@ type numeric_bin_op_examples =
   | EqualFalse
   | EqualTrue
   | PolyEqualFalse
-  | PolyEqualTrue;
+  | PolyEqualTrue
+  | PolyNotEqualTrue;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type example_id =
@@ -101,6 +103,7 @@ type example_id =
   | TupleLabeled2
   | TupleLabeled3
   | Let(let_examples)
+  | UseExp1
   | TypFunAp
   | FunAp
   | ConAp
@@ -146,6 +149,7 @@ type pat_sub_form_id =
   | EmptyHole
   | MultiHole
   | Wild
+  | SInt
   | Int
   | Float
   | Bool
@@ -171,6 +175,8 @@ type form_id =
   | DeferralExp
   | BoolExp
   | IntExp
+  | SIntExp
+  | NatExp
   | FloatExp
   | StringExp
   | VarExp
@@ -193,6 +199,7 @@ type form_id =
   | DeferredApExp
   | IfExp
   | SeqExp
+  | UseExp
   | TestExp
   | UnOpExp(Operators.op_un)
   | BinOpExp(Operators.op_bin)
@@ -221,6 +228,8 @@ type form_id =
   | EmptyHoleTyp
   | MultiHoleTyp
   | IntTyp
+  | SIntTyp
+  | NatTyp
   | FloatTyp
   | BoolTyp
   | StrTyp
@@ -270,6 +279,8 @@ type group_id =
   | DeferralExp
   | BoolExp
   | IntExp
+  | SIntExp
+  | NatExp
   | FloatExp
   | StringExp
   | VarExp
@@ -298,10 +309,12 @@ type group_id =
   | CaseExp
   | TyAliasExp
   | PipelineExp
+  | UseExp
   | EmptyHolePat
   | MultiHolePat
   | WildPat
   | IntPat
+  | SIntPat
   | FloatPat
   | BoolPat
   | StrPat
@@ -321,6 +334,7 @@ type group_id =
   | EmptyHoleTyp
   | MultiHoleTyp
   | IntTyp
+  | NatTyp
   | FloatTyp
   | BoolTyp
   | StrTyp

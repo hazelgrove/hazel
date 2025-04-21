@@ -425,9 +425,9 @@ let wrap_filter = (act: FilterAction.action, term: Exp.t): Exp.t => {
       Filter({
         act: FilterAction.(act, One),
         pat: {
-          term: Constructor("$e", Some(Unknown(Internal) |> Typ.fresh)),
+          term:
+            Constructor("$e", Some(Some(Unknown(Internal) |> Typ.fresh))),
           annotation: {
-            copied: false,
             ids: [Id.mk()],
           },
         },
@@ -435,7 +435,6 @@ let wrap_filter = (act: FilterAction.action, term: Exp.t): Exp.t => {
       term,
     ),
   annotation: {
-    copied: false,
     ids: [Id.mk()],
   },
 };
@@ -469,7 +468,9 @@ let stitch_term = (eds: p('a)): stitched(TermItem.t) => {
     EditorUtil.append_exp(user_impl_term, term_of(eds.hidden_tests.tests));
   {
     test_validation: wrap(test_validation_term, eds.your_tests.tests),
-    user_impl: wrap(user_impl_term, eds.your_impl),
+    /* Passing tests term to user_impl so probes in impl reflect tests: */
+    //user_impl: wrap(user_impl_term, eds.your_impl),
+    user_impl: wrap(user_tests_term, eds.your_impl),
     user_tests: wrap(user_tests_term, eds.your_tests.tests),
     // instructor works here as long as you don't shadow anything in the prelude
     prelude: wrap(instructor, eds.prelude),

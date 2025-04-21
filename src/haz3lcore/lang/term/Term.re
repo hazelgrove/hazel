@@ -5,10 +5,7 @@ module Pat = {
     | EmptyHole
     | MultiHole
     | Wild
-    | Int
-    | Float
-    | Bool
-    | String
+    | Atom(Atom.cls)
     | ListLit
     | Constructor
     | Cons
@@ -17,6 +14,7 @@ module Pat = {
     | TupLabel
     | Tuple
     | Parens
+    | Probe
     | Ap
     | Cast;
 
@@ -45,10 +43,7 @@ module Pat = {
     | EmptyHole => EmptyHole
     | MultiHole(_) => MultiHole
     | Wild => Wild
-    | Int(_) => Int
-    | Float(_) => Float
-    | Bool(_) => Bool
-    | String(_) => String
+    | Atom(c) => Atom(Atom.cls_of_t(c))
     | ListLit(_) => ListLit
     | Constructor(_) => Constructor
     | Cons(_) => Cons
@@ -57,6 +52,7 @@ module Pat = {
     | TupLabel(_) => TupLabel
     | Tuple(_) => Tuple
     | Parens(_) => Parens
+    | Probe(_) => Probe
     | Ap(_) => Ap
     | Cast(_) => Cast;
 
@@ -66,10 +62,12 @@ module Pat = {
     | MultiHole => "Broken pattern"
     | EmptyHole => "Empty pattern hole"
     | Wild => "Wildcard"
-    | Int => "Integer literal"
-    | Float => "Float literal"
-    | Bool => "Boolean literal"
-    | String => "String literal"
+    | Atom(Int) => "Number literal"
+    | Atom(Float) => "Float literal"
+    | Atom(Bool) => "Boolean literal"
+    | Atom(String) => "String literal"
+    | Atom(Nat) => "Natural number literal"
+    | Atom(SInt) => "System integer literal"
     | ListLit => "List literal"
     | Constructor => "Constructor"
     | Cons => "Cons"
@@ -78,12 +76,14 @@ module Pat = {
     | TupLabel => "Labeled Tuple Item"
     | Tuple => "Tuple"
     | Parens => "Parenthesized pattern"
+    | Probe => "Probe"
     | Ap => "Constructor application"
     | Cast => "Annotation";
 
   let rec is_var = (pat: t) => {
     switch (pat.term) {
     | Parens(pat)
+    | Probe(pat, _)
     | TupLabel(_, pat)
     | Cast(pat, _, _) => is_var(pat)
     | Var(_) => true
@@ -91,10 +91,7 @@ module Pat = {
     | EmptyHole
     | MultiHole(_)
     | Wild
-    | Int(_)
-    | Float(_)
-    | Bool(_)
-    | String(_)
+    | Atom(_)
     | ListLit(_)
     | Cons(_, _)
     | Tuple(_)
@@ -107,6 +104,7 @@ module Pat = {
   let rec is_fun_var = (pat: t) => {
     switch (pat.term) {
     | Parens(pat)
+    | Probe(pat, _)
     | TupLabel(_, pat) => is_fun_var(pat)
     | Cast(pat, typ, _) =>
       is_var(pat) && (Typ.is_arrow(typ) || Typ.is_forall(typ))
@@ -114,10 +112,7 @@ module Pat = {
     | EmptyHole
     | MultiHole(_)
     | Wild
-    | Int(_)
-    | Float(_)
-    | Bool(_)
-    | String(_)
+    | Atom(_)
     | ListLit(_)
     | Cons(_, _)
     | Var(_)
@@ -132,7 +127,8 @@ module Pat = {
     is_fun_var(pat)
     || (
       switch (pat.term) {
-      | Parens(pat) => is_tuple_of_arrows(pat)
+      | Parens(pat)
+      | Probe(pat, _)
       | TupLabel(_, pat) => is_tuple_of_arrows(pat)
       | Tuple(pats) => pats |> List.for_all(is_fun_var)
       | Label(_)
@@ -140,10 +136,7 @@ module Pat = {
       | EmptyHole
       | MultiHole(_)
       | Wild
-      | Int(_)
-      | Float(_)
-      | Bool(_)
-      | String(_)
+      | Atom(_)
       | ListLit(_)
       | Cons(_, _)
       | Var(_)
@@ -158,6 +151,7 @@ module Pat = {
     || (
       switch (pat.term) {
       | Parens(pat)
+      | Probe(pat, _)
       | Cast(pat, _, _)
       | TupLabel(_, pat) => is_tuple_of_vars(pat)
       | Tuple(pats) => pats |> List.for_all(is_var)
@@ -166,10 +160,7 @@ module Pat = {
       | EmptyHole
       | MultiHole(_)
       | Wild
-      | Int(_)
-      | Float(_)
-      | Bool(_)
-      | String(_)
+      | Atom(_)
       | ListLit(_)
       | Cons(_, _)
       | Var(_)
@@ -180,18 +171,16 @@ module Pat = {
 
   let rec get_var = (pat: t) => {
     switch (pat.term) {
-    | TupLabel(_, pat)
-    | Parens(pat) => get_var(pat)
+    | Parens(pat)
+    | Probe(pat, _)
+    | TupLabel(_, pat) => get_var(pat)
     | Var(x) => Some(x)
     | Cast(x, _, _) => get_var(x)
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
     | Wild
-    | Int(_)
-    | Float(_)
-    | Bool(_)
-    | String(_)
+    | Atom(_)
     | ListLit(_)
     | Cons(_, _)
     | Label(_)
@@ -204,6 +193,7 @@ module Pat = {
   let rec get_fun_var = (pat: t) => {
     switch (pat.term) {
     | Parens(pat)
+    | Probe(pat, _)
     | TupLabel(_, pat) => get_fun_var(pat)
     | Cast(pat, t1, _) =>
       if (Typ.is_arrow(t1) || Typ.is_forall(t1)) {
@@ -215,10 +205,7 @@ module Pat = {
     | EmptyHole
     | MultiHole(_)
     | Wild
-    | Int(_)
-    | Float(_)
-    | Bool(_)
-    | String(_)
+    | Atom(_)
     | ListLit(_)
     | Cons(_, _)
     | Var(_)
@@ -235,6 +222,7 @@ module Pat = {
     | None =>
       switch (pat.term) {
       | Parens(pat)
+      | Probe(pat, _)
       | Cast(pat, _, _)
       | TupLabel(_, pat) => get_bindings(pat)
       | Tuple(pats) =>
@@ -249,10 +237,7 @@ module Pat = {
       | EmptyHole
       | MultiHole(_)
       | Wild
-      | Int(_)
-      | Float(_)
-      | Bool(_)
-      | String(_)
+      | Atom(_)
       | ListLit(_)
       | Cons(_, _)
       | Var(_)
@@ -267,6 +252,7 @@ module Pat = {
     } else {
       switch (pat.term) {
       | Parens(pat)
+      | Probe(pat, _)
       | Cast(pat, _, _)
       | TupLabel(_, pat) => get_num_of_vars(pat)
       | Tuple(pats) =>
@@ -276,10 +262,7 @@ module Pat = {
       | EmptyHole
       | MultiHole(_)
       | Wild
-      | Int(_)
-      | Float(_)
-      | Bool(_)
-      | String(_)
+      | Atom(_)
       | ListLit(_)
       | Cons(_, _)
       | Var(_)
@@ -309,27 +292,37 @@ module Pat = {
   let get_label: t => option(LabeledTuple.label) =
     p => match_tup_label(p) |> Option.map(fst);
 
-  let rec bound_vars = (dp: t): list(Var.t) =>
+  let rec bindings = (dp: t): Binding.s =>
     switch (dp |> term_of) {
     | EmptyHole
     | MultiHole(_)
     | Wild
     | Invalid(_)
-    | Int(_)
-    | Float(_)
-    | Bool(_)
-    | String(_)
+    | Atom(_)
     | Label(_)
     | Constructor(_) => []
     | Cast(y, _, _)
-    | Parens(y) => bound_vars(y)
-    | Var(y) => [y]
-    | TupLabel(_, dp) => bound_vars(dp)
-    | Tuple(dps) => List.flatten(List.map(bound_vars, dps))
-    | Cons(dp1, dp2) => bound_vars(dp1) @ bound_vars(dp2)
-    | ListLit(dps) => List.flatten(List.map(bound_vars, dps))
-    | Ap(_, dp1) => bound_vars(dp1)
+    | Parens(y)
+    | TupLabel(_, y)
+    | Probe(y, _) => bindings(y)
+    | Var(name) => [{name, id: rep_id(dp)}]
+    | Tuple(dps) => List.flatten(List.map(bindings, dps))
+    | Cons(dp1, dp2) => bindings(dp1) @ bindings(dp2)
+    | ListLit(dps) => List.flatten(List.map(bindings, dps))
+    | Ap(_, dp1) => bindings(dp1)
     };
+
+  let bound_vars = (dp: t): list(Var.t) =>
+    dp |> bindings |> List.map((b: Binding.t) => b.name);
+
+  let bound_var_ids = (ctx, pat): list(Binding.t) =>
+    bound_vars(pat)
+    |> List.map(name =>
+         switch (Ctx.lookup_var(ctx, name)) {
+         | Some({id, _}) => Binding.{id, name}
+         | None => {id: Id.invalid, name}
+         }
+       );
 };
 
 module Exp = {
@@ -342,10 +335,7 @@ module Exp = {
     | FailedCast
     | Deferral
     | Undefined
-    | Bool
-    | Int
-    | Float
-    | String
+    | Atom(Atom.cls)
     | ListLit
     | Constructor
     | Fun
@@ -358,6 +348,7 @@ module Exp = {
     | Let
     | FixF
     | TyAlias
+    | Use
     | Ap
     | TypAp
     | DeferredAp
@@ -367,6 +358,7 @@ module Exp = {
     | Filter
     | Closure
     | Parens
+    | Probe
     | Cons
     | UnOp(Operators.op_un)
     | BinOp(Operators.op_bin)
@@ -377,14 +369,12 @@ module Exp = {
 
   include TermBase.Exp;
 
-  let temp: term => t =
-    term => {
-      term,
-      annotation: {
-        ids: [Id.invalid],
-        copied: false,
-      },
-    };
+  let temp: term => t = term => {
+                          term,
+                          annotation: {
+                            ids: [Id.invalid],
+                          },
+                        };
   let fresh: term => t = IdTagged.fresh;
 
   let hole = (tms: list(TermBase.Any.t)): term =>
@@ -406,10 +396,7 @@ module Exp = {
     | FailedCast(_) => FailedCast
     | Deferral(_) => Deferral
     | Undefined => Undefined
-    | Bool(_) => Bool
-    | Int(_) => Int
-    | Float(_) => Float
-    | String(_) => String
+    | Atom(c) => Atom(Atom.cls_of_t(c))
     | ListLit(_) => ListLit
     | Constructor(_) => Constructor
     | Fun(_) => Fun
@@ -422,6 +409,7 @@ module Exp = {
     | Let(_) => Let
     | FixF(_) => FixF
     | TyAlias(_) => TyAlias
+    | Use(_) => Use
     | Ap(_) => Ap
     | TypAp(_) => TypAp
     | DeferredAp(_) => DeferredAp
@@ -431,6 +419,7 @@ module Exp = {
     | Filter(_) => Filter
     | Closure(_) => Closure
     | Parens(_) => Parens
+    | Probe(_) => Probe
     | Cons(_) => Cons
     | ListConcat(_) => ListConcat
     | UnOp(op, _) => UnOp(op)
@@ -448,10 +437,12 @@ module Exp = {
     | FailedCast => "Failed cast"
     | Deferral => "Deferral"
     | Undefined => "Undefined expression"
-    | Bool => "Boolean literal"
-    | Int => "Integer literal"
-    | Float => "Float literal"
-    | String => "String literal"
+    | Atom(Int) => "Number literal"
+    | Atom(Float) => "Float literal"
+    | Atom(Bool) => "Boolean literal"
+    | Atom(String) => "String literal"
+    | Atom(Nat) => "Natural number literal"
+    | Atom(SInt) => "System integer literal"
     | ListLit => "List literal"
     | Constructor => "Constructor"
     | Fun => "Function literal"
@@ -464,6 +455,7 @@ module Exp = {
     | Let => "Let expression"
     | FixF => "Fixpoint operator"
     | TyAlias => "Type Alias definition"
+    | Use => "Specify number format to use"
     | Ap => "Application"
     | TypAp => "Type application"
     | DeferredAp => "Partial Application"
@@ -473,6 +465,7 @@ module Exp = {
     | Filter => "Filter"
     | Closure => "Closure"
     | Parens => "Parenthesized expression"
+    | Probe => "Probe"
     | Cons => "Cons"
     | ListConcat => "List Concatenation"
     | BinOp(op) => Operators.show_binop(op)
@@ -504,7 +497,8 @@ module Exp = {
   // determine when to allow for recursive definitions in a let binding.
   let rec is_fun = (e: t) => {
     switch (e.term) {
-    | Parens(e) => is_fun(e)
+    | Parens(e)
+    | Probe(e, _) => is_fun(e)
     | Cast(e, _, _) => is_fun(e)
     | TypFun(_)
     | Fun(_)
@@ -533,10 +527,7 @@ module Exp = {
     | FailedCast(_)
     | Deferral(_)
     | Undefined
-    | Bool(_)
-    | Int(_)
-    | Float(_)
-    | String(_)
+    | Atom(_)
     | Label(_)
     | ListLit(_)
     | Tuple(_)
@@ -544,6 +535,7 @@ module Exp = {
     | Let(_)
     | FixF(_)
     | TyAlias(_)
+    | Use(_)
     | Ap(_)
     | TypAp(_)
     | DeferredAp(_)
@@ -566,7 +558,8 @@ module Exp = {
     || (
       switch (e.term) {
       | Cast(e, _, _)
-      | Parens(e) => is_tuple_of_functions(e)
+      | Parens(e)
+      | Probe(e, _)
       | TupLabel(_, e) => is_tuple_of_functions(e)
       | Tuple(es) => es |> List.for_all(is_fun)
       | Dot(e1, e2) =>
@@ -593,10 +586,7 @@ module Exp = {
       | FailedCast(_)
       | Deferral(_)
       | Undefined
-      | Bool(_)
-      | Int(_)
-      | Float(_)
-      | String(_)
+      | Atom(_)
       | Label(_)
       | ListLit(_)
       | Fun(_)
@@ -607,6 +597,7 @@ module Exp = {
       | Let(_)
       | FixF(_)
       | TyAlias(_)
+      | Use(_)
       | Ap(_)
       | TypAp(_)
       | DeferredAp(_)
@@ -642,6 +633,7 @@ module Exp = {
     } else {
       switch (e.term) {
       | Parens(e)
+      | Probe(e, _)
       | TupLabel(_, e)
       | Dot(e, _) => get_num_of_functions(e)
       | Tuple(es) => is_tuple_of_functions(e) ? Some(List.length(es)) : None
@@ -656,10 +648,7 @@ module Exp = {
       | Cast(_)
       | Deferral(_)
       | Undefined
-      | Bool(_)
-      | Int(_)
-      | Float(_)
-      | String(_)
+      | Atom(_)
       | Label(_)
       | ListLit(_)
       | Fun(_)
@@ -668,6 +657,7 @@ module Exp = {
       | Let(_)
       | Filter(_)
       | TyAlias(_)
+      | Use(_)
       | Ap(_)
       | TypAp(_)
       | DeferredAp(_)
@@ -692,11 +682,9 @@ module Exp = {
         {
           ...exp,
           annotation: {
-            ...exp.annotation,
             ids: [Id.mk()],
           },
-        }
-        |> continue;
+        } |> continue;
     (
       map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
       Typ.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
@@ -817,10 +805,7 @@ module Exp = {
           | DynamicErrorHole(_)
           | FailedCast(_)
           | Deferral(_)
-          | Bool(_)
-          | Int(_)
-          | Float(_)
-          | String(_)
+          | Atom(_)
           | ListLit(_)
           | Constructor(_)
           | TypFun(_)
@@ -829,6 +814,7 @@ module Exp = {
           | Label(_)
           | Dot(_)
           | TyAlias(_)
+          | Use(_)
           | Ap(_)
           | TypAp(_)
           | DeferredAp(_)
@@ -837,6 +823,7 @@ module Exp = {
           | Test(_)
           | Filter(_)
           | Parens(_)
+          | Probe(_)
           | Cons(_)
           | ListConcat(_)
           | UnOp(_)
@@ -866,7 +853,8 @@ module Exp = {
     switch (e.term) {
     | Fun(_, _, _, n) => n
     | FixF(_, e, _) => get_fn_name(e)
-    | Parens(e) => get_fn_name(e)
+    | Parens(e)
+    | Probe(e, _) => get_fn_name(e)
     | TypFun(_, _, n) => n
     | _ => None
     };

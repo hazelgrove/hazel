@@ -59,7 +59,7 @@ let testable_info_error_exp =
 let testable_error: testable(Info.error) =
   testable(Fmt.using(Info.show_error, Fmt.string), (==));
 
-let statics = Statics.mk(CoreSettings.on, Builtins.ctx_init);
+let statics = Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
 
 let parse_exp = (s: string) => {
   switch (MakeTerm.parse_exp(s)) {
@@ -91,7 +91,7 @@ let fresh = (exp: Grammar.exp_t(unit)): TermBase.exp_t => {
   Grammar.map_exp_annotation(
     (_annotation): IdTagged.IdTag.t => {
       let id = Id.mk();
-      {ids: [id], copied: false};
+      {ids: [id]};
     },
     exp,
   );
@@ -124,7 +124,7 @@ let inconsistent_typecheck = (name, exp) => {
     () => {
       let s = statics(exp);
 
-      let errors = List.map(snd, Id.Map.to_list(Statics.collect_errors(s)));
+      let errors = List.map(snd, Statics.Map.errors(s));
 
       Alcotest.check(
         neg(list(testable_error)),
@@ -142,7 +142,7 @@ let fully_consistent_typecheck = (name, serialized, expected) => {
     () => {
       let exp = parse_exp(serialized);
       let s = statics(exp);
-      let errors = List.map(snd, Id.Map.to_list(Statics.collect_errors(s)));
+      let errors = List.map(snd, Statics.Map.errors(s));
       Alcotest.check(list(testable_error), "Static Errors", [], errors);
       Alcotest.check(
         Alcotest.option(testable_typ),
@@ -161,295 +161,78 @@ module FIError =
 module FTemp =
   Grammar.Factory({
     type t = IdTagged.IdTag.t;
-    let default_value = (): IdTagged.IdTag.t => {
-      ids: [Id.invalid],
-      copied: false,
-    };
+    let default_value = (): IdTagged.IdTag.t => {ids: [Id.invalid]};
   });
 let tests = (
   "Statics",
   FTemp.(
-    Typ.
-      [
-        fully_consistent_typecheck(
-          "Function with unknown param",
-          "fun x -> 4 + 5",
-          Some(Typ.(arrow(unknown(Internal), int()))),
+    Typ.[
+      fully_consistent_typecheck(
+        "Function with unknown param",
+        "fun x -> 4 + 5",
+        Some(Typ.(arrow(unknown(Internal), int()))),
+      ),
+      fully_consistent_typecheck(
+        "Function with known param",
+        "fun x : Int -> 4 + 5",
+        Some(arrow(int(), int())),
+      ),
+      fully_consistent_typecheck(
+        "Function with labeled param",
+        "fun (a=x) -> 4",
+        Some(
+          arrow(prod([tup_label(label("a"), unknown(Internal))]), int()),
         ),
-        fully_consistent_typecheck(
-          "Function with known param",
-          "fun x : Int -> 4 + 5",
-          Some(arrow(int(), int())),
-        ),
-        fully_consistent_typecheck(
-          "Function with labeled param",
-          "fun (a=x) -> 4",
-          Some(
-            arrow(
-              prod([tup_label(label("a"), unknown(Internal))]),
-              int(),
-            ),
-          ),
-        ),
-        fully_consistent_typecheck(
-          "bifunction",
-          "fun x : Int, y: Int -> x + y",
-          Some(arrow(prod([int(), int()]), int())),
-        ),
-        fully_consistent_typecheck(
-          "bifunction",
-          "fun x : Int, y: Int -> x + y",
-          Some(arrow(prod([int(), int()]), int())),
-        ),
-        fully_consistent_typecheck(
-          "function application",
-          "float_of_int(1)",
-          Some(float()),
-        ),
-        fully_consistent_typecheck(
-          "function deferral",
-          "string_sub(\"hello\", 1, _)",
-          Some(arrow(int(), string())),
-        ),
-        test_case(
-          "Typechecking fails for unlabeled variable being assigned to labeled tuple",
-          `Quick,
-          () => {
-          annotated_tree_test(
-            "let x = (1, 2) in let y : (a=Int, b=Int) = x in y",
-            FIError.(
-              Exp.(
-                let_(
-                  Pat.(var("x")),
-                  parens(tuple([int(1), int(2)])),
-                  let_(
-                    Pat.(
-                      cast(
-                        var("y"),
-                        Typ.(
-                          parens(
-                            prod([
-                              tup_label(label("a"), int()),
-                              tup_label(label("b"), int()),
-                            ]),
-                          )
-                        ),
-                        Typ.unknown(Internal),
-                      )
-                    ),
-                    var(
-                      ~ann=
-                        Some(
-                          FTemp.Typ.(
-                            Exp(
-                              Common(
-                                Inconsistent(
-                                  Expectation({
-                                    ana:
-                                      parens(
-                                        prod([
-                                          tup_label(label("a"), int()),
-                                          tup_label(label("b"), int()),
-                                        ]),
-                                      ),
-                                    syn: prod([int(), int()]),
-                                  }),
-                                ),
-                              ),
-                            )
-                          ),
-                        ),
-                      "x",
-                    ),
-                    var("y"),
-                  ),
-                )
-              )
-            ),
-          )
-        }),
-        test_case(
-          "Typechecking fails for unlabeled variable being assigned to labeled tuple",
-          `Quick,
-          () => {
-          annotated_tree_test(
-            "let y : String = true",
-            FIError.(
-              Exp.(
-                let_(
-                  Pat.(
-                    cast(var("y"), Typ.(string()), Typ.(unknown(Internal)))
-                  ),
-                  bool(
-                    ~ann=
-                      Some(
-                        FTemp.Typ.(
-                          Exp(
-                            Common(
-                              Inconsistent(
-                                Expectation({ana: string(), syn: bool()}),
-                              ),
-                            ),
-                          )
-                        ),
-                      ),
-                    true,
-                  ),
-                  var("y"),
-                )
-              )
-            ),
-          )
-        }),
-        fully_consistent_typecheck(
-          "Assigning labeled tuple to variable",
-          "let x = (l=32) in let y : (l=Int) = x in y",
-          Some(prod([tup_label(label("l"), int())])),
-        ),
-        fully_consistent_typecheck(
-          "Singleton Labled Tuple ascription in let",
-          "let x : (l=String) = (\"a\") in x",
-          Some(prod([tup_label(label("l"), string())])),
-        ),
-        test_case(
-          "Singleton Labled Tuple ascription in let with wrong type should fail",
-          `Quick,
-          () => {
-          annotated_tree_test(
-            "",
-            FIError.(
-              Exp.(
+      ),
+      fully_consistent_typecheck(
+        "bifunction",
+        "fun x : Int, y: Int -> x + y",
+        Some(arrow(prod([int(), int()]), int())),
+      ),
+      fully_consistent_typecheck(
+        "bifunction",
+        "fun x : Int, y: Int -> x + y",
+        Some(arrow(prod([int(), int()]), int())),
+      ),
+      fully_consistent_typecheck(
+        "function application",
+        "float_of_int(1)",
+        Some(float()),
+      ),
+      fully_consistent_typecheck(
+        "function deferral",
+        "string_sub(\"hello\", 1, _)",
+        Some(arrow(int(), string())),
+      ),
+      test_case(
+        "Typechecking fails for unlabeled variable being assigned to labeled tuple",
+        `Quick,
+        () => {
+        annotated_tree_test(
+          "let x = (1, 2) in let y : (a=Int, b=Int) = x in y",
+          FIError.(
+            Exp.(
+              let_(
+                Pat.(var("x")),
+                parens(
+                  tuple([int(Bigint.of_int(1)), int(Bigint.of_int(2))]),
+                ),
                 let_(
                   Pat.(
                     cast(
-                      var("x"),
+                      var("y"),
                       Typ.(
-                        parens(prod([tup_label(label("l"), string())]))
+                        parens(
+                          prod([
+                            tup_label(label("a"), int()),
+                            tup_label(label("b"), int()),
+                          ]),
+                        )
                       ),
                       Typ.unknown(Internal),
                     )
                   ),
-                  int(
-                    ~ann=
-                      Some(
-                        FTemp.Typ.(
-                          Exp(
-                            Common(
-                              Inconsistent(
-                                Expectation({ana: string(), syn: int()}),
-                              ),
-                            ),
-                          )
-                        ),
-                      ),
-                    1,
-                  ),
-                  var("x"),
-                )
-              )
-            ),
-          )
-        }),
-        fully_consistent_typecheck(
-          "Singleton Labled Tuple with specified label",
-          "let x : (l=String) = (l=\"a\") in x",
-          Some(prod([tup_label(label("l"), string())])),
-        ),
-        fully_consistent_typecheck(
-          "Labeled tuple with multiple labels",
-          {|(l=32, l2="")|},
-          Some(
-            prod([
-              tup_label(label("l"), int()),
-              tup_label(label("l2"), string()),
-            ]),
-          ),
-        ),
-        fully_consistent_typecheck(
-          "Let statement that adds labels during elaboration",
-          {|let x : (name=String, age=Int)= ("Bob", 20) in x|},
-          Some(
-            prod([
-              tup_label(label("name"), string()),
-              tup_label(label("age"), int()),
-            ]),
-          ),
-        ),
-        fully_consistent_typecheck(
-          "Duplicate singleton labels",
-          {|let y : (l=(l=Int)) = (l=1) in y|},
-          Some(
-            prod([
-              tup_label(
-                label("l"),
-                parens(prod([tup_label(label("l"), int())])),
-              ),
-            ]),
-          ),
-        ),
-        fully_consistent_typecheck(
-          "Reconstructed labeled tuple without values",
-          {|let x : (l=|},
-          Some(unknown(Internal)),
-        ),
-        fully_consistent_typecheck(
-          "Singleton labeled argument let with unknown type",
-          {|let x : (a=?) = (a=1) in x|},
-          Some(prod([tup_label(label("a"), unknown(Hole(EmptyHole)))])),
-        ),
-        fully_consistent_typecheck(
-          "nested different singleton labeled arguments",
-          {|let x : (b=c=String) = b="" in x|},
-          Some(
-            prod([
-              tup_label(
-                label("b"),
-                prod([tup_label(label("c"), string())]),
-              ),
-            ]),
-          ),
-        ),
-        fully_consistent_typecheck(
-          "nested different singleton labeled arguments",
-          {|let x : (a=b=c=?) = b=? in x|},
-          Some(
-            prod([
-              tup_label(
-                label("a"),
-                prod([
-                  tup_label(
-                    label("b"),
-                    prod([
-                      tup_label(label("c"), unknown(Hole(EmptyHole))),
-                    ]),
-                  ),
-                ]),
-              ),
-            ]),
-          ),
-        ),
-        fully_consistent_typecheck(
-          "Singleton labeled argument function application with unknown type",
-          {|(fun a=x->x)(a=1)|},
-          Some(unknown(Internal)),
-        ),
-        fully_consistent_typecheck(
-          "Singleton labeled argument function application with no labeled param",
-          {|(fun a=x->x)(1)|},
-          Some(unknown(Internal)),
-        ),
-        fully_consistent_typecheck(
-          "Singleton labeled argument not labeled in pattern",
-          {|let x : (a=Int) -> Int = fun a -> a in x(2)|},
-          Some(int()),
-        ),
-        test_case("Unknown label in last position", `Quick, () => {
-          annotated_tree_test(
-            {|(1, 1.2, z="hello") : (a=Int, b=Float, String)|},
-            FIError.(
-              Exp.(
-                cast(
-                  parens(
+                  var(
                     ~ann=
                       Some(
                         FTemp.Typ.(
@@ -458,119 +241,255 @@ let tests = (
                               Inconsistent(
                                 Expectation({
                                   ana:
-                                    prod([
-                                      tup_label(label("a"), int()),
-                                      tup_label(label("b"), float()),
-                                      string(),
-                                    ]),
-                                  syn:
-                                    prod([
-                                      tup_label(label("a"), int()),
-                                      tup_label(label("b"), float()),
-                                      tup_label(label("z"), string()),
-                                    ]),
+                                    parens(
+                                      prod([
+                                        tup_label(label("a"), int()),
+                                        tup_label(label("b"), int()),
+                                      ]),
+                                    ),
+                                  syn: prod([int(), int()]),
                                 }),
                               ),
                             ),
                           )
                         ),
                       ),
-                    tuple(
-                      ~ann=
-                        Some(
-                          Exp(
-                            Common(
-                              TupleLabelError({
-                                malformed_labels: [],
-                                duplicate_labels: [],
-                                invalid_labels: ["z"],
-                                typ:
-                                  FTemp.Typ.(
-                                    prod([
-                                      tup_label(label("a"), int()),
-                                      tup_label(label("b"), float()),
-                                      tup_label(label("z"), string()),
-                                    ])
-                                  ),
-                              }),
-                            ),
-                          ),
-                        ),
-                      [
-                        int(1),
-                        float(1.2),
-                        tup_label(
-                          ~ann=
-                            Some(
-                              FTemp.Typ.(
-                                Exp(
-                                  Common(
-                                    TupleLabelError({
-                                      malformed_labels: [],
-                                      duplicate_labels: [],
-                                      invalid_labels: ["z"],
-                                      typ: tup_label(label("z"), string()),
-                                    }),
-                                  ),
-                                )
-                              ),
-                            ),
-                          label(
-                            ~ann=
-                              Some(
-                                Exp(Common(NoType(InvalidLabel("z")))),
-                              ),
-                            "z",
-                          ),
-                          string("hello"),
-                        ),
-                      ],
-                    ),
+                    "x",
                   ),
-                  Typ.unknown(Internal),
-                  Typ.(
-                    parens(
-                      prod([
-                        tup_label(label("a"), int()),
-                        tup_label(label("b"), float()),
-                        string(),
-                      ]),
-                    )
-                  ),
-                )
+                  var("y"),
+                ),
               )
+            )
+          ),
+        )
+      }),
+      test_case(
+        "Typechecking fails for unlabeled variable being assigned to labeled tuple",
+        `Quick,
+        () => {
+        annotated_tree_test(
+          "let y : String = true",
+          FIError.(
+            Exp.(
+              let_(
+                Pat.(
+                  cast(var("y"), Typ.(string()), Typ.(unknown(Internal)))
+                ),
+                bool(
+                  ~ann=
+                    Some(
+                      FTemp.Typ.(
+                        Exp(
+                          Common(
+                            Inconsistent(
+                              Expectation({ana: string(), syn: bool()}),
+                            ),
+                          ),
+                        )
+                      ),
+                    ),
+                  true,
+                ),
+                var("y"),
+              )
+            )
+          ),
+        )
+      }),
+      fully_consistent_typecheck(
+        "Assigning labeled tuple to variable",
+        "let x = (l=32) in let y : (l=Int) = x in y",
+        Some(prod([tup_label(label("l"), int())])),
+      ),
+      fully_consistent_typecheck(
+        "Singleton Labled Tuple ascription in let",
+        "let x : (l=String) = (\"a\") in x",
+        Some(prod([tup_label(label("l"), string())])),
+      ),
+      test_case(
+        "Singleton Labled Tuple ascription in let with wrong type should fail",
+        `Quick,
+        () => {
+        annotated_tree_test(
+          "",
+          FIError.(
+            Exp.(
+              let_(
+                Pat.(
+                  cast(
+                    var("x"),
+                    Typ.(parens(prod([tup_label(label("l"), string())]))),
+                    Typ.unknown(Internal),
+                  )
+                ),
+                int(
+                  ~ann=
+                    Some(
+                      FTemp.Typ.(
+                        Exp(
+                          Common(
+                            Inconsistent(
+                              Expectation({ana: string(), syn: int()}),
+                            ),
+                          ),
+                        )
+                      ),
+                    ),
+                  Bigint.of_int(1),
+                ),
+                var("x"),
+              )
+            )
+          ),
+        )
+      }),
+      fully_consistent_typecheck(
+        "Singleton Labled Tuple with specified label",
+        "let x : (l=String) = (l=\"a\") in x",
+        Some(prod([tup_label(label("l"), string())])),
+      ),
+      fully_consistent_typecheck(
+        "Labeled tuple with multiple labels",
+        {|(l=32, l2="")|},
+        Some(
+          prod([
+            tup_label(label("l"), int()),
+            tup_label(label("l2"), string()),
+          ]),
+        ),
+      ),
+      fully_consistent_typecheck(
+        "Let statement that adds labels during elaboration",
+        {|let x : (name=String, age=Int)= ("Bob", 20) in x|},
+        Some(
+          prod([
+            tup_label(label("name"), string()),
+            tup_label(label("age"), int()),
+          ]),
+        ),
+      ),
+      fully_consistent_typecheck(
+        "Duplicate singleton labels",
+        {|let y : (l=(l=Int)) = (l=1) in y|},
+        Some(
+          prod([
+            tup_label(
+              label("l"),
+              parens(prod([tup_label(label("l"), int())])),
             ),
-          )
-        }),
-        test_case("Duplicate label synthesis", `Quick, () => {
-          annotated_tree_test(
-            {|(a="hello", a=3)|},
-            FIError.(
-              Exp.(
+          ]),
+        ),
+      ),
+      fully_consistent_typecheck(
+        "Reconstructed labeled tuple without values",
+        {|let x : (l=|},
+        Some(unknown(Internal)),
+      ),
+      fully_consistent_typecheck(
+        "Singleton labeled argument let with unknown type",
+        {|let x : (a=?) = (a=1) in x|},
+        Some(prod([tup_label(label("a"), unknown(Hole(EmptyHole)))])),
+      ),
+      fully_consistent_typecheck(
+        "nested different singleton labeled arguments",
+        {|let x : (b=c=String) = b="" in x|},
+        Some(
+          prod([
+            tup_label(
+              label("b"),
+              prod([tup_label(label("c"), string())]),
+            ),
+          ]),
+        ),
+      ),
+      fully_consistent_typecheck(
+        "nested different singleton labeled arguments",
+        {|let x : (a=b=c=?) = b=? in x|},
+        Some(
+          prod([
+            tup_label(
+              label("a"),
+              prod([
+                tup_label(
+                  label("b"),
+                  prod([tup_label(label("c"), unknown(Hole(EmptyHole)))]),
+                ),
+              ]),
+            ),
+          ]),
+        ),
+      ),
+      fully_consistent_typecheck(
+        "Singleton labeled argument function application with unknown type",
+        {|(fun a=x->x)(a=1)|},
+        Some(unknown(Internal)),
+      ),
+      fully_consistent_typecheck(
+        "Singleton labeled argument function application with no labeled param",
+        {|(fun a=x->x)(1)|},
+        Some(unknown(Internal)),
+      ),
+      fully_consistent_typecheck(
+        "Singleton labeled argument not labeled in pattern",
+        {|let x : (a=Int) -> Int = fun a -> a in x(2)|},
+        Some(int()),
+      ),
+      test_case("Unknown label in last position", `Quick, () => {
+        annotated_tree_test(
+          {|(1, 1.2, z="hello") : (a=Int, b=Float, String)|},
+          FIError.(
+            Exp.(
+              cast(
                 parens(
-                  tuple(
-                    ~ann=
-                      Some(
-                        FTemp.Typ.(
-                          Exp(
-                            Common(
-                              TupleLabelError({
-                                malformed_labels: [],
-                                duplicate_labels: ["a", "a"],
-                                invalid_labels: [],
-                                typ:
+                  ~ann=
+                    Some(
+                      FTemp.Typ.(
+                        Exp(
+                          Common(
+                            Inconsistent(
+                              Expectation({
+                                ana:
                                   prod([
-                                    tup_label(
-                                      label("a"),
-                                      unknown(Internal),
-                                    ),
+                                    tup_label(label("a"), int()),
+                                    tup_label(label("b"), float()),
+                                    string(),
+                                  ]),
+                                syn:
+                                  prod([
+                                    tup_label(label("a"), int()),
+                                    tup_label(label("b"), float()),
+                                    tup_label(label("z"), string()),
                                   ]),
                               }),
                             ),
-                          )
+                          ),
+                        )
+                      ),
+                    ),
+                  tuple(
+                    ~ann=
+                      Some(
+                        Exp(
+                          Common(
+                            TupleLabelError({
+                              malformed_labels: [],
+                              duplicate_labels: [],
+                              invalid_labels: ["z"],
+                              typ:
+                                FTemp.Typ.(
+                                  prod([
+                                    tup_label(label("a"), int()),
+                                    tup_label(label("b"), float()),
+                                    tup_label(label("z"), string()),
+                                  ])
+                                ),
+                            }),
+                          ),
                         ),
                       ),
                     [
+                      int(Bigint.of_int(1)),
+                      float(1.2),
                       tup_label(
                         ~ann=
                           Some(
@@ -579,9 +498,9 @@ let tests = (
                                 Common(
                                   TupleLabelError({
                                     malformed_labels: [],
-                                    duplicate_labels: ["a"],
-                                    invalid_labels: [],
-                                    typ: tup_label(label("a"), string()),
+                                    duplicate_labels: [],
+                                    invalid_labels: ["z"],
+                                    typ: tup_label(label("z"), string()),
                                   }),
                                 ),
                               )
@@ -589,262 +508,431 @@ let tests = (
                           ),
                         label(
                           ~ann=
-                            Some(
-                              FTemp.Typ.(
-                                Exp(
-                                  Common(DuplicateLabel("a", label("a"))),
-                                )
-                              ),
-                            ),
-                          "a",
+                            Some(Exp(Common(NoType(InvalidLabel("z"))))),
+                          "z",
                         ),
                         string("hello"),
                       ),
-                      tup_label(
+                    ],
+                  ),
+                ),
+                Typ.unknown(Internal),
+                Typ.(
+                  parens(
+                    prod([
+                      tup_label(label("a"), int()),
+                      tup_label(label("b"), float()),
+                      string(),
+                    ]),
+                  )
+                ),
+              )
+            )
+          ),
+        )
+      }),
+      test_case("Duplicate label synthesis", `Quick, () => {
+        annotated_tree_test(
+          {|(a="hello", a=3)|},
+          FIError.(
+            Exp.(
+              parens(
+                tuple(
+                  ~ann=
+                    Some(
+                      FTemp.Typ.(
+                        Exp(
+                          Common(
+                            TupleLabelError({
+                              malformed_labels: [],
+                              duplicate_labels: ["a", "a"],
+                              invalid_labels: [],
+                              typ:
+                                prod([
+                                  tup_label(label("a"), unknown(Internal)),
+                                ]),
+                            }),
+                          ),
+                        )
+                      ),
+                    ),
+                  [
+                    tup_label(
+                      ~ann=
+                        Some(
+                          FTemp.Typ.(
+                            Exp(
+                              Common(
+                                TupleLabelError({
+                                  malformed_labels: [],
+                                  duplicate_labels: ["a"],
+                                  invalid_labels: [],
+                                  typ: tup_label(label("a"), string()),
+                                }),
+                              ),
+                            )
+                          ),
+                        ),
+                      label(
                         ~ann=
                           Some(
                             FTemp.Typ.(
-                              Exp(
-                                Common(
-                                  TupleLabelError({
-                                    malformed_labels: [],
-                                    duplicate_labels: ["a"],
-                                    invalid_labels: [],
-                                    typ: tup_label(label("a"), int()),
-                                  }),
-                                ),
-                              )
+                              Exp(Common(DuplicateLabel("a", label("a"))))
                             ),
                           ),
-                        label(
-                          ~ann=
-                            Some(
-                              FTemp.Typ.(
-                                Exp(
-                                  Common(DuplicateLabel("a", label("a"))),
-                                )
-                              ),
-                            ),
-                          "a",
-                        ),
-                        int(3),
+                        "a",
                       ),
-                    ],
-                  ),
-                )
+                      string("hello"),
+                    ),
+                    tup_label(
+                      ~ann=
+                        Some(
+                          FTemp.Typ.(
+                            Exp(
+                              Common(
+                                TupleLabelError({
+                                  malformed_labels: [],
+                                  duplicate_labels: ["a"],
+                                  invalid_labels: [],
+                                  typ: tup_label(label("a"), int()),
+                                }),
+                              ),
+                            )
+                          ),
+                        ),
+                      label(
+                        ~ann=
+                          Some(
+                            FTemp.Typ.(
+                              Exp(Common(DuplicateLabel("a", label("a"))))
+                            ),
+                          ),
+                        "a",
+                      ),
+                      int(Bigint.of_int(3)),
+                    ),
+                  ],
+                ),
               )
-            ),
-          )
-        }),
-        test_case("Bad label projection", `Quick, () => {
-          annotated_tree_test(
-            {|(1, 2) . 1|},
-            FIError.(
-              Exp.(
-                dot(
-                  ~ann=
-                    Some(
-                      Exp(
-                        Common(
-                          NoType(
-                            BadLabel(
-                              Exp(FTemp.Exp.(multi_hole([Exp(int(1))]))),
+            )
+          ),
+        )
+      }),
+      test_case("Bad label projection", `Quick, () => {
+        annotated_tree_test(
+          {|(1, 2) . 1|},
+          FIError.(
+            Exp.(
+              dot(
+                ~ann=
+                  Some(
+                    Exp(
+                      Common(
+                        NoType(
+                          BadLabel(
+                            Exp(
+                              FTemp.Exp.(
+                                multi_hole([Exp(int(Bigint.of_int(1)))])
+                              ),
                             ),
                           ),
                         ),
                       ),
                     ),
-                  tuple([int(1), int(2)]),
-                  multi_hole([Exp(int(1))]),
-                )
+                  ),
+                tuple([int(Bigint.of_int(1)), int(Bigint.of_int(2))]),
+                multi_hole([Exp(int(Bigint.of_int(1)))]),
               )
-            ),
-          )
-        }),
-        test_case("Singleton Bad label synthesis", `Quick, () => {
-          annotated_tree_test(
-            {|(1="hello")|},
-            FIError.(
-              Exp.(
-                parens(
-                  tuple(
-                    ~ann=
-                      Some(
-                        FTemp.(
-                          Exp(
-                            Common(
-                              TupleLabelError({
-                                malformed_labels: [
-                                  Exp.(Exp(multi_hole([Exp(label("1"))]))),
-                                ],
-                                duplicate_labels: [],
-                                invalid_labels: [],
-                                typ:
-                                  Typ.(
-                                    prod([
-                                      tup_label(unknown(Internal), string()),
-                                    ])
-                                  ),
-                              }),
-                            ),
-                          )
-                        ),
+            )
+          ),
+        )
+      }),
+      test_case("Singleton Bad label synthesis", `Quick, () => {
+        annotated_tree_test(
+          {|(1="hello")|},
+          FIError.(
+            Exp.(
+              parens(
+                tuple(
+                  ~ann=
+                    Some(
+                      FTemp.(
+                        Exp(
+                          Common(
+                            TupleLabelError({
+                              malformed_labels: [
+                                Exp.(Exp(multi_hole([Exp(label("1"))]))),
+                              ],
+                              duplicate_labels: [],
+                              invalid_labels: [],
+                              typ:
+                                Typ.(
+                                  prod([
+                                    tup_label(unknown(Internal), string()),
+                                  ])
+                                ),
+                            }),
+                          ),
+                        )
                       ),
-                    [
-                      tup_label(
+                    ),
+                  [
+                    tup_label(
+                      ~ann=
+                        Some(
+                          FTemp.(
+                            Exp(
+                              Common(
+                                TupleLabelError({
+                                  malformed_labels: [
+                                    Exp.(
+                                      Exp(multi_hole([Exp(label("1"))]))
+                                    ),
+                                  ],
+                                  duplicate_labels: [],
+                                  invalid_labels: [],
+                                  typ:
+                                    Typ.(
+                                      tup_label(unknown(Internal), string())
+                                    ),
+                                }),
+                              ),
+                            )
+                          ),
+                        ),
+                      multi_hole(
                         ~ann=
                           Some(
-                            FTemp.(
-                              Exp(
-                                Common(
-                                  TupleLabelError({
-                                    malformed_labels: [
-                                      Exp.(
-                                        Exp(multi_hole([Exp(label("1"))]))
-                                      ),
-                                    ],
-                                    duplicate_labels: [],
-                                    invalid_labels: [],
-                                    typ:
-                                      Typ.(
-                                        tup_label(
-                                          unknown(Internal),
-                                          string(),
-                                        )
-                                      ),
-                                  }),
+                            Exp(
+                              Common(
+                                NoType(
+                                  BadLabel(
+                                    FTemp.Exp.(
+                                      Exp(multi_hole([Exp(label("1"))]))
+                                    ),
+                                  ),
                                 ),
-                              )
+                              ),
                             ),
                           ),
-                        multi_hole(
-                          ~ann=
+                        [Exp(label("1"))],
+                      ),
+                      string("hello"),
+                    ),
+                  ],
+                ),
+              )
+            )
+          ),
+        )
+      }),
+      test_case("Bad label synthesis", `Quick, () => {
+        annotated_tree_test(
+          {|(1="hello", a=3)|},
+          FIError.(
+            Exp.(
+              parens(
+                tuple(
+                  ~ann=
+                    Some(
+                      FTemp.(
+                        Exp(
+                          Common(
+                            TupleLabelError({
+                              malformed_labels: [
+                                Exp.(
+                                  Exp(
+                                    multi_hole([
+                                      Exp(int(Bigint.of_int(1))),
+                                    ]),
+                                  )
+                                ),
+                              ],
+                              duplicate_labels: [],
+                              invalid_labels: [],
+                              typ:
+                                Typ.(
+                                  prod([
+                                    tup_label(unknown(Internal), string()),
+                                    tup_label(label("a"), int()),
+                                  ])
+                                ),
+                            }),
+                          ),
+                        )
+                      ),
+                    ),
+                  [
+                    tup_label(
+                      ~ann=
+                        Some(
+                          FTemp.(
+                            Exp(
+                              Common(
+                                TupleLabelError({
+                                  malformed_labels: [
+                                    Exp.(
+                                      Exp(
+                                        multi_hole([
+                                          Exp(int(Bigint.of_int(1))),
+                                        ]),
+                                      )
+                                    ),
+                                  ],
+                                  duplicate_labels: [],
+                                  invalid_labels: [],
+                                  typ:
+                                    Typ.(
+                                      tup_label(unknown(Internal), string())
+                                    ),
+                                }),
+                              ),
+                            )
+                          ),
+                        ),
+                      multi_hole(
+                        ~ann=
+                          FTemp.(
                             Some(
                               Exp(
                                 Common(
                                   NoType(
                                     BadLabel(
-                                      FTemp.Exp.(
-                                        Exp(multi_hole([Exp(label("1"))]))
+                                      Exp.(
+                                        Exp(
+                                          multi_hole([
+                                            Exp(int(Bigint.of_int(1))),
+                                          ]),
+                                        )
                                       ),
                                     ),
                                   ),
                                 ),
                               ),
-                            ),
-                          [Exp(label("1"))],
-                        ),
-                        string("hello"),
+                            )
+                          ),
+                        [Exp(int(Bigint.of_int(1)))],
                       ),
-                    ],
-                  ),
-                )
+                      string("hello"),
+                    ),
+                    tup_label(label("a"), int(Bigint.of_int(3))),
+                  ],
+                ),
               )
-            ),
-          )
-        }),
-        test_case("Bad label synthesis", `Quick, () => {
-          annotated_tree_test(
-            {|(1="hello", a=3)|},
-            FIError.(
-              Exp.(
+            )
+          ),
+        )
+      }),
+      test_case("Extra Label", `Quick, () => {
+        annotated_tree_test(
+          {|let extra_label : (Int, a=String) = (c=1, a="hello") in true|},
+          FIError.(
+            Exp.(
+              let_(
+                Pat.(
+                  cast(
+                    var("extra_label"),
+                    Typ.(
+                      parens(
+                        prod([int(), tup_label(label("a"), string())]),
+                      )
+                    ),
+                    Typ.unknown(Internal),
+                  )
+                ),
                 parens(
+                  ~ann=
+                    Some(
+                      Exp(
+                        Common(
+                          Inconsistent(
+                            FTemp.Typ.(
+                              Expectation({
+                                ana:
+                                  parens(
+                                    prod([
+                                      int(),
+                                      tup_label(label("a"), string()),
+                                    ]),
+                                  ),
+                                syn:
+                                  prod([
+                                    tup_label(label("c"), int()),
+                                    tup_label(label("a"), string()),
+                                  ]),
+                              })
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   tuple(
                     ~ann=
                       Some(
-                        FTemp.(
-                          Exp(
-                            Common(
-                              TupleLabelError({
-                                malformed_labels: [
-                                  Exp.(Exp(multi_hole([Exp(int(1))]))),
-                                ],
-                                duplicate_labels: [],
-                                invalid_labels: [],
-                                typ:
-                                  Typ.(
-                                    prod([
-                                      tup_label(unknown(Internal), string()),
-                                      tup_label(label("a"), int()),
-                                    ])
-                                  ),
-                              }),
-                            ),
-                          )
+                        Exp(
+                          Common(
+                            TupleLabelError({
+                              malformed_labels: [],
+                              duplicate_labels: [],
+                              invalid_labels: ["c"],
+                              typ:
+                                FTemp.Typ.(
+                                  prod([
+                                    tup_label(label("c"), int()),
+                                    tup_label(label("a"), string()),
+                                  ])
+                                ),
+                            }),
+                          ),
                         ),
                       ),
                     [
-                      tup_label(
-                        ~ann=
-                          Some(
-                            FTemp.(
+                      {
+                        tup_label(
+                          ~ann=
+                            Some(
                               Exp(
                                 Common(
                                   TupleLabelError({
-                                    malformed_labels: [
-                                      Exp.(Exp(multi_hole([Exp(int(1))]))),
-                                    ],
+                                    malformed_labels: [],
                                     duplicate_labels: [],
-                                    invalid_labels: [],
+                                    invalid_labels: ["c"],
                                     typ:
-                                      Typ.(
-                                        tup_label(
-                                          unknown(Internal),
-                                          string(),
-                                        )
+                                      FTemp.Typ.(
+                                        tup_label(label("c"), int())
                                       ),
                                   }),
                                 ),
-                              )
+                              ),
                             ),
-                          ),
-                        multi_hole(
-                          ~ann=
-                            FTemp.(
+                          label(
+                            ~ann=
                               Some(
-                                Exp(
-                                  Common(
-                                    NoType(
-                                      BadLabel(
-                                        Exp.(
-                                          Exp(multi_hole([Exp(int(1))]))
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              )
-                            ),
-                          [Exp(int(1))],
-                        ),
-                        string("hello"),
-                      ),
-                      tup_label(label("a"), int(3)),
+                                Exp(Common(NoType(InvalidLabel("c")))),
+                              ),
+                            "c",
+                          ),
+                          int(Bigint.of_int(1)),
+                        );
+                      },
+                      tup_label(label("a"), string("hello")),
                     ],
                   ),
-                )
+                ),
+                bool(true),
               )
-            ),
-          )
-        }),
-        test_case("Extra Label", `Quick, () => {
-          annotated_tree_test(
-            {|let extra_label : (Int, a=String) = (c=1, a="hello") in true|},
-            FIError.(
-              Exp.(
-                let_(
-                  Pat.(
-                    cast(
-                      var("extra_label"),
-                      Typ.(
-                        parens(
-                          prod([int(), tup_label(label("a"), string())]),
-                        )
-                      ),
-                      Typ.unknown(Internal),
-                    )
-                  ),
-                  parens(
+            )
+          ),
+        )
+      }),
+      test_case("tuple with cast to non-tuple", `Quick, () => {
+        annotated_tree_test(
+          {|(a=1, b=2) : Int|},
+          FIError.(
+            Exp.(
+              cast(
+                parens(
+                  tuple(
                     ~ann=
                       Some(
                         Exp(
@@ -852,17 +940,11 @@ let tests = (
                             Inconsistent(
                               FTemp.Typ.(
                                 Expectation({
-                                  ana:
-                                    parens(
-                                      prod([
-                                        int(),
-                                        tup_label(label("a"), string()),
-                                      ]),
-                                    ),
+                                  ana: int(),
                                   syn:
                                     prod([
-                                      tup_label(label("c"), int()),
-                                      tup_label(label("a"), string()),
+                                      tup_label(label("a"), int()),
+                                      tup_label(label("b"), int()),
                                     ]),
                                 })
                               ),
@@ -870,225 +952,155 @@ let tests = (
                           ),
                         ),
                       ),
-                    tuple(
-                      ~ann=
-                        Some(
-                          Exp(
-                            Common(
-                              TupleLabelError({
-                                malformed_labels: [],
-                                duplicate_labels: [],
-                                invalid_labels: ["c"],
-                                typ:
-                                  FTemp.Typ.(
-                                    prod([
-                                      tup_label(label("c"), int()),
-                                      tup_label(label("a"), string()),
-                                    ])
-                                  ),
-                              }),
-                            ),
-                          ),
-                        ),
-                      [
-                        {
-                          tup_label(
-                            ~ann=
-                              Some(
-                                Exp(
-                                  Common(
-                                    TupleLabelError({
-                                      malformed_labels: [],
-                                      duplicate_labels: [],
-                                      invalid_labels: ["c"],
-                                      typ:
-                                        FTemp.Typ.(
-                                          tup_label(label("c"), int())
-                                        ),
-                                    }),
-                                  ),
-                                ),
-                              ),
-                            label(
-                              ~ann=
-                                Some(
-                                  Exp(Common(NoType(InvalidLabel("c")))),
-                                ),
-                              "c",
-                            ),
-                            int(1),
-                          );
-                        },
-                        tup_label(label("a"), string("hello")),
-                      ],
-                    ),
+                    [
+                      tup_label(label("a"), int(Bigint.of_int(1))),
+                      tup_label(label("b"), int(Bigint.of_int(2))),
+                    ],
                   ),
-                  bool(true),
-                )
-              )
-            ),
-          )
-        }),
-        test_case("tuple with cast to non-tuple", `Quick, () => {
-          annotated_tree_test(
-            {|(a=1, b=2) : Int|},
-            FIError.(
-              Exp.(
-                cast(
-                  parens(
-                    tuple(
-                      ~ann=
-                        Some(
-                          Exp(
-                            Common(
-                              Inconsistent(
-                                FTemp.Typ.(
-                                  Expectation({
-                                    ana: int(),
-                                    syn:
-                                      prod([
-                                        tup_label(label("a"), int()),
-                                        tup_label(label("b"), int()),
-                                      ]),
-                                  })
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      [
-                        tup_label(label("a"), int(1)),
-                        tup_label(label("b"), int(2)),
-                      ],
-                    ),
-                  ),
-                  Typ.unknown(Internal),
-                  Typ.int(),
-                )
-              )
-            ),
-          )
-        }),
-        test_case("Example error annotations", `Quick, () => {
-          annotated_tree_test(
-            "Inconsistent expectation on plus",
-            FIError.Exp.(
-              bin_op(
-                Int(Plus),
-                int(1),
-                string(
-                  ~ann=
-                    Some(
-                      FTemp.Typ.(
-                        Exp(
-                          Common(
-                            Inconsistent(
-                              Expectation({ana: int(), syn: string()}),
-                            ),
-                          ),
-                        )
-                      ),
-                    ),
-                  "hello",
                 ),
+                Typ.unknown(Internal),
+                Typ.int(),
               )
-            ),
-          )
-        }),
-        fully_consistent_typecheck(
-          "Forall alpha equivalent in cast",
-          {|let x : forall a -> a = in (x : forall b -> b)|},
-          FTemp.Typ.(Some(forall(TPat.var("b"), var("b")))),
-        ),
-        fully_consistent_typecheck(
-          "Forall alpha equivalent in let",
-          {|let x : forall a -> a = in let y : forall b -> b = x in 1|},
-          Some(int()),
-        ),
-        test_case("Polymorphic equal inconsistent", `Quick, () => {
-          annotated_tree_test(
-            {|1 == 1.|},
-            FIError.(
-              Exp.(
-                bin_op(
-                  Int(Equals),
-                  int(1),
-                  float(1.),
-                  ~ann=
-                    Some(
-                      FTemp.Typ.(
-                        Exp(
-                          Common(Inconsistent(Internal([int(), float()]))),
-                        )
-                      ),
-                    ),
-                )
-              )
-            ),
-          )
-        }),
-        test_case("Polymorphic equal compare arrow 1", `Quick, () => {
-          annotated_tree_test(
-            {|let f: Int -> Int = in f == string_concat|},
-            FIError.(
-              Exp.(
-                bin_op(
-                  Int(Equals),
-                  empty_hole(),
-                  builtin_fun("string_concat"),
-                  ~ann=
-                    Some(
-                      FTemp.Typ.(
-                        Exp(
-                          Common(
-                            Inconsistent(
-                              CompareArrow(
-                                arrow(
-                                  prod([string(), list(string())]),
-                                  string(),
-                                ),
-                              ),
-                            ),
+            )
+          ),
+        )
+      }),
+      test_case("Example error annotations", `Quick, () => {
+        annotated_tree_test(
+          "Inconsistent expectation on plus",
+          FIError.Exp.(
+            bin_op(
+              Int(Plus),
+              int(Bigint.of_int(1)),
+              string(
+                ~ann=
+                  Some(
+                    FTemp.Typ.(
+                      Exp(
+                        Common(
+                          Inconsistent(
+                            Expectation({ana: int(), syn: string()}),
                           ),
-                        )
-                      ),
+                        ),
+                      )
                     ),
-                )
-              )
-            ),
-          )
-        }),
-      ]
-      // test_case("Polymorphic equal compare arrow 2", `Quick, () => {
-      //   annotated_tree_test(
-      //     {|let a : +A+B(Int->Int) = in (a == a)|},
-      //     FIError.(
-      //       Exp.(
-      //         bin_op(
-      //           Int(Equals),
-      //           empty_hole(),
-      //           empty_hole(),
-      //           ~ann=
-      //             Some(
-      //               FTemp.Typ.(
-      //                 Exp(
-      //                   Common(
-      //                     Inconsistent(
-      //                       CompareArrow(
-      //                         sum([
-      //                           Variant("A", [], None),
-      //                           Variant("B", [], Some(arrow(int(), int()))),
-      //                         ]),
-      //                       ),
-      //                     ),
-      //                   ),
-      //                 )
-      //               ),
-      //             ),
-      //         )
-      //       )
-      //     ),
-      //   )
-      // }),
+                  ),
+                "hello",
+              ),
+            )
+          ),
+        )
+      }),
+      fully_consistent_typecheck(
+        "Forall alpha equivalent in cast",
+        {|let x : forall a -> a = in (x : forall b -> b)|},
+        FTemp.Typ.(Some(forall(TPat.var("b"), var("b")))),
+      ),
+      fully_consistent_typecheck(
+        "Forall alpha equivalent in let",
+        {|let x : forall a -> a = in let y : forall b -> b = x in 1|},
+        Some(int()),
+      ),
+      fully_consistent_typecheck(
+        "Fixpoint in function position",
+        {|(fix f : (Int -> Int) -> fun x -> x + 1)(3)|},
+        Some(int()),
+      ),
+      fully_consistent_typecheck(
+        "nested_sum_constructors",
+        {|
+case (? : (rec t -> +Z+S(t)))
+  | S(S(x)) => 1
+  | _ => 2
+end
+        |},
+        Some(int()),
+      ),
+    ]
   ),
 );
+
+//   test_case("Polymorphic equal inconsistent", `Quick, () => {
+//     annotated_tree_test(
+//       {|1 == 1.|},
+//       FIError.(
+//         Exp.(
+//           bin_op(
+//             Int(Equals),
+//             int(1),
+//             float(1.),
+//             ~ann=
+//               Some(
+//                 FTemp.Typ.(
+//                   Exp(
+//                     Common(Inconsistent(Internal([int(), float()]))),
+//                   )
+//                 ),
+//               ),
+//           )
+//         )
+//       ),
+//     )
+//   }),
+//   test_case("Polymorphic equal compare arrow 1", `Quick, () => {
+//     annotated_tree_test(
+//       {|let f: Int -> Int = in f == string_concat|},
+//       FIError.(
+//         Exp.(
+//           bin_op(
+//             Int(Equals),
+//             empty_hole(),
+//             builtin_fun("string_concat"),
+//             ~ann=
+//               Some(
+//                 FTemp.Typ.(
+//                   Exp(
+//                     Common(
+//                       Inconsistent(
+//                         CompareArrow(
+//                           arrow(
+//                             prod([string(), list(string())]),
+//                             string(),
+//                           ),
+//                         ),
+//                       ),
+//                     ),
+//                   )
+//                 ),
+//               ),
+//           )
+//         )
+//       ),
+//     )
+//   }),
+// ]
+// test_case("Polymorphic equal compare arrow 2", `Quick, () => {
+//   annotated_tree_test(
+//     {|let a : +A+B(Int->Int) = in (a == a)|},
+//     FIError.(
+//       Exp.(
+//         bin_op(
+//           Int(Equals),
+//           empty_hole(),
+//           empty_hole(),
+//           ~ann=
+//             Some(
+//               FTemp.Typ.(
+//                 Exp(
+//                   Common(
+//                     Inconsistent(
+//                       CompareArrow(
+//                         sum([
+//                           Variant("A", [], None),
+//                           Variant("B", [], Some(arrow(int(), int()))),
+//                         ]),
+//                       ),
+//                     ),
+//                   ),
+//                 )
+//               ),
+//             ),
+//         )
+//       )
+//     ),
+//   )

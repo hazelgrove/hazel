@@ -16,6 +16,7 @@ module Model = {
     editor: {
       editor,
       statics: CachedStatics.empty,
+      dynamics: Dynamics.Map.empty,
     },
     result: EvalResult.Model.init,
   };
@@ -23,6 +24,7 @@ module Model = {
   type persistent = CodeEditable.Model.persistent;
 
   let persist = model => model.editor |> CodeEditable.Model.persist;
+  let to_string = model => model.editor |> CodeEditable.Model.to_string;
   let unpersist = (~settings as _, pz) =>
     pz |> PersistentZipper.unpersist |> Editor.Model.mk |> mk;
 };
@@ -68,7 +70,14 @@ module Update = {
       )
       : Model.t => {
     let editor =
-      CodeEditable.Update.calculate(~settings, ~is_edited, ~stitch, editor);
+      CodeEditable.Update.calculate(
+        ~settings,
+        ~is_edited,
+        ~stitch,
+        ~dynamics=EvalResult.Model.dynamics(result),
+        ~is_dynamic_term=false,
+        editor,
+      );
     let result =
       EvalResult.Update.calculate(
         ~settings={...settings, assist: false},

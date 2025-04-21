@@ -7,6 +7,19 @@ module Annotated = {
     annotation: 'b,
   };
 
+  let pp:
+    type a b.
+      (
+        (Format.formatter, a) => unit,
+        (Format.formatter, b) => unit,
+        Format.formatter,
+        t(a, b)
+      ) =>
+      unit =
+    (fmt_a, _, fmtr, t) => {
+      fmt_a(fmtr, t.term);
+    };
+
   let term_of = x => x.term;
   let unwrap = x => (x.term, term' => {...x, term: term'});
 
@@ -34,12 +47,13 @@ and exp_term('a) =
   | FailedCast(exp_t('a), typ_t('a), typ_t('a))
   | Deferral(deferral_position_t)
   | Undefined
-  | Bool(bool)
-  | Int(int)
-  | Float(float)
-  | String(string)
+  | Atom(Atom.t)
   | ListLit(list(exp_t('a)))
-  | Constructor(string, option(typ_t('a))) // Typ.t field is only meaningful in dynamic expressions
+  /* The type double-option field of this constructor is required to assign the correct
+     statics to constructors after evaluation. In dynamic expressions `Some(None)` means
+     that it is a free constructor, while Some(Some(t)) means it has type t. In user expressions
+     this field is None.*/
+  | Constructor(string, option(option(typ_t('a))))
   | Fun(pat_t('a), exp_t('a), option(typ_t('a)), option(Var.t)) // typ_t field is only used to display types in results
   | TypFun(tpat_t('a), exp_t('a), option(Var.t))
   | Tuple(list(exp_t('a)))
@@ -50,6 +64,7 @@ and exp_term('a) =
   | Let(pat_t('a), exp_t('a), exp_t('a))
   | FixF(pat_t('a), exp_t('a), option(closure_environment_t('a)))
   | TyAlias(tpat_t('a), typ_t('a), exp_t('a))
+  | Use(typ_t('a), exp_t('a))
   | Ap(Operators.ap_direction, exp_t('a), exp_t('a))
   | TypAp(exp_t('a), typ_t('a))
   | DeferredAp(exp_t('a), list(exp_t('a)))
@@ -59,6 +74,7 @@ and exp_term('a) =
   | Filter(stepper_filter_kind_t('a), exp_t('a))
   | Closure([@show.opaque] closure_environment_t('a), exp_t('a))
   | Parens(exp_t('a)) // (
+  | Probe(exp_t('a), Probe.t)
   | Cons(exp_t('a), exp_t('a))
   | ListConcat(exp_t('a), exp_t('a))
   | UnOp(Operators.op_un, exp_t('a))
@@ -75,27 +91,22 @@ and pat_term('a) =
   | EmptyHole
   | MultiHole(list(any_t('a)))
   | Wild
-  | Int(int)
-  | Float(float)
-  | Bool(bool)
-  | String(string)
+  | Atom(Atom.t)
   | ListLit(list(pat_t('a)))
-  | Constructor(string, option(typ_t('a))) // Typ.t field is only meaningful in dynamic patterns
+  | Constructor(string, option(option(typ_t('a)))) // see comment on constructor expressions
   | Cons(pat_t('a), pat_t('a))
   | Var(Var.t)
   | Tuple(list(pat_t('a)))
   | Label(string)
   | TupLabel(pat_t('a), pat_t('a))
   | Parens(pat_t('a))
+  | Probe(pat_t('a), Probe.t)
   | Ap(pat_t('a), pat_t('a))
   | Cast(pat_t('a), typ_t('a), typ_t('a))
 and pat_t('a) = Annotated.t(pat_term('a), 'a)
 and typ_term('a) =
   | Unknown(type_provenance('a))
-  | Int
-  | Float
-  | Bool
-  | String
+  | Atom(Atom.cls)
   | Var(string)
   | List(typ_t('a))
   | Arrow(typ_t('a), typ_t('a))
@@ -120,7 +131,11 @@ and rul_term('a) =
   | Rules(exp_t('a), list((pat_t('a), exp_t('a))))
 and rul_t('a) = Annotated.t(rul_term('a), 'a)
 and environment_t('a) = VarBstMap.Ordered.t_(exp_t('a))
-and closure_environment_t('a) = (Id.t, environment_t('a))
+and closure_environment_t('a) = {
+  id: Id.t,
+  env: environment_t('a),
+  call_stack: Probe.call_stack,
+}
 and stepper_filter_kind_t('a) =
   | Filter(filter('a))
   | Residue(int, FilterAction.t)
@@ -159,13 +174,10 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
           )
         | Deferral(pos) => Deferral(pos)
         | Undefined => Undefined
-        | Bool(b) => Bool(b)
-        | Int(i) => Int(i)
-        | Float(f) => Float(f)
-        | String(s) => String(s)
+        | Atom(c) => Atom(c)
         | ListLit(l) => ListLit(List.map(x => map_exp_annotation(f, x), l))
         | Constructor(s, t) =>
-          Constructor(s, Option.map(map_typ_annotation(f), t))
+          Constructor(s, Option.map(Option.map(map_typ_annotation(f)), t))
         | Fun(p, e, t, v) =>
           Fun(
             map_pat_annotation(f, p),
@@ -196,6 +208,8 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
             map_typ_annotation(f, t),
             map_exp_annotation(f, e),
           )
+        | Use(t, e) =>
+          Use(map_typ_annotation(f, t), map_exp_annotation(f, e))
         | Ap(d, e1, e2) =>
           Ap(d, map_exp_annotation(f, e1), map_exp_annotation(f, e2))
         | TypAp(e, t) =>
@@ -225,6 +239,7 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
             map_exp_annotation(f, e),
           )
         | Parens(e) => Parens(map_exp_annotation(f, e))
+        | Probe(e, probe) => Probe(map_exp_annotation(f, e), probe)
         | Cons(e1, e2) =>
           Cons(map_exp_annotation(f, e1), map_exp_annotation(f, e2))
         | ListConcat(e1, e2) =>
@@ -277,13 +292,10 @@ and map_pat_annotation: 'a 'b. ('a => 'b, pat_t('a)) => pat_t('b) =
         | MultiHole(l) =>
           MultiHole(List.map(x => map_any_annotation(f, x), l))
         | Wild => Wild
-        | Int(i) => Int(i)
-        | Float(f) => Float(f)
-        | Bool(b) => Bool(b)
-        | String(s) => String(s)
+        | Atom(c) => Atom(c)
         | ListLit(l) => ListLit(List.map(x => map_pat_annotation(f, x), l))
         | Constructor(s, t) =>
-          Constructor(s, Option.map(map_typ_annotation(f), t))
+          Constructor(s, Option.map(Option.map(map_typ_annotation(f)), t))
         | Cons(p1, p2) =>
           Cons(map_pat_annotation(f, p1), map_pat_annotation(f, p2))
         | Var(v) => Var(v)
@@ -292,6 +304,7 @@ and map_pat_annotation: 'a 'b. ('a => 'b, pat_t('a)) => pat_t('b) =
         | TupLabel(p1, p2) =>
           TupLabel(map_pat_annotation(f, p1), map_pat_annotation(f, p2))
         | Parens(p) => Parens(map_pat_annotation(f, p))
+        | Probe(p, probe) => Probe(map_pat_annotation(f, p), probe)
         | Ap(p1, p2) =>
           Ap(map_pat_annotation(f, p1), map_pat_annotation(f, p2))
         | Cast(p, t1, t2) =>
@@ -312,10 +325,7 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
       term:
         switch (term) {
         | Unknown(p) => Unknown(map_type_provenance_annotation(f, p))
-        | Int => Int
-        | Float => Float
-        | Bool => Bool
-        | String => String
+        | Atom(c) => Atom(c)
         | Var(s) => Var(s)
         | List(t) => List(map_typ_annotation(f, t))
         | Arrow(t1, t2) =>
@@ -388,11 +398,10 @@ and map_stepper_filter_kind_annotation:
   }
 and map_closure_environment_annotation:
   type a b. (a => b, closure_environment_t(a)) => closure_environment_t(b) =
-  (f, (id, env)) => {
-    (
-      id,
-      VarBstMap.Ordered.mapo(((_, y)) => map_exp_annotation(f, y), env),
-    );
+  (f, {id, env, call_stack}) => {
+    id,
+    env: VarBstMap.Ordered.mapo(((_, y)) => map_exp_annotation(f, y), env),
+    call_stack,
   }
 
 and map_type_provenance_annotation:
@@ -461,20 +470,32 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Undefined,
       annotation: default_annotation(ann),
     };
+    let basic = (~ann=?, c): exp_t(DefaultAnnotation.t) => {
+      term: Atom(c),
+      annotation: default_annotation(ann),
+    };
     let bool = (~ann=?, b): exp_t(DefaultAnnotation.t) => {
-      term: Bool(b),
+      term: Atom(Bool(b)),
       annotation: default_annotation(ann),
     };
     let int = (~ann=?, i): exp_t(DefaultAnnotation.t) => {
-      term: Int(i),
+      term: Atom(Int(i)),
+      annotation: default_annotation(ann),
+    };
+    let sint = (~ann=?, i): exp_t(DefaultAnnotation.t) => {
+      term: Atom(SInt(i)),
       annotation: default_annotation(ann),
     };
     let float = (~ann=?, f): exp_t(DefaultAnnotation.t) => {
-      term: Float(f),
+      term: Atom(Float(f)),
       annotation: default_annotation(ann),
     };
     let string = (~ann=?, s): exp_t(DefaultAnnotation.t) => {
-      term: String(s),
+      term: Atom(String(s)),
+      annotation: default_annotation(ann),
+    };
+    let nat = (~ann=?, i): exp_t(DefaultAnnotation.t) => {
+      term: Atom(Nat(i)),
       annotation: default_annotation(ann),
     };
     let list_lit = (~ann=?, l): exp_t(DefaultAnnotation.t) => {
@@ -525,6 +546,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: TyAlias(p, t, e),
       annotation: default_annotation(ann),
     };
+    let use = (~ann=?, t, e): exp_t(DefaultAnnotation.t) => {
+      term: Use(t, e),
+      annotation: default_annotation(ann),
+    };
     let ap = (~ann=?, d, e1, e2): exp_t(DefaultAnnotation.t) => {
       term: Ap(d, e1, e2),
       annotation: default_annotation(ann),
@@ -559,6 +584,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let parens = (~ann=?, e): exp_t(DefaultAnnotation.t) => {
       term: Parens(e),
+      annotation: default_annotation(ann),
+    };
+    let probe = (~ann=?, e1, e2): exp_t(DefaultAnnotation.t) => {
+      term: Probe(e1, e2),
       annotation: default_annotation(ann),
     };
     let cons = (~ann=?, e1, e2): exp_t(DefaultAnnotation.t) => {
@@ -607,20 +636,32 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Wild,
       annotation: default_annotation(ann),
     };
+    let basic = (~ann=?, c): pat_t(DefaultAnnotation.t) => {
+      term: Atom(c),
+      annotation: default_annotation(ann),
+    };
     let int = (~ann=?, i): pat_t(DefaultAnnotation.t) => {
-      term: Int(i),
+      term: Atom(Int(i)),
+      annotation: default_annotation(ann),
+    };
+    let sint = (~ann=?, i): pat_t(DefaultAnnotation.t) => {
+      term: Atom(SInt(i)),
       annotation: default_annotation(ann),
     };
     let float = (~ann=?, f): pat_t(DefaultAnnotation.t) => {
-      term: Float(f),
+      term: Atom(Float(f)),
       annotation: default_annotation(ann),
     };
     let bool = (~ann=?, b): pat_t(DefaultAnnotation.t) => {
-      term: Bool(b),
+      term: Atom(Bool(b)),
       annotation: default_annotation(ann),
     };
     let string = (~ann=?, s): pat_t(DefaultAnnotation.t) => {
-      term: String(s),
+      term: Atom(String(s)),
+      annotation: default_annotation(ann),
+    };
+    let nat = (~ann=?, i): pat_t(DefaultAnnotation.t) => {
+      term: Atom(Nat(i)),
       annotation: default_annotation(ann),
     };
     let list_lit = (~ann=?, l): pat_t(DefaultAnnotation.t) => {
@@ -655,6 +696,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Parens(p),
       annotation: default_annotation(ann),
     };
+    let probe = (~ann=?, p1, p2): pat_t(DefaultAnnotation.t) => {
+      term: Probe(p1, p2),
+      annotation: default_annotation(ann),
+    };
     let ap = (~ann=?, p1, p2): pat_t(DefaultAnnotation.t) => {
       term: Ap(p1, p2),
       annotation: default_annotation(ann),
@@ -671,19 +716,27 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       annotation: default_annotation(ann),
     };
     let int = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
-      term: Int,
+      term: Atom(Int),
+      annotation: default_annotation(ann),
+    };
+    let sint = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
+      term: Atom(SInt),
       annotation: default_annotation(ann),
     };
     let float = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
-      term: Float,
+      term: Atom(Float),
       annotation: default_annotation(ann),
     };
     let bool = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
-      term: Bool,
+      term: Atom(Bool),
       annotation: default_annotation(ann),
     };
     let string = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
-      term: String,
+      term: Atom(String),
+      annotation: default_annotation(ann),
+    };
+    let nat = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
+      term: Atom(Nat),
       annotation: default_annotation(ann),
     };
     let var = (~ann=?, s): typ_t(DefaultAnnotation.t) => {
@@ -771,8 +824,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
   };
 
   let closure_environment =
-      (id, env): closure_environment_t(DefaultAnnotation.t) => {
-    (id, environment(env));
+      (~callstack, id, env): closure_environment_t(DefaultAnnotation.t) => {
+    id,
+    env: environment(env),
+    call_stack: callstack,
   };
 
   module StepperFilter = {
