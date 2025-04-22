@@ -174,7 +174,7 @@ let qcheck_statics_does_not_crash =
               ~prefix="all_ctrs_of_type called with a non-normalized type:",
               f,
             ) =>
-        true
+        true // https://github.com/hazelgrove/hazel/issues/1626
       | _ => raise(e)
       }
     }
