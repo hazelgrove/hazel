@@ -4,7 +4,8 @@ open ProjectorBase;
 
 let string_of = (any: Any.t): option(string) =>
   switch (any) {
-  | Exp({term: String(s), _}) => Some(StringUtil.unescape_linebreaks(s))
+  | Exp({term: Atom(String(s)), _}) =>
+    Some(StringUtil.unescape_linebreaks(s))
   | _ => None
   };
 
@@ -25,7 +26,7 @@ let put = (info, s: string): Base.segment =>
       | Exp(any) =>
         Exp({
           ...any,
-          term: String(StringUtil.escape_linebreaks(s)),
+          term: Atom(String(StringUtil.escape_linebreaks(s))),
         })
       | _any => failwith("TextArea: put: not string literal"),
       info.syntax,

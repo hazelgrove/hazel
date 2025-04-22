@@ -7,10 +7,7 @@ let rec append_exp = (e1: Exp.t, e2: Exp.t): Exp.t => {
   | FailedCast(_)
   | Undefined
   | Deferral(_)
-  | Bool(_)
-  | Int(_)
-  | Float(_)
-  | String(_)
+  | Atom(_)
   | ListLit(_)
   | Constructor(_)
   | Closure(_)
@@ -73,6 +70,14 @@ let rec append_exp = (e1: Exp.t, e2: Exp.t): Exp.t => {
         ids: IdTagged.ids(e1),
       },
     };
+  | Use(t, ebody) =>
+    let ebody' = append_exp(ebody, e2);
+    {
+      term: Use(t, ebody'),
+      annotation: {
+        ids: IdTagged.ids(e1),
+      },
+    };
   };
 };
 
@@ -82,7 +87,8 @@ let wrap_filter = (act: FilterAction.action, term: Exp.t): Exp.t => {
       Filter({
         act: FilterAction.(act, One),
         pat: {
-          term: Constructor("$e", Some(Unknown(Internal) |> Typ.fresh)),
+          term:
+            Constructor("$e", Some(Some(Unknown(Internal) |> Typ.fresh))),
           annotation: {
             ids: [Id.mk()],
           },

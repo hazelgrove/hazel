@@ -45,5 +45,31 @@ let tests = (
         StringUtil.plain_split("a.*c", ".*"),
       )
     }),
+    test_case(
+      "compress string",
+      `Quick,
+      () => {
+        check(string, "empty string", "", StringUtil.compress(""));
+        check(
+          string,
+          "ascii string",
+          "abcdef.%2F%3F!%20",
+          StringUtil.compress("abcdef./?! "),
+        );
+      },
+    ),
+    test_case(
+      "decompress string",
+      `Quick,
+      () => {
+        check(string, "empty string", "", StringUtil.decompress(""));
+        check(
+          string,
+          "ascii string",
+          "abcdef./?! ",
+          StringUtil.decompress("abcdef.%2F%3F!%20"),
+        );
+      },
+    ),
   ],
 );
