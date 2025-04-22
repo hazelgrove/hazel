@@ -27,3 +27,8 @@ let init = (kind: ProjectorCore.Kind.t, any: Term.Any.t): option('p) => {
   | Some(model) => Some(ProjectorCore.V(kind_gadt, model))
   };
 };
+
+let make_term = (V(k, m): ProjectorCore.model, exp): Any.t => {
+  let (module P) = to_module(k);
+  P.mk_term(m, exp);
+};

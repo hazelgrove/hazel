@@ -87,6 +87,9 @@ module Zipper = {
 
 /* A little more interesting */
 
+let of_projector = (model, xs) =>
+  ProjectorInit.make_term(model, List.hd(xs));
+
 module MakeTerm = {
   include MakeTerm;
 
@@ -117,7 +120,7 @@ module Editor = {
   module Model = {
     include Model;
 
-    let mk = Editor.Model.mk(~projector_to_term=(_, e) => List.hd(e));
+    let mk = Editor.Model.mk(~projector_to_term=of_projector);
   };
 
   module Update = {
@@ -127,7 +130,7 @@ module Editor = {
 
     let calculate =
       Editor.Update.calculate(
-        ~projector_to_term=(_, e) => List.hd(e),
+        ~projector_to_term=of_projector,
         ~projector_init=ProjectorInit.init,
       );
   };
@@ -136,5 +139,5 @@ module Editor = {
 module CachedStatics = {
   include CachedStatics;
 
-  let init = init(~projector_to_term=(_, e) => List.hd(e));
+  let init = init(~projector_to_term=of_projector);
 };

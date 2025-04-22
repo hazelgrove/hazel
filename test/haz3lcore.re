@@ -1,5 +1,7 @@
 include Haz3lcorep;
 
+let of_projector = (model, xs) => ProjectorInit.make_term(model, List.hd(xs));
+
 module Base = {
   include Base;
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -23,9 +25,9 @@ module Editor = {
 module MakeTerm = {
   include MakeTerm;
   
-  let parse_exp = parse_exp(~of_projector=(_, e) => List.hd(e));
+  let parse_exp = parse_exp(~of_projector);
   let from_zip_for_sem =
-    from_zip_for_sem(~of_projector=(_, e) => List.hd(e));
+    from_zip_for_sem(~of_projector);
 }
 
 module Segment = {

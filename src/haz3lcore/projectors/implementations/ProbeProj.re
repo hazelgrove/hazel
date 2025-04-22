@@ -915,19 +915,19 @@ module M: Projector with type model = unit = {
       offside: Some(offside_view(info, local, view_seg, info.utility)),
     };
 
-  let mk_term = (~id: Id.t, ~from_segment: 's => Any.t, ~segment: 's): Any.t => {
-    switch (from_segment(segment)) {
+  let mk_term = (_model, exp: Any.t): Any.t => {
+    switch (exp) {
     | Exp(term) =>
       Exp({
         annotation: {
-          ids: [id],
+          ids: [Id.mk()],
         },
         term: Probe(term, Probe.empty),
       })
     | Pat(term) =>
       Pat({
         annotation: {
-          ids: [id],
+          ids: [Id.mk()],
         },
         term: Probe(term, Probe.empty),
       })
