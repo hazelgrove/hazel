@@ -37,10 +37,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   // Indivisible forms never need parentheses around them
   | Var(_)
   | Invalid(_)
-  | Bool(_)
-  | Int(_)
-  | Float(_)
-  | String(_)
+  | Atom(Bool(_) | Int(_) | SInt(_) | Float(_) | String(_) | Nat(_))
   | EmptyHole
   | Deferral(_)
   | BuiltinFun(_)
@@ -65,7 +62,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | DeferredAp(_)
   | TypAp(_) => Precedence.ap
   | UnOp(Bool(Not), _) => Precedence.not_
-  | UnOp(Int(Minus), _) => Precedence.neg
+  | UnOp(Int(Minus) | Nat(Minus) | Float(Minus) | SInt(Minus), _) => Precedence.neg
   | Cons(_) => Precedence.cons
   | Ap(Reverse, _, _) => Precedence.eqs
   | ListConcat(_) => Precedence.concat
@@ -80,6 +77,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   // Top-level things
   | Filter(_)
   | TyAlias(_)
+  | Use(_)
   | Let(_) => Precedence.let_
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
@@ -94,10 +92,7 @@ let external_precedence_pat = (dp: Pat.t) =>
   | Wild
   | Invalid(_)
   | Var(_)
-  | Int(_)
-  | Float(_)
-  | Bool(_)
-  | String(_)
+  | Atom(Bool(_) | Int(_) | SInt(_) | Float(_) | String(_) | Nat(_))
   | Constructor(_)
   | Label(_)
   | TupLabel(_) => Precedence.max
@@ -125,10 +120,7 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Unknown(SynSwitch)
   | Unknown(Hole(EmptyHole))
   | Var(_)
-  | Int
-  | Float
-  | Bool
-  | String
+  | Atom(_)
   | Label(_)
   | TupLabel(_) => Precedence.max
 
@@ -184,10 +176,7 @@ let rec parenthesize =
   // Indivisible forms dont' change
   | Var(_)
   | Invalid(_)
-  | Bool(_)
-  | Int(_)
-  | Float(_)
-  | String(_)
+  | Atom(_)
   | EmptyHole
   //| Constructor(_) // Not indivisible because of the type annotation!
   | Deferral(_)
@@ -210,7 +199,10 @@ let rec parenthesize =
   | Filter(Residue(_), x) => x |> parenthesize
   // Other forms
   | Constructor(c, t) =>
-    Constructor(c, Option.map(ty => paren_typ_at(Precedence.cast, ty), t))
+    Constructor(
+      c,
+      Option.map(Option.map(paren_typ_at(Precedence.cast)), t),
+    )
     |> rewrap
   | Fun(p, e, typ, n) =>
     Fun(
@@ -262,6 +254,12 @@ let rec parenthesize =
   | TyAlias(tp, t, e) =>
     TyAlias(
       tp,
+      parenthesize_typ(t) |> paren_typ_at(Precedence.min),
+      parenthesize(e) |> paren_assoc_at(Precedence.let_),
+    )
+    |> rewrap
+  | Use(t, e) =>
+    Use(
       parenthesize_typ(t) |> paren_typ_at(Precedence.min),
       parenthesize(e) |> paren_assoc_at(Precedence.let_),
     )
@@ -346,8 +344,8 @@ let rec parenthesize =
     |> rewrap
   | UnOp(Bool(Not), e) =>
     UnOp(Bool(Not), parenthesize(e) |> paren_at(Precedence.not_)) |> rewrap
-  | UnOp(Int(Minus), e) =>
-    UnOp(Int(Minus), parenthesize(e) |> paren_at(Precedence.neg)) |> rewrap
+  | UnOp((Int(Minus) | Nat(Minus) | Float(Minus) | SInt(Minus)) as op, e) =>
+    UnOp(op, parenthesize(e) |> paren_at(Precedence.neg)) |> rewrap
   | BinOp(op, e1, e2) =>
     (
       switch (Precedence.of_bin_op(op) |> Precedence.associativity) {
@@ -392,10 +390,7 @@ and parenthesize_pat =
   // Indivisible forms dont' change
   | Var(_)
   | Invalid(_)
-  | Bool(_)
-  | Int(_)
-  | Float(_)
-  | String(_)
+  | Atom(_)
   | EmptyHole
   | Constructor(_)
   | Tuple([]) => pat
@@ -470,10 +465,7 @@ and parenthesize_typ =
   | Unknown(Internal)
   | Unknown(SynSwitch)
   | Unknown(Hole(EmptyHole))
-  | Int
-  | Float
-  | Bool
-  | String => typ
+  | Atom(_) => typ
 
   // Other forms
   | Parens(t) =>
@@ -759,13 +751,8 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       }),
     ]);
   | Undefined => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "undefined")
-  | Bool(b) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Bool.to_string(b))
-  | Int(n) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Int.to_string(n))
-  // TODO: do floats print right?
-  | Float(f) =>
-    text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Printf.sprintf("%f", f))
-  | String(s) =>
-    text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "\"" ++ s ++ "\"")
+  | Atom(c) =>
+    text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Atom.to_literal(c))
   // TODO: Make sure types are correct
   | Constructor(c, _t) =>
     // let id = Id.mk();
@@ -949,6 +936,13 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let e =
       settings.inline ? e : [Secondary(Secondary.mk_newline(Id.mk()))] @ e;
     [mk_form(TypeAlias, id, [tp, t])] @ e;
+  | Use(t, e) =>
+    let id = exp |> Exp.rep_id;
+    let+ t = typ_to_pretty(~settings: Settings.t, t)
+    and+ e = go(e);
+    let e =
+      settings.inline ? e : [Secondary(Secondary.mk_newline(Id.mk()))] @ e;
+    [mk_form(Use, id, [t])] @ e;
   | Ap(Forward, e1, e2) =>
     let id = exp |> Exp.rep_id;
     let+ e1 = go(e1)
@@ -1048,7 +1042,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let id = exp |> Exp.rep_id;
     let+ e = go(e);
     [mk_form(Not, id, [])] @ e;
-  | UnOp(Int(Minus), e) =>
+  | UnOp(Int(Minus) | Nat(Minus) | Float(Minus) | SInt(Minus), e) =>
     let id = exp |> Exp.rep_id;
     let+ e = go(e);
     [mk_form(UnaryMinus, id, [])] @ e;
@@ -1120,12 +1114,8 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     ]);
   | Wild => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "_")
   | Var(v) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, v)
-  | Int(n) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Int.to_string(n))
-  | Float(f) =>
-    text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Printf.sprintf("%f", f))
-  | Bool(b) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Bool.to_string(b))
-  | String(s) =>
-    text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "\"" ++ s ++ "\"")
+  | Atom(c) =>
+    text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Atom.to_literal(c))
   | Constructor(c, _) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, c)
   | ListLit([]) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "[]")
   | ListLit([x, ...xs]) =>
@@ -1272,10 +1262,12 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     );
 
   | Var(v) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, v)
-  | Int => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Int")
-  | Float => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Float")
-  | Bool => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Bool")
-  | String => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "String")
+  | Atom(Int) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Int")
+  | Atom(SInt) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "SInt")
+  | Atom(Float) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Float")
+  | Atom(Bool) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Bool")
+  | Atom(String) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "String")
+  | Atom(Nat) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Nat")
   | List(t) =>
     let id = typ |> Typ.rep_id;
     let+ t = go(t);
@@ -1358,7 +1350,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
 }
 and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
   switch (tpat |> IdTagged.term_of) {
-  | Invalid(t) => text_to_pretty(tpat |> TPat.rep_id, Sort.Typ, t)
+  | Invalid(t) => text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, t)
   | EmptyHole =>
     let id = tpat |> TPat.rep_id;
     p_just([
@@ -1377,7 +1369,7 @@ and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
       }),
       xs,
     );
-  | Var(v) => text_to_pretty(tpat |> TPat.rep_id, Sort.Typ, v)
+  | Var(v) => text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, v)
   };
 }
 and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {

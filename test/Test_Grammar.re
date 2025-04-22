@@ -6,6 +6,7 @@ let qcheck_map_annotation_test =
     ~count=100,
     QCheck.make(
       ~print=Haz3lmenhir.AST.show_exp,
+      ~shrink=Haz3lmenhir.AST.shrink_exp,
       Haz3lmenhir.AST.gen_exp_sized(7),
     ),
     exp => {
@@ -41,10 +42,12 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | FailedCast => failed_cast(empty_hole(), Typ.int(), Typ.string())
       | Deferral => deferral(InAp)
       | Undefined => undefined()
-      | Bool => bool(true)
-      | Int => int(1)
-      | Float => float(2.)
-      | String => string("hello")
+      | Atom(Bool) => bool(true)
+      | Atom(Int) => int(Bigint.one)
+      | Atom(SInt) => sint(1)
+      | Atom(Float) => float(2.)
+      | Atom(String) => string("hello")
+      | Atom(Nat) => nat(Bigint.one)
       | ListLit => list_lit([])
       | Constructor => constructor("A", None)
       | Fun => fn(Pat.var("x"), var("x"), None, None)
@@ -62,6 +65,7 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
           Typ.unknown(Hole(EmptyHole)),
           empty_hole(),
         )
+      | Use => use(Typ.unknown(Hole(EmptyHole)), empty_hole())
       | Ap => ap(Forward, empty_hole(), empty_hole())
       | TypAp => typ_ap(empty_hole(), Typ.unknown(Hole(EmptyHole)))
       | DeferredAp => deferred_ap(empty_hole(), [empty_hole()])
@@ -100,10 +104,12 @@ let sample_pattern = (cls_pat: Pat.cls): Grammar.UnitGrammar.pat => {
       | Invalid => invalid("invalid")
       | EmptyHole => empty_hole()
       | MultiHole => multi_hole([Pat(empty_hole()), Pat(empty_hole())])
-      | Bool => bool(true)
-      | Int => int(1)
-      | Float => float(2.)
-      | String => string("hello")
+      | Atom(Bool) => bool(true)
+      | Atom(Int) => int(Bigint.one)
+      | Atom(SInt) => sint(1)
+      | Atom(Float) => float(2.)
+      | Atom(String) => string("hello")
+      | Atom(Nat) => nat(Bigint.one)
       | ListLit => list_lit([])
       | Constructor => constructor("A", None)
       | Var => var("x")
@@ -126,10 +132,12 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
     Typ.(
       switch (cls_typ) {
       | Invalid => unknown(Hole(Invalid("invalid")))
-      | Int => int()
-      | Float => float()
-      | String => string()
-      | Bool => bool()
+      | Atom(Bool) => bool()
+      | Atom(Int) => int()
+      | Atom(SInt) => sint()
+      | Atom(Float) => float()
+      | Atom(String) => string()
+      | Atom(Nat) => nat()
       | List => list(unknown(Hole(EmptyHole)))
       | Arrow => arrow(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
       | Var => var("x")

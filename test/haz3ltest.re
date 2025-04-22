@@ -16,6 +16,7 @@ let (suite, _) =
       Test_Coverage.tests,
       Test_Evaluator.tests,
       Test_ListUtil.tests,
+      Test_Unboxing.tests,
     ]
     @ Test_Elaboration.tests
     @ Test_Introduce.tests,

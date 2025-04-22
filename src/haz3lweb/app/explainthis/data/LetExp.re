@@ -12,6 +12,11 @@ let let_wild_ex = {
   term: mk_example("let _ = 1 in \n2"),
   message: "The 1 is thrown away, so the expression evaluates to 2.",
 };
+let let_sint_ex = {
+  sub_id: Let(IntLit),
+  term: mk_example("let 1 = 1 in \n2"),
+  message: "The 1 is thrown away, so the expression evaluates to 2.",
+};
 let let_int_ex = {
   sub_id: Let(IntLit),
   term: mk_example("let 1 = 1 in \n2"),
@@ -217,6 +222,32 @@ let let_int_exp: form = {
     examples: [let_int_ex],
   };
 };
+
+let _pat = pat("SIntLit");
+let _exp_def = exp("e_def");
+let _exp_body = exp("e_body");
+let let_sint_exp_coloring_ids =
+  _pat_def_body_let_exp_coloring_ids(
+    Piece.id(_pat),
+    Piece.id(_exp_def),
+    Piece.id(_exp_body),
+  );
+let let_sint_exp: form = {
+  let explanation = "The only value for the [*definition*](%s) that matches the [*pattern*](%s) is `%s`. The [*definition*](%s) can't be referenced in the [*body*](%s).";
+  let form = [
+    mk_let([[space(), _pat, space()], [space(), _exp_def, space()]]),
+    linebreak(),
+    _exp_body,
+  ];
+  {
+    id: LetExp(SInt),
+    syntactic_form: form,
+    expandable_id: Some((Piece.id(_pat), [pat("IntLit")])),
+    explanation,
+    examples: [let_sint_ex],
+  };
+};
+
 let _pat = pat("FloatLit");
 let _exp_def = exp("e_def");
 let _exp_body = exp("e_body");
@@ -580,6 +611,11 @@ let lets_wild: group = {
 let lets_int: group = {
   id: LetExp(Int),
   forms: [let_int_exp, let_base_exp],
+};
+
+let lets_sint: group = {
+  id: LetExp(SInt),
+  forms: [let_sint_exp, let_base_exp],
 };
 
 let lets_float: group = {
