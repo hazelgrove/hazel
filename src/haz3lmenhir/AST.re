@@ -738,6 +738,10 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
             return(e);
           }
           <+> {
+            let* shrunk = shrink_exp(e);
+            return(CaseExp(shrunk, cases));
+          }
+          <+> {
             let shrink_case: QCheck.Shrink.t((pat, exp)) =
               QCheck.(
                 (
