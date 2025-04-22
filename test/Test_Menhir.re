@@ -107,12 +107,8 @@ let qcheck_menhir_maketerm_equivalent_test =
   QCheck.Test.make(
     ~name="Menhir and maketerm are equivalent",
     ~count=100,
-    AST.arb_exp(7),
-    exp => {
-      let unit_exp = Conversion.Exp.of_menhir_ast(exp);
-      let core_exp =
-        Grammar.map_exp_annotation(_ => IdTagged.IdTag.fresh(), unit_exp);
-
+    QCheck_Util.arb_exp(~minimal_idents=false, 7),
+    core_exp => {
       let segment =
         ExpToSegment.exp_to_segment(
           ~settings=
