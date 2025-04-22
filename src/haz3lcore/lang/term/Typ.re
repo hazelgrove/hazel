@@ -394,7 +394,11 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   };
 };
 
-let rec normalize = (ctx: Ctx.t, ty: t): t => {
+let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
+  if (rec_counter > 1000) {
+    failwith("normalize exceeded 1000 recursive calls");
+  };
+  let normalize = normalize(~rec_counter=rec_counter + 1);
   let (term, rewrap) = unwrap(ty);
   switch (term) {
   | Var(x) =>
