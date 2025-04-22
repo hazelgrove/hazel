@@ -429,8 +429,8 @@ let qcheck_evaluator_does_not_crash_test =
     | exp =>
       switch (
         Evaluator.evaluate(~env=Builtins.env_init, ~step_limit=10000, exp)
-    ) {
-    | (_, _) => true
+      ) {
+      | (_, _) => true
       | exception e =>
         switch (e) {
         | Failure(msg) when List.exists((==)(msg), ["Step limit reached"]) =>
@@ -453,7 +453,7 @@ let qcheck_evaluator_does_not_crash_test =
       print_endline(
         "Skipping statics/elaborate failure: " ++ Printexc.to_string(e),
       );
-        true;
+      true;
     }
   });
 
