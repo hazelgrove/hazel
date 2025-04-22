@@ -63,10 +63,7 @@ module Print = {
     term |> ExpToSegment.any_to_pretty(~settings) |> seg(~holes=None);
   };
 
-  let typ = (ty: Typ.t): string =>
-    //TODO: make sure that the ExpToSegment pretty printing fully subsumes Typ.pretty_print
-    //Typ.pretty_print(ty);
-    term(Typ(ty));
+  let typ = (ty: Typ.t): string => term(Typ(ty));
 };
 
 module ErrorPrint = {
@@ -108,6 +105,12 @@ module ErrorPrint = {
     | Inconsistent(WithArrow(ty)) =>
       prn("type %s is not consistent with arrow type", Print.typ(ty))
     | NoType(FreeConstructor(_name)) => prn("Constructor is not defined")
+    | NoType(BadOperator(msg)) => prn("Invalid operator: %s", msg)
+    | InvalidUseMode({bad_typ, _}) =>
+      prn(
+        "Cannot use type %s for number operators and literals.",
+        Print.typ(bad_typ),
+      )
     | Inconsistent(Internal(tys)) =>
       prn(
         "Expecting branches to have consistent types but got types: %s",
@@ -295,15 +298,6 @@ module ErrorPrint = {
 };
 
 module RelevantType = {
-  let expected_ty = (~ctx, mode: Mode.t): Typ.t => {
-    switch (mode) {
-    | Ana({term: Var(name), _}) when Ctx.lookup_alias(ctx, name) != None =>
-      let ty_expanded = Ctx.lookup_alias(ctx, name) |> Option.get;
-      ty_expanded;
-    | _ => Mode.ty_of(mode)
-    };
-  };
-
   let format_def = (alias: string, ty: Typ.t): string =>
     prn("type %s = %s in", alias, Print.typ(ty));
 
@@ -319,10 +313,7 @@ module RelevantType = {
 
   let rec get_vars = (ty: Typ.t): list(string) =>
     switch (ty.term) {
-    | Int
-    | Float
-    | Bool
-    | String
+    | Atom(_)
     | Unknown(_) => []
     | Var(x) => [x]
     | Arrow(ty1, ty2) => get_vars(ty1) @ get_vars(ty2)
@@ -382,7 +373,8 @@ module RelevantType = {
     };
   };
 
-  let expected = (~ctx: Ctx.t, mode: Mode.t, completion_token: string): string => {
+  let expected =
+      (~ctx: Ctx.t, ana_ty: Typ.t, completion_token: string): string => {
     /* TODO: Maybe include more than just the immediate type.
      * like for example, when inside a fn(s), include argument types.
      * Like basically to benefit maximally from included type info,
@@ -391,30 +383,13 @@ module RelevantType = {
      * mostly(?) give us the latter, but not always the former. */
     let prefix =
       "# The expected type of the hole " ++ completion_token ++ " is: ";
-    switch (mode) {
-    | Ana(ty) =>
-      let defs =
-        switch (collate_aliases(ctx, Mode.ty_of(mode))) {
-        | Some(defs) =>
-          "# The following type definitions are likely relevant: #\n" ++ defs
-        | None => "\n"
-        };
-      prefix ++ "a type consistent with " ++ Print.typ(ty) ++ " #\n" ++ defs;
-    | SynFun =>
-      prefix
-      ++ "a type consistent with "
-      ++ Print.typ(
-           Typ.fresh(
-             Arrow(
-               Typ.fresh(Unknown(Internal)),
-               Typ.fresh(Unknown(Internal)),
-             ),
-           ),
-         )
-      ++ " #"
-    | Syn => prefix ++ "any type #"
-    | _ => "Not applicable"
-    };
+    let defs =
+      switch (collate_aliases(ctx, ana_ty)) {
+      | Some(defs) =>
+        "# The following type definitions are likely relevant: #\n" ++ defs
+      | None => "\n"
+      };
+    prefix ++ "a type consistent with " ++ Print.typ(ana_ty) ++ " #\n" ++ defs;
   };
 };
 
@@ -444,10 +419,7 @@ module RelevantCtx = {
 
   let is_base = (ty: Typ.t): bool =>
     switch (ty.term) {
-    | Int
-    | Float
-    | Bool
-    | String => true
+    | Atom(_) => true
     | _ => false
     };
 
@@ -461,10 +433,7 @@ module RelevantCtx = {
      and leaf)  in the type tree. */
   let rec num_nodes = (ty: Typ.t): int => {
     switch (ty.term) {
-    | Int
-    | Float
-    | Bool
-    | String
+    | Atom(_)
     | Unknown(_) => 1
     | Var(_) => 1
     | Arrow(t1, t2) => 1 + num_nodes(t1) + num_nodes(t2)
@@ -495,10 +464,7 @@ module RelevantCtx = {
   let rec count_unknowns = (ty: Typ.t): int =>
     switch (ty.term) {
     | Unknown(_) => 1
-    | Int
-    | Float
-    | Bool
-    | String
+    | Atom(_)
     | Var(_) => 0
     | Arrow(t1, t2) => count_unknowns(t1) + count_unknowns(t2)
     | Prod(tys) =>
@@ -525,10 +491,7 @@ module RelevantCtx = {
 
   let rec contains_sum_or_var = (ty: Typ.t): bool =>
     switch (ty.term) {
-    | Int
-    | Float
-    | Bool
-    | String
+    | Atom(_)
     | Unknown(_) => false
     | Var("Option") => false //TODO: hack for LSP
     | Var(_)
@@ -598,12 +561,10 @@ module RelevantCtx = {
           depth: 2,
         })
       | _ => None,
-      ctx,
+      ctx.entries,
     );
 
-  let str = (ctx: Ctx.t, mode: Mode.t): string => {
-    let primary_goal: Typ.t =
-      RelevantType.expected_ty(~ctx, mode) |> Typ.normalize(ctx);
+  let str = (ctx: Ctx.t, primary_goal: Typ.t): string => {
     let secondary_targets =
       switch (primary_goal.term) {
       | Arrow(_source, target) =>
@@ -647,7 +608,11 @@ let List.length: [(String, Bool)]-> Int =
       ++ completion_token
       ++ {| end in
 |},
-      RelevantType.expected(Ana(Typ.fresh(Int)), ~ctx=[], completion_token),
+      RelevantType.expected(
+        Typ.fresh(Atom(Int)),
+        ~ctx=Ctx.empty,
+        completion_token,
+      ),
       advanced_reasoning
         ? {|
 Discussion:
@@ -673,8 +638,8 @@ let List.mapi: ((Int, Bool) -> Bool, [Bool]) -> [Bool]=
     go(0, xs) in
 |},
       RelevantType.expected(
-        Ana(Typ.fresh(List(Typ.fresh(Bool)))),
-        ~ctx=[],
+        Typ.fresh(List(Typ.fresh(Atom(Bool)))),
+        ~ctx=Ctx.empty,
         completion_token,
       ),
       advanced_reasoning
@@ -704,10 +669,10 @@ let total_capacity: Container -> Int =
 in
 |},
       RelevantType.expected(
-        Ana(
-          Typ.fresh(Arrow(Typ.fresh(Var("Container")), Typ.fresh(Int))),
+        Typ.fresh(
+          Arrow(Typ.fresh(Var("Container")), Typ.fresh(Atom(Int))),
         ),
-        ~ctx=[],
+        ~ctx=Ctx.empty,
         completion_token,
       ),
       advanced_reasoning
@@ -733,7 +698,11 @@ fun c ->
     ),
     (
       "let f = " ++ completion_token ++ " in f(5)",
-      RelevantType.expected(Syn, ~ctx=[], completion_token),
+      RelevantType.expected(
+        Typ.fresh(Unknown(Internal)),
+        ~ctx=Ctx.empty,
+        completion_token,
+      ),
       advanced_reasoning
         ? {|
 Discussion:
@@ -755,7 +724,11 @@ fun maybe_num ->
       ++ completion_token
       ++ {|
  | None => if !condition then 0 else y + 1 end in|},
-      RelevantType.expected(Ana(Typ.fresh(Int)), ~ctx=[], completion_token),
+      RelevantType.expected(
+        Typ.fresh(Atom(Int)),
+        ~ctx=Ctx.empty,
+        completion_token,
+      ),
       advanced_reasoning
         ? {|
 Discussion:
@@ -772,7 +745,11 @@ x
       "let num_or_zero = fun maybe_num ->\n case maybe_num\n | Some(num) => "
       ++ completion_token
       ++ " \n| None => 0 end in",
-      RelevantType.expected(Syn, ~ctx=[], completion_token),
+      RelevantType.expected(
+        Typ.fresh(Unknown(Internal)),
+        ~ctx=Ctx.empty,
+        completion_token,
+      ),
       advanced_reasoning
         ? {|
 Discussion:
@@ -789,15 +766,13 @@ num
       ++ completion_token
       ++ "\nin\nmerge_sort([4,1,3,7,2])",
       RelevantType.expected(
-        Ana(
-          Typ.fresh(
-            Arrow(
-              Typ.fresh(List(Typ.fresh(Int))),
-              Typ.fresh(List(Typ.fresh(Int))),
-            ),
+        Typ.fresh(
+          Arrow(
+            Typ.fresh(List(Typ.fresh(Atom(Int)))),
+            Typ.fresh(List(Typ.fresh(Atom(Int)))),
           ),
         ),
-        ~ctx=[],
+        ~ctx=Ctx.empty,
         completion_token,
       ),
       advanced_reasoning
@@ -819,8 +794,8 @@ fun list ->\nlet split: [Int]->([Int],[Int]) = fun left, right -> ?\nin\nlet mer
       ++ completion_token
       ++ "\n| Lunch(f) => f *. per_lunch_unit\nend\nin price(Breakfast(1,2))/.3.",
       RelevantType.expected(
-        Ana(Typ.fresh(Var("MenuItem"))),
-        ~ctx=[],
+        Typ.fresh(Var("MenuItem")),
+        ~ctx=Ctx.empty,
         completion_token,
       ),
       advanced_reasoning
@@ -862,8 +837,8 @@ in
 test 2 == List.nth(List.sort(fun a, b -> a<b, [4,1,3,2]), 1) end
     |},
       RelevantType.expected(
-        Ana(Typ.fresh(List(Typ.fresh(Unknown(Internal))))),
-        ~ctx=[],
+        Typ.fresh(List(Typ.fresh(Unknown(Internal)))),
+        ~ctx=Ctx.empty,
         completion_token,
       ),
       advanced_reasoning
@@ -1046,10 +1021,11 @@ module Prompt = {
       )
       : option(string) => {
     //TODO: Proper errors
-    let* mode =
+    //TODO: support non exp/pat positions
+    let* ty_ana =
       switch (ci) {
-      | InfoExp({mode, _}) => Some(mode)
-      | InfoPat({mode, _}) => Some(mode)
+      | InfoExp({ana, _})
+      | InfoPat({ana, _}) => Some(ana)
       | _ => None
       };
     let sketch = Print.seg(~holes=Some("?"), sketch);
@@ -1058,11 +1034,28 @@ module Prompt = {
     let expected_ty =
       expected_type
         ? Some(
-            RelevantType.expected(~ctx=ctx_at_caret, mode, completion_token),
+            RelevantType.expected(
+              ~ctx=ctx_at_caret,
+              ty_ana,
+              completion_token,
+            ),
           )
         : None;
+    let primary_goal: Typ.t =
+      (
+        switch (ty_ana) {
+        | {term: Var(name), _}
+            when Ctx.lookup_alias(ctx_at_caret, name) != None =>
+          let ty_expanded =
+            Ctx.lookup_alias(ctx_at_caret, name) |> Option.get;
+          ty_expanded;
+        | _ => ty_ana
+        }
+      )
+      |> Typ.normalize(ctx_at_caret);
     let relevant_ctx =
-      relevant_ctx ? Some(RelevantCtx.str(ctx_at_caret, mode)) : None;
+      relevant_ctx
+        ? Some(RelevantCtx.str(ctx_at_caret, primary_goal)) : None;
     mk_user_message(sketch, ~expected_ty, ~relevant_ctx);
   };
 

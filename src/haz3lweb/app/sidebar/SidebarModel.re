@@ -1,5 +1,4 @@
 module Sexp = Sexplib.Sexp;
-open Haz3lcore;
 open Util;
 
 module Settings = {

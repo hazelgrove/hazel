@@ -96,7 +96,7 @@ let end_chat_button = (~globals: Globals.t): Node.t => {
   );
 };
 
-let new_chat_button = (~globals: Globals.t, ~inject): Node.t => {
+let new_chat_button = (~inject): Node.t => {
   let tooltip = "New Chat";
   let new_chat = _ =>
     Virtual_dom.Vdom.Effect.Many([
@@ -111,7 +111,7 @@ let new_chat_button = (~globals: Globals.t, ~inject): Node.t => {
   );
 };
 
-let history_button = (~globals: Globals.t, ~inject): Node.t => {
+let history_button = (~inject): Node.t => {
   let tooltip = "Past Chats";
   let history = _ =>
     Virtual_dom.Vdom.Effect.Many([
@@ -162,18 +162,11 @@ let select_llm = (~inject, ~assistantModel: Assistant.Model.t): Node.t => {
   );
 };
 
-let settings_box = (~globals: Globals.t, ~inject): Node.t => {
+let settings_box = (~globals: Globals.t): Node.t => {
   div(~attrs=[clss(["settings-box"])], [resume_chat_button(~globals)]);
 };
 
-let api_input =
-    (
-      ~signal,
-      ~inject,
-      ~assistantModel: Assistant.Model.t,
-      ~settings: AssistantSettings.t,
-    )
-    : Node.t => {
+let api_input = (~signal, ~inject, ~assistantModel: Assistant.Model.t): Node.t => {
   let handle_submission = (api_key: string) => {
     Virtual_dom.Vdom.Effect.Many([
       inject(Assistant.Update.SetKey(api_key)),
@@ -286,13 +279,7 @@ let api_input =
 };
 
 let llm_model_id_input =
-    (
-      ~signal,
-      ~inject,
-      ~assistantModel: Assistant.Model.t,
-      ~settings: AssistantSettings.t,
-    )
-    : Node.t => {
+    (~signal, ~inject, ~assistantModel: Assistant.Model.t): Node.t => {
   let format_price_per_million = (price: string): string => {
     // Convert string to float, multiply by 1000 to get per million tokens
     // The API provides price per 1K tokens
@@ -935,9 +922,9 @@ let view =
                     ~attrs=[clss(["header-actions"])],
                     [
                       globals.settings.assistant.ongoing_chat
-                        ? history_button(~globals, ~inject) : None,
+                        ? history_button(~inject) : None,
                       globals.settings.assistant.ongoing_chat
-                        ? new_chat_button(~globals, ~inject) : None,
+                        ? new_chat_button(~inject) : None,
                       globals.settings.assistant.ongoing_chat
                         ? end_chat_button(~globals) : None,
                     ],
@@ -963,23 +950,11 @@ let view =
               )
             : None,
           globals.settings.assistant.ongoing_chat
-            ? None
-            : api_input(
-                ~signal,
-                ~inject,
-                ~assistantModel,
-                ~settings=globals.settings.assistant,
-              ),
+            ? None : api_input(~signal, ~inject, ~assistantModel),
           globals.settings.assistant.ongoing_chat
-            ? None
-            : llm_model_id_input(
-                ~signal,
-                ~inject,
-                ~assistantModel,
-                ~settings=globals.settings.assistant,
-              ),
+            ? None : llm_model_id_input(~signal, ~inject, ~assistantModel),
           globals.settings.assistant.ongoing_chat
-            ? None : settings_box(~globals, ~inject),
+            ? None : settings_box(~globals),
           globals.settings.assistant.ongoing_chat
           && assistantModel.show_history
             ? history_menu(

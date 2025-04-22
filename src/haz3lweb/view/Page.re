@@ -605,7 +605,7 @@ module View = {
           };
       div(
         ~attrs=[Attr.id("sidebars")],
-        [sub, Sidebar.persistent_view(~globals, ~inject)],
+        [sub, Sidebar.persistent_view(~globals)],
       );
     };
     let editors_view =

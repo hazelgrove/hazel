@@ -117,11 +117,7 @@ let set_buffer = (~info_map: Statics.Map.t, z: Zipper.t): option(Zipper.t) => {
   Some(z);
 };
 
-let set_llm_buffer =
-    (~info_map: Statics.Map.t, z: Zipper.t, response: string)
-    : option(Zipper.t) => {
-  let* index = Indicated.index(z);
-  let* ci = Id.Map.find_opt(index, info_map);
+let set_llm_buffer = (z: Zipper.t, response: string): option(Zipper.t) => {
   let content = mk_unparsed_buffer(response);
   let z = Zipper.set_llm_buffer(z, ~content, ~mode=Unparsed);
   Some(z);

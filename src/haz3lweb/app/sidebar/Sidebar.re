@@ -2,7 +2,6 @@ open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
 open Util;
-open Haz3lcore;
 
 let tab = (~tooltip="", icon, action, isActive) => {
   let classes = ["tab"] @ (isActive ? ["active"] : []);
@@ -71,7 +70,7 @@ let collapse_tab = (~globals: Globals.t): Node.t => {
   );
 };
 
-let persistent_view = (~globals: Globals.t, ~inject: 'a => Effect.t(unit)) => {
+let persistent_view = (~globals: Globals.t) => {
   div(
     ~attrs=[Attr.id("persistent")],
     [

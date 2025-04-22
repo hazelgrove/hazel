@@ -1,10 +1,5 @@
 module Sexp = Sexplib.Sexp;
-open Haz3lcore;
-open Virtual_dom.Vdom;
-open Node;
-open Util.Web;
 open Util;
-open Js_of_ocaml;
 
 let format_time_diff = (prior: float): string => {
   let now = JsUtil.timestamp();

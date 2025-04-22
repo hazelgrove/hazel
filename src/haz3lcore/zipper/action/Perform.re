@@ -16,8 +16,8 @@ let set_tydi_buffer = (info_map: Statics.Map.t, z: t): t =>
   | Some(z) => z
   };
 
-let set_llm_buffer = (info_map: Statics.Map.t, z: t, response: string): t =>
-  switch (TyDi.set_llm_buffer(~info_map, z, response)) {
+let set_llm_buffer = (z: t, response: string): t =>
+  switch (TyDi.set_llm_buffer(z, response)) {
   | None => z
   | Some(z) => z
   };
@@ -137,8 +137,7 @@ let go_z =
     | Some(z) => Ok(z)
     }
   | Buffer(Set(TyDi)) => Ok(set_tydi_buffer(statics.info_map, z))
-  | Buffer(Set(LLM(response))) =>
-    Ok(set_llm_buffer(statics.info_map, z, response))
+  | Buffer(Set(LLM(response))) => Ok(set_llm_buffer(z, response))
   | Buffer(Accept) =>
     switch (buffer_accept(z)) {
     | None => Error(CantAccept)
