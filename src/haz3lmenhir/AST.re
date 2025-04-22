@@ -646,6 +646,9 @@ and gen_pat_sized: (~minimal_idents: bool, int) => QCheck.Gen.t(pat) =
       )
     );
 
+let shrink_non_empty_string: QCheck.Shrink.t(string) =
+  x => QCheck.Shrink.(filter(x => String.length(x) != 0, string, x));
+
 let rec shrink_exp: QCheck.Shrink.t(exp) =
   QCheck.(
     (exp: exp) =>
@@ -671,9 +674,7 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
           | SInt(i) => Shrink.int(i) >|= ((i: int) => Atom(SInt(i)))
           | _ => Iter.empty
           }
-        | Var(x) =>
-          Shrink.(filter(x => String.length(x) != 0, string, x))
-          >|= ((x: string) => Var(x)) // TODO This isn't great for vars
+        | Var(x) => shrink_non_empty_string(x) >|= ((x: string) => Var(x)) // TODO This isn't great for vars
         | Constructor(_, _) => Iter.empty // TODO Constructors. Shrinking needs to preserve constructor ident format
         | ListExp(l) =>
           let* shrunk = Shrink.list(l, ~shrink=shrink_exp);
@@ -757,8 +758,7 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
             return(CaseExp(e, shrunk));
           }
         | Label(l) =>
-          Shrink.(filter(l => String.length(l) != 0, string, l))
-          >|= ((l: string) => Label(l))
+          shrink_non_empty_string(l) >|= ((l: string) => Label(l))
         | TupLabel(e1, e2) =>
           {
             return(
@@ -987,10 +987,8 @@ and shrink_pat: QCheck.Shrink.t(pat) =
           | _ => Iter.empty
           }
         | VarPat(x) =>
-          Shrink.(filter(x => String.length(x) != 0, string, x))
-          >|= ((x: string) => VarPat(x))
-        | ConstructorPat(c, _) =>
-          Shrink.string(c) >|= ((c: string) => ConstructorPat(c, None))
+          shrink_non_empty_string(x) >|= ((x: string) => VarPat(x))
+        | ConstructorPat(_) => Iter.empty // Needs to preserve constructor ident
         | ListPat(l) =>
           let* shrunk = Shrink.list(l, ~shrink=shrink_pat);
           switch (shrunk) {
@@ -1057,8 +1055,7 @@ and shrink_pat: QCheck.Shrink.t(pat) =
             return(TupLabelPat(p1, shrunk));
           }
         | LabelPat(l) =>
-          Shrink.(filter(l => String.length(l) != 0, string, l))
-          >|= ((l: string) => LabelPat(l))
+          shrink_non_empty_string(l) >|= ((l: string) => LabelPat(l))
         | InvalidPat(_)
         | IndicationPat(_)
         | WildPat
@@ -1121,8 +1118,7 @@ and shrink_typ: QCheck.Shrink.t(typ) =
           let* shrunk = shrink_typ(t);
           return(RecType(tpat, shrunk));
         | LabelType(x) =>
-          Shrink.(filter(x => String.length(x) != 0, string, x))
-          >|= ((x: string) => LabelType(x))
+          shrink_non_empty_string(x) >|= ((x: string) => LabelType(x))
         | TupLabelType(t1, t2) =>
           return(t2)
           <+> {
