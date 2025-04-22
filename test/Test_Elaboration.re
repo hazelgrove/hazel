@@ -982,7 +982,7 @@ in 1|},
     QCheck_alcotest.to_alcotest(
       QCheck.Test.make(
         ~name="Elaboration does not crash",
-        ~count=1000,
+        ~count=10000,
         QCheck_Util.arb_exp(~minimal_idents=true, 50),
         exp => {
         switch (mk_map(exp)) {
