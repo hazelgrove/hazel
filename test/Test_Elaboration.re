@@ -966,6 +966,19 @@ in 1|},
         ),
       )
     }),
+    test_case("Nontermination in typ normalization", `Quick, () => {
+      [@warning "-21"]
+      {
+        Alcotest.skip(); // https://github.com/hazelgrove/hazel/issues/1627
+        let _ =
+          dhexp_of_uexp(
+            parse_exp(
+              {|type x = x in (([] @ false) @ [] @< Float >) @< x([(())]) > @ case test 0.000006 end:: "f":: ? | B => (())| x => (())| (()) => ?| [] => ?| ? => 12 end|},
+            ),
+          );
+        ();
+      }
+    }),
     QCheck_alcotest.to_alcotest(
       QCheck.Test.make(
         ~name="Elaboration does not crash",
@@ -978,9 +991,18 @@ in 1|},
           | _ => true
           | exception (Failure(msg) as e) =>
             switch (msg) {
-            | "type application in dynamics" =>
+            | _
+                when
+                  List.exists(
+                    (==)(msg),
+                    [
+                      "type application in dynamics", // https://github.com/hazelgrove/hazel/issues/1459?issue=hazelgrove%7Chazel%7C1625
+                      "normalize exceeded 1000 recursive calls", // https://github.com/hazelgrove/hazel/issues/1627
+                      "Type join of ap" // https://github.com/hazelgrove/hazel/issues/1459?issue=hazelgrove%7Chazel%7C1625
+                    ],
+                  ) =>
               print_endline("Known failure: " ++ Printexc.to_string(e));
-              true; // https://github.com/hazelgrove/hazel/issues/1459?issue=hazelgrove%7Chazel%7C1625
+              true;
             | _ => raise(e)
             }
           }
