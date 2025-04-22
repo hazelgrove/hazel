@@ -40,4 +40,6 @@ module M: Projector with type model = t = {
         [text(m.text), hover_view(view_seg, info)],
       ),
     );
+
+  let mk_term = mk_term_default;
 };

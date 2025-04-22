@@ -169,6 +169,11 @@ module type Projector = {
   let placeholder: (model, info('p)) => ProjectorShape.t;
   /* Update the local projector model given an action */
   let update: (model, info('p), action) => model;
+  let mk_term: (~id: Id.t, ~from_segment: 's => Any.t, ~segment: 's) => Any.t;
+};
+
+let mk_term_default = (~id as _, ~from_segment, ~segment) => {
+  from_segment(segment);
 };
 
 /* Projectors currently are all convex */

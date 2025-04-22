@@ -645,4 +645,6 @@ module M: Projector with type model = m = {
     offside: None,
     overlay: None,
   };
+
+  let mk_term = mk_term_default;
 };

@@ -65,4 +65,6 @@ module M: Projector with type model = unit = {
         info |> get |> Printf.sprintf("%.2f"),
       ),
     );
+
+  let mk_term = mk_term_default;
 };

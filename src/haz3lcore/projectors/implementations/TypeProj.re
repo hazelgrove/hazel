@@ -120,4 +120,6 @@ module M: Projector with type model = ProjectorCore.Kind.type_model = {
         ),
       overlay: None,
     };
+
+  let mk_term = mk_term_default;
 };

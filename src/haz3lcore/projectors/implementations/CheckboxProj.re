@@ -70,4 +70,6 @@ module M: Projector with type model = unit = {
         (),
       ),
     );
+
+  let mk_term = mk_term_default;
 };
