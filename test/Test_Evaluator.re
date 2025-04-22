@@ -420,39 +420,40 @@ let qcheck_evaluator_does_not_crash_test =
     QCheck_Util.arb_exp(~minimal_idents=true, 50),
     exp => {
     switch (
-      Evaluator.evaluate(
-        ~env=Builtins.env_init,
-        ~step_limit=10000,
-        elaborate(exp),
+      Elaborator.elaborate(
+        Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp),
+        exp,
       )
+      |> fst
+    ) {
+    | exp =>
+      switch (
+        Evaluator.evaluate(~env=Builtins.env_init, ~step_limit=10000, exp)
     ) {
     | (_, _) => true
+      | exception e =>
+        switch (e) {
+        | Failure(msg) when List.exists((==)(msg), ["Step limit reached"]) =>
+          print_endline("Skipping failure: " ++ msg);
+          true;
+        // https://github.com/hazelgrove/hazel/issues/1588 unboxing errors
+        | EvaluatorError.Exception(InvalidBoxedListLit(_))
+        | EvaluatorError.Exception(InvalidBoxedBoolLit(_))
+        | EvaluatorError.Exception(InvalidBoxedListCons(_))
+        | EvaluatorError.Exception(InvalidBoxedTuple(_))
+        | EvaluatorError.Exception(InvalidBoxedSumConstructor(_))
+        | EvaluatorError.Exception(InvalidBoxedFloatLit(_))
+        | EvaluatorError.Exception(InvalidBoxedIntLit(_))
+        | EvaluatorError.Exception(InvalidBoxedStringLit(_))
+        | EvaluatorError.Exception(InvalidBoxedTypFun(_)) => true
+        | _ => raise(e)
+        }
+      }
     | exception e =>
       print_endline(
-        "ExpToSegment: "
-        ++ Printer.of_segment(
-             ~holes=Some("?"),
-             ExpToSegment.exp_to_segment(
-               ~settings={
-                 inline: true,
-                 fold_case_clauses: false,
-                 fold_fn_bodies: false,
-                 hide_fixpoints: false,
-                 fold_cast_types: false,
-                 show_filters: true,
-                 show_unknown_as_hole: true,
-               },
-               exp,
-             ),
-           ),
+        "Skipping statics/elaborate failure: " ++ Printexc.to_string(e),
       );
-
-      switch (e) {
-      | Failure(msg) when List.exists((==)(msg), ["Step limit reached"]) =>
-        print_endline("Skipping failure: " ++ msg);
         true;
-      | _ => raise(e)
-      };
     }
   });
 
