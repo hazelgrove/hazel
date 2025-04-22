@@ -222,6 +222,12 @@ module View = {
         });
       Deco.editor(model.editor.state.zipper, selected);
     };
+    print_endline(
+      "How many projectors: "
+      ++ string_of_int(
+           List.length(Id.Map.bindings(model.editor.syntax.projectors)),
+         ),
+    );
     let projectors =
       ProjectorView.all(
         x => inject(Perform(x)),

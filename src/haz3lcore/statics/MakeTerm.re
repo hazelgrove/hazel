@@ -777,9 +777,9 @@ and unsorted =
     switch (p) {
     | Secondary(_)
     | Grout(_) => []
-    | Projector({model, syntax, _}) => [
-        of_projector(model, tile_kids(syntax)),
-      ]
+    | Projector({model, syntax, _} as pr) =>
+      log_projector(pr);
+      [of_projector(model, tile_kids(syntax))];
     | Tile({mold, shards, children, _}) =>
       Aba.aba_triples(Aba.mk(shards, children))
       |> List.map(((l, kid, r)) => {
@@ -833,6 +833,7 @@ let go = (~of_projector, seg: Segment.t('p)) =>
         ref(Id.Map.empty);
       /* Strip a projector from a segment and log it in the map */
       let log_projector = (pr: Base.projector('p)): unit => {
+        print_endline("Projector Logged.");
         projectors := Id.Map.add(pr.id, pr, projectors^);
       };
 
