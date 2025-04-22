@@ -2,7 +2,6 @@ module Sexp = Sexplib.Sexp;
 open Haz3lcore;
 open Util;
 open Util.OptUtil.Syntax;
-open StringUtil;
 
 module CodeModel = CodeEditable.Model;
 
@@ -390,12 +389,7 @@ module Update = {
   };
 
   let form_descriptor =
-      (
-        ~model: Model.t,
-        ~schedule_action,
-        ~chat: Model.chat,
-        ~mode: AssistantSettings.mode,
-      )
+      (~schedule_action, ~chat: Model.chat, ~mode: AssistantSettings.mode)
       : unit => {
     let prompt =
       switch (mode) {
@@ -451,7 +445,6 @@ module Update = {
     let curr_chat = Id.Map.find(chat_id, past_chats);
     List.length(curr_chat.messages) <= 6
       ? form_descriptor(
-          ~model,
           ~schedule_action,
           ~chat={
             ...curr_chat,

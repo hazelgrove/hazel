@@ -31,6 +31,11 @@ type t = {
   entries: list(entry),
 };
 
+let empty = {
+  use_mode: None,
+  entries: [],
+};
+
 let extend = (ctx: t, entry): t => {
   ...ctx,
   entries: List.cons(entry, ctx.entries),
