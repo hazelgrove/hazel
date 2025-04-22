@@ -980,7 +980,6 @@ in 1|},
             switch (msg) {
             | "type application in dynamics" =>
               print_endline("Known failure: " ++ Printexc.to_string(e));
-
               true; // https://github.com/hazelgrove/hazel/issues/1459?issue=hazelgrove%7Chazel%7C1625
             | _ => raise(e)
             }
