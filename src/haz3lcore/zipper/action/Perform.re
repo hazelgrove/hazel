@@ -10,7 +10,7 @@ let buffer_clear = (z: t('p)): t('p) =>
   | _ => z
   };
 
-let set_buffer = (info_map: Statics.Map.t, z: t('p)): t('p) =>
+let set_buffer = (info_map: Semantics.Statics.Map.t, z: t('p)): t('p) =>
   switch (TyDi.set_buffer(~info_map, z)) {
   | None => z
   | Some(z) => z
@@ -19,7 +19,7 @@ let set_buffer = (info_map: Statics.Map.t, z: t('p)): t('p) =>
 let go_z =
     (
       type p',
-      ~settings as _: CoreSettings.t,
+      ~settings as _: Semantics.CoreSettings.t,
       ~projector_init,
       statics: CachedStatics.t,
       a: Action.t(p'),
@@ -146,7 +146,7 @@ let go_z =
         open OptUtil.Syntax;
         let* idx = Indicated.index(z);
         let* ci = Id.Map.find_opt(idx, statics.info_map);
-        let* binding_id = Info.get_binding_site(ci);
+        let* binding_id = Semantics.Info.get_binding_site(ci);
         Move.jump_to_id(z, binding_id);
       | TileId(id) => Move.jump_to_id(z, id)
       }

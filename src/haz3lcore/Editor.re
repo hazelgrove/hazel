@@ -136,7 +136,7 @@ module Model = {
     (module M);
   };
 
-  let trailing_hole_ctx = (ed: t('p), info_map: Statics.Map.t) => {
+  let trailing_hole_ctx = (ed: t('p), info_map: Semantics.Statics.Map.t) => {
     let segment = Zipper.unselect_and_zip(ed.state.zipper);
     let convex_grout = Segment.convex_grout(segment);
     // print_endline(String.concat("; ", List.map(Grout.show, convex_grout)));
@@ -145,9 +145,9 @@ module Model = {
     | None => None
     | Some(grout) =>
       let id = grout.id;
-      let info = Id.Map.find_opt(id, info_map);
+      let info = Semantics.Statics.Map.lookup(id, info_map);
       switch (info) {
-      | Some(info) => Some(Info.ctx_of(info))
+      | Some(info) => Some(Semantics.Info.ctx_of(info))
       | _ => None
       };
     };
@@ -159,7 +159,7 @@ module Update = {
 
   let update =
       (
-        ~settings: CoreSettings.t,
+        ~settings: Semantics.CoreSettings.t,
         ~projector_init,
         a: Action.t('p),
         old_statics,
@@ -231,9 +231,6 @@ module Update = {
         state.zipper,
       );
 
-    settings.flip_animations && Action.should_animate(a)
-      ? Animation.request([Animation.Actions.move("caret")]) : ();
-
     // Recombine
     Model.{
       state: {
@@ -275,7 +272,7 @@ module Update = {
 
   let calculate =
       (
-        ~settings: CoreSettings.t,
+        ~settings: Semantics.CoreSettings.t,
         ~projector_init,
         ~projector_to_term,
         ~is_edited,

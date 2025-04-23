@@ -25,7 +25,7 @@ module Applicable = {
         MakeTerm.for_projection(Piece.unparenthesize(syntax))
       | _ =>
         let* info = cursor.info;
-        Info.any_of(info);
+        Semantics.Info.any_of(info);
       }
     | Some([Projector({syntax, _})]) =>
       MakeTerm.for_projection(Piece.unparenthesize(syntax))

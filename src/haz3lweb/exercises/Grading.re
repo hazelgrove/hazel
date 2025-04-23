@@ -1,4 +1,4 @@
-open Haz3lcore;
+open Semantics;
 open Util;
 open Virtual_dom.Vdom;
 open Node;
@@ -187,14 +187,14 @@ module MutationTestingReport = {
   let mk =
       (
         ~test_validation,
-        ~hidden_bugs_state: list(wrong_impl(Editor.t)),
+        ~hidden_bugs_state: list(wrong_impl(Haz3lcore.Editor.t)),
         ~hidden_bugs,
       )
       : t => {
     let results = List.map(hidden_bug_status(test_validation), hidden_bugs);
     let hints =
       List.map(
-        (wrong_impl: wrong_impl(Editor.t)) => wrong_impl.hint,
+        (wrong_impl: wrong_impl(Haz3lcore.Editor.t)) => wrong_impl.hint,
         hidden_bugs_state,
       );
     let results = List.combine(results, hints);
@@ -401,9 +401,9 @@ module SyntaxReport = {
     percentage,
   };
 
-  let mk = (~your_impl: Editor.t, ~tests: syntax_tests): t => {
+  let mk = (~your_impl: Haz3lcore.Editor.t, ~tests: syntax_tests): t => {
     let user_impl_term =
-      MakeTerm.from_zip_for_sem(your_impl.state.zipper).term;
+      Haz3lcore.MakeTerm.from_zip_for_sem(your_impl.state.zipper).term;
     let predicates =
       List.map(((_, p)) => SyntaxTest.predicate_fn(p), tests);
     let hints = List.map(((h, _)) => h, tests);
@@ -496,7 +496,7 @@ module ImplGradingReport = {
         Util.ListUtil.zip_defaults(
           statuses,
           hints,
-          Haz3lcore.TestStatus.Indet,
+          Semantics.TestStatus.Indet,
           "No hint available.",
         );
 
@@ -504,7 +504,7 @@ module ImplGradingReport = {
         Util.ListUtil.zip_defaults(
           [],
           hints,
-          Haz3lcore.TestStatus.Indet,
+          Semantics.TestStatus.Indet,
           "Exercise configuration error: Hint without a test.",
         )
       };

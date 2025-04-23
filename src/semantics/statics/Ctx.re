@@ -241,8 +241,17 @@ let filter_stepper_filter_variables = (ctx: t): t => {
     |> List.rev,
 };
 
+//TODO(andrew): betterize this garbagio
+let is_base_typ = (name: string): bool =>
+  name == "Int"
+  || name == "SInt"
+  || name == "Float"
+  || name == "Bool"
+  || name == "String"
+  || name == "Nat";
+
 let shadows_typ = (ctx: t, name: string): bool =>
-  Form.is_base_typ(name) || lookup_tvar(ctx, name) != None;
+  is_base_typ(name) || lookup_tvar(ctx, name) != None;
 
 let empty_pre_elaboration = {
   use_mode: Some(Operators.default_mode),

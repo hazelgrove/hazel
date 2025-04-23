@@ -18,7 +18,7 @@ let to_module =
   | Card => (module CardProj.M)
   };
 
-let init = (kind: ProjectorCore.Kind.t, any: Term.Any.t): option('p) => {
+let init = (kind: ProjectorCore.Kind.t, any: Semantics.Any.t): option('p) => {
   open ProjectorCore.Kind;
   let.gadt W(kind_gadt) = kind;
   let (module P) = to_module(kind_gadt);
@@ -28,7 +28,7 @@ let init = (kind: ProjectorCore.Kind.t, any: Term.Any.t): option('p) => {
   };
 };
 
-let make_term = (V(k, m): ProjectorCore.model, exp): Any.t => {
+let make_term = (V(k, m): ProjectorCore.model, exp): Semantics.Any.t => {
   let (module P) = to_module(k);
   P.mk_term(m, exp);
 };

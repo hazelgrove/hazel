@@ -5,7 +5,7 @@ type key = string;
 
 module Request = {
   [@deriving (show, sexp, yojson)]
-  type value = Haz3lcorep.Exp.t;
+  type value = Semantics.Exp.t;
   [@deriving (show, sexp, yojson)]
   type t = list((string, value));
 
@@ -17,8 +17,8 @@ module Response = {
   [@deriving (show, sexp, yojson)]
   type value =
     Result.t(
-      (Haz3lcorep.Exp.t, Haz3lcorep.EvaluatorState.t),
-      Haz3lcorep.ProgramResult.error,
+      (Semantics.Exp.t, Semantics.EvaluatorState.t),
+      Semantics.ProgramResult.error,
     );
   [@deriving (show, sexp, yojson)]
   type t = list((string, value));
@@ -28,18 +28,16 @@ module Response = {
 };
 
 let work = (res: Request.value): Response.value =>
-  switch (
-    Haz3lcorep.Evaluator.evaluate(~env=Haz3lcorep.Builtins.env_init, res)
-  ) {
-  | exception (Haz3lcorep.EvaluatorError.Exception(reason)) =>
+  switch (Semantics.Evaluator.evaluate(~env=Semantics.Builtins.env_init, res)) {
+  | exception (Semantics.EvaluatorError.Exception(reason)) =>
     print_endline(
-      "EvaluatorError:" ++ Haz3lcorep.EvaluatorError.show(reason),
+      "EvaluatorError:" ++ Semantics.EvaluatorError.show(reason),
     );
-    Error(Haz3lcorep.ProgramResult.EvaulatorError(reason));
+    Error(Semantics.ProgramResult.EvaulatorError(reason));
   | exception exn =>
     print_endline("EXN:" ++ Printexc.to_string(exn));
     Error(
-      Haz3lcorep.ProgramResult.UnknownException(Printexc.to_string(exn)),
+      Semantics.ProgramResult.UnknownException(Printexc.to_string(exn)),
     );
   | (result, state) => Ok((result, state))
   };

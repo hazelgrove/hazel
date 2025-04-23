@@ -8,9 +8,9 @@ module type Projectors = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type kind;
 
-  let init: (kind, Any.t) => option(model);
+  let init: (kind, Semantics.Any.t) => option(model);
   let kind_of_model: model => kind;
-  let make_term: (model, Any.t) => Any.t;
+  let make_term: (model, Semantics.Any.t) => Semantics.Any.t;
 };
 
 module Projectors = {

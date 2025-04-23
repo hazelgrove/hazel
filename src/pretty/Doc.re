@@ -1,5 +1,3 @@
-open Util;
-
 module WidthPosKey = {
   type t = (int, int);
   let hash = ((width, pos)) => 256 * 256 * width + pos;
