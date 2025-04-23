@@ -37,12 +37,13 @@ module PlainTests = {
   let empty_hole = () => alco_check("Empty hole", u2, dhexp_of_uexp(u2));
 
   let u3: Exp.t = {
-    term: Parens({
-            term: Var("y"),
-            annotation: {
-              ids: [id_at(1)],
-            },
-          }),
+    term:
+      Parens({
+        term: Var("y"),
+        annotation: {
+          ids: [id_at(1)],
+        },
+      }),
     annotation: {
       ids: [id_at(0)],
     },
@@ -1000,12 +1001,13 @@ module MenhirElaborationTests = {
 
   //Test for a free variable
   let free_var_uexp: Exp.t = {
-    term: Parens({
-            term: Var("y"),
-            annotation: {
-              ids: [id_at(1)],
-            },
-          }),
+    term:
+      Parens({
+        term: Var("y"),
+        annotation: {
+          ids: [id_at(1)],
+        },
+      }),
     annotation: {
       ids: [id_at(0)],
     },

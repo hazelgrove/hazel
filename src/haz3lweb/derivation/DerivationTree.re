@@ -65,7 +65,13 @@ and deduction('code) = {
   rule: option(RuleImage.t),
 };
 
-let map_jdmt = f => Abbr.map_just(d => {...d, jdmt: f(d.jdmt)});
+let map_jdmt = f =>
+  Abbr.map_just(d =>
+    {
+      ...d,
+      jdmt: f(d.jdmt),
+    }
+  );
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pos =
@@ -92,13 +98,20 @@ let get_trees_pos =
 
 let add_premise = (m: p('a), ~pos, ~index): p('a) => {
   let (i, pos) = get_trees_pos(pos);
-  let premise = Abbr.Just({jdmt: init(~root=Drv(Exp)), rule: None});
+  let premise =
+    Abbr.Just({
+      jdmt: init(~root=Drv(Exp)),
+      rule: None,
+    });
   let trees =
     m.trees
     |> List.nth(_, i)
     |> Tree.insert(premise, index, _, pos)
     |> ListUtil.put_nth(i, _, m.trees);
-  {...m, trees};
+  {
+    ...m,
+    trees,
+  };
 };
 
 let del_premise = (m: p('a), ~pos): p('a) => {
@@ -110,19 +123,30 @@ let del_premise = (m: p('a), ~pos): p('a) => {
     |> Tree.remove(index, _, pos)
     |> snd
     |> ListUtil.put_nth(i, _, m.trees);
-  {...m, trees};
+  {
+    ...m,
+    trees,
+  };
 };
 
 let add_abbr = (m: p('a), ~index): p('a) => {
   let abbr =
-    Tree.empty(Abbr.Just({jdmt: init(~root=Drv(Exp)), rule: None}));
+    Tree.empty(
+      Abbr.Just({
+        jdmt: init(~root=Drv(Exp)),
+        rule: None,
+      }),
+    );
   let trees =
     m.trees
     |> List.mapi(i =>
          i >= index ? Tree.map(Abbr.update_before_add(index)) : Fun.id
        )
     |> ListUtil.insert(abbr, _, index);
-  {...m, trees};
+  {
+    ...m,
+    trees,
+  };
 };
 
 let del_abbr = (m: p('a), ~index): p('a) => {
@@ -132,7 +156,10 @@ let del_abbr = (m: p('a), ~index): p('a) => {
     |> List.mapi(i =>
          i >= index ? Tree.map(Abbr.update_after_del(index)) : Fun.id
        );
-  {...m, trees};
+  {
+    ...m,
+    trees,
+  };
 };
 
 // Note(zhiyao): might need to separate two
@@ -155,7 +182,10 @@ let pop_premise = (m: p('a), ~pos): p('a) => {
          Tree.put_nth_node(Tree.empty(Abbr.Abbr(Some(index))), _, pos),
        )
     |> ListUtil.insert(abbr, _, index);
-  {...m, trees};
+  {
+    ...m,
+    trees,
+  };
 };
 
 let push_premise = (m: p('a), ~pos): p('a) => {
@@ -168,7 +198,10 @@ let push_premise = (m: p('a), ~pos): p('a) => {
   let abbr = m.trees |> List.nth(_, addr_index);
   let trees =
     m.trees |> ListUtil.map_nth(index, Tree.put_nth_node(abbr, _, pos));
-  {...m, trees};
+  {
+    ...m,
+    trees,
+  };
 };
 
 let switch_rule = (m: p('a), ~pos: pos, ~rule): p('a) => {
@@ -180,10 +213,19 @@ let switch_rule = (m: p('a), ~pos: pos, ~rule): p('a) => {
     |> Abbr.get_just_opt
     |> Option.map(d => d.jdmt)
     |> Option.value(~default=init(~root=Drv(Exp)))
-    |> (jdmt => Abbr.Just({jdmt, rule}))
+    |> (
+      jdmt =>
+        Abbr.Just({
+          jdmt,
+          rule,
+        })
+    )
     |> Tree.put_nth(_, tree, pos)
     |> ListUtil.put_nth(i, _, m.trees);
-  {...m, trees};
+  {
+    ...m,
+    trees,
+  };
 };
 
 let switch_abbr = (m: p('a), ~pos: pos, ~index): p('a) => {
@@ -194,7 +236,10 @@ let switch_abbr = (m: p('a), ~pos: pos, ~index): p('a) => {
     |> Tree.empty
     |> Tree.put_nth_node(_, tree, pos)
     |> ListUtil.put_nth(i, _, m.trees);
-  {...m, trees};
+  {
+    ...m,
+    trees,
+  };
 };
 
 let bind_none = l => [Option.none] @ (l |> List.map(Option.some));
@@ -290,13 +335,22 @@ let main_editor_of_state = (~selection: pos, eds) =>
 
 let put_main_editor = (~selection: pos, eds: p('a), editor: 'a): p('a) =>
   switch (selection) {
-  | Prelude => {...eds, prelude: editor}
-  | Setup => {...eds, setup: editor}
+  | Prelude => {
+      ...eds,
+      prelude: editor,
+    }
+  | Setup => {
+      ...eds,
+      setup: editor,
+    }
   | Trees(i, pos) =>
     let trees =
       eds.trees
       |> ListUtil.map_nth(i, Tree.map_nth(map_jdmt(_ => editor), _, pos));
-    {...eds, trees};
+    {
+      ...eds,
+      trees,
+    };
   };
 
 let editors = (eds: p('a)) =>
@@ -343,7 +397,10 @@ let pos_of_idx = (_: p('code), idx: int) =>
   };
 
 let derivation_init_wrapper = (): abbr(deduction('a)) => {
-  Just({jdmt: init(~root=Drv(Exp)), rule: None});
+  Just({
+    jdmt: init(~root=Drv(Exp)),
+    rule: None,
+  });
 };
 
 let transition: transitionary_spec => spec =
@@ -395,8 +452,14 @@ let get_stitched = (pos, s: stitched('a)): 'a =>
 
 let put_stitched = (pos, s: stitched('a), x: 'a): stitched('a) =>
   switch (pos) {
-  | Prelude => {...s, prelude: x}
-  | Setup => {...s, setup: x}
+  | Prelude => {
+      ...s,
+      prelude: x,
+    }
+  | Setup => {
+      ...s,
+      setup: x,
+    }
   | Trees(i, pos) => {
       ...s,
       trees:
@@ -405,7 +468,10 @@ let put_stitched = (pos, s: stitched('a), x: 'a): stitched('a) =>
     }
   };
 
-let wrap = (term, editor: Editor.t): TermItem.t => {term, editor};
+let wrap = (term, editor: Editor.t): TermItem.t => {
+  term,
+  editor,
+};
 
 let term_of = (editor: Editor.t): Exp.t =>
   MakeTerm.from_zip_for_sem(editor.state.zipper).term;
@@ -539,7 +605,12 @@ let blank_spec = (~title, ~module_name) => {
   let prelude = Zipper.next_blank();
   let setup = Zipper.next_blank();
   let trees = [
-    Tree.empty(Abbr.Just({jdmt: Zipper.next_blank(), rule: None})),
+    Tree.empty(
+      Abbr.Just({
+        jdmt: Zipper.next_blank(),
+        rule: None,
+      }),
+    ),
   ];
   {
     title,

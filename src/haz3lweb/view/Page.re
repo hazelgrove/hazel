@@ -131,7 +131,11 @@ module Update = {
             action,
             model.editors,
           );
-        {...model, editors, selection};
+        {
+          ...model,
+          editors,
+          selection,
+        };
       };
     | InitImportAll(file) =>
       JsUtil.read_file(file, data =>
@@ -162,7 +166,10 @@ module Update = {
             action,
             model.editors,
           );
-        {...model, editors};
+        {
+          ...model,
+          editors,
+        };
       };
     | Undo =>
       let cursor_info =
@@ -180,7 +187,10 @@ module Update = {
             action,
             model.editors,
           );
-        {...model, editors};
+        {
+          ...model,
+          editors,
+        };
       };
     | Redo =>
       let cursor_info =
@@ -198,7 +208,10 @@ module Update = {
             action,
             model.editors,
           );
-        {...model, editors};
+        {
+          ...model,
+          editors,
+        };
       };
     };
   };
@@ -227,12 +240,23 @@ module Update = {
           action,
           model.editors,
         );
-      {...model, editors};
+      {
+        ...model,
+        editors,
+      };
     | ExplainThis(action) =>
       let* explain_this =
         ExplainThisUpdate.set_update(model.explain_this, action);
-      {...model, explain_this};
-    | MakeActive(selection) => {...model, selection} |> Updated.return
+      {
+        ...model,
+        explain_this,
+      };
+    | MakeActive(selection) =>
+      {
+        ...model,
+        selection,
+      }
+      |> Updated.return
     | Benchmark(Start) =>
       List.iter(a => schedule_action(Editors(a)), Benchmark.actions_1);
       schedule_action(Benchmark(Finish));
@@ -286,7 +310,11 @@ module Update = {
       | None => color_highlights
       };
     let globals = Globals.Update.calculate(color_highlights, model.globals);
-    {...model, globals, editors};
+    {
+      ...model,
+      globals,
+      editors,
+    };
   };
 };
 

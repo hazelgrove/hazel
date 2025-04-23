@@ -23,7 +23,11 @@ module Model = {
     let cells =
       DerivationTree.stitch_term(editors)
       |> DerivationTree.map_stitched(_ => term_item_to_cell);
-    {spec, editors, cells};
+    {
+      spec,
+      editors,
+      cells,
+    };
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -85,7 +89,10 @@ module Update = {
       };
     | Editor(_, ResultAction(_)) => Updated.return_quiet(model)
     | MapEditor(f) =>
-      let x = {...model, editors: f(model.editors)};
+      let x = {
+        ...model,
+        editors: f(model.editors),
+      };
       {
         ...x,
         cells:
@@ -101,7 +108,11 @@ module Update = {
         DerivationTree.mapi(model.spec, pos =>
           Editor.Model.mk(~root=DerivationTree.root_of_pos(pos))
         );
-      {...model, editors: new_editors} |> Updated.return;
+      {
+        ...model,
+        editors: new_editors,
+      }
+      |> Updated.return;
     };
   };
 
@@ -154,7 +165,11 @@ module Update = {
           let result':
             Haz3lcore.ProgramResult.t(Haz3lcore.ProgramResult.inner) =
             switch (result) {
-            | Ok((r, s)) => ResultOk({result: r, state: s})
+            | Ok((r, s)) =>
+              ResultOk({
+                result: r,
+                state: s,
+              })
             | Error(e) => ResultFail(e)
             };
           schedule_action(
@@ -226,7 +241,11 @@ module Update = {
         },
       };
     };
-    {spec: model.spec, editors, cells};
+    {
+      spec: model.spec,
+      editors,
+      cells,
+    };
   };
 };
 
@@ -400,7 +419,8 @@ module NinjaKeys = {
                ),
              );
          val keywords = keywords(rule) |> String.concat(" ")
-       }];
+       }
+      ];
     };
 
     let set_data = () => {
@@ -910,7 +930,15 @@ module View = {
               Attr.class_("version-select"),
               Attr.on_change((_, name) => {
                 let corpus = RuleImage.corpus_of_string(name);
-                inject(MapEditor(m => {...m, corpus}));
+                inject(
+                  MapEditor(
+                    m =>
+                      {
+                        ...m,
+                        corpus,
+                      },
+                  ),
+                );
               }),
             ],
             List.map(

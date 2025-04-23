@@ -94,7 +94,11 @@ module Update = {
         dynamics,
         editor,
       );
-    {editor, statics, dynamics};
+    {
+      editor,
+      statics,
+      dynamics,
+    };
   };
 };
 

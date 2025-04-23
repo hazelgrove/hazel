@@ -51,7 +51,10 @@ module ProofTree = {
          Tree.map(
            fun
            | (Some(di), Abbr.Just({rule, _})) =>
-             Abbr.Just({jdmt: res_of_di(di), rule})
+             Abbr.Just({
+               jdmt: res_of_di(di),
+               rule,
+             })
            | (None, Abbr(i)) => Abbr(i)
            | _ => failwith("DerivationTree.mk: ed<>di inconsistent"),
          ),
@@ -84,11 +87,20 @@ module VerifiedTree = {
     let res =
       switch (concl) {
       | Abbr(Some(i)) => List.nth(acc, i) |> fst |> Tree.value
-      | Abbr(None) => {res: Pending(NoAbbr), rule: None}
-      | Just({rule: None, _}) => {res: Pending(NoRule), rule: None}
+      | Abbr(None) => {
+          res: Pending(NoAbbr),
+          rule: None,
+        }
+      | Just({rule: None, _}) => {
+          res: Pending(NoRule),
+          rule: None,
+        }
       | Just({rule: Some(rule), jdmt: concl}) =>
         switch (RuleImage.to_rule(corpus, rule)) {
-        | None => {res: Pending(NotAvailable), rule: None}
+        | None => {
+            res: Pending(NotAvailable),
+            rule: None,
+          }
         | Some(rule) =>
           let spec = RuleSpec.of_spec(rule);
           // TODO(zhiyao): may not bring it back now
@@ -110,8 +122,15 @@ module VerifiedTree = {
               }
             | Error(e) => Pending(e)
             };
-          // let tests = RuleVerify.test_remove_eq_test(tests);
-          {res, rule: Some({rule, spec})};
+          {
+            // let tests = RuleVerify.test_remove_eq_test(tests);
+            res,
+            rule:
+              Some({
+                rule,
+                spec,
+              }),
+          };
         }
       };
     let concl =
@@ -147,7 +166,13 @@ module VerifiedTree = {
               switch (value) {
               | Just(v) => Tree.Node(v, children)
               | Abbr(None) =>
-                Tree.Node({res: Pending(NoAbbr), rule: None}, [])
+                Tree.Node(
+                  {
+                    res: Pending(NoAbbr),
+                    rule: None,
+                  },
+                  [],
+                )
               | Abbr(Some(i)) => List.nth(acc, i)
               },
             tree,

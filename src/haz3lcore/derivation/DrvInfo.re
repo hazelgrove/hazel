@@ -117,5 +117,11 @@ let status = (drv: Drv.Any.t, ~sort: DrvSort.t): status =>
 let derived = (drv: Drv.Any.t, ~ancestors, ~sort): t => {
   let cls = Cls.Drv(Drv.Any.cls_of(drv));
   let status = status(drv, ~sort);
-  {term: drv, cls, status, ancestors, sort};
+  {
+    term: drv,
+    cls,
+    status,
+    ancestors,
+    sort,
+  };
 };

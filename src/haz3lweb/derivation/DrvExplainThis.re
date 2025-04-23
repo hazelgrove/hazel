@@ -90,7 +90,10 @@ let show =
     module Deco =
       Deco.Deco({
         let editor = editor;
-        let globals = {...globals, color_highlights: Some(fst(color_map))};
+        let globals = {
+          ...globals,
+          color_highlights: Some(fst(color_map)),
+        };
         let statics = statics;
       });
     [Deco.color_highlights()];
@@ -99,7 +102,11 @@ let show =
     ~globals,
     ~overlays=highlight_deco,
     ~sort=Drv(Jdmt),
-    {editor, statics, dynamics: Dynamics.Map.empty},
+    {
+      editor,
+      statics,
+      dynamics: Dynamics.Map.empty,
+    },
   );
 };
 
@@ -108,7 +115,11 @@ let show_without_statics = (pretty: Segment.t, ~globals: Globals.t): Node.t => {
   CodeWithStatics.View.view(
     ~globals,
     ~sort=Drv(Jdmt),
-    {editor, statics: CachedStatics.empty, dynamics: Dynamics.Map.empty},
+    {
+      editor,
+      statics: CachedStatics.empty,
+      dynamics: Dynamics.Map.empty,
+    },
   );
 };
 

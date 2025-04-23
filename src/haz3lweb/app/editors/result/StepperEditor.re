@@ -48,7 +48,11 @@ module Update = {
         ~is_dynamic_term=true,
         editor,
       );
-    {editor, taken_steps, next_steps};
+    {
+      editor,
+      taken_steps,
+      next_steps,
+    };
   };
 };
 

@@ -45,7 +45,12 @@ let init_from_term = (~settings, ~is_dynamic_term, term): t => {
       | Elaborates(d, _) => d
       }
     };
-  {term, elaborated, info_map, error_ids};
+  {
+    term,
+    elaborated,
+    info_map,
+    error_ids,
+  };
 };
 
 let init =

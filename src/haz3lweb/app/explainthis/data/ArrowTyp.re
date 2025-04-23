@@ -51,6 +51,12 @@ let arrow3_typ: form = {
   };
 };
 
-let arrow: group = {id: ArrowTyp, forms: [arrow_typ]};
+let arrow: group = {
+  id: ArrowTyp,
+  forms: [arrow_typ],
+};
 
-let arrow3: group = {id: Arrow3Typ, forms: [arrow3_typ, arrow_typ]};
+let arrow3: group = {
+  id: Arrow3Typ,
+  forms: [arrow3_typ, arrow_typ],
+};

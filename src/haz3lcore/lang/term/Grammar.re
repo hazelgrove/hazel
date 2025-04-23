@@ -21,9 +21,18 @@ module Annotated = {
     };
 
   let term_of = x => x.term;
-  let unwrap = x => (x.term, term' => {...x, term: term'});
+  let unwrap = x => (
+    x.term,
+    term' => {
+      ...x,
+      term: term',
+    },
+  );
 
-  let empty = term => {term, annotation: ()};
+  let empty = term => {
+    term,
+    annotation: (),
+  };
 };
 
 module Drv = {
@@ -228,7 +237,10 @@ module Drv = {
         | Unroll(e) => Unroll(map_exp_annotation(f, e))
         | ExpHole => ExpHole
         };
-      {term, annotation: new_annotation};
+      {
+        term,
+        annotation: new_annotation,
+      };
     }
 
   and map_pat_annotation: type a b. (a => b, pat_t(a)) => pat_t(b) =
@@ -248,7 +260,10 @@ module Drv = {
         | Pair(p1, p2) =>
           Pair(map_pat_annotation(f, p1), map_pat_annotation(f, p2))
         };
-      {term, annotation: new_annotation};
+      {
+        term,
+        annotation: new_annotation,
+      };
     }
 
   and map_typ_annotation: type a b. (a => b, typ_t(a)) => typ_t(b) =
@@ -274,7 +289,10 @@ module Drv = {
           Rec(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
         | TypHole => TypHole
         };
-      {term, annotation: new_annotation};
+      {
+        term,
+        annotation: new_annotation,
+      };
     }
 
   and map_tpat_annotation: type a b. (a => b, tpat_t(a)) => tpat_t(b) =
@@ -287,7 +305,10 @@ module Drv = {
         | Quote(v) => Quote(v)
         | Var(v) => Var(v)
         };
-      {term, annotation: new_annotation};
+      {
+        term,
+        annotation: new_annotation,
+      };
     }
 
   and map_type_hole_annotation:
@@ -557,7 +578,10 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
             map_typ_annotation(f, t2),
           )
         };
-      {term, annotation: new_annotation};
+      {
+        term,
+        annotation: new_annotation,
+      };
     }:
       exp_t(b)
   )
@@ -687,7 +711,10 @@ and map_stepper_filter_kind_annotation:
   (f, e) => {
     switch (e) {
     | Filter(filter) =>
-      Filter({pat: map_exp_annotation(f, filter.pat), act: filter.act})
+      Filter({
+        pat: map_exp_annotation(f, filter.pat),
+        act: filter.act,
+      })
     | Residue(i, act) => Residue(i, act)
     };
   }
@@ -1150,7 +1177,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
 
   module StepperFilter = {
     let filter = (f): stepper_filter_kind_t(DefaultAnnotation.t) => {
-      Filter({pat: map_exp_annotation(x => x, f.pat), act: f.act});
+      Filter({
+        pat: map_exp_annotation(x => x, f.pat),
+        act: f.act,
+      });
     };
     let residue = (i, act): stepper_filter_kind_t(DefaultAnnotation.t) => {
       Residue(i, act);

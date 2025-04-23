@@ -33,7 +33,10 @@ module M: Projector = {
       info.utility.lift_syntax(
         fun
         | Exp({term: Atom(Bool(b)), _} as t) =>
-          Exp({...t, term: Atom(Bool(!b))})
+          Exp({
+            ...t,
+            term: Atom(Bool(!b)),
+          })
         | _ => failwith("Checkbox: Toggle: not boolean literal"),
         info.syntax,
       )

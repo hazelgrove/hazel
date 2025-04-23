@@ -314,7 +314,10 @@ let tests =
       full_parser_test(
         "Filter",
         filter(
-          Filter({act: (Eval, All), pat: int(Bigint.of_int(3))}),
+          Filter({
+            act: (Eval, All),
+            pat: int(Bigint.of_int(3)),
+          }),
           int(Bigint.of_int(3)),
         ),
         "eval 3 in 3" // TODO Use other filter commands

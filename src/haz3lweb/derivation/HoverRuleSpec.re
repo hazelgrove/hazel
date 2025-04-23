@@ -29,7 +29,11 @@ let show = (syntax: Drv.Exp.t, ~globals: Globals.t): Node.t => {
   CodeWithStatics.View.view(
     ~globals,
     ~sort=Drv(Jdmt),
-    {editor, statics, dynamics: Dynamics.Map.empty},
+    {
+      editor,
+      statics,
+      dynamics: Dynamics.Map.empty,
+    },
   );
 };
 
@@ -38,7 +42,11 @@ let show_without_statics = (pretty: Segment.t, ~globals: Globals.t): Node.t => {
   CodeWithStatics.View.view(
     ~globals,
     ~sort=Drv(Jdmt),
-    {editor, statics: CachedStatics.empty, dynamics: Dynamics.Map.empty},
+    {
+      editor,
+      statics: CachedStatics.empty,
+      dynamics: Dynamics.Map.empty,
+    },
   );
 };
 

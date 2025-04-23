@@ -166,9 +166,21 @@ let of_spec: Rule.t => Spec.t(M_Id.exp_t) = {
   let case = (e, p1, e1, p2, e2) => Case(e, InjL(p1), e1, InjR(p2), e2);
 
   fun
-  | C_Refl => {concl: Consistent(t, t), prems: [], tests: []}
-  | C_UnkL => {concl: Consistent(TypHole, t), prems: [], tests: []}
-  | C_UnkR => {concl: Consistent(t, TypHole), prems: [], tests: []}
+  | C_Refl => {
+      concl: Consistent(t, t),
+      prems: [],
+      tests: [],
+    }
+  | C_UnkL => {
+      concl: Consistent(TypHole, t),
+      prems: [],
+      tests: [],
+    }
+  | C_UnkR => {
+      concl: Consistent(t, TypHole),
+      prems: [],
+      tests: [],
+    }
   | C_Sum => {
       concl: Consistent(Sum(t1, t2), Sum(t1', t2')),
       prems: [Consistent(t1, t1'), Consistent(t2, t2')],
@@ -184,27 +196,51 @@ let of_spec: Rule.t => Spec.t(M_Id.exp_t) = {
       prems: [Consistent(t_in, t_in'), Consistent(t_out, t_out')],
       tests: [],
     }
-  | MS_Hole => {concl: MatchedSum(TypHole, TypHole), prems: [], tests: []}
+  | MS_Hole => {
+      concl: MatchedSum(TypHole, TypHole),
+      prems: [],
+      tests: [],
+    }
   | MS_Sum => {
       concl: MatchedSum(Sum(t1, t2), Sum(t1, t2)),
       prems: [],
       tests: [],
     }
-  | MP_Hole => {concl: MatchedProd(TypHole, TypHole), prems: [], tests: []}
+  | MP_Hole => {
+      concl: MatchedProd(TypHole, TypHole),
+      prems: [],
+      tests: [],
+    }
   | MP_Prod => {
       concl: MatchedProd(Prod(t1, t2), Prod(t1, t2)),
       prems: [],
       tests: [],
     }
-  | MA_Hole => {concl: MatchedArrow(TypHole, TypHole), prems: [], tests: []}
+  | MA_Hole => {
+      concl: MatchedArrow(TypHole, TypHole),
+      prems: [],
+      tests: [],
+    }
   | MA_Arrow => {
       concl: MatchedArrow(Arrow(t_in, t_out), Arrow(t_in, t_out)),
       prems: [],
       tests: [],
     }
-  | TV_Num => {concl: type_(delta, Num), prems: [], tests: []}
-  | TV_Bool => {concl: type_(delta, Bool), prems: [], tests: []}
-  | TV_Unit => {concl: type_(delta, Unit), prems: [], tests: []}
+  | TV_Num => {
+      concl: type_(delta, Num),
+      prems: [],
+      tests: [],
+    }
+  | TV_Bool => {
+      concl: type_(delta, Bool),
+      prems: [],
+      tests: [],
+    }
+  | TV_Unit => {
+      concl: type_(delta, Unit),
+      prems: [],
+      tests: [],
+    }
   | TV_Arrow => {
       concl: type_(delta, Arrow(t1, t2)),
       prems: [type_(delta, t1), type_(delta, t2)],
@@ -236,13 +272,41 @@ let of_spec: Rule.t => Spec.t(M_Id.exp_t) = {
       prems: [],
       tests: T.[Mem(Type(t), UnboxCtx(delta))],
     }
-  | S_Hole => {concl: syn(gamma, ExpHole, TypHole), prems: [], tests: []}
-  | T_True => {concl: has(gamma, True, Bool), prems: [], tests: []}
-  | S_True => {concl: syn(gamma, True, Bool), prems: [], tests: []}
-  | V_True => {concl: val_(True), prems: [], tests: []}
-  | T_False => {concl: has(gamma, False, Bool), prems: [], tests: []}
-  | S_False => {concl: syn(gamma, False, Bool), prems: [], tests: []}
-  | V_False => {concl: val_(False), prems: [], tests: []}
+  | S_Hole => {
+      concl: syn(gamma, ExpHole, TypHole),
+      prems: [],
+      tests: [],
+    }
+  | T_True => {
+      concl: has(gamma, True, Bool),
+      prems: [],
+      tests: [],
+    }
+  | S_True => {
+      concl: syn(gamma, True, Bool),
+      prems: [],
+      tests: [],
+    }
+  | V_True => {
+      concl: val_(True),
+      prems: [],
+      tests: [],
+    }
+  | T_False => {
+      concl: has(gamma, False, Bool),
+      prems: [],
+      tests: [],
+    }
+  | S_False => {
+      concl: syn(gamma, False, Bool),
+      prems: [],
+      tests: [],
+    }
+  | V_False => {
+      concl: val_(False),
+      prems: [],
+      tests: [],
+    }
   | T_If => {
       concl: has(gamma, If(e, e1, e2), t),
       prems: [has(gamma, e, Bool), has(gamma, e1, t), has(gamma, e2, t)],
@@ -622,9 +686,21 @@ let of_spec: Rule.t => Spec.t(M_Id.exp_t) = {
       prems: [eval(e1, Fun(x, e_body)), eval(e2, v2), eval(e_body', v)],
       tests: T.[EqExp(e_body', Subst(v2, UnboxPatVar(x), e_body))],
     }
-  | T_Triv => {concl: has(gamma, Triv, Unit), prems: [], tests: []}
-  | S_Triv => {concl: syn(gamma, Triv, Unit), prems: [], tests: []}
-  | V_Triv => {concl: val_(Triv), prems: [], tests: []}
+  | T_Triv => {
+      concl: has(gamma, Triv, Unit),
+      prems: [],
+      tests: [],
+    }
+  | S_Triv => {
+      concl: syn(gamma, Triv, Unit),
+      prems: [],
+      tests: [],
+    }
+  | V_Triv => {
+      concl: val_(Triv),
+      prems: [],
+      tests: [],
+    }
   | T_Pair => {
       concl: has(gamma, Pair(e1, e2), Prod(t1, t2)),
       prems: [has(gamma, e1, t1), has(gamma, e2, t2)],
@@ -804,7 +880,11 @@ let of_spec: Rule.t => Spec.t(M_Id.exp_t) = {
       prems: [MatchedSum(t, Sum(t1, t2)), ana(gamma, e, t1)],
       tests: [],
     }
-  | V_InjL => {concl: val_(InjL(e)), prems: [val_(e)], tests: []}
+  | V_InjL => {
+      concl: val_(InjL(e)),
+      prems: [val_(e)],
+      tests: [],
+    }
   | E_InjL => {
       concl: eval(InjL(e), InjL(v)),
       prems: [eval(e, v)],
@@ -825,7 +905,11 @@ let of_spec: Rule.t => Spec.t(M_Id.exp_t) = {
       prems: [MatchedSum(t, Sum(t1, t2)), ana(gamma, e, t2)],
       tests: [],
     }
-  | V_InjR => {concl: val_(InjR(e)), prems: [val_(e)], tests: []}
+  | V_InjR => {
+      concl: val_(InjR(e)),
+      prems: [val_(e)],
+      tests: [],
+    }
   | E_InjR => {
       concl: eval(InjR(e), InjR(v)),
       prems: [eval(e, v)],
@@ -983,7 +1067,11 @@ let of_spec: Rule.t => Spec.t(M_Id.exp_t) = {
           ),
         ],
     }
-  | V_Roll => {concl: val_(Roll(e)), prems: [val_(e)], tests: []}
+  | V_Roll => {
+      concl: val_(Roll(e)),
+      prems: [val_(e)],
+      tests: [],
+    }
   | E_Roll => {
       concl: eval(Roll(e), Roll(v)),
       prems: [eval(e, v)],
@@ -1015,7 +1103,11 @@ let of_spec: Rule.t => Spec.t(M_Id.exp_t) = {
       prems: [syn(gamma, e, t'), Consistent(t', t)],
       tests: [],
     }
-  | E_Val => {concl: eval(e, e), prems: [val_(e)], tests: []}
+  | E_Val => {
+      concl: eval(e, e),
+      prems: [val_(e)],
+      tests: [],
+    }
   | Assumption => {
       concl: entail(gamma, a),
       prems: [],
@@ -1069,7 +1161,11 @@ let of_spec: Rule.t => Spec.t(M_Id.exp_t) = {
       prems: [entail(gamma, Impl(a, b)), entail(gamma, a)],
       tests: [],
     }
-  | Truth_I => {concl: entail(gamma, Truth), prems: [], tests: []}
+  | Truth_I => {
+      concl: entail(gamma, Truth),
+      prems: [],
+      tests: [],
+    }
   | Falsity_E => {
       concl: entail(gamma, a),
       prems: [entail(gamma, Falsity)],
@@ -1166,5 +1262,9 @@ let of_spec: Rule.t => t =
       | Var(x) => Var(x)
     and tag_tpat = p => p |> tag_tpat_term |> IdTagged.fresh;
     let Spec.{concl, prems, tests} = of_spec(rule);
-    {concl: tag_exp(concl), prems: List.map(tag_exp, prems), tests};
+    {
+      concl: tag_exp(concl),
+      prems: List.map(tag_exp, prems),
+      tests,
+    };
   };

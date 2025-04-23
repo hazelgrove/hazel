@@ -124,7 +124,11 @@ let let_base_exp: form = {
     examples: [let_base_ex],
   };
 };
-let _pat = Piece.Grout({id: Id.mk(), shape: Convex});
+let _pat =
+  Piece.Grout({
+    id: Id.mk(),
+    shape: Convex,
+  });
 let _exp_def = exp("e_def");
 let let_empty_hole_exp_coloring_ids =
   _pat_def_let_exp_coloring_ids(Piece.id(_pat), Piece.id(_exp_def));
@@ -139,7 +143,15 @@ let let_empty_hole_exp: form = {
     id: LetExp(EmptyHole),
     syntactic_form: form,
     expandable_id:
-      Some((Piece.id(_pat), [Grout({id: Id.mk(), shape: Convex})])),
+      Some((
+        Piece.id(_pat),
+        [
+          Grout({
+            id: Id.mk(),
+            shape: Convex,
+          }),
+        ],
+      )),
     explanation,
     examples: [let_base_ex],
   };
@@ -596,7 +608,10 @@ let lets_wild: group = {
   forms: [let_wild_exp, let_base_exp],
 };
 
-let lets_int: group = {id: LetExp(Int), forms: [let_int_exp, let_base_exp]};
+let lets_int: group = {
+  id: LetExp(Int),
+  forms: [let_int_exp, let_base_exp],
+};
 
 let lets_sint: group = {
   id: LetExp(SInt),
@@ -638,7 +653,10 @@ let lets_cons: group = {
   forms: [let_cons_exp, let_base_exp],
 };
 
-let lets_var: group = {id: LetExp(Var), forms: [let_var_exp, let_base_exp]};
+let lets_var: group = {
+  id: LetExp(Var),
+  forms: [let_var_exp, let_base_exp],
+};
 
 let lets_tuple: group = {
   id: LetExp(Tuple),
@@ -655,6 +673,12 @@ let lets_tuple3: group = {
   forms: [let_tuple3_exp, let_tuple_exp, let_base_exp],
 };
 
-let lets_ctr: group = {id: LetExp(Ctr), forms: [let_ctr_exp, let_base_exp]};
+let lets_ctr: group = {
+  id: LetExp(Ctr),
+  forms: [let_ctr_exp, let_base_exp],
+};
 
-let lets_ap: group = {id: LetExp(Ap), forms: [let_ap_exp, let_base_exp]};
+let lets_ap: group = {
+  id: LetExp(Ap),
+  forms: [let_ap_exp, let_base_exp],
+};
