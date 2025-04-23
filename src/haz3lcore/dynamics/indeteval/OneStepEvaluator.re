@@ -199,8 +199,8 @@ let take_step = (state, env, exp) => {
           annotation: IdTagged.IdTag.{ids: step.d_loc |> IdTagged.ids},
         }
         |> EvalCtx.compose(step.ctx)
-        |> Exp.replace_all_ids
-        |> DHExp.substitute_closures(env);
+        |> Exp.replace_all_ids;
+        //|> DHExp.substitute_closures(env);
       Step(next_step);
     };
   };

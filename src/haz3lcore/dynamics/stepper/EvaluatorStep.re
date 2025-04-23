@@ -203,10 +203,8 @@ let take_step = (step: EvalObj.t) => {
     annotation: IdTagged.IdTag.{ids: step.d_loc |> IdTagged.ids},
   };
   let next_state = state^;
-  let next_expr =
-    EvalCtx.compose(step.ctx, next_expr)
-    |> Exp.replace_all_ids
-    |> DHExp.substitute_closures(Builtins.env_init);
+  let next_expr = EvalCtx.compose(step.ctx, next_expr) |> Exp.replace_all_ids;
+  //|> DHExp.substitute_closures(Builtins.env_init);
   (next_expr, next_state);
 };
 
