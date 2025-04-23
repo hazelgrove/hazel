@@ -10,7 +10,7 @@ module M: Projector = {
 
   let float_of = (any: Any.t): option(float) =>
     switch (any) {
-    | Exp({term: Float(f), _}) => Some(f)
+    | Exp({term: Atom(Float(f)), _}) => Some(f)
     | _ => None
     };
 
@@ -32,7 +32,11 @@ module M: Projector = {
     switch (
       info.utility.lift_syntax(
         fun
-        | Exp(t) => Exp({...t, term: Float(float_of_string(v))})
+        | Exp(t) =>
+          Exp({
+            ...t,
+            term: Atom(Float(float_of_string(v))),
+          })
         | _ => failwith("SliderF: Put: not float literal"),
         info.syntax,
       )

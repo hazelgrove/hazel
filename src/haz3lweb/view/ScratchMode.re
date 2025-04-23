@@ -57,13 +57,28 @@ module StoreDocumentation =
     let default = () => Init.startup.documentation;
   });
 
-module Store =
-  Store.F({
+module Store = {
+  include Store.F({
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = (int, list(CellEditor.Model.persistent));
     let key = Store.Scratch;
     let default = () => Init.startup.scratch;
   });
+
+  let integrate_share = (model: t): t => {
+    switch (JsUtil.QueryParams.get_param("share"), model) {
+    | (None, _) => model
+    | (Some(data), (_current, scratchpads)) =>
+      let shared_text = data |> StringUtil.decompress;
+      let shared: PersistentZipper.t = {
+        zipper: "invalid",
+        backup_text: shared_text,
+      };
+
+      (List.length(scratchpads), scratchpads @ [shared]);
+    };
+  };
+};
 
 module Update = {
   open Updated;
@@ -74,7 +89,8 @@ module Update = {
     | ResetCurrent
     | InitImportScratchpad([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
     | FinishImportScratchpad(option(string))
-    | Export;
+    | Export
+    | Encode;
 
   let export_scratch_slide = (model: Model.t): unit => {
     Store.save(model |> Model.persist);
@@ -84,6 +100,12 @@ module Update = {
       ~content_type="text/plain",
       ~contents=data,
     );
+  };
+
+  let encode_scratch_slide = (model: Model.t): unit => {
+    let (_key, ed) = List.nth(model.scratchpads, model.current);
+    let c = ed |> CellEditor.Model.to_string;
+    JsUtil.QueryParams.set_param("share", StringUtil.compress(c));
   };
 
   let update =
@@ -141,6 +163,9 @@ module Update = {
       {...model, scratchpads} |> Updated.return;
     | Export =>
       export_scratch_slide(model);
+      model |> Updated.return_quiet;
+    | Encode =>
+      encode_scratch_slide(model);
       model |> Updated.return_quiet;
     };
   };
@@ -270,6 +295,13 @@ module View = {
         ~tooltip="Export Scratchpad",
       );
 
+    let encode_button =
+      Widgets.button_named(
+        Icons.export,
+        _ => inject(Encode),
+        ~tooltip="Encode Scratchpad in URL",
+      );
+
     let import_button =
       Widgets.file_select_button_named(
         "import-scratchpad",
@@ -284,7 +316,11 @@ module View = {
       );
 
     let file_group_scratch =
-      NutMenu.item_group(~inject, "File", [export_button, import_button]);
+      NutMenu.item_group(
+        ~inject,
+        "File",
+        [export_button, encode_button, import_button],
+      );
 
     let reset_button =
       Widgets.button_named(
@@ -350,7 +386,8 @@ module View = {
         | Previous =>
           inject(
             SwitchSlide(
-              (model.current - 1) mod List.length(model.scratchpads),
+              (model.current + List.length(model.scratchpads) - 1)
+              mod List.length(model.scratchpads),
             ),
           )
         | Next =>

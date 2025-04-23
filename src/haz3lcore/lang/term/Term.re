@@ -5,10 +5,7 @@ module Pat = {
     | EmptyHole
     | MultiHole
     | Wild
-    | Int
-    | Float
-    | Bool
-    | String
+    | Atom(Atom.cls)
     | ListLit
     | Constructor
     | Cons
@@ -46,10 +43,7 @@ module Pat = {
     | EmptyHole => EmptyHole
     | MultiHole(_) => MultiHole
     | Wild => Wild
-    | Int(_) => Int
-    | Float(_) => Float
-    | Bool(_) => Bool
-    | String(_) => String
+    | Atom(c) => Atom(Atom.cls_of_t(c))
     | ListLit(_) => ListLit
     | Constructor(_) => Constructor
     | Cons(_) => Cons
@@ -68,10 +62,12 @@ module Pat = {
     | MultiHole => "Broken pattern"
     | EmptyHole => "Empty pattern hole"
     | Wild => "Wildcard"
-    | Int => "Integer literal"
-    | Float => "Float literal"
-    | Bool => "Boolean literal"
-    | String => "String literal"
+    | Atom(Int) => "Number literal"
+    | Atom(Float) => "Float literal"
+    | Atom(Bool) => "Boolean literal"
+    | Atom(String) => "String literal"
+    | Atom(Nat) => "Natural number literal"
+    | Atom(SInt) => "System integer literal"
     | ListLit => "List literal"
     | Constructor => "Constructor"
     | Cons => "Cons"
@@ -95,10 +91,7 @@ module Pat = {
     | EmptyHole
     | MultiHole(_)
     | Wild
-    | Int(_)
-    | Float(_)
-    | Bool(_)
-    | String(_)
+    | Atom(_)
     | ListLit(_)
     | Cons(_, _)
     | Tuple(_)
@@ -119,10 +112,7 @@ module Pat = {
     | EmptyHole
     | MultiHole(_)
     | Wild
-    | Int(_)
-    | Float(_)
-    | Bool(_)
-    | String(_)
+    | Atom(_)
     | ListLit(_)
     | Cons(_, _)
     | Var(_)
@@ -146,10 +136,7 @@ module Pat = {
       | EmptyHole
       | MultiHole(_)
       | Wild
-      | Int(_)
-      | Float(_)
-      | Bool(_)
-      | String(_)
+      | Atom(_)
       | ListLit(_)
       | Cons(_, _)
       | Var(_)
@@ -173,10 +160,7 @@ module Pat = {
       | EmptyHole
       | MultiHole(_)
       | Wild
-      | Int(_)
-      | Float(_)
-      | Bool(_)
-      | String(_)
+      | Atom(_)
       | ListLit(_)
       | Cons(_, _)
       | Var(_)
@@ -196,10 +180,7 @@ module Pat = {
     | EmptyHole
     | MultiHole(_)
     | Wild
-    | Int(_)
-    | Float(_)
-    | Bool(_)
-    | String(_)
+    | Atom(_)
     | ListLit(_)
     | Cons(_, _)
     | Label(_)
@@ -224,10 +205,7 @@ module Pat = {
     | EmptyHole
     | MultiHole(_)
     | Wild
-    | Int(_)
-    | Float(_)
-    | Bool(_)
-    | String(_)
+    | Atom(_)
     | ListLit(_)
     | Cons(_, _)
     | Var(_)
@@ -259,10 +237,7 @@ module Pat = {
       | EmptyHole
       | MultiHole(_)
       | Wild
-      | Int(_)
-      | Float(_)
-      | Bool(_)
-      | String(_)
+      | Atom(_)
       | ListLit(_)
       | Cons(_, _)
       | Var(_)
@@ -287,10 +262,7 @@ module Pat = {
       | EmptyHole
       | MultiHole(_)
       | Wild
-      | Int(_)
-      | Float(_)
-      | Bool(_)
-      | String(_)
+      | Atom(_)
       | ListLit(_)
       | Cons(_, _)
       | Var(_)
@@ -326,10 +298,7 @@ module Pat = {
     | MultiHole(_)
     | Wild
     | Invalid(_)
-    | Int(_)
-    | Float(_)
-    | Bool(_)
-    | String(_)
+    | Atom(_)
     | Label(_)
     | Constructor(_) => []
     | Cast(y, _, _)
@@ -366,10 +335,7 @@ module Exp = {
     | FailedCast
     | Deferral
     | Undefined
-    | Bool
-    | Int
-    | Float
-    | String
+    | Atom(Atom.cls)
     | DrvExp
     | ListLit
     | Constructor
@@ -383,6 +349,7 @@ module Exp = {
     | Let
     | FixF
     | TyAlias
+    | Use
     | Ap
     | TypAp
     | DeferredAp
@@ -408,7 +375,6 @@ module Exp = {
       term,
       annotation: {
         ids: [Id.invalid],
-        copied: false,
       },
     };
   let fresh: term => t = IdTagged.fresh;
@@ -432,10 +398,7 @@ module Exp = {
     | FailedCast(_) => FailedCast
     | Deferral(_) => Deferral
     | Undefined => Undefined
-    | Bool(_) => Bool
-    | Int(_) => Int
-    | Float(_) => Float
-    | String(_) => String
+    | Atom(c) => Atom(Atom.cls_of_t(c))
     | DrvExp(_) => DrvExp
     | ListLit(_) => ListLit
     | Constructor(_) => Constructor
@@ -449,6 +412,7 @@ module Exp = {
     | Let(_) => Let
     | FixF(_) => FixF
     | TyAlias(_) => TyAlias
+    | Use(_) => Use
     | Ap(_) => Ap
     | TypAp(_) => TypAp
     | DeferredAp(_) => DeferredAp
@@ -476,10 +440,12 @@ module Exp = {
     | FailedCast => "Failed cast"
     | Deferral => "Deferral"
     | Undefined => "Undefined expression"
-    | Bool => "Boolean literal"
-    | Int => "Integer literal"
-    | Float => "Float literal"
-    | String => "String literal"
+    | Atom(Int) => "Number literal"
+    | Atom(Float) => "Float literal"
+    | Atom(Bool) => "Boolean literal"
+    | Atom(String) => "String literal"
+    | Atom(Nat) => "Natural number literal"
+    | Atom(SInt) => "System integer literal"
     | DrvExp => "Drivation expression"
     | ListLit => "List literal"
     | Constructor => "Constructor"
@@ -493,6 +459,7 @@ module Exp = {
     | Let => "Let expression"
     | FixF => "Fixpoint operator"
     | TyAlias => "Type Alias definition"
+    | Use => "Specify number format to use"
     | Ap => "Application"
     | TypAp => "Type application"
     | DeferredAp => "Partial Application"
@@ -564,10 +531,7 @@ module Exp = {
     | FailedCast(_)
     | Deferral(_)
     | Undefined
-    | Bool(_)
-    | Int(_)
-    | Float(_)
-    | String(_)
+    | Atom(_)
     | DrvExp(_)
     | Label(_)
     | ListLit(_)
@@ -576,6 +540,7 @@ module Exp = {
     | Let(_)
     | FixF(_)
     | TyAlias(_)
+    | Use(_)
     | Ap(_)
     | TypAp(_)
     | DeferredAp(_)
@@ -626,10 +591,7 @@ module Exp = {
       | FailedCast(_)
       | Deferral(_)
       | Undefined
-      | Bool(_)
-      | Int(_)
-      | Float(_)
-      | String(_)
+      | Atom(_)
       | DrvExp(_)
       | Label(_)
       | ListLit(_)
@@ -641,6 +603,7 @@ module Exp = {
       | Let(_)
       | FixF(_)
       | TyAlias(_)
+      | Use(_)
       | Ap(_)
       | TypAp(_)
       | DeferredAp(_)
@@ -691,10 +654,7 @@ module Exp = {
       | Cast(_)
       | Deferral(_)
       | Undefined
-      | Bool(_)
-      | Int(_)
-      | Float(_)
-      | String(_)
+      | Atom(_)
       | DrvExp(_)
       | Label(_)
       | ListLit(_)
@@ -704,6 +664,7 @@ module Exp = {
       | Let(_)
       | Filter(_)
       | TyAlias(_)
+      | Use(_)
       | Ap(_)
       | TypAp(_)
       | DeferredAp(_)
@@ -728,7 +689,6 @@ module Exp = {
         {
           ...exp,
           annotation: {
-            ...exp.annotation,
             ids: [Id.mk()],
           },
         }
@@ -853,10 +813,7 @@ module Exp = {
           | DynamicErrorHole(_)
           | FailedCast(_)
           | Deferral(_)
-          | Bool(_)
-          | Int(_)
-          | Float(_)
-          | String(_)
+          | Atom(_)
           | DrvExp(_)
           | ListLit(_)
           | Constructor(_)
@@ -866,6 +823,7 @@ module Exp = {
           | Label(_)
           | Dot(_)
           | TyAlias(_)
+          | Use(_)
           | Ap(_)
           | TypAp(_)
           | DeferredAp(_)

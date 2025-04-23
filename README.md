@@ -17,7 +17,7 @@ can also be accessed at:
 
 ### Short version
 
-If you already have `ocaml` version 5.2.0 and at least version 2.0 of `opam`
+If you already have `ocaml` version 5.2.0, at least version 2.0 of `opam`, and `npm`
 installed, you can build Hazel by running the following commands.
 
 - `git clone git@github.com:hazelgrove/hazel.git`
@@ -30,6 +30,8 @@ run it from a `file:///` URL due to browser restrictions on e.g. web workers.)
 
 If you have `python3` on your path, you can use the Python server via 
 `make serve`, then navigate to `http://0.0.0.0:8000/` in your browser.
+
+Alternatively, if you would live hot reloading, you can use `make hot` instead of `make serve`.
 
 Otherwise, run `make echo-html-dir` which will echo the directory that needs 
 to be served using some other server of your choice.

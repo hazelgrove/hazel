@@ -36,6 +36,7 @@ module Store = {
     | Scratch =>
       Model.Scratch(
         ScratchMode.Store.load()
+        |> ScratchMode.Store.integrate_share
         |> ScratchMode.Model.unpersist(~settings, ~root=Exp),
       )
     | Documentation =>

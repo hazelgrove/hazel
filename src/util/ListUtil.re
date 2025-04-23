@@ -712,3 +712,11 @@ let rec remove_duplicate_neighbors = (xs: list('x)): list('x) =>
   | [x1, x2, ...xs] when x1 == x2 => remove_duplicate_neighbors([x1, ...xs])
   | [x, ...xs] => [x, ...remove_duplicate_neighbors(xs)]
   };
+/* Length of ys but be equal to the number of `None`s in xs */
+let rec fill_nones = (xs: list(option('a)), ys: list('a)): list('a) =>
+  switch (xs, ys) {
+  | ([], []) => []
+  | ([None, ...xs], [y, ...ys]) => [y, ...fill_nones(xs, ys)]
+  | ([Some(x), ...xs], ys) => [x, ...fill_nones(xs, ys)]
+  | _ => failwith("ListUtil.fill_nones: lengths do not match")
+  };
