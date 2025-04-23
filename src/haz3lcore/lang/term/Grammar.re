@@ -831,10 +831,6 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: DrvExp(d, s),
       annotation: default_annotation(ann),
     };
-    let drv_exp = (~ann=?, d, s): exp_t(DefaultAnnotation.t) => {
-      term: DrvExp(d, s),
-      annotation: default_annotation(ann),
-    };
     let list_lit = (~ann=?, l): exp_t(DefaultAnnotation.t) => {
       term: ListLit(l),
       annotation: default_annotation(ann),
@@ -1074,10 +1070,6 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let nat = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
       term: Atom(Nat),
-      annotation: default_annotation(ann),
-    };
-    let drv_typ = (~ann=?, s): typ_t(DefaultAnnotation.t) => {
-      term: DrvTyp(s),
       annotation: default_annotation(ann),
     };
     let drv_typ = (~ann=?, s): typ_t(DefaultAnnotation.t) => {
