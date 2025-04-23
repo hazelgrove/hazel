@@ -17,12 +17,12 @@ module Slider: BuiltinLivelit = {
   let hazel_model_t: TermBase.Typ.t = Typ.temp(Atom(Int));
   let model_to_hazel: model_t => model_exp =
     (x: model_t) => DHExp.fresh(Atom(Int(x)));
-  let model_from_hazel: model_exp => model_t =
+  let model_from_hazel: model_exp => option(model_t) =
     (x: model_exp) => {
       print_endline(x |> show_model_exp);
       switch (x.term) {
-      | Atom(Int(n)) => n
-      | _ => Bigint.of_int(-1)
+      | Atom(Int(n)) => Some(n)
+      | _ => None
       };
     };
   let model_default: model_t = Bigint.of_int(50);
@@ -60,7 +60,7 @@ module Slider: BuiltinLivelit = {
         )
         |> DHExp.fresh
       };
-  let action_from_hazel: action_exp => action_t =
+  let action_from_hazel: action_exp => option(action_t) =
     (action: action_exp) => {
       switch (action.term) {
       | Ap(
@@ -68,8 +68,8 @@ module Slider: BuiltinLivelit = {
           {term: Constructor("SetModel", _), _},
           {term: Atom(Int(n)), _},
         ) =>
-        SetModel(n)
-      | _ => SetModel(Bigint.of_int(-1))
+        Some(SetModel(n))
+      | _ => None
       };
     };
 
@@ -111,11 +111,11 @@ module Emotion: BuiltinLivelit = {
   let model_to_hazel: model_t => model_exp =
     (x: model_t) => DHExp.fresh(Atom(Int(x)));
 
-  let model_from_hazel: model_exp => model_t =
+  let model_from_hazel: model_exp => option(model_t) =
     (x: model_exp) =>
       switch (x.term) {
-      | Atom(Int(n)) => n
-      | _ => Bigint.of_int(-1)
+      | Atom(Int(n)) => Some(n)
+      | _ => None
       };
 
   /* Default model value is 50 */
@@ -169,7 +169,7 @@ module Emotion: BuiltinLivelit = {
         |> DHExp.fresh
       };
 
-  let action_from_hazel: action_exp => action_t =
+  let action_from_hazel: action_exp => option(action_t) =
     (action: action_exp) =>
       switch (action.term) {
       | Ap(
@@ -177,8 +177,8 @@ module Emotion: BuiltinLivelit = {
           {term: Constructor("SetModel", _), _},
           {term: Atom(Int(n)), _},
         ) =>
-        SetModel(n)
-      | _ => SetModel(Bigint.of_int(-1))
+        Some(SetModel(n))
+      | _ => None
       };
 
   let size =
@@ -286,20 +286,18 @@ module Js: BuiltinLivelit = {
     };
 
   /* Convert a Hazel expression back to the model. */
-  let model_from_hazel: model_exp => model_t =
+  let model_from_hazel: model_exp => option(model_t) =
     (expr: model_exp) => {
       switch (expr.term) {
       | Tuple([
           {term: Atom(String(code)), _},
           {term: Atom(String(result)), _},
-        ]) => {
+        ]) =>
+        Some({
           code,
           result,
-        }
-      | _ => {
-          code: "error",
-          result: "error",
-        }
+        })
+      | _ => None
       };
     };
 
@@ -366,7 +364,7 @@ module Js: BuiltinLivelit = {
       };
 
   /* Convert Hazel expression -> action. */
-  let action_from_hazel: action_exp => action_t =
+  let action_from_hazel: action_exp => option(action_t) =
     (expr: action_exp) =>
       switch (expr.term) {
       | Ap(
@@ -381,16 +379,13 @@ module Js: BuiltinLivelit = {
             _,
           },
         ) =>
-        SetModel({
-          code,
-          result,
-        })
-      | _ =>
-        /* Fallback */
-        SetModel({
-          code: "error",
-          result: "error",
-        })
+        Some(
+          SetModel({
+            code,
+            result,
+          }),
+        )
+      | _ => None
       };
 
   /* Render: show code input, a compute button, and the result. */
