@@ -428,16 +428,21 @@ let qcheck_evaluator_does_not_crash_test =
     ) {
     | exp =>
       switch (
-        Evaluator.evaluate(~env=Builtins.env_init, ~step_limit=10000, exp)
+        Evaluator.evaluate_and_limit(
+          ~env=Builtins.env_init,
+          ~step_limit=10000,
+          exp,
+        )
       ) {
-      | (_, _) => true
+      | Completed((_, _))
+      | StepLimitExceeded => true
       | exception e =>
         switch (e) {
         | Failure(msg)
             when
               List.exists(
                 (==)(msg),
-                ["Step limit reached", "type application in dynamics"] // "type application in dynamics" https://github.com/hazelgrove/hazel/issues/1625
+                ["type application in dynamics"] // "type application in dynamics" https://github.com/hazelgrove/hazel/issues/1625
               ) =>
           print_endline("Skipping failure: " ++ msg);
           true;

@@ -1,5 +1,9 @@
 open Transition;
 
+type step_constrained('a) =
+  | StepLimitExceeded
+  | Completed('a);
+
 // This module defines the stack machine for the evaluator.
 module Trampoline = {
   type t('a) =
@@ -12,27 +16,17 @@ module Trampoline = {
     | Continue('a => t('b), callstack('b, 'c)): callstack('a, 'c);
   let rec run:
     type a b.
-      (~step_limit: int=?, ~step_counter: int=?, t(b), callstack(b, a)) => a =
+      (~step_limit: int=?, ~step_counter: int=?, t(b), callstack(b, a)) =>
+      step_constrained(a) =
     (
       ~step_limit: option(int)=?,
       ~step_counter=0,
       t: t(b),
       callstack: callstack(b, a),
-    ) => (
-      // if (step_counter > 0 && step_counter mod 1000 == 0) {
-      //   print_endline(
-      //     "Step: "
-      //     ++ string_of_int(step_counter)
-      //     ++ ", "
-      //     ++ string_of_int(Option.value(~default=0, step_limit)),
-      //   );
-      // };
-      {
-        switch (step_limit) {
-        | Some(x) when x <= step_counter =>
-          raise(Failure("Step limit reached"))
-        | _ => ()
-        };
+    ) => {
+      switch (step_limit) {
+      | Some(x) when x <= step_counter => StepLimitExceeded
+      | _ =>
         switch (t) {
         | Bind(t, f) =>
           run(
@@ -45,7 +39,7 @@ module Trampoline = {
           run(~step_limit?, ~step_counter=step_counter + 1, f(), callstack)
         | Done(x) =>
           switch (callstack) {
-          | Finished => x
+          | Finished => Completed(x)
           | Continue(f, callstack) =>
             run(
               ~step_limit?,
@@ -54,9 +48,9 @@ module Trampoline = {
               callstack,
             )
           }
-        };
-      }: a
-    );
+        }
+      };
+    };
 
   let run = (~step_limit: option(int)=?, t) =>
     run(~step_limit?, t, Finished);
@@ -151,17 +145,29 @@ let rec evaluate = (~in_closure=?, state, env, d) => {
   };
 };
 
-let evaluate = (~step_limit: option(int)=?, ~env, d: DHExp.t) => {
+let evaluate_and_limit =
+    (~step_limit: option(int)=?, ~env, d: DHExp.t)
+    : step_constrained((Exp.t, EvaluatorState.t)) => {
   let state = ref(EvaluatorState.init);
   let env = ClosureEnvironment.of_environment(env);
   let result = evaluate(state, env, d);
   let result = Trampoline.run(~step_limit?, result);
-  let result =
-    switch (result) {
-    | (Final, x) => x |> Exp.replace_all_ids
-    | (Uneval, x) => x |> Exp.replace_all_ids
-    };
-  let result =
-    result |> Exp.substitute_closures(env |> ClosureEnvironment.map_of);
-  (result, state^);
+  switch (result) {
+  | Completed((_, x)) =>
+    Completed((
+      x
+      |> Exp.replace_all_ids
+      |> Exp.substitute_closures(env |> ClosureEnvironment.map_of),
+      state^,
+    ))
+  | StepLimitExceeded => StepLimitExceeded
+  };
+};
+
+let evaluate = (~env, d: DHExp.t): (Exp.t, EvaluatorState.t) => {
+  switch (evaluate_and_limit(~env, d)) {
+  | Completed((x, state)) => (x, state)
+  | StepLimitExceeded =>
+    raise(Failure("Impossible: Step limit exceeded when not set"))
+  };
 };
