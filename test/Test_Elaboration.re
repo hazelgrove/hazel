@@ -615,6 +615,17 @@ module PlainTests = {
     );
   };
 
+  let skip_known_bug = (message: string, expression: string) =>
+    test_case("Known Bug: " ++ message, `Quick, () => {
+      [@warning "-21"]
+      {
+        let uexp = parse_exp(expression);
+        let statics = mk_map(uexp);
+        Alcotest.skip();
+        let _ = Elaborator.elaborate(statics, uexp);
+        ();
+      }
+    });
   let tests = [
     test_case("Single integer", `Quick, single_integer),
     test_case("Empty hole", `Quick, empty_hole),
@@ -979,6 +990,14 @@ in 1|},
         ();
       }
     }),
+    skip_known_bug(
+      "Invalid typ ap", // TODO https://github.com/hazelgrove/hazel/issues/1625
+      "let [(A: (Bool(Bool))), (_: (String))] = 0 in ()",
+    ),
+    skip_known_bug(
+      "Type join of ap", // TODO https://github.com/hazelgrove/hazel/issues/1625
+      "type x = + B((forall x -> ?)(?)) in case a | B => 0| B => 0 end",
+    ),
     QCheck_alcotest.to_alcotest(
       QCheck.Test.make(
         ~name="Elaboration does not crash",
