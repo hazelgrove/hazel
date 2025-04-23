@@ -66,6 +66,16 @@ let rec mk_frame = (n: int, xs: list('x)): frame('x) => {
   };
 };
 
+let rec remove = (eq, y) =>
+  fun
+  | [] => []
+  | [x, ...xs] when eq(x, y) => remove(eq, y, xs)
+  | [x, ...xs] => [x, ...remove(eq, y, xs)];
+let rec remove_duplicates = eq =>
+  fun
+  | [] => []
+  | [x, ...xs] => [x, ...remove_duplicates(eq, remove(eq, x, xs))];
+
 let rec split =
         (l: list('x), cond: 'x => bool): (list('x), option('x), list('x)) => {
   switch (l) {

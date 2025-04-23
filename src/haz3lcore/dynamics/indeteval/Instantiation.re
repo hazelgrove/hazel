@@ -35,7 +35,7 @@ module Make =
       switch (t) {
       | Var(_) => failwith("Expeted normalised types during instantiation?")
       | Label(name) => return(Label(name) |> DHExp.temp)
-      | Unknown(_) => return(fresh_hole())
+      | Unknown(_) => fail
       | Bool => bool_lits
       | Int => int_lits
       | Float => float_lits
@@ -46,9 +46,22 @@ module Make =
       | Arrow(_, t2) =>
         enum_typ(Typ.term_of(t2), env)
         >>| (e => Fun(EmptyHole |> DHPat.fresh, e, None, None) |> DHExp.fresh) // TODO: Check casting logic for potential need for re-elaboration?
+      // Note: must cast tail hole back to list!
       | List(_) =>
         return(ListLit([]) |> DHExp.fresh)
-        <||> return(Cons(fresh_hole(), fresh_hole()) |> DHExp.fresh)
+        <||> return(
+               Cons(
+                 fresh_hole(),
+                 Cast(
+                   fresh_hole(),
+                   TypSlice.hole([]) |> TypSlice.fresh,
+                   `Typ(List(Unknown(Internal) |> Typ.fresh))
+                   |> TypSlice.fresh,
+                 )
+                 |> DHExp.fresh,
+               )
+               |> DHExp.fresh,
+             )
       | Prod(ts) =>
         ts
         |> List.map(t => enum_typ(Typ.term_of(t), env))
@@ -137,7 +150,7 @@ module Make =
   // Note that this requires the hole to have a UNIQUE id. TODO: ensure this
   // The holes may also exist inside the closures, so must be substituted there too
   // Also evaluate the substitutions within closures in order to maintain that closures only contain values. (Somewhat inefficient)
-  let instantiate = (env, d) =>
+  let rec instantiate = (env, d) =>
     RedexHoleType.(
       find(env, d)
       |> (
@@ -146,7 +159,33 @@ module Make =
         | Hole(_) => fail // No useful type information present
         | HoleCast(id, t) =>
           enum_typ(t, env) >>| (d' => subst_term(d', id, d))
-        | Match(d, branches) => fail // TODO!  May be possible to refactor branch to inside RedexHoleType, by using the indetmatch returns from unboxing in transition?
+        | Match(d', branches) =>
+          // Nondeterministically wrap scrutinee in casts from match branches
+          branches
+          |> List.filter_map(p =>
+               switch (Pat.term_of(p)) {
+               | Cast(_, t, _) => Some(t)
+               | _ => None
+               }
+             )
+          |> ListUtil.remove_duplicates(TypSlice.fast_equal)
+          // Such a scrutinee only occurs when it is of the dynamic type, so cast ? -> t
+          |> List.map(t =>
+               return(
+                 subst_term(
+                   Cast(
+                     Cast(d', TypSlice.hole([]) |> TypSlice.fresh, t)
+                     |> Exp.fresh,
+                     t,
+                     TypSlice.hole([]) |> TypSlice.fresh,
+                   )
+                   |> Exp.fresh,
+                   Exp.rep_id(d'),
+                   d,
+                 ),
+               )
+             )
+          |> List.fold_left(S.choice, fail)
       )
     );
 };

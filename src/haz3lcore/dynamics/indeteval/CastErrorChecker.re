@@ -57,7 +57,7 @@ let rec contains_error = (~in_closure=?, state, env, d) =>
   CastErrChecker.transition(
     contains_error,
     ~in_closure?,
-    ~mode=`Environment,
+    ~mode=`Substitution,
     state,
     env,
     d,
