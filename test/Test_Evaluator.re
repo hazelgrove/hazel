@@ -413,6 +413,17 @@ let test_typfun_application = () =>
     |> Exp.fresh,
   );
 
+let skip_current_unboxing_error = (err: string, expression: string) =>
+  test_case(err ++ " (Unboxing Error)", `Quick, () => {
+    [@warning "-21"]
+    {
+      // Currently fails https://github.com/hazelgrove/hazel/issues/1588
+      Alcotest.skip();
+      let exp = parse_and_evaluate(expression);
+      check(pass, err, exp, exp);
+    }
+  });
+
 let qcheck_evaluator_does_not_crash_test =
   QCheck.Test.make(
     ~name="Evaluator does not crash",
@@ -835,6 +846,39 @@ in fn("hello")|},
         probe_test({|let PROBE(x) : (a=String) = "a" in x|}, uexp);
       },
     ),
+    skip_current_unboxing_error(
+      "InvalidBoxSumConstructor",
+      "let B : (+B( )) = ? in ?",
+    ),
+    skip_current_unboxing_error(
+      "InvalidBoxedListLit",
+      "type g = + On in let [] = On in",
+    ),
+    skip_current_unboxing_error(
+      "InvalidBoxedListCons",
+      "let (_:: []) = type y = + B in B in ?",
+    ),
+    skip_current_unboxing_error(
+      "InvalidBoxedBoolLit",
+      "type y = + B(Float) in if B then false else A",
+    ),
+    skip_current_unboxing_error(
+      "InvalidBoxedTuple",
+      "let () = type x = + A in A in ?",
+    ),
+    skip_current_unboxing_error(
+      "InvalidBoxedTypfun",
+      "type y = + B in case true  | a => B end @<?> ",
+    ),
+    skip_current_unboxing_error(
+      "InvalidBoxedSumConstructor",
+      "type x = + A(Float) in let A = a in 0",
+    ),
+    skip_current_unboxing_error(
+      "InvalidBoxedStringLit",
+      {|type y = + A in ""++A|},
+    ),
+    skip_current_unboxing_error("InvalidBoxedIntLit", "type y = + A in -A"),
     QCheck_alcotest.to_alcotest(qcheck_evaluator_does_not_crash_test),
   ],
 );
