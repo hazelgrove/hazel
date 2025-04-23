@@ -54,7 +54,8 @@ module InstantiatorEVMode: {
   let (let.): (requirements('a, DHExp.t), 'a => rule) => result =
     ((h, a, d), rl) => {
       switch (rl(a), Exp.term_of(d)) {
-      | (Step(_), _) => failwith("Step possible before hole instantiation") // Assume full reduction before instantiation
+      | (Step(s), _) =>
+        failwith("RedexHole: Step possible before hole instantiation") // Assume full reduction before instantiation
       // Pattern match on casts to retrieve the type to instantiate the hole
       | (Constructor, Cast(d', t1, t2))
           when Hole(d' |> DHExp.rep_id) == h && TypSlice.is_unknown(t1) =>
@@ -82,7 +83,7 @@ let rec find = (~in_closure=?, state, env, d) =>
   Instantiator.transition(
     find,
     ~in_closure?,
-    ~mode=`Environment,
+    ~mode=`Substitution,
     state,
     env,
     d,

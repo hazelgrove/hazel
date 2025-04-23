@@ -200,7 +200,7 @@ let take_step = (state, env, exp) => {
         }
         |> EvalCtx.compose(step.ctx)
         |> Exp.replace_all_ids;
-        //|> DHExp.substitute_closures(env);
+      //|> DHExp.substitute_closures(env);
       Step(next_step);
     };
   };

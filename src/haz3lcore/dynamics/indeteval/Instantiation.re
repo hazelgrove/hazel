@@ -137,7 +137,7 @@ module Make =
   // Note that this requires the hole to have a UNIQUE id. TODO: ensure this
   // The holes may also exist inside the closures, so must be substituted there too
   // Also evaluate the substitutions within closures in order to maintain that closures only contain values. (Somewhat inefficient)
-  let instantiate = (env, d) =>
+  let rec instantiate = (env, d) =>
     RedexHoleType.(
       find(env, d)
       |> (
@@ -146,7 +146,33 @@ module Make =
         | Hole(_) => fail // No useful type information present
         | HoleCast(id, t) =>
           enum_typ(t, env) >>| (d' => subst_term(d', id, d))
-        | Match(d, branches) => fail // TODO!  May be possible to refactor branch to inside RedexHoleType, by using the indetmatch returns from unboxing in transition?
+        | Match(d', branches) =>
+          // Nondeterministically wrap scrutinee in casts from match branches
+          branches
+          |> List.filter_map(p =>
+               switch (Pat.term_of(p)) {
+               | Cast(_, t, _) => Some(t)
+               | _ => None
+               }
+             )
+          |> ListUtil.remove_duplicates(TypSlice.fast_equal)
+          // Such a scrutinee only occurs when it is of the dynamic type, so cast ? -> t
+          |> List.map(t =>
+               return(
+                 subst_term(
+                   Cast(
+                     Cast(d', TypSlice.hole([]) |> TypSlice.fresh, t)
+                     |> Exp.fresh,
+                     t,
+                     TypSlice.hole([]) |> TypSlice.fresh,
+                   )
+                   |> Exp.fresh,
+                   Exp.rep_id(d'),
+                   d,
+                 ),
+               )
+             )
+          |> List.fold_left(S.choice, fail)
       )
     );
 };
