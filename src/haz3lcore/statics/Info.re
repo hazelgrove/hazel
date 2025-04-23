@@ -850,15 +850,11 @@ let fixed_typ_err_common: error_common => TypSlice.t =
   | DuplicateLabel(_, typ) => typ
   | Inconsistent(Expectation({ana, _})) => ana
   | Inconsistent(Internal(_)) => `Typ(Unknown(Internal)) |> TypSlice.temp // Should this be some sort of meet?
-  | Inconsistent(WithArrow(typ)) =>
-    TypSlice.(
-      `Typ(
-        Arrow(Unknown(Internal) |> Typ.temp, Unknown(Internal) |> Typ.temp),
-      )
-      |> temp
-      |> wrap_global(get_incr_slice_or_empty(typ.term))
-      |> wrap_global(get_global_slice_or_empty(typ.term))
-    ); // Note: wraps the old incr slice globally (to give a reason for the unknown terms)
+  | Inconsistent(WithArrow(_)) =>
+    `Typ(
+      Arrow(Unknown(Internal) |> Typ.temp, Unknown(Internal) |> Typ.temp),
+    )
+    |> TypSlice.temp;
 
 let fixed_typ_err: error_exp => TypSlice.t =
   fun
