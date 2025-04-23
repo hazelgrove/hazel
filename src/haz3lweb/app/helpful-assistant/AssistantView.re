@@ -54,20 +54,6 @@ let lsp_toggle = (~globals: Globals.t): Node.t => {
   );
 };
 
-let begin_chat_button = (~globals: Globals.t, ~inject): Node.t => {
-  let tooltip = "New Chat";
-  let begin_chat = _ =>
-    Virtual_dom.Vdom.Effect.Many([
-      globals.inject_global(Set(Assistant(UpdateChatStatus))),
-      inject(Assistant.Update.NewChat),
-      Virtual_dom.Vdom.Effect.Stop_propagation,
-    ]);
-  div(
-    ~attrs=[clss(["chat-button"]), Attr.on_click(begin_chat)],
-    [Widgets.button_named(~tooltip, None, begin_chat)],
-  );
-};
-
 let resume_chat_button = (~globals: Globals.t): Node.t => {
   let tooltip = "Confirm and Chat";
   let resume_chat = _ =>
@@ -81,7 +67,7 @@ let resume_chat_button = (~globals: Globals.t): Node.t => {
   );
 };
 
-let end_chat_button = (~globals: Globals.t): Node.t => {
+let settings_button = (~globals: Globals.t): Node.t => {
   let tooltip = "Settings";
   let end_chat = _ =>
     Virtual_dom.Vdom.Effect.Many([
@@ -915,7 +901,7 @@ let view =
                   globals.settings.assistant.ongoing_chat
                     ? mode_buttons(~globals)
                     : div(
-                        ~attrs=[clss(["title"])],
+                        ~attrs=[clss(["main-title"])],
                         [text("Assistant Settings")],
                       ),
                   div(
@@ -926,7 +912,8 @@ let view =
                       globals.settings.assistant.ongoing_chat
                         ? new_chat_button(~inject) : None,
                       globals.settings.assistant.ongoing_chat
-                        ? end_chat_button(~globals) : None,
+                        ? settings_button(~globals)
+                        : resume_chat_button(~globals),
                     ],
                   ),
                 ],
