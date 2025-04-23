@@ -333,10 +333,7 @@ module Transition = (EV: EV_MODE) => {
             DHExp.t
           ) =>
           'a,
-        ~mode: [
-           | `Substitution
-           | `Environment
-         ],
+        ~mode: [ | `Substitution | `Environment],
         ~in_closure=?,
         state,
         env, // Empty in substitution mode
@@ -694,12 +691,7 @@ module Transition = (EV: EV_MODE) => {
             // e.g. divide by zero
             dynamic_error_hole(UnOp(op, d1) |> rewrap, error)
           };
-        Step({
-          expr,
-          state_update,
-          kind: UnOp(op),
-          is_value: true,
-        });
+        Step({expr, state_update, kind: UnOp(op), is_value: true});
       };
     | BinOp(Bool(And), d1, d2) =>
       let. _ = otherwise(env, d1 => BinOp(Bool(And), d1, d2) |> rewrap)
@@ -758,12 +750,7 @@ module Transition = (EV: EV_MODE) => {
             // e.g. divide by zero
             dynamic_error_hole(BinOp(op, d1, d2) |> rewrap, error)
           };
-        Step({
-          expr,
-          state_update,
-          kind: BinOp(op),
-          is_value: true,
-        });
+        Step({expr, state_update, kind: BinOp(op), is_value: true});
       };
     | Dot(d1, d2) =>
       let. _ = otherwise(env, (d1, d2) => Dot(d1, d2) |> rewrap)
@@ -964,20 +951,10 @@ module Transition = (EV: EV_MODE) => {
       Step({expr: d, state_update, kind: RemoveParens, is_value: false});
     | TyAlias(_, _, d) =>
       let. _ = otherwise(env, d);
-      Step({
-        expr: d,
-        state_update,
-        kind: RemoveTypeAlias,
-        is_value: false,
-      });
+      Step({expr: d, state_update, kind: RemoveTypeAlias, is_value: false});
     | Use(_, d) =>
       let. _ = otherwise(env, d);
-      Step({
-        expr: d,
-        state_update,
-        kind: RemoveUse,
-        is_value: true,
-      });
+      Step({expr: d, state_update, kind: RemoveUse, is_value: true});
     | Filter(f1, d1) =>
       let. _ = otherwise(env, d1 => Filter(f1, d1) |> rewrap)
       and. d1 =

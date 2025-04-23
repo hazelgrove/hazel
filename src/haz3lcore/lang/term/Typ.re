@@ -33,13 +33,12 @@ let fresh: term => t = IdTagged.fresh;
 /* fresh assigns a random id, whereas temp assigns Id.invalid, which
    is a lot faster, and since we so often make types and throw them away
    shortly after, it makes sense to use it. */
-let temp: term => t =
-  term => {
-    term,
-    annotation: {
-      ids: [Id.invalid],
-    },
-  };
+let temp: term => t = term => {
+                        term,
+                        annotation: {
+                          ids: [Id.invalid],
+                        },
+                      };
 
 let all_ids_temp = {
   let f:
@@ -52,8 +51,7 @@ let all_ids_temp = {
         annotation: {
           ids: [Id.invalid],
         },
-      }
-      |> continue;
+      } |> continue;
   map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f);
 };
 
@@ -602,6 +600,7 @@ let rec is_syn = (ty: t): bool =>
   | Unknown(SynSwitch) => true
   | Unknown(_)
   | Atom(_)
+  | DrvTyp(_)
   | Label(_)
   | Var(_)
   | Ap(_)
@@ -618,6 +617,7 @@ let rec is_ana_atom = (ty: t) =>
   | TupLabel(_, x)
   | Parens(x) => is_ana_atom(x)
   | Atom(a) => Some(a)
+  | DrvTyp(_)
   | Unknown(_)
   | Label(_)
   | Var(_)
@@ -637,6 +637,7 @@ let rec is_syn_fun = (ty: t): bool =>
   | Arrow(t1, t2) => is_syn(t1) && is_syn_fun(t2)
   | Unknown(_)
   | Atom(_)
+  | DrvTyp(_)
   | Label(_)
   | Var(_)
   | Ap(_)
@@ -656,6 +657,7 @@ let rec is_syn_plus = (ty: t): bool =>
   | Forall(_, t) => is_syn(t)
   | Unknown(_)
   | Atom(_)
+  | DrvTyp(_)
   | Label(_)
   | Var(_)
   | Ap(_)

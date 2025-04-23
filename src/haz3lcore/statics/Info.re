@@ -344,7 +344,7 @@ let any_of: t => option(Term.Any.t) =
 
 let ctx_of: t => Ctx.t =
   fun
-  | InfoDrv(_) => []
+  | InfoDrv(_) => Ctx.empty_pre_elaboration
   | InfoExp({ctx, _})
   | InfoPat({ctx, _})
   | InfoTyp({ctx, _})
@@ -418,12 +418,7 @@ let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
   | (BadLabel(label), _) => InHole(NoType(BadLabel(label)))
   | (InvalidLabel(label), _) => InHole(NoType(InvalidLabel(label)))
   | (InvalidUseMode({bad_typ, inner_typ}), _) =>
-    InHole(
-      InvalidUseMode({
-        bad_typ,
-        inner_typ,
-      }),
-    )
+    InHole(InvalidUseMode({bad_typ, inner_typ}))
   | (
       TupleLabelError({
         malformed_labels,

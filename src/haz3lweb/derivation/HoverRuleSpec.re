@@ -23,6 +23,7 @@ let show = (syntax: Drv.Exp.t, ~globals: Globals.t): Node.t => {
   let statics =
     CachedStatics.init_from_term(
       ~settings=CoreSettings.on,
+      ~is_dynamic_term=false,
       DrvExp(Exp(syntax), Jdmt) |> Exp.fresh,
     );
   CodeWithStatics.View.view(

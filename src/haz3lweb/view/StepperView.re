@@ -164,22 +164,10 @@ module Update = {
         EvaluatorStep.get_status(~settings, next_expr, next_state);
       let next_steps =
         switch (next_status) {
-        | AutoStep(step) => [
-            Model.{
-              step,
-              to_ids: [Id.mk()],
-              hidden: true,
-            },
-          ]
+        | AutoStep(step) => [Model.{step, to_ids: [Id.mk()], hidden: true}]
         | AvailableSteps(steps) =>
           List.map(
-            step => {
-              Model.{
-                step,
-                to_ids: [Id.mk()],
-                hidden: false,
-              }
-            },
+            step => {Model.{step, to_ids: [Id.mk()], hidden: false}},
             steps,
           )
         };
@@ -188,7 +176,7 @@ module Update = {
         {
           expr: next_expr,
           state: next_state,
-          editor: Calc.NewValue(editor),
+          editor: Calc.NewValue(editor(~root=Exp)),
           next_steps,
         }: Model.a',
       );
@@ -296,7 +284,8 @@ module Update = {
                     ? x => x : Haz3lcore.DHExp.strip_casts
                 )
                 |> Typ.replace_temp_exp;
-              let editor = CodeWithStatics.Model.mk_from_exp(~settings, elab, ~root=Exp);
+              let editor =
+                CodeWithStatics.Model.mk_from_exp(~settings, elab, ~root=Exp);
               let next_status =
                 EvaluatorStep.get_status(
                   ~settings,
@@ -306,21 +295,11 @@ module Update = {
               let next_steps =
                 switch (next_status) {
                 | AutoStep(step) => [
-                    Model.{
-                      step,
-                      to_ids: [Id.mk()],
-                      hidden: true,
-                    },
+                    Model.{step, to_ids: [Id.mk()], hidden: true},
                   ]
                 | AvailableSteps(steps) =>
                   List.map(
-                    step => {
-                      Model.{
-                        step,
-                        to_ids: [Id.mk()],
-                        hidden: false,
-                      }
-                    },
+                    step => {Model.{step, to_ids: [Id.mk()], hidden: false}},
                     steps,
                   )
                 };

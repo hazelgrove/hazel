@@ -631,8 +631,8 @@ and Typ: {
       let (term, rewrap) = Grammar.Annotated.unwrap(ty);
       switch (term) {
       | Atom(_) => ty
-      | DrvTyp(d) => DrvTyp(d) |> rewrap
-      | Label(name) => Grammar.Label(name) |> rewrap
+      | DrvTyp(d) => Grammar.DrvTyp(d) |> rewrap
+      | Label(name) => Label(name) |> rewrap
       | Unknown(prov) => Unknown(prov) |> rewrap
       | Arrow(ty1, ty2) =>
         Arrow(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap

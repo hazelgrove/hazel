@@ -244,6 +244,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (
         _,
         Atom(_) | Label(_) | Constructor(_) | BuiltinFun(_) | Deferral(_) |
+        DrvExp(_) |
         DeferredAp(_) |
         ListLit(_) |
         Cons(_) |

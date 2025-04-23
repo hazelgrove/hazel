@@ -883,13 +883,7 @@ and uexp_to_info_map =
         let (args, m) = map_m_go(m, ty_ins, args);
         let arg_co_ctx = CoCtx.union(List.map(Info.exp_co_ctx, args));
         add'(
-          ~self=
-            IsBadPartialAp(
-              ArityMismatch({
-                expected,
-                actual: num_args,
-              }),
-            ),
+          ~self=IsBadPartialAp(ArityMismatch({expected, actual: num_args})),
           ~co_ctx=CoCtx.union([fn.co_ctx, arg_co_ctx]),
           m,
         );
@@ -926,11 +920,7 @@ and uexp_to_info_map =
           let ctx_body =
             Ctx.extend_tvar(
               ctx,
-              {
-                name,
-                id: TPat.rep_id(utpat),
-                kind: Abstract,
-              },
+              {name, id: TPat.rep_id(utpat), kind: Abstract},
             );
           (mode_body, ctx_body);
         | Some(_)
@@ -1190,11 +1180,7 @@ and uexp_to_info_map =
         | Some(_) => Just(body.ty)
         | None when Typ.fast_equal(Unknown(Internal) |> Typ.temp, typ.term) =>
           Just(body.ty)
-        | None =>
-          InvalidUseMode({
-            bad_typ: typ.term,
-            inner_typ: body.ty,
-          })
+        | None => InvalidUseMode({bad_typ: typ.term, inner_typ: body.ty})
         };
       add(~self, ~co_ctx=body.co_ctx, m);
     };
@@ -1829,11 +1815,7 @@ and utyp_to_info_map =
     let body_ctx =
       Ctx.extend_tvar(
         ctx,
-        {
-          name,
-          id: TPat.rep_id(utpat),
-          kind: Singleton(utyp),
-        },
+        {name, id: TPat.rep_id(utpat), kind: Singleton(utyp)},
       );
     let m =
       utyp_to_info_map(

@@ -83,6 +83,7 @@ let show =
   let statics =
     CachedStatics.init_from_term(
       ~settings=CoreSettings.on,
+      ~is_dynamic_term=false,
       DrvExp(Exp(syntax), Jdmt) |> Exp.fresh,
     );
   let highlight_deco = {

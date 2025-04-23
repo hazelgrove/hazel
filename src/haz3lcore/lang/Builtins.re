@@ -378,18 +378,9 @@ module Pervasives = {
 let entries =
   List.map(
     fun
-    | (name, Const(typ, _)) =>
-      Ctx.VarEntry({
-        name,
-        typ,
-        id: Id.invalid,
-      })
+    | (name, Const(typ, _)) => Ctx.VarEntry({name, typ, id: Id.invalid})
     | (name, Fn(t1, t2, _)) =>
-      Ctx.VarEntry({
-        name,
-        typ: Fresh.Typ.arrow(t1, t2),
-        id: Id.invalid,
-      }),
+      Ctx.VarEntry({name, typ: Fresh.Typ.arrow(t1, t2), id: Id.invalid}),
     Pervasives.builtins,
   );
 
@@ -405,10 +396,7 @@ let ctx_init: option(Operators.mode) => Ctx.t =
         id: Id.invalid,
         kind: Ctx.Singleton(Fresh.Typ.sum(meta_cons_map)),
       });
-    Ctx.{
-      use_mode,
-      entries,
-    }
+    Ctx.{use_mode, entries}
     |> Ctx.extend(_, meta)
     |> Ctx.add_ctrs(_, "$Meta", Id.invalid, meta_cons_map);
   };

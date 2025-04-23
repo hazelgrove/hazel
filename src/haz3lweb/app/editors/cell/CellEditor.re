@@ -26,7 +26,7 @@ module Model = {
   let persist = model => model.editor |> CodeEditable.Model.persist;
   let to_string = model => model.editor |> CodeEditable.Model.to_string;
   let unpersist = (~settings as _, pz, ~root) =>
-    pz |> PersistentZipper.unpersist(, ~root) |> Editor.Model.mk(, ~root) |> mk;
+    pz |> PersistentZipper.unpersist(~root) |> Editor.Model.mk(~root) |> mk;
 };
 
 module Update = {

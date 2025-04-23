@@ -370,13 +370,12 @@ module Exp = {
 
   include TermBase.Exp;
 
-  let temp: term => t =
-    term => {
-      term,
-      annotation: {
-        ids: [Id.invalid],
-      },
-    };
+  let temp: term => t = term => {
+                          term,
+                          annotation: {
+                            ids: [Id.invalid],
+                          },
+                        };
   let fresh: term => t = IdTagged.fresh;
 
   let hole = (tms: list(TermBase.Any.t)): term =>
@@ -691,8 +690,7 @@ module Exp = {
           annotation: {
             ids: [Id.mk()],
           },
-        }
-        |> continue;
+        } |> continue;
     (
       map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
       Typ.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),

@@ -167,14 +167,8 @@ let added_bindings = (ctx_after: t, ctx_before: t): t => {
   let new_count =
     List.length(ctx_after.entries) - List.length(ctx_before.entries);
   switch (ListUtil.split_n_opt(new_count, ctx_after.entries)) {
-  | Some((ctx, _)) => {
-      ...ctx_after,
-      entries: ctx,
-    }
-  | _ => {
-      ...ctx_after,
-      entries: [],
-    }
+  | Some((ctx, _)) => {...ctx_after, entries: ctx}
+  | _ => {...ctx_after, entries: []}
   };
 };
 
@@ -233,10 +227,7 @@ let empty_pre_elaboration = {
   use_mode: Some(Operators.default_mode),
   entries: [],
 };
-let empty_post_elaboration = {
-  use_mode: None,
-  entries: [],
-};
+let empty_post_elaboration = {use_mode: None, entries: []};
 
 /* The binding (binding site id and name) of `name` in `ctx` */
 let binding_of = (ctx: t, name: Var.t): Binding.t =>

@@ -105,10 +105,7 @@ let intlit = (i: Bigint.t): group => {
   id: IntPat,
   forms: [intlit_pat(i |> Bigint.to_string)],
 };
-let sintlit = (i: int): group => {
-  id: SIntPat,
-  forms: [sintlit_pat(i)],
-};
+let sintlit = (i: int): group => {id: SIntPat, forms: [sintlit_pat(i)]};
 
 let floatlit = (f: float): group => {
   id: FloatPat,

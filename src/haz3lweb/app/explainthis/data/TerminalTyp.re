@@ -78,18 +78,9 @@ let var_typ = (name: string): form => {
   };
 };
 
-let int: group = {
-  id: IntTyp,
-  forms: [int_typ],
-};
-let sint: group = {
-  id: IntTyp,
-  forms: [int_typ],
-};
-let nat: group = {
-  id: NatTyp,
-  forms: [nat_typ],
-};
+let int: group = {id: IntTyp, forms: [int_typ]};
+let sint: group = {id: IntTyp, forms: [int_typ]};
+let nat: group = {id: NatTyp, forms: [nat_typ]};
 
 let float: group = {id: FloatTyp, forms: [float_typ]};
 

@@ -397,43 +397,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           let e1' = abbreviate_exp(e1);
           Use(t1', e1');
         } else {
-          Use(
-            t1',
-            {
-              ...e1,
-              term: indet_term,
-            },
-          );
-        };
-      }
-
-    | Use(t1, e1) =>
-      if (available^ < 3) {
-        indet_term;
-      } else if (available^ <= 3) {
-        Invalid("use");
-      } else if (available^ <= 4) {
-        Invalid("use…");
-      } else if (available^ <= 6) {
-        Invalid("use…in");
-      } else if (available^ <= 8) {
-        Invalid("use…in…");
-      } else {
-        available := available^ - 8;
-        let t1' = abbreviate_typ(t1);
-        if (available^ > 3) {
-          // " = "
-          available := available^ - 3;
-          let e1' = abbreviate_exp(e1);
-          Use(t1', e1');
-        } else {
-          Use(
-            t1',
-            {
-              ...e1,
-              term: indet_term,
-            },
-          );
+          Use(t1', {...e1, term: indet_term});
         };
       }
 
@@ -770,14 +734,6 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
         indet_term_typ;
       } else {
         Atom(String);
-      }
-    | DrvTyp(s) =>
-      // TODO(zhiyao): abbreviate this
-      if (available^ < 4) {
-        indet_term_typ;
-      } else {
-        available := available^ - 4; // "drv"
-        DrvTyp(s);
       }
     | DrvTyp(s) =>
       // TODO(zhiyao): abbreviate this
