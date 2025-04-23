@@ -19,8 +19,8 @@ open OptUtil.Syntax;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
-  | SynFun /* Used only in function position of applications */
-  | SynTypFun
+  | SynFun(TypSlice.slc_global) /* Used only in function position of applications */
+  | SynTypFun(TypSlice.slc_global) /* slice of context enforcing fun type */
   | Syn
   | Ana(TypSlice.t);
 
@@ -31,34 +31,36 @@ let ty_of: t => TypSlice.t =
   fun
   | Ana(ty) => ty
   | Syn => `Typ(Unknown(SynSwitch)) |> TypSlice.temp
-  | SynFun =>
+  | SynFun(slc) =>
     `Typ(
       Arrow(Unknown(SynSwitch) |> Typ.temp, Unknown(SynSwitch) |> Typ.temp),
     )
     |> TypSlice.temp
-  | SynTypFun =>
+    |> TypSlice.wrap_global(slc)
+  | SynTypFun(slc) =>
     `Typ(
       Forall(
         Var("syntypfun") |> TPat.fresh,
         Unknown(SynSwitch) |> Typ.temp,
       ),
     )
-    |> TypSlice.temp; /* TODO: naming the type variable? */
+    |> TypSlice.temp
+    |> TypSlice.wrap_global(slc);
 
 //maintain parentheses in slices
 let of_parens = (ids, mode: t): t =>
   switch (mode) {
   | Syn
-  | SynFun
-  | SynTypFun => mode
+  | SynFun(_)
+  | SynTypFun(_) => mode
   | Ana(ty) => Ana(ty |> TypSlice.(wrap_incr(slice_of_ids(ids))))
   };
 
 // ty is Some if the expression is an annotated lambda
 let of_arrow = (ids, ctx: Ctx.t, mode: t, ty: option(TypSlice.t)): (t, t) =>
   switch (mode, ty) {
-  | (Syn | SynFun | SynTypFun, None) => (Syn, Syn)
-  | (Syn | SynFun | SynTypFun, Some(ty)) => (Ana(ty), Syn)
+  | (Syn | SynFun(_) | SynTypFun(_), None) => (Syn, Syn)
+  | (Syn | SynFun(_) | SynTypFun(_), Some(ty)) => (Ana(ty), Syn)
   | (Ana(ty), None) =>
     ty |> TypSlice.matched_arrow(ctx) |> TupleUtil.map2(ana)
   | (Ana(ty), Some(ty')) =>
@@ -72,8 +74,8 @@ let of_arrow = (ids, ctx: Ctx.t, mode: t, ty: option(TypSlice.t)): (t, t) =>
 let of_forall = (ctx: Ctx.t, name_opt: option(string), mode: t): t =>
   switch (mode) {
   | Syn
-  | SynFun
-  | SynTypFun => Syn
+  | SynFun(_)
+  | SynTypFun(_) => Syn
   | Ana(ty) =>
     let (name_expected_opt, item) = TypSlice.matched_forall(ctx, ty);
     switch (name_opt, name_expected_opt) {
@@ -92,8 +94,8 @@ let of_forall = (ctx: Ctx.t, name_opt: option(string), mode: t): t =>
 let of_label = (ids, mode: t): option((t, t)) =>
   switch (mode) {
   | Syn
-  | SynFun
-  | SynTypFun => Some((Syn, Syn))
+  | SynFun(_)
+  | SynTypFun(_) => Some((Syn, Syn))
   | Ana(s) when TypSlice.is_tuplabel(s, ~ignore_parens=false) =>
     let (label, val_ty) = TypSlice.untuplabel(s);
     switch (label |> TypSlice.typ_term_of) {
@@ -126,8 +128,8 @@ let of_prod =
     : (list('a), list(t)) =>
   switch (mode) {
   | Syn
-  | SynFun
-  | SynTypFun => (es, List.init(List.length(es), _ => Syn))
+  | SynFun(_)
+  | SynTypFun(_) => (es, List.init(List.length(es), _ => Syn))
   | Ana(ty) =>
     let (es, tys) = TypSlice.matched_prod(ctx, es, filt, ty, constructor);
     (
@@ -141,8 +143,8 @@ let of_prod =
 let of_cons_hd = (ids: list(Id.t), ctx: Ctx.t, mode: t): t =>
   switch (mode) {
   | Syn
-  | SynFun
-  | SynTypFun => Syn
+  | SynFun(_)
+  | SynTypFun(_) => Syn
   | Ana(ty) =>
     Ana(TypSlice.(matched_list(ctx, ty) |> wrap_global(slice_of_ids(ids))))
   };
@@ -150,8 +152,8 @@ let of_cons_hd = (ids: list(Id.t), ctx: Ctx.t, mode: t): t =>
 let of_cons_tl = (ids: list(Id.t), ctx: Ctx.t, mode: t, hd_ty: TypSlice.t): t =>
   switch (mode) {
   | Syn
-  | SynFun
-  | SynTypFun =>
+  | SynFun(_)
+  | SynTypFun(_) =>
     Ana(
       `SliceIncr((Slice(List(hd_ty)), TypSlice.empty_slice_incr))
       |> TypSlice.temp
@@ -174,8 +176,8 @@ let of_cons_tl = (ids: list(Id.t), ctx: Ctx.t, mode: t, hd_ty: TypSlice.t): t =>
 let of_list = (ids: list(Id.t), ctx: Ctx.t, mode: t): t =>
   switch (mode) {
   | Syn
-  | SynFun
-  | SynTypFun => Syn
+  | SynFun(_)
+  | SynTypFun(_) => Syn
   | Ana(ty) =>
     Ana(TypSlice.(matched_list(ctx, ty) |> wrap_global(slice_of_ids(ids))))
   };
@@ -183,8 +185,8 @@ let of_list = (ids: list(Id.t), ctx: Ctx.t, mode: t): t =>
 let of_list_concat = (ids: list(Id.t), ctx: Ctx.t, mode: t): t =>
   switch (mode) {
   | Syn
-  | SynFun
-  | SynTypFun =>
+  | SynFun(_)
+  | SynTypFun(_) =>
     Ana(
       `SliceIncr((
         Typ(List(Unknown(SynSwitch) |> Typ.temp)),
@@ -270,12 +272,12 @@ let of_ap = (ids, ctx, mode, ctr: option(Constructor.t)): t =>
   | Some(name) =>
     switch (of_ctr_in_ap(ids, ctx, mode, name)) {
     | Some(mode) => mode
-    | _ => SynFun
+    | _ => SynFun(TypSlice.slice_of_ids(ids))
     }
-  | None => SynFun
+  | None => SynFun(TypSlice.slice_of_ids(ids))
   };
 
-let typap_mode: t = SynTypFun;
+let typap_mode = ids => SynTypFun(TypSlice.slice_of_ids(ids));
 
 let of_deferred_ap_args = (length: int, ty_ins: list(TypSlice.t)): list(t) =>
   (

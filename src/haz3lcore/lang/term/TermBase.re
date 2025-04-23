@@ -56,9 +56,9 @@ type pat_term = Grammar.pat_term(IdTagged.IdTag.t);
 type typ_t = Grammar.typ_t(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type typ_term = Grammar.typ_term(IdTagged.IdTag.t);
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type slice_incr = Grammar.slice_incr;
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type slice_global = Grammar.slice_global;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type slice_typ_term = Grammar.slice_typ_term(IdTagged.IdTag.t);
@@ -970,9 +970,9 @@ and TypSlice: {
   type typslc_typ_term = typslice_typ_term;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type typ_term = typslice_typ_term;
-  [@deriving (sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type slc_incr = slice_incr;
-  [@deriving (sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type slc_global = slice_global;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type slc_incr_term = slice_incr_term;
@@ -1020,9 +1020,9 @@ and TypSlice: {
   type typslc_typ_term = typslice_typ_term;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type typ_term = typslice_typ_term;
-  [@deriving (sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type slc_incr = slice_incr;
-  [@deriving (sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type slc_global = slice_global;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type slc_incr_term = slice_incr_term;

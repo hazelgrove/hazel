@@ -41,8 +41,8 @@ type error_inconsistent =
     })
   /* Inconsistent match or listlit */
   | Internal(list(TypSlice.t))
-  /* Bad function position */
-  | WithArrow(TypSlice.t);
+  /* Bad function position: (syn slice of term, ana slice enforcing arrow)  */
+  | WithArrow(TypSlice.t, TypSlice.slc_global);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_no_type =
@@ -88,7 +88,7 @@ type error_exp =
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_pat =
-  | ExpectedConstructor /* Only construtors can be applied */
+  | ExpectedConstructor(TypSlice.slc_global) /* Only construtors can be applied. Slice explains application */
   | Redundant(option(error_pat))
   | Common(error_common);
 
@@ -373,7 +373,7 @@ let rec status_common =
         (ctx: Ctx.t, mode: Mode.t, self: Self.t): status_common =>
   switch (self, mode) {
   | (Just(ty), Syn) => NotInHole(Syn(ty))
-  | (Just(ty), SynFun) =>
+  | (Just(ty), SynFun(slc)) =>
     switch (
       TypSlice.join(
         ctx,
@@ -383,24 +383,26 @@ let rec status_common =
             Unknown(Internal) |> Typ.temp,
           ),
         )
-        |> TypSlice.temp,
+        |> TypSlice.temp
+        |> TypSlice.wrap_global(slc),
         ty,
       )
     ) {
     | Some(_) => NotInHole(Syn(ty))
-    | None => InHole(Inconsistent(WithArrow(ty)))
+    | None => InHole(Inconsistent(WithArrow(ty, slc)))
     }
-  | (Just(ty), SynTypFun) =>
+  | (Just(ty), SynTypFun(slc)) =>
     switch (
       TypSlice.join(
         ctx,
         `Typ(Forall(Var("?") |> TPat.fresh, Unknown(Internal) |> Typ.temp))
-        |> TypSlice.temp,
+        |> TypSlice.temp
+        |> TypSlice.wrap_global(slc),
         ty,
       )
     ) {
     | Some(_) => NotInHole(Syn(ty))
-    | None => InHole(Inconsistent(WithArrow(ty)))
+    | None => InHole(Inconsistent(WithArrow(ty, slc)))
     }
   | (Just(syn), Ana(ana)) =>
     switch (
@@ -519,7 +521,7 @@ let rec status_common =
         ),
       )
     };
-  | (NoJoin(_, tys), Syn | SynFun | SynTypFun) =>
+  | (NoJoin(_, tys), Syn | SynFun(_) | SynTypFun(_)) =>
     InHole(Inconsistent(Internal(TypSlice.of_source(tys))))
   | (WantTuple, _) => InHole(NoType(WantTuple))
   | (LabelNotFound(name, labels), _) =>
@@ -537,13 +539,13 @@ let rec status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
       | InHole(Common(DuplicateLabel(_)))
       | InHole(Common(TupleLabelError(_)))
       | InHole(Common(Inconsistent(WithArrow(_))))
-      | InHole(ExpectedConstructor | Redundant(_)) =>
+      | InHole(ExpectedConstructor(_) | Redundant(_)) =>
         // ExpectedConstructor cannot be a reason to hole-wrap the entire pattern
         failwith("InHole(Redundant(impossible_err))")
       };
     InHole(Redundant(additional_err));
-  | (Syn | SynTypFun | Ana(_), Common(self_pat))
-  | (SynFun, Common(IsConstructor(_) as self_pat)) =>
+  | (Syn | SynTypFun(_) | Ana(_), Common(self_pat))
+  | (SynFun(_), Common(IsConstructor(_) as self_pat)) =>
     /* Little bit of a hack. Anything other than a bound ctr will, in
        function position, have SynFun mode (see Typ.ap_mode). Since we
        are prohibiting non-ctrs in ctr applications in patterns for now,
@@ -554,7 +556,7 @@ let rec status_pat = (ctx: Ctx.t, mode: Mode.t, self: Self.pat): status_pat =>
     | NotInHole(ok_exp) => NotInHole(ok_exp)
     | InHole(err_pat) => InHole(Common(err_pat))
     }
-  | (SynFun, _) => InHole(ExpectedConstructor)
+  | (SynFun(slc), _) => InHole(ExpectedConstructor(slc))
   };
 
 /* Determines whether an expression or pattern is in an error hole,
@@ -850,11 +852,12 @@ let fixed_typ_err_common: error_common => TypSlice.t =
   | DuplicateLabel(_, typ) => typ
   | Inconsistent(Expectation({ana, _})) => ana
   | Inconsistent(Internal(_)) => `Typ(Unknown(Internal)) |> TypSlice.temp // Should this be some sort of meet?
-  | Inconsistent(WithArrow(_)) =>
+  | Inconsistent(WithArrow(_, slc)) =>
     `Typ(
       Arrow(Unknown(Internal) |> Typ.temp, Unknown(Internal) |> Typ.temp),
     )
-    |> TypSlice.temp;
+    |> TypSlice.temp
+    |> TypSlice.wrap_global(slc);
 
 let fixed_typ_err: error_exp => TypSlice.t =
   fun
@@ -866,7 +869,8 @@ let fixed_typ_err: error_exp => TypSlice.t =
 
 let fixed_typ_err_pat: error_pat => TypSlice.t =
   fun
-  | ExpectedConstructor => `Typ(Unknown(Internal)) |> TypSlice.temp
+  | ExpectedConstructor(slc) =>
+    `Typ(Unknown(Internal)) |> TypSlice.temp |> TypSlice.wrap_global(slc)
   | Redundant(_) => `Typ(Unknown(Internal)) |> TypSlice.temp
   | Common(err) => fixed_typ_err_common(err);
 

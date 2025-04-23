@@ -146,7 +146,7 @@ let of_ctr =
       | Some(_) => ty
       | None =>
         switch (mode) {
-        | SynFun
+        | SynFun(_)
         | Syn =>
           switch (Ctx.lookup_ctr(ctx, name)) {
           | None => None
@@ -162,7 +162,7 @@ let of_ctr =
         | Ana(_) =>
           Mode.ctr_ana_typ(ids, ctx, mode, name)
           |> Option.map(TypSlice.(wrap_incr(slice_of_ids(ids))))
-        | SynTypFun => None
+        | SynTypFun(_) => None
         }
       },
   });

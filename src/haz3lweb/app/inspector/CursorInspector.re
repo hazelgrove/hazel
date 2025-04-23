@@ -172,7 +172,7 @@ let common_err_view =
           : [text("Invalid labels: "), ...List.map(code, invalid_labels)]
       )
     | DuplicateLabel(name, _) => [text("Duplicate Label:"), code(name)]
-    | Inconsistent(WithArrow(typ)) => [
+    | Inconsistent(WithArrow(typ, _)) => [
         text(":"),
         view_type(typ) |> code_box_container,
         text("inconsistent with arrow type"),
@@ -517,7 +517,8 @@ let rec pat_view =
     };
 
   switch (status) {
-  | InHole(ExpectedConstructor) => div_err([text("Expected a constructor")])
+  | InHole(ExpectedConstructor(_)) =>
+    div_err([text("Expected a constructor")])
   | InHole(Redundant(additional_err)) =>
     switch (additional_err) {
     | None => div_err([text("Pattern is redundant")])

@@ -777,7 +777,7 @@ and uexp_to_info_map =
       add(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]), m);
     | TypAp(fn, utyp) =>
       let typfn_mode = Mode.typap_mode;
-      let (fn, m) = go(~mode=typfn_mode, fn, m);
+      let (fn, m) = go(~mode=typfn_mode(ids), fn, m);
       let (_, m) =
         utyp_to_info_map(
           ~ctx,
@@ -1215,7 +1215,7 @@ and upat_to_info_map =
   let add = (~self, ~ctx, ~constraint_, ~label_inference=?, m) => {
     let prev_synswitch =
       switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
-      | Some(Info.InfoPat({mode: Syn | SynFun, ty, _})) => Some(ty)
+      | Some(Info.InfoPat({mode: Syn | SynFun(_), ty, _})) => Some(ty)
       | Some(Info.InfoPat({mode: Ana(_), prev_synswitch, _})) => prev_synswitch
       | Some(_)
       | None => None

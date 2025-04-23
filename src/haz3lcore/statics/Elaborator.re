@@ -66,13 +66,25 @@ let elaborated_type =
   let elab_ty =
     switch (mode) {
     | Syn => self_ty
-    | SynFun =>
+    | SynFun(slc) =>
       let (ty1, ty2) = TypSlice.matched_arrow(ctx, self_ty);
-      Arrow(ty1, ty2) |> TypSlice.term_of_slc_typ_term |> TypSlice.temp;
-    | SynTypFun =>
+      Arrow(ty1, ty2)
+      |> TypSlice.term_of_slc_typ_term
+      |> TypSlice.temp
+      |> TypSlice.wrap_incr(
+           // Wrap the reason for requiring a function if fun synthesises ?
+           TypSlice.is_unknown(self_ty) ? slc : TypSlice.empty_slice_incr,
+         );
+    | SynTypFun(slc) =>
       let (tpat, ty) = TypSlice.matched_forall(ctx, self_ty);
       let tpat = Option.value(tpat, ~default=TPat.fresh(EmptyHole));
-      Forall(tpat, ty) |> TypSlice.term_of_slc_typ_term |> TypSlice.temp;
+      Forall(tpat, ty)
+      |> TypSlice.term_of_slc_typ_term
+      |> TypSlice.temp
+      |> TypSlice.wrap_incr(
+           // Wrap the reason for requiring a function if fun synthesises ?
+           TypSlice.is_unknown(self_ty) ? slc : TypSlice.empty_slice_incr,
+         );
     // We need to remove the synswitches from this type.
     | Ana(ana_ty) => TypSlice.match_synswitch(ana_ty, self_ty)
     };
@@ -111,13 +123,25 @@ let elaborated_pat_type =
   let elab_ty =
     switch (mode) {
     | Syn => self_ty
-    | SynFun =>
+    | SynFun(slc) =>
       let (ty1, ty2) = TypSlice.matched_arrow(ctx, self_ty);
-      Arrow(ty1, ty2) |> TypSlice.term_of_slc_typ_term |> TypSlice.temp;
-    | SynTypFun =>
+      Arrow(ty1, ty2)
+      |> TypSlice.term_of_slc_typ_term
+      |> TypSlice.temp
+      |> TypSlice.wrap_incr(
+           // Wrap the reason for requiring a function if fun synthesises ?
+           TypSlice.is_unknown(self_ty) ? slc : TypSlice.empty_slice_incr,
+         );
+    | SynTypFun(slc) =>
       let (tpat, ty) = TypSlice.matched_forall(ctx, self_ty);
       let tpat = Option.value(tpat, ~default=TPat.fresh(EmptyHole));
-      Forall(tpat, ty) |> TypSlice.term_of_slc_typ_term |> TypSlice.temp;
+      Forall(tpat, ty)
+      |> TypSlice.term_of_slc_typ_term
+      |> TypSlice.temp
+      |> TypSlice.wrap_incr(
+           // Wrap the reason for requiring a function if fun synthesises ?
+           TypSlice.is_unknown(self_ty) ? slc : TypSlice.empty_slice_incr,
+         );
     | Ana(ana_ty) =>
       switch (prev_synswitch) {
       | None => ana_ty
