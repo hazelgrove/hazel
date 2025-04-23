@@ -882,9 +882,12 @@ let unpersist =
     : state => {
   let lookup = (pos, default) =>
     if (visible_in(pos, ~instructor_mode)) {
-      let persisted_zipper = List.assoc(pos, editors);
-      let zipper = PersistentZipper.unpersist(persisted_zipper);
-      Editor.Model.mk(zipper);
+      switch (List.assoc_opt(pos, editors)) {
+      | Some(persisted_zipper) =>
+        let zipper = PersistentZipper.unpersist(persisted_zipper);
+        Editor.Model.mk(zipper);
+      | None => Editor.Model.mk(default)
+      };
     } else {
       Editor.Model.mk(default);
     };
