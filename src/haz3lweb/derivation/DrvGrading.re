@@ -75,7 +75,7 @@ module VerifiedTree = {
 
   let verify_single =
       (
-        version: RuleImage.version,
+        corpus: RuleImage.corpus,
         acc: list((tree(info), option(Drv.Exp.t))),
         concl: abbr(ProofTree.res),
         prems: list((tree(info), option(Drv.Exp.t))),
@@ -87,7 +87,7 @@ module VerifiedTree = {
       | Abbr(None) => {res: Pending(NoAbbr), rule: None}
       | Just({rule: None, _}) => {res: Pending(NoRule), rule: None}
       | Just({rule: Some(rule), jdmt: concl}) =>
-        switch (RuleImage.to_rule(version, rule)) {
+        switch (RuleImage.to_rule(corpus, rule)) {
         | None => {res: Pending(NotAvailable), rule: None}
         | Some(rule) =>
           let spec = RuleSpec.of_spec(rule);
@@ -158,6 +158,6 @@ module VerifiedTree = {
 
   let mk =
       (eds: p(Editor.t), ~stitched_results: stitched(option(Exp.t))): t => {
-    verify(eds.ruleset, ProofTree.mk(eds, ~stitched_results));
+    verify(eds.corpus, ProofTree.mk(eds, ~stitched_results));
   };
 };

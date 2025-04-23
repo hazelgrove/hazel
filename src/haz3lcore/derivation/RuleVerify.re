@@ -87,7 +87,13 @@ let failure_msg = (failure: failure): string =>
       cls |> Drv.Any.show_cls,
     )
   // TODO(zhiyao): show the test
-  | FailTest(_, _) => Printf.sprintf("Failed to verify a test")
+  | FailTest(_, test) =>
+    Printf.sprintf(
+      "Failed to verify %s",
+      test
+      |> ExpToSegment.drv_formula_to_pretty(_, DrvSort.Jdmt)
+      |> Printer.seg_to_string,
+    )
   };
 
 let failure_msg = e => failure_msg(e) |> Printf.sprintf("❌ %s");

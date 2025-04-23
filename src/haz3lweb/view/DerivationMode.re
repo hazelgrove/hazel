@@ -329,14 +329,14 @@ module NinjaKeys = {
 
   module Open =
          (M: {
-            let version: RuleImage.version;
+            let corpus: RuleImage.corpus;
             let pos: DerivationTree.pos;
           }) => {
     let copy_hover_rule_spec = (target_elem: Js.t(Dom_html.element), ev) => {
       let action = Js.Unsafe.get(target_elem, "action");
       let id = Js.to_string(action##.id);
       let rule_image = RuleImage.t_of_sexp(Sexplib.Sexp.of_string(id));
-      let rule = Option.get(RuleImage.to_rule(M.version, rule_image));
+      let rule = Option.get(RuleImage.to_rule(M.corpus, rule_image));
       if (current_hover_rule^ != rule) {
         current_hover_rule := rule;
         schedule_action^(Refresh);
@@ -407,7 +407,7 @@ module NinjaKeys = {
       Js.Unsafe.set(
         elem,
         "data",
-        M.version
+        M.corpus
         |> RuleImage.all_rules_of_version
         |> List.map(from_rule)
         |> Array.of_list
@@ -416,10 +416,10 @@ module NinjaKeys = {
     };
   };
 
-  let open_command_palette = (~version, ~pos): unit => {
+  let open_command_palette = (~corpus, ~pos): unit => {
     module Open =
       Open({
-        let version = version;
+        let corpus = corpus;
         let pos = pos;
       });
     open Open;
@@ -548,7 +548,7 @@ module View = {
       Widgets.button_named(
         Icons.command_palette_sparkle,
         _ => {
-          NinjaKeys.open_command_palette(~version=eds.ruleset, ~pos);
+          NinjaKeys.open_command_palette(~corpus=eds.corpus, ~pos);
           Effect.Ignore;
         },
         ~tooltip="Switch Rule",
@@ -903,19 +903,19 @@ module View = {
         [
           div(~attrs=[Attr.class_("version-label")], [text("Version: ")]),
           text(Unicode.nbsp),
-          text(RuleImage.show_version(eds.ruleset)),
+          text(RuleImage.show_corpus(eds.corpus)),
           text(Unicode.nbsp),
           select(
             ~attrs=[
               Attr.class_("version-select"),
               Attr.on_change((_, name) => {
-                let ruleset = RuleImage.version_of_string(name);
-                inject(MapEditor(m => {...m, ruleset}));
+                let corpus = RuleImage.corpus_of_string(name);
+                inject(MapEditor(m => {...m, corpus}));
               }),
             ],
             List.map(
-              option_view(RuleImage.show_version(eds.ruleset)),
-              RuleImage.all_of_version |> List.map(RuleImage.show_version),
+              option_view(RuleImage.show_corpus(eds.corpus)),
+              RuleImage.all_of_corpus |> List.map(RuleImage.show_corpus),
             ),
           ),
         ],

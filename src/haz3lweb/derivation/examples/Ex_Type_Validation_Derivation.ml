@@ -576,7 +576,7 @@ let exercise : DerivationTree.spec =
           };
         caret = Outer;
       };
-    ruleset = RecursiveALFA;
+    corpus = RecursiveALFA;
     trees =
       [
         Node

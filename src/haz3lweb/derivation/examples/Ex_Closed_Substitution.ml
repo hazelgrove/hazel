@@ -4,7 +4,7 @@ let exercise : DerivationTree.spec =
     version = 1;
     module_name = "Ex_Closed_Substitution";
     prompt = "";
-    ruleset = Haz3lcore.RuleImage.ALF;
+    corpus = Haz3lcore.RuleImage.ALF;
     prelude =
       {
         selection = { focus = Left; content = []; mode = Normal };

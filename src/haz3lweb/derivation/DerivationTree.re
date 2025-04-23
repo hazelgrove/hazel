@@ -57,7 +57,7 @@ type p('code) = {
   prompt: string,
   prelude: 'code,
   setup: 'code,
-  ruleset: RuleImage.version,
+  corpus: RuleImage.corpus,
   trees: abbr_trees(deduction('code)),
 }
 and deduction('code) = {
@@ -241,7 +241,7 @@ let map = (p: p('a), f: 'a => 'b): p('b) => {
     prompt: p.prompt,
     prelude: p.prelude |> f,
     setup: p.setup |> f,
-    ruleset: p.ruleset,
+    corpus: p.corpus,
     trees: p.trees |> List.map(Tree.map(map_jdmt(f))),
   };
 };
@@ -254,7 +254,7 @@ let mapi = (p: p('a), f: (pos, 'a) => 'b): p('b) => {
     prompt: p.prompt,
     prelude: p.prelude |> f(Prelude),
     setup: p.setup |> f(Setup),
-    ruleset: p.ruleset,
+    corpus: p.corpus,
     trees:
       p.trees
       |> List.mapi(i => Tree.mapi(pos => map_jdmt(f(Trees(i, pos))))),
@@ -548,7 +548,7 @@ let blank_spec = (~title, ~module_name) => {
     prompt: "TODO: prompt",
     prelude,
     setup,
-    ruleset: RuleImage.PropositionalLogic,
+    corpus: RuleImage.PropositionalLogic,
     trees,
   };
 };

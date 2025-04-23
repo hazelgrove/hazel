@@ -5,7 +5,7 @@ let exercise version : DerivationTree.spec =
       version = 0;
       module_name = "Ex_DerivationPlayground";
       prompt = "Try proving anything you want.";
-      ruleset = Haz3lcore.RuleImage.GradualALFA;
+      corpus = Haz3lcore.RuleImage.GradualALFA;
       prelude = "";
       setup = "";
       trees = [ Node (Just { jdmt = ""; rule = None }, []) ];

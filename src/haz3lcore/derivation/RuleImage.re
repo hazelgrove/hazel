@@ -182,7 +182,7 @@ let repr =
   | _ as rule => show(rule);
 
 [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
-type version =
+type corpus =
   | PropositionalLogic
   | AL
   | ALB
@@ -192,7 +192,7 @@ type version =
   | RecursiveALFA
   | GradualALFA;
 
-let version_of_string = str =>
+let corpus_of_string = str =>
   switch (str) {
   | "PropositionalLogic" => PropositionalLogic
   | "AL" => AL
@@ -205,7 +205,7 @@ let version_of_string = str =>
   | _ => failwith("Unknown version: " ++ str)
   };
 
-let rec to_rule: (version, t) => option(Rule.t) =
+let rec to_rule: (corpus, t) => option(Rule.t) =
   // Note(zhiyao): we extensively use `_` in this function,
   // plz don't rely on the compiler checking the correctness.
   fun
@@ -393,7 +393,7 @@ let rec to_rule: (version, t) => option(Rule.t) =
       | _ as rule => to_rule(RecursiveALFA, rule)
     );
 
-let all_rules_of_version: version => list(t) =
+let all_rules_of_version: corpus => list(t) =
   version =>
     all |> List.filter(rule => to_rule(version, rule) |> Option.is_some);
 

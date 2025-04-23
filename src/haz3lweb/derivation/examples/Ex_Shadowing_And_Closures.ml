@@ -1109,7 +1109,7 @@ let exercise : DerivationTree.spec =
           };
         caret = Outer;
       };
-    ruleset = ALF;
+    corpus = ALF;
     trees =
       [
         Node

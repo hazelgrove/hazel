@@ -332,7 +332,7 @@ module Selection = {
         switch (ed, res) {
         | (Just({rule: Some(rule), _}), {rule: None, _}) =>
           Haz3lcore.(
-            switch (RuleImage.to_rule(eds.ruleset, rule)) {
+            switch (RuleImage.to_rule(eds.corpus, rule)) {
             | Some(rule) =>
               Some({
                 ...res,

@@ -314,9 +314,12 @@
 
 .drv-explainthis .deduction-test:not(:empty) {
   background-color: var(--cell-active);
-  border: solid var(--BR2) 0.1em;
   border-radius: 1rem;
   padding: 0 0.4rem;
+}
+
+.drv-explainthis .deduction-test .token {
+  opacity: 0.6;
 }
 
 #explain-this .drv-explainthis-section.section {
