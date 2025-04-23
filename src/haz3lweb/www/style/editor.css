@@ -221,6 +221,7 @@ svg.shard.selected.buffer {
 svg.shard.selected.buffer > path {
   fill: #0000;
   stroke-width: 0; 
+}
 
 /* EMPTY HOLE DECO */
 

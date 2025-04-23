@@ -641,7 +641,7 @@ module Deco =
                 tips: ShardDec.tips_of_shapes(shapes),
                 measurement,
               },
-              ["slice"],
+              ["slicesingle"],
             ),
           ],
         );
@@ -652,7 +652,7 @@ module Deco =
           let tiles = all_tiles(p);
           div_c(
             "slice-piece",
-            IndicationDec.error_term(~font_metrics, ~rows, range, tiles),
+            IndicationDec.slice_term(~font_metrics, ~rows, range, tiles),
           );
         | None => div_c("slice-piece", [])
         };

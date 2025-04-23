@@ -209,8 +209,8 @@
   --err-hole-arms-z: 1;
   --tile-z: 2;
   --err-hole-z: 3;
-  --slice-z: 3;
-  --select-z: 4;
+  --slice-z: 4;
+  --select-z: 5;
   --projector-underlay-z: 9;
 
   /* AT CODE LEVEL */
