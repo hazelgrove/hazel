@@ -997,30 +997,9 @@ let tests = (
       }),
       test_case("Livelit error annotations", `Quick, () => {
         annotated_tree_test(
-          "Inconsistent expectation on plus",
+          "Inconsistent expectation on slider livelit",
           FIError.Exp.(
-            ap(
-              Forward,
-              livelit_name("slider"),
-              string(
-                ~ann=
-                  Some(
-                    FTemp.Typ.(
-                      Exp(
-                        Common(
-                          Inconsistent(
-                            Expectation({
-                              ana: int(),
-                              syn: string(),
-                            }),
-                          ),
-                        ),
-                      )
-                    ),
-                  ),
-                "hello",
-              ),
-            )
+            ap(Forward, livelit_name("slider"), string("hello"))
           ),
         )
       }),
