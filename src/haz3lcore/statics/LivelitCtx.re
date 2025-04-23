@@ -21,7 +21,7 @@ type raw_livelit = {
   model_t: TermBase.Typ.t,
   model_default: model_exp,
   expansion_t: TermBase.Typ.t,
-  expand: model_exp => expansion_exp,
+  expand: model_exp => option(expansion_exp),
   action_t: TermBase.Typ.t,
   update: (action_exp, model_exp) => model_exp,
   view: (model_exp, send_action) => Virtual_dom.Vdom.Node.t,
@@ -37,7 +37,7 @@ module type BuiltinLivelit = {
 
   let hazel_model_t: TermBase.Typ.t; /* defines model_exp type */
   let model_to_hazel: model_t => model_exp;
-  let model_from_hazel: model_exp => model_t;
+  let model_from_hazel: model_exp => option(model_t);
   let model_default: model_t;
 
   let hazel_expansion_t: TermBase.Typ.t; /* defines expansion_exp type */
@@ -46,7 +46,7 @@ module type BuiltinLivelit = {
 
   let hazel_action_t: TermBase.Typ.t; /* defines action_exp type */
   let action_to_hazel: action_t => action_exp;
-  let action_from_hazel: action_exp => action_t;
+  let action_from_hazel: action_exp => option(action_t);
 
   let update: (action_t, model_t) => model_t;
   let view:
@@ -62,15 +62,23 @@ let raw_of_builtin = (module B: BuiltinLivelit): raw_livelit => {
   model_default: B.model_to_hazel(B.model_default),
   expansion_t: B.hazel_expansion_t,
   expand: (exp: model_exp) =>
-    B.expand_to_hazel(B.expand(B.model_from_hazel(exp))),
+    switch (B.model_from_hazel(exp)) {
+    | Some(m) => Some(B.expand(m) |> B.expand_to_hazel)
+    | None => None
+    },
   action_t: B.hazel_action_t,
   update: (action: action_exp, model: model_exp) =>
     B.model_to_hazel(
-      B.update(B.action_from_hazel(action), B.model_from_hazel(model)),
+      B.update(
+        B.action_from_hazel(action) |> Option.get,
+        B.model_from_hazel(model) |> Option.get,
+      ),
     ),
-  view: (model: model_exp, send_action: send_action) =>
-    B.view(B.model_from_hazel(model), action =>
-      send_action(B.action_to_hazel(action))
-    ),
+  view: (model: model_exp, send_action: send_action) => {
+    switch (B.model_from_hazel(model)) {
+    | Some(m) => B.view(m, action => send_action(B.action_to_hazel(action)))
+    | None => Virtual_dom.Vdom.Node.text("Error: invalid model")
+    };
+  },
   size: B.size,
 };

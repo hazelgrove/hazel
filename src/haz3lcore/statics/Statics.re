@@ -700,16 +700,17 @@ and uexp_to_info_map =
         let ll = Ctx.lookup_livelit(ctx, s) |> Option.get;
         let expansion_t = ll.expansion_t;
         let model_t = ll.model_t;
-        let (_, m) = go(~ana=expansion_t, fn, m);
+
+        let (_fn, m) = go(~ana=expansion_t, fn, m);
         let (arg, m) = go(~ana=model_t, arg, m);
-        switch (ValueChecker.check_value((), Environment.empty(), arg.term)) {
-        | Value => print_endline("it's a value")
-        | Indet => print_endline("it's indeterminate")
-        | Expr => print_endline("it's an expr")
+
+        switch (ll.expand(arg.term)) {
+        | Some(_) =>
+          add(~self=Just(expansion_t), ~co_ctx=CoCtx.union([arg.co_ctx]), m)
+        | None =>
+          let self = Self.BadOperator("Livelit expansion failed");
+          add(~self, ~co_ctx=CoCtx.union([arg.co_ctx]), m);
         };
-        print_endline("Livelit model: " ++ Exp.show(arg.term));
-        let self: Self.t = Just(expansion_t);
-        add(~self, ~co_ctx=CoCtx.union([arg.co_ctx]), m);
       | _ =>
         /* This logic lets us treat constructors differently to functions in
            terms of error localization */

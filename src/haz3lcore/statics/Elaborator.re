@@ -475,8 +475,10 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       | LivelitName(s) =>
         switch (Ctx.lookup_livelit(ctx, s)) {
         | Some(ll) =>
-          let ll_expand = ll.expand(a);
-          ll_expand |> cast_from(ll.expansion_t);
+          switch (ll.expand(a)) {
+          | Some(ll_expand) => ll_expand |> cast_from(ll.expansion_t)
+          | None => f |> cast_from(Typ.temp(Unknown(Internal)))
+          }
         | None => raise(MissingTypeInfo)
         }
       | _ =>
