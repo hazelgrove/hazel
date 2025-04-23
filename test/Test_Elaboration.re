@@ -977,19 +977,10 @@ in 1|},
         ),
       )
     }),
-    test_case("Nontermination in typ normalization", `Quick, () => {
-      [@warning "-21"]
-      {
-        Alcotest.skip(); // https://github.com/hazelgrove/hazel/issues/1627
-        let _ =
-          dhexp_of_uexp(
-            parse_exp(
-              {|type x = x in (([] @ false) @ [] @< Float >) @< x([(())]) > @ case test 0.000006 end:: "f":: ? | B => (())| x => (())| (()) => ?| [] => ?| ? => 12 end|},
-            ),
-          );
-        ();
-      }
-    }),
+    skip_known_bug(
+      "Nontermination in typ normalization",
+      {|type x = x in (([] @ false) @ [] @< Float >) @< x([(())]) > @ case test 0.000006 end:: "f":: ? | B => (())| x => (())| (()) => ?| [] => ?| ? => 12 end|},
+    ),
     skip_known_bug(
       "Invalid typ ap", // TODO https://github.com/hazelgrove/hazel/issues/1625
       "let [(A: (Bool(Bool))), (_: (String))] = 0 in ()",
