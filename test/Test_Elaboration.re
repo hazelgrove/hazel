@@ -5,21 +5,24 @@ open Haz3lcore;
   an equal function (dhexp_eq) and a print function (dhexp_print) */
 let dhexp_typ = testable(Fmt.using(Exp.show, Fmt.string), DHExp.fast_equal);
 
-let ids = List.init(12, _ => Id.mk());
-let id_at = x => x |> List.nth(ids);
-
 let mk_map = Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
-let dhexp_of_uexp = u => Elaborator.elaborate(mk_map(u), u) |> fst;
+let dhexp_of_uexp = u =>
+  Elaborator.elaborate(
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), u),
+    u,
+  )
+  |> fst;
 let alco_check = dhexp_typ |> Alcotest.check;
-let parse_exp = (s: string) => {
-  switch (MakeTerm.parse_exp(s)) {
-  | Some(e) => e
-  | None => Alcotest.fail("Failed to parse expression: " ++ s)
-  };
-};
 
 module PlainTests = {
   open IdTagged.FreshGrammar;
+
+  let parse_exp = (s: string) => {
+    switch (MakeTerm.parse_exp(s)) {
+    | Some(e) => e
+    | None => Alcotest.fail("Failed to parse expression: " ++ s)
+    };
+  };
   let u1: Exp.t = Exp.int(Bigint.of_int(8));
   let single_integer = () =>
     alco_check("Integer literal 8", u1, dhexp_of_uexp(u1));
