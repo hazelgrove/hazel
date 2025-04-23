@@ -868,70 +868,70 @@ let overlay_view = (info: info('p)): Node.t =>
     [num_closures_view(info)] @ pin_view(info),
   );
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type a = action;
-
-module M: Projector with type model = unit = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type model = unit;
-  let kind = ProjectorCore.Kind.Probe;
-  let model_of_sexp = _ => ();
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type action = a;
-
-  let init = (any: Term.Any.t) =>
-    switch (any) {
-    | Exp(_)
-    | Pat(_) => Some()
-    | Any(_) => Some() /* Grout don't have sorts rn */
-    | _ => None
-    };
-
-  let dynamics = true;
-
-  let focusable =
-    Focusable.{
-      pointer: Some(id => JsUtil.get_elem_by_id(Id.cls(id))##focus),
-      keyboard: None,
-    };
-
-  let placeholder = (_, info: info('p)) =>
-    ProjectorShape.inline(2 + String.length(syntax_str(info.syntax)));
-
-  let update = update;
-
-  let view =
-      (
-        type p,
-        _model: unit,
-        info: info(p),
-        ~local: action => Ui_effect.t(unit),
-        ~parent: external_action(p) => Ui_effect.t(unit),
-        ~view_seg: View.seg(p),
-      ) =>
-    View.{
-      inline: view(local, parent, info),
-      overlay: Some(overlay_view(info)),
-      offside: Some(offside_view(info, local, view_seg, info.utility)),
-    };
-
-  let mk_term = (_model, exp: Any.t): Any.t => {
-    switch (exp) {
-    | Exp(term) =>
-      Exp({
-        annotation: {
-          ids: [Id.mk()],
-        },
-        term: Probe(term, Probe.empty),
-      })
-    | Pat(term) =>
-      Pat({
-        annotation: {
-          ids: [Id.mk()],
-        },
-        term: Probe(term, Probe.empty),
-      })
-    | a => a
-    };
+let init = (any: Term.Any.t) =>
+  switch (any) {
+  | Exp(_)
+  | Pat(_) => Some()
+  | Any(_) => Some() /* Grout don't have sorts rn */
+  | _ => None
   };
+
+let dynamics = true;
+
+let focusable =
+  Focusable.{
+    pointer: Some(id => JsUtil.get_elem_by_id(Id.cls(id))##focus),
+    keyboard: None,
+  };
+
+let placeholder = (_, info: info('p)) =>
+  ProjectorShape.inline(2 + String.length(syntax_str(info.syntax)));
+
+let update = update;
+
+let view =
+    (
+      type p,
+      _model: unit,
+      info: info(p),
+      ~local: action => Ui_effect.t(unit),
+      ~parent: external_action(p) => Ui_effect.t(unit),
+      ~view_seg: View.seg(p),
+    ) =>
+  View.{
+    inline: view(local, parent, info),
+    overlay: Some(overlay_view(info)),
+    offside: Some(offside_view(info, local, view_seg, info.utility)),
+  };
+
+let mk_term = (_model, exp: Any.t): Any.t => {
+  switch (exp) {
+  | Exp(term) =>
+    Exp({
+      annotation: {
+        ids: [Id.mk()],
+      },
+      term: Probe(term, Probe.empty),
+    })
+  | Pat(term) =>
+    Pat({
+      annotation: {
+        ids: [Id.mk()],
+      },
+      term: Probe(term, Probe.empty),
+    })
+  | a => a
+  };
+};
+
+type model = unit;
+
+let methods = {
+  init,
+  focusable,
+  dynamics,
+  placeholder,
+  view,
+  update,
+  mk_term,
 };

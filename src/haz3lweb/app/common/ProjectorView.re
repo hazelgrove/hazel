@@ -73,7 +73,13 @@ module Model = {
       ((id, _)) => {
         let* p = Id.Map.find_opt(id, projectors);
         let+ measurement = Measured.find_pr_opt(p, measured);
-        let info = ProjectorInfo.mk_info(p, ~statics, ~dynamics);
+        let info =
+          ProjectorInfo.mk_info(
+            p,
+            ~statics,
+            ~dynamics,
+            ~utility=ProjectorInfo.utility,
+          );
         {
           p,
           info,
@@ -209,12 +215,14 @@ let mk_view =
     )
     : View.t => {
   let V(kind, model) = p.model;
-  let (module P) = ProjectorInit.to_module(kind);
+  let methods = ProjectorInit.to_module(kind);
   let parent = a => inject(Project(handle(p.id, a)));
   let local = a =>
-    inject(Project(SetModel(p.id, V(kind, P.update(model, info, a)))));
+    inject(
+      Project(SetModel(p.id, V(kind, methods.update(model, info, a)))),
+    );
   let view_seg = (~background=?) => simple_code(~background?, font_metrics);
-  P.view(model, info, ~local, ~parent, ~view_seg);
+  methods.view(model, info, ~local, ~parent, ~view_seg);
 };
 
 /* Extract and collate different layers of the resulting view
@@ -318,14 +326,14 @@ let key_handoff = (editor: Editor.t, key: Key.t): option(Action.project) => {
   | _ when z.caret != Outer => None
   | (Some(Left), (Some(Projector({id, model, _})), _)) =>
     let V(kind, _) = model;
-    let (module P) = ProjectorInit.to_module(kind);
-    P.focusable.keyboard != None
+    let methods = ProjectorInit.to_module(kind);
+    methods.focusable.keyboard != None
       ? Some(Focus(id, kind |> ProjectorCore.Kind.of_gadt, Some(Right)))
       : None;
   | (Some(Right), (_, Some(Projector({id, model, _})))) =>
     let V(kind, _) = model;
-    let (module P) = ProjectorInit.to_module(kind);
-    P.focusable.keyboard != None
+    let methods = ProjectorInit.to_module(kind);
+    methods.focusable.keyboard != None
       ? Some(Focus(id, kind |> ProjectorCore.Kind.of_gadt, Some(Left)))
       : None;
   | _ => None

@@ -38,9 +38,9 @@ module Applicable = {
       : option(ProjectorCore.Kind.t) => {
     open ProjectorCore.Kind;
     let.gadt W(kind_gadt) = kind;
-    let (module P) = ProjectorInit.to_module(kind_gadt);
+    let methods = ProjectorInit.to_module(kind_gadt);
     let* term = target_term(cursor);
-    let+ _ = P.init(term);
+    let+ _ = methods.init(term);
     kind;
   };
 

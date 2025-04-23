@@ -22,104 +22,109 @@ let totalize_ty = (expected_ty: option(Typ.t)): Typ.t =>
   | None => Typ.fresh(Unknown(Internal))
   };
 
-module M: Projector with type model = ProjectorCore.Kind.type_model = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type model = ProjectorCore.Kind.type_model;
+[@deriving (show({with_path: false}), sexp, yojson)]
+type model =
+  | Expected
+  | Self;
 
-  let kind = ProjectorCore.Kind.Info;
+[@deriving (show({with_path: false}), sexp, yojson)]
+type action =
+  | ToggleDisplay;
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type action =
-    | ToggleDisplay;
+let init = (any: Term.Any.t): option(model) => {
+  switch (any) {
+  | Exp(_)
+  | Pat(_) => Some(Expected)
+  | Any () => Some(Expected) /* Grout don't have sorts rn */
+  | _ => None
+  };
+};
 
-  let init = (any: Term.Any.t): option(model) => {
-    switch (any) {
-    | Exp(_)
-    | Pat(_) => Some(Expected)
-    | Any () => Some(Expected) /* Grout don't have sorts rn */
-    | _ => None
-    };
+let dynamics = false;
+let focusable = Focusable.non;
+
+let display_ty = (model, statics): option(Typ.t) =>
+  switch (model) {
+  | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn =>
+    statics |> self_ty
+  | Self => statics |> self_ty
+  | Expected => statics |> expected_ty
   };
 
-  let dynamics = false;
-  let focusable = Focusable.non;
-
-  open ProjectorCore.Kind;
-
-  let display_ty = (model, statics): option(Typ.t) =>
-    switch (model) {
-    | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn =>
-      statics |> self_ty
-    | Self => statics |> self_ty
-    | Expected => statics |> expected_ty
-    };
-
-  let display_mode = (model: model, statics: option(Info.t)): string =>
-    switch (model) {
-    | _ when self_ty(statics) == expected_ty(statics) => "⇔"
-    | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn => "⇒"
-    | Self => "⇒"
-    | Expected => "⇐"
-    };
-
-  let mode_view = (model, info) =>
-    div(
-      ~attrs=[Attr.classes(["mode"])],
-      [text(display_mode(model, info))],
-    );
-
-  let typ_view = (model, info: info('p), utility, view_seg: View.seg('p)) => {
-    let typ = display_ty(model, info.statics) |> totalize_ty;
-    div(
-      ~attrs=[Attr.classes(["type-cell"])],
-      [Typ(typ) |> utility.term_to_seg |> view_seg(Sort.Typ)],
-    );
+let display_mode = (model: model, statics: option(Info.t)): string =>
+  switch (model) {
+  | _ when self_ty(statics) == expected_ty(statics) => "⇔"
+  | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn => "⇒"
+  | Self => "⇒"
+  | Expected => "⇐"
   };
 
-  let update = (model, _, a: action) =>
-    switch (a, model) {
-    | (ToggleDisplay, Expected) => Self
-    | (ToggleDisplay, Self) => Expected
-    };
+let mode_view = (model, info) =>
+  div(
+    ~attrs=[Attr.classes(["mode"])],
+    [text(display_mode(model, info))],
+  );
 
-  let syntax_str = (info: info('p)) => {
-    let max_len = 30;
-    let seg = Segment.unparenthesize(info.syntax);
-    let str = Printer.of_segment(~holes=Some("?"), seg);
-    let str = Re.Str.global_replace(Re.Str.regexp("\n"), " ", str);
-    String.length(str) > max_len
-      ? String.sub(str, 0, max_len) ++ "..." : str;
+let typ_view = (model, info: info('p), utility, view_seg: View.seg('p)) => {
+  let typ = display_ty(model, info.statics) |> totalize_ty;
+  div(
+    ~attrs=[Attr.classes(["type-cell"])],
+    [Typ(typ) |> utility.term_to_seg |> view_seg(Sort.Typ)],
+  );
+};
+
+let update = (model, _, a: action) =>
+  switch (a, model) {
+  | (ToggleDisplay, Expected) => Self
+  | (ToggleDisplay, Self) => Expected
   };
 
-  let placeholder = (_m, info) =>
-    ProjectorShape.inline(3 + String.length(syntax_str(info)));
+let syntax_str = (info: info('p)) => {
+  let max_len = 30;
+  let seg = Segment.unparenthesize(info.syntax);
+  let str = Printer.of_segment(~holes=Some("?"), seg);
+  let str = Re.Str.global_replace(Re.Str.regexp("\n"), " ", str);
+  String.length(str) > max_len ? String.sub(str, 0, max_len) ++ "..." : str;
+};
 
-  let syntax_view = (info: info('p)) => info |> syntax_str |> text;
+let placeholder = (_m, info) =>
+  ProjectorShape.inline(3 + String.length(syntax_str(info)));
 
-  let icon = div(~attrs=[Attr.classes(["icon"])], []);
+let syntax_view = (info: info('p)) => info |> syntax_str |> text;
 
-  let view = (model, info, ~local, ~parent as _, ~view_seg) =>
-    View.{
-      inline:
+let icon = div(~attrs=[Attr.classes(["icon"])], []);
+
+let view = (model, info, ~local, ~parent as _, ~view_seg) =>
+  View.{
+    inline:
+      div(
+        ~attrs=[
+          Attr.classes(["main"]),
+          Attr.on_double_click(_ => local(ToggleDisplay)),
+        ],
+        [syntax_view(info), icon],
+      ),
+    offside:
+      Some(
         div(
-          ~attrs=[
-            Attr.classes(["main"]),
-            Attr.on_double_click(_ => local(ToggleDisplay)),
+          ~attrs=[Attr.classes(["offside"])],
+          [
+            mode_view(model, info.statics),
+            typ_view(model, info, info.utility, view_seg),
           ],
-          [syntax_view(info), icon],
         ),
-      offside:
-        Some(
-          div(
-            ~attrs=[Attr.classes(["offside"])],
-            [
-              mode_view(model, info.statics),
-              typ_view(model, info, info.utility, view_seg),
-            ],
-          ),
-        ),
-      overlay: None,
-    };
+      ),
+    overlay: None,
+  };
 
-  let mk_term = mk_term_default;
+let mk_term = mk_term_default;
+
+let methods = {
+  init,
+  focusable,
+  dynamics,
+  view,
+  placeholder,
+  update,
+  mk_term,
 };

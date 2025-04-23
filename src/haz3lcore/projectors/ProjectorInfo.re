@@ -31,11 +31,13 @@ let utility: ProjectorBase.utility('p) = {
 
 let mk_info =
     (
-      p: Piece.projector('p),
+      type p,
+      p: Piece.projector(p),
       ~statics: Statics.Map.t,
       ~dynamics: Dynamics.Map.t,
+      ~utility,
     )
-    : ProjectorBase.info('p) => {
+    : ProjectorBase.info(p) => {
   id: p.id,
   syntax: Piece.unparenthesize(p.syntax),
   statics: Statics.Map.lookup(p.id, statics),
@@ -52,8 +54,8 @@ module ShapeMapSemantics = {
       )
       : ProjectorShape.t => {
     let ProjectorCore.V(kind, model) = p.model;
-    let (module P) = ProjectorInit.to_module(kind);
-    P.placeholder(model, mk_info(p, ~statics, ~dynamics));
+    let methods = ProjectorInit.to_module(kind);
+    methods.placeholder(model, mk_info(p, ~statics, ~dynamics, ~utility));
   };
 
   let mk =

@@ -80,59 +80,66 @@ let textarea =
     [],
   );
 
-module M: Projector with type model = unit = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type model = unit;
-  let kind = ProjectorCore.Kind.TextArea;
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type action = unit;
+[@deriving (show({with_path: false}), sexp, yojson)]
+type model = unit;
+[@deriving (show({with_path: false}), sexp, yojson)]
+type action = unit;
 
-  let init = (any: Term.Any.t) =>
-    switch (string_of(any)) {
-    | Some(_) => Some()
-    | None => None
-    };
-
-  let focus_keyboard = (id: Id.t, d: Direction.t) => {
-    JsUtil.get_elem_by_id(Id.cls(id))##focus;
-    switch (d) {
-    | Left => Web.TextArea.set_caret_to_start(Web.TextArea.get(Id.cls(id)))
-    | Right => Web.TextArea.set_caret_to_end(Web.TextArea.get(Id.cls(id)))
-    };
+let init = (any: Term.Any.t) =>
+  switch (string_of(any)) {
+  | Some(_) => Some()
+  | None => None
   };
 
-  let focus_pointer = (id: Id.t) => {
-    JsUtil.get_elem_by_id(Id.cls(id))##focus;
+let focus_keyboard = (id: Id.t, d: Direction.t) => {
+  JsUtil.get_elem_by_id(Id.cls(id))##focus;
+  switch (d) {
+  | Left => Web.TextArea.set_caret_to_start(Web.TextArea.get(Id.cls(id)))
+  | Right => Web.TextArea.set_caret_to_end(Web.TextArea.get(Id.cls(id)))
   };
+};
 
-  let focusable =
-    Focusable.{
-      pointer: Some(focus_pointer),
-      keyboard: Some(focus_keyboard),
-    };
-  let dynamics = false;
-  let placeholder = (_, info) => {
-    let str = info |> get;
-    ProjectorShape.{
-      vertical: Block(StringUtil.num_linebreaks(str)),
-      /* +2 for left and right padding */
-      horizontal: 2 + StringUtil.max_line_width(str),
-    };
+let focus_pointer = (id: Id.t) => {
+  JsUtil.get_elem_by_id(Id.cls(id))##focus;
+};
+
+let focusable =
+  Focusable.{
+    pointer: Some(focus_pointer),
+    keyboard: Some(focus_keyboard),
   };
-  let update = (model, _, _) => model;
+let dynamics = false;
+let placeholder = (_, info) => {
+  let str = info |> get;
+  ProjectorShape.{
+    vertical: Block(StringUtil.num_linebreaks(str)),
+    /* +2 for left and right padding */
+    horizontal: 2 + StringUtil.max_line_width(str),
+  };
+};
+let update = (model, _, _) => model;
 
-  let view = (_, info, ~local as _, ~parent, ~view_seg as _) =>
-    View.mk(
-      Node.div(
-        ~attrs=[Attr.classes(["wrapper"])],
-        [
-          Node.div(
-            ~attrs=[Attr.classes(["cols", "code"])],
-            [Node.text("·")] @ [textarea(info, ~parent, info |> get)],
-          ),
-        ],
-      ),
-    );
+let view = (_, info, ~local as _, ~parent, ~view_seg as _) =>
+  View.mk(
+    Node.div(
+      ~attrs=[Attr.classes(["wrapper"])],
+      [
+        Node.div(
+          ~attrs=[Attr.classes(["cols", "code"])],
+          [Node.text("·")] @ [textarea(info, ~parent, info |> get)],
+        ),
+      ],
+    ),
+  );
 
-  let mk_term = mk_term_default;
+let mk_term = mk_term_default;
+
+let methods = {
+  init,
+  focusable,
+  dynamics,
+  placeholder,
+  view,
+  update,
+  mk_term,
 };

@@ -3,7 +3,10 @@ open Virtual_dom.Vdom;
 open ProjectorBase;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type mode = ProjectorCore.Kind.card_mode;
+type mode =
+  | Show
+  | Choose(int)
+  | Flipped;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type model = mode;
@@ -451,8 +454,6 @@ module Chooser = {
     );
 };
 
-open ProjectorCore.Kind;
-
 module Singleton = {
   let view =
       (
@@ -599,52 +600,50 @@ module Hand = {
     );
 };
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type m = model;
-[@deriving (show({with_path: false}), sexp, yojson)]
-type a = action;
+let focusable = Focusable.non;
+let dynamics = false;
 
-module M: Projector with type model = m = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type model = m;
-  let kind = ProjectorCore.Kind.Card;
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type action = a;
-  let focusable = Focusable.non;
-  let dynamics = false;
+let init = (info: TermBase.Any.t): option(model) =>
+  SyntaxTerm.get_opt(info) != None ? Some(Show) : None;
 
-  let init = (info: TermBase.Any.t): option(model) =>
-    SyntaxTerm.get_opt(info) != None ? Some(Show) : None;
+let placeholder = (_, info): ProjectorShape.t => {
+  horizontal: SyntaxTerm.width_of_any(info),
+  vertical: Tab(1),
+};
 
-  let placeholder = (_, info): ProjectorShape.t => {
-    horizontal: SyntaxTerm.width_of_any(info),
-    vertical: Tab(1),
+let update = (_model, _, action) =>
+  switch (action) {
+  | SetMode(mode) => mode
   };
 
-  let update = (_model, _, action) =>
-    switch (action) {
-    | SetMode(mode) => mode
-    };
+let view =
+    (
+      model,
+      info,
+      ~local,
+      ~parent: external_action('p) => Ui_effect.t(unit),
+      ~view_seg as _,
+    )
+    : View.t => {
+  inline:
+    switch (SyntaxTerm.get(info)) {
+    | (sort, Card(card)) =>
+      Singleton.view(info, model, parent, local, to_sort(sort), card)
+    | (sort, Hand(hand)) =>
+      Hand.view(info, model, parent, local, to_sort(sort), hand)
+    },
+  offside: None,
+  overlay: None,
+};
 
-  let view =
-      (
-        model,
-        info,
-        ~local,
-        ~parent: external_action('p) => Ui_effect.t(unit),
-        ~view_seg as _,
-      )
-      : View.t => {
-    inline:
-      switch (SyntaxTerm.get(info)) {
-      | (sort, Card(card)) =>
-        Singleton.view(info, model, parent, local, to_sort(sort), card)
-      | (sort, Hand(hand)) =>
-        Hand.view(info, model, parent, local, to_sort(sort), hand)
-      },
-    offside: None,
-    overlay: None,
-  };
+let mk_term = mk_term_default;
 
-  let mk_term = mk_term_default;
+let methods = {
+  init,
+  focusable,
+  dynamics,
+  placeholder,
+  view,
+  update,
+  mk_term,
 };
