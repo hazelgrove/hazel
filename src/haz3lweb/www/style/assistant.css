@@ -22,11 +22,19 @@
     align-self: flex-start;
 }
 
+#assistant .main-title {
+    text-transform: uppercase;
+    font-size: 1.0em;
+    font-weight: bold;
+    padding: 0.35em 0.75em;
+    color: var(--ui-header-text);
+    align-self: flex-start;
+}
+
 #assistant .header {
     display: flex;
     text-transform: none;
     font-weight: bold;
-    margin-bottom: 1em;
     width: 100%;
 }
 
@@ -38,7 +46,7 @@
 }
 
 #assistant .settings-box {
-    padding: 1em;
+    padding-bottom: 1em;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -277,7 +285,6 @@
     gap: 0.5em;
     width: 100%;
     align-items: center;
-    margin-top: 1em;
     margin-bottom: 1em;
     position: relative;
 }
