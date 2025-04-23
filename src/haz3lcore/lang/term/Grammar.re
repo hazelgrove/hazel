@@ -457,6 +457,7 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
   let default_annotation = ann =>
     Option.value(~default=DefaultAnnotation.default_value(), ann);
   module Exp = {
+    type t = exp_t(DefaultAnnotation.t);
     let invalid = (~ann=?, s): exp_t(DefaultAnnotation.t) => {
       term: Invalid(s),
       annotation: default_annotation(ann),
@@ -495,6 +496,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let int = (~ann=?, i): exp_t(DefaultAnnotation.t) => {
       term: Atom(Int(i)),
+      annotation: default_annotation(ann),
+    };
+    let int32 = (~ann=?, i): exp_t(DefaultAnnotation.t) => {
+      term: Atom(SInt(i)),
       annotation: default_annotation(ann),
     };
     let sint = (~ann=?, i): exp_t(DefaultAnnotation.t) => {
