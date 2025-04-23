@@ -54,7 +54,7 @@ module InstantiatorEVMode: {
   let (let.): (requirements('a, DHExp.t), 'a => rule) => result =
     ((h, a, d), rl) => {
       switch (rl(a), Exp.term_of(d)) {
-      | (Step(s), _) =>
+      | (Step(_), _) =>
         failwith("RedexHole: Step possible before hole instantiation") // Assume full reduction before instantiation
       // Pattern match on casts to retrieve the type to instantiate the hole
       | (Constructor, Cast(d', t1, t2))
@@ -63,7 +63,24 @@ module InstantiatorEVMode: {
       | (Constructor, _)
       | (Value, _) => h
       | (Indet, Match(d', branches)) =>
-        combine(h, Match(d', branches |> List.map(fst)))
+        let rec does_not_match = (
+          fun
+          | [] => true
+          | [(dp, _), ...branches] => {
+              let matches = PatternMatch.matches(dp, d');
+              switch (matches.matches) {
+              | Matches(_) => false
+              | IndetMatch => false
+              | DoesNotMatch => does_not_match(branches)
+              };
+            }
+        );
+        // Only instantiate matches for indet matches (not for inexhaustive matches)
+        combine(
+          h,
+          does_not_match(branches)
+            ? None : Match(d', branches |> List.map(fst)),
+        );
       | (Indet, _) => combine(h, Hole(d |> DHExp.rep_id))
       };
     };
