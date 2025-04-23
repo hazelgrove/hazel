@@ -1,7 +1,6 @@
 open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
-open Util;
 
 let tab = (~tooltip="", icon, action, isActive) => {
   let classes = ["tab"] @ (isActive ? ["active"] : []);
