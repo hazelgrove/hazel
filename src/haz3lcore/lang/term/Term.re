@@ -824,7 +824,7 @@ module Exp = {
                 pat_bound_vars @ new_bound_vars,
                 e,
               ),
-              None,
+              Some(env),
             )
             |> rewrap;
           // Cases with binders: remove binder from env
