@@ -500,7 +500,13 @@ let of_spec: Rule.t => Spec.t(M_Id.exp_t) = {
   | T_FunAnn => {
       concl: has(gamma, Fun(Cast(x, t_in), e_body), Arrow(t_in, t_out)),
       prems: [has(gamma', e_body, t_out)],
-      tests: T.[Ignore(UnboxPatVar(x))],
+      tests:
+        T.[
+          EqCtx(
+            UnboxCtx(gamma'),
+            Cons(HasType(ExpVar(UnboxPatVar(x)), t_in), UnboxCtx(gamma)),
+          ),
+        ],
     }
   | T_FunAnn_TV => {
       concl: has(gamma, Fun(Cast(x, t_in), e_body), Arrow(t_in, t_out)),
@@ -517,12 +523,24 @@ let of_spec: Rule.t => Spec.t(M_Id.exp_t) = {
   | S_FunAnn => {
       concl: syn(gamma, Fun(Cast(x, t_in), e_body), Arrow(t_in, t_out)),
       prems: [syn(gamma', e_body, t_out)],
-      tests: T.[Ignore(UnboxPatVar(x))],
+      tests:
+        T.[
+          EqCtx(
+            UnboxCtx(gamma'),
+            Cons(HasType(ExpVar(UnboxPatVar(x)), t_in), UnboxCtx(gamma)),
+          ),
+        ],
     }
   | A_FunAnn => {
       concl: ana(gamma, Fun(Cast(x, t_in), e_body), Arrow(t_in, t_out)),
       prems: [ana(gamma', e_body, t_out)],
-      tests: T.[Ignore(UnboxPatVar(x))],
+      tests:
+        T.[
+          EqCtx(
+            UnboxCtx(gamma'),
+            Cons(HasType(ExpVar(UnboxPatVar(x)), t_in), UnboxCtx(gamma)),
+          ),
+        ],
     }
   | A_FunAnn_GT => {
       concl: ana(gamma, Fun(Cast(x, t_in'), e_body), t),

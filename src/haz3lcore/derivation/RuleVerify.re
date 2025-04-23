@@ -90,6 +90,8 @@ let failure_msg = (failure: failure): string =>
   | FailTest(_, _) => Printf.sprintf("Failed to verify a test")
   };
 
+let failure_msg = e => failure_msg(e) |> Printf.sprintf("❌ %s");
+
 /**
   This module describles the speculation of rules for checking
   involving calculations. Refer to `RuleSpec.re` For speculations

@@ -70,6 +70,17 @@ let pretty_print = (~holes: option(string)=Some(""), z: Zipper.t): string =>
   )
   |> String.concat("\n");
 
+let seg_to_string =
+    (~holes: option(string)=Some(""), seg: Segment.t): string =>
+  to_rows(
+    ~holes,
+    ~measured=Measured.of_segment(seg, ProjectorCore.Shape.Map.empty),
+    ~caret=None,
+    ~indent="",
+    ~segment=seg,
+  )
+  |> String.concat("\n");
+
 let zipper_to_string =
     (~holes: option(string)=Some(""), z: Zipper.t): string =>
   to_rows(

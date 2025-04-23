@@ -908,11 +908,11 @@ let rec drv_exp_to_pretty =
     ];
   | Roll(e) =>
     let e = go(e, ~sort=Exp);
-    text_to_pretty(id, Sort.Drv(Exp), "Roll")
+    text_to_pretty(id, Sort.Drv(Exp), "roll")
     @ [mk_form(Drv(ApExp), id, [e])];
   | Unroll(e) =>
     let e = go(e, ~sort=Exp);
-    text_to_pretty(id, Sort.Drv(Exp), "Unroll")
+    text_to_pretty(id, Sort.Drv(Exp), "unroll")
     @ [mk_form(Drv(ApExp), id, [e])];
   | ExpHole => text_to_pretty(id, Sort.Drv(Exp), Form.wild)
   };

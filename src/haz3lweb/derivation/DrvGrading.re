@@ -21,6 +21,8 @@ module ExternalError = {
     | NotAJudgment => "Conclusion not a judgement"
     | ContainHole => "Contain hole"
     | NoResult => "No result";
+
+  let show = e => show(e) |> Printf.sprintf("❓ %s");
 };
 
 open DerivationTree;

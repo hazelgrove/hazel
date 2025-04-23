@@ -502,7 +502,7 @@ let get_doc_deduction =
 
   switch (info_deduction) {
   | None => fake_get_message("Deduction Not Available")
-  | Some({res: Correct, _}) => fake_get_message("Correct")
+  | Some({res: Correct, _}) => fake_get_message("✅ Correct")
   | Some({res: Pending(p), _}) =>
     fake_get_message(DrvGrading.ExternalError.show(p))
   | Some({res: Incorrect(failure), _}) =>
