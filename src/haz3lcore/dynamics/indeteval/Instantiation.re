@@ -35,7 +35,7 @@ module Make =
       switch (t) {
       | Var(_) => failwith("Expeted normalised types during instantiation?")
       | Label(name) => return(Label(name) |> DHExp.temp)
-      | Unknown(_) => return(fresh_hole())
+      | Unknown(_) => fail
       | Bool => bool_lits
       | Int => int_lits
       | Float => float_lits
@@ -46,9 +46,22 @@ module Make =
       | Arrow(_, t2) =>
         enum_typ(Typ.term_of(t2), env)
         >>| (e => Fun(EmptyHole |> DHPat.fresh, e, None, None) |> DHExp.fresh) // TODO: Check casting logic for potential need for re-elaboration?
+      // Note: must cast tail hole back to list!
       | List(_) =>
         return(ListLit([]) |> DHExp.fresh)
-        <||> return(Cons(fresh_hole(), fresh_hole()) |> DHExp.fresh)
+        <||> return(
+               Cons(
+                 fresh_hole(),
+                 Cast(
+                   fresh_hole(),
+                   TypSlice.hole([]) |> TypSlice.fresh,
+                   `Typ(List(Unknown(Internal) |> Typ.fresh))
+                   |> TypSlice.fresh,
+                 )
+                 |> DHExp.fresh,
+               )
+               |> DHExp.fresh,
+             )
       | Prod(ts) =>
         ts
         |> List.map(t => enum_typ(Typ.term_of(t), env))
