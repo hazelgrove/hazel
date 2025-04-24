@@ -15,11 +15,11 @@ module Make =
 
   let bool_lits =
     return(Bool(true) |> DHExp.fresh)
-    <||> return(Bool(false) |> DHExp.fresh);
+    <|> return(Bool(false) |> DHExp.fresh);
 
   let rec ints_from = n =>
-    return(n) <||> wrap(n |>- (n => ints_from(n + 1)));
-  let rec ints_to = n => return(n) <||> wrap(n |>- (n => ints_to(n - 1)));
+    return(n) <|> wrap(n |>- (n => ints_from(n + 1)));
+  let rec ints_to = n => return(n) <|> wrap(n |>- (n => ints_to(n - 1)));
   let ints = ints_to(0) <|> ints_from(1);
   let int_lits = ints >>| (i => Int(i) |> DHExp.fresh);
   let float_lits = ints >>| (i => Float(Float.of_int(i)) |> DHExp.fresh); // Approximating floats by just enumerating ints
@@ -49,19 +49,19 @@ module Make =
       // Note: must cast tail hole back to list!
       | List(_) =>
         return(ListLit([]) |> DHExp.fresh)
-        <||> return(
-               Cons(
-                 fresh_hole(),
-                 Cast(
-                   fresh_hole(),
-                   TypSlice.hole([]) |> TypSlice.fresh,
-                   `Typ(List(Unknown(Internal) |> Typ.fresh))
-                   |> TypSlice.fresh,
-                 )
-                 |> DHExp.fresh,
-               )
-               |> DHExp.fresh,
-             )
+        <|> return(
+              Cons(
+                fresh_hole(),
+                Cast(
+                  fresh_hole(),
+                  TypSlice.hole([]) |> TypSlice.fresh,
+                  `Typ(List(Unknown(Internal) |> Typ.fresh))
+                  |> TypSlice.fresh,
+                )
+                |> DHExp.fresh,
+              )
+              |> DHExp.fresh,
+            )
       | Prod(ts) =>
         ts
         |> List.map(t => enum_typ(Typ.term_of(t), env))
@@ -69,8 +69,8 @@ module Make =
           l =>
             List.fold_right(
               (t, acc) => {
-                let. t' = t;
-                let. acc' = acc;
+                let* t' = t;
+                let* acc' = acc;
                 return([t', ...acc']);
               },
               l,
@@ -79,8 +79,8 @@ module Make =
             >>| (l => Tuple(l) |> DHExp.fresh)
         )
       | TupLabel(label, ty) =>
-        let. label = enum_typ(Typ.term_of(label), env);
-        let. body = enum_typ(Typ.term_of(ty), env);
+        let* label = enum_typ(Typ.term_of(label), env);
+        let* body = enum_typ(Typ.term_of(ty), env);
         return(TupLabel(label, body) |> DHExp.fresh);
       | Sum(_) => failwith("TODO")
       | Ap(_)

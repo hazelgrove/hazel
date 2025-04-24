@@ -38,7 +38,7 @@ module Make = (S: Search) => {
             d
             |>- Instantiation.instantiate(env)
             >>| inject_state(next_state_after_instantiation)
-            >>- search,
+            >>= search,
           );
     | Step(exp) =>
       let next_state_after_step =
@@ -61,7 +61,7 @@ module Make = (S: Search) => {
     | exception (EvaluatorError.Exception(_)) => fail
     | step =>
       let (results, space) = logic(next_state, d, step);
-      results <|> wrap(space >>- search);
+      results <|> wrap(space >>= search);
     };
   };
 
