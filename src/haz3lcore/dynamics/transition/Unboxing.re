@@ -119,13 +119,13 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       | _ => unbox(request, fixup_cast(Cast(e, e1, e2) |> DHExp.fresh))
       }
     | (LabeledTupleProjection(l), Cast(_, _, {term: List(_), _})) =>
-      let* ls: list(TermBase.exp_t) = unbox(List, expr);
+      let* ls: list(TermBase.exp_t) = unbox(ListLit, expr);
       let* elements: list(TermBase.exp_t) =
         sequence(List.map(unbox(LabeledTupleProjection(l)), ls));
       let exp: TermBase.exp_t = ListLit(elements) |> Exp.fresh;
       Matches(exp);
     | (LabeledTupleProjection(l), Cast(_, {term: List(_), _}, _)) =>
-      let* ls: list(TermBase.exp_t) = unbox(List, expr);
+      let* ls: list(TermBase.exp_t) = unbox(ListLit, expr);
       let* elements: list(TermBase.exp_t) =
         sequence(List.map(unbox(LabeledTupleProjection(l)), ls));
       let exp: TermBase.exp_t = ListLit(elements) |> Exp.fresh;
