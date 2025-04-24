@@ -498,10 +498,6 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Atom(Int(i)),
       annotation: default_annotation(ann),
     };
-    let int32 = (~ann=?, i): exp_t(DefaultAnnotation.t) => {
-      term: Atom(SInt(i)),
-      annotation: default_annotation(ann),
-    };
     let sint = (~ann=?, i): exp_t(DefaultAnnotation.t) => {
       term: Atom(SInt(i)),
       annotation: default_annotation(ann),
