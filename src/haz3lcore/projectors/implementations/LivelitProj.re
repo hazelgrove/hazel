@@ -23,7 +23,19 @@ module M: Projector = {
       None;
     };
 
-  let init = (_any: Term.Any.t) => Some();
+  let init = (any: Term.Any.t) =>
+    switch (any) {
+    | Exp({term: Ap(_dir, {term: LivelitName(_), _}, _), _})
+    | Exp({
+        term: Parens({term: Ap(_dir, {term: LivelitName(_), _}, _), _}),
+        _,
+      }) =>
+      Some()
+    | _ =>
+      print_endline("got term: " ++ TermBase.show_any_t(any));
+      None;
+    };
+
   let placeholder = (_model, info) => {
     switch (get_model(info), info.statics) {
     | (Some((llname, _)), Some(InfoExp(exp))) =>
@@ -42,8 +54,6 @@ module M: Projector = {
 
   let put =
       (info: info, segment: Segment.t, exp: TermBase.Exp.t): Base.segment => {
-    print_endline("LivelitProj.put: segment: " ++ (segment |> Segment.show));
-    print_endline("LivelitProj.put: exp: " ++ (exp |> TermBase.Exp.show));
     switch (
       info.utility.lift_syntax(
         fun
