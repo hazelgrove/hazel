@@ -19,7 +19,6 @@ module Slider: BuiltinLivelit = {
     (x: model_t) => DHExp.fresh(Atom(Int(x)));
   let model_from_hazel: model_exp => option(model_t) =
     (x: model_exp) => {
-      print_endline(x |> show_model_exp);
       switch (x.term) {
       | Atom(Int(n)) => Some(n)
       | _ => None
