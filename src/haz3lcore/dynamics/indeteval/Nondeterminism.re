@@ -285,20 +285,43 @@ let const_incr_config = (~init, ~inc) => {
 
 // DFS Search bounded in depth
 module Bounded = (Config: BoundsConfig) : Search => {
-  type t('a) = bound => list(('a, bound));
+  // Bool logs if the depth bound was ever reached
+  type t('a) = bound => (bool, list(('a, bound)));
 
-  let return = (x, bound) => [(x, bound)];
-  let fail = _bound => [];
+  let return = (x, bound) => (bound == zero_bound, [(x, bound)]);
+  let fail = _bound => (false, []);
 
-  let bind = (m, ~f, bound) =>
-    m(bound)
-    |> List.fold_left((acc, (x, rem_bound)) => acc @ f(x, rem_bound), []);
+  let bind = (m: t('a), ~f: 'a => t('b)): t('b) =>
+    bound =>
+      m(bound)
+      |> (
+        ((reached, sols)) =>
+          List.fold_left(
+            ((acc_reached, acc_sols), (sol, rem_bound)) =>
+              f(sol, rem_bound)
+              |> (
+                ((b_reached, b_sols)) => (
+                  acc_reached || b_reached,
+                  acc_sols @ b_sols,
+                )
+              ),
+            (reached, []),
+            sols,
+          )
+      );
 
-  let choice = (m1, m2, bound) => m1(bound) @ m2(bound);
+  let choice = (m1, m2, bound) =>
+    (m1(bound), m2(bound))
+    |> (
+      (((m1_reached, m1_sols), (m2_reached, m2_sols))) => (
+        m1_reached || m2_reached,
+        m1_sols @ m2_sols,
+      )
+    );
 
   let wrap = m =>
     fun
-    | {depth: 0} => []
+    | {depth: 0} => (false, [])
     | {depth} => m({depth: depth - 1});
   let apply = (f, x) => bind(return(x), ~f);
 
@@ -307,7 +330,15 @@ module Bounded = (Config: BoundsConfig) : Search => {
   let join = mm => bind(mm, ~f=x => x);
 
   let concat = (ms, bound) =>
-    ms |> List.fold_left((acc, m) => acc @ m(bound), []);
+    ms
+    |> List.fold_left(
+         ((acc_reached, acc_sols), m) =>
+           m(bound)
+           |> (
+             ((reached, sols)) => (acc_reached || reached, acc_sols @ sols)
+           ),
+         (false, []),
+       );
 
   let (-) = ({depth: d}, {depth: d'}) => {depth: d - d'};
   let (>) = ({depth: d}, {depth: d'}) => d > d';
@@ -319,15 +350,20 @@ module Bounded = (Config: BoundsConfig) : Search => {
         fun
         | (_, None) => None
         | (prev_bound, Some(curr_bound)) =>
-          Some((
+          Some(
             m(curr_bound)
-            |> List.filter(((_, rem_bound)) =>
-                 curr_bound - rem_bound > prev_bound
-               )
-            |> List.map(fst)
-            |> Sequence.of_list,
-            (curr_bound, Config.inc(curr_bound)),
-          )),
+            |> (
+              ((reached, sols)) => (
+                sols
+                |> List.filter(((_, rem_bound)) =>
+                     curr_bound - rem_bound > prev_bound
+                   )
+                |> List.map(fst)
+                |> Sequence.of_list,
+                (curr_bound, !reached ? None : Config.inc(curr_bound)),
+              )
+            ),
+          ),
     )
     |> Sequence.concat;
 

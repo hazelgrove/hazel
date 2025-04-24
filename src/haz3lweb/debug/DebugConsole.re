@@ -4,13 +4,13 @@ open Haz3lcore;
    It was originally directly in Keyboard, but that added a handler
    dependency on the model, which is technically against architecture */
 
-module BoundedDFS =
+module BDFS =
   Nondeterminism.Bounded(
     (val Nondeterminism.const_incr_config(~init=5, ~inc=5)),
   );
 module BFS = Nondeterminism.BFS;
 module DFS = Nondeterminism.DFS;
-module SearchBoundedDFS = IndetEvaluator.Make(BoundedDFS);
+module SearchBDFS = IndetEvaluator.Make(BDFS);
 module SearchBFS = IndetEvaluator.Make(Nondeterminism.BFS);
 module SearchDFS = IndetEvaluator.Make(Nondeterminism.DFS);
 let print =
@@ -48,13 +48,13 @@ let print =
   | "F9" =>
     let results =
       statics.elaborated
-      |> SearchBFS.values(
+      |> SearchBDFS.values(
            ~env=Builtins.env_init,
            ~state=IndetEvaluatorState.init,
          );
     let _ =
       results
-      |> BFS.run_n(~solutions=30)
+      |> BDFS.run_n(~solutions=30)
       |> List.mapi((i, (state, d)) =>
            print(
              "---Result: "
