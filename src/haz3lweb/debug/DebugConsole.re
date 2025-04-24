@@ -48,17 +48,33 @@ let print =
   | "F9" =>
     let results =
       statics.elaborated
-      |> SearchBDFS.values(
+      |> SearchDFS.values(
            ~env=Builtins.env_init,
            ~state=IndetEvaluatorState.init,
          );
     let _ =
       results
-      |> BDFS.run_n(~solutions=30)
+      |> DFS.run_n(~solutions=30)
       |> List.mapi((i, (state, d)) =>
            print(
              "---Result: "
              ++ Int.to_string(i)
+             ++ "\nIS ERROR: "
+             ++ (CastErrorChecker.contains_error(d) |> Bool.to_string)
+             ++ "\nIS VALUE: "
+             ++ (
+               OneStepEvaluator.take_step(
+                 IndetEvaluatorState.init,
+                 Builtins.env_init,
+                 d,
+               )
+               |> (
+                 fun
+                 | (BoxedValue, _) => "VALUE"
+                 | (Indet, _) => "INDET"
+                 | (Step(_), _) => "EXPR"
+               )
+             )
              ++ "\n# of Instantiations: "
              ++ Int.to_string(IndetEvaluatorState.get_instantiations(state))
              ++ "\nTrace Length: "

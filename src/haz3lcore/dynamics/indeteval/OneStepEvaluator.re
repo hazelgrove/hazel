@@ -65,7 +65,7 @@ module WrapStep = {
     let req_final = (cont, wr, d) => {
       (
         switch (cont(d)) {
-        | TryStep.Indet => TryStep.BoxedValue
+        | TryStep.Indet => TryStep.Indet
         | BoxedValue => BoxedValue
         | Step(obj) => Step(EvalObj.wrap(wr, obj))
         },
@@ -89,15 +89,14 @@ module WrapStep = {
     let (let.): (requirements('a, DHExp.t), 'a => rule) => result =
       (rq, rl) => {
         switch (rq) {
-        | (_, TryStep.Indet, _, _) => TryStep.Indet
-        | (undo, BoxedValue, env, v) =>
+        | (_, Step(_) as s, _, _) => s
+        | (undo, r, env, v) =>
           switch (rl(v)) {
-          | Constructor => BoxedValue
+          | Constructor => r
           | Value => BoxedValue
           | Indet => Indet
           | Step(s) => Step(EvalObj.mk(Mark, env, undo, s.kind))
           }
-        | (_, Step(_) as s, _, _) => s
         };
       };
     let (and.):

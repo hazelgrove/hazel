@@ -63,4 +63,5 @@ let rec contains_error = (~in_closure=?, state, env, d) =>
     d,
   );
 
-let contains_error = contains_error((), ClosureEnvironment.empty);
+let contains_error =
+  contains_error((), ClosureEnvironment.of_environment(Builtins.env_init));
