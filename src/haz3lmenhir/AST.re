@@ -848,8 +848,8 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
           return(e)
           <+> {
             let* shrunk = shrink_exp(e);
-            return(TypFun(tpat, shrunk)); // Not worth shrinking tpat
-          }
+            return(TypFun(tpat, shrunk));
+          } // Not worth shrinking tpat
         | Cons(e1, e2) =>
           {
             of_list([e1, e2]);
