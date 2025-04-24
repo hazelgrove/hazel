@@ -53,10 +53,12 @@ let introduction_test = (~turbo_mode=false, before: string, expected: string) =>
 
   check(option(string), "Introduce", Some(expected), serialized);
 };
+let introduce_expression = (~turbo_mode=false, x: Typ.t): option(Exp.t) => {
+  module IE = Introduce.IntroduceExp(Introduce.IntroducePat);
 
-let introduce_expression = (~turbo_mode=false, x: Typ.t): option(Exp.t) =>
-  Introduce.IntroduceExp.introduce(~turbo_mode, Ctx.empty_pre_elaboration, x)
+  IE.introduce(~turbo_mode, Ctx.empty_pre_elaboration, x)
   |> Option.map(((a, _b, _c)) => a);
+};
 
 let tests =
   IdTagged.FreshGrammar.[
@@ -300,6 +302,12 @@ let tests =
             introduction_test(
               "let x : (Int, (String, Int, [Int]), l=(+A)) =in x",
               {|let x : (Int, (String, Int, [Int]), l=(+A)) =(?, ("", ?, []), l=A)in x|},
+            )
+          }),
+          test_case("Expression including pattern", `Quick, () => {
+            introduction_test(
+              "let x : ((Int, Int, Int) -> (Int, Int), [Int]) =in x",
+              {|let x : ((Int, Int, Int) -> (Int, Int), [Int]) =(fun (?, ?, ?) -> (?, ?), [])in x|},
             )
           }),
         ];
