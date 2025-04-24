@@ -151,9 +151,9 @@ let rec elaborate_pattern =
       DHPat.Tuple(ps') |> rewrap |> cast_from(Typ.Prod(tys) |> Typ.temp);
     | Ap(p1, p2) =>
       let (p1', ty1) = elaborate_pattern(m, p1);
-      print_endline("ELA_PAT p1' = " ++ DHPat.show(p1'));
+      //print_endline("ELA_PAT p1' = " ++ DHPat.show(p1'));
       let (p2', ty2) = elaborate_pattern(m, p2);
-      print_endline("ELA_PAT p2' = " ++ DHPat.show(p2'));
+      //print_endline("ELA_PAT p2' = " ++ DHPat.show(p2'));
       let (ty1l, ty1r) = Typ.matched_arrow(ctx, ty1);
       let p1'' = fresh_pat_cast(p1', ty1, Arrow(ty1l, ty1r) |> Typ.temp);
       let p2'' = fresh_pat_cast(p2', ty2, ty1l);
@@ -163,13 +163,13 @@ let rec elaborate_pattern =
     | MultiHole(_)
     | Wild => upat |> cast_from(Typ.temp(Unknown(Internal)))
     | Var(v) =>
-      //print_endline("ELA_P upat(2) = " ++ UPat.show(upat));
+      print_endline("ELA_P VAR upat = " ++ UPat.show(upat));
       let tmp1 = Ctx.lookup_var(ctx, v);
-      // switch (tmp1) {
-      // | Some(tmp2) =>
-      //   print_endline("ELA_P ctx lookup = " ++ Ctx.show_var_entry(tmp2))
-      // | None => print_endline("ELA_P ctx lookup fail")
-      // };
+      switch (tmp1) {
+      | Some(tmp2) =>
+        print_endline("ELA_P VAR ctx lookup = " ++ Ctx.show_var_entry(tmp2))
+      | None => print_endline("ELA_P VAR ctx lookup fail")
+      };
       upat
       |> cast_from(
            tmp1
@@ -279,7 +279,9 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       Constructor(c, t) |> rewrap |> cast_from(t);
     | Fun(p, e, env, n) =>
       let (p', typ) = elaborate_pattern(m, p);
+      print_endline("ELA FUN p' = " ++ DHPat.show(p'));
       let (e', tye) = elaborate(m, e);
+      print_endline("ELA FUN e' = " ++ DHExp.show(e'));
       Exp.Fun(p', e', env, n)
       |> rewrap
       |> cast_from(Arrow(typ, tye) |> Typ.temp);
@@ -292,12 +294,17 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       let (ds, tys) = List.map(elaborate(m), es) |> ListUtil.unzip;
       Exp.Tuple(ds) |> rewrap |> cast_from(Prod(tys) |> Typ.temp);
     | Var(v) =>
-      uexp
-      |> cast_from(
-           Ctx.lookup_var(ctx, v)
-           |> Option.map((x: Ctx.var_entry) => x.typ |> Typ.normalize(ctx))
-           |> Option.value(~default=Typ.temp(Typ.Unknown(Internal))),
-         )
+      let in_type =
+        Ctx.lookup_var(ctx, v)
+        |> Option.map((x: Ctx.var_entry) => x.typ |> Typ.normalize(ctx))
+        |> Option.value(~default=Typ.temp(Typ.Unknown(Internal)));
+      // print_endline(
+      //   "ELA var&type = "
+      //   ++ UExp.show_term(uexp.term)
+      //   ++ ", "
+      //   ++ Typ.show_term(in_type.term),
+      // );
+      uexp |> cast_from(in_type);
     | Let(p, def, body) =>
       let rewritten_term =
         // If ID not in map, error is thrown on Ln 223 already
@@ -311,12 +318,13 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
         };
       switch (rewritten_term) {
       | Some(term) =>
-        //print_endline("ELA_NEW uexp_term = " ++ UExp.show_term(term.term));
+        print_endline("__NEW SYNTAX__");
         let (dhexp, _) = elaborate(m, term);
         //print_endline("ELA_NEW dhexp = " ++ DHExp.show(dhexp));
         dhexp;
       | None =>
-        //print_endline("ELA_OLD uexp_term = " ++ UExp.show_term(term));
+        print_endline("__OLD SYNTAX__");
+        print_endline("ELA LET uexp = " ++ UExp.show(uexp));
         let add_name: (option(string), DHExp.t) => DHExp.t = (
           (name, exp) => {
             let (term, rewrap) = DHExp.unwrap(exp);
@@ -330,7 +338,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
         // print_endline("ELA p(1) = " ++ UPat.show(p));
         // print_endline("ELA m = " ++ Statics.Map.show(m));
         let (p, ty1) = elaborate_pattern(m, p);
-        //print_endline("ELA p = " ++ DHPat.show(p));
+        print_endline("ELA LET p = " ++ DHPat.show(p));
         let is_recursive =
           Statics.is_recursive(ctx, p, def, ty1)
           && Pat.get_bindings(p)
@@ -338,15 +346,15 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
           |> List.exists(f => VarMap.lookup(co_ctx, f) != None);
         if (!is_recursive) {
           let def = add_name(Pat.get_var(p), def);
-          //print_endline("ELA def(1) = " ++ DHExp.show(def));
+          print_endline("ELA LET def(1) = " ++ DHExp.show(def));
           let (def, ty2) = elaborate(m, def);
-          //print_endline("ELA def(2) = " ++ DHExp.show(def));
+          print_endline("ELA LET def(2) = " ++ DHExp.show(def));
           let (body, ty) = elaborate(m, body);
           let result =
             Exp.Let(p, fresh_cast(def, ty2, ty1), body)
             |> rewrap
             |> cast_from(ty);
-          print_endline("ELA dhexp = " ++ DHExp.show(result));
+          //print_endline("ELA dhexp = " ++ DHExp.show(result));
           result;
         } else {
           // TODO: Add names to mutually recursive functions
@@ -485,6 +493,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: UExp.t): (DHExp.t, Typ.t) => {
       |> rewrap
       |> cast_from(Bool |> Typ.temp);
     | BinOp(Int(Plus | Minus | Times | Power | Divide) as op, e1, e2) =>
+      print_endline("Get to int BINOP");
       let (e1', t1) = elaborate(m, e1);
       let (e2', t2) = elaborate(m, e2);
       BinOp(
