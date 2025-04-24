@@ -763,7 +763,7 @@ and rul = (unsorted): Rul.t => {
 
 and unsorted =
     (
-      ~of_projector: ('p, list(Any.t)) => Any.t,
+      ~of_projector: 'p => Any.t,
       ~log_projector: Piece.projector('p) => unit,
       skel: Skel.t,
       seg: Segment.t('p),
@@ -773,13 +773,13 @@ and unsorted =
 
   /* Remove projectors. We do this here as opposed to removing
    * them in an external call to save a whole-syntax pass. */
-  let rec tile_kids = (p: Piece.t('p)): list(Term.Any.t) =>
+  let tile_kids = (p: Piece.t('p)): list(Term.Any.t) =>
     switch (p) {
     | Secondary(_)
     | Grout(_) => []
-    | Projector({model, syntax, _} as pr) =>
+    | Projector({model, _} as pr) =>
       log_projector(pr);
-      [of_projector(model, tile_kids(syntax))];
+      [of_projector(model)];
     | Tile({mold, shards, children, _}) =>
       Aba.aba_triples(Aba.mk(shards, children))
       |> List.map(((l, kid, r)) => {

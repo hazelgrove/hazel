@@ -21,7 +21,6 @@ and tile('p) = {
 }
 and projector('p) = {
   id: Id.t,
-  syntax: piece('p),
   model: 'p,
 };
 
@@ -33,8 +32,7 @@ let mk_secondary = (id, content) => [
   }),
 ];
 
-let mk_projector = (syntax, model) => {
+let mk_projector = model => {
   id: Id.mk(),
-  syntax,
   model,
 };

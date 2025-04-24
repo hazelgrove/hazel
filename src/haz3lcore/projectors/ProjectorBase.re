@@ -72,10 +72,6 @@ type info('p) = {
    * identifier to allow individual projectors to distiguish
    * their DOM nodes. */
   id: Id.t,
-  /* The syntax underlying the projector. Currently this
-   * is a single piece representing a complete term, but
-   * this may be relaxed in the future. */
-  syntax: Base.segment('p),
   /* Static information about the syntax including type
    * information. Statics may be disabled by the user;
    * this case (None) must be handled by projector authors */

@@ -849,10 +849,8 @@ module IDs = {
     | Projector(p) =>
       /* Need to keep projector and contained piece id in-sync */
       let id = Id.mk();
-      let syntax = replace_piece(~id, p.syntax);
       Projector({
         ...p,
-        syntax,
         id,
       });
     };
@@ -866,7 +864,7 @@ module IDs = {
     | Tile(t) => [id, ...List.concat_map(all, t.children)]
     | Grout(_)
     | Secondary(_) => [id]
-    | Projector(p) => [id, ...all_piece(p.syntax)]
+    | Projector(_) => [id]
     };
   };
 };

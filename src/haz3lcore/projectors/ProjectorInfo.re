@@ -5,10 +5,7 @@
  * See ProjectorBase.utility definition for more information */
 let utility: ProjectorBase.utility('p) = {
   let seg_to_term =
-    MakeTerm.for_projection(
-      ~of_projector=(_, _) => Any(),
-      ~log_projector=_ => (),
-    );
+    MakeTerm.for_projection(~of_projector=_ => Any(), ~log_projector=_ => ());
   let term_to_seg =
     ExpToSegment.any_to_segment(
       ~settings={
@@ -39,7 +36,6 @@ let mk_info =
     )
     : ProjectorBase.info(p) => {
   id: p.id,
-  syntax: Piece.unparenthesize(p.syntax),
   statics: Statics.Map.lookup(p.id, statics),
   dynamics: Dynamics.Map.lookup(p.id, dynamics),
   utility,

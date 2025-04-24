@@ -853,7 +853,7 @@ let view =
         local(NoOp);
       }),
     ],
-    [text(syntax_str(info.syntax)), icon],
+    [text(syntax_str(infoCx)), icon],
   );
 
 let overlay_view = (info: info('p)): Node.t =>
