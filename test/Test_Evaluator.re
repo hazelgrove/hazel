@@ -92,293 +92,342 @@ let parse_and_evaluate_test =
 let test_int = () =>
   evaluation_test(
     "8",
-    Atom(Int(Bigint.of_int(8))) |> Exp.fresh,
-    Atom(Int(Bigint.of_int(8))) |> Exp.fresh,
+    Exp.fresh(Atom(Int(Bigint.of_int(8)))),
+    Exp.fresh(Atom(Int(Bigint.of_int(8)))),
   );
 
 let test_sum = () =>
   evaluation_test(
     "4 + 5",
-    Atom(Int(Bigint.of_int(9))) |> Exp.fresh,
-    BinOp(
-      Int(Plus),
-      Atom(Int(Bigint.of_int(4))) |> Exp.fresh,
-      Atom(Int(Bigint.of_int(5))) |> Exp.fresh,
-    )
-    |> Exp.fresh,
+    Exp.fresh(Atom(Int(Bigint.of_int(9)))),
+    Exp.fresh(
+      BinOp(
+        Int(Plus),
+        Exp.fresh(Atom(Int(Bigint.of_int(4)))),
+        Exp.fresh(Atom(Int(Bigint.of_int(5)))),
+      ),
+    ),
   );
 
 let test_labeled_tuple_projection = () =>
   evaluation_test(
     "(a=1, b=2, c=?).a",
-    Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
-    Dot(
-      Tuple([
-        TupLabel(
-          Label("a") |> Exp.fresh,
-          Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
-        )
-        |> Exp.fresh,
-        TupLabel(
-          Label("b") |> Exp.fresh,
-          Atom(Int(Bigint.of_int(2))) |> Exp.fresh,
-        )
-        |> Exp.fresh,
-        TupLabel(Label("c") |> Exp.fresh, EmptyHole |> Exp.fresh)
-        |> Exp.fresh,
-      ])
-      |> Exp.fresh,
-      Label("a") |> Exp.fresh // This is a var now for parsing reasons
-    )
-    |> Exp.fresh,
+    Exp.fresh(Atom(Int(Bigint.of_int(1)))),
+    Exp.fresh(
+      Dot(
+        Exp.fresh(
+          Tuple([
+            Exp.fresh(
+              TupLabel(
+                Exp.fresh(Label("a")),
+                Exp.fresh(Atom(Int(Bigint.of_int(1)))),
+              ),
+            ),
+            Exp.fresh(
+              TupLabel(
+                Exp.fresh(Label("b")),
+                Exp.fresh(Atom(Int(Bigint.of_int(2)))),
+              ),
+            ),
+            Exp.fresh(
+              TupLabel(Exp.fresh(Label("c")), Exp.fresh(EmptyHole)),
+            ),
+          ]),
+        ),
+        Exp.fresh(Label("a")) // This is a var now for parsing reasons
+      ),
+    ),
   );
 
 let test_function_application = () =>
   evaluation_test(
     "float_of_int(1)",
-    Atom(Float(1.0)) |> Exp.fresh,
-    Ap(
-      Forward,
-      Var("float_of_int") |> Exp.fresh,
-      Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
-    )
-    |> Exp.fresh,
+    Exp.fresh(Atom(Float(1.0))),
+    Exp.fresh(
+      Ap(
+        Forward,
+        Exp.fresh(Var("float_of_int")),
+        Exp.fresh(Atom(Int(Bigint.of_int(1)))),
+      ),
+    ),
   );
 
 let test_function_deferral = () =>
   evaluation_test(
     "string_sub(\"hello\", 1, _)(2)",
-    Atom(String("el")) |> Exp.fresh,
-    Ap(
-      Forward,
-      DeferredAp(
-        Var("string_sub") |> Exp.fresh,
-        [
-          Atom(String("hello")) |> Exp.fresh,
-          Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
-          Deferral(InAp) |> Exp.fresh,
-        ],
-      )
-      |> Exp.fresh,
-      Atom(Int(Bigint.of_int(2))) |> Exp.fresh,
-    )
-    |> Exp.fresh,
+    Exp.fresh(Atom(String("el"))),
+    Exp.fresh(
+      Ap(
+        Forward,
+        Exp.fresh(
+          DeferredAp(
+            Exp.fresh(Var("string_sub")),
+            [
+              Exp.fresh(Atom(String("hello"))),
+              Exp.fresh(Atom(Int(Bigint.of_int(1)))),
+              Exp.fresh(Deferral(InAp)),
+            ],
+          ),
+        ),
+        Exp.fresh(Atom(Int(Bigint.of_int(2)))),
+      ),
+    ),
   );
 
 let test_ap_of_hole_deferral = () =>
   evaluation_test(
     "?(_, _, 3)(1., true)",
-    Ap(
-      Forward,
-      Cast(
-        EmptyHole |> Exp.fresh,
-        Unknown(Internal) |> Typ.fresh,
-        Arrow(
-          Unknown(Internal) |> Typ.fresh,
-          Unknown(Internal) |> Typ.fresh,
-        )
-        |> Typ.fresh,
-      )
-      |> Exp.fresh,
-      Cast(
-        Tuple([
+    Exp.fresh(
+      Ap(
+        Forward,
+        Exp.fresh(
           Cast(
-            Atom(Float(1.)) |> Exp.fresh,
-            Atom(Float) |> Typ.fresh,
-            Unknown(Internal) |> Typ.fresh,
-          )
-          |> Exp.fresh,
+            Exp.fresh(EmptyHole),
+            Typ.fresh(Unknown(Internal)),
+            Typ.fresh(
+              Arrow(
+                Typ.fresh(Unknown(Internal)),
+                Typ.fresh(Unknown(Internal)),
+              ),
+            ),
+          ),
+        ),
+        Exp.fresh(
           Cast(
-            Atom(Bool(true)) |> Exp.fresh,
-            Atom(Bool) |> Typ.fresh,
-            Unknown(Internal) |> Typ.fresh,
-          )
-          |> Exp.fresh,
-          Cast(
-            Atom(Int(Bigint.of_int(3))) |> Exp.fresh,
-            Atom(Int) |> Typ.fresh,
-            Unknown(Internal) |> Typ.fresh,
-          )
-          |> Exp.fresh,
-        ])
-        |> Exp.fresh,
-        Prod([
-          Unknown(Internal) |> Typ.fresh,
-          Unknown(Internal) |> Typ.fresh,
-          Unknown(Internal) |> Typ.fresh,
-        ])
-        |> Typ.fresh,
-        Unknown(Internal) |> Typ.fresh,
-      )
-      |> Exp.fresh,
-    )
-    |> Exp.fresh,
-    Ap(
-      Forward,
-      DeferredAp(
-        Cast(
-          Cast(
-            EmptyHole |> Exp.fresh,
-            Unknown(Internal) |> Typ.fresh,
-            Arrow(
-              Unknown(Internal) |> Typ.fresh,
-              Unknown(Internal) |> Typ.fresh,
-            )
-            |> Typ.fresh,
-          )
-          |> Exp.fresh,
-          Arrow(
-            Unknown(Internal) |> Typ.fresh,
-            Unknown(Internal) |> Typ.fresh,
-          )
-          |> Typ.fresh,
-          Arrow(
-            Prod([
-              Unknown(Internal) |> Typ.fresh,
-              Unknown(Internal) |> Typ.fresh,
-              Unknown(Internal) |> Typ.fresh,
-            ])
-            |> Typ.fresh,
-            Unknown(Internal) |> Typ.fresh,
-          )
-          |> Typ.fresh,
-        )
-        |> Exp.fresh,
-        [
-          Deferral(InAp) |> Exp.fresh,
-          Deferral(InAp) |> Exp.fresh,
-          Cast(
-            Atom(Int(Bigint.of_int(3))) |> Exp.fresh,
-            Atom(Int) |> Typ.fresh,
-            Unknown(Internal) |> Typ.fresh,
-          )
-          |> Exp.fresh,
-        ],
-      )
-      |> Exp.fresh,
-      Tuple([
-        Cast(
-          Atom(Float(1.)) |> Exp.fresh,
-          Atom(Float) |> Typ.fresh,
-          Unknown(Internal) |> Typ.fresh,
-        )
-        |> Exp.fresh,
-        Cast(
-          Atom(Bool(true)) |> Exp.fresh,
-          Atom(Bool) |> Typ.fresh,
-          Unknown(Internal) |> Typ.fresh,
-        )
-        |> Exp.fresh,
-      ])
-      |> Exp.fresh,
-    )
-    |> Exp.fresh,
+            Exp.fresh(
+              Tuple([
+                Exp.fresh(
+                  Cast(
+                    Exp.fresh(Atom(Float(1.))),
+                    Typ.fresh(Atom(Float)),
+                    Typ.fresh(Unknown(Internal)),
+                  ),
+                ),
+                Exp.fresh(
+                  Cast(
+                    Exp.fresh(Atom(Bool(true))),
+                    Typ.fresh(Atom(Bool)),
+                    Typ.fresh(Unknown(Internal)),
+                  ),
+                ),
+                Exp.fresh(
+                  Cast(
+                    Exp.fresh(Atom(Int(Bigint.of_int(3)))),
+                    Typ.fresh(Atom(Int)),
+                    Typ.fresh(Unknown(Internal)),
+                  ),
+                ),
+              ]),
+            ),
+            Typ.fresh(
+              Prod([
+                Typ.fresh(Unknown(Internal)),
+                Typ.fresh(Unknown(Internal)),
+                Typ.fresh(Unknown(Internal)),
+              ]),
+            ),
+            Typ.fresh(Unknown(Internal)),
+          ),
+        ),
+      ),
+    ),
+    Exp.fresh(
+      Ap(
+        Forward,
+        Exp.fresh(
+          DeferredAp(
+            Exp.fresh(
+              Cast(
+                Exp.fresh(
+                  Cast(
+                    Exp.fresh(EmptyHole),
+                    Typ.fresh(Unknown(Internal)),
+                    Typ.fresh(
+                      Arrow(
+                        Typ.fresh(Unknown(Internal)),
+                        Typ.fresh(Unknown(Internal)),
+                      ),
+                    ),
+                  ),
+                ),
+                Typ.fresh(
+                  Arrow(
+                    Typ.fresh(Unknown(Internal)),
+                    Typ.fresh(Unknown(Internal)),
+                  ),
+                ),
+                Typ.fresh(
+                  Arrow(
+                    Typ.fresh(
+                      Prod([
+                        Typ.fresh(Unknown(Internal)),
+                        Typ.fresh(Unknown(Internal)),
+                        Typ.fresh(Unknown(Internal)),
+                      ]),
+                    ),
+                    Typ.fresh(Unknown(Internal)),
+                  ),
+                ),
+              ),
+            ),
+            [
+              Exp.fresh(Deferral(InAp)),
+              Exp.fresh(Deferral(InAp)),
+              Exp.fresh(
+                Cast(
+                  Exp.fresh(Atom(Int(Bigint.of_int(3)))),
+                  Typ.fresh(Atom(Int)),
+                  Typ.fresh(Unknown(Internal)),
+                ),
+              ),
+            ],
+          ),
+        ),
+        Exp.fresh(
+          Tuple([
+            Exp.fresh(
+              Cast(
+                Exp.fresh(Atom(Float(1.))),
+                Typ.fresh(Atom(Float)),
+                Typ.fresh(Unknown(Internal)),
+              ),
+            ),
+            Exp.fresh(
+              Cast(
+                Exp.fresh(Atom(Bool(true))),
+                Typ.fresh(Atom(Bool)),
+                Typ.fresh(Unknown(Internal)),
+              ),
+            ),
+          ]),
+        ),
+      ),
+    ),
   );
 
 let test_multi_arg_builtin_cast = () =>
   evaluation_test(
     "string_compare((\"Hello\", \"World\"):(?, ?))",
-    Atom(Int(Bigint.of_int(-1))) |> Exp.fresh,
-    Ap(
-      Forward,
-      BuiltinFun("string_compare") |> Exp.fresh,
-      Cast(
-        Tuple([
+    Exp.fresh(Atom(Int(Bigint.of_int(-1)))),
+    Exp.fresh(
+      Ap(
+        Forward,
+        Exp.fresh(BuiltinFun("string_compare")),
+        Exp.fresh(
           Cast(
-            Atom(String("Hello")) |> Exp.fresh,
-            Atom(String) |> Typ.fresh,
-            Unknown(Internal) |> Typ.fresh,
-          )
-          |> Exp.fresh,
-          Cast(
-            Atom(String("World")) |> Exp.fresh,
-            Atom(String) |> Typ.fresh,
-            Unknown(Internal) |> Typ.fresh,
-          )
-          |> Exp.fresh,
-        ])
-        |> Exp.fresh,
-        Prod([
-          Unknown(Internal) |> Typ.fresh,
-          Unknown(Internal) |> Typ.fresh,
-        ])
-        |> Typ.fresh,
-        Prod([Atom(String) |> Typ.fresh, Atom(String) |> Typ.fresh])
-        |> Typ.fresh,
-      )
-      |> Exp.fresh,
-    )
-    |> Exp.fresh,
+            Exp.fresh(
+              Tuple([
+                Exp.fresh(
+                  Cast(
+                    Exp.fresh(Atom(String("Hello"))),
+                    Typ.fresh(Atom(String)),
+                    Typ.fresh(Unknown(Internal)),
+                  ),
+                ),
+                Exp.fresh(
+                  Cast(
+                    Exp.fresh(Atom(String("World"))),
+                    Typ.fresh(Atom(String)),
+                    Typ.fresh(Unknown(Internal)),
+                  ),
+                ),
+              ]),
+            ),
+            Typ.fresh(
+              Prod([
+                Typ.fresh(Unknown(Internal)),
+                Typ.fresh(Unknown(Internal)),
+              ]),
+            ),
+            Typ.fresh(
+              Prod([Typ.fresh(Atom(String)), Typ.fresh(Atom(String))]),
+            ),
+          ),
+        ),
+      ),
+    ),
   );
 
 let test_variable_capture = () =>
   evaluation_test(
     {|let u = 5 in let f = fun () -> u in let u = 3 in f()|},
-    Atom(Int(Bigint.of_int(5))) |> Exp.fresh,
-    Let(
-      Var("u") |> Pat.fresh,
-      Atom(Int(Bigint.of_int(5))) |> Exp.fresh,
+    Exp.fresh(Atom(Int(Bigint.of_int(5)))),
+    Exp.fresh(
       Let(
-        Var("f") |> Pat.fresh,
-        Fun(Tuple([]) |> Pat.fresh, Var("u") |> Exp.fresh, None, None)
-        |> Exp.fresh,
-        Let(
-          Var("u") |> Pat.fresh,
-          Atom(Int(Bigint.of_int(3))) |> Exp.fresh,
-          Ap(Forward, Var("f") |> Exp.fresh, Tuple([]) |> Exp.fresh)
-          |> Exp.fresh,
-        )
-        |> Exp.fresh,
-      )
-      |> Exp.fresh,
-    )
-    |> Exp.fresh,
+        Pat.fresh(Var("u")),
+        Exp.fresh(Atom(Int(Bigint.of_int(5)))),
+        Exp.fresh(
+          Let(
+            Pat.fresh(Var("f")),
+            Exp.fresh(
+              Fun(Pat.fresh(Tuple([])), Exp.fresh(Var("u")), None, None),
+            ),
+            Exp.fresh(
+              Let(
+                Pat.fresh(Var("u")),
+                Exp.fresh(Atom(Int(Bigint.of_int(3)))),
+                Exp.fresh(
+                  Ap(Forward, Exp.fresh(Var("f")), Exp.fresh(Tuple([]))),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
   );
 
 let test_unbound_lookup = () =>
   evaluation_test(
     "(fun x -> x)(x)",
-    Var("x") |> Exp.fresh,
-    Ap(
-      Forward,
-      Fun(Var("x") |> Pat.fresh, Var("x") |> Exp.fresh, None, None)
-      |> Exp.fresh,
-      Var("x") |> Exp.fresh,
-    )
-    |> Exp.fresh,
+    Exp.fresh(Var("x")),
+    Exp.fresh(
+      Ap(
+        Forward,
+        Exp.fresh(
+          Fun(Pat.fresh(Var("x")), Exp.fresh(Var("x")), None, None),
+        ),
+        Exp.fresh(Var("x")),
+      ),
+    ),
   );
 
 let test_unevaluated_if = () =>
   evaluation_test(
     "let x = 5 in if ? then x else x",
-    If(
-      EmptyHole |> Exp.fresh,
-      Atom(Int(Bigint.of_int(5))) |> Exp.fresh,
-      Atom(Int(Bigint.of_int(5))) |> Exp.fresh,
-    )
-    |> Exp.fresh,
-    Let(
-      Var("x") |> Pat.fresh,
-      Atom(Int(Bigint.of_int(5))) |> Exp.fresh,
+    Exp.fresh(
       If(
-        EmptyHole |> Exp.fresh,
-        Var("x") |> Exp.fresh,
-        Var("x") |> Exp.fresh,
-      )
-      |> Exp.fresh,
-    )
-    |> Exp.fresh,
+        Exp.fresh(EmptyHole),
+        Exp.fresh(Atom(Int(Bigint.of_int(5)))),
+        Exp.fresh(Atom(Int(Bigint.of_int(5)))),
+      ),
+    ),
+    Exp.fresh(
+      Let(
+        Pat.fresh(Var("x")),
+        Exp.fresh(Atom(Int(Bigint.of_int(5)))),
+        Exp.fresh(
+          If(
+            Exp.fresh(EmptyHole),
+            Exp.fresh(Var("x")),
+            Exp.fresh(Var("x")),
+          ),
+        ),
+      ),
+    ),
   );
 
 let test_invalid_constructor_match = () => {
   let invalid_constructor_match =
-    Let(
-      Constructor("T", Some(None)) |> Pat.fresh,
-      Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
-      EmptyHole |> Exp.fresh,
-    )
-    |> Exp.fresh
-    |> elaborate;
+    elaborate(
+      Exp.fresh(
+        Let(
+          Pat.fresh(Constructor("T", Some(None))),
+          Exp.fresh(Atom(Int(Bigint.of_int(1)))),
+          Exp.fresh(EmptyHole),
+        ),
+      ),
+    );
   evaluation_test(
     "let T = 1 in ?",
     invalid_constructor_match,
@@ -389,28 +438,32 @@ let test_invalid_constructor_match = () => {
 let test_typfun_application = () =>
   evaluation_test(
     "(typfun T -> fun x -> 1)@<Int>(2)",
-    Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
-    Ap(
-      Forward,
-      TypAp(
-        TypFun(
-          Var("T") |> TPat.fresh,
-          Fun(
-            Var("x") |> Pat.fresh,
-            Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
-            None,
-            None,
-          )
-          |> Exp.fresh,
-          None,
-        )
-        |> Exp.fresh,
-        Atom(Int) |> Typ.fresh,
-      )
-      |> Exp.fresh,
-      Atom(Int(Bigint.of_int(2))) |> Exp.fresh,
-    )
-    |> Exp.fresh,
+    Exp.fresh(Atom(Int(Bigint.of_int(1)))),
+    Exp.fresh(
+      Ap(
+        Forward,
+        Exp.fresh(
+          TypAp(
+            Exp.fresh(
+              TypFun(
+                TPat.fresh(Var("T")),
+                Exp.fresh(
+                  Fun(
+                    Pat.fresh(Var("x")),
+                    Exp.fresh(Atom(Int(Bigint.of_int(1)))),
+                    None,
+                    None,
+                  ),
+                ),
+                None,
+              ),
+            ),
+            Typ.fresh(Atom(Int)),
+          ),
+        ),
+        Exp.fresh(Atom(Int(Bigint.of_int(2)))),
+      ),
+    ),
   );
 
 let tests = (
@@ -472,9 +525,10 @@ in fn("hello")|},
     test_case("Negative integer literal", `Quick, () =>
       evaluation_test(
         "-8",
-        Atom(Int(Bigint.of_int(-8))) |> Exp.fresh,
-        UnOp(Int(Minus), Atom(Int(Bigint.of_int(8))) |> Exp.fresh)
-        |> Exp.fresh,
+        Exp.fresh(Atom(Int(Bigint.of_int(-8)))),
+        Exp.fresh(
+          UnOp(Int(Minus), Exp.fresh(Atom(Int(Bigint.of_int(8))))),
+        ),
       )
     ),
     test_case("Simple probe", `Quick, () => {
