@@ -42,7 +42,9 @@ type error_inconsistent =
   /* Inconsistent match or listlit */
   | Internal(list(Typ.t))
   /* Bad function position */
-  | WithArrow(Typ.t);
+  | WithArrow(Typ.t)
+  /* Bad Livelit model */
+  | BadLivelitModel(Typ.t);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_no_type =
@@ -426,6 +428,7 @@ let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
     | None => InHole(NoType(UnboundLivelit(name)))
     | Some(_livelit) => NotInHole(Syn(Unknown(Internal) |> Typ.temp))
     };
+  | (BadLivelitModel(typ), _) => InHole(Inconsistent(BadLivelitModel(typ)))
   | (FreeConstructor(name), _) => InHole(NoType(FreeConstructor(name)))
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
   | (BadOperator(op), _) => InHole(NoType(BadOperator(op)))
@@ -507,7 +510,11 @@ let rec status_pat = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.pat): status_pat =>
   | Redundant(self) =>
     let additional_err =
       switch (status_pat(ctx, ty_ana, self)) {
-      | InHole(Common(Inconsistent(Internal(_) | Expectation(_))) as err)
+      | InHole(
+          Common(
+            Inconsistent(Internal(_) | Expectation(_) | BadLivelitModel(_)),
+          ) as err,
+        )
       | InHole(Common(NoType(_)) as err) => Some(err)
       | NotInHole(_) => None
       | InHole(Common(InvalidUseMode(_)))
@@ -539,7 +546,11 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
   | InexhaustiveMatch(self) =>
     let additional_err =
       switch (status_exp(ctx, ty_ana, self)) {
-      | InHole(Common(Inconsistent(Internal(_)) as inconsistent_err)) =>
+      | InHole(
+          Common(
+            Inconsistent(Internal(_) | BadLivelitModel(_)) as inconsistent_err,
+          ),
+        ) =>
         Some(inconsistent_err)
       | NotInHole(_)
       | InHole(Common(Inconsistent(Expectation(_) | WithArrow(_)))) => None /* Type checking should fail and these errors would be nullified */
@@ -733,7 +744,7 @@ let fixed_typ_err_common: error_common => Typ.t =
   | InvalidUseMode({inner_typ, _}) => inner_typ
   | TupleLabelError({typ, _})
   | DuplicateLabel(_, typ) => typ
-  | Inconsistent(Expectation({ana, _})) => ana
+  | Inconsistent(Expectation({ana, _}) | BadLivelitModel(ana)) => ana
   | Inconsistent(Internal(_)) => Unknown(Internal) |> Typ.temp // Should this be some sort of meet?
   | Inconsistent(WithArrow(_)) =>
     Arrow(Unknown(Internal) |> Typ.temp, Unknown(Internal) |> Typ.temp)
