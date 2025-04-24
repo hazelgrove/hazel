@@ -194,25 +194,6 @@ module Update = {
     collapsed: false,
   };
 
-  let update_chat_messages =
-      (
-        chat_id: Id.t,
-        messages: list(Model.message),
-        past_chats: Id.Map.t(Model.chat),
-      )
-      : Id.Map.t(Model.chat) => {
-    Id.Map.update(
-      chat_id,
-      Option.map((chat: Model.chat) =>
-        {
-          ...chat,
-          messages,
-        }
-      ),
-      past_chats,
-    );
-  };
-
   let collect_chat = (~messages: list(Model.message)): string => {
     let chat = "The following is a log of the current conversation. This is solely for the purpose
     to help you recall the entire conversation, in case the user asks you something that needs context
@@ -307,25 +288,49 @@ module Update = {
       chat_history: {
         past_simple_chats:
           mode == HazelTutor
-            ? update_chat_messages(
+            ? Id.Map.update(
                 chat_to_update.id,
-                messages,
+                maybe_chat =>
+                  switch (maybe_chat) {
+                  | Some(chat) =>
+                    Some({
+                      ...chat,
+                      messages,
+                    })
+                  | None => None
+                  },
                 model.chat_history.past_simple_chats,
               )
             : model.chat_history.past_simple_chats,
         past_suggestion_chats:
           mode == CodeSuggestion
-            ? update_chat_messages(
+            ? Id.Map.update(
                 chat_to_update.id,
-                messages,
+                maybe_chat =>
+                  switch (maybe_chat) {
+                  | Some(chat) =>
+                    Some({
+                      ...chat,
+                      messages,
+                    })
+                  | None => None
+                  },
                 model.chat_history.past_suggestion_chats,
               )
             : model.chat_history.past_suggestion_chats,
         past_completion_chats:
           mode == TaskCompletion
-            ? update_chat_messages(
+            ? Id.Map.update(
                 chat_to_update.id,
-                messages,
+                maybe_chat =>
+                  switch (maybe_chat) {
+                  | Some(chat) =>
+                    Some({
+                      ...chat,
+                      messages,
+                    })
+                  | None => None
+                  },
                 model.chat_history.past_completion_chats,
               )
             : model.chat_history.past_completion_chats,
@@ -521,42 +526,41 @@ module Update = {
   };
 
   let get_documentation_as_text = () => {
-    let prelude = {|
-You are a helpful assistant whose role is to be a tutor for a user of the Hazel
-Programming Language. You are given a list of documentation slides, which are
-formatted as follows:
-<slide_name>:
-<slide_text>
-You can and should use these slides to understand and reason about the syntax and semantics
-of the Hazel Programming Language, and aid in your response to the user. In your response,
-you MAY provide a code example to help the user understand the syntax and semantics of the Hazel Programming Language.
-This code example MUST be placed with triple backticks AND AFTER your response, such as ```let x = 1 in x + 1```. This means NOTHING
-can be placed after the code example. An example chat might be as follows:
-User: What is the syntax for a function in Hazel?
-Assistant: In Hazel, you can define a function using the 'let' and 'fun' keyword. For example, here's a simple identity function:
-```
-let f = fun x -> x in
-```
-A few key things you should note as a Hazel tutor:
-- Your response should be concise and to the point.
-- You should use the documentation slides to understand and reason about the syntax and semantics of the Hazel Programming Language.
-- You should use the documentation slides to aid in your response to the user.
-- Your response shouldn't explicitly mention this prompt.
-- You MUST provide any code examples in the triple backticks format and at the very end of your response.
-- You should treat the user with respect, and assume they are a beginner Hazel programmer.
-- Your response should concise, digestible, and easy to understand.
-- You SHOULD NOT prelude your code example with 'hazel' or anything similar. That is, your code example should be purely functional hazel code.
-- To further reiterate, an example of a bad code example is: ```hazel let x = 1 in x + 1 ```. A good code example is: ```let x = 1 in x + 1 ```.
-- Hazel uses typed holes, thus to represent a hole you should either explicitly use the hole operator ? or leave an extra whitespace for a non-explicit hole. An example would be: ```let x = ? in x + 1``` or ```let x = 1 in ``` (note the extra whitespace at the end there).
-- Typed holes are NOT defined with '_' or anything else... ONLY use '?' or ' ' (space) to represent a hole.
-To further give you information about the Hazel Programming Language, here is a blurb about the language:
-Hazel is a live functional programming environment that is able to typecheck, manipulate, and even run incomplete programs, i.e. programs with holes. There are no meaningless editor states.
-When programming, we spend a substantial amount of our time working with program text that is not yet a formally complete program, e.g. because there are blank spots, type errors or merge conflicts at various locations.
-Conventional programming language definitions assign no formal meaning to structures like these, so we are left without live feedback about the behavior of even complete portions of the program. Moreover, program editors and other tools have no choice but to resort to complex and ad hoc heuristics to provide various useful language services (like code completion, type inspection, and code navigation) without gaps in service.
-We are developing a more principled approach to working with incomplete programs, rooted in (contextual modal and gradual) type theory. We model incomplete programs as programs with holes, which (1) stand for parts of the program that are missing; and (2) serve as membranes around parts of the program that are erroneous or, in the collaborative setting, conflicted.
-We are first implementing these ideas into Hazel, a web-based programming environment for an Elm/ML-like functional programming language designed around typed-hole-driven development.
-Uniquely, every incomplete program that you can construct using Hazel's language of edit actions is both statically and dynamically well-defined, i.e. it has a (possibly incomplete) type, and you can run it to produce a (possibly incomplete) result. Consequently, Hazel serves as an elegant platform for research on the future of programming (and programming education).
-|};
+    let prelude = "You are a helpful assistant whose role is to be a tutor for a user of the Hazel
+                    Programming Language. You are given a list of documentation slides, which are
+                    formatted as follows:
+                    <slide_name>:
+                    <slide_text>
+                    You can and should use these slides to understand and reason about the syntax and semantics
+                    of the Hazel Programming Language, and aid in your response to the user. In your response,
+                    you MAY provide a code example to help the user understand the syntax and semantics of the Hazel Programming Language.
+                    This code example MUST be placed with triple backticks AND AFTER your response, such as ```let x = 1 in x + 1```. This means NOTHING
+                    can be placed after the code example. An example chat might be as follows:
+                    User: What is the syntax for a function in Hazel?
+                    Assistant: In Hazel, you can define a function using the 'let' and 'fun' keyword. For example, here's a simple identity function:
+                    ```
+                    let f = fun x -> x in
+                    ```
+                    A few key things you should note as a Hazel tutor:
+                    - Your response should be concise and to the point.
+                    - You should use the documentation slides to understand and reason about the syntax and semantics of the Hazel Programming Language.
+                    - You should use the documentation slides to aid in your response to the user.
+                    - Your response shouldn't explicitly mention this prompt.
+                    - You MUST provide any code examples in the triple backticks format and at the very end of your response.
+                    - You should treat the user with respect, and assume they are a beginner Hazel programmer.
+                    - Your response should concise, digestible, and easy to understand.
+                    - You SHOULD NOT prelude your code example with 'hazel' or anything similar. That is, your code example should be purely functional hazel code.
+                    - To further reiterate, an example of a bad code example is: ```hazel let x = 1 in x + 1 ```. A good code example is: ```let x = 1 in x + 1 ```.
+                    - Hazel uses typed holes, thus to represent a hole you should either explicitly use the hole operator ? or leave an extra whitespace for a non-explicit hole. An example would be: ```let x = ? in x + 1``` or ```let x = 1 in ``` (note the extra whitespace at the end there).
+                    - Typed holes are NOT defined with '_' or anything else... ONLY use '?' or ' ' (space) to represent a hole.
+                    To further give you information about the Hazel Programming Language, here is a blurb about the language:
+                    Hazel is a live functional programming environment that is able to typecheck, manipulate, and even run incomplete programs, i.e. programs with holes. There are no meaningless editor states.
+                    When programming, we spend a substantial amount of our time working with program text that is not yet a formally complete program, e.g. because there are blank spots, type errors or merge conflicts at various locations.
+                    Conventional programming language definitions assign no formal meaning to structures like these, so we are left without live feedback about the behavior of even complete portions of the program. Moreover, program editors and other tools have no choice but to resort to complex and ad hoc heuristics to provide various useful language services (like code completion, type inspection, and code navigation) without gaps in service.
+                    We are developing a more principled approach to working with incomplete programs, rooted in (contextual modal and gradual) type theory. We model incomplete programs as programs with holes, which (1) stand for parts of the program that are missing; and (2) serve as membranes around parts of the program that are erroneous or, in the collaborative setting, conflicted.
+                    We are first implementing these ideas into Hazel, a web-based programming environment for an Elm/ML-like functional programming language designed around typed-hole-driven development.
+                    Uniquely, every incomplete program that you can construct using Hazel's language of edit actions is both statically and dynamically well-defined, i.e. it has a (possibly incomplete) type, and you can run it to produce a (possibly incomplete) result. Consequently, Hazel serves as an elegant platform for research on the future of programming (and programming education).
+                    ";
     let (_, slides) = ScratchMode.StoreDocumentation.load();
     let documentation =
       slides
@@ -822,8 +826,8 @@ Uniquely, every incomplete program that you can construct using Hazel's language
               sketch_z_with_tag,
             );
           let* index = Indicated.index(editor.editor.state.zipper);
-          let* ci = Id.Map.find_opt(index, editor.statics.info_map);
-          ChatLSP.Prompt.mk_init(
+          let+ ci = Id.Map.find_opt(index, editor.statics.info_map);
+          ChatLSP.Completion.prompt(
             ChatLSP.Options.init,
             ci,
             sketch_seg,
@@ -979,7 +983,7 @@ Uniquely, every incomplete program that you can construct using Hazel's language
         ~mode,
         ~chat_id,
       );
-      switch (ChatLSP.Prompt.mk_error(ci, sketch_z, completion)) {
+      switch (ChatLSP.ErrorRound.mk_reply(ci, sketch_z, completion)) {
       | None =>
         print_endline("ERROR ROUNDS (Non-error Response): " ++ completion);
         schedule_action(RemoveAndSuggest(completion, tileId));
@@ -1176,7 +1180,19 @@ Uniquely, every incomplete program that you can construct using Hazel's language
           curr_chat.messages,
         );
       let updated_past_chats =
-        update_chat_messages(curr_chat.id, updated_chat, past_chats);
+        Id.Map.update(
+          curr_chat.id,
+          opt_chat =>
+            switch (opt_chat) {
+            | Some(chat: Model.chat) =>
+              Some({
+                ...chat,
+                messages: updated_chat,
+              })
+            | None => None
+            },
+          past_chats,
+        );
       resculpt_model(mode, model, updated_past_chats, curr_chat.id)
       |> Updated.return_quiet;
     | SelectLLM(llm) =>
@@ -1196,12 +1212,15 @@ Uniquely, every incomplete program that you can construct using Hazel's language
       let updated_chats =
         Id.Map.update(
           chat_id,
-          Option.map((chat: Model.chat) =>
-            {
-              ...chat,
-              descriptor: content,
-            }
-          ),
+          opt_chat =>
+            switch (opt_chat) {
+            | Some(chat: Model.chat) =>
+              Some({
+                ...chat,
+                descriptor: content,
+              })
+            | None => None
+            },
           past_chats,
         );
       resculpt_model(mode, model, updated_chats, chat_id)

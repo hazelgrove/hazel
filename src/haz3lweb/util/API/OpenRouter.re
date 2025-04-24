@@ -171,18 +171,23 @@ let handle_chat = (~db=ignore, response: option(Json.t)): option(result) => {
   };
 };
 
+let mk_system_msg = (content: string): message => {
+  role: System,
+  content,
+};
+
+let mk_user_msg = (content: string): message => {
+  role: User,
+  content,
+};
+
+let mk_assistant_msg = (content: string): message => {
+  role: Assistant,
+  content,
+};
+
 let add_to_prompt = (prompt, ~assistant, ~user): prompt =>
-  prompt
-  @ [
-    {
-      role: Assistant,
-      content: assistant,
-    },
-    {
-      role: User,
-      content: user,
-    },
-  ];
+  prompt @ [mk_assistant_msg(assistant), mk_user_msg(user)];
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pricing = {
