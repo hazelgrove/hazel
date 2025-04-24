@@ -81,7 +81,7 @@ let textarea =
   );
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type model = unit;
+type model('ed) = unit;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action = unit;
 

@@ -9,13 +9,13 @@ type mode =
   | Flipped;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type model = mode;
+type model('ed) = mode;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action =
   | SetMode(mode);
 
-let model_of_sexp = (sexp: Sexplib.Sexp.t): model =>
-  switch (model_of_sexp(sexp)) {
+let model_of_sexp = (ed_of_sexp, sexp: Sexplib.Sexp.t): model('ed) =>
+  switch (model_of_sexp(ed_of_sexp, sexp)) {
   | exception _ => Show
   | m => m
   };
@@ -603,7 +603,7 @@ module Hand = {
 let focusable = Focusable.non;
 let dynamics = false;
 
-let init = (info: TermBase.Any.t): option(model) =>
+let init = (info: TermBase.Any.t): option(model('ed)) =>
   SyntaxTerm.get_opt(info) != None ? Some(Show) : None;
 
 let placeholder = (_, info): ProjectorShape.t => {

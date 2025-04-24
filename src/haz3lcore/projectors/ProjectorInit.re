@@ -5,7 +5,12 @@ open ProjectorBase;
  * this function must be reified whenever projector methods
  * are to be called; see `shape` below for an example */
 let to_module =
-    (type model, type action, kind: ProjectorCore.Kind.gadt(model, action))
+    (
+      type ed,
+      type model,
+      type action,
+      kind: ProjectorCore.Kind.gadt(model, action, ed),
+    )
     : ProjectorBase.methods(model, action, 'p) =>
   switch (kind) {
   | Fold => FoldProj.methods
@@ -18,7 +23,9 @@ let to_module =
   | TextArea => TextAreaProj.methods
   };
 
-let init = (kind: ProjectorCore.Kind.t, any: Term.Any.t): option('p) => {
+let init =
+    (kind: ProjectorCore.Kind.t, any: Term.Any.t)
+    : option(ProjectorCore.model('a)) => {
   open ProjectorCore.Kind;
   let.gadt W(kind_gadt) = kind;
   let methods = to_module(kind_gadt);
@@ -28,7 +35,7 @@ let init = (kind: ProjectorCore.Kind.t, any: Term.Any.t): option('p) => {
   };
 };
 
-let make_term = (V(k, m): ProjectorCore.model, exp): Any.t => {
+let make_term = (V(k, m): ProjectorCore.model('ed), exp): Any.t => {
   let methods = to_module(k);
   methods.mk_term(m, exp);
 };

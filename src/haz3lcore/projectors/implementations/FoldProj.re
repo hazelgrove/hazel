@@ -4,7 +4,7 @@ open Virtual_dom.Vdom;
 open Node;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type model = {
+type model('ed) = {
   [@default "⋱"]
   text: string,
 };
@@ -12,12 +12,12 @@ type model = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action = unit;
 
-let init = _ => Some({text: "⋱"}: model);
+let init = _ => Some({text: "⋱"}: model('ed));
 
 let focusable = Focusable.non;
 let dynamics = false;
 
-let placeholder = (m: model, _) =>
+let placeholder = (m: model('ed), _) =>
   ProjectorShape.inline(m.text == "⋱" ? 2 : m.text |> String.length);
 let update = (m, _, _) => m;
 
@@ -30,7 +30,7 @@ let hover_view = (view_seg: View.seg('p), info: info('p)) => {
   );
 };
 
-let view = (m: model, info: info('p), ~local as _, ~parent, ~view_seg) =>
+let view = (m: model('ed), info: info('p), ~local as _, ~parent, ~view_seg) =>
   ProjectorBase.View.mk(
     div(
       ~attrs=[Attr.on_double_click(_ => parent(Remove))],

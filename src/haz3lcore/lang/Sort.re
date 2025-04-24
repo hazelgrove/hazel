@@ -6,7 +6,6 @@ type t =
   | TPat
   | Rul
   | Exp;
-
 let root = Exp;
 
 let consistent = (s, s') =>

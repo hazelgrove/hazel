@@ -22,7 +22,11 @@ module type Introducable = {
 module IntroducePat: Introducable with type t = Pat.t = {
   type t = Pat.t;
   let parse: type p. Segment.t(p) => t =
-    selection =>
+    (type p', selection) => {
+      module MakeTerm =
+        MakeTerm.Go({
+          type p = p';
+        });
       MakeTerm.(
         pat(
           unsorted(
@@ -33,6 +37,7 @@ module IntroducePat: Introducable with type t = Pat.t = {
           ),
         )
       );
+    };
   let is_hole = (pat: Pat.t) => {
     switch (pat.term) {
     | EmptyHole => true
@@ -88,7 +93,11 @@ module IntroducePat: Introducable with type t = Pat.t = {
 
 module IntroduceExp: Introducable with type t = Exp.t = {
   type t = Exp.t;
-  let parse = selection =>
+  let parse = (type p', selection) => {
+    module MakeTerm =
+      MakeTerm.Go({
+        type p = p';
+      });
     MakeTerm.(
       exp(
         unsorted(
@@ -99,6 +108,7 @@ module IntroduceExp: Introducable with type t = Exp.t = {
         ),
       )
     );
+  };
   let is_hole = (exp: Exp.t) => {
     switch (exp.term) {
     | EmptyHole => true

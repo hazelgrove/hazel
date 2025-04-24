@@ -2,6 +2,8 @@ open Virtual_dom.Vdom;
 open Node;
 open ProjectorBase;
 
+/* =========== HELPERS ============ */
+
 let expected_ty = (info: option(Info.t)): option(Typ.t) =>
   switch (info) {
   | Some(InfoExp({ana, _}))
@@ -22,26 +24,38 @@ let totalize_ty = (expected_ty: option(Typ.t)): Typ.t =>
   | None => Typ.fresh(Unknown(Internal))
   };
 
+/* =========== MODEL =========== */
+
 [@deriving (show({with_path: false}), sexp, yojson)]
-type model =
+type mode =
   | Expected
   | Self;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type model('ed) = (mode, 'ed);
+
+let init = (any: Term.Any.t, ed: unit => 'ed): option(model('ed)) => {
+  switch (any) {
+  | Exp(_)
+  | Pat(_) => Some((Expected, ed()))
+  | Any () => Some((Expected, ed())) /* Grout don't have sorts rn */
+  | _ => None
+  };
+};
+
+/* =========== UPDATE =========== */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action =
   | ToggleDisplay;
 
-let init = (any: Term.Any.t): option(model) => {
-  switch (any) {
-  | Exp(_)
-  | Pat(_) => Some(Expected)
-  | Any () => Some(Expected) /* Grout don't have sorts rn */
-  | _ => None
+let update = (model, _, a: action) =>
+  switch (a, model) {
+  | (ToggleDisplay, Expected) => Self
+  | (ToggleDisplay, Self) => Expected
   };
-};
 
-let dynamics = false;
-let focusable = Focusable.non;
+/* =========== VIEW =========== */
 
 let display_ty = (model, statics): option(Typ.t) =>
   switch (model) {
@@ -51,12 +65,12 @@ let display_ty = (model, statics): option(Typ.t) =>
   | Expected => statics |> expected_ty
   };
 
-let display_mode = (model: model, statics: option(Info.t)): string =>
+let display_mode = (model: model('ed), statics: option(Info.t)): string =>
   switch (model) {
   | _ when self_ty(statics) == expected_ty(statics) => "⇔"
   | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn => "⇒"
-  | Self => "⇒"
-  | Expected => "⇐"
+  | (Self, _) => "⇒"
+  | (Expected, _) => "⇐"
   };
 
 let mode_view = (model, info) =>
@@ -65,36 +79,16 @@ let mode_view = (model, info) =>
     [text(display_mode(model, info))],
   );
 
-let typ_view = (model, info: info('p), utility, view_seg: View.seg('p)) => {
+let typ_view = (model, info: info, view_any: Any.t => Node.t) => {
   let typ = display_ty(model, info.statics) |> totalize_ty;
-  div(
-    ~attrs=[Attr.classes(["type-cell"])],
-    [Typ(typ) |> utility.term_to_seg |> view_seg(Sort.Typ)],
-  );
+  div(~attrs=[Attr.classes(["type-cell"])], [Typ(typ) |> view_any]);
 };
 
-let update = (model, _, a: action) =>
-  switch (a, model) {
-  | (ToggleDisplay, Expected) => Self
-  | (ToggleDisplay, Self) => Expected
-  };
-
-let syntax_str = (info: info('p)) => {
-  let max_len = 30;
-  let seg = Segment.unparenthesize(info.syntax);
-  let str = Printer.of_segment(~holes=Some("?"), seg);
-  let str = Re.Str.global_replace(Re.Str.regexp("\n"), " ", str);
-  String.length(str) > max_len ? String.sub(str, 0, max_len) ++ "..." : str;
-};
-
-let placeholder = (_m, info) =>
-  ProjectorShape.inline(3 + String.length(syntax_str(info)));
-
-let syntax_view = (info: info('p)) => info |> syntax_str |> text;
-
+let placeholder = (~ed_length, (_, ed), info) =>
+  ProjectorShape.inline(3 + ed_length(ed));
 let icon = div(~attrs=[Attr.classes(["icon"])], []);
 
-let view = (model, info, ~local, ~parent as _, ~view_seg) =>
+let view = (~ed_str, model, info, ~local, ~parent as _, ~view_any) =>
   View.{
     inline:
       div(
@@ -102,7 +96,7 @@ let view = (model, info, ~local, ~parent as _, ~view_seg) =>
           Attr.classes(["main"]),
           Attr.on_double_click(_ => local(ToggleDisplay)),
         ],
-        [syntax_view(info), icon],
+        [model |> snd |> ed_str |> text, icon],
       ),
     offside:
       Some(
@@ -110,7 +104,7 @@ let view = (model, info, ~local, ~parent as _, ~view_seg) =>
           ~attrs=[Attr.classes(["offside"])],
           [
             mode_view(model, info.statics),
-            typ_view(model, info, info.utility, view_seg),
+            typ_view(fst(model), info, view_any),
           ],
         ),
       ),
@@ -121,8 +115,8 @@ let mk_term = mk_term_default;
 
 let methods = {
   init,
-  focusable,
-  dynamics,
+  focusable: Focusable.non,
+  dynamics: false,
   view,
   placeholder,
   update,

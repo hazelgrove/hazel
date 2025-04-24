@@ -107,7 +107,7 @@ let rm_opaques:
   );
 
 /* Don't redundantly show an env for variable references, patterns */
-let hide_env = (info: info('p)): bool =>
+let hide_env = (info: info): bool =>
   switch (info.statics) {
   | Some(
       InfoExp({term: {term: Var(_) | Probe({term: Var(_), _}, _), _}, _}),
@@ -119,7 +119,7 @@ let hide_env = (info: info('p)): bool =>
 
 let show_purps = ref(false);
 
-let cur_ap = (info: info('p)) =>
+let cur_ap = (info: info) =>
   switch (info.statics) {
   | Some(InfoExp({term: {term: Ap(_), _} as ap, _}))
   | Some(InfoExp({term: {term: Probe({term: Ap(_), _} as ap, _), _}, _}))
@@ -153,11 +153,11 @@ module DynCursor = {
     s.call_cursor = closure.call_stack;
   };
 
-  let capture_ap = (info: info('p)): unit => {
+  let capture_ap = (info: info): unit => {
     s.indicated_call = cur_ap(info);
   };
 
-  let capture = (info: info('p), closure: closure): unit => {
+  let capture = (info: info, closure: closure): unit => {
     capture_cursor(closure);
     capture_ap(info);
   };
@@ -170,7 +170,7 @@ module DynCursor = {
 
   /* If one of the current probe's cells is not already selected,
    * select the first one */
-  let probe_default = (info: info('p)): unit =>
+  let probe_default = (info: info): unit =>
     switch (info.dynamics) {
     | Some(closures) when is_in(closures) != None => capture_ap(info)
     | Some(closures) =>
@@ -218,14 +218,14 @@ module DynCursor = {
     | (_, _) => Same
     };
 
-  let cur_call = (info: info('p), closure: closure) => {
+  let cur_call = (info: info, closure: closure) => {
     open OptUtil.Syntax;
     let* lex = cur_ap(info);
     let dyn = closure.call_stack;
     Some([lex, ...dyn]);
   };
 
-  let relation = (info: info('p), closure: closure): relation => {
+  let relation = (info: info, closure: closure): relation => {
     open OptUtil.Syntax;
     let this = closure.call_stack;
     let cursor = s.call_cursor;
@@ -243,7 +243,7 @@ module DynCursor = {
     };
   };
 
-  let clss = (info: info('p), closure: closure): list(string) => {
+  let clss = (info: info, closure: closure): list(string) => {
     let relation = relation(info, closure);
     (
       switch (
@@ -285,7 +285,7 @@ module DynCursor = {
   };
 
   let first_cursor_closure =
-      (info: info('p), closures: list(closure)): option(closure) => {
+      (info: info, closures: list(closure)): option(closure) => {
     let find_cursor =
       List.find_opt(
         (closure: closure) => relation(info, closure).is_call_cursor,
@@ -303,13 +303,13 @@ module DynCursor = {
     |> OptUtil.and_then(ListUtil.hd_opt) == cur_ap(info);
   };
 
-  let is_pinned = (info: info('p)): bool =>
+  let is_pinned = (info: info): bool =>
     switch (OptUtil.and_then(is_in, info.dynamics)) {
     | Some(closure_cursor) => s.pinned_call == cur_call(info, closure_cursor)
     | _ => false
     };
 
-  let pin_call = (info: info('p)): unit =>
+  let pin_call = (info: info): unit =>
     switch (OptUtil.and_then(is_in, info.dynamics)) {
     | Some(closure_cursor) => s.pinned_call = cur_call(info, closure_cursor)
     | _ => ()
@@ -319,7 +319,7 @@ module DynCursor = {
     s.pinned_call = None;
   };
 
-  let toggle_pinned_call = (info: info('p)) =>
+  let toggle_pinned_call = (info: info) =>
     switch (s.pinned_call) {
     | Some(pinned_ap) when ListUtil.hd_opt(pinned_ap) == cur_ap(info) =>
       /* already pinned case */
@@ -351,7 +351,7 @@ module DynCursor = {
 
 module Closures = {
   let filter_frames_by_pin =
-      (info: info('p), frames: list(closure)): list(closure) =>
+      (info: info, frames: list(closure)): list(closure) =>
     switch (DynCursor.s.pinned_call) {
     | Some(pinned_ap) =>
       List.filter(
@@ -363,14 +363,13 @@ module Closures = {
     | None => frames
     };
 
-  let total = (info: info('p)): int =>
+  let total = (info: info): int =>
     switch (info.dynamics) {
     | Some(closures) => List.length(filter_frames_by_pin(info, closures))
     | None => 0
     };
 
-  let select_frames =
-      (info: info('p), closures: list(closure)): list(closure) => {
+  let select_frames = (info: info, closures: list(closure)): list(closure) => {
     let closures = filter_frames_by_pin(info, closures);
     let cursor_idx =
       switch (DynCursor.first_index_of_interest(info, closures)) {
@@ -494,7 +493,7 @@ module ValueState = {
 
 let value_view =
     (
-      info: info('p),
+      info: info,
       utility: utility('p),
       view_seg,
       local,
@@ -587,7 +586,7 @@ let env_view = (closure: closure, view_seg, utility: utility('p)): Node.t =>
 
 let closure_view =
     (
-      info: info('p),
+      info: info,
       utility: utility('p),
       view_seg,
       local,
@@ -645,7 +644,7 @@ let equals_view =
 
 let offside_view =
     (
-      info: info('p),
+      info: info,
       local: action => Ui_effect.t(unit),
       view_seg: View.seg('p),
       utility: utility('p),
@@ -924,7 +923,7 @@ let mk_term = (_model, exp: Any.t): Any.t => {
   };
 };
 
-type model = unit;
+type model('ed) = unit;
 
 let methods = {
   init,

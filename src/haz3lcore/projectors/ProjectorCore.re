@@ -27,17 +27,17 @@ module Kind = {
     | Card
     | TextArea;
 
-  type gadt('model, 'action) =
-    | Fold: gadt(FoldProj.model, FoldProj.action)
-    | Info: gadt(TypeProj.model, TypeProj.action)
-    | Probe: gadt(ProbeProj.model, ProbeProj.action)
-    | Checkbox: gadt(CheckboxProj.model, CheckboxProj.action)
-    | Slider: gadt(SliderProj.model, SliderProj.action)
-    | SliderF: gadt(SliderFProj.model, SliderFProj.action)
-    | Card: gadt(CardProj.model, CardProj.action)
-    | TextArea: gadt(TextAreaProj.model, TextAreaProj.action);
+  type gadt('model, 'action, 'ed) =
+    | Fold: gadt(FoldProj.model('ed), FoldProj.action, 'ed)
+    | Info: gadt(TypeProj.model('ed), TypeProj.action, 'ed)
+    | Probe: gadt(ProbeProj.model('ed), ProbeProj.action, 'ed)
+    | Checkbox: gadt(CheckboxProj.model('ed), CheckboxProj.action, 'ed)
+    | Slider: gadt(SliderProj.model('ed), SliderProj.action, 'ed)
+    | SliderF: gadt(SliderFProj.model('ed), SliderFProj.action, 'ed)
+    | Card: gadt(CardProj.model('ed), CardProj.action, 'ed)
+    | TextArea: gadt(TextAreaProj.model('ed), TextAreaProj.action, 'ed);
 
-  let of_gadt = (type m, type a, kind: gadt(m, a)): t =>
+  let of_gadt = (type m, type a, type ed, kind: gadt(m, a, ed)): t =>
     switch (kind) {
     | Fold => Fold
     | Info => Info
@@ -49,10 +49,10 @@ module Kind = {
     | TextArea => TextArea
     };
 
-  type w =
-    | W(gadt('a, 'b)): w;
+  type w('ed) =
+    | W(gadt('a, 'b, 'ed)): w('ed);
 
-  let (let.gadt) = (type b, kind: t, f: w => b) =>
+  let (let.gadt) = (type b, kind: t, f: w('ed) => b) =>
     switch (kind) {
     | Fold => f(W(Fold))
     | Info => f(W(Info))
@@ -106,12 +106,12 @@ module Kind = {
     };
 };
 
-type model =
-  | V(Kind.gadt('a, 'b), 'a): model;
+type model('ed) =
+  | V(Kind.gadt('a, 'b, 'ed), 'a): model('ed);
 
 let kind_of_model = (V(x, _)) => Kind.of_gadt(x);
 
-let pp_model = (f, model) =>
+let pp_model = (type ed, _pp_ed, f, model: model(ed)) =>
   Format.fprintf(
     f,
     switch (model) {
@@ -126,53 +126,69 @@ let pp_model = (f, model) =>
     },
   );
 
-let model_of_sexp = (sexp: Sexplib.Sexp.t): model =>
+let model_of_sexp = (ed_of_sexp, sexp: Sexplib.Sexp.t): model('ed) =>
   // take s-expressions of the form ("fold", m), deserialize m, and turn it into V(Fold, m)
   switch (sexp) {
-  | List([Atom("fold"), m]) => V(Fold, m |> FoldProj.model_of_sexp)
-  | List([Atom("info"), m]) => V(Info, m |> TypeProj.model_of_sexp)
+  | List([Atom("fold"), m]) =>
+    V(Fold, m |> FoldProj.model_of_sexp(ed_of_sexp))
+  | List([Atom("info"), m]) =>
+    V(Info, m |> TypeProj.model_of_sexp(ed_of_sexp))
   | List([Atom("probe"), _]) => V(Probe, ())
   | List([Atom("checkbox"), _]) => V(Checkbox, ())
   | List([Atom("slider"), _]) => V(Slider, ())
   | List([Atom("sliderf"), _]) => V(SliderF, ())
-  | List([Atom("card"), m]) => V(Card, m |> CardProj.model_of_sexp)
+  | List([Atom("card"), m]) =>
+    V(Card, m |> CardProj.model_of_sexp(ed_of_sexp))
   | List([Atom("text"), _]) => V(TextArea, ())
   | _ => failwith("Unknown projector kind")
   };
 
-let sexp_of_model = (model: model): Sexplib.Sexp.t =>
+let sexp_of_model =
+    (type ed, sexp_of_ed: ed => Sexplib0.Sexp.t, model: model(ed))
+    : Sexplib.Sexp.t =>
   switch (model) {
-  | V(Fold, m) => List([Atom("fold"), m |> FoldProj.sexp_of_model])
-  | V(Info, m) => List([Atom("info"), m |> TypeProj.sexp_of_model])
+  | V(Fold, m) =>
+    List([Atom("fold"), m |> FoldProj.sexp_of_model(sexp_of_ed)])
+  | V(Info, m) =>
+    List([Atom("info"), m |> TypeProj.sexp_of_model(sexp_of_ed)])
   | V(Probe, _) => List([Atom("probe"), () |> sexp_of_unit])
   | V(Checkbox, _) => List([Atom("checkbox"), () |> sexp_of_unit])
   | V(Slider, _) => List([Atom("slider"), () |> sexp_of_unit])
   | V(SliderF, _) => List([Atom("sliderf"), () |> sexp_of_unit])
-  | V(Card, m) => List([Atom("card"), m |> CardProj.sexp_of_model])
+  | V(Card, m) =>
+    List([Atom("card"), m |> CardProj.sexp_of_model(sexp_of_ed)])
   | V(TextArea, _) => List([Atom("text"), () |> sexp_of_unit])
   };
 
-let model_of_yojson = (yojson: Yojson.Safe.t): model =>
+let model_of_yojson = (ed_of_yojson, yojson: Yojson.Safe.t): model('ed) =>
   switch (yojson) {
-  | `List([`String("fold"), m]) => V(Fold, m |> FoldProj.model_of_yojson)
-  | `List([`String("info"), m]) => V(Info, m |> TypeProj.model_of_yojson)
+  | `List([`String("fold"), m]) =>
+    V(Fold, m |> FoldProj.model_of_yojson(ed_of_yojson))
+  | `List([`String("info"), m]) =>
+    V(Info, m |> TypeProj.model_of_yojson(ed_of_yojson))
   | `List([`String("probe"), _]) => V(Probe, ())
   | `List([`String("checkbox"), _]) => V(Checkbox, ())
   | `List([`String("slider"), _]) => V(Slider, ())
   | `List([`String("sliderf"), _]) => V(SliderF, ())
-  | `List([`String("card"), m]) => V(Card, m |> CardProj.model_of_yojson)
+  | `List([`String("card"), m]) =>
+    V(Card, m |> CardProj.model_of_yojson(ed_of_yojson))
   | `List([`String("text"), _]) => V(TextArea, ())
   | _ => failwith("Unknown projector kind")
   };
 
-let yojson_of_model = (model: model): Yojson.Safe.t =>
+let yojson_of_model =
+    (type ed, yojson_of_ed: ed => Yojson.Safe.t, model: model(ed))
+    : Yojson.Safe.t =>
   switch (model) {
-  | V(Fold, m) => `List([`String("fold"), m |> FoldProj.yojson_of_model])
-  | V(Info, m) => `List([`String("info"), m |> TypeProj.yojson_of_model])
+  | V(Fold, m) =>
+    `List([`String("fold"), m |> FoldProj.yojson_of_model(yojson_of_ed)])
+  | V(Info, m) =>
+    `List([`String("info"), m |> TypeProj.yojson_of_model(yojson_of_ed)])
   | V(Probe, _) => `List([`String("probe"), () |> yojson_of_unit])
   | V(Checkbox, _) => `List([`String("checkbox"), () |> yojson_of_unit])
   | V(Slider, _) => `List([`String("slider"), () |> yojson_of_unit])
   | V(SliderF, _) => `List([`String("sliderf"), () |> yojson_of_unit])
-  | V(Card, m) => `List([`String("card"), m |> CardProj.yojson_of_model])
+  | V(Card, m) =>
+    `List([`String("card"), m |> CardProj.yojson_of_model(yojson_of_ed)])
   | V(TextArea, _) => `List([`String("text"), () |> yojson_of_unit])
   };

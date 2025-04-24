@@ -37,7 +37,15 @@ module CachedSyntax = {
   let yojson_of_t = _ => failwith("Editor.Meta.yojson_of_t");
   let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 
-  let init = (~projector_to_term, ~info_map, ~dyn_map, z): t('p) => {
+  let init =
+      (
+        type p,
+        ~projector_to_term: (p, list(Any.t)) => Any.t,
+        ~info_map,
+        ~dyn_map,
+        z: Zipper.t(p),
+      )
+      : t(p) => {
     let segment = Zipper.unselect_and_zip(z);
     let MakeTerm.{term: _, terms, projectors} =
       MakeTerm.go(segment, ~of_projector=projector_to_term);
@@ -106,7 +114,12 @@ module Model = {
     syntax: CachedSyntax.t('p),
   };
 
-  let mk = (~projector_to_term, zipper) => {
+  let mk =
+      (
+        type a,
+        ~projector_to_term: (a, list(Any.t)) => Any.t,
+        zipper: Zipper.t(a),
+      ) => {
     state: {
       zipper,
       col_target: None,

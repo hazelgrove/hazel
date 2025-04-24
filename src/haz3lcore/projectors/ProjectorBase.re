@@ -16,10 +16,10 @@ open Virtual_dom.Vdom;
 type syntax('p) = Base.piece('p);
 
 /* Global actions available to handlers in all projectors */
-type external_action('p) =
+type external_action =
   | Remove /* Remove projector entirely */
   | Escape(Util.Direction.t) /* Pass focus to parent editor */
-  | SetSyntax(Base.segment('p)); /* Set underlying syntax */
+  | SetSyntax(Any.t); /* Set underlying syntax */
 
 /* Syntax utility functions/values for projector use,
  * provided here to resolve cyclic dependency issues */
@@ -65,7 +65,7 @@ module Focusable = {
 
 /* External info proivded to all projectors */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type info('p) = {
+type info = {
   /* The id of the projector, equal to the id of the root
    * term of the syntax, provided directly here for convenience.
    * This is mostly intended to be used as a persistent unique
@@ -81,9 +81,6 @@ type info('p) = {
    * disabled by the user; this case (None) must be
    * handled by projector authors */
   dynamics: option(Dynamics.Info.t),
-  /* Syntax utility functions/values for projector use,
-   * provided here to resolve cyclic dependency issues */
-  utility: utility('p),
 };
 
 module View = {
@@ -99,9 +96,6 @@ module View = {
     offside: option(Node.t),
   };
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type seg('p) = (~background: bool=?, Sort.t, list(syntax('p))) => Node.t;
-
   let mk = (~overlay=None, ~offside=None, inline) => {
     inline,
     overlay,
@@ -109,21 +103,20 @@ module View = {
   };
 };
 
-type methods('model, 'action, 'p) = {
-  init: Term.Any.t => option('model),
+type methods('model, 'action, 'ed) = {
+  init: (Term.Any.t, unit => 'ed) => option('model),
   focusable: Focusable.t,
   dynamics: bool,
   view:
     (
       'model,
-      info('p),
+      info,
       ~local: 'action => Ui_effect.t(unit),
-      ~parent: external_action('p) => Ui_effect.t(unit),
-      ~view_seg: View.seg('p)
+      ~parent: external_action => Ui_effect.t(unit)
     ) =>
     View.t,
-  placeholder: ('model, info('p)) => ProjectorShape.t,
-  update: ('model, info('p), 'action) => 'model,
+  placeholder: ('model, info) => ProjectorShape.t,
+  update: ('model, info, 'action) => 'model,
   mk_term: ('model, Any.t) => Any.t,
 };
 
