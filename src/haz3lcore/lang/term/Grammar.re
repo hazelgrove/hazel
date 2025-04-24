@@ -6,19 +6,19 @@ module Annotated = {
     term: 'a,
     annotation: 'b,
   };
-
-  let pp:
-    type a b.
-      (
-        (Format.formatter, a) => unit,
-        (Format.formatter, b) => unit,
-        Format.formatter,
-        t(a, b)
-      ) =>
-      unit =
-    (fmt_a, _, fmtr, t) => {
-      fmt_a(fmtr, t.term);
-    };
+  /* uncomment to make terms pp without annotation */
+  //   let pp:
+  //     type a b.
+  //       (
+  //         (Format.formatter, a) => unit,
+  //         (Format.formatter, b) => unit,
+  //         Format.formatter,
+  //         t(a, b)
+  //       ) =>
+  //       unit =
+  //     (fmt_a, _, fmtr, t) => {
+  //       fmt_a(fmtr, t.term);
+  //     };
 
   let term_of = x => x.term;
   let unwrap = x => (
