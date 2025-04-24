@@ -13,7 +13,7 @@ and of_piece = (~holes, p: Piece.t('p)): string =>
   | Grout({shape: Convex, _}) => " "
   | Secondary(w) =>
     Secondary.is_linebreak(w) ? "\n" : Secondary.get_string(w.content)
-  | Projector(p) => "🎦" // TODO: print projectors
+  | Projector(_) => "🎦" // TODO: print projectors
   }
 and of_tile = (~holes, t: Tile.t('p)): string =>
   Aba.mk(t.shards, t.children)

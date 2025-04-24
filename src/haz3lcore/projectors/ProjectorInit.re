@@ -11,31 +11,31 @@ let to_module =
       type action,
       kind: ProjectorCore.Kind.gadt(model, action, ed),
     )
-    : ProjectorBase.methods(model, action, 'p) =>
+    : ProjectorBase.methods(model, action, ed) =>
   switch (kind) {
-  | Fold => FoldProj.methods
+  // | Fold => FoldProj.methods
   | Info => TypeProj.methods
-  | Probe => ProbeProj.methods
-  | Checkbox => CheckboxProj.methods
+  // | Probe => ProbeProj.methods
+  // | Checkbox => CheckboxProj.methods
   | Slider => SliderProj.methods
-  | SliderF => SliderFProj.methods
-  | Card => CardProj.methods
-  | TextArea => TextAreaProj.methods
+  // | SliderF => SliderFProj.methods
+  // | Card => CardProj.methods
+  // | TextArea => TextAreaProj.methods
   };
 
 let init =
-    (kind: ProjectorCore.Kind.t, any: Term.Any.t)
-    : option(ProjectorCore.model('a)) => {
+    (type ed, kind: ProjectorCore.Kind.t, any: Term.Any.t, ed: unit => ed)
+    : option(ProjectorCore.model(ed)) => {
   open ProjectorCore.Kind;
   let.gadt W(kind_gadt) = kind;
   let methods = to_module(kind_gadt);
-  switch (methods.init(any)) {
+  switch (methods.init(any, ed)) {
   | None => None
   | Some(model) => Some(ProjectorCore.V(kind_gadt, model))
   };
 };
 
-let make_term = (V(k, m): ProjectorCore.model('ed), exp): Any.t => {
+let make_term = (~term_of_ed, V(k, m): ProjectorCore.model('ed)) => {
   let methods = to_module(k);
-  methods.mk_term(m, exp);
+  methods.mk_term(~term_of_ed, _, m);
 };

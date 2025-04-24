@@ -18,8 +18,7 @@ type syntax('p) = Base.piece('p);
 /* Global actions available to handlers in all projectors */
 type external_action =
   | Remove /* Remove projector entirely */
-  | Escape(Util.Direction.t) /* Pass focus to parent editor */
-  | SetSyntax(Any.t); /* Set underlying syntax */
+  | Escape(Util.Direction.t); /* Pass focus to parent editor */
 
 /* Syntax utility functions/values for projector use,
  * provided here to resolve cyclic dependency issues */
@@ -109,15 +108,17 @@ type methods('model, 'action, 'ed) = {
   dynamics: bool,
   view:
     (
+      ~ed_str: 'ed => string,
+      ~view_any: Any.t => Node.t,
       'model,
       info,
       ~local: 'action => Ui_effect.t(unit),
       ~parent: external_action => Ui_effect.t(unit)
     ) =>
     View.t,
-  placeholder: ('model, info) => ProjectorShape.t,
+  placeholder: (~ed_str: 'ed => string, 'model, info) => ProjectorShape.t,
   update: ('model, info, 'action) => 'model,
-  mk_term: ('model, Any.t) => Any.t,
+  mk_term: (~term_of_ed: (Sort.t, 'ed) => Any.t, Sort.t, 'model) => Any.t,
 };
 
 // /* To add a new projector:
@@ -178,10 +179,6 @@ type methods('model, 'action, 'ed) = {
 //   let update: (model('ed), info('p), action) => model('ed);
 //   let mk_term: (model('ed), Any.t) => Any.t;
 // };
-
-let mk_term_default = (_, exp) => {
-  exp;
-};
 
 /* Projectors currently are all convex */
 let shapes = (_: Base.projector('p)): Nibs.shapes =>

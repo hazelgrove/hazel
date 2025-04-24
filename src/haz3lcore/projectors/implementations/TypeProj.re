@@ -51,8 +51,8 @@ type action =
 
 let update = (model, _, a: action) =>
   switch (a, model) {
-  | (ToggleDisplay, Expected) => Self
-  | (ToggleDisplay, Self) => Expected
+  | (ToggleDisplay, (Expected, m)) => (Self, m)
+  | (ToggleDisplay, (Self, m)) => (Expected, m)
   };
 
 /* =========== VIEW =========== */
@@ -84,11 +84,11 @@ let typ_view = (model, info: info, view_any: Any.t => Node.t) => {
   div(~attrs=[Attr.classes(["type-cell"])], [Typ(typ) |> view_any]);
 };
 
-let placeholder = (~ed_length, (_, ed), info) =>
-  ProjectorShape.inline(3 + ed_length(ed));
+let placeholder = (~ed_str, (_, ed), _info) =>
+  ProjectorShape.inline(3 + String.length(ed_str(ed)));
 let icon = div(~attrs=[Attr.classes(["icon"])], []);
 
-let view = (~ed_str, model, info, ~local, ~parent as _, ~view_any) =>
+let view = (~ed_str, ~view_any, model, info, ~local, ~parent as _) =>
   View.{
     inline:
       div(
@@ -111,7 +111,7 @@ let view = (~ed_str, model, info, ~local, ~parent as _, ~view_any) =>
     overlay: None,
   };
 
-let mk_term = mk_term_default;
+let mk_term = (~term_of_ed, sort, (_, ed)) => term_of_ed(sort, ed);
 
 let methods = {
   init,

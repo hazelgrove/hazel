@@ -3,9 +3,10 @@ open Virtual_dom.Vdom;
 open ProjectorBase;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type model('ed) = unit;
+type model('ed) = Bigint.t;
 [@deriving (show({with_path: false}), sexp, yojson)]
-type action = unit;
+type action =
+  | Set(Bigint.t);
 
 let int_of = (any: Any.t): option(Bigint.t) =>
   switch (any) {
@@ -13,56 +14,27 @@ let int_of = (any: Any.t): option(Bigint.t) =>
   | _ => None
   };
 
-let init = (any: Term.Any.t) =>
+let init = (any: Term.Any.t, _ed) =>
   switch (int_of(any)) {
-  | Some(_) => Some()
+  | Some(i) => Some(i)
   | None => None
-  };
-
-let get = (info: info('p)): Bigint.t =>
-  switch (info.syntax |> info.utility.seg_to_term |> OptUtil.and_then(int_of)) {
-  | Some(i) => i
-  | None => failwith("Slider: Get: not integer literal")
-  };
-
-let put = (info: info('p), v: string): Base.segment('p) =>
-  switch (
-    info.utility.lift_syntax(
-      fun
-      | Exp(t) =>
-        Exp({
-          ...t,
-          term: Atom(Int(Bigint.of_string(v))),
-        })
-      | _ => failwith("Slider: Put: not integer literal"),
-      info.syntax,
-    )
-  ) {
-  | Some(s) => s
-  | None => failwith("Slider: Put: lift failed")
   };
 
 let focusable = Focusable.non;
 let dynamics = false;
-let placeholder = (_, _) => ProjectorShape.inline(10);
+let placeholder = (~ed_str as _, _, _) => ProjectorShape.inline(10);
 let update = (model, _, _) => model;
 
-let view =
-    (
-      _,
-      info,
-      ~local as _,
-      ~parent: external_action('p) => Ui_effect.t(unit),
-      ~view_seg as _,
-    ) =>
+let view = (~ed_str as _, ~view_any as _, model, _info, ~local, ~parent as _) =>
   View.mk(
     Util.Web.range(
-      ~attrs=[Attr.on_input((_, v) => parent(SetSyntax(put(info, v))))],
-      info |> get |> Bigint.to_string,
+      ~attrs=[Attr.on_input((_, v) => local(Set(Bigint.of_string(v))))],
+      model |> Bigint.to_string,
     ),
   );
 
-let mk_term = mk_term_default;
+let mk_term = (~term_of_ed as _, _, m): Any.t =>
+  Exp(Atom(Int(m)) |> Exp.fresh);
 
 let methods = {
   init,

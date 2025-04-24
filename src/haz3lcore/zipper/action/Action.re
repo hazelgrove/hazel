@@ -56,7 +56,6 @@ type chooser =
 type project('p) =
   | SetIndicated(chooser) /* Project syntax at caret */
   | RemoveIndicated /* Remove projector at caret */
-  | SetSyntax(Id.t, Base.segment('p)) /* Set underlying syntax */
   | SetModel(Id.t, 'p) /* Set serialized projector model */
   | Focus(Id.t, ProjectorCore.Kind.t, option(Util.Direction.t)) /* Pass control to projector */
   | Escape(Id.t, Direction.t); /* Pass control to parent editor */
@@ -140,7 +139,6 @@ let is_edit: t('p) => bool =
   | MoveToBackpackTarget(_) => false
   | Project(p) =>
     switch (p) {
-    | SetSyntax(_)
     | SetModel(_)
     | SetIndicated(_)
     | RemoveIndicated => true
@@ -170,7 +168,6 @@ let is_historic: t('p) => bool =
   | Introduce => true
   | Project(p) =>
     switch (p) {
-    | SetSyntax(_)
     | SetModel(_)
     | SetIndicated(_)
     | RemoveIndicated => true
@@ -198,8 +195,7 @@ let prevent_in_read_only_editor = (a: t('p)) => {
   | Introduce => true
   | Project(p) =>
     switch (p) {
-    | SetSyntax(_) => true
-    | SetModel(_)
+    | SetModel(_) => true // TODO: let projecors decide whether this is allowed
     | SetIndicated(_)
     | RemoveIndicated
     | Focus(_)

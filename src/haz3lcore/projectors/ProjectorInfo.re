@@ -1,53 +1,27 @@
 /* Projector data which is dependent on semantics,
  * separated out for dependency reasons */
 
-/* Gather utility functions/values to be sspaed to the projector.
- * See ProjectorBase.utility definition for more information */
-let utility: ProjectorBase.utility('p) = {
-  let seg_to_term =
-    MakeTerm.for_projection(~of_projector=_ => Any(), ~log_projector=_ => ());
-  let term_to_seg =
-    ExpToSegment.any_to_segment(
-      ~settings={
-        ...ExpToSegment.Settings.of_core(~inline=false, CoreSettings.off),
-        show_unknown_as_hole: false,
-      },
-    );
-  let lift_syntax =
-      (fn: Any.t => Any.t, seg: Base.segment('p)): option(Base.segment('p)) =>
-    switch (seg |> seg_to_term) {
-    | None => None
-    | Some(s) => Some(s |> fn |> term_to_seg)
-    };
-  {
-    term_to_seg,
-    seg_to_term,
-    lift_syntax,
-  };
-};
-
 let mk_info =
     (
       type p,
       p: Piece.projector(p),
       ~statics: Statics.Map.t,
       ~dynamics: Dynamics.Map.t,
-      ~utility,
     )
-    : ProjectorBase.info(p) => {
+    : ProjectorBase.info => {
   id: p.id,
   statics: Statics.Map.lookup(p.id, statics),
   dynamics: Dynamics.Map.lookup(p.id, dynamics),
-  utility,
 };
 
 module ShapeMapSemantics = {
   let from_semantics =
       (
-        type p,
+        type ed,
+        ~ed_str,
         statics: Statics.Map.t,
         dynamics: Dynamics.Map.t,
-        p: Base.projector(p),
+        p: Base.projector(ProjectorCore.model(ed)),
       )
       : ProjectorShape.t => {
     let ProjectorCore.V(kind, model) = p.model;
@@ -55,45 +29,17 @@ module ShapeMapSemantics = {
     /* Projector data which is dependent on semantics,
      * separated out for dependency reasons */
 
-    /* Gather utility functions/values to be sspaed to the projector.
-     * See ProjectorBase.utility definition for more information */
-    let utility: ProjectorBase.utility('p) = {
-      let seg_to_term =
-        MakeTerm.for_projection(
-          ~of_projector=(_, _) => Any(),
-          ~log_projector=_ => (),
-        );
-      let term_to_seg =
-        ExpToSegment.any_to_segment(
-          ~settings={
-            ...ExpToSegment.Settings.of_core(~inline=false, CoreSettings.off),
-            show_unknown_as_hole: false,
-          },
-        );
-      let lift_syntax =
-          (fn: Any.t => Any.t, seg: Base.segment('p))
-          : option(Base.segment('p)) =>
-        switch (seg |> seg_to_term) {
-        | None => None
-        | Some(s) => Some(s |> fn |> term_to_seg)
-        };
-      {
-        term_to_seg,
-        seg_to_term,
-        lift_syntax,
-      };
-    };
-
-    methods.placeholder(model, mk_info(p, ~statics, ~dynamics, ~utility));
+    methods.placeholder(~ed_str, model, mk_info(p, ~statics, ~dynamics));
   };
 
   let mk =
       (
         type p,
+        ~shape_of_projector,
         proj_map: Id.Map.t(Base.projector(p)),
         statics: Statics.Map.t,
         dynamics: Dynamics.Map.t,
       )
       : Id.Map.t(ProjectorShape.t) =>
-    Id.Map.map(from_semantics(statics, dynamics), proj_map);
+    Id.Map.map(shape_of_projector(statics, dynamics), proj_map);
 };

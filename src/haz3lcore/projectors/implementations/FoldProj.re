@@ -1,51 +1,42 @@
-open Util;
-open ProjectorBase;
-open Virtual_dom.Vdom;
-open Node;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type model('ed) = {
-  [@default "⋱"]
-  text: string,
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type action = unit;
-
-let init = _ => Some({text: "⋱"}: model('ed));
-
-let focusable = Focusable.non;
-let dynamics = false;
-
-let placeholder = (m: model('ed), _) =>
-  ProjectorShape.inline(m.text == "⋱" ? 2 : m.text |> String.length);
-let update = (m, _, _) => m;
-
-let hover_view = (view_seg: View.seg('p), info: info('p)) => {
-  let seg = Segment.unparenthesize(info.syntax);
-  let sort = Segment.sort_of(Segment.skel(seg), seg);
-  div(
-    ~attrs=[Attr.class_("hover-view")],
-    [view_seg(~background=true, sort, Segment.unparenthesize(info.syntax))],
-  );
-};
-
-let view = (m: model('ed), info: info('p), ~local as _, ~parent, ~view_seg) =>
-  ProjectorBase.View.mk(
-    div(
-      ~attrs=[Attr.on_double_click(_ => parent(Remove))],
-      [text(m.text), hover_view(view_seg, info)],
-    ),
-  );
-
-let mk_term = mk_term_default;
-
-let methods = {
-  init,
-  focusable,
-  dynamics,
-  placeholder,
-  view,
-  update,
-  mk_term,
-};
+// open Util;
+  // open ProjectorBase;
+  // open Virtual_dom.Vdom;
+  // open Node;
+  // [@deriving (show({with_path: false}), sexp, yojson)]
+  // type model('ed) = {
+  //   [@default "⋱"]
+  //   text: string,
+  // };
+  // [@deriving (show({with_path: false}), sexp, yojson)]
+  // type action = unit;
+  // let init = _ => Some({text: "⋱"}: model('ed));
+  // let focusable = Focusable.non;
+  // let dynamics = false;
+  // let placeholder = (m: model('ed), _) =>
+  //   ProjectorShape.inline(m.text == "⋱" ? 2 : m.text |> String.length);
+  // let update = (m, _, _) => m;
+  // let hover_view = (view_seg: View.seg('p), info: info('p)) => {
+  //   let seg = Segment.unparenthesize(info.syntax);
+  //   let sort = Segment.sort_of(Segment.skel(seg), seg);
+  //   div(
+  //     ~attrs=[Attr.class_("hover-view")],
+  //     [view_seg(~background=true, sort, Segment.unparenthesize(info.syntax))],
+  //   );
+  // };
+  // let view = (m: model('ed), info: info('p), ~local as _, ~parent, ~view_seg) =>
+  //   ProjectorBase.View.mk(
+  //     div(
+  //       ~attrs=[Attr.on_double_click(_ => parent(Remove))],
+  //       [text(m.text), hover_view(view_seg, info)],
+  //     ),
+  //   );
+  // let mk_term = mk_term_default;
+  // let methods = {
+  //   init,
+  //   focusable,
+  //   dynamics,
+  //   placeholder,
+  //   view,
+  //   update,
+  //   mk_term,
+  // };

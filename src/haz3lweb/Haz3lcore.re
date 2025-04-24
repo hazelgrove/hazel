@@ -4,15 +4,20 @@ module rec Projectors: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model;
 
-  let make_term: (model, Any.t) => Any.t;
-  let make_term': (model, list(Any.t)) => Any.t;
+  let make_term: (Projectors.model, Sort.t) => Any.t;
+
+  let shape_of_projector:
+    (Statics.Map.t, Dynamics.Map.t, Base.projector(model)) => ProjectorShape.t;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = ProjectorCore.model(Editor.t);
 
-  let make_term = (model, exp: Any.t) => ProjectorInit.make_term(model, exp);
-  let make_term' = (model, exps: list(Any.t)) =>
-    make_term(model, List.hd(exps));
+  let make_term = (_, _) => Grammar.Any(); //(ProjectorInit.make_term(~term_of_ed=Editor.make_term));
+
+  let shape_of_projector =
+    Haz3lcorep.ProjectorInfo.ShapeMapSemantics.from_semantics(
+      ~ed_str=Editor.print_string,
+    );
 }
 and Editor: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -23,8 +28,11 @@ and Editor: {
   };
 
   module Model: {
-    let mk: Zipper.t => t;
+    let mk: (~sort: Sort.t, Zipper.t) => t;
   };
+
+  let make_term: (Sort.t, t) => Any.t;
+  let print_string: t => string;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Haz3lcorep.Editor.t(Projectors.model);
@@ -34,9 +42,25 @@ and Editor: {
   };
 
   module Model = {
-    let mk = (z: Zipper.t) =>
-      Haz3lcorep.Editor.Model.mk(~projector_to_term=Projectors.make_term', z);
+    let mk = (~sort, z: Zipper.t) =>
+      Haz3lcorep.Editor.Model.mk(
+        ~sort,
+        ~shape_of_projector=Projectors.shape_of_projector,
+        ~projector_to_term=Projectors.make_term,
+        z,
+      );
   };
+
+  let make_term = (sort: Sort.t, m: t) => Grammar.Any();
+  // MakeTerm.go(
+  //   ~of_projector=Projectors.make_term,
+  //   sort,
+  //   m.state.zipper
+  //   |> Haz3lcorep.Zipper.smart_seg(~dump_backpack=true, ~erase_buffer=true),
+  // ).
+  //   term;
+
+  let print_string = _ => "TODO";
 };
 
 // module type Projectors = {
@@ -113,21 +137,6 @@ and Editor: {
 //       );
 //   };
 // };
-
-module MakeTerm = {
-  include MakeTerm;
-
-  // TODO Wrap Probes here
-  let from_zip_for_sem =
-    from_zip_for_sem(~of_projector=(_, e) => List.hd(e));
-
-  let for_projection =
-    for_projection(
-      ~of_projector=(_, e) => List.hd(e),
-      ~log_projector=_ => (),
-      _,
-    );
-};
 
 module PersistentZipper = {
   include PersistentZipper;

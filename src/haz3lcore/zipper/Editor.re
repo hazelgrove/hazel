@@ -40,17 +40,24 @@ module CachedSyntax = {
   let init =
       (
         type p,
-        ~projector_to_term: (p, list(Any.t)) => Any.t,
+        ~shape_of_projector,
+        ~projector_to_term,
         ~info_map,
         ~dyn_map,
+        ~sort: Sort.t,
         z: Zipper.t(p),
       )
       : t(p) => {
     let segment = Zipper.unselect_and_zip(z);
     let MakeTerm.{term: _, terms, projectors} =
-      MakeTerm.go(segment, ~of_projector=projector_to_term);
+      MakeTerm.go(sort, segment, ~of_projector=projector_to_term);
     let projector_shapes =
-      ProjectorInfo.ShapeMapSemantics.mk(projectors, info_map, dyn_map);
+      ProjectorInfo.ShapeMapSemantics.mk(
+        ~shape_of_projector,
+        projectors,
+        info_map,
+        dyn_map,
+      );
     {
       old: false,
       segment,
@@ -71,9 +78,24 @@ module CachedSyntax = {
     };
 
   let calculate =
-      (~projector_to_term, z: Zipper.t('p), info_map, dyn_map, old: t('p)) =>
+      (
+        ~shape_of_projector,
+        ~projector_to_term,
+        z: Zipper.t('p),
+        info_map,
+        dyn_map,
+        sort,
+        old: t('p),
+      ) =>
     old.old
-      ? init(z, ~projector_to_term, ~info_map, ~dyn_map)
+      ? init(
+          z,
+          ~sort,
+          ~shape_of_projector,
+          ~projector_to_term,
+          ~info_map,
+          ~dyn_map,
+        )
       : {
         ...old,
         selection_ids: Selection.selection_ids(z.selection),
@@ -117,7 +139,9 @@ module Model = {
   let mk =
       (
         type a,
-        ~projector_to_term: (a, list(Any.t)) => Any.t,
+        ~sort,
+        ~shape_of_projector,
+        ~projector_to_term,
         zipper: Zipper.t(a),
       ) => {
     state: {
@@ -128,7 +152,9 @@ module Model = {
     syntax:
       CachedSyntax.init(
         zipper,
+        ~sort,
         ~projector_to_term,
+        ~shape_of_projector,
         ~info_map=Id.Map.empty,
         ~dyn_map=Id.Map.empty,
       ),
@@ -174,6 +200,7 @@ module Update = {
       (
         ~settings: CoreSettings.t,
         ~projector_init,
+        ~piece_of_projector,
         a: Action.t('p),
         old_statics,
         {state, history, syntax}: Model.t('p),
@@ -189,6 +216,7 @@ module Update = {
             Perform.go_z(
               ~settings,
               ~projector_init,
+              ~piece_of_projector,
               old_statics,
               Buffer(Clear),
               Model.to_move_s({
@@ -234,6 +262,7 @@ module Update = {
       Perform.go_z(
         ~settings,
         ~projector_init,
+        ~piece_of_projector,
         old_statics,
         a,
         Model.to_move_s({
@@ -291,7 +320,10 @@ module Update = {
         ~settings: CoreSettings.t,
         ~projector_init,
         ~projector_to_term,
+        ~piece_of_projector,
+        ~shape_of_projector,
         ~is_edited,
+        ~sort,
         new_statics,
         dyn_map,
         {syntax, state, history}: Model.t('p),
@@ -303,6 +335,7 @@ module Update = {
           Perform.go_z(
             ~settings,
             ~projector_init,
+            ~piece_of_projector,
             new_statics,
             Buffer(Set(TyDi)),
             Model.to_move_s({
@@ -325,9 +358,11 @@ module Update = {
     let syntax =
       CachedSyntax.calculate(
         ~projector_to_term,
+        ~shape_of_projector,
         zipper,
         new_statics.info_map,
         dyn_map,
+        sort,
         syntax,
       );
 

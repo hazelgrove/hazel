@@ -39,10 +39,7 @@ let init =
   | Some(any) =>
     switch (projector_init(kind, any)) {
     | None => None
-    | Some(model) =>
-      Some(
-        Base.Projector(Base.mk_projector(Segment.parenthesize(seg), model)),
-      )
+    | Some(model) => Some(Base.Projector(Base.mk_projector(model)))
     }
   };
 
@@ -89,6 +86,7 @@ let go =
     (
       type p,
       ~projector_init,
+      ~piece_of_pr: p => syntax(p),
       jump_to_id_indicated,
       jump_to_side_of_id,
       select_term: Zipper.t(p) => option(Zipper.t(p)),
@@ -111,7 +109,7 @@ let go =
     // TODO [Matt]: Make this check the kind again
     let* (focus, z) = setup_selection(z);
     switch (z.selection.content) {
-    | [Projector(pr)] => Some(remove(pr.syntax, focus, z))
+    | [Projector(pr)] => Some(remove(piece_of_pr(pr.model), focus, z))
     // | [Projector(pr)] =>
     //   let+ piece =
     //     init(~projector_init, kind, Piece.unparenthesize(pr.syntax));
@@ -125,7 +123,7 @@ let go =
   let remove_indicated = (z: Zipper.t(p)): option(Zipper.t(p)) => {
     let* (focus, z) = setup_selection(z);
     switch (z.selection.content) {
-    | [Projector(pr)] => Some(remove(pr.syntax, focus, z))
+    | [Projector(pr)] => Some(remove(piece_of_pr(pr.model), focus, z))
     | _ => None
     };
   };
@@ -151,18 +149,6 @@ let go =
     | Some(z) => Ok(z)
     | None => Error(Cant_project)
     }
-  | SetSyntax(id, seg) =>
-    Ok(
-      update(
-        p =>
-          {
-            ...p,
-            syntax: Segment.parenthesize(seg),
-          },
-        id,
-        z,
-      ),
-    )
   | SetModel(id, model) =>
     Ok(
       update(

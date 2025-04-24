@@ -47,7 +47,7 @@ type unsorted =
   | Bin(t, tiles, t);
 
 type t('p) = {
-  term: Exp.t,
+  term: Any.t,
   terms: TermMap.t,
   projectors: Id.Map.t(Piece.projector('p)),
 };
@@ -159,22 +159,22 @@ module Go = (P: {
           : Term.Any.t => {
     let unsorted = unsorted(~of_projector, ~log_projector);
     switch (s) {
-    | Pat => Pat(pat(unsorted(skel, seg)))
-    | TPat => TPat(tpat(unsorted(skel, seg)))
-    | Typ => Typ(typ(unsorted(skel, seg)))
-    | Exp => Exp(exp(unsorted(skel, seg)))
-    | Rul => Rul(rul(unsorted(skel, seg)))
+    | Pat => Pat(pat(unsorted(Pat, skel, seg)))
+    | TPat => TPat(tpat(unsorted(TPat, skel, seg)))
+    | Typ => Typ(typ(unsorted(Typ, skel, seg)))
+    | Exp => Exp(exp(unsorted(Exp, skel, seg)))
+    | Rul => Rul(rul(unsorted(Rul, skel, seg)))
     | Any =>
-      let tm = unsorted(skel, seg);
+      let tm = unsorted(Any, skel, seg);
       let ids = ids(tm);
       switch (ListUtil.hd_opt(ids)) {
-      | None => Exp(exp(unsorted(skel, seg)))
+      | None => Exp(exp(unsorted(Exp, skel, seg)))
       | Some(id) =>
         switch (TileMap.find_opt(id, TileMap.mk(seg))) {
-        | None => Exp(exp(unsorted(skel, seg)))
+        | None => Exp(exp(unsorted(Exp, skel, seg)))
         | Some(t) =>
           if (t.mold.out == Any) {
-            Exp(exp(unsorted(skel, seg)));
+            Exp(exp(unsorted(Exp, skel, seg)));
           } else {
             go_s(~of_projector, ~log_projector, t.mold.out, skel, seg);
           }
@@ -784,9 +784,9 @@ module Go = (P: {
 
   and unsorted =
       (
-        ~of_projector:
-           (~make_term: (Sort.t, Segment.t('p)) => Any.t, p) => Any.t,
+        ~of_projector: (p, Sort.t) => Any.t,
         ~log_projector: Piece.projector(p) => unit,
+        sort: Sort.t,
         skel: Skel.t,
         seg: Segment.t(p),
       )
@@ -801,22 +801,7 @@ module Go = (P: {
       | Grout(_) => []
       | Projector({model, _} as pr) =>
         log_projector(pr);
-        [
-          of_projector(
-            ~make_term=
-              (sort, x) =>
-                any(
-                  unsorted(
-                    ~of_projector,
-                    ~log_projector,
-                    Segment.skel(x), // TODO[Matt]: Do I need to handle exceptions here?
-                    x,
-                  ),
-                  sort,
-                ),
-            model,
-          ),
-        ];
+        [of_projector(model, sort)];
       | Tile({mold, shards, children, _}) =>
         Aba.aba_triples(Aba.mk(shards, children))
         |> List.map(((l, kid, r)) => {
@@ -861,7 +846,7 @@ module Go = (P: {
   };
 };
 
-let go = (type p', ~of_projector, seg: Segment.t(p')) =>
+let go = (type p', ~of_projector, sort: Sort.t, seg: Segment.t(p')) =>
   Core.Memo.general(
     ~cache_size_bound=1000,
     seg => {
@@ -882,13 +867,15 @@ let go = (type p', ~of_projector, seg: Segment.t(p')) =>
         });
 
       let term =
-        Unsorted.exp(
+        Unsorted.any(
           Unsorted.unsorted(
             ~of_projector,
             ~log_projector,
+            Exp,
             Segment.skel(seg),
             seg,
           ),
+          sort,
         );
       {
         term,
@@ -920,10 +907,9 @@ let for_projection = (type p', ~of_projector, ~log_projector) => {
       switch (Segment.skel(seg)) {
       | exception _ => None /* Returns None if any subsegment is non-convex */
       | skel =>
-        let (unsorted, sort) = (
-          Unsorted.unsorted(~of_projector, ~log_projector, skel, seg),
-          Segment.sort_of(skel, seg),
-        );
+        let sort = Segment.sort_of(skel, seg);
+        let unsorted =
+          Unsorted.unsorted(~of_projector, ~log_projector, sort, skel, seg);
         switch (sort) {
         | Exp =>
           switch (Unsorted.exp(unsorted)) {
@@ -957,7 +943,7 @@ let for_projection = (type p', ~of_projector, ~log_projector) => {
 let from_zip_for_sem =
     (~dump_backpack: bool, ~erase_buffer: bool, z: Zipper.t('p)) => {
   let seg = Zipper.smart_seg(~dump_backpack, ~erase_buffer, z);
-  go(seg);
+  go(Exp, seg);
 };
 
 let from_zip_for_sem =

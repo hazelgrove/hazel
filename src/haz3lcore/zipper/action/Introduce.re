@@ -32,6 +32,7 @@ module IntroducePat: Introducable with type t = Pat.t = {
           unsorted(
             ~of_projector=(_, _) => Any(),
             ~log_projector=_ => (),
+            Pat,
             Segment.skel(selection),
             selection,
           ),
@@ -103,6 +104,7 @@ module IntroduceExp: Introducable with type t = Exp.t = {
         unsorted(
           ~of_projector=(_, _) => Any(),
           ~log_projector=_ => (),
+          Exp,
           Segment.skel(selection),
           selection,
         ),
