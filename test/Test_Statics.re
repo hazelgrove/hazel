@@ -21,6 +21,11 @@ let eq_info_error_exp = (a: Info.error_exp, b: Info.error_exp) => {
     && List.equal(String.equal, err.duplicate_labels, err'.duplicate_labels)
     && List.equal(String.equal, err.invalid_labels, err'.invalid_labels)
     && Typ.fast_equal(err.typ, err'.typ)
+  | (
+      Common(NoType(BadOperator("Livelit expansion failed"))),
+      Common(NoType(BadOperator("Livelit expansion failed"))),
+    ) =>
+    true
   | _ =>
     Alcotest.fail(
       "Not implemented for "
@@ -997,7 +1002,7 @@ let tests = (
       }),
       test_case("Livelit error annotations", `Quick, () => {
         annotated_tree_test(
-          "Inconsistent expectation on slider",
+          "Inconsistent expectation on slider livelit",
           FIError.Exp.(
             ap(
               Forward,
@@ -1020,6 +1025,12 @@ let tests = (
                   ),
                 "hello",
               ),
+              ~ann=
+                Some(
+                  Exp(
+                    Common(NoType(BadOperator("Livelit expansion failed"))),
+                  ),
+                ),
             )
           ),
         )
