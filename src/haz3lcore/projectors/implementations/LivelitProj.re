@@ -32,7 +32,6 @@ module M: Projector = {
       }) =>
       Some()
     | _ =>
-      print_endline("got term: " ++ TermBase.show_any_t(any));
       None;
     };
 
