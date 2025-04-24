@@ -799,6 +799,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Forall(tp, t),
       annotation: default_annotation(ann),
     };
+    let empty_hole = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
+      term: Unknown(Hole(EmptyHole)),
+      annotation: default_annotation(ann),
+    };
   };
 
   module TPat = {
