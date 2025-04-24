@@ -53,7 +53,6 @@ let test_matches = (name, type_testable, request, term, unboxed) =>
     },
   );
 
-let int_exp = i => IdTagged.FreshGrammar.Exp.int(Bigint.of_int(i));
 open IdTagged.FreshGrammar;
 let tests = (
   "Unboxing",
@@ -64,20 +63,20 @@ let tests = (
         "ListLit to ListLit",
         list(dhexp_typ),
         ListLit,
-        list_lit([1, 2, 3] |> List.map(int_exp)),
-        [1, 2, 3] |> List.map(int_exp),
+        list_lit([1, 2, 3] |> List.map(int)),
+        [1, 2, 3] |> List.map(int),
       ),
       test_does_not_match(
         "ListLit to ListLitn, incorrect length",
         list(dhexp_typ),
         ListLitn(2),
-        list_lit([1, 2, 3] |> List.map(int_exp)),
+        list_lit([1, 2, 3] |> List.map(int)),
       ),
       test_indet_match(
         "Cons to ListLit",
         list(dhexp_typ),
         ListLit,
-        cons(1 |> int_exp, cons(2 |> int_exp, empty_hole())),
+        cons(1 |> int, cons(2 |> int, empty_hole())),
       ),
       test_indet_match(
         "CastedHole to ListLit",
@@ -90,11 +89,11 @@ let tests = (
         list(dhexp_typ),
         ListLit,
         cast(
-          list_lit([1, 2, 3] |> List.map(int_exp)),
+          list_lit([1, 2, 3] |> List.map(int)),
           Typ.(list(empty_hole())),
           Typ.(list(empty_hole())),
         ),
-        [1, 2, 3] |> List.map(int_exp),
+        [1, 2, 3] |> List.map(int),
       ),
       test_matches(
         "DoubleCastedList to ListLit",
@@ -102,7 +101,7 @@ let tests = (
         ListLit,
         cast(
           cast(
-            list_lit([1, 2, 3] |> List.map(int_exp)),
+            list_lit([1, 2, 3] |> List.map(int)),
             Typ.(list(empty_hole())),
             Typ.(list(empty_hole())),
           ),
@@ -110,27 +109,27 @@ let tests = (
           Typ.(list(int())),
         ),
         [1, 2, 3]
-        |> List.map(i => cast(i |> int_exp, Typ.(empty_hole()), Typ.(int()))),
+        |> List.map(i => cast(i |> int, Typ.(empty_hole()), Typ.(int()))),
       ),
       // ListLitn requests
       test_matches(
         "ListLit to ListLitn, correct length",
         list(dhexp_typ),
         ListLitn(3),
-        list_lit([1, 2, 3] |> List.map(int_exp)),
-        [1, 2, 3] |> List.map(int_exp),
+        list_lit([1, 2, 3] |> List.map(int)),
+        [1, 2, 3] |> List.map(int),
       ),
       test_indet_match(
         "Cons to ListLitn, length > cons: indet match",
         list(dhexp_typ),
         ListLitn(3),
-        cons(1 |> int_exp, cons(2 |> int_exp, empty_hole())),
+        cons(1 |> int, cons(2 |> int, empty_hole())),
       ),
       test_does_not_match(
         "Cons to ListLitn, length < cons: does not match",
         list(dhexp_typ),
         ListLitn(1),
-        cons(1 |> int_exp, cons(2 |> int_exp, empty_hole())),
+        cons(1 |> int, cons(2 |> int, empty_hole())),
       ),
       test_indet_match(
         "CastedHole to ListLitn",
@@ -143,11 +142,11 @@ let tests = (
         list(dhexp_typ),
         ListLitn(3),
         cast(
-          list_lit([1, 2, 3] |> List.map(int_exp)),
+          list_lit([1, 2, 3] |> List.map(int)),
           Typ.(list(empty_hole())),
           Typ.(list(empty_hole())),
         ),
-        [1, 2, 3] |> List.map(int_exp),
+        [1, 2, 3] |> List.map(int),
       ),
       test_matches(
         "DoubleCastedList to ListLitn",
@@ -155,7 +154,7 @@ let tests = (
         ListLitn(3),
         cast(
           cast(
-            list_lit([1, 2, 3] |> List.map(int_exp)),
+            list_lit([1, 2, 3] |> List.map(int)),
             Typ.(list(empty_hole())),
             Typ.(list(empty_hole())),
           ),
@@ -163,22 +162,22 @@ let tests = (
           Typ.(list(int())),
         ),
         [1, 2, 3]
-        |> List.map(i => cast(i |> int_exp, Typ.(empty_hole()), Typ.(int()))),
+        |> List.map(i => cast(i |> int, Typ.(empty_hole()), Typ.(int()))),
       ),
       // Cons requests
       test_matches(
         "ListLit to Cons: empty tail",
         pair(dhexp_typ, dhexp_typ),
         Cons,
-        list_lit([1] |> List.map(int_exp)),
-        (1 |> int_exp, list_lit([])),
+        list_lit([1] |> List.map(int)),
+        (1 |> int, list_lit([])),
       ),
       test_matches(
         "ListLit to Cons: non-empty tail",
         pair(dhexp_typ, dhexp_typ),
         Cons,
-        list_lit([1, 2, 3] |> List.map(int_exp)),
-        (1 |> int_exp, list_lit([2, 3] |> List.map(int_exp))),
+        list_lit([1, 2, 3] |> List.map(int)),
+        (1 |> int, list_lit([2, 3] |> List.map(int))),
       ),
       test_does_not_match(
         "EmptyList to Cons",
@@ -190,8 +189,8 @@ let tests = (
         "Cons to Cons",
         pair(dhexp_typ, dhexp_typ),
         Cons,
-        cons(1 |> int_exp, cons(2 |> int_exp, empty_hole())),
-        (1 |> int_exp, cons(2 |> int_exp, empty_hole())),
+        cons(1 |> int, cons(2 |> int, empty_hole())),
+        (1 |> int, cons(2 |> int, empty_hole())),
       ),
       test_indet_match(
         "CastedHole to Cons",
@@ -204,12 +203,12 @@ let tests = (
         pair(dhexp_typ, dhexp_typ),
         Cons,
         cast(
-          cons(1 |> int_exp, empty_hole()),
+          cons(1 |> int, empty_hole()),
           Typ.(list(empty_hole())),
           Typ.(list(int())),
         ),
         (
-          cast(1 |> int_exp, Typ.(empty_hole()), Typ.(int())),
+          cast(1 |> int, Typ.(empty_hole()), Typ.(int())),
           cast(empty_hole(), Typ.(list(empty_hole())), Typ.(list(int()))),
         ),
       ),

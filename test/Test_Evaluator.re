@@ -96,24 +96,19 @@ let parse_and_evaluate_test =
   );
 open IdTagged.FreshGrammar;
 open Exp;
-let test_int = () =>
-  evaluation_test("8", int(Bigint.of_int(8)), int(Bigint.of_int(8)));
+let test_int = () => evaluation_test("8", int(8), int(8));
 
 let test_sum = () =>
-  evaluation_test(
-    "4 + 5",
-    int(Bigint.of_int(9)),
-    bin_op(Int(Plus), int(Bigint.of_int(4)), int(Bigint.of_int(5))),
-  );
+  evaluation_test("4 + 5", int(9), bin_op(Int(Plus), int(4), int(5)));
 
 let test_labeled_tuple_projection = () =>
   evaluation_test(
     "(a=1, b=2, c=?).a",
-    int(Bigint.of_int(1)),
+    int(1),
     dot(
       tuple([
-        tup_label(label("a"), int(Bigint.of_int(1))),
-        tup_label(label("b"), int(Bigint.of_int(2))),
+        tup_label(label("a"), int(1)),
+        tup_label(label("b"), int(2)),
         tup_label(label("c"), empty_hole()),
       ]),
       label("a") // This is a var now for parsing reasons
@@ -124,7 +119,7 @@ let test_function_application = () =>
   evaluation_test(
     "float_of_int(1)",
     float(1.0),
-    ap(Forward, var("float_of_int"), int(Bigint.of_int(1))),
+    ap(Forward, var("float_of_int"), int(1)),
   );
 
 let test_function_deferral = () =>
@@ -135,9 +130,9 @@ let test_function_deferral = () =>
       Forward,
       deferred_ap(
         var("string_sub"),
-        [string("hello"), int(Bigint.of_int(1)), deferral(InAp)],
+        [string("hello"), int(1), deferral(InAp)],
       ),
-      int(Bigint.of_int(2)),
+      int(2),
     ),
   );
 
@@ -155,7 +150,7 @@ let test_ap_of_hole_deferral = () =>
         tuple([
           cast(float(1.), Typ.float(), Typ.unknown(Internal)),
           cast(bool(true), Typ.bool(), Typ.unknown(Internal)),
-          cast(int(Bigint.of_int(3)), Typ.int(), Typ.unknown(Internal)),
+          cast(int(3), Typ.int(), Typ.unknown(Internal)),
         ]),
         Typ.(
           prod([unknown(Internal), unknown(Internal), unknown(Internal)])
@@ -187,7 +182,7 @@ let test_ap_of_hole_deferral = () =>
         [
           deferral(InAp),
           deferral(InAp),
-          cast(int(Bigint.of_int(3)), Typ.int(), Typ.unknown(Internal)),
+          cast(int(3), Typ.int(), Typ.unknown(Internal)),
         ],
       ),
       tuple([
@@ -200,7 +195,7 @@ let test_ap_of_hole_deferral = () =>
 let test_multi_arg_builtin_cast = () =>
   evaluation_test(
     "string_compare((\"Hello\", \"World\"):(?, ?))",
-    int(Bigint.of_int(-1)),
+    int(-1),
     ap(
       Forward,
       builtin_fun("string_compare"),
@@ -218,18 +213,14 @@ let test_multi_arg_builtin_cast = () =>
 let test_variable_capture = () =>
   evaluation_test(
     {|let u = 5 in let f = fun () -> u in let u = 3 in f()|},
-    int(Bigint.of_int(5)),
+    int(5),
     let_(
       Pat.(var("u")),
-      int(Bigint.of_int(5)),
+      int(5),
       let_(
         Pat.(var("f")),
         fn(Pat.(tuple([])), var("u"), None, None),
-        let_(
-          Pat.(var("u")),
-          int(Bigint.of_int(3)),
-          ap(Forward, var("f"), tuple([])),
-        ),
+        let_(Pat.(var("u")), int(3), ap(Forward, var("f"), tuple([]))),
       ),
     ),
   );
@@ -244,22 +235,14 @@ let test_unbound_lookup = () =>
 let test_unevaluated_if = () =>
   evaluation_test(
     "let x = 5 in if ? then x else x",
-    if_(empty_hole(), int(Bigint.of_int(5)), int(Bigint.of_int(5))),
-    let_(
-      Pat.(var("x")),
-      int(Bigint.of_int(5)),
-      if_(empty_hole(), var("x"), var("x")),
-    ),
+    if_(empty_hole(), int(5), int(5)),
+    let_(Pat.(var("x")), int(5), if_(empty_hole(), var("x"), var("x"))),
   );
 
 let test_invalid_constructor_match = () => {
   let invalid_constructor_match =
     elaborate(
-      let_(
-        Pat.(constructor("T", Some(None))),
-        int(Bigint.of_int(1)),
-        empty_hole(),
-      ),
+      let_(Pat.(constructor("T", Some(None))), int(1), empty_hole()),
     );
   evaluation_test(
     "let T = 1 in ?",
@@ -271,18 +254,18 @@ let test_invalid_constructor_match = () => {
 let test_typfun_application = () =>
   evaluation_test(
     "(typfun T -> fun x -> 1)@<Int>(2)",
-    int(Bigint.of_int(1)),
+    int(1),
     ap(
       Forward,
       typ_ap(
         typ_fun(
           TPat.(var("T")),
-          fn(Pat.(var("x")), int(Bigint.of_int(1)), None, None),
+          fn(Pat.(var("x")), int(1), None, None),
           None,
         ),
         Typ.int(),
       ),
-      int(Bigint.of_int(2)),
+      int(2),
     ),
   );
 
@@ -343,11 +326,7 @@ in fn("hello")|},
     ),
     test_case("Typfun application", `Quick, test_typfun_application),
     test_case("Negative integer literal", `Quick, () =>
-      evaluation_test(
-        "-8",
-        int(Bigint.of_int(-8)),
-        un_op(Int(Minus), int(Bigint.of_int(8))),
-      )
+      evaluation_test("-8", int(-8), un_op(Int(Minus), int(8)))
     ),
     test_case("Simple probe", `Quick, () => {
       PGrammar.(
@@ -359,11 +338,7 @@ in fn("hello")|},
               Exp.(
                 probe(
                   ~ann=[probed_value(Atom(Int(Bigint.of_int(3))))],
-                  bin_op(
-                    Int(Plus),
-                    int(Bigint.of_int(1)),
-                    int(Bigint.of_int(2)),
-                  ),
+                  bin_op(Int(Plus), int(1), int(2)),
                   {refs: []},
                 )
               ),
@@ -402,33 +377,15 @@ in fn("hello")|},
               fn(
                 pp(
                   Var("x"),
-                  UE.[
-                    int(Bigint.of_int(5)),
-                    int(Bigint.of_int(4)),
-                    int(Bigint.of_int(3)),
-                    int(Bigint.of_int(2)),
-                    int(Bigint.of_int(1)),
-                  ],
+                  UE.[int(5), int(4), int(3), int(2), int(1)],
                 ),
                 match(
                   p(
                     var("x"),
-                    UE.[
-                      int(Bigint.of_int(5)),
-                      int(Bigint.of_int(4)),
-                      int(Bigint.of_int(3)),
-                      int(Bigint.of_int(2)),
-                      int(Bigint.of_int(1)),
-                    ],
+                    UE.[int(5), int(4), int(3), int(2), int(1)],
                   ),
                   [
-                    (
-                      Pat.(int(Bigint.of_int(1))),
-                      p(
-                        int(Bigint.of_int(1)),
-                        UE.[int(Bigint.of_int(1))],
-                      ),
-                    ),
+                    (Pat.(int(1)), p(int(1), UE.[int(1)])),
                     (
                       Pat.wild(),
                       np(
@@ -438,27 +395,13 @@ in fn("hello")|},
                             ap(
                               Forward,
                               var("fact"),
-                              bin_op(
-                                Int(Minus),
-                                var("x"),
-                                int(Bigint.of_int(1)),
-                              ),
+                              bin_op(Int(Minus), var("x"), int(1)),
                             ),
-                            UE.[
-                              int(Bigint.of_int(1)),
-                              int(Bigint.of_int(2)),
-                              int(Bigint.of_int(6)),
-                              int(Bigint.of_int(24)),
-                            ],
+                            UE.[int(1), int(2), int(6), int(24)],
                           ),
                           p(
                             bin_op(Int(Times), var("x"), var("r")),
-                            UE.[
-                              int(Bigint.of_int(2)),
-                              int(Bigint.of_int(6)),
-                              int(Bigint.of_int(24)),
-                              int(Bigint.of_int(120)),
-                            ],
+                            UE.[int(2), int(6), int(24), int(120)],
                           ),
                         ),
                       ),
@@ -468,7 +411,7 @@ in fn("hello")|},
                 None,
                 None,
               ),
-              ap(Forward, var("fact"), int(Bigint.of_int(5))),
+              ap(Forward, var("fact"), int(5)),
             )
           ),
         );
