@@ -163,49 +163,61 @@ module BFS: Search = {
   open Sequence;
   // These inner sequences are _bags_.
   // Their order of elements doe not matter.
-  type t('a) = Sequence.t(list('a));
+  type t('a) = Sequence.t(Sequence.t('a));
   let fair_fold = fold;
 
-  let return = x => return([x]);
+  let return = x => return(return(x));
   let fail = empty;
 
   let choice = (s1, s2) =>
     zip_full(s1, s2)
     >>| (
       fun
-      | `Both(b1, b2) => b1 @ b2
+      | `Both(b1, b2) => append(b1, b2)
       | `Left(b)
       | `Right(b) => b
     );
 
-  let concat = l => List.fold_right(choice, l, fail);
+  // Choices a sequence of forests:
+  // - Gets the sequence of root levels and concatenates them
+  // - Takes the sequence of sequences of remaining levels and defers the choice of these to the next step
+  let choice_n: Sequence.t(t('a)) => t('a) =
+    ms =>
+      unfold(~init=ms, ~f=ms =>
+        ms
+        |> filter_map(~f=next)
+        |> (ms => Some((ms >>| fst |> concat, ms >>| snd)))
+      );
 
-  let rec bind_gen =
-          (m: t('a), f: 'a => t('b)): Generator.t(unit, list('b)) =>
-    switch (next(m)) {
-    | None => Generator.return()
-    | Some((d, ds)) =>
-      switch (next(List.fold_right(choice, d |> List.map(f), fail))) {
-      | None =>
-        Generator.(bind)(Generator.yield([]), ~f=() => bind_gen(ds, f))
-      | Some((d', ds')) =>
-        Generator.(bind)(Generator.yield(d'), ~f=() =>
-          Generator.of_sequence(choice(ds', bind(ds, ~f)))
-        )
+  let concat = l => List.fold_left(choice, fail, l);
+
+  let rec bind = (m: t('a), ~f: 'a => t('b)): t('b) =>
+    unfold(~init=(m, fail), ~f=((m, acc)) =>
+      switch (Sequence.next(m), Sequence.next(acc)) {
+      | (None, None) => None
+      | (None, Some((ac, acs))) => Some((ac, (fail, acs)))
+      | (Some((b, bs)), None) =>
+        let bound = b >>| f |> choice_n;
+        let (hd, bound) =
+          next(bound) |> Option.value(~default=(empty, fail));
+        Some((hd, (bs, bound)));
+      | (Some((b, bs)), Some((ac, acs))) =>
+        let bound = b >>| f |> choice_n;
+        let (hd, bound) =
+          next(bound) |> Option.value(~default=(empty, fail));
+        Some((append(ac, hd), (bs, choice(acs, bound))));
       }
-    }
-  and bind = (m: t('a), ~f: 'a => t('b)): t('b) =>
-    Generator.run(bind_gen(m, f));
+    );
 
-  let map = (m, ~f) => m >>| List.map(f);
+  let map = (m, ~f) => m >>| Sequence.map(~f);
 
   let join: t(t('a)) => t('a) = m => bind(m, ~f=x => x);
 
-  let wrap = m => append(empty, m);
+  let wrap = m => append(singleton(empty), m);
   let apply = (f, x) => bind(return(x), ~f);
 
   let once = m =>
-    m |> find(~f=b => !List.is_empty(b)) |> Option.map(List.hd);
+    m |> find(~f=b => !Sequence.is_empty(b)) |> Option.map(Sequence.hd_exn);
   let ifte = (m, ~thn, ~els) =>
     switch (once(m)) {
     | None => els
@@ -213,7 +225,7 @@ module BFS: Search = {
     };
   let guard = b => b ? return() : fail;
 
-  let run = m => m |> Sequence.map(~f=Sequence.of_list) |> Sequence.concat;
+  let run = Sequence.concat;
   let run_n = (m, ~solutions) =>
     Sequence.take(run(m), solutions) |> Sequence.to_list;
 

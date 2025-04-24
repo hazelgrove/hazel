@@ -11,7 +11,7 @@ module BoundedDFS =
 module BFS = Nondeterminism.BFS;
 module DFS = Nondeterminism.DFS;
 module SearchBoundedDFS = IndetEvaluator.Make(BoundedDFS);
-//module SearchBFS = IndetEvaluator.Make(Nondeterminism.BFS);
+module SearchBFS = IndetEvaluator.Make(Nondeterminism.BFS);
 module SearchDFS = IndetEvaluator.Make(Nondeterminism.DFS);
 let print =
     (~settings: Settings.t, editor: CodeWithStatics.Model.t, key: string)
@@ -48,13 +48,13 @@ let print =
   | "F9" =>
     let results =
       statics.elaborated
-      |> SearchBoundedDFS.all(
+      |> SearchBFS.values(
            ~env=Builtins.env_init,
            ~state=IndetEvaluatorState.init,
          );
     let _ =
       results
-      |> BoundedDFS.run_n(~solutions=30)
+      |> BFS.run_n(~solutions=30)
       |> List.mapi((i, (state, d)) =>
            print(
              "---Result: "
