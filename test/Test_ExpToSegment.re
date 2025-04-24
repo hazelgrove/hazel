@@ -117,17 +117,19 @@ let tests = (
       () => {
         let segment =
           segmentize(
-            Let(
-              Cast(
-                ListLit([]) |> Pat.fresh,
-                Sum([Variant("Jg", [], None)]) |> Typ.fresh,
-                Atom(Float) |> Typ.fresh,
-              )
-              |> Pat.fresh,
-              EmptyHole |> Exp.fresh,
-              EmptyHole |> Exp.fresh,
-            )
-            |> Exp.fresh,
+            Exp.fresh(
+              Let(
+                Pat.fresh(
+                  Cast(
+                    Pat.fresh(ListLit([])),
+                    Typ.fresh(Sum([Variant("Jg", [], None)])),
+                    Typ.fresh(Atom(Float)),
+                  ),
+                ),
+                Exp.fresh(EmptyHole),
+                Exp.fresh(EmptyHole),
+              ),
+            ),
           );
         let serialized = Printer.of_segment(~holes=Some("?"), segment);
 
@@ -211,20 +213,21 @@ let tests = (
       () => {
         let segment =
           segmentize(
-            Match(
-              Var("x") |> Exp.fresh,
-              [
-                (
-                  Constructor("A", None) |> Pat.fresh,
-                  Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
-                ),
-                (
-                  Constructor("B", None) |> Pat.fresh,
-                  Atom(Int(Bigint.of_int(2))) |> Exp.fresh,
-                ),
-              ],
-            )
-            |> Exp.fresh,
+            Exp.fresh(
+              Match(
+                Exp.fresh(Var("x")),
+                [
+                  (
+                    Pat.fresh(Constructor("A", None)),
+                    Exp.fresh(Atom(Int(Bigint.of_int(1)))),
+                  ),
+                  (
+                    Pat.fresh(Constructor("B", None)),
+                    Exp.fresh(Atom(Int(Bigint.of_int(2)))),
+                  ),
+                ],
+              ),
+            ),
           );
         let serialized = Printer.of_segment(~holes=Some("?"), segment);
 
@@ -242,15 +245,16 @@ let tests = (
       () => {
         let segment =
           segmentize(
-            DeferredAp(
-              Var("string_sub") |> Exp.fresh,
-              [
-                Atom(String("hello")) |> Exp.fresh,
-                Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
-                Deferral(InAp) |> Exp.fresh,
-              ],
-            )
-            |> Exp.fresh,
+            Exp.fresh(
+              DeferredAp(
+                Exp.fresh(Var("string_sub")),
+                [
+                  Exp.fresh(Atom(String("hello"))),
+                  Exp.fresh(Atom(Int(Bigint.of_int(1)))),
+                  Exp.fresh(Deferral(InAp)),
+                ],
+              ),
+            ),
           );
         let serialized = Printer.of_segment(~holes=Some("?"), segment);
 
@@ -267,7 +271,7 @@ let tests = (
       `Quick,
       () => {
         let segment =
-          segmentize(Test(Atom(Bool(true)) |> Exp.fresh) |> Exp.fresh);
+          segmentize(Exp.fresh(Test(Exp.fresh(Atom(Bool(true))))));
         let serialized = Printer.of_segment(~holes=Some("?"), segment);
 
         check(string, "Test of true", {|test true end|}, serialized);
@@ -279,14 +283,15 @@ let tests = (
       () => {
         let segment =
           segmentize(
-            Filter(
-              Filter({
-                pat: Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
-                act: (Step, One),
-              }),
-              Atom(Int(Bigint.of_int(2))) |> Exp.fresh,
-            )
-            |> Exp.fresh,
+            Exp.fresh(
+              Filter(
+                Filter({
+                  pat: Exp.fresh(Atom(Int(Bigint.of_int(1)))),
+                  act: (Step, One),
+                }),
+                Exp.fresh(Atom(Int(Bigint.of_int(2)))),
+              ),
+            ),
           );
         let serialized = Printer.of_segment(~holes=Some("?"), segment);
 
@@ -303,17 +308,19 @@ let tests = (
           Printer.of_segment(
             ~holes=Some("?"),
             segmentize(
-              BinOp(
-                Int(Power),
-                Atom(Int(Bigint.of_int(2))) |> Exp.fresh,
+              Exp.fresh(
                 BinOp(
                   Int(Power),
-                  Atom(Int(Bigint.of_int(3))) |> Exp.fresh,
-                  Atom(Int(Bigint.of_int(4))) |> Exp.fresh,
-                )
-                |> Exp.fresh,
-              )
-              |> Exp.fresh,
+                  Exp.fresh(Atom(Int(Bigint.of_int(2)))),
+                  Exp.fresh(
+                    BinOp(
+                      Int(Power),
+                      Exp.fresh(Atom(Int(Bigint.of_int(3)))),
+                      Exp.fresh(Atom(Int(Bigint.of_int(4)))),
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
           {|2 ** 3 ** 4|},
@@ -324,17 +331,19 @@ let tests = (
           Printer.of_segment(
             ~holes=Some("?"),
             segmentize(
-              BinOp(
-                Int(Power),
+              Exp.fresh(
                 BinOp(
                   Int(Power),
-                  Atom(Int(Bigint.of_int(2))) |> Exp.fresh,
-                  Atom(Int(Bigint.of_int(3))) |> Exp.fresh,
-                )
-                |> Exp.fresh,
-                Atom(Int(Bigint.of_int(4))) |> Exp.fresh,
-              )
-              |> Exp.fresh,
+                  Exp.fresh(
+                    BinOp(
+                      Int(Power),
+                      Exp.fresh(Atom(Int(Bigint.of_int(2)))),
+                      Exp.fresh(Atom(Int(Bigint.of_int(3)))),
+                    ),
+                  ),
+                  Exp.fresh(Atom(Int(Bigint.of_int(4)))),
+                ),
+              ),
             ),
           ),
           {|(2 ** 3) ** 4|},
@@ -345,17 +354,23 @@ let tests = (
           Printer.of_segment(
             ~holes=Some("?"),
             segmentize(
-              TyAlias(
-                Var("x") |> TPat.fresh,
-                Arrow(
-                  Arrow(Atom(Int) |> Typ.fresh, Atom(Bool) |> Typ.fresh)
-                  |> Typ.fresh,
-                  Var("x") |> Typ.fresh,
-                )
-                |> Typ.fresh,
-                Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
-              )
-              |> Exp.fresh,
+              Exp.fresh(
+                TyAlias(
+                  TPat.fresh(Var("x")),
+                  Typ.fresh(
+                    Arrow(
+                      Typ.fresh(
+                        Arrow(
+                          Typ.fresh(Atom(Int)),
+                          Typ.fresh(Atom(Bool)),
+                        ),
+                      ),
+                      Typ.fresh(Var("x")),
+                    ),
+                  ),
+                  Exp.fresh(Atom(Int(Bigint.of_int(1)))),
+                ),
+              ),
             ),
           ),
           {|type x = (Int -> Bool) -> x in 1|},
