@@ -1,6 +1,16 @@
 let filename = "haz3l-demo";
 let log_key = filename;
 let exercises: list(DerivationTree.spec) = [
+  T0.exercise,
+  T1.exercise,
+  T2.exercise,
+  T3.exercise,
+  T4.exercise,
+  T5.exercise,
+  T6.exercise,
+  T7.exercise,
+  T8.exercise,
+  T9.exercise,
   Ex_DerivationEmpty.exercise("Ⅰ"),
   Ex_DerivationEmpty.exercise("ⅠⅠ"),
   Ex_DerivationEmpty.exercise("ⅠⅠⅠ"),

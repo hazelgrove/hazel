@@ -921,7 +921,7 @@ module View = {
       div(
         ~attrs=[Attr.class_("version-name"), Attr.title("Toggle Version")],
         [
-          div(~attrs=[Attr.class_("version-label")], [text("Version: ")]),
+          div(~attrs=[Attr.class_("version-label")], [text("Corpus: ")]),
           text(Unicode.nbsp),
           text(RuleImage.show_corpus(eds.corpus)),
           text(Unicode.nbsp),
