@@ -47,7 +47,7 @@ module Update = {
         Cut |
         Buffer(_) |
         Project(_) |
-        Introduce,
+        Introduce(_),
       )
     | Undo
     | Redo

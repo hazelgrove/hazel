@@ -256,7 +256,14 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       ~section="Refactoring",
       ~hotkey=Keyboard.meta(sys) ++ "+i",
       "Introduce",
-      Globals(ActiveEditor(Introduce)),
+      Globals(ActiveEditor(Introduce({turbo: false}))),
+    ),
+    mk_shortcut(
+      ~mdIcon="bolt",
+      ~section="Refactoring",
+      ~hotkey=Keyboard.meta(sys) ++ "+u",
+      "Turbo Introduce!",
+      Globals(ActiveEditor(Introduce({turbo: true}))),
     ),
   ]
   @ (if (ExerciseSettings.show_instructor) {instructor_shortcuts} else {[]});

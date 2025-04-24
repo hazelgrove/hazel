@@ -27,7 +27,7 @@ let find_hole_id = (e: Exp.t): option(Id.t) => {
   };
 };
 
-let introduction_test = (before: string, expected: string) => {
+let introduction_test = (~turbo_mode=false, before: string, expected: string) => {
   open Util.OptUtil.Syntax;
 
   let serialized = {
@@ -47,15 +47,16 @@ let introduction_test = (before: string, expected: string) => {
         Builtins.ctx_init(Some(Operators.default_mode)),
         exp,
       );
-    let+ zip = Introduce.introduce(statics, zip);
+    let+ zip = Introduce.introduce(~turbo_mode, statics, zip);
     Printer.zipper_to_string(~holes=Some("?"), zip);
   };
 
   check(option(string), "Introduce", Some(expected), serialized);
 };
 
-let introduce_expression = (x: Typ.t): option(Exp.t) =>
-  Introduce.IntroduceExp.introduce(x) |> Option.map(((a, _b, _c)) => a);
+let introduce_expression = (~turbo_mode=false, x: Typ.t): option(Exp.t) =>
+  Introduce.IntroduceExp.introduce(~turbo_mode, Ctx.empty_pre_elaboration, x)
+  |> Option.map(((a, _b, _c)) => a);
 
 let tests =
   IdTagged.FreshGrammar.[
@@ -196,6 +197,55 @@ let tests =
       ],
     ),
     (
+      "Introduce.introduce_expression turbo",
+      {
+        let introduce_expression = introduce_expression(~turbo_mode=true, _);
+
+        [
+          test_case(
+            "Product types",
+            `Quick,
+            () => {
+              check(
+                option(exp),
+                "Cardinality 0",
+                Some(Exp.(tuple([]))),
+                introduce_expression(Typ.(prod([]))),
+              );
+              check(
+                option(exp),
+                "Cardinality 2 no subexpressions",
+                Some(Exp.(tuple([empty_hole(), empty_hole()]))),
+                introduce_expression(Typ.(prod([int(), int()]))),
+              );
+              check(
+                option(exp),
+                "Inner tuples",
+                Some(
+                  Exp.(
+                    tuple([
+                      empty_hole(),
+                      tuple([string(""), empty_hole(), list_lit([])]),
+                      tup_label(label("l"), empty_hole()),
+                    ])
+                  ),
+                ),
+                introduce_expression(
+                  Typ.(
+                    prod([
+                      int(),
+                      prod([string(), int(), list(int())]),
+                      tup_label(label("l"), int()),
+                    ])
+                  ),
+                ),
+              );
+            },
+          ),
+        ];
+      },
+    ),
+    (
       "Introduce.introduce.expression",
       [
         test_case("Tuple", `Quick, () => {
@@ -242,6 +292,20 @@ let tests =
       ],
     ),
     (
+      "Introduce.introduce.expression turbo mode",
+      {
+        let introduction_test = introduction_test(~turbo_mode=true);
+        [
+          test_case("Tuple", `Quick, () => {
+            introduction_test(
+              "let x : (Int, (String, Int, [Int]), l=(+A)) =in x",
+              {|let x : (Int, (String, Int, [Int]), l=(+A)) =(?, ("", ?, []), l=A)in x|},
+            )
+          }),
+        ];
+      },
+    ),
+    (
       "Introduce.introduce.pattern",
       [
         test_case(
@@ -280,5 +344,19 @@ let tests =
           },
         ),
       ],
+    ),
+    (
+      "Introduce.introduce.pattern turbo mode",
+      {
+        let introduction_test = introduction_test(~turbo_mode=true);
+        [
+          test_case("Tuple", `Quick, () => {
+            introduction_test(
+              "let x : (Int, (String, Int, [Int]), l=(+A)) -> Int = fun (?) -> 1 in x",
+              {|let x : (Int, (String, Int, [Int]), l=(+A)) -> Int = fun (?, (?, ?, ?), ?) -> 1 in x|},
+            )
+          }),
+        ];
+      },
     ),
   ];

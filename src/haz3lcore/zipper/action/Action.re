@@ -94,7 +94,7 @@ type t =
   | MoveToBackpackTarget(planar)
   | Pick_up
   | Put_down
-  | Introduce;
+  | Introduce({turbo: bool});
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -129,7 +129,7 @@ let is_edit: t => bool =
   | Destruct(_)
   | Pick_up
   | Put_down
-  | Introduce
+  | Introduce(_)
   | Buffer(Accept | Clear | Set(_)) => true
   | Copy
   | Move(_)
@@ -167,7 +167,7 @@ let is_historic: t => bool =
   | Destruct(_)
   | Pick_up
   | Put_down
-  | Introduce => true
+  | Introduce(_) => true
   | Project(p) =>
     switch (p) {
     | SetSyntax(_)
@@ -195,7 +195,7 @@ let prevent_in_read_only_editor = (a: t) => {
   | Put_down
   | RotateBackpack
   | MoveToBackpackTarget(_)
-  | Introduce => true
+  | Introduce(_) => true
   | Project(p) =>
     switch (p) {
     | SetSyntax(_) => true
@@ -227,7 +227,7 @@ let should_animate: t => bool =
   | Cut
   | Reparse
   | Insert(_)
-  | Introduce
+  | Introduce(_)
   | Destruct(_)
   | Pick_up
   | Put_down
