@@ -339,8 +339,8 @@ in fn("hello")|},
     test_case("Negative integer literal", `Quick, () =>
       evaluation_test(
         "-8",
-        Exp.(int(Bigint.of_int(-8))),
-        Exp.(un_op(Int(Minus), Exp.(int(Bigint.of_int(8))))),
+        int(Bigint.of_int(-8)),
+        un_op(Int(Minus), int(Bigint.of_int(8))),
       )
     ),
     test_case("Simple probe", `Quick, () => {
