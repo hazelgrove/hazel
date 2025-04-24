@@ -494,14 +494,12 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Atom(Bool(b)),
       annotation: default_annotation(ann),
     };
-    let int = (~ann=?, i: Int.t): exp_t(DefaultAnnotation.t) => {
-      term: Atom(Int(Bigint.of_int(i))),
-      annotation: default_annotation(ann),
-    };
     let big_int = (~ann=?, i: Bigint.t): exp_t(DefaultAnnotation.t) => {
       term: Atom(Int(i)),
       annotation: default_annotation(ann),
     };
+    let int = (~ann=?, i: Int.t): exp_t(DefaultAnnotation.t) =>
+      big_int(~ann?, Bigint.of_int(i));
     let sint = (~ann=?, i): exp_t(DefaultAnnotation.t) => {
       term: Atom(SInt(i)),
       annotation: default_annotation(ann),
@@ -660,14 +658,12 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Atom(c),
       annotation: default_annotation(ann),
     };
-    let int = (~ann=?, i): pat_t(DefaultAnnotation.t) => {
-      term: Atom(Int(Bigint.of_int(i))),
-      annotation: default_annotation(ann),
-    };
     let big_int = (~ann=?, i): pat_t(DefaultAnnotation.t) => {
       term: Atom(Int(i)),
       annotation: default_annotation(ann),
     };
+    let int = (~ann=?, i): pat_t(DefaultAnnotation.t) =>
+      big_int(~ann?, Bigint.of_int(i));
     let sint = (~ann=?, i): pat_t(DefaultAnnotation.t) => {
       term: Atom(SInt(i)),
       annotation: default_annotation(ann),
