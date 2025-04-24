@@ -29,6 +29,12 @@ let elaborate = u =>
   )
   |> fst;
 
+module PGrammar =
+  Grammar.Factory({
+    type t = list(Grammar.exp_t(unit));
+    let default_value = (): list(Grammar.exp_t(unit)) => [];
+  });
+module UG = Grammar.UnitGrammar;
 let probe_test =
     (msg: string, expected: Grammar.exp_t(list(Grammar.exp_t(unit)))) => {
   let fresh: Exp.t =
@@ -344,29 +350,27 @@ in fn("hello")|},
       )
     ),
     test_case("Simple probe", `Quick, () => {
-      probe_test(
-        "let x = 1 + 2 in 4",
-        expected_probe(
-          Let(
-            expected_probe_pat(Var("x"), []),
-            expected_probe(
-              Probe(
-                expected_probe(
-                  BinOp(
+      PGrammar.(
+        probe_test(
+          "let x = 1 + 2 in 4",
+          Exp.(
+            let_(
+              Pat.(var("x")),
+              Exp.(
+                probe(
+                  ~ann=[probed_value(Atom(Int(Bigint.of_int(3))))],
+                  bin_op(
                     Int(Plus),
-                    expected_probe(Atom(Int(Bigint.of_int(1))), []),
-                    expected_probe(Atom(Int(Bigint.of_int(2))), []),
+                    int(Bigint.of_int(1)),
+                    int(Bigint.of_int(2)),
                   ),
-                  [],
-                ),
-                {refs: []},
+                  {refs: []},
+                )
               ),
-              [probed_value(Atom(Int(Bigint.of_int(3))))],
-            ),
-            expected_probe(Var("x"), []),
+              var("x"),
+            )
           ),
-          [],
-        ),
+        )
       )
     }),
     test_case(
@@ -374,18 +378,15 @@ in fn("hello")|},
       `Quick,
       () => {
         // TODO Better helpers. We really need a way to build these with a builder for the "free element".
+        open PGrammar;
+        module UE = UG.Exp;
+        module UP = UG.Pat;
         let npp = expected_probe_pat(_, []);
         let np = expected_probe(_, []);
-        let p = (p, es: list(Grammar.exp_term(unit))) =>
-          expected_probe(
-            Probe(np(p), {refs: []}),
-            List.map(Grammar.Annotated.empty, es),
-          );
-        let pp = (p, es: list(Grammar.exp_term(unit))) =>
-          expected_probe_pat(
-            Probe(npp(p), {refs: []}),
-            List.map(Grammar.Annotated.empty, es),
-          );
+        let p = (p, es: list(UG.Exp.t)) =>
+          expected_probe(Probe(p, {refs: []}), es);
+        let pp = (p, es: list(UE.t)) =>
+          expected_probe_pat(Probe(npp(p), {refs: []}), es);
 
         probe_test(
           {|let fact = fun x ->
@@ -395,96 +396,80 @@ in fn("hello")|},
              let r = fact(x-1)
              in x*r
          end in fact(5)|},
-          np(
-            Let(
-              npp(Var("fact")),
-              np(
-                Fun(
-                  pp(
-                    Var("x"),
-                    [
-                      Atom(Int(Bigint.of_int(5))),
-                      Atom(Int(Bigint.of_int(4))),
-                      Atom(Int(Bigint.of_int(3))),
-                      Atom(Int(Bigint.of_int(2))),
-                      Atom(Int(Bigint.of_int(1))),
+          Exp.(
+            let_(
+              Pat.(var("fact")),
+              fn(
+                pp(
+                  Var("x"),
+                  UE.[
+                    int(Bigint.of_int(5)),
+                    int(Bigint.of_int(4)),
+                    int(Bigint.of_int(3)),
+                    int(Bigint.of_int(2)),
+                    int(Bigint.of_int(1)),
+                  ],
+                ),
+                match(
+                  p(
+                    var("x"),
+                    UE.[
+                      int(Bigint.of_int(5)),
+                      int(Bigint.of_int(4)),
+                      int(Bigint.of_int(3)),
+                      int(Bigint.of_int(2)),
+                      int(Bigint.of_int(1)),
                     ],
                   ),
-                  np(
-                    Match(
+                  [
+                    (
+                      Pat.(int(Bigint.of_int(1))),
                       p(
-                        Var("x"),
-                        [
-                          Atom(Int(Bigint.of_int(5))),
-                          Atom(Int(Bigint.of_int(4))),
-                          Atom(Int(Bigint.of_int(3))),
-                          Atom(Int(Bigint.of_int(2))),
-                          Atom(Int(Bigint.of_int(1))),
-                        ],
+                        int(Bigint.of_int(1)),
+                        UE.[int(Bigint.of_int(1))],
                       ),
-                      [
-                        (
-                          npp(Atom(Int(Bigint.of_int(1)))),
+                    ),
+                    (
+                      Pat.wild(),
+                      np(
+                        Let(
+                          npp(Var("r")),
                           p(
-                            Atom(Int(Bigint.of_int(1))),
-                            [Atom(Int(Bigint.of_int(1)))],
-                          ),
-                        ),
-                        (
-                          npp(Wild),
-                          np(
-                            Let(
-                              npp(Var("r")),
-                              p(
-                                Ap(
-                                  Forward,
-                                  np(Var("fact")),
-                                  np(
-                                    BinOp(
-                                      Int(Minus),
-                                      np(Var("x")),
-                                      np(Atom(Int(Bigint.of_int(1)))),
-                                    ),
-                                  ),
-                                ),
-                                [
-                                  Atom(Int(Bigint.of_int(1))),
-                                  Atom(Int(Bigint.of_int(2))),
-                                  Atom(Int(Bigint.of_int(6))),
-                                  Atom(Int(Bigint.of_int(24))),
-                                ],
-                              ),
-                              p(
-                                BinOp(
-                                  Int(Times),
-                                  np(Var("x")),
-                                  np(Var("r")),
-                                ),
-                                [
-                                  Atom(Int(Bigint.of_int(2))),
-                                  Atom(Int(Bigint.of_int(6))),
-                                  Atom(Int(Bigint.of_int(24))),
-                                  Atom(Int(Bigint.of_int(120))),
-                                ],
+                            ap(
+                              Forward,
+                              var("fact"),
+                              bin_op(
+                                Int(Minus),
+                                var("x"),
+                                int(Bigint.of_int(1)),
                               ),
                             ),
+                            UE.[
+                              int(Bigint.of_int(1)),
+                              int(Bigint.of_int(2)),
+                              int(Bigint.of_int(6)),
+                              int(Bigint.of_int(24)),
+                            ],
+                          ),
+                          p(
+                            bin_op(Int(Times), var("x"), var("r")),
+                            UE.[
+                              int(Bigint.of_int(2)),
+                              int(Bigint.of_int(6)),
+                              int(Bigint.of_int(24)),
+                              int(Bigint.of_int(120)),
+                            ],
                           ),
                         ),
-                      ],
+                      ),
                     ),
-                  ),
-                  None,
-                  None,
+                  ],
                 ),
+                None,
+                None,
               ),
-              np(
-                Ap(
-                  Forward,
-                  np(Var("fact")),
-                  np(Atom(Int(Bigint.of_int(5)))),
-                ),
-              ),
-            ),
+              ap(Forward, var("fact"), int(Bigint.of_int(5))),
+            )
           ),
         );
       },
