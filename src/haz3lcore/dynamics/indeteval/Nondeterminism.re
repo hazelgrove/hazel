@@ -184,9 +184,11 @@ module BFS: Search = {
   let choice_n: Sequence.t(t('a)) => t('a) =
     ms =>
       unfold(~init=ms, ~f=ms =>
-        ms
-        |> filter_map(~f=next)
-        |> (ms => Some((ms >>| fst |> concat, ms >>| snd)))
+        is_empty(ms)
+          ? None
+          : ms
+            |> filter_map(~f=next)
+            |> (ms => Some((ms >>| fst |> concat, ms >>| snd)))
       );
 
   let concat = l => List.fold_left(choice, fail, l);
