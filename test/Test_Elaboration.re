@@ -23,7 +23,7 @@ module PlainTests = {
     | None => Alcotest.fail("Failed to parse expression: " ++ s)
     };
   };
-  let u1: Exp.t = Exp.int(Bigint.of_int(8));
+  let u1: Exp.t = Exp.int(8);
   let single_integer = () =>
     alco_check("Integer literal 8", u1, dhexp_of_uexp(u1));
 
@@ -38,7 +38,7 @@ module PlainTests = {
     Exp.(
       let_(
         Pat.(tuple([var("a"), var("b")])),
-        tuple([int(Bigint.of_int(4)), int(Bigint.of_int(6))]),
+        tuple([int(4), int(6)]),
         bin_op(Int(Minus), var("a"), var("b")),
       )
     );
@@ -64,8 +64,7 @@ module PlainTests = {
       dhexp_of_uexp(u5),
     );
 
-  let u6: Exp.t =
-    Exp.(if_(bool(false), int(Bigint.of_int(8)), int(Bigint.of_int(6))));
+  let u6: Exp.t = Exp.(if_(bool(false), int(8), int(6)));
 
   let consistent_if = () =>
     alco_check(
@@ -77,19 +76,14 @@ module PlainTests = {
   // x => 4 + 5
   let f =
     Exp.(
-      fn(
-        Pat.var("x"),
-        bin_op(Int(Plus), int(Bigint.of_int(4)), int(Bigint.of_int(5))),
-        None,
-        None,
-      )
+      fn(Pat.var("x"), bin_op(Int(Plus), int(4), int(5)), None, None)
     );
 
   let f' =
     Exp.(
       fn(
         Pat.var("x"),
-        bin_op(Int(Plus), int(Bigint.of_int(4)), int(Bigint.of_int(5))),
+        bin_op(Int(Plus), int(4), int(5)),
         Some(Typ.unknown(Hole(EmptyHole))),
         None,
       )
@@ -107,30 +101,19 @@ module PlainTests = {
   let u8: Exp.t =
     Exp.(
       match(
-        bin_op(
-          Int(Equals),
-          int(Bigint.of_int(4)),
-          int(Bigint.of_int(3)),
-        ),
-        [
-          (Pat.bool(true), int(Bigint.of_int(24))),
-          (Pat.bool(false), bool(false)),
-        ],
+        bin_op(Int(Equals), int(4), int(3)),
+        [(Pat.bool(true), int(24)), (Pat.bool(false), bool(false))],
       )
     );
 
   let d8: Exp.t =
     Exp.(
       match(
-        bin_op(
-          Int(Equals),
-          int(Bigint.of_int(4)),
-          int(Bigint.of_int(3)),
-        ),
+        bin_op(Int(Equals), int(4), int(3)),
         [
           (
             Pat.(bool(true)),
-            cast(int(Bigint.of_int(24)), Typ.int(), Typ.unknown(Internal)),
+            cast(int(24), Typ.int(), Typ.unknown(Internal)),
           ),
           (
             Pat.bool(false),
@@ -159,11 +142,11 @@ module PlainTests = {
         ),
         fn(
           Pat.var("x"),
-          bin_op(Int(Plus), int(Bigint.of_int(1)), var("x")),
+          bin_op(Int(Plus), int(1), var("x")),
           None,
           None,
         ),
-        int(Bigint.of_int(55)),
+        int(55),
       )
     );
 
@@ -173,11 +156,11 @@ module PlainTests = {
         Pat.var("f"),
         fn(
           Pat.var("x"),
-          bin_op(Int(Plus), int(Bigint.of_int(1)), var("x")),
+          bin_op(Int(Plus), int(1), var("x")),
           Some(Typ.int()),
           Some("f"),
         ),
-        int(Bigint.of_int(55)),
+        int(55),
       )
     );
 
@@ -194,14 +177,14 @@ module PlainTests = {
       Exp.(
         deferred_ap(
           var("string_sub"),
-          [string("hello"), int(Bigint.of_int(1)), deferral(InAp)],
+          [string("hello"), int(1), deferral(InAp)],
         )
       ),
       dhexp_of_uexp(
         Exp.(
           deferred_ap(
             var("string_sub"),
-            [string("hello"), int(Bigint.of_int(1)), deferral(InAp)],
+            [string("hello"), int(1), deferral(InAp)],
           )
         ),
       ),
@@ -215,9 +198,9 @@ module PlainTests = {
           Forward,
           deferred_ap(
             var("string_sub"),
-            [string("hello"), int(Bigint.of_int(1)), deferral(InAp)],
+            [string("hello"), int(1), deferral(InAp)],
           ),
-          int(Bigint.of_int(2)),
+          int(2),
         )
       ),
       dhexp_of_uexp(
@@ -226,9 +209,9 @@ module PlainTests = {
             Forward,
             deferred_ap(
               var("string_sub"),
-              [string("hello"), int(Bigint.of_int(1)), deferral(InAp)],
+              [string("hello"), int(1), deferral(InAp)],
             ),
-            int(Bigint.of_int(2)),
+            int(2),
           )
         ),
       ),
@@ -262,11 +245,7 @@ module PlainTests = {
             [
               deferral(InAp),
               deferral(InAp),
-              cast(
-                int(Bigint.of_int(3)),
-                Typ.int(),
-                Typ.unknown(Internal),
-              ),
+              cast(int(3), Typ.int(), Typ.unknown(Internal)),
             ],
           ),
           cast(
@@ -282,7 +261,7 @@ module PlainTests = {
             Forward,
             deferred_ap(
               empty_hole(),
-              [deferral(InAp), deferral(InAp), int(Bigint.of_int(3))],
+              [deferral(InAp), deferral(InAp), int(3)],
             ),
             tuple([float(1.), bool(true)]),
           ),
@@ -331,7 +310,7 @@ module PlainTests = {
               string("123 Maple St"),
               string("Ann Arbor"),
               string("MI"),
-              int(Bigint.of_int(48103)),
+              int(48103),
             ]),
           ),
           var("add"),
@@ -347,7 +326,7 @@ module PlainTests = {
             tup_label(label("street"), string("123 Maple St")),
             tup_label(label("city"), string("Ann Arbor")),
             tup_label(label("state"), string("MI")),
-            tup_label(label("zipcode"), int(Bigint.of_int(48103))),
+            tup_label(label("zipcode"), int(48103)),
           ]),
           var("add"),
         )
@@ -411,7 +390,7 @@ module PlainTests = {
           ),
           parens(
             tuple([
-              int(Bigint.of_int(1)),
+              int(1),
               float(1.0),
               tup_label(label("c"), bool(true)),
               tup_label(label("b"), string("a")),
@@ -427,7 +406,7 @@ module PlainTests = {
         let_(
           Pat.var("val"),
           tuple([
-            tup_label(label("a"), int(Bigint.of_int(1))),
+            tup_label(label("a"), int(1)),
             tup_label(label("b"), string("a")),
             float(1.0),
             tup_label(label("c"), bool(true)),
@@ -526,7 +505,7 @@ module PlainTests = {
         Exp.(
           let_(
             Pat.var("zip_only"),
-            tuple([tup_label(label("zip"), int(Bigint.of_int(12345)))]),
+            tuple([tup_label(label("zip"), int(12345))]),
             var("zip_only"),
           )
         ),
@@ -550,7 +529,7 @@ module PlainTests = {
               Some(Typ.(prod([tup_label(label("a"), int())]))),
               None,
             ),
-            tuple([tup_label(label("a"), int(Bigint.of_int(1)))]),
+            tuple([tup_label(label("a"), int(1))]),
           )
         ),
         dhexp_of_uexp(parse_exp({|(fun a=(x:Int) -> x)(a=1)|})) // Ignoring casts for now
@@ -571,7 +550,7 @@ module PlainTests = {
               Some(Typ.(prod([tup_label(label("a"), Typ.int())]))),
               None,
             ),
-            tuple([tup_label(label("a"), int(Bigint.of_int(1)))]),
+            tuple([tup_label(label("a"), int(1))]),
           )
         ),
         dhexp_of_uexp(parse_exp({|(fun a=(x:Int) -> x)(1)|})),
@@ -586,7 +565,7 @@ module PlainTests = {
             tuple([
               tup_label(
                 label("c"),
-                failed_cast(int(Bigint.of_int(1)), Typ.int(), Typ.string()),
+                failed_cast(int(1), Typ.int(), Typ.string()),
               ),
             ]),
             var("x"),
@@ -630,7 +609,7 @@ module PlainTests = {
               ),
               None,
             ),
-            tuple([tup_label(label("a"), int(Bigint.of_int(1)))]),
+            tuple([tup_label(label("a"), int(1))]),
           )
         ),
         DHExp.strip_casts(dhexp_of_uexp(parse_exp({|(fun a=x->x)(a=1)|}))),
@@ -642,7 +621,7 @@ module PlainTests = {
         Exp.(
           let_(
             Pat.var("x"),
-            tuple([tup_label(label("a"), int(Bigint.of_int(1)))]),
+            tuple([tup_label(label("a"), int(1))]),
             var("x"),
           )
         ),
@@ -748,15 +727,8 @@ module MenhirElaborationTests = {
   let inconsistent_case_uexp: Exp.t =
     Exp.(
       match(
-        bin_op(
-          Int(Equals),
-          int(Bigint.of_int(4)),
-          int(Bigint.of_int(3)),
-        ),
-        [
-          (Pat.bool(true), int(Bigint.of_int(24))),
-          (Pat.bool(false), bool(false)),
-        ],
+        bin_op(Int(Equals), int(4), int(3)),
+        [(Pat.bool(true), int(24)), (Pat.bool(false), bool(false))],
       )
     );
 
@@ -768,8 +740,7 @@ module MenhirElaborationTests = {
     );
 
   //Consistent if statement menhir test
-  let consistent_if_uexp: Exp.t =
-    Exp.(if_(bool(false), int(Bigint.of_int(8)), int(Bigint.of_int(6))));
+  let consistent_if_uexp: Exp.t = Exp.(if_(bool(false), int(8), int(6)));
 
   let consistent_if_str = "
     if false then 8 else 6
@@ -783,7 +754,7 @@ module MenhirElaborationTests = {
 
   //Single integer menhir test
   let single_int_str = "8";
-  let single_int_uexp: Exp.t = Exp.int(Bigint.of_int(8));
+  let single_int_uexp: Exp.t = Exp.int(8);
   let single_integer_menhir = () =>
     alco_check_menhir(
       "Single integer test (menhir)",
@@ -797,7 +768,7 @@ module MenhirElaborationTests = {
     Exp.(
       let_(
         Pat.(tuple([var("a"), var("b")])),
-        tuple([int(Bigint.of_int(4)), int(Bigint.of_int(6))]),
+        tuple([int(4), int(6)]),
         bin_op(Int(Minus), var("a"), var("b")),
       )
     );
@@ -811,19 +782,14 @@ module MenhirElaborationTests = {
 
   let typ_ap_str = "(typfun x -> 4)@<Int>";
   let typ_ap_uexp: Exp.t =
-    Exp.(
-      typ_ap(
-        typ_fun(TPat.var("x"), int(Bigint.of_int(4)), None),
-        Typ.int(),
-      )
-    );
+    Exp.(typ_ap(typ_fun(TPat.var("x"), int(4), None), Typ.int()));
 
   let typ_ap_menhir = () =>
     alco_check_menhir("Type ap test (menhir)", typ_ap_str, typ_ap_uexp);
 
   let failed_cast_str = "1 ?{Int => String}";
   let failed_cast_uexp: Exp.t =
-    Exp.(failed_cast(int(Bigint.of_int(1)), Typ.int(), Typ.string()));
+    Exp.(failed_cast(int(1), Typ.int(), Typ.string()));
 
   let failed_cast_menhir = () =>
     alco_check_menhir(
@@ -848,11 +814,7 @@ module MenhirElaborationTests = {
   let dynamic_error_hole_uexp: Exp.t =
     Exp.(
       dynamic_error_hole(
-        bin_op(
-          Int(Divide),
-          int(Bigint.of_int(1)),
-          int(Bigint.of_int(0)),
-        ),
+        bin_op(Int(Divide), int(1), int(0)),
         InvalidOperationError.DivideByZero,
       )
     );
@@ -879,7 +841,7 @@ module MenhirElaborationTests = {
     alco_check_menhir("Undef test (menhir)", undef_str, undef_uexp);
 
   let test_str = "test 1 ?{Int => Bool} end";
-  let test_uexp: Exp.t = Exp.(test(int(Bigint.of_int(1))));
+  let test_uexp: Exp.t = Exp.(test(int(1)));
   let test_menhir = () =>
     alco_check_menhir("Test failed (menhir)", test_str, test_uexp);
 
@@ -887,12 +849,11 @@ module MenhirElaborationTests = {
   let stepper_filter_kind: TermBase.stepper_filter_kind_t =
     StepperFilter.(
       filter({
-        pat: Exp.int(Bigint.of_int(1)),
+        pat: Exp.int(1),
         act: (FilterAction.Eval, FilterAction.All),
       })
     );
-  let filter_uexp: Exp.t =
-    Exp.(filter(stepper_filter_kind, int(Bigint.of_int(0))));
+  let filter_uexp: Exp.t = Exp.(filter(stepper_filter_kind, int(0)));
   let filter_menhir = () =>
     alco_check_menhir("Filter test (menhir)", filter_str, filter_uexp);
 
@@ -908,14 +869,7 @@ undef
     );
 
   let list_exp_str = "[1, 2, 3]";
-  let list_exp_uexp: Exp.t =
-    Exp.(
-      list_lit([
-        int(Bigint.of_int(1)),
-        int(Bigint.of_int(2)),
-        int(Bigint.of_int(3)),
-      ])
-    );
+  let list_exp_uexp: Exp.t = Exp.(list_lit([int(1), int(2), int(3)]));
   let list_exp_menhir = () =>
     alco_check_menhir("List exp (menhir)", list_exp_str, list_exp_uexp);
 
@@ -942,8 +896,8 @@ x
   let list_concat_uexp: Exp.t =
     Exp.(
       list_concat(
-        list_lit([int(Bigint.of_int(1)), int(Bigint.of_int(2))]),
-        list_lit([int(Bigint.of_int(3)), int(Bigint.of_int(4))]),
+        list_lit([int(1), int(2)]),
+        list_lit([int(3), int(4)]),
       )
     );
   let list_concat_menhir = () =>
@@ -954,19 +908,17 @@ x
     );
 
   let unop_str = "-1";
-  let unop_uexp: Exp.t = Exp.(un_op(Int(Minus), int(Bigint.of_int(1))));
+  let unop_uexp: Exp.t = Exp.(un_op(Int(Minus), int(1)));
   let unop_menhir = () =>
     alco_check_menhir("Unary operation test (menhir)", unop_str, unop_uexp);
 
   let seq_str = "1; 2";
-  let seq_uexp: Exp.t =
-    Exp.(seq(int(Bigint.of_int(1)), int(Bigint.of_int(2))));
+  let seq_uexp: Exp.t = Exp.(seq(int(1), int(2)));
   let seq_menhir = () =>
     alco_check_menhir("Sequence test (menhir)", seq_str, seq_uexp);
 
   let fixf_str = "fix x -> 1{Int => Unknown Internal}";
-  let fixf_uexp: Exp.t =
-    Exp.(fix_f(Pat.var("x"), int(Bigint.of_int(1)), None));
+  let fixf_uexp: Exp.t = Exp.(fix_f(Pat.var("x"), int(1), None));
   let fixf_menhir = () =>
     alco_check_menhir("FixF test (menhir)", fixf_str, fixf_uexp);
 

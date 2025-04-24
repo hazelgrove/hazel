@@ -91,7 +91,7 @@ let tests = (
               children: [],
             }),
           ],
-          exp_to_segment(int(Bigint.of_int(1))),
+          exp_to_segment(int(1)),
         );
         check(
           segment,
@@ -170,11 +170,7 @@ let tests = (
           option(segment),
           "2-ary",
           zipper_parse("(1, 2)"),
-          Some(
-            exp_to_segment(
-              tuple([int(Bigint.of_int(1)), int(Bigint.of_int(2))]),
-            ),
-          ),
+          Some(exp_to_segment(tuple([int(1), int(2)]))),
         );
       },
     ),
@@ -188,11 +184,7 @@ let tests = (
           option(segment),
           "Singleton Labeled",
           zipper_parse("(x=1)"),
-          Some(
-            exp_to_segment(
-              tuple([tup_label(label("x"), int(Bigint.of_int(1)))]),
-            ),
-          ),
+          Some(exp_to_segment(tuple([tup_label(label("x"), int(1))]))),
         );
         equivalent_to_make_term({|(x=1, y=2)|});
       },
@@ -213,8 +205,8 @@ let tests = (
             match(
               var("x"),
               [
-                (Pat.(constructor("A", None)), int(Bigint.of_int(1))),
-                (Pat.(constructor("B", None)), int(Bigint.of_int(2))),
+                (Pat.(constructor("A", None)), int(1)),
+                (Pat.(constructor("B", None)), int(2)),
               ],
             ),
           );
@@ -237,7 +229,7 @@ let tests = (
             segmentize(
               deferred_ap(
                 var("string_sub"),
-                [string("hello"), int(Bigint.of_int(1)), deferral(InAp)],
+                [string("hello"), int(1), deferral(InAp)],
               ),
             )
           );
@@ -271,10 +263,10 @@ let tests = (
             IdTagged.FreshGrammar.Exp.(
               filter(
                 Filter({
-                  pat: int(Bigint.of_int(1)),
+                  pat: int(1),
                   act: (Step, One),
                 }),
-                int(Bigint.of_int(2)),
+                int(2),
               )
             ),
           );
@@ -296,12 +288,8 @@ let tests = (
               IdTagged.FreshGrammar.Exp.(
                 bin_op(
                   Int(Power),
-                  int(Bigint.of_int(2)),
-                  bin_op(
-                    Int(Power),
-                    int(Bigint.of_int(3)),
-                    int(Bigint.of_int(4)),
-                  ),
+                  int(2),
+                  bin_op(Int(Power), int(3), int(4)),
                 )
               ),
             ),
@@ -317,12 +305,8 @@ let tests = (
               IdTagged.FreshGrammar.Exp.(
                 bin_op(
                   Int(Power),
-                  bin_op(
-                    Int(Power),
-                    int(Bigint.of_int(2)),
-                    int(Bigint.of_int(3)),
-                  ),
-                  int(Bigint.of_int(4)),
+                  bin_op(Int(Power), int(2), int(3)),
+                  int(4),
                 )
               ),
             ),
@@ -339,7 +323,7 @@ let tests = (
                 Exp.ty_alias(
                   TPat.(var("x")),
                   Typ.(arrow(arrow(int(), bool()), var("x"))),
-                  Exp.(int(Bigint.of_int(1))),
+                  Exp.(int(1)),
                 )
               ),
             ),
