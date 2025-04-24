@@ -48,19 +48,26 @@ let print =
   | "F9" =>
     let results =
       statics.elaborated
-      |> SearchDFS.values(
+      |> SearchDFS.all(
            ~env=Builtins.env_init,
            ~state=IndetEvaluatorState.init,
          );
     let _ =
       results
-      |> DFS.run_n(~solutions=30)
+      |> DFS.run_n(~solutions=60)
       |> List.mapi((i, (state, d)) =>
            print(
              "---Result: "
              ++ Int.to_string(i)
              ++ "\nIS ERROR: "
-             ++ (CastErrorChecker.contains_error(d) |> Bool.to_string)
+             ++ (
+               (
+                 try(CastErrorChecker.contains_error(d)) {
+                 | _ => false
+                 }
+               )
+               |> Bool.to_string
+             )
              ++ "\nIS VALUE: "
              ++ (
                OneStepEvaluator.take_step(

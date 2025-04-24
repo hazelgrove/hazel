@@ -100,7 +100,7 @@ let rec find = (~in_closure=?, state, env, d) =>
   Instantiator.transition(
     find,
     ~in_closure?,
-    ~mode=`Substitution,
+    ~mode=`Environment,
     state,
     env,
     d,

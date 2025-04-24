@@ -116,7 +116,7 @@ module WrapStep = {
     Wrap.transition(
       wrap,
       ~in_closure=Option.value(~default=() => (), in_closure),
-      ~mode=`Substitution,
+      ~mode=`Environment,
       state,
       env,
       exp,
@@ -175,7 +175,7 @@ module TakeStep = {
     TakeStepEV.transition(
       (~in_closure as _=?, _, _, _) => None,
       ~in_closure=Option.value(~default=() => (), in_closure),
-      ~mode=`Substitution,
+      ~mode=`Environment,
       state,
       env,
       d,
