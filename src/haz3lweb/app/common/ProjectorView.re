@@ -8,7 +8,7 @@ open Util.Web;
 
 module Model = {
   type status = {
-    kind: Projectors.kind,
+    kind: ProjectorCore.Kind.t,
     sort: Sort.t,
     indication: option(Direction.t),
     selected: bool,
@@ -78,7 +78,7 @@ module Model = {
             p,
             ~statics,
             ~dynamics,
-            ~utility=ProjectorInfo.utility,
+            //~utility=ProjectorInfo.utility,
           );
         {
           p,
@@ -162,7 +162,7 @@ let handle = (id, action: external_action): Action.project =>
   switch (action) {
   | Remove => RemoveIndicated
   | Escape(d) => Escape(id, d)
-  | SetSyntax(f) => SetSyntax(id, f)
+  //| SetSyntax(f) => SetSyntax(id, f)
   };
 
 let offside_wrapper =
@@ -210,19 +210,23 @@ let simple_code = (~background=false, font_metrics, sort, segment): Node.t => {
 let mk_view =
     (
       inject: Action.t => Ui_effect.t(unit),
+      ~ed_str,
+      ~view_any,
       font_metrics: FontMetrics.t,
       {p, info, _}: Model.projector_data,
     )
     : View.t => {
-  let V(kind, model) = p.model;
-  let methods = ProjectorInit.to_module(kind);
+  open ProjectorCore.Kind;
+  let kind = Projectors.kind_of_model(p.model);
+  let.gadt W(kind_gadt) = kind;
+  let methods = ProjectorInit.to_module(kind_gadt);
   let parent = a => inject(Project(handle(p.id, a)));
   let local = a =>
     inject(
       Project(SetModel(p.id, V(kind, methods.update(model, info, a)))),
     );
   let view_seg = (~background=?) => simple_code(~background?, font_metrics);
-  methods.view(model, info, ~local, ~parent, ~view_seg);
+  methods.view(~ed_str, ~view_any, p.model, info, ~local, ~parent);
 };
 
 /* Extract and collate different layers of the resulting view
@@ -232,6 +236,8 @@ let split_views =
       inject: Action.t => Ui_effect.t(unit),
       make_active,
       font_metrics: FontMetrics.t,
+      ~ed_str,
+      ~view_any,
       {p, offside_base, measurement, status, _} as projector_data: Model.projector_data,
     )
     : (Node.t, option(Node.t)) => {
@@ -243,9 +249,10 @@ let split_views =
       ~measurement,
       ~status,
       ~id=p.id,
-      ~kind=p.model |> ProjectorCore.kind_of_model,
+      ~kind=p.model |> Projectors.kind_of_model,
     );
-  let views = mk_view(inject, font_metrics, projector_data);
+  let views =
+    mk_view(~ed_str, ~view_any, inject, font_metrics, projector_data);
   let line_view = {
     let offside_view =
       views.offside
@@ -279,6 +286,8 @@ let all =
       make_active,
       font_metrics: FontMetrics.t,
       projector_data: list(Model.projector_data),
+      ~ed_str,
+      ~view_any,
     ) => {
   /* Sorting the projectors by position tends to be a good
    * z-index default; projectors further to the right or
@@ -289,7 +298,9 @@ let all =
   let (base_views, overlay_views) =
     projector_data
     |> List.sort(by_measurement)
-    |> List.map(split_views(inject, make_active, font_metrics))
+    |> List.map(
+         split_views(~ed_str, ~view_any, inject, make_active, font_metrics),
+       )
     |> List.split;
   let overlay_views = List.filter_map(Fun.id, overlay_views);
   [
@@ -298,44 +309,4 @@ let all =
       [div_c("base", base_views), div_c("overlays", overlay_views)],
     ),
   ];
-};
-
-let move_dir = (key: Key.t): option(Direction.t) =>
-  switch (key) {
-  | {key: D("ArrowLeft"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up} =>
-    Some(Left)
-  | {key: D("ArrowRight"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up} =>
-    Some(Right)
-  | _ => None
-  };
-
-/* When the caret is directly adjacent to a projector, keyboard commands
- * can be overidden here. Right now, trying to move into the projector,
- * that is, pressing left when it's to the right or vice-versa, without
- * holding down a modifier, will give the projector focus (if its can_focus)
- * flag is set. Be conservative about these kind of overloads; you need
- * to consider how they interact with all the editor keyboard commands.
- * For example, without the modifiers check, this would break selection
- * around a projector. */
-let key_handoff = (editor: Editor.t, key: Key.t): option(Action.project) => {
-  let z = editor.state.zipper;
-  switch (
-    move_dir(key),
-    Siblings.neighbors(editor.state.zipper.relatives.siblings),
-  ) {
-  | _ when z.caret != Outer => None
-  | (Some(Left), (Some(Projector({id, model, _})), _)) =>
-    let V(kind, _) = model;
-    let methods = ProjectorInit.to_module(kind);
-    methods.focusable.keyboard != None
-      ? Some(Focus(id, kind |> ProjectorCore.Kind.of_gadt, Some(Right)))
-      : None;
-  | (Some(Right), (_, Some(Projector({id, model, _})))) =>
-    let V(kind, _) = model;
-    let methods = ProjectorInit.to_module(kind);
-    methods.focusable.keyboard != None
-      ? Some(Focus(id, kind |> ProjectorCore.Kind.of_gadt, Some(Left)))
-      : None;
-  | _ => None
-  };
 };

@@ -23,33 +23,30 @@ module Model = {
   };
 
   let mk_from_exp = (~settings: CoreSettings.t, ~inline=false, term: Exp.t) => {
-    ExpToSegment.exp_to_segment(
-      term,
-      ~settings=ExpToSegment.Settings.of_core(~inline, settings),
-    )
-    |> Zipper.unzip
-    |> Editor.Model.mk
-    |> mk;
+    Editor.Model.mk_from_exp(~settings, ~inline, term) |> mk;
   };
 
   let get_statics = (model: t) => model.statics;
 
   let get_dynamics = (model: t) => model.dynamics;
 
-  let get_cursor_info = (model: t): Cursor.cursor(Action.t) => {
-    info: Indicated.ci_of(model.editor.state.zipper, model.statics.info_map),
+  let get_cursor_info_editor =
+      (editor: Editor.t, statics: CachedStatics.t): Cursor.cursor(Action.t) => {
+    info: Indicated.ci_of(editor.state.zipper, statics.info_map),
     indicated_piece:
-      Indicated.piece''(model.editor.state.zipper)
-      |> Option.map(((p, _, _)) => p),
+      Indicated.piece''(editor.state.zipper) |> Option.map(((p, _, _)) => p),
     selected_text:
-      Some(() => Printer.to_string_selection(model.editor.state.zipper)),
-    selection: Some(model.editor.state.zipper.selection.content),
-    editor: Some(model.editor),
+      Some(() => Printer.to_string_selection(editor.state.zipper)),
+    selection: Some(editor.state.zipper.selection.content),
+    editor: Some(editor),
     editor_read_only: true,
     editor_action: x => Some(x),
     undo_action: None,
     redo_action: None,
   };
+
+  let get_cursor_info = (model: t): Cursor.cursor(Action.t) =>
+    get_cursor_info_editor(model.editor, model.statics);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = PersistentZipper.t;

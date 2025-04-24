@@ -226,17 +226,18 @@ module Deco =
          },
        ) => {
   let font_metrics = M.globals.font_metrics;
-  let map = M.editor.syntax.measured;
+  let syntax = Editor.get_syntax_cache(M.editor);
+  let map = syntax.measured;
   let show_backpack_targets = M.globals.show_backpack_targets;
-  let terms = M.editor.syntax.terms;
-  let term_ranges = M.editor.syntax.term_ranges;
-  let tiles = M.editor.syntax.tiles;
-  let measured = M.editor.syntax.measured;
+  let terms = syntax.terms;
+  let term_ranges = syntax.term_ranges;
+  let tiles = syntax.tiles;
+  let measured = syntax.measured;
   let rows = measured.rows;
-  let projectors = M.editor.syntax.projectors;
+  let projectors = syntax.projectors;
   let error_ids = M.statics.error_ids;
   let color_highlights = M.globals.color_highlights;
-  let segment = M.editor.syntax.segment;
+  let segment = syntax.segment;
 
   let tile = id => Id.Map.find(id, tiles);
 
@@ -264,8 +265,8 @@ module Deco =
   };
   module Highlight =
     HighlightSegment({
-      let measured = M.editor.syntax.measured;
-      let shape_map = M.editor.syntax.shape_map;
+      let measured = syntax.measured;
+      let shape_map = syntax.shape_map;
       let font_metrics = font_metrics;
     });
 
@@ -302,7 +303,7 @@ module Deco =
     | None => []
     | Some((Grout(_), _, _)) => []
     | Some((Projector(p), _, _)) =>
-      switch (Measured.find_pr_opt(p, M.editor.syntax.measured)) {
+      switch (Measured.find_pr_opt(p, syntax.measured)) {
       | Some(measurement) => [
           ShardDec.simple(
             {
@@ -311,7 +312,7 @@ module Deco =
               tips: p |> ProjectorBase.shapes |> ShardDec.tips_of_shapes,
             },
             [
-              p.syntax |> Piece.sort |> fst |> Sort.to_string,
+              p.model |> Projectors.sort_of_model |> Sort.to_string,
               "caret",
               "indicated",
             ],

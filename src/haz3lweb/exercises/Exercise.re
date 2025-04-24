@@ -501,7 +501,10 @@ let wrap = (term, editor: Editor.t): TermItem.t => {
 };
 
 let term_of = (editor: Editor.t): Exp.t =>
-  MakeTerm.from_zip_for_sem(editor.state.zipper).term;
+  switch (Editor.make_term(Exp, editor)) {
+  | Exp(t) => t
+  | _ => failwith("Exercise: term_of: expected expression")
+  };
 
 let stitch3 = (ed1: Editor.t, ed2: Editor.t, ed3: Editor.t) =>
   EditorUtil.append_exp(
@@ -586,8 +589,7 @@ let pos_of_key = (key: string): pos =>
 // // Module Export
 
 let editor_pp = (fmt, editor: Editor.t) => {
-  let zipper = editor.state.zipper;
-  let serialization = Zipper.show(zipper);
+  let serialization = Editor.make_z_serialization(editor);
   // let string_literal = "\"" ++ String.escaped(serialization) ++ "\"";
   Format.pp_print_string(fmt, serialization);
 };
@@ -604,9 +606,8 @@ let export_module = (module_name, {eds, _}: state) => {
 };
 
 let transitionary_editor_pp = (fmt, editor: Editor.t) => {
-  let zipper = editor.state.zipper;
-  let code = Printer.to_string_basic(zipper);
-  Format.pp_print_string(fmt, "\"" ++ String.escaped(code) ++ "\"");
+  let serialization = Editor.make_z_serialization(editor);
+  Format.pp_print_string(fmt, "\"" ++ String.escaped(serialization) ++ "\"");
 };
 
 let export_transitionary_module = (module_name, {eds, _}: state) => {

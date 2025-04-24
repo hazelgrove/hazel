@@ -160,7 +160,8 @@ module Selection = {
       Keyboard.handle_key_event(k) |> Option.map(x => Update.Perform(x));
 
   let handle_key_event = (~selection, model: Model.t, key) => {
-    switch (ProjectorView.key_handoff(model.editor, key)) {
+    //TODO(andrew): not sure handoff approach makes sense
+    switch (Editor.key_handoff(model.editor, key)) {
     | Some(action) => Some(Update.Perform(Project(action)))
     | None => handle_key_event(~selection, model, key)
     };
