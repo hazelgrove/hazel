@@ -500,8 +500,7 @@ and uexp_to_info_map =
       go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~mode=Syn, p, m);
     // DEBUG START
     switch (new_binding, p.term) {
-    | (None, Var("f")) =>
-      print_endline("STA p_syn = " ++ Info.show_pat(p_syn))
+    | (None, Var("f")) => print_endline("STA LET checkpoint 1")
     | _ => ()
     };
     // DEBUG END
@@ -509,6 +508,29 @@ and uexp_to_info_map =
       if (!is_recursive(ctx, p, def, p_syn.ty)) {
         let (def, m) = go(~mode=Ana(p_syn.ty), def, m);
         let ty_p_ana = def.ty;
+        // DEBUG START
+        switch (new_binding, p.term) {
+        | (None, Var("f")) =>
+          print_endline(
+            "STA LET checkpoint 2\nSTA LET ty_p_ana = " ++ Typ.show(ty_p_ana),
+          );
+          let in_type_x =
+            Ctx.lookup_var(def.ctx, "x")
+            |> Option.map((x: Ctx.var_entry) => x.typ |> Typ.normalize(ctx))
+            |> Option.value(~default=Typ.temp(Typ.Unknown(Internal)));
+          print_endline(
+            "STA LET x's type = " ++ Typ.show_term(in_type_x.term),
+          );
+          let in_type_q =
+            Ctx.lookup_var(def.ctx, "q")
+            |> Option.map((x: Ctx.var_entry) => x.typ |> Typ.normalize(ctx))
+            |> Option.value(~default=Typ.temp(Typ.Unknown(Internal)));
+          print_endline(
+            "STA LET q's type = " ++ Typ.show_term(in_type_q.term),
+          );
+        | _ => ()
+        };
+        // DEBUG END
 
         let (p_ana', _) =
           go_pat(
