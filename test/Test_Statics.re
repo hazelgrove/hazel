@@ -22,10 +22,10 @@ let eq_info_error_exp = (a: Info.error_exp, b: Info.error_exp) => {
     && List.equal(String.equal, err.invalid_labels, err'.invalid_labels)
     && Typ.fast_equal(err.typ, err'.typ)
   | (
-      Common(NoType(BadOperator("Livelit expansion failed"))),
-      Common(NoType(BadOperator("Livelit expansion failed"))),
+      Common(Inconsistent(BadLivelitModel(ty1))),
+      Common(Inconsistent(BadLivelitModel(ty2))),
     ) =>
-    true
+    Typ.fast_equal(ty1, ty2)
   | _ =>
     Alcotest.fail(
       "Not implemented for "
@@ -1027,9 +1027,7 @@ let tests = (
               ),
               ~ann=
                 Some(
-                  Exp(
-                    Common(NoType(BadOperator("Livelit expansion failed"))),
-                  ),
+                  Exp(Common(Inconsistent(BadLivelitModel(Typ.int())))),
                 ),
             )
           ),

@@ -697,20 +697,37 @@ and uexp_to_info_map =
       switch (fn.term) {
       | LivelitName(s) =>
         // refer to livelit context to find types
-        let ll = Ctx.lookup_livelit(ctx, s) |> Option.get;
-        let expansion_t = ll.expansion_t;
-        let model_t = ll.model_t;
+        switch (Ctx.lookup_livelit(ctx, s)) {
+        | Some({expansion_t, model_t, expand, _}) =>
+          let (fn, m) = go(~ana=expansion_t, fn, m);
+          let (arg, m) = go(~ana=model_t, arg, m);
 
-        let (_fn, m) = go(~ana=expansion_t, fn, m);
-        let (arg, m) = go(~ana=model_t, arg, m);
+          // try to expand
+          switch (expand(arg.term)) {
+          | Some(_) =>
+            add(
+              ~self=Just(expansion_t),
+              ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
+              m,
+            )
+          | None =>
+            // if we can't expand, flag as improper model
+            add(
+              ~self=BadLivelitModel(expansion_t),
+              ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
+              m,
+            )
+          };
 
-        switch (ll.expand(arg.term)) {
-        | Some(_) =>
-          add(~self=Just(expansion_t), ~co_ctx=CoCtx.union([arg.co_ctx]), m)
         | None =>
-          let self = Self.BadOperator("Livelit expansion failed");
-          add(~self, ~co_ctx=CoCtx.union([arg.co_ctx]), m);
-        };
+          let (fn, m) = go(~ana=Unknown(Internal) |> Typ.temp, fn, m);
+          let (arg, m) = go(~ana=Unknown(Internal) |> Typ.temp, arg, m);
+          add(
+            ~self=Just(Unknown(Internal) |> Typ.temp),
+            ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
+            m,
+          );
+        }
       | _ =>
         /* This logic lets us treat constructors differently to functions in
            terms of error localization */

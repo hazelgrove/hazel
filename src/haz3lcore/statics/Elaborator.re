@@ -477,9 +477,9 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         | Some(ll) =>
           switch (ll.expand(a)) {
           | Some(ll_expand) => ll_expand |> cast_from(ll.expansion_t)
-          | None => f |> cast_from(Typ.temp(Unknown(Internal)))
+          | None => uexp |> cast_from(Typ.temp(Unknown(Internal)))
           }
-        | None => raise(MissingTypeInfo)
+        | None => uexp |> cast_from(Typ.temp(Unknown(Internal)))
         }
       | _ =>
         let (f', tyf) = elaborate(m, f);
