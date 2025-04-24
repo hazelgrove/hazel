@@ -89,267 +89,170 @@ let parse_and_evaluate_test =
     elaborate(parse_exp(actual)),
   );
 open IdTagged.FreshGrammar;
-
+open Exp;
 let test_int = () =>
-  evaluation_test(
-    "8",
-    Exp.(int(Bigint.of_int(8))),
-    Exp.(int(Bigint.of_int(8))),
-  );
+  evaluation_test("8", int(Bigint.of_int(8)), int(Bigint.of_int(8)));
 
 let test_sum = () =>
   evaluation_test(
     "4 + 5",
-    Exp.(int(Bigint.of_int(9))),
-    Exp.(
-      bin_op(
-        Int(Plus),
-        Exp.(int(Bigint.of_int(4))),
-        Exp.(int(Bigint.of_int(5))),
-      )
-    ),
+    int(Bigint.of_int(9)),
+    bin_op(Int(Plus), int(Bigint.of_int(4)), int(Bigint.of_int(5))),
   );
 
 let test_labeled_tuple_projection = () =>
   evaluation_test(
     "(a=1, b=2, c=?).a",
-    Exp.(int(Bigint.of_int(1))),
-    Exp.(
-      dot(
-        Exp.(
-          tuple([
-            Exp.(tup_label(Exp.(label("a")), Exp.(int(Bigint.of_int(1))))),
-            Exp.(tup_label(Exp.(label("b")), Exp.(int(Bigint.of_int(2))))),
-            Exp.(tup_label(Exp.(label("c")), Exp.(empty_hole()))),
-          ])
-        ),
-        Exp.(label("a")) // This is a var now for parsing reasons
-      )
+    int(Bigint.of_int(1)),
+    dot(
+      tuple([
+        tup_label(label("a"), int(Bigint.of_int(1))),
+        tup_label(label("b"), int(Bigint.of_int(2))),
+        tup_label(label("c"), empty_hole()),
+      ]),
+      label("a") // This is a var now for parsing reasons
     ),
   );
 
 let test_function_application = () =>
   evaluation_test(
     "float_of_int(1)",
-    Exp.(float(1.0)),
-    Exp.(
-      ap(Forward, Exp.(var("float_of_int")), Exp.(int(Bigint.of_int(1))))
-    ),
+    float(1.0),
+    ap(Forward, var("float_of_int"), int(Bigint.of_int(1))),
   );
 
 let test_function_deferral = () =>
   evaluation_test(
     "string_sub(\"hello\", 1, _)(2)",
-    Exp.(string("el")),
-    Exp.(
-      ap(
-        Forward,
-        Exp.(
-          deferred_ap(
-            Exp.(var("string_sub")),
-            [
-              Exp.(string("hello")),
-              Exp.(int(Bigint.of_int(1))),
-              Exp.(deferral(InAp)),
-            ],
-          )
-        ),
-        Exp.(int(Bigint.of_int(2))),
-      )
+    string("el"),
+    ap(
+      Forward,
+      deferred_ap(
+        var("string_sub"),
+        [string("hello"), int(Bigint.of_int(1)), deferral(InAp)],
+      ),
+      int(Bigint.of_int(2)),
     ),
   );
+
 let test_ap_of_hole_deferral = () =>
   evaluation_test(
     "?(_, _, 3)(1., true)",
-    Exp.(
-      ap(
-        Forward,
-        Exp.(
-          cast(
-            Exp.empty_hole(),
-            Typ.unknown(Internal),
-            Typ.arrow(Typ.unknown(Internal), Typ.unknown(Internal)),
-          )
+    ap(
+      Forward,
+      cast(
+        empty_hole(),
+        Typ.unknown(Internal),
+        Typ.(arrow(unknown(Internal), unknown(Internal))),
+      ),
+      cast(
+        tuple([
+          cast(float(1.), Typ.float(), Typ.unknown(Internal)),
+          cast(bool(true), Typ.bool(), Typ.unknown(Internal)),
+          cast(int(Bigint.of_int(3)), Typ.int(), Typ.unknown(Internal)),
+        ]),
+        Typ.(
+          prod([unknown(Internal), unknown(Internal), unknown(Internal)])
         ),
-        Exp.(
-          cast(
-            Exp.(
-              tuple([
-                Exp.(
-                  cast(Exp.float(1.), Typ.float(), Typ.unknown(Internal))
-                ),
-                Exp.(
-                  cast(Exp.bool(true), Typ.bool(), Typ.unknown(Internal))
-                ),
-                Exp.(
-                  cast(
-                    Exp.int(Bigint.of_int(3)),
-                    Typ.int(),
-                    Typ.unknown(Internal),
-                  )
-                ),
-              ])
-            ),
-            Typ.prod([
-              Typ.unknown(Internal),
-              Typ.unknown(Internal),
-              Typ.unknown(Internal),
-            ]),
-            Typ.unknown(Internal),
-          )
-        ),
-      )
+        Typ.unknown(Internal),
+      ),
     ),
-    Exp.(
-      ap(
-        Forward,
-        Exp.(
-          deferred_ap(
-            Exp.(
-              cast(
-                Exp.(
-                  cast(
-                    Exp.empty_hole(),
-                    Typ.unknown(Internal),
-                    Typ.arrow(Typ.unknown(Internal), Typ.unknown(Internal)),
-                  )
-                ),
-                Typ.arrow(Typ.unknown(Internal), Typ.unknown(Internal)),
-                Typ.arrow(
-                  Typ.prod([
-                    Typ.unknown(Internal),
-                    Typ.unknown(Internal),
-                    Typ.unknown(Internal),
-                  ]),
-                  Typ.unknown(Internal),
-                ),
-              )
-            ),
-            [
-              Exp.deferral(InAp),
-              Exp.deferral(InAp),
-              Exp.(
-                cast(
-                  Exp.int(Bigint.of_int(3)),
-                  Typ.int(),
-                  Typ.unknown(Internal),
-                )
-              ),
-            ],
-          )
+    ap(
+      Forward,
+      deferred_ap(
+        cast(
+          cast(
+            empty_hole(),
+            Typ.unknown(Internal),
+            Typ.(arrow(unknown(Internal), unknown(Internal))),
+          ),
+          Typ.(arrow(unknown(Internal), unknown(Internal))),
+          Typ.(
+            arrow(
+              prod([
+                unknown(Internal),
+                unknown(Internal),
+                unknown(Internal),
+              ]),
+              unknown(Internal),
+            )
+          ),
         ),
-        Exp.(
-          tuple([
-            Exp.(cast(Exp.float(1.), Typ.float(), Typ.unknown(Internal))),
-            Exp.(cast(Exp.bool(true), Typ.bool(), Typ.unknown(Internal))),
-          ])
-        ),
-      )
+        [
+          deferral(InAp),
+          deferral(InAp),
+          cast(int(Bigint.of_int(3)), Typ.int(), Typ.unknown(Internal)),
+        ],
+      ),
+      tuple([
+        cast(float(1.), Typ.float(), Typ.unknown(Internal)),
+        cast(bool(true), Typ.bool(), Typ.unknown(Internal)),
+      ]),
     ),
   );
 
 let test_multi_arg_builtin_cast = () =>
   evaluation_test(
     "string_compare((\"Hello\", \"World\"):(?, ?))",
-    Exp.int(Bigint.of_int(-1)),
-    Exp.(
-      ap(
-        Forward,
-        Exp.builtin_fun("string_compare"),
-        Exp.(
-          cast(
-            Exp.(
-              tuple([
-                Exp.(
-                  cast(
-                    Exp.string("Hello"),
-                    Typ.string(),
-                    Typ.unknown(Internal),
-                  )
-                ),
-                Exp.(
-                  cast(
-                    Exp.string("World"),
-                    Typ.string(),
-                    Typ.unknown(Internal),
-                  )
-                ),
-              ])
-            ),
-            Typ.prod([Typ.unknown(Internal), Typ.unknown(Internal)]),
-            Typ.prod([Typ.string(), Typ.string()]),
-          )
-        ),
-      )
+    int(Bigint.of_int(-1)),
+    ap(
+      Forward,
+      builtin_fun("string_compare"),
+      cast(
+        tuple([
+          cast(string("Hello"), Typ.string(), Typ.unknown(Internal)),
+          cast(string("World"), Typ.string(), Typ.unknown(Internal)),
+        ]),
+        Typ.(prod([Typ.unknown(Internal), Typ.unknown(Internal)])),
+        Typ.(prod([string(), string()])),
+      ),
     ),
   );
 
 let test_variable_capture = () =>
   evaluation_test(
     {|let u = 5 in let f = fun () -> u in let u = 3 in f()|},
-    Exp.int(Bigint.of_int(5)),
-    Exp.(
+    int(Bigint.of_int(5)),
+    let_(
+      Pat.(var("u")),
+      int(Bigint.of_int(5)),
       let_(
-        Pat.(var("u")),
-        Exp.int(Bigint.of_int(5)),
-        Exp.(
-          let_(
-            Pat.(var("f")),
-            Exp.fn(Pat.(tuple([])), Exp.var("u"), None, None),
-            Exp.(
-              let_(
-                Pat.(var("u")),
-                Exp.int(Bigint.of_int(3)),
-                Exp.ap(Forward, Exp.var("f"), Exp.tuple([])),
-              )
-            ),
-          )
+        Pat.(var("f")),
+        fn(Pat.(tuple([])), var("u"), None, None),
+        let_(
+          Pat.(var("u")),
+          int(Bigint.of_int(3)),
+          ap(Forward, var("f"), tuple([])),
         ),
-      )
+      ),
     ),
   );
 
 let test_unbound_lookup = () =>
   evaluation_test(
     "(fun x -> x)(x)",
-    Exp.var("x"),
-    Exp.(
-      ap(
-        Forward,
-        Exp.fn(Pat.(var("x")), Exp.var("x"), None, None),
-        Exp.var("x"),
-      )
-    ),
+    var("x"),
+    ap(Forward, fn(Pat.(var("x")), var("x"), None, None), var("x")),
   );
 
 let test_unevaluated_if = () =>
   evaluation_test(
     "let x = 5 in if ? then x else x",
-    Exp.(
-      if_(
-        Exp.empty_hole(),
-        Exp.int(Bigint.of_int(5)),
-        Exp.int(Bigint.of_int(5)),
-      )
-    ),
-    Exp.(
-      let_(
-        Pat.(var("x")),
-        Exp.int(Bigint.of_int(5)),
-        Exp.if_(Exp.empty_hole(), Exp.var("x"), Exp.var("x")),
-      )
+    if_(empty_hole(), int(Bigint.of_int(5)), int(Bigint.of_int(5))),
+    let_(
+      Pat.(var("x")),
+      int(Bigint.of_int(5)),
+      if_(empty_hole(), var("x"), var("x")),
     ),
   );
 
 let test_invalid_constructor_match = () => {
   let invalid_constructor_match =
     elaborate(
-      Exp.(
-        let_(
-          Pat.(constructor("T", Some(None))),
-          Exp.int(Bigint.of_int(1)),
-          Exp.empty_hole(),
-        )
+      let_(
+        Pat.(constructor("T", Some(None))),
+        int(Bigint.of_int(1)),
+        empty_hole(),
       ),
     );
   evaluation_test(
@@ -362,29 +265,18 @@ let test_invalid_constructor_match = () => {
 let test_typfun_application = () =>
   evaluation_test(
     "(typfun T -> fun x -> 1)@<Int>(2)",
-    Exp.int(Bigint.of_int(1)),
-    Exp.(
-      ap(
-        Forward,
-        Exp.(
-          typ_ap(
-            Exp.(
-              typ_fun(
-                TPat.(var("T")),
-                Exp.fn(
-                  Pat.(var("x")),
-                  Exp.int(Bigint.of_int(1)),
-                  None,
-                  None,
-                ),
-                None,
-              )
-            ),
-            Typ.int(),
-          )
+    int(Bigint.of_int(1)),
+    ap(
+      Forward,
+      typ_ap(
+        typ_fun(
+          TPat.(var("T")),
+          fn(Pat.(var("x")), int(Bigint.of_int(1)), None, None),
+          None,
         ),
-        Exp.int(Bigint.of_int(2)),
-      )
+        Typ.int(),
+      ),
+      int(Bigint.of_int(2)),
     ),
   );
 
