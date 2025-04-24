@@ -250,7 +250,7 @@ let rec go =
           ProjectorInit.init_or_noop(
             Livelit,
             Segment.parenthesize(Option.get(args_and_name)),
-            Exp(IdTagged.FreshGrammar.Exp.empty_hole()),
+            MakeTerm.for_projection(Option.get(args_and_name)) |> Option.get,
           );
 
         let new_left_siblings =
