@@ -66,6 +66,11 @@ let equivalent_to_make_term = (serialized: string) => {
 let segmentize =
   ExpToSegment.exp_to_segment(~settings=exp_to_segment_settings, _);
 
+module TempGrammar =
+  Grammar.Factory({
+    type t = IdTagged.IdTag.t;
+    let default_value: unit => IdTagged.IdTag.t = () => {ids: [Id.invalid]};
+  });
 let tests = (
   "ExpToSegment",
   [
@@ -73,6 +78,7 @@ let tests = (
       "Literals",
       `Quick,
       () => {
+        open TempGrammar.Exp;
         check(
           segment,
           "Integer",
@@ -85,7 +91,7 @@ let tests = (
               children: [],
             }),
           ],
-          exp_to_segment(Exp.temp(Atom(Int(Bigint.of_int(1))))),
+          exp_to_segment(int(Bigint.of_int(1))),
         );
         check(
           segment,
@@ -99,7 +105,7 @@ let tests = (
               children: [],
             }),
           ],
-          exp_to_segment(Exp.temp(Atom(String("hello")))),
+          exp_to_segment(string("hello")),
         );
       },
     ),
@@ -115,26 +121,26 @@ let tests = (
       "Empty Ids on ExpToSegment constructor",
       `Quick,
       () => {
+        open IdTagged.FreshGrammar;
+        open Exp;
         let segment =
           segmentize(
-            Exp.fresh(
-              Let(
-                Pat.fresh(
-                  Cast(
-                    Pat.fresh(ListLit([])),
-                    Typ.fresh(Sum([Variant("Jg", [], None)])),
-                    Typ.fresh(Atom(Float)),
-                  ),
-                ),
-                Exp.fresh(EmptyHole),
-                Exp.fresh(EmptyHole),
+            let_(
+              Pat.(
+                cast(
+                  list_lit([]),
+                  Typ.(sum([Variant("Jg", [], None)])),
+                  Typ.(float()),
+                )
               ),
+              empty_hole(),
+              empty_hole(),
             ),
           );
         let serialized = Printer.of_segment(~holes=Some("?"), segment);
 
         check(
-          string,
+          Alcotest.string,
           "ascribed sum type constructor in pattern",
           "let []: (+ Jg) = ? in ?",
           serialized,
@@ -145,6 +151,7 @@ let tests = (
       "Tuple",
       `Quick,
       () => {
+        open TempGrammar.Exp;
         check(
           segment,
           "Unit",
@@ -157,7 +164,7 @@ let tests = (
               children: [],
             }),
           ],
-          exp_to_segment(Exp.temp(Tuple([]))),
+          exp_to_segment(tuple([])),
         );
         check(
           option(segment),
@@ -165,12 +172,7 @@ let tests = (
           zipper_parse("(1, 2)"),
           Some(
             exp_to_segment(
-              Exp.temp(
-                Tuple([
-                  Exp.temp(Atom(Int(Bigint.of_int(1)))),
-                  Exp.temp(Atom(Int(Bigint.of_int(2)))),
-                ]),
-              ),
+              tuple([int(Bigint.of_int(1)), int(Bigint.of_int(2))]),
             ),
           ),
         );
@@ -180,22 +182,15 @@ let tests = (
       "Basic Labeled Tuples",
       `Quick,
       () => {
+        open TempGrammar.Exp;
+
         check(
           option(segment),
           "Singleton Labeled",
           zipper_parse("(x=1)"),
           Some(
             exp_to_segment(
-              Exp.temp(
-                Tuple([
-                  Exp.temp(
-                    TupLabel(
-                      Exp.temp(Label("x")),
-                      Exp.temp(Atom(Int(Bigint.of_int(1)))),
-                    ),
-                  ),
-                ]),
-              ),
+              tuple([tup_label(label("x"), int(Bigint.of_int(1)))]),
             ),
           ),
         );
@@ -211,28 +206,22 @@ let tests = (
       "Match statement",
       `Quick,
       () => {
+        open IdTagged.FreshGrammar;
+        open Exp;
         let segment =
           segmentize(
-            Exp.fresh(
-              Match(
-                Exp.fresh(Var("x")),
-                [
-                  (
-                    Pat.fresh(Constructor("A", None)),
-                    Exp.fresh(Atom(Int(Bigint.of_int(1)))),
-                  ),
-                  (
-                    Pat.fresh(Constructor("B", None)),
-                    Exp.fresh(Atom(Int(Bigint.of_int(2)))),
-                  ),
-                ],
-              ),
+            match(
+              var("x"),
+              [
+                (Pat.(constructor("A", None)), int(Bigint.of_int(1))),
+                (Pat.(constructor("B", None)), int(Bigint.of_int(2))),
+              ],
             ),
           );
         let serialized = Printer.of_segment(~holes=Some("?"), segment);
 
         check(
-          string,
+          Alcotest.string,
           "Match statement",
           "case x | A => 1| B => 2 end",
           serialized,
@@ -244,17 +233,13 @@ let tests = (
       `Quick,
       () => {
         let segment =
-          segmentize(
-            Exp.fresh(
-              DeferredAp(
-                Exp.fresh(Var("string_sub")),
-                [
-                  Exp.fresh(Atom(String("hello"))),
-                  Exp.fresh(Atom(Int(Bigint.of_int(1)))),
-                  Exp.fresh(Deferral(InAp)),
-                ],
+          IdTagged.FreshGrammar.Exp.(
+            segmentize(
+              deferred_ap(
+                var("string_sub"),
+                [string("hello"), int(Bigint.of_int(1)), deferral(InAp)],
               ),
-            ),
+            )
           );
         let serialized = Printer.of_segment(~holes=Some("?"), segment);
 
@@ -271,7 +256,7 @@ let tests = (
       `Quick,
       () => {
         let segment =
-          segmentize(Exp.fresh(Test(Exp.fresh(Atom(Bool(true))))));
+          IdTagged.FreshGrammar.Exp.(segmentize(test(bool(true))));
         let serialized = Printer.of_segment(~holes=Some("?"), segment);
 
         check(string, "Test of true", {|test true end|}, serialized);
@@ -283,14 +268,14 @@ let tests = (
       () => {
         let segment =
           segmentize(
-            Exp.fresh(
-              Filter(
+            IdTagged.FreshGrammar.Exp.(
+              filter(
                 Filter({
-                  pat: Exp.fresh(Atom(Int(Bigint.of_int(1)))),
+                  pat: int(Bigint.of_int(1)),
                   act: (Step, One),
                 }),
-                Exp.fresh(Atom(Int(Bigint.of_int(2)))),
-              ),
+                int(Bigint.of_int(2)),
+              )
             ),
           );
         let serialized = Printer.of_segment(~holes=Some("?"), segment);
@@ -308,18 +293,16 @@ let tests = (
           Printer.of_segment(
             ~holes=Some("?"),
             segmentize(
-              Exp.fresh(
-                BinOp(
+              IdTagged.FreshGrammar.Exp.(
+                bin_op(
                   Int(Power),
-                  Exp.fresh(Atom(Int(Bigint.of_int(2)))),
-                  Exp.fresh(
-                    BinOp(
-                      Int(Power),
-                      Exp.fresh(Atom(Int(Bigint.of_int(3)))),
-                      Exp.fresh(Atom(Int(Bigint.of_int(4)))),
-                    ),
+                  int(Bigint.of_int(2)),
+                  bin_op(
+                    Int(Power),
+                    int(Bigint.of_int(3)),
+                    int(Bigint.of_int(4)),
                   ),
-                ),
+                )
               ),
             ),
           ),
@@ -331,18 +314,16 @@ let tests = (
           Printer.of_segment(
             ~holes=Some("?"),
             segmentize(
-              Exp.fresh(
-                BinOp(
+              IdTagged.FreshGrammar.Exp.(
+                bin_op(
                   Int(Power),
-                  Exp.fresh(
-                    BinOp(
-                      Int(Power),
-                      Exp.fresh(Atom(Int(Bigint.of_int(2)))),
-                      Exp.fresh(Atom(Int(Bigint.of_int(3)))),
-                    ),
+                  bin_op(
+                    Int(Power),
+                    int(Bigint.of_int(2)),
+                    int(Bigint.of_int(3)),
                   ),
-                  Exp.fresh(Atom(Int(Bigint.of_int(4)))),
-                ),
+                  int(Bigint.of_int(4)),
+                )
               ),
             ),
           ),
@@ -354,22 +335,12 @@ let tests = (
           Printer.of_segment(
             ~holes=Some("?"),
             segmentize(
-              Exp.fresh(
-                TyAlias(
-                  TPat.fresh(Var("x")),
-                  Typ.fresh(
-                    Arrow(
-                      Typ.fresh(
-                        Arrow(
-                          Typ.fresh(Atom(Int)),
-                          Typ.fresh(Atom(Bool)),
-                        ),
-                      ),
-                      Typ.fresh(Var("x")),
-                    ),
-                  ),
-                  Exp.fresh(Atom(Int(Bigint.of_int(1)))),
-                ),
+              IdTagged.FreshGrammar.(
+                Exp.ty_alias(
+                  TPat.(var("x")),
+                  Typ.(arrow(arrow(int(), bool()), var("x"))),
+                  Exp.(int(Bigint.of_int(1))),
+                )
               ),
             ),
           ),
@@ -386,7 +357,7 @@ let tests = (
           ~holes=Some("?"),
           ExpToSegment.typ_to_segment(
             ~settings=exp_to_segment_settings,
-            Typ.temp(Prod([])),
+            IdTagged.FreshGrammar.Typ.prod([]),
           ),
         ),
       )
@@ -411,7 +382,7 @@ let tests = (
               show_filters: true,
               show_unknown_as_hole: true,
             },
-            Pat(Tuple([]) |> Pat.fresh),
+            Pat(IdTagged.FreshGrammar.Pat.tuple([])),
           ),
         ),
       )
