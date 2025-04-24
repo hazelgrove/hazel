@@ -32,7 +32,7 @@ module type BuiltinLivelit = {
   type model_t;
   let hazel_model_t: TermBase.Typ.t; // defines the type of model_exp
   let model_to_hazel: model_t => model_exp;
-  let model_from_hazel: model_exp => model_t;
+  let model_from_hazel: model_exp => option(model_t);
   let model_default: model_t;
 
   // Expansion type and related conversions
@@ -45,7 +45,7 @@ module type BuiltinLivelit = {
   type action_t;
   let hazel_action_t: TermBase.Typ.t; // defines the type of action_exp
   let action_to_hazel: action_t => action_exp;
-  let action_from_hazel: action_exp => action_t;
+  let action_from_hazel: action_exp => option(action_t);
   let update: (action_t, model_t) => model_t;
 
   // View/rendering function
@@ -84,21 +84,22 @@ module Slider: BuiltinLivelit = {
   let hazel_model_t: TermBase.Typ.t = Typ.temp(Atom(Int));
   let model_to_hazel: model_t => model_exp =
     (x: model_t) => DHExp.fresh(Atom(Int(x)));
-  let model_from_hazel: model_exp => model_t =
-    (x: model_exp) =>
+  let model_from_hazel: model_exp => option(model_t) =
+    (x: model_exp) => {
       switch (x.term) {
-      | Atom(Int(n)) => n
-      | _ => Bigint.of_int(-1)
+      | Atom(Int(n)) => Some(n)
+      | _ => None
       };
+    };
   let model_default: model_t = Bigint.of_int(50);
 
   let hazel_expansion_t: TermBase.Typ.t = Typ.temp(Atom(Int));
-  let expansion_f: model_t => expansion_t =
+  let expand: model_t => expansion_t =
     (x: model_t) =>
       switch (x) {
       | n => n
       };
-  let expansion_to_hazel: expansion_t => expansion_exp =
+  let expand_to_hazel: expansion_t => expansion_exp =
     (x: expansion_t) =>
       switch (x) {
       | n => DHExp.fresh(Atom(Int(n)))
@@ -125,7 +126,7 @@ module Slider: BuiltinLivelit = {
         )
         |> DHExp.fresh
       };
-  let action_from_hazel: action_exp => action_t =
+  let action_from_hazel: action_exp => option(action_t) =
     (action: action_exp) => {
       switch (action.term) {
       | Ap(
@@ -133,28 +134,25 @@ module Slider: BuiltinLivelit = {
           {term: Constructor("SetModel", _), _},
           {term: Atom(Int(n)), _},
         ) =>
-        SetModel(n)
-      | _ => SetModel(Bigint.of_int(-1))
+        Some(SetModel(n))
+      | _ => None
       };
     };
 
-  let view: (model_t, action_t => Ui_effect.t(unit)) => node_or_list =
-    (model: model_t, send_action) => {
-      let n = model;
+  let view = (model: model_t, send_action) => {
+    let n = model;
 
-      Node(
-        Util.Web.range(
-          ~attrs=[
-            Attr.on_input((_, v: string) => {
-              send_action(SetModel(Bigint.of_string(v)))
-            }),
-          ],
-          ~min="0",
-          ~max="100",
-          Bigint.to_string(n),
-        ),
-      );
-    };
+    Util.Web.range(
+      ~attrs=[
+        Attr.on_input((_, v: string) => {
+          send_action(SetModel(Bigint.of_string(v)))
+        }),
+      ],
+      ~min="0",
+      ~max="100",
+      Bigint.to_string(n),
+    );
+  };
 
   let size: ProjectorCore.Shape.t =
     ProjectorCore.Shape.{
