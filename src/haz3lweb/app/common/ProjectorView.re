@@ -26,9 +26,9 @@ module Model = {
   type t('ed) = list(projector_data('ed));
 
   /* Is projector indicated and if so what side is the caret on? */
-  let indication = (p: option(Indicated.piece('ed)), id) =>
+  let indication = (p, id) =>
     switch (p) {
-    | Some((p, d, _)) when Piece.id(p) == id => Some(Direction.toggle(d))
+    | Some((id2, d)) when id2 == id => Some(Direction.toggle(d))
     | _ => None
     };
 
@@ -44,7 +44,7 @@ module Model = {
       (
         p: Base.projector('ed),
         ~editor_active: bool,
-        ~indicated: option(Indicated.piece('ed)),
+        ~indicated: option((Id.t, Direction.t)),
         ~selection_ids: list(Id.t),
         ~info: ProjectorBase.info,
         ~id: Id.t,
@@ -66,7 +66,7 @@ module Model = {
         projectors: Id.Map.t(Base.projector('ed)),
         measured: Measured.t,
         selection_ids: list(Id.t),
-        indicated: option(Indicated.piece('ed)),
+        indicated: option((Id.t, Direction.t)),
         statics: Statics.Map.t,
         dynamics: Dynamics.Map.t,
         editor_active: bool,
@@ -290,11 +290,12 @@ let by_measurement =
  * be absolutely positioned atop a rendered editor UI */
 let all =
     (
-      inject: Action.t(ProjectorCore.model('ed)) => Ui_effect.t(unit),
+      type ed,
+      inject: Action.t(ProjectorCore.model(ed)) => Ui_effect.t(unit),
       make_active,
       font_metrics: FontMetrics.t,
-      projector_data: list(Model.projector_data('ed)),
-      ~ed_str,
+      projector_data: list(Model.projector_data(ed)),
+      ~ed_str: ed => string,
       ~view_any,
     ) => {
   /* Sorting the projectors by position tends to be a good

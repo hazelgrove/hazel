@@ -13,6 +13,13 @@ module rec Projectors: {
   let kind_of_model: model => ProjectorCore.Kind.t;
   let sort_of_model: model => Sort.t;
   let init: (ProjectorCore.Kind.t, Any.t, unit => Editor.t) => option(model);
+
+  let view_all: (
+    Action.t(model) => Ui_effect.t(unit),
+    Ui_effect.t(unit),
+    FontMetrics.t,
+    list(ProjectorView.Model.projector_data(Editor.t)),
+  );
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = ProjectorCore.model(Editor.t);
@@ -30,6 +37,13 @@ module rec Projectors: {
   let sort_of_model = _ => Sort.Exp;
 
   let init = ProjectorInit.init;
+
+  let view_all = (inject: model => Ui_effect.t(unit)) =>
+    ProjectorView.all(
+      ~ed_str=Editor.print_string,
+      ~view_any=_ => Web.Node.text("Any"),
+      inject,
+    );
 }
 and Editor: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -79,6 +93,11 @@ and Editor: {
   let key_handoff: (t, Key.t) => option(Action.project(Projectors.model));
   let get_z: t => Zipper.t;
   let jump_to_tile_action: (Id.t, t) => option(Action.t(Projectors.model));
+
+  let get_projectors: t => Id.Map.t(Base.projector(Projectors.model));
+  let get_measured: t => Measured.t;
+  let get_selection_ids: t => list(Id.t);
+  let get_indicated: t => option((Id.t, Direction.t));
 
   module View: {
     let view:
@@ -222,6 +241,15 @@ and Editor: {
     switch (TileMap.find_opt(tile, model.syntax.tiles)) {
     | Some(_) => Some(Action.Jump(TileId(tile)))
     | None => None
+    };
+
+  let get_projectors = (m: t) => m.syntax.projectors;
+  let get_measured = (m: t) => m.syntax.measured;
+  let get_selection_ids = (m: t) => m.syntax.selection_ids;
+  let get_indicated = (m: t): option((Id.t, Direction.t)) =>
+    switch (Indicated.piece(m.state.zipper)) {
+    | None => None
+    | Some((p, side, _)) => Some((Piece.id(p), side))
     };
 
   module View = {
