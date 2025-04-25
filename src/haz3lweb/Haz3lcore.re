@@ -45,6 +45,16 @@ and Editor: {
   };
 
   module Update: {
+    let update:
+      (
+        ~settings: CoreSettings.t,
+        Action.t(Projectors.model),
+        ~sort: Sort.t,
+        CachedStatics.t,
+        t
+      ) =>
+      Action.Result.t(t);
+
     let calculate:
       (
         ~settings: CoreSettings.t,
@@ -55,6 +65,9 @@ and Editor: {
         t
       ) =>
       t;
+
+    let undo: t => option(t);
+    let redo: t => option(t);
   };
 
   let make_term: (Sort.t, t) => Any.t;
@@ -65,6 +78,18 @@ and Editor: {
   let print_string: t => string;
   let key_handoff: (t, Key.t) => option(Action.project(Projectors.model));
   let get_z: t => Zipper.t;
+  let jump_to_tile_action: (Id.t, t) => option(Action.t(Projectors.model));
+
+  module View: {
+    let view:
+      (
+        ~font_metrics: FontMetrics.t,
+        ~secondary_icons: bool,
+        ~sort: Sort.t,
+        t
+      ) =>
+      Web.Node.t;
+  };
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Haz3lcorep.Editor.t(Projectors.model);
@@ -93,6 +118,23 @@ and Editor: {
   };
 
   module Update = {
+    let update = (~settings, action, ~sort, statics, editor) => {
+      Haz3lcorep.Editor.Update.update(
+        ~settings,
+        ~sort,
+        ~projector_init=(_, _, _) => failwith("not implemented"),
+        ~projector_to_term=Projectors.make_term,
+        ~shape_of_projector=Projectors.shape_of_projector,
+        ~seg_of_projector=
+          (sort, p) =>
+            Projectors.make_term(p, sort)
+            |> ExpToSegment.any_to_segment(~settings=ExpToSegment.Settings.on),
+        action,
+        statics,
+        editor,
+      );
+    };
+
     let calculate =
         (
           ~settings: CoreSettings.t,
@@ -118,6 +160,9 @@ and Editor: {
         dynamics,
         ed,
       );
+
+    let undo = Haz3lcorep.Editor.Update.undo;
+    let redo = Haz3lcorep.Editor.Update.redo;
   };
 
   let get_syntax_cache = (m: t) => m.syntax;
@@ -171,6 +216,17 @@ and Editor: {
         ? Some(Action.Focus(id, kind, Some(Left))) : None;
     | _ => None
     };
+  };
+
+  let jump_to_tile_action = (tile, model: t) =>
+    switch (TileMap.find_opt(tile, model.syntax.tiles)) {
+    | Some(_) => Some(Action.Jump(TileId(tile)))
+    | None => None
+    };
+
+  module View = {
+    let view = (~font_metrics, ~secondary_icons, ~sort, m: t) =>
+      CodeViewable.view_editor(~font_metrics, ~secondary_icons, ~sort, m);
   };
 };
 

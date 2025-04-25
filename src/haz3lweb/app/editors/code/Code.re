@@ -1,6 +1,6 @@
 open Virtual_dom.Vdom;
 open Node;
-open Haz3lcore;
+open Haz3lcorep;
 open Util;
 open Util.Web;
 
@@ -42,7 +42,9 @@ let of_delim' =
       ];
     },
   );
-let of_delim = (is_consistent, indent, t: Piece.tile, i: int): list(Node.t) =>
+let of_delim =
+    (type p, is_consistent, indent, t: Haz3lcorep.Piece.tile(p), i: int)
+    : list(Node.t) =>
   of_delim'((
     t.label,
     t.mold.out,
@@ -100,8 +102,9 @@ let of_projector = (expected_sort, indent, shape: ProjectorShape.t) => {
 module Text =
        (
          M: {
+           type p;
            let map: Measured.t;
-           let settings: Settings.Model.t;
+           let secondary_icons: bool;
            let shape_map: ProjectorShape.Map.t;
            let font_metrics: FontMetrics.t;
          },
@@ -110,7 +113,8 @@ module Text =
 
   let m = p => Measured.find_p(~msg="Text", p, M.map);
   let rec of_segment =
-          (buffer_ids, no_sorts, sort, seg: Segment.t): list(Node.t) => {
+          (buffer_ids, no_sorts, sort, seg: Haz3lcorep.Segment.t(M.p))
+          : list(Node.t) => {
     /* note: no_sorts flag is used for backpack view;
        otherwise Segment.expected_sorts call crashes for some reason */
     let expected_sorts =
@@ -129,19 +133,15 @@ module Text =
        );
   }
   and of_piece =
-      (buffer_ids, expected_sort: Sort.t, p: Piece.t): list(Node.t) => {
+      (buffer_ids, expected_sort: Sort.t, p: Haz3lcorep.Piece.t(M.p))
+      : list(Node.t) => {
     switch (p) {
     | Tile(t) => of_tile(buffer_ids, expected_sort, t)
     | Grout(g) => [EmptyHoleDec.view(M.font_metrics, g.shape)]
     | Secondary({content, id}) =>
       let indent = m(p).last.col;
       let is_in_buffer = List.mem(id, buffer_ids);
-      of_secondary((
-        content,
-        M.settings.secondary_icons,
-        indent,
-        is_in_buffer,
-      ));
+      of_secondary((content, M.secondary_icons, indent, is_in_buffer));
     | Projector(p) =>
       of_projector(
         expected_sort,
@@ -150,7 +150,9 @@ module Text =
       )
     };
   }
-  and of_tile = (buffer_ids, expected_sort: Sort.t, t: Tile.t): list(Node.t) => {
+  and of_tile =
+      (buffer_ids, expected_sort: Sort.t, t: Haz3lcorep.Tile.t(M.p))
+      : list(Node.t) => {
     let children_and_sorts =
       List.mapi(
         (i, (l, child, r)) =>

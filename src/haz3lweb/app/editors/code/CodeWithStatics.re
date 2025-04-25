@@ -105,24 +105,19 @@ module View = {
   type event;
 
   let view =
-      (~globals, ~overlays: list(Node.t)=[], ~sort=Sort.root, model: Model.t) => {
-    let {
-      editor:
-        {
-          syntax: {measured, selection_ids, segment, shape_map, _},
-          state: {zipper: z, _},
-          _,
-        },
-      _,
-    }: Model.t = model;
+      (
+        ~globals: Globals.t,
+        ~overlays: list(Node.t)=[],
+        ~sort=Sort.root,
+        model: Model.t,
+      ) => {
+    let {editor, _}: Model.t = model;
     let code_text_view =
-      CodeViewable.view(
-        ~globals,
+      Editor.View.view(
+        ~secondary_icons=globals.settings.secondary_icons,
+        ~font_metrics=globals.font_metrics,
         ~sort,
-        ~measured,
-        ~buffer_ids=Selection.is_buffer(z.selection) ? selection_ids : [],
-        ~segment,
-        ~shape_map,
+        editor,
       );
     let statics_decos = {
       module Deco =

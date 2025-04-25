@@ -25,6 +25,7 @@ module Update = {
     let perform = (action, model: Model.t) =>
       Editor.Update.update(
         ~settings=settings.core,
+        ~sort=Exp,
         action,
         model.statics,
         model.editor,
@@ -97,7 +98,7 @@ module Update = {
        * but can't immediately put down, move to next position of
        * interest, which is closet of: nearest position where can
        * put down, farthest position where can put down, next hole */
-      let z = model.editor.state.zipper;
+      let z = model.editor |> Editor.get_z;
       let action: Action.t =
         Selection.is_buffer(z.selection)
           ? Buffer(Accept)
@@ -168,10 +169,8 @@ module Selection = {
   };
 
   let jump_to_tile = (tile, model: Model.t) => {
-    switch (TileMap.find_opt(tile, model.editor.syntax.tiles)) {
-    | Some(_) => Some(Update.Perform(Jump(TileId(tile))))
-    | None => None
-    };
+    Editor.jump_to_tile_action(tile, model.editor)
+    |> Option.map(x => Update.Perform(x));
   };
 };
 
@@ -221,7 +220,7 @@ module View = {
           let globals = globals;
           let statics = model.statics;
         });
-      Deco.editor(model.editor.state.zipper, selected);
+      Deco.editor(model.editor |> Editor.get_z, selected);
     };
     print_endline(
       "How many projectors: "

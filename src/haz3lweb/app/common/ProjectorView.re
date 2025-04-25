@@ -1,4 +1,4 @@
-open Haz3lcore;
+open Haz3lcorep;
 open Virtual_dom.Vdom;
 open Node;
 open ProjectorBase;
@@ -15,18 +15,18 @@ module Model = {
     error: bool,
   };
 
-  type projector_data = {
-    p: Piece.projector,
+  type projector_data('ed) = {
+    p: Piece.projector(ProjectorCore.model('ed)),
     info: ProjectorBase.info,
     measurement: Measured.measurement,
     offside_base: int,
     status,
   };
 
-  type t = list(projector_data);
+  type t('ed) = list(projector_data('ed));
 
   /* Is projector indicated and if so what side is the caret on? */
-  let indication = (p: option(Indicated.piece), id) =>
+  let indication = (p: option(Indicated.piece('ed)), id) =>
     switch (p) {
     | Some((p, d, _)) when Piece.id(p) == id => Some(Direction.toggle(d))
     | _ => None
@@ -42,9 +42,9 @@ module Model = {
 
   let mk_status =
       (
-        p: Base.projector,
+        p: Base.projector('ed),
         ~editor_active: bool,
-        ~indicated: option(Indicated.piece),
+        ~indicated: option(Indicated.piece('ed)),
         ~selection_ids: list(Id.t),
         ~info: ProjectorBase.info,
         ~id: Id.t,
@@ -54,17 +54,19 @@ module Model = {
       |> Option.value(~default=Sort.Exp),
     error:
       Option.map(Info.is_error, info.statics) |> Option.value(~default=false),
-    kind: p.model |> Projectors.kind_of_model,
+    kind:
+      p.model
+      |> ((ProjectorCore.V(kind, _)) => ProjectorCore.Kind.of_gadt(kind)),
     indication: editor_active ? indication(indicated, id) : None,
     selected: editor_active ? List.mem(id, selection_ids) : false,
   };
 
   let mk =
       (
-        projectors: Id.Map.t(Base.projector),
+        projectors: Id.Map.t(Base.projector('ed)),
         measured: Measured.t,
         selection_ids: list(Id.t),
-        indicated: option(Indicated.piece),
+        indicated: option(Indicated.piece('ed)),
         statics: Statics.Map.t,
         dynamics: Dynamics.Map.t,
         editor_active: bool,
@@ -131,7 +133,7 @@ let projector_clss =
  * adding fallthrough handlers where appropriate*/
 let view_wrapper =
     (
-      ~inject: Action.t => Ui_effect.t(unit),
+      ~inject: Action.t('p) => Ui_effect.t(unit),
       ~make_active,
       ~font_metrics: FontMetrics.t,
       ~measurement: Measured.measurement,
@@ -158,7 +160,7 @@ let view_wrapper =
   );
 
 /* Dispatches projector external actions to editor-level actions */
-let handle = (id, action: external_action): Action.project =>
+let handle = (id, action: external_action): Action.project('p) =>
   switch (action) {
   | Remove => RemoveIndicated
   | Escape(d) => Escape(id, d)
@@ -180,65 +182,70 @@ let offside_wrapper =
     [v],
   );
 
-let simple_code = (~background=false, font_metrics, sort, segment): Node.t => {
-  let shape_map = ProjectorShape.Map.empty; /* Assume this doesn't contain projectors */
-  let map = Measured.of_segment(segment, shape_map);
-  module Text =
-    Code.Text({
-      let map = map;
-      let settings = Settings.Model.init;
-      let shape_map = shape_map;
-      let font_metrics = font_metrics;
-    });
-  let backing =
-    if (background) {
-      switch (Deco.quick_select_deco(segment)) {
-      | exception _ => []
-      | view => [view]
-      };
-    } else {
-      [];
-    };
-  div(
-    ~attrs=[Attr.class_("code")],
-    [span_c("code-text", Text.of_segment([], false, sort, segment))]
-    @ backing,
-  );
-};
+// let simple_code = (~background=false, font_metrics, sort, segment): Node.t => {
+//   let shape_map = ProjectorShape.Map.empty; /* Assume this doesn't contain projectors */
+//   let map = Measured.of_segment(segment, shape_map);
+//   module Text =
+//     Code.Text({
+//       // TODO(Matt): text should be abtracted away from projectors
+//       type p = Projectors.model;
+//       let map = map;
+//       let secondary_icons = Settings.Model.init.secondary_icons;
+//       let shape_map = shape_map;
+//       let font_metrics = font_metrics;
+//     });
+//   let backing =
+//     if (background) {
+//       switch (Deco.quick_select_deco(segment)) {
+//       | exception _ => []
+//       | view => [view]
+//       };
+//     } else {
+//       [];
+//     };
+//   div(
+//     ~attrs=[Attr.class_("code")],
+//     [span_c("code-text", Text.of_segment([], false, sort, segment))]
+//     @ backing,
+//   );
+// };
 
 /* Route top-level metadata to the projector view function. */
 let mk_view =
     (
-      inject: Action.t => Ui_effect.t(unit),
+      inject: Action.t('p) => Ui_effect.t(unit),
       ~ed_str,
       ~view_any,
-      font_metrics: FontMetrics.t,
-      {p, info, _}: Model.projector_data,
+      _font_metrics: FontMetrics.t,
+      {p, info, _}: Model.projector_data('ed),
     )
     : View.t => {
-  open ProjectorCore.Kind;
-  let kind = Projectors.kind_of_model(p.model);
-  let.gadt W(kind_gadt) = kind;
+  let ProjectorCore.V(kind_gadt, model) = p.model;
   let methods = ProjectorInit.to_module(kind_gadt);
   let parent = a => inject(Project(handle(p.id, a)));
   let local = a =>
     inject(
-      Project(SetModel(p.id, V(kind, methods.update(model, info, a)))),
+      Project(
+        SetModel(
+          p.id,
+          ProjectorCore.V(kind_gadt, methods.update(model, info, a)),
+        ),
+      ),
     );
-  let view_seg = (~background=?) => simple_code(~background?, font_metrics);
-  methods.view(~ed_str, ~view_any, p.model, info, ~local, ~parent);
+  methods.view(~ed_str, ~view_any, model, info, ~local, ~parent);
 };
 
 /* Extract and collate different layers of the resulting view
  * in order to stratify z-levels across all projectors */
 let split_views =
     (
-      inject: Action.t => Ui_effect.t(unit),
+      inject: Action.t('p) => Ui_effect.t(unit),
       make_active,
       font_metrics: FontMetrics.t,
       ~ed_str,
       ~view_any,
-      {p, offside_base, measurement, status, _} as projector_data: Model.projector_data,
+      {p, offside_base, measurement, status, _} as projector_data:
+        Model.projector_data('ed),
     )
     : (Node.t, option(Node.t)) => {
   let wrapper =
@@ -249,7 +256,7 @@ let split_views =
       ~measurement,
       ~status,
       ~id=p.id,
-      ~kind=p.model |> Projectors.kind_of_model,
+      ~kind=p.model |> ProjectorCore.kind_of_model,
     );
   let views =
     mk_view(~ed_str, ~view_any, inject, font_metrics, projector_data);
@@ -275,17 +282,18 @@ let indication = (z, id) =>
   | _ => None
   };
 
-let by_measurement = (pd1: Model.projector_data, pd2: Model.projector_data) =>
+let by_measurement =
+    (pd1: Model.projector_data('ed), pd2: Model.projector_data('ed)) =>
   compare(pd1.measurement.origin.row, pd2.measurement.origin.row);
 
 /* Returns a div containing all projector UIs, intended to
  * be absolutely positioned atop a rendered editor UI */
 let all =
     (
-      inject: Action.t => Ui_effect.t(unit),
+      inject: Action.t(ProjectorCore.model('ed)) => Ui_effect.t(unit),
       make_active,
       font_metrics: FontMetrics.t,
-      projector_data: list(Model.projector_data),
+      projector_data: list(Model.projector_data('ed)),
       ~ed_str,
       ~view_any,
     ) => {

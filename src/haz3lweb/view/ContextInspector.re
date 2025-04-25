@@ -8,10 +8,12 @@ let alias_view = (s: string): Node.t =>
 let jump_to = entry =>
   Globals.Update.JumpToTile(Haz3lcore.Ctx.get_id(entry));
 
-let context_entry_view = (~globals, entry: Haz3lcore.Ctx.entry): Node.t => {
+let context_entry_view =
+    (~globals: Globals.t, entry: Haz3lcore.Ctx.entry): Node.t => {
   let view_type =
     CodeViewable.view_typ(
-      ~globals,
+      ~secondary_icons=globals.settings.secondary_icons,
+      ~font_metrics=globals.font_metrics,
       ~settings={
         inline: true,
         fold_case_clauses: false,

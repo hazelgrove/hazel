@@ -1,25 +1,28 @@
 open Util.Web;
-open Haz3lcore;
+open Haz3lcorep;
 
 /* Read-only code viewer, no interaction and no statics. All four
    functions do the same thing but take differently-typed inputs. */
 
 let view =
     (
-      ~globals: Globals.t,
+      type p',
+      ~font_metrics: FontMetrics.t,
+      ~secondary_icons,
       ~sort: Sort.t,
       ~measured,
       ~buffer_ids,
-      ~segment,
+      ~segment: Haz3lcorep.Segment.t(p'),
       ~shape_map,
     )
     : Node.t => {
   module Text =
     Code.Text({
+      type p = p';
       let map = measured;
-      let settings = globals.settings;
       let shape_map = shape_map;
-      let font_metrics = globals.font_metrics;
+      let font_metrics = font_metrics;
+      let secondary_icons = secondary_icons;
     });
   let code = Text.of_segment(buffer_ids, false, sort, segment);
   div_c("code", [span_c("code-text", code)]);
@@ -27,25 +30,33 @@ let view =
 
 let view_segment =
     (
-      ~globals: Globals.t,
+      type p,
       ~sort: Sort.t,
       ~shape_map: ProjectorShape.Map.t,
-      segment: Segment.t,
+      segment: Segment.t(p),
     ) => {
   let measured = Measured.of_segment(segment, shape_map);
   let buffer_ids = [];
-  view(~globals, ~sort, ~measured, ~buffer_ids, ~segment, ~shape_map);
+  view(~sort, ~measured, ~buffer_ids, ~segment, ~shape_map);
 };
 
-let view_typ = (~globals: Globals.t, ~settings, typ: Typ.t) => {
+let view_editor = (type p, ~sort: Sort.t, editor: Haz3lcorep.Editor.t(p)) => {
+  let measured = editor.syntax.measured;
+  let buffer_ids =
+    Selection.is_buffer(editor.state.zipper.selection)
+      ? editor.syntax.selection_ids : [];
+  let segment = editor.syntax.segment;
+  let shape_map = editor.syntax.shape_map;
+  view(~sort, ~measured, ~buffer_ids, ~segment, ~shape_map);
+};
+
+let view_typ = (~settings, typ: Typ.t) => {
   let shape_map = ProjectorShape.Map.empty; // assume no projectors
   typ
   |> ExpToSegment.typ_to_segment(~settings)
-  |> view_segment(~shape_map, ~globals, ~sort=Typ);
+  |> view_segment(~shape_map, ~sort=Typ);
 };
 
-let view_any = (~globals: Globals.t, ~settings, any: Any.t) => {
-  any
-  |> ExpToSegment.any_to_segment(~settings)
-  |> view_segment(~globals, ~sort=Any);
+let view_any = (~settings, any: Any.t) => {
+  any |> ExpToSegment.any_to_segment(~settings) |> view_segment(~sort=Any);
 };

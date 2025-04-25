@@ -1,5 +1,5 @@
 open Util;
-open Haz3lcore;
+open Haz3lcorep;
 open Virtual_dom.Vdom;
 
 type tip = option(Nib.Shape.t);

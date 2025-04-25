@@ -32,7 +32,7 @@ let pos_str = (~d: dims, ~fudge: fdims=fzero, font_metrics: FontMetrics.t) =>
     Float.of_int(d.height) *. (font_metrics.row_height +. fudge.height),
   );
 
-let abs_dims = ({origin, last}: Haz3lcore.Measured.measurement): dims => {
+let abs_dims = ({origin, last}: Haz3lcorep.Measured.measurement): dims => {
   left: origin.col,
   top: origin.row,
   width: abs(last.col - origin.col),
@@ -49,7 +49,7 @@ let code_svg_sized =
     (
       ~font_metrics: FontMetrics.t,
       ~absolute=true,
-      ~measurement: Haz3lcore.Measured.measurement,
+      ~measurement: Haz3lcorep.Measured.measurement,
       ~base_cls=[],
       ~path_cls=[],
       ~attr=[],

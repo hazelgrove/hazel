@@ -2,14 +2,15 @@ open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
 
-let view = (~globals, kind: Haz3lcore.Ctx.kind): Node.t =>
+let view = (~globals: Globals.t, kind: Haz3lcore.Ctx.kind): Node.t =>
   switch (kind) {
   | Singleton(ty) =>
     div_c(
       "kind-view",
       [
         CodeViewable.view_typ(
-          ~globals,
+          ~secondary_icons=globals.settings.secondary_icons,
+          ~font_metrics=globals.font_metrics,
           ~settings={
             inline: true,
             fold_case_clauses: false,
