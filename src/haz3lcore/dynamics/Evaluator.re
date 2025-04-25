@@ -1,5 +1,6 @@
 open Transition;
 
+[@deriving (show({with_path: false}), eq)]
 type step_constrained('a) =
   | StepLimitExceeded
   | Completed('a);
