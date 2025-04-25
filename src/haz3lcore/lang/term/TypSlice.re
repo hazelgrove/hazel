@@ -1312,7 +1312,7 @@ let rec normalize = (ctx: Ctx.t, s: t): t => {
   map_merge(typ_normalize, slc_normalize, s);
 };
 
-// Matching functions
+// Matching functions, removes incr slices but keeps global slices
 let rec matched_arrow_strict = (ctx, s: t) => {
   let (_, rewrap) = s |> IdTagged.unwrap;
   switch (term_of(weak_head_normalize(ctx, s))) {
@@ -1322,7 +1322,7 @@ let rec matched_arrow_strict = (ctx, s: t) => {
     |> Option.map(TupleUtil.map2(t_of_typ_t))
   | `SliceIncr(Slice(s'), _) =>
     switch (s') {
-    | Parens(_) => matched_arrow_strict(ctx, unparens(s))
+    | Parens(s) => matched_arrow_strict(ctx, s)
     | Arrow(s1, s2) => Some((s1, s2))
     | _ => None
     }
@@ -1350,7 +1350,7 @@ let rec matched_forall_strict = (ctx, s) => {
     |> Option.map(((tpat, ty)) => (tpat, t_of_typ_t(ty)))
   | `SliceIncr(Slice(s'), _) =>
     switch (s') {
-    | Parens(_) => matched_forall_strict(ctx, unparens(s))
+    | Parens(s) => matched_forall_strict(ctx, unparens(s))
     | Forall(t, ty) => Some((Some(t), ty))
     | _ => None // (None, Unknown(Internal) |> temp)
     }
@@ -1440,7 +1440,7 @@ let rec matched_list_strict = (ctx, s) => {
     Typ.matched_list_strict(ctx, ty |> rewrap) |> Option.map(t_of_typ_t)
   | `SliceIncr(Slice(s'), _) =>
     switch (s') {
-    | Parens(_) => matched_list_strict(ctx, unparens(s))
+    | Parens(s) => matched_list_strict(ctx, s)
     | List(ty) => Some(ty)
     | _ => None
     }
@@ -1464,7 +1464,7 @@ let rec matched_args = (ctx, default_arity, s) => {
     |> List.map(t_of_typ_t)
   | `SliceIncr(Slice(s''), _) =>
     switch (s'') {
-    | Parens(_) => matched_args(ctx, default_arity, unparens(s))
+    | Parens(s) => matched_args(ctx, default_arity, s)
     | Prod([_, ..._] as tys) => tys
     | _ => [s']
     }
@@ -1488,7 +1488,7 @@ let rec get_sum_constructors =
     |> Option.map(ConstructorMap.map_preserving(t_of_typ_t))
   | `SliceIncr(Slice(s'), _) =>
     switch (s') {
-    | Parens(_) => get_sum_constructors(ctx, unparens(s))
+    | Parens(s) => get_sum_constructors(ctx, s)
     | Sum(sm) => Some(sm)
     | Rec(_) =>
       /* Note: We must unroll here to get right ctr types;
