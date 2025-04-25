@@ -193,8 +193,6 @@ module Make =
                      |> ClosureEnvironment.map(((_, d)) =>
                           d
                           |> subst_term(d', hole_id)
-                          |> Evaluator.evaluate(~env=Builtins.env_init)
-                          |> fst
                         ),
                      continue(d),
                    ),
