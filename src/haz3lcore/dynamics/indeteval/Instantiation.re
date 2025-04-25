@@ -23,13 +23,13 @@ module Make =
   let ints = ints_to(0) <|> ints_from(1);
   let int_lits = ints >>| (i => Int(i) |> DHExp.fresh);
   let float_lits = ints >>| (i => Float(Float.of_int(i)) |> DHExp.fresh); // Approximating floats by just enumerating ints
-  let char_lits =
-    List.init(256, i =>
-      i |> Char.chr |> String.make(1) |> (x => String(x) |> DHExp.fresh)
-    )
-    |> List.map(return)
+
+  let chars =
+    List.init(94, i => return(i + 32 |> Char.chr |> String.make(1)))
     |> concat;
-  let string_lits = char_lits; // TODO: all strings, this is a huge state space though...
+  let rec strings = () =>
+    return("") <|> wrap(chars >>= (c => strings() >>| (s => c ++ s)));
+  let string_lits = strings() >>| (s => String(s) |> DHExp.fresh);
   let rec enum_typ = (t, env) =>
     switch (t |> TypSlice.typ_term_of) {
     | Var(_) => failwith("Expeted normalised types during instantiation?")
