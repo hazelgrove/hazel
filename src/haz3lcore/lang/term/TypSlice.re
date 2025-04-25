@@ -409,7 +409,16 @@ let is_unknown = (~ignore_parens=?, s: t) =>
   s |> typ_of |> Typ.is_unknown(~ignore_parens?);
 let is_arrow = (~ignore_parens=?, s: t) =>
   s |> typ_of |> Typ.is_arrow(~ignore_parens?);
-let is_parens = (s: t) => s |> typ_of |> Typ.is_parens;
+let is_parens = (s: t) =>
+  s.term
+  |> apply(
+       fun
+       | Parens(_) => true
+       | _ => false,
+       fun
+       | Parens(_) => true
+       | _ => false,
+     );
 
 let is_forall = (~ignore_parens=?, s: t) =>
   s |> typ_of |> Typ.is_forall(~ignore_parens?);
