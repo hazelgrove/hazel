@@ -113,14 +113,7 @@ module WrapStep = {
 
   module Wrap = Transition(WrapEVMode);
   let rec wrap = (~in_closure=?, state, env, exp) => {
-    Wrap.transition(
-      wrap,
-      ~in_closure=Option.value(~default=() => (), in_closure),
-      ~mode=`Environment,
-      state,
-      env,
-      exp,
-    );
+    Wrap.transition(wrap, ~in_closure?, ~mode=`Environment, state, env, exp);
   };
 
   let wrap = (state, env, d) => {
@@ -174,7 +167,7 @@ module TakeStep = {
   let step = (~in_closure=?, state, env, d) =>
     TakeStepEV.transition(
       (~in_closure as _=?, _, _, _) => None,
-      ~in_closure=Option.value(~default=() => (), in_closure),
+      ~in_closure?,
       ~mode=`Environment,
       state,
       env,
