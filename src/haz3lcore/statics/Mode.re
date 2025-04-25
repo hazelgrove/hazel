@@ -218,7 +218,7 @@ let ctr_ana_typ =
      a sum type having that ctr as a variant, we consider the
      ctr's type to be determined by the sum type */
   switch (mode) {
-  | Ana(ana) when TypSlice.is_arrow(ana) =>
+  | Ana(ana) when TypSlice.is_arrow(ana, ~ignore_parens=false) =>
     let (_, ty_out) = TypSlice.unarrow(ana);
     let* ctrs = TypSlice.get_sum_constructors(ctx, ty_out);
     let* ty_entry = ConstructorMap.get_entry(ctr, ctrs);
@@ -244,7 +244,8 @@ let ctr_ana_typ =
 
 let of_ctr_in_ap = (ids, ctx: Ctx.t, mode: t, ctr: Constructor.t): option(t) =>
   switch (ctr_ana_typ(ids, ctx, mode, ctr)) {
-  | Some(ty_ana) when TypSlice.is_arrow(ty_ana) => Some(Ana(ty_ana))
+  | Some(ty_ana) when TypSlice.is_arrow(ty_ana, ~ignore_parens=false) =>
+    Some(Ana(ty_ana))
   | Some(ty_ana) =>
     /* Consider for example "let _ : +Yo = Yo("lol") in..."
        Here, the 'Yo' constructor should be in a hole, as it

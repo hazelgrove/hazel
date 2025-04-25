@@ -153,7 +153,7 @@ let of_ctr =
           | Some({typ, _}) =>
             Some(typ |> TypSlice.(wrap_incr(slice_of_ids(ids))))
           }
-        | Ana(ana) when TypSlice.is_unknown(ana) =>
+        | Ana(ana) when TypSlice.is_unknown(ana, ~ignore_parens=false) =>
           switch (Ctx.lookup_ctr(ctx, name)) {
           | None => None
           | Some({typ, _}) =>
