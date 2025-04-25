@@ -177,7 +177,9 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (Tuple(_), Tuple(_)) => DoesNotMatch
     | (Tuple(n), Cast(t, s1, s2))
         when
-          n == List.length(TypSlice.unprod(s1))
+          TypSlice.is_prod(s1, ~ignore_parens=false)
+          && TypSlice.is_prod(s2, ~ignore_parens=false)
+          && n == List.length(TypSlice.unprod(s1))
           && n == List.length(TypSlice.unprod(s2)) =>
       let (s1s, s2s) = (TypSlice.unprod(s1), TypSlice.unprod(s2));
       let* t = unbox(Tuple(n), t);
