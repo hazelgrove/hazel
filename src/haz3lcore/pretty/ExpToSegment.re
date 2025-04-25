@@ -13,6 +13,16 @@ module Settings = {
     show_unknown_as_hole: bool,
   };
 
+  let on = {
+    inline: false,
+    fold_case_clauses: false,
+    fold_fn_bodies: false,
+    hide_fixpoints: false,
+    fold_cast_types: false,
+    show_filters: true,
+    show_unknown_as_hole: true,
+  };
+
   let of_core = (~inline, settings: CoreSettings.t) => {
     inline,
     fold_case_clauses: !settings.evaluation.show_case_clauses,

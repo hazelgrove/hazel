@@ -20,8 +20,9 @@ let go_z =
     (
       type p',
       ~settings as _: CoreSettings.t,
+      ~seg_to_ed,
       ~projector_init,
-      ~piece_of_projector as piece_of_pr,
+      ~seg_of_projector as seg_of_pr,
       statics: CachedStatics.t,
       a: Action.t(p'),
       module M: Move.S with type p = p',
@@ -131,8 +132,9 @@ let go_z =
   | Buffer(Clear) => Ok(buffer_clear(z))
   | Project(a) =>
     ProjectorPerform.go(
+      ~seg_to_ed,
       ~projector_init,
-      ~piece_of_pr,
+      ~seg_of_pr,
       Move.jump_to_id_indicated,
       Move.jump_to_side_of_id,
       Select.current_term(~defs_exclude_bodies=false, ~case_rules=false),

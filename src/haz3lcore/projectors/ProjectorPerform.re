@@ -24,7 +24,12 @@ open OptUtil.Syntax;
  * this is the same as would happen if unparenthesizing a subterm. */
 
 let init =
-    (~projector_init, kind: ProjectorCore.Kind.t, seg: Base.segment('p))
+    (
+      ~projector_init,
+      ~seg_to_ed: Base.segment('p) => 'ed,
+      kind: ProjectorCore.Kind.t,
+      seg: Base.segment('p),
+    )
     : option(syntax('p)) =>
   /* Projected syntax always gets parenthesized, but only the contents
    * of those parentheses are passed to the projector implementations  */
@@ -37,7 +42,7 @@ let init =
   ) {
   | None => None
   | Some(any) =>
-    switch (projector_init(kind, any)) {
+    switch (projector_init(kind, any, () => seg_to_ed(seg))) {
     | None => None
     | Some(model) => Some(Base.Projector(Base.mk_projector(model)))
     }
@@ -51,9 +56,8 @@ let replace_selection_and_unselect =
   |> Zipper.directional_unselect(focus);
 
 let remove =
-    (piece: Base.piece('p), focus: Direction.t, z: Zipper.t('p))
+    (seg: Base.segment('p), focus: Direction.t, z: Zipper.t('p))
     : Zipper.t('p) => {
-  let seg = Piece.unparenthesize(piece);
   /* If it's a convex tile, unselect; otherwise, leave selection to guarantee you can toggle */
   switch (seg) {
   | [piece] => replace_selection_and_unselect(piece, Right, z)
@@ -85,8 +89,9 @@ let update =
 let go =
     (
       type p,
+      ~seg_to_ed,
       ~projector_init,
-      ~piece_of_pr: p => syntax(p),
+      ~seg_of_pr: (Sort.t, p) => Base.segment(p),
       jump_to_id_indicated,
       jump_to_side_of_id,
       select_term: Zipper.t(p) => option(Zipper.t(p)),
@@ -109,13 +114,13 @@ let go =
     // TODO [Matt]: Make this check the kind again
     let* (focus, z) = setup_selection(z);
     switch (z.selection.content) {
-    | [Projector(pr)] => Some(remove(piece_of_pr(pr.model), focus, z))
+    | [Projector(pr)] => Some(remove(seg_of_pr(Exp, pr.model), focus, z))
     // | [Projector(pr)] =>
     //   let+ piece =
     //     init(~projector_init, kind, Piece.unparenthesize(pr.syntax));
     //   replace_selection_and_unselect(piece, focus, z);
     | seg =>
-      let+ piece = init(~projector_init, kind, seg);
+      let+ piece = init(~projector_init, ~seg_to_ed, kind, seg);
       replace_selection_and_unselect(piece, focus, z);
     };
   };
@@ -123,7 +128,7 @@ let go =
   let remove_indicated = (z: Zipper.t(p)): option(Zipper.t(p)) => {
     let* (focus, z) = setup_selection(z);
     switch (z.selection.content) {
-    | [Projector(pr)] => Some(remove(piece_of_pr(pr.model), focus, z))
+    | [Projector(pr)] => Some(remove(seg_of_pr(Exp, pr.model), focus, z))
     | _ => None
     };
   };

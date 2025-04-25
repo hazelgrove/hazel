@@ -1,5 +1,6 @@
 include Haz3lcorep;
 open Util;
+
 module rec Projectors: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model;
@@ -11,6 +12,7 @@ module rec Projectors: {
 
   let kind_of_model: model => ProjectorCore.Kind.t;
   let sort_of_model: model => Sort.t;
+  let init: (ProjectorCore.Kind.t, Any.t, unit => Editor.t) => option(model);
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = ProjectorCore.model(Editor.t);
@@ -26,18 +28,33 @@ module rec Projectors: {
 
   //TODO(andrew): proper sort for deco
   let sort_of_model = _ => Sort.Exp;
+
+  let init = ProjectorInit.init;
 }
 and Editor: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t;
 
   module Zipper: {
-    type t;
+    type t = Zipper.t(Projectors.model);
   };
 
   module Model: {
     let mk: (~sort: Sort.t, Zipper.t) => t;
     let mk_from_exp: (~settings: CoreSettings.t, ~inline: bool=?, Exp.t) => t;
+  };
+
+  module Update: {
+    let calculate:
+      (
+        ~settings: CoreSettings.t,
+        ~is_edited: bool,
+        ~sort: Sort.t,
+        CachedStatics.t,
+        Dynamics.Map.t,
+        t
+      ) =>
+      t;
   };
 
   let make_term: (Sort.t, t) => Any.t;
@@ -47,6 +64,7 @@ and Editor: {
     t => Haz3lcorep.Editor.CachedSyntax.t(Projectors.model);
   let print_string: t => string;
   let key_handoff: (t, Key.t) => option(Action.project(Projectors.model));
+  let get_z: t => Zipper.t;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Haz3lcorep.Editor.t(Projectors.model);
@@ -72,6 +90,34 @@ and Editor: {
       |> Haz3lcorep.Zipper.unzip
       |> mk(~sort=Exp);
     };
+  };
+
+  module Update = {
+    let calculate =
+        (
+          ~settings: CoreSettings.t,
+          ~is_edited: bool,
+          ~sort: Sort.t,
+          statics: CachedStatics.t,
+          dynamics: Dynamics.Map.t,
+          ed: t,
+        )
+        : t =>
+      Haz3lcorep.Editor.Update.calculate(
+        ~settings,
+        ~is_edited,
+        ~projector_init=(_, _, _) => failwith("not implemented"),
+        ~projector_to_term=Projectors.make_term,
+        ~shape_of_projector=Projectors.shape_of_projector,
+        ~seg_of_projector=
+          (sort, p) =>
+            Projectors.make_term(p, sort)
+            |> ExpToSegment.any_to_segment(~settings=ExpToSegment.Settings.on),
+        ~sort,
+        statics,
+        dynamics,
+        ed,
+      );
   };
 
   let get_syntax_cache = (m: t) => m.syntax;

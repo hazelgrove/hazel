@@ -199,13 +199,19 @@ module Update = {
   let update =
       (
         ~settings: CoreSettings.t,
+        ~sort,
         ~projector_init,
-        ~piece_of_projector,
+        ~seg_of_projector,
+        ~shape_of_projector,
+        ~projector_to_term,
         a: Action.t('p),
         old_statics,
         {state, history, syntax}: Model.t('p),
       )
       : Action.Result.t(Model.t('p)) => {
+    let seg_to_ed = seg =>
+      Zipper.unzip(seg)
+      |> Model.mk(~sort, ~shape_of_projector, ~projector_to_term);
     open Result.Syntax;
     // 1. Clear the autocomplete buffer if relevant
     let state =
@@ -215,8 +221,9 @@ module Update = {
           zipper:
             Perform.go_z(
               ~settings,
+              ~seg_to_ed,
               ~projector_init,
-              ~piece_of_projector,
+              ~seg_of_projector,
               old_statics,
               Buffer(Clear),
               Model.to_move_s({
@@ -262,7 +269,8 @@ module Update = {
       Perform.go_z(
         ~settings,
         ~projector_init,
-        ~piece_of_projector,
+        ~seg_of_projector,
+        ~seg_to_ed,
         old_statics,
         a,
         Model.to_move_s({
@@ -317,25 +325,31 @@ module Update = {
 
   let calculate =
       (
+        type p,
         ~settings: CoreSettings.t,
         ~projector_init,
         ~projector_to_term,
-        ~piece_of_projector,
+        ~seg_of_projector,
         ~shape_of_projector,
         ~is_edited,
         ~sort,
         new_statics,
         dyn_map,
-        {syntax, state, history}: Model.t('p),
+        {syntax, state, history}: Model.t(p),
       ) => {
+    let seg_to_ed = seg =>
+      Zipper.unzip(seg)
+      |> Model.mk(~sort, ~shape_of_projector, ~projector_to_term);
+
     // 1. Recalculate the autocomplete buffer if necessary
     let zipper =
       if (settings.assist && settings.statics && is_edited) {
         switch (
           Perform.go_z(
             ~settings,
+            ~seg_to_ed,
             ~projector_init,
-            ~piece_of_projector,
+            ~seg_of_projector,
             new_statics,
             Buffer(Set(TyDi)),
             Model.to_move_s({
