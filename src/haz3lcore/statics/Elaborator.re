@@ -329,8 +329,8 @@ let rec elaborate_pattern =
         };
       let t =
         switch (Mode.ctr_ana_typ([], ctx, mode, c), Ctx.lookup_ctr(ctx, c)) {
-        | (Some(ana_ty), _) => ana_ty
-        | (_, Some({typ: syn_ty, _})) => syn_ty
+        | (Some(ana_ty), _) => TypSlice.normalize(ctx, ana_ty)
+        | (_, Some({typ: syn_ty, _})) => TypSlice.normalize(ctx, syn_ty)
         | _ =>
           Sum([
             ConstructorMap.Variant(c, [Id.invalid], None),
