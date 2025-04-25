@@ -42,8 +42,19 @@ let grounded_Prod = length =>
     Prod(ListUtil.replicate(length, Unknown(Internal) |> Typ.temp))
     |> Typ.temp,
   );
-let grounded_Sum: unit => Typ.sum_map =
-  () => [BadEntry(Typ.temp(Unknown(Internal)))];
+let grounded_Sum: Typ.sum_map => Typ.sum_map =
+  m =>
+    m
+    |> List.map(
+         fun
+         | ConstructorMap.Variant(ctr, ids, Some(_)) =>
+           ConstructorMap.Variant(
+             ctr,
+             ids,
+             Some(Unknown(Internal) |> Typ.temp),
+           )
+         | v => v,
+       );
 let grounded_List =
   NotGroundOrHole(List(Unknown(Internal) |> Typ.temp) |> Typ.temp);
 
@@ -83,7 +94,7 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
     }
   | Sum(sm) =>
     sm |> ConstructorMap.is_ground(is_hole)
-      ? Ground : NotGroundOrHole(Sum(grounded_Sum()) |> Typ.temp)
+      ? Ground : NotGroundOrHole(Sum(grounded_Sum(sm)) |> Typ.temp)
   | Arrow(_, _) => grounded_Arrow
   | Forall(_) => grounded_Forall
   | List(_) => grounded_List
