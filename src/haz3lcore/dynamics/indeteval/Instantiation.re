@@ -98,7 +98,53 @@ module Make =
       let* label = enum_typ(label |> TypSlice.t_of_typ_t, env);
       let* body = enum_typ(ty |> TypSlice.t_of_typ_t, env);
       return(TupLabel(label, body) |> DHExp.fresh);
-    | Sum(_) => failwith("TODO")
+    // Note: sum ground instantiations are the variants with unknown argument: i.e.
+    //       type T = A + B(Int) would get A or B(?) with ground type A + B(?)
+    //       These ground types differ with the + ? used in the dynamics/elaboration
+    | Sum(m) =>
+      m
+      |> List.map(
+           fun
+           | ConstructorMap.BadEntry(_) => fail
+           | Variant(ctr, _, None) =>
+             return(
+               Constructor(ctr, Some(t |> TypSlice.typ_of)) |> DHExp.fresh,
+             )
+           | Variant(ctr, _, Some(_)) =>
+             return(
+               Ap(
+                 Forward,
+                 Constructor(ctr, Some(t |> TypSlice.typ_of)) |> DHExp.fresh,
+                 fresh_hole(),
+               )
+               |> DHExp.fresh,
+             ),
+         )
+      |> concat
+      >>| (
+        e =>
+          Cast(
+            e,
+            `Typ(
+              Sum(
+                m
+                |> List.map(
+                     fun
+                     | ConstructorMap.Variant(ctr, ids, Some(_)) =>
+                       ConstructorMap.Variant(
+                         ctr,
+                         ids,
+                         Some(Unknown(Internal) |> Typ.fresh),
+                       )
+                     | v => v,
+                   ),
+              ),
+            )
+            |> TypSlice.fresh,
+            `Typ(Unknown(Internal)) |> TypSlice.fresh,
+          )
+          |> DHExp.fresh
+      )
     | Ap(_)
     | Forall(_)
     | Rec(_) => failwith("Extension Task") // Normalised types should mean these aren't even needed much?
