@@ -46,8 +46,7 @@ module Make =
     | Arrow(_, _) =>
       return(
         Cast(
-          Fun(EmptyHole |> DHPat.fresh, fresh_hole(), None, None)
-          |> DHExp.fresh,
+          Fun(Wild |> DHPat.fresh, fresh_hole(), None, None) |> DHExp.fresh,
           `Typ(
             Arrow(
               Unknown(Internal) |> Typ.fresh,
@@ -145,21 +144,37 @@ module Make =
           )
           |> DHExp.fresh
       )
-    | Ap(_)
-    | Forall(_)
-    | Rec(_) => failwith("Extension Task") // Normalised types should mean these aren't even needed much?
+    | Forall(tpat, _) =>
+      return(
+        Cast(
+          TypFun(tpat, fresh_hole(), None) |> DHExp.fresh,
+          `Typ(Forall(tpat, Unknown(Internal) |> Typ.fresh))
+          |> TypSlice.fresh,
+          t,
+        )
+        |> DHExp.fresh,
+      )
+    | Rec(_)
+    | Ap(_) => failwith("Expected normalised types during instantiation")
     };
   // TODO: Check environment for variables which have the given type.
   //<|> (Environment.of_typ(t) |> List.map(x => return(Var(x) |> DHExp.fresh)) |> List.fold(choice, fail))
-  let enum_typ = (t: TypSlice.t, ctx) =>
-    enum_typ(t, ctx)
+  let enum_typ = (t: TypSlice.t, ctx) => {
+    let normalised = TypSlice.normalize(ctx, t);
+    enum_typ(normalised, ctx)
     >>| (
       e =>
-        Cast(e, t, TypSlice.hole([]) |> TypSlice.fresh)
+        Cast(
+          TypSlice.fast_equal(t, normalised)
+            ? e : Cast(e, normalised, t) |> DHExp.fresh,
+          t,
+          TypSlice.hole([]) |> TypSlice.fresh,
+        )
         |> DHExp.fresh
         |> Evaluator.evaluate(~env=Builtins.env_init)
         |> fst
     ); // Evaluate to fixup casts
+  };
 
   // Hole Substitution. Replaces all holes of id: hole_id with an instantiation
   // substitutes d' for holes of hole_id in d
@@ -220,7 +235,7 @@ module Make =
         | None => fail // No hole in redex
         | Hole(_) => fail // No useful type information present
         | HoleCast(id, t) =>
-          enum_typ(t, env) >>| (d' => subst_term(d', id, d))
+          enum_typ(t, Builtins.ctx_init) >>| (d' => subst_term(d', id, d)) // TODO: thread a custom ctx
         | Match(d', branches) =>
           // Nondeterministically wrap scrutinee in casts from match branches
           branches
