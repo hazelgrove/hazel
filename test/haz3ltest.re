@@ -14,11 +14,11 @@ let (suite, _) =
       Test_Typ.tests,
       Test_Statics.tests,
       Test_Coverage.tests,
-      Test_Evaluator.tests,
       Test_ListUtil.tests,
       Test_Unboxing.tests,
     ]
     @ Test_Elaboration.tests
+    @ Test_Evaluator.tests
     @ Test_Introduce.tests,
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");

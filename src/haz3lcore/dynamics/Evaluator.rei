@@ -1,5 +1,6 @@
 // INVARIANT: this evaluate function should never return an expression with closures.
 
+[@deriving (show({with_path: false}), eq)]
 type step_constrained('a) =
   | StepLimitExceeded
   | Completed('a);
