@@ -122,7 +122,7 @@ module IDFS: Search = {
   let apply = (f, x) => bind(return(x), ~f);
   let wrap = x => x;
 
-  let concat = s => s |> of_list |> interleave;
+  let concat = round_robin;
 
   let once = hd;
   let ifte = (s, ~thn, ~els) =>

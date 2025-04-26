@@ -44,17 +44,19 @@ let grounded_Prod = length =>
   );
 let grounded_Sum: Typ.sum_map => Typ.sum_map =
   m =>
-    m
-    |> List.map(
-         fun
-         | ConstructorMap.Variant(ctr, ids, Some(_)) =>
-           ConstructorMap.Variant(
-             ctr,
-             ids,
-             Some(Unknown(Internal) |> Typ.temp),
-           )
-         | v => v,
-       );
+    ConstructorMap.has_bad_entry(m)
+      ? [BadEntry(Unknown(Internal) |> Typ.temp)]
+      : m
+        |> List.map(
+             fun
+             | ConstructorMap.Variant(ctr, ids, Some(_)) =>
+               ConstructorMap.Variant(
+                 ctr,
+                 ids,
+                 Some(Unknown(Internal) |> Typ.temp),
+               )
+             | v => v,
+           );
 let grounded_List =
   NotGroundOrHole(List(Unknown(Internal) |> Typ.temp) |> Typ.temp);
 

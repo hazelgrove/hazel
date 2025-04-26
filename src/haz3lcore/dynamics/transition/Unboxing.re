@@ -147,7 +147,9 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       let l = List.map(fixup_cast, l);
       Matches(l);
     | (ListLitn(n), Cast(l, s1, s2))
-        when TypSlice.is_list(s1) && TypSlice.is_list(s2) =>
+        when
+          TypSlice.is_list(s1, ~ignore_parens=false)
+          && TypSlice.is_list(s2, ~ignore_parens=false) =>
       let* l = unbox(ListLitn(n), l);
       let l =
         List.map(
@@ -213,7 +215,9 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       let* d1 = unbox(SumNoArg(name), d1);
       Matches(d1);
     | (SumNoArg(_), Cast(_, s1, s2))
-        when TypSlice.is_sum(s1) && TypSlice.is_sum(s2) =>
+        when
+          TypSlice.is_sum(s1, ~ignore_parens=false)
+          && TypSlice.is_sum(s2, ~ignore_parens=false) =>
       IndetMatch
 
     | (SumWithArg(_), Constructor(_)) => DoesNotMatch
@@ -222,7 +226,9 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       Matches(d3)
     | (SumWithArg(_), Ap(_, {term: Constructor(_), _}, _)) => DoesNotMatch
     | (SumWithArg(name), Cast(d1, s1, s2))
-        when TypSlice.is_sum(s1) && TypSlice.is_sum(s2) =>
+        when
+          TypSlice.is_sum(s1, ~ignore_parens=false)
+          && TypSlice.is_sum(s2, ~ignore_parens=false) =>
       let get_entry_or_bad = s =>
         switch (ConstructorMap.get_entry(name, s)) {
         | Some(Some(x)) => Some(x)
@@ -248,7 +254,9 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       Matches(FunEnv(dp, d3, env'))
     | (Fun, Fun(dp, d3, _, _)) => Matches(FunNoEnv(dp, d3))
     | (Fun, Cast(d3', s1, s2))
-        when TypSlice.is_arrow(s1) && TypSlice.is_arrow(s2) =>
+        when
+          TypSlice.is_arrow(s1, ~ignore_parens=false)
+          && TypSlice.is_arrow(s2, ~ignore_parens=false) =>
       let ((s1, s2), (s1', s2')) = (
         TypSlice.unarrow(s1),
         TypSlice.unarrow(s2),
@@ -264,7 +272,9 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       Matches(TypFun(utpat, tfbody, name))
     // Note: We might be able to handle this cast like other casts
     | (TypFun, Cast(d'', s1, s2))
-        when TypSlice.is_forall(s1) && TypSlice.is_forall(s2) =>
+        when
+          TypSlice.is_forall(s1, ~ignore_parens=false)
+          && TypSlice.is_forall(s2, ~ignore_parens=false) =>
       let ((tp1, s1'), (tp2, s2')) = (
         TypSlice.unforall(s1),
         TypSlice.unforall(s2),

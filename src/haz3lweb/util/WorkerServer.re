@@ -27,7 +27,12 @@ module Response = {
   let deserialize = sexp => sexp |> Sexplib.Sexp.of_string |> t_of_sexp;
 };
 
-open Haz3lcore.IndetEvaluator.Make(Haz3lcore.Nondeterminism.IDFS);
+module BDFS =
+  Haz3lcore.Nondeterminism.Bounded(
+    (val Haz3lcore.Nondeterminism.const_incr_config(~init=100, ~inc=50)),
+  );
+module BFS = Haz3lcore.Nondeterminism.BFS;
+open Haz3lcore.IndetEvaluator.Make(BFS);
 let work = (res: Request.value, search, n): Response.value =>
   switch (
     res
@@ -39,7 +44,7 @@ let work = (res: Request.value, search, n): Response.value =>
              )
            : values(~env=Builtins.env_init, ~state=IndetEvaluatorState.init)
        )
-    |> Haz3lcore.Nondeterminism.IDFS.run_n(~solutions=n + 1)
+    |> BFS.run_n(~solutions=n + 1)
     |> (l => List.nth_opt(l, n))
   ) {
   | exception (Haz3lcore.EvaluatorError.Exception(reason)) =>

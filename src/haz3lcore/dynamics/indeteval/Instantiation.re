@@ -191,8 +191,7 @@ module Make =
                    Closure(
                      env
                      |> ClosureEnvironment.map(((_, d)) =>
-                          d
-                          |> subst_term(d', hole_id)
+                          d |> subst_term(d', hole_id)
                         ),
                      continue(d),
                    ),

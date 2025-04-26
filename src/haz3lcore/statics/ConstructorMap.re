@@ -88,14 +88,18 @@ let free_variables = (f, m) =>
   |> List.flatten;
 
 let is_ground = (is_hole, sm) =>
-  !
-    List.exists(
-      fun
-      | Variant(_, _, Some(ty)) when !is_hole(ty) => true
-      | BadEntry(ty) when !is_hole(ty) => true
-      | _ => false,
-      sm,
-    );
+  (
+    fun
+    | [BadEntry(x)] when is_hole(x) => true
+    | _ => false
+  )(sm)
+  || !
+       List.exists(
+         fun
+         | Variant(_, _, Some(ty)) when !is_hole(ty) => true
+         | _ => false,
+         sm,
+       );
 
 /* computes all three regions of a venn diagram of two sets represented as lists */
 let venn_regions =
