@@ -1479,7 +1479,7 @@ and slice_to_pretty = (~settings: Settings.t, typ: TypSlice.slc_typ_t): pretty =
     let+ t = go(t);
     [mk_form(ListTyp, id, [t])];
   | Prod([]) => text_to_pretty(typ |> IdTagged.rep_id, Sort.Typ, "()")
-  | Prod([_]) => failwith("Singleton Prods are not allowed")
+  | Prod([_]) => text_to_pretty(typ |> IdTagged.rep_id, Sort.Typ, "()")
   | Prod([t, ...ts]) =>
     let+ t = go(t)
     and+ ts = ts |> List.map(go) |> all;
