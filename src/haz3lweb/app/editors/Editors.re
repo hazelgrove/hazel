@@ -19,6 +19,13 @@ module Model = {
     | Documentation(_) => "Documentation"
     | Derivations(_)
     | Exercises(_) => "Exercises";
+
+  let get_derivation_info = (model: t) => {
+    switch (model) {
+    | Derivations(eds) => DerivationsMode.Model.get_derivation_info(eds)
+    | _ => None
+    };
+  };
 };
 
 module StoreMode =
@@ -310,16 +317,7 @@ module Selection = {
     | Model.Scratch(_) => Scratch(MainEditor)
     | Model.Documentation(_) => Scratch(MainEditor)
     | Model.Exercises(_) => Exercises((Exercise.Prelude, MainEditor))
-    | Model.Derivations(_) =>
-      Derivations((DerivationTree.Prelude, MainEditor));
-
-  let get_derivation_info = (~selection: t, model: Model.t) => {
-    switch (model, selection) {
-    | (Derivations(eds), Derivations(pos)) =>
-      DerivationsMode.Selection.get_derivation_info(eds, pos)
-    | _ => None
-    };
-  };
+    | Model.Derivations(_) => Derivations(MainEditor);
 };
 
 module View = {

@@ -9,6 +9,7 @@ module Model = {
     spec: DerivationTree.spec,
     editors: DerivationTree.p(Editor.t),
     cells: DerivationTree.stitched(CellEditor.Model.t),
+    pos: DerivationTree.pos,
   };
 
   let of_spec = (~settings as _, ~instructor_mode as _: bool, spec) => {
@@ -23,7 +24,9 @@ module Model = {
     let cells =
       DerivationTree.stitch_term(editors)
       |> DerivationTree.map_stitched(_ => term_item_to_cell);
+    let pos = DerivationTree.Prelude;
     {
+      pos,
       spec,
       editors,
       cells,
@@ -73,6 +76,7 @@ module Update = {
         |> CodeEditable.Update.update(~settings, action);
       {
         ...model,
+        pos,
         editors:
           DerivationTree.put_main_editor(
             ~selection=pos,
@@ -242,7 +246,7 @@ module Update = {
       };
     };
     {
-      spec: model.spec,
+      ...model,
       editors,
       cells,
     };
@@ -252,21 +256,19 @@ module Update = {
 module Selection = {
   open Cursor;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = (DerivationTree.pos, CellEditor.Selection.t);
+  type t = CellEditor.Selection.t;
 
-  let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
-    let (pos, s) = selection;
-    let pos = DerivationTree.farthest_pos(pos, model.editors);
+  let get_cursor_info = (~selection: t, model: Model.t): cursor(Update.t) => {
+    let pos = DerivationTree.farthest_pos(model.pos, model.editors);
     let cell_editor = DerivationTree.get_stitched(pos, model.cells);
-    let+ a = CellEditor.Selection.get_cursor_info(~selection=s, cell_editor);
+    let+ a = CellEditor.Selection.get_cursor_info(~selection, cell_editor);
     Update.Editor(pos, a);
   };
 
-  let handle_key_event = (~selection, ~event, model: Model.t) => {
-    let (pos, s) = selection;
-    let pos = DerivationTree.farthest_pos(pos, model.editors);
+  let handle_key_event = (~selection: t, ~event, model: Model.t) => {
+    let pos = DerivationTree.farthest_pos(model.pos, model.editors);
     let cell_editor = DerivationTree.get_stitched(pos, model.cells);
-    CellEditor.Selection.handle_key_event(~selection=s, ~event, cell_editor)
+    CellEditor.Selection.handle_key_event(~selection, ~event, cell_editor)
     |> Option.map(a => Update.Editor(pos, a));
   };
 
@@ -280,7 +282,7 @@ module Selection = {
     |> Option.map(((pos, _)) =>
          (
            Update.Editor(pos, MainEditor(Perform(Jump(TileId(tile))))),
-           (pos, CellEditor.Selection.MainEditor),
+           CellEditor.Selection.MainEditor,
          )
        );
   };
@@ -714,10 +716,10 @@ module View = {
         ~globals,
         ~signal=
           fun
-          | MakeActive(a) => signal(MakeActive((this_pos, a))),
+          | MakeActive(a) => signal(MakeActive(a)),
         ~selected=
           switch (selection) {
-          | Some((pos, s)) when pos == this_pos => Some(s)
+          | Some(s) when model.pos == this_pos => Some(s)
           | _ => None
           },
         ~inject=a => inject(Editor(this_pos, a)),
@@ -779,9 +781,10 @@ module View = {
         ~attrs=
           [Attr.class_("deduction-just")]
           @ (
-            switch (selection) {
-            | Some((pos', _)) when pos == pos' => [Attr.class_("staged")]
-            | _ => []
+            if (pos == model.pos) {
+              [Attr.class_("staged")];
+            } else {
+              [];
             }
           ),
         [

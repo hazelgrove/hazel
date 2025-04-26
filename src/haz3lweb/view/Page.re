@@ -294,11 +294,7 @@ module Update = {
         cursor_info.info,
       );
     // Note(Zhiyao): derivation highlight override ExplainThis highlights if exists
-    let derivation_info =
-      Editors.Selection.get_derivation_info(
-        ~selection=model.selection,
-        model.editors,
-      );
+    let derivation_info = Editors.Model.get_derivation_info(model.editors);
     let color_highlights =
       switch (derivation_info) {
       | Some(_) =>
@@ -515,8 +511,7 @@ module View = {
         ~inject=a => inject(Editors(a)),
         cursor,
       );
-    let derivation_info =
-      Editors.Selection.get_derivation_info(~selection, model.editors);
+    let derivation_info = Editors.Model.get_derivation_info(model.editors);
     let sidebar =
       globals.settings.explainThis.show && globals.settings.core.statics
         ? ExplainThis.view(
