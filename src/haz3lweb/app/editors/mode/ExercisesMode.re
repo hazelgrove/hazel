@@ -55,6 +55,15 @@ module Model = {
   };
 
   let get_current = (m: t) => List.nth(m.exercises, m.current);
+
+  let of_spec = (~settings, ~instructor_mode, spec) => {
+    {
+      current: 0,
+      exercises: [
+        ExerciseMode.Model.of_spec(spec, ~settings, ~instructor_mode),
+      ],
+    };
+  };
 };
 
 module StoreExerciseKey =
@@ -183,6 +192,7 @@ module Update = {
   type t =
     | SwitchExercise(int)
     | Exercise(ExerciseMode.Update.t)
+    | CreateNewExercise
     | ExportModule
     | ExportSubmission
     | ExportTransitionary
@@ -258,6 +268,15 @@ module Update = {
         exercises: model.exercises,
       }
       |> return
+    | CreateNewExercise =>
+      let newSpec = Exercise.create_blank_exercise();
+      let newModel =
+        Model.of_spec(
+          ~settings=globals.settings,
+          ~instructor_mode=globals.settings.instructor_mode,
+          newSpec,
+        );
+      Updated.return(newModel);
     | ExportModule =>
       Store.save(~instructor_mode=globals.settings.instructor_mode, model);
       export_exercise_module(model);
@@ -398,6 +417,13 @@ module View = {
         ~tooltip="Import Submission",
       );
 
+    let new_exercise_button =
+      Widgets.button_named(
+        Icons.plus,
+        _ => inject(CreateNewExercise),
+        ~tooltip="Create New Exercise",
+      );
+
     let export_persistent_data =
       button_named(
         Icons.export,
@@ -433,7 +459,7 @@ module View = {
       NutMenu.item_group(
         ~inject,
         "File",
-        [export_submission, import_submission],
+        [new_exercise_button, export_submission, import_submission],
       );
 
     let reset_group_exercises = () =>

@@ -222,6 +222,8 @@ let backpack =
     ],
   );
 
+let plus = simple_icon(~view="0 0 24 24", ["M12 5v14", "M5 12h14"]);
+
 let command_palette_sparkle =
   simple_icon(
     ~view="400 400 400 400",

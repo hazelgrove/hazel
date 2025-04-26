@@ -58,7 +58,8 @@ module Update = {
   type t =
     | Editor(Exercise.pos, CellEditor.Update.t)
     | ResetEditor(Exercise.pos)
-    | ResetExercise;
+    | ResetExercise
+    | CreateNewExercise;
 
   let update =
       (~settings: Settings.t, ~schedule_action as _, action, model: Model.t)
@@ -138,6 +139,15 @@ module Update = {
         editors: new_editors,
       }
       |> Updated.return;
+    | CreateNewExercise =>
+      let newSpec = Exercise.create_blank_exercise();
+      let newModel =
+        Model.of_spec(
+          ~settings,
+          ~instructor_mode=settings.instructor_mode,
+          newSpec,
+        );
+      Updated.return(newModel);
     };
   };
 

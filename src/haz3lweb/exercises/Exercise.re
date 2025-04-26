@@ -636,22 +636,22 @@ let blank_spec =
       ~provided_tests,
       ~num_wrong_impls,
     ) => {
-  let prelude = Zipper.next_blank();
-  let correct_impl = Zipper.next_blank();
-  let your_tests_tests = Zipper.next_blank();
-  let your_impl = Zipper.next_blank();
+  let prelude = Zipper.init();
+  let correct_impl = Zipper.init();
+  let your_tests_tests = Zipper.init();
+  let your_impl = Zipper.init();
   let hidden_bugs =
     List.init(
       num_wrong_impls,
       i => {
-        let zipper = Zipper.next_blank();
+        let zipper = Zipper.init();
         {
           impl: zipper,
           hint: "TODO: hint " ++ string_of_int(i),
         };
       },
     );
-  let hidden_tests_tests = Zipper.next_blank();
+  let hidden_tests_tests = Zipper.init();
   {
     title,
     version: 1,
@@ -674,6 +674,39 @@ let blank_spec =
     syntax_tests: [],
   };
 };
+
+let create_blank_exercise_base =
+    (
+      ~title: string,
+      ~module_name: string,
+      ~point_distribution: point_distribution,
+      ~required_tests: int,
+      ~provided_tests: int,
+      ~num_wrong_impls: int,
+    ) => {
+  blank_spec(
+    ~title,
+    ~module_name,
+    ~point_distribution,
+    ~required_tests,
+    ~provided_tests,
+    ~num_wrong_impls,
+  );
+};
+
+let create_blank_exercise = () =>
+  create_blank_exercise_base(
+    ~title="Untitled Exercise",
+    ~module_name="NewExercise",
+    ~point_distribution={
+      test_validation: 50,
+      mutation_testing: 25,
+      impl_grading: 25,
+    },
+    ~required_tests=0,
+    ~provided_tests=0,
+    ~num_wrong_impls=1,
+  );
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type persistent_exercise_mode = list((pos, PersistentZipper.t));
