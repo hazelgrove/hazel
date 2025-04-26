@@ -140,7 +140,7 @@ module Make =
               ),
             )
             |> TypSlice.fresh,
-            `Typ(Unknown(Internal)) |> TypSlice.fresh,
+            t,
           )
           |> DHExp.fresh
       )
