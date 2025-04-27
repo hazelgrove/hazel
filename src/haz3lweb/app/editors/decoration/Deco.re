@@ -783,7 +783,7 @@ module Deco =
                  | _ => failwith("TODO: view ctx_used"),
                [],
              );
-        div_c("slice", List.map(error_view, term_ids @ ctx_used_ids));
+        div_c("error", List.map(slice_view, term_ids @ ctx_used_ids));
       | Some(Exp(Common(Inconsistent(WithArrow(t, slc)))))
       | Some(Pat(Common(Inconsistent(WithArrow(t, slc))))) =>
         let {ctx_used, term_ids}: TypSlice.slc_incr =
@@ -813,8 +813,8 @@ module Deco =
                [],
              );
         div_c(
-          "slice",
-          List.map(error_view, term_ids @ term_ids2 @ ctx_used_ids),
+          "error",
+          List.map(slice_view, term_ids @ term_ids2 @ ctx_used_ids),
         );
       | Some(Exp(Common(Inconsistent(Internal(ts)))))
       | Some(Pat(Common(Inconsistent(Internal(ts))))) =>
@@ -856,7 +856,7 @@ module Deco =
                  | _ => failwith("TODO: view ctx_used"),
                [],
              );
-        div_c("slice", List.map(error_view, term_ids @ ctx_used_ids));
+        div_c("error", List.map(slice_view, term_ids @ ctx_used_ids));
       | Some(Exp(Common(Inconsistent(Expectation({syn, ana})))))
       | Some(Pat(Common(Inconsistent(Expectation({syn, ana}))))) =>
         let {ctx_used, term_ids}: TypSlice.slc_incr =
@@ -893,7 +893,7 @@ module Deco =
                  | _ => failwith("TODO: view ctx_used"),
                [],
              );
-        div_c("slice", List.map(error_view, term_ids @ ctx_used_ids));
+        div_c("error", List.map(slice_view, term_ids @ ctx_used_ids));
       | _ => div_empty
       }
 

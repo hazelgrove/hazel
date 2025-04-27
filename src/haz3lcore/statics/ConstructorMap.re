@@ -118,17 +118,10 @@ let venn_regions =
   go(xs, ys, [], [], []);
 };
 
-type join('a) =
-  | Join('a, BranchUsed.t)
-  | NoJoin(list(('a, 'a)));
-let (let.) = (x, f) =>
-  switch (x) {
-  | Join(t, b) => f((t, b))
-  | NoJoin(ts) => NoJoin(ts)
-  }; // Bind, named let. to not shadow option bind let*
+open Joins;
 let join_entry =
-    (type a, join: (a, a) => join(a), (x: variant(a), y: variant(a)))
-    : join(variant(a)) =>
+    (type a, join: (a, a) => join(a, a), (x: variant(a), y: variant(a)))
+    : join(variant(a), variant(a)) =>
   switch (x, y) {
   | (Variant(ctr1, ids1, Some(value1)), Variant(ctr2, ids2, Some(value2)))
       when Constructor.equal(ctr1, ctr2) =>
@@ -146,19 +139,19 @@ let join_entry =
     }
   | (Variant(ctr1, ids1, None), Variant(ctr2, _, None))
       when Constructor.equal(ctr1, ctr2) =>
-    Join(Variant(ctr1, ids1, None), BranchUsed.Left)
-  | (BadEntry(x), BadEntry(_)) => Join(BadEntry(x), BranchUsed.Left)
+    Join(Variant(ctr1, ids1, None), Left)
+  | (BadEntry(x), BadEntry(_)) => Join(BadEntry(x), Left)
   | _ => NoJoin([]) // Won't be used, these inconsistencies come from naming rather than types
   };
 
 let join =
     (
       eq: ('a, 'a) => bool,
-      join: ('a, 'a) => join('a),
+      join: ('a, 'a) => join('a, 'a),
       m1: t('a),
       m2: t('a),
     )
-    : join(t('a)) => {
+    : join(t('a), t('a)) => {
   let (inter, left, right) = venn_regions(same_constructor(eq), m1, m2);
   let join_entries =
     List.fold_left(
@@ -176,7 +169,7 @@ let join =
   | Ok(join_entries) =>
     let (join_variants, branches_used) = ListUtil.unzip(join_entries);
     let branch_used =
-      List.fold_left(BranchUsed.combine_branches_used, None, branches_used);
+      List.fold_left(combine_branches_used, None, branches_used);
     switch (
       has_good_entry(left),
       has_bad_entry(m1),
