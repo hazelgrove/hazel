@@ -411,7 +411,6 @@ let equal = (t1: t, t2: t): bool => fast_equal(t1, t2);
 // None here occurs if both branches are Unknown.
 open Joins;
 let rec join_using = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): join(t, t) => {
-  print_endline("Joining: " ++ show(ty1) ++ "\nWITH:" ++ show(ty2));
   let join' = join_using(~resolve, ctx);
   switch (term_of(ty1), term_of(ty2)) {
   | (_, Parens(ty2)) => join'(ty1, ty2)
