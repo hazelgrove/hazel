@@ -159,14 +159,6 @@ module Update = {
         switch (update) {
         | ResultOk({result, _}) =>
           switch (result.term) {
-          | Int(i) =>
-            let color =
-              "#"
-              ++ string_of_int(i)
-              ++ string_of_int(i)
-              ++ string_of_int(i);
-            JsUtil.set_css_variable("--SAND", color);
-          | String(color) => JsUtil.set_css_variable("--SAND", color)
           | ListLit(lits) =>
             let colors =
               List.concat_map(
@@ -174,8 +166,8 @@ module Update = {
                   switch (Unboxing.unbox(Tuple(2), x)) {
                   | Matches([x, y]) =>
                     switch (
-                      Unboxing.unbox(String, x),
-                      Unboxing.unbox(String, y),
+                      Unboxing.unbox(Atom(String), x),
+                      Unboxing.unbox(Atom(String), y),
                     ) {
                     | (Matches(name), Matches(color)) => [(name, color)]
                     | _ => []

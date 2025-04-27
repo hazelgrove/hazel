@@ -55,6 +55,8 @@ module Model = {
   type persistent = PersistentZipper.t;
   let persist = (model: t) =>
     model.editor.state.zipper |> PersistentZipper.persist;
+  let to_string = (model: t) =>
+    model.editor.state.zipper |> PersistentZipper.to_string;
   let unpersist = p =>
     p |> PersistentZipper.unpersist |> Editor.Model.mk |> mk;
 };
