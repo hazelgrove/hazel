@@ -118,51 +118,78 @@ let venn_regions =
   go(xs, ys, [], [], []);
 };
 
+type join('a) =
+  | Join('a, BranchUsed.t)
+  | NoJoin(list(('a, 'a)));
+let (let.) = (x, f) =>
+  switch (x) {
+  | Join(t, b) => f((t, b))
+  | NoJoin(ts) => NoJoin(ts)
+  }; // Bind, named let. to not shadow option bind let*
 let join_entry =
-    (
-      join: ('a, 'a) => option(('a, BranchUsed.t)),
-      (x: variant('a), y: variant('a)),
-    )
-    : option((variant('a), BranchUsed.t)) =>
+    (type a, join: (a, a) => join(a), (x: variant(a), y: variant(a)))
+    : join(variant(a)) =>
   switch (x, y) {
-  | (Variant(ctr1, ids1, Some(value1)), Variant(ctr2, _, Some(value2)))
+  | (Variant(ctr1, ids1, Some(value1)), Variant(ctr2, ids2, Some(value2)))
       when Constructor.equal(ctr1, ctr2) =>
-    let+ (value, branch_used) = join(value1, value2);
-    (Variant(ctr1, ids1, Some(value)), branch_used);
+    switch (join(value1, value2)) {
+    | Join(value, branch_used) =>
+      Join(Variant(ctr1, ids1, Some(value)), branch_used)
+    | NoJoin(ts) =>
+      NoJoin(
+        List.map(
+          ((x, y)) =>
+            (Variant(ctr1, ids1, Some(x)), Variant(ctr2, ids2, Some(y))),
+          ts,
+        ),
+      )
+    }
   | (Variant(ctr1, ids1, None), Variant(ctr2, _, None))
       when Constructor.equal(ctr1, ctr2) =>
-    Some((Variant(ctr1, ids1, None), BranchUsed.Left))
-  | (BadEntry(x), BadEntry(_)) => Some((BadEntry(x), BranchUsed.Left))
-  | _ => None
+    Join(Variant(ctr1, ids1, None), BranchUsed.Left)
+  | (BadEntry(x), BadEntry(_)) => Join(BadEntry(x), BranchUsed.Left)
+  | _ => NoJoin([]) // Won't be used, these inconsistencies come from naming rather than types
   };
 
 let join =
     (
       eq: ('a, 'a) => bool,
-      join: ('a, 'a) => option(('a, BranchUsed.t)),
+      join: ('a, 'a) => join('a),
       m1: t('a),
       m2: t('a),
     )
-    : option((t('a), list(BranchUsed.t))) => {
+    : join(t('a)) => {
   let (inter, left, right) = venn_regions(same_constructor(eq), m1, m2);
-  let join_entries = List.filter_map(join_entry(join), inter);
-  let (join_variants, branches_used) = ListUtil.unzip(join_entries);
-  if (List.length(join_entries) == List.length(inter)) {
+  let join_entries =
+    List.fold_left(
+      (acc, (v1, v2)) =>
+        switch (acc, join_entry(join, (v1, v2))) {
+        | (Ok(acc), Join(v, b)) => Ok([(v, b), ...acc])
+        | (Ok(_), NoJoin(ts))
+        | (Error(ts), Join(_)) => Error(ts)
+        | (Error(ts), NoJoin(ts')) => Error(ts @ ts')
+        },
+      Ok([]),
+      inter,
+    );
+  switch (join_entries) {
+  | Ok(join_entries) =>
+    let (join_variants, branches_used) = ListUtil.unzip(join_entries);
+    let branch_used =
+      List.fold_left(BranchUsed.combine_branches_used, None, branches_used);
     switch (
       has_good_entry(left),
       has_bad_entry(m1),
       has_good_entry(right),
       has_bad_entry(m2),
     ) {
-    | (_, true, _, true) =>
-      Some((join_variants @ left @ right, branches_used)) // TODO check this branch_used logic
-    | (false, true, _, _) => Some((join_variants @ right, branches_used))
-    | (_, _, false, true) => Some((join_variants @ left, branches_used))
-    | _ when left == [] && right == [] => Some((join_variants, branches_used))
-    | _ => None
+    | (_, true, _, true) => Join(join_variants @ left @ right, branch_used) // TODO check this branch_used logic
+    | (false, true, _, _) => Join(join_variants @ right, branch_used)
+    | (_, _, false, true) => Join(join_variants @ left, branch_used)
+    | _ when left == [] && right == [] => Join(join_variants, branch_used)
+    | _ => NoJoin([(left, right)]) // Missing constructor pairs
     };
-  } else {
-    None;
+  | Error(ts) => NoJoin(ts |> List.map(((x, y)) => ([x], [y])))
   };
 };
 

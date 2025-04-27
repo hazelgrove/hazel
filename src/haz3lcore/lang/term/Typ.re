@@ -409,42 +409,95 @@ let equal = (t1: t, t2: t): bool => fast_equal(t1, t2);
 // strictly picks LEFT side when same leaf used in both branches
 // join used leaves from either: none, left branch, right branch, or both.
 // None here occurs if both branches are Unknown.
-let rec join_using =
-        (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t)
-        : option((t, BranchUsed.t)) => {
+type join =
+  | Join(t, BranchUsed.t)
+  | NoJoin(list((t, t)));
+let (let.) = (x, f) =>
+  switch (x) {
+  | Join(t, b) => f((t, b))
+  | NoJoin(ts) => NoJoin(ts)
+  }; // Bind, named let. to not shadow option bind let*
+let bind = (f, x) => {
+  let. y = x;
+  f(y);
+};
+let to_constructor_join =
+  fun
+  | Join(t, b) => ConstructorMap.Join(t, b)
+  | NoJoin(ts) => NoJoin(ts);
+let rec join_using = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): join => {
   let join' = join_using(~resolve, ctx);
   BranchUsed.(
     switch (term_of(ty1), term_of(ty2)) {
     | (_, Parens(ty2)) => join'(ty1, ty2)
     | (Parens(ty1), _) => join'(ty1, ty2)
     | (Unknown(p1), Unknown(p2)) =>
-      Some((Unknown(join_type_provenance(p1, p2)) |> temp, None))
-    | (Unknown(_), _) => Some((ty2, Right))
-    | (_, Unknown(_)) => Some((ty1, Left))
+      Join(Unknown(join_type_provenance(p1, p2)) |> temp, None)
+    | (Unknown(_), _) => Join(ty2, Right)
+    | (_, Unknown(_)) => Join(ty1, Left)
     | (Var(n1), Var(n2)) =>
       if (n1 == n2) {
-        Some((ty1, Left));
+        Join(ty1, Left);
       } else {
-        let* ty1 =
-          Ctx.lookup_alias(ctx, n1) |> Option.map(TermBase.TypSlice.typ_of);
-        let* ty2 =
-          Ctx.lookup_alias(ctx, n2) |> Option.map(TermBase.TypSlice.typ_of);
-        let+ (ty_join, branch_used) = join'(ty1, ty2);
-        !resolve && equal(ty1, ty_join)
-          ? (ty1, Left) : (ty_join, branch_used);
+        {
+          let* ty1 =
+            Ctx.lookup_alias(ctx, n1) |> Option.map(TermBase.TypSlice.typ_of);
+          let* ty2 =
+            Ctx.lookup_alias(ctx, n2) |> Option.map(TermBase.TypSlice.typ_of);
+          Some(
+            switch (join'(ty1, ty2)) {
+            | Join(ty_join, branch_used) =>
+              !resolve && equal(ty1, ty_join)
+                ? Join(ty1, Left) : Join(ty_join, branch_used)
+            | NoJoin(ts) => NoJoin([(ty1, ty2), ...ts])
+            },
+          );
+        }
+        |> (
+          fun
+          | Some(Join(t, b)) => Join(t, b)
+          | Some(NoJoin(ts)) => NoJoin(ts)
+          | None => NoJoin([(ty1, ty2)])
+        );
       }
     | (Var(name), _) =>
-      let* ty_name =
-        Ctx.lookup_alias(ctx, name) |> Option.map(TermBase.TypSlice.typ_of);
-      let+ (ty_join, branch_used) = join'(ty_name, ty2);
-      !resolve && equal(ty_name, ty_join)
-        ? (ty1, Left) : (ty_join, branch_used);
+      {
+        let* ty_name =
+          Ctx.lookup_alias(ctx, name) |> Option.map(TermBase.TypSlice.typ_of);
+        Some(
+          switch (join'(ty_name, ty2)) {
+          | Join(ty_join, branch_used) =>
+            !resolve && equal(ty_name, ty_join)
+              ? Join(ty1, Left) : Join(ty_join, branch_used)
+          | NoJoin(ts) => NoJoin([(ty1, ty2), ...ts])
+          },
+        );
+      }
+      |> (
+        fun
+        | Some(Join(t, b)) => Join(t, b)
+        | Some(NoJoin(ts)) => NoJoin(ts)
+        | None => NoJoin([(ty1, ty2)])
+      )
     | (_, Var(name)) =>
-      let* ty_name =
-        Ctx.lookup_alias(ctx, name) |> Option.map(TermBase.TypSlice.typ_of);
-      let+ (ty_join, branch_used) = join'(ty_name, ty1);
-      !resolve && equal(ty_name, ty_join)
-        ? (ty2, Right) : (ty_join, branch_used);
+      {
+        let* ty_name =
+          Ctx.lookup_alias(ctx, name) |> Option.map(TermBase.TypSlice.typ_of);
+        Some(
+          switch (join'(ty_name, ty2)) {
+          | Join(ty_join, branch_used) =>
+            !resolve && equal(ty_name, ty_join)
+              ? Join(ty2, Right) : Join(ty_join, branch_used)
+          | NoJoin(ts) => NoJoin([(ty1, ty2), ...ts])
+          },
+        );
+      }
+      |> (
+        fun
+        | Some(Join(t, b)) => Join(t, b)
+        | Some(NoJoin(ts)) => NoJoin(ts)
+        | None => NoJoin([(ty1, ty2)])
+      )
     /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
     | (Rec(tp1, ty1), Rec(tp2, ty2)) =>
       let ctx = Ctx.extend_dummy_tvar(ctx, tp1);
@@ -453,9 +506,9 @@ let rec join_using =
         | Some(x2) => subst(Var(x2) |> temp, tp1, ty1)
         | None => ty1
         };
-      let+ (ty_body, branch_used) = join_using(~resolve, ctx, ty1', ty2);
-      (Rec(tp1, ty_body) |> temp, branch_used);
-    | (Rec(_), _) => None
+      let. (ty_body, branch_used) = join_using(~resolve, ctx, ty1', ty2);
+      Join(Rec(tp1, ty_body) |> temp, branch_used);
+    | (Rec(_), _) => NoJoin([(ty1, ty2)])
     | (Forall(x1, ty1), Forall(x2, ty2)) =>
       let ty1' =
         switch (TPat.tyvar_of_utpat(x2)) {
@@ -463,8 +516,8 @@ let rec join_using =
         | None => ty1
         };
       let ctx = Ctx.extend_dummy_tvar(ctx, x2);
-      let+ (ty_body, branch_used) = join_using(~resolve, ctx, ty1', ty2);
-      (
+      let. (ty_body, branch_used) = join_using(~resolve, ctx, ty1', ty2);
+      Join(
         Forall(x2, ty_body) |> temp,
         combine_branches_used(branch_used, Right),
       );
@@ -474,69 +527,110 @@ let rec join_using =
        be exposed to the user. We preserve the variable name of the
        second type to preserve synthesized type variable names, which
        come from user annotations. */
-    | (Forall(_), _) => None
-    | (Int, Int) => Some((ty1, Left))
-    | (Int, _) => None
-    | (Float, Float) => Some((ty1, Left))
-    | (Float, _) => None
-    | (Bool, Bool) => Some((ty1, Left))
-    | (Bool, _) => None
-    | (String, String) => Some((ty1, Left))
-    | (String, _) => None
-    | (Label(_), Label("")) => Some((ty1, Left))
-    | (Label(""), Label(_)) => Some((ty2, Right))
+    | (Forall(_), _) => NoJoin([(ty1, ty2)])
+    | (Int, Int) => Join(ty1, Left)
+    | (Int, _) => NoJoin([(ty1, ty2)])
+    | (Float, Float) => Join(ty1, Left)
+    | (Float, _) => NoJoin([(ty1, ty2)])
+    | (Bool, Bool) => Join(ty1, Left)
+    | (Bool, _) => NoJoin([(ty1, ty2)])
+    | (String, String) => Join(ty1, Left)
+    | (String, _) => NoJoin([(ty1, ty2)])
+    | (Label(_), Label("")) => Join(ty1, Left)
+    | (Label(""), Label(_)) => Join(ty2, Right)
     | (Label(name1), Label(name2))
         when LabeledTuple.match_labels(name1, name2) =>
-      Some((ty1, Left))
-    | (Label(_), _) => None
+      Join(ty1, Left)
+    | (Label(_), _) => NoJoin([(ty1, ty2)])
     | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
-      let* (ty1, branch_used1) = join'(ty1, ty1');
-      let+ (ty2, branch_used2) = join'(ty2, ty2');
-      (
+      let. (ty1, branch_used1) = join'(ty1, ty1');
+      let. (ty2, branch_used2) = join'(ty2, ty2');
+      Join(
         Arrow(ty1, ty2) |> temp,
         combine_branches_used(branch_used1, branch_used2),
       );
-    | (Arrow(_), _) => None
+    | (Arrow(_), _) => NoJoin([(ty1, ty2)])
     | (TupLabel(lab1, ty1'), TupLabel(lab2, ty2')) =>
-      let* (lab, branch_used1) = join'(lab1, lab2);
-      let+ (ty, branch_used2) = join'(ty1', ty2');
-      (
+      let. (lab, branch_used1) = join'(lab1, lab2);
+      let. (ty, branch_used2) = join'(ty1', ty2');
+      Join(
         TupLabel(lab, ty) |> temp,
         combine_branches_used(branch_used1, branch_used2),
       );
-    | (TupLabel(_), _) => None
+    | (TupLabel(_), _) => NoJoin([(ty1, ty2)])
     | (Prod(tys1), Prod(tys2)) =>
       if (List.length(tys1) != List.length(tys2)) {
-        None;
+        NoJoin
+          ([(ty1, ty2)]); // TODO: Could only return the extra parts of tys1/tys2
       } else {
-        let* joins = ListUtil.map2_opt(join', tys1, tys2);
-        let+ joins = OptUtil.sequence(joins);
-        let (tys, branches_used) = ListUtil.unzip(joins);
-        (
-          Prod(tys) |> temp,
-          List.fold_left(combine_branches_used, None, branches_used),
-        );
+        let joins = List.map2(join', tys1, tys2);
+        let joins =
+          List.fold_left(
+            (acc, j) =>
+              switch (acc, j) {
+              | (Ok((tys, branches_used)), Join(ty_join, branch_used)) =>
+                Ok(([ty_join, ...tys], [branch_used, ...branches_used]))
+              | (Ok(_), NoJoin(ts))
+              | (Error(ts), Join(_)) => Error(ts)
+              | (Error(ts_acc), NoJoin(ts)) => Error(ts_acc @ ts)
+              },
+            Ok(([], [])),
+            joins,
+          );
+        switch (joins) {
+        | Ok((tys, branches_used)) =>
+          Join(
+            Prod(tys) |> temp,
+            List.fold_left(combine_branches_used, None, branches_used),
+          )
+        | Error(ts) => NoJoin(ts)
+        };
       }
-    | (Prod(_), _) => None
+    | (Prod(_), _) => NoJoin([(ty1, ty2)])
     | (Sum(sm1), Sum(sm2)) =>
-      let+ (sm', branches_used) =
-        ConstructorMap.join(equal, join_using(~resolve, ctx), sm1, sm2);
-      (
-        Sum(sm') |> temp,
-        List.fold_left(combine_branches_used, None, branches_used),
-      ); // TODO: Check!
-    | (Sum(_), _) => None
+      switch (
+        ConstructorMap.join(
+          equal,
+          (x, y) => to_constructor_join(join_using(~resolve, ctx, x, y)),
+          sm1,
+          sm2,
+        )
+      ) {
+      | Join(sm', branch_used) => Join(Sum(sm') |> temp, branch_used)
+      | NoJoin(sms) =>
+        NoJoin(
+          List.map(
+            ((s1, s2)) => (Sum(s1) |> temp, Sum(s2) |> temp),
+            sms,
+          ),
+        )
+      }
+    | (Sum(_), _) => NoJoin([(ty1, ty2)])
     | (List(ty1), List(ty2)) =>
-      let+ (ty, branch_used) = join'(ty1, ty2);
-      (List(ty) |> temp, branch_used);
-    | (List(_), _) => None
+      let. (ty, branch_used) = join'(ty1, ty2);
+      Join(List(ty) |> temp, branch_used);
+    | (List(_), _) => NoJoin([(ty1, ty2)])
     | (Ap(_), _) => failwith("Type join of ap")
     }
   );
 };
 
-let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) =>
-  join_using(~resolve, ctx, ty1, ty2) |> Option.map(fst);
+let join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) =>
+  join_using(~resolve, ctx, ty1, ty2)
+  |> (
+    fun
+    | Join(t, _) => Some(t)
+    | NoJoin(_) => None
+  );
+
+let join_inconsistency =
+    (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): list((t, t)) =>
+  join_using(~resolve, ctx, ty1, ty2)
+  |> (
+    fun
+    | Join(_, _) => []
+    | NoJoin(ts) => ts
+  );
 
 /* REQUIRES NORMALIZED TYPES
    Remove synswitches from t1 by matching against t2 */
