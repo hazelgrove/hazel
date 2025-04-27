@@ -538,6 +538,10 @@ let to_constructor_join =
   fun
   | Join(t, b) => ConstructorMap.Join(t, b)
   | NoJoin(ts) => NoJoin(ts);
+let map_join = (f, g) =>
+  fun
+  | Join(t, b) => f(t, b) |> (((t, b)) => Join(t, b))
+  | NoJoin(ts) => NoJoin(List.map(g, ts));
 // Horrible code duplication here.
 let rec join_using =
         (
@@ -1157,8 +1161,12 @@ let rec join_using =
       ),
       _,
     ) =>
-    let. (s, branch_used) = join'(`Typ(ty1) |> rewrap1, s2);
-    Join(left(branch_used) ? wrap_incr(slice_incr1, s) : s, branch_used);
+    join'(`Typ(ty1) |> rewrap1, s2)
+    |> map_join(
+         (s, branch_used) =>
+           (left(branch_used) ? wrap_incr(slice_incr1, s) : s, branch_used),
+         ((s1, s2)) => (wrap_incr(slice_incr1, s1), s2),
+       )
   | (
       _,
       `SliceIncr(
@@ -1168,8 +1176,15 @@ let rec join_using =
         slice_incr2,
       ),
     ) =>
-    let. (s, branch_used) = join'(s1, `Typ(ty2) |> rewrap2);
-    Join(right(branch_used) ? wrap_incr(slice_incr2, s) : s, branch_used);
+    join'(s1, `Typ(ty2) |> rewrap2)
+    |> map_join(
+         (s, branch_used) =>
+           (
+             right(branch_used) ? wrap_incr(slice_incr2, s) : s,
+             branch_used,
+           ),
+         ((s1, s2)) => (s1, wrap_incr(slice_incr2, s2)),
+       )
   | (`SliceIncr(Typ(ty1), slice_incr1), _) =>
     let. (s, branch_used) = join'(`Typ(ty1) |> rewrap1, s2);
     Join(left(branch_used) ? wrap_incr(slice_incr1, s) : s, branch_used);
@@ -1183,11 +1198,15 @@ let rec join_using =
       ),
       _,
     ) =>
-    let. (s, branch_used) = join'((s1 :> term) |> rewrap1, s2);
-    Join(
-      left(branch_used) ? wrap_global(slice_global1, s) : s,
-      branch_used,
-    );
+    join'((s1 :> term) |> rewrap1, s2)
+    |> map_join(
+         (s, branch_used) =>
+           (
+             left(branch_used) ? wrap_global(slice_global1, s) : s,
+             branch_used,
+           ),
+         ((s1, s2)) => (wrap_global(slice_global1, s1), s2),
+       )
   | (
       _,
       `SliceGlobal(
@@ -1195,11 +1214,15 @@ let rec join_using =
         slice_global2,
       ),
     ) =>
-    let. (s, branch_used) = join'(s1, (s2 :> term) |> rewrap2);
-    Join(
-      right(branch_used) ? wrap_global(slice_global2, s) : s,
-      branch_used,
-    );
+    join'(s1, (s2 :> term) |> rewrap1)
+    |> map_join(
+         (s, branch_used) =>
+           (
+             right(branch_used) ? wrap_global(slice_global2, s) : s,
+             branch_used,
+           ),
+         ((s1, s2)) => (s1, wrap_global(slice_global2, s2)),
+       )
   | (`SliceGlobal(s1, slice_global1), _) =>
     let. (s, branch_used) = join'((s1 :> term) |> rewrap1, s2);
     Join(
