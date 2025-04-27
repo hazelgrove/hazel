@@ -31,8 +31,9 @@ module BDFS =
   Haz3lcore.Nondeterminism.Bounded(
     (val Haz3lcore.Nondeterminism.const_incr_config(~init=100, ~inc=50)),
   );
+module DFS = Haz3lcore.Nondeterminism.DFS;
 module BFS = Haz3lcore.Nondeterminism.BFS;
-open Haz3lcore.IndetEvaluator.Make(BFS);
+open Haz3lcore.IndetEvaluator.Make(DFS);
 let work = (res: Request.value, search, n): Response.value =>
   switch (
     res
@@ -44,7 +45,7 @@ let work = (res: Request.value, search, n): Response.value =>
              )
            : values(~env=Builtins.env_init, ~state=IndetEvaluatorState.init)
        )
-    |> BFS.run_n(~solutions=n + 1)
+    |> DFS.run_n(~solutions=n + 1)
     |> (l => List.nth_opt(l, n))
   ) {
   | exception (Haz3lcore.EvaluatorError.Exception(reason)) =>
@@ -57,7 +58,6 @@ let work = (res: Request.value, search, n): Response.value =>
     Error(
       Haz3lcore.ProgramResult.UnknownException(Printexc.to_string(exn)),
     );
-  //| (state, result) => Ok((result, state))
   | None =>
     Error(Haz3lcore.ProgramResult.EvaulatorError(NoMoreInstantiations(res)))
   | Some((state, result)) => Ok((result, state))

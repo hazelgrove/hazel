@@ -48,7 +48,7 @@ let print =
   | "F9" =>
     let results =
       statics.elaborated
-      |> SearchDFS.all(
+      |> SearchDFS.values(
            ~env=Builtins.env_init,
            ~state=IndetEvaluatorState.init,
          );
