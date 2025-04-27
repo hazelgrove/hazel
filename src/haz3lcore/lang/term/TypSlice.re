@@ -697,8 +697,8 @@ let rec join_using =
       } else {
         let joins = List.map2(join', ss1, ss2);
         let joins =
-          List.fold_left(
-            (acc, j) =>
+          List.fold_right(
+            (j, acc) =>
               switch (acc, j) {
               | (Ok((tys, branches_used)), Join(ty_join, branch_used)) =>
                 Ok(([ty_join, ...tys], [branch_used, ...branches_used]))
@@ -706,8 +706,8 @@ let rec join_using =
               | (Error(ts), Join(_)) => Error(ts)
               | (Error(ts_acc), NoJoin(ts)) => Error(ts_acc @ ts)
               },
-            Ok(([], [])),
             joins,
+            Ok(([], [])),
           );
         switch (joins) {
         | Ok((tys, branches_used)) =>
@@ -873,8 +873,8 @@ let rec join_using =
       } else {
         let joins = List.map2(join', ss1, List.map(t_of_typ_t, tys2));
         let joins =
-          List.fold_left(
-            (acc, j) =>
+          List.fold_right(
+            (j, acc) =>
               switch (acc, j) {
               | (Ok((tys, branches_used)), Join(ty_join, branch_used)) =>
                 Ok(([ty_join, ...tys], [branch_used, ...branches_used]))
@@ -882,8 +882,8 @@ let rec join_using =
               | (Error(ts), Join(_)) => Error(ts)
               | (Error(ts_acc), NoJoin(ts)) => Error(ts_acc @ ts)
               },
-            Ok(([], [])),
             joins,
+            Ok(([], [])),
           );
         switch (joins) {
         | Ok((tys, branches_used)) =>
@@ -1053,8 +1053,8 @@ let rec join_using =
       } else {
         let joins = List.map2(join', tys1 |> List.map(t_of_typ_t), ss2);
         let joins =
-          List.fold_left(
-            (acc, j) =>
+          List.fold_right(
+            (j, acc) =>
               switch (acc, j) {
               | (Ok((tys, branches_used)), Join(ty_join, branch_used)) =>
                 Ok(([ty_join, ...tys], [branch_used, ...branches_used]))
@@ -1062,8 +1062,8 @@ let rec join_using =
               | (Error(ts), Join(_)) => Error(ts)
               | (Error(ts_acc), NoJoin(ts)) => Error(ts_acc @ ts)
               },
-            Ok(([], [])),
             joins,
+            Ok(([], [])),
           );
         switch (joins) {
         | Ok((tys, branches_used)) =>

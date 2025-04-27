@@ -154,16 +154,16 @@ let join =
     : join(t('a), t('a)) => {
   let (inter, left, right) = venn_regions(same_constructor(eq), m1, m2);
   let join_entries =
-    List.fold_left(
-      (acc, (v1, v2)) =>
+    List.fold_right(
+      ((v1, v2), acc) =>
         switch (acc, join_entry(join, (v1, v2))) {
         | (Ok(acc), Join(v, b)) => Ok([(v, b), ...acc])
         | (Ok(_), NoJoin(ts))
         | (Error(ts), Join(_)) => Error(ts)
         | (Error(ts), NoJoin(ts')) => Error(ts @ ts')
         },
-      Ok([]),
       inter,
+      Ok([]),
     );
   switch (join_entries) {
   | Ok(join_entries) =>
