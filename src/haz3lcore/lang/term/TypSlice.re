@@ -796,7 +796,7 @@ let rec join_using =
       {
         let* ty_name = Ctx.lookup_alias(ctx, name);
         Some(
-          switch (join'(ty_name, s2)) {
+          switch (join'(ty_name, s1)) {
           | Join(ty_join, branch_used) =>
             !resolve && equal(ty_name, ty_join)
               ? Join(s2, Right) : Join(ty_join, branch_used)

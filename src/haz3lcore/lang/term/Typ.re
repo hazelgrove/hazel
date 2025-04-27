@@ -426,6 +426,7 @@ let to_constructor_join =
   | Join(t, b) => ConstructorMap.Join(t, b)
   | NoJoin(ts) => NoJoin(ts);
 let rec join_using = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): join => {
+  print_endline("Joining: " ++ show(ty1) ++ "\nWITH:" ++ show(ty2));
   let join' = join_using(~resolve, ctx);
   BranchUsed.(
     switch (term_of(ty1), term_of(ty2)) {
@@ -484,7 +485,7 @@ let rec join_using = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): join => {
         let* ty_name =
           Ctx.lookup_alias(ctx, name) |> Option.map(TermBase.TypSlice.typ_of);
         Some(
-          switch (join'(ty_name, ty2)) {
+          switch (join'(ty_name, ty1)) {
           | Join(ty_join, branch_used) =>
             !resolve && equal(ty_name, ty_join)
               ? Join(ty2, Right) : Join(ty_join, branch_used)
