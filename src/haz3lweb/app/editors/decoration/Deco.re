@@ -670,11 +670,12 @@ module Deco =
   let slice = (c: Cursor.cursor('a)) => {
     let info = c.info;
     switch (info) {
-    | Some(info) =>
+    | Some(info) when !Info.is_error(info) =>
       switch (info) {
       | InfoTyp(typ) =>
         let {ctx_used, term_ids}: TypSlice.slc_incr =
           TypSlice.full_slice(typ.term |> TypSlice.term_of);
+        // TODO: factor out this code
         let ctx_used_ids =
           ctx_used
           |> List.fold_left(
@@ -754,6 +755,148 @@ module Deco =
         div_c("slice", List.map(slice_view, term_ids @ ctx_used_ids));
       | _ => div_empty
       }
+    | Some(info) =>
+      switch (Info.error_of(info)) {
+      | Some(Exp(Common(NoType(BadTrivAp(t)))))
+      | Some(Pat(Common(NoType(BadTrivAp(t))))) =>
+        let {ctx_used, term_ids}: TypSlice.slc_incr =
+          TypSlice.full_slice(t |> TypSlice.term_of);
+        let ctx_used_ids =
+          ctx_used
+          |> List.fold_left(
+               (acc: list(Id.t)): (TypSlice.ctx_var => list(Id.t)) =>
+                 fun
+                 | Var(name) =>
+                   (
+                     Ctx.lookup_var(Info.ctx_of(info), name)
+                     |> Option.map(v => [Ctx.get_id(VarEntry(v))])
+                     |> Option.value(~default=[])
+                   )
+                   @ acc
+                 | Ctr(name) =>
+                   (
+                     Ctx.lookup_ctr(Info.ctx_of(info), name)
+                     |> Option.map(v => [Ctx.get_id(VarEntry(v))])
+                     |> Option.value(~default=[])
+                   )
+                   @ acc
+                 | _ => failwith("TODO: view ctx_used"),
+               [],
+             );
+        div_c("slice", List.map(error_view, term_ids @ ctx_used_ids));
+      | Some(Exp(Common(Inconsistent(WithArrow(t, slc)))))
+      | Some(Pat(Common(Inconsistent(WithArrow(t, slc))))) =>
+        let {ctx_used, term_ids}: TypSlice.slc_incr =
+          TypSlice.full_slice(t |> TypSlice.term_of);
+        let {ctx_used: ctx_used2, term_ids: term_ids2}: TypSlice.slc_global = slc;
+        let ctx_used_ids =
+          ctx_used
+          @ ctx_used2
+          |> List.fold_left(
+               (acc: list(Id.t)): (TypSlice.ctx_var => list(Id.t)) =>
+                 fun
+                 | Var(name) =>
+                   (
+                     Ctx.lookup_var(Info.ctx_of(info), name)
+                     |> Option.map(v => [Ctx.get_id(VarEntry(v))])
+                     |> Option.value(~default=[])
+                   )
+                   @ acc
+                 | Ctr(name) =>
+                   (
+                     Ctx.lookup_ctr(Info.ctx_of(info), name)
+                     |> Option.map(v => [Ctx.get_id(VarEntry(v))])
+                     |> Option.value(~default=[])
+                   )
+                   @ acc
+                 | _ => failwith("TODO: view ctx_used"),
+               [],
+             );
+        div_c(
+          "slice",
+          List.map(error_view, term_ids @ term_ids2 @ ctx_used_ids),
+        );
+      | Some(Exp(Common(Inconsistent(Internal(ts)))))
+      | Some(Pat(Common(Inconsistent(Internal(ts))))) =>
+        let {ctx_used, term_ids}: TypSlice.slc_incr =
+          TypSlice.join_inconsistency_all(
+            ~empty=TypSlice.(temp(hole([]))),
+            Info.ctx_of(info),
+            ts,
+          )
+          |> List.map(((t1, t2)) =>
+               TypSlice.union_slice_incr(
+                 TypSlice.full_slice(TypSlice.term_of(t1)),
+                 TypSlice.full_slice(TypSlice.term_of(t2)),
+               )
+             )
+          |> List.fold_left(
+               TypSlice.union_slice_incr,
+               TypSlice.empty_slice_incr,
+             );
+        let ctx_used_ids =
+          ctx_used
+          |> List.fold_left(
+               (acc: list(Id.t)): (TypSlice.ctx_var => list(Id.t)) =>
+                 fun
+                 | Var(name) =>
+                   (
+                     Ctx.lookup_var(Info.ctx_of(info), name)
+                     |> Option.map(v => [Ctx.get_id(VarEntry(v))])
+                     |> Option.value(~default=[])
+                   )
+                   @ acc
+                 | Ctr(name) =>
+                   (
+                     Ctx.lookup_ctr(Info.ctx_of(info), name)
+                     |> Option.map(v => [Ctx.get_id(VarEntry(v))])
+                     |> Option.value(~default=[])
+                   )
+                   @ acc
+                 | _ => failwith("TODO: view ctx_used"),
+               [],
+             );
+        div_c("slice", List.map(error_view, term_ids @ ctx_used_ids));
+      | Some(Exp(Common(Inconsistent(Expectation({syn, ana})))))
+      | Some(Pat(Common(Inconsistent(Expectation({syn, ana}))))) =>
+        let {ctx_used, term_ids}: TypSlice.slc_incr =
+          TypSlice.join_inconsistency(Info.ctx_of(info), syn, ana)
+          |> List.map(((t1, t2)) =>
+               TypSlice.union_slice_incr(
+                 TypSlice.full_slice(TypSlice.term_of(t1)),
+                 TypSlice.full_slice(TypSlice.term_of(t2)),
+               )
+             )
+          |> List.fold_left(
+               TypSlice.union_slice_incr,
+               TypSlice.empty_slice_incr,
+             );
+        let ctx_used_ids =
+          ctx_used
+          |> List.fold_left(
+               (acc: list(Id.t)): (TypSlice.ctx_var => list(Id.t)) =>
+                 fun
+                 | Var(name) =>
+                   (
+                     Ctx.lookup_var(Info.ctx_of(info), name)
+                     |> Option.map(v => [Ctx.get_id(VarEntry(v))])
+                     |> Option.value(~default=[])
+                   )
+                   @ acc
+                 | Ctr(name) =>
+                   (
+                     Ctx.lookup_ctr(Info.ctx_of(info), name)
+                     |> Option.map(v => [Ctx.get_id(VarEntry(v))])
+                     |> Option.value(~default=[])
+                   )
+                   @ acc
+                 | _ => failwith("TODO: view ctx_used"),
+               [],
+             );
+        div_c("slice", List.map(error_view, term_ids @ ctx_used_ids));
+      | _ => div_empty
+      }
+
     | None => div_empty
     };
   };

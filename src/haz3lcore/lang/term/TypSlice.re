@@ -1232,6 +1232,36 @@ let join_inconsistency =
     | NoJoin(ts) => ts
   );
 
+let join_all = (~empty: t, ctx: Ctx.t, ts: list(t)): option(t) =>
+  List.fold_left(
+    (acc, ty) => OptUtil.and_then(join(ctx, ty), acc),
+    Some(empty),
+    ts,
+  );
+
+let join_inconsistency_all = (~empty: t, ctx, ts) =>
+  List.fold_left(
+    fun
+    | Ok(acc) => (
+        t =>
+          switch (join_using(ctx, acc, t)) {
+          | Join(acc', _) => Ok(acc')
+          | NoJoin(ts) => Error(ts)
+          }
+      )
+    | Error(ts) => (_ => Error(ts)),
+    Ok(empty),
+    ts,
+  )
+  |> (
+    fun
+    | Ok(_) => []
+    | Error(ts) => ts
+  );
+
+let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
+  join(ctx, ty1, ty2) != None;
+
 /* REQUIRES NORMALIZED TYPES
    Remove synswitches from t1 by matching against t2 */
 // Left slices being retained ONLY.
@@ -1380,16 +1410,6 @@ let rec match_synswitch =
     |> wrap_global(slice_global)
   };
 };
-
-let join_all = (~empty: t, ctx: Ctx.t, ts: list(t)): option(t) =>
-  List.fold_left(
-    (acc, ty) => OptUtil.and_then(join(ctx, ty), acc),
-    Some(empty),
-    ts,
-  );
-
-let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
-  join(ctx, ty1, ty2) != None;
 
 // Destructuring constructs
 let unparens =
