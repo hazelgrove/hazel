@@ -57,6 +57,9 @@ let view_typ = (~settings, typ: Typ.t) => {
   |> view_segment(~shape_map, ~sort=Typ);
 };
 
-let view_any = (~settings, any: Any.t) => {
-  any |> ExpToSegment.any_to_segment(~settings) |> view_segment(~sort=Any);
+let view_any = (~settings, ~font_metrics, ~secondary_icons, any: Any.t) => {
+  let shape_map = ProjectorShape.Map.empty; // assume no projectors
+  any
+  |> ExpToSegment.any_to_segment(~settings)
+  |> view_segment(~shape_map, ~sort=Any, ~font_metrics, ~secondary_icons);
 };

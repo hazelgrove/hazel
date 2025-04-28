@@ -203,6 +203,7 @@ module View = {
     };
     let projectors =
       Editor.View.all_projectors(
+        ~settings=globals.settings.core,
         ~font_metrics=globals.font_metrics,
         ~secondary_icons=globals.settings.secondary_icons,
         ~inject=x => inject(Perform(x)),

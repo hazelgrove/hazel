@@ -18,6 +18,7 @@ module rec Projectors: {
   module View: {
     let split_views:
       (
+        ~settings: CoreSettings.t,
         ~font_metrics: FontMetrics.t,
         ~secondary_icons: bool,
         ~parent: ProjectorBase.external_action => Ui_effect.t(unit),
@@ -57,10 +58,12 @@ module rec Projectors: {
   let init = ProjectorInit.init;
 
   module View = {
-    let split_views = (~font_metrics, ~secondary_icons) =>
+    let split_views =
+        (~settings: CoreSettings.t, ~font_metrics, ~secondary_icons) =>
       ProjectorView.split_views(
         ~ed_str=Editor.print_string,
-        ~view_any=Editor.View.view_any(~font_metrics, ~secondary_icons),
+        ~view_any=
+          Editor.View.view_any(~settings, ~font_metrics, ~secondary_icons),
         ~font_metrics,
       );
 
@@ -142,6 +145,7 @@ and Editor: {
   module View: {
     let all_projectors:
       (
+        ~settings: CoreSettings.t,
         ~font_metrics: FontMetrics.t,
         ~secondary_icons: bool,
         ~inject: Action.t(Projectors.model) => Ui_effect.t(unit),
@@ -160,7 +164,12 @@ and Editor: {
       Web.Node.t;
 
     let view_any:
-      (~font_metrics: FontMetrics.t, ~secondary_icons: bool, Any.t) =>
+      (
+        ~settings: CoreSettings.t,
+        ~font_metrics: FontMetrics.t,
+        ~secondary_icons: bool,
+        Any.t
+      ) =>
       Web.Node.t;
 
     let mk_projector_model:
@@ -336,93 +345,26 @@ and Editor: {
     let mk_projector_model =
       ProjectorView.Model.mk(~mk_status=Projectors.View.mk_status);
 
-    let all_projectors = (~font_metrics, ~secondary_icons) =>
+    let all_projectors =
+        (~settings: CoreSettings.t, ~font_metrics, ~secondary_icons) =>
       ProjectorView.all(
         ~split_views=
-          Projectors.View.split_views(~font_metrics, ~secondary_icons),
+          Projectors.View.split_views(
+            ~settings: CoreSettings.t,
+            ~font_metrics,
+            ~secondary_icons,
+          ),
       );
 
     let view = (~font_metrics, ~secondary_icons, ~sort, m: t) =>
       CodeViewable.view_editor(~font_metrics, ~secondary_icons, ~sort, m);
 
-    let view_any = failwith("TODO: view_any");
+    let view_any = (~settings) =>
+      CodeViewable.view_any(
+        ~settings=ExpToSegment.Settings.of_core(~inline=true, settings),
+      );
   };
 };
-
-// module type Projectors = {
-//   [@deriving (show({with_path: false}), sexp, yojson)]
-//   type model;
-//   [@deriving (show({with_path: false}), sexp, yojson)]
-//   type kind;
-
-//   let init: (kind, Any.t) => option(model);
-//   let kind_of_model: model => kind;
-//   let make_term: (model, Any.t) => Any.t;
-// };
-// module rec Projectors: {
-//   [@deriving (show({with_path: false}), sexp, yojson)]
-//   type model =
-//     | M(ProjectorCore.model(Editor'.t(model)));
-//   [@deriving (show({with_path: false}), sexp, yojson)]
-//   type kind;
-
-//   let make_term: (model, Any.t) => Any.t;
-// } = {
-//   [@deriving (show({with_path: false}), sexp, yojson)]
-//   type model =
-//     | M(ProjectorCore.model(Editor.t));
-//   [@deriving (show({with_path: false}), sexp, yojson)]
-//   type kind = ProjectorCore.Kind.t;
-
-//   let init = ProjectorInit.init;
-//   let kind_of_model = ProjectorCore.kind_of_model;
-//   let make_term: (model, Any.t) => Any.t =
-//     (M(m)) => ProjectorInit.make_term(m);
-// }
-
-// and Editor: {
-//   include (module type of Editor');
-
-//   [@deriving (show({with_path: false}), sexp, yojson)]
-//   type t = Editor'.t(Projectors.model);
-
-//   module Model: {
-//     include (module type of Editor'.Model);
-
-//     let mk: Zipper.t(Projectors.model) => t(Projectors.model);
-//   };
-
-//   module Update: {
-//     include (module type of Editor'.Update);
-//   };
-// } = {
-//   include Editor';
-
-//   let of_projector = (m: ProjectorCore.model(t(Projectors.model)), e) =>
-//     Projectors.make_term(M(m), List.hd(e));
-
-//   [@deriving (show({with_path: false}), sexp, yojson)]
-//   type t = Editor'.t(Projectors.model);
-
-//   module Model = {
-//     include Model;
-
-//     let mk = (z: Zipper.t(Projectors.model)) =>
-//       Editor'.Model.mk(~projector_to_term=of_projector);
-//   };
-
-//   module Update = {
-//     include Update;
-
-//     let update = Editor'.Update.update(~projector_init=ProjectorInit.init);
-
-//     let calculate =
-//       Editor'.Update.calculate(
-//         ~projector_to_term=of_projector,
-//         ~projector_init=ProjectorInit.init,
-//       );
-//   };
-// };
 
 module PersistentZipper = {
   include PersistentZipper;

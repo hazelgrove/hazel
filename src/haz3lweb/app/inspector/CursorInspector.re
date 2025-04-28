@@ -104,7 +104,6 @@ let view_any = (~globals: Globals.t, any: Term.Any.t) =>
        ~font_metrics=globals.font_metrics,
        ~secondary_icons=globals.settings.secondary_icons,
        ~settings=code_view_settings,
-       ~shape_map=ProjectorShape.Map.empty // assume no projectors
      )
   |> code_box_container;
 
