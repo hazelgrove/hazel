@@ -228,7 +228,7 @@ module Pervasives = {
         Some(s);
       };
 
-    let string_concat =
+    let string_join =
       binary((d1, d2) => {
         let-unbox s1 = (Atom(String), d1);
         let-unbox xs = (ListLit, d2);
@@ -360,10 +360,10 @@ module Pervasives = {
          )
       |> fn("string_trim", Atom(String), Atom(String), string_trim)
       |> fn(
-           "string_concat",
+           "string_join",
            Prod([string(), list(string())]),
            Atom(String),
-           string_concat,
+           string_join,
          )
       |> fn(
            "string_sub",
