@@ -124,6 +124,24 @@ let show_cls: cls => string =
   | Rec => "Recursive type"
   | Forall => "Forall type";
 
+// Collects ids of variables in typ
+let ids_of_var = (name, t) => {
+  let ids = ref([]);
+  let _ =
+    map_term(
+      ~f_typ=
+        (cont, t) =>
+          switch (term_of(t)) {
+          | Var(x) when x == name =>
+            ids := IdTagged.ids(t) @ ids^;
+            t;
+          | _ => cont(t)
+          },
+      t,
+    );
+  ids^;
+};
+
 let is_parens = (typ: t) => {
   switch (typ.term) {
   | Parens(_) => true

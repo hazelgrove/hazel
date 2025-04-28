@@ -1060,6 +1060,10 @@ and uexp_to_info_map =
       add'(~self, ~co_ctx=CoCtx.union([scrut.co_ctx] @ e_co_ctxs), m);
     | TyAlias(typat, utyp, body) =>
       let m = utpat_to_info_map(~ctx, ~ancestors, typat, m) |> snd;
+      let utyp_slice =
+        utyp
+        |> TypSlice.t_of_typ_t_sliced
+        |> TypSlice.wrap_global(TypSlice.slice_of_ids(ids));
       switch (typat.term) {
       | Var(name) when !Ctx.shadows_typ(ctx, name) =>
         /* Currently we disallow all type shadowing */
@@ -1070,7 +1074,6 @@ and uexp_to_info_map =
            tentatively add an abtract type to the ctx, representing the
            speculative rec parameter. */
         let (ty_def, ctx_def, ctx_body) = {
-          let utyp_slice = utyp |> TypSlice.t_of_typ_t_sliced;
           switch (utyp.term) {
           | Sum(_) when List.mem(name, Typ.free_vars(utyp)) =>
             /* NOTE: When debugging type system issues it may be beneficial to
@@ -1081,7 +1084,7 @@ and uexp_to_info_map =
                 Slice(
                   Rec((Var(name): TPat.term) |> IdTagged.fresh, utyp_slice),
                 ),
-                TypSlice.slice_of_ids(ids),
+                TypSlice.slice_of_ids(Typ.ids_of_var(name, utyp)),
               ))
               |> TypSlice.temp;
             let ctx_def =
@@ -1114,7 +1117,7 @@ and uexp_to_info_map =
               [TPat.rep_id(typat)],
               ctx_body,
               name,
-              Typ.rep_id(utyp),
+              TypSlice.rep_id(utyp_slice),
               sm,
             )
           | None => ctx_body
@@ -1124,28 +1127,15 @@ and uexp_to_info_map =
         /* Make sure types don't escape their scope */
         let ty_escape = TypSlice.subst(ty_def, typat, ty_body);
         let m =
-          utyp_to_info_map(
-            ~ctx=ctx_def,
-            ~ancestors,
-            utyp |> TypSlice.t_of_typ_t_sliced,
-            m,
-          )
-          |> snd;
-        // TODO: Correct type slicing
-        add(
-          ~self=Just(ty_escape |> TypSlice.(wrap_incr(slice_of_ids(ids)))),
-          ~co_ctx,
-          m,
-        );
+          utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp_slice, m) |> snd;
+        add(~self=Just(ty_escape), ~co_ctx, m);
       | Var(_)
       | Invalid(_)
       | EmptyHole
       | MultiHole(_) =>
         let ({co_ctx, ty: ty_body, _}: Info.exp, m) =
           go'(~ctx, ~mode, body, m);
-        let m =
-          utyp_to_info_map(~ctx, ~ancestors, utyp |> TypSlice.t_of_typ_t, m)
-          |> snd;
+        let m = utyp_to_info_map(~ctx, ~ancestors, utyp_slice, m) |> snd;
         add(~self=Just(ty_body), ~co_ctx, m);
       };
     };
