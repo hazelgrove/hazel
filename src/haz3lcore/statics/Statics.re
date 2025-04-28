@@ -174,6 +174,7 @@ let rec any_to_info_map =
         ~co_ctx=CoCtx.empty,
         ~ancestors,
         ~duplicates=[],
+        ~binding_ids=[],
         ~ctx,
         p,
         m,
@@ -281,7 +282,8 @@ and uexp_to_info_map =
         go(~mode, ~duplicates, e, m) |> (((e, m)) => (es @ [e], m)),
       ([], m),
     );
-  let go_pat = upat_to_info_map(~ctx, ~ancestors, ~duplicates);
+  let go_pat =
+    upat_to_info_map(~ctx, ~ancestors, ~duplicates, ~binding_ids=ids);
   let go_typ = utyp_to_info_map(~ctx, ~ancestors);
 
   // This lifts an expression into a singleton labeled tuple by rewriting the syntax in the Statics Map
@@ -853,8 +855,18 @@ and uexp_to_info_map =
         go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~mode=Syn, p, m);
       let (def, p_ana_ctx, m, ty_p_ana) =
         if (!is_recursive(ctx, p, def, p_syn.ty)) {
-          let (def, m) = go(~mode=Ana(p_syn.ty), def, m);
-          let ty_p_ana = def.ty;
+          let (def, m) =
+            go(
+              ~mode=
+                Ana(
+                  p_syn.ty
+                  |> TypSlice.wrap_global(TypSlice.slice_of_ids(ids)),
+                ),
+              def,
+              m,
+            );
+          let ty_p_ana =
+            def.ty |> TypSlice.wrap_global(TypSlice.slice_of_ids(ids));
           let (p_ana', _) =
             go_pat(
               ~is_synswitch=false,
@@ -866,8 +878,18 @@ and uexp_to_info_map =
           (def, p_ana'.ctx, m, ty_p_ana);
         } else {
           let (def_base, _) =
-            go'(~ctx=p_syn.ctx, ~mode=Ana(p_syn.ty), def, m);
-          let ty_p_ana = def_base.ty;
+            go'(
+              ~ctx=p_syn.ctx,
+              ~mode=
+                Ana(
+                  p_syn.ty
+                  |> TypSlice.wrap_global(TypSlice.slice_of_ids(ids)),
+                ),
+              def,
+              m,
+            );
+          let ty_p_ana =
+            def_base.ty |> TypSlice.wrap_global(TypSlice.slice_of_ids(ids));
           /* Analyze pattern to incorporate def type into ctx */
           let (p_ana', _) =
             go_pat(
@@ -944,7 +966,7 @@ and uexp_to_info_map =
           [Info.pat_constraint(p_ana)],
           Typ.normalize(ctx, p_ana.ty |> TypSlice.typ_of),
         );
-      let self = Self.of_let(ids, is_exhaustive, body.ty);
+      let self = Self.of_let(is_exhaustive, body.ty);
       add'(
         ~self,
         ~co_ctx=
@@ -1060,10 +1082,7 @@ and uexp_to_info_map =
       add'(~self, ~co_ctx=CoCtx.union([scrut.co_ctx] @ e_co_ctxs), m);
     | TyAlias(typat, utyp, body) =>
       let m = utpat_to_info_map(~ctx, ~ancestors, typat, m) |> snd;
-      let utyp_slice =
-        utyp
-        |> TypSlice.t_of_typ_t_sliced
-        |> TypSlice.wrap_global(TypSlice.slice_of_ids(ids));
+      let utyp_slice = utyp |> TypSlice.t_of_typ_t_sliced;
       switch (typat.term) {
       | Var(name) when !Ctx.shadows_typ(ctx, name) =>
         /* Currently we disallow all type shadowing */
@@ -1114,7 +1133,7 @@ and uexp_to_info_map =
           switch (TypSlice.get_sum_constructors(ctx, ty_def)) {
           | Some(sm) =>
             Ctx.add_ctrs(
-              [TPat.rep_id(typat)],
+              IdTagged.ids(typat) @ ids,
               ctx_body,
               name,
               TypSlice.rep_id(utyp_slice),
@@ -1192,6 +1211,7 @@ and upat_to_info_map =
       ~co_ctx,
       ~ancestors: Info.ancestors,
       ~duplicates: list(string),
+      ~binding_ids: list(Id.t),
       ~expected_labels=?,
       ~mode: Mode.t=Mode.Syn,
       ~under_ascription: bool=false,
@@ -1261,7 +1281,13 @@ and upat_to_info_map =
   let atomic = (self, constraint_) => add(~self, ~ctx, ~constraint_, m);
   let ancestors = [Pat.rep_id(upat)] @ ancestors;
   let go = (~under_ascription=false) =>
-    upat_to_info_map(~under_ascription, ~is_synswitch, ~ancestors, ~co_ctx);
+    upat_to_info_map(
+      ~under_ascription,
+      ~is_synswitch,
+      ~ancestors,
+      ~co_ctx,
+      ~binding_ids,
+    );
   let unknown =
     // TODO: Check how slices interact with SynSwitch
     `Typ(Unknown(is_synswitch ? SynSwitch : Internal)) |> TypSlice.temp;
@@ -1291,6 +1317,7 @@ and upat_to_info_map =
         ~co_ctx,
         ~is_synswitch,
         ~ancestors,
+        ~binding_ids,
         ~mode=Mode.Ana(inner_ty),
         original_expression,
         m,
@@ -1322,6 +1349,7 @@ and upat_to_info_map =
         ~co_ctx,
         ~is_synswitch,
         ~ancestors,
+        ~binding_ids,
         ~mode,
         elaborated_pat,
         m,
@@ -1406,7 +1434,9 @@ and upat_to_info_map =
         Ctx.VarEntry({
           name,
           id: Pat.rep_id(upat),
-          typ: ctx_typ,
+          typ:
+            ctx_typ
+            |> TypSlice.wrap_global(TypSlice.slice_of_ids(ids @ binding_ids)),
         });
       add(
         ~self=Just(unknown),

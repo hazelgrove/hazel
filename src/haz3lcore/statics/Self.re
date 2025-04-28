@@ -341,9 +341,8 @@ let of_typfun = (ids: list(Id.t), tpat, ty) =>
     |> TypSlice.temp,
   );
 
-let of_let = (ids: list(Id.t), is_exhaustive: bool, ty: TypSlice.t) => {
-  let unwrapped_self: exp =
-    Common(Just(TypSlice.(ty |> wrap_incr(slice_of_ids(ids)))));
+let of_let = (is_exhaustive: bool, ty: TypSlice.t) => {
+  let unwrapped_self: exp = Common(Just(TypSlice.(ty)));
   is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
 };
 
