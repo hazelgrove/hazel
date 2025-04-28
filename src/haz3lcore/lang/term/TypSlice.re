@@ -163,9 +163,13 @@ let rec map_merge =
   switch (term) {
   | `Typ(ty) => f_typ(ty) |> rewrap
   | `SliceIncr(Typ(ty), slice_incr) =>
-    f_typ(ty) |> wrap_incr(slice_incr) |> rewrap
+    f_typ(ty)
+    |> wrap_incr(drop_incr ? empty_slice_incr : slice_incr)
+    |> rewrap
   | `SliceIncr(Slice(s'), slice_incr) =>
-    f_slc(s') |> wrap_incr(slice_incr) |> rewrap
+    f_slc(s')
+    |> wrap_incr(drop_incr ? empty_slice_incr : slice_incr)
+    |> rewrap
   | `SliceGlobal(s', slice_global) =>
     (s' :> term)
     |> temp
@@ -483,14 +487,17 @@ let unroll_incr = (s: incr_t): t => {
   | `Typ(ty) =>
     let (ty', rewrap') = Typ.unroll(ty |> rewrap) |> IdTagged.unwrap;
     `Typ(ty') |> rewrap';
-  | `SliceIncr(Typ(ty), _) =>
+  | `SliceIncr(Typ(ty), slice_incr) =>
     let (ty', rewrap') = Typ.unroll(ty |> rewrap) |> IdTagged.unwrap;
-    `Typ(ty') |> rewrap';
-  | `SliceIncr(Slice(s'), _) =>
-    switch (s') {
-    | Rec(tpat, s_body) => subst((s :> t), tpat, s_body)
-    | _ => (s :> t)
-    }
+    `Typ(ty') |> rewrap' |> wrap_incr(slice_incr);
+  | `SliceIncr(Slice(s'), slice_incr) =>
+    (
+      switch (s') {
+      | Rec(tpat, s_body) => subst((s :> t), tpat, s_body)
+      | _ => (s :> t)
+      }
+    )
+    |> wrap_incr(slice_incr)
   };
 };
 
@@ -499,10 +506,10 @@ let unroll = (s: t): t => {
   switch (term) {
   | `Typ(_) as s
   | `SliceIncr(_) as s => unroll_incr(s |> rewrap)
-  | `SliceGlobal(s, _) => unroll_incr(s |> rewrap)
+  | `SliceGlobal(s, slice_global) =>
+    unroll_incr(s |> rewrap) |> wrap_global(slice_global)
   };
 };
-
 /*
    TypSlice equality: Extending type equality to slices.
    This is type equality, different slices of the same type ARE equal. Type Equality: This coincides with alpha equivalence for normalized types.
