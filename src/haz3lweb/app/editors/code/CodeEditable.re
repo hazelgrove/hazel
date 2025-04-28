@@ -22,7 +22,7 @@ module Update = {
 
   let update =
       (~settings: Settings.t, action: t, model: Model.t): Updated.t(Model.t) => {
-    let perform = (action, model: Model.t) =>
+    let perform = (action: Action.t, model: Model.t) =>
       Editor.Update.update(
         ~settings=settings.core,
         ~sort=Exp,
@@ -43,28 +43,7 @@ module Update = {
       |> Updated.return(
            ~is_edit=Action.is_edit(action),
            ~recalculate=true,
-           ~scroll_active={
-             switch (action) {
-             | Move(_)
-             | Jump(_)
-             | Select(Resize(_) | Term(_) | Smart(_) | Tile(_))
-             | Destruct(_)
-             | Insert(_)
-             | Pick_up
-             | Put_down
-             | RotateBackpack
-             | MoveToBackpackTarget(_)
-             | Buffer(Set(_) | Accept | Clear)
-             | Paste(_)
-             | Copy
-             | Cut
-             | Reparse
-             | Introduce => true
-             | Project(_)
-             | Unselect(_)
-             | Select(All) => false
-             };
-           },
+           ~scroll_active=Action.should_scroll_active(action),
          );
     switch (action) {
     | Perform(action) => perform(action, model)
@@ -223,11 +202,12 @@ module View = {
       Deco.editor(model.editor |> Editor.get_z, selected);
     };
     let projectors =
-      ProjectorView.all(
-        x => inject(Perform(x)),
-        signal(MakeActive),
-        globals.font_metrics,
-        ProjectorView.Model.mk(
+      Editor.View.all_projectors(
+        ~font_metrics=globals.font_metrics,
+        ~secondary_icons=globals.settings.secondary_icons,
+        ~inject=x => inject(Perform(x)),
+        ~make_active=signal(MakeActive),
+        Editor.View.mk_projector_model(
           model.editor |> Editor.get_projectors,
           model.editor |> Editor.get_measured,
           model.editor |> Editor.get_selection_ids,

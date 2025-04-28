@@ -1,4 +1,4 @@
-open Haz3lcore;
+open Haz3lcorep;
 open Util;
 
 let is_digit = s => StringUtil.(match(regexp("^[0-9]$"), s));
@@ -11,8 +11,8 @@ let meta = (sys: Key.sys): string => {
   };
 };
 
-let handle_key_event = (k: Key.t): option(Action.t) => {
-  let now = (a: Action.t) => Some(a);
+let handle_key_event = (k: Key.t): option(Action.t('p)) => {
+  let now = (a: Action.t('p)) => Some(a);
   switch (k) {
   | {key: U(key), _} =>
     /* Keu-UPpEvents:

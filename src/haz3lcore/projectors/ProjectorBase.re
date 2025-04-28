@@ -103,7 +103,7 @@ module View = {
 };
 
 type methods('model, 'action, 'ed) = {
-  init: (Term.Any.t, unit => 'ed) => option('model),
+  init: (Term.Any.t, unit => option('ed)) => option('model),
   focusable: Focusable.t,
   dynamics: bool,
   view:

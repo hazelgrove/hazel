@@ -15,8 +15,8 @@ module Model = {
     error: bool,
   };
 
-  type projector_data('ed) = {
-    p: Piece.projector(ProjectorCore.model('ed)),
+  type projector_data('p) = {
+    p: Piece.projector('p),
     info: ProjectorBase.info,
     measurement: Measured.measurement,
     offside_base: int,
@@ -42,7 +42,8 @@ module Model = {
 
   let mk_status =
       (
-        p: Base.projector('ed),
+        type ed,
+        p: Base.projector(ProjectorCore.model(ed)),
         ~editor_active: bool,
         ~indicated: option((Id.t, Direction.t)),
         ~selection_ids: list(Id.t),
@@ -63,14 +64,17 @@ module Model = {
 
   let mk =
       (
-        projectors: Id.Map.t(Base.projector('ed)),
+        type p,
+        ~mk_status,
+        projectors: Id.Map.t(Base.projector(p)),
         measured: Measured.t,
         selection_ids: list(Id.t),
         indicated: option((Id.t, Direction.t)),
         statics: Statics.Map.t,
         dynamics: Dynamics.Map.t,
         editor_active: bool,
-      ) => {
+      )
+      : list(projector_data(p)) => {
     List.filter_map(
       ((id, _)) => {
         let* p = Id.Map.find_opt(id, projectors);
@@ -133,13 +137,10 @@ let projector_clss =
  * adding fallthrough handlers where appropriate*/
 let view_wrapper =
     (
-      ~inject: Action.t('p) => Ui_effect.t(unit),
       ~make_active,
       ~font_metrics: FontMetrics.t,
       ~measurement: Measured.measurement,
       ~status: Model.status,
-      ~id: Id.t,
-      ~kind: ProjectorCore.Kind.t,
       views: list(Node.t),
     ) =>
   div(
@@ -148,11 +149,7 @@ let view_wrapper =
       /* Stopping propagation here is stops the base editor's
        * drag-select interaction from being triggered */
       Attr.on_pointerdown(_ => {
-        Effect.Many([
-          Effect.Stop_propagation,
-          make_active,
-          inject(Project(Focus(id, kind, None))),
-        ])
+        Effect.Many([Effect.Stop_propagation, make_active])
       }),
       DecUtil.abs_style(measurement, ~font_metrics),
     ],
@@ -213,25 +210,18 @@ let offside_wrapper =
 /* Route top-level metadata to the projector view function. */
 let mk_view =
     (
-      inject: Action.t('p) => Ui_effect.t(unit),
+      type ed,
+      ~parent: ProjectorBase.external_action => Ui_effect.t(unit),
+      ~set_model: ProjectorCore.model(ed) => Ui_effect.t(unit),
       ~ed_str,
       ~view_any,
-      _font_metrics: FontMetrics.t,
-      {p, info, _}: Model.projector_data('ed),
+      {p, info, _}: Model.projector_data(ProjectorCore.model(ed)),
     )
     : View.t => {
   let ProjectorCore.V(kind_gadt, model) = p.model;
   let methods = ProjectorInit.to_module(kind_gadt);
-  let parent = a => inject(Project(handle(p.id, a)));
   let local = a =>
-    inject(
-      Project(
-        SetModel(
-          p.id,
-          ProjectorCore.V(kind_gadt, methods.update(model, info, a)),
-        ),
-      ),
-    );
+    set_model(ProjectorCore.V(kind_gadt, methods.update(model, info, a)));
   methods.view(~ed_str, ~view_any, model, info, ~local, ~parent);
 };
 
@@ -239,27 +229,21 @@ let mk_view =
  * in order to stratify z-levels across all projectors */
 let split_views =
     (
-      inject: Action.t('p) => Ui_effect.t(unit),
-      make_active,
-      font_metrics: FontMetrics.t,
+      type ed,
       ~ed_str,
       ~view_any,
+      ~parent: ProjectorBase.external_action => Ui_effect.t(unit),
+      ~set_model: ProjectorCore.model(ed) => Ui_effect.t(unit),
+      ~make_active,
+      ~font_metrics: FontMetrics.t,
       {p, offside_base, measurement, status, _} as projector_data:
-        Model.projector_data('ed),
+        Model.projector_data(ProjectorCore.model(ed)),
     )
     : (Node.t, option(Node.t)) => {
   let wrapper =
-    view_wrapper(
-      ~inject,
-      ~make_active,
-      ~font_metrics,
-      ~measurement,
-      ~status,
-      ~id=p.id,
-      ~kind=p.model |> ProjectorCore.kind_of_model,
-    );
+    view_wrapper(~make_active, ~font_metrics, ~measurement, ~status);
   let views =
-    mk_view(~ed_str, ~view_any, inject, font_metrics, projector_data);
+    mk_view(~parent, ~set_model, ~ed_str, ~view_any, projector_data);
   let line_view = {
     let offside_view =
       views.offside
@@ -290,13 +274,18 @@ let by_measurement =
  * be absolutely positioned atop a rendered editor UI */
 let all =
     (
-      type ed,
-      inject: Action.t(ProjectorCore.model(ed)) => Ui_effect.t(unit),
-      make_active,
-      font_metrics: FontMetrics.t,
-      projector_data: list(Model.projector_data(ed)),
-      ~ed_str: ed => string,
-      ~view_any,
+      type p,
+      ~split_views:
+         (
+           ~parent: external_action => Ui_effect.t(unit),
+           ~set_model: p => Ui_effect.t(unit),
+           ~make_active: Ui_effect.t(unit),
+           Model.projector_data(p)
+         ) =>
+         (Node.t, option(Node.t)),
+      ~inject: Action.t(p) => Ui_effect.t(unit),
+      ~make_active,
+      projector_data: list(Model.projector_data(p)),
     ) => {
   /* Sorting the projectors by position tends to be a good
    * z-index default; projectors further to the right or
@@ -307,8 +296,17 @@ let all =
   let (base_views, overlay_views) =
     projector_data
     |> List.sort(by_measurement)
-    |> List.map(
-         split_views(~ed_str, ~view_any, inject, make_active, font_metrics),
+    |> List.map((data: Model.projector_data(p)) =>
+         split_views(
+           ~parent=a => inject(Project(handle(data.info.id, a))),
+           ~set_model=m => inject(Project(SetModel(data.info.id, m))),
+           ~make_active=
+             Ui_effect.Many([
+               make_active,
+               inject(Project(Focus(data.info.id, data.status.kind, None))),
+             ]),
+           data,
+         )
        )
     |> List.split;
   let overlay_views = List.filter_map(Fun.id, overlay_views);

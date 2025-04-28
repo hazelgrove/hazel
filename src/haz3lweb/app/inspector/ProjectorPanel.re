@@ -17,30 +17,37 @@ module Applicable = {
    * should be kept in sync with the projector add/remove logic
    * in ProjectorPerform */
   let target_term = (cursor: Cursor.cursor(Editors.Update.t)) =>
+    // TODO[Matt|Andrew] : Make the sort more general
     switch (cursor.selection) {
     | None
     | Some([]) =>
       switch (cursor.indicated_piece) {
-      | Some(Projector({syntax, _})) =>
-        MakeTerm.for_projection(Piece.unparenthesize(syntax))
+      | Some(Projector(p)) => Some(Projectors.make_term(p.model, Exp))
       | _ =>
         let* info = cursor.info;
         Info.any_of(info);
       }
-    | Some([Projector({syntax, _})]) =>
-      MakeTerm.for_projection(Piece.unparenthesize(syntax))
-    | Some(seg) => MakeTerm.for_projection(seg)
+    | Some([Projector(p)]) => Some(Projectors.make_term(p.model, Exp))
+    | Some(seg) =>
+      Some(
+        Editor.make_term(
+          Exp,
+          seg |> Zipper.unzip |> Editor.Model.mk(~sort=Exp),
+        ),
+      )
     };
 
   /* Is a projector of `kind` applicable to the target term? */
   let is_applicable =
       (cursor: Cursor.cursor(Editors.Update.t), kind: ProjectorCore.Kind.t)
       : option(ProjectorCore.Kind.t) => {
-    open ProjectorCore.Kind;
-    let.gadt W(kind_gadt) = kind;
-    let methods = ProjectorInit.to_module(kind_gadt);
     let* term = target_term(cursor);
-    let+ _ = methods.init(term);
+    let+ _ =
+      Projectors.init(kind, term, () =>
+        cursor.selection
+        |> Option.map(Zipper.unzip)
+        |> Option.map(Editor.Model.mk(~sort=Exp))
+      );
     kind;
   };
 
@@ -48,9 +55,9 @@ module Applicable = {
   let indicated_kind =
       (editor: option(Editor.t)): option(ProjectorCore.Kind.t) => {
     let* editor = editor;
-    let* (piece, _, _) = Indicated.for_index(editor.state.zipper);
+    let* (piece, _, _) = Indicated.for_index(editor |> Editor.get_z);
     switch (piece) {
-    | Projector({model, _}) => Some(ProjectorCore.kind_of_model(model))
+    | Projector(p) => Some(Projectors.kind_of_model(p.model))
     | _ => None
     };
   };
@@ -122,10 +129,10 @@ let toggle_view =
 
 let keyboard_shortcut_of = (kind: ProjectorCore.Kind.t): string =>
   switch (kind) {
-  | Fold => "Option-f"
-  | Probe => "Option-v"
+  // | Fold => "Option-f"
+  // | Probe => "Option-v"
   | Info => "Option-t"
-  | _ => "Option-l"
+  | Slider => "Option-l"
   };
 
 /* A selection input for contetually applicable projectors */

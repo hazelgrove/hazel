@@ -98,18 +98,23 @@ let code_view_settings: ExpToSegment.Settings.t = {
   show_unknown_as_hole: true,
 };
 
-let view_any = (~globals, any: Term.Any.t) =>
+let view_any = (~globals: Globals.t, any: Term.Any.t) =>
   any
   |> CodeViewable.view_any(
-       ~globals,
+       ~font_metrics=globals.font_metrics,
+       ~secondary_icons=globals.settings.secondary_icons,
        ~settings=code_view_settings,
        ~shape_map=ProjectorShape.Map.empty // assume no projectors
      )
   |> code_box_container;
 
-let view_type = (~globals, typ: Typ.t) =>
+let view_type = (~globals: Globals.t, typ: Typ.t) =>
   typ
-  |> CodeViewable.view_typ(~globals, ~settings=code_view_settings)
+  |> CodeViewable.view_typ(
+       ~font_metrics=globals.font_metrics,
+       ~secondary_icons=globals.settings.secondary_icons,
+       ~settings=code_view_settings,
+     )
   |> code_box_container;
 
 let common_err_view =

@@ -556,7 +556,7 @@ module View = {
         | Some(result) => [
             test_result_layer(
               ~font_metrics=globals.font_metrics,
-              ~measured=editor.syntax.measured,
+              ~measured=editor |> Editor.get_measured,
               result,
             ),
           ]
@@ -578,7 +578,12 @@ module View = {
                    Settings.of_core(~inline=false, globals.settings.core),
                )
              )
-          |> CodeViewable.view_segment(~globals, ~sort=Exp, ~shape_map);
+          |> CodeViewable.view_segment(
+               ~font_metrics=globals.font_metrics,
+               ~secondary_icons=globals.settings.secondary_icons,
+               ~sort=Exp,
+               ~shape_map,
+             );
         | None => text("No elaboration found")
         },
       ];
@@ -596,7 +601,7 @@ module View = {
             | Some(result) => [
                 test_result_layer(
                   ~font_metrics=globals.font_metrics,
-                  ~measured=editor.syntax.measured,
+                  ~measured=editor |> Editor.get_measured,
                   result,
                 ),
               ]
@@ -613,7 +618,7 @@ module View = {
         | Some(result) => [
             test_result_layer(
               ~font_metrics=globals.font_metrics,
-              ~measured=editor.syntax.measured,
+              ~measured=editor |> Editor.get_measured,
               result,
             ),
           ]

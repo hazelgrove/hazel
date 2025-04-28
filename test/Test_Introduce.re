@@ -3,10 +3,10 @@ open Alcotest;
 
 let exp = testable(Fmt.using(DHExp.show, Fmt.string), DHExp.fast_equal);
 
-let find_hole_id = (e: Exp.t): option(Id.t) => {
+let find_hole_id = (e: Any.t): option(Id.t) => {
   exception Found(Id.t);
   switch (
-    Exp.map_term(
+    Any.map_term(
       ~f_pat=
         (continue, p) =>
           switch (p.term) {

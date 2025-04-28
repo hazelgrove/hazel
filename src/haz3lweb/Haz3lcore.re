@@ -12,14 +12,32 @@ module rec Projectors: {
 
   let kind_of_model: model => ProjectorCore.Kind.t;
   let sort_of_model: model => Sort.t;
-  let init: (ProjectorCore.Kind.t, Any.t, unit => Editor.t) => option(model);
+  let init:
+    (ProjectorCore.Kind.t, Any.t, unit => option(Editor.t)) => option(model);
 
-  let view_all: (
-    Action.t(model) => Ui_effect.t(unit),
-    Ui_effect.t(unit),
-    FontMetrics.t,
-    list(ProjectorView.Model.projector_data(Editor.t)),
-  );
+  module View: {
+    let split_views:
+      (
+        ~font_metrics: FontMetrics.t,
+        ~secondary_icons: bool,
+        ~parent: ProjectorBase.external_action => Ui_effect.t(unit),
+        ~set_model: model => Ui_effect.t(unit),
+        ~make_active: Ui_effect.t(unit),
+        ProjectorView.Model.projector_data(model)
+      ) =>
+      (Web.Node.t, option(Web.Node.t));
+
+    let mk_status:
+      (
+        Base.projector(ProjectorCore.model('ed)),
+        ~editor_active: bool,
+        ~indicated: option((Id.t, Direction.t)),
+        ~selection_ids: list(Id.t),
+        ~info: ProjectorBase.info,
+        ~id: Id.t
+      ) =>
+      ProjectorView.Model.status;
+  };
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = ProjectorCore.model(Editor.t);
@@ -38,12 +56,16 @@ module rec Projectors: {
 
   let init = ProjectorInit.init;
 
-  let view_all = (inject: model => Ui_effect.t(unit)) =>
-    ProjectorView.all(
-      ~ed_str=Editor.print_string,
-      ~view_any=_ => Web.Node.text("Any"),
-      inject,
-    );
+  module View = {
+    let split_views = (~font_metrics, ~secondary_icons) =>
+      ProjectorView.split_views(
+        ~ed_str=Editor.print_string,
+        ~view_any=Editor.View.view_any(~font_metrics, ~secondary_icons),
+        ~font_metrics,
+      );
+
+    let mk_status = ProjectorView.Model.mk_status;
+  };
 }
 and Editor: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -57,6 +79,21 @@ and Editor: {
     let mk: (~sort: Sort.t, Zipper.t) => t;
     let mk_from_exp: (~settings: CoreSettings.t, ~inline: bool=?, Exp.t) => t;
   };
+
+  // module Action: {
+  //   include (module type of Action);
+  //   [@deriving (show({with_path: false}), sexp, yojson)]
+  //   type t;
+  //   [@deriving (show({with_path: false}), sexp, yojson)]
+  //   type project;
+  //   module Result: (module type of Action.Result);
+
+  //   let paste_string: string => t;
+  //   let paste_segment: Segment.t(Projectors.model) => t;
+
+  //   let is_edit: t => bool;
+  //   let should_scroll_active: t => bool;
+  // };
 
   module Update: {
     let update:
@@ -98,8 +135,21 @@ and Editor: {
   let get_measured: t => Measured.t;
   let get_selection_ids: t => list(Id.t);
   let get_indicated: t => option((Id.t, Direction.t));
+  let get_tiles: t => TileMap.t(Projectors.model);
+
+  let trailing_hole_ctx: (t, Statics.Map.t) => option(Ctx.t);
 
   module View: {
+    let all_projectors:
+      (
+        ~font_metrics: FontMetrics.t,
+        ~secondary_icons: bool,
+        ~inject: Action.t(Projectors.model) => Ui_effect.t(unit),
+        ~make_active: Ui_effect.t(unit),
+        list(ProjectorView.Model.projector_data(Projectors.model))
+      ) =>
+      list(Web.Node.t);
+
     let view:
       (
         ~font_metrics: FontMetrics.t,
@@ -108,6 +158,22 @@ and Editor: {
         t
       ) =>
       Web.Node.t;
+
+    let view_any:
+      (~font_metrics: FontMetrics.t, ~secondary_icons: bool, Any.t) =>
+      Web.Node.t;
+
+    let mk_projector_model:
+      (
+        Id.Map.t(Tile.projector(Projectors.model)),
+        Measured.t,
+        list(TileMap.key),
+        option((TileMap.key, Direction.t)),
+        Haz3lcorep.Statics.Map.t,
+        Dynamics.Map.t,
+        bool
+      ) =>
+      list(ProjectorView.Model.projector_data(Projectors.model));
   };
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -135,6 +201,17 @@ and Editor: {
       |> mk(~sort=Exp);
     };
   };
+
+  // module Action = {
+  //   include Action;
+  //   [@deriving (show({with_path: false}), sexp, yojson)]
+  //   type t = Action.t(Projectors.model);
+  //   [@deriving (show({with_path: false}), sexp, yojson)]
+  //   type project = Action.project(Projectors.model);
+
+  //   let paste_string = s => Action.Paste(String(s));
+  //   let paste_segment = s => Action.Paste(Segment(s));
+  // };
 
   module Update = {
     let update = (~settings, action, ~sort, statics, editor) => {
@@ -200,6 +277,8 @@ and Editor: {
   let make_term = (sort: Sort.t, m: t) =>
     MakeTerm.go(~of_projector=Projectors.make_term, sort, make_seg(m)).term;
 
+  let trailing_hole_ctx = Haz3lcorep.Editor.Model.trailing_hole_ctx;
+
   let print_string = _ => "TODO";
 
   let move_dir = (key: Key.t): option(Direction.t) =>
@@ -225,21 +304,21 @@ and Editor: {
       let.gadt W(kind_gadt) = kind;
       let methods = ProjectorInit.to_module(kind_gadt);
       methods.focusable.keyboard != None
-        ? Some(Action.Focus(id, kind, Some(Right))) : None;
+        ? Some(Haz3lcorep.Action.Focus(id, kind, Some(Right))) : None;
     | (Some(Right), (_, Some(Projector({id, model, _})))) =>
       open ProjectorCore.Kind;
       let kind = Projectors.kind_of_model(model);
       let.gadt W(kind_gadt) = kind;
       let methods = ProjectorInit.to_module(kind_gadt);
       methods.focusable.keyboard != None
-        ? Some(Action.Focus(id, kind, Some(Left))) : None;
+        ? Some(Haz3lcorep.Action.Focus(id, kind, Some(Left))) : None;
     | _ => None
     };
   };
 
   let jump_to_tile_action = (tile, model: t) =>
     switch (TileMap.find_opt(tile, model.syntax.tiles)) {
-    | Some(_) => Some(Action.Jump(TileId(tile)))
+    | Some(_) => Some(Haz3lcorep.Action.Jump(TileId(tile)))
     | None => None
     };
 
@@ -251,10 +330,22 @@ and Editor: {
     | None => None
     | Some((p, side, _)) => Some((Piece.id(p), side))
     };
+  let get_tiles = (m: t) => m.syntax.tiles;
 
   module View = {
+    let mk_projector_model =
+      ProjectorView.Model.mk(~mk_status=Projectors.View.mk_status);
+
+    let all_projectors = (~font_metrics, ~secondary_icons) =>
+      ProjectorView.all(
+        ~split_views=
+          Projectors.View.split_views(~font_metrics, ~secondary_icons),
+      );
+
     let view = (~font_metrics, ~secondary_icons, ~sort, m: t) =>
       CodeViewable.view_editor(~font_metrics, ~secondary_icons, ~sort, m);
+
+    let view_any = failwith("TODO: view_any");
   };
 };
 
@@ -353,7 +444,6 @@ module Action = {
   type t = Action.t(Projectors.model);
   [@deriving (show({with_path: false}), sexp, yojson)]
   type project = Action.project(Projectors.model);
-  [@deriving (show({with_path: false}), sexp, yojson)];
 };
 
 module Ancestor = {

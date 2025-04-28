@@ -24,7 +24,12 @@ let to_module =
   };
 
 let init =
-    (type ed, kind: ProjectorCore.Kind.t, any: Term.Any.t, ed: unit => ed)
+    (
+      type ed,
+      kind: ProjectorCore.Kind.t,
+      any: Term.Any.t,
+      ed: unit => option(ed),
+    )
     : option(ProjectorCore.model(ed)) => {
   open ProjectorCore.Kind;
   let.gadt W(kind_gadt) = kind;

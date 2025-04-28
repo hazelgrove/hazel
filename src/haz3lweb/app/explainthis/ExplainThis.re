@@ -275,7 +275,8 @@ let expander_deco =
               ((id: ExplainThisForm.form_id, segment: Segment.t)): Node.t => {
                 let code_view =
                   CodeViewable.view_segment(
-                    ~globals,
+                    ~font_metrics=globals.font_metrics,
+                    ~secondary_icons=globals.settings.secondary_icons,
                     ~sort=Exp,
                     ~shape_map=ProjectorShape.Map.empty, // Assume no projectors
                     segment,
@@ -371,7 +372,7 @@ let example_view =
                   {
                     term
                     |> Zipper.unzip
-                    |> Editor.Model.mk
+                    |> Editor.Model.mk(~sort=Exp)
                     |> CellEditor.Model.mk
                     |> CellEditor.Update.calculate(
                          ~settings=globals.settings.core,
@@ -487,7 +488,8 @@ let get_doc =
         |> List.to_seq
         |> Id.Map.of_seq
         |> Option.some;
-      let editor = Editor.Model.mk(doc.syntactic_form |> Zipper.unzip);
+      let editor =
+        Editor.Model.mk(~sort=Exp, doc.syntactic_form |> Zipper.unzip);
       let expander_deco =
         expander_deco(
           ~globals,

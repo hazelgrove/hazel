@@ -1,6 +1,7 @@
 open Virtual_dom.Vdom;
 open Node;
 open ProjectorBase;
+open Util.OptUtil.Syntax;
 
 /* =========== HELPERS ============ */
 
@@ -34,11 +35,15 @@ type mode =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type model('ed) = (mode, 'ed);
 
-let init = (any: Term.Any.t, ed: unit => 'ed): option(model('ed)) => {
+let init = (any: Term.Any.t, ed: unit => option('ed)): option(model('ed)) => {
   switch (any) {
   | Exp(_)
-  | Pat(_) => Some((Expected, ed()))
-  | Any () => Some((Expected, ed())) /* Grout don't have sorts rn */
+  | Pat(_) =>
+    let* ed = ed();
+    Some((Expected, ed));
+  | Any () =>
+    let* ed = ed();
+    Some((Expected, ed)); /* Grout don't have sorts rn */
   | _ => None
   };
 };
@@ -111,7 +116,9 @@ let view = (~ed_str, ~view_any, model, info, ~local, ~parent as _) =>
     overlay: None,
   };
 
-let mk_term = (~term_of_ed, sort, (_, ed)) => term_of_ed(sort, ed);
+let mk_term = (~term_of_ed, sort, (_, ed)) => {
+  term_of_ed(sort, ed);
+};
 
 let methods = {
   init,

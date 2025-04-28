@@ -101,20 +101,21 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       "Select All",
       Globals(ActiveEditor(Select(All))),
     ),
-    mk_shortcut(
-      ~hotkey="alt+f",
-      ~mdIcon="camera",
-      ~section="Projection",
-      "Fold",
-      Globals(ActiveEditor(Project(SetIndicated(Specific(Fold))))),
-    ),
-    mk_shortcut(
-      ~hotkey="alt+v",
-      ~mdIcon="camera",
-      ~section="Projection",
-      "Probe",
-      Globals(ActiveEditor(Project(SetIndicated(Specific(Probe))))),
-    ),
+    // TODO[Matt]: restore shortcut
+    // mk_shortcut(
+    //   ~hotkey="alt+f",
+    //   ~mdIcon="camera",
+    //   ~section="Projection",
+    //   "Fold",
+    //   Globals(ActiveEditor(Project(SetIndicated(Specific(Fold))))),
+    // ),
+    // mk_shortcut(
+    //   ~hotkey="alt+v",
+    //   ~mdIcon="camera",
+    //   ~section="Projection",
+    //   "Probe",
+    //   Globals(ActiveEditor(Project(SetIndicated(Specific(Probe))))),
+    // ),
     mk_shortcut(
       ~hotkey="alt+t",
       ~mdIcon="camera",

@@ -19,7 +19,12 @@ module Model = {
   };
 
   let of_spec = (~settings as _, ~instructor_mode as _: bool, spec) => {
-    let editors = Exercise.map(spec, Editor.Model.mk, Editor.Model.mk);
+    let editors =
+      Exercise.map(
+        spec,
+        Editor.Model.mk(~sort=Exp),
+        Editor.Model.mk(~sort=Exp),
+      );
     let term_item_to_cell = (item: Exercise.TermItem.t): CellEditor.Model.t => {
       CellEditor.Model.mk(item.editor);
     };
@@ -42,7 +47,7 @@ module Model = {
          Exercise.visible_in(pos, ~instructor_mode)
        )
     |> List.map(((pos, editor: Editor.t)) =>
-         (pos, editor.state.zipper |> PersistentZipper.persist)
+         (pos, editor |> Editor.get_z |> PersistentZipper.persist)
        );
   };
 
@@ -123,7 +128,7 @@ module Update = {
     | Editor(_, ResultAction(_)) => Updated.return_quiet(model) // TODO: I think this case should never happen
     | ResetEditor(pos) =>
       let spec = Exercise.main_editor_of_state(~selection=pos, model.spec);
-      let new_editor = Editor.Model.mk(spec);
+      let new_editor = Editor.Model.mk(~sort=Exp, spec);
       {
         ...model,
         editors:
@@ -132,7 +137,11 @@ module Update = {
       |> Updated.return;
     | ResetExercise =>
       let new_editors =
-        Exercise.map(model.spec, Editor.Model.mk, Editor.Model.mk);
+        Exercise.map(
+          model.spec,
+          Editor.Model.mk(~sort=Exp),
+          Editor.Model.mk(~sort=Exp),
+        );
       {
         ...model,
         editors: new_editors,
@@ -210,7 +219,14 @@ module Update = {
        statics to take */
     let editors: Exercise.p('a) = {
       let calculate = (statics, dynamics, ed) =>
-        Editor.Update.calculate(~settings, statics, dynamics, ~is_edited, ed);
+        Editor.Update.calculate(
+          ~settings,
+          ~sort=Exp,
+          statics,
+          dynamics,
+          ~is_edited,
+          ed,
+        );
 
       {
         title: model.editors.title,
@@ -248,7 +264,7 @@ module Update = {
           ),
         hidden_bugs:
           List.map2(
-            (cell: CellEditor.Model.t, editor: Exercise.wrong_impl('a)):
+            (cell: CellEditor.Model.t, editor: Exercise.wrong_impl(Editor.t)):
               Exercise.wrong_impl('a) =>
               {
                 impl:
@@ -305,7 +321,7 @@ module Selection = {
       (~settings: Settings.t, tile, model: Model.t): option((Update.t, t)) => {
     Exercise.positioned_editors(model.editors)
     |> List.find_opt(((p, e: Editor.t)) =>
-         TileMap.find_opt(tile, e.syntax.tiles) != None
+         TileMap.find_opt(tile, e |> Editor.get_tiles) != None
          && Exercise.visible_in(p, ~instructor_mode=settings.instructor_mode)
        )
     |> Option.map(((pos, _)) =>
@@ -427,12 +443,12 @@ module View = {
         {
           let exp_ctx_view = {
             let correct_impl_trailing_hole_ctx =
-              Haz3lcore.Editor.Model.trailing_hole_ctx(
+              Haz3lcore.Editor.trailing_hole_ctx(
                 eds.correct_impl,
                 instructor.editor.statics.info_map,
               );
             let prelude_trailing_hole_ctx =
-              Haz3lcore.Editor.Model.trailing_hole_ctx(
+              Haz3lcore.Editor.trailing_hole_ctx(
                 eds.prelude,
                 prelude.editor.statics.info_map,
               );

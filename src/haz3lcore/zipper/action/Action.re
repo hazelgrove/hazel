@@ -234,3 +234,24 @@ let should_animate: t('p) => bool =
   | RotateBackpack
   | MoveToBackpackTarget(_)
   | Project(_) => true;
+
+let should_scroll_active: t('p) => bool =
+  fun
+  | Move(_)
+  | Jump(_)
+  | Select(Resize(_) | Term(_) | Smart(_) | Tile(_))
+  | Destruct(_)
+  | Insert(_)
+  | Pick_up
+  | Put_down
+  | RotateBackpack
+  | MoveToBackpackTarget(_)
+  | Buffer(Set(_) | Accept | Clear)
+  | Paste(_)
+  | Copy
+  | Cut
+  | Reparse
+  | Introduce => true
+  | Project(_)
+  | Unselect(_)
+  | Select(All) => false;
