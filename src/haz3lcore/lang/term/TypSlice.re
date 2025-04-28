@@ -1599,7 +1599,7 @@ let rec matched_arrow_strict = (ctx, s: t) => {
     | _ => None
     }
   | `SliceGlobal(s, slice_global) =>
-    matched_arrow_strict(ctx, (s :> term) |> fresh)
+    matched_arrow_strict(ctx, (s :> term) |> temp)
     |> Option.map(TupleUtil.map2(wrap_global(slice_global)))
   };
 };
@@ -1627,7 +1627,7 @@ let rec matched_forall_strict = (ctx, s) => {
     | _ => None // (None, Unknown(Internal) |> temp)
     }
   | `SliceGlobal(s, slice_global) =>
-    matched_forall_strict(ctx, (s :> term) |> fresh)
+    matched_forall_strict(ctx, (s :> term) |> temp)
     |> Option.map(((tpat, s)) => (tpat, wrap_global(slice_global, s)))
   };
 };
@@ -1679,7 +1679,7 @@ let rec matched_prod_strict:
         ctx,
         es,
         get_label_es,
-        (s :> term) |> fresh,
+        (s :> term) |> temp,
         constructor,
       )
       |> (
@@ -1717,7 +1717,7 @@ let rec matched_list_strict = (ctx, s) => {
     | _ => None
     }
   | `SliceGlobal(s, slice_global) =>
-    matched_list_strict(ctx, (s :> term) |> fresh)
+    matched_list_strict(ctx, (s :> term) |> temp)
     |> Option.map(wrap_global(slice_global))
   };
 };
@@ -1741,7 +1741,7 @@ let rec matched_args = (ctx, default_arity, s) => {
     | _ => [s']
     }
   | `SliceGlobal(s, slice_global) =>
-    matched_args(ctx, default_arity, (s :> term) |> fresh)
+    matched_args(ctx, default_arity, (s :> term) |> temp)
     |> List.map(wrap_global(slice_global))
   };
 };
@@ -1752,48 +1752,50 @@ let rec get_sum_constructors = (ctx: Ctx.t, s: t): option(sum_map) => {
     term: term',
   };
   let s = weak_head_normalize(ctx, s);
-  apply_t(
-    ty =>
-      Typ.get_sum_constructors(ctx, ty)
-      |> Option.map(ConstructorMap.map_preserving(t_of_typ_t)),
-    s =>
-      switch (s.term) {
-      | Parens(s) => get_sum_constructors(ctx, s)
-      | Sum(sm) => Some(sm)
-      | Rec(_) =>
-        /* Note: We must unroll here to get right ctr types;
-           otherwise the rec parameter will leak. However, seeing
-           as substitution is too expensive to be used here, we
-           currently making the optimization that, since all
-           recursive types are type alises which use the alias name
-           as the recursive parameter, and type aliases cannot be
-           shadowed, it is safe to simply remove the Rec constructor,
-           provided we haven't escaped the context in which the alias
-           is bound. If either of the above assumptions become invalid,
-           the below code will be incorrect! */
-        let s =
-          switch (s.term) {
-          | Rec({term: Var(x), _}, s_body) =>
-            switch (Ctx.lookup_alias(ctx, x)) {
-            | Option.None =>
-              unroll(s |> IdTagged.apply(term_of_slc_typ_term))
-            | Some(_) => s_body
-            }
-          | _ => s |> IdTagged.apply(term_of_slc_typ_term)
-          };
-        apply(
-          fun
-          | Sum(sm) => Some(sm |> ConstructorMap.map_preserving(t_of_typ_t))
-          | _ => None,
-          fun
-          | Sum(sm) => Some(sm)
-          | _ => None,
-          s.term,
-        );
-      | _ => None
-      },
-    s,
-  );
+  switch (term_of(s)) {
+  | `Typ(ty)
+  | `SliceIncr(Typ(ty), _) =>
+    Typ.get_sum_constructors(ctx, ty |> rewrap)
+    |> Option.map(ConstructorMap.map_preserving(t_of_typ_t))
+  | `SliceIncr(Slice(s'), _) =>
+    switch (s') {
+    | Parens(s) => get_sum_constructors(ctx, s)
+    | Sum(sm) => Some(sm)
+    | Rec(_) =>
+      /* Note: We must unroll here to get right ctr types;
+         otherwise the rec parameter will leak. However, seeing
+         as substitution is too expensive to be used here, we
+         currently making the optimization that, since all
+         recursive types are type alises which use the alias name
+         as the recursive parameter, and type aliases cannot be
+         shadowed, it is safe to simply remove the Rec constructor,
+         provided we haven't escaped the context in which the alias
+         is bound. If either of the above assumptions become invalid,
+         the below code will be incorrect! */
+      let s =
+        switch (s') {
+        | Rec({term: Var(x), _}, s_body) =>
+          switch (Ctx.lookup_alias(ctx, x)) {
+          | Option.None => unroll(s' |> term_of_slc_typ_term |> rewrap)
+          | Some(_) => s_body
+          }
+        | _ => s' |> term_of_slc_typ_term |> rewrap
+        };
+      apply(
+        fun
+        | Sum(sm) => Some(sm |> ConstructorMap.map_preserving(t_of_typ_t))
+        | _ => None,
+        fun
+        | Sum(sm) => Some(sm)
+        | _ => None,
+        s.term,
+      );
+    | _ => None
+    }
+  | `SliceGlobal(s, slice_global) =>
+    get_sum_constructors(ctx, (s :> term) |> rewrap)
+    |> Option.map(ConstructorMap.map_preserving(wrap_global(slice_global)))
+  };
 };
 
 let is_synswitch = s =>
