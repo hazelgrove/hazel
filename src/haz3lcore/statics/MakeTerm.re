@@ -316,7 +316,7 @@ and drv_exp_term: unsorted => (Drv.Exp.term, list(Id.t)) = {
     }
   | Pre(([(_id, (["$"], []))], []), Drv(Exp(r))) as tm =>
     switch (r.term) {
-    | Var(v) => (Quote(v), IdTagged.ids(r))
+    | Var(v) => (Quote("$" ++ v), IdTagged.ids(r))
     | _ => ret(hole(tm))
     }
   | Pre(([(_id, t)], []), Drv(Exp(r))) as tm =>
@@ -392,7 +392,7 @@ and drv_pat_term: unsorted => (Drv.Pat.term, list(Id.t)) = {
     ret(Pair(l, r))
   | Pre(([(_id, (["$"], []))], []), Drv(Pat(r))) as tm =>
     switch (r.term) {
-    | Var(v) => (Quote(v), IdTagged.ids(r))
+    | Var(v) => (Quote("$" ++ v), IdTagged.ids(r))
     | _ => ret(hole(tm))
     }
   | _ as tm => ret(hole(tm));
@@ -433,7 +433,7 @@ and drv_typ_term: unsorted => (Drv.Typ.term, list(Id.t)) = {
     ret(Rec(p, t))
   | Pre(([(_id, (["$"], []))], []), Drv(Typ(r))) as tm =>
     switch (r.term) {
-    | Var(v) => (Quote(v), IdTagged.ids(r))
+    | Var(v) => (Quote("$" ++ v), IdTagged.ids(r))
     | _ => ret(hole(tm))
     }
   | Bin(Drv(Typ(l)), ([(_id, ([t], []))], []), Drv(Typ(r))) as tm =>
@@ -468,7 +468,7 @@ and drv_tpat_term: unsorted => (Drv.TPat.term, list(Id.t)) = {
   | Op(([(_id, ([t], []))], [])) when Form.is_typ_var(t) => ret(Var(t))
   | Pre(([(_id, (["$"], []))], []), Drv(TPat(r))) as tm =>
     switch (r.term) {
-    | Var(v) => (Quote(v), IdTagged.ids(r))
+    | Var(v) => (Quote("$" ++ v), IdTagged.ids(r))
     | _ => ret(hole(tm))
     }
   | _ as tm => ret(hole(tm));
@@ -843,7 +843,11 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
       )
     | _ => ret(hole(tm))
     }
-  | Pre(_) as tm => ret(hole(tm))
+  | Pre(([(_id, (["$"], []))], []), Pat(r)) as tm =>
+    switch (r.term) {
+    | Var(v) => (Var("$" ++ v), IdTagged.ids(r))
+    | _ => ret(hole(tm))
+    }
   | Bin(Pat(p), tiles, Typ(ty)) as tm =>
     switch (tiles) {
     | ([(_id, ([":"], []))], []) =>

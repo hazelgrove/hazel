@@ -1,6 +1,6 @@
 let exercise : DerivationTree.spec =
   {
-    title = "Task 2 of 9: Debugging";
+    title = "Task 2 of 7: Debugging";
     version = 0;
     module_name = "t2";
     prompt =

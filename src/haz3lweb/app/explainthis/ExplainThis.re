@@ -506,7 +506,13 @@ let get_doc_deduction =
   | Some({res: Pending(p), _}) =>
     fake_get_message(DrvGrading.ExternalError.show(p))
   | Some({res: Incorrect(failure), _}) =>
-    fake_get_message(RuleVerify.failure_msg(failure))
+    fake_get_message(
+      if (globals.settings.explainThis.highlight == All) {
+        RuleVerify.failure_msg(failure);
+      } else {
+        RuleVerify.failure_msg_vague(failure);
+      },
+    )
   };
 };
 

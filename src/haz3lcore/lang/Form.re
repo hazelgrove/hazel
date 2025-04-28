@@ -596,6 +596,7 @@ type compound_form =
   | Use
   // Drv
   | Drv(drv_compound_form)
+  | DrvQuotePat
   // TRIPLE DELIMITERS
   | Let
   | TypeAlias
@@ -683,12 +684,14 @@ let get: compound_form => t =
   | FilterPause => mk(ds, ["pause", "in"], mk_pre(P.let_, Exp, [Exp]))
   | FilterDebug => mk(ds, ["debug", "in"], mk_pre(P.let_, Exp, [Exp]))
   | Use => mk(ds, ["use", "in"], mk_pre(P.let_, Exp, [Typ]))
+  // Drv
+  | Drv(drv_compound_form) => drv_get(drv_compound_form)
+  | DrvQuotePat => mk(ii, ["$"], mk_pre(P.unquote, Pat, []))
   // TRIPLE DELIMITERS
   | Let => mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))
   | TypeAlias =>
     mk(ds, ["type", "=", "in"], mk_pre(P.let_, Exp, [TPat, Typ]))
-  | If => mk(ds, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]))
-  | Drv(drv_compound_form) => drv_get(drv_compound_form);
+  | If => mk(ds, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]));
 
 let forms: list((compound_form, t)) =
   List.map(f => (f, get(f)), all_of_compound_form);

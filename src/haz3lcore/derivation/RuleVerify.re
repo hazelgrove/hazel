@@ -67,36 +67,48 @@ type failure =
 let failure_msg = (failure: failure): string =>
   switch (failure) {
   | Mismatch(expected, actual) =>
-    Printf.sprintf("Expected %d premises, but got %d", expected, actual)
+    Printf.sprintf("Expected %d premises, but found %d", expected, actual)
   | FailMatch((spec, _) as specced) =>
     Printf.sprintf(
-      "Failed to match %s with %s",
+      "Could not match the term %s against expected form %s",
       show_linked(specced),
       spec |> Drv.Any.cls_of |> Drv.Any.show_cls,
     )
   | NotEqual(specced1, specced2) =>
     Printf.sprintf(
-      "Failed to unify %s and %s",
+      "Matched terms %s and %s that should be equal were different",
       show_linked(specced1),
       show_linked(specced2),
     )
   | FailUnbox(specced, cls) =>
     Printf.sprintf(
-      "Failed to match %s with %s",
-      show_linked(specced),
+      "Could not extract a %s from %s",
       cls |> Drv.Any.show_cls,
+      show_linked(specced),
     )
-  // TODO(zhiyao): show the test
   | FailTest(_, test) =>
     Printf.sprintf(
-      "Failed to verify %s",
+      "Matched terms failed the test (hidden premise): %s",
       test
       |> ExpToSegment.drv_formula_to_pretty(_, DrvSort.Jdmt)
       |> Printer.seg_to_string,
     )
   };
 
-let failure_msg = e => failure_msg(e) |> Printf.sprintf("❌ %s");
+let failure_msg_vague = (failure: failure): string =>
+  switch (failure) {
+  | Mismatch(expected, actual) =>
+    Printf.sprintf("Expected %d premises, but found %d", expected, actual)
+  | FailMatch(_) => "Could not match a term against a expected form"
+  | NotEqual(_, _) => "Two matched terms that should be equal were different"
+  | FailUnbox(_, _) => "Could not extract an atom form from a term"
+  | FailTest(_, _) => "Matched terms failed a test (hidden premise)"
+  };
+
+let failure_msg = e => e |> failure_msg |> Printf.sprintf("❌ %s");
+
+let failure_msg_vague = e =>
+  e |> failure_msg_vague |> Printf.sprintf("❌ %s");
 
 /**
   This module describles the speculation of rules for checking
