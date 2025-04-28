@@ -124,7 +124,7 @@ let lookup_alias = (ctx: t, name: string): option(TermBase.TypSlice.t) =>
 // name_ids are the ids to slice source of name
 let add_ctrs =
     (
-      name_ids: list(Id.t),
+      def_ids: list(Id.t),
       ctx: t,
       name: string,
       id: Id.t,
@@ -133,14 +133,30 @@ let add_ctrs =
     : t =>
   List.filter_map(
     fun
-    | ConstructorMap.Variant(ctr, ids, typ) =>
+    | ConstructorMap.Variant(ctr, ctr_ids, typ) =>
       Some(
         ConstructorEntry({
           name: ctr,
           id,
           typ:
             switch (typ) {
-            | None => `Typ(Var(name): TermBase.typ_term) |> IdTagged.fresh
+            | None =>
+              (
+                `SliceGlobal((
+                  `SliceIncr((
+                    Typ(Var(name)),
+                    {
+                      ctx_used: [],
+                      term_ids: [id, ...ctr_ids],
+                    }: TermBase.slice_incr,
+                  )): TermBase.typslice_incr_term,
+                  {
+                    ctx_used: [],
+                    term_ids: def_ids,
+                  },
+                )): TermBase.typslice_term
+              )
+              |> IdTagged.fresh
             | Some(typ) =>
               (
                 `SliceIncr((
@@ -151,7 +167,7 @@ let add_ctrs =
                         `Typ(Var(name): TermBase.typ_term),
                         {
                           ctx_used: [],
-                          term_ids: name_ids,
+                          term_ids: def_ids,
                         }: TermBase.slice_global,
                       ))
                       |> IdTagged.fresh,
@@ -159,7 +175,7 @@ let add_ctrs =
                   ),
                   {
                     ctx_used: [],
-                    term_ids: [id, ...ids],
+                    term_ids: [id, ...ctr_ids],
                   },
                 )): TermBase.typslice_term
               )
