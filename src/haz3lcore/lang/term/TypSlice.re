@@ -574,50 +574,6 @@ let rec join_using =
   switch (term1, term2) {
   | (`Typ(ty1), `Typ(ty2)) =>
     join_typ_rewrap_idbranch(ty => ty, TupleUtil.map2(ty => ty), ty1, ty2)
-  // Wrap slices on inconsistent atoms
-  | (
-      `SliceIncr(
-        Typ(
-          (Unknown(_) | Int | Float | Bool | String | Var(_) | Label(_)) as ty1,
-        ),
-        slice_incr,
-      ),
-      `Typ(ty2),
-    ) =>
-    join_typ_rewrap(
-      ((ty, b)) => (left(b) ? wrap_incr(slice_incr, ty) : ty, b),
-      ((ty1, ty2)) => (wrap_incr(slice_incr, ty1), ty2),
-      ty1,
-      ty2,
-    )
-  | (
-      `Typ(ty1),
-      `SliceIncr(
-        Typ(
-          (Unknown(_) | Int | Float | Bool | String | Var(_) | Label(_)) as ty2,
-        ),
-        slice_incr,
-      ),
-    ) =>
-    join_typ_rewrap(
-      ((ty, b)) => (right(b) ? wrap_incr(slice_incr, ty) : ty, b),
-      ((ty1, ty2)) => (ty1, wrap_incr(slice_incr, ty2)),
-      ty1,
-      ty2,
-    )
-  // Otherwise, don't
-  | (`SliceIncr(Typ(ty1), slice_incr), `Typ(ty2)) =>
-    join_typ_rewrap_idincon(
-      ((ty, b)) => (left(b) ? wrap_incr(slice_incr, ty) : ty, b),
-      ty1,
-      ty2,
-    )
-  | (`Typ(ty1), `SliceIncr(Typ(ty2), slice_incr)) =>
-    join_typ_rewrap_idincon(
-      ((ty, b)) => (right(b) ? wrap_incr(slice_incr, ty) : ty, b),
-      ty1,
-      ty2,
-    )
   | (
       `SliceIncr(Slice(s1'), slice_incr1),
       `SliceIncr(Slice(s2'), slice_incr2),
