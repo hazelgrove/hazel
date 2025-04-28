@@ -518,21 +518,57 @@ module View = {
     };
   };
 
-  let instructor_toggle = (~inject, ~instructor_mode) =>
+  let instructor_toggle = (~inject, ~globals: Globals.t) =>
     // DerivationSettings.show_instructor ?
-    [
-      Widgets.toggle(
-        "🎓", ~tooltip="Toggle Instructor Mode", instructor_mode, _ =>
-        inject(Globals.Update.Set(InstructorMode))
-      ),
-    ];
+    Widgets.toggle(
+      "🎓",
+      ~tooltip="Toggle Instructor Mode",
+      globals.settings.instructor_mode,
+      _ =>
+      inject(Globals.Update.Set(InstructorMode))
+    );
+
+  // TODO(zhiyao): disabled for study mode
+  ignore(instructor_toggle);
+
+  let highlight_toggle = (~globals: Globals.t) =>
+    Widgets.toggle(
+      ~tooltip="Toggle highlighting",
+      "🔆",
+      globals.settings.explainThis.highlight == All,
+      _ =>
+      globals.inject_global(Set(ExplainThis(SetHighlight(Toggle))))
+    );
+
+  let evaluation_toggle = (~globals: Globals.t) =>
+    Widgets.toggle(
+      ~tooltip="Toggle evaluation",
+      "δ",
+      globals.settings.core.dynamics == true,
+      _ =>
+      globals.inject_global(Set(Dynamics))
+    );
+
+  let documentation_toggle = (~globals: Globals.t) =>
+    Widgets.toggle(
+      ~tooltip="Toggle documentation",
+      "📖",
+      globals.settings.explainThis.show,
+      _ =>
+      globals.inject_global(Set(ExplainThis(ToggleShow)))
+    );
   // : [];
 
   let top_bar = (~globals: Globals.t, ~inject: Update.t => 'a, model: Model.t) =>
-    instructor_toggle(
-      ~inject=globals.inject_global,
-      ~instructor_mode=globals.settings.instructor_mode,
-    )
+    [
+      // instructor_toggle(
+      //   ~inject=globals.inject_global,
+      //   ~globals,
+      // ),
+      evaluation_toggle(~globals),
+      documentation_toggle(~globals),
+      highlight_toggle(~globals),
+    ]
     @ EditorModeView.view(
         ~signal=
           fun

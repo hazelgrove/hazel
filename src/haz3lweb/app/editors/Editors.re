@@ -33,7 +33,10 @@ module StoreMode =
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = Model.mode;
     let key = Store.Mode;
-    let default = (): Model.mode => Documentation;
+
+    // TODO(zhiyao): changed to derivations for the purpose of testing
+    let default = (): Model.mode => Derivations;
+    // let default = (): Model.mode => Documentation;
   });
 
 module Store = {
@@ -478,9 +481,17 @@ module View = {
           m,
         )
       };
+    ignore(mode_menu);
     div(
       ~attrs=[Attr.id("editor-mode")],
-      [text("/"), mode_menu, text("/")] @ contents,
+      // TODO(zhiyao): disabled for study mode
+      // [
+      // text("/"),
+      // mode_menu,
+      // text("/"),
+      // ]
+      // @
+      contents,
     );
   };
 };

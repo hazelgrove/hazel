@@ -2795,31 +2795,31 @@ let view =
     [
       div(
         ~attrs=[Attr.id("explain-this")],
-        [
-          div(
-            ~attrs=[clss(["header"])],
-            [
-              Widgets.toggle(
-                ~tooltip="Toggle highlighting",
-                "🔆",
-                globals.settings.explainThis.highlight == All,
-                _ =>
-                globals.inject_global(
-                  Set(ExplainThis(SetHighlight(Toggle))),
-                )
-              ),
-              div(
-                ~attrs=[
-                  clss(["close"]),
-                  Attr.on_click(_ =>
-                    globals.inject_global(Set(ExplainThis(ToggleShow)))
-                  ),
-                ],
-                [Icons.thin_x],
-              ),
-            ],
-          ),
-        ]
+        // TODO(zhiyao): disabled for study mode
+        // div(
+        //   ~attrs=[clss(["header"])],
+        //   [
+        //     Widgets.toggle(
+        //       ~tooltip="Toggle highlighting",
+        //       "🔆",
+        //       globals.settings.explainThis.highlight == All,
+        //       _ =>
+        //       globals.inject_global(
+        //         Set(ExplainThis(SetHighlight(Toggle))),
+        //       )
+        //     ),
+        //     div(
+        //       ~attrs=[
+        //         clss(["close"]),
+        //         Attr.on_click(_ =>
+        //           globals.inject_global(Set(ExplainThis(ToggleShow)))
+        //         ),
+        //       ],
+        //       [Icons.thin_x],
+        //     ),
+        //   ],
+        // ),
+        []
         @ (
           switch (info_deduction) {
           | Some({rule, _}) => [

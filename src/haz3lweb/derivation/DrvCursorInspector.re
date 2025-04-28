@@ -28,7 +28,8 @@ let drv_view = (~globals, status: DrvInfo.t) => {
     | _ => view_type(typ)
     };
   switch (DrvInfo.error_of(status)) {
-  | None => div_ok([text("Fillable by any derivation element")])
+  // TODO(zhiyao): add info for DrvInfo
+  | None => div_ok([])
   | Some(err) =>
     switch (err) {
     | BadToken(token) =>

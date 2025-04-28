@@ -1,7 +1,9 @@
 #explain-this {
   display: flex;
   width: 20em;
-  padding: 0.4em;
+  /* TODO(zhiyao): change padding for study mode */
+  padding: 1.2em 0.4em;
+  /* padding: 0.4em; */
   flex-direction: column;
   gap: 1em;
 }

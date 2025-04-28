@@ -93,14 +93,14 @@ module Update = {
       };
     | Editor(_, ResultAction(_)) => Updated.return_quiet(model)
     | MapEditor(f) =>
-      let x = {
-        ...model,
-        editors: f(model.editors),
-      };
+      let editors = model.editors |> f;
+      let pos = DerivationTree.farthest_pos(model.pos, editors);
       {
-        ...x,
+        ...model,
+        pos,
+        editors,
         cells:
-          DerivationTree.stitch_term(x.editors)
+          DerivationTree.stitch_term(editors)
           |> DerivationTree.map_stitched((_, item: DerivationTree.TermItem.t) =>
                CellEditor.Model.mk(item.editor)
              ),
@@ -259,17 +259,15 @@ module Selection = {
   type t = CellEditor.Selection.t;
 
   let get_cursor_info = (~selection: t, model: Model.t): cursor(Update.t) => {
-    let pos = DerivationTree.farthest_pos(model.pos, model.editors);
-    let cell_editor = DerivationTree.get_stitched(pos, model.cells);
+    let cell_editor = DerivationTree.get_stitched(model.pos, model.cells);
     let+ a = CellEditor.Selection.get_cursor_info(~selection, cell_editor);
-    Update.Editor(pos, a);
+    Update.Editor(model.pos, a);
   };
 
   let handle_key_event = (~selection: t, ~event, model: Model.t) => {
-    let pos = DerivationTree.farthest_pos(model.pos, model.editors);
-    let cell_editor = DerivationTree.get_stitched(pos, model.cells);
+    let cell_editor = DerivationTree.get_stitched(model.pos, model.cells);
     CellEditor.Selection.handle_key_event(~selection, ~event, cell_editor)
-    |> Option.map(a => Update.Editor(pos, a));
+    |> Option.map(a => Update.Editor(model.pos, a));
   };
 
   let jump_to_tile =
@@ -743,7 +741,11 @@ module View = {
         ~sort=Exp,
       );
 
-    let setup_view = editor_view(Setup, setup, ~caption="Setup", ~sort=Exp);
+    let setup_view =
+      div(
+        ~attrs=[Attr.class_("cell-setup")],
+        [editor_view(Setup, setup, ~caption="Setup", ~sort=Exp)],
+      );
 
     // let editor_view =
     //     (
