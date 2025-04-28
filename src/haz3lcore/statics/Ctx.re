@@ -133,7 +133,7 @@ let add_ctrs =
     : t =>
   List.filter_map(
     fun
-    | ConstructorMap.Variant(ctr, _, typ) =>
+    | ConstructorMap.Variant(ctr, ids, typ) =>
       Some(
         ConstructorEntry({
           name: ctr,
@@ -159,7 +159,7 @@ let add_ctrs =
                   ),
                   {
                     ctx_used: [],
-                    term_ids: [id],
+                    term_ids: [id, ...ids],
                   },
                 )): TermBase.typslice_term
               )
