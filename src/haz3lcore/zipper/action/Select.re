@@ -109,7 +109,11 @@ module Make = (M: Move.S) => {
    * rules as separate pseudo-terms. */
   let current_term =
       (~defs_exclude_bodies: bool, ~case_rules: bool, z: Zipper.t) => {
+    // print_endline("Identifying current term.\nZipper:");
+    // print_endline(z |> Zipper.show);
     let* (p, _, _) = Indicated.piece''(z);
+    print_endline("Current piece:");
+    print_endline(Piece.show(p));
     switch (p) {
     | Tile({label: ["let" | "type", ..._], _}) when defs_exclude_bodies =>
       current_tile(z)
@@ -209,6 +213,7 @@ module Make = (M: Move.S) => {
   };
 
   let parent_of_indicated = (z: Zipper.t, info_map) => {
+    print_endline("Running parent of indicated function");
     let* id = parent_id(z, info_map);
     let* z' = Move.jump_to_id_indicated(z, id);
     /* Annoying special case here: In general when selecting the parent term
@@ -222,8 +227,84 @@ module Make = (M: Move.S) => {
      * only the body. */
     switch (def_body_indicated(z, info_map)) {
     | Some(_) =>
-      current_term(~defs_exclude_bodies=false, ~case_rules=true, z')
-    | None => current_term(~defs_exclude_bodies=true, ~case_rules=true, z')
+      print_endline("Case: def body indicated was valid");
+      current_term(~defs_exclude_bodies=false, ~case_rules=true, z');
+    | None =>
+      print_endline("Def body was not indicated");
+      current_term(~defs_exclude_bodies=true, ~case_rules=true, z');
+    };
+  };
+
+  let short_str = str => {
+    let len = String.length(str);
+    String.sub(str, len - 6, 6);
+  };
+
+  let find_associative_terms = (z, info_map: Statics.Map.t): unit => {
+    let id = Indicated.index(z);
+    switch (id) {
+    | Some(id) =>
+      // print_endline("Examining piece with ID: " ++ Id.to_string(id));
+      // print_endline("Examining piece with ID: " ++ Id.to_string(id) |> short_str);
+      let id_str = Id.to_string(id) |> short_str;
+      print_endline("Examining piece with ID: " ++ id_str);
+
+      let statics = Statics.Map.lookup(id, info_map);
+      switch (statics) {
+      | Some(InfoExp(exp)) =>
+        switch (exp.term.term) {
+        | BinOp(op, left, right) =>
+          if (Operators.is_associative_op(op)) {
+            // Look at op
+            // unpack left/right children to see if they're BinOps
+            let left_id = left |> Exp.rep_id;
+            let right_id = right |> Exp.rep_id;
+            let left_exp = Statics.Map.lookup(left_id, info_map);
+            let right_assoc = right_id;
+            switch (left_exp) {
+            | Some(InfoExp(left_contents)) =>
+              switch (left_contents.term.term) {
+              | BinOp(left_op, _, left_right) =>
+                // If left child is another bin op, check its children
+                if (left_op == op) {
+                  // If it's the same operator, select its rightmost child
+                  print_endline("Left child is same operator");
+                  let left_assoc = left_right |> Exp.rep_id;
+                  print_endline(
+                    "Select from "
+                    ++ short_str(Id.to_string(left_assoc))
+                    ++ " to "
+                    ++ short_str(Id.to_string(right_assoc)),
+                  );
+                  ();
+                } else {
+                  // If another binary operator, return just this term
+                  print_endline(
+                    Printf.sprintf(
+                      "Left child is different binary operator: %s",
+                      Operators.bin_op_to_string(left_op),
+                    ),
+                  );
+                  let left_assoc = left_id;
+                  print_endline(
+                    "Select from "
+                    ++ Id.to_string(left_assoc)
+                    ++ " to "
+                    ++ Id.to_string(right_assoc),
+                  );
+                  ();
+                }
+
+              | _ => ()
+              }
+            | _ => ()
+            };
+          }
+        | _ => ()
+        }
+      | _ => print_endline("No statics found for ID: " ++ id_str)
+      };
+    | None => print_endline("No piece indicated")
     };
   };
 };

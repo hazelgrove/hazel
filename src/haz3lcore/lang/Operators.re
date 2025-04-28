@@ -184,3 +184,16 @@ let bin_op_to_string = (op: op_bin): string => {
   | String(op) => string_op_to_string(op)
   };
 };
+
+// Useful for associativity handling, selection snapping, etc
+let is_associative_op = (op: op_bin): bool => {
+  switch (op) {
+  | Int(Plus)
+  | Int(Times)
+  | Float(Plus)
+  | Float(Times)
+  | Bool(And)
+  | Bool(Or) => true
+  | _ => false
+  };
+};
