@@ -22,8 +22,30 @@ type t = VarMap.t_(builtin);
 [@deriving (show({with_path: false}), sexp)]
 type forms = VarMap.t_(DHExp.t => option(DHExp.t));
 
+exception BuiltinAlreadyDefined(Var.t);
+
+// Like VarMap.extend but it fails if the name is already bound
+let extend = (builtins: t, (name: Var.t, v: builtin)): t =>
+  if (VarMap.contains(builtins, name)) {
+    raise(BuiltinAlreadyDefined(name));
+  } else {
+    VarMap.extend(builtins, (name, v));
+  };
+
+// Like VarMap.concat but it fails if the name is already bound
+let concat = (builtins: t, new_builtins: t): t => {
+  List.iter(
+    ((new_builtin, _)) =>
+      if (VarMap.contains(builtins, new_builtin)) {
+        raise(BuiltinAlreadyDefined(new_builtin));
+      },
+    new_builtins,
+  );
+  VarMap.concat(builtins, new_builtins);
+};
+
 let const = (name: Var.t, typ: Typ.term, v: DHExp.t, builtins: t): t =>
-  VarMap.extend(builtins, (name, Const(typ |> Typ.fresh, v)));
+  extend(builtins, (name, Const(typ |> Typ.fresh, v)));
 let fn =
     (
       name: Var.t,
@@ -33,10 +55,7 @@ let fn =
       builtins: t,
     )
     : t =>
-  VarMap.extend(
-    builtins,
-    (name, Fn(t1 |> Typ.fresh, t2 |> Typ.fresh, impl)),
-  );
+  extend(builtins, (name, Fn(t1 |> Typ.fresh, t2 |> Typ.fresh, impl)));
 
 let (let-unbox) = ((request, v), f) =>
   switch (Unboxing.unbox(request, v)) {
@@ -359,14 +378,14 @@ module Pervasives = {
            string_split("string_split"),
          )
     )
-    |> VarMap.concat(
+    |> concat(
          _,
          List.map(
            ((n, b)) => (n, of_atom_builtin(b)),
            Atom.converter_builtins,
          ),
        )
-    |> VarMap.concat(
+    |> concat(
          _,
          List.map(
            ((n, b)) => (n, of_atom_builtin(b)),
