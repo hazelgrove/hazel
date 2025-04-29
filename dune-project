@@ -47,7 +47,7 @@
   ocamlformat
   (junit_alcotest
    (and
-    (>= 2.1.0)
+    (>= 2.2.0)
     :with-test))
   ocaml-lsp-server
   ocaml-index

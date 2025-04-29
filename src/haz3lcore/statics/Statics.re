@@ -389,6 +389,9 @@ and uexp_to_info_map =
       let ty_out = Unknown(Internal) |> Typ.temp;
       let (e, m) = go(~ana=ty_in, e, m);
       add(~self=Just(ty_out), ~co_ctx=e.co_ctx, m);
+    | UnOp(Meta(Unquote), e) =>
+      let (e, m) = go(~ana=syn, e, m);
+      add(~self=BadOperator("Unquote not in filter"), ~co_ctx=e.co_ctx, m);
     | UnOp(op, e) =>
       let op = Operators.replace_un_op(op, ctx.use_mode); // Replace op if necessary due to `use`
       let op_semantics = Operators.semantics_of_un_op(op);

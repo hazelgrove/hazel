@@ -153,6 +153,45 @@ module FTemp =
     type t = IdTagged.IdTag.t;
     let default_value = (): IdTagged.IdTag.t => {ids: [Id.invalid]};
   });
+
+let qcheck_statics_does_not_crash =
+  QCheck.Test.make(
+    ~name="Statics does not crash",
+    ~count=10000,
+    QCheck_Util.arb_exp(~minimal_idents=true, 50),
+    exp => {
+    switch (statics(exp)) {
+    | _m => true
+    | exception Stack_overflow => true // TODO https://github.com/hazelgrove/hazel/issues/1622
+    | exception (Failure(f) as e) =>
+      switch (f) {
+      | "Type join of ap" => true // TODO https://github.com/hazelgrove/hazel/issues/1459
+      | "normalize exceeded 1000 recursive calls" => true // TODO https://github.com/hazelgrove/hazel/issues/1622?issue=hazelgrove%7Chazel%7C1623
+      | "weak_head_normalize exceeded 1000 recursive calls" => true // TODO https://github.com/hazelgrove/hazel/issues/1621
+      | "Recursion limit exceeded in all_ctrs_of_typ" => true // TODO https://github.com/hazelgrove/hazel/issues/1624
+      | _
+          when
+            String.starts_with(
+              ~prefix="all_ctrs_of_type called with a non-normalized type:",
+              f,
+            ) =>
+        true // https://github.com/hazelgrove/hazel/issues/1626
+      | _ => raise(e)
+      }
+    }
+  });
+
+let skip_known_bug = (message: string, expression: string) =>
+  test_case("Known Bug: " ++ message, `Quick, () => {
+    [@warning "-21"]
+    {
+      let uexp = parse_exp(expression);
+      Alcotest.skip();
+      let _ = statics(uexp);
+      ();
+    }
+  });
+
 let tests = (
   "Statics",
   FTemp.(
@@ -1015,6 +1054,23 @@ end
         |},
         Some(int()),
       ),
+      skip_known_bug(
+        "Typ.weak_head_normalize infinite recursion", // https://github.com/hazelgrove/hazel/issues/1621
+        "type y = y in type ? = y in ?",
+      ),
+      skip_known_bug(
+        "Coverage.all_ctrs_of_typ infinite recursion", // https://github.com/hazelgrove/hazel/issues/1624
+        "fun ((()): ((rec x -> (rec y -> x)))) -> []",
+      ),
+      skip_known_bug(
+        "all_ctrs_of_type called with a non-normalized type", // https://github.com/hazelgrove/hazel/issues/1626
+        {|fun (?: (Float((+ A(Bool))))) -> ""|},
+      ),
+      skip_known_bug(
+        "Type join of ap", // https://github.com/hazelgrove/hazel/issues/1459
+        "type x = Int(Float) in let y : x =  1",
+      ),
+      QCheck_alcotest.to_alcotest(qcheck_statics_does_not_crash),
     ]
   ),
 );

@@ -615,6 +615,17 @@ module PlainTests = {
     );
   };
 
+  let skip_known_bug = (message: string, expression: string) =>
+    test_case("Known Bug: " ++ message, `Quick, () => {
+      [@warning "-21"]
+      {
+        let uexp = parse_exp(expression);
+        let statics = mk_map(uexp);
+        Alcotest.skip();
+        let _ = Elaborator.elaborate(statics, uexp);
+        ();
+      }
+    });
   let tests = [
     test_case("Single integer", `Quick, single_integer),
     test_case("Empty hole", `Quick, empty_hole),
@@ -966,6 +977,51 @@ in 1|},
         ),
       )
     }),
+    skip_known_bug(
+      "Nontermination in typ normalization",
+      {|type x = x in (([] @ false) @ [] @< Float >) @< x([(())]) > @ case test 0.000006 end:: "f":: ? | B => (())| x => (())| (()) => ?| [] => ?| ? => 12 end|},
+    ),
+    skip_known_bug(
+      "Invalid typ ap", // TODO https://github.com/hazelgrove/hazel/issues/1625
+      "let [(A: (Bool(Bool))), (_: (String))] = 0 in ()",
+    ),
+    skip_known_bug(
+      "Type join of ap", // TODO https://github.com/hazelgrove/hazel/issues/1625
+      "type x = + B((forall x -> ?)(?)) in case a | B => 0| B => 0 end",
+    ),
+    QCheck_alcotest.to_alcotest(
+      QCheck.Test.make(
+        ~name="Elaboration does not crash",
+        ~count=10000,
+        QCheck_Util.arb_exp(~minimal_idents=true, 50),
+        exp => {
+        switch (mk_map(exp)) {
+        | statics =>
+          switch (Elaborator.elaborate(statics, exp)) {
+          | _ => true
+          | exception (Failure(msg) as e) =>
+            switch (msg) {
+            | _
+                when
+                  List.exists(
+                    (==)(msg),
+                    [
+                      "type application in dynamics", // https://github.com/hazelgrove/hazel/issues/1459?issue=hazelgrove%7Chazel%7C1625
+                      "normalize exceeded 1000 recursive calls", // https://github.com/hazelgrove/hazel/issues/1627
+                      "Type join of ap" // https://github.com/hazelgrove/hazel/issues/1459?issue=hazelgrove%7Chazel%7C1625
+                    ],
+                  ) =>
+              print_endline("Known failure: " ++ Printexc.to_string(e));
+              true;
+            | _ => raise(e)
+            }
+          }
+        | exception e =>
+          print_endline("Skipping statics: " ++ Printexc.to_string(e));
+          true;
+        }
+      }),
+    ),
   ];
 };
 module MenhirElaborationTests = {
