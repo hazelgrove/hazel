@@ -4,11 +4,7 @@ let qcheck_map_annotation_test =
   QCheck.Test.make(
     ~name="Map annotation to something and back",
     ~count=100,
-    QCheck.make(
-      ~print=Haz3lmenhir.AST.show_exp,
-      ~shrink=Haz3lmenhir.AST.shrink_exp,
-      Haz3lmenhir.AST.gen_exp_sized(7),
-    ),
+    Haz3lmenhir.AST.arb_exp(7),
     exp => {
       let indicated_exp = Haz3lmenhir.Conversion.Exp.of_menhir_ast(exp);
       let core_exp =
