@@ -16,38 +16,45 @@ module Applicable = {
   /* Determines what term to target for projection. This logic
    * should be kept in sync with the projector add/remove logic
    * in ProjectorPerform */
-  let target_term = (cursor: Cursor.cursor(Editors.Update.t)) =>
-    // TODO[Matt|Andrew] : Make the sort more general
+  let target_seg =
+      (cursor: Cursor.cursor(Editors.Update.t)): option(Segment.t) =>
     switch (cursor.selection) {
-    | None
+    | None => None
     | Some([]) =>
       switch (cursor.indicated_piece) {
-      | Some(Projector(p)) => Some(Projectors.make_term(p.model, Exp))
-      | _ =>
-        let* info = cursor.info;
-        Info.any_of(info);
+      | Some(Tile(_) as p)
+      | Some(Projector(_) as p) => Some([p])
+      | Some(Grout(_))
+      | Some(Secondary(_))
+      | None => None
       }
-    | Some([Projector(p)]) => Some(Projectors.make_term(p.model, Exp))
-    | Some(seg) =>
-      Some(
-        Editor.make_term(
-          Exp,
-          seg |> Zipper.unzip |> Editor.Model.mk(~sort=Exp),
-        ),
-      )
+    | Some(seg) => Some(seg)
+    };
+
+  // TODO(matt|andrew): make this work more generally for different sorts
+  let target_term = seg =>
+    seg
+    |> Zipper.unzip
+    |> Editor.Model.mk(~sort=Exp)
+    |> Editor.make_term(Exp);
+
+  let target_ed = (seg: Segment.t, ()): option('a) =>
+    switch (seg) {
+    | []
+    | [Projector(_)] => None
+    | s => Some(s |> Zipper.unzip |> Editor.Model.mk(~sort=Exp))
     };
 
   /* Is a projector of `kind` applicable to the target term? */
   let is_applicable =
       (cursor: Cursor.cursor(Editors.Update.t), kind: ProjectorCore.Kind.t)
       : option(ProjectorCore.Kind.t) => {
-    let* term = target_term(cursor);
-    let+ _ =
-      Projectors.init(kind, term, () =>
-        cursor.selection
-        |> Option.map(Zipper.unzip)
-        |> Option.map(Editor.Model.mk(~sort=Exp))
-      );
+    let _ = print_endline("kind: " ++ ProjectorCore.Kind.show(kind));
+
+    let* target_seg = target_seg(cursor);
+    let term = target_term(target_seg);
+    let ed = target_ed(target_seg);
+    let+ _ = Projectors.init(kind, term, ed);
     kind;
   };
 
