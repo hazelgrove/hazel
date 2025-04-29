@@ -108,7 +108,7 @@ module Pervasives = {
 
     let abs = d => {
       let-unbox n = (Atom(Int), d);
-      Some(int(Bigint.abs(n)));
+      Some(big_int(Bigint.abs(n)));
     };
 
     let float_op = (fn, d) => {
@@ -142,7 +142,7 @@ module Pervasives = {
             ),
           );
         } else {
-          Some(int(Bigint.(%)(m, n)));
+          Some(big_int(Bigint.(%)(m, n)));
         };
       });
 
@@ -207,14 +207,14 @@ module Pervasives = {
 
     let string_length = d => {
       let-unbox s = (Atom(String), d);
-      Some(int(String.length(s) |> Bigint.of_int));
+      Some(int(String.length(s)));
     };
 
     let string_compare =
       binary((d1, d2) => {
         let-unbox s1 = (Atom(String), d1);
         let-unbox s2 = (Atom(String), d2);
-        Some(int(String.compare(s1, s2) |> Bigint.of_int));
+        Some(int(String.compare(s1, s2)));
       });
 
     let string_trim = d => {
