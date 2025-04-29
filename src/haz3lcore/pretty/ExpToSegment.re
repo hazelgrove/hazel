@@ -722,6 +722,8 @@ let rec drv_exp_to_pretty =
       },
       ~sort,
     );
+  let try_newline = () =>
+    settings.inline ? [] : [Secondary(Secondary.mk_newline(Id.mk()))];
   let id = syntax |> Drv.Exp.rep_id;
   switch (syntax |> Drv.Exp.term_of) {
   | Hole(h) => drv_type_hole_to_pretty(~settings, h)
@@ -905,10 +907,13 @@ let rec drv_exp_to_pretty =
         id,
         [
           e
+          @ try_newline()
           @ [mk_form(Drv(Rule), id, [x])]
           @ e1
+          @ try_newline()
           @ [mk_form(Drv(Rule), id, [y])]
-          @ e2,
+          @ e2
+          @ try_newline(),
         ],
       ),
     ];

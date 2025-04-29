@@ -9,72 +9,17 @@ let highlight = (msg: list(Node.t), id: Id.t, mapping: ColorSteps.t): Node.t => 
   Node.span(~attrs, msg);
 };
 
-// let highlights =
-//   colorings
-//   |> List.map(((syntactic_form_id: Id.t, code_id: Id.t)) => {
-//        let (color, _) = ColorSteps.get_color(code_id, color_map);
-//        (syntactic_form_id, color);
-//      })
-//   |> List.to_seq
-//   |> Id.Map.of_seq
-//   |> Option.some;
-// let editor = Editor.Model.mk(doc.syntactic_form |> Zipper.unzip, ~root=Exp);
-// let expander_deco =
-//   expander_deco(~globals, ~docs, ~inject, ~options, ~group, ~doc, editor);
-// let statics = CachedStatics.empty;
-// let highlight_deco = {
-//   module Deco =
-//     Deco.Deco({
-//       let editor = editor;
-//       let globals = {...globals, color_highlights: highlights};
-//       let statics = statics;
-//     });
-//   [Deco.color_highlights()];
-// };
-// let syntactic_form_view =
-//   CodeWithStatics.View.view(
-//     ~globals,
-//     ~overlays=highlight_deco @ [expander_deco],
-//     ~sort,
-//     {editor, statics},
-//   );
-
-// let rec show = (p: int, prop: t, ~color_map: ColorSteps.t): list(Node.t) =>
-//   prop
-//   |> repr(~sp=Unicode.nbsp, p)
-//   |> Aba.join(x => [Node.text(x)], show(~color_map, precedence(prop)))
-//   |> List.concat
-//   // |> (
-//   //   switch (IdTagged.term_of(prop)) {
-//   //   // Note(zhiyao): not good to use the string representation of the
-//   //   | Atom(s) when s.[0] == 'n' => (x => [Node.u(x)])
-//   //   | _ => Fun.id
-//   //   }
-//   // )
-//   |> (
-//     switch (
-//       Haz3lcore.Id.Map.find_opt(IdTagged.rep_id(prop), fst(color_map))
-//     ) {
-//     | None => Fun.id
-//     | Some(_) => (x => [highlight(x, IdTagged.rep_id(prop), color_map)])
-//     }
-//   );
-
 let show =
     (syntax: Drv.Exp.t, ~color_map: ColorSteps.t, ~globals: Globals.t): Node.t => {
   let editor =
     Editor.Model.mk(
       syntax
       |> ExpToSegment.drv_exp_to_pretty(
-           ~settings={
-             inline: true,
-             fold_case_clauses: false,
-             fold_fn_bodies: false,
-             hide_fixpoints: false,
-             fold_cast_types: false,
-             show_filters: false,
-             show_unknown_as_hole: false,
-           },
+           ~settings=
+             ExpToSegment.Settings.of_core(
+               ~inline=true,
+               globals.settings.core,
+             ),
            ~sort=Jdmt,
          )
       |> Zipper.unzip,

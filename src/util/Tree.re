@@ -58,6 +58,16 @@ let rec farthest = (Node(_, c)) =>
       Children(i, pos |> farthest(List.nth(c, i)));
     };
 
+let rec farthest_cond = (f, Node(_, c)) =>
+  fun
+  | _ when c == [] => Value
+  | Value => Value
+  | Children(i, pos) => {
+      let i = min(i, List.length(c) - 1);
+      let Node(v, _) as p = List.nth(c, i);
+      f(v) ? Children(i, pos |> farthest_cond(f, p)) : Value;
+    };
+
 let value = (Node(v, _)) => v;
 
 let children = (Node(_, c)) => c;

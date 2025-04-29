@@ -501,7 +501,6 @@ module View = {
         ~selection: option(Selection.t),
         model: Model.t,
       ) => {
-
     let eds = model.editors;
 
     let {prelude, setup, trees}: DerivationTree.stitched('a) = model.cells;

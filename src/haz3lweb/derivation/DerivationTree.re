@@ -274,7 +274,14 @@ let farthest_pos = (pos: pos, editors: p('a)): pos =>
   | Trees(i, pos) =>
     let i = min(i, List.length(editors.trees) - 1);
     let tree = List.nth(editors.trees, i);
-    let farthest = Tree.farthest(tree, pos);
+    let farthest =
+      Tree.farthest_cond(
+        fun
+        | Abbr.Abbr(_) => false
+        | Just(_) => true,
+        tree,
+        pos,
+      );
     Trees(i, farthest);
   };
 
