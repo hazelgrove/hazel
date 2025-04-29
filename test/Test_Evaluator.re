@@ -393,6 +393,12 @@ in fn("hello")|},
     test_case("Negative integer literal", `Quick, () =>
       evaluation_test("-8", int(-8), un_op(Int(Minus), int(8)))
     ),
+    test_case("String_concat builtin", `Quick, () => {
+      parse_and_evaluate_test(
+        {|"hazel hello world"|},
+        {|string_join(" ", ["hazel", "hello", "world"])|},
+      )
+    }),
     test_case("Simple probe", `Quick, () => {
       PGrammar.(
         probe_test(
