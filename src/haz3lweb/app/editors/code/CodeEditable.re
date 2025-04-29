@@ -26,8 +26,8 @@ module Update = {
       Editor.Update.update(
         ~settings=settings.core,
         ~sort=Exp,
-        action,
         model.statics,
+        action,
         model.editor,
       )
       |> (
@@ -77,7 +77,7 @@ module Update = {
        * but can't immediately put down, move to next position of
        * interest, which is closet of: nearest position where can
        * put down, farthest position where can put down, next hole */
-      let z = model.editor |> Editor.get_z;
+      let z = model.editor |> Editor.Model.get_z;
       let action: Action.t =
         Selection.is_buffer(z.selection)
           ? Buffer(Accept)
@@ -141,14 +141,14 @@ module Selection = {
 
   let handle_key_event = (~selection, model: Model.t, key) => {
     //TODO(andrew): not sure handoff approach makes sense
-    switch (Editor.key_handoff(model.editor, key)) {
+    switch (Editor.Update.key_handoff(model.editor, key)) {
     | Some(action) => Some(Update.Perform(Project(action)))
     | None => handle_key_event(~selection, model, key)
     };
   };
 
   let jump_to_tile = (tile, model: Model.t) => {
-    Editor.jump_to_tile_action(tile, model.editor)
+    Editor.Update.jump_to_tile_action(tile, model.editor)
     |> Option.map(x => Update.Perform(x));
   };
 };
@@ -199,7 +199,7 @@ module View = {
           let globals = globals;
           let statics = model.statics;
         });
-      Deco.editor(model.editor |> Editor.get_z, selected);
+      Deco.editor(model.editor |> Editor.Model.get_z, selected);
     };
     let projectors =
       Editor.View.all_projectors(

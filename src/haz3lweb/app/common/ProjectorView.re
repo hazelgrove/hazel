@@ -214,7 +214,8 @@ let mk_view =
       ~parent: ProjectorBase.external_action => Ui_effect.t(unit),
       ~set_model: ProjectorCore.model(ed) => Ui_effect.t(unit),
       ~ed_str,
-      ~view_any,
+      ~view_ed,
+      ~mk_ed,
       {p, info, _}: Model.projector_data(ProjectorCore.model(ed)),
     )
     : View.t => {
@@ -222,7 +223,7 @@ let mk_view =
   let methods = ProjectorInit.to_module(kind_gadt);
   let local = a =>
     set_model(ProjectorCore.V(kind_gadt, methods.update(model, info, a)));
-  methods.view(~ed_str, ~view_any, model, info, ~local, ~parent);
+  methods.view(~ed_str, ~view_ed, ~mk_ed, model, info, ~local, ~parent);
 };
 
 /* Extract and collate different layers of the resulting view
@@ -231,7 +232,8 @@ let split_views =
     (
       type ed,
       ~ed_str,
-      ~view_any,
+      ~view_ed,
+      ~mk_ed,
       ~parent: ProjectorBase.external_action => Ui_effect.t(unit),
       ~set_model: ProjectorCore.model(ed) => Ui_effect.t(unit),
       ~make_active,
@@ -243,7 +245,7 @@ let split_views =
   let wrapper =
     view_wrapper(~make_active, ~font_metrics, ~measurement, ~status);
   let views =
-    mk_view(~parent, ~set_model, ~ed_str, ~view_any, projector_data);
+    mk_view(~parent, ~set_model, ~ed_str, ~view_ed, ~mk_ed, projector_data);
   let line_view = {
     let offside_view =
       views.offside

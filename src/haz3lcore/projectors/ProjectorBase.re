@@ -20,22 +20,6 @@ type external_action =
   | Remove /* Remove projector entirely */
   | Escape(Util.Direction.t); /* Pass focus to parent editor */
 
-/* Syntax utility functions/values for projector use,
- * provided here to resolve cyclic dependency issues */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type utility('p) = {
-  /* Convert a segment to a term */
-  seg_to_term: Base.segment('p) => option(Term.Any.t),
-  /* Convert a term to a segment */
-  term_to_seg: Any.t => Base.segment('p),
-  /* Lifts term->term functions to syntax->syntax. This will
-   * proactively attempt to parenthesize resulting non-single
-   * piece terms. As such, sorts that do not have parentheses
-   * (currently all degenerate cases) will throw an error */
-  lift_syntax:
-    (Any.t => Any.t, Base.segment('p)) => option(Base.segment('p)),
-};
-
 module Focusable = {
   /* Can the projector take focus, in the sense of handling
    * keyboard input? If so, how can it take focus? */
@@ -109,7 +93,8 @@ type methods('model, 'action, 'ed) = {
   view:
     (
       ~ed_str: 'ed => string,
-      ~view_any: Any.t => Node.t,
+      ~view_ed: (~sort: Sort.t, 'ed) => Node.t,
+      ~mk_ed: Any.t => 'ed,
       'model,
       info,
       ~local: 'action => Ui_effect.t(unit),

@@ -10,7 +10,7 @@ let measured_of = seg => Measured.of_segment(seg, shape_map); /* Assume this doe
 let text_view = (font_metrics, seg: Segment.t): list(Node.t) => {
   module Text =
     Code.Text({
-      type p = Projectors.model;
+      type p = Projector.Model.t;
       let map = measured_of(seg);
       let secondary_icons = false;
       let shape_map = shape_map;

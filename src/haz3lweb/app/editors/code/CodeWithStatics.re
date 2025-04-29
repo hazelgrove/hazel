@@ -11,7 +11,7 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     // Updated:
-    editor: Editor.t,
+    editor: Editor.Model.t,
     statics: CachedStatics.t,
     dynamics: Dynamics.Map.t,
   };
@@ -23,7 +23,7 @@ module Model = {
   };
 
   let mk_from_exp = (~settings: CoreSettings.t, ~inline=false, term: Exp.t) => {
-    Editor.Model.mk_from_exp(~settings, ~inline, term) |> mk;
+    Editor.Model.mk(~settings, ~inline, Exp(term)) |> mk;
   };
 
   let get_statics = (model: t) => model.statics;
@@ -31,14 +31,15 @@ module Model = {
   let get_dynamics = (model: t) => model.dynamics;
 
   let get_cursor_info_editor =
-      (editor: Editor.t, statics: CachedStatics.t): Cursor.cursor(Action.t) => {
-    info: Indicated.ci_of(editor |> Editor.get_z, statics.info_map),
+      (editor: Editor.Model.t, statics: CachedStatics.t)
+      : Cursor.cursor(Action.t) => {
+    info: Indicated.ci_of(editor |> Editor.Model.get_z, statics.info_map),
     indicated_piece:
-      Indicated.piece''(editor |> Editor.get_z)
+      Indicated.piece''(editor |> Editor.Model.get_z)
       |> Option.map(((p, _, _)) => p),
     selected_text:
-      Some(() => Printer.to_string_selection(editor |> Editor.get_z)),
-    selection: Some((editor |> Editor.get_z).selection.content),
+      Some(() => Printer.to_string_selection(editor |> Editor.Model.get_z)),
+    selection: Some((editor |> Editor.Model.get_z).selection.content),
     editor: Some(editor),
     editor_read_only: true,
     editor_action: x => Some(x),
@@ -52,11 +53,11 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = PersistentZipper.t;
   let persist = (model: t) =>
-    model.editor |> Editor.get_z |> PersistentZipper.persist;
+    model.editor |> Editor.Model.get_z |> PersistentZipper.persist;
   let to_string = (model: t) =>
-    model.editor |> Editor.get_z |> PersistentZipper.to_string;
+    model.editor |> Editor.Model.get_z |> PersistentZipper.to_string;
   let unpersist = p =>
-    p |> PersistentZipper.unpersist |> Editor.Model.mk(~sort=Exp) |> mk;
+    p |> PersistentZipper.unpersist |> Editor.Model.of_zipper(~sort=Exp) |> mk;
 };
 
 module Update = {
@@ -80,7 +81,7 @@ module Update = {
             ~settings,
             ~stitch,
             ~is_dynamic_term,
-            editor |> Editor.get_z,
+            editor |> Editor.Model.get_z,
           )
         : statics;
     let editor =

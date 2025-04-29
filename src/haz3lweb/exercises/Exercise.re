@@ -121,7 +121,7 @@ let map = (p: p('a), f: 'a => 'b, f_hidden: 'a => 'b): p('b) => {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type eds = p(Editor.t);
+type eds = p(Editor.Model.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type state = {eds};
@@ -398,7 +398,7 @@ let visible_in = (pos, ~instructor_mode) => {
 module TermItem = {
   type t = {
     term: Exp.t,
-    editor: Editor.t,
+    editor: Editor.Model.t,
   };
 };
 
@@ -495,18 +495,18 @@ let wrap_filter = (act: FilterAction.action, term: Exp.t): Exp.t => {
   },
 };
 
-let wrap = (term, editor: Editor.t): TermItem.t => {
+let wrap = (term, editor: Editor.Model.t): TermItem.t => {
   term,
   editor,
 };
 
-let term_of = (editor: Editor.t): Exp.t =>
-  switch (Editor.make_term(Exp, editor)) {
+let term_of = (editor: Editor.Model.t): Exp.t =>
+  switch (Editor.Model.make_term(Exp, editor)) {
   | Exp(t) => t
   | _ => failwith("Exercise: term_of: expected expression")
   };
 
-let stitch3 = (ed1: Editor.t, ed2: Editor.t, ed3: Editor.t) =>
+let stitch3 = (ed1: Editor.Model.t, ed2: Editor.Model.t, ed3: Editor.Model.t) =>
   EditorUtil.append_exp(
     EditorUtil.append_exp(term_of(ed1), term_of(ed2)),
     term_of(ed3),
@@ -588,8 +588,10 @@ let pos_of_key = (key: string): pos =>
 
 // // Module Export
 
-let editor_pp = (fmt, editor: Editor.t) => {
-  let serialization = Editor.make_z_serialization(editor);
+let editor_pp = (fmt, editor: Editor.Model.t) => {
+  let serialization =
+    //TODO(andrew): actual serialization fn for projectors
+    Editor.Model.get_z(editor) |> PersistentZipper.to_string;
   // let string_literal = "\"" ++ String.escaped(serialization) ++ "\"";
   Format.pp_print_string(fmt, serialization);
 };
@@ -605,8 +607,11 @@ let export_module = (module_name, {eds, _}: state) => {
   data;
 };
 
-let transitionary_editor_pp = (fmt, editor: Editor.t) => {
-  let serialization = Editor.make_z_serialization(editor);
+let transitionary_editor_pp = (fmt, editor: Editor.Model.t) => {
+  let serialization =
+    //TODO(andrew): actual serialization fn for projectors
+    Editor.Model.get_z(editor) |> PersistentZipper.to_string;
+
   Format.pp_print_string(fmt, "\"" ++ String.escaped(serialization) ++ "\"");
 };
 

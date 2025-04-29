@@ -221,7 +221,7 @@ module Deco =
        (
          M: {
            let globals: Globals.t;
-           let editor: Editor.t;
+           let editor: Editor.Model.t;
            let statics: CachedStatics.t;
          },
        ) => {
@@ -312,7 +312,7 @@ module Deco =
               tips: p |> ProjectorBase.shapes |> ShardDec.tips_of_shapes,
             },
             [
-              p.model |> Projectors.sort_of_model |> Sort.to_string,
+              p.model |> Projector.Model.get_sort |> Sort.to_string,
               "caret",
               "indicated",
             ],

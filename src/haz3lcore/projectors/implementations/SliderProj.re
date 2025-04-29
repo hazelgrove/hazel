@@ -25,7 +25,16 @@ let dynamics = false;
 let placeholder = (~ed_str as _, _, _) => ProjectorShape.inline(10);
 let update = (model, _, _) => model;
 
-let view = (~ed_str as _, ~view_any as _, model, _info, ~local, ~parent as _) =>
+let view =
+    (
+      ~ed_str as _,
+      ~view_ed as _,
+      ~mk_ed as _,
+      model,
+      _info,
+      ~local,
+      ~parent as _,
+    ) =>
   View.mk(
     Util.Web.range(
       ~attrs=[Attr.on_input((_, v) => local(Set(Bigint.of_string(v))))],

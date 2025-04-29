@@ -35,14 +35,14 @@ module Applicable = {
   let target_term = seg =>
     seg
     |> Zipper.unzip
-    |> Editor.Model.mk(~sort=Exp)
-    |> Editor.make_term(Exp);
+    |> Editor.Model.of_zipper(~sort=Exp)
+    |> Editor.Model.make_term(Exp);
 
   let target_ed = (seg: Segment.t, ()): option('a) =>
     switch (seg) {
     | []
     | [Projector(_)] => None
-    | s => Some(s |> Zipper.unzip |> Editor.Model.mk(~sort=Exp))
+    | s => Some(s |> Zipper.unzip |> Editor.Model.of_zipper(~sort=Exp))
     };
 
   /* Is a projector of `kind` applicable to the target term? */
@@ -54,17 +54,17 @@ module Applicable = {
     let* target_seg = target_seg(cursor);
     let term = target_term(target_seg);
     let ed = target_ed(target_seg);
-    let+ _ = Projectors.init(kind, term, ed);
+    let+ _ = Projector.Model.mk(kind, term, ed);
     kind;
   };
 
   /* If the current indicated term is a projector, return its kind */
   let indicated_kind =
-      (editor: option(Editor.t)): option(ProjectorCore.Kind.t) => {
+      (editor: option(Editor.Model.t)): option(ProjectorCore.Kind.t) => {
     let* editor = editor;
-    let* (piece, _, _) = Indicated.for_index(editor |> Editor.get_z);
+    let* (piece, _, _) = Indicated.for_index(editor |> Editor.Model.get_z);
     switch (piece) {
-    | Projector(p) => Some(Projectors.kind_of_model(p.model))
+    | Projector(p) => Some(Projector.Model.get_kind(p.model))
     | _ => None
     };
   };

@@ -12,9 +12,13 @@ let print =
   let map = statics.info_map;
   let print = print_endline;
   switch (key) {
-  | "F1" => editor |> Editor.get_z |> Zipper.show |> print
+  | "F1" => editor |> Editor.Model.get_z |> Zipper.show |> print
   | "F2" =>
-    editor |> Editor.get_z |> Zipper.unselect_and_zip |> Segment.show |> print
+    editor
+    |> Editor.Model.get_z
+    |> Zipper.unselect_and_zip
+    |> Segment.show
+    |> print
   | "F3" => term |> Exp.show |> print
   | "F4" => map |> Statics.Map.show |> print
   | "F5" when settings.core.dynamics =>
@@ -26,7 +30,7 @@ let print =
     |> print;
   | "F5" => print("Dynamics disabled, cannot show evaluation.")
   | "F6" =>
-    let index = Indicated.index(editor |> Editor.get_z);
+    let index = Indicated.index(editor |> Editor.Model.get_z);
     switch (index) {
     | Some(index) =>
       print("id:" ++ Id.to_string(index));

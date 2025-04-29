@@ -44,3 +44,8 @@ let make_term = (~term_of_ed, V(k, m): ProjectorCore.model('ed)) => {
   let methods = to_module(k);
   methods.mk_term(~term_of_ed, _, m);
 };
+
+let focusable_of_model = (V(k, _): ProjectorCore.model('ed)) => {
+  let methods = to_module(k);
+  methods.focusable;
+};

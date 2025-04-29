@@ -14,7 +14,7 @@ module Model = {
        for two reasons:
           1. There are two synced cells that have the same internal `editor` model
           2. The editors need to be `stitched` together before any cell calculations can be done */
-    editors: Exercise.p(Editor.t),
+    editors: Exercise.p(Editor.Model.t),
     cells: Exercise.stitched(CellEditor.Model.t),
   };
 
@@ -22,8 +22,8 @@ module Model = {
     let editors =
       Exercise.map(
         spec,
-        Editor.Model.mk(~sort=Exp),
-        Editor.Model.mk(~sort=Exp),
+        Editor.Model.of_zipper(~sort=Exp),
+        Editor.Model.of_zipper(~sort=Exp),
       );
     let term_item_to_cell = (item: Exercise.TermItem.t): CellEditor.Model.t => {
       CellEditor.Model.mk(item.editor);
@@ -46,8 +46,8 @@ module Model = {
     |> List.filter(((pos, _)) =>
          Exercise.visible_in(pos, ~instructor_mode)
        )
-    |> List.map(((pos, editor: Editor.t)) =>
-         (pos, editor |> Editor.get_z |> PersistentZipper.persist)
+    |> List.map(((pos, editor: Editor.Model.t)) =>
+         (pos, editor |> Editor.Model.get_z |> PersistentZipper.persist)
        );
   };
 
@@ -128,7 +128,7 @@ module Update = {
     | Editor(_, ResultAction(_)) => Updated.return_quiet(model) // TODO: I think this case should never happen
     | ResetEditor(pos) =>
       let spec = Exercise.main_editor_of_state(~selection=pos, model.spec);
-      let new_editor = Editor.Model.mk(~sort=Exp, spec);
+      let new_editor = Editor.Model.of_zipper(~sort=Exp, spec);
       {
         ...model,
         editors:
@@ -139,8 +139,8 @@ module Update = {
       let new_editors =
         Exercise.map(
           model.spec,
-          Editor.Model.mk(~sort=Exp),
-          Editor.Model.mk(~sort=Exp),
+          Editor.Model.of_zipper(~sort=Exp),
+          Editor.Model.of_zipper(~sort=Exp),
         );
       {
         ...model,
@@ -264,7 +264,10 @@ module Update = {
           ),
         hidden_bugs:
           List.map2(
-            (cell: CellEditor.Model.t, editor: Exercise.wrong_impl(Editor.t)):
+            (
+              cell: CellEditor.Model.t,
+              editor: Exercise.wrong_impl(Editor.Model.t),
+            ):
               Exercise.wrong_impl('a) =>
               {
                 impl:
@@ -320,7 +323,7 @@ module Selection = {
   let jump_to_tile =
       (~settings: Settings.t, tile, model: Model.t): option((Update.t, t)) => {
     Exercise.positioned_editors(model.editors)
-    |> List.find_opt(((p, e: Editor.t)) =>
+    |> List.find_opt(((p, e: Editor.Model.t)) =>
          TileMap.find_opt(tile, e |> Editor.get_tiles) != None
          && Exercise.visible_in(p, ~instructor_mode=settings.instructor_mode)
        )
@@ -443,12 +446,12 @@ module View = {
         {
           let exp_ctx_view = {
             let correct_impl_trailing_hole_ctx =
-              Haz3lcore.Editor.trailing_hole_ctx(
+              Haz3lcore.Editor.Model.get_trailing_hole_ctx(
                 eds.correct_impl,
                 instructor.editor.statics.info_map,
               );
             let prelude_trailing_hole_ctx =
-              Haz3lcore.Editor.trailing_hole_ctx(
+              Haz3lcore.Editor.Model.get_trailing_hole_ctx(
                 eds.prelude,
                 prelude.editor.statics.info_map,
               );

@@ -372,7 +372,7 @@ let example_view =
                   {
                     term
                     |> Zipper.unzip
-                    |> Editor.Model.mk(~sort=Exp)
+                    |> Editor.Model.of_zipper(~sort=Exp)
                     |> CellEditor.Model.mk
                     |> CellEditor.Update.calculate(
                          ~settings=globals.settings.core,
@@ -489,7 +489,7 @@ let get_doc =
         |> Id.Map.of_seq
         |> Option.some;
       let editor =
-        Editor.Model.mk(~sort=Exp, doc.syntactic_form |> Zipper.unzip);
+        Editor.Model.of_zipper(~sort=Exp, doc.syntactic_form |> Zipper.unzip);
       let expander_deco =
         expander_deco(
           ~globals,

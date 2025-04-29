@@ -93,7 +93,8 @@ let placeholder = (~ed_str, (_, ed), _info) =>
   ProjectorShape.inline(3 + String.length(ed_str(ed)));
 let icon = div(~attrs=[Attr.classes(["icon"])], []);
 
-let view = (~ed_str, ~view_any, model, info, ~local, ~parent as _) =>
+let view = (~ed_str, ~view_ed, ~mk_ed, model, info, ~local, ~parent as _) => {
+  let view_any = x => x |> mk_ed |> view_ed(~sort=Any.sort(x));
   View.{
     inline:
       div(
@@ -115,6 +116,7 @@ let view = (~ed_str, ~view_any, model, info, ~local, ~parent as _) =>
       ),
     overlay: None,
   };
+};
 
 let mk_term = (~term_of_ed, sort, (_, ed)) => {
   term_of_ed(sort, ed);

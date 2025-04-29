@@ -551,7 +551,7 @@ module View = {
     | EvalResults when globals.settings.core.dynamics =>
       let result =
         footer(~globals, ~signal, ~inject, ~result=model, ~selected, ~locked);
-      let test_overlay = (editor: Haz3lcore.Editor.t) =>
+      let test_overlay = (editor: Haz3lcore.Editor.Model.t) =>
         switch (Model.test_results(model)) {
         | Some(result) => [
             test_result_layer(
@@ -596,7 +596,7 @@ module View = {
     | Custom(node) => (
         [node],
         (
-          (editor: Haz3lcore.Editor.t) =>
+          (editor: Haz3lcore.Editor.Model.t) =>
             switch (Model.test_results(model)) {
             | Some(result) => [
                 test_result_layer(
@@ -613,7 +613,7 @@ module View = {
     // Just showing test results (school mode)
     | TestResults =>
       let test_results = Model.test_results(model);
-      let test_overlay = (editor: Haz3lcore.Editor.t) =>
+      let test_overlay = (editor: Haz3lcore.Editor.Model.t) =>
         switch (Model.test_results(model)) {
         | Some(result) => [
             test_result_layer(

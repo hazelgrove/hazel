@@ -26,7 +26,10 @@ module Model = {
   let persist = model => model.editor |> CodeEditable.Model.persist;
   let to_string = model => model.editor |> CodeEditable.Model.to_string;
   let unpersist = (~settings as _, pz) =>
-    pz |> PersistentZipper.unpersist |> Editor.Model.mk(~sort=Exp) |> mk;
+    pz
+    |> PersistentZipper.unpersist
+    |> Editor.Model.of_zipper(~sort=Exp)
+    |> mk;
 };
 
 module Update = {

@@ -187,14 +187,14 @@ module MutationTestingReport = {
   let mk =
       (
         ~test_validation,
-        ~hidden_bugs_state: list(wrong_impl(Editor.t)),
+        ~hidden_bugs_state: list(wrong_impl(Editor.Model.t)),
         ~hidden_bugs,
       )
       : t => {
     let results = List.map(hidden_bug_status(test_validation), hidden_bugs);
     let hints =
       List.map(
-        (wrong_impl: wrong_impl(Editor.t)) => wrong_impl.hint,
+        (wrong_impl: wrong_impl(Editor.Model.t)) => wrong_impl.hint,
         hidden_bugs_state,
       );
     let results = List.combine(results, hints);
@@ -342,7 +342,7 @@ module MutationTestingReport = {
   //   |> List.split
   //   |> fst;
 
-  // let get_test_map = (editors: list(Haz3lcore.Editor.t)) => {
+  // let get_test_map = (editors: list(Haz3lcore.Editor.Model.t)) => {
   //   let (reference_term, reference_map) = spliced_statics(editors);
   //   let result_reference =
   //     Interface.test_results(reference_map, reference_term);
@@ -351,7 +351,7 @@ module MutationTestingReport = {
   //   | Some(test_results) => test_results.test_map
   //   };
   // };
-  // let show_term = (editor: Editor.t, _) =>
+  // let show_term = (editor: Editor.Model.t, _) =>
   //   editor.state.zipper
   //   |> Zipper.zip
   //   |> MakeTerm.go
@@ -401,10 +401,10 @@ module SyntaxReport = {
     percentage,
   };
 
-  let mk = (~your_impl: Editor.t, ~tests: syntax_tests): t => {
+  let mk = (~your_impl: Editor.Model.t, ~tests: syntax_tests): t => {
     //TODO(andrew): better unwrapping approach?
     let user_impl_term =
-      switch (Editor.make_term(Exp, your_impl)) {
+      switch (Editor.Model.make_term(Exp, your_impl)) {
       | Exp(t) => t
       | _ => failwith("SyntaxReport: user_impl_term: expected expression")
       };
