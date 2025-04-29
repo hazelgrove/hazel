@@ -3,12 +3,33 @@ open Virtual_dom.Vdom;
 open Util;
 open Node;
 
+let stitched_results =
+  DerivationTree.map_stitched((_, cell_editor: CellEditor.Model.t) =>
+    switch (cell_editor.result.result) {
+    | Evaluation({result: OldValue(ResultOk((exp, _))), _})
+    | Evaluation({result: NewValue(ResultOk((exp, _))), _}) => Some(exp)
+    | Stepper(s) => StepperView.Model.get_elaboration(s)
+    | _ => None // Note(zhiyao): other cases are not relevant
+    }
+  );
+
+let verified_tree =
+    (
+      editors: DerivationTree.p(Editor.t),
+      cells: DerivationTree.stitched(CellEditor.Model.t),
+    ) =>
+  DrvGrading.VerifiedTree.mk(
+    editors,
+    ~stitched_results=stitched_results(cells),
+  );
+
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     spec: DerivationTree.spec,
     editors: DerivationTree.p(Editor.t),
     cells: DerivationTree.stitched(CellEditor.Model.t),
+    verified_tree: DrvGrading.VerifiedTree.t,
     pos: DerivationTree.pos,
   };
 
@@ -24,12 +45,14 @@ module Model = {
     let cells =
       DerivationTree.stitch_term(editors)
       |> DerivationTree.map_stitched(_ => term_item_to_cell);
+    let verified_tree = verified_tree(editors, cells);
     let pos = DerivationTree.Prelude;
     {
       pos,
       spec,
       editors,
       cells,
+      verified_tree,
     };
   };
 
@@ -131,6 +154,10 @@ module Update = {
     let cells: DerivationTree.stitched(CellEditor.Model.t) =
       DerivationTree.map_stitched(
         (pos, {term, editor}: DerivationTree.TermItem.t) => {
+          print_endline(
+            "DerivationMode.calculate: stitching cell at position "
+            ++ DerivationTree.show_pos(pos),
+          );
           (
             try({
               let cell = DerivationTree.get_stitched(pos, model.cells);
@@ -156,7 +183,7 @@ module Update = {
                ~queue_worker=Some(queue_worker(pos)),
                ~stitch=_ =>
                term
-             )
+             );
         },
         stitched_elabs,
       );
@@ -199,7 +226,7 @@ module Update = {
        There are many ad-hoc things about this code, including the fact that
        one of the editors is shown in two cells, so we arbitrarily choose which
        statics to take */
-    let editors: DerivationTree.p('a) = {
+    let editors: DerivationTree.eds = {
       let calculate = Editor.Update.calculate(~settings, ~is_edited);
       {
         ...model.editors,
@@ -245,10 +272,12 @@ module Update = {
         },
       };
     };
+    let verified_tree = verified_tree(editors, cells);
     {
       ...model,
       editors,
       cells,
+      verified_tree,
     };
   };
 };
@@ -285,16 +314,6 @@ module Selection = {
        );
   };
 };
-
-let stitched_results =
-  DerivationTree.map_stitched((_, cell_editor: CellEditor.Model.t) =>
-    switch (cell_editor.result.result) {
-    | Evaluation({result: OldValue(ResultOk((exp, _))), _})
-    | Evaluation({result: NewValue(ResultOk((exp, _))), _}) => Some(exp)
-    | Stepper(s) => StepperView.Model.get_elaboration(s)
-    | _ => None // Note(zhiyao): other cases are not relevant
-    }
-  );
 
 // ====== Exercise ======
 
@@ -465,12 +484,6 @@ module FakeCode = {
     );
 };
 
-let verify_tree = (model: Model.t) =>
-  DrvGrading.VerifiedTree.mk(
-    model.editors,
-    ~stitched_results=stitched_results(model.cells),
-  );
-
 module View = {
   type view_info = (DerivationTree.pos, DrvGrading.VerifiedTree.info, ed)
   and ed =
@@ -488,7 +501,9 @@ module View = {
         ~selection: option(Selection.t),
         model: Model.t,
       ) => {
+
     let eds = model.editors;
+
     let {prelude, setup, trees}: DerivationTree.stitched('a) = model.cells;
 
     let title_view = CellCommon.title_cell(eds.title);
@@ -884,7 +899,7 @@ module View = {
              | _ => raise(Failure("DerivationTree.mk: ed<>di inconsistent")),
            ),
          )
-      |> List.map2(Tree.combine, verify_tree(model))
+      |> List.map2(Tree.combine, model.verified_tree)
       |> List.mapi(i =>
            Tree.mapi((pos, (res, ed)) =>
              (DerivationTree.Trees(i, pos), res, ed)

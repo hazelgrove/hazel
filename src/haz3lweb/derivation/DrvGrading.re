@@ -61,7 +61,9 @@ module ProofTree = {
        );
   };
 };
+
 module VerifiedTree = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = list(Tree.p(info))
   and info = {
     rule: option(rule),

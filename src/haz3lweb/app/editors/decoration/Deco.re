@@ -656,5 +656,7 @@ module Deco =
         backpack_targets(z.backpack, segment),
         color_highlights(),
       ]
-      : [];
+      // TODO(zhiyao): this is changed to satisfy derivation deco
+      // where highlights might appear in a cell not selected
+      : [color_highlights()];
 };

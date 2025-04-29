@@ -59,7 +59,7 @@ module Model = {
 
   let get_derivation_info = (eds: t) => {
     let model = get_current(eds);
-    let trees = DerivationMode.verify_tree(model);
+    let trees = model.verified_tree;
     let eds = model.editors;
     switch (model.pos) {
     | Trees(i, pos) =>
