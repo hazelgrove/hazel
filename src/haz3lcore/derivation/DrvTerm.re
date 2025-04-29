@@ -186,6 +186,11 @@ module Exp = {
     | Roll(_) => Roll
     | Unroll(_) => Unroll
     | ExpHole => ExpHole;
+
+  let is_hole: term => bool =
+    fun
+    | Hole(_) => true
+    | _ => false;
 };
 
 module Pat = {
@@ -236,6 +241,11 @@ module Pat = {
     | InjR(_) => InjR
     | Pair(_) => Pair
     | Parens(_) => Parens;
+
+  let is_hole: term => bool =
+    fun
+    | Hole(_) => true
+    | _ => false;
 };
 
 module Typ = {
@@ -296,6 +306,11 @@ module Typ = {
     | Sum(_) => Sum
     | Rec(_) => Rec
     | TypHole => TypHole;
+
+  let is_hole: term => bool =
+    fun
+    | Hole(_) => true
+    | _ => false;
 };
 
 module TPat = {
@@ -329,6 +344,11 @@ module TPat = {
     | Hole(cls) => Hole(TypeHole.cls_of(cls))
     | Quote(_) => Quote
     | Var(_) => Var;
+
+  let is_hole: term => bool =
+    fun
+    | Hole(_) => true
+    | _ => false;
 };
 
 module Any = {
@@ -368,6 +388,13 @@ module Any = {
     | Pat(pat) => Pat(Pat.cls_of_term(pat.term))
     | Typ(typ) => Typ(Typ.cls_of_term(typ.term))
     | TPat(tpat) => TPat(TPat.cls_of_term(tpat.term));
+
+  let is_hole: t => bool =
+    fun
+    | Exp(exp) => Exp.is_hole(exp.term)
+    | Pat(pat) => Pat.is_hole(pat.term)
+    | Typ(typ) => Typ.is_hole(typ.term)
+    | TPat(tpat) => TPat.is_hole(tpat.term);
 
   let contains_hole: t => bool =
     any => {

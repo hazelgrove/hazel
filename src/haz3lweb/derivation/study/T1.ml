@@ -7,7 +7,7 @@ let exercise : DerivationTree.spec =
       prompt =
         "Transcribe the derivation tree into Hazel Deriver. No worry if the \
          derivation is not correct.";
-      corpus = ALFA;
+      corpus = ALFp;
       prelude = "";
       setup = "";
       trees = [ Node (Just { jdmt = ""; rule = None }, []) ];

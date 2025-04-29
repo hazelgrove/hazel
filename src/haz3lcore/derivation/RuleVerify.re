@@ -133,7 +133,7 @@ let rec go_spec: ((map, list(failure)), specced) => (map, list(failure)) =
       switch (Map.find_opt(s, map)) {
       | Some((_, syntax') as specced') => (
           map,
-          Drv.Any.eq(syntax, syntax')
+          Drv.Any.eq(syntax, syntax', ~skip_hole=false)
             ? res : [NotEqual(specced, specced'), ...res],
         )
       | None => (Map.add(s, specced, map), res)
@@ -392,9 +392,10 @@ let go_test = (map: map, test: test): option(failure) => {
       | NotGt(a, b) => go(a) <= go(b)
       | NotLt(a, b) => go(a) >= go(b)
       | NotEq(a, b) => go(a) != go(b)
-      | EqExp(a, b) => Drv.Exp.eq(go(a), go(b))
-      | EqCtx(a, b) => List.equal(Drv.Exp.eq, go(a), go(b))
-      | EqTyp(a, b) => Drv.Typ.eq(go(a), go(b))
+      | EqExp(a, b) => Drv.Exp.eq(go(a), go(b), ~skip_hole=false)
+      | EqCtx(a, b) =>
+        List.equal(Drv.Exp.eq(~skip_hole=false), go(a), go(b))
+      | EqTyp(a, b) => Drv.Typ.eq(go(a), go(b), ~skip_hole=false)
       | Mem(a, b) => Drv.Exp.mem_ctx(go(a), go(b))
       | Subset(a, b) => Drv.Exp.subset_ctx(go(a), go(b))
       };
@@ -492,6 +493,26 @@ let go_test = (map: map, test: test): option(failure) => {
 
 type res = list(failure);
 
+let is_partial_correct: failure => option(specced) =
+  fun
+  | FailMatch((_, syntax) as specced)
+  | FailUnbox((_, syntax) as specced, _) =>
+    DrvTerm.Any.is_hole(syntax) ? Some(specced) : None
+  | NotEqual((_, syntax1) as specced1, (_, syntax2) as specced2) =>
+    DrvTermBase.Any.eq(syntax1, syntax2, ~skip_hole=true)
+      ? DrvTerm.Any.contains_hole(syntax1)
+          ? Some(specced1) : Some(specced2)
+      : None
+  | Mismatch(_, _)
+  | FailTest(_, _) => None;
+
+// require: res is not empty
+let all_partial_correct: res => option(specced) =
+  res => {
+    let ss = List.map(is_partial_correct, res);
+    List.exists(Option.is_none, ss) ? None : List.hd(ss);
+  };
+
 let verify: (t, (Drv.Exp.t, list(Drv.Exp.t))) => res =
   ({concl, prems, tests}, (concl_syntax, prems_syntax)) => {
     let rec go_specs = (xs, ys, acc) =>
@@ -508,7 +529,7 @@ let verify: (t, (Drv.Exp.t, list(Drv.Exp.t))) => res =
       );
     let (m, n) = (List.length(prems), List.length(prems_syntax));
     // If premises number mismatch or there is any previous error, we don't run tests
-    let res = m != n ? [Mismatch(m, n), ...res] : res;
+    let res = res @ (m != n ? [Mismatch(m, n)] : []);
 
     let go_tests: (map, list(failure), list(test)) => list(failure) =
       map =>

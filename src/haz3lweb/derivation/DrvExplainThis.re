@@ -177,6 +177,8 @@ let rule_example_view =
   let color_map =
     switch (res.res) {
     | Correct => color_map
+    | PartialCorrect(specced) =>
+      copy_color_map(FailMatch(specced), color_map)
     | Incorrect(failure) => copy_color_map(failure, color_map)
     | Pending(_) => color_map
     };

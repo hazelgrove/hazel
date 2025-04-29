@@ -113,6 +113,12 @@
   color: var(--test-pass);
 }
 
+.test-instance.Partial:before,
+.test-result.Partial:after {
+  content: "?";
+  color: var(--test-indet);
+}
+
 .test-instance.Fail:before,
 .test-result.Fail:after {
   content: "✘";
@@ -122,6 +128,7 @@
 .test-instance.Indet:before,
 .test-result.Indet:after {
   content: "?";
+  font-size: small;
   color: var(--test-indet);
 }
 
@@ -422,16 +429,17 @@
   color: var(--ui-bkg);
   padding: 0 0.3rem;
   font-size: 0.8rem;
-  height: 1.2rem;
-  min-width: 0.6rem;
+  height: 1.1rem;
+  min-width: 0.5rem;
   border-radius: 0.6rem;
+  border: 0.1rem solid var(--BR2);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   text-wrap: nowrap;
   background-color: var(--BR2);
   position: relative;
-  bottom: -0.08rem;
+  bottom: -0.05rem;
 }
 
 /* Dropdown content (hidden by default) */
@@ -468,6 +476,18 @@
 
 .deduction-label.correct {
   background-color: var(--test-pass);
+  border: 0.1rem solid var(--test-pass);
+}
+
+.dropdown.partial-correct,
+.deduction-prems-label.partial-correct {
+  border-color: var(--test-indet);
+}
+
+.deduction-label.partial-correct {
+  background-color: transparent;
+  border: 0.1rem solid var(--test-indet);
+  color: var(--test-indet);
 }
 
 .dropdown.incorrect,
@@ -476,7 +496,9 @@
 }
 
 .deduction-label.incorrect {
-  background-color: var(--test-fail);
+  background-color: transparent;
+  border: 0.1rem solid var(--test-fail);
+  color: var(--test-fail);
 }
 
 /* Show the dropdown menu on hover */

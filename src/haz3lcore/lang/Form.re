@@ -510,7 +510,7 @@ let drv_get: drv_compound_form => t =
   | ParenTyp => mk(ii, ["(", ")"], mk_op(Drv(Typ), [Drv(Typ)]))
   | QuoteExp => mk(ii, ["$"], mk_pre(P.unquote, Drv(Exp), []))
   | QuotePat => mk(ii, ["$"], mk_pre(P.unquote, Drv(Pat), []))
-  | QuoteTyp => mk(ii, ["$"], mk_pre(P.unquote, Drv(Typ), []))
+  | QuoteTyp => mk(ii, ["$"], mk_pre(P.max, Drv(Typ), []))
   | QuoteTPat => mk(ii, ["$"], mk_pre(P.unquote, Drv(TPat), []));
 
 [@deriving enumerate]

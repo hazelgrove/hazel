@@ -7,19 +7,15 @@ module ExternalError = {
     | NoRule
     | NotAvailable
     | NoAbbr
-    | PremiseNotReady
     | NotAJudgment
-    | ContainHole
     | NoResult;
 
   let show =
     fun
     | NoRule => "Rule not specified"
-    | NotAvailable => "Rule not available, try other rules or change version"
+    | NotAvailable => "Rule not available, try other rules or change to another corpus"
     | NoAbbr => "Abbreviation not specified"
-    | PremiseNotReady => "Premise(s) not ready"
-    | NotAJudgment => "Conclusion not a judgement"
-    | ContainHole => "Contain hole"
+    | NotAJudgment => "Conclusion is not a judgement"
     | NoResult => "No result";
 
   let show = e => show(e) |> Printf.sprintf("❓ %s");
@@ -36,7 +32,6 @@ module ProofTree = {
     switch (result) {
     | Some(e) =>
       switch (IdTagged.term_of(DHExp.strip_casts(e))) {
-      | DrvExp(any, _) when Drv.Any.contains_hole(any) => Error(ContainHole)
       | DrvExp(Exp(d), _) => Ok(d)
       | _ => Error(NotAJudgment)
       }
@@ -71,6 +66,7 @@ module VerifiedTree = {
   }
   and res =
     | Correct
+    | PartialCorrect(RuleVerify.specced)
     | Incorrect(RuleVerify.failure)
     | Pending(ExternalError.t)
   and rule = {
@@ -110,18 +106,22 @@ module VerifiedTree = {
           let res =
             switch (concl) {
             | Ok(concl) =>
-              if (List.for_all(Option.is_some, prems)) {
-                let prems = prems |> List.map(Option.get);
-                let res = RuleVerify.verify(spec, (concl, prems));
-                switch (res) {
-                | [] => Correct
-                // Note(zhiyao): we only show the first failure
-                // i.e. the last one in the list
-                | _ => Incorrect(res |> List.rev |> List.hd)
-                };
-              } else {
-                Pending(PremiseNotReady);
-              }
+              let prems =
+                prems
+                |> List.map(
+                     fun
+                     | Some(prem) => prem
+                     | None => Drv.Exp.fresh(Hole(Grammar.Drv.EmptyHole)),
+                   );
+              let res = RuleVerify.verify(spec, (concl, prems));
+              switch (res) {
+              | [] => Correct
+              | _ =>
+                switch (RuleVerify.all_partial_correct(res)) {
+                | Some(specced) => PartialCorrect(specced)
+                | None => Incorrect(res |> List.rev |> List.hd)
+                }
+              };
             | Error(e) => Pending(e)
             };
           {

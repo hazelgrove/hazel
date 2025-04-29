@@ -691,7 +691,7 @@ let exercise : DerivationTree.spec =
           };
         caret = Outer;
       };
-    corpus = ALFA;
+    corpus = ALFp;
     trees =
       [
         Node

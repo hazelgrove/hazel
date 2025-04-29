@@ -505,6 +505,17 @@ let get_doc_deduction =
   | Some({res: Correct, _}) => fake_get_message("✅ Correct")
   | Some({res: Pending(p), _}) =>
     fake_get_message(DrvGrading.ExternalError.show(p))
+  | Some({res: PartialCorrect(specced), _}) =>
+    fake_get_message(
+      if (globals.settings.explainThis.highlight == All) {
+        Printf.sprintf(
+          "❓ Correct until stop at a hole %s)",
+          RuleVerify.show_linked(specced),
+        );
+      } else {
+        "❓ Correct until stop at a hole";
+      },
+    )
   | Some({res: Incorrect(failure), _}) =>
     fake_get_message(
       if (globals.settings.explainThis.highlight == All) {

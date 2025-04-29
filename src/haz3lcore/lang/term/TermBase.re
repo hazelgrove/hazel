@@ -149,7 +149,7 @@ module rec Any: {
     | (Typ(x), Typ(y)) => Typ.fast_equal(x, y)
     | (TPat(x), TPat(y)) => TPat.fast_equal(x, y)
     | (Rul(x), Rul(y)) => Rul.fast_equal(x, y)
-    | (Drv(x), Drv(y)) => Drv.Any.eq(x, y)
+    | (Drv(x), Drv(y)) => Drv.Any.eq(x, y, ~skip_hole=false)
     | (Any (), Any ()) => true
     | (Exp(_), _)
     | (Pat(_), _)

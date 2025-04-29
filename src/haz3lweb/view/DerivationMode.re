@@ -600,6 +600,7 @@ module View = {
       switch (res) {
       | Incorrect(_) => "incorrect"
       | Correct => "correct"
+      | PartialCorrect(_) => "partial-correct"
       | Pending(_) => "pending"
       };
 
@@ -660,6 +661,7 @@ module View = {
       let status =
         switch (res.res) {
         | Correct => "Pass"
+        | PartialCorrect(_) => "Partial"
         | Incorrect(_) => "Fail"
         | Pending(_) => "Indet"
         };

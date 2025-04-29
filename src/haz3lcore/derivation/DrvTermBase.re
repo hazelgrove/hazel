@@ -37,7 +37,7 @@ module rec Any: {
     ) =>
     t;
 
-  let eq: (t, t) => bool;
+  let eq: (t, t, ~skip_hole: bool) => bool;
 
   let sort: t => DrvSort.t;
 } = {
@@ -67,15 +67,15 @@ module rec Any: {
     x |> f_any(rec_call);
   };
 
-  let eq = (x: t, y: t) =>
+  let eq = (x: t, y: t, ~skip_hole: bool) =>
     switch (x, y) {
-    | (Exp(e1), Exp(e2)) => Exp.eq(e1, e2)
+    | (Exp(e1), Exp(e2)) => Exp.eq(e1, e2, ~skip_hole)
     | (Exp(_), _) => false
-    | (Pat(p1), Pat(p2)) => Pat.eq(p1, p2)
+    | (Pat(p1), Pat(p2)) => Pat.eq(p1, p2, ~skip_hole)
     | (Pat(_), _) => false
-    | (Typ(t1), Typ(t2)) => Typ.eq(t1, t2)
+    | (Typ(t1), Typ(t2)) => Typ.eq(t1, t2, ~skip_hole)
     | (Typ(_), _) => false
-    | (TPat(tp1), TPat(tp2)) => TPat.eq(tp1, tp2)
+    | (TPat(tp1), TPat(tp2)) => TPat.eq(tp1, tp2, ~skip_hole)
     | (TPat(_), _) => false
     };
 
@@ -106,7 +106,7 @@ and Exp: {
 
   let subst: (t, string, t) => t;
 
-  let eq: (t, t) => bool;
+  let eq: (t, t, ~skip_hole: bool) => bool;
 
   let mem_ctx: (t, list(t)) => bool;
 
@@ -264,9 +264,13 @@ and Exp: {
     };
   };
 
-  let rec eq = (x: t, y: t) =>
+  let rec eq = (x: t, y: t, ~skip_hole: bool) => {
+    let eq = eq(~skip_hole);
     switch (x |> IdTagged.term_of, y |> IdTagged.term_of) {
-    | (Hole(_), _) => false
+    | (Hole(_), _)
+    | (_, Hole(_)) when skip_hole => true
+    // Note(zhiyao): This is to avoid infinite loop in cell update
+    | (Hole(_), _) => x == y
     | (Var(v1), Var(v2)) => v1 == v2
     | (Var(_), _) => false
     | (Quote(s1), Quote(s2)) => s1 == s2
@@ -280,16 +284,16 @@ and Exp: {
     | (Entail(e11, e12), Entail(e21, e22)) => eq(e11, e21) && eq(e12, e22)
     | (Entail(_), _) => false
     | (Consistent(t11, t12), Consistent(t21, t22)) =>
-      Typ.eq(t11, t21) && Typ.eq(t12, t22)
+      Typ.eq(t11, t21, ~skip_hole) && Typ.eq(t12, t22, ~skip_hole)
     | (Consistent(_), _) => false
     | (MatchedArrow(t11, t12), MatchedArrow(t21, t22)) =>
-      Typ.eq(t11, t21) && Typ.eq(t12, t22)
+      Typ.eq(t11, t21, ~skip_hole) && Typ.eq(t12, t22, ~skip_hole)
     | (MatchedArrow(_), _) => false
     | (MatchedProd(t11, t12), MatchedProd(t21, t22)) =>
-      Typ.eq(t11, t21) && Typ.eq(t12, t22)
+      Typ.eq(t11, t21, ~skip_hole) && Typ.eq(t12, t22, ~skip_hole)
     | (MatchedProd(_), _) => false
     | (MatchedSum(t11, t12), MatchedSum(t21, t22)) =>
-      Typ.eq(t11, t21) && Typ.eq(t12, t22)
+      Typ.eq(t11, t21, ~skip_hole) && Typ.eq(t12, t22, ~skip_hole)
     | (MatchedSum(_), _) => false
     | (Ctx(es1), Ctx(es2)) =>
       List.length(es1) == List.length(es2) && List.for_all2(eq, es1, es2)
@@ -298,13 +302,16 @@ and Exp: {
     | (Cons(_), _) => false
     | (Concat(e11, e12), Concat(e21, e22)) => eq(e11, e21) && eq(e12, e22)
     | (Concat(_), _) => false
-    | (Type(t1), Type(t2)) => Typ.eq(t1, t2)
+    | (Type(t1), Type(t2)) => Typ.eq(t1, t2, ~skip_hole)
     | (Type(_), _) => false
-    | (HasType(e1, t1), HasType(e2, t2)) => eq(e1, e2) && Typ.eq(t1, t2)
+    | (HasType(e1, t1), HasType(e2, t2)) =>
+      eq(e1, e2) && Typ.eq(t1, t2, ~skip_hole)
     | (HasType(_), _) => false
-    | (Syn(e1, t1), Syn(e2, t2)) => eq(e1, e2) && Typ.eq(t1, t2)
+    | (Syn(e1, t1), Syn(e2, t2)) =>
+      eq(e1, e2) && Typ.eq(t1, t2, ~skip_hole)
     | (Syn(_), _) => false
-    | (Ana(e1, t1), Ana(e2, t2)) => eq(e1, e2) && Typ.eq(t1, t2)
+    | (Ana(e1, t1), Ana(e2, t2)) =>
+      eq(e1, e2) && Typ.eq(t1, t2, ~skip_hole)
     | (Ana(_), _) => false
     | (And(e11, e12), And(e21, e22)) => eq(e11, e21) && eq(e12, e22)
     | (And(_), _) => false
@@ -334,11 +341,13 @@ and Exp: {
       eq(e1, e1') && eq(e2, e2') && eq(e3, e3')
     | (If(_), _) => false
     | (Let(p1, e11, e12), Let(p2, e21, e22)) =>
-      Pat.eq(p1, p2) && eq(e11, e21) && eq(e12, e22)
+      Pat.eq(p1, p2, ~skip_hole) && eq(e11, e21) && eq(e12, e22)
     | (Let(_), _) => false
-    | (Fix(p1, e1), Fix(p2, e2)) => Pat.eq(p1, p2) && eq(e1, e2)
+    | (Fix(p1, e1), Fix(p2, e2)) =>
+      Pat.eq(p1, p2, ~skip_hole) && eq(e1, e2)
     | (Fix(_), _) => false
-    | (Fun(p1, e1), Fun(p2, e2)) => Pat.eq(p1, p2) && eq(e1, e2)
+    | (Fun(p1, e1), Fun(p2, e2)) =>
+      Pat.eq(p1, p2, ~skip_hole) && eq(e1, e2)
     | (Fun(_), _) => false
     | (Ap(e11, e12), Ap(e21, e22)) => eq(e11, e21) && eq(e12, e22)
     | (Ap(_), _) => false
@@ -356,9 +365,9 @@ and Exp: {
     | (InjR(_), _) => false
     | (Case(e1, x1, e11, y1, e12), Case(e2, x2, e21, y2, e22)) =>
       eq(e1, e2)
-      && Pat.eq(x1, x2)
+      && Pat.eq(x1, x2, ~skip_hole)
       && eq(e11, e21)
-      && Pat.eq(y1, y2)
+      && Pat.eq(y1, y2, ~skip_hole)
       && eq(e12, e22)
     | (Case(_), _) => false
     | (Roll(e1), Roll(e2)) => eq(e1, e2)
@@ -368,11 +377,13 @@ and Exp: {
     | (ExpHole, ExpHole) => true
     | (ExpHole, _) => false
     };
+  };
 
   let rec splice_on_exist = (p, l) =>
     switch (l) {
     | [] => []
-    | [hd, ...tl] => eq(p, hd) ? l : splice_on_exist(p, tl)
+    | [hd, ...tl] =>
+      eq(p, hd, ~skip_hole=false) ? l : splice_on_exist(p, tl)
     };
 
   let mem_ctx = (p, l) => splice_on_exist(p, l) != [];
@@ -391,6 +402,7 @@ and Exp: {
   // Note(zhiyao): This implementation of cons_ctx is not linear.
   let cons_ctx = (ctx, p) => {
     let cmp = p' => show(p) < show(p');
+    let eq = eq(~skip_hole=false);
     let eq_key = p' =>
       switch (IdTagged.term_of(p): term, IdTagged.term_of(p'): term) {
       | (HasType(a, _), HasType(b, _)) => eq(a, b)
@@ -424,7 +436,7 @@ and Pat: {
     ) =>
     t;
 
-  let eq: (t, t) => bool;
+  let eq: (t, t, ~skip_hole: bool) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = pat_term;
@@ -461,16 +473,21 @@ and Pat: {
     x |> f_pat(rec_call);
   };
 
-  let rec eq = (x: t, y: t) =>
+  let rec eq = (x: t, y: t, ~skip_hole: bool) => {
+    let eq = eq(~skip_hole);
     switch (x |> IdTagged.term_of, y |> IdTagged.term_of) {
-    | (Hole(_), _) => false
+    | (Hole(_), _)
+    | (_, Hole(_)) when skip_hole => true
+    // Note(zhiyao): This is to avoid infinite loop in cell update
+    | (Hole(_), _) => x == y
     | (Quote(s1), Quote(s2)) => s1 == s2
     | (Quote(_), _) => false
     | (Var(v1), Var(v2)) => v1 == v2
     | (Var(_), _) => false
     | (Parens(p1), Parens(p2)) => eq(p1, p2)
     | (Parens(_), _) => false
-    | (Cast(p1, t1), Cast(p2, t2)) => eq(p1, p2) && Typ.eq(t1, t2)
+    | (Cast(p1, t1), Cast(p2, t2)) =>
+      eq(p1, p2) && Typ.eq(t1, t2, ~skip_hole)
     | (Cast(_), _) => false
     | (InjL(p1), InjL(p2)) => eq(p1, p2)
     | (InjL(_), _) => false
@@ -479,6 +496,7 @@ and Pat: {
     | (Pair(p1, p2), Pair(p1', p2')) => eq(p1, p1') && eq(p2, p2')
     | (Pair(_), _) => false
     };
+  };
 }
 and Typ: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -501,7 +519,7 @@ and Typ: {
 
   let glb: (t, t) => t;
 
-  let eq: (t, t) => bool;
+  let eq: (t, t, ~skip_hole: bool) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = typ_term;
@@ -570,9 +588,13 @@ and Typ: {
 
   let fresh: term => t = IdTagged.fresh;
 
-  let rec eq = (x: t, y: t) =>
+  let rec eq = (x: t, y: t, ~skip_hole: bool) => {
+    let eq = eq(~skip_hole);
     switch (x |> IdTagged.term_of, y |> IdTagged.term_of) {
-    | (Hole(_), _) => false
+    | (Hole(_), _)
+    | (_, Hole(_)) when skip_hole => true
+    // Note(zhiyao): This is to avoid infinite loop in cell update
+    | (Hole(_), _) => x == y
     | (Quote(s1), Quote(s2)) => s1 == s2
     | (Quote(_), _) => false
     | (Num, Num) => true
@@ -598,10 +620,11 @@ and Typ: {
     | (TypHole, TypHole) => true
     | (TypHole, _) => false
     };
+  };
 
   let rec glb = (t1: t, t2: t): t => {
     switch (t1 |> IdTagged.term_of, t2 |> IdTagged.term_of) {
-    | _ when eq(t1, t2) => t1
+    | _ when eq(t1, t2, ~skip_hole=false) => t1
     | (TypHole, _) => t2
     | (_, TypHole) => t1
     | (Arrow(t11, t12), Arrow(t21, t22)) =>
@@ -631,7 +654,7 @@ and TPat: {
     ) =>
     t;
 
-  let eq: (t, t) => bool;
+  let eq: (t, t, ~skip_hole: bool) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = tpat_term;
@@ -661,12 +684,16 @@ and TPat: {
     x |> f_tpat(rec_call);
   };
 
-  let eq = (x: t, y: t) =>
+  let eq = (x: t, y: t, ~skip_hole: bool) => {
     switch (x |> IdTagged.term_of, y |> IdTagged.term_of) {
-    | (Hole(_), _) => false
+    | (Hole(_), _)
+    | (_, Hole(_)) when skip_hole => true
+    // Note(zhiyao): This is to avoid infinite loop in cell update
+    | (Hole(_), _) => x == y
     | (Quote(s1), Quote(s2)) => s1 == s2
     | (Quote(_), _) => false
     | (Var(v1), Var(v2)) => v1 == v2
     | (Var(_), _) => false
     };
+  };
 };
