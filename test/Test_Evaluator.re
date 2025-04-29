@@ -269,6 +269,71 @@ let test_typfun_application = () =>
     ),
   );
 
+let skip_current_unboxing_error = (err: string, expression: string) =>
+  test_case(err ++ " (Unboxing Error)", `Quick, () => {
+    [@warning "-21"]
+    {
+      // Currently fails https://github.com/hazelgrove/hazel/issues/1588
+      Alcotest.skip();
+      let exp = parse_and_evaluate(expression);
+      check(pass, err, exp, exp);
+    }
+  });
+
+let qcheck_evaluator_does_not_crash_test =
+  QCheck.Test.make(
+    ~name="Evaluator does not crash",
+    ~count=10000,
+    QCheck_Util.arb_exp(~minimal_idents=true, 50),
+    exp => {
+    switch (
+      Elaborator.elaborate(
+        Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp),
+        exp,
+      )
+      |> fst
+    ) {
+    | exp =>
+      switch (
+        Evaluator.evaluate_and_limit(
+          ~env=Builtins.env_init,
+          ~step_limit=10000,
+          exp,
+        )
+      ) {
+      | Completed((_, _))
+      | StepLimitExceeded => true
+      | exception e =>
+        switch (e) {
+        | Failure(msg)
+            when
+              List.exists(
+                (==)(msg),
+                ["type application in dynamics"] // "type application in dynamics" https://github.com/hazelgrove/hazel/issues/1625
+              ) =>
+          print_endline("Skipping failure: " ++ msg);
+          true;
+        // https://github.com/hazelgrove/hazel/issues/1588 unboxing errors
+        | EvaluatorError.Exception(InvalidBoxedListLit(_))
+        | EvaluatorError.Exception(InvalidBoxedBoolLit(_))
+        | EvaluatorError.Exception(InvalidBoxedListCons(_))
+        | EvaluatorError.Exception(InvalidBoxedTuple(_))
+        | EvaluatorError.Exception(InvalidBoxedSumConstructor(_))
+        | EvaluatorError.Exception(InvalidBoxedFloatLit(_))
+        | EvaluatorError.Exception(InvalidBoxedIntLit(_))
+        | EvaluatorError.Exception(InvalidBoxedStringLit(_))
+        | EvaluatorError.Exception(InvalidBoxedTypFun(_)) => true
+        | _ => raise(e)
+        }
+      }
+    | exception e =>
+      print_endline(
+        "Skipping statics/elaborate failure: " ++ Printexc.to_string(e),
+      );
+      true;
+    }
+  });
+
 let tests = (
   "Evaluator",
   [
@@ -575,5 +640,39 @@ in fn("hello")|},
         probe_test({|let PROBE(x) : (a=String) = "a" in x|}, uexp);
       },
     ),
+    skip_current_unboxing_error(
+      "InvalidBoxSumConstructor",
+      "let B : (+B( )) = ? in ?",
+    ),
+    skip_current_unboxing_error(
+      "InvalidBoxedListLit",
+      "type g = + On in let [] = On in",
+    ),
+    skip_current_unboxing_error(
+      "InvalidBoxedListCons",
+      "let (_:: []) = type y = + B in B in ?",
+    ),
+    skip_current_unboxing_error(
+      "InvalidBoxedBoolLit",
+      "type y = + B(Float) in if B then false else A",
+    ),
+    skip_current_unboxing_error(
+      "InvalidBoxedTuple",
+      "let () = type x = + A in A in ?",
+    ),
+    skip_current_unboxing_error(
+      "InvalidBoxedTypfun",
+      "type y = + B in case true  | a => B end @<?> ",
+    ),
+    skip_current_unboxing_error(
+      "InvalidBoxedSumConstructor",
+      "type x = + A(Float) in let A = a in 0",
+    ),
+    skip_current_unboxing_error(
+      "InvalidBoxedStringLit",
+      {|type y = + A in ""++A|},
+    ),
+    skip_current_unboxing_error("InvalidBoxedIntLit", "type y = + A in -A"),
+    QCheck_alcotest.to_alcotest(qcheck_evaluator_does_not_crash_test),
   ],
 );
