@@ -542,6 +542,12 @@ in fn("hello")|},
         |> Exp.fresh,
       )
     ),
+    test_case("String_concat builtin", `Quick, () => {
+      parse_and_evaluate_test(
+        {|"hazel hello world"|},
+        {|string_join(" ", ["hazel", "hello", "world"])|},
+      )
+    }),
     test_case("Simple probe", `Quick, () => {
       probe_test(
         "let x = 1 + 2 in 4",
