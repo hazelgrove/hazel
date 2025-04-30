@@ -155,12 +155,14 @@ module Make =
         |> DHExp.fresh,
       )
     | Rec(_)
-    | Ap(_) => failwith("Expected normalised types during instantiation")
+    | Ap(_) =>
+      failwith("Expected normalised and unrolled types during instantiation")
     };
   // TODO: Check environment for variables which have the given type.
   //<|> (Environment.of_typ(t) |> List.map(x => return(Var(x) |> DHExp.fresh)) |> List.fold(choice, fail))
   let enum_typ = (t: TypSlice.t, ctx) => {
-    let normalised = TypSlice.normalize(ctx, t);
+    let unrolled = TypSlice.unroll(t);
+    let normalised = TypSlice.normalize(ctx, unrolled);
     enum_typ(normalised, ctx)
     >>| (
       e =>
