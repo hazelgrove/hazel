@@ -162,16 +162,12 @@ module Make =
   //<|> (Environment.of_typ(t) |> List.map(x => return(Var(x) |> DHExp.fresh)) |> List.fold(choice, fail))
   let enum_typ = (t: TypSlice.t, ctx) => {
     let unrolled = TypSlice.unroll(t);
-    let normalised = TypSlice.normalize(ctx, unrolled);
+    let normalised =
+      TypSlice.normalize(ctx, unrolled) |> Exp.replace_all_ids_typslice;
     enum_typ(normalised, ctx)
     >>| (
       e =>
-        Cast(
-          TypSlice.fast_equal(t, normalised)
-            ? e : Cast(e, normalised, t) |> DHExp.fresh,
-          t,
-          TypSlice.hole([]) |> TypSlice.fresh,
-        )
+        Cast(e, t, TypSlice.hole([]) |> TypSlice.fresh)
         |> DHExp.fresh
         |> Evaluator.evaluate(~env=Builtins.env_init)
         |> fst

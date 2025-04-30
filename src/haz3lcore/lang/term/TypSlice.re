@@ -47,7 +47,7 @@ let all_ids_temp = {
         },
       }
       |> continue;
-  map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f);
+  map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f, ~f_typslice=f);
 };
 
 let (replace_temp, replace_temp_exp) = {
