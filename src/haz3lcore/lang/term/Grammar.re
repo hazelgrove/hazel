@@ -157,6 +157,19 @@ and type_provenance('a) =
   | SynSwitch
   | Hole(type_hole('a))
   | Internal
+and mpat_t('a) = Annotated.t(pat_term('a), 'a)
+and mpat_term('a) =
+  | Invalid(string)
+  | EmptyHole
+  | MultiHole(list(any_t('a)))
+  | Var(string)
+and hz_module('a) =
+  | ModuleDef(list(hz_module_component('a)))
+and hz_module_component('a) =
+  | ModuleExp(exp_t('a))
+  | ModuleValBinding(pat_t('a), exp_t('a))
+  | ModuleTypBinding(tpat_t('a), typ_t('a))
+  | ModuleModuleBinding(mpat_t('a), hz_module('a))
 and filter('a) = {
   pat: exp_t('a),
   act: FilterAction.t,
