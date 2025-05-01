@@ -698,7 +698,11 @@ and uexp_to_info_map =
         switch (Exp.ctr_name(fn)) {
         | Some(name) =>
           switch (Self.ctr_ana_typ(ctx, ana, name)) {
-          | Some(ty_ana) => ty_ana
+          | Some(ty_ana) =>
+            switch (Typ.matched_arrow_strict(ctx, ty_ana)) {
+            | Some((ty1, ty2)) => Arrow(ty1, ty2) |> Typ.temp
+            | None => Arrow(syn, syn) |> Typ.temp
+            }
           | None => Arrow(syn, syn) |> Typ.temp
           }
         | None => Arrow(syn, syn) |> Typ.temp
@@ -735,7 +739,11 @@ and uexp_to_info_map =
         switch (Exp.ctr_name(fn)) {
         | Some(name) =>
           switch (Self.ctr_ana_typ(ctx, ana, name)) {
-          | Some(ty_ana) => ty_ana
+          | Some(ty_ana) =>
+            switch (Typ.matched_arrow_strict(ctx, ty_ana)) {
+            | Some((ty1, ty2)) => Arrow(ty1, ty2) |> Typ.temp
+            | None => Arrow(syn, syn) |> Typ.temp
+            }
           | None => Arrow(syn, syn) |> Typ.temp
           }
         | None => Arrow(syn, syn) |> Typ.temp
