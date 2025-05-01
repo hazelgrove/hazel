@@ -48,13 +48,13 @@ let print =
   | "F9" =>
     let results =
       statics.elaborated
-      |> SearchDFS.values(
+      |> SearchBDFS.values(
            ~env=Builtins.env_init,
            ~state=IndetEvaluatorState.init,
          );
     let _ =
       results
-      |> DFS.run_n(~solutions=60)
+      |> BDFS.run_n(~solutions=60)
       |> List.mapi((i, (state, d)) =>
            print(
              "---Result: "
