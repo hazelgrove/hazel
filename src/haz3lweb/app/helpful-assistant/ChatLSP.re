@@ -1,5 +1,7 @@
 open Util;
+open Haz3lcore.Info;
 open Haz3lcore;
+open OptUtil.Syntax;
 
 module Options = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -25,8 +27,12 @@ module Options = {
 };
 
 module SystemPrompt = {
+  let prelude = [
+    "You are a helpful coding assistant in Hazel that will help the user fill holes whenever they type '?a' or '??' in a hole. \n",
+  ];
+
   let main_prompt = (completion_token: string) => [
-    "CODE COMPLETION INSTRUCTIONS:",
+    "- CODE COMPLETION INSTRUCTIONS:",
     "- Reply with a functional, idiomatic replacement for the program hole marked '"
     ++ completion_token
     ++ "' in the provided program sketch",
@@ -121,7 +127,39 @@ module SystemPrompt = {
     "- Format the code with proper linebreaks",
   ];
 
-  let mk =
+  let task_completion_toolkit = [
+    "TASK COMPLETION TOOLKIT:",
+    "- The user will provide you with a task to complete.",
+    "- You will need to complete the task using the toolkit provided.",
+    "- The toolkit is a list of tool calls which you can make to complete the task.",
+    "- You will need to use ONLY tool calls from the toolkit to complete the task.",
+    "- These act as a sort of interface to interact with the code base and language server.",
+    "- Critically, they are structure-based, meaning they interact purely with the high-level, definition-based structure of the code base.",
+    "- There are 3 categories of tool calls: 'file viewing', 'file editing', and 'task'.",
+    "- 'file viewing' allows you to navigate through out a code editor.",
+    "- 'file editing' allows you to make changes to the code base.",
+    "- 'task' is trivial, and has only one command—submit/end the iterative tool call process.",
+    "- You MUST use the correct tool call for the action you need to take.",
+    "- You MUST use the correct argument(s) for the tool call.",
+    "- You MUST use the correct format for the tool call.",
+    "- Here are the 'file viewing' tool calls:",
+    "- 'goto_definition <variable_name>' Places the cursor at the nearest definition of the matched variable_name.",
+    "- 'goto_type_definition <variable_name>' Places the cursor at the nearest type definition for the matched variable_name.",
+    "- 'show_references <variable_name>' displays all defintions where the variable matching variable_name is referenced.",
+    "- 'scroll_up' moves the cursor to the preceding definition.",
+    "- 'scroll_down' moves the cursor to the succeeding definition.",
+    "- Here are the 'file editing' tool calls:",
+    "- 'replace <replacement_text>' Replaces the definition the cursor is currently at with replacement_text.",
+    "- 'insert <new_text>' Inserts new_text directly after the definition the cursor is currently at.",
+    "- 'delete' Deletes the definition the cursor is currently at.",
+    "- Here are the 'task' tool calls:",
+    "- 'submit' ends the iterative tool call process.",
+    "- That is all the tools you need. Notice that all of them are structure-based, meaning they interact purely with the high-level, definition-based structure of the code base.",
+    "- The 'cursor' really represents an entire definition which you are currently at.",
+    "- You can think of this more so as having the entire variable and definition of a let binding selected/highlighted.",
+  ];
+
+  let mk_suggestion_prompt =
       (
         {instructions, syntax_notes, _}: Options.t,
         completion_token: string,
@@ -132,9 +170,12 @@ module SystemPrompt = {
       "\n",
       (
         instructions
-          ? advanced_reasoning
-              ? advanced_reasoning_prompt(completion_token)
-              : main_prompt(completion_token)
+          ? prelude
+            @ (
+              advanced_reasoning
+                ? advanced_reasoning_prompt(completion_token)
+                : main_prompt(completion_token)
+            )
           : []
       )
       @ (syntax_notes ? hazel_syntax_notes : []),
@@ -173,7 +214,11 @@ module Completion = {
       : OpenRouter.prompt =>
     [
       OpenRouter.mk_system_msg(
-        SystemPrompt.mk(options, hole_label, advanced_reasoning),
+        SystemPrompt.mk_suggestion_prompt(
+          options,
+          hole_label,
+          advanced_reasoning,
+        ),
       ),
     ]
     @ CompletionExamples.get(
@@ -195,6 +240,75 @@ module Completion = {
         ),
       ),
     ];
+};
+
+module Composition = {
+  let get_static_context =
+      (
+        expected_type: bool,
+        relevant_ctx: bool,
+        ci: Info.t,
+        hole_label: string,
+      )
+      : list(string) =>
+    switch (ci) {
+    | InfoExp({ana, ctx, _})
+    | InfoPat({ana, ctx, _}) =>
+      let expected = RelevantTypes.get(ctx, ana, hole_label);
+      let relevant = RelevantValues.get(ctx, ana);
+      (expected_type ? ["expected_ty: " ++ expected] : [])
+      @ (relevant_ctx ? ["relevant_ctx:\n " ++ relevant] : []);
+    | InfoTyp(_)
+    | InfoTPat(_)
+    | Secondary(_) => []
+    };
+
+  let goto_variable =
+      (name: string, editor: CodeWithStatics.Model.t): list(Action.t) => {
+    let statics = CodeWithStatics.Model.get_statics(editor);
+    print_endline("GOTO DEFINITION: " ++ name);
+    print_endline("Searching context for variable definition...");
+
+    // Find the first matching variable in the context using fold
+    let matching_id =
+      Id.Map.fold(
+        (_, info, acc) => {
+          switch (acc) {
+          | Some(_) => acc // Already found a match
+          | None =>
+            let ctx = Info.ctx_of(info);
+            switch (Ctx.lookup_var(ctx, name)) {
+            | Some(entry) =>
+              print_endline(
+                "Found variable in context: "
+                ++ name
+                ++ " with ID: "
+                ++ Id.show(entry.id),
+              );
+              Some(entry.id);
+            | None => None
+            };
+          }
+        },
+        statics.info_map,
+        None,
+      );
+
+    // Return appropriate action based on whether we found a match
+    switch (matching_id) {
+    | Some(id) =>
+      print_endline("GOTO DEFINITION DONE - Found at ID: " ++ Id.show(id));
+      [Action.Jump(TileId(id)), Action.Select(Smart(3))];
+    | None =>
+      print_endline("GOTO DEFINITION DONE - No definition found");
+      [Action.Select(Term(Id(Id.invalid, Direction.Left)))];
+    };
+  };
+
+  let prompt = (options: Options.t, ci: Info.t): string => {
+    let prelude_and_toolkit = SystemPrompt.task_completion_toolkit;
+    String.concat("\n", prelude_and_toolkit);
+  };
 };
 
 module ErrorRound = {
