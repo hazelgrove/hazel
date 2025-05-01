@@ -590,6 +590,90 @@ module Update = {
     Some(z);
   };
 
+  let mk_LLM_call =
+      (
+        ~model: Model.t,
+        ~curr_chat: Model.chat,
+        ~prompt: list(OpenRouter.message),
+        ~message: Model.message,
+        ~mode: AssistantSettings.mode,
+        ~schedule_action: t => unit,
+      ) => {
+    switch (Store.Generic.load("API"), Store.Generic.load("MODEL")) {
+    | (Some(key), Some(model_id)) =>
+      let params: OpenRouter.params = {
+        model_id,
+        temperature: 1.0,
+        top_p: 1.0,
+      };
+      OpenRouter.start_chat(~params, ~key, prompt, req =>
+        switch (OpenRouter.handle_chat(req)) {
+        | Some(Reply({content, _})) =>
+          schedule_action(
+            Respond(text_message_of_str(content, LLM), mode, curr_chat.id),
+          )
+        | Some(Error({message, code})) =>
+          schedule_action(
+            SendSystemMessage(
+              "Error: " ++ message ++ " (code: " ++ string_of_int(code) ++ ")",
+              mode,
+              curr_chat.id,
+            ),
+          )
+        | None =>
+          print_endline("Assistant: response parse failed (SendTutorMessage)")
+        }
+      );
+      add_message_to_model(mode, model, message, curr_chat.id, ~is_final=true)
+      |> Updated.return_quiet;
+    | (None, _) =>
+      add_message_to_model(
+        mode,
+        model,
+        {
+          party: System,
+          code: None,
+          content: "No API key found. Please set an API key in the assistant settings.",
+          collapsed: false,
+        },
+        curr_chat.id,
+        ~is_final=true,
+      )
+      |> Updated.return_quiet
+    | (_, None) =>
+      add_message_to_model(
+        mode,
+        model,
+        {
+          party: System,
+          code: None,
+          content: "No model ID found. Please set a model ID in the assistant settings.",
+          collapsed: false,
+        },
+        curr_chat.id,
+        ~is_final=true,
+      )
+      |> Updated.return_quiet
+    };
+  };
+
+  let failed_prompt_generation =
+      (~mode: AssistantSettings.mode, ~model: Model.t, ~curr_chat: Model.chat) => {
+    add_message_to_model(
+      mode,
+      model,
+      {
+        party: System,
+        code: None,
+        content: "Prompt generation failed.",
+        collapsed: false,
+      },
+      curr_chat.id,
+      ~is_final=true,
+    )
+    |> Updated.return_quiet;
+  };
+
   let update =
       (
         ~settings: Settings.t,
@@ -598,213 +682,63 @@ module Update = {
         ~model: Model.t,
         ~schedule_action: t => unit,
         ~add_suggestion,
+        ~goto_definition,
       )
       : Updated.t(Model.t) => {
     switch (action) {
     | SendTextMessage(message) =>
       let mode = settings.assistant.mode;
-      // Capture the chat we're updating here. This will propogate.
+      // Capture the entire chat to give historical context to LLM
       let (_, curr_chat) = get_mode_info(mode, model);
       let collected_chat =
         collect_chat(~messages=curr_chat.messages @ [message]);
-      let tutor_prelude = get_documentation_as_text();
-      let tutor_chat =
-        List.length(curr_chat.messages) == 0
-          ? tutor_prelude ++ "\n\n" ++ collected_chat : collected_chat;
-      print_endline("tutor_chat: " ++ tutor_chat);
-      switch (standardize_prompt(tutor_chat)) {
-      | None =>
-        add_message_to_model(
-          mode,
-          model,
-          {
-            party: System,
-            code: None,
-            content: "Prompt generation failed.",
-            collapsed: false,
-          },
-          curr_chat.id,
-          ~is_final=true,
-        )
-        |> Updated.return_quiet
-      | Some(prompt) =>
-        switch (Store.Generic.load("API"), Store.Generic.load("MODEL")) {
-        | (Some(key), Some(model_id)) =>
-          let params: OpenRouter.params = {
-            model_id,
-            temperature: 1.0,
-            top_p: 1.0,
-          };
-          OpenRouter.start_chat(~params, ~key, prompt, req =>
-            switch (OpenRouter.handle_chat(req)) {
-            | Some(Reply({content, _})) =>
-              schedule_action(
-                Respond(
-                  text_message_of_str(content, LLM),
-                  mode,
-                  curr_chat.id,
-                ),
-              )
-            | Some(Error({message, code})) =>
-              schedule_action(
-                SendSystemMessage(
-                  "Error: "
-                  ++ message
-                  ++ " (code: "
-                  ++ string_of_int(code)
-                  ++ ")",
-                  mode,
-                  curr_chat.id,
-                ),
-              )
-            | None =>
-              print_endline(
-                "Assistant: response parse failed (SendTextMessage)",
-              )
-            }
-          );
-          add_message_to_model(
-            mode,
-            model,
-            message,
-            curr_chat.id,
-            ~is_final=true,
-          )
-          |> Updated.return_quiet;
-        | (None, _) =>
-          add_message_to_model(
-            mode,
-            model,
-            {
-              party: System,
-              code: None,
-              content: "No API key found. Please set an API key in the assistant settings.",
-              collapsed: false,
-            },
-            curr_chat.id,
-            ~is_final=true,
-          )
-          |> Updated.return_quiet
-        | (_, None) =>
-          add_message_to_model(
-            mode,
-            model,
-            {
-              party: System,
-              code: None,
-              content: "No model ID found. Please set a model ID in the assistant settings.",
-              collapsed: false,
-            },
-            curr_chat.id,
-            ~is_final=true,
-          )
-          |> Updated.return_quiet
-        }
-      };
-    | SetKey(api_key) =>
-      Store.Generic.save("API", api_key);
-      schedule_action(SetAvailableModels);
-      model |> Updated.return_quiet;
-    | SetModel(model_id) =>
-      Store.Generic.save("MODEL", model_id);
-      model |> Updated.return_quiet;
-    | NewChat =>
-      let mode = settings.assistant.mode;
-      let (past_chats, _) = get_mode_info(mode, model);
-      let new_chat: Model.chat = {
-        messages: [],
-        id: Id.mk(),
-        descriptor: "",
-        timestamp: JsUtil.timestamp(),
-      };
-      let updated_history = Model.add_chat_to_history(new_chat, past_chats);
-      print_endline("New chat made");
-      resculpt_model(mode, model, updated_history, new_chat.id)
-      |> Updated.return_quiet;
-    | DeleteChat(chat_to_be_gone_id) =>
-      let mode = settings.assistant.mode;
-      // Filter out the chat we're deleting
-      let (past_chats, curr_chat) = get_mode_info(mode, model);
-      let filtered_past_chats =
-        Id.Map.filter((id, _) => id != chat_to_be_gone_id, past_chats);
-      let chrono_history = Model.sorted_chats(filtered_past_chats);
-      let updated_model =
-        curr_chat.id == chat_to_be_gone_id
-          ? switch (ListUtil.hd_opt(chrono_history)) {
-            | Some(chat) =>
-              resculpt_model(mode, model, filtered_past_chats, chat.id)
-            | None => resculpt_model(mode, model, past_chats, curr_chat.id)
-            }
-          : resculpt_model(mode, model, filtered_past_chats, curr_chat.id);
-      updated_model |> Updated.return_quiet;
-    | History =>
-      {
-        ...model,
-        show_history: !model.show_history,
-      }
-      |> Updated.return_quiet
-    | Respond(message, mode, chat_id) =>
-      let response = message.content;
-      let code_pattern =
-        Str.regexp(
-          "\\(\\(.\\|\n\\)*\\)```[ \n]*\\([^`]+\\)[ \n]*```\\(\\(.\\|\n\\)*\\)",
-        );
-      let (discussion, code_example) =
-        if (Str.string_match(code_pattern, response, 0)) {
-          let before = String.trim(Str.matched_group(1, response));
-          let code = String.trim(Str.matched_group(3, response));
-          (before, code |> StringUtil.trim_leading);
-        } else {
-          print_endline("Regex match failed for: " ++ response);
-          (response |> StringUtil.trim_leading, "");
+      let prompt =
+        switch (mode) {
+        | HazelTutor =>
+          let tutor_prelude = get_documentation_as_text();
+          // If the chat is just beginning, let us add the tutor prelude
+          let tutor_chat =
+            List.length(curr_chat.messages) == 0
+              ? tutor_prelude ++ "\n\n" ++ collected_chat : collected_chat;
+          tutor_chat;
+        | CodeSuggestion =>
+          // Just leave as is, no prelude needed, already prompted in ChatLSP
+          // Messages are typically sent during code completion
+          collected_chat
+        | TaskCompletion =>
+          // Task completion will go as follows:
+          // 1. User will type in desired functionality and send message. It will be
+          //    this message being sent here
+          // 2. This will be sent, along with the prompt (toolkit + few-shot examples + documentation?)
+          // 3. The LLM will respond with a response, from the toolkit. This will iterate
+          //    until the LLM responds with "submit".
+          // IMPORTANT: In step 2, and steps 3.1...3.n, we will need to give the LLM
+          // a sketch of the program, and an idea of "where" it currently is (like a cursor location).
+          // This can simply be added to the prompt.
+          // Thus, let us construct the prompt as follows:
+          // 1. Add the prelude
+          // 2. Add the few-shot examples
+          // 3. Add the documentation
+          // 4. Add the sketch of the program
+          // 5. Add the cursor location
+          // 6. Add the user task-to-be-completed
+          "Please respond simply with ONLY and EXACTLY this: "
+          ++ message.content
         };
-      let discussion_message = text_message_of_str(discussion, LLM);
-      if (code_example == "") {
-        check_descriptor(
+      switch (standardize_prompt(prompt)) {
+      | None => failed_prompt_generation(~mode, ~model, ~curr_chat)
+      | Some(prompt) =>
+        mk_LLM_call(
           ~model,
-          ~schedule_action,
-          ~message=discussion_message,
+          ~curr_chat,
+          ~prompt,
+          ~message,
           ~mode,
-          ~chat_id,
-        );
-        add_message_to_model(
-          mode,
-          model,
-          discussion_message,
-          chat_id,
-          ~is_final=true,
-        )
-        |> Updated.return_quiet;
-      } else {
-        let model_with_discussion =
-          add_message_to_model(
-            mode,
-            model,
-            discussion_message,
-            chat_id,
-            ~is_final=false,
-          );
-        // Then handle the completion as before
-        let message_with_example =
-          code_message_of_str(code_example, LLM, None);
-        check_descriptor(
-          ~model,
           ~schedule_action,
-          ~message=message_with_example,
-          ~mode,
-          ~chat_id,
-        );
-        add_message_to_model(
-          mode,
-          model_with_discussion,
-          message_with_example,
-          chat_id,
-          ~is_final=true,
         )
-        |> Updated.return_quiet;
       };
     | SendSketchMessage(tileId, mode, advanced_reasoning) =>
-      // Capture the chat we're updating here. This will propogate.
+      // Capture the chat we're updating
       let (_, curr_chat) = get_mode_info(mode, model);
       let sketch_seg =
         Zipper.smart_seg(
@@ -934,6 +868,111 @@ module Update = {
           )
           |> Updated.return_quiet
         };
+      };
+    | SetKey(api_key) =>
+      Store.Generic.save("API", api_key);
+      schedule_action(SetAvailableModels);
+      model |> Updated.return_quiet;
+    | SetModel(model_id) =>
+      Store.Generic.save("MODEL", model_id);
+      model |> Updated.return_quiet;
+    | NewChat =>
+      let mode = settings.assistant.mode;
+      let (past_chats, _) = get_mode_info(mode, model);
+      let new_chat: Model.chat = {
+        messages: [],
+        id: Id.mk(),
+        descriptor: "",
+        timestamp: JsUtil.timestamp(),
+      };
+      let updated_history = Model.add_chat_to_history(new_chat, past_chats);
+      resculpt_model(mode, model, updated_history, new_chat.id)
+      |> Updated.return_quiet;
+    | DeleteChat(chat_to_be_gone_id) =>
+      let mode = settings.assistant.mode;
+      // Filter out the chat we're deleting
+      let (past_chats, curr_chat) = get_mode_info(mode, model);
+      let filtered_past_chats =
+        Id.Map.filter((id, _) => id != chat_to_be_gone_id, past_chats);
+      let chrono_history = Model.sorted_chats(filtered_past_chats);
+      let updated_model =
+        curr_chat.id == chat_to_be_gone_id
+          ? switch (ListUtil.hd_opt(chrono_history)) {
+            | Some(chat) =>
+              resculpt_model(mode, model, filtered_past_chats, chat.id)
+            | None => resculpt_model(mode, model, past_chats, curr_chat.id)
+            }
+          : resculpt_model(mode, model, filtered_past_chats, curr_chat.id);
+      updated_model |> Updated.return_quiet;
+    | History =>
+      {
+        ...model,
+        show_history: !model.show_history,
+      }
+      |> Updated.return_quiet
+    | Respond(message, mode, chat_id) =>
+      let response = message.content;
+      print_endline("GOTO DEFINITION: " ++ response);
+      print_endline("message content is (" ++ response ++ ")");
+      goto_definition(editor, response);
+      print_endline("GOTO DEFINITION DONE");
+      let code_pattern =
+        Str.regexp(
+          "\\(\\(.\\|\n\\)*\\)```[ \n]*\\([^`]+\\)[ \n]*```\\(\\(.\\|\n\\)*\\)",
+        );
+      let (discussion, code_example) =
+        if (Str.string_match(code_pattern, response, 0)) {
+          let before = String.trim(Str.matched_group(1, response));
+          let code = String.trim(Str.matched_group(3, response));
+          (before, code |> StringUtil.trim_leading);
+        } else {
+          print_endline("Regex match failed for: " ++ response);
+          (response |> StringUtil.trim_leading, "");
+        };
+      let discussion_message = text_message_of_str(discussion, LLM);
+      if (code_example == "") {
+        check_descriptor(
+          ~model,
+          ~schedule_action,
+          ~message=discussion_message,
+          ~mode,
+          ~chat_id,
+        );
+        add_message_to_model(
+          mode,
+          model,
+          discussion_message,
+          chat_id,
+          ~is_final=true,
+        )
+        |> Updated.return_quiet;
+      } else {
+        let model_with_discussion =
+          add_message_to_model(
+            mode,
+            model,
+            discussion_message,
+            chat_id,
+            ~is_final=false,
+          );
+        // Then handle the completion as before
+        let message_with_example =
+          code_message_of_str(code_example, LLM, None);
+        check_descriptor(
+          ~model,
+          ~schedule_action,
+          ~message=message_with_example,
+          ~mode,
+          ~chat_id,
+        );
+        add_message_to_model(
+          mode,
+          model_with_discussion,
+          message_with_example,
+          chat_id,
+          ~is_final=true,
+        )
+        |> Updated.return_quiet;
       };
     | ErrorRespond(response, sketch_z, ci, fuel, tileId, mode, chat_id) =>
       // Split response into discussion and completion

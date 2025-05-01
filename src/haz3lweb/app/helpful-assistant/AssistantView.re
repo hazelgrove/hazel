@@ -462,7 +462,7 @@ let message_input =
             switch (settings.mode) {
             | HazelTutor => "Ask a question about Hazel or anything..."
             | CodeSuggestion => "Followup with a question..."
-            | TaskCompletion => "Type a task completion..."
+            | TaskCompletion => "Give the agent a task to complete..."
             },
           ),
           Attr.type_("text"),

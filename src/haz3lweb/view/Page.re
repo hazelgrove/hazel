@@ -308,6 +308,20 @@ module Update = {
           actions,
         );
       };
+      let goto_definition = (ed: CodeWithStatics.Model.t, name: string) => {
+        let actions = ChatLSP.Composition.goto_variable(name, ed);
+        // Apply each action in sequence
+        List.iter(
+          action => {
+            let perform_action = CodeEditable.Update.Perform(action);
+            let cell_action = CellEditor.Update.MainEditor(perform_action);
+            let scratch_action =
+              Editors.Update.Scratch(CellAction(cell_action));
+            schedule_action(Editors(scratch_action));
+          },
+          actions,
+        );
+      };
       let* assistant =
         Assistant.Update.update(
           ~settings,
@@ -316,6 +330,7 @@ module Update = {
           ~model=model.assistant,
           ~schedule_action=a => schedule_action(Assistant(a)),
           ~add_suggestion,
+          ~goto_definition,
         );
       {
         ...model,
