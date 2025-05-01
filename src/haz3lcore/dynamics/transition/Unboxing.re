@@ -230,7 +230,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         let* d' = unbox(SumNoArg(name), d');
         Matches(d');
       | _ => DoesNotMatch
-      };
+      }
 
     | (SumWithArg(_), Constructor(_)) => DoesNotMatch
     | (SumWithArg(name1), Ap(_, {term: Constructor(name2, _), _}, d3))
@@ -296,8 +296,8 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     /* Any cast from unknown is indet */
     | (_, Cast(_, s1, _)) when TypSlice.is_unknown(s1) => IndetMatch
 
-    /* Any failed cast is indet */
-    | (_, FailedCast(_)) => IndetMatch
+    /* Any failed cast does not match. Why was this previously indet? Being indet breaks dynamic pattern matching. */
+    | (_, FailedCast(_)) => DoesNotMatch
 
     /* Forms that are the wrong type of value - these cases indicate an error
        in elaboration or in the cast calculus. */

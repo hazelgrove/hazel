@@ -95,7 +95,7 @@ let print =
   | "F12" =>
     let inst =
       statics.elaborated
-      |> Evaluator.evaluate(~env=Builtins.env_init)
+      |> Evaluator.evaluate'(~env=Builtins.env_init)
       |> fst
       |> RedexHoleType.find(Builtins.env_init);
     (

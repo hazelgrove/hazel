@@ -83,11 +83,17 @@ let rec evaluate = (~in_closure=?, state, env, d) => {
   };
 };
 
-let evaluate' = (env, d: DHExp.t) => {
+let evaluate' = (~env, d: DHExp.t) => {
   let state = ref(IndetEvaluatorState.init);
   let env = ClosureEnvironment.of_environment(env);
   let result = evaluate(state, env, d);
-  Trampoline.run(result) |> snd;
+  (
+    switch (Trampoline.run(result)) {
+    | (Final, x) => x |> Exp.replace_all_ids
+    | (Uneval, x) => x |> Exp.replace_all_ids
+    },
+    state^,
+  );
 };
 
 let evaluate = (~env, d: DHExp.t) => {
