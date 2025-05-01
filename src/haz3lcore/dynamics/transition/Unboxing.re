@@ -242,7 +242,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     /* Any cast from unknown is indet */
     | (_, Cast(_, {term: Unknown(_), _}, _)) => IndetMatch
 
-    /* Any failed cast is indet */
+    /* Any failed casts cannot be unboxed */
     | (_, FailedCast(_)) => DoesNotMatch
 
     /* Forms that are the wrong type of value - these cases indicate an error
