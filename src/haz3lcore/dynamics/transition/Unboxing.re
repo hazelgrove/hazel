@@ -219,6 +219,18 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
           TypSlice.is_sum(s1, ~ignore_parens=false)
           && TypSlice.is_sum(s2, ~ignore_parens=false) =>
       IndetMatch
+    /* Matches curried constructor. Note: does not check type consistency between arrow arg type
+       and sum constrctor arg type -- TODO: fix (issue only occurs if two sum types use same ctr name
+       and wrong one is passed into match, debatable if we even want to allow any matching at all here) */
+    | (SumNoArg(name), Cast(_, _, s))
+        when TypSlice.is_arrow(~ignore_parens=false, s) =>
+      switch (unbox(Fun, expr)) {
+      | Matches(Constructor(name')) when name == name' => Matches()
+      | Matches(FunCast(d', _, _, _, _)) =>
+        let* d' = unbox(SumNoArg(name), d');
+        Matches(d');
+      | _ => DoesNotMatch
+      };
 
     | (SumWithArg(_), Constructor(_)) => DoesNotMatch
     | (SumWithArg(name1), Ap(_, {term: Constructor(name2, _), _}, d3))
