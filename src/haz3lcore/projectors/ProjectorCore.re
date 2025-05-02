@@ -1,5 +1,3 @@
-open Util;
-
 /* Projector dependencies are currently somewhat convoluted.
  * This is the lowermost projectors module; Base depends on
  * this (specifically, it parameterizes the type t below over piece).
@@ -160,7 +158,8 @@ let sexp_of_model =
     List([Atom("info"), m |> TypeProj.sexp_of_model(sexp_of_ed)])
   // | V(Probe, _) => List([Atom("probe"), () |> sexp_of_unit])
   // | V(Checkbox, _) => List([Atom("checkbox"), () |> sexp_of_unit])
-  | V(Slider, _) => List([Atom("slider"), () |> sexp_of_unit])
+  | V(Slider, m) =>
+    List([Atom("slider"), m |> SliderProj.sexp_of_model(sexp_of_ed)])
   // | V(SliderF, _) => List([Atom("sliderf"), () |> sexp_of_unit])
   // | V(Card, m) =>
   // List([Atom("card"), m |> CardProj.sexp_of_model(sexp_of_ed)])

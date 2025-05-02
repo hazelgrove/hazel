@@ -104,6 +104,8 @@ type methods('model, 'action, 'ed) = {
   placeholder: (~ed_str: 'ed => string, 'model, info) => ProjectorShape.t,
   update: ('model, info, 'action) => 'model,
   mk_term: (~term_of_ed: (Sort.t, 'ed) => Any.t, Sort.t, 'model) => Any.t,
+  persist: ('ed => Sexplib.Sexp.t, 'model) => Sexplib.Sexp.t,
+  unpersist: (Sexplib.Sexp.t => 'ed, Sexplib.Sexp.t) => 'model,
 };
 
 // /* To add a new projector:

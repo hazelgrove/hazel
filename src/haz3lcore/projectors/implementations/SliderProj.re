@@ -53,4 +53,6 @@ let methods = {
   view,
   update,
   mk_term,
+  persist: sexp_of_model,
+  unpersist: model_of_sexp,
 };
