@@ -2,6 +2,8 @@ module Sexp = Sexplib.Sexp;
 open Haz3lcore;
 open Util;
 open Util.OptUtil.Syntax;
+open Js_of_ocaml;
+open Js_of_ocaml.Dom_html;
 
 module CodeModel = CodeEditable.Model;
 
@@ -195,23 +197,18 @@ module Update = {
   };
 
   let collect_chat = (~messages: list(Model.message)): string => {
-    let chat = "The following is a log of the current conversation. This is solely for the purpose
-    to help you recall the entire conversation, in case the user asks you something that needs context
-    from before. You should respond as normal, using the entire chat as context, and understand that the
-    most recent \"User Input\" is what the user is currently sending/asking, and is what your main focus should be.
-    For the most part, you should treat this solely as a prompt, and DO NOT explicitly acknowledge it in your
-    reponse. Only use it as a sort of memory. You can, of course, reference prior messages.
-    Here is the context: ";
+    let memory_prompt =
+      "The following is a log of our conversation history. Use this as context to inform your responses, "
+      ++ "treating the most recent user message as your current focus. Reference prior messages when relevant, "
+      ++ "but don't explicitly acknowledge this prompt. This is simply to provide you with conversational memory:";
     List.fold_left(
       (chat: string, message: Model.message) =>
-        if (message.party == LLM) {
-          chat ++ "Your Reponse: " ++ message.content ++ " ";
-        } else if (message.party == LS) {
-          chat ++ "User Input: " ++ message.content ++ " ";
-        } else {
-          chat ++ message.content;
+        switch (message.party) {
+        | LLM => chat ++ "ASSISTANT: " ++ message.content ++ "\n"
+        | LS => chat ++ "USER: " ++ message.content ++ "\n"
+        | System => chat ++ "SYSTEM: " ++ message.content ++ "\n"
         },
-      chat,
+      memory_prompt,
       messages,
     );
   };
@@ -687,7 +684,7 @@ module Update = {
         ~schedule_action: t => unit,
         ~add_suggestion,
         ~goto_definition,
-        ~replace,
+        ~edit,
       )
       : Updated.t(Model.t) => {
     switch (action) {
@@ -727,11 +724,6 @@ module Update = {
           // 4. Add the sketch of the program
           // 5. Add the cursor location
           // 6. Add the user task-to-be-completed
-          let prelude =
-            List.length(curr_chat.messages) == 0
-              ? "Please note you are operating in the Hazel Programming Language. Here is some documentation on the language: "
-                ++ get_documentation_as_text()
-              : "";
           let sketch_seg =
             Zipper.smart_seg(
               ~dump_backpack=true,
@@ -742,17 +734,16 @@ module Update = {
             Option.get(Indicated.index(editor.editor.state.zipper));
           let ci =
             Option.get(Id.Map.find_opt(index, editor.statics.info_map));
-          ChatLSP.Composition.prompt(
+          ChatLSP.Composition.mk_prompt(
             ChatLSP.Options.init,
             ci,
             sketch_seg,
             List.length(curr_chat.messages) == 0,
           )
           ++ "\n\n"
-          ++ prelude
-          ++ "\n\n"
           ++ collected_chat;
         };
+      let message = text_message_of_str(prompt, LS);
       switch (standardize_prompt(prompt)) {
       | None => failed_prompt_generation(~mode, ~model, ~curr_chat)
       | Some(prompt) =>
@@ -1001,14 +992,15 @@ module Update = {
           |> Updated.return_quiet;
         };
       } else {
+        // mode == TaskCompletion
         let updated_chat_model = (message: string) => {
-          check_descriptor(
-            ~model,
-            ~schedule_action,
-            ~message=text_message_of_str(message, LLM),
-            ~mode,
-            ~chat_id,
-          );
+          /*check_descriptor(
+              ~model,
+              ~schedule_action,
+              ~message=text_message_of_str(message, LLM),
+              ~mode,
+              ~chat_id,
+            );*/
           add_message_to_model(
             mode,
             model,
@@ -1030,6 +1022,10 @@ module Update = {
           | None => [final_response]
           };
         let tool_call = List.hd(parsed_response);
+        let get_clipboard = () => {
+          let clipboard_shim = JsUtil.get_elem_by_id("clipboard-shim");
+          Js.to_string(Js.Unsafe.get(clipboard_shim, "value"));
+        };
         let arg =
           List.length(parsed_response) > 1
             ? Some(List.hd(List.tl(parsed_response))) : None;
@@ -1039,30 +1035,32 @@ module Update = {
             goto_definition(editor, Option.get(arg));
             schedule_action(
               SendTextMessage(
-                text_message_of_str(
-                  "Please continue with completing the task. If done, submit.",
-                  LS,
-                ),
+                text_message_of_str("Selected: " ++ get_clipboard(), System),
               ),
             );
             updated_chat_model(response);
-          | "replace" =>
-            replace(Option.get(arg));
+          | "edit_code"
+          | "edit" =>
+            edit(Option.get(arg));
+            schedule_action(
+              SendTextMessage(
+                text_message_of_str("Selected: " ++ get_clipboard(), System),
+              ),
+            );
             updated_chat_model(response);
           | "submit" => updated_chat_model(response)
           | _ =>
-            let model_with_response =
-              add_message_to_model(
+            schedule_action(
+              SendSystemMessage(
+                "Unknown tool call: " ++ tool_call,
                 mode,
-                model,
-                text_message_of_str(response, LLM),
                 chat_id,
-                ~is_final=true,
-              );
+              ),
+            );
             add_message_to_model(
               mode,
-              model_with_response,
-              text_message_of_str("Unknown tool call: " ++ tool_call, System),
+              model,
+              text_message_of_str(response, LLM),
               chat_id,
               ~is_final=true,
             );

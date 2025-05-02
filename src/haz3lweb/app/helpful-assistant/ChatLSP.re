@@ -147,7 +147,7 @@ module SystemPrompt = {
     "    Example: ```goto_definition x``` selects 'let x = <definition> in'",
     /* File Editing Tools */
     "- FILE EDITING TOOLS:",
-    "  * ```replace <replacement_text>``` - Replaces the currently selected definition with replacement_text.",
+    "  * ```edit_code <code>``` - Replaces the currently selected definition with code.",
     /* Task Tools */
     "- TASK TOOLS:",
     "  * ```submit``` - Ends the iterative process and finalizes the task.",
@@ -158,7 +158,100 @@ module SystemPrompt = {
     "- Your response MUST contain exactly ONE tool call in this format: ```tool_call <required_argument>```",
     "- Do not prepend or append anything like 'ocaml' or 'haskell' or 'tool_call' to the tool call.",
     "- This is an iterative process - you'll make one tool call per response.",
-    "- Do not include any other text in your response except for the tool call. eg: 'replace <replacement_text>' or 'goto_definition <variable_name>'. Do not include any other text.",
+    "- Do not include any other text in your response except for the tool call. eg: 'edit_code <code>' or 'goto_definition <variable_name>'. Do not include any other text.",
+    "- Be sure to enclose the tool call in triple backticks and place it at the end of your response.",
+  ];
+
+  let few_shot_comp_examples = [
+    "The following are several example dialogues and actions taken for example task completions.",
+    "Also note that you are working in the Hazel programming language, thus pay attention to the syntax and semantics of the language: ",
+    /* Example 1: Fix a type error in a simple function */
+    "# Example 1: Fix a type error in a Hazel function #",
+    "# Task: Find and fix the type error in the add function #",
+    "# Current sketch: let add = fun x -> x + \"hello\" in add(5) #",
+    "USER: Can you fix the type error in the add function?",
+    "ASSISTANT: I'll fix the type error in the add function. First, I need to navigate to the function definition.",
+    "```goto_definition add```",
+    "SYSTEM: Selected: let add = fun x -> x + \"hello\" in",
+    "ASSISTANT: I see the issue. The function is trying to add an integer and a string, which isn't valid in Hazel. I'll replace it with correct code that adds two numbers.",
+    "```edit_code let add = fun x -> x + 5 in```",
+    "SYSTEM: Updated and selected: let add = fun x -> x + 5 in",
+    "ASSISTANT: Let's actually square the input instead.",
+    "```edit_code let square = fun x -> x * x in```",
+    "SYSTEM: Updated and selected: let square = fun x -> x * x in",
+    "ASSISTANT: The type error is now fixed. The add function correctly squares its input. I'll submit the completed task.",
+    "```submit```",
+    /* Example 2: Modify a Boolean function */
+    "# Example 2: Modify a Boolean function in Hazel #",
+    "# Task: Update the 'negate' function to check if a number is less than 10 instead of negating a Boolean #",
+    "# Current sketch: let negate: Bool -> Bool = fun b -> !b in negate(true)#",
+    "USER: Please change the 'negate' function to check if a number is less than 10 instead.",
+    "ASSISTANT: I'll modify the negate function to check if a number is less than 10. First, I need to find the function definition.",
+    "```goto_definition negate```",
+    "SYSTEM: Selected: let negate: Bool -> Bool = fun b -> !b in",
+    "ASSISTANT: Now I'll replace the function with one that checks if a number is less than 10. I need to update both the type signature and implementation.",
+    "```edit_code let negate: Int -> Bool = fun n -> n < 10 in```",
+    "SYSTEM: Updated and selected: let negate: Int -> Bool = fun n -> n < 10 in",
+    "ASSISTANT: The function has been updated to check if a number is less than 10. Note that the call site still has negate(true), which would need to be updated separately. I'll submit this task.",
+    "```submit```",
+    /* Example 3: Working with algebraic data types */
+    "# Example 3: Fix a pattern matching function for an algebraic data type #",
+    "# Task: Fix the 'is_empty' function to correctly check if a list is empty #",
+    "# Current sketch: let is_empty: [Int] -> Bool = fun xs -> case xs | x::rest => false end in is_empty([]) #",
+    "USER: The is_empty function doesn't handle empty lists correctly. Can you fix it?",
+    "ASSISTANT: I'll fix the is_empty function to correctly handle empty lists. First, I need to find the function definition.",
+    "```goto_definition is_empty```",
+    "SYSTEM: Selected: let is_empty: [Int] -> Bool = fun xs -> case xs | x::rest => false end in",
+    "ASSISTANT: I see the issue. The case expression only handles non-empty lists and returns false. It's missing a pattern for empty lists. I'll add the missing pattern.",
+    "```edit_code let is_empty: [Int] -> Bool = fun xs -> case xs | [] => true | x::rest => false end in```",
+    "SYSTEM: Updated and selected: let is_empty: [Int] -> Bool = fun xs -> case xs | [] => true | x::rest => false end in",
+    "ASSISTANT: The is_empty function now correctly checks if a list is empty. It returns true for empty lists and false for non-empty lists. Task completed.",
+    "```submit```",
+    /* Example 4: Fix a type error in a recursive function */
+    "# Example 4: Fix a type error in a recursive function #",
+    "# Task: Fix the 'sum' function that's supposed to add all numbers in a list #",
+    "# Current sketch: let sum = fun xs -> case xs | [] => 0 | h::t => h + sum(t) end in sum([1, 2, 3]) #",
+    "USER: The sum function has a type error. Please add the missing type annotation.",
+    "ASSISTANT: I'll fix the sum function by adding a type annotation. First, I need to look at its definition.",
+    "```goto_definition sum```",
+    "SYSTEM: Selected: let sum = fun xs -> case xs | [] => 0 | h::t => h + sum(t) end in",
+    "ASSISTANT: I see the issue. The function is recursive but missing a type annotation, which is required for recursive functions in Hazel. I'll add the appropriate type annotation for a function that sums a list of integers.",
+    "```edit_code let sum: [Int] -> Int = fun xs -> case xs | [] => 0 | h::t => h + sum(t) end in```",
+    "SYSTEM: Updated and selected: let sum: [Int] -> Int = fun xs -> case xs | [] => 0 | h::t => h + sum(t) end in",
+    "ASSISTANT: The sum function now has the correct type annotation [Int] -> Int, indicating it takes a list of integers and returns a single integer. This fixes the type error for the recursive function. Task completed.",
+    "```submit```",
+    /* Example 5: Fix a function with tuple pattern matching */
+    "# Example 5: Fix a function with tuple pattern matching #",
+    "# Task: Fix the 'add_pairs' function that's supposed to add corresponding elements in two lists #",
+    "# Current sketch: let add_pairs = fun (xs, ys) -> case (xs, ys) | [], _ => [] | _, [] => [] | h1::t1, h2::t2 => h1 + h2 :: add_pairs(t1, t1) end in add_pairs([1, 2], [3, 4]) #",
+    "USER: The add_pairs function has a bug where it passes the wrong argument to the recursive call. Can you fix it?",
+    "ASSISTANT: I'll fix the bug in the add_pairs function. First, I need to find the function definition.",
+    "```goto_definition add_pairs```",
+    "SYSTEM: Selected: let add_pairs = fun (xs, ys) -> case (xs, ys) | [], _ => [] | _, [] => [] | h1::t1, h2::t2 => h1 + h2 :: add_pairs(t1, t1) end in",
+    "ASSISTANT: I see the bug. In the recursive call add_pairs(t1, t1), the function is passing t1 twice instead of passing t1 and t2. I'll fix this by updating the recursive call to use the correct arguments.",
+    "```edit_code let add_pairs = fun (xs, ys) -> case (xs, ys) | [], _ => [] | _, [] => [] | h1::t1, h2::t2 => h1 + h2 :: add_pairs(t1, t2) end in```",
+    "SYSTEM: Updated and selected: let add_pairs = fun (xs, ys) -> case (xs, ys) | [], _ => [] | _, [] => [] | h1::t1, h2::t2 => h1 + h2 :: add_pairs(t1, t2) end in",
+    "ASSISTANT: The bug in the add_pairs function is now fixed. It correctly passes t1 and t2 to the recursive call, which will properly process all elements in both lists. Task completed.",
+    "```submit```",
+    /* Example 6: Working with algebraic data types */
+    "# Example 6: Improve an expression evaluator #",
+    "# Task: Add support for multiplication to the 'eval' function for arithmetic expressions #",
+    "# Current sketch: type Exp = +Num(Int) +Add(Exp, Exp) in let eval = fun e -> case e | Num(n) => n | Add(e1, e2) => eval(e1) + eval(e2) end in eval(Add(Num(2), Num(3))) #",
+    "USER: Can you extend the Exp type and eval function to support multiplication?",
+    "ASSISTANT: I'll extend the expression evaluator to support multiplication. First, I need to look at the current implementation.",
+    "```goto_definition Exp```",
+    "SYSTEM: Selected: type Exp = +Num(Int) +Add(Exp, Exp) in",
+    "ASSISTANT: I'll modify the Exp type to include a constructor for multiplication operations.",
+    "```edit_code type Exp = +Num(Int) +Add(Exp, Exp) +Mul(Exp, Exp) in```",
+    "SYSTEM: Updated and selected: type Exp = +Num(Int) +Add(Exp, Exp) +Mul(Exp, Exp) in",
+    "ASSISTANT: Now I need to update the eval function to handle the new Mul constructor.",
+    "```goto_definition eval```",
+    "SYSTEM: Selected: let eval = fun e -> case e | Num(n) => n | Add(e1, e2) => eval(e1) + eval(e2) end in",
+    "ASSISTANT: I'll add a pattern for multiplication to the eval function.",
+    "```edit_code let eval = fun e -> case e | Num(n) => n | Add(e1, e2) => eval(e1) + eval(e2) | Mul(e1, e2) => eval(e1) * eval(e2) end in```",
+    "SYSTEM: Updated and selected: let eval = fun e -> case e | Num(n) => n | Add(e1, e2) => eval(e1) + eval(e2) | Mul(e1, e2) => eval(e1) * eval(e2) end in",
+    "ASSISTANT: The expression evaluator now supports multiplication! I've added a Mul constructor to the Exp type and updated the eval function to handle multiplication expressions by recursively evaluating both sub-expressions and multiplying the results. Task completed.",
+    "```submit```",
   ];
 
   let mk_suggestion_prompt =
@@ -258,7 +351,7 @@ module Composition = {
 
   // Finds the first matching variable as 'name' in the context
   // highlights the variable and definition (excluding the body)
-  let goto_variable =
+  let goto_definition =
       (name: string, editor: CodeWithStatics.Model.t): list(Action.t) => {
     let statics = CodeWithStatics.Model.get_statics(editor);
     // Find the first matching variable in the context using fold
@@ -281,33 +374,40 @@ module Composition = {
       );
     // Return appropriate action based on whether we found a match
     switch (matching_id) {
-    | Some(id) => [Action.Jump(TileId(id)), Action.Select(Smart(3))]
+    | Some(id) => [
+        Action.Jump(TileId(id)),
+        Action.Select(Smart(3)),
+        Action.Copy,
+      ]
     | None => [Action.Select(Term(Id(Id.invalid, Direction.Left)))]
     };
   };
 
-  let replace = (replacement_text: string): list(Action.t) => {
+  let edit = (code: string): list(Action.t) => {
     [
       // TODO: Might be helpful to paste a segment instead of a string
       // This may allow for better error handling.
-      Action.Paste(String(replacement_text)),
+      // We paste the code edit, then reselect the definition, and copy
+      // to clipboard shim to give context to assistant.
+      Action.Paste(String(code)),
+      Action.Select(Smart(3)),
+      Action.Copy,
     ];
   };
 
-  let insert =
-      (text: string, editor: CodeWithStatics.Model.t): list(Action.t) => {
-    [Action.Paste(String(text))];
-  };
-
-  let prompt =
+  let mk_prompt =
       (options: Options.t, ci: Info.t, sketch: Segment.t, init: bool): string => {
     let prelude_and_toolkit =
       String.concat("\n", SystemPrompt.task_completion_toolkit);
+    let few_shot_examples =
+      String.concat("\n", SystemPrompt.few_shot_comp_examples);
     String.concat(
       "\n",
-      (init ? [prelude_and_toolkit] : [])
-      @ ["sketch: " ++ ErrorPrint.Print.seg(~holes=Some("?"), sketch)]
-      @ get_static_context(options.relevant_ctx, ci),
+      (init ? [prelude_and_toolkit ++ few_shot_examples] : [])
+      @ [
+        "Current sketch: " ++ ErrorPrint.Print.seg(~holes=Some("?"), sketch),
+      ],
+      //@ get_static_context(options.relevant_ctx, ci),
     );
   };
 };
