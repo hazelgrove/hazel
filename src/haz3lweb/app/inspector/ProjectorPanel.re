@@ -17,19 +17,38 @@ module Applicable = {
    * should be kept in sync with the projector add/remove logic
    * in ProjectorPerform */
   let target_seg =
-      (cursor: Cursor.cursor(Editors.Update.t)): option(Segment.t) =>
-    switch (cursor.selection) {
-    | None => None
-    | Some([]) =>
-      switch (cursor.indicated_piece) {
-      | Some(Tile(_) as p)
-      | Some(Projector(_) as p) => Some([p])
-      | Some(Grout(_))
-      | Some(Secondary(_))
+      (cursor: Cursor.cursor(Editors.Update.t)): option(Segment.t) => {
+    let* seg =
+      switch (cursor.selection) {
       | None => None
-      }
-    | Some(seg) => Some(seg)
-    };
+      | Some([]) =>
+        switch (cursor.indicated_piece) {
+        | Some(Tile(_) as p)
+        | Some(Projector(_) as p) => Some([p])
+        | Some(Grout(_))
+        | Some(Secondary(_))
+        | None => None
+        }
+      | Some(seg) => Some(seg)
+      };
+    let* () = Segment.deep_tile_complete(seg) ? Some() : None;
+    let* () = Segment.is_padded(seg) ? None : Some();
+    let* skel =
+      switch (Segment.skel(seg)) {
+      | exception _ => None
+      | skel => Some(skel)
+      };
+    let* () =
+      switch (Segment.sort_of(skel, seg)) {
+      | Exp
+      | Pat
+      | Typ
+      | TPat => Some()
+      | Rul
+      | Any => None
+      };
+    Some(seg);
+  };
 
   // TODO(matt|andrew): make this work more generally for different sorts
   let target_term = seg =>
