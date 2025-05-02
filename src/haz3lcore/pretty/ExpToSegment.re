@@ -152,10 +152,6 @@ let external_precedence_typslice = (s: TypSlice.t) => {
   TypSlice.typ_of(s) |> external_precedence_typ;
 };
 
-let external_precedence_typslice = (s: TypSlice.t) => {
-  TypSlice.typ_of(s) |> external_precedence_typ;
-};
-
 let paren_at = (internal_precedence: Precedence.t, exp: Exp.t): Exp.t =>
   external_precedence(exp) >= internal_precedence
     ? Exp.fresh(Parens(exp)) : exp;
@@ -560,7 +556,7 @@ and parenthesize_typ_term =
 }
 and parenthesize_typslice =
     (~show_filters: bool, ~already_paren=false): (TypSlice.t => TypSlice.t) => {
-  IdTagged.apply(parenthesize_typslice_term(~show_filters));
+  IdTagged.apply(parenthesize_typslice_term(~show_filters, ~already_paren));
 }
 and parenthesize_typslice_term =
     (~show_filters: bool, ~already_paren=false)

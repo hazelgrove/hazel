@@ -153,7 +153,6 @@ module TakeStep = {
     let (and.) = (x1, x2) => (x1, x2);
 
     let otherwise = (_, _) => ();
-    let atom = otherwise;
 
     let update_test = (state, id, v) =>
       state := IndetEvaluatorState.add_test(state^, id, v);

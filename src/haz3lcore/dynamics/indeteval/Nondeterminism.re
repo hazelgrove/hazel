@@ -104,11 +104,9 @@ module DFS: Search = {
   module Syntax = {
     // Bind/flatmap
     let ( let* ) = Infix.(>>=);
-    let ( and* ) = zip;
 
     // Map
     let (let+) = Infix.(>>|);
-    let (and+) = zip;
   };
 };
 
@@ -151,11 +149,9 @@ module IDFS: Search = {
   module Syntax = {
     // Bind/flatmap
     let ( let* ) = Infix.(>>=);
-    let ( and* ) = zip;
 
     // Map
     let (let+) = Infix.(>>|);
-    let (and+) = zip;
   };
 };
 
@@ -164,7 +160,6 @@ module BFS: Search = {
   // These inner sequences are _bags_.
   // Their order of elements doe not matter.
   type t('a) = Sequence.t(Sequence.t('a));
-  let fair_fold = fold;
 
   let return = x => return(return(x));
   let fail = empty;
@@ -193,7 +188,7 @@ module BFS: Search = {
 
   let concat = l => List.fold_left(choice, fail, l);
 
-  let rec bind = (m: t('a), ~f: 'a => t('b)): t('b) =>
+  let bind = (m: t('a), ~f: 'a => t('b)): t('b) =>
     unfold(~init=(m, fail), ~f=((m, acc)) =>
       switch (Sequence.next(m), Sequence.next(acc)) {
       | (None, None) => None
@@ -247,11 +242,9 @@ module BFS: Search = {
   module Syntax = {
     // Bind/flatmap
     let ( let* ) = Infix.(>>=);
-    let ( and* ) = zip;
 
     // Map
     let (let+) = Infix.(>>|);
-    let (and+) = zip;
   };
 };
 
@@ -342,7 +335,6 @@ module Bounded = (Config: BoundsConfig) : Search => {
 
   let (-) = ({depth: d}, {depth: d'}) => {depth: d - d'};
   let (>) = ({depth: d}, {depth: d'}) => d > d';
-  let max = ({depth: d}, {depth: d'}) => {depth: max(d, d')};
   let run = m =>
     Sequence.unfold(
       ~init=(zero_bound, Some(Config.init)),

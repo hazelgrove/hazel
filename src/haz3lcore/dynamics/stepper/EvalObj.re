@@ -1,4 +1,3 @@
-open Util;
 open Transition;
 
 [@deriving (show({with_path: false}), sexp, yojson)]

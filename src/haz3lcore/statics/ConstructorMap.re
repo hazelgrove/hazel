@@ -1,4 +1,3 @@
-open Util.OptUtil.Syntax;
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -229,17 +228,6 @@ let map = (type a, f: option(a) => option(a), m: t(a)): t(a) => {
     fun
     | Variant(ctr, args, value) => Variant(ctr, args, f(value))
     | BadEntry(value) => BadEntry(value),
-    m,
-  );
-};
-
-let map_preserving = (type a, type b, f: a => b, m: t(a)): t(b) => {
-  List.map(
-    fun
-    | Variant(ctr, args, Some(value)) =>
-      Variant(ctr, args, Some(f(value)))
-    | Variant(ctr, args, None) => Variant(ctr, args, None)
-    | BadEntry(value) => BadEntry(f(value)),
     m,
   );
 };

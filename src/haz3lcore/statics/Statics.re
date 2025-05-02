@@ -397,11 +397,10 @@ and uexp_to_info_map =
       );
     | ListConcat(e1, e2) =>
       let mode = Mode.of_list_concat(ids, ctx, mode);
-      let c_ids = List.map(Exp.rep_id, [e1, e2]);
       let (e1, m) = go(~mode, e1, m);
       let (e2, m) = go(~mode, e2, m);
       add(
-        ~self=Self.of_list_concat(ids, ctx, [e1.ty, e2.ty], c_ids),
+        ~self=Self.of_list_concat(ids, ctx, [e1.ty, e2.ty]),
         ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
         m,
       );

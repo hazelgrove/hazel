@@ -11,7 +11,6 @@ module Make =
   open S.Syntax;
 
   let fresh_hole = () => DHExp.hole([]) |> DHExp.fresh;
-  let fresh_hole_slice = () => TypSlice.hole([]) |> TypSlice.fresh;
 
   let bool_lits =
     return(Bool(true) |> DHExp.fresh)
@@ -222,7 +221,7 @@ module Make =
   // Note that this requires the hole to have a UNIQUE id. TODO: ensure this
   // The holes may also exist inside the closures, so must be substituted there too
   // Also evaluate the substitutions within closures in order to maintain that closures only contain values. (Somewhat inefficient)
-  let rec instantiate = (env, d) =>
+  let instantiate = (env, d) =>
     RedexHoleType.(
       find(env, d)
       |> (

@@ -1,7 +1,4 @@
-open ProgramResult.Result;
 open Nondeterminism;
-open Transition;
-open Util.Sequence;
 
 // TODO: for the stepper add logging: i.e. return a sequence of exps paired with a step-kind detailing the instantiation made. Slice info is available for this
 module Make = (S: Search) => {
@@ -9,7 +6,6 @@ module Make = (S: Search) => {
   module Instantiation = Instantiation.Make(S);
   open S;
   open S.Infix;
-  open S.Syntax;
 
   // Framework behind indeterminately evaluates, with custom logic for deterining what constitutes as a search result.
   // - Boxed values are checked if they are results

@@ -32,7 +32,6 @@ module ValueCheckerEVMode: {
     );
 
   let otherwise = (_, _) => ((), Value);
-  let atom = otherwise;
 
   let (let.) = ((v, r), rule) =>
     switch (r, rule(v)) {

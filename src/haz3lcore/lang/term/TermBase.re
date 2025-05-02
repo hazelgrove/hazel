@@ -1,5 +1,3 @@
-open Util;
-
 let continue = x => x;
 let stop = (_, x) => x;
 
@@ -1472,6 +1470,7 @@ and ClosureEnvironment: {
     let map_of = (t: t) => t.env;
     let call_stack_of = (t: t) => t.call_stack;
 
+    [@ocaml.warning "-32"]
     let of_environment = map => {
       let ei = Id.mk();
       wrap(ei, map);

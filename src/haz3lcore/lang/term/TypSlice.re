@@ -121,7 +121,7 @@ let wrap_global = (slice_global: slc_global, s: t): t => {
   };
 };
 
-let rec wrap_incr = (slice_incr: slc_incr, s: t): t => {
+let wrap_incr = (slice_incr: slc_incr, s: t): t => {
   let wrap_incr = (slice_incr, incr_term: incr_term): incr_term =>
     switch (incr_term) {
     | `SliceIncr(s', slice_incr') =>
@@ -331,7 +331,7 @@ let rec typslc_typ_term_of_term = (s: term): typslc_typ_term =>
   | `SliceGlobal(s, _) => typslc_typ_term_of_term((s :> term))
   };
 
-let rec term_of_slc_typ_term = (s: slc_typ_term): term =>
+let term_of_slc_typ_term = (s: slc_typ_term): term =>
   `SliceIncr((Slice(s), empty_slice_incr));
 
 let hole = (tms: list(TermBase.Any.t)): TermBase.TypSlice.term =>
@@ -340,6 +340,7 @@ let hole = (tms: list(TermBase.Any.t)): TermBase.TypSlice.term =>
   | [_, ..._] => `Typ(Unknown(Hole(MultiHole(tms))))
   };
 
+[@ocaml.warning "-32"]
 let cls_slc_of_term: term => cls_slc =
   fun
   | `Typ(_) => Typ
@@ -476,7 +477,7 @@ let rec match_tup_label = (ty: t): option((string, t)) => {
   };
 };
 
-let rec free_vars = s => s |> typ_of |> Typ.free_vars;
+let free_vars = s => s |> typ_of |> Typ.free_vars;
 
 let var_count = Typ.var_count;
 let fresh_var = Typ.fresh_var;
@@ -565,8 +566,6 @@ let rec join_using =
   };
   let join_typ_rewrap_idbranch = f =>
     join_typ_rewrap(((a, b)) => (f(a), b));
-  let join_typ_rewrap_idincon = f =>
-    join_typ_rewrap(f, TupleUtil.map2(x => x));
 
   let choose_branch = (branch_used, slice_incr1, slice_incr2) =>
     left(branch_used)
@@ -1789,7 +1788,7 @@ let rec add_slice = (slc, s) =>
   };
 
 /* Does the type require parentheses when on the left of an arrow for printing? */
-let rec needs_parens = (s: t): bool => Typ.needs_parens(typ_of(s));
+let needs_parens = (s: t): bool => Typ.needs_parens(typ_of(s));
 
 let pretty_print_tvar = (tv: TPat.t): string => Typ.pretty_print_tvar(tv);
 

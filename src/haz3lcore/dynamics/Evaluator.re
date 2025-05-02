@@ -42,7 +42,6 @@ module EvaluatorEVMode: {
     };
 
   let otherwise = (_, c) => Trampoline.return(((), c));
-  let atom = otherwise;
   let (and.) = (t1, t2) => {
     let.trampoline (x1, c1) = t1;
     let.trampoline x2 = t2;

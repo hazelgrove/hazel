@@ -248,9 +248,7 @@ let of_list_cons = (ids: list(Id.t), hd_ty: TypSlice.t): t =>
   );
 
 // Slice of a concat is just the joined slice of the list arguments + the @ operator ids
-let of_list_concat =
-    (ids: list(Id.t), ctx: Ctx.t, tys: list(TypSlice.t), c_ids: list(Id.t))
-    : t =>
+let of_list_concat = (ids: list(Id.t), ctx: Ctx.t, tys: list(TypSlice.t)): t =>
   switch (
     TypSlice.join_all(
       ~empty=`Typ(Unknown(Internal)) |> TypSlice.temp,
@@ -342,12 +340,12 @@ let of_typfun = (ids: list(Id.t), tpat, ty) =>
   );
 
 let of_let = (is_exhaustive: bool, ty: TypSlice.t) => {
-  let unwrapped_self: exp = Common(Just(TypSlice.(ty)));
+  let unwrapped_self: exp = Common(Just(ty));
   is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
 };
 
 // skip_slices will not tag slices to anything if the term is a slice. i.e. not a pure type `Typ(ty)
-let of_annot = (~skip_slices=true, ids: list(Id.t), ty: TypSlice.t): t => {
+let of_annot = (~_skip_slices=true, ids: list(Id.t), ty: TypSlice.t): t => {
   /*
    // Create type slice corresponding to ids in type. This could be done in parsing instead.
    let rec create_slices = ({term, ids, _} as s: TypSlice.t): TypSlice.t => {

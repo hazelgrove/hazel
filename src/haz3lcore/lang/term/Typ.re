@@ -185,6 +185,7 @@ let rec is_arrow = (~ignore_parens=true, typ: t) => {
   };
 };
 
+[@ocaml.warning "-32"]
 let rec is_unknown = (~ignore_parens=true, typ: t) => {
   switch (typ.term) {
   | Parens(typ) => ignore_parens ? false : is_unknown(typ)

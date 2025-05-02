@@ -61,7 +61,7 @@ let (and+) = (x, y) =>
   | (NoJoin(ts), Join(_)) => NoJoin(ts)
   | (NoJoin(ts1), NoJoin(ts2)) => NoJoin(ts1 @ ts2)
   };
-let (and!) = (x, y: unit) =>
+let (and!) = (x, (): unit) =>
   // Terminates the parallel binds, binding the last variable to the combined branch
   switch (x) {
   | Join(t, b) => Join(t, b)

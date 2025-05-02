@@ -101,8 +101,8 @@ let print =
     (
       switch (inst) {
       | None => "No Hole"
-      | Hole(id) => "Hole with no cast"
-      | HoleCast(id, slc) => "Cast Hole"
+      | Hole(_) => "Hole with no cast"
+      | HoleCast(_) => "Cast Hole"
       | Match(_) => "Match Hole"
       }
     )

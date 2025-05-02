@@ -74,16 +74,14 @@ module Make = (S: Search) => {
 
   let deterministic: expert_t('a, 'state) =
     S.(
-      Infix.(
-        (state, d) =>
-          fun
-          | BoxedValue
-          | Indet => (return((state, d)), fail)
-          | Step(d') => (
-              fail,
-              return((IndetEvaluatorState.incr_trace(1, state), d')),
-            )
-      )
+      (state, d) =>
+        fun
+        | BoxedValue
+        | Indet => (return((state, d)), fail)
+        | Step(d') => (
+            fail,
+            return((IndetEvaluatorState.incr_trace(1, state), d')),
+          )
     );
 
   let custom_instantiation:
