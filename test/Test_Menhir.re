@@ -47,7 +47,9 @@ let strip_Wrap_and_add_builtins =
 // Existing recovering parser
 let make_term_parse = (s: string) =>
   strip_Wrap_and_add_builtins(
-    MakeTerm.from_zip_for_sem(Option.get(Printer.zipper_of_string(s))).term |> Any.is_exp |> Option.get,
+    MakeTerm.from_zip_for_sem(Option.get(Printer.zipper_of_string(s))).term
+    |> Any.is_exp
+    |> Option.get,
   );
 
 let menhir_matches = (exp: Term.Exp.t, actual: string) =>

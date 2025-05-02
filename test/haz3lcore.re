@@ -16,23 +16,30 @@ module Base = {
 module Editor = {
   include Editor;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Editor.t(ProjectorCore.model(unit));
+  type t = Editor.t(unit);
   module Model = {
     include Model;
-    let mk = Editor.Model.mk(~projector_to_term=of_projector, ~sort=Exp, ~shape_of_projector=(_,_,_) => failwith("not implemented"), _);
+    let mk: ZipperBase.t(unit) => t(unit) =
+      Editor.Model.mk(
+        ~projector_to_term=of_projector,
+        ~sort=Exp,
+        ~shape_of_projector=(_, _, _) => failwith("not implemented"),
+        _,
+      );
+    let to_move_s: t(unit) => 'a = to_move_s;
   };
-}
+};
 
 module MakeTerm = {
   include MakeTerm;
-  
-  let parse_exp = s => s |>  parse_exp(~of_projector) |> Option.bind(_, Any.is_exp);
-  let from_zip_for_sem =
-    from_zip_for_sem(~of_projector);
-}
+
+  let parse_exp = s =>
+    s |> parse_exp(~of_projector) |> Option.bind(_, Any.is_exp);
+  let from_zip_for_sem = from_zip_for_sem(~of_projector);
+};
 
 module Segment = {
   include Segment;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Segment.t(ProjectorCore.model(unit));
-}
+  type t = Segment.t(unit);
+};

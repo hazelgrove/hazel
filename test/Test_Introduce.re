@@ -41,6 +41,7 @@ let introduction_test = (before: string, expected: string) => {
     let* zip = Move.go(Local(Right(ByChar)), zip); // To get on the hole itself
     let* zip =
       Select.current_term(~defs_exclude_bodies=false, ~case_rules=false, zip);
+    let* exp = Any.is_exp(exp);
     let statics =
       Statics.mk(
         CoreSettings.on,

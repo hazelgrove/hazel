@@ -42,7 +42,7 @@ let equivalent_to_make_term = (serialized: string) => {
   switch (Printer.zipper_of_string(serialized)) {
   | None => Alcotest.fail("Failed to parse term")
   | Some(zb) =>
-    let exp = MakeTerm.from_zip_for_sem(zb).term;
+    let exp = MakeTerm.from_zip_for_sem(zb).term |> Any.is_exp |> Option.get;
     let seg =
       ExpToSegment.exp_to_segment(~settings=exp_to_segment_settings, exp);
     check(
