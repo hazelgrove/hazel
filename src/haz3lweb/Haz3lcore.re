@@ -80,7 +80,7 @@ module rec Projector: {
 and Editor: {
   module Model: {
     [@deriving (show({with_path: false}), sexp, yojson)]
-    type t;
+    type t = Haz3lcorep.Editor.t(Projector.Model.t); // Transparent definition needed for handing editor to projectorinit
 
     let mk: (~settings: CoreSettings.t, ~inline: bool=?, Any.t) => t;
 
@@ -234,11 +234,11 @@ and Editor: {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = Action.t(Projector.Model.t);
 
-    let update = (~settings, ~sort, statics, action, editor) => {
+    let update = (~settings, ~sort, statics, action, editor: Model.t) => {
       Haz3lcorep.Editor.Update.update(
         ~settings,
         ~sort,
-        ~projector_init=(_, _, _) => failwith("not implemented"),
+        ~projector_init=Projector.Model.mk,
         ~projector_to_term=Projector.Model.make_term,
         ~shape_of_projector=Projector.Model.get_shape,
         ~seg_of_projector=
@@ -264,7 +264,7 @@ and Editor: {
       Haz3lcorep.Editor.Update.calculate(
         ~settings,
         ~is_edited,
-        ~projector_init=(_, _, _) => failwith("not implemented"),
+        ~projector_init=Projector.Model.mk,
         ~projector_to_term=Projector.Model.make_term,
         ~shape_of_projector=Projector.Model.get_shape,
         ~seg_of_projector=

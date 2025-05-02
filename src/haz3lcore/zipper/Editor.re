@@ -211,7 +211,8 @@ module Update = {
       : Action.Result.t(Model.t('p)) => {
     let seg_to_ed = seg =>
       Zipper.unzip(seg)
-      |> Model.mk(~sort, ~shape_of_projector, ~projector_to_term);
+      |> Model.mk(~sort, ~shape_of_projector, ~projector_to_term)
+      |> Option.some;
     open Result.Syntax;
     // 1. Clear the autocomplete buffer if relevant
     let state =
@@ -339,7 +340,8 @@ module Update = {
       ) => {
     let seg_to_ed = seg =>
       Zipper.unzip(seg)
-      |> Model.mk(~sort, ~shape_of_projector, ~projector_to_term);
+      |> Model.mk(~sort, ~shape_of_projector, ~projector_to_term)
+      |> Option.some;
 
     // 1. Recalculate the autocomplete buffer if necessary
     let zipper =

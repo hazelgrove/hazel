@@ -26,7 +26,7 @@ open OptUtil.Syntax;
 let init =
     (
       ~projector_init,
-      ~seg_to_ed: Base.segment('p) => 'ed,
+      ~seg_to_ed: Base.segment('p) => option('ed),
       kind: ProjectorCore.Kind.t,
       seg: Base.segment('p),
     )
