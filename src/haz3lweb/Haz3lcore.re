@@ -357,11 +357,15 @@ and Editor: {
           ),
       );
 
-    let print_string = _ => "TODO";
-    // let view_any = (~settings) =>
-    //   CodeViewable.view_any(
-    //     ~settings=ExpToSegment.Settings.of_core(~inline=true, settings),
-    //   );
+    let print_string = (ed: Model.t) =>
+      ed.state.zipper
+      |> Zipper.zip
+      |> Printer.of_segment(~holes=Some("?"))
+      |> Re.Str.global_replace(Re.Str.regexp("\n"), " ")
+      |> (
+        str =>
+          String.length(str) > 30 ? String.sub(str, 0, 30) ++ "..." : str
+      );
   };
 };
 
