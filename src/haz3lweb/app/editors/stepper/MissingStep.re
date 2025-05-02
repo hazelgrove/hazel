@@ -234,6 +234,7 @@ module View = {
   type event =
     | AddInduction
     | AddForall
+    | CoqExport
     | HideStepper
     | AddAxiomStep(Exp.t, Exp.t)
     | MakeActive(Selection.t);
@@ -499,6 +500,13 @@ module View = {
         ~disabled=false,
         ~tooltip="Prove a forall",
       );
+    let button_prover_export =
+      Widgets.button_d(
+        Icons.export,
+        signal(CoqExport),
+        ~disabled=false,
+        ~tooltip="Prove a forall",
+      );
     let button_hide_stepper =
       Widgets.toggle(~tooltip="Show Stepper", "s", true, _ =>
         signal(HideStepper)
@@ -521,6 +529,7 @@ module View = {
         button_back,
         button_induction,
         button_forall,
+        button_prover_export,
         eval_settings,
         toggle_show_history,
         button_hide_stepper,

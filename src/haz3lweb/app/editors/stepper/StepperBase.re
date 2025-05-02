@@ -157,6 +157,7 @@ module Update = {
     | StepForward(int)
     | AddInduction
     | AddForall
+    | CoqExport
     | AddAxiomStep(Exp.t, Exp.t)
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -271,6 +272,9 @@ module Update = {
       }
       |> return
     | (AddForall, _, _) => model |> return_quiet
+    | (CoqExport, _, _) =>
+      print_endline("Exporting to Coq");
+      model |> return_quiet;
     | (AddAxiomStep(at_exp, with_exp), MissingStep(_), _) =>
       let at_id = Exp.rep_id(at_exp);
       {
@@ -1158,6 +1162,7 @@ module View = {
                     | MakeActive(s) => signal(MakeActive(MissingStep(s)))
                     | AddForall => inject(AddForall)
                     | AddInduction => inject(AddInduction)
+                    | CoqExport => inject(CoqExport)
                     | AddAxiomStep(e1, e2) => inject(AddAxiomStep(e1, e2)),
                   ~editor=model.editor |> Calc.get_saved_exc(~print="Editor"),
                   m,
@@ -1254,6 +1259,7 @@ module View = {
             | MakeActive(s) => signal(MakeActive(MissingStep(s)))
             | AddForall => inject(AddForall)
             | AddInduction => inject(AddInduction)
+            | CoqExport => inject(CoqExport)
             | AddAxiomStep(e1, e2) => inject(AddAxiomStep(e1, e2)),
           ~undo,
           ms,
