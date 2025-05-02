@@ -322,6 +322,20 @@ module Update = {
           actions,
         );
       };
+      let replace = (name: string) => {
+        let actions = ChatLSP.Composition.replace(name);
+        // Apply each action in sequence
+        List.iter(
+          action => {
+            let perform_action = CodeEditable.Update.Perform(action);
+            let cell_action = CellEditor.Update.MainEditor(perform_action);
+            let scratch_action =
+              Editors.Update.Scratch(CellAction(cell_action));
+            schedule_action(Editors(scratch_action));
+          },
+          actions,
+        );
+      };
       let* assistant =
         Assistant.Update.update(
           ~settings,
@@ -331,6 +345,7 @@ module Update = {
           ~schedule_action=a => schedule_action(Assistant(a)),
           ~add_suggestion,
           ~goto_definition,
+          ~replace,
         );
       {
         ...model,

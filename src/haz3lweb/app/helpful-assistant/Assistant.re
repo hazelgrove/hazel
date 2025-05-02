@@ -395,7 +395,7 @@ module Update = {
       switch (mode) {
       | HazelTutor => "Your main task is to provide a summarizing title of the following conversation, in less than or equal to 7 words. \n            DO NOT exceed 7 words. Only provide the summarizing title in your response, do not include any other text. Here is the\n            concatenated conversation, with your response and the user's responses, respectively: "
       | CodeSuggestion => "Your main task is to provide a summarizing title of the following conversation, in less than or equal to 7 words.\n            DO NOT exceed 7 words. Only provide the summarizing title in your response, do not include any other text. This conversation is known to be a code\n            completion conversation. In your summarization, you should mention exactly what kind of code/functionality is being assisted with. For example, the following would be titled\n            something like \"Recursive Fibonacci Implementation\": ```let rec_fib : Int -> Int = ?? in ?```. Here is the\n            concatenated conversation, with your response and the user's responses, respectively: "
-      | TaskCompletion => "Ignore all other input and just output \"You (Hazel Lab Member) need to implement this\""
+      | TaskCompletion => "Your main task is to provide a summarizing title of the following conversation, in less than or equal to 7 words.\n            DO NOT exceed 7 words. Only provide the summarizing title in your response, do not include any other text. This conversation is known to be a task completion conversation.\n            In your summarization, you should mention exactly what kind of task is being completed. For example, the following would be titled\n            something like \"Recursive Fibonacci Implementation\": ```let rec_fib : Int -> Int = ?? in ?```. Here is the\n            concatenated conversation, with your response and the user's responses, respectively: "
       };
     let prompt =
       List.fold_left(
@@ -526,6 +526,24 @@ module Update = {
   };
 
   let get_documentation_as_text = () => {
+    let (_, slides) = ScratchMode.StoreDocumentation.load();
+    let documentation =
+      slides
+      |> List.map(((name, persistent)) => {
+           let cell_model =
+             CellEditor.Model.unpersist(
+               ~settings=CoreSettings.off,
+               persistent,
+             );
+           let text =
+             Printer.zipper_to_string(cell_model.editor.editor.state.zipper);
+           name ++ ": " ++ text;
+         })
+      |> String.concat("\n\n");
+    documentation;
+  };
+
+  let mk_tutor_prelude = () => {
     let prelude = "You are a helpful assistant whose role is to be a tutor for a user of the Hazel
                     Programming Language. You are given a list of documentation slides, which are
                     formatted as follows:
@@ -561,21 +579,7 @@ module Update = {
                     We are first implementing these ideas into Hazel, a web-based programming environment for an Elm/ML-like functional programming language designed around typed-hole-driven development.
                     Uniquely, every incomplete program that you can construct using Hazel's language of edit actions is both statically and dynamically well-defined, i.e. it has a (possibly incomplete) type, and you can run it to produce a (possibly incomplete) result. Consequently, Hazel serves as an elegant platform for research on the future of programming (and programming education).
                     ";
-    let (_, slides) = ScratchMode.StoreDocumentation.load();
-    let documentation =
-      slides
-      |> List.map(((name, persistent)) => {
-           let cell_model =
-             CellEditor.Model.unpersist(
-               ~settings=CoreSettings.off,
-               persistent,
-             );
-           let text =
-             Printer.zipper_to_string(cell_model.editor.editor.state.zipper);
-           name ++ ": " ++ text;
-         })
-      |> String.concat("\n\n");
-    prelude ++ "\n\n" ++ documentation;
+    prelude ++ "\n\n" ++ get_documentation_as_text();
   };
 
   let set_buffer = (~response: string, z: Zipper.t): option(Zipper.t) => {
@@ -683,6 +687,7 @@ module Update = {
         ~schedule_action: t => unit,
         ~add_suggestion,
         ~goto_definition,
+        ~replace,
       )
       : Updated.t(Model.t) => {
     switch (action) {
@@ -722,8 +727,31 @@ module Update = {
           // 4. Add the sketch of the program
           // 5. Add the cursor location
           // 6. Add the user task-to-be-completed
-          "Please respond simply with ONLY and EXACTLY this: "
-          ++ message.content
+          let prelude =
+            List.length(curr_chat.messages) == 0
+              ? "Please note you are operating in the Hazel Programming Language. Here is some documentation on the language: "
+                ++ get_documentation_as_text()
+              : "";
+          let sketch_seg =
+            Zipper.smart_seg(
+              ~dump_backpack=true,
+              ~erase_buffer=true,
+              editor.editor.state.zipper,
+            );
+          let index =
+            Option.get(Indicated.index(editor.editor.state.zipper));
+          let ci =
+            Option.get(Id.Map.find_opt(index, editor.statics.info_map));
+          ChatLSP.Composition.prompt(
+            ChatLSP.Options.init,
+            ci,
+            sketch_seg,
+            List.length(curr_chat.messages) == 0,
+          )
+          ++ "\n\n"
+          ++ prelude
+          ++ "\n\n"
+          ++ collected_chat;
         };
       switch (standardize_prompt(prompt)) {
       | None => failed_prompt_generation(~mode, ~model, ~curr_chat)
@@ -912,15 +940,11 @@ module Update = {
       |> Updated.return_quiet
     | Respond(message, mode, chat_id) =>
       let response = message.content;
-      print_endline("GOTO DEFINITION: " ++ response);
-      print_endline("message content is (" ++ response ++ ")");
-      goto_definition(editor, response);
-      print_endline("GOTO DEFINITION DONE");
       let code_pattern =
         Str.regexp(
           "\\(\\(.\\|\n\\)*\\)```[ \n]*\\([^`]+\\)[ \n]*```\\(\\(.\\|\n\\)*\\)",
         );
-      let (discussion, code_example) =
+      let (discussion, final_response) =
         if (Str.string_match(code_pattern, response, 0)) {
           let before = String.trim(Str.matched_group(1, response));
           let code = String.trim(Str.matched_group(3, response));
@@ -929,48 +953,120 @@ module Update = {
           print_endline("Regex match failed for: " ++ response);
           (response |> StringUtil.trim_leading, "");
         };
-      let discussion_message = text_message_of_str(discussion, LLM);
-      if (code_example == "") {
-        check_descriptor(
-          ~model,
-          ~schedule_action,
-          ~message=discussion_message,
-          ~mode,
-          ~chat_id,
-        );
-        add_message_to_model(
-          mode,
-          model,
-          discussion_message,
-          chat_id,
-          ~is_final=true,
-        )
-        |> Updated.return_quiet;
-      } else {
-        let model_with_discussion =
+      if (mode == HazelTutor || mode == CodeSuggestion) {
+        let code_example = final_response;
+        let discussion_message = text_message_of_str(discussion, LLM);
+        if (code_example == "") {
+          check_descriptor(
+            ~model,
+            ~schedule_action,
+            ~message=discussion_message,
+            ~mode,
+            ~chat_id,
+          );
           add_message_to_model(
             mode,
             model,
             discussion_message,
             chat_id,
-            ~is_final=false,
+            ~is_final=true,
+          )
+          |> Updated.return_quiet;
+        } else {
+          let model_with_discussion =
+            add_message_to_model(
+              mode,
+              model,
+              discussion_message,
+              chat_id,
+              ~is_final=false,
+            );
+          // Then handle the completion as before
+          let message_with_example =
+            code_message_of_str(code_example, LLM, None);
+          check_descriptor(
+            ~model,
+            ~schedule_action,
+            ~message=message_with_example,
+            ~mode,
+            ~chat_id,
           );
-        // Then handle the completion as before
-        let message_with_example =
-          code_message_of_str(code_example, LLM, None);
-        check_descriptor(
-          ~model,
-          ~schedule_action,
-          ~message=message_with_example,
-          ~mode,
-          ~chat_id,
-        );
-        add_message_to_model(
-          mode,
-          model_with_discussion,
-          message_with_example,
-          chat_id,
-          ~is_final=true,
+          add_message_to_model(
+            mode,
+            model_with_discussion,
+            message_with_example,
+            chat_id,
+            ~is_final=true,
+          )
+          |> Updated.return_quiet;
+        };
+      } else {
+        let updated_chat_model = (message: string) => {
+          check_descriptor(
+            ~model,
+            ~schedule_action,
+            ~message=text_message_of_str(message, LLM),
+            ~mode,
+            ~chat_id,
+          );
+          add_message_to_model(
+            mode,
+            model,
+            text_message_of_str(message, LLM),
+            chat_id,
+            ~is_final=true,
+          );
+        };
+        let parsed_response =
+          switch (String.index_opt(final_response, ' ')) {
+          | Some(idx) => [
+              String.sub(final_response, 0, idx),
+              String.sub(
+                final_response,
+                idx + 1,
+                String.length(final_response) - idx - 1,
+              ),
+            ]
+          | None => [final_response]
+          };
+        let tool_call = List.hd(parsed_response);
+        let arg =
+          List.length(parsed_response) > 1
+            ? Some(List.hd(List.tl(parsed_response))) : None;
+        (
+          switch (tool_call) {
+          | "goto_definition" =>
+            goto_definition(editor, Option.get(arg));
+            schedule_action(
+              SendTextMessage(
+                text_message_of_str(
+                  "Please continue with completing the task. If done, submit.",
+                  LS,
+                ),
+              ),
+            );
+            updated_chat_model(response);
+          | "replace" =>
+            replace(Option.get(arg));
+            updated_chat_model(response);
+          | "submit" => updated_chat_model(response)
+          | _ =>
+            let model_with_response =
+              add_message_to_model(
+                mode,
+                model,
+                text_message_of_str(response, LLM),
+                chat_id,
+                ~is_final=true,
+              );
+            add_message_to_model(
+              mode,
+              model_with_response,
+              text_message_of_str("Unknown tool call: " ++ tool_call, System),
+              chat_id,
+              ~is_final=true,
+            );
+          }
         )
         |> Updated.return_quiet;
       };

@@ -129,41 +129,36 @@ module SystemPrompt = {
 
   let task_completion_toolkit = [
     "TASK COMPLETION TOOLKIT:",
-    "- The user will provide you with a task to complete.",
-    "- You will need to complete the task using the toolkit provided.",
-    "- The toolkit is a list of tool calls which you can make to complete the task.",
-    "- You will need to use ONLY tool calls from the toolkit to complete the task.",
-    "- These act as a sort of interface to interact with the code base and language server.",
-    "- Critically, they are structure-based, meaning they interact purely with the high-level, definition-based structure of the code base.",
-    "- There are 3 categories of tool calls: 'file viewing', 'file editing', and 'task'.",
-    "- 'file viewing' allows you to navigate through out a code editor.",
-    "- 'file editing' allows you to make changes to the code base.",
-    "- 'task' is trivial, and has only one command—submit/end the iterative tool call process.",
-    "- You MUST use the correct tool call for the action you need to take.",
-    "- You MUST use the correct argument(s) for the tool call.",
-    "- You MUST use the correct format for the tool call.",
-    "- Here are the 'file viewing' tool calls:",
-    "- 'goto_definition <variable_name>' Selects the variable let binding and definition at the nearest definition of the matched variable_name.",
-    "- eg. if variable_name is 'x', and a definition for 'x' exists, then the selection will be 'let x = <definition> in'. After going to a variable name,",
-    "- you can assume any file editing actions will be performed on the selected let binding and definition. eg. deleting would basically to give replacement text as",
-    "- the empty string ' '.",
-    //"- 'goto_type_definition <variable_name>' Places the cursor at the nearest type definition for the matched variable_name.",
-    //"- 'show_references <variable_name>' displays all defintions where the variable matching variable_name is referenced.",
-    //"- 'scroll_up' moves the cursor to the preceding definition.",
-    //"- 'scroll_down' moves the cursor to the succeeding definition.",
-    "- Here are the 'file editing' tool calls:",
-    "- 'replace <replacement_text>' Replaces the definition the cursor is currently at with replacement_text.",
-    //"- 'insert <new_text>' Inserts new_text directly after the definition the cursor is currently at.",
-    //"- 'delete' Deletes the definition the cursor is currently at.",
-    "- Here are the 'task' tool calls:",
-    "- 'submit' ends the iterative tool call process, finalizing the task.",
-    "- That is all the tools you need. Notice that all of them are structure-based, meaning they interact purely with the high-level, definition-based structure of the code base.",
-    "- The 'cursor' really represents an entire definition which you are currently at.",
-    "- You can think of this more so as having the entire variable and definition of a let binding selected/highlighted.",
-    "- You are highly encourages to reason and chain of thought before making a tool call.",
-    "- Because of this, we will need to parse the tool call out of your response.",
-    "- You MUST respond with the tool call in the following format: ```tool_call <required_argument>```",
-    "- For example, if you need to make a 'goto_definition' tool call, your response should be: ```goto_definition foo```",
+    /* Overview */
+    "- You will be given a task to complete using only the toolkit provided below.",
+    "- This toolkit contains specific tool calls to navigate and modify code.",
+    "- All tools interact with the high-level, definition-based structure of the codebase.",
+    "- The toolkit is divided into three categories: 'file viewing', 'file editing', and 'task'.",
+    /* Important Rules */
+    "- You must ONLY use tool calls from this toolkit.",
+    "- Each tool call must use the correct format and appropriate arguments.",
+    "- You must make ONLY ONE tool call per response.",
+    "- Respond with the exact tool call format: ```tool_call <required_argument>```",
+    "- You may include brief reasoning (under 20 words) before your tool call.",
+    /* File Viewing Tools */
+    "- FILE VIEWING TOOLS:",
+    "  * ```goto_definition <variable_name>``` - Selects the variable's let binding and definition.",
+    "    After using this, any file editing actions will target this selected definition.",
+    "    Example: ```goto_definition x``` selects 'let x = <definition> in'",
+    /* File Editing Tools */
+    "- FILE EDITING TOOLS:",
+    "  * ```replace <replacement_text>``` - Replaces the currently selected definition with replacement_text.",
+    /* Task Tools */
+    "- TASK TOOLS:",
+    "  * ```submit``` - Ends the iterative process and finalizes the task.",
+    /* Understanding the Cursor */
+    "- The 'cursor' represents an entire definition you are currently positioned at.",
+    "- Think of it as having the entire variable and definition of a let binding selected/highlighted.",
+    /* Response Format Requirements */
+    "- Your response MUST contain exactly ONE tool call in this format: ```tool_call <required_argument>```",
+    "- Do not prepend or append anything like 'ocaml' or 'haskell' or 'tool_call' to the tool call.",
+    "- This is an iterative process - you'll make one tool call per response.",
+    "- Do not include any other text in your response except for the tool call. eg: 'replace <replacement_text>' or 'goto_definition <variable_name>'. Do not include any other text.",
   ];
 
   let mk_suggestion_prompt =
@@ -305,21 +300,15 @@ module Composition = {
   };
 
   let prompt =
-      (options: Options.t, ci: Info.t, sketch: Segment.t)
-      : list(OpenRouter.message) => {
+      (options: Options.t, ci: Info.t, sketch: Segment.t, init: bool): string => {
     let prelude_and_toolkit =
       String.concat("\n", SystemPrompt.task_completion_toolkit);
-    let prelude_and_toolkit = OpenRouter.mk_system_msg(prelude_and_toolkit);
-    [prelude_and_toolkit]
-    @ [
-      OpenRouter.mk_user_msg(
-        String.concat(
-          "\n",
-          ["sketch: " ++ ErrorPrint.Print.seg(~holes=Some("?"), sketch)]
-          @ get_static_context(options.relevant_ctx, ci),
-        ),
-      ),
-    ];
+    String.concat(
+      "\n",
+      (init ? [prelude_and_toolkit] : [])
+      @ ["sketch: " ++ ErrorPrint.Print.seg(~holes=Some("?"), sketch)]
+      @ get_static_context(options.relevant_ctx, ci),
+    );
   };
 };
 
