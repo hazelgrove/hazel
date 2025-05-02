@@ -309,7 +309,7 @@ module Update = {
         );
       };
       let goto_definition = (ed: CodeWithStatics.Model.t, name: string) => {
-        let actions = ChatLSP.Composition.goto_variable(name, ed);
+        let actions = ChatLSP.Composition.goto_definition(name, ed);
         // Apply each action in sequence
         List.iter(
           action => {
@@ -322,8 +322,8 @@ module Update = {
           actions,
         );
       };
-      let replace = (name: string) => {
-        let actions = ChatLSP.Composition.replace(name);
+      let edit = (name: string) => {
+        let actions = ChatLSP.Composition.edit(name);
         // Apply each action in sequence
         List.iter(
           action => {
@@ -345,7 +345,7 @@ module Update = {
           ~schedule_action=a => schedule_action(Assistant(a)),
           ~add_suggestion,
           ~goto_definition,
-          ~replace,
+          ~edit,
         );
       {
         ...model,
