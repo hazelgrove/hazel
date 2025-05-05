@@ -625,7 +625,7 @@ module Deco =
 
   let statics = () => [errors()];
 
-  let slice_view = (id: Id.t) =>
+  let slice_view = (~cls="slicesingle", id: Id.t) =>
     try(
       switch (Id.Map.find_opt(id, projectors)) {
       | Some(p) =>
@@ -641,7 +641,7 @@ module Deco =
                 tips: ShardDec.tips_of_shapes(shapes),
                 measurement,
               },
-              ["slicesingle"],
+              [cls],
             ),
           ],
         );
@@ -652,7 +652,13 @@ module Deco =
           let tiles = all_tiles(p);
           div_c(
             "slice-piece",
-            IndicationDec.slice_term(~font_metrics, ~rows, range, tiles),
+            IndicationDec.slice_term(
+              ~cls,
+              ~font_metrics,
+              ~rows,
+              range,
+              tiles,
+            ),
           );
         | None => div_c("slice-piece", [])
         };
@@ -665,6 +671,9 @@ module Deco =
        * there may be error holes that don't occur in the editor being rendered */
       Node.div([])
     };
+
+  let error_slice_view_syn = slice_view(~cls="slicesingle-error-syn");
+  let error_slice_view_ana = slice_view(~cls="slicesingle-error-ana");
 
   // TODO: Slices from cursor inspector view by clicking type.
   let slice = (c: Cursor.cursor('a)) => {
@@ -783,15 +792,39 @@ module Deco =
                  | _ => failwith("TODO: view ctx_used"),
                [],
              );
-        div_c("error", List.map(slice_view, term_ids @ ctx_used_ids));
+        div_c(
+          "error",
+          List.map(error_slice_view_syn, term_ids @ ctx_used_ids),
+        );
       | Some(Exp(Common(Inconsistent(WithArrow(t, slc)))))
       | Some(Pat(Common(Inconsistent(WithArrow(t, slc))))) =>
         let {ctx_used, term_ids}: TypSlice.slc_incr =
           TypSlice.full_slice(t |> TypSlice.term_of);
-        let {ctx_used: ctx_used2, term_ids: term_ids2}: TypSlice.slc_global = slc;
+        let {ctx_used: ctx_used_ana, term_ids: term_ids_ana}: TypSlice.slc_global = slc;
         let ctx_used_ids =
           ctx_used
-          @ ctx_used2
+          |> List.fold_left(
+               (acc: list(Id.t)): (TypSlice.ctx_var => list(Id.t)) =>
+                 fun
+                 | Var(name) =>
+                   (
+                     Ctx.lookup_var(Info.ctx_of(info), name)
+                     |> Option.map(v => [Ctx.get_id(VarEntry(v))])
+                     |> Option.value(~default=[])
+                   )
+                   @ acc
+                 | Ctr(name) =>
+                   (
+                     Ctx.lookup_ctr(Info.ctx_of(info), name)
+                     |> Option.map(v => [Ctx.get_id(VarEntry(v))])
+                     |> Option.value(~default=[])
+                   )
+                   @ acc
+                 | _ => failwith("TODO: view ctx_used"),
+               [],
+             );
+        let ctx_used_ids_ana =
+          ctx_used_ana
           |> List.fold_left(
                (acc: list(Id.t)): (TypSlice.ctx_var => list(Id.t)) =>
                  fun
@@ -814,34 +847,44 @@ module Deco =
              );
         div_c(
           "error",
-          List.map(slice_view, term_ids @ term_ids2 @ ctx_used_ids),
+          List.map(error_slice_view_syn, term_ids @ ctx_used_ids)
+          @ List.map(error_slice_view_ana, term_ids_ana @ ctx_used_ids_ana),
         );
       | Some(Exp(Common(Inconsistent(Internal(ts)))))
       | Some(Pat(Common(Inconsistent(Internal(ts))))) =>
-        let {ctx_used, term_ids}: TypSlice.slc_incr =
+        let (
+          {ctx_used: ctx_used_syn, term_ids: term_ids_syn},
+          {ctx_used: ctx_used_ana, term_ids: term_ids_ana},
+        ): (
+          TypSlice.slc_incr,
+          TypSlice.slc_incr,
+        ) =
           TypSlice.join_inconsistency_all(
-            ~empty=TypSlice.(temp(hole([]))),
+            ~empty=TypSlice.fresh(`Typ(Unknown(Internal))),
             Info.ctx_of(info),
             ts,
           )
           |> List.map(((t1, t2)) =>
-               TypSlice.union_slice_incr(
+               (
                  TypSlice.union_slice_incr(
                    TypSlice.get_global_slice_or_empty(TypSlice.term_of(t1)),
-                   TypSlice.get_global_slice_or_empty(TypSlice.term_of(t2)),
+                   TypSlice.get_incr_slice_or_empty(TypSlice.term_of(t1)),
                  ),
                  TypSlice.union_slice_incr(
-                   TypSlice.get_incr_slice_or_empty(TypSlice.term_of(t1)),
+                   TypSlice.get_global_slice_or_empty(TypSlice.term_of(t2)),
                    TypSlice.get_incr_slice_or_empty(TypSlice.term_of(t2)),
                  ),
                )
              )
-          |> List.fold_left(
-               TypSlice.union_slice_incr,
-               TypSlice.empty_slice_incr,
+          |> Util.ListUtil.unzip
+          |> TupleUtil.map2(
+               List.fold_left(
+                 TypSlice.union_slice_incr,
+                 TypSlice.empty_slice_incr,
+               ),
              );
-        let ctx_used_ids =
-          ctx_used
+        let ctx_used_ids_syn =
+          ctx_used_syn
           |> List.fold_left(
                (acc: list(Id.t)): (TypSlice.ctx_var => list(Id.t)) =>
                  fun
@@ -862,29 +905,64 @@ module Deco =
                  | _ => failwith("TODO: view ctx_used"),
                [],
              );
-        div_c("error", List.map(slice_view, term_ids @ ctx_used_ids));
+        let ctx_used_ids_ana =
+          ctx_used_ana
+          |> List.fold_left(
+               (acc: list(Id.t)): (TypSlice.ctx_var => list(Id.t)) =>
+                 fun
+                 | Var(name) =>
+                   (
+                     Ctx.lookup_var(Info.ctx_of(info), name)
+                     |> Option.map(v => [Ctx.get_id(VarEntry(v))])
+                     |> Option.value(~default=[])
+                   )
+                   @ acc
+                 | Ctr(name) =>
+                   (
+                     Ctx.lookup_ctr(Info.ctx_of(info), name)
+                     |> Option.map(v => [Ctx.get_id(VarEntry(v))])
+                     |> Option.value(~default=[])
+                   )
+                   @ acc
+                 | _ => failwith("TODO: view ctx_used"),
+               [],
+             );
+        div_c(
+          "slice",
+          List.map(error_slice_view_syn, term_ids_syn @ ctx_used_ids_syn)
+          @ List.map(error_slice_view_ana, term_ids_ana @ ctx_used_ids_ana),
+        );
       | Some(Exp(Common(Inconsistent(Expectation({syn, ana})))))
       | Some(Pat(Common(Inconsistent(Expectation({syn, ana}))))) =>
-        let {ctx_used, term_ids}: TypSlice.slc_incr =
+        let (
+          {ctx_used: ctx_used_syn, term_ids: term_ids_syn},
+          {ctx_used: ctx_used_ana, term_ids: term_ids_ana},
+        ): (
+          TypSlice.slc_incr,
+          TypSlice.slc_incr,
+        ) =
           TypSlice.join_inconsistency(Info.ctx_of(info), syn, ana)
           |> List.map(((t1, t2)) =>
-               TypSlice.union_slice_incr(
+               (
                  TypSlice.union_slice_incr(
                    TypSlice.get_global_slice_or_empty(TypSlice.term_of(t1)),
-                   TypSlice.get_global_slice_or_empty(TypSlice.term_of(t2)),
+                   TypSlice.get_incr_slice_or_empty(TypSlice.term_of(t1)),
                  ),
                  TypSlice.union_slice_incr(
-                   TypSlice.get_incr_slice_or_empty(TypSlice.term_of(t1)),
+                   TypSlice.get_global_slice_or_empty(TypSlice.term_of(t2)),
                    TypSlice.get_incr_slice_or_empty(TypSlice.term_of(t2)),
                  ),
                )
              )
-          |> List.fold_left(
-               TypSlice.union_slice_incr,
-               TypSlice.empty_slice_incr,
+          |> Util.ListUtil.unzip
+          |> TupleUtil.map2(
+               List.fold_left(
+                 TypSlice.union_slice_incr,
+                 TypSlice.empty_slice_incr,
+               ),
              );
-        let ctx_used_ids =
-          ctx_used
+        let ctx_used_ids_syn =
+          ctx_used_syn
           |> List.fold_left(
                (acc: list(Id.t)): (TypSlice.ctx_var => list(Id.t)) =>
                  fun
@@ -905,7 +983,33 @@ module Deco =
                  | _ => failwith("TODO: view ctx_used"),
                [],
              );
-        div_c("error", List.map(slice_view, term_ids @ ctx_used_ids));
+        let ctx_used_ids_ana =
+          ctx_used_ana
+          |> List.fold_left(
+               (acc: list(Id.t)): (TypSlice.ctx_var => list(Id.t)) =>
+                 fun
+                 | Var(name) =>
+                   (
+                     Ctx.lookup_var(Info.ctx_of(info), name)
+                     |> Option.map(v => [Ctx.get_id(VarEntry(v))])
+                     |> Option.value(~default=[])
+                   )
+                   @ acc
+                 | Ctr(name) =>
+                   (
+                     Ctx.lookup_ctr(Info.ctx_of(info), name)
+                     |> Option.map(v => [Ctx.get_id(VarEntry(v))])
+                     |> Option.value(~default=[])
+                   )
+                   @ acc
+                 | _ => failwith("TODO: view ctx_used"),
+               [],
+             );
+        div_c(
+          "slice",
+          List.map(error_slice_view_syn, term_ids_syn @ ctx_used_ids_syn)
+          @ List.map(error_slice_view_ana, term_ids_ana @ ctx_used_ids_ana),
+        );
       | _ => div_empty
       }
 

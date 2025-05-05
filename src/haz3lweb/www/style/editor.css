@@ -184,6 +184,12 @@ svg.shard.error {
 svg.shard.slicesingle {
   z-index: var(--slice-z);
 }
+svg.shard.slicesingle-error-syn {
+  z-index: var(--slice-z);
+}
+svg.shard.slicesingle-error-ana {
+  z-index: var(--slice-z);
+}
 
 svg.shard.selected > path {
   fill: var(--shard-selected);
@@ -211,6 +217,30 @@ svg.shard.slicesingle > path,
 
 svg.shard.slicesingle > path {
   fill: var(--slice-fill);
+}
+
+svg.shard.slicesingle-error-syn > path,
+.slice .slice-piece svg .child-line {
+  stroke: var(--slice-stroke);
+  stroke-width: 0.75px;
+/*  stroke-dasharray: 1, 1; */ 
+  stroke-linecap: butt;
+}
+
+svg.shard.slicesingle-error-syn > path {
+  fill: var(--slice-fill-error-syn);
+}
+
+svg.shard.slicesingle-error-ana > path,
+.slice .slice-piece svg .child-line {
+  stroke: var(--slice-stroke);
+  stroke-width: 0.75px;
+/*  stroke-dasharray: 1, 1; */ 
+  stroke-linecap: butt;
+}
+
+svg.shard.slicesingle-error-ana > path {
+  fill: var(--slice-fill-error-ana);
 }
 
 /* Code completion decoration */

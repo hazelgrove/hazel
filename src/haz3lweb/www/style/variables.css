@@ -133,7 +133,9 @@
 
   /* SLICE DECO */
   --slice-stroke: var(--B2);
-  --slice-fill: var(--G1);
+  --slice-fill: var(--highlight-c);
+  --slice-fill-error-syn: var(--highlight-a);
+  --slice-fill-error-ana: var(--highlight-b);
 
   /* BACKPACK DECO */
 

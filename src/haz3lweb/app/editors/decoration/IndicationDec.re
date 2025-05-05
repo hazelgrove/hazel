@@ -328,6 +328,7 @@ let slice_term =
       ~font_metrics,
       ~rows: Measured.Rows.t,
       range: (Measured.Point.t, Measured.Point.t),
+      ~cls="slicesingle",
       tiles: list((Id.t, Mold.t, Measured.Shards.t)),
     ) => {
   let shard_of = (mold, (index, measurement)) =>
@@ -337,7 +338,7 @@ let slice_term =
         measurement,
         tips: ShardDec.tips_of_shapes(Mold.nib_shapes(~index, mold)),
       },
-      ["slicesingle"],
+      [cls],
     );
   let shard_decos =
     List.concat_map(
