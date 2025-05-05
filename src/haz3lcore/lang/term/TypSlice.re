@@ -94,9 +94,10 @@ let slice_of_ctx_ids = (ctx_used, term_ids): slc_incr => {
 
 let get_incr_slice: term => option(slc_incr) =
   fun
+  | `SliceGlobal(`SliceIncr(_, slice_incr), _)
+  | `SliceIncr(_, slice_incr) => Some(slice_incr)
   | `Typ(_)
-  | `SliceGlobal(_) => None
-  | `SliceIncr(_, slice_incr) => Some(slice_incr);
+  | `SliceGlobal(_) => None;
 let get_global_slice: term => option(slc_incr) =
   fun
   | `Typ(_)
@@ -1087,30 +1088,20 @@ let rec join_using =
     | (List(_), _) => NoJoin([(s1, s2)])
     | (Ap(_), _) => failwith("Type join of ap")
     }
-  | (
-      `SliceIncr(
-        Typ(
-          (Unknown(_) | Int | Float | Bool | String | Var(_) | Label(_)) as ty1,
-        ),
-        slice_incr1,
-      ),
-      _,
-    ) =>
+  | (`SliceIncr(Typ(ty1), slice_incr1), _) =>
     join'(`Typ(ty1) |> rewrap1, s2)
     |> map_join(
          (s, branch_used) =>
            (left(branch_used) ? wrap_incr(slice_incr1, s) : s, branch_used),
-         ((s1, s2)) => (wrap_incr(slice_incr1, s1), s2),
+         // If inconsistent part i1 = ty1 then ty1 and s2 must have had a differing outermost constructor, so slice_incr1 is involved
+         ((i1, i2)) =>
+           (
+             eq(i1, t_of_typ_t(ty1 |> rewrap1))
+               ? wrap_incr(slice_incr1, i1) : i1,
+             i2,
+           ),
        )
-  | (
-      _,
-      `SliceIncr(
-        Typ(
-          (Unknown(_) | Int | Float | Bool | String | Var(_) | Label(_)) as ty2,
-        ),
-        slice_incr2,
-      ),
-    ) =>
+  | (_, `SliceIncr(Typ(ty2), slice_incr2)) =>
     join'(s1, `Typ(ty2) |> rewrap2)
     |> map_join(
          (s, branch_used) =>
@@ -1118,21 +1109,14 @@ let rec join_using =
              right(branch_used) ? wrap_incr(slice_incr2, s) : s,
              branch_used,
            ),
-         ((s1, s2)) => (s1, wrap_incr(slice_incr2, s2)),
+         ((i1, i2)) =>
+           (
+             i1,
+             eq(t_of_typ_t(ty2 |> rewrap2), i2)
+               ? wrap_incr(slice_incr2, i2) : i2,
+           ),
        )
-  | (`SliceIncr(Typ(ty1), slice_incr1), _) =>
-    let. (s, branch_used) = join'(`Typ(ty1) |> rewrap1, s2);
-    Join(left(branch_used) ? wrap_incr(slice_incr1, s) : s, branch_used);
-  | (_, `SliceIncr(Typ(ty2), slice_incr2)) =>
-    let. (s, branch_used) = join'(s1, `Typ(ty2) |> rewrap2);
-    Join(right(branch_used) ? wrap_incr(slice_incr2, s) : s, branch_used);
-  | (
-      `SliceGlobal(
-        `Typ(Unknown(_) | Int | Float | Bool | String | Var(_) | Label(_)) as s1,
-        slice_global1,
-      ),
-      _,
-    ) =>
+  | (`SliceGlobal(s1, slice_global1), _) =>
     join'((s1 :> term) |> rewrap1, s2)
     |> map_join(
          (s, branch_used) =>
@@ -1142,13 +1126,7 @@ let rec join_using =
            ),
          ((s1, s2)) => (wrap_global(slice_global1, s1), s2),
        )
-  | (
-      _,
-      `SliceGlobal(
-        `Typ(Unknown(_) | Int | Float | Bool | String | Var(_) | Label(_)) as s2,
-        slice_global2,
-      ),
-    ) =>
+  | (_, `SliceGlobal(s2, slice_global2)) =>
     join'(s1, (s2 :> term) |> rewrap1)
     |> map_join(
          (s, branch_used) =>
@@ -1158,18 +1136,6 @@ let rec join_using =
            ),
          ((s1, s2)) => (s1, wrap_global(slice_global2, s2)),
        )
-  | (`SliceGlobal(s1, slice_global1), _) =>
-    let. (s, branch_used) = join'((s1 :> term) |> rewrap1, s2);
-    Join(
-      left(branch_used) ? wrap_global(slice_global1, s) : s,
-      branch_used,
-    );
-  | (_, `SliceGlobal(s2, slice_global2)) =>
-    let. (s, branch_used) = join'(s1, (s2 :> term) |> rewrap2);
-    Join(
-      right(branch_used) ? wrap_global(slice_global2, s) : s,
-      branch_used,
-    );
   };
 };
 

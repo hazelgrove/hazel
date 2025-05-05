@@ -826,8 +826,14 @@ module Deco =
           )
           |> List.map(((t1, t2)) =>
                TypSlice.union_slice_incr(
-                 TypSlice.full_slice(TypSlice.term_of(t1)),
-                 TypSlice.full_slice(TypSlice.term_of(t2)),
+                 TypSlice.union_slice_incr(
+                   TypSlice.get_global_slice_or_empty(TypSlice.term_of(t1)),
+                   TypSlice.get_global_slice_or_empty(TypSlice.term_of(t2)),
+                 ),
+                 TypSlice.union_slice_incr(
+                   TypSlice.get_incr_slice_or_empty(TypSlice.term_of(t1)),
+                   TypSlice.get_incr_slice_or_empty(TypSlice.term_of(t2)),
+                 ),
                )
              )
           |> List.fold_left(
@@ -863,8 +869,14 @@ module Deco =
           TypSlice.join_inconsistency(Info.ctx_of(info), syn, ana)
           |> List.map(((t1, t2)) =>
                TypSlice.union_slice_incr(
-                 TypSlice.full_slice(TypSlice.term_of(t1)),
-                 TypSlice.full_slice(TypSlice.term_of(t2)),
+                 TypSlice.union_slice_incr(
+                   TypSlice.get_global_slice_or_empty(TypSlice.term_of(t1)),
+                   TypSlice.get_global_slice_or_empty(TypSlice.term_of(t2)),
+                 ),
+                 TypSlice.union_slice_incr(
+                   TypSlice.get_incr_slice_or_empty(TypSlice.term_of(t1)),
+                   TypSlice.get_incr_slice_or_empty(TypSlice.term_of(t2)),
+                 ),
                )
              )
           |> List.fold_left(
