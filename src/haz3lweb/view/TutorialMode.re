@@ -465,14 +465,14 @@ module View = {
         [
           div(~attrs=[Attr.class_("hint-title")], [text("💡 Hint")]),
           div(~attrs=[Attr.class_("hint-content")], msg),
-          div(
-            ~attrs=[Attr.class_("hint-with-icon")],
-            [
-              text("Pro tip: Click the "),
-              span(~attrs=[Attr.class_("highlight-icon")], [Icons.info]),
-              text(" button below for more details."),
-            ],
-          ),
+          // div(
+          //   ~attrs=[Attr.class_("hint-with-icon")],
+          //   [
+          //     text("Pro tip: Click the "),
+          //     span(~attrs=[Attr.class_("highlight-icon")], [Icons.info]),
+          //     text(" button below for more details."),
+          //   ],
+          // ),
         ],
       );
     };
@@ -495,7 +495,7 @@ module View = {
                     div(
                       ~attrs=[Attr.class_("report-icon")],
                       [
-                        Widgets.button(Icons.info, _ =>
+                        Widgets.button(Icons.infoIcon, _ =>
                           inject(Change_report_view)
                         ),
                       ],
@@ -515,7 +515,7 @@ module View = {
                       div(
                         ~attrs=[Attr.class_("report-icon")],
                         [
-                          Widgets.button(Icons.info, _ =>
+                          Widgets.button(Icons.infoIcon, _ =>
                             inject(Change_report_view)
                           ),
                         ],
@@ -538,7 +538,7 @@ module View = {
                       div(
                         ~attrs=[Attr.class_("report-icon")],
                         [
-                          Widgets.button(Icons.info, _ =>
+                          Widgets.button(Icons.infoIcon, _ =>
                             inject(Change_report_view)
                           ),
                         ],

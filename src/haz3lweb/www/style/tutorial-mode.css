@@ -249,9 +249,9 @@
   }
   
   .checkmark {
-    width: 80px;
+    width: 40px;
     /* Adjust size as needed */
-    height: 80px;
+    height: 40px;
     background-color: #60f382;
     /* Green background */
     border-radius: 50%;
@@ -259,7 +259,7 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    font-size: 50px;
+    font-size: 25px;
     /* Massive check mark */
     font-weight: bold;
     color: white;
@@ -270,7 +270,7 @@
     animation: popIn 0.3s ease-out;
   }
   
-  @keyframes popIn {
+  /* @keyframes popIn {
     0% {
       transform: scale(0);
       opacity: 0;
@@ -284,7 +284,7 @@
     100% {
       transform: scale(1);
     }
-  }
+  } */
   
   .hint-cell {
     background-color: 1px solid var(--cell-selected-accent);
@@ -314,9 +314,73 @@
     color: #555;
     /* line-height: 0.1; */
   }
+
+  .report-icon {
+    margin-left: 0.5em;
+    cursor: pointer;
+    color: var(--BR4);
+    /* fill: var(--BR4); */
+    display: inline;
+    vertical-align: top;
+  }
   
-  .report-icon:hover {
+
+.report-icon:hover {
+  transform: scale(1.2);
+  /* animation: wobble 0.6s ease 0s 1 normal forwards; */
+}
+
+.report-icon::after {
+  content: "View Report";
+  position: absolute;
+  bottom: 120%;
+  right: 0;
+  background: #fffdf4;
+  color: #333;
+  padding: 6px 10px;
+  font-size: 10px;
+  border-radius: 5px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  /* background-color: #fffdf4;
+  border: 0.7px solid #333;
+  color: #333;
+  font: "Helvetica Neue";
+  padding: 0.4em 0.4em;
+  border-radius: 0.1em;
+  font-weight: normal;
+  font-size: 0.3em;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+  z-index: 10; */
+}
+
+.report-icon:hover::after {
+  opacity: 1;
+}
+
+  
+  /* .report-icon:hover {
     animation: wobble 0.6s ease 0s 1 normal forwards;
+  }
+
+  .report-icon::after {
+    content: "Click this for more details.";
+    position: absolute;
+    top: 110%; 
+    right: 0;
+    background: #333;
+    color: #fff;
+    padding: 6px 10px;
+    font-size: 12px;
+    border-radius: 5px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease-in-out;
   }
   
   .report-icon {
@@ -325,7 +389,7 @@
     fill: #7a6219;
     display: inline;
     vertical-align: top;
-  }
+  } */
   
   #main.Tutorial .title-cell {
     display: flex;
@@ -355,7 +419,7 @@
   
   
   #main.Tutorial .title-cell {
-    margin-bottom: 0 !important;
+    margin-bottom: 10px !important;
     padding-bottom: 0 !important;
   }
   
@@ -371,14 +435,6 @@
     gap: 2em;
   }
   
-  /* .cross {
-    font-size: 1.3em;
-    padding: 0.1em 0.4em;
-    border-radius: 0.3em;
-    background-color: #d3d3d3; 
-    color: black; 
-    font-weight: bold;
-  } */
   
   .cross {
     width: 80px;
@@ -391,7 +447,7 @@
     justify-content: center;
     align-items: center;
     font-size: 50px;
-    font-weight: bold;
+    /* font-weight: bold; */
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
     border: 4px solid #000000;
     animation: popIn 0.3s ease-out;
@@ -400,23 +456,17 @@
   .cross::after {
     content: "Your implementation is either incomplete or failing some tests!";
     position: absolute;
-    bottom: 100%;
-    right: -160%;
-    left: -60%;
-    /* right:-150%; */
-    transform: translateX(-50%);
-    background-color: #fffdf4;
-    border: 0.7px solid #333;
+    bottom: 120%;
+    right: 0;
+    background: #fffdf4;
     color: #333;
-    font: "Helvetica Neue";
-    padding: 0.4em 0.4em;
-    border-radius: 0.1em;
-    font-weight: normal;
-    font-size: 0.3em;
+    padding: 6px 10px;
+    font-size: 12px;
+    border-radius: 5px;
+    white-space: nowrap;
     opacity: 0;
     pointer-events: none;
     transition: opacity 0.2s ease;
-    z-index: 10;
   }
   
   /* Reduce spacing between title and description */
@@ -457,12 +507,6 @@
     fill: var(--ci-icon-bkg) !important;
   }
   
-  /* .highlight-icon {
-    color: #d39e00; 
-    font-weight: bold;
-    font-size: 0.5em;
-  } */
-  
   .hint-content code {
     font-size: 0.75em;
     /* Smaller font for code blocks */
@@ -471,4 +515,20 @@
     padding: 1px 1px;
     /* border-radius: 3px; */
     line-height: 0;
+  }
+
+  .next-button {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    font-size: 45px;
+    color: var(--BR4);
+    cursor: pointer;
+    z-index: 1000;
+    transition: transform 0.2s ease, color 0.2s ease;
+  }
+  
+  .next-button:hover {
+    transform: translateX(6px) scale(1.1); /* subtle move + zoom */
+    color:  #d39e00; /* blue on hover */
   }
