@@ -15,6 +15,7 @@ let to_module =
   switch (kind) {
   // | Fold => FoldProj.methods
   | Info => TypeProj.methods
+  | Pair => PairProj.methods
   // | Probe => ProbeProj.methods
   // | Checkbox => CheckboxProj.methods
   | Slider => SliderProj.methods

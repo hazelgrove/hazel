@@ -1,0 +1,25 @@
+/* PROJECTOR: INFO */
+
+:root {
+    --code-text: var(--token-exp);
+    --main-base: hsl(281, 80%, 95%);
+    --main-shadow: hsl(281, 40%, 25%);
+    --main-indicated: var(--TYP);
+  }
+  
+  
+  /* INLINE VIEW */
+  
+  .projector.pair:hover {
+    color: var(--BLACK);
+  }
+  
+  .projector.pair .main {
+    font-family: var(--code-font);
+    font-size: var(--base-font-size);
+    color: var(--code-text);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.4em;
+  }

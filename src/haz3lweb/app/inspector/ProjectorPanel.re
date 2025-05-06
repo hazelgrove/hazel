@@ -158,7 +158,7 @@ let keyboard_shortcut_of = (kind: ProjectorCore.Kind.t): string =>
   // | Fold => "Option-f"
   // | Probe => "Option-v"
   | Info => "Option-t"
-  | Slider => "Option-l"
+  | _ => "Option-l"
   };
 
 /* A selection input for contetually applicable projectors */

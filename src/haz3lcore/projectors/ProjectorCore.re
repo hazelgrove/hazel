@@ -18,6 +18,7 @@ module Kind = {
   type t =
     // | Fold
     | Info
+    | Pair
     // | Probe
     // | Checkbox
     | Slider;
@@ -28,6 +29,7 @@ module Kind = {
   type gadt('model, 'action, 'ed) =
     // | Fold: gadt(FoldProj.model('ed), FoldProj.action, 'ed)
     | Info: gadt(TypeProj.model('ed), TypeProj.action, 'ed)
+    | Pair: gadt(PairProj.model('ed), PairProj.action, 'ed)
     // | Probe: gadt(ProbeProj.model('ed), ProbeProj.action, 'ed)
     // | Checkbox: gadt(CheckboxProj.model('ed), CheckboxProj.action, 'ed)
     | Slider: gadt(SliderProj.model('ed), SliderProj.action, 'ed);
@@ -39,6 +41,7 @@ module Kind = {
     switch (kind) {
     // | Fold => Fold
     | Info => Info
+    | Pair => Pair
     // | Probe => Probe
     // | Checkbox => Checkbox
     | Slider => Slider
@@ -54,6 +57,7 @@ module Kind = {
     switch (kind) {
     // | Fold => f(W(Fold))
     | Info => f(W(Info))
+    | Pair => f(W(Pair))
     // | Probe => f(W(Probe))
     // | Checkbox => f(W(Checkbox))
     | Slider => f(W(Slider))
@@ -65,6 +69,7 @@ module Kind = {
   let livelit_projectors: list(t) = [
     // Checkbox,
     Slider,
+    Pair,
     // SliderF,
     // TextArea,
     // Card,
@@ -85,6 +90,7 @@ module Kind = {
     switch (p) {
     // | Fold => "fold"
     | Info => "type"
+    | Pair => "pair"
     // | Probe => "probe"
     // | Checkbox => "check"
     | Slider => "slider"
@@ -100,6 +106,7 @@ module Kind = {
     switch (p) {
     // | "fold" => Fold
     | "type" => Info
+    | "pair" => Pair
     // | "probe" => Probe
     // | "check" => Checkbox
     | "slider" => Slider
@@ -121,6 +128,7 @@ let pp_model = (type ed, _pp_ed, f, model: model(ed)) =>
     switch (model) {
     // | V(Fold, _) => "Fold"
     | V(Info, _) => "Info"
+    | V(Pair, _) => "Pair"
     // | V(Probe, _) => "Probe"
     // | V(Checkbox, _) => "Checkbox"
     | V(Slider, _) => "Slider"
@@ -156,6 +164,8 @@ let sexp_of_model =
   // List([Atom("fold"), m |> FoldProj.sexp_of_model(sexp_of_ed)])
   | V(Info, m) =>
     List([Atom("info"), m |> TypeProj.sexp_of_model(sexp_of_ed)])
+  | V(Pair, m) =>
+    List([Atom("pair"), m |> PairProj.sexp_of_model(sexp_of_ed)])
   // | V(Probe, _) => List([Atom("probe"), () |> sexp_of_unit])
   // | V(Checkbox, _) => List([Atom("checkbox"), () |> sexp_of_unit])
   | V(Slider, m) =>
@@ -191,6 +201,8 @@ let yojson_of_model =
   // `List([`String("fold"), m |> FoldProj.yojson_of_model(yojson_of_ed)])
   | V(Info, m) =>
     `List([`String("info"), m |> TypeProj.yojson_of_model(yojson_of_ed)])
+  | V(Pair, m) =>
+    `List([`String("pair"), m |> PairProj.yojson_of_model(yojson_of_ed)])
   // | V(Probe, _) => `List([`String("probe"), () |> yojson_of_unit])
   // | V(Checkbox, _) => `List([`String("checkbox"), () |> yojson_of_unit])
   | V(Slider, m) =>
