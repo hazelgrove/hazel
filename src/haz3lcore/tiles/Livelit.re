@@ -440,6 +440,217 @@ module Js: BuiltinLivelit = {
     };
 };
 
+module BoundedSlider: BuiltinLivelit = {
+  let name = "boundedslider";
+
+  type model_t = {
+    value: Bigint.t,
+    min: Bigint.t,
+    max: Bigint.t,
+  };
+
+  type expansion_t = Bigint.t;
+
+  type action_t =
+    | SetValue(Bigint.t)
+    | SetBounds(Bigint.t, Bigint.t);
+
+  // Default model with value=50, min=0, max=100
+  let model_default: model_t = {
+    value: Bigint.of_int(50),
+    min: Bigint.of_int(0),
+    max: Bigint.of_int(100),
+  };
+
+  // Hazel type for model: tuple of three integers
+  let hazel_model_t: TermBase.Typ.t =
+    Prod([
+      Typ.temp(Atom(Int)), // value
+      Typ.temp(Atom(Int)), // min
+      Typ.temp(Atom(Int)) // max
+    ])
+    |> Typ.fresh;
+
+  // Conversion functions between model and Hazel expressions
+  let model_to_hazel: model_t => model_exp =
+    (m: model_t) => {
+      let value_expr = DHExp.fresh(Atom(Int(m.value)));
+      let min_expr = DHExp.fresh(Atom(Int(m.min)));
+      let max_expr = DHExp.fresh(Atom(Int(m.max)));
+      DHExp.fresh(Tuple([value_expr, min_expr, max_expr]));
+    };
+
+  let model_from_hazel: model_exp => option(model_t) =
+    (expr: model_exp) => {
+      switch (expr.term) {
+      | Tuple([
+          {term: Atom(Int(value)), _},
+          {term: Atom(Int(min)), _},
+          {term: Atom(Int(max)), _},
+        ]) =>
+        Some({
+          value,
+          min,
+          max,
+        })
+      | _ => None
+      };
+    };
+
+  // Expansion type is just an integer
+  let hazel_expansion_t: TermBase.Typ.t = Typ.temp(Atom(Int));
+
+  // Expansion function (just returns the current value)
+  let expand: model_t => expansion_t = model => model.value;
+
+  // Convert expansion to Hazel expression
+  let expand_to_hazel: expansion_t => expansion_exp =
+    (value: expansion_t) => DHExp.fresh(Atom(Int(value)));
+
+  // Update function to handle actions
+  let update: (action_t, model_t) => model_t =
+    (action: action_t, model: model_t) => {
+      switch (action) {
+      | SetValue(value) => {
+          ...model,
+          value,
+        }
+      | SetBounds(min, max) => {
+          ...model,
+          min,
+          max,
+        }
+      };
+    };
+
+  // Hazel action type
+  let hazel_action_t: TermBase.Typ.t =
+    Sum([
+      Variant("SetValue", [], Some(Atom(Int) |> Typ.fresh)),
+      Variant(
+        "SetBounds",
+        [],
+        Some(
+          Prod([Typ.temp(Atom(Int)), Typ.temp(Atom(Int))]) |> Typ.fresh,
+        ),
+      ),
+    ])
+    |> Typ.fresh;
+
+  // Convert action to Hazel expression
+  let action_to_hazel: action_t => action_exp =
+    (action: action_t) =>
+      switch (action) {
+      | SetValue(value) =>
+        Ap(
+          Forward,
+          Constructor("SetValue", Some(Some(Atom(Int) |> Typ.fresh)))
+          |> DHExp.fresh,
+          Atom(Int(value)) |> DHExp.fresh,
+        )
+        |> DHExp.fresh
+      | SetBounds(min, max) =>
+        let min_expr = DHExp.fresh(Atom(Int(min)));
+        let max_expr = DHExp.fresh(Atom(Int(max)));
+        let tuple_expr = DHExp.fresh(Tuple([min_expr, max_expr]));
+
+        Ap(
+          Forward,
+          Constructor(
+            "SetBounds",
+            Some(
+              Some(
+                Prod([Typ.temp(Atom(Int)), Typ.temp(Atom(Int))])
+                |> Typ.fresh,
+              ),
+            ),
+          )
+          |> DHExp.fresh,
+          tuple_expr,
+        )
+        |> DHExp.fresh;
+      };
+
+  // Convert Hazel expression to action
+  let action_from_hazel: action_exp => option(action_t) =
+    (expr: action_exp) =>
+      switch (expr.term) {
+      | Ap(
+          Forward,
+          {term: Constructor("SetValue", _), _},
+          {term: Atom(Int(value)), _},
+        ) =>
+        Some(SetValue(value))
+      | Ap(
+          Forward,
+          {term: Constructor("SetBounds", _), _},
+          {
+            term:
+              Tuple([
+                {term: Atom(Int(min)), _},
+                {term: Atom(Int(max)), _},
+              ]),
+            _,
+          },
+        ) =>
+        Some(SetBounds(min, max))
+      | _ => None
+      };
+
+  // View function to render the slider with bounds
+  let view = (model: model_t, send_action) => {
+    let {value, min, max} = model;
+
+    Node.div([
+      // Inputs to adjust bounds
+      Node.div([
+        Node.text("Min: "),
+        Node.input(
+          ~attrs=[
+            Attr.type_("number"),
+            Attr.value(Bigint.to_string(min)),
+            Attr.on_input((_, v: string) => {
+              let new_min = Bigint.of_string(v);
+              send_action(SetBounds(new_min, max));
+            }),
+          ],
+          (),
+        ),
+        Node.text(" Max: "),
+        Node.input(
+          ~attrs=[
+            Attr.type_("number"),
+            Attr.value(Bigint.to_string(max)),
+            Attr.on_input((_, v: string) => {
+              let new_max = Bigint.of_string(v);
+              send_action(SetBounds(min, new_max));
+            }),
+          ],
+          (),
+        ),
+      ]),
+      // The slider itself
+      Util.Web.range(
+        ~attrs=[
+          Attr.on_input((_, v: string) => {
+            send_action(SetValue(Bigint.of_string(v)))
+          }),
+        ],
+        ~min=Bigint.to_string(min),
+        ~max=Bigint.to_string(max),
+        Bigint.to_string(value),
+      ),
+    ]);
+  };
+
+  // Size specification
+  let size: ProjectorCore.Shape.t =
+    ProjectorCore.Shape.{
+      vertical: Block(5),
+      horizontal: 30,
+    };
+};
+
 let livelits: list(raw_livelit) =
-  [(module Slider), (module Emotion), (module Js)]
+  [(module Slider), (module Emotion), (module Js), (module BoundedSlider)]
   |> List.map(raw_of_builtin);
