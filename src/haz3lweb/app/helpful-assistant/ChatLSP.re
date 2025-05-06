@@ -137,9 +137,10 @@ module SystemPrompt = {
     /* Important Rules */
     "- You must ONLY use tool calls from this toolkit.",
     "- Each tool call must use the correct format and appropriate arguments.",
-    "- You must make ONLY ONE tool call per response.",
+    "- You may declare MULTIPLE tool calls within a single response.",
+    "- Each tool call will be parsed individually from your response.",
     "- Respond with the exact tool call format: ```tool_call <required_argument>```",
-    "- You may include brief reasoning (under 20 words) before your tool call.",
+    "- You may include brief reasoning (under 20 words) before each tool call.",
     /* File Viewing Tools */
     "- FILE VIEWING TOOLS:",
     "  * ```goto_definition <variable_name>``` - Selects the variable's let binding and definition.",
@@ -155,16 +156,19 @@ module SystemPrompt = {
     "- The 'cursor' represents an entire definition you are currently positioned at.",
     "- Think of it as having the entire variable and definition of a let binding selected/highlighted.",
     /* Response Format Requirements */
-    "- Your response MUST contain exactly ONE tool call in this format: ```tool_call <required_argument>```",
+    "- Your response MAY contain MULTIPLE tool calls in this format: ```tool_call <required_argument>```",
+    "- All tool calls in your response will be processed in the order they appear.",
+    "- Note that your initial tool call should always be a 'goto_definition' tool call.",
     "- Do not prepend or append anything like 'ocaml' or 'haskell' or 'tool_call' to the tool call.",
-    "- This is an iterative process - you'll make one tool call per response.",
-    "- Do not include any other text in your response except for the tool call. eg: 'edit_code <code>' or 'goto_definition <variable_name>'. Do not include any other text.",
-    "- Be sure to enclose the tool call in triple backticks and place it at the end of your response.",
+    "- This is an iterative process - you can make multiple tool calls per response.",
+    "- Be sure to enclose each tool call in triple backticks.",
+    "- You may include brief explanations between tool calls if necessary.",
   ];
 
   let few_shot_comp_examples = [
     "The following are several example dialogues and actions taken for example task completions.",
     "Also note that you are working in the Hazel programming language, thus pay attention to the syntax and semantics of the language: ",
+    "Note that you can and should (when favorable) make multiple tool calls in a single response, though these examples only show a single tool call per response.",
     /* Example 1: Fix a type error in a simple function */
     "# Example 1: Fix a type error in a Hazel function #",
     "# Task: Find and fix the type error in the add function #",
@@ -403,7 +407,7 @@ module Composition = {
       String.concat("\n", SystemPrompt.few_shot_comp_examples);
     String.concat(
       "\n",
-      (init ? [prelude_and_toolkit ++ few_shot_examples] : [])
+      (init ? [prelude_and_toolkit] : [])
       @ [
         "Current sketch: " ++ ErrorPrint.Print.seg(~holes=Some("?"), sketch),
       ],

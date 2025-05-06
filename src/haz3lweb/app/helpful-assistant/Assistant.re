@@ -675,6 +675,26 @@ module Update = {
     |> Updated.return_quiet;
   };
 
+  let collect_tool_calls = (response: string): list(string) => {
+    let rec extract_blocks = (text: string, acc: list(string)): list(string) => {
+      let pattern = Str.regexp("```[ \n]*\\([^`]+\\)[ \n]*```");
+      switch (Str.search_forward(pattern, text, 0)) {
+      | exception Not_found => List.rev(acc)
+      | pos =>
+        let matched = Str.matched_group(1, text);
+        let rest =
+          String.sub(
+            text,
+            pos + String.length(Str.matched_string(text)),
+            String.length(text)
+            - (pos + String.length(Str.matched_string(text))),
+          );
+        extract_blocks(rest, [matched, ...acc]);
+      };
+    };
+    extract_blocks(response, []);
+  };
+
   let update =
       (
         ~settings: Settings.t,
@@ -931,21 +951,20 @@ module Update = {
       |> Updated.return_quiet
     | Respond(message, mode, chat_id) =>
       let response = message.content;
-      let code_pattern =
-        Str.regexp(
-          "\\(\\(.\\|\n\\)*\\)```[ \n]*\\([^`]+\\)[ \n]*```\\(\\(.\\|\n\\)*\\)",
-        );
-      let (discussion, final_response) =
-        if (Str.string_match(code_pattern, response, 0)) {
-          let before = String.trim(Str.matched_group(1, response));
-          let code = String.trim(Str.matched_group(3, response));
-          (before, code |> StringUtil.trim_leading);
-        } else {
-          print_endline("Regex match failed for: " ++ response);
-          (response |> StringUtil.trim_leading, "");
-        };
       if (mode == HazelTutor || mode == CodeSuggestion) {
-        let code_example = final_response;
+        let code_pattern =
+          Str.regexp(
+            "\\(\\(.\\|\n\\)*\\)```[ \n]*\\([^`]+\\)[ \n]*```\\(\\(.\\|\n\\)*\\)",
+          );
+        let (discussion, code_example) =
+          if (Str.string_match(code_pattern, response, 0)) {
+            let before = String.trim(Str.matched_group(1, response));
+            let code = String.trim(Str.matched_group(3, response));
+            (before, code |> StringUtil.trim_leading);
+          } else {
+            print_endline("Regex match failed for: " ++ response);
+            (response |> StringUtil.trim_leading, "");
+          };
         let discussion_message = text_message_of_str(discussion, LLM);
         if (code_example == "") {
           check_descriptor(
@@ -992,79 +1011,62 @@ module Update = {
           |> Updated.return_quiet;
         };
       } else {
-        // mode == TaskCompletion
-        let updated_chat_model = (message: string) => {
-          /*check_descriptor(
-              ~model,
-              ~schedule_action,
-              ~message=text_message_of_str(message, LLM),
-              ~mode,
-              ~chat_id,
-            );*/
-          add_message_to_model(
-            mode,
-            model,
-            text_message_of_str(message, LLM),
-            chat_id,
-            ~is_final=true,
-          );
-        };
-        let parsed_response =
-          switch (String.index_opt(final_response, ' ')) {
-          | Some(idx) => [
-              String.sub(final_response, 0, idx),
-              String.sub(
-                final_response,
-                idx + 1,
-                String.length(final_response) - idx - 1,
-              ),
-            ]
-          | None => [final_response]
+        let tool_calls = collect_tool_calls(response);
+        List.iter(
+          (tool_call: string) => {print_endline("Tool call: " ++ tool_call)},
+          tool_calls,
+        );
+
+        let rec process_tool_calls = (calls: list(string)) => {
+          switch (calls) {
+          | [] => () // Base case: we're done processing
+          | [tool_call, ...rest] =>
+            let parsed_response =
+              switch (String.index_opt(tool_call, ' ')) {
+              | Some(idx) => [
+                  String.sub(tool_call, 0, idx),
+                  String.sub(
+                    tool_call,
+                    idx + 1,
+                    String.length(tool_call) - idx - 1,
+                  ),
+                ]
+              | None => [tool_call]
+              };
+            let tool_call = List.hd(parsed_response);
+            let arg =
+              List.length(parsed_response) > 1
+                ? Some(List.hd(List.tl(parsed_response))) : None;
+
+            switch (tool_call) {
+            | "goto_definition" =>
+              goto_definition(editor, Option.get(arg));
+              process_tool_calls(rest);
+            | "edit_code"
+            | "edit" =>
+              edit(Option.get(arg));
+              process_tool_calls(rest);
+            | "submit" => ()
+            | _ =>
+              schedule_action(
+                SendSystemMessage(
+                  "Unknown tool call: " ++ tool_call,
+                  mode,
+                  chat_id,
+                ),
+              )
+            };
           };
-        let tool_call = List.hd(parsed_response);
-        let get_clipboard = () => {
-          let clipboard_shim = JsUtil.get_elem_by_id("clipboard-shim");
-          Js.to_string(Js.Unsafe.get(clipboard_shim, "value"));
         };
-        let arg =
-          List.length(parsed_response) > 1
-            ? Some(List.hd(List.tl(parsed_response))) : None;
-        (
-          switch (tool_call) {
-          | "goto_definition" =>
-            goto_definition(editor, Option.get(arg));
-            schedule_action(
-              SendTextMessage(
-                text_message_of_str("Selected: " ++ get_clipboard(), System),
-              ),
-            );
-            updated_chat_model(response);
-          | "edit_code"
-          | "edit" =>
-            edit(Option.get(arg));
-            schedule_action(
-              SendTextMessage(
-                text_message_of_str("Selected: " ++ get_clipboard(), System),
-              ),
-            );
-            updated_chat_model(response);
-          | "submit" => updated_chat_model(response)
-          | _ =>
-            schedule_action(
-              SendSystemMessage(
-                "Unknown tool call: " ++ tool_call,
-                mode,
-                chat_id,
-              ),
-            );
-            add_message_to_model(
-              mode,
-              model,
-              text_message_of_str(response, LLM),
-              chat_id,
-              ~is_final=true,
-            );
-          }
+
+        process_tool_calls(tool_calls);
+
+        add_message_to_model(
+          mode,
+          model,
+          text_message_of_str(response, LLM),
+          chat_id,
+          ~is_final=true,
         )
         |> Updated.return_quiet;
       };
