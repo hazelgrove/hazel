@@ -1512,20 +1512,26 @@ let rec normalize = (ctx: Ctx.t, s: t): t => {
   map_merge(typ_normalize, slc_normalize, s);
 };
 
-// Matching functions, removes incr slices but keeps global slices
+// Matching functions, retains incr slices (unlike unarrow). Always retain global slices
 let rec matched_arrow_strict = (ctx, s: t) => {
   let (_, rewrap) = s |> IdTagged.unwrap;
   switch (term_of(weak_head_normalize(ctx, s))) {
-  | `Typ(ty)
-  | `SliceIncr(Typ(ty), _) =>
+  | `Typ(ty) =>
     Typ.matched_arrow_strict(ctx, ty |> rewrap)
     |> Option.map(TupleUtil.map2(t_of_typ_t))
-  | `SliceIncr(Slice(s'), _) =>
-    switch (s') {
-    | Parens(s) => matched_arrow_strict(ctx, s)
-    | Arrow(s1, s2) => Some((s1, s2))
-    | _ => None
-    }
+  | `SliceIncr(Typ(ty), slice_incr) =>
+    Typ.matched_arrow_strict(ctx, ty |> rewrap)
+    |> Option.map(TupleUtil.map2(t_of_typ_t))
+    |> Option.map(TupleUtil.map2(wrap_incr(slice_incr)))
+  | `SliceIncr(Slice(s'), slice_incr) =>
+    (
+      switch (s') {
+      | Parens(s) => matched_arrow_strict(ctx, s)
+      | Arrow(s1, s2) => Some((s1, s2))
+      | _ => None
+      }
+    )
+    |> Option.map(TupleUtil.map2(wrap_incr(slice_incr)))
   | `SliceGlobal(s, slice_global) =>
     matched_arrow_strict(ctx, (s :> term) |> temp)
     |> Option.map(TupleUtil.map2(wrap_global(slice_global)))
@@ -1544,16 +1550,22 @@ let matched_arrow = (ctx, ty) =>
 let rec matched_forall_strict = (ctx, s) => {
   let (_, rewrap) = s |> IdTagged.unwrap;
   switch (term_of(weak_head_normalize(ctx, s))) {
-  | `Typ(ty)
-  | `SliceIncr(Typ(ty), _) =>
+  | `Typ(ty) =>
     Typ.matched_forall_strict(ctx, ty |> rewrap)
     |> Option.map(((tpat, ty)) => (tpat, t_of_typ_t(ty)))
-  | `SliceIncr(Slice(s'), _) =>
-    switch (s') {
-    | Parens(s) => matched_forall_strict(ctx, unparens(s))
-    | Forall(t, ty) => Some((Some(t), ty))
-    | _ => None // (None, Unknown(Internal) |> temp)
-    }
+  | `SliceIncr(Typ(ty), slice_incr) =>
+    Typ.matched_forall_strict(ctx, ty |> rewrap)
+    |> Option.map(((tpat, ty)) => (tpat, t_of_typ_t(ty)))
+    |> Option.map(((tpat, s)) => (tpat, wrap_incr(slice_incr, s)))
+  | `SliceIncr(Slice(s'), slice_incr) =>
+    (
+      switch (s') {
+      | Parens(s) => matched_forall_strict(ctx, unparens(s))
+      | Forall(t, ty) => Some((Some(t), ty))
+      | _ => None // (None, Unknown(Internal) |> temp)
+      }
+    )
+    |> Option.map(((tpat, s)) => (tpat, wrap_incr(slice_incr, s)))
   | `SliceGlobal(s, slice_global) =>
     matched_forall_strict(ctx, (s :> term) |> temp)
     |> Option.map(((tpat, s)) => (tpat, wrap_global(slice_global, s)))
@@ -1571,8 +1583,7 @@ let rec matched_prod_strict:
   (ctx: Ctx.t, es, get_label_es, ty: t, constructor) => {
     let (_, rewrap) = ty |> IdTagged.unwrap;
     switch (term_of(weak_head_normalize(ctx, ty))) {
-    | `Typ(ty)
-    | `SliceIncr(Typ(ty), _) =>
+    | `Typ(ty) =>
       Typ.matched_prod_strict(
         ctx,
         es,
@@ -1581,27 +1592,44 @@ let rec matched_prod_strict:
         constructor,
       )
       |> (((x, y)) => (x, y |> Option.map(List.map(t_of_typ_t))))
-    | `SliceIncr(Slice(ty), _) =>
-      switch (ty) {
-      | Parens(ty) =>
-        matched_prod_strict(ctx, es, get_label_es, ty, constructor)
-      | Prod(tys: list(t)) =>
-        if (List.length(es) != List.length(tys)) {
-          (es, None);
-        } else {
-          (
-            LabeledTuple.rearrange(
-              match_tup_label,
-              get_label_es,
-              tys,
-              es,
-              constructor,
-            ),
-            Some(tys),
-          );
+    | `SliceIncr(Typ(ty), slice_incr) =>
+      Typ.matched_prod_strict(
+        ctx,
+        es,
+        get_label_es,
+        ty |> rewrap,
+        constructor,
+      )
+      |> (((x, y)) => (x, y |> Option.map(List.map(t_of_typ_t))))
+      |> (
+        ((x, y)) => (x, y |> Option.map(List.map(wrap_incr(slice_incr))))
+      )
+    | `SliceIncr(Slice(ty), slice_incr) =>
+      (
+        switch (ty) {
+        | Parens(ty) =>
+          matched_prod_strict(ctx, es, get_label_es, ty, constructor)
+        | Prod(tys: list(t)) =>
+          if (List.length(es) != List.length(tys)) {
+            (es, None);
+          } else {
+            (
+              LabeledTuple.rearrange(
+                match_tup_label,
+                get_label_es,
+                tys,
+                es,
+                constructor,
+              ),
+              Some(tys),
+            );
+          }
+        | _ => (es, None)
         }
-      | _ => (es, None)
-      }
+      )
+      |> (
+        ((x, y)) => (x, y |> Option.map(List.map(wrap_incr(slice_incr))))
+      )
     | `SliceGlobal(s, slice_global) =>
       matched_prod_strict(
         ctx,
@@ -1635,15 +1663,21 @@ let matched_prod = (ctx, es, get_label_es, ty, constructor) => {
 let rec matched_list_strict = (ctx, s) => {
   let (_, rewrap) = s |> IdTagged.unwrap;
   switch (term_of(weak_head_normalize(ctx, s))) {
-  | `Typ(ty)
-  | `SliceIncr(Typ(ty), _) =>
+  | `Typ(ty) =>
     Typ.matched_list_strict(ctx, ty |> rewrap) |> Option.map(t_of_typ_t)
-  | `SliceIncr(Slice(s'), _) =>
-    switch (s') {
-    | Parens(s) => matched_list_strict(ctx, s)
-    | List(ty) => Some(ty)
-    | _ => None
-    }
+  | `SliceIncr(Typ(ty), slice_incr) =>
+    Typ.matched_list_strict(ctx, ty |> rewrap)
+    |> Option.map(t_of_typ_t)
+    |> Option.map(wrap_incr(slice_incr))
+  | `SliceIncr(Slice(s'), slice_incr) =>
+    (
+      switch (s') {
+      | Parens(s) => matched_list_strict(ctx, s)
+      | List(ty) => Some(ty)
+      | _ => None
+      }
+    )
+    |> Option.map(wrap_incr(slice_incr))
   | `SliceGlobal(s, slice_global) =>
     matched_list_strict(ctx, (s :> term) |> temp)
     |> Option.map(wrap_global(slice_global))
@@ -1658,16 +1692,22 @@ let rec matched_args = (ctx, default_arity, s) => {
   let (_, rewrap) = s |> IdTagged.unwrap;
   let s' = weak_head_normalize(ctx, s);
   switch (term_of(s')) {
-  | `Typ(ty)
-  | `SliceIncr(Typ(ty), _) =>
+  | `Typ(ty) =>
     Typ.matched_args(ctx, default_arity, ty |> rewrap)
     |> List.map(t_of_typ_t)
-  | `SliceIncr(Slice(s''), _) =>
-    switch (s'') {
-    | Parens(s) => matched_args(ctx, default_arity, s)
-    | Prod([_, ..._] as tys) => tys
-    | _ => [s']
-    }
+  | `SliceIncr(Typ(ty), slice_incr) =>
+    Typ.matched_args(ctx, default_arity, ty |> rewrap)
+    |> List.map(t_of_typ_t)
+    |> List.map(wrap_incr(slice_incr))
+  | `SliceIncr(Slice(s''), slice_incr) =>
+    (
+      switch (s'') {
+      | Parens(s) => matched_args(ctx, default_arity, s)
+      | Prod([_, ..._] as tys) => tys
+      | _ => [s']
+      }
+    )
+    |> List.map(wrap_incr(slice_incr))
   | `SliceGlobal(s, slice_global) =>
     matched_args(ctx, default_arity, (s :> term) |> temp)
     |> List.map(wrap_global(slice_global))
@@ -1681,45 +1721,51 @@ let rec get_sum_constructors = (ctx: Ctx.t, s: t): option(sum_map) => {
   };
   let s = weak_head_normalize(ctx, s);
   switch (term_of(s)) {
-  | `Typ(ty)
-  | `SliceIncr(Typ(ty), _) =>
+  | `Typ(ty) =>
     Typ.get_sum_constructors(ctx, ty |> rewrap)
     |> Option.map(ConstructorMap.map_preserving(t_of_typ_t))
-  | `SliceIncr(Slice(s'), _) =>
-    switch (s') {
-    | Parens(s) => get_sum_constructors(ctx, s)
-    | Sum(sm) => Some(sm)
-    | Rec(_) =>
-      /* Note: We must unroll here to get right ctr types;
-         otherwise the rec parameter will leak. However, seeing
-         as substitution is too expensive to be used here, we
-         currently making the optimization that, since all
-         recursive types are type alises which use the alias name
-         as the recursive parameter, and type aliases cannot be
-         shadowed, it is safe to simply remove the Rec constructor,
-         provided we haven't escaped the context in which the alias
-         is bound. If either of the above assumptions become invalid,
-         the below code will be incorrect! */
-      let s =
-        switch (s') {
-        | Rec({term: Var(x), _}, s_body) =>
-          switch (Ctx.lookup_alias(ctx, x)) {
-          | Option.None => unroll(s' |> term_of_slc_typ_term |> rewrap)
-          | Some(_) => s_body
-          }
-        | _ => s' |> term_of_slc_typ_term |> rewrap
-        };
-      apply(
-        fun
-        | Sum(sm) => Some(sm |> ConstructorMap.map_preserving(t_of_typ_t))
-        | _ => None,
-        fun
-        | Sum(sm) => Some(sm)
-        | _ => None,
-        s.term,
-      );
-    | _ => None
-    }
+  | `SliceIncr(Typ(ty), slice_incr) =>
+    Typ.get_sum_constructors(ctx, ty |> rewrap)
+    |> Option.map(ConstructorMap.map_preserving(t_of_typ_t))
+    |> Option.map(ConstructorMap.map_preserving(wrap_incr(slice_incr)))
+  | `SliceIncr(Slice(s'), slice_incr) =>
+    (
+      switch (s') {
+      | Parens(s) => get_sum_constructors(ctx, s)
+      | Sum(sm) => Some(sm)
+      | Rec(_) =>
+        /* Note: We must unroll here to get right ctr types;
+           otherwise the rec parameter will leak. However, seeing
+           as substitution is too expensive to be used here, we
+           currently making the optimization that, since all
+           recursive types are type alises which use the alias name
+           as the recursive parameter, and type aliases cannot be
+           shadowed, it is safe to simply remove the Rec constructor,
+           provided we haven't escaped the context in which the alias
+           is bound. If either of the above assumptions become invalid,
+           the below code will be incorrect! */
+        let s =
+          switch (s') {
+          | Rec({term: Var(x), _}, s_body) =>
+            switch (Ctx.lookup_alias(ctx, x)) {
+            | Option.None => unroll(s' |> term_of_slc_typ_term |> rewrap)
+            | Some(_) => s_body
+            }
+          | _ => s' |> term_of_slc_typ_term |> rewrap
+          };
+        apply(
+          fun
+          | Sum(sm) => Some(sm |> ConstructorMap.map_preserving(t_of_typ_t))
+          | _ => None,
+          fun
+          | Sum(sm) => Some(sm)
+          | _ => None,
+          s.term,
+        );
+      | _ => None
+      }
+    )
+    |> Option.map(ConstructorMap.map_preserving(wrap_incr(slice_incr)))
   | `SliceGlobal(s, slice_global) =>
     get_sum_constructors(ctx, (s :> term) |> rewrap)
     |> Option.map(ConstructorMap.map_preserving(wrap_global(slice_global)))
