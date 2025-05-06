@@ -651,6 +651,669 @@ module BoundedSlider: BuiltinLivelit = {
     };
 };
 
+module ChessBoard: BuiltinLivelit = {
+  let name = "chessboard";
+
+  // Piece representation
+  type piece = {
+    piece_type: string, // "pawn", "rook", "knight", "bishop", "queen", "king"
+    color: string // "white" or "black"
+  };
+
+  // Square can be empty (None) or contain a piece (Some(piece))
+  type square = option(piece);
+
+  // Board model
+  type model_t = {
+    board: list(list(square)), // 8x8 board
+    turn: string, // "white" or "black"
+    selected_square: option((int, int)) // Currently selected square (row, col)
+  };
+
+  // Expansion type - we'll use a string representation of the board
+  type expansion_t = string;
+
+  // Actions
+  type action_t =
+    | SelectSquare(int, int) // Select a square at (row, col)
+    | MoveSelectedPiece(int, int) // Move selected piece to (row, col)
+    | ResetBoard; // Reset the board to initial state
+
+  // Initial board setup
+  let initial_board = {
+    // Create an 8x8 board with pieces in starting positions
+    let empty_row = List.init(8, _ => None);
+
+    // Create pawn rows
+    let white_pawns =
+      List.init(8, _ =>
+        Some({
+          piece_type: "pawn",
+          color: "white",
+        })
+      );
+    let black_pawns =
+      List.init(8, _ =>
+        Some({
+          piece_type: "pawn",
+          color: "black",
+        })
+      );
+
+    // Create back rows
+    let create_back_row = color => {
+      [
+        Some({
+          piece_type: "rook",
+          color,
+        }),
+        Some({
+          piece_type: "knight",
+          color,
+        }),
+        Some({
+          piece_type: "bishop",
+          color,
+        }),
+        Some({
+          piece_type: "queen",
+          color,
+        }),
+        Some({
+          piece_type: "king",
+          color,
+        }),
+        Some({
+          piece_type: "bishop",
+          color,
+        }),
+        Some({
+          piece_type: "knight",
+          color,
+        }),
+        Some({
+          piece_type: "rook",
+          color,
+        }),
+      ];
+    };
+
+    let white_back_row = create_back_row("white");
+    let black_back_row = create_back_row("black");
+
+    // Assemble the board (top to bottom)
+    [
+      black_back_row, // Row 0: Black back row
+      black_pawns, // Row 1: Black pawns
+      empty_row, // Row 2: Empty
+      empty_row, // Row 3: Empty
+      empty_row, // Row 4: Empty
+      empty_row, // Row 5: Empty
+      white_pawns, // Row 6: White pawns
+      white_back_row // Row 7: White back row
+    ];
+  };
+
+  // Default model
+  let model_default: model_t = {
+    board: initial_board,
+    turn: "white",
+    selected_square: None,
+  };
+
+  // Hazel model type - we'll use a string to represent the serialized board state
+  let hazel_model_t: TermBase.Typ.t = Typ.temp(Atom(String));
+
+  // Serialize the board to a string for Hazel
+  let serialize_board = (model: model_t) => {
+    // Simple serialization: each square is represented by a 2-character code
+    // First character: piece type (p=pawn, r=rook, n=knight, b=bishop, q=queen, k=king, e=empty)
+    // Second character: color (w=white, b=black, e=empty)
+    let square_to_string = square => {
+      switch (square) {
+      | None => "ee" // empty square
+      | Some(piece) =>
+        let type_char =
+          switch (piece.piece_type) {
+          | "pawn" => "p"
+          | "rook" => "r"
+          | "knight" => "n"
+          | "bishop" => "b"
+          | "queen" => "q"
+          | "king" => "k"
+          | _ => "e"
+          };
+
+        let color_char =
+          switch (piece.color) {
+          | "white" => "w"
+          | "black" => "b"
+          | _ => "e"
+          };
+
+        type_char ++ color_char;
+      };
+    };
+
+    // Convert each row to a string
+    let row_to_string = row => {
+      row |> List.map(square_to_string) |> String.concat("");
+    };
+
+    // Convert the board to a string
+    let board_str =
+      model.board |> List.map(row_to_string) |> String.concat("|");
+
+    // Add turn and selected square info
+    let turn_str = model.turn;
+    let selected_str =
+      switch (model.selected_square) {
+      | None => "none"
+      | Some((row, col)) => string_of_int(row) ++ "," ++ string_of_int(col)
+      };
+
+    board_str ++ ";" ++ turn_str ++ ";" ++ selected_str;
+  };
+
+  // Deserialize a string back to a board
+  let deserialize_board = (str: string) =>
+    // Split the string into board, turn, and selected parts
+    try({
+      let parts = String.split_on_char(';', str);
+      let board_str = List.nth(parts, 0);
+      let turn_str = List.nth(parts, 1);
+      let selected_str = List.nth(parts, 2);
+
+      // Parse the board
+      let rows = String.split_on_char('|', board_str);
+      let board =
+        rows
+        |> List.map(row_str => {
+             // Each square is 2 characters
+             let rec parse_row = (str, acc) =>
+               if (String.length(str) == 0) {
+                 List.rev(acc);
+               } else {
+                 let type_char = String.sub(str, 0, 1);
+                 let color_char = String.sub(str, 1, 1);
+
+                 let square =
+                   if (type_char == "e" && color_char == "e") {
+                     None;
+                   } else {
+                     let piece_type =
+                       switch (type_char) {
+                       | "p" => "pawn"
+                       | "r" => "rook"
+                       | "n" => "knight"
+                       | "b" => "bishop"
+                       | "q" => "queen"
+                       | "k" => "king"
+                       | _ => "unknown"
+                       };
+
+                     let color =
+                       switch (color_char) {
+                       | "w" => "white"
+                       | "b" => "black"
+                       | _ => "unknown"
+                       };
+
+                     Some({
+                       piece_type,
+                       color,
+                     });
+                   };
+
+                 parse_row(
+                   String.sub(str, 2, String.length(str) - 2),
+                   [square, ...acc],
+                 );
+               };
+
+             parse_row(row_str, []);
+           });
+
+      // Parse the selected square
+      let selected_square =
+        if (selected_str == "none") {
+          None;
+        } else {
+          let coords = String.split_on_char(',', selected_str);
+          let row = int_of_string(List.nth(coords, 0));
+          let col = int_of_string(List.nth(coords, 1));
+          Some((row, col));
+        };
+
+      Some({
+        board,
+        turn: turn_str,
+        selected_square,
+      });
+    }) {
+    | _ => None // Return None if parsing fails
+    };
+
+  // Convert model to Hazel expression
+  let model_to_hazel: model_t => model_exp =
+    (model: model_t) => {
+      let serialized = serialize_board(model);
+      DHExp.fresh(Atom(String(serialized)));
+    };
+
+  // Convert Hazel expression to model
+  let model_from_hazel: model_exp => option(model_t) =
+    (expr: model_exp) => {
+      switch (expr.term) {
+      | Atom(String(serialized)) => deserialize_board(serialized)
+      | _ => None
+      };
+    };
+
+  // Expansion type is a string
+  let hazel_expansion_t: TermBase.Typ.t = Typ.temp(Atom(String));
+
+  // Expansion function - convert the board to FEN notation (standard chess position format)
+  let expand: model_t => expansion_t =
+    (model: model_t) => {
+      // Convert to Forsyth-Edwards Notation (FEN)
+      let board_to_fen = board => {
+        let row_to_fen = row => {
+          let (fen, empty_count) =
+            List.fold_left(
+              ((acc, empty), square) => {
+                switch (square) {
+                | None => (acc, empty + 1)
+                | Some(piece) =>
+                  let piece_char =
+                    switch (piece.piece_type) {
+                    | "pawn" => "p"
+                    | "rook" => "r"
+                    | "knight" => "n"
+                    | "bishop" => "b"
+                    | "queen" => "q"
+                    | "king" => "k"
+                    | _ => "?"
+                    };
+
+                  // Uppercase for white pieces
+                  let piece_char =
+                    if (piece.color == "white") {
+                      String.uppercase_ascii(piece_char);
+                    } else {
+                      piece_char;
+                    };
+
+                  // Add empty count if needed
+                  let new_acc =
+                    if (empty > 0) {
+                      acc ++ string_of_int(empty) ++ piece_char;
+                    } else {
+                      acc ++ piece_char;
+                    };
+
+                  (new_acc, 0);
+                }
+              },
+              ("", 0),
+              row,
+            );
+
+          // Add any trailing empty squares
+          if (empty_count > 0) {
+            fen ++ string_of_int(empty_count);
+          } else {
+            fen;
+          };
+        };
+
+        board |> List.map(row_to_fen) |> String.concat("/");
+      };
+
+      let fen = board_to_fen(model.board);
+
+      // Add turn
+      let fen = fen ++ " " ++ String.sub(model.turn, 0, 1);
+
+      // Add castling, en passant, halfmove, and fullmove (simplified)
+      fen ++ " KQkq - 0 1";
+    };
+
+  // Convert expansion to Hazel expression
+  let expand_to_hazel: expansion_t => expansion_exp =
+    (fen: expansion_t) => DHExp.fresh(Atom(String(fen)));
+
+  // Helper function to safely get a square from the board
+  let get_square = (board, row, col) =>
+    try({
+      let row_list = List.nth(board, row);
+      try(Some(List.nth(row_list, col))) {
+      | _ => None
+      };
+    }) {
+    | _ => None
+    };
+
+  // Update function to handle actions
+  let update: (action_t, model_t) => model_t =
+    (action: action_t, model: model_t) => {
+      switch (action) {
+      | SelectSquare(row, col) =>
+        // Check if the square contains a piece of the current player's color
+        switch (get_square(model.board, row, col)) {
+        | Some(Some(piece)) when piece.color == model.turn => {
+            // Select this square
+            ...model,
+            selected_square: Some((row, col)),
+          }
+        | _ =>
+          // If a square is already selected, try to move there
+          switch (model.selected_square) {
+          | Some((from_row, from_col)) =>
+            // Get the piece from the selected square
+            let piece_opt = get_square(model.board, from_row, from_col);
+
+            switch (piece_opt) {
+            | Some(Some(piece)) =>
+              // Update the board
+              let new_board =
+                List.mapi(
+                  (r, row_list) =>
+                    List.mapi(
+                      (c, square) =>
+                        if (r == from_row && c == from_col) {
+                          None; // Remove piece from original position
+                        } else if (r == row && c == col) {
+                          Some
+                            (piece); // Place piece at new position
+                        } else {
+                          square; // Keep other squares unchanged
+                        },
+                      row_list,
+                    ),
+                  model.board,
+                );
+
+              // Switch turns
+              let new_turn = model.turn == "white" ? "black" : "white";
+
+              {
+                board: new_board,
+                turn: new_turn,
+                selected_square: None,
+              };
+            | _ => model // No piece at selected square
+            };
+          | None => model // No square selected, do nothing
+          }
+        }
+      | MoveSelectedPiece(row, col) =>
+        // Move the piece from the selected square to the target square
+        switch (model.selected_square) {
+        | Some((from_row, from_col)) =>
+          // Get the piece from the selected square
+          let piece_opt = get_square(model.board, from_row, from_col);
+
+          switch (piece_opt) {
+          | Some(Some(piece)) =>
+            // Update the board
+            let new_board =
+              List.mapi(
+                (r, row_list) =>
+                  List.mapi(
+                    (c, square) =>
+                      if (r == from_row && c == from_col) {
+                        None; // Remove piece from original position
+                      } else if (r == row && c == col) {
+                        Some
+                          (piece); // Place piece at new position
+                      } else {
+                        square; // Keep other squares unchanged
+                      },
+                    row_list,
+                  ),
+                model.board,
+              );
+
+            // Switch turns
+            let new_turn = model.turn == "white" ? "black" : "white";
+
+            {
+              board: new_board,
+              turn: new_turn,
+              selected_square: None,
+            };
+          | _ => model // No piece at selected square
+          };
+        | None => model // No square selected, do nothing
+        }
+      | ResetBoard =>
+        // Reset to initial state
+        model_default
+      };
+    };
+
+  // Hazel action type
+  let hazel_action_t: TermBase.Typ.t =
+    Sum([
+      Variant(
+        "SelectSquare",
+        [],
+        Some(
+          Prod([Typ.temp(Atom(Int)), Typ.temp(Atom(Int))]) |> Typ.fresh,
+        ),
+      ),
+      Variant(
+        "MoveSelectedPiece",
+        [],
+        Some(
+          Prod([Typ.temp(Atom(Int)), Typ.temp(Atom(Int))]) |> Typ.fresh,
+        ),
+      ),
+      Variant("ResetBoard", [], None),
+    ])
+    |> Typ.fresh;
+
+  // Convert action to Hazel expression
+  let action_to_hazel: action_t => action_exp =
+    (action: action_t) =>
+      switch (action) {
+      | SelectSquare(row, col) =>
+        let row_expr = DHExp.fresh(Atom(Int(Bigint.of_int(row))));
+        let col_expr = DHExp.fresh(Atom(Int(Bigint.of_int(col))));
+        let tuple_expr = DHExp.fresh(Tuple([row_expr, col_expr]));
+
+        Ap(
+          Forward,
+          Constructor(
+            "SelectSquare",
+            Some(
+              Some(
+                Prod([Typ.temp(Atom(Int)), Typ.temp(Atom(Int))])
+                |> Typ.fresh,
+              ),
+            ),
+          )
+          |> DHExp.fresh,
+          tuple_expr,
+        )
+        |> DHExp.fresh;
+      | MoveSelectedPiece(row, col) =>
+        let row_expr = DHExp.fresh(Atom(Int(Bigint.of_int(row))));
+        let col_expr = DHExp.fresh(Atom(Int(Bigint.of_int(col))));
+        let tuple_expr = DHExp.fresh(Tuple([row_expr, col_expr]));
+
+        Ap(
+          Forward,
+          Constructor(
+            "MoveSelectedPiece",
+            Some(
+              Some(
+                Prod([Typ.temp(Atom(Int)), Typ.temp(Atom(Int))])
+                |> Typ.fresh,
+              ),
+            ),
+          )
+          |> DHExp.fresh,
+          tuple_expr,
+        )
+        |> DHExp.fresh;
+      | ResetBoard => Constructor("ResetBoard", None) |> DHExp.fresh
+      };
+
+  // Convert Hazel expression to action
+  let action_from_hazel: action_exp => option(action_t) =
+    (expr: action_exp) =>
+      switch (expr.term) {
+      | Ap(
+          Forward,
+          {term: Constructor("SelectSquare", _), _},
+          {
+            term:
+              Tuple([
+                {term: Atom(Int(row_big)), _},
+                {term: Atom(Int(col_big)), _},
+              ]),
+            _,
+          },
+        ) =>
+        let row = int_of_string(Bigint.to_string(row_big));
+        let col = int_of_string(Bigint.to_string(col_big));
+        Some(SelectSquare(row, col));
+      | Ap(
+          Forward,
+          {term: Constructor("MoveSelectedPiece", _), _},
+          {
+            term:
+              Tuple([
+                {term: Atom(Int(row_big)), _},
+                {term: Atom(Int(col_big)), _},
+              ]),
+            _,
+          },
+        ) =>
+        let row = int_of_string(Bigint.to_string(row_big));
+        let col = int_of_string(Bigint.to_string(col_big));
+        Some(MoveSelectedPiece(row, col));
+      | Constructor("ResetBoard", _) => Some(ResetBoard)
+      | _ => None
+      };
+
+  // View function to render the chess board
+  let view = (model: model_t, send_action) => {
+    // Helper to get piece Unicode character
+    let piece_to_unicode = piece => {
+      let symbol =
+        switch (piece.piece_type) {
+        | "pawn" => piece.color == "white" ? "♙" : "♟"
+        | "rook" => piece.color == "white" ? "♖" : "♜"
+        | "knight" => piece.color == "white" ? "♘" : "♞"
+        | "bishop" => piece.color == "white" ? "♗" : "♝"
+        | "queen" => piece.color == "white" ? "♕" : "♛"
+        | "king" => piece.color == "white" ? "♔" : "♚"
+        | _ => "?"
+        };
+      symbol;
+    };
+
+    // Render the board
+    let board_element =
+      Node.div(
+        ~attrs=[
+          Attr.create(
+            "style",
+            "display: grid; grid-template-columns: repeat(8, 40px); grid-template-rows: repeat(8, 40px); gap: 0; border: 2px solid black; width: 320px; height: 320px;",
+          ),
+        ],
+        // Create all 64 squares
+        List.flatten(
+          List.mapi(
+            (row, row_squares) =>
+              List.mapi(
+                (col, square) => {
+                  // Determine square color (light or dark)
+                  let is_light = (row + col) mod 2 == 0;
+                  let bg_color = is_light ? "#f0d9b5" : "#b58863";
+
+                  // Check if this square is selected
+                  let is_selected =
+                    switch (model.selected_square) {
+                    | Some((sel_row, sel_col)) =>
+                      sel_row == row && sel_col == col
+                    | None => false
+                    };
+
+                  // Add highlight for selected square
+                  let bg_color = is_selected ? "#aaffaa" : bg_color;
+
+                  // Render the square with piece if present
+                  Node.div(
+                    ~attrs=[
+                      Attr.create(
+                        "style",
+                        "background-color: "
+                        ++ bg_color
+                        ++ "; display: flex; justify-content: center; align-items: center; font-size: 30px; cursor: pointer;",
+                      ),
+                      Attr.on_click(_ => {
+                        send_action(SelectSquare(row, col))
+                      }),
+                    ],
+                    [
+                      // Render piece if present
+                      switch (square) {
+                      | Some(piece) => Node.text(piece_to_unicode(piece))
+                      | None => Node.text("")
+                      },
+                    ],
+                  );
+                },
+                row_squares,
+              ),
+            model.board,
+          ),
+        ),
+      );
+
+    // Render turn indicator and reset button
+    let controls =
+      Node.div(
+        ~attrs=[
+          Attr.create(
+            "style",
+            "margin-top: 10px; display: flex; justify-content: space-between; align-items: center;",
+          ),
+        ],
+        [
+          Node.div(
+            ~attrs=[Attr.create("style", "font-weight: bold;")],
+            [Node.text(model.turn ++ "'s turn")],
+          ),
+          Node.button(
+            ~attrs=[Attr.on_click(_ => {send_action(ResetBoard)})],
+            [Node.text("Reset Board")],
+          ),
+        ],
+      );
+
+    // Combine board and controls
+    Node.div([board_element, controls]);
+  };
+
+  // Size specification
+  let size: ProjectorCore.Shape.t =
+    ProjectorCore.Shape.{
+      vertical: Block(20),
+      horizontal: 40,
+    };
+};
+
 let livelits: list(raw_livelit) =
-  [(module Slider), (module Emotion), (module Js), (module BoundedSlider)]
+  [
+    (module Slider),
+    (module Emotion),
+    (module Js),
+    (module BoundedSlider),
+    (module ChessBoard),
+  ]
   |> List.map(raw_of_builtin);
