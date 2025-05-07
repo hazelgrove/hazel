@@ -134,6 +134,40 @@ module Model = {
   let get_elaboration_stepper = (model: stepper): option(Exp.t) => {
     model.cached_elab |> Calc.saved_to_option;
   };
+
+  // TODO how can we get this to take a model with a full sequence of steps?
+  let exportCoq = model_step => {
+    let rec all_steps_of_step = step => {
+      switch (step.next_step) {
+      | None => [step]
+      | Some(next_step) => [step] @ all_steps_of_step(next_step)
+      };
+    };
+
+    let steps = all_steps_of_step(model_step);
+    let steps_info =
+      switch (steps) {
+      | [] => "No steps available"
+      | [first, ..._] =>
+        // Extract information from first step
+        let step_expr = Calc.get_saved_exc(~print="step_expr", first.expr);
+        let step_kind_str =
+          switch (first.step_kind) {
+          | SingleStep(_) => "SingleStep"
+          | InductionStep(_) => "InductionStep"
+          | ForallStep(_) => "ForallStep"
+          | MissingStep(_) => "MissingStep"
+          | AxiomStep(_) => "AxiomStep"
+          };
+        "First step: "
+        ++ step_kind_str
+        ++ " with expression: "
+        ++ Exp.show(step_expr);
+      };
+
+    print_endline(steps_info);
+    print_endline("Called ExportCoq function");
+  };
 };
 
 module Update = {
@@ -272,9 +306,12 @@ module Update = {
       }
       |> return
     | (AddForall, _, _) => model |> return_quiet
-    | (CoqExport, _, _) =>
-      print_endline("Exporting to Coq");
+    | (CoqExport, MissingStep(_), _) =>
+      print_endline("Called CoqExport at update step handler");
+      // model is actually model.step here
+      Model.exportCoq(model);
       model |> return_quiet;
+    | (CoqExport, _, _) => model |> return_quiet
     | (AddAxiomStep(at_exp, with_exp), MissingStep(_), _) =>
       let at_id = Exp.rep_id(at_exp);
       {

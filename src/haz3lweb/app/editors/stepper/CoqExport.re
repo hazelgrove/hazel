@@ -135,45 +135,62 @@ let rec string_of_d = (d: DHExp.t) => {
 //   coqLemmaString;
 // };
 
-// // Takes a list of steps and generates the Coq proof of equivalence between the first and last steps
-// let exportCoq = (steps: list(Model.step)) =>
-//   if (List.length(steps) == 0) {
-//     "Not exporting proof with no steps";
-//   } else {
-//     let firstD = List.nth(steps, List.length(steps) - 1).d;
-//     let unique_vars = unique_vars_in_ast(firstD);
-//     let forall_str =
-//       if (List.length(unique_vars) == 0) {
-//         "";
-//       } else {
-//         "forall " ++ String.concat(" ", unique_vars) ++ ",";
-//       };
+/* Recursively collect all linked steps starting from a single step */
 
-//     let lemmasAndInvocations =
-//       List.mapi(
-//         (ind, step) =>
-//           (
-//             single_step_export(List.length(steps) - ind, step, forall_str),
-//             Printf.sprintf(
-//               "rewrite -> equiv_exp%d.",
-//               List.length(steps) - ind,
-//             ),
+// /* Get every step in the stepper, in order */
+// let all_steps_of_stepper = (model: StepperBase.Model): list(step) =>
+// all_steps_of_step(model.root);
+
+// Takes a list of steps and generates the Coq proof of equivalence between the first and last steps
+// let exportCoq = model => {
+//   let rec all_steps_of_step = (step): StepperBase.Model.Stepper.step => {
+//     switch (step.next_step) {
+//     | None => [step]
+//     | Some(next_step) => [step] @ all_steps_of_step(next_step)
+//     };
+//   };
+
+//   let steps = all_steps_of_step(model.stepper.root);
+//   print_endline("Called ExportCoq");
+// };
+// if (List.length(steps) == 0) {
+//   "Not exporting proof with no steps";
+// } else {
+//   let firstD = List.nth(steps, List.length(steps) - 1).d;
+//   let unique_vars = unique_vars_in_ast(firstD);
+//   let forall_str =
+//     if (List.length(unique_vars) == 0) {
+//       "";
+//     } else {
+//       "forall " ++ String.concat(" ", unique_vars) ++ ",";
+//     };
+
+//   let lemmasAndInvocations =
+//     List.mapi(
+//       (ind, step) =>
+//         (
+//           single_step_export(List.length(steps) - ind, step, forall_str),
+//           Printf.sprintf(
+//             "rewrite -> equiv_exp%d.",
+//             List.length(steps) - ind,
 //           ),
-//         steps,
-//       );
-//     let (lemmas, invocations) = List.split(lemmasAndInvocations);
-
-//     let finalExpr =
-//       string_of_d(
-//         EvalCtx.compose(List.hd(steps).ctx, List.hd(steps).d_loc'),
-//       );
-//     let firstExpr = string_of_d(firstD);
-
-//     Printf.sprintf(
-//       "Require Import QArith.\nRequire Export Plus.\nRequire Export Mult.\n%s\nTheorem equiv_exp:%s%s==%s.\nProof.\nintros.\n%s\nreflexivity. Qed.",
-//       String.concat("\n", lemmas),
-//       forall_str,
-//       finalExpr,
-//       firstExpr,
-//       String.concat("\n", invocations),
+//         ),
+//       steps,
 //     );
+//   let (lemmas, invocations) = List.split(lemmasAndInvocations);
+
+//   let finalExpr =
+//     string_of_d(
+//       EvalCtx.compose(List.hd(steps).ctx, List.hd(steps).d_loc'),
+//     );
+//   let firstExpr = string_of_d(firstD);
+
+//   Printf.sprintf(
+//     "Require Import QArith.\nRequire Export Plus.\nRequire Export Mult.\n%s\nTheorem equiv_exp:%s%s==%s.\nProof.\nintros.\n%s\nreflexivity. Qed.",
+//     String.concat("\n", lemmas),
+//     forall_str,
+//     finalExpr,
+//     firstExpr,
+//     String.concat("\n", invocations),
+//   );
+// };
