@@ -226,28 +226,28 @@ module Update = {
       (xs: list(TutorialMode.Model.t)): list(option(TutorialMode.Model.t)) =>
     List.map(x => Some(x), xs);
 
-  let rec find_prev_completed_exercise = (current_idx, exercises) =>
-    if (current_idx <= 0) {
-      current_idx; // Stay at 0 if no prior completed
-    } else {
-      let prev_idx = current_idx - 1;
-      switch (List.nth(exercises, prev_idx)) {
-      | Some(ex) =>
-        if (TutorialMode.Model.all_tests_passed(ex)) {
-          prev_idx;
-        } else {
-          find_prev_completed_exercise(prev_idx, exercises);
-        }
-      | None => current_idx
-      };
+  let rec find_prev_completed_exercise = (current_idx, exercises) => {
+    let prev_idx =
+      (current_idx - 1 + List.length(exercises)) mod List.length(exercises);
+    switch (List.nth(exercises, prev_idx)) {
+    | Some(ex) =>
+      if (TutorialMode.Model.all_tests_passed(ex)) {
+        prev_idx;
+      } else {
+        find_prev_completed_exercise(prev_idx, exercises);
+      }
+    | None => current_idx
     };
+  };
 
   let update =
       (~globals: Globals.t, ~schedule_action, action: t, model: Model.t) => {
     switch (action) {
     | Tutorial(TutorialMode.Update.MoveToNextExercise) =>
       Model.{
-        current: model.current + 1,
+        current:
+          (model.current + 1 + List.length(model.exercises))
+          mod List.length(model.exercises),
         exercises: model.exercises,
       }
       |> return
