@@ -2,6 +2,7 @@ open Virtual_dom.Vdom;
 open ProjectorCore;
 open LivelitCtx;
 open Grammar;
+open Js_of_ocaml;
 
 type livelit_name = string;
 
@@ -440,6 +441,236 @@ module Js: BuiltinLivelit = {
     };
 };
 
+module CustomSlider: BuiltinLivelit = {
+  let name = "customslider";
+
+  type value_t = Bigint.t;
+  type model_t = {
+    value: value_t,
+    mousedown: bool,
+  };
+  type expansion_t = Bigint.t;
+  type action_t =
+    | SetVal(Bigint.t)
+    | SetMousedown(bool);
+
+  let hazel_model_t: TermBase.Typ.t =
+    Prod([Typ.temp(Atom(Int)), Typ.temp(Atom(Bool))]) |> Typ.fresh;
+
+  let model_to_hazel: model_t => model_exp =
+    m => {
+      let v = DHExp.fresh(Atom(Int(m.value)));
+      let md = DHExp.fresh(Atom(Bool(m.mousedown)));
+      DHExp.fresh(Tuple([v, md]));
+    };
+  let model_from_hazel: model_exp => option(model_t) =
+    expr =>
+      switch (expr.term) {
+      | Tuple([{term: Atom(Int(v)), _}, {term: Atom(Bool(md)), _}]) =>
+        Some({
+          value: v,
+          mousedown: md,
+        })
+      | _ =>
+        print_endline("CustomSlider.model_from_hazel: unexpected term");
+        print_endline(
+          "CustomSlider.model_from_hazel: term: " ++ Exp.show(expr),
+        );
+        None;
+      };
+
+  let model_default: model_t = {
+    value: Bigint.of_int(50),
+    mousedown: false,
+  };
+
+  let hazel_expansion_t: TermBase.Typ.t = Typ.temp(Atom(Int));
+  let expand: model_t => expansion_t = (x: model_t) => x.value;
+  let expand_to_hazel: expansion_t => expansion_exp =
+    (x: expansion_t) => DHExp.fresh(Atom(Int(x)));
+
+  let update: (action_t, model_t) => model_t =
+    (action: action_t, model: model_t) => {
+      switch (action) {
+      | SetVal(v) => {
+          value: v,
+          mousedown: model.mousedown,
+        }
+      | SetMousedown(m) => {
+          value: model.value,
+          mousedown: m,
+        }
+      };
+    };
+
+  let hazel_action_t: TermBase.Typ.t =
+    Sum([
+      Variant("SetVal", [], Some(Typ.temp(Atom(Int)))),
+      Variant("SetMousedown", [], Some(Typ.temp(Atom(Bool)))),
+    ])
+    |> Typ.fresh;
+  let action_to_hazel: action_t => action_exp =
+    (action: action_t) =>
+      switch (action) {
+      | SetVal(v) =>
+        Ap(
+          Forward,
+          Constructor("SetVal", Some(Some(Typ.temp(Atom(Int)))))
+          |> DHExp.fresh,
+          Atom(Int(v)) |> DHExp.fresh,
+        )
+        |> DHExp.fresh
+      | SetMousedown(m) =>
+        Ap(
+          Forward,
+          Constructor("SetMousedown", Some(Some(Typ.temp(Atom(Bool)))))
+          |> DHExp.fresh,
+          Atom(Bool(m)) |> DHExp.fresh,
+        )
+        |> DHExp.fresh
+      };
+
+  let action_from_hazel: action_exp => option(action_t) =
+    (action: action_exp) => {
+      switch (action.term) {
+      | Ap(
+          Forward,
+          {term: Constructor("SetVal", _), _},
+          {term: Atom(Int(v)), _},
+        ) =>
+        Some(SetVal(v))
+      | Ap(
+          Forward,
+          {term: Constructor("SetMousedown", _), _},
+          {term: Atom(Bool(m)), _},
+        ) =>
+        Some(SetMousedown(m))
+      | _ => None
+      };
+    };
+
+  let view = (model: model_t, send_action) => {
+    let n = model.value;
+    let mousedown = model.mousedown;
+
+    let value = int_of_string(Bigint.to_string(n));
+    let event_to_percent = (event: Js_of_ocaml.Js.t(Dom_html.mouseEvent)) => {
+      let target =
+        event##.target
+        |> Js_of_ocaml.Js.Opt.get(_, _ => failwith("no target"));
+
+      // ensure target has class "custom-slider-container"
+      target##.classList##contains(
+        "custom-slider-container" |> Js_of_ocaml.Js.string,
+      )
+      |> Js_of_ocaml.Js.to_bool
+        ? {
+          let rect = target##getBoundingClientRect;
+          let clientX = event##.clientX;
+          let width: int =
+            Js_of_ocaml.Js.Optdef.get(rect##.width, _ => 0.0) |> int_of_float;
+          let left: int = rect##.left |> int_of_float;
+
+          let position = float_of_int(clientX - left);
+          let percent = position /. float_of_int(width) *. 100.0;
+          Some(max(0, min(100, int_of_float(percent))));
+        }
+        : None;
+    };
+
+    /* Create a custom slider with the hazelnut.svg as the draggable icon */
+    Node.div(
+      ~attrs=[
+        Attr.class_("custom-slider-container"),
+        Attr.create(
+          "style",
+          "position: relative; width: 100%; height: 40px; display: flex; align-items: center;",
+        ),
+        Attr.on_mousemove(event => {
+          let percent = event_to_percent(event);
+          switch (mousedown, percent) {
+          | (true, Some(percent)) =>
+            send_action(SetVal(Bigint.of_int(percent)))
+          | _ => Ui_effect.Ignore
+          };
+        }),
+        Attr.on_mousedown(event => {
+          print_endline("mousedown");
+          let percent = event_to_percent(event);
+          switch (percent) {
+          | Some(_) => send_action(SetMousedown(true))
+          | None => Ui_effect.Ignore
+          };
+        }),
+        Attr.on_mouseup(event => {
+          print_endline("mouseup");
+          let percent = event_to_percent(event);
+          switch (percent) {
+          | Some(_) => send_action(SetMousedown(false))
+          | None => Ui_effect.Ignore
+          };
+        }),
+      ],
+      [
+        /* Track background */
+        Node.div(
+          ~attrs=[
+            Attr.class_("custom-slider-track"),
+            Attr.create(
+              "style",
+              "position: absolute; width: 100%; height: 4px; background-color: #ccc; border-radius: 2px;",
+            ),
+          ],
+          [],
+        ),
+        /* Filled track */
+        Node.div(
+          ~attrs=[
+            Attr.class_("custom-slider-fill"),
+            Attr.create(
+              "style",
+              "position: absolute; width: "
+              ++ string_of_int(value)
+              ++ "%; height: 4px; background-color: #6b5b95; border-radius: 2px;",
+            ),
+          ],
+          [],
+        ),
+        /* Hazelnut handle */
+        Node.div(
+          ~attrs=[
+            Attr.class_("custom-slider-handle"),
+            Attr.create(
+              "style",
+              "position: absolute; left: calc("
+              ++ string_of_int(value)
+              ++ "% - 12px); cursor: pointer; touch-action: none;",
+            ),
+          ],
+          [
+            /* Use the hazelnut.svg as the draggable icon */
+            Node.img(
+              ~attrs=[
+                Attr.src("/img/hazelnut.svg"),
+                Attr.create("width", "24"),
+                Attr.create("height", "24"),
+                Attr.create("style", "pointer-events: none;"),
+              ],
+              (),
+            ),
+          ],
+        ),
+      ],
+    );
+  };
+
+  let size: ProjectorCore.Shape.t =
+    ProjectorCore.Shape.{
+      vertical: Inline,
+      horizontal: 30,
+    };
+};
+
 let livelits: list(raw_livelit) =
-  [(module Slider), (module Emotion), (module Js)]
+  [(module Slider), (module Emotion), (module Js), (module CustomSlider)]
   |> List.map(raw_of_builtin);

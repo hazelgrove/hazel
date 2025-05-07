@@ -27,3 +27,14 @@
     outline: none;
     width: 90%;
 }
+
+.livelit .custom-slider-handle {
+    background-color: pink;
+    padding: 0.5em;
+    border-radius: 50%;
+    width: 1em;
+    height: 1em;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+}
