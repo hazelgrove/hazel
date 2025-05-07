@@ -77,11 +77,14 @@ module Update = {
       : Model.t => {
     let statics =
       is_edited
-        ? CachedStatics.init(
+        ? CachedStatics.init_from_term(
             ~settings,
-            ~stitch,
             ~is_dynamic_term,
-            editor |> Editor.Model.get_z,
+            editor
+            |> Editor.Model.make_term(Exp)
+            |> Any.is_exp
+            |> Option.get
+            |> stitch,
           )
         : statics;
     let editor =

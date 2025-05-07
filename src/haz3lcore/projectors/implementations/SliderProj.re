@@ -5,7 +5,7 @@ open ProjectorBase;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type model('ed) = Bigint.t;
 [@deriving (show({with_path: false}), sexp, yojson)]
-type action =
+type action('ed_a) =
   | Set(Bigint.t);
 
 let int_of = (any: Any.t): option(Bigint.t) =>
@@ -23,7 +23,7 @@ let init = (any: Term.Any.t, _ed) =>
 let focusable = Focusable.non;
 let dynamics = false;
 let placeholder = (~ed_str as _, _, _) => ProjectorShape.inline(10);
-let update = (_, _, Set(n)) => n;
+let update = (~sort as _, ~update_ed as _, ~statics as _, _, _, Set(n)) => n;
 
 let view =
     (

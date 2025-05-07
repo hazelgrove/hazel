@@ -26,18 +26,20 @@ module Kind = {
   // | Card
   // | TextArea;
 
-  type gadt('model, 'action, 'ed) =
+  type gadt('model, 'action, 'ed, 'ed_a) =
     // | Fold: gadt(FoldProj.model('ed), FoldProj.action, 'ed)
-    | Info: gadt(TypeProj.model('ed), TypeProj.action, 'ed)
-    | Pair: gadt(PairProj.model('ed), PairProj.action, 'ed)
+    | Info: gadt(TypeProj.model('ed), TypeProj.action('ed_a), 'ed, 'ed_a)
+    | Pair: gadt(PairProj.model('ed), PairProj.action('ed_a), 'ed, 'ed_a)
     // | Probe: gadt(ProbeProj.model('ed), ProbeProj.action, 'ed)
     // | Checkbox: gadt(CheckboxProj.model('ed), CheckboxProj.action, 'ed)
-    | Slider: gadt(SliderProj.model('ed), SliderProj.action, 'ed);
+    | Slider
+        : gadt(SliderProj.model('ed), SliderProj.action('ed_a), 'ed, 'ed_a);
   // | SliderF: gadt(SliderFProj.model('ed), SliderFProj.action, 'ed)
   // | Card: gadt(CardProj.model('ed), CardProj.action, 'ed)
   // | TextArea: gadt(TextAreaProj.model('ed), TextAreaProj.action, 'ed);
 
-  let of_gadt = (type m, type a, type ed, kind: gadt(m, a, ed)): t =>
+  let of_gadt =
+      (type m, type a, type ed_m, type ed_a, kind: gadt(m, a, ed_m, ed_a)): t =>
     switch (kind) {
     // | Fold => Fold
     | Info => Info
@@ -50,10 +52,10 @@ module Kind = {
     // | TextArea => TextArea
     };
 
-  type w('ed) =
-    | W(gadt('a, 'b, 'ed)): w('ed);
+  type w('ed_m, 'ed_a) =
+    | W(gadt('a, 'b, 'ed_m, 'ed_a)): w('ed_m, 'ed_a);
 
-  let (let.gadt) = (type b, kind: t, f: w('ed) => b) =>
+  let (let.gadt) = (type b, kind: t, f: w('ed, 'ed_a) => b) =>
     switch (kind) {
     // | Fold => f(W(Fold))
     | Info => f(W(Info))
@@ -117,12 +119,13 @@ module Kind = {
     };
 };
 
-type model('ed) =
-  | V(Kind.gadt('a, 'b, 'ed), 'a): model('ed);
+type model('ed_m, 'ed_a) =
+  | V(Kind.gadt('a, 'b, 'ed_m, 'ed_a), 'a): model('ed_m, 'ed_a);
 
 let kind_of_model = (V(x, _)) => Kind.of_gadt(x);
 
-let pp_model = (type ed, _pp_ed, f, model: model(ed)) =>
+let pp_model =
+    (type ed, type ed_a, _pp_ed, _pp_ed_a, f, model: model(ed, ed_a)) =>
   Format.fprintf(
     f,
     switch (model) {
@@ -138,7 +141,8 @@ let pp_model = (type ed, _pp_ed, f, model: model(ed)) =>
     },
   );
 
-let model_of_sexp = (ed_of_sexp, sexp: Sexplib.Sexp.t): model('ed) =>
+let model_of_sexp =
+    (ed_of_sexp, _ed_a_of_sexp, sexp: Sexplib.Sexp.t): model('ed, 'ed_a) =>
   // take s-expressions of the form ("fold", m), deserialize m, and turn it into V(Fold, m)
   switch (sexp) {
   // | List([Atom("fold"), m]) =>
@@ -157,7 +161,13 @@ let model_of_sexp = (ed_of_sexp, sexp: Sexplib.Sexp.t): model('ed) =>
   };
 
 let sexp_of_model =
-    (type ed, sexp_of_ed: ed => Sexplib0.Sexp.t, model: model(ed))
+    (
+      type ed,
+      type ed_a,
+      sexp_of_ed: ed => Sexplib0.Sexp.t,
+      _sexp_of_ed_a: ed_a => Sexplib0.Sexp.t,
+      model: model(ed, ed_a),
+    )
     : Sexplib.Sexp.t =>
   switch (model) {
   // | V(Fold, m) =>
@@ -176,7 +186,8 @@ let sexp_of_model =
   // | V(TextArea, _) => List([Atom("text"), () |> sexp_of_unit])
   };
 
-let model_of_yojson = (ed_of_yojson, yojson: Yojson.Safe.t): model('ed) =>
+let model_of_yojson =
+    (ed_of_yojson, _ed_a_of_yojson, yojson: Yojson.Safe.t): model('ed, 'ed_a) =>
   switch (yojson) {
   // | `List([`String("fold"), m]) =>
   // V(Fold, m |> FoldProj.model_of_yojson(ed_of_yojson))
@@ -194,7 +205,13 @@ let model_of_yojson = (ed_of_yojson, yojson: Yojson.Safe.t): model('ed) =>
   };
 
 let yojson_of_model =
-    (type ed, yojson_of_ed: ed => Yojson.Safe.t, model: model(ed))
+    (
+      type ed,
+      type ed_a,
+      yojson_of_ed: ed => Yojson.Safe.t,
+      _yojson_of_ed_a: ed_a => Yojson.Safe.t,
+      model: model(ed, ed_a),
+    )
     : Yojson.Safe.t =>
   switch (model) {
   // | V(Fold, m) =>

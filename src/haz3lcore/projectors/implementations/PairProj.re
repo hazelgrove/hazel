@@ -5,9 +5,11 @@ open OptUtil.Syntax;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type model('ed) = ('ed, 'ed);
 
-type action = unit; // nothing  for now
+type action('ed_a) =
+  | Left('ed_a)
+  | Right('ed_a);
 
-let methods: methods(model('ed), action, 'ed) = {
+let methods: methods(model('ed), action('ed_a), 'ed, 'ed_a) = {
   init: (_any, ed) => {
     let* ed = ed();
     Some((ed, ed));
@@ -43,7 +45,17 @@ let methods: methods(model('ed), action, 'ed) = {
     ProjectorShape.inline(
       7 + String.length(ed_str(ed1)) + String.length(ed_str(ed2)),
     ),
-  update: (model, _info, ()) => model,
+  update:
+    (~sort, ~update_ed, ~statics, (left: 'ed, right: 'ed), info, action) => {
+    switch (action) {
+    | Left(ed_ac) =>
+      let l_ed = update_ed(~sort, statics, ed_ac, left);
+      (l_ed, right);
+    | Right(ed_ac) =>
+      let r_ed = update_ed(~sort, statics, ed_ac, right);
+      (left, r_ed);
+    };
+  },
   mk_term: (~term_of_ed, _sort, (ed1, ed2)) =>
     Exp(
       Exp.fresh(

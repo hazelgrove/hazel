@@ -22,6 +22,8 @@ module rec Projector: {
   module View: {
     let split_views:
       (
+        ~sort: Sort.t,
+        ~statics: CachedStatics.t,
         ~settings: CoreSettings.t,
         ~font_metrics: FontMetrics.t,
         ~secondary_icons: bool,
@@ -34,7 +36,7 @@ module rec Projector: {
 
     let mk_status:
       (
-        Base.projector(ProjectorCore.model('ed)),
+        Base.projector(ProjectorCore.model('ed, 'ed_a)),
         ~editor_active: bool,
         ~indicated: option((Id.t, Direction.t)),
         ~selection_ids: list(Id.t),
@@ -46,7 +48,7 @@ module rec Projector: {
 } = {
   module Model = {
     [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = ProjectorCore.model(Editor.Model.t);
+    type t = ProjectorCore.model(Editor.Model.t, Editor.Update.t);
 
     let get_shape =
       Haz3lcorep.ProjectorInfo.ShapeMapSemantics.from_semantics(
@@ -66,11 +68,20 @@ module rec Projector: {
 
   module View = {
     let split_views =
-        (~settings: CoreSettings.t, ~font_metrics, ~secondary_icons) =>
+        (
+          ~sort,
+          ~statics,
+          ~settings: CoreSettings.t,
+          ~font_metrics,
+          ~secondary_icons,
+        ) =>
       ProjectorView.split_views(
+        ~sort,
+        ~statics,
         ~ed_str=Editor.View.print_string,
         ~mk_ed=Editor.Model.mk(~settings),
         ~view_ed=Editor.View.view(~font_metrics, ~secondary_icons),
+        ~update_ed=Editor.Update.update(~settings),
         ~font_metrics,
       );
 
@@ -106,7 +117,7 @@ and Editor: {
         t,
         Model.t
       ) =>
-      Action.Result.t(Model.t);
+      Model.t;
 
     let calculate:
       (
@@ -146,6 +157,7 @@ and Editor: {
         ~settings: CoreSettings.t,
         ~font_metrics: FontMetrics.t,
         ~secondary_icons: bool,
+        ~statics: CachedStatics.t,
         ~inject: Action.t(Projector.Model.t) => Ui_effect.t(unit),
         ~make_active: Ui_effect.t(unit),
         list(ProjectorView.Model.projector_data(Projector.Model.t))
@@ -235,20 +247,27 @@ and Editor: {
     type t = Action.t(Projector.Model.t);
 
     let update = (~settings, ~sort, statics, action, editor: Model.t) => {
-      Haz3lcorep.Editor.Update.update(
-        ~settings,
-        ~sort,
-        ~projector_init=Projector.Model.mk,
-        ~projector_to_term=Projector.Model.make_term,
-        ~shape_of_projector=Projector.Model.get_shape,
-        ~seg_of_projector=
-          (sort, p) =>
-            Projector.Model.make_term(p, sort)
-            |> ExpToSegment.any_to_segment(~settings=ExpToSegment.Settings.on),
-        action,
-        statics,
-        editor,
-      );
+      switch (
+        Haz3lcorep.Editor.Update.update(
+          ~settings,
+          ~sort,
+          ~projector_init=Projector.Model.mk,
+          ~projector_to_term=Projector.Model.make_term,
+          ~shape_of_projector=Projector.Model.get_shape,
+          ~seg_of_projector=
+            (sort, p) =>
+              Projector.Model.make_term(p, sort)
+              |> ExpToSegment.any_to_segment(
+                   ~settings=ExpToSegment.Settings.on,
+                 ),
+          action,
+          statics,
+          editor,
+        )
+      ) {
+      | Ok(editor) => editor
+      | Error(e) => raise(Failure.Exception(e))
+      };
     };
 
     let calculate =
@@ -347,13 +366,14 @@ and Editor: {
       ProjectorView.Model.mk(~mk_status=Projector.View.mk_status);
 
     let all_projectors =
-        (~settings: CoreSettings.t, ~font_metrics, ~secondary_icons) =>
+        (~settings: CoreSettings.t, ~font_metrics, ~secondary_icons, ~statics) =>
       ProjectorView.all(
         ~split_views=
           Projector.View.split_views(
             ~settings: CoreSettings.t,
             ~font_metrics,
             ~secondary_icons,
+            ~statics,
           ),
       );
 
@@ -374,12 +394,6 @@ module PersistentZipper = {
   // TODO: move these into Editor
   let persist = persist(Projector.Model.sexp_of_t);
   let unpersist = unpersist(Projector.Model.t_of_sexp);
-};
-
-module CachedStatics = {
-  include CachedStatics;
-
-  let init = init(~projector_to_term=Projector.Model.make_term);
 };
 
 /* Just types */

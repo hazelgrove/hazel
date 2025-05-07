@@ -86,26 +86,35 @@ module View = {
   };
 };
 
-type methods('model, 'action, 'ed) = {
-  init: (Term.Any.t, unit => option('ed)) => option('model),
+type methods('model, 'action, 'ed_m, 'ed_a) = {
+  init: (Term.Any.t, unit => option('ed_m)) => option('model),
   focusable: Focusable.t,
   dynamics: bool,
   view:
     (
-      ~ed_str: 'ed => string,
-      ~view_ed: (~sort: Sort.t, 'ed) => Node.t,
-      ~mk_ed: Any.t => 'ed,
+      ~ed_str: 'ed_m => string,
+      ~view_ed: (~sort: Sort.t, 'ed_m) => Node.t,
+      ~mk_ed: Any.t => 'ed_m,
       'model,
       info,
       ~local: 'action => Ui_effect.t(unit),
       ~parent: external_action => Ui_effect.t(unit)
     ) =>
     View.t,
-  placeholder: (~ed_str: 'ed => string, 'model, info) => ProjectorShape.t,
-  update: ('model, info, 'action) => 'model,
-  mk_term: (~term_of_ed: (Sort.t, 'ed) => Any.t, Sort.t, 'model) => Any.t,
-  persist: ('ed => Sexplib.Sexp.t, 'model) => Sexplib.Sexp.t,
-  unpersist: (Sexplib.Sexp.t => 'ed, Sexplib.Sexp.t) => 'model,
+  placeholder: (~ed_str: 'ed_m => string, 'model, info) => ProjectorShape.t,
+  update:
+    (
+      ~sort: Sort.t,
+      ~update_ed: (~sort: Sort.t, CachedStatics.t, 'ed_a, 'ed_m) => 'ed_m,
+      ~statics: CachedStatics.t,
+      'model,
+      info,
+      'action
+    ) =>
+    'model,
+  mk_term: (~term_of_ed: (Sort.t, 'ed_m) => Any.t, Sort.t, 'model) => Any.t,
+  persist: ('ed_m => Sexplib.Sexp.t, 'model) => Sexplib.Sexp.t,
+  unpersist: (Sexplib.Sexp.t => 'ed_m, Sexplib.Sexp.t) => 'model,
 };
 
 // /* To add a new projector:

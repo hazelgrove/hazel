@@ -6,12 +6,13 @@ open ProjectorBase;
  * are to be called; see `shape` below for an example */
 let to_module =
     (
-      type ed,
+      type ed_m,
+      type ed_a,
       type model,
       type action,
-      kind: ProjectorCore.Kind.gadt(model, action, ed),
+      kind: ProjectorCore.Kind.gadt(model, action, ed_m, ed_a),
     )
-    : ProjectorBase.methods(model, action, ed) =>
+    : ProjectorBase.methods(model, action, ed_m, ed_a) =>
   switch (kind) {
   // | Fold => FoldProj.methods
   | Info => TypeProj.methods
@@ -27,11 +28,12 @@ let to_module =
 let init =
     (
       type ed,
+      type ed_a,
       kind: ProjectorCore.Kind.t,
       any: Term.Any.t,
       ed: unit => option(ed),
     )
-    : option(ProjectorCore.model(ed)) => {
+    : option(ProjectorCore.model(ed, ed_a)) => {
   open ProjectorCore.Kind;
   let.gadt W(kind_gadt) = kind;
   let methods = to_module(kind_gadt);
@@ -41,12 +43,12 @@ let init =
   };
 };
 
-let make_term = (~term_of_ed, V(k, m): ProjectorCore.model('ed)) => {
+let make_term = (~term_of_ed, V(k, m): ProjectorCore.model('ed, 'ed_a)) => {
   let methods = to_module(k);
   methods.mk_term(~term_of_ed, _, m);
 };
 
-let focusable_of_model = (V(k, _): ProjectorCore.model('ed)) => {
+let focusable_of_model = (V(k, _): ProjectorCore.model('ed, 'ed_a)) => {
   let methods = to_module(k);
   methods.focusable;
 };

@@ -30,21 +30,29 @@ module Update = {
         action,
         model.editor,
       )
+      // |> (
+      //   fun
+      //   | Ok(editor) =>
+      //     Model.{
+      //       editor,
+      //       statics: model.statics,
+      //       dynamics: model.dynamics,
+      //     }
+      //   | Error(err) => raise(Action.Failure.Exception(err))
+      // )
       |> (
-        fun
-        | Ok(editor) =>
+        editor =>
           Model.{
             editor,
             statics: model.statics,
             dynamics: model.dynamics,
           }
-        | Error(err) => raise(Action.Failure.Exception(err))
-      )
-      |> Updated.return(
-           ~is_edit=Action.is_edit(action),
-           ~recalculate=true,
-           ~scroll_active=Action.should_scroll_active(action),
-         );
+          |> Updated.return(
+               ~is_edit=Action.is_edit(action),
+               ~recalculate=true,
+               ~scroll_active=Action.should_scroll_active(action),
+             )
+      );
     switch (action) {
     | Perform(action) => perform(action, model)
     | Undo =>
@@ -208,6 +216,7 @@ module View = {
         ~secondary_icons=globals.settings.secondary_icons,
         ~inject=x => inject(Perform(x)),
         ~make_active=signal(MakeActive),
+        ~statics=model.statics,
         Editor.View.mk_projector_model(
           model.editor |> Editor.get_projectors,
           model.editor |> Editor.get_measured,

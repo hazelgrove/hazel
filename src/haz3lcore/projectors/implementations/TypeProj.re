@@ -51,10 +51,11 @@ let init = (any: Term.Any.t, ed: unit => option('ed)): option(model('ed)) => {
 /* =========== UPDATE =========== */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type action =
+type action('ed_a) =
   | ToggleDisplay;
 
-let update = (model, _, a: action) =>
+let update =
+    (~sort as _, ~update_ed as _, ~statics as _, model, _, a: action('ed_a)) =>
   switch (a, model) {
   | (ToggleDisplay, (Expected, m)) => (Self, m)
   | (ToggleDisplay, (Self, m)) => (Expected, m)

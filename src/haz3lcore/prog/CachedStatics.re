@@ -53,31 +53,31 @@ let init_from_term = (~settings, ~is_dynamic_term, term): t => {
   };
 };
 
-let init =
-    (
-      ~settings: CoreSettings.t,
-      ~projector_to_term,
-      ~is_dynamic_term,
-      ~stitch,
-      z: Zipper.t('p),
-    )
-    : t => {
-  let term =
-    MakeTerm.from_zip_for_sem(~of_projector=projector_to_term, z).term
-    |> Any.is_exp
-    |> Option.get
-    |> stitch;
-  init_from_term(~settings, ~is_dynamic_term, term);
-};
+// let init =
+//     (
+//       ~settings: CoreSettings.t,
+//       ~projector_to_term,
+//       ~is_dynamic_term,
+//       ~stitch,
+//       z: Zipper.t('p),
+//     )
+//     : t => {
+//   let term =
+//     MakeTerm.from_zip_for_sem(~of_projector=projector_to_term, z).term
+//     |> Any.is_exp
+//     |> Option.get
+//     |> stitch;
+//   init_from_term(~settings, ~is_dynamic_term, term);
+// };
 
-let init =
-    (
-      ~settings: CoreSettings.t,
-      ~is_dynamic_term,
-      ~projector_to_term,
-      ~stitch,
-      z: Zipper.t('p),
-    ) =>
-  settings.statics
-    ? init(~settings, ~stitch, ~is_dynamic_term, ~projector_to_term, z)
-    : empty;
+// let init =
+//     (
+//       ~settings: CoreSettings.t,
+//       ~is_dynamic_term,
+//       ~projector_to_term,
+//       ~stitch,
+//       z: Zipper.t('p),
+//     ) =>
+//   settings.statics
+//     ? init(~settings, ~stitch, ~is_dynamic_term, ~projector_to_term, z)
+//     : empty;

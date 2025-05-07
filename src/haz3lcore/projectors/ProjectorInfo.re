@@ -18,10 +18,11 @@ module ShapeMapSemantics = {
   let from_semantics =
       (
         type ed,
+        type ed_a,
         ~ed_str,
         statics: Statics.Map.t,
         dynamics: Dynamics.Map.t,
-        p: Base.projector(ProjectorCore.model(ed)),
+        p: Base.projector(ProjectorCore.model(ed, ed_a)),
       )
       : ProjectorShape.t => {
     let ProjectorCore.V(kind, model) = p.model;

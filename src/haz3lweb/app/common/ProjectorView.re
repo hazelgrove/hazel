@@ -43,7 +43,8 @@ module Model = {
   let mk_status =
       (
         type ed,
-        p: Base.projector(ProjectorCore.model(ed)),
+        type ed_a,
+        p: Base.projector(ProjectorCore.model(ed, ed_a)),
         ~editor_active: bool,
         ~indicated: option((Id.t, Direction.t)),
         ~selection_ids: list(Id.t),
@@ -210,19 +211,28 @@ let offside_wrapper =
 /* Route top-level metadata to the projector view function. */
 let mk_view =
     (
-      type ed,
+      type ed_m,
+      type ed_a,
+      ~sort: Sort.t,
       ~parent: ProjectorBase.external_action => Ui_effect.t(unit),
-      ~set_model: ProjectorCore.model(ed) => Ui_effect.t(unit),
+      ~set_model: ProjectorCore.model(ed_m, ed_a) => Ui_effect.t(unit),
       ~ed_str,
       ~view_ed,
       ~mk_ed,
-      {p, info, _}: Model.projector_data(ProjectorCore.model(ed)),
+      ~update_ed,
+      ~statics,
+      {p, info, _}: Model.projector_data(ProjectorCore.model(ed_m, ed_a)),
     )
     : View.t => {
   let ProjectorCore.V(kind_gadt, model) = p.model;
   let methods = ProjectorInit.to_module(kind_gadt);
   let local = a =>
-    set_model(ProjectorCore.V(kind_gadt, methods.update(model, info, a)));
+    set_model(
+      ProjectorCore.V(
+        kind_gadt,
+        methods.update(~sort, ~update_ed, ~statics, model, info, a),
+      ),
+    );
   methods.view(~ed_str, ~view_ed, ~mk_ed, model, info, ~local, ~parent);
 };
 
@@ -231,21 +241,35 @@ let mk_view =
 let split_views =
     (
       type ed,
+      type ed_a,
+      ~sort,
+      ~statics,
       ~ed_str,
       ~view_ed,
       ~mk_ed,
+      ~update_ed,
       ~parent: ProjectorBase.external_action => Ui_effect.t(unit),
-      ~set_model: ProjectorCore.model(ed) => Ui_effect.t(unit),
+      ~set_model: ProjectorCore.model(ed, ed_a) => Ui_effect.t(unit),
       ~make_active,
       ~font_metrics: FontMetrics.t,
       {p, offside_base, measurement, status, _} as projector_data:
-        Model.projector_data(ProjectorCore.model(ed)),
+        Model.projector_data(ProjectorCore.model(ed, ed_a)),
     )
     : (Node.t, option(Node.t)) => {
   let wrapper =
     view_wrapper(~make_active, ~font_metrics, ~measurement, ~status);
   let views =
-    mk_view(~parent, ~set_model, ~ed_str, ~view_ed, ~mk_ed, projector_data);
+    mk_view(
+      ~sort,
+      ~parent,
+      ~set_model,
+      ~ed_str,
+      ~view_ed,
+      ~mk_ed,
+      ~statics,
+      ~update_ed,
+      projector_data,
+    );
   let line_view = {
     let offside_view =
       views.offside
@@ -279,6 +303,7 @@ let all =
       type p,
       ~split_views:
          (
+           ~sort: Sort.t,
            ~parent: external_action => Ui_effect.t(unit),
            ~set_model: p => Ui_effect.t(unit),
            ~make_active: Ui_effect.t(unit),
@@ -300,6 +325,7 @@ let all =
     |> List.sort(by_measurement)
     |> List.map((data: Model.projector_data(p)) =>
          split_views(
+           ~sort=data.status.sort,
            ~parent=a => inject(Project(handle(data.info.id, a))),
            ~set_model=m => inject(Project(SetModel(data.info.id, m))),
            ~make_active=
