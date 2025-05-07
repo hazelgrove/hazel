@@ -136,7 +136,7 @@ module Model = {
   };
 
   // TODO how can we get this to take a model with a full sequence of steps?
-  let exportCoq = model_step => {
+  let exportCoq = model => {
     let rec all_steps_of_step = step => {
       switch (step.next_step) {
       | None => [step]
@@ -144,7 +144,8 @@ module Model = {
       };
     };
 
-    let steps = all_steps_of_step(model_step);
+    print_endline("Inside exportCoq function");
+    let steps = all_steps_of_step(model.root);
     let steps_info =
       switch (steps) {
       | [] => "No steps available"
@@ -166,7 +167,6 @@ module Model = {
       };
 
     print_endline(steps_info);
-    print_endline("Called ExportCoq function");
   };
 };
 
@@ -212,6 +212,10 @@ module Update = {
           (~settings, action: stepper, model: Model.stepper)
           : Updated.t(Model.stepper) => {
     switch (action) {
+    | RootAction(CoqExport) =>
+      print_endline("Called CoqExport at update stepper handler");
+      Model.exportCoq(model);
+      model |> return_quiet;
     | RootAction(action) =>
       let* new_root = update_step(~settings, action, model.root);
       {
@@ -306,11 +310,11 @@ module Update = {
       }
       |> return
     | (AddForall, _, _) => model |> return_quiet
-    | (CoqExport, MissingStep(_), _) =>
-      print_endline("Called CoqExport at update step handler");
-      // model is actually model.step here
-      Model.exportCoq(model);
-      model |> return_quiet;
+    // | (CoqExport, MissingStep(_), _) =>
+    //   print_endline("Called CoqExport at update step handler");
+    //   // model is actually model.step here
+    //   Model.exportCoq(model);
+    //   model |> return_quiet;
     | (CoqExport, _, _) => model |> return_quiet
     | (AddAxiomStep(at_exp, with_exp), MissingStep(_), _) =>
       let at_id = Exp.rep_id(at_exp);
@@ -1122,6 +1126,7 @@ module View = {
         ~globals: Globals.t,
         ~signal: event_step => Ui_effect.t(unit),
         ~inject: Update.step => Ui_effect.t(unit),
+        ~root_inject=inject,
         ~selected: option(Selection.step),
         root_step,
       ) => {
@@ -1132,6 +1137,7 @@ module View = {
           ~globals,
           ~signal,
           ~inject,
+          ~root_inject,
           ~selected,
           ~undo=None,
           root_step,
@@ -1145,6 +1151,7 @@ module View = {
         ~globals: Globals.t,
         ~signal: event_step => Ui_effect.t(unit),
         ~inject: Update.step => Ui_effect.t(unit),
+        ~root_inject: Update.step => Ui_effect.t(unit),
         ~selected: option(Selection.step),
         ~undo: option(Ui_effect.t(unit)),
         model: Model.step,
@@ -1199,7 +1206,7 @@ module View = {
                     | MakeActive(s) => signal(MakeActive(MissingStep(s)))
                     | AddForall => inject(AddForall)
                     | AddInduction => inject(AddInduction)
-                    | CoqExport => inject(CoqExport)
+                    | CoqExport => root_inject(CoqExport)
                     | AddAxiomStep(e1, e2) => inject(AddAxiomStep(e1, e2)),
                   ~editor=model.editor |> Calc.get_saved_exc(~print="Editor"),
                   m,
@@ -1254,6 +1261,7 @@ module View = {
             | MakeActive(s) => signal(MakeActive(Next(s)))
             | HideStepper => signal(HideStepper),
           ~inject=x => inject(NextStep(x)),
+          ~root_inject,
           ~selected=
             switch (selected) {
             | Some(Next(s)) => Some(s)
@@ -1336,6 +1344,7 @@ module View = {
           | MakeActive(s) => signal(MakeActive(ForallStep(InnerExp(s))))
           | HideStepper => signal(HideStepper),
         ~inject=x => inject(ForallStep(InnerExp(x))),
+        ~root_inject=inject,
         ~selected=
           switch (selected) {
           | Some(ForallStep(InnerExp(s))) => Some(s)
