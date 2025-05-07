@@ -3,7 +3,7 @@
  * could be factored out */
 
  #main.Tutorial {
-    padding: 1em;
+    padding: 1.5em;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
@@ -270,12 +270,13 @@
     animation: popIn 0.3s ease-out;
   }
   
-  /* @keyframes popIn {
+
+    /* @keyframes popIn {
     0% {
       transform: scale(0);
       opacity: 0;
     }
-  
+
     80% {
       transform: scale(1.2);
       opacity: 1;
@@ -285,7 +286,7 @@
       transform: scale(1);
     }
   } */
-  
+
   .hint-cell {
     background-color: 1px solid var(--cell-selected-accent);
     border-left: 5px solid #ffc107;
@@ -295,8 +296,9 @@
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
     font-size: 16px;
     color: #333;
-    width: 100%;
+    width: calc(100% - 2em);
     gap: 2em;
+    
     /* word-wrap: break-word; */
     /* height: 75px; */
   }
@@ -327,7 +329,6 @@
 
 .report-icon:hover {
   transform: scale(1.2);
-  /* animation: wobble 0.6s ease 0s 1 normal forwards; */
 }
 
 .report-icon::after {
@@ -344,18 +345,6 @@
   opacity: 0;
   pointer-events: none;
   transition: opacity 0.2s ease;
-  /* background-color: #fffdf4;
-  border: 0.7px solid #333;
-  color: #333;
-  font: "Helvetica Neue";
-  padding: 0.4em 0.4em;
-  border-radius: 0.1em;
-  font-weight: normal;
-  font-size: 0.3em;
-  opacity: 0;
-  pointer-events: none;
-  transition: opacity 0.2s ease;
-  z-index: 10; */
 }
 
 .report-icon:hover::after {
@@ -437,8 +426,8 @@
   
   
   .cross {
-    width: 80px;
-    height: 80px;
+    width: 40px;
+    height: 40px;
     color: black;
     background-color: #838282;
     ;
@@ -446,11 +435,11 @@
     display: flex;
     justify-content: center;
     align-items: center;
-    font-size: 50px;
+    font-size: 25px;
     /* font-weight: bold; */
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
     border: 4px solid #000000;
-    animation: popIn 0.3s ease-out;
+    /* animation: popIn 0.3s ease-out; */
   }
   
   .cross::after {
@@ -462,7 +451,7 @@
     color: #333;
     padding: 6px 10px;
     font-size: 12px;
-    border-radius: 5px;
+    border-radius: 2.5px;
     white-space: nowrap;
     opacity: 0;
     pointer-events: none;
@@ -531,4 +520,29 @@
   .next-button:hover {
     transform: translateX(6px) scale(1.1); /* subtle move + zoom */
     color:  #d39e00; /* blue on hover */
+  }
+
+  .prev-button {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    font-size: 45px;
+    color: var(--BR4);
+    cursor: pointer;
+    z-index: 1000;
+    transition: transform 0.2s ease, color 0.2s ease;
+  }
+
+  .prev-button:hover {
+    transform: translateX(6px) scale(1.1); /* subtle move + zoom */
+    color:  #d39e00; /* blue on hover */
+  }
+
+  .prompt-content > * {
+    margin-top: 0.3em;
+    margin-bottom: 0.3em;
+  }
+
+  .prompt-content {
+    margin-bottom: 1.5em; 
   }

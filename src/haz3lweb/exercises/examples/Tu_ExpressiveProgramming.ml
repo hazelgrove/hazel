@@ -7,7 +7,7 @@ let exercise : Tutorial.spec =
     module_name = "Tu_ExpressiveProgramming";
     prompt =
       "You might not have realized it, but you wrote your first computer \
-       programs in grade school in the form of arithmetic expressions!\n\n\
+       programs in grade school in the form of arithmetic expressions! \n\n\
        For example, enter the program `2 + 2` in the expression editor below. \
        Hazel operates like a calculator, computing the value of your \
        expression by equationally simplifying it (i.e. evaluating it), here to \

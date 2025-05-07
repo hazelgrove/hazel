@@ -107,6 +107,7 @@ module Update = {
     | ResetEditor(Tutorial.pos)
     | ResetTutorial
     | MoveToNextExercise
+    | MoveToPrevExercise
     | Change_report_view;
   let update =
       (~settings: Settings.t, ~schedule_action as _, action, model: Model.t)
@@ -116,6 +117,14 @@ module Update = {
     // This MoveToNextExercise is only here so that Tutorial(TutorialMode.Update.MoveToNextExercise)
     // is called in TutorialsMode. This is a dummy update because this function requires Updated(Model.t)
     | MoveToNextExercise =>
+      Updated.return_quiet({
+        ...model,
+        editors: {
+          ...model.editors,
+          show_report: model.editors.show_report,
+        },
+      })
+    | MoveToPrevExercise =>
       Updated.return_quiet({
         ...model,
         editors: {
@@ -424,6 +433,15 @@ module View = {
         );
       div(~attrs=[Attr.class_("prompt-content")], msg);
     };
+
+    let prev_button_view = {
+      Always(
+        div(
+          ~attrs=[Attr.class_("prev-button")],
+          [Widgets.button(Icons.prev, _ => inject(MoveToPrevExercise))],
+        ),
+      );
+    };
     // let (msg, _) =
     //   ExplainThis.mk_translation(~globals, ~inject=_ => (), hint_placeholder);
 
@@ -528,13 +546,20 @@ module View = {
                           ),
                         ],
                       ),
+                      // div(
+                      //   ~attrs=[Attr.class_("prev-button")],
+                      //   [
+                      //     Widgets.button(Icons.prev, _ =>
+                      //       inject(MoveToPrevExercise)
+                      //     ),
+                      //   ],
+                      // ),
                     ],
                   );
                 } else {
                   div(
                     ~attrs=[Attr.class_("checkmark-container")],
                     [
-                      div(~attrs=[Attr.class_("cross")], [text("✖")]),
                       div(
                         ~attrs=[Attr.class_("report-icon")],
                         [
@@ -546,6 +571,22 @@ module View = {
                     ],
                   );
                 }
+              // else {
+              //   div(
+              //     ~attrs=[Attr.class_("checkmark-container")],
+              //     [
+              //       div(~attrs=[Attr.class_("cross")], [text("✖")]),
+              //       div(
+              //         ~attrs=[Attr.class_("report-icon")],
+              //         [
+              //           Widgets.button(Icons.infoIcon, _ =>
+              //             inject(Change_report_view)
+              //           ),
+              //         ],
+              //       ),
+              //     ],
+              //   );
+              // }
 
               | _ => div([])
               };
@@ -650,10 +691,16 @@ module View = {
     let tutorial_header =
       div(
         ~attrs=[Attr.class_("tutorial-header")],
-        [title_view, prompt_view, hint_view]
+        [title_view, prompt_view]
+        @ (eds.display_hint == "" ? [] : [hint_view])
         @ render_cells(
             globals.settings,
-            [your_impl_view, hidden_tests_view, impl_grading_view],
+            [
+              your_impl_view,
+              prev_button_view,
+              hidden_tests_view,
+              impl_grading_view,
+            ],
           ),
       );
     // let tutorial_body =

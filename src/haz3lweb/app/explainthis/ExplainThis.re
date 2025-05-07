@@ -178,7 +178,9 @@ let mk_translation =
     List.fold_left(
       ((msg, mapping), elem) => {
         switch (elem) {
-        | Omd.Paragraph(_, d) => translate_inline(d, msg, mapping, ~inject)
+        | Omd.Paragraph(_, d) =>
+          let (n, mapping) = translate_inline(d, [], mapping, ~inject);
+          (List.append(msg, [Node.p(n)]), mapping);
         | Omd.List(_, _, _, items) =>
           let (bullets, mapping) =
             List.fold_left(

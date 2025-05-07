@@ -136,8 +136,7 @@ let exercise : Tutorial.spec =
           };
         hints = [ "Check the expression in the editor!" ];
       };
-    display_hint =
-      "Copy the expression given in the editor into the cell below 👇";
+    display_hint = "";
   }
 
 let scope_exercise : Tutorial.spec =

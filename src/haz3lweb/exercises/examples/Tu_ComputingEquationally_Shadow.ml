@@ -276,5 +276,5 @@ let shadow_exercise : Tutorial.spec =
           };
         hints = [ "Have you shadowed x to 7?" ];
       };
-    display_hint = "Have you correctly shadowed `x` to `7`?";
+    display_hint = "";
   }

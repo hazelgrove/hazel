@@ -368,6 +368,5 @@ let comp_exercise : Tutorial.spec =
         hints =
           [ "Make sure to embed a let expression as shown in the description!" ];
       };
-    display_hint =
-      "Make sure to embed a `let` expression as shown in the description!";
+    display_hint = "";
   }

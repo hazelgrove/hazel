@@ -310,8 +310,7 @@ let bools_ex : Tutorial.spec =
             "Have you declared exp4? Remember that it has to evaluate to false.";
           ];
       };
-    display_hint =
-      "In the expression: `let exp1 = 2 < 3 in` , what does exp1 evaluate to?";
+    display_hint = "";
   }
 
 let cond_ex : Tutorial.spec =
@@ -451,7 +450,7 @@ let cond_ex : Tutorial.spec =
              expression?";
           ];
       };
-    display_hint = "Ensure your `if` `then` expression is correctly formatted.";
+    display_hint = "";
   }
 
 let func_ex : Tutorial.spec =
