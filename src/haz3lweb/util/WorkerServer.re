@@ -28,35 +28,6 @@ module Response = {
   let deserialize = sexp => sexp |> Sexplib.Sexp.of_string |> t_of_sexp;
 };
 
-<<<<<<< HEAD
-let pending = ref("");
-let is_running = ref(false);
-
-let work = (req: Request.value): Response.value => {
-  Haz3lcore.ModelResults.run_pending(
-    ~settings=Haz3lcore.CoreSettings.on,
-    req,
-  );
-};
-
-let handle = () => {
-  let req = Request.deserialize(pending^);
-  let res = work(req);
-  let out = Response.serialize(res);
-  Js_of_ocaml.Worker.post_message(out);
-  is_running := false;
-};
-
-Js.Unsafe.global##.jscode := [%js {as _; pub handle = handle}];
-
-let on_request = (req: string): unit => {
-  pending := req;
-  if (! is_running^) {
-    is_running := true;
-    Js.Unsafe.eval_string("setTimeout(jscode.handle(), 0)");
-  };
-};
-=======
 let work = (res: Request.value): Response.value =>
   switch (Haz3lcore.Evaluator.evaluate(~env=Haz3lcore.Builtins.env_init, res)) {
   | exception (Haz3lcore.EvaluatorError.Exception(reason)) =>
@@ -78,6 +49,5 @@ let on_request = (req: string): unit =>
   |> List.map(((k, v)) => (k, work(v)))
   |> Response.serialize
   |> Js_of_ocaml.Worker.post_message;
->>>>>>> dev
 
 let start = () => Js_of_ocaml.Worker.set_onmessage(on_request);
