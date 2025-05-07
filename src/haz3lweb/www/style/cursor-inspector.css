@@ -4,6 +4,9 @@
   display: flex;
   align-items: stretch;
   gap: 0.5em;
+  /* Below is to permit access to projector panel if ci is too wide */
+  overflow: hidden;
+  min-width: 0;
 }
 
 #cursor-inspector.no-info {
@@ -51,11 +54,14 @@
 #cursor-inspector .TPat .gamma {
   background-color: var(--token-tpat);
 }
+#cursor-inspector .Label .gamma {
+  background-color: var(--token-label);
+}
 
 #cursor-inspector .ci-header .gamma:hover,
 #cursor-inspector .ci-header.error .gamma:hover,
 #cursor-inspector .ci-header .gamma.visible,
-#cursor-inspector .ci-header.error  .gamma.visible,
+#cursor-inspector .ci-header.error .gamma.visible,
 #bottom-bar:has(~ .context-inspector:hover) .gamma {
   background-color: #dfcc99;
   outline: 0.3px solid var(--BR3);
@@ -94,22 +100,25 @@
 #cursor-inspector .ci-header.ok .toggle-switch .toggle-knob {
   background-color: var(--SAND);
 }
-#cursor-inspector .ci-header.ok.Exp .toggle-switch.active  {
+#cursor-inspector .ci-header.ok.Exp .toggle-switch.active {
   background-color: var(--BR3);
 }
-#cursor-inspector .ci-header.ok.Pat .toggle-switch.active  {
+#cursor-inspector .ci-header.ok.Pat .toggle-switch.active {
   background-color: var(--token-pat);
 }
-#cursor-inspector .ci-header.ok.Typ .toggle-switch.active  {
+#cursor-inspector .ci-header.ok.Typ .toggle-switch.active {
   background-color: var(--token-typ);
 }
-#cursor-inspector .ci-header.ok.TPat .toggle-switch.active  {
+#cursor-inspector .ci-header.ok.TPat .toggle-switch.active {
   background-color: var(--token-tpat);
 }
-#cursor-inspector .ci-header.ok.Exp .toggle-switch .toggle-knob  {
+#cursor-inspector .ci-header.ok.Label .toggle-switch.active {
+  background-color: var(--token-label);
+}
+#cursor-inspector .ci-header.ok.Exp .toggle-switch .toggle-knob {
   color: var(--BR3);
 }
-#cursor-inspector .ci-header.ok.Pat .toggle-switch .toggle-knob{
+#cursor-inspector .ci-header.ok.Pat .toggle-switch .toggle-knob {
   color: var(--token-pat);
 }
 #cursor-inspector .ci-header.ok.Typ .toggle-switch .toggle-knob {
@@ -117,6 +126,9 @@
 }
 #cursor-inspector .ci-header.ok.TPat .toggle-switch .toggle-knob {
   color: var(--token-tpat);
+}
+#cursor-inspector .ci-header.ok.Label .toggle-switch .toggle-knob {
+  color: var(--token-label);
 }
 
 #cursor-inspector .ci-header.ok.Nul {
@@ -147,6 +159,10 @@
   background-color: var(--shard-tpat);
   color: var(--token-tpat);
 }
+#cursor-inspector .ci-header.ok.Label {
+  background-color: var(--shard-label);
+  color: var(--token-label);
+}
 
 #cursor-inspector .term-tag {
   font-weight: bolder;
@@ -172,6 +188,9 @@
   color: var(--ci-status-error-text);
 }
 
+#cursor-inspector .code {
+  position: relative;
+}
 
 #page > .context-inspector {
   position: absolute;

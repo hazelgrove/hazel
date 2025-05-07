@@ -16,6 +16,13 @@ jobs:
           path: source
       - name: Add the name of the current branch to the environment as BRANCH_NAME
         uses: nelonoel/branch-name@v1.0.1
+      - name: Install node/npm
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'latest'
+      - name: Install NPM dependencies
+        run: npm install
+        working-directory: ./source
       - name: Set-up OCaml
         uses: ocaml/setup-ocaml@v3
         with:
@@ -70,14 +77,21 @@ jobs:
         id: test
         run: |
           eval $(opam env)
-          make test
+          make ci
         working-directory: ./source
+        timeout-minutes: 10
       - name: Test Report
         uses: dorny/test-reporter@v1
         with:
           name: Test Report
-          path: junit_tests*.xml
+          path: ./_build/default/test/junit_tests*.xml
           reporter: java-junit
           fail-on-error: true
           fail-on-empty: true # Use an empty test report to detect when something failed with the test runner
           working-directory: ./source
+      - name: Send coverage report to Codecov
+        run: opam exec -- bisect-ppx-report send-to Codecov --verbose
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+          PULL_REQUEST_NUMBER: ${{ github.event.number }}
+        working-directory: ./source

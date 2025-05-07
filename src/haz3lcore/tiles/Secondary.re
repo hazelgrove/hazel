@@ -1,6 +1,6 @@
 open Util;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, enumerate)]
 type cls =
   | Whitespace
   | Comment;
@@ -22,7 +22,15 @@ let cls_of = (s: t): cls =>
   | Comment(_) => Comment
   };
 
-let mk_space = id => {content: Whitespace(Form.space), id};
+let mk_space = id => {
+  content: Whitespace(Form.space),
+  id,
+};
+
+let mk_newline = id => {
+  content: Whitespace(Form.linebreak),
+  id,
+};
 
 let construct_comment = content =>
   if (String.equal(content, "#")) {

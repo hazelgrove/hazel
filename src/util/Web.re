@@ -1,6 +1,8 @@
 open Sexplib.Std;
 open Ppx_yojson_conv_lib.Yojson_conv;
 open Virtual_dom.Vdom;
+
+module Node = Node;
 open Node;
 open JsUtil;
 open Js_of_ocaml;
@@ -65,11 +67,17 @@ module TextArea = {
   let caret_pos = (textarea: t): pos => {
     let rec find_position = (lines, cur_pos, row, col) => {
       switch (lines) {
-      | [] => {row, col}
+      | [] => {
+          row,
+          col,
+        }
       | [line, ...rest] =>
         let line_length = String.length(line);
         if (cur_pos <= line_length) {
-          {row, col: cur_pos};
+          {
+            row,
+            col: cur_pos,
+          };
         } else {
           find_position(rest, cur_pos - line_length - 1, row + 1, 0);
         };
@@ -120,6 +128,9 @@ module TextArea = {
     | _ => false
     };
   };
+
+  let is_last_pos = id => caret_at_end(get(id));
+  let is_first_pos = id => caret_at_start(get(id));
 
   let set_caret_to_start = (textarea: t): unit => {
     textarea##focus;
