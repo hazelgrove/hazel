@@ -149,6 +149,31 @@ module Update = {
       Store.save(model);
       Export.export_persistent();
       model |> return_quiet;
+    | ExportForInit =>
+      let (filename, content) =
+        switch (model.editors) {
+        | Scratch(model)
+        | Documentation(model) =>
+          let current = List.nth(model.scratchpads, model.current);
+          let filename = (current |> fst) ++ ".ml";
+          let content =
+            current
+            |> snd
+            |> CellEditor.Model.persist
+            |> Haz3lcore.PersistentZipper.show;
+          (filename, content);
+        | Exercises(model) =>
+          let current = List.nth(model.exercises, model.current);
+          let filename = current.editors.module_name ++ ".ml";
+          let content = "not supported";
+          (filename, content);
+        };
+      JsUtil.download_string_file(
+        ~filename,
+        ~content_type="text/plain",
+        ~contents="let out : Haz3lcore.PersistentZipper.t = " ++ content,
+      );
+      model |> return_quiet;
     | ActiveEditor(action) =>
       let cursor_info =
         Editors.Selection.get_cursor_info(
