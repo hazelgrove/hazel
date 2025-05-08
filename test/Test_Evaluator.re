@@ -346,6 +346,7 @@ let test_livelit = (livelit: LivelitCtx.raw_livelit) => {
     | "slider" => sint(50)
     | "emotion" => string("neutral")
     | "js" => string("")
+    | "imagetext" => string("Success")
     | _ => Alcotest.fail("Unknown Livelit " ++ livelit.name)
     };
 
