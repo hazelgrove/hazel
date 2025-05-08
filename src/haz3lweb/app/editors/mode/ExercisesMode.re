@@ -398,20 +398,6 @@ module View = {
         ~tooltip="Import Submission",
       );
 
-    let export_persistent_data =
-      button_named(
-        Icons.export,
-        _ => globals.inject_global(ExportPersistentData),
-        ~tooltip="Export All Persistent Data",
-      );
-
-    let export_for_init =
-      button_named(
-        Icons.export,
-        _ => globals.inject_global(ExportForInit),
-        ~tooltip="Export Current Page for Init.ml",
-      );
-
     let reset_hazel =
       button_named(
         Icons.bomb,
@@ -455,8 +441,6 @@ module View = {
         ~inject,
         "Developer Export",
         [
-          export_persistent_data,
-          export_for_init,
           instructor_export,
           instructor_transitionary_export,
           instructor_grading_export,
