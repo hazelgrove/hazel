@@ -391,13 +391,14 @@ type compound_form =
   | If
   // Modules
   | ModuleExp
-  | ValBinding;
+  | ValBinding
+  | ModuleEntryJoin;
 
 let get: compound_form => t =
   fun
   // INFIX OPERATORS
   | TypeArrow => mk_infix("->", Typ, P.type_arrow)
-  | CellJoin => mk_infix(";", Exp, P.semi)
+  | CellJoin => mk_infix(";;", Exp, P.semi)
   | Plus => mk_infix("+", Exp, P.plus)
   | Minus => mk_infix("-", Exp, P.plus)
   | Times => mk_infix("*", Exp, P.mult)
@@ -484,6 +485,7 @@ let get: compound_form => t =
       ["val", "="],
       mk_pre'(P.let_, ModuleEntry, ModuleEntry, [Pat], Exp),
     )
+  | ModuleEntryJoin => mk_infix(";", ModuleEntry, P.min)
   | TypeAlias =>
     mk(ds, ["type", "=", "in"], mk_pre(P.let_, Exp, [TPat, Typ]))
   | If => mk(ds, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]));

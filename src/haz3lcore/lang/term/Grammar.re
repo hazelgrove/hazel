@@ -1,5 +1,4 @@
 open Util;
-
 module Annotated = {
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t('a, 'b) = {
@@ -167,6 +166,7 @@ and module_entry_term('a) =
   | ValBinding(pat_t('a), exp_t('a))
   | EmptyHole
   | MultiHole(list(any_t('a)))
+  | MultipleEntries(list(module_entry_t('a)))
 and module_entry_t('a) = Annotated.t(module_entry_term('a), 'a);
 
 

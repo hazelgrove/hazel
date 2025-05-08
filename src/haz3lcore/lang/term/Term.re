@@ -934,6 +934,10 @@ module Any = {
     fun
     | Typ(t) => Some(t)
     | _ => None;
+  let is_module_entry: t => option(TermBase.ModuleEntry.t) =
+    fun
+    | ModuleEntry(m) => Some(m)
+    | _ => None;
 
   let rec ids: TermBase.any_t => list(Id.t) =
     fun

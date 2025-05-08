@@ -12,6 +12,7 @@ type secondary_content =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
+  [@show.opaque]
   id: Id.t,
   content: secondary_content,
 };

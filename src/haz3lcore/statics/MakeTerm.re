@@ -64,6 +64,7 @@ let is_tuple_exp = is_nary(Any.is_exp, ",");
 let is_tuple_pat = is_nary(Any.is_pat, ",");
 let is_tuple_typ = is_nary(Any.is_typ, ",");
 let is_typ_bsum = is_nary(Any.is_typ, "+");
+let is_module_entry = is_nary(Any.is_module_entry, ";");
 
 let is_grout = tiles =>
   Aba.get_as(tiles) |> List.map(snd) |> List.for_all((==)(([" "], [])));
@@ -86,7 +87,45 @@ let is_rules = ((ts, kids): tiles): option(Aba.t(Pat.t, Exp.t)) => {
          | _ => None: TermBase.any_t => option(TermBase.exp_t),
        )
     |> OptUtil.sequence;
-  Aba.mk(ps, clauses);
+  let bar: Aba.t(TermBase.pat_t, TermBase.exp_t) = Aba.mk(ps, clauses);
+
+  bar;
+};
+
+let is_module_entries = ((ts, kids): tiles): option(Aba.t(Pat.t, Exp.t)) => {
+  open OptUtil.Syntax;
+  print_endline("tiles: " ++ [%derive.show: list(tile)](ts));
+
+  let+ ps: list(TermBase.pat_t) =
+    (ts: list(tile))
+    |> List.map(
+         fun
+         | (_, (["val", "="], [Pat(p)])) => Some(p)
+         | _ => None: tile => option(TermBase.pat_t),
+       )
+    |> OptUtil.sequence
+  and+ clauses =
+    kids
+    |> List.map(
+         fun
+         | Exp(clause) => Some(clause)
+         | any => {
+             print_endline(
+               "is_module_entries: clause not an Exp: "
+               ++ [%derive.show: TermBase.any_t](any),
+             );
+             None;
+           }: TermBase.any_t => option(TermBase.exp_t),
+       )
+    |> OptUtil.sequence;
+  let bar: Aba.t(TermBase.pat_t, TermBase.exp_t) = Aba.mk(ps, clauses);
+  print_endline("\n");
+  print_endline("ps: " ++ [%derive.show: list(TermBase.pat_t)](ps));
+  print_endline(
+    "clauses: " ++ [%derive.show: list(TermBase.exp_t)](clauses),
+  );
+  print_endline("\n");
+  bar;
 };
 
 let ids_of_tiles = (tiles: tiles) => List.map(fst, Aba.get_as(tiles));
@@ -161,9 +200,18 @@ let mk_bad = (ctr, ids, value) => {
   };
 };
 
-let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
+let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t => {
+  // print_endline("\n");
+  // print_endline("Sort: " ++ Sort.show(s));
+  // print_endline("Skel: " ++ [%derive.show: Skel.t](skel));
+  // print_endline("Seg: " ++ [%derive.show: Segment.t](seg));
+  // print_endline("\n");
   switch (s) {
-  | ModuleEntry => ModuleEntry(module_entry(unsorted(skel, seg)))
+  | ModuleEntry =>
+    // print_endline("Module Seg: " ++ [%derive.show: Segment.t](seg) ++ "\n");
+
+    // Split seg by semicolon
+    ModuleEntry(module_entry(skel, seg))
   | Pat => Pat(pat(unsorted(skel, seg)))
   | TPat => TPat(tpat(unsorted(skel, seg)))
   | Typ => Typ(typ(unsorted(skel, seg)))
@@ -185,7 +233,8 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
         }
       }
     };
-  }
+  };
+}
 
 and exp = unsorted => {
   let (term, inner_ids) = exp_term(unsorted);
@@ -244,7 +293,11 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | {annotation: {ids}, term: Tuple(es)} => (ListLit(es), ids)
         | term => ret(ListLit([term]))
         }
-      | (["{", "}"], [ModuleEntry(a)]) => ret(Module([a]))
+      | (["{", "}"], [ModuleEntry(a)]) =>
+        switch (a.term) {
+        | MultipleEntries(entries) => ret(Module(entries))
+        | _ => ret(Module([a]))
+        }
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
       | (
           ["case", "end"],
@@ -359,7 +412,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       }
     | _ => ret(hole(tm))
     }
-  | Bin(Exp(l), tiles, Typ(r)) as tm =>
+  | Bin(Exp(l), tiles: tiles, Typ(r)) as tm =>
     switch (tiles) {
     | ([(_id, ([":"], []))], []) =>
       ret(Cast(l, Unknown(Internal) |> Typ.fresh, r))
@@ -413,7 +466,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           | (["&&"], []) => BinOp(Bool(And), l, r)
           | (["||"], []) => BinOp(Bool(Or), l, r)
           | (["::"], []) => Cons(l, r)
-          | ([";"], []) => Seq(l, r)
+          | ([";;"], []) => Seq(l, r)
           | (["++"], []) => BinOp(String(Concat), l, r)
           | (["$=="], []) => BinOp(String(Equals), l, r)
           | (["="], []) =>
@@ -464,37 +517,40 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
     }
   | tm => ret(hole(tm));
 }
-and module_entry_term: unsorted => (TermBase.module_entry_term, list(Id.t)) = {
-  let ret = (term: TermBase.module_entry_term) => (term, []);
-  let hole = (unsorted: unsorted): TermBase.module_entry_term =>
-    switch (kids_of_unsorted(unsorted)) {
-    | [] => EmptyHole
-    | kids => MultiHole(kids)
-    };
-
-  fun
-  | Pre(tiles, Exp(r)) as tm => {
-      print_endline("tiles: " ++ show_unsorted(tm));
+and module_entry_term: unsorted => (TermBase.module_entry_term, list(Id.t)) =
+  unsorted => {
+    let ret = (term: TermBase.module_entry_term) => (term, []);
+    let hole = (unsorted: unsorted): TermBase.module_entry_term =>
+      switch (kids_of_unsorted(unsorted)) {
+      | [] => EmptyHole
+      | kids => MultiHole(kids)
+      };
+    print_endline(
+      "Unsorted module entry: " ++ [%derive.show: unsorted](unsorted),
+    );
+    switch (unsorted) {
+    | Bin(ModuleEntry(l), ([(_id, ([";"], []))], []), ModuleEntry(r)) as tm =>
+      print_endline("bin: " ++ [%derive.show: unsorted](tm));
+      ret(MultipleEntries([l, r]));
+    | Pre(tiles, Exp(last_exp)) as tm =>
       switch (tiles) {
       | ([(_id, t)], []) =>
-        print_endline(
-          "t: " ++ [%derive.show: (list(string), list(TermBase.any_t))](t),
-        );
-        ret(
-          switch (t) {
-          | (["val", "="], [Pat(pat)]) => ValBinding(pat, r) // I don't know if this should have the exp be part of t?
-          | _ => hole(tm)
-          },
-        );
-      };
-    }
-  | tm => {
-      print_endline("tm: " ++ show_unsorted(tm));
-
-      ret(hole(tm));
+        // print_endline("t: " ++ [%derive.show: Aba.t(string, Any.t)](t));
+        switch (t) {
+        | (["val", "="], [Pat(p)]) => ret(ValBinding(p, last_exp))
+        | _ => assert(false)
+        }
+      | _ => assert(false)
+      }
+    | tm =>
+      print_endline("Current failure: " ++ [%derive.show: unsorted](tm));
+      ret(assert(false));
     };
-}
-and module_entry = unsorted => {
+  }
+and module_entry = (skel, segment) => {
+  print_endline("Skel: " ++ [%derive.show: Skel.t](skel) ++ "\n");
+  print_endline("Segment: " ++ [%derive.show: Segment.t](segment) ++ "\n");
+  let unsorted = unsorted(skel, segment);
   let (term, inner_ids) = module_entry_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
   let e =
@@ -847,6 +903,7 @@ and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
   let root: Aba.t(Piece.t, Skel.t) =
     Skel.root(skel) |> Aba.map_a(List.nth(seg));
 
+  // print_endline("\nHandling tiles");
   // maintaining this alternating ordered structure
   // for handling incomplete forms later
   let tiles =
@@ -860,6 +917,8 @@ and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
     |> Aba.map_a(p
          // TODO throw proper exception
          => (Piece.id(p), Aba.mk(tokens(p), tile_kids(p))));
+
+  // print_endline("\nTiles handled: " ++ [%derive.show: tiles](tiles));
 
   let (l_sort, r_sort) = {
     let p_l = Aba.first_a(root);
@@ -884,7 +943,11 @@ let go =
     seg => {
       map := TermMap.empty;
       projectors := Id.Map.empty;
-      let term = exp(unsorted(Segment.skel(seg), seg));
+      let skel = Segment.skel(seg);
+      // print_endline("Skel : " ++ Skel.show(skel));
+      let foo = unsorted(skel, seg);
+      // print_endline("foo: " ++ [%derive.show: unsorted](foo));
+      let term = exp(foo);
       {
         term,
         terms: map^,
@@ -945,6 +1008,7 @@ let for_projection =
 let from_zip_for_sem =
     (~dump_backpack: bool, ~erase_buffer: bool, z: Zipper.t) => {
   let seg = Zipper.smart_seg(~dump_backpack, ~erase_buffer, z);
+  // print_endline("Seg: " ++ Segment.show(seg));
   go(seg);
 };
 

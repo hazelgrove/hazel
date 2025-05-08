@@ -5,7 +5,7 @@ type segment = list(piece)
 and piece =
   | Tile(tile)
   | Grout(Grout.t)
-  | Secondary(Secondary.t)
+  | Secondary([@show.opaque] Secondary.t)
   | Projector(projector)
 and tile = {
   // invariants:
@@ -13,9 +13,10 @@ and tile = {
   // - length(shards) <= length(label)
   // - length(shards) == length(children) + 1
   // - sort(shards) == shards
-  [@equal (_, _) => true]
+  [@equal (_, _) => true] [@show.opaque]
   id: Id.t,
   label: Label.t,
+  [@show.opaque]
   mold: Mold.t,
   shards: list(int),
   children: list(segment),

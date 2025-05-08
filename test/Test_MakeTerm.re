@@ -21,10 +21,39 @@ let module_tests =
     "MakeTerm.Modules",
     Exp.[
       test_case("Empty Module", `Quick, () => exp_check(module_([]), "{}")),
-      test_case("Module with one definition", `Quick, () =>
+      // test_case("Empty Module", `Quick, () =>
+      //   exp_check(
+      //     module_([]),
+      //     {|case ?
+      //   | a => 2
+      //   | b => 3
+      //   | c => 4
+      // end|},
+      //   )
+      // ),
+      // test_case("Module with one definition", `Quick, () =>
+      //   exp_check(
+      //     module_([ModuleEntry.val_binding(Pat.var("x"), int(1))]), // TODO Add binding
+      //     "{val x = 1}",
+      //   )
+      // ),
+      test_case("Module with multiple definitions", `Quick, () =>
         exp_check(
-          module_([ModuleEntry.val_binding(Pat.var("x"), int(1))]), // TODO Add binding
-          "{val x = 1}",
+          module_([
+            ModuleEntry.val_binding(
+              Pat.var("x"),
+              bin_op(Int(Plus), int(1), int(3)),
+            ),
+            ModuleEntry.val_binding(
+              Pat.var("y"),
+              bin_op(
+                Int(Minus),
+                bin_op(Int(Times), int(2), int(6)),
+                int(7),
+              ),
+            ),
+          ]),
+          "{val x = 1+3 ;  val y = (2 * 6) - 7}",
         )
       ),
     ],

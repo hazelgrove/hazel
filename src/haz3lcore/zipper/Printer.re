@@ -102,7 +102,6 @@ let zipper_of_string =
         print_endline("WARN: zipper_of_string: " ++ Printexc.to_string(exn));
         None;
       };
-    print_endline("insert: " ++ [%derive.show: option(ZipperBase.t)](ret));
     ret;
   };
   str |> Util.StringUtil.to_list |> List.fold_left(insert, Some(zipper_init));
