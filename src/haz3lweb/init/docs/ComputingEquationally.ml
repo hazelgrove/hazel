@@ -1,0 +1,9 @@
+let out : Haz3lcore.PersistentZipper.t =
+  {
+    zipper =
+      "((selection((focus Left)(content())(mode \
+       Normal)))(backpack())(relatives((siblings(()((Grout((id \
+       293ef06a-03d2-4770-8282-f6bbc4aeea08)(shape \
+       Convex))))))(ancestors())))(caret Outer))";
+    backup_text = " ";
+  }
