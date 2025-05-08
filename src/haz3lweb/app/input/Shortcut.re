@@ -234,6 +234,12 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
     mk_shortcut(
       ~mdIcon="download",
       ~section="Export",
+      "Export For Init",
+      Globals(ExportForInit),
+    ),
+    mk_shortcut(
+      ~mdIcon="download",
+      ~section="Export",
       "Export Submission",
       Editors(Exercises(ExportSubmission)) // TODO Would we rather skip contextual stuff for now or include it and have it fail
     ),
