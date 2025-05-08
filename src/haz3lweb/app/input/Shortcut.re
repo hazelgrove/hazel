@@ -22,12 +22,6 @@ let instructor_shortcuts: list(t) = [
   mk_shortcut(
     ~mdIcon="download",
     ~section="Export",
-    "Export All Persistent Data",
-    Globals(ExportPersistentData),
-  ),
-  mk_shortcut(
-    ~mdIcon="download",
-    ~section="Export",
     "Export Exercise Module",
     Editors(Exercises(ExportModule)) // TODO Would we rather skip contextual stuff for now or include it and have it fail
   ),
