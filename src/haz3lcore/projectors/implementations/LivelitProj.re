@@ -1,7 +1,6 @@
 open Util;
 open Virtual_dom.Vdom;
 open ProjectorBase;
-open Node;
 
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -47,25 +46,6 @@ module M: Projector = {
     | _ =>
       /* Default size */
       ProjectorCore.Shape.inline(32)
-    };
-  };
-
-  let put =
-      (info: info, segment: Segment.t, exp: TermBase.Exp.t): Base.segment => {
-    switch (
-      info.utility.lift_syntax(
-        fun
-        | Exp(t) =>
-          Exp({
-            ...t,
-            term: exp.term,
-          })
-        | _ => failwith("Livelit: Put: did not match expected model"),
-        segment,
-      )
-    ) {
-    | Some(s) => s
-    | None => failwith("LivelitProj: Put: lift failed")
     };
   };
 

@@ -1,5 +1,4 @@
 open Virtual_dom.Vdom;
-open ProjectorCore;
 open LivelitCtx;
 open Grammar;
 

@@ -582,10 +582,6 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Ap(d, e1, e2),
       annotation: default_annotation(ann),
     };
-    let livelit_ap = (~ann=?, d, e1, e2): exp_t(DefaultAnnotation.t) => {
-      term: Ap(d, e1, e2),
-      annotation: default_annotation(ann),
-    };
     let typ_ap = (~ann=?, e, t): exp_t(DefaultAnnotation.t) => {
       term: TypAp(e, t),
       annotation: default_annotation(ann),
