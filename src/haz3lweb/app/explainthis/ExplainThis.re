@@ -533,11 +533,17 @@ let get_doc =
       };
       let syntactic_form_view =
         EditorView.view_code_statics(
-          ~globals,
+          ~common={
+            settings: globals.settings.core,
+            font_metrics: globals.font_metrics,
+            secondary_icons: globals.settings.secondary_icons,
+            show_backpack_targets: globals.show_backpack_targets,
+            color_highlights: highlights,
+            statics,
+            dynamics,
+          },
           ~overlays=highlight_deco @ [expander_deco],
           ~sort,
-          ~statics,
-          ~dynamics,
           editor,
         );
       let example_view =

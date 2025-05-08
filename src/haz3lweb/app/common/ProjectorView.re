@@ -242,8 +242,8 @@ let split_views =
     (
       type ed,
       type ed_a,
+      ~common: ProjectorInterface.common,
       ~sort,
-      ~statics,
       ~ed_str,
       ~view_ed,
       ~mk_ed,
@@ -251,13 +251,17 @@ let split_views =
       ~parent: ProjectorBase.external_action => Ui_effect.t(unit),
       ~set_model: ProjectorCore.model(ed, ed_a) => Ui_effect.t(unit),
       ~make_active,
-      ~font_metrics: FontMetrics.t,
       {p, offside_base, measurement, status, _} as projector_data:
         Model.projector_data(ProjectorCore.model(ed, ed_a)),
     )
     : (Node.t, option(Node.t)) => {
   let wrapper =
-    view_wrapper(~make_active, ~font_metrics, ~measurement, ~status);
+    view_wrapper(
+      ~make_active,
+      ~font_metrics=common.font_metrics,
+      ~measurement,
+      ~status,
+    );
   let views =
     mk_view(
       ~sort,
@@ -266,18 +270,18 @@ let split_views =
       ~ed_str,
       ~view_ed,
       ~mk_ed,
-      ~statics,
+      ~statics=common.statics,
       ~update_ed,
       projector_data,
     );
   let line_view = {
     let offside_view =
       views.offside
-      |> Option.map(offside_wrapper(font_metrics, offside_base))
+      |> Option.map(offside_wrapper(common.font_metrics, offside_base))
       |> Option.to_list;
     wrapper(
       [views.inline]
-      @ [backing_deco(~font_metrics, ~measurement, p)]
+      @ [backing_deco(~font_metrics=common.font_metrics, ~measurement, p)]
       @ offside_view,
     );
   };

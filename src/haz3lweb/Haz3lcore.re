@@ -22,11 +22,8 @@ module rec Projector: {
   module View: {
     let split_views:
       (
+        ~common: ProjectorInterface.common,
         ~sort: Sort.t,
-        ~statics: CachedStatics.t,
-        ~settings: CoreSettings.t,
-        ~font_metrics: FontMetrics.t,
-        ~secondary_icons: bool,
         ~parent: ProjectorBase.external_action => Ui_effect.t(unit),
         ~set_model: Model.t => Ui_effect.t(unit),
         ~make_active: Ui_effect.t(unit),
@@ -36,7 +33,7 @@ module rec Projector: {
 
     let mk_status:
       (
-        Base.projector(ProjectorCore.model('ed, 'ed_a)),
+        Base.projector(Model.t),
         ~editor_active: bool,
         ~indicated: option((Id.t, Direction.t)),
         ~selection_ids: list(Id.t),
@@ -67,22 +64,18 @@ module rec Projector: {
   };
 
   module View = {
-    let split_views =
-        (
-          ~sort,
-          ~statics,
-          ~settings: CoreSettings.t,
-          ~font_metrics,
-          ~secondary_icons,
-        ) =>
+    let split_views = (~common: ProjectorInterface.common, ~sort) =>
       ProjectorView.split_views(
+        ~common,
         ~sort,
-        ~statics,
         ~ed_str=Editor.View.print_string,
-        ~mk_ed=Editor.Model.mk(~settings),
-        ~view_ed=Editor.View.view(~font_metrics, ~secondary_icons),
-        ~update_ed=Editor.Update.update(~settings),
-        ~font_metrics,
+        ~mk_ed=Editor.Model.mk(~settings=common.settings),
+        ~view_ed=
+          Editor.View.view(
+            ~font_metrics=common.font_metrics,
+            ~secondary_icons=common.secondary_icons,
+          ),
+        ~update_ed=Editor.Update.update(~settings=common.settings),
       );
 
     let mk_status = ProjectorView.Model.mk_status;
@@ -154,12 +147,23 @@ and Editor: {
       ) =>
       Web.Node.t;
 
+    let view_editable:
+      (
+        ~common: ProjectorInterface.common,
+        ~signal: EditorView.event => Ui_effect.t(unit),
+        ~inject:
+          Action.t(ProjectorCore.Kind.t, Projector.Model.t) =>
+          Ui_effect.t(unit),
+        ~selected: bool,
+        ~overlays: list(Web.Node.t)=?,
+        ~sort: Sort.t,
+        Model.t
+      ) =>
+      Web.Node.t;
+
     let all_projectors:
       (
-        ~settings: CoreSettings.t,
-        ~font_metrics: FontMetrics.t,
-        ~secondary_icons: bool,
-        ~statics: CachedStatics.t,
+        ~common: ProjectorInterface.common,
         ~inject:
           Action.t(ProjectorCore.Kind.t, Projector.Model.t) =>
           Ui_effect.t(unit),
@@ -357,19 +361,20 @@ and Editor: {
     let view = (~font_metrics, ~secondary_icons, ~sort, m: Model.t) =>
       CodeViewable.view_editor(~font_metrics, ~secondary_icons, ~sort, m);
 
+    let view_editable = (~common) =>
+      EditorView.view_code_editable(
+        ~common,
+        ~split_views=Projector.View.split_views(~common),
+        ~mk_status=Projector.View.mk_status,
+      );
+
     let mk_projector_model =
       ProjectorView.Model.mk(~mk_status=Projector.View.mk_status);
 
-    let all_projectors =
-        (~settings: CoreSettings.t, ~font_metrics, ~secondary_icons, ~statics) =>
+    let all_projectors = (~common: ProjectorInterface.common) =>
       ProjectorView.all(
         ~split_views=
-          Projector.View.split_views(
-            ~settings: CoreSettings.t,
-            ~font_metrics,
-            ~secondary_icons,
-            ~statics,
-          ),
+          Projector.View.split_views(~common: ProjectorInterface.common),
       );
 
     let print_string = (ed: Model.t) =>

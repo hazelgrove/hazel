@@ -1,8 +1,14 @@
 open Js_of_ocaml;
-open Haz3lcore;
+open Haz3lcorep;
 open Virtual_dom.Vdom;
 type editor_id = string;
 open Util;
+
+module Focus = {
+  type t('p_f) =
+    | Here
+    | Projector(Id.t, 'p_f);
+};
 
 type event =
   | MakeActive;
@@ -34,17 +40,16 @@ module MouseState = Pointer.MkState();
 
 let view_code_statics =
     (
-      ~globals: Globals.t,
+      type p_m,
+      ~common: ProjectorInterface.common,
       ~overlays: list(Node.t)=[],
       ~sort=Sort.root,
-      ~statics,
-      ~dynamics,
       editor,
     ) => {
   let code_text_view =
-    Editor.View.view(
-      ~secondary_icons=globals.settings.secondary_icons,
-      ~font_metrics=globals.font_metrics,
+    CodeViewable.view_editor(
+      ~secondary_icons=common.secondary_icons,
+      ~font_metrics=common.font_metrics,
       ~sort,
       editor,
     );
@@ -52,17 +57,8 @@ let view_code_statics =
     module Deco =
       Deco.Deco({
         type projector_kind = ProjectorCore.Kind.t;
-        type projector = Projector.Model.t;
-        let globals =
-          ProjectorInterface.{
-            settings: globals.settings.core,
-            font_metrics: globals.font_metrics,
-            secondary_icons: globals.settings.secondary_icons,
-            show_backpack_targets: globals.show_backpack_targets,
-            color_highlights: globals.color_highlights,
-            statics,
-            dynamics,
-          };
+        type projector = p_m;
+        let globals = common;
         let editor = editor;
       });
     Deco.statics();
@@ -72,50 +68,43 @@ let view_code_statics =
 
 let view_code_editable =
     (
-      ~globals: Globals.t,
+      type p_m,
+      ~common: ProjectorInterface.common,
+      ~split_views,
+      ~mk_status,
       ~signal: event => Ui_effect.t(unit),
-      ~inject: Action.t => Ui_effect.t(unit),
+      ~inject: Action.t(ProjectorCore.Kind.t, p_m) => Ui_effect.t(unit),
       ~selected: bool,
       ~overlays: list(Node.t)=[],
-      ~sort=?,
-      ~statics: CachedStatics.t,
-      ~dynamics: Dynamics.Map.t,
-      model: Editor.Model.t,
+      ~sort,
+      model: Editor.Model.t(ProjectorCore.Kind.t, p_m),
     ) => {
   let edit_decos = {
     module Deco =
       Deco.Deco({
-        type projector = Projector.Model.t;
+        type projector = p_m;
         type projector_kind = ProjectorCore.Kind.t;
         let editor = model;
-        let globals =
-          ProjectorInterface.{
-            settings: globals.settings.core,
-            font_metrics: globals.font_metrics,
-            secondary_icons: globals.settings.secondary_icons,
-            show_backpack_targets: globals.show_backpack_targets,
-            color_highlights: globals.color_highlights,
-            statics,
-            dynamics,
-          };
+        let globals = common;
       });
-    Deco.editor(model |> Editor.Model.get_z, selected);
+    Deco.editor(model.state.zipper, selected);
   };
   let projectors =
-    Editor.View.all_projectors(
-      ~settings=globals.settings.core,
-      ~font_metrics=globals.font_metrics,
-      ~secondary_icons=globals.settings.secondary_icons,
-      ~inject=x => inject(x),
+    ProjectorView.all(
+      ~split_views,
+      ~inject,
       ~make_active=signal(MakeActive),
-      ~statics,
-      Editor.View.mk_projector_model(
-        model |> Editor.get_projectors,
-        model |> Editor.get_measured,
-        model |> Editor.get_selection_ids,
-        model |> Editor.get_indicated,
-        statics.info_map,
-        dynamics,
+      ProjectorView.Model.mk(
+        ~mk_status,
+        model.syntax.projectors,
+        model.syntax.measured,
+        model.syntax.selection_ids,
+        switch (Indicated.piece(model.state.zipper)) {
+        | None => None
+        | Some((p, side, _)) => Some((Piece.id(p), side))
+        },
+        common.statics.info_map,
+        common.dynamics,
         selected,
       ),
     );
@@ -123,19 +112,11 @@ let view_code_editable =
     [Node.div(~attrs=[Attr.classes(["code-deco"])], edit_decos)]
     @ [Node.div(~attrs=[Attr.classes(["overlays"])], overlays)]
     @ projectors;
-  let code_view =
-    view_code_statics(
-      ~globals,
-      ~overlays,
-      ~sort?,
-      ~statics,
-      ~dynamics,
-      model,
-    );
+  let code_view = view_code_statics(~common, ~overlays, ~sort, model);
 
   let loc = (e: Pointer.Event.t) =>
     FontMetrics.get_goal(
-      ~font_metrics=globals.font_metrics,
+      ~font_metrics=common.font_metrics,
       container_target(e.current_target),
       e.loc,
     );
@@ -203,4 +184,29 @@ let view_code_editable =
     ],
     [code_view],
   );
-};
+} /*   */;
+
+// TODO: Add projectors to read-only view.
+
+// let view =
+//     (
+//       ~common: ProjectorInterface.common,
+//       ~edit_mode: ProjectorInterface.edit_mode('p_k, 'p_m, Focus.t('p_f)),
+//       ~overlays: list(Node.t)=[],
+//       ~statics: option(CachedStatics.t),
+//       ~dynamics: option(Dynamics.Map.t),
+//       ~sort,
+//       editor,
+//     ) => {
+//   switch (edit_mode) {
+//   | ReadOnly =>
+//     view_code_statics(
+//       ~globals=common,
+//       ~overlays,
+//       ~sort,
+//       ~statics=statics |> CachedStatics.init,
+//       ~dynamics=dynamics |> Dynamics.Map.empty,
+//       editor,
+//     )
+//   };
+// };

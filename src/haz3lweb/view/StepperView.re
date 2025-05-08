@@ -473,6 +473,7 @@ module View = {
                    StepperEditor.View.view(
                      ~globals,
                      ~overlays=[],
+                     ~sort=Exp,
                      ~selected=
                        selection
                        == Some(
@@ -540,6 +541,7 @@ module View = {
               div(~attrs=[Attr.class_("equiv")], [Node.text("≡")]),
               StepperEditor.View.view(
                 ~globals,
+                ~sort=Exp,
                 ~selected=
                   selection
                   == Some(

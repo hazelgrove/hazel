@@ -80,7 +80,7 @@ module View = {
   type event = EditorView.event;
 
   let view = (~inject: Update.t => 'a) =>
-    EditorView.view_code_editable(~inject=a =>
+    Editor.View.view_editable(~inject=a =>
       switch (Update.convert_action(Perform(a))) {
       | Some(action) => inject(action)
       | None => Ui_effect.Ignore

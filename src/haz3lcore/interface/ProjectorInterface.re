@@ -13,6 +13,7 @@ type edit_mode('p_k, 'p_m, 'e_f) =
   | Editable({
       inject: Action.t('p_k, 'p_m) => Ui_effect.t(unit),
       make_active: 'e_f => Ui_effect.t(unit),
+      has_focus: option('e_f),
     });
 
 type editor_utility('ed_m, 'ed_a) = {

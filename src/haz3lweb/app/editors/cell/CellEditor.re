@@ -158,7 +158,7 @@ module View = {
         ~inject: Update.t => Ui_effect.t(unit),
         ~selected: option(Selection.t),
         ~caption: option(Node.t)=?,
-        ~sort=?,
+        ~sort=Sort.Exp,
         ~result_kind=?,
         ~locked=false,
         model: Model.t,
@@ -198,8 +198,16 @@ module View = {
       ~attrs=[Attr.classes(["cell", locked ? "locked" : "unlocked"])],
       Option.to_list(caption)
       @ [
-        EditorView.view_code_editable(
-          ~globals,
+        Editor.View.view_editable(
+          ~common={
+            settings: globals.settings.core,
+            font_metrics: globals.font_metrics,
+            secondary_icons: globals.settings.secondary_icons,
+            show_backpack_targets: globals.show_backpack_targets,
+            color_highlights: globals.color_highlights,
+            statics: model.editor.statics,
+            dynamics: model.editor.dynamics,
+          },
           ~signal=
             locked
               ? _ => Ui_effect.Ignore
@@ -211,9 +219,7 @@ module View = {
               : (action => inject(MainEditor(Perform(action)))),
           ~selected=selected == Some(MainEditor),
           ~overlays=overlays(model.editor.editor),
-          ~sort?,
-          ~statics=model.editor.statics,
-          ~dynamics=model.editor.dynamics,
+          ~sort,
           model.editor.editor,
         ),
       ]
