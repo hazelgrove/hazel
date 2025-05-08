@@ -155,12 +155,14 @@ module Update = {
         | Scratch(model)
         | Documentation(model) =>
           let current = List.nth(model.scratchpads, model.current);
-          let filename = (current |> fst) ++ ".ml";
+          let filename =
+            (current |> fst |> StringUtil.sanitize_filename) ++ ".ml";
+
           let content =
-            current
-            |> snd
-            |> CellEditor.Model.persist
-            |> Haz3lcore.PersistentZipper.show;
+            [%derive.show: (string, Haz3lcore.PersistentZipper.t)]((
+              current |> fst,
+              current |> snd |> CellEditor.Model.persist,
+            ));
           (filename, content);
         | Exercises(model) =>
           let current = List.nth(model.exercises, model.current);
@@ -171,7 +173,8 @@ module Update = {
       JsUtil.download_string_file(
         ~filename,
         ~content_type="text/plain",
-        ~contents="let out : Haz3lcore.PersistentZipper.t = " ++ content,
+        ~contents=
+          "let out : string * Haz3lcore.PersistentZipper.t = " ++ content,
       );
       model |> return_quiet;
     | ActiveEditor(action) =>
