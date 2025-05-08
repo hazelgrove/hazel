@@ -4,11 +4,11 @@ let (suite, _) =
   run_and_report(
     ~and_exit=false,
     "HazelTests",
-    [
+    Test_MakeTerm.tests
+    @ [
       Test_Grammar.tests,
       Test_ExpToSegment.tests,
       Test_LabeledTuple.tests,
-      Test_MakeTerm.tests,
       Test_Menhir.tests,
       Test_StringUtil.tests,
       Test_Typ.tests,

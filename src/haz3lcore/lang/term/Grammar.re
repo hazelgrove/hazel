@@ -47,6 +47,7 @@ type any_t('a) =
   | Typ(typ_t('a))
   | TPat(tpat_t('a))
   | Rul(rul_t('a))
+  | ModuleEntry(module_entry_t('a))
   | Any(unit)
 and exp_term('a) =
   | Invalid(string)
@@ -95,6 +96,7 @@ and exp_term('a) =
      two consistent types. Both types should be normalized in
      dynamics for the cast calculus to work right. */
   | Cast(exp_t('a), typ_t('a), typ_t('a))
+  | Module(list(module_entry_t('a)))
 and exp_t('a) = Annotated.t(exp_term('a), 'a)
 and pat_term('a) =
   | Invalid(string)
@@ -160,7 +162,12 @@ and type_provenance('a) =
 and filter('a) = {
   pat: exp_t('a),
   act: FilterAction.t,
-};
+}
+and module_entry_term('a) =
+  | ValBinding(pat_t('a), exp_t('a))
+  | EmptyHole
+  | MultiHole(list(any_t('a)))
+and module_entry_t('a) = Annotated.t(module_entry_term('a), 'a);
 
 
 let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
@@ -644,6 +651,17 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let cast = (~ann=?, e, t1, t2): exp_t(DefaultAnnotation.t) => {
       term: Cast(e, t1, t2),
+      annotation: default_annotation(ann),
+    };
+
+    let module_ = (~ann=?, bindings): exp_t(DefaultAnnotation.t) => {
+      term: Module(bindings),
+      annotation: default_annotation(ann),
+    };
+  };
+  module ModuleEntry = {
+    let val_binding = (~ann=?, p, e): module_entry_t(DefaultAnnotation.t) => {
+      term: ValBinding(p, e),
       annotation: default_annotation(ann),
     };
   };

@@ -1130,6 +1130,12 @@ and uexp_to_info_map =
           })
         };
       add(~self, ~co_ctx=body.co_ctx, m);
+    | Module(_) =>
+      add(
+        ~self=Just(IdTagged.FreshGrammar.Typ.unknown(Internal)),
+        ~co_ctx=CoCtx.empty,
+        m,
+      )
     };
   };
 

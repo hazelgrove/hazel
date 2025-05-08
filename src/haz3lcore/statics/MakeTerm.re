@@ -163,6 +163,7 @@ let mk_bad = (ctr, ids, value) => {
 
 let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
   switch (s) {
+  | ModuleEntry => ModuleEntry(module_entry(unsorted(skel, seg)))
   | Pat => Pat(pat(unsorted(skel, seg)))
   | TPat => TPat(tpat(unsorted(skel, seg)))
   | Typ => Typ(typ(unsorted(skel, seg)))
@@ -218,6 +219,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
     | ([(id, t)], []) =>
       switch (t) {
       | ([t], []) when Form.is_empty_tuple(t) => ret(Tuple([]))
+      | ([t], []) when Form.is_empty_module(t) => ret(Module([]))
       | ([t], []) when Form.is_wild(t) => ret(Deferral(OutsideAp))
       | ([t], []) when Form.is_empty_list(t) => ret(ListLit([]))
       | ([t], []) when Form.is_bool(t) =>
@@ -242,6 +244,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | {annotation: {ids}, term: Tuple(es)} => (ListLit(es), ids)
         | term => ret(ListLit([term]))
         }
+      | (["{", "}"], [ModuleEntry(a)]) => ret(Module([a]))
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
       | (
           ["case", "end"],
@@ -460,6 +463,54 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       }
     }
   | tm => ret(hole(tm));
+}
+and module_entry_term: unsorted => (TermBase.module_entry_term, list(Id.t)) = {
+  let ret = (term: TermBase.module_entry_term) => (term, []);
+  let hole = (unsorted: unsorted): TermBase.module_entry_term =>
+    switch (kids_of_unsorted(unsorted)) {
+    | [] => EmptyHole
+    | kids => MultiHole(kids)
+    };
+
+  fun
+  | Pre(tiles, Exp(r)) as tm => {
+      print_endline("tiles: " ++ show_unsorted(tm));
+      switch (tiles) {
+      | ([(_id, t)], []) =>
+        print_endline(
+          "t: " ++ [%derive.show: (list(string), list(TermBase.any_t))](t),
+        );
+        ret(
+          switch (t) {
+          | (["val", "="], [Pat(pat)]) => ValBinding(pat, r) // I don't know if this should have the exp be part of t?
+          | _ => hole(tm)
+          },
+        );
+      };
+    }
+  | tm => {
+      print_endline("tm: " ++ show_unsorted(tm));
+
+      ret(hole(tm));
+    };
+}
+and module_entry = unsorted => {
+  let (term, inner_ids) = module_entry_term(unsorted);
+  let ids = ids(unsorted) @ inner_ids;
+  let e =
+    return(
+      e => ModuleEntry(e),
+      ids,
+      {
+        annotation: {
+          ids: ids,
+        },
+        term,
+      },
+    );
+  switch (term) {
+  | _ => e
+  };
 }
 and pat = unsorted => {
   let (term, inner_ids) = pat_term(unsorted);

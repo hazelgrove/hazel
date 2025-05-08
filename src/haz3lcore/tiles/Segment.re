@@ -84,6 +84,7 @@ let rec remold = (~shape=Nib.Shape.concave(), seg: t, s: Sort.t) =>
   | Exp => remold_exp(shape, seg)
   | Rul => remold_rul(shape, seg)
   | TPat => remold_tpat(shape, seg)
+  | ModuleEntry => remold_module_entry(shape, seg)
   }
 and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
   open OptUtil.Syntax;
@@ -421,6 +422,35 @@ and remold_exp = (shape, seg: t): t =>
           [Piece.Tile(t), ...remolded] @ remold_exp(shape, rest);
         | (_, {shape, sort: Rul}) => [Tile(t), ...remold_rul(shape, tl)]
         | _ => [Tile(t), ...remold_exp(snd(Tile.shapes(t)), tl)]
+        }
+      }
+    }
+  }
+and remold_module_entry = (shape, seg: t): t =>
+  switch (seg) {
+  | [] => []
+  | [hd, ...tl] =>
+    switch (hd) {
+    | Secondary(_)
+    | Grout(_) => [hd, ...remold_module_entry(shape, tl)]
+    | Projector(p) => [
+        hd,
+        ...remold_module_entry(snd(ProjectorCore.shapes(p)), tl),
+      ]
+    | Tile(t) =>
+      switch (remold_tile(ModuleEntry, shape, t)) {
+      | None => [Tile(t), ...remold_module_entry(snd(Tile.shapes(t)), tl)]
+      | Some(t) when !Tile.has_end(Right, t) =>
+        let (_, r) = Tile.nibs(t);
+        let remolded = remold(~shape=r.shape, tl, r.sort);
+        [Tile(t), ...remolded];
+      | Some(t) =>
+        switch (Tile.nibs(t)) {
+        | (_, {shape, sort: Typ}) =>
+          let (remolded, shape, rest) =
+            remold_typ_uni(shape, tl, [Sort.ModuleEntry]);
+          [Piece.Tile(t), ...remolded] @ remold_module_entry(shape, rest);
+        | _ => [Tile(t), ...remold_module_entry(snd(Tile.shapes(t)), tl)]
         }
       }
     }

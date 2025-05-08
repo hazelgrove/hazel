@@ -76,7 +76,11 @@ type type_provenance = Grammar.type_provenance(IdTagged.IdTag.t);
 type filter = Grammar.filter(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type deferral_position_t = Grammar.deferral_position_t;
-
+[@deriving (show({with_path: false}), sexp, yojson)]
+type module_entry_t = Grammar.module_entry_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type module_entry_term = Grammar.module_entry_term(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
 module rec Any: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = any_t;
@@ -288,6 +292,9 @@ and Exp: {
 
   let rec fast_equal = (e1: t, e2: t) =>
     switch (e1 |> Grammar.Annotated.term_of, e2 |> Grammar.Annotated.term_of) {
+    | (Module(bs), Module(bs')) =>
+      List.length(bs) == List.length(bs')
+      && List.equal(ModuleEntry.fast_equal, bs, bs') // TODO Do actual equality on module entries
     | (DynamicErrorHole(x, _), _)
     | (Parens(x), _) => fast_equal(x, e2)
     | (_, DynamicErrorHole(x, _))
@@ -412,7 +419,8 @@ and Exp: {
     | (Cast(_), _)
     | (MultiHole(_), _)
     | (EmptyHole, _)
-    | (Undefined, _) => false
+    | (Undefined, _)
+    | (Module(_), _) => false
     };
   let equal = fast_equal;
 }
@@ -1033,5 +1041,39 @@ and StepperFilterKind: {
     | (Residue(i1, a1), Residue(i2, a2)) => i1 == i2 && a1 == a2
     | (Filter(_), _)
     | (Residue(_), _) => false
+    };
+}
+and ModuleEntry: {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = module_entry_t;
+
+  // let map_term:
+  //   (
+  //     ~f_exp: (Exp.t => Exp.t, Exp.t) => Exp.t=?,
+  //     ~f_pat: (Pat.t => Pat.t, Pat.t) => Pat.t=?,
+  //     ~f_typ: (Typ.t => Typ.t, Typ.t) => Typ.t=?,
+  //     ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
+  //     ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
+  //     ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
+  //     t
+  //   ) =>
+  //   t;
+
+  let fast_equal: (t, t) => bool;
+} = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = module_entry_t;
+
+  let fast_equal = (m1: t, m2: t) =>
+    switch (m1.term, m2.term) {
+    | (ValBinding(p1, e1), ValBinding(p2, e2)) =>
+      Pat.fast_equal(p1, p2) && Exp.fast_equal(e1, e2)
+    | (EmptyHole, EmptyHole) => true
+    | (MultiHole(xs), MultiHole(ys)) =>
+      List.length(xs) == List.length(ys)
+      && List.equal(Any.fast_equal, xs, ys)
+    | (ValBinding(_), _)
+    | (EmptyHole, _)
+    | (MultiHole(_), _) => false
     };
 };

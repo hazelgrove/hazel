@@ -5,7 +5,9 @@ type t =
   | Typ
   | TPat
   | Rul
-  | Exp;
+  | Exp
+  | ModuleEntry
+  | ModuleBody;
 
 let root = Exp;
 

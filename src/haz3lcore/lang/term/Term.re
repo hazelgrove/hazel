@@ -379,7 +379,8 @@ module Exp = {
     | Cast
     | LivelitName
     | LivelitAp
-    | ListConcat;
+    | ListConcat
+    | Module;
 
   include TermBase.Exp;
 
@@ -446,7 +447,8 @@ module Exp = {
     | BuiltinFun(_) => BuiltinFun
     | Match(_) => Match
     | LivelitName(_) => LivelitName
-    | Cast(_) => Cast;
+    | Cast(_) => Cast
+    | Module(_) => Module;
 
   let show_cls: cls => string =
     fun
@@ -494,7 +496,8 @@ module Exp = {
     | Match => "Case expression"
     | LivelitName => "Livelit name"
     | LivelitAp => "Livelit application"
-    | Cast => "Cast expression";
+    | Cast => "Cast expression"
+    | Module => "Module definition";
 
   let rec match_tup_label: t => option((LabeledTuple.label, t)) = {
     e => {
@@ -959,5 +962,6 @@ module Any = {
     | Typ(tm) => Typ.rep_id(tm)
     | TPat(tm) => TPat.rep_id(tm)
     | Rul(tm) => Rul.rep_id(~any_ids=ids, tm)
+    | ModuleEntry(tm) => ModuleEntry.rep_id(tm)
     | Any () => raise(Invalid_argument("Term.rep_id"));
 };

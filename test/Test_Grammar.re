@@ -90,6 +90,7 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | Match => match(empty_hole(), [])
       | Cast => cast(empty_hole(), Typ.int(), Typ.string())
       | ListConcat => list_concat(empty_hole(), empty_hole())
+      | Module => module_([])
       }
     )
   );

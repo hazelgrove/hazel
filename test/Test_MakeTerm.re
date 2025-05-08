@@ -16,7 +16,21 @@ let parse_exp = (s: string) => {
 let exp_check = (expected, actual) =>
   check(exp_typ, actual, expected, parse_exp(actual));
 
-let tests =
+let module_tests =
+  Fresh.(
+    "MakeTerm.Modules",
+    Exp.[
+      test_case("Empty Module", `Quick, () => exp_check(module_([]), "{}")),
+      test_case("Module with one definition", `Quick, () =>
+        exp_check(
+          module_([ModuleEntry.val_binding(Pat.var("x"), int(1))]), // TODO Add binding
+          "{val x = 1}",
+        )
+      ),
+    ],
+  );
+
+let tests = [
   Fresh.(
     "MakeTerm",
     Exp.[
@@ -160,4 +174,6 @@ let tests =
         )
       ),
     ],
-  );
+  ),
+  module_tests,
+];

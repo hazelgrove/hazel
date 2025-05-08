@@ -202,6 +202,13 @@ let tuple_lbl = [tuple_start, tuple_end];
 let empty_tuple = tuple_start ++ tuple_end;
 let is_empty_tuple = (==)(empty_tuple);
 
+/* Module literals */
+let module_start = "{";
+let module_end = "}";
+let modulelit_lbl = [module_start, module_end];
+let empty_module = module_start ++ module_end;
+let is_empty_module = (==)(empty_module);
+
 /* These functions determine which forms can switch back and forth between
    mono and duotile forms, like list literals and tuples switching to/from
    the empty list and empty tuple. Technically this should be derivable from
@@ -210,6 +217,7 @@ let duosplits = (t: Token.t): Label.t =>
   switch () {
   | _ when is_empty_list(t) => listlit_lbl
   | _ when is_empty_tuple(t) => tuple_lbl
+  | _ when is_empty_module(t) => modulelit_lbl
   | _ => []
   };
 
@@ -217,11 +225,14 @@ let duomerges = (lbl: Label.t): option(Label.t) =>
   switch () {
   | _ when lbl == listlit_lbl => Some([empty_list])
   | _ when lbl == tuple_lbl => Some([empty_tuple])
+  | _ when lbl == modulelit_lbl => Some([empty_module])
   | _ => None
   };
 
 let const_mono_delims =
-  base_typs @ bools @ [undefined, wild, empty_list, empty_tuple, empty_string];
+  base_typs
+  @ bools
+  @ [undefined, wild, empty_list, empty_tuple, empty_string, empty_module];
 
 let explicit_hole = "?";
 let is_explicit_hole = t => t == explicit_hole;
@@ -251,6 +262,7 @@ type atomic_form =
   | UndefinedLit
   | EmptyList
   | EmptyTuple
+  | EmptyModule
   | Deferral
   | TyVar
   | TyVarP
@@ -272,8 +284,9 @@ let get_atomic_form: atomic_form => (string => bool, list(Mold.t)) =
   | BoolLit => (is_bool, [mk_op(Exp, []), mk_op(Pat, [])])
   | UndefinedLit => (is_undefined, [mk_op(Exp, []), mk_op(Pat, [])])
   | EmptyList => (is_empty_list, [mk_op(Exp, []), mk_op(Pat, [])])
-  | EmptyTuple => (
-      is_empty_tuple,
+  | EmptyTuple => (is_empty_tuple, [mk_op(Exp, [])])
+  | EmptyModule => (
+      is_empty_module,
       [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, [])],
     )
   | Deferral => (is_wild, [mk_op(Exp, [])])
@@ -375,7 +388,10 @@ type compound_form =
   // TRIPLE DELIMITERS
   | Let
   | TypeAlias
-  | If;
+  | If
+  // Modules
+  | ModuleExp
+  | ValBinding;
 
 let get: compound_form => t =
   fun
@@ -461,6 +477,13 @@ let get: compound_form => t =
   | Use => mk(ds, ["use", "in"], mk_pre(P.let_, Exp, [Typ]))
   // TRIPLE DELIMITERS
   | Let => mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))
+  | ModuleExp => mk(ii, ["{", "}"], mk_op(Exp, [ModuleEntry]))
+  | ValBinding =>
+    mk(
+      ds,
+      ["val", "="],
+      mk_pre'(P.let_, ModuleEntry, ModuleEntry, [Pat], Exp),
+    )
   | TypeAlias =>
     mk(ds, ["type", "=", "in"], mk_pre(P.let_, Exp, [TPat, Typ]))
   | If => mk(ds, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]));
