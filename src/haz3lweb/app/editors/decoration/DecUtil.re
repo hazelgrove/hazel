@@ -23,7 +23,8 @@ let fzero: fdims = {
   top: 0.,
 };
 
-let pos_str = (~d: dims, ~fudge: fdims=fzero, font_metrics: FontMetrics.t) =>
+let pos_str =
+    (~d: dims, ~fudge: fdims=fzero, font_metrics: Haz3lcorep.FontMetrics.t) =>
   Printf.sprintf(
     "position: absolute; left: %fpx; top: %fpx; width: %fpx; height: %fpx;",
     Float.of_int(d.left) *. font_metrics.col_width +. fudge.left,
@@ -47,7 +48,7 @@ let abs_style = (~font_metrics, ~fudge: fdims=fzero, measurement): Attr.t =>
 
 let code_svg_sized =
     (
-      ~font_metrics: FontMetrics.t,
+      ~font_metrics: Haz3lcorep.FontMetrics.t,
       ~absolute=true,
       ~measurement: Haz3lcorep.Measured.measurement,
       ~base_cls=[],
@@ -91,7 +92,7 @@ let position =
       ~width_fudge=0.0,
       ~height_fudge=0.0,
       ~scale=1.,
-      ~font_metrics: FontMetrics.t,
+      ~font_metrics: Haz3lcorep.FontMetrics.t,
       origin: Point.t,
     ) =>
   Attr.create(
@@ -114,7 +115,7 @@ let abs_position =
       ~width_fudge=0.0,
       ~height_fudge=0.0,
       ~scale=1.,
-      ~font_metrics: FontMetrics.t,
+      ~font_metrics: Haz3lcorep.FontMetrics.t,
       origin: Point.t,
     ) => {
   position(
@@ -131,7 +132,7 @@ let abs_position =
 
 let code_svg =
     (
-      ~font_metrics: FontMetrics.t,
+      ~font_metrics: Haz3lcorep.FontMetrics.t,
       ~origin: Point.t,
       ~base_cls=[],
       ~path_cls=[],

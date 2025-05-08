@@ -15,6 +15,7 @@ module rec Projector: {
     let get_shape:
       (Statics.Map.t, Dynamics.Map.t, Base.projector(t)) => ProjectorShape.t;
     let get_focusable: t => ProjectorBase.Focusable.t;
+    let focusable_of_kind: ProjectorCore.Kind.t => ProjectorBase.Focusable.t;
 
     let make_term: (t, Sort.t) => Any.t;
   };
@@ -56,6 +57,7 @@ module rec Projector: {
       );
     let get_kind = ProjectorCore.kind_of_model;
     let get_focusable = ProjectorInit.focusable_of_model;
+    let focusable_of_kind = ProjectorInit.focusable_of_kind;
 
     //TODO(andrew): proper sort for deco
     let get_sort = _ => Sort.Exp;
@@ -91,7 +93,7 @@ module rec Projector: {
 and Editor: {
   module Model: {
     [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = Haz3lcorep.Editor.t(Projector.Model.t); // Transparent definition needed for handing editor to projectorinit
+    type t = Haz3lcorep.Editor.t(ProjectorCore.Kind.t, Projector.Model.t); // Transparent definition needed for handing editor to projectorinit
 
     let mk: (~settings: CoreSettings.t, ~inline: bool=?, Any.t) => t;
 
@@ -107,7 +109,7 @@ and Editor: {
 
   module Update: {
     [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = Action.t(Projector.Model.t);
+    type t = Action.t(ProjectorCore.Kind.t, Projector.Model.t);
 
     let update:
       (
@@ -134,9 +136,11 @@ and Editor: {
     let redo: Model.t => option(Model.t);
 
     let key_handoff:
-      (Model.t, Key.t) => option(Action.project(Projector.Model.t));
+      (Model.t, Key.t) =>
+      option(Action.project(ProjectorCore.Kind.t, Projector.Model.t));
     let jump_to_tile_action:
-      (Id.t, Model.t) => option(Action.t(Projector.Model.t));
+      (Id.t, Model.t) =>
+      option(Action.t(ProjectorCore.Kind.t, Projector.Model.t));
   };
 
   module View: {
@@ -158,7 +162,9 @@ and Editor: {
         ~font_metrics: FontMetrics.t,
         ~secondary_icons: bool,
         ~statics: CachedStatics.t,
-        ~inject: Action.t(Projector.Model.t) => Ui_effect.t(unit),
+        ~inject:
+          Action.t(ProjectorCore.Kind.t, Projector.Model.t) =>
+          Ui_effect.t(unit),
         ~make_active: Ui_effect.t(unit),
         list(ProjectorView.Model.projector_data(Projector.Model.t))
       ) =>
@@ -196,9 +202,9 @@ and Editor: {
 } = {
   module Model = {
     [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = Haz3lcorep.Editor.t(Projector.Model.t);
+    type t = Haz3lcorep.Editor.t(ProjectorCore.Kind.t, Projector.Model.t);
 
-    let mk = (~settings: CoreSettings.t, ~inline=false, term: Any.t) => {
+    let mk = (~settings: CoreSettings.t, ~inline=false, term: Any.t): t => {
       ExpToSegment.any_to_segment(
         term,
         ~settings=ExpToSegment.Settings.of_core(~inline, settings),
@@ -231,22 +237,11 @@ and Editor: {
     let get_trailing_hole_ctx = Haz3lcorep.Editor.Model.trailing_hole_ctx;
   };
 
-  // module Action = {
-  //   include Action;
-  //   [@deriving (show({with_path: false}), sexp, yojson)]
-  //   type t = Action.t(Projector.Model.t);
-  //   [@deriving (show({with_path: false}), sexp, yojson)]
-  //   type project = Action.project(Projector.Model.t);
-
-  //   let paste_string = s => Action.Paste(String(s));
-  //   let paste_segment = s => Action.Paste(Segment(s));
-  // };
-
   module Update = {
     [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = Action.t(Projector.Model.t);
+    type t = Action.t(ProjectorCore.Kind.t, Projector.Model.t);
 
-    let update = (~settings, ~sort, statics, action, editor: Model.t) => {
+    let update = (~settings, ~sort, statics, action: t, editor: Model.t) => {
       switch (
         Haz3lcorep.Editor.Update.update(
           ~settings,
@@ -260,6 +255,7 @@ and Editor: {
               |> ExpToSegment.any_to_segment(
                    ~settings=ExpToSegment.Settings.on,
                  ),
+          ~get_focusable=Projector.Model.focusable_of_kind,
           action,
           statics,
           editor,
@@ -290,6 +286,7 @@ and Editor: {
           (sort, p) =>
             Projector.Model.make_term(p, sort)
             |> ExpToSegment.any_to_segment(~settings=ExpToSegment.Settings.on),
+        ~get_focusable=Projector.Model.focusable_of_kind,
         ~sort,
         statics,
         dynamics,
@@ -317,7 +314,7 @@ and Editor: {
 
     let key_handoff =
         (editor: Model.t, key: Key.t)
-        : option(Action.project(Projector.Model.t)) => {
+        : option(Action.project(ProjectorCore.Kind.t, Projector.Model.t)) => {
       let z = editor.state.zipper;
       switch (
         move_dir(key),
@@ -401,9 +398,9 @@ module PersistentZipper = {
 module Action = {
   include Action;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Action.t(Projector.Model.t);
+  type t = Action.t(ProjectorCore.Kind.t, Projector.Model.t);
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type project = Action.project(Projector.Model.t);
+  type project = Action.project(ProjectorCore.Kind.t, Projector.Model.t);
 };
 
 module Ancestor = {

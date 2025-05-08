@@ -9,7 +9,7 @@ module Profile = {
 };
 
 let caret_position_radii =
-    (~font_metrics: FontMetrics.t, ~style: Profile.style) => {
+    (~font_metrics: Haz3lcorep.FontMetrics.t, ~style: Profile.style) => {
   let r =
     switch (style) {
     | `Sibling => 2.75

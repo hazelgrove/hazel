@@ -16,17 +16,17 @@ module Base = {
 module Editor = {
   include Editor;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Editor.t(unit);
+  type t = Editor.t(ProjectorCore.Kind.t, unit);
   module Model = {
     include Model;
-    let mk: ZipperBase.t(unit) => t(unit) =
+    let mk: ZipperBase.t(unit) => t(ProjectorCore.Kind.t, unit) =
       Editor.Model.mk(
         ~projector_to_term=of_projector,
         ~sort=Exp,
         ~shape_of_projector=(_, _, _) => failwith("not implemented"),
         _,
       );
-    let to_move_s: t(unit) => 'a = to_move_s;
+    let to_move_s: t(ProjectorCore.Kind.t, unit) => 'a = to_move_s;
   };
 };
 

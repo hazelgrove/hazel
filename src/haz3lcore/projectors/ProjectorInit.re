@@ -52,3 +52,10 @@ let focusable_of_model = (V(k, _): ProjectorCore.model('ed, 'ed_a)) => {
   let methods = to_module(k);
   methods.focusable;
 };
+
+let focusable_of_kind = (k: ProjectorCore.Kind.t) => {
+  open ProjectorCore.Kind;
+  let.gadt W(kind_gadt) = k;
+  let methods = to_module(kind_gadt);
+  methods.focusable;
+};

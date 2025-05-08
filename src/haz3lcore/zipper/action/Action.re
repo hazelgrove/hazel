@@ -44,7 +44,7 @@ type select =
   | Term(rel);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type chooser =
+type chooser('p_kind) =
   | Specific(ProjectorCore.Kind.t)
   | ChooseLivelit;
 
@@ -53,11 +53,11 @@ type chooser =
  * which defines the actions available internally to all projectors,
  * and from each projector's own internal action type */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type project('p) =
-  | SetIndicated(chooser) /* Project syntax at caret */
+type project('p_kind, 'p_m) =
+  | SetIndicated(chooser('p_kind)) /* Project syntax at caret */
   | RemoveIndicated /* Remove projector at caret */
-  | SetModel(Id.t, 'p) /* Set serialized projector model */
-  | Focus(Id.t, ProjectorCore.Kind.t, option(Util.Direction.t)) /* Pass control to projector */
+  | SetModel(Id.t, 'p_m) /* Set serialized projector model */
+  | Focus(Id.t, 'p_kind, option(Util.Direction.t)) /* Pass control to projector */
   | Escape(Id.t, Direction.t); /* Pass control to parent editor */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -76,13 +76,13 @@ type paste('p) =
   | Segment(Segment.t('p));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t('p) =
+type t('p_kind, 'p) =
   | Reparse
   | Buffer(buffer)
   | Paste(paste('p))
   | Copy
   | Cut
-  | Project(project('p))
+  | Project(project('p_kind, 'p))
   | Move(move)
   | Jump(jump_target)
   | Select(select)
@@ -102,7 +102,7 @@ module Result = {
   type t('success) = Result.t('success, Failure.t);
 };
 
-let is_edit: t('p) => bool =
+let is_edit: t('k, 'p) => bool =
   fun
   | Paste(_)
   | Cut
@@ -130,7 +130,7 @@ let is_edit: t('p) => bool =
     };
 
 /* Determines whether undo/redo skips action */
-let is_historic: t('p) => bool =
+let is_historic: t('k, 'p) => bool =
   fun
   | Buffer(Set(_) | Clear)
   | Copy
@@ -158,7 +158,7 @@ let is_historic: t('p) => bool =
     | Escape(_) => false
     };
 
-let prevent_in_read_only_editor = (a: t('p)) => {
+let prevent_in_read_only_editor = (a: t('k, 'p)) => {
   switch (a) {
   | Copy
   | Move(_)
@@ -191,7 +191,7 @@ let prevent_in_read_only_editor = (a: t('p)) => {
  * to paper over a weird interaction with scroll-to-caret.
  * There is assuredly a better way to handle it but the
  * approaches I tried weren't wholly successful. */
-let should_animate: t('p) => bool =
+let should_animate: t('k, 'p) => bool =
   fun
   | Select(s) =>
     switch (s) {
@@ -218,7 +218,7 @@ let should_animate: t('p) => bool =
   | MoveToBackpackTarget(_)
   | Project(_) => true;
 
-let should_scroll_active: t('p) => bool =
+let should_scroll_active: t('k, 'p) => bool =
   fun
   | Move(_)
   | Jump(_)

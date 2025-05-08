@@ -40,7 +40,8 @@ let view_segment =
   view(~sort, ~measured, ~buffer_ids, ~segment, ~shape_map);
 };
 
-let view_editor = (type p, ~sort: Sort.t, editor: Haz3lcorep.Editor.t(p)) => {
+let view_editor =
+    (type p, ~sort: Sort.t, editor: Haz3lcorep.Editor.t('p_k, p)) => {
   let measured = editor.syntax.measured;
   let buffer_ids =
     Selection.is_buffer(editor.state.zipper.selection)

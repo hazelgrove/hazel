@@ -112,13 +112,15 @@ module State = {
 
 module History = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type affix('p) = list((Action.t('p), State.t('p)));
+  type affix('p_k, 'p) = list((Action.t('p_k, 'p), State.t('p)));
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t('p) = (affix('p), affix('p));
+  type t('p_k, 'p) = (affix('p_k, 'p), affix('p_k, 'p));
 
   let empty = ([], []);
 
-  let add = (a: Action.t('p), state: State.t('p), (pre, _): t('p)): t('p) => (
+  let add =
+      (a: Action.t('p_k, 'p), state: State.t('p), (pre, _): t('p_k, 'p))
+      : t('p_k, 'p) => (
     [(a, state), ...pre],
     [],
   );
@@ -127,10 +129,10 @@ module History = {
 [@warning "-20"]
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t('p) = {
+  type t('p_k, 'p) = {
     // Updated
     state: State.t('p),
-    history: History.t('p),
+    history: History.t('p_k, 'p),
     // Calculated
     [@opaque]
     syntax: CachedSyntax.t('p),
@@ -161,11 +163,12 @@ module Model = {
   };
 
   type persistent = PersistentZipper.t;
-  let persist = (f: 'p => 'q, model: t('p)) =>
+  let persist = (f: 'p => 'q, model: t('p_k, 'p)) =>
     model.state.zipper |> PersistentZipper.persist(f);
   let unpersist = (f, p) => p |> PersistentZipper.unpersist(f) |> mk;
 
-  let to_move_s = (type p', model: t(p')): (module Move.S with type p = p') => {
+  let to_move_s =
+      (type p', model: t('p_k, p')): (module Move.S with type p = p') => {
     module M: Move.S with type p = p' = {
       type p = p';
       let measured = model.syntax.measured;
@@ -175,7 +178,7 @@ module Model = {
     (module M);
   };
 
-  let trailing_hole_ctx = (ed: t('p), info_map: Statics.Map.t) => {
+  let trailing_hole_ctx = (ed: t('p_k, 'p), info_map: Statics.Map.t) => {
     let segment = Zipper.unselect_and_zip(ed.state.zipper);
     let convex_grout = Segment.convex_grout(segment);
     // print_endline(String.concat("; ", List.map(Grout.show, convex_grout)));
@@ -194,21 +197,24 @@ module Model = {
 };
 
 module Update = {
-  type t('p) = Action.t('p);
+  type t('p_k, 'p) = Action.t('p_k, 'p);
 
   let update =
       (
+        type p,
+        type p_k,
         ~settings: CoreSettings.t,
         ~sort,
         ~projector_init,
         ~seg_of_projector,
         ~shape_of_projector,
         ~projector_to_term,
-        a: Action.t('p),
+        ~get_focusable,
+        a: Action.t(p_k, p),
         old_statics,
-        {state, history, syntax}: Model.t('p),
+        {state, history, syntax}: Model.t(p_k, p),
       )
-      : Action.Result.t(Model.t('p)) => {
+      : Action.Result.t(Model.t(p_k, p)) => {
     let seg_to_ed = seg =>
       Zipper.unzip(seg)
       |> Model.mk(~sort, ~shape_of_projector, ~projector_to_term)
@@ -225,6 +231,7 @@ module Update = {
               ~seg_to_ed,
               ~projector_init,
               ~seg_of_projector,
+              ~get_focusable,
               old_statics,
               Buffer(Clear),
               Model.to_move_s({
@@ -272,6 +279,7 @@ module Update = {
         ~projector_init,
         ~seg_of_projector,
         ~seg_to_ed,
+        ~get_focusable,
         old_statics,
         a,
         Model.to_move_s({
@@ -296,7 +304,7 @@ module Update = {
     };
   };
 
-  let undo = (ed: Model.t('p)) =>
+  let undo = (ed: Model.t('p_k, 'p)) =>
     switch (ed.history) {
     | ([], _) => None
     | ([(a, prev), ...before], after) =>
@@ -308,7 +316,7 @@ module Update = {
         },
       )
     };
-  let redo = (ed: Model.t('p)) =>
+  let redo = (ed: Model.t('p_k, 'p)) =>
     switch (ed.history) {
     | (_, []) => None
     | (before, [(a, next), ...after]) =>
@@ -332,11 +340,12 @@ module Update = {
         ~projector_to_term,
         ~seg_of_projector,
         ~shape_of_projector,
+        ~get_focusable,
         ~is_edited,
         ~sort,
         new_statics,
         dyn_map,
-        {syntax, state, history}: Model.t(p),
+        {syntax, state, history}: Model.t('p_k, p),
       ) => {
     let seg_to_ed = seg =>
       Zipper.unzip(seg)
@@ -352,6 +361,7 @@ module Update = {
             ~seg_to_ed,
             ~projector_init,
             ~seg_of_projector,
+            ~get_focusable,
             new_statics,
             Buffer(Set(TyDi)),
             Model.to_move_s({
@@ -395,4 +405,4 @@ module Update = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t('p) = Model.t('p);
+type t('p_k, 'p) = Model.t('p_k, 'p);

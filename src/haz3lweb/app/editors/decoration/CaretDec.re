@@ -20,7 +20,7 @@ let caret_base_path = (side, shape): list(SvgUtil.Path.cmd) =>
 
 let view =
     (
-      ~font_metrics: FontMetrics.t,
+      ~font_metrics: Haz3lcorep.FontMetrics.t,
       ~profile as {shape, side, origin}: Profile.t,
     ) => {
   DecUtil.code_svg(

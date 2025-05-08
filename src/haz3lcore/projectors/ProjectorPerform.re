@@ -89,13 +89,15 @@ let update =
 let go =
     (
       type p,
+      type p_kind,
       ~seg_to_ed,
       ~projector_init,
       ~seg_of_pr: (Sort.t, p) => Base.segment(p),
+      ~get_focusable: p_kind => ProjectorBase.Focusable.t,
       jump_to_id_indicated,
       jump_to_side_of_id,
       select_term: Zipper.t(p) => option(Zipper.t(p)),
-      a: Action.project(p),
+      a: Action.project(p_kind, p),
       z: Zipper.t(p),
     )
     : result(ZipperBase.t(p), Action.Failure.t) => {
@@ -167,34 +169,29 @@ let go =
       ): ZipperBase.t(p),
     )
   | Focus(id, kind, d) =>
-    open ProjectorCore.Kind;
-    let.gadt W(kind) = kind;
     switch (d) {
     | None =>
       /* Focus by mouse click */
-      let methods = ProjectorInit.to_module(kind);
-      switch (methods.focusable.pointer) {
+      switch (get_focusable(kind).pointer) {
       | Some(focus) => focus(id)
       | None => ()
       };
       Ok(Option.value(~default=z, jump_to_id_indicated(z, id)));
     | Some(Right) =>
       /* Focus by arrow key hand-off */
-      let methods = ProjectorInit.to_module(kind);
-      switch (methods.focusable.keyboard) {
+      switch (get_focusable(kind).keyboard) {
       | Some(focus) => focus(id, Right)
       | None => ()
       };
       Ok(z);
     | Some(Left) =>
       /* Focus by arrow key hand-off */
-      let methods = ProjectorInit.to_module(kind);
-      switch (methods.focusable.keyboard) {
+      switch (get_focusable(kind).keyboard) {
       | Some(focus) => focus(id, Left)
       | None => ()
       };
       Ok(z);
-    };
+    }
   | Escape(id, d) => Ok(jump_to_side_of_id(d, z, id))
   };
 };

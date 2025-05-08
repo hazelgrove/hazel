@@ -19,12 +19,14 @@ let set_buffer = (info_map: Statics.Map.t, z: t('p)): t('p) =>
 let go_z =
     (
       type p',
+      type p_kind,
       ~settings as _: CoreSettings.t,
       ~seg_to_ed,
       ~projector_init,
       ~seg_of_projector as seg_of_pr,
+      ~get_focusable,
       statics: CachedStatics.t,
-      a: Action.t(p'),
+      a: Action.t(p_kind, p'),
       module M: Move.S with type p = p',
       z: Zipper.t(p'),
     )
@@ -135,6 +137,7 @@ let go_z =
       ~seg_to_ed,
       ~projector_init,
       ~seg_of_pr,
+      ~get_focusable,
       Move.jump_to_id_indicated,
       Move.jump_to_side_of_id,
       Select.current_term(~defs_exclude_bodies=false, ~case_rules=false),

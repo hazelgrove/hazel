@@ -158,7 +158,7 @@ let view_wrapper =
   );
 
 /* Dispatches projector external actions to editor-level actions */
-let handle = (id, action: external_action): Action.project('p) =>
+let handle = (id, action: external_action): Action.project('p_k, 'p) =>
   switch (action) {
   | Remove => RemoveIndicated
   | Escape(d) => Escape(id, d)
@@ -310,7 +310,7 @@ let all =
            Model.projector_data(p)
          ) =>
          (Node.t, option(Node.t)),
-      ~inject: Action.t(p) => Ui_effect.t(unit),
+      ~inject: Action.t('p_k, p) => Ui_effect.t(unit),
       ~make_active,
       projector_data: list(Model.projector_data(p)),
     ) => {

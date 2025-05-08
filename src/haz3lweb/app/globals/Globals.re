@@ -9,7 +9,7 @@ module Action = {
   type t =
     | SetMousedown(bool)
     | SetShowBackpackTargets(bool)
-    | SetFontMetrics(FontMetrics.t)
+    | SetFontMetrics(Haz3lcorep.FontMetrics.t)
     | Set(Settings.Update.t)
     | JumpToTile(Haz3lcore.Id.t) // Perform(Select(Term(Id(id, Left))))
     | InitImportAll([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
@@ -26,7 +26,7 @@ module Model = {
     // Persistent:
     settings: Settings.t,
     // State:
-    font_metrics: FontMetrics.t,
+    font_metrics: Haz3lcorep.FontMetrics.t,
     show_backpack_targets: bool,
     mousedown: bool,
     // Calculated:
@@ -50,7 +50,7 @@ module Model = {
   let load = () => {
     let settings = Settings.Store.load();
     {
-      font_metrics: FontMetrics.init,
+      font_metrics: Haz3lcorep.FontMetrics.init,
       show_backpack_targets: false,
       mousedown: false,
       settings,
