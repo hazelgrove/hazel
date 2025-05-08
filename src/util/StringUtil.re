@@ -87,3 +87,7 @@ let decompress = (s: string): string => {
     |> Js_of_ocaml.Js.to_string;
   result;
 };
+
+let sanitize_filename = (s: string): string => {
+  replace(regexp("[^a-zA-Z0-9_-]"), s, "");
+};

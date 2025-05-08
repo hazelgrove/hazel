@@ -31,8 +31,7 @@ module M: Projector = {
         _,
       }) =>
       Some()
-    | _ =>
-      None;
+    | _ => None
     };
 
   let placeholder = (_model, info) => {
