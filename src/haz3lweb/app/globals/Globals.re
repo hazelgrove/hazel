@@ -30,7 +30,7 @@ module Model = {
     show_backpack_targets: bool,
     mousedown: bool,
     // Calculated:
-    color_highlights: option(ColorSteps.colorMap),
+    color_highlights: option(Haz3lcorep.ColorSteps.colorMap),
     // Other:
     inject_global: Action.t => Ui_effect.t(unit),
     /* inject_global is not really part of the model, but added here for

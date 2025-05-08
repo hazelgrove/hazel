@@ -233,9 +233,19 @@ let expander_deco =
     ) => {
   module Deco =
     Deco.Deco({
+      type projector_kind = ProjectorCore.Kind.t;
+      type projector = Projector.Model.t;
       let editor = editor;
-      let globals = globals;
-      let statics = CachedStatics.empty;
+      let globals =
+        ProjectorInterface.{
+          settings: globals.settings.core,
+          font_metrics: globals.font_metrics,
+          secondary_icons: globals.settings.secondary_icons,
+          show_backpack_targets: globals.show_backpack_targets,
+          color_highlights: globals.color_highlights,
+          statics: CachedStatics.empty,
+          dynamics: Id.Map.empty,
+        };
     });
   switch (doc.expandable_id, List.length(options)) {
   | (None, _)
@@ -505,12 +515,19 @@ let get_doc =
       let highlight_deco = {
         module Deco =
           Deco.Deco({
+            type projector_kind = ProjectorCore.Kind.t;
+            type projector = Projector.Model.t;
             let editor = editor;
-            let globals = {
-              ...globals,
-              color_highlights: highlights,
-            };
-            let statics = statics;
+            let globals =
+              ProjectorInterface.{
+                settings: globals.settings.core,
+                font_metrics: globals.font_metrics,
+                secondary_icons: globals.settings.secondary_icons,
+                show_backpack_targets: globals.show_backpack_targets,
+                color_highlights: highlights,
+                statics,
+                dynamics,
+              };
           });
         [Deco.color_highlights()];
       };

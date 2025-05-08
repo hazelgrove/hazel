@@ -126,9 +126,19 @@ module View = {
     let statics_decos = {
       module Deco =
         Deco.Deco({
-          let globals = globals;
+          type projector_kind = ProjectorCore.Kind.t;
+          type projector = Projector.Model.t;
+          let globals =
+            ProjectorInterface.{
+              settings: globals.settings.core,
+              font_metrics: globals.font_metrics,
+              secondary_icons: globals.settings.secondary_icons,
+              show_backpack_targets: globals.show_backpack_targets,
+              color_highlights: globals.color_highlights,
+              statics: model.statics,
+              dynamics: model.dynamics,
+            };
           let editor = model.editor;
-          let statics = model.statics;
         });
       Deco.statics();
     };

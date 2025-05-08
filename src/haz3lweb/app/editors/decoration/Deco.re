@@ -1,6 +1,6 @@
 open Util;
 open Util.Web;
-open Haz3lcore;
+open Haz3lcorep;
 
 type shard_data = (Measured.measurement, Nibs.shapes);
 
@@ -9,7 +9,7 @@ let sel_shard_svg =
       ~index=?,
       ~start_shape: ShardDec.tip,
       measurement: Measured.measurement,
-      p: Piece.t,
+      p: Piece.t('p),
     )
     : (Measured.measurement, (ShardDec.tip, ShardDec.tip)) => (
   measurement,
@@ -69,7 +69,7 @@ module HighlightSegment =
   let find_g = Measured.find_g(~msg="Highlight.of_piece", _, M.measured);
   let find_w = Measured.find_w(~msg="Highlight.of_piece", _, M.measured);
   let rec of_piece =
-          (start_shape: ShardDec.tip, p: Piece.t)
+          (start_shape: ShardDec.tip, p: Piece.t('p))
           : (
               ShardDec.tip,
               list(
@@ -98,7 +98,7 @@ module HighlightSegment =
       };
     (start_shape, shard_data);
   }
-  and of_tile = (~start_shape, t: Tile.t): list(option(_)) => {
+  and of_tile = (~start_shape, t: Tile.t('p)): list(option(_)) => {
     let tile_shards =
       Measured.find_shards(~msg="sel_of_tile", t, M.measured)
       |> List.filter(((i, _)) => List.mem(i, t.shards))
@@ -117,7 +117,7 @@ module HighlightSegment =
       failwith(
         "Deco.of_tile: shard mismatch:"
         ++ "tile: "
-        ++ Tile.show(t)
+        ++ Tile.show((_, _) => (), t)
         ++ "tile_Shards:"
         ++ string_of_int(List.length(tile_shards))
         ++ ", children_Shards:"
@@ -126,7 +126,7 @@ module HighlightSegment =
     };
     ListUtil.interleave(tile_shards, children_shards) |> List.flatten;
   }
-  and of_projector = (~start_shape, p: Base.projector): list(option(_)) =>
+  and of_projector = (~start_shape, p: Base.projector('p)): list(option(_)) =>
     switch (Measured.find_pr_opt(p, M.measured)) {
     | None => failwith("Deco.of_projector: missing measurement")
     | Some(_m) =>
@@ -162,14 +162,15 @@ module HighlightSegment =
       };
     }
   and of_segment =
-      (start_shape: ShardDec.tip, seg: Segment.t): list(option(_)) => {
+      (start_shape: ShardDec.tip, seg: Segment.t('p)): list(option(_)) => {
     seg
     |> ListUtil.fold_left_map(of_piece, start_shape)
     |> snd
     |> List.flatten;
   }
   and go =
-      (segment: Segment.t, shape_init: ShardDec.tip, classes): list(Node.t) =>
+      (segment: Segment.t('p), shape_init: ShardDec.tip, classes)
+      : list(Node.t) =>
     /* We draw a single deco per row by dividing partionining the shards
      * into linebreak-seperated segments, then combining the measurements
      * and shapes of the first and last shard of each segment. Ideally we
@@ -199,7 +200,7 @@ module HighlightSegment =
        );
 };
 
-let quick_select_deco = (segment: Segment.t): Node.t => {
+let quick_select_deco = (segment: Segment.t('p)): Node.t => {
   let shape_map = ProjectorShape.Map.empty; // assume no projectors
   module Highlight =
     HighlightSegment({
@@ -220,13 +221,14 @@ let quick_select_deco = (segment: Segment.t): Node.t => {
 module Deco =
        (
          M: {
-           let globals: Globals.t;
-           let editor: Editor.Model.t;
-           let statics: CachedStatics.t;
+           type projector_kind;
+           type projector;
+           let globals: ProjectorInterface.common;
+           let editor: Editor.Model.t(projector_kind, projector);
          },
        ) => {
   let font_metrics = M.globals.font_metrics;
-  let syntax = Editor.get_syntax_cache(M.editor);
+  let syntax = M.editor.syntax;
   let map = syntax.measured;
   let show_backpack_targets = M.globals.show_backpack_targets;
   let terms = syntax.terms;
@@ -235,13 +237,13 @@ module Deco =
   let measured = syntax.measured;
   let rows = measured.rows;
   let projectors = syntax.projectors;
-  let error_ids = M.statics.error_ids;
+  let error_ids = M.globals.statics.error_ids;
   let color_highlights = M.globals.color_highlights;
   let segment = syntax.segment;
 
   let tile = id => Id.Map.find(id, tiles);
 
-  let caret = (z: Zipper.t): Node.t => {
+  let caret = (z: Zipper.t('p)): Node.t => {
     let origin = Zipper.caret_point(map, z);
     let shape = Zipper.caret_direction(z);
     let side =
@@ -270,7 +272,7 @@ module Deco =
       let font_metrics = font_metrics;
     });
 
-  let segment_selected = (z: Zipper.t) =>
+  let segment_selected = (z: Zipper.t('p)) =>
     Highlight.go(
       z.selection.content,
       Some(fst(Siblings.shapes(z.relatives.siblings))),
@@ -288,7 +290,8 @@ module Deco =
     };
   };
 
-  let all_tiles = (p: Piece.t): list((Uuidm.t, Mold.t, Measured.Shards.t)) =>
+  let all_tiles =
+      (p: Piece.t('p)): list((Uuidm.t, Mold.t, Measured.Shards.t)) =>
     Id.Map.find(Piece.id(p), terms)
     |> Any.ids
     |> List.map(id => {
@@ -297,7 +300,7 @@ module Deco =
          (id, t.mold, shards);
        });
 
-  let indicated_piece_deco = (z: Zipper.t): list(Node.t) => {
+  let indicated_piece_deco = (z: Zipper.t('p)): list(Node.t) => {
     switch (Indicated.piece(z)) {
     | _ when z.selection.content != [] => []
     | None => []
@@ -312,7 +315,7 @@ module Deco =
               tips: p |> ProjectorBase.shapes |> ShardDec.tips_of_shapes,
             },
             [
-              p.model |> Projector.Model.get_sort |> Sort.to_string,
+              "projector", // TODO(Matt): replace with sort string
               "caret",
               "indicated",
             ],
@@ -350,7 +353,8 @@ module Deco =
     };
   };
 
-  let rec targets = (~container_shards=?, bp: Backpack.t, seg: Segment.t) => {
+  let rec targets =
+          (~container_shards=?, bp: Backpack.t('p), seg: Segment.t('p)) => {
     let with_container_shards = ((pre, suf) as sibs) =>
       switch (container_shards) {
       | None => sibs
@@ -399,7 +403,7 @@ module Deco =
            | Piece.Tile(t) => Some(t)
            | _ => None,
          )
-      |> List.concat_map((t: Tile.t) => {
+      |> List.concat_map((t: Tile.t('p)) => {
            // TODO(d): unify with Relatives.local_incomplete_tiles
            Tile.contained_children(t)
            |> List.concat_map(((l, seg, r)) =>
@@ -409,7 +413,7 @@ module Deco =
     };
   };
 
-  let backpack = (z: Zipper.t): Node.t =>
+  let backpack = (z: Zipper.t('p)): Node.t =>
     BackpackView.view(
       ~font_metrics,
       ~origin=Zipper.caret_point(measured, z),
@@ -533,17 +537,18 @@ module Deco =
 
   let errors = () => div_c("errors", List.map(error_view, error_ids));
 
-  let indication = (z: Zipper.t) =>
+  let indication = (z: Zipper.t('p)) =>
     div_c("indication", indicated_piece_deco(z));
 
-  let selection = (z: Zipper.t) => div_c("selects", segment_selected(z));
+  let selection = (z: Zipper.t('p)) =>
+    div_c("selects", segment_selected(z));
 
   let always = () => [errors()];
 
   let next_steps = (next_steps, ~inject) => {
     let tiles = List.filter_map(TileMap.find_opt(_, tiles), next_steps);
     List.mapi(
-      (i, t: Tile.t) => {
+      (i, t: Tile.t('p)) => {
         let id = Tile.id(t);
         let mold = t.mold;
         let shards = Measured.find_shards(t, map);
@@ -593,7 +598,7 @@ module Deco =
   let taken_steps = taken_steps => {
     let tiles = List.filter_map(TileMap.find_opt(_, tiles), taken_steps);
     List.mapi(
-      (_, t: Tile.t) => {
+      (_, t: Tile.t('p)) => {
         let id = Tile.id(t);
         let mold = t.mold;
         let shards = Measured.find_shards(t, map);

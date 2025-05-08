@@ -203,9 +203,19 @@ module View = {
     let edit_decos = {
       module Deco =
         Deco.Deco({
+          type projector = Projector.Model.t;
+          type projector_kind = ProjectorCore.Kind.t;
           let editor = model.editor;
-          let globals = globals;
-          let statics = model.statics;
+          let globals =
+            ProjectorInterface.{
+              settings: globals.settings.core,
+              font_metrics: globals.font_metrics,
+              secondary_icons: globals.settings.secondary_icons,
+              show_backpack_targets: globals.show_backpack_targets,
+              color_highlights: globals.color_highlights,
+              statics: model.statics,
+              dynamics: model.dynamics,
+            };
         });
       Deco.editor(model.editor |> Editor.Model.get_z, selected);
     };

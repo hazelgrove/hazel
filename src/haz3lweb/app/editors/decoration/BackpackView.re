@@ -1,16 +1,16 @@
 open Virtual_dom.Vdom;
 open Node;
-open Haz3lcore;
+open Haz3lcorep;
 open Util;
 
 let shape_map = ProjectorShape.Map.empty; /* Assume this doesn't contain projectors */
 
 let measured_of = seg => Measured.of_segment(seg, shape_map); /* Assume this doesn't contain projectors */
 
-let text_view = (font_metrics, seg: Segment.t): list(Node.t) => {
+let text_view = (type p_m, font_metrics, seg: Segment.t(p_m)): list(Node.t) => {
   module Text =
     Code.Text({
-      type p = Projector.Model.t;
+      type p = p_m;
       let map = measured_of(seg);
       let secondary_icons = false;
       let shape_map = shape_map;
@@ -19,25 +19,25 @@ let text_view = (font_metrics, seg: Segment.t): list(Node.t) => {
   Text.of_segment([], true, Any, seg);
 };
 
-let segment_origin = (seg: Segment.t): option(Point.t) =>
+let segment_origin = (seg: Segment.t('p)): option(Point.t) =>
   Option.map(
     first => Measured.find_p(first, measured_of(seg)).origin,
     ListUtil.hd_opt(seg),
   );
 
-let segment_last = (seg: Segment.t): option(Point.t) =>
+let segment_last = (seg: Segment.t('p)): option(Point.t) =>
   Option.map(
     last => Measured.find_p(last, measured_of(seg)).last,
     ListUtil.last_opt(seg),
   );
 
-let segment_height = (seg: Segment.t) =>
+let segment_height = (seg: Segment.t('p)) =>
   switch (segment_last(seg), segment_origin(seg)) {
   | (Some(last), Some(first)) => 1 + last.row - first.row
   | _ => 0
   };
 
-let segment_width = (seg: Segment.t): int =>
+let segment_width = (seg: Segment.t('p)): int =>
   IntMap.fold(
     (_, {max_col, _}: Measured.Rows.shape, acc) => max(max_col, acc),
     measured_of(seg).rows,
@@ -51,7 +51,7 @@ let backpack_sel_view =
       scale: float,
       opacity: float,
       font_metrics,
-      {focus: _, content, _}: Selection.t,
+      {focus: _, content, _}: Selection.t('p),
     ) => {
   // Maybe use init sort at caret to prime this
   div(
@@ -77,7 +77,7 @@ let view =
     (
       ~font_metrics: FontMetrics.t,
       ~origin: Point.t,
-      {backpack, _} as z: Zipper.t,
+      {backpack, _} as z: Zipper.t('p),
     )
     : Node.t => {
   // This function is a mess
@@ -127,7 +127,7 @@ let view =
   let init_y_offset = dy_fn(init_idx, height_head);
   let (_, _, _, selections) =
     List.fold_left(
-      ((idx, y_offset, opacity, vs), s: Selection.t) => {
+      ((idx, y_offset, opacity, vs), s: Selection.t('p)) => {
         let base_height = segment_height(s.content);
         let scale = scale_fn(idx);
         let x_offset = x_fn(idx);
