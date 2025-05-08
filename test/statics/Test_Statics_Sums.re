@@ -328,6 +328,13 @@ end
     |}
     |> parse_exp,
   ),
+  inconsistent_typecheck(
+    "constructor with unneeded argument",
+    // #err: type incons#
+    {|
+    let _ : +Yo = Yo("lol") in ?
+    |} |> parse_exp,
+  ),
   // ======================== KNOWN BUGS ==============================
   skip_known_bug(
     // inconsistent_typecheck(
@@ -361,16 +368,6 @@ end
     type BadCons =
       + notvalid
     in ?
-    |},
-    // |> parse_exp,
-  ),
-  // Issue #1610
-  skip_known_bug(
-    // inconsistent_typecheck(
-    "constructor with unneeded argument",
-    // #err: type incons#
-    {|
-    let _ : +Yo = Yo("lol") in ?
     |},
     // |> parse_exp,
   ),
