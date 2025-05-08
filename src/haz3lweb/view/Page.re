@@ -145,10 +145,6 @@ module Update = {
     | FinishImportAll(Some(data)) =>
       Export.import_all(~import_log, data, ~specs=ExerciseSettings.exercises);
       Store.load() |> return;
-    | ExportPersistentData =>
-      Store.save(model);
-      Export.export_persistent();
-      model |> return_quiet;
     | ExportForInit =>
       let (filename, content) =
         switch (model.editors) {
