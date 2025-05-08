@@ -227,6 +227,7 @@ and Exp: {
         | Label(_)
         | Deferral(_)
         | Var(_)
+        | LivelitName(_)
         | Undefined => term
         | MultiHole(things) => MultiHole(List.map(any_map_term, things))
         | DynamicErrorHole(e, err) => DynamicErrorHole(exp_map_term(e), err)
@@ -354,6 +355,7 @@ and Exp: {
       ClosureEnvironment.id_equal(c1, c2) && fast_equal(e1, e2)
     | (Cons(e1, e2), Cons(e3, e4)) =>
       fast_equal(e1, e3) && fast_equal(e2, e4)
+    | (LivelitName(s1), LivelitName(s2)) => s1 == s2
     | (ListConcat(e1, e2), ListConcat(e3, e4)) =>
       fast_equal(e1, e3) && fast_equal(e2, e4)
     | (UnOp(o1, e1), UnOp(o2, e2)) => o1 == o2 && fast_equal(e1, e2)
@@ -380,6 +382,7 @@ and Exp: {
     | (Deferral(_), _)
     | (Atom(_), _)
     | (Label(_), _)
+    | (LivelitName(_), _)
     | (ListLit(_), _)
     | (Constructor(_), _)
     | (Fun(_), _)

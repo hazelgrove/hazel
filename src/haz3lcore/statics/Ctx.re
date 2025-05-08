@@ -19,16 +19,31 @@ type tvar_entry = {
   kind,
 };
 
+type model_piece = {
+  model: TermBase.Exp.t,
+  piece: Base.piece,
+};
+
+type node_or_list =
+  | Node(Virtual_dom.Vdom.Node.t)
+  | List(list(Virtual_dom.Vdom.Node.t));
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type entry =
   | VarEntry(var_entry)
   | ConstructorEntry(var_entry)
-  | TVarEntry(tvar_entry);
+  | TVarEntry(tvar_entry)
+  | LivelitEntry(LivelitCtx.raw_livelit);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   use_mode: option(Operators.mode), // None if elaboration has already occurred
   entries: list(entry),
+};
+
+let empty: t = {
+  use_mode: None,
+  entries: [],
 };
 
 let extend = (ctx: t, entry): t => {
@@ -79,11 +94,20 @@ let lookup_tvar_id = (ctx: t, name: string): option(Id.t) =>
     ctx.entries,
   );
 
+let lookup_livelit = (ctx: t, name: string): option(LivelitCtx.raw_livelit) =>
+  List.find_map(
+    fun
+    | LivelitEntry(v) when v.name == name => Some(v)
+    | _ => None,
+    ctx.entries,
+  );
+
 let get_id: entry => Id.t =
   fun
   | VarEntry({id, _})
   | ConstructorEntry({id, _})
-  | TVarEntry({id, _}) => id;
+  | TVarEntry({id, _}) => id
+  | LivelitEntry({name, _}) => Id.mk_str(name);
 
 let lookup_var = (ctx: t, name: string): option(var_entry) =>
   List.find_map(
@@ -212,6 +236,10 @@ let filter_duplicates = (ctx: t): t => {
              VarSet.mem(name, typ_set)
                ? (ctx, term_set, typ_set)
                : ([entry, ...ctx], term_set, VarSet.add(name, typ_set))
+           | LivelitEntry({name, _}) =>
+             VarSet.mem(name, term_set)
+               ? (ctx, term_set, typ_set)
+               : ([entry, ...ctx], VarSet.add(name, term_set), typ_set)
            }
          },
          ([], VarSet.empty, VarSet.empty),
@@ -228,6 +256,7 @@ let filter_stepper_filter_variables = (ctx: t): t => {
            switch (entry) {
            | VarEntry({name, _})
            | ConstructorEntry({name, _})
+           | LivelitEntry({name, _})
            | TVarEntry({name, _}) =>
              if (String.starts_with(~prefix="$", name)) {
                ctx;
