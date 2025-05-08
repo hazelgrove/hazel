@@ -74,7 +74,7 @@ module M: Projector = {
   let focusable =
     Focusable.{
       pointer: Some(focus_pointer),
-      keyboard: None,
+      keyboard: Some((_, _) => {()}),
     };
 
   let dynamics = false;

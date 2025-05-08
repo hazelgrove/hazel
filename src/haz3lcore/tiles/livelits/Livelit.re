@@ -4,6 +4,13 @@ open Grammar;
 
 type livelit_name = string;
 
+let consume_keypress = [
+  Attr.on_keydown(_ => Effect.Stop_propagation),
+  Attr.on_copy(_ => Effect.Stop_propagation),
+  Attr.on_cut(_ => Effect.Stop_propagation),
+  Attr.on_paste(_ => Effect.Stop_propagation),
+];
+
 // referenced in docs/livelits.md
 module Slider: BuiltinLivelit = {
   let name = "slider";
@@ -271,13 +278,13 @@ module Js: BuiltinLivelit = {
   type action_t =
     | SetModel(model_t);
 
-  /* Model type in Hazel: a 2-tuple of strings. */
+  /* Model type in Hazel: a 2‑tuple of strings. */
   let hazel_model_t: TermBase.Typ.t =
     Prod([Typ.temp(Atom(String)), Typ.temp(Atom(String))]) |> Typ.fresh;
 
   /* Convert model to a Hazel expression. */
   let model_to_hazel: model_t => model_exp =
-    (m: model_t) => {
+    m => {
       let code_expr = DHExp.fresh(Atom(String(m.code)));
       let result_expr = DHExp.fresh(Atom(String(m.result)));
       DHExp.fresh(Tuple([code_expr, result_expr]));
@@ -285,7 +292,7 @@ module Js: BuiltinLivelit = {
 
   /* Convert a Hazel expression back to the model. */
   let model_from_hazel: model_exp => option(model_t) =
-    (expr: model_exp) => {
+    expr =>
       switch (expr.term) {
       | Tuple([
           {term: Atom(String(code)), _},
@@ -297,9 +304,8 @@ module Js: BuiltinLivelit = {
         })
       | _ => None
       };
-    };
 
-  /* Default model: "1 + 1" with empty result. */
+  /* Default model: `"1 + 1"` with empty result. */
   let model_default: model_t = {
     code: "1 + 1",
     result: "",
@@ -309,14 +315,13 @@ module Js: BuiltinLivelit = {
   let hazel_expansion_t: TermBase.Typ.t = Typ.temp(Atom(String));
 
   /* The expansion is just the current `result`. */
-  let expand: model_t => expansion_t = (m: model_t) => m.result;
-
+  let expand: model_t => expansion_t = m => m.result;
   let expand_to_hazel: expansion_t => expansion_exp =
-    (res: expansion_t) => DHExp.fresh(Atom(String(res)));
+    res => DHExp.fresh(Atom(String(res)));
 
   /* Updating the model means storing the new model. */
   let update: (action_t, model_t) => model_t =
-    (action: action_t, _oldModel: model_t) =>
+    (action, _oldModel) =>
       switch (action) {
       | SetModel(m) => m
       };
@@ -337,7 +342,7 @@ module Js: BuiltinLivelit = {
 
   /* Convert action -> Hazel expression. */
   let action_to_hazel: action_t => action_exp =
-    (action: action_t) =>
+    action =>
       switch (action) {
       | SetModel(m) =>
         let code_expr = DHExp.fresh(Atom(String(m.code)));
@@ -346,16 +351,17 @@ module Js: BuiltinLivelit = {
 
         Ap(
           Forward,
-          Constructor(
-            "SetModel",
-            Some(
+          DHExp.fresh(
+            Constructor(
+              "SetModel",
               Some(
-                Prod([Typ.temp(Atom(String)), Typ.temp(Atom(String))])
-                |> Typ.fresh,
+                Some(
+                  Prod([Typ.temp(Atom(String)), Typ.temp(Atom(String))])
+                  |> Typ.fresh,
+                ),
               ),
             ),
-          )
-          |> DHExp.fresh,
+          ),
           tuple_expr,
         )
         |> DHExp.fresh;
@@ -363,7 +369,7 @@ module Js: BuiltinLivelit = {
 
   /* Convert Hazel expression -> action. */
   let action_from_hazel: action_exp => option(action_t) =
-    (expr: action_exp) =>
+    expr =>
       switch (expr.term) {
       | Ap(
           Forward,
@@ -393,19 +399,21 @@ module Js: BuiltinLivelit = {
     Node.div([
       /* Code input field */
       Node.input(
-        ~attrs=[
-          Attr.type_("text"),
-          Attr.value(code),
-          Attr.on_input((_, v: string) => {
-            /* Update the code, keep the same result */
-            send_action(
-              SetModel({
-                code: v,
-                result: model.result,
-              }),
-            )
-          }),
-        ],
+        ~attrs=
+          [
+            Attr.type_("text"),
+            Attr.value(code),
+            Attr.on_input((_, v: string) => {
+              /* Update the code, keep the same result */
+              send_action(
+                SetModel({
+                  code: v,
+                  result: model.result,
+                }),
+              )
+            }),
+          ]
+          @ consume_keypress,
         (),
       ),
       /* Compute button */
@@ -415,7 +423,6 @@ module Js: BuiltinLivelit = {
             /* Evaluate the code and set the result */
             let evaluated =
               Js_of_ocaml.Js.Unsafe.eval_string("String(" ++ code ++ ")");
-
             send_action(
               SetModel({
                 code,
@@ -440,5 +447,10 @@ module Js: BuiltinLivelit = {
 };
 
 let livelits: list(raw_livelit) =
-  [(module Slider), (module Emotion), (module Js)]
+  [
+    (module Slider),
+    (module Emotion),
+    (module Js),
+    (module ImageTextLL.ImageText),
+  ]
   |> List.map(raw_of_builtin);
