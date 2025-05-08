@@ -532,15 +532,13 @@ let get_doc =
         [Deco.color_highlights()];
       };
       let syntactic_form_view =
-        CodeWithStatics.View.view(
+        EditorView.view_code_statics(
           ~globals,
           ~overlays=highlight_deco @ [expander_deco],
           ~sort,
-          {
-            editor,
-            statics,
-            dynamics,
-          },
+          ~statics,
+          ~dynamics,
+          editor,
         );
       let example_view =
         example_view(

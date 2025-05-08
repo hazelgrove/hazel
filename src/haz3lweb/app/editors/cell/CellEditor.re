@@ -198,7 +198,7 @@ module View = {
       ~attrs=[Attr.classes(["cell", locked ? "locked" : "unlocked"])],
       Option.to_list(caption)
       @ [
-        CodeEditable.View.view(
+        EditorView.view_code_editable(
           ~globals,
           ~signal=
             locked
@@ -208,11 +208,13 @@ module View = {
           ~inject=
             locked
               ? _ => Ui_effect.Ignore
-              : (action => inject(MainEditor(action))),
+              : (action => inject(MainEditor(Perform(action)))),
           ~selected=selected == Some(MainEditor),
           ~overlays=overlays(model.editor.editor),
           ~sort?,
-          model.editor,
+          ~statics=model.editor.statics,
+          ~dynamics=model.editor.dynamics,
+          model.editor.editor,
         ),
       ]
       @ footer,

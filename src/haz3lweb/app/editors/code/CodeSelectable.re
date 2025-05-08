@@ -77,11 +77,11 @@ module Selection = {
 };
 
 module View = {
-  type event = CodeEditable.View.event;
+  type event = EditorView.event;
 
   let view = (~inject: Update.t => 'a) =>
-    CodeEditable.View.view(~inject=a =>
-      switch (Update.convert_action(a)) {
+    EditorView.view_code_editable(~inject=a =>
+      switch (Update.convert_action(Perform(a))) {
       | Some(action) => inject(action)
       | None => Ui_effect.Ignore
       }

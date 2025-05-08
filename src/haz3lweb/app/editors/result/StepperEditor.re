@@ -106,7 +106,9 @@ module View = {
       ~selected,
       ~globals,
       ~overlays,
-      model.editor,
+      ~dynamics=model.editor.dynamics,
+      ~statics=model.editor.statics,
+      model.editor.editor,
     );
   };
 };

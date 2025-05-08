@@ -411,7 +411,9 @@ module View = {
         ~globals,
         ~selected,
         ~sort=Haz3lcore.Sort.root,
-        editor,
+        ~statics=editor.statics,
+        ~dynamics=editor.dynamics,
+        editor.editor,
       );
     let exn_view =
       switch (result) {
