@@ -11,6 +11,7 @@ let startup: PersistentData.t = {
       Polymorphism.out,
       Cards.out,
       Probes.out,
+      Livelits.out,
       GUIDEExpressiveProgramming.out,
       GUIDEComposingExpressions.out,
       GUIDEComputingEquationally.out,
