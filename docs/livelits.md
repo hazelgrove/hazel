@@ -15,7 +15,7 @@ Livelits live in the typing context, so they can be viewed using the context ins
 
 ## Creating a Built-in Livelit
 
-A built-in livelit is created by implementing the `BuiltinLivelit` module type. The current structure uses OCaml modules to define livelits, which are converted into Hazel livelits at compile time.
+A built-in livelit is created by implementing the `BuiltinLivelit` module type. The current structure uses OCaml modules to define livelits, which are converted into raw livelits (which use Hazel language encodings in preparation for future work on user-defined livelits) at compile time.
 
 ### Module Type for Built-in Livelits
 
@@ -69,95 +69,3 @@ let livelits: list(raw_livelit) =
 ## Styling Livelits
 
 To add CSS to style your livelit, modify the `src/haz3lweb/www/style/projectors/proj-livelit.css` file.
-
-## Example: Slider
-
-```reasonml
-module Slider: BuiltinLivelit = {
-  let name = "slider";
-
-  type model_t = Bigint.t;
-  type expansion_t = Bigint.t;
-  type action_t =
-    | SetModel(model_t);
-
-  let hazel_model_t: TermBase.Typ.t = Typ.temp(Atom(Int));
-  let model_to_hazel: model_t => model_exp =
-    (x: model_t) => DHExp.fresh(Atom(Int(x)));
-  let model_from_hazel: model_exp => option(model_t) =
-    (x: model_exp) => {
-      switch (x.term) {
-      | Atom(Int(n)) => Some(n)
-      | _ => None
-      };
-    };
-  let model_default: model_t = Bigint.of_int(50);
-
-  let hazel_expansion_t: TermBase.Typ.t = Typ.temp(Atom(Int));
-  let expand: model_t => expansion_t =
-    (x: model_t) =>
-      switch (x) {
-      | n => n
-      };
-  let expand_to_hazel: expansion_t => expansion_exp =
-    (x: expansion_t) =>
-      switch (x) {
-      | n => DHExp.fresh(Atom(Int(n)))
-      };
-  let update: (action_t, model_t) => model_t =
-    (action: action_t, _model: model_t) => {
-      switch (action) {
-      | SetModel(n) => n
-      };
-    };
-
-  let hazel_action_t: TermBase.Typ.t =
-    Sum([Variant("SetModel", [], Some(Atom(Int) |> Typ.fresh))])
-    |> Typ.fresh;
-  let action_to_hazel: action_t => action_exp =
-    (action: action_t) =>
-      switch (action) {
-      | SetModel(n) =>
-        Ap(
-          Forward,
-          Constructor("SetModel", Some(Some(Atom(Int) |> Typ.fresh)))
-          |> DHExp.fresh,
-          Atom(Int(n)) |> DHExp.fresh,
-        )
-        |> DHExp.fresh
-      };
-  let action_from_hazel: action_exp => option(action_t) =
-    (action: action_exp) => {
-      switch (action.term) {
-      | Ap(
-          Forward,
-          {term: Constructor("SetModel", _), _},
-          {term: Atom(Int(n)), _},
-        ) =>
-        Some(SetModel(n))
-      | _ => None
-      };
-    };
-
-  let view = (model: model_t, send_action) => {
-    let n = model;
-
-    Util.Web.range(
-      ~attrs=[
-        Attr.on_input((_, v: string) => {
-          send_action(SetModel(Bigint.of_string(v)))
-        }),
-      ],
-      ~min="0",
-      ~max="100",
-      Bigint.to_string(n),
-    );
-  };
-
-  let size: ProjectorCore.Shape.t =
-    ProjectorCore.Shape.{
-      vertical: Inline,
-      horizontal: 20,
-    };
-};
-```
