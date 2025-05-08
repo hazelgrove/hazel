@@ -10,7 +10,6 @@ module rec Projector: {
       (ProjectorCore.Kind.t, Any.t, unit => option(Editor.Model.t)) =>
       option(t);
 
-    let get_sort: t => Sort.t;
     let get_kind: t => ProjectorCore.Kind.t;
     let get_shape:
       (Statics.Map.t, Dynamics.Map.t, Base.projector(t)) => ProjectorShape.t;
@@ -60,7 +59,6 @@ module rec Projector: {
     let focusable_of_kind = ProjectorInit.focusable_of_kind;
 
     //TODO(andrew): proper sort for deco
-    let get_sort = _ => Sort.Exp;
 
     let make_term =
       ProjectorInit.make_term(~term_of_ed=Editor.Model.make_term);

@@ -8,9 +8,9 @@ type common = {
   dynamics: Dynamics.Map.t,
 };
 
-type edit_mode =
+type edit_mode('p_k, 'p_m) =
   | ReadOnly
-  | Editable;
+  | Editable({inject: Action.t('p_k, 'p_m) => Ui_effect.t(unit)});
 
 type editor_utility('ed_m, 'ed_a) = {
   mk: Any.t => 'ed_m,
