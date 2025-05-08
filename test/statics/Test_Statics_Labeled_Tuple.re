@@ -101,12 +101,12 @@ let tests = [
     Some(prod([tup_label(label("l"), int())])),
   ),
   fully_consistent_typecheck(
-    "Singleton Labled Tuple ascription in let",
+    "Singleton Labeled Tuple ascription in let",
     "let x : (l=String) = (\"a\") in x",
     Some(prod([tup_label(label("l"), string())])),
   ),
   test_case(
-    "Singleton Labled Tuple ascription in let with wrong type should fail",
+    "Singleton Labeled Tuple ascription in let with wrong type should fail",
     `Quick,
     () => {
     annotated_tree_test(
