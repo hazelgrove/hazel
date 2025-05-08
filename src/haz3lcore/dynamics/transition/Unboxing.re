@@ -30,6 +30,7 @@ type unboxed_tfun =
 type unboxed_fun =
   | Constructor(string)
   | FunEnv(Pat.t, Exp.t, ClosureEnvironment.t)
+  | FunNoEnv(Pat.t, Exp.t)
   | FunCast(DHExp.t, Typ.t, Typ.t, Typ.t, Typ.t)
   | BuiltinFun(string)
   | DeferredAp(DHExp.t, list(DHExp.t));
@@ -74,6 +75,12 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (_, Cast(d, {term: Parens(x), _}, y))
     | (_, Cast(d, x, {term: Parens(y), _})) =>
       unbox(request, Cast(d, x, y) |> DHExp.fresh)
+
+    /* $e and $v could have any type, but are indet */
+
+    | (_, UnOp(Meta(Unquote), _)) => IndetMatch
+    | (_, Constructor(c, _)) when String.starts_with(c, ~prefix="$") =>
+      IndetMatch
 
     /* TupLabels can be anything except for tuplabels with unmatching labels */
     | (TupLabel(tuplabel), TupLabel(_, e)) =>
@@ -203,6 +210,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (Fun, Constructor(name, _)) => Matches(Constructor(name)) // Perhaps we should check if the constructor actually is a function?
     | (Fun, Closure(env', {term: Fun(dp, d3, _, _), _})) =>
       Matches(FunEnv(dp, d3, env'))
+    | (Fun, Fun(dp, d3, _, _)) => Matches(FunNoEnv(dp, d3))
     | (
         Fun,
         Cast(
@@ -248,9 +256,8 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         TupLabel(_) |
         Tuple(_) |
         Cast(_) |
-        Ap(_, {term: Constructor(_), _}, _) |
-        TypFun(_) |
-        TypAp(_),
+        TypFun(_, _, _) |
+        Ap(_, {term: Constructor(_), _}, _),
       ) =>
       switch (request) {
       | TupLabel(_) =>
@@ -286,6 +293,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         Var(_) |
         Let(_) |
         Fun(_, _, _, _) |
+        TypAp(_) |
         FixF(_) |
         TyAlias(_) |
         Use(_) |

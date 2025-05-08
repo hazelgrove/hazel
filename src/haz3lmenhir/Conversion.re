@@ -446,6 +446,7 @@ and Typ: {
         annotation: true,
         term: of_menhir_ast(t).term,
       }
+    | ApTyp(t1, t2) => ap(of_menhir_ast(t1), of_menhir_ast(t2))
     };
   };
 
@@ -475,7 +476,7 @@ and Typ: {
     | Parens(t) => of_core(t)
     | Label(s) => LabelType(s)
     | TupLabel(t1, t2) => TupLabelType(of_core(t1), of_core(t2))
-    | Ap(_) => raise(Failure("Ap not supported"))
+    | Ap(t1, t2) => ApTyp(of_core(t1), of_core(t2))
     | Sum(constructors) =>
       let sumterms =
         List.map(

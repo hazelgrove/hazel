@@ -320,7 +320,8 @@ and uexp_to_info_map =
       add'(~self=IsDeferral(position), ~co_ctx=CoCtx.empty, m)
     | Undefined => atomic(Just(Unknown(Hole(EmptyHole)) |> Typ.temp))
     | Atom(c) =>
-      let c = Operators.replace_literal(c, ctx.use_mode); // Replace literal if necessary due to `use`
+      let c =
+        Operators.replace_literal(c, Typ.is_ana_atom(ana), ctx.use_mode); // Replace literal if necessary due to `use`
       switch (c) {
       | L(c) =>
         let ty = Atom(Atom.cls_of_t(c)) |> Typ.temp;
@@ -394,6 +395,9 @@ and uexp_to_info_map =
       let ty_out = Unknown(Internal) |> Typ.temp;
       let (e, m) = go(~ana=ty_in, e, m);
       add(~self=Just(ty_out), ~co_ctx=e.co_ctx, m);
+    | UnOp(Meta(Unquote), e) =>
+      let (e, m) = go(~ana=syn, e, m);
+      add(~self=BadOperator("Unquote not in filter"), ~co_ctx=e.co_ctx, m);
     | UnOp(op, e) =>
       let op = Operators.replace_un_op(op, ctx.use_mode); // Replace op if necessary due to `use`
       let op_semantics = Operators.semantics_of_un_op(op);
@@ -735,7 +739,11 @@ and uexp_to_info_map =
           switch (Exp.ctr_name(fn)) {
           | Some(name) =>
             switch (Self.ctr_ana_typ(ctx, ana, name)) {
-            | Some(ty_ana) => ty_ana
+            | Some(ty_ana) =>
+              switch (Typ.matched_arrow_strict(ctx, ty_ana)) {
+              | Some((ty1, ty2)) => Arrow(ty1, ty2) |> Typ.temp
+              | None => Arrow(syn, syn) |> Typ.temp
+              }
             | None => Arrow(syn, syn) |> Typ.temp
             }
           | None => Arrow(syn, syn) |> Typ.temp
@@ -773,7 +781,11 @@ and uexp_to_info_map =
         switch (Exp.ctr_name(fn)) {
         | Some(name) =>
           switch (Self.ctr_ana_typ(ctx, ana, name)) {
-          | Some(ty_ana) => ty_ana
+          | Some(ty_ana) =>
+            switch (Typ.matched_arrow_strict(ctx, ty_ana)) {
+            | Some((ty1, ty2)) => Arrow(ty1, ty2) |> Typ.temp
+            | None => Arrow(syn, syn) |> Typ.temp
+            }
           | None => Arrow(syn, syn) |> Typ.temp
           }
         | None => Arrow(syn, syn) |> Typ.temp
@@ -1302,7 +1314,8 @@ and upat_to_info_map =
     | Invalid(token) => hole(BadToken(token))
     | EmptyHole => hole(Just(unknown))
     | Atom(c) =>
-      let c = Operators.replace_literal(c, ctx.use_mode); // Replace literal if necessary due to `use`
+      let c =
+        Operators.replace_literal(c, Typ.is_ana_atom(ana), ctx.use_mode); // Replace literal if necessary due to `use`
       switch (c) {
       | L(Nat(nat)) =>
         atomic(
