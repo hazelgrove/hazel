@@ -7,6 +7,9 @@ type model('ed) = Bigint.t;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action('ed_a) =
   | Set(Bigint.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type focus('ed_f) =
+  |;
 
 let int_of = (any: Any.t): option(Bigint.t) =>
   switch (any) {
@@ -53,6 +56,16 @@ let methods = {
   view,
   update,
   mk_term,
-  persist: sexp_of_model,
-  unpersist: model_of_sexp,
+  sexp_of_model,
+  model_of_sexp,
+  yojson_of_model,
+  model_of_yojson,
+  sexp_of_action,
+  action_of_sexp,
+  yojson_of_action,
+  action_of_yojson,
+  sexp_of_focus,
+  focus_of_sexp,
+  yojson_of_focus,
+  focus_of_yojson,
 };

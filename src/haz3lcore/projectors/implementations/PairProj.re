@@ -5,11 +5,18 @@ open OptUtil.Syntax;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type model('ed) = ('ed, 'ed);
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 type action('ed_a) =
   | Left('ed_a)
   | Right('ed_a);
 
-let methods: methods(model('ed), action('ed_a), 'ed, 'ed_a) = {
+[@deriving (show({with_path: false}), sexp, yojson)]
+type focus('ed_f) =
+  | Left('ed_f)
+  | Right('ed_f);
+
+let methods:
+  methods(model('ed_m), action('ed_a), focus('ed_f), 'ed_m, 'ed_a, 'ed_f) = {
   init: (_any, ed) => {
     let* ed = ed();
     Some((ed, ed));
@@ -46,7 +53,7 @@ let methods: methods(model('ed), action('ed_a), 'ed, 'ed_a) = {
       7 + String.length(ed_str(ed1)) + String.length(ed_str(ed2)),
     ),
   update:
-    (~sort, ~update_ed, ~statics, (left: 'ed, right: 'ed), info, action) => {
+    (~sort, ~update_ed, ~statics, (left: 'ed, right: 'ed), _info, action) => {
     switch (action) {
     | Left(ed_ac) =>
       let l_ed = update_ed(~sort, statics, ed_ac, left);
@@ -65,6 +72,16 @@ let methods: methods(model('ed), action('ed_a), 'ed, 'ed_a) = {
         ]),
       ),
     ),
-  persist: sexp_of_model,
-  unpersist: model_of_sexp,
+  sexp_of_model,
+  model_of_sexp,
+  yojson_of_model,
+  model_of_yojson,
+  sexp_of_action,
+  action_of_sexp,
+  yojson_of_action,
+  action_of_yojson,
+  sexp_of_focus,
+  focus_of_sexp,
+  yojson_of_focus,
+  focus_of_yojson,
 };

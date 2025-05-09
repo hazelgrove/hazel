@@ -225,7 +225,7 @@ let mk_view =
     )
     : View.t => {
   let ProjectorCore.V(kind_gadt, model) = p.model;
-  let methods = ProjectorInit.to_module(kind_gadt);
+  let methods = ProjectorCore.to_module(kind_gadt);
   let local = a =>
     set_model(
       ProjectorCore.V(

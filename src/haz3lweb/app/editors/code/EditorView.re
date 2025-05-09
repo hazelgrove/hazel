@@ -5,6 +5,7 @@ type editor_id = string;
 open Util;
 
 module Focus = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t('p_f) =
     | Here
     | Projector(Id.t, 'p_f);

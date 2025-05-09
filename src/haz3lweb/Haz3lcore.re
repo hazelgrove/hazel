@@ -19,6 +19,11 @@ module rec Projector: {
     let make_term: (t, Sort.t) => Any.t;
   };
 
+  module Focus: {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t;
+  };
+
   module View: {
     let split_views:
       (
@@ -61,6 +66,11 @@ module rec Projector: {
       ProjectorInit.make_term(~term_of_ed=Editor.Model.make_term);
 
     let mk = ProjectorInit.init;
+  };
+
+  module Focus = {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t = ProjectorCore.Focus.t(Editor.Focus.t);
   };
 
   module View = {
@@ -132,6 +142,11 @@ and Editor: {
     let jump_to_tile_action:
       (Id.t, Model.t) =>
       option(Action.t(ProjectorCore.Kind.t, Projector.Model.t));
+  };
+
+  module Focus: {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t;
   };
 
   module View: {
@@ -355,6 +370,11 @@ and Editor: {
     | Some((p, side, _)) => Some((Piece.id(p), side))
     };
   let get_tiles = (m: Model.t) => m.syntax.tiles;
+
+  module Focus = {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t = EditorView.Focus.t(Projector.Focus.t);
+  };
 
   module View = {
     // TODO[Matt]: This should be the only function in view.

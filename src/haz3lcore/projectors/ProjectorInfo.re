@@ -26,7 +26,7 @@ module ShapeMapSemantics = {
       )
       : ProjectorShape.t => {
     let ProjectorCore.V(kind, model) = p.model;
-    let methods = ProjectorInit.to_module(kind);
+    let methods = ProjectorCore.to_module(kind);
     /* Projector data which is dependent on semantics,
      * separated out for dependency reasons */
 

@@ -86,7 +86,7 @@ module View = {
   };
 };
 
-type methods('model, 'action, 'ed_m, 'ed_a) = {
+type methods('model, 'action, 'focus, 'ed_m, 'ed_a, 'ed_f) = {
   init: (Term.Any.t, unit => option('ed_m)) => option('model),
   focusable: Focusable.t,
   dynamics: bool,
@@ -113,8 +113,18 @@ type methods('model, 'action, 'ed_m, 'ed_a) = {
     ) =>
     'model,
   mk_term: (~term_of_ed: (Sort.t, 'ed_m) => Any.t, Sort.t, 'model) => Any.t,
-  persist: ('ed_m => Sexplib.Sexp.t, 'model) => Sexplib.Sexp.t,
-  unpersist: (Sexplib.Sexp.t => 'ed_m, Sexplib.Sexp.t) => 'model,
+  sexp_of_model: ('ed_m => Sexplib.Sexp.t, 'model) => Sexplib.Sexp.t,
+  model_of_sexp: (Sexplib.Sexp.t => 'ed_m, Sexplib.Sexp.t) => 'model,
+  yojson_of_model: ('ed_m => Yojson.Safe.t, 'model) => Yojson.Safe.t,
+  model_of_yojson: (Yojson.Safe.t => 'ed_m, Yojson.Safe.t) => 'model,
+  sexp_of_action: ('ed_a => Sexplib.Sexp.t, 'action) => Sexplib.Sexp.t,
+  action_of_sexp: (Sexplib.Sexp.t => 'ed_a, Sexplib.Sexp.t) => 'action,
+  yojson_of_action: ('ed_a => Yojson.Safe.t, 'action) => Yojson.Safe.t,
+  action_of_yojson: (Yojson.Safe.t => 'ed_a, Yojson.Safe.t) => 'action,
+  sexp_of_focus: ('ed_f => Sexplib.Sexp.t, 'focus) => Sexplib.Sexp.t,
+  focus_of_sexp: (Sexplib.Sexp.t => 'ed_f, Sexplib.Sexp.t) => 'focus,
+  yojson_of_focus: ('ed_f => Yojson.Safe.t, 'focus) => Yojson.Safe.t,
+  focus_of_yojson: (Yojson.Safe.t => 'ed_f, Yojson.Safe.t) => 'focus,
 };
 
 // /* To add a new projector:

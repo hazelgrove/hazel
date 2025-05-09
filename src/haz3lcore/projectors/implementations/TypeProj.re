@@ -61,6 +61,12 @@ let update =
   | (ToggleDisplay, (Self, m)) => (Expected, m)
   };
 
+/* =========== FOCUS =========== */
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type focus('ed_f) =
+  |;
+
 /* =========== VIEW =========== */
 
 let display_ty = (model, statics): option(Typ.t) =>
@@ -131,6 +137,16 @@ let methods = {
   placeholder,
   update,
   mk_term,
-  persist: sexp_of_model,
-  unpersist: model_of_sexp,
+  sexp_of_model,
+  model_of_sexp,
+  yojson_of_model,
+  model_of_yojson,
+  sexp_of_action,
+  action_of_sexp,
+  yojson_of_action,
+  action_of_yojson,
+  sexp_of_focus,
+  focus_of_sexp,
+  yojson_of_focus,
+  focus_of_yojson,
 };
