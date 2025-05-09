@@ -521,17 +521,20 @@ and module_entry_term: unsorted => (TermBase.module_entry_term, list(Id.t)) =
   unsorted => {
     let ret = (term: TermBase.module_entry_term) => (term, []);
     let hole = (unsorted: unsorted): TermBase.module_entry_term =>
-      switch (kids_of_unsorted(unsorted)) {
-      | [] => EmptyHole
-      | kids => MultiHole(kids)
-      };
+      Hole(kids_of_unsorted(unsorted));
     print_endline(
       "Unsorted module entry: " ++ [%derive.show: unsorted](unsorted),
     );
     switch (unsorted) {
     | Bin(ModuleEntry(l), ([(_id, ([";"], []))], []), ModuleEntry(r)) as tm =>
       print_endline("bin: " ++ [%derive.show: unsorted](tm));
-      ret(MultipleEntries([l, r]));
+      switch (l.term, r.term) {
+      | (MultipleEntries(ls), MultipleEntries(rs)) =>
+        ret(MultipleEntries(ls @ rs))
+      | (MultipleEntries(ls), _) => ret(MultipleEntries(ls @ [r]))
+      | (_, MultipleEntries(rs)) => ret(MultipleEntries([l] @ rs))
+      | (_, _) => ret(MultipleEntries([l, r]))
+      };
     | Pre(tiles, Exp(last_exp)) as tm =>
       switch (tiles) {
       | ([(_id, t)], []) =>
@@ -544,7 +547,7 @@ and module_entry_term: unsorted => (TermBase.module_entry_term, list(Id.t)) =
       }
     | tm =>
       print_endline("Current failure: " ++ [%derive.show: unsorted](tm));
-      ret(assert(false));
+      ret(hole(unsorted));
     };
   }
 and module_entry = (skel, segment) => {

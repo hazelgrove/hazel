@@ -31,12 +31,12 @@ let module_tests =
       // end|},
       //   )
       // ),
-      // test_case("Module with one definition", `Quick, () =>
-      //   exp_check(
-      //     module_([ModuleEntry.val_binding(Pat.var("x"), int(1))]), // TODO Add binding
-      //     "{val x = 1}",
-      //   )
-      // ),
+      test_case("Module with one definition", `Quick, () =>
+        exp_check(
+          module_([ModuleEntry.val_binding(Pat.var("x"), int(1))]), // TODO Add binding
+          "{val x = 1}",
+        )
+      ),
       test_case("Module with multiple definitions", `Quick, () =>
         exp_check(
           module_([
@@ -56,7 +56,47 @@ let module_tests =
           "{val x = 1+3 ;  val y = (2 * 6) - 7}",
         )
       ),
+      test_case("Module with multiple definitions", `Quick, () =>
+        exp_check(
+          module_([
+            ModuleEntry.val_binding(
+              Pat.var("x"),
+              bin_op(Int(Plus), int(1), int(3)),
+            ),
+            ModuleEntry.val_binding(
+              Pat.var("y"),
+              bin_op(
+                Int(Minus),
+                bin_op(Int(Times), int(2), int(6)),
+                int(7),
+              ),
+            ),
+            ModuleEntry.val_binding(Pat.var("z"), int(1)),
+          ]),
+          "{val x = 1+3 ;  val y = (2 * 6) - 7; val z = 1}",
+        )
+      ),
     ],
+    // test_case("Module with multiple definitions and sort errors", `Quick, () =>
+    //   exp_check(
+    //     module_([
+    //       ModuleEntry.val_binding(
+    //         Pat.var("x"),
+    //         bin_op(Int(Plus), int(1), int(3)),
+    //       ),
+    //       ModuleEntry.val_binding(
+    //         Pat.var("y"),
+    //         bin_op(
+    //           Int(Minus),
+    //           bin_op(Int(Times), int(2), int(6)),
+    //           int(7),
+    //         ),
+    //       ),
+    //       ModuleEntry.val_binding(Pat.var("z"), int(1)),
+    //     ]),
+    //     "{7 ;  val y = (2 * 6) - 7; 8}",
+    //   )
+    // ),
   );
 
 let tests = [

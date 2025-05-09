@@ -1064,16 +1064,17 @@ and ModuleEntry: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = module_entry_t;
 
-  let fast_equal = (m1: t, m2: t) =>
+  let rec fast_equal = (m1: t, m2: t) =>
     switch (m1.term, m2.term) {
     | (ValBinding(p1, e1), ValBinding(p2, e2)) =>
       Pat.fast_equal(p1, p2) && Exp.fast_equal(e1, e2)
-    | (EmptyHole, EmptyHole) => true
-    | (MultiHole(xs), MultiHole(ys)) =>
+    | (Hole(xs), Hole(ys)) =>
       List.length(xs) == List.length(ys)
       && List.equal(Any.fast_equal, xs, ys)
+    | (MultipleEntries(xs), MultipleEntries(ys)) =>
+      List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
     | (ValBinding(_), _)
-    | (EmptyHole, _)
-    | (MultiHole(_), _) => false
+    | (Hole(_), _)
+    | (MultipleEntries(_), _) => false
     };
 };

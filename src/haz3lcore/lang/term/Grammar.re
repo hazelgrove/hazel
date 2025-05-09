@@ -164,8 +164,7 @@ and filter('a) = {
 }
 and module_entry_term('a) =
   | ValBinding(pat_t('a), exp_t('a))
-  | EmptyHole
-  | MultiHole(list(any_t('a)))
+  | Hole(list(any_t('a)))
   | MultipleEntries(list(module_entry_t('a)))
 and module_entry_t('a) = Annotated.t(module_entry_term('a), 'a);
 
@@ -662,6 +661,11 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
   module ModuleEntry = {
     let val_binding = (~ann=?, p, e): module_entry_t(DefaultAnnotation.t) => {
       term: ValBinding(p, e),
+      annotation: default_annotation(ann),
+    };
+
+    let hole = (~ann=?, anys): module_entry_t(DefaultAnnotation.t) => {
+      term: Hole(anys),
       annotation: default_annotation(ann),
     };
   };

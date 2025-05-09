@@ -946,7 +946,8 @@ module Any = {
     | Typ(tm) => IdTagged.ids(tm)
     | TPat(tm) => IdTagged.ids(tm)
     | Rul(tm) => Rul.ids(~any_ids=ids, tm)
-    | Any () => [];
+    | Any () => []
+    | ModuleEntry(tm) => IdTagged.ids(tm);
 
   // Terms may consist of multiple tiles, eg the commas in an n-tuple,
   // the rules of a case expression + the surrounding case-end tile,
