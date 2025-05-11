@@ -322,8 +322,8 @@ module Update = {
           actions,
         );
       };
-      let edit = (name: string) => {
-        let actions = ChatLSP.Composition.edit(name);
+      let edit = (code: string, loc: ChatLSP.Composition.loc_of_edit) => {
+        let actions = ChatLSP.Composition.edit(code, loc);
         // Apply each action in sequence
         List.iter(
           action => {

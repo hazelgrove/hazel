@@ -2,6 +2,8 @@ open Util;
 open Haz3lcore.Info;
 open Haz3lcore;
 open OptUtil.Syntax;
+open JsUtil;
+open Js_of_ocaml;
 
 module Options = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -148,7 +150,10 @@ module SystemPrompt = {
     "    Example: ```goto_definition x``` selects 'let x = <definition> in'",
     /* File Editing Tools */
     "- FILE EDITING TOOLS:",
-    "  * ```edit_code <code>``` - Replaces the currently selected definition with code.",
+    "  * ```edit <code>``` - Replaces the currently selected definition with code.",
+    "  * ```insert_before <code>``` - Inserts code before the currently selected definition.",
+    "  * ```insert_after <code>``` - Inserts code after the currently selected definition.",
+    "  * ```delete``` - Deletes the currently selected definition.",
     /* Task Tools */
     "- TASK TOOLS:",
     "  * ```submit``` - Ends the iterative process and finalizes the task.",
@@ -179,7 +184,7 @@ add(5)  # Error occurs when trying to add 5 and \"hello\"
 
 Now I'll fix the type error by making sure both operands have compatible types:
 
-```edit_code let add = fun x -> x + 5 in```
+```edit let add = fun x -> x + 5 in```
 
 The function now correctly adds an integer to the input. Task completed:
 
@@ -201,7 +206,7 @@ let reverse = ? in
 
 I'll implement the reverse function with proper type annotations and recursion:
 
-```edit_code let reverse: forall a -> [a] -> [a] =
+```edit let reverse: forall a -> [a] -> [a] =
   typfun a -> fun xs: [a] ->
     let rev_helper: ([a], [a]) -> [a] =
       fun (acc, rest) ->
@@ -233,7 +238,7 @@ even(4)  # Should return true but will cause infinite recursion
 
 Now I'll correct the base case and recursive call:
 
-```edit_code let even: Int -> Bool =
+```edit let even: Int -> Bool =
   fun n ->
     if n == 0
     then true
@@ -246,7 +251,7 @@ Now I'll move to the odd function:
 
 And fix its implementation:
 
-```edit_code let odd: Int -> Bool =
+```edit let odd: Int -> Bool =
   fun n ->
     if n == 0
     then false
@@ -295,7 +300,7 @@ in
 
 Now I'll update it to include the Mult constructor:
 
-```edit_code type Exp =
+```edit type Exp =
   + Var(String)
   + Lam(String, Exp)
   + Ap(Exp, Exp)
@@ -306,7 +311,7 @@ Next, I'll update the eval function to handle the new constructor:
 
 ```goto_definition eval```
 
-```edit_code let eval: Exp -> Result =
+```edit let eval: Exp -> Result =
   fun e ->
     case e
     | Var(n) => Error(\"Free Variable\")
@@ -467,16 +472,43 @@ module Composition = {
     };
   };
 
-  let edit = (code: string): list(Action.t) => {
-    [
-      // TODO: Might be helpful to paste a segment instead of a string
-      // This may allow for better error handling.
-      // We paste the code edit, then reselect the definition, and copy
-      // to clipboard shim to give context to assistant.
-      Action.Paste(String(code)),
-      Action.Select(Smart(3)),
-      Action.Copy,
-    ];
+  type loc_of_edit =
+    | Before
+    | After
+    | Current;
+
+  let edit = (code: string, loc: loc_of_edit): list(Action.t) => {
+    // TODO: Might be helpful to paste a segment instead of a string
+    // This may allow for better error handling.
+    switch (loc) {
+    | Before => [
+        Action.Unselect(Some(Direction.Left)), // Unselect current definition
+        Action.Paste(String("\n" ++ code)), // Paste new code
+        Action.Select(Smart(3)), // Select the pasted code
+        Action.Copy // Copy the pasted code
+      ]
+    | After => [
+        Action.Unselect(Some(Direction.Right)), // Unselect current definition
+        Action.Paste(String("\n" ++ code)), // Paste new code
+        Action.Select(Smart(3)), // Select the pasted code
+        Action.Copy // Copy the pasted code
+      ]
+    | Current =>
+      String.length(code) == 0
+        ? [
+          Action.Paste(String(code)), // Replace current definition
+          Action.Destruct(Left),
+          Action.Select(Smart(3)), // Select the pasted code
+          Action.Copy // Copy the pasted code
+        ]
+        : [
+          Action.Paste(String(code)), // Replace current definition
+          Action.Select(Smart(3)), // Select the pasted code
+          Action.Copy // Copy the pasted code
+        ]
+    // We paste the code edit, then reselect the definition, and copy
+    // to clipboard shim to give context to assistant.
+    };
   };
 
   let mk_prompt =
