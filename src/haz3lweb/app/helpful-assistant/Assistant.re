@@ -811,13 +811,11 @@ module Update = {
           ~erase_buffer=true,
           editor.editor.state.zipper,
         );
-      let completion_token =
-        (advanced_reasoning ? "?a" : "??")
-        ++ String.sub(Id.to_string(tileId), 0, 3);
+      let tag = String.sub(Id.to_string(tileId), 0, 3);
       switch (
         {
           let* sketch_z_with_tag =
-            Perform.paste(editor.editor.state.zipper, completion_token);
+            Perform.paste(editor.editor.state.zipper, tag);
           let sketch_seg =
             Zipper.smart_seg(
               ~dump_backpack=true,
@@ -830,7 +828,7 @@ module Update = {
             ChatLSP.Options.init,
             ci,
             sketch_seg,
-            completion_token,
+            (advanced_reasoning ? "?a" : "??") ++ tag,
             advanced_reasoning,
           );
         }
