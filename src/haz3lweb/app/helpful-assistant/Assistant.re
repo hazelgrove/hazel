@@ -683,7 +683,6 @@ module Update = {
   let collect_tool_calls = (response: string): list(string) => {
     let rec extract_blocks = (text: string, acc: list(string)): list(string) => {
       let pattern = Str.regexp("```[ \n]*\\([^`]+\\)[ \n]*```");
-      print_endline("here at collect_tool_calls");
       switch (Str.search_forward(pattern, text, 0)) {
       | exception Not_found => List.rev(acc)
       | pos =>
@@ -702,30 +701,22 @@ module Update = {
   };
 
   let mk_mode_prompt =
-      (
-        ~settings: AssistantSettings.t,
-        ~model: Model.t,
-        ~editor: CodeModel.t,
-        ~message: Model.message,
-      )
+      (~settings: AssistantSettings.t, ~model: Model.t, ~editor: CodeModel.t)
       : string => {
     let mode = settings.mode;
     let (_, curr_chat) = get_mode_info(mode, model);
-    let collected_chat =
-      collect_chat(~messages=curr_chat.messages @ [message]);
     let prompt =
       switch (mode) {
       | HazelTutor =>
-        let tutor_prelude = get_documentation_as_text();
+        let tutor_prelude = mk_tutor_prelude();
         // If the chat is just beginning, let us add the tutor prelude
         let tutor_chat =
-          List.length(curr_chat.messages) == 0
-            ? tutor_prelude ++ "\n\n" ++ collected_chat : collected_chat;
+          List.length(curr_chat.messages) == 0 ? tutor_prelude : "";
         tutor_chat;
       | CodeSuggestion =>
         // Just leave as is, no prelude needed, already prompted in ChatLSP
         // Messages are typically sent during code completion
-        collected_chat
+        ""
       | TaskCompletion =>
         // Task completion will go as follows:
         // 1. User will type in desired functionality and send message. It will be
@@ -743,7 +734,6 @@ module Update = {
         // 4. Add the sketch of the program
         // 5. Add the cursor location
         // 6. Add the user task-to-be-completed
-        print_endline("here at prompt");
         let sketch_seg =
           Zipper.smart_seg(
             ~dump_backpack=true,
@@ -757,11 +747,8 @@ module Update = {
           ci,
           sketch_seg,
           List.length(curr_chat.messages) == 0,
-        )
-        ++ "\n\n"
-        ++ collected_chat;
+        );
       };
-    print_endline("here at prompt");
     prompt;
   };
 
@@ -783,21 +770,23 @@ module Update = {
       // Capture the entire chat to give historical context to LLM
       let (_, curr_chat) = get_mode_info(mode, model);
       let prompt =
-        mk_mode_prompt(
-          ~settings=settings.assistant,
-          ~model,
-          ~editor,
-          ~message,
+        mk_mode_prompt(~settings=settings.assistant, ~model, ~editor);
+      let user_message = "USER MESSAGE/REQUEST: " ++ message.content;
+      let prompt_with_user_message = prompt ++ "\n\n" ++ user_message;
+      let prompt_with_chat =
+        collect_chat(
+          ~messages=
+            curr_chat.messages
+            @ [text_message_of_str(prompt_with_user_message, LLM)],
         );
-      let message = text_message_of_str(prompt, LS);
-      switch (standardize_prompt(prompt)) {
+      switch (standardize_prompt(prompt_with_chat)) {
       | None => failed_prompt_generation(~mode, ~model, ~curr_chat)
       | Some(prompt) =>
         mk_LLM_call(
           ~model,
           ~curr_chat,
           ~prompt,
-          ~message,
+          ~message=text_message_of_str(prompt_with_user_message, LS),
           ~mode,
           ~schedule_action,
         )
@@ -875,7 +864,6 @@ module Update = {
                 ),
               );
             | Some(Error({message, code})) =>
-              print_endline("Error here");
               schedule_action(
                 SendSystemMessage(
                   "Error: "
@@ -886,7 +874,7 @@ module Update = {
                   mode,
                   curr_chat.id,
                 ),
-              );
+              )
             | None =>
               print_endline("Non-error but None");
               print_endline(
@@ -1066,9 +1054,17 @@ module Update = {
             | "goto_definition" =>
               goto_definition(editor, Option.get(arg));
               process_tool_calls(rest);
-            | "edit_code"
             | "edit" =>
-              edit(Option.get(arg));
+              edit(Option.get(arg), ChatLSP.Composition.Current);
+              process_tool_calls(rest);
+            | "insert_before" =>
+              edit(Option.get(arg), ChatLSP.Composition.Before);
+              process_tool_calls(rest);
+            | "insert_after" =>
+              edit(Option.get(arg), ChatLSP.Composition.After);
+              process_tool_calls(rest);
+            | "delete" =>
+              edit("", ChatLSP.Composition.Current);
               process_tool_calls(rest);
             | "submit" => ()
             | _ =>
@@ -1085,13 +1081,8 @@ module Update = {
 
         process_tool_calls(tool_calls);
 
-        add_message_to_model(
-          mode,
-          model,
-          text_message_of_str(response, LLM),
-          chat_id,
-          ~is_final=true,
-        )
+        print_endline("Adding message to model");
+        add_message_to_model(mode, model, message, chat_id, ~is_final=true)
         |> Updated.return_quiet;
       };
     | ErrorRespond(response, sketch_z, ci, fuel, tileId, mode, chat_id) =>
@@ -1134,7 +1125,6 @@ module Update = {
       // Then handle the completion as before
       let completion_message =
         code_message_of_str(completion, LLM, Some(tileId));
-      print_endline("HERE HERE HERE");
       check_descriptor(
         ~model,
         ~schedule_action,
