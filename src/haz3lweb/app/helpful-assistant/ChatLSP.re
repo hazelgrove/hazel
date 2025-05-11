@@ -166,96 +166,176 @@ module SystemPrompt = {
   ];
 
   let few_shot_comp_examples = [
-    "The following are several example dialogues and actions taken for example task completions.",
-    "Also note that you are working in the Hazel programming language, thus pay attention to the syntax and semantics of the language: ",
-    "Note that you can and should (when favorable) make multiple tool calls in a single response, though these examples only show a single tool call per response.",
-    /* Example 1: Fix a type error in a simple function */
-    "# Example 1: Fix a type error in a Hazel function #",
-    "# Task: Find and fix the type error in the add function #",
-    "# Current sketch: let add = fun x -> x + \"hello\" in add(5) #",
-    "USER: Can you fix the type error in the add function?",
-    "ASSISTANT: I'll fix the type error in the add function. First, I need to navigate to the function definition.",
-    "```goto_definition add```",
-    "SYSTEM: Selected: let add = fun x -> x + \"hello\" in",
-    "ASSISTANT: I see the issue. The function is trying to add an integer and a string, which isn't valid in Hazel. I'll replace it with correct code that adds two numbers.",
-    "```edit_code let add = fun x -> x + 5 in```",
-    "SYSTEM: Updated and selected: let add = fun x -> x + 5 in",
-    "ASSISTANT: Let's actually square the input instead.",
-    "```edit_code let square = fun x -> x * x in```",
-    "SYSTEM: Updated and selected: let square = fun x -> x * x in",
-    "ASSISTANT: The type error is now fixed. The add function correctly squares its input. I'll submit the completed task.",
-    "```submit```",
-    /* Example 2: Modify a Boolean function */
-    "# Example 2: Modify a Boolean function in Hazel #",
-    "# Task: Update the 'negate' function to check if a number is less than 10 instead of negating a Boolean #",
-    "# Current sketch: let negate: Bool -> Bool = fun b -> !b in negate(true)#",
-    "USER: Please change the 'negate' function to check if a number is less than 10 instead.",
-    "ASSISTANT: I'll modify the negate function to check if a number is less than 10. First, I need to find the function definition.",
-    "```goto_definition negate```",
-    "SYSTEM: Selected: let negate: Bool -> Bool = fun b -> !b in",
-    "ASSISTANT: Now I'll replace the function with one that checks if a number is less than 10. I need to update both the type signature and implementation.",
-    "```edit_code let negate: Int -> Bool = fun n -> n < 10 in```",
-    "SYSTEM: Updated and selected: let negate: Int -> Bool = fun n -> n < 10 in",
-    "ASSISTANT: The function has been updated to check if a number is less than 10. Note that the call site still has negate(true), which would need to be updated separately. I'll submit this task.",
-    "```submit```",
-    /* Example 3: Working with algebraic data types */
-    "# Example 3: Fix a pattern matching function for an algebraic data type #",
-    "# Task: Fix the 'is_empty' function to correctly check if a list is empty #",
-    "# Current sketch: let is_empty: [Int] -> Bool = fun xs -> case xs | x::rest => false end in is_empty([]) #",
-    "USER: The is_empty function doesn't handle empty lists correctly. Can you fix it?",
-    "ASSISTANT: I'll fix the is_empty function to correctly handle empty lists. First, I need to find the function definition.",
-    "```goto_definition is_empty```",
-    "SYSTEM: Selected: let is_empty: [Int] -> Bool = fun xs -> case xs | x::rest => false end in",
-    "ASSISTANT: I see the issue. The case expression only handles non-empty lists and returns false. It's missing a pattern for empty lists. I'll add the missing pattern.",
-    "```edit_code let is_empty: [Int] -> Bool = fun xs -> case xs | [] => true | x::rest => false end in```",
-    "SYSTEM: Updated and selected: let is_empty: [Int] -> Bool = fun xs -> case xs | [] => true | x::rest => false end in",
-    "ASSISTANT: The is_empty function now correctly checks if a list is empty. It returns true for empty lists and false for non-empty lists. Task completed.",
-    "```submit```",
-    /* Example 4: Fix a type error in a recursive function */
-    "# Example 4: Fix a type error in a recursive function #",
-    "# Task: Fix the 'sum' function that's supposed to add all numbers in a list #",
-    "# Current sketch: let sum = fun xs -> case xs | [] => 0 | h::t => h + sum(t) end in sum([1, 2, 3]) #",
-    "USER: The sum function has a type error. Please add the missing type annotation.",
-    "ASSISTANT: I'll fix the sum function by adding a type annotation. First, I need to look at its definition.",
-    "```goto_definition sum```",
-    "SYSTEM: Selected: let sum = fun xs -> case xs | [] => 0 | h::t => h + sum(t) end in",
-    "ASSISTANT: I see the issue. The function is recursive but missing a type annotation, which is required for recursive functions in Hazel. I'll add the appropriate type annotation for a function that sums a list of integers.",
-    "```edit_code let sum: [Int] -> Int = fun xs -> case xs | [] => 0 | h::t => h + sum(t) end in```",
-    "SYSTEM: Updated and selected: let sum: [Int] -> Int = fun xs -> case xs | [] => 0 | h::t => h + sum(t) end in",
-    "ASSISTANT: The sum function now has the correct type annotation [Int] -> Int, indicating it takes a list of integers and returns a single integer. This fixes the type error for the recursive function. Task completed.",
-    "```submit```",
-    /* Example 5: Fix a function with tuple pattern matching */
-    "# Example 5: Fix a function with tuple pattern matching #",
-    "# Task: Fix the 'add_pairs' function that's supposed to add corresponding elements in two lists #",
-    "# Current sketch: let add_pairs = fun (xs, ys) -> case (xs, ys) | [], _ => [] | _, [] => [] | h1::t1, h2::t2 => h1 + h2 :: add_pairs(t1, t1) end in add_pairs([1, 2], [3, 4]) #",
-    "USER: The add_pairs function has a bug where it passes the wrong argument to the recursive call. Can you fix it?",
-    "ASSISTANT: I'll fix the bug in the add_pairs function. First, I need to find the function definition.",
-    "```goto_definition add_pairs```",
-    "SYSTEM: Selected: let add_pairs = fun (xs, ys) -> case (xs, ys) | [], _ => [] | _, [] => [] | h1::t1, h2::t2 => h1 + h2 :: add_pairs(t1, t1) end in",
-    "ASSISTANT: I see the bug. In the recursive call add_pairs(t1, t1), the function is passing t1 twice instead of passing t1 and t2. I'll fix this by updating the recursive call to use the correct arguments.",
-    "```edit_code let add_pairs = fun (xs, ys) -> case (xs, ys) | [], _ => [] | _, [] => [] | h1::t1, h2::t2 => h1 + h2 :: add_pairs(t1, t2) end in```",
-    "SYSTEM: Updated and selected: let add_pairs = fun (xs, ys) -> case (xs, ys) | [], _ => [] | _, [] => [] | h1::t1, h2::t2 => h1 + h2 :: add_pairs(t1, t2) end in",
-    "ASSISTANT: The bug in the add_pairs function is now fixed. It correctly passes t1 and t2 to the recursive call, which will properly process all elements in both lists. Task completed.",
-    "```submit```",
-    /* Example 6: Working with algebraic data types */
-    "# Example 6: Improve an expression evaluator #",
-    "# Task: Add support for multiplication to the 'eval' function for arithmetic expressions #",
-    "# Current sketch: type Exp = +Num(Int) +Add(Exp, Exp) in let eval = fun e -> case e | Num(n) => n | Add(e1, e2) => eval(e1) + eval(e2) end in eval(Add(Num(2), Num(3))) #",
-    "USER: Can you extend the Exp type and eval function to support multiplication?",
-    "ASSISTANT: I'll extend the expression evaluator to support multiplication. First, I need to look at the current implementation.",
-    "```goto_definition Exp```",
-    "SYSTEM: Selected: type Exp = +Num(Int) +Add(Exp, Exp) in",
-    "ASSISTANT: I'll modify the Exp type to include a constructor for multiplication operations.",
-    "```edit_code type Exp = +Num(Int) +Add(Exp, Exp) +Mul(Exp, Exp) in```",
-    "SYSTEM: Updated and selected: type Exp = +Num(Int) +Add(Exp, Exp) +Mul(Exp, Exp) in",
-    "ASSISTANT: Now I need to update the eval function to handle the new Mul constructor.",
-    "```goto_definition eval```",
-    "SYSTEM: Selected: let eval = fun e -> case e | Num(n) => n | Add(e1, e2) => eval(e1) + eval(e2) end in",
-    "ASSISTANT: I'll add a pattern for multiplication to the eval function.",
-    "```edit_code let eval = fun e -> case e | Num(n) => n | Add(e1, e2) => eval(e1) + eval(e2) | Mul(e1, e2) => eval(e1) * eval(e2) end in```",
-    "SYSTEM: Updated and selected: let eval = fun e -> case e | Num(n) => n | Add(e1, e2) => eval(e1) + eval(e2) | Mul(e1, e2) => eval(e1) * eval(e2) end in",
-    "ASSISTANT: The expression evaluator now supports multiplication! I've added a Mul constructor to the Exp type and updated the eval function to handle multiplication expressions by recursively evaluating both sub-expressions and multiplying the results. Task completed.",
-    "```submit```",
+    /* Example 1: Fixing a type error in a function */
+    "Example 1: Fixing a type error in a function",
+    "PROGRAM SKETCH:
+let add = fun x -> x + \"hello\" in  # Type error: adding Int and String
+add(5)  # Error occurs when trying to add 5 and \"hello\"
+",
+    "USER: Fix the type error in the add function.",
+    "ASSISTANT: I'll fix the type error in the add function by first locating it and then making the necessary changes.
+
+```goto_definition add```
+
+Now I'll fix the type error by making sure both operands have compatible types:
+
+```edit_code let add = fun x -> x + 5 in```
+
+The function now correctly adds an integer to the input. Task completed:
+
+```submit```",
+    /* Example 2: Creating a list reversal function */
+    "Example 2: Creating a list reversal function",
+    "PROGRAM SKETCH:
+# The program has various list functions but is missing a reverse function
+let map: forall a -> forall b -> (a -> b) -> [a] -> [b] = ... in
+let filter: forall a -> (a -> Bool) -> [a] -> [a] = ... in
+# Our task is to implement the missing reverse function
+let reverse = ? in
+[1, 2, 3]  # We want to be able to reverse this to [3, 2, 1]
+",
+    "USER: Create a reverse function for lists.",
+    "ASSISTANT: I'll create a list reversal function that works on any type of list.
+
+```goto_definition reverse```
+
+I'll implement the reverse function with proper type annotations and recursion:
+
+```edit_code let reverse: forall a -> [a] -> [a] =
+  typfun a -> fun xs: [a] ->
+    let rev_helper: ([a], [a]) -> [a] =
+      fun (acc, rest) ->
+        case rest
+        | [] => acc
+        | hd::tl => rev_helper(hd::acc, tl)
+        end
+    in
+    rev_helper([], xs)
+in```
+
+The function is complete and typed correctly:
+
+```submit```",
+    /* Example 3: Fixing multiple functions */
+    "Example 3: Fixing multiple functions",
+    "PROGRAM SKETCH:
+# The program has mutually recursive even/odd functions with bugs
+let (even: Int -> Bool, odd: Int -> Bool) =
+(fun n -> if n == 0 then true else odd(n + 1),  # Bug: should be n - 1
+ fun n -> if n == 1 then false else even(n + 1))  # Bug: base case should be n == 0
+in
+even(4)  # Should return true but will cause infinite recursion
+",
+    "USER: Fix both the even and odd functions.",
+    "ASSISTANT: I'll fix both recursive functions by first examining the even function:
+
+```goto_definition even```
+
+Now I'll correct the base case and recursive call:
+
+```edit_code let even: Int -> Bool =
+  fun n ->
+    if n == 0
+    then true
+    else odd(n - 1)
+in```
+
+Now I'll move to the odd function:
+
+```goto_definition odd```
+
+And fix its implementation:
+
+```edit_code let odd: Int -> Bool =
+  fun n ->
+    if n == 0
+    then false
+    else even(n - 1)
+in```
+
+Both functions are now correctly implemented with proper mutual recursion:
+
+```submit```",
+    /* Example 4: Updating an ADT and related function */
+    "Example 4: Updating an ADT and related function",
+    "PROGRAM SKETCH:
+# The program has a simple expression language and evaluator
+type Exp =
+  + Var(String)
+  + Lam(String, Exp)
+  + Ap(Exp, Exp)
+in
+
+type Result =
+  + Error(String)
+  + Ok(Exp)
+in
+
+let eval: Exp -> Result =
+  fun e ->
+    case e
+    | Var(n) => Error(\"Free Variable\")
+    | Lam(x, body) => Ok(Lam(x, body))
+    | Ap(e1, e2) =>
+        case eval(e1)
+        | Ok(Lam(x, body)) =>
+            case eval(e2)
+            | Error(err) => Error(err)
+            | Ok(arg) => eval(subst(arg, x, body))
+            end
+        | _ => Error(\"Not a Function\")
+        end
+    end
+in
+",
+    "USER: Add a Mult constructor to the Exp type and update the eval function to handle it.",
+    "ASSISTANT: I'll first check the Exp type definition:
+
+```goto_definition Exp```
+
+Now I'll update it to include the Mult constructor:
+
+```edit_code type Exp =
+  + Var(String)
+  + Lam(String, Exp)
+  + Ap(Exp, Exp)
+  + Mult(Exp, Exp)
+in```
+
+Next, I'll update the eval function to handle the new constructor:
+
+```goto_definition eval```
+
+```edit_code let eval: Exp -> Result =
+  fun e ->
+    case e
+    | Var(n) => Error(\"Free Variable\")
+    | Lam(x, body) => Ok(Lam(x, body))
+    | Ap(e1, e2) =>
+        case eval(e1)
+        | Ok(Lam(x, body)) =>
+            case eval(e2)
+            | Error(err) => Error(err)
+            | Ok(arg) => eval(subst(arg, x, body))
+            end
+        | _ => Error(\"Not a Function\")
+        end
+    | Mult(e1, e2) =>
+        case eval(e1), eval(e2)
+        | Ok(Lam(_, _)), _ => Error(\"Expected number, got function\")
+        | _, Ok(Lam(_, _)) => Error(\"Expected number, got function\")
+        | Error(err), _ => Error(err)
+        | _, Error(err) => Error(err)
+        | Ok(Var(n1)), Ok(Var(n2)) =>
+            if is_number(n1) && is_number(n2)
+            then Ok(Var(string_of_int(int_of_string(n1) * int_of_string(n2))))
+            else Error(\"Can only multiply numbers\")
+        end
+in```
+
+Both the type and evaluation function have been updated properly:
+
+```submit```",
   ];
 
   let mk_suggestion_prompt =
@@ -405,11 +485,16 @@ module Composition = {
       String.concat("\n", SystemPrompt.task_completion_toolkit);
     let few_shot_examples =
       String.concat("\n", SystemPrompt.few_shot_comp_examples);
+    let hazel_syntax_notes =
+      String.concat("\n", SystemPrompt.hazel_syntax_notes);
     String.concat(
       "\n",
-      (init ? [prelude_and_toolkit] : [])
+      (
+        init
+          ? [prelude_and_toolkit, hazel_syntax_notes, few_shot_examples] : []
+      )
       @ [
-        "Current sketch: " ++ ErrorPrint.Print.seg(~holes=Some("?"), sketch),
+        "PROGRAM SKETCH: " ++ ErrorPrint.Print.seg(~holes=Some("?"), sketch),
       ],
       //@ get_static_context(options.relevant_ctx, ci),
     );
