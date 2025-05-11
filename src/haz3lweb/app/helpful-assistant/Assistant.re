@@ -196,6 +196,11 @@ module Update = {
     collapsed: false,
   };
 
+  // Role prompt: role, task, few-shot examples
+  // History summarization: System, User, Assistant messages, summarized for brevity
+  // Current User message
+  // Current sketch
+
   let collect_chat = (~messages: list(Model.message)): string => {
     let memory_prompt =
       "The following is a log of our conversation history. Use this as context to inform your responses, "
@@ -678,6 +683,7 @@ module Update = {
   let collect_tool_calls = (response: string): list(string) => {
     let rec extract_blocks = (text: string, acc: list(string)): list(string) => {
       let pattern = Str.regexp("```[ \n]*\\([^`]+\\)[ \n]*```");
+      print_endline("here at collect_tool_calls");
       switch (Str.search_forward(pattern, text, 0)) {
       | exception Not_found => List.rev(acc)
       | pos =>
@@ -693,6 +699,70 @@ module Update = {
       };
     };
     extract_blocks(response, []);
+  };
+
+  let mk_mode_prompt =
+      (
+        ~settings: AssistantSettings.t,
+        ~model: Model.t,
+        ~editor: CodeModel.t,
+        ~message: Model.message,
+      )
+      : string => {
+    let mode = settings.mode;
+    let (_, curr_chat) = get_mode_info(mode, model);
+    let collected_chat =
+      collect_chat(~messages=curr_chat.messages @ [message]);
+    let prompt =
+      switch (mode) {
+      | HazelTutor =>
+        let tutor_prelude = get_documentation_as_text();
+        // If the chat is just beginning, let us add the tutor prelude
+        let tutor_chat =
+          List.length(curr_chat.messages) == 0
+            ? tutor_prelude ++ "\n\n" ++ collected_chat : collected_chat;
+        tutor_chat;
+      | CodeSuggestion =>
+        // Just leave as is, no prelude needed, already prompted in ChatLSP
+        // Messages are typically sent during code completion
+        collected_chat
+      | TaskCompletion =>
+        // Task completion will go as follows:
+        // 1. User will type in desired functionality and send message. It will be
+        //    this message being sent here
+        // 2. This will be sent, along with the prompt (toolkit + few-shot examples + documentation?)
+        // 3. The LLM will respond with a response, from the toolkit. This will iterate
+        //    until the LLM responds with "submit".
+        // IMPORTANT: In step 2, and steps 3.1...3.n, we will need to give the LLM
+        // a sketch of the program, and an idea of "where" it currently is (like a cursor location).
+        // This can simply be added to the prompt.
+        // Thus, let us construct the prompt as follows:
+        // 1. Add the prelude
+        // 2. Add the few-shot examples
+        // 3. Add the documentation
+        // 4. Add the sketch of the program
+        // 5. Add the cursor location
+        // 6. Add the user task-to-be-completed
+        print_endline("here at prompt");
+        let sketch_seg =
+          Zipper.smart_seg(
+            ~dump_backpack=true,
+            ~erase_buffer=true,
+            editor.editor.state.zipper,
+          );
+        let index = Option.get(Indicated.index(editor.editor.state.zipper));
+        let ci = Option.get(Id.Map.find_opt(index, editor.statics.info_map));
+        ChatLSP.Composition.mk_prompt(
+          ChatLSP.Options.init,
+          ci,
+          sketch_seg,
+          List.length(curr_chat.messages) == 0,
+        )
+        ++ "\n\n"
+        ++ collected_chat;
+      };
+    print_endline("here at prompt");
+    prompt;
   };
 
   let update =
@@ -712,57 +782,13 @@ module Update = {
       let mode = settings.assistant.mode;
       // Capture the entire chat to give historical context to LLM
       let (_, curr_chat) = get_mode_info(mode, model);
-      let collected_chat =
-        collect_chat(~messages=curr_chat.messages @ [message]);
       let prompt =
-        switch (mode) {
-        | HazelTutor =>
-          let tutor_prelude = get_documentation_as_text();
-          // If the chat is just beginning, let us add the tutor prelude
-          let tutor_chat =
-            List.length(curr_chat.messages) == 0
-              ? tutor_prelude ++ "\n\n" ++ collected_chat : collected_chat;
-          tutor_chat;
-        | CodeSuggestion =>
-          // Just leave as is, no prelude needed, already prompted in ChatLSP
-          // Messages are typically sent during code completion
-          collected_chat
-        | TaskCompletion =>
-          // Task completion will go as follows:
-          // 1. User will type in desired functionality and send message. It will be
-          //    this message being sent here
-          // 2. This will be sent, along with the prompt (toolkit + few-shot examples + documentation?)
-          // 3. The LLM will respond with a response, from the toolkit. This will iterate
-          //    until the LLM responds with "submit".
-          // IMPORTANT: In step 2, and steps 3.1...3.n, we will need to give the LLM
-          // a sketch of the program, and an idea of "where" it currently is (like a cursor location).
-          // This can simply be added to the prompt.
-          // Thus, let us construct the prompt as follows:
-          // 1. Add the prelude
-          // 2. Add the few-shot examples
-          // 3. Add the documentation
-          // 4. Add the sketch of the program
-          // 5. Add the cursor location
-          // 6. Add the user task-to-be-completed
-          let sketch_seg =
-            Zipper.smart_seg(
-              ~dump_backpack=true,
-              ~erase_buffer=true,
-              editor.editor.state.zipper,
-            );
-          let index =
-            Option.get(Indicated.index(editor.editor.state.zipper));
-          let ci =
-            Option.get(Id.Map.find_opt(index, editor.statics.info_map));
-          ChatLSP.Composition.mk_prompt(
-            ChatLSP.Options.init,
-            ci,
-            sketch_seg,
-            List.length(curr_chat.messages) == 0,
-          )
-          ++ "\n\n"
-          ++ collected_chat;
-        };
+        mk_mode_prompt(
+          ~settings=settings.assistant,
+          ~model,
+          ~editor,
+          ~message,
+        );
       let message = text_message_of_str(prompt, LS);
       switch (standardize_prompt(prompt)) {
       | None => failed_prompt_generation(~mode, ~model, ~curr_chat)
