@@ -95,6 +95,38 @@ let go_z =
       }
     };
 
+  let select_body = (z: t) => {
+    open OptUtil.Syntax;
+    /* First select the current term (the let binding) */
+    let* z =
+      Select.current_term(~defs_exclude_bodies=true, ~case_rules=true, z);
+    print_endline("Selected let binding");
+    /* Helper to find next non-whitespace tile */
+    let rec find_next_non_whitespace = (z: t): option(t) => {
+      let z = Zipper.directional_unselect(z.selection.focus, z);
+      switch (Zipper.move(Right, z)) {
+      | None => None
+      | Some(z) =>
+        switch (Indicated.piece''(z)) {
+        | None => find_next_non_whitespace(z)
+        | Some((p, _, _)) =>
+          print_endline("Piece is " ++ Piece.show(p));
+          switch (p) {
+          | Secondary(_) => find_next_non_whitespace(z)
+          | _ => Some(z)
+          };
+        }
+      };
+    };
+    /* Iteratively find the next non-whitespace tile */
+    switch (find_next_non_whitespace(z)) {
+    | None => None
+    | Some(z) =>
+      /* Now we should be at the body */
+      Select.current_term(~defs_exclude_bodies=false, ~case_rules=true, z)
+    };
+  };
+
   let smart_select = (n, z): option(Zipper.t) => {
     switch (n) {
     | 2 => Select.indicated_token(z)
@@ -106,6 +138,7 @@ let go_z =
       Piece.is_term(p)
         ? Select.parent_of_indicated(z, statics.info_map)
         : Select.current_term(~defs_exclude_bodies=true, ~case_rules=true, z);
+    | 4 => select_body(z)
     | _ => None
     };
   };

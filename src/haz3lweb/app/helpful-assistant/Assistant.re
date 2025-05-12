@@ -760,7 +760,7 @@ module Update = {
         ~model: Model.t,
         ~schedule_action: t => unit,
         ~add_suggestion,
-        ~goto_definition,
+        ~goto,
         ~edit,
       )
       : Updated.t(Model.t) => {
@@ -1052,7 +1052,10 @@ module Update = {
 
             switch (tool_call) {
             | "goto_definition" =>
-              goto_definition(editor, Option.get(arg));
+              goto(editor, Option.get(arg), ChatLSP.Composition.Definition);
+              process_tool_calls(rest);
+            | "goto_body" =>
+              goto(editor, Option.get(arg), ChatLSP.Composition.Body);
               process_tool_calls(rest);
             | "edit" =>
               edit(Option.get(arg), ChatLSP.Composition.Current);

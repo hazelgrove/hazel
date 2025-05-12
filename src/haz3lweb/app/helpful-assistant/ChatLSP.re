@@ -148,6 +148,10 @@ module SystemPrompt = {
     "  * ```goto_definition <variable_name>``` - Selects the variable's let binding and definition.",
     "    After using this, any file editing actions will target this selected definition.",
     "    Example: ```goto_definition x``` selects 'let x = <definition> in'",
+    "  * ```goto_body <variable_name>``` - Selects the body of the variable's let binding.",
+    "    After using this, any file editing actions will target the body of the selected definition.",
+    "    This is particularly useful when needing to update the contents of the final let expression in a program path/scope (eg. function, if, etc).",
+    "    Example: ```goto_body x``` selects 'x + 1' in the program 'let x = 1 in x + 1'",
     /* File Editing Tools */
     "- FILE EDITING TOOLS:",
     "  * ```edit <code>``` - Replaces the currently selected definition with code.",
@@ -427,6 +431,15 @@ module Completion = {
 };
 
 module Composition = {
+  type loc_of_edit =
+    | Before
+    | After
+    | Current;
+
+  type loc_of_goto =
+    | Body
+    | Definition;
+
   let get_static_context = (relevant_ctx: bool, ci: Info.t): list(string) =>
     switch (ci) {
     | InfoExp({ana, ctx, _})
@@ -440,8 +453,9 @@ module Composition = {
 
   // Finds the first matching variable as 'name' in the context
   // highlights the variable and definition (excluding the body)
-  let goto_definition =
-      (name: string, editor: CodeWithStatics.Model.t): list(Action.t) => {
+  let goto =
+      (editor: CodeWithStatics.Model.t, name: string, loc: loc_of_goto)
+      : list(Action.t) => {
     let statics = CodeWithStatics.Model.get_statics(editor);
     // Find the first matching variable in the context using fold
     // TODO: Handle shadowed variables
@@ -465,17 +479,15 @@ module Composition = {
     switch (matching_id) {
     | Some(id) => [
         Action.Jump(TileId(id)),
-        Action.Select(Smart(3)),
+        switch (loc) {
+        | Definition => Action.Select(Smart(3))
+        | Body => Action.Select(Smart(4))
+        },
         Action.Copy,
       ]
     | None => [Action.Select(Term(Id(Id.invalid, Direction.Left)))]
     };
   };
-
-  type loc_of_edit =
-    | Before
-    | After
-    | Current;
 
   let edit = (code: string, loc: loc_of_edit): list(Action.t) => {
     // TODO: Might be helpful to paste a segment instead of a string

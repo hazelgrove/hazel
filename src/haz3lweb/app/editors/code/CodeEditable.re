@@ -271,7 +271,7 @@ module View = {
         let click_count = MouseState.count();
         /* Check how many clicks have happened recently
          * and cycle between options on-click */
-        switch (click_count mod 3 + 1) {
+        switch (click_count mod 4 + 1) {
         | 1 =>
           /* prepare to drag if the mouse moves */
           PointerCapture.set(mouse.current_target, pointer_id);
@@ -281,6 +281,7 @@ module View = {
           ]);
         | 2 => inject(Perform(Select(Smart(2))))
         | 3 => inject(Perform(Select(Smart(3))))
+        | 4 => inject(Perform(Select(Smart(4))))
         | _ => failwith("THEN PERISH")
         };
       | _ => Effect.Ignore
