@@ -9,6 +9,28 @@ module Focus = {
   type t('p_f) =
     | Here
     | Projector(Id.t, 'p_f);
+
+  let handle_key_event =
+      (
+        type p_k,
+        type p_m,
+        type p_a,
+        type p_f,
+        ~handle_key_pr: (~focus: p_f, ~key: Key.t, p_m) => option(p_a),
+        ~focus: t(p_f),
+        ~key: Key.t,
+        ~info_projector,
+        model: Editor.Model.t(p_k, p_m, p_a),
+      ) => {
+    switch (focus) {
+    | Here => Keyboard.handle_key_event(~info_projector, key)
+    | Projector(id, focus) =>
+      open OptUtil.Syntax;
+      let* model = 
+      let+ action = handle_key_pr(~focus, ~key, model);
+      Action.Project(Perform(id, action));
+    };
+  };
 };
 
 type event =
@@ -42,6 +64,7 @@ module MouseState = Pointer.MkState();
 let view_code_statics =
     (
       type p_m,
+      type p_a,
       ~common: ProjectorInterface.common,
       ~overlays: list(Node.t)=[],
       ~sort=Sort.root,
@@ -59,6 +82,7 @@ let view_code_statics =
       Deco.Deco({
         type projector_kind = ProjectorCore.Kind.t;
         type projector = p_m;
+        type projector_action = p_a;
         let globals = common;
         let editor = editor;
       });
@@ -70,21 +94,23 @@ let view_code_statics =
 let view_code_editable =
     (
       type p_m,
+      type p_a,
       ~common: ProjectorInterface.common,
       ~split_views,
       ~mk_status,
       ~signal: event => Ui_effect.t(unit),
-      ~inject: Action.t(ProjectorCore.Kind.t, p_m) => Ui_effect.t(unit),
+      ~inject: Action.t(ProjectorCore.Kind.t, p_m, p_a) => Ui_effect.t(unit),
       ~selected: bool,
       ~overlays: list(Node.t)=[],
       ~sort,
-      model: Editor.Model.t(ProjectorCore.Kind.t, p_m),
+      model: Editor.Model.t(ProjectorCore.Kind.t, p_m, p_a),
     ) => {
   let edit_decos = {
     module Deco =
       Deco.Deco({
         type projector = p_m;
         type projector_kind = ProjectorCore.Kind.t;
+        type projector_action = p_a;
         let editor = model;
         let globals = common;
       });

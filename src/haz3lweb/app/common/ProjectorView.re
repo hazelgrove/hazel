@@ -44,7 +44,8 @@ module Model = {
       (
         type ed,
         type ed_a,
-        p: Base.projector(ProjectorCore.model(ed, ed_a)),
+        type ed_f,
+        p: Base.projector(ProjectorCore.model(ed, ed_a, ed_f)),
         ~editor_active: bool,
         ~indicated: option((Id.t, Direction.t)),
         ~selection_ids: list(Id.t),
@@ -81,8 +82,8 @@ module Model = {
         let* p = Id.Map.find_opt(id, projectors);
         let+ measurement = Measured.find_pr_opt(p, measured);
         let info =
-          ProjectorInfo.mk_info(
-            p,
+          ProjectorCore.mk_info(
+            ~id,
             ~statics,
             ~dynamics,
             //~utility=ProjectorInfo.utility,
@@ -116,7 +117,7 @@ let backing_deco =
   ShardDec.relative({
     font_metrics,
     measurement,
-    tips: p |> ProjectorBase.shapes |> ShardDec.tips_of_shapes,
+    tips: p |> ProjectorNibs.nibs |> ShardDec.tips_of_shapes,
   });
 
 /* Adds attributes to a projector UI to support
@@ -158,7 +159,7 @@ let view_wrapper =
   );
 
 /* Dispatches projector external actions to editor-level actions */
-let handle = (id, action: external_action): Action.project('p_k, 'p) =>
+let handle = (id, action: external_action): Action.project('p_k, 'p, 'p_a) =>
   switch (action) {
   | Remove => RemoveIndicated
   | Escape(d) => Escape(id, d)
@@ -213,26 +214,19 @@ let mk_view =
     (
       type ed_m,
       type ed_a,
-      ~sort: Sort.t,
+      type ed_f,
       ~parent: ProjectorBase.external_action => Ui_effect.t(unit),
-      ~set_model: ProjectorCore.model(ed_m, ed_a) => Ui_effect.t(unit),
+      ~inject: ProjectorCore.Update.t(ed_a) => Ui_effect.t(unit),
       ~ed_str,
       ~view_ed,
       ~mk_ed,
-      ~update_ed,
-      ~statics,
-      {p, info, _}: Model.projector_data(ProjectorCore.model(ed_m, ed_a)),
+      {p, info, _}:
+        Model.projector_data(ProjectorCore.model(ed_m, ed_a, ed_f)),
     )
     : View.t => {
   let ProjectorCore.V(kind_gadt, model) = p.model;
   let methods = ProjectorCore.to_module(kind_gadt);
-  let local = a =>
-    set_model(
-      ProjectorCore.V(
-        kind_gadt,
-        methods.update(~sort, ~update_ed, ~statics, model, info, a),
-      ),
-    );
+  let local = a => inject(ProjectorCore.Update.A(kind_gadt, a));
   methods.view(~ed_str, ~view_ed, ~mk_ed, model, info, ~local, ~parent);
 };
 
@@ -242,17 +236,16 @@ let split_views =
     (
       type ed,
       type ed_a,
+      type ed_f,
       ~common: ProjectorInterface.common,
-      ~sort,
       ~ed_str,
       ~view_ed,
       ~mk_ed,
-      ~update_ed,
       ~parent: ProjectorBase.external_action => Ui_effect.t(unit),
-      ~set_model: ProjectorCore.model(ed, ed_a) => Ui_effect.t(unit),
+      ~inject: ProjectorCore.Update.t(ed_a) => Ui_effect.t(unit),
       ~make_active,
       {p, offside_base, measurement, status, _} as projector_data:
-        Model.projector_data(ProjectorCore.model(ed, ed_a)),
+        Model.projector_data(ProjectorCore.model(ed, ed_a, ed_f)),
     )
     : (Node.t, option(Node.t)) => {
   let wrapper =
@@ -263,17 +256,7 @@ let split_views =
       ~status,
     );
   let views =
-    mk_view(
-      ~sort,
-      ~parent,
-      ~set_model,
-      ~ed_str,
-      ~view_ed,
-      ~mk_ed,
-      ~statics=common.statics,
-      ~update_ed,
-      projector_data,
-    );
+    mk_view(~parent, ~inject, ~ed_str, ~view_ed, ~mk_ed, projector_data);
   let line_view = {
     let offside_view =
       views.offside
@@ -309,12 +292,12 @@ let all =
          (
            ~sort: Sort.t,
            ~parent: external_action => Ui_effect.t(unit),
-           ~set_model: p => Ui_effect.t(unit),
+           ~inject: 'p_a => Ui_effect.t(unit),
            ~make_active: Ui_effect.t(unit),
            Model.projector_data(p)
          ) =>
          (Node.t, option(Node.t)),
-      ~inject: Action.t('p_k, p) => Ui_effect.t(unit),
+      ~inject: Action.t('p_k, p, 'p_a) => Ui_effect.t(unit),
       ~make_active,
       projector_data: list(Model.projector_data(p)),
     ) => {
@@ -331,7 +314,7 @@ let all =
          split_views(
            ~sort=data.status.sort,
            ~parent=a => inject(Project(handle(data.info.id, a))),
-           ~set_model=m => inject(Project(SetModel(data.info.id, m))),
+           ~inject=a => inject(Project(Perform(data.info.id, a))),
            ~make_active=
              Ui_effect.Many([
                make_active,

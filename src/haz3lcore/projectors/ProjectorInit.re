@@ -4,11 +4,12 @@ let init =
     (
       type ed,
       type ed_a,
+      type ed_f,
       kind: ProjectorCore.Kind.t,
       any: Term.Any.t,
       ed: unit => option(ed),
     )
-    : option(ProjectorCore.model(ed, ed_a)) => {
+    : option(ProjectorCore.model(ed, ed_a, ed_f)) => {
   open ProjectorCore.Kind;
   let.gadt W(kind_gadt) = kind;
   let methods = ProjectorCore.to_module(kind_gadt);
@@ -18,12 +19,13 @@ let init =
   };
 };
 
-let make_term = (~term_of_ed, V(k, m): ProjectorCore.model('ed, 'ed_a)) => {
+let make_term =
+    (~term_of_ed, V(k, m): ProjectorCore.model('ed, 'ed_a, 'ed_f)) => {
   let methods = ProjectorCore.to_module(k);
   methods.mk_term(~term_of_ed, _, m);
 };
 
-let focusable_of_model = (V(k, _): ProjectorCore.model('ed, 'ed_a)) => {
+let focusable_of_model = (V(k, _): ProjectorCore.model('ed, 'ed_a, 'ed_f)) => {
   let methods = ProjectorCore.to_module(k);
   methods.focusable;
 };

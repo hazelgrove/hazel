@@ -59,6 +59,33 @@ module Kind = {
   // | Card: gadt(CardProj.model('ed), CardProj.action, 'ed)
   // | TextArea: gadt(TextAreaProj.model('ed), TextAreaProj.action, 'ed);
 
+  let gadt_eq =
+      (
+        type a,
+        type b,
+        type c,
+        type d,
+        type e,
+        type f,
+        type g,
+        type h,
+        type i,
+        type j,
+        type k,
+        type l,
+        gadt1: gadt(a, b, c, d, e, f),
+        gadt2: gadt(g, h, i, j, k, l),
+      ) => {
+    switch (gadt1, gadt2) {
+    | (Info, Info) => true
+    | (Info, _) => false
+    | (Pair, Pair) => true
+    | (Pair, _) => false
+    | (Slider, Slider) => true
+    | (Slider, _) => false
+    };
+  };
+
   let of_gadt =
       (
         type m,
@@ -149,8 +176,9 @@ module Kind = {
     };
 };
 
-type model('ed_m, 'ed_a) =
-  | V(Kind.gadt('a, 'b, 'c, 'ed_m, 'ed_a, 'ed_f), 'a): model('ed_m, 'ed_a);
+type model('ed_m, 'ed_a, 'ed_f) =
+  | V(Kind.gadt('a, 'b, 'c, 'ed_m, 'ed_a, 'ed_f), 'a)
+    : model('ed_m, 'ed_a, 'ed_f);
 
 let kind_of_model = (V(x, _)) => Kind.of_gadt(x);
 
@@ -182,7 +210,16 @@ let to_module =
   };
 
 let pp_model =
-    (type ed, type ed_a, _pp_ed, _pp_ed_a, _f, _model: model(ed, ed_a)) => {
+    (
+      type ed,
+      type ed_a,
+      type ed_f,
+      _pp_ed,
+      _pp_ed_a,
+      _pp_ed_f,
+      _f,
+      _model: model(ed, ed_a, ed_f),
+    ) => {
   // Format.printf(f, model |> kind_of_model |> Kind.name);  // Note(matt): I tried to make this but it gnarly type errors
   failwith(
     "cannot print",
@@ -190,7 +227,8 @@ let pp_model =
 };
 
 let model_of_sexp =
-    (ed_of_sexp, _ed_a_of_sexp, sexp: Sexplib.Sexp.t): model('ed, 'ed_a) =>
+    (ed_of_sexp, _ed_a_of_sexp, _ed_f_of_sexp, sexp: Sexplib.Sexp.t)
+    : model('ed, 'ed_a, 'ed_f) =>
   switch (sexp) {
   | List([Atom(kind_string), m]) =>
     open Kind;
@@ -204,9 +242,11 @@ let sexp_of_model =
     (
       type ed,
       type ed_a,
+      type ed_f,
       sexp_of_ed: ed => Sexplib.Sexp.t,
       _sexp_of_ed_a: ed_a => Sexplib.Sexp.t,
-      model: model(ed, ed_a),
+      _sexp_of_ed_f: ed_f => Sexplib.Sexp.t,
+      model: model(ed, ed_a, ed_f),
     )
     : Sexplib.Sexp.t =>
   switch (model) {
@@ -220,7 +260,8 @@ let sexp_of_model =
   };
 
 let model_of_yojson =
-    (ed_of_yojson, _ed_a_of_yojson, yojson: Yojson.Safe.t): model('ed, 'ed_a) =>
+    (ed_of_yojson, _ed_a_of_yojson, _ed_f_of_yojson, yojson: Yojson.Safe.t)
+    : model('ed, 'ed_a, 'ed_f) =>
   switch (yojson) {
   | `List([`String(kind_string), m]) =>
     open Kind;
@@ -234,9 +275,11 @@ let yojson_of_model =
     (
       type ed,
       type ed_a,
+      type ed_f,
       yojson_of_ed: ed => Yojson.Safe.t,
       _yojson_of_ed_a: ed_a => Yojson.Safe.t,
-      model: model(ed, ed_a),
+      _yojson_of_ed_f: ed_f => Yojson.Safe.t,
+      model: model(ed, ed_a, ed_f),
     ) =>
   switch (model) {
   | V(kind_gadt, m) =>
@@ -247,6 +290,101 @@ let yojson_of_model =
       m |> methods.yojson_of_model(yojson_of_ed),
     ]);
   };
+
+let mk_info =
+    (~id: Id.t, ~statics: Statics.Map.t, ~dynamics: Dynamics.Map.t)
+    : ProjectorBase.info => {
+  id,
+  statics: Statics.Map.lookup(id, statics),
+  dynamics: Dynamics.Map.lookup(id, dynamics),
+};
+
+module Update = {
+  type t('ed_f) =
+    | A(Kind.gadt('a, 'b, 'c, 'ed_m, 'ed_a, 'ed_f), 'b): t('ed_a);
+
+  let kind_of_focus = (A(x, _)) => Kind.of_gadt(x);
+
+  let pp = (type ed_f, _pp_ed_f, _f, _focus: t(ed_f)) => {
+    failwith("cannot print");
+  };
+
+  let sexp_of_t =
+      (type ed_f, sexp_of_ed_f: ed_f => Sexplib.Sexp.t, t: t(ed_f))
+      : Sexplib.Sexp.t =>
+    switch (t) {
+    | A(kind_gadt, m) =>
+      open Kind;
+      let methods = to_module(kind_gadt);
+      List([
+        Atom(name(of_gadt(kind_gadt))),
+        m |> methods.sexp_of_action(sexp_of_ed_f),
+      ]);
+    };
+
+  let t_of_sexp = (ed_f_of_sexp, sexp: Sexplib.Sexp.t): t('ed_f) =>
+    switch (sexp) {
+    | List([Atom(kind_string), m]) =>
+      open Kind;
+      let.gadt W(kind_gadt) = kind_string |> Kind.of_name;
+      let methods = to_module(kind_gadt);
+      A(kind_gadt, m |> methods.action_of_sexp(ed_f_of_sexp));
+    | _ => failwith("Projector focus deserialization failed")
+    };
+
+  let yojson_of_t =
+      (type ed_f, yojson_of_ed_f: ed_f => Yojson.Safe.t, t: t(ed_f)) =>
+    switch (t) {
+    | A(kind_gadt, m) =>
+      open Kind;
+      let methods = to_module(kind_gadt);
+      `List([
+        `String(name(of_gadt(kind_gadt))),
+        m |> methods.yojson_of_action(yojson_of_ed_f),
+      ]);
+    };
+
+  let t_of_yojson = (ed_f_of_yojson, yojson: Yojson.Safe.t): t('ed_f) =>
+    switch (yojson) {
+    | `List([`String(kind_string), m]) =>
+      open Kind;
+      let.gadt W(kind_gadt) = kind_string |> Kind.of_name;
+      let methods = to_module(kind_gadt);
+      A(kind_gadt, m |> methods.action_of_yojson(ed_f_of_yojson));
+    | _ => failwith("Projector focus deserialization failed")
+    };
+
+  let update =
+      (
+        ~common: ProjectorInterface.common,
+        ~update_ed,
+        ~sort: Sort.t,
+        ~id: Id.t,
+        A(gadt1, action),
+        V(gadt2, model),
+      )
+      : model('ed_m, 'ed_a, 'ed_f) =>
+    if (Kind.gadt_eq(gadt1, gadt2)) {
+      let methods = to_module(gadt2);
+      V(
+        gadt2,
+        methods.update(
+          ~update_ed,
+          ~common,
+          ~sort,
+          mk_info(
+            ~id,
+            ~statics=common.statics.info_map,
+            ~dynamics=common.dynamics,
+          ),
+          model,
+          action |> Obj.magic // Note(Matt): Using Obj.magic here because we know the types are the same if gadt_eq(gadt1, gadt2) is true
+        ),
+      );
+    } else {
+      raise(Failure.Exception(Wrong_projector));
+    };
+};
 
 module Focus = {
   type t('ed_f) =
@@ -302,4 +440,22 @@ module Focus = {
       F(kind_gadt, m |> methods.focus_of_yojson(ed_f_of_yojson));
     | _ => failwith("Projector focus deserialization failed")
     };
+
+  let handle_key_event =
+      (~handle_key_ed, ~focus as F(gadt2, focus), ~key, V(gadt, m)) => {
+    let methods = to_module(gadt);
+    if (Kind.gadt_eq(gadt, gadt2)) {
+      open Util.OptUtil.Syntax;
+      let+ a =
+        methods.handle_key_event(
+          ~handle_key_ed,
+          ~focus=Obj.magic(focus), // Note(Matt): Using Obj.magic here because we know the types are the same if gadt_eq(gadt, gadt2) is true
+          ~key,
+          m,
+        );
+      Update.A(gadt, a);
+    } else {
+      None;
+    };
+  };
 };

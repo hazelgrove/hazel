@@ -26,7 +26,7 @@ let init = (any: Term.Any.t, _ed) =>
 let focusable = Focusable.non;
 let dynamics = false;
 let placeholder = (~ed_str as _, _, _) => ProjectorShape.inline(10);
-let update = (~sort as _, ~update_ed as _, ~statics as _, _, _, Set(n)) => n;
+let update = (~update_ed as _, ~common as _, ~sort as _, _, _, Set(n)) => n;
 
 let view =
     (
@@ -48,6 +48,11 @@ let view =
 let mk_term = (~term_of_ed as _, _, m): Any.t =>
   Exp(Atom(Int(m)) |> Exp.fresh);
 
+let handle_key_event = (~handle_key_ed as _, ~focus: focus('a)) =>
+  switch (focus) {
+  | _ => . // impossible
+  };
+
 let methods = {
   init,
   focusable,
@@ -56,6 +61,7 @@ let methods = {
   view,
   update,
   mk_term,
+  handle_key_event,
   sexp_of_model,
   model_of_sexp,
   yojson_of_model,

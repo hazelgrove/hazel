@@ -1,28 +1,16 @@
 /* Projector data which is dependent on semantics,
  * separated out for dependency reasons */
 
-let mk_info =
-    (
-      type p,
-      p: Piece.projector(p),
-      ~statics: Statics.Map.t,
-      ~dynamics: Dynamics.Map.t,
-    )
-    : ProjectorBase.info => {
-  id: p.id,
-  statics: Statics.Map.lookup(p.id, statics),
-  dynamics: Dynamics.Map.lookup(p.id, dynamics),
-};
-
 module ShapeMapSemantics = {
   let from_semantics =
       (
         type ed,
         type ed_a,
+        type ed_f,
         ~ed_str,
         statics: Statics.Map.t,
         dynamics: Dynamics.Map.t,
-        p: Base.projector(ProjectorCore.model(ed, ed_a)),
+        p: Base.projector(ProjectorCore.model(ed, ed_a, ed_f)),
       )
       : ProjectorShape.t => {
     let ProjectorCore.V(kind, model) = p.model;
@@ -30,7 +18,11 @@ module ShapeMapSemantics = {
     /* Projector data which is dependent on semantics,
      * separated out for dependency reasons */
 
-    methods.placeholder(~ed_str, model, mk_info(p, ~statics, ~dynamics));
+    methods.placeholder(
+      ~ed_str,
+      model,
+      ProjectorCore.mk_info(~id=p.id, ~statics, ~dynamics),
+    );
   };
 
   let mk =

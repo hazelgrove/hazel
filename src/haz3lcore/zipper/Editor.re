@@ -112,15 +112,20 @@ module State = {
 
 module History = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type affix('p_k, 'p) = list((Action.t('p_k, 'p), State.t('p)));
+  type affix('p_k, 'p, 'p_a) =
+    list((Action.t('p_k, 'p, 'p_a), State.t('p)));
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t('p_k, 'p) = (affix('p_k, 'p), affix('p_k, 'p));
+  type t('p_k, 'p, 'p_a) = (affix('p_k, 'p, 'p_a), affix('p_k, 'p, 'p_a));
 
   let empty = ([], []);
 
   let add =
-      (a: Action.t('p_k, 'p), state: State.t('p), (pre, _): t('p_k, 'p))
-      : t('p_k, 'p) => (
+      (
+        a: Action.t('p_k, 'p, 'p_a),
+        state: State.t('p),
+        (pre, _): t('p_k, 'p, 'p_a),
+      )
+      : t('p_k, 'p, 'p_a) => (
     [(a, state), ...pre],
     [],
   );
@@ -129,10 +134,10 @@ module History = {
 [@warning "-20"]
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t('p_k, 'p) = {
+  type t('p_k, 'p, 'p_a) = {
     // Updated
     state: State.t('p),
-    history: History.t('p_k, 'p),
+    history: History.t('p_k, 'p, 'p_a),
     // Calculated
     [@opaque]
     syntax: CachedSyntax.t('p),
@@ -163,12 +168,12 @@ module Model = {
   };
 
   type persistent = PersistentZipper.t;
-  let persist = (f: 'p => 'q, model: t('p_k, 'p)) =>
+  let persist = (f: 'p => 'q, model: t('p_k, 'p, 'p_a)) =>
     model.state.zipper |> PersistentZipper.persist(f);
   let unpersist = (f, p) => p |> PersistentZipper.unpersist(f) |> mk;
 
   let to_move_s =
-      (type p', model: t('p_k, p')): (module Move.S with type p = p') => {
+      (type p', model: t('p_k, p', 'p_a)): (module Move.S with type p = p') => {
     module M: Move.S with type p = p' = {
       type p = p';
       let measured = model.syntax.measured;
@@ -178,7 +183,7 @@ module Model = {
     (module M);
   };
 
-  let trailing_hole_ctx = (ed: t('p_k, 'p), info_map: Statics.Map.t) => {
+  let trailing_hole_ctx = (ed: t('p_k, 'p, 'p_a), info_map: Statics.Map.t) => {
     let segment = Zipper.unselect_and_zip(ed.state.zipper);
     let convex_grout = Segment.convex_grout(segment);
     // print_endline(String.concat("; ", List.map(Grout.show, convex_grout)));
@@ -197,12 +202,13 @@ module Model = {
 };
 
 module Update = {
-  type t('p_k, 'p) = Action.t('p_k, 'p);
+  type t('p_k, 'p, 'p_a) = Action.t('p_k, 'p, 'p_a);
 
   let update =
       (
         type p,
         type p_k,
+        type p_a,
         ~settings: CoreSettings.t,
         ~sort,
         ~projector_init,
@@ -210,11 +216,13 @@ module Update = {
         ~shape_of_projector,
         ~projector_to_term,
         ~get_focusable,
-        a: Action.t(p_k, p),
+        ~update_projector,
+        ~livelit_projectors,
+        a: Action.t(p_k, p, p_a),
         old_statics,
-        {state, history, syntax}: Model.t(p_k, p),
+        {state, history, syntax}: Model.t(p_k, p, p_a),
       )
-      : Action.Result.t(Model.t(p_k, p)) => {
+      : Action.Result.t(Model.t(p_k, p, p_a)) => {
     let seg_to_ed = seg =>
       Zipper.unzip(seg)
       |> Model.mk(~sort, ~shape_of_projector, ~projector_to_term)
@@ -232,6 +240,8 @@ module Update = {
               ~projector_init,
               ~seg_of_projector,
               ~get_focusable,
+              ~update_projector,
+              ~livelit_projectors,
               old_statics,
               Buffer(Clear),
               Model.to_move_s({
@@ -280,6 +290,8 @@ module Update = {
         ~seg_of_projector,
         ~seg_to_ed,
         ~get_focusable,
+        ~update_projector,
+        ~livelit_projectors,
         old_statics,
         a,
         Model.to_move_s({
@@ -304,7 +316,7 @@ module Update = {
     };
   };
 
-  let undo = (ed: Model.t('p_k, 'p)) =>
+  let undo = (ed: Model.t('p_k, 'p, 'p_a)) =>
     switch (ed.history) {
     | ([], _) => None
     | ([(a, prev), ...before], after) =>
@@ -316,7 +328,7 @@ module Update = {
         },
       )
     };
-  let redo = (ed: Model.t('p_k, 'p)) =>
+  let redo = (ed: Model.t('p_k, 'p, 'p_a)) =>
     switch (ed.history) {
     | (_, []) => None
     | (before, [(a, next), ...after]) =>
@@ -341,11 +353,13 @@ module Update = {
         ~seg_of_projector,
         ~shape_of_projector,
         ~get_focusable,
+        ~livelit_projectors,
+        ~update_projector,
         ~is_edited,
         ~sort,
         new_statics,
         dyn_map,
-        {syntax, state, history}: Model.t('p_k, p),
+        {syntax, state, history}: Model.t('p_k, p, 'p_a),
       ) => {
     let seg_to_ed = seg =>
       Zipper.unzip(seg)
@@ -362,6 +376,8 @@ module Update = {
             ~projector_init,
             ~seg_of_projector,
             ~get_focusable,
+            ~update_projector,
+            ~livelit_projectors,
             new_statics,
             Buffer(Set(TyDi)),
             Model.to_move_s({
@@ -405,4 +421,4 @@ module Update = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t('p_k, 'p) = Model.t('p_k, 'p);
+type t('p_k, 'p, 'p_a) = Model.t('p_k, 'p, 'p_a);

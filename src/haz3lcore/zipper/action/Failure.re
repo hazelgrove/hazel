@@ -11,6 +11,7 @@ type t =
   | CantAccept
   | Cant_undo
   | Cant_redo
-  | CantIntroduce;
+  | CantIntroduce
+  | Wrong_projector;
 
 exception Exception(t);

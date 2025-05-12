@@ -55,7 +55,7 @@ type action('ed_a) =
   | ToggleDisplay;
 
 let update =
-    (~sort as _, ~update_ed as _, ~statics as _, model, _, a: action('ed_a)) =>
+    (~update_ed as _, ~common as _, ~sort as _, _, model, a: action('ed_a)) =>
   switch (a, model) {
   | (ToggleDisplay, (Expected, m)) => (Self, m)
   | (ToggleDisplay, (Self, m)) => (Expected, m)
@@ -129,6 +129,11 @@ let mk_term = (~term_of_ed, sort, (_, ed)) => {
   term_of_ed(sort, ed);
 };
 
+let handle_key_event = (~handle_key_ed as _, ~focus: focus('a)) =>
+  switch (focus) {
+  | _ => . // impossible
+  };
+
 let methods = {
   init,
   focusable: Focusable.non,
@@ -137,6 +142,7 @@ let methods = {
   placeholder,
   update,
   mk_term,
+  handle_key_event,
   sexp_of_model,
   model_of_sexp,
   yojson_of_model,

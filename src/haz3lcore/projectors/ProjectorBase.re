@@ -104,15 +104,23 @@ type methods('model, 'action, 'focus, 'ed_m, 'ed_a, 'ed_f) = {
   placeholder: (~ed_str: 'ed_m => string, 'model, info) => ProjectorShape.t,
   update:
     (
+      ~update_ed: (~sort: Sort.t, 'ed_a, 'ed_m) => 'ed_m,
+      ~common: ProjectorInterface.common,
       ~sort: Sort.t,
-      ~update_ed: (~sort: Sort.t, CachedStatics.t, 'ed_a, 'ed_m) => 'ed_m,
-      ~statics: CachedStatics.t,
-      'model,
       info,
+      'model,
       'action
     ) =>
     'model,
   mk_term: (~term_of_ed: (Sort.t, 'ed_m) => Any.t, Sort.t, 'model) => Any.t,
+  handle_key_event:
+    (
+      ~handle_key_ed: (~focus: 'ed_f, ~key: Key.t, 'ed_m) => option('ed_a),
+      ~focus: 'focus,
+      ~key: Key.t,
+      'model
+    ) =>
+    option('action),
   sexp_of_model: ('ed_m => Sexplib.Sexp.t, 'model) => Sexplib.Sexp.t,
   model_of_sexp: (Sexplib.Sexp.t => 'ed_m, Sexplib.Sexp.t) => 'model,
   yojson_of_model: ('ed_m => Yojson.Safe.t, 'model) => Yojson.Safe.t,
@@ -125,7 +133,7 @@ type methods('model, 'action, 'focus, 'ed_m, 'ed_a, 'ed_f) = {
   focus_of_sexp: (Sexplib.Sexp.t => 'ed_f, Sexplib.Sexp.t) => 'focus,
   yojson_of_focus: ('ed_f => Yojson.Safe.t, 'focus) => Yojson.Safe.t,
   focus_of_yojson: (Yojson.Safe.t => 'ed_f, Yojson.Safe.t) => 'focus,
-};
+} /* }*/;
 
 // /* To add a new projector:
 //  * 1. Create a new module implementing Projector (e.g. FoldProj)
@@ -184,8 +192,3 @@ type methods('model, 'action, 'focus, 'ed_m, 'ed_a, 'ed_f) = {
 //   /* Update the local projector model given an action */
 //   let update: (model('ed), info('p), action) => model('ed);
 //   let mk_term: (model('ed), Any.t) => Any.t;
-// };
-
-/* Projectors currently are all convex */
-let shapes = (_: Base.projector('p)): Nibs.shapes =>
-  Nib.Shape.(Convex, Convex);

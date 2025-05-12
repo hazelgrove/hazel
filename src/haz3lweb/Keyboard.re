@@ -11,8 +11,9 @@ let meta = (sys: Key.sys): string => {
   };
 };
 
-let handle_key_event = (k: Key.t): option(Action.t('p_k, 'p)) => {
-  let now = (a: Action.t('p_k, 'p)) => Some(a);
+let handle_key_event =
+    (~info_projector: 'p_k, k: Key.t): option(Action.t('p_k, 'p, 'p_a)) => {
+  let now = (a: Action.t('p_k, 'p, 'p_a)) => Some(a);
   switch (k) {
   | {key: U(key), _} =>
     /* Keu-UPpEvents:
@@ -108,10 +109,10 @@ let handle_key_event = (k: Key.t): option(Action.t('p_k, 'p)) => {
   //   /* √ is what holding option turns f into on Mac */
   //   Some(Project(SetIndicated(Specific(Probe))))
   | {key: D("t"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
-    Some(Project(SetIndicated(Specific(Info))))
+    Some(Project(SetIndicated(Specific(info_projector))))
   | {key: D("†"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     /* † is what holding option turns t into on Mac */
-    Some(Project(SetIndicated(Specific(Info))))
+    Some(Project(SetIndicated(Specific(info_projector))))
   | {key: D("l"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     Some(Project(SetIndicated(ChooseLivelit)))
   | {key: D("¬"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>

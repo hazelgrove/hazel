@@ -19,9 +19,21 @@ module rec Projector: {
     let make_term: (t, Sort.t) => Any.t;
   };
 
+  module Update: {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t;
+
+    let update:
+      (~common: ProjectorInterface.common, ~sort: Sort.t, t, Model.t) =>
+      Model.t;
+  };
+
   module Focus: {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t;
+
+    let handle_key_event:
+      (~focus: t, ~key: Key.t, Model.t) => option(Update.t);
   };
 
   module View: {
@@ -50,7 +62,8 @@ module rec Projector: {
 } = {
   module Model = {
     [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = ProjectorCore.model(Editor.Model.t, Editor.Update.t);
+    type t =
+      ProjectorCore.model(Editor.Model.t, Editor.Update.t, Editor.Focus.t);
 
     let get_shape =
       Haz3lcorep.ProjectorInfo.ShapeMapSemantics.from_semantics(
@@ -68,16 +81,28 @@ module rec Projector: {
     let mk = ProjectorInit.init;
   };
 
+  module Update = {
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t = ProjectorCore.Update.t(Editor.Update.t);
+
+    let update = (~common) =>
+      ProjectorCore.Update.update(~update_ed=Editor.Update.update(~common));
+  };
+
   module Focus = {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = ProjectorCore.Focus.t(Editor.Focus.t);
+
+    let handle_key_event =
+      ProjectorCore.Focus.handle_key_event(
+        ~handle_key_ed=Editor.Focus.handle_key_event,
+      );
   };
 
   module View = {
     let split_views = (~common: ProjectorInterface.common, ~sort) =>
       ProjectorView.split_views(
         ~common,
-        ~sort,
         ~ed_str=Editor.View.print_string,
         ~mk_ed=Editor.Model.mk(~settings=common.settings),
         ~view_ed=
@@ -85,7 +110,6 @@ module rec Projector: {
             ~font_metrics=common.font_metrics,
             ~secondary_icons=common.secondary_icons,
           ),
-        ~update_ed=Editor.Update.update(~settings=common.settings),
       );
 
     let mk_status = ProjectorView.Model.mk_status;
@@ -94,7 +118,12 @@ module rec Projector: {
 and Editor: {
   module Model: {
     [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = Haz3lcorep.Editor.t(ProjectorCore.Kind.t, Projector.Model.t); // Transparent definition needed for handing editor to projectorinit
+    type t =
+      Haz3lcorep.Editor.t(
+        ProjectorCore.Kind.t,
+        Projector.Model.t,
+        Projector.Update.t,
+      ); // Transparent definition needed for handing editor to projectorinit
 
     let mk: (~settings: CoreSettings.t, ~inline: bool=?, Any.t) => t;
 
@@ -110,25 +139,18 @@ and Editor: {
 
   module Update: {
     [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = Action.t(ProjectorCore.Kind.t, Projector.Model.t);
+    type t =
+      Action.t(ProjectorCore.Kind.t, Projector.Model.t, Projector.Update.t);
 
     let update:
-      (
-        ~settings: CoreSettings.t,
-        ~sort: Sort.t,
-        CachedStatics.t,
-        t,
-        Model.t
-      ) =>
+      (~common: ProjectorInterface.common, ~sort: Sort.t, t, Model.t) =>
       Model.t;
 
     let calculate:
       (
-        ~settings: CoreSettings.t,
+        ~common: ProjectorInterface.common,
         ~is_edited: bool,
         ~sort: Sort.t,
-        CachedStatics.t,
-        Dynamics.Map.t,
         Model.t
       ) =>
       Model.t;
@@ -138,15 +160,26 @@ and Editor: {
 
     let key_handoff:
       (Model.t, Key.t) =>
-      option(Action.project(ProjectorCore.Kind.t, Projector.Model.t));
+      option(
+        Action.project(
+          ProjectorCore.Kind.t,
+          Projector.Model.t,
+          Projector.Update.t,
+        ),
+      );
     let jump_to_tile_action:
       (Id.t, Model.t) =>
-      option(Action.t(ProjectorCore.Kind.t, Projector.Model.t));
+      option(
+        Action.t(ProjectorCore.Kind.t, Projector.Model.t, Projector.Update.t),
+      );
   };
 
   module Focus: {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t;
+
+    let handle_key_event:
+      (~focus: t, ~key: Key.t, Model.t) => option(Update.t);
   };
 
   module View: {
@@ -167,7 +200,11 @@ and Editor: {
         ~common: ProjectorInterface.common,
         ~signal: EditorView.event => Ui_effect.t(unit),
         ~inject:
-          Action.t(ProjectorCore.Kind.t, Projector.Model.t) =>
+          Action.t(
+            ProjectorCore.Kind.t,
+            Projector.Model.t,
+            Projector.Update.t,
+          ) =>
           Ui_effect.t(unit),
         ~selected: bool,
         ~overlays: list(Web.Node.t)=?,
@@ -180,7 +217,11 @@ and Editor: {
       (
         ~common: ProjectorInterface.common,
         ~inject:
-          Action.t(ProjectorCore.Kind.t, Projector.Model.t) =>
+          Action.t(
+            ProjectorCore.Kind.t,
+            Projector.Model.t,
+            Projector.Update.t,
+          ) =>
           Ui_effect.t(unit),
         ~make_active: Ui_effect.t(unit),
         list(ProjectorView.Model.projector_data(Projector.Model.t))
@@ -219,7 +260,12 @@ and Editor: {
 } = {
   module Model = {
     [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = Haz3lcorep.Editor.t(ProjectorCore.Kind.t, Projector.Model.t);
+    type t =
+      Haz3lcorep.Editor.t(
+        ProjectorCore.Kind.t,
+        Projector.Model.t,
+        Projector.Update.t,
+      );
 
     let mk = (~settings: CoreSettings.t, ~inline=false, term: Any.t): t => {
       ExpToSegment.any_to_segment(
@@ -256,16 +302,24 @@ and Editor: {
 
   module Update = {
     [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = Action.t(ProjectorCore.Kind.t, Projector.Model.t);
+    type t =
+      Action.t(ProjectorCore.Kind.t, Projector.Model.t, Projector.Update.t);
 
-    let update = (~settings, ~sort, statics, action: t, editor: Model.t) => {
+    let update =
+        (
+          ~common: ProjectorInterface.common,
+          ~sort,
+          action: t,
+          editor: Model.t,
+        ) => {
       switch (
         Haz3lcorep.Editor.Update.update(
-          ~settings,
+          ~settings=common.settings,
           ~sort,
           ~projector_init=Projector.Model.mk,
           ~projector_to_term=Projector.Model.make_term,
           ~shape_of_projector=Projector.Model.get_shape,
+          ~update_projector=Projector.Update.update(~common),
           ~seg_of_projector=
             (sort, p) =>
               Projector.Model.make_term(p, sort)
@@ -273,8 +327,9 @@ and Editor: {
                    ~settings=ExpToSegment.Settings.on,
                  ),
           ~get_focusable=Projector.Model.focusable_of_kind,
+          ~livelit_projectors=ProjectorCore.Kind.livelit_projectors,
           action,
-          statics,
+          common.statics,
           editor,
         )
       ) {
@@ -285,7 +340,7 @@ and Editor: {
 
     let calculate =
         (
-          ~settings: CoreSettings.t,
+          ~common: ProjectorInterface.common,
           ~is_edited: bool,
           ~sort: Sort.t,
           statics: CachedStatics.t,
@@ -294,7 +349,7 @@ and Editor: {
         )
         : Model.t =>
       Haz3lcorep.Editor.Update.calculate(
-        ~settings,
+        ~settings=common.settings,
         ~is_edited,
         ~projector_init=Projector.Model.mk,
         ~projector_to_term=Projector.Model.make_term,
@@ -304,6 +359,8 @@ and Editor: {
             Projector.Model.make_term(p, sort)
             |> ExpToSegment.any_to_segment(~settings=ExpToSegment.Settings.on),
         ~get_focusable=Projector.Model.focusable_of_kind,
+        ~livelit_projectors=ProjectorCore.Kind.livelit_projectors,
+        ~update_projector=Projector.Update.update(~common),
         ~sort,
         statics,
         dynamics,
@@ -331,7 +388,13 @@ and Editor: {
 
     let key_handoff =
         (editor: Model.t, key: Key.t)
-        : option(Action.project(ProjectorCore.Kind.t, Projector.Model.t)) => {
+        : option(
+            Action.project(
+              ProjectorCore.Kind.t,
+              Projector.Model.t,
+              Projector.Update.t,
+            ),
+          ) => {
       let z = editor.state.zipper;
       switch (
         move_dir(key),
@@ -374,6 +437,11 @@ and Editor: {
   module Focus = {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = EditorView.Focus.t(Projector.Focus.t);
+
+    let handle_key_event =
+      EditorView.Focus.handle_key_event(
+        ~handle_key_pr=Projector.Focus.handle_key_event,
+      );
   };
 
   module View = {

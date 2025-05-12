@@ -27,7 +27,7 @@ let init =
     (
       ~projector_init,
       ~seg_to_ed: Base.segment('p) => option('ed),
-      kind: ProjectorCore.Kind.t,
+      kind: 'p_kind,
       seg: Base.segment('p),
     )
     : option(syntax('p)) =>
@@ -90,14 +90,17 @@ let go =
     (
       type p,
       type p_kind,
+      type p_a,
       ~seg_to_ed,
       ~projector_init,
+      ~update_projector,
       ~seg_of_pr: (Sort.t, p) => Base.segment(p),
       ~get_focusable: p_kind => ProjectorBase.Focusable.t,
+      ~livelit_projectors,
       jump_to_id_indicated,
       jump_to_side_of_id,
       select_term: Zipper.t(p) => option(Zipper.t(p)),
-      a: Action.project(p_kind, p),
+      a: Action.project(p_kind, p, p_a),
       z: Zipper.t(p),
     )
     : result(ZipperBase.t(p), Action.Failure.t) => {
@@ -110,8 +113,7 @@ let go =
         }
       : Some((z.selection.focus, z));
 
-  let set_indicated =
-      (z: Zipper.t(p), kind: ProjectorCore.Kind.t): option(Zipper.t(p)) => {
+  let set_indicated = (z: Zipper.t(p), kind: p_kind): option(Zipper.t(p)) => {
     /* If not projected, project. If already same kind, remove. If other kind, change */
     // TODO [Matt]: Make this check the kind again
     let* (focus, z) = setup_selection(z);
@@ -142,12 +144,7 @@ let go =
     | None => Error(Cant_project)
     }
   | SetIndicated(ChooseLivelit) =>
-    switch (
-      List.filter_map(
-        set_indicated(z),
-        ProjectorCore.Kind.livelit_projectors,
-      )
-    ) {
+    switch (List.filter_map(set_indicated(z), livelit_projectors)) {
     | [hd, ..._] => Ok(hd)
     | [] => Error(Cant_project)
     }
@@ -156,13 +153,13 @@ let go =
     | Some(z) => Ok(z)
     | None => Error(Cant_project)
     }
-  | SetModel(id, model) =>
+  | Perform(id, action) =>
     Ok(
       update(
         pr =>
           {
             ...pr,
-            model,
+            model: update_projector(~sort=Sort.Any, action, pr.model) // TODO[Matt]: we need sorts here.
           },
         id,
         z,

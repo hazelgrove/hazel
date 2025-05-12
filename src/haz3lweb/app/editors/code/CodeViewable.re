@@ -41,7 +41,7 @@ let view_segment =
 };
 
 let view_editor =
-    (type p, ~sort: Sort.t, editor: Haz3lcorep.Editor.t('p_k, p)) => {
+    (type p, ~sort: Sort.t, editor: Haz3lcorep.Editor.t('p_k, p, 'p_a)) => {
   let measured = editor.syntax.measured;
   let buffer_ids =
     Selection.is_buffer(editor.state.zipper.selection)
