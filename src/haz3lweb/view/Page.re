@@ -308,8 +308,13 @@ module Update = {
           actions,
         );
       };
-      let goto_definition = (ed: CodeWithStatics.Model.t, name: string) => {
-        let actions = ChatLSP.Composition.goto_definition(name, ed);
+      let goto =
+          (
+            ed: CodeWithStatics.Model.t,
+            name: string,
+            loc: ChatLSP.Composition.loc_of_goto,
+          ) => {
+        let actions = ChatLSP.Composition.goto(ed, name, loc);
         // Apply each action in sequence
         List.iter(
           action => {
@@ -344,7 +349,7 @@ module Update = {
           ~model=model.assistant,
           ~schedule_action=a => schedule_action(Assistant(a)),
           ~add_suggestion,
-          ~goto_definition,
+          ~goto,
           ~edit,
         );
       {
