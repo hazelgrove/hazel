@@ -394,6 +394,9 @@ module Pervasives = {
        );
 };
 
+let livelits_init =
+  Livelit.livelits |> List.map(entry => Ctx.LivelitEntry(entry));
+
 let entries =
   List.map(
     fun
@@ -410,7 +413,10 @@ let entries =
         id: Id.invalid,
       }),
     Pervasives.builtins,
-  );
+  )
+  |> List.append(
+       Livelit.livelits |> List.map(entry => Ctx.LivelitEntry(entry)),
+     );
 
 let ctx_init: option(Operators.mode) => Ctx.t =
   use_mode => {

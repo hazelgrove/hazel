@@ -295,6 +295,7 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
   | UnOp(Meta(Unquote), d) =>
     let* ty = typ_of_dhexp(ctx, m, d);
     Some(ty);
+  | LivelitName(_) => Some(Atom(String) |> Typ.temp)
   | ListLit([]) => Some(List(Unknown(Internal) |> Typ.temp) |> Typ.temp)
   | ListLit([x, ...xs]) =>
     let* t_x = typ_of_dhexp(ctx, m, x);

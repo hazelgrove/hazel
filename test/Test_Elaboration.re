@@ -18,7 +18,7 @@ module PlainTests = {
   open IdTagged.FreshGrammar;
 
   let parse_exp = (s: string) => {
-    switch (MakeTerm.parse_exp(s)) {
+    switch (Haz3lcore.Parse.parse_exp(s)) {
     | Some(e) => e
     | None => Alcotest.fail("Failed to parse expression: " ++ s)
     };
