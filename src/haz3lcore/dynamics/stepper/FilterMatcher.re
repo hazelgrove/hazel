@@ -333,6 +333,7 @@ let rec matches_exp =
       )
     | (Match(_), _) => false
     // TODO: should these not default to false?
+    | (LivelitName(_), _) => false
     | (MultiHole(_), _) => false
     | (Invalid(_), _) => false
     | (DynamicErrorHole(_), _) => false
