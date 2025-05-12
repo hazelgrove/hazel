@@ -103,7 +103,7 @@ let backing_deco =
   ShardDec.relative({
     font_metrics,
     measurement,
-    tips: p |> ProjectorBase.shapes |> ShardDec.tips_of_shapes,
+    tips: p |> ProjectorCore.shapes |> ShardDec.tips_of_shapes,
   });
 
 /* Adds attributes to a projector UI to support

@@ -49,6 +49,18 @@ let context_entry_view = (~globals, entry: Haz3lcore.Ctx.entry): Node.t => {
         Kind.view(~globals, kind),
       ],
     )
+  | LivelitEntry({name, expansion_t, _}) =>
+    div(
+      ~attrs=[
+        Attr.on_click(_ => globals.inject_global(jump_to(entry))),
+        clss(["context-entry", "code", "livelit-entry"]),
+      ],
+      [
+        div_name([text("^" ++ name)]),
+        div(~attrs=[clss(["seperator"])], [text(":")]),
+        view_type(expansion_t),
+      ],
+    )
   };
 };
 

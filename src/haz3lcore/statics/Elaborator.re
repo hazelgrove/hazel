@@ -339,6 +339,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         |> Option.value(~default=Typ.temp(Unknown(Internal)));
       let ds' = List.map2((d, t) => fresh_cast(d, t, inner_type), ds, tys);
       ListLit(ds') |> rewrap |> cast_from(List(inner_type) |> Typ.temp);
+    | LivelitName(_) => uexp |> cast_from(Typ.temp(Unknown(Internal)))
     | Constructor(c, _) =>
       let (self, ty) =
         switch (Id.Map.find_opt(Exp.rep_id(uexp), m)) {
@@ -492,12 +493,24 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let (e', tye) = elaborate(m, e);
       e' |> cast_from(tye);
     | Ap(dir, f, a) =>
-      let (f', tyf) = elaborate(m, f);
-      let (a', tya) = elaborate(m, a);
-      let (tyf1, tyf2) = Typ.matched_arrow(ctx, tyf);
-      let f'' = fresh_cast(f', tyf, Arrow(tyf1, tyf2) |> Typ.temp);
-      let a'' = fresh_cast(a', tya, tyf1);
-      Ap(dir, f'', a'') |> rewrap |> cast_from(tyf2);
+      switch (f.term) {
+      | LivelitName(s) =>
+        switch (Ctx.lookup_livelit(ctx, s)) {
+        | Some(ll) =>
+          switch (ll.expand(a)) {
+          | Some(ll_expand) => ll_expand |> cast_from(ll.expansion_t)
+          | None => uexp |> cast_from(Typ.temp(Unknown(Internal)))
+          }
+        | None => uexp |> cast_from(Typ.temp(Unknown(Internal)))
+        }
+      | _ =>
+        let (f', tyf) = elaborate(m, f);
+        let (a', tya) = elaborate(m, a);
+        let (tyf1, tyf2) = Typ.matched_arrow(ctx, tyf);
+        let f'' = fresh_cast(f', tyf, Arrow(tyf1, tyf2) |> Typ.temp);
+        let a'' = fresh_cast(a', tya, tyf1);
+        Ap(dir, f'', a'') |> rewrap |> cast_from(tyf2);
+      }
     | DeferredAp(f, args) =>
       let (f', tyf) = elaborate(m, f);
       let (args', tys) = List.map(elaborate(m), args) |> ListUtil.unzip;
