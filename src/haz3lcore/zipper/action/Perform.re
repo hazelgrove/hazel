@@ -98,15 +98,20 @@ let go_z =
   let select_body = (z: t) => {
     open OptUtil.Syntax;
     /* First select the current term (the let binding) */
+    let* (p, _, _) = Indicated.piece''(z);
     let* z =
-      Select.current_term(~defs_exclude_bodies=true, ~case_rules=true, z);
+      Piece.is_term(p)
+        ? Select.parent_of_indicated(z, statics.info_map)
+        : Select.current_term(~defs_exclude_bodies=true, ~case_rules=true, z);
     print_endline("Selected let binding");
     /* Helper to find next non-whitespace tile */
     let rec find_next_non_whitespace = (z: t): option(t) => {
-      let z = Zipper.directional_unselect(z.selection.focus, z);
+      let z = Zipper.directional_unselect(Direction.Right, z);
+      print_endline("Moving right");
       switch (Zipper.move(Right, z)) {
       | None => None
       | Some(z) =>
+        print_endline("Moved right");
         switch (Indicated.piece''(z)) {
         | None => find_next_non_whitespace(z)
         | Some((p, _, _)) =>
@@ -115,7 +120,7 @@ let go_z =
           | Secondary(_) => find_next_non_whitespace(z)
           | _ => Some(z)
           };
-        }
+        };
       };
     };
     /* Iteratively find the next non-whitespace tile */
