@@ -21,20 +21,21 @@ let module_tests =
     "MakeTerm.Modules",
     Exp.[
       test_case("Empty Module", `Quick, () => exp_check(module_([]), "{}")),
-      // test_case("Empty Module", `Quick, () =>
-      //   exp_check(
-      //     module_([]),
-      //     {|case ?
-      //   | a => 2
-      //   | b => 3
-      //   | c => 4
-      // end|},
-      //   )
-      // ),
       test_case("Module with one definition", `Quick, () =>
         exp_check(
-          module_([ModuleEntry.val_binding(Pat.var("x"), int(1))]), // TODO Add binding
+          module_([ModuleEntry.val_binding(Pat.var("x"), int(1))]),
           "{val x = 1}",
+        )
+      ),
+      test_case("Value binding with explicit type", `Quick, () =>
+        exp_check(
+          module_([
+            ModuleEntry.val_binding(
+              Pat.(cast(var("x"), Typ.int(), Typ.unknown(Internal))),
+              int(1),
+            ),
+          ]),
+          "{val x : Int = 1}",
         )
       ),
       test_case("Module with multiple definitions", `Quick, () =>
@@ -76,27 +77,89 @@ let module_tests =
           "{val x = 1+3 ;  val y = (2 * 6) - 7; val z = 1}",
         )
       ),
+      test_case("Module with type definition", `Quick, () =>
+        exp_check(
+          module_([ModuleEntry.type_def(TPat.var("t"), Typ.int())]),
+          "{type t = Int}",
+        )
+      ),
+      test_case("Module with type definition and value binding", `Quick, () =>
+        exp_check(
+          module_([
+            ModuleEntry.type_def(TPat.var("t"), Typ.int()),
+            ModuleEntry.val_binding(Pat.var("x"), int(1)),
+          ]),
+          "{type t = Int; val x = 1}",
+        )
+      ),
+      test_case("Module with multiple definitions and sort errors", `Quick, () =>
+        exp_check(
+          module_([
+            ModuleEntry.hole([Exp(int(7))]),
+            ModuleEntry.val_binding(
+              Pat.var("y"),
+              bin_op(
+                Int(Minus),
+                bin_op(Int(Times), int(2), int(6)),
+                int(7),
+              ),
+            ),
+            ModuleEntry.hole([Exp(int(8))]),
+          ]),
+          "{7 ;  val y = (2 * 6) - 7; 8}",
+        )
+      ),
     ],
-    // test_case("Module with multiple definitions and sort errors", `Quick, () =>
-    //   exp_check(
-    //     module_([
-    //       ModuleEntry.val_binding(
-    //         Pat.var("x"),
-    //         bin_op(Int(Plus), int(1), int(3)),
-    //       ),
-    //       ModuleEntry.val_binding(
-    //         Pat.var("y"),
-    //         bin_op(
-    //           Int(Minus),
-    //           bin_op(Int(Times), int(2), int(6)),
-    //           int(7),
-    //         ),
-    //       ),
-    //       ModuleEntry.val_binding(Pat.var("z"), int(1)),
-    //     ]),
-    //     "{7 ;  val y = (2 * 6) - 7; 8}",
-    //   )
-    // ),
+  );
+
+let module_signature_tests =
+  Fresh.(
+    "MakeTerm.ModuleSignature",
+    Exp.[
+      test_case("Empty Module", `Quick, () =>
+        exp_check(
+          ty_alias(TPat.var("S"), Typ.module_signature([]), empty_hole()),
+          "type S = {} in ?",
+        )
+      ),
+      test_case("Module with one definition", `Quick, () =>
+        exp_check(
+          ty_alias(
+            TPat.var("S"),
+            Typ.module_signature([
+              ModuleSignatureEntry.val_type(Pat.var("x"), Typ.int()),
+            ]),
+            empty_hole(),
+          ),
+          "type S = {val x : Int} in ?",
+        )
+      ),
+      test_case("Module with just type alias", `Quick, () =>
+        exp_check(
+          ty_alias(
+            TPat.var("S"),
+            Typ.module_signature([
+              ModuleSignatureEntry.type_def(TPat.var("Y"), Typ.int()),
+            ]),
+            empty_hole(),
+          ),
+          "type S = {type Y = Int} in ?",
+        )
+      ),
+      test_case("Module with type alias and val type", `Quick, () =>
+        exp_check(
+          ty_alias(
+            TPat.var("S"),
+            Typ.module_signature([
+              ModuleSignatureEntry.val_type(Pat.var("x"), Typ.int()),
+              ModuleSignatureEntry.type_def(TPat.var("Y"), Typ.int()),
+            ]),
+            empty_hole(),
+          ),
+          "type S = {val x : Int ; type Y = Int} in ?",
+        )
+      ),
+    ],
   );
 
 let tests = [
@@ -245,4 +308,5 @@ let tests = [
     ],
   ),
   module_tests,
+  module_signature_tests,
 ];
