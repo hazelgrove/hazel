@@ -137,10 +137,12 @@ let rec elaborate_pattern =
     | Wild => upat
     | Var(_) => upat
     // Type annotations should already appeard
-    | Parens(p)
-    | Cast(p, _, _) =>
+    | Parens(p) =>
       let (p', _) = elaborate_pattern(m, p);
       p';
+    | Cast(p, t1, t2) =>
+      let (p', _) = elaborate_pattern(m, p);
+      Cast(p', t1, t2) |> rewrap;
     | Probe(p, probe) =>
       let (e', _) = elaborate_pattern(m, p);
       let probe = Dynamics.Probe.instrument_pat(m, Pat.rep_id(upat), probe);
