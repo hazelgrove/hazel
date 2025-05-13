@@ -434,6 +434,12 @@ in fn("hello")|},
         {|string_join(" ", ["hazel", "hello", "world"])|},
       )
     }),
+    test_case("Inconsistent type ascription", `Quick, () =>
+      parse_and_evaluate_test("(4 : String)", {|(4 : String)|})
+    ),
+    test_case("Inconsistent type ascription in subterm", `Quick, () =>
+      parse_and_evaluate_test("1 + (4 : String)", {|1 + (4 : String)|})
+    ),
     test_case("Simple probe", `Quick, () => {
       PGrammar.(
         probe_test(

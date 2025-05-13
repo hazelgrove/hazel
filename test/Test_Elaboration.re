@@ -408,6 +408,13 @@ module PlainTests = {
       `Quick,
       ap_deferral_single_argument,
     ),
+    test_case("Inconsistent type ascription", `Quick, () =>
+      alco_check(
+        {|4 : String|},
+        parse_exp({|4 : String|}),
+        dhexp_of_uexp(parse_exp({|4 : String|})) // Ignoring casts for now
+      )
+    ),
     test_case(
       "Function application with a deferral of a hole",
       `Quick,
