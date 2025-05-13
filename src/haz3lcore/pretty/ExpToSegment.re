@@ -123,6 +123,7 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Var(_)
   | Atom(_)
   | Label(_)
+  | ModuleSignature(_)
   | TupLabel(_) => Precedence.max
 
   // Same goes for forms which are already surrounded
@@ -180,7 +181,7 @@ let rec parenthesize =
   | Atom(_)
   | EmptyHole
   | LivelitName(_)
-  //| Constructor(_) // Not indivisible because of the type annotation!
+  | Module(_)
   | Deferral(_)
   | BuiltinFun(_)
   | Tuple([])

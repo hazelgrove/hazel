@@ -535,25 +535,25 @@ and module_entry_term: unsorted => (TermBase.module_entry_term, list(Id.t)) =
       | (_, MultipleEntries(rs)) => ret(MultipleEntries([l] @ rs))
       | (_, _) => ret(MultipleEntries([l, r]))
       };
-    | Pre(tiles, Exp(last_exp)) as _tm =>
+    | Pre(tiles, Exp(last_exp)) as tm =>
       switch (tiles) {
       | ([(_id, t)], []) =>
         // print_endline("t: " ++ [%derive.show: Aba.t(string, Any.t)](t));
         switch (t) {
         | (["val", "="], [Pat(p)]) => ret(ValBinding(p, last_exp))
-        | _ => assert(false)
+        | _ => ret(hole(tm))
         }
-      | _ => assert(false)
+      | _ => ret(hole(tm))
       }
-    | Pre(tiles, Typ(last_pat)) as _tm =>
+    | Pre(tiles, Typ(last_pat)) as tm =>
       switch (tiles) {
       | ([(_id, t)], []) =>
         print_endline("t: " ++ [%derive.show: Aba.t(string, Any.t)](t));
         switch (t) {
         | (["typedef", "="], [TPat(p)]) => ret(TypeDef(p, last_pat))
-        | _ => assert(false)
+        | _ => ret(hole(tm))
         };
-      | _ => assert(false)
+      | _ => ret(hole(tm))
       }
     | Op(_) as tm => ret(Hole([Exp(exp(tm))]))
     | tm =>

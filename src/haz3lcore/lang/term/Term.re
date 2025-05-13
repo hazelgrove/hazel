@@ -575,6 +575,7 @@ module Exp = {
     | BinOp(_)
     | Match(_)
     | LivelitName(_)
+    | Module(_)
     | Constructor(_) => false
     };
   };
@@ -637,6 +638,7 @@ module Exp = {
       | BinOp(_)
       | Match(_)
       | LivelitName(_)
+      | Module(_)
       | Constructor(_) => false
       }
     );
@@ -697,6 +699,7 @@ module Exp = {
       | BinOp(_)
       | Match(_)
       | LivelitName(_)
+      | Module(_) // TODO
       | Constructor(_) => None
       };
     };
@@ -860,6 +863,7 @@ module Exp = {
           | BuiltinFun(_)
           | Cast(_)
           | LivelitName(_)
+          | Module(_) // TODO
           | Undefined => cont(e)
           };
         },
@@ -947,7 +951,8 @@ module Any = {
     | TPat(tm) => IdTagged.ids(tm)
     | Rul(tm) => Rul.ids(~any_ids=ids, tm)
     | Any () => []
-    | ModuleEntry(tm) => IdTagged.ids(tm);
+    | ModuleEntry(tm) => IdTagged.ids(tm)
+    | ModuleSignatureEntry(tm) => IdTagged.ids(tm);
 
   // Terms may consist of multiple tiles, eg the commas in an n-tuple,
   // the rules of a case expression + the surrounding case-end tile,
@@ -968,5 +973,6 @@ module Any = {
     | TPat(tm) => TPat.rep_id(tm)
     | Rul(tm) => Rul.rep_id(~any_ids=ids, tm)
     | ModuleEntry(tm) => ModuleEntry.rep_id(tm)
+    | ModuleSignatureEntry(tm) => ModuleSignatureEntry.rep_id(tm)
     | Any () => raise(Invalid_argument("Term.rep_id"));
 };

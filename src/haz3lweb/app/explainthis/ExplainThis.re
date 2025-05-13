@@ -563,6 +563,7 @@ let get_doc =
         )
       | BuiltinFun(_) => simple("Internal expression")
       | LivelitName(n) => get_message(TerminalExp.livelit_name_exps(n))
+      | Module(_) => simple("Module expression") // TODO
       | EmptyHole => get_message(HoleExp.empty_hole_exps)
       | MultiHole(_children) => get_message(HoleExp.multi_hole_exps)
       | TyAlias(ty_pat, ty_def, _body) =>
@@ -2379,6 +2380,7 @@ let get_doc =
     | Atom(Bool) => get_message(TerminalTyp.bool)
     | Atom(String) => get_message(TerminalTyp.str)
     | Atom(Nat) => get_message(TerminalTyp.nat)
+    | ModuleSignature(_) => simple("Module signature") // TODO
     | List(elem) =>
       let elem_id = List.nth(IdTagged.ids(elem), 0);
       get_message(

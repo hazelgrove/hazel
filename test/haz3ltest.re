@@ -1,6 +1,6 @@
 open Junit_alcotest;
 
-let full =
+let _full =
   Test_MakeTerm.tests
   @ [
     Test_Grammar.tests,

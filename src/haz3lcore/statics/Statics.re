@@ -1802,6 +1802,10 @@ and utyp_to_info_map =
       |> snd;
     let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
     add(m); // TODO: check with andrew
+  | ModuleSignature(_) => (
+      Info.derived_typ(~utyp, ~ctx, ~ancestors, ~expects),
+      m,
+    )
   };
 }
 and utpat_to_info_map =

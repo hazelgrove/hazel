@@ -216,6 +216,7 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Sum(sm) => ConstructorMap.free_variables(free_vars(~bound), sm)
   | Prod(tys) => ListUtil.flat_map(free_vars(~bound), tys)
   | TupLabel(_, ty) => free_vars(~bound, ty)
+  | ModuleSignature(_) => [] // TODO
   | Rec(x, ty)
   | Forall(x, ty) =>
     free_vars(~bound=(x |> TPat.tyvar_of_utpat |> Option.to_list) @ bound, ty)
@@ -371,6 +372,7 @@ let rec match_synswitch = (t1: t, t2: t) => {
   // HACK[Matt]: The only possible forall is `Forall Syn -> Syn`
   | (Forall(_), Forall(_)) => t2
   | (Forall(_), _) => t1
+  | (ModuleSignature(_), _) => t1 // TODO
   };
 };
 

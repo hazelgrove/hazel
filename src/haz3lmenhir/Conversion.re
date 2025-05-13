@@ -363,6 +363,7 @@ module rec Exp: {
     | Filter(Residue(_), _) => raise(Failure("Residue not supported"))
     | MultiHole(_) => raise(Failure("MultiHole not supported"))
     | Closure(_) => raise(Failure("Closure not supported"))
+    | Module(_) => raise(Failure("Module not supported"))
     | Parens(e) => of_core(e)
     | Probe(e, _) => of_core(e)
     | Constructor(s, typ) =>
@@ -466,6 +467,7 @@ and Typ: {
     | Atom(String) => StringType
     | Atom(Bool) => BoolType
     | Atom(Nat) => NatType
+    | ModuleSignature(_) => raise(Failure("ModuleSignature not supported"))
     | Var(x) => TypVar(x)
     | Prod(ts) => TupleType(List.map(of_core, ts))
     | List(t) => ArrayType(of_core(t))
