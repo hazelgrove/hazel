@@ -95,6 +95,8 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
 /* gives a transition step that can be taken by the cast calculus here if applicable. */
 let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
   switch (DHExp.term_of(d)) {
+  | Cast({term: Atom(Int(i)) as d, _}, _, {term: Atom(Int), _}) =>
+    Some(d |> Exp.fresh)
   | Cast(d1, t1, t2) =>
     let d1 =
       if (recursive) {
@@ -102,6 +104,8 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       } else {
         d1;
       };
+    print_endline("transition");
+    print_endline(DHExp.show(d));
     switch (ground_cases_of(t1), ground_cases_of(t2)) {
     | (Hole, Hole)
     | (Ground, Ground) =>
