@@ -440,6 +440,9 @@ in fn("hello")|},
     test_case("Inconsistent type ascription in subterm", `Quick, () =>
       parse_and_evaluate_test("1 + (4 : String)", {|1 + (4 : String)|})
     ),
+    test_case("Consistent type ascription", `Quick, () =>
+      parse_and_evaluate_test("4", {|4 : Int|})
+    ),
     test_case("Simple probe", `Quick, () => {
       PGrammar.(
         probe_test(

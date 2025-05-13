@@ -108,8 +108,7 @@ let tests = (
           Typ.(list(empty_hole())),
           Typ.(list(int())),
         ),
-        [1, 2, 3]
-        |> List.map(i => cast(i |> int, Typ.(empty_hole()), Typ.(int()))),
+        [1, 2, 3] |> List.map(int),
       ),
       // ListLitn requests
       test_matches(
@@ -161,8 +160,7 @@ let tests = (
           Typ.(list(empty_hole())),
           Typ.(list(int())),
         ),
-        [1, 2, 3]
-        |> List.map(i => cast(i |> int, Typ.(empty_hole()), Typ.(int()))),
+        [1, 2, 3] |> List.map(int),
       ),
       // Cons requests
       test_matches(
@@ -208,7 +206,7 @@ let tests = (
           Typ.(list(int())),
         ),
         (
-          cast(1 |> int, Typ.(empty_hole()), Typ.(int())),
+          int(1),
           cast(empty_hole(), Typ.(list(empty_hole())), Typ.(list(int()))),
         ),
       ),
