@@ -443,6 +443,9 @@ in fn("hello")|},
     test_case("Consistent type ascription", `Quick, () =>
       parse_and_evaluate_test("4", {|4 : Int|})
     ),
+    test_case("Inconsisent type ascription on let", `Quick, () =>
+      parse_and_evaluate_test("(4 : String)", {|let x : String = 4  in x|})
+    ),
     test_case("Simple probe", `Quick, () => {
       PGrammar.(
         probe_test(
