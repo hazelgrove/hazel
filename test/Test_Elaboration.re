@@ -137,7 +137,13 @@ module PlainTests = {
   let d9: Exp.t =
     Exp.(
       let_(
-        Pat.var("f"),
+        Pat.(
+          cast(
+            var("f"),
+            Typ.arrow(Typ.int(), Typ.int()),
+            Typ.unknown(Internal),
+          )
+        ),
         fn(
           Pat.var("x"),
           bin_op(Int(Plus), int(1), var("x")),
@@ -245,25 +251,22 @@ module PlainTests = {
      ```
    */
   let elaborated_labeled_tuple = () => {
+    let typ =
+      Typ.(
+        parens(
+          prod([
+            tup_label(label("street"), string()),
+            tup_label(label("city"), string()),
+            tup_label(label("state"), string()),
+            tup_label(label("zipcode"), int()),
+          ]),
+        )
+      );
+
     let full_labeled_tuple_program: Exp.t =
       Exp.(
         let_(
-          Pat.(
-            cast(
-              var("add"),
-              Typ.(
-                parens(
-                  prod([
-                    tup_label(label("street"), string()),
-                    tup_label(label("city"), string()),
-                    tup_label(label("state"), string()),
-                    tup_label(label("zipcode"), int()),
-                  ]),
-                )
-              ),
-              Typ.unknown(Internal),
-            )
-          ),
+          Pat.(cast(var("add"), typ, Typ.unknown(Internal))),
           parens(
             tuple([
               string("123 Maple St"),
@@ -280,7 +283,7 @@ module PlainTests = {
       "Labeled Tuple label introduction",
       Exp.(
         let_(
-          Pat.var("add"),
+          Pat.(cast(var("add"), typ, Typ.unknown(Internal))),
           tuple([
             tup_label(label("street"), string("123 Maple St")),
             tup_label(label("city"), string("Ann Arbor")),
@@ -310,7 +313,13 @@ module PlainTests = {
       "let x : (l=String) = \"a\" in x",
       Exp.(
         let_(
-          Pat.var("x"),
+          Pat.(
+            cast(
+              var("x"),
+              Typ.(prod([tup_label(label("l"), string())])),
+              Typ.unknown(Internal),
+            )
+          ),
           tuple([tup_label(label("l"), string("a"))]),
           var("x"),
         )
@@ -328,25 +337,21 @@ module PlainTests = {
        (a=1, b="a", 1.0, c=true)
      */
   let rearranged_labeled_tuple = () => {
+    let typ =
+      Typ.(
+        parens(
+          prod([
+            tup_label(label("a"), Typ.int()),
+            tup_label(label("b"), Typ.string()),
+            float(),
+            tup_label(label("c"), Typ.bool()),
+          ]),
+        )
+      );
     let rearranged_labeled_tuple_program: Exp.t =
       Exp.(
         let_(
-          Pat.(
-            cast(
-              var("val"),
-              Typ.(
-                parens(
-                  prod([
-                    tup_label(label("a"), Typ.int()),
-                    tup_label(label("b"), Typ.string()),
-                    float(),
-                    tup_label(label("c"), Typ.bool()),
-                  ]),
-                )
-              ),
-              Typ.unknown(Internal),
-            )
-          ),
+          Pat.(cast(var("val"), typ, Typ.unknown(Internal))),
           parens(
             tuple([
               int(1),
@@ -363,7 +368,7 @@ module PlainTests = {
       "Labeled Tuple rearrangement",
       Exp.(
         let_(
-          Pat.var("val"),
+          Pat.(cast(var("val"), typ, Typ.unknown(Internal))),
           tuple([
             tup_label(label("a"), int(1)),
             tup_label(label("b"), string("a")),
@@ -415,6 +420,19 @@ module PlainTests = {
         dhexp_of_uexp(parse_exp({|4 : String|})) // Ignoring casts for now
       )
     ),
+    test_case("Inconsistent let ascription", `Quick, () =>
+      alco_check(
+        {|let x : String = 4  in x|},
+        Exp.(
+          let_(
+            Pat.(cast(var("x"), Typ.string(), Typ.unknown(Internal))),
+            int(4),
+            var("x"),
+          )
+        ),
+        dhexp_of_uexp(parse_exp({|let x : String = 4 in x|})),
+      )
+    ),
     test_case(
       "Function application with a deferral of a hole",
       `Quick,
@@ -428,34 +446,32 @@ module PlainTests = {
       singleton_labeled_tuple_elaborates_labels,
     ),
     test_case("Singleton labeled tuple", `Quick, singleton_labeled_tuple),
-    test_case("Singleton labeled tuple analysis adds label", `Quick, () =>
-      alco_check(
-        "Singleton labeled tuple analysis adds label",
-        Exp.(
-          let_(
-            Pat.var("x"),
-            tuple([tup_label(label("l"), string("a"))]),
-            var("x"),
-          )
-        ),
-        dhexp_of_uexp(
+    test_case(
+      "Singleton labeled tuple analysis adds label",
+      `Quick,
+      () => {
+        let typ =
+          Typ.(parens(prod([tup_label(label("l"), Typ.string())])));
+        alco_check(
+          "Singleton labeled tuple analysis adds label",
           Exp.(
             let_(
-              Pat.(
-                cast(
-                  var("x"),
-                  Typ.(
-                    parens(prod([tup_label(label("l"), Typ.string())]))
-                  ),
-                  Typ.unknown(Internal),
-                )
-              ),
-              parens(string("a")),
+              Pat.(cast(var("x"), typ, Typ.unknown(Internal))),
+              tuple([tup_label(label("l"), string("a"))]),
               var("x"),
             )
           ),
-        ),
-      )
+          dhexp_of_uexp(
+            Exp.(
+              let_(
+                Pat.(cast(var("x"), typ, Typ.unknown(Internal))),
+                parens(string("a")),
+                var("x"),
+              )
+            ),
+          ),
+        );
+      },
     ),
     test_case(
       "Singleton labeled tuple analysis adds label with type alias", `Quick, () =>
@@ -464,7 +480,7 @@ module PlainTests = {
         let x : T = "hello" in x|},
         Exp.(
           let_(
-            Pat.var("x"),
+            Pat.(cast(var("x"), Typ.(var("T")), Typ.unknown(Internal))),
             tuple([tup_label(label("a"), string("hello"))]),
             var("x"),
           )
@@ -480,7 +496,13 @@ module PlainTests = {
         {|let zip_only : (zip=Int) = (zip=12345) in zip_only|},
         Exp.(
           let_(
-            Pat.var("zip_only"),
+            Pat.(
+              cast(
+                var("zip_only"),
+                Typ.(prod([tup_label(label("zip"), int())])),
+                Typ.unknown(Internal),
+              )
+            ),
             tuple([tup_label(label("zip"), int(12345))]),
             var("zip_only"),
           )
@@ -500,7 +522,9 @@ module PlainTests = {
           ap(
             Forward,
             fn(
-              Pat.(tuple([tup_label(label("a"), var("x"))])),
+              Pat.(
+                tuple([tup_label(label("a"), asc(var("x"), Typ.int()))])
+              ),
               var("x"),
               Some(Typ.(prod([tup_label(label("a"), int())]))),
               None,
@@ -521,7 +545,9 @@ module PlainTests = {
           ap(
             Forward,
             fn(
-              Pat.(tuple([tup_label(label("a"), var("x"))])),
+              Pat.(
+                tuple([tup_label(label("a"), asc(var("x"), Typ.int()))])
+              ),
               var("x"),
               Some(Typ.(prod([tup_label(label("a"), Typ.int())]))),
               None,
@@ -537,7 +563,19 @@ module PlainTests = {
         {|let x : (b=c=String) = b="" in x|},
         Exp.(
           let_(
-            Pat.var("x"),
+            Pat.(
+              asc(
+                var("x"),
+                Typ.(
+                  prod([
+                    tup_label(
+                      label("b"),
+                      prod([tup_label(label("c"), string())]),
+                    ),
+                  ])
+                ),
+              )
+            ),
             tuple([
               tup_label(
                 label("b"),
@@ -608,20 +646,14 @@ in 1|},
         ),
       )
     }),
-    test_case(
-      "Does not add labels with different cardinality",
-      `Quick,
-      () => {
-        let foo = parse_exp({|(1, 2)|});
-        print_endline(DHExp.show(foo));
-        alco_check(
-          "Does not add label",
-          parse_exp({|(1, 2)|}),
-          DHExp.strip_casts(
-            dhexp_of_uexp(parse_exp({|(1, 2) : (a= ,b= ,  )|})),
-          ),
-        );
-      },
+    test_case("Does not add labels with different cardinality", `Quick, () =>
+      alco_check(
+        "Does not add label",
+        parse_exp({|(1, 2)|}),
+        DHExp.strip_casts(
+          dhexp_of_uexp(parse_exp({|(1, 2) : (a= ,b= ,  )|})),
+        ),
+      )
     ),
     skip_known_bug(
       "Nontermination in typ normalization",

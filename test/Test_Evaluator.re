@@ -376,6 +376,9 @@ let tests = (
     test_case("Integer sum", `Quick, test_sum),
     test_case("Function application", `Quick, test_function_application),
     test_case("Function deferral", `Quick, test_function_deferral),
+    test_case("Ascribed lambda", `Quick, () =>
+      parse_and_evaluate_test("2", {|((fun a -> a):  ? -> ? )(2:  ?): Int|})
+    ),
     test_case("Elaborated Pattern for labeled tuple", `Quick, () =>
       parse_and_evaluate_test(
         "2",
