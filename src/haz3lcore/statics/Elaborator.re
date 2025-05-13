@@ -84,7 +84,6 @@ let rec elaborate_pattern =
   let (elaborated_type, ana, ctx, upat) = elaborated_pat_type(m, upat);
   let elaborate_pattern = (~in_container=false, m, upat) =>
     elaborate_pattern(m, upat, in_container);
-  let cast_from = (ty, exp) => exp;
   let (term, rewrap) = Pat.unwrap(upat);
   let dpat =
     switch (term) {
@@ -92,8 +91,7 @@ let rec elaborate_pattern =
       let c =
         Operators.replace_literal(c, Typ.is_ana_atom(ana), ctx.use_mode);
       switch (c) {
-      | L(c) =>
-        Atom(c) |> rewrap |> cast_from(Atom(c |> Atom.cls_of_t) |> Typ.temp)
+      | L(c) => Atom(c) |> rewrap
       | R(BadInt(s)) => Invalid(s) |> rewrap
       };
     | ListLit(ps) =>
@@ -104,10 +102,7 @@ let rec elaborate_pattern =
         |> Option.value(~default=Typ.temp(Unknown(Internal)));
       ps
       |> List.map2((p, t) => p, _, tys)
-      |> (
-        ps' =>
-          ListLit(ps') |> rewrap |> cast_from(List(inner_type) |> Typ.temp)
-      );
+      |> (ps' => ListLit(ps') |> rewrap);
     | Cons(p1, p2) =>
       let (p1', ty1) = elaborate_pattern(m, p1);
       let (p2', ty2) = elaborate_pattern(m, p2);
@@ -122,13 +117,9 @@ let rec elaborate_pattern =
       let (plab, labty) = elaborate_pattern(m, lab);
       let (p', pty) = elaborate_pattern(m, p);
       if (in_container) {
-        TupLabel(plab, p')
-        |> rewrap
-        |> cast_from(TupLabel(labty, pty) |> Typ.temp);
+        TupLabel(plab, p') |> rewrap;
       } else {
-        Tuple([TupLabel(plab, p') |> rewrap])
-        |> DHPat.fresh
-        |> cast_from(Prod([TupLabel(labty, pty) |> Typ.temp]) |> Typ.temp);
+        Tuple([TupLabel(plab, p') |> rewrap]) |> DHPat.fresh;
       };
     | Tuple(ps) =>
       let (ps', tys) =
@@ -155,41 +146,29 @@ let rec elaborate_pattern =
           (name, e) => {TupLabel(Label(name) |> Typ.fresh, e) |> Typ.fresh},
         );
 
-      Tuple(ps') |> rewrap |> cast_from(Prod(tys) |> Typ.temp);
-    | Label(name) => upat |> cast_from(Label(name) |> Typ.temp)
+      Tuple(ps') |> rewrap;
+    | Label(name) => upat
     | Ap(p1, p2) =>
       let (p1', ty1) = elaborate_pattern(m, p1);
       let (p2', ty2) = elaborate_pattern(m, p2);
       let (ty1l, ty1r) = Typ.matched_arrow(ctx, ty1);
       let p1'' = p1';
       let p2'' = p2';
-      Ap(p1'', p2'') |> rewrap |> cast_from(ty1r);
+      Ap(p1'', p2'') |> rewrap;
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
     | Wild => upat
-    | Var(v) =>
-      upat
-      |> cast_from(
-           Ctx.lookup_var(ctx, v)
-           |> Option.map((x: Ctx.var_entry) =>
-                x.typ |> Typ.normalize(ctx) |> Typ.all_ids_temp
-              )
-           |> Option.value(~default=Typ.temp(Unknown(Internal))),
-         )
+    | Var(v) => upat
     // Type annotations should already appeard
     | Parens(p)
     | Cast(p, _, _) =>
       let (p', ty) = elaborate_pattern(m, p);
-      p' |> cast_from(ty |> Typ.normalize(ctx) |> Typ.all_ids_temp);
+      p';
     | Probe(p, probe) =>
       let (e', ty) = elaborate_pattern(m, p);
       let probe = Dynamics.Probe.instrument_pat(m, Pat.rep_id(upat), probe);
-      Probe(
-        e' |> cast_from(ty |> Typ.normalize(ctx) |> Typ.all_ids_temp),
-        probe,
-      )
-      |> rewrap;
+      Probe(e', probe) |> rewrap;
     | Constructor(c, _) =>
       let ana_ty =
         switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
@@ -212,7 +191,7 @@ let rec elaborate_pattern =
             |> Typ.temp,
           t,
         );
-      Constructor(c, Some(t)) |> rewrap |> cast_from(ty);
+      Constructor(c, Some(t)) |> rewrap;
     };
   (dpat, elaborated_type);
 };
@@ -245,7 +224,6 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
 
   let (elaborated_type, ana, ctx, co_ctx, statics_pseudo_elaborated) =
     elaborated_type(m, uexp);
-  let cast_from = (_ty, exp) => exp;
   let (_, rewrap) = Exp.unwrap(uexp);
   let uexp = rewrap(statics_pseudo_elaborated.term);
 
@@ -271,18 +249,17 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       FailedCast(elaborate(m, e) |> fst, t1, t2) |> rewrap
     | Parens(e) =>
       let (e', ty) = elaborate(m, e);
-      e' |> cast_from(ty);
+      e';
     | Probe(e, probe) =>
       let (e', ty) = elaborate(m, e);
       let probe = Dynamics.Probe.instrument_exp(m, Exp.rep_id(uexp), probe);
-      Probe(e' |> cast_from(ty), probe) |> rewrap;
+      Probe(e', probe) |> rewrap;
     | Deferral(_) => uexp
     | Atom(c) =>
       let c =
         Operators.replace_literal(c, Typ.is_ana_atom(ana), ctx.use_mode);
       switch (c) {
-      | L(c) =>
-        Atom(c) |> rewrap |> cast_from(Atom(c |> Atom.cls_of_t) |> Typ.temp)
+      | L(c) => Atom(c) |> rewrap
       | R(BadInt(s)) => Invalid(s) |> rewrap
       };
     | ListLit(es) =>
@@ -311,18 +288,14 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
             |> Typ.temp,
           t |> Option.join,
         );
-      Constructor(c, t) |> rewrap |> cast_from(ty);
+      Constructor(c, t) |> rewrap;
     | Fun(p, e, _, n) =>
       let (p', typ) = elaborate_pattern(m, p, false);
       let (e', tye) = elaborate(m, e);
-      Fun(p', e', Some(typ), n)
-      |> rewrap
-      |> cast_from(Arrow(typ, tye) |> Typ.temp);
+      Fun(p', e', Some(typ), n) |> rewrap;
     | TypFun(tpat, e, name) =>
       let (e', tye) = elaborate(m, e);
-      TypFun(tpat, e', name)
-      |> rewrap
-      |> cast_from(Forall(tpat, tye) |> Typ.temp);
+      TypFun(tpat, e', name) |> rewrap;
     | Tuple(es) =>
       let (ds, tys) = List.map(elaborate(m), es) |> ListUtil.unzip;
 
@@ -347,14 +320,12 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
           tys,
           (name, e) => {TupLabel(Label(name) |> Typ.fresh, e) |> Typ.fresh},
         );
-      Tuple(ds) |> rewrap |> cast_from(Prod(tys) |> Typ.temp);
+      Tuple(ds) |> rewrap;
     | TupLabel(label, e) =>
       let (label', labty) = elaborate(m, label);
       let (e', ety) = elaborate(m, e);
-      TupLabel(label', e')
-      |> rewrap
-      |> cast_from(TupLabel(labty, ety) |> Typ.temp);
-    | Label(name) => uexp |> cast_from(Label(name) |> Typ.temp)
+      TupLabel(label', e') |> rewrap;
+    | Label(name) => uexp
     | Dot(e1, e2) =>
       let (e1, ty1) = elaborate(m, e1);
       // Don't elaborate labels
@@ -377,16 +348,9 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         | _ => Unknown(Internal) |> Typ.temp
         };
       let ty = elab_dot(ty1, e2);
-      Dot(e1, e2) |> rewrap |> cast_from(ty);
-    | Var(v) =>
-      uexp
-      |> cast_from(
-           Ctx.lookup_var(ctx, v)
-           |> Option.map((x: Ctx.var_entry) =>
-                x.typ |> Typ.normalize(ctx) |> Typ.all_ids_temp
-              )
-           |> Option.value(~default=Typ.temp(Unknown(Internal))),
-         )
+      Dot(e1, e2) |> rewrap;
+    | Var(v) => uexp
+
     | Let(p, def, body) =>
       let add_name: (option(string), DHExp.t) => DHExp.t = (
         (name, exp) => {
@@ -422,7 +386,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         let (def, ty2) = elaborate(m, def);
         let def = add_name(Pat.get_var(p), def);
         let (body, ty) = elaborate(m, body);
-        Let(p, def, body) |> rewrap |> cast_from(ty);
+        Let(p, def, body) |> rewrap;
       } else {
         // TODO: Add names to mutually recursive functions
         let (def, ty2) = elaborate(m, def);
@@ -436,19 +400,19 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
     | FixF(p, e, env) =>
       let (p', typ) = elaborate_pattern(m, p, false);
       let (e', tye) = elaborate(m, e);
-      FixF(p', e', env) |> rewrap |> cast_from(typ);
+      FixF(p', e', env) |> rewrap;
     // These forms are removed in elaboration
     | Use(_, e)
     | TyAlias(_, _, e) =>
       let (e', tye) = elaborate(m, e);
-      e' |> cast_from(tye);
+      e';
     | Ap(dir, f, a) =>
       switch (f.term) {
       | LivelitName(s) =>
         switch (Ctx.lookup_livelit(ctx, s)) {
         | Some(ll) =>
           switch (ll.expand(a)) {
-          | Some(ll_expand) => ll_expand |> cast_from(ll.expansion_t)
+          | Some(ll_expand) => ll_expand
           | None => uexp
           }
         | None => uexp
@@ -459,7 +423,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         let (tyf1, tyf2) = Typ.matched_arrow(ctx, tyf);
         let f'' = f';
         let a'' = a';
-        Ap(dir, f'', a'') |> rewrap |> cast_from(tyf2);
+        Ap(dir, f'', a'') |> rewrap;
       }
     | DeferredAp(f, args) =>
       let (f', tyf) = elaborate(m, f);
@@ -489,9 +453,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         List.length(remaining_args) == 1
           ? snd(List.hd(remaining_args))
           : Prod(List.map(snd, remaining_args)) |> Typ.temp;
-      DeferredAp(f'', args'')
-      |> rewrap
-      |> cast_from(Arrow(remaining_arg_ty, tyf2) |> Typ.temp);
+      DeferredAp(f'', args'') |> rewrap;
     | TypAp(e, ut) =>
       let (e', tye) = elaborate(m, e);
       let (tpat, tye') = Typ.matched_forall(ctx, tye);
@@ -502,7 +464,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
           tpat |> Option.value(~default=TPat.fresh(EmptyHole)),
           tye',
         );
-      TypAp(e', ut) |> rewrap |> cast_from(tye'');
+      TypAp(e', ut) |> rewrap;
     | If(c, t, f) =>
       let (c', tyc) = elaborate(m, c);
       let (t', tyt) = elaborate(m, t);
@@ -513,11 +475,11 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let c'' = c';
       let t'' = t';
       let f'' = f';
-      If(c'', t'', f'') |> rewrap |> cast_from(ty);
+      If(c'', t'', f'') |> rewrap;
     | Seq(e1, e2) =>
       let (e1', _) = elaborate(m, e1);
       let (e2', ty2) = elaborate(m, e2);
-      Seq(e1', e2') |> rewrap |> cast_from(ty2);
+      Seq(e1', e2') |> rewrap;
     | Test(e) =>
       let (e', t) = elaborate(m, e);
       Test(e') |> rewrap;
@@ -532,11 +494,11 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
             pat: elaborate(m, pat) |> fst,
           })
         };
-      Filter(kind', e') |> rewrap |> cast_from(t);
+      Filter(kind', e') |> rewrap;
     | Closure(env, e) =>
       // Should we be elaborating the contents of the environment?
       let (e', t) = elaborate(m, e);
-      Closure(env, e') |> rewrap |> cast_from(t);
+      Closure(env, e') |> rewrap;
     | Cons(e1, e2) =>
       let (e1', ty1) = elaborate(m, e1);
       let (e2', ty2) = elaborate(m, e2);
@@ -557,9 +519,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         |> Option.value(~default=Typ.temp(Unknown(Internal)));
       let e1'' = e1';
       let e2'' = e2';
-      ListConcat(e1'', e2'')
-      |> rewrap
-      |> cast_from(List(ty_inner) |> Typ.temp);
+      ListConcat(e1'', e2'') |> rewrap;
     | UnOp(Meta(Unquote), e) =>
       switch (e.term) {
       // TODO: confirm whether these types are correct
@@ -590,13 +550,8 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
 
       | Defined(t1', t2', t3', _) => BinOp(op, e1', e2') |> rewrap
       };
-    | BuiltinFun(fn) =>
-      uexp
-      |> cast_from(
-           Ctx.lookup_var(Builtins.ctx_init(None), fn)
-           |> Option.map((x: Ctx.var_entry) => x.typ)
-           |> Option.value(~default=Typ.temp(Unknown(Internal))),
-         )
+    | BuiltinFun(fn) => uexp
+
     | Match(e, cases) =>
       let (e', t) = elaborate(m, e);
       let (ps, es) = ListUtil.unzip(cases);
