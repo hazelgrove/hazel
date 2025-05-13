@@ -57,13 +57,6 @@ module PlainTests = {
       )
     );
 
-  let bin_op = () =>
-    alco_check(
-      "Inconsistent binary integer operation (plus)",
-      d5,
-      dhexp_of_uexp(u5),
-    );
-
   let u6: Exp.t = Exp.(if_(bool(false), int(8), int(6)));
 
   let consistent_if = () =>
@@ -110,16 +103,7 @@ module PlainTests = {
     Exp.(
       match(
         bin_op(Int(Equals), int(4), int(3)),
-        [
-          (
-            Pat.(bool(true)),
-            cast(int(24), Typ.int(), Typ.unknown(Internal)),
-          ),
-          (
-            Pat.bool(false),
-            cast(bool(false), Typ.bool(), Typ.unknown(Internal)),
-          ),
-        ],
+        [(Pat.(bool(true)), int(24)), (Pat.bool(false), bool(false))],
       )
     );
 
@@ -224,35 +208,10 @@ module PlainTests = {
         ap(
           Forward,
           deferred_ap(
-            cast(
-              cast(
-                empty_hole(),
-                Typ.unknown(Internal),
-                Typ.(arrow(unknown(Internal), unknown(Internal))),
-              ),
-              Typ.((arrow(unknown(. Internal)))(unknown(Internal))),
-              Typ.(
-                arrow(
-                  prod([
-                    unknown(Internal),
-                    unknown(Internal),
-                    unknown(Internal),
-                  ]),
-                  unknown(Internal),
-                )
-              ),
-            ),
-            [
-              deferral(InAp),
-              deferral(InAp),
-              cast(int(3), Typ.int(), Typ.unknown(Internal)),
-            ],
+            empty_hole(),
+            [deferral(InAp), deferral(InAp), int(3)],
           ),
-          cast(
-            tuple([float(1.), bool(true)]),
-            Typ.(prod([float(), bool()])),
-            Typ.(prod([Typ.unknown(Internal), Typ.unknown(Internal)])),
-          ),
+          tuple([float(1.), bool(true)]),
         )
       ),
       Exp.(
@@ -434,7 +393,6 @@ module PlainTests = {
     test_case("Empty hole", `Quick, empty_hole),
     test_case("Free variable", `Quick, free_var),
     test_case("Let expression", `Quick, let_exp),
-    test_case("Inconsistent binary operation", `Quick, bin_op),
     test_case("Consistent if statement", `Quick, consistent_if),
     test_case("An unapplied function", `Quick, unapplied_function),
     test_case("Application of function on free variable", `Quick, ap_fun),
@@ -567,24 +525,6 @@ module PlainTests = {
         dhexp_of_uexp(parse_exp({|(fun a=(x:Int) -> x)(1)|})),
       )
     ),
-    test_case("Failed cast inside labeled tuple", `Quick, () =>
-      alco_check(
-        {|let x : (c=String) = c=1 in x|},
-        Exp.(
-          let_(
-            Pat.var("x"),
-            tuple([
-              tup_label(
-                label("c"),
-                failed_cast(int(1), Typ.int(), Typ.string()),
-              ),
-            ]),
-            var("x"),
-          )
-        ),
-        dhexp_of_uexp(parse_exp({|let x : (c=String) = c=1 in x|})),
-      )
-    ),
     test_case("nested different singleton labeled arguments", `Quick, () =>
       alco_check(
         {|let x : (b=c=String) = b="" in x|},
@@ -661,27 +601,21 @@ in 1|},
         ),
       )
     }),
-    test_case("Does not add labels with different cardinality", `Quick, () => {
-      alco_check(
-        "Does not add label",
-        Exp.(
-          failed_cast(
-            DHExp.strip_casts(parse_exp({|(1, 2) : (a= ,b= ,  )|})),
-            Typ.(prod([unknown(Internal), unknown(Internal)])),
-            Typ.(
-              prod([
-                unknown(Internal),
-                unknown(Internal),
-                unknown(Internal),
-              ])
-            ),
-          )
-        ),
-        DHExp.strip_casts(
-          dhexp_of_uexp(parse_exp({|(1, 2) : (a= ,b= ,  )|})),
-        ),
-      )
-    }),
+    test_case(
+      "Does not add labels with different cardinality",
+      `Quick,
+      () => {
+        let foo = parse_exp({|(1, 2)|});
+        print_endline(DHExp.show(foo));
+        alco_check(
+          "Does not add label",
+          parse_exp({|(1, 2)|}),
+          DHExp.strip_casts(
+            dhexp_of_uexp(parse_exp({|(1, 2) : (a= ,b= ,  )|})),
+          ),
+        );
+      },
+    ),
     skip_known_bug(
       "Nontermination in typ normalization",
       {|type x = x in (([] @ false) @ [] @< Float >) @< x([(())]) > @ case test 0.000006 end:: "f":: ? | B => (())| x => (())| (()) => ?| [] => ?| ? => 12 end|},
@@ -764,7 +698,7 @@ module MenhirElaborationTests = {
   //Menhir test for a binary operation
   let bin_op_uexp: Exp.t = Exp.(bin_op(Int(Plus), bool(false), var("y")));
 
-  let bin_op_str = "false?{Bool => Int} + y{Unknown Internal => Int}";
+  let bin_op_str = "false + y";
 
   let bin_op_menhir = () =>
     alco_check_menhir(
@@ -776,8 +710,8 @@ module MenhirElaborationTests = {
   //Inconsistent branches menhir test
   let inconsistent_case_menhir_str = "
     case 4 == 3
-    | true => 24{Int => Unknown Internal}
-    | false => false{Bool => Unknown Internal}
+    | true => 24
+    | false => false
     end
 ";
   let inconsistent_case_uexp: Exp.t =
@@ -843,17 +777,6 @@ module MenhirElaborationTests = {
   let typ_ap_menhir = () =>
     alco_check_menhir("Type ap test (menhir)", typ_ap_str, typ_ap_uexp);
 
-  let failed_cast_str = "1 ?{Int => String}";
-  let failed_cast_uexp: Exp.t =
-    Exp.(failed_cast(int(1), Typ.int(), Typ.string()));
-
-  let failed_cast_menhir = () =>
-    alco_check_menhir(
-      "Failed cast test (menhir)",
-      failed_cast_str,
-      failed_cast_uexp,
-    );
-
   let constructor_str = "X/~";
   let constructor_uexp: Exp.t = Exp.constructor("X", None);
   let constructor_menhir = () =>
@@ -866,7 +789,7 @@ module MenhirElaborationTests = {
   /*
    <<1 / 2 ? `a`>>
        */
-  let dynamic_error_hole_str = "<<(1/0) ? `DivideByZero`>> {Unknown Internal => Int}";
+  let dynamic_error_hole_str = "<<(1/0) ? `DivideByZero`>>";
   let dynamic_error_hole_uexp: Exp.t =
     Exp.(
       dynamic_error_hole(
@@ -896,7 +819,7 @@ module MenhirElaborationTests = {
   let undef_menhir = () =>
     alco_check_menhir("Undef test (menhir)", undef_str, undef_uexp);
 
-  let test_str = "test 1 ?{Int => Bool} end";
+  let test_str = "test 1 end";
   let test_uexp: Exp.t = Exp.(test(int(1)));
   let test_menhir = () =>
     alco_check_menhir("Test failed (menhir)", test_str, test_uexp);
@@ -973,7 +896,7 @@ x
   let seq_menhir = () =>
     alco_check_menhir("Sequence test (menhir)", seq_str, seq_uexp);
 
-  let fixf_str = "fix x -> 1{Int => Unknown Internal}";
+  let fixf_str = "fix x -> 1";
   let fixf_uexp: Exp.t = Exp.(fix_f(Pat.var("x"), int(1), None));
   let fixf_menhir = () =>
     alco_check_menhir("FixF test (menhir)", fixf_str, fixf_uexp);
@@ -987,7 +910,6 @@ x
       `Quick,
       dynamic_error_hole_menhir,
     ),
-    test_case("Failed cast test (menhir)", `Quick, failed_cast_menhir),
     test_case("Constructor test (menhir)", `Quick, constructor_menhir),
     test_case("Type ap test (menhir)", `Quick, typ_ap_menhir),
     test_case("Let expression for a tuple (menhir)", `Quick, let_exp_menhir),

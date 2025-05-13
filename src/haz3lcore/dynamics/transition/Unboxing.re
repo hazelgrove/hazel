@@ -260,30 +260,22 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         Ap(_, {term: Constructor(_), _}, _),
       ) =>
       switch (request) {
-      | TupLabel(_) =>
-        raise(EvaluatorError.Exception(InvalidBoxedTupLabel(expr)))
-      | Atom(Bool) =>
-        raise(EvaluatorError.Exception(InvalidBoxedBoolLit(expr)))
+      | TupLabel(_) => IndetMatch
+      | Atom(Bool) => IndetMatch
       | Atom(SInt)
-      | Atom(Int) =>
-        raise(EvaluatorError.Exception(InvalidBoxedIntLit(expr)))
-      | Atom(Float) =>
-        raise(EvaluatorError.Exception(InvalidBoxedFloatLit(expr)))
-      | Atom(String) =>
-        raise(EvaluatorError.Exception(InvalidBoxedStringLit(expr)))
-      | Atom(Nat) =>
-        raise(EvaluatorError.Exception(InvalidBoxedNatLit(expr)))
-      | Label => raise(EvaluatorError.Exception(InvalidBoxedLabel(expr)))
-      | Tuple(_) => raise(EvaluatorError.Exception(InvalidBoxedTuple(expr)))
+      | Atom(Int) => IndetMatch
+      | Atom(Float) => IndetMatch
+      | Atom(String) => IndetMatch
+      | Atom(Nat) => IndetMatch
+      | Label => IndetMatch
+      | Tuple(_) => IndetMatch
       | ListLit
-      | ListLitn(_) =>
-        raise(EvaluatorError.Exception(InvalidBoxedListLit(expr)))
-      | Cons => raise(EvaluatorError.Exception(InvalidBoxedListCons(expr)))
+      | ListLitn(_) => IndetMatch
+      | Cons => IndetMatch
       | SumNoArg(_)
-      | SumWithArg(_) =>
-        raise(EvaluatorError.Exception(InvalidBoxedSumConstructor(expr)))
-      | Fun => raise(EvaluatorError.Exception(InvalidBoxedFun(expr)))
-      | TypFun => raise(EvaluatorError.Exception(InvalidBoxedTypFun(expr)))
+      | SumWithArg(_) => IndetMatch
+      | Fun => IndetMatch
+      | TypFun => IndetMatch
       }
 
     /* Forms that are not yet or will never be a value */

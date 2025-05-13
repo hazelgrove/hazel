@@ -249,11 +249,17 @@ let test_invalid_constructor_match = () => {
     elaborate(
       let_(Pat.(constructor("T", Some(None))), int(1), empty_hole()),
     );
-  evaluation_test(
-    "let T = 1 in ?",
-    invalid_constructor_match,
-    invalid_constructor_match,
-  );
+  try(
+    evaluation_test(
+      "let T = 1 in ?",
+      invalid_constructor_match,
+      invalid_constructor_match,
+    )
+  ) {
+  | Haz3lcore.EvaluatorError.Exception(_) as exn =>
+    print_endline("Caught exception: " ++ Printexc.to_string(exn));
+    Alcotest.fail("Invalid constructor match should not throw an exception");
+  };
 };
 
 let test_typfun_application = () =>
