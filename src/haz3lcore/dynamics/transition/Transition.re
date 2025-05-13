@@ -504,6 +504,7 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d);
       Indet;
     | Atom(_)
+    | LivelitName(_)
     | Label(_)
     | Constructor(_)
     | BuiltinFun(_) =>
