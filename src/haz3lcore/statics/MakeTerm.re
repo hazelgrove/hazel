@@ -207,11 +207,7 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t => {
   // print_endline("Seg: " ++ [%derive.show: Segment.t](seg));
   // print_endline("\n");
   switch (s) {
-  | ModuleEntry =>
-    // print_endline("Module Seg: " ++ [%derive.show: Segment.t](seg) ++ "\n");
-
-    // Split seg by semicolon
-    ModuleEntry(module_entry(skel, seg))
+  | ModuleEntry => ModuleEntry(module_entry(skel, seg))
   | Pat => Pat(pat(unsorted(skel, seg)))
   | TPat => TPat(tpat(unsorted(skel, seg)))
   | Typ => Typ(typ(unsorted(skel, seg)))
@@ -555,6 +551,7 @@ and module_entry_term: unsorted => (TermBase.module_entry_term, list(Id.t)) =
         };
       | _ => assert(false)
       }
+    | Op(_) as tm => ret(Hole([Exp(exp(tm))]))
     | tm =>
       print_endline("Current failure: " ++ [%derive.show: unsorted](tm));
       ret(hole(unsorted));
