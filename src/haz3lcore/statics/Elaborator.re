@@ -95,34 +95,24 @@ let rec elaborate_pattern =
       | R(BadInt(s)) => Invalid(s) |> rewrap
       };
     | ListLit(ps) =>
-      let (ps, tys) = List.map(elaborate_pattern(m), ps) |> ListUtil.unzip;
-      let inner_type =
-        tys
-        |> Typ.join_all(~empty=Unknown(Internal) |> Typ.temp, ctx)
-        |> Option.value(~default=Typ.temp(Unknown(Internal)));
-      ps
-      |> List.map2((p, t) => p, _, tys)
-      |> (ps' => ListLit(ps') |> rewrap);
+      let (ps, _) = List.map(elaborate_pattern(m), ps) |> ListUtil.unzip;
+      ListLit(ps) |> rewrap;
     | Cons(p1, p2) =>
-      let (p1', ty1) = elaborate_pattern(m, p1);
-      let (p2', ty2) = elaborate_pattern(m, p2);
-      let ty2_inner = Typ.matched_list(ctx, ty2);
-      let ty_inner =
-        Typ.join(ctx, ty1, ty2_inner)
-        |> Option.value(~default=Typ.temp(Unknown(Internal)));
+      let (p1', _) = elaborate_pattern(m, p1);
+      let (p2', _) = elaborate_pattern(m, p2);
       let p1'' = p1';
       let p2'' = p2';
       Cons(p1'', p2'') |> rewrap;
     | TupLabel(lab, p) =>
-      let (plab, labty) = elaborate_pattern(m, lab);
-      let (p', pty) = elaborate_pattern(m, p);
+      let (plab, _) = elaborate_pattern(m, lab);
+      let (p', _) = elaborate_pattern(m, p);
       if (in_container) {
         TupLabel(plab, p') |> rewrap;
       } else {
         Tuple([TupLabel(plab, p') |> rewrap]) |> DHPat.fresh;
       };
     | Tuple(ps) =>
-      let (ps', tys) =
+      let (ps', _) =
         List.map(elaborate_pattern(m, ~in_container=true), ps)
         |> ListUtil.unzip;
       let expected_labels: list(option(string)) =
@@ -137,21 +127,11 @@ let rec elaborate_pattern =
           (name, e) => {TupLabel(Label(name) |> Pat.fresh, e) |> Pat.fresh},
         );
 
-      let tys =
-        LabeledTuple.rearrange(
-          s => Option.map(x => (x, Some(x)), s),
-          Typ.match_tup_label,
-          expected_labels,
-          tys,
-          (name, e) => {TupLabel(Label(name) |> Typ.fresh, e) |> Typ.fresh},
-        );
-
       Tuple(ps') |> rewrap;
-    | Label(name) => upat
+    | Label(_) => upat
     | Ap(p1, p2) =>
-      let (p1', ty1) = elaborate_pattern(m, p1);
-      let (p2', ty2) = elaborate_pattern(m, p2);
-      let (ty1l, ty1r) = Typ.matched_arrow(ctx, ty1);
+      let (p1', _) = elaborate_pattern(m, p1);
+      let (p2', _) = elaborate_pattern(m, p2);
       let p1'' = p1';
       let p2'' = p2';
       Ap(p1'', p2'') |> rewrap;
@@ -159,14 +139,14 @@ let rec elaborate_pattern =
     | EmptyHole
     | MultiHole(_)
     | Wild => upat
-    | Var(v) => upat
+    | Var(_) => upat
     // Type annotations should already appeard
     | Parens(p)
     | Cast(p, _, _) =>
-      let (p', ty) = elaborate_pattern(m, p);
+      let (p', _) = elaborate_pattern(m, p);
       p';
     | Probe(p, probe) =>
-      let (e', ty) = elaborate_pattern(m, p);
+      let (e', _) = elaborate_pattern(m, p);
       let probe = Dynamics.Probe.instrument_pat(m, Pat.rep_id(upat), probe);
       Probe(e', probe) |> rewrap;
     | Constructor(c, _) =>
@@ -181,16 +161,6 @@ let rec elaborate_pattern =
         | (_, Some({typ: syn_ty, _})) => Some(Typ.normalize(ctx, syn_ty))
         | _ => None
         };
-      let ty =
-        OptUtil.get(
-          () =>
-            Sum([
-              ConstructorMap.Variant(c, [Id.invalid], None),
-              ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
-            ])
-            |> Typ.temp,
-          t,
-        );
       Constructor(c, Some(t)) |> rewrap;
     };
   (dpat, elaborated_type);
@@ -248,10 +218,10 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
     | FailedCast(e, t1, t2) =>
       FailedCast(elaborate(m, e) |> fst, t1, t2) |> rewrap
     | Parens(e) =>
-      let (e', ty) = elaborate(m, e);
+      let (e', _) = elaborate(m, e);
       e';
     | Probe(e, probe) =>
-      let (e', ty) = elaborate(m, e);
+      let (e', _) = elaborate(m, e);
       let probe = Dynamics.Probe.instrument_exp(m, Exp.rep_id(uexp), probe);
       Probe(e', probe) |> rewrap;
     | Deferral(_) => uexp
@@ -278,26 +248,16 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         | Common(FreeConstructor(_)) => Some(None)
         | _ => Some(Some(Typ.normalize(ctx, ty)))
         };
-      let ty =
-        OptUtil.get(
-          () =>
-            Sum([
-              ConstructorMap.Variant(c, [Id.invalid], None),
-              ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
-            ])
-            |> Typ.temp,
-          t |> Option.join,
-        );
       Constructor(c, t) |> rewrap;
     | Fun(p, e, _, n) =>
       let (p', typ) = elaborate_pattern(m, p, false);
-      let (e', tye) = elaborate(m, e);
+      let (e', _) = elaborate(m, e);
       Fun(p', e', Some(typ), n) |> rewrap;
     | TypFun(tpat, e, name) =>
-      let (e', tye) = elaborate(m, e);
+      let (e', _) = elaborate(m, e);
       TypFun(tpat, e', name) |> rewrap;
     | Tuple(es) =>
-      let (ds, tys) = List.map(elaborate(m), es) |> ListUtil.unzip;
+      let (ds, _) = List.map(elaborate(m), es) |> ListUtil.unzip;
 
       let expected_labels: list(option(string)) =
         Typ.get_labels(ctx, elaborated_type);
@@ -312,45 +272,16 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
           },
         );
 
-      let tys =
-        LabeledTuple.rearrange(
-          s => Option.map(x => (x, Some(x)), s),
-          Typ.match_tup_label,
-          expected_labels,
-          tys,
-          (name, e) => {TupLabel(Label(name) |> Typ.fresh, e) |> Typ.fresh},
-        );
       Tuple(ds) |> rewrap;
     | TupLabel(label, e) =>
-      let (label', labty) = elaborate(m, label);
-      let (e', ety) = elaborate(m, e);
+      let (label', _) = elaborate(m, label);
+      let (e', _) = elaborate(m, e);
       TupLabel(label', e') |> rewrap;
-    | Label(name) => uexp
+    | Label(_) => uexp
     | Dot(e1, e2) =>
-      let (e1, ty1) = elaborate(m, e1);
-      // Don't elaborate labels
-      let rec elab_dot = (ty1: Typ.t, e2: DHExp.t) =>
-        switch (ty1.term, e2.term) {
-        | (Parens(ty1), _) => elab_dot(ty1, e2)
-        | (Prod(tys), Label(name)) =>
-          let element =
-            LabeledTuple.find_label(Typ.match_tup_label, tys, name);
-          switch (element) {
-          | Some({term: TupLabel(_, ty), _}) => ty
-          | _ => Unknown(Internal) |> Typ.temp
-          };
-        | (TupLabel(_, ty), Label(name))
-            when
-              LabeledTuple.has_same_labels(
-                Typ.match_tup_label(ty1),
-                Some((name, e2)),
-              ) => ty
-        | _ => Unknown(Internal) |> Typ.temp
-        };
-      let ty = elab_dot(ty1, e2);
+      let (e1, _) = elaborate(m, e1);
       Dot(e1, e2) |> rewrap;
-    | Var(v) => uexp
-
+    | Var(_) => uexp
     | Let(p, def, body) =>
       let add_name: (option(string), DHExp.t) => DHExp.t = (
         (name, exp) => {
@@ -383,28 +314,28 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         |> Option.get
         |> List.exists(f => VarMap.lookup(co_ctx, f) != None);
       if (!is_recursive) {
-        let (def, ty2) = elaborate(m, def);
+        let (def, _) = elaborate(m, def);
         let def = add_name(Pat.get_var(p), def);
-        let (body, ty) = elaborate(m, body);
+        let (body, _) = elaborate(m, body);
         Let(p, def, body) |> rewrap;
       } else {
         // TODO: Add names to mutually recursive functions
-        let (def, ty2) = elaborate(m, def);
+        let (def, _) = elaborate(m, def);
         let def = add_name(Option.map(s => s ++ "+", Pat.get_var(p)), def);
-        let (body, ty) = elaborate(m, body);
+        let (body, _) = elaborate(m, body);
         let fixf =
           (FixF(p, def, None): Exp.term)
           |> IdTagged.fresh_deterministic(DHExp.rep_id(uexp));
         Let(p, fixf, body) |> rewrap;
       };
     | FixF(p, e, env) =>
-      let (p', typ) = elaborate_pattern(m, p, false);
-      let (e', tye) = elaborate(m, e);
+      let (p', _) = elaborate_pattern(m, p, false);
+      let (e', _) = elaborate(m, e);
       FixF(p', e', env) |> rewrap;
     // These forms are removed in elaboration
     | Use(_, e)
     | TyAlias(_, _, e) =>
-      let (e', tye) = elaborate(m, e);
+      let (e', _) = elaborate(m, e);
       e';
     | Ap(dir, f, a) =>
       switch (f.term) {
@@ -418,73 +349,31 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         | None => uexp
         }
       | _ =>
-        let (f', tyf) = elaborate(m, f);
-        let (a', tya) = elaborate(m, a);
-        let (tyf1, tyf2) = Typ.matched_arrow(ctx, tyf);
-        let f'' = f';
-        let a'' = a';
-        Ap(dir, f'', a'') |> rewrap;
+        let (f', _) = elaborate(m, f);
+        let (a', _) = elaborate(m, a);
+        Ap(dir, f', a') |> rewrap;
       }
     | DeferredAp(f, args) =>
-      let (f', tyf) = elaborate(m, f);
-      let (args', tys) = List.map(elaborate(m), args) |> ListUtil.unzip;
-      let (tyf1, tyf2) = Typ.matched_arrow(ctx, tyf);
-      let (args, ty_fargs) =
-        if (List.length(args) > 1) {
-          Typ.matched_prod(ctx, args, Exp.match_tup_label, tyf1, (name, b) =>
-            TupLabel(Label(name) |> Exp.fresh, b) |> Exp.fresh
-          );
-        } else {
-          (args, [tyf1]);
-        };
-      let prod_args =
-        switch (ty_fargs) {
-        | [ty] => ty
-        | _ => Prod(ty_fargs) |> Typ.temp
-        };
-      let f'' = f';
-      let args'' = args';
-      let remaining_args =
-        List.filter(
-          ((arg, _)) => Exp.is_deferral(arg),
-          List.combine(args, ty_fargs),
-        );
-      let remaining_arg_ty =
-        List.length(remaining_args) == 1
-          ? snd(List.hd(remaining_args))
-          : Prod(List.map(snd, remaining_args)) |> Typ.temp;
-      DeferredAp(f'', args'') |> rewrap;
+      let (f', _) = elaborate(m, f);
+      let (args', _) = List.map(elaborate(m), args) |> ListUtil.unzip;
+      DeferredAp(f', args') |> rewrap;
     | TypAp(e, ut) =>
-      let (e', tye) = elaborate(m, e);
-      let (tpat, tye') = Typ.matched_forall(ctx, tye);
-      let ut' = Typ.normalize(ctx, ut);
-      let tye'' =
-        Typ.subst(
-          ut',
-          tpat |> Option.value(~default=TPat.fresh(EmptyHole)),
-          tye',
-        );
+      let (e', _) = elaborate(m, e);
       TypAp(e', ut) |> rewrap;
     | If(c, t, f) =>
-      let (c', tyc) = elaborate(m, c);
-      let (t', tyt) = elaborate(m, t);
-      let (f', tyf) = elaborate(m, f);
-      let ty =
-        Typ.join(ctx, tyt, tyf)
-        |> Option.value(~default=Typ.temp(Unknown(Internal)));
-      let c'' = c';
-      let t'' = t';
-      let f'' = f';
-      If(c'', t'', f'') |> rewrap;
+      let (c', _) = elaborate(m, c);
+      let (t', _) = elaborate(m, t);
+      let (f', _) = elaborate(m, f);
+      If(c', t', f') |> rewrap;
     | Seq(e1, e2) =>
       let (e1', _) = elaborate(m, e1);
-      let (e2', ty2) = elaborate(m, e2);
+      let (e2', _) = elaborate(m, e2);
       Seq(e1', e2') |> rewrap;
     | Test(e) =>
-      let (e', t) = elaborate(m, e);
+      let (e', _) = elaborate(m, e);
       Test(e') |> rewrap;
     | Filter(kind, e) =>
-      let (e', t) = elaborate(m, e);
+      let (e', _) = elaborate(m, e);
       let kind' =
         switch (kind) {
         | Residue(_) => kind
@@ -497,29 +386,16 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       Filter(kind', e') |> rewrap;
     | Closure(env, e) =>
       // Should we be elaborating the contents of the environment?
-      let (e', t) = elaborate(m, e);
+      let (e', _) = elaborate(m, e);
       Closure(env, e') |> rewrap;
     | Cons(e1, e2) =>
-      let (e1', ty1) = elaborate(m, e1);
-      let (e2', ty2) = elaborate(m, e2);
-      let ty2_inner = Typ.matched_list(ctx, ty2);
-      let ty_inner =
-        Typ.join(ctx, ty1, ty2_inner)
-        |> Option.value(~default=Typ.temp(Unknown(Internal)));
-      let e1'' = e1';
-      let e2'' = e2';
-      Cons(e1'', e2'') |> rewrap;
+      let (e1', _) = elaborate(m, e1);
+      let (e2', _) = elaborate(m, e2);
+      Cons(e1', e2') |> rewrap;
     | ListConcat(e1, e2) =>
-      let (e1', ty1) = elaborate(m, e1);
-      let (e2', ty2) = elaborate(m, e2);
-      let ty_inner1 = Typ.matched_list(ctx, ty1);
-      let ty_inner2 = Typ.matched_list(ctx, ty2);
-      let ty_inner =
-        Typ.join(ctx, ty_inner1, ty_inner2)
-        |> Option.value(~default=Typ.temp(Unknown(Internal)));
-      let e1'' = e1';
-      let e2'' = e2';
-      ListConcat(e1'', e2'') |> rewrap;
+      let (e1', _) = elaborate(m, e1);
+      let (e2', _) = elaborate(m, e2);
+      ListConcat(e1', e2') |> rewrap;
     | UnOp(Meta(Unquote), e) =>
       switch (e.term) {
       // TODO: confirm whether these types are correct
@@ -533,38 +409,21 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       }
     | UnOp(op, e) =>
       let op = Operators.replace_un_op(op, ctx.use_mode);
-      let (e', t) = elaborate(m, e);
-      let semantics = Operators.semantics_of_un_op(op);
-      switch (semantics) {
-      | Undefined(_) => UnOp(op, e') |> rewrap
-
-      | Defined(t1, t2, _) => UnOp(op, e') |> rewrap
-      };
+      let (e', _) = elaborate(m, e);
+      UnOp(op, e') |> rewrap;
     | BinOp(op, e1, e2) =>
       let op = Operators.replace_bin_op(op, ctx.use_mode);
-      let (e1', t1) = elaborate(m, e1);
-      let (e2', t2) = elaborate(m, e2);
-      let semantics = Operators.semantics_of_bin_op(op);
-      switch (semantics) {
-      | Undefined(_) => BinOp(op, e1', e2') |> rewrap
-
-      | Defined(t1', t2', t3', _) => BinOp(op, e1', e2') |> rewrap
-      };
-    | BuiltinFun(fn) => uexp
-
+      let (e1', _) = elaborate(m, e1);
+      let (e2', _) = elaborate(m, e2);
+      BinOp(op, e1', e2') |> rewrap;
+    | BuiltinFun(_) => uexp
     | Match(e, cases) =>
-      let (e', t) = elaborate(m, e);
+      let (e', _) = elaborate(m, e);
       let (ps, es) = ListUtil.unzip(cases);
-      let (ps', ptys) =
+      let (ps', _) =
         List.map(p => elaborate_pattern(m, p, false), ps) |> ListUtil.unzip;
-      let joined_pty =
-        Typ.join_all(~empty=Unknown(Internal) |> Typ.temp, ctx, ptys)
-        |> Option.value(~default=Typ.temp(Unknown(Internal)));
-      let ps'' = ps';
-      let e'' = e';
-      let (es', etys) = List.map(elaborate(m), es) |> ListUtil.unzip;
-      let es'' = es';
-      Match(e'', List.combine(ps'', es'')) |> rewrap;
+      let (es', _) = List.map(elaborate(m), es) |> ListUtil.unzip;
+      Match(e', List.combine(ps', es')) |> rewrap;
     };
   (dhexp, elaborated_type);
 };
