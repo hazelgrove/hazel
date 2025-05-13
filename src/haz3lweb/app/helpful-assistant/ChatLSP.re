@@ -147,7 +147,7 @@ module SystemPrompt = {
     "- FILE VIEWING TOOLS:",
     "  * ```goto_definition <variable_name>``` - Selects the variable's let binding and definition.",
     "    After using this, any file editing actions will target this selected definition.",
-    "    Example: ```goto_definition x``` selects 'let x = <definition> in'",
+    "    Example: ```goto_definition x``` selects 'let x = 1 in' in the program 'let x = 1 in x + 1'",
     "  * ```goto_body <variable_name>``` - Selects the body of the variable's let binding.",
     "    After using this, any file editing actions will target the body of the selected definition.",
     "    This is particularly useful when needing to update the contents of the final let expression in a program path/scope (eg. function, if, etc).",
@@ -160,7 +160,14 @@ module SystemPrompt = {
     "  * ```delete``` - Deletes the currently selected definition.",
     /* Task Tools */
     "- TASK TOOLS:",
-    "  * ```submit``` - Ends the iterative process and finalizes the task.",
+    "   *```view_sketch``` - Displays the current program sketch. ",
+    "   *```submit``` - Ends the iterative process and finalizes the task.",
+    "    This is to allow you to view your edits to the sketch iteratively, and then submit once you are satisfied with them.",
+    "    You may ONLY use ONE task tool per response. Your call to a task tool MUST be at the end of your response.",
+    "    This is since ```submit``` will finalize your edits and essentially declare the task complete.",
+    "    While ```view_sketch``` makes a request to view the current state of the program sketch,",
+    "    assumably after you have made some edits. ```view_sketch``` must go at the end of your response in order to",
+    "    allow our server to gather the sketch and feed it back to you as input for your next response.",
     /* Understanding the Cursor */
     "- The 'cursor' represents an entire definition you are currently positioned at.",
     "- Think of it as having the entire variable and definition of a let binding selected/highlighted.",
@@ -172,6 +179,7 @@ module SystemPrompt = {
     "- This is an iterative process - you can make multiple tool calls per response.",
     "- Be sure to enclose each tool call in triple backticks.",
     "- You may include brief explanations between tool calls if necessary.",
+    "- To reemphasize, you should ONLY use submit as a standalone tool call. DO NOT chain it with other tool calls.",
   ];
 
   let few_shot_comp_examples = [
@@ -190,7 +198,9 @@ Now I'll fix the type error by making sure both operands have compatible types:
 
 ```edit let add = fun x -> x + 5 in```
 
-The function now correctly adds an integer to the input. Task completed:
+Let me see how those changes affect the program.",
+    "USER: SYSTEM: after your most recent edits, here is the current state of the code.",
+    "ASSISTANT: The function now correctly adds an integer to the input. Task completed:
 
 ```submit```",
     /* Example 2: Creating a list reversal function */
@@ -221,8 +231,9 @@ I'll implement the reverse function with proper type annotations and recursion:
     in
     rev_helper([], xs)
 in```
-
-The function is complete and typed correctly:
+",
+    "USER: SYSTEM: after your most recent edits, here is the current state of the code.",
+    "ASSISTANT: The function is complete and typed correctly:
 
 ```submit```",
     /* Example 3: Fixing multiple functions */
@@ -261,8 +272,9 @@ And fix its implementation:
     then false
     else even(n - 1)
 in```
-
-Both functions are now correctly implemented with proper mutual recursion:
+",
+    "USER: SYSTEM: After your most recent edits, here is the current state of the code.",
+    "ASSISTANT: Both functions are now correctly implemented with proper mutual recursion:
 
 ```submit```",
     /* Example 4: Updating an ADT and related function */
@@ -341,8 +353,9 @@ Next, I'll update the eval function to handle the new constructor:
             else Error(\"Can only multiply numbers\")
         end
 in```
-
-Both the type and evaluation function have been updated properly:
+",
+    "USER: SYSTEM: after your most recent edits, here is the current state of the code.",
+    "ASSISTANT: Both the type and evaluation function have been updated properly:
 
 ```submit```",
   ];
@@ -479,6 +492,11 @@ module Composition = {
     switch (matching_id) {
     | Some(id) => [
         Action.Jump(TileId(id)),
+        // Moving left by token is essentially a hacky method to get
+        // off of a variable name (term), and triple/quad click on let binding
+        // itself (this properly highlights full variable name and
+        // definition when type annotation exists)
+        Action.Move(Local(Left(ByToken))),
         switch (loc) {
         | Definition => Action.Select(Smart(3))
         | Body => Action.Select(Smart(4))
@@ -494,8 +512,8 @@ module Composition = {
     // This may allow for better error handling.
     switch (loc) {
     | Before => [
-        Action.Unselect(Some(Direction.Left)), // Unselect current definition
-        Action.Paste(String("\n" ++ code)), // Paste new code
+        Action.Unselect(Some(Left)), // Unselect current definition
+        Action.Paste(String(code ++ "\n")), // Paste new code
         Action.Select(Smart(3)), // Select the pasted code
         Action.Copy // Copy the pasted code
       ]

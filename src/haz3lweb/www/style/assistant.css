@@ -208,6 +208,7 @@
     font-size: 0.8em;
     opacity: 0.7;
     margin-top: 4px;
+    cursor: pointer;
 }
 
 #assistant .message-container.collapsed .collapse-indicator::after {
