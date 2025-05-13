@@ -766,13 +766,21 @@ module Update = {
       : Updated.t(Model.t) => {
     switch (action) {
     | SendTextMessage(message) =>
+      // Notes: The following could certainly be improved. The prompt_with_user_message
+      //        is separate from the prompt_with_chat as we feed the latter as input to the LLM
+      //        and the former is what is saved to the chat history (and (if needed) collected
+      //        in prompt_with_chats in later SendTextMessage calls).
       let mode = settings.assistant.mode;
       // Capture the entire chat to give historical context to LLM
       let (_, curr_chat) = get_mode_info(mode, model);
+      // Gathers info/prompt given the mode
       let prompt =
         mk_mode_prompt(~settings=settings.assistant, ~model, ~editor);
+      // The user message input itself. This is the message that the user typed.
       let user_message = "USER MESSAGE/REQUEST: " ++ message.content;
+      // The prompt concatenated with the user message
       let prompt_with_user_message = prompt ++ "\n\n" ++ user_message;
+      // Collects the chat history, including our new message.
       let prompt_with_chat =
         collect_chat(
           ~messages=
@@ -1031,7 +1039,15 @@ module Update = {
 
         let rec process_tool_calls = (calls: list(string)) => {
           switch (calls) {
-          | [] => () // Base case: we're done processing
+          | [] =>
+            schedule_action(
+              SendTextMessage(
+                text_message_of_str(
+                  "SYSTEM: After your most recent edits, here is the current state of the code.",
+                  LS,
+                ),
+              ),
+            )
           | [tool_call, ...rest] =>
             let parsed_response =
               switch (String.index_opt(tool_call, ' ')) {
@@ -1069,6 +1085,7 @@ module Update = {
             | "delete" =>
               edit("", ChatLSP.Composition.Current);
               process_tool_calls(rest);
+            | "view_sketch" => process_tool_calls(rest)
             | "submit" => ()
             | _ =>
               schedule_action(
