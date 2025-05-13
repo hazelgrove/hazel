@@ -13,41 +13,12 @@ module ElaborationResult = {
     | DoesNotElaborate;
 };
 
-let fresh_cast = (d: DHExp.t, t1: Typ.t, t2: Typ.t): Exp.t => {
-  switch (d.term) {
-  | Label(_) => d
-  | _ =>
-    Typ.equal(t1, t2)
-      ? d
-      : {
-        let d': Exp.t =
-          (Cast(d, t1, Typ.temp(Unknown(Internal))): Exp.term)
-          |> IdTagged.fresh_deterministic(DHExp.rep_id(d))
-          |> Casts.transition_multiple;
-        (Cast(d', Typ.temp(Unknown(Internal)), t2): Exp.term)
-        |> IdTagged.fresh_deterministic(DHExp.rep_id(d'))
-        |> Casts.transition_multiple;
-      }
-  };
+let fresh_cast = (d: DHExp.t, _t1: Typ.t, _t2: Typ.t): Exp.t => {
+  d;
 };
 
-let fresh_pat_cast = (p: DHPat.t, t1: Typ.t, t2: Typ.t): DHPat.t => {
-  switch (p.term) {
-  | Label(_) => p
-  | _ =>
-    Typ.equal(t1, t2)
-      ? p
-      : {
-        Cast(
-          DHPat.fresh(Cast(p, t1, Typ.temp(Unknown(Internal))))
-          |> Casts.pattern_fixup,
-          Typ.temp(Unknown(Internal)),
-          t2,
-        )
-        |> DHPat.fresh
-        |> Casts.pattern_fixup;
-      }
-  };
+let fresh_pat_cast = (p: DHPat.t, _t1: Typ.t, _t2: Typ.t): DHPat.t => {
+  p;
 };
 
 let elaborated_type =
