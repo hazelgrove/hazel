@@ -84,6 +84,9 @@ type module_signature_entry_t =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type module_entry_term = Grammar.module_entry_term(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
+type module_signature_entry_term =
+  Grammar.module_signature_entry_term(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
 module rec Any: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = any_t;

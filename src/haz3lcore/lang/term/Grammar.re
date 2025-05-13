@@ -47,6 +47,7 @@ type any_t('a) =
   | TPat(tpat_t('a))
   | Rul(rul_t('a))
   | ModuleEntry(module_entry_t('a))
+  | ModuleSignatureEntry(module_signature_entry_t('a))
   | Any(unit)
 and exp_term('a) =
   | Invalid(string)
@@ -169,12 +170,13 @@ and module_entry_term('a) =
   | TypeDef(tpat_t('a), typ_t('a))
   | Hole(list(any_t('a)))
   | MultipleEntries(list(module_entry_t('a))) // TODO We don't want this representation for multiple entries
+and module_signature_entry_t('a) =
+  Annotated.t(module_signature_entry_term('a), 'a)
 and module_signature_entry_term('a) =
   | ValType(pat_t('a), typ_t('a)) // TODO: Should this be a pattern or just a string (with id)?
   | TypeDef(tpat_t('a), typ_t('a))
   | Hole(list(any_t('a)))
-and module_signature_entry_t('a) =
-  Annotated.t(module_signature_entry_term('a), 'a);
+  | MultipleEntries(list(module_signature_entry_t('a)));
 
 
 let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =

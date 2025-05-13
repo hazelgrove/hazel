@@ -208,6 +208,7 @@ let module_end = "}";
 let modulelit_lbl = [module_start, module_end];
 let empty_module = module_start ++ module_end;
 let is_empty_module = (==)(empty_module);
+let is_empty_module_signature = (==)(empty_module);
 
 /* These functions determine which forms can switch back and forth between
    mono and duotile forms, like list literals and tuples switching to/from
@@ -263,6 +264,7 @@ type atomic_form =
   | EmptyList
   | EmptyTuple
   | EmptyModule
+  | EmptyModuleSignature
   | Deferral
   | TyVar
   | TyVarP
@@ -285,10 +287,8 @@ let get_atomic_form: atomic_form => (string => bool, list(Mold.t)) =
   | UndefinedLit => (is_undefined, [mk_op(Exp, []), mk_op(Pat, [])])
   | EmptyList => (is_empty_list, [mk_op(Exp, []), mk_op(Pat, [])])
   | EmptyTuple => (is_empty_tuple, [mk_op(Exp, [])])
-  | EmptyModule => (
-      is_empty_module,
-      [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, [])],
-    )
+  | EmptyModule => (is_empty_module, [mk_op(Exp, []), mk_op(Pat, [])])
+  | EmptyModuleSignature => (is_empty_module_signature, [mk_op(Typ, [])])
   | Deferral => (is_wild, [mk_op(Exp, [])])
   | TyVar => (is_typ_var, [mk_op(Typ, [])])
   | TyVarP => (is_typ_var, [mk_op(TPat, [])])
@@ -391,9 +391,13 @@ type compound_form =
   | If
   // Modules
   | ModuleExp
+  | ModuleSignature
   | ValBinding
+  | ValType
   | TypeBinding
-  | ModuleEntryJoin;
+  | SignatureTypeBinding
+  | ModuleEntryJoin
+  | ModuleSignatureEntryJoin;
 
 let get: compound_form => t =
   fun
@@ -480,6 +484,10 @@ let get: compound_form => t =
   // TRIPLE DELIMITERS
   | Let => mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))
   | ModuleExp => mk(ii, ["{", "}"], mk_op(Exp, [ModuleEntry]))
+  | ModuleSignature => {
+      print_endline("Parsing ModuleSignature");
+      mk(ii, ["{", "}"], mk_op(Typ, [ModuleSignatureEntry]));
+    }
   | TypeAlias =>
     mk(ds, ["type", "=", "in"], mk_pre(P.let_, Exp, [TPat, Typ]))
   | ValBinding =>
@@ -488,13 +496,38 @@ let get: compound_form => t =
       ["val", "="],
       mk_pre'(P.let_, ModuleEntry, ModuleEntry, [Pat], Exp),
     )
+  | ValType =>
+    mk(
+      ds,
+      ["tval", ":"],
+      mk_pre'(
+        P.let_,
+        ModuleSignatureEntry,
+        ModuleSignatureEntry,
+        [Pat],
+        Typ,
+      ),
+    )
   | TypeBinding =>
     mk(
       ds,
       ["typedef", "="],
       mk_pre'(P.let_, ModuleEntry, ModuleEntry, [TPat], Typ),
     )
+  | SignatureTypeBinding =>
+    mk(
+      ds,
+      ["ttypedef", "="],
+      mk_pre'(
+        P.let_,
+        ModuleSignatureEntry,
+        ModuleSignatureEntry,
+        [TPat],
+        Typ,
+      ),
+    )
   | ModuleEntryJoin => mk_infix(";;", ModuleEntry, P.min)
+  | ModuleSignatureEntryJoin => mk_infix(";;;", ModuleSignatureEntry, P.min)
   | If => mk(ds, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]));
 
 let forms: list((compound_form, t)) =

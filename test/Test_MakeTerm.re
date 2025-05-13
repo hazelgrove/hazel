@@ -122,7 +122,7 @@ let module_signature_tests =
           "type S = {} in ?",
         )
       ),
-      test_case("Module with one definition", `Quick, () =>
+      test_case("Module Signature with one definition", `Quick, () =>
         exp_check(
           ty_alias(
             TPat.var("S"),
@@ -131,10 +131,10 @@ let module_signature_tests =
             ]),
             empty_hole(),
           ),
-          "type S = {val x : Int} in ?",
+          "type S = {tval x : Int} in ?",
         )
       ),
-      test_case("Module with just type alias", `Quick, () =>
+      test_case("Module Signature with just type alias", `Quick, () =>
         exp_check(
           ty_alias(
             TPat.var("S"),
@@ -143,10 +143,10 @@ let module_signature_tests =
             ]),
             empty_hole(),
           ),
-          "type S = {type Y = Int} in ?",
+          "type S = {ttypedef Y = Int} in ?",
         )
       ),
-      test_case("Module with type alias and val type", `Quick, () =>
+      test_case("Module Signature with type alias and val type", `Quick, () =>
         exp_check(
           ty_alias(
             TPat.var("S"),
@@ -156,7 +156,7 @@ let module_signature_tests =
             ]),
             empty_hole(),
           ),
-          "type S = {val x : Int ;; type Y = Int} in ?",
+          "type S = {tval x : Int ;;; ttypedef Y = Int} in ?",
         )
       ),
     ],

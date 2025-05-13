@@ -7,7 +7,7 @@ type t =
   | Rul
   | Exp
   | ModuleEntry
-  | ModuleBody;
+  | ModuleSignatureEntry;
 
 let root = Exp;
 
@@ -26,7 +26,8 @@ let to_string =
   | Typ => "Typ"
   | Rul => "Rul"
   | Exp => "Exp"
-  | ModuleEntry => "ModuleEntry";
+  | ModuleEntry => "ModuleEntry"
+  | ModuleSignatureEntry => "ModuleSignatureEntry";
 
 let to_string_verbose =
   fun
@@ -36,4 +37,5 @@ let to_string_verbose =
   | Typ => "type"
   | Rul => "rule"
   | Exp => "expression"
-  | ModuleEntry => "module entry";
+  | ModuleEntry => "module entry"
+  | ModuleSignatureEntry => "module signature entry";

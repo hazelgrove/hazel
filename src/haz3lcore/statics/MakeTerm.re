@@ -208,6 +208,8 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t => {
   // print_endline("\n");
   switch (s) {
   | ModuleEntry => ModuleEntry(module_entry(skel, seg))
+  | ModuleSignatureEntry =>
+    ModuleSignatureEntry(module_signature_entry(skel, seg))
   | Pat => Pat(pat(unsorted(skel, seg)))
   | TPat => TPat(tpat(unsorted(skel, seg)))
   | Typ => Typ(typ(unsorted(skel, seg)))
@@ -354,7 +356,9 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           )
         | (["use", "in"], [Typ(ty)]) => Use(ty, r)
         | (["type", "=", "in"], [TPat(tpat), Typ(def)]) =>
-          TyAlias(tpat, def, r)
+          print_endline("TyAlias pat: " ++ (tpat |> TPat.show));
+          print_endline("TyAlias def: " ++ (def |> Typ.show));
+          TyAlias(tpat, def, r);
         | (["if", "then", "else"], [Exp(cond), Exp(conseq)]) =>
           If(cond, conseq, r)
         | _ => hole(tm)
@@ -578,6 +582,67 @@ and module_entry = (skel, segment) => {
   | _ => e
   };
 }
+and module_signature_entry_term:
+  unsorted => (TermBase.module_signature_entry_term, list(Id.t)) =
+  unsorted => {
+    let ret = (term: TermBase.module_signature_entry_term) => (term, []);
+    let hole = (unsorted: unsorted): TermBase.module_signature_entry_term =>
+      Hole(kids_of_unsorted(unsorted));
+    print_endline(
+      "Unsorted module entry: " ++ [%derive.show: unsorted](unsorted),
+    );
+    switch (unsorted) {
+    | Bin(
+        ModuleSignatureEntry(l),
+        ([(_id, ([";;;"], []))], []),
+        ModuleSignatureEntry(r),
+      ) as tm =>
+      print_endline("bin: " ++ [%derive.show: unsorted](tm));
+      switch (l.term, r.term) {
+      | (MultipleEntries(ls), MultipleEntries(rs)) =>
+        ret(MultipleEntries(ls @ rs))
+      | (MultipleEntries(ls), _) => ret(MultipleEntries(ls @ [r]))
+      | (_, MultipleEntries(rs)) => ret(MultipleEntries([l] @ rs))
+      | (_, _) => ret(MultipleEntries([l, r]))
+      };
+    | Pre(tiles, Typ(last_exp)) as _tm =>
+      switch (tiles) {
+      | ([(_id, t)], []) =>
+        // print_endline("t: " ++ [%derive.show: Aba.t(string, Any.t)](t));
+        switch (t) {
+        | (["tval", ":"], [Pat(p)]) => ret(ValType(p, last_exp))
+        | (["ttypedef", "="], [TPat(p)]) => ret(TypeDef(p, last_exp))
+        | _ => assert(false)
+        }
+      | _ => assert(false)
+      }
+    | Op(_) as tm => ret(Hole([Exp(exp(tm))]))
+    | tm =>
+      print_endline("Current failure: " ++ [%derive.show: unsorted](tm));
+      ret(hole(unsorted));
+    };
+  }
+and module_signature_entry = (skel, segment) => {
+  print_endline("Skel: " ++ [%derive.show: Skel.t](skel) ++ "\n");
+  print_endline("Segment: " ++ [%derive.show: Segment.t](segment) ++ "\n");
+  let unsorted = unsorted(skel, segment);
+  let (term, inner_ids) = module_signature_entry_term(unsorted);
+  let ids = ids(unsorted) @ inner_ids;
+  let e =
+    return(
+      e => ModuleSignatureEntry(e),
+      ids,
+      {
+        annotation: {
+          ids: ids,
+        },
+        term,
+      },
+    );
+  switch (term) {
+  | _ => e
+  };
+}
 and pat = unsorted => {
   let (term, inner_ids) = pat_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
@@ -723,6 +788,8 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       ret(
         switch (tile) {
         | ([t], []) when Form.is_empty_tuple(t) => Prod([])
+        | ([t], []) when Form.is_empty_module_signature(t) =>
+          ModuleSignature([])
         | (["Bool"], []) => Atom(Bool)
         | (["Int"], []) => Atom(Int)
         | (["SInt"], []) => Atom(SInt)
@@ -732,6 +799,11 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | ([t], []) when Form.is_typ_var(t) => Var(t)
         | (["(", ")"], [Typ(body)]) => Parens(body)
         | (label, [Typ(body)]) when is_probe_wrap(label) => body.term
+        | (["{", "}"], [ModuleSignatureEntry(a)]) =>
+          switch (a.term) {
+          | MultipleEntries(entries) => ModuleSignature(entries)
+          | _ => ModuleSignature([a])
+          }
         | (["[", "]"], [Typ(body)]) => List(body)
         | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
           Unknown(Hole(Invalid(t)))

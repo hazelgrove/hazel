@@ -20,7 +20,8 @@ type cls =
   | Parens
   | Ap
   | Rec
-  | Forall;
+  | Forall
+  | ModuleSignature;
 
 include TermBase.Typ;
 
@@ -92,7 +93,8 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | Ap(_) => Ap
   | Sum(_) => Sum
   | Rec(_) => Rec
-  | Forall(_) => Forall;
+  | Forall(_) => Forall
+  | ModuleSignature(_) => ModuleSignature;
 
 let show_cls: cls => string =
   fun
@@ -113,7 +115,8 @@ let show_cls: cls => string =
   | Parens => "Parenthesized type"
   | Ap => "Constructor application"
   | Rec => "Recursive type"
-  | Forall => "Forall type";
+  | Forall => "Forall type"
+  | ModuleSignature => "Module signature";
 
 let rec is_arrow = (typ: t) => {
   switch (typ.term) {
@@ -129,6 +132,7 @@ let rec is_arrow = (typ: t) => {
   | Ap(_)
   | Sum(_)
   | Forall(_)
+  | ModuleSignature(_)
   | Rec(_) => false
   };
 };
@@ -147,6 +151,7 @@ let rec is_forall = (typ: t) => {
   | Var(_)
   | Ap(_)
   | Sum(_)
+  | ModuleSignature(_)
   | Rec(_) => false
   };
 };
@@ -724,6 +729,10 @@ let rec pretty_print = (ty: t): string =>
     "rec " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
   | Forall(tv, t) =>
     "forall " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
+  | ModuleSignature(entries) =>
+    let entries =
+      List.map(entry => entry |> TermBase.ModuleSignatureEntry.show, entries);
+    "module {" ++ String.concat("\n", entries) ++ "}";
   }
 and ctr_pretty_print =
   fun
