@@ -79,6 +79,9 @@ type deferral_position_t = Grammar.deferral_position_t;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type module_entry_t = Grammar.module_entry_t(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
+type module_signature_entry_t =
+  Grammar.module_signature_entry_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
 type module_entry_term = Grammar.module_entry_term(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
 module rec Any: {
@@ -717,6 +720,9 @@ and Typ: {
     | (Sum(_), _) => false
     | (Var(n1), Var(n2)) => n1 == n2
     | (Var(_), _) => false
+    | (ModuleSignature(l1), ModuleSignature(l2)) =>
+      List.equal(ModuleSignatureEntry.fast_equal, l1, l2)
+    | (ModuleSignature(_), _) => false
     };
   };
 
@@ -1076,7 +1082,31 @@ and ModuleEntry: {
     | (MultipleEntries(xs), MultipleEntries(ys)) =>
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
     | (ValBinding(_), _)
+    | (TypeDef(_), _)
     | (Hole(_), _)
     | (MultipleEntries(_), _) => false
+    };
+}
+and ModuleSignatureEntry: {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = module_signature_entry_t;
+
+  let fast_equal: (t, t) => bool;
+} = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = module_signature_entry_t;
+
+  let fast_equal = (m1: t, m2: t) =>
+    switch (m1.term, m2.term) {
+    | (ValType(p1, t1), ValType(p2, t2)) =>
+      Pat.fast_equal(p1, p2) && Typ.fast_equal(t1, t2)
+    | (TypeDef(p1, e1), TypeDef(p2, e2)) =>
+      TPat.fast_equal(p1, p2) && Typ.fast_equal(e1, e2)
+    | (Hole(xs), Hole(ys)) =>
+      List.length(xs) == List.length(ys)
+      && List.equal(Any.fast_equal, xs, ys)
+    | (Hole(_), _)
+    | (ValType(_), _)
+    | (TypeDef(_), _) => false
     };
 };
