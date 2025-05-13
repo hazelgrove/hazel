@@ -100,9 +100,7 @@ let rec elaborate_pattern =
     | Cons(p1, p2) =>
       let (p1', _) = elaborate_pattern(m, p1);
       let (p2', _) = elaborate_pattern(m, p2);
-      let p1'' = p1';
-      let p2'' = p2';
-      Cons(p1'', p2'') |> rewrap;
+      Cons(p1', p2') |> rewrap;
     | TupLabel(lab, p) =>
       let (plab, _) = elaborate_pattern(m, lab);
       let (p', _) = elaborate_pattern(m, p);
@@ -132,9 +130,7 @@ let rec elaborate_pattern =
     | Ap(p1, p2) =>
       let (p1', _) = elaborate_pattern(m, p1);
       let (p2', _) = elaborate_pattern(m, p2);
-      let p1'' = p1';
-      let p2'' = p2';
-      Ap(p1'', p2'') |> rewrap;
+      Ap(p1', p2') |> rewrap;
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
