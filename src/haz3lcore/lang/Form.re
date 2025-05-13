@@ -392,6 +392,7 @@ type compound_form =
   // Modules
   | ModuleExp
   | ValBinding
+  | TypeBinding
   | ModuleEntryJoin;
 
 let get: compound_form => t =
@@ -479,15 +480,21 @@ let get: compound_form => t =
   // TRIPLE DELIMITERS
   | Let => mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))
   | ModuleExp => mk(ii, ["{", "}"], mk_op(Exp, [ModuleEntry]))
+  | TypeAlias =>
+    mk(ds, ["type", "=", "in"], mk_pre(P.let_, Exp, [TPat, Typ]))
   | ValBinding =>
     mk(
       ds,
       ["val", "="],
       mk_pre'(P.let_, ModuleEntry, ModuleEntry, [Pat], Exp),
     )
-  | ModuleEntryJoin => mk_infix(";", ModuleEntry, P.min)
-  | TypeAlias =>
-    mk(ds, ["type", "=", "in"], mk_pre(P.let_, Exp, [TPat, Typ]))
+  | TypeBinding =>
+    mk(
+      ds,
+      ["typedef", "="],
+      mk_pre'(P.let_, ModuleEntry, ModuleEntry, [TPat], Typ),
+    )
+  | ModuleEntryJoin => mk_infix(";;", ModuleEntry, P.min)
   | If => mk(ds, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]));
 
 let forms: list((compound_form, t)) =

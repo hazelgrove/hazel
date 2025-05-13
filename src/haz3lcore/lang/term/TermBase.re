@@ -1068,6 +1068,8 @@ and ModuleEntry: {
     switch (m1.term, m2.term) {
     | (ValBinding(p1, e1), ValBinding(p2, e2)) =>
       Pat.fast_equal(p1, p2) && Exp.fast_equal(e1, e2)
+    | (TypeDef(p1, e1), TypeDef(p2, e2)) =>
+      TPat.fast_equal(p1, p2) && Typ.fast_equal(e1, e2)
     | (Hole(xs), Hole(ys)) =>
       List.length(xs) == List.length(ys)
       && List.equal(Any.fast_equal, xs, ys)

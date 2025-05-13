@@ -64,7 +64,7 @@ let is_tuple_exp = is_nary(Any.is_exp, ",");
 let is_tuple_pat = is_nary(Any.is_pat, ",");
 let is_tuple_typ = is_nary(Any.is_typ, ",");
 let is_typ_bsum = is_nary(Any.is_typ, "+");
-let is_module_entry = is_nary(Any.is_module_entry, ";");
+let is_module_entry = is_nary(Any.is_module_entry, ";;");
 
 let is_grout = tiles =>
   Aba.get_as(tiles) |> List.map(snd) |> List.for_all((==)(([" "], [])));
@@ -526,7 +526,7 @@ and module_entry_term: unsorted => (TermBase.module_entry_term, list(Id.t)) =
       "Unsorted module entry: " ++ [%derive.show: unsorted](unsorted),
     );
     switch (unsorted) {
-    | Bin(ModuleEntry(l), ([(_id, ([";"], []))], []), ModuleEntry(r)) as tm =>
+    | Bin(ModuleEntry(l), ([(_id, ([";;"], []))], []), ModuleEntry(r)) as tm =>
       print_endline("bin: " ++ [%derive.show: unsorted](tm));
       switch (l.term, r.term) {
       | (MultipleEntries(ls), MultipleEntries(rs)) =>
@@ -535,7 +535,7 @@ and module_entry_term: unsorted => (TermBase.module_entry_term, list(Id.t)) =
       | (_, MultipleEntries(rs)) => ret(MultipleEntries([l] @ rs))
       | (_, _) => ret(MultipleEntries([l, r]))
       };
-    | Pre(tiles, Exp(last_exp)) as tm =>
+    | Pre(tiles, Exp(last_exp)) as _tm =>
       switch (tiles) {
       | ([(_id, t)], []) =>
         // print_endline("t: " ++ [%derive.show: Aba.t(string, Any.t)](t));
@@ -543,6 +543,16 @@ and module_entry_term: unsorted => (TermBase.module_entry_term, list(Id.t)) =
         | (["val", "="], [Pat(p)]) => ret(ValBinding(p, last_exp))
         | _ => assert(false)
         }
+      | _ => assert(false)
+      }
+    | Pre(tiles, Typ(last_pat)) as _tm =>
+      switch (tiles) {
+      | ([(_id, t)], []) =>
+        print_endline("t: " ++ [%derive.show: Aba.t(string, Any.t)](t));
+        switch (t) {
+        | (["typedef", "="], [TPat(p)]) => ret(TypeDef(p, last_pat))
+        | _ => assert(false)
+        };
       | _ => assert(false)
       }
     | tm =>

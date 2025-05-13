@@ -54,7 +54,7 @@ let module_tests =
               ),
             ),
           ]),
-          "{val x = 1+3 ;  val y = (2 * 6) - 7}",
+          "{val x = 1+3 ;;  val y = (2 * 6) - 7}",
         )
       ),
       test_case("Module with multiple definitions", `Quick, () =>
@@ -74,22 +74,22 @@ let module_tests =
             ),
             ModuleEntry.val_binding(Pat.var("z"), int(1)),
           ]),
-          "{val x = 1+3 ;  val y = (2 * 6) - 7; val z = 1}",
-        )
-      ),
-      test_case("Module with type definition", `Quick, () =>
-        exp_check(
-          module_([ModuleEntry.type_def(TPat.var("t"), Typ.int())]),
-          "{type t = Int}",
+          "{val x = 1+3 ;;  val y = (2 * 6) - 7;; val z = 1}",
         )
       ),
       test_case("Module with type definition and value binding", `Quick, () =>
         exp_check(
           module_([
+            ModuleEntry.val_binding(Pat.var("x"), float(1.)),
             ModuleEntry.type_def(TPat.var("t"), Typ.int()),
-            ModuleEntry.val_binding(Pat.var("x"), int(1)),
           ]),
-          "{type t = Int; val x = 1}",
+          "{val x = 1.;; typedef t = Int}",
+        )
+      ),
+      test_case("Module with type definition", `Quick, () =>
+        exp_check(
+          module_([ModuleEntry.type_def(TPat.var("t"), Typ.int())]),
+          "{typedef t = Int}",
         )
       ),
       test_case("Module with multiple definitions and sort errors", `Quick, () =>
@@ -106,7 +106,7 @@ let module_tests =
             ),
             ModuleEntry.hole([Exp(int(8))]),
           ]),
-          "{7 ;  val y = (2 * 6) - 7; 8}",
+          "{7 ;;  val y = (2 * 6) - 7;; 8}",
         )
       ),
     ],
@@ -156,7 +156,7 @@ let module_signature_tests =
             ]),
             empty_hole(),
           ),
-          "type S = {val x : Int ; type Y = Int} in ?",
+          "type S = {val x : Int ;; type Y = Int} in ?",
         )
       ),
     ],
