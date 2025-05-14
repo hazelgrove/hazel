@@ -377,6 +377,7 @@ module View = {
         model: Model.t,
       ) => {
     let eds = model.editors;
+    let has_checkmark = Model.all_tests_passed(model);
     let {user_impl, hidden_tests}: Tutorial.stitched('a) = model.cells;
 
     let stitched_tests =
@@ -434,14 +435,19 @@ module View = {
       div(~attrs=[Attr.class_("prompt-content")], msg);
     };
 
-    let prev_button_view = {
-      Always(
-        div(
-          ~attrs=[Attr.class_("prev-button")],
-          [Widgets.button(Icons.prev, _ => inject(MoveToPrevExercise))],
-        ),
-      );
-    };
+    let prev_button_view =
+      if (model.editors.version > 1) {
+        Always(
+          div(
+            ~attrs=[Attr.class_("prev-button")],
+            [Widgets.button(Icons.prev, _ => inject(MoveToPrevExercise))],
+          ),
+        );
+      } else {
+        // Don't render anything
+        Always(div([]));
+      };
+
     // let (msg, _) =
     //   ExplainThis.mk_translation(~globals, ~inject=_ => (), hint_placeholder);
 
@@ -496,6 +502,22 @@ module View = {
     };
     // | _ => div([]) // No hint available
     // };
+    let report_icon_view =
+      Always(
+        div(
+          ~attrs=[Attr.class_("checkmark-container")],
+          [
+            div(
+              ~attrs=[Attr.class_("report-icon")],
+              [
+                Widgets.button(Icons.infoIcon, _ =>
+                  inject(Change_report_view)
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
     let impl_grading_view =
       Always(
         if (test_count > 0) {
@@ -530,22 +552,27 @@ module View = {
                         ~attrs=[Attr.class_("checkmark")],
                         [text("✔️")],
                       ),
-                      div(
-                        ~attrs=[Attr.class_("report-icon")],
-                        [
-                          Widgets.button(Icons.infoIcon, _ =>
-                            inject(Change_report_view)
+                      // div(
+                      //   ~attrs=[Attr.class_("report-icon")],
+                      //   [
+                      //     Widgets.button(Icons.infoIcon, _ =>
+                      //       inject(Change_report_view)
+                      //     ),
+                      //   ],
+                      // ),
+                      model.editors.version < 10
+                        ? div(
+                            ~attrs=[Attr.class_("next-button")],
+                            [
+                              Widgets.button(Icons.next, _ =>
+                                inject(MoveToNextExercise)
+                              ),
+                            ],
+                          )
+                        : div(
+                            ~attrs=[Attr.class_("done-message")],
+                            [text("Done! 🎉")],
                           ),
-                        ],
-                      ),
-                      div(
-                        ~attrs=[Attr.class_("next-button")],
-                        [
-                          Widgets.button(Icons.next, _ =>
-                            inject(MoveToNextExercise)
-                          ),
-                        ],
-                      ),
                       // div(
                       //   ~attrs=[Attr.class_("prev-button")],
                       //   [
@@ -558,17 +585,24 @@ module View = {
                   );
                 } else {
                   div(
-                    ~attrs=[Attr.class_("checkmark-container")],
-                    [
-                      div(
-                        ~attrs=[Attr.class_("report-icon")],
-                        [
-                          Widgets.button(Icons.infoIcon, _ =>
-                            inject(Change_report_view)
-                          ),
-                        ],
-                      ),
-                    ],
+                    ~attrs=[Attr.class_("checkmark-spacer")],
+                    [],
+                    // div(
+                    //   ~attrs=[Attr.class_("checkmark-container")],
+                    //   [
+                    //     div(
+                    //       ~attrs=[Attr.class_("report-icon")],
+                    //       [
+                    //         Widgets.button(Icons.infoIcon, _ =>
+                    //           inject(Change_report_view)
+                    //         ),
+                    //       ],
+                    //     ),
+                    //   ],
+                    // );
+                    // div(
+                    //   [],
+                    // );
                   );
                 }
               // else {
@@ -697,8 +731,9 @@ module View = {
             globals.settings,
             [
               your_impl_view,
-              prev_button_view,
               hidden_tests_view,
+              prev_button_view,
+              report_icon_view,
               impl_grading_view,
             ],
           ),
@@ -715,16 +750,14 @@ module View = {
     //   ~attrs=[Attr.class_("tutorial-content")],
     //   [tutorial_header, tutorial_body]
     // );
-    [tutorial_header];
-    // @ render_cells(
-    //     globals.settings,
-    //     []
-    //     @ [
-    //       your_impl_view,
-    //       // raw_result_view,
-    //       hidden_tests_view,
-    //       impl_grading_view,
-    //     ],
-    //   );
+    [
+      div(
+        ~attrs=[
+          Attr.id("main"),
+          Attr.class_(has_checkmark ? "Tutorial has-checkmark" : "Tutorial"),
+        ],
+        [tutorial_header],
+      ),
+    ];
   };
 };

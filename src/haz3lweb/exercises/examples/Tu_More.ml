@@ -26,7 +26,7 @@ let bools_ex : Tutorial.spec =
       \ Now declare 4 variables (exp1, exp2, exp3, exp4), and make exp1 and \
        exp2 evaluate to true, and exp3 and exp4 evaluate to false. Feel free \
        to combine different operators using conjunction or disjunction.";
-    wrapper = true;
+    wrapper = false;
     show_report = false;
     version = 8;
     your_impl =
@@ -320,12 +320,10 @@ let cond_ex : Tutorial.spec =
     module_name = "Tu_Conditional_Expressions";
     prompt =
       "Given a boolean expression, we can use it to choose between two \
-       expressions using a `conditional expression`. \n\
-      \ \n\
-      \       For example, `if 2 < 3 then 4 * 4 else 5 * 5` evaluates to `4`. \n\
-      \ \n\
-      \       Write a conditional expression that checks if the number `162 < \
-       165`. If it is, return `162 / 2`, otherwise return `162 * 3 + 1`.\n";
+       expressions using a `conditional expression`.\n\n\
+       For example, `if 2 < 3 then 4 * 4 else 5 * 5` evaluates to `16`.\n\n\
+       Write a conditional expression that checks if the number `162 < 165`. \
+       If it is, return `162 / 2`, otherwise return `162 * 3 + 1`.";
     wrapper = true;
     show_report = false;
     version = 9;
@@ -405,7 +403,7 @@ let cond_ex : Tutorial.spec =
                                 Tile
                                   {
                                     id = Id.mk ();
-                                    label = [ "131" ];
+                                    label = [ "81" ];
                                     mold =
                                       {
                                         out = Exp;

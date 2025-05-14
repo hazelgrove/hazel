@@ -40,7 +40,7 @@ let exercise : Tutorial.spec =
               {
                 siblings =
                   ( [
-                      Tile
+                      (* Tile
                         {
                           id = Id.mk ();
                           label = [ "test"; "end" ];
@@ -127,7 +127,7 @@ let exercise : Tutorial.spec =
                           shards = [ 0 ];
                           children = [];
                         };
-                      Secondary { id = Id.mk (); content = Whitespace "\n" };
+                      Secondary { id = Id.mk (); content = Whitespace "\n" }; *)
                       Tile
                         {
                           id = Id.mk ();
@@ -224,7 +224,7 @@ let exercise : Tutorial.spec =
           };
         hints =
           [
-            "Double check the expression binded to x!";
+            (* "Double check the expression binded to x!"; *)
             "Make sure the expression after the keyword in is correct.";
           ];
       };

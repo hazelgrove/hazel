@@ -3,14 +3,15 @@
  * could be factored out */
 
  #main.Tutorial {
-    padding: 1.5em;
+    padding: 0.75em;
     display: flex;
     flex-direction: column;
     justify-content: space-between;
+    position: relative;
     /* gap: 1.2em; */
     /* gap: 2em; */
     background-color: var(--ui-bkg) !important;
-    ;
+    /* padding-bottom: 6em; */
   }
   
   #main.Tutorial {
@@ -58,6 +59,7 @@
   }
   
   #main.Tutorial .test-panel {
+    position: relative;
     display: flex;
     flex-direction: column;
     gap: 1em;
@@ -240,52 +242,33 @@
     /* Correct implementation type sigs */
   
   }
-  
-  .checkmark-container {
-    display: flex;
-    justify-content: right;
-    align-items: right;
-    margin-top: 20px;
-  }
-  
+    
   .checkmark {
     width: 40px;
-    /* Adjust size as needed */
+    position: relative;
     height: 40px;
     background-color: #60f382;
-    /* Green background */
     border-radius: 50%;
-    /* Makes it round */
     display: flex;
     justify-content: center;
     align-items: center;
     font-size: 25px;
-    /* Massive check mark */
     font-weight: bold;
     color: white;
-    /* White check mark */
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
     border: 4px solid #218838;
-    /* Slightly darker green border */
     animation: popIn 0.3s ease-out;
   }
-  
 
-    /* @keyframes popIn {
-    0% {
-      transform: scale(0);
-      opacity: 0;
-    }
-
-    80% {
-      transform: scale(1.2);
-      opacity: 1;
-    }
-  
-    100% {
-      transform: scale(1);
-    }
-  } */
+  .checkmark-container {
+    position: relative;
+    display: flex;
+    flex-direction: column;     
+    align-items: flex-end;     
+    /* gap: 0.2em;                 */
+    /* margin-top: 5px; */
+    padding-right: 1em;
+  }
 
   .hint-cell {
     background-color: 1px solid var(--cell-selected-accent);
@@ -298,15 +281,11 @@
     color: #333;
     width: calc(100% - 2em);
     gap: 2em;
-    
-    /* word-wrap: break-word; */
-    /* height: 75px; */
   }
   
   .hint-title {
     font-weight: bold;
     color: #d39e00;
-    /* Darker yellow */
     font-size: 15px;
     margin-bottom: 2px;
   }
@@ -314,14 +293,14 @@
   .hint-content {
     font-size: 15px;
     color: #555;
-    /* line-height: 0.1; */
   }
 
   .report-icon {
     margin-left: 0.5em;
     cursor: pointer;
+    top: -5px;
+    right: -10px;
     color: var(--BR4);
-    /* fill: var(--BR4); */
     display: inline;
     vertical-align: top;
   }
@@ -352,33 +331,19 @@
 }
 
   
-  /* .report-icon:hover {
-    animation: wobble 0.6s ease 0s 1 normal forwards;
-  }
+.done-message {
+  padding-left: 1rem;
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: #2c7a7b; 
+  display: flex;
+  align-items: center;
+}
 
-  .report-icon::after {
-    content: "Click this for more details.";
-    position: absolute;
-    top: 110%; 
-    right: 0;
-    background: #333;
-    color: #fff;
-    padding: 6px 10px;
-    font-size: 12px;
-    border-radius: 5px;
-    white-space: nowrap;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.2s ease-in-out;
-  }
-  
-  .report-icon {
-    margin-left: 0.5em;
-    cursor: pointer;
-    fill: #7a6219;
-    display: inline;
-    vertical-align: top;
-  } */
+.done-checkmark {
+  margin-left: 0.5rem;
+}
+
   
   #main.Tutorial .title-cell {
     display: flex;
@@ -506,8 +471,8 @@
     line-height: 0;
   }
 
-  .next-button {
-    position: fixed;
+  /* .next-button {
+    position: absolute;;
     bottom: 20px;
     right: 20px;
     font-size: 45px;
@@ -518,20 +483,60 @@
   }
   
   .next-button:hover {
-    transform: translateX(6px) scale(1.1); /* subtle move + zoom */
-    color:  #d39e00; /* blue on hover */
-  }
+    transform: translateX(6px) scale(1.1);
+    color:  #d39e00; 
+  } */
+
+  /* .prev-button {
+    position: relative;
+    bottom: 3em;
+    left: 20px;
+    margin-top: 60px;
+    font-size: 45px;
+    color: var(--BR4);
+    cursor: pointer;
+    z-index: 1000;
+    transition: transform 0.2s ease, color 0.2s ease;
+  }  */
 
   .prev-button {
-    position: fixed;
-    bottom: 20px;
-    left: 20px;
+    position: absolute;
+    align-self: flex-start;
     font-size: 45px;
     color: var(--BR4);
     cursor: pointer;
     z-index: 1000;
     transition: transform 0.2s ease, color 0.2s ease;
   }
+
+  /* .next-button {
+    position: absolute; 
+    bottom: 0;
+    right: 0;
+    font-size: 45px;
+    color: var(--BR4);
+    cursor: pointer;
+    z-index: 1000;
+    transition: transform 0.2s ease, color 0.2s ease;
+    margin: 20px;
+  } */
+
+  .next-button {
+    position: relative;  
+    align-self: flex-end;
+    font-size: 45px;
+    color: var(--BR4);
+    cursor: pointer;
+    z-index: 1000;
+    transition: transform 0.2s ease, color 0.2s ease;
+    margin-top: 0px;     
+  }  
+
+  .next-button:hover {
+    transform: translateX(6px) scale(1.1);
+    color:  #d39e00; 
+  } 
+  
 
   .prev-button:hover {
     transform: translateX(6px) scale(1.1); /* subtle move + zoom */
@@ -546,3 +551,36 @@
   .prompt-content {
     margin-bottom: 1.5em; 
   }
+
+  #main.Tutorial.has-checkmark .prev-button {
+    margin-top: 65px;
+  }
+  
+  #main.Tutorial .prev-button {
+    margin-top: 0;
+  }
+
+  .checkmark-spacer {
+    height: 60px;
+  }
+
+  @keyframes dance {
+    0%   { transform: translateY(0) rotate(0deg); }
+    25%  { transform: translateY(-5px) rotate(-3deg); }
+    50%  { transform: translateY(0) rotate(0deg); }
+    75%  { transform: translateY(-5px) rotate(3deg); }
+    100% { transform: translateY(0) rotate(0deg); }
+  }
+
+  .done-message {
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: var(--BR4); 
+    text-align: right;
+    margin-top: 1em;
+    /* margin-right: 1em; */
+    margin-bottom: 1em;
+    animation: dance 0.8s infinite ease-in-out;
+  }
+  
+  
