@@ -96,7 +96,7 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
 let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
   switch (DHExp.term_of(d)) {
   | Cast(e, _, t) =>
-    switch (DHExp.term_of(e), Typ.term_of(t)) {
+    switch (DHExp.term_of(e), Typ.term_of(Typ.unroll(t))) {
     | (e, Parens(t)) =>
       // TODO: We need to normalize types to handle aliases? We can consider doing it in elaboration
       transition(
@@ -186,9 +186,33 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         )
         |> DHExp.fresh,
       )
+    | (
+        Ap(
+          Forward,
+          {term: Constructor(c, Some(Some({term: Arrow(_, sumt), _}))), _} as con,
+          payload,
+        ),
+        Sum(m) as sumt',
+      )
+        when Typ.fast_equal(Typ.unroll(sumt), sumt' |> Typ.temp) =>
+      // I would like to unroll/normalize somewhere else
+      let entry = ConstructorMap.get_entry(c, m);
+      switch (entry) {
+      | Some(Some(t')) =>
+        Some(
+          Ap(
+            Forward,
+            con,
+            Cast(payload, Unknown(Internal) |> Typ.temp, t') |> DHExp.fresh,
+          )
+          |> DHExp.fresh,
+        )
+      | Some(None)
+      | None => None
+      };
     | (Constructor(_, Some(Some(t))), t')
-        when Typ.fast_equal(t, t' |> Typ.temp) =>
-      // Make sure that we don't need to handle the none cases
+        when Typ.fast_equal(Typ.unroll(t), t' |> Typ.temp) =>
+      // Make sure that we don't need to handle the none cases. Also think about what to do if the type has a payload and it's just a constructor
       Some(e)
     | (Test(_), Prod([])) => Some(d)
     // These are non-value cases we don't want to handle
