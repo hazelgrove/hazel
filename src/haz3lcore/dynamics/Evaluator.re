@@ -113,14 +113,10 @@ module EvaluatorEVMode: {
   let (let.) = (t1, s) => {
     let.trampoline (x, c) = t1;
     switch (s(x)) {
-    | Step({expr, state_update, is_value: true, kind, _}) =>
-      print_endline("Value Step: " ++ show_step_kind(kind));
-      print_endline("Exp: " ++ DHExp.show(expr));
+    | Step({expr, state_update, is_value: true, _}) =>
       state_update();
       Trampoline.return((Final, expr));
-    | Step({expr, state_update, is_value: false, kind, _}) =>
-      print_endline("Step: " ++ show_step_kind(kind));
-      print_endline("Exp: " ++ DHExp.show(expr));
+    | Step({expr, state_update, is_value: false, _}) =>
       state_update();
       Trampoline.return((Uneval, expr));
     | Constructor
