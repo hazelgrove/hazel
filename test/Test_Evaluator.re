@@ -446,6 +446,39 @@ let tests = (
         end|},
       )
     }),
+    test_case("Case expression with constructors with payloads", `Quick, () => {
+      parse_and_evaluate_test(
+        "1",
+        {|
+type Exp =
++ Var(String) in
+let go: Exp -> Int =
+  fun e ->
+    case e
+      | Var(n) => 1
+ end in
+
+go(Var("yo"))|},
+      )
+    }),
+    test_case(
+      "Case expression with constructors with payloads and recursive types",
+      `Quick,
+      () => {
+      parse_and_evaluate_test(
+        "1",
+        {|
+type Exp =
++ Var(String) +B(Exp) in
+let go: Exp -> Int =
+  fun e ->
+    case e
+      | Var(n) => 1
+ end in
+
+go(Var("yo"))|},
+      )
+    }),
     test_case("Elaborated Pattern for labeled tuple", `Quick, () =>
       parse_and_evaluate_test(
         "2",
