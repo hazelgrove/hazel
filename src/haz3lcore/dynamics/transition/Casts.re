@@ -189,7 +189,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Constructor(_, Some(Some(t))), t')
         when Typ.fast_equal(t, t' |> Typ.temp) =>
       // Make sure that we don't need to handle the none cases
-      Some(d)
+      Some(e)
     | (Test(_), Prod([])) => Some(d)
     // These are non-value cases we don't want to handle
     | (EmptyHole, _)
