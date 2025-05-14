@@ -27,9 +27,10 @@ type unboxed_tfun =
   | TypFun(TPat.t, Exp.t, option(string))
   | TFunCast(DHExp.t, TPat.t, Typ.t, TPat.t, Typ.t);
 
+[@deriving show({with_path: false})]
 type unboxed_fun =
   | Constructor(string)
-  | FunEnv(Pat.t, Exp.t, ClosureEnvironment.t)
+  | FunEnv(Pat.t, Exp.t, [@show.opaque] ClosureEnvironment.t)
   | FunNoEnv(Pat.t, Exp.t)
   | FunCast(DHExp.t, Typ.t, Typ.t, Typ.t, Typ.t)
   | BuiltinFun(string)

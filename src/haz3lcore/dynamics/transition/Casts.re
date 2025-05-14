@@ -94,7 +94,6 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
 
 /* gives a transition step that can be taken by the cast calculus here if applicable. */
 let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
-  print_endline("Cast transition");
   switch (DHExp.term_of(d)) {
   | Cast({term: Closure(ce, d), _}, t1, t2) =>
     transition(~recursive, Cast(d, t1, t2) |> DHExp.fresh)
@@ -103,9 +102,31 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     Some(
       IdTagged.FreshGrammar.(Exp.(fn(Pat.(asc(p, t1)), asc(e, t2), t, v))),
     )
+  | Cast({term: TupLabel(l, e), _}, _, {term: TupLabel(_l2, t), _}) =>
+    // TODO Figure out what to do if the labels don't match
+    Some(
+      TupLabel(l, Cast(e, Unknown(Internal) |> Typ.temp, t) |> DHExp.fresh)
+      |> DHExp.fresh,
+    )
+  | Cast({term: Tuple(es), _}, _, {term: Prod(tys), _})
+      when List.length(es) == List.length(tys) =>
+    Some(
+      Tuple(
+        List.map2(
+          (e, ty) =>
+            Cast(e, Unknown(Internal) |> Typ.temp, ty) |> DHExp.fresh,
+          es,
+          tys,
+        ),
+      )
+      |> DHExp.fresh,
+    )
   | Cast(d, _, {term: Unknown(_), _}) => Some(d)
   | Cast({term: Atom(Int(_)) as d, _}, _, {term: Atom(Int), _}) =>
     Some(d |> Exp.fresh)
+  | Cast({term: Atom(String(_)) as d, _}, _, {term: Atom(String), _}) =>
+    Some(d |> Exp.fresh)
+
   | Cast(d1, t1, t2) =>
     let d1 =
       if (recursive) {
@@ -113,8 +134,6 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       } else {
         d1;
       };
-    print_endline("transition");
-    print_endline(DHExp.show(d));
     switch (ground_cases_of(t1), ground_cases_of(t2)) {
     | (Hole, Hole)
     | (Ground, Ground) =>
