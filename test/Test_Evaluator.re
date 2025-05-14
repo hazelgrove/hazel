@@ -284,7 +284,7 @@ let skip_current_unboxing_error = (err: string, expression: string) =>
 let qcheck_evaluator_does_not_crash_test =
   QCheck.Test.make(
     ~name="Evaluator does not crash",
-    ~count=10000,
+    ~count=100000,
     QCheck_Util.arb_exp(~minimal_idents=true, 50),
     exp => {
     switch (
@@ -372,6 +372,23 @@ let tests = (
     test_case("eg", `Quick, () =>
       parse_and_evaluate_test("2", {|(fun (a=a): ((a=Int)) -> a: ?)(a=2)|})
     ),
+    test_case("Casted constructor", `Quick, () => {
+      parse_and_evaluate_test(
+        "A",
+        {|A :(+A +B +C)|},
+      )
+    }),
+    test_case(
+      "Case expression with constructors of different type", `Quick, () => {
+      parse_and_evaluate_test(
+        "(true, true)",
+        {|let match  = fun x->
+          case x
+            | (A :(+A)) => true
+            | _ => false
+          end in (match(A :(+A +B +C)), match(A: (+A +B)))|},
+      )
+    }),
     test_case("Elaborated Pattern for labeled tuple", `Quick, () =>
       parse_and_evaluate_test(
         "2",
@@ -758,6 +775,6 @@ in fn("hello")|},
       {|type y = + A in ""++A|},
     ),
     skip_current_unboxing_error("InvalidBoxedIntLit", "type y = + A in -A"),
-    // QCheck_alcotest.to_alcotest(qcheck_evaluator_does_not_crash_test),
+    QCheck_alcotest.to_alcotest(qcheck_evaluator_does_not_crash_test),
   ],
 );
