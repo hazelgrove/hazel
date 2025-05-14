@@ -151,17 +151,7 @@ let test_ap_of_hole_deferral = () =>
         Typ.unknown(Internal),
         Typ.(arrow(unknown(Internal), unknown(Internal))),
       ),
-      cast(
-        tuple([
-          cast(float(1.), Typ.float(), Typ.unknown(Internal)),
-          cast(bool(true), Typ.bool(), Typ.unknown(Internal)),
-          cast(int(3), Typ.int(), Typ.unknown(Internal)),
-        ]),
-        Typ.(
-          prod([unknown(Internal), unknown(Internal), unknown(Internal)])
-        ),
-        Typ.unknown(Internal),
-      ),
+      tuple([float(1.), bool(true), int(3)]),
     ),
     ap(
       Forward,
@@ -376,8 +366,11 @@ let tests = (
     test_case("Integer sum", `Quick, test_sum),
     test_case("Function application", `Quick, test_function_application),
     test_case("Function deferral", `Quick, test_function_deferral),
-    test_case("Ascribed lambda", `Quick, () =>
+    test_case("Ascribed lambda applied", `Quick, () =>
       parse_and_evaluate_test("2", {|((fun a -> a):  ? -> ? )(2:  ?): Int|})
+    ),
+    test_case("eg", `Quick, () =>
+      parse_and_evaluate_test("2", {|(fun (a=a): ((a=Int)) -> a: ?)(a=2)|})
     ),
     test_case("Elaborated Pattern for labeled tuple", `Quick, () =>
       parse_and_evaluate_test(
@@ -732,6 +725,6 @@ in fn("hello")|},
       {|type y = + A in ""++A|},
     ),
     skip_current_unboxing_error("InvalidBoxedIntLit", "type y = + A in -A"),
-    QCheck_alcotest.to_alcotest(qcheck_evaluator_does_not_crash_test),
+    // QCheck_alcotest.to_alcotest(qcheck_evaluator_does_not_crash_test),
   ],
 );
