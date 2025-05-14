@@ -67,7 +67,7 @@ module Selection = {
 
 module View = {
   type event =
-    | MakeActive
+    | MakeActive(Editor.Focus.t)
     | TakeStep(int);
 
   let view =
@@ -101,10 +101,8 @@ module View = {
       @ Deco.next_steps(model.next_steps, ~inject=x => signal(TakeStep(x)));
     };
     CodeSelectable.View.view(
-      ~signal=
-        fun
-        | MakeActive => signal(MakeActive),
-      ~selected,
+      ~focus=f => signal(MakeActive(f)),
+      ~focussed=selected,
       ~common={
         settings: globals.settings.core,
         font_metrics: globals.font_metrics,

@@ -476,29 +476,29 @@ module View = {
                      ~overlays=[],
                      ~sort=Exp,
                      ~selected=
-                       selection
-                       == Some(
-                            A(
-                              List.length(stepper.history |> Aba.get_as)
-                              - (i + 1)
-                              - 1,
-                              (),
-                            ),
-                          ),
+                       switch (selection) {
+                       | Some(A(j, f))
+                           when
+                             j == List.length(stepper.history |> Aba.get_as)
+                             - (i + 1)
+                             - 1 =>
+                         Some(f)
+                       | _ => None
+                       },
                      ~inject=
                        (x: StepperEditor.Update.t) =>
                          inject(StepperEditor(i + 1, x)),
                      ~signal=
                        fun
                        | TakeStep(_) => Ui_effect.Ignore
-                       | MakeActive =>
+                       | MakeActive(f) =>
                          signal(
                            MakeActive(
                              A(
                                List.length(stepper.history |> Aba.get_as)
                                - (i + 1)
                                - 1,
-                               (),
+                               f,
                              ),
                            ),
                          ),
@@ -544,15 +544,15 @@ module View = {
                 ~globals,
                 ~sort=Exp,
                 ~selected=
-                  selection
-                  == Some(
-                       A(
-                         List.length(stepper.history |> Aba.get_as)
-                         - current_n
-                         - 1,
-                         (),
-                       ),
-                     ),
+                  switch (selection) {
+                  | Some(A(j, f))
+                      when
+                        j == List.length(stepper.history |> Aba.get_as)
+                        - (current_n + 1)
+                        - 1 =>
+                    Some(f)
+                  | _ => None
+                  },
                 ~inject=
                   (x: StepperEditor.Update.t) =>
                     inject(StepperEditor(current_n, x)),
@@ -563,14 +563,14 @@ module View = {
                       inject(Update.StepForward(x)),
                       Effect.Stop_propagation,
                     ])
-                  | MakeActive =>
+                  | MakeActive(f) =>
                     signal(
                       MakeActive(
                         A(
                           List.length(stepper.history |> Aba.get_as)
                           - current_n
                           - 1,
-                          (),
+                          f,
                         ),
                       ),
                     ),

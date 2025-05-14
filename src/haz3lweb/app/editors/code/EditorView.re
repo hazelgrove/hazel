@@ -33,9 +33,6 @@ module Focus = {
   };
 };
 
-type event =
-  | MakeActive;
-
 let container_target = (current_target: Js.opt(Js.t(Dom_html.element))) =>
   current_target
   |> Js.Opt.get(_, _ => failwith(""))
@@ -95,12 +92,13 @@ let view_code_editable =
     (
       type p_m,
       type p_a,
+      type p_f,
       ~common: ProjectorInterface.common,
       ~split_views,
       ~mk_status,
-      ~signal: event => Ui_effect.t(unit),
       ~inject: Action.t(ProjectorCore.Kind.t, p_m, p_a) => Ui_effect.t(unit),
-      ~selected: bool,
+      ~focus: Focus.t(p_f) => Ui_effect.t(unit),
+      ~focussed: option(Focus.t(p_f)),
       ~overlays: list(Node.t)=[],
       ~sort,
       model: Editor.Model.t(ProjectorCore.Kind.t, p_m, p_a),
@@ -114,13 +112,13 @@ let view_code_editable =
         let editor = model;
         let globals = common;
       });
-    Deco.editor(model.state.zipper, selected);
+    Deco.editor(model.state.zipper, focussed == Some(Here));
   };
   let projectors =
     ProjectorView.all(
       ~split_views,
       ~inject,
-      ~make_active=signal(MakeActive),
+      ~make_active=(id, f) => focus(Projector(id, f)),
       ProjectorView.Model.mk(
         ~mk_status,
         model.syntax.projectors,
@@ -132,7 +130,7 @@ let view_code_editable =
         },
         common.statics.info_map,
         common.dynamics,
-        selected,
+        Option.is_some(focussed),
       ),
     );
   let overlays =
@@ -152,13 +150,13 @@ let view_code_editable =
     switch (mouse) {
     | {shift: Down, _} =>
       Effect.Many([
-        signal(MakeActive),
+        focus(Here),
         inject(Select(Resize(Goal(Point(loc(mouse)))))),
       ])
     | {sys: PC, ctrl: Down, _}
     | {sys: Mac, meta: Down, _} =>
       Effect.Many([
-        signal(MakeActive),
+        focus(Here),
         inject(Move(Goal(Point(loc(mouse))))),
         inject(Jump(BindingSiteOfIndicatedVar)),
       ])
@@ -172,7 +170,7 @@ let view_code_editable =
         /* prepare to drag if the mouse moves */
         PointerCapture.set(mouse.current_target, pointer_id);
         Effect.Many([
-          signal(MakeActive),
+          focus(Here),
           inject(Move(Goal(Point(loc(mouse))))),
         ]);
       | 2 => inject(Select(Smart(2)))
@@ -198,7 +196,8 @@ let view_code_editable =
   Node.div(
     ~attrs=[
       Attr.classes(
-        ["cell-item", "code-editor"] @ (selected ? ["selected"] : []),
+        ["cell-item", "code-editor"]
+        @ (Option.is_some(focussed) ? ["selected"] : []),
       ),
       Attr.on_pointerdown(evt =>
         move_or_select(Pointer.Event.mk(evt), Pointer.Event.id_of(evt))

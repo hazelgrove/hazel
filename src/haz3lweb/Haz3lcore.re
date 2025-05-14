@@ -49,7 +49,7 @@ module rec Projector: {
         ~sort: Sort.t,
         ~parent: ProjectorBase.external_action => Ui_effect.t(unit),
         ~inject: Update.t => Ui_effect.t(unit),
-        ~make_active: Ui_effect.t(unit),
+        ~focus: Focus.t => Ui_effect.t(unit),
         ProjectorView.Model.projector_data(Model.t)
       ) =>
       (Web.Node.t, option(Web.Node.t));
@@ -187,6 +187,9 @@ and Editor: {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t;
 
+    // TODO[Matt]: Used in jump to tile logic which will need updating.
+    let here: t;
+
     let handle_key_event:
       (~focus: t, ~key: Key.t, Model.t) => option(Update.t);
   };
@@ -207,7 +210,6 @@ and Editor: {
     let view_editable:
       (
         ~common: ProjectorInterface.common,
-        ~signal: EditorView.event => Ui_effect.t(unit),
         ~inject:
           Action.t(
             ProjectorCore.Kind.t,
@@ -215,27 +217,28 @@ and Editor: {
             Projector.Update.t,
           ) =>
           Ui_effect.t(unit),
-        ~selected: bool,
+        ~focus: Focus.t => Ui_effect.t(unit),
+        ~focussed: option(Focus.t),
         ~overlays: list(Web.Node.t)=?,
         ~sort: Sort.t,
         Model.t
       ) =>
       Web.Node.t;
 
-    let all_projectors:
-      (
-        ~common: ProjectorInterface.common,
-        ~inject:
-          Action.t(
-            ProjectorCore.Kind.t,
-            Projector.Model.t,
-            Projector.Update.t,
-          ) =>
-          Ui_effect.t(unit),
-        ~make_active: Ui_effect.t(unit),
-        list(ProjectorView.Model.projector_data(Projector.Model.t))
-      ) =>
-      list(Web.Node.t);
+    // let all_projectors:
+    //   (
+    //     ~common: ProjectorInterface.common,
+    //     ~inject:
+    //       Action.t(
+    //         ProjectorCore.Kind.t,
+    //         Projector.Model.t,
+    //         Projector.Update.t,
+    //       ) =>
+    //       Ui_effect.t(unit),
+    //     ~make_active: Ui_effect.t(unit),
+    //     list(ProjectorView.Model.projector_data(Projector.Model.t))
+    //   ) =>
+    //   list(Web.Node.t);
     // let view_any:
     //   (
     //     ~settings: CoreSettings.t,
@@ -445,6 +448,8 @@ and Editor: {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = EditorView.Focus.t(Projector.Focus.t);
 
+    let here = EditorView.Focus.Here;
+
     let handle_key_event =
       EditorView.Focus.handle_key_event(
         ~handle_key_pr=Projector.Focus.handle_key_event,
@@ -467,11 +472,11 @@ and Editor: {
     let mk_projector_model =
       ProjectorView.Model.mk(~mk_status=Projector.View.mk_status);
 
-    let all_projectors = (~common: ProjectorInterface.common) =>
-      ProjectorView.all(
-        ~split_views=
-          Projector.View.split_views(~common: ProjectorInterface.common),
-      );
+    // let all_projectors = (~common: ProjectorInterface.common) =>
+    //   ProjectorView.all(
+    //     ~split_views=
+    //       Projector.View.split_views(~common: ProjectorInterface.common),
+    //   );
 
     let print_string = (ed: Model.t) =>
       ed.state.zipper

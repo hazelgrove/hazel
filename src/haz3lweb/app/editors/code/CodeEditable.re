@@ -109,9 +109,9 @@ module Selection = {
 
   // Editor selection is handled within Editor.t
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = unit;
+  type t = Editor.Focus.t;
 
-  let get_cursor_info = (~selection as (), model: Model.t): cursor(Update.t) => {
+  let get_cursor_info = (~selection as _, model: Model.t): cursor(Update.t) => {
     {
       ...
         CodeWithStatics.Model.get_cursor_info(model)
@@ -123,7 +123,7 @@ module Selection = {
   };
 
   let handle_key_event =
-      (~selection as (), _: Model.t): (Key.t => option(Update.t)) =>
+      (~selection, model: Model.t): (Key.t => option(Update.t)) =>
     fun
     | {
         key: D("Z" | "z"),
@@ -151,16 +151,16 @@ module Selection = {
         when Keyboard.is_f_key(key) =>
       Some(Update.DebugConsole(key))
     | k =>
-      Keyboard.handle_key_event(~info_projector=ProjectorCore.Kind.Info, k)
+      Editor.Focus.handle_key_event(~focus=selection, ~key=k, model.editor)
       |> Option.map(x => Update.Perform(x));
 
-  let handle_key_event = (~selection, model: Model.t, key) => {
-    //TODO(andrew): not sure handoff approach makes sense
-    switch (Editor.Update.key_handoff(model.editor, key)) {
-    | Some(action) => Some(Update.Perform(Project(action)))
-    | None => handle_key_event(~selection, model, key)
-    };
-  };
+  // let handle_key_event = (~selection, model: Model.t, key) => {
+  //   //TODO(andrew): not sure handoff approach makes sense
+  //   switch (Editor.Update.key_handoff(model.editor, key)) {
+  //   | Some(action) => Some(Update.Perform(Project(action)))
+  //   | None => handle_key_event(~selection, model, key)
+  //   };
+  // };
 
   let jump_to_tile = (tile, model: Model.t) => {
     Editor.Update.jump_to_tile_action(tile, model.editor)

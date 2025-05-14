@@ -405,9 +405,7 @@ module View = {
       };
     let code_view =
       CodeSelectable.View.view(
-        ~signal=
-          fun
-          | MakeActive => signal(MakeActive(Evaluation())),
+        ~focus=f => signal(MakeActive(Evaluation(f))),
         ~inject=a => inject(EvalEditorAction(a)),
         ~common={
           settings: globals.settings.core,
@@ -418,7 +416,7 @@ module View = {
           statics: editor.statics,
           dynamics: editor.dynamics,
         },
-        ~selected,
+        ~focussed=selected,
         ~sort=Haz3lcore.Sort.root,
         editor.editor,
       );
@@ -479,7 +477,11 @@ module View = {
           ~globals,
           ~signal,
           ~inject,
-          ~selected=selected == Some(Evaluation()),
+          ~selected=
+            switch (selected) {
+            | Some(Evaluation(s)) => Some(s)
+            | _ => None
+            },
           ~locked,
           elab,
           result |> Calc.get_value,

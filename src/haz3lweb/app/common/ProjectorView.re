@@ -139,7 +139,6 @@ let projector_clss =
  * adding fallthrough handlers where appropriate*/
 let view_wrapper =
     (
-      ~make_active,
       ~font_metrics: FontMetrics.t,
       ~measurement: Measured.measurement,
       ~status: Model.status,
@@ -150,9 +149,7 @@ let view_wrapper =
       Attr.classes(projector_clss(status)),
       /* Stopping propagation here is stops the base editor's
        * drag-select interaction from being triggered */
-      Attr.on_pointerdown(_ => {
-        Effect.Many([Effect.Stop_propagation, make_active])
-      }),
+      Attr.on_pointerdown(_ => {Effect.Many([Effect.Stop_propagation])}),
       DecUtil.abs_style(measurement, ~font_metrics),
     ],
     views,
@@ -243,18 +240,13 @@ let split_views =
       ~mk_ed,
       ~parent: ProjectorBase.external_action => Ui_effect.t(unit),
       ~inject: ProjectorCore.Update.t(ed_a) => Ui_effect.t(unit),
-      ~make_active,
+      ~focus: ProjectorCore.Focus.t(ed_f) => Ui_effect.t(unit),
       {p, offside_base, measurement, status, _} as projector_data:
         Model.projector_data(ProjectorCore.model(ed, ed_a, ed_f)),
     )
     : (Node.t, option(Node.t)) => {
   let wrapper =
-    view_wrapper(
-      ~make_active,
-      ~font_metrics=common.font_metrics,
-      ~measurement,
-      ~status,
-    );
+    view_wrapper(~font_metrics=common.font_metrics, ~measurement, ~status);
   let views =
     mk_view(~parent, ~inject, ~ed_str, ~view_ed, ~mk_ed, projector_data);
   let line_view = {
@@ -293,12 +285,12 @@ let all =
            ~sort: Sort.t,
            ~parent: external_action => Ui_effect.t(unit),
            ~inject: 'p_a => Ui_effect.t(unit),
-           ~make_active: Ui_effect.t(unit),
+           ~focus: 'p_f => Ui_effect.t(unit),
            Model.projector_data(p)
          ) =>
          (Node.t, option(Node.t)),
       ~inject: Action.t('p_k, p, 'p_a) => Ui_effect.t(unit),
-      ~make_active,
+      ~make_active: (Id.t, 'p_f) => Ui_effect.t(unit),
       projector_data: list(Model.projector_data(p)),
     ) => {
   /* Sorting the projectors by position tends to be a good
@@ -315,11 +307,14 @@ let all =
            ~sort=data.status.sort,
            ~parent=a => inject(Project(handle(data.info.id, a))),
            ~inject=a => inject(Project(Perform(data.info.id, a))),
-           ~make_active=
-             Ui_effect.Many([
-               make_active,
-               inject(Project(Focus(data.info.id, data.status.kind, None))),
-             ]),
+           ~focus=
+             f =>
+               Ui_effect.Many([
+                 make_active(data.info.id, f),
+                 inject(
+                   Project(Focus(data.info.id, data.status.kind, None)),
+                 ),
+               ]),
            data,
          )
        )

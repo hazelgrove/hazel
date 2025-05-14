@@ -60,8 +60,8 @@ module Update = {
 module Selection = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = CodeEditable.Selection.t;
-  let get_cursor_info = (~selection, model) =>
-    CodeEditable.Selection.get_cursor_info(~selection, model)
+  let get_cursor_info = (~selection as _, _model) =>
+    Cursor.empty  // TODO: bring back cursor info (requires sorts)
     |> (
       ci =>
         Cursor.{
@@ -77,7 +77,8 @@ module Selection = {
 };
 
 module View = {
-  type event = EditorView.event;
+  type event =
+    | MakeActive(Editor.Focus.t);
 
   let view = (~inject: Update.t => 'a) =>
     Editor.View.view_editable(~inject=a =>

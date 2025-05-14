@@ -122,14 +122,14 @@ module Selection = {
   open Cursor;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | MainEditor
+    | MainEditor(CodeEditable.Selection.t)
     | Result(EvalResult.Selection.t);
 
   let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
     switch (selection) {
-    | MainEditor =>
+    | MainEditor(f) =>
       let+ ci =
-        CodeEditable.Selection.get_cursor_info(~selection=(), model.editor);
+        CodeEditable.Selection.get_cursor_info(~selection=f, model.editor);
       Update.MainEditor(ci);
     | Result(selection) =>
       let+ ci =
@@ -141,9 +141,9 @@ module Selection = {
   let handle_key_event =
       (~selection, ~event, model: Model.t): option(Update.t) => {
     switch (selection) {
-    | MainEditor =>
+    | MainEditor(f) =>
       CodeEditable.Selection.handle_key_event(
-        ~selection=(),
+        ~selection=f,
         model.editor,
         event,
       )
@@ -156,7 +156,9 @@ module Selection = {
 
   let jump_to_tile = (tile, model: Model.t): option((Update.t, t)) => {
     CodeEditable.Selection.jump_to_tile(tile, model.editor)
-    |> Option.map(x => (Update.MainEditor(x), MainEditor));
+    |> Option.map(x =>
+         (Update.MainEditor(x), MainEditor(Editor.Focus.here))
+       );
   };
 };
 
@@ -193,7 +195,7 @@ module View = {
           | MakeActive(a) => signal(MakeActive(Result(a)))
           | JumpTo(id) =>
             Effect.Many([
-              signal(MakeActive(MainEditor)),
+              signal(MakeActive(MainEditor(Editor.Focus.here))),
               inject(MainEditor(Perform(Jump(TileId(id))))),
             ]),
         ~inject=a => inject(ResultAction(a)),
@@ -221,16 +223,19 @@ module View = {
             statics: model.editor.statics,
             dynamics: model.editor.dynamics,
           },
-          ~signal=
+          ~focus=
             locked
               ? _ => Ui_effect.Ignore
-              : fun
-                | MakeActive => signal(MakeActive(MainEditor)),
+              : (f => signal(MakeActive(MainEditor(f)))),
+          ~focussed=
+            switch (selected) {
+            | Some(MainEditor(f)) => Some(f)
+            | _ => None
+            },
           ~inject=
             locked
               ? _ => Ui_effect.Ignore
               : (action => inject(MainEditor(Perform(action)))),
-          ~selected=selected == Some(MainEditor),
           ~overlays=overlays(model.editor.editor),
           ~sort,
           model.editor.editor,
