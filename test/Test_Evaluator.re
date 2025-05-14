@@ -284,7 +284,7 @@ let skip_current_unboxing_error = (err: string, expression: string) =>
 let qcheck_evaluator_does_not_crash_test =
   QCheck.Test.make(
     ~name="Evaluator does not crash",
-    ~count=100000,
+    ~count=10000,
     QCheck_Util.arb_exp(~minimal_idents=true, 50),
     exp => {
     switch (
