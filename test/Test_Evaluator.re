@@ -449,15 +449,32 @@ in fn("hello")|},
       )
     ),
     test_case("Inconsistent list ascription with alias", `Quick, () => {
-      [@warning "-21"]
-      {
-        Alcotest.skip(); // TODO
-        parse_and_evaluate_test(
-          "[1 : String,2 : String,3 : String]",
-          {|type T = [String] in [1,2,3] : T|},
-        );
-      }
+      parse_and_evaluate_test(
+        "[1 : String,2 : String,3 : String]",
+        {|type T = [String] in [1,2,3] : T|},
+      )
     }),
+    test_case("Inconsistent pattern ascription in case expression", `Quick, () =>
+      parse_and_evaluate_test(
+        {|1 : String|},
+        {|case 1
+          | (x : String) =>x
+        end
+        |},
+      )
+    ),
+    test_case("Inconsistent pattern match", `Quick, () =>
+      parse_and_evaluate_test(
+        {|case 1
+          | ("hello") => false
+          | (x : String) => true
+        end|},
+        {|case 1
+          | ("hello") => false
+          | (x : String) => true
+        end|},
+      )
+    ),
     test_case("Simple probe", `Quick, () => {
       PGrammar.(
         probe_test(
