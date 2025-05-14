@@ -122,10 +122,23 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       |> DHExp.fresh,
     )
   | Cast(d, _, {term: Unknown(_), _}) => Some(d)
-  | Cast({term: Atom(Int(_)) as d, _}, _, {term: Atom(Int), _}) =>
+  | Cast({term: Atom(Int(_)) as d, _}, _, {term: Atom(Int), _})
+  | Cast({term: Atom(String(_)) as d, _}, _, {term: Atom(String), _})
+  | Cast({term: Atom(Nat(_)) as d, _}, _, {term: Atom(Nat), _})
+  | Cast({term: Atom(Float(_)) as d, _}, _, {term: Atom(Float), _})
+  | Cast({term: Atom(SInt(_)) as d, _}, _, {term: Atom(SInt), _})
+  | Cast({term: Atom(Bool(_)) as d, _}, _, {term: Atom(Bool), _}) =>
     Some(d |> Exp.fresh)
-  | Cast({term: Atom(String(_)) as d, _}, _, {term: Atom(String), _}) =>
-    Some(d |> Exp.fresh)
+  | Cast({term: ListLit(ds), _}, _, {term: List(ty), _}) =>
+    Some(
+      ListLit(
+        List.map(
+          d => Cast(d, Unknown(Internal) |> Typ.temp, ty) |> DHExp.fresh,
+          ds,
+        ),
+      )
+      |> DHExp.fresh,
+    )
 
   | Cast(d1, t1, t2) =>
     let d1 =
