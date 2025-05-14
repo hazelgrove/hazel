@@ -45,6 +45,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Label(_)
   | Constructor(_)
   | LivelitName(_)
+  | Module(_) // TODO
   | TupLabel(_) => Precedence.max
 
   // Same goes for forms which are already surrounded
@@ -468,6 +469,7 @@ and parenthesize_typ =
   | Unknown(Internal)
   | Unknown(SynSwitch)
   | Unknown(Hole(EmptyHole))
+  | ModuleSignature(_)
   | Atom(_) => typ
 
   // Other forms
@@ -583,6 +585,8 @@ and parenthesize_any =
   | Typ(t) => Typ(parenthesize_typ(~already_paren, ~show_filters, t))
   | TPat(tp) => TPat(parenthesize_tpat(~show_filters, tp))
   | Rul(r) => Rul(parenthesize_rul(~show_filters, r))
+  | ModuleEntry(_) => any // TODO
+  | ModuleSignatureEntry(_) => any // TODO
   | Any(_) => any
   };
 
@@ -710,6 +714,21 @@ let fold_fun_if = (condition, f_name: string, pieces) =>
     pieces;
   };
 
+// TODO
+let module_entry_to_pretty =
+    (~_settings: Settings.t, m: ModuleEntry.t): pretty => {
+  text_to_pretty(m |> ModuleEntry.rep_id, Sort.Exp, m |> ModuleEntry.show);
+};
+
+let module_signature_entry_to_pretty =
+    (~_settings: Settings.t, ms: ModuleSignatureEntry.t): pretty => {
+  text_to_pretty(
+    ms |> ModuleSignatureEntry.rep_id,
+    Sort.Exp,
+    ms |> ModuleSignatureEntry.show,
+  );
+};
+
 /* We assume that parentheses have already been added as necessary, and
       that the expression has no Closures, DynamicErrorHoles, Casts, or FailedCasts
    */
@@ -836,6 +855,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     [mk_form(ParensExp, exp |> Exp.rep_id, [fun_form])]
     |> fold_fun_if(settings.fold_fn_bodies, name);
   | LivelitName(s) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "^" ++ s)
+  | Module(_) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "module") // TODO
   | Fun(p, e, t, _) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
@@ -1310,6 +1330,8 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
         t;
       },
     ]);
+  | ModuleSignature(_) =>
+    text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "module") // TODO
   | Parens(t) =>
     let id = typ |> Typ.rep_id;
     let+ t = go(t);
@@ -1382,6 +1404,14 @@ and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
   | Pat(p) => pat_to_pretty(~settings: Settings.t, p)
   | Typ(t) => typ_to_pretty(~settings: Settings.t, t)
   | TPat(tp) => tpat_to_pretty(~settings: Settings.t, tp)
+  | ModuleEntry(m) =>
+    text_to_pretty(m |> ModuleEntry.rep_id, Sort.Exp, m |> ModuleEntry.show)
+  | ModuleSignatureEntry(ms) =>
+    text_to_pretty(
+      ms |> ModuleSignatureEntry.rep_id,
+      Sort.Exp,
+      ms |> ModuleSignatureEntry.show,
+    )
   | Any(_)
   | Rul(_) =>
     //TODO: print out invalid rules properly
