@@ -164,14 +164,6 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         )
         |> DHExp.fresh,
       )
-    | (ListConcat(ds, ds'), List(ty)) =>
-      Some(
-        ListConcat(
-          Cast(ds, Unknown(Internal) |> Typ.temp, ty) |> DHExp.fresh,
-          Cast(ds', Unknown(Internal) |> Typ.temp, ty) |> DHExp.fresh,
-        )
-        |> DHExp.fresh,
-      )
     | (TypFun(tp, e, v), Forall(_, t')) =>
       Some(
         TypFun(
@@ -194,18 +186,53 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         )
         |> DHExp.fresh,
       )
+    | (Constructor(_, Some(Some(t))), t')
+        when Typ.fast_equal(t, t' |> Typ.temp) =>
+      // Make sure that we don't need to handle the none cases
+      Some(d)
+    | (Test(_), Prod([])) => Some(d)
+    // These are non-value cases we don't want to handle
     | (EmptyHole, _)
     | (FailedCast(_), _)
     | (DynamicErrorHole(_), _)
-    | (Dot(_), _) => None
+    | (Dot(_), _)
+    | (Undefined, _)
+    | (Invalid(_), _)
+    | (MultiHole(_), _)
+    | (Label(_), _)
+    | (Var(_), _)
+    | (Ap(_), _)
+    | (DeferredAp(_), _)
+    | (Deferral(_), _) // TODO Investigate deferrals
+    | (LivelitName(_), _) // TODO Investigate livelits. I think they should just evaluate
+    | (Probe(_, _), _) // TODO Investigate probes
+    // We _could_ do this, but it would be a bit weird
+    | (Let(_), _)
+    | (Use(_), _)
+    | (BinOp(_), _)
+    | (UnOp(_), _)
+    | (BuiltinFun(_), _)
+    | (FixF(_), _) // TODO Investigate fixf: I think it should just evaluate
+    | (TypAp(_), _)
+    | (Seq(_), _)
+    | (Filter(_), _)
+    | (Parens(_), _)
+    | (TyAlias(_), _)
+    | (ListConcat(_), _)
+    | (Cons(_), _)
+    | (Match(_), _)
+    | (Cast(_), _) =>
+      // TODO Decide if we want to join casts
+      None
+    // These are handled above and must have the wrong type
     | (Atom(_), _)
     | (ListLit(_), _)
     | (TupLabel(_), _)
     | (Tuple(_), _)
     | (Fun(_), _)
-    | (ListConcat(_), _)
-    | (TypFun(_), _) => None
-    | _ => None
+    | (TypFun(_), _)
+    | (Test(_), _)
+    | (Constructor(_), _) => None
     }
   | _ => None
   };
