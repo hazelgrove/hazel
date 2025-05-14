@@ -95,132 +95,77 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
 /* gives a transition step that can be taken by the cast calculus here if applicable. */
 let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
   switch (DHExp.term_of(d)) {
-  | Cast({term: Closure(ce, d), _}, t1, t2) =>
-    transition(~recursive, Cast(d, t1, t2) |> DHExp.fresh)
-    |> Option.map(d => Closure(ce, d) |> DHExp.fresh)
-  | Cast({term: Fun(p, e, t, v), _}, _, {term: Arrow(t1, t2), _}) =>
-    Some(
-      IdTagged.FreshGrammar.(Exp.(fn(Pat.(asc(p, t1)), asc(e, t2), t, v))),
-    )
-  | Cast({term: TupLabel(l, e), _}, _, {term: TupLabel(_l2, t), _}) =>
-    // TODO Figure out what to do if the labels don't match
-    Some(
-      TupLabel(l, Cast(e, Unknown(Internal) |> Typ.temp, t) |> DHExp.fresh)
-      |> DHExp.fresh,
-    )
-  | Cast({term: Tuple(es), _}, _, {term: Prod(tys), _})
-      when List.length(es) == List.length(tys) =>
-    Some(
-      Tuple(
-        List.map2(
-          (e, ty) =>
-            Cast(e, Unknown(Internal) |> Typ.temp, ty) |> DHExp.fresh,
-          es,
-          tys,
-        ),
-      )
-      |> DHExp.fresh,
-    )
-  | Cast(d, _, {term: Unknown(_), _}) => Some(d)
-  | Cast({term: Atom(Int(_)) as d, _}, _, {term: Atom(Int), _})
-  | Cast({term: Atom(String(_)) as d, _}, _, {term: Atom(String), _})
-  | Cast({term: Atom(Nat(_)) as d, _}, _, {term: Atom(Nat), _})
-  | Cast({term: Atom(Float(_)) as d, _}, _, {term: Atom(Float), _})
-  | Cast({term: Atom(SInt(_)) as d, _}, _, {term: Atom(SInt), _})
-  | Cast({term: Atom(Bool(_)) as d, _}, _, {term: Atom(Bool), _}) =>
-    Some(d |> Exp.fresh)
-  | Cast({term: ListLit(ds), _}, _, {term: List(ty), _}) =>
-    Some(
-      ListLit(
-        List.map(
-          d => Cast(d, Unknown(Internal) |> Typ.temp, ty) |> DHExp.fresh,
-          ds,
-        ),
-      )
-      |> DHExp.fresh,
-    )
-
-  | Cast(d1, t1, t2) =>
-    let d1 =
-      if (recursive) {
-        d1 |> transition(~recursive) |> Option.value(~default=d1);
-      } else {
-        d1;
-      };
-    switch (ground_cases_of(t1), ground_cases_of(t2)) {
-    | (Hole, Hole)
-    | (Ground, Ground) =>
-      /* if two types are ground and consistent, then they are eq */
-      Some(d1) // Rule ITCastId
-
-    | (Ground, Hole) =>
-      /* can't remove the cast or do anything else here, so we're done */
-      None
-
-    | (Hole, Ground) =>
-      switch (DHExp.term_of(d1)) {
-      | Cast(d2, t3, {term: Unknown(_), _}) =>
-        /* by canonical forms, d1' must be of the form d<ty'' -> ?> */
-        if (Typ.equal(t3, t2)) {
-          Some
-            (d2); // Rule ITCastSucceed
-        } else {
-          Some
-            (FailedCast(d2, t3, t2) |> DHExp.fresh); // Rule ITCastFail
-        }
-      | _ => None
-      }
-
-    | (Hole, NotGroundOrHole(t2_grounded)) =>
-      /* ITExpand rule */
-      let inner_cast =
-        Cast(d1, t1, t2_grounded |> DHExp.replace_all_ids_typ) |> DHExp.fresh;
-      // HACK: we need to check the inner cast here
-      let inner_cast =
-        switch (transition(~recursive, inner_cast)) {
-        | Some(d1) => d1
-        | None => inner_cast
-        };
-      Some(
-        Cast(inner_cast, t2_grounded |> DHExp.replace_all_ids_typ, t2)
+  | Cast(e, _, t) =>
+    switch (DHExp.term_of(e), Typ.term_of(t)) {
+    | (e, Parens(t)) =>
+      // TODO: We need to normalize types to handle aliases? We can consider doing it in elaboration
+      transition(
+        ~recursive,
+        Cast(e |> DHExp.fresh, Unknown(Internal) |> Typ.temp, t)
         |> DHExp.fresh,
-      );
-
-    | (NotGroundOrHole(t1_grounded), Hole) =>
-      /* ITGround rule */
+      )
+    | (Closure(ce, d), t) =>
+      transition(
+        ~recursive,
+        Cast(d, Unknown(Internal) |> Typ.fresh, t |> Typ.fresh)
+        |> DHExp.fresh,
+      )
+      |> Option.map(d => Closure(ce, d) |> DHExp.fresh)
+    | (Fun(p, e, t, v), Arrow(t1, t2)) =>
       Some(
-        Cast(
-          Cast(d1, t1, t1_grounded |> DHExp.replace_all_ids_typ)
-          |> DHExp.fresh,
-          t1_grounded |> DHExp.replace_all_ids_typ,
-          t2,
+        IdTagged.FreshGrammar.(
+          Exp.(fn(Pat.(asc(p, t1)), asc(e, t2), t, v))
+        ),
+      )
+    | (TupLabel(l, e), TupLabel(_l2, t)) =>
+      // TODO Figure out what to do if the labels don't match
+      Some(
+        TupLabel(
+          l,
+          Cast(e, Unknown(Internal) |> Typ.temp, t) |> DHExp.fresh,
         )
         |> DHExp.fresh,
       )
-
-    | (Ground, NotGroundOrHole(_)) =>
-      switch (DHExp.term_of(d1)) {
-      | Cast(d2, t3, _) =>
-        if (Typ.equal(t3, t2)) {
-          Some(d2);
-        } else {
-          None;
-        }
-      | _ => None
+    | (Tuple(es), Prod(tys)) when List.length(es) == List.length(tys) =>
+      Some(
+        Tuple(
+          List.map2(
+            (e, ty) =>
+              Cast(e, Unknown(Internal) |> Typ.temp, ty) |> DHExp.fresh,
+            es,
+            tys,
+          ),
+        )
+        |> DHExp.fresh,
+      )
+    | (e, Unknown(_)) => Some(e |> DHExp.fresh)
+    | (Atom(value) as d, Atom(typ)) =>
+      switch (value, typ) {
+      | (Int(_), Int)
+      | (String(_), String)
+      | (Nat(_), Nat)
+      | (Float(_), Float)
+      | (SInt(_), SInt)
+      | (Bool(_), Bool) => Some(d |> Exp.fresh)
+      | (Int(_), _)
+      | (String(_), _)
+      | (Nat(_), _)
+      | (Float(_), _)
+      | (SInt(_), _)
+      | (Bool(_), _) => None
       }
-    | (NotGroundOrHole(_), Ground) =>
-      /* can't do anything when casting between diseq, non-hole types */
-      None
-
-    | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
-      /* they might be eq in this case, so remove cast if so */
-      if (Typ.equal(t1, t2)) {
-        Some
-          (d1); // Rule ITCastId
-      } else {
-        None;
-      }
-    };
+    | (ListLit(ds), List(ty)) =>
+      Some(
+        ListLit(
+          List.map(
+            d => Cast(d, Unknown(Internal) |> Typ.temp, ty) |> DHExp.fresh,
+            ds,
+          ),
+        )
+        |> DHExp.fresh,
+      )
+    | _ => None
+    }
   | _ => None
   };
 };
