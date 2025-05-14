@@ -96,12 +96,13 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
 let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
   print_endline("Cast transition");
   switch (DHExp.term_of(d)) {
-  // | Cast({term: Closure(ce, d), _}, t1, t2) =>
-  //   Some(Closure(ce, Cast(d, t1, t2) |> DHExp.fresh) |> DHExp.fresh)
-  // | Cast({term: Fun(p, e, t, v), _}, _, {term: Arrow(t1, t2), _}) =>
-  //   Some(
-  //     IdTagged.FreshGrammar.(Exp.(fn(Pat.(asc(p, t1)), asc(e, t2), t, v))),
-  //   )
+  | Cast({term: Closure(ce, d), _}, t1, t2) =>
+    transition(~recursive, Cast(d, t1, t2) |> DHExp.fresh)
+    |> Option.map(d => Closure(ce, d) |> DHExp.fresh)
+  | Cast({term: Fun(p, e, t, v), _}, _, {term: Arrow(t1, t2), _}) =>
+    Some(
+      IdTagged.FreshGrammar.(Exp.(fn(Pat.(asc(p, t1)), asc(e, t2), t, v))),
+    )
   | Cast(d, _, {term: Unknown(_), _}) => Some(d)
   | Cast({term: Atom(Int(_)) as d, _}, _, {term: Atom(Int), _}) =>
     Some(d |> Exp.fresh)
