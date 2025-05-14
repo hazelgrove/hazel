@@ -373,20 +373,77 @@ let tests = (
       parse_and_evaluate_test("2", {|(fun (a=a): ((a=Int)) -> a: ?)(a=2)|})
     ),
     test_case("Casted constructor", `Quick, () => {
-      parse_and_evaluate_test(
-        "A",
+      evaluation_test(
         {|A :(+A +B +C)|},
+        constructor(
+          "A",
+          Some(
+            Some(
+              Typ.(
+                sum([
+                  Variant("A", [], None),
+                  Variant("B", [], None),
+                  Variant("C", [], None),
+                ])
+              ),
+            ),
+          ),
+        ),
+        elaborate(parse_exp({|A :(+A +B +C)|})),
       )
     }),
     test_case(
       "Case expression with constructors of different type", `Quick, () => {
-      parse_and_evaluate_test(
-        "(true, true)",
-        {|let match  = fun x->
+      evaluation_test(
+        "mismatched types",
+        match(
+          constructor(
+            "A",
+            Some(
+              Some(
+                Typ.(
+                  sum([
+                    Variant("A", [], None),
+                    Variant("B", [], None),
+                    Variant("C", [], None),
+                  ])
+                ),
+              ),
+            ),
+          ),
+          [
+            (
+              Pat.(
+                asc(
+                  constructor(
+                    "A",
+                    Some(Some(Typ.(sum([Variant("A", [], None)])))),
+                  ),
+                  Typ.(sum([Variant("A", [], None)])),
+                )
+              ),
+              bool(true),
+            ),
+            (Pat.(wild()), bool(false)),
+          ],
+        ),
+        elaborate(
+          parse_exp(
+            {|let match  = fun x->
           case x
             | (A :(+A)) => true
             | _ => false
-          end in (match(A :(+A +B +C)), match(A: (+A +B)))|},
+          end in match(A :(+A +B +C))|},
+          ),
+        ),
+      )
+    }),
+    test_case("Case expression with constructors with payloads", `Quick, () => {
+      parse_and_evaluate_test(
+        "1",
+        {|type T = +A(String) in case A("yo")
+          | A(n) => 1
+        end|},
       )
     }),
     test_case("Elaborated Pattern for labeled tuple", `Quick, () =>
