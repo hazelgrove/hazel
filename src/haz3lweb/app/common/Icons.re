@@ -233,6 +233,6 @@ let command_palette_sparkle =
   );
 
 let next = Node.text("⮕");
-let prev = Node.text("⬅");
+let prev = Node.text("⮕");
 
 let infoIcon = Node.text("❖");

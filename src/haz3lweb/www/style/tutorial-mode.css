@@ -500,13 +500,14 @@
   }  */
 
   .prev-button {
+    transform: scaleX(-1);
     position: absolute;
     align-self: flex-start;
     font-size: 45px;
     color: var(--BR4);
     cursor: pointer;
     z-index: 1000;
-    transition: transform 0.2s ease, color 0.2s ease;
+    /* transition: transform 0.2s ease, color 0.2s ease; */
   }
 
   /* .next-button {
@@ -539,8 +540,9 @@
   
 
   .prev-button:hover {
-    transform: translateX(6px) scale(1.1); /* subtle move + zoom */
+    transform: scaleX(-1) translateX(6px) scale(1.1); /* subtle move + zoom */
     color:  #d39e00; /* blue on hover */
+    transition: transform 0.2s ease, color 0.2s ease;
   }
 
   .prompt-content > * {
@@ -553,7 +555,7 @@
   }
 
   #main.Tutorial.has-checkmark .prev-button {
-    margin-top: 65px;
+    margin-top: 66.5px;
   }
   
   #main.Tutorial .prev-button {
