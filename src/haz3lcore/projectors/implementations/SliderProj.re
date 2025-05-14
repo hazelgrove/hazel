@@ -30,13 +30,17 @@ let update = (~update_ed as _, ~common as _, ~sort as _, _, _, Set(n)) => n;
 
 let view =
     (
+      ~common as _,
       ~ed_str as _,
       ~view_ed as _,
+      ~view_editable as _,
       ~mk_ed as _,
-      model,
-      _info,
       ~local,
       ~parent as _,
+      ~focus as _,
+      ~focussed as _,
+      model,
+      _info,
     ) =>
   View.mk(
     Util.Web.range(

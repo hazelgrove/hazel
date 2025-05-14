@@ -119,6 +119,12 @@ let view_code_editable =
       ~split_views,
       ~inject,
       ~make_active=(id, f) => focus(Projector(id, f)),
+      ~focussed=
+        switch (focussed) {
+        | Some(Here) => None
+        | Some(Projector(id, f)) => Some((id, f))
+        | None => None
+        },
       ProjectorView.Model.mk(
         ~mk_status,
         model.syntax.projectors,

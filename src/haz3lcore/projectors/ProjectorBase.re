@@ -92,13 +92,27 @@ type methods('model, 'action, 'focus, 'ed_m, 'ed_a, 'ed_f) = {
   dynamics: bool,
   view:
     (
+      ~common: ProjectorInterface.common,
       ~ed_str: 'ed_m => string,
       ~view_ed: (~sort: Sort.t, 'ed_m) => Node.t,
+      ~view_editable:
+        (
+          ~common: ProjectorInterface.common,
+          ~inject: 'ed_a => Ui_effect.t(unit),
+          ~focus: 'ed_f => Ui_effect.t(unit),
+          ~focussed: option('ed_f),
+          ~overlays: list(Node.t)=?,
+          ~sort: Sort.t,
+          'ed_m
+        ) =>
+        Node.t,
       ~mk_ed: Any.t => 'ed_m,
-      'model,
-      info,
       ~local: 'action => Ui_effect.t(unit),
-      ~parent: external_action => Ui_effect.t(unit)
+      ~parent: external_action => Ui_effect.t(unit),
+      ~focus: 'focus => Ui_effect.t(unit),
+      ~focussed: option('focus),
+      'model,
+      info
     ) =>
     View.t,
   placeholder: (~ed_str: 'ed_m => string, 'model, info) => ProjectorShape.t,

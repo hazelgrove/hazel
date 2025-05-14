@@ -212,10 +212,14 @@ let mk_view =
       type ed_m,
       type ed_a,
       type ed_f,
+      ~common,
       ~parent: ProjectorBase.external_action => Ui_effect.t(unit),
       ~inject: ProjectorCore.Update.t(ed_a) => Ui_effect.t(unit),
+      ~focus: ProjectorCore.Focus.t(ed_f) => Ui_effect.t(unit),
+      ~focussed: option(ProjectorCore.Focus.t(ed_f)),
       ~ed_str,
       ~view_ed,
+      ~view_editable,
       ~mk_ed,
       {p, info, _}:
         Model.projector_data(ProjectorCore.model(ed_m, ed_a, ed_f)),
@@ -224,7 +228,24 @@ let mk_view =
   let ProjectorCore.V(kind_gadt, model) = p.model;
   let methods = ProjectorCore.to_module(kind_gadt);
   let local = a => inject(ProjectorCore.Update.A(kind_gadt, a));
-  methods.view(~ed_str, ~view_ed, ~mk_ed, model, info, ~local, ~parent);
+  methods.view(
+    ~common,
+    ~ed_str,
+    ~view_ed,
+    ~view_editable,
+    ~mk_ed,
+    ~local,
+    ~parent,
+    ~focus=f => focus(F(kind_gadt, f)),
+    ~focussed=
+      switch (focussed) {
+      | Some(F(k, f)) when ProjectorCore.Kind.gadt_eq(k, kind_gadt) =>
+        Some(Obj.magic(f)) // Note(Matt): Using Obj.magic here because we know the types are the same if gadt_eq(k, kind_gadt) is true
+      | _ => None
+      },
+    model,
+    info,
+  );
 };
 
 /* Extract and collate different layers of the resulting view
@@ -237,10 +258,12 @@ let split_views =
       ~common: ProjectorInterface.common,
       ~ed_str,
       ~view_ed,
+      ~view_editable,
       ~mk_ed,
       ~parent: ProjectorBase.external_action => Ui_effect.t(unit),
       ~inject: ProjectorCore.Update.t(ed_a) => Ui_effect.t(unit),
       ~focus: ProjectorCore.Focus.t(ed_f) => Ui_effect.t(unit),
+      ~focussed: option(ProjectorCore.Focus.t(ed_f)),
       {p, offside_base, measurement, status, _} as projector_data:
         Model.projector_data(ProjectorCore.model(ed, ed_a, ed_f)),
     )
@@ -248,7 +271,18 @@ let split_views =
   let wrapper =
     view_wrapper(~font_metrics=common.font_metrics, ~measurement, ~status);
   let views =
-    mk_view(~parent, ~inject, ~ed_str, ~view_ed, ~mk_ed, projector_data);
+    mk_view(
+      ~common,
+      ~parent,
+      ~inject,
+      ~focus,
+      ~focussed,
+      ~ed_str,
+      ~view_ed,
+      ~view_editable,
+      ~mk_ed,
+      projector_data,
+    );
   let line_view = {
     let offside_view =
       views.offside
@@ -286,11 +320,13 @@ let all =
            ~parent: external_action => Ui_effect.t(unit),
            ~inject: 'p_a => Ui_effect.t(unit),
            ~focus: 'p_f => Ui_effect.t(unit),
+           ~focussed: option('p_f),
            Model.projector_data(p)
          ) =>
          (Node.t, option(Node.t)),
       ~inject: Action.t('p_k, p, 'p_a) => Ui_effect.t(unit),
       ~make_active: (Id.t, 'p_f) => Ui_effect.t(unit),
+      ~focussed: option((Id.t, 'p_f)),
       projector_data: list(Model.projector_data(p)),
     ) => {
   /* Sorting the projectors by position tends to be a good
@@ -315,6 +351,11 @@ let all =
                    Project(Focus(data.info.id, data.status.kind, None)),
                  ),
                ]),
+           ~focussed=
+             switch (focussed) {
+             | Some((id2, f)) when id2 == data.info.id => Some(f)
+             | _ => None
+             },
            data,
          )
        )

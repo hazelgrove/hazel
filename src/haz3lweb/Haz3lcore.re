@@ -50,6 +50,7 @@ module rec Projector: {
         ~parent: ProjectorBase.external_action => Ui_effect.t(unit),
         ~inject: Update.t => Ui_effect.t(unit),
         ~focus: Focus.t => Ui_effect.t(unit),
+        ~focussed: option(Focus.t),
         ProjectorView.Model.projector_data(Model.t)
       ) =>
       (Web.Node.t, option(Web.Node.t));
@@ -109,9 +110,21 @@ module rec Projector: {
   };
 
   module View = {
-    let split_views = (~common: ProjectorInterface.common, ~sort as _) =>
+    let split_views =
+        (
+          ~common: ProjectorInterface.common,
+          ~sort as _: Sort.t,
+          ~parent: ProjectorBase.external_action => Ui_effect.t(unit),
+          ~inject: Update.t => Ui_effect.t(unit),
+          ~focus: Focus.t => Ui_effect.t(unit),
+          ~focussed: option(Focus.t),
+          m: ProjectorView.Model.projector_data(Model.t),
+        )
+        : (Web.Node.t, option(Web.Node.t)) =>
       ProjectorView.split_views(
         ~common,
+        ~parent,
+        ~inject,
         ~ed_str=Editor.View.print_string,
         ~mk_ed=Editor.Model.mk(~settings=common.settings),
         ~view_ed=
@@ -119,6 +132,10 @@ module rec Projector: {
             ~font_metrics=common.font_metrics,
             ~secondary_icons=common.secondary_icons,
           ),
+        ~view_editable=Editor.View.view_editable,
+        ~focus,
+        ~focussed,
+        m,
       );
 
     let mk_status = ProjectorView.Model.mk_status;
@@ -224,7 +241,6 @@ and Editor: {
         Model.t
       ) =>
       Web.Node.t;
-
     // let all_projectors:
     //   (
     //     ~common: ProjectorInterface.common,
@@ -247,17 +263,17 @@ and Editor: {
     //     Any.t
     //   ) =>
     //   Web.Node.t;
-    let mk_projector_model:
-      (
-        Id.Map.t(Tile.projector(Projector.Model.t)),
-        Measured.t,
-        list(TileMap.key),
-        option((TileMap.key, Direction.t)),
-        Haz3lcorep.Statics.Map.t,
-        Dynamics.Map.t,
-        bool
-      ) =>
-      list(ProjectorView.Model.projector_data(Projector.Model.t));
+    // let mk_projector_model:
+    //   (
+    //     Id.Map.t(Tile.projector(Projector.Model.t)),
+    //     Measured.t,
+    //     list(TileMap.key),
+    //     option((TileMap.key, Direction.t)),
+    //     Haz3lcorep.Statics.Map.t,
+    //     Dynamics.Map.t,
+    //     bool
+    //   ) =>
+    //   list(ProjectorView.Model.projector_data(Projector.Model.t));
   };
 
   // TODO: refactor these helper functions away
@@ -469,8 +485,8 @@ and Editor: {
         ~mk_status=Projector.View.mk_status,
       );
 
-    let mk_projector_model =
-      ProjectorView.Model.mk(~mk_status=Projector.View.mk_status);
+    // let mk_projector_model =
+    //   ProjectorView.Model.mk(~mk_status=Projector.View.mk_status);
 
     // let all_projectors = (~common: ProjectorInterface.common) =>
     //   ProjectorView.all(

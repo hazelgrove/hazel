@@ -25,13 +25,17 @@ let methods:
   dynamics: false,
   view:
     (
+      ~common,
       ~ed_str as _,
-      ~view_ed,
+      ~view_ed as _,
+      ~view_editable,
       ~mk_ed as _,
+      ~local,
+      ~parent as _,
+      ~focus,
+      ~focussed,
       (ed1, ed2),
       _info,
-      ~local as _,
-      ~parent as _,
     ) =>
     View.{
       inline:
@@ -39,9 +43,31 @@ let methods:
           "main",
           [
             Web.Node.text("("),
-            view_ed(~sort=Exp, ed1),
+            view_editable(
+              ~common,
+              ~inject=a => local(Left(a)),
+              ~focus=f => focus(Left(f)),
+              ~focussed=
+                switch (focussed) {
+                | Some(Left(f)) => Some(f)
+                | _ => None
+                },
+              ~sort=Exp,
+              ed1,
+            ),
             Web.Node.text(","),
-            view_ed(~sort=Exp, ed2),
+            view_editable(
+              ~common,
+              ~inject=a => local(Right(a)),
+              ~focus=f => focus(Right(f)),
+              ~focussed=
+                switch (focussed) {
+                | Some(Right(f)) => Some(f)
+                | _ => None
+                },
+              ~sort=Exp,
+              ed2,
+            ),
             Web.Node.text(")"),
           ],
         ),
