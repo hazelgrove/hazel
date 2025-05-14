@@ -89,6 +89,10 @@ let methods:
       (left, r_ed);
     };
   },
+  calculate: (~calculate_ed, ~common as _, ~sort, (left: 'ed, right: 'ed)) => (
+    calculate_ed(~sort, left),
+    calculate_ed(~sort, right),
+  ),
   mk_term: (~term_of_ed, _sort, (ed1, ed2)) =>
     Exp(
       Exp.fresh(

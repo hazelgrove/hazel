@@ -32,6 +32,9 @@ module rec Projector: {
         Model.t
       ) =>
       Model.t;
+
+    let calculate:
+      (~common: ProjectorInterface.common, ~sort: Sort.t, Model.t) => Model.t;
   };
 
   module Focus: {
@@ -96,6 +99,12 @@ module rec Projector: {
       ProjectorCore.Update.update(
         ~common,
         ~update_ed=Editor.Update.update(~common),
+      );
+
+    let calculate = (~common) =>
+      ProjectorCore.Update.calculate(
+        ~calculate_ed=Editor.Update.calculate(~common, ~is_edited=true),
+        ~common,
       );
   };
 
@@ -375,6 +384,7 @@ and Editor: {
         )
         : Model.t =>
       Haz3lcorep.Editor.Update.calculate(
+        ~common,
         ~settings=common.settings,
         ~is_edited,
         ~projector_init=Projector.Model.mk,
@@ -387,6 +397,7 @@ and Editor: {
         ~get_focusable=Projector.Model.focusable_of_kind,
         ~livelit_projectors=ProjectorCore.Kind.livelit_projectors,
         ~update_projector=Projector.Update.update(~common),
+        ~calculate_projector=Projector.Update.calculate,
         ~sort,
         common.statics,
         common.dynamics,

@@ -347,6 +347,7 @@ module Update = {
   let calculate =
       (
         type p,
+        ~common,
         ~settings: CoreSettings.t,
         ~projector_init,
         ~projector_to_term,
@@ -355,6 +356,7 @@ module Update = {
         ~get_focusable,
         ~livelit_projectors,
         ~update_projector,
+        ~calculate_projector,
         ~is_edited,
         ~sort,
         new_statics,
@@ -394,7 +396,24 @@ module Update = {
       } else {
         state.zipper;
       };
-    // 2. Recalculate syntax cache
+
+    // 2. Recalculate Projector models
+
+    // TODO[Matt]: Get sorts right here.
+    let zipper =
+      ZipperBase.MapPiece.go(
+        fun
+        | Projector(p) => [
+            Projector({
+              ...p,
+              model: calculate_projector(~common, ~sort=Sort.Any, p.model),
+            }),
+          ]
+        | x => [x],
+        zipper,
+      );
+
+    // 3. Recalculate syntax cache
     let syntax = is_edited ? CachedSyntax.mark_old(syntax) : syntax;
 
     let syntax =

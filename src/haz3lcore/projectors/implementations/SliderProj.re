@@ -64,6 +64,7 @@ let methods = {
   placeholder,
   view,
   update,
+  calculate: (~calculate_ed as _, ~common as _, ~sort as _, m) => m,
   mk_term,
   handle_key_event,
   sexp_of_model,

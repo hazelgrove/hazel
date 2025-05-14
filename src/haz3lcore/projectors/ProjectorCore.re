@@ -384,6 +384,18 @@ module Update = {
     } else {
       raise(Failure.Exception(Wrong_projector));
     };
+
+  let calculate =
+      (
+        ~calculate_ed,
+        ~common: ProjectorInterface.common,
+        ~sort: Sort.t,
+        V(gadt, model): model('ed_m, 'ed_a, 'ed_f),
+      )
+      : model('ed_m, 'ed_a, 'ed_f) => {
+    let methods = to_module(gadt);
+    V(gadt, methods.calculate(~calculate_ed, ~common, ~sort, model));
+  };
 };
 
 module Focus = {

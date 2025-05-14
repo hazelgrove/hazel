@@ -126,6 +126,14 @@ type methods('model, 'action, 'focus, 'ed_m, 'ed_a, 'ed_f) = {
       'action
     ) =>
     'model,
+  calculate:
+    (
+      ~calculate_ed: (~sort: Sort.t, 'ed_m) => 'ed_m,
+      ~common: ProjectorInterface.common,
+      ~sort: Sort.t,
+      'model
+    ) =>
+    'model,
   mk_term: (~term_of_ed: (Sort.t, 'ed_m) => Any.t, Sort.t, 'model) => Any.t,
   handle_key_event:
     (
