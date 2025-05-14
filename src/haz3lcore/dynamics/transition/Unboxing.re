@@ -114,7 +114,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (Atom(r), Atom(x)) =>
       switch (Atom.unbox(r, x)) {
       | Some(x) => Matches(x)
-      | None => DoesNotMatch
+      | None => IndetMatch
       }
 
     /* Lists can be either lists or cons with indet tail or list casts */
