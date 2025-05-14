@@ -164,6 +164,47 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         )
         |> DHExp.fresh,
       )
+    | (ListConcat(ds, ds'), List(ty)) =>
+      Some(
+        ListConcat(
+          Cast(ds, Unknown(Internal) |> Typ.temp, ty) |> DHExp.fresh,
+          Cast(ds', Unknown(Internal) |> Typ.temp, ty) |> DHExp.fresh,
+        )
+        |> DHExp.fresh,
+      )
+    | (TypFun(tp, e, v), Forall(_, t')) =>
+      Some(
+        TypFun(
+          tp,
+          Cast(e, Unknown(Internal) |> Typ.temp, t') |> DHExp.fresh, // TODO Do type substitution
+          v,
+        )
+        |> DHExp.fresh,
+      )
+    | (If(e, e1, e2), t) =>
+      // Should we do this or leave it if it isn't a value
+      Some(
+        If(
+          Cast(e, Unknown(Internal) |> Typ.temp, t |> Typ.temp)
+          |> DHExp.fresh,
+          Cast(e1, Unknown(Internal) |> Typ.temp, t |> Typ.temp)
+          |> DHExp.fresh,
+          Cast(e2, Unknown(Internal) |> Typ.temp, t |> Typ.temp)
+          |> DHExp.fresh,
+        )
+        |> DHExp.fresh,
+      )
+    | (EmptyHole, _)
+    | (FailedCast(_), _)
+    | (DynamicErrorHole(_), _)
+    | (Dot(_), _) => None
+    | (Atom(_), _)
+    | (ListLit(_), _)
+    | (TupLabel(_), _)
+    | (Tuple(_), _)
+    | (Fun(_), _)
+    | (ListConcat(_), _)
+    | (TypFun(_), _) => None
     | _ => None
     }
   | _ => None
