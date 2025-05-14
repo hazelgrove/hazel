@@ -19,12 +19,20 @@ module Update = {
   exception CantReset;
 
   let update =
-      (~settings: Settings.t, action: t, model: Model.t): Updated.t(Model.t) => {
+      (~globals: Globals.t, action: t, model: Model.t): Updated.t(Model.t) => {
     let perform = (action: Action.t, model: Model.t) =>
       Editor.Update.update(
-        ~settings=settings.core,
+        ~common=
+          ProjectorInterface.{
+            settings: globals.settings.core,
+            font_metrics: globals.font_metrics,
+            secondary_icons: globals.settings.secondary_icons,
+            show_backpack_targets: globals.show_backpack_targets,
+            color_highlights: globals.color_highlights,
+            statics: model.statics,
+            dynamics: model.dynamics,
+          },
         ~sort=Exp,
-        model.statics,
         action,
         model.editor,
       )
@@ -74,7 +82,7 @@ module Update = {
       | None => model |> Updated.return_quiet
       }
     | DebugConsole(key) =>
-      DebugConsole.print(~settings, model, key);
+      DebugConsole.print(~settings=globals.settings, model, key);
       model |> Updated.return_quiet;
     | TAB =>
       /* Attempt to act intelligently when TAB is pressed.
@@ -143,7 +151,8 @@ module Selection = {
         when Keyboard.is_f_key(key) =>
       Some(Update.DebugConsole(key))
     | k =>
-      Keyboard.handle_key_event(k) |> Option.map(x => Update.Perform(x));
+      Keyboard.handle_key_event(~info_projector=ProjectorCore.Kind.Info, k)
+      |> Option.map(x => Update.Perform(x));
 
   let handle_key_event = (~selection, model: Model.t, key) => {
     //TODO(andrew): not sure handoff approach makes sense

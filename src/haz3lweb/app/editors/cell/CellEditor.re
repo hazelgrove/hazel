@@ -40,11 +40,11 @@ module Update = {
     | MainEditor(CodeEditable.Update.t)
     | ResultAction(EvalResult.Update.t);
 
-  let update = (~settings, action, model: Model.t) => {
+  let update = (~globals, action, model: Model.t) => {
     switch (action) {
     | MainEditor(action) =>
       let* editor =
-        CodeEditable.Update.update(~settings, action, model.editor);
+        CodeEditable.Update.update(~globals, action, model.editor);
       {
         ...model,
         editor,
@@ -52,11 +52,14 @@ module Update = {
     | ResultAction(action) =>
       let* result =
         EvalResult.Update.update(
-          ~settings={
-            ...settings,
-            core: {
-              ...settings.core,
-              assist: false,
+          ~globals={
+            ...globals,
+            settings: {
+              ...globals.settings,
+              core: {
+                ...globals.settings.core,
+                assist: false,
+              },
             },
           },
           action,
@@ -71,7 +74,7 @@ module Update = {
 
   let calculate =
       (
-        ~settings,
+        ~globals,
         ~is_edited,
         ~queue_worker,
         ~stitch,
@@ -80,7 +83,7 @@ module Update = {
       : Model.t => {
     let editor =
       CodeEditable.Update.calculate(
-        ~settings,
+        ~globals,
         ~is_edited,
         ~stitch,
         ~dynamics=EvalResult.Model.dynamics(result),
@@ -89,8 +92,18 @@ module Update = {
       );
     let result =
       EvalResult.Update.calculate(
+        ~globals={
+          ...globals,
+          settings: {
+            ...globals.settings,
+            core: {
+              ...globals.settings.core,
+              assist: false,
+            },
+          },
+        },
         ~settings={
-          ...settings,
+          ...globals.settings.core,
           assist: false,
         },
         ~queue_worker,

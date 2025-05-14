@@ -66,9 +66,9 @@ module Update = {
     | ResetExercise;
 
   let update =
-      (~settings: Settings.t, ~schedule_action as _, action, model: Model.t)
+      (~globals: Globals.t, ~schedule_action as _, action, model: Model.t)
       : Updated.t(Model.t) => {
-    let instructor_mode = settings.instructor_mode;
+    let instructor_mode = globals.settings.instructor_mode;
     switch (action) {
     | Editor(pos, MainEditor(action))
         when Exercise.visible_in(pos, ~instructor_mode) =>
@@ -79,7 +79,7 @@ module Update = {
         // Hack[Matt]: put Editor.t into a CodeEditor.t to use its update function
         editor
         |> CodeEditable.Model.mk
-        |> CodeEditable.Update.update(~settings, action);
+        |> CodeEditable.Update.update(~globals, action);
       {
         ...model,
         editors:
@@ -98,7 +98,7 @@ module Update = {
           // Hack[Matt]: put Editor.t into a CodeSelectable.t to use its update function
           editor
           |> CodeSelectable.Model.mk
-          |> CodeSelectable.Update.update(~settings, action);
+          |> CodeSelectable.Update.update(~globals, action);
         {
           ...model,
           editors:
@@ -120,7 +120,7 @@ module Update = {
             | _ => false
           ) =>
       let cell = Exercise.get_stitched(pos, model.cells);
-      let* new_cell = CellEditor.Update.update(~settings, action, cell);
+      let* new_cell = CellEditor.Update.update(~globals, action, cell);
       {
         ...model,
         cells: Exercise.put_stitched(pos, model.cells, new_cell),
@@ -151,7 +151,7 @@ module Update = {
   };
 
   let calculate =
-      (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
+      (~globals, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
     let stitched_elabs = Exercise.stitch_term(model.editors);
     let worker_request = ref([]);
     let queue_worker = (pos, expr) => {
@@ -170,7 +170,7 @@ module Update = {
             result: cell.result,
           }
           |> CellEditor.Update.calculate(
-               ~settings,
+               ~globals,
                ~is_edited,
                ~queue_worker=Some(queue_worker(pos)),
                ~stitch=_ =>
@@ -220,10 +220,17 @@ module Update = {
     let editors: Exercise.p('a) = {
       let calculate = (statics, dynamics, ed) =>
         Editor.Update.calculate(
-          ~settings,
+          ~common=
+            ProjectorInterface.{
+              settings: globals.settings.core,
+              font_metrics: globals.font_metrics,
+              secondary_icons: globals.settings.secondary_icons,
+              show_backpack_targets: globals.show_backpack_targets,
+              color_highlights: globals.color_highlights,
+              statics,
+              dynamics,
+            },
           ~sort=Exp,
-          statics,
-          dynamics,
           ~is_edited,
           ed,
         );

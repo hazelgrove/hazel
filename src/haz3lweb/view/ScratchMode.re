@@ -108,7 +108,7 @@ module Update = {
   let update =
       (
         ~schedule_action,
-        ~settings: Settings.t,
+        ~globals: Globals.t,
         ~is_documentation: bool,
         action,
         model: Model.t,
@@ -116,7 +116,7 @@ module Update = {
     switch (action) {
     | CellAction(a) =>
       let (key, ed) = List.nth(model.scratchpads, model.current);
-      let* new_ed = CellEditor.Update.update(~settings, a, ed);
+      let* new_ed = CellEditor.Update.update(~globals, a, ed);
       let new_sp =
         ListUtil.put_nth(model.current, (key, new_ed), model.scratchpads);
       {
@@ -159,7 +159,7 @@ module Update = {
         data
         |> Sexplib.Sexp.of_string
         |> CellEditor.Model.persistent_of_sexp
-        |> CellEditor.Model.unpersist(~settings=settings.core);
+        |> CellEditor.Model.unpersist(~settings=globals.settings.core);
 
       let scratchpads =
         ListUtil.put_nth(model.current, (key, new_data), model.scratchpads);
@@ -178,14 +178,14 @@ module Update = {
   };
 
   let calculate =
-      (~settings, ~schedule_action, ~is_edited, model: Model.t): Model.t => {
+      (~globals, ~schedule_action, ~is_edited, model: Model.t): Model.t => {
     let (key, ed) = List.nth(model.scratchpads, model.current);
     let worker_request = ref([]);
     let queue_worker =
       Some(expr => {worker_request := worker_request^ @ [("", expr)]});
     let new_ed =
       CellEditor.Update.calculate(
-        ~settings,
+        ~globals,
         ~is_edited,
         ~queue_worker,
         ~stitch=x => x,

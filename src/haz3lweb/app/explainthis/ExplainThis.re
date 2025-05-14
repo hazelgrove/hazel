@@ -235,6 +235,7 @@ let expander_deco =
     Deco.Deco({
       type projector_kind = ProjectorCore.Kind.t;
       type projector = Projector.Model.t;
+      type projector_action = Projector.Update.t;
       let editor = editor;
       let globals =
         ProjectorInterface.{
@@ -385,7 +386,7 @@ let example_view =
                     |> Editor.Model.of_zipper(~sort=Exp)
                     |> CellEditor.Model.mk
                     |> CellEditor.Update.calculate(
-                         ~settings=globals.settings.core,
+                         ~globals,
                          ~is_edited=true,
                          ~stitch=x => x,
                          ~queue_worker=None,
@@ -517,6 +518,7 @@ let get_doc =
           Deco.Deco({
             type projector_kind = ProjectorCore.Kind.t;
             type projector = Projector.Model.t;
+            type projector_action = Projector.Update.t;
             let editor = editor;
             let globals =
               ProjectorInterface.{

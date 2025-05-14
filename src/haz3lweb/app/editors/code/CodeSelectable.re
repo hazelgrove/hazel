@@ -16,7 +16,7 @@ module Update = {
     | Unselect(option(Util.Direction.t))
     | Copy;
 
-  let update = (~settings, action: t, model: Model.t): Updated.t(Model.t) => {
+  let update = (~globals, action: t, model: Model.t): Updated.t(Model.t) => {
     let action': CodeEditable.Update.t =
       switch (action) {
       | Move(move) => Perform(Move(move))
@@ -25,7 +25,7 @@ module Update = {
       | Unselect(dir) => Perform(Unselect(dir))
       | Copy => Perform(Copy)
       };
-    CodeEditable.Update.update(~settings, action', model);
+    CodeEditable.Update.update(~globals, action', model);
   };
 
   let convert_action: CodeEditable.Update.t => option(t) =

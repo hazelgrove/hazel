@@ -11,21 +11,6 @@
  * (to avoid cyclical dependencies due to MakeTerm and ExpToSegment) */
 
 module Kind = {
-  /* The different kinds of projector. New projector
-   * types need to be registered here in order to be
-   * able to create and update their instances */
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    // | Fold
-    | Info
-    | Pair
-    // | Probe
-    // | Checkbox
-    | Slider;
-  // | SliderF
-  // | Card
-  // | TextArea;
-
   type gadt('model, 'action, 'focus, 'ed, 'ed_a, 'ed_f) =
     // | Fold: gadt(FoldProj.model('ed), FoldProj.action, 'ed)
     | Info: gadt(
@@ -58,6 +43,21 @@ module Kind = {
   // | SliderF: gadt(SliderFProj.model('ed), SliderFProj.action, 'ed)
   // | Card: gadt(CardProj.model('ed), CardProj.action, 'ed)
   // | TextArea: gadt(TextAreaProj.model('ed), TextAreaProj.action, 'ed);
+
+  /* The different kinds of projector. New projector
+   * types need to be registered here in order to be
+   * able to create and update their instances */
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    // | Fold
+    | Info
+    | Pair
+    // | Probe
+    // | Checkbox
+    | Slider;
+  // | SliderF
+  // | Card
+  // | TextArea;
 
   let gadt_eq =
       (

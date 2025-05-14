@@ -275,7 +275,7 @@ module Update = {
   let calculate = (~schedule_action, ~is_edited, model: Model.t) => {
     let editors =
       Editors.Update.calculate(
-        ~settings=model.globals.settings.core,
+        ~globals=model.globals,
         ~schedule_action=a => schedule_action(Editors(a)),
         ~is_edited,
         model.editors,

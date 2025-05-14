@@ -185,6 +185,99 @@ module MapPiece = {
     fast_local_seg(p => [f(p)], id, z);
 };
 
+module FindPiece = {
+  let rec in_segment =
+          (f: Piece.t('p) => bool, seg: Segment.t('p))
+          : option(Piece.t('p)) =>
+    switch (seg) {
+    | [] => None
+    | [hd, ...tl] =>
+      if (f(hd)) {
+        Some(hd);
+      } else {
+        in_segment(f, tl);
+      }
+    }
+  and in_piece =
+      (f: Piece.t('p) => bool, piece: Piece.t('p)): option(Piece.t('p)) =>
+    switch (piece) {
+    | Tile(t) => in_tile(f, t)
+    | Grout(_)
+    | Secondary(_)
+    | Projector(_) =>
+      if (f(piece)) {
+        Some(piece);
+      } else {
+        None;
+      }
+    }
+
+  and in_tile =
+      (f: Piece.t('p) => bool, t: Tile.t('p)): option(Piece.t('p)) =>
+    List.find_map(in_segment(f), t.children);
+
+  let in_siblings =
+      (f: Piece.t('p) => bool, sibs: Siblings.t('p)): option(Piece.t('p)) =>
+    switch (sibs) {
+    | (l, r) =>
+      switch (in_segment(f, l)) {
+      | Some(p) => Some(p)
+      | None => in_segment(f, r)
+      }
+    };
+
+  let in_ancestor =
+      (f: Piece.t('p) => bool, ancestor: Ancestor.t('p))
+      : option(Piece.t('p)) =>
+    switch (ancestor.children) {
+    | (l, r) =>
+      switch (List.find_map(in_segment(f), l)) {
+      | Some(p) => Some(p)
+      | None => List.find_map(in_segment(f), r)
+      }
+    };
+
+  let in_generation =
+      (f: Piece.t('p) => bool, generation: Ancestors.generation('p))
+      : option(Piece.t('p)) =>
+    switch (generation) {
+    | (ancestor, siblings) =>
+      switch (in_ancestor(f, ancestor)) {
+      | Some(p) => Some(p)
+      | None => in_siblings(f, siblings)
+      }
+    };
+
+  let in_ancestors =
+      (f: Piece.t('p) => bool, ancestors: Ancestors.t('p))
+      : option(Piece.t('p)) =>
+    List.find_map(in_generation(f), ancestors);
+
+  let in_selection =
+      (f: Piece.t('p) => bool, selection: Selection.t('p))
+      : option(Piece.t('p)) =>
+    switch (selection.content) {
+    | [] => None
+    | [hd, ...tl] =>
+      if (f(hd)) {
+        Some(hd);
+      } else {
+        in_segment(f, tl);
+      }
+    };
+
+  let in_zipper = (f: Piece.t('p) => bool, z: t('p)): option(Piece.t('p)) => {
+    switch (in_selection(f, z.selection)) {
+    | Some(p) => Some(p)
+    | None =>
+      switch (in_ancestors(f, z.relatives.ancestors)) {
+      | Some(p) => Some(p)
+      | None => in_siblings(f, z.relatives.siblings)
+      }
+    };
+  };
+};
+
 // let remove_all_projectors = (z: t('p)): t('p) =>
 //   MapPiece.go(
 //     fun

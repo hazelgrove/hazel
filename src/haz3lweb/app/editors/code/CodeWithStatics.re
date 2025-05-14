@@ -67,7 +67,7 @@ module Update = {
   /* Calculates the statics for the editor. */
   let calculate =
       (
-        ~settings,
+        ~globals: Globals.t,
         ~is_edited,
         ~stitch,
         ~dynamics: Dynamics.Map.t,
@@ -78,7 +78,7 @@ module Update = {
     let statics =
       is_edited
         ? CachedStatics.init_from_term(
-            ~settings,
+            ~settings=globals.settings.core,
             ~is_dynamic_term,
             editor
             |> Editor.Model.make_term(Exp)
@@ -89,11 +89,18 @@ module Update = {
         : statics;
     let editor =
       Editor.Update.calculate(
-        ~settings,
+        ~common=
+          ProjectorInterface.{
+            settings: globals.settings.core,
+            font_metrics: globals.font_metrics,
+            secondary_icons: globals.settings.secondary_icons,
+            show_backpack_targets: globals.show_backpack_targets,
+            color_highlights: globals.color_highlights,
+            statics,
+            dynamics,
+          },
         ~is_edited,
         ~sort=Exp,
-        statics,
-        dynamics,
         editor,
       );
     {

@@ -20,9 +20,9 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = CodeSelectable.Update.t;
 
-  let update = (~settings, action, model: Model.t): Updated.t(Model.t) => {
+  let update = (~globals, action, model: Model.t): Updated.t(Model.t) => {
     let* editor =
-      CodeSelectable.Update.update(~settings, action, model.editor);
+      CodeSelectable.Update.update(~globals, action, model.editor);
     Model.{
       editor,
       taken_steps: model.taken_steps,
@@ -32,7 +32,7 @@ module Update = {
 
   let calculate =
       (
-        ~settings,
+        ~globals,
         ~is_edited,
         ~stitch,
         ~dynamics: Dynamics.Map.t,
@@ -41,7 +41,7 @@ module Update = {
       : Model.t => {
     let editor =
       CodeSelectable.Update.calculate(
-        ~settings,
+        ~globals,
         ~is_edited,
         ~stitch,
         ~dynamics,
@@ -83,6 +83,7 @@ module View = {
         Deco.Deco({
           type projector = Projector.Model.t;
           type projector_kind = ProjectorCore.Kind.t;
+          type projector_action = Projector.Update.t;
           let editor = model.editor.editor;
           let globals =
             ProjectorInterface.{

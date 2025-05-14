@@ -26,7 +26,7 @@ module Focus = {
     | Here => Keyboard.handle_key_event(~info_projector, key)
     | Projector(id, focus) =>
       open OptUtil.Syntax;
-      let* model = 
+      let* model = ProjectorPerform.get_model(id, model.state.zipper);
       let+ action = handle_key_pr(~focus, ~key, model);
       Action.Project(Perform(id, action));
     };

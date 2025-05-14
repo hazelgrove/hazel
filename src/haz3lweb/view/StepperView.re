@@ -86,7 +86,7 @@ module Update = {
     | StepForward(int)
     | StepBackward;
 
-  let update = (~settings, action: t, model: Model.t): Updated.t(Model.t) => {
+  let update = (~globals, action: t, model: Model.t): Updated.t(Model.t) => {
     switch (action) {
     | StepForward(idx) =>
       {
@@ -126,7 +126,7 @@ module Update = {
                Calc.map_saved((a: Model.a') => {
                  let editor =
                    CodeSelectable.Update.update(
-                     ~settings,
+                     ~globals,
                      x,
                      a.editor |> Calc.get_value,
                    )
@@ -226,14 +226,14 @@ module Update = {
   };
 
   let calculate_editors =
-      (~settings, history: Aba.t(Model.a, Model.b)): Aba.t(Model.a, Model.b) => {
+      (~globals, history: Aba.t(Model.a, Model.b)): Aba.t(Model.a, Model.b) => {
     history
     |> Aba.map_a(
          Calc.map_saved((Model.{editor, _} as a) => {
            editor
            |> Calc.map_if_new(
                 CodeSelectable.Update.calculate(
-                  ~settings=settings |> Calc.get_value,
+                  ~globals,
                   ~is_dynamic_term=true,
                   ~is_edited=false,
                   ~dynamics=Dynamics.Map.empty, // No projectors in stepper atm
@@ -253,6 +253,7 @@ module Update = {
 
   let calculate =
       (
+        ~globals,
         ~settings,
         elab: Exp.t,
         {history, cached_settings, cached_elab}: Model.t,
@@ -348,7 +349,7 @@ module Update = {
       history:
         history
         |> take_hidden_steps(~settings, prev_a)
-        |> calculate_editors(~settings),
+        |> calculate_editors(~globals),
       cached_settings: settings |> Calc.save,
       cached_elab: elab |> Calc.save,
     };

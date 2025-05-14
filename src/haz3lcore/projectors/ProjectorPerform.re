@@ -86,6 +86,14 @@ let update =
     : ZipperBase.t('p) =>
   ZipperBase.MapPiece.fast_local_seg(update_piece(f, id), id, z);
 
+let get_model = (id: Id.t, z: ZipperBase.t('p)): option('p) => {
+  switch (ZipperBase.FindPiece.in_zipper(x => Piece.id(x) == id, z)) {
+  | Some(Projector(pr)) => Some(pr.model)
+  | Some(_) => None
+  | None => None
+  };
+};
+
 let go =
     (
       type p,
@@ -159,7 +167,7 @@ let go =
         pr =>
           {
             ...pr,
-            model: update_projector(~sort=Sort.Any, action, pr.model) // TODO[Matt]: we need sorts here.
+            model: update_projector(~sort=Sort.Any, ~id, action, pr.model) // TODO[Matt]: we need sorts here.
           },
         id,
         z,

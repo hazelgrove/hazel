@@ -105,7 +105,7 @@ module Update = {
     | UpdateResult(Haz3lcore.ProgramResult.t(Haz3lcore.ProgramResult.inner));
 
   // Update is meant to make minimal changes to the model, and calculate will do the rest.
-  let update = (~settings, action, model: Model.t): Updated.t(Model.t) =>
+  let update = (~globals, action, model: Model.t): Updated.t(Model.t) =>
     switch (action, model) {
     | (ToggleStepper, {kind: Stepper, _}) =>
       {
@@ -120,7 +120,7 @@ module Update = {
       }
       |> Updated.return
     | (StepperAction(a), {result: Stepper(s), _}) =>
-      let* stepper = StepperView.Update.update(~settings, a, s);
+      let* stepper = StepperView.Update.update(~globals, a, s);
       {
         ...model,
         result: Stepper(stepper),
@@ -139,7 +139,7 @@ module Update = {
           _,
         },
       ) =>
-      let* editor = CodeSelectable.Update.update(~settings, a, editor);
+      let* editor = CodeSelectable.Update.update(~globals, a, editor);
       {
         ...model,
         result:
@@ -186,6 +186,7 @@ module Update = {
 
   let calculate =
       (
+        ~globals,
         ~settings: Haz3lcore.CoreSettings.t,
         ~queue_worker: option(Haz3lcore.Exp.t => unit),
         ~is_edited: bool,
@@ -249,7 +250,7 @@ module Update = {
           result: NoElab,
         }
       | (Stepper, Stepper(s)) =>
-        let s' = StepperView.Update.calculate(~settings, elab, s);
+        let s' = StepperView.Update.calculate(~globals, ~settings, elab, s);
         {
           ...model,
           result: Stepper(s'),
@@ -257,7 +258,7 @@ module Update = {
       | (Stepper, _) =>
         let s =
           StepperView.Model.init()
-          |> StepperView.Update.calculate(~settings, elab);
+          |> StepperView.Update.calculate(~globals, ~settings, elab);
         {
           ...model,
           result: Stepper(s),
@@ -294,7 +295,7 @@ module Update = {
         |> Calc.get_value
         |> Calc.map_saved(((exp, editor)) =>
              CodeSelectable.Update.calculate(
-               ~settings,
+               ~globals,
                ~is_dynamic_term=true,
                ~stitch=_ => exp,
                ~is_edited,

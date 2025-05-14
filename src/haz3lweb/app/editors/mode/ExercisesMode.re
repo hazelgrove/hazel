@@ -241,7 +241,7 @@ module Update = {
       let current = List.nth(model.exercises, model.current);
       let* new_current =
         ExerciseMode.Update.update(
-          ~settings=globals.settings,
+          ~globals,
           ~schedule_action,
           action,
           current,
@@ -278,10 +278,10 @@ module Update = {
   };
 
   let calculate =
-      (~settings, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
+      (~globals, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
     let exercise =
       ExerciseMode.Update.calculate(
-        ~settings,
+        ~globals,
         ~is_edited,
         ~schedule_action=a => schedule_action(Exercise(a)),
         List.nth(model.exercises, model.current),

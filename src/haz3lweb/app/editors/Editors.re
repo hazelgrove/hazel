@@ -82,9 +82,9 @@ module Update = {
     | (Scratch(action), Scratch(m)) =>
       let* scratch =
         ScratchMode.Update.update(
+          ~globals,
           ~schedule_action=a => schedule_action(Scratch(a)),
           ~is_documentation=false,
-          ~settings=globals.settings,
           action,
           m,
         );
@@ -92,7 +92,7 @@ module Update = {
     | (Scratch(action), Documentation(m)) =>
       let* scratch =
         ScratchMode.Update.update(
-          ~settings=globals.settings,
+          ~globals,
           ~schedule_action=a => schedule_action(Scratch(a)),
           ~is_documentation=true,
           action,
@@ -143,13 +143,13 @@ module Update = {
     };
   };
 
-  let calculate = (~settings, ~is_edited, ~schedule_action, model) => {
+  let calculate = (~globals, ~is_edited, ~schedule_action, model) => {
     switch (model) {
     | Model.Scratch(m) =>
       Model.Scratch(
         ScratchMode.Update.calculate(
+          ~globals,
           ~schedule_action=a => schedule_action(Scratch(a)),
-          ~settings,
           ~is_edited,
           m,
         ),
@@ -158,7 +158,7 @@ module Update = {
       Model.Documentation(
         ScratchMode.Update.calculate(
           ~schedule_action=a => schedule_action(Scratch(a)),
-          ~settings,
+          ~globals,
           ~is_edited,
           m,
         ),
@@ -167,7 +167,7 @@ module Update = {
       Model.Exercises(
         ExercisesMode.Update.calculate(
           ~schedule_action=a => schedule_action(Exercises(a)),
-          ~settings,
+          ~globals,
           ~is_edited,
           m,
         ),

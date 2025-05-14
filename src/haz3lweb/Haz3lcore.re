@@ -24,7 +24,13 @@ module rec Projector: {
     type t;
 
     let update:
-      (~common: ProjectorInterface.common, ~sort: Sort.t, t, Model.t) =>
+      (
+        ~common: ProjectorInterface.common,
+        ~sort: Sort.t,
+        ~id: Id.t,
+        t,
+        Model.t
+      ) =>
       Model.t;
   };
 
@@ -42,7 +48,7 @@ module rec Projector: {
         ~common: ProjectorInterface.common,
         ~sort: Sort.t,
         ~parent: ProjectorBase.external_action => Ui_effect.t(unit),
-        ~set_model: Model.t => Ui_effect.t(unit),
+        ~inject: Update.t => Ui_effect.t(unit),
         ~make_active: Ui_effect.t(unit),
         ProjectorView.Model.projector_data(Model.t)
       ) =>
@@ -86,7 +92,10 @@ module rec Projector: {
     type t = ProjectorCore.Update.t(Editor.Update.t);
 
     let update = (~common) =>
-      ProjectorCore.Update.update(~update_ed=Editor.Update.update(~common));
+      ProjectorCore.Update.update(
+        ~common,
+        ~update_ed=Editor.Update.update(~common),
+      );
   };
 
   module Focus = {
@@ -100,7 +109,7 @@ module rec Projector: {
   };
 
   module View = {
-    let split_views = (~common: ProjectorInterface.common, ~sort) =>
+    let split_views = (~common: ProjectorInterface.common, ~sort as _) =>
       ProjectorView.split_views(
         ~common,
         ~ed_str=Editor.View.print_string,
@@ -343,8 +352,6 @@ and Editor: {
           ~common: ProjectorInterface.common,
           ~is_edited: bool,
           ~sort: Sort.t,
-          statics: CachedStatics.t,
-          dynamics: Dynamics.Map.t,
           ed: Model.t,
         )
         : Model.t =>
@@ -362,8 +369,8 @@ and Editor: {
         ~livelit_projectors=ProjectorCore.Kind.livelit_projectors,
         ~update_projector=Projector.Update.update(~common),
         ~sort,
-        statics,
-        dynamics,
+        common.statics,
+        common.dynamics,
         ed,
       );
 
@@ -441,6 +448,7 @@ and Editor: {
     let handle_key_event =
       EditorView.Focus.handle_key_event(
         ~handle_key_pr=Projector.Focus.handle_key_event,
+        ~info_projector=ProjectorCore.Kind.Info: ProjectorCore.Kind.t,
       );
   };
 
@@ -489,9 +497,15 @@ module PersistentZipper = {
 module Action = {
   include Action;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Action.t(ProjectorCore.Kind.t, Projector.Model.t);
+  type t =
+    Action.t(ProjectorCore.Kind.t, Projector.Model.t, Projector.Update.t);
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type project = Action.project(ProjectorCore.Kind.t, Projector.Model.t);
+  type project =
+    Action.project(
+      ProjectorCore.Kind.t,
+      Projector.Model.t,
+      Projector.Update.t,
+    );
 };
 
 module Ancestor = {
