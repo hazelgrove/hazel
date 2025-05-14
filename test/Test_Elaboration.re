@@ -433,6 +433,20 @@ module PlainTests = {
         dhexp_of_uexp(parse_exp({|let x : String = 4 in x|})),
       )
     ),
+    test_case("Inconsistent list ascription", `Quick, () =>
+      alco_check(
+        {|[1,2,3] : [String]|},
+        parse_exp({|[1,2,3] : [String]|}),
+        dhexp_of_uexp(parse_exp({|[1,2,3] : [String]|})),
+      )
+    ),
+    test_case("Inlines type aliases", `Quick, () =>
+      alco_check(
+        {|type T = [String] in [1,2,3] : T|},
+        parse_exp({|[1,2,3] : [String]|}),
+        dhexp_of_uexp(parse_exp({|type T = [String] in [1,2,3] : T|})),
+      )
+    ),
     test_case(
       "Function application with a deferral of a hole",
       `Quick,
@@ -480,7 +494,13 @@ module PlainTests = {
         let x : T = "hello" in x|},
         Exp.(
           let_(
-            Pat.(cast(var("x"), Typ.(var("T")), Typ.unknown(Internal))),
+            Pat.(
+              cast(
+                var("x"),
+                Typ.(prod([tup_label(label("a"), string())])),
+                Typ.unknown(Internal),
+              )
+            ),
             tuple([tup_label(label("a"), string("hello"))]),
             var("x"),
           )
