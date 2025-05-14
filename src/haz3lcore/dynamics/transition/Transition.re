@@ -389,14 +389,37 @@ module Transition = (EV: EV_MODE) => {
         req_final(req(state, env), d2 => Ap2(dir, d1, d2) |> wrap_ctx, d2);
 
       let-unbox unboxed_fun = (Fun, d1');
+      print_endline("====================");
+      print_endline("d1': " ++ DHExp.show(d1'));
+      print_endline("d2': " ++ DHExp.show(d2'));
+      print_endline(
+        "unboxed_fun: " ++ Unboxing.show_unboxed_fun(unboxed_fun),
+      );
+      print_endline("======================");
+
       switch (unboxed_fun) {
       | Constructor(_) => Constructor
       | FunEnv(dp, d3, function_lexical_env) =>
         let matches = matches(dp, d2');
+        print_endline("================");
+        print_endline("dp: " ++ DHPat.show(dp));
+        print_endline("d2': " ++ DHExp.show(d2'));
+
+        print_endline(
+          "matches: " ++ PatternMatch.show_match_result(matches.matches),
+        );
+        print_endline("================");
+
         switch (matches.matches) {
         | IndetMatch
         | DoesNotMatch => Indet
         | Matches(function_arg_env: VarBstMap.Ordered.t_('a)) =>
+          let foo: list((string, Grammar.exp_t(IdTagged.IdTag.t))) =
+            VarBstMap.Ordered.to_listo(function_arg_env);
+          print_endline(
+            "function_arg_env: "
+            ++ [%derive.show: list((string, DHExp.t))](foo),
+          );
           let env'' =
             evaluate_extend_env(
               ~ap_id=Term.Exp.rep_id(d),
@@ -765,6 +788,7 @@ module Transition = (EV: EV_MODE) => {
           d1 => Closure(env', d1) |> wrap_ctx,
           d,
         );
+      print_endline("Needs closure: " ++ string_of_bool(needs_closure^));
       if (needs_closure^) {
         Constructor;
       } else {
@@ -794,12 +818,13 @@ module Transition = (EV: EV_MODE) => {
         req_final(req(state, env), d => Cast(d, t1, t2) |> wrap_ctx, d);
       switch (Casts.transition(Cast(d', t1, t2) |> rewrap)) {
       | Some(d) =>
+        print_endline("Post-cast: " ++ DHExp.show(d));
         Step({
           expr: d,
           state_update,
           kind: Cast,
           is_value: false,
-        })
+        });
       | None => Constructor
       };
     | FailedCast(d1, t1, t2) =>
