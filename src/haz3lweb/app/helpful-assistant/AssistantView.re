@@ -6,6 +6,10 @@ open Util.Web;
 open Util;
 open Js_of_ocaml;
 
+module Update = AssistantUpdate;
+
+module Model = AssistantModel;
+
 type selection =
   | MakeActive(Selection.t);
 
@@ -44,7 +48,7 @@ let new_chat_button = (~inject): Node.t => {
   let tooltip = "New Chat";
   let new_chat = _ =>
     Virtual_dom.Vdom.Effect.Many([
-      inject(Assistant.Update.NewChat),
+      inject(Update.NewChat),
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   div(
@@ -59,7 +63,7 @@ let history_button = (~inject): Node.t => {
   let tooltip = "Past Chats";
   let history = _ =>
     Virtual_dom.Vdom.Effect.Many([
-      inject(Assistant.Update.History),
+      inject(Update.History),
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   div(
@@ -72,11 +76,11 @@ let history_button = (~inject): Node.t => {
   );
 };
 
-let select_llm = (~inject, ~assistantModel: Assistant.Model.t): Node.t => {
+let select_llm = (~inject, ~assistantModel: Model.t): Node.t => {
   let handle_change = (event, _) => {
     let value = Js.to_string(Js.Unsafe.coerce(event)##.target##.value);
     Virtual_dom.Vdom.Effect.Many([
-      inject(Assistant.Update.SetModel(value)),
+      inject(Update.SetModel(value)),
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   };
@@ -110,18 +114,18 @@ let settings_box = (~globals: Globals.t): Node.t => {
   div(~attrs=[clss(["settings-box"])], [resume_chat_button(~globals)]);
 };
 
-let api_input = (~signal, ~inject, ~assistantModel: Assistant.Model.t): Node.t => {
+let api_input = (~signal, ~inject, ~assistantModel: Model.t): Node.t => {
   let handle_submission = (api_key: string) => {
     Virtual_dom.Vdom.Effect.Many([
-      inject(Assistant.Update.SetKey(api_key)),
-      inject(Assistant.Update.SetAvailableModels),
+      inject(Update.SetKey(api_key)),
+      inject(Update.SetAvailableModels),
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   };
 
   let toggle_visibility = _ =>
     Virtual_dom.Vdom.Effect.Many([
-      inject(Assistant.Update.ToggleAPIVisibility),
+      inject(Update.ToggleAPIVisibility),
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
 
@@ -222,8 +226,7 @@ let api_input = (~signal, ~inject, ~assistantModel: Assistant.Model.t): Node.t =
   );
 };
 
-let llm_model_id_input =
-    (~signal, ~inject, ~assistantModel: Assistant.Model.t): Node.t => {
+let llm_model_id_input = (~signal, ~inject, ~assistantModel: Model.t): Node.t => {
   let format_price_per_million = (price: string): string => {
     // Convert string to float, multiply by 1000 to get per million tokens
     // The API provides price per 1K tokens
@@ -241,7 +244,7 @@ let llm_model_id_input =
 
   let handle_submission = (llm_model: string) => {
     Virtual_dom.Vdom.Effect.Many([
-      inject(Assistant.Update.SetModel(llm_model)),
+      inject(Update.SetModel(llm_model)),
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   };
@@ -365,12 +368,12 @@ let message_input =
     (
       ~signal,
       ~inject,
-      ~assistantModel: Assistant.Model.t,
+      ~assistantModel: Model.t,
       ~settings: AssistantSettings.t,
     )
     : Node.t => {
   let handle_send = (message: string) => {
-    let message: Assistant.Model.message = {
+    let message: Model.message = {
       party: LS,
       code: None,
       content: message,
@@ -378,12 +381,12 @@ let message_input =
     };
     JsUtil.log("Message sent: " ++ message.content);
     Virtual_dom.Vdom.Effect.Many([
-      inject(Assistant.Update.SendTextMessage(message)),
+      inject(Update.SendTextMessage(message)),
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   };
   let (past_chats, curr_chat) =
-    Assistant.Update.get_mode_info(settings.mode, assistantModel);
+    Update.get_mode_info(settings.mode, assistantModel);
   let curr_messages = Id.Map.find(curr_chat.id, past_chats).messages;
   let send_message = _ => {
     let message =
@@ -475,24 +478,24 @@ let message_display =
     (
       ~inject,
       ~globals: Globals.t,
-      ~assistantModel: Assistant.Model.t,
+      ~assistantModel: Model.t,
       ~settings: AssistantSettings.t,
     )
     : Node.t => {
   let toggle_collapse = index => {
     // Create an action to toggle the collapsed state of a specific message
     Virtual_dom.Vdom.Effect.Many([
-      inject(Assistant.Update.ToggleCollapse(index)),
+      inject(Update.ToggleCollapse(index)),
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   };
   let (past_chats, curr_chat) =
-    Assistant.Update.get_mode_info(settings.mode, assistantModel);
+    Update.get_mode_info(settings.mode, assistantModel);
   let curr_messages = Id.Map.find(curr_chat.id, past_chats).messages;
   let message_nodes =
     List.flatten(
       List.mapi(
-        (index: int, message: Assistant.Model.message) => {
+        (index: int, message: Model.message) => {
           switch (message.code) {
           | Some((sketch, tileId)) =>
             message.content == "..." && message.party == LLM
@@ -615,7 +618,7 @@ let message_display =
                         Attr.on_click(_ =>
                           Virtual_dom.Vdom.Effect.Many([
                             inject(
-                              Assistant.Update.Resuggest(
+                              Update.Resuggest(
                                 message.content,
                                 Option.get(tileId),
                               ),
@@ -744,15 +747,11 @@ let mode_buttons = (~globals: Globals.t): Node.t => {
 };
 
 let history_menu =
-    (
-      ~assistantModel: Assistant.Model.t,
-      ~settings: AssistantSettings.t,
-      ~inject,
-    )
+    (~assistantModel: Model.t, ~settings: AssistantSettings.t, ~inject)
     : Node.t => {
   let (past_chats, curr_chat) =
-    Assistant.Update.get_mode_info(settings.mode, assistantModel);
-  let chrono_past_chats = Assistant.Model.sorted_chats(past_chats);
+    Update.get_mode_info(settings.mode, assistantModel);
+  let chrono_past_chats = Model.sorted_chats(past_chats);
   div(
     ~attrs=[clss(["history-menu"])],
     [
@@ -769,7 +768,7 @@ let history_menu =
       div(
         ~attrs=[clss(["history-menu-list"])],
         List.map(
-          (chat: Assistant.Model.chat) =>
+          (chat: Model.chat) =>
             div(
               ~attrs=[
                 chat.id == curr_chat.id
@@ -786,7 +785,7 @@ let history_menu =
                        );
                   if (!contains_button) {
                     Virtual_dom.Vdom.Effect.Many([
-                      inject(Assistant.Update.SwitchChat(chat.id)),
+                      inject(Update.SwitchChat(chat.id)),
                       Virtual_dom.Vdom.Effect.Stop_propagation,
                     ]);
                   } else {
@@ -815,7 +814,7 @@ let history_menu =
                         clss(["delete-chat-button"]),
                         Attr.on_click(_ =>
                           Virtual_dom.Vdom.Effect.Many([
-                            inject(Assistant.Update.DeleteChat(chat.id)),
+                            inject(Update.DeleteChat(chat.id)),
                             Virtual_dom.Vdom.Effect.Stop_propagation,
                           ])
                         ),
@@ -837,13 +836,7 @@ let history_menu =
   );
 };
 
-let view =
-    (
-      ~globals: Globals.t,
-      ~signal,
-      ~inject,
-      ~assistantModel: Assistant.Model.t,
-    ) => {
+let view = (~globals: Globals.t, ~signal, ~inject, ~assistantModel: Model.t) => {
   div(
     ~attrs=[Attr.id("side-bar"), Attr.tabindex(1)],
     [
