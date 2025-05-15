@@ -164,6 +164,14 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         )
         |> DHExp.fresh,
       )
+    | (Cons(d1, d2), List(ty)) =>
+      Some(
+        Cons(
+          Cast(d1, Unknown(Internal) |> Typ.temp, ty) |> DHExp.fresh,
+          Cast(d2, Unknown(Internal) |> Typ.temp, t) |> DHExp.fresh,
+        )
+        |> DHExp.fresh,
+      )
     | (TypFun(tp, e, v), Forall(_, t')) =>
       Some(
         TypFun(
@@ -243,7 +251,6 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Parens(_), _)
     | (TyAlias(_), _)
     | (ListConcat(_), _)
-    | (Cons(_), _)
     | (Match(_), _)
     | (Cast(_), _) =>
       // TODO Decide if we want to join casts
@@ -256,6 +263,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Fun(_), _)
     | (TypFun(_), _)
     | (Test(_), _)
+    | (Cons(_), _)
     | (Constructor(_), _) => None
     }
   | _ => None
