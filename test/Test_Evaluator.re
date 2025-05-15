@@ -525,6 +525,25 @@ in fn("hello")|},
         {|let x :: y = ((1 :: ?): [Int]) in y|},
       )
     }),
+    test_case("lists don't accumulate from patterns", `Quick, () => {
+      parse_and_evaluate_test(
+        "100",
+        {|let list_of_ones = fun n ->
+            if n == 0 then [] else 1 :: list_of_ones(n-1)
+          in
+
+          let sum = fun l:[Int] ->
+            case l
+              | [] => 0
+              | x::xs => x + sum(xs)
+            end
+          in
+
+          let n = 100 in
+
+          sum(list_of_ones(n))|},
+      )
+    }),
     test_case("Variable capture", `Quick, test_variable_capture),
     test_case("Unbound lookup", `Quick, test_unbound_lookup),
     test_case("Unevaluated if closure", `Quick, test_unevaluated_if),

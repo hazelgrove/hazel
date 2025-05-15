@@ -94,6 +94,12 @@ let rec ground_cases_of = (ty: Typ.t): ground_cases => {
 
 /* gives a transition step that can be taken by the cast calculus here if applicable. */
 let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
+  let recur = (d: DHExp.t): DHExp.t =>
+    if (recursive) {
+      transition(d) |> Option.value(~default=d);
+    } else {
+      d;
+    };
   switch (DHExp.term_of(d)) {
   | Cast(e, _, t) =>
     switch (DHExp.term_of(e), Typ.term_of(Typ.unroll(t))) {
@@ -122,7 +128,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       Some(
         TupLabel(
           l,
-          Cast(e, Unknown(Internal) |> Typ.temp, t) |> DHExp.fresh,
+          recur(Cast(e, Unknown(Internal) |> Typ.temp, t) |> DHExp.fresh),
         )
         |> DHExp.fresh,
       )
@@ -131,7 +137,9 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         Tuple(
           List.map2(
             (e, ty) =>
-              Cast(e, Unknown(Internal) |> Typ.temp, ty) |> DHExp.fresh,
+              recur(
+                Cast(e, Unknown(Internal) |> Typ.temp, ty) |> DHExp.fresh,
+              ),
             es,
             tys,
           ),
@@ -158,7 +166,10 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       Some(
         ListLit(
           List.map(
-            d => Cast(d, Unknown(Internal) |> Typ.temp, ty) |> DHExp.fresh,
+            d =>
+              recur(
+                Cast(d, Unknown(Internal) |> Typ.temp, ty) |> DHExp.fresh,
+              ),
             ds,
           ),
         )
@@ -167,8 +178,8 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Cons(d1, d2), List(ty)) =>
       Some(
         Cons(
-          Cast(d1, Unknown(Internal) |> Typ.temp, ty) |> DHExp.fresh,
-          Cast(d2, Unknown(Internal) |> Typ.temp, t) |> DHExp.fresh,
+          recur(Cast(d1, Unknown(Internal) |> Typ.temp, ty) |> DHExp.fresh),
+          recur(Cast(d2, Unknown(Internal) |> Typ.temp, t) |> DHExp.fresh),
         )
         |> DHExp.fresh,
       )
@@ -176,7 +187,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       Some(
         TypFun(
           tp,
-          Cast(e, Unknown(Internal) |> Typ.temp, t') |> DHExp.fresh, // TODO Do type substitution
+          recur(Cast(e, Unknown(Internal) |> Typ.temp, t') |> DHExp.fresh), // TODO Do type substitution
           v,
         )
         |> DHExp.fresh,
@@ -185,12 +196,18 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       // Should we do this or leave it if it isn't a value
       Some(
         If(
-          Cast(e, Unknown(Internal) |> Typ.temp, t |> Typ.temp)
-          |> DHExp.fresh,
-          Cast(e1, Unknown(Internal) |> Typ.temp, t |> Typ.temp)
-          |> DHExp.fresh,
-          Cast(e2, Unknown(Internal) |> Typ.temp, t |> Typ.temp)
-          |> DHExp.fresh,
+          recur(
+            Cast(e, Unknown(Internal) |> Typ.temp, t |> Typ.temp)
+            |> DHExp.fresh,
+          ),
+          recur(
+            Cast(e1, Unknown(Internal) |> Typ.temp, t |> Typ.temp)
+            |> DHExp.fresh,
+          ),
+          recur(
+            Cast(e2, Unknown(Internal) |> Typ.temp, t |> Typ.temp)
+            |> DHExp.fresh,
+          ),
         )
         |> DHExp.fresh,
       )
@@ -211,7 +228,9 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
           Ap(
             Forward,
             con,
-            Cast(payload, Unknown(Internal) |> Typ.temp, t') |> DHExp.fresh,
+            recur(
+              Cast(payload, Unknown(Internal) |> Typ.temp, t') |> DHExp.fresh,
+            ),
           )
           |> DHExp.fresh,
         )
