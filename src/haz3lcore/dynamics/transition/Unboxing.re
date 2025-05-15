@@ -72,13 +72,7 @@ let fixup_cast = Casts.transition_multiple;
 let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
   (request, expr) => {
     switch (request, DHExp.term_of(expr)) {
-    /* Remove parentheses from casts */
-    | (_, Cast(d, {term: Parens(x), _}, y))
-    | (_, Cast(d, x, {term: Parens(y), _})) =>
-      unbox(request, Cast(d, x, y) |> DHExp.fresh)
-
     /* $e and $v could have any type, but are indet */
-
     | (_, UnOp(Meta(Unquote), _)) => IndetMatch
     | (_, Constructor(c, _)) when String.starts_with(c, ~prefix="$") =>
       IndetMatch
@@ -94,22 +88,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       } else {
         DoesNotMatch;
       }
-    | (
-        TupLabel(tl),
-        Cast(t, {term: TupLabel(_, ty1), _}, {term: TupLabel(_, ty2), _}),
-      ) =>
-      let* t = unbox(TupLabel(tl), t);
-      let t = fixup_cast(Cast(t, ty1, ty2) |> DHExp.fresh);
-      Matches(t);
     | (TupLabel(_), _) => Matches(expr)
-
-    /* Remove Tuplabels from casts otherwise */
-    | (_, Cast(e, {term: TupLabel(_, e1), _}, e2)) =>
-      switch (DHExp.term_of(e)) {
-      | TupLabel(_, e) => unbox(request, Cast(e, e1, e2) |> DHExp.fresh)
-      | _ => unbox(request, Cast(e, e1, e2) |> DHExp.fresh)
-      }
-
     /* Base types are always already unboxed because of the ITCastID rule*/
     | (Atom(r), Atom(x)) =>
       switch (Atom.unbox(r, x)) {
@@ -130,46 +109,9 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       Matches((x, ListLit(xs) |> DHExp.fresh))
     | (Cons, ListLit([])) => DoesNotMatch
     | (Cons, Cons(x, xs)) => Matches((x, xs))
-
-    | (ListLit, Cast(l, {term: List(t1), _}, {term: List(t2), _})) =>
-      let* l = unbox(ListLit, l);
-      let l = List.map(d => Cast(d, t1, t2) |> DHExp.fresh, l);
-      let l = List.map(fixup_cast, l);
-      Matches(l);
-    | (ListLitn(n), Cast(l, {term: List(t1), _}, {term: List(t2), _})) =>
-      let* l = unbox(ListLitn(n), l);
-      let l = List.map(d => Cast(d, t1, t2) |> DHExp.fresh, l);
-      let l = List.map(fixup_cast, l);
-      Matches(l);
-    | (
-        Cons,
-        Cast(l, {term: List(t1), _} as ct1, {term: List(t2), _} as ct2),
-      ) =>
-      let* l = unbox(Cons, l);
-      switch (l) {
-      | (x, xs) =>
-        Matches((
-          Cast(x, t1, t2) |> DHExp.fresh |> fixup_cast,
-          Cast(xs, ct1, ct2) |> DHExp.fresh,
-        ))
-      };
-
     /* Tuples can be either tuples or tuple casts */
     | (Tuple(n), Tuple(t)) when List.length(t) == n => Matches(t)
     | (Tuple(_), Tuple(_)) => DoesNotMatch
-    | (Tuple(n), Cast(t, {term: Prod(t1s), _}, {term: Prod(t2s), _}))
-        when n == List.length(t1s) && n == List.length(t2s) =>
-      let* t = unbox(Tuple(n), t);
-      let t =
-        ListUtil.map3(
-          (d, t1, t2) => Cast(d, t1, t2) |> DHExp.fresh,
-          t,
-          t1s,
-          t2s,
-        );
-      let t = List.map(fixup_cast, t);
-      Matches(t);
-
     /* Sum constructors can be either sum constructors, sum constructors
        applied to some value or sum casts */
     | (SumNoArg(name1), Constructor(name2, _)) when name1 == name2 =>
@@ -182,31 +124,11 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
           || ConstructorMap.has_bad_entry(s2) =>
       let* d1 = unbox(SumNoArg(name), d1);
       Matches(d1);
-    | (SumNoArg(_), Cast(_, {term: Sum(_), _}, {term: Sum(_), _})) =>
-      IndetMatch
-
     | (SumWithArg(_), Constructor(_)) => DoesNotMatch
     | (SumWithArg(name1), Ap(_, {term: Constructor(name2, _), _}, d3))
         when name1 == name2 =>
       Matches(d3)
     | (SumWithArg(_), Ap(_, {term: Constructor(_), _}, _)) => DoesNotMatch
-    | (SumWithArg(name), Cast(d1, {term: Sum(s1), _}, {term: Sum(s2), _})) =>
-      let get_entry_or_bad = s =>
-        switch (ConstructorMap.get_entry(name, s)) {
-        | Some(Some(x)) => Some(x)
-        | Some(None) => None
-        | None when ConstructorMap.has_bad_entry(s) =>
-          Some(Typ.temp(Unknown(Internal)))
-        | None => None
-        };
-      switch (get_entry_or_bad(s1), get_entry_or_bad(s2)) {
-      | (Some(x), Some(y)) =>
-        let* d1 = unbox(SumWithArg(name), d1);
-        Matches(Cast(d1, x, y) |> Exp.fresh |> fixup_cast);
-      | _ => IndetMatch
-      };
-    // There should be some sort of failure here when the cast doesn't go through.
-
     /* Function-like things can look like the following when values */
     | (Fun, Constructor(name, _)) => Matches(Constructor(name)) // Perhaps we should check if the constructor actually is a function?
     | (Fun, Closure(env', {term: Fun(dp, d3, _, _), _})) =>
@@ -239,9 +161,6 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         ),
       ) =>
       Matches(TFunCast(d'', tp1, t1, tp2, t2))
-
-    /* Any cast from unknown is indet */
-    | (_, Cast(_, {term: Unknown(_), _}, _)) => IndetMatch
 
     /* Any failed cast is indet */
     | (_, FailedCast(_)) => IndetMatch
