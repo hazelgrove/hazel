@@ -16,7 +16,7 @@ module Model = {
     globals: Globals.Model.t,
     editors: Editors.Model.t,
     explain_this: ExplainThisModel.t,
-    assistant: Assistant.Model.t,
+    assistant: AssistantModel.t,
     selection,
   };
 
@@ -32,7 +32,7 @@ module Store = {
         ~instructor_mode=globals.settings.instructor_mode,
       );
     let explain_this = ExplainThisModel.Store.load();
-    let assistant = Assistant.Store.load();
+    let assistant = AssistantStore.F.load();
     {
       editors,
       globals,
@@ -49,7 +49,7 @@ module Store = {
     );
     Globals.Model.save(m.globals);
     ExplainThisModel.Store.save(m.explain_this);
-    Assistant.Store.save(m.assistant);
+    AssistantStore.F.save(m.assistant);
   };
 };
 
@@ -66,7 +66,7 @@ module Update = {
     | Globals(Globals.Update.t)
     | Editors(Editors.Update.t)
     | ExplainThis(ExplainThisUpdate.update)
-    | Assistant(Assistant.Update.t)
+    | Assistant(AssistantUpdate.t)
     | MakeActive(selection)
     | Benchmark(benchmark_action)
     | Start
@@ -74,7 +74,7 @@ module Update = {
 
   // Helper function to check for insertion of '??' or '?a' and trigger assistant updates
   let send_assistant_insertion_info = (~char, ~editor, ~schedule_action) => {
-    Assistant.Update.check_req(
+    AssistantUpdate.check_req(
       char,
       a => schedule_action(Assistant(a)),
       editor,
@@ -342,7 +342,7 @@ module Update = {
         );
       };
       let* assistant =
-        Assistant.Update.update(
+        AssistantUpdate.update(
           ~settings,
           ~action,
           ~editor=ed.editor,
