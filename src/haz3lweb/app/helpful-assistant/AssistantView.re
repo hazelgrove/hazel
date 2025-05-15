@@ -12,48 +12,6 @@ type selection =
 type event =
   | MakeActive(ScratchMode.Selection.t);
 
-let llm_toggle = (~globals: Globals.t): Node.t => {
-  let tooltip = "Toggle Manual LLM";
-  let toggle_llm = _ =>
-    Virtual_dom.Vdom.Effect.Many([
-      globals.inject_global(Set(Assistant(ToggleLLM))),
-      Virtual_dom.Vdom.Effect.Stop_propagation,
-    ]);
-  div(
-    ~attrs=[clss(["llm-button"])],
-    [
-      text("Manual LLM: "),
-      Widgets.toggle(
-        ~tooltip,
-        "🔎",
-        globals.settings.assistant.llm,
-        toggle_llm,
-      ),
-    ],
-  );
-};
-
-let lsp_toggle = (~globals: Globals.t): Node.t => {
-  let tooltip = "Toggle Manual LSP";
-  let toggle_lsp = _ =>
-    Virtual_dom.Vdom.Effect.Many([
-      globals.inject_global(Set(Assistant(ToggleLSP))),
-      Virtual_dom.Vdom.Effect.Stop_propagation,
-    ]);
-  div(
-    ~attrs=[clss(["lsp-button"])],
-    [
-      text("Manual LSP: "),
-      Widgets.toggle(
-        ~tooltip,
-        "💬",
-        globals.settings.assistant.lsp,
-        toggle_lsp,
-      ),
-    ],
-  );
-};
-
 let resume_chat_button = (~globals: Globals.t): Node.t => {
   let tooltip = "Confirm and Chat";
   let resume_chat = _ =>

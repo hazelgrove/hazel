@@ -624,13 +624,16 @@ module View = {
               open Editors.View;
               let signal = (
                 fun
-                | MakeActive(selection) => inject(MakeActive(selection))
+                | MakeActive(selection: selection) =>
+                  inject(MakeActive(selection))
+              );
+              let signal: AssistantView.event => Ui_effect.t(unit) = (
+                fun
+                | MakeActive(s) => signal(MakeActive(Scratch(s)))
               );
               AssistantView.view(
                 ~globals,
-                ~signal=
-                  fun
-                  | MakeActive(s) => signal(MakeActive(Scratch(s))),
+                ~signal,
                 ~inject=action => inject(Assistant(action)),
                 ~assistantModel,
               );
