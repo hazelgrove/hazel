@@ -650,11 +650,11 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       cast(
         ~ann?,
         e,
-        t,
         {
           term: Unknown(Internal),
           annotation: default_annotation(ann),
         },
+        t,
       );
   };
   module Pat = {
