@@ -53,7 +53,7 @@ in fn("hello")|},
             tup_label(label("b"), int(2)),
             tup_label(label("c"), empty_hole()),
           ]),
-          label("a") // This is a var now for parsing reasons
+          label("a")
         ),
       )
     ),
