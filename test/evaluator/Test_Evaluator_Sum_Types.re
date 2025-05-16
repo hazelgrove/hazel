@@ -136,7 +136,7 @@ let tests = (
           ),
         );
         evaluation_test(
-          "let () = type x = + A in A in ?",
+          "Indet when unboxing constructor as tuple",
           let_(
             Pat.tuple([]),
             constructor("A", Some(Some(Typ.(prod([]))))),
@@ -145,7 +145,7 @@ let tests = (
           elaborate(parse_exp("let () = type x = + A in A in ?")),
         );
         evaluation_test(
-          "type y = + B in case true | a => B end @<?>",
+          "Indet when unboxing constructor as typfun",
           typ_ap(
             constructor(
               "B",
@@ -160,7 +160,7 @@ let tests = (
           ),
         );
         evaluation_test(
-          "type x = + A(Float) in let A = a in 0",
+          "Indet when unboxing constructor as float",
           let_(
             Pat.(
               constructor(
@@ -183,7 +183,7 @@ let tests = (
           elaborate(parse_exp("type x = + A(Float) in let A = a in 0")),
         );
         evaluation_test(
-          {|type y = + A in ""++A|},
+          {|Indet when unboxing constructor as string|},
           bin_op(
             String(Concat),
             string(""),
@@ -192,7 +192,7 @@ let tests = (
           elaborate(parse_exp({|type y = + A in ""++A|})),
         );
         evaluation_test(
-          "type y = + A in -A",
+          "Indet when unboxing constructor as int",
           un_op(Int(Minus), constructor("A", Some(Some(Typ.int())))),
           elaborate(parse_exp("type y = + A in -A")),
         );
