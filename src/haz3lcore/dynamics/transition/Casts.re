@@ -183,15 +183,27 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         )
         |> DHExp.fresh,
       )
-    | (TypFun(tp, e, v), Forall(_, t')) =>
+    | (TypFun(tp, e, v), Forall(tp', t')) =>
+      let new_ty: Typ.t =
+        switch (TPat.tyvar_of_utpat(tp)) {
+        | Some(tyvar) => Var(tyvar) |> Typ.temp
+        | None => Unknown(Internal) |> Typ.temp
+        };
       Some(
         TypFun(
           tp,
-          recur(Cast(e, Unknown(Internal) |> Typ.temp, t') |> DHExp.fresh), // TODO Do type substitution
+          recur(
+            Cast(
+              e,
+              Unknown(Internal) |> Typ.temp,
+              Typ.subst(new_ty, tp', t'),
+            )
+            |> DHExp.fresh,
+          ),
           v,
         )
         |> DHExp.fresh,
-      )
+      );
     | (If(e, e1, e2), t) =>
       // Should we do this or leave it if it isn't a value
       Some(
