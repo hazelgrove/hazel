@@ -2,8 +2,8 @@
 
 (executable
  (name cli)
- (modules Cli Run Parse Print)
- (libraries ppx_yojson_conv.expander haz3lcore cmdliner)
+ (modules Cli Run Parse Print QCheck_Util)
+ (libraries ppx_yojson_conv.expander haz3lcore cmdliner qcheck haz3lmenhir)
  (modes js)
  (preprocess
   (pps js_of_ocaml-ppx)))

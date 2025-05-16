@@ -26,7 +26,7 @@ let read_input path =
 let run_hazel path =
   let program = read_input path in
   let parsed = Parse.parse_program program in
-  let evaluated = Run.evaluate parsed in
+  let evaluated = Haz3lcore.DHExp.strip_casts (Run.evaluate parsed) in
 
   print_endline (Print.print evaluated)
 
@@ -40,6 +40,13 @@ let analyze_hazel path =
   (* Printf.printf "Analyzing Hazel program:\n%s\n%!" program; *)
   (* TODO Use statics to output marks *)
   ()
+
+let generate_test_program () =
+  let arb = QCheck_Util.arb_exp ~minimal_idents:true 35 in
+  let gen = arb.gen in
+  let program = QCheck.Gen.generate1 gen in
+
+  print_endline (Print.print program)
 
 (* Common arg: path or "-" *)
 let input_arg =
@@ -62,6 +69,11 @@ let format_cmd =
   let info = Cmd.info "format" ~doc in
   Cmd.v info Term.(const format_hazel $ input_arg)
 
+let generate_test_program_cmd =
+  let doc = "Generate a test program." in
+  let info = Cmd.info "generate-test" ~doc in
+  Cmd.v info Term.(app (const generate_test_program) (const ()))
+
 let _analyze_cmd =
   let doc = "Perform static analysis on Hazel code." in
   let info = Cmd.info "analyze" ~doc in
@@ -71,6 +83,6 @@ let _analyze_cmd =
 let default_cmd =
   let doc = "CLI tool for running and analyzing Hazel programs." in
   let info = Cmd.info "hazel" ~version:"0.1.0" ~doc in
-  Cmd.group info [ run_cmd; format_cmd ]
+  Cmd.group info [ run_cmd; format_cmd; generate_test_program_cmd ]
 
 let () = exit (Cmd.eval default_cmd)
