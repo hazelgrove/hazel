@@ -125,5 +125,17 @@ go(Var("yo"))|},
         ),
       )
     ),
+    test_case("Indet case passes casts through", `Quick, () => {
+      parse_and_evaluate_test(
+        {|(case ?
+    | 1 => true : String
+    | _ => false : String
+    end)|},
+        {|(case ?
+    | 1 => true
+    | _ => false
+    end) : String|},
+      )
+    }),
   ],
 );

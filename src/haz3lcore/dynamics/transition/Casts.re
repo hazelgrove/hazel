@@ -222,6 +222,22 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         )
         |> DHExp.fresh,
       )
+    | (Match(e, rules), t) =>
+      Some(
+        Match(
+          e,
+          List.map(
+            ((p, e)) =>
+              (
+                p,
+                Cast(e, Unknown(Internal) |> Typ.temp, t |> Typ.temp)
+                |> DHExp.fresh,
+              ),
+            rules,
+          ),
+        )
+        |> DHExp.fresh,
+      )
     | (
         Ap(
           Forward,
@@ -280,7 +296,6 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Parens(_), _)
     | (TyAlias(_), _)
     | (ListConcat(_), _)
-    | (Match(_), _)
     | (Cast(_), _) => None
     // These are handled above and must have the wrong type
     | (Atom(_), _)
