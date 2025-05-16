@@ -180,21 +180,21 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         Ap(_, {term: Constructor(_), _}, _),
       ) =>
       switch (request) {
-      | TupLabel(_) => IndetMatch
-      | Atom(Bool) => IndetMatch
+      | TupLabel(_)
+      | Atom(Bool) 
       | Atom(SInt)
-      | Atom(Int) => IndetMatch
-      | Atom(Float) => IndetMatch
-      | Atom(String) => IndetMatch
-      | Atom(Nat) => IndetMatch
-      | Label => IndetMatch
-      | Tuple(_) => IndetMatch
+      | Atom(Int)
+      | Atom(Float)
+      | Atom(String)
+      | Atom(Nat)
+      | Label
+      | Tuple(_)
       | ListLit
-      | ListLitn(_) => IndetMatch
-      | Cons => IndetMatch
+      | ListLitn(_)
+      | Cons
       | SumNoArg(_)
-      | SumWithArg(_) => IndetMatch
-      | Fun => IndetMatch
+      | SumWithArg(_)
+      | Fun
       | TypFun => IndetMatch
       }
 
