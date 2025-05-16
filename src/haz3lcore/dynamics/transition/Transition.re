@@ -387,7 +387,6 @@ module Transition = (EV: EV_MODE) => {
         req_final(req(state, env), d1 => Ap1(dir, d1, d2) |> wrap_ctx, d1)
       and. d2' =
         req_final(req(state, env), d2 => Ap2(dir, d1, d2) |> wrap_ctx, d2);
-
       let-unbox unboxed_fun = (Fun, d1');
       switch (unboxed_fun) {
       | Constructor(_) => Constructor
@@ -396,7 +395,7 @@ module Transition = (EV: EV_MODE) => {
         switch (matches.matches) {
         | IndetMatch
         | DoesNotMatch => Indet
-        | Matches(function_arg_env: VarBstMap.Ordered.t_('a)) =>
+        | Matches(function_arg_env) =>
           let env'' =
             evaluate_extend_env(
               ~ap_id=Term.Exp.rep_id(d),
