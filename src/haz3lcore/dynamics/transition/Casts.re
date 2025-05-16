@@ -271,8 +271,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (TyAlias(_), _)
     | (ListConcat(_), _)
     | (Match(_), _)
-    | (Cast(_), _) =>
-      None
+    | (Cast(_), _) => None
     // These are handled above and must have the wrong type
     | (Atom(_), _)
     | (ListLit(_), _)
