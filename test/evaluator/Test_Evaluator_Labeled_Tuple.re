@@ -57,5 +57,16 @@ in fn("hello")|},
         ),
       )
     ),
+    test_case("hole field projection", `Quick, () =>
+      parse_and_evaluate_test("?", "?.a")
+    ), // TODO This should be indet and not a hole
+    test_case(
+      "Indet projection",
+      `Quick,
+      () => {
+        parse_and_evaluate_test("(true) . a", "(true) . a");
+        parse_and_evaluate_test("((true) . a): Int", "((true) . a): Int");
+      },
+    ),
   ],
 );

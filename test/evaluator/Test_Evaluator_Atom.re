@@ -52,6 +52,7 @@ let tests = (
       () => {
         parse_and_evaluate_test("4", {|4 : Int|});
         parse_and_evaluate_test({|"hello"|}, {|"hello" : String|});
+        parse_and_evaluate_test("true", {|true : Bool|});
       },
     ),
     test_case(
