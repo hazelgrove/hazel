@@ -34,6 +34,12 @@ in fn("hello")|},
           in fn("hello")|},
       )
     }),
+    test_case("Inconsistent labels", `Quick, () => {
+      parse_and_evaluate_test(
+        {|(a=3 : Bool, b= "": Float)|}, // TODO This is a bug
+        {|(a=3, b="") : (c=Bool, d=Float)|},
+      )
+    }),
     test_case("Dot operation for missing label", `Quick, () =>
       parse_and_evaluate_test("(a=1,b=2).c", "(a=1,b=2).c")
     ),
