@@ -231,7 +231,8 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         ),
         Sum(m) as sumt',
       )
-        when Typ.fast_equal(Typ.unroll(sumt), sumt' |> Typ.temp) =>
+        when
+          Typ.is_consistent(Ctx.empty, Typ.unroll(sumt), sumt' |> Typ.temp) =>
       // I would like to unroll/normalize somewhere else
       let entry = ConstructorMap.get_entry(c, m);
       switch (entry) {
@@ -250,7 +251,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       | None => None
       };
     | (Constructor(_, Some(Some(t))), t')
-        when Typ.fast_equal(Typ.unroll(t), t' |> Typ.temp) =>
+        when Typ.is_consistent(Ctx.empty, Typ.unroll(t), t' |> Typ.temp) =>
       // Make sure that we don't need to handle the none cases. Also think about what to do if the type has a payload and it's just a constructor
       Some(e)
     | (Test(_), Prod([])) => Some(d)
