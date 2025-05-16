@@ -104,7 +104,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
   | Cast(e, _, t) =>
     switch (DHExp.term_of(e), Typ.term_of(Typ.unroll(t))) {
     | (e, Parens(t)) =>
-      // TODO: We need to normalize types to handle aliases? We can consider doing it in elaboration
+      // This is an impossible case since types should be normalized before coming to transitions
       transition(
         ~recursive,
         Cast(e |> DHExp.fresh, Unknown(Internal) |> Typ.temp, t)
@@ -294,51 +294,4 @@ let rec transition_multiple = (d: DHExp.t): DHExp.t => {
   | Some(d'') => transition_multiple(d'')
   | None => d
   };
-};
-
-// So that we don't have to regenerate its id
-let hole = EmptyHole |> DHExp.fresh;
-
-// Hacky way to do transition_multiple on patterns by transferring
-// the cast to the expression and then back to the pattern.
-let pattern_fixup = (p: DHPat.t): DHPat.t => {
-  let rec unwrap_casts = (p: DHPat.t): (DHPat.t, DHExp.t) => {
-    switch (DHPat.term_of(p)) {
-    | Cast(p1, t1, t2) =>
-      let (p1, d1) = unwrap_casts(p1);
-      (
-        p1,
-        {
-          term: Cast(d1, t1, t2),
-          annotation: p.annotation,
-        }
-        |> transition_multiple,
-      );
-    | _ => (p, hole)
-    };
-  };
-  let rec rewrap_casts = ((p: DHPat.t, d: DHExp.t)): DHPat.t => {
-    switch (DHExp.term_of(d)) {
-    | EmptyHole => p
-    | Cast(d1, t1, t2) =>
-      let p1 = rewrap_casts((p, d1));
-      {
-        term: Cast(p1, t1, t2),
-        annotation: d.annotation,
-      };
-    | FailedCast(d1, t1, t2) =>
-      let p1 = rewrap_casts((p, d1));
-      {
-        term:
-          Cast(
-            Cast(p1, t1, Typ.fresh(Unknown(Internal))) |> DHPat.fresh,
-            Typ.fresh(Unknown(Internal)),
-            t2,
-          ),
-        annotation: d.annotation,
-      };
-    | _ => failwith("unexpected term in rewrap_casts")
-    };
-  };
-  p |> unwrap_casts |> rewrap_casts;
 };
