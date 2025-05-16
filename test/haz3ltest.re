@@ -31,12 +31,8 @@ let (suite, _) =
       ),
     ]
     @ Test_Elaboration.tests
-    @ [
-      Test_Coverage.tests,
-      Test_Evaluator.tests,
-      Test_ListUtil.tests,
-      Test_Unboxing.tests,
-    ]
+    @ Test_Evaluator.tests
+    @ [Test_Coverage.tests, Test_ListUtil.tests, Test_Unboxing.tests]
     @ Test_Introduce.tests,
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
