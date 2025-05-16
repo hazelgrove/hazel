@@ -254,16 +254,16 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Var(_), _)
     | (Ap(_), _)
     | (DeferredAp(_), _)
-    | (Deferral(_), _) // TODO Investigate deferrals
-    | (LivelitName(_), _) // TODO Investigate livelits. I think they should just evaluate
-    | (Probe(_, _), _) // TODO Investigate probes
+    | (Deferral(_), _)
+    | (LivelitName(_), _)
+    | (Probe(_, _), _)
     // We _could_ do this, but it would be a bit weird
     | (Let(_), _)
     | (Use(_), _)
     | (BinOp(_), _)
     | (UnOp(_), _)
     | (BuiltinFun(_), _)
-    | (FixF(_), _) // TODO Investigate fixf: I think it should just evaluate
+    | (FixF(_), _)
     | (TypAp(_), _)
     | (Seq(_), _)
     | (Filter(_), _)
@@ -272,7 +272,6 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (ListConcat(_), _)
     | (Match(_), _)
     | (Cast(_), _) =>
-      // TODO Decide if we want to join casts
       None
     // These are handled above and must have the wrong type
     | (Atom(_), _)
