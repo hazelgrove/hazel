@@ -223,7 +223,6 @@ and Editor: {
   module View: {
     let print_string: Model.t => string;
 
-    // TODO[Matt]: This should be the only function in projectors
     let view:
       (
         ~font_metrics: FontMetrics.t,
@@ -250,49 +249,11 @@ and Editor: {
         Model.t
       ) =>
       Web.Node.t;
-    // let all_projectors:
-    //   (
-    //     ~common: ProjectorInterface.common,
-    //     ~inject:
-    //       Action.t(
-    //         ProjectorCore.Kind.t,
-    //         Projector.Model.t,
-    //         Projector.Update.t,
-    //       ) =>
-    //       Ui_effect.t(unit),
-    //     ~make_active: Ui_effect.t(unit),
-    //     list(ProjectorView.Model.projector_data(Projector.Model.t))
-    //   ) =>
-    //   list(Web.Node.t);
-    // let view_any:
-    //   (
-    //     ~settings: CoreSettings.t,
-    //     ~font_metrics: FontMetrics.t,
-    //     ~secondary_icons: bool,
-    //     Any.t
-    //   ) =>
-    //   Web.Node.t;
-    // let mk_projector_model:
-    //   (
-    //     Id.Map.t(Tile.projector(Projector.Model.t)),
-    //     Measured.t,
-    //     list(TileMap.key),
-    //     option((TileMap.key, Direction.t)),
-    //     Haz3lcorep.Statics.Map.t,
-    //     Dynamics.Map.t,
-    //     bool
-    //   ) =>
-    //   list(ProjectorView.Model.projector_data(Projector.Model.t));
   };
 
   // TODO: refactor these helper functions away
 
-  let get_syntax_cache:
-    Model.t => Haz3lcorep.Editor.CachedSyntax.t(Projector.Model.t);
-  let get_projectors: Model.t => Id.Map.t(Base.projector(Projector.Model.t));
   let get_measured: Model.t => Measured.t;
-  let get_selection_ids: Model.t => list(Id.t);
-  let get_indicated: Model.t => option((Id.t, Direction.t));
   let get_tiles: Model.t => TileMap.t(Projector.Model.t);
 } = {
   module Model = {
@@ -459,16 +420,7 @@ and Editor: {
       };
   };
 
-  let get_syntax_cache = (m: Model.t) => m.syntax;
-
-  let get_projectors = (m: Model.t) => m.syntax.projectors;
   let get_measured = (m: Model.t) => m.syntax.measured;
-  let get_selection_ids = (m: Model.t) => m.syntax.selection_ids;
-  let get_indicated = (m: Model.t): option((Id.t, Direction.t)) =>
-    switch (Indicated.piece(m.state.zipper)) {
-    | None => None
-    | Some((p, side, _)) => Some((Piece.id(p), side))
-    };
   let get_tiles = (m: Model.t) => m.syntax.tiles;
 
   module Focus = {
@@ -495,15 +447,6 @@ and Editor: {
         ~split_views=Projector.View.split_views(~common),
         ~mk_status=Projector.View.mk_status,
       );
-
-    // let mk_projector_model =
-    //   ProjectorView.Model.mk(~mk_status=Projector.View.mk_status);
-
-    // let all_projectors = (~common: ProjectorInterface.common) =>
-    //   ProjectorView.all(
-    //     ~split_views=
-    //       Projector.View.split_views(~common: ProjectorInterface.common),
-    //   );
 
     let print_string = (ed: Model.t) =>
       ed.state.zipper
@@ -558,12 +501,6 @@ module Backpack = {
   type t = Backpack.t(Projector.Model.t);
 };
 
-module Base = {
-  include Base;
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type projector = Base.projector(Projector.Model.t);
-};
-
 module Piece = {
   include Piece;
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -576,30 +513,10 @@ module Piece = {
   type projector = Piece.projector(Projector.Model.t);
 };
 
-module ProjectorBase = {
-  include ProjectorBase;
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type info = ProjectorBase.info;
-
-  type external_action = ProjectorBase.external_action;
-};
-
 module Segment = {
   include Segment;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Segment.t(Projector.Model.t);
-};
-
-module Selection = {
-  include Selection;
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Selection.t(Projector.Model.t);
-};
-
-module Tile = {
-  include Tile;
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Tile.t(Projector.Model.t);
 };
 
 module Zipper = {
