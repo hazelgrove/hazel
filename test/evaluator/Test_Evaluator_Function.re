@@ -100,23 +100,38 @@ let tests = (
         ap(Forward, fn(Pat.(var("x")), var("x"), None, None), var("x")),
       )
     ),
-    test_case("Typfun application", `Quick, () =>
-      evaluation_test(
-        "(typfun T -> fun x -> 1)@<Int>(2)",
-        int(1),
-        ap(
-          Forward,
-          typ_ap(
-            typ_fun(
-              TPat.(var("T")),
-              fn(Pat.(var("x")), int(1), None, None),
-              None,
-            ),
-            Typ.int(),
-          ),
+    test_case(
+      "Typfun application",
+      `Quick,
+      () => {
+        evaluation_test(
+          "(typfun T -> fun x : T-> x)@<Int>(2)",
           int(2),
-        ),
-      )
+          ap(
+            Forward,
+            typ_ap(
+              typ_fun(
+                TPat.(var("T")),
+                fn(
+                  Pat.(asc(var("x"), Typ.var("T"))),
+                  var("x"),
+                  None,
+                  None,
+                ),
+                None,
+              ),
+              Typ.int(),
+            ),
+            int(2),
+          ),
+        );
+        parse_and_evaluate_test(
+          {|(1,1)|},
+          {|let dub = typfun T -> fun x : T -> (x, x) : (T, T) in
+          let ascribed = dub : forall a -> a -> (a, a) in
+          ascribed@<Int>(1)|},
+        );
+      },
     ),
   ],
 );
