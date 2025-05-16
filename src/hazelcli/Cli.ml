@@ -41,13 +41,6 @@ let analyze_hazel path =
   (* TODO Use statics to output marks *)
   ()
 
-let generate_test_program () =
-  let arb = QCheck_Util.arb_exp ~minimal_idents:true 35 in
-  let gen = arb.gen in
-  let program = QCheck.Gen.generate1 gen in
-
-  print_endline (Print.print program)
-
 (* Common arg: path or "-" *)
 let input_arg =
   let doc = "Path to Hazel source file, or '-' to read from stdin." in
@@ -69,10 +62,21 @@ let format_cmd =
   let info = Cmd.info "format" ~doc in
   Cmd.v info Term.(const format_hazel $ input_arg)
 
+let generate_test_program size =
+  let arb = QCheck_Util.arb_exp ~minimal_idents:true size in
+  let gen = arb.gen in
+  let program = QCheck.Gen.generate1 gen in
+
+  print_endline (Print.print program)
+
+let size_arg =
+  let doc = "Size of the generated test program." in
+  Arg.(value & opt int 35 & info [ "s"; "size" ] ~docv:"SIZE" ~doc)
+
 let generate_test_program_cmd =
   let doc = "Generate a test program." in
   let info = Cmd.info "generate-test" ~doc in
-  Cmd.v info Term.(app (const generate_test_program) (const ()))
+  Cmd.v info Term.(const generate_test_program $ size_arg)
 
 let _analyze_cmd =
   let doc = "Perform static analysis on Hazel code." in
