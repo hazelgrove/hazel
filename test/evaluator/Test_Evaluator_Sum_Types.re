@@ -67,38 +67,136 @@ let tests = (
         };
       },
     ),
-    skip_current_unboxing_error(
-      "InvalidBoxSumConstructor",
-      "let B : (+B( )) = ? in ?",
+    test_case(
+      "Historical unboxing failures",
+      `Quick,
+      () => {
+        evaluation_test(
+          "Indet when unboxing constructor with payload without payload",
+          let_(
+            Pat.(
+              cast(
+                constructor(
+                  "B",
+                  Some(
+                    Some(
+                      Typ.(
+                        arrow(
+                          unknown(Hole(EmptyHole)),
+                          sum([
+                            Variant(
+                              "B",
+                              [],
+                              Some(unknown(Hole(EmptyHole))),
+                            ),
+                          ]),
+                        )
+                      ),
+                    ),
+                  ),
+                ),
+                Typ.(
+                  sum([Variant("B", [], Some(unknown(Hole(EmptyHole))))])
+                ),
+                Typ.unknown(Internal),
+              )
+            ),
+            empty_hole(),
+            empty_hole(),
+          ),
+          elaborate(parse_exp("let B : (+B(?)) = ? in ?")),
+        );
+        evaluation_test(
+          "Indet when unboxing constructor as list",
+          let_(
+            Pat.list_lit([]),
+            constructor("On", Some(Some(Typ.(list(unknown(SynSwitch)))))), // This type on the constructor can't be right
+            empty_hole(),
+          ),
+          elaborate(parse_exp("type g = + On in let [] = On in")),
+        );
+        evaluation_test(
+          "Indet when unboxing constructor as cons",
+          let_(
+            Pat.(cons(wild(), list_lit([]))),
+            constructor("B", Some(Some(Typ.(list(unknown(SynSwitch)))))), // This type on the constructor can't be right
+            empty_hole(),
+          ),
+          elaborate(parse_exp("let (_:: []) = type y = + B in B in ?")),
+        );
+        evaluation_test(
+          "Indet when unboxing constructor as bool",
+          if_(
+            constructor("B", Some(Some(Typ.bool()))),
+            bool(false),
+            constructor("A", Some(None)),
+          ),
+          elaborate(
+            parse_exp("type y = + B(Float) in if B then false else A"),
+          ),
+        );
+        evaluation_test(
+          "let () = type x = + A in A in ?",
+          let_(
+            Pat.tuple([]),
+            constructor("A", Some(Some(Typ.(prod([]))))),
+            empty_hole(),
+          ),
+          elaborate(parse_exp("let () = type x = + A in A in ?")),
+        );
+        evaluation_test(
+          "type y = + B in case true | a => B end @<?>",
+          typ_ap(
+            constructor(
+              "B",
+              Some(
+                Some(Typ.(forall(TPat.empty_hole(), unknown(SynSwitch)))),
+              ),
+            ),
+            Typ.unknown(Hole(EmptyHole)),
+          ),
+          elaborate(
+            parse_exp("type y = + B in case true | a => B end @<?>"),
+          ),
+        );
+        evaluation_test(
+          "type x = + A(Float) in let A = a in 0",
+          let_(
+            Pat.(
+              constructor(
+                "A",
+                Some(
+                  Some(
+                    Typ.(
+                      arrow(
+                        float(),
+                        sum([Variant("A", [], Some(float()))]),
+                      )
+                    ),
+                  ),
+                ),
+              )
+            ),
+            var("a"),
+            int(0),
+          ),
+          elaborate(parse_exp("type x = + A(Float) in let A = a in 0")),
+        );
+        evaluation_test(
+          {|type y = + A in ""++A|},
+          bin_op(
+            String(Concat),
+            string(""),
+            constructor("A", Some(Some(Typ.string()))),
+          ),
+          elaborate(parse_exp({|type y = + A in ""++A|})),
+        );
+        evaluation_test(
+          "type y = + A in -A",
+          un_op(Int(Minus), constructor("A", Some(Some(Typ.int())))),
+          elaborate(parse_exp("type y = + A in -A")),
+        );
+      },
     ),
-    skip_current_unboxing_error(
-      "InvalidBoxedListLit",
-      "type g = + On in let [] = On in",
-    ),
-    skip_current_unboxing_error(
-      "InvalidBoxedListCons",
-      "let (_:: []) = type y = + B in B in ?",
-    ),
-    skip_current_unboxing_error(
-      "InvalidBoxedBoolLit",
-      "type y = + B(Float) in if B then false else A",
-    ),
-    skip_current_unboxing_error(
-      "InvalidBoxedTuple",
-      "let () = type x = + A in A in ?",
-    ),
-    skip_current_unboxing_error(
-      "InvalidBoxedTypfun",
-      "type y = + B in case true  | a => B end @<?> ",
-    ),
-    skip_current_unboxing_error(
-      "InvalidBoxedSumConstructor",
-      "type x = + A(Float) in let A = a in 0",
-    ),
-    skip_current_unboxing_error(
-      "InvalidBoxedStringLit",
-      {|type y = + A in ""++A|},
-    ),
-    skip_current_unboxing_error("InvalidBoxedIntLit", "type y = + A in -A"),
   ],
 );
