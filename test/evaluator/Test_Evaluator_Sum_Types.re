@@ -27,6 +27,37 @@ let tests = (
         elaborate(parse_exp({|A :(+A +B +C)|})),
       )
     }),
+    test_case("Constructors can pass through consistent casts", `Quick, () => {
+      evaluation_test(
+        {|A : (+A +B) : (+A + ?)|},
+        constructor(
+          "A",
+          Some(
+            Some(
+              Typ.(sum([Variant("A", [], None), Variant("B", [], None)])),
+            ),
+          ),
+        ),
+        elaborate(parse_exp({|A : (+A +B) : (+A + ?)|})),
+      )
+    }),
+    test_case("Constructors don't pass through inconsistent casts", `Quick, () => {
+      evaluation_test(
+        {|A : (+A +B) : (+A +C)|},
+        asc(
+          constructor(
+            "A",
+            Some(
+              Some(
+                Typ.(sum([Variant("A", [], None), Variant("B", [], None)])),
+              ),
+            ),
+          ),
+          Typ.(sum([Variant("A", [], None), Variant("C", [], None)])),
+        ),
+        elaborate(parse_exp({|A : (+A +B) : (+A +C)|})),
+      )
+    }),
     test_case(
       "Invalid constructor match",
       `Quick,
