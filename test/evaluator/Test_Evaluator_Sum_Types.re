@@ -1,25 +1,8 @@
 open Alcotest;
 open Haz3lcore;
 open Test_Evaluator_Prelude;
-module PGrammar =
-  Grammar.Factory({
-    type t = list(Grammar.exp_t(unit));
-    let default_value = (): list(Grammar.exp_t(unit)) => [];
-  });
-
 open IdTagged.FreshGrammar;
 open Exp;
-
-let skip_current_unboxing_error = (err: string, expression: string) =>
-  test_case(err ++ " (Unboxing Error)", `Quick, () => {
-    [@warning "-21"]
-    {
-      // Currently fails https://github.com/hazelgrove/hazel/issues/1588
-      Alcotest.skip();
-      let exp = parse_and_evaluate(expression);
-      check(pass, err, exp, exp);
-    }
-  });
 
 let tests = (
   "Evaluator Sum Types",

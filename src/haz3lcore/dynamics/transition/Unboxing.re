@@ -181,7 +181,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       ) =>
       switch (request) {
       | TupLabel(_)
-      | Atom(Bool) 
+      | Atom(Bool)
       | Atom(SInt)
       | Atom(Int)
       | Atom(Float)

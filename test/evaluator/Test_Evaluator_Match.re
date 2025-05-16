@@ -1,12 +1,6 @@
 open Alcotest;
 open Haz3lcore;
 open Test_Evaluator_Prelude;
-module PGrammar =
-  Grammar.Factory({
-    type t = list(Grammar.exp_t(unit));
-    let default_value = (): list(Grammar.exp_t(unit)) => [];
-  });
-
 open IdTagged.FreshGrammar;
 open Exp;
 

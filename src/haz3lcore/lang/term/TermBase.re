@@ -874,8 +874,6 @@ and Rul: {
     | (Rules(_), _) => false
     };
   let equal = fast_equal;
-
-  let pp = pp;
 }
 
 and Environment: {
