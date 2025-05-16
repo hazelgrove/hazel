@@ -205,7 +205,6 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         |> DHExp.fresh,
       );
     | (If(e, e1, e2), t) =>
-      // Should we do this or leave it if it isn't a value
       Some(
         If(
           recur(
