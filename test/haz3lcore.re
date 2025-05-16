@@ -32,11 +32,13 @@ module Editor = {
 
 module MakeTerm = {
   include MakeTerm;
-
-  let parse_exp = s =>
-    s |> parse_exp(~of_projector) |> Option.bind(_, Any.is_exp);
   let from_zip_for_sem = from_zip_for_sem(~of_projector);
 };
+
+module Parse = {
+  include Parse;
+  let parse_exp = parse_exp(~of_projector);
+}
 
 module Segment = {
   include Segment;

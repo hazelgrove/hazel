@@ -103,7 +103,7 @@ module CachedSyntax = {
 };
 
 module State = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t('p) = {
     zipper: Zipper.t('p),
     col_target: option(int),
@@ -111,10 +111,10 @@ module State = {
 };
 
 module History = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type affix('p_k, 'p, 'p_a) =
     list((Action.t('p_k, 'p, 'p_a), State.t('p)));
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t('p_k, 'p, 'p_a) = (affix('p_k, 'p, 'p_a), affix('p_k, 'p, 'p_a));
 
   let empty = ([], []);

@@ -117,6 +117,18 @@ let var_exps = (x: string): group => {
   forms: [var_exp(x)],
 };
 
+let livelit_name_exp = (n: string): form => {
+  id: LivelitName,
+  syntactic_form: ["^" ++ n |> abbreviate |> exp],
+  expandable_id: None,
+  explanation: "Expands to some value, and when projected, creates an interactable GUI widget.",
+  examples: [],
+};
+let livelit_name_exps = (x: string): group => {
+  id: LivelitName,
+  forms: [livelit_name_exp(x)],
+};
+
 let ctr_exp = (c: string): form => {
   id: CtrExp,
   syntactic_form: [c |> abbreviate |> exp],

@@ -42,12 +42,21 @@ module Kind = {
           );
   // | SliderF: gadt(SliderFProj.model('ed), SliderFProj.action, 'ed)
   // | Card: gadt(CardProj.model('ed), CardProj.action, 'ed)
+  // | Livelit
+  //     : gadt(
+  //         LivelitProj.model('ed),
+  //         LivelitProj.action('ed_a),
+  //         LivelitProj.focus('ed_f),
+  //         'ed,
+  //         'ed_a,
+  //         'ed_f,
+  //       )
   // | TextArea: gadt(TextAreaProj.model('ed), TextAreaProj.action, 'ed);
 
   /* The different kinds of projector. New projector
    * types need to be registered here in order to be
    * able to create and update their instances */
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t =
     // | Fold
     | Info
@@ -57,6 +66,7 @@ module Kind = {
     | Slider;
   // | SliderF
   // | Card
+  // | Livelit;
   // | TextArea;
 
   let gadt_eq =
@@ -120,6 +130,7 @@ module Kind = {
     // | Probe => f(W(Probe))
     // | Checkbox => f(W(Checkbox))
     | Slider => f(W(Slider))
+    // | Livelit => f(W(Livelit))
     // | SliderF => f(W(SliderF))
     // | Card => f(W(Card))
     // | TextArea => f(W(TextArea))
@@ -132,6 +143,7 @@ module Kind = {
     // SliderF,
     // TextArea,
     // Card,
+    // Livelit,
   ];
 
   let projectors: list(t) =

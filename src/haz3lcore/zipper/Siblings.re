@@ -1,6 +1,6 @@
 open Util;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t('p) = (Segment.t('p), Segment.t('p));
 
 let empty = Segment.(empty, empty);

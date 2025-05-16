@@ -110,3 +110,9 @@ let zipper_of_string =
    nuclear option for weird backpack states */
 let reparse = z =>
   zipper_of_string(~zipper_init=Zipper.init(), zipper_to_string(z));
+
+let parse_exp = (~of_projector, s: string) => {
+  open OptUtil.Syntax;
+  let+ zip = zipper_of_string(s);
+  MakeTerm.from_zip_for_sem(~of_projector, zip).term;
+};

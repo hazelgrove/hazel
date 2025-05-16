@@ -206,7 +206,7 @@ module ShardInfo = {
   };
 };
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t('p) = list(Selection.t('p));
 
 let empty = [];

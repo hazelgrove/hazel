@@ -3,6 +3,23 @@
   // open Virtual_dom.Vdom;
   // open Node;
   // open Js_of_ocaml;
+  // let rec of_segment = (~holes: option(string), seg: Segment.t): string =>
+  //   seg |> List.map(of_piece(~holes)) |> String.concat("")
+  // and of_piece = (~holes, p: Piece.t): string =>
+  //   switch (p) {
+  //   | Tile(t) => of_tile(~holes, t)
+  //   | Grout({shape: Concave, _}) => " "
+  //   | Grout({shape: Convex, _}) when holes != None => Option.get(holes)
+  //   | Grout({shape: Convex, _}) => " "
+  //   | Secondary(w) =>
+  //     Secondary.is_linebreak(w) ? "\n" : Secondary.get_string(w.content)
+  //   | Projector(p) => of_segment(~holes, Piece.unparenthesize(p.syntax))
+  //   }
+  // and of_tile = (~holes, t: Tile.t): string =>
+  //   Aba.mk(t.shards, t.children)
+  //   |> Aba.join(of_delim(t), of_segment(~holes))
+  //   |> String.concat("")
+  // and of_delim = (t: Piece.tile, i: int): string => List.nth(t.label, i);
   // [@deriving (show({with_path: false}), sexp, yojson)]
   // type closure = Dynamics.Probe.Closure.t;
   // [@deriving (show({with_path: false}), sexp, yojson)]
@@ -377,7 +394,7 @@
   //   abbr_exp;
   // };
   // let len_seg = (seg: Segment.t('p)): int =>
-  //   seg |> Printer.of_segment(~holes=Some("?")) |> String.length;
+  //   seg |> of_segment(~holes=Some("?")) |> String.length;
   // let seg_of_exp = (utility: utility('p), exp: Exp.t): (Segment.t('p), int) => {
   //   let seg = utility.term_to_seg(Exp(exp));
   //   (seg, len_seg(seg));
@@ -609,7 +626,7 @@
   //     (seg: Segment.t(p)) => {
   //       let max_len = 30;
   //       let seg = Segment.unparenthesize(seg);
-  //       let str = Printer.of_segment(~holes=Some("?"), seg);
+  //       let str = of_segment(~holes=Some("?"), seg);
   //       let str = Re.Str.global_replace(Re.Str.regexp("\n"), " ", str);
   //       String.length(str) > max_len
   //         ? String.sub(str, 0, max_len) ++ "..." : str;

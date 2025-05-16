@@ -1,6 +1,6 @@
 include Base;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t('p) = piece('p);
 
 let secondary = w => Secondary(w);
@@ -152,6 +152,30 @@ let is_complete: t('p) => bool =
   fun
   | Tile(t) => Tile.is_complete(t)
   | _ => true;
+
+let replace_id = (id: Id.t, p: t('p)): t('p) =>
+  switch (p) {
+  | Tile(t) =>
+    Tile({
+      ...t,
+      id,
+    })
+  | Grout(g) =>
+    Grout({
+      ...g,
+      id,
+    })
+  | Secondary(w) =>
+    Secondary({
+      ...w,
+      id,
+    })
+  | Projector(p) =>
+    Projector({
+      ...p,
+      id,
+    })
+  };
 
 let mk_tile: (Form.t, list(list(t('p)))) => t('p) =
   (form, children) =>

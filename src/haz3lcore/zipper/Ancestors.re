@@ -1,9 +1,9 @@
 open Util;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type generation('p) = (Ancestor.t('p), Siblings.t('p));
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t('p) = list(generation('p));
 
 let empty = [];
