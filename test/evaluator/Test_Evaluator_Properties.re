@@ -32,16 +32,6 @@ let qcheck_evaluator_does_not_crash_test =
               ) =>
           print_endline("Skipping failure: " ++ msg);
           true;
-        // https://github.com/hazelgrove/hazel/issues/1588 unboxing errors
-        | EvaluatorError.Exception(InvalidBoxedListLit(_))
-        | EvaluatorError.Exception(InvalidBoxedBoolLit(_))
-        | EvaluatorError.Exception(InvalidBoxedListCons(_))
-        | EvaluatorError.Exception(InvalidBoxedTuple(_))
-        | EvaluatorError.Exception(InvalidBoxedSumConstructor(_))
-        | EvaluatorError.Exception(InvalidBoxedFloatLit(_))
-        | EvaluatorError.Exception(InvalidBoxedIntLit(_))
-        | EvaluatorError.Exception(InvalidBoxedStringLit(_))
-        | EvaluatorError.Exception(InvalidBoxedTypFun(_)) => true
         | _ => raise(e)
         }
       }
