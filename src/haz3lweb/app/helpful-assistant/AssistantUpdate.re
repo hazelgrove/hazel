@@ -9,11 +9,12 @@ module CodeModel = CodeEditable.Model;
 
 module Model = AssistantModel;
 
+// Actions to send various kinds of messages to the LLM
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t =
-  | SendTextMessage(Model.message)
-  | SendSketchMessage(Id.t, AssistantSettings.mode, bool)
-  | SendErrorMessage(
+type send_message =
+  | Basic(Model.message)
+  | Sketch(Id.t, AssistantSettings.mode, bool)
+  | ErrorRound(
       string,
       Zipper.t,
       Info.t,
@@ -22,7 +23,13 @@ type t =
       AssistantSettings.mode,
       Id.t,
     )
-  | ErrorRespond(
+  | System(string, AssistantSettings.mode, Id.t);
+
+// Actions to handle certain kinds of LLM responses
+[@deriving (show({with_path: false}), sexp, yojson)]
+type handle_response =
+  | Basic(Model.message, AssistantSettings.mode, Id.t)
+  | ErrorRound(
       string,
       Zipper.t,
       Info.t,
@@ -30,17 +37,31 @@ type t =
       Id.t,
       AssistantSettings.mode,
       Id.t,
-    )
-  | Respond(Model.message, AssistantSettings.mode, Id.t)
-  | SendSystemMessage(string, AssistantSettings.mode, Id.t)
-  | NewChat
-  | DeleteChat(Id.t)
-  | ToggleCollapse(int)
+    );
+
+// Actions which actualize actions via LLM responses
+[@deriving (show({with_path: false}), sexp, yojson)]
+type employ_llm_action =
   | RemoveAndSuggest(string, Id.t)
   | Resuggest(string, Id.t)
-  | Describe(string, AssistantSettings.mode, Id.t)
+  | Describe(string, AssistantSettings.mode, Id.t);
+
+// Future Todo: (Check whether) These might be able to be relocated to AssistantSettings
+// Actions that are related to the chat history and/or display of chat messages
+[@deriving (show({with_path: false}), sexp, yojson)]
+type chat_action =
+  | NewChat
+  | DeleteChat(Id.t)
   | SwitchChat(Id.t)
+  | CollapseMessage(int)
   | FilterLoadingMessages;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type t =
+  | SendMessage(send_message)
+  | HandleResponse(handle_response)
+  | EmployLLMAction(employ_llm_action)
+  | ChatAction(chat_action);
 
 let code_message_of_str =
     (response: string, party: Model.party, tileId: option(Id.t))
@@ -304,7 +325,7 @@ let form_descriptor =
     OpenRouter.start_chat(~params, ~key, prompt', req =>
       switch (OpenRouter.handle_chat(req)) {
       | Some(Reply({content, _})) =>
-        schedule_action(Describe(content, mode, chat.id))
+        schedule_action(EmployLLMAction(Describe(content, mode, chat.id)))
       | Some(Error(_)) => () // Don't need to handle error since we have "New Chat" descriptor as failsafe
       | None =>
         print_endline("Assistant: response parse failed (form_descriptor)")
@@ -354,20 +375,24 @@ let check_req =
         let tileId = Option.get(Indicated.index(z));
         let advanced_reasoning = false;
         schedule_action(
-          SendSketchMessage(
-            tileId,
-            AssistantSettings.CodeSuggestion,
-            advanced_reasoning,
+          SendMessage(
+            Sketch(
+              tileId,
+              AssistantSettings.CodeSuggestion,
+              advanced_reasoning,
+            ),
           ),
         );
       | "?a" =>
         let tileId = Option.get(Indicated.index(z));
         let advanced_reasoning = true;
         schedule_action(
-          SendSketchMessage(
-            tileId,
-            AssistantSettings.CodeSuggestion,
-            advanced_reasoning,
+          SendMessage(
+            Sketch(
+              tileId,
+              AssistantSettings.CodeSuggestion,
+              advanced_reasoning,
+            ),
           ),
         );
       | _ => ()
@@ -382,20 +407,24 @@ let check_req =
         let tileId = Option.get(Indicated.index(z));
         let advanced_reasoning = false;
         schedule_action(
-          SendSketchMessage(
-            tileId,
-            AssistantSettings.CodeSuggestion,
-            advanced_reasoning,
+          SendMessage(
+            Sketch(
+              tileId,
+              AssistantSettings.CodeSuggestion,
+              advanced_reasoning,
+            ),
           ),
         );
       | "?a" =>
         let tileId = Option.get(Indicated.index(z));
         let advanced_reasoning = true;
         schedule_action(
-          SendSketchMessage(
-            tileId,
-            AssistantSettings.CodeSuggestion,
-            advanced_reasoning,
+          SendMessage(
+            Sketch(
+              tileId,
+              AssistantSettings.CodeSuggestion,
+              advanced_reasoning,
+            ),
           ),
         );
       | _ => ()
@@ -492,14 +521,18 @@ let mk_LLM_call =
       switch (OpenRouter.handle_chat(req)) {
       | Some(Reply({content, _})) =>
         schedule_action(
-          Respond(text_message_of_str(content, LLM), mode, curr_chat.id),
+          HandleResponse(
+            Basic(text_message_of_str(content, LLM), mode, curr_chat.id),
+          ),
         )
       | Some(Error({message, code})) =>
         schedule_action(
-          SendSystemMessage(
-            "Error: " ++ message ++ " (code: " ++ string_of_int(code) ++ ")",
-            mode,
-            curr_chat.id,
+          SendMessage(
+            System(
+              "Error: " ++ message ++ " (code: " ++ string_of_int(code) ++ ")",
+              mode,
+              curr_chat.id,
+            ),
           ),
         )
       | None =>
@@ -641,463 +674,89 @@ let update =
     )
     : Updated.t(Model.t) => {
   switch (action) {
-  | SendTextMessage(message) =>
-    // Notes: The following could certainly be improved. The prompt_with_user_message
-    //        is separate from the prompt_with_chat as we feed the latter as input to the LLM
-    //        and the former is what is saved to the chat history (and (if needed) collected
-    //        in prompt_with_chats in later SendTextMessage calls).
-    let mode = settings.assistant.mode;
-    // Capture the entire chat to give historical context to LLM
-    let (_, curr_chat) = get_mode_info(mode, model);
-    // Gathers info/prompt given the mode
-    let prompt =
-      mk_mode_prompt(~settings=settings.assistant, ~model, ~editor);
-    // The user message input itself. This is the message that the user typed.
-    let user_message = "USER MESSAGE/REQUEST: " ++ message.content;
-    // The prompt concatenated with the user message
-    let prompt_with_user_message = prompt ++ "\n\n" ++ user_message;
-    // Collects the chat history, including our new message.
-    let prompt_with_chat =
-      collect_chat(
-        ~messages=
-          curr_chat.messages
-          @ [text_message_of_str(prompt_with_user_message, LLM)],
-      );
-    switch (standardize_prompt(prompt_with_chat)) {
-    | None => failed_prompt_generation(~mode, ~model, ~curr_chat)
-    | Some(prompt) =>
-      mk_LLM_call(
-        ~model,
-        ~curr_chat,
-        ~prompt,
-        ~message=text_message_of_str(prompt_with_user_message, LS),
-        ~mode,
-        ~schedule_action,
-      )
-    };
-  | SendSketchMessage(tileId, mode, advanced_reasoning) =>
-    // Capture the chat we're updating
-    let (_, curr_chat) = get_mode_info(mode, model);
-    let sketch_seg =
-      Zipper.smart_seg(
-        ~dump_backpack=true,
-        ~erase_buffer=true,
-        editor.editor.state.zipper,
-      );
-    let tag = String.sub(Id.to_string(tileId), 0, 3);
-    switch (
-      {
-        let* sketch_z_with_tag =
-          Perform.paste(editor.editor.state.zipper, tag);
-        let sketch_seg =
-          Zipper.smart_seg(
-            ~dump_backpack=true,
-            ~erase_buffer=true,
-            sketch_z_with_tag,
-          );
-        let* index = Indicated.index(editor.editor.state.zipper);
-        let+ ci = Id.Map.find_opt(index, editor.statics.info_map);
-        ChatLSP.Completion.prompt(
-          ChatLSP.Options.init,
-          ci,
-          sketch_seg,
-          (advanced_reasoning ? "?a" : "??") ++ tag,
-          advanced_reasoning,
-        );
-      }
-    ) {
-    | None =>
-      print_endline("prompt generation failed");
-      model |> Updated.return_quiet;
-    | Some(openrouter_prompt) =>
-      let messages =
-        List.map(
-          (msg: OpenRouter.message): string => {msg.content},
-          openrouter_prompt,
-        );
-      let prompt = String.concat("\n", messages);
-      let message: Model.message = {
-        party: LS,
-        code: Some((sketch_seg, None)),
-        content: prompt,
-        collapsed: String.length(prompt) >= 200,
-      };
-      switch (Store.Generic.load("API"), Store.Generic.load("MODEL")) {
-      | (Some(key), Some(model_id)) =>
-        let params: OpenRouter.params = {
-          model_id,
-          temperature: 1.0,
-          top_p: 1.0,
-        };
-        OpenRouter.start_chat(~params, ~key, openrouter_prompt, req =>
-          switch (OpenRouter.handle_chat(req)) {
-          | Some(Reply({content, _})) =>
-            let index =
-              Option.get(Indicated.index(editor.editor.state.zipper));
-            let ci =
-              Option.get(Id.Map.find_opt(index, editor.statics.info_map));
-            schedule_action(
-              ErrorRespond(
-                content,
-                editor.editor.state.zipper,
-                ci,
-                ChatLSP.Options.init.error_rounds_max,
-                tileId,
-                mode,
-                curr_chat.id,
-              ),
-            );
-          | Some(Error({message, code})) =>
-            schedule_action(
-              SendSystemMessage(
-                "Error: "
-                ++ message
-                ++ " (code: "
-                ++ string_of_int(code)
-                ++ ")",
-                mode,
-                curr_chat.id,
-              ),
-            )
-          | None =>
-            print_endline("Non-error but None");
-            print_endline(
-              "Assistant: response parse failed (SendSketchMessage)",
-            );
-          }
-        );
-        add_message_to_model(
-          mode,
-          model,
-          message,
-          curr_chat.id,
-          ~is_final=true,
-        )
-        |> Updated.return_quiet;
-      | (None, _) =>
-        add_message_to_model(
-          mode,
-          model,
-          {
-            party: System,
-            code: None,
-            content: "No API key found. Please set an API key in the assistant settings.",
-            collapsed: false,
-          },
-          curr_chat.id,
-          ~is_final=true,
-        )
-        |> Updated.return_quiet
-      | (_, None) =>
-        add_message_to_model(
-          mode,
-          model,
-          {
-            party: System,
-            code: None,
-            content: "No API key or model ID found. Please set an API key and model ID in the assistant settings.",
-            collapsed: false,
-          },
-          curr_chat.id,
-          ~is_final=true,
-        )
-        |> Updated.return_quiet
-      };
-    };
-  | NewChat =>
-    let mode = settings.assistant.mode;
-    let (past_chats, _) = get_mode_info(mode, model);
-    let new_chat: Model.chat = {
-      messages: [],
-      id: Id.mk(),
-      descriptor: "",
-      timestamp: JsUtil.timestamp(),
-    };
-    let updated_history = Model.add_chat_to_history(new_chat, past_chats);
-    resculpt_model(mode, model, updated_history, new_chat.id)
-    |> Updated.return_quiet;
-  | DeleteChat(chat_to_be_gone_id) =>
-    let mode = settings.assistant.mode;
-    // Filter out the chat we're deleting
-    let (past_chats, curr_chat) = get_mode_info(mode, model);
-    let filtered_past_chats =
-      Id.Map.filter((id, _) => id != chat_to_be_gone_id, past_chats);
-    let chrono_history = Model.sorted_chats(filtered_past_chats);
-    let updated_model =
-      curr_chat.id == chat_to_be_gone_id
-        ? switch (ListUtil.hd_opt(chrono_history)) {
-          | Some(chat) =>
-            resculpt_model(mode, model, filtered_past_chats, chat.id)
-          | None => resculpt_model(mode, model, past_chats, curr_chat.id)
-          }
-        : resculpt_model(mode, model, filtered_past_chats, curr_chat.id);
-    updated_model |> Updated.return_quiet;
-  | Respond(message, mode, chat_id) =>
-    let response = message.content;
-    if (mode == HazelTutor || mode == CodeSuggestion) {
-      let code_pattern =
-        Str.regexp(
-          "\\(\\(.\\|\n\\)*\\)```[ \n]*\\([^`]+\\)[ \n]*```\\(\\(.\\|\n\\)*\\)",
-        );
-      let (discussion, code_example) =
-        if (Str.string_match(code_pattern, response, 0)) {
-          let before = String.trim(Str.matched_group(1, response));
-          let code = String.trim(Str.matched_group(3, response));
-          (before, code |> StringUtil.trim_leading);
-        } else {
-          print_endline("Regex match failed for: " ++ response);
-          (response |> StringUtil.trim_leading, "");
-        };
-      let discussion_message = text_message_of_str(discussion, LLM);
-      if (code_example == "") {
-        check_descriptor(
-          ~model,
-          ~schedule_action,
-          ~message=discussion_message,
-          ~mode,
-          ~chat_id,
-        );
-        add_message_to_model(
-          mode,
-          model,
-          discussion_message,
-          chat_id,
-          ~is_final=true,
-        )
-        |> Updated.return_quiet;
-      } else {
-        let model_with_discussion =
-          add_message_to_model(
-            mode,
-            model,
-            discussion_message,
-            chat_id,
-            ~is_final=false,
-          );
-        // Then handle the completion as before
-        let message_with_example =
-          code_message_of_str(code_example, LLM, None);
-        check_descriptor(
-          ~model,
-          ~schedule_action,
-          ~message=message_with_example,
-          ~mode,
-          ~chat_id,
-        );
-        add_message_to_model(
-          mode,
-          model_with_discussion,
-          message_with_example,
-          chat_id,
-          ~is_final=true,
-        )
-        |> Updated.return_quiet;
-      };
-    } else {
-      let tool_calls = collect_tool_calls(response);
-      List.iter(
-        (tool_call: string) => {print_endline("Tool call: " ++ tool_call)},
-        tool_calls,
-      );
-
-      let rec process_tool_calls = (calls: list(string)) => {
-        switch (calls) {
-        | [] =>
-          schedule_action(
-            SendTextMessage(
-              text_message_of_str(
-                "SYSTEM: After your most recent edits, here is the current state of the code.",
-                LS,
-              ),
-            ),
-          )
-        | [tool_call, ...rest] =>
-          let parsed_response =
-            switch (String.index_opt(tool_call, ' ')) {
-            | Some(idx) => [
-                String.sub(tool_call, 0, idx),
-                String.sub(
-                  tool_call,
-                  idx + 1,
-                  String.length(tool_call) - idx - 1,
-                ),
-              ]
-            | None => [tool_call]
-            };
-          let tool_call = List.hd(parsed_response);
-          let arg =
-            List.length(parsed_response) > 1
-              ? Some(List.hd(List.tl(parsed_response))) : None;
-
-          switch (tool_call) {
-          | "goto_definition" =>
-            goto(editor, Option.get(arg), ChatLSP.Composition.Definition);
-            process_tool_calls(rest);
-          | "goto_body" =>
-            goto(editor, Option.get(arg), ChatLSP.Composition.Body);
-            process_tool_calls(rest);
-          | "edit" =>
-            edit(Option.get(arg), ChatLSP.Composition.Current);
-            process_tool_calls(rest);
-          | "insert_before" =>
-            edit(Option.get(arg), ChatLSP.Composition.Before);
-            process_tool_calls(rest);
-          | "insert_after" =>
-            edit(Option.get(arg), ChatLSP.Composition.After);
-            process_tool_calls(rest);
-          | "delete" =>
-            edit("", ChatLSP.Composition.Current);
-            process_tool_calls(rest);
-          | "view_sketch" => process_tool_calls(rest)
-          | "submit" => ()
-          | _ =>
-            schedule_action(
-              SendSystemMessage(
-                "Unknown tool call: " ++ tool_call,
-                mode,
-                chat_id,
-              ),
-            )
-          };
-        };
-      };
-
-      process_tool_calls(tool_calls);
-
-      print_endline("Adding message to model");
-      add_message_to_model(mode, model, message, chat_id, ~is_final=true)
-      |> Updated.return_quiet;
-    };
-  | ErrorRespond(response, sketch_z, ci, fuel, tileId, mode, chat_id) =>
-    // Split response into discussion and completion
-    let code_pattern =
-      Str.regexp(
-        "\\(\\(.\\|\n\\)*\\)```[ \n]*\\([^`]+\\)[ \n]*```\\(\\(.\\|\n\\)*\\)",
-      );
-    let (discussion, completion) =
-      if (Str.string_match(code_pattern, response, 0)) {
-        let before = String.trim(Str.matched_group(1, response));
-        let code = String.trim(Str.matched_group(3, response));
-        (before, code |> StringUtil.trim_leading);
-      } else {
-        print_endline("Regex match failed for: " ++ response);
-        ("", response |> StringUtil.trim_leading); // Fallback if no code block found
-      };
-    print_endline("Response: " ++ response);
-    print_endline("Discussion: " ++ discussion);
-    print_endline("Completion: " ++ completion);
-    // First add the discussion message
-    let discussion_message =
-      if (discussion === "") {
-        text_message_of_str(
-          "The model did not return a discussion for this completion.",
-          LLM,
-        );
-      } else {
-        text_message_of_str(discussion, LLM);
-      };
-    let model_with_discussion =
-      add_message_to_model(
-        mode,
-        model,
-        discussion_message,
-        chat_id,
-        ~is_final=false,
-      );
-
-    // Then handle the completion as before
-    let completion_message =
-      code_message_of_str(completion, LLM, Some(tileId));
-    check_descriptor(
-      ~model,
-      ~schedule_action,
-      ~message=completion_message,
-      ~mode,
-      ~chat_id,
-    );
-    switch (ChatLSP.ErrorRound.mk_reply(ci, sketch_z, completion)) {
-    | None =>
-      print_endline("ERROR ROUNDS (Non-error Response): " ++ completion);
-      schedule_action(RemoveAndSuggest(completion, tileId));
-    | Some(error) =>
-      print_endline("ERROR ROUNDS (Error): " ++ error);
-      print_endline("ERROR ROUNDS (Error-causing Response): " ++ completion);
-      schedule_action(
-        SendErrorMessage(
-          error,
-          sketch_z,
-          ci,
-          fuel - 1,
-          tileId,
-          mode,
-          chat_id,
-        ),
-      );
-    };
-    add_message_to_model(
-      mode,
-      model_with_discussion,
-      completion_message,
-      chat_id,
-      ~is_final=true,
-    )
-    |> Updated.return_quiet;
-  | SendErrorMessage(error, sketch_z, ci, fuel, tileId, mode, chat_id) =>
-    let error_message =
-      text_message_of_str(
-        "Your previous response caused the following error. Please fix it in your response: "
-        ++ error,
-        LS,
-      );
-    // check that fuel is not 0
-    if (fuel < 0) {
-      let model =
-        add_message_to_model(
-          mode,
-          model,
-          error_message,
-          chat_id,
-          ~is_final=true,
-        );
-      add_message_to_model(
-        mode,
-        model,
-        {
-          party: System,
-          code: None,
-          content:
-            "By default we stop the assistant after "
-            ++ string_of_int(ChatLSP.Options.init.error_rounds_max)
-            ++ " error rounds. Thus, stopping.",
-          collapsed: false,
-        },
-        chat_id,
-        ~is_final=true,
-      )
-      |> Updated.return_quiet;
-    } else {
-      // TODO: We don't want to collect ENTIRE chat history here. We only want
-      //       to collect the history beginning from the initial suggestion request.
-      //       Otherwise, the prompt becomes too long in single message threads.
+  | SendMessage(kind) =>
+    switch (kind) {
+    | Basic(message) =>
+      // Notes: The following could certainly be improved. The prompt_with_user_message
+      //        is separate from the prompt_with_chat as we feed the latter as input to the LLM
+      //        and the former is what is saved to the chat history (and (if needed) collected
+      //        in prompt_with_chats in later SendTextMessage calls).
+      let mode = settings.assistant.mode;
+      // Capture the entire chat to give historical context to LLM
       let (_, curr_chat) = get_mode_info(mode, model);
-      let collected_chat =
-        collect_chat(~messages=curr_chat.messages @ [error_message]);
-      switch (standardize_prompt(collected_chat)) {
-      | None =>
-        add_message_to_model(
-          mode,
-          model,
-          {
-            party: System,
-            code: None,
-            content: "Prompt generation failed.",
-            collapsed: false,
-          },
-          chat_id,
-          ~is_final=true,
+      // Gathers info/prompt given the mode
+      let prompt =
+        mk_mode_prompt(~settings=settings.assistant, ~model, ~editor);
+      // The user message input itself. This is the message that the user typed.
+      let user_message = "USER MESSAGE/REQUEST: " ++ message.content;
+      // The prompt concatenated with the user message
+      let prompt_with_user_message = prompt ++ "\n\n" ++ user_message;
+      // Collects the chat history, including our new message.
+      let prompt_with_chat =
+        collect_chat(
+          ~messages=
+            curr_chat.messages
+            @ [text_message_of_str(prompt_with_user_message, LLM)],
+        );
+      switch (standardize_prompt(prompt_with_chat)) {
+      | None => failed_prompt_generation(~mode, ~model, ~curr_chat)
+      | Some(prompt) =>
+        mk_LLM_call(
+          ~model,
+          ~curr_chat,
+          ~prompt,
+          ~message=text_message_of_str(prompt_with_user_message, LS),
+          ~mode,
+          ~schedule_action,
         )
-        |> Updated.return_quiet
+      };
+    | Sketch(tileId, mode, advanced_reasoning) =>
+      // Capture the chat we're updating
+      let (_, curr_chat) = get_mode_info(mode, model);
+      let sketch_seg =
+        Zipper.smart_seg(
+          ~dump_backpack=true,
+          ~erase_buffer=true,
+          editor.editor.state.zipper,
+        );
+      let tag = String.sub(Id.to_string(tileId), 0, 3);
+      switch (
+        {
+          let* sketch_z_with_tag =
+            Perform.paste(editor.editor.state.zipper, tag);
+          let sketch_seg =
+            Zipper.smart_seg(
+              ~dump_backpack=true,
+              ~erase_buffer=true,
+              sketch_z_with_tag,
+            );
+          let* index = Indicated.index(editor.editor.state.zipper);
+          let+ ci = Id.Map.find_opt(index, editor.statics.info_map);
+          ChatLSP.Completion.prompt(
+            ChatLSP.Options.init,
+            ci,
+            sketch_seg,
+            (advanced_reasoning ? "?a" : "??") ++ tag,
+            advanced_reasoning,
+          );
+        }
+      ) {
+      | None =>
+        print_endline("prompt generation failed");
+        model |> Updated.return_quiet;
       | Some(openrouter_prompt) =>
+        let messages =
+          List.map(
+            (msg: OpenRouter.message): string => {msg.content},
+            openrouter_prompt,
+          );
+        let prompt = String.concat("\n", messages);
+        let message: Model.message = {
+          party: LS,
+          code: Some((sketch_seg, None)),
+          content: prompt,
+          collapsed: String.length(prompt) >= 200,
+        };
         switch (Store.Generic.load("API"), Store.Generic.load("MODEL")) {
         | (Some(key), Some(model_id)) =>
           let params: OpenRouter.params = {
@@ -1108,57 +767,52 @@ let update =
           OpenRouter.start_chat(~params, ~key, openrouter_prompt, req =>
             switch (OpenRouter.handle_chat(req)) {
             | Some(Reply({content, _})) =>
+              let index =
+                Option.get(Indicated.index(editor.editor.state.zipper));
+              let ci =
+                Option.get(Id.Map.find_opt(index, editor.statics.info_map));
               schedule_action(
-                ErrorRespond(
-                  content,
-                  sketch_z,
-                  ci,
-                  fuel,
-                  tileId,
-                  mode,
-                  curr_chat.id,
+                HandleResponse(
+                  ErrorRound(
+                    content,
+                    editor.editor.state.zipper,
+                    ci,
+                    ChatLSP.Options.init.error_rounds_max,
+                    tileId,
+                    mode,
+                    curr_chat.id,
+                  ),
                 ),
-              )
+              );
             | Some(Error({message, code})) =>
               schedule_action(
-                SendSystemMessage(
-                  "Error: "
-                  ++ message
-                  ++ " (code: "
-                  ++ string_of_int(code)
-                  ++ ")",
-                  mode,
-                  curr_chat.id,
+                SendMessage(
+                  System(
+                    "Error: "
+                    ++ message
+                    ++ " (code: "
+                    ++ string_of_int(code)
+                    ++ ")",
+                    mode,
+                    curr_chat.id,
+                  ),
                 ),
               )
             | None =>
+              print_endline("Non-error but None");
               print_endline(
-                "Assistant: response parse failed (SendErrorMessage)",
-              )
+                "Assistant: response parse failed (SendSketchMessage)",
+              );
             }
           );
           add_message_to_model(
             mode,
             model,
-            error_message,
-            chat_id,
+            message,
+            curr_chat.id,
             ~is_final=true,
           )
           |> Updated.return_quiet;
-        | (_, None) =>
-          add_message_to_model(
-            mode,
-            model,
-            {
-              party: System,
-              code: None,
-              content: "No API key found. Please set an API key in the assistant settings. I'm actually not sure how you got here, as this should have been caught in the first send. This is a bug, and you should let someone know.",
-              collapsed: false,
-            },
-            chat_id,
-            ~is_final=true,
-          )
-          |> Updated.return_quiet
         | (None, _) =>
           add_message_to_model(
             mode,
@@ -1166,135 +820,532 @@ let update =
             {
               party: System,
               code: None,
-              content: "No model ID found. Please set a model ID in the assistant settings.",
+              content: "No API key found. Please set an API key in the assistant settings.",
               collapsed: false,
             },
             curr_chat.id,
             ~is_final=true,
           )
           |> Updated.return_quiet
-        }
-      };
-    };
-  | SendSystemMessage(content, mode, chat_id) =>
-    add_message_to_model(
-      mode,
-      model,
-      {
-        party: System,
-        code: None,
-        content,
-        collapsed: false,
-      },
-      chat_id,
-      ~is_final=true,
-    )
-    |> Updated.return_quiet
-  // Concat LS' error message and await_llm_response (... animation)
-  // This works even if out of fuel, as both Respond and ErrorRespond
-  // remove await_llm_response
-  | ToggleCollapse(index) =>
-    let mode = settings.assistant.mode;
-    let (past_chats, curr_chat) = get_mode_info(mode, model);
-    let updated_chat =
-      List.mapi(
-        (i: int, msg: Model.message) =>
-          if (i == index) {
+        | (_, None) =>
+          add_message_to_model(
+            mode,
+            model,
             {
-              ...msg,
-              collapsed: !msg.collapsed,
+              party: System,
+              code: None,
+              content: "No API key or model ID found. Please set an API key and model ID in the assistant settings.",
+              collapsed: false,
+            },
+            curr_chat.id,
+            ~is_final=true,
+          )
+          |> Updated.return_quiet
+        };
+      };
+    | ErrorRound(error, sketch_z, ci, fuel, tileId, mode, chat_id) =>
+      let error_message =
+        text_message_of_str(
+          "Your previous response caused the following error. Please fix it in your response: "
+          ++ error,
+          LS,
+        );
+      // check that fuel is not 0
+      if (fuel < 0) {
+        let model =
+          add_message_to_model(
+            mode,
+            model,
+            error_message,
+            chat_id,
+            ~is_final=true,
+          );
+        add_message_to_model(
+          mode,
+          model,
+          {
+            party: System,
+            code: None,
+            content:
+              "By default we stop the assistant after "
+              ++ string_of_int(ChatLSP.Options.init.error_rounds_max)
+              ++ " error rounds. Thus, stopping.",
+            collapsed: false,
+          },
+          chat_id,
+          ~is_final=true,
+        )
+        |> Updated.return_quiet;
+      } else {
+        // TODO: We don't want to collect ENTIRE chat history here. We only want
+        //       to collect the history beginning from the initial suggestion request.
+        //       Otherwise, the prompt becomes too long in single message threads.
+        let (_, curr_chat) = get_mode_info(mode, model);
+        let collected_chat =
+          collect_chat(~messages=curr_chat.messages @ [error_message]);
+        switch (standardize_prompt(collected_chat)) {
+        | None =>
+          add_message_to_model(
+            mode,
+            model,
+            {
+              party: System,
+              code: None,
+              content: "Prompt generation failed.",
+              collapsed: false,
+            },
+            chat_id,
+            ~is_final=true,
+          )
+          |> Updated.return_quiet
+        | Some(openrouter_prompt) =>
+          switch (Store.Generic.load("API"), Store.Generic.load("MODEL")) {
+          | (Some(key), Some(model_id)) =>
+            let params: OpenRouter.params = {
+              model_id,
+              temperature: 1.0,
+              top_p: 1.0,
             };
-          } else {
-            msg;
-          },
-        curr_chat.messages,
-      );
-    let updated_past_chats =
-      Id.Map.update(
-        curr_chat.id,
-        opt_chat =>
-          switch (opt_chat) {
-          | Some(chat: Model.chat) =>
-            Some({
-              ...chat,
-              messages: updated_chat,
-            })
-          | None => None
-          },
-        past_chats,
-      );
-    resculpt_model(mode, model, updated_past_chats, curr_chat.id)
-    |> Updated.return_quiet;
-  | RemoveAndSuggest(response, tileId) =>
-    // Only side effects in the editor are performed here
-    add_suggestion(~response, tileId, false);
-    model |> Updated.return_quiet;
-  | Resuggest(response, tileId) =>
-    // Only side effects in the editor are performed here
-    add_suggestion(~response, tileId, true);
-    model |> Updated.return_quiet;
-  | Describe(content, mode, chat_id) =>
-    let (past_chats, _) = get_mode_info(mode, model);
-    let updated_chats =
-      Id.Map.update(
+            OpenRouter.start_chat(~params, ~key, openrouter_prompt, req =>
+              switch (OpenRouter.handle_chat(req)) {
+              | Some(Reply({content, _})) =>
+                schedule_action(
+                  HandleResponse(
+                    ErrorRound(
+                      content,
+                      sketch_z,
+                      ci,
+                      fuel,
+                      tileId,
+                      mode,
+                      curr_chat.id,
+                    ),
+                  ),
+                )
+              | Some(Error({message, code})) =>
+                schedule_action(
+                  SendMessage(
+                    System(
+                      "Error: "
+                      ++ message
+                      ++ " (code: "
+                      ++ string_of_int(code)
+                      ++ ")",
+                      mode,
+                      curr_chat.id,
+                    ),
+                  ),
+                )
+              | None =>
+                print_endline(
+                  "Assistant: response parse failed (SendErrorMessage)",
+                )
+              }
+            );
+            add_message_to_model(
+              mode,
+              model,
+              error_message,
+              chat_id,
+              ~is_final=true,
+            )
+            |> Updated.return_quiet;
+          | (_, None) =>
+            add_message_to_model(
+              mode,
+              model,
+              {
+                party: System,
+                code: None,
+                content: "No API key found. Please set an API key in the assistant settings. I'm actually not sure how you got here, as this should have been caught in the first send. This is a bug, and you should let someone know.",
+                collapsed: false,
+              },
+              chat_id,
+              ~is_final=true,
+            )
+            |> Updated.return_quiet
+          | (None, _) =>
+            add_message_to_model(
+              mode,
+              model,
+              {
+                party: System,
+                code: None,
+                content: "No model ID found. Please set a model ID in the assistant settings.",
+                collapsed: false,
+              },
+              curr_chat.id,
+              ~is_final=true,
+            )
+            |> Updated.return_quiet
+          }
+        };
+      };
+    | System(content, mode, chat_id) =>
+      add_message_to_model(
+        mode,
+        model,
+        {
+          party: System,
+          code: None,
+          content,
+          collapsed: false,
+        },
         chat_id,
-        opt_chat =>
-          switch (opt_chat) {
-          | Some(chat: Model.chat) =>
-            Some({
-              ...chat,
-              descriptor: content,
-            })
-          | None => None
-          },
-        past_chats,
-      );
-    resculpt_model(mode, model, updated_chats, chat_id)
-    |> Updated.return_quiet;
-  | SwitchChat(chat_id) =>
-    let mode = settings.assistant.mode;
-    let (past_chats, _) = get_mode_info(mode, model);
-    resculpt_model(mode, model, past_chats, chat_id) |> Updated.return_quiet;
-  | FilterLoadingMessages =>
-    Model.{
-      ...model,
-      chat_history: {
-        past_simple_chats:
-          Id.Map.map(
-            (chat: Model.chat) => {
-              {
-                ...chat,
-                messages: filter_chat_messages(chat.messages),
-              }
-            },
-            model.chat_history.past_simple_chats,
-          ),
-        past_suggestion_chats:
-          Id.Map.map(
-            (chat: Model.chat) => {
-              {
-                ...chat,
-                messages: filter_chat_messages(chat.messages),
-              }
-            },
-            model.chat_history.past_suggestion_chats,
-          ),
-        past_completion_chats:
-          Id.Map.map(
-            (chat: Model.chat) => {
-              {
-                ...chat,
-                messages: filter_chat_messages(chat.messages),
-              }
-            },
-            model.chat_history.past_completion_chats,
-          ),
-      },
+        ~is_final=true,
+      )
+      |> Updated.return_quiet
     }
-    |> Updated.return_quiet
-  // Note: It would be nice to have "SetKey" as an AssistantSettings action,
-  //       however, due to the parallel nature of the handler and API call,
-  //       this is slightly more complex, as we need to pass a schedule_action
-  //       to actually update the our model with the LLMs from the response of the API call.
+  | HandleResponse(response) =>
+    switch (response) {
+    | Basic(message, mode, chat_id) =>
+      let response = message.content;
+      if (mode == HazelTutor || mode == CodeSuggestion) {
+        let code_pattern =
+          Str.regexp(
+            "\\(\\(.\\|\n\\)*\\)```[ \n]*\\([^`]+\\)[ \n]*```\\(\\(.\\|\n\\)*\\)",
+          );
+        let (discussion, code_example) =
+          if (Str.string_match(code_pattern, response, 0)) {
+            let before = String.trim(Str.matched_group(1, response));
+            let code = String.trim(Str.matched_group(3, response));
+            (before, code |> StringUtil.trim_leading);
+          } else {
+            print_endline("Regex match failed for: " ++ response);
+            (response |> StringUtil.trim_leading, "");
+          };
+        let discussion_message = text_message_of_str(discussion, LLM);
+        if (code_example == "") {
+          check_descriptor(
+            ~model,
+            ~schedule_action,
+            ~message=discussion_message,
+            ~mode,
+            ~chat_id,
+          );
+          add_message_to_model(
+            mode,
+            model,
+            discussion_message,
+            chat_id,
+            ~is_final=true,
+          )
+          |> Updated.return_quiet;
+        } else {
+          let model_with_discussion =
+            add_message_to_model(
+              mode,
+              model,
+              discussion_message,
+              chat_id,
+              ~is_final=false,
+            );
+          // Then handle the completion as before
+          let message_with_example =
+            code_message_of_str(code_example, LLM, None);
+          check_descriptor(
+            ~model,
+            ~schedule_action,
+            ~message=message_with_example,
+            ~mode,
+            ~chat_id,
+          );
+          add_message_to_model(
+            mode,
+            model_with_discussion,
+            message_with_example,
+            chat_id,
+            ~is_final=true,
+          )
+          |> Updated.return_quiet;
+        };
+      } else {
+        let tool_calls = collect_tool_calls(response);
+        List.iter(
+          (tool_call: string) => {print_endline("Tool call: " ++ tool_call)},
+          tool_calls,
+        );
+
+        let rec process_tool_calls = (calls: list(string)) => {
+          switch (calls) {
+          | [] =>
+            schedule_action(
+              SendMessage(
+                Basic(
+                  text_message_of_str(
+                    "SYSTEM: After your most recent edits, here is the current state of the code.",
+                    LS,
+                  ),
+                ),
+              ),
+            )
+          | [tool_call, ...rest] =>
+            let parsed_response =
+              switch (String.index_opt(tool_call, ' ')) {
+              | Some(idx) => [
+                  String.sub(tool_call, 0, idx),
+                  String.sub(
+                    tool_call,
+                    idx + 1,
+                    String.length(tool_call) - idx - 1,
+                  ),
+                ]
+              | None => [tool_call]
+              };
+            let tool_call = List.hd(parsed_response);
+            let arg =
+              List.length(parsed_response) > 1
+                ? Some(List.hd(List.tl(parsed_response))) : None;
+
+            switch (tool_call) {
+            | "goto_definition" =>
+              goto(editor, Option.get(arg), ChatLSP.Composition.Definition);
+              process_tool_calls(rest);
+            | "goto_body" =>
+              goto(editor, Option.get(arg), ChatLSP.Composition.Body);
+              process_tool_calls(rest);
+            | "edit" =>
+              edit(Option.get(arg), ChatLSP.Composition.Current);
+              process_tool_calls(rest);
+            | "insert_before" =>
+              edit(Option.get(arg), ChatLSP.Composition.Before);
+              process_tool_calls(rest);
+            | "insert_after" =>
+              edit(Option.get(arg), ChatLSP.Composition.After);
+              process_tool_calls(rest);
+            | "delete" =>
+              edit("", ChatLSP.Composition.Current);
+              process_tool_calls(rest);
+            | "view_sketch" => process_tool_calls(rest)
+            | "submit" => ()
+            | _ =>
+              schedule_action(
+                SendMessage(
+                  System("Unknown tool call: " ++ tool_call, mode, chat_id),
+                ),
+              )
+            };
+          };
+        };
+
+        process_tool_calls(tool_calls);
+
+        print_endline("Adding message to model");
+        add_message_to_model(mode, model, message, chat_id, ~is_final=true)
+        |> Updated.return_quiet;
+      };
+    | ErrorRound(response, sketch_z, ci, fuel, tileId, mode, chat_id) =>
+      // Split response into discussion and completion
+      let code_pattern =
+        Str.regexp(
+          "\\(\\(.\\|\n\\)*\\)```[ \n]*\\([^`]+\\)[ \n]*```\\(\\(.\\|\n\\)*\\)",
+        );
+      let (discussion, completion) =
+        if (Str.string_match(code_pattern, response, 0)) {
+          let before = String.trim(Str.matched_group(1, response));
+          let code = String.trim(Str.matched_group(3, response));
+          (before, code |> StringUtil.trim_leading);
+        } else {
+          print_endline("Regex match failed for: " ++ response);
+          ("", response |> StringUtil.trim_leading); // Fallback if no code block found
+        };
+      print_endline("Response: " ++ response);
+      print_endline("Discussion: " ++ discussion);
+      print_endline("Completion: " ++ completion);
+      // First add the discussion message
+      let discussion_message =
+        if (discussion === "") {
+          text_message_of_str(
+            "The model did not return a discussion for this completion.",
+            LLM,
+          );
+        } else {
+          text_message_of_str(discussion, LLM);
+        };
+      let model_with_discussion =
+        add_message_to_model(
+          mode,
+          model,
+          discussion_message,
+          chat_id,
+          ~is_final=false,
+        );
+
+      // Then handle the completion as before
+      let completion_message =
+        code_message_of_str(completion, LLM, Some(tileId));
+      check_descriptor(
+        ~model,
+        ~schedule_action,
+        ~message=completion_message,
+        ~mode,
+        ~chat_id,
+      );
+      switch (ChatLSP.ErrorRound.mk_reply(ci, sketch_z, completion)) {
+      | None =>
+        print_endline("ERROR ROUNDS (Non-error Response): " ++ completion);
+        schedule_action(
+          EmployLLMAction(RemoveAndSuggest(completion, tileId)),
+        );
+      | Some(error) =>
+        print_endline("ERROR ROUNDS (Error): " ++ error);
+        print_endline(
+          "ERROR ROUNDS (Error-causing Response): " ++ completion,
+        );
+        schedule_action(
+          SendMessage(
+            ErrorRound(error, sketch_z, ci, fuel - 1, tileId, mode, chat_id),
+          ),
+        );
+      };
+      add_message_to_model(
+        mode,
+        model_with_discussion,
+        completion_message,
+        chat_id,
+        ~is_final=true,
+      )
+      |> Updated.return_quiet;
+    }
+
+  | EmployLLMAction(action) =>
+    switch (action) {
+    | RemoveAndSuggest(response, tileId) =>
+      // Only side effects in the editor are performed here
+      add_suggestion(~response, tileId, false);
+      model |> Updated.return_quiet;
+    | Resuggest(response, tileId) =>
+      // Only side effects in the editor are performed here
+      add_suggestion(~response, tileId, true);
+      model |> Updated.return_quiet;
+    | Describe(content, mode, chat_id) =>
+      let (past_chats, _) = get_mode_info(mode, model);
+      let updated_chats =
+        Id.Map.update(
+          chat_id,
+          opt_chat =>
+            switch (opt_chat) {
+            | Some(chat: Model.chat) =>
+              Some({
+                ...chat,
+                descriptor: content,
+              })
+            | None => None
+            },
+          past_chats,
+        );
+      resculpt_model(mode, model, updated_chats, chat_id)
+      |> Updated.return_quiet;
+    }
+
+  | ChatAction(action) =>
+    switch (action) {
+    | NewChat =>
+      let mode = settings.assistant.mode;
+      let (past_chats, _) = get_mode_info(mode, model);
+      let new_chat: Model.chat = {
+        messages: [],
+        id: Id.mk(),
+        descriptor: "",
+        timestamp: JsUtil.timestamp(),
+      };
+      let updated_history = Model.add_chat_to_history(new_chat, past_chats);
+      resculpt_model(mode, model, updated_history, new_chat.id)
+      |> Updated.return_quiet;
+    | DeleteChat(chat_to_be_gone_id) =>
+      let mode = settings.assistant.mode;
+      // Filter out the chat we're deleting
+      let (past_chats, curr_chat) = get_mode_info(mode, model);
+      let filtered_past_chats =
+        Id.Map.filter((id, _) => id != chat_to_be_gone_id, past_chats);
+      let chrono_history = Model.sorted_chats(filtered_past_chats);
+      let updated_model =
+        curr_chat.id == chat_to_be_gone_id
+          ? switch (ListUtil.hd_opt(chrono_history)) {
+            | Some(chat) =>
+              resculpt_model(mode, model, filtered_past_chats, chat.id)
+            | None => resculpt_model(mode, model, past_chats, curr_chat.id)
+            }
+          : resculpt_model(mode, model, filtered_past_chats, curr_chat.id);
+      updated_model |> Updated.return_quiet;
+
+    // Concat LS' error message and await_llm_response (... animation)
+    // This works even if out of fuel, as both Respond and ErrorRespond
+    // remove await_llm_response
+    | CollapseMessage(index) =>
+      let mode = settings.assistant.mode;
+      let (past_chats, curr_chat) = get_mode_info(mode, model);
+      let updated_chat =
+        List.mapi(
+          (i: int, msg: Model.message) =>
+            if (i == index) {
+              {
+                ...msg,
+                collapsed: !msg.collapsed,
+              };
+            } else {
+              msg;
+            },
+          curr_chat.messages,
+        );
+      let updated_past_chats =
+        Id.Map.update(
+          curr_chat.id,
+          opt_chat =>
+            switch (opt_chat) {
+            | Some(chat: Model.chat) =>
+              Some({
+                ...chat,
+                messages: updated_chat,
+              })
+            | None => None
+            },
+          past_chats,
+        );
+      resculpt_model(mode, model, updated_past_chats, curr_chat.id)
+      |> Updated.return_quiet;
+
+    | SwitchChat(chat_id) =>
+      let mode = settings.assistant.mode;
+      let (past_chats, _) = get_mode_info(mode, model);
+      resculpt_model(mode, model, past_chats, chat_id) |> Updated.return_quiet;
+    | FilterLoadingMessages =>
+      Model.{
+        ...model,
+        chat_history: {
+          past_simple_chats:
+            Id.Map.map(
+              (chat: Model.chat) => {
+                {
+                  ...chat,
+                  messages: filter_chat_messages(chat.messages),
+                }
+              },
+              model.chat_history.past_simple_chats,
+            ),
+          past_suggestion_chats:
+            Id.Map.map(
+              (chat: Model.chat) => {
+                {
+                  ...chat,
+                  messages: filter_chat_messages(chat.messages),
+                }
+              },
+              model.chat_history.past_suggestion_chats,
+            ),
+          past_completion_chats:
+            Id.Map.map(
+              (chat: Model.chat) => {
+                {
+                  ...chat,
+                  messages: filter_chat_messages(chat.messages),
+                }
+              },
+              model.chat_history.past_completion_chats,
+            ),
+        },
+      }
+      |> Updated.return_quiet
+    }
   };
 };

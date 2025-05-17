@@ -50,7 +50,7 @@ let new_chat_button = (~inject): Node.t => {
   let tooltip = "New Chat";
   let new_chat = _ =>
     Virtual_dom.Vdom.Effect.Many([
-      inject(Update.NewChat),
+      inject(Update.ChatAction(NewChat)),
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   div(
@@ -399,7 +399,7 @@ let message_input =
     };
     JsUtil.log("Message sent: " ++ message.content);
     Virtual_dom.Vdom.Effect.Many([
-      inject(Update.SendTextMessage(message)),
+      inject(Update.SendMessage(Basic(message))),
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   };
@@ -502,7 +502,7 @@ let message_display =
   let toggle_collapse = index => {
     // Create an action to toggle the collapsed state of a specific message
     Virtual_dom.Vdom.Effect.Many([
-      inject(Update.ToggleCollapse(index)),
+      inject(Update.ChatAction(CollapseMessage(index))),
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   };
@@ -634,9 +634,11 @@ let message_display =
                         Attr.on_click(_ =>
                           Virtual_dom.Vdom.Effect.Many([
                             inject(
-                              Update.Resuggest(
-                                message.content,
-                                Option.get(tileId),
+                              Update.EmployLLMAction(
+                                Resuggest(
+                                  message.content,
+                                  Option.get(tileId),
+                                ),
                               ),
                             ),
                             Virtual_dom.Vdom.Effect.Stop_propagation,
@@ -801,7 +803,7 @@ let history_menu =
                        );
                   if (!contains_button) {
                     Virtual_dom.Vdom.Effect.Many([
-                      inject(Update.SwitchChat(chat.id)),
+                      inject(Update.ChatAction(SwitchChat(chat.id))),
                       Virtual_dom.Vdom.Effect.Stop_propagation,
                     ]);
                   } else {
@@ -830,7 +832,7 @@ let history_menu =
                         clss(["delete-chat-button"]),
                         Attr.on_click(_ =>
                           Virtual_dom.Vdom.Effect.Many([
-                            inject(Update.DeleteChat(chat.id)),
+                            inject(Update.ChatAction(DeleteChat(chat.id))),
                             Virtual_dom.Vdom.Effect.Stop_propagation,
                           ])
                         ),
@@ -852,7 +854,13 @@ let history_menu =
   );
 };
 
-let view = (~globals: Globals.t, ~signal, ~inject, ~model: Model.t) => {
+let view =
+    (
+      ~globals: Globals.t,
+      ~signal,
+      ~inject: Update.t => Ui_effect.t(unit),
+      ~model: Model.t,
+    ) => {
   let settings = globals.settings.assistant;
   let inject_global = globals.inject_global;
   div(
