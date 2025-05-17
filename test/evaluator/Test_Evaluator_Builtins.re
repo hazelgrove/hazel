@@ -16,7 +16,7 @@ let tests = (
     ),
     test_case("Multi-arg builtin with cast", `Quick, () =>
       evaluation_test(
-        "string_compare((\"Hello\", \"World\"):(?, ?))",
+        {|string_compare(("Hello", "World"):(?, ?))|},
         int(-1),
         ap(
           Forward,
@@ -40,7 +40,7 @@ let tests = (
     }),
     test_case("Multi arg builtin cast", `Quick, () =>
       evaluation_test(
-        "string_compare((\"Hello\", \"World\"):(?, ?))",
+        {|string_compare(("Hello", "World"):(?, ?))|},
         int(-1),
         ap(
           Forward,
