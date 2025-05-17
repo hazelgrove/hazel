@@ -150,7 +150,9 @@ let start = {
       schedule_action(Globals(Set(Assistant(SetAPIKey(key)))))
     | None => ()
     };
-    schedule_action(Assistant(AssistantUpdate.FilterLoadingMessages));
+    schedule_action(
+      Assistant(AssistantUpdate.ChatAction(FilterLoadingMessages)),
+    );
   };
   let%sub () =
     BonsaiUtil.OnStartup.on_startup(
