@@ -59,9 +59,7 @@ let rec matches = (capture, dp: Pat.t, d: DHExp.t): match_result => {
     capture(pr, dp, d, inner_match);
     inner_match;
   | Cast(p, t1, t2) =>
-    let exp = Cast(d, t2, t1) |> DHExp.fresh;
-    let transitioned = Casts.transition_multiple(exp);
-    matches(p, transitioned);
+    matches(p, Casts.transition_multiple(Cast(d, t2, t1) |> DHExp.fresh))
   };
 };
 
