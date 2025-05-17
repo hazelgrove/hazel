@@ -91,7 +91,7 @@ type error_common =
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_exp =
   | FreeVariable(Var.t) /* Unbound variable (not in typing context) */
-  | InexhaustiveMatch(option(error_common))
+  | InexhaustiveMatch(option(error_common), string)
   | UnusedDeferral
   | BadPartialAp(Self.error_partial_ap)
   | Common(error_common);
@@ -543,7 +543,7 @@ let rec status_pat = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.pat): status_pat =>
 let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
   switch (self) {
   | Free(name) => InHole(FreeVariable(name))
-  | InexhaustiveMatch(self) =>
+  | InexhaustiveMatch(self, example) =>
     let additional_err =
       switch (status_exp(ctx, ty_ana, self)) {
       | InHole(
@@ -564,7 +564,7 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
         ) =>
         failwith("InHole(InexhaustiveMatch(impossible_err))")
       };
-    InHole(InexhaustiveMatch(additional_err));
+    InHole(InexhaustiveMatch(additional_err, example));
   | IsDeferral(_) when Typ.is_syn_plus(ty_ana) => InHole(UnusedDeferral)
   | IsDeferral(InAp) => NotInHole(AnaDeferralConsistent(ty_ana))
   | IsDeferral(_) => InHole(UnusedDeferral)

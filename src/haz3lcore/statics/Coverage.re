@@ -192,12 +192,177 @@ module Matrix = {
   let rev = (m: t): t => List.rev(m);
 };
 
+module Seen = {
+  type seen = {
+    seen_ints: IntSet.t,
+    seen_sints: SIntSet.t,
+    seen_floats: FloatSet.t,
+    seen_strings: StringSet.t,
+    seen_ctrs: Ctr.Set.t,
+    seen_all_ctrs: bool,
+    seen_truth: bool,
+    seen_hole: bool,
+    first_col_redundant_rows: redundant_rows,
+  };
+};
+
+module UnseenCtrList = {
+  include Seen;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type elt =
+    | CtrElt(Ctr.t)
+    | ProdElt(list(elt));
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = list(elt);
+
+  let empty = [];
+
+  // TODO: Handle all the cases that just return default values
+  let prepend_with_type =
+      (
+        seen_in_first_col: seen,
+        col_type: Typ.t,
+        unseen_list: t,
+        use_type_default: bool,
+      )
+      : t => {
+    let all_ctrs = Ctr.all_ctrs_of_typ(col_type);
+
+    switch (col_type.term) {
+    | Sum(_)
+    | Atom(Bool)
+    | List(_) =>
+      switch (all_ctrs) {
+      | Unknown
+      | Infinite => failwith("Coverage: Sum type has invalid ctr count")
+      | Finite(all_ctrs) =>
+        let elt =
+          if (use_type_default) {
+            Ctr.Map.choose(all_ctrs) |> fst;
+          } else {
+            seen_in_first_col.seen_all_ctrs
+              ? Ctr.default_ctr
+              : List.split(Ctr.Map.bindings(all_ctrs))
+                |> fst
+                |> List.find(ctr =>
+                     !Ctr.Set.mem(ctr, seen_in_first_col.seen_ctrs)
+                   );
+          };
+
+        [CtrElt(elt), ...unseen_list];
+      }
+    | Prod(elts) =>
+      let num_elts = List.length(elts);
+      let rec partition_first_n = (n, list, acc) =>
+        if (n == 0) {
+          (acc, list);
+        } else {
+          switch (list) {
+          | [] => (acc, list)
+          | [hd, ...tl] => partition_first_n(n - 1, tl, [hd, ...acc])
+          };
+        };
+
+      let (first_n, tl) = partition_first_n(num_elts, unseen_list, []);
+
+      [ProdElt(List.rev(first_n)), ...tl];
+    | Unknown(_) => [CtrElt(Ctr.of_string("Unknown")), ...unseen_list]
+    | Rec(_) => [CtrElt(Ctr.of_string("Rec")), ...unseen_list]
+    | TupLabel(_) => [CtrElt(Ctr.of_string("TupLabel")), ...unseen_list]
+    | Atom(Int)
+    | Atom(Nat) =>
+      let elt =
+        if (use_type_default) {
+          Ctr.of_int(Bigint.of_int(0));
+        } else {
+          let rec first_unused_bigint = (n): Ctr.t => {
+            let big_int = Bigint.of_int(n);
+            IntSet.mem(big_int, seen_in_first_col.seen_ints)
+              ? first_unused_bigint(n + 1) : Ctr.of_int(big_int);
+          };
+          first_unused_bigint(0);
+        };
+
+      [CtrElt(elt), ...unseen_list];
+    | Atom(SInt) =>
+      let elt =
+        if (use_type_default) {
+          Ctr.of_sint(0);
+        } else {
+          let rec first_unused_sint = (n): Ctr.t => {
+            SIntSet.mem(n, seen_in_first_col.seen_sints)
+              ? first_unused_sint(n + 1) : Ctr.of_sint(n);
+          };
+          first_unused_sint(0);
+        };
+
+      [CtrElt(elt), ...unseen_list];
+    | Atom(Float) =>
+      let elt =
+        if (use_type_default) {
+          Ctr.of_float(0.);
+        } else {
+          let rec first_unused_float = (n): Ctr.t => {
+            FloatSet.mem(n, seen_in_first_col.seen_floats)
+              ? first_unused_float(n +. 1.) : Ctr.of_float(n);
+          };
+          first_unused_float(0.);
+        };
+
+      [CtrElt(elt), ...unseen_list];
+    | Atom(String) =>
+      let elt =
+        if (use_type_default) {
+          Ctr.of_string("");
+        } else {
+          let rec first_unused_str = (n): Ctr.t => {
+            StringSet.mem(n, seen_in_first_col.seen_strings)
+              ? first_unused_str(n ++ "*") : Ctr.of_string(n);
+          };
+          first_unused_str("");
+        };
+
+      [CtrElt(elt), ...unseen_list];
+    | Arrow(_)
+    | Forall(_)
+    | Var(_) =>
+      let elt = if (use_type_default) {Ctr.default_ctr} else {Ctr.default_ctr};
+      [CtrElt(elt), ...unseen_list];
+    | Parens(_)
+    | Ap(_)
+    | Label(_) =>
+      failwith(
+        "find_unseen_of_ty called with a non-normalized type: "
+        ++ Typ.show(col_type),
+      )
+    };
+  };
+
+  let rec string_of = unseen => {
+    List.fold_left(
+      (acc, elt) => {
+        switch (elt) {
+        | CtrElt(e) => acc ++ e.ctr ++ " "
+        | ProdElt(elts) => acc ++ "(" ++ string_of(elts) ++ ")"
+        }
+      },
+      "",
+      unseen,
+    );
+  };
+};
+
 module Submatrices = {
+  include Seen;
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     ctrs: Ctr.Map.t(Matrix.t),
     first_col_exhaustive: bool,
     first_col_redundant_rows: redundant_rows,
+    first_col_unseen: (UnseenCtrList.t, bool) => UnseenCtrList.t,
   };
 
   let rev = (s: t): t => {
@@ -209,18 +374,9 @@ module Submatrices = {
     ctrs: Ctr.Map.empty,
     first_col_exhaustive: false,
     first_col_redundant_rows: [],
-  };
-
-  type seen = {
-    seen_ints: IntSet.t,
-    seen_sints: SIntSet.t,
-    seen_floats: FloatSet.t,
-    seen_strings: StringSet.t,
-    seen_ctrs: Ctr.Set.t,
-    seen_all_ctrs: bool,
-    seen_truth: bool,
-    seen_hole: bool,
-    first_col_redundant_rows: redundant_rows,
+    first_col_unseen: (_, _) => {
+      [];
+    },
   };
 
   let init_seen = {
@@ -384,7 +540,9 @@ module Submatrices = {
       : Ctr.Map.t(Matrix.t) =>
     Ctr.Map.update(ctr, add_row(idx, cols), ctrs);
 
-  let of_matrix = (m: Matrix.t, all_ctrs: Ctr.all_ctrs): t => {
+  let of_matrix =
+      (m: Matrix.t, all_ctrs: Ctr.all_ctrs, first_col_ty: Typ.t): t => {
+    let seen_data = seen(m, all_ctrs);
     let {
       seen_ints: _,
       seen_sints: _,
@@ -395,8 +553,7 @@ module Submatrices = {
       seen_truth,
       seen_hole,
       first_col_redundant_rows,
-    } =
-      seen(m, all_ctrs);
+    } = seen_data;
 
     let include_default =
       switch (all_ctrs) {
@@ -498,10 +655,15 @@ module Submatrices = {
       | Infinite => seen_truth || seen_hole
       | Finite(_) => seen_truth || seen_hole || seen_all_ctrs
       };
+
+    let first_col_unseen =
+      UnseenCtrList.prepend_with_type(seen_data, first_col_ty);
+
     {
       ...submatrices,
       first_col_exhaustive,
       first_col_redundant_rows,
+      first_col_unseen,
     };
   };
 };
@@ -510,6 +672,7 @@ module Submatrices = {
 type result = {
   is_exhaustive: bool,
   redundant_rows,
+  unseen_list: UnseenCtrList.t,
 };
 
 // We assume col_tys is already normalized.
@@ -521,23 +684,80 @@ let rec check_matrix = (m: Matrix.t, col_tys: list(Typ.t)): result => {
       {
         is_exhaustive: true,
         redundant_rows: List.init(List.length(m), i => i),
+        unseen_list: UnseenCtrList.empty,
       };
     } else {
       let all_ctrs = Ctr.all_ctrs_of_typ(first_col_ty);
-      let submatrices = Submatrices.of_matrix(m, all_ctrs);
-      let (is_exhaustive, redundant_rows) =
+      let submatrices = Submatrices.of_matrix(m, all_ctrs, first_col_ty);
+
+      // Ctr.Map.iter(
+      //   (_, submatrix) => {
+      //     List.iter(
+      //       (r: Matrix.row) => {
+      //         List.iter(c => print_string(Constraint.show(c)), r.cols);
+      //         print_newline();
+      //       },
+      //       submatrix,
+      //     )
+      //   },
+      //   submatrices.ctrs,
+      // );
+      // print_endline("???");
+
+      let (is_exhaustive, redundant_rows, unseen_list) =
         Ctr.Map.fold(
-          (ctr, submatrix, (is_exhaustive, redundant_rows)) => {
+          (ctr, submatrix, (is_exhaustive, redundant_rows, unseen_list)) => {
             // for each submatrix, recursively check_matrix, computing the col_tys based
             // on the first_col_ty and the constructor name.
             let arity = Ctr.arity_of(ctr, all_ctrs);
             let col_tys = arity @ rem_col_tys;
             switch (col_tys) {
-            | [] => (is_exhaustive, redundant_rows)
+            | [] =>
+              let unseen_list =
+                submatrices.first_col_unseen(
+                  UnseenCtrList.empty,
+                  submatrices.first_col_exhaustive,
+                );
+              (is_exhaustive, redundant_rows, unseen_list);
             | _ =>
               let submatrix_check_result = check_matrix(submatrix, col_tys);
-              let is_exhaustive =
+              let is_still_exhaustive =
                 is_exhaustive && submatrix_check_result.is_exhaustive;
+
+              let unseen_list =
+                if (is_still_exhaustive && !submatrices.first_col_exhaustive) {
+                  // if the following column did not break exhaustiveness, but this one does,
+                  // we place the unseen value into the list
+                  submatrices.first_col_unseen(
+                    submatrix_check_result.unseen_list,
+                    false,
+                  );
+                } else if (is_still_exhaustive
+                           && submatrices.first_col_exhaustive) {
+                  // if this column is exhaustive and the following column did not break exhaustiveness,
+                  // use the default unseen value for the type
+                  submatrices.first_col_unseen(
+                    submatrix_check_result.unseen_list,
+                    true,
+                  );
+                } else if (is_exhaustive) {
+                  if (ctr.ctr == "tuple") {
+                    submatrices.first_col_unseen(
+                      submatrix_check_result.unseen_list,
+                      false,
+                    );
+                  } else {
+                    [
+                      // if exhaustiveness was broken by the previous column, then take
+                      // the ctr for the pattern that caused it to end up breaking
+                      CtrElt(ctr),
+                      ...submatrix_check_result.unseen_list,
+                    ];
+                  };
+                } else {
+                  unseen_list;
+                };
+
               let redundant_rows =
                 List.filter(
                   (idx: int) => {
@@ -546,18 +766,17 @@ let rec check_matrix = (m: Matrix.t, col_tys: list(Typ.t)): result => {
                   },
                   redundant_rows,
                 );
-              (is_exhaustive, redundant_rows);
+              (is_still_exhaustive, redundant_rows, unseen_list);
             };
           },
           submatrices.ctrs,
-          (
-            submatrices.first_col_exhaustive,
-            submatrices.first_col_redundant_rows,
-          ),
+          (true, submatrices.first_col_redundant_rows, UnseenCtrList.empty),
         );
+
       {
-        is_exhaustive,
+        is_exhaustive: is_exhaustive && submatrices.first_col_exhaustive,
         redundant_rows,
+        unseen_list,
       };
     }
   };
@@ -565,5 +784,6 @@ let rec check_matrix = (m: Matrix.t, col_tys: list(Typ.t)): result => {
 
 // IMPORTANT: ty should already be fully normalized.
 let check = (xis: list(Constraint.t), ty: Typ.t): result => {
-  check_matrix(Matrix.of_constraints(xis), [ty]);
+  let res = check_matrix(Matrix.of_constraints(xis), [ty]);
+  res;
 };

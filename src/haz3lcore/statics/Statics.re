@@ -839,10 +839,15 @@ and uexp_to_info_map =
       // TODO: factor out code
       let unwrapped_self: Self.exp =
         Common(Just(Arrow(p.ty, e.ty) |> Typ.temp));
-      let Coverage.{is_exhaustive, _} =
+      let Coverage.{is_exhaustive, unseen_list, _} =
         Coverage.check([Info.pat_constraint(p)], Typ.normalize(ctx, p.ty));
       let self =
-        is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
+        is_exhaustive
+          ? unwrapped_self
+          : InexhaustiveMatch(
+              unwrapped_self,
+              Coverage.UnseenCtrList.string_of(unseen_list),
+            );
       add'(~self, ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx), m);
     | TypFun(utpat, body, _) =>
       let (name_expected_opt, item) = Typ.matched_forall(ctx, ana);
@@ -932,13 +937,18 @@ and uexp_to_info_map =
         go_pat(~is_synswitch=false, ~co_ctx=body.co_ctx, ~ana=ty_p_ana, p, m);
       // TODO: factor out code
       let unwrapped_self: Self.exp = Common(Just(body.ty));
-      let Coverage.{is_exhaustive, _} =
+      let Coverage.{is_exhaustive, unseen_list, _} =
         Coverage.check(
           [Info.pat_constraint(p_ana)],
           Typ.normalize(ctx, p_ana.ty),
         );
       let self =
-        is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
+        is_exhaustive
+          ? unwrapped_self
+          : InexhaustiveMatch(
+              unwrapped_self,
+              Coverage.UnseenCtrList.string_of(unseen_list),
+            );
       add'(
         ~self,
         ~co_ctx=
@@ -1007,10 +1017,16 @@ and uexp_to_info_map =
       let constraints = List.rev(constraints);
 
       let normalized_scrut_ty = Typ.normalize(ctx, scrut.ty);
-      let Coverage.{is_exhaustive, redundant_rows} =
+      let Coverage.{is_exhaustive, redundant_rows, unseen_list} =
         Coverage.check(constraints, normalized_scrut_ty);
+
       let self =
-        is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
+        is_exhaustive
+          ? unwrapped_self
+          : InexhaustiveMatch(
+              unwrapped_self,
+              Coverage.UnseenCtrList.string_of(unseen_list),
+            );
       let add_redundancy = (ps: list(TermBase.pat_t), redundant_rows, m) => {
         List.fold_left(
           (m, row) => {
