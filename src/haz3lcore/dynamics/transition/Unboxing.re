@@ -32,7 +32,6 @@ type unboxed_fun =
   | Constructor(string)
   | FunEnv(Pat.t, Exp.t, [@show.opaque] ClosureEnvironment.t)
   | FunNoEnv(Pat.t, Exp.t)
-  | FunCast(DHExp.t, Typ.t, Typ.t, Typ.t, Typ.t)
   | BuiltinFun(string)
   | DeferredAp(DHExp.t, list(DHExp.t));
 
@@ -134,15 +133,6 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (Fun, Closure(env', {term: Fun(dp, d3, _, _), _})) =>
       Matches(FunEnv(dp, d3, env'))
     | (Fun, Fun(dp, d3, _, _)) => Matches(FunNoEnv(dp, d3))
-    | (
-        Fun,
-        Cast(
-          d3',
-          {term: Arrow(ty1, ty2), _},
-          {term: Arrow(ty1', ty2'), _},
-        ),
-      ) =>
-      Matches(FunCast(d3', ty1, ty2, ty1', ty2'))
     | (Fun, BuiltinFun(name)) => Matches(BuiltinFun(name))
     | (Fun, DeferredAp(d1, ds)) => Matches(DeferredAp(d1, ds))
 
