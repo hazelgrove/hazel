@@ -58,29 +58,31 @@ let tests = (
         elaborate(parse_exp({|A : (+A +B) : (+A +C)|})),
       )
     }),
-    test_case(
-      "Invalid constructor match",
-      `Quick,
-      () => {
-        let invalid_constructor_match =
-          elaborate(
-            let_(Pat.(constructor("T", Some(None))), int(1), empty_hole()),
-          );
-        try(
-          evaluation_test(
-            "let T = 1 in ?",
-            invalid_constructor_match,
-            invalid_constructor_match,
-          )
-        ) {
-        | Haz3lcore.EvaluatorError.Exception(_) as exn =>
-          print_endline("Caught exception: " ++ Printexc.to_string(exn));
-          Alcotest.fail(
-            "Invalid constructor match should not throw an exception",
-          );
-        };
-      },
-    ),
+    test_case("Invalid constructor match", `Quick, () => {
+      evaluation_test(
+        "let T = 1 in ?",
+        let_(
+          Pat.(
+            constructor(
+              "T",
+              Some(
+                Some(
+                  Typ.sum([
+                    Variant("T", [], None),
+                    BadEntry(Typ.unknown(Internal)),
+                  ]),
+                ),
+              ),
+            )
+          ),
+          int(1),
+          empty_hole(),
+        ),
+        elaborate(
+          let_(Pat.(constructor("T", Some(None))), int(1), empty_hole()),
+        ),
+      )
+    }),
     test_case(
       "Historical unboxing failures",
       `Quick,
