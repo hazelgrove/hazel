@@ -54,9 +54,6 @@ type current_chats = {
 type t = {
   current_chats,
   chat_history,
-  show_history: bool,
-  show_api_key: bool,
-  available_models: list(OpenRouter.model_info),
 };
 
 let init_simple_chat = {
@@ -106,7 +103,4 @@ let init: t = {
     past_completion_chats:
       add_chat_to_history(init_completion_chat, Id.Map.empty),
   },
-  show_history: false,
-  show_api_key: false,
-  available_models: [],
 };

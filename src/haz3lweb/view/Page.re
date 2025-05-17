@@ -117,9 +117,13 @@ module Update = {
         },
       }
       |> Updated.return_quiet(~scroll_active=true)
-    | Set(settings) =>
+    | Set(action) =>
       let* settings =
-        Settings.Update.update(settings, model.globals.settings);
+        Settings.Update.update(
+          ~action,
+          ~schedule_action=a => schedule_action(Globals(Set(a))),
+          ~settings=model.globals.settings,
+        );
       {
         ...model,
         globals: {
@@ -635,7 +639,7 @@ module View = {
                 ~globals,
                 ~signal,
                 ~inject=action => inject(Assistant(action)),
-                ~assistantModel,
+                ~model=assistantModel,
               );
             }
           : {

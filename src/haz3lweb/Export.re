@@ -20,7 +20,7 @@ type all_f22 = {
 };
 
 let mk_all = (~core_settings, ~instructor_mode, ~log) => {
-  let settings = Settings.Store.export();
+  let settings = Settings.SettingsStore.export();
   let explainThisModel = ExplainThisModel.Store.export();
   let scratch = ScratchMode.Store.export();
   let documentation = ScratchMode.StoreDocumentation.export();
@@ -54,8 +54,8 @@ let import_all = (~import_log: string => unit, data, ~specs) => {
         explainThisModel: "",
       };
     };
-  Settings.Store.import(all.settings);
-  let settings = Settings.Store.load();
+  Settings.SettingsStore.import(all.settings);
+  let settings = Settings.SettingsStore.load();
   ExplainThisModel.Store.import(all.explainThisModel);
   let instructor_mode = settings.instructor_mode;
   ScratchMode.Store.import(all.scratch);

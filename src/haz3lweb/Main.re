@@ -145,7 +145,11 @@ let start = {
       >= 0;
     NinjaKeys.initialize(Shortcut.options(schedule_action));
     JsUtil.focus_clipboard_shim();
-    schedule_action(Assistant(AssistantUpdate.SetAvailableModels));
+    switch (Store.Generic.load("API")) {
+    | Some(key) =>
+      schedule_action(Globals(Set(Assistant(SetAPIKey(key)))))
+    | None => ()
+    };
     schedule_action(Assistant(AssistantUpdate.FilterLoadingMessages));
   };
   let%sub () =
