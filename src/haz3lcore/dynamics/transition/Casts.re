@@ -1,98 +1,12 @@
-open Util;
+/* CAST Transitions */
 
-/* The cast calculus is based off the POPL 2019 paper:
-   https://arxiv.org/pdf/1805.00155.pdf */
+/*
+ Handles the transition of casts (type ascriptions).
+ In the case of a stuck cast, it will return None.
 
-/* GROUND TYPES */
-
-/* You can think of a ground type as a typet that tells you what the root of the
-      type expression is, but nothing more. For example: Int, [?], ? -> ?, ... are
-      ground types and [Int], ? -> Float are not.
-
-      The most important property of ground types is:
-          If two types are ground types,
-          and the two types are consistent,
-          then they are equal.
-
-       Make sure this holds for your new feature!!
-
-       e.g. [?] and [?] are equal, but [?] and [Int] are not (because [Int] is not
-       ground, even though [Int] and [?] are consistent).
-
-   */
-
-[@deriving sexp]
-type ground_cases =
-  | Hole
-  | Ground
-  | NotGroundOrHole(Typ.t) /* the argument is the corresponding ground type */;
-
-let grounded_Arrow =
-  NotGroundOrHole(
-    Arrow(Unknown(Internal) |> Typ.temp, Unknown(Internal) |> Typ.temp)
-    |> Typ.temp,
-  );
-let grounded_Forall =
-  NotGroundOrHole(
-    Forall(EmptyHole |> TPat.fresh, Unknown(Internal) |> Typ.temp)
-    |> Typ.temp,
-  );
-let grounded_Prod = length =>
-  NotGroundOrHole(
-    Prod(ListUtil.replicate(length, Unknown(Internal) |> Typ.temp))
-    |> Typ.temp,
-  );
-let grounded_Sum: unit => Typ.sum_map =
-  () => [BadEntry(Typ.temp(Unknown(Internal)))];
-let grounded_List =
-  NotGroundOrHole(List(Unknown(Internal) |> Typ.temp) |> Typ.temp);
-
-let rec ground_cases_of = (ty: Typ.t): ground_cases => {
-  let is_hole: Typ.t => bool =
-    fun
-    | {term: Unknown(_), _} => true
-    | _ => false;
-  switch (Typ.term_of(ty)) {
-  | Unknown(_) => Hole
-  | Atom(_)
-  | Label(_)
-  | TupLabel(_, {term: Unknown(_), _})
-  | Var(_)
-  | Rec(_)
-  | Forall(_, {term: Unknown(_), _})
-  | Arrow({term: Unknown(_), _}, {term: Unknown(_), _})
-  | List({term: Unknown(_), _}) => Ground
-  | Parens(ty) => ground_cases_of(ty)
-  | TupLabel(label, _) =>
-    NotGroundOrHole(
-      TupLabel(label, Unknown(Internal) |> Typ.temp) |> Typ.temp,
-    )
-  | Prod(tys) =>
-    if (List.for_all(
-          fun
-          | ({term: Unknown(_), _}: Typ.t) => true
-          | _ => false,
-          tys,
-        )) {
-      Ground;
-    } else {
-      tys |> List.length |> grounded_Prod;
-    }
-  | Sum(sm) =>
-    sm |> ConstructorMap.is_ground(is_hole)
-      ? Ground : NotGroundOrHole(Sum(grounded_Sum()) |> Typ.temp)
-  | Arrow(_, _) => grounded_Arrow
-  | Forall(_) => grounded_Forall
-  | List(_) => grounded_List
-  | Ap(_) => failwith("type application in dynamics")
-  };
-};
-
-/* CAST CALCULUS */
-
-/* Rules are taken from figure 12 of https://arxiv.org/pdf/1805.00155.pdf  */
-
-/* gives a transition step that can be taken by the cast calculus here if applicable. */
+ Casts should be propagated inside of expressions when consistent.
+ e.g. [1, 2] : [Int] -> [1 : Int, 2 : Int]
+ */
 let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
   let recur = (d: DHExp.t): DHExp.t =>
     if (recursive) {
