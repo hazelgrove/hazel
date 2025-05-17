@@ -33,21 +33,14 @@ type t =
     )
   | Respond(Model.message, AssistantSettings.mode, Id.t)
   | SendSystemMessage(string, AssistantSettings.mode, Id.t)
-  | SetKey(string)
-  | SetModel(string)
   | NewChat
   | DeleteChat(Id.t)
-  | History
   | ToggleCollapse(int)
-  | SelectLLM(OpenRouter.chat_models)
   | RemoveAndSuggest(string, Id.t)
   | Resuggest(string, Id.t)
   | Describe(string, AssistantSettings.mode, Id.t)
   | SwitchChat(Id.t)
-  | ToggleAPIVisibility
-  | FilterLoadingMessages
-  | SetAvailableModels
-  | SetModels(list(OpenRouter.model_info));
+  | FilterLoadingMessages;
 
 let code_message_of_str =
     (response: string, party: Model.party, tileId: option(Id.t))
@@ -237,7 +230,6 @@ let resculpt_model =
       chat_id: Id.t,
     ) => {
   Model.{
-    ...model,
     chat_history: {
       past_simple_chats:
         mode == HazelTutor ? past_chats : model.chat_history.past_simple_chats,
@@ -812,13 +804,6 @@ let update =
         |> Updated.return_quiet
       };
     };
-  | SetKey(api_key) =>
-    Store.Generic.save("API", api_key);
-    schedule_action(SetAvailableModels);
-    model |> Updated.return_quiet;
-  | SetModel(model_id) =>
-    Store.Generic.save("MODEL", model_id);
-    model |> Updated.return_quiet;
   | NewChat =>
     let mode = settings.assistant.mode;
     let (past_chats, _) = get_mode_info(mode, model);
@@ -847,12 +832,6 @@ let update =
           }
         : resculpt_model(mode, model, filtered_past_chats, curr_chat.id);
     updated_model |> Updated.return_quiet;
-  | History =>
-    {
-      ...model,
-      show_history: !model.show_history,
-    }
-    |> Updated.return_quiet
   | Respond(message, mode, chat_id) =>
     let response = message.content;
     if (mode == HazelTutor || mode == CodeSuggestion) {
@@ -1246,10 +1225,6 @@ let update =
       );
     resculpt_model(mode, model, updated_past_chats, curr_chat.id)
     |> Updated.return_quiet;
-  | SelectLLM(llm) =>
-    let model_id = OpenRouter.string_of_chat_model(llm);
-    Store.Generic.save("MODEL", model_id);
-    model |> Updated.return_quiet;
   | RemoveAndSuggest(response, tileId) =>
     // Only side effects in the editor are performed here
     add_suggestion(~response, tileId, false);
@@ -1280,12 +1255,6 @@ let update =
     let mode = settings.assistant.mode;
     let (past_chats, _) = get_mode_info(mode, model);
     resculpt_model(mode, model, past_chats, chat_id) |> Updated.return_quiet;
-  | ToggleAPIVisibility =>
-    {
-      ...model,
-      show_api_key: !model.show_api_key,
-    }
-    |> Updated.return_quiet
   | FilterLoadingMessages =>
     Model.{
       ...model,
@@ -1323,32 +1292,9 @@ let update =
       },
     }
     |> Updated.return_quiet
-  | SetAvailableModels =>
-    switch (Store.Generic.load("API")) {
-    | Some(key) =>
-      OpenRouter.get_models(~key, ~handler=response => {
-        switch (response) {
-        | Some(json) =>
-          switch (OpenRouter.parse_models_response(json)) {
-          | Some(models_response) =>
-            schedule_action(SetModels(models_response.data))
-          | None =>
-            print_endline("Assistant: failed to parse models response")
-          }
-        | None =>
-          print_endline("Assistant: no response received from OpenRouter API")
-        }
-      });
-      model |> Updated.return_quiet;
-    | None =>
-      print_endline("No API key found. Please set an API key first.");
-      model |> Updated.return_quiet;
-    }
-  | SetModels(models) =>
-    {
-      ...model,
-      available_models: models,
-    }
-    |> Updated.return_quiet
+  // Note: It would be nice to have "SetKey" as an AssistantSettings action,
+  //       however, due to the parallel nature of the handler and API call,
+  //       this is slightly more complex, as we need to pass a schedule_action
+  //       to actually update the our model with the LLMs from the response of the API call.
   };
 };

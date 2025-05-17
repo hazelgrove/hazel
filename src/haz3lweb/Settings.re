@@ -1,4 +1,9 @@
+module Sexp = Sexplib.Sexp;
+open Haz3lcore;
 open Util;
+open Util.OptUtil.Syntax;
+open Js_of_ocaml;
+open Js_of_ocaml.Dom_html;
 
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -46,10 +51,11 @@ module Model = {
       highlight: NoHighlight,
     },
     assistant: {
-      llm: false,
-      lsp: false,
-      ongoing_chat: false,
       mode: CodeSuggestion,
+      ongoing_chat: false,
+      show_history: false,
+      show_api_key: false,
+      available_models: [],
     },
     sidebar: {
       panel: LanguageDocumentation,
@@ -74,7 +80,7 @@ module Model = {
   let unpersist = fix_instructor_mode;
 };
 
-module Store =
+module SettingsStore =
   Store.F({
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = Model.persistent;
@@ -112,7 +118,8 @@ module Update = {
     | Assistant(AssistantSettings.action)
     | FlipAnimations;
 
-  let update = (action, settings: Model.t): Updated.t(Model.t) => {
+  let update =
+      (~action, ~schedule_action, ~settings: Model.t): Updated.t(Model.t) => {
     (
       switch (action) {
       | Statics => {
@@ -245,33 +252,70 @@ module Update = {
           ...settings,
           explainThis,
         };
-      | Assistant(ToggleLLM) => {
-          ...settings,
-          assistant: {
-            ...settings.assistant,
-            llm: !settings.assistant.llm,
-          },
-        }
-      | Assistant(ToggleLSP) => {
-          ...settings,
-          assistant: {
-            ...settings.assistant,
-            lsp: !settings.assistant.lsp,
-          },
-        }
-      | Assistant(UpdateChatStatus) => {
-          ...settings,
-          assistant: {
-            ...settings.assistant,
-            ongoing_chat: !settings.assistant.ongoing_chat,
-          },
-        }
-      | Assistant(SwitchMode(mode)) => {
-          ...settings,
-          assistant: {
-            ...settings.assistant,
-            mode,
-          },
+      | Assistant(u) =>
+        switch (u) {
+        | UpdateChatStatus => {
+            ...settings,
+            assistant: {
+              ...settings.assistant,
+              ongoing_chat: !settings.assistant.ongoing_chat,
+            },
+          }
+        | SwitchMode(mode) => {
+            ...settings,
+            assistant: {
+              ...settings.assistant,
+              mode,
+            },
+          }
+        | ToggleHistory => {
+            ...settings,
+            assistant: {
+              ...settings.assistant,
+              show_history: !settings.assistant.show_history,
+            },
+          }
+        | SetLLM(llm_id) =>
+          {
+            Store.Generic.save("MODEL", llm_id);
+          };
+          settings;
+        | ToggleAPIKeyVisibility => {
+            ...settings,
+            assistant: {
+              ...settings.assistant,
+              show_api_key: !settings.assistant.show_api_key,
+            },
+          }
+        | SetAPIKey(api_key) =>
+          // Store the API Key
+          Store.Generic.save("API", api_key);
+          // Set the available models using the provided API key
+          OpenRouter.get_models(~key=api_key, ~handler=response => {
+            switch (response) {
+            | Some(json) =>
+              switch (OpenRouter.parse_models_response(json)) {
+              | Some(models_response) =>
+                schedule_action(
+                  Assistant(SetListOfLLMs(models_response.data)),
+                )
+              | None =>
+                print_endline("Assistant: failed to parse models response")
+              }
+            | None =>
+              print_endline(
+                "Assistant: no response received from OpenRouter API",
+              )
+            }
+          });
+          settings;
+        | SetListOfLLMs(llms) => {
+            ...settings,
+            assistant: {
+              ...settings.assistant,
+              available_models: llms,
+            },
+          }
         }
       | Benchmark => {
           ...settings,
