@@ -116,12 +116,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       ) {
       | Some(t) =>
         Some(
-          Cast(
-            recur(Cast(e, Unknown(Internal) |> Typ.temp, t) |> DHExp.fresh),
-            Unknown(Internal) |> Typ.temp,
-            t,
-          )
-          |> DHExp.fresh,
+          recur(Cast(e, Unknown(Internal) |> Typ.temp, t) |> DHExp.fresh),
         )
       | None => None //TODO  This is an impossible case since we checked consistency
       }
