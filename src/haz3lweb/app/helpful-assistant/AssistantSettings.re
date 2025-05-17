@@ -1,9 +1,5 @@
 module Sexp = Sexplib.Sexp;
-open Haz3lcore;
 open Util;
-open Util.OptUtil.Syntax;
-open Js_of_ocaml;
-open Js_of_ocaml.Dom_html;
 
 module Model = AssistantModel;
 
@@ -22,6 +18,7 @@ type t = {
   available_models: list(OpenRouter.model_info),
 };
 
+// Note: Settings actions are handled in Settings.re
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action =
   // Flips between ongoing and not ongoing chat

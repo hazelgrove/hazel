@@ -2,8 +2,6 @@ module Sexp = Sexplib.Sexp;
 open Haz3lcore;
 open Util;
 open Util.OptUtil.Syntax;
-open Js_of_ocaml;
-open Js_of_ocaml.Dom_html;
 
 module CodeModel = CodeEditable.Model;
 
@@ -47,6 +45,8 @@ type employ_llm_action =
   | Describe(string, AssistantSettings.mode, Id.t);
 
 // Future Todo: (Check whether) These might be able to be relocated to AssistantSettings
+//              Although, arguably, the chat is inherently part of the assistant model,
+//              serving as a sort of memory.
 // Actions that are related to the chat history and/or display of chat messages
 [@deriving (show({with_path: false}), sexp, yojson)]
 type chat_action =
@@ -295,9 +295,9 @@ let form_descriptor =
     (~schedule_action, ~chat: Model.chat, ~mode: AssistantSettings.mode): unit => {
   let prompt =
     switch (mode) {
-    | HazelTutor => "Your main task is to provide a summarizing title of the following conversation, in less than or equal to 7 words. \n            DO NOT exceed 7 words. Only provide the summarizing title in your response, do not include any other text. Here is the\n            concatenated conversation, with your response and the user's responses, respectively: "
-    | CodeSuggestion => "Your main task is to provide a summarizing title of the following conversation, in less than or equal to 7 words.\n            DO NOT exceed 7 words. Only provide the summarizing title in your response, do not include any other text. This conversation is known to be a code\n            completion conversation. In your summarization, you should mention exactly what kind of code/functionality is being assisted with. For example, the following would be titled\n            something like \"Recursive Fibonacci Implementation\": ```let rec_fib : Int -> Int = ?? in ?```. Here is the\n            concatenated conversation, with your response and the user's responses, respectively: "
-    | TaskCompletion => "Your main task is to provide a summarizing title of the following conversation, in less than or equal to 7 words.\n            DO NOT exceed 7 words. Only provide the summarizing title in your response, do not include any other text. This conversation is known to be a task completion conversation.\n            In your summarization, you should mention exactly what kind of task is being completed. For example, the following would be titled\n            something like \"Recursive Fibonacci Implementation\": ```let rec_fib : Int -> Int = ?? in ?```. Here is the\n            concatenated conversation, with your response and the user's responses, respectively: "
+    | HazelTutor => "Your main task is to provide a summarizing title of the following conversation, in less than or equal to 5 words, and include 1 or 2 emojis. \n            DO NOT exceed 7 words. Only provide the summarizing title in your response, do not include any other text. Here is the\n            concatenated conversation, with your response and the user's responses, respectively: "
+    | CodeSuggestion => "Your main task is to provide a summarizing title of the following conversation, in less than or equal to 5 words, and include 1 or 2 emojis.\n            DO NOT exceed 7 words. Only provide the summarizing title in your response, do not include any other text. This conversation is known to be a code\n            completion conversation. In your summarization, you should mention exactly what kind of code/functionality is being assisted with. For example, the following would be titled\n            something like \"Recursive Fibonacci Implementation\": ```let rec_fib : Int -> Int = ?? in ?```. Here is the\n            concatenated conversation, with your response and the user's responses, respectively: "
+    | TaskCompletion => "Your main task is to provide a summarizing title of the following conversation, in less than or equal to 5 words, and include 1 or 2 emojis.\n            DO NOT exceed 7 words. Only provide the summarizing title in your response, do not include any other text. This conversation is known to be a task completion conversation.\n            In your summarization, you should mention exactly what kind of task is being completed. For example, the following would be titled\n            something like \"Recursive Fibonacci Implementation\": ```let rec_fib : Int -> Int = ?? in ?```. Here is the\n            concatenated conversation, with your response and the user's responses, respectively: "
     };
   let prompt =
     List.fold_left(
@@ -1000,6 +1000,7 @@ let update =
     switch (response) {
     | Basic(message, mode, chat_id) =>
       let response = message.content;
+      check_descriptor(~model, ~schedule_action, ~message, ~mode, ~chat_id);
       if (mode == HazelTutor || mode == CodeSuggestion) {
         let code_pattern =
           Str.regexp(
@@ -1016,13 +1017,6 @@ let update =
           };
         let discussion_message = text_message_of_str(discussion, LLM);
         if (code_example == "") {
-          check_descriptor(
-            ~model,
-            ~schedule_action,
-            ~message=discussion_message,
-            ~mode,
-            ~chat_id,
-          );
           add_message_to_model(
             mode,
             model,
@@ -1043,13 +1037,6 @@ let update =
           // Then handle the completion as before
           let message_with_example =
             code_message_of_str(code_example, LLM, None);
-          check_descriptor(
-            ~model,
-            ~schedule_action,
-            ~message=message_with_example,
-            ~mode,
-            ~chat_id,
-          );
           add_message_to_model(
             mode,
             model_with_discussion,

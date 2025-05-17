@@ -1,9 +1,6 @@
 open Util;
 open Haz3lcore.Info;
 open Haz3lcore;
-open OptUtil.Syntax;
-open JsUtil;
-open Js_of_ocaml;
 
 module Options = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -543,6 +540,7 @@ module Composition = {
 
   let mk_prompt =
       (options: Options.t, ci: Info.t, sketch: Segment.t, init: bool): string => {
+    let (_, _) = (options, ci); // TODO: Either remove params or update function to use params
     let prelude_and_toolkit =
       String.concat("\n", SystemPrompt.task_completion_toolkit);
     let few_shot_examples =
