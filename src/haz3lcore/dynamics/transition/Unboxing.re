@@ -24,8 +24,7 @@ open Util;
     */
 
 type unboxed_tfun =
-  | TypFun(TPat.t, Exp.t, option(string))
-  | TFunCast(DHExp.t, TPat.t, Typ.t, TPat.t, Typ.t);
+  | TypFun(TPat.t, Exp.t, option(string));
 
 [@deriving show({with_path: false})]
 type unboxed_fun =
@@ -141,17 +140,6 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       Matches(TypFun(utpat, Closure(env', tfbody) |> Exp.fresh, name))
     | (TypFun, TypFun(utpat, tfbody, name)) =>
       Matches(TypFun(utpat, tfbody, name))
-    // Note: We might be able to handle this cast like other casts
-    | (
-        TypFun,
-        Cast(
-          d'',
-          {term: Forall(tp1, _), _} as t1,
-          {term: Forall(tp2, _), _} as t2,
-        ),
-      ) =>
-      Matches(TFunCast(d'', tp1, t1, tp2, t2))
-
     /* Any failed cast is indet */
     | (_, FailedCast(_)) => IndetMatch
 

@@ -352,19 +352,6 @@ module Transition = (EV: EV_MODE) => {
           kind: TypFunAp,
           is_value: false,
         })
-      | TFunCast(d'', tp1, t1, tp2, t2) =>
-        /* Rule ITTApCast */
-        Step({
-          expr:
-            cast(
-              typ_ap(d'', tau),
-              Typ.subst(tau, tp1, t1),
-              Typ.subst(tau, tp2, t2),
-            ),
-          state_update,
-          kind: CastTypAp,
-          is_value: false,
-        })
       };
     | DeferredAp(d1, ds) =>
       let. _ = otherwise(env, (d1, ds) => DeferredAp(d1, ds) |> rewrap)
