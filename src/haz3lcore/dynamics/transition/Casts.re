@@ -103,6 +103,28 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
   switch (DHExp.term_of(d)) {
   | Cast(e, _, t) =>
     switch (DHExp.term_of(e), Typ.term_of(Typ.unroll(t))) {
+    | (Cast(e, _, t'), t)
+        // This is only necessary because sometimes we add two casts and aren't marking it as a non-value
+        when
+          Typ.is_consistent(
+            Ctx.empty,
+            Typ.unroll(t |> Typ.temp),
+            Typ.unroll(t'),
+          ) =>
+      switch (
+        Typ.join(Ctx.empty, Typ.unroll(t |> Typ.temp), Typ.unroll(t'))
+      ) {
+      | Some(t) =>
+        Some(
+          Cast(
+            recur(Cast(e, Unknown(Internal) |> Typ.temp, t) |> DHExp.fresh),
+            Unknown(Internal) |> Typ.temp,
+            t,
+          )
+          |> DHExp.fresh,
+        )
+      | None => None //TODO  This is an impossible case since we checked consistency
+      }
     | (e, Parens(t)) =>
       // This is an impossible case since types should be normalized before coming to transitions
       transition(
