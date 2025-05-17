@@ -433,14 +433,6 @@ module Transition = (EV: EV_MODE) => {
           })
         };
       | FunNoEnv(_) => Indet
-      | FunCast(d3', ty1, ty2, ty1', ty2') =>
-        Step({
-          expr: cast(ap(dir, d3', cast(d2', ty1', ty1)), ty2, ty2'),
-
-          state_update,
-          kind: CastAp,
-          is_value: false,
-        })
       | BuiltinFun(ident) =>
         let builtin =
           VarMap.lookup(Builtins.forms_init, ident)

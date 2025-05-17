@@ -31,46 +31,14 @@ let tests = (
     test_case("Deferral applied to hole", `Quick, () =>
       evaluation_test(
         "?(_, _, 3)(1., true)",
-        ap(
-          Forward,
-          cast(
-            empty_hole(),
-            Typ.unknown(Internal),
-            Typ.(arrow(unknown(Internal), unknown(Internal))),
-          ),
-          tuple([float(1.), bool(true), int(3)]),
-        ),
+        ap(Forward, empty_hole(), tuple([float(1.), bool(true), int(3)])),
         ap(
           Forward,
           deferred_ap(
-            cast(
-              cast(
-                empty_hole(),
-                Typ.unknown(Internal),
-                Typ.(arrow(unknown(Internal), unknown(Internal))),
-              ),
-              Typ.(arrow(unknown(Internal), unknown(Internal))),
-              Typ.(
-                arrow(
-                  prod([
-                    unknown(Internal),
-                    unknown(Internal),
-                    unknown(Internal),
-                  ]),
-                  unknown(Internal),
-                )
-              ),
-            ),
-            [
-              deferral(InAp),
-              deferral(InAp),
-              cast(int(3), Typ.int(), Typ.unknown(Internal)),
-            ],
+            empty_hole(),
+            [deferral(InAp), deferral(InAp), int(3)],
           ),
-          tuple([
-            cast(float(1.), Typ.float(), Typ.unknown(Internal)),
-            cast(bool(true), Typ.bool(), Typ.unknown(Internal)),
-          ]),
+          tuple([float(1.), bool(true)]),
         ),
       )
     ),
