@@ -10,5 +10,6 @@ let self = [
   "- Pattern matching is ALWAYS written a 'case ... end' expression. Cases MUST END in an 'end' keyword. DO NOT USE any other keyword besides 'case' to do pattern matching.  DO NOT USE a 'with' or 'of' keyword with 'case', just start the list of rules. Pattern matching rules use syntax '| pattern => expression'. Note the '=>' arrow.",
   "- The ONLY way to define a named function is by using a function expression nested in a let expression like 'let <pat> = fun <pat> -> <exp> in <exp'. There is no support for specifying the function arguments directly as part of the let. DO NOT write function arguments in the let pattern.",
   "- No 'rec' keyword is necessary for 'let' to define a recursive function. DO NOT use the 'rec' keyword with 'let'.",
-  "- Format the code with proper linebreaks",
+  "- Format the code with proper linebreaks and whitespace.",
+  "- Hazel comments are enclosed by beginning and ending `#` symbols. Eg `# This is a comment #`. The program WILL be erroneous if you do not include an ending '#' symbol for a comment.",
 ];
