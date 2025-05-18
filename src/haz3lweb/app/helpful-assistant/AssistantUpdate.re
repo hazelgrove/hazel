@@ -682,6 +682,8 @@ let update =
       //        and the former is what is saved to the chat history (and (if needed) collected
       //        in prompt_with_chats in later SendTextMessage calls).
       let mode = settings.assistant.mode;
+      let documentation = get_documentation_as_text();
+      print_endline("documentation: " ++ documentation);
       // Capture the entire chat to give historical context to LLM
       let (_, curr_chat) = get_mode_info(mode, model);
       // Gathers info/prompt given the mode
