@@ -126,6 +126,18 @@ module Completion = {
 };
 
 module Composition = {
+  let statics_of_exp_seg =
+      (init_ctx: Ctx.t, sketch: Segment.t): (Info.exp, Statics.Map.t) =>
+    Statics.uexp_to_info_map(
+      ~ctx=init_ctx,
+      ~ancestors=[],
+      MakeTerm.go(sketch).term,
+      Id.Map.empty,
+      ~duplicates=[],
+      ~expected_labels=None,
+      ~label_sort=false,
+    );
+
   let mk_prompt =
       (options: Options.t, ci: Info.t, sketch: Segment.t, init: bool): string => {
     let (_, _) = (options, ci); // TODO: Either remove params or update function to use params
@@ -137,6 +149,14 @@ module Composition = {
       String.concat("\n", SystemPrompt.few_shot_composition_examples);
     let hazel_syntax_notes =
       String.concat("\n", SystemPrompt.hazel_syntax_notes);
+    let (_, info_map) = statics_of_exp_seg(Info.ctx_of(ci), sketch);
+    let errors = ErrorPrint.all(info_map);
+
+    let static_error_arr =
+      switch (errors) {
+      | [] => ["No static errors found"]
+      | _ => errors
+      };
     String.concat(
       "\n",
       (
@@ -151,7 +171,9 @@ module Composition = {
       )
       @ [
         "PROGRAM SKETCH: " ++ ErrorPrint.Print.seg(~holes=Some("?"), sketch),
-      ],
+      ]
+      @ ["STATIC ERRORS: "]
+      @ static_error_arr,
     );
   };
 

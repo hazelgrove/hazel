@@ -4,9 +4,13 @@ let self = [
   /* Example 1: Fixing a type error in a function */
   "Example 1: Fixing a type error in a function",
   "PROGRAM SKETCH:
-let add = fun x -> x + \"hello\" in  # Type error: adding Int and String
-add(5)  # Error occurs when trying to add 5 and \"hello\"
+let add = fun x -> x + \"hello\" in  # Type error: adding Int and String #
+add(5)  # Error occurs when trying to add 5 and \"hello\" #
 ",
+  "STATIC ERRORS:
+Error in term:
+  \"hello\"
+Nature of error: Expecting type Int but got inconsistent type String",
   "USER: Fix the type error in the add function.",
   "ASSISTANT: I'll fix the type error in the add function by first locating it and then making the necessary changes.
 
@@ -24,13 +28,15 @@ Let me see how those changes affect the program.",
   /* Example 2: Creating a list reversal function */
   "Example 2: Creating a list reversal function",
   "PROGRAM SKETCH:
-# The program has various list functions but is missing a reverse function
+# The program has various list functions but is missing a reverse function #
 let map: forall a -> forall b -> (a -> b) -> [a] -> [b] = ... in
 let filter: forall a -> (a -> Bool) -> [a] -> [a] = ... in
-# Our task is to implement the missing reverse function
+# Our task is to implement the missing reverse function #
 let reverse = ? in
-[1, 2, 3]  # We want to be able to reverse this to [3, 2, 1]
+[1, 2, 3]  # We want to be able to reverse this to [3, 2, 1] #
 ",
+  "STATIC ERRORS:
+No static errors found",
   "USER: Create a reverse function for lists.",
   "ASSISTANT: I'll create a list reversal function that works on any type of list.
 
@@ -57,13 +63,15 @@ in```
   /* Example 3: Fixing multiple functions */
   "Example 3: Fixing multiple functions",
   "PROGRAM SKETCH:
-# The program has mutually recursive even/odd functions with bugs
+# The program has mutually recursive even/odd functions with bugs #
 let (even: Int -> Bool, odd: Int -> Bool) =
-(fun n -> if n == 0 then true else odd(n + 1),  # Bug: should be n - 1
- fun n -> if n == 1 then false else even(n + 1))  # Bug: base case should be n == 0
+(fun n -> if n == 0 then true else odd(n + 1),  # Bug: should be n - 1 #
+ fun n -> if n == 1 then false else even(n + 1))  # Bug: base case should be n == 0 #
 in
-even(4)  # Should return true but will cause infinite recursion
+even(4)  # Should return true but will cause infinite recursion #
 ",
+  "STATIC ERRORS:
+No static errors found",
   "USER: Fix both the even and odd functions.",
   "ASSISTANT: I'll fix both recursive functions by first examining the even function:
 
@@ -98,7 +106,7 @@ in```
   /* Example 4: Updating an ADT and related function */
   "Example 4: Updating an ADT and related function",
   "PROGRAM SKETCH:
-# The program has a simple expression language and evaluator
+# The program has a simple expression language and evaluator #
 type Exp =
   + Var(String)
   + Lam(String, Exp)
@@ -127,6 +135,9 @@ let eval: Exp -> Result =
     end
 in
 ",
+  // Technically 'subst' is not defined in the program sketch, but it seems that it is assumed to be defined elsewhere
+  "STATIC ERRORS:
+No static errors found",
   "USER: Add a Mult constructor to the Exp type and update the eval function to handle it.",
   "ASSISTANT: I'll first check the Exp type definition:
 
