@@ -159,6 +159,7 @@ module Update = {
           CodeEditable.Update.calculate(
             ~settings,
             ~is_edited=true,
+            ~is_dynamic_term=true,
             ~dynamics=Dynamics.Map.empty,
             ~stitch=x => x,
             ~ctx=Calc.get_value(ctx),
