@@ -649,14 +649,10 @@ let mk_mode_prompt =
           ~erase_buffer=true,
           editor.editor.state.zipper,
         );
-      let index = Option.get(Indicated.index(editor.editor.state.zipper));
-      // Prompting fails here if the cursor is over whitespace, since find_opt returns None
-      // Is there some default ci value we could use?
-      let ci = Option.get(Id.Map.find_opt(index, editor.statics.info_map)); // Fails here
       ChatLSP.Composition.mk_prompt(
         ChatLSP.Options.init,
-        ci,
         sketch_seg,
+        editor,
         List.length(curr_chat.messages) == 0,
       );
     };

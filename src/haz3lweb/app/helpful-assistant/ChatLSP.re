@@ -139,8 +139,14 @@ module Composition = {
     );
 
   let mk_prompt =
-      (options: Options.t, ci: Info.t, sketch: Segment.t, init: bool): string => {
-    let (_, _) = (options, ci); // TODO: Either remove params or update function to use params
+      (
+        options: Options.t,
+        sketch: Segment.t,
+        editor: CodeWithStatics.Model.t,
+        init: bool,
+      )
+      : string => {
+    let _ = options; // TODO: Either remove params or update function to use params
     let summarized_hazel_docs =
       String.concat("\n", SystemPrompt.summarized_hazel_docs);
     let prelude_and_toolkit =
@@ -149,8 +155,8 @@ module Composition = {
       String.concat("\n", SystemPrompt.few_shot_composition_examples);
     let hazel_syntax_notes =
       String.concat("\n", SystemPrompt.hazel_syntax_notes);
-    let (_, info_map) = statics_of_exp_seg(Info.ctx_of(ci), sketch);
-    let errors = ErrorPrint.all(info_map);
+    //let (_, info_map) = statics_of_exp_seg(Info.ctx_of(ci), sketch);
+    let errors = ErrorPrint.all(editor.statics.info_map);
 
     let static_error_arr =
       switch (errors) {
@@ -173,7 +179,18 @@ module Composition = {
         "PROGRAM SKETCH: " ++ ErrorPrint.Print.seg(~holes=Some("?"), sketch),
       ]
       @ ["STATIC ERRORS: "]
-      @ static_error_arr,
+      @ static_error_arr
+      @ [
+        "SELECTED CODE: "
+        ++ (
+          init
+            ? "None. Use a goto_* command to select a code segment."
+            : ErrorPrint.Print.seg(
+                ~holes=Some("?"),
+                editor.editor.state.zipper.selection.content,
+              )
+        ),
+      ],
     );
   };
 
