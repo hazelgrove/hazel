@@ -49,8 +49,6 @@ module Update = {
         Project(_) |
         Introduce,
       )
-    | Undo
-    | Redo
     | DebugConsole(_)
     | TAB => None;
 

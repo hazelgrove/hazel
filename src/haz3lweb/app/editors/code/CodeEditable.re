@@ -11,8 +11,6 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Perform(Action.t)
-    | Undo
-    | Redo
     | TAB
     | DebugConsole(string);
 
@@ -61,26 +59,6 @@ module Update = {
       );
     switch (action) {
     | Perform(action) => perform(action, model)
-    | Undo =>
-      switch (Editor.Update.undo(model.editor)) {
-      | Some(editor) =>
-        Model.{
-          ...model,
-          editor,
-        }
-        |> Updated.return
-      | None => model |> Updated.return_quiet
-      }
-    | Redo =>
-      switch (Editor.Update.redo(model.editor)) {
-      | Some(editor) =>
-        Model.{
-          ...model,
-          editor,
-        }
-        |> Updated.return
-      | None => model |> Updated.return_quiet
-      }
     | DebugConsole(key) =>
       DebugConsole.print(~settings=globals.settings, model, key);
       model |> Updated.return_quiet;
@@ -117,8 +95,8 @@ module Selection = {
         CodeWithStatics.Model.get_cursor_info(model)
         |> map(x => Update.Perform(x)),
       editor_read_only: false,
-      undo_action: Some(Update.Undo),
-      redo_action: Some(Update.Redo),
+      undo_action: None,
+      redo_action: None,
     };
   };
 
@@ -141,12 +119,12 @@ module Selection = {
         ctrl: Down,
         alt: Up,
       } =>
-      Some(Update.Redo)
+      None
     | {key: D("Tab"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up} =>
       Some(Update.TAB)
     | {key: D("Z" | "z"), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
     | {key: D("Z" | "z"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
-      Some(Update.Undo)
+      None
     | {key: D(key), sys: Mac | PC, shift: Down, meta: Up, ctrl: Up, alt: Up}
         when Keyboard.is_f_key(key) =>
       Some(Update.DebugConsole(key))

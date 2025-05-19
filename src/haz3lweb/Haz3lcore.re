@@ -190,9 +190,6 @@ and Editor: {
       ) =>
       Model.t;
 
-    let undo: Model.t => option(Model.t);
-    let redo: Model.t => option(Model.t);
-
     let key_handoff:
       (Model.t, Key.t) =>
       option(
@@ -364,9 +361,6 @@ and Editor: {
         common.dynamics,
         ed,
       );
-
-    let undo = Haz3lcorep.Editor.Update.undo;
-    let redo = Haz3lcorep.Editor.Update.redo;
 
     let move_dir = (key: Key.t): option(Direction.t) =>
       switch (key) {

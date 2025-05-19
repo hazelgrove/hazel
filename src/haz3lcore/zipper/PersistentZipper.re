@@ -27,11 +27,11 @@ let unpersist = (f, persisted: t) =>
     };
   };
 
-let serialize = (f, zipper: Zipper.t('p)) => {
-  persist(f, zipper) |> yojson_of_t |> Yojson.Safe.to_string;
-};
+// let serialize = (f, zipper: Zipper.t('p)) => {
+//   persist(f, zipper) |> yojson_of_t |> Yojson.Safe.to_string;
+// };
 
-let deserialize = (f, data: string) => {
-  let persisted = data |> Yojson.Safe.from_string |> t_of_yojson;
-  unpersist(f, persisted);
-};
+// let deserialize = (f, data: string) => {
+//   let persisted = data |> Yojson.Safe.from_string |> t_of_yojson;
+//   unpersist(f, persisted);
+// };
