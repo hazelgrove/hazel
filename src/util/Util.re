@@ -1,6 +1,5 @@
 module Aba = Aba;
 module BonsaiUtil = BonsaiUtil;
-module BonsaiUndo = BonsaiUndo;
 module Bigint = BigInt;
 module Direction = Direction;
 module Either = Either;

@@ -19,25 +19,23 @@ let restart_caret_animation = () =>
 
 let apply =
     (
-      model: Page.Model.t,
-      action: Page.Update.t,
-      ~schedule_effect,
+      model: History.Model.t,
+      action: History.Update.t,
       ~schedule_action,
       ~schedule_autosave,
     )
-    : Page.Model.t => {
+    : History.Model.t => {
   restart_caret_animation();
 
   /* This function is split into two phases, update and calculate.
      The intention is that eventually, the calculate phase will be
      done automatically by incremental calculation. */
   // ---------- UPDATE PHASE ----------
-  let updated: Updated.t(Page.Model.t) =
+  let updated: Updated.t(History.Model.t) =
     try(
-      Page.Update.update(
+      History.Update.update(
         ~import_log=Log.import,
         ~get_log_and=Log.get_and,
-        ~schedule_effect,
         ~schedule_action,
         action,
         model,
@@ -60,7 +58,10 @@ let apply =
   let model' =
     updated.recalculate
       ? updated.model
-        |> Page.Update.calculate(~schedule_action, ~is_edited=updated.is_edit)
+        |> History.Update.calculate(
+             ~schedule_action,
+             ~is_edited=updated.is_edit,
+           )
       : updated.model;
 
   if (updated.is_edit) {
@@ -85,9 +86,9 @@ let apply =
 let start = {
   let%sub save_scheduler = BonsaiUtil.Alarm.alarm;
   let%sub (app_model, app_inject) =
-    BonsaiUndo.state_machine_with_undo(
-      (module Page.Model),
-      (module Page.Update),
+    Bonsai.state_machine1(
+      (module History.Model),
+      (module History.Update),
       ~apply_action=
         (~inject, ~schedule_event, input) => {
           let schedule_action = x => schedule_event(inject(x));
@@ -97,14 +98,9 @@ let start = {
               schedule_event(alarm_inject(action))
             | Inactive => ()
             };
-          apply(
-            ~schedule_action,
-            ~schedule_effect=schedule_event,
-            ~schedule_autosave,
-          );
+          apply(~schedule_action, ~schedule_autosave);
         },
-      ~default_model=Page.Store.load(),
-      ~can_undo=Page.Update.can_undo,
+      ~default_model=History.Model.init(),
       save_scheduler,
     );
 
@@ -180,7 +176,8 @@ let start = {
         } else {
           ();
         };
-        model.globals.settings.core.statics ? Haz3lcore.Animation.go() : ();
+        model.current.globals.settings.core.statics
+          ? Haz3lcore.Animation.go() : ();
       },
       (),
     );
@@ -190,7 +187,7 @@ let start = {
   // View function
   let%arr app_model = app_model
   and app_inject = app_inject;
-  Haz3lweb.Page.View.view(
+  Haz3lweb.History.View.view(
     app_model,
     ~inject=app_inject,
     ~get_log_and=Log.get_and,
