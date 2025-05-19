@@ -73,7 +73,6 @@ module Update = {
       (
         ~import_log,
         ~schedule_action,
-        ~schedule_effect,
         ~globals: Globals.Model.t,
         action: Globals.Update.t,
         model: Model.t,
@@ -197,26 +196,8 @@ module Update = {
           editors,
         };
       };
-    | Undo =>
-      let undo = BonsaiUndo.UndoController.get_undo();
-      switch (undo) {
-      | None =>
-        print_endline("Cannot undo");
-        model |> return_quiet;
-      | Some(effect) =>
-        schedule_effect(effect);
-        model |> return_quiet;
-      };
-    | Redo =>
-      let redo = BonsaiUndo.UndoController.get_redo();
-      switch (redo) {
-      | None =>
-        print_endline("Cannot redo");
-        model |> return_quiet;
-      | Some(effect) =>
-        schedule_effect(effect);
-        model |> return_quiet;
-      };
+    | Undo
+    | Redo => failwith("Undo/Redo are handled in the history module")
     };
   };
 
@@ -224,7 +205,6 @@ module Update = {
       (
         ~import_log,
         ~get_log_and,
-        ~schedule_effect,
         ~schedule_action: t => unit,
         action: t,
         model: Model.t,
@@ -236,14 +216,7 @@ module Update = {
     };
     switch (action) {
     | Globals(action) =>
-      update_global(
-        ~globals,
-        ~import_log,
-        ~schedule_effect,
-        ~schedule_action,
-        action,
-        model,
-      )
+      update_global(~globals, ~import_log, ~schedule_action, action, model)
     | Editors(action) =>
       let* editors =
         Editors.Update.update(
