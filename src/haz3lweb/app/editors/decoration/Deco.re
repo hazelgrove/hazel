@@ -282,7 +282,11 @@ module Deco =
     );
 
   let term_range = (p): option((Point.t, Point.t)) => {
-    let id = Any.rep_id(Id.Map.find(Piece.id(p), terms));
+    let id =
+      switch (Any.rep_id(Id.Map.find(Piece.id(p), terms))) {
+      | x => x
+      | exception Not_found => Piece.id(p)
+      };
     switch (TermRanges.find_opt(id, term_ranges)) {
     | None => None
     | Some((p_l, p_r)) =>
@@ -342,15 +346,18 @@ module Deco =
       switch (range) {
       | None => []
       | Some(range) =>
-        let tiles = all_tiles(p);
-        IndicationDec.term(
-          ~line_clss=[],
-          ~font_metrics,
-          ~rows,
-          ~caret=(Piece.id(p), index),
-          ~tiles,
-          range,
-        );
+        switch (all_tiles(p)) {
+        | tiles =>
+          IndicationDec.term(
+            ~line_clss=[],
+            ~font_metrics,
+            ~rows,
+            ~caret=(Piece.id(p), index),
+            ~tiles,
+            range,
+          )
+        | exception Not_found => []
+        }
       };
     };
   };
