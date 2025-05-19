@@ -49,8 +49,7 @@ module Update = {
         Project(_) |
         Introduce,
       )
-    | DebugConsole(_)
-    | TAB => None;
+    | DebugConsole(_) => None;
 
   let calculate = CodeEditable.Update.calculate;
 };

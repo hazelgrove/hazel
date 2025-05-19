@@ -21,9 +21,25 @@ module Focus = {
         ~key: Key.t,
         ~info_projector,
         model: Editor.Model.t(p_k, p_m, p_a),
-      ) => {
+      )
+      : option(Action.t(p_k, p_m, p_a)) => {
     switch (focus) {
-    | Here => Keyboard.handle_key_event(~info_projector, key)
+    | Here =>
+      switch (key) {
+      | {key: D("Tab"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up} =>
+        /* Attempt to act intelligently when TAB is pressed.
+         * TODO: Consider more advanced TAB logic. Instead
+         * of simply moving to next hole, if the backpack is non-empty
+         * but can't immediately put down, move to next position of
+         * interest, which is closet of: nearest position where can
+         * put down, farthest position where can put down, next hole */
+        let z = model.state.zipper;
+        Selection.is_buffer(z.selection)
+          ? Some(Buffer(Accept))
+          : Zipper.can_put_down(z)
+              ? Some(Put_down) : Some(Move(Goal(Piece(Grout, Right))));
+      | _ => Keyboard.handle_key_event(~info_projector, key)
+      }
     | Projector(id, focus) =>
       open OptUtil.Syntax;
       let* model = ProjectorPerform.get_model(id, model.state.zipper);
