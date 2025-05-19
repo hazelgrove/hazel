@@ -3,10 +3,10 @@ open Js_of_ocaml;
 
 let rec print_exp_for_algebrite = (exp: Exp.t): string =>
   switch (exp.term) {
-  | Int(value) => string_of_int(value)
-  // TODO Nats?
-  | Float(value) => string_of_float(value)
-  | Bool(value) => string_of_bool(value)
+  | Atom(Int(value)) => Bigint.to_string(value)
+  | Atom(Nat(value)) => Bigint.to_string(value)
+  | Atom(Float(value)) => string_of_float(value)
+  | Atom(Bool(value)) => string_of_bool(value)
   // We have to manually map ** (power) to ^ in Algebrite.
   | BinOp(Int(Power), exp_left, exp_right) =>
     "("

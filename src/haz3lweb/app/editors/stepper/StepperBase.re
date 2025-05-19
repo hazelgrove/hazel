@@ -1223,7 +1223,7 @@ module View = {
   and view_justification =
       (
         ~globals: Globals.t,
-        ~signal as _: event_step => Ui_effect.t(unit),
+        ~signal: event_step => Ui_effect.t(unit),
         ~inject: Update.step => Ui_effect.t(unit),
         ~undo: option(Ui_effect.t(unit)),
         step_kind: Model.step_kind,

@@ -98,15 +98,15 @@ let v: ProofCtx.t =
                |> Exp.fresh,
              )
              |> Exp.fresh,
-             Some(Int |> Typ.fresh),
+             Some(Atom(Int) |> Typ.fresh),
              None,
            )
            |> Exp.fresh,
-           Some(Int |> Typ.fresh),
+           Some(Atom(Int) |> Typ.fresh),
            None,
          )
          |> Exp.fresh,
-         Some(Int |> Typ.fresh),
+         Some(Atom(Int) |> Typ.fresh),
          None,
        )
        |> Exp.fresh,
@@ -133,11 +133,11 @@ let v: ProofCtx.t =
              |> Exp.fresh,
            )
            |> Exp.fresh,
-           Some(Int |> Typ.fresh),
+           Some(Atom(Int) |> Typ.fresh),
            None,
          )
          |> Exp.fresh,
-         Some(Int |> Typ.fresh),
+         Some(Atom(Int) |> Typ.fresh),
          None,
        )
        |> Exp.fresh,
@@ -176,15 +176,15 @@ let v: ProofCtx.t =
                |> Exp.fresh,
              )
              |> Exp.fresh,
-             Some(Int |> Typ.fresh),
+             Some(Atom(Int) |> Typ.fresh),
              None,
            )
            |> Exp.fresh,
-           Some(Int |> Typ.fresh),
+           Some(Atom(Int) |> Typ.fresh),
            None,
          )
          |> Exp.fresh,
-         Some(Int |> Typ.fresh),
+         Some(Atom(Int) |> Typ.fresh),
          None,
        )
        |> Exp.fresh,
