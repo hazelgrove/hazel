@@ -944,11 +944,7 @@ let stepper_justification: step_kind => string =
   | BinOp(
       Float(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual),
     ) => "comparison"
-  | BinOp(SInt(Equals | NotEquals))
-  | BinOp(Nat(Equals | NotEquals))
-  | BinOp(Int(Equals | NotEquals))
-  | BinOp(Float(Equals | NotEquals))
-  | BinOp(String(Equals)) => "check equality"
+  | BinOp(String(Equals)) => "check string equality"
   | BinOp(Poly(Equals | NotEquals)) => "check polymorphic equality"
   | BinOp(String(Concat)) => "string manipulation"
   | UnOp(Bool(Not))

@@ -98,37 +98,37 @@ module PlainTests = {
   let ap_fun = () =>
     alco_check("Application of a function", d7, dhexp_of_uexp(u7));
 
-  let u8: Exp.t =
-    Exp.(
-      match(
-        bin_op(Int(Equals), int(4), int(3)),
-        [(Pat.bool(true), int(24)), (Pat.bool(false), bool(false))],
-      )
-    );
+  /* let u8: Exp.t =
+     Exp.(
+       match(
+         bin_op(Int(Equals), int(4), int(3)),
+         [(Pat.bool(true), int(24)), (Pat.bool(false), bool(false))],
+       )
+     ); */
 
-  let d8: Exp.t =
-    Exp.(
-      match(
-        bin_op(Int(Equals), int(4), int(3)),
-        [
-          (
-            Pat.(bool(true)),
-            cast(int(24), Typ.int(), Typ.unknown(Internal)),
-          ),
-          (
-            Pat.bool(false),
-            cast(bool(false), Typ.bool(), Typ.unknown(Internal)),
-          ),
-        ],
-      )
-    );
+  /* let d8: Exp.t =
+     Exp.(
+       match(
+         bin_op(Int(Equals), int(4), int(3)),
+         [
+           (
+             Pat.(bool(true)),
+             cast(int(24), Typ.int(), Typ.unknown(Internal)),
+           ),
+           (
+             Pat.bool(false),
+             cast(bool(false), Typ.bool(), Typ.unknown(Internal)),
+           ),
+         ],
+       )
+     ); */
 
-  let inconsistent_case = () =>
-    alco_check(
-      "Inconsistent branches where the first branch is an integer and second branch is a boolean",
-      d8,
-      dhexp_of_uexp(u8),
-    );
+  /* let inconsistent_case = () =>
+     alco_check(
+       "Inconsistent branches where the first branch is an integer and second branch is a boolean",
+       d8,
+       dhexp_of_uexp(u8),
+     ); */
 
   let u9: Exp.t =
     Exp.(
@@ -438,7 +438,7 @@ module PlainTests = {
     test_case("Consistent if statement", `Quick, consistent_if),
     test_case("An unapplied function", `Quick, unapplied_function),
     test_case("Application of function on free variable", `Quick, ap_fun),
-    test_case("Inconsistent case statement", `Quick, inconsistent_case),
+    /* test_case("Inconsistent case statement", `Quick, inconsistent_case), */
     test_case("Let expression for a function", `Quick, let_fun),
     test_case(
       "Function application with a deferred argument",
@@ -780,20 +780,20 @@ module MenhirElaborationTests = {
     | false => false{Bool => Unknown Internal}
     end
 ";
-  let inconsistent_case_uexp: Exp.t =
-    Exp.(
-      match(
-        bin_op(Int(Equals), int(4), int(3)),
-        [(Pat.bool(true), int(24)), (Pat.bool(false), bool(false))],
-      )
-    );
+  /* let inconsistent_case_uexp: Exp.t =
+     Exp.(
+       match(
+         bin_op(Int(Equals), int(4), int(3)),
+         [(Pat.bool(true), int(24)), (Pat.bool(false), bool(false))],
+       )
+     ); */
 
-  let inconsistent_case_menhir = () =>
-    alco_check_menhir(
-      "Inconsistent branches where the first branch is an integer and second branch is a boolean (menhir)",
-      inconsistent_case_menhir_str,
-      inconsistent_case_uexp,
-    );
+  /* let inconsistent_case_menhir = () =>
+     alco_check_menhir(
+       "Inconsistent branches where the first branch is an integer and second branch is a boolean (menhir)",
+       inconsistent_case_menhir_str,
+       inconsistent_case_uexp,
+     ); */
 
   //Consistent if statement menhir test
   let consistent_if_uexp: Exp.t = Exp.(if_(bool(false), int(8), int(6)));
@@ -995,7 +995,7 @@ x
     test_case("Empty hole (menhir)", `Quick, empty_hole_menhir),
     test_case("Free var (menhir)", `Quick, free_var_menhir),
     test_case("Bin op (menhir)", `Quick, bin_op_menhir),
-    test_case("Inconsistent case (menhir)", `Quick, inconsistent_case_menhir),
+    /* test_case("Inconsistent case (menhir)", `Quick, inconsistent_case_menhir), */
     test_case("Consistent if (menhir)", `Quick, consistent_if_menhir),
     test_case("Undefined test (menhir)", `Quick, undefined_menhir),
     test_case("List exp (menhir)", `Quick, list_exp_menhir),

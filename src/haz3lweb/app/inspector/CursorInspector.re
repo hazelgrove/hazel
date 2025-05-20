@@ -86,7 +86,7 @@ let elements_noun: Cls.t => string =
   | Exp(ListLit)
   | Pat(ListLit) => "Elements"
   | Exp(ListConcat)
-  | Exp(BinOp(Int(Equals))) => "Operands"
+  | Exp(BinOp(Poly(Equals))) => "Operands"
   | cls =>
     failwith("elements_noun: " ++ Cls.show(cls) ++ " cls has no elements");
 

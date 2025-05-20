@@ -71,8 +71,6 @@ rule token =
     | "*" { TIMES }
     | "/" { DIVIDE }
     | "**" {POWER}
-    | "==" { DOUBLE_EQUAL }
-    | "!=" { NOT_EQUAL }
     | "<" { LESS_THAN}
     | "<=" { LESS_THAN_EQUAL }
     | ">" { GREATER_THAN }
@@ -83,8 +81,6 @@ rule token =
     | "*." { TIMES_FLOAT }
     | "/." { DIVIDE_FLOAT }
     | "**." {POWER_FLOAT}
-    | "==." { DOUBLE_EQUAL_FLOAT }
-    | "!=." { NOT_EQUAL_FLOAT }
     | "<." { LESS_THAN_FLOAT}
     | "<=." { LESS_THAN_EQUAL_FLOAT }
     | ">." { GREATER_THAN_FLOAT }

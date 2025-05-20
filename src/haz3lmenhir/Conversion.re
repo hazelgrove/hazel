@@ -71,8 +71,6 @@ module Operators = {
         | LessThanOrEqual => LessThanOrEqual
         | GreaterThan => GreaterThan
         | GreaterThanOrEqual => GreaterThanOrEqual
-        | Equals => Equals
-        | NotEquals => NotEquals
         },
       )
     | Float(op_float) =>
@@ -87,8 +85,6 @@ module Operators = {
         | LessThanOrEqual => LessThanOrEqual
         | GreaterThan => GreaterThan
         | GreaterThanOrEqual => GreaterThanOrEqual
-        | Equals => Equals
-        | NotEquals => NotEquals
         },
       )
     | Bool(op_bool) =>
@@ -153,8 +149,6 @@ module Operators = {
     | LessThanOrEqual => LessThanOrEqual
     | GreaterThan => GreaterThan
     | GreaterThanOrEqual => GreaterThanOrEqual
-    | Equals => Equals
-    | NotEquals => NotEquals
     };
   };
 
@@ -194,8 +188,6 @@ module Operators = {
     | LessThanOrEqual => LessThanOrEqual
     | GreaterThan => GreaterThan
     | GreaterThanOrEqual => GreaterThanOrEqual
-    | Equals => Equals
-    | NotEquals => NotEquals
     };
   };
 

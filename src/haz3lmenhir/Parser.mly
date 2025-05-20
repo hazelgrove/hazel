@@ -57,8 +57,6 @@ open AST
 %token STRING_EQUAL
 
 (* Int ops *)
-%token DOUBLE_EQUAL
-%token NOT_EQUAL
 %token PLUS
 %token MINUS
 %token POWER
@@ -69,8 +67,6 @@ open AST
 %token GREATER_THAN
 %token GREATER_THAN_EQUAL
 (* Float ops *)
-%token DOUBLE_EQUAL_FLOAT
-%token NOT_EQUAL_FLOAT
 %token PLUS_FLOAT
 %token MINUS_FLOAT
 %token DIVIDE_FLOAT
@@ -125,7 +121,7 @@ open AST
 %right L_AND
 
 
-%left GREATER_THAN LESS_THAN DOUBLE_EQUAL NOT_EQUAL LESS_THAN_EQUAL GREATER_THAN_EQUAL NOT_EQUAL_FLOAT LESS_THAN_FLOAT LESS_THAN_EQUAL_FLOAT GREATER_THAN_FLOAT GREATER_THAN_EQUAL_FLOAT DOUBLE_EQUAL_FLOAT STRING_EQUAL
+%left GREATER_THAN LESS_THAN LESS_THAN_EQUAL GREATER_THAN_EQUAL LESS_THAN_FLOAT LESS_THAN_EQUAL_FLOAT GREATER_THAN_FLOAT GREATER_THAN_EQUAL_FLOAT STRING_EQUAL
 %right STRING_CONCAT AT_SYMBOL
 %right  CONS
 
@@ -167,8 +163,6 @@ program:
     | TIMES { IntOp(Times) }
     | POWER { IntOp(Power) }
     | DIVIDE { IntOp(Divide) }
-    | DOUBLE_EQUAL { IntOp(Equals) }
-    | NOT_EQUAL { IntOp(NotEquals) }
     | LESS_THAN { IntOp(LessThan) }
     | LESS_THAN_EQUAL { IntOp(LessThanOrEqual) }
     | GREATER_THAN { IntOp(GreaterThan) }
@@ -181,8 +175,6 @@ program:
     | TIMES_FLOAT { FloatOp(Times) }
     | POWER_FLOAT { FloatOp(Power) }
     | DIVIDE_FLOAT { FloatOp(Divide) }
-    | DOUBLE_EQUAL_FLOAT { FloatOp(Equals) }
-    | NOT_EQUAL_FLOAT { FloatOp(NotEquals) }
     | LESS_THAN_FLOAT { FloatOp(LessThan) }
     | LESS_THAN_EQUAL_FLOAT { FloatOp(LessThanOrEqual) }
     | GREATER_THAN_FLOAT { FloatOp(GreaterThan) }
