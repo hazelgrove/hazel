@@ -26,7 +26,7 @@ module Model = {
         show_case_clauses: true,
         show_fn_bodies: false,
         show_fixpoints: false,
-        show_casts: false,
+        show_cast_steps: false,
         show_lookup_steps: false,
         show_stepper_filters: false,
         stepper_history: false,
@@ -76,7 +76,7 @@ module Update = {
     | ShowRecord
     | ShowCaseClauses
     | ShowFnBodies
-    | ShowCasts
+    | ShowCastSteps
     | ShowFixpoints
     | ShowLookups
     | ShowFilters
@@ -157,9 +157,9 @@ module Update = {
               ...evaluation,
               show_fn_bodies: !evaluation.show_fn_bodies,
             }
-          | ShowCasts => {
+          | ShowCastSteps => {
               ...evaluation,
-              show_casts: !evaluation.show_casts,
+              show_cast_steps: !evaluation.show_cast_steps,
             }
           | ShowFixpoints => {
               ...evaluation,

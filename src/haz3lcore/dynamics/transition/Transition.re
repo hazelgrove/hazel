@@ -884,7 +884,7 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | VarLookup => !settings.show_lookup_steps
   | CastTypAp
   | CastAp
-  | Cast => !settings.show_casts
+  | Cast => !settings.show_cast_steps
   | FixUnwrap => !settings.show_fixpoints
   | CompleteClosure
   | CompleteFilter

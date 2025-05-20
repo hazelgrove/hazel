@@ -17,7 +17,7 @@ let context_entry_view = (~globals, entry: Haz3lcore.Ctx.entry): Node.t => {
         fold_case_clauses: false,
         fold_fn_bodies: false,
         hide_fixpoints: false,
-        fold_cast_types: false,
+
         show_filters: false,
         show_unknown_as_hole: true,
       },
