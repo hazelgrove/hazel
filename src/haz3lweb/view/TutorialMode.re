@@ -42,24 +42,7 @@ module Model = {
          (pos, editor.state.zipper |> PersistentZipper.persist)
        );
   };
-  // [@deriving (show({with_path: false}), sexp, yojson)]
-  // type persistent = Tutorial.persistent_state;
-  // let persist = (exercise: t, ~instructor_mode: bool) =>
-  //   Tutorial.persist({eds: exercise.editors}, ~instructor_mode);
-  // let unpersist = (~instructor_mode, spec, persistent) => {
-  //   let editors = Tutorial.unpersist(~spec, ~instructor_mode, persistent).eds;
-  //   let term_item_to_cell = (item: Tutorial.TermItem.t): CellEditor.Model.t => {
-  //     CellEditor.Model.mk(item.editor);
-  //   };
-  //   let cells =
-  //     Tutorial.stitch_term(editors)
-  //     |> Tutorial.map_stitched(_ => term_item_to_cell);
-  //   {
-  //     spec,
-  //     editors,
-  //     cells,
-  //   };
-  // };
+
   let unpersist = (~instructor_mode, positioned_zippers, spec) => {
     let spec = Tutorial.unpersist(~instructor_mode, positioned_zippers, spec);
     of_spec(~instructor_mode, spec);
@@ -437,19 +420,13 @@ module View = {
 
     let prev_button_view =
       if (model.editors.version > 1) {
-        Always(
-          div(
-            ~attrs=[Attr.class_("prev-button")],
-            [Widgets.button(Icons.prev, _ => inject(MoveToPrevExercise))],
-          ),
+        div(
+          ~attrs=[Attr.class_("prev-button")],
+          [Widgets.button(Icons.prev, _ => inject(MoveToPrevExercise))],
         );
       } else {
-        // Don't render anything
-        Always(div([]));
+        div([]);
       };
-
-    // let (msg, _) =
-    //   ExplainThis.mk_translation(~globals, ~inject=_ => (), hint_placeholder);
 
     let your_impl_view = {
       Always(
@@ -500,228 +477,95 @@ module View = {
         ],
       );
     };
-    // | _ => div([]) // No hint available
-    // };
     let report_icon_view =
-      Always(
-        div(
-          ~attrs=[Attr.class_("checkmark-container")],
-          [
-            div(
-              ~attrs=[Attr.class_("report-icon")],
-              [
-                Widgets.button(Icons.infoIcon, _ =>
-                  inject(Change_report_view)
-                ),
-              ],
-            ),
-          ],
-        ),
+      div(
+        ~attrs=[Attr.class_("checkmark-container")],
+        [
+          div(
+            ~attrs=[Attr.class_("report-icon")],
+            [
+              Widgets.button(Icons.infoIcon, _ => inject(Change_report_view)),
+            ],
+          ),
+        ],
       );
+    let next_button_view =
+      model.editors.version < 10
+        ? div(
+            ~attrs=[Attr.class_("next-button")],
+            [Widgets.button(Icons.next, _ => inject(MoveToNextExercise))],
+          )
+        : div(~attrs=[Attr.class_("done-message")], [text("Done! 🎉")]);
+
     let impl_grading_view =
-      Always(
-        if (test_count > 0) {
-          let checkmark_view =
-            switch (Tutorial.get_stitched(HiddenTests, stitched_tests)) {
-            | Some(test_results) =>
-              let inner_result = hidden_tests.result.result;
-              switch (inner_result) {
-              | Evaluation({result: OldValue(ResultPending), _}) => div([])
-              | Evaluation({result: OldValue(ResultFail(Timeout)), _}) =>
+      // Always(
+      if (test_count > 0) {
+        let checkmark_view =
+          switch (Tutorial.get_stitched(HiddenTests, stitched_tests)) {
+          | Some(test_results) =>
+            let inner_result = hidden_tests.result.result;
+            switch (inner_result) {
+            | Evaluation({result: OldValue(ResultPending), _}) => div([])
+            | Evaluation({result: OldValue(ResultFail(Timeout)), _}) =>
+              div(
+                ~attrs=[Attr.class_("checkmark-container")],
+                [
+                  div(~attrs=[Attr.class_("cross")], [text("✖")]),
+                  div(
+                    ~attrs=[Attr.class_("report-icon")],
+                    [
+                      Widgets.button(Icons.infoIcon, _ =>
+                        inject(Change_report_view)
+                      ),
+                    ],
+                  ),
+                ],
+              )
+
+            | Evaluation({result: OldValue(ResultOk(_)), _}) =>
+              if (test_results.total == test_results.passing) {
                 div(
                   ~attrs=[Attr.class_("checkmark-container")],
                   [
-                    div(~attrs=[Attr.class_("cross")], [text("✖")]),
                     div(
-                      ~attrs=[Attr.class_("report-icon")],
-                      [
-                        Widgets.button(Icons.infoIcon, _ =>
-                          inject(Change_report_view)
-                        ),
-                      ],
+                      ~attrs=[Attr.class_("checkmark")],
+                      [text("✔️")],
                     ),
                   ],
-                )
+                );
+              } else {
+                div(
+                  ~attrs=[Attr.class_("checkmark-grey")],
+                  [text("✔️")],
+                );
+              }
 
-              | Evaluation({result: OldValue(ResultOk(_)), _}) =>
-                if (test_results.total == test_results.passing) {
-                  div(
-                    ~attrs=[Attr.class_("checkmark-container")],
-                    [
-                      div(
-                        ~attrs=[Attr.class_("checkmark")],
-                        [text("✔️")],
-                      ),
-                      // div(
-                      //   ~attrs=[Attr.class_("report-icon")],
-                      //   [
-                      //     Widgets.button(Icons.infoIcon, _ =>
-                      //       inject(Change_report_view)
-                      //     ),
-                      //   ],
-                      // ),
-                      model.editors.version < 10
-                        ? div(
-                            ~attrs=[Attr.class_("next-button")],
-                            [
-                              Widgets.button(Icons.next, _ =>
-                                inject(MoveToNextExercise)
-                              ),
-                            ],
-                          )
-                        : div(
-                            ~attrs=[Attr.class_("done-message")],
-                            [text("Done! 🎉")],
-                          ),
-                      // div(
-                      //   ~attrs=[Attr.class_("prev-button")],
-                      //   [
-                      //     Widgets.button(Icons.prev, _ =>
-                      //       inject(MoveToPrevExercise)
-                      //     ),
-                      //   ],
-                      // ),
-                    ],
-                  );
-                } else {
-                  div(
-                    ~attrs=[Attr.class_("checkmark-spacer")],
-                    [],
-                    // div(
-                    //   ~attrs=[Attr.class_("checkmark-container")],
-                    //   [
-                    //     div(
-                    //       ~attrs=[Attr.class_("report-icon")],
-                    //       [
-                    //         Widgets.button(Icons.infoIcon, _ =>
-                    //           inject(Change_report_view)
-                    //         ),
-                    //       ],
-                    //     ),
-                    //   ],
-                    // );
-                    // div(
-                    //   [],
-                    // );
-                  );
-                }
-              // else {
-              //   div(
-              //     ~attrs=[Attr.class_("checkmark-container")],
-              //     [
-              //       div(~attrs=[Attr.class_("cross")], [text("✖")]),
-              //       div(
-              //         ~attrs=[Attr.class_("report-icon")],
-              //         [
-              //           Widgets.button(Icons.infoIcon, _ =>
-              //             inject(Change_report_view)
-              //           ),
-              //         ],
-              //       ),
-              //     ],
-              //   );
-              // }
-
-              | _ => div([])
-              };
-            // switch (hidden_tests.result) {
-            // | {
-            //     result: Evaluation({result: NewValue(ResultPending), _}),
-            //     _,
-            //   } =>
-            //   None
-            // | {
-            //     result:
-            //       Evaluation({result: NewValue(ResultFail(Timeout)), _}),
-            //     _,
-            //   } =>
-            //   div(
-            //     ~attrs=[Attr.class_("checkmark-container")],
-            //     [
-            //       div(~attrs=[Attr.class_("cross")], [text("✖")]),
-            //       div(
-            //         ~attrs=[Attr.class_("report-icon")],
-            //         [
-            //           Widgets.button(Icons.info, _ =>
-            //             inject(Change_report_view)
-            //           ),
-            //         ],
-            //       ),
-            //     ],
-            //   )
-
-            // | {result: Evaluation({result: NewValue(ResultOk(_)), _}), _} =>
-
-            //   div(
-            //     ~attrs=[Attr.class_("checkmark-container")],
-            //     [
-            //       div(
-            //         ~attrs=[Attr.class_("checkmark")],
-            //         [text("✔️")],
-            //       ),
-            //       div(
-            //         ~attrs=[Attr.class_("report-icon")],
-            //         [
-            //           Widgets.button(Icons.info, _ =>
-            //             inject(Change_report_view)
-            //           ),
-            //         ],
-            //       ),
-            //       // div(
-            //       //   ~attrs=[Attr.class_("next-button")],
-            //       //   [
-            //       //     Widgets.button(Icons.info, _ =>
-            //       //       inject(MoveToNextExercise)
-            //       //     ),
-            //       //   ],
-            //       // ),
-            //       // ],
-            //       // ),
-            //     ],
-            //   )
-            // | _ => div([])
-
-            // }
-
-            | None => div([]) // No test results available yet
+            | _ => div([])
             };
 
-          div([
-            checkmark_view,
-            eds.show_report
-              ? TutorialGrading.ImplGradingReport.view(
-                  ~signal_jump=
-                    id =>
-                      inject(
-                        Editor(
-                          HiddenTests,
-                          MainEditor(Perform(Jump(TileId(id)))),
-                        ),
-                      ),
-                  ~report=grading_report.impl_grading_report,
-                  ~max_points=1,
-                )
-              : div([]),
-          ]);
-        } else if (test_count > 1) {
-          TutorialGrading.ImplGradingReport.view(
-            ~signal_jump=
-              id =>
-                inject(
-                  Editor(
-                    HiddenTests,
-                    MainEditor(Perform(Jump(TileId(id)))),
-                  ),
+          | None => div([]) // No test results available yet
+          };
+
+        div([checkmark_view]);
+      } else if (test_count > 1) {
+        TutorialGrading.ImplGradingReport.view(
+          ~signal_jump=
+            id =>
+              inject(
+                Editor(
+                  HiddenTests,
+                  MainEditor(Perform(Jump(TileId(id)))),
                 ),
-            ~report=grading_report.impl_grading_report,
-            ~max_points=1,
-          );
-        } else {
-          div(
-            [] // Ensure nothing appears if test_count is 0
-          );
-        },
-      );
+              ),
+          ~report=grading_report.impl_grading_report,
+          ~max_points=1,
+        );
+      } else {
+        div(
+          [] // Ensure nothing appears if test_count is 0
+        );
+      };
+    // );
     let tutorial_header =
       div(
         ~attrs=[Attr.class_("tutorial-header")],
@@ -732,24 +576,44 @@ module View = {
             [
               your_impl_view,
               hidden_tests_view,
-              prev_button_view,
-              report_icon_view,
-              impl_grading_view,
+              Always(
+                div(
+                  ~attrs=[],
+                  [
+                    div(
+                      ~attrs=[Attr.class_("nav-buttons-row")],
+                      [
+                        prev_button_view,
+                        div(
+                          ~attrs=[Attr.class_("right-nav-cluster")],
+                          [
+                            impl_grading_view,
+                            report_icon_view,
+                            next_button_view,
+                          ],
+                        ),
+                      ],
+                    ),
+                    eds.show_report
+                      ? TutorialGrading.ImplGradingReport.view(
+                          ~signal_jump=
+                            id =>
+                              inject(
+                                Editor(
+                                  HiddenTests,
+                                  MainEditor(Perform(Jump(TileId(id)))),
+                                ),
+                              ),
+                          ~report=grading_report.impl_grading_report,
+                          ~max_points=1,
+                        )
+                      : div([]),
+                  ],
+                ),
+              ),
             ],
           ),
       );
-    // let tutorial_body =
-    //   div(
-    //     ~attrs=[Attr.class_("tutorial-body")],
-    //     render_cells(
-    //       globals.settings,
-    //       [your_impl_view, hidden_tests_view, impl_grading_view],
-    //     ),
-    //   );
-    // let tutorial_content = div(
-    //   ~attrs=[Attr.class_("tutorial-content")],
-    //   [tutorial_header, tutorial_body]
-    // );
     [
       div(
         ~attrs=[

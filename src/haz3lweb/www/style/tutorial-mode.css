@@ -257,17 +257,62 @@
     color: white;
     box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
     border: 4px solid #218838;
-    animation: popIn 0.3s ease-out;
+    cursor: pointer;
+    /* animation: popIn 0.3s ease-out; */
   }
 
   .checkmark-container {
     position: relative;
     display: flex;
     flex-direction: column;     
-    align-items: flex-end;     
-    /* gap: 0.2em;                 */
-    /* margin-top: 5px; */
-    padding-right: 1em;
+    /* align-items: flex-end;     */
+    /* display: inline-block;  */
+    /* padding-right: 1em; */
+  }
+
+  .checkmark-grey {
+    width: 40px;
+    position: relative;
+    height: 40px;
+    background-color: #7a7a7a;
+    border-radius: 50%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    font-size: 25px;
+    font-weight: bold;
+    color: white;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    border: 4px solid #262626;
+    cursor: pointer;
+    /* animation: popIn 0.3s ease-out; */
+  }
+
+  .checkmark-grey:hover {
+    opacity: 0.85;             /* Slight fade */
+    transform: scale(1);    /* Optional: subtle enlarge */
+  }
+  
+  
+  .checkmark-grey::after {
+    content: "Implementation is incomplete or incorrect.";
+    font-weight: normal;
+    position: absolute;
+    bottom: 120%;
+    right: 0;
+    background: #fffdf4;
+    color: #333;
+    padding: 6px 10px;
+    font-size: 13px;
+    border-radius: 5px;
+    white-space: nowrap;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+
+  .checkmark-grey:hover::after {
+    opacity: 1;
   }
 
   .hint-cell {
@@ -278,7 +323,7 @@
     border-radius: 8px;
     box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
     font-size: 16px;
-    color: #333;
+    color: #454545;
     width: calc(100% - 2em);
     gap: 2em;
   }
@@ -297,9 +342,10 @@
 
   .report-icon {
     margin-left: 0.5em;
+    position: absolute;
     cursor: pointer;
-    top: -5px;
-    right: -10px;
+    top: -23px;
+    right: -3px;
     color: var(--BR4);
     display: inline;
     vertical-align: top;
@@ -331,14 +377,6 @@
 }
 
   
-.done-message {
-  padding-left: 1rem;
-  font-size: 1.2rem;
-  font-weight: bold;
-  color: #2c7a7b; 
-  display: flex;
-  align-items: center;
-}
 
 .done-checkmark {
   margin-left: 0.5rem;
@@ -441,10 +479,7 @@
     position: relative;
   }
   
-  .your-impl-wrapper {
-    margin-bottom: 1em;
-    /* or try 1.5em for bigger space */
-  }
+ 
   
   .hint-with-icon {
     display: flex;
@@ -471,77 +506,32 @@
     line-height: 0;
   }
 
-  /* .next-button {
-    position: absolute;;
-    bottom: 20px;
-    right: 20px;
-    font-size: 45px;
-    color: var(--BR4);
-    cursor: pointer;
-    z-index: 1000;
-    transition: transform 0.2s ease, color 0.2s ease;
-  }
-  
-  .next-button:hover {
-    transform: translateX(6px) scale(1.1);
-    color:  #d39e00; 
-  } */
-
-  /* .prev-button {
-    position: relative;
-    bottom: 3em;
-    left: 20px;
-    margin-top: 60px;
-    font-size: 45px;
-    color: var(--BR4);
-    cursor: pointer;
-    z-index: 1000;
-    transition: transform 0.2s ease, color 0.2s ease;
-  }  */
-
   .prev-button {
     transform: scaleX(-1);
-    position: absolute;
-    align-self: flex-start;
     font-size: 45px;
     color: var(--BR4);
     cursor: pointer;
     z-index: 1000;
-    /* transition: transform 0.2s ease, color 0.2s ease; */
   }
-
-  /* .next-button {
-    position: absolute; 
-    bottom: 0;
-    right: 0;
-    font-size: 45px;
-    color: var(--BR4);
-    cursor: pointer;
-    z-index: 1000;
-    transition: transform 0.2s ease, color 0.2s ease;
-    margin: 20px;
-  } */
+  
 
   .next-button {
-    position: relative;  
-    align-self: flex-end;
     font-size: 45px;
     color: var(--BR4);
     cursor: pointer;
     z-index: 1000;
-    transition: transform 0.2s ease, color 0.2s ease;
-    margin-top: 0px;     
-  }  
+  }
 
   .next-button:hover {
-    transform: translateX(6px) scale(1.1);
+    transform: translateX(6px) scale(1.1); 
     color:  #d39e00; 
+    transition: transform 0.2s ease, color 0.2s ease;
   } 
   
 
   .prev-button:hover {
-    transform: scaleX(-1) translateX(6px) scale(1.1); /* subtle move + zoom */
-    color:  #d39e00; /* blue on hover */
+    transform: scaleX(-1) translateX(6px) scale(1.1); 
+    color:  #d39e00; 
     transition: transform 0.2s ease, color 0.2s ease;
   }
 
@@ -554,25 +544,10 @@
     margin-bottom: 1.5em; 
   }
 
-  #main.Tutorial.has-checkmark .prev-button {
-    margin-top: 66.5px;
-  }
-  
   #main.Tutorial .prev-button {
     margin-top: 0;
   }
 
-  .checkmark-spacer {
-    height: 60px;
-  }
-
-  @keyframes dance {
-    0%   { transform: translateY(0) rotate(0deg); }
-    25%  { transform: translateY(-5px) rotate(-3deg); }
-    50%  { transform: translateY(0) rotate(0deg); }
-    75%  { transform: translateY(-5px) rotate(3deg); }
-    100% { transform: translateY(0) rotate(0deg); }
-  }
 
   .done-message {
     font-size: 1.2rem;
@@ -582,7 +557,21 @@
     margin-top: 1em;
     /* margin-right: 1em; */
     margin-bottom: 1em;
-    animation: dance 0.8s infinite ease-in-out;
+    /* animation: dance 0.8s infinite ease-in-out; */
+  }
+
+  .nav-buttons-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+    margin-top: 1em;
+  }
+  
+  .right-nav-cluster {
+    display: flex;
+    align-items: center;
+    gap: 1em; 
   }
   
   

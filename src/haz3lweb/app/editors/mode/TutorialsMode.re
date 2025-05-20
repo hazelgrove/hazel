@@ -222,24 +222,6 @@ module Update = {
     JsUtil.download_string_file(~filename, ~content_type, ~contents);
   };
 
-  let wrap_some =
-      (xs: list(TutorialMode.Model.t)): list(option(TutorialMode.Model.t)) =>
-    List.map(x => Some(x), xs);
-
-  let rec find_prev_completed_exercise = (current_idx, exercises) => {
-    let prev_idx =
-      (current_idx - 1 + List.length(exercises)) mod List.length(exercises);
-    switch (List.nth(exercises, prev_idx)) {
-    | Some(ex) =>
-      if (TutorialMode.Model.all_tests_passed(ex)) {
-        prev_idx;
-      } else {
-        find_prev_completed_exercise(prev_idx, exercises);
-      }
-    | None => current_idx
-    };
-  };
-
   let update =
       (~globals: Globals.t, ~schedule_action, action: t, model: Model.t) => {
     switch (action) {
@@ -252,14 +234,13 @@ module Update = {
       }
       |> return
     | Tutorial(TutorialMode.Update.MoveToPrevExercise) =>
-      let exercises_opt = wrap_some(model.exercises);
-      let new_idx =
-        find_prev_completed_exercise(model.current, exercises_opt);
       Model.{
-        current: new_idx,
+        current:
+          (model.current - 1 + List.length(model.exercises))
+          mod List.length(model.exercises),
         exercises: model.exercises,
       }
-      |> return;
+      |> return
 
     | Tutorial(action) =>
       let current = List.nth(model.exercises, model.current);
