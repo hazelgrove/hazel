@@ -146,9 +146,38 @@ module Update = {
     | FinishImportAll(Some(data)) =>
       Export.import_all(~import_log, data, ~specs=ExerciseSettings.exercises);
       Store.load() |> return;
-    | ExportPersistentData =>
-      Store.save(model);
-      Export.export_persistent();
+    | ExportForInit =>
+      let (filename, content) =
+        switch (model.editors) {
+        | Scratch(model)
+        | Documentation(model) =>
+          let current = List.nth(model.scratchpads, model.current);
+          let filename =
+            (current |> fst |> StringUtil.sanitize_filename) ++ ".ml";
+
+          let content =
+            [%derive.show: (string, Haz3lcore.PersistentZipper.t)]((
+              current |> fst,
+              current |> snd |> CellEditor.Model.persist,
+            ));
+          (filename, content);
+        | Exercises(model) =>
+          let current = List.nth(model.exercises, model.current);
+          let filename = current.editors.module_name ++ ".ml";
+          let content = "not supported";
+          (filename, content);
+        | Derivations(model) =>
+          let current = List.nth(model.exercises, model.current);
+          let filename = current.editors.module_name ++ ".ml";
+          let content = "not supported";
+          (filename, content);
+        };
+      JsUtil.download_string_file(
+        ~filename,
+        ~content_type="text/plain",
+        ~contents=
+          "let out : string * Haz3lcore.PersistentZipper.t = " ++ content,
+      );
       model |> return_quiet;
     | ActiveEditor(action) =>
       let cursor_info =

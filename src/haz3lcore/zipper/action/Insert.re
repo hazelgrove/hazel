@@ -187,9 +187,14 @@ let closing_stringlit_or_comment = (char, t) =>
   || Form.is_comment(t)
   && Form.is_comment_delim(char);
 
-let go =
-    (char: string, {caret, relatives: {siblings, _}, _} as z: t, ~root)
-    : option(t) => {
+let rec go =
+        (
+          ~ctx: option(Ctx.t)=?,
+          char: string,
+          {caret, relatives: {siblings, _}, _} as z: t,
+          ~root,
+        )
+        : option(t) => {
   /* If there's a selection, delete it before proceeding */
   let z = z.selection.content != [] ? Zipper.destruct(z) : z;
   switch (caret, neighbor_monotiles(siblings)) {
@@ -201,6 +206,70 @@ let go =
     z |> Zipper.set_caret(Outer) |> Zipper.move(Right)
   | (Outer, (Some(t), _)) when closing_stringlit_or_comment(char, t) =>
     Some(z)
+  | (Outer, (Some(t), _)) when Form.is_livelit(t) && char == " " =>
+    let insert = (z: option(Zipper.t), c: string): option(Zipper.t) => {
+      let* z = z;
+      try(c == "\r" ? Some(z) : go(c, z, ~root)) {
+      | exn =>
+        print_endline("WARN: zipper_of_string: " ++ Printexc.to_string(exn));
+        None;
+      };
+    };
+    switch (ctx) {
+    | Some(ctx) =>
+      let name = Form.parse_livelit(t);
+      switch (Ctx.lookup_livelit(ctx, name)) {
+      // if we find a matching livelit, insert it, projected
+      | Some(ll) =>
+        let exp_to_segment =
+          ExpToSegment.(
+            exp_to_segment(
+              ~settings=Settings.of_core(~inline=true, CoreSettings.on),
+            )
+          );
+
+        let model_segment =
+          switch (ll.model_default) {
+          | {term: Tuple(_), _} => ll.model_default |> exp_to_segment
+          | _ => [Segment.parenthesize(ll.model_default |> exp_to_segment)]
+          };
+
+        let model_zipper =
+          model_segment
+          |> Segment.to_string(~holes=None)
+          |> StringUtil.to_list
+          |> List.fold_left(insert, Some(z));
+
+        let args_and_name =
+          switch (model_zipper) {
+          | Some(z) =>
+            Some(z.relatives.siblings |> fst |> List.rev |> ListUtil.take(2))
+          | None => None
+          };
+
+        let updated_syntax =
+          ProjectorInit.init_or_noop(
+            Livelit,
+            Segment.parenthesize(Option.get(args_and_name)),
+            MakeTerm.for_projection(Option.get(args_and_name)) |> Option.get,
+          );
+
+        let new_left_siblings =
+          switch (List.rev(fst(z.relatives.siblings))) {
+          | [_hd, ...tl] => List.rev([updated_syntax, ...tl])
+          | [] => []
+          };
+
+        Some(
+          Option.get(model_zipper)
+          |> Zipper.update_siblings(((_, r)) => (new_left_siblings, r)),
+        );
+
+      // No matching livelit found, insert space
+      | None => insert_outer(char, z)
+      };
+    | None => insert(Some(z), char)
+    };
   | (Inner(d_idx, n), (_, Some(t))) =>
     let idx = n + 1;
     let new_t = Token.insert_nth(idx, char, t);

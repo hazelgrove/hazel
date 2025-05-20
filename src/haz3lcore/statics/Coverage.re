@@ -92,7 +92,11 @@ module Ctr = {
       }
     };
 
-  let rec all_ctrs_of_typ = (ty: Typ.t): all_ctrs =>
+  let rec all_ctrs_of_typ = (~rec_count=0, ty: Typ.t): all_ctrs => {
+    if (rec_count > 1000) {
+      failwith("Recursion limit exceeded in all_ctrs_of_typ");
+    };
+    let all_ctrs_of_typ = all_ctrs_of_typ(~rec_count=rec_count + 1);
     switch (ty.term) {
     | Sum(map) =>
       Finite(
@@ -107,6 +111,7 @@ module Ctr = {
            )
         |> Map.of_list,
       )
+    | Rec({term: Var(w), _}, {term: Var(v), _}) when v == w => Unknown
     | Rec(_) => all_ctrs_of_typ(Typ.unroll(ty))
     | Prod(elts) =>
       Finite(Map.singleton(tuple_ctr(List.length(elts)), elts))
@@ -136,6 +141,7 @@ module Ctr = {
         "all_ctrs_of_type called with a non-normalized type: " ++ Typ.show(ty),
       )
     };
+  };
 
   let seen_all_ctrs = (seen_ctrs, all_ctrs: all_ctrs) => {
     switch (all_ctrs) {

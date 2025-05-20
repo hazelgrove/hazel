@@ -1,4 +1,5 @@
 open Util;
+
 // A generic key-value store for saving/loading data to/from local storage
 
 type key =
@@ -36,6 +37,8 @@ module F =
          },
        ) => {
   include STORE_KIND;
+
+  let key_string = key_to_string(key);
 
   let serialize = (data: t) => {
     data |> sexp_of_t |> Sexplib.Sexp.to_string;

@@ -5,93 +5,57 @@ open Haz3lcore;
   an equal function (dhexp_eq) and a print function (dhexp_print) */
 let dhexp_typ = testable(Fmt.using(Exp.show, Fmt.string), DHExp.fast_equal);
 
-let ids = List.init(12, _ => Id.mk());
-let id_at = x => x |> List.nth(ids);
-
 let mk_map = Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
-let dhexp_of_uexp = u => Elaborator.elaborate(mk_map(u), u) |> fst;
+let dhexp_of_uexp = u =>
+  Elaborator.elaborate(
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), u),
+    u,
+  )
+  |> fst;
 let alco_check = dhexp_typ |> Alcotest.check;
-let parse_exp = (s: string) => {
-  switch (MakeTerm.parse_exp(s)) {
-  | Some(e) => e
-  | None => Alcotest.fail("Failed to parse expression: " ++ s)
-  };
-};
 
 module PlainTests = {
-  let u1: Exp.t = {
-    term: Atom(Int(Bigint.of_int(8))),
-    annotation: {
-      ids: [id_at(0)],
-    },
+  open IdTagged.FreshGrammar;
+
+  let parse_exp = (s: string) => {
+    switch (Haz3lcore.Parse.parse_exp(s)) {
+    | Some(e) => e
+    | None => Alcotest.fail("Failed to parse expression: " ++ s)
+    };
   };
+  let u1: Exp.t = Exp.int(8);
   let single_integer = () =>
     alco_check("Integer literal 8", u1, dhexp_of_uexp(u1));
 
-  let u2: Exp.t = {
-    term: EmptyHole,
-    annotation: {
-      ids: [id_at(0)],
-    },
-  };
+  let u2: Exp.t = Exp.empty_hole();
   let empty_hole = () => alco_check("Empty hole", u2, dhexp_of_uexp(u2));
 
-  let u3: Exp.t = {
-    term:
-      Parens({
-        term: Var("y"),
-        annotation: {
-          ids: [id_at(1)],
-        },
-      }),
-    annotation: {
-      ids: [id_at(0)],
-    },
-  };
+  let u3: Exp.t = Exp.(parens(var("y")));
 
   let free_var = () => alco_check("free variable", u3, dhexp_of_uexp(u3));
 
   let u4: Exp.t =
-    Let(
-      Tuple([Var("a") |> Pat.fresh, Var("b") |> Pat.fresh]) |> Pat.fresh,
-      Tuple([
-        Atom(Int(Bigint.of_int(4))) |> Exp.fresh,
-        Atom(Int(Bigint.of_int(6))) |> Exp.fresh,
-      ])
-      |> Exp.fresh,
-      BinOp(Int(Minus), Var("a") |> Exp.fresh, Var("b") |> Exp.fresh)
-      |> Exp.fresh,
-    )
-    |> Exp.fresh;
+    Exp.(
+      let_(
+        Pat.(tuple([var("a"), var("b")])),
+        tuple([int(4), int(6)]),
+        bin_op(Int(Minus), var("a"), var("b")),
+      )
+    );
 
   let let_exp = () =>
     alco_check("Let expression for tuple (a, b)", u4, dhexp_of_uexp(u4));
 
-  let u5 =
-    BinOp(
-      Int(Plus),
-      Atom(Bool(false)) |> Exp.fresh,
-      Var("y") |> Exp.fresh,
-    )
-    |> Exp.fresh;
+  let u5 = Exp.(bin_op(Int(Plus), bool(false), var("y")));
 
   let d5 =
-    BinOp(
-      Int(Plus),
-      FailedCast(
-        Atom(Bool(false)) |> Exp.fresh,
-        Atom(Bool) |> Typ.fresh,
-        Atom(Int) |> Typ.fresh,
+    Exp.(
+      bin_op(
+        Int(Plus),
+        failed_cast(bool(false), Typ.(bool()), Typ.int()),
+        cast(var("y"), Typ.unknown(Internal), Typ.int()),
       )
-      |> Exp.fresh,
-      Cast(
-        Var("y") |> Exp.fresh,
-        Unknown(Internal) |> Typ.fresh,
-        Atom(Int) |> Typ.fresh,
-      )
-      |> Exp.fresh,
-    )
-    |> Exp.fresh;
+    );
 
   let bin_op = () =>
     alco_check(
@@ -100,13 +64,7 @@ module PlainTests = {
       dhexp_of_uexp(u5),
     );
 
-  let u6: Exp.t =
-    If(
-      Atom(Bool(false)) |> Exp.fresh,
-      Atom(Int(Bigint.of_int(8))) |> Exp.fresh,
-      Atom(Int(Bigint.of_int(6))) |> Exp.fresh,
-    )
-    |> Exp.fresh;
+  let u6: Exp.t = Exp.(if_(bool(false), int(8), int(6)));
 
   let consistent_if = () =>
     alco_check(
@@ -117,90 +75,53 @@ module PlainTests = {
 
   // x => 4 + 5
   let f =
-    Fun(
-      Var("x") |> Pat.fresh,
-      BinOp(
-        Int(Plus),
-        Atom(Int(Bigint.of_int(4))) |> Exp.fresh,
-        Atom(Int(Bigint.of_int(5))) |> Exp.fresh,
-      )
-      |> Exp.fresh,
-      None,
-      None,
-    )
-    |> Exp.fresh;
+    Exp.(
+      fn(Pat.var("x"), bin_op(Int(Plus), int(4), int(5)), None, None)
+    );
 
   let f' =
-    Fun(
-      Var("x") |> Pat.fresh,
-      BinOp(
-        Int(Plus),
-        Atom(Int(Bigint.of_int(4))) |> Exp.fresh,
-        Atom(Int(Bigint.of_int(5))) |> Exp.fresh,
+    Exp.(
+      fn(
+        Pat.var("x"),
+        bin_op(Int(Plus), int(4), int(5)),
+        Some(Typ.unknown(Hole(EmptyHole))),
+        None,
       )
-      |> Exp.fresh,
-      Some(Unknown(Hole(EmptyHole)) |> Typ.fresh),
-      None,
-    )
-    |> Exp.fresh;
+    );
   let unapplied_function = () =>
     alco_check("A function", f', dhexp_of_uexp(f));
 
-  let u7: Exp.t = Ap(Forward, f, Var("y") |> Exp.fresh) |> Exp.fresh;
+  let u7: Exp.t = Exp.(ap(Forward, f, var("y")));
 
-  let d7: Exp.t = Ap(Forward, f', Var("y") |> Exp.fresh) |> Exp.fresh;
+  let d7: Exp.t = Exp.(ap(Forward, f', var("y")));
 
   let ap_fun = () =>
     alco_check("Application of a function", d7, dhexp_of_uexp(u7));
 
   let u8: Exp.t =
-    Match(
-      BinOp(
-        Int(Equals),
-        Atom(Int(Bigint.of_int(4))) |> Exp.fresh,
-        Atom(Int(Bigint.of_int(3))) |> Exp.fresh,
+    Exp.(
+      match(
+        bin_op(Int(Equals), int(4), int(3)),
+        [(Pat.bool(true), int(24)), (Pat.bool(false), bool(false))],
       )
-      |> Exp.fresh,
-      [
-        (
-          Atom(Bool(true)) |> Pat.fresh,
-          Atom(Int(Bigint.of_int(24))) |> Exp.fresh,
-        ),
-        (Atom(Bool(false)) |> Pat.fresh, Atom(Bool(false)) |> Exp.fresh),
-      ],
-    )
-    |> Exp.fresh;
+    );
 
   let d8: Exp.t =
-    Match(
-      BinOp(
-        Int(Equals),
-        Atom(Int(Bigint.of_int(4))) |> Exp.fresh,
-        Atom(Int(Bigint.of_int(3))) |> Exp.fresh,
+    Exp.(
+      match(
+        bin_op(Int(Equals), int(4), int(3)),
+        [
+          (
+            Pat.(bool(true)),
+            cast(int(24), Typ.int(), Typ.unknown(Internal)),
+          ),
+          (
+            Pat.bool(false),
+            cast(bool(false), Typ.bool(), Typ.unknown(Internal)),
+          ),
+        ],
       )
-      |> Exp.fresh,
-      [
-        (
-          Atom(Bool(true)) |> Pat.fresh,
-          Cast(
-            Atom(Int(Bigint.of_int(24))) |> Exp.fresh,
-            Atom(Int) |> Typ.fresh,
-            Unknown(Internal) |> Typ.fresh,
-          )
-          |> Exp.fresh,
-        ),
-        (
-          Atom(Bool(false)) |> Pat.fresh,
-          Cast(
-            Atom(Bool(false)) |> Exp.fresh,
-            Atom(Bool) |> Typ.fresh,
-            Unknown(Internal) |> Typ.fresh,
-          )
-          |> Exp.fresh,
-        ),
-      ],
-    )
-    |> Exp.fresh;
+    );
 
   let inconsistent_case = () =>
     alco_check(
@@ -210,47 +131,38 @@ module PlainTests = {
     );
 
   let u9: Exp.t =
-    Let(
-      Cast(
-        Var("f") |> Pat.fresh,
-        Arrow(Atom(Int) |> Typ.fresh, Atom(Int) |> Typ.fresh) |> Typ.fresh,
-        Unknown(Internal) |> Typ.fresh,
+    Exp.(
+      let_(
+        Pat.(
+          cast(
+            var("f"),
+            Typ.arrow(Typ.int(), Typ.int()),
+            Typ.unknown(Internal),
+          )
+        ),
+        fn(
+          Pat.var("x"),
+          bin_op(Int(Plus), int(1), var("x")),
+          None,
+          None,
+        ),
+        int(55),
       )
-      |> Pat.fresh,
-      Fun(
-        Var("x") |> Pat.fresh,
-        BinOp(
-          Int(Plus),
-          Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
-          Var("x") |> Exp.fresh,
-        )
-        |> Exp.fresh,
-        None,
-        None,
-      )
-      |> Exp.fresh,
-      Atom(Int(Bigint.of_int(55))) |> Exp.fresh,
-    )
-    |> Exp.fresh;
+    );
 
   let d9: Exp.t =
-    Let(
-      Var("f") |> Pat.fresh,
-      Fun(
-        Var("x") |> Pat.fresh,
-        BinOp(
-          Int(Plus),
-          Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
-          Var("x") |> Exp.fresh,
-        )
-        |> Exp.fresh,
-        Some(Atom(Int) |> Typ.fresh),
-        Some("f"),
+    Exp.(
+      let_(
+        Pat.var("f"),
+        fn(
+          Pat.var("x"),
+          bin_op(Int(Plus), int(1), var("x")),
+          Some(Typ.int()),
+          Some("f"),
+        ),
+        int(55),
       )
-      |> Exp.fresh,
-      Atom(Int(Bigint.of_int(55))) |> Exp.fresh,
-    )
-    |> Exp.fresh;
+    );
 
   let let_fun = () =>
     alco_check(
@@ -262,145 +174,98 @@ module PlainTests = {
   let deferral = () =>
     alco_check(
       "string_sub(\"hello\", 1, _)",
-      DeferredAp(
-        Var("string_sub") |> Exp.fresh,
-        [
-          Atom(String("hello")) |> Exp.fresh,
-          Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
-          Deferral(InAp) |> Exp.fresh,
-        ],
-      )
-      |> Exp.fresh,
-      dhexp_of_uexp(
-        DeferredAp(
-          Var("string_sub") |> Exp.fresh,
-          [
-            Atom(String("hello")) |> Exp.fresh,
-            Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
-            Deferral(InAp) |> Exp.fresh,
-          ],
+      Exp.(
+        deferred_ap(
+          var("string_sub"),
+          [string("hello"), int(1), deferral(InAp)],
         )
-        |> Exp.fresh,
+      ),
+      dhexp_of_uexp(
+        Exp.(
+          deferred_ap(
+            var("string_sub"),
+            [string("hello"), int(1), deferral(InAp)],
+          )
+        ),
       ),
     );
 
   let ap_deferral_single_argument = () =>
     alco_check(
       "string_sub(\"hello\", 1, _)(2)",
-      Ap(
-        Forward,
-        DeferredAp(
-          Var("string_sub") |> Exp.fresh,
-          [
-            Atom(String("hello")) |> Exp.fresh,
-            Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
-            Deferral(InAp) |> Exp.fresh,
-          ],
-        )
-        |> Exp.fresh,
-        Atom(Int(Bigint.of_int(2))) |> Exp.fresh,
-      )
-      |> Exp.fresh,
-      dhexp_of_uexp(
-        Ap(
+      Exp.(
+        ap(
           Forward,
-          DeferredAp(
-            Var("string_sub") |> Exp.fresh,
-            [
-              Atom(String("hello")) |> Exp.fresh,
-              Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
-              Deferral(InAp) |> Exp.fresh,
-            ],
-          )
-          |> Exp.fresh,
-          Atom(Int(Bigint.of_int(2))) |> Exp.fresh,
+          deferred_ap(
+            var("string_sub"),
+            [string("hello"), int(1), deferral(InAp)],
+          ),
+          int(2),
         )
-        |> Exp.fresh,
+      ),
+      dhexp_of_uexp(
+        Exp.(
+          ap(
+            Forward,
+            deferred_ap(
+              var("string_sub"),
+              [string("hello"), int(1), deferral(InAp)],
+            ),
+            int(2),
+          )
+        ),
       ),
     );
 
   let ap_of_deferral_of_hole = () =>
     alco_check(
       "?(_, _, 3)(1., true)",
-      Ap(
-        Forward,
-        DeferredAp(
-          Cast(
-            Cast(
-              EmptyHole |> Exp.fresh,
-              Unknown(Internal) |> Typ.fresh,
-              Arrow(
-                Unknown(Internal) |> Typ.fresh,
-                Unknown(Internal) |> Typ.fresh,
-              )
-              |> Typ.fresh,
-            )
-            |> Exp.fresh,
-            Arrow(
-              Unknown(Internal) |> Typ.fresh,
-              Unknown(Internal) |> Typ.fresh,
-            )
-            |> Typ.fresh,
-            Arrow(
-              Prod([
-                Unknown(Internal) |> Typ.fresh,
-                Unknown(Internal) |> Typ.fresh,
-                Unknown(Internal) |> Typ.fresh,
-              ])
-              |> Typ.fresh,
-              Unknown(Internal) |> Typ.fresh,
-            )
-            |> Typ.fresh,
-          )
-          |> Exp.fresh,
-          [
-            Deferral(InAp) |> Exp.fresh,
-            Deferral(InAp) |> Exp.fresh,
-            Cast(
-              Atom(Int(Bigint.of_int(3))) |> Exp.fresh,
-              Atom(Int) |> Typ.fresh,
-              Unknown(Internal) |> Typ.fresh,
-            )
-            |> Exp.fresh,
-          ],
-        )
-        |> Exp.fresh,
-        Cast(
-          Tuple([
-            Atom(Float(1.)) |> Exp.fresh,
-            Atom(Bool(true)) |> Exp.fresh,
-          ])
-          |> Exp.fresh,
-          Prod([Atom(Float) |> Typ.fresh, Atom(Bool) |> Typ.fresh])
-          |> Typ.fresh,
-          Prod([
-            Unknown(Internal) |> Typ.fresh,
-            Unknown(Internal) |> Typ.fresh,
-          ])
-          |> Typ.fresh,
-        )
-        |> Exp.fresh,
-      )
-      |> Exp.fresh,
-      dhexp_of_uexp(
-        Ap(
+      Exp.(
+        ap(
           Forward,
-          DeferredAp(
-            EmptyHole |> Exp.fresh,
+          deferred_ap(
+            cast(
+              cast(
+                empty_hole(),
+                Typ.unknown(Internal),
+                Typ.(arrow(unknown(Internal), unknown(Internal))),
+              ),
+              Typ.((arrow(unknown(. Internal)))(unknown(Internal))),
+              Typ.(
+                arrow(
+                  prod([
+                    unknown(Internal),
+                    unknown(Internal),
+                    unknown(Internal),
+                  ]),
+                  unknown(Internal),
+                )
+              ),
+            ),
             [
-              Deferral(InAp) |> Exp.fresh,
-              Deferral(InAp) |> Exp.fresh,
-              Atom(Int(Bigint.of_int(3))) |> Exp.fresh,
+              deferral(InAp),
+              deferral(InAp),
+              cast(int(3), Typ.int(), Typ.unknown(Internal)),
             ],
-          )
-          |> Exp.fresh,
-          Tuple([
-            Atom(Float(1.)) |> Exp.fresh,
-            Atom(Bool(true)) |> Exp.fresh,
-          ])
-          |> Exp.fresh,
+          ),
+          cast(
+            tuple([float(1.), bool(true)]),
+            Typ.(prod([float(), bool()])),
+            Typ.(prod([Typ.unknown(Internal), Typ.unknown(Internal)])),
+          ),
         )
-        |> Exp.fresh,
+      ),
+      Exp.(
+        dhexp_of_uexp(
+          ap(
+            Forward,
+            deferred_ap(
+              empty_hole(),
+              [deferral(InAp), deferral(InAp), int(3)],
+            ),
+            tuple([float(1.), bool(true)]),
+          ),
+        )
       ),
     );
 
@@ -422,121 +287,75 @@ module PlainTests = {
    */
   let elaborated_labeled_tuple = () => {
     let full_labeled_tuple_program: Exp.t =
-      Let(
-        Cast(
-          Var("add") |> Pat.fresh,
-          Parens(
-            Prod([
-              TupLabel(
-                Label("street") |> Typ.fresh,
-                Atom(String) |> Typ.fresh,
-              )
-              |> Typ.fresh,
-              TupLabel(
-                Label("city") |> Typ.fresh,
-                Atom(String) |> Typ.fresh,
-              )
-              |> Typ.fresh,
-              TupLabel(
-                Label("state") |> Typ.fresh,
-                Atom(String) |> Typ.fresh,
-              )
-              |> Typ.fresh,
-              TupLabel(
-                Label("zipcode") |> Typ.fresh,
-                Atom(Int) |> Typ.fresh,
-              )
-              |> Typ.fresh,
-            ])
-            |> Typ.fresh,
-          )
-          |> Typ.fresh,
-          Unknown(Internal) |> Typ.fresh,
+      Exp.(
+        let_(
+          Pat.(
+            cast(
+              var("add"),
+              Typ.(
+                parens(
+                  prod([
+                    tup_label(label("street"), string()),
+                    tup_label(label("city"), string()),
+                    tup_label(label("state"), string()),
+                    tup_label(label("zipcode"), int()),
+                  ]),
+                )
+              ),
+              Typ.unknown(Internal),
+            )
+          ),
+          parens(
+            tuple([
+              string("123 Maple St"),
+              string("Ann Arbor"),
+              string("MI"),
+              int(48103),
+            ]),
+          ),
+          var("add"),
         )
-        |> Pat.fresh,
-        Parens(
-          Tuple([
-            Atom(String("123 Maple St")) |> Exp.fresh,
-            Atom(String("Ann Arbor")) |> Exp.fresh,
-            Atom(String("MI")) |> Exp.fresh,
-            Atom(Int(Bigint.of_int(48103))) |> Exp.fresh,
-          ])
-          |> Exp.fresh,
-        )
-        |> Exp.fresh,
-        Var("add") |> Exp.fresh,
-      )
-      |> Exp.fresh;
+      );
+
     alco_check(
       "Labeled Tuple label introduction",
-      Let(
-        Var("add") |> Pat.fresh,
-        Tuple([
-          TupLabel(
-            Label("street") |> Exp.fresh,
-            Atom(String("123 Maple St")) |> Exp.fresh,
-          )
-          |> Exp.fresh,
-          TupLabel(
-            Label("city") |> Exp.fresh,
-            Atom(String("Ann Arbor")) |> Exp.fresh,
-          )
-          |> Exp.fresh,
-          TupLabel(
-            Label("state") |> Exp.fresh,
-            Atom(String("MI")) |> Exp.fresh,
-          )
-          |> Exp.fresh,
-          TupLabel(
-            Label("zipcode") |> Exp.fresh,
-            Atom(Int(Bigint.of_int(48103))) |> Exp.fresh,
-          )
-          |> Exp.fresh,
-        ])
-        |> Exp.fresh,
-        Var("add") |> Exp.fresh,
-      )
-      |> Exp.fresh,
+      Exp.(
+        let_(
+          Pat.var("add"),
+          tuple([
+            tup_label(label("street"), string("123 Maple St")),
+            tup_label(label("city"), string("Ann Arbor")),
+            tup_label(label("state"), string("MI")),
+            tup_label(label("zipcode"), int(48103)),
+          ]),
+          var("add"),
+        )
+      ),
       dhexp_of_uexp(full_labeled_tuple_program),
     );
   };
 
   let singleton_labeled_tuple = () =>
-    alco_check(
-      "Singleton Labeled Tuple",
-      Tuple([
-        TupLabel(
-          Label("label") |> Exp.fresh,
-          Atom(String("a string value")) |> Exp.fresh,
-        )
-        |> Exp.fresh,
-      ])
-      |> Exp.fresh,
-      dhexp_of_uexp(
-        Tuple([
-          TupLabel(
-            Label("label") |> Exp.fresh,
-            Atom(String("a string value")) |> Exp.fresh,
-          )
-          |> Exp.fresh,
-        ])
-        |> Exp.fresh,
-      ),
+    Exp.(
+      alco_check(
+        "Singleton Labeled Tuple",
+        tuple([tup_label(label("label"), string("a string value"))]),
+        dhexp_of_uexp(
+          tuple([tup_label(label("label"), string("a string value"))]),
+        ),
+      )
     );
 
   let singleton_labeled_tuple_elaborates_labels = () =>
     alco_check(
       "let x : (l=String) = \"a\" in x",
-      Let(
-        Var("x") |> Pat.fresh,
-        Tuple([
-          TupLabel(Label("l") |> Exp.fresh, Atom(String("a")) |> Exp.fresh)
-          |> Exp.fresh,
-        ])
-        |> Exp.fresh,
-        Var("x") |> Exp.fresh,
-      )
-      |> Exp.fresh,
+      Exp.(
+        let_(
+          Pat.var("x"),
+          tuple([tup_label(label("l"), string("a"))]),
+          var("x"),
+        )
+      ),
       dhexp_of_uexp(parse_exp("let x : (l=String) = \"a\" in x")),
     );
 
@@ -551,70 +370,65 @@ module PlainTests = {
      */
   let rearranged_labeled_tuple = () => {
     let rearranged_labeled_tuple_program: Exp.t =
-      Let(
-        Cast(
-          Var("val") |> Pat.fresh,
-          Parens(
-            Prod([
-              TupLabel(Label("a") |> Typ.fresh, Atom(Int) |> Typ.fresh)
-              |> Typ.fresh,
-              TupLabel(Label("b") |> Typ.fresh, Atom(String) |> Typ.fresh)
-              |> Typ.fresh,
-              Atom(Float) |> Typ.fresh,
-              TupLabel(Label("c") |> Typ.fresh, Atom(Bool) |> Typ.fresh)
-              |> Typ.fresh,
-            ])
-            |> Typ.fresh,
-          )
-          |> Typ.fresh,
-          Unknown(Internal) |> Typ.fresh,
-        )
-        |> Pat.fresh,
-        Parens(
-          Tuple([
-            Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
-            Atom(Float(1.0)) |> Exp.fresh,
-            TupLabel(
-              Label("c") |> Exp.fresh,
-              Atom(Bool(true)) |> Exp.fresh,
+      Exp.(
+        let_(
+          Pat.(
+            cast(
+              var("val"),
+              Typ.(
+                parens(
+                  prod([
+                    tup_label(label("a"), Typ.int()),
+                    tup_label(label("b"), Typ.string()),
+                    float(),
+                    tup_label(label("c"), Typ.bool()),
+                  ]),
+                )
+              ),
+              Typ.unknown(Internal),
             )
-            |> Exp.fresh,
-            TupLabel(
-              Label("b") |> Exp.fresh,
-              Atom(String("a")) |> Exp.fresh,
-            )
-            |> Exp.fresh,
-          ])
-          |> Exp.fresh,
+          ),
+          parens(
+            tuple([
+              int(1),
+              float(1.0),
+              tup_label(label("c"), bool(true)),
+              tup_label(label("b"), string("a")),
+            ]),
+          ),
+          var("val"),
         )
-        |> Exp.fresh,
-        Var("val") |> Exp.fresh,
-      )
-      |> Exp.fresh;
+      );
+
     alco_check(
       "Labeled Tuple rearrangement",
-      Let(
-        Var("val") |> Pat.fresh,
-        Tuple([
-          TupLabel(
-            Label("a") |> Exp.fresh,
-            Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
-          )
-          |> Exp.fresh,
-          TupLabel(Label("b") |> Exp.fresh, Atom(String("a")) |> Exp.fresh)
-          |> Exp.fresh,
-          Atom(Float(1.0)) |> Exp.fresh,
-          TupLabel(Label("c") |> Exp.fresh, Atom(Bool(true)) |> Exp.fresh)
-          |> Exp.fresh,
-        ])
-        |> Exp.fresh,
-        Var("val") |> Exp.fresh,
-      )
-      |> Exp.fresh,
+      Exp.(
+        let_(
+          Pat.var("val"),
+          tuple([
+            tup_label(label("a"), int(1)),
+            tup_label(label("b"), string("a")),
+            float(1.0),
+            tup_label(label("c"), bool(true)),
+          ]),
+          var("val"),
+        )
+      ),
       dhexp_of_uexp(rearranged_labeled_tuple_program),
     );
   };
 
+  let skip_known_bug = (message: string, expression: string) =>
+    test_case("Known Bug: " ++ message, `Quick, () => {
+      [@warning "-21"]
+      {
+        let uexp = parse_exp(expression);
+        let statics = mk_map(uexp);
+        Alcotest.skip();
+        let _ = Elaborator.elaborate(statics, uexp);
+        ();
+      }
+    });
   let tests = [
     test_case("Single integer", `Quick, single_integer),
     test_case("Empty hole", `Quick, empty_hole),
@@ -657,41 +471,29 @@ module PlainTests = {
     test_case("Singleton labeled tuple analysis adds label", `Quick, () =>
       alco_check(
         "Singleton labeled tuple analysis adds label",
-        Let(
-          Var("x") |> Pat.fresh,
-          Tuple([
-            TupLabel(
-              Label("l") |> Exp.fresh,
-              Atom(String("a")) |> Exp.fresh,
-            )
-            |> Exp.fresh,
-          ])
-          |> Exp.fresh,
-          Var("x") |> Exp.fresh,
-        )
-        |> Exp.fresh,
-        dhexp_of_uexp(
-          Let(
-            Cast(
-              Var("x") |> Pat.fresh,
-              Parens(
-                Prod([
-                  TupLabel(
-                    Label("l") |> Typ.fresh,
-                    Atom(String) |> Typ.fresh,
-                  )
-                  |> Typ.fresh,
-                ])
-                |> Typ.fresh,
-              )
-              |> Typ.fresh,
-              Unknown(Internal) |> Typ.fresh,
-            )
-            |> Pat.fresh,
-            Parens(Atom(String("a")) |> Exp.fresh) |> Exp.fresh,
-            Var("x") |> Exp.fresh,
+        Exp.(
+          let_(
+            Pat.var("x"),
+            tuple([tup_label(label("l"), string("a"))]),
+            var("x"),
           )
-          |> Exp.fresh,
+        ),
+        dhexp_of_uexp(
+          Exp.(
+            let_(
+              Pat.(
+                cast(
+                  var("x"),
+                  Typ.(
+                    parens(prod([tup_label(label("l"), Typ.string())]))
+                  ),
+                  Typ.unknown(Internal),
+                )
+              ),
+              parens(string("a")),
+              var("x"),
+            )
+          ),
         ),
       )
     ),
@@ -700,19 +502,13 @@ module PlainTests = {
       alco_check(
         {|type T = (a=String) in
         let x : T = "hello" in x|},
-        Let(
-          Var("x") |> Pat.fresh,
-          Tuple([
-            TupLabel(
-              Label("a") |> Exp.fresh,
-              Atom(String("hello")) |> Exp.fresh,
-            )
-            |> Exp.fresh,
-          ])
-          |> Exp.fresh,
-          Var("x") |> Exp.fresh,
-        )
-        |> Exp.fresh,
+        Exp.(
+          let_(
+            Pat.var("x"),
+            tuple([tup_label(label("a"), string("hello"))]),
+            var("x"),
+          )
+        ),
         dhexp_of_uexp(
           parse_exp({|type T = (a=String) in let x : T = "hello" in x|}),
         ),
@@ -722,19 +518,13 @@ module PlainTests = {
       "Singleton labeled tuple analysis adds label with type alias", `Quick, () =>
       alco_check(
         {|let zip_only : (zip=Int) = (zip=12345) in zip_only|},
-        Let(
-          Var("zip_only") |> Pat.fresh,
-          Tuple([
-            TupLabel(
-              Label("zip") |> Exp.fresh,
-              Atom(Int(Bigint.of_int(12345))) |> Exp.fresh,
-            )
-            |> Exp.fresh,
-          ])
-          |> Exp.fresh,
-          Var("zip_only") |> Exp.fresh,
-        )
-        |> Exp.fresh,
+        Exp.(
+          let_(
+            Pat.var("zip_only"),
+            tuple([tup_label(label("zip"), int(12345))]),
+            var("zip_only"),
+          )
+        ),
         dhexp_of_uexp(
           parse_exp({|let zip_only : (zip=Int) = (zip=12345) in zip_only|}),
         ),
@@ -746,35 +536,18 @@ module PlainTests = {
       () =>
       alco_check(
         {|(fun a=(x:Int) -> x)(a=1)|},
-        Ap(
-          Forward,
-          Fun(
-            Tuple([
-              TupLabel(Label("a") |> Pat.fresh, Var("x") |> Pat.fresh)
-              |> Pat.fresh,
-            ])
-            |> Pat.fresh,
-            Var("x") |> Exp.fresh,
-            Some(
-              Prod([
-                TupLabel(Label("a") |> Typ.fresh, Atom(Int) |> Typ.fresh)
-                |> Typ.fresh,
-              ])
-              |> Typ.fresh,
+        Exp.(
+          ap(
+            Forward,
+            fn(
+              Pat.(tuple([tup_label(label("a"), var("x"))])),
+              var("x"),
+              Some(Typ.(prod([tup_label(label("a"), int())]))),
+              None,
             ),
-            None,
+            tuple([tup_label(label("a"), int(1))]),
           )
-          |> Exp.fresh,
-          Tuple([
-            TupLabel(
-              Label("a") |> Exp.fresh,
-              Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
-            )
-            |> Exp.fresh,
-          ])
-          |> Exp.fresh,
-        )
-        |> Exp.fresh,
+        ),
         dhexp_of_uexp(parse_exp({|(fun a=(x:Int) -> x)(a=1)|})) // Ignoring casts for now
       )
     ),
@@ -784,85 +557,54 @@ module PlainTests = {
       () =>
       alco_check(
         {|(fun a=(x:Int) -> x)(1)|},
-        Ap(
-          Forward,
-          Fun(
-            Tuple([
-              TupLabel(Label("a") |> Pat.fresh, Var("x") |> Pat.fresh)
-              |> Pat.fresh,
-            ])
-            |> Pat.fresh,
-            Var("x") |> Exp.fresh,
-            Some(
-              Prod([
-                TupLabel(Label("a") |> Typ.fresh, Atom(Int) |> Typ.fresh)
-                |> Typ.fresh,
-              ])
-              |> Typ.fresh,
+        Exp.(
+          ap(
+            Forward,
+            fn(
+              Pat.(tuple([tup_label(label("a"), var("x"))])),
+              var("x"),
+              Some(Typ.(prod([tup_label(label("a"), Typ.int())]))),
+              None,
             ),
-            None,
+            tuple([tup_label(label("a"), int(1))]),
           )
-          |> Exp.fresh,
-          Tuple([
-            TupLabel(
-              Label("a") |> Exp.fresh,
-              Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
-            )
-            |> Exp.fresh,
-          ])
-          |> Exp.fresh,
-        )
-        |> Exp.fresh,
+        ),
         dhexp_of_uexp(parse_exp({|(fun a=(x:Int) -> x)(1)|})),
       )
     ),
     test_case("Failed cast inside labeled tuple", `Quick, () =>
       alco_check(
         {|let x : (c=String) = c=1 in x|},
-        Let(
-          Var("x") |> Pat.fresh,
-          Tuple([
-            TupLabel(
-              Label("c") |> Exp.fresh,
-              FailedCast(
-                Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
-                Atom(Int) |> Typ.fresh,
-                Atom(String) |> Typ.fresh,
-              )
-              |> Exp.fresh,
-            )
-            |> Exp.fresh,
-          ])
-          |> Exp.fresh,
-          Var("x") |> Exp.fresh,
-        )
-        |> Exp.fresh,
+        Exp.(
+          let_(
+            Pat.var("x"),
+            tuple([
+              tup_label(
+                label("c"),
+                failed_cast(int(1), Typ.int(), Typ.string()),
+              ),
+            ]),
+            var("x"),
+          )
+        ),
         dhexp_of_uexp(parse_exp({|let x : (c=String) = c=1 in x|})),
       )
     ),
     test_case("nested different singleton labeled arguments", `Quick, () =>
       alco_check(
         {|let x : (b=c=String) = b="" in x|},
-        Let(
-          Var("x") |> Pat.fresh,
-          Tuple([
-            TupLabel(
-              Label("b") |> Exp.fresh,
-              Tuple([
-                TupLabel(
-                  Label("c") |> Exp.fresh,
-                  Atom(String("")) |> Exp.fresh,
-                )
-                |> Exp.fresh,
-              ])
-              |> Exp.fresh,
-            )
-            |> Exp.fresh,
-          ])
-          |> Exp.fresh,
-          Var("x") |> Exp.fresh,
-        )
-        |> Exp.fresh,
+        Exp.(
+          let_(
+            Pat.var("x"),
+            tuple([
+              tup_label(
+                label("b"),
+                tuple([tup_label(label("c"), string(""))]),
+              ),
+            ]),
+            var("x"),
+          )
+        ),
         dhexp_of_uexp(parse_exp({|let x : (b=c=String) = b="" in x|})),
       )
     ),
@@ -872,57 +614,33 @@ module PlainTests = {
       () =>
       alco_check(
         {|(fun a=x->x)(a=1)|},
-        Ap(
-          Forward,
-          Fun(
-            Tuple([
-              TupLabel(Label("a") |> Pat.fresh, Var("x") |> Pat.fresh)
-              |> Pat.fresh,
-            ])
-            |> Pat.fresh,
-            Var("x") |> Exp.fresh,
-            Some(
-              Prod([
-                TupLabel(
-                  Label("a") |> Typ.fresh,
-                  Unknown(Internal) |> Typ.fresh,
-                )
-                |> Typ.fresh,
-              ])
-              |> Typ.fresh,
+        Exp.(
+          ap(
+            Forward,
+            fn(
+              Pat.(tuple([tup_label(label("a"), var("x"))])),
+              var("x"),
+              Some(
+                Typ.(prod([tup_label(label("a"), unknown(Internal))])),
+              ),
+              None,
             ),
-            None,
+            tuple([tup_label(label("a"), int(1))]),
           )
-          |> Exp.fresh,
-          Tuple([
-            TupLabel(
-              Label("a") |> Exp.fresh,
-              Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
-            )
-            |> Exp.fresh,
-          ])
-          |> Exp.fresh,
-        )
-        |> Exp.fresh,
+        ),
         DHExp.strip_casts(dhexp_of_uexp(parse_exp({|(fun a=x->x)(a=1)|}))),
       )
     ),
     test_case("Singleton labeled argument let with unknown type", `Quick, () =>
       alco_check(
         {|let x : (a=?) = (a=1) in x|},
-        Let(
-          Var("x") |> Pat.fresh,
-          Tuple([
-            TupLabel(
-              Label("a") |> Exp.fresh,
-              Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
-            )
-            |> Exp.fresh,
-          ])
-          |> Exp.fresh,
-          Var("x") |> Exp.fresh,
-        )
-        |> Exp.fresh,
+        Exp.(
+          let_(
+            Pat.var("x"),
+            tuple([tup_label(label("a"), int(1))]),
+            var("x"),
+          )
+        ),
         DHExp.strip_casts(
           dhexp_of_uexp(parse_exp({|let x : (a=?) = (a=1) in x|})),
         ) // Ignoring casts for now
@@ -951,31 +669,76 @@ in 1|},
     test_case("Does not add labels with different cardinality", `Quick, () => {
       alco_check(
         "Does not add label",
-        FailedCast(
-          DHExp.strip_casts(parse_exp({|(1, 2) : (a= ,b= ,  )|})),
-          Prod([
-            Unknown(Internal) |> Typ.fresh,
-            Unknown(Internal) |> Typ.fresh,
-          ])
-          |> Typ.fresh,
-          Prod([
-            Unknown(Internal) |> Typ.fresh,
-            Unknown(Internal) |> Typ.fresh,
-            Unknown(Internal) |> Typ.fresh,
-          ])
-          |> Typ.fresh,
-        )
-        |> Exp.fresh,
+        Exp.(
+          failed_cast(
+            DHExp.strip_casts(parse_exp({|(1, 2) : (a= ,b= ,  )|})),
+            Typ.(prod([unknown(Internal), unknown(Internal)])),
+            Typ.(
+              prod([
+                unknown(Internal),
+                unknown(Internal),
+                unknown(Internal),
+              ])
+            ),
+          )
+        ),
         DHExp.strip_casts(
           dhexp_of_uexp(parse_exp({|(1, 2) : (a= ,b= ,  )|})),
         ),
       )
     }),
+    skip_known_bug(
+      "Nontermination in typ normalization",
+      {|type x = x in (([] @ false) @ [] @< Float >) @< x([(())]) > @ case test 0.000006 end:: "f":: ? | B => (())| x => (())| (()) => ?| [] => ?| ? => 12 end|},
+    ),
+    skip_known_bug(
+      "Invalid typ ap", // TODO https://github.com/hazelgrove/hazel/issues/1625
+      "let [(A: (Bool(Bool))), (_: (String))] = 0 in ()",
+    ),
+    skip_known_bug(
+      "Type join of ap", // TODO https://github.com/hazelgrove/hazel/issues/1625
+      "type x = + B((forall x -> ?)(?)) in case a | B => 0| B => 0 end",
+    ),
+    QCheck_alcotest.to_alcotest(
+      QCheck.Test.make(
+        ~name="Elaboration does not crash",
+        ~count=10000,
+        QCheck_Util.arb_exp(~minimal_idents=true, 50),
+        exp => {
+        switch (mk_map(exp)) {
+        | statics =>
+          switch (Elaborator.elaborate(statics, exp)) {
+          | _ => true
+          | exception (Failure(msg) as e) =>
+            switch (msg) {
+            | _
+                when
+                  List.exists(
+                    (==)(msg),
+                    [
+                      "type application in dynamics", // https://github.com/hazelgrove/hazel/issues/1459?issue=hazelgrove%7Chazel%7C1625
+                      "normalize exceeded 1000 recursive calls", // https://github.com/hazelgrove/hazel/issues/1627
+                      "Type join of ap" // https://github.com/hazelgrove/hazel/issues/1459?issue=hazelgrove%7Chazel%7C1625
+                    ],
+                  ) =>
+              print_endline("Known failure: " ++ Printexc.to_string(e));
+              true;
+            | _ => raise(e)
+            }
+          }
+        | exception e =>
+          print_endline("Skipping statics: " ++ Printexc.to_string(e));
+          true;
+        }
+      }),
+    ),
   ];
 };
 module MenhirElaborationTests = {
   //dhexp = expected
   //uexp = tested
+  open IdTagged.FreshGrammar;
+
   let alco_check_menhir = (name: string, dhexp: string, uexp: Term.Exp.t) =>
     alco_check(
       name,
@@ -990,28 +753,12 @@ module MenhirElaborationTests = {
 
   //Test for an empty hole
   let empty_hole_str = "?";
-  let empty_hole_uexp: Exp.t = {
-    term: EmptyHole,
-    annotation: {
-      ids: [id_at(0)],
-    },
-  };
+  let empty_hole_uexp: Exp.t = Exp.empty_hole();
   let empty_hole_menhir = () =>
     alco_check_menhir("Empty hole (menhir)", empty_hole_str, empty_hole_uexp);
 
   //Test for a free variable
-  let free_var_uexp: Exp.t = {
-    term:
-      Parens({
-        term: Var("y"),
-        annotation: {
-          ids: [id_at(1)],
-        },
-      }),
-    annotation: {
-      ids: [id_at(0)],
-    },
-  };
+  let free_var_uexp: Exp.t = Exp.(parens(var("y")));
   let free_var_menhir = () =>
     alco_check_menhir(
       "Nonempty hole with free variable (menhir)",
@@ -1020,13 +767,7 @@ module MenhirElaborationTests = {
     );
 
   //Menhir test for a binary operation
-  let bin_op_uexp: Exp.t =
-    BinOp(
-      Int(Plus),
-      Atom(Bool(false)) |> Exp.fresh,
-      Var("y") |> Exp.fresh,
-    )
-    |> Exp.fresh;
+  let bin_op_uexp: Exp.t = Exp.(bin_op(Int(Plus), bool(false), var("y")));
 
   let bin_op_str = "false?{Bool => Int} + y{Unknown Internal => Int}";
 
@@ -1045,22 +786,13 @@ module MenhirElaborationTests = {
     end
 ";
   let inconsistent_case_uexp: Exp.t =
-    Match(
-      BinOp(
-        Int(Equals),
-        Atom(Int(Bigint.of_int(4))) |> Exp.fresh,
-        Atom(Int(Bigint.of_int(3))) |> Exp.fresh,
+    Exp.(
+      match(
+        bin_op(Int(Equals), int(4), int(3)),
+        [(Pat.bool(true), int(24)), (Pat.bool(false), bool(false))],
       )
-      |> Exp.fresh,
-      [
-        (
-          Atom(Bool(true)) |> Pat.fresh,
-          Atom(Int(Bigint.of_int(24))) |> Exp.fresh,
-        ),
-        (Atom(Bool(false)) |> Pat.fresh, Atom(Bool(false)) |> Exp.fresh),
-      ],
-    )
-    |> Exp.fresh;
+    );
+
   let inconsistent_case_menhir = () =>
     alco_check_menhir(
       "Inconsistent branches where the first branch is an integer and second branch is a boolean (menhir)",
@@ -1069,13 +801,7 @@ module MenhirElaborationTests = {
     );
 
   //Consistent if statement menhir test
-  let consistent_if_uexp: Exp.t =
-    If(
-      Atom(Bool(false)) |> Exp.fresh,
-      Atom(Int(Bigint.of_int(8))) |> Exp.fresh,
-      Atom(Int(Bigint.of_int(6))) |> Exp.fresh,
-    )
-    |> Exp.fresh;
+  let consistent_if_uexp: Exp.t = Exp.(if_(bool(false), int(8), int(6)));
 
   let consistent_if_str = "
     if false then 8 else 6
@@ -1089,12 +815,7 @@ module MenhirElaborationTests = {
 
   //Single integer menhir test
   let single_int_str = "8";
-  let single_int_uexp: Exp.t = {
-    term: Atom(Int(Bigint.of_int(8))),
-    annotation: {
-      ids: [id_at(0)],
-    },
-  };
+  let single_int_uexp: Exp.t = Exp.int(8);
   let single_integer_menhir = () =>
     alco_check_menhir(
       "Single integer test (menhir)",
@@ -1105,17 +826,14 @@ module MenhirElaborationTests = {
   //Menhir let expression test
   let let_exp_str = "let (a, b) = (4, 6) in a - b";
   let let_exp_uexp: Exp.t =
-    Let(
-      Tuple([Var("a") |> Pat.fresh, Var("b") |> Pat.fresh]) |> Pat.fresh,
-      Tuple([
-        Atom(Int(Bigint.of_int(4))) |> Exp.fresh,
-        Atom(Int(Bigint.of_int(6))) |> Exp.fresh,
-      ])
-      |> Exp.fresh,
-      BinOp(Int(Minus), Var("a") |> Exp.fresh, Var("b") |> Exp.fresh)
-      |> Exp.fresh,
-    )
-    |> Exp.fresh;
+    Exp.(
+      let_(
+        Pat.(tuple([var("a"), var("b")])),
+        tuple([int(4), int(6)]),
+        bin_op(Int(Minus), var("a"), var("b")),
+      )
+    );
+
   let let_exp_menhir = () =>
     alco_check_menhir(
       "Let expression for tuple (a, b) (menhir)",
@@ -1125,27 +843,15 @@ module MenhirElaborationTests = {
 
   let typ_ap_str = "(typfun x -> 4)@<Int>";
   let typ_ap_uexp: Exp.t =
-    TypAp(
-      TypFun(
-        Var("x") |> TPat.fresh,
-        Atom(Int(Bigint.of_int(4))) |> Exp.fresh,
-        None,
-      )
-      |> Exp.fresh,
-      Atom(Int) |> Typ.fresh,
-    )
-    |> Exp.fresh;
+    Exp.(typ_ap(typ_fun(TPat.var("x"), int(4), None), Typ.int()));
+
   let typ_ap_menhir = () =>
     alco_check_menhir("Type ap test (menhir)", typ_ap_str, typ_ap_uexp);
 
   let failed_cast_str = "1 ?{Int => String}";
   let failed_cast_uexp: Exp.t =
-    FailedCast(
-      Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
-      Atom(Int) |> Typ.fresh,
-      Atom(String) |> Typ.fresh,
-    )
-    |> Exp.fresh;
+    Exp.(failed_cast(int(1), Typ.int(), Typ.string()));
+
   let failed_cast_menhir = () =>
     alco_check_menhir(
       "Failed cast test (menhir)",
@@ -1154,7 +860,7 @@ module MenhirElaborationTests = {
     );
 
   let constructor_str = "X/~";
-  let constructor_uexp: Exp.t = Constructor("X", None) |> Exp.fresh;
+  let constructor_uexp: Exp.t = Exp.constructor("X", None);
   let constructor_menhir = () =>
     alco_check_menhir(
       "Constructor test (menhir)",
@@ -1166,21 +872,14 @@ module MenhirElaborationTests = {
    <<1 / 2 ? `a`>>
        */
   let dynamic_error_hole_str = "<<(1/0) ? `DivideByZero`>> {Unknown Internal => Int}";
-  let dynamic_error_hole_uexp: Exp.t = {
-    term:
-      DynamicErrorHole(
-        BinOp(
-          Int(Divide),
-          Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
-          Atom(Int(Bigint.of_int(0))) |> Exp.fresh,
-        )
-        |> Exp.fresh,
+  let dynamic_error_hole_uexp: Exp.t =
+    Exp.(
+      dynamic_error_hole(
+        bin_op(Int(Divide), int(1), int(0)),
         InvalidOperationError.DivideByZero,
-      ),
-    annotation: {
-      ids: [id_at(0)],
-    },
-  };
+      )
+    );
+
   let dynamic_error_hole_menhir = () =>
     alco_check_menhir(
       "Dynamic error hole (menhir)",
@@ -1189,12 +888,7 @@ module MenhirElaborationTests = {
     );
 
   let builtin_fun_str = "infinity";
-  let builtin_fun_uexp: Exp.t = {
-    term: BuiltinFun("infinity"),
-    annotation: {
-      ids: [id_at(0)],
-    },
-  };
+  let builtin_fun_uexp: Exp.t = Exp.builtin_fun("infinity");
   let builtin_fun_menhir = () =>
     alco_check_menhir(
       "Builtin function test (menhir)",
@@ -1203,48 +897,31 @@ module MenhirElaborationTests = {
     );
 
   let undef_str = "undef";
-  let undef_uexp: Exp.t = {
-    term: Undefined,
-    annotation: {
-      ids: [id_at(0)],
-    },
-  };
+  let undef_uexp: Exp.t = Exp.undefined();
   let undef_menhir = () =>
     alco_check_menhir("Undef test (menhir)", undef_str, undef_uexp);
 
   let test_str = "test 1 ?{Int => Bool} end";
-  let test_uexp: Exp.t = {
-    term: Test(Atom(Int(Bigint.of_int(1))) |> Exp.fresh),
-    annotation: {
-      ids: [id_at(0)],
-    },
-  };
+  let test_uexp: Exp.t = Exp.(test(int(1)));
   let test_menhir = () =>
     alco_check_menhir("Test failed (menhir)", test_str, test_uexp);
 
   let filter_str = "eval 1 in 0";
   let stepper_filter_kind: TermBase.stepper_filter_kind_t =
-    Filter({
-      pat: Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
-      act: (FilterAction.Eval, FilterAction.All),
-    });
-  let filter_uexp: Exp.t = {
-    term:
-      Filter(
-        stepper_filter_kind,
-        Atom(Int(Bigint.of_int(0))) |> Exp.fresh,
-      ),
-    annotation: {
-      ids: [id_at(0)],
-    },
-  };
+    StepperFilter.(
+      filter({
+        pat: Exp.int(1),
+        act: (FilterAction.Eval, FilterAction.All),
+      })
+    );
+  let filter_uexp: Exp.t = Exp.(filter(stepper_filter_kind, int(0)));
   let filter_menhir = () =>
     alco_check_menhir("Filter test (menhir)", filter_str, filter_uexp);
 
   let undefined_str = "
 undef
 ";
-  let undefined_uexp: Exp.t = Undefined |> Exp.fresh;
+  let undefined_uexp: Exp.t = Exp.undefined();
   let undefined_menhir = () =>
     alco_check_menhir(
       "Undefined test (menhir)",
@@ -1253,41 +930,22 @@ undef
     );
 
   let list_exp_str = "[1, 2, 3]";
-  let list_exp_uexp: Exp.t = {
-    term:
-      ListLit([
-        Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
-        Atom(Int(Bigint.of_int(2))) |> Exp.fresh,
-        Atom(Int(Bigint.of_int(3))) |> Exp.fresh,
-      ]),
-    annotation: {
-      ids: [id_at(0)],
-    },
-  };
+  let list_exp_uexp: Exp.t = Exp.(list_lit([int(1), int(2), int(3)]));
   let list_exp_menhir = () =>
     alco_check_menhir("List exp (menhir)", list_exp_str, list_exp_uexp);
 
   let invalid_str = "
 ?e \"x\"
 ";
-  let invalid_uexp: Exp.t = Invalid("x") |> Exp.fresh;
+  let invalid_uexp: Exp.t = Exp.invalid("x");
   let invalid_menhir = () =>
     alco_check_menhir("Invalid test (menhir)", invalid_str, invalid_uexp);
 
   let ty_alias_str = "
 x
 ";
-  let ty_alias_uexp: Exp.t = {
-    term:
-      TyAlias(
-        Var("x") |> TPat.fresh,
-        Atom(Int) |> Typ.fresh,
-        Var("x") |> Exp.fresh,
-      ),
-    annotation: {
-      ids: [id_at(0)],
-    },
-  };
+  let ty_alias_uexp: Exp.t =
+    Exp.(ty_alias(TPat.var("x"), Typ.int(), Exp.var("x")));
   let ty_alias_menhir = () =>
     alco_check_menhir(
       "Type alias test (menhir)",
@@ -1296,24 +954,13 @@ x
     );
 
   let list_concat_str = "[1, 2] @ [3, 4]";
-  let list_concat_uexp: Exp.t = {
-    term:
-      ListConcat(
-        ListLit([
-          Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
-          Atom(Int(Bigint.of_int(2))) |> Exp.fresh,
-        ])
-        |> Exp.fresh,
-        ListLit([
-          Atom(Int(Bigint.of_int(3))) |> Exp.fresh,
-          Atom(Int(Bigint.of_int(4))) |> Exp.fresh,
-        ])
-        |> Exp.fresh,
-      ),
-    annotation: {
-      ids: [id_at(0)],
-    },
-  };
+  let list_concat_uexp: Exp.t =
+    Exp.(
+      list_concat(
+        list_lit([int(1), int(2)]),
+        list_lit([int(3), int(4)]),
+      )
+    );
   let list_concat_menhir = () =>
     alco_check_menhir(
       "List concat test (menhir)",
@@ -1322,41 +969,17 @@ x
     );
 
   let unop_str = "-1";
-  let unop_uexp: Exp.t = {
-    term: UnOp(Int(Minus), Atom(Int(Bigint.of_int(1))) |> Exp.fresh),
-    annotation: {
-      ids: [id_at(0)],
-    },
-  };
+  let unop_uexp: Exp.t = Exp.(un_op(Int(Minus), int(1)));
   let unop_menhir = () =>
     alco_check_menhir("Unary operation test (menhir)", unop_str, unop_uexp);
 
   let seq_str = "1; 2";
-  let seq_uexp: Exp.t = {
-    term:
-      Seq(
-        Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
-        Atom(Int(Bigint.of_int(2))) |> Exp.fresh,
-      ),
-    annotation: {
-      ids: [id_at(0)],
-    },
-  };
+  let seq_uexp: Exp.t = Exp.(seq(int(1), int(2)));
   let seq_menhir = () =>
     alco_check_menhir("Sequence test (menhir)", seq_str, seq_uexp);
 
   let fixf_str = "fix x -> 1{Int => Unknown Internal}";
-  let fixf_uexp: Exp.t = {
-    term:
-      FixF(
-        Var("x") |> Pat.fresh,
-        Atom(Int(Bigint.of_int(1))) |> Exp.fresh,
-        None,
-      ),
-    annotation: {
-      ids: [id_at(0)],
-    },
-  };
+  let fixf_uexp: Exp.t = Exp.(fix_f(Pat.var("x"), int(1), None));
   let fixf_menhir = () =>
     alco_check_menhir("FixF test (menhir)", fixf_str, fixf_uexp);
 

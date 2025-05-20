@@ -33,6 +33,7 @@ let rec append_exp = (e1: Exp.t, e2: Exp.t): Exp.t => {
   | BinOp(_)
   | BuiltinFun(_)
   | Cast(_)
+  | LivelitName(_)
   | Match(_) => {
       term: Seq(e1, e2),
       annotation: {

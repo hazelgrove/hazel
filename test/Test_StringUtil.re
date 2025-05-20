@@ -71,5 +71,13 @@ let tests = (
         );
       },
     ),
+    test_case("sanitize", `Quick, () => {
+      check(
+        string,
+        "The next pope",
+        "GregoryCroisdaleJr",
+        StringUtil.sanitize_filename("Gregory Croisdale Jr."),
+      )
+    }),
   ],
 );

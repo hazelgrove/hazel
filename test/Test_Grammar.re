@@ -4,11 +4,7 @@ let qcheck_map_annotation_test =
   QCheck.Test.make(
     ~name="Map annotation to something and back",
     ~count=100,
-    QCheck.make(
-      ~print=Haz3lmenhir.AST.show_exp,
-      ~shrink=Haz3lmenhir.AST.shrink_exp,
-      Haz3lmenhir.AST.gen_exp_sized(7),
-    ),
+    Haz3lmenhir.AST.arb_exp(7),
     exp => {
       let indicated_exp = Haz3lmenhir.Conversion.Exp.of_menhir_ast(exp);
       let core_exp =
@@ -43,7 +39,7 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | Deferral => deferral(InAp)
       | Undefined => undefined()
       | Atom(Bool) => bool(true)
-      | Atom(Int) => int(Bigint.one)
+      | Atom(Int) => int(1)
       | Atom(SInt) => sint(1)
       | Atom(Float) => float(2.)
       | Atom(String) => string("hello")
@@ -59,6 +55,8 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | TupLabel => tup_label(label("label"), empty_hole())
       | Tuple => tuple([])
       | Dot => dot(empty_hole(), empty_hole())
+      | LivelitName => livelit_name("^slider")
+      | LivelitAp => livelit_ap(Forward, livelit_name("^slider"), int(1))
       | Var => var("x")
       | Let => let_(Pat.empty_hole(), empty_hole(), empty_hole())
       | FixF => fix_f(Pat.empty_hole(), empty_hole(), None)
@@ -108,7 +106,7 @@ let sample_pattern = (cls_pat: Pat.cls): Grammar.UnitGrammar.pat => {
       | EmptyHole => empty_hole()
       | MultiHole => multi_hole([Pat(empty_hole()), Pat(empty_hole())])
       | Atom(Bool) => bool(true)
-      | Atom(Int) => int(Bigint.one)
+      | Atom(Int) => int(1)
       | Atom(SInt) => sint(1)
       | Atom(Float) => float(2.)
       | Atom(String) => string("hello")

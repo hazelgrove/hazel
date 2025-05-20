@@ -28,7 +28,7 @@ let sel_shard_svg =
       ),
       None,
     )
-  | Projector(p) => p |> ProjectorBase.shapes |> ShardDec.tips_of_shapes
+  | Projector(p) => p |> ProjectorCore.shapes |> ShardDec.tips_of_shapes
   },
 );
 
@@ -317,7 +317,7 @@ module Deco =
             {
               font_metrics,
               measurement,
-              tips: p |> ProjectorBase.shapes |> ShardDec.tips_of_shapes,
+              tips: p |> ProjectorCore.shapes |> ShardDec.tips_of_shapes,
             },
             [
               p.syntax |> Piece.sort |> fst |> Sort.to_string,
@@ -505,7 +505,7 @@ module Deco =
       switch (Id.Map.find_opt(id, projectors)) {
       | Some(p) =>
         /* Special case for projectors as they are not in tile map */
-        let shapes = ProjectorBase.shapes(p);
+        let shapes = ProjectorCore.shapes(p);
         let measurement = Id.Map.find(id, measured.projectors);
         div_c(
           "errors-piece",

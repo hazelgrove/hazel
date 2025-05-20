@@ -388,18 +388,26 @@ let join_all = (~empty: t, ctx: Ctx.t, ts: list(t)): option(t) =>
 let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
   join(ctx, ty1, ty2) != None;
 
-let rec weak_head_normalize = (ctx: Ctx.t, ty: t): t =>
+let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
+  if (rec_counter > 1000) {
+    failwith("weak_head_normalize exceeded 1000 recursive calls");
+  };
   switch (term_of(ty)) {
-  | Parens(t) => weak_head_normalize(ctx, t)
+  | Parens(t) => weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t)
   | Var(x) =>
     switch (Ctx.lookup_alias(ctx, x)) {
-    | Some(ty) => weak_head_normalize(ctx, ty)
+    | Some(ty) => weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)
     | None => ty
     }
   | _ => ty
   };
+};
 
-let rec normalize = (ctx: Ctx.t, ty: t): t => {
+let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
+  if (rec_counter > 1000) {
+    failwith("normalize exceeded 1000 recursive calls");
+  };
+  let normalize = normalize(~rec_counter=rec_counter + 1);
   let (term, rewrap) = unwrap(ty);
   switch (term) {
   | Var(x) =>
@@ -437,13 +445,7 @@ let rec matched_arrow_strict = (ctx, ty) =>
   | Arrow(ty_in, ty_out) => Some((ty_in, ty_out))
   | Unknown(SynSwitch) =>
     Some((Unknown(SynSwitch) |> temp, Unknown(SynSwitch) |> temp))
-  | _ =>
-    print_endline("matched_arrow_strict: None");
-    print_endline(
-      "term_of(weak_head_normalize(ctx, ty)): "
-      ++ show_term(term_of(weak_head_normalize(ctx, ty))),
-    );
-    None;
+  | _ => None
   };
 
 let matched_arrow = (ctx, ty) =>

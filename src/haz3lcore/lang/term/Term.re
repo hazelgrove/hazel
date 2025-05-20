@@ -378,6 +378,8 @@ module Exp = {
     | BuiltinFun
     | Match
     | Cast
+    | LivelitName
+    | LivelitAp
     | ListConcat;
 
   include TermBase.Exp;
@@ -401,7 +403,7 @@ module Exp = {
   let term_of: t => term = IdTagged.term_of;
   let unwrap: t => (term, term => t) = IdTagged.unwrap;
 
-  let cls_of_term: Grammar.exp_term('a) => cls =
+  let cls_of_term: type a. Grammar.exp_term(a) => cls =
     fun
     | Invalid(_) => Invalid
     | EmptyHole => EmptyHole
@@ -425,7 +427,11 @@ module Exp = {
     | FixF(_) => FixF
     | TyAlias(_) => TyAlias
     | Use(_) => Use
-    | Ap(_) => Ap
+    | Ap(_, e1, _) =>
+      switch (e1.term) {
+      | LivelitName(_) => LivelitAp
+      | _ => Ap
+      }
     | TypAp(_) => TypAp
     | DeferredAp(_) => DeferredAp
     | If(_) => If
@@ -441,6 +447,7 @@ module Exp = {
     | BinOp(op, _, _) => BinOp(op)
     | BuiltinFun(_) => BuiltinFun
     | Match(_) => Match
+    | LivelitName(_) => LivelitName
     | Cast(_) => Cast;
 
   let show_cls: cls => string =
@@ -488,6 +495,8 @@ module Exp = {
     | UnOp(op) => Operators.show_unop(op)
     | BuiltinFun => "Built-in Function"
     | Match => "Case expression"
+    | LivelitName => "Livelit name"
+    | LivelitAp => "Livelit application"
     | Cast => "Cast expression";
 
   let rec match_tup_label: t => option((LabeledTuple.label, t)) = {
@@ -566,6 +575,7 @@ module Exp = {
     | UnOp(_)
     | BinOp(_)
     | Match(_)
+    | LivelitName(_)
     | Constructor(_) => false
     };
   };
@@ -628,6 +638,7 @@ module Exp = {
       | UnOp(_)
       | BinOp(_)
       | Match(_)
+      | LivelitName(_)
       | Constructor(_) => false
       }
     );
@@ -688,6 +699,7 @@ module Exp = {
       | UnOp(_)
       | BinOp(_)
       | Match(_)
+      | LivelitName(_)
       | Constructor(_) => None
       };
     };
@@ -851,6 +863,7 @@ module Exp = {
           | BinOp(_)
           | BuiltinFun(_)
           | Cast(_)
+          | LivelitName(_)
           | Undefined => cont(e)
           };
         },

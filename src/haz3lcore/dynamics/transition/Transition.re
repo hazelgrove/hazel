@@ -332,17 +332,17 @@ module Transition = (EV: EV_MODE) => {
             ClosureEnvironment.t,
             DHExp.t
           ) =>
-          'a,
+          EV.result,
         ~mode: [
            | `Substitution
            | `Environment
          ],
-        ~in_closure=?,
-        state,
-        env, // Empty in substitution mode
-        d,
+        ~in_closure: option(unit => unit)=?,
+        state: state,
+        env: TermBase.closure_environment_t, // Empty in substitution mode
+        d: t,
       )
-      : 'a => {
+      : EV.result => {
     // Split DHExp into term and id information
     let (term, rewrap) = DHExp.unwrap(d);
     let wrap_ctx = (term): EvalCtx.t =>
@@ -660,6 +660,7 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d);
       Indet;
     | Atom(_)
+    | LivelitName(_)
     | Label(_)
     | Constructor(_)
     | BuiltinFun(_) =>

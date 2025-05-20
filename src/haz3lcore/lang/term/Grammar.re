@@ -6,19 +6,19 @@ module Annotated = {
     term: 'a,
     annotation: 'b,
   };
-
-  let pp:
-    type a b.
-      (
-        (Format.formatter, a) => unit,
-        (Format.formatter, b) => unit,
-        Format.formatter,
-        t(a, b)
-      ) =>
-      unit =
-    (fmt_a, _, fmtr, t) => {
-      fmt_a(fmtr, t.term);
-    };
+  /* uncomment to make terms pp without annotation */
+  //   let pp:
+  //     type a b.
+  //       (
+  //         (Format.formatter, a) => unit,
+  //         (Format.formatter, b) => unit,
+  //         Format.formatter,
+  //         t(a, b)
+  //       ) =>
+  //       unit =
+  //     (fmt_a, _, fmtr, t) => {
+  //       fmt_a(fmtr, t.term);
+  //     };
 
   let term_of = x => x.term;
   let unwrap = x => (
@@ -372,6 +372,7 @@ and exp_term('a) =
   | Label(string)
   | TupLabel(exp_t('a), exp_t('a))
   | Dot(exp_t('a), exp_t('a))
+  | LivelitName(string)
   | Var(Var.t)
   | Let(pat_t('a), exp_t('a), exp_t('a))
   | FixF(pat_t('a), exp_t('a), option(closure_environment_t('a)))
@@ -489,6 +490,7 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | Undefined => Undefined
         | Atom(c) => Atom(c)
         | DrvExp(d, s) => DrvExp(Drv.map_any_annotation(f, d), s)
+        | LivelitName(s) => LivelitName(s)
         | ListLit(l) => ListLit(List.map(x => map_exp_annotation(f, x), l))
         | Constructor(s, t) =>
           Constructor(s, Option.map(Option.map(map_typ_annotation(f)), t))
@@ -771,6 +773,7 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       });
   };
   module Exp = {
+    type t = exp_t(DefaultAnnotation.t);
     let invalid = (~ann=?, s): exp_t(DefaultAnnotation.t) => {
       term: Invalid(s),
       annotation: default_annotation(ann),
@@ -807,10 +810,12 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Atom(Bool(b)),
       annotation: default_annotation(ann),
     };
-    let int = (~ann=?, i): exp_t(DefaultAnnotation.t) => {
+    let big_int = (~ann=?, i: Bigint.t): exp_t(DefaultAnnotation.t) => {
       term: Atom(Int(i)),
       annotation: default_annotation(ann),
     };
+    let int = (~ann=?, i: Int.t): exp_t(DefaultAnnotation.t) =>
+      big_int(~ann?, Bigint.of_int(i));
     let sint = (~ann=?, i): exp_t(DefaultAnnotation.t) => {
       term: Atom(SInt(i)),
       annotation: default_annotation(ann),
@@ -865,6 +870,14 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let var = (~ann=?, v): exp_t(DefaultAnnotation.t) => {
       term: Var(v),
+      annotation: default_annotation(ann),
+    };
+    let livelit_name = (~ann=?, s): exp_t(DefaultAnnotation.t) => {
+      term: LivelitName(s),
+      annotation: default_annotation(ann),
+    };
+    let livelit_ap = (~ann=?, d, e1, e2): exp_t(DefaultAnnotation.t) => {
+      term: Ap(d, e1, e2),
       annotation: default_annotation(ann),
     };
     let let_ = (~ann=?, p, e1, e2): exp_t(DefaultAnnotation.t) => {
@@ -973,10 +986,12 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Atom(c),
       annotation: default_annotation(ann),
     };
-    let int = (~ann=?, i): pat_t(DefaultAnnotation.t) => {
+    let big_int = (~ann=?, i): pat_t(DefaultAnnotation.t) => {
       term: Atom(Int(i)),
       annotation: default_annotation(ann),
     };
+    let int = (~ann=?, i): pat_t(DefaultAnnotation.t) =>
+      big_int(~ann?, Bigint.of_int(i));
     let sint = (~ann=?, i): pat_t(DefaultAnnotation.t) => {
       term: Atom(SInt(i)),
       annotation: default_annotation(ann),
@@ -1118,6 +1133,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let forall = (~ann=?, tp, t): typ_t(DefaultAnnotation.t) => {
       term: Forall(tp, t),
+      annotation: default_annotation(ann),
+    };
+    let empty_hole = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
+      term: Unknown(Hole(EmptyHole)),
       annotation: default_annotation(ann),
     };
   };
