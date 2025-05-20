@@ -16,7 +16,7 @@ module Kind = {
   /* The different kinds of projector. New projector
    * types need to be registered here in order to be
    * able to create and update their instances */
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t =
     | Fold
     | Info
@@ -25,6 +25,7 @@ module Kind = {
     | Slider
     | SliderF
     | Card
+    | Livelit
     | TextArea;
 
   let livelit_projectors: list(t) = [
@@ -33,6 +34,7 @@ module Kind = {
     SliderF,
     TextArea,
     Card,
+    Livelit,
   ];
 
   let projectors: list(t) = livelit_projectors @ [Fold, Info, Probe];
@@ -49,6 +51,7 @@ module Kind = {
     | Slider => "slider"
     | SliderF => "sliderf"
     | Card => "card"
+    | Livelit => "livelit"
     | TextArea => "text"
     };
 
@@ -64,13 +67,14 @@ module Kind = {
     | "slider" => Slider
     | "sliderf" => SliderF
     | "text" => TextArea
+    | "livelit" => Livelit
     | "card" => Card
     | _ => failwith("Unknown projector kind")
     };
 };
 
 /* Projectors in syntax */
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t('syntax) = {
   id: Id.t,
   kind: Kind.t,
@@ -97,7 +101,7 @@ module Shape = {
    * if there are multiple Tab projectors on a line, the
    * total extra linebreaks inserted is the maxium required
    * to accomodate them */
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type vertical =
     | Inline
     | Tab(int)
@@ -138,3 +142,5 @@ module Shape = {
       };
   };
 };
+/* Projectors currently are all convex */
+let shapes = (_: t('a)): Nibs.shapes => Nib.Shape.(Convex, Convex);
