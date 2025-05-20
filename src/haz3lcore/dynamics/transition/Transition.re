@@ -263,7 +263,7 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d);
       let.wrap_closure _ = env;
       Value;
-    | FixF(dp, d1, None) =>
+    | FixF(dp, d1, None) when mode == `Environment =>
       let. _ = otherwise(env, FixF(dp, d1, None) |> rewrap);
       Step({
         expr: FixF(dp, d1, Some(env)) |> rewrap,
@@ -271,16 +271,22 @@ module Transition = (EV: EV_MODE) => {
         kind: FixClosure,
         is_value: false,
       });
-    | FixF(dp, d1, Some(env)) =>
+    | FixF(dp, d1, env) =>
       switch (DHPat.get_var(dp)) {
       // Simple Recursion case
       | Some(f) =>
-        let. _ = otherwise(env, d);
+        let. _ =
+          otherwise(
+            env |> Option.value(~default=ClosureEnvironment.empty),
+            d,
+          );
         let env'' =
           evaluate_extend_env(
-            ~call_stack=env.call_stack,
-            Environment.singleton((f, FixF(dp, d1, Some(env)) |> rewrap)),
-            env,
+            ~call_stack=
+              (env |> Option.value(~default=ClosureEnvironment.empty)).
+                call_stack,
+            Environment.singleton((f, FixF(dp, d1, env) |> rewrap)),
+            env |> Option.value(~default=ClosureEnvironment.empty),
           );
         Step({
           expr: subst_env(env'', d1),
@@ -290,22 +296,28 @@ module Transition = (EV: EV_MODE) => {
         });
       // Mutual Recursion case
       | None =>
-        let. _ = otherwise(env, d);
+        let. _ =
+          otherwise(
+            env |> Option.value(~default=ClosureEnvironment.empty),
+            d,
+          );
         let bindings = DHPat.bound_vars(dp);
         let substitutions =
           List.map(
             binding =>
               (
                 binding,
-                let_(dp, FixF(dp, d1, Some(env)) |> rewrap, var(binding)),
+                let_(dp, FixF(dp, d1, env) |> rewrap, var(binding)),
               ),
             bindings,
           );
         let env'' =
           evaluate_extend_env(
-            ~call_stack=env.call_stack,
+            ~call_stack=
+              (env |> Option.value(~default=ClosureEnvironment.empty)).
+                call_stack,
             Environment.of_list(substitutions),
-            env,
+            env |> Option.value(~default=ClosureEnvironment.empty),
           );
         Step({
           expr: subst_env(env'', d1),
