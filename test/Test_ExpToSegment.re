@@ -361,7 +361,6 @@ let tests = (
               fold_case_clauses: false,
               fold_fn_bodies: false,
               hide_fixpoints: false,
-
               show_filters: true,
               show_unknown_as_hole: true,
             },
