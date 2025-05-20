@@ -118,9 +118,9 @@ let full_small_step_reduction =
       switch (EvaluatorStep.take_step(step)) {
       | Some((new_exp, new_state)) =>
         go(~state=new_state, ~steps_counter=steps_counter + 1, new_exp)
-      | None => Some((exp, state)) // I don't know what this state is
+      | None => Some((exp, state))
       }
-    | AvailableSteps([]) => Some((exp, state)) // No more steps
+    | AvailableSteps([]) => Some((exp, state))
     };
   };
 
