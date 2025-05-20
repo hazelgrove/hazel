@@ -1,7 +1,11 @@
 open Alcotest;
 open Haz3lcore;
 let dhexp_typ = testable(Fmt.using(Exp.show, Fmt.string), DHExp.fast_equal);
-
+let step_limited = (t: Alcotest.testable('a)) =>
+  testable(
+    Fmt.using(Evaluator.show_step_constrained(pp(t)), Fmt.string),
+    Evaluator.equal_step_constrained(equal(t)),
+  );
 let evaluation_test = (msg, expected, unevaluated) =>
   check(
     dhexp_typ,
@@ -101,6 +105,31 @@ let parse_and_evaluate_test =
   );
 open IdTagged.FreshGrammar;
 open Exp;
+let full_small_step_reduction =
+    (~state=EvaluatorState.init, ~step_limit=1000, exp: TermBase.exp_t)
+    : Evaluator.step_constrained(Exp.t) => {
+  let rec go =
+          (~state=EvaluatorState.init, ~steps_counter=0, exp: TermBase.exp_t)
+          : option((Exp.t, EvaluatorState.t)) => {
+    switch (EvaluatorStep.get_status(~settings=CoreSettings.on, exp, state)) {
+    | _ when steps_counter > step_limit => None
+    | AutoStep(step)
+    | AvailableSteps([step, ..._]) =>
+      switch (EvaluatorStep.take_step(step)) {
+      | Some((new_exp, new_state)) =>
+        go(~state=new_state, ~steps_counter=steps_counter + 1, new_exp)
+      | None => Some((exp, state))
+      }
+    | AvailableSteps([]) => Some((exp, state))
+    };
+  };
+
+  switch (go(~state, ~steps_counter=0, exp)) {
+  | None => StepLimitExceeded
+  | Some((new_exp, _)) => Completed(new_exp)
+  };
+};
+
 let test_int = () => evaluation_test("8", int(8), int(8));
 
 let test_sum = () =>
@@ -363,354 +392,478 @@ let test_livelit = (livelit: LivelitCtx.raw_livelit) => {
   );
 };
 
-let tests = (
-  "Evaluator",
-  [
-    test_case("Integer literal", `Quick, test_int),
-    test_case("Integer sum", `Quick, test_sum),
-    test_case("Function application", `Quick, test_function_application),
-    test_case("Function deferral", `Quick, test_function_deferral),
-    test_case("Elaborated Pattern for labeled tuple", `Quick, () =>
-      parse_and_evaluate_test(
-        "2",
-        {|let x : (a=Int) -> Int = fun a -> a in x(2)|},
+let qcheck_stepper_confluence =
+  QCheck.Test.make(
+    ~name="Evaluator and stepper are consistent",
+    ~count=1000,
+    QCheck_Util.arb_exp(~minimal_idents=true, 10),
+    uexp => {
+    switch (
+      Elaborator.elaborate(
+        Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), uexp),
+        uexp,
       )
-    ),
-    test_case("Labeled tuple field access", `Quick, () =>
-      parse_and_evaluate_test("1", {|(a=1,b=2).a|})
-    ),
-    test_case("Anonymous function with explicit label", `Quick, () => {
-      parse_and_evaluate_test(
-        "5",
-        {|let fn : (a=String) -> Int =
+      |> fst
+    ) {
+    | elaborated_exp =>
+      switch (
+        Evaluator.evaluate_and_limit(
+          ~env=Builtins.env_init,
+          ~step_limit=100,
+          elaborated_exp,
+        ),
+        full_small_step_reduction(
+          ~state=EvaluatorState.init,
+          ~step_limit=100,
+          elaborated_exp,
+        ),
+      ) {
+      | (Completed((bigstep_exp, _)), Completed(smallstep_exp)) =>
+        let show_core_exp = exp =>
+          exp
+          |> ExpToSegment.exp_to_segment(
+               ~settings=
+                 ExpToSegment.Settings.of_core(
+                   ~inline=true,
+                   CoreSettings.off,
+                 ),
+               _,
+             )
+          |> Printer.of_segment(~holes=Some("?"), _);
+
+        Alcotest.check(
+          testable(Fmt.using(show_core_exp, Fmt.string), DHExp.fast_equal), // Output is easier to view through ExpToSegment. This may result in a loss of information
+          "Small step reduction and big step reduction are equal",
+          smallstep_exp,
+          bigstep_exp,
+        );
+        true;
+      | (_, StepLimitExceeded)
+      | (StepLimitExceeded, _) => true
+      | exception e =>
+        print_endline(
+          "Skipping evaluation failure: " ++ Printexc.to_string(e),
+        );
+        true;
+      }
+    | exception e =>
+      print_endline(
+        "Skipping statics/elaborate failure: " ++ Printexc.to_string(e),
+      );
+      true;
+    }
+  });
+
+let tests = [
+  (
+    "Evaluator",
+    [
+      test_case("Integer literal", `Quick, test_int),
+      test_case("Integer sum", `Quick, test_sum),
+      test_case("Function application", `Quick, test_function_application),
+      test_case("Function deferral", `Quick, test_function_deferral),
+      test_case("Elaborated Pattern for labeled tuple", `Quick, () =>
+        parse_and_evaluate_test(
+          "2",
+          {|let x : (a=Int) -> Int = fun a -> a in x(2)|},
+        )
+      ),
+      test_case("Labeled tuple field access", `Quick, () =>
+        parse_and_evaluate_test("1", {|(a=1,b=2).a|})
+      ),
+      test_case("Anonymous function with explicit label", `Quick, () => {
+        parse_and_evaluate_test(
+          "5",
+          {|let fn : (a=String) -> Int =
   fun (a=a : String) -> string_length(a)
 in fn("hello")|},
-      )
-    }),
-    test_case("Anonymous function without explicit label", `Quick, () => {
-      parse_and_evaluate_test(
-        "5",
-        {|let fn : (a=String) -> Int =
+        )
+      }),
+      test_case("Anonymous function without explicit label", `Quick, () => {
+        parse_and_evaluate_test(
+          "5",
+          {|let fn : (a=String) -> Int =
             fun (a : String) -> string_length(a)
           in fn("hello")|},
-      )
-    }),
-    test_case("Dot operation for missing label", `Quick, () =>
-      parse_and_evaluate_test("(a=1,b=2).c", "(a=1,b=2).c")
-    ),
-    test_case("Desructuring labeled tuple", `Quick, () =>
-      parse_and_evaluate_test(
-        "(1, 2, 3.0)",
-        {|let (a=a', b=b', c) = (a=1, b=2, 3.0) in (a',b',c)|},
-      )
-    ),
-    test_case("Deferral applied to hole", `Quick, test_ap_of_hole_deferral),
-    test_case(
-      "Multi-arg builtin with cast",
-      `Quick,
-      test_multi_arg_builtin_cast,
-    ),
-    test_case("Variable capture", `Quick, test_variable_capture),
-    test_case("Unbound lookup", `Quick, test_unbound_lookup),
-    test_case("Unevaluated if closure", `Quick, test_unevaluated_if),
-    test_case(
-      "Invalid constructor match",
-      `Quick,
-      test_invalid_constructor_match,
-    ),
-    test_case("Typfun application", `Quick, test_typfun_application),
-    test_case("Negative integer literal", `Quick, () =>
-      evaluation_test("-8", int(-8), un_op(Int(Minus), int(8)))
-    ),
-    test_case("String_concat builtin", `Quick, () => {
-      parse_and_evaluate_test(
-        {|"hazel hello world"|},
-        {|string_join(" ", ["hazel", "hello", "world"])|},
-      )
-    }),
-    test_case("Simple probe", `Quick, () => {
-      PGrammar.(
-        probe_test(
-          "let x = 1 + 2 in 4",
-          Exp.(
-            let_(
-              Pat.(var("x")),
-              Exp.(
-                probe(
-                  ~ann=[probed_value(Atom(Int(Bigint.of_int(3))))],
-                  bin_op(Int(Plus), int(1), int(2)),
-                  {refs: []},
-                )
-              ),
-              var("x"),
-            )
-          ),
         )
-      )
-    }),
-    test_case(
-      "Probes in factorial function",
-      `Quick,
-      () => {
-        // TODO Better helpers. We really need a way to build these with a builder for the "free element".
-        open PGrammar;
-        module UE = UG.Exp;
-        module UP = UG.Pat;
-        let npp = expected_probe_pat(_, []);
-        let np = expected_probe(_, []);
-        let p = (p, es: list(UG.Exp.t)) =>
-          expected_probe(Probe(p, {refs: []}), es);
-        let pp = (p, es: list(UE.t)) =>
-          expected_probe_pat(Probe(npp(p), {refs: []}), es);
+      }),
+      test_case("Dot operation for missing label", `Quick, () =>
+        parse_and_evaluate_test("(a=1,b=2).c", "(a=1,b=2).c")
+      ),
+      test_case("Desructuring labeled tuple", `Quick, () =>
+        parse_and_evaluate_test(
+          "(1, 2, 3.0)",
+          {|let (a=a', b=b', c) = (a=1, b=2, 3.0) in (a',b',c)|},
+        )
+      ),
+      test_case("Deferral applied to hole", `Quick, test_ap_of_hole_deferral),
+      test_case(
+        "Multi-arg builtin with cast",
+        `Quick,
+        test_multi_arg_builtin_cast,
+      ),
+      test_case("Variable capture", `Quick, test_variable_capture),
+      test_case("Unbound lookup", `Quick, test_unbound_lookup),
+      test_case("Unevaluated if closure", `Quick, test_unevaluated_if),
+      test_case(
+        "Invalid constructor match",
+        `Quick,
+        test_invalid_constructor_match,
+      ),
+      test_case("Typfun application", `Quick, test_typfun_application),
+      test_case("Negative integer literal", `Quick, () =>
+        evaluation_test("-8", int(-8), un_op(Int(Minus), int(8)))
+      ),
+      test_case("String_concat builtin", `Quick, () => {
+        parse_and_evaluate_test(
+          {|"hazel hello world"|},
+          {|string_join(" ", ["hazel", "hello", "world"])|},
+        )
+      }),
+      test_case("Simple probe", `Quick, () => {
+        PGrammar.(
+          probe_test(
+            "let x = 1 + 2 in 4",
+            Exp.(
+              let_(
+                Pat.(var("x")),
+                Exp.(
+                  probe(
+                    ~ann=[probed_value(Atom(Int(Bigint.of_int(3))))],
+                    bin_op(Int(Plus), int(1), int(2)),
+                    {refs: []},
+                  )
+                ),
+                var("x"),
+              )
+            ),
+          )
+        )
+      }),
+      test_case(
+        "Probes in factorial function",
+        `Quick,
+        () => {
+          // TODO Better helpers. We really need a way to build these with a builder for the "free element".
+          open PGrammar;
+          module UE = UG.Exp;
+          module UP = UG.Pat;
+          let npp = expected_probe_pat(_, []);
+          let np = expected_probe(_, []);
+          let p = (p, es: list(UG.Exp.t)) =>
+            expected_probe(Probe(p, {refs: []}), es);
+          let pp = (p, es: list(UE.t)) =>
+            expected_probe_pat(Probe(npp(p), {refs: []}), es);
 
-        probe_test(
-          {|let fact = fun x ->
+          probe_test(
+            {|let fact = fun x ->
            case x
              | 1 => 1
              | _ =>
              let r = fact(x-1)
              in x*r
          end in fact(5)|},
-          Exp.(
-            let_(
-              Pat.(var("fact")),
-              fn(
-                pp(
-                  Var("x"),
-                  UE.[int(5), int(4), int(3), int(2), int(1)],
-                ),
-                match(
-                  p(
-                    var("x"),
+            Exp.(
+              let_(
+                Pat.(var("fact")),
+                fn(
+                  pp(
+                    Var("x"),
                     UE.[int(5), int(4), int(3), int(2), int(1)],
                   ),
-                  [
-                    (Pat.(int(1)), p(int(1), UE.[int(1)])),
-                    (
-                      Pat.wild(),
-                      np(
-                        Let(
-                          npp(Var("r")),
-                          p(
-                            ap(
-                              Forward,
-                              var("fact"),
-                              bin_op(Int(Minus), var("x"), int(1)),
-                            ),
-                            UE.[int(1), int(2), int(6), int(24)],
-                          ),
-                          p(
-                            bin_op(Int(Times), var("x"), var("r")),
-                            UE.[int(2), int(6), int(24), int(120)],
-                          ),
-                        ),
-                      ),
+                  match(
+                    p(
+                      var("x"),
+                      UE.[int(5), int(4), int(3), int(2), int(1)],
                     ),
-                  ],
-                ),
-                None,
-                None,
-              ),
-              ap(Forward, var("fact"), int(5)),
-            )
-          ),
-        );
-      },
-    ),
-    test_case(
-      "Evaluate probe around inferred labeled tuple",
-      `Quick,
-      () => {
-        let npp = expected_probe_pat(_, []);
-        let np = expected_probe(_, []);
-        let p = (p, es: list(Grammar.exp_term(unit))) =>
-          expected_probe(
-            Probe(np(p), {refs: []}),
-            List.map(Grammar.Annotated.empty, es),
-          );
-        let npt = (t): Grammar.typ_t(list(Grammar.exp_t(unit))) => {
-          term: t,
-          annotation: [],
-        };
-        let uexp =
-          np(
-            Let(
-              npp(
-                Cast(
-                  npp(Var("x")),
-                  npt(
-                    Parens(
-                      npt(
-                        Prod([
-                          npt(
-                            TupLabel(npt(Label("l")), npt(Atom(String))),
-                          ),
-                        ]),
-                      ),
-                    ),
-                  ),
-                  npt(Unknown(Internal)),
-                ),
-              ),
-              p(
-                Atom(String("a")),
-                [
-                  Tuple([
-                    {
-                      term:
-                        TupLabel(
-                          {
-                            term: Label("l"),
-                            annotation: (),
-                          },
-                          {
-                            term: Atom(String("a")),
-                            annotation: (),
-                          },
-                        ),
-                      annotation: (),
-                    },
-                  ]),
-                ],
-              ),
-              np(Var("x")),
-            ),
-          );
-        probe_test({|let x : (a=String) = PROBE("a") in x|}, uexp);
-      },
-    ),
-    test_case(
-      "Evaluate probe around inferred labeled tuple",
-      `Quick,
-      () => {
-        let np = expected_probe(_, []);
-        let p = (p, es: list(Grammar.exp_term(unit))) =>
-          expected_probe(
-            Probe(np(p), {refs: []}),
-            List.map(Grammar.Annotated.empty, es),
-          );
-        let npt = (t): Grammar.typ_t(list(Grammar.exp_t(unit))) => {
-          term: t,
-          annotation: [],
-        };
-        let uexp =
-          np(
-            Cast(
-              p(Atom(String("a")), [Atom(String("a"))]),
-              npt(
-                Parens(
-                  npt(
-                    Prod([
-                      npt(TupLabel(npt(Label("l")), npt(Atom(String)))),
-                    ]),
-                  ),
-                ),
-              ),
-              npt(Unknown(Internal)),
-            ),
-          );
-
-        probe_test({|PROBE("a") : (a=String)|}, uexp);
-      },
-    ),
-    test_case(
-      "Evaluate probe around inferred singleton labeled tuple in pattern",
-      `Quick,
-      () => {
-        let npp = expected_probe_pat(_, []);
-        let np = expected_probe(_, []);
-        let p = (p, es: list(Grammar.exp_term(unit))) =>
-          expected_probe_pat(
-            Probe(npp(p), {refs: []}),
-            List.map(Grammar.Annotated.empty, es),
-          );
-        let npt = (t): Grammar.typ_t(list(Grammar.exp_t(unit))) => {
-          term: t,
-          annotation: [],
-        };
-        let uexp =
-          np(
-            Let(
-              npp(
-                Cast(
-                  p(
-                    Var("x"),
                     [
-                      Tuple([
-                        {
-                          term:
-                            TupLabel(
-                              {
-                                term: Label("l"),
-                                annotation: (),
-                              },
-                              {
-                                term: Atom(String("a")),
-                                annotation: (),
-                              },
+                      (Pat.(int(1)), p(int(1), UE.[int(1)])),
+                      (
+                        Pat.wild(),
+                        np(
+                          Let(
+                            npp(Var("r")),
+                            p(
+                              ap(
+                                Forward,
+                                var("fact"),
+                                bin_op(Int(Minus), var("x"), int(1)),
+                              ),
+                              UE.[int(1), int(2), int(6), int(24)],
                             ),
-                          annotation: (),
-                        },
-                      ]),
+                            p(
+                              bin_op(Int(Times), var("x"), var("r")),
+                              UE.[int(2), int(6), int(24), int(120)],
+                            ),
+                          ),
+                        ),
+                      ),
                     ],
                   ),
-                  npt(
-                    Parens(
-                      npt(
-                        Prod([
-                          npt(
-                            TupLabel(npt(Label("l")), npt(Atom(String))),
-                          ),
-                        ]),
-                      ),
-                    ),
-                  ),
-                  npt(Unknown(Internal)),
+                  None,
+                  None,
                 ),
-              ),
-              np(Atom(String("a"))),
-              np(Var("x")),
+                ap(Forward, var("fact"), int(5)),
+              )
             ),
           );
-        probe_test({|let PROBE(x) : (a=String) = "a" in x|}, uexp);
-      },
-    ),
-    test_case("Ensure evaluation of livelit is as expected", `Quick, () => {
-      List.iter(test_livelit, Livelit.livelits)
-    }),
-    skip_current_unboxing_error(
-      "InvalidBoxSumConstructor",
-      "let B : (+B( )) = ? in ?",
-    ),
-    skip_current_unboxing_error(
-      "InvalidBoxedListLit",
-      "type g = + On in let [] = On in",
-    ),
-    skip_current_unboxing_error(
-      "InvalidBoxedListCons",
-      "let (_:: []) = type y = + B in B in ?",
-    ),
-    skip_current_unboxing_error(
-      "InvalidBoxedBoolLit",
-      "type y = + B(Float) in if B then false else A",
-    ),
-    skip_current_unboxing_error(
-      "InvalidBoxedTuple",
-      "let () = type x = + A in A in ?",
-    ),
-    skip_current_unboxing_error(
-      "InvalidBoxedTypfun",
-      "type y = + B in case true  | a => B end @<?> ",
-    ),
-    skip_current_unboxing_error(
-      "InvalidBoxedSumConstructor",
-      "type x = + A(Float) in let A = a in 0",
-    ),
-    skip_current_unboxing_error(
-      "InvalidBoxedStringLit",
-      {|type y = + A in ""++A|},
-    ),
-    skip_current_unboxing_error("InvalidBoxedIntLit", "type y = + A in -A"),
-    QCheck_alcotest.to_alcotest(qcheck_evaluator_does_not_crash_test),
-  ],
-);
+        },
+      ),
+      test_case(
+        "Evaluate probe around inferred labeled tuple",
+        `Quick,
+        () => {
+          let npp = expected_probe_pat(_, []);
+          let np = expected_probe(_, []);
+          let p = (p, es: list(Grammar.exp_term(unit))) =>
+            expected_probe(
+              Probe(np(p), {refs: []}),
+              List.map(Grammar.Annotated.empty, es),
+            );
+          let npt = (t): Grammar.typ_t(list(Grammar.exp_t(unit))) => {
+            term: t,
+            annotation: [],
+          };
+          let uexp =
+            np(
+              Let(
+                npp(
+                  Cast(
+                    npp(Var("x")),
+                    npt(
+                      Parens(
+                        npt(
+                          Prod([
+                            npt(
+                              TupLabel(
+                                npt(Label("l")),
+                                npt(Atom(String)),
+                              ),
+                            ),
+                          ]),
+                        ),
+                      ),
+                    ),
+                    npt(Unknown(Internal)),
+                  ),
+                ),
+                p(
+                  Atom(String("a")),
+                  [
+                    Tuple([
+                      {
+                        term:
+                          TupLabel(
+                            {
+                              term: Label("l"),
+                              annotation: (),
+                            },
+                            {
+                              term: Atom(String("a")),
+                              annotation: (),
+                            },
+                          ),
+                        annotation: (),
+                      },
+                    ]),
+                  ],
+                ),
+                np(Var("x")),
+              ),
+            );
+          probe_test({|let x : (a=String) = PROBE("a") in x|}, uexp);
+        },
+      ),
+      test_case(
+        "Evaluate probe around inferred labeled tuple",
+        `Quick,
+        () => {
+          let np = expected_probe(_, []);
+          let p = (p, es: list(Grammar.exp_term(unit))) =>
+            expected_probe(
+              Probe(np(p), {refs: []}),
+              List.map(Grammar.Annotated.empty, es),
+            );
+          let npt = (t): Grammar.typ_t(list(Grammar.exp_t(unit))) => {
+            term: t,
+            annotation: [],
+          };
+          let uexp =
+            np(
+              Cast(
+                p(Atom(String("a")), [Atom(String("a"))]),
+                npt(
+                  Parens(
+                    npt(
+                      Prod([
+                        npt(
+                          TupLabel(npt(Label("l")), npt(Atom(String))),
+                        ),
+                      ]),
+                    ),
+                  ),
+                ),
+                npt(Unknown(Internal)),
+              ),
+            );
+
+          probe_test({|PROBE("a") : (a=String)|}, uexp);
+        },
+      ),
+      test_case(
+        "Evaluate probe around inferred singleton labeled tuple in pattern",
+        `Quick,
+        () => {
+          let npp = expected_probe_pat(_, []);
+          let np = expected_probe(_, []);
+          let p = (p, es: list(Grammar.exp_term(unit))) =>
+            expected_probe_pat(
+              Probe(npp(p), {refs: []}),
+              List.map(Grammar.Annotated.empty, es),
+            );
+          let npt = (t): Grammar.typ_t(list(Grammar.exp_t(unit))) => {
+            term: t,
+            annotation: [],
+          };
+          let uexp =
+            np(
+              Let(
+                npp(
+                  Cast(
+                    p(
+                      Var("x"),
+                      [
+                        Tuple([
+                          {
+                            term:
+                              TupLabel(
+                                {
+                                  term: Label("l"),
+                                  annotation: (),
+                                },
+                                {
+                                  term: Atom(String("a")),
+                                  annotation: (),
+                                },
+                              ),
+                            annotation: (),
+                          },
+                        ]),
+                      ],
+                    ),
+                    npt(
+                      Parens(
+                        npt(
+                          Prod([
+                            npt(
+                              TupLabel(
+                                npt(Label("l")),
+                                npt(Atom(String)),
+                              ),
+                            ),
+                          ]),
+                        ),
+                      ),
+                    ),
+                    npt(Unknown(Internal)),
+                  ),
+                ),
+                np(Atom(String("a"))),
+                np(Var("x")),
+              ),
+            );
+          probe_test({|let PROBE(x) : (a=String) = "a" in x|}, uexp);
+        },
+      ),
+      test_case("Ensure evaluation of livelit is as expected", `Quick, () => {
+        List.iter(test_livelit, Livelit.livelits)
+      }),
+      skip_current_unboxing_error(
+        "InvalidBoxSumConstructor",
+        "let B : (+B( )) = ? in ?",
+      ),
+      skip_current_unboxing_error(
+        "InvalidBoxedListLit",
+        "type g = + On in let [] = On in",
+      ),
+      skip_current_unboxing_error(
+        "InvalidBoxedListCons",
+        "let (_:: []) = type y = + B in B in ?",
+      ),
+      skip_current_unboxing_error(
+        "InvalidBoxedBoolLit",
+        "type y = + B(Float) in if B then false else A",
+      ),
+      skip_current_unboxing_error(
+        "InvalidBoxedTuple",
+        "let () = type x = + A in A in ?",
+      ),
+      skip_current_unboxing_error(
+        "InvalidBoxedTypfun",
+        "type y = + B in case true  | a => B end @<?> ",
+      ),
+      skip_current_unboxing_error(
+        "InvalidBoxedSumConstructor",
+        "type x = + A(Float) in let A = a in 0",
+      ),
+      skip_current_unboxing_error(
+        "InvalidBoxedStringLit",
+        {|type y = + A in ""++A|},
+      ),
+      skip_current_unboxing_error("InvalidBoxedIntLit", "type y = + A in -A"),
+      QCheck_alcotest.to_alcotest(qcheck_evaluator_does_not_crash_test),
+    ],
+  ),
+  (
+    "Stepper",
+    [
+      test_case(
+        "Simple arithmetic",
+        `Quick,
+        () => {
+          open IdTagged.FreshGrammar.Exp;
+          let result =
+            full_small_step_reduction(
+              bin_op(Float(Plus), float(1.), float(2.)),
+            );
+
+          Alcotest.check(
+            step_limited(dhexp_typ),
+            "1. +. 2. = 3.",
+            Completed(float(3.)),
+            result,
+          );
+        },
+      ),
+      test_case(
+        "Simple arithmetic with unboxing",
+        `Quick,
+        () => {
+          open IdTagged.FreshGrammar;
+          open Exp;
+          let result =
+            full_small_step_reduction(
+              ap(
+                Forward,
+                fn(
+                  Pat.var("x"),
+                  bin_op(Int(Plus), var("x"), int(1)),
+                  None,
+                  None,
+                ),
+                int(5),
+              ),
+            );
+
+          Alcotest.check(
+            step_limited(dhexp_typ),
+            "(fun x -> x + 1)(5)",
+            Completed(int(6)),
+            result,
+          );
+        },
+      ),
+      QCheck_alcotest.to_alcotest(qcheck_stepper_confluence),
+    ],
+  ),
+];
