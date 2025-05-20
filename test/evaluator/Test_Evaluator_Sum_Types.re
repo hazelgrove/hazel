@@ -5,7 +5,7 @@ open IdTagged.FreshGrammar;
 open Exp;
 
 let tests = (
-  "Evaluator Sum Types",
+  "Evaluator.SumTypes",
   [
     test_case("Casted constructor", `Quick, () => {
       evaluation_test(

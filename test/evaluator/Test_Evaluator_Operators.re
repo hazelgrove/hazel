@@ -4,7 +4,7 @@ open Haz3lcore.IdTagged.FreshGrammar;
 open Exp;
 
 let tests = (
-  "Evaluator",
+  "Evaluator.Operators",
   [
     test_case("Integer sum", `Quick, () =>
       evaluation_test("4 + 5", int(9), bin_op(Int(Plus), int(4), int(5)))
