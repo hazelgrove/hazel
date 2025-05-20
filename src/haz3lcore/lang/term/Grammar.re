@@ -646,6 +646,16 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Cast(e, t1, t2),
       annotation: default_annotation(ann),
     };
+    let asc = (~ann=?, e, t): exp_t(DefaultAnnotation.t) =>
+      cast(
+        ~ann?,
+        e,
+        {
+          term: Unknown(Internal),
+          annotation: default_annotation(ann),
+        },
+        t,
+      );
   };
   module Pat = {
     let invalid = (~ann=?, s): pat_t(DefaultAnnotation.t) => {
@@ -738,6 +748,17 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Cast(p, t1, t2),
       annotation: default_annotation(ann),
     };
+
+    let asc = (~ann=?, p, t): pat_t(DefaultAnnotation.t) =>
+      cast(
+        ~ann?,
+        p,
+        t,
+        {
+          term: Unknown(Internal),
+          annotation: default_annotation(ann),
+        },
+      );
   };
 
   module Typ = {
