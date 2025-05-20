@@ -56,7 +56,10 @@ module Focusable = {
   };
 
   /* Default: A projector that cannot take focus */
-  let non: t = {pointer: None, keyboard: None};
+  let non: t = {
+    pointer: None,
+    keyboard: None,
+  };
 };
 
 /* External info proivded to all projectors */
@@ -198,7 +201,3 @@ module Cook = (C: Projector) : Cooked => {
   let update = (m, i, a) =>
     C.update(m |> deserialize_m, i, a |> deserialize_a) |> serialize_m;
 };
-
-/* Projectors currently are all convex */
-let shapes = (_: ProjectorCore.t(syntax)): Nibs.shapes =>
-  Nib.Shape.(Convex, Convex);

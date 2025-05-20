@@ -102,6 +102,7 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | Label(_)
           | Dot(_)
           | Match(_)
+          | LivelitName(_)
           | DynamicErrorHole(_)
           | Filter(_)
           | If(_)
@@ -158,7 +159,8 @@ let rec ty_consistent = (d1, d2) => {
   | (Match(_), _)
   | (Probe(_), _)
   | (Use(_), _)
-  | (Dot(_), _) => false
+  | (Dot(_), _)
+  | (LivelitName(_), _) => false
   | (Parens(d1), _) => ty_consistent(d1, d2)
   | (_, Parens(d2)) => ty_consistent(d1, d2)
   | (Cast(d1, _, _), _) => ty_consistent(d1, d2)
@@ -235,6 +237,7 @@ let rec ty_has_arrow = (d: t): bool =>
   | BinOp(_)
   | Match(_)
   | Dot(_)
+  | LivelitName(_)
   | Atom(_)
   | Probe(_)
   | Use(_)
@@ -288,6 +291,7 @@ let rec poly_equal = (d1, d2): bool => {
   | (BinOp(_), _)
   | (Match(_), _)
   | (Dot(_), _)
+  | (LivelitName(_), _)
   | (Fun(_), _)
   | (TypFun(_), _)
   | (Probe(_), _)

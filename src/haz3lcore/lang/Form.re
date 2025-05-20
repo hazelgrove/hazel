@@ -10,7 +10,8 @@ module P = Precedence;
    the 'convex_monos' table, for single-token forms, or the 'forms'
    table, for compound forms.
    The wrapping functions seen in both of those tables determine the
-   shape, precedence, and expansion behavior of the form. */
+   shape, precedence, and expansion behavior of the form.
+   */
 
 /* A label is the textual expression of a form's delimiters */
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -47,7 +48,11 @@ type bad_token_cls =
   | Other
   | BadInt;
 
-let mk = (expansion, label, mold) => {label, mold, expansion};
+let mk = (expansion, label, mold) => {
+  label,
+  mold,
+  expansion,
+};
 
 /* Abbreviations for expansion behaviors */
 let ss: expansion = (Static, Static);
@@ -112,7 +117,7 @@ let is_keyword = match(keyword_regexp);
 /* Potential tokens: These are fallthrough classes which determine
  * the behavior when inserting a character in contact with a token */
 let is_potential_operand =
-  match(regexp("^([a-zA-Z0-9_'?]+)$|^([0-9_]+\\.[a-zA-Z0-9_'\\.?]*)$"));
+  match(regexp("^([a-zA-Z0-9_'?\\^]+)$|^([0-9_]+\\.[a-zA-Z0-9_'\\.?]*)$"));
 /* Anything else is considered a potential operator, as long
  *  as it does not contain any whitespace, linebreaks, comment
  *  delimiters, string delimiters, or the instant expanding paired
@@ -152,6 +157,18 @@ let is_bool = match(regexp("^(" ++ String.concat("|", bools) ++ ")$"));
 let undefined = "undefined";
 let is_undefined = match(regexp("^" ++ undefined ++ "$"));
 
+let is_livelit = str => {
+  let re = regexp("^(\\^)([a-z][A-Za-z0-9_]*)$");
+  let result = match(re, str);
+  result;
+};
+let parse_livelit = (str): string =>
+  if (String.length(str) > 1 && String.sub(str, 0, 1) == "^") {
+    String.sub(str, 1, String.length(str) - 1);
+  } else {
+    "invalid form";
+  };
+
 let var_regexp =
   regexp(
     {|(^[a-z_][A-Za-z0-9_']*$)|(^[A-Z][A-Za-z0-9_']*\.[a-z][A-Za-z0-9_']*$)|},
@@ -159,8 +176,8 @@ let var_regexp =
 let is_var = str =>
   !is_bool(str)
   && !is_undefined(str)
+  && !is_livelit(str)
   && str != "_"
-  //&& !is_keyword(str)
   && match(var_regexp, str);
 let capitalized_name_regexp = regexp("^[A-Z][A-Za-z0-9_]*$");
 let is_ctr = match(capitalized_name_regexp);
@@ -230,6 +247,7 @@ type atomic_form =
   | IntLit
   | FloatLit
   | BoolLit
+  | LivelitName
   | UndefinedLit
   | EmptyList
   | EmptyTuple
@@ -250,6 +268,7 @@ let get_atomic_form: atomic_form => (string => bool, list(Mold.t)) =
   | String => (is_string, [mk_op(Exp, []), mk_op(Pat, [])])
   | IntLit => (is_int, [mk_op(Exp, []), mk_op(Pat, [])])
   | FloatLit => (is_float, [mk_op(Exp, []), mk_op(Pat, [])])
+  | LivelitName => (is_livelit, [mk_op(Exp, []), mk_op(Pat, [])])
   | BoolLit => (is_bool, [mk_op(Exp, []), mk_op(Pat, [])])
   | UndefinedLit => (is_undefined, [mk_op(Exp, []), mk_op(Pat, [])])
   | EmptyList => (is_empty_list, [mk_op(Exp, []), mk_op(Pat, [])])
@@ -455,18 +474,23 @@ let delims: list(Token.t) =
   |> List.sort_uniq(compare);
 
 let atomic_molds: Token.t => list(Mold.t) =
-  s =>
+  s => {
     List.fold_left(
       (acc, (_, (test, molds))) => test(s) ? molds @ acc : acc,
       [],
       atomic_forms,
     );
+  };
 
-let is_atomic = t => atomic_molds(t) != [];
+let is_atomic = t => {
+  atomic_molds(t) != [];
+};
 
 let is_delim = t => List.mem(t, delims);
 
-let is_valid_token = t => is_atomic(t) || is_secondary(t) || is_delim(t);
+let is_valid_token = t => {
+  is_atomic(t) || is_secondary(t) || is_delim(t);
+};
 
 let mk_atomic = (sort: Sort.t, t: Token.t) => {
   assert(is_atomic(t));

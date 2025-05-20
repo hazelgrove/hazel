@@ -87,7 +87,8 @@ let elements_noun: Cls.t => string =
   | Pat(ListLit) => "Elements"
   | Exp(ListConcat)
   | Exp(BinOp(Int(Equals))) => "Operands"
-  | _ => failwith("elements_noun: Cls doesn't have elements");
+  | cls =>
+    failwith("elements_noun: " ++ Cls.show(cls) ++ " cls has no elements");
 
 let code_view_settings: ExpToSegment.Settings.t = {
   inline: true,
@@ -178,6 +179,14 @@ let common_err_view =
         text("cannot compare"),
         view_type(ty),
         text("with arrow type inside"),
+      ]
+    | NoType(UnboundLivelit(name)) => [
+        text("Livelit with name"),
+        code(name),
+        text("not found, and also, it's a livelit"),
+      ]
+    | Inconsistent(BadLivelitModel(_)) => [
+        text("Bad internal livelit model"),
       ]
     | Inconsistent(WithArrow(typ)) => [
         text(":"),

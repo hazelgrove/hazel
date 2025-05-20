@@ -309,7 +309,13 @@ module rec Exp: {
       let dcond = of_menhir_ast(cond);
       let dbody = of_menhir_ast(body);
       let act = FilterAction.of_menhir_ast(a);
-      filter(Filter({pat: dcond, act}), dbody);
+      filter(
+        Filter({
+          pat: dcond,
+          act,
+        }),
+        dbody,
+      );
     | TypAp(e, ty) => typ_ap(of_menhir_ast(e), Typ.of_menhir_ast(ty))
     | UnOp(op, e) =>
       un_op(Operators.op_un_of_menhir_ast(op), of_menhir_ast(e))
@@ -318,7 +324,10 @@ module rec Exp: {
         of_menhir_ast(e),
         Haz3lcore.InvalidOperationError.t_of_sexp(sexp_of_string(s)),
       )
-    | IndicationExp(e) => {annotation: true, term: of_menhir_ast(e).term}
+    | IndicationExp(e) => {
+        annotation: true,
+        term: of_menhir_ast(e).term,
+      }
     };
   };
 
@@ -327,6 +336,7 @@ module rec Exp: {
     | Invalid(_) => InvalidExp("Invalid")
     | Atom(c) => Atom(c)
     | Var(x) => Var(x)
+    | LivelitName(_) => InvalidExp("Not supported")
     | Deferral(InAp) => Deferral
     | ListLit(l) => ListExp(List.map(of_core, l))
     | Tuple(l) => TupleExp(List.map(of_core, l))
@@ -448,7 +458,11 @@ and Typ: {
       parens(forall(TPat.of_menhir_ast(tp), of_menhir_ast(t)))
     | RecType(tp, t) =>
       parens(rec_(TPat.of_menhir_ast(tp), of_menhir_ast(t)))
-    | IndicationTyp(t) => {annotation: true, term: of_menhir_ast(t).term}
+    | IndicationTyp(t) => {
+        annotation: true,
+        term: of_menhir_ast(t).term,
+      }
+    | ApTyp(t1, t2) => ap(of_menhir_ast(t1), of_menhir_ast(t2))
     };
   };
 
@@ -478,7 +492,7 @@ and Typ: {
     | Parens(t) => of_core(t)
     | Label(s) => LabelType(s)
     | TupLabel(t1, t2) => TupLabelType(of_core(t1), of_core(t2))
-    | Ap(_) => raise(Failure("Ap not supported"))
+    | Ap(t1, t2) => ApTyp(of_core(t1), of_core(t2))
     | Sum(constructors) =>
       let sumterms =
         List.map(
@@ -547,7 +561,10 @@ and Pat: {
     | TupLabelPat(p1, p2) =>
       tup_label(of_menhir_ast(p1), of_menhir_ast(p2))
     | ListPat(l) => list_lit(List.map(of_menhir_ast, l))
-    | IndicationPat(p) => {annotation: true, term: of_menhir_ast(p).term}
+    | IndicationPat(p) => {
+        annotation: true,
+        term: of_menhir_ast(p).term,
+      }
     };
   };
   let rec of_core = (pat: IndicatedG.pat): AST.pat => {

@@ -227,6 +227,7 @@ and Exp: {
         | Label(_)
         | Deferral(_)
         | Var(_)
+        | LivelitName(_)
         | Undefined => term
         | MultiHole(things) => MultiHole(List.map(any_map_term, things))
         | DynamicErrorHole(e, err) => DynamicErrorHole(exp_map_term(e), err)
@@ -354,6 +355,7 @@ and Exp: {
       ClosureEnvironment.id_equal(c1, c2) && fast_equal(e1, e2)
     | (Cons(e1, e2), Cons(e3, e4)) =>
       fast_equal(e1, e3) && fast_equal(e2, e4)
+    | (LivelitName(s1), LivelitName(s2)) => s1 == s2
     | (ListConcat(e1, e2), ListConcat(e3, e4)) =>
       fast_equal(e1, e3) && fast_equal(e2, e4)
     | (UnOp(o1, e1), UnOp(o2, e2)) => o1 == o2 && fast_equal(e1, e2)
@@ -380,6 +382,7 @@ and Exp: {
     | (Deferral(_), _)
     | (Atom(_), _)
     | (Label(_), _)
+    | (LivelitName(_), _)
     | (ListLit(_), _)
     | (Constructor(_), _)
     | (Fun(_), _)
@@ -918,7 +921,11 @@ and ClosureEnvironment: {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = closure_environment_t;
 
-    let wrap = (id, env, call_stack): t => {id, env, call_stack};
+    let wrap = (id, env, call_stack): t => {
+      id,
+      env,
+      call_stack,
+    };
 
     let id_of = (t: t) => t.id;
     let map_of = (t: t) => t.env;
@@ -987,7 +994,11 @@ and StepperFilterKind: {
 
   let map = (mapper, filter: t): t => {
     switch (filter) {
-    | Filter({act, pat}) => Filter({act, pat: mapper(pat)})
+    | Filter({act, pat}) =>
+      Filter({
+        act,
+        pat: mapper(pat),
+      })
     | Residue(idx, act) => Residue(idx, act)
     };
   };
@@ -1005,7 +1016,11 @@ and StepperFilterKind: {
       Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     (
       fun
-      | Filter({pat: e, act}) => Filter({pat: exp_map_term(e), act})
+      | Filter({pat: e, act}) =>
+        Filter({
+          pat: exp_map_term(e),
+          act,
+        })
       | Residue(i, a) => Residue(i, a):
         t => t
     );

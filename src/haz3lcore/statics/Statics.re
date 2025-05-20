@@ -329,6 +329,12 @@ and uexp_to_info_map =
       | R(BadInt(str)) => atomic(BadToken(str))
       };
 
+    | LivelitName(name) =>
+      add'(
+        ~self=Self.of_exp_livelit_name(ctx, name),
+        ~co_ctx=CoCtx.singleton(name, Exp.rep_id(uexp), ana),
+        m,
+      )
     | ListLit(es) =>
       let ids = List.map(Exp.rep_id, es);
       let inner_ana_ty = Typ.matched_list(ctx, ana);
@@ -389,6 +395,9 @@ and uexp_to_info_map =
       let ty_out = Unknown(Internal) |> Typ.temp;
       let (e, m) = go(~ana=ty_in, e, m);
       add(~self=Just(ty_out), ~co_ctx=e.co_ctx, m);
+    | UnOp(Meta(Unquote), e) =>
+      let (e, m) = go(~ana=syn, e, m);
+      add(~self=BadOperator("Unquote not in filter"), ~co_ctx=e.co_ctx, m);
     | UnOp(op, e) =>
       let op = Operators.replace_un_op(op, ctx.use_mode); // Replace op if necessary due to `use`
       let op_semantics = Operators.semantics_of_un_op(op);
@@ -703,26 +712,66 @@ and uexp_to_info_map =
       );
     | Constructor(ctr, ty) => atomic(Self.of_ctr(ctx, ctr, ana, ty))
     | Ap(_, fn, arg) =>
-      /* This logic lets us treat constructors differently to functions in
-         terms of error localization */
-      let fn_ana =
-        switch (Exp.ctr_name(fn)) {
-        | Some(name) =>
-          switch (Self.ctr_ana_typ(ctx, ana, name)) {
-          | Some(ty_ana) => ty_ana
-          | None => Arrow(syn, syn) |> Typ.temp
-          }
-        | None => Arrow(syn, syn) |> Typ.temp
-        };
-      let (fn, m) = go(~ana=fn_ana, fn, m);
-      let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
+      switch (fn.term) {
+      | LivelitName(s) =>
+        // refer to livelit context to find types
+        switch (Ctx.lookup_livelit(ctx, s)) {
+        | Some({expansion_t, model_t, expand, _}) =>
+          let (fn, m) = go(~ana=expansion_t, fn, m);
+          let (arg, m) = go(~ana=model_t, arg, m);
 
-      let (arg, m) = go(~ana=ty_in, arg, m);
-      let self: Self.t =
-        Id.is_nullary_ap_flag(IdTagged.ids(arg.term))
-        && !Typ.is_consistent(ctx, ty_in, Prod([]) |> Typ.temp)
-          ? BadTrivAp(ty_in) : Just(ty_out);
-      add(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]), m);
+          // try to expand
+          switch (expand(arg.term)) {
+          | Some(_) =>
+            add(
+              ~self=Just(expansion_t),
+              ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
+              m,
+            )
+          | None =>
+            // if we can't expand, flag as improper model
+            add(
+              ~self=BadLivelitModel(expansion_t),
+              ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
+              m,
+            )
+          };
+
+        | None =>
+          let (fn, m) = go(~ana=Unknown(Internal) |> Typ.temp, fn, m);
+          let (arg, m) = go(~ana=Unknown(Internal) |> Typ.temp, arg, m);
+          add(
+            ~self=Just(Unknown(Internal) |> Typ.temp),
+            ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
+            m,
+          );
+        }
+      | _ =>
+        /* This logic lets us treat constructors differently to functions in
+           terms of error localization */
+        let fn_ana =
+          switch (Exp.ctr_name(fn)) {
+          | Some(name) =>
+            switch (Self.ctr_ana_typ(ctx, ana, name)) {
+            | Some(ty_ana) =>
+              switch (Typ.matched_arrow_strict(ctx, ty_ana)) {
+              | Some((ty1, ty2)) => Arrow(ty1, ty2) |> Typ.temp
+              | None => Arrow(syn, syn) |> Typ.temp
+              }
+            | None => Arrow(syn, syn) |> Typ.temp
+            }
+          | None => Arrow(syn, syn) |> Typ.temp
+          };
+        let (fn, m) = go(~ana=fn_ana, fn, m);
+        let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
+
+        let (arg, m) = go(~ana=ty_in, arg, m);
+        let self: Self.t =
+          Id.is_nullary_ap_flag(IdTagged.ids(arg.term))
+          && !Typ.is_consistent(ctx, ty_in, Prod([]) |> Typ.temp)
+            ? BadTrivAp(ty_in) : Just(ty_out);
+        add(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]), m);
+      }
     | TypAp(fn, utyp) =>
       let typfn_ana =
         Forall(EmptyHole |> TPat.fresh, Unknown(SynSwitch) |> Typ.temp)
@@ -746,7 +795,11 @@ and uexp_to_info_map =
         switch (Exp.ctr_name(fn)) {
         | Some(name) =>
           switch (Self.ctr_ana_typ(ctx, ana, name)) {
-          | Some(ty_ana) => ty_ana
+          | Some(ty_ana) =>
+            switch (Typ.matched_arrow_strict(ctx, ty_ana)) {
+            | Some((ty1, ty2)) => Arrow(ty1, ty2) |> Typ.temp
+            | None => Arrow(syn, syn) |> Typ.temp
+            }
           | None => Arrow(syn, syn) |> Typ.temp
           }
         | None => Arrow(syn, syn) |> Typ.temp
@@ -777,7 +830,13 @@ and uexp_to_info_map =
         let (args, m) = map_m_go(m, ty_ins, args);
         let arg_co_ctx = CoCtx.union(List.map(Info.exp_co_ctx, args));
         add'(
-          ~self=IsBadPartialAp(ArityMismatch({expected, actual: num_args})),
+          ~self=
+            IsBadPartialAp(
+              ArityMismatch({
+                expected,
+                actual: num_args,
+              }),
+            ),
           ~co_ctx=CoCtx.union([fn.co_ctx, arg_co_ctx]),
           m,
         );
@@ -814,7 +873,11 @@ and uexp_to_info_map =
           let ctx_body =
             Ctx.extend_tvar(
               ctx,
-              {name, id: TPat.rep_id(utpat), kind: Abstract},
+              {
+                name,
+                id: TPat.rep_id(utpat),
+                kind: Abstract,
+              },
             );
           (mode_body, ctx_body);
         | Some(_)
@@ -1074,7 +1137,11 @@ and uexp_to_info_map =
         | Some(_) => Just(body.ty)
         | None when Typ.fast_equal(Unknown(Internal) |> Typ.temp, typ.term) =>
           Just(body.ty)
-        | None => InvalidUseMode({bad_typ: typ.term, inner_typ: body.ty})
+        | None =>
+          InvalidUseMode({
+            bad_typ: typ.term,
+            inner_typ: body.ty,
+          })
         };
       add(~self, ~co_ctx=body.co_ctx, m);
     };
@@ -1331,7 +1398,12 @@ and upat_to_info_map =
           ana,
           Common(Just(Unknown(Internal) |> Typ.temp)),
         );
-      let entry = Ctx.VarEntry({name, id: Pat.rep_id(upat), typ: ctx_typ});
+      let entry =
+        Ctx.VarEntry({
+          name,
+          id: Pat.rep_id(upat),
+          typ: ctx_typ,
+        });
       add(
         ~self=Just(unknown),
         ~ctx=Ctx.extend(ctx, entry),
@@ -1686,7 +1758,14 @@ and utyp_to_info_map =
     add(m);
   | Forall({term: Var(name), _} as utpat, tbody) =>
     let body_ctx =
-      Ctx.extend_tvar(ctx, {name, id: TPat.rep_id(utpat), kind: Abstract});
+      Ctx.extend_tvar(
+        ctx,
+        {
+          name,
+          id: TPat.rep_id(utpat),
+          kind: Abstract,
+        },
+      );
     let m =
       utyp_to_info_map(
         tbody,
@@ -1708,7 +1787,11 @@ and utyp_to_info_map =
     let body_ctx =
       Ctx.extend_tvar(
         ctx,
-        {name, id: TPat.rep_id(utpat), kind: Singleton(utyp)},
+        {
+          name,
+          id: TPat.rep_id(utpat),
+          kind: Singleton(utyp),
+        },
       );
     let m =
       utyp_to_info_map(

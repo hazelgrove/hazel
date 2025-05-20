@@ -305,7 +305,12 @@ module Pat = {
     | Parens(y)
     | TupLabel(_, y)
     | Probe(y, _) => bindings(y)
-    | Var(name) => [{name, id: rep_id(dp)}]
+    | Var(name) => [
+        {
+          name,
+          id: rep_id(dp),
+        },
+      ]
     | Tuple(dps) => List.flatten(List.map(bindings, dps))
     | Cons(dp1, dp2) => bindings(dp1) @ bindings(dp2)
     | ListLit(dps) => List.flatten(List.map(bindings, dps))
@@ -319,8 +324,15 @@ module Pat = {
     bound_vars(pat)
     |> List.map(name =>
          switch (Ctx.lookup_var(ctx, name)) {
-         | Some({id, _}) => Binding.{id, name}
-         | None => {id: Id.invalid, name}
+         | Some({id, _}) =>
+           Binding.{
+             id,
+             name,
+           }
+         | None => {
+             id: Id.invalid,
+             name,
+           }
          }
        );
 };
@@ -365,16 +377,19 @@ module Exp = {
     | BuiltinFun
     | Match
     | Cast
+    | LivelitName
+    | LivelitAp
     | ListConcat;
 
   include TermBase.Exp;
 
-  let temp: term => t = term => {
-                          term,
-                          annotation: {
-                            ids: [Id.invalid],
-                          },
-                        };
+  let temp: term => t =
+    term => {
+      term,
+      annotation: {
+        ids: [Id.invalid],
+      },
+    };
   let fresh: term => t = IdTagged.fresh;
 
   let hole = (tms: list(TermBase.Any.t)): term =>
@@ -387,7 +402,7 @@ module Exp = {
   let term_of: t => term = IdTagged.term_of;
   let unwrap: t => (term, term => t) = IdTagged.unwrap;
 
-  let cls_of_term: Grammar.exp_term('a) => cls =
+  let cls_of_term: type a. Grammar.exp_term(a) => cls =
     fun
     | Invalid(_) => Invalid
     | EmptyHole => EmptyHole
@@ -410,7 +425,11 @@ module Exp = {
     | FixF(_) => FixF
     | TyAlias(_) => TyAlias
     | Use(_) => Use
-    | Ap(_) => Ap
+    | Ap(_, e1, _) =>
+      switch (e1.term) {
+      | LivelitName(_) => LivelitAp
+      | _ => Ap
+      }
     | TypAp(_) => TypAp
     | DeferredAp(_) => DeferredAp
     | If(_) => If
@@ -426,6 +445,7 @@ module Exp = {
     | BinOp(op, _, _) => BinOp(op)
     | BuiltinFun(_) => BuiltinFun
     | Match(_) => Match
+    | LivelitName(_) => LivelitName
     | Cast(_) => Cast;
 
   let show_cls: cls => string =
@@ -472,6 +492,8 @@ module Exp = {
     | UnOp(op) => Operators.show_unop(op)
     | BuiltinFun => "Built-in Function"
     | Match => "Case expression"
+    | LivelitName => "Livelit name"
+    | LivelitAp => "Livelit application"
     | Cast => "Cast expression";
 
   let rec match_tup_label: t => option((LabeledTuple.label, t)) = {
@@ -549,6 +571,7 @@ module Exp = {
     | UnOp(_)
     | BinOp(_)
     | Match(_)
+    | LivelitName(_)
     | Constructor(_) => false
     };
   };
@@ -610,6 +633,7 @@ module Exp = {
       | UnOp(_)
       | BinOp(_)
       | Match(_)
+      | LivelitName(_)
       | Constructor(_) => false
       }
     );
@@ -669,6 +693,7 @@ module Exp = {
       | UnOp(_)
       | BinOp(_)
       | Match(_)
+      | LivelitName(_)
       | Constructor(_) => None
       };
     };
@@ -684,7 +709,8 @@ module Exp = {
           annotation: {
             ids: [Id.mk()],
           },
-        } |> continue;
+        }
+        |> continue;
     (
       map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
       Typ.map_term(~f_exp=f, ~f_pat=f, ~f_typ=f, ~f_tpat=f, ~f_rul=f),
@@ -830,6 +856,7 @@ module Exp = {
           | BinOp(_)
           | BuiltinFun(_)
           | Cast(_)
+          | LivelitName(_)
           | Undefined => cont(e)
           };
         },

@@ -68,7 +68,10 @@ let next_position =
       }
     );
   };
-  {row: updated_row, col: updated_col};
+  {
+    row: updated_row,
+    col: updated_col,
+  };
 };
 
 let pos_fold =
@@ -114,10 +117,21 @@ module Make = (MemoTbl: MemoTbl.S) => {
       let m =
         switch (l) {
         | Linebreak =>
-          let box = {height: 1, width: 0};
-          {metrics: [box, box], layout: Linebreak};
+          let box = {
+            height: 1,
+            width: 0,
+          };
+          {
+            metrics: [box, box],
+            layout: Linebreak,
+          };
         | Text(s) => {
-            metrics: [{height: 1, width: Unicode.length(s)}],
+            metrics: [
+              {
+                height: 1,
+                width: Unicode.length(s),
+              },
+            ],
             layout: Text(s),
           }
         | Align(l) =>
@@ -126,10 +140,19 @@ module Make = (MemoTbl: MemoTbl.S) => {
             m.metrics
             |> List.fold_left(
                  ({height: bh, width: bw}, {height, width}) =>
-                   {height: bh + height, width: max(bw, width)},
-                 {height: 0, width: 0},
+                   {
+                     height: bh + height,
+                     width: max(bw, width),
+                   },
+                 {
+                   height: 0,
+                   width: 0,
+                 },
                );
-          {metrics: [bounding_box], layout: Align(m)};
+          {
+            metrics: [bounding_box],
+            layout: Align(m),
+          };
         | Cat(l1, l2) =>
           let m1 = mk(l1);
           let m2 = mk(l2);
@@ -139,10 +162,16 @@ module Make = (MemoTbl: MemoTbl.S) => {
             height: max(last.height, first.height),
             width: last.width + first.width,
           };
-          {metrics: leading @ [mid_box, ...trailing], layout: Cat(m1, m2)};
+          {
+            metrics: leading @ [mid_box, ...trailing],
+            layout: Cat(m1, m2),
+          };
         | Annot(annot, l) =>
           let m = mk(l);
-          {...m, layout: Annot(annot, m)};
+          {
+            ...m,
+            layout: Annot(annot, m),
+          };
         };
       MemoTbl.set(table, Obj.magic(l), Obj.magic(m));
       m;

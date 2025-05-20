@@ -119,10 +119,16 @@ module Update = {
       let* new_ed = CellEditor.Update.update(~settings, a, ed);
       let new_sp =
         ListUtil.put_nth(model.current, (key, new_ed), model.scratchpads);
-      {...model, scratchpads: new_sp};
+      {
+        ...model,
+        scratchpads: new_sp,
+      };
     | SwitchSlide(i) =>
       let* current = i |> Updated.return;
-      {...model, current};
+      {
+        ...model,
+        current,
+      };
     | ResetCurrent =>
       let (key, _) = List.nth(model.scratchpads, model.current);
       let source =
@@ -157,7 +163,11 @@ module Update = {
 
       let scratchpads =
         ListUtil.put_nth(model.current, (key, new_data), model.scratchpads);
-      {...model, scratchpads} |> Updated.return;
+      {
+        ...model,
+        scratchpads,
+      }
+      |> Updated.return;
     | Export =>
       export_scratch_slide(model);
       model |> Updated.return_quiet;
@@ -194,7 +204,10 @@ module Update = {
                   UpdateResult(
                     switch (r |> List.hd |> snd) {
                     | Ok((r, s)) =>
-                      Haz3lcore.ProgramResult.ResultOk({result: r, state: s})
+                      Haz3lcore.ProgramResult.ResultOk({
+                        result: r,
+                        state: s,
+                      })
                     | Error(e) => Haz3lcore.ProgramResult.ResultFail(e)
                     },
                   ),
@@ -210,7 +223,10 @@ module Update = {
     };
     let new_sp =
       ListUtil.put_nth(model.current, (key, new_ed), model.scratchpads);
-    {...model, scratchpads: new_sp};
+    {
+      ...model,
+      scratchpads: new_sp,
+    };
   };
 };
 
@@ -292,6 +308,13 @@ module View = {
         ~tooltip="Export Scratchpad",
       );
 
+    let export_button_for_init =
+      Widgets.button_named(
+        Icons.export,
+        _ => globals.inject_global(ExportForInit),
+        ~tooltip="Export for Init",
+      );
+
     let encode_button =
       Widgets.button_named(
         Icons.export,
@@ -316,7 +339,7 @@ module View = {
       NutMenu.item_group(
         ~inject,
         "File",
-        [export_button, encode_button, import_button],
+        [export_button, export_button_for_init, encode_button, import_button],
       );
 
     let reset_button =

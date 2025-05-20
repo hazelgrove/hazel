@@ -47,7 +47,10 @@ module Model = {
 
   let fix_instructor_mode = settings =>
     if (settings.instructor_mode && !ExerciseSettings.show_instructor) {
-      {...settings, instructor_mode: false};
+      {
+        ...settings,
+        instructor_mode: false,
+      };
     } else {
       settings;
     };
@@ -154,7 +157,10 @@ module Update = {
               ...evaluation,
               show_fn_bodies: !evaluation.show_fn_bodies,
             }
-          | ShowCasts => {...evaluation, show_casts: !evaluation.show_casts}
+          | ShowCasts => {
+              ...evaluation,
+              show_casts: !evaluation.show_casts,
+            }
           | ShowFixpoints => {
               ...evaluation,
               show_fixpoints: !evaluation.show_fixpoints,
@@ -207,10 +213,22 @@ module Update = {
           | (UnsetHover, All) => All
           | (UnsetHover, _) => NoHighlight
           };
-        let explainThis = {...settings.explainThis, highlight};
-        {...settings, explainThis};
-      | Benchmark => {...settings, benchmark: !settings.benchmark}
-      | Captions => {...settings, captions: !settings.captions}
+        let explainThis = {
+          ...settings.explainThis,
+          highlight,
+        };
+        {
+          ...settings,
+          explainThis,
+        };
+      | Benchmark => {
+          ...settings,
+          benchmark: !settings.benchmark,
+        }
+      | Captions => {
+          ...settings,
+          captions: !settings.captions,
+        }
       | SecondaryIcons => {
           ...settings,
           secondary_icons: !settings.secondary_icons,

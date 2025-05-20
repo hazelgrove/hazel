@@ -14,7 +14,10 @@ let set_update =
     : Updated.t(ExplainThisModel.t) => {
   (
     switch (u) {
-    | SpecificityOpen(b) => {...explainThisModel, specificity_open: b}
+    | SpecificityOpen(b) => {
+        ...explainThisModel,
+        specificity_open: b,
+      }
     | ToggleExplanationFeedback(group_id, form_id, feedback_option) =>
       let (pre, form, post) =
         ListUtil.split(explainThisModel.forms, f =>
@@ -31,7 +34,10 @@ let set_update =
             | (Some(ThumbsUp), ThumbsUp)
             | (Some(ThumbsDown), ThumbsDown) => None
             };
-          {...form, explanation_feedback: feedback};
+          {
+            ...form,
+            explanation_feedback: feedback,
+          };
         | None => {
             group: group_id,
             form: form_id,
@@ -39,7 +45,10 @@ let set_update =
             examples: [],
           }
         };
-      {...explainThisModel, forms: pre @ [form] @ post};
+      {
+        ...explainThisModel,
+        forms: pre @ [form] @ post,
+      };
     | ToggleExampleFeedback(group_id, form_id, example_id, feedback_option) =>
       let (pre_form, form, post_form) =
         ListUtil.split(explainThisModel.forms, f =>
@@ -57,32 +66,60 @@ let set_update =
               | (ThumbsUp, ThumbsDown)
               | (ThumbsDown, ThumbsUp) =>
                 pre_example
-                @ [{...example, feedback: feedback_option}]
+                @ [
+                  {
+                    ...example,
+                    feedback: feedback_option,
+                  },
+                ]
                 @ post_example
               | (ThumbsUp, ThumbsUp)
               | (ThumbsDown, ThumbsDown) => pre_example @ post_example
               }
             | None =>
               pre_example
-              @ [{sub_id: example_id, feedback: feedback_option}]
+              @ [
+                {
+                  sub_id: example_id,
+                  feedback: feedback_option,
+                },
+              ]
               @ post_example
             };
-          {...form, examples};
+          {
+            ...form,
+            examples,
+          };
         | None => {
             group: group_id,
             form: form_id,
             explanation_feedback: None,
-            examples: [{sub_id: example_id, feedback: feedback_option}],
+            examples: [
+              {
+                sub_id: example_id,
+                feedback: feedback_option,
+              },
+            ],
           }
         };
-      {...explainThisModel, forms: pre_form @ [form] @ post_form};
+      {
+        ...explainThisModel,
+        forms: pre_form @ [form] @ post_form,
+      };
     | UpdateGroupSelection(group_id, form_id) =>
       let (pre_group, _group, post_group) =
         ListUtil.split(explainThisModel.groups, g => g.group == group_id);
       {
         ...explainThisModel,
         groups:
-          pre_group @ [{group: group_id, selected: form_id}] @ post_group,
+          pre_group
+          @ [
+            {
+              group: group_id,
+              selected: form_id,
+            },
+          ]
+          @ post_group,
       };
     }
   )

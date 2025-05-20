@@ -190,12 +190,16 @@ and exp = unsorted => {
   let (term, inner_ids) = exp_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
   let e: TermBase.exp_t =
-    return(e => Exp(e), ids, {
-                                annotation: {
-                                  ids: ids,
-                                },
-                                term,
-                              });
+    return(
+      e => Exp(e),
+      ids,
+      {
+        annotation: {
+          ids: ids,
+        },
+        term,
+      },
+    );
   switch (term) {
   | TupLabel(_) =>
     // The tile id is the id of the tuple not the tuplabel
@@ -225,6 +229,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         ret(Atom(String(Form.strip_quotes(t))))
       | ([t], []) when Form.is_float(t) =>
         ret(Atom(Float(float_of_string(t))))
+      | ([t], []) when Form.is_livelit(t) =>
+        ret(LivelitName(Form.parse_livelit(t)))
       | ([t], []) when Form.is_var(t) => ret(Var(t))
       | ([t], []) when Form.is_ctr(t) => ret(Constructor(t, None))
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
@@ -263,13 +269,37 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | (["typfun", "->"], [TPat(tpat)]) => TypFun(tpat, r, None)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
         | (["hide", "in"], [Exp(filter)]) =>
-          Filter(Filter({act: (Eval, One), pat: filter}), r)
+          Filter(
+            Filter({
+              act: (Eval, One),
+              pat: filter,
+            }),
+            r,
+          )
         | (["eval", "in"], [Exp(filter)]) =>
-          Filter(Filter({act: (Eval, All), pat: filter}), r)
+          Filter(
+            Filter({
+              act: (Eval, All),
+              pat: filter,
+            }),
+            r,
+          )
         | (["pause", "in"], [Exp(filter)]) =>
-          Filter(Filter({act: (Step, One), pat: filter}), r)
+          Filter(
+            Filter({
+              act: (Step, One),
+              pat: filter,
+            }),
+            r,
+          )
         | (["debug", "in"], [Exp(filter)]) =>
-          Filter(Filter({act: (Step, All), pat: filter}), r)
+          Filter(
+            Filter({
+              act: (Step, All),
+              pat: filter,
+            }),
+            r,
+          )
         | (["use", "in"], [Typ(ty)]) => Use(ty, r)
         | (["type", "=", "in"], [TPat(tpat), Typ(def)]) =>
           TyAlias(tpat, def, r)
@@ -305,6 +335,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           term: Deferral(InAp),
         };
         switch (arg.term) {
+        | Var(l) when Form.is_livelit(l) =>
+          ret(LivelitName(Form.parse_livelit(l)))
         | _ when Exp.is_deferral(arg) =>
           ret(DeferredAp(l, [use_deferral(arg)]))
         | Tuple(es) when List.exists(Exp.is_deferral, es) => (
@@ -384,7 +416,13 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           | (["="], []) =>
             switch (l.term) {
             | Var(name) =>
-              TupLabel({annotation: l.annotation, term: Label(name)}, r)
+              TupLabel(
+                {
+                  annotation: l.annotation,
+                  term: Label(name),
+                },
+                r,
+              )
             | EmptyHole => TupLabel(l, r)
             | _ =>
               let (e_term, rewrap) = IdTagged.unwrap(l);
@@ -397,7 +435,13 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           | (["."], []) =>
             switch (r.term) {
             | Var(name) =>
-              Dot(l, {annotation: r.annotation, term: Label(name)})
+              Dot(
+                l,
+                {
+                  annotation: r.annotation,
+                  term: Label(name),
+                },
+              )
             | EmptyHole => Dot(l, r)
             | _ =>
               let (e_term, rewrap) = IdTagged.unwrap(r);
@@ -420,12 +464,17 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
 and pat = unsorted => {
   let (term, inner_ids) = pat_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  let p = return(p => Pat(p), ids, {
-                                      annotation: {
-                                        ids: ids,
-                                      },
-                                      term,
-                                    });
+  let p =
+    return(
+      p => Pat(p),
+      ids,
+      {
+        annotation: {
+          ids: ids,
+        },
+        term,
+      },
+    );
   switch (term) {
   | TupLabel(_) => Tuple([p]) |> Pat.fresh
   | _ => p
@@ -503,7 +552,15 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
       | ([(_id, (["="], []))], []) =>
         switch (l.term) {
         | Var(name) =>
-          ret(TupLabel({annotation: l.annotation, term: Label(name)}, r))
+          ret(
+            TupLabel(
+              {
+                annotation: l.annotation,
+                term: Label(name),
+              },
+              r,
+            ),
+          )
         | EmptyHole => ret(TupLabel(l, r))
         | _ =>
           let (e_term, rewrap) = IdTagged.unwrap(l);
@@ -523,12 +580,17 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
 and typ = unsorted => {
   let (term, inner_ids) = typ_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  let t = return(ty => Typ(ty), ids, {
-                                        term,
-                                        annotation: {
-                                          ids: ids,
-                                        },
-                                      });
+  let t =
+    return(
+      ty => Typ(ty),
+      ids,
+      {
+        term,
+        annotation: {
+          ids: ids,
+        },
+      },
+    );
   switch (term) {
   | TupLabel(_) => Prod([t]) |> Typ.fresh
   | _ => t
@@ -617,7 +679,15 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       | ([(_id, (["="], []))], []) =>
         switch (l.term) {
         | Var(name) =>
-          ret(TupLabel({annotation: l.annotation, term: Label(name)}, r))
+          ret(
+            TupLabel(
+              {
+                annotation: l.annotation,
+                term: Label(name),
+              },
+              r,
+            ),
+          )
         | _ => ret(TupLabel(l, r))
         }
       | _ => ret(hole(tm))
@@ -628,12 +698,16 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
 and tpat = unsorted => {
   let term = tpat_term(unsorted);
   let ids = ids(unsorted);
-  return(ty => TPat(ty), ids, {
-                                 term,
-                                 annotation: {
-                                   ids: ids,
-                                 },
-                               });
+  return(
+    ty => TPat(ty),
+    ids,
+    {
+      term,
+      annotation: {
+        ids: ids,
+      },
+    },
+  );
 }
 and tpat_term: unsorted => TPat.term = {
   let ret = (term: TPat.term) => term;
@@ -760,7 +834,11 @@ let go =
       map := TermMap.empty;
       projectors := Id.Map.empty;
       let term = exp(unsorted(Segment.skel(seg), seg));
-      {term, terms: map^, projectors: projectors^};
+      {
+        term,
+        terms: map^,
+        projectors: projectors^,
+      };
     },
   );
 
@@ -824,9 +902,3 @@ let from_zip_for_sem =
     ~cache_size_bound=1000,
     from_zip_for_sem(~dump_backpack=true, ~erase_buffer=true),
   );
-
-let parse_exp = (s: string) => {
-  open OptUtil.Syntax;
-  let+ zip = Printer.zipper_of_string(s);
-  from_zip_for_sem(zip).term;
-};

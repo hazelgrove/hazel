@@ -44,7 +44,9 @@ type error_inconsistent =
   /* Bad type equality due to arrow type inside */
   | CompareArrow(Typ.t)
   /* Bad function position */
-  | WithArrow(Typ.t);
+  | WithArrow(Typ.t)
+  /* Bad Livelit model */
+  | BadLivelitModel(Typ.t);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_no_type =
@@ -56,6 +58,8 @@ type error_no_type =
   | BadTrivAp(Typ.t)
   /* Sum constructor neiter bound nor in ana type */
   | FreeConstructor(Constructor.t)
+  /* Livelit name not bound in ctx */
+  | UnboundLivelit(string)
   /* Dot Operator is ill-formed */
   | WantTuple
   /* Label not found in tuple for dot operator */
@@ -390,12 +394,44 @@ let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
     ) {
     | None =>
       switch (ana.term, syn.term) {
-      | (Label(_), _) => InHole(Inconsistent(Expectation({ana, syn})))
-      | _ => InHole(Inconsistent(Expectation({ana, syn})))
+      | (Label(_), _) =>
+        InHole(
+          Inconsistent(
+            Expectation({
+              ana,
+              syn,
+            }),
+          ),
+        )
+      | _ =>
+        InHole(
+          Inconsistent(
+            Expectation({
+              ana,
+              syn,
+            }),
+          ),
+        )
       }
-    | Some(join) => NotInHole(Ana(Consistent({ana, syn, join})))
+    | Some(join) =>
+      NotInHole(
+        Ana(
+          Consistent({
+            ana,
+            syn,
+            join,
+          }),
+        ),
+      )
     }
   | (CompareArrow(ty), _) => InHole(Inconsistent(CompareArrow(ty)))
+  | (IsLivelitName({name, _}), _) =>
+    let ll = Ctx.lookup_livelit(ctx, name);
+    switch (ll) {
+    | None => InHole(NoType(UnboundLivelit(name)))
+    | Some(_livelit) => NotInHole(Syn(Unknown(Internal) |> Typ.temp))
+    };
+  | (BadLivelitModel(typ), _) => InHole(Inconsistent(BadLivelitModel(typ)))
   | (FreeConstructor(name), _) => InHole(NoType(FreeConstructor(name)))
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
   | (BadOperator(op), _) => InHole(NoType(BadOperator(op)))
@@ -403,7 +439,12 @@ let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
   | (BadLabel(label), _) => InHole(NoType(BadLabel(label)))
   | (InvalidLabel(label), _) => InHole(NoType(InvalidLabel(label)))
   | (InvalidUseMode({bad_typ, inner_typ}), _) =>
-    InHole(InvalidUseMode({bad_typ, inner_typ}))
+    InHole(
+      InvalidUseMode({
+        bad_typ,
+        inner_typ,
+      }),
+    )
   | (
       TupleLabelError({
         malformed_labels,
@@ -434,13 +475,33 @@ let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
     | None =>
       switch (ana.term, syn.term) {
       | (Label(_), Label(_)) =>
-        InHole(Inconsistent(Expectation({ana, syn})))
+        InHole(
+          Inconsistent(
+            Expectation({
+              ana,
+              syn,
+            }),
+          ),
+        )
       | (Label(_), _) => InHole(NoType(BadLabel(Typ(syn))))
-      | _ => InHole(Inconsistent(Expectation({ana, syn})))
+      | _ =>
+        InHole(
+          Inconsistent(
+            Expectation({
+              ana,
+              syn,
+            }),
+          ),
+        )
       }
     | Some(_) =>
       NotInHole(
-        Ana(InternallyInconsistent({ana, nojoin: Typ.of_source(tys)})),
+        Ana(
+          InternallyInconsistent({
+            ana,
+            nojoin: Typ.of_source(tys),
+          }),
+        ),
       )
     };
   | (WantTuple, _) => InHole(NoType(WantTuple))
@@ -455,7 +516,10 @@ let rec status_pat = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.pat): status_pat =>
       switch (status_pat(ctx, ty_ana, self)) {
       | InHole(
           Common(
-            Inconsistent(Internal(_) | Expectation(_) | CompareArrow(_)),
+            Inconsistent(
+              Internal(_) | Expectation(_) | CompareArrow(_) |
+              BadLivelitModel(_),
+            ),
           ) as err,
         )
       | InHole(Common(NoType(_)) as err) => Some(err)
@@ -489,7 +553,11 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
   | InexhaustiveMatch(self) =>
     let additional_err =
       switch (status_exp(ctx, ty_ana, self)) {
-      | InHole(Common(Inconsistent(Internal(_)) as inconsistent_err)) =>
+      | InHole(
+          Common(
+            Inconsistent(Internal(_) | BadLivelitModel(_)) as inconsistent_err,
+          ),
+        ) =>
         Some(inconsistent_err)
       | NotInHole(_)
       | InHole(
@@ -683,11 +751,12 @@ let fixed_typ_err_common: error_common => Typ.t =
   | NoType(WantTuple)
   | NoType(LabelNotFound(_))
   | NoType(BadLabel(_))
+  | NoType(UnboundLivelit(_))
   | NoType(InvalidLabel(_)) => Unknown(Internal) |> Typ.temp
   | InvalidUseMode({inner_typ, _}) => inner_typ
   | TupleLabelError({typ, _})
   | DuplicateLabel(_, typ) => typ
-  | Inconsistent(Expectation({ana, _})) => ana
+  | Inconsistent(Expectation({ana, _}) | BadLivelitModel(ana)) => ana
   | Inconsistent(Internal(_)) => Unknown(Internal) |> Typ.temp // Should this be some sort of meet?
   | Inconsistent(CompareArrow(_)) => Atom(Bool) |> Typ.temp
   | Inconsistent(WithArrow(_)) =>
@@ -808,14 +877,27 @@ let derived_typ = (~utyp: Typ.t, ~ctx, ~ancestors, ~expects): typ => {
     | (_, cls) => Cls.Typ(cls)
     };
   let status = status_typ(ctx, expects, utyp);
-  {cls, ctx, ancestors, status, expects, term: utyp};
+  {
+    cls,
+    ctx,
+    ancestors,
+    status,
+    expects,
+    term: utyp,
+  };
 };
 
 /* Add derivable attributes for type patterns */
 let derived_tpat = (~utpat: TPat.t, ~ctx, ~ancestors): tpat => {
   let cls = Cls.TPat(TPat.cls_of_term(utpat.term));
   let status = status_tpat(ctx, utpat);
-  {cls, ancestors, status, ctx, term: utpat};
+  {
+    cls,
+    ancestors,
+    status,
+    ctx,
+    term: utpat,
+  };
 };
 
 /* If the info represents some kind of name binding which
@@ -880,7 +962,10 @@ let derive_label_inference_info = (original_labels, new_labels) => {
         original_labels,
       );
 
-  MultiLabelInference({reordered, introduced_labels});
+  MultiLabelInference({
+    reordered,
+    introduced_labels,
+  });
 };
 
 let is_label = (info: t): bool =>

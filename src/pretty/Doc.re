@@ -27,7 +27,10 @@ and t'('annot) =
   | Fail // identity for `Choice`
   | Choice(t('annot), t('annot));
 
-let t_of_t' = (t': t'('annot)): t('annot) => {mem: M.create(0), doc: t'};
+let t_of_t' = (t': t'('annot)): t('annot) => {
+  mem: M.create(0),
+  doc: t',
+};
 
 let text = (s: string) => t_of_t'(Text(s));
 let linebreak = () => t_of_t'(Linebreak);

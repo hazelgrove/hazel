@@ -87,8 +87,47 @@ let deferred_funapp_exp: form = {
   };
 };
 
-let funaps: group = {id: FunApExp, forms: [funapp_exp]};
+let funaps: group = {
+  id: FunApExp,
+  forms: [funapp_exp],
+};
 
-let conaps: group = {id: ConApExp, forms: [conapp_exp]};
+let conaps: group = {
+  id: ConApExp,
+  forms: [conapp_exp],
+};
 
-let deferredaps: group = {id: DeferredApExp, forms: [deferred_funapp_exp]};
+let deferredaps: group = {
+  id: DeferredApExp,
+  forms: [deferred_funapp_exp],
+};
+
+let livelitapp_exp_ex = {
+  sub_id: LivelitAp,
+  term: mk_example("^slider(50)"),
+  message: "The slider livelit is expanded to its value, which is 50 in this case. The livelit presents a GUI widget that allows setting the value.",
+};
+
+let _exp_livelit = exp("^livelit_name");
+let _exp_arg = exp("model");
+let livelitapp_exp_coloring_ids =
+    (~x_id: Id.t, ~arg_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_exp_livelit), x_id),
+  (Piece.id(_exp_arg), arg_id),
+];
+
+let livelitapp_exp: form = {
+  let explanation = "Expands the [*livelit*](%s) to some value based on its [*model*](%s). When projected, creates a GUI widget.";
+  {
+    id: LivelitApExp,
+    syntactic_form: [_exp_livelit, mk_ap_exp([[_exp_arg]])],
+    expandable_id: None,
+    explanation,
+    examples: [livelitapp_exp_ex],
+  };
+};
+
+let livelitaps: group = {
+  id: LivelitApExp,
+  forms: [livelitapp_exp],
+};

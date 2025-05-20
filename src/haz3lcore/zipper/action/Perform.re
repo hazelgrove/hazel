@@ -3,7 +3,10 @@ open Zipper;
 
 let buffer_clear = (z: t): t =>
   switch (z.selection.mode) {
-  | Buffer(_) => {...z, selection: Selection.mk([])}
+  | Buffer(_) => {
+      ...z,
+      selection: Selection.mk([]),
+    }
   | _ => z
   };
 
@@ -39,7 +42,10 @@ let go_z =
 
   let paste_segment = (z: Zipper.t, segment: Segment.t): Zipper.t => {
     let replace_selection = (z, focus, segment): Zipper.t =>
-      {...z, selection: Selection.mk(~focus, segment)}
+      {
+        ...z,
+        selection: Selection.mk(~focus, segment),
+      }
       |> Zipper.unselect
       |> Zipper.remold_regrout(Util.Direction.Right)
       |> Zipper.remold_regrout(Util.Direction.Left);
@@ -195,11 +201,23 @@ let go_z =
     |> Option.map(remold_regrout(d))
     |> Result.of_option(~error=Action.Failure.Cant_destruct)
   | Insert(char) =>
+    let id =
+      switch (Indicated.index(z)) {
+      | Some(id) => id
+      | None => Id.invalid
+      };
+
+    let ctx =
+      switch (Id.Map.find_opt(id, statics.info_map)) {
+      | Some(ci) => Info.ctx_of(ci)
+      | None => Ctx.empty
+      };
+
     z
-    |> Insert.go(char)
+    |> Insert.go(char, ~ctx)
     /* note: remolding here is done case-by-case */
     //|> Option.map((z) => remold_regrout(Right, z))
-    |> Result.of_option(~error=Action.Failure.Cant_insert)
+    |> Result.of_option(~error=Action.Failure.Cant_insert);
   | Pick_up => Ok(remold_regrout(Left, Zipper.pick_up(z)))
   | Put_down =>
     let z =
@@ -212,7 +230,10 @@ let go_z =
     |> Option.map(remold_regrout(Left))
     |> Result.of_option(~error=Action.Failure.Cant_put_down);
   | RotateBackpack =>
-    let z = {...z, backpack: Util.ListUtil.rotate(z.backpack)};
+    let z = {
+      ...z,
+      backpack: Util.ListUtil.rotate(z.backpack),
+    };
     Ok(z);
   | MoveToBackpackTarget((Left(_) | Right(_)) as d) =>
     if (Backpack.restricted(z.backpack)) {

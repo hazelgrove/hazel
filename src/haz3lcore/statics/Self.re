@@ -34,6 +34,7 @@ type t =
   | CompareArrow(Typ.t) /* Type equality failed because of arrow type inside */
   | BadToken(Token.t) /* Invalid expression token, continues with undefined behavior */
   | BadOperator(string) /* Invalid operator, continues with undefined behavior */
+  | BadLivelitModel(Typ.t) /* Livelit model type is not valid */
   | BadTrivAp(Typ.t) /* Trivial (nullary) ap on function that doesn't take triv */
   | BadLabel(Any.t) /* TupLabel label component is not a valid Label*/
   | InvalidLabel(LabeledTuple.label) /* Invalid label in a labeled tuple */
@@ -50,7 +51,11 @@ type t =
   | InvalidUseMode({
       bad_typ: Typ.t,
       inner_typ: Typ.t,
-    }); /* Currently used by the dot operator for a label not found */
+    }) /* Currently used by the dot operator for a label not found */
+  | IsLivelitName({
+      name: string,
+      exp_t: Typ.t,
+    });
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_partial_ap =
@@ -92,6 +97,8 @@ let typ_of: (Ctx.t, t) => option(Typ.t) =
     | Duplicate(_, Just(typ))
     | TupleLabelError({typ, _}) => Some(typ)
     | CompareArrow(_) => Some(Atom(Bool) |> Typ.fresh)
+    | IsLivelitName({exp_t, _}) => Some(exp_t)
+    | BadLivelitModel(typ) => Some(typ)
     | FreeConstructor(name) =>
       Some(
         Sum([
@@ -128,7 +135,7 @@ let rec typ_of_pat: (Ctx.t, pat) => option(Typ.t) =
     | ExpectedConstructor(pat) => typ_of_pat(ctx, pat)
     | Common(self) => typ_of(ctx, self);
 
-/* The self of a var depends on the ctx; if the
+/* The self of a var and livelit depends on the ctx; if the
    lookup fails, it is a free variable */
 let of_exp_var = (ctx: Ctx.t, name: Var.t): exp =>
   switch (Ctx.lookup_var(ctx, name)) {
@@ -161,6 +168,20 @@ let ctr_ana_typ =
   );
 };
 
+let of_exp_livelit_name = (ctx: Ctx.t, name: string): exp => {
+  let res = Ctx.lookup_livelit(ctx, name);
+  switch (res) {
+  | None => Free(name)
+  | Some(livelit) =>
+    Common(
+      IsLivelitName({
+        name: livelit.name,
+        exp_t: livelit.expansion_t,
+      }),
+    )
+  };
+};
+
 let of_ctr =
     (ctx: Ctx.t, name: Constructor.t, ana: Typ.t, ty: option(option(Typ.t)))
     : t => {
@@ -186,7 +207,12 @@ let of_deferred_ap = (args, ty_ins: list(Typ.t), ty_out: Typ.t): exp => {
   let expected = List.length(ty_ins);
   let actual = List.length(args);
   if (expected != actual) {
-    IsBadPartialAp(ArityMismatch({expected, actual}));
+    IsBadPartialAp(
+      ArityMismatch({
+        expected,
+        actual,
+      }),
+    );
   } else if (List.for_all(Exp.is_deferral, args)) {
     IsBadPartialAp(NoDeferredArgs);
   } else {
@@ -201,7 +227,13 @@ let of_deferred_ap = (args, ty_ins: list(Typ.t), ty_out: Typ.t): exp => {
   };
 };
 
-let add_source = List.map2((id, ty) => Typ.{id, ty});
+let add_source =
+  List.map2((id, ty) =>
+    Typ.{
+      id,
+      ty,
+    }
+  );
 
 let match = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
   switch (Typ.join_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, tys)) {

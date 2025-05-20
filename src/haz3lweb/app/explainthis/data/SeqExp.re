@@ -31,4 +31,7 @@ let seq_exp: form = {
   };
 };
 
-let seqs: group = {id: SeqExp, forms: [seq_exp]};
+let seqs: group = {
+  id: SeqExp,
+  forms: [seq_exp],
+};
