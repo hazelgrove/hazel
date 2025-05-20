@@ -4,6 +4,24 @@ open Virtual_dom.Vdom;
 open Node;
 open Js_of_ocaml;
 
+let rec of_segment = (~holes: option(string), seg: Segment.t): string =>
+  seg |> List.map(of_piece(~holes)) |> String.concat("")
+and of_piece = (~holes, p: Piece.t): string =>
+  switch (p) {
+  | Tile(t) => of_tile(~holes, t)
+  | Grout({shape: Concave, _}) => " "
+  | Grout({shape: Convex, _}) when holes != None => Option.get(holes)
+  | Grout({shape: Convex, _}) => " "
+  | Secondary(w) =>
+    Secondary.is_linebreak(w) ? "\n" : Secondary.get_string(w.content)
+  | Projector(p) => of_segment(~holes, Piece.unparenthesize(p.syntax))
+  }
+and of_tile = (~holes, t: Tile.t): string =>
+  Aba.mk(t.shards, t.children)
+  |> Aba.join(of_delim(t), of_segment(~holes))
+  |> String.concat("")
+and of_delim = (t: Piece.tile, i: int): string => List.nth(t.label, i);
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type closure = Dynamics.Probe.Closure.t;
 
@@ -137,7 +155,11 @@ module DynCursor = {
     mutable pinned_call: option(Probe.call_stack),
   };
 
-  let s: t = {call_cursor: [], indicated_call: None, pinned_call: None};
+  let s: t = {
+    call_cursor: [],
+    indicated_call: None,
+    pinned_call: None,
+  };
 
   let reset = () => {
     s.call_cursor = [];
@@ -428,7 +450,7 @@ let abbreviate = (exp: Exp.t, available: int): Exp.t => {
 };
 
 let len_seg = (seg: Segment.t): int =>
-  seg |> Printer.of_segment(~holes=Some("?")) |> String.length;
+  seg |> of_segment(~holes=Some("?")) |> String.length;
 
 let seg_of_exp = (utility: utility, exp: Exp.t): (Segment.t, int) => {
   let seg = utility.term_to_seg(Exp(exp));
@@ -455,7 +477,10 @@ let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): Point.t => {
   let y_rel = of_int(e##.clientY) -. text_box##getBoundingClientRect##.top;
   let row = to_int(y_rel /. row_height);
   let col = to_int(round(x_rel /. col_width));
-  {row, col};
+  {
+    row,
+    col,
+  };
 };
 
 let length_cls = (length: int): string =>
@@ -498,7 +523,11 @@ let value_view =
         e##.currentTarget |> Js.Opt.get(_, _ => failwith("no target"));
       JsUtil.setPointerCapture(target, e##.pointerId);
       ValueState.mousedown := Some(target);
-      ValueState.click_coords := Some({row: e##.clientY, col: e##.clientX});
+      ValueState.click_coords :=
+        Some({
+          row: e##.clientY,
+          col: e##.clientX,
+        });
     };
     DynCursor.capture(info, closure);
     Effect.Ignore;
@@ -673,7 +702,7 @@ let syntax_str =
   Core.Memo.general(seg => {
     let max_len = 30;
     let seg = Segment.unparenthesize(seg);
-    let str = Printer.of_segment(~holes=Some("?"), seg);
+    let str = of_segment(~holes=Some("?"), seg);
     let str = Re.Str.global_replace(Re.Str.regexp("\n"), " ", str);
     String.length(str) > max_len
       ? String.sub(str, 0, max_len) ++ "..." : str;

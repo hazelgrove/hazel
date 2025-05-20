@@ -22,8 +22,30 @@ type t = VarMap.t_(builtin);
 [@deriving (show({with_path: false}), sexp)]
 type forms = VarMap.t_(DHExp.t => option(DHExp.t));
 
+exception BuiltinAlreadyDefined(Var.t);
+
+// Like VarMap.extend but it fails if the name is already bound
+let extend = (builtins: t, (name: Var.t, v: builtin)): t =>
+  if (VarMap.contains(builtins, name)) {
+    raise(BuiltinAlreadyDefined(name));
+  } else {
+    VarMap.extend(builtins, (name, v));
+  };
+
+// Like VarMap.concat but it fails if the name is already bound
+let concat = (builtins: t, new_builtins: t): t => {
+  List.iter(
+    ((new_builtin, _)) =>
+      if (VarMap.contains(builtins, new_builtin)) {
+        raise(BuiltinAlreadyDefined(new_builtin));
+      },
+    new_builtins,
+  );
+  VarMap.concat(builtins, new_builtins);
+};
+
 let const = (name: Var.t, typ: Typ.term, v: DHExp.t, builtins: t): t =>
-  VarMap.extend(builtins, (name, Const(typ |> Typ.fresh, v)));
+  extend(builtins, (name, Const(typ |> Typ.fresh, v)));
 let fn =
     (
       name: Var.t,
@@ -33,10 +55,7 @@ let fn =
       builtins: t,
     )
     : t =>
-  VarMap.extend(
-    builtins,
-    (name, Fn(t1 |> Typ.fresh, t2 |> Typ.fresh, impl)),
-  );
+  extend(builtins, (name, Fn(t1 |> Typ.fresh, t2 |> Typ.fresh, impl)));
 
 let (let-unbox) = ((request, v), f) =>
   switch (Unboxing.unbox(request, v)) {
@@ -89,7 +108,7 @@ module Pervasives = {
 
     let abs = d => {
       let-unbox n = (Atom(Int), d);
-      Some(int(Bigint.abs(n)));
+      Some(big_int(Bigint.abs(n)));
     };
 
     let float_op = (fn, d) => {
@@ -123,7 +142,7 @@ module Pervasives = {
             ),
           );
         } else {
-          Some(int(Bigint.(%)(m, n)));
+          Some(big_int(Bigint.(%)(m, n)));
         };
       });
 
@@ -188,14 +207,14 @@ module Pervasives = {
 
     let string_length = d => {
       let-unbox s = (Atom(String), d);
-      Some(int(String.length(s) |> Bigint.of_int));
+      Some(int(String.length(s)));
     };
 
     let string_compare =
       binary((d1, d2) => {
         let-unbox s1 = (Atom(String), d1);
         let-unbox s2 = (Atom(String), d2);
-        Some(int(String.compare(s1, s2) |> Bigint.of_int));
+        Some(int(String.compare(s1, s2)));
       });
 
     let string_trim = d => {
@@ -209,7 +228,7 @@ module Pervasives = {
         Some(s);
       };
 
-    let string_concat =
+    let string_join =
       binary((d1, d2) => {
         let-unbox s1 = (Atom(String), d1);
         let-unbox xs = (ListLit, d2);
@@ -341,10 +360,10 @@ module Pervasives = {
          )
       |> fn("string_trim", Atom(String), Atom(String), string_trim)
       |> fn(
-           "string_concat",
+           "string_join",
            Prod([string(), list(string())]),
            Atom(String),
-           string_concat,
+           string_join,
          )
       |> fn(
            "string_sub",
@@ -359,14 +378,14 @@ module Pervasives = {
            string_split("string_split"),
          )
     )
-    |> VarMap.concat(
+    |> concat(
          _,
          List.map(
            ((n, b)) => (n, of_atom_builtin(b)),
            Atom.converter_builtins,
          ),
        )
-    |> VarMap.concat(
+    |> concat(
          _,
          List.map(
            ((n, b)) => (n, of_atom_builtin(b)),
@@ -375,14 +394,29 @@ module Pervasives = {
        );
 };
 
+let livelits_init =
+  Livelit.livelits |> List.map(entry => Ctx.LivelitEntry(entry));
+
 let entries =
   List.map(
     fun
-    | (name, Const(typ, _)) => Ctx.VarEntry({name, typ, id: Id.invalid})
+    | (name, Const(typ, _)) =>
+      Ctx.VarEntry({
+        name,
+        typ,
+        id: Id.invalid,
+      })
     | (name, Fn(t1, t2, _)) =>
-      Ctx.VarEntry({name, typ: Fresh.Typ.arrow(t1, t2), id: Id.invalid}),
+      Ctx.VarEntry({
+        name,
+        typ: Fresh.Typ.arrow(t1, t2),
+        id: Id.invalid,
+      }),
     Pervasives.builtins,
-  );
+  )
+  |> List.append(
+       Livelit.livelits |> List.map(entry => Ctx.LivelitEntry(entry)),
+     );
 
 let ctx_init: option(Operators.mode) => Ctx.t =
   use_mode => {
@@ -396,7 +430,10 @@ let ctx_init: option(Operators.mode) => Ctx.t =
         id: Id.invalid,
         kind: Ctx.Singleton(Fresh.Typ.sum(meta_cons_map)),
       });
-    Ctx.{use_mode, entries}
+    Ctx.{
+      use_mode,
+      entries,
+    }
     |> Ctx.extend(_, meta)
     |> Ctx.add_ctrs(_, "$Meta", Id.invalid, meta_cons_map);
   };

@@ -1,17 +1,20 @@
 open Sexplib.Std;
 open Ppx_yojson_conv_lib.Yojson_conv;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type row = int;
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type col = int;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = {
   row,
   col,
 };
-let zero = {row: 0, col: 0};
+let zero = {
+  row: 0,
+  col: 0,
+};
 
 let equals: (t, t) => bool = (p, q) => p.row == q.row && p.col == q.col;
 

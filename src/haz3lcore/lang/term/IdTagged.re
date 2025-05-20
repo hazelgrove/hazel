@@ -19,7 +19,10 @@ type t('a) = Grammar.Annotated.t('a, IdTag.t);
 //     fmt_a(formatter, ta.term);
 //   };
 let fresh = (term: 'a): Grammar.Annotated.t('a, IdTag.t) => {
-  {term, annotation: IdTag.fresh()};
+  {
+    term,
+    annotation: IdTag.fresh(),
+  };
 };
 let fresh_deterministic = (prev_id, term): t('a) => {
   {
@@ -31,7 +34,13 @@ let fresh_deterministic = (prev_id, term): t('a) => {
 };
 
 let term_of = (x: Grammar.Annotated.t('a, 'b)) => x.term;
-let unwrap = (x: t('a)) => (x.term, term' => {...x, term: term'});
+let unwrap = (x: t('a)) => (
+  x.term,
+  term' => {
+    ...x,
+    term: term',
+  },
+);
 let rep_id = ({annotation: {ids, _}, _}: Grammar.Annotated.t('a, IdTag.t)) =>
   List.hd(ids);
 

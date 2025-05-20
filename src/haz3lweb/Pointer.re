@@ -110,7 +110,11 @@ module MkState = () => {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type timer = option((state, state));
 
-  let state: state = {button: Up, count: 0, loc: Point.zero};
+  let state: state = {
+    button: Up,
+    count: 0,
+    loc: Point.zero,
+  };
 
   let delay_ms = 310.0;
 

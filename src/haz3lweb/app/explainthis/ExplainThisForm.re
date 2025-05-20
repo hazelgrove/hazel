@@ -107,6 +107,7 @@ type example_id =
   | TypFunAp
   | FunAp
   | ConAp
+  | LivelitAp
   | DeferredAp
   | IfTrue
   | IfFalse
@@ -197,6 +198,8 @@ type form_id =
   | FunApExp
   | ConApExp
   | DeferredApExp
+  | LivelitApExp
+  | LivelitName
   | IfExp
   | SeqExp
   | UseExp
@@ -301,6 +304,8 @@ type group_id =
   | FunApExp
   | ConApExp
   | DeferredApExp
+  | LivelitName
+  | LivelitApExp
   | IfExp
   | SeqExp
   | TestExp

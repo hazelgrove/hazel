@@ -7,11 +7,35 @@ let s_x = s_y *. 1.5;
 
 let tip_width = ShardDec.tip_width;
 
-let tr_bl_north = [H_({dx: 0.}), L_({dx: -. tip_width, dy: 0.5})];
-let tl_br_north = [H_({dx: 0.}), L_({dx: tip_width, dy: 0.5})];
-let tr_bl_south = [L_({dx: -. tip_width, dy: 0.5}), H_({dx: 0.})];
+let tr_bl_north = [
+  H_({dx: 0.}),
+  L_({
+    dx: -. tip_width,
+    dy: 0.5,
+  }),
+];
+let tl_br_north = [
+  H_({dx: 0.}),
+  L_({
+    dx: tip_width,
+    dy: 0.5,
+  }),
+];
+let tr_bl_south = [
+  L_({
+    dx: -. tip_width,
+    dy: 0.5,
+  }),
+  H_({dx: 0.}),
+];
 
-let tl_br_south = [L_({dx: tip_width, dy: 0.5}), H_({dx: 0.})];
+let tl_br_south = [
+  L_({
+    dx: tip_width,
+    dy: 0.5,
+  }),
+  H_({dx: 0.}),
+];
 
 let bl_tr_north = SvgUtil.Path.reverse(tr_bl_north);
 let bl_tr_south = SvgUtil.Path.reverse(tr_bl_south);
@@ -35,7 +59,13 @@ let right_tip_path_concave =
 
 let path = (tip_l, tip_r): list(SvgUtil.Path.cmd) =>
   List.concat([
-    [M({x: 0.5, y: 0.5 -. s_y /. 2.}), H_({dx: s_x /. 2.})],
+    [
+      M({
+        x: 0.5,
+        y: 0.5 -. s_y /. 2.,
+      }),
+      H_({dx: s_x /. 2.}),
+    ],
     scale_x(s_x, scale_y(s_y, tip_l)),
     [H_({dx: -. s_x})],
     scale_x(s_x, scale_y(s_y, tip_r)),

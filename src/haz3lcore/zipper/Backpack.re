@@ -154,7 +154,10 @@ module ShardInfo = {
     counts: Counts.t,
   };
 
-  let init = () => {order: Order.init(), counts: Counts.init()};
+  let init = () => {
+    order: Order.init(),
+    counts: Counts.init(),
+  };
 
   let add_sel = (sel: Selection.t, {counts, order}: t): unit => {
     let ts = Segment.incomplete_tiles(sel.content);
@@ -203,7 +206,7 @@ module ShardInfo = {
   };
 };
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = list(Selection.t);
 
 let empty = [];

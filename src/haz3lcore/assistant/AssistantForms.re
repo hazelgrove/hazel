@@ -181,18 +181,29 @@ let suggest_form = (ty_map, delims_of_sort, ci: Info.t): list(Suggestion.t) => {
   | Exp =>
     List.map(
       ((content, ty)) =>
-        Suggestion.{content, strategy: Exp(Common(NewForm(ty)))},
+        Suggestion.{
+          content,
+          strategy: Exp(Common(NewForm(ty))),
+        },
       filtered,
     )
   | Pat =>
     List.map(
       ((content, ty)) =>
-        Suggestion.{content, strategy: Pat(Common(NewForm(ty)))},
+        Suggestion.{
+          content,
+          strategy: Pat(Common(NewForm(ty))),
+        },
       filtered,
     )
   | _ =>
     delims
-    |> List.map(content => Suggestion.{content, strategy: Typ(NewForm)})
+    |> List.map(content =>
+         Suggestion.{
+           content,
+           strategy: Typ(NewForm),
+         }
+       )
   };
 };
 

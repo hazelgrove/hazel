@@ -79,6 +79,7 @@ jobs:
           eval $(opam env)
           make ci
         working-directory: ./source
+        timeout-minutes: 10
       - name: Test Report
         uses: dorny/test-reporter@v1
         with:

@@ -9,16 +9,16 @@ type t = {
 };
 
 let mk_shortcut = (~hotkey=?, ~mdIcon=?, ~section=?, label, update_action): t => {
-  {update_action: Some(update_action), hotkey, label, mdIcon, section};
+  {
+    update_action: Some(update_action),
+    hotkey,
+    label,
+    mdIcon,
+    section,
+  };
 };
 
 let instructor_shortcuts: list(t) = [
-  mk_shortcut(
-    ~mdIcon="download",
-    ~section="Export",
-    "Export All Persistent Data",
-    Globals(ExportPersistentData),
-  ),
   mk_shortcut(
     ~mdIcon="download",
     ~section="Export",
@@ -228,6 +228,12 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
     mk_shortcut(
       ~mdIcon="download",
       ~section="Export",
+      "Export For Init",
+      Globals(ExportForInit),
+    ),
+    mk_shortcut(
+      ~mdIcon="download",
+      ~section="Export",
       "Export Submission",
       Editors(Exercises(ExportSubmission)) // TODO Would we rather skip contextual stuff for now or include it and have it fail
     ),
@@ -281,7 +287,8 @@ let from_shortcut =
            print_endline("Could not find action for " ++ shortcut.label)
          };
        }
-   }];
+   }
+  ];
 };
 
 let options = (schedule_action: Page.Update.t => unit) => {
