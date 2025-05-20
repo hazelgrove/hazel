@@ -829,7 +829,7 @@ in fn("hello")|},
 
           Alcotest.check(
             step_limited(dhexp_typ),
-            "1. + 2. = 3.",
+            "1. +. 2. = 3.",
             Completed(float(3.)),
             result,
           );
