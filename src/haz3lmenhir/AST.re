@@ -17,9 +17,7 @@ type op_bin_float =
   | LessThan
   | LessThanOrEqual
   | GreaterThan
-  | GreaterThanOrEqual
-  | Equals
-  | NotEquals;
+  | GreaterThanOrEqual;
 
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type op_bin_bool =
@@ -36,9 +34,7 @@ type op_bin_int =
   | LessThan
   | LessThanOrEqual
   | GreaterThan
-  | GreaterThanOrEqual
-  | Equals
-  | NotEquals;
+  | GreaterThanOrEqual;
 
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type op_bin_string =
