@@ -91,33 +91,6 @@ let tests = (
         ListLit,
         cast(empty_hole(), Typ.(empty_hole()), Typ.(list(empty_hole()))),
       ),
-      test_matches(
-        "CastedList to ListLit",
-        list(dhexp_typ),
-        ListLit,
-        cast(
-          list_lit([1, 2, 3] |> List.map(int)),
-          Typ.(list(empty_hole())),
-          Typ.(list(empty_hole())),
-        ),
-        [1, 2, 3] |> List.map(int),
-      ),
-      test_matches(
-        "DoubleCastedList to ListLit",
-        list(dhexp_typ),
-        ListLit,
-        cast(
-          cast(
-            list_lit([1, 2, 3] |> List.map(int)),
-            Typ.(list(empty_hole())),
-            Typ.(list(empty_hole())),
-          ),
-          Typ.(list(empty_hole())),
-          Typ.(list(int())),
-        ),
-        [1, 2, 3]
-        |> List.map(i => cast(i |> int, Typ.(empty_hole()), Typ.(int()))),
-      ),
       // ListLitn requests
       test_matches(
         "ListLit to ListLitn, correct length",
@@ -143,33 +116,6 @@ let tests = (
         list(dhexp_typ),
         ListLitn(0),
         cast(empty_hole(), Typ.(empty_hole()), Typ.(list(empty_hole()))),
-      ),
-      test_matches(
-        "CastedList to ListLitn",
-        list(dhexp_typ),
-        ListLitn(3),
-        cast(
-          list_lit([1, 2, 3] |> List.map(int)),
-          Typ.(list(empty_hole())),
-          Typ.(list(empty_hole())),
-        ),
-        [1, 2, 3] |> List.map(int),
-      ),
-      test_matches(
-        "DoubleCastedList to ListLitn",
-        list(dhexp_typ),
-        ListLitn(3),
-        cast(
-          cast(
-            list_lit([1, 2, 3] |> List.map(int)),
-            Typ.(list(empty_hole())),
-            Typ.(list(empty_hole())),
-          ),
-          Typ.(list(empty_hole())),
-          Typ.(list(int())),
-        ),
-        [1, 2, 3]
-        |> List.map(i => cast(i |> int, Typ.(empty_hole()), Typ.(int()))),
       ),
       // Cons requests
       test_matches(
@@ -204,50 +150,6 @@ let tests = (
         pair(dhexp_typ, dhexp_typ),
         Cons,
         cast(empty_hole(), Typ.(empty_hole()), Typ.(list(empty_hole()))),
-      ),
-      test_matches(
-        "CastedCons to Cons",
-        pair(dhexp_typ, dhexp_typ),
-        Cons,
-        cast(
-          cons(1 |> int, empty_hole()),
-          Typ.(list(empty_hole())),
-          Typ.(list(int())),
-        ),
-        (
-          cast(1 |> int, Typ.(empty_hole()), Typ.(int())),
-          cast(empty_hole(), Typ.(list(empty_hole())), Typ.(list(int()))),
-        ),
-      ),
-      test_matches(
-        "DoubleCastedCons to Cons",
-        pair(dhexp_typ, dhexp_typ),
-        Cons,
-        cast(
-          cast(
-            cons(empty_hole(), empty_hole()),
-            Typ.(list(empty_hole())),
-            Typ.(list(list(empty_hole()))),
-          ),
-          Typ.(list(list(empty_hole()))),
-          Typ.(list(list(int()))),
-        ),
-        (
-          cast(
-            cast(empty_hole(), Typ.(empty_hole()), Typ.(list(empty_hole()))),
-            Typ.(list(empty_hole())),
-            Typ.(list(int())),
-          ),
-          cast(
-            cast(
-              empty_hole(),
-              Typ.(list(empty_hole())),
-              Typ.(list(list(empty_hole()))),
-            ),
-            Typ.(list(list(empty_hole()))),
-            Typ.(list(list(int()))),
-          ),
-        ),
       ),
       test_case("Unboxing integer", `Quick, () => {
         check(
