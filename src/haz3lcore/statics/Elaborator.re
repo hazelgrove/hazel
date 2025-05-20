@@ -237,17 +237,21 @@ let rec elaborate_pattern =
         };
       let t =
         switch (Self.ctr_ana_typ(ctx, ana_ty, c), Ctx.lookup_ctr(ctx, c)) {
-        | (Some(ana_ty), _) => ana_ty
-        | (_, Some({typ: syn_ty, _})) => syn_ty
-        | _ =>
-          Sum([
-            ConstructorMap.Variant(c, [Id.invalid], None),
-            ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
-          ])
-          |> Typ.temp
+        | (Some(ana_ty), _) => Some(Typ.normalize(ctx, ana_ty))
+        | (_, Some({typ: syn_ty, _})) => Some(Typ.normalize(ctx, syn_ty))
+        | _ => None
         };
-      let t = t |> Typ.normalize(ctx);
-      Constructor(c, Some(Some(t))) |> rewrap |> cast_from(t);
+      let ty =
+        OptUtil.get(
+          () =>
+            Sum([
+              ConstructorMap.Variant(c, [Id.invalid], None),
+              ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
+            ])
+            |> Typ.temp,
+          t,
+        );
+      Constructor(c, Some(t)) |> rewrap |> cast_from(ty);
     };
   (dpat, elaborated_type);
 };
@@ -337,6 +341,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         |> Option.value(~default=Typ.temp(Unknown(Internal)));
       let ds' = List.map2((d, t) => fresh_cast(d, t, inner_type), ds, tys);
       ListLit(ds') |> rewrap |> cast_from(List(inner_type) |> Typ.temp);
+    | LivelitName(_) => uexp |> cast_from(Typ.temp(Unknown(Internal)))
     | Constructor(c, _) =>
       let (self, ty) =
         switch (Id.Map.find_opt(Exp.rep_id(uexp), m)) {
@@ -348,6 +353,16 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         | Common(FreeConstructor(_)) => Some(None)
         | _ => Some(Some(Typ.normalize(ctx, ty)))
         };
+      let ty =
+        OptUtil.get(
+          () =>
+            Sum([
+              ConstructorMap.Variant(c, [Id.invalid], None),
+              ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
+            ])
+            |> Typ.temp,
+          t |> Option.join,
+        );
       Constructor(c, t) |> rewrap |> cast_from(ty);
     | Fun(p, e, _, n) =>
       let (p', typ) = elaborate_pattern(m, p, false);
@@ -480,20 +495,36 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let (e', tye) = elaborate(m, e);
       e' |> cast_from(tye);
     | Ap(dir, f, a) =>
-      let (f', tyf) = elaborate(m, f);
-      let (a', tya) = elaborate(m, a);
-      let (tyf1, tyf2) = Typ.matched_arrow(ctx, tyf);
-      let f'' = fresh_cast(f', tyf, Arrow(tyf1, tyf2) |> Typ.temp);
-      let a'' = fresh_cast(a', tya, tyf1);
-      Ap(dir, f'', a'') |> rewrap |> cast_from(tyf2);
+      switch (f.term) {
+      | LivelitName(s) =>
+        switch (Ctx.lookup_livelit(ctx, s)) {
+        | Some(ll) =>
+          switch (ll.expand(a)) {
+          | Some(ll_expand) => ll_expand |> cast_from(ll.expansion_t)
+          | None => uexp |> cast_from(Typ.temp(Unknown(Internal)))
+          }
+        | None => uexp |> cast_from(Typ.temp(Unknown(Internal)))
+        }
+      | _ =>
+        let (f', tyf) = elaborate(m, f);
+        let (a', tya) = elaborate(m, a);
+        let (tyf1, tyf2) = Typ.matched_arrow(ctx, tyf);
+        let f'' = fresh_cast(f', tyf, Arrow(tyf1, tyf2) |> Typ.temp);
+        let a'' = fresh_cast(a', tya, tyf1);
+        Ap(dir, f'', a'') |> rewrap |> cast_from(tyf2);
+      }
     | DeferredAp(f, args) =>
       let (f', tyf) = elaborate(m, f);
       let (args', tys) = List.map(elaborate(m), args) |> ListUtil.unzip;
       let (tyf1, tyf2) = Typ.matched_arrow(ctx, tyf);
       let (args, ty_fargs) =
-        Typ.matched_prod(ctx, args, Exp.match_tup_label, tyf1, (name, b) =>
-          TupLabel(Label(name) |> Exp.fresh, b) |> Exp.fresh
-        );
+        if (List.length(args) > 1) {
+          Typ.matched_prod(ctx, args, Exp.match_tup_label, tyf1, (name, b) =>
+            TupLabel(Label(name) |> Exp.fresh, b) |> Exp.fresh
+          );
+        } else {
+          (args, [tyf1]);
+        };
       let prod_args =
         switch (ty_fargs) {
         | [ty] => ty
