@@ -22,12 +22,6 @@ let instructor_shortcuts: list(t) = [
   mk_shortcut(
     ~mdIcon="download",
     ~section="Export",
-    "Export All Persistent Data",
-    Globals(ExportPersistentData),
-  ),
-  mk_shortcut(
-    ~mdIcon="download",
-    ~section="Export",
     "Export Exercise Module",
     Editors(Exercises(ExportModule)) // TODO Would we rather skip contextual stuff for now or include it and have it fail
   ),
@@ -230,6 +224,12 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       ~section="Export",
       "Export Scratch Slide",
       Editors(Scratch(Export)),
+    ),
+    mk_shortcut(
+      ~mdIcon="download",
+      ~section="Export",
+      "Export For Init",
+      Globals(ExportForInit),
     ),
     mk_shortcut(
       ~mdIcon="download",

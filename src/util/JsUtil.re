@@ -1,5 +1,6 @@
 open Js_of_ocaml;
 open Virtual_dom.Vdom;
+open Js_of_ocaml.Url;
 
 let get_elem_by_id = id => {
   let doc = Dom_html.document;

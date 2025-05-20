@@ -9,7 +9,7 @@ open Util;
  * your new construct's precedence is below the comment with
  * the example. (i.e. higher int)
  */
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = int;
 
 let associativity_map: ref(list((t, Direction.t))) = ref([]);
