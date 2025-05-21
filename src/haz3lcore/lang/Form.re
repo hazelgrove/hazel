@@ -206,14 +206,14 @@ let is_empty_tuple = (==)(empty_tuple);
    mono and duotile forms, like list literals and tuples switching to/from
    the empty list and empty tuple. Technically this should be derivable from
    the language data; leaving that for a future refactor. */
-let duosplits = (t: Token.t): Label.t =>
+let duosplits = (t: Token.t): FormLabel.t =>
   switch () {
   | _ when is_empty_list(t) => listlit_lbl
   | _ when is_empty_tuple(t) => tuple_lbl
   | _ => []
   };
 
-let duomerges = (lbl: Label.t): option(Label.t) =>
+let duomerges = (lbl: FormLabel.t): option(FormLabel.t) =>
   switch () {
   | _ when lbl == listlit_lbl => Some([empty_list])
   | _ when lbl == tuple_lbl => Some([empty_tuple])

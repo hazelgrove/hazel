@@ -9,7 +9,7 @@ type step = int;
 type t = {
   [@equal (_, _) => true]
   id: Id.t,
-  label: Label.t,
+  label: FormLabel.t,
   mold: Mold.t,
   shards: (list(int), list(int)),
   children: (list(Segment.t), list(Segment.t)),

@@ -94,7 +94,7 @@ module ShardInfo = {
 
   module Count = {
     type t = {
-      labels: Id.Map.t(Label.t),
+      labels: Id.Map.t(FormLabel.t),
       counts: Id.Map.t(int),
     };
 

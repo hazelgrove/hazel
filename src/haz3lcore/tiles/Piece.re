@@ -132,7 +132,7 @@ let is_projector: t => option(projector) =
   | Projector(p) => Some(p)
   | _ => None;
 
-let label: t => option(Label.t) =
+let label: t => option(FormLabel.t) =
   fun
   | Tile({label, _}) => Some(label)
   | _ => None;

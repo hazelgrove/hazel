@@ -6,11 +6,11 @@
 
 let last = t => String.sub(t, String.length(t) - 1, 1);
 
-let is_expander = (label: Label.t) =>
+let is_expander = (label: FormLabel.t) =>
   switch (label) {
   | [t] => last(t) == " " || last(t) == "("
   | _ => false
   };
 
-let mark = (label: Label.t): Label.t =>
+let mark = (label: FormLabel.t): FormLabel.t =>
   is_expander(label) ? List.map(t => t ++ "…", label) : label;

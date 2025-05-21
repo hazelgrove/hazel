@@ -46,7 +46,7 @@ let get_duo_shard = ({label, shards, _}: Tile.t) =>
   };
 
 let neighbor_can_duomerge =
-    (t: Token.t, s: Siblings.t): option((Label.t, Direction.t)) =>
+    (t: Token.t, s: Siblings.t): option((FormLabel.t, Direction.t)) =>
   /* Checks if a neighbor, preferentially the left neighbor, is
      a shard of a duotile which can be merged to form a monotile.
      It returns the resulting (mono)label, and the direction of
@@ -129,7 +129,7 @@ let insert_outer = (char: string, z as state: t): option(t) =>
   | AppendRight(t) => replace_tile(t, Right, state)
   };
 
-let insert_duo = (lbl: Label.t, z: option(t)): option(t) =>
+let insert_duo = (lbl: FormLabel.t, z: option(t)): option(t) =>
   z
   |> Option.map(z => Zipper.construct(~caret=Left, ~backpack=Left, lbl, z))
   |> OptUtil.and_then(z => {

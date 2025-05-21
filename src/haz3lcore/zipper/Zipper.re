@@ -271,7 +271,13 @@ let put_down = (d: Direction.t, z: t): option(t) => {
 };
 
 let rec construct =
-        (~caret: Direction.t, ~backpack: Direction.t, label: Label.t, z: t): t => {
+        (
+          ~caret: Direction.t,
+          ~backpack: Direction.t,
+          label: FormLabel.t,
+          z: t,
+        )
+        : t => {
   switch (label) {
   | [t] when Form.is_string_delim(t) =>
     /* Special case for constructing string literals.
@@ -387,7 +393,7 @@ let delete = (d: Direction.t, z: t): option(t) => {
 };
 
 let replace =
-    (~caret: Direction.t, ~backpack: Direction.t, l: Label.t, z: t)
+    (~caret: Direction.t, ~backpack: Direction.t, l: FormLabel.t, z: t)
     : option(t) =>
   /* i.e. select and construct, overwriting the selection */
   z |> delete(caret) |> Option.map(construct(~caret, ~backpack, l));

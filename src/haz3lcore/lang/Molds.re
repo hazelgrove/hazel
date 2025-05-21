@@ -3,7 +3,7 @@ open Util;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type expansions = list((Token.t, (list(Token.t), Direction.t)));
 
-let forms_assoc: list((Label.t, list(Mold.t))) =
+let forms_assoc: list((FormLabel.t, list(Mold.t))) =
   List.fold_left(
     (acc, (_, {label, mold, _}: Form.t)) => {
       let molds =
@@ -17,7 +17,7 @@ let forms_assoc: list((Label.t, list(Mold.t))) =
     Form.forms,
   );
 
-let get = (label: Label.t): list(Mold.t) => {
+let get = (label: FormLabel.t): list(Mold.t) => {
   switch (label, List.assoc_opt(label, forms_assoc)) {
   | ([t], Some(molds)) when Form.atomic_molds(t) != [] =>
     Form.atomic_molds(t) @ molds

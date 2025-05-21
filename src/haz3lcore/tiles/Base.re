@@ -15,7 +15,7 @@ and tile = {
   // - sort(shards) == shards
   [@equal (_, _) => true]
   id: Id.t,
-  label: Label.t,
+  label: FormLabel.t,
   mold: Mold.t,
   shards: list(int),
   children: list(segment),
