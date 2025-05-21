@@ -76,6 +76,23 @@ type type_provenance = Grammar.type_provenance(IdTagged.IdTag.t);
 type filter = Grammar.filter(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type deferral_position_t = Grammar.deferral_position_t;
+[@deriving (show({with_path: false}), sexp, yojson)]
+type label_t = Grammar.label_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
+type label_term = Grammar.label_term(IdTagged.IdTag.t);
+
+type map_term('a) =
+  (
+    ~f_exp: (exp_t => exp_t, exp_t) => exp_t=?,
+    ~f_pat: (pat_t => pat_t, pat_t) => pat_t=?,
+    ~f_typ: (typ_t => typ_t, typ_t) => typ_t=?,
+    ~f_tpat: (tpat_t => tpat_t, tpat_t) => tpat_t=?,
+    ~f_rul: (rul_t => rul_t, rul_t) => rul_t=?,
+    ~f_label: (label_t => label_t, label_t) => label_t=?,
+    ~f_any: (any_t => any_t, any_t) => any_t=?,
+    'a
+  ) =>
+  'a;
 
 module rec Any: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -83,17 +100,7 @@ module rec Any: {
 
   let sort: t => Sort.t;
 
-  let map_term:
-    (
-      ~f_exp: (Exp.t => Exp.t, Exp.t) => Exp.t=?,
-      ~f_pat: (Pat.t => Pat.t, Pat.t) => Pat.t=?,
-      ~f_typ: (Typ.t => Typ.t, Typ.t) => Typ.t=?,
-      ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
-      ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
-      ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
-      t
-    ) =>
-    t;
+  let map_term: map_term(t);
 
   let fast_equal: (t, t) => bool;
   let equal: (t, t) => bool;
@@ -109,6 +116,7 @@ module rec Any: {
     | TPat(_) => TPat
     | Rul(_) => Rul
     | Any(_) => Any
+    | Label(_) => Label
     };
 
   let map_term =
@@ -118,23 +126,90 @@ module rec Any: {
         ~f_typ=continue,
         ~f_tpat=continue,
         ~f_rul=continue,
+        ~f_label=continue,
         ~f_any=continue,
         x: any_t,
       ) => {
     let rec_call = (y: any_t): any_t =>
       switch (y) {
       | Exp(x) =>
-        Exp(Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, x))
+        Exp(
+          Exp.map_term(
+            ~f_exp,
+            ~f_pat,
+            ~f_typ,
+            ~f_tpat,
+            ~f_rul,
+            ~f_any,
+            ~f_label,
+            x,
+          ),
+        )
       | Pat(x) =>
-        Pat(Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, x))
+        Pat(
+          Pat.map_term(
+            ~f_exp,
+            ~f_pat,
+            ~f_typ,
+            ~f_tpat,
+            ~f_rul,
+            ~f_any,
+            ~f_label,
+            x,
+          ),
+        )
       | Typ(x) =>
-        Typ(Typ.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, x))
+        Typ(
+          Typ.map_term(
+            ~f_exp,
+            ~f_pat,
+            ~f_typ,
+            ~f_tpat,
+            ~f_rul,
+            ~f_any,
+            ~f_label,
+            x,
+          ),
+        )
       | TPat(x) =>
         TPat(
-          TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, x),
+          TPat.map_term(
+            ~f_exp,
+            ~f_pat,
+            ~f_typ,
+            ~f_tpat,
+            ~f_rul,
+            ~f_any,
+            ~f_label,
+            x,
+          ),
         )
       | Rul(x) =>
-        Rul(Rul.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, x))
+        Rul(
+          Rul.map_term(
+            ~f_exp,
+            ~f_pat,
+            ~f_typ,
+            ~f_tpat,
+            ~f_rul,
+            ~f_any,
+            ~f_label,
+            x,
+          ),
+        )
+      | Label(x) =>
+        Label(
+          Label.map_term(
+            ~f_exp,
+            ~f_pat,
+            ~f_typ,
+            ~f_tpat,
+            ~f_rul,
+            ~f_any,
+            ~f_label,
+            x,
+          ),
+        )
       | Any () => Any()
       };
     x |> f_any(rec_call);
@@ -147,12 +222,14 @@ module rec Any: {
     | (Typ(x), Typ(y)) => Typ.fast_equal(x, y)
     | (TPat(x), TPat(y)) => TPat.fast_equal(x, y)
     | (Rul(x), Rul(y)) => Rul.fast_equal(x, y)
+    | (Label(x), Label(y)) => Label.fast_equal(x, y)
     | (Any (), Any ()) => true
     | (Exp(_), _)
     | (Pat(_), _)
     | (Typ(_), _)
     | (TPat(_), _)
     | (Rul(_), _)
+    | (Label(_), _)
     | (Any (), _) => false
     };
 
@@ -165,17 +242,9 @@ and Exp: {
   type t = exp_t;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type deferral_position = deferral_position_t;
-  let map_term:
-    (
-      ~f_exp: (Exp.t => Exp.t, Exp.t) => Exp.t=?,
-      ~f_pat: (Pat.t => Pat.t, Pat.t) => Pat.t=?,
-      ~f_typ: (Typ.t => Typ.t, Typ.t) => Typ.t=?,
-      ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
-      ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
-      ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
-      t
-    ) =>
-    t;
+  let map_term: map_term(t);
+
+  type labeled_entry_t = Grammar.labeled_entry_t(IdTagged.IdTag.t, t);
 
   let fast_equal: (t, t) => bool;
   let equal: (t, t) => bool;
@@ -187,6 +256,8 @@ and Exp: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type deferral_position = deferral_position_t;
 
+  type labeled_entry_t = Grammar.labeled_entry_t(IdTagged.IdTag.t, t);
+
   let map_term =
       (
         ~f_exp=continue,
@@ -194,19 +265,38 @@ and Exp: {
         ~f_typ=continue,
         ~f_tpat=continue,
         ~f_rul=continue,
+        ~f_label=continue,
         ~f_any=continue,
         x,
       ) => {
     let exp_map_term =
-      Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+      Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_label, ~f_any);
     let pat_map_term =
-      Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+      Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_label, ~f_any);
     let typ_map_term =
-      Typ.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+      Typ.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_label, ~f_any);
     let tpat_map_term =
-      TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+      TPat.map_term(
+        ~f_exp,
+        ~f_pat,
+        ~f_typ,
+        ~f_tpat,
+        ~f_rul,
+        ~f_label,
+        ~f_any,
+      );
+    let label_map_term =
+      Label.map_term(
+        ~f_exp,
+        ~f_pat,
+        ~f_typ,
+        ~f_tpat,
+        ~f_rul,
+        ~f_label,
+        ~f_any,
+      );
     let any_map_term =
-      Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+      Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_label, ~f_any);
     let flt_map_term =
       StepperFilterKind.map_term(
         ~f_exp,
@@ -245,6 +335,23 @@ and Exp: {
         | TupLabel(label, e) =>
           TupLabel(exp_map_term(label), exp_map_term(e))
         | Tuple(xs) => Tuple(List.map(exp_map_term, xs))
+        | LabeledTuple(entries) =>
+          LabeledTuple(
+            List.map(
+              (entry: labeled_entry_t): labeled_entry_t => {
+                switch (entry) {
+                | Labeled(e) =>
+                  let (l, e') = e.term;
+                  Labeled({
+                    term: (label_map_term(l), exp_map_term(e')),
+                    annotation: e.annotation,
+                  });
+                | Unlabeled(t) => Unlabeled(exp_map_term(t))
+                }
+              },
+              entries,
+            ),
+          )
         | Dot(e1, e2) => Dot(exp_map_term(e1), exp_map_term(e2))
         | Let(p, e1, e2) =>
           Let(pat_map_term(p), exp_map_term(e1), exp_map_term(e2))
@@ -323,6 +430,16 @@ and Exp: {
       TPat.fast_equal(tp1, tp2) && fast_equal(e1, e2)
     | (Tuple(xs), Tuple(ys)) =>
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
+    | (LabeledTuple(entries1), LabeledTuple(entries2)) =>
+      List.length(entries1) == List.length(entries2)
+      && List.for_all2(
+           Grammar.equal_labeled_entry_t(
+             (_, _) => true, // Ignoring annotation equality
+             Exp.fast_equal,
+           ),
+           entries1,
+           entries2,
+         )
     | (Var(v1), Var(v2)) => v1 == v2
     | (Let(p1, e1, e2), Let(p2, e3, e4)) =>
       Pat.fast_equal(p1, p2) && fast_equal(e1, e3) && fast_equal(e2, e4)
@@ -388,6 +505,7 @@ and Exp: {
     | (Fun(_), _)
     | (TypFun(_), _)
     | (Tuple(_), _)
+    | (LabeledTuple(_), _)
     | (TupLabel(_), _)
     | (Dot(_), _)
     | (Var(_), _)
@@ -422,17 +540,7 @@ and Pat: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = pat_t;
 
-  let map_term:
-    (
-      ~f_exp: (Exp.t => Exp.t, Exp.t) => Exp.t=?,
-      ~f_pat: (Pat.t => Pat.t, Pat.t) => Pat.t=?,
-      ~f_typ: (Typ.t => Typ.t, Typ.t) => Typ.t=?,
-      ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
-      ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
-      ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
-      t
-    ) =>
-    t;
+  let map_term: map_term(t);
 
   let fast_equal: (t, t) => bool;
   let equal: (t, t) => bool;
@@ -449,15 +557,16 @@ and Pat: {
         ~f_typ=continue,
         ~f_tpat=continue,
         ~f_rul=continue,
+        ~f_label=continue,
         ~f_any=continue,
         x,
       ) => {
     let pat_map_term =
-      Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+      Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_label, ~f_any);
     let typ_map_term =
-      Typ.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+      Typ.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_label, ~f_any);
     let any_map_term =
-      Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+      Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_label, ~f_any);
     let rec_call = ({term, _} as exp: t) => {
       ...exp,
       term:
@@ -542,17 +651,9 @@ and Typ: {
 
   type sum_map = ConstructorMap.t(t);
 
-  let map_term:
-    (
-      ~f_exp: (Exp.t => Exp.t, Exp.t) => Exp.t=?,
-      ~f_pat: (Pat.t => Pat.t, Pat.t) => Pat.t=?,
-      ~f_typ: (Typ.t => Typ.t, Typ.t) => Typ.t=?,
-      ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
-      ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
-      ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
-      t
-    ) =>
-    t;
+  let map_term: map_term(t);
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type labeled_entry_t = Grammar.labeled_entry_t(IdTagged.IdTag.t, t);
 
   let subst: (t, TPat.t, t) => t;
 
@@ -563,6 +664,8 @@ and Typ: {
   type term = typ_term;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = typ_t;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type labeled_entry_t = Grammar.labeled_entry_t(IdTagged.IdTag.t, t);
 
   type sum_map = ConstructorMap.t(t);
 
@@ -573,15 +676,34 @@ and Typ: {
         ~f_typ=continue,
         ~f_tpat=continue,
         ~f_rul=continue,
+        ~f_label=continue,
         ~f_any=continue,
         x,
       ) => {
     let typ_map_term =
-      Typ.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+      Typ.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_label, ~f_any);
     let any_map_term =
-      Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+      Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_label, ~f_any);
+    let label_map_term =
+      Label.map_term(
+        ~f_exp,
+        ~f_pat,
+        ~f_typ,
+        ~f_tpat,
+        ~f_rul,
+        ~f_label,
+        ~f_any,
+      );
     let tpat_map_term =
-      TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+      TPat.map_term(
+        ~f_exp,
+        ~f_pat,
+        ~f_typ,
+        ~f_tpat,
+        ~f_rul,
+        ~f_label,
+        ~f_any,
+      );
     let rec_call = ({term, _} as exp: t) => {
       ...exp,
       term:
@@ -598,6 +720,22 @@ and Typ: {
           Unknown(Hole(MultiHole(List.map(any_map_term, things))))
         | Ap(e1, e2) => Ap(typ_map_term(e1), typ_map_term(e2))
         | Prod(xs) => Prod(List.map(typ_map_term, xs))
+        | LabeledProd(entries) =>
+          LabeledProd(
+            List.map(
+              (entry: Typ.labeled_entry_t): Typ.labeled_entry_t =>
+                switch (entry) {
+                | Labeled(t) =>
+                  let (l, t') = t.term;
+                  Labeled({
+                    term: (label_map_term(l), typ_map_term(t')),
+                    annotation: t.annotation,
+                  });
+                | Unlabeled(t) => Unlabeled(typ_map_term(t))
+                },
+              entries,
+            ),
+          )
         | TupLabel(label, e) =>
           TupLabel(typ_map_term(label), typ_map_term(e))
         | Parens(e) => Parens(typ_map_term(e))
@@ -620,17 +758,20 @@ and Typ: {
     x |> f_typ(rec_call);
   };
 
-  let rec subst = (s: t, x: TPat.t, ty: t): typ_t => {
+  let rec subst = (s: t, x: TPat.t, ty: t): t => {
     switch (TPat.tyvar_of_utpat(x)) {
     | Some(str) =>
       let (term, rewrap) = Grammar.Annotated.unwrap(ty);
       switch (term) {
       | Atom(_) => ty
-      | Label(name) => Grammar.Label(name) |> rewrap
+      | Label(name) => (Label(name): Typ.term) |> rewrap
       | Unknown(prov) => Unknown(prov) |> rewrap
       | Arrow(ty1, ty2) =>
         Arrow(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
       | Prod(tys) => Prod(List.map(subst(s, x), tys)) |> rewrap
+      | LabeledProd(entries) =>
+        LabeledProd(LabeledTuple.map_elements(subst(s, x), entries))
+        |> rewrap
       | TupLabel(label, ty) => TupLabel(label, subst(s, x, ty)) |> rewrap
       | Sum(sm) =>
         Sum(ConstructorMap.map(Option.map(subst(s, x)), sm)) |> rewrap
@@ -700,7 +841,31 @@ and Typ: {
     | (Arrow(_), _) => false
     | (Prod(tys1), Prod(tys2)) =>
       List.equal(eq_internal(~alpha_equivalence, n), tys1, tys2)
+    | (LabeledProd(entries1), LabeledProd(entries2)) =>
+      List.equal(
+        (e1: Typ.labeled_entry_t, e2: Typ.labeled_entry_t) =>
+          switch (e1, e2) {
+          | (Labeled(t1), Labeled(t2)) =>
+            Label.fast_equal(
+              LabeledTuple.get_label(t1),
+              LabeledTuple.get_label(t2),
+            )
+            && eq_internal(
+                 ~alpha_equivalence,
+                 n,
+                 LabeledTuple.get_elem(t1),
+                 LabeledTuple.get_elem(t2),
+               )
+          | (Unlabeled(t1), Unlabeled(t2)) =>
+            eq_internal(~alpha_equivalence, n, t1, t2)
+          | (Labeled(_), _) => false
+          | (Unlabeled(_), _) => false
+          },
+        entries1,
+        entries2,
+      )
     | (Prod(_), _) => false
+    | (LabeledProd(_), _) => false
     | (List(t1), List(t2)) => eq_internal(~alpha_equivalence, n, t1, t2)
     | (List(_), _) => false
     | (Sum(sm1), Sum(sm2)) =>
@@ -722,17 +887,7 @@ and TPat: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = tpat_t;
 
-  let map_term:
-    (
-      ~f_exp: (Exp.t => Exp.t, Exp.t) => Exp.t=?,
-      ~f_pat: (Pat.t => Pat.t, Pat.t) => Pat.t=?,
-      ~f_typ: (Typ.t => Typ.t, Typ.t) => Typ.t=?,
-      ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
-      ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
-      ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
-      t
-    ) =>
-    t;
+  let map_term: map_term(t);
 
   let tyvar_of_utpat: t => option(string);
 
@@ -751,11 +906,12 @@ and TPat: {
         ~f_typ=continue,
         ~f_tpat=continue,
         ~f_rul=continue,
+        ~f_label=continue,
         ~f_any=continue,
         x,
       ) => {
     let any_map_term =
-      Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+      Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_label, ~f_any);
     let rec_call = ({term, _} as exp: t) => {
       ...exp,
       term:
@@ -799,17 +955,7 @@ and Rul: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = rul_t;
 
-  let map_term:
-    (
-      ~f_exp: (Exp.t => Exp.t, Exp.t) => Exp.t=?,
-      ~f_pat: (Pat.t => Pat.t, Pat.t) => Pat.t=?,
-      ~f_typ: (Typ.t => Typ.t, Typ.t) => Typ.t=?,
-      ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
-      ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
-      ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
-      t
-    ) =>
-    t;
+  let map_term: map_term(t);
 
   let fast_equal: (t, t) => bool;
   let equal: (t, t) => bool;
@@ -826,15 +972,16 @@ and Rul: {
         ~f_typ=continue,
         ~f_tpat=continue,
         ~f_rul=continue,
+        ~f_label=continue,
         ~f_any=continue,
         x,
       ) => {
     let exp_map_term =
-      Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+      Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_label, ~f_any);
     let pat_map_term =
-      Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+      Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_label, ~f_any);
     let any_map_term =
-      Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+      Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_label, ~f_any);
     let rec_call = ({term, _} as exp: t) => {
       ...exp,
       term:
@@ -875,7 +1022,58 @@ and Rul: {
     };
   let equal = fast_equal;
 }
+and Label: {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type term = label_term;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = label_t;
 
+  let map_term: map_term(t);
+  let fast_equal: (t, t) => bool;
+  // let equal: (t, t) => bool;
+} = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type term = label_term;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = label_t;
+
+  let map_term =
+      (
+        ~f_exp=continue,
+        ~f_pat=continue,
+        ~f_typ=continue,
+        ~f_tpat=continue,
+        ~f_rul=continue,
+        ~f_label=continue,
+        ~f_any=continue,
+        x,
+      ) => {
+    let any_map_term =
+      Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+    let rec_call = ({term, _} as label: t): t => {
+      ...label,
+      term:
+        switch (term) {
+        | Label(label) => Label(label)
+        | Hole => Hole
+        | MultiHole(things) => MultiHole(List.map(any_map_term, things))
+        },
+    };
+    x |> f_label(rec_call);
+  };
+
+  let fast_equal = (l1: t, l2: t) =>
+    switch (l1 |> Grammar.Annotated.term_of, l2 |> Grammar.Annotated.term_of) {
+    | (Label(s1), Label(s2)) => s1 == s2
+    | (Hole, Hole) => true
+    | (MultiHole(xs), MultiHole(ys)) =>
+      List.length(xs) == List.length(ys)
+      && List.equal(Any.fast_equal, xs, ys)
+    | (Label(_), _)
+    | (Hole, _)
+    | (MultiHole(_), _) => false
+    };
+}
 and Environment: {
   include
      (module type of VarBstMap.Ordered) with

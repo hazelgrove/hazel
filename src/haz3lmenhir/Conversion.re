@@ -211,9 +211,13 @@ module rec Exp: {
       constructor(x, Option.map(Option.map(Typ.of_menhir_ast), ty))
     | Deferral => deferral(InAp)
     | ListExp(l) => list_lit(List.map(of_menhir_ast, l))
-    | TupleExp([TupLabel(_) as tl]) => parens(tuple([of_menhir_ast(tl)]))
+    | TupleExp([TupLabel(_) as tl]) =>
+      parens(labeled_tuple([unlabeled(of_menhir_ast(tl))]))
     | TupleExp([e]) => parens(of_menhir_ast(e))
-    | TupleExp(e) => parens(tuple(List.map(of_menhir_ast, e)))
+    | TupleExp(e) =>
+      parens(
+        labeled_tuple(List.map(x => x |> of_menhir_ast |> unlabeled, e)),
+      )
     | Label(s) => label(s)
     | TupLabel(e1, e2) => tup_label(of_menhir_ast(e1), of_menhir_ast(e2))
     | Dot(e1, e2) => dot(of_menhir_ast(e1), of_menhir_ast(e2))
@@ -374,6 +378,7 @@ module rec Exp: {
     | TupLabel(e1, e2) => TupLabel(of_core(e1), of_core(e2))
     | Dot(e1, e2) => Dot(of_core(e1), of_core(e2))
     | Ap(Reverse, _, _) => raise(Failure("Reverse not supported"))
+    | LabeledTuple(entries) => raise(Failure("LabeledTuple not supported")) // TODO
     };
   };
 

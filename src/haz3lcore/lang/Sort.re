@@ -5,7 +5,8 @@ type t =
   | Typ
   | TPat
   | Rul
-  | Exp;
+  | Exp
+  | Label;
 
 let root = Exp;
 
@@ -23,7 +24,8 @@ let to_string =
   | TPat => "TPat"
   | Typ => "Typ"
   | Rul => "Rul"
-  | Exp => "Exp";
+  | Exp => "Exp"
+  | Label => "Label";
 
 let to_string_verbose =
   fun
@@ -32,4 +34,5 @@ let to_string_verbose =
   | TPat => "type pattern"
   | Typ => "type"
   | Rul => "rule"
-  | Exp => "expression";
+  | Exp => "expression"
+  | Label => "label";

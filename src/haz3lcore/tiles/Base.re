@@ -13,7 +13,7 @@ and tile = {
   // - length(shards) <= length(label)
   // - length(shards) == length(children) + 1
   // - sort(shards) == shards
-  [@equal (_, _) => true]
+  [@equal (_, _) => true] [@show.opaque]
   id: Id.t,
   label: FormLabel.t,
   mold: Mold.t,

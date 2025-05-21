@@ -209,7 +209,11 @@ let tests =
         let_(Fresh.Pat.var("x"), int(5), var("x")),
         "let x = 5 in x",
       ),
-      full_parser_test("Tuple", tuple([int(4), int(5)]), "(4, 5)"),
+      full_parser_test(
+        "Tuple",
+        labeled_tuple([unlabeled(int(4)), unlabeled(int(5))]),
+        "(4, 5)",
+      ),
       full_parser_test(
         "Match",
         match(
@@ -237,7 +241,7 @@ let tests =
         list_lit([int(1), int(2), int(3)]),
         "[1, 2, 3]",
       ),
-      menhir_only_test("Unit", tuple([]), "()"),
+      menhir_only_test("Unit", labeled_tuple([]), "()"),
       menhir_only_test("Constructor", constructor("A", None), "A"),
       menhir_only_test(
         "Constructor cast",
@@ -402,7 +406,11 @@ let tests =
       ),
       full_parser_test(
         "multiargument function",
-        ap(Forward, var("f"), tuple([int(1), int(2)])),
+        ap(
+          Forward,
+          var("f"),
+          labeled_tuple([unlabeled(int(1)), unlabeled(int(2))]),
+        ),
         "f(1, 2)",
       ),
       menhir_maketerm_equivalent_test(

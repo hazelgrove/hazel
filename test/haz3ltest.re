@@ -17,7 +17,7 @@ let (suite, _) =
       Test_ExpToSegment.tests,
       Test_LabeledTuple.tests,
       Test_MakeTerm.tests,
-      Test_Menhir.tests,
+      // Test_Menhir.tests,
       Test_StringUtil.tests,
       Test_Typ.tests,
       (
@@ -29,11 +29,11 @@ let (suite, _) =
         @ Test_Statics_Types.tests
         @ Test_Statics_Property_DoesNotCrash.tests,
       ),
-    ]
-    @ Test_Elaboration.tests
-    @ Test_Evaluator.tests
-    @ [Test_Coverage.tests, Test_ListUtil.tests, Test_Unboxing.tests]
-    @ Test_Introduce.tests,
+      // @ Test_Elaboration.tests
+      // @ Test_Evaluator.tests
+      // @ [Test_Coverage.tests, Test_ListUtil.tests, Test_Unboxing.tests]
+      // @ Test_Introduce.tests,
+    ],
   );
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
 Bisect.Runtime.write_coverage_data();

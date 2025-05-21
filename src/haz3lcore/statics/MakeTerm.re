@@ -240,6 +240,23 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | (["[", "]"], [Exp(body)]) =>
         switch (body) {
         | {annotation: {ids}, term: Tuple(es)} => (ListLit(es), ids)
+        | {annotation: {ids}, term: LabeledTuple(entries)} => (
+            ListLit(
+              List.map(
+                (entry: Exp.labeled_entry_t) => {
+                  switch (entry) {
+                  | Unlabeled(e) => e
+                  | Labeled({term, annotation}) => {
+                      annotation,
+                      term: LabeledTuple([Labeled(term |> IdTagged.fresh)]),
+                    }
+                  }
+                },
+                entries,
+              ),
+            ),
+            ids,
+          )
         | term => ret(ListLit([term]))
         }
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
@@ -349,6 +366,21 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
             ),
             IdTagged.ids(arg),
           )
+        // | LabeledTuple(es) TODO
+        //     when
+        //       List.exists(
+        //         Exp.is_deferral,
+        //         es |> List.map(IdTagged.term_of) |> List.map(snd),
+        //       ) => (
+        //     DeferredAp(
+        //       l,
+        //       LabeledTuple.map_elements(
+        //         arg => Exp.is_deferral(arg) ? use_deferral(arg) : arg,
+        //         es,
+        //       ),
+        //     ),
+        //     IdTagged.ids(arg),
+        //   )
         | _ => ret(Ap(Forward, l, arg))
         };
       | (["@<", ">"], [Typ(ty)]) => ret(TypAp(l, ty))
@@ -365,21 +397,27 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
   | Bin(Exp(l), tiles, Exp(r)) as tm =>
     switch (is_tuple_exp(tiles)) {
     | Some(between_kids) =>
-      let tuple_children: list(Exp.t) =
+      print_endline("L: " ++ Exp.show(l));
+      print_endline(
+        "Between: " ++ [%derive.show: list(Exp.t)](between_kids),
+      );
+      print_endline("R: " ++ Exp.show(r));
+      let tuple_children: list(Exp.labeled_entry_t) =
         [l]
         @ between_kids
         @ [r]
         |> List.map((child: Exp.t) => {
              switch (child) {
-             | {term: Tuple([{term: TupLabel(_) as tl, _}]), _} as tup =>
-               // We use the Id for the tuple as the ids for the tuplabels
-               let (_, rewrap) = IdTagged.unwrap(tup);
-               rewrap(tl);
-             | _ => child
+             //  | {term: Tuple([{term: TupLabel(_) as tl, _}]), _} as tup =>
+             //    // We use the Id for the tuple as the ids for the tuplabels
+             //    let (_, rewrap) = IdTagged.unwrap(tup);
+             //    rewrap(tl);
+             | {term: LabeledTuple([Labeled(_) as tl]), _} => tl
+             | _ => Unlabeled(child)
              }
            });
 
-      ret(Tuple(tuple_children));
+      ret(LabeledTuple(tuple_children));
     | None =>
       switch (tiles) {
       | ([(_id, t)], []) =>
@@ -416,21 +454,44 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           | (["="], []) =>
             switch (l.term) {
             | Var(name) =>
-              TupLabel(
-                {
-                  annotation: l.annotation,
-                  term: Label(name),
-                },
-                r,
-              )
-            | EmptyHole => TupLabel(l, r)
+              LabeledTuple([
+                Labeled(
+                  (
+                    {
+                      annotation: l.annotation,
+                      term: Label(name),
+                    }: Label.t,
+                    r,
+                  )
+                  |> IdTagged.fresh,
+                ),
+              ])
+            | EmptyHole =>
+              LabeledTuple([
+                Labeled(
+                  (
+                    {
+                      annotation: l.annotation,
+                      term: Hole,
+                    }: Label.t,
+                    r,
+                  )
+                  |> IdTagged.fresh,
+                ),
+              ])
             | _ =>
-              let (e_term, rewrap) = IdTagged.unwrap(l);
-
-              TupLabel(
-                rewrap(MultiHole([Exp(e_term |> Exp.fresh)]): Exp.term),
-                r,
-              );
+              LabeledTuple([
+                Labeled(
+                  (
+                    {
+                      annotation: l.annotation,
+                      term: MultiHole([Exp(l.term |> Exp.fresh)]),
+                    }: Label.t,
+                    r,
+                  )
+                  |> IdTagged.fresh,
+                ),
+              ])
             }
           | (["."], []) =>
             switch (r.term) {
@@ -730,6 +791,21 @@ and tpat_term: unsorted => TPat.term = {
   | (Pre(_) | Post(_)) as tm => ret(hole(tm))
   | tm => ret(hole(tm));
 }
+// and label_term = (unsorted: unsorted): Label.term => {
+//   let hole = unsorted => Label.hole(kids_of_unsorted(unsorted));
+//   switch (unsorted) {
+//   | Op(tiles) =>
+//     switch (tiles) {
+//     | ([(_id, tile)], []) =>
+//       switch (tile) {
+//       | ([t], []) when Form.is_label(t) => Label(t)
+//       | _ => hole
+//       }
+//     | _ => hole
+//     }
+//   | _ => hole
+//   };
+// }
 
 // and rul = unsorted => {
 //   let term = rul_term(unsorted);

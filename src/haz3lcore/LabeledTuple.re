@@ -7,11 +7,59 @@ type label = string;
 
 let equal_label = String.equal;
 
+let map_entry:
+  type e e' ann ann'.
+    (e => e', ann => ann', Grammar.labeled_entry_t(ann, e)) =>
+    Grammar.labeled_entry_t(ann', e') =
+  (f, g, entry) => {
+    switch (entry) {
+    | Labeled(e) =>
+      let (l, e') = e.term;
+      Labeled({
+        annotation: g(e.annotation),
+        term: (Grammar.map_label_annotation(g, l), f(e')),
+      });
+    | Unlabeled(e) => Unlabeled(f(e))
+    };
+  };
+
+let map_elements:
+  type a b ann.
+    (a => b, list(Grammar.labeled_entry_t(ann, a))) =>
+    list(Grammar.labeled_entry_t(ann, b)) =
+  (f, xs) => {
+    List.map(
+      (entry: Grammar.labeled_entry_t(ann, a)) =>
+        map_entry(f, Fun.id, entry),
+      xs,
+    );
+  };
+
+let get_label =
+    (entry: Grammar.Annotated.t(Grammar.labeled_entry_term('a, 't), 'a))
+    : Grammar.label_t('a) => {
+  fst(entry.term);
+};
+let get_elem =
+    (entry: Grammar.Annotated.t(Grammar.labeled_entry_term('a, 't), 'a)): 't => {
+  snd(entry.term);
+};
+
 let has_same_labels: (option((label, 'a)), option((label, 'b))) => bool =
   (left, right) => {
     switch (left, right) {
     | (Some((s1, _)), Some((s2, _))) => equal_label(s1, s2)
     | (_, _) => false
+    };
+  };
+
+let project:
+  type a b.
+    Grammar.labeled_entry_t(a, b) => (option(Grammar.label_t(a)), b) =
+  le => {
+    switch (le) {
+    | Labeled(e) => (Some(fst(e.term)), snd(e.term))
+    | Unlabeled(e) => (None, e)
     };
   };
 

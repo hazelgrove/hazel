@@ -538,6 +538,66 @@ and uexp_to_info_map =
           Info.derive_label_inference_info(original_labels, new_labels),
         m,
       );
+    | LabeledTuple(entries) =>
+      let expected_labels: option(list(string)) =
+        switch (Typ.weak_head_normalize(ctx, ana).term) {
+        | LabeledProd(ts) =>
+          Some(
+            List.filter_map(
+              (t: Typ.labeled_entry_t) =>
+                LabeledTuple.project(t)
+                |> fst
+                |> Option.map(IdTagged.term_of)
+                |> ((x: option(Grammar.label_term(IdTagged.IdTag.t))) => x)
+                |> Option.bind(
+                     _,
+                     fun
+                     | (Label(name): Grammar.label_term(IdTagged.IdTag.t)) =>
+                       Some(name)
+                     | _ => None,
+                   ),
+              ts,
+            ),
+          )
+        | _ => None
+        };
+      let original_labels: list(option(string)) =
+        List.map(
+          (e: Exp.labeled_entry_t) =>
+            LabeledTuple.project(e)
+            |> fst
+            |> Option.map(IdTagged.term_of)
+            |> ((x: option(Grammar.label_term(IdTagged.IdTag.t))) => x)
+            |> Option.bind(
+                 _,
+                 fun
+                 | (Label(name): Grammar.label_term(IdTagged.IdTag.t)) =>
+                   Some(name)
+                 | _ => None,
+               ),
+          entries,
+        );
+      print_endline("Ana: " ++ [%derive.show: Typ.t](ana));
+      print_endline("UExp: " ++ [%derive.show: Exp.t](uexp));
+      print_endline(
+        "Expected labels: "
+        ++ [%derive.show: option(list(string))](expected_labels),
+      );
+      print_endline(
+        "Original labels: "
+        ++ [%derive.show: list(option(string))](original_labels),
+      );
+
+      let ana_tys: list(Typ.labeled_entry_t) =
+        Typ.matched_labeled_prod(ctx, List.length(entries), ana);
+
+      print_endline(
+        "Ana tys: " ++ [%derive.show: list(Typ.labeled_entry_t)](ana_tys),
+      );
+
+      let _ = List.map2((e, ty) => {assert(false)}, entries, ana_tys);
+
+      assert(false);
     | TupLabel(label, e) =>
       let (lab, e, m) =
         switch (Typ.matched_label(ctx, ana)) {

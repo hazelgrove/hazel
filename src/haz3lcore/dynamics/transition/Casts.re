@@ -77,6 +77,49 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         )
         |> DHExp.fresh,
       )
+    | (
+        LabeledTuple(
+          entries:
+            list(
+              Grammar.labeled_entry_t(
+                IdTagged.IdTag.t,
+                Grammar.exp_t(IdTagged.IdTag.t),
+              ),
+            ),
+        ),
+        LabeledProd(tys),
+      )
+        when
+          List.equal(
+            Option.equal(Label.fast_equal), // TODO Only compare valid labels
+            List.map(fst, List.map(LabeledTuple.project, entries)),
+            List.map(fst, List.map(LabeledTuple.project, entries)),
+          ) =>
+      Some(
+        LabeledTuple(
+          List.map2(
+            (entry: Exp.labeled_entry_t, ty_entry: Typ.labeled_entry_t): Exp.labeled_entry_t => {
+              LabeledTuple.map_entry(
+                (e: Exp.t) => {
+                  recur(
+                    Cast(
+                      e,
+                      Unknown(Internal) |> Typ.temp,
+                      LabeledTuple.project(ty_entry) |> snd,
+                    )
+                    |> DHExp.fresh,
+                  )
+                },
+                Fun.id,
+                entry,
+              )
+            },
+            entries,
+            tys,
+          ),
+        )
+        |> DHExp.fresh,
+      )
     | (e, Unknown(_)) => Some(e |> DHExp.fresh)
     | (Atom(value) as d, Atom(typ)) =>
       switch (value, typ) {
@@ -233,6 +276,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (ListLit(_), _)
     | (TupLabel(_), _)
     | (Tuple(_), _)
+    | (LabeledTuple(_), _)
     | (Fun(_), _)
     | (TypFun(_), _)
     | (Test(_), _)

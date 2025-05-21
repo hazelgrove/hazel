@@ -496,6 +496,34 @@ let rec matched_prod_strict:
     };
   };
 
+let rec matched_labeled_prod_strict:
+  type a. (Ctx.t, int, t) => option(list(labeled_entry_t)) =
+  (ctx, arity, ty) => {
+    switch (term_of(weak_head_normalize(ctx, ty))) {
+    | Parens(ty) => matched_labeled_prod_strict(ctx, arity, ty)
+    | LabeledProd(tys) =>
+      if (List.length(tys) != arity) {
+        None;
+      } else {
+        Some(tys);
+      }
+    | Unknown(SynSwitch) =>
+      Some(
+        List.init(arity, _ => Unknown(SynSwitch) |> temp)
+        |> List.map((ty: t): labeled_entry_t => Unlabeled(ty)),
+      )
+    | _ => None
+    };
+  };
+
+let matched_labeled_prod = (ctx, arity, ty) =>
+  matched_labeled_prod_strict(ctx, arity, ty)
+  |> Option.value(
+       ~default=
+         List.init(arity, _ => Unknown(Internal) |> temp)
+         |> List.map((ty: t): labeled_entry_t => Unlabeled(ty)),
+     );
+
 let matched_prod = (ctx, es, get_label_es, ty, constructor) => {
   let (es, tys_opt) =
     matched_prod_strict(ctx, es, get_label_es, ty, constructor);

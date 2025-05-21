@@ -48,6 +48,7 @@ let indet_term_typ: Typ.term = Unknown(Internal);
 let indet_term_pat: Pat.term = Invalid("?");
 let indet_term_rul: Rul.term = Invalid("?");
 let indet_term_tpat: TPat.term = Invalid("?");
+let indet_term_label: Label.term = Hole; // TODO
 
 let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
   let rewrap = (term: Exp.term): Exp.t => {
@@ -962,6 +963,25 @@ and abbreviate_tpat = (tpat: TPat.t): TPat.t => {
     };
   rewrap(term);
 }
+and abbreviate_label = (label: Label.t): Label.t => {
+  let rewrap = term => {
+    ...label,
+    term,
+  };
+  let term: Label.term =
+    switch (label.term) {
+    | Label(l) => Label(abbreviate_str(available^, l))
+    | Hole => Hole
+    | MultiHole(things) =>
+      if (available^ <= 1) {
+        indet_term_label;
+      } else {
+        available := available^ - 1; // space
+        MultiHole(List.map(abbreviate_any, things));
+      }
+    };
+  rewrap(term);
+}
 and abbreviate_any = (any: Any.t): Any.t =>
   switch (any) {
   | Exp(e) => Exp(abbreviate_exp(e))
@@ -969,6 +989,7 @@ and abbreviate_any = (any: Any.t): Any.t =>
   | Typ(t) => Typ(abbreviate_typ(t))
   | TPat(tp) => TPat(abbreviate_tpat(tp))
   | Rul(_r) => failwith("TODO")
+  | Label(l) => Label(abbreviate_label(l))
   | Any(_) => any
   };
 

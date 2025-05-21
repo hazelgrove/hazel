@@ -15,6 +15,7 @@ let rec append_exp = (e1: Exp.t, e2: Exp.t): Exp.t => {
   | TypFun(_)
   | FixF(_)
   | Tuple(_)
+  | LabeledTuple(_)
   | TupLabel(_)
   | Label(_)
   | Dot(_)

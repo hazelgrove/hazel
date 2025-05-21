@@ -355,6 +355,7 @@ module Exp = {
     | Label
     | TupLabel
     | Tuple
+    | LabeledTuple
     | Dot
     | Var
     | Let
@@ -382,7 +383,6 @@ module Exp = {
     | ListConcat;
 
   include TermBase.Exp;
-
   let temp: term => t =
     term => {
       term,
@@ -417,6 +417,7 @@ module Exp = {
     | Fun(_) => Fun
     | TypFun(_) => TypFun
     | Tuple(_) => Tuple
+    | LabeledTuple(_) => LabeledTuple
     | Label(_) => Label
     | TupLabel(_, _) => TupLabel
     | Dot(_) => Dot
@@ -468,6 +469,7 @@ module Exp = {
     | Fun => "Function literal"
     | TypFun => "Type Function Literal"
     | Tuple => "Tuple literal"
+    | LabeledTuple => "Labeled Tuple literal"
     | Label => "Label"
     | TupLabel => "Labeled Tuple Item"
     | Dot => "Dot operator"
@@ -553,6 +555,7 @@ module Exp = {
     | Label(_)
     | ListLit(_)
     | Tuple(_)
+    | LabeledTuple(_)
     | Var(_)
     | Let(_)
     | FixF(_)
@@ -585,6 +588,14 @@ module Exp = {
       | Probe(e, _)
       | TupLabel(_, e) => is_tuple_of_functions(e)
       | Tuple(es) => es |> List.for_all(is_fun)
+      | LabeledTuple(entries) =>
+        entries
+        |> List.for_all((entry: labeled_entry_t): bool =>
+             switch (entry) {
+             | Unlabeled(e) => is_fun(e)
+             | Labeled(t) => is_fun(LabeledTuple.get_elem(t))
+             }
+           )
       | Dot(e1, e2) =>
         let rec check_tuple = (e1: t, e2: t) =>
           switch (e1.term) {
@@ -661,6 +672,8 @@ module Exp = {
       | TupLabel(_, e)
       | Dot(e, _) => get_num_of_functions(e)
       | Tuple(es) => is_tuple_of_functions(e) ? Some(List.length(es)) : None
+      | LabeledTuple(entries) =>
+        is_tuple_of_functions(e) ? Some(List.length(entries)) : None
       | Invalid(_)
       | EmptyHole
       | MultiHole(_)
@@ -836,6 +849,7 @@ module Exp = {
           | Constructor(_)
           | TypFun(_)
           | Tuple(_)
+          | LabeledTuple(_)
           | TupLabel(_)
           | Label(_)
           | Dot(_)
@@ -939,6 +953,7 @@ module Any = {
     | Typ(tm) => IdTagged.ids(tm)
     | TPat(tm) => IdTagged.ids(tm)
     | Rul(tm) => Rul.ids(~any_ids=ids, tm)
+    | Label(tm) => IdTagged.ids(tm)
     | Any () => [];
 
   // Terms may consist of multiple tiles, eg the commas in an n-tuple,
@@ -959,5 +974,6 @@ module Any = {
     | Typ(tm) => Typ.rep_id(tm)
     | TPat(tm) => TPat.rep_id(tm)
     | Rul(tm) => Rul.rep_id(~any_ids=ids, tm)
+    | Label(tm) => IdTagged.rep_id(tm)
     | Any () => raise(Invalid_argument("Term.rep_id"));
 };

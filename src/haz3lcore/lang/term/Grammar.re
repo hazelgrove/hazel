@@ -7,18 +7,18 @@ module Annotated = {
     annotation: 'b,
   };
   /* uncomment to make terms pp without annotation */
-  //   let pp:
-  //     type a b.
-  //       (
-  //         (Format.formatter, a) => unit,
-  //         (Format.formatter, b) => unit,
-  //         Format.formatter,
-  //         t(a, b)
-  //       ) =>
-  //       unit =
-  //     (fmt_a, _, fmtr, t) => {
-  //       fmt_a(fmtr, t.term);
-  //     };
+  let pp:
+    type a b.
+      (
+        (Format.formatter, a) => unit,
+        (Format.formatter, b) => unit,
+        Format.formatter,
+        t(a, b)
+      ) =>
+      unit =
+    (fmt_a, _, fmtr, t) => {
+      fmt_a(fmtr, t.term);
+    };
 
   let term_of = x => x.term;
   let unwrap = x => (
@@ -33,6 +33,15 @@ module Annotated = {
     term,
     annotation: (),
   };
+
+  let map: type a b c. (a => b, t(a, c)) => t(b, c) =
+    (f, x) => {
+      let term: b = f(x.term);
+      {
+        term,
+        annotation: x.annotation,
+      };
+    };
 };
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -47,6 +56,7 @@ type any_t('a) =
   | Typ(typ_t('a))
   | TPat(tpat_t('a))
   | Rul(rul_t('a))
+  | Label(label_t('a))
   | Any(unit)
 and exp_term('a) =
   | Invalid(string)
@@ -65,6 +75,7 @@ and exp_term('a) =
   | Constructor(string, option(option(typ_t('a))))
   | Fun(pat_t('a), exp_t('a), option(typ_t('a)), option(Var.t)) // typ_t field is only used to display types in results
   | TypFun(tpat_t('a), exp_t('a), option(Var.t))
+  | LabeledTuple(list(labeled_entry_t('a, exp_t('a))))
   | Tuple(list(exp_t('a)))
   | Label(string)
   | TupLabel(exp_t('a), exp_t('a))
@@ -122,6 +133,7 @@ and typ_term('a) =
   | Arrow(typ_t('a), typ_t('a))
   | Sum(ConstructorMap.t(typ_t('a)))
   | Prod(list(typ_t('a)))
+  | LabeledProd(list(labeled_entry_t('a, typ_t('a))))
   | Label(string)
   | TupLabel(typ_t('a), typ_t('a))
   | Parens(typ_t('a))
@@ -157,10 +169,19 @@ and type_provenance('a) =
   | SynSwitch
   | Hole(type_hole('a))
   | Internal
+and label_term('a) =
+  | Label(string)
+  | Hole
+  | MultiHole(list(any_t('a)))
+and label_t('a) = Annotated.t(label_term('a), 'a)
 and filter('a) = {
   pat: exp_t('a),
   act: FilterAction.t,
-};
+}
+and labeled_entry_term('a, 't) = (label_t('a), 't)
+and labeled_entry_t('a, 't) =
+  | Labeled(Annotated.t(labeled_entry_term('a, 't), 'a))
+  | Unlabeled('t);
 
 
 let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
@@ -199,6 +220,27 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | TypFun(p, e, v) =>
           TypFun(map_tpat_annotation(f, p), map_exp_annotation(f, e), v)
         | Tuple(l) => Tuple(List.map(x => map_exp_annotation(f, x), l))
+        | LabeledTuple(entries: list(labeled_entry_t(a, exp_t(a)))) =>
+          LabeledTuple(
+            List.map(
+              (entry: labeled_entry_t(a, exp_t(a))):
+                labeled_entry_t(b, exp_t(b)) => {
+                switch (entry) {
+                | Labeled(e) =>
+                  let (l, e): labeled_entry_term(a, exp_t(a)) = e.term;
+                  Labeled({
+                    term: (
+                      map_label_annotation(f, l),
+                      map_exp_annotation(f, e),
+                    ),
+                    annotation: f(e.annotation),
+                  });
+                | Unlabeled(e) => Unlabeled(map_exp_annotation(f, e))
+                }
+              },
+              entries,
+            ),
+          )
         | Label(l) => Label(l)
         | TupLabel(l, e) =>
           TupLabel(map_exp_annotation(f, l), map_exp_annotation(f, e))
@@ -292,6 +334,7 @@ and map_any_annotation: 'a 'b. ('a => 'b, any_t('a)) => any_t('b) =
     | TPat(tp) => TPat(map_tpat_annotation(f, tp))
     | Rul(r) => Rul(map_rul_annotation(f, r))
     | Any(_) => Any()
+    | Label(l) => Label(map_label_annotation(f, l))
     };
   }
 and map_pat_annotation: 'a 'b. ('a => 'b, pat_t('a)) => pat_t('b) =
@@ -352,6 +395,26 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
         | Forall(tp, t) =>
           Forall(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
         | Prod(l) => Prod(List.map(x => map_typ_annotation(f, x), l))
+        | LabeledProd(entries) =>
+          LabeledProd(
+            List.map(
+              entry => {
+                switch (entry) {
+                | Labeled(e) =>
+                  let (l, t) = e.term;
+                  Labeled({
+                    term: (
+                      map_label_annotation(f, l),
+                      map_typ_annotation(f, t),
+                    ),
+                    annotation: f(e.annotation),
+                  });
+                | Unlabeled(t) => Unlabeled(map_typ_annotation(f, t))
+                }
+              },
+              entries,
+            ),
+          )
         | Label(l) => Label(l)
         | TupLabel(t1, t2) =>
           TupLabel(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
@@ -441,6 +504,21 @@ and map_type_hole_annotation:
     | Invalid(s) => Invalid(s)
     | EmptyHole => EmptyHole
     | MultiHole(l) => MultiHole(List.map(x => map_any_annotation(f, x), l))
+    };
+  }
+and map_label_annotation: 'a 'b. ('a => 'b, label_t('a)) => label_t('b) =
+  (f, e) => {
+    let (term, annotation) = (e.term, e.annotation);
+    let new_annotation = f(annotation);
+    {
+      term:
+        switch (term) {
+        | Label(l) => Label(l)
+        | Hole => Hole
+        | MultiHole(l) =>
+          MultiHole(List.map(x => map_any_annotation(f, x), l))
+        },
+      annotation: new_annotation,
     };
   };
 
@@ -538,6 +616,46 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Tuple(l),
       annotation: default_annotation(ann),
     };
+
+    let labeled_tuple = (~ann=?, entries): exp_t(DefaultAnnotation.t) => {
+      term: LabeledTuple(entries),
+      annotation: default_annotation(ann),
+    };
+
+    // These should probably be in a different sort
+    let labeled =
+        (~ann=?, l: string, e: exp_t(DefaultAnnotation.t))
+        : labeled_entry_t(DefaultAnnotation.t, t) =>
+      Labeled({
+        annotation: default_annotation(ann),
+        term: (
+          {
+            term: Label(l),
+            annotation: default_annotation(ann),
+          },
+          e,
+        ),
+      });
+
+    let unlabeled =
+        (~ann as _=?, e: exp_t(DefaultAnnotation.t))
+        : labeled_entry_t(DefaultAnnotation.t, t) =>
+      Unlabeled(e);
+
+    let multi_hole_labeled =
+        (~ann=?, l: list(any_t(DefaultAnnotation.t)), e)
+        : labeled_entry_t(DefaultAnnotation.t, t) =>
+      Labeled({
+        annotation: default_annotation(ann),
+        term: (
+          {
+            term: MultiHole(l),
+            annotation: default_annotation(ann),
+          },
+          e,
+        ),
+      });
+
     let label = (~ann=?, l): exp_t(DefaultAnnotation.t) => {
       term: Label(l),
       annotation: default_annotation(ann),
@@ -870,6 +988,21 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let rul_rules = (~ann=?, e, l): rul_t(DefaultAnnotation.t) => {
       term: Rules(e, l),
+      annotation: default_annotation(ann),
+    };
+  };
+
+  module Label = {
+    let label = (~ann=?, l): label_t(DefaultAnnotation.t) => {
+      term: Label(l),
+      annotation: default_annotation(ann),
+    };
+    let hole = (~ann=?, ()): label_t(DefaultAnnotation.t) => {
+      term: Hole,
+      annotation: default_annotation(ann),
+    };
+    let multi_hole = (~ann=?, l): label_t(DefaultAnnotation.t) => {
+      term: MultiHole(l),
       annotation: default_annotation(ann),
     };
   };

@@ -70,6 +70,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Fun(_)
   | FixF(_) => Precedence.fun_
   | Tuple(_) => Precedence.prod
+  | LabeledTuple(_) => Precedence.prod
   | Seq(_) => Precedence.semi
   | Dot(_) => Precedence.dot
 
@@ -182,6 +183,7 @@ let rec parenthesize =
   | Deferral(_)
   | BuiltinFun(_)
   | Tuple([])
+  | LabeledTuple([])
   | Undefined => exp
 
   // Forms that currently need to stripped before outputting
@@ -219,6 +221,21 @@ let rec parenthesize =
     let inner =
       Tuple(
         es |> List.map(parenthesize) |> List.map(paren_at(Precedence.prod)),
+      )
+      |> rewrap;
+
+    if (already_paren) {
+      inner;
+    } else {
+      Parens(inner) |> Exp.fresh;
+    };
+  | LabeledTuple(entries) =>
+    let inner =
+      LabeledTuple(
+        LabeledTuple.map_elements(
+          e => parenthesize(e) |> paren_at(Precedence.prod),
+          entries,
+        ),
       )
       |> rewrap;
 
@@ -880,6 +897,65 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     @ List.flatten(
         List.map2((id, x) => [mk_form(CommaExp, id, [])] @ x, ids, xs),
       );
+  | LabeledTuple([]) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "()")
+  | LabeledTuple([Labeled(t)]) =>
+    let* l = label_to_pretty(~settings, LabeledTuple.get_label(t))
+    and* e = go(LabeledTuple.get_elem(t));
+    List.flatten([
+      l,
+      [
+        Tile({
+          id: exp |> Exp.rep_id,
+          label: ["="],
+          mold: Mold.mk_bin(Precedence.lab, Sort.Exp, []),
+          shards: [0],
+          children: [],
+        }),
+      ],
+      if (Form.begins_with_potential_operator(Segment.first_string(e))) {
+        [Secondary(Secondary.mk_space(Id.mk()))] @ e;
+      } else {
+        e;
+      },
+    ]);
+
+  | LabeledTuple([x, ...xs]) =>
+    let lt_to_pretty: Exp.labeled_entry_t => pretty = (
+      entry => {
+        let (l, e) = LabeledTuple.project(entry);
+        switch (l) {
+        | None => go(e)
+        | Some(l) =>
+          let* l = label_to_pretty(~settings, l)
+          and* e = go(e);
+          List.flatten([
+            l,
+            [
+              Tile({
+                id: exp |> Exp.rep_id,
+                label: ["="],
+                mold: Mold.mk_bin(Precedence.lab, Sort.Exp, []),
+                shards: [0],
+                children: [],
+              }),
+            ],
+            if (Form.begins_with_potential_operator(Segment.first_string(e))) {
+              [Secondary(Secondary.mk_space(Id.mk()))] @ e;
+            } else {
+              e;
+            },
+          ]);
+        };
+      }
+    );
+
+    let* x = lt_to_pretty(x)
+    and* xs = xs |> List.map(lt_to_pretty) |> all;
+    let ids = IdTagged.ids(exp) |> pad_ids(List.length(xs));
+    x
+    @ List.flatten(
+        List.map2((id, x) => [mk_form(CommaExp, id, [])] @ x, ids, xs),
+      );
   | Label(l) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, l)
   | TupLabel(l, e) =>
     let* l = go(l)
@@ -1371,6 +1447,28 @@ and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
       xs,
     );
   | Var(v) => text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, v)
+  };
+}
+and label_to_pretty = (~settings: Settings.t, label: Label.t): pretty => {
+  let go = label_to_pretty(~settings: Settings.t);
+  switch (label |> IdTagged.term_of) {
+  | Label(l) => text_to_pretty(label |> IdTagged.rep_id, Sort.Exp, l) // TODO Sort
+  | Hole =>
+    if (settings.show_unknown_as_hole) {
+      let id = label |> IdTagged.rep_id;
+      p_just([
+        Grout({
+          id,
+          shape: Convex,
+        }),
+      ]);
+    } else {
+      text_to_pretty(
+        label |> IdTagged.rep_id,
+        Sort.Exp,
+        "?" // TODO Sort
+      );
+    }
   };
 }
 and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {

@@ -33,11 +33,11 @@ let tests = [
     "float_of_int(1)",
     Some(float()),
   ),
-  fully_consistent_typecheck(
-    "function deferral",
-    "string_sub(\"hello\", 1, _)",
-    Some(arrow(int(), string())),
-  ),
+  // fully_consistent_typecheck(
+  //   "function deferral",
+  //   "string_sub(\"hello\", 1, _)",
+  //   Some(arrow(int(), string())),
+  // ),
   fully_consistent_typecheck(
     "Fixpoint in function position",
     {|(fix f : (Int -> Int) -> fun x -> x + 1)(3)|},

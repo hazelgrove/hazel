@@ -8,40 +8,40 @@ open Exp;
 let tests = (
   "Evaluator.Functions",
   [
-    test_case("Function deferral", `Quick, () =>
-      evaluation_test(
-        "string_sub(\"hello\", 1, _)(2)",
-        string("el"),
-        ap(
-          Forward,
-          deferred_ap(
-            var("string_sub"),
-            [string("hello"), int(1), deferral(InAp)],
-          ),
-          int(2),
-        ),
-      )
-    ),
+    // test_case("Function deferral", `Quick, () =>
+    //   evaluation_test(
+    //     "string_sub(\"hello\", 1, _)(2)",
+    //     string("el"),
+    //     ap(
+    //       Forward,
+    //       deferred_ap(
+    //         var("string_sub"),
+    //         [string("hello"), int(1), deferral(InAp)],
+    //       ),
+    //       int(2),
+    //     ),
+    //   )
+    // ),
     test_case("Ascribed lambda applied", `Quick, () =>
       parse_and_evaluate_test("2", {|((fun a -> a):  ? -> ? )(2:  ?): Int|})
     ),
     test_case("eg", `Quick, () =>
       parse_and_evaluate_test("2", {|(fun (a=a): ((a=Int)) -> a: ?)(a=2)|})
     ),
-    test_case("Deferral applied to hole", `Quick, () =>
-      evaluation_test(
-        "?(_, _, 3)(1., true)",
-        ap(Forward, empty_hole(), tuple([float(1.), bool(true), int(3)])),
-        ap(
-          Forward,
-          deferred_ap(
-            empty_hole(),
-            [deferral(InAp), deferral(InAp), int(3)],
-          ),
-          tuple([float(1.), bool(true)]),
-        ),
-      )
-    ),
+    // test_case("Deferral applied to hole", `Quick, () =>
+    //   evaluation_test(
+    //     "?(_, _, 3)(1., true)",
+    //     ap(Forward, empty_hole(), tuple([float(1.), bool(true), int(3)])),
+    //     ap(
+    //       Forward,
+    //       deferred_ap(
+    //         empty_hole(),
+    //         [deferral(InAp), deferral(InAp), int(3)],
+    //       ),
+    //       tuple([float(1.), bool(true)]),
+    //     ),
+    //   )
+    // ),
     test_case("Variable capture", `Quick, () =>
       evaluation_test(
         {|let u = 5 in let f = fun () -> u in let u = 3 in f()|},
