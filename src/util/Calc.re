@@ -103,6 +103,13 @@ let set = (~eq: ('a, 'a) => bool=(==), x: 'a, y: saved('a)) =>
   | Calculated(_) => NewValue(x)
   };
 
+let const = (y: unit => 'a, x: saved('a)) => {
+  switch (x) {
+  | Pending => NewValue(y())
+  | Calculated(x) => OldValue(x)
+  };
+};
+
 /* Save takes a value of t('a) that has been recalculated and stores it in a
    saved so it can be put back in the model */
 let save = (x: t('a)): saved('a) =>

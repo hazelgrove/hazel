@@ -417,7 +417,7 @@ module Update = {
               }
          });
     let elab = cached_elab |> Calc.set(~eq=Exp.fast_equal, elab);
-    let ctx = ctx |> Calc.set(Builtins.ctx_init(None));
+    let ctx = ctx |> Calc.const(() => Builtins.ctx_init(None));
     let elab_subst =
       cached_elab_subst
       |> {
