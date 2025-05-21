@@ -295,7 +295,10 @@ module UnseenCtrList = {
         ...unseen_list,
       ]
     | Atom(String) => [
-        IdTagged.FreshGrammar.Pat.string(ctr.ctr),
+        // ctr has a " as the first character
+        IdTagged.FreshGrammar.Pat.string(
+          String.sub(ctr.ctr, 1, String.length(ctr.ctr) - 1),
+        ),
         ...unseen_list,
       ]
     | Arrow(_)
