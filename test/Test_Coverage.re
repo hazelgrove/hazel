@@ -105,7 +105,15 @@ let f = fun (x : Tree) ->
     | Empty => Empty
   end}}}
 in ?|},
-    [Info.Exp(InexhaustiveMatch(None, "")), Info.Pat(Redundant(None))],
+    [
+      Info.Exp(
+        InexhaustiveMatch(
+          None,
+          Grammar.Pat(IdTagged.FreshGrammar.Pat.wild()),
+        ),
+      ),
+      Info.Pat(Redundant(None)),
+    ],
   );
 
 let peanut_2a =
@@ -132,7 +140,14 @@ let odd_length : [Int] -> Bool =
       | x::?::? => true
     end}}} in ?
 |},
-    [Info.Exp(InexhaustiveMatch(None, ""))],
+    [
+      Info.Exp(
+        InexhaustiveMatch(
+          None,
+          Grammar.Pat(IdTagged.FreshGrammar.Pat.wild()),
+        ),
+      ),
+    ],
   );
 
 let peanut_2c =
@@ -213,7 +228,14 @@ let x : Int = ? in
   | 1 => 1
   | 2 => 2
 end}}}|},
-    [Info.Exp(InexhaustiveMatch(None, ""))],
+    [
+      Info.Exp(
+        InexhaustiveMatch(
+          None,
+          Grammar.Pat(IdTagged.FreshGrammar.Pat.wild()),
+        ),
+      ),
+    ],
   );
 
 let integers_redundant =
@@ -251,7 +273,14 @@ let x : Float = ? in
   | 1.0 => 1
   | 2.0 => 2
 end}}}|},
-    [Info.Exp(InexhaustiveMatch(None, ""))],
+    [
+      Info.Exp(
+        InexhaustiveMatch(
+          None,
+          Grammar.Pat(IdTagged.FreshGrammar.Pat.wild()),
+        ),
+      ),
+    ],
   );
 
 let floats_redundant =
@@ -289,7 +318,14 @@ let x : String = ? in
   | "ABC" => 1
   | "" => 2
 end}}}|},
-    [Info.Exp(InexhaustiveMatch(None, ""))],
+    [
+      Info.Exp(
+        InexhaustiveMatch(
+          None,
+          Grammar.Pat(IdTagged.FreshGrammar.Pat.wild()),
+        ),
+      ),
+    ],
   );
 
 let strings_redundant =
@@ -331,8 +367,18 @@ let z = {{{case x
 end}}} in ?
 |},
     [
-      Info.Exp(InexhaustiveMatch(None, "")),
-      Info.Exp(InexhaustiveMatch(None, "")),
+      Info.Exp(
+        InexhaustiveMatch(
+          None,
+          Grammar.Pat(IdTagged.FreshGrammar.Pat.wild()),
+        ),
+      ),
+      Info.Exp(
+        InexhaustiveMatch(
+          None,
+          Grammar.Pat(IdTagged.FreshGrammar.Pat.wild()),
+        ),
+      ),
     ],
   );
 
@@ -432,7 +478,14 @@ let rank_compare: (Rank, Rank) -> Int =
       | (_, Queen) => 1
 end}}} in ?
 |},
-    [Info.Exp(InexhaustiveMatch(None, ""))],
+    [
+      Info.Exp(
+        InexhaustiveMatch(
+          None,
+          Grammar.Pat(IdTagged.FreshGrammar.Pat.wild()),
+        ),
+      ),
+    ],
   );
 
 let rank_let_inexhaustive =
@@ -447,7 +500,14 @@ type Rank =
 let x : Rank = ? in
 {{{let Ace = x in
 ?}}}|},
-    [Info.Exp(InexhaustiveMatch(None, ""))],
+    [
+      Info.Exp(
+        InexhaustiveMatch(
+          None,
+          Grammar.Pat(IdTagged.FreshGrammar.Pat.wild()),
+        ),
+      ),
+    ],
   );
 
 let rank_fun_inexhaustive =
@@ -462,7 +522,14 @@ type Rank =
 let x : Rank = ? in
 let f = {{{fun Ace -> ?}}} in
 ?|},
-    [Info.Exp(InexhaustiveMatch(None, ""))],
+    [
+      Info.Exp(
+        InexhaustiveMatch(
+          None,
+          Grammar.Pat(IdTagged.FreshGrammar.Pat.wild()),
+        ),
+      ),
+    ],
   );
 
 let nested_constructors_inexhaustive =
@@ -480,7 +547,14 @@ let f = fun (x : Tree) ->
     | Empty => Empty
   end}}}
 in ?|},
-    [Info.Exp(InexhaustiveMatch(None, ""))],
+    [
+      Info.Exp(
+        InexhaustiveMatch(
+          None,
+          Grammar.Pat(IdTagged.FreshGrammar.Pat.wild()),
+        ),
+      ),
+    ],
   );
 
 let nested_constructors_exhaustive =
@@ -568,7 +642,14 @@ let f = fun (x : Tree) ->
     | Leaf(_) => 2
   end}}}
 in ?|},
-    [Info.Exp(InexhaustiveMatch(None, ""))],
+    [
+      Info.Exp(
+        InexhaustiveMatch(
+          None,
+          Grammar.Pat(IdTagged.FreshGrammar.Pat.wild()),
+        ),
+      ),
+    ],
   );
 
 let partially_unknown_scrutinee_redundancy =
@@ -583,7 +664,15 @@ let f = fun (x : Tree) ->
     | {{{Leaf(x)}}} => 3
   end}}}
 in ?|},
-    [Info.Exp(InexhaustiveMatch(None, "")), Info.Pat(Redundant(None))],
+    [
+      Info.Exp(
+        InexhaustiveMatch(
+          None,
+          Grammar.Pat(IdTagged.FreshGrammar.Pat.wild()),
+        ),
+      ),
+      Info.Pat(Redundant(None)),
+    ],
   );
 
 let erroneous_pattern_redundancy =
@@ -602,7 +691,12 @@ let f = fun (x : Tree) ->
   end}}}
 in ?|},
     [
-      Info.Exp(InexhaustiveMatch(None, "")),
+      Info.Exp(
+        InexhaustiveMatch(
+          None,
+          Grammar.Pat(IdTagged.FreshGrammar.Pat.wild()),
+        ),
+      ),
       Info.Pat(Common(NoType(FreeConstructor("A")))),
       Info.Pat(Redundant(Some(Common(NoType(FreeConstructor("A")))))),
       Info.Pat(Common(NoType(FreeConstructor("B")))),
@@ -648,7 +742,14 @@ let f = fun (tpl : Tuple) ->
     | (x=A, _, _) => 7
   end}}}
 in ?|},
-    [Info.Exp(InexhaustiveMatch(None, ""))],
+    [
+      Info.Exp(
+        InexhaustiveMatch(
+          None,
+          Grammar.Pat(IdTagged.FreshGrammar.Pat.wild()),
+        ),
+      ),
+    ],
   );
 
 let labeled_tuple_redundancy =
@@ -668,7 +769,12 @@ let f = fun (tpl : Tuple) ->
   end}}}
 in ?|},
     [
-      Info.Exp(InexhaustiveMatch(None, "")),
+      Info.Exp(
+        InexhaustiveMatch(
+          None,
+          Grammar.Pat(IdTagged.FreshGrammar.Pat.wild()),
+        ),
+      ),
       Info.Pat(Redundant(None)),
       Info.Pat(Redundant(None)),
       Info.Pat(Redundant(None)),

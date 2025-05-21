@@ -846,7 +846,7 @@ and uexp_to_info_map =
           ? unwrapped_self
           : InexhaustiveMatch(
               unwrapped_self,
-              Coverage.UnseenCtrList.string_of(unseen_list),
+              Coverage.UnseenCtrList.to_pat(unseen_list),
             );
       add'(~self, ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx), m);
     | TypFun(utpat, body, _) =>
@@ -947,7 +947,7 @@ and uexp_to_info_map =
           ? unwrapped_self
           : InexhaustiveMatch(
               unwrapped_self,
-              Coverage.UnseenCtrList.string_of(unseen_list),
+              Coverage.UnseenCtrList.to_pat(unseen_list),
             );
       add'(
         ~self,
@@ -1025,7 +1025,7 @@ and uexp_to_info_map =
           ? unwrapped_self
           : InexhaustiveMatch(
               unwrapped_self,
-              Coverage.UnseenCtrList.string_of(unseen_list),
+              Coverage.UnseenCtrList.to_pat(unseen_list),
             );
       let add_redundancy = (ps: list(TermBase.pat_t), redundant_rows, m) => {
         List.fold_left(

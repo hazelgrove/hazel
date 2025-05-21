@@ -67,7 +67,7 @@ type error_partial_ap =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type exp =
   | Free(Var.t)
-  | InexhaustiveMatch(exp, string)
+  | InexhaustiveMatch(exp, Grammar.any_t(IdTagged.IdTag.t))
   | IsDeferral(Exp.deferral_position)
   | IsBadPartialAp(error_partial_ap)
   | Common(t);

@@ -8,6 +8,9 @@ module IdTag = {
   };
 
   let fresh = (): t => {ids: [Id.mk()]};
+
+  // TODO: (aasmart), had to add for pattern matching examples.
+  let equal = (lhs, rhs) => lhs.ids == rhs.ids;
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]

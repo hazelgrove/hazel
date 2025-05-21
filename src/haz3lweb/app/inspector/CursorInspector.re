@@ -456,6 +456,7 @@ let rec exp_view =
     };
   let inferred_label = info.inferred_label;
   let view_type = view_type(~globals);
+  let view_any = view_any(~globals);
   switch (status) {
   | InHole(FreeVariable(name)) => div_err([code(name), text("not found")])
   | InHole(InexhaustiveMatch(additional_err, example)) =>
@@ -463,20 +464,16 @@ let rec exp_view =
     switch (additional_err) {
     | None =>
       div_err([
-        text(cls_str ++ " is inexhaustive. An example is " ++ example ++ "."),
+        text(cls_str ++ " is inexhaustive. An example is "),
+        view_any(example),
       ])
     | Some(err) =>
       let cls_str = String.uncapitalize_ascii(cls_str);
       div_err([
         exp_view(~globals, cls, InHole(Common(err)), info)
         |> code_box_container,
-        text(
-          "; "
-          ++ cls_str
-          ++ " is inexhaustive. An example is "
-          ++ example
-          ++ ".",
-        ),
+        text("; " ++ cls_str ++ " is inexhaustive. An example is "),
+        view_any(example),
       ]);
     };
   | InHole(UnusedDeferral) =>
