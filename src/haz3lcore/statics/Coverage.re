@@ -215,7 +215,7 @@ module UnseenCtrList = {
   let empty = [];
 
   let prepend_ctr = (ctr: Ctr.t, col_type: Typ.t, unseen_list: t) => {
-    // print_endline(Ctr.show(ctr) ++ Typ.show(col_type));
+    print_endline(Ctr.show(ctr) ++ Typ.show(col_type));
     switch (col_type.term) {
     | Sum(_) =>
       if (Ctr.num_args_of(ctr) == 0) {
@@ -272,51 +272,89 @@ module UnseenCtrList = {
       [IdTagged.FreshGrammar.Pat.tuple(List.rev(first_n)), ...tl];
     | TupLabel(body, _) =>
       switch (IdTagged.term_of(body)) {
-      | Label(label) => [
-          IdTagged.FreshGrammar.Pat.tup_label(
+      | Label(label) =>
+        switch (unseen_list) {
+        | [] => [
             IdTagged.FreshGrammar.Pat.label(label),
-            List.hd(unseen_list),
-          ),
-          ...List.tl(unseen_list),
-        ]
+            IdTagged.FreshGrammar.Pat.empty_hole(),
+          ]
+        | [hd, ...tl] => [
+            IdTagged.FreshGrammar.Pat.tup_label(
+              IdTagged.FreshGrammar.Pat.label(label),
+              hd,
+            ),
+            ...tl,
+          ]
+        }
       | _ => unseen_list
       }
     | List(_) =>
-      let elt =
-        switch (ctr.ctr) {
-        | "nil" => IdTagged.FreshGrammar.Pat.list_lit([])
-        | "cons" =>
-          IdTagged.FreshGrammar.Pat.cons(
-            IdTagged.FreshGrammar.Pat.wild(),
-            IdTagged.FreshGrammar.Pat.wild(),
-          )
-        | _ => failwith("Encountered list ctr with not nil or cons")
-        };
-      [elt, ...unseen_list];
+      switch (ctr.ctr) {
+      | "nil" => [IdTagged.FreshGrammar.Pat.list_lit([]), ...unseen_list]
+      | "cons" =>
+        switch (unseen_list) {
+        | [] => [
+            IdTagged.FreshGrammar.Pat.cons(
+              IdTagged.FreshGrammar.Pat.wild(),
+              IdTagged.FreshGrammar.Pat.wild(),
+            ),
+            ...unseen_list,
+          ]
+        | [hd, ...tl] =>
+          // the structure of the list should have a tuple that contains
+          // the element in the first position, and a cons in the second.
+          // The goal is to unwrap that and just get the cons.
+          // Everything else is just making sure weird errors don't happen.
+          let term = IdTagged.term_of(hd);
+          let cons =
+            switch (term) {
+            | Tuple([_, snd]) =>
+              IdTagged.FreshGrammar.Pat.cons(
+                IdTagged.FreshGrammar.Pat.wild(),
+                snd,
+              )
+            | _ =>
+              IdTagged.FreshGrammar.Pat.cons(
+                IdTagged.FreshGrammar.Pat.wild(),
+                hd,
+              )
+            };
+          [cons, ...tl];
+        }
+      | _ => [IdTagged.FreshGrammar.Pat.wild(), ...unseen_list]
+      }
     | Atom(Bool) =>
       let boolTyp =
         switch (ctr.ctr) {
         | "true" => IdTagged.FreshGrammar.Pat.bool(true)
         | "false" => IdTagged.FreshGrammar.Pat.bool(false)
-        | _ => failwith("Encountered boolean ctr without 'true' or 'false'")
+        | _ => IdTagged.FreshGrammar.Pat.wild()
         };
       [boolTyp, ...unseen_list];
     | Unknown(_) => [IdTagged.FreshGrammar.Pat.wild(), ...unseen_list]
     | Atom(Int) => [
         // TODO: this sometimes parses a default "_"
-        IdTagged.FreshGrammar.Pat.big_int(Bigint.of_string(ctr.ctr)),
+        try(IdTagged.FreshGrammar.Pat.big_int(Bigint.of_string(ctr.ctr))) {
+        | _ => IdTagged.FreshGrammar.Pat.wild()
+        },
         ...unseen_list,
       ]
     | Atom(SInt) => [
-        IdTagged.FreshGrammar.Pat.sint(int_of_string(ctr.ctr)),
+        try(IdTagged.FreshGrammar.Pat.sint(int_of_string(ctr.ctr))) {
+        | _ => IdTagged.FreshGrammar.Pat.wild()
+        },
         ...unseen_list,
       ]
     | Atom(Float) => [
-        IdTagged.FreshGrammar.Pat.float(float_of_string(ctr.ctr)),
+        try(IdTagged.FreshGrammar.Pat.float(float_of_string(ctr.ctr))) {
+        | _ => IdTagged.FreshGrammar.Pat.wild()
+        },
         ...unseen_list,
       ]
     | Atom(Nat) => [
-        IdTagged.FreshGrammar.Pat.nat(Bigint.of_string(ctr.ctr)),
+        try(IdTagged.FreshGrammar.Pat.nat(Bigint.of_string(ctr.ctr))) {
+        | _ => IdTagged.FreshGrammar.Pat.wild()
+        },
         ...unseen_list,
       ]
     | Atom(String) => [
@@ -410,15 +448,44 @@ module UnseenCtrList = {
       | List(_) =>
         switch (all_ctrs) {
         | Unknown
-        | Infinite => failwith("Coverage: List type has invalid ctr count")
-        | Finite(all_ctrs) => (
-            if (use_type_default) {
-              Ctr.nil_ctr;
+        | Infinite => (col_ctr, unseen_list)
+        | Finite(all_ctrs) =>
+          if (use_type_default) {
+            // the terminal cons/nil case will have 0 arguments,
+            // so we want to generate a default constructor for it
+            if (Ctr.num_args_of(col_ctr) <= 0) {
+              (Ctr.default_ctr, unseen_list);
             } else {
+              // otherwise, the non terminal character wants to generate
+              // a new wildcard. So, discard the existing wildcard.
+              // TODO: just update this function to not make a call to prepend_ctr
+              switch (unseen_list) {
+              | [] => (Ctr.default_ctr, unseen_list)
+              | [_, ...tl] => (Ctr.default_ctr, tl)
+              };
+            };
+          } else {
+            let unseen_ctr =
               get_first_unseen_ctr(seen_in_first_col, all_ctrs);
-            },
-            unseen_list,
-          )
+            if (col_ctr == Ctr.nil_ctr) {
+              (
+                unseen_ctr,
+                [IdTagged.FreshGrammar.Pat.wild(), ...unseen_list],
+              );
+            } else if (Ctr.num_args_of(col_ctr) > 0
+                       && unseen_ctr == Ctr.nil_ctr) {
+              // if the unseen ctr is a nil, and the current ctr has args,
+              // it's a cons and we need to get rid of those args
+              // it's guaranteed to be a tuple of whatever.
+              // when the user is performing actions, unseen_list may be empty
+              switch (unseen_list) {
+              | [] => (unseen_ctr, unseen_list)
+              | [_, ...tl] => (unseen_ctr, tl)
+              };
+            } else {
+              (unseen_ctr, unseen_list);
+            };
+          }
         }
       | Prod(_) => (col_ctr, unseen_list) // will be ignored in the later prepend step
       | Unknown(_) => (col_ctr, unseen_list)
@@ -426,7 +493,7 @@ module UnseenCtrList = {
       | TupLabel(_) => (col_ctr, unseen_list)
       | Atom(Int) => (
           if (use_type_default) {
-            Ctr.of_int(Bigint.of_int(0));
+            Ctr.default_ctr;
           } else {
             let rec first_unused_bigint = n => {
               let big_int = Bigint.of_int(n);
@@ -439,7 +506,7 @@ module UnseenCtrList = {
         )
       | Atom(Nat) => (
           if (use_type_default) {
-            Ctr.of_int(Bigint.of_int(0));
+            Ctr.default_ctr;
           } else {
             let rec first_unused_nat = n => {
               let big_int = Bigint.of_int(n);
@@ -452,7 +519,7 @@ module UnseenCtrList = {
         )
       | Atom(SInt) => (
           if (use_type_default) {
-            Ctr.of_sint(0);
+            Ctr.default_ctr;
           } else {
             let rec first_unused_sint = n => {
               SIntSet.mem(n, seen_in_first_col.seen_sints)
@@ -464,7 +531,7 @@ module UnseenCtrList = {
         )
       | Atom(Float) => (
           if (use_type_default) {
-            Ctr.of_float(0.);
+            Ctr.default_ctr;
           } else {
             let rec first_unused_float = n => {
               FloatSet.mem(n, seen_in_first_col.seen_floats)
@@ -476,7 +543,7 @@ module UnseenCtrList = {
         )
       | Atom(String) => (
           if (use_type_default) {
-            Ctr.of_string("");
+            Ctr.default_ctr;
           } else {
             let rec first_unused_str = n => {
               StringSet.mem(n, seen_in_first_col.seen_strings)
