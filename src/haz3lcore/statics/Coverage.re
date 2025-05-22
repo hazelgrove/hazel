@@ -215,9 +215,10 @@ module UnseenCtrList = {
   let empty = [];
 
   let prepend_ctr = (ctr: Ctr.t, col_type: Typ.t, unseen_list: t) => {
+    // print_endline(Ctr.show(ctr) ++ Typ.show(col_type));
     switch (col_type.term) {
-    | Sum(map) =>
-      if (ConstructorMap.has_constructor_no_args(ctr.ctr, map)) {
+    | Sum(_) =>
+      if (Ctr.num_args_of(ctr) == 0) {
         [
           IdTagged.FreshGrammar.Pat.constructor(
             ctr.ctr,
@@ -226,18 +227,32 @@ module UnseenCtrList = {
           ...unseen_list,
         ];
       } else {
-        [
-          // absorb the args of the constructor
-          // TODO: might want better error checking if List is somehow empty
-          IdTagged.FreshGrammar.Pat.ap(
-            IdTagged.FreshGrammar.Pat.constructor(
-              ctr.ctr,
-              Some(Some(col_type)),
+        // absorb the args of the constructor
+        // the empty case can happen if the example is providing a constructor
+        // that has args, but no args are provided
+        switch (unseen_list) {
+        | [] => [
+            IdTagged.FreshGrammar.Pat.ap(
+              IdTagged.FreshGrammar.Pat.constructor(
+                ctr.ctr,
+                Some(Some(col_type)),
+              ),
+              IdTagged.FreshGrammar.Pat.empty_hole(),
             ),
-            List.hd(unseen_list),
-          ),
-          ...List.tl(unseen_list),
-        ];
+            ...unseen_list,
+          ]
+        | [hd, ...tl] => [
+            // absorb the args of the constructor
+            IdTagged.FreshGrammar.Pat.ap(
+              IdTagged.FreshGrammar.Pat.constructor(
+                ctr.ctr,
+                Some(Some(col_type)),
+              ),
+              hd,
+            ),
+            ...tl,
+          ]
+        };
       }
     | Rec(_) => [IdTagged.FreshGrammar.Pat.wild(), ...unseen_list]
     | Prod(elts) =>
@@ -255,7 +270,17 @@ module UnseenCtrList = {
       let (first_n, tl) = partition_first_n(num_elts, unseen_list, []);
 
       [IdTagged.FreshGrammar.Pat.tuple(List.rev(first_n)), ...tl];
-    | TupLabel(_) => [IdTagged.FreshGrammar.Pat.wild(), ...unseen_list]
+    | TupLabel(body, _) =>
+      switch (IdTagged.term_of(body)) {
+      | Label(label) => [
+          IdTagged.FreshGrammar.Pat.tup_label(
+            IdTagged.FreshGrammar.Pat.label(label),
+            List.hd(unseen_list),
+          ),
+          ...List.tl(unseen_list),
+        ]
+      | _ => unseen_list
+      }
     | List(_) =>
       let elt =
         switch (ctr.ctr) {
@@ -303,7 +328,7 @@ module UnseenCtrList = {
       ]
     | Arrow(_)
     | Forall(_)
-    | Var(_) => [IdTagged.FreshGrammar.Pat.wild(), ...unseen_list]
+    | Var(_) => unseen_list
     | Parens(_)
     | Ap(_)
     | Label(_) =>
@@ -314,130 +339,156 @@ module UnseenCtrList = {
     };
   };
 
+  let get_first_unseen_ctr = (seen_in_first_col: seen, all_ctrs) => {
+    seen_in_first_col.seen_all_ctrs
+      ? Ctr.default_ctr
+      : List.split(Ctr.Map.bindings(all_ctrs))
+        |> fst
+        |> List.find(ctr => !Ctr.Set.mem(ctr, seen_in_first_col.seen_ctrs));
+  };
+
   // TODO: Handle all the cases that just return default values
   let prepend_with_type =
       (
         seen_in_first_col: seen,
         col_type: Typ.t,
+        col_ctr: Ctr.t,
         unseen_list: t,
         use_type_default: bool,
       )
       : t => {
     let all_ctrs = Ctr.all_ctrs_of_typ(col_type);
 
-    let elt =
+    let (elt, unseen_list) =
       switch (col_type.term) {
       | Sum(_) =>
         switch (all_ctrs) {
         | Unknown
         | Infinite => failwith("Coverage: Sum type has invalid ctr count")
         | Finite(all_ctrs) =>
-          if (use_type_default) {
-            Ctr.Map.choose(all_ctrs) |> fst;
+          let new_ctr =
+            if (use_type_default) {
+              Ctr.Map.choose(all_ctrs) |> fst;
+            } else {
+              get_first_unseen_ctr(seen_in_first_col, all_ctrs);
+            };
+
+          // handle the case where the old constructor has arugments
+          // that have accumulated in the list
+          // Do this by just removing them, since the args will
+          // be packeged into a tuple
+          let unseen_list =
+            switch (unseen_list) {
+            | [_, ...tl] when Ctr.num_args_of(col_ctr) > 0 => tl
+            | _ => unseen_list
+            };
+
+          if (Ctr.num_args_of(new_ctr) > 0) {
+            (
+              // if the new construct has args, we need to give it
+              // an argument
+              new_ctr,
+              [IdTagged.FreshGrammar.Pat.wild(), ...unseen_list],
+            );
           } else {
-            seen_in_first_col.seen_all_ctrs
-              ? Ctr.default_ctr
-              : List.split(Ctr.Map.bindings(all_ctrs))
-                |> fst
-                |> List.find(ctr =>
-                     !Ctr.Set.mem(ctr, seen_in_first_col.seen_ctrs)
-                   );
-          }
+            (new_ctr, unseen_list);
+          };
         }
       | Atom(Bool) =>
         switch (all_ctrs) {
         | Unknown
         | Infinite => failwith("Coverage: Bool type has invalid ctr count")
-        | Finite(all_ctrs) =>
-          if (use_type_default) {
-            Ctr.false_ctr;
-          } else {
-            seen_in_first_col.seen_all_ctrs
-              ? Ctr.default_ctr
-              : List.split(Ctr.Map.bindings(all_ctrs))
-                |> fst
-                |> List.find(ctr =>
-                     !Ctr.Set.mem(ctr, seen_in_first_col.seen_ctrs)
-                   );
-          }
+        | Finite(all_ctrs) => (
+            if (use_type_default) {
+              Ctr.false_ctr;
+            } else {
+              get_first_unseen_ctr(seen_in_first_col, all_ctrs);
+            },
+            unseen_list,
+          )
         }
       | List(_) =>
         switch (all_ctrs) {
         | Unknown
         | Infinite => failwith("Coverage: List type has invalid ctr count")
-        | Finite(all_ctrs) =>
+        | Finite(all_ctrs) => (
+            if (use_type_default) {
+              Ctr.nil_ctr;
+            } else {
+              get_first_unseen_ctr(seen_in_first_col, all_ctrs);
+            },
+            unseen_list,
+          )
+        }
+      | Prod(_) => (col_ctr, unseen_list) // will be ignored in the later prepend step
+      | Unknown(_) => (col_ctr, unseen_list)
+      | Rec(_) => (col_ctr, unseen_list)
+      | TupLabel(_) => (col_ctr, unseen_list)
+      | Atom(Int) => (
           if (use_type_default) {
-            Ctr.nil_ctr;
+            Ctr.of_int(Bigint.of_int(0));
           } else {
-            seen_in_first_col.seen_all_ctrs
-              ? Ctr.default_ctr
-              : List.split(Ctr.Map.bindings(all_ctrs))
-                |> fst
-                |> List.find(ctr =>
-                     !Ctr.Set.mem(ctr, seen_in_first_col.seen_ctrs)
-                   );
-          }
-        }
-      | Prod(_) => Ctr.default_ctr // will be ignored in the later prepend step
-      | Unknown(_) => Ctr.default_ctr
-      | Rec(_) => Ctr.default_ctr
-      | TupLabel(_) => Ctr.default_ctr
-      | Atom(Int) =>
-        if (use_type_default) {
-          Ctr.of_int(Bigint.of_int(0));
-        } else {
-          let rec first_unused_bigint = n => {
-            let big_int = Bigint.of_int(n);
-            IntSet.mem(big_int, seen_in_first_col.seen_ints)
-              ? first_unused_bigint(n + 1) : Ctr.of_int(Bigint.of_int(n));
-          };
-          first_unused_bigint(0);
-        }
-      | Atom(Nat) =>
-        if (use_type_default) {
-          Ctr.of_int(Bigint.of_int(0));
-        } else {
-          let rec first_unused_nat = n => {
-            let big_int = Bigint.of_int(n);
-            IntSet.mem(big_int, seen_in_first_col.seen_ints)
-              ? first_unused_nat(n + 1) : Ctr.of_int(Bigint.of_int(n));
-          };
-          first_unused_nat(0);
-        }
-      | Atom(SInt) =>
-        if (use_type_default) {
-          Ctr.of_sint(0);
-        } else {
-          let rec first_unused_sint = n => {
-            SIntSet.mem(n, seen_in_first_col.seen_sints)
-              ? first_unused_sint(n + 1) : Ctr.of_sint(n);
-          };
-          first_unused_sint(0);
-        }
-      | Atom(Float) =>
-        if (use_type_default) {
-          Ctr.of_float(0.);
-        } else {
-          let rec first_unused_float = n => {
-            FloatSet.mem(n, seen_in_first_col.seen_floats)
-              ? first_unused_float(n +. 1.) : Ctr.of_float(n);
-          };
-          first_unused_float(0.);
-        }
-      | Atom(String) =>
-        if (use_type_default) {
-          Ctr.of_string("");
-        } else {
-          let rec first_unused_str = n => {
-            StringSet.mem(n, seen_in_first_col.seen_strings)
-              ? first_unused_str(n ++ "*") : Ctr.of_string(n);
-          };
-          first_unused_str("");
-        }
+            let rec first_unused_bigint = n => {
+              let big_int = Bigint.of_int(n);
+              IntSet.mem(big_int, seen_in_first_col.seen_ints)
+                ? first_unused_bigint(n + 1) : Ctr.of_int(Bigint.of_int(n));
+            };
+            first_unused_bigint(0);
+          },
+          unseen_list,
+        )
+      | Atom(Nat) => (
+          if (use_type_default) {
+            Ctr.of_int(Bigint.of_int(0));
+          } else {
+            let rec first_unused_nat = n => {
+              let big_int = Bigint.of_int(n);
+              IntSet.mem(big_int, seen_in_first_col.seen_ints)
+                ? first_unused_nat(n + 1) : Ctr.of_int(Bigint.of_int(n));
+            };
+            first_unused_nat(0);
+          },
+          unseen_list,
+        )
+      | Atom(SInt) => (
+          if (use_type_default) {
+            Ctr.of_sint(0);
+          } else {
+            let rec first_unused_sint = n => {
+              SIntSet.mem(n, seen_in_first_col.seen_sints)
+                ? first_unused_sint(n + 1) : Ctr.of_sint(n);
+            };
+            first_unused_sint(0);
+          },
+          unseen_list,
+        )
+      | Atom(Float) => (
+          if (use_type_default) {
+            Ctr.of_float(0.);
+          } else {
+            let rec first_unused_float = n => {
+              FloatSet.mem(n, seen_in_first_col.seen_floats)
+                ? first_unused_float(n +. 1.) : Ctr.of_float(n);
+            };
+            first_unused_float(0.);
+          },
+          unseen_list,
+        )
+      | Atom(String) => (
+          if (use_type_default) {
+            Ctr.of_string("");
+          } else {
+            let rec first_unused_str = n => {
+              StringSet.mem(n, seen_in_first_col.seen_strings)
+                ? first_unused_str(n ++ "*") : Ctr.of_string(n);
+            };
+            first_unused_str("");
+          },
+          unseen_list,
+        )
       | Arrow(_)
       | Forall(_)
-      | Var(_) =>
-        if (use_type_default) {Ctr.default_ctr} else {Ctr.default_ctr}
+      | Var(_) => (Ctr.default_ctr, unseen_list)
       | Parens(_)
       | Ap(_)
       | Label(_) =>
@@ -468,7 +519,7 @@ module Submatrices = {
     ctrs: Ctr.Map.t(Matrix.t),
     first_col_exhaustive: bool,
     first_col_redundant_rows: redundant_rows,
-    first_col_unseen: (UnseenCtrList.t, bool) => UnseenCtrList.t,
+    first_col_unseen: (Ctr.t, UnseenCtrList.t, bool) => UnseenCtrList.t,
   };
 
   let rev = (s: t): t => {
@@ -480,7 +531,7 @@ module Submatrices = {
     ctrs: Ctr.Map.empty,
     first_col_exhaustive: false,
     first_col_redundant_rows: [],
-    first_col_unseen: (_, _) => {
+    first_col_unseen: (_, _, _) => {
       [];
     },
   };
@@ -797,20 +848,20 @@ let rec check_matrix = (m: Matrix.t, col_tys: list(Typ.t)): result => {
       let all_ctrs = Ctr.all_ctrs_of_typ(first_col_ty);
       let submatrices = Submatrices.of_matrix(m, all_ctrs, first_col_ty);
 
-      // Ctr.Map.iter(
-      //   (_, submatrix) => {
-      //     List.iter(
-      //       (r: Matrix.row) => {
-      //         List.iter(c => print_string(Constraint.show(c)), r.cols);
-      //         print_newline();
-      //       },
-      //       submatrix,
-      //     );
-      //     print_endline("---");
-      //   },
-      //   submatrices.ctrs,
-      // );
-      // print_endline(string_of_bool(submatrices.first_col_exhaustive));
+      Ctr.Map.iter(
+        (_, submatrix) => {
+          List.iter(
+            (r: Matrix.row) => {
+              List.iter(c => print_string(Constraint.show(c)), r.cols);
+              print_newline();
+            },
+            submatrix,
+          );
+          print_endline("---");
+        },
+        submatrices.ctrs,
+      );
+      print_endline(string_of_bool(submatrices.first_col_exhaustive));
 
       let (is_exhaustive, redundant_rows, unseen_list) =
         Ctr.Map.fold(
@@ -823,6 +874,7 @@ let rec check_matrix = (m: Matrix.t, col_tys: list(Typ.t)): result => {
             | [] =>
               let unseen_list =
                 submatrices.first_col_unseen(
+                  ctr,
                   UnseenCtrList.empty,
                   submatrices.first_col_exhaustive,
                 );
@@ -837,6 +889,7 @@ let rec check_matrix = (m: Matrix.t, col_tys: list(Typ.t)): result => {
                   // if the following column did not break exhaustiveness, but this one does,
                   // we place the unseen value into the list
                   submatrices.first_col_unseen(
+                    ctr,
                     submatrix_check_result.unseen_list,
                     false,
                   );
@@ -845,6 +898,7 @@ let rec check_matrix = (m: Matrix.t, col_tys: list(Typ.t)): result => {
                   // if this column is exhaustive and the following column did not break exhaustiveness,
                   // use the default unseen value for the type
                   submatrices.first_col_unseen(
+                    ctr,
                     submatrix_check_result.unseen_list,
                     true,
                   );
