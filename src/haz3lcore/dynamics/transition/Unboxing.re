@@ -109,7 +109,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (Cons, Cons(x, xs)) => Matches((x, xs))
     /* Tuples can be either tuples or tuple casts */
     | (Tuple(n), Tuple(t)) when List.length(t) == n => Matches(t)
-    | (Tuple(_), Tuple(_)) => DoesNotMatch
+    | (Tuple(_), Tuple(_)) => IndetMatch
     /* Sum constructors can be either sum constructors, sum constructors
        applied to some value or sum casts */
     | (SumNoArg(name1), Constructor(name2, _)) when name1 == name2 =>

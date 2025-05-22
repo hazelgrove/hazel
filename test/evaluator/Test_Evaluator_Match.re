@@ -137,5 +137,17 @@ go(Var("yo"))|},
           end) : String|},
       )
     }),
+    test_case("Indet case of different arity tuples", `Quick, () => {
+      parse_and_evaluate_test(
+        {|(case ()
+          | (1, 2) => true
+          | _ => false
+          end)|},
+        {|(case ()
+          | (1, 2) => true
+          | _ => false
+          end)|},
+      )
+    }),
   ],
 );
