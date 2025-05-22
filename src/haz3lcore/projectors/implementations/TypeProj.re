@@ -112,7 +112,7 @@ let view =
       ~focus as _,
       ~focussed as _,
       model,
-      info,
+      info: info,
     ) => {
   let view_any = x => x |> mk_ed |> view_ed(~sort=Any.sort(x));
   View.{

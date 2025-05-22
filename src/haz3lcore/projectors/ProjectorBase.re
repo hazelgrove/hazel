@@ -15,56 +15,11 @@ open Virtual_dom.Vdom;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type syntax('p) = Base.piece('p);
 
-/* Global actions available to handlers in all projectors */
-type external_action =
-  | Remove /* Remove projector entirely */
-  | Escape(Util.Direction.t); /* Pass focus to parent editor */
+type external_action = ProjectorInterface.external_action;
 
-module Focusable = {
-  /* Can the projector take focus, in the sense of handling
-   * keyboard input? If so, how can it take focus? */
+module Focusable = ProjectorInterface.Focusable;
 
-  /* Callbacks for projectors to react to getting focus */
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type focus_keyboard = (Id.t, Direction.t) => unit;
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type focus_pointer = Id.t => unit;
-
-  /* If keyboard is not None, the projector can get focus
-   * from keyboard arrow movement into it. If pointer is
-   * not None, it can get focus from pointer interaction */
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {
-    pointer: option(focus_pointer),
-    keyboard: option(focus_keyboard),
-  };
-
-  /* Default: A projector that cannot take focus */
-  let non: t = {
-    pointer: None,
-    keyboard: None,
-  };
-};
-
-/* External info proivded to all projectors */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type info = {
-  /* The id of the projector, equal to the id of the root
-   * term of the syntax, provided directly here for convenience.
-   * This is mostly intended to be used as a persistent unique
-   * identifier to allow individual projectors to distiguish
-   * their DOM nodes. */
-  id: Id.t,
-  /* Static information about the syntax including type
-   * information. Statics may be disabled by the user;
-   * this case (None) must be handled by projector authors */
-  statics: option(Statics.Info.t),
-  /* Dynamic information about the syntax including
-   * live values of the syntax. Dynamics may be
-   * disabled by the user; this case (None) must be
-   * handled by projector authors */
-  dynamics: option(Dynamics.Info.t),
-};
+type info = ProjectorInterface.info;
 
 module View = {
   /* A projector has an inline view, which replaces the underlying

@@ -28,3 +28,61 @@ module Maps = Maps;
 // Used by [@deriving sexp, yojson)]
 include Sexplib.Std;
 include Ppx_yojson_conv_lib.Yojson_conv.Primitives;
+
+// /* INTERFACE FILE */
+// module type EDITOR = {
+//   type t;
+//   type projector;
+//   let use: t => t;
+// };
+
+// module type PROJECTOR = {
+//   type t;
+//   type editor;
+//   let mk: editor => t;
+// };
+
+// /* PROJECTOR FILE */
+// module F =
+//        (E: EDITOR)
+//        : (PROJECTOR with type editor = E.t and type t = option(E.t)) => {
+//   type t = option(E.t);
+//   type editor = E.t;
+//   let mk = (x: editor) => Some(x);
+// };
+
+// /* EDITOR FILE */
+// module type CONV = {
+//   type editor;
+//   type projector;
+//   let conv: list(projector) => editor;
+// };
+
+// module G =
+//        (
+//          P: PROJECTOR,
+//          C: CONV with type editor = P.editor and type projector = P.t,
+//        )
+//        : (EDITOR with type projector = P.t and type t = list(P.t)) => {
+//   type t = list(P.t);
+//   type projector = P.t;
+
+//   let use = (x: t) => {
+//     let _: P.t = P.mk(C.conv(x));
+//     x;
+//   };
+// };
+
+// /* TIED KNOT */
+
+// module rec Projector:
+//   PROJECTOR with type editor = Editor.t and type t = option(Editor.t) =
+//   F(Editor)
+// and Editor: EDITOR = G(Projector, Conv)
+
+// and Conv:
+//   CONV with type editor = Projector.editor and type projector = Projector.t = {
+//   type editor = Projector.editor;
+//   type projector = Projector.t;
+//   let conv = (x: Editor.t): Projector.editor => x;
+// };

@@ -7,21 +7,9 @@ open Util.OptUtil.Syntax;
 open Util.Web;
 
 module Model = {
-  type status = {
-    kind: ProjectorCore.Kind.t,
-    sort: Sort.t,
-    indication: option(Direction.t),
-    selected: bool,
-    error: bool,
-  };
+  type status = ProjectorInterface.status;
 
-  type projector_data('p) = {
-    p: Piece.projector('p),
-    info: ProjectorBase.info,
-    measurement: Measured.measurement,
-    offside_base: int,
-    status,
-  };
+  type projector_data('p) = ProjectorInterface.projector_data('p);
 
   type t('ed) = list(projector_data('ed));
 
@@ -51,18 +39,20 @@ module Model = {
         ~selection_ids: list(Id.t),
         ~info: ProjectorBase.info,
         ~id: Id.t,
-      ) => {
-    sort:
-      Option.map(Info.sort_of, info.statics)
-      |> Option.value(~default=Sort.Exp),
-    error:
-      Option.map(Info.is_error, info.statics) |> Option.value(~default=false),
-    kind:
-      p.model
-      |> ((ProjectorCore.V(kind, _)) => ProjectorCore.Kind.of_gadt(kind)),
-    indication: editor_active ? indication(indicated, id) : None,
-    selected: editor_active ? List.mem(id, selection_ids) : false,
-  };
+      ) =>
+    ProjectorInterface.{
+      sort:
+        Option.map(Info.sort_of, info.statics)
+        |> Option.value(~default=Sort.Exp),
+      error:
+        Option.map(Info.is_error, info.statics)
+        |> Option.value(~default=false),
+      kind:
+        p.model
+        |> ((ProjectorCore.V(kind, _)) => ProjectorCore.Kind.of_gadt(kind)),
+      indication: editor_active ? indication(indicated, id) : None,
+      selected: editor_active ? List.mem(id, selection_ids) : false,
+    };
 
   let mk =
       (
@@ -88,7 +78,7 @@ module Model = {
             ~dynamics,
             //~utility=ProjectorInfo.utility,
           );
-        {
+        ProjectorInterface.{
           p,
           info,
           measurement,

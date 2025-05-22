@@ -56,17 +56,7 @@ module Kind = {
    * types need to be registered here in order to be
    * able to create and update their instances */
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
-  type t =
-    // | Fold
-    | Info
-    | Pair
-    // | Probe
-    // | Checkbox
-    | Slider
-    // | SliderF
-    // | Card
-    | Livelit;
-  // | TextArea;
+  type t = ProjectorInterface.projector_kind;
 
   let gadt_eq =
       (

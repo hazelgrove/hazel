@@ -103,7 +103,8 @@ let index = (z: ZipperBase.t('p)): option(Id.t) =>
 let piece'' = piece'(~no_ws=true, ~ign=Piece.is_secondary, _);
 
 let ci_of =
-    (z: ZipperBase.t('p), info_map: Statics.Map.t): option(Statics.Info.t) =>
+    (type p, z: ZipperBase.t(p), info_map: Statics.Map.t)
+    : option(Statics.Info.t) =>
   /* This version takes into accounts Secondary, while accounting for the
    * fact that Secondary is not currently added to the info_map. First we
    * try the basic indication function, specifying that we do not want

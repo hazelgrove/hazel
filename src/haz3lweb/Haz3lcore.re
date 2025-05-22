@@ -1,79 +1,39 @@
 include Haz3lcorep;
 open Util;
 
-module rec Projector: {
-  module Model: {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t;
+module ProjectorOfEditor =
+       (Editor: ProjectorInterface.EDITOR)
 
-    let mk:
-      (ProjectorCore.Kind.t, Any.t, unit => option(Editor.Model.t)) =>
-      option(t);
+         : (
+           ProjectorInterface.PROJECTOR with
+             type editor_model = Editor.model and
+             type editor_action = Editor.action and
+             type editor_focus = Editor.focus and
+             type model =
+               ProjectorCore.model(
+                 Editor.model,
+                 Editor.action,
+                 Editor.focus,
+               ) and
+             type action = ProjectorCore.Update.t(Editor.action) and
+             type focus = ProjectorCore.Focus.t(Editor.focus)
+       ) => {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type model = ProjectorCore.model(Editor.model, Editor.action, Editor.focus);
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type editor_model = Editor.model;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type action = ProjectorCore.Update.t(Editor.action);
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type editor_action = Editor.action;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type focus = ProjectorCore.Focus.t(Editor.focus);
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type editor_focus = Editor.focus;
 
-    let get_kind: t => ProjectorCore.Kind.t;
-    let get_shape:
-      (Statics.Map.t, Dynamics.Map.t, Base.projector(t)) => ProjectorShape.t;
-    let get_focusable: t => ProjectorBase.Focusable.t;
-    let focusable_of_kind: ProjectorCore.Kind.t => ProjectorBase.Focusable.t;
-
-    let make_term: (t, Sort.t) => Any.t;
-  };
-
-  module Update: {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t;
-
-    let update:
-      (
-        ~common: ProjectorInterface.common,
-        ~sort: Sort.t,
-        ~id: Id.t,
-        t,
-        Model.t
-      ) =>
-      Model.t;
-
-    let calculate:
-      (~common: ProjectorInterface.common, ~sort: Sort.t, Model.t) => Model.t;
-  };
-
-  module Focus: {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t;
-
-    let handle_key_event:
-      (~focus: t, ~key: Key.t, Model.t) => option(Update.t);
-  };
-
-  module View: {
-    let split_views:
-      (
-        ~common: ProjectorInterface.common,
-        ~sort: Sort.t,
-        ~parent: ProjectorBase.external_action => Ui_effect.t(unit),
-        ~inject: Update.t => Ui_effect.t(unit),
-        ~focus: Focus.t => Ui_effect.t(unit),
-        ~focussed: option(Focus.t),
-        ProjectorView.Model.projector_data(Model.t)
-      ) =>
-      (Web.Node.t, option(Web.Node.t));
-
-    let mk_status:
-      (
-        Base.projector(Model.t),
-        ~editor_active: bool,
-        ~indicated: option((Id.t, Direction.t)),
-        ~selection_ids: list(Id.t),
-        ~info: ProjectorBase.info,
-        ~id: Id.t
-      ) =>
-      ProjectorView.Model.status;
-  };
-} = {
   module Model = {
     [@deriving (show({with_path: false}), sexp, yojson)]
-    type t =
-      ProjectorCore.model(Editor.Model.t, Editor.Update.t, Editor.Focus.t);
+    type t = model;
 
     let get_shape =
       Haz3lcorep.ProjectorInfo.ShapeMapSemantics.from_semantics(
@@ -93,7 +53,7 @@ module rec Projector: {
 
   module Update = {
     [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = ProjectorCore.Update.t(Editor.Update.t);
+    type t = action;
 
     let update = (~common) =>
       ProjectorCore.Update.update(
@@ -129,8 +89,35 @@ module rec Projector: {
           ~focussed: option(Focus.t),
           m: ProjectorView.Model.projector_data(Model.t),
         )
-        : (Web.Node.t, option(Web.Node.t)) =>
-      ProjectorView.split_views(
+        : (Web.Node.t, option(Web.Node.t)) => {
+      let split_views:
+        (
+          ~common: ProjectorInterface.common,
+          ~ed_str: editor_model => string,
+          ~view_ed: (~sort: Sort.t, editor_model) => Web.Node.t,
+          ~view_editable:
+            (
+              ~common: ProjectorInterface.common,
+              ~inject: editor_action => Ui_effect.t(unit),
+              ~focus: editor_focus => Ui_effect.t(unit),
+              ~focussed: option(editor_focus),
+              ~overlays: list(Web.Node.t)=?,
+              ~sort: Sort.t,
+              editor_model
+            ) =>
+            Web.Node.t,
+          ~mk_ed: Any.t => editor_model,
+          ~parent: ProjectorBase.external_action => Ui_effect.t(unit),
+          ~inject:
+            ProjectorCore.Update.t(editor_action) => Ui_effect.t(unit),
+          ~focus: ProjectorCore.Focus.t(editor_focus) => Ui_effect.t(unit),
+          ~focussed: option(ProjectorCore.Focus.t(editor_focus)),
+          ProjectorInterface.projector_data(
+            ProjectorCore.model(editor_model, editor_action, editor_focus),
+          )
+        ) =>
+        (Web.Node.t, option(Web.Node.t)) = ProjectorView.split_views;
+      split_views(
         ~common,
         ~parent,
         ~inject,
@@ -146,113 +133,80 @@ module rec Projector: {
         ~focussed,
         m,
       );
+    };
 
     let mk_status = ProjectorView.Model.mk_status;
   };
-}
-and Editor: {
-  module Model: {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t =
-      Haz3lcorep.Editor.t(
-        ProjectorCore.Kind.t,
-        Projector.Model.t,
-        Projector.Update.t,
-      ); // Transparent definition needed for handing editor to projectorinit
+};
 
-    let mk: (~settings: CoreSettings.t, ~inline: bool=?, Any.t) => t;
+module type CYCLIC_CONVERTER = {
+  type projector_model;
+  type projector_action;
+  type projector_focus;
+  type editor_model;
+  type editor_action;
+  type editor_focus;
 
-    let get_z: t => Zipper.t(Projector.Model.t);
-    let make_term: (Sort.t, t) => Any.t;
-    let get_trailing_hole_ctx: (t, Statics.Map.t) => option(Ctx.t);
-    // [@deriving (show({with_path: false}), sexp, yojson)]
-    // type persistent;
-    // let persist: t => persistent;
-    // let unpersist: persistent => t;
-    let of_zipper: (~sort: Sort.t, Zipper.t(Projector.Model.t)) => t; // TODO: Replace with persistence logic
-  };
+  let conv:
+    Haz3lcorep.Editor.t(
+      ProjectorCore.Kind.t,
+      projector_model,
+      projector_action,
+    ) =>
+    editor_model;
+};
 
-  module Update: {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t =
-      Action.t(ProjectorCore.Kind.t, Projector.Model.t, Projector.Update.t);
+module EditorOfProjector =
+       (
+         Projector: ProjectorInterface.PROJECTOR,
+         CyclicConverter:
+           CYCLIC_CONVERTER with
+             type projector_model = Projector.model and
+             type projector_action = Projector.action and
+             type projector_focus = Projector.focus and
+             type editor_model = Projector.editor_model and
+             type editor_action = Projector.editor_action and
+             type editor_focus = Projector.editor_focus,
+       )
 
-    let update:
-      (~common: ProjectorInterface.common, ~sort: Sort.t, t, Model.t) =>
-      Model.t;
+         : (
+           ProjectorInterface.EDITOR with
+             type model =
+               Haz3lcorep.Editor.t(
+                 ProjectorCore.Kind.t,
+                 Projector.model,
+                 Projector.action,
+               ) and
+             type action =
+               Action.t(
+                 ProjectorCore.Kind.t,
+                 Projector.model,
+                 Projector.action,
+               ) and
+             type focus = EditorView.Focus.t(Projector.focus) and
+             type projector_model = Projector.model and
+             type projector_action = Projector.action and
+             type projector_focus = Projector.focus
+       ) => {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type model =
+    Haz3lcorep.Editor.t(
+      ProjectorCore.Kind.t,
+      Projector.model,
+      Projector.action,
+    );
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type projector_model = Projector.model;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type action =
+    Action.t(ProjectorCore.Kind.t, Projector.model, Projector.action);
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type projector_action = Projector.action;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type focus = EditorView.Focus.t(Projector.focus);
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type projector_focus = Projector.focus;
 
-    let calculate:
-      (
-        ~common: ProjectorInterface.common,
-        ~is_edited: bool,
-        ~sort: Sort.t,
-        Model.t
-      ) =>
-      Model.t;
-
-    let key_handoff:
-      (Model.t, Key.t) =>
-      option(
-        Action.project(
-          ProjectorCore.Kind.t,
-          Projector.Model.t,
-          Projector.Update.t,
-        ),
-      );
-    let jump_to_tile_action:
-      (Id.t, Model.t) =>
-      option(
-        Action.t(ProjectorCore.Kind.t, Projector.Model.t, Projector.Update.t),
-      );
-  };
-
-  module Focus: {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t;
-
-    // TODO[Matt]: Used in jump to tile logic which will need updating.
-    let here: t;
-
-    let handle_key_event:
-      (~focus: t, ~key: Key.t, Model.t) => option(Update.t);
-  };
-
-  module View: {
-    let print_string: Model.t => string;
-
-    let view:
-      (
-        ~font_metrics: FontMetrics.t,
-        ~secondary_icons: bool,
-        ~sort: Sort.t,
-        Model.t
-      ) =>
-      Web.Node.t;
-
-    let view_editable:
-      (
-        ~common: ProjectorInterface.common,
-        ~inject:
-          Action.t(
-            ProjectorCore.Kind.t,
-            Projector.Model.t,
-            Projector.Update.t,
-          ) =>
-          Ui_effect.t(unit),
-        ~focus: Focus.t => Ui_effect.t(unit),
-        ~focussed: option(Focus.t),
-        ~overlays: list(Web.Node.t)=?,
-        ~sort: Sort.t,
-        Model.t
-      ) =>
-      Web.Node.t;
-  };
-
-  // TODO: refactor these helper functions away
-
-  let get_measured: Model.t => Measured.t;
-  let get_tiles: Model.t => TileMap.t(Projector.Model.t);
-} = {
   module Model = {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t =
@@ -311,7 +265,11 @@ and Editor: {
         Haz3lcorep.Editor.Update.update(
           ~settings=common.settings,
           ~sort,
-          ~projector_init=Projector.Model.mk,
+          ~projector_init=
+            (k, a, e) =>
+              Projector.Model.mk(k, a, () =>
+                Option.map(CyclicConverter.conv, e())
+              ),
           ~projector_to_term=Projector.Model.make_term,
           ~shape_of_projector=Projector.Model.get_shape,
           ~update_projector=Projector.Update.update(~common),
@@ -345,7 +303,11 @@ and Editor: {
         ~common,
         ~settings=common.settings,
         ~is_edited,
-        ~projector_init=Projector.Model.mk,
+        ~projector_init=
+          (k, a, e) =>
+            Projector.Model.mk(k, a, () =>
+              Option.map(CyclicConverter.conv, e())
+            ),
         ~projector_to_term=Projector.Model.make_term,
         ~shape_of_projector=Projector.Model.get_shape,
         ~seg_of_projector=
@@ -426,7 +388,7 @@ and Editor: {
     let handle_key_event =
       EditorView.Focus.handle_key_event(
         ~handle_key_pr=Projector.Focus.handle_key_event,
-        ~info_projector=ProjectorCore.Kind.Info: ProjectorCore.Kind.t,
+        ~info_projector=ProjectorInterface.Info: ProjectorCore.Kind.t,
       );
   };
 
@@ -453,6 +415,37 @@ and Editor: {
       );
   };
 };
+
+module rec CyclicConverter:
+  CYCLIC_CONVERTER with
+    type projector_model = Projector.model and
+    type projector_action = Projector.action and
+    type projector_focus = Projector.focus and
+    type editor_model = Projector.editor_model and
+    type editor_action = Projector.editor_action and
+    type editor_focus = Projector.editor_focus = {
+  type projector_model = Projector.model;
+  type projector_action = Projector.action;
+  type projector_focus = Projector.focus;
+  type editor_model = Projector.editor_model;
+  type editor_action = Projector.editor_action;
+  type editor_focus = Projector.editor_focus;
+
+  let conv = (x: Editor.model): Projector.editor_model => x;
+}
+
+and Projector:
+  ProjectorInterface.PROJECTOR with
+    type model =
+      ProjectorCore.model(Editor.model, Editor.action, Editor.focus) and
+    type action = ProjectorCore.Update.t(Editor.action) and
+    type focus = ProjectorCore.Focus.t(Editor.focus) and
+    type editor_model = Editor.model and
+    type editor_action = Editor.action and
+    type editor_focus = Editor.focus =
+  ProjectorOfEditor(Editor)
+and Editor: ProjectorInterface.EDITOR =
+  EditorOfProjector(Projector, CyclicConverter);
 
 module PersistentZipper = {
   include PersistentZipper;
