@@ -31,26 +31,25 @@ module Kind = {
             )
     // | Probe: gadt(ProbeProj.model('ed), ProbeProj.action, 'ed)
     // | Checkbox: gadt(CheckboxProj.model('ed), CheckboxProj.action, 'ed)
-    | Slider
+    | Slider: gadt(
+                SliderProj.model('ed),
+                SliderProj.action('ed_a),
+                SliderProj.focus('ed_f),
+                'ed,
+                'ed_a,
+                'ed_f,
+              )
+    // | SliderF: gadt(SliderFProj.model('ed), SliderFProj.action, 'ed)
+    // | Card: gadt(CardProj.model('ed), CardProj.action, 'ed)
+    | Livelit
         : gadt(
-            SliderProj.model('ed),
-            SliderProj.action('ed_a),
-            SliderProj.focus('ed_f),
+            LivelitProj.model('ed),
+            LivelitProj.action('ed_a),
+            LivelitProj.focus('ed_f),
             'ed,
             'ed_a,
             'ed_f,
           );
-  // | SliderF: gadt(SliderFProj.model('ed), SliderFProj.action, 'ed)
-  // | Card: gadt(CardProj.model('ed), CardProj.action, 'ed)
-  // | Livelit
-  //     : gadt(
-  //         LivelitProj.model('ed),
-  //         LivelitProj.action('ed_a),
-  //         LivelitProj.focus('ed_f),
-  //         'ed,
-  //         'ed_a,
-  //         'ed_f,
-  //       )
   // | TextArea: gadt(TextAreaProj.model('ed), TextAreaProj.action, 'ed);
 
   /* The different kinds of projector. New projector
@@ -63,10 +62,10 @@ module Kind = {
     | Pair
     // | Probe
     // | Checkbox
-    | Slider;
-  // | SliderF
-  // | Card
-  // | Livelit;
+    | Slider
+    // | SliderF
+    // | Card
+    | Livelit;
   // | TextArea;
 
   let gadt_eq =
@@ -93,6 +92,8 @@ module Kind = {
     | (Pair, _) => false
     | (Slider, Slider) => true
     | (Slider, _) => false
+    | (Livelit, Livelit) => true
+    | (Livelit, _) => false
     };
   };
 
@@ -114,6 +115,7 @@ module Kind = {
     // | Probe => Probe
     // | Checkbox => Checkbox
     | Slider => Slider
+    | Livelit => Livelit
     // | SliderF => SliderF
     // | Card => Card
     // | TextArea => TextArea
@@ -130,7 +132,7 @@ module Kind = {
     // | Probe => f(W(Probe))
     // | Checkbox => f(W(Checkbox))
     | Slider => f(W(Slider))
-    // | Livelit => f(W(Livelit))
+    | Livelit => f(W(Livelit))
     // | SliderF => f(W(SliderF))
     // | Card => f(W(Card))
     // | TextArea => f(W(TextArea))
@@ -151,6 +153,7 @@ module Kind = {
     @ [
       // Fold,
       Info,
+      Livelit,
       // Probe
     ];
 
@@ -165,6 +168,7 @@ module Kind = {
     // | Probe => "probe"
     // | Checkbox => "check"
     | Slider => "slider"
+    | Livelit => "livelit"
     // | SliderF => "sliderf"
     // | Card => "card"
     // | TextArea => "text"
@@ -181,6 +185,7 @@ module Kind = {
     // | "probe" => Probe
     // | "check" => Checkbox
     | "slider" => Slider
+    | "livelit" => Livelit
     // | "sliderf" => SliderF
     // | "text" => TextArea
     // | "card" => Card
@@ -216,6 +221,7 @@ let to_module =
   // | Probe => ProbeProj.methods
   // | Checkbox => CheckboxProj.methods
   | Slider => SliderProj.methods
+  | Livelit => LivelitProj.methods
   // | SliderF => SliderFProj.methods
   // | Card => CardProj.methods
   // | TextArea => TextAreaProj.methods

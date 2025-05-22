@@ -224,7 +224,6 @@ let rec go =
       switch (Ctx.lookup_livelit(ctx, name)) {
       // if we find a matching livelit, insert it, projected
       | Some(ll) =>
-        // TODO[Matt]: Bring back
         // let exp_to_segment =
         //   ExpToSegment.(
         //     exp_to_segment(
