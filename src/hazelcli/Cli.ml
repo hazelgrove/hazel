@@ -62,21 +62,26 @@ let format_cmd =
   let info = Cmd.info "format" ~doc in
   Cmd.v info Term.(const format_hazel $ input_arg)
 
-let generate_test_program size =
-  let arb = QCheck_Util.arb_exp ~minimal_idents:true size in
-  let gen = arb.gen in
-  let program = QCheck.Gen.generate1 gen in
-
-  print_endline (Print.print program)
-
-let size_arg =
+  let size_arg =
   let doc = "Size of the generated test program." in
   Arg.(value & opt int 35 & info [ "s"; "size" ] ~docv:"SIZE" ~doc)
 
+let count_arg =
+  let doc = "Number of test programs to generate." in
+  Arg.(value & opt int 1 & info [ "c"; "count" ] ~docv:"COUNT" ~doc)
+
+let generate_test_program size count =
+  let arb = QCheck_Util.arb_exp ~minimal_idents:true size in
+  let gen = arb.gen in
+  for _ = 1 to count do
+    let program = QCheck.Gen.generate1 gen in
+    print_endline (Print.print program)
+  done
+
 let generate_test_program_cmd =
-  let doc = "Generate a test program." in
+  let doc = "Generate test programs." in
   let info = Cmd.info "generate-test" ~doc in
-  Cmd.v info Term.(const generate_test_program $ size_arg)
+  Cmd.v info Term.(const generate_test_program $ size_arg $ count_arg)
 
 let _analyze_cmd =
   let doc = "Perform static analysis on Hazel code." in
