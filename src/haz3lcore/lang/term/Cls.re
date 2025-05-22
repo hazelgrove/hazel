@@ -5,6 +5,7 @@ type t =
   | Typ(Typ.cls)
   | TPat(TPat.cls)
   | Rul(Rul.cls)
+  | Label
   | Secondary(Secondary.cls);
 
 let show = (cls: t) =>
@@ -14,5 +15,6 @@ let show = (cls: t) =>
   | Typ(cls) => Typ.show_cls(cls)
   | TPat(cls) => TPat.show_cls(cls)
   | Rul(cls) => Rul.show_cls(cls)
+  | Label => "Label"
   | Secondary(cls) => Secondary.show_cls(cls)
   };

@@ -86,6 +86,7 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | Arrow(_) => Arrow
   | Var(_) => Var
   | Prod(_) => Prod
+  | LabeledProd(_) => Prod
   | TupLabel(_) => TupLabel
   | Label(_) => Label
   | Parens(_) => Parens
@@ -318,6 +319,39 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       Prod(tys) |> temp;
     }
   | (Prod(_), _) => None
+  | (LabeledProd(entries1), LabeledProd(entries2)) =>
+    let entries1 = List.map(LabeledTuple.project, entries1);
+    let entries2 = List.map(LabeledTuple.project, entries2);
+
+    let joined =
+      List.map2(
+        (
+          (
+            l1: option(Grammar.label_t(IdTagged.IdTag.t)),
+            t1: Grammar.typ_t(IdTagged.IdTag.t),
+          ),
+          (
+            l2: option(Grammar.label_t(IdTagged.IdTag.t)),
+            t2: Grammar.typ_t(IdTagged.IdTag.t),
+          ),
+        ) => {
+          switch (t1.term, t2.term) {
+          | (Unknown(_), _) =>
+            Some(LabeledTuple.from_parts(~ann=IdTagged.IdTag.temp(), l2, t2))
+          | (_, Unknown(_)) =>
+            Some(LabeledTuple.from_parts(~ann=IdTagged.IdTag.temp(), l1, t1))
+          | _ =>
+            let* l = OptUtil.map2(Label.join, l1, l2);
+            let+ t = join'(t1, t2);
+            LabeledTuple.from_parts(~ann=IdTagged.IdTag.temp(), l, t);
+          }
+        },
+        entries1,
+        entries2,
+      );
+    let+ seqd = OptUtil.sequence(joined);
+    LabeledProd(seqd) |> temp;
+  | (LabeledProd(_), _) => None
   | (Sum(sm1), Sum(sm2)) =>
     let+ sm' = ConstructorMap.join(equal, join(~resolve, ctx), sm1, sm2);
     Sum(sm') |> temp;
@@ -415,6 +449,9 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   | Arrow(t1, t2) =>
     Arrow(normalize(ctx, t1), normalize(ctx, t2)) |> rewrap
   | Prod(ts) => Prod(List.map(normalize(ctx), ts)) |> rewrap
+  | LabeledProd(entries) =>
+    LabeledProd(LabeledTuple.map_elements(normalize(ctx), entries))
+    |> rewrap
   | TupLabel(label, ty) =>
     TupLabel(normalize(ctx, label), normalize(ctx, ty)) |> rewrap
   | Sum(ts) =>
@@ -647,6 +684,7 @@ let rec is_ana_atom = (ty: t) =>
   | List(_)
   | Arrow(_)
   | Prod(_)
+  | LabeledProd(_)
   | Sum(_) => None
   };
 

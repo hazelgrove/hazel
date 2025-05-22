@@ -397,11 +397,6 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
   | Bin(Exp(l), tiles, Exp(r)) as tm =>
     switch (is_tuple_exp(tiles)) {
     | Some(between_kids) =>
-      print_endline("L: " ++ Exp.show(l));
-      print_endline(
-        "Between: " ++ [%derive.show: list(Exp.t)](between_kids),
-      );
-      print_endline("R: " ++ Exp.show(r));
       let tuple_children: list(Exp.labeled_entry_t) =
         [l]
         @ between_kids
@@ -666,7 +661,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     | ([(_id, tile)], []) =>
       ret(
         switch (tile) {
-        | ([t], []) when Form.is_empty_tuple(t) => Prod([])
+        | ([t], []) when Form.is_empty_tuple(t) => LabeledProd([])
         | (["Bool"], []) => Atom(Bool)
         | (["Int"], []) => Atom(Int)
         | (["SInt"], []) => Atom(SInt)
@@ -722,18 +717,18 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
   | Bin(Typ(l), tiles, Typ(r)) as tm =>
     switch (is_tuple_typ(tiles)) {
     | Some(between_kids) =>
-      let tuple_children: list(Typ.t) =
+      let tuple_children: list(Typ.labeled_entry_t) =
         [l]
         @ between_kids
         @ [r]
         |> List.map((child: Typ.t) => {
              switch (child) {
-             | {term: Prod([{term: TupLabel(_), _} as tl]), _} => tl
-             | _ => child
+             | {term: LabeledProd([Labeled(_) as tl]), _} => tl
+             | _ => Unlabeled(child)
              }
            });
 
-      ret(Prod(tuple_children));
+      ret(LabeledProd(tuple_children));
     | None =>
       switch (tiles) {
       | ([(_id, (["->"], []))], []) => ret(Arrow(l, r))
@@ -741,13 +736,18 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         switch (l.term) {
         | Var(name) =>
           ret(
-            TupLabel(
-              {
-                annotation: l.annotation,
-                term: Label(name),
-              },
-              r,
-            ),
+            LabeledProd([
+              Labeled(
+                (
+                  {
+                    annotation: l.annotation,
+                    term: Label(name),
+                  }: Label.t,
+                  r,
+                )
+                |> IdTagged.fresh,
+              ),
+            ]),
           )
         | _ => ret(TupLabel(l, r))
         }

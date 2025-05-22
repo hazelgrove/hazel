@@ -72,7 +72,7 @@ let tests =
           let_(
             Pat.cast(
               Pat.var("x"),
-              Typ.(parens(prod([tup_label(label("l"), string())]))),
+              Typ.(parens(labeled_prod([labeled("l", string())]))),
               Typ.unknown(Internal),
             ),
             parens(string("a")),
@@ -90,7 +90,7 @@ let tests =
               Pat.(
                 cast(
                   var("y"),
-                  Typ.(parens(prod([tup_label(label("l"), int())]))),
+                  Typ.(parens(labeled_prod([labeled("l", int())]))),
                   Typ.unknown(Internal),
                 )
               ),
@@ -121,9 +121,9 @@ let tests =
                 var("x"),
                 Typ.(
                   parens(
-                    prod([
-                      tup_label(label("l"), int()),
-                      tup_label(label("l2"), string()),
+                    labeled_prod([
+                      labeled("l", int()),
+                      labeled("l2", string()),
                     ]),
                   )
                 ),

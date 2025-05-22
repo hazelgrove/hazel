@@ -51,6 +51,7 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | Label => label("label")
       | TupLabel => tup_label(label("label"), empty_hole())
       | Tuple => tuple([])
+      | LabeledTuple => labeled_tuple([]) // TODO
       | Dot => dot(empty_hole(), empty_hole())
       | LivelitName => livelit_name("^slider")
       | LivelitAp => livelit_ap(Forward, livelit_name("^slider"), int(1))

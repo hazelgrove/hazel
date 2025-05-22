@@ -131,6 +131,7 @@ let fully_consistent_typecheck = (name, serialized, expected) => {
     `Quick,
     () => {
       let exp = parse_exp(serialized);
+      print_endline("Parsed: " ++ Exp.show(exp));
       let s = statics(exp);
       let errors = List.map(snd, Statics.Map.errors(s));
       Alcotest.check(list(testable_error), "Static Errors", [], errors);

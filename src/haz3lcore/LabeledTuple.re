@@ -63,6 +63,29 @@ let project:
     };
   };
 
+let from_parts:
+  type a b.
+    (~ann: a, option(Grammar.label_t(a)), b) =>
+    Grammar.labeled_entry_t(a, b) =
+  (~ann, label, e) => {
+    switch (label) {
+    | Some(l) =>
+      Labeled({
+        term: (l, e),
+        annotation: ann,
+      })
+    | None => Unlabeled(e)
+    };
+  };
+
+let entry_rep_id: Grammar.labeled_entry_t(IdTagged.IdTag.t, 'a) => Id.t =
+  entry => {
+    switch (entry) {
+    | Labeled(e) => IdTagged.rep_id(e)
+    | Unlabeled(e) => IdTagged.rep_id(e)
+    };
+  };
+
 // This function should only be used for type checking labels
 let match_labels: (label, label) => bool =
   (label1, label2) => {

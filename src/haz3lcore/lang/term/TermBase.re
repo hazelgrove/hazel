@@ -244,6 +244,7 @@ and Exp: {
   type deferral_position = deferral_position_t;
   let map_term: map_term(t);
 
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type labeled_entry_t = Grammar.labeled_entry_t(IdTagged.IdTag.t, t);
 
   let fast_equal: (t, t) => bool;
@@ -256,6 +257,7 @@ and Exp: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type deferral_position = deferral_position_t;
 
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type labeled_entry_t = Grammar.labeled_entry_t(IdTagged.IdTag.t, t);
 
   let map_term =

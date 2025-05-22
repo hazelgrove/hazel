@@ -98,12 +98,12 @@ let tests = [
   fully_consistent_typecheck(
     "Assigning labeled tuple to variable",
     "let x = (l=32) in let y : (l=Int) = x in y",
-    Some(prod([tup_label(label("l"), int())])),
+    Some(labeled_prod([labeled("l", int())])),
   ),
   fully_consistent_typecheck(
     "Singleton Labeled Tuple ascription in let",
     "let x : (l=String) = (\"a\") in x",
-    Some(prod([tup_label(label("l"), string())])),
+    Some(labeled_prod([labeled("l", string())])),
   ),
   test_case(
     "Singleton Labeled Tuple ascription in let with wrong type should fail",
@@ -117,7 +117,7 @@ let tests = [
             Pat.(
               cast(
                 var("x"),
-                Typ.(parens(prod([tup_label(label("l"), string())]))),
+                Typ.(parens(labeled_prod([labeled("l", string())]))),
                 Typ.unknown(Internal),
               )
             ),
@@ -148,7 +148,7 @@ let tests = [
   fully_consistent_typecheck(
     "Singleton Labled Tuple with specified label",
     "let x : (l=String) = (l=\"a\") in x",
-    Some(prod([tup_label(label("l"), string())])),
+    Some(labeled_prod([labeled("l", string())])),
   ),
   fully_consistent_typecheck(
     "Labeled tuple with multiple labels",
@@ -190,15 +190,13 @@ let tests = [
   fully_consistent_typecheck(
     "Singleton labeled argument let with unknown type",
     {|let x : (a=?) = (a=1) in x|},
-    Some(prod([tup_label(label("a"), unknown(Hole(EmptyHole)))])),
+    Some(labeled_prod([labeled("a", unknown(Hole(EmptyHole)))])),
   ),
   fully_consistent_typecheck(
     "nested different singleton labeled arguments",
     {|let x : (b=c=String) = b="" in x|},
     Some(
-      prod([
-        tup_label(label("b"), prod([tup_label(label("c"), string())])),
-      ]),
+      labeled_prod([labeled("b", labeled_prod([labeled("c", string())]))]),
     ),
   ),
   fully_consistent_typecheck(
@@ -208,10 +206,10 @@ let tests = [
       prod([
         tup_label(
           label("a"),
-          prod([
-            tup_label(
-              label("b"),
-              prod([tup_label(label("c"), unknown(Hole(EmptyHole)))]),
+          labeled_prod([
+            labeled(
+              "b",
+              labeled_prod([labeled("c", unknown(Hole(EmptyHole)))]),
             ),
           ]),
         ),

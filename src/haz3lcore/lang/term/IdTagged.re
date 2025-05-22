@@ -8,6 +8,8 @@ module IdTag = {
   };
 
   let fresh = (): t => {ids: [Id.mk()]};
+
+  let temp = (): t => {ids: [Id.invalid]};
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -65,6 +67,14 @@ let replace_temp = ({term, annotation: {ids}}: t('a)): t('a) => {
     ids: ids == [Id.invalid] ? [Id.mk()] : ids,
   },
 };
+
+let temp: 'a => t('a) =
+  term => {
+    term,
+    annotation: {
+      ids: [Id.invalid],
+    },
+  };
 
 module FreshGrammar =
   Grammar.Factory({

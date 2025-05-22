@@ -148,6 +148,10 @@ type status_pat =
   | InHole(error_pat)
   | NotInHole(ok_pat);
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type status_label =
+  | NotInHole;
+
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type status_variant =
   | Unique
@@ -252,6 +256,21 @@ type exp = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type label = {
+  term: Label.t,
+  status: status_label,
+  ctx: Ctx.t,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type tuple_entry = {
+  term: Exp.labeled_entry_t,
+  ancestors,
+  ty: Typ.labeled_entry_t,
+  ctx: Ctx.t,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type pat = {
   term: Pat.t,
   ancestors,
@@ -300,6 +319,8 @@ type secondary = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | InfoExp(exp)
+  | InfoLabel(label)
+  | InfoEntry(tuple_entry)
   | InfoPat(pat)
   | InfoTyp(typ)
   | InfoTPat(tpat)
@@ -318,6 +339,8 @@ let sort_of: t => Sort.t =
   | InfoPat(_) => Pat
   | InfoTyp(_) => Typ
   | InfoTPat(_) => TPat
+  | InfoLabel(_) => Label
+  | InfoEntry(_) => Label // TODO
   | Secondary(s) => s.sort;
 
 let cls_of: t => Cls.t =
@@ -326,7 +349,9 @@ let cls_of: t => Cls.t =
   | InfoPat({cls, _})
   | InfoTyp({cls, _})
   | InfoTPat({cls, _})
-  | Secondary({cls, _}) => cls;
+  | Secondary({cls, _}) => cls
+  | InfoLabel(_) => Label
+  | InfoEntry(_) => Label; // TODO
 
 let any_of: t => option(Term.Any.t) =
   fun
@@ -334,14 +359,18 @@ let any_of: t => option(Term.Any.t) =
   | InfoPat({term, _}) => Some(Pat(term))
   | InfoTyp({term, _}) => Some(Typ(term))
   | InfoTPat({term, _}) => Some(TPat(term))
-  | Secondary(_) => None;
+  | Secondary(_) => None
+  | InfoLabel({term, _}) => Some(Label(term))
+  | InfoEntry(_) => None; // TODO
 
 let ctx_of: t => Ctx.t =
   fun
+  | InfoLabel({ctx, _})
   | InfoExp({ctx, _})
   | InfoPat({ctx, _})
   | InfoTyp({ctx, _})
   | InfoTPat({ctx, _})
+  | InfoEntry({ctx, _})
   | Secondary({ctx, _}) => ctx;
 
 let ancestors_of: t => ancestors =
@@ -349,7 +378,9 @@ let ancestors_of: t => ancestors =
   | InfoExp({ancestors, _})
   | InfoPat({ancestors, _})
   | InfoTyp({ancestors, _})
+  | InfoEntry({ancestors, _})
   | InfoTPat({ancestors, _}) => ancestors
+  | InfoLabel(_) => [] // TODO
   | Secondary(_) => []; //TODO
 
 let id_of: t => Id.t =
@@ -358,6 +389,8 @@ let id_of: t => Id.t =
   | InfoPat(i) => Pat.rep_id(i.term)
   | InfoTyp(i) => Typ.rep_id(i.term)
   | InfoTPat(i) => TPat.rep_id(i.term)
+  | InfoLabel(i) => Label.rep_id(i.term)
+  | InfoEntry(i) => LabeledTuple.entry_rep_id(i.term)
   | Secondary(s) => s.id;
 
 let error_of: t => option(error) =
@@ -370,6 +403,8 @@ let error_of: t => option(error) =
   | InfoPat({status: InHole(err), _}) => Some(Pat(err))
   | InfoTyp({status: InHole(err), _}) => Some(Typ(err))
   | InfoTPat({status: InHole(err), _}) => Some(TPat(err))
+  | InfoLabel({status: NotInHole, _}) => None
+  | InfoEntry(_) => None
   | Secondary(_) => None;
 
 let exp_co_ctx: exp => CoCtx.t = ({co_ctx, _}) => co_ctx;
@@ -712,6 +747,11 @@ let is_error = (ci: t): bool => {
     | InHole(_) => true
     | NotInHole(_) => false
     }
+  | InfoLabel({status, _}) =>
+    switch (status) {
+    | NotInHole => false
+    }
+  | InfoEntry(_) => false
   | Secondary(_) => false
   };
 };

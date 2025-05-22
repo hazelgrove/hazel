@@ -494,6 +494,7 @@ and parenthesize_typ =
   | List(t) =>
     List(parenthesize_typ(t) |> paren_typ_at(Precedence.min)) |> rewrap
   | Prod([]) => typ
+  | LabeledProd([]) => typ
   | Prod(ts) =>
     let inner =
       Prod(
@@ -502,6 +503,14 @@ and parenthesize_typ =
         |> List.map(paren_typ_at(Precedence.comma)),
       )
       |> rewrap;
+    already_paren ? inner : Parens(inner) |> Typ.fresh;
+  | LabeledProd(entries) =>
+    let parenthesized_entries =
+      LabeledTuple.map_elements(
+        ty => ty |> parenthesize_typ |> paren_typ_at(Precedence.comma),
+        entries,
+      );
+    let inner = LabeledProd(parenthesized_entries) |> rewrap;
     already_paren ? inner : Parens(inner) |> Typ.fresh;
   | Label(_) => typ
   | TupLabel(l, t) =>
@@ -1361,6 +1370,77 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
           ts,
         ),
       );
+  | LabeledProd([]) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "()")
+  | LabeledProd([t, ...ts]) =>
+    let go_label: Label.t => pretty = (
+      label =>
+        switch (label.term) {
+        | Label(l) => text_to_pretty(label |> Label.rep_id, Sort.Label, l)
+        | Hole =>
+          if (settings.show_unknown_as_hole) {
+            let id = label |> Label.rep_id;
+            p_just([
+              Grout({
+                id,
+                shape: Convex,
+              }),
+            ]);
+          } else {
+            text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "?");
+          }
+        | MultiHole(anys) =>
+          let id = label |> Label.rep_id;
+          let+ anys =
+            anys |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
+          ListUtil.flat_intersperse(
+            Grout({
+              id,
+              shape: Concave,
+            }),
+            anys,
+          );
+        }
+    );
+
+    let go_entry: Typ.labeled_entry_t => pretty = (
+      entry => {
+        let (l, t) = LabeledTuple.project(entry);
+        switch (l) {
+        | None => go(t)
+        | Some(l) =>
+          let* l = go_label(l)
+          and* t = go(t);
+          List.flatten([
+            l,
+            [
+              Tile({
+                id: typ |> Typ.rep_id,
+                label: ["="],
+                mold: Mold.mk_bin(Precedence.lab, Sort.Typ, []),
+                shards: [0],
+                children: [],
+              }),
+            ],
+            if (Form.begins_with_potential_operator(Segment.first_string(t))) {
+              [Secondary(Secondary.mk_space(Id.mk()))] @ t;
+            } else {
+              t;
+            },
+          ]);
+        };
+      }
+    );
+    let+ t = go_entry(t)
+    and+ ts = ts |> List.map(go_entry) |> all;
+    t
+    @ List.flatten(
+        List.map2(
+          (id, t) => [mk_form(CommaTyp, id, [])] @ t,
+          IdTagged.ids(typ) |> pad_ids(ts |> List.length),
+          ts,
+        ),
+      );
+
   | Label(l) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, l)
   | TupLabel(l, t) =>
     let+ l = go(l)

@@ -956,6 +956,29 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Unknown(Hole(EmptyHole)),
       annotation: default_annotation(ann),
     };
+
+    let labeled_prod = (~ann=?, entries): typ_t(DefaultAnnotation.t) => {
+      term: LabeledProd(entries),
+      annotation: default_annotation(ann),
+    };
+
+    let labeled =
+        (~ann=?, l: string, t: typ_t(DefaultAnnotation.t))
+        : labeled_entry_t(DefaultAnnotation.t, typ_t(DefaultAnnotation.t)) =>
+      Labeled({
+        term: (
+          {
+            term: Label(l),
+            annotation: default_annotation(ann),
+          },
+          t,
+        ),
+        annotation: default_annotation(ann),
+      });
+    let unlabeled =
+        (~ann as _=?, t: typ_t(DefaultAnnotation.t))
+        : labeled_entry_t(DefaultAnnotation.t, typ_t(DefaultAnnotation.t)) =>
+      Unlabeled(t);
   };
 
   module TPat = {

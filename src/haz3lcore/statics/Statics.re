@@ -182,6 +182,7 @@ and uexp_to_info_map =
     )
     : (Info.exp, Map.t) => {
   let add' = (~label_inference=?, ~self, ~co_ctx, m) => {
+    print_endline("Adding " ++ Typ.show(ana));
     let info =
       Info.derived_exp(
         ~uexp,
@@ -577,6 +578,79 @@ and uexp_to_info_map =
                ),
           entries,
         );
+
+      let label_to_info_map =
+          (
+            ~ctx: Ctx.t,
+            ~expected_label: Label.label_expectation,
+            label: Label.t,
+            m: Map.t,
+          )
+          : Map.t => {
+        switch (expected_label, label) {
+        | (Syn, l) =>
+          let info: Info.label = {
+            term: l,
+            status: NotInHole,
+            ctx,
+          };
+          add_info(IdTagged.ids(label), InfoLabel(info), m);
+        | _ => assert(false)
+        };
+      };
+
+      let tuple_entry_to_info_map =
+          (
+            ~ctx: Ctx.t,
+            ~ana: Typ.labeled_entry_t,
+            entry: Exp.labeled_entry_t,
+            m: Map.t,
+          )
+          : (Info.tuple_entry, Info.exp, Map.t) => {
+        print_endline(
+          "Entry: "
+          ++ [%derive.show: Exp.labeled_entry_t](entry)
+          ++ " Ana ty: "
+          ++ [%derive.show: Typ.labeled_entry_t](ana),
+        );
+
+        switch (ana, entry) {
+        | (Unlabeled(ana), Unlabeled(e)) =>
+          let (e, m) = go(~ana, e, m);
+          let ty: Typ.labeled_entry_t = Unlabeled(e.ty);
+
+          let info: Info.tuple_entry = {
+            term: entry,
+            ancestors,
+            ty,
+            ctx,
+          };
+          (info, e, add_info(ids, InfoEntry(info), m));
+        | (
+            Unlabeled({term: Unknown(SynSwitch), _} as ana),
+            Labeled(labeled_entry),
+          ) =>
+          let (l, e) = labeled_entry.term;
+          let m = label_to_info_map(~ctx, ~expected_label=Syn, l, m);
+          let (e, m) = go(~ana, e, m);
+
+          let ty: Typ.labeled_entry_t = Labeled(IdTagged.temp((l, e.ty)));
+
+          let info: Info.tuple_entry = {
+            term: entry,
+            ancestors,
+            ty,
+            ctx,
+          };
+          (
+            info,
+            e,
+            add_info(labeled_entry.annotation.ids, InfoEntry(info), m),
+          );
+        | _ => assert(false)
+        };
+      };
+
       print_endline("Ana: " ++ [%derive.show: Typ.t](ana));
       print_endline("UExp: " ++ [%derive.show: Exp.t](uexp));
       print_endline(
@@ -595,9 +669,36 @@ and uexp_to_info_map =
         "Ana tys: " ++ [%derive.show: list(Typ.labeled_entry_t)](ana_tys),
       );
 
-      let _ = List.map2((e, ty) => {assert(false)}, entries, ana_tys);
+      let (infos, m) =
+        List.fold_left2(
+          ((infos, m), e, ty) => {
+            let (entry_info, exp_info, m) =
+              tuple_entry_to_info_map(~ctx, ~ana=ty, e, m);
+            (infos @ [(entry_info, exp_info)], m);
+          },
+          ([], m),
+          entries,
+          ana_tys,
+        );
 
-      assert(false);
+      let ty_list: list(Typ.labeled_entry_t) =
+        List.map(((entry: Info.tuple_entry, _)) => entry.ty, infos);
+
+      print_endline(
+        "Ty list: " ++ [%derive.show: list(Typ.labeled_entry_t)](ty_list),
+      );
+
+      add'(
+        ~self=Common(Self.Just(LabeledProd(ty_list) |> Typ.temp)),
+        ~co_ctx=
+          CoCtx.union(
+            List.map(
+              ((_: Info.tuple_entry, exp_info: Info.exp)) => exp_info.co_ctx,
+              infos,
+            ),
+          ),
+        m,
+      );
     | TupLabel(label, e) =>
       let (lab, e, m) =
         switch (Typ.matched_label(ctx, ana)) {
@@ -1768,6 +1869,11 @@ and utyp_to_info_map =
             m,
           )
           |> snd;
+    let info = Info.derived_typ(~utyp, ~ctx, ~ancestors, ~expects);
+    (info, add_info(ids, InfoTyp(info), m));
+  | LabeledProd(entries) =>
+    let duplicate_labels = []; // TODO
+    let m = m;
     let info = Info.derived_typ(~utyp, ~ctx, ~ancestors, ~expects);
     (info, add_info(ids, InfoTyp(info), m));
   | TupLabel(label, t) =>
