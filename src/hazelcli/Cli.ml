@@ -23,12 +23,20 @@ let read_input path =
       content
 
 (* Placeholder implementations for each command *)
-let run_hazel path =
-  let program = read_input path in
-  let parsed = Parse.parse_program program in
-  let evaluated = Haz3lcore.DHExp.strip_casts (Run.evaluate parsed) in
-
-  print_endline (Print.print evaluated)
+let run_hazel path multiple =
+  let programs =
+    if multiple then
+      let input = read_input path in
+      String.split_on_char '\n' input
+      |> List.filter (fun line -> String.trim line <> "")
+    else [ read_input path ]
+  in
+  List.iter
+    (fun program ->
+      let parsed = Parse.parse_program program in
+      let evaluated = Haz3lcore.DHExp.strip_casts (Run.evaluate parsed) in
+      print_endline (Print.print ~inline:multiple evaluated))
+    programs
 
 let format_hazel path =
   let program = read_input path in
@@ -46,11 +54,15 @@ let input_arg =
   let doc = "Path to Hazel source file, or '-' to read from stdin." in
   Arg.(required & pos 0 (some string) None & info [] ~docv:"INPUT" ~doc)
 
+let multiple_arg =
+  let doc = "If set, treats input as multiple programs, one per line." in
+  Arg.(value & flag & info [ "m"; "multiple" ] ~doc)
+
 (* Subcommand terms using Cmd.info *)
 let run_cmd =
   let doc = "Run a Hazel program." in
   let info = Cmd.info "run" ~doc in
-  Cmd.v info Term.(const run_hazel $ input_arg)
+  Cmd.v info Term.(const run_hazel $ input_arg $ multiple_arg)
 
 let format_cmd =
   let doc =
@@ -62,7 +74,7 @@ let format_cmd =
   let info = Cmd.info "format" ~doc in
   Cmd.v info Term.(const format_hazel $ input_arg)
 
-  let size_arg =
+let size_arg =
   let doc = "Size of the generated test program." in
   Arg.(value & opt int 35 & info [ "s"; "size" ] ~docv:"SIZE" ~doc)
 
@@ -74,8 +86,9 @@ let generate_test_program size count =
   let arb = QCheck_Util.arb_exp ~minimal_idents:true size in
   let gen = arb.gen in
   for _ = 1 to count do
+    let inline = count > 1 in
     let program = QCheck.Gen.generate1 gen in
-    print_endline (Print.print program)
+    print_endline (Print.print ~inline program)
   done
 
 let generate_test_program_cmd =
