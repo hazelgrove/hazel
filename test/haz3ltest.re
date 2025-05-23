@@ -3,6 +3,7 @@ open Junit_alcotest;
 let (suite, _) =
   run_and_report(
     ~and_exit=false,
+    ~argv=Sys.argv,
     "HazelTests",
     [
       Test_Grammar.tests,
