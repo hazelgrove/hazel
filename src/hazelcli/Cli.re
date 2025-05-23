@@ -76,7 +76,7 @@ let analyze_cmd = {
 /* Default to help if no subcommand is given */
 let default_cmd = {
   let doc = "CLI tool for running and analyzing Hazel programs.";
-  let info = Cmd.info("hazel", ~doc);
+  let info = Cmd.info("hzcli", ~doc);
   Cmd.group(info, [run_cmd, format_cmd, analyze_cmd]);
 };
 
