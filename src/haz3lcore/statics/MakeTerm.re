@@ -229,6 +229,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         ret(Atom(String(Form.strip_quotes(t))))
       | ([t], []) when Form.is_float(t) =>
         ret(Atom(Float(float_of_string(t))))
+      | ([t], []) when Form.is_livelit(t) =>
+        ret(LivelitName(Form.parse_livelit(t)))
       | ([t], []) when Form.is_var(t) => ret(Var(t))
       | ([t], []) when Form.is_ctr(t) => ret(Constructor(t, None))
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
@@ -333,6 +335,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           term: Deferral(InAp),
         };
         switch (arg.term) {
+        | Var(l) when Form.is_livelit(l) =>
+          ret(LivelitName(Form.parse_livelit(l)))
         | _ when Exp.is_deferral(arg) =>
           ret(DeferredAp(l, [use_deferral(arg)]))
         | Tuple(es) when List.exists(Exp.is_deferral, es) => (
@@ -898,9 +902,3 @@ let from_zip_for_sem =
     ~cache_size_bound=1000,
     from_zip_for_sem(~dump_backpack=true, ~erase_buffer=true),
   );
-
-let parse_exp = (s: string) => {
-  open OptUtil.Syntax;
-  let+ zip = Printer.zipper_of_string(s);
-  from_zip_for_sem(zip).term;
-};

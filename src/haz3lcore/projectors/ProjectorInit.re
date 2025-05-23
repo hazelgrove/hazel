@@ -13,6 +13,7 @@ let to_module = (kind: ProjectorCore.Kind.t): (module Cooked) =>
   | SliderF => (module Cook(SliderFProj.M))
   | Checkbox => (module Cook(CheckboxProj.M))
   | TextArea => (module Cook(TextAreaProj.M))
+  | Livelit => (module Cook(LivelitProj.M))
   | Card => (module Cook(CardProj.M))
   };
 

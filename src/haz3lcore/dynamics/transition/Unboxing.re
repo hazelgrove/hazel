@@ -76,6 +76,12 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (_, Cast(d, x, {term: Parens(y), _})) =>
       unbox(request, Cast(d, x, y) |> DHExp.fresh)
 
+    /* $e and $v could have any type, but are indet */
+
+    | (_, UnOp(Meta(Unquote), _)) => IndetMatch
+    | (_, Constructor(c, _)) when String.starts_with(c, ~prefix="$") =>
+      IndetMatch
+
     /* TupLabels can be anything except for tuplabels with unmatching labels */
     | (TupLabel(tuplabel), TupLabel(_, e)) =>
       if (Option.equal(
@@ -250,9 +256,8 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         TupLabel(_) |
         Tuple(_) |
         Cast(_) |
-        Ap(_, {term: Constructor(_), _}, _) |
-        TypFun(_) |
-        TypAp(_),
+        TypFun(_, _, _) |
+        Ap(_, {term: Constructor(_), _}, _),
       ) =>
       switch (request) {
       | TupLabel(_) =>
@@ -288,6 +293,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         Var(_) |
         Let(_) |
         Fun(_, _, _, _) |
+        TypAp(_) |
         FixF(_) |
         TyAlias(_) |
         Use(_) |
@@ -303,6 +309,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         Dot(_) |
         UnOp(_) |
         BinOp(_) |
+        LivelitName(_) |
         Match(_),
       ) =>
       IndetMatch
