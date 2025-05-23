@@ -54,14 +54,16 @@ module Applicable = {
   let target_term = seg =>
     seg
     |> Zipper.unzip
-    |> Editor.Model.of_zipper(~sort=Exp)
-    |> Editor.Model.make_term(Exp);
+    |> Editor.Model.of_zipper
+    |> Editor.Update.make_term(~sort=Exp)
+    |> snd
+    |> Calc.get_value;
 
   let target_ed = (seg: Segment.t, ()): option('a) =>
     switch (seg) {
     | []
     | [Projector(_)] => None
-    | s => Some(s |> Zipper.unzip |> Editor.Model.of_zipper(~sort=Exp))
+    | s => Some(s |> Zipper.unzip |> Editor.Model.of_zipper)
     };
 
   /* Is a projector of `kind` applicable to the target term? */

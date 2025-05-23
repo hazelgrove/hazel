@@ -49,8 +49,12 @@ let view =
     ),
   );
 
-let mk_term = (~term_of_ed as _, _, m): Any.t =>
-  Exp(Atom(Int(m)) |> Exp.fresh);
+let mk_term =
+    (~mk_term_ed as _, ~sort as _, ~prev as _, m)
+    : (model('a), Calc.t(Any.t)) => (
+  m,
+  NewValue(Exp(Atom(Int(m)) |> Exp.fresh)),
+);
 
 let handle_key_event = (~handle_key_ed as _, ~focus: focus('a)) =>
   switch (focus) {
@@ -64,7 +68,7 @@ let methods = {
   placeholder,
   view,
   update,
-  calculate: (~calculate_ed as _, ~common as _, ~sort as _, m) => m,
+  calculate: (~calculate_ed as _, ~common as _, m) => m,
   mk_term,
   handle_key_event,
   sexp_of_model,

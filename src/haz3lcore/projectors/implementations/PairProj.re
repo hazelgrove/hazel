@@ -1,4 +1,5 @@
 open Util;
+open Calc.Syntax;
 open ProjectorBase;
 open OptUtil.Syntax;
 
@@ -79,29 +80,81 @@ let methods:
       7 + String.length(ed_str(ed1)) + String.length(ed_str(ed2)),
     ),
   update:
-    (~update_ed, ~common as _, ~sort, _info, (left: 'ed, right: 'ed), action) => {
+    (~update_ed, ~common, ~sort, _info, (left: 'ed, right: 'ed), action) => {
     switch (action) {
     | Left(ed_ac) =>
-      let l_ed = update_ed(~sort, ed_ac, left);
+      let l_ed = update_ed(~common, ~sort, ed_ac, left);
       (l_ed, right);
     | Right(ed_ac) =>
-      let r_ed = update_ed(~sort, ed_ac, right);
+      let r_ed = update_ed(~common, ~sort, ed_ac, right);
       (left, r_ed);
     };
   },
-  calculate: (~calculate_ed, ~common as _, ~sort, (left: 'ed, right: 'ed)) => (
-    calculate_ed(~sort, left),
-    calculate_ed(~sort, right),
+  mk_term: (~mk_term_ed, ~sort, ~prev, (ed1, ed2)) => {
+    let inner_sort =
+      switch (sort) {
+      | Exp
+      | Pat
+      | Typ => sort
+      | Any
+      | TPat
+      | Rul => Exp
+      };
+    let (ed1', t1) = mk_term_ed(~sort=inner_sort, ed1);
+    let (ed2', t2) = mk_term_ed(~sort=inner_sort, ed2);
+    let term' =
+      prev
+      |> {
+        let.calc t1 = t1
+        and.calc t2 = t2;
+        switch (sort) {
+        | Exp => (
+            Exp(
+              Exp.fresh(
+                Tuple([
+                  t1 |> Any.is_exp |> Option.get,
+                  t2 |> Any.is_exp |> Option.get,
+                ]),
+              ),
+            ): Any.t
+          )
+        | Pat =>
+          Pat(
+            Pat.fresh(
+              Tuple([
+                t1 |> Any.is_pat |> Option.get,
+                t2 |> Any.is_pat |> Option.get,
+              ]),
+            ),
+          )
+        | Typ =>
+          Typ(
+            Typ.fresh(
+              Prod([
+                t1 |> Any.is_typ |> Option.get,
+                t2 |> Any.is_typ |> Option.get,
+              ]),
+            ),
+          )
+        | Any
+        | TPat
+        | Rul =>
+          Exp(
+            Exp.fresh(
+              Tuple([
+                t1 |> Any.is_exp |> Option.get,
+                t2 |> Any.is_exp |> Option.get,
+              ]),
+            ),
+          )
+        };
+      };
+    ((ed1', ed2'), term');
+  },
+  calculate: (~calculate_ed, ~common, (left: 'ed, right: 'ed)) => (
+    calculate_ed(~common, left),
+    calculate_ed(~common, right),
   ),
-  mk_term: (~term_of_ed, _sort, (ed1, ed2)) =>
-    Exp(
-      Exp.fresh(
-        Tuple([
-          term_of_ed(Exp, ed1) |> Any.is_exp |> Option.get,
-          term_of_ed(Exp, ed2) |> Any.is_exp |> Option.get,
-        ]),
-      ),
-    ),
   handle_key_event:
     (~handle_key_ed, ~focus: focus('ed_f), ~key, (ed1, ed2)) =>
     switch (focus) {

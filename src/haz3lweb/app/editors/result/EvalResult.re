@@ -402,6 +402,13 @@ module View = {
       | _ =>
         elab
         |> CodeSelectable.Model.mk_from_exp(~settings=globals.settings.core)
+        |> CodeSelectable.Update.calculate(
+             ~globals,
+             ~is_dynamic_term=true,
+             ~stitch=_ => elab,
+             ~is_edited=false,
+             ~dynamics=Dynamics.Map.empty,
+           )
       };
     let code_view =
       CodeSelectable.View.view(

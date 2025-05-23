@@ -90,6 +90,33 @@ type methods('model, 'action, 'focus, 'ed_m, 'ed_a, 'ed_f) = {
   init: (Term.Any.t, unit => option('ed_m)) => option('model),
   focusable: Focusable.t,
   dynamics: bool,
+  update:
+    (
+      ~update_ed:
+        (~common: ProjectorInterface.common, ~sort: Sort.t, 'ed_a, 'ed_m) =>
+        'ed_m,
+      ~common: ProjectorInterface.common,
+      ~sort: Sort.t,
+      info,
+      'model,
+      'action
+    ) =>
+    'model,
+  mk_term:
+    (
+      ~mk_term_ed: (~sort: Sort.t, 'ed_m) => ('ed_m, Calc.t(Any.t)),
+      ~sort: Sort.t,
+      ~prev: Calc.saved(Any.t),
+      'model
+    ) =>
+    ('model, Calc.t(Any.t)),
+  calculate:
+    (
+      ~calculate_ed: (~common: ProjectorInterface.common, 'ed_m) => 'ed_m,
+      ~common: ProjectorInterface.common,
+      'model
+    ) =>
+    'model,
   view:
     (
       ~common: ProjectorInterface.common,
@@ -116,25 +143,6 @@ type methods('model, 'action, 'focus, 'ed_m, 'ed_a, 'ed_f) = {
     ) =>
     View.t,
   placeholder: (~ed_str: 'ed_m => string, 'model, info) => ProjectorShape.t,
-  update:
-    (
-      ~update_ed: (~sort: Sort.t, 'ed_a, 'ed_m) => 'ed_m,
-      ~common: ProjectorInterface.common,
-      ~sort: Sort.t,
-      info,
-      'model,
-      'action
-    ) =>
-    'model,
-  calculate:
-    (
-      ~calculate_ed: (~sort: Sort.t, 'ed_m) => 'ed_m,
-      ~common: ProjectorInterface.common,
-      ~sort: Sort.t,
-      'model
-    ) =>
-    'model,
-  mk_term: (~term_of_ed: (Sort.t, 'ed_m) => Any.t, Sort.t, 'model) => Any.t,
   handle_key_event:
     (
       ~handle_key_ed: (~focus: 'ed_f, ~key: Key.t, 'ed_m) => option('ed_a),

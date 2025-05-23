@@ -33,7 +33,7 @@ module Focus = {
          * but can't immediately put down, move to next position of
          * interest, which is closet of: nearest position where can
          * put down, farthest position where can put down, next hole */
-        let z = model.state.zipper;
+        let z = model |> Editor.Model.get_z;
         Selection.is_buffer(z.selection)
           ? Some(Buffer(Accept))
           : Zipper.can_put_down(z)
@@ -42,7 +42,7 @@ module Focus = {
       }
     | Projector(id, focus) =>
       open OptUtil.Syntax;
-      let* model = ProjectorPerform.get_model(id, model.state.zipper);
+      let* model = ProjectorPerform.get_model(id, Editor.Model.get_z(model));
       let+ action = handle_key_pr(~focus, ~key, model);
       Action.Project(Perform(id, action));
     };
@@ -128,7 +128,7 @@ let view_code_editable =
         let editor = model;
         let globals = common;
       });
-    Deco.editor(model.state.zipper, focussed == Some(Here));
+    Deco.editor(Editor.Model.get_z(model), focussed == Some(Here));
   };
   let projectors =
     ProjectorView.all(
@@ -143,10 +143,10 @@ let view_code_editable =
         },
       ProjectorView.Model.mk(
         ~mk_status,
-        model.syntax.projectors,
-        model.syntax.measured,
-        model.syntax.selection_ids,
-        switch (Indicated.piece(model.state.zipper)) {
+        Calc.get_saved_exc(model.syntax).projectors,
+        Calc.get_saved_exc(model.syntax).measured,
+        Calc.get_saved_exc(model.selection_ids),
+        switch (Indicated.piece(Editor.Model.get_z(model))) {
         | None => None
         | Some((p, side, _)) => Some((Piece.id(p), side))
         },

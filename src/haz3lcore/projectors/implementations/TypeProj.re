@@ -61,6 +61,11 @@ let update =
   | (ToggleDisplay, (Self, m)) => (Expected, m)
   };
 
+let mk_term = (~mk_term_ed, ~sort, ~prev as _, (mode, ed)) => {
+  let (ed', term) = mk_term_ed(~sort, ed);
+  ((mode, ed'), term);
+};
+
 /* =========== FOCUS =========== */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -138,10 +143,6 @@ let view =
   };
 };
 
-let mk_term = (~term_of_ed, sort, (_, ed)) => {
-  term_of_ed(sort, ed);
-};
-
 let handle_key_event = (~handle_key_ed as _, ~focus: focus('a)) =>
   switch (focus) {
   | _ => . // impossible
@@ -154,7 +155,7 @@ let methods = {
   view,
   placeholder,
   update,
-  calculate: (~calculate_ed as _, ~common as _, ~sort as _, m) => m,
+  calculate: (~calculate_ed as _, ~common as _, m) => m,
   mk_term,
   handle_key_event,
   sexp_of_model,

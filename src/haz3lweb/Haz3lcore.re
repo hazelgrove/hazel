@@ -15,8 +15,7 @@ module rec Projector: {
       (Statics.Map.t, Dynamics.Map.t, Base.projector(t)) => ProjectorShape.t;
     let get_focusable: t => ProjectorBase.Focusable.t;
     let focusable_of_kind: ProjectorCore.Kind.t => ProjectorBase.Focusable.t;
-
-    let make_term: (t, Sort.t) => Any.t;
+    let get_cached_term: t => Term.Any.t;
   };
 
   module Update: {
@@ -33,8 +32,9 @@ module rec Projector: {
       ) =>
       Model.t;
 
-    let calculate:
-      (~common: ProjectorInterface.common, ~sort: Sort.t, Model.t) => Model.t;
+    let make_term: (~sort: Sort.t, Model.t) => (Model.t, Calc.t(Any.t));
+
+    let calculate: (~common: ProjectorInterface.common, Model.t) => Model.t;
   };
 
   module Focus: {
@@ -83,12 +83,10 @@ module rec Projector: {
     let get_focusable = ProjectorInit.focusable_of_model;
     let focusable_of_kind = ProjectorInit.focusable_of_kind;
 
-    //TODO(andrew): proper sort for deco
-
-    let make_term =
-      ProjectorInit.make_term(~term_of_ed=Editor.Model.make_term);
-
     let mk = ProjectorInit.init;
+
+    let get_cached_term = (ProjectorCore.V(_, _, exp_cache)) =>
+      Calc.get_saved_exc(exp_cache);
   };
 
   module Update = {
@@ -96,14 +94,18 @@ module rec Projector: {
     type t = ProjectorCore.Update.t(Editor.Update.t);
 
     let update = (~common) =>
-      ProjectorCore.Update.update(
-        ~common,
-        ~update_ed=Editor.Update.update(~common),
+      ProjectorCore.Update.update(~common, ~update_ed=Editor.Update.update);
+
+    let make_term = (~sort, model: Model.t): (Model.t, Calc.t(Any.t)) =>
+      ProjectorInit.make_term(
+        ~mk_term_ed=Editor.Update.make_term,
+        ~sort,
+        model,
       );
 
     let calculate = (~common) =>
       ProjectorCore.Update.calculate(
-        ~calculate_ed=Editor.Update.calculate(~common, ~is_edited=true),
+        ~calculate_ed=Editor.Update.calculate,
         ~common,
       );
   };
@@ -163,13 +165,14 @@ and Editor: {
     let mk: (~settings: CoreSettings.t, ~inline: bool=?, Any.t) => t;
 
     let get_z: t => Zipper.t(Projector.Model.t);
-    let make_term: (Sort.t, t) => Any.t;
     let get_trailing_hole_ctx: (t, Statics.Map.t) => option(Ctx.t);
     // [@deriving (show({with_path: false}), sexp, yojson)]
     // type persistent;
     // let persist: t => persistent;
     // let unpersist: persistent => t;
-    let of_zipper: (~sort: Sort.t, Zipper.t(Projector.Model.t)) => t; // TODO: Replace with persistence logic
+    let of_zipper: Zipper.t(Projector.Model.t) => t; // TODO: Replace with persistence logic
+
+    let get_cached_term: t => Term.Any.t;
   };
 
   module Update: {
@@ -181,14 +184,9 @@ and Editor: {
       (~common: ProjectorInterface.common, ~sort: Sort.t, t, Model.t) =>
       Model.t;
 
-    let calculate:
-      (
-        ~common: ProjectorInterface.common,
-        ~is_edited: bool,
-        ~sort: Sort.t,
-        Model.t
-      ) =>
-      Model.t;
+    let make_term: (~sort: Sort.t, Model.t) => (Model.t, Calc.t(Any.t));
+
+    let calculate: (~common: ProjectorInterface.common, Model.t) => Model.t;
 
     let key_handoff:
       (Model.t, Key.t) =>
@@ -211,7 +209,8 @@ and Editor: {
     type t;
 
     // TODO[Matt]: Used in jump to tile logic which will need updating.
-    let here: t;
+    // Thunked to make module "safe"
+    let here: unit => t;
 
     let handle_key_event:
       (~focus: t, ~key: Key.t, Model.t) => option(Update.t);
@@ -268,31 +267,21 @@ and Editor: {
         ~settings=ExpToSegment.Settings.of_core(~inline, settings),
       )
       |> Haz3lcorep.Zipper.unzip
-      |> Haz3lcorep.Editor.Model.mk(
-           ~sort=Any.sort(term),
-           ~shape_of_projector=Projector.Model.get_shape,
-           ~projector_to_term=Projector.Model.make_term,
-         );
+      |> Haz3lcorep.Editor.Model.mk;
     };
 
-    let of_zipper =
-      Haz3lcorep.Editor.Model.mk(
-        ~shape_of_projector=Projector.Model.get_shape,
-        ~projector_to_term=Projector.Model.make_term,
-      );
+    let of_zipper = Haz3lcorep.Editor.Model.mk;
 
-    let get_z = (m: t) => m.state.zipper;
+    let get_z = (m: t) => m |> Haz3lcorep.Editor.Model.get_z;
 
     let make_seg = (m: t) =>
       m
       |> get_z
       |> Haz3lcorep.Zipper.smart_seg(~dump_backpack=true, ~erase_buffer=true);
 
-    let make_term = (sort: Sort.t, m: t) =>
-      MakeTerm.go(~of_projector=Projector.Model.make_term, sort, make_seg(m)).
-        term;
-
     let get_trailing_hole_ctx = Haz3lcorep.Editor.Model.trailing_hole_ctx;
+
+    let get_cached_term = Haz3lcorep.Editor.Model.get_cached_term;
   };
 
   module Update = {
@@ -310,14 +299,11 @@ and Editor: {
       switch (
         Haz3lcorep.Editor.Update.update(
           ~settings=common.settings,
-          ~sort,
           ~projector_init=Projector.Model.mk,
-          ~projector_to_term=Projector.Model.make_term,
-          ~shape_of_projector=Projector.Model.get_shape,
           ~update_projector=Projector.Update.update(~common),
           ~seg_of_projector=
             (sort, p) =>
-              Projector.Model.make_term(p, sort)
+              Projector.Model.get_cached_term(p)
               |> ExpToSegment.any_to_segment(
                    ~settings=ExpToSegment.Settings.on,
                  ),
@@ -333,32 +319,28 @@ and Editor: {
       };
     };
 
-    let calculate =
-        (
-          ~common: ProjectorInterface.common,
-          ~is_edited: bool,
-          ~sort: Sort.t,
-          ed: Model.t,
-        )
-        : Model.t =>
+    let make_term = (~sort: Sort.t, m: Model.t) =>
+      Haz3lcorep.Editor.Update.make_term(
+        ~make_term_prj=Projector.Update.make_term,
+        ~sort,
+        m,
+      );
+
+    let calculate = (~common: ProjectorInterface.common, ed: Model.t): Model.t =>
       Haz3lcorep.Editor.Update.calculate(
         ~common,
-        ~settings=common.settings,
-        ~is_edited,
         ~projector_init=Projector.Model.mk,
-        ~projector_to_term=Projector.Model.make_term,
+        ~projector_to_term=
+          (~sort as _, ~id as _, m) => Projector.Model.get_cached_term(m),
         ~shape_of_projector=Projector.Model.get_shape,
         ~seg_of_projector=
           (sort, p) =>
-            Projector.Model.make_term(p, sort)
+            Projector.Model.get_cached_term(p)
             |> ExpToSegment.any_to_segment(~settings=ExpToSegment.Settings.on),
         ~get_focusable=Projector.Model.focusable_of_kind,
         ~livelit_projectors=ProjectorCore.Kind.livelit_projectors,
         ~update_projector=Projector.Update.update(~common),
         ~calculate_projector=Projector.Update.calculate,
-        ~sort,
-        common.statics,
-        common.dynamics,
         ed,
       );
 
@@ -387,11 +369,8 @@ and Editor: {
               Projector.Update.t,
             ),
           ) => {
-      let z = editor.state.zipper;
-      switch (
-        move_dir(key),
-        Siblings.neighbors(editor.state.zipper.relatives.siblings),
-      ) {
+      let z = Editor.Model.get_z(editor);
+      switch (move_dir(key), Siblings.neighbors(z.relatives.siblings)) {
       | _ when z.caret != Outer => None
       | (Some(Left), (Some(Projector({id, model, _})), _)) =>
         let kind = Projector.Model.get_kind(model);
@@ -408,20 +387,20 @@ and Editor: {
     };
 
     let jump_to_tile_action = (tile, model: Model.t) =>
-      switch (TileMap.find_opt(tile, model.syntax.tiles)) {
+      switch (TileMap.find_opt(tile, Calc.get_saved_exc(model.syntax).tiles)) {
       | Some(_) => Some(Haz3lcorep.Action.Jump(TileId(tile)))
       | None => None
       };
   };
 
-  let get_measured = (m: Model.t) => m.syntax.measured;
-  let get_tiles = (m: Model.t) => m.syntax.tiles;
+  let get_measured = (m: Model.t) => Calc.get_saved_exc(m.syntax).measured;
+  let get_tiles = (m: Model.t) => Calc.get_saved_exc(m.syntax).tiles;
 
   module Focus = {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = EditorView.Focus.t(Projector.Focus.t);
 
-    let here = EditorView.Focus.Here;
+    let here = () => EditorView.Focus.Here;
 
     let handle_key_event =
       EditorView.Focus.handle_key_event(
@@ -443,7 +422,8 @@ and Editor: {
       );
 
     let print_string = (ed: Model.t) =>
-      ed.state.zipper
+      ed
+      |> Haz3lcorep.Editor.Model.get_z
       |> Zipper.zip
       |> Printer.of_segment(~holes=Some("?"))
       |> Re.Str.global_replace(Re.Str.regexp("\n"), " ")

@@ -102,8 +102,11 @@ let methods:
       ProjectorShape.inline(32)
     };
   },
-  calculate: (~calculate_ed as _, ~common as _, ~sort as _, m) => m,
-  mk_term: (~term_of_ed as _, _sort, model) => Exp(model.model),
+  mk_term: (~mk_term_ed as _, ~sort as _, ~prev as _, model) => (
+    model,
+    Calc.NewValue(Exp(model.model)),
+  ),
+  calculate: (~calculate_ed as _, ~common as _, m) => m,
   handle_key_event:
     (~handle_key_ed as _, ~focus as _: focus('ed_f), ~key as _, _) =>
     None,

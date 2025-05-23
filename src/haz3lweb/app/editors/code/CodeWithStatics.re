@@ -57,7 +57,7 @@ module Model = {
   let to_string = (model: t) =>
     model.editor |> Editor.Model.get_z |> PersistentZipper.to_string;
   let unpersist = p =>
-    p |> PersistentZipper.unpersist |> Editor.Model.of_zipper(~sort=Exp) |> mk;
+    p |> PersistentZipper.unpersist |> Editor.Model.of_zipper |> mk;
 };
 
 module Update = {
@@ -75,18 +75,17 @@ module Update = {
         {editor, statics, dynamics: _}: Model.t,
       )
       : Model.t => {
+    let (editor, term) = Editor.Update.make_term(~sort=Exp, editor);
     let statics =
-      is_edited
-        ? CachedStatics.init_from_term(
-            ~settings=globals.settings.core,
-            ~is_dynamic_term,
-            editor
-            |> Editor.Model.make_term(Exp)
-            |> Any.is_exp
-            |> Option.get
-            |> stitch,
-          )
-        : statics;
+      switch (term) {
+      | NewValue(term) =>
+        CachedStatics.init_from_term(
+          ~settings=globals.settings.core,
+          ~is_dynamic_term,
+          term |> Any.is_exp |> Option.get |> stitch,
+        )
+      | OldValue(_) => statics
+      };
     let editor =
       Editor.Update.calculate(
         ~common=
@@ -99,8 +98,6 @@ module Update = {
             statics,
             dynamics,
           },
-        ~is_edited,
-        ~sort=Exp,
         editor,
       );
     {

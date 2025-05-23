@@ -20,11 +20,7 @@ module Model = {
 
   let of_spec = (~settings as _, ~instructor_mode as _: bool, spec) => {
     let editors =
-      Exercise.map(
-        spec,
-        Editor.Model.of_zipper(~sort=Exp),
-        Editor.Model.of_zipper(~sort=Exp),
-      );
+      Exercise.map(spec, Editor.Model.of_zipper, Editor.Model.of_zipper);
     let term_item_to_cell = (item: Exercise.TermItem.t): CellEditor.Model.t => {
       CellEditor.Model.mk(item.editor);
     };
@@ -128,7 +124,7 @@ module Update = {
     | Editor(_, ResultAction(_)) => Updated.return_quiet(model) // TODO: I think this case should never happen
     | ResetEditor(pos) =>
       let spec = Exercise.main_editor_of_state(~selection=pos, model.spec);
-      let new_editor = Editor.Model.of_zipper(~sort=Exp, spec);
+      let new_editor = Editor.Model.of_zipper(spec);
       {
         ...model,
         editors:
@@ -139,8 +135,8 @@ module Update = {
       let new_editors =
         Exercise.map(
           model.spec,
-          Editor.Model.of_zipper(~sort=Exp),
-          Editor.Model.of_zipper(~sort=Exp),
+          Editor.Model.of_zipper,
+          Editor.Model.of_zipper,
         );
       {
         ...model,
@@ -230,8 +226,6 @@ module Update = {
               statics,
               dynamics,
             },
-          ~sort=Exp,
-          ~is_edited,
           ed,
         );
 
@@ -337,7 +331,7 @@ module Selection = {
     |> Option.map(((pos, _)) =>
          (
            Update.Editor(pos, MainEditor(Perform(Jump(TileId(tile))))),
-           (pos, CellEditor.Selection.MainEditor(Editor.Focus.here)),
+           (pos, CellEditor.Selection.MainEditor(Editor.Focus.here())),
          )
        );
   };

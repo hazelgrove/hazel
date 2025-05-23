@@ -97,7 +97,9 @@ let start = {
             };
           apply(~schedule_action, ~schedule_autosave);
         },
-      ~default_model=Page.Store.load(),
+      ~default_model=
+        Page.Store.load()
+        |> Page.Update.calculate(~schedule_action=_ => (), ~is_edited=true),
       save_scheduler,
     );
 

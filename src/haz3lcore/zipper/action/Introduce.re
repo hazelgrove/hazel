@@ -30,7 +30,7 @@ module IntroducePat: Introducable with type t = Pat.t = {
       MakeTerm.(
         pat(
           unsorted(
-            ~of_projector=(_, _) => Any(),
+            ~of_projector=(~sort as _, ~id as _, _) => Any(),
             ~log_projector=_ => (),
             Pat,
             Segment.skel(selection),
@@ -102,7 +102,7 @@ module IntroduceExp: Introducable with type t = Exp.t = {
     MakeTerm.(
       exp(
         unsorted(
-          ~of_projector=(_, _) => Any(),
+          ~of_projector=(~sort as _, ~id as _, _) => Any(),
           ~log_projector=_ => (),
           Exp,
           Segment.skel(selection),

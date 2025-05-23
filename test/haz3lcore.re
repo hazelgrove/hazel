@@ -1,7 +1,7 @@
 include Haz3lcorep;
 open Util;
 
-let of_projector = (_, _) => Grammar.Any();
+let of_projector = (~sort as _, ~id as _, _) => Grammar.Any();
 
 module Base = {
   include Base;
@@ -20,12 +20,7 @@ module Editor = {
   module Model = {
     include Model;
     let mk: ZipperBase.t(unit) => t(ProjectorCore.Kind.t, unit, unit) =
-      Editor.Model.mk(
-        ~projector_to_term=of_projector,
-        ~sort=Exp,
-        ~shape_of_projector=(_, _, _) => failwith("not implemented"),
-        _,
-      );
+      Editor.Model.mk(_);
     let to_move_s: t(ProjectorCore.Kind.t, unit, unit) => 'a = to_move_s;
   };
 };

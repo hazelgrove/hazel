@@ -788,7 +788,7 @@ module Go = (P: {
 
   and unsorted =
       (
-        ~of_projector: (p, Sort.t) => Any.t,
+        ~of_projector: (~sort: Sort.t, ~id: Id.t, p) => Any.t,
         ~log_projector: Piece.projector(p) => unit,
         sort: Sort.t,
         skel: Skel.t,
@@ -803,9 +803,9 @@ module Go = (P: {
       switch (p) {
       | Secondary(_)
       | Grout(_) => []
-      | Projector({model, _} as pr) =>
+      | Projector({model, id} as pr) =>
         log_projector(pr);
-        [of_projector(model, sort)];
+        [of_projector(~sort, ~id, model)];
       | Tile({mold, shards, children, _}) =>
         Aba.aba_triples(Aba.mk(shards, children))
         |> List.map(((l, kid, r)) => {

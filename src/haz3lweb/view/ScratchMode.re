@@ -139,7 +139,7 @@ module Update = {
       let* data =
         List.nth(source, model.current)
         |> PersistentZipper.unpersist
-        |> Editor.Model.of_zipper(~sort=Exp)
+        |> Editor.Model.of_zipper
         |> CellEditor.Model.mk
         |> Updated.return;
       {

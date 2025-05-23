@@ -59,7 +59,7 @@ module Model = {
       Option.map(Info.is_error, info.statics) |> Option.value(~default=false),
     kind:
       p.model
-      |> ((ProjectorCore.V(kind, _)) => ProjectorCore.Kind.of_gadt(kind)),
+      |> ((ProjectorCore.V(kind, _, _)) => ProjectorCore.Kind.of_gadt(kind)),
     indication: editor_active ? indication(indicated, id) : None,
     selected: editor_active ? List.mem(id, selection_ids) : false,
   };
@@ -225,7 +225,7 @@ let mk_view =
         Model.projector_data(ProjectorCore.model(ed_m, ed_a, ed_f)),
     )
     : View.t => {
-  let ProjectorCore.V(kind_gadt, model) = p.model;
+  let ProjectorCore.V(kind_gadt, model, _) = p.model;
   let methods = ProjectorCore.to_module(kind_gadt);
   let local = a => inject(ProjectorCore.Update.A(kind_gadt, a));
   methods.view(

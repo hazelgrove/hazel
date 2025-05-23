@@ -383,7 +383,7 @@ let example_view =
                   {
                     term
                     |> Zipper.unzip
-                    |> Editor.Model.of_zipper(~sort=Exp)
+                    |> Editor.Model.of_zipper
                     |> CellEditor.Model.mk
                     |> CellEditor.Update.calculate(
                          ~globals,
@@ -500,7 +500,21 @@ let get_doc =
         |> Id.Map.of_seq
         |> Option.some;
       let editor =
-        Editor.Model.of_zipper(~sort=Exp, doc.syntactic_form |> Zipper.unzip);
+        Editor.Model.of_zipper(doc.syntactic_form |> Zipper.unzip)
+        |> Editor.Update.make_term(~sort)
+        |> fst
+        |> Editor.Update.calculate(
+             ~common=
+               ProjectorInterface.{
+                 settings: globals.settings.core,
+                 font_metrics: globals.font_metrics,
+                 secondary_icons: globals.settings.secondary_icons,
+                 show_backpack_targets: globals.show_backpack_targets,
+                 color_highlights: highlights,
+                 statics: CachedStatics.empty,
+                 dynamics: Dynamics.Map.empty,
+               },
+           );
       let expander_deco =
         expander_deco(
           ~globals,

@@ -235,11 +235,14 @@ module Selection = {
 
   let default_selection =
     fun
-    | Model.Scratch(_) => Scratch(MainEditor(Haz3lcore.Editor.Focus.here))
+    | Model.Scratch(_) => Scratch(MainEditor(Haz3lcore.Editor.Focus.here()))
     | Model.Documentation(_) =>
-      Scratch(MainEditor(Haz3lcore.Editor.Focus.here))
+      Scratch(MainEditor(Haz3lcore.Editor.Focus.here()))
     | Model.Exercises(_) =>
-      Exercises((Exercise.Prelude, MainEditor(Haz3lcore.Editor.Focus.here)));
+      Exercises((
+        Exercise.Prelude,
+        MainEditor(Haz3lcore.Editor.Focus.here()),
+      ));
 };
 
 module View = {

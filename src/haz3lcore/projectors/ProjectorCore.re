@@ -10,6 +10,8 @@
  * ProjectorInfo depends on ProjectorBase but not on ProjectorInit
  * (to avoid cyclical dependencies due to MakeTerm and ExpToSegment) */
 
+open Util;
+
 module Kind = {
   type gadt('model, 'action, 'focus, 'ed, 'ed_a, 'ed_f) =
     // | Fold: gadt(FoldProj.model('ed), FoldProj.action, 'ed)
@@ -194,10 +196,10 @@ module Kind = {
 };
 
 type model('ed_m, 'ed_a, 'ed_f) =
-  | V(Kind.gadt('a, 'b, 'c, 'ed_m, 'ed_a, 'ed_f), 'a)
+  | V(Kind.gadt('a, 'b, 'c, 'ed_m, 'ed_a, 'ed_f), 'a, Calc.saved(Any.t))
     : model('ed_m, 'ed_a, 'ed_f);
 
-let kind_of_model = (V(x, _)) => Kind.of_gadt(x);
+let kind_of_model = (V(x, _, _)) => Kind.of_gadt(x);
 
 /* After adding a new projector module, add it here so that
  * it can be instantiated. The first-class module created by
@@ -252,7 +254,7 @@ let model_of_sexp =
     open Kind;
     let.gadt W(kind_gadt) = kind_string |> Kind.of_name;
     let methods = to_module(kind_gadt);
-    V(kind_gadt, m |> methods.model_of_sexp(ed_of_sexp));
+    V(kind_gadt, m |> methods.model_of_sexp(ed_of_sexp), Calc.Pending);
   | _ => failwith("Projector desearialization failed")
   };
 
@@ -268,7 +270,7 @@ let sexp_of_model =
     )
     : Sexplib.Sexp.t =>
   switch (model) {
-  | V(kind_gadt, m) =>
+  | V(kind_gadt, m, _) =>
     open Kind;
     let methods = to_module(kind_gadt);
     List([
@@ -285,7 +287,7 @@ let model_of_yojson =
     open Kind;
     let.gadt W(kind_gadt) = kind_string |> Kind.of_name;
     let methods = to_module(kind_gadt);
-    V(kind_gadt, m |> methods.model_of_yojson(ed_of_yojson));
+    V(kind_gadt, m |> methods.model_of_yojson(ed_of_yojson), Calc.Pending);
   | _ => failwith("Projector desearialization failed")
   };
 
@@ -300,7 +302,7 @@ let yojson_of_model =
       model: model(ed, ed_a, ed_f),
     ) =>
   switch (model) {
-  | V(kind_gadt, m) =>
+  | V(kind_gadt, m, _) =>
     open Kind;
     let methods = to_module(kind_gadt);
     `List([
@@ -379,7 +381,7 @@ module Update = {
         ~sort: Sort.t,
         ~id: Id.t,
         A(gadt1, action),
-        V(gadt2, model),
+        V(gadt2, model, exp_cache),
       )
       : model('ed_m, 'ed_a, 'ed_f) =>
     if (Kind.gadt_eq(gadt1, gadt2)) {
@@ -398,6 +400,7 @@ module Update = {
           model,
           action |> Obj.magic // Note(Matt): Using Obj.magic here because we know the types are the same if gadt_eq(gadt1, gadt2) is true
         ),
+        exp_cache,
       );
     } else {
       raise(Failure.Exception(Wrong_projector));
@@ -407,12 +410,11 @@ module Update = {
       (
         ~calculate_ed,
         ~common: ProjectorInterface.common,
-        ~sort: Sort.t,
-        V(gadt, model): model('ed_m, 'ed_a, 'ed_f),
+        V(gadt, model, exp_cache): model('ed_m, 'ed_a, 'ed_f),
       )
       : model('ed_m, 'ed_a, 'ed_f) => {
     let methods = to_module(gadt);
-    V(gadt, methods.calculate(~calculate_ed, ~common, ~sort, model));
+    V(gadt, methods.calculate(~calculate_ed, ~common, model), exp_cache);
   };
 };
 
@@ -472,7 +474,7 @@ module Focus = {
     };
 
   let handle_key_event =
-      (~handle_key_ed, ~focus as F(gadt2, focus), ~key, V(gadt, m)) => {
+      (~handle_key_ed, ~focus as F(gadt2, focus), ~key, V(gadt, m, _)) => {
     let methods = to_module(gadt);
     if (Kind.gadt_eq(gadt, gadt2)) {
       open Util.OptUtil.Syntax;

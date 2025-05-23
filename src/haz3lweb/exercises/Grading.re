@@ -404,7 +404,7 @@ module SyntaxReport = {
   let mk = (~your_impl: Editor.Model.t, ~tests: syntax_tests): t => {
     //TODO(andrew): better unwrapping approach?
     let user_impl_term =
-      switch (Editor.Model.make_term(Exp, your_impl)) {
+      switch (Editor.Model.get_cached_term(your_impl)) {
       | Exp(t) => t
       | _ => failwith("SyntaxReport: user_impl_term: expected expression")
       };

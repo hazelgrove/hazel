@@ -26,10 +26,7 @@ module Model = {
   let persist = model => model.editor |> CodeEditable.Model.persist;
   let to_string = model => model.editor |> CodeEditable.Model.to_string;
   let unpersist = (~settings as _, pz) =>
-    pz
-    |> PersistentZipper.unpersist
-    |> Editor.Model.of_zipper(~sort=Exp)
-    |> mk;
+    pz |> PersistentZipper.unpersist |> Editor.Model.of_zipper |> mk;
 };
 
 module Update = {
@@ -157,7 +154,7 @@ module Selection = {
   let jump_to_tile = (tile, model: Model.t): option((Update.t, t)) => {
     CodeEditable.Selection.jump_to_tile(tile, model.editor)
     |> Option.map(x =>
-         (Update.MainEditor(x), MainEditor(Editor.Focus.here))
+         (Update.MainEditor(x), MainEditor(Editor.Focus.here()))
        );
   };
 };
@@ -195,7 +192,7 @@ module View = {
           | MakeActive(a) => signal(MakeActive(Result(a)))
           | JumpTo(id) =>
             Effect.Many([
-              signal(MakeActive(MainEditor(Editor.Focus.here))),
+              signal(MakeActive(MainEditor(Editor.Focus.here()))),
               inject(MainEditor(Perform(Jump(TileId(id))))),
             ]),
         ~inject=a => inject(ResultAction(a)),

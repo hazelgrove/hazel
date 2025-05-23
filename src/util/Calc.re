@@ -56,6 +56,16 @@ let get_saved = (default, x: saved('a)): 'a =>
   | Calculated(x) => x
   };
 
+exception PendingValue;
+
+let get_saved_exc = (~print=?, x: saved('a)): 'a =>
+  switch (x) {
+  | Pending =>
+    let _ = Option.map(print_endline, print);
+    raise(PendingValue);
+  | Calculated(x) => x
+  };
+
 let map_saved = (f: 'a => 'b, x: saved('a)): saved('b) =>
   switch (x) {
   | Pending => Pending
@@ -103,4 +113,5 @@ let to_option = (x: t(option('a))): option(t('a)) => {
 module Syntax = {
   let (let.calc) = update;
   let (and.calc) = combine;
+  let (let.calc_map) = (x, y) => map_if_new(y, x);
 };

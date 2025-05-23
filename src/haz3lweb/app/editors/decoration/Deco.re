@@ -230,7 +230,7 @@ module Deco =
          },
        ) => {
   let font_metrics = M.globals.font_metrics;
-  let syntax = M.editor.syntax;
+  let syntax = Calc.get_saved_exc(M.editor.syntax);
   let map = syntax.measured;
   let show_backpack_targets = M.globals.show_backpack_targets;
   let terms = syntax.terms;

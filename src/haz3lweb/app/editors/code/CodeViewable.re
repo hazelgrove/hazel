@@ -1,3 +1,4 @@
+open Util;
 open Util.Web;
 open Haz3lcorep;
 
@@ -42,12 +43,13 @@ let view_segment =
 
 let view_editor =
     (type p, ~sort: Sort.t, editor: Haz3lcorep.Editor.t('p_k, p, 'p_a)) => {
-  let measured = editor.syntax.measured;
+  let syntax = Calc.get_saved_exc(editor.syntax);
+  let measured = syntax.measured;
   let buffer_ids =
-    Selection.is_buffer(editor.state.zipper.selection)
-      ? editor.syntax.selection_ids : [];
-  let segment = editor.syntax.segment;
-  let shape_map = editor.syntax.shape_map;
+    Selection.is_buffer(Editor.Model.get_z(editor).selection)
+      ? Calc.get_saved_exc(editor.selection_ids) : [];
+  let segment = syntax.segment;
+  let shape_map = syntax.shape_map;
   view(~sort, ~measured, ~buffer_ids, ~segment, ~shape_map);
 };
 

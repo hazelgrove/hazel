@@ -501,7 +501,7 @@ let wrap = (term, editor: Editor.Model.t): TermItem.t => {
 };
 
 let term_of = (editor: Editor.Model.t): Exp.t =>
-  switch (Editor.Model.make_term(Exp, editor)) {
+  switch (Editor.Model.get_cached_term(editor)) {
   | Exp(t) => t
   | _ => failwith("Exercise: term_of: expected expression")
   };

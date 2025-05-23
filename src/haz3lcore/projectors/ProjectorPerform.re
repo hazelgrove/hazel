@@ -35,7 +35,7 @@ let init =
    * of those parentheses are passed to the projector implementations  */
   switch (
     MakeTerm.for_projection(
-      ~of_projector=(_, _) => Any(),
+      ~of_projector=(~sort as _, ~id as _, _) => Any(),
       ~log_projector=_ => (),
       seg,
     )
