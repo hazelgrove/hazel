@@ -58,7 +58,12 @@ let run_cmd = {
 };
 
 let format_cmd = {
-  let doc = "Reconstructs Hazel code from its abstract syntax tree (AST), producing\n      concrete syntax without preserving original whitespace or comments.\n      This process uses a recovering parser and automatically inserts holes\n      where necessary to ensure syntactic correctness.";
+  let doc = {|
+    Reconstructs Hazel code from its abstract syntax tree (AST), producing
+    concrete syntax without preserving original whitespace or comments.
+    This process uses a recovering parser and automatically inserts holes
+    where necessary to ensure syntactic correctness.
+  |};
 
   let info = Cmd.info("format", ~doc);
   Cmd.v(info, Term.(const(format_hazel) $ input_arg));
