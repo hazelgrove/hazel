@@ -464,7 +464,9 @@ let rec exp_view =
     switch (additional_err) {
     | None =>
       div_err([
-        text(cls_str ++ " is inexhaustive. An example is "),
+        text(
+          cls_str ++ " is inexhaustive. An example of a missing pattern is ",
+        ),
         view_any(example),
       ])
     | Some(err) =>
@@ -472,7 +474,11 @@ let rec exp_view =
       div_err([
         exp_view(~globals, cls, InHole(Common(err)), info)
         |> code_box_container,
-        text("; " ++ cls_str ++ " is inexhaustive. An example is "),
+        text(
+          "; "
+          ++ cls_str
+          ++ " is inexhaustive. An example of a missing pattern is ",
+        ),
         view_any(example),
       ]);
     };
