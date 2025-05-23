@@ -249,10 +249,10 @@ module UnseenPatternList = {
           ]
         };
       };
-    | Prod(elts) =>
+    | Prod(_) =>
       // take the number of elements we need from the unseen list
       // and package them into the tuple
-      let num_elts = List.length(elts);
+      let num_elts = Ctr.num_args_of(ctr);
       let rec partition_first_n = (n, list, acc) =>
         if (n == 0) {
           (acc, list);
