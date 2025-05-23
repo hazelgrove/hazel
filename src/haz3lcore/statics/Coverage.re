@@ -206,7 +206,7 @@ module Seen = {
   };
 };
 
-module UnseenCtrList = {
+module UnseenPatternList = {
   include Seen;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -214,23 +214,22 @@ module UnseenCtrList = {
 
   let empty = [];
 
-  let prepend_ctr = (ctr: Ctr.t, col_type: Typ.t, unseen_list: t) => {
+  /* prepend the constructor to the unseen pattern list. Based on the constructor
+     amd the column type, the list will be modified in different ways.*/
+  let prepend_ctr = (ctr: Ctr.t, col_type: Typ.t, unseen_pattern: t) => {
     switch (col_type.term) {
     | Sum(_)
     | Rec(_) =>
       if (Ctr.num_args_of(ctr) == 0) {
         [
-          IdTagged.FreshGrammar.Pat.constructor(
-            ctr.ctr,
-            Some(Some(col_type)),
-          ),
-          ...unseen_list,
+          IdTagged.FreshGrammar.Pat.constructor(ctr.ctr, None),
+          ...unseen_pattern,
         ];
       } else {
         // absorb the args of the constructor
         // the empty case can happen if the example is providing a constructor
         // that has args, but no args are provided
-        switch (unseen_list) {
+        switch (unseen_pattern) {
         | [] => [
             IdTagged.FreshGrammar.Pat.ap(
               IdTagged.FreshGrammar.Pat.constructor(
@@ -239,7 +238,7 @@ module UnseenCtrList = {
               ),
               IdTagged.FreshGrammar.Pat.empty_hole(),
             ),
-            ...unseen_list,
+            ...unseen_pattern,
           ]
         | [hd, ...tl] => [
             // absorb the args of the constructor
@@ -255,6 +254,8 @@ module UnseenCtrList = {
         };
       }
     | Prod(elts) =>
+      // take the number of elements we need from the unseen list
+      // and package them into the tuple
       let num_elts = List.length(elts);
       let rec partition_first_n = (n, list, acc) =>
         if (n == 0) {
@@ -266,13 +267,14 @@ module UnseenCtrList = {
           };
         };
 
-      let (first_n, tl) = partition_first_n(num_elts, unseen_list, []);
+      let (first_n, tl) = partition_first_n(num_elts, unseen_pattern, []);
 
       [IdTagged.FreshGrammar.Pat.tuple(List.rev(first_n)), ...tl];
     | TupLabel(body, _) =>
+      // associate the tuple's labels to element in the unseen list
       switch (IdTagged.term_of(body)) {
       | Label(label) =>
-        switch (unseen_list) {
+        switch (unseen_pattern) {
         | [] => [
             IdTagged.FreshGrammar.Pat.label(label),
             IdTagged.FreshGrammar.Pat.empty_hole(),
@@ -285,19 +287,19 @@ module UnseenCtrList = {
             ...tl,
           ]
         }
-      | _ => unseen_list
+      | _ => unseen_pattern
       }
     | List(_) =>
       switch (ctr.ctr) {
-      | "nil" => [IdTagged.FreshGrammar.Pat.list_lit([]), ...unseen_list]
+      | "nil" => [IdTagged.FreshGrammar.Pat.list_lit([]), ...unseen_pattern]
       | "cons" =>
-        switch (unseen_list) {
+        switch (unseen_pattern) {
         | [] => [
             IdTagged.FreshGrammar.Pat.cons(
               IdTagged.FreshGrammar.Pat.wild(),
               IdTagged.FreshGrammar.Pat.wild(),
             ),
-            ...unseen_list,
+            ...unseen_pattern,
           ]
         | [hd, ...tl] =>
           // the structure of the list should have a tuple that contains
@@ -320,7 +322,7 @@ module UnseenCtrList = {
             };
           [cons, ...tl];
         }
-      | _ => [IdTagged.FreshGrammar.Pat.wild(), ...unseen_list]
+      | _ => [IdTagged.FreshGrammar.Pat.wild(), ...unseen_pattern]
       }
     | Atom(Bool) =>
       let boolTyp =
@@ -329,32 +331,31 @@ module UnseenCtrList = {
         | "false" => IdTagged.FreshGrammar.Pat.bool(false)
         | _ => IdTagged.FreshGrammar.Pat.wild()
         };
-      [boolTyp, ...unseen_list];
-    | Unknown(_) => [IdTagged.FreshGrammar.Pat.wild(), ...unseen_list]
+      [boolTyp, ...unseen_pattern];
+    | Unknown(_) => [IdTagged.FreshGrammar.Pat.wild(), ...unseen_pattern]
     | Atom(Int) => [
-        // TODO: this sometimes parses a default "_"
         try(IdTagged.FreshGrammar.Pat.big_int(Bigint.of_string(ctr.ctr))) {
         | _ => IdTagged.FreshGrammar.Pat.wild()
         },
-        ...unseen_list,
+        ...unseen_pattern,
       ]
     | Atom(SInt) => [
         try(IdTagged.FreshGrammar.Pat.sint(int_of_string(ctr.ctr))) {
         | _ => IdTagged.FreshGrammar.Pat.wild()
         },
-        ...unseen_list,
+        ...unseen_pattern,
       ]
     | Atom(Float) => [
         try(IdTagged.FreshGrammar.Pat.float(float_of_string(ctr.ctr))) {
         | _ => IdTagged.FreshGrammar.Pat.wild()
         },
-        ...unseen_list,
+        ...unseen_pattern,
       ]
     | Atom(Nat) => [
         try(IdTagged.FreshGrammar.Pat.nat(Bigint.of_string(ctr.ctr))) {
         | _ => IdTagged.FreshGrammar.Pat.wild()
         },
-        ...unseen_list,
+        ...unseen_pattern,
       ]
     | Atom(String) => [
         // ctr has a " as the first character
@@ -365,11 +366,11 @@ module UnseenCtrList = {
             String.sub(ctr.ctr, 1, String.length(ctr.ctr) - 1),
           );
         },
-        ...unseen_list,
+        ...unseen_pattern,
       ]
     | Arrow(_)
     | Forall(_)
-    | Var(_) => unseen_list
+    | Var(_) => unseen_pattern
     | Parens(_)
     | Ap(_)
     | Label(_) =>
@@ -380,33 +381,39 @@ module UnseenCtrList = {
     };
   };
 
-  let get_first_unseen_ctr = (seen_in_first_col: seen, all_ctrs) => {
-    seen_in_first_col.seen_all_ctrs
+  let get_first_unseen_ctr = (seen_in_col: seen, all_ctrs) => {
+    seen_in_col.seen_all_ctrs
       ? Ctr.default_ctr
       : List.split(Ctr.Map.bindings(all_ctrs))
         |> fst
-        |> List.find(ctr => !Ctr.Set.mem(ctr, seen_in_first_col.seen_ctrs));
+        |> List.find(ctr => !Ctr.Set.mem(ctr, seen_in_col.seen_ctrs));
   };
 
-  // TODO: Handle all the cases that just return default values
+  /*
+   Generated and prepend the new item to the list based on the type of the column.
+
+   `use_type_default` is used to determine if we should use a default for the column
+   rather than an unseen type.seen_ints
+   - E.g. for ints/string/etc. this default type is a wildcard.
+   */
   let prepend_with_type =
       (
         seen_in_first_col: seen,
         col_type: Typ.t,
         col_ctr: Ctr.t,
-        unseen_list: t,
+        unseen_pattern: t,
         use_type_default: bool,
       )
       : t => {
     let all_ctrs = Ctr.all_ctrs_of_typ(col_type);
 
-    let (elt, unseen_list) =
+    let (elt, unseen_pattern) =
       switch (col_type.term) {
       | Sum(_)
       | Rec(_) =>
         switch (all_ctrs) {
         | Unknown
-        | Infinite => failwith("Coverage: Sum type has invalid ctr count")
+        | Infinite => (Ctr.default_ctr, unseen_pattern)
         | Finite(all_ctrs) =>
           let new_ctr =
             if (use_type_default) {
@@ -419,10 +426,10 @@ module UnseenCtrList = {
           // that have accumulated in the list
           // Do this by just removing them, since the args will
           // be packeged into a tuple
-          let unseen_list =
-            switch (unseen_list) {
+          let unseen_pattern =
+            switch (unseen_pattern) {
             | [_, ...tl] when Ctr.num_args_of(col_ctr) > 0 => tl
-            | _ => unseen_list
+            | _ => unseen_pattern
             };
 
           if (Ctr.num_args_of(new_ctr) > 0) {
@@ -430,41 +437,41 @@ module UnseenCtrList = {
               // if the new construct has args, we need to give it
               // an argument
               new_ctr,
-              [IdTagged.FreshGrammar.Pat.wild(), ...unseen_list],
+              [IdTagged.FreshGrammar.Pat.wild(), ...unseen_pattern],
             );
           } else {
-            (new_ctr, unseen_list);
+            (new_ctr, unseen_pattern);
           };
         }
       | Atom(Bool) =>
         switch (all_ctrs) {
         | Unknown
-        | Infinite => failwith("Coverage: Bool type has invalid ctr count")
+        | Infinite => (Ctr.default_ctr, unseen_pattern)
         | Finite(all_ctrs) => (
             if (use_type_default) {
               Ctr.false_ctr;
             } else {
               get_first_unseen_ctr(seen_in_first_col, all_ctrs);
             },
-            unseen_list,
+            unseen_pattern,
           )
         }
       | List(_) =>
         switch (all_ctrs) {
         | Unknown
-        | Infinite => (col_ctr, unseen_list)
+        | Infinite => (col_ctr, unseen_pattern)
         | Finite(all_ctrs) =>
           if (use_type_default) {
             // the terminal cons/nil case will have 0 arguments,
             // so we want to generate a default constructor for it
             if (Ctr.num_args_of(col_ctr) <= 0) {
-              (Ctr.default_ctr, unseen_list);
+              (Ctr.default_ctr, unseen_pattern);
             } else {
               // otherwise, the non terminal character wants to generate
               // a new wildcard. So, discard the existing wildcard.
               // TODO: just update this function to not make a call to prepend_ctr
-              switch (unseen_list) {
-              | [] => (Ctr.default_ctr, unseen_list)
+              switch (unseen_pattern) {
+              | [] => (Ctr.default_ctr, unseen_pattern)
               | [_, ...tl] => (Ctr.default_ctr, tl)
               };
             };
@@ -474,27 +481,28 @@ module UnseenCtrList = {
             if (col_ctr == Ctr.nil_ctr) {
               (
                 unseen_ctr,
-                [IdTagged.FreshGrammar.Pat.wild(), ...unseen_list],
+                [IdTagged.FreshGrammar.Pat.wild(), ...unseen_pattern],
               );
             } else if (Ctr.num_args_of(col_ctr) > 0
                        && unseen_ctr == Ctr.nil_ctr) {
               // if the unseen ctr is a nil, and the current ctr has args,
               // it's a cons and we need to get rid of those args
               // it's guaranteed to be a tuple of whatever.
-              // when the user is performing actions, unseen_list may be empty
-              switch (unseen_list) {
-              | [] => (unseen_ctr, unseen_list)
+              // when the user is performing actions, unseen_pattern may be empty
+              switch (unseen_pattern) {
+              | [] => (unseen_ctr, unseen_pattern)
               | [_, ...tl] => (unseen_ctr, tl)
               };
             } else {
-              (unseen_ctr, unseen_list);
+              (unseen_ctr, unseen_pattern);
             };
           }
         }
-      | Prod(_) => (col_ctr, unseen_list) // will be ignored in the later prepend step
-      | Unknown(_) => (col_ctr, unseen_list)
-      | TupLabel(_) => (col_ctr, unseen_list)
-      | Atom(Int) => (
+      | Prod(_) => (col_ctr, unseen_pattern) // will be ignored in the later prepend step
+      | Unknown(_) => (col_ctr, unseen_pattern)
+      | TupLabel(_) => (col_ctr, unseen_pattern)
+      | Atom(Int)
+      | Atom(Nat) => (
           if (use_type_default) {
             Ctr.default_ctr;
           } else {
@@ -505,20 +513,7 @@ module UnseenCtrList = {
             };
             first_unused_bigint(0);
           },
-          unseen_list,
-        )
-      | Atom(Nat) => (
-          if (use_type_default) {
-            Ctr.default_ctr;
-          } else {
-            let rec first_unused_nat = n => {
-              let big_int = Bigint.of_int(n);
-              IntSet.mem(big_int, seen_in_first_col.seen_ints)
-                ? first_unused_nat(n + 1) : Ctr.of_int(Bigint.of_int(n));
-            };
-            first_unused_nat(0);
-          },
-          unseen_list,
+          unseen_pattern,
         )
       | Atom(SInt) => (
           if (use_type_default) {
@@ -530,7 +525,7 @@ module UnseenCtrList = {
             };
             first_unused_sint(0);
           },
-          unseen_list,
+          unseen_pattern,
         )
       | Atom(Float) => (
           if (use_type_default) {
@@ -542,7 +537,7 @@ module UnseenCtrList = {
             };
             first_unused_float(0.);
           },
-          unseen_list,
+          unseen_pattern,
         )
       | Atom(String) => (
           if (use_type_default) {
@@ -554,28 +549,29 @@ module UnseenCtrList = {
             };
             first_unused_str("");
           },
-          unseen_list,
+          unseen_pattern,
         )
       | Arrow(_)
       | Forall(_)
-      | Var(_) => (Ctr.default_ctr, unseen_list)
+      | Var(_) => (Ctr.default_ctr, unseen_pattern)
       | Parens(_)
       | Ap(_)
       | Label(_) =>
         failwith(
-          "find_unseen_of_ty called with a non-normalized type: "
+          "prepend_with_type called with a non-normalized type: "
           ++ Typ.show(col_type),
         )
       };
 
-    prepend_ctr(elt, col_type, unseen_list);
+    prepend_ctr(elt, col_type, unseen_pattern);
   };
 
-  let to_pat = (unseen_list: t) => {
+  /*The unseen list as a grammatical pattern*/
+  let to_pat = (unseen_pattern: t) => {
     Grammar.Pat(
-      switch (List.length(unseen_list)) {
-      | 1 => List.hd(unseen_list)
-      | _ => IdTagged.FreshGrammar.Pat.tuple(unseen_list)
+      switch (List.length(unseen_pattern)) {
+      | 1 => List.hd(unseen_pattern)
+      | _ => IdTagged.FreshGrammar.Pat.tuple(unseen_pattern)
       },
     );
   };
@@ -589,7 +585,8 @@ module Submatrices = {
     ctrs: Ctr.Map.t(Matrix.t),
     first_col_exhaustive: bool,
     first_col_redundant_rows: redundant_rows,
-    first_col_unseen: (Ctr.t, UnseenCtrList.t, bool) => UnseenCtrList.t,
+    prepend_first_col_unseen_ctr:
+      (Ctr.t, UnseenPatternList.t, bool) => UnseenPatternList.t,
   };
 
   let rev = (s: t): t => {
@@ -601,7 +598,7 @@ module Submatrices = {
     ctrs: Ctr.Map.empty,
     first_col_exhaustive: false,
     first_col_redundant_rows: [],
-    first_col_unseen: (_, _, _) => {
+    prepend_first_col_unseen_ctr: (_, _, _) => {
       [];
     },
   };
@@ -884,14 +881,14 @@ module Submatrices = {
       | Finite(_) => seen_truth || seen_hole || seen_all_ctrs
       };
 
-    let first_col_unseen =
-      UnseenCtrList.prepend_with_type(seen_data, first_col_ty);
+    let prepend_first_col_unseen_ctr =
+      UnseenPatternList.prepend_with_type(seen_data, first_col_ty);
 
     {
       ...submatrices,
       first_col_exhaustive,
       first_col_redundant_rows,
-      first_col_unseen,
+      prepend_first_col_unseen_ctr,
     };
   };
 };
@@ -900,7 +897,7 @@ module Submatrices = {
 type result = {
   is_exhaustive: bool,
   redundant_rows,
-  unseen_list: UnseenCtrList.t,
+  unseen_pattern: UnseenPatternList.t,
 };
 
 // We assume col_tys is already normalized.
@@ -912,60 +909,61 @@ let rec check_matrix = (m: Matrix.t, col_tys: list(Typ.t)): result => {
       {
         is_exhaustive: true,
         redundant_rows: List.init(List.length(m), i => i),
-        unseen_list: UnseenCtrList.empty,
+        unseen_pattern: UnseenPatternList.empty,
       };
     } else {
       let all_ctrs = Ctr.all_ctrs_of_typ(first_col_ty);
       let submatrices = Submatrices.of_matrix(m, all_ctrs, first_col_ty);
 
-      let (is_exhaustive, redundant_rows, unseen_list) =
+      let (is_exhaustive, redundant_rows, unseen_pattern) =
         Ctr.Map.fold(
-          (ctr, submatrix, (is_exhaustive, redundant_rows, unseen_list)) => {
+          (ctr, submatrix, (is_exhaustive, redundant_rows, unseen_pattern)) => {
             // for each submatrix, recursively check_matrix, computing the col_tys based
             // on the first_col_ty and the constructor name.
             let arity = Ctr.arity_of(ctr, all_ctrs);
             let col_tys = arity @ rem_col_tys;
             switch (col_tys) {
             | [] =>
-              let unseen_list =
-                submatrices.first_col_unseen(
+              let unseen_pattern =
+                submatrices.prepend_first_col_unseen_ctr(
                   ctr,
-                  UnseenCtrList.empty,
+                  UnseenPatternList.empty,
                   submatrices.first_col_exhaustive,
                 );
-              (is_exhaustive, redundant_rows, unseen_list);
+              (is_exhaustive, redundant_rows, unseen_pattern);
             | _ =>
               let submatrix_check_result = check_matrix(submatrix, col_tys);
               let is_still_exhaustive =
                 is_exhaustive && submatrix_check_result.is_exhaustive;
 
-              let unseen_list =
+              // update the unseen list based on exhaustiveness
+              let unseen_pattern =
                 if (is_still_exhaustive && !submatrices.first_col_exhaustive) {
                   // if the following column did not break exhaustiveness, but this one does,
                   // we place the unseen value into the list
-                  submatrices.first_col_unseen(
+                  submatrices.prepend_first_col_unseen_ctr(
                     ctr,
-                    submatrix_check_result.unseen_list,
+                    submatrix_check_result.unseen_pattern,
                     false,
                   );
                 } else if (is_still_exhaustive
                            && submatrices.first_col_exhaustive) {
                   // if this column is exhaustive and the following column did not break exhaustiveness,
                   // use the default unseen value for the type
-                  submatrices.first_col_unseen(
+                  submatrices.prepend_first_col_unseen_ctr(
                     ctr,
-                    submatrix_check_result.unseen_list,
+                    submatrix_check_result.unseen_pattern,
                     true,
                   );
                 } else if (is_exhaustive) {
-                  // TODO: fix tuple handling
-                  UnseenCtrList.prepend_ctr(
+                  // otherwise, we just use a default/known to exist ctr
+                  UnseenPatternList.prepend_ctr(
                     ctr,
                     first_col_ty,
-                    submatrix_check_result.unseen_list,
+                    submatrix_check_result.unseen_pattern,
                   );
                 } else {
-                  unseen_list;
+                  unseen_pattern;
                 };
 
               let redundant_rows =
@@ -976,17 +974,21 @@ let rec check_matrix = (m: Matrix.t, col_tys: list(Typ.t)): result => {
                   },
                   redundant_rows,
                 );
-              (is_still_exhaustive, redundant_rows, unseen_list);
+              (is_still_exhaustive, redundant_rows, unseen_pattern);
             };
           },
           submatrices.ctrs,
-          (true, submatrices.first_col_redundant_rows, UnseenCtrList.empty),
+          (
+            true,
+            submatrices.first_col_redundant_rows,
+            UnseenPatternList.empty,
+          ),
         );
 
       {
         is_exhaustive: is_exhaustive && submatrices.first_col_exhaustive,
         redundant_rows,
-        unseen_list,
+        unseen_pattern,
       };
     }
   };
