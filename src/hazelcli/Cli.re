@@ -72,10 +72,7 @@ let format_cmd = {
 let analyze_cmd = {
   let doc = "Perform static analysis on Hazel code.";
   let info = Cmd.info("analyze", ~doc);
-  Cmd.v(
-    info,
-    Term.ret(Term.(const(analyze_hazel) $ input_arg))
-  );
+  Cmd.v(info, Term.ret(Term.(const(analyze_hazel) $ input_arg)));
 };
 
 /* Default to help if no subcommand is given */
