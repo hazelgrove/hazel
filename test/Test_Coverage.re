@@ -109,7 +109,12 @@ in ?|},
       Info.Exp(
         InexhaustiveMatch(
           None,
-          Grammar.Pat(IdTagged.FreshGrammar.Pat.wild()),
+          Grammar.Pat(
+            IdTagged.FreshGrammar.Pat.ap(
+              IdTagged.FreshGrammar.Pat.constructor("Leaf", None),
+              IdTagged.FreshGrammar.Pat.wild(),
+            ),
+          ),
         ),
       ),
       Info.Pat(Redundant(None)),
@@ -144,7 +149,12 @@ let odd_length : [Int] -> Bool =
       Info.Exp(
         InexhaustiveMatch(
           None,
-          Grammar.Pat(IdTagged.FreshGrammar.Pat.wild()),
+          Grammar.Pat(
+            IdTagged.FreshGrammar.Pat.cons(
+              IdTagged.FreshGrammar.Pat.wild(),
+              IdTagged.FreshGrammar.Pat.list_lit([]),
+            ),
+          ),
         ),
       ),
     ],
@@ -232,7 +242,7 @@ end}}}|},
       Info.Exp(
         InexhaustiveMatch(
           None,
-          Grammar.Pat(IdTagged.FreshGrammar.Pat.wild()),
+          Grammar.Pat(IdTagged.FreshGrammar.Pat.big_int(Bigint.of_int(0))),
         ),
       ),
     ],
@@ -277,7 +287,7 @@ end}}}|},
       Info.Exp(
         InexhaustiveMatch(
           None,
-          Grammar.Pat(IdTagged.FreshGrammar.Pat.wild()),
+          Grammar.Pat(IdTagged.FreshGrammar.Pat.float(0.0)),
         ),
       ),
     ],
@@ -322,7 +332,7 @@ end}}}|},
       Info.Exp(
         InexhaustiveMatch(
           None,
-          Grammar.Pat(IdTagged.FreshGrammar.Pat.wild()),
+          Grammar.Pat(IdTagged.FreshGrammar.Pat.string("*")),
         ),
       ),
     ],
@@ -370,13 +380,13 @@ end}}} in ?
       Info.Exp(
         InexhaustiveMatch(
           None,
-          Grammar.Pat(IdTagged.FreshGrammar.Pat.wild()),
+          Grammar.Pat(IdTagged.FreshGrammar.Pat.bool(true)),
         ),
       ),
       Info.Exp(
         InexhaustiveMatch(
           None,
-          Grammar.Pat(IdTagged.FreshGrammar.Pat.wild()),
+          Grammar.Pat(IdTagged.FreshGrammar.Pat.bool(false)),
         ),
       ),
     ],
@@ -482,7 +492,12 @@ end}}} in ?
       Info.Exp(
         InexhaustiveMatch(
           None,
-          Grammar.Pat(IdTagged.FreshGrammar.Pat.wild()),
+          Grammar.Pat(
+            IdTagged.FreshGrammar.Pat.tuple([
+              IdTagged.FreshGrammar.Pat.wild(),
+              IdTagged.FreshGrammar.Pat.constructor("Jack", None),
+            ]),
+          ),
         ),
       ),
     ],
@@ -504,7 +519,7 @@ let x : Rank = ? in
       Info.Exp(
         InexhaustiveMatch(
           None,
-          Grammar.Pat(IdTagged.FreshGrammar.Pat.wild()),
+          Grammar.Pat(IdTagged.FreshGrammar.Pat.constructor("Jack", None)),
         ),
       ),
     ],
@@ -526,7 +541,7 @@ let f = {{{fun Ace -> ?}}} in
       Info.Exp(
         InexhaustiveMatch(
           None,
-          Grammar.Pat(IdTagged.FreshGrammar.Pat.wild()),
+          Grammar.Pat(IdTagged.FreshGrammar.Pat.constructor("Jack", None)),
         ),
       ),
     ],
@@ -551,7 +566,15 @@ in ?|},
       Info.Exp(
         InexhaustiveMatch(
           None,
-          Grammar.Pat(IdTagged.FreshGrammar.Pat.wild()),
+          Grammar.Pat(
+            IdTagged.FreshGrammar.Pat.ap(
+              IdTagged.FreshGrammar.Pat.constructor("Node", None),
+              IdTagged.FreshGrammar.Pat.cons(
+                IdTagged.FreshGrammar.Pat.wild(),
+                IdTagged.FreshGrammar.Pat.list_lit([]),
+              ),
+            ),
+          ),
         ),
       ),
     ],
@@ -646,7 +669,12 @@ in ?|},
       Info.Exp(
         InexhaustiveMatch(
           None,
-          Grammar.Pat(IdTagged.FreshGrammar.Pat.wild()),
+          Grammar.Pat(
+            IdTagged.FreshGrammar.Pat.ap(
+              IdTagged.FreshGrammar.Pat.constructor("Node", None),
+              IdTagged.FreshGrammar.Pat.wild(),
+            ),
+          ),
         ),
       ),
     ],
@@ -668,7 +696,12 @@ in ?|},
       Info.Exp(
         InexhaustiveMatch(
           None,
-          Grammar.Pat(IdTagged.FreshGrammar.Pat.wild()),
+          Grammar.Pat(
+            IdTagged.FreshGrammar.Pat.ap(
+              IdTagged.FreshGrammar.Pat.constructor("Node", None),
+              IdTagged.FreshGrammar.Pat.wild(),
+            ),
+          ),
         ),
       ),
       Info.Pat(Redundant(None)),
@@ -694,7 +727,12 @@ in ?|},
       Info.Exp(
         InexhaustiveMatch(
           None,
-          Grammar.Pat(IdTagged.FreshGrammar.Pat.wild()),
+          Grammar.Pat(
+            IdTagged.FreshGrammar.Pat.ap(
+              IdTagged.FreshGrammar.Pat.constructor("Node", None),
+              IdTagged.FreshGrammar.Pat.wild(),
+            ),
+          ),
         ),
       ),
       Info.Pat(Common(NoType(FreeConstructor("A")))),
@@ -746,7 +784,22 @@ in ?|},
       Info.Exp(
         InexhaustiveMatch(
           None,
-          Grammar.Pat(IdTagged.FreshGrammar.Pat.wild()),
+          Grammar.Pat(
+            IdTagged.FreshGrammar.Pat.tuple([
+              IdTagged.FreshGrammar.Pat.tup_label(
+                IdTagged.FreshGrammar.Pat.label("x"),
+                IdTagged.FreshGrammar.Pat.constructor("D", None),
+              ),
+              IdTagged.FreshGrammar.Pat.tup_label(
+                IdTagged.FreshGrammar.Pat.label("y"),
+                IdTagged.FreshGrammar.Pat.wild(),
+              ),
+              IdTagged.FreshGrammar.Pat.tup_label(
+                IdTagged.FreshGrammar.Pat.label("z"),
+                IdTagged.FreshGrammar.Pat.constructor("A", None),
+              ),
+            ]),
+          ),
         ),
       ),
     ],
@@ -772,7 +825,22 @@ in ?|},
       Info.Exp(
         InexhaustiveMatch(
           None,
-          Grammar.Pat(IdTagged.FreshGrammar.Pat.wild()),
+          Grammar.Pat(
+            IdTagged.FreshGrammar.Pat.tuple([
+              IdTagged.FreshGrammar.Pat.tup_label(
+                IdTagged.FreshGrammar.Pat.label("x"),
+                IdTagged.FreshGrammar.Pat.constructor("A", None),
+              ),
+              IdTagged.FreshGrammar.Pat.tup_label(
+                IdTagged.FreshGrammar.Pat.label("y"),
+                IdTagged.FreshGrammar.Pat.constructor("E", None),
+              ),
+              IdTagged.FreshGrammar.Pat.tup_label(
+                IdTagged.FreshGrammar.Pat.label("z"),
+                IdTagged.FreshGrammar.Pat.constructor("B", None),
+              ),
+            ]),
+          ),
         ),
       ),
       Info.Pat(Redundant(None)),

@@ -220,11 +220,16 @@ module UnseenPatternList = {
     switch (col_type.term) {
     | Sum(_)
     | Rec(_) =>
+      // convert default ctr to a wildcard
+      let pat_ctr =
+        if (ctr == Ctr.default_ctr) {
+          IdTagged.FreshGrammar.Pat.wild();
+        } else {
+          IdTagged.FreshGrammar.Pat.constructor(ctr.ctr, None);
+        };
+
       if (Ctr.num_args_of(ctr) == 0) {
-        [
-          IdTagged.FreshGrammar.Pat.constructor(ctr.ctr, None),
-          ...unseen_pattern,
-        ];
+        [pat_ctr, ...unseen_pattern];
       } else {
         // absorb the args of the constructor
         // the empty case can happen if the example is providing a constructor
@@ -232,27 +237,18 @@ module UnseenPatternList = {
         switch (unseen_pattern) {
         | [] => [
             IdTagged.FreshGrammar.Pat.ap(
-              IdTagged.FreshGrammar.Pat.constructor(
-                ctr.ctr,
-                Some(Some(col_type)),
-              ),
+              pat_ctr,
               IdTagged.FreshGrammar.Pat.empty_hole(),
             ),
             ...unseen_pattern,
           ]
         | [hd, ...tl] => [
             // absorb the args of the constructor
-            IdTagged.FreshGrammar.Pat.ap(
-              IdTagged.FreshGrammar.Pat.constructor(
-                ctr.ctr,
-                Some(Some(col_type)),
-              ),
-              hd,
-            ),
+            IdTagged.FreshGrammar.Pat.ap(pat_ctr, hd),
             ...tl,
           ]
         };
-      }
+      };
     | Prod(elts) =>
       // take the number of elements we need from the unseen list
       // and package them into the tuple
