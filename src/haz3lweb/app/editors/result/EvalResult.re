@@ -155,40 +155,6 @@ module Update = {
         UpdateResult(update),
         {result: Evaluation({elab, editor, cached_settings, _}), _},
       ) =>
-      let _ =
-        switch (update) {
-        | ResultOk({result, _}) =>
-          switch (result.term) {
-          | ListLit(lits) =>
-            let colors =
-              List.concat_map(
-                x => {
-                  switch (Unboxing.unbox(Tuple(2), x)) {
-                  | Matches([x, y]) =>
-                    switch (
-                      Unboxing.unbox(Atom(String), x),
-                      Unboxing.unbox(Atom(String), y),
-                    ) {
-                    | (Matches(name), Matches(color)) => [(name, color)]
-                    | _ => []
-                    }
-                  | _ => []
-                  }
-                },
-                lits,
-              );
-            print_endline(
-              "Colors: " ++ [%derive.show: list((string, string))](colors),
-            );
-            List.iter(
-              ((var, color)) => JsUtil.set_css_variable("--" ++ var, color),
-              colors,
-            );
-          | _ => ()
-          }
-        | _ => ()
-        };
-
       {
         ...model,
         result:
@@ -214,7 +180,7 @@ module Update = {
           previous_probes: Model.probe_results(x),
         }
       )
-      |> Updated.return;
+      |> Updated.return
     | (UpdateResult(_), _) => model |> Updated.return_quiet
     };
   };

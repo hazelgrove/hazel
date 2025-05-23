@@ -6,6 +6,7 @@ open Util;
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
+    scratch_sort: string,
     current: int,
     scratchpads: list((string, CellEditor.Model.t)),
   };
@@ -18,7 +19,8 @@ module Model = {
     List.map(((_, m)) => CellEditor.Model.persist(m), model.scratchpads),
   );
 
-  let unpersist = (~settings, (current, slides)) => {
+  let unpersist = (~settings, buffer_sort, (current, slides)): t => {
+    scratch_sort: buffer_sort,
     current,
     scratchpads:
       List.mapi(
@@ -38,7 +40,8 @@ module Model = {
   );
 
   // TODO Rename to unpersist_named
-  let unpersist_documentation = (~settings, (current, slides)) => {
+  let unpersist_documentation = (~settings, buffer_sort, (current, slides)) => {
+    scratch_sort: buffer_sort,
     current,
     scratchpads:
       List.map(
@@ -120,11 +123,45 @@ module Update = {
         ~schedule_action,
         ~settings: Settings.t,
         ~is_documentation: bool,
-        action,
+        action: t,
         model: Model.t,
       ) => {
     switch (action) {
     | CellAction(a) =>
+      switch (a) {
+      | CellEditor.Update.ResultAction(UpdateResult(ResultOk({result, _})))
+          when model.scratch_sort == "configuration" =>
+        switch (result.term) {
+        | ListLit(lits) =>
+          let colors =
+            List.concat_map(
+              x => {
+                switch (Unboxing.unbox(Tuple(2), x)) {
+                | Matches([x, y]) =>
+                  switch (
+                    Unboxing.unbox(Atom(String), x),
+                    Unboxing.unbox(Atom(String), y),
+                  ) {
+                  | (Matches(name), Matches(color)) => [(name, color)]
+                  | _ => []
+                  }
+                | _ => []
+                }
+              },
+              lits,
+            );
+          print_endline(
+            "Colors: " ++ [%derive.show: list((string, string))](colors),
+          );
+          List.iter(
+            ((var, color)) => JsUtil.set_css_variable("--" ++ var, color),
+            colors,
+          );
+        | _ => ()
+        }
+      | _ => ()
+      };
+
       let (key, ed) = List.nth(model.scratchpads, model.current);
       let* new_ed = CellEditor.Update.update(~settings, a, ed);
       let new_sp =

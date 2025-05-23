@@ -37,12 +37,15 @@ module Store = {
       Model.Scratch(
         ScratchMode.Store.load()
         |> ScratchMode.Store.integrate_share
-        |> ScratchMode.Model.unpersist(~settings),
+        |> ScratchMode.Model.unpersist(~settings, "scratch"),
       )
     | Documentation =>
       Model.Documentation(
         ScratchMode.StoreDocumentation.load()
-        |> ScratchMode.Model.unpersist_documentation(~settings),
+        |> ScratchMode.Model.unpersist_documentation(
+             ~settings,
+             "documentation",
+           ),
       )
     | Exercises =>
       Model.Exercises(
@@ -52,7 +55,10 @@ module Store = {
     | Config =>
       Model.Config(
         ScratchMode.StoreConfig.load()
-        |> ScratchMode.Model.unpersist_documentation(~settings),
+        |> ScratchMode.Model.unpersist_documentation(
+             ~settings,
+             "configuration",
+           ),
       )
     };
   };
@@ -142,7 +148,10 @@ module Update = {
     | (SwitchMode(Scratch), _) =>
       Model.Scratch(
         ScratchMode.Store.load()
-        |> ScratchMode.Model.unpersist(~settings=globals.settings.core),
+        |> ScratchMode.Model.unpersist(
+             ~settings=globals.settings.core,
+             "scratch",
+           ),
       )
       |> return
     | (SwitchMode(Documentation), _) =>
@@ -150,6 +159,7 @@ module Update = {
         ScratchMode.StoreDocumentation.load()
         |> ScratchMode.Model.unpersist_documentation(
              ~settings=globals.settings.core,
+             "documentation",
            ),
       )
       |> return
@@ -158,6 +168,7 @@ module Update = {
         ScratchMode.StoreConfig.load()
         |> ScratchMode.Model.unpersist_documentation(
              ~settings=globals.settings.core,
+             "configuration",
            ),
       )
       |> return
