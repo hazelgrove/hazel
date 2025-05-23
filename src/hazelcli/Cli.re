@@ -1,34 +1,15 @@
 open Cmdliner;
 
 /* Read from stdin or file depending on argument */
-let read_input = path =>
-  switch (path) {
-  | "-" =>
-    let buf = Buffer.create(1024);
-    try(
-      {
-        while (true) {
-          let line = input_line(stdin);
-          Buffer.add_string(buf, line);
-          Buffer.add_char(buf, '\n');
-        };
-        assert(false);
-      }
-    ) {
-    /* unreachable */
+let read_input = path => {
+  Core.(
+    switch (path) {
+    | "-" => In_channel.input_all(In_channel.stdin)
+    | file => In_channel.read_all(file)
+    }
+  );
+};
 
-    | End_of_file => Buffer.contents(buf)
-    | _ => failwith("Unexpected error while reading input")
-    };
-  | file =>
-    let ic = open_in(file);
-    let len = in_channel_length(ic);
-    let content = really_input_string(ic, len);
-    close_in(ic);
-    content;
-  };
-
-/* Placeholder implementations for each command */
 let run_hazel = path => {
   let program = read_input(path);
   let parsed = Parse.parse_program(program);
