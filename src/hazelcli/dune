@@ -15,8 +15,3 @@
  (release
   (js_of_ocaml
    (flags (:standard)))))
-
-(rule
- (alias run)
- (action
-  (run node %{exe:cli.bc.js})))
