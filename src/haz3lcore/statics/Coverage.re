@@ -215,9 +215,9 @@ module UnseenCtrList = {
   let empty = [];
 
   let prepend_ctr = (ctr: Ctr.t, col_type: Typ.t, unseen_list: t) => {
-    print_endline(Ctr.show(ctr) ++ Typ.show(col_type));
     switch (col_type.term) {
-    | Sum(_) =>
+    | Sum(_)
+    | Rec(_) =>
       if (Ctr.num_args_of(ctr) == 0) {
         [
           IdTagged.FreshGrammar.Pat.constructor(
@@ -254,7 +254,6 @@ module UnseenCtrList = {
           ]
         };
       }
-    | Rec(_) => [IdTagged.FreshGrammar.Pat.wild(), ...unseen_list]
     | Prod(elts) =>
       let num_elts = List.length(elts);
       let rec partition_first_n = (n, list, acc) =>
@@ -359,9 +358,13 @@ module UnseenCtrList = {
       ]
     | Atom(String) => [
         // ctr has a " as the first character
-        IdTagged.FreshGrammar.Pat.string(
-          String.sub(ctr.ctr, 1, String.length(ctr.ctr) - 1),
-        ),
+        if (ctr == Ctr.default_ctr) {
+          IdTagged.FreshGrammar.Pat.wild();
+        } else {
+          IdTagged.FreshGrammar.Pat.string(
+            String.sub(ctr.ctr, 1, String.length(ctr.ctr) - 1),
+          );
+        },
         ...unseen_list,
       ]
     | Arrow(_)
@@ -399,7 +402,8 @@ module UnseenCtrList = {
 
     let (elt, unseen_list) =
       switch (col_type.term) {
-      | Sum(_) =>
+      | Sum(_)
+      | Rec(_) =>
         switch (all_ctrs) {
         | Unknown
         | Infinite => failwith("Coverage: Sum type has invalid ctr count")
@@ -489,7 +493,6 @@ module UnseenCtrList = {
         }
       | Prod(_) => (col_ctr, unseen_list) // will be ignored in the later prepend step
       | Unknown(_) => (col_ctr, unseen_list)
-      | Rec(_) => (col_ctr, unseen_list)
       | TupLabel(_) => (col_ctr, unseen_list)
       | Atom(Int) => (
           if (use_type_default) {
@@ -914,21 +917,6 @@ let rec check_matrix = (m: Matrix.t, col_tys: list(Typ.t)): result => {
     } else {
       let all_ctrs = Ctr.all_ctrs_of_typ(first_col_ty);
       let submatrices = Submatrices.of_matrix(m, all_ctrs, first_col_ty);
-
-      Ctr.Map.iter(
-        (_, submatrix) => {
-          List.iter(
-            (r: Matrix.row) => {
-              List.iter(c => print_string(Constraint.show(c)), r.cols);
-              print_newline();
-            },
-            submatrix,
-          );
-          print_endline("---");
-        },
-        submatrices.ctrs,
-      );
-      print_endline(string_of_bool(submatrices.first_col_exhaustive));
 
       let (is_exhaustive, redundant_rows, unseen_list) =
         Ctr.Map.fold(
