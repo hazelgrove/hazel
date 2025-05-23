@@ -1,4 +1,4 @@
-# Hazel CLI Tool
+# Hazel CLI
 
 The Hazel CLI is a command-line interface for working with Hazel programs. It provides tools for running, formatting, and analyzing Hazel code. This tool is designed to streamline the development and debugging process for Hazel developers.
 
