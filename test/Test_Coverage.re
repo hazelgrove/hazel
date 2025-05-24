@@ -217,6 +217,209 @@ case x
 end|},
   );
 
+let list_inexhaustive_nil =
+  has_errors(
+    "List: Inexhaustive Nil",
+    {|
+    let x : [Int] = ? in
+    {{{case x
+    | _::_ => 1
+    end}}}
+|},
+    [
+      Info.Exp(
+        InexhaustiveMatch(
+          None,
+          Grammar.Pat(IdTagged.FreshGrammar.Pat.list_lit([])),
+        ),
+      ),
+    ],
+  );
+
+let list_inexhaustive_cons =
+  has_errors(
+    "List: Inexhaustive Cons",
+    {|
+      let x : [Int] = ? in
+      {{{case x
+      | [] => 0
+      | a::[] => 1
+      end}}}
+|},
+    [
+      Info.Exp(
+        InexhaustiveMatch(
+          None,
+          Grammar.Pat(
+            IdTagged.FreshGrammar.Pat.cons(
+              IdTagged.FreshGrammar.Pat.wild(),
+              IdTagged.FreshGrammar.Pat.cons(
+                IdTagged.FreshGrammar.Pat.wild(),
+                IdTagged.FreshGrammar.Pat.wild(),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ],
+  );
+
+let list_inexhaustive_cons_long =
+  has_errors(
+    "List: Inexhaustive Cons Long",
+    {|
+      let x : [Int] = ? in
+      {{{case x
+      | [] => 0
+      | _::[] => 0
+      | _::_::[] => 1
+      | _::_::_::_::[] => 1
+      end}}}
+|},
+    [
+      Info.Exp(
+        InexhaustiveMatch(
+          None,
+          Grammar.Pat(
+            IdTagged.FreshGrammar.Pat.cons(
+              IdTagged.FreshGrammar.Pat.wild(),
+              IdTagged.FreshGrammar.Pat.cons(
+                IdTagged.FreshGrammar.Pat.wild(),
+                IdTagged.FreshGrammar.Pat.cons(
+                  IdTagged.FreshGrammar.Pat.wild(),
+                  IdTagged.FreshGrammar.Pat.cons(
+                    IdTagged.FreshGrammar.Pat.wild(),
+                    IdTagged.FreshGrammar.Pat.cons(
+                      IdTagged.FreshGrammar.Pat.wild(),
+                      IdTagged.FreshGrammar.Pat.wild(),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ],
+  );
+
+let list_inexhaustive_tuple_with_elt =
+  has_errors(
+    "List: Inexhaustive In Tuple with Second Element",
+    {|
+  let x : ([Int], Int) = ? in
+  {{{case x
+  | (hd::[], _) => 0
+  end}}}
+  |},
+    [
+      Info.Exp(
+        InexhaustiveMatch(
+          None,
+          Grammar.Pat(
+            IdTagged.FreshGrammar.Pat.tuple([
+              IdTagged.FreshGrammar.Pat.cons(
+                IdTagged.FreshGrammar.Pat.wild(),
+                IdTagged.FreshGrammar.Pat.cons(
+                  IdTagged.FreshGrammar.Pat.wild(),
+                  IdTagged.FreshGrammar.Pat.wild(),
+                ),
+              ),
+              IdTagged.FreshGrammar.Pat.wild(),
+            ]),
+          ),
+        ),
+      ),
+    ],
+  );
+
+let list_inexhaustive_triple =
+  has_errors(
+    "List: Inexhaustive Triple",
+    {|
+    let x : ([Int], [Int], Int) = ? in
+    {{{case x
+    | (_::_, [], _) => 0
+    | ([], [], _) => 0
+    end}}}
+      |},
+    [
+      Info.Exp(
+        InexhaustiveMatch(
+          None,
+          Grammar.Pat(
+            IdTagged.FreshGrammar.Pat.tuple([
+              IdTagged.FreshGrammar.Pat.list_lit([]),
+              IdTagged.FreshGrammar.Pat.cons(
+                IdTagged.FreshGrammar.Pat.wild(),
+                IdTagged.FreshGrammar.Pat.wild(),
+              ),
+              IdTagged.FreshGrammar.Pat.wild(),
+            ]),
+          ),
+        ),
+      ),
+    ],
+  );
+
+let list_inexhaustive_triple_elt_first =
+  has_errors(
+    "List: Inexhaustive In Triple with First Element",
+    {|
+    let x : (Int, [Int], [Int]) = ? in
+    {{{case x
+    | (0, _, []) => 0
+    | (0, _, _::_) => 1
+    end}}}
+    |},
+    [
+      Info.Exp(
+        InexhaustiveMatch(
+          None,
+          Grammar.Pat(
+            IdTagged.FreshGrammar.Pat.tuple([
+              IdTagged.FreshGrammar.Pat.big_int(Bigint.of_int(1)),
+              IdTagged.FreshGrammar.Pat.wild(),
+              IdTagged.FreshGrammar.Pat.wild(),
+            ]),
+          ),
+        ),
+      ),
+    ],
+  );
+
+let list_inexhaustive_middle_quad =
+  has_errors(
+    "List: Inexhaustive List Middle Element In Quad",
+    {|
+    let x : ([Int], [Int], Int, [Int]) = ? in
+    {{{case x
+    | (_::_, [], _, []) => 1
+    | (_::_, [], _, _::_) => 2
+    end}}}
+    |},
+    [
+      Info.Exp(
+        InexhaustiveMatch(
+          None,
+          Grammar.Pat(
+            IdTagged.FreshGrammar.Pat.tuple([
+              IdTagged.FreshGrammar.Pat.cons(
+                IdTagged.FreshGrammar.Pat.wild(),
+                IdTagged.FreshGrammar.Pat.wild(),
+              ),
+              IdTagged.FreshGrammar.Pat.cons(
+                IdTagged.FreshGrammar.Pat.wild(),
+                IdTagged.FreshGrammar.Pat.wild(),
+              ),
+              IdTagged.FreshGrammar.Pat.wild(),
+              IdTagged.FreshGrammar.Pat.wild(),
+            ]),
+          ),
+        ),
+      ),
+    ],
+  );
 let integers_exhaustive =
   no_errors(
     "Integers: Exhaustive",
@@ -243,6 +446,30 @@ end}}}|},
         InexhaustiveMatch(
           None,
           Grammar.Pat(IdTagged.FreshGrammar.Pat.big_int(Bigint.of_int(0))),
+        ),
+      ),
+    ],
+  );
+
+let integers_tuple_non_exhaustive =
+  has_errors(
+    "Integers: Non-Exhaustive Tuple",
+    {|
+let x : (Int, Int) = ? in
+{{{case x
+  | (0, 0) => 1
+  | (0, _) => 2
+end}}}|},
+    [
+      Info.Exp(
+        InexhaustiveMatch(
+          None,
+          Grammar.Pat(
+            IdTagged.FreshGrammar.Pat.tuple([
+              IdTagged.FreshGrammar.Pat.big_int(Bigint.of_int(1)),
+              IdTagged.FreshGrammar.Pat.wild(),
+            ]),
+          ),
         ),
       ),
     ],
@@ -293,6 +520,30 @@ end}}}|},
     ],
   );
 
+let floats_tuple_non_exhaustive =
+  has_errors(
+    "Floats: Non-Exhaustive Tuple",
+    {|
+let x : (Float, Float) = ? in
+{{{case x
+  | (0.0, 0.0) => 1
+  | (0, _) => 2
+end}}}|},
+    [
+      Info.Exp(
+        InexhaustiveMatch(
+          None,
+          Grammar.Pat(
+            IdTagged.FreshGrammar.Pat.tuple([
+              IdTagged.FreshGrammar.Pat.float(1.0),
+              IdTagged.FreshGrammar.Pat.wild(),
+            ]),
+          ),
+        ),
+      ),
+    ],
+  );
+
 let floats_redundant =
   has_errors(
     "Floats: Redundant",
@@ -333,6 +584,50 @@ end}}}|},
         InexhaustiveMatch(
           None,
           Grammar.Pat(IdTagged.FreshGrammar.Pat.string("*")),
+        ),
+      ),
+    ],
+  );
+
+let strings_non_exhaustive_empty =
+  has_errors(
+    "Strings: Non-Exhaustive Empty",
+    {|
+let x : String = ? in
+{{{case x
+  | "ABC" => 1
+  | "a" => 2
+end}}}|},
+    [
+      Info.Exp(
+        InexhaustiveMatch(
+          None,
+          Grammar.Pat(IdTagged.FreshGrammar.Pat.string("")),
+        ),
+      ),
+    ],
+  );
+
+let strings_non_exhaustive_tuple =
+  has_errors(
+    "Strings: Non-Exhaustive Tuple",
+    {|
+let x : (String, String) = ? in
+{{{case x
+  | ("", "")  => 1
+  | ("", "*")  => 2
+  | ("", _)  => 3
+end}}}|},
+    [
+      Info.Exp(
+        InexhaustiveMatch(
+          None,
+          Grammar.Pat(
+            IdTagged.FreshGrammar.Pat.tuple([
+              IdTagged.FreshGrammar.Pat.string("*"),
+              IdTagged.FreshGrammar.Pat.wild(),
+            ]),
+          ),
         ),
       ),
     ],
@@ -891,14 +1186,25 @@ let tests = (
     peanut_3a,
     peanut_3b,
     loooong_list,
+    list_inexhaustive_nil,
+    list_inexhaustive_cons,
+    list_inexhaustive_cons_long,
+    list_inexhaustive_tuple_with_elt,
+    list_inexhaustive_triple,
+    list_inexhaustive_triple_elt_first,
+    list_inexhaustive_middle_quad,
     integers_exhaustive,
     integers_non_exhaustive,
+    integers_tuple_non_exhaustive,
     integers_redundant,
     floats_exhaustive,
     floats_non_exhaustive,
+    floats_tuple_non_exhaustive,
     floats_redundant,
     strings_exhaustive,
     strings_non_exhaustive,
+    strings_non_exhaustive_empty,
+    strings_non_exhaustive_tuple,
     strings_redundant,
     bools_exhaustive,
     bools_non_exhaustive,
