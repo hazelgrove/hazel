@@ -287,7 +287,9 @@ let rec matches_exp =
     | (Cons(d1, d2), Cons(f1, f2)) =>
       matches_exp(d1, f1) && matches_exp(d2, f2)
     | (Cons(_), _) => false
-
+    | (TupleExtension(d1, d2), TupleExtension(f1, f2)) =>
+      matches_exp(d1, f1) && matches_exp(d2, f2)
+    | (TupleExtension(_), _) => false
     | (ListLit(dv), ListLit(fv)) =>
       List.fold_left2((acc, d, f) => acc && matches_exp(d, f), true, dv, fv)
     | (ListLit(_), _) => false

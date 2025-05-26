@@ -1945,6 +1945,8 @@ let get_doc =
             ),
           ListExp.listcons,
         );
+      | TupleExtension(_, _) =>
+        failwith("TupleExtension ExplainThis not supported") // TODO
       | ListConcat(xs, ys) =>
         let xs_id = List.nth(IdTagged.ids(xs), 0);
         let ys_id = List.nth(IdTagged.ids(ys), 0);

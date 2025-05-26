@@ -358,6 +358,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         Parens(_) |
         Probe(_) |
         ListConcat(_) |
+        TupleExtension(_) |
         Dot(_) |
         UnOp(_) |
         BinOp(_) |

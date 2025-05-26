@@ -129,6 +129,12 @@ let rec matches =
       | BinOp2(op, d1, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         BinOp2(op, d1, ctx) |> rewrap;
+      | TupleExtension1(ctx, d2) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        TupleExtension1(ctx, d2) |> rewrap;
+      | TupleExtension2(d1, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        TupleExtension2(d1, ctx) |> rewrap;
       | Tuple(ctx, ds) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Tuple(ctx, ds) |> rewrap;

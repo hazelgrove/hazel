@@ -9,6 +9,7 @@ let rec append_exp = (e1: Exp.t, e2: Exp.t): Exp.t => {
   | Deferral(_)
   | Atom(_)
   | ListLit(_)
+  | TupleExtension(_)
   | Constructor(_)
   | Closure(_)
   | Fun(_)
