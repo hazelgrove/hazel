@@ -328,8 +328,10 @@ module UnseenPatternList = {
         | _ => IdTagged.FreshGrammar.Pat.wild()
         };
       [boolTyp, ...unseen_pattern];
-    | Unknown(_) => [IdTagged.FreshGrammar.Pat.wild(), ...unseen_pattern]
+    | Unknown(_) => unseen_pattern
     | Atom(Int) => [
+        // while the user is perfroming actions, parse errors can occur.
+        // this just inserts a wildcard instead of that happens.
         try(IdTagged.FreshGrammar.Pat.big_int(Bigint.of_string(ctr.ctr))) {
         | _ => IdTagged.FreshGrammar.Pat.wild()
         },
@@ -418,10 +420,10 @@ module UnseenPatternList = {
               get_first_unseen_ctr(seen_in_first_col, all_ctrs);
             };
 
-          // handle the case where the old constructor has arugments
+          // handle the case where the old constructor has arguments
           // that have accumulated in the list
           // Do this by just removing them, since the args will
-          // be packeged into a tuple
+          // be packaged into a tuple
           let unseen_pattern =
             switch (unseen_pattern) {
             | [_, ...tl] when Ctr.num_args_of(col_ctr) > 0 => tl
@@ -877,6 +879,12 @@ module Submatrices = {
       | Finite(_) => seen_truth || seen_hole || seen_all_ctrs
       };
 
+    // partially applied function that is returned so the caller
+    // can pass in additional information to update the unseen list
+    // based on this column
+    //
+    // this is designed this way to avoid recomputation/returning
+    // of seen data
     let prepend_first_col_unseen_ctr =
       UnseenPatternList.prepend_with_type(seen_data, first_col_ty);
 
@@ -953,6 +961,8 @@ let rec check_matrix = (m: Matrix.t, col_tys: list(Typ.t)): result => {
                   );
                 } else if (is_exhaustive) {
                   // otherwise, we just use a default/known to exist ctr
+                  // this effectively builds a chain of "known" values that
+                  // are already in the pattern, so we don't have to "make stuff up"
                   UnseenPatternList.prepend_ctr(
                     ctr,
                     first_col_ty,
