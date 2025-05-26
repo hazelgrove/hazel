@@ -78,7 +78,7 @@ module Model = {
     col_target: option(int),
     // MakeTerm
     term: Calc.saved(Any.t),
-    sort: Calc.saved(Calc.t(Sort.t)),
+    sort: Calc.saved(Sort.t),
     // Calculated
     [@opaque]
     syntax: Calc.saved(CachedSyntax.t('p)),
@@ -248,8 +248,7 @@ module Update = {
 
   let make_term =
       (type p, ~make_term_prj, ~sort, model: Model.t('p_k, p, 'p_a)) => {
-    let new_sort =
-      Calc.set(sort, model.sort |> Calc.map_saved(Calc.get_value));
+    let new_sort = Calc.set(sort, model.sort);
 
     let updated_projectors: Hashtbl.t(Id.t, p) = Hashtbl.create(0);
     let of_projector = (~sort: Sort.t, ~id: Id.t, model: p) => {
@@ -270,10 +269,35 @@ module Update = {
         ).
           term;
       };
+
+    // Update the projectors in the zipper
+    let zipper =
+      ZipperBase.MapPiece.go(
+        fun
+        | Projector(p) =>
+          switch (Hashtbl.find_opt(updated_projectors, p.id)) {
+          | Some(model) => [
+              Projector({
+                ...p,
+                model,
+              }),
+            ]
+          | None => [Projector(p)]
+          }
+        | x => [x],
+        model.zipper |> Calc.get_value,
+      );
+    let zipper =
+      switch (model.zipper) {
+      | NewValue(_) => Calc.NewValue(zipper)
+      | OldValue(_) => Calc.OldValue(zipper)
+      };
+
     let model = {
       ...model,
+      zipper,
       term: term |> Calc.save,
-      sort: Calc.Calculated(new_sort),
+      sort: new_sort |> Calc.save,
     };
     (model, term);
   };
@@ -322,6 +346,11 @@ module Update = {
         };
       } else {
         model.zipper;
+      };
+    let zipper =
+      switch (model.zipper) {
+      | NewValue(_) => Calc.NewValue(zipper |> Calc.get_value)
+      | OldValue(_) => Calc.OldValue(zipper |> Calc.get_value)
       };
     let model = {
       ...model,
@@ -396,7 +425,7 @@ module Update = {
       col_target: model.col_target,
 
       term: model.term,
-      sort: model.sort |> Calc.map_saved(Calc.make_old),
+      sort: model.sort,
 
       syntax: model.syntax,
       selection_ids: model.selection_ids,

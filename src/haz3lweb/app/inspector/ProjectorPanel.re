@@ -70,8 +70,6 @@ module Applicable = {
   let is_applicable =
       (cursor: Cursor.cursor(Editors.Update.t), kind: ProjectorCore.Kind.t)
       : option(ProjectorCore.Kind.t) => {
-    let _ = print_endline("kind: " ++ ProjectorCore.Kind.show(kind));
-
     let* target_seg = target_seg(cursor);
     let term = target_term(target_seg);
     let ed = target_ed(target_seg);
