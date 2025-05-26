@@ -99,6 +99,7 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | ListConcat(_)
           | Tuple(_)
           | TupLabel(_)
+          | TupleExtension(_)
           | Label(_)
           | Dot(_)
           | Match(_)

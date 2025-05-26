@@ -74,5 +74,18 @@ in fn("hello")|},
         parse_and_evaluate_test("((true) . a): Int", "((true) . a): Int");
       },
     ),
+    test_case(
+      "Extension",
+      `Quick,
+      () => {
+        parse_and_evaluate_test("(a=1,b=2,c=3)", {|(a=1, b=2) ... (c=3)|});
+        // parse_and_evaluate_test("(1,2,3)", {|(1, 2) ... (3)|}); // TODO Singleton tuple?
+        parse_and_evaluate_test("(1,2,3,4)", {|(1, 2) ... (3, 4)|});
+        parse_and_evaluate_test(
+          "(a=1, b=2, 3, c=4)",
+          {|(a=0, b=2) ... (a=1, 3, c=4)|},
+        );
+      },
+    ),
   ],
 );

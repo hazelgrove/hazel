@@ -95,6 +95,7 @@ and exp_term('a) =
      two consistent types. Both types should be normalized in
      dynamics for the cast calculus to work right. */
   | Cast(exp_t('a), typ_t('a), typ_t('a))
+  | TupleExtension(exp_t('a), exp_t('a))
 and exp_t('a) = Annotated.t(exp_term('a), 'a)
 and pat_term('a) =
   | Invalid(string)
@@ -273,6 +274,11 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
             map_exp_annotation(f, e),
             map_typ_annotation(f, t1),
             map_typ_annotation(f, t2),
+          )
+        | TupleExtension(e1, e2) =>
+          TupleExtension(
+            map_exp_annotation(f, e1),
+            map_exp_annotation(f, e2),
           )
         };
       {
@@ -548,6 +554,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let dot = (~ann=?, e1, e2): exp_t(DefaultAnnotation.t) => {
       term: Dot(e1, e2),
+      annotation: default_annotation(ann),
+    };
+    let tuple_extension = (~ann=?, e1, e2): exp_t(DefaultAnnotation.t) => {
+      term: TupleExtension(e1, e2),
       annotation: default_annotation(ann),
     };
     let var = (~ann=?, v): exp_t(DefaultAnnotation.t) => {

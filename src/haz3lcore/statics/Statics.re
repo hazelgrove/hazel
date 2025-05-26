@@ -431,6 +431,14 @@ and uexp_to_info_map =
           m,
         );
       };
+    | TupleExtension(e1, e2) =>
+      let (_, m) = go(e1, m);
+      let (_, m) = go(e2, m);
+      add(
+        ~self=Just(IdTagged.FreshGrammar.Typ.unknown(Internal)), // TODO: fix this
+        ~co_ctx=CoCtx.empty,
+        m,
+      );
     | Tuple(es) =>
       let expected_labels =
         switch (Typ.weak_head_normalize(ctx, ana).term) {

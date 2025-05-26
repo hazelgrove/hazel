@@ -71,6 +71,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | FixF(_) => Precedence.fun_
   | Tuple(_) => Precedence.prod
   | Seq(_) => Precedence.semi
+  | TupleExtension(_, _) => Precedence.dot
   | Dot(_) => Precedence.dot
 
   // Top-level things
@@ -232,6 +233,12 @@ let rec parenthesize =
     TupLabel(l, parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
   | Dot(e, l) =>
     Dot(parenthesize(e) |> paren_at(Precedence.min), l) |> rewrap
+  | TupleExtension(l, r) =>
+    TupleExtension(
+      parenthesize(l) |> paren_at(Precedence.dot),
+      parenthesize(r) |> paren_assoc_at(Precedence.dot),
+    )
+    |> rewrap
   | ListLit(es) =>
     ListLit(
       es |> List.map(parenthesize) |> List.map(paren_at(Precedence.prod)),
@@ -799,6 +806,22 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         id,
         label: [Operators.bin_op_to_string(op)],
         mold: Mold.mk_bin(Precedence.of_bin_op(op), Sort.Exp, []),
+        shards: [0],
+        children: [],
+      }),
+    ]
+    @ r;
+  | TupleExtension(l, r) =>
+    // TODO: Add optional newlines
+    let id = exp |> Exp.rep_id;
+    let+ l = go(l)
+    and+ r = go(r);
+    l
+    @ [
+      Tile({
+        id,
+        label: ["..."],
+        mold: Mold.mk_bin(Precedence.dot, Sort.Exp, []),
         shards: [0],
         children: [],
       }),

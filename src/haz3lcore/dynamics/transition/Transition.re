@@ -67,6 +67,7 @@ type step_kind =
   | Dot
   | Conditional(bool)
   | Projection
+  | TupleExtension
   | ListCons
   | ListConcat
   | CaseApply
@@ -694,6 +695,82 @@ module Transition = (EV: EV_MODE) => {
           ds,
         );
       Constructor;
+    | TupleExtension(e1, e2) =>
+      let. _ = otherwise(env, (e1, e2) => TupleExtension(e1, e2) |> rewrap)
+      and. e1' =
+        req_final(
+          req(state, env),
+          e1 => TupleExtension1(e1, e2) |> wrap_ctx,
+          e1,
+        )
+      and. e2' =
+        req_final(
+          req(state, env),
+          e2 => TupleExtension2(e1, e2) |> wrap_ctx,
+          e2,
+        );
+      let-unbox e1_entries = (LabeledTupleEntries, e1');
+      let-unbox e2_entries = (LabeledTupleEntries, e2');
+
+      /* Maintain the order of the labels from e1_entries, but use the values from e2_entries if present */
+      module StringMap = Map.Make(String);
+      let e2_map =
+        List.fold_left(
+          (acc, (lab, d)) =>
+            switch (lab) {
+            | Some(l) => StringMap.add(l, d, acc)
+            | None => acc
+            },
+          StringMap.empty,
+          e2_entries,
+        );
+
+      let merged_entries =
+        List.map(
+          ((lab, d1)) =>
+            switch (lab) {
+            | Some(l) =>
+              switch (StringMap.find_opt(l, e2_map)) {
+              | Some(d2) => (Some(l), d2)
+              | None => (Some(l), d1)
+              }
+            | None => (None, d1)
+            },
+          e1_entries,
+        )
+        /* Add any new labels from e2_entries that weren't in e1_entries */
+        @ List.filter_map(
+            ((lab, d2)) =>
+              switch (lab) {
+              | Some(l) =>
+                if (List.exists(((l1, _)) => l1 == Some(l), e1_entries)) {
+                  None;
+                } else {
+                  Some((Some(l), d2));
+                }
+              | None => Some((None, d2))
+              },
+            e2_entries,
+          );
+
+      let tuple: Grammar.exp_t(IdTagged.IdTag.t) =
+        tuple(
+          List.map(
+            ((lab, d)) =>
+              switch (lab) {
+              | Some(l) => tup_label(label(l), d)
+              | None => d
+              },
+            merged_entries,
+          ),
+        );
+
+      Step({
+        expr: tuple,
+        state_update,
+        kind: TupleExtension,
+        is_value: true,
+      });
     | Cons(d1, d2) =>
       let. _ = otherwise(env, (d1, d2) => Cons(d1, d2) |> rewrap)
       and. d1' =
@@ -912,6 +989,7 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | UnOp(_)
   | ListCons
   | ListConcat
+  | TupleExtension
   | CaseApply
   | Projection // TODO(Matt): We don't want to show projection to the user
   | Conditional(_)
@@ -980,4 +1058,5 @@ let stepper_justification: step_kind => string =
   | RemoveUse => "set use type"
   | RemoveParens => "remove parentheses"
   | Dot => "Labeled tuple access"
+  | TupleExtension => "Tuple extension"
   | UnOp(Meta(Unquote)) => failwith("INVALID STEP");

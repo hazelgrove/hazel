@@ -21,6 +21,8 @@ type term =
   | UnOp(Operators.op_un, t)
   | BinOp1(Operators.op_bin, t, DHExp.t)
   | BinOp2(Operators.op_bin, DHExp.t, t)
+  | TupleExtension1(t, DHExp.t)
+  | TupleExtension2(DHExp.t, t)
   | TupLabel(DHExp.t, t)
   | Tuple(t, (list(DHExp.t), list(DHExp.t)))
   | Dot1(t, DHExp.t)
@@ -108,6 +110,12 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
     | BinOp2(op, d1, ctx) =>
       let d2 = compose(ctx, d);
       BinOp(op, d1, d2) |> wrap;
+    | TupleExtension1(ctx, d2) =>
+      let d1 = compose(ctx, d);
+      TupleExtension(d1, d2) |> wrap;
+    | TupleExtension2(d1, ctx) =>
+      let d2 = compose(ctx, d);
+      TupleExtension(d1, d2) |> wrap;
     | Cons1(ctx, d2) =>
       let d1 = compose(ctx, d);
       Cons(d1, d2) |> wrap;
