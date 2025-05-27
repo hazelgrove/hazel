@@ -1199,8 +1199,11 @@ let update =
     | CollapseMessage(index) =>
       let mode = settings.assistant.mode;
       let (past_chats, curr_chat) = get_mode_info(mode, model);
-      let filter_prompt_display =
+      let is_prompt_display =
         List.nth(curr_chat.messages, index).party == System(Prompt);
+      print_endline(
+        "Is prompt display: " ++ string_of_bool(is_prompt_display),
+      );
       let updated_chat =
         List.mapi(
           (i: int, msg: Model.message) =>
@@ -1209,10 +1212,14 @@ let update =
                 ...msg,
                 collapsed: !msg.collapsed,
               };
-            } else if (msg.party == System(Prompt) && filter_prompt_display) {
+            } else if (msg.party == System(Prompt) && is_prompt_display) {
+              print_endline(
+                "Collapsing prompt display message at index: "
+                ++ string_of_int(i),
+              );
               {
                 ...msg,
-                collapsed: msg.collapsed,
+                collapsed: true,
               };
             } else {
               msg;
