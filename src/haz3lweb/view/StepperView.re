@@ -297,13 +297,7 @@ module Update = {
             |> {
               let.calc elab = elab
               and.calc settings = settings;
-              let elab =
-                elab
-                |> (
-                  settings.evaluation.show_casts
-                    ? x => x : Haz3lcore.DHExp.strip_casts
-                )
-                |> Typ.replace_temp_exp;
+              let elab = elab |> Typ.replace_temp_exp;
               let editor = CodeWithStatics.Model.mk_from_exp(~settings, elab);
               let next_status =
                 EvaluatorStep.get_status(
