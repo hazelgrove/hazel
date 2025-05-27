@@ -131,15 +131,39 @@ let parse_blocks = (response: string): list(block_kind) => {
     switch (Str.search_forward(pattern, str, 0)) {
     | exception Not_found => acc
     | pos =>
-      let acc = List.length(acc) > 0 ? ListUtil.leading(acc) : acc;
+      print_endline("Found code block at position: " ++ string_of_int(pos));
+      let acc = ListUtil.leading(acc);
       let code = Str.matched_group(1, str);
+      print_endline("Matched code: " ++ code);
       let before = Str.string_before(str, pos);
-      let rest =
-        Str.string_after(str, pos + String.length(Str.matched_string(str)));
-      parse_blocks(rest, acc @ [Text(before), Code(code), Text(rest)]);
+      print_endline("Before code block: " ++ before ++ "\n");
+      let rest_start = pos + String.length(Str.matched_string(str));
+      if (rest_start >= String.length(str)) {
+        acc @ [Text(before), Code(code)];
+      } else {
+        let rest = Str.string_after(str, rest_start);
+        print_endline("Rest of string is: " ++ rest ++ "\n");
+        parse_blocks(rest, acc @ [Text(before), Code(code), Text(rest)]);
+      };
     };
   };
-  parse_blocks(response, []);
+  print_endline("Parsing response: " ++ response);
+  let blocks = parse_blocks(response, [Text(response)]);
+  print_endline(
+    "Parsed blocks: "
+    ++ String.concat(
+         ", ",
+         List.map(
+           block =>
+             switch (block) {
+             | Text(t) => "Text: " ++ t
+             | Code(c) => "Code: " ++ c
+             },
+           blocks,
+         ),
+       ),
+  );
+  blocks;
 };
 
 let code_message_of_str =
@@ -994,51 +1018,14 @@ let update =
       let response = message.content;
       check_descriptor(~model, ~schedule_action, ~message, ~mode, ~chat_id);
       if (mode == HazelTutor || mode == CodeSuggestion) {
-        let code_pattern =
-          Str.regexp(
-            "\\(\\(.\\|\n\\)*\\)```[ \n]*\\([^`]+\\)[ \n]*```\\(\\(.\\|\n\\)*\\)",
-          );
-        let (discussion, code_example) =
-          if (Str.string_match(code_pattern, response, 0)) {
-            let before = String.trim(Str.matched_group(1, response));
-            let code = String.trim(Str.matched_group(3, response));
-            (before, "```" ++ (code |> StringUtil.trim_leading) ++ "```");
-          } else {
-            print_endline("Regex match failed for: " ++ response);
-            (response |> StringUtil.trim_leading, "");
-          };
-        let discussion_message = text_message_of_str(discussion, LLM);
-        if (code_example == "") {
-          add_message_to_model(
-            mode,
-            model,
-            discussion_message,
-            chat_id,
-            ~is_final=true,
-          )
-          |> Updated.return_quiet;
-        } else {
-          let model_with_discussion =
-            add_message_to_model(
-              mode,
-              model,
-              discussion_message,
-              chat_id,
-              ~is_final=false,
-            );
-          // Then handle the completion as before
-          // todo: this may display not as intended. todo--fix-up
-          let message_with_example =
-            code_message_of_str("```" ++ code_example ++ "```", LLM);
-          add_message_to_model(
-            mode,
-            model_with_discussion,
-            message_with_example,
-            chat_id,
-            ~is_final=true,
-          )
-          |> Updated.return_quiet;
-        };
+        add_message_to_model(
+          mode,
+          model,
+          code_message_of_str(response, LLM),
+          chat_id,
+          ~is_final=true,
+        )
+        |> Updated.return_quiet;
       } else {
         let tool_calls = extract_blocks(response);
         List.iter(
@@ -1125,7 +1112,7 @@ let update =
         Str.regexp(
           "\\(\\(.\\|\n\\)*\\)```[ \n]*\\([^`]+\\)[ \n]*```\\(\\(.\\|\n\\)*\\)",
         );
-      let (discussion, completion) =
+      let (_, completion) =
         if (Str.string_match(code_pattern, response, 0)) {
           let before = String.trim(Str.matched_group(1, response));
           let code = String.trim(Str.matched_group(3, response));
@@ -1134,35 +1121,10 @@ let update =
           print_endline("Regex match failed for: " ++ response);
           ("", response |> StringUtil.trim_leading); // Fallback if no code block found
         };
-      print_endline("Response: " ++ response);
-      print_endline("Discussion: " ++ discussion);
-      print_endline("Completion: " ++ completion);
-      // First add the discussion message
-      let discussion_message =
-        if (discussion === "") {
-          text_message_of_str(
-            "The model did not return a discussion for this completion.",
-            LLM,
-          );
-        } else {
-          text_message_of_str(discussion, LLM);
-        };
-      let model_with_discussion =
-        add_message_to_model(
-          mode,
-          model,
-          discussion_message,
-          chat_id,
-          ~is_final=false,
-        );
-
-      // Then handle the completion as before
-      let completion_message =
-        code_message_of_str("```" ++ completion ++ "```", LLM);
       check_descriptor(
         ~model,
         ~schedule_action,
-        ~message=completion_message,
+        ~message=code_message_of_str(response, LLM),
         ~mode,
         ~chat_id,
       );
@@ -1185,8 +1147,8 @@ let update =
       };
       add_message_to_model(
         mode,
-        model_with_discussion,
-        completion_message,
+        model,
+        code_message_of_str(response, LLM),
         chat_id,
         ~is_final=true,
       )

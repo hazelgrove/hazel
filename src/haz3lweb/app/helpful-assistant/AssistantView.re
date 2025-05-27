@@ -491,7 +491,7 @@ let loading_dots = () => {
   );
 };
 
-let form_toggle =
+let form_collapse_toggle =
     (
       ~message: Model.message,
       ~toggle_collapse,
@@ -505,6 +505,7 @@ let form_toggle =
       ~attrs=[
         clss(["collapse-indicator"]),
         Attr.on_click(_ => toggle_collapse(index)),
+        String.length(message.content) >= 200 ? Attr.empty : Attr.hidden,
       ],
       [text("▼ Show more")],
     );
@@ -515,6 +516,7 @@ let form_toggle =
       ~attrs=[
         clss(["collapse-indicator"]),
         Attr.on_click(_ => toggle_collapse(index)),
+        String.length(message.content) >= 200 ? Attr.empty : Attr.hidden,
       ],
       [text("▲ Show less")],
     );
@@ -552,17 +554,19 @@ let text_block =
             String.concat(
               "",
               [
-                String.sub(
-                  content,
-                  0,
-                  min(String.length(message.content), 200),
-                ),
+                String.sub(content, 0, min(String.length(content), 200)),
                 "...",
               ],
             ),
           )
         : text(content),
-      form_toggle(~message, ~toggle_collapse, ~index, ~is_first, ~is_last),
+      form_collapse_toggle(
+        ~message,
+        ~toggle_collapse,
+        ~index,
+        ~is_first,
+        ~is_last,
+      ),
     ],
   );
 };
@@ -623,7 +627,13 @@ let code_block =
                );
           },
       ),
-      form_toggle(~message, ~toggle_collapse, ~index, ~is_first, ~is_last),
+      form_collapse_toggle(
+        ~message,
+        ~toggle_collapse,
+        ~index,
+        ~is_first,
+        ~is_last,
+      ),
     ],
   );
 };
@@ -639,26 +649,39 @@ let form_block =
       ~globals: Globals.t,
     )
     : Node.t => {
-  switch (block) {
-  | Text(content) =>
-    text_block(
-      ~message,
-      ~content,
-      ~toggle_collapse,
-      ~index,
-      ~is_first,
-      ~is_last,
-    )
-  | Code(content) =>
-    code_block(
-      ~message,
-      ~content,
-      ~toggle_collapse,
-      ~index,
-      ~is_first,
-      ~is_last,
-      ~globals,
-    )
+  print_endline(
+    "Rendering block: "
+    ++ (
+      switch (block) {
+      | Text(_) => "Text"
+      | Code(_) => "Code"
+      }
+    ),
+  );
+  if (!message.collapsed || message.collapsed && is_first) {
+    switch (block) {
+    | Text(content) =>
+      text_block(
+        ~message,
+        ~content,
+        ~toggle_collapse,
+        ~index,
+        ~is_first,
+        ~is_last,
+      )
+    | Code(content) =>
+      code_block(
+        ~message,
+        ~content,
+        ~toggle_collapse,
+        ~index,
+        ~is_first,
+        ~is_last,
+        ~globals,
+      )
+    };
+  } else {
+    None;
   };
 };
 
@@ -725,15 +748,15 @@ let message_display =
                   ]
                   @ {
                     let parsed_blocks = Update.parse_blocks(message.content);
-                    List.map(
-                      (block: Update.block_kind) =>
+                    List.mapi(
+                      (idx, block: Update.block_kind) =>
                         form_block(
                           ~message,
                           ~block,
                           ~toggle_collapse,
                           ~index,
-                          ~is_first=index == 0,
-                          ~is_last=index == List.length(parsed_blocks) - 1,
+                          ~is_first=idx == 0,
+                          ~is_last=idx == List.length(parsed_blocks) - 1,
                           ~globals,
                         ),
                       parsed_blocks,
