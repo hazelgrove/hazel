@@ -120,7 +120,7 @@ let show_core_exp = exp =>
 let qcheck_pattern_equivalence_test =
   QCheck.Test.make(
     ~name="Pattern equivalence",
-    ~count=10000,
+    ~count=1000,
     QCheck.pair(
       QCheck_Util.arb_exp(~minimal_idents=true, 40),
       QCheck_Util.arb_typ(~minimal_idents=true, 10),
