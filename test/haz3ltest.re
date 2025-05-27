@@ -11,6 +11,7 @@ Printexc.register_printer(exn => {
 let (suite, _) =
   run_and_report(
     ~and_exit=false,
+    ~argv=Sys.argv,
     "HazelTests",
     [
       Test_ListUtil.tests,
