@@ -190,7 +190,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
       available := available^ - 2;
       Parens(abbreviate_exp(e));
 
-    // Casts
+    // Ascriptions
 
     | Asc(e, t1) =>
       handle_op_indet(

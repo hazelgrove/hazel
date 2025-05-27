@@ -682,7 +682,7 @@ let tests = [
       ),
     )
   }),
-  test_case("tuple with cast to non-tuple", `Quick, () => {
+  test_case("tuple ascribed to non-tuple", `Quick, () => {
     annotated_tree_test(
       {|(a=1, b=2) : Int|},
       FIError.(

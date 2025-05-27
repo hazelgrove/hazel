@@ -37,7 +37,8 @@ module Probe = {
       | Fun(_)
       | FixF(_)
       | Closure(_) => Opaque
-      | _ => Val(d |> DHExp.strip_ascriptions |> Exp.substitute_closures(env))
+      | _ =>
+        Val(d |> DHExp.strip_ascriptions |> Exp.substitute_closures(env))
       };
 
     let mk_entry = (env: Environment.t, {name, id, _}: Binding.t) =>

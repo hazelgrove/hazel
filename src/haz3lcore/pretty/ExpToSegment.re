@@ -55,7 +55,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   // Other forms
   | UnOp(Meta(Unquote), _) => Precedence.unquote
 
-  | Asc(_) => Precedence.cast
+  | Asc(_) => Precedence.asc
   | Ap(Forward, _, _)
   | DeferredAp(_)
   | TypAp(_) => Precedence.ap
@@ -103,7 +103,7 @@ let external_precedence_pat = (dp: Pat.t) =>
   // Other forms
   | Cons(_) => Precedence.cons
   | Ap(_) => Precedence.ap
-  | Asc(_) => Precedence.cast
+  | Asc(_) => Precedence.asc
   | Tuple(_) => Precedence.prod
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
@@ -198,10 +198,7 @@ let rec parenthesize =
   | Filter(Residue(_), x) => x |> parenthesize
   // Other forms
   | Constructor(c, t) =>
-    Constructor(
-      c,
-      Option.map(Option.map(paren_typ_at(Precedence.cast)), t),
-    )
+    Constructor(c, Option.map(Option.map(paren_typ_at(Precedence.asc)), t))
     |> rewrap
   | Fun(p, e, typ, n) =>
     Fun(
@@ -304,8 +301,8 @@ let rec parenthesize =
     |> rewrap
   | Asc(e, t) =>
     Asc(
-      parenthesize(e) |> paren_assoc_at(Precedence.cast),
-      parenthesize_typ(t) |> paren_typ_at(Precedence.cast),
+      parenthesize(e) |> paren_assoc_at(Precedence.asc),
+      parenthesize_typ(t) |> paren_typ_at(Precedence.asc),
     )
     |> rewrap
   | Test(e) => Test(parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
@@ -437,7 +434,7 @@ and parenthesize_pat =
     MultiHole(List.map(parenthesize_any(~show_filters), xs)) |> rewrap
   | Asc(p, t) =>
     Asc(
-      parenthesize_pat(p) |> paren_pat_assoc_at(Precedence.cast),
+      parenthesize_pat(p) |> paren_pat_assoc_at(Precedence.asc),
       parenthesize_typ(t) |> paren_typ_at(Precedence.max) // Hack[Matt]: always add parens to get the arrows right
     )
     |> rewrap
@@ -698,7 +695,7 @@ let fold_fun_if = (condition, f_name: string, pieces) =>
   };
 
 /* We assume that parentheses have already been added as necessary, and
-      that the expression has no Closures, DynamicErrorHoles, Casts, or FailedCasts
+      that the expression has no Closures or DynamicErrorHoles
    */
 let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   let go = (~inline=settings.inline) =>

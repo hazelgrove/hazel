@@ -14,7 +14,7 @@ let combine_result = (r1: match_result, r2: match_result): match_result =>
 
 let rec matches = (capture, dp: Pat.t, d: DHExp.t): match_result => {
   let matches = matches(capture);
-  let d = Casts.transition_multiple(d);
+  let d = Ascriptions.transition_multiple(d);
   switch (DHPat.term_of(dp)) {
   | Invalid(_)
   | EmptyHole
@@ -59,7 +59,7 @@ let rec matches = (capture, dp: Pat.t, d: DHExp.t): match_result => {
     capture(pr, dp, d, inner_match);
     inner_match;
   | Asc(p, t1) =>
-    matches(p, Casts.transition_multiple(Asc(d, t1) |> DHExp.fresh))
+    matches(p, Ascriptions.transition_multiple(Asc(d, t1) |> DHExp.fresh))
   };
 };
 

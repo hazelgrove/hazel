@@ -31,7 +31,7 @@ let rec strip_ascriptions =
     ~f_exp=
       (continue, exp) => {
         switch (term_of(exp)) {
-        /* Remove casts*/
+        /* Remove Asciptions */
         | Asc(d, _) => strip_ascriptions(d)
         | _ => continue(exp)
         }

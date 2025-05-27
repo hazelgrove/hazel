@@ -732,7 +732,8 @@ let round_up = (utility: utility, closure): unit => {
   let (_, cur) =
     abbreviated_seg_of(utility, ClosureLength.get(closure), closure.value);
   let goal = cur + 1;
-  let (_, max_len) = seg_of_exp(utility, DHExp.strip_ascriptions(closure.value));
+  let (_, max_len) =
+    seg_of_exp(utility, DHExp.strip_ascriptions(closure.value));
   let rec find_target = (target: int): int => {
     let attempt_len =
       abbreviated_seg_of(utility, target, closure.value) |> snd;

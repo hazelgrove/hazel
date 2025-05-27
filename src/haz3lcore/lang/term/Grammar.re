@@ -90,9 +90,6 @@ and exp_term('a) =
   | BinOp(Operators.op_bin, exp_t('a), exp_t('a))
   | BuiltinFun(string)
   | Match(exp_t('a), list((pat_t('a), exp_t('a))))
-  /* INVARIANT: in dynamic expressions, casts must be between
-     two consistent types. Both types should be normalized in
-     dynamics for the cast calculus to work right. */
   | Asc(exp_t('a), typ_t('a))
 and exp_t('a) = Annotated.t(exp_term('a), 'a)
 and pat_term('a) =
