@@ -67,6 +67,10 @@ test:
 	dune build @ocaml-index @src/fmt @test/fmt --auto-promote src test --profile dev
 	node $(TEST_DIR)/haz3ltest.bc.js
 
+test-quick:
+	dune build @ocaml-index @src/fmt @test/fmt --auto-promote src test --profile dev
+	node $(TEST_DIR)/haz3ltest.bc.js -q
+
 watch-test:
 	dune build @ocaml-index @fmt @runtest @default --profile dev --auto-promote --watch
 
