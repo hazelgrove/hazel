@@ -206,7 +206,10 @@ module Seen = {
   };
 };
 
+// A list of expressions that represents an unseen pattern.
 module UnseenPatternList = {
+  open IdTagged.FreshGrammar.Pat;
+
   include Seen;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -223,9 +226,9 @@ module UnseenPatternList = {
       // convert default ctr to a wildcard
       let pat_ctr =
         if (ctr == Ctr.default_ctr) {
-          IdTagged.FreshGrammar.Pat.wild();
+          wild();
         } else {
-          IdTagged.FreshGrammar.Pat.constructor(ctr.ctr, None);
+          constructor(ctr.ctr, None);
         };
 
       if (Ctr.num_args_of(ctr) == 0) {
@@ -236,15 +239,15 @@ module UnseenPatternList = {
         // that has args, but no args are provided
         switch (unseen_pattern) {
         | [] => [
-            IdTagged.FreshGrammar.Pat.ap(
+            ap(
               pat_ctr,
-              IdTagged.FreshGrammar.Pat.empty_hole(),
+              empty_hole(),
             ),
             ...unseen_pattern,
           ]
         | [hd, ...tl] => [
             // absorb the args of the constructor
-            IdTagged.FreshGrammar.Pat.ap(pat_ctr, hd),
+            ap(pat_ctr, hd),
             ...tl,
           ]
         };
@@ -265,19 +268,19 @@ module UnseenPatternList = {
 
       let (first_n, tl) = partition_first_n(num_elts, unseen_pattern, []);
 
-      [IdTagged.FreshGrammar.Pat.tuple(List.rev(first_n)), ...tl];
+      [tuple(List.rev(first_n)), ...tl];
     | TupLabel(body, _) =>
       // associate the tuple's labels to element in the unseen list
       switch (IdTagged.term_of(body)) {
-      | Label(label) =>
+      | Label(pat_label) =>
         switch (unseen_pattern) {
         | [] => [
-            IdTagged.FreshGrammar.Pat.label(label),
-            IdTagged.FreshGrammar.Pat.empty_hole(),
+            label(pat_label),
+            empty_hole(),
           ]
         | [hd, ...tl] => [
-            IdTagged.FreshGrammar.Pat.tup_label(
-              IdTagged.FreshGrammar.Pat.label(label),
+            tup_label(
+              label(pat_label),
               hd,
             ),
             ...tl,
@@ -287,13 +290,15 @@ module UnseenPatternList = {
       }
     | List(_) =>
       switch (ctr.ctr) {
-      | "nil" => [IdTagged.FreshGrammar.Pat.list_lit([]), ...unseen_pattern]
+      | "nil" => [list_lit([]), ...unseen_pattern]
       | "cons" =>
         switch (unseen_pattern) {
         | [] => [
-            IdTagged.FreshGrammar.Pat.cons(
-              IdTagged.FreshGrammar.Pat.wild(),
-              IdTagged.FreshGrammar.Pat.wild(),
+            (
+              cons(
+                wild(),
+                wild(),
+              )
             ),
             ...unseen_pattern,
           ]
@@ -306,61 +311,62 @@ module UnseenPatternList = {
           let cons =
             switch (term) {
             | Tuple([_, snd]) =>
-              IdTagged.FreshGrammar.Pat.cons(
-                IdTagged.FreshGrammar.Pat.wild(),
-                snd,
-              )
+                cons(
+                  wild(),
+                  snd,
+                )
             | _ =>
-              IdTagged.FreshGrammar.Pat.cons(
-                IdTagged.FreshGrammar.Pat.wild(),
+              cons(
+                wild(),
                 hd,
               )
             };
           [cons, ...tl];
         }
-      | _ => [IdTagged.FreshGrammar.Pat.wild(), ...unseen_pattern]
+      | _ => [wild(), ...unseen_pattern]
       }
     | Atom(Bool) =>
       let boolTyp =
         switch (ctr.ctr) {
-        | "true" => IdTagged.FreshGrammar.Pat.bool(true)
-        | "false" => IdTagged.FreshGrammar.Pat.bool(false)
-        | _ => IdTagged.FreshGrammar.Pat.wild()
+        | "true" => bool(true)
+        | "false" => bool(false)
+        | _ => wild()
         };
       [boolTyp, ...unseen_pattern];
     | Unknown(_) => unseen_pattern
     | Atom(Int) => [
         // while the user is perfroming actions, parse errors can occur.
         // this just inserts a wildcard instead of that happens.
-        try(IdTagged.FreshGrammar.Pat.big_int(Bigint.of_string(ctr.ctr))) {
-        | _ => IdTagged.FreshGrammar.Pat.wild()
+        try(big_int(Bigint.of_string(ctr.ctr))) {
+        | _ => wild()
         },
         ...unseen_pattern,
       ]
     | Atom(SInt) => [
-        try(IdTagged.FreshGrammar.Pat.sint(int_of_string(ctr.ctr))) {
-        | _ => IdTagged.FreshGrammar.Pat.wild()
+        try(sint(int_of_string(ctr.ctr))) {
+        | _ => wild()
         },
         ...unseen_pattern,
       ]
     | Atom(Float) => [
-        try(IdTagged.FreshGrammar.Pat.float(float_of_string(ctr.ctr))) {
-        | _ => IdTagged.FreshGrammar.Pat.wild()
+        try(float(float_of_string(ctr.ctr))) {
+        | _ => wild()
         },
         ...unseen_pattern,
       ]
     | Atom(Nat) => [
-        try(IdTagged.FreshGrammar.Pat.nat(Bigint.of_string(ctr.ctr))) {
-        | _ => IdTagged.FreshGrammar.Pat.wild()
+        try(nat(Bigint.of_string(ctr.ctr))) {
+        | _ => wild()
         },
         ...unseen_pattern,
       ]
     | Atom(String) => [
-        // ctr has a " as the first character
+        // treat any string wildcard as a nromal wildcard
         if (ctr == Ctr.default_ctr) {
-          IdTagged.FreshGrammar.Pat.wild();
+          wild();
         } else {
-          IdTagged.FreshGrammar.Pat.string(
+          // ctr has a " as the first character
+          string(
             String.sub(ctr.ctr, 1, String.length(ctr.ctr) - 1),
           );
         },
@@ -435,7 +441,7 @@ module UnseenPatternList = {
               // if the new construct has args, we need to give it
               // an argument
               new_ctr,
-              [IdTagged.FreshGrammar.Pat.wild(), ...unseen_pattern],
+              [wild(), ...unseen_pattern],
             );
           } else {
             (new_ctr, unseen_pattern);
@@ -479,7 +485,7 @@ module UnseenPatternList = {
             if (col_ctr == Ctr.nil_ctr) {
               (
                 unseen_ctr,
-                [IdTagged.FreshGrammar.Pat.wild(), ...unseen_pattern],
+                [wild(), ...unseen_pattern],
               );
             } else if (Ctr.num_args_of(col_ctr) > 0
                        && unseen_ctr == Ctr.nil_ctr) {
@@ -569,7 +575,7 @@ module UnseenPatternList = {
     Grammar.Pat(
       switch (List.length(unseen_pattern)) {
       | 1 => List.hd(unseen_pattern)
-      | _ => IdTagged.FreshGrammar.Pat.tuple(unseen_pattern)
+      | _ => tuple(unseen_pattern)
       },
     );
   };
@@ -985,7 +991,7 @@ let rec check_matrix = (m: Matrix.t, col_tys: list(Typ.t)): result => {
           },
           submatrices.ctrs,
           (
-            true,
+            true, // fold initialized to true regardless of current column so unseen checks work.
             submatrices.first_col_redundant_rows,
             UnseenPatternList.empty,
           ),
