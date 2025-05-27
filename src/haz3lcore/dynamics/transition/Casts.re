@@ -10,7 +10,7 @@
 let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
   let recur = (d: DHExp.t): DHExp.t =>
     if (recursive) {
-      transition(d) |> Option.value(~default=d);
+      transition(~recursive, d) |> Option.value(~default=d);
     } else {
       d;
     };
