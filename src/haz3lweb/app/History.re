@@ -38,6 +38,12 @@ module Update = {
       : Updated.t(Model.t) =>
     switch (action) {
     | Globals(Undo) =>
+      print_endline(
+        "Undo length: " ++ string_of_int(List.length(model.undo_stack)),
+      );
+      print_endline(
+        "Redo length: " ++ string_of_int(List.length(model.redo_stack)),
+      );
       switch (model.undo_stack) {
       | [] =>
         print_endline("Cannot undo");
@@ -56,7 +62,7 @@ module Update = {
             ],
           },
         }
-      }
+      };
     | Globals(Redo) =>
       switch (model.redo_stack) {
       | [] =>
@@ -91,7 +97,13 @@ module Update = {
           ...current,
           model: {
             current: current.model,
-            undo_stack: [current, ...model.undo_stack],
+            undo_stack: [
+              {
+                ...current,
+                model: model.current,
+              },
+              ...model.undo_stack,
+            ],
             redo_stack: [],
           },
         };
