@@ -392,8 +392,8 @@ let message_input =
     : Node.t => {
   let handle_send = (message: string) => {
     let message: Model.message = {
-      party: LS,
-      code: None,
+      party: User,
+      code: false,
       content: message,
       collapsed: String.length(message) >= 200,
     };
@@ -425,7 +425,7 @@ let message_input =
   let handle_keydown = event => {
     let key = Js.Optdef.to_option(Js.Unsafe.get(event, "key"));
     switch (key, ListUtil.last_opt(curr_messages)) {
-    | (_, Some({party: LLM, code: None, content: "...", collapsed: false})) => Virtual_dom.Vdom.Effect.Ignore
+    | (_, Some({party: LLM, code: false, content: "...", collapsed: false})) => Virtual_dom.Vdom.Effect.Ignore
     | (Some("Enter"), _) => send_message()
     | _ => Virtual_dom.Vdom.Effect.Ignore
     };
@@ -438,9 +438,9 @@ let message_input =
           Attr.id("message-input"),
           Attr.placeholder(
             switch (settings.mode) {
-            | HazelTutor => "Ask a question about Hazel or anything..."
-            | CodeSuggestion => "Followup with a question..."
-            | TaskCompletion => "Give the agent a task to complete..."
+            | HazelTutor => "Ask a question about Hazel (or anything)..."
+            | CodeSuggestion => "Followup with a question about the agent's code suggestion..."
+            | TaskCompletion => "Ask the agent to help clarify, plan, or write code..."
             },
           ),
           Attr.type_("text"),
@@ -457,7 +457,7 @@ let message_input =
         (),
       ),
       switch (ListUtil.last_opt(curr_messages)) {
-      | Some({party: LLM, code: None, content: "...", collapsed: false}) =>
+      | Some({party: LLM, code: false, content: "...", collapsed: false}) =>
         div(
           ~attrs=[
             clss(["send-button-disabled", "icon"]),
@@ -491,6 +491,177 @@ let loading_dots = () => {
   );
 };
 
+let form_toggle =
+    (
+      ~message: Model.message,
+      ~toggle_collapse,
+      ~index: int,
+      ~is_first: bool,
+      ~is_last: bool,
+    )
+    : Node.t =>
+  if (message.collapsed && String.length(message.content) >= 200 && is_first) {
+    div(
+      ~attrs=[
+        clss(["collapse-indicator"]),
+        Attr.on_click(_ => toggle_collapse(index)),
+      ],
+      [text("▼ Show more")],
+    );
+  } else if (!message.collapsed
+             && String.length(message.content) >= 200
+             && is_last) {
+    div(
+      ~attrs=[
+        clss(["collapse-indicator"]),
+        Attr.on_click(_ => toggle_collapse(index)),
+      ],
+      [text("▲ Show less")],
+    );
+  } else {
+    None;
+  };
+
+let text_block =
+    (
+      ~message: Model.message,
+      ~content: string,
+      ~toggle_collapse,
+      ~index: int,
+      ~is_first: bool,
+      ~is_last: bool,
+    )
+    : Node.t => {
+  div(
+    ~attrs=[
+      clss([
+        switch (message.party) {
+        | User => "user-message"
+        | LLM => "llm-message"
+        | System(Prompt) => "system-prompt-message"
+        | System(Error) => "system-error-message"
+        },
+      ]),
+      Attr.on_copy(_ => {Effect.Stop_propagation}),
+      Attr.on_paste(_ => {Effect.Stop_propagation}),
+      Attr.on_cut(_ => {Effect.Stop_propagation}),
+    ],
+    [
+      message.collapsed && String.length(message.content) >= 200
+        ? text(
+            String.concat(
+              "",
+              [
+                String.sub(
+                  content,
+                  0,
+                  min(String.length(message.content), 200),
+                ),
+                "...",
+              ],
+            ),
+          )
+        : text(content),
+      form_toggle(~message, ~toggle_collapse, ~index, ~is_first, ~is_last),
+    ],
+  );
+};
+
+let code_block =
+    (
+      ~message: Model.message,
+      ~content: string,
+      ~toggle_collapse,
+      ~index: int,
+      ~is_first: bool,
+      ~is_last: bool,
+      ~globals: Globals.t,
+    )
+    : Node.t => {
+  let zipper_of_response = Printer.zipper_of_string(content);
+  let sketch =
+    switch (zipper_of_response) {
+    | Some(z) => Zipper.seg_for_view(z)
+    | None =>
+      print_endline("Failed to parse content into segment.\n");
+      Zipper.seg_for_view(Zipper.init());
+    };
+  div(
+    ~attrs=[
+      clss([
+        "example",
+        switch (message.party) {
+        | User => "user"
+        | LLM => "llm"
+        | System(Prompt) => "system-prompt"
+        | System(Error) => "system-error"
+        },
+      ]),
+    ],
+    [
+      CellEditor.View.view(
+        ~globals,
+        ~signal=_ => Ui_effect.Ignore,
+        ~inject=_ => Ui_effect.Ignore,
+        ~selected=None,
+        ~caption=None,
+        ~locked=true,
+        message.party == LLM
+          ? {
+            sketch |> Zipper.unzip |> Editor.Model.mk |> CellEditor.Model.mk;
+          }
+          : {
+            sketch
+            |> Zipper.unzip
+            |> Editor.Model.mk
+            |> CellEditor.Model.mk
+            |> CellEditor.Update.calculate(
+                 ~settings=globals.settings.core,
+                 ~is_edited=true,
+                 ~stitch=x => x,
+                 ~queue_worker=None,
+               );
+          },
+      ),
+      form_toggle(~message, ~toggle_collapse, ~index, ~is_first, ~is_last),
+    ],
+  );
+};
+
+let form_block =
+    (
+      ~message: Model.message,
+      ~block: Update.block_kind,
+      ~toggle_collapse,
+      ~index: int,
+      ~is_first: bool,
+      ~is_last: bool,
+      ~globals: Globals.t,
+    )
+    : Node.t => {
+  switch (block) {
+  | Text(content) =>
+    text_block(
+      ~message,
+      ~content,
+      ~toggle_collapse,
+      ~index,
+      ~is_first,
+      ~is_last,
+    )
+  | Code(content) =>
+    code_block(
+      ~message,
+      ~content,
+      ~toggle_collapse,
+      ~index,
+      ~is_first,
+      ~is_last,
+      ~globals,
+    )
+  };
+};
+
 let message_display =
     (
       ~globals: Globals.t,
@@ -512,19 +683,18 @@ let message_display =
     List.flatten(
       List.mapi(
         (index: int, message: Model.message) => {
-          switch (message.code) {
-          | Some((sketch, tileId)) =>
-            message.content == "..." && message.party == LLM
-              ? [loading_dots()]
-              : [
+          message.code
+            ? {
+              [
                 div(
                   ~attrs=[
                     clss([
                       "message-container",
                       switch (message.party) {
-                      | LS => "ls"
+                      | User => "user"
                       | LLM => "llm"
-                      | System => "system"
+                      | System(Prompt) => "system-prompt"
+                      | System(Error) => "system-error"
                       },
                     ]),
                   ],
@@ -532,202 +702,133 @@ let message_display =
                     div(
                       ~attrs=[clss(["message-identifier"])],
                       [
-                        text(
-                          switch (message.party) {
-                          | LS => "User"
-                          | LLM => "Assistant"
-                          | System => "System"
-                          },
-                        ),
-                      ],
-                    ),
-                    div(
-                      ~attrs=[
-                        clss([
-                          switch (message.party) {
-                          | LS => "ls-message"
-                          | LLM => "llm-message"
-                          | System => "system-message"
-                          },
-                        ]),
-                        Attr.on_copy(_ => {Effect.Stop_propagation}),
-                        Attr.on_paste(_ => {Effect.Stop_propagation}),
-                        Attr.on_cut(_ => {Effect.Stop_propagation}),
-                      ],
-                      [
-                        message.collapsed
-                        && String.length(message.content) >= 200
-                          ? text(
-                              String.concat(
-                                "",
-                                [
-                                  String.sub(
-                                    message.content,
-                                    0,
-                                    min(String.length(message.content), 200),
-                                  ),
-                                  "...",
-                                ],
-                              ),
-                            )
-                          : text(message.content),
-                        div(
-                          ~attrs=[
-                            clss(["collapse-indicator"]),
-                            Attr.on_click(_ => toggle_collapse(index)),
-                            String.length(message.content) >= 200
-                              ? Attr.empty : Attr.hidden,
-                          ],
-                          [
-                            text(
-                              message.collapsed
-                                ? "▼ Show more" : "▲ Show less",
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-                div(
-                  ~attrs=[
-                    clss([
-                      "message-container",
-                      "example",
-                      message.party == LLM ? "llm" : "ls",
-                    ]),
-                  ],
-                  [
-                    CellEditor.View.view(
-                      ~globals,
-                      ~signal=_ => Ui_effect.Ignore,
-                      ~inject=_ => Ui_effect.Ignore,
-                      ~selected=None,
-                      ~caption=None,
-                      ~locked=true,
-                      message.party == LLM
-                        ? {
-                          sketch
-                          |> Zipper.unzip
-                          |> Editor.Model.mk
-                          |> CellEditor.Model.mk;
-                        }
-                        : {
-                          sketch
-                          |> Zipper.unzip
-                          |> Editor.Model.mk
-                          |> CellEditor.Model.mk
-                          |> CellEditor.Update.calculate(
-                               ~settings=globals.settings.core,
-                               ~is_edited=true,
-                               ~stitch=x => x,
-                               ~queue_worker=None,
-                             );
+                        switch (message.party) {
+                        | User => text("User")
+                        | LLM =>
+                          div(
+                            ~attrs=[clss(["llm-identifier"])],
+                            [Icons.hazelnut_agent, text("Assistant")],
+                          )
+                        | System(Prompt) =>
+                          div(
+                            ~attrs=[clss(["system-prompt-identifier"])],
+                            [text("System")],
+                          )
+                        | System(Error) =>
+                          div(
+                            ~attrs=[clss(["system-error-identifier"])],
+                            [text("System")],
+                          )
                         },
+                      ],
                     ),
-                  ],
+                  ]
+                  @ {
+                    let parsed_blocks = Update.parse_blocks(message.content);
+                    List.map(
+                      (block: Update.block_kind) =>
+                        form_block(
+                          ~message,
+                          ~block,
+                          ~toggle_collapse,
+                          ~index,
+                          ~is_first=index == 0,
+                          ~is_last=index == List.length(parsed_blocks) - 1,
+                          ~globals,
+                        ),
+                      parsed_blocks,
+                    );
+                  },
                 ),
-                message.party == LLM && tileId != None
-                  ? div(
-                      ~attrs=[
-                        clss(["resuggest-button"]),
-                        Attr.on_click(_ =>
-                          Virtual_dom.Vdom.Effect.Many([
-                            inject(
-                              Update.EmployLLMAction(
-                                Resuggest(
-                                  message.content,
-                                  Option.get(tileId),
-                                ),
-                              ),
-                            ),
-                            Virtual_dom.Vdom.Effect.Stop_propagation,
-                          ])
-                        ),
-                        Attr.title("Resuggest"),
-                      ],
-                      [text("resuggest")],
-                    )
-                  : None,
-              ]
-          | None =>
-            message.content == "..." && message.party == LLM
-              ? [loading_dots()]
-              : [
-                div(
-                  ~attrs=[
-                    clss([
-                      "message-container",
-                      switch (message.party) {
-                      | LS => "ls"
-                      | LLM => "llm"
-                      | System => "system"
-                      },
-                    ]),
-                  ],
-                  [
-                    div(
-                      ~attrs=[clss(["message-identifier"])],
-                      [
-                        text(
+              ];
+            }
+            : message.content == "..." && message.party == LLM
+                ? [loading_dots()]
+                : [
+                  div(
+                    ~attrs=[
+                      clss([
+                        "message-container",
+                        switch (message.party) {
+                        | User => "user"
+                        | LLM => "llm"
+                        | System(Prompt) => "system-prompt"
+                        | System(Error) => "system-error"
+                        },
+                      ]),
+                    ],
+                    [
+                      div(
+                        ~attrs=[clss(["message-identifier"])],
+                        [
                           switch (message.party) {
-                          | LS => "User"
-                          | LLM => "Assistant"
-                          | System => "System"
-                          },
-                        ),
-                      ],
-                    ),
-                    div(
-                      ~attrs=[
-                        clss([
-                          switch (message.party) {
-                          | LS => "ls-message"
-                          | LLM => "llm-message"
-                          | System => "system-message"
-                          },
-                        ]),
-                        Attr.on_copy(_ => {Effect.Stop_propagation}),
-                        Attr.on_paste(_ => {Effect.Stop_propagation}),
-                        Attr.on_cut(_ => {Effect.Stop_propagation}),
-                      ],
-                      [
-                        message.collapsed
-                        && String.length(message.content) >= 200
-                          ? text(
-                              String.concat(
-                                "",
-                                [
-                                  String.sub(
-                                    message.content,
-                                    0,
-                                    min(String.length(message.content), 200),
-                                  ),
-                                  "...",
-                                ],
-                              ),
+                          | User => text("User")
+                          | LLM =>
+                            div(
+                              ~attrs=[clss(["llm-identifier"])],
+                              [Icons.hazelnut_agent, text("Assistant")],
                             )
-                          : text(message.content),
-                        div(
-                          ~attrs=[
-                            clss(["collapse-indicator"]),
-                            Attr.on_click(_ => toggle_collapse(index)),
-                            String.length(message.content) >= 200
-                              ? Attr.empty : Attr.hidden,
-                          ],
-                          [
-                            text(
-                              message.collapsed
-                                ? "▼ Show more" : "▲ Show less",
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ]
-          }
+                          | System(_) =>
+                            div(
+                              ~attrs=[clss(["system-identifier"])],
+                              [text("System")],
+                            )
+                          },
+                        ],
+                      ),
+                      div(
+                        ~attrs=[
+                          clss([
+                            switch (message.party) {
+                            | User => "user-message"
+                            | LLM => "llm-message"
+                            | System(Prompt) => "system-prompt-message"
+                            | System(Error) => "system-error-message"
+                            },
+                          ]),
+                          Attr.on_copy(_ => {Effect.Stop_propagation}),
+                          Attr.on_paste(_ => {Effect.Stop_propagation}),
+                          Attr.on_cut(_ => {Effect.Stop_propagation}),
+                        ],
+                        [
+                          message.collapsed
+                          && String.length(message.content) >= 200
+                            ? text(
+                                String.concat(
+                                  "",
+                                  [
+                                    String.sub(
+                                      message.content,
+                                      0,
+                                      min(
+                                        String.length(message.content),
+                                        200,
+                                      ),
+                                    ),
+                                    "...",
+                                  ],
+                                ),
+                              )
+                            : text(message.content),
+                          div(
+                            ~attrs=[
+                              clss(["collapse-indicator"]),
+                              Attr.on_click(_ => toggle_collapse(index)),
+                              String.length(message.content) >= 200
+                                ? Attr.empty : Attr.hidden,
+                            ],
+                            [
+                              text(
+                                message.collapsed
+                                  ? "▼ Show more" : "▲ Show less",
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ]
         },
         curr_messages,
       ),

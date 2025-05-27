@@ -21,7 +21,7 @@ type send_message =
       AssistantSettings.mode,
       Id.t,
     )
-  | System(string, AssistantSettings.mode, Id.t);
+  | SystemError(string, AssistantSettings.mode, Id.t);
 
 // Actions to handle certain kinds of LLM responses
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -63,34 +63,90 @@ type t =
   | EmployLLMAction(employ_llm_action)
   | ChatAction(chat_action);
 
-let code_message_of_str =
-    (response: string, party: Model.party, tileId: option(Id.t))
-    : Model.message => {
-  let zipper_of_response = Printer.zipper_of_string(response);
-  switch (zipper_of_response) {
-  | Some(z) =>
-    let segment_of_response =
-      Zipper.smart_seg(~dump_backpack=true, ~erase_buffer=true, z);
-    {
-      party,
-      code: Some((segment_of_response, tileId)),
-      content: response,
-      collapsed: String.length(response) >= 200,
-    };
-  | None => {
-      party,
-      code: None,
-      content: response,
-      collapsed: String.length(response) >= 200,
-    }
-  };
-};
-
 let text_message_of_str =
     (response: string, party: Model.party): Model.message => {
   {
     party,
-    code: None,
+    code: false,
+    content: response,
+    collapsed: String.length(response) >= 200,
+  };
+};
+
+let add_chat_to_history =
+    (chat: Model.chat, history: Id.Map.t(Model.chat)): Id.Map.t(Model.chat) => {
+  Id.Map.add(chat.id, chat, history);
+};
+
+let init_chat = (kind: AssistantSettings.mode): Model.chat => {
+  let init_msg =
+    switch (kind) {
+    | HazelTutor =>
+      text_message_of_str(InitPrompts.mk_tutor(), System(Prompt))
+    | CodeSuggestion => text_message_of_str("", System(Prompt))
+    | TaskCompletion =>
+      text_message_of_str(InitPrompts.mk_composition(), System(Prompt))
+    };
+  {
+    messages: [init_msg],
+    id: Id.mk(),
+    descriptor: "",
+    timestamp: JsUtil.timestamp(),
+  };
+};
+
+let extract_blocks = (response: string): list(string) => {
+  let rec extract_blocks = (text: string, acc: list(string)): list(string) => {
+    let pattern = Str.regexp("```[ \n]*\\([^`]+\\)[ \n]*```");
+    switch (Str.search_forward(pattern, text, 0)) {
+    | exception Not_found => List.rev(acc)
+    | pos =>
+      let matched = Str.matched_group(1, text);
+      let rest =
+        String.sub(
+          text,
+          pos + String.length(Str.matched_string(text)),
+          String.length(text)
+          - (pos + String.length(Str.matched_string(text))),
+        );
+      extract_blocks(rest, [matched, ...acc]);
+    };
+  };
+  extract_blocks(response, []);
+};
+
+let extract_text = (response: string): list(string) => {
+  let pattern = StringUtil.regexp("```[ \n]*\\([^`]+\\)[ \n]*```");
+  StringUtil.split(pattern, response);
+};
+
+type block_kind =
+  | Text(string)
+  | Code(string);
+
+let parse_blocks = (response: string): list(block_kind) => {
+  let rec parse_blocks =
+          (str: string, acc: list(block_kind)): list(block_kind) => {
+    let pattern = Str.regexp("```[ \n]*\\([^`]+\\)[ \n]*```");
+    switch (Str.search_forward(pattern, str, 0)) {
+    | exception Not_found => acc
+    | pos =>
+      let acc = List.length(acc) > 0 ? ListUtil.leading(acc) : acc;
+      let code = Str.matched_group(1, str);
+      let before = Str.string_before(str, pos);
+      let rest =
+        Str.string_after(str, pos + String.length(Str.matched_string(str)));
+      parse_blocks(rest, acc @ [Text(before), Code(code), Text(rest)]);
+    };
+  };
+  parse_blocks(response, []);
+};
+
+let code_message_of_str =
+    (response: string, party: Model.party): Model.message => {
+  {
+    party,
+    code: true,
     content: response,
     collapsed: String.length(response) >= 200,
   };
@@ -98,7 +154,7 @@ let text_message_of_str =
 
 let await_llm_response: Model.message = {
   party: LLM,
-  code: None,
+  code: false,
   content: "...",
   collapsed: false,
 };
@@ -116,9 +172,11 @@ let collect_chat = (~messages: list(Model.message)): string => {
   List.fold_left(
     (chat: string, message: Model.message) =>
       switch (message.party) {
-      | LLM => chat ++ "ASSISTANT: " ++ message.content ++ "\n"
-      | LS => chat ++ "USER: " ++ message.content ++ "\n"
-      | System => chat ++ "SYSTEM: " ++ message.content ++ "\n"
+      | LLM => chat ++ "LLM MESSAGE: " ++ message.content ++ "\n"
+      | User => chat ++ "USER MESSAGE: " ++ message.content ++ "\n"
+      | System(Prompt) =>
+        chat ++ "SYSTEM MESSAGE: " ++ message.content ++ "\n"
+      | System(Error) => chat ++ "ERROR MESSAGE: " ++ message.content ++ "\n"
       },
     memory_prompt,
     messages,
@@ -172,21 +230,10 @@ let add_message_to_model =
   let (past_chats, _) = get_mode_info(mode, model);
   let chat_to_update = Id.Map.find(chat_id, past_chats);
   let messages = {
-    switch (message.party) {
-    | LS =>
-      let chat_to_update_messages =
-        filter_chat_messages(chat_to_update.messages);
-      chat_to_update_messages @ [message, await_llm_response];
-    | LLM =>
-      let chat_to_update_messages =
-        filter_chat_messages(chat_to_update.messages);
-      let messages = chat_to_update_messages @ [message];
-      is_final ? messages : messages @ [await_llm_response];
-    | System =>
-      let chat_to_update_messages =
-        filter_chat_messages(chat_to_update.messages);
-      chat_to_update_messages @ [message];
-    };
+    let chat_to_update_messages =
+      filter_chat_messages(chat_to_update.messages);
+    let messages = chat_to_update_messages @ [message];
+    is_final ? messages : messages @ [await_llm_response];
   };
   Model.{
     ...model,
@@ -304,7 +351,7 @@ let form_descriptor =
       (chat: string, message: Model.message) =>
         if (message.party == LLM) {
           chat ++ "Your Reponse: " ++ message.content ++ " ";
-        } else if (message.party == LS) {
+        } else if (message.party == User) {
           chat ++ "User Input: " ++ message.content ++ " ";
         } else {
           chat ++ message.content;
@@ -435,60 +482,6 @@ let check_req =
   };
 };
 
-let get_documentation_as_text = () => {
-  let (_, slides) = ScratchMode.StoreDocumentation.load();
-  let documentation =
-    slides
-    |> List.map(((name, persistent)) => {
-         let cell_model =
-           CellEditor.Model.unpersist(~settings=CoreSettings.off, persistent);
-         let text =
-           Printer.zipper_to_string(cell_model.editor.editor.state.zipper);
-         name ++ ": " ++ text;
-       })
-    |> String.concat("\n\n");
-  documentation;
-};
-
-let mk_tutor_prelude = () => {
-  let prelude = "You are a helpful assistant whose role is to be a tutor for a user of the Hazel
-                    Programming Language. You are given a list of documentation slides, which are
-                    formatted as follows:
-                    <slide_name>:
-                    <slide_text>
-                    You can and should use these slides to understand and reason about the syntax and semantics
-                    of the Hazel Programming Language, and aid in your response to the user. In your response,
-                    you MAY provide a code example to help the user understand the syntax and semantics of the Hazel Programming Language.
-                    This code example MUST be placed with triple backticks AND AFTER your response, such as ```let x = 1 in x + 1```. This means NOTHING
-                    can be placed after the code example. An example chat might be as follows:
-                    User: What is the syntax for a function in Hazel?
-                    Assistant: In Hazel, you can define a function using the 'let' and 'fun' keyword. For example, here's a simple identity function:
-                    ```
-                    let f = fun x -> x in
-                    ```
-                    A few key things you should note as a Hazel tutor:
-                    - Your response should be concise and to the point.
-                    - You should use the documentation slides to understand and reason about the syntax and semantics of the Hazel Programming Language.
-                    - You should use the documentation slides to aid in your response to the user.
-                    - Your response shouldn't explicitly mention this prompt.
-                    - You MUST provide any code examples in the triple backticks format and at the very end of your response.
-                    - You should treat the user with respect, and assume they are a beginner Hazel programmer.
-                    - Your response should concise, digestible, and easy to understand.
-                    - You SHOULD NOT prelude your code example with 'hazel' or anything similar. That is, your code example should be purely functional hazel code.
-                    - To further reiterate, an example of a bad code example is: ```hazel let x = 1 in x + 1 ```. A good code example is: ```let x = 1 in x + 1 ```.
-                    - Hazel uses typed holes, thus to represent a hole you should either explicitly use the hole operator ? or leave an extra whitespace for a non-explicit hole. An example would be: ```let x = ? in x + 1``` or ```let x = 1 in ``` (note the extra whitespace at the end there).
-                    - Typed holes are NOT defined with '_' or anything else... ONLY use '?' or ' ' (space) to represent a hole.
-                    To further give you information about the Hazel Programming Language, here is a blurb about the language:
-                    Hazel is a live functional programming environment that is able to typecheck, manipulate, and even run incomplete programs, i.e. programs with holes. There are no meaningless editor states.
-                    When programming, we spend a substantial amount of our time working with program text that is not yet a formally complete program, e.g. because there are blank spots, type errors or merge conflicts at various locations.
-                    Conventional programming language definitions assign no formal meaning to structures like these, so we are left without live feedback about the behavior of even complete portions of the program. Moreover, program editors and other tools have no choice but to resort to complex and ad hoc heuristics to provide various useful language services (like code completion, type inspection, and code navigation) without gaps in service.
-                    We are developing a more principled approach to working with incomplete programs, rooted in (contextual modal and gradual) type theory. We model incomplete programs as programs with holes, which (1) stand for parts of the program that are missing; and (2) serve as membranes around parts of the program that are erroneous or, in the collaborative setting, conflicted.
-                    We are first implementing these ideas into Hazel, a web-based programming environment for an Elm/ML-like functional programming language designed around typed-hole-driven development.
-                    Uniquely, every incomplete program that you can construct using Hazel's language of edit actions is both statically and dynamically well-defined, i.e. it has a (possibly incomplete) type, and you can run it to produce a (possibly incomplete) result. Consequently, Hazel serves as an elegant platform for research on the future of programming (and programming education).
-                    ";
-  prelude ++ "\n\n" ++ get_documentation_as_text();
-};
-
 let set_buffer = (~response: string, z: Zipper.t): option(Zipper.t) => {
   let zipper_of_response = Option.get(Printer.zipper_of_string(response));
   let seg_of_response =
@@ -506,7 +499,6 @@ let mk_LLM_call =
       ~model: Model.t,
       ~curr_chat: Model.chat,
       ~prompt: list(OpenRouter.message),
-      ~message: Model.message,
       ~mode: AssistantSettings.mode,
       ~schedule_action: t => unit,
     ) => {
@@ -528,7 +520,7 @@ let mk_LLM_call =
       | Some(Error({message, code})) =>
         schedule_action(
           SendMessage(
-            System(
+            SystemError(
               "Error: " ++ message ++ " (code: " ++ string_of_int(code) ++ ")",
               mode,
               curr_chat.id,
@@ -539,15 +531,14 @@ let mk_LLM_call =
         print_endline("Assistant: response parse failed (SendTutorMessage)")
       }
     );
-    add_message_to_model(mode, model, message, curr_chat.id, ~is_final=true)
-    |> Updated.return_quiet;
+    model |> Updated.return_quiet;
   | (None, _) =>
     add_message_to_model(
       mode,
       model,
       {
-        party: System,
-        code: None,
+        party: System(Error),
+        code: false,
         content: "No API key found. Please set an API key in the assistant settings.",
         collapsed: false,
       },
@@ -560,8 +551,8 @@ let mk_LLM_call =
       mode,
       model,
       {
-        party: System,
-        code: None,
+        party: System(Error),
+        code: false,
         content: "No model ID found. Please set a model ID in the assistant settings.",
         collapsed: false,
       },
@@ -578,8 +569,8 @@ let failed_prompt_generation =
     mode,
     model,
     {
-      party: System,
-      code: None,
+      party: System(Error),
+      code: false,
       content: "Prompt generation failed.",
       collapsed: false,
     },
@@ -589,43 +580,12 @@ let failed_prompt_generation =
   |> Updated.return_quiet;
 };
 
-let collect_tool_calls = (response: string): list(string) => {
-  let rec extract_blocks = (text: string, acc: list(string)): list(string) => {
-    let pattern = Str.regexp("```[ \n]*\\([^`]+\\)[ \n]*```");
-    switch (Str.search_forward(pattern, text, 0)) {
-    | exception Not_found => List.rev(acc)
-    | pos =>
-      let matched = Str.matched_group(1, text);
-      let rest =
-        String.sub(
-          text,
-          pos + String.length(Str.matched_string(text)),
-          String.length(text)
-          - (pos + String.length(Str.matched_string(text))),
-        );
-      extract_blocks(rest, [matched, ...acc]);
-    };
-  };
-  extract_blocks(response, []);
-};
-
-let mk_mode_prompt =
-    (~settings: AssistantSettings.t, ~model: Model.t, ~editor: CodeModel.t)
-    : string => {
+let mk_mode_prompt = (~settings: AssistantSettings.t): string => {
   let mode = settings.mode;
-  let (_, curr_chat) = get_mode_info(mode, model);
   let prompt =
     switch (mode) {
-    | HazelTutor =>
-      let tutor_prelude = mk_tutor_prelude();
-      // If the chat is just beginning, let us add the tutor prelude
-      let tutor_chat =
-        List.length(curr_chat.messages) == 0 ? tutor_prelude : "";
-      tutor_chat;
-    | CodeSuggestion =>
-      // Just leave as is, no prelude needed, already prompted in ChatLSP
-      // Messages are typically sent during code completion
-      ""
+    | HazelTutor => InitPrompts.mk_tutor()
+    | CodeSuggestion => ""
     | TaskCompletion =>
       // Task completion will go as follows:
       // 1. User will type in desired functionality and send message. It will be
@@ -643,20 +603,37 @@ let mk_mode_prompt =
       // 4. Add the sketch of the program
       // 5. Add the cursor location
       // 6. Add the user task-to-be-completed
-      let sketch_seg =
-        Zipper.smart_seg(
-          ~dump_backpack=true,
-          ~erase_buffer=true,
-          editor.editor.state.zipper,
-        );
-      ChatLSP.Composition.mk_prompt(
+      InitPrompts.mk_composition()
+    };
+  prompt;
+};
+
+let mk_mode_ctx_prompt =
+    (~settings: AssistantSettings.t, ~editor: CodeModel.t): option(string) => {
+  let mode = settings.mode;
+  switch (mode) {
+  | HazelTutor =>
+    // No context needed in tutor mode. Initial prompt gives all needed information.
+    // Actually, we could add context here in the future in case the user asks sketch-specific questions.
+    None
+  | CodeSuggestion =>
+    // todo
+    None
+  | TaskCompletion =>
+    let sketch_seg =
+      Zipper.smart_seg(
+        ~dump_backpack=true,
+        ~erase_buffer=true,
+        editor.editor.state.zipper,
+      );
+    Some(
+      ChatLSP.Composition.mk_ctx_prompt(
         ChatLSP.Options.init,
         sketch_seg,
         editor,
-        List.length(curr_chat.messages) == 0,
-      );
-    };
-  prompt;
+      ),
+    );
+  };
 };
 
 let update =
@@ -683,27 +660,55 @@ let update =
       // Capture the entire chat to give historical context to LLM
       let (_, curr_chat) = get_mode_info(mode, model);
       // Gathers info/prompt given the mode
-      let prompt =
-        mk_mode_prompt(~settings=settings.assistant, ~model, ~editor);
-      // The user message input itself. This is the message that the user typed.
-      let user_message = "USER MESSAGE/REQUEST: " ++ message.content;
-      // The prompt concatenated with the user message
-      let prompt_with_user_message = prompt ++ "\n\n" ++ user_message;
-      // Collects the chat history, including our new message.
-      let prompt_with_chat =
-        collect_chat(
-          ~messages=
-            curr_chat.messages
-            @ [text_message_of_str(prompt_with_user_message, LLM)],
-        );
-      switch (standardize_prompt(prompt_with_chat)) {
+      let ctx_prompt =
+        mk_mode_ctx_prompt(~settings=settings.assistant, ~editor);
+      // We want to send the LLM all of the chat history, relevant context, and user message
+      // But, note we don't want to add all of this to a single "message"
+      let llm_input =
+        switch (ctx_prompt) {
+        | Some(prompt) =>
+          collect_chat(
+            ~messages=
+              curr_chat.messages
+              @ [
+                text_message_of_str(message.content, LLM),
+                text_message_of_str(prompt, System(Prompt)),
+              ],
+          )
+        | None =>
+          collect_chat(
+            ~messages=
+              curr_chat.messages
+              @ [text_message_of_str(message.content, LLM)],
+          )
+        };
+      switch (standardize_prompt(llm_input)) {
       | None => failed_prompt_generation(~mode, ~model, ~curr_chat)
-      | Some(prompt) =>
+      | Some(llm_input) =>
         mk_LLM_call(
-          ~model,
+          ~model={
+            let model =
+              add_message_to_model(
+                mode,
+                model,
+                message,
+                curr_chat.id,
+                ~is_final=false,
+              );
+            switch (ctx_prompt) {
+            | Some(prompt) =>
+              add_message_to_model(
+                mode,
+                model,
+                code_message_of_str(prompt, System(Prompt)),
+                curr_chat.id,
+                ~is_final=false,
+              )
+            | None => model
+            };
+          },
           ~curr_chat,
-          ~prompt,
-          ~message=text_message_of_str(prompt_with_user_message, LS),
+          ~prompt=llm_input,
           ~mode,
           ~schedule_action,
         )
@@ -711,12 +716,6 @@ let update =
     | Sketch(tileId, mode, advanced_reasoning) =>
       // Capture the chat we're updating
       let (_, curr_chat) = get_mode_info(mode, model);
-      let sketch_seg =
-        Zipper.smart_seg(
-          ~dump_backpack=true,
-          ~erase_buffer=true,
-          editor.editor.state.zipper,
-        );
       let tag = String.sub(Id.to_string(tileId), 0, 3);
       switch (
         {
@@ -749,12 +748,7 @@ let update =
             openrouter_prompt,
           );
         let prompt = String.concat("\n", messages);
-        let message: Model.message = {
-          party: LS,
-          code: Some((sketch_seg, None)),
-          content: prompt,
-          collapsed: String.length(prompt) >= 200,
-        };
+        let message: Model.message = code_message_of_str(prompt, User);
         switch (Store.Generic.load("API"), Store.Generic.load("MODEL")) {
         | (Some(key), Some(model_id)) =>
           let params: OpenRouter.params = {
@@ -785,7 +779,7 @@ let update =
             | Some(Error({message, code})) =>
               schedule_action(
                 SendMessage(
-                  System(
+                  SystemError(
                     "Error: "
                     ++ message
                     ++ " (code: "
@@ -816,8 +810,8 @@ let update =
             mode,
             model,
             {
-              party: System,
-              code: None,
+              party: System(Error),
+              code: false,
               content: "No API key found. Please set an API key in the assistant settings.",
               collapsed: false,
             },
@@ -830,8 +824,8 @@ let update =
             mode,
             model,
             {
-              party: System,
-              code: None,
+              party: System(Error),
+              code: false,
               content: "No API key or model ID found. Please set an API key and model ID in the assistant settings.",
               collapsed: false,
             },
@@ -846,7 +840,7 @@ let update =
         text_message_of_str(
           "Your previous response caused the following error. Please fix it in your response: "
           ++ error,
-          LS,
+          User,
         );
       // check that fuel is not 0
       if (fuel < 0) {
@@ -862,8 +856,8 @@ let update =
           mode,
           model,
           {
-            party: System,
-            code: None,
+            party: System(Error),
+            code: false,
             content:
               "By default we stop the assistant after "
               ++ string_of_int(ChatLSP.Options.init.error_rounds_max)
@@ -887,8 +881,8 @@ let update =
             mode,
             model,
             {
-              party: System,
-              code: None,
+              party: System(Error),
+              code: false,
               content: "Prompt generation failed.",
               collapsed: false,
             },
@@ -923,7 +917,7 @@ let update =
               | Some(Error({message, code})) =>
                 schedule_action(
                   SendMessage(
-                    System(
+                    SystemError(
                       "Error: "
                       ++ message
                       ++ " (code: "
@@ -953,8 +947,8 @@ let update =
               mode,
               model,
               {
-                party: System,
-                code: None,
+                party: System(Error),
+                code: false,
                 content: "No API key found. Please set an API key in the assistant settings. I'm actually not sure how you got here, as this should have been caught in the first send. This is a bug, and you should let someone know.",
                 collapsed: false,
               },
@@ -967,8 +961,8 @@ let update =
               mode,
               model,
               {
-                party: System,
-                code: None,
+                party: System(Error),
+                code: false,
                 content: "No model ID found. Please set a model ID in the assistant settings.",
                 collapsed: false,
               },
@@ -979,13 +973,13 @@ let update =
           }
         };
       };
-    | System(content, mode, chat_id) =>
+    | SystemError(content, mode, chat_id) =>
       add_message_to_model(
         mode,
         model,
         {
-          party: System,
-          code: None,
+          party: System(Error),
+          code: false,
           content,
           collapsed: false,
         },
@@ -1008,7 +1002,7 @@ let update =
           if (Str.string_match(code_pattern, response, 0)) {
             let before = String.trim(Str.matched_group(1, response));
             let code = String.trim(Str.matched_group(3, response));
-            (before, code |> StringUtil.trim_leading);
+            (before, "```" ++ (code |> StringUtil.trim_leading) ++ "```");
           } else {
             print_endline("Regex match failed for: " ++ response);
             (response |> StringUtil.trim_leading, "");
@@ -1033,8 +1027,9 @@ let update =
               ~is_final=false,
             );
           // Then handle the completion as before
+          // todo: this may display not as intended. todo--fix-up
           let message_with_example =
-            code_message_of_str(code_example, LLM, None);
+            code_message_of_str("```" ++ code_example ++ "```", LLM);
           add_message_to_model(
             mode,
             model_with_discussion,
@@ -1045,7 +1040,7 @@ let update =
           |> Updated.return_quiet;
         };
       } else {
-        let tool_calls = collect_tool_calls(response);
+        let tool_calls = extract_blocks(response);
         List.iter(
           (tool_call: string) => {print_endline("Tool call: " ++ tool_call)},
           tool_calls,
@@ -1053,18 +1048,8 @@ let update =
 
         let rec process_tool_calls = (calls: list(string)) => {
           switch (calls) {
-          | [] =>
-            schedule_action(
-              SendMessage(
-                Basic(
-                  text_message_of_str(
-                    "SYSTEM: After your most recent edits, here is the current state of the code.",
-                    LS,
-                  ),
-                ),
-              ),
-            )
-          | [tool_call, ...rest] =>
+          | [] => ()
+          | [tool_call, ...remaining] =>
             let parsed_response =
               switch (String.index_opt(tool_call, ' ')) {
               | Some(idx) => [
@@ -1085,28 +1070,43 @@ let update =
             switch (tool_call) {
             | "goto_definition" =>
               goto(editor, Option.get(arg), ChatLSP.Composition.Definition);
-              process_tool_calls(rest);
+              process_tool_calls(remaining);
             | "goto_body" =>
               goto(editor, Option.get(arg), ChatLSP.Composition.Body);
-              process_tool_calls(rest);
+              process_tool_calls(remaining);
             | "edit" =>
               edit(Option.get(arg), ChatLSP.Composition.Current);
-              process_tool_calls(rest);
+              process_tool_calls(remaining);
             | "insert_before" =>
               edit(Option.get(arg), ChatLSP.Composition.Before);
-              process_tool_calls(rest);
+              process_tool_calls(remaining);
             | "insert_after" =>
               edit(Option.get(arg), ChatLSP.Composition.After);
-              process_tool_calls(rest);
+              process_tool_calls(remaining);
             | "delete" =>
               edit("", ChatLSP.Composition.Current);
-              process_tool_calls(rest);
-            | "view_sketch" => process_tool_calls(rest)
+              process_tool_calls(remaining);
+            | "view_sketch" =>
+              schedule_action(
+                SendMessage(
+                  Basic(
+                    text_message_of_str(
+                      "You have requested to view the sketch. Please review and continue with completing the user-specified task.",
+                      System(Prompt),
+                    ),
+                  ),
+                ),
+              )
             | "submit" => ()
             | _ =>
               schedule_action(
                 SendMessage(
-                  System("Unknown tool call: " ++ tool_call, mode, chat_id),
+                  Basic(
+                    text_message_of_str(
+                      "Unknown tool call: " ++ tool_call,
+                      System(Error),
+                    ),
+                  ),
                 ),
               )
             };
@@ -1158,7 +1158,7 @@ let update =
 
       // Then handle the completion as before
       let completion_message =
-        code_message_of_str(completion, LLM, Some(tileId));
+        code_message_of_str("```" ++ completion ++ "```", LLM);
       check_descriptor(
         ~model,
         ~schedule_action,
@@ -1228,13 +1228,8 @@ let update =
     | NewChat =>
       let mode = settings.assistant.mode;
       let (past_chats, _) = get_mode_info(mode, model);
-      let new_chat: Model.chat = {
-        messages: [],
-        id: Id.mk(),
-        descriptor: "",
-        timestamp: JsUtil.timestamp(),
-      };
-      let updated_history = Model.add_chat_to_history(new_chat, past_chats);
+      let new_chat: Model.chat = init_chat(mode);
+      let updated_history = add_chat_to_history(new_chat, past_chats);
       resculpt_model(mode, model, updated_history, new_chat.id)
       |> Updated.return_quiet;
     | DeleteChat(chat_to_be_gone_id) =>
@@ -1332,5 +1327,28 @@ let update =
       }
       |> Updated.return_quiet
     }
+  };
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+let init: Model.t = {
+  let (init_simple_chat, init_suggestion_chat, init_completion_chat) = (
+    init_chat(HazelTutor),
+    init_chat(CodeSuggestion),
+    init_chat(TaskCompletion),
+  );
+  {
+    current_chats: {
+      curr_simple_chat: init_simple_chat.id,
+      curr_suggestion_chat: init_suggestion_chat.id,
+      curr_completion_chat: init_completion_chat.id,
+    },
+    chat_history: {
+      past_simple_chats: add_chat_to_history(init_simple_chat, Id.Map.empty),
+      past_suggestion_chats:
+        add_chat_to_history(init_suggestion_chat, Id.Map.empty),
+      past_completion_chats:
+        add_chat_to_history(init_completion_chat, Id.Map.empty),
+    },
   };
 };
