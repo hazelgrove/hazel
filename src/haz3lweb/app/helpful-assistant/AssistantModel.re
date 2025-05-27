@@ -22,7 +22,6 @@ type code_segment = option((Segment.t, option(Id.t)));
 [@deriving (show({with_path: false}), sexp, yojson)]
 type message = {
   party, // Who sent the message (System, LLM, or LS)
-  code: bool, // Optional code segment with optional tile ID
   content: string, // The text content of the message
   collapsed: bool // Whether the message is collapsed in the UI
 };
