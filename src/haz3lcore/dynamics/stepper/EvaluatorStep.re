@@ -322,6 +322,7 @@ module Decompose = {
       Decomp.transition(
         decompose,
         ~in_closure=Option.value(~default=() => (), in_closure),
+        ~mode=`Substitution,
         state,
         env,
         exp,
@@ -372,6 +373,7 @@ module TakeStep = {
     TakeStepEV.transition(
       (~in_closure as _=?, _, _, _) => None,
       ~in_closure=Option.value(~default=() => (), in_closure),
+      ~mode=`Substitution,
       state,
       env,
       d,
@@ -399,7 +401,6 @@ type status =
   | AvailableSteps(list(step));
 
 let get_status = (~settings: CoreSettings.t, exp, state) => {
-  print_endline("EXP: " ++ (exp |> Exp.show));
   let eos =
     decompose(exp, state)
     |> List.map(should_hide_eval_obj(~settings=settings.evaluation)); // NOTE: should_hide_eval_obj actually changes the eval obj to do filter bookkeeping!!!

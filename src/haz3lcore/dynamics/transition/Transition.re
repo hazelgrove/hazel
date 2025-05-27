@@ -176,13 +176,17 @@ module Transition = (EV: EV_MODE) => {
             ClosureEnvironment.t,
             DHExp.t
           ) =>
-          'a,
-        ~in_closure=?,
-        state,
-        env,
-        d,
+          EV.result,
+        ~mode: [
+           | `Substitution
+           | `Environment
+         ],
+        ~in_closure: option(unit => unit)=?,
+        state: state,
+        env: TermBase.closure_environment_t, // Empty in substitution mode
+        d: t,
       )
-      : 'a => {
+      : EV.result => {
     // Split DHExp into term and id information
     let (term, rewrap) = DHExp.unwrap(d);
     let wrap_ctx = (term): EvalCtx.t =>
@@ -191,32 +195,46 @@ module Transition = (EV: EV_MODE) => {
         ids: [rep_id(d)],
       });
 
-    let (let.wrap_closure) = (env, f: unit => rule) => {
-      wrap_closure_when_done(~in_closure, d, env, f());
-    };
+    let (let.wrap_closure) = (env, f: unit => rule) =>
+      switch (mode) {
+      | `Environment => wrap_closure_when_done(~in_closure, d, env, f())
+      | `Substitution => f()
+      };
+
+    let subst_env = (env, d) =>
+      switch (mode) {
+      | `Environment => Closure(env, d) |> fresh
+      | `Substitution => d |> Substitution.subst(env.env)
+      };
 
     // Transition rules
     switch (term) {
     | Var(x) =>
-      let. _ = otherwise(env, Var(x) |> rewrap);
-      switch (ClosureEnvironment.lookup(env, x)) {
-      | Some(d) =>
-        let is_value =
-          switch (d |> Exp.term_of) {
-          | FixF(_, _, _) => false // fixpoints aren't final
-          | Let(_, _, _) => false // could be mutually-recursive fixpoint
-          | _ => true // all other closure entries should be final
-          };
-        Step({
-          expr: d |> fast_copy(Id.mk()),
-          state_update,
-          kind: VarLookup,
-          is_value,
-        });
-      | None =>
-        let.wrap_closure _ = env;
+      switch (mode) {
+      | `Environment =>
+        let. _ = otherwise(env, Var(x) |> rewrap);
+        switch (ClosureEnvironment.lookup(env, x)) {
+        | Some(d) =>
+          let is_value =
+            switch (d |> Exp.term_of) {
+            | FixF(_, _, _) => false // fixpoints aren't final
+            | Let(_, _, _) => false // could be mutually-recursive fixpoint
+            | _ => true // all other closure entries should be final
+            };
+          Step({
+            expr: d |> fast_copy(Id.mk()),
+            state_update,
+            kind: VarLookup,
+            is_value,
+          });
+        | None =>
+          let.wrap_closure _ = env;
+          Indet;
+        };
+      | `Substitution =>
+        let. _ = otherwise(env, d);
         Indet;
-      };
+      }
     | Seq(d1, d2) =>
       let. _ = otherwise(env, d1 => Seq(d1, d2) |> rewrap)
       and. _ =
@@ -235,7 +253,7 @@ module Transition = (EV: EV_MODE) => {
       let {matches, closures} = matches(dp, d1');
       let.match env' = (env, matches, env.call_stack);
       Step({
-        expr: closure(env', d2),
+        expr: subst_env(env', d2),
         state_update: capture_closures(env, state, closures),
         kind: LetBind,
         is_value: false,
@@ -245,7 +263,7 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d);
       let.wrap_closure _ = env;
       Value;
-    | FixF(dp, d1, None) =>
+    | FixF(dp, d1, None) when mode == `Environment =>
       let. _ = otherwise(env, FixF(dp, d1, None) |> rewrap);
       Step({
         expr: FixF(dp, d1, Some(env)) |> rewrap,
@@ -253,44 +271,56 @@ module Transition = (EV: EV_MODE) => {
         kind: FixClosure,
         is_value: false,
       });
-    | FixF(dp, d1, Some(env)) =>
+    | FixF(dp, d1, env) =>
       switch (DHPat.get_var(dp)) {
       // Simple Recursion case
       | Some(f) =>
-        let. _ = otherwise(env, d);
+        let. _ =
+          otherwise(
+            env |> Option.value(~default=ClosureEnvironment.empty),
+            d,
+          );
         let env'' =
           evaluate_extend_env(
-            ~call_stack=env.call_stack,
-            Environment.singleton((f, FixF(dp, d1, Some(env)) |> rewrap)),
-            env,
+            ~call_stack=
+              (env |> Option.value(~default=ClosureEnvironment.empty)).
+                call_stack,
+            Environment.singleton((f, FixF(dp, d1, env) |> rewrap)),
+            env |> Option.value(~default=ClosureEnvironment.empty),
           );
         Step({
-          expr: closure(env'', d1),
+          expr: subst_env(env'', d1),
           state_update,
           kind: FixUnwrap,
           is_value: false,
         });
       // Mutual Recursion case
       | None =>
-        let. _ = otherwise(env, d);
+        let. _ =
+          otherwise(
+            env |> Option.value(~default=ClosureEnvironment.empty),
+            d,
+          );
         let bindings = DHPat.bound_vars(dp);
         let substitutions =
           List.map(
             binding =>
               (
                 binding,
-                let_(dp, FixF(dp, d1, Some(env)) |> rewrap, var(binding)),
+                let_(dp, FixF(dp, d1, env) |> rewrap, var(binding)),
               ),
             bindings,
           );
         let env'' =
           evaluate_extend_env(
-            ~call_stack=env.call_stack,
+            ~call_stack=
+              (env |> Option.value(~default=ClosureEnvironment.empty)).
+                call_stack,
             Environment.of_list(substitutions),
-            env,
+            env |> Option.value(~default=ClosureEnvironment.empty),
           );
         Step({
-          expr: closure(env'', d1),
+          expr: subst_env(env'', d1),
           state_update,
           kind: FixUnwrap,
           is_value: false,
@@ -334,19 +364,6 @@ module Transition = (EV: EV_MODE) => {
           kind: TypFunAp,
           is_value: false,
         })
-      | TFunCast(d'', tp1, t1, tp2, t2) =>
-        /* Rule ITTApCast */
-        Step({
-          expr:
-            cast(
-              typ_ap(d'', tau),
-              Typ.subst(tau, tp1, t1),
-              Typ.subst(tau, tp2, t2),
-            ),
-          state_update,
-          kind: CastTypAp,
-          is_value: false,
-        })
       };
     | DeferredAp(d1, ds) =>
       let. _ = otherwise(env, (d1, ds) => DeferredAp(d1, ds) |> rewrap)
@@ -386,20 +403,35 @@ module Transition = (EV: EV_MODE) => {
               function_lexical_env,
             );
           Step({
-            expr: closure(env'', d3),
+            expr: subst_env(env'', d3),
             state_update: capture_closures(env'', state, matches.closures),
             kind: FunAp,
             is_value: false,
           });
         };
-      | FunCast(d3', ty1, ty2, ty1', ty2') =>
-        Step({
-          expr: cast(ap(dir, d3', cast(d2', ty1', ty1)), ty2, ty2'),
-
-          state_update,
-          kind: CastAp,
-          is_value: false,
-        })
+      | FunNoEnv(dp, d3) when mode == `Substitution =>
+        let matches = matches(dp, d2');
+        switch (matches.matches) {
+        | IndetMatch
+        | DoesNotMatch => Indet
+        | Matches(function_arg_env) =>
+          Step({
+            expr:
+              subst_env(
+                function_arg_env |> ClosureEnvironment.of_environment,
+                d3,
+              ),
+            state_update:
+              capture_closures(
+                function_arg_env |> ClosureEnvironment.of_environment,
+                state,
+                matches.closures,
+              ),
+            kind: FunAp,
+            is_value: false,
+          })
+        };
+      | FunNoEnv(_) => Indet
       | BuiltinFun(ident) =>
         let builtin =
           VarMap.lookup(Builtins.forms_init, ident)
@@ -463,6 +495,7 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d);
       Indet;
     | Atom(_)
+    | LivelitName(_)
     | Label(_)
     | Constructor(_)
     | BuiltinFun(_) =>
@@ -851,7 +884,7 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | VarLookup => !settings.show_lookup_steps
   | CastTypAp
   | CastAp
-  | Cast => !settings.show_casts
+  | Cast => !settings.show_cast_steps
   | FixUnwrap => !settings.show_fixpoints
   | CompleteClosure
   | CompleteFilter

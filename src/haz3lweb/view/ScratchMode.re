@@ -308,6 +308,13 @@ module View = {
         ~tooltip="Export Scratchpad",
       );
 
+    let export_button_for_init =
+      Widgets.button_named(
+        Icons.export,
+        _ => globals.inject_global(ExportForInit),
+        ~tooltip="Export for Init",
+      );
+
     let encode_button =
       Widgets.button_named(
         Icons.export,
@@ -332,7 +339,7 @@ module View = {
       NutMenu.item_group(
         ~inject,
         "File",
-        [export_button, encode_button, import_button],
+        [export_button, export_button_for_init, encode_button, import_button],
       );
 
     let reset_button =

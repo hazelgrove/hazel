@@ -8,7 +8,6 @@ module Settings = {
     fold_case_clauses: bool,
     fold_fn_bodies: bool,
     hide_fixpoints: bool,
-    fold_cast_types: bool,
     show_filters: bool,
     show_unknown_as_hole: bool,
   };
@@ -18,7 +17,6 @@ module Settings = {
     fold_case_clauses: !settings.evaluation.show_case_clauses,
     fold_fn_bodies: !settings.evaluation.show_fn_bodies,
     hide_fixpoints: !settings.evaluation.show_fixpoints,
-    fold_cast_types: !settings.evaluation.show_casts,
     show_filters: settings.evaluation.show_stepper_filters,
     show_unknown_as_hole: true,
   };
@@ -44,6 +42,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Undefined
   | Label(_)
   | Constructor(_)
+  | LivelitName(_)
   | TupLabel(_) => Precedence.max
 
   // Same goes for forms which are already surrounded
@@ -178,6 +177,7 @@ let rec parenthesize =
   | Invalid(_)
   | Atom(_)
   | EmptyHole
+  | LivelitName(_)
   //| Constructor(_) // Not indivisible because of the type annotation!
   | Deferral(_)
   | BuiltinFun(_)
@@ -838,6 +838,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let fun_form = [mk_form(Fun, id, [p])] @ e;
     [mk_form(ParensExp, exp |> Exp.rep_id, [fun_form])]
     |> fold_fun_if(settings.fold_fn_bodies, name);
+  | LivelitName(s) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "^" ++ s)
   | Fun(p, e, t, _) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
