@@ -390,11 +390,12 @@ let llm_model_id_input =
 let message_input =
     (~signal, ~inject, ~model: Model.t, ~settings: AssistantSettings.t)
     : Node.t => {
-  let handle_send = (message: string) => {
+  let handle_send = (content: string) => {
     let message: Model.message = {
       party: User,
-      content: message,
-      collapsed: String.length(message) >= 200,
+      content,
+      displayable_content: Update.parse_blocks(content),
+      collapsed: String.length(content) >= 200,
     };
     JsUtil.log("Message sent: " ++ message.content);
     Virtual_dom.Vdom.Effect.Many([
@@ -424,7 +425,15 @@ let message_input =
   let handle_keydown = event => {
     let key = Js.Optdef.to_option(Js.Unsafe.get(event, "key"));
     switch (key, ListUtil.last_opt(curr_messages)) {
-    | (_, Some({party: LLM, content: "...", collapsed: false})) => Virtual_dom.Vdom.Effect.Ignore
+    | (
+        _,
+        Some({
+          party: LLM,
+          content: "...",
+          displayable_content: [Text("...")],
+          collapsed: false,
+        }),
+      ) => Virtual_dom.Vdom.Effect.Ignore
     | (Some("Enter"), _) => send_message()
     | _ => Virtual_dom.Vdom.Effect.Ignore
     };
@@ -456,7 +465,12 @@ let message_input =
         (),
       ),
       switch (ListUtil.last_opt(curr_messages)) {
-      | Some({party: LLM, content: "...", collapsed: false}) =>
+      | Some({
+          party: LLM,
+          content: "...",
+          displayable_content: [Text("...")],
+          collapsed: false,
+        }) =>
         div(
           ~attrs=[
             clss(["send-button-disabled", "icon"]),
@@ -640,7 +654,7 @@ let code_block =
 let form_block =
     (
       ~message: Model.message,
-      ~block: Update.block_kind,
+      ~block: Model.block_kind,
       ~toggle_collapse,
       ~index: int,
       ~is_first: bool,
@@ -746,9 +760,9 @@ let message_display =
                   ),
                 ]
                 @ {
-                  let parsed_blocks = Update.parse_blocks(message.content);
+                  let parsed_blocks = message.displayable_content;
                   List.mapi(
-                    (idx, block: Update.block_kind) =>
+                    (idx, block: Model.block_kind) =>
                       form_block(
                         ~message,
                         ~block,
