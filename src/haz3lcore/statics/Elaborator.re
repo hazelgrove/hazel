@@ -140,9 +140,9 @@ let rec elaborate_pattern =
     | Parens(p) =>
       let (p', _) = elaborate_pattern(m, p);
       p';
-    | Cast(p, t1, t2) =>
+    | Asc(p, t) =>
       let (p', _) = elaborate_pattern(m, p);
-      Cast(p', Typ.normalize(ctx, t1), t2) |> rewrap;
+      Asc(p', Typ.normalize(ctx, t)) |> rewrap;
     | Probe(p, probe) =>
       let (e', _) = elaborate_pattern(m, p);
       let probe = Dynamics.Probe.instrument_pat(m, Pat.rep_id(upat), probe);
@@ -212,10 +212,8 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
     | DynamicErrorHole(e, err) =>
       let (e', _) = elaborate(m, e);
       DynamicErrorHole(e', err) |> rewrap;
-    | Cast(e, t1, t2) =>
-      Cast(elaborate(m, e) |> fst, t1, Typ.normalize(ctx, t2)) |> rewrap
-    | FailedCast(e, t1, t2) =>
-      FailedCast(elaborate(m, e) |> fst, t1, t2) |> rewrap
+    | Asc(e, t) =>
+      Asc(elaborate(m, e) |> fst, Typ.normalize(ctx, t)) |> rewrap
     | Parens(e) =>
       let (e', _) = elaborate(m, e);
       e';

@@ -21,13 +21,12 @@ let tests = (
         ap(
           Forward,
           builtin_fun("string_compare"),
-          cast(
+          asc(
             tuple([
-              cast(string("Hello"), Typ.string(), Typ.unknown(Internal)),
-              cast(string("World"), Typ.string(), Typ.unknown(Internal)),
+              asc(string("Hello"), Typ.unknown(Internal)),
+              asc(string("World"), Typ.unknown(Internal)),
             ]),
             Typ.(prod([Typ.unknown(Internal), Typ.unknown(Internal)])),
-            Typ.(prod([string(), string()])),
           ),
         ),
       )
@@ -45,13 +44,12 @@ let tests = (
         ap(
           Forward,
           builtin_fun("string_compare"),
-          cast(
+          asc(
             tuple([
-              cast(string("Hello"), Typ.string(), Typ.unknown(Internal)),
-              cast(string("World"), Typ.string(), Typ.unknown(Internal)),
+              asc(string("Hello"), Typ.unknown(Internal)),
+              asc(string("World"), Typ.unknown(Internal)),
             ]),
             Typ.(prod([Typ.unknown(Internal), Typ.unknown(Internal)])),
-            Typ.(prod([string(), string()])),
           ),
         ),
       )

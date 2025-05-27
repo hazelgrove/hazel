@@ -126,11 +126,7 @@ let tests = (
           segmentize(
             let_(
               Pat.(
-                cast(
-                  list_lit([]),
-                  Typ.(sum([Variant("Jg", [], None)])),
-                  Typ.(float()),
-                )
+                asc(list_lit([]), Typ.(sum([Variant("Jg", [], None)])))
               ),
               empty_hole(),
               empty_hole(),
