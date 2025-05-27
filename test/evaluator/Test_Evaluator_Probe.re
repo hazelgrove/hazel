@@ -174,7 +174,7 @@ let tests = (
           np(
             Let(
               npp(
-                Cast(
+                Asc(
                   npp(Var("x")),
                   npt(
                     Parens(
@@ -187,7 +187,6 @@ let tests = (
                       ),
                     ),
                   ),
-                  npt(Unknown(Internal)),
                 ),
               ),
               p(
@@ -233,8 +232,8 @@ let tests = (
         };
         let uexp =
           np(
-            Cast(
-              p(Atom(String("a")), [Atom(String("a"))]),
+            Asc(
+              p(Atom(String("a")), UG.Exp.[Tuple([tup_label(label("l"), (string("a")))])]),
               npt(
                 Parens(
                   npt(
@@ -244,7 +243,6 @@ let tests = (
                   ),
                 ),
               ),
-              npt(Unknown(Internal)),
             ),
           );
 
@@ -270,7 +268,7 @@ let tests = (
           np(
             Let(
               npp(
-                Cast(
+                Asc(
                   p(
                     Var("x"),
                     [
@@ -303,7 +301,6 @@ let tests = (
                       ),
                     ),
                   ),
-                  npt(Unknown(Internal)),
                 ),
               ),
               np(Atom(String("a"))),

@@ -4,7 +4,6 @@ let rec append_exp = (e1: Exp.t, e2: Exp.t): Exp.t => {
   | Invalid(_)
   | MultiHole(_)
   | DynamicErrorHole(_)
-  | FailedCast(_)
   | Undefined
   | Deferral(_)
   | Atom(_)
@@ -31,7 +30,7 @@ let rec append_exp = (e1: Exp.t, e2: Exp.t): Exp.t => {
   | UnOp(_)
   | BinOp(_)
   | BuiltinFun(_)
-  | Cast(_)
+  | Asc(_)
   | LivelitName(_)
   | Match(_) => {
       term: Seq(e1, e2),

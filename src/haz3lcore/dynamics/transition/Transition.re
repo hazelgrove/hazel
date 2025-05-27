@@ -778,11 +778,10 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d);
       let.wrap_closure _ = env;
       Indet;
-    | Cast(d, t1, t2) =>
-      let. _ = otherwise(env, d => Cast(d, t1, t2) |> rewrap)
-      and. d' =
-        req_final(req(state, env), d => Cast(d, t1, t2) |> wrap_ctx, d);
-      switch (Casts.transition(Cast(d', t1, t2) |> rewrap)) {
+    | Asc(d, t) =>
+      let. _ = otherwise(env, d => Asc(d, t) |> rewrap)
+      and. d' = req_final(req(state, env), d => Asc(d, t) |> wrap_ctx, d);
+      switch (Casts.transition(Asc(d', t) |> rewrap)) {
       | Some(d) =>
         Step({
           expr: d,
@@ -792,15 +791,6 @@ module Transition = (EV: EV_MODE) => {
         })
       | None => Constructor
       };
-    | FailedCast(d1, t1, t2) =>
-      let. _ = otherwise(env, d1 => FailedCast(d1, t1, t2) |> rewrap)
-      and. _ =
-        req_final(
-          req(state, env),
-          d1 => FailedCast(d1, t1, t2) |> wrap_ctx,
-          d1,
-        );
-      Indet;
     | Undefined =>
       let. _ = otherwise(env, d);
       Indet;

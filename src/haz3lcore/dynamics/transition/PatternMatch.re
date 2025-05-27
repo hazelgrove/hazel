@@ -58,8 +58,8 @@ let rec matches = (capture, dp: Pat.t, d: DHExp.t): match_result => {
     let inner_match = matches(p, d);
     capture(pr, dp, d, inner_match);
     inner_match;
-  | Cast(p, t1, t2) =>
-    matches(p, Casts.transition_multiple(Cast(d, t2, t1) |> DHExp.fresh))
+  | Asc(p, t1) =>
+    matches(p, Casts.transition_multiple(Asc(d, t1) |> DHExp.fresh))
   };
 };
 

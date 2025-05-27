@@ -241,7 +241,7 @@ let tests =
       menhir_only_test("Constructor", constructor("A", None), "A"),
       menhir_only_test(
         "Constructor cast",
-        cast(constructor("A", None), Typ.unknown(Internal), Typ.int()),
+        asc(constructor("A", None), Typ.int()),
         "A : Int",
       ),
       menhir_only_test(
@@ -257,11 +257,7 @@ let tests =
       ),
       full_parser_test(
         "Type Variable",
-        let_(
-          Pat.cast(Pat.var("x"), Typ.var("T"), Typ.unknown(Internal)),
-          empty_hole(),
-          var("x"),
-        ),
+        let_(Pat.asc(Pat.var("x"), Typ.var("T")), empty_hole(), var("x")),
         "let x : T = ? in x",
       ),
       full_parser_test(
@@ -340,11 +336,7 @@ let tests =
       ),
       full_parser_test(
         "Let binding with type ascription",
-        let_(
-          Pat.cast(Pat.var("x"), Typ.int(), Typ.unknown(Internal)),
-          int(5),
-          var("x"),
-        ),
+        let_(Pat.asc(Pat.var("x"), Typ.int()), int(5), var("x")),
         "let (x: Int) = 5 in x",
       ),
       menhir_only_test(
@@ -360,14 +352,13 @@ let tests =
       full_parser_test(
         "basic sum type",
         let_(
-          Pat.cast(
+          Pat.asc(
             Pat.var("x"),
             Typ.sum([
               Variant("A", [], None),
               Variant("B", [], None),
               Variant("C", [], Some(Typ.int())),
             ]),
-            Typ.unknown(Internal),
           ),
           ap(Forward, constructor("C", None), int(7)),
           var("x"),
@@ -382,7 +373,7 @@ let tests =
       full_parser_test(
         "Type Hole in arrow cast",
         fn(
-          Pat.cast(
+          Pat.asc(
             Pat.var("b"),
             Typ.(
               parens(
@@ -392,7 +383,6 @@ let tests =
                 ),
               )
             ),
-            Typ.unknown(Internal),
           ),
           empty_hole(),
           None,

@@ -91,7 +91,7 @@ let tests = (
           "Indet when unboxing constructor with payload without payload",
           let_(
             Pat.(
-              cast(
+              asc(
                 constructor(
                   "B",
                   Some(
@@ -114,7 +114,6 @@ let tests = (
                 Typ.(
                   sum([Variant("B", [], Some(unknown(Hole(EmptyHole))))])
                 ),
-                Typ.unknown(Internal),
               )
             ),
             empty_hole(),

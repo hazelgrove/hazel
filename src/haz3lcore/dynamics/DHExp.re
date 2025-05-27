@@ -25,16 +25,14 @@ let rec strip_casts =
     ~f_pat=
       (continue, t) =>
         switch (t.term) {
-        | Cast(p, _, _) => strip_casts_pat(p)
+        | Asc(p, _) => strip_casts_pat(p)
         | _ => continue(t)
         },
     ~f_exp=
       (continue, exp) => {
         switch (term_of(exp)) {
         /* Remove casts*/
-        | Cast(d, _, _) => strip_casts(d)
-        /* Keep failed casts*/
-        | FailedCast(_, _, _)
+        | Asc(d, _) => strip_casts(d)
         | _ => continue(exp)
         }
       },
@@ -45,13 +43,13 @@ and strip_casts_pat = (p: Pat.t): Pat.t => {
     ~f_pat=
       (continue, t) =>
         switch (t.term) {
-        | Cast(p, _, _) => strip_casts_pat(p)
+        | Asc(p, _) => strip_casts_pat(p)
         | _ => continue(t)
         },
     ~f_exp=
       (continue, t) =>
         switch (t.term) {
-        | Cast(e, _, _) => strip_casts(e)
+        | Asc(e, _) => strip_casts(e)
         | _ => continue(t)
         },
     p,
@@ -83,7 +81,7 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
             | None => continue(exp)
             /* Note that we do not have to worry about capture avoidance, since s will always be closed. */
             }
-          | Cast(_)
+          | Asc(_)
           | FixF(_)
           | Fun(_)
           | TypAp(_)
@@ -112,7 +110,6 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | Constructor(_)
           | Var(_)
           | Atom(_)
-          | FailedCast(_, _, _)
           | MultiHole(_)
           | Deferral(_)
           | TyAlias(_)

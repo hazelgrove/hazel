@@ -82,7 +82,7 @@ let tests = (
         "CastedHole to ListLit",
         list(dhexp_typ),
         ListLit,
-        cast(empty_hole(), Typ.(empty_hole()), Typ.(list(empty_hole()))),
+        asc(empty_hole(), Typ.(list(empty_hole()))),
       ),
       // ListLitn requests
       test_matches(
@@ -108,7 +108,7 @@ let tests = (
         "CastedHole to ListLitn",
         list(dhexp_typ),
         ListLitn(0),
-        cast(empty_hole(), Typ.(empty_hole()), Typ.(list(empty_hole()))),
+        asc(empty_hole(), Typ.(list(empty_hole()))),
       ),
       // Cons requests
       test_matches(
@@ -142,7 +142,7 @@ let tests = (
         "CastedHole to Cons",
         pair(dhexp_typ, dhexp_typ),
         Cons,
-        cast(empty_hole(), Typ.(empty_hole()), Typ.(list(empty_hole()))),
+        asc(empty_hole(), Typ.(list(empty_hole()))),
       ),
     ]
   ),

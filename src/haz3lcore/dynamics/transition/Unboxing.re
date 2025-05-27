@@ -116,12 +116,6 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       Matches()
     | (SumNoArg(_), Constructor(_)) => DoesNotMatch
     | (SumNoArg(_), Ap(_, {term: Constructor(_), _}, _)) => DoesNotMatch
-    | (SumNoArg(name), Cast(d1, {term: Sum(_), _}, {term: Sum(s2), _}))
-        when
-          ConstructorMap.has_constructor_no_args(name, s2)
-          || ConstructorMap.has_bad_entry(s2) =>
-      let* d1 = unbox(SumNoArg(name), d1);
-      Matches(d1);
     | (SumWithArg(_), Constructor(_)) => DoesNotMatch
     | (SumWithArg(name1), Ap(_, {term: Constructor(name2, _), _}, d3))
         when name1 == name2 =>
@@ -140,9 +134,6 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       Matches(TypFun(utpat, Closure(env', tfbody) |> Exp.fresh, name))
     | (TypFun, TypFun(utpat, tfbody, name)) =>
       Matches(TypFun(utpat, tfbody, name))
-    /* Any failed cast is indet */
-    | (_, FailedCast(_)) => IndetMatch
-
     /* Forms that are the wrong type of value - these cases indicate an error
        in elaboration or in the cast calculus. */
     | (
@@ -153,7 +144,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         Cons(_) |
         TupLabel(_) |
         Tuple(_) |
-        Cast(_) |
+        Asc(_) |
         TypFun(_, _, _) |
         Ap(_, {term: Constructor(_), _}, _),
       ) =>

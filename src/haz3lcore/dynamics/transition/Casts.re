@@ -15,9 +15,9 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       d;
     };
   switch (DHExp.term_of(d)) {
-  | Cast(e, _, t) =>
+  | Asc(e, t) =>
     switch (DHExp.term_of(e), Typ.term_of(Typ.unroll(t))) {
-    | (Cast(e, _, t'), t)
+    | (Asc(e, t'), t)
         // This is only necessary because sometimes we add two casts and aren't marking it as a non-value
         when
           Typ.is_consistent(
@@ -28,25 +28,14 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       switch (
         Typ.join(Ctx.empty, Typ.unroll(t |> Typ.temp), Typ.unroll(t'))
       ) {
-      | Some(t) =>
-        Some(
-          recur(Cast(e, Unknown(Internal) |> Typ.temp, t) |> DHExp.fresh),
-        )
+      | Some(t) => Some(recur(Asc(e, t) |> DHExp.fresh))
       | None => None //TODO  This is an impossible case since we checked consistency
       }
     | (e, Parens(t)) =>
       // This is an impossible case since types should be normalized before coming to transitions
-      transition(
-        ~recursive,
-        Cast(e |> DHExp.fresh, Unknown(Internal) |> Typ.temp, t)
-        |> DHExp.fresh,
-      )
+      transition(~recursive, Asc(e |> DHExp.fresh, t) |> DHExp.fresh)
     | (Closure(ce, d), t) =>
-      transition(
-        ~recursive,
-        Cast(d, Unknown(Internal) |> Typ.fresh, t |> Typ.fresh)
-        |> DHExp.fresh,
-      )
+      transition(~recursive, Asc(d, t |> Typ.fresh) |> DHExp.fresh)
       |> Option.map(d => Closure(ce, d) |> DHExp.fresh)
     | (Fun(p, e, t, v), Arrow(t1, t2)) =>
       Some(
@@ -56,24 +45,11 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       )
     | (TupLabel(l, e), TupLabel(_l2, t)) =>
       // TODO Figure out what to do if the labels don't match
-      Some(
-        TupLabel(
-          l,
-          recur(Cast(e, Unknown(Internal) |> Typ.temp, t) |> DHExp.fresh),
-        )
-        |> DHExp.fresh,
-      )
+      Some(TupLabel(l, recur(Asc(e, t) |> DHExp.fresh)) |> DHExp.fresh)
     | (Tuple(es), Prod(tys)) when List.length(es) == List.length(tys) =>
       Some(
         Tuple(
-          List.map2(
-            (e, ty) =>
-              recur(
-                Cast(e, Unknown(Internal) |> Typ.temp, ty) |> DHExp.fresh,
-              ),
-            es,
-            tys,
-          ),
+          List.map2((e, ty) => recur(Asc(e, ty) |> DHExp.fresh), es, tys),
         )
         |> DHExp.fresh,
       )
@@ -95,22 +71,14 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       }
     | (ListLit(ds), List(ty)) =>
       Some(
-        ListLit(
-          List.map(
-            d =>
-              recur(
-                Cast(d, Unknown(Internal) |> Typ.temp, ty) |> DHExp.fresh,
-              ),
-            ds,
-          ),
-        )
+        ListLit(List.map(d => recur(Asc(d, ty) |> DHExp.fresh), ds))
         |> DHExp.fresh,
       )
     | (Cons(d1, d2), List(ty)) =>
       Some(
         Cons(
-          recur(Cast(d1, Unknown(Internal) |> Typ.temp, ty) |> DHExp.fresh),
-          recur(Cast(d2, Unknown(Internal) |> Typ.temp, t) |> DHExp.fresh),
+          recur(Asc(d1, ty) |> DHExp.fresh),
+          recur(Asc(d2, t) |> DHExp.fresh),
         )
         |> DHExp.fresh,
       )
@@ -123,14 +91,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       Some(
         TypFun(
           tp,
-          recur(
-            Cast(
-              e,
-              Unknown(Internal) |> Typ.temp,
-              Typ.subst(new_ty, tp', t'),
-            )
-            |> DHExp.fresh,
-          ),
+          recur(Asc(e, Typ.subst(new_ty, tp', t')) |> DHExp.fresh),
           v,
         )
         |> DHExp.fresh,
@@ -138,18 +99,9 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (If(e, e1, e2), t) =>
       Some(
         If(
-          recur(
-            Cast(e, Unknown(Internal) |> Typ.temp, t |> Typ.temp)
-            |> DHExp.fresh,
-          ),
-          recur(
-            Cast(e1, Unknown(Internal) |> Typ.temp, t |> Typ.temp)
-            |> DHExp.fresh,
-          ),
-          recur(
-            Cast(e2, Unknown(Internal) |> Typ.temp, t |> Typ.temp)
-            |> DHExp.fresh,
-          ),
+          recur(Asc(e, t |> Typ.temp) |> DHExp.fresh),
+          recur(Asc(e1, t |> Typ.temp) |> DHExp.fresh),
+          recur(Asc(e2, t |> Typ.temp) |> DHExp.fresh),
         )
         |> DHExp.fresh,
       )
@@ -158,12 +110,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         Match(
           e,
           List.map(
-            ((p, e)) =>
-              (
-                p,
-                Cast(e, Unknown(Internal) |> Typ.temp, t |> Typ.temp)
-                |> DHExp.fresh,
-              ),
+            ((p, e)) => (p, Asc(e, t |> Typ.temp) |> DHExp.fresh),
             rules,
           ),
         )
@@ -183,13 +130,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       switch (entry) {
       | Some(Some(t')) =>
         Some(
-          Ap(
-            Forward,
-            con,
-            recur(
-              Cast(payload, Unknown(Internal) |> Typ.temp, t') |> DHExp.fresh,
-            ),
-          )
+          Ap(Forward, con, recur(Asc(payload, t') |> DHExp.fresh))
           |> DHExp.fresh,
         )
       | Some(None)
@@ -201,7 +142,6 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Test(_), Prod([])) => Some(d)
     // These are non-value cases we don't want to handle
     | (EmptyHole, _)
-    | (FailedCast(_), _)
     | (DynamicErrorHole(_), _)
     | (Dot(_), _)
     | (Undefined, _)
@@ -227,7 +167,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Parens(_), _)
     | (TyAlias(_), _)
     | (ListConcat(_), _)
-    | (Cast(_), _) => None
+    | (Asc(_), _) => None
     // These are handled above and must have the wrong type
     | (Atom(_), _)
     | (ListLit(_), _)
