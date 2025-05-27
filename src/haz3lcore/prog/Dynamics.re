@@ -33,11 +33,11 @@ module Probe = {
      * being used in the live probe UI, for (putative, unbenchmarked)
      * performance purposes for worker de/serialization */
     let elide = (env: Environment.t, d: DHExp.t) =>
-      switch ((d |> DHExp.strip_casts).term) {
+      switch ((d |> DHExp.strip_ascriptions).term) {
       | Fun(_)
       | FixF(_)
       | Closure(_) => Opaque
-      | _ => Val(d |> DHExp.strip_casts |> Exp.substitute_closures(env))
+      | _ => Val(d |> DHExp.strip_ascriptions |> Exp.substitute_closures(env))
       };
 
     let mk_entry = (env: Environment.t, {name, id, _}: Binding.t) =>

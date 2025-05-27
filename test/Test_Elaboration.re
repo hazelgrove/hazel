@@ -601,7 +601,7 @@ module PlainTests = {
             tuple([tup_label(label("a"), int(1))]),
           )
         ),
-        DHExp.strip_casts(dhexp_of_uexp(parse_exp({|(fun a=x->x)(a=1)|}))),
+        DHExp.strip_ascriptions(dhexp_of_uexp(parse_exp({|(fun a=x->x)(a=1)|}))),
       )
     ),
     test_case("Singleton labeled argument let with unknown type", `Quick, () =>
@@ -614,7 +614,7 @@ module PlainTests = {
             var("x"),
           )
         ),
-        DHExp.strip_casts(
+        DHExp.strip_ascriptions(
           dhexp_of_uexp(parse_exp({|let x : (a=?) = (a=1) in x|})),
         ) // Ignoring casts for now
       )
@@ -643,7 +643,7 @@ in 1|},
       alco_check(
         "Does not add label",
         parse_exp({|(1, 2)|}),
-        DHExp.strip_casts(
+        DHExp.strip_ascriptions(
           dhexp_of_uexp(parse_exp({|(1, 2) : (a= ,b= ,  )|})),
         ),
       )
