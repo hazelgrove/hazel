@@ -207,7 +207,10 @@
 }
 
 #assistant .system-prompt {
-    align-items: flex-end;
+    display: flex;
+    flex-direction: column;
+    align-items: center;   /* centers horizontally */
+    justify-content: center;
 }
 
 #assistant .system-error {
