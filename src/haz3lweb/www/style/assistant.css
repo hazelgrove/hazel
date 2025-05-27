@@ -207,7 +207,7 @@
 }
 
 #assistant .system-prompt {
-    align-items: flex-start;
+    align-items: flex-end;
 }
 
 #assistant .system-error {
@@ -661,7 +661,6 @@
     opacity: 0;
     transition: all 0.2s ease;
     margin-left: 8px;
-    margin-top: -10px;
     line-height: 0;
     display: none;
     transform: scale(0.75); /* Shrink the icon to 75% of its original size */
@@ -686,7 +685,6 @@
     font-size: 0.725em;
     color: var(--STONE);
     margin-left: 8px;
-    margin-top: -12px;
     transition: all 0.2s ease;
 }
 
@@ -811,4 +809,25 @@
     animation: wobble 0.6s ease 0s 1 normal forwards;
     opacity: 0.9;
     transition: opacity 0.3s ease;  
+}
+
+#assistant .message-identifier-row {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25em;
+}
+
+#assistant .prompt-display-container {
+    position: absolute;
+    top: 3.5em;
+    right: 29em;
+    width: 350px;
+    max-height: 400px; /* Set a max height for scrolling */
+    overflow-y: auto;  /* Enable vertical scrollbar */
+    border-radius: 2px;
+    box-shadow: 0 4px 12px var(--SHADOW);
+    z-index: 1000;
+    overflow-x: hidden;
+    animation: slideIn 0.2s ease-out;
 }

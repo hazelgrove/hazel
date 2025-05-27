@@ -706,7 +706,6 @@ let message_display =
   };
   let (past_chats, curr_chat) = Update.get_mode_info(settings.mode, model);
   let curr_messages = Id.Map.find(curr_chat.id, past_chats).messages;
-  print_endline("Chat: " ++ Update.collect_chat(~messages=curr_messages));
   let message_nodes =
     List.flatten(
       List.mapi(
@@ -728,68 +727,48 @@ let message_display =
                 ],
                 [
                   div(
-                    ~attrs=[clss(["message-identifier"])],
+                    ~attrs=[clss(["message-identifier-row"])],
                     [
-                      switch (message.party) {
-                      | User => text("User")
-                      | LLM =>
-                        div(
-                          ~attrs=[clss(["llm-identifier"])],
-                          [Icons.hazelnut_agent, text("Assistant")],
-                        )
-                      | System(Prompt) =>
-                        div(
-                          ~attrs=[clss(["system-prompt-identifier"])],
-                          [text("System")],
-                        )
-                      | System(Error) =>
-                        div(
-                          ~attrs=[clss(["system-error-identifier"])],
-                          [text("System")],
-                        )
-                      },
+                      div(
+                        ~attrs=[clss(["message-identifier"])],
+                        [
+                          switch (message.party) {
+                          | User => text("User")
+                          | LLM =>
+                            div(
+                              ~attrs=[clss(["llm-identifier"])],
+                              [Icons.hazelnut_agent, text("Assistant")],
+                            )
+                          | System(Prompt) =>
+                            div(
+                              ~attrs=[clss(["system-prompt-identifier"])],
+                              [text("System")],
+                            )
+                          | System(Error) =>
+                            div(
+                              ~attrs=[clss(["system-error-identifier"])],
+                              [text("System")],
+                            )
+                          },
+                        ],
+                      ),
+                      message.party == System(Prompt)
+                        ? div(
+                            ~attrs=[clss(["show-prompt-button"])],
+                            [
+                              Widgets.button(
+                                ~tooltip="Show Prompt", Icons.info, _ =>
+                                toggle_collapse(index)
+                              ),
+                            ],
+                          )
+                        : None,
                     ],
                   ),
                 ]
                 @ {
                   message.party == System(Prompt)
-                    ? message.collapsed
-                        ? {
-                          [
-                            div(
-                              ~attrs=[
-                                clss(["show-prompt-button"]),
-                                Attr.on_click(_ => toggle_collapse(index)),
-                                String.length(message.content)
-                                >= Model.max_collapsed_length
-                                  ? Attr.empty : Attr.hidden,
-                              ],
-                              [
-                                Widgets.button(
-                                  ~tooltip="Show Prompt", Icons.info, _ =>
-                                  toggle_collapse(index)
-                                ),
-                              ],
-                            ),
-                          ];
-                        }
-                        : {
-                          let parsed_blocks = message.displayable_content;
-                          List.mapi(
-                            (idx, block: Model.block_kind) =>
-                              form_block(
-                                ~message,
-                                ~block,
-                                ~toggle_collapse,
-                                ~index,
-                                ~is_first=idx == 0,
-                                ~is_last=
-                                  idx == List.length(parsed_blocks) - 1,
-                                ~globals,
-                              ),
-                            parsed_blocks,
-                          );
-                        }
+                    ? [None]
                     : {
                       let parsed_blocks = message.displayable_content;
                       List.mapi(
@@ -814,6 +793,58 @@ let message_display =
       ),
     );
   div(~attrs=[clss(["message-display-container"])], message_nodes);
+};
+
+let prompt_display =
+    (
+      ~globals: Globals.t,
+      ~inject: Update.t => Ui_effect.t(unit),
+      ~model: Model.t,
+      ~settings: AssistantSettings.t,
+    )
+    : Node.t => {
+  let toggle_collapse = index => {
+    // Create an action to toggle the collapsed state of a specific message
+    Virtual_dom.Vdom.Effect.Many([
+      inject(Update.ChatAction(CollapseMessage(index))),
+      Virtual_dom.Vdom.Effect.Stop_propagation,
+    ]);
+  };
+  let (past_chats, curr_chat) = Update.get_mode_info(settings.mode, model);
+  let curr_messages = Id.Map.find(curr_chat.id, past_chats).messages;
+  let display =
+    List.find_mapi(
+      (index: int, message: Model.message) => {
+        message.party == System(Prompt) && !message.collapsed
+          ? Some(
+              div(
+                ~attrs=[clss(["prompt-display-container"])],
+                {
+                  let parsed_blocks = message.displayable_content;
+                  List.map(
+                    (block: Model.block_kind) =>
+                      form_block(
+                        ~message,
+                        ~block,
+                        ~toggle_collapse,
+                        ~index,
+                        ~is_first=false,
+                        ~is_last=false,
+                        ~globals,
+                      ),
+                    parsed_blocks,
+                  );
+                },
+              ),
+            )
+          : None
+      },
+      curr_messages,
+    );
+  switch (display) {
+  | Some(node) => node
+  | None => None
+  };
 };
 
 let mode_buttons =
@@ -988,6 +1019,7 @@ let view =
           settings.ongoing_chat ? None : settings_box(~inject_global),
           settings.ongoing_chat && settings.show_history
             ? history_menu(~model, ~settings, ~inject) : None,
+          prompt_display(~globals, ~inject, ~model, ~settings),
         ],
       ),
     ],
