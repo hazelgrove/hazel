@@ -393,7 +393,6 @@ let message_input =
   let handle_send = (message: string) => {
     let message: Model.message = {
       party: User,
-      code: false,
       content: message,
       collapsed: String.length(message) >= 200,
     };
@@ -425,7 +424,7 @@ let message_input =
   let handle_keydown = event => {
     let key = Js.Optdef.to_option(Js.Unsafe.get(event, "key"));
     switch (key, ListUtil.last_opt(curr_messages)) {
-    | (_, Some({party: LLM, code: false, content: "...", collapsed: false})) => Virtual_dom.Vdom.Effect.Ignore
+    | (_, Some({party: LLM, content: "...", collapsed: false})) => Virtual_dom.Vdom.Effect.Ignore
     | (Some("Enter"), _) => send_message()
     | _ => Virtual_dom.Vdom.Effect.Ignore
     };
@@ -457,7 +456,7 @@ let message_input =
         (),
       ),
       switch (ListUtil.last_opt(curr_messages)) {
-      | Some({party: LLM, code: false, content: "...", collapsed: false}) =>
+      | Some({party: LLM, content: "...", collapsed: false}) =>
         div(
           ~attrs=[
             clss(["send-button-disabled", "icon"]),
@@ -706,152 +705,64 @@ let message_display =
     List.flatten(
       List.mapi(
         (index: int, message: Model.message) => {
-          message.code
-            ? {
-              [
-                div(
-                  ~attrs=[
-                    clss([
-                      "message-container",
-                      switch (message.party) {
-                      | User => "user"
-                      | LLM => "llm"
-                      | System(Prompt) => "system-prompt"
-                      | System(Error) => "system-error"
-                      },
-                    ]),
-                  ],
-                  [
-                    div(
-                      ~attrs=[clss(["message-identifier"])],
-                      [
-                        switch (message.party) {
-                        | User => text("User")
-                        | LLM =>
-                          div(
-                            ~attrs=[clss(["llm-identifier"])],
-                            [Icons.hazelnut_agent, text("Assistant")],
-                          )
-                        | System(Prompt) =>
-                          div(
-                            ~attrs=[clss(["system-prompt-identifier"])],
-                            [text("System")],
-                          )
-                        | System(Error) =>
-                          div(
-                            ~attrs=[clss(["system-error-identifier"])],
-                            [text("System")],
-                          )
-                        },
-                      ],
-                    ),
-                  ]
-                  @ {
-                    let parsed_blocks = Update.parse_blocks(message.content);
-                    List.mapi(
-                      (idx, block: Update.block_kind) =>
-                        form_block(
-                          ~message,
-                          ~block,
-                          ~toggle_collapse,
-                          ~index,
-                          ~is_first=idx == 0,
-                          ~is_last=idx == List.length(parsed_blocks) - 1,
-                          ~globals,
-                        ),
-                      parsed_blocks,
-                    );
-                  },
-                ),
-              ];
-            }
-            : message.content == "..." && message.party == LLM
-                ? [loading_dots()]
-                : [
+          message.content == "..." && message.party == LLM
+            ? [loading_dots()]
+            : [
+              div(
+                ~attrs=[
+                  clss([
+                    "message-container",
+                    switch (message.party) {
+                    | User => "user"
+                    | LLM => "llm"
+                    | System(Prompt) => "system-prompt"
+                    | System(Error) => "system-error"
+                    },
+                  ]),
+                ],
+                [
                   div(
-                    ~attrs=[
-                      clss([
-                        "message-container",
-                        switch (message.party) {
-                        | User => "user"
-                        | LLM => "llm"
-                        | System(Prompt) => "system-prompt"
-                        | System(Error) => "system-error"
-                        },
-                      ]),
-                    ],
+                    ~attrs=[clss(["message-identifier"])],
                     [
-                      div(
-                        ~attrs=[clss(["message-identifier"])],
-                        [
-                          switch (message.party) {
-                          | User => text("User")
-                          | LLM =>
-                            div(
-                              ~attrs=[clss(["llm-identifier"])],
-                              [Icons.hazelnut_agent, text("Assistant")],
-                            )
-                          | System(_) =>
-                            div(
-                              ~attrs=[clss(["system-identifier"])],
-                              [text("System")],
-                            )
-                          },
-                        ],
-                      ),
-                      div(
-                        ~attrs=[
-                          clss([
-                            switch (message.party) {
-                            | User => "user-message"
-                            | LLM => "llm-message"
-                            | System(Prompt) => "system-prompt-message"
-                            | System(Error) => "system-error-message"
-                            },
-                          ]),
-                          Attr.on_copy(_ => {Effect.Stop_propagation}),
-                          Attr.on_paste(_ => {Effect.Stop_propagation}),
-                          Attr.on_cut(_ => {Effect.Stop_propagation}),
-                        ],
-                        [
-                          message.collapsed
-                          && String.length(message.content) >= 200
-                            ? text(
-                                String.concat(
-                                  "",
-                                  [
-                                    String.sub(
-                                      message.content,
-                                      0,
-                                      min(
-                                        String.length(message.content),
-                                        200,
-                                      ),
-                                    ),
-                                    "...",
-                                  ],
-                                ),
-                              )
-                            : text(message.content),
-                          div(
-                            ~attrs=[
-                              clss(["collapse-indicator"]),
-                              Attr.on_click(_ => toggle_collapse(index)),
-                              String.length(message.content) >= 200
-                                ? Attr.empty : Attr.hidden,
-                            ],
-                            [
-                              text(
-                                message.collapsed
-                                  ? "▼ Show more" : "▲ Show less",
-                              ),
-                            ],
-                          ),
-                        ],
-                      ),
+                      switch (message.party) {
+                      | User => text("User")
+                      | LLM =>
+                        div(
+                          ~attrs=[clss(["llm-identifier"])],
+                          [Icons.hazelnut_agent, text("Assistant")],
+                        )
+                      | System(Prompt) =>
+                        div(
+                          ~attrs=[clss(["system-prompt-identifier"])],
+                          [text("System")],
+                        )
+                      | System(Error) =>
+                        div(
+                          ~attrs=[clss(["system-error-identifier"])],
+                          [text("System")],
+                        )
+                      },
                     ],
                   ),
                 ]
+                @ {
+                  let parsed_blocks = Update.parse_blocks(message.content);
+                  List.mapi(
+                    (idx, block: Update.block_kind) =>
+                      form_block(
+                        ~message,
+                        ~block,
+                        ~toggle_collapse,
+                        ~index,
+                        ~is_first=idx == 0,
+                        ~is_last=idx == List.length(parsed_blocks) - 1,
+                        ~globals,
+                      ),
+                    parsed_blocks,
+                  );
+                },
+              ),
+            ]
         },
         curr_messages,
       ),

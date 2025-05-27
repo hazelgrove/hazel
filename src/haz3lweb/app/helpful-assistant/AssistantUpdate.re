@@ -67,7 +67,6 @@ let text_message_of_str =
     (response: string, party: Model.party): Model.message => {
   {
     party,
-    code: false,
     content: response,
     collapsed: String.length(response) >= 200,
   };
@@ -166,19 +165,8 @@ let parse_blocks = (response: string): list(block_kind) => {
   blocks;
 };
 
-let code_message_of_str =
-    (response: string, party: Model.party): Model.message => {
-  {
-    party,
-    code: true,
-    content: response,
-    collapsed: String.length(response) >= 200,
-  };
-};
-
 let await_llm_response: Model.message = {
   party: LLM,
-  code: false,
   content: "...",
   collapsed: false,
 };
@@ -562,7 +550,6 @@ let mk_LLM_call =
       model,
       {
         party: System(Error),
-        code: false,
         content: "No API key found. Please set an API key in the assistant settings.",
         collapsed: false,
       },
@@ -576,7 +563,6 @@ let mk_LLM_call =
       model,
       {
         party: System(Error),
-        code: false,
         content: "No model ID found. Please set a model ID in the assistant settings.",
         collapsed: false,
       },
@@ -594,7 +580,6 @@ let failed_prompt_generation =
     model,
     {
       party: System(Error),
-      code: false,
       content: "Prompt generation failed.",
       collapsed: false,
     },
@@ -724,7 +709,7 @@ let update =
               add_message_to_model(
                 mode,
                 model,
-                code_message_of_str(prompt, System(Prompt)),
+                text_message_of_str(prompt, System(Prompt)),
                 curr_chat.id,
                 ~is_final=false,
               )
@@ -772,7 +757,7 @@ let update =
             openrouter_prompt,
           );
         let prompt = String.concat("\n", messages);
-        let message: Model.message = code_message_of_str(prompt, User);
+        let message: Model.message = text_message_of_str(prompt, User);
         switch (Store.Generic.load("API"), Store.Generic.load("MODEL")) {
         | (Some(key), Some(model_id)) =>
           let params: OpenRouter.params = {
@@ -835,7 +820,7 @@ let update =
             model,
             {
               party: System(Error),
-              code: false,
+
               content: "No API key found. Please set an API key in the assistant settings.",
               collapsed: false,
             },
@@ -849,7 +834,6 @@ let update =
             model,
             {
               party: System(Error),
-              code: false,
               content: "No API key or model ID found. Please set an API key and model ID in the assistant settings.",
               collapsed: false,
             },
@@ -881,7 +865,7 @@ let update =
           model,
           {
             party: System(Error),
-            code: false,
+
             content:
               "By default we stop the assistant after "
               ++ string_of_int(ChatLSP.Options.init.error_rounds_max)
@@ -906,7 +890,7 @@ let update =
             model,
             {
               party: System(Error),
-              code: false,
+
               content: "Prompt generation failed.",
               collapsed: false,
             },
@@ -972,7 +956,7 @@ let update =
               model,
               {
                 party: System(Error),
-                code: false,
+
                 content: "No API key found. Please set an API key in the assistant settings. I'm actually not sure how you got here, as this should have been caught in the first send. This is a bug, and you should let someone know.",
                 collapsed: false,
               },
@@ -986,7 +970,7 @@ let update =
               model,
               {
                 party: System(Error),
-                code: false,
+
                 content: "No model ID found. Please set a model ID in the assistant settings.",
                 collapsed: false,
               },
@@ -1003,7 +987,7 @@ let update =
         model,
         {
           party: System(Error),
-          code: false,
+
           content,
           collapsed: false,
         },
@@ -1015,19 +999,12 @@ let update =
   | HandleResponse(response) =>
     switch (response) {
     | Basic(message, mode, chat_id) =>
-      let response = message.content;
       check_descriptor(~model, ~schedule_action, ~message, ~mode, ~chat_id);
       if (mode == HazelTutor || mode == CodeSuggestion) {
-        add_message_to_model(
-          mode,
-          model,
-          code_message_of_str(response, LLM),
-          chat_id,
-          ~is_final=true,
-        )
+        add_message_to_model(mode, model, message, chat_id, ~is_final=true)
         |> Updated.return_quiet;
       } else {
-        let tool_calls = extract_blocks(response);
+        let tool_calls = extract_blocks(message.content);
         List.iter(
           (tool_call: string) => {print_endline("Tool call: " ++ tool_call)},
           tool_calls,
@@ -1124,7 +1101,7 @@ let update =
       check_descriptor(
         ~model,
         ~schedule_action,
-        ~message=code_message_of_str(response, LLM),
+        ~message=text_message_of_str(response, LLM),
         ~mode,
         ~chat_id,
       );
@@ -1148,7 +1125,7 @@ let update =
       add_message_to_model(
         mode,
         model,
-        code_message_of_str(response, LLM),
+        text_message_of_str(response, LLM),
         chat_id,
         ~is_final=true,
       )
