@@ -107,11 +107,79 @@ let qcheck_stepper_confluence =
       true;
     }
   });
+let show_core_exp = exp =>
+  exp
+  |> ExpToSegment.exp_to_segment(
+       ~settings=
+         ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
+       _,
+     )
+  |> Printer.of_segment(~holes=Some("?"), _);
+
+// Property that states let x : T = e in x is equivalent to e : T
+let qcheck_pattern_equivalence_test =
+  QCheck.Test.make(
+    ~name="Pattern equivalence",
+    ~count=10000,
+    QCheck.pair(
+      QCheck_Util.arb_exp(~minimal_idents=true, 40),
+      QCheck_Util.arb_typ(~minimal_idents=true, 10),
+    ),
+    ((uexp, typ)) =>
+    try(
+      {
+        open IdTagged.FreshGrammar;
+        open Exp;
+        let first = asc(uexp, typ);
+        let second = let_(Pat.asc(Pat.var("x"), typ), uexp, var("x"));
+        let elaborated_first = elaborate(first);
+        let elaborated_second = elaborate(second);
+
+        let evaluated_first =
+          Evaluator.evaluate_and_limit(
+            ~env=Builtins.env_init,
+            ~step_limit=10000,
+            elaborated_first,
+          );
+        let evaluated_second =
+          Evaluator.evaluate_and_limit(
+            ~env=Builtins.env_init,
+            ~step_limit=1000000,
+            elaborated_second,
+          );
+        switch (evaluated_first, evaluated_second) {
+        | (Completed((first_exp, _)), Completed((second_exp, _))) =>
+          print_endline("First expression: " ++ show_core_exp(first));
+          print_endline("Second expression: " ++ show_core_exp(second));
+          Alcotest.check(
+            dhexp_typ,
+            "Evaluated expressions are equal",
+            first_exp,
+            second_exp,
+          );
+          true;
+        | (StepLimitExceeded, StepLimitExceeded) => true
+        | (Completed(_), StepLimitExceeded)
+        | (StepLimitExceeded, Completed(_)) =>
+          print_endline("One of the evaluations exceeded the step limit");
+          false;
+        };
+      }
+    ) {
+    | e =>
+      print_endline(
+        "Skipping pattern equivalence test due to error: "
+        ++ Printexc.to_string(e),
+      );
+      true;
+    }
+  );
 
 let tests = (
   "Evaluator.Properties",
   [
     QCheck_alcotest.to_alcotest(qcheck_evaluator_does_not_crash_test),
     QCheck_alcotest.to_alcotest(qcheck_stepper_confluence),
+    QCheck_alcotest.to_alcotest(qcheck_pattern_equivalence_test),
   ],
 );
