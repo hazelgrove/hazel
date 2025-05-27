@@ -133,7 +133,7 @@ let init_chat = (kind: AssistantSettings.mode): Model.chat => {
 let extract_tool_calls = (response: string): list(string) => {
   let rec extract_tool_calls =
           (text: string, acc: list(string)): list(string) => {
-    let pattern = Str.regexp("{{{[ \n]*\\([^`]+\\)[ \n]*}}}");
+    let pattern = Str.regexp("\\{\\{\\{\\([^}]*\\)\\}\\}\\}");
     switch (Str.search_forward(pattern, text, 0)) {
     | exception Not_found => List.rev(acc)
     | pos =>
@@ -1199,6 +1199,8 @@ let update =
     | CollapseMessage(index) =>
       let mode = settings.assistant.mode;
       let (past_chats, curr_chat) = get_mode_info(mode, model);
+      let filter_prompt_display =
+        List.nth(curr_chat.messages, index).party == System(Prompt);
       let updated_chat =
         List.mapi(
           (i: int, msg: Model.message) =>
@@ -1206,6 +1208,11 @@ let update =
               {
                 ...msg,
                 collapsed: !msg.collapsed,
+              };
+            } else if (msg.party == System(Prompt) && filter_prompt_display) {
+              {
+                ...msg,
+                collapsed: msg.collapsed,
               };
             } else {
               msg;
