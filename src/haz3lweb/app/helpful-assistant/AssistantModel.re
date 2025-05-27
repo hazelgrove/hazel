@@ -22,7 +22,7 @@ type code_segment = option((Segment.t, option(Id.t)));
 [@deriving (show({with_path: false}), sexp, yojson)]
 type block_kind =
   | Text(string)
-  | Code(string);
+  | Code(Segment.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type message = {

@@ -587,7 +587,7 @@ let text_block =
 let code_block =
     (
       ~message: Model.message,
-      ~content: string,
+      ~sketch: Segment.t,
       ~toggle_collapse,
       ~index: int,
       ~is_first: bool,
@@ -595,14 +595,6 @@ let code_block =
       ~globals: Globals.t,
     )
     : Node.t => {
-  let zipper_of_response = Printer.zipper_of_string(content);
-  let sketch =
-    switch (zipper_of_response) {
-    | Some(z) => Zipper.seg_for_view(z)
-    | None =>
-      print_endline("Failed to parse content into segment.\n");
-      Zipper.seg_for_view(Zipper.init());
-    };
   div(
     ~attrs=[
       clss([
@@ -682,10 +674,10 @@ let form_block =
         ~is_first,
         ~is_last,
       )
-    | Code(content) =>
+    | Code(sketch) =>
       code_block(
         ~message,
-        ~content,
+        ~sketch,
         ~toggle_collapse,
         ~index,
         ~is_first,
