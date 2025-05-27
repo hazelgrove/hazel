@@ -199,6 +199,8 @@ You can run all of the unit tests located in `test` by running `make test`.
 
 Unit tests are written using the [Alcotest framework](https://github.com/mirage/alcotest).
 
+See more documentation in the [test README](test/README.md)
+
 #### Coverage
 Code coverage is provided by [bisect_ppx](https://github.com/aantron/bisect_ppx). To collect coverage statistics from tests run `make coverage`. After coverage statistics are generated, running `make generate-coverage-html` will generate a local webpage at `_coverage/index.html` that can be viewed to see line coverage per module.
 
