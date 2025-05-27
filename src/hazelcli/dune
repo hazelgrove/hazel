@@ -2,7 +2,6 @@
 
 (executable
  (name cli)
- (modules Cli Run Parse Print)
  (libraries ppx_yojson_conv.expander haz3lcore cmdliner)
  (modes js)
  (preprocess
