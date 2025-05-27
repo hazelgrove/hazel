@@ -5,13 +5,30 @@ This directory contains the test suite for the Hazel project.
 ## Overview
 
 - **Test Framework:** [Alcotest](https://github.com/mirage/alcotest)
-- **Execution:** Tests can be run via `make` commands or directly with Node.js.
+- **Execution:** Tests are run via the `run_tests` script or `make` commands.
 
 ## How to Run Tests
 
-### 1. Using Make
+### 1. Using the run_tests Script
 
 - **Run all tests (including slow and property-based):**
+    ```sh
+    ./run_tests
+    ```
+
+- **Filter tests by group or number:**
+    - Run all tests in the "Statics" group with quick output:
+        ```sh
+        ./run_tests test 'Statics.*' -q
+        ```
+    - Run only test 19 from the "Evaluator" group:
+        ```sh
+        ./run_tests test 'Evaluator' 19
+        ```
+
+### 2. Using Make
+
+- **Run all tests:**
     ```sh
     make test
     ```
@@ -21,26 +38,10 @@ This directory contains the test suite for the Hazel project.
     make test-quick
     ```
 
-### 2. Using Node.js Directly
-
-- **Run the test suite:**
-    ```sh
-    node _build/default/test/haz3ltest.bc.js
-    ```
-
-- **Filter tests by group or number:**
-    - Run all tests in the "Statics" group with quick output:
-        ```sh
-        node _build/default/test/haz3ltest.bc.js test 'Statics.*' -q
-        ```
-    - Run only test 19 from the "Evaluator" group:
-        ```sh
-        node _build/default/test/haz3ltest.bc.js test 'Evaluator' 19
-        ```
-
 ## Additional Information
 
-- You can pass CLI arguments to filter and control test execution.
+- `./run_tests` is a shell script that first builds the tests using `dune` (the OCaml build system), then runs them using `node`.
+- You can pass CLI arguments to `./run_tests` to filter and control test execution.
 - For more CLI options, refer to the [Alcotest documentation](https://github.com/mirage/alcotest).
 
 ## Test File Structure
