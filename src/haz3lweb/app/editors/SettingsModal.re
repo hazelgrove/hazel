@@ -50,9 +50,9 @@ let view =
       ),
       setting(
         Unicode.castArrowSym,
-        "show casts",
-        settings.show_casts,
-        Evaluation(ShowCasts),
+        "show cast steps",
+        settings.show_cast_steps,
+        Evaluation(ShowCastSteps),
       ),
       // Disabled until we have a way to print closures
       // setting(

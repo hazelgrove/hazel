@@ -882,10 +882,16 @@ and Environment: {
       type t_('a) = VarBstMap.Ordered.t_('a);
 
   type t = environment_t;
+  let pp: (Format.formatter, t) => unit;
 } = {
   include VarBstMap.Ordered;
 
   type t = environment_t;
+
+  [@deriving show({with_path: false})]
+  type entries = list((Var.t, Exp.t));
+
+  let pp = (f, map: t) => pp_entries(f, VarBstMap.Ordered.to_listo(map));
 }
 
 and ClosureEnvironment: {
