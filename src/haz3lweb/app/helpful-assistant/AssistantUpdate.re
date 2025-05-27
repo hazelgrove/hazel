@@ -63,11 +63,38 @@ type t =
   | EmployLLMAction(employ_llm_action)
   | ChatAction(chat_action);
 
+let parse_blocks = (response: string): list(Model.block_kind) => {
+  let rec parse_blocks =
+          (str: string, acc: list(Model.block_kind)): list(Model.block_kind) => {
+    let pattern = Str.regexp("```[ \n]*\\([^`]+\\)[ \n]*```");
+    switch (Str.search_forward(pattern, str, 0)) {
+    | exception Not_found => acc
+    | pos =>
+      print_endline("Found code block at position: " ++ string_of_int(pos));
+      let acc = ListUtil.leading(acc);
+      let code = Str.matched_group(1, str);
+      print_endline("Matched code: " ++ code);
+      let before = Str.string_before(str, pos);
+      print_endline("Before code block: " ++ before ++ "\n");
+      let rest_start = pos + String.length(Str.matched_string(str));
+      if (rest_start >= String.length(str)) {
+        acc @ [Text(before), Code(code)];
+      } else {
+        let rest = Str.string_after(str, rest_start);
+        print_endline("Rest of string is: " ++ rest ++ "\n");
+        parse_blocks(rest, acc @ [Text(before), Code(code), Text(rest)]);
+      };
+    };
+  };
+  parse_blocks(response, [Text(response)]);
+};
+
 let text_message_of_str =
     (response: string, party: Model.party): Model.message => {
   {
     party,
     content: response,
+    displayable_content: parse_blocks(response),
     collapsed: String.length(response) >= 200,
   };
 };
@@ -119,55 +146,10 @@ let extract_text = (response: string): list(string) => {
   StringUtil.split(pattern, response);
 };
 
-type block_kind =
-  | Text(string)
-  | Code(string);
-
-let parse_blocks = (response: string): list(block_kind) => {
-  let rec parse_blocks =
-          (str: string, acc: list(block_kind)): list(block_kind) => {
-    let pattern = Str.regexp("```[ \n]*\\([^`]+\\)[ \n]*```");
-    switch (Str.search_forward(pattern, str, 0)) {
-    | exception Not_found => acc
-    | pos =>
-      print_endline("Found code block at position: " ++ string_of_int(pos));
-      let acc = ListUtil.leading(acc);
-      let code = Str.matched_group(1, str);
-      print_endline("Matched code: " ++ code);
-      let before = Str.string_before(str, pos);
-      print_endline("Before code block: " ++ before ++ "\n");
-      let rest_start = pos + String.length(Str.matched_string(str));
-      if (rest_start >= String.length(str)) {
-        acc @ [Text(before), Code(code)];
-      } else {
-        let rest = Str.string_after(str, rest_start);
-        print_endline("Rest of string is: " ++ rest ++ "\n");
-        parse_blocks(rest, acc @ [Text(before), Code(code), Text(rest)]);
-      };
-    };
-  };
-  print_endline("Parsing response: " ++ response);
-  let blocks = parse_blocks(response, [Text(response)]);
-  print_endline(
-    "Parsed blocks: "
-    ++ String.concat(
-         ", ",
-         List.map(
-           block =>
-             switch (block) {
-             | Text(t) => "Text: " ++ t
-             | Code(c) => "Code: " ++ c
-             },
-           blocks,
-         ),
-       ),
-  );
-  blocks;
-};
-
 let await_llm_response: Model.message = {
   party: LLM,
   content: "...",
+  displayable_content: [Text("...")],
   collapsed: false,
 };
 
@@ -545,42 +527,48 @@ let mk_LLM_call =
     );
     model |> Updated.return_quiet;
   | (None, _) =>
+    let content = "No API key found. Please set an API key in the assistant settings.";
     add_message_to_model(
       mode,
       model,
       {
         party: System(Error),
-        content: "No API key found. Please set an API key in the assistant settings.",
+        content,
+        displayable_content: [Text(content)],
         collapsed: false,
       },
       curr_chat.id,
       ~is_final=true,
     )
-    |> Updated.return_quiet
+    |> Updated.return_quiet;
   | (_, None) =>
+    let content = "No model ID found. Please set a model ID in the assistant settings.";
     add_message_to_model(
       mode,
       model,
       {
         party: System(Error),
-        content: "No model ID found. Please set a model ID in the assistant settings.",
+        content,
+        displayable_content: [Text(content)],
         collapsed: false,
       },
       curr_chat.id,
       ~is_final=true,
     )
-    |> Updated.return_quiet
+    |> Updated.return_quiet;
   };
 };
 
 let failed_prompt_generation =
     (~mode: AssistantSettings.mode, ~model: Model.t, ~curr_chat: Model.chat) => {
+  let content = "Prompt generation failed.";
   add_message_to_model(
     mode,
     model,
     {
       party: System(Error),
-      content: "Prompt generation failed.",
+      content,
+      displayable_content: [Text(content)],
       collapsed: false,
     },
     curr_chat.id,
@@ -815,32 +803,35 @@ let update =
           )
           |> Updated.return_quiet;
         | (None, _) =>
+          let content = "No API key found. Please set an API key in the assistant settings.";
           add_message_to_model(
             mode,
             model,
             {
               party: System(Error),
-
-              content: "No API key found. Please set an API key in the assistant settings.",
+              content,
+              displayable_content: [Text(content)],
               collapsed: false,
             },
             curr_chat.id,
             ~is_final=true,
           )
-          |> Updated.return_quiet
+          |> Updated.return_quiet;
         | (_, None) =>
+          let content = "No API key or model ID found. Please set an API key and model ID in the assistant settings.";
           add_message_to_model(
             mode,
             model,
             {
               party: System(Error),
-              content: "No API key or model ID found. Please set an API key and model ID in the assistant settings.",
+              content,
+              displayable_content: [Text(content)],
               collapsed: false,
             },
             curr_chat.id,
             ~is_final=true,
           )
-          |> Updated.return_quiet
+          |> Updated.return_quiet;
         };
       };
     | ErrorRound(error, sketch_z, ci, fuel, tileId, mode, chat_id) =>
@@ -860,16 +851,17 @@ let update =
             chat_id,
             ~is_final=true,
           );
+        let content =
+          "By default we stop the assistant after "
+          ++ string_of_int(ChatLSP.Options.init.error_rounds_max)
+          ++ " error rounds. Thus, stopping.";
         add_message_to_model(
           mode,
           model,
           {
             party: System(Error),
-
-            content:
-              "By default we stop the assistant after "
-              ++ string_of_int(ChatLSP.Options.init.error_rounds_max)
-              ++ " error rounds. Thus, stopping.",
+            content,
+            displayable_content: [Text(content)],
             collapsed: false,
           },
           chat_id,
@@ -885,19 +877,20 @@ let update =
           collect_chat(~messages=curr_chat.messages @ [error_message]);
         switch (standardize_prompt(collected_chat)) {
         | None =>
+          let content = "Prompt generation failed.";
           add_message_to_model(
             mode,
             model,
             {
               party: System(Error),
-
-              content: "Prompt generation failed.",
+              content,
+              displayable_content: [Text(content)],
               collapsed: false,
             },
             chat_id,
             ~is_final=true,
           )
-          |> Updated.return_quiet
+          |> Updated.return_quiet;
         | Some(openrouter_prompt) =>
           switch (Store.Generic.load("API"), Store.Generic.load("MODEL")) {
           | (Some(key), Some(model_id)) =>
@@ -951,33 +944,35 @@ let update =
             )
             |> Updated.return_quiet;
           | (_, None) =>
+            let content = "No API key found. Please set an API key in the assistant settings.";
             add_message_to_model(
               mode,
               model,
               {
                 party: System(Error),
-
-                content: "No API key found. Please set an API key in the assistant settings. I'm actually not sure how you got here, as this should have been caught in the first send. This is a bug, and you should let someone know.",
+                content,
+                displayable_content: [Text(content)],
                 collapsed: false,
               },
               chat_id,
               ~is_final=true,
             )
-            |> Updated.return_quiet
+            |> Updated.return_quiet;
           | (None, _) =>
+            let content = "No model ID found. Please set a model ID in the assistant settings.";
             add_message_to_model(
               mode,
               model,
               {
                 party: System(Error),
-
-                content: "No model ID found. Please set a model ID in the assistant settings.",
+                content,
+                displayable_content: [Text(content)],
                 collapsed: false,
               },
               curr_chat.id,
               ~is_final=true,
             )
-            |> Updated.return_quiet
+            |> Updated.return_quiet;
           }
         };
       };
@@ -987,8 +982,8 @@ let update =
         model,
         {
           party: System(Error),
-
           content,
+          displayable_content: parse_blocks(content),
           collapsed: false,
         },
         chat_id,

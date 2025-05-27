@@ -20,9 +20,15 @@ type party =
 type code_segment = option((Segment.t, option(Id.t)));
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type block_kind =
+  | Text(string)
+  | Code(string);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type message = {
   party, // Who sent the message (System, LLM, or LS)
   content: string, // The text content of the message
+  displayable_content: list(block_kind), // The text/code blocks to display (we opt to store these for efficiency)
   collapsed: bool // Whether the message is collapsed in the UI
 };
 
