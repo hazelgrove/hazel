@@ -17,7 +17,7 @@ This directory contains the test suite for the Hazel project.
     ```
 
 - **Filter tests by group or number:**
-    - Run all tests in the "Statics" group with quick output:
+    - Run all tests in the "Statics" group with quick output (excluding slow/property-based):
         ```sh
         ./run_tests test 'Statics.*' -q
         ```
