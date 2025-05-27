@@ -177,15 +177,29 @@
     padding: 0 12px;
 }
 
-#assistant .llm .message-identifier {
-    align-self: flex-start;
+#assistant .llm-identifier {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
 }
 
-#assistant .system .message-identifier {
-    align-self: flex-start;
+#assistant .llm-identifier svg {
+    margin-right: 0.25em;
 }
 
-#assistant .ls .message-identifier {
+#assistant .system-identifier {
+    display: flex;
+    align-items: center;
+    gap: 0.5em;
+}
+
+#assistant .system-identifier svg {
+    width: 14px;
+    height: 14px;
+    margin-right: 0.25em;
+}
+
+#assistant .user-identifier {
     align-self: flex-end;
 }
 
@@ -193,11 +207,15 @@
     align-items: flex-start;
 }
 
-#assistant .system {
+#assistant .system-prompt {
     align-items: flex-start;
 }
 
-#assistant .ls {
+#assistant .system-error {
+    align-items: flex-start;
+}
+
+#assistant .user {
     align-items: flex-end;
 }
 
@@ -221,28 +239,37 @@
 
 #assistant .llm-message {
     padding: 8px 12px;
-    background-color: var(--T1);
-    border-radius: 12px;
+    /* background-color: var(--T1); */
+    border-radius: 3px;
     font-size: 1em;
-    max-width: 80%;
+    max-width: 100%;
     word-wrap: break-word;
 }
 
-#assistant .system-message {
+#assistant .system-prompt-message {
+    padding: 8px 12px;
+    background-color: var(--T1);
+    border-radius: 3px;
+    font-size: 1em;
+    max-width: 100%;
+    word-wrap: break-word;
+}
+
+#assistant .system-error-message {
     padding: 8px 12px;
     background-color: var(--ERRHOLE);
-    border-radius: 12px;
+    border-radius: 3px;
     font-size: 1em;
-    max-width: 80%;
+    max-width: 100%;
     word-wrap: break-word;
 }
 
-#assistant .ls-message {
+#assistant .user-message {
     padding: 8px 12px;
-    background-color: var(--T3);
-    border-radius: 12px;
+    background-color: var(--T1);
+    border-radius: 3px;
     font-size: 1em;
-    max-width: 80%;
+    max-width: 100%;
     word-wrap: break-word;
 }
 

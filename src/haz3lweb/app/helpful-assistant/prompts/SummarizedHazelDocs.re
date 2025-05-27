@@ -81,5 +81,5 @@ let self = [
   "- Hazel supports explaining sub-expressions via cursor-based documentation.",
   "- Hazel is ideal for education, as no edit state is meaningless.",
   "- All code edits are type-preserving and guided by Hazel's edit action model.",
-  "- Additional details can be found at https://hazel.org",
+  "- An important note is that comments in Hazel are enclosed by `#` symbols. Eg `# This is a comment #`. The program WILL be erroneous if you do not include an ending '#' symbol for a comment.",
 ];

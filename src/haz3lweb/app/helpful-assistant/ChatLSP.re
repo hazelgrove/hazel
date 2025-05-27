@@ -113,7 +113,11 @@ module Completion = {
       OpenRouter.mk_user_msg(
         String.concat(
           "\n",
-          ["sketch: " ++ ErrorPrint.Print.seg(~holes=Some("?"), sketch)]
+          [
+            "sketch: ```"
+            ++ ErrorPrint.Print.seg(~holes=Some("?"), sketch)
+            ++ "```",
+          ]
           @ get_static_context(
               options.expected_type,
               options.relevant_ctx,
@@ -138,23 +142,12 @@ module Composition = {
       ~label_sort=false,
     );
 
-  let mk_prompt =
-      (
-        options: Options.t,
-        sketch: Segment.t,
-        editor: CodeWithStatics.Model.t,
-        init: bool,
-      )
+  // Prompt with appropriate context for each message
+  let mk_ctx_prompt =
+      (options: Options.t, sketch: Segment.t, editor: CodeWithStatics.Model.t)
       : string => {
     let _ = options; // TODO: Either remove params or update function to use params
-    let summarized_hazel_docs =
-      String.concat("\n", SystemPrompt.summarized_hazel_docs);
-    let prelude_and_toolkit =
-      String.concat("\n", SystemPrompt.task_completion_toolkit);
-    let few_shot_examples =
-      String.concat("\n", SystemPrompt.few_shot_composition_examples);
-    let hazel_syntax_notes =
-      String.concat("\n", SystemPrompt.hazel_syntax_notes);
+
     //let (_, info_map) = statics_of_exp_seg(Info.ctx_of(ci), sketch);
     let errors = ErrorPrint.all(editor.statics.info_map);
 
@@ -165,25 +158,23 @@ module Composition = {
       };
     String.concat(
       "\n",
-      (
-        init
-          ? [
-            prelude_and_toolkit,
-            hazel_syntax_notes,
-            summarized_hazel_docs,
-            few_shot_examples,
-          ]
-          : []
-      )
-      @ [
-        "PROGRAM SKETCH: " ++ ErrorPrint.Print.seg(~holes=Some("?"), sketch),
+      [
+        "PROGRAM SKETCH: ```"
+        ++ ErrorPrint.Print.seg(~holes=Some("?"), sketch)
+        ++ "```",
       ]
       @ ["STATIC ERRORS: "]
       @ static_error_arr
       @ [
         "SELECTED CODE: "
         ++ (
-          init
+          String.length(
+            ErrorPrint.Print.seg(
+              ~holes=Some("?"),
+              editor.editor.state.zipper.selection.content,
+            ),
+          )
+          == 0
             ? "None. Use a goto_* command to select a code segment."
             : ErrorPrint.Print.seg(
                 ~holes=Some("?"),
@@ -262,29 +253,29 @@ module Composition = {
     // This may allow for better error handling.
     switch (loc) {
     | Before => [
-        Action.Unselect(Some(Left)), // Unselect current definition
-        Action.Paste(String(code ++ "\n")), // Paste new code
-        Action.Select(Smart(3)), // Select the pasted code
-        Action.Copy // Copy the pasted code
+        // Unselect current definition
+        Action.Unselect(Some(Left)),
+        // Paste new code
+        Action.Paste(String(code ++ "\n")),
       ]
     | After => [
-        Action.Unselect(Some(Direction.Right)), // Unselect current definition
-        Action.Paste(String("\n" ++ code)), // Paste new code
-        Action.Select(Smart(3)), // Select the pasted code
-        Action.Copy // Copy the pasted code
+        // Unselect current definition
+        Action.Unselect(Some(Direction.Right)),
+        // Paste new code
+        Action.Paste(String("\n" ++ code)),
       ]
     | Current =>
       String.length(code) == 0
         ? [
-          Action.Paste(String(code)), // Replace current definition
+          // This implies the calling of the ```delete``` tool
+          // Replace current definition
+          Action.Paste(String(code)),
+          // Destruct left
           Action.Destruct(Left),
-          Action.Select(Smart(3)), // Select the pasted code
-          Action.Copy // Copy the pasted code
         ]
         : [
-          Action.Paste(String(code)), // Replace current definition
-          Action.Select(Smart(3)), // Select the pasted code
-          Action.Copy // Copy the pasted code
+          // Replace current definition
+          Action.Paste(String(code)),
         ]
     // We paste the code edit, then reselect the definition, and copy
     // to clipboard shim to give context to assistant.
