@@ -689,6 +689,46 @@ let form_block =
     None;
   };
 
+let initial_display =
+    (
+      ~globals: Globals.t,
+      ~inject,
+      ~model: Model.t,
+      ~settings: AssistantSettings.t,
+    )
+    : Node.t => {
+  let (past_chats, curr_chat) = Update.get_mode_info(settings.mode, model);
+  let curr_messages = Id.Map.find(curr_chat.id, past_chats).messages;
+  List.length(curr_messages) <= 1
+    ? div(
+        ~attrs=[clss(["initial-display"])],
+        [
+          Icons.hazelnut_agent,
+          div(
+            ~attrs=[clss(["initial-display-text"])],
+            [
+              text(
+                switch (settings.mode) {
+                | HazelTutor => "Hi, I'm Hazel's AI Tutor! Ask me anything about Hazel."
+                | CodeSuggestion => "Hi, I'm Hazel's AI Code Completion Assistant! Ask me for code suggestions."
+                | TaskCompletion => "Hi, I'm Hazel's AI Coding Agent! Let's work on your task together."
+                },
+              ),
+            ],
+          ),
+          div(
+            ~attrs=[clss(["disclaimer-display-text"])],
+            [
+              text(
+                "AI-based technology, such as the Hazel Assistant, are prone to making mistakes. Always verify critical information independently.",
+              ),
+            ],
+          ),
+        ],
+      )
+    : None;
+};
+
 let message_display =
     (
       ~globals: Globals.t,
@@ -792,7 +832,10 @@ let message_display =
         curr_messages,
       ),
     );
-  div(~attrs=[clss(["message-display-container"])], message_nodes);
+  div(
+    ~attrs=[clss(["message-display-container"])],
+    message_nodes @ [initial_display(~globals, ~inject, ~model, ~settings)],
+  );
 };
 
 let prompt_display =
