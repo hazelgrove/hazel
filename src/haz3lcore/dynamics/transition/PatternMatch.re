@@ -1,3 +1,4 @@
+[@deriving show({with_path: false})]
 type match_result = Unboxing.unboxed(Environment.t);
 let ( let* ) = Unboxing.( let* );
 
@@ -13,6 +14,7 @@ let combine_result = (r1: match_result, r2: match_result): match_result =>
 
 let rec matches = (capture, dp: Pat.t, d: DHExp.t): match_result => {
   let matches = matches(capture);
+  let d = Casts.transition_multiple(d);
   switch (DHPat.term_of(dp)) {
   | Invalid(_)
   | EmptyHole
@@ -57,7 +59,7 @@ let rec matches = (capture, dp: Pat.t, d: DHExp.t): match_result => {
     capture(pr, dp, d, inner_match);
     inner_match;
   | Cast(p, t1, t2) =>
-    matches(p, Cast(d, t2, t1) |> DHExp.fresh |> Casts.transition_multiple)
+    matches(p, Casts.transition_multiple(Cast(d, t2, t1) |> DHExp.fresh))
   };
 };
 

@@ -279,10 +279,6 @@ module Update = {
           switch (result) {
           | ResultOk((exp, _state)) =>
             exp
-            |> (
-              settings.evaluation.show_casts
-                ? (x => x) : Haz3lcore.DHExp.strip_casts
-            )
             |> CodeSelectable.Model.mk_from_exp(~settings)
             |> (x => Calc.Calculated((exp, x)))
           | ResultFail(_) => Pending
