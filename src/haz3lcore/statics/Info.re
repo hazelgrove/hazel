@@ -91,7 +91,10 @@ type error_common =
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_exp =
   | FreeVariable(Var.t) /* Unbound variable (not in typing context) */
-  | InexhaustiveMatch(option(error_common), Grammar.any_t(IdTagged.IdTag.t))
+  | InexhaustiveMatch(
+      option(error_common),
+      [@equal Any.fast_equal] Grammar.any_t(IdTagged.IdTag.t),
+    )
   | UnusedDeferral
   | BadPartialAp(Self.error_partial_ap)
   | Common(error_common);

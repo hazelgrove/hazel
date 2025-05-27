@@ -238,13 +238,7 @@ module UnseenPatternList = {
         // the empty case can happen if the example is providing a constructor
         // that has args, but no args are provided
         switch (unseen_pattern) {
-        | [] => [
-            ap(
-              pat_ctr,
-              empty_hole(),
-            ),
-            ...unseen_pattern,
-          ]
+        | [] => [ap(pat_ctr, empty_hole()), ...unseen_pattern]
         | [hd, ...tl] => [
             // absorb the args of the constructor
             ap(pat_ctr, hd),
@@ -274,17 +268,8 @@ module UnseenPatternList = {
       switch (IdTagged.term_of(body)) {
       | Label(pat_label) =>
         switch (unseen_pattern) {
-        | [] => [
-            label(pat_label),
-            empty_hole(),
-          ]
-        | [hd, ...tl] => [
-            tup_label(
-              label(pat_label),
-              hd,
-            ),
-            ...tl,
-          ]
+        | [] => [label(pat_label), empty_hole()]
+        | [hd, ...tl] => [tup_label(label(pat_label), hd), ...tl]
         }
       | _ => unseen_pattern
       }
@@ -293,15 +278,7 @@ module UnseenPatternList = {
       | "nil" => [list_lit([]), ...unseen_pattern]
       | "cons" =>
         switch (unseen_pattern) {
-        | [] => [
-            (
-              cons(
-                wild(),
-                wild(),
-              )
-            ),
-            ...unseen_pattern,
-          ]
+        | [] => [cons(wild(), wild()), ...unseen_pattern]
         | [hd, ...tl] =>
           // the structure of the list should have a tuple that contains
           // the element in the first position, and a cons in the second.
@@ -310,16 +287,8 @@ module UnseenPatternList = {
           let term = IdTagged.term_of(hd);
           let cons =
             switch (term) {
-            | Tuple([_, snd]) =>
-                cons(
-                  wild(),
-                  snd,
-                )
-            | _ =>
-              cons(
-                wild(),
-                hd,
-              )
+            | Tuple([_, snd]) => cons(wild(), snd)
+            | _ => cons(wild(), hd)
             };
           [cons, ...tl];
         }
@@ -483,10 +452,7 @@ module UnseenPatternList = {
             let unseen_ctr =
               get_first_unseen_ctr(seen_in_first_col, all_ctrs);
             if (col_ctr == Ctr.nil_ctr) {
-              (
-                unseen_ctr,
-                [wild(), ...unseen_pattern],
-              );
+              (unseen_ctr, [wild(), ...unseen_pattern]);
             } else if (Ctr.num_args_of(col_ctr) > 0
                        && unseen_ctr == Ctr.nil_ctr) {
               // if the unseen ctr is a nil, and the current ctr has args,
@@ -790,7 +756,6 @@ module Submatrices = {
       | Finite(_) => !seen_all_ctrs
       };
 
-    // TODO: there seems to be a bug with wildcard handling
     let submatrices =
       List.fold_left(
         (submatrices, row: Matrix.row) => {
