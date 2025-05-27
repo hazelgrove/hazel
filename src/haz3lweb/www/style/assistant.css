@@ -1,7 +1,6 @@
 #assistant {
     display: flex;
     flex: 1;
-    width: 25em;
     padding: 0.4em;
     flex-direction: column;
     overflow-y: auto;
@@ -787,7 +786,29 @@
 #assistant .subtitle {
     font-size: 0.8em;
     color: var(--STONE);
-    opacity: 0.8;
+    opacity: 0.5;
     margin: 1em 0 0.5em 0;
     font-style: italic;
+}
+
+#assistant .show-prompt-button {
+    color: var(--STONE);
+    padding: 0.2em 1.35em;
+    border-radius: 4px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+#assistant .show-prompt-button svg {
+    width: 24px;
+    height: 24px;
+    opacity: 0.7;
+    fill: var(--STONE);
+}
+
+#assistant .show-prompt-button:hover svg {
+    animation: wobble 0.6s ease 0s 1 normal forwards;
+    opacity: 0.9;
+    transition: opacity 0.3s ease;  
 }

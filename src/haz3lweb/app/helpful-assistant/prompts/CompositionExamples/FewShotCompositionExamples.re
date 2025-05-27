@@ -1,18 +1,24 @@
 module Sexp = Sexplib.Sexp;
 
-let self = [
+let self = Ex_TypeError.self @ Ex_Calculator.self;
+
+let depped = [
   /* Example 1: Fixing a type error in a function */
   "Example 1: Fixing a type error in a function",
   "PROGRAM SKETCH:
-let add = fun x -> x + \"hello\" in  # Type error: adding Int and String #
-add(5)  # Error occurs when trying to add 5 and \"hello\" #
-",
+    ```
+    # Add input to hello
+    let add = fun x -> x + \"hello\" in
+    # Test out my function on 5 as input
+    add(5)
+    ```
+  ",
   "STATIC ERRORS:
 Error in term:
   \"hello\"
 Nature of error: Expecting type Int but got inconsistent type String",
-  "USER: Fix the type error in the add function.",
-  "ASSISTANT: I'll fix the type error in the add function by first locating it and then making the necessary changes.
+  "USER MESSAGE: Fix the type error in the add function.",
+  "ASSISTANT MESSAGE: I'll fix the type error in the add function by first locating it and then making the necessary changes.
 
 ```goto_definition add```
 

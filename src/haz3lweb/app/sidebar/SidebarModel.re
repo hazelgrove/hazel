@@ -16,5 +16,6 @@ module Settings = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =
     | ToggleShow
-    | SwitchPanel(panel);
+    | SwitchPanel(panel)
+    | Resize;
 };

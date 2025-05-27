@@ -70,7 +70,6 @@ let parse_blocks = (response: string): list(Model.block_kind) => {
     switch (Str.search_forward(pattern, str, 0)) {
     | exception Not_found => acc
     | pos =>
-      print_endline("Found code block at position: " ++ string_of_int(pos));
       let acc = ListUtil.leading(acc);
       let code = Str.matched_group(1, str);
       let zipper_of_code = Printer.zipper_of_string(code);
@@ -81,15 +80,12 @@ let parse_blocks = (response: string): list(Model.block_kind) => {
           print_endline("Failed to parse content into segment.\n");
           Zipper.seg_for_view(Zipper.init());
         };
-      print_endline("Matched code: " ++ code);
       let before = Str.string_before(str, pos);
-      print_endline("Before code block: " ++ before ++ "\n");
       let rest_start = pos + String.length(Str.matched_string(str));
       if (rest_start >= String.length(str)) {
         acc @ [Text(before), Code(sketch)];
       } else {
         let rest = Str.string_after(str, rest_start);
-        print_endline("Rest of string is: " ++ rest ++ "\n");
         parse_blocks(
           rest,
           acc @ [Text(before), Code(sketch), Text(rest)],
@@ -106,7 +102,9 @@ let text_message_of_str =
     party,
     content: response,
     displayable_content: parse_blocks(response),
-    collapsed: String.length(response) >= 200,
+    collapsed:
+      String.length(response) >= Model.max_collapsed_length
+      || party == System(Prompt),
   };
 };
 
@@ -132,9 +130,10 @@ let init_chat = (kind: AssistantSettings.mode): Model.chat => {
   };
 };
 
-let extract_blocks = (response: string): list(string) => {
-  let rec extract_blocks = (text: string, acc: list(string)): list(string) => {
-    let pattern = Str.regexp("```[ \n]*\\([^`]+\\)[ \n]*```");
+let extract_tool_calls = (response: string): list(string) => {
+  let rec extract_tool_calls =
+          (text: string, acc: list(string)): list(string) => {
+    let pattern = Str.regexp("{{{[ \n]*\\([^`]+\\)[ \n]*}}}");
     switch (Str.search_forward(pattern, text, 0)) {
     | exception Not_found => List.rev(acc)
     | pos =>
@@ -146,10 +145,10 @@ let extract_blocks = (response: string): list(string) => {
           String.length(text)
           - (pos + String.length(Str.matched_string(text))),
         );
-      extract_blocks(rest, [matched, ...acc]);
+      extract_tool_calls(rest, [matched, ...acc]);
     };
   };
-  extract_blocks(response, []);
+  extract_tool_calls(response, []);
 };
 
 let extract_text = (response: string): list(string) => {
@@ -1010,7 +1009,7 @@ let update =
         add_message_to_model(mode, model, message, chat_id, ~is_final=true)
         |> Updated.return_quiet;
       } else {
-        let tool_calls = extract_blocks(message.content);
+        let tool_calls = extract_tool_calls(message.content);
         List.iter(
           (tool_call: string) => {print_endline("Tool call: " ++ tool_call)},
           tool_calls,
