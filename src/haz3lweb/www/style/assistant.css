@@ -834,3 +834,50 @@
     overflow-x: hidden;
     animation: slideIn 0.2s ease-out;
 }
+
+/* Center the initial display in the message area */
+#assistant .initial-display {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    flex: 0.8;
+    min-height: 300px;
+    height: 100%;
+    width: 65%;
+    text-align: center;
+    gap: 1.5em;
+    margin: 0 auto;
+}
+
+#assistant .initial-display svg {
+    width: 72px;
+    height: 72px;
+    fill: var(--BR4);
+}
+
+#assistant .initial-display-text {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5em;
+}
+
+#assistant .initial-display-text span,
+#assistant .initial-display-text .vdom-text {
+    font-size: 1.25em;
+    color: var(--STONE);
+    margin-top: 0.25em;
+    font-weight: bold;
+    text-align: center;
+}
+
+#assistant .disclaimer-display-text {
+    font-size: 0.75em;
+    color: var(--STONE);
+    opacity: 0.55;
+    margin-top: 0.5em;
+    text-align: center;
+    font-weight: normal;
+}
