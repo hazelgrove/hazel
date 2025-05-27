@@ -554,7 +554,7 @@ module Transition = (EV: EV_MODE) => {
       let.wrap_closure _ = env;
       let-unbox b1 = (Atom(Bool), d1');
       Step({
-        expr: b1 ? d2 : bool(false),
+        expr: b1 ? asc(d2, IdTagged.FreshGrammar.Typ.bool()) : bool(false),
         state_update,
         kind: BinOp(Bool(And)),
         is_value: false,
@@ -570,7 +570,7 @@ module Transition = (EV: EV_MODE) => {
       let.wrap_closure _ = env;
       let-unbox b1 = (Atom(Bool), d1');
       Step({
-        expr: b1 ? bool(true) : d2,
+        expr: b1 ? bool(true) : asc(d2, IdTagged.FreshGrammar.Typ.bool()),
         state_update,
         kind: BinOp(Bool(Or)),
         is_value: false,
