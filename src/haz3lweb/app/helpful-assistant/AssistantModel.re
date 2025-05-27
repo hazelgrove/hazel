@@ -70,3 +70,5 @@ let sorted_chats = (chat_map: Id.Map.t(chat)): list(chat) => {
   |> List.map(((_, chat)) => chat)
   |> List.sort((a, b) => int_of_float(b.timestamp -. a.timestamp));
 };
+
+let max_collapsed_length: int = 500;

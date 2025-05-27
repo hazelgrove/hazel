@@ -395,7 +395,7 @@ let message_input =
       party: User,
       content,
       displayable_content: Update.parse_blocks(content),
-      collapsed: String.length(content) >= 200,
+      collapsed: String.length(content) >= Model.max_collapsed_length,
     };
     JsUtil.log("Message sent: " ++ message.content);
     Virtual_dom.Vdom.Effect.Many([
@@ -513,23 +513,27 @@ let form_collapse_toggle =
       ~is_last: bool,
     )
     : Node.t =>
-  if (message.collapsed && String.length(message.content) >= 200 && is_first) {
+  if (message.collapsed
+      && String.length(message.content) >= Model.max_collapsed_length
+      && is_first) {
     div(
       ~attrs=[
         clss(["collapse-indicator"]),
         Attr.on_click(_ => toggle_collapse(index)),
-        String.length(message.content) >= 200 ? Attr.empty : Attr.hidden,
+        String.length(message.content) >= Model.max_collapsed_length
+          ? Attr.empty : Attr.hidden,
       ],
       [text("▼ Show more")],
     );
   } else if (!message.collapsed
-             && String.length(message.content) >= 200
+             && String.length(message.content) >= Model.max_collapsed_length
              && is_last) {
     div(
       ~attrs=[
         clss(["collapse-indicator"]),
         Attr.on_click(_ => toggle_collapse(index)),
-        String.length(message.content) >= 200 ? Attr.empty : Attr.hidden,
+        String.length(message.content) >= Model.max_collapsed_length
+          ? Attr.empty : Attr.hidden,
       ],
       [text("▲ Show less")],
     );
@@ -562,12 +566,17 @@ let text_block =
       Attr.on_cut(_ => {Effect.Stop_propagation}),
     ],
     [
-      message.collapsed && String.length(message.content) >= 200
+      message.collapsed
+      && String.length(message.content) >= Model.max_collapsed_length
         ? text(
             String.concat(
               "",
               [
-                String.sub(content, 0, min(String.length(content), 200)),
+                String.sub(
+                  content,
+                  0,
+                  min(String.length(content), Model.max_collapsed_length),
+                ),
                 "...",
               ],
             ),
@@ -653,16 +662,7 @@ let form_block =
       ~is_last: bool,
       ~globals: Globals.t,
     )
-    : Node.t => {
-  print_endline(
-    "Rendering block: "
-    ++ (
-      switch (block) {
-      | Text(_) => "Text"
-      | Code(_) => "Code"
-      }
-    ),
-  );
+    : Node.t =>
   if (!message.collapsed || message.collapsed && is_first) {
     switch (block) {
     | Text(content) =>
@@ -688,7 +688,6 @@ let form_block =
   } else {
     None;
   };
-};
 
 let message_display =
     (
@@ -707,6 +706,7 @@ let message_display =
   };
   let (past_chats, curr_chat) = Update.get_mode_info(settings.mode, model);
   let curr_messages = Id.Map.find(curr_chat.id, past_chats).messages;
+  print_endline("Chat: " ++ Update.collect_chat(~messages=curr_messages));
   let message_nodes =
     List.flatten(
       List.mapi(
@@ -752,20 +752,60 @@ let message_display =
                   ),
                 ]
                 @ {
-                  let parsed_blocks = message.displayable_content;
-                  List.mapi(
-                    (idx, block: Model.block_kind) =>
-                      form_block(
-                        ~message,
-                        ~block,
-                        ~toggle_collapse,
-                        ~index,
-                        ~is_first=idx == 0,
-                        ~is_last=idx == List.length(parsed_blocks) - 1,
-                        ~globals,
-                      ),
-                    parsed_blocks,
-                  );
+                  message.party == System(Prompt)
+                    ? message.collapsed
+                        ? {
+                          [
+                            div(
+                              ~attrs=[
+                                clss(["show-prompt-button"]),
+                                Attr.on_click(_ => toggle_collapse(index)),
+                                String.length(message.content)
+                                >= Model.max_collapsed_length
+                                  ? Attr.empty : Attr.hidden,
+                              ],
+                              [
+                                Widgets.button(
+                                  ~tooltip="Show Prompt", Icons.info, _ =>
+                                  toggle_collapse(index)
+                                ),
+                              ],
+                            ),
+                          ];
+                        }
+                        : {
+                          let parsed_blocks = message.displayable_content;
+                          List.mapi(
+                            (idx, block: Model.block_kind) =>
+                              form_block(
+                                ~message,
+                                ~block,
+                                ~toggle_collapse,
+                                ~index,
+                                ~is_first=idx == 0,
+                                ~is_last=
+                                  idx == List.length(parsed_blocks) - 1,
+                                ~globals,
+                              ),
+                            parsed_blocks,
+                          );
+                        }
+                    : {
+                      let parsed_blocks = message.displayable_content;
+                      List.mapi(
+                        (idx, block: Model.block_kind) =>
+                          form_block(
+                            ~message,
+                            ~block,
+                            ~toggle_collapse,
+                            ~index,
+                            ~is_first=idx == 0,
+                            ~is_last=idx == List.length(parsed_blocks) - 1,
+                            ~globals,
+                          ),
+                        parsed_blocks,
+                      );
+                    };
                 },
               ),
             ]

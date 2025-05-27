@@ -102,7 +102,7 @@ select:hover {
   border-left: 0.6px solid var(--BR2);
   overflow-y: auto;
   overflow-x: hidden;
-  width: max-content;
+  width: 25em;
   background-color: var(--T2);
 }
 

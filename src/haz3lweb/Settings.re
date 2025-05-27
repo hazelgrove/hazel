@@ -223,6 +223,13 @@ module Update = {
             panel: windowToSwitchTo,
           },
         }
+      | Sidebar(Resize) => {
+          ...settings,
+          sidebar: {
+            ...settings.sidebar,
+            show: true,
+          },
+        }
       | ExplainThis(ToggleShowFeedback) => {
           ...settings,
           explainThis: {
