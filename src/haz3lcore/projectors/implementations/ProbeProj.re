@@ -445,7 +445,7 @@ module Closures = {
 
 let abbreviate = (exp: Exp.t, available: int): Exp.t => {
   let (abbr_exp, _length) =
-    exp |> DHExp.strip_casts |> Abbreviate.abbreviate_exp(~available);
+    exp |> DHExp.strip_ascriptions |> Abbreviate.abbreviate_exp(~available);
   abbr_exp;
 };
 
@@ -460,7 +460,7 @@ let seg_of_exp = (utility: utility, exp: Exp.t): (Segment.t, int) => {
 let abbreviated_seg_of =
     (utility: utility, available: int, exp: Exp.t): (Segment.t, int) => {
   let (abbr_exp, _length) =
-    exp |> DHExp.strip_casts |> Abbreviate.abbreviate_exp(~available);
+    exp |> DHExp.strip_ascriptions |> Abbreviate.abbreviate_exp(~available);
   seg_of_exp(utility, abbr_exp);
 };
 
@@ -732,7 +732,7 @@ let round_up = (utility: utility, closure): unit => {
   let (_, cur) =
     abbreviated_seg_of(utility, ClosureLength.get(closure), closure.value);
   let goal = cur + 1;
-  let (_, max_len) = seg_of_exp(utility, DHExp.strip_casts(closure.value));
+  let (_, max_len) = seg_of_exp(utility, DHExp.strip_ascriptions(closure.value));
   let rec find_target = (target: int): int => {
     let attempt_len =
       abbreviated_seg_of(utility, target, closure.value) |> snd;

@@ -20,36 +20,36 @@ let mk = (ids, term): t => {
 };
 
 // Also strips static error holes - kinda like unelaboration
-let rec strip_casts =
+let rec strip_ascriptions =
   map_term(
     ~f_pat=
       (continue, t) =>
         switch (t.term) {
-        | Asc(p, _) => strip_casts_pat(p)
+        | Asc(p, _) => strip_ascriptions_pat(p)
         | _ => continue(t)
         },
     ~f_exp=
       (continue, exp) => {
         switch (term_of(exp)) {
         /* Remove casts*/
-        | Asc(d, _) => strip_casts(d)
+        | Asc(d, _) => strip_ascriptions(d)
         | _ => continue(exp)
         }
       },
     _,
   )
-and strip_casts_pat = (p: Pat.t): Pat.t => {
+and strip_ascriptions_pat = (p: Pat.t): Pat.t => {
   Pat.map_term(
     ~f_pat=
       (continue, t) =>
         switch (t.term) {
-        | Asc(p, _) => strip_casts_pat(p)
+        | Asc(p, _) => strip_ascriptions_pat(p)
         | _ => continue(t)
         },
     ~f_exp=
       (continue, t) =>
         switch (t.term) {
-        | Asc(e, _) => strip_casts(e)
+        | Asc(e, _) => strip_ascriptions(e)
         | _ => continue(t)
         },
     p,
