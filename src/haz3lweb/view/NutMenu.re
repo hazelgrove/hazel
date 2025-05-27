@@ -96,9 +96,9 @@ let stepper_group = (~globals: Globals.t) => {
       ),
       (
         Unicode.castArrowSym,
-        "Show Cast Steps",
-        s.show_cast_steps,
-        Evaluation(ShowCastSteps),
+        "Show Ascription Steps",
+        s.show_ascription_steps,
+        Evaluation(ShowAscriptionSteps),
       ),
     ],
   );

@@ -164,27 +164,6 @@ let rec elaborate_pattern =
   (dpat, elaborated_type);
 };
 
-/* The primary goal of elaboration is to convert from a type system
-   where we have consistency, to a type system where types are either
-   equal or they're not. Anything that was just consistent needs to
-   become a cast. [The one other thing elaboration does is make
-   recursive let bindings explicit.]
-
-   At the top of this function we work out the "elaborated type" of
-   of the expression. We also return this elaborated type so we can
-   use it in the recursive call. When elaborate returns, you can trust
-   that the returned expression will have the returned type. There is
-   however, no guarantee that the returned type is even consistent with
-   the "elaborated type" at the top, so you should fresh_cast EVERYWHERE
-   just in case.
-
-   Important invariant: any cast in an elaborated expression should have
-   normalized types.
-
-   [Matt] A lot of these fresh_cast calls are redundant, however if you
-   want to remove one, I'd ask you instead comment it out and leave
-   a comment explaining why it's redundant.  */
-
 let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
   // In the case of singleton labeled tuples we update the syntax in Statics.
   // We store this syntax with the same ID as the original expression and store it on the Info.exp in the Statics.map

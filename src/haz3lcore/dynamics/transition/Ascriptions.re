@@ -1,10 +1,10 @@
-/* CAST Transitions */
+/* Ascription Transitions */
 
 /*
- Handles the transition of casts (type ascriptions).
- In the case of a stuck cast, it will return None.
+ Handles the transition of type ascriptions.
+ In the case of a stuck ascription, it will return None.
 
- Casts should be propagated inside of expressions when consistent.
+ Ascriptions should be propagated inside of expressions when consistent.
  e.g. [1, 2] : [Int] -> [1 : Int, 2 : Int]
  */
 let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
@@ -18,7 +18,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
   | Asc(e, t) =>
     switch (DHExp.term_of(e), Typ.term_of(Typ.unroll(t))) {
     | (Asc(e, t'), t)
-        // This is only necessary because sometimes we add two casts and aren't marking it as a non-value
+        // This is only necessary because sometimes we add two ascriptions and aren't marking it as a non-value
         when
           Typ.is_consistent(
             Ctx.empty,

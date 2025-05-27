@@ -22,7 +22,6 @@ let startup: PersistentData.t = {
       GUIDEBoolsandTypes.out,
       GUIDEConditionals.out,
       GUIDEFunctions.out,
-      TESTSCasting.out,
       TESTSTypesandStaticErrors.out,
     ],
   ),

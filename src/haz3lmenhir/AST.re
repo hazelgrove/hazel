@@ -637,7 +637,7 @@ and gen_pat_sized: (~minimal_idents: bool, int) => QCheck.Gen.t(pat) =
                 let* p = self((n - 1) / 2);
                 let+ t1 = gen_typ_sized((n - 1) / 2);
                 AscPat(p, t1);
-              } // The second cast pat isn't present in syntax
+              },
             ])
           };
         },

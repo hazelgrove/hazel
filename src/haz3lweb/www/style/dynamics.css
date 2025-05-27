@@ -165,31 +165,11 @@
   display: inline-block;
 }
 
-.DHCode .OperationError,
-.DHCode .CastDecoration,
-.DHCode .FailedCastDecoration {
+.DHCode .OperationError {
   display: inline-block;
   position: relative;
   font-size: 75%;
   top: -10px;
-}
-
-.DHCode .FailedCastDecoration {
-  background-color: var(--R0);
-  color: var(--BLACK);
-}
-
-.DHCode .FailedCastDelim {
-  color: var(--R1);
-}
-
-.DHCode .CastDecoration {
-  background-color: var(--shard-typ);
-  color: var(--BLACK);
-}
-
-.DHCode .CastDecoration .code-delim {
-  color: var(--token-typ);
 }
 
 /* STEPPER */

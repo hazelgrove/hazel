@@ -7,7 +7,7 @@ open Exp;
 let tests = (
   "Evaluator.SumTypes",
   [
-    test_case("Casted constructor", `Quick, () => {
+    test_case("Ascribed constructor", `Quick, () => {
       evaluation_test(
         {|A :(+A +B +C)|},
         constructor(
@@ -27,7 +27,8 @@ let tests = (
         elaborate(parse_exp({|A :(+A +B +C)|})),
       )
     }),
-    test_case("Constructors can pass through consistent casts", `Quick, () => {
+    test_case(
+      "Constructors can pass through consistent ascriptions", `Quick, () => {
       evaluation_test(
         {|A : (+A +B) : (+A + ?)|},
         constructor(
@@ -41,7 +42,8 @@ let tests = (
         elaborate(parse_exp({|A : (+A +B) : (+A + ?)|})),
       )
     }),
-    test_case("Constructors don't pass through inconsistent casts", `Quick, () => {
+    test_case(
+      "Constructors don't pass through inconsistent ascriptions", `Quick, () => {
       evaluation_test(
         {|A : (+A +B) : (+A +C)|},
         asc(

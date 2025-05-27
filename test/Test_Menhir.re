@@ -240,7 +240,7 @@ let tests =
       menhir_only_test("Unit", tuple([]), "()"),
       menhir_only_test("Constructor", constructor("A", None), "A"),
       menhir_only_test(
-        "Constructor cast",
+        "Constructor ascription",
         asc(constructor("A", None), Typ.int()),
         "A : Int",
       ),
@@ -371,7 +371,7 @@ let tests =
         "fun (b : Bool) -> b",
       ),
       full_parser_test(
-        "Type Hole in arrow cast",
+        "Type Hole in arrow ascription",
         fn(
           Pat.asc(
             Pat.var("b"),

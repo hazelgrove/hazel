@@ -401,7 +401,7 @@ module PlainTests = {
       alco_check(
         {|4 : String|},
         parse_exp({|4 : String|}),
-        dhexp_of_uexp(parse_exp({|4 : String|})) // Ignoring casts for now
+        dhexp_of_uexp(parse_exp({|4 : String|})),
       )
     ),
     test_case("Inconsistent let ascription", `Quick, () =>
@@ -525,7 +525,7 @@ module PlainTests = {
             tuple([tup_label(label("a"), int(1))]),
           )
         ),
-        dhexp_of_uexp(parse_exp({|(fun a=(x:Int) -> x)(a=1)|})) // Ignoring casts for now
+        dhexp_of_uexp(parse_exp({|(fun a=(x:Int) -> x)(a=1)|})),
       )
     ),
     test_case(
@@ -601,7 +601,9 @@ module PlainTests = {
             tuple([tup_label(label("a"), int(1))]),
           )
         ),
-        DHExp.strip_ascriptions(dhexp_of_uexp(parse_exp({|(fun a=x->x)(a=1)|}))),
+        DHExp.strip_ascriptions(
+          dhexp_of_uexp(parse_exp({|(fun a=x->x)(a=1)|})),
+        ),
       )
     ),
     test_case("Singleton labeled argument let with unknown type", `Quick, () =>
@@ -616,7 +618,7 @@ module PlainTests = {
         ),
         DHExp.strip_ascriptions(
           dhexp_of_uexp(parse_exp({|let x : (a=?) = (a=1) in x|})),
-        ) // Ignoring casts for now
+        ),
       )
     ),
     test_case(

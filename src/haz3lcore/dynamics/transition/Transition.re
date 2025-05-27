@@ -58,8 +58,8 @@ type step_kind =
   | TypFunAp
   | FunAp
   | DeferredAp
-  | CastTypAp
-  | CastAp
+  | AscriptionTypAp
+  | AscriptionAp
   | BuiltinWrap
   | BuiltinAp(string)
   | UnOp(Operators.op_un)
@@ -72,7 +72,7 @@ type step_kind =
   | CaseApply
   | CompleteClosure
   | CompleteFilter
-  | Cast
+  | Ascription
   | RemoveTypeAlias
   | RemoveUse
   | RemoveParens;
@@ -781,12 +781,12 @@ module Transition = (EV: EV_MODE) => {
     | Asc(d, t) =>
       let. _ = otherwise(env, d => Asc(d, t) |> rewrap)
       and. d' = req_final(req(state, env), d => Asc(d, t) |> wrap_ctx, d);
-      switch (Casts.transition(Asc(d', t) |> rewrap)) {
+      switch (Ascriptions.transition(Asc(d', t) |> rewrap)) {
       | Some(d) =>
         Step({
           expr: d,
           state_update,
-          kind: Cast,
+          kind: Ascription,
           is_value: false,
         })
       | None => Constructor
@@ -872,9 +872,9 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | RemoveUse
   | InvalidStep => false
   | VarLookup => !settings.show_lookup_steps
-  | CastTypAp
-  | CastAp
-  | Cast => !settings.show_cast_steps
+  | AscriptionTypAp
+  | AscriptionAp
+  | Ascription => !settings.show_ascription_steps
   | FixUnwrap => !settings.show_fixpoints
   | CompleteClosure
   | CompleteFilter
@@ -922,9 +922,9 @@ let stepper_justification: step_kind => string =
   | Projection => "projection" // TODO(Matt): We don't want to show projection to the user
   | InvalidStep => "error"
   | VarLookup => "variable lookup"
-  | CastTypAp
-  | CastAp
-  | Cast => "cast calculus"
+  | AscriptionTypAp
+  | AscriptionAp
+  | Ascription => "ascription transition"
   | FixClosure => "fixpoint closure"
   | CompleteFilter => "complete filter"
   | CompleteClosure => "complete closure"
