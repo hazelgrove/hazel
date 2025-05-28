@@ -1,5 +1,4 @@
 open Test_Statics_Prelude;
-open FTemp;
 open Alcotest;
 let tests = [
   test_case("Fixpoint with no arguments", `Quick, () => {
