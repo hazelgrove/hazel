@@ -92,7 +92,7 @@ module Update = {
   let can_undo = (action: t) => {
     switch (action) {
     | CellAction(action) => CellEditor.Update.can_undo(action)
-    | SwitchSlide(_) => true
+    | SwitchSlide(_) => false
     | ResetCurrent => true
     | InitImportScratchpad(_) => true
     | FinishImportScratchpad(_) => false
