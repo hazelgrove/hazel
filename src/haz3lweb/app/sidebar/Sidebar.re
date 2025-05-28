@@ -1,6 +1,10 @@
+module Sexp = Sexplib.Sexp;
+open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
+open Util;
+open Js_of_ocaml;
 
 let tab = (~tooltip="", icon, action, isActive) => {
   let classes = ["tab"] @ (isActive ? ["active"] : []);
@@ -83,4 +87,99 @@ let persistent_view = (~globals: Globals.t) => {
       ),
     ],
   );
+};
+
+let resize_handle = (): Node.t => {
+  let isResizing = ref(false);
+
+  let rec handle_mousemove = event => {
+    if (isResizing^) {
+      let current_x = Js.Unsafe.coerce(event)##.clientX;
+      let window_width = Dom_html.window##.innerWidth;
+      let persistent_width = 38.9; /* or 39 if you want to round */
+      let new_width =
+        max(400, window_width - current_x - int_of_float(persistent_width));
+      let sidebar =
+        Js.Unsafe.coerce(Dom_html.document)##getElementById("side-bar");
+      if (Js.Opt.test(sidebar)) {
+        sidebar##.style##.width :=
+          Js.string(string_of_int(new_width) ++ "px");
+      };
+    };
+    ();
+  }
+  and handle_mouseup = _ => {
+    isResizing := false;
+    let _ =
+      Js.Unsafe.coerce(Dom_html.document)##removeEventListener(
+        "mousemove",
+        handle_mousemove,
+      );
+    let _ =
+      Js.Unsafe.coerce(Dom_html.document)##removeEventListener(
+        "mouseup",
+        handle_mouseup,
+      );
+    ();
+  };
+
+  let handle_mousedown = _ => {
+    isResizing := true;
+    let _ =
+      Js.Unsafe.coerce(Dom_html.document)##addEventListener(
+        "mousemove",
+        handle_mousemove,
+      );
+    let _ =
+      Js.Unsafe.coerce(Dom_html.document)##addEventListener(
+        "mouseup",
+        handle_mouseup,
+      );
+    Virtual_dom.Vdom.Effect.Ignore;
+  };
+
+  div(
+    ~attrs=[clss(["resize-handle"]), Attr.on_mousedown(handle_mousedown)],
+    [],
+  );
+};
+
+let view =
+    (
+      ~globals: Globals.t,
+      ~explain_this_inject,
+      ~assistant_inject,
+      ~signal,
+      ~explainThisModel: ExplainThisModel.t,
+      ~assistantModel: AssistantModel.t,
+      info: option(Info.t),
+    ) => {
+  let sub =
+    globals.settings.sidebar.show
+      ? div(
+          ~attrs=[Attr.id("side-bar"), Attr.tabindex(1)],
+          [
+            resize_handle(),
+            switch (globals.settings.sidebar.panel) {
+            | LanguageDocumentation =>
+              ExplainThis.view(
+                ~globals,
+                ~inject=explain_this_inject,
+                ~explainThisModel,
+                info,
+              )
+            | HelpfulAssistant =>
+              AssistantView.view(
+                ~globals,
+                ~signal,
+                ~inject=assistant_inject,
+                ~model=assistantModel,
+              )
+            },
+          ],
+        )
+      : {
+        div([]);
+      };
+  div(~attrs=[Attr.id("sidebars")], [sub, persistent_view(~globals)]);
 };

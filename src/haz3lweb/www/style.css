@@ -104,6 +104,7 @@ select:hover {
   overflow-x: hidden;
   width: 25em;
   background-color: var(--T2);
+  position: relative;
 }
 
 #sidebars {

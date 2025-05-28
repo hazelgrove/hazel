@@ -397,7 +397,9 @@ let message_input =
       displayable_content: Update.parse_blocks(content),
       collapsed: String.length(content) >= Model.max_collapsed_length,
     };
-    JsUtil.log("Message sent: " ++ message.content);
+    Js_of_ocaml.Firebug.console##log(
+      Js_of_ocaml.Js.string("Message sent: " ++ message.content),
+    );
     Virtual_dom.Vdom.Effect.Many([
       inject(Update.SendMessage(Basic(message))),
       Virtual_dom.Vdom.Effect.Stop_propagation,
@@ -690,13 +692,7 @@ let form_block =
   };
 
 let initial_display =
-    (
-      ~globals: Globals.t,
-      ~inject,
-      ~model: Model.t,
-      ~settings: AssistantSettings.t,
-    )
-    : Node.t => {
+    (~model: Model.t, ~settings: AssistantSettings.t): Node.t => {
   let (past_chats, curr_chat) = Update.get_mode_info(settings.mode, model);
   let curr_messages = Id.Map.find(curr_chat.id, past_chats).messages;
   List.length(curr_messages) <= 1
@@ -834,7 +830,7 @@ let message_display =
     );
   div(
     ~attrs=[clss(["message-display-container"])],
-    message_nodes @ [initial_display(~globals, ~inject, ~model, ~settings)],
+    message_nodes @ [initial_display(~model, ~settings)],
   );
 };
 
@@ -1016,55 +1012,69 @@ let view =
       ~inject: Update.t => Ui_effect.t(unit),
       ~model: Model.t,
     ) => {
-  let settings = globals.settings.assistant;
+  let settings = globals.settings;
   let inject_global = globals.inject_global;
   div(
-    ~attrs=[Attr.id("side-bar"), Attr.tabindex(1)],
+    ~attrs=[Attr.id("assistant")],
     [
       div(
-        ~attrs=[Attr.id("assistant")],
+        ~attrs=[clss(["header"])],
         [
           div(
-            ~attrs=[clss(["header"])],
+            ~attrs=[clss(["header-content"])],
             [
-              div(
-                ~attrs=[clss(["header-content"])],
-                [
-                  settings.ongoing_chat
-                    ? mode_buttons(~inject_global, ~settings)
-                    : div(
-                        ~attrs=[clss(["main-title"])],
-                        [text("Assistant Settings")],
-                      ),
-                  div(
-                    ~attrs=[clss(["header-actions"])],
-                    [
-                      settings.ongoing_chat
-                        ? history_button(~inject_global) : None,
-                      settings.ongoing_chat ? new_chat_button(~inject) : None,
-                      settings.ongoing_chat
-                        ? settings_button(~inject_global)
-                        : resume_chat_button(~inject_global),
-                    ],
+              settings.assistant.ongoing_chat
+                ? mode_buttons(~inject_global, ~settings=settings.assistant)
+                : div(
+                    ~attrs=[clss(["main-title"])],
+                    [text("Assistant Settings")],
                   ),
+              div(
+                ~attrs=[clss(["header-actions"])],
+                [
+                  settings.assistant.ongoing_chat
+                    ? history_button(~inject_global) : None,
+                  settings.assistant.ongoing_chat
+                    ? new_chat_button(~inject) : None,
+                  settings.assistant.ongoing_chat
+                    ? settings_button(~inject_global)
+                    : resume_chat_button(~inject_global),
                 ],
               ),
             ],
           ),
-          settings.ongoing_chat
-            ? message_display(~globals, ~inject, ~model, ~settings) : None,
-          settings.ongoing_chat
-            ? message_input(~signal, ~inject, ~model, ~settings) : None,
-          settings.ongoing_chat
-            ? None : api_input(~inject_global, ~signal, ~settings),
-          settings.ongoing_chat
-            ? None : llm_model_id_input(~inject_global, ~signal, ~settings),
-          settings.ongoing_chat ? None : settings_box(~inject_global),
-          settings.ongoing_chat && settings.show_history
-            ? history_menu(~model, ~settings, ~inject) : None,
-          prompt_display(~globals, ~inject, ~model, ~settings),
         ],
       ),
+      settings.assistant.ongoing_chat
+        ? message_display(
+            ~globals,
+            ~inject,
+            ~model,
+            ~settings=settings.assistant,
+          )
+        : None,
+      settings.assistant.ongoing_chat
+        ? message_input(
+            ~signal,
+            ~inject,
+            ~model,
+            ~settings=settings.assistant,
+          )
+        : None,
+      settings.assistant.ongoing_chat
+        ? None
+        : api_input(~inject_global, ~signal, ~settings=settings.assistant),
+      settings.assistant.ongoing_chat
+        ? None
+        : llm_model_id_input(
+            ~inject_global,
+            ~signal,
+            ~settings=settings.assistant,
+          ),
+      settings.assistant.ongoing_chat ? None : settings_box(~inject_global),
+      settings.assistant.ongoing_chat && settings.assistant.show_history
+        ? history_menu(~model, ~settings=settings.assistant, ~inject) : None,
+      prompt_display(~globals, ~inject, ~model, ~settings=settings.assistant),
     ],
   );
 };
