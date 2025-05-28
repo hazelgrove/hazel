@@ -63,10 +63,11 @@ let new_chat_button = (~inject): Node.t => {
 };
 
 let history_button =
-    (~inject_global: Globals.Action.t => Ui_effect.t(unit)): Node.t => {
+    (~inject, ~inject_global: Globals.Action.t => Ui_effect.t(unit)): Node.t => {
   let tooltip = "Past Chats";
   let history = _ =>
     Virtual_dom.Vdom.Effect.Many([
+      inject(Update.ChatAction(CollapseMessage(-1))), // Hacky way to collapse any active prompt display
       inject_global(Set(Assistant(ToggleHistory))),
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
@@ -734,12 +735,21 @@ let message_display =
       ~settings: AssistantSettings.t,
     )
     : Node.t => {
-  let toggle_collapse = index => {
+  let toggle_collapse = (is_system_prompt, index) => {
     // Create an action to toggle the collapsed state of a specific message
-    Virtual_dom.Vdom.Effect.Many([
-      inject(Update.ChatAction(CollapseMessage(index))),
-      Virtual_dom.Vdom.Effect.Stop_propagation,
-    ]);
+    Virtual_dom.Vdom.Effect.Many(
+      if (is_system_prompt && settings.show_history) {
+        [globals.inject_global(Set(Assistant(ToggleHistory)))];
+      } else {
+        {
+          [];
+        }
+        @ [
+          inject(Update.ChatAction(CollapseMessage(index))),
+          Virtual_dom.Vdom.Effect.Stop_propagation,
+        ];
+      },
+    );
   };
   let (past_chats, curr_chat) = Update.get_mode_info(settings.mode, model);
   let curr_messages = Id.Map.find(curr_chat.id, past_chats).messages;
@@ -795,7 +805,7 @@ let message_display =
                             [
                               Widgets.button(
                                 ~tooltip="Show Prompt", Icons.info, _ =>
-                                toggle_collapse(index)
+                                toggle_collapse(true, index)
                               ),
                             ],
                           )
@@ -813,7 +823,7 @@ let message_display =
                           form_block(
                             ~message,
                             ~block,
-                            ~toggle_collapse,
+                            ~toggle_collapse=toggle_collapse(false),
                             ~index,
                             ~is_first=idx == 0,
                             ~is_last=idx == List.length(parsed_blocks) - 1,
@@ -858,19 +868,8 @@ let get_sidebar_width = () => {
 };
 
 let prompt_display =
-    (
-      ~globals: Globals.t,
-      ~inject: Update.t => Ui_effect.t(unit),
-      ~model: Model.t,
-      ~settings: AssistantSettings.t,
-    )
+    (~globals: Globals.t, ~model: Model.t, ~settings: AssistantSettings.t)
     : Node.t => {
-  let toggle_collapse = index => {
-    Virtual_dom.Vdom.Effect.Many([
-      inject(Update.ChatAction(CollapseMessage(index))),
-      Virtual_dom.Vdom.Effect.Stop_propagation,
-    ]);
-  };
   let (past_chats, curr_chat) = Update.get_mode_info(settings.mode, model);
   let curr_messages = Id.Map.find(curr_chat.id, past_chats).messages;
   let display =
@@ -895,7 +894,7 @@ let prompt_display =
                       form_block(
                         ~message,
                         ~block,
-                        ~toggle_collapse,
+                        ~toggle_collapse=_ => {Virtual_dom.Vdom.Effect.Ignore},
                         ~index,
                         ~is_first=false,
                         ~is_last=false,
@@ -1074,7 +1073,7 @@ let view =
                   ~attrs=[clss(["header-actions"])],
                   [
                     settings.assistant.ongoing_chat
-                      ? history_button(~inject_global) : None,
+                      ? history_button(~inject, ~inject_global) : None,
                     settings.assistant.ongoing_chat
                       ? new_chat_button(~inject) : None,
                     settings.assistant.ongoing_chat
@@ -1115,12 +1114,7 @@ let view =
         settings.assistant.ongoing_chat ? None : settings_box(~inject_global),
         settings.assistant.ongoing_chat && settings.assistant.show_history
           ? history_menu(~model, ~settings=settings.assistant, ~inject) : None,
-        prompt_display(
-          ~globals,
-          ~inject,
-          ~model,
-          ~settings=settings.assistant,
-        ),
+        prompt_display(~globals, ~model, ~settings=settings.assistant),
       ],
     );
   view;

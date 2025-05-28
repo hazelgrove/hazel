@@ -1200,7 +1200,9 @@ let update =
       let mode = settings.assistant.mode;
       let (past_chats, curr_chat) = get_mode_info(mode, model);
       let is_prompt_display =
-        List.nth(curr_chat.messages, index).party == System(Prompt);
+        try(List.nth(curr_chat.messages, index).party == System(Prompt)) {
+        | Invalid_argument(_) => true
+        };
       print_endline(
         "Is prompt display: " ++ string_of_bool(is_prompt_display),
       );
