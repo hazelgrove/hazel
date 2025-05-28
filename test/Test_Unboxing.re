@@ -1,5 +1,5 @@
 open Alcotest;
-open Semantics;
+open Language;
 
 let unboxed_testable = (inner_testable: testable('a)) =>
   testable(

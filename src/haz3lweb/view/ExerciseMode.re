@@ -175,8 +175,7 @@ module Update = {
       ~handler=
         List.iter(((pos, result)) => {
           let pos' = Exercise.pos_of_key(pos);
-          let result':
-            Semantics.ProgramResult.t(Semantics.ProgramResult.inner) =
+          let result': Language.ProgramResult.t(Language.ProgramResult.inner) =
             switch (result) {
             | Ok((r, s)) =>
               ResultOk({
@@ -444,7 +443,7 @@ module View = {
                 Some(prelude_trailing_hole_ctx),
               ) =>
               let specific_ctx =
-                Semantics.Ctx.subtract_prefix(
+                Language.Ctx.subtract_prefix(
                   correct_impl_trailing_hole_ctx,
                   prelude_trailing_hole_ctx,
                 );
@@ -471,7 +470,7 @@ module View = {
       editor: {
         editor: editor.editor.editor,
         statics: editor.editor.statics,
-        dynamics: Semantics.Dynamics.Map.empty,
+        dynamics: Language.Dynamics.Map.empty,
       },
       result: editor.result,
     };

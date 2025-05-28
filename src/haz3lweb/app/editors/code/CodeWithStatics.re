@@ -13,20 +13,20 @@ module Model = {
     // Updated:
     editor: Editor.t,
     statics: CachedStatics.t,
-    dynamics: Semantics.Dynamics.Map.t,
+    dynamics: Language.Dynamics.Map.t,
   };
 
   let mk = editor => {
     editor,
     statics: CachedStatics.empty,
-    dynamics: Semantics.Dynamics.Map.empty,
+    dynamics: Language.Dynamics.Map.empty,
   };
 
   let mk_from_exp =
       (
-        ~settings: Semantics.CoreSettings.t,
+        ~settings: Language.CoreSettings.t,
         ~inline=false,
-        term: Semantics.Exp.t,
+        term: Language.Exp.t,
       ) => {
     ExpToSegment.exp_to_segment(
       term,
@@ -76,7 +76,7 @@ module Update = {
         ~settings,
         ~is_edited,
         ~stitch,
-        ~dynamics: Semantics.Dynamics.Map.t,
+        ~dynamics: Language.Dynamics.Map.t,
         ~is_dynamic_term,
         {editor, statics, dynamics: _}: Model.t,
       )

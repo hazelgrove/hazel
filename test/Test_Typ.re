@@ -1,5 +1,5 @@
 open Alcotest;
-open Semantics;
+open Language;
 
 let tests = (
   "Typ",

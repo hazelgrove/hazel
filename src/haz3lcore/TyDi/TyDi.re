@@ -1,6 +1,6 @@
 open Util.OptUtil.Syntax;
 open TyDiSuggestion;
-open Semantics;
+open Language;
 
 /* Suggest the token at the top of the backpack, if we can put it down */
 let suggest_backpack = (z: Zipper.t): list(t) => {

@@ -1,5 +1,5 @@
 open Util;
-open Semantics;
+open Language;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {

@@ -2,8 +2,8 @@ open Junit_alcotest;
 
 Printexc.register_printer(exn => {
   switch (exn) {
-  | Semantics.EvaluatorError.Exception(msg) =>
-    Some(Semantics.EvaluatorError.show(msg))
+  | Language.EvaluatorError.Exception(msg) =>
+    Some(Language.EvaluatorError.show(msg))
   | _ => None
   }
 });

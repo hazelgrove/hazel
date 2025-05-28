@@ -1,6 +1,6 @@
 open Util;
 open Virtual_dom.Vdom;
-open Semantics;
+open Language;
 
 /* This descibes the API for projectors: GUIs which
  * can replace part of the program syntax and perform
@@ -80,12 +80,12 @@ type info = {
   /* Static information about the syntax including type
    * information. Statics may be disabled by the user;
    * this case (None) must be handled by projector authors */
-  statics: option(Semantics.Statics.Info.t),
+  statics: option(Language.Statics.Info.t),
   /* Dynamic information about the syntax including
    * live values of the syntax. Dynamics may be
    * disabled by the user; this case (None) must be
    * handled by projector authors */
-  dynamics: option(Semantics.Dynamics.Info.t),
+  dynamics: option(Language.Dynamics.Info.t),
   /* Syntax utility functions/values for projector use,
    * provided here to resolve cyclic dependency issues */
   utility,

@@ -1,5 +1,5 @@
 open TyDiSuggestion;
-open Semantics;
+open Language;
 
 /* For suggestions in patterns, suggest variables which
  * occur free in that pattern's scope. */

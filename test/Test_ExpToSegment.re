@@ -1,6 +1,6 @@
 open Alcotest;
 open Haz3lcore;
-open Semantics;
+open Language;
 open Base;
 
 // Id ignoring equality for tiles

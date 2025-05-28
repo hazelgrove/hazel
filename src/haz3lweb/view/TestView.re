@@ -2,9 +2,9 @@ open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
 
-module TestStatus = Semantics.TestStatus;
-module TestMap = Semantics.TestMap;
-module TestResults = Semantics.TestResults;
+module TestStatus = Language.TestStatus;
+module TestMap = Language.TestMap;
+module TestResults = Language.TestResults;
 
 let test_bar_segment = (~inject_jump, (id, reports)) => {
   let status = reports |> TestMap.joint_status |> TestStatus.to_string;

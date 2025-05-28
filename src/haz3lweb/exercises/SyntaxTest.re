@@ -1,4 +1,4 @@
-open Semantics;
+open Language;
 open Util;
 
 /*

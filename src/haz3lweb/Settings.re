@@ -5,7 +5,7 @@ module Model = {
   type t = {
     captions: bool,
     secondary_icons: bool,
-    core: Semantics.CoreSettings.t,
+    core: Language.CoreSettings.t,
     async_evaluation: bool,
     context_inspector: bool,
     instructor_mode: bool,
@@ -143,7 +143,7 @@ module Update = {
         }
       | Evaluation(u) =>
         let evaluation = settings.core.evaluation;
-        let evaluation: Semantics.CoreSettings.Evaluation.t =
+        let evaluation: Language.CoreSettings.Evaluation.t =
           switch (u) {
           | ShowRecord => {
               ...evaluation,

@@ -1,4 +1,4 @@
-open Semantics;
+open Language;
 
 let evaluate = exp =>
   fst(

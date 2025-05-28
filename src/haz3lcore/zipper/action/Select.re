@@ -167,11 +167,11 @@ module Make = (M: Move.S) => {
 
   let parent_cls = (z: Zipper.t, info_map) => {
     let* id = Indicated.index(z);
-    let* statics = Semantics.Statics.Map.lookup(id, info_map);
+    let* statics = Language.Statics.Map.lookup(id, info_map);
     let* parent_id =
-      statics |> Semantics.Statics.Info.ancestors_of |> ListUtil.hd_opt;
-    let+ parent_statics = Semantics.Statics.Map.lookup(parent_id, info_map);
-    Semantics.Statics.Info.cls_of(parent_statics);
+      statics |> Language.Statics.Info.ancestors_of |> ListUtil.hd_opt;
+    let+ parent_statics = Language.Statics.Map.lookup(parent_id, info_map);
+    Language.Statics.Info.cls_of(parent_statics);
   };
 
   let parent_is_rule = (z: Zipper.t, info_map): option(Id.t) => {
@@ -184,15 +184,15 @@ module Make = (M: Move.S) => {
   /* If the indicated term is the body of a definition
    * (let or type), return the id of the body, otherwise None */
   let def_body_indicated =
-      (z: Zipper.t, info_map: Semantics.Statics.Map.t): option(Id.t) => {
+      (z: Zipper.t, info_map: Language.Statics.Map.t): option(Id.t) => {
     let* id = Indicated.index(z);
-    let* statics = Semantics.Statics.Map.lookup(id, info_map);
+    let* statics = Language.Statics.Map.lookup(id, info_map);
     let* parent_id =
-      statics |> Semantics.Statics.Info.ancestors_of |> ListUtil.hd_opt;
-    let* ci_parent = Semantics.Statics.Map.lookup(parent_id, info_map);
+      statics |> Language.Statics.Info.ancestors_of |> ListUtil.hd_opt;
+    let* ci_parent = Language.Statics.Map.lookup(parent_id, info_map);
     switch (ci_parent) {
     | InfoExp({term: {term: Let(_, _, body) | TyAlias(_, _, body), _}, _}) =>
-      let body_id = Semantics.IdTagged.rep_id(body);
+      let body_id = Language.IdTagged.rep_id(body);
       id == body_id ? Some(body_id) : None;
     | _ => None
     };
@@ -206,7 +206,7 @@ module Make = (M: Move.S) => {
     | Some(id) => Some(id)
     | _ =>
       let* statics = Id.Map.find_opt(base_id, info_map);
-      statics |> Semantics.Info.ancestors_of |> ListUtil.hd_opt;
+      statics |> Language.Info.ancestors_of |> ListUtil.hd_opt;
     };
   };
 

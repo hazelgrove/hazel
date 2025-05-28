@@ -1,4 +1,4 @@
-open Semantics;
+open Language;
 
 /* Projector data which is dependent on semantics,
  * separated out for dependency reasons */

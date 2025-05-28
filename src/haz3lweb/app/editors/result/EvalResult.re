@@ -1,5 +1,5 @@
 open Util;
-open Semantics;
+open Language;
 
 /* The result box at the bottom of a cell. This is either the TestResutls
    kind where only a summary of test results is shown, or the EvalResults kind

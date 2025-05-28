@@ -1,5 +1,5 @@
 open Alcotest;
-open Semantics;
+open Language;
 
 module UG = Grammar.UnitGrammar;
 

@@ -37,9 +37,9 @@ type strategy_all =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type strategy_common =
-  | NewForm(Semantics.Typ.t)
-  | FromCtx(Semantics.Typ.t)
-  | FromCtxAp(Semantics.Typ.t);
+  | NewForm(Language.Typ.t)
+  | FromCtx(Language.Typ.t)
+  | FromCtxAp(Language.Typ.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type strategy_exp =
@@ -48,7 +48,7 @@ type strategy_exp =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type strategy_pat =
   | Common(strategy_common)
-  | FromCoCtx(Semantics.Typ.t);
+  | FromCoCtx(Language.Typ.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type strategy_typ =

@@ -1,5 +1,5 @@
 open Alcotest;
-open Semantics;
+open Language;
 
 let test_rearrange = (name, analyzed_types, actual_values, expected_values) =>
   test_case(

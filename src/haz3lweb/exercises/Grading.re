@@ -1,4 +1,4 @@
-open Semantics;
+open Language;
 open Util;
 open Virtual_dom.Vdom;
 open Node;
@@ -496,7 +496,7 @@ module ImplGradingReport = {
         Util.ListUtil.zip_defaults(
           statuses,
           hints,
-          Semantics.TestStatus.Indet,
+          Language.TestStatus.Indet,
           "No hint available.",
         );
 
@@ -504,7 +504,7 @@ module ImplGradingReport = {
         Util.ListUtil.zip_defaults(
           [],
           hints,
-          Semantics.TestStatus.Indet,
+          Language.TestStatus.Indet,
           "Exercise configuration error: Hint without a test.",
         )
       };

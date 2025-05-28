@@ -2,7 +2,7 @@ open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
 open Util;
-open Semantics;
+open Language;
 
 let errc = "error";
 let okc = "ok";

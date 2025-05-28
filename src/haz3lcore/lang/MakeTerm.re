@@ -11,7 +11,7 @@
    */
 
 open Util;
-open Semantics;
+open Language;
 
 /* Hack: Temporary construct internal to maketerm
  * to handle probe parsing; see `tokens` below */

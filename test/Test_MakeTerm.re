@@ -3,12 +3,11 @@
  * zippers into expressions.
  */
 open Alcotest;
-open Haz3lcore;
-module Fresh = Semantics.IdTagged.FreshGrammar;
+module Fresh = Language.IdTagged.FreshGrammar;
 let exp_typ =
   testable(
-    Fmt.using(Semantics.Exp.show, Fmt.string),
-    Semantics.Exp.fast_equal,
+    Fmt.using(Language.Exp.show, Fmt.string),
+    Language.Exp.fast_equal,
   );
 
 let parse_exp = (s: string) => {

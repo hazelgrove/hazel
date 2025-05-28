@@ -1,4 +1,4 @@
-open Semantics;
+open Language;
 open Alcotest;
 let qcheck_map_annotation_test =
   QCheck.Test.make(

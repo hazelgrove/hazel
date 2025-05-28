@@ -1,6 +1,6 @@
 open Alcotest;
 open Haz3lcore;
-open Semantics;
+open Language;
 open Test_Evaluator_Prelude;
 open IdTagged.FreshGrammar;
 open Exp;

@@ -1,5 +1,5 @@
 open Alcotest;
-open Semantics;
+open Language;
 
 let testable_typ = testable(Fmt.using(Typ.show, Fmt.string), Typ.fast_equal);
 

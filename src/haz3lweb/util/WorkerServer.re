@@ -5,7 +5,7 @@ type key = string;
 
 module Request = {
   [@deriving (show, sexp, yojson)]
-  type value = Semantics.Exp.t;
+  type value = Language.Exp.t;
   [@deriving (show, sexp, yojson)]
   type t = list((string, value));
 
@@ -17,8 +17,8 @@ module Response = {
   [@deriving (show, sexp, yojson)]
   type value =
     Result.t(
-      (Semantics.Exp.t, Semantics.EvaluatorState.t),
-      Semantics.ProgramResult.error,
+      (Language.Exp.t, Language.EvaluatorState.t),
+      Language.ProgramResult.error,
     );
   [@deriving (show, sexp, yojson)]
   type t = list((string, value));
@@ -28,17 +28,13 @@ module Response = {
 };
 
 let work = (res: Request.value): Response.value =>
-  switch (Semantics.Evaluator.evaluate(~env=Semantics.Builtins.env_init, res)) {
-  | exception (Semantics.EvaluatorError.Exception(reason)) =>
-    print_endline(
-      "EvaluatorError:" ++ Semantics.EvaluatorError.show(reason),
-    );
-    Error(Semantics.ProgramResult.EvaulatorError(reason));
+  switch (Language.Evaluator.evaluate(~env=Language.Builtins.env_init, res)) {
+  | exception (Language.EvaluatorError.Exception(reason)) =>
+    print_endline("EvaluatorError:" ++ Language.EvaluatorError.show(reason));
+    Error(Language.ProgramResult.EvaulatorError(reason));
   | exception exn =>
     print_endline("EXN:" ++ Printexc.to_string(exn));
-    Error(
-      Semantics.ProgramResult.UnknownException(Printexc.to_string(exn)),
-    );
+    Error(Language.ProgramResult.UnknownException(Printexc.to_string(exn)));
   | (result, state) => Ok((result, state))
   };
 
