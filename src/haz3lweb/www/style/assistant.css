@@ -554,10 +554,9 @@
 }
 
 /* History Menu Styling */
-#assistant .history-menu {
+#assistant #history-menu {
     position: absolute;
     top: 3.5em;
-    right: 29em;
     width: 350px;
     /* background-color: var(--UI-Background); */
     /* border: 1px solid var(--SAND); */
@@ -821,13 +820,12 @@
   gap: 0.25em;
 }
 
-#assistant .prompt-display-container {
+#assistant #prompt-display-container {
     position: absolute;
     top: 3.5em;
-    right: 29em;
     width: 350px;
-    max-height: 600px; /* Set a max height for scrolling */
-    overflow-y: auto;  /* Enable vertical scrollbar */
+    max-height: 600px;
+    overflow-y: auto;  
     border-radius: 2px;
     box-shadow: 0 4px 12px var(--SHADOW);
     z-index: 1000;

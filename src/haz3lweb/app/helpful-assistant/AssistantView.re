@@ -5,6 +5,7 @@ open Node;
 open Util.Web;
 open Util;
 open Js_of_ocaml;
+open Css_gen;
 
 module Update = AssistantUpdate;
 
@@ -834,6 +835,28 @@ let message_display =
   );
 };
 
+let get_sidebar_width = () => {
+  let sidebar =
+    Js.Unsafe.coerce(Dom_html.document)##getElementById("side-bar");
+  if (Js.Opt.test(sidebar)) {
+    let width_str = Js.to_string(sidebar##.style##.width);
+    if (String.length(width_str) >= 2
+        && String.sub(width_str, String.length(width_str) - 2, 2) == "px") {
+      try(
+        int_of_string(
+          String.sub(width_str, 0, String.length(width_str) - 2),
+        )
+      ) {
+      | Invalid_argument(_) => 400 // default width on error
+      };
+    } else {
+      400; // default width if no 'px' suffix
+    };
+  } else {
+    400; // default width
+  };
+};
+
 let prompt_display =
     (
       ~globals: Globals.t,
@@ -843,7 +866,6 @@ let prompt_display =
     )
     : Node.t => {
   let toggle_collapse = index => {
-    // Create an action to toggle the collapsed state of a specific message
     Virtual_dom.Vdom.Effect.Many([
       inject(Update.ChatAction(CollapseMessage(index))),
       Virtual_dom.Vdom.Effect.Stop_propagation,
@@ -857,7 +879,15 @@ let prompt_display =
         message.party == System(Prompt) && !message.collapsed
           ? Some(
               div(
-                ~attrs=[clss(["prompt-display-container"])],
+                ~attrs=[
+                  Attr.id("prompt-display-container"),
+                  Attr.create(
+                    "style",
+                    "right: "
+                    ++ string_of_int(get_sidebar_width() + 20)
+                    ++ "px",
+                  ),
+                ],
                 {
                   let parsed_blocks = message.displayable_content;
                   List.map(
@@ -921,8 +951,15 @@ let history_menu =
     (~model: Model.t, ~settings: AssistantSettings.t, ~inject): Node.t => {
   let (past_chats, curr_chat) = Update.get_mode_info(settings.mode, model);
   let chronologically_sorted_past_chats = Model.sorted_chats(past_chats);
+
   div(
-    ~attrs=[clss(["history-menu"])],
+    ~attrs=[
+      Attr.id("history-menu"),
+      Attr.create(
+        "style",
+        "right: " ++ string_of_int(get_sidebar_width() + 20) ++ "px",
+      ),
+    ],
     [
       div(
         ~attrs=[clss(["history-menu-header"])],
@@ -1014,67 +1051,77 @@ let view =
     ) => {
   let settings = globals.settings;
   let inject_global = globals.inject_global;
-  div(
-    ~attrs=[Attr.id("assistant")],
-    [
-      div(
-        ~attrs=[clss(["header"])],
-        [
-          div(
-            ~attrs=[clss(["header-content"])],
-            [
-              settings.assistant.ongoing_chat
-                ? mode_buttons(~inject_global, ~settings=settings.assistant)
-                : div(
-                    ~attrs=[clss(["main-title"])],
-                    [text("Assistant Settings")],
-                  ),
-              div(
-                ~attrs=[clss(["header-actions"])],
-                [
-                  settings.assistant.ongoing_chat
-                    ? history_button(~inject_global) : None,
-                  settings.assistant.ongoing_chat
-                    ? new_chat_button(~inject) : None,
-                  settings.assistant.ongoing_chat
-                    ? settings_button(~inject_global)
-                    : resume_chat_button(~inject_global),
-                ],
-              ),
-            ],
-          ),
-        ],
-      ),
-      settings.assistant.ongoing_chat
-        ? message_display(
-            ~globals,
-            ~inject,
-            ~model,
-            ~settings=settings.assistant,
-          )
-        : None,
-      settings.assistant.ongoing_chat
-        ? message_input(
-            ~signal,
-            ~inject,
-            ~model,
-            ~settings=settings.assistant,
-          )
-        : None,
-      settings.assistant.ongoing_chat
-        ? None
-        : api_input(~inject_global, ~signal, ~settings=settings.assistant),
-      settings.assistant.ongoing_chat
-        ? None
-        : llm_model_id_input(
-            ~inject_global,
-            ~signal,
-            ~settings=settings.assistant,
-          ),
-      settings.assistant.ongoing_chat ? None : settings_box(~inject_global),
-      settings.assistant.ongoing_chat && settings.assistant.show_history
-        ? history_menu(~model, ~settings=settings.assistant, ~inject) : None,
-      prompt_display(~globals, ~inject, ~model, ~settings=settings.assistant),
-    ],
-  );
+  let view =
+    div(
+      ~attrs=[Attr.id("assistant")],
+      [
+        div(
+          ~attrs=[clss(["header"])],
+          [
+            div(
+              ~attrs=[clss(["header-content"])],
+              [
+                settings.assistant.ongoing_chat
+                  ? mode_buttons(
+                      ~inject_global,
+                      ~settings=settings.assistant,
+                    )
+                  : div(
+                      ~attrs=[clss(["main-title"])],
+                      [text("Assistant Settings")],
+                    ),
+                div(
+                  ~attrs=[clss(["header-actions"])],
+                  [
+                    settings.assistant.ongoing_chat
+                      ? history_button(~inject_global) : None,
+                    settings.assistant.ongoing_chat
+                      ? new_chat_button(~inject) : None,
+                    settings.assistant.ongoing_chat
+                      ? settings_button(~inject_global)
+                      : resume_chat_button(~inject_global),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+        settings.assistant.ongoing_chat
+          ? message_display(
+              ~globals,
+              ~inject,
+              ~model,
+              ~settings=settings.assistant,
+            )
+          : None,
+        settings.assistant.ongoing_chat
+          ? message_input(
+              ~signal,
+              ~inject,
+              ~model,
+              ~settings=settings.assistant,
+            )
+          : None,
+        settings.assistant.ongoing_chat
+          ? None
+          : api_input(~inject_global, ~signal, ~settings=settings.assistant),
+        settings.assistant.ongoing_chat
+          ? None
+          : llm_model_id_input(
+              ~inject_global,
+              ~signal,
+              ~settings=settings.assistant,
+            ),
+        settings.assistant.ongoing_chat ? None : settings_box(~inject_global),
+        settings.assistant.ongoing_chat && settings.assistant.show_history
+          ? history_menu(~model, ~settings=settings.assistant, ~inject) : None,
+        prompt_display(
+          ~globals,
+          ~inject,
+          ~model,
+          ~settings=settings.assistant,
+        ),
+      ],
+    );
+  view;
 };

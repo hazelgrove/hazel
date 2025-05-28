@@ -101,9 +101,23 @@ let resize_handle = (): Node.t => {
         max(400, window_width - current_x - int_of_float(persistent_width));
       let sidebar =
         Js.Unsafe.coerce(Dom_html.document)##getElementById("side-bar");
+      let prompt_display_container =
+        Js.Unsafe.coerce(Dom_html.document)##getElementById(
+          "prompt-display-container",
+        );
+      let history_menu =
+        Js.Unsafe.coerce(Dom_html.document)##getElementById("history-menu");
       if (Js.Opt.test(sidebar)) {
         sidebar##.style##.width :=
           Js.string(string_of_int(new_width) ++ "px");
+      };
+      if (Js.Opt.test(prompt_display_container)) {
+        prompt_display_container##.style##.right :=
+          Js.string(string_of_int(new_width + 20) ++ "px");
+      };
+      if (Js.Opt.test(history_menu)) {
+        history_menu##.style##.right :=
+          Js.string(string_of_int(new_width + 20) ++ "px");
       };
     };
     ();
