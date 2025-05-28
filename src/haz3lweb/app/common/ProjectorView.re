@@ -5,6 +5,7 @@ open ProjectorBase;
 open Util;
 open Util.OptUtil.Syntax;
 open Util.Web;
+open Js_of_ocaml;
 
 module Model = {
   type status = {
@@ -156,11 +157,22 @@ let view_wrapper =
   );
 
 /* Dispatches projector external actions to editor-level actions */
-let handle = (id, action: external_action): Action.project('p_k, 'p, 'p_a) =>
+let handle =
+    // ~focus: Ui_effect.t(unit),
+    (
+      ~inject: Action.project('p_k, 'p, 'p_a) => Ui_effect.t(unit),
+      id,
+      action: external_action,
+    ) =>
   switch (action) {
-  | Remove => RemoveIndicated
-  | Escape(d) => Escape(id, d)
-  //| SetSyntax(f) => SetSyntax(id, f)
+  | Remove => inject(RemoveIndicated)
+  | Escape(d) =>
+    Ui_effect.Many([
+      // TODO(Matt): We need to focus this editor somehow
+      // JsUtil.focus_current_target(Js.Unsafe.coerce(evt)),
+      // focus,
+      inject(Escape(id, d)),
+    ])
   };
 
 let offside_wrapper =
@@ -341,7 +353,8 @@ let all =
     |> List.map((data: Model.projector_data(p)) =>
          split_views(
            ~sort=data.status.sort,
-           ~parent=a => inject(Project(handle(data.info.id, a))),
+           ~parent=
+             a => handle(data.info.id, a, ~inject=a => inject(Project(a))),
            ~inject=a => inject(Project(Perform(data.info.id, a))),
            ~focus=
              f =>

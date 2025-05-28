@@ -43,16 +43,23 @@ module Kind = {
               )
     // | SliderF: gadt(SliderFProj.model('ed), SliderFProj.action, 'ed)
     // | Card: gadt(CardProj.model('ed), CardProj.action, 'ed)
-    | Livelit
+    | Livelit: gadt(
+                 LivelitProj.model('ed),
+                 LivelitProj.action('ed_a),
+                 LivelitProj.focus('ed_f),
+                 'ed,
+                 'ed_a,
+                 'ed_f,
+               )
+    | TextArea
         : gadt(
-            LivelitProj.model('ed),
-            LivelitProj.action('ed_a),
-            LivelitProj.focus('ed_f),
+            TextAreaProj.model('ed),
+            TextAreaProj.action('ed_a),
+            TextAreaProj.focus('ed_f),
             'ed,
             'ed_a,
             'ed_f,
           );
-  // | TextArea: gadt(TextAreaProj.model('ed), TextAreaProj.action, 'ed);
 
   /* The different kinds of projector. New projector
    * types need to be registered here in order to be
@@ -67,8 +74,8 @@ module Kind = {
     | Slider
     // | SliderF
     // | Card
-    | Livelit;
-  // | TextArea;
+    | Livelit
+    | TextArea;
 
   let gadt_eq =
       (
@@ -96,6 +103,8 @@ module Kind = {
     | (Slider, _) => false
     | (Livelit, Livelit) => true
     | (Livelit, _) => false
+    | (TextArea, TextArea) => true
+    | (TextArea, _) => false
     };
   };
 
@@ -120,7 +129,7 @@ module Kind = {
     | Livelit => Livelit
     // | SliderF => SliderF
     // | Card => Card
-    // | TextArea => TextArea
+    | TextArea => TextArea
     };
 
   type w('ed_m, 'ed_a, 'ed_f) =
@@ -137,7 +146,7 @@ module Kind = {
     | Livelit => f(W(Livelit))
     // | SliderF => f(W(SliderF))
     // | Card => f(W(Card))
-    // | TextArea => f(W(TextArea))
+    | TextArea => f(W(TextArea))
     };
 
   let livelit_projectors: list(t) = [
@@ -145,7 +154,7 @@ module Kind = {
     Slider,
     Pair,
     // SliderF,
-    // TextArea,
+    TextArea,
     // Card,
     // Livelit,
   ];
@@ -173,7 +182,7 @@ module Kind = {
     | Livelit => "livelit"
     // | SliderF => "sliderf"
     // | Card => "card"
-    // | TextArea => "text"
+    | TextArea => "text"
     };
 
   /* This must be updated and kept 1-to-1 with the above
@@ -189,7 +198,7 @@ module Kind = {
     | "slider" => Slider
     | "livelit" => Livelit
     // | "sliderf" => SliderF
-    // | "text" => TextArea
+    | "text" => TextArea
     // | "card" => Card
     | _ => failwith("Unknown projector kind")
     };
@@ -226,7 +235,7 @@ let to_module =
   | Livelit => LivelitProj.methods
   // | SliderF => SliderFProj.methods
   // | Card => CardProj.methods
-  // | TextArea => TextAreaProj.methods
+  | TextArea => TextAreaProj.methods
   };
 
 let pp_model =
