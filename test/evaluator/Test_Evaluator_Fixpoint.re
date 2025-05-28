@@ -32,5 +32,11 @@ fun n -> if n == 0 then false else even(n - 1))) in even(1)|},
         {|fix (a,b,c) -> (a,b)|},
       )
     ),
+    test_case("Fixpoint pattern ascription", `Quick, () =>
+      parse_and_evaluate_test(
+        "() : Bool",
+        {|fix (_ : Bool) -> test false end|},
+      )
+    ),
   ],
 );
