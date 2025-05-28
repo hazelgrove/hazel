@@ -826,7 +826,7 @@
     top: 3.5em;
     right: 29em;
     width: 350px;
-    max-height: 400px; /* Set a max height for scrolling */
+    max-height: 600px; /* Set a max height for scrolling */
     overflow-y: auto;  /* Enable vertical scrollbar */
     border-radius: 2px;
     box-shadow: 0 4px 12px var(--SHADOW);
@@ -842,8 +842,6 @@
     align-items: center;
     justify-content: center;
     flex: 0.8;
-    min-height: 300px;
-    height: 100%;
     width: 65%;
     text-align: center;
     gap: 1.5em;
@@ -854,6 +852,7 @@
     width: 72px;
     height: 72px;
     fill: var(--BR4);
+    opacity: 89%;
 }
 
 #assistant .initial-display-text {

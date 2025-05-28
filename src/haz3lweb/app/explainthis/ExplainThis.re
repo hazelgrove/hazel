@@ -2637,43 +2637,36 @@ let view =
       MessageContent(inject, globals),
     );
   div(
-    ~attrs=[Attr.id("side-bar")],
+    ~attrs=[Attr.id("explain-this")],
     [
       div(
-        ~attrs=[Attr.id("explain-this")],
+        ~attrs=[clss(["header"])],
         [
-          div(
-            ~attrs=[clss(["header"])],
-            [
-              Widgets.toggle(
-                ~tooltip="Toggle highlighting",
-                "🔆",
-                globals.settings.explainThis.highlight == All,
-                _ =>
-                globals.inject_global(
-                  Set(ExplainThis(SetHighlight(Toggle))),
-                )
-              ),
-            ],
+          Widgets.toggle(
+            ~tooltip="Toggle highlighting",
+            "🔆",
+            globals.settings.explainThis.highlight == All,
+            _ =>
+            globals.inject_global(Set(ExplainThis(SetHighlight(Toggle))))
           ),
-        ]
-        @ [
-          section(
-            ~section_clss="syntactic-form",
-            ~title=
-              switch (info) {
-              | None => "Whitespace or Comment"
-              | Some(info) => Info.cls_of(info) |> Cls.show
-              },
-            syn_form @ explanation,
-          ),
-        ]
-        @ (
-          example == []
-            ? []
-            : [section(~section_clss="examples", ~title="Examples", example)]
-        ),
+        ],
       ),
-    ],
+    ]
+    @ [
+      section(
+        ~section_clss="syntactic-form",
+        ~title=
+          switch (info) {
+          | None => "Whitespace or Comment"
+          | Some(info) => Info.cls_of(info) |> Cls.show
+          },
+        syn_form @ explanation,
+      ),
+    ]
+    @ (
+      example == []
+        ? []
+        : [section(~section_clss="examples", ~title="Examples", example)]
+    ),
   );
 };

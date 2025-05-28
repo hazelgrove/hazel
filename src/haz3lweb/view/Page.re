@@ -614,40 +614,21 @@ module View = {
         cursor,
       );
     let sidebar = {
-      let sub =
-        globals.settings.sidebar.show
-          ? switch (globals.settings.sidebar.panel) {
-            | LanguageDocumentation =>
-              ExplainThis.view(
-                ~globals,
-                ~inject=action => inject(ExplainThis(action)),
-                ~explainThisModel,
-                cursor.info,
-              )
-            | HelpfulAssistant =>
-              open Editors.View;
-              let signal = (
-                fun
-                | MakeActive(selection: selection) =>
-                  inject(MakeActive(selection))
-              );
-              let signal: AssistantView.event => Ui_effect.t(unit) = (
-                fun
-                | MakeActive(s) => signal(MakeActive(Scratch(s)))
-              );
-              AssistantView.view(
-                ~globals,
-                ~signal,
-                ~inject=action => inject(Assistant(action)),
-                ~model=assistantModel,
-              );
-            }
-          : {
-            div([]);
-          };
-      div(
-        ~attrs=[Attr.id("sidebars")],
-        [sub, Sidebar.persistent_view(~globals)],
+      open Editors.View;
+      let signal =
+        fun
+        | MakeActive(selection: selection) => inject(MakeActive(selection));
+      let signal: AssistantView.event => Ui_effect.t(unit) =
+        fun
+        | MakeActive(s) => signal(MakeActive(Scratch(s)));
+      Sidebar.view(
+        ~globals,
+        ~explain_this_inject=action => inject(ExplainThis(action)),
+        ~assistant_inject=action => inject(Assistant(action)),
+        ~signal,
+        ~explainThisModel,
+        ~assistantModel,
+        cursor.info,
       );
     };
     let editors_view =

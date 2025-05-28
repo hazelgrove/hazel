@@ -70,8 +70,8 @@ let mk_tutor = () => {
 };
 
 let mk_composition = (): string => {
-  let summarized_hazel_docs = String.concat("\n", summarized_hazel_docs);
   let prelude_and_toolkit = String.concat("\n", task_completion_toolkit);
+  let summarized_hazel_docs = String.concat("\n", summarized_hazel_docs);
   let few_shot_examples = String.concat("\n", few_shot_composition_examples);
   let hazel_syntax_notes = String.concat("\n", hazel_syntax_notes);
   String.concat(
