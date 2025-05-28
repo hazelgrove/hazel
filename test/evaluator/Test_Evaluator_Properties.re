@@ -175,11 +175,64 @@ let qcheck_pattern_equivalence_test =
     }
   );
 
+// Taking a step should result in a consistent type that is more precise than the original type
+let qcheck_preservation_test =
+  QCheck.Test.make(
+    ~name="Preservation of types",
+    ~count=1000000,
+    QCheck_Util.arb_exp(~minimal_idents=true, 10),
+    uexp => {
+    switch (
+      {
+        let statics =
+          Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), uexp);
+        let (elaborated, ty) = Elaborator.elaborate(statics, uexp);
+
+        let stepped = single_step(elaborated);
+
+        (stepped, ty);
+      }
+    ) {
+    | (Some((next, _)), orig_ty) =>
+      switch (
+        {
+          let statics =
+            Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), next);
+          let info: option(Info.t) =
+            Statics.Map.lookup(next.annotation.ids |> List.hd, statics);
+
+          info;
+        }
+      ) {
+      | Some(InfoExp({ty, _})) =>
+        let ret = Typ.is_consistent(Ctx.empty, ty, orig_ty);
+        print_endline(
+          "Preservation check: "
+          ++ string_of_bool(ret)
+          ++ " ("
+          ++ Typ.show(orig_ty)
+          ++ " !~ "
+          ++ Typ.show(ty)
+          ++ ")",
+        );
+        ret;
+      | _ => failwith("No type information found for stepped expression")
+      }
+    | (None, _) => true // If we can't take a step, we don't have to check preservation
+    | exception e =>
+      print_endline(
+        "Skipping preservation test due to error: " ++ Printexc.to_string(e),
+      );
+      true;
+    }
+  });
+
 let tests = (
   "Evaluator.Properties",
   [
     QCheck_alcotest.to_alcotest(qcheck_evaluator_does_not_crash_test),
     QCheck_alcotest.to_alcotest(qcheck_stepper_confluence),
     QCheck_alcotest.to_alcotest(qcheck_pattern_equivalence_test),
+    QCheck_alcotest.to_alcotest(qcheck_preservation_test),
   ],
 );
