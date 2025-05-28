@@ -104,6 +104,13 @@ let tests = (
         ListLitn(1),
         cons(1 |> int, cons(2 |> int, empty_hole())),
       ),
+      test_matches(
+        "ListLitn to Cons, correct length",
+        list(dhexp_typ),
+        ListLitn(2),
+        cons(1 |> int, list_lit([int(2), int(3)])),
+        [1, 2, 3] |> List.map(int),
+      ),
       test_indet_match(
         "Ascribed Hole to ListLitn",
         list(dhexp_typ),
