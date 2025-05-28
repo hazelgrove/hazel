@@ -190,7 +190,7 @@ module Update = {
 
   let can_undo = (action: t) => {
     switch (action) {
-    | SwitchExercise(_) => true
+    | SwitchExercise(_) => false
     | Exercise(action) => ExerciseMode.Update.can_undo(action)
     | ExportModule => false
     | ExportSubmission => false
