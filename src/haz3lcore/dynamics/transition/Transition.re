@@ -272,60 +272,38 @@ module Transition = (EV: EV_MODE) => {
         is_value: false,
       });
     | FixF(dp, d1, env) =>
-      switch (DHPat.get_var(dp)) {
-      // Simple Recursion case
-      | Some(f) =>
-        let. _ =
-          otherwise(
-            env |> Option.value(~default=ClosureEnvironment.empty),
-            d,
-          );
+      let. _ =
+        otherwise(env |> Option.value(~default=ClosureEnvironment.empty), d);
+      switch (matches(dp, d1).matches) {
+      | IndetMatch
+      | DoesNotMatch => Indet
+      | Matches(env') =>
         let env'' =
+          VarBstMap.Ordered.mapo(
+            ((p, exp)) =>
+              FixF(
+                Var(p) |> Pat.fresh,
+                exp,
+                Some(ClosureEnvironment.of_environment(env')),
+              )
+              |> rewrap,
+            env',
+          );
+        let env''' =
           evaluate_extend_env(
             ~call_stack=
               (env |> Option.value(~default=ClosureEnvironment.empty)).
                 call_stack,
-            Environment.singleton((f, FixF(dp, d1, env) |> rewrap)),
+            env'',
             env |> Option.value(~default=ClosureEnvironment.empty),
           );
         Step({
-          expr: subst_env(env'', d1),
+          expr: subst_env(env''', d1),
           state_update,
           kind: FixUnwrap,
           is_value: false,
         });
-      // Mutual Recursion case
-      | None =>
-        let. _ =
-          otherwise(
-            env |> Option.value(~default=ClosureEnvironment.empty),
-            d,
-          );
-        let bindings = DHPat.bound_vars(dp);
-        let substitutions =
-          List.map(
-            binding =>
-              (
-                binding,
-                let_(dp, FixF(dp, d1, env) |> rewrap, var(binding)),
-              ),
-            bindings,
-          );
-        let env'' =
-          evaluate_extend_env(
-            ~call_stack=
-              (env |> Option.value(~default=ClosureEnvironment.empty)).
-                call_stack,
-            Environment.of_list(substitutions),
-            env |> Option.value(~default=ClosureEnvironment.empty),
-          );
-        Step({
-          expr: subst_env(env'', d1),
-          state_update,
-          kind: FixUnwrap,
-          is_value: false,
-        });
-      }
+      };
     | Test(d'') =>
       let. _ = otherwise(env, d => Test(d) |> rewrap)
       and. d' = req_final(req(state, env), d => Test(d) |> wrap_ctx, d'');
