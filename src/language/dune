@@ -1,7 +1,7 @@
 (include_subdirs unqualified)
 
 (library
- (name semantics)
+ (name language)
  (libraries util)
  (js_of_ocaml)
  (instrumentation

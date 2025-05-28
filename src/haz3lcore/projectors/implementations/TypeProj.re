@@ -1,8 +1,7 @@
-open Util;
 open Virtual_dom.Vdom;
 open Node;
 open ProjectorBase;
-open Semantics;
+open Language;
 
 let expected_ty = (info: option(Info.t)): option(Typ.t) =>
   switch (info) {
@@ -54,8 +53,7 @@ module M: Projector = {
     | Expected => statics |> expected_ty
     };
 
-  let display_mode =
-      (model: model, statics: option(Semantics.Info.t)): string =>
+  let display_mode = (model: model, statics: option(Language.Info.t)): string =>
     switch (model) {
     | _ when self_ty(statics) == expected_ty(statics) => "⇔"
     | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn => "⇒"

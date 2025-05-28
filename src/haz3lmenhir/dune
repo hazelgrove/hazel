@@ -1,6 +1,6 @@
 (library
  (name haz3lmenhir)
- (libraries semantics qcheck-alcotest)
+ (libraries language qcheck-alcotest)
  (modules AST Conversion Interface Lexer Parser)
  (instrumentation
   (backend bisect_ppx))

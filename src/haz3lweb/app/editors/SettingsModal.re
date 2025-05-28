@@ -4,7 +4,7 @@ open Node;
 let view =
     (
       ~inject: Settings.Update.t => Ui_effect.t(unit),
-      settings: Semantics.CoreSettings.Evaluation.t,
+      settings: Language.CoreSettings.Evaluation.t,
     ) => {
   let modal = div(~attrs=[Attr.class_("settings-modal")]);
   let setting = (icon, name, current, action: Settings.Update.t) =>

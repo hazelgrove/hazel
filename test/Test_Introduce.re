@@ -1,4 +1,4 @@
-open Semantics;
+open Language;
 open Alcotest;
 
 let exp = testable(Fmt.using(DHExp.show, Fmt.string), DHExp.fast_equal);

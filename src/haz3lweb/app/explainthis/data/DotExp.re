@@ -1,5 +1,5 @@
 open Haz3lcore;
-open Semantics;
+open Language;
 open ExplainThisForm;
 open Example;
 

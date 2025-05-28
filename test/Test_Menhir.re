@@ -1,6 +1,6 @@
 open Haz3lmenhir;
 open Alcotest;
-open Semantics;
+open Language;
 module Fresh = IdTagged.FreshGrammar;
 let alco_check =
   (testable(Fmt.using(Exp.show, Fmt.string)))(DHExp.fast_equal)
@@ -113,7 +113,7 @@ let qcheck_menhir_maketerm_equivalent_test =
           ~settings=
             Haz3lcore.ExpToSegment.Settings.of_core(
               ~inline=true,
-              Semantics.CoreSettings.off,
+              Language.CoreSettings.off,
             ),
           core_exp,
         );

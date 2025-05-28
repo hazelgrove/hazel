@@ -329,7 +329,7 @@ let eds_of_spec =
         hidden_tests,
         syntax_tests,
       },
-      ~settings as _: Semantics.CoreSettings.t,
+      ~settings as _: Language.CoreSettings.t,
     ) => {
   let editor_of_serialization = Editor.Model.mk;
   let prelude = editor_of_serialization(prelude);
@@ -397,7 +397,7 @@ let visible_in = (pos, ~instructor_mode) => {
 
 module TermItem = {
   type t = {
-    term: Semantics.Exp.t,
+    term: Language.Exp.t,
     editor: Editor.t,
   };
 };
@@ -476,17 +476,16 @@ let put_stitched = (pos, s: stitched('a), x: 'a): stitched('a) =>
   };
 
 let wrap_filter =
-    (act: Semantics.FilterAction.action, term: Semantics.Exp.t)
-    : Semantics.Exp.t => {
+    (act: Language.FilterAction.action, term: Language.Exp.t): Language.Exp.t => {
   term:
     Filter(
       Filter({
-        act: Semantics.FilterAction.(act, One),
+        act: Language.FilterAction.(act, One),
         pat: {
           term:
             Constructor(
               "$e",
-              Some(Some(Unknown(Internal) |> Semantics.Typ.fresh)),
+              Some(Some(Unknown(Internal) |> Language.Typ.fresh)),
             ),
           annotation: {
             ids: [Id.mk()],
@@ -505,11 +504,10 @@ let wrap = (term, editor: Editor.t): TermItem.t => {
   editor,
 };
 
-let term_of = (editor: Editor.t): Semantics.Exp.t =>
+let term_of = (editor: Editor.t): Language.Exp.t =>
   MakeTerm.from_zip_for_sem(editor.state.zipper).term;
 
-let rec append_exp =
-        (e1: Semantics.Exp.t, e2: Semantics.Exp.t): Semantics.Exp.t => {
+let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t => {
   switch (e1.term) {
   | EmptyHole
   | Invalid(_)
@@ -555,7 +553,7 @@ let rec append_exp =
     {
       term: Seq(e11, e12'),
       annotation: {
-        ids: Semantics.IdTagged.ids(e1),
+        ids: Language.IdTagged.ids(e1),
       },
     };
   | Filter(kind, ebody) =>
@@ -563,7 +561,7 @@ let rec append_exp =
     {
       term: Filter(kind, ebody'),
       annotation: {
-        ids: Semantics.IdTagged.ids(e1),
+        ids: Language.IdTagged.ids(e1),
       },
     };
   | Let(p, edef, ebody) =>
@@ -571,7 +569,7 @@ let rec append_exp =
     {
       term: Let(p, edef, ebody'),
       annotation: {
-        ids: Semantics.IdTagged.ids(e1),
+        ids: Language.IdTagged.ids(e1),
       },
     };
   | TyAlias(tp, tdef, ebody) =>
@@ -579,7 +577,7 @@ let rec append_exp =
     {
       term: TyAlias(tp, tdef, ebody'),
       annotation: {
-        ids: Semantics.IdTagged.ids(e1),
+        ids: Language.IdTagged.ids(e1),
       },
     };
   | Use(t, ebody) =>
@@ -587,7 +585,7 @@ let rec append_exp =
     {
       term: Use(t, ebody'),
       annotation: {
-        ids: Semantics.IdTagged.ids(e1),
+        ids: Language.IdTagged.ids(e1),
       },
     };
   };
@@ -601,9 +599,9 @@ let stitch_term = (eds: p('a)): stitched(TermItem.t) => {
     stitch3(eds.prelude, eds.correct_impl, eds.hidden_tests.tests);
   let user_impl_term = {
     let your_impl_term =
-      eds.your_impl |> term_of |> wrap_filter(Semantics.FilterAction.Step);
+      eds.your_impl |> term_of |> wrap_filter(Language.FilterAction.Step);
     let prelude_term =
-      eds.prelude |> term_of |> wrap_filter(Semantics.FilterAction.Eval);
+      eds.prelude |> term_of |> wrap_filter(Language.FilterAction.Eval);
     append_exp(prelude_term, your_impl_term);
   };
   let test_validation_term =

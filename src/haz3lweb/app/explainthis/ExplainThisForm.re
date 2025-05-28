@@ -201,8 +201,8 @@ type form_id =
   | SeqExp
   | UseExp
   | TestExp
-  | UnOpExp(Semantics.Operators.op_un)
-  | BinOpExp(Semantics.Operators.op_bin)
+  | UnOpExp(Language.Operators.op_un)
+  | BinOpExp(Language.Operators.op_bin)
   | CaseExp
   | TyAliasExp
   | EmptyHolePat
@@ -306,8 +306,8 @@ type group_id =
   | IfExp
   | SeqExp
   | TestExp
-  | UnOpExp(Semantics.Operators.op_un)
-  | BinOpExp(Semantics.Operators.op_bin)
+  | UnOpExp(Language.Operators.op_un)
+  | BinOpExp(Language.Operators.op_bin)
   | CaseExp
   | TyAliasExp
   | PipelineExp

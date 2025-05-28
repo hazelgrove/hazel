@@ -39,7 +39,7 @@ module Model = {
     get_log_and: (string => unit) => unit,
     export_all:
       (
-        ~settings: Semantics.CoreSettings.t,
+        ~settings: Language.CoreSettings.t,
         ~instructor_mode: bool,
         ~log: string
       ) =>

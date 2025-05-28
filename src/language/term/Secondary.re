@@ -2,4 +2,3 @@
 type cls =
   | Whitespace
   | Comment;
-/*TODO(andrew): clarify whether this needs to exist*/

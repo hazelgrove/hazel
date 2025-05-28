@@ -189,7 +189,7 @@ let closing_stringlit_or_comment = (char, t) =>
 
 let rec go =
         (
-          ~ctx: option(Semantics.Ctx.t)=?,
+          ~ctx: option(Language.Ctx.t)=?,
           char: string,
           {caret, relatives: {siblings, _}, _} as z: t,
         )
@@ -217,14 +217,14 @@ let rec go =
     switch (ctx) {
     | Some(ctx) =>
       let name = Form.parse_livelit(t);
-      switch (Semantics.Ctx.lookup_livelit(ctx, name)) {
+      switch (Language.Ctx.lookup_livelit(ctx, name)) {
       // if we find a matching livelit, insert it, projected
       | Some(ll) =>
         let exp_to_segment =
           ExpToSegment.(
             exp_to_segment(
               ~settings=
-                Settings.of_core(~inline=true, Semantics.CoreSettings.on),
+                Settings.of_core(~inline=true, Language.CoreSettings.on),
             )
           );
 

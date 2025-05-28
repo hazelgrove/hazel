@@ -1,6 +1,6 @@
 open Alcotest;
 open Test_Evaluator_Prelude;
-open Semantics.IdTagged.FreshGrammar;
+open Language.IdTagged.FreshGrammar;
 open Exp;
 
 let tests = (

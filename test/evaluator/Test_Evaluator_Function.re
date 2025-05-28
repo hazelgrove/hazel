@@ -1,5 +1,6 @@
 open Alcotest;
-open Semantics;open Test_Evaluator_Prelude;
+open Language;
+open Test_Evaluator_Prelude;
 
 open IdTagged.FreshGrammar;
 open Exp;

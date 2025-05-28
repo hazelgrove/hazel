@@ -1,6 +1,6 @@
 open Util;
 open OptUtil.Syntax;
-open Semantics;
+open Language;
 
 /* This module generates TyDi suggestions which depend
  * neither on the typing context or the backpack */

@@ -1,5 +1,5 @@
 open Haz3lcore;
-open Semantics;
+open Language;
 open Test_Evaluator_Prelude;
 open Alcotest;
 

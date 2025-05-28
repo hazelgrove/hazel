@@ -1,4 +1,4 @@
-open Semantics;
+open Language;
 
 module type Introducable = {
   type t;

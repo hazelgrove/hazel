@@ -16,14 +16,7 @@ let consistent = (s, s') =>
   | _ => s == s'
   };
 
-let to_string =
-  fun
-  | Any => "Any"
-  | Pat => "Pat"
-  | TPat => "TPat"
-  | Typ => "Typ"
-  | Rul => "Rul"
-  | Exp => "Exp";
+let to_string = show;
 
 let to_string_verbose =
   fun

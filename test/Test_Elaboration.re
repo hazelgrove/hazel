@@ -1,5 +1,5 @@
 open Alcotest;
-open Semantics;
+open Language;
 
 /*Create a testable type for dhexp which requires
   an equal function (dhexp_eq) and a print function (dhexp_print) */

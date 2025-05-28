@@ -16,7 +16,7 @@ module Model = {
     editor: {
       editor,
       statics: CachedStatics.empty,
-      dynamics: Semantics.Dynamics.Map.empty,
+      dynamics: Language.Dynamics.Map.empty,
     },
     result: EvalResult.Model.init,
   };

@@ -50,10 +50,10 @@ module Model = {
         ~id: Id.t,
       ) => {
     sort:
-      Option.map(Semantics.Info.sort_of, info.statics)
+      Option.map(Language.Info.sort_of, info.statics)
       |> Option.value(~default=Sort.Exp),
     error:
-      Option.map(Semantics.Info.is_error, info.statics)
+      Option.map(Language.Info.is_error, info.statics)
       |> Option.value(~default=false),
     kind: p.kind,
     indication: editor_active ? indication(indicated, id) : None,
@@ -66,8 +66,8 @@ module Model = {
         measured: Measured.t,
         selection_ids: list(Id.t),
         indicated: option(Indicated.piece),
-        statics: Semantics.Statics.Map.t,
-        dynamics: Semantics.Dynamics.Map.t,
+        statics: Language.Statics.Map.t,
+        dynamics: Language.Dynamics.Map.t,
         editor_active: bool,
       ) => {
     List.filter_map(

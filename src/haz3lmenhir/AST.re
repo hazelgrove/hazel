@@ -112,7 +112,7 @@ type pat =
   | CastPat(pat, typ, typ)
   | EmptyHolePat
   | WildPat
-  | AtomPat(Semantics.Atom.t)
+  | AtomPat(Language.Atom.t)
   | VarPat(string)
   | ConstructorPat(string, option(option(typ)))
   | TuplePat(list(pat))
@@ -136,7 +136,7 @@ type deferral_pos =
 
 [@deriving (show({with_path: false}), sexp, eq)]
 type exp =
-  | Atom(Semantics.Atom.t)
+  | Atom(Language.Atom.t)
   | Var(string)
   | Constructor(string, option(option(typ)))
   | ListExp(list(exp))

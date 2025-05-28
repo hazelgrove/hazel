@@ -265,7 +265,6 @@ let filter_stepper_filter_variables = (ctx: t): t => {
     |> List.rev,
 };
 
-//TODO(andrew): betterize this garbagio
 let is_base_typ = (name: string): bool =>
   name == "Int"
   || name == "SInt"

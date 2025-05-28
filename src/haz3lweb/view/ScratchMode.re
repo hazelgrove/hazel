@@ -204,11 +204,11 @@ module Update = {
                   UpdateResult(
                     switch (r |> List.hd |> snd) {
                     | Ok((r, s)) =>
-                      Semantics.ProgramResult.ResultOk({
+                      Language.ProgramResult.ResultOk({
                         result: r,
                         state: s,
                       })
-                    | Error(e) => Semantics.ProgramResult.ResultFail(e)
+                    | Error(e) => Language.ProgramResult.ResultFail(e)
                     },
                   ),
                 ),

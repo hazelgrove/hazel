@@ -37,14 +37,14 @@ let view_segment =
   view(~globals, ~sort, ~measured, ~buffer_ids, ~segment, ~shape_map);
 };
 
-let view_typ = (~globals: Globals.t, ~settings, typ: Semantics.Typ.t) => {
+let view_typ = (~globals: Globals.t, ~settings, typ: Language.Typ.t) => {
   let shape_map = ProjectorCore.Shape.Map.empty; // assume no projectors
   typ
   |> ExpToSegment.typ_to_segment(~settings)
   |> view_segment(~shape_map, ~globals, ~sort=Typ);
 };
 
-let view_any = (~globals: Globals.t, ~settings, any: Semantics.Any.t) => {
+let view_any = (~globals: Globals.t, ~settings, any: Language.Any.t) => {
   any
   |> ExpToSegment.any_to_segment(~settings)
   |> view_segment(~globals, ~sort=Any);
