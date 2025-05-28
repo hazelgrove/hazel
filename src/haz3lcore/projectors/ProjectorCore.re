@@ -472,22 +472,4 @@ module Focus = {
       F(kind_gadt, m |> methods.focus_of_yojson(ed_f_of_yojson));
     | _ => failwith("Projector focus deserialization failed")
     };
-
-  let handle_key_event =
-      (~handle_key_ed, ~focus as F(gadt2, focus), ~key, V(gadt, m, _)) => {
-    let methods = to_module(gadt);
-    if (Kind.gadt_eq(gadt, gadt2)) {
-      open Util.OptUtil.Syntax;
-      let+ a =
-        methods.handle_key_event(
-          ~handle_key_ed,
-          ~focus=Obj.magic(focus), // Note(Matt): Using Obj.magic here because we know the types are the same if gadt_eq(gadt, gadt2) is true
-          ~key,
-          m,
-        );
-      Update.A(gadt, a);
-    } else {
-      None;
-    };
-  };
 };

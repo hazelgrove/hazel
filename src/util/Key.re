@@ -74,3 +74,18 @@ let key_dir_string = (key: t): string =>
 
 let to_string = (key: t): string =>
   "KEY" ++ key_dir_string(key) ++ modifiers_string(key);
+
+let handler = (~f: t => Ui_effect.t(unit)) =>
+  Virtual_dom.Vdom.(
+    Attr.many([
+      Attr.on_keydown(evt => {
+        let key = mk(KeyDown, evt);
+        f(key);
+      }),
+      Attr.on_keyup(evt => {
+        let key = mk(KeyUp, evt);
+        f(key);
+      }),
+      Attr.tabindex(0),
+    ])
+  );

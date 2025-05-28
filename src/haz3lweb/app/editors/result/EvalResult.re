@@ -340,24 +340,6 @@ module Selection = {
     | (_, Evaluation(_)) => empty
     | (_, Stepper(_)) => empty
     };
-
-  let handle_key_event =
-      (~selection: t, ~event, mr: Model.t): option(Update.t) =>
-    switch (selection, mr.result) {
-    | (_, NoElab) => None
-    | (Evaluation(selection), Evaluation({editor: Calculated(editor), _})) =>
-      CodeSelectable.Selection.handle_key_event(
-        ~selection,
-        editor |> snd,
-        event,
-      )
-      |> Option.map(x => Update.EvalEditorAction(x))
-    | (Stepper(selection), Stepper(s)) =>
-      StepperView.Selection.handle_key_event(~selection, s, ~event)
-      |> Option.map(x => Update.StepperAction(x))
-    | (_, Evaluation(_)) => None
-    | (_, Stepper(_)) => None
-    };
 };
 
 module View = {

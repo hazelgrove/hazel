@@ -245,19 +245,12 @@ module Selection = {
     Update.CellAction(ci);
   };
 
-  let handle_key_event =
-      (~selection, ~event: Key.t, model: Model.t): option(Update.t) =>
+  let handle_key_event = (~inject, ~event: Key.t) =>
     switch (event) {
     | {key: D(key), sys: Mac | PC, shift: Up, meta: Down, ctrl: Up, alt: Up}
         when Keyboard.is_digit(key) =>
-      Some(Update.SwitchSlide(int_of_string(key)))
-    | _ =>
-      CellEditor.Selection.handle_key_event(
-        ~selection,
-        ~event,
-        List.nth(model.scratchpads, model.current) |> snd,
-      )
-      |> Option.map(x => Update.CellAction(x))
+      inject(Update.SwitchSlide(int_of_string(key)))
+    | _ => Ui_effect.Ignore
     };
 
   let jump_to_tile = (tile, model: Model.t): option((Update.t, t)) =>

@@ -146,7 +146,6 @@ let start = {
       )
       >= 0;
     NinjaKeys.initialize(Shortcut.options(schedule_action));
-    JsUtil.focus_clipboard_shim();
   };
   let%sub () =
     BonsaiUtil.OnStartup.on_startup(

@@ -56,7 +56,7 @@ module Update = {
 
 module Selection = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = CodeEditable.Selection.t;
+  type t = Editor.Focus.t;
   let get_cursor_info = (~selection as _, _model) =>
     Cursor.empty  // TODO: bring back cursor info (requires sorts)
     |> (
@@ -67,10 +67,6 @@ module Selection = {
         }
     )
     |> Cursor.map_opt(Update.convert_action);
-  let handle_key_event =
-      (~selection, model: Model.t, key: Key.t): option(Update.t) =>
-    CodeEditable.Selection.handle_key_event(~selection, model, key)
-    |> Option.bind(_, Update.convert_action);
 };
 
 module View = {

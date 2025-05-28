@@ -15,36 +15,33 @@ module Focus = {
         type p_k,
         type p_m,
         type p_a,
-        type p_f,
-        ~handle_key_pr: (~focus: p_f, ~key: Key.t, p_m) => option(p_a),
-        ~focus: t(p_f),
+        ~inject: Action.t(p_k, p_m, p_a) => Ui_effect.t(unit),
         ~key: Key.t,
         ~info_projector,
         model: Editor.Model.t(p_k, p_m, p_a),
       )
-      : option(Action.t(p_k, p_m, p_a)) => {
-    switch (focus) {
-    | Here =>
-      switch (key) {
-      | {key: D("Tab"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up} =>
-        /* Attempt to act intelligently when TAB is pressed.
-         * TODO: Consider more advanced TAB logic. Instead
-         * of simply moving to next hole, if the backpack is non-empty
-         * but can't immediately put down, move to next position of
-         * interest, which is closet of: nearest position where can
-         * put down, farthest position where can put down, next hole */
-        let z = model |> Editor.Model.get_z;
+      : Ui_effect.t(unit) => {
+    switch (key) {
+    | {key: D("Tab"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up} =>
+      /* Attempt to act intelligently when TAB is pressed.
+       * TODO: Consider more advanced TAB logic. Instead
+       * of simply moving to next hole, if the backpack is non-empty
+       * but can't immediately put down, move to next position of
+       * interest, which is closet of: nearest position where can
+       * put down, farthest position where can put down, next hole */
+      let z = model |> Editor.Model.get_z;
+      let eff =
         Selection.is_buffer(z.selection)
-          ? Some(Buffer(Accept))
+          ? inject(Buffer(Accept))
           : Zipper.can_put_down(z)
-              ? Some(Put_down) : Some(Move(Goal(Piece(Grout, Right))));
-      | _ => Keyboard.handle_key_event(~info_projector, key)
+              ? inject(Put_down) : inject(Move(Goal(Piece(Grout, Right))));
+      Effect.Many([eff, Effect.Stop_propagation]);
+    | _ =>
+      switch (Keyboard.handle_key_event(~info_projector, key)) {
+      | Some(action) =>
+        Ui_effect.Many([inject(action), Effect.Stop_propagation])
+      | None => Ui_effect.Ignore
       }
-    | Projector(id, focus) =>
-      open OptUtil.Syntax;
-      let* model = ProjectorPerform.get_model(id, Editor.Model.get_z(model));
-      let+ action = handle_key_pr(~focus, ~key, model);
-      Action.Project(Perform(id, action));
     };
   };
 };
@@ -112,6 +109,7 @@ let view_code_editable =
       ~common: ProjectorInterface.common,
       ~split_views,
       ~mk_status,
+      ~info_projector,
       ~inject: Action.t(ProjectorCore.Kind.t, p_m, p_a) => Ui_effect.t(unit),
       ~focus: Focus.t(p_f) => Ui_effect.t(unit),
       ~focussed: option(Focus.t(p_f)),
@@ -168,16 +166,23 @@ let view_code_editable =
       e.loc,
     );
 
-  let move_or_select = (mouse: Pointer.Event.t, pointer_id: int) =>
+  let move_or_select =
+      (
+        ~evt: Js.t(Dom_html.pointerEvent),
+        mouse: Pointer.Event.t,
+        pointer_id: int,
+      ) =>
     switch (mouse) {
     | {shift: Down, _} =>
       Effect.Many([
+        JsUtil.focus_current_target(Js.Unsafe.coerce(evt)),
         focus(Here),
         inject(Select(Resize(Goal(Point(loc(mouse)))))),
       ])
     | {sys: PC, ctrl: Down, _}
     | {sys: Mac, meta: Down, _} =>
       Effect.Many([
+        JsUtil.focus_current_target(Js.Unsafe.coerce(evt)),
         focus(Here),
         inject(Move(Goal(Point(loc(mouse))))),
         inject(Jump(BindingSiteOfIndicatedVar)),
@@ -191,7 +196,9 @@ let view_code_editable =
       | 1 =>
         /* prepare to drag if the mouse moves */
         PointerCapture.set(mouse.current_target, pointer_id);
+        print_endline("HERE 1");
         Effect.Many([
+          JsUtil.focus_current_target(Js.Unsafe.coerce(evt)),
           focus(Here),
           inject(Move(Goal(Point(loc(mouse))))),
         ]);
@@ -222,13 +229,20 @@ let view_code_editable =
         @ (Option.is_some(focussed) ? ["selected"] : []),
       ),
       Attr.on_pointerdown(evt =>
-        move_or_select(Pointer.Event.mk(evt), Pointer.Event.id_of(evt))
+        move_or_select(
+          ~evt,
+          Pointer.Event.mk(evt),
+          Pointer.Event.id_of(evt),
+        )
       ),
       Attr.on_pointerup(evt =>
         toggle_button(Pointer.Event.mk(evt), Pointer.Event.id_of(evt))
       ),
       Attr.on_mousemove(evt => drag_select(Pointer.Event.mk(evt))),
       Attr.on_wheel(evt => drag_select(Pointer.Event.mk(evt))),
+      Key.handler(~f=key =>
+        Focus.handle_key_event(~inject, ~key, ~info_projector, model)
+      ),
     ],
     [code_view],
   );

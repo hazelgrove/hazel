@@ -56,11 +56,6 @@ let mk_term =
   NewValue(Exp(Atom(Int(m)) |> Exp.fresh)),
 );
 
-let handle_key_event = (~handle_key_ed as _, ~focus: focus('a)) =>
-  switch (focus) {
-  | _ => . // impossible
-  };
-
 let methods = {
   init,
   focusable,
@@ -70,7 +65,6 @@ let methods = {
   update,
   calculate: (~calculate_ed as _, ~common as _, m) => m,
   mk_term,
-  handle_key_event,
   sexp_of_model,
   model_of_sexp,
   yojson_of_model,

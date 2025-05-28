@@ -314,13 +314,6 @@ module Selection = {
     Update.Editor(pos, a);
   };
 
-  let handle_key_event = (~selection, ~event, model: Model.t) => {
-    let (pos, s) = selection;
-    let cell_editor = Exercise.get_stitched(pos, model.cells);
-    CellEditor.Selection.handle_key_event(~selection=s, ~event, cell_editor)
-    |> Option.map(a => Update.Editor(pos, a));
-  };
-
   let jump_to_tile =
       (~settings: Settings.t, tile, model: Model.t): option((Update.t, t)) => {
     Exercise.positioned_editors(model.editors)

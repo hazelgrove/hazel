@@ -1,5 +1,4 @@
 open Js_of_ocaml;
-open Virtual_dom.Vdom;
 open Js_of_ocaml.Url;
 
 let get_elem_by_id = id => {
@@ -110,16 +109,7 @@ let log = data => {
   Firebug.console##log(data);
 };
 
-let clipboard_shim_id = "clipboard-shim";
-
-let focus_clipboard_shim = () => get_elem_by_id(clipboard_shim_id)##focus;
-
-let clipboard_shim = {
-  Node.textarea(~attrs=[Attr.id(clipboard_shim_id)], []);
-};
-
 let copy = (str: string) => {
-  focus_clipboard_shim();
   Dom_html.document##execCommand(
     Js.string("selectAll"),
     Js.bool(false),
@@ -208,6 +198,13 @@ let set_select_value = (select_id, value) => {
     "value",
     Js_of_ocaml.Js.string(value),
   );
+};
+
+let focus_current_target = (evt: Js.t(Dom_html.event)): Ui_effect.t(unit) => {
+  switch (evt##.currentTarget |> Js.Opt.to_option) {
+  | Some(target) => Ui_effect.of_sync_fun(() => {target##focus}, ())
+  | None => Ui_effect.Ignore
+  };
 };
 
 module QueryParams = {

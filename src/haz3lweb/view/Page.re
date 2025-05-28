@@ -324,23 +324,20 @@ module Update = {
   };
 };
 
-module Selection = {
+module Focus = {
   open Cursor;
 
   type t = selection;
 
-  let handle_key_event =
-      (~selection, ~event: Key.t, model: Model.t): option(Update.t) => {
+  let handle_key_event = (event: Key.t, ~inject): Ui_effect.t(unit) => {
     switch (event) {
     | {key: D("Alt"), sys: Mac | PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
-      Some(Update.Globals(SetShowBackpackTargets(true)))
+      inject(Update.Globals(SetShowBackpackTargets(true)))
     | {key: U("Alt"), _} =>
-      Some(Update.Globals(SetShowBackpackTargets(false)))
+      inject(Update.Globals(SetShowBackpackTargets(false)))
     | {key: D("F7"), sys: Mac | PC, shift: Down, meta: Up, ctrl: Up, alt: Up} =>
-      Some(Update.Benchmark(Start))
-    | _ =>
-      Editors.Selection.handle_key_event(~selection, ~event, model.editors)
-      |> Option.map(x => Update.Editors(x))
+      inject(Update.Benchmark(Start))
+    | _ => Ui_effect.Ignore
     };
   };
 
@@ -357,35 +354,10 @@ module View = {
         ~cursor: Cursor.cursor(Editors.Update.t),
         model: Model.t,
       ) => {
-    let key_handler =
-        (~inject, ~dir: Key.dir, evt: Js.t(Dom_html.keyboardEvent))
-        : Effect.t(unit) =>
-      Effect.(
-        switch (
-          Selection.handle_key_event(
-            ~selection=Some(model.selection),
-            ~event=Key.mk(dir, evt),
-            model,
-          )
-        ) {
-        | None => Ignore
-        | Some(action) =>
-          Many([Prevent_default, Stop_propagation, inject(action)])
-        }
-      );
     [
-      Attr.on_keyup(key_handler(~inject, ~dir=KeyUp)),
-      Attr.on_keydown(key_handler(~inject, ~dir=KeyDown)),
+      Key.handler(~f=Focus.handle_key_event(~inject)),
       /* safety handler in case mousedown overlay doesn't catch it */
       Attr.on_mouseup(_ => inject(Globals(SetMousedown(false)))),
-      Attr.on_blur(_ => {
-        JsUtil.focus_clipboard_shim();
-        Effect.Ignore;
-      }),
-      Attr.on_focus(_ => {
-        JsUtil.focus_clipboard_shim();
-        Effect.Ignore;
-      }),
       Attr.on_copy(_ => {
         let str = (cursor.selected_text |> Option.value(~default=() => ""))();
         /* Note that we cannot use the ClipboardCache system here unless
@@ -398,23 +370,17 @@ module View = {
         let str = (cursor.selected_text |> Option.value(~default=() => ""))();
         ClipboardCache.set(cursor.selection, str);
         JsUtil.copy(str);
-        Option.map(
-          inject,
-          Selection.handle_key_event(
-            ~selection=Some(model.selection),
-            ~event=
-              Key.{
-                key: D("Delete"),
-                sys: Os.is_mac^ ? Mac : PC,
-                shift: Up,
-                meta: Up,
-                ctrl: Up,
-                alt: Up,
-              },
-            model,
-          ),
-        )
-        |> Option.value(~default=Effect.Ignore);
+        Focus.handle_key_event(
+          ~inject,
+          Key.{
+            key: D("Delete"),
+            sys: Os.is_mac^ ? Mac : PC,
+            shift: Up,
+            meta: Up,
+            ctrl: Up,
+            alt: Up,
+          },
+        );
       }),
     ]
     @ [
@@ -557,11 +523,10 @@ module View = {
 
   let view =
       (~get_log_and, ~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
-    let cursor = Selection.get_cursor_info(~selection=model.selection, model);
+    let cursor = Focus.get_cursor_info(~selection=model.selection, model);
     div(
       ~attrs=[Attr.id("page"), ...handlers(~cursor, ~inject, model)],
-      [FontSpecimen.view, JsUtil.clipboard_shim]
-      @ main_view(~get_log_and, ~cursor, ~inject, model),
+      [FontSpecimen.view] @ main_view(~get_log_and, ~cursor, ~inject, model),
     );
   };
 };

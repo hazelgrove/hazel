@@ -61,8 +61,6 @@ module Selection = {
   type t = CodeSelectable.Selection.t;
 
   let get_cursor_info = CodeSelectable.Selection.get_cursor_info;
-
-  let handle_key_event = CodeSelectable.Selection.handle_key_event;
 };
 
 module View = {

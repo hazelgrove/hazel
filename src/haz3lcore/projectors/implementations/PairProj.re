@@ -155,16 +155,6 @@ let methods:
     calculate_ed(~common, left),
     calculate_ed(~common, right),
   ),
-  handle_key_event:
-    (~handle_key_ed, ~focus: focus('ed_f), ~key, (ed1, ed2)) =>
-    switch (focus) {
-    | Left(focus) =>
-      handle_key_ed(~focus, ~key, ed1)
-      |> Option.map((x): action('ed_a) => Left(x))
-    | Right(focus) =>
-      handle_key_ed(~focus, ~key, ed2)
-      |> Option.map((x): action('ed_a) => Right(x))
-    },
   sexp_of_model,
   model_of_sexp,
   yojson_of_model,

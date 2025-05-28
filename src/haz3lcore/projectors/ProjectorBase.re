@@ -143,14 +143,6 @@ type methods('model, 'action, 'focus, 'ed_m, 'ed_a, 'ed_f) = {
     ) =>
     View.t,
   placeholder: (~ed_str: 'ed_m => string, 'model, info) => ProjectorShape.t,
-  handle_key_event:
-    (
-      ~handle_key_ed: (~focus: 'ed_f, ~key: Key.t, 'ed_m) => option('ed_a),
-      ~focus: 'focus,
-      ~key: Key.t,
-      'model
-    ) =>
-    option('action),
   sexp_of_model: ('ed_m => Sexplib.Sexp.t, 'model) => Sexplib.Sexp.t,
   model_of_sexp: (Sexplib.Sexp.t => 'ed_m, Sexplib.Sexp.t) => 'model,
   yojson_of_model: ('ed_m => Yojson.Safe.t, 'model) => Yojson.Safe.t,

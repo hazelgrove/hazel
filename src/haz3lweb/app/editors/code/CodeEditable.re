@@ -85,43 +85,35 @@ module Selection = {
     };
   };
 
-  let handle_key_event =
-      (~selection, model: Model.t): (Key.t => option(Update.t)) =>
-    fun
-    | {
-        key: D("Z" | "z"),
-        sys: Mac,
-        shift: Down,
-        meta: Down,
-        ctrl: Up,
-        alt: Up,
-      }
-    | {
-        key: D("Z" | "z"),
-        sys: PC,
-        shift: Down,
-        meta: Up,
-        ctrl: Down,
-        alt: Up,
-      } =>
-      None
-    | {key: D("Z" | "z"), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
-    | {key: D("Z" | "z"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
-      None
-    | {key: D(key), sys: Mac | PC, shift: Down, meta: Up, ctrl: Up, alt: Up}
-        when Keyboard.is_f_key(key) =>
-      Some(Update.DebugConsole(key))
-    | k =>
-      Editor.Focus.handle_key_event(~focus=selection, ~key=k, model.editor)
-      |> Option.map(x => Update.Perform(x));
-
-  // let handle_key_event = (~selection, model: Model.t, key) => {
-  //   //TODO(andrew): not sure handoff approach makes sense
-  //   switch (Editor.Update.key_handoff(model.editor, key)) {
-  //   | Some(action) => Some(Update.Perform(Project(action)))
-  //   | None => handle_key_event(~selection, model, key)
-  //   };
-  // };
+  // let handle_key_event =
+  //     (~selection, model: Model.t): (Key.t => option(Update.t)) =>
+  //   fun
+  //   | {
+  //       key: D("Z" | "z"),
+  //       sys: Mac,
+  //       shift: Down,
+  //       meta: Down,
+  //       ctrl: Up,
+  //       alt: Up,
+  //     }
+  //   | {
+  //       key: D("Z" | "z"),
+  //       sys: PC,
+  //       shift: Down,
+  //       meta: Up,
+  //       ctrl: Down,
+  //       alt: Up,
+  //     } =>
+  //     None
+  //   | {key: D("Z" | "z"), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
+  //   | {key: D("Z" | "z"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
+  //     None
+  //   | {key: D(key), sys: Mac | PC, shift: Down, meta: Up, ctrl: Up, alt: Up}
+  //       when Keyboard.is_f_key(key) =>
+  //     Some(Update.DebugConsole(key))
+  //   | k =>
+  //     Editor.Focus.handle_key_event(~focus=selection, ~key=k, model.editor)
+  //     |> Option.map(x => Update.Perform(x));
 
   let jump_to_tile = (tile, model: Model.t) => {
     Editor.Update.jump_to_tile_action(tile, model.editor)

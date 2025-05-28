@@ -385,27 +385,6 @@ module Selection = {
       }
     );
   };
-
-  let handle_key_event =
-      (~selection: t, ~event, mr: Model.t): option(Update.t) => {
-    let A(i, s) = selection;
-    let a: option(Model.a) =
-      mr.history
-      |> Aba.get_as
-      |> ListUtil.nth_opt(List.length(mr.history |> Aba.get_as) - i - 1);
-    switch (a) {
-    | Some(Calculated(a)) =>
-      let+ x =
-        StepperEditor.Selection.handle_key_event(
-          ~selection=s,
-          a.editor |> Calc.get_value,
-          event,
-        );
-      Update.StepperEditor(i, x);
-    | Some(Pending)
-    | None => None
-    };
-  };
 };
 
 module View = {

@@ -119,7 +119,7 @@ module Selection = {
   open Cursor;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | MainEditor(CodeEditable.Selection.t)
+    | MainEditor(Editor.Focus.t)
     | Result(EvalResult.Selection.t);
 
   let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
@@ -132,22 +132,6 @@ module Selection = {
       let+ ci =
         EvalResult.Selection.get_cursor_info(~selection, model.result);
       Update.ResultAction(ci);
-    };
-  };
-
-  let handle_key_event =
-      (~selection, ~event, model: Model.t): option(Update.t) => {
-    switch (selection) {
-    | MainEditor(f) =>
-      CodeEditable.Selection.handle_key_event(
-        ~selection=f,
-        model.editor,
-        event,
-      )
-      |> Option.map(x => Update.MainEditor(x))
-    | Result(selection) =>
-      EvalResult.Selection.handle_key_event(~selection, model.result, ~event)
-      |> Option.map(x => Update.ResultAction(x))
     };
   };
 

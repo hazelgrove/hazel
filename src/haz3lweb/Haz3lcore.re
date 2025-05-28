@@ -40,9 +40,6 @@ module rec Projector: {
   module Focus: {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t;
-
-    let handle_key_event:
-      (~focus: t, ~key: Key.t, Model.t) => option(Update.t);
   };
 
   module View: {
@@ -113,11 +110,6 @@ module rec Projector: {
   module Focus = {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = ProjectorCore.Focus.t(Editor.Focus.t);
-
-    let handle_key_event =
-      ProjectorCore.Focus.handle_key_event(
-        ~handle_key_ed=Editor.Focus.handle_key_event,
-      );
   };
 
   module View = {
@@ -211,9 +203,6 @@ and Editor: {
     // TODO[Matt]: Used in jump to tile logic which will need updating.
     // Thunked to make module "safe"
     let here: unit => t;
-
-    let handle_key_event:
-      (~focus: t, ~key: Key.t, Model.t) => option(Update.t);
   };
 
   module View: {
@@ -401,12 +390,6 @@ and Editor: {
     type t = EditorView.Focus.t(Projector.Focus.t);
 
     let here = () => EditorView.Focus.Here;
-
-    let handle_key_event =
-      EditorView.Focus.handle_key_event(
-        ~handle_key_pr=Projector.Focus.handle_key_event,
-        ~info_projector=ProjectorCore.Kind.Info: ProjectorCore.Kind.t,
-      );
   };
 
   module View = {
@@ -419,6 +402,7 @@ and Editor: {
         ~common,
         ~split_views=Projector.View.split_views(~common),
         ~mk_status=Projector.View.mk_status,
+        ~info_projector=ProjectorCore.Kind.Info,
       );
 
     let print_string = (ed: Model.t) =>

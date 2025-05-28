@@ -107,9 +107,6 @@ let methods:
     Calc.NewValue(Exp(model.model)),
   ),
   calculate: (~calculate_ed as _, ~common as _, m) => m,
-  handle_key_event:
-    (~handle_key_ed as _, ~focus as _: focus('ed_f), ~key as _, _) =>
-    None,
   sexp_of_model,
   model_of_sexp,
   yojson_of_model,

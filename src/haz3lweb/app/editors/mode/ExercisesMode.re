@@ -308,14 +308,6 @@ module Selection = {
     Update.Exercise(ci);
   };
 
-  let handle_key_event = (~selection, ~event, model: Model.t) =>
-    ExerciseMode.Selection.handle_key_event(
-      ~selection,
-      ~event,
-      List.nth(model.exercises, model.current),
-    )
-    |> Option.map(a => Update.Exercise(a));
-
   let jump_to_tile =
       (~settings, tile, model: Model.t): option((Update.t, t)) =>
     ExerciseMode.Selection.jump_to_tile(

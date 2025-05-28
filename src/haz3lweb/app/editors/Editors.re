@@ -200,25 +200,6 @@ module Selection = {
     };
   };
 
-  let handle_key_event =
-      (~selection: option(t), ~event, editors: Model.t): option(Update.t) => {
-    switch (selection, editors) {
-    | (Some(Scratch(selection)), Scratch(m)) =>
-      ScratchMode.Selection.handle_key_event(~selection, ~event, m)
-      |> Option.map(x => Update.Scratch(x))
-    | (Some(Scratch(selection)), Documentation(m)) =>
-      ScratchMode.Selection.handle_key_event(~selection, ~event, m)
-      |> Option.map(x => Update.Scratch(x))
-    | (Some(Exercises(selection)), Exercises(m)) =>
-      ExercisesMode.Selection.handle_key_event(~selection, ~event, m)
-      |> Option.map(x => Update.Exercises(x))
-    | (Some(Scratch(_)), Exercises(_))
-    | (Some(Exercises(_)), Scratch(_))
-    | (Some(Exercises(_)), Documentation(_))
-    | (None, _) => None
-    };
-  };
-
   let jump_to_tile =
       (~settings, tile, model: Model.t): option((Update.t, t)) =>
     switch (model) {
