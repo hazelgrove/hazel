@@ -107,7 +107,7 @@ let tests = (
       test_matches(
         "ListLitn to Cons, correct length",
         list(dhexp_typ),
-        ListLitn(2),
+        ListLitn(3),
         cons(1 |> int, list_lit([int(2), int(3)])),
         [1, 2, 3] |> List.map(int),
       ),
