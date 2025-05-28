@@ -5,7 +5,6 @@ open Node;
 open Util.Web;
 open Util;
 open Js_of_ocaml;
-open Css_gen;
 
 module Update = AssistantUpdate;
 

@@ -3,7 +3,6 @@ open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
-open Util;
 open Js_of_ocaml;
 
 let tab = (~tooltip="", icon, action, isActive) => {
