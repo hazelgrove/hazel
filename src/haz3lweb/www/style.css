@@ -100,11 +100,10 @@ select:hover {
   display: flex;
   flex-direction: column;
   border-left: 0.6px solid var(--BR2);
-  overflow-y: auto;
-  overflow-x: hidden;
-  width: 25em;
   background-color: var(--T2);
   position: relative;
+  min-width: 300px;
+  width: 400px;
 }
 
 #sidebars {
