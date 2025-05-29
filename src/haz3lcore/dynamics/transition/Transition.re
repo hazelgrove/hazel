@@ -271,16 +271,6 @@ module Transition = (EV: EV_MODE) => {
         kind: FixClosure,
         is_value: false,
       });
-    | FixF({term: Asc(p, t), _}, d1, env) =>
-      // TODO Decide if this is the right approach
-      let. _ =
-        otherwise(env |> Option.value(~default=ClosureEnvironment.empty), d);
-      Step({
-        expr: FixF(p, Asc(d1, t) |> DHExp.fresh, env) |> rewrap,
-        state_update,
-        kind: FixUnwrap,
-        is_value: false,
-      });
     | FixF(dp, d1, env) =>
       let. _ =
         otherwise(env |> Option.value(~default=ClosureEnvironment.empty), d);
