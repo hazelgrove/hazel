@@ -200,7 +200,13 @@ let methods:
     },
   focusable: Focusable.non,
   dynamics: false,
-  placeholder: (~ed_str as _, _, _) => ProjectorShape.inline(10),
+  placeholder: (~ed_str as _, str, _) => {
+    ProjectorShape.{
+      vertical: Block(StringUtil.num_linebreaks(str)),
+      /* +2 for left and right padding */
+      horizontal: 2 + StringUtil.max_line_width(str),
+    };
+  },
   update:
     (~update_ed as _, ~common as _, ~sort as _, _, model, SetString(s)) => s,
   mk_term: (~mk_term_ed as _, ~sort, ~prev, m) => {
