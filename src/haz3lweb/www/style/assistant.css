@@ -54,25 +54,22 @@
 }
 
 #assistant .chat-button {
-    background-color: var(--SAND);
     color: var(--STONE);
     font-size: .75em;
     padding: 0.5em 1em;
     border-radius: 4px;
     font-weight: bold;
     display: flex;
-    justify-content: center;
-    align-items: center;
-    width: auto;
     height: 1.25em;  
     cursor: pointer;  
-    transition: all 0.3s ease;
     margin: 4px;
+    border: 1px solid var(--STONE);
+    opacity: 0.8;
 }
 
 #assistant .chat-button:hover {
-    background-color: var(--T1);  
-    box-shadow: 0px 4px 6px var(--SHADOW);  
+    opacity: 1.0;
+    border: 1px solid var(--STONE);
 }
 
 #assistant .chat-button:active {
