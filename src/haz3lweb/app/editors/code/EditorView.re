@@ -109,6 +109,8 @@ let view_code_editable =
       ~common: ProjectorInterface.common,
       ~split_views,
       ~mk_status,
+      // ~put_clipboard_cache: (string, Segment.t(p_m)) => unit,
+      // ~get_clipboard_cache: string => option(Segment.t(p_m)),
       ~info_projector,
       ~inject: Action.t(ProjectorCore.Kind.t, p_m, p_a) => Ui_effect.t(unit),
       ~focus: Focus.t(p_f) => Ui_effect.t(unit),
@@ -242,6 +244,51 @@ let view_code_editable =
       Attr.on_wheel(evt => drag_select(Pointer.Event.mk(evt))),
       Key.handler(~f=key =>
         Focus.handle_key_event(~inject, ~key, ~info_projector, model)
+      ),
+      Attr.on_copy(evt =>
+        Ui_effect.Many([
+          Effect.of_sync_fun(
+            () => {
+              let text =
+                Printer.to_string_selection(model |> Editor.Model.get_z);
+              evt##.clipboardData##setData(
+                Js.string("text/plain"),
+                Js.string(text),
+              );
+            },
+            (),
+          ),
+          Effect.Stop_propagation,
+          Effect.Prevent_default,
+        ])
+      ),
+      Attr.on_cut(evt =>
+        Ui_effect.Many([
+          Effect.of_sync_fun(
+            () => {
+              let text =
+                Printer.to_string_selection(model |> Editor.Model.get_z);
+              evt##.clipboardData##setData(
+                Js.string("text/plain"),
+                Js.string(text),
+              );
+            },
+            (),
+          ),
+          inject(Destruct(Right)),
+          Effect.Stop_propagation,
+          Effect.Prevent_default,
+        ])
+      ),
+      Attr.on_paste(_ =>
+        Ui_effect.Many([
+          (Dom_html.window##.navigator |> Js.Unsafe.coerce)##.clipboard##readText##then_(
+            text =>
+            inject(Paste(String(text)))
+          ),
+          Effect.Stop_propagation,
+          Effect.Prevent_default,
+        ])
       ),
     ],
     [code_view],
