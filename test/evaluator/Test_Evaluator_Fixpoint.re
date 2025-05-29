@@ -5,7 +5,7 @@ let tests = (
   "Evaluator.Fixpoints",
   [
     test_case("Inconsistent type in fixpoint pattern", `Quick, () =>
-      parse_and_evaluate_test("fix () -> []", {|fix () -> []|})
+      parse_and_evaluate_test("fix () -> [] : ()", {|fix () -> []|})
     ),
     test_case("Fixpoint with boolean short circuiting", `Quick, () =>
       parse_and_evaluate_test("true", {|fix f -> true || f|})
@@ -28,7 +28,7 @@ fun n -> if n == 0 then false else even(n - 1))) in even(1)|},
     ),
     test_case("Fixpoint with wrong arity", `Quick, () =>
       parse_and_evaluate_test(
-        "fix (a,b,c) -> (a,b)",
+        "fix (a,b,c) -> (a,b) : (?, ?, ?)",
         {|fix (a,b,c) -> (a,b)|},
       )
     ),
@@ -37,6 +37,12 @@ fun n -> if n == 0 then false else even(n - 1))) in even(1)|},
         "() : Bool",
         {|fix (_ : Bool) -> test false end|},
       )
+    ),
+    test_case("Fixpoint with type ascription", `Quick, () =>
+      parse_and_evaluate_test("fix 0 -> () : Int", {|fix 0 -> ()|})
+    ),
+    test_case("Wild statics fixpoint list cons", `Quick, () =>
+      parse_and_evaluate_test("(1: [?]):: (1: [?])", {|fix(_:: x) -> x :: 1|})
     ),
   ],
 );
