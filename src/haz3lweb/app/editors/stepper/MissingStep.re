@@ -21,6 +21,7 @@ module Model = {
     next_steps: Calc.saved(EvaluatorStep.status),
     selected_id: Calc.saved(option(Id.t)),
     selected_exp: Calc.saved(option(Exp.t)),
+    full_exp: Calc.saved(Exp.t),
     rewrites: Calc.saved(option(rewrites)),
     open_box,
   };
@@ -29,6 +30,7 @@ module Model = {
     next_steps: Calc.Pending,
     selected_id: Calc.Pending,
     selected_exp: Calc.Pending,
+    full_exp: Calc.Pending,
     rewrites: Calc.Pending,
     open_box: NoneOpen,
   };
@@ -111,7 +113,14 @@ module Update = {
         ctx: Calc.t(Ctx.t),
         _state,
         new_next_steps,
-        {next_steps: _, rewrites, selected_exp, selected_id, open_box}: Model.t,
+        {
+          next_steps: _,
+          rewrites,
+          selected_exp,
+          full_exp: _,
+          selected_id,
+          open_box,
+        }: Model.t,
         editor,
       )
       : Model.t => {
@@ -190,6 +199,7 @@ module Update = {
     {
       next_steps: new_next_steps |> Calc.save,
       rewrites: rewrites |> Calc.save,
+      full_exp: exp |> Calc.save,
       selected_exp: selected_exp |> Calc.save,
       selected_id: selected_id |> Calc.save,
       open_box,
@@ -340,13 +350,25 @@ module View = {
         );
       };
 
+      let show_function_body_button = {
+        Calc.get_saved_exc(model.selected_exp)
+        == Some(Calc.get_saved_exc(model.full_exp))
+        && Exp.is_fun(Calc.get_saved_exc(model.full_exp));
+      };
+
       // I want to make a bunch of buttons here:
-      // Evaluate [TODO], Rewrite [TODO], Axioms, Cases,
+      // Evaluate [TODO], Rewrite, Axioms, Cases,
       let buttons =
         Web.Node.div(
           ~attrs=[Web.Attr.classes(["proof-selection-buttons"])],
-          [
-            proof_button(~callback=Ui_effect.Ignore, "Evaluate"), // Evaluate does nothing right now
+          (
+            show_function_body_button
+              ? [
+                proof_button(~callback=signal(AddForall), "Function Body"),
+              ]
+              : []
+          )
+          @ [
             proof_button(~callback=inject(ProposeRewrite), "Rewrite ▼"),
             proof_button(~callback=inject(ToggleAxioms), "Axioms ▼"),
             proof_button(~callback=signal(AddInduction), "Cases"),
@@ -480,20 +502,6 @@ module View = {
         ~disabled=Option.is_none(undo),
         ~tooltip="Step Backwards",
       );
-    let button_induction =
-      Widgets.button_d(
-        Icons.star,
-        signal(AddInduction),
-        ~disabled=false,
-        ~tooltip="Begin a proof by induction",
-      );
-    let button_forall =
-      Widgets.button_d(
-        Icons.star,
-        signal(AddForall),
-        ~disabled=false,
-        ~tooltip="Prove a forall",
-      );
     let button_hide_stepper =
       Widgets.toggle(~tooltip="Show Stepper", "s", true, _ =>
         signal(HideStepper)
@@ -512,14 +520,7 @@ module View = {
       );
     Web.Node.div(
       ~attrs=[Web.Attr.classes(["stepper-controls"])],
-      [
-        button_back,
-        button_induction,
-        button_forall,
-        eval_settings,
-        toggle_show_history,
-        button_hide_stepper,
-      ],
+      [button_back, eval_settings, toggle_show_history, button_hide_stepper],
     );
   };
 };
