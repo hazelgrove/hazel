@@ -110,6 +110,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         unbox(request, fixup_cast(Cast(e, e1, e2) |> DHExp.fresh))
       | _ => unbox(request, fixup_cast(Cast(e, e1, e2) |> DHExp.fresh))
       }
+    | (Label, Label(l)) => Matches(l)
     | (LabeledTupleProjection(l), Cast(_, _, {term: List(_), _})) =>
       let* ls: list(TermBase.exp_t) = unbox(ListLit, expr);
       let* elements: list(TermBase.exp_t) =
