@@ -483,6 +483,170 @@ module Pervasives = {
              }
            }),
          )
+      |> fn(
+           "project_labels",
+           Unknown(Internal),
+           Unknown(Internal),
+           d => {
+             let-unbox args = (LabeledTupleEntries, d);
+
+             switch (args) {
+             | [] => None // No argument indet
+             | [_] => None // Singleton labeled tuple indet
+             | [(Some(_), _), ..._] => None // First element is labeled
+             | [(None, tup), ...labels] =>
+               let labs =
+                 List.map(
+                   ((arg_l, exp)) => {
+                     switch (arg_l) {
+                     | Some(_) => None
+                     | None =>
+                       let-unbox label = (Label, exp);
+                       Some(label); // We should never have a None here
+                     }
+                   },
+                   labels,
+                 );
+
+               let labels = OptUtil.sequence(labs);
+
+               switch (labels) {
+               | Some(labels: list(string)) =>
+                 let entries =
+                   List.map(
+                     (l: string) =>
+                       IdTagged.FreshGrammar.Exp.(dot(tup, label(l))),
+                     labels,
+                   );
+
+                 Some(IdTagged.FreshGrammar.Exp.tuple(entries));
+
+               | None => None
+               };
+             };
+           },
+         )
+      |> fn(
+           "select_labels",
+           Unknown(Internal),
+           Unknown(Internal),
+           d => {
+             let-unbox args = (LabeledTupleEntries, d);
+             switch (args) {
+             | [] => None // No argument indet
+             | [_] => None // Singleton labeled tuple indet
+             | [(Some(_), _), ..._] => None // First element is labeled
+             | [(None, tup), ...labels] =>
+               let labs =
+                 List.map(
+                   ((arg_l, exp)) => {
+                     switch (arg_l) {
+                     | Some(_) => None
+                     | None =>
+                       let-unbox label = (Label, exp);
+                       Some(label); // We should never have a None here
+                     }
+                   },
+                   labels,
+                 );
+
+               let labels = OptUtil.sequence(labs);
+
+               switch (labels) {
+               | Some(labels: list(string)) =>
+                 let entries =
+                   List.map(
+                     (l: string) =>
+                       IdTagged.FreshGrammar.Exp.(
+                         tup_label(label(l), dot(tup, label(l)))
+                       ),
+                     labels,
+                   );
+
+                 Some(IdTagged.FreshGrammar.Exp.tuple(entries));
+
+               | None => None
+               };
+             };
+           },
+         )
+      |> fn(
+           "omit_labels",
+           Unknown(Internal),
+           Unknown(Internal),
+           d => {
+             let-unbox args = (LabeledTupleEntries, d);
+             switch (args) {
+             | [] => None // No argument indet
+             | [_] => None // Singleton labeled tuple indet
+             | [(Some(_), _), ..._] => None // First element is labeled
+             | [(None, tup), ...labels] =>
+               open IdTagged.FreshGrammar.Exp;
+               let labs =
+                 List.map(
+                   ((arg_l, exp)) => {
+                     switch (arg_l) {
+                     | Some(_) => None
+                     | None =>
+                       let-unbox label = (Label, exp);
+                       Some(label); // We should never have a None here
+                     }
+                   },
+                   labels,
+                 );
+
+               let labels = OptUtil.sequence(labs);
+               module StringSet = Set.Make(String);
+
+               switch (labels) {
+               | Some(labels: list(string)) =>
+                 let labels_set = StringSet.of_list(labels);
+                 let-unbox entries = (LabeledTupleEntries, tup);
+
+                 let entries =
+                   List.filter_map(
+                     ((l, e)) => {
+                       switch (l) {
+                       | Some(l) =>
+                         if (StringSet.mem(l, labels_set)) {
+                           None;
+                         } else {
+                           Some(tup_label(label(l), e));
+                         }
+                       | None => Some(e)
+                       }
+                     },
+                     entries,
+                   );
+
+                 Some(IdTagged.FreshGrammar.Exp.tuple(entries));
+
+               | None => None
+               };
+             };
+           },
+         )
+      |> fn(
+           "drop_labels",
+           Unknown(Internal),
+           Unknown(Internal),
+           d => {
+             let-unbox entries = (LabeledTupleEntries, d);
+
+             let entries =
+               List.filter_map(
+                 ((l, e)) => {
+                   switch (l) {
+                   | Some(_) => Some(e)
+                   | None => Some(e)
+                   }
+                 },
+                 entries,
+               );
+
+             Some(IdTagged.FreshGrammar.Exp.tuple(entries));
+           },
+         )
     )
     |> concat(
          _,
