@@ -158,21 +158,15 @@ let view_wrapper =
 
 /* Dispatches projector external actions to editor-level actions */
 let handle =
-    // ~focus: Ui_effect.t(unit),
     (
+      ~focus: Ui_effect.t(unit),
       ~inject: Action.project('p_k, 'p, 'p_a) => Ui_effect.t(unit),
       id,
       action: external_action,
     ) =>
   switch (action) {
   | Remove => inject(RemoveIndicated)
-  | Escape(d) =>
-    Ui_effect.Many([
-      // TODO(Matt): We need to focus this editor somehow
-      // JsUtil.focus_current_target(Js.Unsafe.coerce(evt)),
-      // focus,
-      inject(Escape(id, d)),
-    ])
+  | Escape(d) => Ui_effect.Many([focus, inject(Escape(id, d))])
   };
 
 let offside_wrapper =
@@ -338,6 +332,7 @@ let all =
          (Node.t, option(Node.t)),
       ~inject: Action.t('p_k, p, 'p_a) => Ui_effect.t(unit),
       ~make_active: (Id.t, 'p_f) => Ui_effect.t(unit),
+      ~focus,
       ~focussed: option((Id.t, 'p_f)),
       projector_data: list(Model.projector_data(p)),
     ) => {
@@ -354,7 +349,10 @@ let all =
          split_views(
            ~sort=data.status.sort,
            ~parent=
-             a => handle(data.info.id, a, ~inject=a => inject(Project(a))),
+             a =>
+               handle(data.info.id, a, ~focus, ~inject=a =>
+                 inject(Project(a))
+               ),
            ~inject=a => inject(Project(Perform(data.info.id, a))),
            ~focus=
              f =>

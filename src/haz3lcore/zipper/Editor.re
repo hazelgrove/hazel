@@ -72,6 +72,8 @@ module CachedSyntax = {
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t('p_k, 'p, 'p_a) = {
+    // Constant
+    id: Id.t,
     // Updated
     zipper: Calc.t(Zipper.t('p)),
     selection: Calc.t(unit), // separate flag to indicate only selection has changed
@@ -86,6 +88,7 @@ module Model = {
   };
 
   let mk = (type a, zipper: Zipper.t(a)) => {
+    id: Id.mk(),
     zipper: NewValue(zipper),
     selection: NewValue(),
     col_target: None,
@@ -132,6 +135,10 @@ module Model = {
   };
 
   let get_cached_term = editor => Calc.get_saved_exc(editor.term);
+
+  let get_web_id = (type p_k, type p, type p_a, model: t(p_k, p, p_a)) => {
+    "editor_" ++ Id.str8(model.id);
+  };
 };
 
 module Update = {
@@ -420,6 +427,8 @@ module Update = {
     // 5. Mark everything as old
 
     Model.{
+      id: model.id,
+
       zipper: Calc.make_old(model.zipper),
       selection: Calc.make_old(model.selection),
       col_target: model.col_target,

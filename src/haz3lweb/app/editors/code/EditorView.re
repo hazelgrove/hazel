@@ -44,6 +44,23 @@ module Focus = {
       }
     };
   };
+
+  let focus_here =
+      (~focus_parent, m: Editor.Model.t('a, 'b, 'c)): Ui_effect.t(unit) => {
+    Ui_effect.Many([
+      Ui_effect.of_sync_fun(
+        () => {
+          Dom_html.document##getElementById(
+            Js.string(Editor.Model.get_web_id(m)),
+          )
+          |> Js.Opt.to_option
+          |> Option.iter(x => x##focus)
+        },
+        (),
+      ),
+      focus_parent(Here),
+    ]);
+  };
 };
 
 let container_target = (current_target: Js.opt(Js.t(Dom_html.element))) =>
@@ -135,6 +152,7 @@ let view_code_editable =
       ~split_views,
       ~inject,
       ~make_active=(id, f) => focus(Projector(id, f)),
+      ~focus=Focus.focus_here(~focus_parent=focus, model),
       ~focussed=
         switch (focussed) {
         | Some(Here) => None
@@ -226,6 +244,7 @@ let view_code_editable =
 
   Node.div(
     ~attrs=[
+      Attr.id(Editor.Model.get_web_id(model)),
       Attr.classes(
         ["cell-item", "code-editor"]
         @ (Option.is_some(focussed) ? ["selected"] : []),
