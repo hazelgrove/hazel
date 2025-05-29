@@ -219,6 +219,14 @@ let get_models = (~key, ~handler): unit => {
   );
 };
 
+let is_top_model = (name: string): bool => {
+  StringUtil.match(StringUtil.regexp("Google"), name)
+  || StringUtil.match(StringUtil.regexp("Anthropic"), name)
+  || StringUtil.match(StringUtil.regexp("DeepSeek"), name)
+  || StringUtil.match(StringUtil.regexp("OpenAI"), name)
+  || StringUtil.match(StringUtil.regexp("Meta"), name);
+};
+
 let parse_models_response = (json: Json.t): option(models_response) =>
   try(
     switch (json) {
@@ -252,6 +260,16 @@ let parse_models_response = (json: Json.t): option(models_response) =>
                         completion: c,
                       },
                     })
+                  /* is_top_model(name)
+                     ? Some({
+                         id,
+                         name,
+                         pricing: {
+                           prompt: p,
+                           completion: c,
+                         },
+                       })
+                     : None */
                   | _ => None
                   };
                 | _ => None
@@ -260,7 +278,13 @@ let parse_models_response = (json: Json.t): option(models_response) =>
               },
             models,
           );
-        Some({data: parsed_models});
+        Some({
+          data:
+            List.sort(
+              (a, b) => String.compare(a.name, b.name),
+              parsed_models,
+            ),
+        });
       | _ => None
       }
     | _ => None
