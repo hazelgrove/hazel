@@ -172,9 +172,7 @@ and Editor: {
     type t =
       Action.t(ProjectorCore.Kind.t, Projector.Model.t, Projector.Update.t);
 
-    let update:
-      (~common: ProjectorInterface.common, ~sort: Sort.t, t, Model.t) =>
-      Model.t;
+    let update: (~common: ProjectorInterface.common, t, Model.t) => Model.t;
 
     let make_term: (~sort: Sort.t, Model.t) => (Model.t, Calc.t(Any.t));
 
@@ -263,11 +261,6 @@ and Editor: {
 
     let get_z = (m: t) => m |> Haz3lcorep.Editor.Model.get_z;
 
-    let make_seg = (m: t) =>
-      m
-      |> get_z
-      |> Haz3lcorep.Zipper.smart_seg(~dump_backpack=true, ~erase_buffer=true);
-
     let get_trailing_hole_ctx = Haz3lcorep.Editor.Model.trailing_hole_ctx;
 
     let get_cached_term = Haz3lcorep.Editor.Model.get_cached_term;
@@ -279,19 +272,14 @@ and Editor: {
       Action.t(ProjectorCore.Kind.t, Projector.Model.t, Projector.Update.t);
 
     let update =
-        (
-          ~common: ProjectorInterface.common,
-          ~sort,
-          action: t,
-          editor: Model.t,
-        ) => {
+        (~common: ProjectorInterface.common, action: t, editor: Model.t) => {
       switch (
         Haz3lcorep.Editor.Update.update(
           ~settings=common.settings,
           ~projector_init=Projector.Model.mk,
           ~update_projector=Projector.Update.update(~common),
           ~seg_of_projector=
-            (sort, p) =>
+            p =>
               Projector.Model.get_cached_term(p)
               |> ExpToSegment.any_to_segment(
                    ~settings=ExpToSegment.Settings.on,
@@ -323,7 +311,7 @@ and Editor: {
           (~sort as _, ~id as _, m) => Projector.Model.get_cached_term(m),
         ~shape_of_projector=Projector.Model.get_shape,
         ~seg_of_projector=
-          (sort, p) =>
+          p =>
             Projector.Model.get_cached_term(p)
             |> ExpToSegment.any_to_segment(~settings=ExpToSegment.Settings.on),
         ~get_focusable=Projector.Model.focusable_of_kind,

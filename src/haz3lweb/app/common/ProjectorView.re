@@ -5,7 +5,6 @@ open ProjectorBase;
 open Util;
 open Util.OptUtil.Syntax;
 open Util.Web;
-open Js_of_ocaml;
 
 module Model = {
   type status = {

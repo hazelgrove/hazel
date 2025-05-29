@@ -189,7 +189,6 @@ module Update = {
         ~globals,
         ~settings: Haz3lcore.CoreSettings.t,
         ~queue_worker: option(Haz3lcore.Exp.t => unit),
-        ~is_edited: bool,
         statics: Haz3lcore.CachedStatics.t,
         model: Model.t,
       ) => {
@@ -298,7 +297,6 @@ module Update = {
                ~globals,
                ~is_dynamic_term=true,
                ~stitch=_ => exp,
-               ~is_edited,
                ~dynamics=Model.dynamics(model),
                editor,
              )
@@ -388,7 +386,6 @@ module View = {
              ~globals,
              ~is_dynamic_term=true,
              ~stitch=_ => elab,
-             ~is_edited=false,
              ~dynamics=Dynamics.Map.empty,
            )
       };

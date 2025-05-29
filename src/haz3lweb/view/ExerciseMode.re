@@ -146,8 +146,7 @@ module Update = {
     };
   };
 
-  let calculate =
-      (~globals, ~is_edited, ~schedule_action, model: Model.t): Model.t => {
+  let calculate = (~globals, ~schedule_action, model: Model.t): Model.t => {
     let stitched_elabs = Exercise.stitch_term(model.editors);
     let worker_request = ref([]);
     let queue_worker = (pos, expr) => {
@@ -166,10 +165,7 @@ module Update = {
             result: cell.result,
           }
           |> CellEditor.Update.calculate(
-               ~globals,
-               ~is_edited,
-               ~queue_worker=Some(queue_worker(pos)),
-               ~stitch=_ =>
+               ~globals, ~queue_worker=Some(queue_worker(pos)), ~stitch=_ =>
                term
              ),
         stitched_elabs,

@@ -80,13 +80,13 @@ let methods:
       7 + String.length(ed_str(ed1)) + String.length(ed_str(ed2)),
     ),
   update:
-    (~update_ed, ~common, ~sort, _info, (left: 'ed, right: 'ed), action) => {
+    (~update_ed, ~common, ~sort as _, _info, (left: 'ed, right: 'ed), action) => {
     switch (action) {
     | Left(ed_ac) =>
-      let l_ed = update_ed(~common, ~sort, ed_ac, left);
+      let l_ed = update_ed(~common, ed_ac, left);
       (l_ed, right);
     | Right(ed_ac) =>
-      let r_ed = update_ed(~common, ~sort, ed_ac, right);
+      let r_ed = update_ed(~common, ed_ac, right);
       (left, r_ed);
     };
   },

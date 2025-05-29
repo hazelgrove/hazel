@@ -33,7 +33,6 @@ module Update = {
   let calculate =
       (
         ~globals,
-        ~is_edited,
         ~stitch,
         ~dynamics: Dynamics.Map.t,
         {editor, taken_steps, next_steps}: Model.t,
@@ -42,7 +41,6 @@ module Update = {
     let editor =
       CodeSelectable.Update.calculate(
         ~globals,
-        ~is_edited,
         ~stitch,
         ~dynamics,
         ~is_dynamic_term=true,

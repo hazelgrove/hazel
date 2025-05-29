@@ -387,7 +387,6 @@ let example_view =
                     |> CellEditor.Model.mk
                     |> CellEditor.Update.calculate(
                          ~globals,
-                         ~is_edited=true,
                          ~stitch=x => x,
                          ~queue_worker=None,
                        );

@@ -70,18 +70,10 @@ module Update = {
   };
 
   let calculate =
-      (
-        ~globals,
-        ~is_edited,
-        ~queue_worker,
-        ~stitch,
-        {editor, result}: Model.t,
-      )
-      : Model.t => {
+      (~globals, ~queue_worker, ~stitch, {editor, result}: Model.t): Model.t => {
     let editor =
       CodeEditable.Update.calculate(
         ~globals,
-        ~is_edited,
         ~stitch,
         ~dynamics=EvalResult.Model.dynamics(result),
         ~is_dynamic_term=false,
@@ -104,7 +96,6 @@ module Update = {
           assist: false,
         },
         ~queue_worker,
-        ~is_edited,
         editor |> CodeEditable.Model.get_statics,
         result,
       );

@@ -201,8 +201,7 @@ let methods:
       horizontal: 2 + StringUtil.max_line_width(str),
     };
   },
-  update:
-    (~update_ed as _, ~common as _, ~sort as _, _, model, SetString(s)) => s,
+  update: (~update_ed as _, ~common as _, ~sort as _, _, _, SetString(s)) => s,
   mk_term: (~mk_term_ed as _, ~sort, ~prev, m) => {
     (
       m,

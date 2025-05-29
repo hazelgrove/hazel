@@ -177,8 +177,7 @@ module Update = {
     };
   };
 
-  let calculate =
-      (~globals, ~schedule_action, ~is_edited, model: Model.t): Model.t => {
+  let calculate = (~globals, ~schedule_action, model: Model.t): Model.t => {
     let (key, ed) = List.nth(model.scratchpads, model.current);
     let worker_request = ref([]);
     let queue_worker =
@@ -186,7 +185,6 @@ module Update = {
     let new_ed =
       CellEditor.Update.calculate(
         ~globals,
-        ~is_edited,
         ~queue_worker,
         ~stitch=x => x,
         ed,

@@ -57,8 +57,7 @@ let apply =
   // ---------- CALCULATE PHASE ----------
   let model' =
     updated.recalculate
-      ? updated.model
-        |> Page.Update.calculate(~schedule_action, ~is_edited=updated.is_edit)
+      ? updated.model |> Page.Update.calculate(~schedule_action)
       : updated.model;
 
   if (updated.is_edit) {
@@ -98,8 +97,7 @@ let start = {
           apply(~schedule_action, ~schedule_autosave);
         },
       ~default_model=
-        Page.Store.load()
-        |> Page.Update.calculate(~schedule_action=_ => (), ~is_edited=true),
+        Page.Store.load() |> Page.Update.calculate(~schedule_action=_ => ()),
       save_scheduler,
     );
 

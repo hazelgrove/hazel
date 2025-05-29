@@ -102,7 +102,7 @@ let go =
       ~seg_to_ed,
       ~projector_init,
       ~update_projector,
-      ~seg_of_pr: (Sort.t, p) => Base.segment(p),
+      ~seg_of_pr: p => Base.segment(p),
       ~get_focusable: p_kind => ProjectorBase.Focusable.t,
       ~livelit_projectors,
       jump_to_id_indicated,
@@ -126,7 +126,7 @@ let go =
     // TODO [Matt]: Make this check the kind again
     let* (focus, z) = setup_selection(z);
     switch (z.selection.content) {
-    | [Projector(pr)] => Some(remove(seg_of_pr(Exp, pr.model), focus, z))
+    | [Projector(pr)] => Some(remove(seg_of_pr(pr.model), focus, z))
     // | [Projector(pr)] =>
     //   let+ piece =
     //     init(~projector_init, kind, Piece.unparenthesize(pr.syntax));
@@ -140,7 +140,7 @@ let go =
   let remove_indicated = (z: Zipper.t(p)): option(Zipper.t(p)) => {
     let* (focus, z) = setup_selection(z);
     switch (z.selection.content) {
-    | [Projector(pr)] => Some(remove(seg_of_pr(Exp, pr.model), focus, z))
+    | [Projector(pr)] => Some(remove(seg_of_pr(pr.model), focus, z))
     | _ => None
     };
   };

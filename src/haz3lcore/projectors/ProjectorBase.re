@@ -92,9 +92,7 @@ type methods('model, 'action, 'focus, 'ed_m, 'ed_a, 'ed_f) = {
   dynamics: bool,
   update:
     (
-      ~update_ed:
-        (~common: ProjectorInterface.common, ~sort: Sort.t, 'ed_a, 'ed_m) =>
-        'ed_m,
+      ~update_ed: (~common: ProjectorInterface.common, 'ed_a, 'ed_m) => 'ed_m,
       ~common: ProjectorInterface.common,
       ~sort: Sort.t,
       info,

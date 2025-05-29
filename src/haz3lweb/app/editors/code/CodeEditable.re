@@ -29,7 +29,6 @@ module Update = {
             statics: model.statics,
             dynamics: model.dynamics,
           },
-        ~sort=Exp,
         action,
         model.editor,
       )

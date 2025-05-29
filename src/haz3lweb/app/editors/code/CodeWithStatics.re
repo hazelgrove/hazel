@@ -66,7 +66,6 @@ module Update = {
   let calculate =
       (
         ~globals: Globals.t,
-        ~is_edited,
         ~stitch,
         ~dynamics: Dynamics.Map.t,
         ~is_dynamic_term,
