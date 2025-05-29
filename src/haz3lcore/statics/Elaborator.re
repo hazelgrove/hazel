@@ -305,9 +305,9 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         Let(p, fixf, body) |> rewrap;
       };
     | FixF(p, e, env) =>
-      let (p', _) = elaborate_pattern(m, p, false);
+      let (p', pty) = elaborate_pattern(m, p, false);
       let (e', _) = elaborate(m, e);
-      FixF(p', e', env) |> rewrap;
+      FixF(p', Asc(e', pty) |> rewrap, env) |> rewrap;
     // These forms are removed in elaboration
     | Use(_, e)
     | TyAlias(_, _, e) =>
