@@ -99,9 +99,30 @@ let go_z =
       /* For things where triple-clicking would otherwise have
        * no additional effect, select the parent term instead */
       let* (p, _, _) = Indicated.piece''(z);
-      Piece.is_term(p)
-        ? Select.parent_of_indicated(z, statics.info_map)
-        : Select.current_term(~defs_exclude_bodies=true, ~case_rules=true, z);
+      // Piece is a Tile, we can use the id to do the rest
+      print_endline("\n\n\nCurrent piece on triple-click:");
+      print_endline(Piece.show(p));
+
+      print_endline("Current zipper:");
+      print_endline(Zipper.pp_zipper(z));
+
+      print_endline("Running find_associative_terms");
+      // Select.find_associative_terms(z, statics.info_map);
+
+      if (Piece.is_term(p)) {
+        // print_endline("Triple-clicking on term");
+        Select.parent_of_indicated(
+          z,
+          statics.info_map,
+        );
+      } else {
+        // print_endline("Triple-clicking on non-term");
+        Select.current_term(
+          ~defs_exclude_bodies=true,
+          ~case_rules=true,
+          z,
+        );
+      };
     | _ => None
     };
   };

@@ -218,6 +218,19 @@ let show_op_bin_float: op_bin_float => string =
   | Equals => "Float Equality"
   | NotEquals => "Float Inequality";
 
+// Useful for associativity handling, selection snapping, etc
+let is_associative_op = (op: op_bin): bool => {
+  switch (op) {
+  | Int(Plus)
+  | Int(Times)
+  | Float(Plus)
+  | Float(Times)
+  | Bool(And)
+  | Bool(Or) => true
+  | _ => false
+  };
+};
+
 let show_op_bin_string: op_bin_string => string =
   fun
   | Concat => "String Concatenation"

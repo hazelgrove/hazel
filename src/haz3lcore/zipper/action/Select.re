@@ -110,6 +110,8 @@ module Make = (M: Move.S) => {
   let current_term =
       (~defs_exclude_bodies: bool, ~case_rules: bool, z: Zipper.t) => {
     let* (p, _, _) = Indicated.piece''(z);
+    print_endline("Current piece:");
+    print_endline(Piece.show(p));
     switch (p) {
     | Tile({label: ["let" | "type", ..._], _}) when defs_exclude_bodies =>
       current_tile(z)
@@ -211,6 +213,7 @@ module Make = (M: Move.S) => {
   };
 
   let parent_of_indicated = (z: Zipper.t, info_map) => {
+    print_endline("Running parent of indicated function");
     let* id = parent_id(z, info_map);
     let* z' = Move.jump_to_id_indicated(z, id);
     /* Annoying special case here: In general when selecting the parent term
@@ -224,8 +227,16 @@ module Make = (M: Move.S) => {
      * only the body. */
     switch (def_body_indicated(z, info_map)) {
     | Some(_) =>
-      current_term(~defs_exclude_bodies=false, ~case_rules=true, z')
-    | None => current_term(~defs_exclude_bodies=true, ~case_rules=true, z')
+      print_endline("Case: def body indicated was valid");
+      current_term(~defs_exclude_bodies=false, ~case_rules=true, z');
+    | None =>
+      print_endline("Def body was not indicated");
+      current_term(~defs_exclude_bodies=true, ~case_rules=true, z');
     };
+  };
+
+  let short_str = str => {
+    let len = String.length(str);
+    String.sub(str, len - 6, 6);
   };
 };

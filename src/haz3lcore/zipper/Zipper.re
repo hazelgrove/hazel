@@ -590,3 +590,37 @@ let smart_seg = (~dump_backpack: bool, ~erase_buffer: bool, z: t) => {
 };
 
 let seg_without_buffer = smart_seg(~erase_buffer=true, ~dump_backpack=false);
+
+let short_id = id => {
+  let str = Id.to_string(id);
+  let len = String.length(str);
+  String.sub(str, len - 6, 6);
+};
+
+let pp_piece = p =>
+  switch (p) {
+  | Piece.Tile(t) =>
+    "Tile(" ++ short_id(t.id) ++ ": " ++ String.concat("", t.label) ++ ")"
+  | Piece.Secondary(s) =>
+    switch (Secondary.get_string(s.content)) {
+    | "" => ""
+    | str => "Secondary(" ++ short_id(s.id) ++ ": " ++ str ++ ")"
+    }
+  | Grout(g) => "Grout(" ++ short_id(g.id) ++ ")"
+  | _ => "Unknown piece"
+  };
+
+let pp_relatives = ({siblings: (l, r), ancestors}: Relatives.t): string => {
+  let show_side = ps => ps |> List.map(pp_piece) |> String.concat(",\n\t\t");
+  "Left: \n\t\t["
+  ++ show_side(l)
+  ++ "]\n\tRight: \n\t\t["
+  ++ show_side(r)
+  ++ "]"
+  ++ "\n\tAncestors: "
+  ++ string_of_int(List.length(ancestors));
+};
+
+let pp_zipper = (z): string => {
+  "Relatives: \n\t" ++ pp_relatives(z.relatives);
+};

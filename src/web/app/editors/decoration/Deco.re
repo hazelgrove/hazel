@@ -273,6 +273,86 @@ module Deco =
       ["selected", Selection.buffer_cls(z.selection)],
     );
 
+  let find_associative_terms = (z, info_map: Statics.Map.t): list(Id.t) => {
+    let id = Indicated.index(z);
+    switch (id) {
+    | Some(id) =>
+      // let id_str = Id.to_string(id) |> short_str;
+      // print_endline("Examining piece with ID: " ++ id_str);
+
+      let statics = Statics.Map.lookup(id, info_map);
+      switch (statics) {
+      | Some(InfoExp(exp)) =>
+        switch (exp.term.term) {
+        | BinOp(op, left, right) =>
+          if (Operators.is_associative_op(op)) {
+            let left_id = left |> Exp.rep_id;
+            let right_id = right |> Exp.rep_id;
+            let right_assoc = right_id;
+
+            let left_exp = Statics.Map.lookup(left_id, info_map);
+            switch (left_exp) {
+            | Some(InfoExp(left_contents)) =>
+              switch (left_contents.term.term) {
+              | BinOp(left_op, _, left_right) =>
+                if (left_op == op) {
+                  let left_assoc = left_right |> Exp.rep_id;
+                  // print_endline(
+                  //   "Select from "
+                  //   ++ short_str(Id.to_string(left_assoc))
+                  //   ++ " to "
+                  //   ++ short_str(Id.to_string(right_assoc)),
+                  // );
+                  [left_assoc, right_assoc];
+                } else {
+                  print_endline(
+                    Printf.sprintf(
+                      "Left child is different binary operator: %s",
+                      Operators.bin_op_to_string(left_op),
+                    ),
+                  );
+                  [left_id, right_assoc];
+                }
+              | _ => [left_id, right_assoc]
+              }
+            | _ => [left_id, right_assoc]
+            };
+          } else {
+            [];
+          }
+        | _ => []
+        }
+      | _ =>
+        // print_endline("No statics found for ID: " ++ id_str);
+        []
+      };
+    | None =>
+      print_endline("No piece indicated");
+      [];
+    };
+  };
+
+  let associative_segment = (z: Zipper.t) => {
+    let assoc_ids = find_associative_terms(z, M.statics.info_map);
+    let tiles =
+      assoc_ids
+      |> List.filter_map(id => Id.Map.find_opt(id, M.editor.syntax.tiles));
+    switch (tiles) {
+    | [] =>
+      Highlight.go(
+        z.selection.content,
+        Some(fst(Siblings.shapes(z.relatives.siblings))),
+        ["selected"] @ (Selection.is_buffer(z.selection) ? ["buffer"] : []),
+      )
+    | tiles =>
+      let classes =
+        ["selected"] @ (Selection.is_buffer(z.selection) ? ["buffer"] : []);
+      let initial_shape = Some(fst(Siblings.shapes(z.relatives.siblings)));
+      let segment = tiles |> List.concat_map(Tile.disassemble);
+      Highlight.go(segment, initial_shape, classes);
+    };
+  };
+
   let term_range = (p): option((Point.t, Point.t)) => {
     let id = Language.Any.rep_id(Id.Map.find(Piece.id(p), terms));
     switch (TermRanges.find_opt(id, term_ranges)) {
@@ -491,7 +571,11 @@ module Deco =
   let indication = (z: Zipper.t) =>
     div_c("indication", indicated_piece_deco(z));
 
-  let selection = (z: Zipper.t) => div_c("selects", segment_selected(z));
+  // original version
+  // let selection = (z: Zipper.t) => div_c("selects", segment_selected(z));
+
+  // associative version with selection snapping
+  let selection = (z: Zipper.t) => div_c("selects", associative_segment(z));
 
   let always = () => [errors()];
 
