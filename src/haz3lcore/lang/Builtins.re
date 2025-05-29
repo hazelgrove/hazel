@@ -379,9 +379,9 @@ module Pervasives = {
          )
       |> fn(
            "primitive_pivot",
-           Prod([unknown(Internal), list(unknown(Internal))]),
+           Prod([list(unknown(Internal)), unknown(Internal)]),
            Unknown(Internal),
-           binary((lab: DHExp.t, d: DHExp.t) => {
+           binary((d: DHExp.t, lab: DHExp.t) => {
              switch (lab.term) {
              | Label(name) =>
                let-unbox l = (ListLit, d);
