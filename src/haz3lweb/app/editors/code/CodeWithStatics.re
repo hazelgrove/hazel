@@ -37,8 +37,6 @@ module Model = {
     indicated_piece:
       Indicated.piece''(editor |> Editor.Model.get_z)
       |> Option.map(((p, _, _)) => p),
-    selected_text:
-      Some(() => Printer.to_string_selection(editor |> Editor.Model.get_z)),
     selection: Some((editor |> Editor.Model.get_z).selection.content),
     editor: Some(editor),
     editor_read_only: true,

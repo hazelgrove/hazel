@@ -1,4 +1,3 @@
-open Js_of_ocaml;
 open Virtual_dom.Vdom;
 open Node;
 open Util;
@@ -348,53 +347,11 @@ module Focus = {
 };
 
 module View = {
-  let handlers =
-      (
-        ~inject: Update.t => Ui_effect.t(unit),
-        ~cursor: Cursor.cursor(Editors.Update.t),
-        model: Model.t,
-      ) => {
+  let handlers = (~inject: Update.t => Ui_effect.t(unit)) => {
     [
       Key.handler(~f=Focus.handle_key_event(~inject)),
       /* safety handler in case mousedown overlay doesn't catch it */
       Attr.on_mouseup(_ => inject(Globals(SetMousedown(false)))),
-      Attr.on_copy(_ => {
-        let str = (cursor.selected_text |> Option.value(~default=() => ""))();
-        /* Note that we cannot use the ClipboardCache system here unless
-         * we refine it further to replace unique ids on paste */
-        ClipboardCache.set(cursor.selection, str);
-        JsUtil.copy(str);
-        Effect.Ignore;
-      }),
-      Attr.on_cut(_ => {
-        let str = (cursor.selected_text |> Option.value(~default=() => ""))();
-        ClipboardCache.set(cursor.selection, str);
-        JsUtil.copy(str);
-        Focus.handle_key_event(
-          ~inject,
-          Key.{
-            key: D("Delete"),
-            sys: Os.is_mac^ ? Mac : PC,
-            shift: Up,
-            meta: Up,
-            ctrl: Up,
-            alt: Up,
-          },
-        );
-      }),
-    ]
-    @ [
-      Attr.on_paste(evt => {
-        Dom.preventDefault(evt);
-        let action =
-          Js.to_string(evt##.clipboardData##getData(Js.string("text")))
-          |> ClipboardCache.get
-          |> cursor.editor_action;
-        switch (action) {
-        | None => Effect.Ignore
-        | Some(action) => inject(Editors(action))
-        };
-      }),
     ];
   };
 
@@ -525,7 +482,7 @@ module View = {
       (~get_log_and, ~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
     let cursor = Focus.get_cursor_info(~selection=model.selection, model);
     div(
-      ~attrs=[Attr.id("page"), ...handlers(~cursor, ~inject, model)],
+      ~attrs=[Attr.id("page"), ...handlers(~inject)],
       [FontSpecimen.view] @ main_view(~get_log_and, ~cursor, ~inject, model),
     );
   };

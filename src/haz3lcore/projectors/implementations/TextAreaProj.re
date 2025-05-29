@@ -173,12 +173,6 @@ let textarea =
       Attr.id(Id.cls(info.id)),
       Attr.on_keydown(key_handler(info.id, ~parent)),
       Attr.on_input((_, str) => Effect.(Many([inject(SetString(str))]))),
-      /* Note: adding these handlers below because
-       * currently these are handled on page level.
-       * unnecesary maybe if we move handling down */
-      Attr.on_copy(_ => Effect.Stop_propagation),
-      Attr.on_cut(_ => Effect.Stop_propagation),
-      Attr.on_paste(_ => Effect.Stop_propagation),
       Attr.string_property("value", text),
     ],
     [],

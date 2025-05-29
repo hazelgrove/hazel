@@ -3,9 +3,6 @@ type cursor('update) = {
   // Used to display cursor info at the bottom
   // Used as input to explain this
   // *
-  selected_text: option(unit => string),
-  // Used in copy
-  // *
   selection: option(Haz3lcore.Segment.t),
   // Used to determine what kinds of projectors are applicable
   // Used to copy the current selection
@@ -47,7 +44,6 @@ let map_opt = (f: 'a => option('b), cursor) => {
 
 let empty = {
   info: None,
-  selected_text: None,
   selection: None,
   indicated_piece: None,
   editor: None,
