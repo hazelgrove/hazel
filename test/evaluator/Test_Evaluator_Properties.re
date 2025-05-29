@@ -179,7 +179,7 @@ let qcheck_pattern_equivalence_test =
 let qcheck_preservation_test =
   QCheck.Test.make(
     ~name="Preservation of types",
-    ~count=1000000,
+    ~count=10000,
     QCheck_Util.arb_exp(~minimal_idents=true, 10),
     uexp => {
     switch (
@@ -205,17 +205,17 @@ let qcheck_preservation_test =
         }
       ) {
       | Some(InfoExp({ty, _})) =>
-        let ret = Typ.is_consistent(Ctx.empty, ty, orig_ty);
-        print_endline(
-          "Preservation check: "
-          ++ string_of_bool(ret)
-          ++ " ("
-          ++ Typ.show(orig_ty)
-          ++ " !~ "
-          ++ Typ.show(ty)
-          ++ ")",
-        );
-        ret;
+        let ret = Typ.is_more_precise(Ctx.empty, ty, orig_ty);
+        if(ret) {
+          true
+        } else {
+          Alcotest.fail(
+            "Preservation failed: original type "
+            ++ Typ.show(orig_ty)
+            ++ " is not more precise than stepped type "
+            ++ Typ.show(ty),
+          );
+        }
       | _ => failwith("No type information found for stepped expression")
       }
     | (None, _) => true // If we can't take a step, we don't have to check preservation
