@@ -54,7 +54,6 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         |> DHExp.fresh,
       )
     | (e, Unknown(_)) => Some(e |> DHExp.fresh)
-    | (Test(e), Prod([])) => Some(Test(e) |> DHExp.fresh)
     | (Atom(value) as d, Atom(typ)) =>
       switch (value, typ) {
       | (Int(_), Int)
@@ -140,6 +139,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Constructor(_, Some(Some(t))), t')
         when Typ.is_consistent(Ctx.empty, Typ.unroll(t), t' |> Typ.temp) =>
       Some(e)
+    | (Test(_), Prod([])) => Some(e)
     // These are non-value cases we don't want to handle
     | (EmptyHole, _)
     | (DynamicErrorHole(_), _)
