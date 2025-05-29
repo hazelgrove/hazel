@@ -412,73 +412,49 @@ module Pervasives = {
          )
       |> fn(
            "melt",
-           Prod([
-             unknown(Internal),
-             unknown(Internal),
-             list(unknown(Internal)),
-           ]),
-           List(unknown(Internal)),
-           ternary((col_lab: DHExp.t, val_lab: DHExp.t, d: DHExp.t) => {
+           Prod([unknown(Internal), unknown(Internal), unknown(Internal)]),
+           List(prod([unknown(Internal), unknown(Internal)])),
+           ternary((e: DHExp.t, col_lab: DHExp.t, val_lab: DHExp.t) => {
              switch (col_lab.term, val_lab.term) {
              | (Label(col_lab), Label(val_lab)) =>
-               let-unbox l = (ListLit, d);
-               let bar =
-                 List.map(
-                   e => {
-                     let-unbox entries:
-                       list(
-                         (option(string), Grammar.exp_t(IdTagged.IdTag.t)),
-                       ) = (
-                       LabeledTupleEntries,
-                       e,
-                     );
+               let-unbox entries:
+                 list((option(string), Grammar.exp_t(IdTagged.IdTag.t))) = (
+                 LabeledTupleEntries,
+                 e,
+               );
 
-                     let entries:
-                       list((string, Grammar.exp_t(IdTagged.IdTag.t))) =
-                       List.filter_map(
-                         fun
-                         | (Some(name), e) => Some((name, e))
-                         | _ => None,
-                         entries,
-                       );
-
-                     Some(
-                       List.map(
-                         ((name, e)) =>
-                           IdTagged.FreshGrammar.(
-                             Exp.(
-                               cast(
-                                 tuple([
-                                   tup_label(label(col_lab), string(name)),
-                                   tup_label(label(val_lab), e),
-                                 ]),
-                                 Typ.(
-                                   prod([
-                                     tup_label(label(col_lab), string()),
-                                     tup_label(
-                                       label(val_lab),
-                                       unknown(Internal),
-                                     ) // TODO We need the actual type of the value
-                                   ])
-                                 ),
-                                 Typ.unknown(Internal),
-                               )
-                             )
-                           ),
-                         entries,
-                       ),
-                     );
-                   },
-                   l,
+               let entries: list((string, Grammar.exp_t(IdTagged.IdTag.t))) =
+                 List.filter_map(
+                   fun
+                   | (Some(name), e) => Some((name, e))
+                   | _ => None,
+                   entries,
                  );
 
-               let unboxed =
-                 bar
-                 |> Util.OptUtil.sequence
-                 |> Option.map(List.flatten)
-                 |> Option.map(IdTagged.FreshGrammar.Exp.list_lit);
+               let bar =
+                 List.map(
+                   ((name, e)) =>
+                     IdTagged.FreshGrammar.(
+                       Exp.(
+                         cast(
+                           tuple([
+                             tup_label(label(col_lab), string(name)),
+                             tup_label(label(val_lab), e),
+                           ]),
+                           Typ.(
+                             prod([
+                               tup_label(label(col_lab), string()),
+                               tup_label(label(val_lab), unknown(Internal)) // TODO We need the actual type of the value
+                             ])
+                           ),
+                           Typ.unknown(Internal),
+                         )
+                       )
+                     ),
+                   entries,
+                 );
 
-               unboxed;
+               Some(IdTagged.FreshGrammar.Exp.list_lit(bar));
              | _ => None
              }
            }),
