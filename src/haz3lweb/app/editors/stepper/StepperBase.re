@@ -83,6 +83,7 @@ module Model = {
     inner_exp: Calc.saved(Exp.t),
     bindings: Calc.saved(Ctx.t),
     inner_stepper: step,
+    result_function: Calc.saved(Exp.t),
   };
 
   let init_missing_step = MissingStep(MissingStep.Model.init);
@@ -111,6 +112,7 @@ module Model = {
     inner_exp: Calc.Pending,
     bindings: Calc.Pending,
     inner_stepper: init_step,
+    result_function: Calc.Pending,
   };
 
   let init_stepper = {
@@ -794,7 +796,7 @@ module Update = {
       (~settings, ctx, exp, state, m: Model.forall_step, hidden, editor) =>
     {
       open OptUtil.Syntax;
-      let {inner_exp, bindings, inner_stepper}: Model.forall_step = m;
+      let {inner_exp, bindings, inner_stepper, result_function}: Model.forall_step = m;
       let+ (bindings, inner_exp) =
         (bindings, inner_exp)
         |> Calc.saved_pair
@@ -812,16 +814,35 @@ module Update = {
         }
         |> Calc.to_option
         |> Option.map(Calc.to_pair);
-      let (inner_stepper, _) =
+      let (inner_stepper, last) =
         calculate_step(~settings, bindings, inner_exp, state, inner_stepper);
+      let result_function =
+        result_function
+        |> {
+          let.calc last = last
+          and.calc exp = exp;
+          switch (exp |> Exp.term_of) {
+          | Fun(p, _, t, n) => DHExp.fresh(Fun(p, last, t, n))
+          | _ =>
+            DHExp.fresh(
+              Fun(
+                Pat.fresh(EmptyHole),
+                last,
+                Some(Typ.fresh(Unknown(Internal))),
+                None,
+              ),
+            )
+          };
+        };
       (
         Model.ForallStep({
           inner_exp: inner_exp |> Calc.save,
           bindings: bindings |> Calc.save,
           inner_stepper,
+          result_function: result_function |> Calc.save,
         }),
         hidden |> Calc.set(false),
-        None,
+        Some((result_function, state)),
       );
     }
     |> OptUtil.get(() => {
