@@ -41,10 +41,12 @@ let key_handler = (id, ~parent, evt) => {
   let key = Key.mk(KeyDown, evt);
 
   switch (key.key) {
-  | D("ArrowRight" | "ArrowDown") when Web.TextArea.is_last_pos(Id.cls(id)) =>
+  | D("ArrowRight" | "ArrowDown")
+      when WebUtil.TextArea.is_last_pos(Id.cls(id)) =>
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
     Many([parent(Escape(Right)), Stop_propagation]);
-  | D("ArrowLeft" | "ArrowUp") when Web.TextArea.is_first_pos(Id.cls(id)) =>
+  | D("ArrowLeft" | "ArrowUp")
+      when WebUtil.TextArea.is_first_pos(Id.cls(id)) =>
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
     Many([parent(Escape(Left)), Stop_propagation]);
   /* Defer to parent editor undo for now */
@@ -95,8 +97,10 @@ module M: Projector = {
   let focus_keyboard = (id: Id.t, d: Direction.t) => {
     JsUtil.get_elem_by_id(Id.cls(id))##focus;
     switch (d) {
-    | Left => Web.TextArea.set_caret_to_start(Web.TextArea.get(Id.cls(id)))
-    | Right => Web.TextArea.set_caret_to_end(Web.TextArea.get(Id.cls(id)))
+    | Left =>
+      WebUtil.TextArea.set_caret_to_start(WebUtil.TextArea.get(Id.cls(id)))
+    | Right =>
+      WebUtil.TextArea.set_caret_to_end(WebUtil.TextArea.get(Id.cls(id)))
     };
   };
 

@@ -2,7 +2,7 @@
 
 (test
  (name haz3ltest)
- (libraries haz3lweb haz3lmenhir junit_alcotest bisect_ppx.runtime)
+ (libraries web menhirParser junit_alcotest bisect_ppx.runtime)
  (modes js)
  (preprocess
   (pps ppx_deriving.show)))

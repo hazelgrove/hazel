@@ -1,4 +1,4 @@
-open Haz3lmenhir;
+open MenhirParser;
 open Alcotest;
 open Language;
 module Fresh = IdTagged.FreshGrammar;
@@ -55,9 +55,7 @@ let menhir_matches = (exp: Term.Exp.t, actual: string) =>
     exp,
     Grammar.map_exp_annotation(
       _: IdTagged.IdTag.t => {ids: [Id.invalid]},
-      Haz3lmenhir.Conversion.Exp.of_menhir_ast(
-        Haz3lmenhir.Interface.parse_program(actual),
-      ),
+      Conversion.Exp.of_menhir_ast(Interface.parse_program(actual)),
     ),
   );
 
@@ -90,9 +88,7 @@ let menhir_maketerm_equivalent_test =
       make_term_parse(actual),
       Grammar.map_exp_annotation(
         _: IdTagged.IdTag.t => {ids: [Id.invalid]},
-        Haz3lmenhir.Conversion.Exp.of_menhir_ast(
-          Haz3lmenhir.Interface.parse_program(actual),
-        ),
+        Conversion.Exp.of_menhir_ast(Interface.parse_program(actual)),
       ),
     )
   });
@@ -121,9 +117,9 @@ let qcheck_menhir_maketerm_equivalent_test =
       let serialized =
         Haz3lcore.Printer.of_segment(~holes=Some("?"), segment);
       let make_term_parsed = make_term_parse(serialized);
-      let menhir_parsed = Haz3lmenhir.Interface.parse_program(serialized);
+      let menhir_parsed = Interface.parse_program(serialized);
       let menhir_parsed_converted =
-        Haz3lmenhir.Conversion.Exp.of_menhir_ast(menhir_parsed);
+        Conversion.Exp.of_menhir_ast(menhir_parsed);
 
       switch (
         DHExp.fast_equal(
@@ -179,7 +175,7 @@ let qcheck_menhir_serialized_equivalent_test =
         );
       let serialized =
         Haz3lcore.Printer.of_segment(~holes=Some("?"), segment);
-      let menhir_parsed = Haz3lmenhir.Interface.parse_program(serialized);
+      let menhir_parsed = Interface.parse_program(serialized);
       AST.equal_exp(menhir_parsed, exp);
     },
   );

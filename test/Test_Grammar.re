@@ -4,9 +4,9 @@ let qcheck_map_annotation_test =
   QCheck.Test.make(
     ~name="Map annotation to something and back",
     ~count=100,
-    Haz3lmenhir.AST.arb_exp(7),
+    MenhirParser.AST.arb_exp(7),
     exp => {
-      let indicated_exp = Haz3lmenhir.Conversion.Exp.of_menhir_ast(exp);
+      let indicated_exp = MenhirParser.Conversion.Exp.of_menhir_ast(exp);
       let core_exp =
         Grammar.map_exp_annotation(
           _ => IdTagged.IdTag.fresh(),
