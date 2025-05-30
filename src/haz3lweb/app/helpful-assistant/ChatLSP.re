@@ -192,7 +192,8 @@ module Composition = {
 
   type loc_of_goto =
     | Body
-    | Definition;
+    | Definition
+    | All;
 
   let get_static_context = (relevant_ctx: bool, ci: Info.t): list(string) =>
     switch (ci) {
@@ -208,47 +209,52 @@ module Composition = {
   // Finds the first matching variable as 'name' in the context
   // highlights the variable and definition (excluding the body)
   let goto =
-      (editor: CodeWithStatics.Model.t, name: string, loc: loc_of_goto)
-      : list(Action.t) => {
-    let statics = CodeWithStatics.Model.get_statics(editor);
-    // Find the first matching variable in the context using fold
-    // TODO: Handle shadowed variables
-    let matching_id =
-      Id.Map.fold(
-        (_, info, acc) => {
-          switch (acc) {
-          | Some(_) => acc // Already found a match
-          | None =>
-            let ctx = Info.ctx_of(info);
-            switch (Ctx.lookup_var(ctx, name)) {
-            | Some(entry) => Some(entry.id)
-            | None => None
-            };
-          }
-        },
-        statics.info_map,
-        None,
-      );
-    // Return appropriate action based on whether we found a match
-    switch (matching_id) {
-    | Some(id) => [
-        Action.Jump(TileId(id)),
-        // Moving left by token is essentially a hacky method to get
-        // off of a variable name (term), and triple/quad click on let binding
-        // itself (this properly highlights full variable name and
-        // definition when type annotation exists)
-        Action.Move(Local(Left(ByToken))),
-        switch (loc) {
-        | Definition => Action.Select(Smart(3))
-        | Body => Action.Select(Smart(4))
-        },
-        Action.Copy,
-      ]
-    | None => [Action.Select(Term(Id(Id.invalid, Direction.Left)))]
+      (editor: CodeWithStatics.Model.t, loc: loc_of_goto, name: string)
+      : list(Action.t) =>
+    if (loc == All) {
+      print_endline("here selecting all");
+      [Action.Select(All), Action.Copy];
+    } else {
+      let statics = CodeWithStatics.Model.get_statics(editor);
+      // Find the first matching variable in the context using fold
+      // TODO: Handle shadowed variables
+      let matching_id =
+        Id.Map.fold(
+          (_, info, acc) => {
+            switch (acc) {
+            | Some(_) => acc // Already found a match
+            | None =>
+              let ctx = Info.ctx_of(info);
+              switch (Ctx.lookup_var(ctx, name)) {
+              | Some(entry) => Some(entry.id)
+              | None => None
+              };
+            }
+          },
+          statics.info_map,
+          None,
+        );
+      // Return appropriate action based on whether we found a match
+      switch (matching_id) {
+      | Some(id) => [
+          Action.Jump(TileId(id)),
+          // Moving left by token is essentially a hacky method to get
+          // off of a variable name (term), and triple/quad click on let binding
+          // itself (this properly highlights full variable name and
+          // definition when type annotation exists)
+          Action.Move(Local(Left(ByToken))),
+          switch (loc) {
+          | Definition => Action.Select(Smart(3))
+          | Body => Action.Select(Smart(4))
+          | All => Action.Select(Term(Id(Id.invalid, Direction.Left)))
+          },
+          Action.Copy,
+        ]
+      | None => [Action.Select(Term(Id(Id.invalid, Direction.Left)))]
+      };
     };
-  };
 
-  let edit = (code: string, loc: loc_of_edit): list(Action.t) => {
+  let edit = (loc: loc_of_edit, code: string): list(Action.t) => {
     // TODO: Might be helpful to paste a segment instead of a string
     // This may allow for better error handling.
     switch (loc) {

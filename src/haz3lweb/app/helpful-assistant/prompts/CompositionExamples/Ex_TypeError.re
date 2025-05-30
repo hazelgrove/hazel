@@ -1,6 +1,7 @@
 module Sexp = Sexplib.Sexp;
 
 let self = [
+  "<typeErrorFixExample>",
   "Example: Fixing a simple type error in a function",
   "USER MESSAGE: please fix my program",
   "SYSTEM MESSAGE: PROGRAM SKETCH: ```# Simple function to add input to \"hello\" #
@@ -36,4 +37,5 @@ let self = [
   "LLM MESSAGE: The function now correctly adds an integer to the input. Task completed:
 
     {{{submit}}}",
+  "</typeErrorFixExample>",
 ];

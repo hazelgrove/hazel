@@ -781,10 +781,24 @@ let message_display =
                           switch (message.party) {
                           | User => text("User")
                           | LLM =>
-                            div(
-                              ~attrs=[clss(["llm-identifier"])],
-                              [Icons.hazelnut_agent, text("Assistant")],
-                            )
+                            switch (settings.mode) {
+                            | CodeSuggestion =>
+                              div(
+                                ~attrs=[clss(["llm-identifier"])],
+                                [Icons.hazelnut_agent, text("Assistant")],
+                              )
+                            | TaskCompletion =>
+                              div(
+                                ~attrs=[clss(["llm-identifier"])],
+                                [Icons.hazelnut_agent, text("Agent")],
+                              )
+                            | HazelTutor =>
+                              div(
+                                ~attrs=[clss(["llm-identifier"])],
+                                [Icons.hazelnut_agent, text("Tutor")],
+                              )
+                            }
+
                           | System(Prompt) =>
                             div(
                               ~attrs=[clss(["system-prompt-identifier"])],

@@ -2,6 +2,7 @@ module Sexp = Sexplib.Sexp;
 open Haz3lcore;
 open Util;
 open Util.OptUtil.Syntax;
+open API;
 
 module CodeModel = CodeEditable.Model;
 
@@ -133,7 +134,7 @@ let init_chat = (kind: AssistantSettings.mode): Model.chat => {
 let extract_tool_calls = (response: string): list(string) => {
   let rec extract_tool_calls =
           (text: string, acc: list(string)): list(string) => {
-    let pattern = Str.regexp("\\{\\{\\{\\([^}]*\\)\\}\\}\\}");
+    let pattern = Str.regexp("~~~[ \n]*\\([^~]+\\)[ \n]*~~~");
     switch (Str.search_forward(pattern, text, 0)) {
     | exception Not_found => List.rev(acc)
     | pos =>
@@ -149,11 +150,6 @@ let extract_tool_calls = (response: string): list(string) => {
     };
   };
   extract_tool_calls(response, []);
-};
-
-let extract_text = (response: string): list(string) => {
-  let pattern = StringUtil.regexp("```[ \n]*\\([^`]+\\)[ \n]*```");
-  StringUtil.split(pattern, response);
 };
 
 let await_llm_response: Model.message = {
@@ -1010,72 +1006,179 @@ let update =
         |> Updated.return_quiet;
       } else {
         let tool_calls = extract_tool_calls(message.content);
-        List.iter(
-          (tool_call: string) => {print_endline("Tool call: " ++ tool_call)},
-          tool_calls,
-        );
 
         let rec process_tool_calls = (calls: list(string)) => {
           switch (calls) {
-          | [] => ()
-          | [tool_call, ...remaining] =>
-            let parsed_response =
-              switch (String.index_opt(tool_call, ' ')) {
-              | Some(idx) => [
-                  String.sub(tool_call, 0, idx),
-                  String.sub(
-                    tool_call,
-                    idx + 1,
-                    String.length(tool_call) - idx - 1,
-                  ),
-                ]
-              | None => [tool_call]
-              };
-            let tool_call = List.hd(parsed_response);
-            let arg =
-              List.length(parsed_response) > 1
-                ? Some(List.hd(List.tl(parsed_response))) : None;
-
-            switch (tool_call) {
-            | "goto_definition" =>
-              goto(editor, Option.get(arg), ChatLSP.Composition.Definition);
-              process_tool_calls(remaining);
-            | "goto_body" =>
-              goto(editor, Option.get(arg), ChatLSP.Composition.Body);
-              process_tool_calls(remaining);
-            | "edit" =>
-              edit(Option.get(arg), ChatLSP.Composition.Current);
-              process_tool_calls(remaining);
-            | "insert_before" =>
-              edit(Option.get(arg), ChatLSP.Composition.Before);
-              process_tool_calls(remaining);
-            | "insert_after" =>
-              edit(Option.get(arg), ChatLSP.Composition.After);
-              process_tool_calls(remaining);
-            | "delete" =>
-              edit("", ChatLSP.Composition.Current);
-              process_tool_calls(remaining);
-            | "view_sketch" =>
-              schedule_action(
-                SendMessage(
-                  Basic(
-                    text_message_of_str(
-                      "You have requested to view the sketch. Please review and continue with completing the user-specified task.",
-                      System(Prompt),
-                    ),
+          | [] =>
+            schedule_action(
+              SendMessage(
+                Basic(
+                  text_message_of_str(
+                    "You have omitted the \"submit\" tool call from your message. Displaying sketch for you to continue iterative task completion process.",
+                    System(Prompt),
                   ),
                 ),
-              )
-            | "submit" => ()
-            | _ =>
-              schedule_action(
-                SendMessage(
-                  Basic(
-                    text_message_of_str(
-                      "Unknown tool call: " ++ tool_call,
-                      System(Error),
+              ),
+            )
+          | [tool_call, ...remaining] =>
+            let parsed_response =
+              try(
+                switch (Json.from_string(tool_call)) {
+                | `Assoc(fields) =>
+                  let tool = List.assoc_opt("tool", fields);
+                  let arg = List.assoc_opt("args", fields);
+                  (tool, arg);
+                | _ => (None, None)
+                }
+              ) {
+              | Yojson.Json_error(_) => (None, None)
+              };
+            let tool =
+              switch (parsed_response) {
+              | (Some(`String(tool)), _) => tool
+              | _ =>
+                schedule_action(
+                  SendMessage(
+                    Basic(
+                      text_message_of_str(
+                        "Unable to parse tool call:\n"
+                        ++ tool_call
+                        ++ "\nEnsure proper json formatting is used.",
+                        System(Error),
+                      ),
                     ),
                   ),
+                );
+                "submit";
+              };
+            let args =
+              switch (parsed_response) {
+              | (_, Some(`Assoc(args))) => args
+              | _ => []
+              };
+
+            let invalid_arg_type =
+                (tool: string, arg: string, typ: Json.t): string => {
+              tool
+              ++ " called with invalid type at argument position "
+              ++ arg
+              ++ ": "
+              ++ Json.to_string(typ);
+            };
+
+            let invalid_num_args =
+                (tool: string, expected: int, received: int): string => {
+              tool
+              ++ " expected "
+              ++ string_of_int(expected)
+              ++ " argument"
+              ++ (expected == 1 ? "" : "s")
+              ++ " but "
+              ++ string_of_int(received)
+              ++ " were given";
+            };
+
+            try(
+              switch (tool) {
+              | "goto_definition" =>
+                switch (
+                  List.assoc_opt("variable_name", args),
+                  List.length(args),
+                ) {
+                | (Some(`String(arg)), 1) =>
+                  goto(editor, ChatLSP.Composition.Definition, arg)
+                | (Some(inv_type), _) =>
+                  raise(
+                    Failure(
+                      invalid_arg_type(
+                        "goto_definition",
+                        "variable_name",
+                        inv_type,
+                      ),
+                    ),
+                  )
+                | (_, n) =>
+                  raise(Failure(invalid_num_args("goto_definition", 1, n)))
+                };
+                process_tool_calls(remaining);
+              | "goto_body" =>
+                switch (
+                  List.assoc_opt("variable_name", args),
+                  List.length(args),
+                ) {
+                | (Some(`String(arg)), 1) =>
+                  goto(editor, ChatLSP.Composition.Body, arg)
+                | (Some(inv_type), _) =>
+                  raise(
+                    Failure(
+                      invalid_arg_type(
+                        "goto_body",
+                        "variable_name",
+                        inv_type,
+                      ),
+                    ),
+                  )
+                | (_, n) =>
+                  raise(Failure(invalid_num_args("goto_body", 1, n)))
+                };
+                process_tool_calls(remaining);
+              | "select_all" =>
+                goto(editor, ChatLSP.Composition.All, "");
+                process_tool_calls(remaining);
+              | "paste" =>
+                switch (List.assoc_opt("code", args), List.length(args)) {
+                | (Some(`String(arg)), 1) =>
+                  edit(ChatLSP.Composition.Current, arg)
+                | (Some(inv_type), _) =>
+                  raise(Failure(invalid_arg_type("edit", "code", inv_type)))
+                | (_, n) => raise(Failure(invalid_num_args("edit", 1, n)))
+                };
+                process_tool_calls(remaining);
+              | "delete" =>
+                List.length(args) != 0
+                  ? raise(
+                      Failure(
+                        invalid_num_args("delete", 0, List.length(args)),
+                      ),
+                    )
+                  : edit(ChatLSP.Composition.Current, "");
+                process_tool_calls(remaining);
+              | "view_sketch" =>
+                List.length(args) != 0
+                  ? raise(
+                      Failure(
+                        invalid_num_args(
+                          "view_sketch",
+                          0,
+                          List.length(args),
+                        ),
+                      ),
+                    )
+                  : schedule_action(
+                      SendMessage(
+                        Basic(
+                          text_message_of_str(
+                            "You have requested to view the sketch. Please review and continue with completing the user-specified task.",
+                            System(Prompt),
+                          ),
+                        ),
+                      ),
+                    )
+              | "submit" =>
+                List.length(args) != 0
+                  ? raise(
+                      Failure(
+                        invalid_num_args("submit", 0, List.length(args)),
+                      ),
+                    )
+                  : ()
+              | _ => raise(Failure("Unknown tool call: " ++ tool_call))
+              }
+            ) {
+            | Failure(err) =>
+              schedule_action(
+                SendMessage(
+                  Basic(text_message_of_str(err, System(Error))),
                 ),
               )
             };

@@ -1,6 +1,7 @@
 module Sexp = Sexplib.Sexp;
 
 let self = [
+  "<calculatorExample>",
   "Example: Writing a simple calculator program",
   "USER MESSAGE: please write a simple calculator program",
   "SYSTEM MESSAGE: PROGRAM SKETCH: ```?```
@@ -133,4 +134,5 @@ let self = [
   "LLM MESSAGE: The sketch looks good! I think we're done with the calculator program.
 
     {{{submit}}}",
+  "</calculatorExample>",
 ];
