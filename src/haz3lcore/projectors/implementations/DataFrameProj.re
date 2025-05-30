@@ -170,7 +170,7 @@ let length_cls = (length: int): string =>
     "s0";
   };
 let value_view = (info: info, utility: utility, view_seg, exp) => {
-  let (seg, length) = abbreviated_seg_of(utility, 30, exp);
+  let (seg, length) = abbreviated_seg_of(utility, 7, exp);
 
   Node.div(
     ~attrs=[
@@ -256,7 +256,7 @@ module M: Projector = {
     ProjectorCore.Shape.{
       vertical: Block(num_rows * 2 + 1), // +1 for header row
       /* +2 for left and right padding */
-      horizontal: 2 + num_cols * 7,
+      horizontal: 2 + num_cols * 12,
     };
   };
   let update = (model, _, _) => model;
