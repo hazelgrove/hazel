@@ -224,4 +224,11 @@
   /* HACKS */
   --modal-back-z: 100;
   --modal-z: 101;
+
+  /* DATAFRAME TABLES */
+  --df-bg: var(--T3);
+  --df-header-bg: oklch(from var(--df-bg) 85% calc(c * 0.7) h);
+  --df-zebra-bg: oklch(from var(--df-bg) 88% c h);
+  --df-hover-bg: oklch(80% 0.1 250); /* gentle blue highlight */
 }
+/* oklch(from oklch(85% 0.07 90) 65% calc(c * 1.1) h) */
