@@ -315,10 +315,10 @@ module Update = {
       let goto =
           (
             ed: CodeWithStatics.Model.t,
-            name: string,
             loc: ChatLSP.Composition.loc_of_goto,
+            name: string,
           ) => {
-        let actions = ChatLSP.Composition.goto(ed, name, loc);
+        let actions = ChatLSP.Composition.goto(ed, loc, name);
         // Apply each action in sequence
         List.iter(
           action => {
@@ -331,8 +331,8 @@ module Update = {
           actions,
         );
       };
-      let edit = (code: string, loc: ChatLSP.Composition.loc_of_edit) => {
-        let actions = ChatLSP.Composition.edit(code, loc);
+      let edit = (loc: ChatLSP.Composition.loc_of_edit, code: string) => {
+        let actions = ChatLSP.Composition.edit(loc, code);
         // Apply each action in sequence
         List.iter(
           action => {

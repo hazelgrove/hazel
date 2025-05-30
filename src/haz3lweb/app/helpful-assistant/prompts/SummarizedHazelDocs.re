@@ -1,6 +1,7 @@
 module Sexp = Sexplib.Sexp;
 
 let self = [
+  "<summarizedHazelDocs>",
   "- Hazel is a live functional programming environment that supports incomplete programs via typed holes.",
   "- Typed holes, denoted as `?`, can stand for missing expressions or types.",
   "- Programs with holes still carry meaningful static and dynamic semantics, unlike traditional languages.",
@@ -82,4 +83,5 @@ let self = [
   "- Hazel is ideal for education, as no edit state is meaningless.",
   "- All code edits are type-preserving and guided by Hazel's edit action model.",
   "- An important note is that comments in Hazel are enclosed by `#` symbols. Eg `# This is a comment #`. The program WILL be erroneous if you do not include an ending '#' symbol for a comment.",
+  "</summarizedHazelDocs>",
 ];

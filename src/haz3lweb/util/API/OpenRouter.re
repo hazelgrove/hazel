@@ -260,6 +260,7 @@ let parse_models_response = (json: Json.t): option(models_response) =>
                         completion: c,
                       },
                     })
+                  // Uncomment below for recommended models (as of May 2025)
                   /* is_top_model(name)
                      ? Some({
                          id,

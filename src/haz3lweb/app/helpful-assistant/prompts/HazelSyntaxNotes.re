@@ -1,7 +1,7 @@
 module Sexp = Sexplib.Sexp;
 
 let self = [
-  "HAZEL SYNTAX NOTES:",
+  "<hazelSyntaxNotes>",
   "- Hazel uses C-style function application syntax, with parenthesis around comma-separated arguments",
   "- Function application is ALWAYS written using parentheses and commas: use 'function(arg1, arg2)'. DO NOT just use spaces between the function name and arguments.",
   "- Function parameters are ALWAYS commas separated: 'fun arg1, arg2 -> <exp>'. DO NOT use spaces to separate function arguments.",
@@ -12,4 +12,5 @@ let self = [
   "- No 'rec' keyword is necessary for 'let' to define a recursive function. DO NOT use the 'rec' keyword with 'let'.",
   "- Format the code with proper linebreaks and whitespace.",
   "- Hazel comments are enclosed by beginning and ending `#` symbols. Eg `# This is a comment #`. The program WILL be erroneous if you do not include an ending '#' symbol for a comment.",
+  "</hazelSyntaxNotes>",
 ];
