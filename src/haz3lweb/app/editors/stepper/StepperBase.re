@@ -1085,6 +1085,7 @@ module View = {
         | MakeActive(s) => signal(MakeActive(s))
         | HideStepper => signal(HideStepper),
       ~inject=u => inject(RootAction(u)),
+      ~is_toplevel=true,
       ~selected,
       model.root,
     )
@@ -1097,6 +1098,7 @@ module View = {
         ~signal: event_step => Ui_effect.t(unit),
         ~inject: Update.step => Ui_effect.t(unit),
         ~selected: option(Selection.step),
+        ~is_toplevel: bool=false,
         root_step,
       ) => {
     [
@@ -1107,6 +1109,7 @@ module View = {
           ~signal,
           ~inject,
           ~selected,
+          ~is_toplevel,
           ~undo=None,
           root_step,
         ),
@@ -1120,6 +1123,7 @@ module View = {
         ~signal: event_step => Ui_effect.t(unit),
         ~inject: Update.step => Ui_effect.t(unit),
         ~selected: option(Selection.step),
+        ~is_toplevel: bool=false,
         ~undo: option(Ui_effect.t(unit)),
         model: Model.step,
       ) => {
@@ -1202,6 +1206,7 @@ module View = {
             ~globals: Globals.t,
             ~signal: event_step => Ui_effect.t(unit),
             ~inject: Update.step => Ui_effect.t(unit),
+            ~is_toplevel,
             ~undo,
             model.step_kind,
           );
@@ -1236,6 +1241,7 @@ module View = {
       Option.map(
         view_step(
           ~globals,
+          ~is_toplevel,
           ~signal=
             fun
             | MakeActive(s) => signal(MakeActive(Next(s)))
@@ -1265,6 +1271,7 @@ module View = {
         ~signal: event_step => Ui_effect.t(unit),
         ~inject: Update.step => Ui_effect.t(unit),
         ~undo: option(Ui_effect.t(unit)),
+        ~is_toplevel: bool,
         step_kind: Model.step_kind,
       ) => {
     let justification =
@@ -1275,12 +1282,13 @@ module View = {
           |> EvaluatorStep.get_step_kind
           |> Transition.stepper_justification,
         )
-      | InductionStep(_) => Node.text("Induction Step")
+      | InductionStep(_) => Node.text("Case Analysis")
       | ForallStep(_) => Node.text("Enter Function")
       | AxiomStep(_) => Node.text("Axiom Step")
       | MissingStep(ms) =>
         MissingStep.View.view_justification(
           ~globals,
+          ~is_toplevel,
           ~signal=
             fun
             | HideStepper => signal(HideStepper)
@@ -1363,14 +1371,23 @@ module View = {
       );
 
     let add_case_button =
-      Widgets.button(Icons.star, _ => inject(InductionStep(AddCase)));
+      Widgets.button(
+        Web.Node.text("Case ..."),
+        ~tooltip="Add case",
+        ~clss=["subtle-button", "add-case-button"],
+        _ =>
+        inject(InductionStep(AddCase))
+      );
 
     let cases =
       List.mapi(
         (i, Model.{pattern, step: stepper, _}) => {
           let remove_case_button =
-            Widgets.button(Icons.star, _ =>
-              inject(InductionStep(RemoveCase(i)))
+            Widgets.button(
+              Icons.trash,
+              _ => inject(InductionStep(RemoveCase(i))),
+              ~tooltip="Remove case",
+              ~clss=["subtle-button"],
             );
           let pattern_editor =
             CodeEditable.View.view(
@@ -1412,7 +1429,12 @@ module View = {
             [
               div_c(
                 "induction-case-header",
-                [remove_case_button, Node.text("Case "), pattern_editor],
+                [
+                  remove_case_button,
+                  Node.text("Case "),
+                  pattern_editor,
+                  Node.text(" : "),
+                ],
               ),
             ]
             @ stepper_view,

@@ -53,12 +53,14 @@
 .induction-case .stepper {
   margin-left: 2em;
 }
-
 .induction-case-header {
   display: flex;
   flex-direction: row;
   gap: 0.5em;
   align-items: center;
+  border-top: 1px dotted var(--cell-result-border);
+  padding-top: 0.5em;
+  margin-left: -1em;
 }
 
 .induction-case-patten {
@@ -67,6 +69,35 @@
   gap: 0.5em;
   align-items: center;
 }
+
+.stepper .subtle-button {
+  opacity: 0;
+  cursor: pointer;
+  border-radius: 2rem;
+  -webkit-transition: all 0.3s;
+  -moz-transition: all 0.3s;
+  -o-transition: all 0.3s;
+  -ms-transition: all 0.3s;
+  transition: all 0.3s;
+}
+
+.add-case-button {
+  margin-left: 2.5em;
+  color: --BR4;
+}
+
+.stepper .subtle-button:hover {
+  opacity: 1;
+}
+
+.stepper .induction-case:hover .subtle-button {
+  opacity: 1;
+}
+
+*:hover>.subtle-button {
+  opacity: 1;
+}
+
 
 .inline-editor-wrapper {
   background-color: var(--light-page-color);

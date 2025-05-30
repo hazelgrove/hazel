@@ -490,6 +490,7 @@ module View = {
         ~globals: Globals.t,
         ~signal,
         ~undo: option(Ui_effect.t(unit)),
+        ~is_toplevel: bool,
         _model: Model.t,
       ) => {
     let button_back =
@@ -520,7 +521,11 @@ module View = {
       );
     Web.Node.div(
       ~attrs=[Web.Attr.classes(["stepper-controls"])],
-      [button_back, eval_settings, toggle_show_history, button_hide_stepper],
+      [button_back]
+      @ (
+        is_toplevel
+          ? [eval_settings, toggle_show_history, button_hide_stepper] : []
+      ),
     );
   };
 };
