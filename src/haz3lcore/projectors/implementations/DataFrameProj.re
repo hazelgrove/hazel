@@ -17,28 +17,18 @@ let dataframe_of =
     let data: list(option((list(string), list(TermBase.exp_t)))) =
       List.map(
         e => {
-          print_endline("Mapping over list elements..." ++ Exp.show(e));
           switch (Unboxing.unbox(LabeledTupleEntries, e)) {
           // TODO Stop doing this with unboxing and deconstruct it here with the parens
-          | IndetMatch =>
-            print_endline("Unboxing result: IndetMatch");
-            None;
-          | DoesNotMatch =>
-            print_endline("Unboxing result: DoesNotMatch");
-            None;
+          | IndetMatch => None
+          | DoesNotMatch => None
           | Matches(entries: list((option(string), TermBase.exp_t))) =>
-            print_endline("Unboxing result: Matches");
             let f: option(list((string, TermBase.exp_t))) =
               OptUtil.sequence(
                 List.map(
                   ((label, value)) =>
                     switch (label) {
-                    | Some(l) =>
-                      print_endline("Found label: " ++ l);
-                      Some((l, value));
-                    | None =>
-                      print_endline("Label is None");
-                      None;
+                    | Some(l) => Some((l, value))
+                    | None => None
                     },
                   entries,
                 ),
@@ -48,7 +38,7 @@ let dataframe_of =
               f |> Option.map(List.split);
 
             g;
-          };
+          }
         },
         es,
       );
@@ -58,32 +48,21 @@ let dataframe_of =
       OptUtil.sequence(data);
     switch (data) {
     | Some(data: list((list(string), list(TermBase.exp_t)))) =>
-      print_endline("Data successfully sequenced.");
       let (headers: list(list(string)), rows: list(list(TermBase.exp_t))) =
         List.split(data);
 
-      print_endline("Split headers and rows.");
       // If all the headers aren't the same return None
       switch (headers) {
-      | [] =>
-        print_endline("Headers are empty.");
-        None;
+      | [] => None
       | [h, ..._] when List.for_all(x => x == h, headers) =>
-        print_endline("Headers are consistent.");
         let headers = h;
         Some((headers, rows));
 
-      | _ =>
-        print_endline("Headers are inconsistent.");
-        None;
+      | _ => None
       };
-    | None =>
-      print_endline("Data sequencing failed.");
-      None;
+    | None => None
     };
-  | _ =>
-    print_endline("Input is not a ListLit.");
-    None;
+  | _ => None
   };
 
 let get = (info: info): (list(LabeledTuple.label), list(list(Exp.t))) =>
@@ -169,7 +148,7 @@ let length_cls = (length: int): string =>
   } else {
     "s0";
   };
-let value_view = (info: info, utility: utility, view_seg, exp) => {
+let value_view = (_info: info, utility: utility, view_seg, exp) => {
   let (seg, length) = abbreviated_seg_of(utility, 7, exp);
 
   Node.div(
@@ -194,7 +173,7 @@ let value_view = (info: info, utility: utility, view_seg, exp) => {
 let table =
     (
       info,
-      ~parent: external_action => Ui_effect.t(unit),
+      ~parent as _: external_action => Ui_effect.t(unit),
       (headers, rows): (list(LabeledTuple.label), list(list(Exp.t))),
       ~view_seg: (Sort.t, Segment.t) => Node.t,
     ) =>
