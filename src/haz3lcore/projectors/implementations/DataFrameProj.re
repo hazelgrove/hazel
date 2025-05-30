@@ -2,12 +2,7 @@ open Util;
 open Virtual_dom.Vdom;
 open ProjectorBase;
 
-let string_of = (any: Any.t): option(string) =>
-  switch (any) {
-  | Exp({term: Atom(String(s)), _}) =>
-    Some(StringUtil.unescape_linebreaks(s))
-  | _ => None
-  };
+let max_column_length = 12;
 
 let dataframe_of =
     (any: Any.t): option((list(LabeledTuple.label), list(list(Exp.t)))) =>
@@ -43,7 +38,6 @@ let dataframe_of =
         es,
       );
 
-    print_endline("Finished mapping over list elements.");
     let data: option(list((list(string), list(TermBase.exp_t)))) =
       OptUtil.sequence(data);
     switch (data) {
@@ -70,9 +64,9 @@ let get = (info: info): (list(LabeledTuple.label), list(list(Exp.t))) =>
   | Some(s) =>
     switch (dataframe_of(s)) {
     | Some(s) => s
-    | None => failwith("TextArea: get: Not string literal")
+    | None => failwith("TextArea: get: Not a dataframe")
     }
-  | None => failwith("TextArea: get: Not string literal")
+  | None => failwith("TextArea: get: Not a dataframe")
   };
 
 let key_handler = (id, ~parent, evt) => {
@@ -149,7 +143,7 @@ let length_cls = (length: int): string =>
     "s0";
   };
 let value_view = (_info: info, utility: utility, view_seg, exp) => {
-  let (seg, length) = abbreviated_seg_of(utility, 7, exp);
+  let (seg, length) = abbreviated_seg_of(utility, max_column_length, exp);
 
   Node.div(
     ~attrs=[
@@ -210,32 +204,48 @@ module M: Projector = {
     | None => None
     };
 
-  let focus_keyboard = (id: Id.t, d: Direction.t) => {
-    JsUtil.get_elem_by_id(Id.cls(id))##focus;
-    switch (d) {
-    | Left => Web.TextArea.set_caret_to_start(Web.TextArea.get(Id.cls(id)))
-    | Right => Web.TextArea.set_caret_to_end(Web.TextArea.get(Id.cls(id)))
-    };
-  };
+  // let focus_keyboard = (id: Id.t, d: Direction.t) => {
+  //   JsUtil.get_elem_by_id(Id.cls(id))##focus;
+  //   switch (d) {
+  //   | Left => Web.TextArea.set_caret_to_start(Web.TextArea.get(Id.cls(id)))
+  //   | Right => Web.TextArea.set_caret_to_end(Web.TextArea.get(Id.cls(id)))
+  //   };
+  // };
 
-  let focus_pointer = (id: Id.t) => {
-    JsUtil.get_elem_by_id(Id.cls(id))##focus;
-  };
+  // let focus_pointer = (id: Id.t) => {
+  //   JsUtil.get_elem_by_id(Id.cls(id))##focus;
+  // };
 
   let focusable =
     Focusable.{
-      pointer: Some(focus_pointer),
-      keyboard: Some(focus_keyboard),
+      pointer: None,
+      keyboard: None,
     };
   let dynamics = false;
   let placeholder = (_, info) => {
-    let data: (list(string), list(list(TermBase.exp_t))) = info |> get;
-    let num_rows = List.length(data |> snd);
-    let num_cols = List.length(data |> fst);
+    let (header, rows): (list(string), list(list(TermBase.exp_t))) =
+      info |> get;
+    let max_header_length =
+      header |> List.map(String.length) |> List.fold_left((+), 0);
+    let max_row_length =
+      rows
+      |> List.map(row =>
+           row
+           |> List.map(e =>
+                Abbreviate.abbreviate_exp(~available=max_column_length, e)
+                |> snd
+              )
+           |> List.fold_left((+), 0, _)
+         )
+      |> List.fold_left(max, 0, _);
+    let max_length = max(max_header_length, max_row_length);
+
+    let num_rows = List.length(rows);
+    let num_cols = List.length(header);
     ProjectorCore.Shape.{
       vertical: Block(num_rows * 2 + 1), // +1 for header row
       /* +2 for left and right padding */
-      horizontal: 2 + num_cols * 12,
+      horizontal: 4 + max_length * 1 + num_cols * 2 // +2 for left and right padding
     };
   };
   let update = (model, _, _) => model;
