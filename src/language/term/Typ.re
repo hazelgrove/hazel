@@ -683,7 +683,7 @@ let pretty_print_tvar = (tv: TPat.t): string =>
   | MultiHole(_) => "?"
   };
 
-/* Essentially recreates haz3lweb/view/Type.re's view_ty but with string output */
+/* Essentially recreates web/view/Type.re's view_ty but with string output */
 let rec pretty_print = (ty: t): string =>
   switch (term_of(ty)) {
   | Parens(ty) => pretty_print(ty)

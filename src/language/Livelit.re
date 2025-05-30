@@ -74,7 +74,7 @@ module Slider: BuiltinLivelit = {
   let view = (model: model_t, send_action) => {
     let n = model;
 
-    Util.Web.range(
+    Util.WebUtil.range(
       ~attrs=[
         Attr.on_input((_, v: string) => {
           send_action(SetModel(Bigint.of_string(v)))
@@ -240,7 +240,7 @@ module Emotion: BuiltinLivelit = {
           ),
         ],
       ),
-      Util.Web.range(
+      Util.WebUtil.range(
         ~attrs=[
           Attr.on_input((_, v) => {
             send_action(SetModel(Bigint.of_string(v)))

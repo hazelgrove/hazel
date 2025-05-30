@@ -59,7 +59,7 @@ module M: Projector = {
         ~view_seg as _,
       ) =>
     View.mk(
-      Util.Web.range(
+      Util.WebUtil.range(
         ~attrs=[Attr.on_input((_, v) => parent(SetSyntax(put(info, v))))],
         info |> get |> Bigint.to_string,
       ),

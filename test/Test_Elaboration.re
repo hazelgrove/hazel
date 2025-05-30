@@ -732,8 +732,8 @@ module MenhirElaborationTests = {
       name,
       Grammar.map_exp_annotation(
         _ => IdTagged.IdTag.fresh(),
-        Haz3lmenhir.Conversion.Exp.of_menhir_ast(
-          Haz3lmenhir.Interface.parse_program(dhexp),
+        MenhirParser.Conversion.Exp.of_menhir_ast(
+          MenhirParser.Interface.parse_program(dhexp),
         ),
       ),
       dhexp_of_uexp(uexp),
