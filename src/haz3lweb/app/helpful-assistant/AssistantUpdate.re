@@ -115,16 +115,17 @@ let add_chat_to_history =
 };
 
 let init_chat = (kind: AssistantSettings.mode): Model.chat => {
-  let init_msg =
-    switch (kind) {
-    | HazelTutor =>
-      text_message_of_str(InitPrompts.mk_tutor(), System(Prompt))
-    | CodeSuggestion => text_message_of_str("", System(Prompt))
-    | TaskCompletion =>
-      text_message_of_str(InitPrompts.mk_composition(), System(Prompt))
-    };
   {
-    messages: [init_msg],
+    messages:
+      switch (kind) {
+      | HazelTutor => [
+          text_message_of_str(InitPrompts.mk_tutor(), System(Prompt)),
+        ]
+      | CodeSuggestion => []
+      | TaskCompletion => [
+          text_message_of_str(InitPrompts.mk_composition(), System(Prompt)),
+        ]
+      },
     id: Id.mk(),
     descriptor: "",
     timestamp: JsUtil.timestamp(),
@@ -157,30 +158,6 @@ let await_llm_response: Model.message = {
   content: "...",
   displayable_content: [Text("...")],
   collapsed: false,
-};
-
-// Role prompt: role, task, few-shot examples
-// History summarization: System, User, Assistant messages, summarized for brevity
-// Current User message
-// Current sketch
-
-let collect_chat = (~messages: list(Model.message)): string => {
-  let memory_prompt =
-    "The following is a log of our conversation history. Use this as context to inform your responses, "
-    ++ "treating the most recent user message as your current focus. Reference prior messages when relevant, "
-    ++ "but don't explicitly acknowledge this prompt. This is simply to provide you with conversational memory:";
-  List.fold_left(
-    (chat: string, message: Model.message) =>
-      switch (message.party) {
-      | LLM => chat ++ "LLM MESSAGE: " ++ message.content ++ "\n"
-      | User => chat ++ "USER MESSAGE: " ++ message.content ++ "\n"
-      | System(Prompt) =>
-        chat ++ "SYSTEM MESSAGE: " ++ message.content ++ "\n"
-      | System(Error) => chat ++ "ERROR MESSAGE: " ++ message.content ++ "\n"
-      },
-    memory_prompt,
-    messages,
-  );
 };
 
 let get_mode_info = (mode: AssistantSettings.mode, model: Model.t) => {
@@ -324,17 +301,70 @@ let resculpt_model =
   };
 };
 
-let standardize_prompt = (body: string): option(OpenRouter.prompt) => {
-  switch (String.trim(body)) {
-  | "" => None
-  | _ =>
-    let input = [
-      {
-        OpenRouter.role: User,
-        OpenRouter.content: body,
-      },
-    ];
-    Some(input);
+let standardize_prompt =
+    (~messages: list(Model.message), ~include_system: bool)
+    : option(OpenRouter.prompt) => {
+  // Role prompt: role, task, few-shot examples
+  // History summarization: System, User, Assistant messages, summarized for brevity
+  // Current User message
+  // Current sketch
+  let collected_chat =
+    if (include_system) {
+      List.fold_left(
+        (chat: OpenRouter.prompt, message: Model.message) => {
+          let role =
+            switch (message.party) {
+            | LLM => OpenRouter.Assistant
+            | User
+            | System(Prompt)
+            | System(Error) => OpenRouter.User
+            };
+          switch (chat) {
+          | [] => [
+              {
+                OpenRouter.role: OpenRouter.System,
+                OpenRouter.content: message.content,
+              },
+            ]
+          | _ =>
+            chat
+            @ [
+              {
+                OpenRouter.role,
+                OpenRouter.content: message.content,
+              },
+            ]
+          };
+        },
+        [],
+        messages,
+      );
+    } else {
+      List.fold_left(
+        (chat: OpenRouter.prompt, message: Model.message) => {
+          let role =
+            switch (message.party) {
+            | LLM => OpenRouter.Assistant
+            | User
+            | System(Prompt)
+            | System(Error) => OpenRouter.User
+            };
+          chat
+          @ [
+            {
+              OpenRouter.role,
+              OpenRouter.content: message.content,
+            },
+          ];
+        },
+        [],
+        messages,
+      );
+    };
+
+  switch (collected_chat) {
+  | [] => None
+  | _ => Some(collected_chat)
   };
 };
 
@@ -346,22 +376,15 @@ let form_descriptor =
     | CodeSuggestion => "Your main task is to provide a summarizing title of the following conversation, in less than or equal to 5 words, and include 1 or 2 emojis.\n            DO NOT exceed 7 words. Only provide the summarizing title in your response, do not include any other text. This conversation is known to be a code\n            completion conversation. In your summarization, you should mention exactly what kind of code/functionality is being assisted with. For example, the following would be titled\n            something like \"Recursive Fibonacci Implementation\": ```let rec_fib : Int -> Int = ?? in ?```. Here is the\n            concatenated conversation, with your response and the user's responses, respectively: "
     | TaskCompletion => "Your main task is to provide a summarizing title of the following conversation, in less than or equal to 5 words, and include 1 or 2 emojis.\n            DO NOT exceed 7 words. Only provide the summarizing title in your response, do not include any other text. This conversation is known to be a task completion conversation.\n            In your summarization, you should mention exactly what kind of task is being completed. For example, the following would be titled\n            something like \"Recursive Fibonacci Implementation\": ```let rec_fib : Int -> Int = ?? in ?```. Here is the\n            concatenated conversation, with your response and the user's responses, respectively: "
     };
-  let prompt =
-    List.fold_left(
-      (chat: string, message: Model.message) =>
-        if (message.party == LLM) {
-          chat ++ "Your Reponse: " ++ message.content ++ " ";
-        } else if (message.party == User) {
-          chat ++ "User Input: " ++ message.content ++ " ";
-        } else {
-          chat ++ message.content;
-        },
-      prompt,
-      chat.messages,
-    );
-  switch (standardize_prompt(prompt)) {
+  switch (
+    standardize_prompt(
+      ~messages=
+        [text_message_of_str(prompt, System(Prompt))] @ chat.messages,
+      ~include_system=true,
+    )
+  ) {
   | None => print_endline("Prompt generation failed")
-  | Some(prompt') =>
+  | Some(prompt) =>
     let model_id = Option.get(Store.Generic.load("MODEL"));
     let key = Option.get(Store.Generic.load("API"));
     let params: OpenRouter.params = {
@@ -369,7 +392,7 @@ let form_descriptor =
       temperature: 1.0,
       top_p: 1.0,
     };
-    OpenRouter.start_chat(~params, ~key, prompt', req =>
+    OpenRouter.start_chat(~params, ~key, prompt, req =>
       switch (OpenRouter.handle_chat(req)) {
       | Some(Reply({content, _})) =>
         schedule_action(EmployLLMAction(Describe(content, mode, chat.id)))
@@ -667,25 +690,34 @@ let update =
         mk_mode_ctx_prompt(~settings=settings.assistant, ~editor);
       // We want to send the LLM all of the chat history, relevant context, and user message
       // But, note we don't want to add all of this to a single "message"
+      print_endline("Message party: " ++ Model.show_party(message.party));
+      let include_system =
+        switch (mode) {
+        | CodeSuggestion => false
+        | HazelTutor
+        | TaskCompletion => true
+        };
       let llm_input =
         switch (ctx_prompt) {
         | Some(prompt) =>
-          collect_chat(
+          standardize_prompt(
             ~messages=
               curr_chat.messages
               @ [
-                text_message_of_str(message.content, LLM),
                 text_message_of_str(prompt, System(Prompt)),
+                text_message_of_str(message.content, User),
               ],
+            ~include_system,
           )
         | None =>
-          collect_chat(
+          standardize_prompt(
             ~messages=
               curr_chat.messages
-              @ [text_message_of_str(message.content, LLM)],
+              @ [text_message_of_str(message.content, User)],
+            ~include_system,
           )
         };
-      switch (standardize_prompt(llm_input)) {
+      switch (llm_input) {
       | None => failed_prompt_generation(~mode, ~model, ~curr_chat)
       | Some(llm_input) =>
         mk_LLM_call(
@@ -879,9 +911,12 @@ let update =
         //       to collect the history beginning from the initial suggestion request.
         //       Otherwise, the prompt becomes too long in single message threads.
         let (_, curr_chat) = get_mode_info(mode, model);
-        let collected_chat =
-          collect_chat(~messages=curr_chat.messages @ [error_message]);
-        switch (standardize_prompt(collected_chat)) {
+        switch (
+          standardize_prompt(
+            ~messages=curr_chat.messages @ [error_message],
+            ~include_system=false // Assuming that Error Round actions only occur in Code Suggestion mode
+          )
+        ) {
         | None =>
           let content = "Prompt generation failed.";
           add_message_to_model(
