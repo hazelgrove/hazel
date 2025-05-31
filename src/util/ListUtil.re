@@ -694,3 +694,10 @@ let rec fill_nones = (xs: list(option('a)), ys: list('a)): list('a) =>
   | ([Some(x), ...xs], ys) => [x, ...fill_nones(xs, ys)]
   | _ => failwith("ListUtil.fill_nones: lengths do not match")
   };
+
+// Adds an element to a list if the option is Some, otherwise returns the list unchanged
+let opt_add = (opt: option('a), xs: list('a)): list('a) =>
+  switch (opt) {
+  | Some(x) => xs @ [x]
+  | None => xs
+  };

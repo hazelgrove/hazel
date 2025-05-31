@@ -16,16 +16,10 @@ type chat_models =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type role =
   | System
+  | Developer
   | User
   | Assistant
-  | Function;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type params = {
-  model_id: string,
-  temperature: float,
-  top_p: float,
-};
+  | Tool;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type message = {
@@ -34,7 +28,12 @@ type message = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type prompt = list(message);
+type params = {
+  model_id: string,
+  temperature: float,
+  top_p: float,
+  tools: list(string) //todo: would like list(json.t) but throws error o_O
+};
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type usage = {
@@ -73,14 +72,16 @@ let string_of_chat_model =
 let string_of_role =
   fun
   | System => "system"
+  | Developer => "developer"
   | User => "user"
   | Assistant => "assistant"
-  | Function => "function";
+  | Tool => "tool";
 
 let default_params = {
   model_id: "",
   temperature: 1.0,
   top_p: 1.0,
+  tools: [],
 };
 
 let mk_message = ({role, content}) =>
@@ -89,7 +90,7 @@ let mk_message = ({role, content}) =>
     ("content", `String(content)),
   ]);
 
-let body = (~params: params, messages: prompt): Json.t => {
+let body = (~params: params, messages: list(message)): Json.t => {
   `Assoc([
     ("model", `String(params.model_id)),
     ("temperature", `Float(params.temperature)),
@@ -112,8 +113,9 @@ let chat = (~key, ~body, ~handler): unit => {
   );
 };
 
-let start_chat = (~params, ~key, prompt: prompt, handler): unit => {
-  let body = body(~params, prompt);
+let start_chat =
+    (~params, ~key, ~outgoing_messages: list(message), handler): unit => {
+  let body = body(~params, outgoing_messages);
   chat(~key, ~body, ~handler);
 };
 
@@ -185,9 +187,6 @@ let mk_assistant_msg = (content: string): message => {
   role: Assistant,
   content,
 };
-
-let add_to_prompt = (prompt, ~assistant, ~user): prompt =>
-  prompt @ [mk_assistant_msg(assistant), mk_user_msg(user)];
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pricing = {
