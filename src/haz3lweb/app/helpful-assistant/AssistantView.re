@@ -392,12 +392,7 @@ let message_input =
     (~signal, ~inject, ~model: Model.t, ~settings: AssistantSettings.t)
     : Node.t => {
   let handle_send = (content: string) => {
-    let message: Model.message = {
-      party: User,
-      content,
-      displayable_content: Update.parse_blocks(content),
-      collapsed: String.length(content) >= Model.max_collapsed_length,
-    };
+    let message = OpenRouter.mk_user_msg(content);
     Js_of_ocaml.Firebug.console##log(
       Js_of_ocaml.Js.string("Message sent: " ++ message.content),
     );
@@ -407,7 +402,7 @@ let message_input =
     ]);
   };
   let (past_chats, curr_chat) = Update.get_mode_info(settings.mode, model);
-  let curr_messages = Id.Map.find(curr_chat.id, past_chats).messages;
+  let curr_messages = Id.Map.find(curr_chat.id, past_chats).message_displays;
   let send_message = _ => {
     let message =
       Js.Opt.case(
@@ -430,12 +425,14 @@ let message_input =
     switch (key, ListUtil.last_opt(curr_messages)) {
     | (
         _,
-        Some({
-          party: LLM,
-          content: "...",
-          displayable_content: [Text("...")],
-          collapsed: false,
-        }),
+        Some(
+          {
+            displayable_content: [Text("...")],
+            original_content: "...",
+            collapsed: false,
+            role: Assistant,
+          }: Model.display,
+        ),
       ) => Virtual_dom.Vdom.Effect.Ignore
     | (Some("Enter"), _) => send_message()
     | _ => Virtual_dom.Vdom.Effect.Ignore
@@ -468,12 +465,14 @@ let message_input =
         (),
       ),
       switch (ListUtil.last_opt(curr_messages)) {
-      | Some({
-          party: LLM,
-          content: "...",
-          displayable_content: [Text("...")],
-          collapsed: false,
-        }) =>
+      | Some(
+          {
+            role: Assistant,
+            displayable_content: [Text("...")],
+            original_content: "...",
+            collapsed: false,
+          }: Model.display,
+        ) =>
         div(
           ~attrs=[
             clss(["send-button-disabled", "icon"]),
@@ -509,33 +508,32 @@ let loading_dots = () => {
 
 let form_collapse_toggle =
     (
-      ~message: Model.message,
+      ~message: Model.display,
       ~toggle_collapse,
       ~index: int,
       ~is_first: bool,
       ~is_last: bool,
     )
     : Node.t =>
-  if (message.collapsed
-      && String.length(message.content) >= Model.max_collapsed_length
-      && is_first) {
+  if (message.collapsed && is_first) {
     div(
       ~attrs=[
         clss(["collapse-indicator"]),
         Attr.on_click(_ => toggle_collapse(index)),
-        String.length(message.content) >= Model.max_collapsed_length
+        String.length(message.original_content) >= Model.max_collapsed_length
           ? Attr.empty : Attr.hidden,
       ],
       [text("▼ Show more")],
     );
   } else if (!message.collapsed
-             && String.length(message.content) >= Model.max_collapsed_length
+             && String.length(message.original_content)
+             >= Model.max_collapsed_length
              && is_last) {
     div(
       ~attrs=[
         clss(["collapse-indicator"]),
         Attr.on_click(_ => toggle_collapse(index)),
-        String.length(message.content) >= Model.max_collapsed_length
+        String.length(message.original_content) >= Model.max_collapsed_length
           ? Attr.empty : Attr.hidden,
       ],
       [text("▲ Show less")],
@@ -546,7 +544,7 @@ let form_collapse_toggle =
 
 let text_block =
     (
-      ~message: Model.message,
+      ~message: Model.display,
       ~content: string,
       ~toggle_collapse,
       ~index: int,
@@ -557,11 +555,11 @@ let text_block =
   div(
     ~attrs=[
       clss([
-        switch (message.party) {
+        switch (message.role) {
         | User => "user-message"
-        | LLM => "llm-message"
-        | System(Prompt) => "system-prompt-message"
-        | System(Error) => "system-error-message"
+        | Assistant => "llm-message"
+        | System(AssistantPrompt) => "system-prompt-message"
+        | System(InternalError) => "system-error-message"
         },
       ]),
       Attr.on_copy(_ => {Effect.Stop_propagation}),
@@ -570,7 +568,7 @@ let text_block =
     ],
     [
       message.collapsed
-      && String.length(message.content) >= Model.max_collapsed_length
+      && String.length(message.original_content) >= Model.max_collapsed_length
         ? text(
             String.concat(
               "",
@@ -598,7 +596,7 @@ let text_block =
 
 let code_block =
     (
-      ~message: Model.message,
+      ~message: Model.display,
       ~sketch: Segment.t,
       ~toggle_collapse,
       ~index: int,
@@ -611,11 +609,11 @@ let code_block =
     ~attrs=[
       clss([
         "example",
-        switch (message.party) {
+        switch (message.role) {
         | User => "user"
-        | LLM => "llm"
-        | System(Prompt) => "system-prompt"
-        | System(Error) => "system-error"
+        | Assistant => "llm"
+        | System(AssistantPrompt) => "system-prompt"
+        | System(InternalError) => "system-error"
         },
       ]),
     ],
@@ -627,7 +625,7 @@ let code_block =
         ~selected=None,
         ~caption=None,
         ~locked=true,
-        message.party == LLM
+        message.role == Assistant
           ? {
             sketch |> Zipper.unzip |> Editor.Model.mk |> CellEditor.Model.mk;
           }
@@ -657,7 +655,7 @@ let code_block =
 
 let form_block =
     (
-      ~message: Model.message,
+      ~message: Model.display,
       ~block: Model.block_kind,
       ~toggle_collapse,
       ~index: int,
@@ -695,7 +693,7 @@ let form_block =
 let initial_display =
     (~model: Model.t, ~settings: AssistantSettings.t): Node.t => {
   let (past_chats, curr_chat) = Update.get_mode_info(settings.mode, model);
-  let curr_messages = Id.Map.find(curr_chat.id, past_chats).messages;
+  let curr_messages = Id.Map.find(curr_chat.id, past_chats).message_displays;
   List.length(curr_messages) <= 1
     ? div(
         ~attrs=[clss(["initial-display"])],
@@ -751,23 +749,23 @@ let message_display =
     );
   };
   let (past_chats, curr_chat) = Update.get_mode_info(settings.mode, model);
-  let curr_messages = Id.Map.find(curr_chat.id, past_chats).messages;
+  let curr_messages = Id.Map.find(curr_chat.id, past_chats).message_displays;
   let message_nodes =
     List.flatten(
       List.mapi(
-        (index: int, message: Model.message) => {
-          message.content == "..." && message.party == LLM
+        (index: int, message: Model.display) => {
+          message.original_content == "..." && message.role == Assistant
             ? [loading_dots()]
             : [
               div(
                 ~attrs=[
                   clss([
                     "message-container",
-                    switch (message.party) {
+                    switch (message.role) {
                     | User => "user"
-                    | LLM => "llm"
-                    | System(Prompt) => "system-prompt"
-                    | System(Error) => "system-error"
+                    | Assistant => "llm"
+                    | System(AssistantPrompt) => "system-prompt"
+                    | System(InternalError) => "system-error"
                     },
                   ]),
                 ],
@@ -778,9 +776,9 @@ let message_display =
                       div(
                         ~attrs=[clss(["message-identifier"])],
                         [
-                          switch (message.party) {
+                          switch (message.role) {
                           | User => text("User")
-                          | LLM =>
+                          | Assistant =>
                             switch (settings.mode) {
                             | CodeSuggestion =>
                               div(
@@ -799,12 +797,12 @@ let message_display =
                               )
                             }
 
-                          | System(Prompt) =>
+                          | System(AssistantPrompt) =>
                             div(
                               ~attrs=[clss(["system-prompt-identifier"])],
                               [text("System")],
                             )
-                          | System(Error) =>
+                          | System(InternalError) =>
                             div(
                               ~attrs=[clss(["system-error-identifier"])],
                               [text("System")],
@@ -812,7 +810,7 @@ let message_display =
                           },
                         ],
                       ),
-                      message.party == System(Prompt)
+                      message.role == System(AssistantPrompt)
                         ? div(
                             ~attrs=[clss(["show-prompt-button"])],
                             [
@@ -827,7 +825,7 @@ let message_display =
                   ),
                 ]
                 @ {
-                  message.party == System(Prompt)
+                  message.role == System(AssistantPrompt)
                     ? [None]
                     : {
                       let parsed_blocks = message.displayable_content;
@@ -884,11 +882,11 @@ let prompt_display =
     (~globals: Globals.t, ~model: Model.t, ~settings: AssistantSettings.t)
     : Node.t => {
   let (past_chats, curr_chat) = Update.get_mode_info(settings.mode, model);
-  let curr_messages = Id.Map.find(curr_chat.id, past_chats).messages;
+  let curr_messages = Id.Map.find(curr_chat.id, past_chats).message_displays;
   let display =
     List.find_mapi(
-      (index: int, message: Model.message) => {
-        message.party == System(Prompt) && !message.collapsed
+      (index: int, message: Model.display) => {
+        message.role == System(AssistantPrompt) && !message.collapsed
           ? Some(
               div(
                 ~attrs=[

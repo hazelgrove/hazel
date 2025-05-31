@@ -62,9 +62,15 @@ let mk_tutor = () => {
                   We are first implementing these ideas into Hazel, a web-based programming environment for an Elm/ML-like functional programming language designed around typed-hole-driven development.
                   Uniquely, every incomplete program that you can construct using Hazel's language of edit actions is both statically and dynamically well-defined, i.e. it has a (possibly incomplete) type, and you can run it to produce a (possibly incomplete) result. Consequently, Hazel serves as an elegant platform for research on the future of programming (and programming education).
                   ";
-  prelude ++ "\n\n" ++ get_documentation_as_text();
+  OpenRouter.mk_system_msg(prelude ++ "\n\n" ++ get_documentation_as_text());
 };
 
-let mk_composition = (): string => {
-  String.concat("\n", TaskCompletionToolKit.self);
+let mk_composition = (): OpenRouter.message => {
+  OpenRouter.mk_system_msg(String.concat("\n", TaskCompletionToolKit.self));
+};
+
+let mk_suggestion = (): OpenRouter.message => {
+  OpenRouter.mk_system_msg(
+    "You are a helpful assistant that suggests how to fill holes in Hazel to the user.",
+  );
 };

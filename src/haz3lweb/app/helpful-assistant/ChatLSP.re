@@ -94,7 +94,7 @@ module Completion = {
         hole_label: string,
         advanced_reasoning: bool,
       )
-      : OpenRouter.prompt =>
+      : list(OpenRouter.message) =>
     [
       OpenRouter.mk_system_msg(
         SystemPrompt.mk_suggestion_prompt(
@@ -145,8 +145,8 @@ module Composition = {
   // Prompt with appropriate context for each message
   let mk_ctx_prompt =
       (options: Options.t, sketch: Segment.t, editor: CodeWithStatics.Model.t)
-      : string => {
-    let _ = options; // TODO: Either remove params or update function to use params
+      : OpenRouter.message => {
+    let _ = options; // TODO: Either remove params or update function to use params AnCRask
 
     //let (_, info_map) = statics_of_exp_seg(Info.ctx_of(ci), sketch);
     let errors = ErrorPrint.all(editor.statics.info_map);
@@ -156,32 +156,34 @@ module Composition = {
       | [] => ["No static errors found"]
       | _ => errors
       };
-    String.concat(
-      "\n",
-      [
-        "PROGRAM SKETCH: ```"
-        ++ ErrorPrint.Print.seg(~holes=Some("?"), sketch)
-        ++ "```",
-      ]
-      @ ["STATIC ERRORS: "]
-      @ static_error_arr
-      @ [
-        "SELECTED CODE: "
-        ++ (
-          String.length(
-            ErrorPrint.Print.seg(
-              ~holes=Some("?"),
-              editor.editor.state.zipper.selection.content,
-            ),
-          )
-          == 0
-            ? "None. Use a goto_* command to select a code segment."
-            : ErrorPrint.Print.seg(
+    OpenRouter.mk_user_msg(
+      String.concat(
+        "\n",
+        [
+          "PROGRAM SKETCH: ```"
+          ++ ErrorPrint.Print.seg(~holes=Some("?"), sketch)
+          ++ "```",
+        ]
+        @ ["STATIC ERRORS: "]
+        @ static_error_arr
+        @ [
+          "SELECTED CODE: "
+          ++ (
+            String.length(
+              ErrorPrint.Print.seg(
                 ~holes=Some("?"),
                 editor.editor.state.zipper.selection.content,
-              )
-        ),
-      ],
+              ),
+            )
+            == 0
+              ? "None. Use a goto_* command to select a code segment."
+              : ErrorPrint.Print.seg(
+                  ~holes=Some("?"),
+                  editor.editor.state.zipper.selection.content,
+                )
+          ),
+        ],
+      ),
     );
   };
 
