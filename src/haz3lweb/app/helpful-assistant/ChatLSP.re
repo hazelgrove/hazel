@@ -2,6 +2,31 @@ open Util;
 open Haz3lcore.Info;
 open Haz3lcore;
 
+let get_sketch_and_error_ctx =
+    (editor: CodeWithStatics.Model.t): list(string) => {
+  let sketch_seg =
+    Zipper.smart_seg(
+      ~dump_backpack=true,
+      ~erase_buffer=true,
+      editor.editor.state.zipper,
+    );
+  let errors = ErrorPrint.all(editor.statics.info_map);
+  let static_error_arr =
+    switch (errors) {
+    | [] => ["No static errors found"]
+    | _ => errors
+    };
+  let ctx =
+    [
+      "PROGRAM SKETCH: ```"
+      ++ ErrorPrint.Print.seg(~holes=Some("?"), sketch_seg)
+      ++ "```",
+    ]
+    @ ["STATIC ERRORS: "]
+    @ static_error_arr;
+  ctx;
+};
+
 module Options = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -159,13 +184,7 @@ module Composition = {
     OpenRouter.mk_user_msg(
       String.concat(
         "\n",
-        [
-          "PROGRAM SKETCH: ```"
-          ++ ErrorPrint.Print.seg(~holes=Some("?"), sketch)
-          ++ "```",
-        ]
-        @ ["STATIC ERRORS: "]
-        @ static_error_arr
+        get_sketch_and_error_ctx(editor)
         @ [
           "SELECTED CODE: "
           ++ (

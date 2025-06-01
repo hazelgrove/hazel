@@ -73,11 +73,13 @@ module Update = {
     | Save;
 
   // Helper function to check for insertion of '??' or '?a' and trigger assistant updates
-  let send_assistant_insertion_info = (~char, ~editor, ~schedule_action) => {
+  let send_assistant_insertion_info =
+      (~char, ~editor, ~schedule_action, ~chat_id) => {
     AssistantUpdate.check_req(
       char,
       a => schedule_action(Assistant(a)),
       editor,
+      chat_id,
     );
   };
 
@@ -146,7 +148,10 @@ module Update = {
             ~globals,
             ~schedule_action=a => schedule_action(Editors(a)),
             ~send_assistant_insertion_info=
-              send_assistant_insertion_info(~schedule_action),
+              send_assistant_insertion_info(
+                ~schedule_action,
+                ~chat_id=model.assistant.current_chats.curr_suggestion_chat,
+              ),
             action,
             model.editors,
           );
@@ -183,7 +188,10 @@ module Update = {
             ~globals=model.globals,
             ~schedule_action=a => schedule_action(Editors(a)),
             ~send_assistant_insertion_info=
-              send_assistant_insertion_info(~schedule_action),
+              send_assistant_insertion_info(
+                ~schedule_action,
+                ~chat_id=model.assistant.current_chats.curr_suggestion_chat,
+              ),
             action,
             model.editors,
           );
@@ -206,7 +214,10 @@ module Update = {
             ~globals=model.globals,
             ~schedule_action=a => schedule_action(Editors(a)),
             ~send_assistant_insertion_info=
-              send_assistant_insertion_info(~schedule_action),
+              send_assistant_insertion_info(
+                ~schedule_action,
+                ~chat_id=model.assistant.current_chats.curr_suggestion_chat,
+              ),
             action,
             model.editors,
           );
@@ -229,7 +240,10 @@ module Update = {
             ~globals=model.globals,
             ~schedule_action=a => schedule_action(Editors(a)),
             ~send_assistant_insertion_info=
-              send_assistant_insertion_info(~schedule_action),
+              send_assistant_insertion_info(
+                ~schedule_action,
+                ~chat_id=model.assistant.current_chats.curr_suggestion_chat,
+              ),
             action,
             model.editors,
           );
@@ -263,7 +277,10 @@ module Update = {
           ~globals,
           ~schedule_action=a => schedule_action(Editors(a)),
           ~send_assistant_insertion_info=
-            send_assistant_insertion_info(~schedule_action),
+            send_assistant_insertion_info(
+              ~schedule_action,
+              ~chat_id=model.assistant.current_chats.curr_suggestion_chat,
+            ),
           action,
           model.editors,
         );
@@ -280,12 +297,6 @@ module Update = {
       };
     | Assistant(action) =>
       let settings = globals.settings;
-      let ed: CellEditor.Model.t =
-        switch (model.editors) {
-        | Scratch(m) => List.nth(m.scratchpads, m.current) |> snd
-        | Documentation(m) => List.nth(m.scratchpads, m.current) |> snd
-        | Exercises(m) => List.nth(m.exercises, m.current).cells.user_impl
-        };
       open Haz3lcore;
       let add_suggestion = (~response: string, tile: Id.t, resuggest: bool) => {
         let actions =
@@ -349,7 +360,6 @@ module Update = {
         AssistantUpdate.update(
           ~settings,
           ~action,
-          ~editor=ed.editor,
           ~model=model.assistant,
           ~schedule_action=a => schedule_action(Assistant(a)),
           ~add_suggestion,
@@ -614,6 +624,12 @@ module View = {
         cursor,
       );
     let sidebar = {
+      let ed: CellEditor.Model.t =
+        switch (model.editors) {
+        | Scratch(m) => List.nth(m.scratchpads, m.current) |> snd
+        | Documentation(m) => List.nth(m.scratchpads, m.current) |> snd
+        | Exercises(m) => List.nth(m.exercises, m.current).cells.user_impl
+        };
       open Editors.View;
       let signal =
         fun
@@ -628,6 +644,7 @@ module View = {
         ~signal,
         ~explainThisModel,
         ~assistantModel,
+        ~editor=ed.editor,
         cursor.info,
       );
     };
