@@ -561,20 +561,20 @@ let update =
         OpenRouter.mk_user_msg(
           String.concat("\n", ChatLSP.get_sketch_and_error_ctx(editor)),
         );
-      let message_displays = [
+      let new_message_displays = [
         mk_message_display(~content=user_message.content, ~role=User),
         mk_message_display(
           ~content=ctx.content,
           ~role=System(AssistantPrompt),
         ),
       ];
-      let outgoing_messages =
+      let new_outgoing_messages =
         curr_chat.outgoing_messages @ [user_message, ctx];
 
       let updated_chat = {
         ...curr_chat,
-        outgoing_messages,
-        message_displays,
+        outgoing_messages: curr_chat.outgoing_messages @ new_outgoing_messages,
+        message_displays: curr_chat.message_displays @ new_message_displays,
       };
 
       mk_llm_call(
@@ -598,20 +598,20 @@ let update =
             sketch_seg,
             editor,
           );
-        let message_displays = [
+        let new_message_displays = [
           mk_message_display(~content=user_message.content, ~role=User),
           mk_message_display(
             ~content=ctx.content,
             ~role=System(AssistantPrompt),
           ),
         ];
-        let outgoing_messages =
-          curr_chat.outgoing_messages @ [user_message, ctx];
+        let new_outgoing_messages = [user_message, ctx];
 
         let updated_chat = {
           ...curr_chat,
-          outgoing_messages,
-          message_displays,
+          outgoing_messages:
+            curr_chat.outgoing_messages @ new_outgoing_messages,
+          message_displays: curr_chat.message_displays @ new_message_displays,
         };
 
         let max_fuel = 10;
@@ -635,18 +635,19 @@ let update =
             sketch_seg,
             editor,
           );
-        let message_displays = [
+        let new_message_displays = [
           mk_message_display(
             ~content=ctx.content,
             ~role=System(AssistantPrompt),
           ),
         ];
-        let outgoing_messages = curr_chat.outgoing_messages @ [ctx];
+        let new_outgoing_messages = [ctx];
 
         let updated_chat = {
           ...curr_chat,
-          outgoing_messages,
-          message_displays,
+          outgoing_messages:
+            curr_chat.outgoing_messages @ new_outgoing_messages,
+          message_displays: curr_chat.message_displays @ new_message_displays,
         };
 
         mk_llm_call(
@@ -667,8 +668,8 @@ let update =
       let curr_chat =
         Id.Map.find(chat_id, model.chat_history.past_suggestion_chats);
       switch (kind) {
-      | Request(tileId, advanced_reasoning) =>
-        let tag = String.sub(Id.to_string(tileId), 0, 3);
+      | Request(tile_id, advanced_reasoning) =>
+        let tag = String.sub(Id.to_string(tile_id), 0, 3);
         switch (
           {
             let* sketch_z_with_tag =
@@ -694,7 +695,7 @@ let update =
           print_endline("Suggestion prompt generation failed");
           model |> Updated.return_quiet;
         | Some(suggestion_prompt) =>
-          let message_displays =
+          let new_message_displays =
             List.map(
               (msg: OpenRouter.message) =>
                 mk_message_display(
@@ -706,7 +707,8 @@ let update =
           let updated_chat = {
             ...curr_chat,
             outgoing_messages: curr_chat.outgoing_messages @ suggestion_prompt,
-            message_displays: curr_chat.message_displays @ message_displays,
+            message_displays:
+              curr_chat.message_displays @ new_message_displays,
           };
           mk_llm_call(
             ~mode, ~schedule_action, ~updated_chat, ~response_handler=response =>
@@ -714,7 +716,7 @@ let update =
               CompletionErrorRound(
                 editor,
                 ChatLSP.Options.init.error_rounds_max,
-                tileId,
+                tile_id,
               ),
               response,
               chat_id,
@@ -733,20 +735,20 @@ let update =
           OpenRouter.mk_user_msg(
             String.concat("\n", ChatLSP.get_sketch_and_error_ctx(editor)),
           );
-        let message_displays = [
+        let new_message_displays = [
           mk_message_display(~content=user_message.content, ~role=User),
           mk_message_display(
             ~content=ctx.content,
             ~role=System(AssistantPrompt),
           ),
         ];
-        let outgoing_messages =
+        let new_outgoing_messages =
           curr_chat.outgoing_messages @ [user_message, ctx];
-
         let updated_chat = {
           ...curr_chat,
-          outgoing_messages,
-          message_displays,
+          outgoing_messages:
+            curr_chat.outgoing_messages @ new_outgoing_messages,
+          message_displays: curr_chat.message_displays @ new_message_displays,
         };
 
         mk_llm_call(
@@ -763,18 +765,18 @@ let update =
             "Your previous response caused the following error. Please fix it in your response: "
             ++ error,
           );
-
+        let new_outgoing_messages = [error_message];
+        let new_message_displays = [
+          mk_message_display(
+            ~content=error_message.content,
+            ~role=System(AssistantPrompt),
+          ),
+        ];
         let updated_chat = {
           ...curr_chat,
-          outgoing_messages: curr_chat.outgoing_messages @ [error_message],
-          message_displays:
-            curr_chat.message_displays
-            @ [
-              mk_message_display(
-                ~content=error_message.content,
-                ~role=System(AssistantPrompt),
-              ),
-            ],
+          outgoing_messages:
+            curr_chat.outgoing_messages @ new_outgoing_messages,
+          message_displays: curr_chat.message_displays @ new_message_displays,
         };
 
         // check that fuel is not 0
@@ -813,11 +815,13 @@ let update =
         get_mode_info(mode, model) |> snd;
       };
 
+    let new_message_displays = [
+      mk_message_display(~content, ~role=System(InternalError)),
+    ];
+
     let updated_chat = {
       ...curr_chat,
-      message_displays:
-        curr_chat.message_displays
-        @ [mk_message_display(~content, ~role=System(InternalError))],
+      message_displays: curr_chat.message_displays @ new_message_displays,
     };
     update_model_chat_history(~model, ~mode, ~updated_chat)
     |> Updated.return_quiet;
