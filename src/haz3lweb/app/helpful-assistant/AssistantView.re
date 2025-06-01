@@ -389,15 +389,46 @@ let llm_model_id_input =
 };
 
 let message_input =
-    (~signal, ~inject, ~model: Model.t, ~settings: AssistantSettings.t)
+    (
+      ~signal,
+      ~inject,
+      ~model: Model.t,
+      ~settings: AssistantSettings.t,
+      ~editor: CodeEditable.Model.t,
+    )
     : Node.t => {
+  let mode = settings.mode;
   let handle_send = (content: string) => {
-    let message = OpenRouter.mk_user_msg(content);
     Js_of_ocaml.Firebug.console##log(
-      Js_of_ocaml.Js.string("Message sent: " ++ message.content),
+      Js_of_ocaml.Js.string("Message sent: " ++ content),
     );
     Virtual_dom.Vdom.Effect.Many([
-      inject(Update.SendMessage(Basic(message))),
+      switch (mode) {
+      | HazelTutor =>
+        inject(
+          Update.SendMessage(
+            Tutor(content),
+            editor,
+            model.current_chats.curr_tutor_chat,
+          ),
+        )
+      | CodeSuggestion =>
+        inject(
+          Update.SendMessage(
+            Completion(Query(content)),
+            editor,
+            model.current_chats.curr_suggestion_chat,
+          ),
+        )
+      | TaskCompletion =>
+        inject(
+          Update.SendMessage(
+            Composition(Request(content)),
+            editor,
+            model.current_chats.curr_composition_chat,
+          ),
+        )
+      },
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   };
@@ -1058,6 +1089,7 @@ let view =
       ~signal,
       ~inject: Update.t => Ui_effect.t(unit),
       ~model: Model.t,
+      ~editor: CodeEditable.Model.t,
     ) => {
   let settings = globals.settings;
   let inject_global = globals.inject_global;
@@ -1110,6 +1142,7 @@ let view =
               ~inject,
               ~model,
               ~settings=settings.assistant,
+              ~editor,
             )
           : None,
         settings.assistant.ongoing_chat

@@ -8,19 +8,31 @@ module CodeModel = CodeEditable.Model;
 
 module Model = AssistantModel;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type completion =
+  | Request(Id.t, bool) // When user presses ?? or ?a
+  | Query(string) // User may followup with a query
+  | Loop(string, Id.t, int); // Error rounds
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type composition =
+  | Request(string) // User-submitted task, question, etc
+  | Loop(int); // Iterative tool completion loop
+
 // Actions to send various kinds of messages to the LLM
 [@deriving (show({with_path: false}), sexp, yojson)]
 type send_message =
-  | Basic(OpenRouter.message)
-  | Sketch(Id.t, bool)
-  | ErrorRound(string, CodeModel.t, int, Id.t, AssistantSettings.mode, Id.t)
-  | InternalError(string, AssistantSettings.mode, Id.t);
+  | Tutor(string)
+  | Completion(completion)
+  | Composition(composition);
 
 // Actions to handle certain kinds of LLM responses
 [@deriving (show({with_path: false}), sexp, yojson)]
 type handle_response =
-  | Basic
-  | ErrorRound(CodeModel.t, int, Id.t);
+  | Tutor
+  | CompletionErrorRound(CodeModel.t, int, Id.t)
+  | CompletionQueryResponse
+  | CompositionLoopRound(CodeModel.t, int);
 
 // Actions which actualize actions via LLM responses
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -43,10 +55,11 @@ type chat_action =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
-  | SendMessage(send_message)
-  | HandleResponse(handle_response, string, AssistantSettings.mode, Id.t)
+  | SendMessage(send_message, CodeModel.t, Id.t)
+  | HandleResponse(handle_response, string, Id.t)
   | EmployLLMAction(employ_llm_action)
-  | ChatAction(chat_action);
+  | ChatAction(chat_action)
+  | InternalError(string, AssistantSettings.mode, Id.t);
 
 let parse_blocks = (response: string): list(Model.block_kind) => {
   let rec parse_blocks =
@@ -346,7 +359,12 @@ let create_chat_descriptor =
 };
 
 let check_req =
-    (_: string, schedule_action: t => unit, editor: CodeEditable.Model.t)
+    (
+      _: string,
+      schedule_action: t => unit,
+      editor: CodeEditable.Model.t,
+      chat_id: Id.t,
+    )
     : unit => {
   let z = editor.editor.state.zipper;
   let caret = z.caret;
@@ -361,11 +379,23 @@ let check_req =
       | "??" =>
         let tileId = Option.get(Indicated.index(z));
         let advanced_reasoning = false;
-        schedule_action(SendMessage(Sketch(tileId, advanced_reasoning)));
+        schedule_action(
+          SendMessage(
+            Completion(Request(tileId, advanced_reasoning)),
+            editor,
+            chat_id,
+          ),
+        );
       | "?a" =>
         let tileId = Option.get(Indicated.index(z));
         let advanced_reasoning = true;
-        schedule_action(SendMessage(Sketch(tileId, advanced_reasoning)));
+        schedule_action(
+          SendMessage(
+            Completion(Request(tileId, advanced_reasoning)),
+            editor,
+            chat_id,
+          ),
+        );
       | _ => ()
       }
     | _ => ()
@@ -377,11 +407,23 @@ let check_req =
       | "??" =>
         let tileId = Option.get(Indicated.index(z));
         let advanced_reasoning = false;
-        schedule_action(SendMessage(Sketch(tileId, advanced_reasoning)));
+        schedule_action(
+          SendMessage(
+            Completion(Request(tileId, advanced_reasoning)),
+            editor,
+            chat_id,
+          ),
+        );
       | "?a" =>
         let tileId = Option.get(Indicated.index(z));
         let advanced_reasoning = true;
-        schedule_action(SendMessage(Sketch(tileId, advanced_reasoning)));
+        schedule_action(
+          SendMessage(
+            Completion(Request(tileId, advanced_reasoning)),
+            editor,
+            chat_id,
+          ),
+        );
       | _ => ()
       }
     | _ => ()
@@ -410,8 +452,7 @@ let mk_llm_call =
       ~mode: AssistantSettings.mode,
       ~schedule_action: t => unit,
       ~updated_chat: Model.chat,
-      ~editor: CodeModel.t,
-      ~tileId: option(Id.t),
+      ~response_handler: string => t,
     )
     : unit => {
   switch (Store.Generic.load("API"), Store.Generic.load("MODEL")) {
@@ -427,37 +468,13 @@ let mk_llm_call =
         ~params, ~key, ~outgoing_messages=updated_chat.outgoing_messages, req =>
         switch (OpenRouter.handle_chat(req)) {
         | Some(Reply(response)) =>
-          switch (tileId) {
-          | None =>
-            schedule_action(
-              HandleResponse(Basic, response.content, mode, updated_chat.id),
-            )
-          | Some(tileId) =>
-            schedule_action(
-              HandleResponse(
-                ErrorRound(
-                  editor,
-                  ChatLSP.Options.init.error_rounds_max,
-                  tileId,
-                ),
-                response.content,
-                mode,
-                updated_chat.id,
-              ),
-            )
-          }
+          schedule_action(response_handler(response.content))
         | Some(Error({message, code})) =>
           schedule_action(
-            SendMessage(
-              InternalError(
-                "Error: "
-                ++ message
-                ++ " (code: "
-                ++ string_of_int(code)
-                ++ ")",
-                mode,
-                updated_chat.id,
-              ),
+            InternalError(
+              "Error: " ++ message ++ " (code: " ++ string_of_int(code) ++ ")",
+              mode,
+              updated_chat.id,
             ),
           )
         | None =>
@@ -482,14 +499,10 @@ let mk_llm_call =
     };
   | (None, _) =>
     let content = "No API key found. Please set an API key in the assistant settings.";
-    schedule_action(
-      SendMessage(InternalError(content, mode, updated_chat.id)),
-    );
+    schedule_action(InternalError(content, mode, updated_chat.id));
   | (_, None) =>
     let content = "No model ID found. Please set a model ID in the assistant settings.";
-    schedule_action(
-      SendMessage(InternalError(content, mode, updated_chat.id)),
-    );
+    schedule_action(InternalError(content, mode, updated_chat.id));
   };
 };
 
@@ -519,40 +532,10 @@ let init_chat = (mode: AssistantSettings.mode): Model.chat => {
   };
 };
 
-let mk_mode_ctx_prompt =
-    (~settings: AssistantSettings.t, ~editor: CodeModel.t)
-    : option(OpenRouter.message) => {
-  let mode = settings.mode;
-  switch (mode) {
-  | HazelTutor =>
-    // No context needed in tutor mode. Initial prompt gives all needed information.
-    // Actually, we could add context here in the future in case the user asks sketch-specific questions.
-    None
-  | CodeSuggestion =>
-    // todo
-    None
-  | TaskCompletion =>
-    let sketch_seg =
-      Zipper.smart_seg(
-        ~dump_backpack=true,
-        ~erase_buffer=true,
-        editor.editor.state.zipper,
-      );
-    let outgoing_message =
-      ChatLSP.Composition.mk_ctx_prompt(
-        ChatLSP.Options.init,
-        sketch_seg,
-        editor,
-      );
-    Some(outgoing_message);
-  };
-};
-
 let update =
     (
       ~settings: Settings.t,
       ~action,
-      ~editor: CodeModel.t,
       ~model: Model.t,
       ~schedule_action: t => unit,
       ~add_suggestion,
@@ -561,34 +544,32 @@ let update =
     )
     : Updated.t(Model.t) => {
   switch (action) {
-  | SendMessage(kind) =>
+  | SendMessage(kind, editor, chat_id) =>
+    let sketch_seg =
+      Zipper.smart_seg(
+        ~dump_backpack=true,
+        ~erase_buffer=true,
+        editor.editor.state.zipper,
+      );
     switch (kind) {
-    | Basic(message) =>
-      let mode = settings.assistant.mode;
-      let (_, curr_chat) = get_mode_info(mode, model);
-
-      let ctx_prompt =
-        mk_mode_ctx_prompt(~settings=settings.assistant, ~editor);
-
-      let (outgoing_messages, message_displays) = {
-        let outgoing_messages = curr_chat.outgoing_messages @ [message];
-        let message_displays =
-          curr_chat.message_displays
-          @ [mk_message_display(~content=message.content, ~role=User)];
-        switch (ctx_prompt) {
-        | Some(ctx_prompt) => (
-            outgoing_messages @ [ctx_prompt],
-            message_displays
-            @ [
-              mk_message_display(
-                ~content=ctx_prompt.content,
-                ~role=System(AssistantPrompt),
-              ),
-            ],
-          )
-        | None => (outgoing_messages, message_displays)
-        };
-      };
+    | Tutor(content) =>
+      let mode = AssistantSettings.HazelTutor;
+      let curr_chat =
+        Id.Map.find(chat_id, model.chat_history.past_tutor_chats);
+      let user_message = OpenRouter.mk_user_msg(content);
+      let ctx =
+        OpenRouter.mk_user_msg(
+          String.concat("\n", ChatLSP.get_sketch_and_error_ctx(editor)),
+        );
+      let message_displays = [
+        mk_message_display(~content=user_message.content, ~role=User),
+        mk_message_display(
+          ~content=ctx.content,
+          ~role=System(AssistantPrompt),
+        ),
+      ];
+      let outgoing_messages =
+        curr_chat.outgoing_messages @ [user_message, ctx];
 
       let updated_chat = {
         ...curr_chat,
@@ -597,149 +578,271 @@ let update =
       };
 
       mk_llm_call(
-        ~mode,
-        ~schedule_action,
-        ~updated_chat,
-        ~editor,
-        ~tileId=None,
+        ~mode, ~schedule_action, ~updated_chat, ~response_handler=response =>
+        HandleResponse(Tutor, response, chat_id)
       );
 
-      let _ = update_model_chat_history(~model, ~mode, ~updated_chat);
       update_model_chat_history(~model, ~mode, ~updated_chat)
       |> Updated.return_quiet;
 
-    | Sketch(tileId, advanced_reasoning) =>
-      // Capture the chat we're updating
-      let (_, curr_chat) = get_mode_info(settings.assistant.mode, model);
-      let tag = String.sub(Id.to_string(tileId), 0, 3);
-      switch (
-        {
-          let* sketch_z_with_tag =
-            Perform.paste(editor.editor.state.zipper, tag);
-          let sketch_seg =
-            Zipper.smart_seg(
-              ~dump_backpack=true,
-              ~erase_buffer=true,
-              sketch_z_with_tag,
-            );
-          let* index = Indicated.index(editor.editor.state.zipper);
-          let+ ci = Id.Map.find_opt(index, editor.statics.info_map);
-          ChatLSP.Completion.prompt(
+    | Composition(kind) =>
+      let mode = AssistantSettings.TaskCompletion;
+      let curr_chat =
+        Id.Map.find(chat_id, model.chat_history.past_composition_chats);
+      switch (kind) {
+      | Request(content) =>
+        let user_message = OpenRouter.mk_user_msg(content);
+        let ctx =
+          ChatLSP.Composition.mk_ctx_prompt(
             ChatLSP.Options.init,
-            ci,
             sketch_seg,
-            (advanced_reasoning ? "?a" : "??") ++ tag,
-            advanced_reasoning,
+            editor,
           );
-        }
-      ) {
-      | None =>
-        print_endline("Suggestion prompt generation failed");
-        model |> Updated.return_quiet;
-      | Some(suggestion_prompt) =>
-        let message_displays =
-          List.map(
-            (msg: OpenRouter.message) =>
-              mk_message_display(
-                ~content=msg.content,
-                ~role=System(AssistantPrompt),
-              ),
-            suggestion_prompt,
-          );
+        let message_displays = [
+          mk_message_display(~content=user_message.content, ~role=User),
+          mk_message_display(
+            ~content=ctx.content,
+            ~role=System(AssistantPrompt),
+          ),
+        ];
+        let outgoing_messages =
+          curr_chat.outgoing_messages @ [user_message, ctx];
+
         let updated_chat = {
           ...curr_chat,
-          outgoing_messages: curr_chat.outgoing_messages @ suggestion_prompt,
-          message_displays: curr_chat.message_displays @ message_displays,
+          outgoing_messages,
+          message_displays,
         };
+
+        let max_fuel = 10;
+
         mk_llm_call(
-          ~mode=settings.assistant.mode,
-          ~schedule_action,
-          ~updated_chat,
-          ~editor,
-          ~tileId=Some(tileId),
+          ~mode, ~schedule_action, ~updated_chat, ~response_handler=response =>
+          HandleResponse(
+            CompositionLoopRound(editor, max_fuel),
+            response,
+            chat_id,
+          )
         );
-        update_model_chat_history(
-          ~model,
-          ~mode=settings.assistant.mode,
-          ~updated_chat,
-        )
+
+        update_model_chat_history(~model, ~mode, ~updated_chat)
+        |> Updated.return_quiet;
+
+      | Loop(fuel) =>
+        let ctx =
+          ChatLSP.Composition.mk_ctx_prompt(
+            ChatLSP.Options.init,
+            sketch_seg,
+            editor,
+          );
+        let message_displays = [
+          mk_message_display(
+            ~content=ctx.content,
+            ~role=System(AssistantPrompt),
+          ),
+        ];
+        let outgoing_messages = curr_chat.outgoing_messages @ [ctx];
+
+        let updated_chat = {
+          ...curr_chat,
+          outgoing_messages,
+          message_displays,
+        };
+
+        mk_llm_call(
+          ~mode, ~schedule_action, ~updated_chat, ~response_handler=response =>
+          HandleResponse(
+            CompositionLoopRound(editor, fuel),
+            response,
+            chat_id,
+          )
+        );
+
+        update_model_chat_history(~model, ~mode, ~updated_chat)
         |> Updated.return_quiet;
       };
-    | ErrorRound(error, editor_z, fuel, tileId, mode, chat_id) =>
+
+    | Completion(kind) =>
+      let mode = AssistantSettings.CodeSuggestion;
       let curr_chat =
+        Id.Map.find(chat_id, model.chat_history.past_suggestion_chats);
+      switch (kind) {
+      | Request(tileId, advanced_reasoning) =>
+        let tag = String.sub(Id.to_string(tileId), 0, 3);
         switch (
-          Id.Map.find_opt(chat_id, model.chat_history.past_composition_chats)
+          {
+            let* sketch_z_with_tag =
+              Perform.paste(editor.editor.state.zipper, tag);
+            let sketch_seg =
+              Zipper.smart_seg(
+                ~dump_backpack=true,
+                ~erase_buffer=true,
+                sketch_z_with_tag,
+              );
+            let* index = Indicated.index(editor.editor.state.zipper);
+            let+ ci = Id.Map.find_opt(index, editor.statics.info_map);
+            ChatLSP.Completion.prompt(
+              ChatLSP.Options.init,
+              ci,
+              sketch_seg,
+              (advanced_reasoning ? "?a" : "??") ++ tag,
+              advanced_reasoning,
+            );
+          }
         ) {
-        | Some(chat) => chat
         | None =>
-          print_endline("Error: Chat not found");
-          get_mode_info(mode, model) |> snd;
+          print_endline("Suggestion prompt generation failed");
+          model |> Updated.return_quiet;
+        | Some(suggestion_prompt) =>
+          let message_displays =
+            List.map(
+              (msg: OpenRouter.message) =>
+                mk_message_display(
+                  ~content=msg.content,
+                  ~role=System(AssistantPrompt),
+                ),
+              suggestion_prompt,
+            );
+          let updated_chat = {
+            ...curr_chat,
+            outgoing_messages: curr_chat.outgoing_messages @ suggestion_prompt,
+            message_displays: curr_chat.message_displays @ message_displays,
+          };
+          mk_llm_call(
+            ~mode, ~schedule_action, ~updated_chat, ~response_handler=response =>
+            HandleResponse(
+              CompletionErrorRound(
+                editor,
+                ChatLSP.Options.init.error_rounds_max,
+                tileId,
+              ),
+              response,
+              chat_id,
+            )
+          );
+          update_model_chat_history(
+            ~model,
+            ~mode=settings.assistant.mode,
+            ~updated_chat,
+          )
+          |> Updated.return_quiet;
+        };
+      | Query(content) =>
+        let user_message = OpenRouter.mk_user_msg(content);
+        let ctx =
+          OpenRouter.mk_user_msg(
+            String.concat("\n", ChatLSP.get_sketch_and_error_ctx(editor)),
+          );
+        let message_displays = [
+          mk_message_display(~content=user_message.content, ~role=User),
+          mk_message_display(
+            ~content=ctx.content,
+            ~role=System(AssistantPrompt),
+          ),
+        ];
+        let outgoing_messages =
+          curr_chat.outgoing_messages @ [user_message, ctx];
+
+        let updated_chat = {
+          ...curr_chat,
+          outgoing_messages,
+          message_displays,
         };
 
-      let error_message =
-        OpenRouter.mk_user_msg(
-          "Your previous response caused the following error. Please fix it in your response: "
-          ++ error,
-        );
-
-      let updated_chat = {
-        ...curr_chat,
-        outgoing_messages: curr_chat.outgoing_messages @ [error_message],
-        message_displays:
-          curr_chat.message_displays
-          @ [
-            mk_message_display(
-              ~content=error_message.content,
-              ~role=System(AssistantPrompt),
-            ),
-          ],
-      };
-
-      // check that fuel is not 0
-      if (fuel < 0) {
-        let content =
-          "By default we stop the assistant after "
-          ++ string_of_int(ChatLSP.Options.init.error_rounds_max)
-          ++ " error rounds. Thus, stopping.";
-        schedule_action(
-          SendMessage(InternalError(content, mode, updated_chat.id)),
-        );
-      } else {
         mk_llm_call(
-          ~mode,
-          ~schedule_action,
-          ~updated_chat,
-          ~editor=editor_z,
-          ~tileId=Some(tileId),
+          ~mode, ~schedule_action, ~updated_chat, ~response_handler=response =>
+          HandleResponse(CompletionQueryResponse, response, chat_id)
         );
-      };
-      update_model_chat_history(~model, ~mode, ~updated_chat)
-      |> Updated.return_quiet;
 
-    | InternalError(content, mode, chat_id) =>
-      let curr_chat =
-        switch (
-          Id.Map.find_opt(chat_id, model.chat_history.past_composition_chats)
-        ) {
-        | Some(chat) => chat
-        | None =>
-          print_endline("Error: Chat not found");
-          get_mode_info(mode, model) |> snd;
+        update_model_chat_history(~model, ~mode, ~updated_chat)
+        |> Updated.return_quiet;
+
+      | Loop(error, tile_id, fuel) =>
+        let error_message =
+          OpenRouter.mk_user_msg(
+            "Your previous response caused the following error. Please fix it in your response: "
+            ++ error,
+          );
+
+        let updated_chat = {
+          ...curr_chat,
+          outgoing_messages: curr_chat.outgoing_messages @ [error_message],
+          message_displays:
+            curr_chat.message_displays
+            @ [
+              mk_message_display(
+                ~content=error_message.content,
+                ~role=System(AssistantPrompt),
+              ),
+            ],
         };
 
-      let updated_chat = {
-        ...curr_chat,
-        message_displays:
-          curr_chat.message_displays
-          @ [mk_message_display(~content, ~role=System(InternalError))],
+        // check that fuel is not 0
+        if (fuel < 0) {
+          let content =
+            "By default we stop the assistant after "
+            ++ string_of_int(ChatLSP.Options.init.error_rounds_max)
+            ++ " error rounds.";
+          schedule_action(InternalError(content, mode, updated_chat.id));
+        } else {
+          mk_llm_call(
+            ~mode, ~schedule_action, ~updated_chat, ~response_handler=response =>
+            HandleResponse(
+              CompletionErrorRound(
+                editor,
+                ChatLSP.Options.init.error_rounds_max,
+                tile_id,
+              ),
+              response,
+              chat_id,
+            )
+          );
+        };
+        update_model_chat_history(~model, ~mode, ~updated_chat)
+        |> Updated.return_quiet;
       };
-      update_model_chat_history(~model, ~mode, ~updated_chat)
-      |> Updated.return_quiet;
-    }
-  | HandleResponse(response, content, mode, chat_id) =>
+    };
+  | InternalError(content, mode, chat_id) =>
+    let curr_chat =
+      switch (
+        Id.Map.find_opt(chat_id, model.chat_history.past_composition_chats)
+      ) {
+      | Some(chat) => chat
+      | None =>
+        print_endline("Error: Chat not found");
+        get_mode_info(mode, model) |> snd;
+      };
+
+    let updated_chat = {
+      ...curr_chat,
+      message_displays:
+        curr_chat.message_displays
+        @ [mk_message_display(~content, ~role=System(InternalError))],
+    };
+    update_model_chat_history(~model, ~mode, ~updated_chat)
+    |> Updated.return_quiet;
+
+  | HandleResponse(response_kind, content, chat_id) =>
+    let (curr_chat, mode) =
+      switch (response_kind) {
+      | Tutor => (
+          Id.Map.find(chat_id, model.chat_history.past_tutor_chats),
+          AssistantSettings.HazelTutor,
+        )
+      | CompositionLoopRound(_) => (
+          Id.Map.find(chat_id, model.chat_history.past_composition_chats),
+          AssistantSettings.TaskCompletion,
+        )
+      | CompletionErrorRound(_) => (
+          Id.Map.find(chat_id, model.chat_history.past_suggestion_chats),
+          AssistantSettings.CodeSuggestion,
+        )
+      | CompletionQueryResponse => (
+          Id.Map.find(chat_id, model.chat_history.past_suggestion_chats),
+          AssistantSettings.CodeSuggestion,
+        )
+      };
     create_chat_descriptor(~model, ~schedule_action, ~mode, ~chat_id);
-    let (past_chats, _) = get_mode_info(mode, model);
-    let curr_chat = Id.Map.find(chat_id, past_chats);
     let openrouter_response = OpenRouter.mk_assistant_msg(content);
     let message_display =
       mk_message_display(
@@ -751,190 +854,182 @@ let update =
       outgoing_messages: curr_chat.outgoing_messages @ [openrouter_response],
       message_displays: curr_chat.message_displays @ [message_display],
     };
-    switch (response) {
-    | Basic =>
-      mode == TaskCompletion
-        ? {
-          let tool_calls = extract_tool_calls(content);
-          let rec process_tool_calls = (calls: list(string)) => {
-            switch (calls) {
-            | [] => ()
-            | [tool_call, ...remaining] =>
-              let parsed_response =
-                try(
-                  switch (Json.from_string(tool_call)) {
-                  | `Assoc(fields) =>
-                    let tool = List.assoc_opt("tool", fields);
-                    let arg = List.assoc_opt("args", fields);
-                    (tool, arg);
-                  | _ => (None, None)
-                  }
-                ) {
-                | Yojson.Json_error(_) => (None, None)
-                };
-              let tool =
-                switch (parsed_response) {
-                | (Some(`String(tool)), _) => tool
-                | _ =>
-                  schedule_action(
-                    SendMessage(
-                      InternalError(
-                        "Unable to parse tool call",
-                        mode,
-                        chat_id,
-                      ),
-                    ),
-                  );
-                  "submit";
-                };
-              let args =
-                switch (parsed_response) {
-                | (_, Some(`Assoc(args))) => args
-                | _ => []
-                };
 
-              let invalid_arg_type =
-                  (tool: string, arg: string, typ: Json.t): string => {
-                tool
-                ++ " called with invalid type at argument position "
-                ++ arg
-                ++ ": "
-                ++ Json.to_string(typ);
-              };
-
-              let invalid_num_args =
-                  (tool: string, expected: int, received: int): string => {
-                tool
-                ++ " expected "
-                ++ string_of_int(expected)
-                ++ " argument"
-                ++ (expected == 1 ? "" : "s")
-                ++ " but "
-                ++ string_of_int(received)
-                ++ " were given";
-              };
-
+    switch (response_kind) {
+    | Tutor => ()
+    | CompositionLoopRound(editor, fuel) =>
+      if (fuel == 0) {
+        schedule_action(
+          InternalError(
+            "By default, we stop the agent after 25 tool calls.",
+            mode,
+            chat_id,
+          ),
+        );
+      } else {
+        let tool_calls = extract_tool_calls(content);
+        let rec process_tool_calls = (calls: list(string)) => {
+          switch (calls) {
+          | [] => ()
+          | [tool_call, ...remaining] =>
+            let parsed_response =
               try(
-                switch (tool) {
-                | "goto_definition" =>
-                  switch (
-                    List.assoc_opt("variable_name", args),
-                    List.length(args),
-                  ) {
-                  | (Some(`String(arg)), 1) =>
-                    goto(editor, ChatLSP.Composition.Definition, arg)
-                  | (Some(inv_type), _) =>
-                    raise(
-                      Failure(
-                        invalid_arg_type(
-                          "goto_definition",
-                          "variable_name",
-                          inv_type,
-                        ),
-                      ),
-                    )
-                  | (_, n) =>
-                    raise(
-                      Failure(invalid_num_args("goto_definition", 1, n)),
-                    )
-                  };
-                  process_tool_calls(remaining);
-                | "goto_body" =>
-                  switch (
-                    List.assoc_opt("variable_name", args),
-                    List.length(args),
-                  ) {
-                  | (Some(`String(arg)), 1) =>
-                    goto(editor, ChatLSP.Composition.Body, arg)
-                  | (Some(inv_type), _) =>
-                    raise(
-                      Failure(
-                        invalid_arg_type(
-                          "goto_body",
-                          "variable_name",
-                          inv_type,
-                        ),
-                      ),
-                    )
-                  | (_, n) =>
-                    raise(Failure(invalid_num_args("goto_body", 1, n)))
-                  };
-                  process_tool_calls(remaining);
-                | "select_all" =>
-                  goto(editor, ChatLSP.Composition.All, "");
-                  process_tool_calls(remaining);
-                | "paste" =>
-                  switch (List.assoc_opt("code", args), List.length(args)) {
-                  | (Some(`String(arg)), 1) =>
-                    edit(ChatLSP.Composition.Current, arg)
-                  | (Some(inv_type), _) =>
-                    raise(
-                      Failure(invalid_arg_type("edit", "code", inv_type)),
-                    )
-                  | (_, n) =>
-                    raise(Failure(invalid_num_args("edit", 1, n)))
-                  };
-                  process_tool_calls(remaining);
-                | "delete" =>
-                  List.length(args) != 0
-                    ? raise(
-                        Failure(
-                          invalid_num_args("delete", 0, List.length(args)),
-                        ),
-                      )
-                    : edit(ChatLSP.Composition.Current, "");
-                  process_tool_calls(remaining);
-                | "view_sketch" =>
-                  List.length(args) != 0
-                    ? raise(
-                        Failure(
-                          invalid_num_args(
-                            "view_sketch",
-                            0,
-                            List.length(args),
-                          ),
-                        ),
-                      )
-                    : schedule_action(
-                        SendMessage(
-                          Basic(
-                            OpenRouter.mk_user_msg(
-                              "You have requested to view the sketch. Please review and continue with completing the user-specified task.",
-                            ),
-                          ),
-                        ),
-                      )
-                | "submit" =>
-                  List.length(args) != 0
-                    ? raise(
-                        Failure(
-                          invalid_num_args("submit", 0, List.length(args)),
-                        ),
-                      )
-                    : ()
-                | _ => raise(Failure("Unknown tool call: " ++ tool_call))
+                switch (Json.from_string(tool_call)) {
+                | `Assoc(fields) =>
+                  let tool = List.assoc_opt("tool", fields);
+                  let arg = List.assoc_opt("args", fields);
+                  (tool, arg);
+                | _ => (None, None)
                 }
               ) {
-              | Failure(err) =>
-                schedule_action(
-                  SendMessage(InternalError(err, mode, chat_id)),
-                )
+              | Yojson.Json_error(_) => (None, None)
               };
+            let tool =
+              switch (parsed_response) {
+              | (Some(`String(tool)), _) => tool
+              | _ =>
+                schedule_action(
+                  InternalError("Unable to parse tool call", mode, chat_id),
+                );
+                "submit";
+              };
+            let args =
+              switch (parsed_response) {
+              | (_, Some(`Assoc(args))) => args
+              | _ => []
+              };
+
+            let invalid_arg_type =
+                (tool: string, arg: string, typ: Json.t): string => {
+              tool
+              ++ " called with invalid type at argument position "
+              ++ arg
+              ++ ": "
+              ++ Json.to_string(typ);
+            };
+
+            let invalid_num_args =
+                (tool: string, expected: int, received: int): string => {
+              tool
+              ++ " expected "
+              ++ string_of_int(expected)
+              ++ " argument"
+              ++ (expected == 1 ? "" : "s")
+              ++ " but "
+              ++ string_of_int(received)
+              ++ " were given";
+            };
+
+            try(
+              switch (tool) {
+              | "goto_definition" =>
+                switch (
+                  List.assoc_opt("variable_name", args),
+                  List.length(args),
+                ) {
+                | (Some(`String(arg)), 1) =>
+                  goto(editor, ChatLSP.Composition.Definition, arg)
+                | (Some(inv_type), _) =>
+                  raise(
+                    Failure(
+                      invalid_arg_type(
+                        "goto_definition",
+                        "variable_name",
+                        inv_type,
+                      ),
+                    ),
+                  )
+                | (_, n) =>
+                  raise(Failure(invalid_num_args("goto_definition", 1, n)))
+                };
+                process_tool_calls(remaining);
+              | "goto_body" =>
+                switch (
+                  List.assoc_opt("variable_name", args),
+                  List.length(args),
+                ) {
+                | (Some(`String(arg)), 1) =>
+                  goto(editor, ChatLSP.Composition.Body, arg)
+                | (Some(inv_type), _) =>
+                  raise(
+                    Failure(
+                      invalid_arg_type(
+                        "goto_body",
+                        "variable_name",
+                        inv_type,
+                      ),
+                    ),
+                  )
+                | (_, n) =>
+                  raise(Failure(invalid_num_args("goto_body", 1, n)))
+                };
+                process_tool_calls(remaining);
+              | "select_all" =>
+                goto(editor, ChatLSP.Composition.All, "");
+                process_tool_calls(remaining);
+              | "paste" =>
+                switch (List.assoc_opt("code", args), List.length(args)) {
+                | (Some(`String(arg)), 1) =>
+                  edit(ChatLSP.Composition.Current, arg)
+                | (Some(inv_type), _) =>
+                  raise(Failure(invalid_arg_type("edit", "code", inv_type)))
+                | (_, n) => raise(Failure(invalid_num_args("edit", 1, n)))
+                };
+                process_tool_calls(remaining);
+              | "delete" =>
+                List.length(args) != 0
+                  ? raise(
+                      Failure(
+                        invalid_num_args("delete", 0, List.length(args)),
+                      ),
+                    )
+                  : edit(ChatLSP.Composition.Current, "");
+                process_tool_calls(remaining);
+              | "view_sketch" =>
+                List.length(args) != 0
+                  ? raise(
+                      Failure(
+                        invalid_num_args(
+                          "view_sketch",
+                          0,
+                          List.length(args),
+                        ),
+                      ),
+                    )
+                  : schedule_action(
+                      SendMessage(
+                        Composition(Loop(fuel - 1)),
+                        editor,
+                        chat_id,
+                      ),
+                    )
+              | "submit" =>
+                List.length(args) != 0
+                  ? raise(
+                      Failure(
+                        invalid_num_args("submit", 0, List.length(args)),
+                      ),
+                    )
+                  : ()
+              | _ => raise(Failure("Unknown tool call: " ++ tool_call))
+              }
+            ) {
+            | Failure(err) =>
+              schedule_action(InternalError(err, mode, chat_id))
             };
           };
-          process_tool_calls(tool_calls);
-        }
-        : ()
-
-    | ErrorRound(editor_z, fuel, tileId) =>
+        };
+        process_tool_calls(tool_calls);
+      }
+    | CompletionErrorRound(editor, fuel, tileId) =>
       // Split response into discussion and completion
       let code_pattern =
         Str.regexp(
           "\\(\\(.\\|\n\\)*\\)```[ \n]*\\([^`]+\\)[ \n]*```\\(\\(.\\|\n\\)*\\)",
         );
-      let index = Option.get(Indicated.index(editor_z.editor.state.zipper));
-      let ci = Option.get(Id.Map.find_opt(index, editor_z.statics.info_map));
-      let sketch_z = editor_z.editor.state.zipper;
+      let index = Option.get(Indicated.index(editor.editor.state.zipper));
+      let ci = Option.get(Id.Map.find_opt(index, editor.statics.info_map));
+      let sketch_z = editor.editor.state.zipper;
 
       let (_, completion) =
         if (Str.string_match(code_pattern, content, 0)) {
@@ -959,15 +1054,16 @@ let update =
         );
         schedule_action(
           SendMessage(
-            ErrorRound(error, editor_z, fuel - 1, tileId, mode, chat_id),
+            Completion(Loop(error, tileId, fuel - 1)),
+            editor,
+            chat_id,
           ),
         );
       };
+    | CompletionQueryResponse => ()
     };
-
     update_model_chat_history(~model, ~mode, ~updated_chat)
     |> Updated.return_quiet;
-
   | EmployLLMAction(action) =>
     switch (action) {
     | RemoveAndSuggest(response, tileId) =>
