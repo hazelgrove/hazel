@@ -108,16 +108,15 @@ let toolkit = [
 |},
   "Description: Deletes all of the currently selected text.\n",
   "TASK:\n",
-  /*
-     {|
+  {|
    ~~~{
      "tool": "view_sketch"
    }~~~"
    |},
-     "Description: Calling this initiates the system to display to you the current state of the sketch. ",
-     "Note, that by the nature of how LLMs (what you are) function, you will need to emit an end-token immediately ",
-     "after calling this tool so that we can attach the current state of the sketch to the prompt and feed it back to you.\n",
-     */
+  "Description: Calling this initiates the system to display to you the current state of the sketch. ",
+  "Note, that by the nature of how LLMs (you) function, you will need to emit an end-token immediately ",
+  "after calling this tool so that we can attach the current state of the sketch to the prompt and feed it back to you.\n",
+  "IF YOU DO NOT CALL THIS, YOU EFFECTIVELY SUBMIT THE TASK AND END THE ITERATIVE PROCESS.\n",
   {|
 ~~~{
   "tool": "submit"
@@ -125,10 +124,6 @@ let toolkit = [
 |},
   "Description: Submits the task once you believe it to be complete, ",
   "ending the iterative tool call and task completion process.\n",
-  "Note that omitting a tool call to \"submit\" at the end of ANY response ",
-  "will trigger the system to show you the sketch and continue iterating. ",
-  "This means you MUST call \"submit\" whenever you do not want to continue iterating. ",
-  "So even if you use no other tool calls and just want to talk or ask the user a question, you MUST call \"submit\"",
   "</toolkit>",
   "<toolKitUsage>",
   "Using the toolkit should be fairly trivial. ",

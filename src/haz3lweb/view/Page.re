@@ -74,7 +74,7 @@ module Update = {
 
   // Helper function to check for insertion of '??' or '?a' and trigger assistant updates
   let send_assistant_insertion_info =
-      (~char, ~editor, ~schedule_action, ~chat_id) => {
+      (~char, ~editor: CodeEditable.Model.t, ~schedule_action, ~chat_id) => {
     AssistantUpdate.check_req(
       char,
       a => schedule_action(Assistant(a)),
