@@ -302,7 +302,7 @@ module UnseenPatternList = {
         | _ => wild()
         };
       [boolTyp, ...unseen_pattern];
-    | Unknown(_) => unseen_pattern
+    | Unknown(_) => [wild(), ...unseen_pattern]
     | Atom(Int) => [
         // while the user is perfroming actions, parse errors can occur.
         // this just inserts a wildcard instead of that happens.
@@ -354,7 +354,7 @@ module UnseenPatternList = {
     };
   };
 
-  let get_first_unseen_ctr = (seen_in_col: seen, all_ctrs) => {
+  let find_first_unseen_ctr = (seen_in_col: seen, all_ctrs) => {
     seen_in_col.seen_all_ctrs
       ? Ctr.default_ctr
       : List.split(Ctr.Map.bindings(all_ctrs))
@@ -363,13 +363,13 @@ module UnseenPatternList = {
   };
 
   /*
-   Generated and prepend the new item to the list based on the type of the column.
+   Generate and prepend the new item to the list based on the type of the column.
 
    `use_type_default` is used to determine if we should use a default for the column
    rather than an unseen type.seen_ints
    - E.g. for ints/string/etc. this default type is a wildcard.
    */
-  let prepend_with_type =
+  let prepend_from_type =
       (
         seen_in_first_col: seen,
         col_type: Typ.t,
@@ -392,7 +392,7 @@ module UnseenPatternList = {
             if (use_type_default) {
               Ctr.Map.choose(all_ctrs) |> fst;
             } else {
-              get_first_unseen_ctr(seen_in_first_col, all_ctrs);
+              find_first_unseen_ctr(seen_in_first_col, all_ctrs);
             };
 
           // handle the case where the old constructor has arguments
@@ -424,7 +424,7 @@ module UnseenPatternList = {
             if (use_type_default) {
               Ctr.false_ctr;
             } else {
-              get_first_unseen_ctr(seen_in_first_col, all_ctrs);
+              find_first_unseen_ctr(seen_in_first_col, all_ctrs);
             },
             unseen_pattern,
           )
@@ -450,7 +450,7 @@ module UnseenPatternList = {
             };
           } else {
             let unseen_ctr =
-              get_first_unseen_ctr(seen_in_first_col, all_ctrs);
+              find_first_unseen_ctr(seen_in_first_col, all_ctrs);
             if (col_ctr == Ctr.nil_ctr) {
               (unseen_ctr, [wild(), ...unseen_pattern]);
             } else if (Ctr.num_args_of(col_ctr) > 0
@@ -528,7 +528,7 @@ module UnseenPatternList = {
       | Ap(_)
       | Label(_) =>
         failwith(
-          "prepend_with_type called with a non-normalized type: "
+          "prepend_from_type called with a non-normalized type: "
           ++ Typ.show(col_type),
         )
       };
@@ -541,6 +541,7 @@ module UnseenPatternList = {
     Grammar.Pat(
       switch (List.length(unseen_pattern)) {
       | 1 => List.hd(unseen_pattern)
+      | 0 => wild()
       | _ => tuple(unseen_pattern)
       },
     );
@@ -857,7 +858,7 @@ module Submatrices = {
     // this is designed this way to avoid recomputation/returning
     // of seen data
     let prepend_first_col_unseen_ctr =
-      UnseenPatternList.prepend_with_type(seen_data, first_col_ty);
+      UnseenPatternList.prepend_from_type(seen_data, first_col_ty);
 
     {
       ...submatrices,
