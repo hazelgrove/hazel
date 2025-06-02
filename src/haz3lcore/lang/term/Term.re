@@ -756,7 +756,7 @@ module Exp = {
               p,
               substitute_closures(
                 env |> Environment.without_keys(pat_bound_vars),
-                pat_bound_vars,
+                pat_bound_vars @ old_bound_vars,
                 pat_bound_vars @ new_bound_vars,
                 e,
               ),
@@ -772,7 +772,7 @@ module Exp = {
                 env
                 |> ClosureEnvironment.map_of
                 |> Environment.without_keys(pat_bound_vars),
-                pat_bound_vars,
+                pat_bound_vars @ old_bound_vars,
                 pat_bound_vars @ new_bound_vars,
                 e,
               ),
