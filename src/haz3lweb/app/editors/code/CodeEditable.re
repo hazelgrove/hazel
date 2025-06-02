@@ -73,17 +73,6 @@ module Selection = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Editor.Focus.t;
 
-  let get_cursor_info = (~selection as _, model: Model.t): cursor(Update.t) => {
-    {
-      ...
-        CodeWithStatics.Model.get_cursor_info(model)
-        |> map(x => Update.Perform(x)),
-      editor_read_only: false,
-      undo_action: None,
-      redo_action: None,
-    };
-  };
-
   // let handle_key_event =
   //     (~selection, model: Model.t): (Key.t => option(Update.t)) =>
   //   fun

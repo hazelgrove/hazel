@@ -1,12 +1,6 @@
 open Js_of_ocaml;
 
-type t = {
-  update_action: option(Page.Update.t),
-  hotkey: option(string),
-  label: string,
-  mdIcon: option(string),
-  section: option(string),
-};
+type t = Cursor.shortcut;
 
 let mk_shortcut = (~hotkey=?, ~mdIcon=?, ~section=?, label, update_action): t => {
   {

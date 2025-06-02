@@ -115,6 +115,24 @@ type methods('model, 'action, 'focus, 'ed_m, 'ed_a, 'ed_f) = {
       'model
     ) =>
     'model,
+  get_cursor_info:
+    (
+      ~get_cursor_info_ed:
+        (
+          ~common: ProjectorInterface.common,
+          ~inject: 'ed_a => Ui_effect.t(unit),
+          ~read_only: bool,
+          'ed_m,
+          'ed_f
+        ) =>
+        Cursor.t,
+      ~common: ProjectorInterface.common,
+      ~inject: 'action => Ui_effect.t(unit),
+      ~read_only: bool,
+      'model,
+      'focus
+    ) =>
+    Cursor.t,
   view:
     (
       ~common: ProjectorInterface.common,

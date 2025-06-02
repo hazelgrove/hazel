@@ -217,6 +217,15 @@ let methods:
     );
   },
   calculate: (~calculate_ed as _, ~common as _, model) => model,
+  get_cursor_info:
+    (
+      ~get_cursor_info_ed as _,
+      ~common as _,
+      ~inject as _: action('a) => Ui_effect.t(unit),
+      ~read_only as _,
+      _model,
+      _focus,
+    ) => Cursor.empty,
   view:
     (
       ~common as _,

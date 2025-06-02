@@ -155,6 +155,33 @@ let methods:
     calculate_ed(~common, left),
     calculate_ed(~common, right),
   ),
+  get_cursor_info:
+    (
+      ~get_cursor_info_ed,
+      ~common,
+      ~inject: action('a) => Ui_effect.t(unit),
+      ~read_only,
+      (ed1, ed2),
+      focus,
+    ) =>
+    switch (focus) {
+    | Left(ed_f) =>
+      get_cursor_info_ed(
+        ~common,
+        ~inject=x => inject(Left(x)),
+        ~read_only,
+        ed1,
+        ed_f,
+      )
+    | Right(ed_f) =>
+      get_cursor_info_ed(
+        ~common,
+        ~inject=x => inject(Right(x)),
+        ~read_only,
+        ed2,
+        ed_f,
+      )
+    },
   sexp_of_model,
   model_of_sexp,
   yojson_of_model,

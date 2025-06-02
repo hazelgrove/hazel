@@ -143,6 +143,16 @@ let view =
   };
 };
 
+let get_cursor_info =
+    (
+      ~get_cursor_info_ed as _,
+      ~common as _,
+      ~inject as _: action('a) => Ui_effect.t(unit),
+      ~read_only as _,
+      _model,
+      _focus,
+    ) => Cursor.empty;
+
 let methods = {
   init,
   focusable: Focusable.non,
@@ -152,6 +162,7 @@ let methods = {
   update,
   calculate: (~calculate_ed as _, ~common as _, m) => m,
   mk_term,
+  get_cursor_info,
   sexp_of_model,
   model_of_sexp,
   yojson_of_model,

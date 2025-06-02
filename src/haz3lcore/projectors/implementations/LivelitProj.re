@@ -107,6 +107,15 @@ let methods:
     Calc.NewValue(Exp(model.model)),
   ),
   calculate: (~calculate_ed as _, ~common as _, m) => m,
+  get_cursor_info:
+    (
+      ~get_cursor_info_ed as _,
+      ~common as _,
+      ~inject as _: action('a) => Ui_effect.t(unit),
+      ~read_only as _,
+      _model,
+      _focus,
+    ) => Cursor.empty,
   sexp_of_model,
   model_of_sexp,
   yojson_of_model,

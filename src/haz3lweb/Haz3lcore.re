@@ -40,6 +40,16 @@ module rec Projector: {
   module Focus: {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t;
+
+    let get_cursor_info:
+      (
+        ~common: ProjectorInterface.common,
+        ~inject: Update.t => Ui_effect.t(unit),
+        ~read_only: bool,
+        Model.t,
+        t
+      ) =>
+      Cursor.t;
   };
 
   module View: {
@@ -110,6 +120,24 @@ module rec Projector: {
   module Focus = {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = ProjectorCore.Focus.t(Editor.Focus.t);
+
+    let get_cursor_info =
+        (
+          ~common: ProjectorInterface.common,
+          ~inject: Update.t => Ui_effect.t(unit),
+          ~read_only: bool,
+          model: Model.t,
+          focus: t,
+        )
+        : Cursor.t =>
+      ProjectorCore.Focus.get_cursor_info(
+        ~get_cursor_info_ed=Editor.Focus.get_cursor_info,
+        ~common,
+        ~inject,
+        ~read_only,
+        model,
+        focus,
+      );
   };
 
   module View = {
@@ -201,6 +229,16 @@ and Editor: {
     // TODO[Matt]: Used in jump to tile logic which will need updating.
     // Thunked to make module "safe"
     let here: unit => t;
+
+    let get_cursor_info:
+      (
+        ~common: ProjectorInterface.common,
+        ~inject: Update.t => Ui_effect.t(unit),
+        ~read_only: bool,
+        Model.t,
+        t
+      ) =>
+      Cursor.t;
   };
 
   module View: {

@@ -57,16 +57,7 @@ module Update = {
 module Selection = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Editor.Focus.t;
-  let get_cursor_info = (~selection as _, _model) =>
-    Cursor.empty  // TODO: bring back cursor info (requires sorts)
-    |> (
-      ci =>
-        Cursor.{
-          ...ci,
-          editor_read_only: true,
-        }
-    )
-    |> Cursor.map_opt(Update.convert_action);
+  let get_cursor_info = Editor.Focus.get_cursor_info(~read_only=true);
 };
 
 module View = {

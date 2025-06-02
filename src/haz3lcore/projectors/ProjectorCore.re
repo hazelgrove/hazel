@@ -431,6 +431,29 @@ module Focus = {
   type t('ed_f) =
     | F(Kind.gadt('a, 'b, 'c, 'ed_m, 'ed_a, 'ed_f), 'c): t('ed_f);
 
+  let get_cursor_info =
+      (
+        ~get_cursor_info_ed,
+        ~common: ProjectorInterface.common,
+        ~inject: Update.t('ed_a) => Ui_effect.t(unit),
+        ~read_only: bool,
+        V(gadt1, model, _exp_cache): model('ed_m, 'ed_a, 'ed_f),
+        F(gadt2, focus): t('ed_f),
+      ) =>
+    if (Kind.gadt_eq(gadt1, gadt2)) {
+      let methods = to_module(gadt1);
+      methods.get_cursor_info(
+        ~get_cursor_info_ed,
+        ~common,
+        ~inject=a => inject(Update.A(gadt1, Obj.magic(a))), // Note(Matt): Using Obj.magic here because we know the types are the same if gadt_eq(gadt1, gadt2) is true
+        ~read_only,
+        model,
+        focus |> Obj.magic // Note(Matt): Using Obj.magic here because we know the types are the same if gadt_eq(gadt1, gadt2) is true
+      );
+    } else {
+      Cursor.empty;
+    };
+
   let kind_of_focus = (F(x, _)) => Kind.of_gadt(x);
 
   let pp = (type ed_f, _pp_ed_f, _f, _focus: t(ed_f)) => {

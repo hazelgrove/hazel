@@ -45,6 +45,22 @@ module Focus = {
     };
   };
 
+  let get_cursor_info =
+      (
+        ~common: ProjectorInterface.common,
+        ~inject:
+           Editor.Update.t(ProjectorCore.Kind.t, 'p_m, 'p_a) =>
+           Ui_effect.t(unit),
+        ~read_only: bool,
+        m: Editor.Model.t(ProjectorCore.Kind.t, 'p_m, 'p_a),
+        f: t('p_f),
+      ) =>
+    Cursor.{
+      info:
+        Indicated.ci_of(model.editor.state.zipper, model.statics.info_map),
+      contextual_actions: [],
+    };
+
   let focus_here =
       (~focus_parent, m: Editor.Model.t('a, 'b, 'c)): Ui_effect.t(unit) => {
     Ui_effect.Many([
