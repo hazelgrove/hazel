@@ -35,3 +35,5 @@ type action =
   | SetAPIKey(string)
   // Sets the list of available LLMs from OpenRouter
   | SetListOfLLMs(list(OpenRouter.model_info));
+
+let make_descriptor_max = 3;

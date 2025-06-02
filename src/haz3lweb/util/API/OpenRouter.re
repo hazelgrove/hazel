@@ -4,16 +4,6 @@ open Util.OptUtil.Syntax;
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type chat_models =
-  | Gemini_Experimental_2_5
-  | Gemini_Flash_2_0
-  | Deepseek_R1
-  | DeepSeek_V3
-  | Llama_3_1_Nemo
-  | Claude_3_5_Sonnet
-  | Claude_3_7_Sonnet;
-
-[@deriving (show({with_path: false}), sexp, yojson)]
 type role =
   | System
   | Developer
@@ -28,11 +18,32 @@ type message = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type effort_level =
+  | Low
+  | Medium
+  | High;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type reasoning =
+  | Effort(effort_level)
+  | MaxTokens(int)
+  | Exclude(bool);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type tool = {
+  name: string,
+  description: string,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type params = {
   model_id: string,
+  reasoning,
   temperature: float,
   top_p: float,
-  tools: list(string) //todo: would like list(json.t) but throws error o_O
+  tools: list(tool),
+  stream: bool,
+  messages: list(message),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -58,17 +69,6 @@ type result =
   | Reply(reply)
   | Error(error);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-let string_of_chat_model =
-  fun
-  | Gemini_Experimental_2_5 => "google/gemini-2.5-pro-exp-03-25:free"
-  | Gemini_Flash_2_0 => "google/gemini-2.0-flash-001"
-  | Deepseek_R1 => "deepseek/deepseek-r1:free"
-  | DeepSeek_V3 => "deepseek/deepseek-chat-v3-0324:free"
-  | Llama_3_1_Nemo => "nvidia/llama-3.1-nemotron-70b-instruct:free"
-  | Claude_3_5_Sonnet => "anthropic/claude-3.5-sonnet"
-  | Claude_3_7_Sonnet => "anthropic/claude-3.7-sonnet";
-
 let string_of_role =
   fun
   | System => "system"
@@ -77,11 +77,27 @@ let string_of_role =
   | Assistant => "assistant"
   | Tool => "tool";
 
+let string_of_effort_level =
+  fun
+  | Low => "low"
+  | Medium => "medium"
+  | High => "high";
+
 let default_params = {
   model_id: "",
-  temperature: 1.0,
+  reasoning: Effort(Low),
+  temperature: 0.9,
   top_p: 1.0,
   tools: [],
+  stream: false,
+  messages: [],
+};
+
+let set_to_default_params = (model_id: string): params => {
+  {
+    ...default_params,
+    model_id,
+  };
 };
 
 let mk_message = ({role, content}) =>
@@ -90,12 +106,22 @@ let mk_message = ({role, content}) =>
     ("content", `String(content)),
   ]);
 
+let mk_reasoning = (reasoning: reasoning) =>
+  switch (reasoning) {
+  | Effort(effort) =>
+    `Assoc([("effort", `String(string_of_effort_level(effort)))])
+  | MaxTokens(max_tokens) => `Assoc([("max_tokens", `Int(max_tokens))])
+  | Exclude(exclude) => `Assoc([("exclude", `Bool(exclude))])
+  };
+
 let body = (~params: params, messages: list(message)): Json.t => {
   `Assoc([
     ("model", `String(params.model_id)),
+    ("reasoning", mk_reasoning(params.reasoning)),
     ("temperature", `Float(params.temperature)),
     ("top_p", `Float(params.top_p)),
     ("messages", `List(List.map(mk_message, messages))),
+    ("stream", `Bool(params.stream)),
   ]);
 };
 
@@ -159,6 +185,7 @@ let handle_chat = (~db=ignore, response: option(Json.t)): option(result) => {
   db("OpenAI: Chat response:");
   Option.map(r => r |> Json.to_string |> db, response) |> ignore;
   let* json = response;
+
   switch (parse_errs(json)) {
   | Some(e) => Some(Error(e))
   | None =>

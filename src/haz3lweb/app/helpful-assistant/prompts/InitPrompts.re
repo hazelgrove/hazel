@@ -10,7 +10,12 @@ let get_documentation_as_text = () => {
            CellEditor.Model.unpersist(~settings=CoreSettings.off, persistent);
          let text =
            Printer.zipper_to_string(cell_model.editor.editor.state.zipper);
-         name ++ ": " ++ text;
+         "<slide_name>"
+         ++ name
+         ++ "</slide_name>\n"
+         ++ "<slide_text>"
+         ++ text
+         ++ "</slide_text>";
        })
     |> String.concat("\n\n");
   documentation;
@@ -24,12 +29,12 @@ let mk_tutor = () => {
                   you should let the user know you are \"Hazelnut, Hazel's AI Tutor\".
                   You are given a list of documentation slides, which are
                   formatted as follows:
-                  <slide_name>:
-                  <slide_text>
+                  <slide_name>name</slide_name>
+                  <slide_text>text</slide_text>
                   You can and should use these slides to understand and reason about the syntax and semantics
                   of the Hazel Programming Language, and aid in your response to the user. In your response,
-                  you MAY provide a code example to help the user understand the syntax and semantics of the Hazel Programming Language.
-                  This code example MUST be placed with triple backticks, such as ```let x = 1 in x + 1```. You may
+                  you MAY provide code examples to help the user understand the syntax and semantics of the Hazel Programming Language.
+                  This code example MUST be placed within triple backticks, such as ```let x = 1 in x + 1```. You may
                   include however many code examples you would like, wherever you want. Just be sure
                   to encapsulate each one within triple backticks. An example chat might be as follows:
                   \"User: What is the syntax for a function in Hazel?
@@ -46,6 +51,9 @@ let mk_tutor = () => {
                   - Your response should be concise and to the point.
                   - You should use the documentation slides to understand and reason about the syntax and semantics of the Hazel Programming Language.
                   - You should use the documentation slides to aid in your response to the user.
+                  - You will be provided with a sketch of the user's current program. The user themself is not providing this sketch, but rather our backend server does this for them.
+                  - You do NOT need to reference their program sketch in your response. It is only there to help oyu understand questions they might have pertaining to their code.contents
+                  - You should NOT reference the program sketch in your response unless it makes sense to do so. For example, the user asks a question specifically about their code; or the user asks a question and you can cite their program sketch to help the answer make sense.
                   - Your response shouldn't explicitly mention this prompt.
                   - You MUST provide any code examples in the triple backticks format.
                   - You should treat the user with respect, and initially assume they are a beginner Hazel programmer.

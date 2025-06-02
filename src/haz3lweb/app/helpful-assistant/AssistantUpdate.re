@@ -157,12 +157,14 @@ let get_mode_info = (mode: AssistantSettings.mode, model: Model.t) => {
   };
 };
 
-let await_llm_response: Model.display = {
-  displayable_content: [Text("...")],
-  original_content: "...",
-  role: Assistant,
-  collapsed: false,
-};
+/*
+ let await_llm_response: Model.display = {
+   displayable_content: [Text("...")],
+   original_content: "...",
+   role: Assistant,
+   collapsed: false,
+ };
+ */
 
 let filter_chat_messages =
     (message_displays: list(Model.display)): list(Model.display) => {
@@ -285,51 +287,59 @@ let create_chat_descriptor =
   let (past_chats, _) = get_mode_info(mode, model);
   let curr_chat = Id.Map.find(chat_id, past_chats);
 
-  let describe_prompt =
+  let this_prompt =
     String.concat(
       "\n",
       [
-        "You are a helpful assistant that summarizes conversations between other assistants and users. ",
-        "Your summaries should be less than or equal to 5 words, and include 1 or 2 emojis. NEVER exceed 7 words. ",
-        "Only provide the summarizing title in your response, do not include any other text. You will be given a ",
-        "conversation between an assistant and a user, along with a system prompt describing the assistant's role. ",
-        "You should not hyperfixate on the system prompt, ",
-        "but rather focus on the conversation between the assistant and the user simply *given* the assistant's role. ",
+        "You are a helpful assistant that *summarizes* conversations between other assistants and users. ",
+        "Your summaries should be less than or equal to 7 words, and may include 1 or 2 emojis, if appropriate. ",
+        "NEVER exceed 7 words. ",
+        "ONLY provide the summarizing title in your response, do NOT include any other text. ",
+        "You will be given a conversation between an assistant and a user. ",
+        "Focus on the giving a summarizing topic title to the conversation between the assistant and the user. ",
+        "NEVER use first person pronouns in your response. ",
       ],
+    );
+
+  let filtered_messages =
+    List.filter(
+      (message: Model.display) => {
+        message.role == User || message.role == Assistant
+      },
+      curr_chat.message_displays,
     );
 
   let combined_messages =
     String.concat(
       "\n",
       List.map(
-        (message: OpenRouter.message) => {
+        (message: Model.display) => {
           "<"
-          ++ OpenRouter.string_of_role(message.role)
+          ++ Model.string_of_role(message.role)
           ++ ">"
-          ++ message.content
+          ++ message.original_content
           ++ "</"
-          ++ OpenRouter.string_of_role(message.role)
+          ++ Model.string_of_role(message.role)
           ++ ">"
         },
-        curr_chat.outgoing_messages,
+        filtered_messages,
       ),
     );
 
   let outgoing_messages_for_descriptor = [
-    OpenRouter.mk_system_msg(describe_prompt),
+    OpenRouter.mk_system_msg(this_prompt),
     OpenRouter.mk_user_msg(combined_messages),
   ];
 
   // Only make descriptor after first few exchanges
-  List.length(curr_chat.outgoing_messages) <= 6
+  List.length(filtered_messages) <= AssistantSettings.make_descriptor_max
     ? try({
         let model_id = Option.get(Store.Generic.load("MODEL"));
         let key = Option.get(Store.Generic.load("API"));
         let params: OpenRouter.params = {
+          ...OpenRouter.default_params,
           model_id,
-          temperature: 1.0,
-          top_p: 1.0,
-          tools: [],
+          stream: false,
         };
         OpenRouter.start_chat(
           ~params,
@@ -369,6 +379,15 @@ let check_req =
   let z = editor.editor.state.zipper;
   let caret = z.caret;
   let siblings = z.relatives.siblings;
+  let send_message = (tile_id, advanced_reasoning) => {
+    schedule_action(
+      SendMessage(
+        Completion(Request(tile_id, advanced_reasoning)),
+        editor,
+        chat_id,
+      ),
+    );
+  };
 
   // Check if user just typed ??
   switch (caret, Zipper.neighbor_monotiles(siblings)) {
@@ -379,23 +398,11 @@ let check_req =
       | "??" =>
         let tileId = Option.get(Indicated.index(z));
         let advanced_reasoning = false;
-        schedule_action(
-          SendMessage(
-            Completion(Request(tileId, advanced_reasoning)),
-            editor,
-            chat_id,
-          ),
-        );
+        send_message(tileId, advanced_reasoning);
       | "?a" =>
         let tileId = Option.get(Indicated.index(z));
         let advanced_reasoning = true;
-        schedule_action(
-          SendMessage(
-            Completion(Request(tileId, advanced_reasoning)),
-            editor,
-            chat_id,
-          ),
-        );
+        send_message(tileId, advanced_reasoning);
       | _ => ()
       }
     | _ => ()
@@ -407,23 +414,11 @@ let check_req =
       | "??" =>
         let tileId = Option.get(Indicated.index(z));
         let advanced_reasoning = false;
-        schedule_action(
-          SendMessage(
-            Completion(Request(tileId, advanced_reasoning)),
-            editor,
-            chat_id,
-          ),
-        );
+        send_message(tileId, advanced_reasoning);
       | "?a" =>
         let tileId = Option.get(Indicated.index(z));
         let advanced_reasoning = true;
-        schedule_action(
-          SendMessage(
-            Completion(Request(tileId, advanced_reasoning)),
-            editor,
-            chat_id,
-          ),
-        );
+        send_message(tileId, advanced_reasoning);
       | _ => ()
       }
     | _ => ()
@@ -458,10 +453,8 @@ let mk_llm_call =
   switch (Store.Generic.load("API"), Store.Generic.load("MODEL")) {
   | (Some(key), Some(model_id)) =>
     let params: OpenRouter.params = {
+      ...OpenRouter.default_params,
       model_id,
-      temperature: 1.0,
-      top_p: 1.0,
-      tools: [],
     };
     try(
       OpenRouter.start_chat(
@@ -545,12 +538,6 @@ let update =
     : Updated.t(Model.t) => {
   switch (action) {
   | SendMessage(kind, editor, chat_id) =>
-    let sketch_seg =
-      Zipper.smart_seg(
-        ~dump_backpack=true,
-        ~erase_buffer=true,
-        editor.editor.state.zipper,
-      );
     switch (kind) {
     | Tutor(content) =>
       let mode = AssistantSettings.HazelTutor;
@@ -593,11 +580,7 @@ let update =
       | Request(content) =>
         let user_message = OpenRouter.mk_user_msg(content);
         let ctx =
-          ChatLSP.Composition.mk_ctx_prompt(
-            ChatLSP.Options.init,
-            sketch_seg,
-            editor,
-          );
+          ChatLSP.Composition.mk_ctx_prompt(ChatLSP.Options.init, editor);
         let new_message_displays = [
           mk_message_display(~content=user_message.content, ~role=User),
           mk_message_display(
@@ -614,12 +597,10 @@ let update =
           message_displays: curr_chat.message_displays @ new_message_displays,
         };
 
-        let max_fuel = 10;
-
         mk_llm_call(
           ~mode, ~schedule_action, ~updated_chat, ~response_handler=response =>
           HandleResponse(
-            CompositionLoopRound(editor, max_fuel),
+            CompositionLoopRound(editor, ChatLSP.Composition.max_tool_calls),
             response,
             chat_id,
           )
@@ -630,11 +611,7 @@ let update =
 
       | Loop(fuel) =>
         let ctx =
-          ChatLSP.Composition.mk_ctx_prompt(
-            ChatLSP.Options.init,
-            sketch_seg,
-            editor,
-          );
+          ChatLSP.Composition.mk_ctx_prompt(ChatLSP.Options.init, editor);
         let new_message_displays = [
           mk_message_display(
             ~content=ctx.content,
@@ -681,6 +658,16 @@ let update =
                 sketch_z_with_tag,
               );
             let* index = Indicated.index(editor.editor.state.zipper);
+            print_endline("Debug: Index found: " ++ Id.to_string(index));
+            print_endline(
+              "Debug: Info map size: "
+              ++ string_of_int(Id.Map.cardinal(editor.statics.info_map)),
+            );
+            Id.Map.iter(
+              (k, v) =>
+                print_endline("Debug: Map entry: " ++ Id.to_string(k)),
+              editor.statics.info_map,
+            );
             let+ ci = Id.Map.find_opt(index, editor.statics.info_map);
             ChatLSP.Completion.prompt(
               ChatLSP.Options.init,
@@ -803,7 +790,7 @@ let update =
         update_model_chat_history(~model, ~mode, ~updated_chat)
         |> Updated.return_quiet;
       };
-    };
+    }
   | InternalError(content, mode, chat_id) =>
     let curr_chat =
       switch (
@@ -847,16 +834,31 @@ let update =
         )
       };
     create_chat_descriptor(~model, ~schedule_action, ~mode, ~chat_id);
-    let openrouter_response = OpenRouter.mk_assistant_msg(content);
-    let message_display =
-      mk_message_display(
-        ~content=openrouter_response.content,
-        ~role=Assistant,
-      );
+
+    // If streaming, update the last message display
+    let (updated_outgoing_messages, updated_message_displays) = {
+      let last_display = ListUtil.last(curr_chat.message_displays);
+      if (last_display.role == Assistant) {
+        let updated_content = last_display.original_content ++ content;
+        (
+          ListUtil.leading(curr_chat.outgoing_messages)
+          @ [OpenRouter.mk_assistant_msg(updated_content)],
+          ListUtil.leading(curr_chat.message_displays)
+          @ [mk_message_display(~content=updated_content, ~role=Assistant)],
+        );
+      } else {
+        (
+          curr_chat.outgoing_messages @ [OpenRouter.mk_assistant_msg(content)],
+          curr_chat.message_displays
+          @ [mk_message_display(~content, ~role=Assistant)],
+        );
+      };
+    };
+
     let updated_chat = {
       ...curr_chat,
-      outgoing_messages: curr_chat.outgoing_messages @ [openrouter_response],
-      message_displays: curr_chat.message_displays @ [message_display],
+      outgoing_messages: updated_outgoing_messages,
+      message_displays: updated_message_displays,
     };
 
     switch (response_kind) {
@@ -865,7 +867,9 @@ let update =
       if (fuel == 0) {
         schedule_action(
           InternalError(
-            "By default, we stop the agent after 25 tool calls.",
+            "By default, we stop the agent after "
+            ++ string_of_int(ChatLSP.Composition.max_tool_calls)
+            ++ " tool calls.",
             mode,
             chat_id,
           ),

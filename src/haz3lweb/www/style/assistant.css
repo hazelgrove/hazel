@@ -334,27 +334,16 @@
     cursor: pointer;
 }
 
-#assistant .toggle-show-button button {
-    background-color: var(--SAND);
-    color: var(--STONE);
-    padding: 6px 12px;
-    border-radius: 4px;
-    border: none;
-    cursor: pointer;
-    transition: all 0.2s ease;
-    font-size: 0.8em;
-    display: flex;
-    align-items: center;
-    gap: 4px;
+#assistant .toggle-show-button svg {
+    fill: var(--STONE);
+    width: 18px;
+    height: 18px;
 }
 
-#assistant .toggle-show-button button:hover {
-    background-color: var(--T1);
-    box-shadow: 0px 2px 4px var(--SHADOW);
-}
-
-#assistant .toggle-show-button button:active {
-    background-color: var(--T3);
+#assistant .toggle-show-button svg {
+    fill: var(--STONE);
+    width: 18px;
+    height: 18px;
 }
 
 #assistant .api-input {

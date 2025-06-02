@@ -15,6 +15,13 @@ type role =
   | User
   | Assistant;
 
+let string_of_role =
+  fun
+  | System(AssistantPrompt) => "System"
+  | System(InternalError) => "Error"
+  | User => "User"
+  | Assistant => "Assistant";
+
 [@deriving (show({with_path: false}), sexp, yojson)]
 type block_kind =
   | Text(string)

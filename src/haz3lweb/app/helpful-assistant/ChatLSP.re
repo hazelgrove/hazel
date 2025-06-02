@@ -155,6 +155,8 @@ module Completion = {
 };
 
 module Composition = {
+  let max_tool_calls = 10;
+
   let statics_of_exp_seg =
       (init_ctx: Ctx.t, sketch: Segment.t): (Info.exp, Statics.Map.t) =>
     Statics.uexp_to_info_map(
@@ -169,18 +171,9 @@ module Composition = {
 
   // Prompt with appropriate context for each message
   let mk_ctx_prompt =
-      (options: Options.t, sketch: Segment.t, editor: CodeWithStatics.Model.t)
+      (options: Options.t, editor: CodeWithStatics.Model.t)
       : OpenRouter.message => {
     let _ = options; // TODO: Either remove params or update function to use params AnCRask
-
-    //let (_, info_map) = statics_of_exp_seg(Info.ctx_of(ci), sketch);
-    let errors = ErrorPrint.all(editor.statics.info_map);
-
-    let static_error_arr =
-      switch (errors) {
-      | [] => ["No static errors found"]
-      | _ => errors
-      };
     OpenRouter.mk_user_msg(
       String.concat(
         "\n",
