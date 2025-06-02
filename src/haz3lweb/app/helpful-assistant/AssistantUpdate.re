@@ -664,7 +664,7 @@ let update =
               ++ string_of_int(Id.Map.cardinal(editor.statics.info_map)),
             );
             Id.Map.iter(
-              (k, v) =>
+              (k, _) =>
                 print_endline("Debug: Map entry: " ++ Id.to_string(k)),
               editor.statics.info_map,
             );
