@@ -282,12 +282,11 @@ module UnseenPatternList = {
         | [hd, ...tl] =>
           // the structure of the list should have a tuple that contains
           // the element in the first position, and a cons in the second.
-          // The goal is to unwrap that and just get the cons.
           // Everything else is just making sure weird errors don't happen.
           let term = IdTagged.term_of(hd);
           let cons =
             switch (term) {
-            | Tuple([_, snd]) => cons(wild(), snd)
+            | Tuple([fst, snd]) => cons(fst, snd)
             | _ => cons(wild(), hd)
             };
           [cons, ...tl];
@@ -440,9 +439,8 @@ module UnseenPatternList = {
             if (Ctr.num_args_of(col_ctr) <= 0) {
               (Ctr.default_ctr, unseen_pattern);
             } else {
-              // otherwise, the non terminal character wants to generate
+              // otherwise, the non-terminal ctr wants to generate
               // a new wildcard. So, discard the existing wildcard.
-              // TODO: just update this function to not make a call to prepend_ctr
               switch (unseen_pattern) {
               | [] => (Ctr.default_ctr, unseen_pattern)
               | [_, ...tl] => (Ctr.default_ctr, tl)
