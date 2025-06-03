@@ -273,67 +273,48 @@ module Deco =
       ["selected", Selection.buffer_cls(z.selection)],
     );
 
-  let find_associative_terms = (z, info_map: Statics.Map.t): list(Id.t) => {
-    let id = Indicated.index(z);
-    switch (id) {
-    | Some(id) =>
-      // let id_str = Id.to_string(id) |> short_str;
-      // print_endline("Examining piece with ID: " ++ id_str);
-
-      let statics = Statics.Map.lookup(id, info_map);
-      switch (statics) {
-      | Some(InfoExp(exp)) =>
-        switch (exp.term.term) {
-        | BinOp(op, left, right) =>
-          if (Operators.is_associative_op(op)) {
-            let left_id = left |> Exp.rep_id;
-            let right_id = right |> Exp.rep_id;
-            let right_assoc = right_id;
-
-            let left_exp = Statics.Map.lookup(left_id, info_map);
-            switch (left_exp) {
-            | Some(InfoExp(left_contents)) =>
-              switch (left_contents.term.term) {
-              | BinOp(left_op, _, left_right) =>
-                if (left_op == op) {
-                  let left_assoc = left_right |> Exp.rep_id;
-                  // print_endline(
-                  //   "Select from "
-                  //   ++ short_str(Id.to_string(left_assoc))
-                  //   ++ " to "
-                  //   ++ short_str(Id.to_string(right_assoc)),
-                  // );
-                  [left_assoc, right_assoc];
-                } else {
-                  print_endline(
-                    Printf.sprintf(
-                      "Left child is different binary operator: %s",
-                      Operators.bin_op_to_string(left_op),
-                    ),
-                  );
-                  [left_id, right_assoc];
-                }
-              | _ => [left_id, right_assoc]
-              }
-            | _ => [left_id, right_assoc]
-            };
-          } else {
-            [];
-          }
-        | _ => []
-        }
-      | _ =>
-        // print_endline("No statics found for ID: " ++ id_str);
-        []
-      };
-    | None =>
-      print_endline("No piece indicated");
-      [];
+  /* Compute associative IDs for a given tile ID */
+  let find_assoc_for_id = (id: Id.t): list(Id.t) => {
+    let statics_opt = Statics.Map.lookup(id, M.statics.info_map);
+    switch (statics_opt) {
+    | Some(InfoExp(exp)) =>
+      switch (exp.term.term) {
+      | BinOp(op, left, right) when Operators.is_associative_op(op) =>
+        let left_id = left |> Exp.rep_id;
+        let right_id = right |> Exp.rep_id;
+        let assoc_ids =
+          switch (Statics.Map.lookup(left_id, M.statics.info_map)) {
+          | Some(InfoExp(left_contents)) =>
+            switch (left_contents.term.term) {
+            | BinOp(left_op, _, left_right) when left_op == op =>
+              let left_assoc = left_right |> Exp.rep_id;
+              [left_assoc, right_id];
+            | _ => [left_id, right_id]
+            }
+          | _ => [left_id, right_id]
+          };
+        assoc_ids;
+      | _ => []
+      }
+    | _ => []
     };
   };
 
   let associative_segment = (z: Zipper.t) => {
-    let assoc_ids = find_associative_terms(z, M.statics.info_map);
+    /* Extract all Tile IDs from the selection segment */
+    let tile_ids =
+      z.selection.content
+      |> List.filter_map(piece =>
+           switch (piece) {
+           | Piece.Tile(t) => Some(Tile.id(t))
+           | _ => None
+           }
+         );
+    /* Compute associative IDs for every selected tile */
+    let assoc_ids =
+      tile_ids
+      |> List.concat_map(find_assoc_for_id)
+      |> List.sort_uniq(compare);
     let tiles =
       assoc_ids
       |> List.filter_map(id => Id.Map.find_opt(id, M.editor.syntax.tiles));
