@@ -899,6 +899,10 @@ let update =
                 )
               : ()
           | [tool_call, ...remaining] =>
+            // If there are tool calls, we should set loop to be true
+            schedule_action(EmployLLMAction(SetLoop(true)));
+            let loop = true;
+
             let parsed_response =
               try(
                 switch (Json.from_string(tool_call)) {
@@ -1012,15 +1016,6 @@ let update =
                     )
                   : edit(ChatLSP.Composition.Current, "");
                 process_tool_calls(remaining, loop);
-              | "begin" =>
-                List.length(args) != 0
-                  ? raise(
-                      Failure(
-                        invalid_num_args("begin", 0, List.length(args)),
-                      ),
-                    )
-                  : schedule_action(EmployLLMAction(SetLoop(true)));
-                process_tool_calls(remaining, true);
               | "submit" =>
                 List.length(args) != 0
                   ? raise(
@@ -1028,6 +1023,7 @@ let update =
                         invalid_num_args("submit", 0, List.length(args)),
                       ),
                     )
+                  // We set loop to false once submit is called
                   : schedule_action(EmployLLMAction(SetLoop(false)))
               | _ => raise(Failure("Unknown tool call: " ++ tool_call))
               }
