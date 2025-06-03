@@ -206,8 +206,8 @@ let qcheck_preservation_test =
       ) {
       | Some(InfoExp({ty, _})) =>
         let ret = Typ.is_more_precise(Ctx.empty, ty, orig_ty);
-        if(ret) {
-          true
+        if (ret) {
+          true;
         } else {
           Alcotest.fail(
             "Preservation failed: original type "
@@ -215,7 +215,7 @@ let qcheck_preservation_test =
             ++ " is not more precise than stepped type "
             ++ Typ.show(ty),
           );
-        }
+        };
       | _ => failwith("No type information found for stepped expression")
       }
     | (None, _) => true // If we can't take a step, we don't have to check preservation
