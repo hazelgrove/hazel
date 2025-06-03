@@ -74,7 +74,7 @@ let mk_tutor = () => {
 };
 
 let mk_composition = (): OpenRouter.message => {
-  OpenRouter.mk_system_msg(String.concat("\n", TaskCompletionToolKit.self));
+  OpenRouter.mk_system_msg(String.concat(" ", CompositionPrompt.self));
 };
 
 let mk_suggestion = (): OpenRouter.message => {

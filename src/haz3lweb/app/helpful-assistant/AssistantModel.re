@@ -65,6 +65,7 @@ type current_chats = {
 type t = {
   current_chats,
   chat_history,
+  loop: bool,
 };
 
 // This is important when we need to display the history of chats in chronological order.

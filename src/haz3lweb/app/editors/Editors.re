@@ -82,7 +82,7 @@ module Update = {
         ~globals: Globals.t,
         ~schedule_action: t => unit,
         ~send_assistant_insertion_info,
-        action,
+        action: t,
         model: Model.t,
       ) => {
     switch (action, model) {
