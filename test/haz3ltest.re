@@ -16,7 +16,8 @@ let _full =
       @ Test_Statics_Polymorphism.tests
       @ Test_Statics_Sums.tests
       @ Test_Statics_Types.tests
-      @ Test_Statics_Property_DoesNotCrash.tests,
+      @ Test_Statics_Property_DoesNotCrash.tests
+      @ Test_Statics_Modules.tests,
     ),
     Test_Coverage.tests,
     Test_Evaluator.tests,
@@ -26,11 +27,6 @@ let _full =
   @ Test_Elaboration.tests
   @ Test_Introduce.tests;
 
-let (suite, _) =
-  run_and_report(
-    ~and_exit=false,
-    "HazelTests",
-    [Test_MakeTerm.module_tests, Test_MakeTerm.module_signature_tests],
-  );
+let (suite, _) = run_and_report(~and_exit=false, "HazelTests", _full);
 Junit.to_file(Junit.make([suite]), "junit_tests.xml");
 Bisect.Runtime.write_coverage_data();

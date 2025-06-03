@@ -458,6 +458,30 @@ and map_type_hole_annotation:
     | EmptyHole => EmptyHole
     | MultiHole(l) => MultiHole(List.map(x => map_any_annotation(f, x), l))
     };
+  }
+
+and map_module_entry_annotation:
+  'a 'b.
+  ('a => 'b, module_entry_t('a)) => module_entry_t('b)
+ =
+  (f, e) => {
+    let (term, annotation) = (e.term, e.annotation);
+    let new_annotation = f(annotation);
+    {
+      term:
+        switch (term) {
+        | ValBinding(p, e) =>
+          ValBinding(map_pat_annotation(f, p), map_exp_annotation(f, e))
+        | TypeDef(tp, t) =>
+          TypeDef(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
+        | Hole(l) => Hole(List.map(x => map_any_annotation(f, x), l))
+        | MultipleEntries(entries) =>
+          MultipleEntries(
+            List.map(x => map_module_entry_annotation(f, x), entries),
+          )
+        },
+      annotation: new_annotation,
+    };
   };
 
 module type DefaultAnnotation = {

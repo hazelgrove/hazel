@@ -109,6 +109,29 @@ let module_tests =
           "{7 ;;  val y = (2 * 6) - 7;; 8}",
         )
       ),
+      test_case("Module with definition and type annotation", `Quick, () =>
+        exp_check(
+          module_([
+            ModuleEntry.val_binding(
+              Pat.(cast(var("x"), Typ.int(), Typ.unknown(Internal))),
+              int(7),
+            ),
+          ]),
+          "{val x : Int = 7}",
+        )
+      ),
+      test_case("Module with type alias", `Quick, () =>
+        exp_check(
+          module_([
+            ModuleEntry.type_def(TPat.var("S"), Typ.int()),
+            ModuleEntry.val_binding(
+              Pat.(cast(var("x"), Typ.var("S"), Typ.unknown(Internal))),
+              int(7),
+            ),
+          ]),
+          "{typedef S = Int ;; val x : S = 7}",
+        )
+      ),
     ],
   );
 

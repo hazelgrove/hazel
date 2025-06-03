@@ -154,9 +154,12 @@ let rec any_to_info_map =
       CoCtx.empty,
       utyp_to_info_map(~ctx, ~ancestors, ty, m) |> snd,
     )
+  | ModuleEntry(_)
+  | ModuleSignatureEntry(_)
   | Rul(_)
   | Any () => (CoCtx.empty, m)
   }
+
 and multi = (~ctx, ~ancestors, m, tms) =>
   List.fold_left(
     ((co_ctxs, m), any) => {
@@ -1130,12 +1133,119 @@ and uexp_to_info_map =
           })
         };
       add(~self, ~co_ctx=body.co_ctx, m);
-    | Module(_) =>
+    | Module(entries) =>
+      let go_entry =
+          (~ctx, ~co_ctx, entry: TermBase.module_entry_t, m: Map.t)
+          : (Map.t, Ctx.t, TermBase.module_signature_entry_t) => {
+        switch (entry.term) {
+        | ValBinding(p, e) =>
+          let (p_syn, _) =
+            go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
+          let (def, m) = go'(~ctx, ~ana=p_syn.ty, e, m);
+          let ty_p_ana = def.ty;
+          let (p_ana', _) =
+            go_pat(
+              ~is_synswitch=false,
+              ~co_ctx=CoCtx.empty,
+              ~ana=ty_p_ana,
+              p,
+              m,
+            );
+          let signature_entry: TermBase.module_signature_entry_t =
+            IdTagged.fresh(
+              ValType(p, ty_p_ana): TermBase.module_signature_entry_term,
+            );
+          print_endline("");
+
+          (m, p_syn.ctx, signature_entry); // Verify ctx
+        | TypeDef(typat, utyp) =>
+          // TODO This is mostly copied from the TypeAlias case we should deduplicate/clean up
+          let m = utpat_to_info_map(~ctx, ~ancestors, typat, m) |> snd;
+          switch (typat.term) {
+          | Var(name) =>
+            /* Currently we disallow all type shadowing */
+            /* NOTE(andrew): Currently, Typ.to_typ returns Unknown(TypeHole)
+               for any type variable reference not in its ctx. So any free variables
+               in the definition would be obliterated. But we need to check for free
+               variables to decide whether to make a recursive type or not. So we
+               tentatively add an abtract type to the ctx, representing the
+               speculative rec parameter. */
+            let (ty_def, ctx_def, ctx_body) = {
+              switch (utyp.term) {
+              | Sum(_) when List.mem(name, Typ.free_vars(utyp)) =>
+                /* NOTE: When debugging type system issues it may be beneficial to
+                   use a different name than the alias for the recursive parameter */
+                //let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
+                let ty_rec = Rec(Var(name) |> TPat.fresh, utyp) |> Typ.temp;
+                let ctx_def =
+                  Ctx.extend_alias(ctx, name, TPat.rep_id(typat), ty_rec);
+                (ty_rec, ctx_def, ctx_def);
+              | _ => (
+                  utyp,
+                  ctx,
+                  Ctx.extend_alias(ctx, name, TPat.rep_id(typat), utyp),
+                )
+              /* NOTE(yuchen): Below is an alternative implementation that attempts to
+                 add a rec whenever type alias is present. It may cause trouble to the
+                 runtime, so precede with caution. */
+              // Typ.lookup_surface(ty_pre)
+              //   ? {
+              //     let ty_rec = Typ.Rec({item: ty_pre, name});
+              //     let ctx_def = Ctx.add_alias(ctx, name, utpat_id(typat), ty_rec);
+              //     (ty_rec, ctx_def, ctx_def);
+              //   }
+              //   : {
+              //     let ty = Term.Typ.to_typ(ctx, utyp);
+              //     (ty, ctx, Ctx.add_alias(ctx, name, utpat_id(typat), ty));
+              //   };
+              };
+            };
+            let ctx_body =
+              switch (Typ.get_sum_constructors(ctx, ty_def)) {
+              | Some(sm) =>
+                Ctx.add_ctrs(ctx_body, name, Typ.rep_id(utyp), sm)
+              | None => ctx_body
+              };
+            /* Make sure types don't escape their scope */
+            let m =
+              utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp, m) |> snd;
+            (
+              m,
+              ctx_body,
+              IdTagged.fresh(
+                TypeDef(typat, utyp): TermBase.module_signature_entry_term,
+              ),
+            );
+          | Invalid(_)
+          | EmptyHole
+          | MultiHole(_) =>
+            let m = utyp_to_info_map(~ctx, ~ancestors, utyp, m) |> snd;
+            (
+              m,
+              ctx,
+              IdTagged.fresh(
+                TypeDef(typat, IdTagged.FreshGrammar.Typ.unknown(Internal)): TermBase.module_signature_entry_term,
+              ),
+            );
+          };
+        | _ => assert(false)
+        };
+      };
+
+      let (m, ctx, entries) =
+        List.fold_left(
+          ((m, ctx, entries), entry) =>
+            go_entry(~ctx, ~co_ctx=CoCtx.empty, entry, m)
+            |> (((m, ctx, entry)) => (m, ctx, entries @ [entry])),
+          (m, ctx, []),
+          entries,
+        );
+
       add(
-        ~self=Just(IdTagged.FreshGrammar.Typ.unknown(Internal)),
+        ~self=Just(IdTagged.FreshGrammar.Typ.module_signature(entries)),
         ~co_ctx=CoCtx.empty,
         m,
-      )
+      );
     };
   };
 

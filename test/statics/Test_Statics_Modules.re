@@ -19,7 +19,7 @@ let tests = [
   ),
   fully_consistent_typecheck(
     "nested_sum_constructors",
-    {| { val x = 3; typedef T = Int } |},
+    {| { val x = 3 ;; typedef T = Int } |},
     Some(
       module_signature([
         ModuleSignatureEntry.val_type(Pat.var("x"), Typ.int()),
@@ -29,13 +29,13 @@ let tests = [
   ),
   test_case("Module signature entry with invalid type", `Quick, () => {
     annotated_tree_test(
-      {| { type T = Int ; val x : T = "hello" } |},
+      {| { type T = Int ;; val x : T = "hello" } |},
       FIError.(
         Exp.(
           module_([
             ModuleEntry.type_def(TPat.var("T"), Typ.int()),
             ModuleEntry.val_binding(
-              Pat.var("x"),
+              Pat.(cast(var("x"), Typ.var("T"), Typ.unknown(Internal))),
               string(
                 ~ann=
                   Some(
@@ -44,8 +44,8 @@ let tests = [
                         Common(
                           Inconsistent(
                             Expectation({
-                              syn: FTemp.Typ.int(),
-                              ana: FTemp.Typ.string(),
+                              syn: FTemp.Typ.string(),
+                              ana: FTemp.Typ.var("T"),
                             }),
                           ),
                         ),
