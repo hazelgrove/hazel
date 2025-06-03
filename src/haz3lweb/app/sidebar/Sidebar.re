@@ -4,6 +4,7 @@ open Virtual_dom.Vdom;
 open Node;
 open Util.Web;
 open Js_of_ocaml;
+open Util.JsUtil;
 
 let tab = (~tooltip="", icon, action, isActive) => {
   let classes = ["tab"] @ (isActive ? ["active"] : []);
@@ -91,63 +92,58 @@ let persistent_view = (~globals: Globals.t) => {
 let resize_handle = (): Node.t => {
   let isResizing = ref(false);
 
+  let updateElementStyles = (new_width: int) => {
+    let elements = [
+      ("side-bar", "width"),
+      ("prompt-display-container", "right"),
+      ("history-menu", "right"),
+    ];
+
+    List.iter(
+      ((id, style)) => {
+        switch (get_elem_by_id_opt(id)) {
+        | Some(elem) =>
+          let value =
+            style == "width"
+              ? string_of_int(new_width) ++ "px"
+              : string_of_int(new_width + 20) ++ "px";
+          let elem_style = Js.Unsafe.coerce(elem)##.style;
+          switch (style) {
+          | "width" => elem_style##.width := Js.string(value)
+          | "right" => elem_style##.right := Js.string(value)
+          | _ => ()
+          };
+        | None => ()
+        }
+      },
+      elements,
+    );
+  };
+
   let rec handle_mousemove = event => {
     if (isResizing^) {
       let current_x = Js.Unsafe.coerce(event)##.clientX;
       let window_width = Dom_html.window##.innerWidth;
-      let persistent_width = 38.9; /* or 39 if you want to round */
+      let persistent_width = 38.9;
       let new_width =
-        max(400, window_width - current_x - int_of_float(persistent_width));
-      let sidebar =
-        Js.Unsafe.coerce(Dom_html.document)##getElementById("side-bar");
-      let prompt_display_container =
-        Js.Unsafe.coerce(Dom_html.document)##getElementById(
-          "prompt-display-container",
-        );
-      let history_menu =
-        Js.Unsafe.coerce(Dom_html.document)##getElementById("history-menu");
-      if (Js.Opt.test(sidebar)) {
-        sidebar##.style##.width :=
-          Js.string(string_of_int(new_width) ++ "px");
-      };
-      if (Js.Opt.test(prompt_display_container)) {
-        prompt_display_container##.style##.right :=
-          Js.string(string_of_int(new_width + 20) ++ "px");
-      };
-      if (Js.Opt.test(history_menu)) {
-        history_menu##.style##.right :=
-          Js.string(string_of_int(new_width + 20) ++ "px");
-      };
+        max(360, window_width - current_x - int_of_float(persistent_width));
+      updateElementStyles(new_width);
     };
     ();
   }
   and handle_mouseup = _ => {
     isResizing := false;
-    let _ =
-      Js.Unsafe.coerce(Dom_html.document)##removeEventListener(
-        "mousemove",
-        handle_mousemove,
-      );
-    let _ =
-      Js.Unsafe.coerce(Dom_html.document)##removeEventListener(
-        "mouseup",
-        handle_mouseup,
-      );
+    let doc = Js.Unsafe.coerce(Dom_html.document);
+    let _ = doc##removeEventListener("mousemove", handle_mousemove);
+    let _ = doc##removeEventListener("mouseup", handle_mouseup);
     ();
   };
 
   let handle_mousedown = _ => {
     isResizing := true;
-    let _ =
-      Js.Unsafe.coerce(Dom_html.document)##addEventListener(
-        "mousemove",
-        handle_mousemove,
-      );
-    let _ =
-      Js.Unsafe.coerce(Dom_html.document)##addEventListener(
-        "mouseup",
-        handle_mouseup,
-      );
+    let doc = Js.Unsafe.coerce(Dom_html.document);
+    let _ = doc##addEventListener("mousemove", handle_mousemove);
+    let _ = doc##addEventListener("mouseup", handle_mouseup);
     Virtual_dom.Vdom.Effect.Ignore;
   };
 

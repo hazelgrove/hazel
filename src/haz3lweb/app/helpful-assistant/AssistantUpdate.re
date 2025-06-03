@@ -783,6 +783,7 @@ let update =
             "By default we stop the assistant after "
             ++ string_of_int(ChatLSP.Options.init.error_rounds_max)
             ++ " error rounds.";
+          schedule_action(EmployLLMAction(SetLoop(false)));
           schedule_action(InternalError(content, mode, updated_chat.id));
         } else {
           mk_llm_call(
@@ -813,12 +814,21 @@ let update =
         get_mode_info(mode, model) |> snd;
       };
 
+    // todo: Should this be a user, assistant, or system message?
+    //       We could make it assistant and put it in the first-person.
+    let new_outgoing_messages = [OpenRouter.mk_system_msg(content)];
+
     let new_message_displays = [
       mk_message_display(~content, ~role=System(InternalError)),
     ];
 
+    // Note: We aren't sending a message here, but we do add it to the chat history.
+    //       for future reference for the LLM so it isn't confused.
+    //       (Eg: Max tool call limit reached, agent should know from history that this
+    //        is why their prior task completion was not successful.)
     let updated_chat = {
       ...curr_chat,
+      outgoing_messages: curr_chat.outgoing_messages @ new_outgoing_messages,
       message_displays: curr_chat.message_displays @ new_message_displays,
     };
     update_model_chat_history(~model, ~mode, ~updated_chat)
