@@ -171,14 +171,23 @@ module Update = {
         };
       }
     | DeleteSlide =>
-      let new_sp = ListUtil.remove_nth(model.current, model.scratchpads);
+      let confirmed =
+        JsUtil.confirm(
+          "Are you SURE you want to delete this buffer? You will lose any existing code that you have written, and course staff have no way to restore it!",
+        );
+      if (confirmed) {
+        let new_sp = ListUtil.remove_nth(model.current, model.scratchpads);
 
-      Updated.return(
-        {
-          current: model.current - 1,
-          scratchpads: new_sp,
-        }: Model.t,
-      );
+        Updated.return(
+          {
+            current: max(model.current - 1, 0),
+            scratchpads: new_sp,
+          }: Model.t,
+        );
+      } else {
+        model |> return_quiet;
+      };
+
     | ResetCurrent =>
       let (key, _) = List.nth(model.scratchpads, model.current);
       let source =
@@ -229,10 +238,6 @@ module Update = {
 
   let calculate =
       (~settings, ~schedule_action, ~is_edited, model: Model.t): Model.t => {
-    print_endline(
-      "List.length: " ++ string_of_int(List.length(model.scratchpads)),
-    );
-    print_endline("model.current: " ++ string_of_int(model.current));
     let (key, ed) = List.nth(model.scratchpads, model.current);
     let worker_request = ref([]);
     let queue_worker =
