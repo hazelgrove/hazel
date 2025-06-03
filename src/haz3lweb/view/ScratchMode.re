@@ -105,6 +105,64 @@ module Update = {
     JsUtil.QueryParams.set_param("share", StringUtil.compress(c));
   };
 
+  let calculate =
+      (
+        ~settings: CoreSettings.t,
+        ~schedule_action,
+        ~is_edited,
+        model: Model.t,
+      )
+      : Model.t => {
+    let (key, ed) = List.nth(model.scratchpads, model.current);
+    let worker_request = ref([]);
+    let queue_worker =
+      Some(expr => {worker_request := worker_request^ @ [("", expr)]});
+    let new_ed =
+      CellEditor.Update.calculate(
+        ~settings,
+        ~is_edited,
+        ~queue_worker,
+        ~stitch=x => x,
+        ed,
+      );
+    switch (worker_request^) {
+    | [] => ()
+    | _ =>
+      WorkerClient.request(
+        worker_request^,
+        ~handler=
+          r =>
+            schedule_action(
+              CellAction(
+                ResultAction(
+                  UpdateResult(
+                    switch (r |> List.hd |> snd) {
+                    | Ok((r, s)) =>
+                      Haz3lcore.ProgramResult.ResultOk({
+                        result: r,
+                        state: s,
+                      })
+                    | Error(e) => Haz3lcore.ProgramResult.ResultFail(e)
+                    },
+                  ),
+                ),
+              ),
+            ),
+        ~timeout=
+          _ =>
+            schedule_action(
+              CellAction(ResultAction(UpdateResult(ResultFail(Timeout)))),
+            ),
+      )
+    };
+    let new_sp =
+      ListUtil.put_nth(model.current, (key, new_ed), model.scratchpads);
+    {
+      ...model,
+      scratchpads: new_sp,
+    };
+  };
+
   let update =
       (
         ~schedule_action,
@@ -118,18 +176,27 @@ module Update = {
     | CellAction(a) =>
       let (key, ed) = List.nth(model.scratchpads, model.current);
       let* new_ed = CellEditor.Update.update(~settings, a, ed);
-      switch (a) {
-      // Check for assistant hole completion triggers
-      | MainEditor(Perform(Insert(char))) =>
-        send_assistant_insertion_info(~char, ~editor=new_ed.editor)
-      | _ => ()
-      };
       let new_sp =
         ListUtil.put_nth(model.current, (key, new_ed), model.scratchpads);
-      {
+      let new_model = {
         ...model,
         scratchpads: new_sp,
       };
+      switch (a) {
+      // Check for assistant hole completion triggers
+      | MainEditor(Perform(Insert(char))) =>
+        // todo: This might hinder runtime performance since we'll ultimately
+        //       calculat the info map twice. A hacky idea of fixing this is
+        //       to set a flag if '??' or '?a' was inserted and only send the
+        //       completion request after scheduled info calculation is complete.
+        send_assistant_insertion_info(
+          ~char,
+          ~editor=new_ed.editor,
+          ~current_editor=model.current,
+        )
+      | _ => ()
+      };
+      new_model;
     | SwitchSlide(i) =>
       let* current = i |> Updated.return;
       {
@@ -181,58 +248,6 @@ module Update = {
     | Encode =>
       encode_scratch_slide(model);
       model |> Updated.return_quiet;
-    };
-  };
-
-  let calculate =
-      (~settings, ~schedule_action, ~is_edited, model: Model.t): Model.t => {
-    let (key, ed) = List.nth(model.scratchpads, model.current);
-    let worker_request = ref([]);
-    let queue_worker =
-      Some(expr => {worker_request := worker_request^ @ [("", expr)]});
-    let new_ed =
-      CellEditor.Update.calculate(
-        ~settings,
-        ~is_edited,
-        ~queue_worker,
-        ~stitch=x => x,
-        ed,
-      );
-    switch (worker_request^) {
-    | [] => ()
-    | _ =>
-      WorkerClient.request(
-        worker_request^,
-        ~handler=
-          r =>
-            schedule_action(
-              CellAction(
-                ResultAction(
-                  UpdateResult(
-                    switch (r |> List.hd |> snd) {
-                    | Ok((r, s)) =>
-                      Haz3lcore.ProgramResult.ResultOk({
-                        result: r,
-                        state: s,
-                      })
-                    | Error(e) => Haz3lcore.ProgramResult.ResultFail(e)
-                    },
-                  ),
-                ),
-              ),
-            ),
-        ~timeout=
-          _ =>
-            schedule_action(
-              CellAction(ResultAction(UpdateResult(ResultFail(Timeout)))),
-            ),
-      )
-    };
-    let new_sp =
-      ListUtil.put_nth(model.current, (key, new_ed), model.scratchpads);
-    {
-      ...model,
-      scratchpads: new_sp,
     };
   };
 };

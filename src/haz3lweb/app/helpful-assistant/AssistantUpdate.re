@@ -10,7 +10,7 @@ module Model = AssistantModel;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type completion =
-  | Request(Id.t, bool) // When user presses ?? or ?a
+  | Request(Id.t, bool, int) // When user presses ?? or ?a
   | Query(string) // User may followup with a query
   | Loop(string, Id.t, int); // Error rounds
 
@@ -39,7 +39,8 @@ type handle_response =
 type employ_llm_action =
   | RemoveAndSuggest(string, Id.t)
   | Resuggest(string, Id.t)
-  | Describe(string, AssistantSettings.mode, Id.t);
+  | Describe(string, AssistantSettings.mode, Id.t)
+  | SetLoop(bool);
 
 // Future Todo: (Check whether) These might be able to be relocated to AssistantSettings
 //              Although, arguably, the chat is inherently part of the assistant model,
@@ -188,6 +189,7 @@ let resculpt_model =
       ~chat_id: Id.t,
     ) => {
   Model.{
+    ...model,
     chat_history: {
       past_tutor_chats:
         mode == HazelTutor
@@ -373,6 +375,7 @@ let check_req =
       _: string,
       schedule_action: t => unit,
       editor: CodeEditable.Model.t,
+      current_editor: int,
       chat_id: Id.t,
     )
     : unit => {
@@ -382,7 +385,7 @@ let check_req =
   let send_message = (tile_id, advanced_reasoning) => {
     schedule_action(
       SendMessage(
-        Completion(Request(tile_id, advanced_reasoning)),
+        Completion(Request(tile_id, advanced_reasoning, current_editor)),
         editor,
         chat_id,
       ),
@@ -530,6 +533,7 @@ let update =
       ~settings: Settings.t,
       ~action,
       ~model: Model.t,
+      ~editors: Editors.Model.t,
       ~schedule_action: t => unit,
       ~add_suggestion,
       ~goto,
@@ -645,7 +649,14 @@ let update =
       let curr_chat =
         Id.Map.find(chat_id, model.chat_history.past_suggestion_chats);
       switch (kind) {
-      | Request(tile_id, advanced_reasoning) =>
+      | Request(tile_id, advanced_reasoning, current_editor) =>
+        let ed: CellEditor.Model.t =
+          switch (editors) {
+          | Scratch(m) => List.nth(m.scratchpads, current_editor) |> snd
+          | Documentation(m) => List.nth(m.scratchpads, current_editor) |> snd
+          | Exercises(m) => List.nth(m.exercises, m.current).cells.user_impl
+          };
+        let editor = ed.editor;
         let tag = String.sub(Id.to_string(tile_id), 0, 3);
         switch (
           {
@@ -876,9 +887,14 @@ let update =
         );
       } else {
         let tool_calls = extract_tool_calls(content);
-        let rec process_tool_calls = (calls: list(string)) => {
+        let rec process_tool_calls = (calls: list(string), loop: bool) => {
           switch (calls) {
-          | [] => ()
+          | [] =>
+            loop
+              ? schedule_action(
+                  SendMessage(Composition(Loop(fuel - 1)), editor, chat_id),
+                )
+              : ()
           | [tool_call, ...remaining] =>
             let parsed_response =
               try(
@@ -950,7 +966,7 @@ let update =
                 | (_, n) =>
                   raise(Failure(invalid_num_args("goto_definition", 1, n)))
                 };
-                process_tool_calls(remaining);
+                process_tool_calls(remaining, loop);
               | "goto_body" =>
                 switch (
                   List.assoc_opt("variable_name", args),
@@ -971,10 +987,10 @@ let update =
                 | (_, n) =>
                   raise(Failure(invalid_num_args("goto_body", 1, n)))
                 };
-                process_tool_calls(remaining);
+                process_tool_calls(remaining, loop);
               | "select_all" =>
                 goto(editor, ChatLSP.Composition.All, "");
-                process_tool_calls(remaining);
+                process_tool_calls(remaining, loop);
               | "paste" =>
                 switch (List.assoc_opt("code", args), List.length(args)) {
                 | (Some(`String(arg)), 1) =>
@@ -983,7 +999,7 @@ let update =
                   raise(Failure(invalid_arg_type("edit", "code", inv_type)))
                 | (_, n) => raise(Failure(invalid_num_args("edit", 1, n)))
                 };
-                process_tool_calls(remaining);
+                process_tool_calls(remaining, loop);
               | "delete" =>
                 List.length(args) != 0
                   ? raise(
@@ -992,25 +1008,16 @@ let update =
                       ),
                     )
                   : edit(ChatLSP.Composition.Current, "");
-                process_tool_calls(remaining);
-              | "view_sketch" =>
+                process_tool_calls(remaining, loop);
+              | "begin" =>
                 List.length(args) != 0
                   ? raise(
                       Failure(
-                        invalid_num_args(
-                          "view_sketch",
-                          0,
-                          List.length(args),
-                        ),
+                        invalid_num_args("begin", 0, List.length(args)),
                       ),
                     )
-                  : schedule_action(
-                      SendMessage(
-                        Composition(Loop(fuel - 1)),
-                        editor,
-                        chat_id,
-                      ),
-                    )
+                  : schedule_action(EmployLLMAction(SetLoop(true)));
+                process_tool_calls(remaining, true);
               | "submit" =>
                 List.length(args) != 0
                   ? raise(
@@ -1018,7 +1025,7 @@ let update =
                         invalid_num_args("submit", 0, List.length(args)),
                       ),
                     )
-                  : ()
+                  : schedule_action(EmployLLMAction(SetLoop(false)))
               | _ => raise(Failure("Unknown tool call: " ++ tool_call))
               }
             ) {
@@ -1027,7 +1034,7 @@ let update =
             };
           };
         };
-        process_tool_calls(tool_calls);
+        process_tool_calls(tool_calls, model.loop);
       }
     | CompletionErrorRound(editor, fuel, tileId) =>
       // Split response into discussion and completion
@@ -1100,6 +1107,12 @@ let update =
         );
       resculpt_model(~model, ~mode, ~updated_past_chats, ~chat_id)
       |> Updated.return_quiet;
+    | SetLoop(loop) =>
+      {
+        ...model,
+        loop,
+      }
+      |> Updated.return_quiet
     }
 
   | ChatAction(action) =>
@@ -1279,5 +1292,6 @@ let init: Model.t = {
       past_composition_chats:
         add_chat_to_history(init_composition_chat, Id.Map.empty),
     },
+    loop: false,
   };
 };

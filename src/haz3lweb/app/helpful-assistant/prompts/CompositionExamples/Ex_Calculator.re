@@ -2,7 +2,6 @@ module Sexp = Sexplib.Sexp;
 
 let self = [
   "<calculatorExample>",
-  "Example: Writing a simple calculator program",
   "USER MESSAGE: please write a simple calculator program",
   "SYSTEM MESSAGE: PROGRAM SKETCH: ```?```
     STATIC ERRORS:

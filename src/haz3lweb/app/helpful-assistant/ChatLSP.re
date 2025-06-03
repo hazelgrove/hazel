@@ -61,7 +61,7 @@ module SystemPrompt = {
 
   let hazel_syntax_notes = HazelSyntaxNotes.self;
 
-  let task_completion_toolkit = TaskCompletionToolKit.self;
+  let composition_prompt = CompositionPrompt.self;
 
   let summarized_hazel_docs = SummarizedHazelDocs.self;
 
