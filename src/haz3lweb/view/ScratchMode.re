@@ -234,13 +234,14 @@ module Selection = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = CellEditor.Selection.t;
 
-  let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
-    let+ ci =
-      CellEditor.Selection.get_cursor_info(
-        ~selection,
-        List.nth(model.scratchpads, model.current) |> snd,
-      );
-    Update.CellAction(ci);
+  let get_cursor_info =
+      (~globals, ~inject, ~selection, model: Model.t): Cursor.t => {
+    CellEditor.Selection.get_cursor_info(
+      ~globals,
+      ~inject=a => inject(Update.CellAction(a)),
+      ~selection,
+      List.nth(model.scratchpads, model.current) |> snd,
+    );
   };
 
   let handle_key_event = (~inject, ~event: Key.t) =>

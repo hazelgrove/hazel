@@ -299,15 +299,19 @@ module Update = {
 };
 
 module Selection = {
-  open Cursor;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = (Exercise.pos, CellEditor.Selection.t);
 
-  let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
+  let get_cursor_info =
+      (~globals, ~inject, ~selection, model: Model.t): Cursor.t => {
     let (pos, s) = selection;
     let cell_editor = Exercise.get_stitched(pos, model.cells);
-    let+ a = CellEditor.Selection.get_cursor_info(~selection=s, cell_editor);
-    Update.Editor(pos, a);
+    CellEditor.Selection.get_cursor_info(
+      ~globals,
+      ~inject=a => inject(Update.Editor(pos, a)),
+      ~selection=s,
+      cell_editor,
+    );
   };
 
   let jump_to_tile =

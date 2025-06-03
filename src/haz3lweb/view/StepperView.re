@@ -362,7 +362,8 @@ module Selection = {
     // Note this int is backwards compared to the editors (so that 0 is the oldest step, and selections are preserved)
     | A(int, StepperEditor.Selection.t);
 
-  let get_cursor_info = (~selection: t, mr: Model.t): Cursor.cursor(Update.t) => {
+  let get_cursor_info =
+      (~globals, ~inject, ~selection: t, mr: Model.t): Cursor.t => {
     Cursor.(
       switch (selection) {
       | A(n, editor_selection) =>
@@ -372,12 +373,12 @@ module Selection = {
           |> ListUtil.nth_opt(List.length(mr.history |> Aba.get_as) - n - 1);
         switch (a) {
         | Some(Calculated(a)) =>
-          let+ x =
-            StepperEditor.Selection.get_cursor_info(
-              ~selection=editor_selection,
-              a.editor |> Calc.get_value,
-            );
-          Update.StepperEditor(n, x);
+          StepperEditor.Selection.get_cursor_info(
+            ~globals,
+            ~inject=x => inject(Update.StepperEditor(n, x)),
+            a.editor |> Calc.get_value,
+            editor_selection,
+          )
         | None
         | Some(Pending) => empty
         };

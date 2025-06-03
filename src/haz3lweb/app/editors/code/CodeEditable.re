@@ -66,42 +66,29 @@ module Update = {
   let calculate = CodeWithStatics.Update.calculate;
 };
 
-module Selection = {
-  open Cursor;
-
+module Focus = {
   // Editor selection is handled within Editor.t
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Editor.Focus.t;
 
-  // let handle_key_event =
-  //     (~selection, model: Model.t): (Key.t => option(Update.t)) =>
-  //   fun
-  //   | {
-  //       key: D("Z" | "z"),
-  //       sys: Mac,
-  //       shift: Down,
-  //       meta: Down,
-  //       ctrl: Up,
-  //       alt: Up,
-  //     }
-  //   | {
-  //       key: D("Z" | "z"),
-  //       sys: PC,
-  //       shift: Down,
-  //       meta: Up,
-  //       ctrl: Down,
-  //       alt: Up,
-  //     } =>
-  //     None
-  //   | {key: D("Z" | "z"), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
-  //   | {key: D("Z" | "z"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
-  //     None
-  //   | {key: D(key), sys: Mac | PC, shift: Down, meta: Up, ctrl: Up, alt: Up}
-  //       when Keyboard.is_f_key(key) =>
-  //     Some(Update.DebugConsole(key))
-  //   | k =>
-  //     Editor.Focus.handle_key_event(~focus=selection, ~key=k, model.editor)
-  //     |> Option.map(x => Update.Perform(x));
+  let get_cursor_info =
+      (~globals: Globals.t, ~inject, ~read_only, model: Model.t, focus) =>
+    Editor.Focus.get_cursor_info(
+      ~common=
+        ProjectorInterface.{
+          settings: globals.settings.core,
+          font_metrics: globals.font_metrics,
+          secondary_icons: globals.settings.secondary_icons,
+          show_backpack_targets: globals.show_backpack_targets,
+          color_highlights: globals.color_highlights,
+          statics: model.statics,
+          dynamics: model.dynamics,
+        },
+      ~inject=x => inject(Update.Perform(x)),
+      ~read_only,
+      model.editor,
+      focus,
+    );
 
   let jump_to_tile = (tile, model: Model.t) => {
     Editor.Update.jump_to_tile_action(tile, model.editor)

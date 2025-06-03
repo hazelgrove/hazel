@@ -319,24 +319,31 @@ module Update = {
 };
 
 module Selection = {
-  open Cursor;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Evaluation(CodeSelectable.Selection.t)
     | Stepper(StepperView.Selection.t);
 
-  let get_cursor_info = (~selection: t, mr: Model.t): cursor(Update.t) =>
+  let get_cursor_info =
+      (~globals, ~inject, ~selection: t, mr: Model.t): Cursor.t =>
     switch (selection, mr.result) {
-    | (_, NoElab) => empty
+    | (_, NoElab) => Cursor.empty
     | (Evaluation(selection), Evaluation({editor: Calculated(editor), _})) =>
-      let+ ci =
-        CodeSelectable.Selection.get_cursor_info(~selection, editor |> snd);
-      Update.EvalEditorAction(ci);
+      CodeSelectable.Selection.get_cursor_info(
+        ~globals,
+        ~inject=x => inject(Update.EvalEditorAction(x)),
+        editor |> snd,
+        selection,
+      )
     | (Stepper(selection), Stepper(s)) =>
-      let+ ci = StepperView.Selection.get_cursor_info(~selection, s);
-      Update.StepperAction(ci);
-    | (_, Evaluation(_)) => empty
-    | (_, Stepper(_)) => empty
+      StepperView.Selection.get_cursor_info(
+        ~globals,
+        ~inject=x => inject(Update.StepperAction(x)),
+        ~selection,
+        s,
+      )
+    | (_, Evaluation(_)) => Cursor.empty
+    | (_, Stepper(_)) => Cursor.empty
     };
 };
 

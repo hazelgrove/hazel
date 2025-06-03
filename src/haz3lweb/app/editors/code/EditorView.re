@@ -47,17 +47,28 @@ module Focus = {
 
   let get_cursor_info =
       (
+        ~get_cursor_info_pr as
+          _:
+            (
+              ~common: ProjectorInterface.common,
+              ~inject: 'p_a => Ui_effect.t(unit),
+              ~read_only: bool,
+              'p_m,
+              'p_f
+            ) =>
+            Cursor.t,
         ~common: ProjectorInterface.common,
-        ~inject:
-           Editor.Update.t(ProjectorCore.Kind.t, 'p_m, 'p_a) =>
-           Ui_effect.t(unit),
-        ~read_only: bool,
+        ~inject as
+          _:
+            Editor.Update.t(ProjectorCore.Kind.t, 'p_m, 'p_a) =>
+            Ui_effect.t(unit),
+        ~read_only as _: bool,
         m: Editor.Model.t(ProjectorCore.Kind.t, 'p_m, 'p_a),
-        f: t('p_f),
+        _f: t('p_f),
       ) =>
+    // TODO: check if inner projector is focused
     Cursor.{
-      info:
-        Indicated.ci_of(model.editor.state.zipper, model.statics.info_map),
+      info: Indicated.ci_of(m |> Editor.Model.get_z, common.statics.info_map),
       contextual_actions: [],
     };
 

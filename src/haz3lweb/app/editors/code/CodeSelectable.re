@@ -57,7 +57,16 @@ module Update = {
 module Selection = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Editor.Focus.t;
-  let get_cursor_info = Editor.Focus.get_cursor_info(~read_only=true);
+  let get_cursor_info = (~inject) =>
+    CodeEditable.Focus.get_cursor_info(
+      ~inject=
+        a =>
+          switch (Update.convert_action(a)) {
+          | Some(action) => inject(action)
+          | None => Ui_effect.Ignore
+          },
+      ~read_only=true,
+    );
 };
 
 module View = {

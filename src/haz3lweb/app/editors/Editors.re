@@ -1,3 +1,5 @@
+open Haz3lcore;
+
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type mode =
@@ -180,17 +182,30 @@ module Selection = {
     | Scratch(ScratchMode.Selection.t)
     | Exercises(ExerciseMode.Selection.t);
 
-  let get_cursor_info = (~selection: t, editors: Model.t): cursor(Update.t) => {
+  let get_cursor_info =
+      (~globals, ~inject, ~selection: t, editors: Model.t): Cursor.t => {
     switch (selection, editors) {
     | (Scratch(selection), Scratch(m)) =>
-      let+ ci = ScratchMode.Selection.get_cursor_info(~selection, m);
-      Update.Scratch(ci);
+      ScratchMode.Selection.get_cursor_info(
+        ~globals,
+        ~inject=a => inject(Update.Scratch(a)),
+        ~selection,
+        m,
+      )
     | (Scratch(selection), Documentation(m)) =>
-      let+ ci = ScratchMode.Selection.get_cursor_info(~selection, m);
-      Update.Scratch(ci);
+      ScratchMode.Selection.get_cursor_info(
+        ~globals,
+        ~inject=a => inject(Update.Scratch(a)),
+        ~selection,
+        m,
+      )
     | (Exercises(selection), Exercises(m)) =>
-      let+ ci = ExercisesMode.Selection.get_cursor_info(~selection, m);
-      Update.Exercises(ci);
+      ExercisesMode.Selection.get_cursor_info(
+        ~globals,
+        ~inject=a => inject(Update.Exercises(a)),
+        ~selection,
+        m,
+      )
     | (Scratch(_), Exercises(_))
     | (Exercises(_), Scratch(_))
     | (Exercises(_), Documentation(_)) => empty

@@ -1,3 +1,4 @@
+open Haz3lcore;
 open Util;
 
 /* This file handles the pagenation of Exercise Mode, and switching between
@@ -292,18 +293,17 @@ module Update = {
 };
 
 module Selection = {
-  open Cursor;
-
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = ExerciseMode.Selection.t;
 
-  let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
-    let+ ci =
-      ExerciseMode.Selection.get_cursor_info(
-        ~selection,
-        List.nth(model.exercises, model.current),
-      );
-    Update.Exercise(ci);
+  let get_cursor_info =
+      (~globals: Globals.t, ~inject, ~selection, model: Model.t): Cursor.t => {
+    ExerciseMode.Selection.get_cursor_info(
+      ~globals,
+      ~inject=a => inject(Update.Exercise(a)),
+      ~selection,
+      List.nth(model.exercises, model.current),
+    );
   };
 
   let jump_to_tile =

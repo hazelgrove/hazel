@@ -416,6 +416,24 @@ and Editor: {
     type t = EditorView.Focus.t(Projector.Focus.t);
 
     let here = () => EditorView.Focus.Here;
+
+    let get_cursor_info =
+        (
+          ~common: ProjectorInterface.common,
+          ~inject: Update.t => Ui_effect.t(unit),
+          ~read_only: bool,
+          m: Model.t,
+          f: t,
+        )
+        : Cursor.t =>
+      EditorView.Focus.get_cursor_info(
+        ~get_cursor_info_pr=Projector.Focus.get_cursor_info,
+        ~common,
+        ~inject,
+        ~read_only,
+        m,
+        f,
+      );
   };
 
   module View = {

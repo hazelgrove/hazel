@@ -107,27 +107,34 @@ module Update = {
 };
 
 module Selection = {
-  open Cursor;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | MainEditor(Editor.Focus.t)
     | Result(EvalResult.Selection.t);
 
-  let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
+  let get_cursor_info =
+      (~globals, ~inject, ~selection, model: Model.t): Cursor.t => {
     switch (selection) {
     | MainEditor(f) =>
-      let+ ci =
-        CodeEditable.Selection.get_cursor_info(~selection=f, model.editor);
-      Update.MainEditor(ci);
+      CodeEditable.Focus.get_cursor_info(
+        ~globals,
+        ~read_only=false,
+        ~inject=x => inject(Update.MainEditor(x)),
+        model.editor,
+        f,
+      )
     | Result(selection) =>
-      let+ ci =
-        EvalResult.Selection.get_cursor_info(~selection, model.result);
-      Update.ResultAction(ci);
+      EvalResult.Selection.get_cursor_info(
+        ~globals,
+        ~inject=x => inject(Update.ResultAction(x)),
+        ~selection,
+        model.result,
+      )
     };
   };
 
   let jump_to_tile = (tile, model: Model.t): option((Update.t, t)) => {
-    CodeEditable.Selection.jump_to_tile(tile, model.editor)
+    CodeEditable.Focus.jump_to_tile(tile, model.editor)
     |> Option.map(x =>
          (Update.MainEditor(x), MainEditor(Editor.Focus.here()))
        );
