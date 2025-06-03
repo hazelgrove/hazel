@@ -385,7 +385,9 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
     | Cons(e1, e2) =>
       let (e1', _) = elaborate(m, e1);
       let (e2', _) = elaborate(m, e2);
-      Cons(e1', e2') |> rewrap |> IdTagged.FreshGrammar.Exp.asc(_, elaborated_type);
+      Cons(e1', e2')
+      |> rewrap
+      |> IdTagged.FreshGrammar.Exp.asc(_, elaborated_type);
     | ListConcat(e1, e2) =>
       let (e1', _) = elaborate(m, e1);
       let (e2', _) = elaborate(m, e2);

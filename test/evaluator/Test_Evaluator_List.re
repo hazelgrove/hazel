@@ -23,10 +23,7 @@ let tests = (
       )
     }),
     test_case("List cons passes type inside", `Quick, () => {
-            parse_and_evaluate_test(
-        {|[1, "hello" : Int]|},
-        {|1 :: ["hello"]|},
-      );
+      parse_and_evaluate_test({|[1, "hello" : Int]|}, {|1 :: ["hello"]|})
     }),
   ],
 );
