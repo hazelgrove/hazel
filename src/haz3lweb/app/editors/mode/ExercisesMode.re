@@ -474,6 +474,8 @@ module View = {
       ~instructor_mode=globals.settings.instructor_mode,
     )
     @ EditorModeView.view(
+        ~add_drop=false,
+        ~rename=false,
         ~signal=
           fun
           | Previous =>
@@ -488,7 +490,10 @@ module View = {
               Update.SwitchExercise(
                 (model.current + 1) mod List.length(model.exercises),
               ),
-            ),
+            )
+          | Add
+          | Rename
+          | Delete => Ui_effect.Ignore,
         ~indicator=
           EditorModeView.indicator_n(
             model.current,

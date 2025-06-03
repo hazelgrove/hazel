@@ -455,6 +455,8 @@ module View = {
         model: Model.t,
       ) => {
     EditorModeView.view(
+      ~add_drop=true,
+      ~rename=named_slides,
       ~signal=
         fun
         | Previous =>
@@ -469,7 +471,10 @@ module View = {
             SwitchSlide(
               (model.current + 1) mod List.length(model.scratchpads),
             ),
-          ),
+          )
+        | Add => inject(AddSlide)
+        | Rename => inject(RenameSlide)
+        | Delete => inject(DeleteSlide),
       ~indicator=
         named_slides
           ? EditorModeView.indicator_select(

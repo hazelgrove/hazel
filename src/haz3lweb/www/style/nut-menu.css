@@ -261,6 +261,7 @@
 
 #top-bar #editor-mode .icon svg {
   height: 15px;
+  width: 15px;
 }
 
 #top-bar #editor-mode .toggle-switch.active .toggle-knob {

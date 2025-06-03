@@ -11,12 +11,24 @@ let option_view = (name, n) =>
 
 type event =
   | Previous
-  | Next;
+  | Next
+  | Add
+  | Rename
+  | Delete;
 
-let view = (~signal: event => 'a, ~indicator: list(Node.t)) =>
+let view =
+    (
+      ~add_drop: bool,
+      ~rename: bool,
+      ~signal: event => 'a,
+      ~indicator: list(Node.t),
+    ) =>
   [button(Icons.back, _ => signal(Previous))]
   @ indicator
-  @ [button(Icons.forward, _ => signal(Next))];
+  @ (rename ? [button(Icons.rename, _ => signal(Rename))] : [])
+  @ [button(Icons.forward, _ => signal(Next))]
+  @ (add_drop ? [button(Icons.trash, _ => signal(Delete))] : [])
+  @ (add_drop ? [button(Icons.add, _ => signal(Add))] : []);
 
 let indicator_n = (cur_slide, num_slides) => [
   text(Printf.sprintf("%d / %d", cur_slide + 1, num_slides)),
