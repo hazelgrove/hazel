@@ -1,10 +1,9 @@
 open Haz3lmenhir;
 [@deriving (show({with_path: false}), eq)]
-type reachpoint_result = 
-| Satisfiable(list((string, option(string))))
-| Unsatisfiable
-| Unknown;
-
+type reachpoint_result =
+  | Satisfiable(list((string, option(string))))
+  | Unsatisfiable
+  | Unknown;
 
 let get_indicated_constraints =
     (
@@ -42,9 +41,7 @@ let solve_indicated_reachability = (ctx, expr) => {
         Z3.Model.get_decls(model),
       );
     Satisfiable(assignments);
-    | Z3.Solver.UNSATISFIABLE =>
-    Unsatisfiable;
-    | Z3.Solver.UNKNOWN =>
-    Unknown;
+  | Z3.Solver.UNSATISFIABLE => Unsatisfiable
+  | Z3.Solver.UNKNOWN => Unknown
   };
 };

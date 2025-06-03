@@ -17,18 +17,16 @@ let assumed: AST.Annotated.t(AST.exp(assumptions), assumptions) =
   AST.map_exp_annotation(x => x.assumptions, symex_result);
 
 let solved = ReachPoint.solve_indicated_reachability(ctx, assumed);
-switch(solved) {
+switch (solved) {
 | Satisfiable(assignments) =>
   print_endline("Satisfiable with assignments:");
   List.iter(
-    (assignment) => {
+    assignment => {
       let (name, value) = assignment;
-      print_endline(name ++ " = " ++ Option.value(~default="None",value));
+      print_endline(name ++ " = " ++ Option.value(~default="None", value));
     },
     assignments,
   );
-| Unsatisfiable =>
-  print_endline("Unsatisfiable assignment");
-| Unknown =>
-  print_endline("Unknown assignment");
+| Unsatisfiable => print_endline("Unsatisfiable assignment")
+| Unknown => print_endline("Unknown assignment")
 };

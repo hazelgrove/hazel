@@ -2,7 +2,7 @@
 
 (test
  (name Test_Testgen)
-  (modules Test_Testgen)
+ (modules Test_Testgen)
  (libraries
   haz3lmenhir
   alcotest

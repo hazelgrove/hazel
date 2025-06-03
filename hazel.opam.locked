@@ -24,7 +24,7 @@ depends: [
   "async_unix" {= "v0.16.0"}
   "async_websocket" {= "v0.16.0"}
   "babel" {= "v0.16.0"}
-  "base" {= "v0.16.3"}
+  "base" {= "v0.16.4"}
   "base-bigarray" {= "base"}
   "base-bytes" {= "base"}
   "base-domains" {= "base"}
@@ -48,7 +48,6 @@ depends: [
   "cohttp_async_websocket" {= "v0.16.0"}
   "conduit" {= "8.0.0"}
   "conduit-async" {= "8.0.0"}
-  "conf-bash" {= "1"}
   "conf-c++" {= "1.0"}
   "conf-gmp" {= "4"}
   "conf-gmp-powm-sec" {= "3"}
@@ -130,7 +129,7 @@ depends: [
   "ocaml-options-vanilla" {= "1"}
   "ocaml-syntax-shims" {= "1.0.0"}
   "ocaml-version" {= "3.7.3"}
-  "ocaml_intrinsics" {= "v0.16.1"}
+  "ocaml_intrinsics" {= "v0.16.2"}
   "ocamlbuild" {= "0.16.1"}
   "ocamlc-loc" {= "3.17.2"}
   "ocamlfind" {= "1.9.8"}

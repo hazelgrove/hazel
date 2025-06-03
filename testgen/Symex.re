@@ -66,8 +66,7 @@ let rec substitute =
   | BinExp(left, op, right) => BinExp(go(left), op, go(right))
   | UnOp(op, x) => UnOp(op, go(x))
   | Atom(_) => original_expression
-  | IndicationExp(x) =>
-    IndicationExp(go(x))
+  | IndicationExp(x) => IndicationExp(go(x))
   | _ =>
     raise(
       Failure(
