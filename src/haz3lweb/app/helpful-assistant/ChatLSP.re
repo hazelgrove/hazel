@@ -65,8 +65,6 @@ module SystemPrompt = {
 
   let summarized_hazel_docs = SummarizedHazelDocs.self;
 
-  let few_shot_composition_examples = FewShotCompositionExamples.self;
-
   let mk_suggestion_prompt =
       (
         {instructions, syntax_notes, _}: Options.t,
