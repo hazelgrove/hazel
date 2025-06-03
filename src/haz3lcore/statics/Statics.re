@@ -132,46 +132,46 @@ let typ_exp_unop: Operators.op_un => (Typ.t, Typ.t) =
  * Pos #2: Input type
  * Pos #3: Whether the UPat output is different from input
  */
-let rec caf_input_type = (args: UPat.t): (UPat.t, UTyp.t, bool) => {
-  let (arg_term, arg_rule) = IdTagged.unwrap(args);
-  switch (arg_term) {
-  | Tuple(ps) =>
-    let (arg_list, type_list, modified) =
-      List.fold_right(
-        (arg, (list1, list2, m0)) => {
-          let (arg, typ, m) = caf_input_type(arg);
-          ([arg, ...list1], [typ, ...list2], m || m0);
-        },
-        ps,
-        ([], [], false),
-      );
-    let (new_args, new_type) =
-      if (modified) {
-        (
-          UPat.Parens(UPat.Tuple(arg_list) |> UPat.fresh) |> UPat.fresh,
-          UTyp.Parens(UTyp.Prod(type_list) |> UTyp.fresh) |> UTyp.fresh,
-        );
-      } else {
-        (args, UTyp.Prod(type_list) |> arg_rule);
-      };
-    //print_endline("STA CAFIT new_type = " ++ UTyp.show(new_type));
-    (new_args, new_type, modified);
-  | Cast(inner_arg, t, _) => (inner_arg.term |> UPat.fresh, t, true)
-  | _ => (args, Unknown(Hole(EmptyHole)) |> arg_rule, false)
-  };
-};
+// let rec caf_input_type = (args: UPat.t): (UPat.t, UTyp.t, bool) => {
+//   let (arg_term, arg_rule) = IdTagged.unwrap(args);
+//   switch (arg_term) {
+//   | Tuple(ps) =>
+//     let (arg_list, type_list, modified) =
+//       List.fold_right(
+//         (arg, (list1, list2, m0)) => {
+//           let (arg, typ, m) = caf_input_type(arg);
+//           ([arg, ...list1], [typ, ...list2], m || m0);
+//         },
+//         ps,
+//         ([], [], false),
+//       );
+//     let (new_args, new_type) =
+//       if (modified) {
+//         (
+//           UPat.Parens(UPat.Tuple(arg_list) |> UPat.fresh) |> UPat.fresh,
+//           UTyp.Parens(UTyp.Prod(type_list) |> UTyp.fresh) |> UTyp.fresh,
+//         );
+//       } else {
+//         (args, UTyp.Prod(type_list) |> arg_rule);
+//       };
+//     //print_endline("STA CAFIT new_type = " ++ UTyp.show(new_type));
+//     (new_args, new_type, modified);
+//   | Cast(inner_arg, t, _) => (inner_arg.term |> UPat.fresh, t, true)
+//   | _ => (args, Unknown(Hole(EmptyHole)) |> arg_rule, false)
+//   };
+// };
 
 let check_annotated_function_helper =
-    (pat: UPat.t, ret_type: UTyp.t): option((UPat.t, UPat.t, UTyp.t)) => {
-  let (pat_term, pat_rule) = IdTagged.unwrap(pat);
+    (pat: UPat.t): option((UPat.t, UPat.t)) => {
+  let (pat_term, _) = IdTagged.unwrap(pat);
   switch (pat_term) {
   | Ap(func_name, args) =>
     switch (IdTagged.term_of(func_name)) {
     | Var(_) =>
-      let (new_arg, in_type, _) = caf_input_type(args);
+      // let (new_arg, in_type, _) = caf_input_type(args);
       //print_endline("STA CAF new_type = " ++ UTyp.show(in_type));
-      let func_type = UTyp.Arrow(in_type, ret_type) |> pat_rule;
-      Some((func_name, new_arg, func_type));
+      // let func_type = UTyp.Arrow(in_type, ret_type) |> pat_rule;
+      Some((func_name, args))
     | _ => None
     }
   | _ => None
@@ -182,16 +182,29 @@ let check_annotated_function_helper =
  * Check whether a particular let binding is an annotated function under the new syntax.
  * It is parsed as a constructor syntax.
  * I am not sure what is the top-level pattern; the only thing similar seems to be UPat.Ap.
+ * UPDATE 0604: The third argument is revised to be return type as opposed to function type.
  */
 let check_annotated_function =
-    (pat: UPat.t): option((UPat.t, UPat.t, UTyp.t)) => {
-  let (pat_term, pat_rule) = IdTagged.unwrap(pat);
-  switch (pat_term) {
-  | Cast(inner_pat, _, ret_type) =>
-    check_annotated_function_helper(inner_pat, ret_type)
-  | _ =>
-    let ret_type = UTyp.Unknown(Hole(EmptyHole)) |> pat_rule;
-    check_annotated_function_helper(pat, ret_type);
+    (pat: UPat.t): option((UPat.t, UPat.t, option(UTyp.t))) => {
+  let (pat_term, _) = IdTagged.unwrap(pat);
+  let (inner_pat, ret_type) =
+    switch (pat_term) {
+    | Cast(inner_pat, _, ret_type) => (inner_pat, Some(ret_type))
+    | _ => (pat, None) // (pat, UTyp.Unknown(Hole(EmptyHole)) |> pat_rule)
+    };
+  check_annotated_function_helper(inner_pat)
+  |> Option.map(((name, arg)) => (name, arg, ret_type));
+};
+
+let print_debug_info = (upat: UPat.t, m: Map.t, header: string) => {
+  switch (upat.term) {
+  | Var(v) =>
+    switch (Id.Map.find_opt(UPat.rep_id(upat), m)) {
+    | Some(Info.InfoPat(_)) =>
+      print_endline(header ++ " has record for " ++ v)
+    | _ => print_endline(header ++ " NO record for " ++ v)
+    }
+  | _ => ()
   };
 };
 
@@ -449,6 +462,27 @@ and uexp_to_info_map =
     let arg_co_ctx = CoCtx.union(List.map(Info.exp_co_ctx, args));
     add'(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg_co_ctx]), m);
   | Fun(p, e, _, _) =>
+    // DEBUG START
+    let arg_opt =
+      switch (p.term) {
+      | Parens({term: Tuple(args), _}) =>
+        if (List.fold_left(
+              (acc, item: UPat.t) =>
+                switch (item.term) {
+                | Var("x")
+                | Var("q") => acc
+                | _ => false
+                },
+              true,
+              args,
+            )) {
+          Some(args);
+        } else {
+          None;
+        }
+      | _ => None
+      };
+    // DEBUG END
     let (mode_pat, mode_body) = Mode.of_arrow(ctx, mode);
     let (p', _) =
       go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~mode=mode_pat, p, m);
@@ -462,7 +496,17 @@ and uexp_to_info_map =
     let is_exhaustive = p |> Info.pat_constraint |> Incon.is_exhaustive;
     let self =
       is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
-    add'(~self, ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx), m);
+    let (new_info, new_map) =
+      add'(~self, ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx), m);
+    // DEBUG START
+    switch (arg_opt) {
+    | Some(xs) =>
+      let _ = List.map(x => print_debug_info(x, new_map, "STA FUN"), xs);
+      ();
+    | _ => ()
+    };
+    // DEBUG END
+    (new_info, new_map);
   | TypFun({term: Var(name), _} as utpat, body, _)
       when !Ctx.shadows_typ(ctx, name) =>
     let mode_body = Mode.of_forall(ctx, Some(name), mode);
@@ -487,50 +531,31 @@ and uexp_to_info_map =
   | Let(p, def, body) =>
     let new_binding =
       switch (check_annotated_function(p)) {
-      | Some((f_name, f_args, f_type)) =>
+      | Some((f_name, f_args, _)) =>
         let def: UExp.t = UExp.Fun(f_args, def, None, None) |> UExp.fresh;
-        let p': UPat.t =
-          UPat.Cast(f_name, f_type, Typ.temp(Unknown(Internal)))
-          |> UPat.fresh;
+        // let p': UPat.t =
+        //   UPat.Cast(f_name, f_type, Typ.temp(Unknown(Internal)))
+        //   |> UPat.fresh;
         // let (_, m) = go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~mode=Syn, p, m);
-        Some(Let(p', def, body) |> UExp.fresh);
+        Some(Let(f_name, def, body) |> UExp.fresh);
       | None => None
       };
     let (p_syn, _) =
       go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~mode=Syn, p, m);
     // DEBUG START
-    switch (new_binding, p.term) {
-    | (None, Var("f")) => print_endline("STA LET checkpoint 1")
-    | _ => ()
-    };
+    // switch (p.term) {
+    // | Cast({term: Var("f"), _}, _, _) =>
+    //   print_endline(
+    //     "STA LET IN1 p_syn_coctx = " ++ CoCtx.show(p_syn.co_ctx),
+    //   );
+    //   print_endline("STA LET IN1 p_syn_ty = " ++ Typ.show(p_syn.ty));
+    // | _ => ()
+    // };
     // DEBUG END
     let (def, p_ana_ctx, m, ty_p_ana) =
       if (!is_recursive(ctx, p, def, p_syn.ty)) {
         let (def, m) = go(~mode=Ana(p_syn.ty), def, m);
         let ty_p_ana = def.ty;
-        // DEBUG START
-        switch (new_binding, p.term) {
-        | (None, Var("f")) =>
-          print_endline(
-            "STA LET checkpoint 2\nSTA LET ty_p_ana = " ++ Typ.show(ty_p_ana),
-          );
-          let in_type_x =
-            Ctx.lookup_var(def.ctx, "x")
-            |> Option.map((x: Ctx.var_entry) => x.typ |> Typ.normalize(ctx))
-            |> Option.value(~default=Typ.temp(Typ.Unknown(Internal)));
-          print_endline(
-            "STA LET x's type = " ++ Typ.show_term(in_type_x.term),
-          );
-          let in_type_q =
-            Ctx.lookup_var(def.ctx, "q")
-            |> Option.map((x: Ctx.var_entry) => x.typ |> Typ.normalize(ctx))
-            |> Option.value(~default=Typ.temp(Typ.Unknown(Internal)));
-          print_endline(
-            "STA LET q's type = " ++ Typ.show_term(in_type_q.term),
-          );
-        | _ => ()
-        };
-        // DEBUG END
 
         let (p_ana', _) =
           go_pat(
@@ -579,14 +604,35 @@ and uexp_to_info_map =
       };
     let (body, m) = go'(~ctx=p_ana_ctx, ~mode, body, m);
     /* add co_ctx to pattern */
+    // The removal of `q` took place when executing the following assignment:
     let (p_ana, m) =
       go_pat(
         ~is_synswitch=false,
-        ~co_ctx=body.co_ctx,
-        ~mode=Ana(ty_p_ana),
-        p,
-        m,
+        ~co_ctx=body.co_ctx, // The same as long as ids are ignored
+        ~mode=Ana(ty_p_ana), // The same
+        p, // The same
+        m // Potentially different, but both input `m` has info of x and q
       );
+    // DEBUG START
+    switch (p.term) {
+    | Cast({term: Var("f"), _}, _, _) =>
+      switch (term) {
+      | Let(
+          _,
+          {
+            term: Fun({term: Parens({term: Tuple(args), _}), _}, _, _, _),
+            _,
+          },
+          _,
+        ) =>
+        let _ = List.map(x => print_debug_info(x, m, "STA LET IN1"), args);
+        print_endline("STA LET IN1 coctx = " ++ CoCtx.show(body.co_ctx));
+        ();
+      | _ => ()
+      }
+    | _ => ()
+    };
+    // DEBUG END
     //print_endline("STA body = " ++ UExp.show(body.term));
     //print_endline("STA p_ana = " ++ UPat.show(p_ana.term));
     // TODO: factor out code
@@ -604,20 +650,56 @@ and uexp_to_info_map =
         (Some(UExp.rep_id(b)), info.co_ctx, m);
       | None => (None, CoCtx.empty, m)
       };
-    //let (new_info, new_map) =
-    add'(
-      ~self,
-      ~co_ctx=
-        CoCtx.union([
-          def.co_ctx,
-          CoCtx.mk(ctx, p_ana.ctx, body.co_ctx),
-          rewrite_coctx,
-        ]),
-      ~rewrite_id,
-      m,
-    );
-  //print_endline("STA new_map" ++ Map.show(new_map));
-  //(new_info, new_map);
+    // DEBUG START
+    switch (p.term) {
+    | Ap({term: Var("f"), _}, _) =>
+      let rewrite_stmt = Option.bind(rewrite_id, x => Id.Map.find_opt(x, m));
+      switch (rewrite_stmt) {
+      | Some(Info.InfoExp({term: {term: Let(_, rewrite_def, _), _}, _})) =>
+        switch (rewrite_def.term) {
+        | Fun({term: Parens({term: Tuple(rewrite_args), _}), _}, _, _, _) =>
+          print_endline("STA LET OUT uexp = " ++ UExp.show_term(term));
+          let _ =
+            List.map(
+              x => print_debug_info(x, m, "STA LET OUT"),
+              rewrite_args,
+            );
+          ();
+        | _ => ()
+        }
+      | _ => ()
+      };
+    | Cast({term: Var("f"), _}, _, _) =>
+      switch (term) {
+      | Let(
+          _,
+          {
+            term: Fun({term: Parens({term: Tuple(args), _}), _}, _, _, _),
+            _,
+          },
+          _,
+        ) =>
+        print_endline("STA LET IN2 uexp = " ++ UExp.show_term(term));
+        let _ = List.map(x => print_debug_info(x, m, "STA LET IN2"), args);
+        ();
+      | _ => ()
+      }
+    | _ => ()
+    };
+    // DEBUG END
+    let (new_info, new_map) =
+      add'(
+        ~self,
+        ~co_ctx=
+          CoCtx.union([
+            def.co_ctx,
+            CoCtx.mk(ctx, p_ana.ctx, body.co_ctx),
+            rewrite_coctx,
+          ]),
+        ~rewrite_id,
+        m,
+      );
+    (new_info, new_map);
   | FixF(p, e, _) =>
     let (p', _) =
       go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~mode, p, m);
@@ -931,17 +1013,6 @@ and upat_to_info_map =
         ~constraint_=Constraint.Truth,
         m,
       );
-    // DEBUG START
-    // if (name == "q") {
-    //   let (new_info, _) = result;
-    //   let in_type =
-    //     Ctx.lookup_var(new_info.ctx, name)
-    //     |> Option.map((x: Ctx.var_entry) => x.typ |> Typ.normalize(ctx))
-    //     |> Option.value(~default=Typ.temp(Typ.Unknown(Internal)));
-    //   ();
-    //   print_endline("STA_P q's type = " ++ Typ.show_term(in_type.term));
-    // };
-    // DEBUG END
     result;
   | Tuple(ps) =>
     let modes = Mode.of_prod(ctx, mode, List.length(ps));
@@ -979,6 +1050,12 @@ and upat_to_info_map =
     );
   | Cast(p, ann, _) =>
     let (ann, m) = utyp_to_info_map(~ctx, ~ancestors, ann, m);
+    // DEBUG START
+    // switch (p.term) {
+    // | Var("f") => print_endline("STA_P CAST m = " ++ Map.show(m))
+    // | _ => ()
+    // };
+    // DEBUG END
     let (p, m) = go(~ctx, ~mode=Ana(ann.term), p, m);
     add(~self=Just(ann.term), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
   };

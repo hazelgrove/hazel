@@ -165,11 +165,15 @@ let rec elaborate_pattern =
     | Var(v) =>
       print_endline("ELA_P VAR upat = " ++ UPat.show(upat));
       let tmp1 = Ctx.lookup_var(ctx, v);
+      // DEBUG START
       switch (tmp1) {
       | Some(tmp2) =>
-        print_endline("ELA_P VAR ctx lookup = " ++ Ctx.show_var_entry(tmp2))
-      | None => print_endline("ELA_P VAR ctx lookup fail")
+        print_endline(
+          "ELA_P VAR ctx lookup: " ++ v ++ " = " ++ Ctx.show_var_entry(tmp2),
+        )
+      | None => print_endline("ELA_P VAR ctx lookup fail: " ++ v)
       };
+      // DEBUG END
       upat
       |> cast_from(
            tmp1
