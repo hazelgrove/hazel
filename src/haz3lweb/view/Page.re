@@ -78,14 +78,12 @@ module Update = {
         ~char: string,
         ~editor: CodeEditable.Model.t,
         ~schedule_action,
-        ~current_editor: int,
         ~chat_id,
       ) => {
     AssistantUpdate.check_req(
       char,
       a => schedule_action(Assistant(a)),
       editor,
-      current_editor,
       chat_id,
     );
   };
@@ -363,12 +361,18 @@ module Update = {
           actions,
         );
       };
+      let ed: CellEditor.Model.t =
+        switch (model.editors) {
+        | Scratch(m) => List.nth(m.scratchpads, m.current) |> snd
+        | Documentation(m) => List.nth(m.scratchpads, m.current) |> snd
+        | Exercises(m) => List.nth(m.exercises, m.current).cells.user_impl
+        };
       let* assistant =
         AssistantUpdate.update(
           ~settings,
           ~action,
           ~model=model.assistant,
-          ~editors=model.editors,
+          ~editor=ed.editor,
           ~schedule_action=a => schedule_action(Assistant(a)),
           ~add_suggestion,
           ~goto,
