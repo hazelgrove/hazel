@@ -126,7 +126,7 @@ let resize_handle = (): Node.t => {
       let window_width = Dom_html.window##.innerWidth;
       let persistent_width = 38.9;
       let new_width =
-        max(360, window_width - current_x - int_of_float(persistent_width));
+        max(400, window_width - current_x - int_of_float(persistent_width));
       updateElementStyles(new_width);
     };
     ();
