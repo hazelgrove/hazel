@@ -229,8 +229,6 @@ module Update = {
 };
 
 module Selection = {
-  open Cursor;
-
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = CellEditor.Selection.t;
 

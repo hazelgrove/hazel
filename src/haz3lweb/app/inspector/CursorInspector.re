@@ -633,12 +633,7 @@ let inspector_view = (~globals, ci): Node.t =>
     view_of_info(~globals, ci),
   );
 
-let view =
-    (
-      ~globals: Globals.t,
-      ~inject: Editors.Update.t => 'a,
-      cursor: Cursor.cursor(Editors.Update.t),
-    ) => {
+let view = (~globals: Globals.t, cursor: Cursor.t) => {
   let bar_view = div(~attrs=[Attr.id("bottom-bar")]);
   let err_view = err =>
     bar_view([
@@ -651,16 +646,6 @@ let view =
   | _ when !globals.settings.core.statics => div_empty
   | None => err_view("Whitespace or Comment")
   | Some(ci) =>
-    bar_view([
-      inspector_view(~globals, ci),
-      ProjectorPanel.view(
-        ~inject=
-          a =>
-            cursor.editor_action(Project(a))
-            |> Option.map(inject)
-            |> Option.value(~default=Ui_effect.Ignore),
-        cursor,
-      ),
-    ])
+    bar_view([inspector_view(~globals, ci), ProjectorPanel.view(cursor)])
   };
 };

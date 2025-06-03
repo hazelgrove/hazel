@@ -172,69 +172,6 @@ module Update = {
           "let out : string * Haz3lcore.PersistentZipper.t = " ++ content,
       );
       model |> return_quiet;
-    | ActiveEditor(action) =>
-      let cursor_info =
-        Editors.Selection.get_cursor_info(
-          ~selection=model.selection,
-          model.editors,
-        );
-      switch (cursor_info.editor_action(action)) {
-      | None => model |> return_quiet
-      | Some(action) =>
-        let* editors =
-          Editors.Update.update(
-            ~globals=model.globals,
-            ~schedule_action=a => schedule_action(Editors(a)),
-            action,
-            model.editors,
-          );
-        {
-          ...model,
-          editors,
-        };
-      };
-    | Undo =>
-      let cursor_info =
-        Editors.Selection.get_cursor_info(
-          ~selection=model.selection,
-          model.editors,
-        );
-      switch (cursor_info.undo_action) {
-      | None => model |> return_quiet
-      | Some(action) =>
-        let* editors =
-          Editors.Update.update(
-            ~globals=model.globals,
-            ~schedule_action=a => schedule_action(Editors(a)),
-            action,
-            model.editors,
-          );
-        {
-          ...model,
-          editors,
-        };
-      };
-    | Redo =>
-      let cursor_info =
-        Editors.Selection.get_cursor_info(
-          ~selection=model.selection,
-          model.editors,
-        );
-      switch (cursor_info.redo_action) {
-      | None => model |> return_quiet
-      | Some(action) =>
-        let* editors =
-          Editors.Update.update(
-            ~globals=model.globals,
-            ~schedule_action=a => schedule_action(Editors(a)),
-            action,
-            model.editors,
-          );
-        {
-          ...model,
-          editors,
-        };
-      };
     };
   };
 
@@ -304,6 +241,8 @@ module Update = {
       );
     let cursor_info =
       Editors.Selection.get_cursor_info(
+        ~globals=model.globals,
+        ~inject=_ => Ui_effect.Ignore,
         ~selection=model.selection,
         model.editors,
       );
@@ -323,8 +262,6 @@ module Update = {
 };
 
 module Focus = {
-  open Cursor;
-
   type t = selection;
 
   let handle_key_event = (event: Key.t, ~inject): Ui_effect.t(unit) => {
@@ -339,8 +276,7 @@ module Focus = {
     };
   };
 
-  let get_cursor_info =
-      (~selection: t, model: Model.t): cursor(Editors.Update.t) => {
+  let get_cursor_info = (~selection: t, model: Model.t): Haz3lcore.Cursor.t => {
     Editors.Selection.get_cursor_info(~selection, model.editors);
   };
 };

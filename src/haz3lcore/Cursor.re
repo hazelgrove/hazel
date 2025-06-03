@@ -9,9 +9,11 @@ type shortcut = {
 type t = {
   info: option(Info.t),
   contextual_actions: list(shortcut),
+  current_projector: option(string),
 };
 
 let empty = {
   info: None,
   contextual_actions: [],
+  current_projector: None,
 };

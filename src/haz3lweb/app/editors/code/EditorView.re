@@ -70,6 +70,7 @@ module Focus = {
     Cursor.{
       info: Indicated.ci_of(m |> Editor.Model.get_z, common.statics.info_map),
       contextual_actions: [],
+      current_projector: None,
     };
 
   let focus_here =

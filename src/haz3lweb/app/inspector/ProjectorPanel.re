@@ -2,7 +2,6 @@ open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
 open Util;
-open OptUtil.Syntax;
 open Web;
 
 /* This defines the projector selection menu/toggle at the bottom right */
@@ -172,7 +171,6 @@ let keyboard_shortcut_of = (kind: ProjectorCore.Kind.t): string =>
 /* A selection input for contetually applicable projectors */
 let select_view =
     (
-      ~inject: Action.project => Ui_effect.t(unit),
       current_projector: option(string),
       applicable_projectors: list(Cursor.shortcut),
     ) => {
@@ -251,11 +249,20 @@ let select_view =
   };
 };
 
-let view = (~inject, cursor: Cursor.t) => {
-  let applicable_projectors = Applicable.projectors(cursor);
+let view = (cursor: Cursor.t) => {
+  let applicable_projectors =
+    List.filter(
+      (p: Cursor.shortcut) => p.section == Some("projectors"),
+      cursor.contextual_actions,
+    );
+  let unproject =
+    List.find_opt(
+      (p: Cursor.shortcut) => p.label == "Unproject",
+      applicable_projectors,
+    );
   div(
     ~attrs=[Attr.id("projectors")],
-    [select_view(~inject, applicable_projectors)]
-    @ [toggle_view(~inject, applicable_projectors, cursor)],
+    [select_view(cursor.current_projector, applicable_projectors)]
+    @ [toggle_view(unproject, applicable_projectors)],
   );
 };
