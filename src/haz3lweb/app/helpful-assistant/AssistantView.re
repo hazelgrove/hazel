@@ -1083,6 +1083,28 @@ let view =
     ) => {
   let settings = globals.settings;
   let inject_global = globals.inject_global;
+  let curr_chat =
+    Id.Map.find(
+      model.current_chats.curr_composition_chat,
+      model.chat_history.past_composition_chats,
+    );
+  let concat_text =
+    String.concat(
+      "\n",
+      List.map(
+        (message: Model.display) =>
+          "<"
+          ++ Model.string_of_role(message.role)
+          ++ ">"
+          ++ message.original_content
+          ++ "</"
+          ++ Model.string_of_role(message.role)
+          ++ ">\n",
+        curr_chat.message_displays,
+      ),
+    );
+  print_endline(concat_text);
+  Js_of_ocaml.Firebug.console##log(Js_of_ocaml.Js.string(concat_text));
   let view =
     div(
       ~attrs=[Attr.id("assistant")],

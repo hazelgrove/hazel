@@ -1,6 +1,6 @@
 module Sexp = Sexplib.Sexp;
 
-let self = ["<goldenExamples>", "todo", "</goldenExamples>"];
+let self = ["<fewShotExamples>", "todo", "</fewShotExamples>"];
 //Ex_TypeError.self @ Ex_Calculator.self;
 
 /*

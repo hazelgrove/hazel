@@ -10,7 +10,7 @@ module Model = AssistantModel;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type completion =
-  | Request(Id.t, bool, int) // When user presses ?? or ?a
+  | Request(Id.t, bool) // When user presses ?? or ?a
   | Query(string) // User may followup with a query
   | Loop(string, Id.t, int); // Error rounds
 
@@ -375,7 +375,6 @@ let check_req =
       _: string,
       schedule_action: t => unit,
       editor: CodeEditable.Model.t,
-      current_editor: int,
       chat_id: Id.t,
     )
     : unit => {
@@ -385,7 +384,7 @@ let check_req =
   let send_message = (tile_id, advanced_reasoning) => {
     schedule_action(
       SendMessage(
-        Completion(Request(tile_id, advanced_reasoning, current_editor)),
+        Completion(Request(tile_id, advanced_reasoning)),
         editor,
         chat_id,
       ),
@@ -533,7 +532,8 @@ let update =
       ~settings: Settings.t,
       ~action,
       ~model: Model.t,
-      ~editors: Editors.Model.t,
+      // todo: Find a way to track unqique editor between concurrent actions
+      ~editor: CodeModel.t,
       ~schedule_action: t => unit,
       ~add_suggestion,
       ~goto,
@@ -541,7 +541,7 @@ let update =
     )
     : Updated.t(Model.t) => {
   switch (action) {
-  | SendMessage(kind, editor, chat_id) =>
+  | SendMessage(kind, _, chat_id) =>
     switch (kind) {
     | Tutor(content) =>
       let mode = AssistantSettings.HazelTutor;
@@ -649,14 +649,7 @@ let update =
       let curr_chat =
         Id.Map.find(chat_id, model.chat_history.past_suggestion_chats);
       switch (kind) {
-      | Request(tile_id, advanced_reasoning, current_editor) =>
-        let ed: CellEditor.Model.t =
-          switch (editors) {
-          | Scratch(m) => List.nth(m.scratchpads, current_editor) |> snd
-          | Documentation(m) => List.nth(m.scratchpads, current_editor) |> snd
-          | Exercises(m) => List.nth(m.exercises, m.current).cells.user_impl
-          };
-        let editor = ed.editor;
+      | Request(tile_id, advanced_reasoning) =>
         let tag = String.sub(Id.to_string(tile_id), 0, 3);
         switch (
           {
