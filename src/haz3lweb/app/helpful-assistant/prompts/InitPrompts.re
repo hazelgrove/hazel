@@ -73,19 +73,11 @@ let mk_tutor = () => {
   OpenRouter.mk_system_msg(prelude ++ "\n\n" ++ get_documentation_as_text());
 };
 
-let get_few_shot_comp_examples = () => {
-  "<fewShotExamples>"
-  ++ Ex_Simple_1.self
-  ++ Ex_Simple_2.self
-  ++ "</fewShotExamples>";
-};
-
 let mk_composition = (): OpenRouter.message => {
   OpenRouter.mk_system_msg(
     String.concat(
       " ",
-      CompositionPrompt.self
-      @ [get_few_shot_comp_examples(), get_documentation_as_text()],
+      CompositionPrompt.self @ [get_documentation_as_text()],
     ),
   );
 };

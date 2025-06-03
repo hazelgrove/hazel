@@ -4,8 +4,6 @@ let hazel_syntax_notes = HazelSyntaxNotes.self;
 
 let summarized_hazel_docs = SummarizedHazelDocs.self;
 
-let few_shot_composition_examples = FewShotCompositionExamples.self;
-
 let instructions = [
   "<instructions>",
   "You are an expert AI programming agent operating in the Hazel programming language.",
@@ -139,5 +137,15 @@ let toolkit = [
   "</toolKitUsage>",
 ];
 
+let get_few_shot_comp_examples = () => {
+  "<fewShotExamples>"
+  ++ Ex_Simple_1.self
+  ++ Ex_Simple_2.self
+  ++ Ex_Tally.self
+  ++ Ex_Comparator.self
+  ++ Ex_Comparator_2.self
+  ++ "</fewShotExamples>";
+};
+
 let self = instructions @ toolkit;
-hazel_syntax_notes @ summarized_hazel_docs @ few_shot_composition_examples;
+hazel_syntax_notes @ summarized_hazel_docs @ [get_few_shot_comp_examples()];
