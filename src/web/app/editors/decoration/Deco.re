@@ -273,8 +273,18 @@ module Deco =
       ["selected", Selection.buffer_cls(z.selection)],
     );
 
-  /* Compute associative IDs for a given tile ID */
   let find_assoc_for_id = (id: Id.t): list(Id.t) => {
+    /* Compute associative IDs for a given tile ID */
+    // The idea here is that with left-associative operators, we
+    // know where to find the "left" argument even if the subtree
+    // is not a leaf node.
+    //
+    // For example, if we have the expression `1 + 2 + 3` and want to grab
+    // 2 + 3, we know this is represented as (1 + 2) + 3 under the hood.
+    // To grab the 2, we step left once from the +, and then step right
+    // upon finding that we were looking at a +.
+    // If, however, we had (1 * 2) + 3, we step left once, find *, and
+    // return the ID of that subterm (1 * 2).
     let statics_opt = Statics.Map.lookup(id, M.statics.info_map);
     switch (statics_opt) {
     | Some(InfoExp(exp)) =>
