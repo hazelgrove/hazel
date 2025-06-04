@@ -132,8 +132,8 @@ let knob =
 
 let toggle_view =
     (
-      unproject: option(Cursor.shortcut),
-      applicable_projectors: list(Cursor.shortcut),
+      unproject: option(ContextualAction.t),
+      applicable_projectors: list(ContextualAction.t),
     ) =>
   switch (unproject, applicable_projectors) {
   | (None, []) =>
@@ -172,7 +172,7 @@ let keyboard_shortcut_of = (kind: ProjectorCore.Kind.t): string =>
 let select_view =
     (
       current_projector: option(string),
-      applicable_projectors: list(Cursor.shortcut),
+      applicable_projectors: list(ContextualAction.t),
     ) => {
   switch (current_projector, applicable_projectors) {
   | (None, []) => select(~attrs=[Attr.id("projector-select")], [])
@@ -185,7 +185,7 @@ let select_view =
     let current_effect = x |> Option.map(name => (name, Effect.Ignore));
     let applicable_options =
       y
-      |> List.map((shortcut: Cursor.shortcut) =>
+      |> List.map((shortcut: ContextualAction.t) =>
            option(
              ~attrs=[
                Attr.title(
@@ -203,7 +203,7 @@ let select_view =
          );
     let applicable_effects =
       y
-      |> List.map((shortcut: Cursor.shortcut) =>
+      |> List.map((shortcut: ContextualAction.t) =>
            (
              shortcut.label,
              shortcut.update_action |> Option.value(~default=Effect.Ignore),
@@ -252,12 +252,12 @@ let select_view =
 let view = (cursor: Cursor.t) => {
   let applicable_projectors =
     List.filter(
-      (p: Cursor.shortcut) => p.section == Some("projectors"),
+      (p: ContextualAction.t) => p.section == Some("projectors"),
       cursor.contextual_actions,
     );
   let unproject =
     List.find_opt(
-      (p: Cursor.shortcut) => p.label == "Unproject",
+      (p: ContextualAction.t) => p.label == "Unproject",
       applicable_projectors,
     );
   div(

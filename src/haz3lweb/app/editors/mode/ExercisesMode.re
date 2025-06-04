@@ -303,7 +303,30 @@ module Selection = {
       ~inject=a => inject(Update.Exercise(a)),
       ~selection,
       List.nth(model.exercises, model.current),
-    );
+    )
+    |> Cursor.with_actions_if(
+         globals.settings.instructor_mode,
+         [
+           ContextualAction.mk(
+             ~mdIcon="download",
+             ~section="Export",
+             "Export Exercise Module",
+             inject(Update.ExportModule),
+           ),
+           ContextualAction.mk(
+             ~mdIcon="download",
+             ~section="Export",
+             "Export Transitionary Exercise Module",
+             inject(Update.ExportTransitionary),
+           ),
+           ContextualAction.mk(
+             ~mdIcon="download",
+             ~section="Export",
+             "Export Grading Exercise Module",
+             inject(Update.ExportGrading),
+           ),
+         ],
+       );
   };
 
   let jump_to_tile =
@@ -413,7 +436,7 @@ module View = {
 
     let reparse_effect =
       cursor.contextual_actions
-      |> List.find_opt((a: Cursor.shortcut) => a.label == "reparse")
+      |> List.find_opt((a: ContextualAction.t) => a.label == "reparse")
       |> Option.bind(_, a => a.update_action);
 
     let reparse =

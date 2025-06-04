@@ -376,10 +376,9 @@ module View = {
   let main_view =
       (
         ~globals,
-        ~get_log_and: (string => unit) => unit,
         ~inject: Update.t => Ui_effect.t(unit),
         ~cursor,
-        {globals, editors, explain_this: explainThisModel, selection} as model: Model.t,
+        {globals: _, editors, explain_this: explainThisModel, selection} as model: Model.t,
       ) => {
     let bottom_bar = CursorInspector.view(~globals, cursor);
     let sidebar =
@@ -433,8 +432,7 @@ module View = {
       );
     div(
       ~attrs=[Attr.id("page"), ...handlers(~inject)],
-      [FontSpecimen.view]
-      @ main_view(~globals, ~get_log_and, ~cursor, ~inject, model),
+      [FontSpecimen.view] @ main_view(~globals, ~cursor, ~inject, model),
     );
   };
 };

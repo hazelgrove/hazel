@@ -357,7 +357,7 @@ module View = {
 
     let reparse_effect =
       cursor.contextual_actions
-      |> List.find_opt((a: Cursor.shortcut) => a.label == "reparse")
+      |> List.find_opt((a: ContextualAction.t) => a.label == "reparse")
       |> Option.bind(_, a => a.update_action);
 
     let reparse =

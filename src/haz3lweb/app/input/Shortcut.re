@@ -12,112 +12,83 @@ let mk_shortcut = (~hotkey=?, ~mdIcon=?, ~section=?, label, update_action): t =>
   };
 };
 
-let instructor_shortcuts: list(t) = [
-  mk_shortcut(
-    ~mdIcon="download",
-    ~section="Export",
-    "Export Exercise Module",
-    Editors(Exercises(ExportModule)) // TODO Would we rather skip contextual stuff for now or include it and have it fail
-  ),
-  mk_shortcut(
-    ~mdIcon="download",
-    ~section="Export",
-    "Export Transitionary Exercise Module",
-    Editors(Exercises(ExportTransitionary)) // TODO Would we rather skip contextual stuff for now or include it and have it fail
-  ),
-  mk_shortcut(
-    ~mdIcon="download",
-    ~section="Export",
-    "Export Grading Exercise Module",
-    Editors(Exercises(ExportGrading)) // TODO Would we rather skip contextual stuff for now or include it and have it fail
-  ),
-];
+// let instructor_shortcuts: list(t) = [
+//   mk_shortcut(
+//     ~mdIcon="download",
+//     ~section="Export",
+//     "Export Exercise Module",
+//     Editors(Exercises(ExportModule)) // TODO Would we rather skip contextual stuff for now or include it and have it fail
+//   ),
+//   mk_shortcut(
+//     ~mdIcon="download",
+//     ~section="Export",
+//     "Export Transitionary Exercise Module",
+//     Editors(Exercises(ExportTransitionary)) // TODO Would we rather skip contextual stuff for now or include it and have it fail
+//   ),
+//   mk_shortcut(
+//     ~mdIcon="download",
+//     ~section="Export",
+//     "Export Grading Exercise Module",
+//     Editors(Exercises(ExportGrading)) // TODO Would we rather skip contextual stuff for now or include it and have it fail
+//   ),
+// ];
 
 // List of shortcuts configured to show up in the command palette and have hotkey support
 let shortcuts = (sys: Util.Key.sys): list(t) =>
   [
-    mk_shortcut(
-      ~mdIcon="undo",
-      ~hotkey=Keyboard.meta(sys) ++ "+z",
-      "Undo",
-      Globals(Undo),
-    ),
-    mk_shortcut(
-      ~hotkey=Keyboard.meta(sys) ++ "+shift+z",
-      ~mdIcon="redo",
-      "Redo",
-      Globals(Redo),
-    ),
-    mk_shortcut(
-      ~hotkey="F12",
-      ~mdIcon="arrow_forward",
-      ~section="Navigation",
-      "Go to Definition",
-      Globals(ActiveEditor(Jump(BindingSiteOfIndicatedVar))),
-    ),
-    mk_shortcut(
-      ~hotkey="shift+tab",
-      ~mdIcon="swipe_left_alt",
-      ~section="Navigation",
-      "Go to Previous Hole",
-      Globals(ActiveEditor(Move(Goal(Piece(Grout, Left))))),
-    ),
-    mk_shortcut(
-      ~mdIcon="swipe_right_alt",
-      ~section="Navigation",
-      "Go To Next Hole",
-      Globals(ActiveEditor(Move(Goal(Piece(Grout, Right))))),
-      // Tab is overloaded so not setting it here
-    ),
-    mk_shortcut(
-      ~hotkey=Keyboard.meta(sys) ++ "+d",
-      ~mdIcon="select_all",
-      ~section="Selection",
-      "Select current term",
-      Globals(ActiveEditor(Select(Term(Current)))),
-    ),
-    mk_shortcut(
-      ~hotkey=Keyboard.meta(sys) ++ "+p",
-      ~mdIcon="backpack",
-      "Pick up selected term",
-      Globals(ActiveEditor(Pick_up)),
-    ),
-    mk_shortcut(
-      ~mdIcon="select_all",
-      ~hotkey=Keyboard.meta(sys) ++ "+a",
-      ~section="Selection",
-      "Select All",
-      Globals(ActiveEditor(Select(All))),
-    ),
-    // TODO[Matt]: restore shortcut
     // mk_shortcut(
-    //   ~hotkey="alt+f",
-    //   ~mdIcon="camera",
-    //   ~section="Projection",
-    //   "Fold",
-    //   Globals(ActiveEditor(Project(SetIndicated(Specific(Fold))))),
+    //   ~mdIcon="undo",
+    //   ~hotkey=Keyboard.meta(sys) ++ "+z",
+    //   "Undo",
+    //   Globals(Undo),
     // ),
     // mk_shortcut(
-    //   ~hotkey="alt+v",
-    //   ~mdIcon="camera",
-    //   ~section="Projection",
-    //   "Probe",
-    //   Globals(ActiveEditor(Project(SetIndicated(Specific(Probe))))),
+    //   ~hotkey=Keyboard.meta(sys) ++ "+shift+z",
+    //   ~mdIcon="redo",
+    //   "Redo",
+    //   Globals(Redo),
     // ),
-    mk_shortcut(
-      ~hotkey="alt+t",
-      ~mdIcon="camera",
-      ~section="Projection",
-      "Type",
-      Globals(ActiveEditor(Project(SetIndicated(Specific(Info))))),
-    ),
-    mk_shortcut(
-      ~hotkey="alt+l",
-      ~mdIcon="camera",
-      ~section="Projection",
-      "Livelit",
-      Globals(ActiveEditor(Project(SetIndicated(ChooseLivelit)))),
-    ),
+    // mk_shortcut(
+    //   ~hotkey="F12",
+    //   ~mdIcon="arrow_forward",
+    //   ~section="Navigation",
+    //   "Go to Definition",
+    //   Globals(ActiveEditor(Jump(BindingSiteOfIndicatedVar))),
+    // ),
+    // mk_shortcut(
+    //   ~hotkey="shift+tab",
+    //   ~mdIcon="swipe_left_alt",
+    //   ~section="Navigation",
+    //   "Go to Previous Hole",
+    //   Globals(ActiveEditor(Move(Goal(Piece(Grout, Left))))),
+    // ),
+    // mk_shortcut(
+    //   ~mdIcon="swipe_right_alt",
+    //   ~section="Navigation",
+    //   "Go To Next Hole",
+    //   Globals(ActiveEditor(Move(Goal(Piece(Grout, Right))))),
+    //   // Tab is overloaded so not setting it here
+    // ),
+    // mk_shortcut(
+    //   ~hotkey=Keyboard.meta(sys) ++ "+d",
+    //   ~mdIcon="select_all",
+    //   ~section="Selection",
+    //   "Select current term",
+    //   Globals(ActiveEditor(Select(Term(Current)))),
+    // ),
+    // mk_shortcut(
+    //   ~hotkey=Keyboard.meta(sys) ++ "+p",
+    //   ~mdIcon="backpack",
+    //   "Pick up selected term",
+    //   Globals(ActiveEditor(Pick_up)),
+    // ),
+    // mk_shortcut(
+    //   ~mdIcon="select_all",
+    //   ~hotkey=Keyboard.meta(sys) ++ "+a",
+    //   ~section="Selection",
+    //   "Select All",
+    //   Globals(ActiveEditor(Select(All))),
+    // ),
     mk_shortcut(
       ~section="Settings",
       ~mdIcon="tune",

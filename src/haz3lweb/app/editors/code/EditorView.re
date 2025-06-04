@@ -58,20 +58,109 @@ module Focus = {
             ) =>
             Cursor.t,
         ~common: ProjectorInterface.common,
-        ~inject as
-          _:
-            Editor.Update.t(ProjectorCore.Kind.t, 'p_m, 'p_a) =>
-            Ui_effect.t(unit),
-        ~read_only as _: bool,
+        ~inject:
+           Editor.Update.t(ProjectorCore.Kind.t, 'p_m, 'p_a) =>
+           Ui_effect.t(unit),
+        ~read_only: bool,
         m: Editor.Model.t(ProjectorCore.Kind.t, 'p_m, 'p_a),
         _f: t('p_f),
-      ) =>
-    // TODO: check if inner projector is focused
+      ) => {
+    let sys = Os.is_mac^ ? Key.Mac : Key.PC;
+
+    // TODO(Matt|Andrew): check if inner projector is focused
+
+    let projector_actions = [];
+
+    // TODO(Matt nominating Andrew): projector shortcuts
+    // mk_shortcut(
+    //   ~hotkey="alt+f",
+    //   ~mdIcon="camera",
+    //   ~section="Projection",
+    //   "Fold",
+    //   Globals(ActiveEditor(Project(SetIndicated(Specific(Fold))))),
+    // ),
+    // mk_shortcut(
+    //   ~hotkey="alt+v",
+    //   ~mdIcon="camera",
+    //   ~section="Projection",
+    //   "Probe",
+    //   Globals(ActiveEditor(Project(SetIndicated(Specific(Probe))))),
+    // ),
+    // mk_shortcut(
+    //   ~hotkey="alt+t",
+    //   ~mdIcon="camera",
+    //   ~section="Projection",
+    //   "Type",
+    //   Globals(ActiveEditor(Project(SetIndicated(Specific(Info))))),
+    // ),
+    // mk_shortcut(
+    //   ~hotkey="alt+l",
+    //   ~mdIcon="camera",
+    //   ~section="Projection",
+    //   "Livelit",
+    //   Globals(ActiveEditor(Project(SetIndicated(ChooseLivelit)))),
+    // ),
+
+    let read_only_actions = [
+      ContextualAction.mk(
+        ~hotkey="F12",
+        ~mdIcon="arrow_forward",
+        ~section="Navigation",
+        "Go to Definition",
+        inject(Jump(BindingSiteOfIndicatedVar)),
+      ),
+      ContextualAction.mk(
+        ~hotkey="shift+tab",
+        ~mdIcon="swipe_left_alt",
+        ~section="Navigation",
+        "Go to Previous Hole",
+        inject(Move(Goal(Piece(Grout, Left)))),
+      ),
+      ContextualAction.mk(
+        ~mdIcon="swipe_right_alt",
+        ~section="Navigation",
+        "Go To Next Hole",
+        inject(Move(Goal(Piece(Grout, Right)))),
+        // Tab is overloaded so not setting it here
+      ),
+      ContextualAction.mk(
+        ~hotkey=Keyboard.meta(sys) ++ "+d",
+        ~mdIcon="select_all",
+        ~section="Selection",
+        "Select current term",
+        inject(Select(Term(Current))),
+      ),
+      ContextualAction.mk(
+        ~mdIcon="select_all",
+        ~hotkey=Keyboard.meta(sys) ++ "+a",
+        ~section="Selection",
+        "Select All",
+        inject(Select(All)),
+      ),
+    ];
+
+    let editor_actions = [
+      ContextualAction.mk(
+        ~hotkey=Keyboard.meta(sys) ++ "+p",
+        ~mdIcon="backpack",
+        "Pick up selected term",
+        inject(Pick_up),
+      ),
+      ContextualAction.mk(
+        ~hotkey=Keyboard.meta(sys) ++ "+/",
+        ~mdIcon="assistant",
+        "TyDi Assistant",
+        inject(Buffer(Set(TyDi))) // I haven't figured out how to trigger this in the editor
+      ),
+    ];
+
     Cursor.{
       info: Indicated.ci_of(m |> Editor.Model.get_z, common.statics.info_map),
-      contextual_actions: [],
+      contextual_actions: projector_actions @ read_only_actions,
       current_projector: None,
-    };
+    }
+    |> Cursor.with_actions_if(!read_only, editor_actions);
+  };
 
   let focus_here =
       (~focus_parent, m: Editor.Model.t('a, 'b, 'c)): Ui_effect.t(unit) => {
