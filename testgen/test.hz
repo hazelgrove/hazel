@@ -1,0 +1,5 @@
+let x = a_bool in
+let y = b_bool in
+let z = 3 in
+let b = c in
+if x || !y then z else {{{ c }}}

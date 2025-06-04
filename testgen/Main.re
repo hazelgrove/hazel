@@ -16,6 +16,13 @@ let symex_result =
 let assumed: AST.Annotated.t(AST.exp(assumptions), assumptions) =
   AST.map_exp_annotation(x => x.assumptions, symex_result);
 
+let z3_double_to_string = value => {
+  raise(
+    Failure("Not implemented"),
+    // Eg (fp #b0 #b10000000000 #x4666666666666) -> 2.55
+  );
+};
+
 let solved = ReachPoint.solve_indicated_reachability(ctx, assumed);
 switch (solved) {
 | Satisfiable(assignments) =>

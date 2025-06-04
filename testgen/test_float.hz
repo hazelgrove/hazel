@@ -1,0 +1,6 @@
+let f = f_float in
+let n = n_int   in
+let b = b_bool  in
+if b && n * 5 == 25 then
+    if f +. 1.25 ==. 3.80 then {{{ true }}} else false
+else false

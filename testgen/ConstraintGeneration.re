@@ -12,7 +12,7 @@ let rec generate = (ctx: Z3.context, expr: AST.exp(unit)): Z3.Expr.expr => {
     Z3.FloatingPoint.mk_numeral_f(
       ctx,
       value,
-      Z3.Sort.mk_uninterpreted_s(ctx, "exp"),
+      Z3.FloatingPoint.mk_sort_double(ctx),
     )
   | AST.Atom(Bool(value)) => Z3.Boolean.mk_val(ctx, value)
   | AST.Atom(String(value)) => Z3.Seq.mk_string(ctx, value)
@@ -42,6 +42,43 @@ let rec generate = (ctx: Z3.context, expr: AST.exp(unit)): Z3.Expr.expr => {
     | IntOp(Equals) => Z3.Boolean.mk_eq(ctx, left', right')
     | IntOp(NotEquals) =>
       Z3.Boolean.mk_not(ctx, Z3.Boolean.mk_eq(ctx, left', right'))
+    | FloatOp(Equals) => Z3.Boolean.mk_eq(ctx, left', right')
+    | FloatOp(Plus) =>
+      Z3.FloatingPoint.mk_add(
+        ctx,
+        Z3.FloatingPoint.RoundingMode.mk_rne(ctx),
+        left',
+        right',
+      )
+    | FloatOp(Minus) =>
+      Z3.FloatingPoint.mk_sub(
+        ctx,
+        Z3.FloatingPoint.RoundingMode.mk_rne(ctx),
+        left',
+        right',
+      )
+    | FloatOp(Times) =>
+      Z3.FloatingPoint.mk_mul(
+        ctx,
+        Z3.FloatingPoint.RoundingMode.mk_rne(ctx),
+        left',
+        right',
+      )
+    | FloatOp(Divide) =>
+      Z3.FloatingPoint.mk_div(
+        ctx,
+        Z3.FloatingPoint.RoundingMode.mk_rne(ctx),
+        left',
+        right',
+      )
+    | FloatOp(LessThan) => Z3.FloatingPoint.mk_lt(ctx, left', right')
+    | FloatOp(LessThanOrEqual) => Z3.FloatingPoint.mk_leq(ctx, left', right')
+    | FloatOp(GreaterThan) => Z3.FloatingPoint.mk_gt(ctx, left', right')
+    | FloatOp(GreaterThanOrEqual) =>
+      Z3.FloatingPoint.mk_geq(ctx, left', right')
+    | FloatOp(NotEquals) =>
+      Z3.Boolean.mk_not(ctx, Z3.Boolean.mk_eq(ctx, left', right'))
+    | FloatOp(Power) => raise(Failure("Power not supported for floats"))
     | _ =>
       raise(Failure("Unsupported binary operator: " ++ AST.show_bin_op(op)))
     };
@@ -51,7 +88,24 @@ let rec generate = (ctx: Z3.context, expr: AST.exp(unit)): Z3.Expr.expr => {
     let else' = generate(ctx, else_branch.term);
     Z3.Boolean.mk_ite(ctx, cond', then', else');
   | AST.Var(name) =>
-    Z3.Arithmetic.Integer.mk_const(ctx, Z3.Symbol.mk_string(ctx, name)) // TODO : Handle other types
+    if (String.ends_with(~suffix="bool", name)) {
+      Z3.Boolean.mk_const(ctx, Z3.Symbol.mk_string(ctx, name));
+    } else if (String.ends_with(~suffix="int", name)) {
+      Z3.Arithmetic.Integer.mk_const(ctx, Z3.Symbol.mk_string(ctx, name));
+    } else if (String.ends_with(~suffix="float", name)) {
+      Z3.FloatingPoint.mk_const(
+        ctx,
+        Z3.Symbol.mk_string(ctx, name),
+        Z3.FloatingPoint.mk_sort_double(ctx),
+      );
+    } else {
+      raise(
+        Failure(
+          "Unsupported variable type: " ++ name ++ " in generate constraint",
+        ),
+      );
+    }
+  // TODO : Handle other types
   | AST.IndicationExp(expr) => generate(ctx, expr.term)
   | AST.Atom(Nat(_))
   | _ =>
