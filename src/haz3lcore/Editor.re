@@ -78,26 +78,11 @@ module State = {
   };
 };
 
-module History = {
-  [@deriving (show({with_path: false}), sexp, yojson, eq)]
-  type affix = list((Action.t, State.t));
-  [@deriving (show({with_path: false}), sexp, yojson, eq)]
-  type t = (affix, affix);
-
-  let empty = ([], []);
-
-  let add = (a: Action.t, state: State.t, (pre, _): t): t => (
-    [(a, state), ...pre],
-    [],
-  );
-};
-
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     // Updated
     state: State.t,
-    history: History.t,
     // Calculated
     [@opaque]
     syntax: CachedSyntax.t,
@@ -108,7 +93,6 @@ module Model = {
       zipper,
       col_target: None,
     },
-    history: History.empty,
     syntax:
       CachedSyntax.init(
         zipper,
@@ -156,7 +140,7 @@ module Update = {
         ~settings: Language.CoreSettings.t,
         a: Action.t,
         old_statics,
-        {state, history, syntax}: Model.t,
+        {state, syntax}: Model.t,
       )
       : Action.Result.t(Model.t) => {
     open Result.Syntax;
@@ -172,7 +156,7 @@ module Update = {
               Buffer(Clear),
               Model.to_move_s({
                 state,
-                history,
+
                 syntax,
               }),
               state.zipper,
@@ -187,10 +171,6 @@ module Update = {
       } else {
         syntax;
       };
-
-    // 2. Add to undo history
-    let history =
-      Action.is_historic(a) ? History.add(a, state, history) : history;
 
     // 3. Record target column if moving up/down
     let col_target =
@@ -216,7 +196,7 @@ module Update = {
         a,
         Model.to_move_s({
           state,
-          history,
+
           syntax,
         }),
         state.zipper,
@@ -228,38 +208,9 @@ module Update = {
         zipper,
         col_target,
       },
-      history,
       syntax,
     };
   };
-
-  let undo = (ed: Model.t) =>
-    switch (ed.history) {
-    | ([], _) => None
-    | ([(a, prev), ...before], after) =>
-      Some(
-        Model.{
-          state: prev,
-          history: (before, [(a, ed.state), ...after]),
-          syntax: ed.syntax // Will be recalculated in calculate
-        },
-      )
-    };
-  let redo = (ed: Model.t) =>
-    switch (ed.history) {
-    | (_, []) => None
-    | (before, [(a, next), ...after]) =>
-      Some(
-        Model.{
-          state: next,
-          history: ([(a, ed.state), ...before], after),
-          syntax: ed.syntax // Will be recalculated in calculate
-        },
-      )
-    };
-
-  let can_undo = ed => Option.is_some(undo(ed));
-  let can_redo = ed => Option.is_some(redo(ed));
 
   let calculate =
       (
@@ -267,7 +218,7 @@ module Update = {
         ~is_edited,
         new_statics,
         dyn_map,
-        {syntax, state, history}: Model.t,
+        {syntax, state}: Model.t,
       ) => {
     // 1. Recalculate the autocomplete buffer if necessary
     let zipper =
@@ -280,7 +231,6 @@ module Update = {
             Model.to_move_s({
               syntax,
               state,
-              history,
             }),
             state.zipper,
           )
@@ -299,7 +249,6 @@ module Update = {
 
     // Recombine
     Model.{
-      history,
       state: {
         ...state,
         zipper,

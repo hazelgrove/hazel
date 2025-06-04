@@ -30,6 +30,8 @@ module Update = {
     };
   };
 
+  let can_undo = CodeSelectable.Update.can_undo;
+
   let calculate =
       (
         ~settings,
