@@ -60,6 +60,14 @@ module Update = {
     | ResetEditor(Exercise.pos)
     | ResetExercise;
 
+  let can_undo = (action: t) => {
+    switch (action) {
+    | Editor(_, action) => CellEditor.Update.can_undo(action)
+    | ResetEditor(_) => true
+    | ResetExercise => true
+    };
+  };
+
   let update =
       (~settings: Settings.t, ~schedule_action as _, action, model: Model.t)
       : Updated.t(Model.t) => {

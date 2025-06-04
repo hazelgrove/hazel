@@ -99,6 +99,15 @@ module Update = {
     | EvalEditorAction(CodeSelectable.Update.t)
     | UpdateResult(ProgramResult.t(ProgramResult.inner));
 
+  let can_undo = (action: t) => {
+    switch (action) {
+    | ToggleStepper => true
+    | StepperAction(action) => StepperView.Update.can_undo(action)
+    | EvalEditorAction(action) => CodeSelectable.Update.can_undo(action)
+    | UpdateResult(_) => false
+    };
+  };
+
   // Update is meant to make minimal changes to the model, and calculate will do the rest.
   let update = (~settings, action, model: Model.t): Updated.t(Model.t) =>
     switch (action, model) {

@@ -1,7 +1,7 @@
 open Sexplib.Std;
 open Ppx_yojson_conv_lib.Yojson_conv;
 // invariant: List.length(as) == List.length(bs) + 1
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t('a, 'b) = (list('a), list('b));
 
 let mk = (as_: list('a), bs: list('b)): t('a, 'b) => {
@@ -78,6 +78,14 @@ let map_hd = (f_a: 'a => 'a, (as_, bs): t('a, 'b)): t('a, 'b) => (
   [as_ |> List.hd |> f_a, ...as_ |> List.tl],
   bs,
 );
+
+let pop = ((as_, bs): t('a, 'b)): option(('a, 'b, t('a, 'b))) =>
+  switch (bs) {
+  | [] => None
+  | [b, ...bs] =>
+    let (a, as_) = ListUtil.split_first(as_);
+    Some((a, b, mk(as_, bs)));
+  };
 
 let trim = ((as_, bs): t('a, 'b)): option(('a, t('b, 'a), 'a)) =>
   switch (bs) {
