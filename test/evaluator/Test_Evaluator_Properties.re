@@ -176,6 +176,7 @@ let qcheck_pattern_equivalence_test =
   );
 
 // Taking a step should result in a consistent type that is more precise than the original type
+[@warning "-52"]
 let qcheck_preservation_test =
   QCheck.Test.make(
     ~name="Preservation of types",
@@ -183,57 +184,47 @@ let qcheck_preservation_test =
     QCheck_Util.arb_exp(~minimal_idents=true, 10),
     uexp => {
     switch (
-      {
-        let statics =
-          Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), uexp);
-        let (elaborated, ty) = Elaborator.elaborate(statics, uexp);
-
-        let stepped = single_step(elaborated);
-
-        (stepped, ty);
-      }
-    ) {
-    | (Some((next, _)), orig_ty) =>
       switch (
         {
           let statics =
-            Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), next);
-          let info: option(Info.t) =
-            Statics.Map.lookup(next.annotation.ids |> List.hd, statics);
-
-          info;
+            Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), uexp);
+          let (elaborated, ty) = Elaborator.elaborate(statics, uexp);
+          let stepped = single_step(elaborated);
+          (stepped, ty);
         }
       ) {
-      | Some(InfoExp({ty, _})) =>
-        switch (Typ.is_more_precise(Ctx.empty, ty, orig_ty)) {
-        | true => true
-        | false =>
-          Alcotest.fail(
-            "Preservation failed: original type "
-            ++ Typ.show(orig_ty)
-            ++ " is not more precise than stepped type "
-            ++ Typ.show(ty),
-          )
-        | exception e =>
-          print_endline(
-            "Skipping preservation test due to error in consistency: "
-            ++ Printexc.to_string(e),
-          );
-          true;
+      | (Some((next, _)), orig_ty) =>
+        switch (
+          {
+            let statics =
+              Statics.mk(
+                CoreSettings.on,
+                Builtins.ctx_init(Some(Int)),
+                next,
+              );
+            let info: option(Info.t) =
+              Statics.Map.lookup(next.annotation.ids |> List.hd, statics);
+
+            info;
+          }
+        ) {
+        | Some(InfoExp({ty, _})) =>
+          Typ.is_more_precise(Ctx.empty, ty, orig_ty)
+            ? true
+            : Alcotest.fail(
+                "Preservation failed: original type "
+                ++ Typ.show(orig_ty)
+                ++ " is not more precise than stepped type "
+                ++ Typ.show(ty),
+              )
+        | _ => Alcotest.fail("No type information found for stepped expression")
         }
-      | _ => failwith("No type information found for stepped expression")
-      | exception e =>
-        print_endline(
-          "Skipping preservation test due to error: " ++ Printexc.to_string(e),
-        );
-        true;
+      | (None, _) => true // If we can't take a step, we don't have to check preservation
       }
-    | (None, _) => true // If we can't take a step, we don't have to check preservation
-    | exception e =>
-      print_endline(
-        "Skipping preservation test due to error: " ++ Printexc.to_string(e),
-      );
-      true;
+    ) {
+    | ret => ret
+    | exception (Invalid_argument("List.fold_left2")) // https://github.com/hazelgrove/hazel/issues/1673
+    | exception Stack_overflow => true // Known issue with some expressions that cause infinite recursion in the stepper
     }
   });
 
