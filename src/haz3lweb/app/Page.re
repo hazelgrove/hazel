@@ -67,6 +67,8 @@ module Update = {
     | Start
     | Save;
 
+  let equal = (===);
+
   let update_global =
       (
         ~import_log,
@@ -194,48 +196,8 @@ module Update = {
           editors,
         };
       };
-    | Undo =>
-      let cursor_info =
-        Editors.Selection.get_cursor_info(
-          ~selection=model.selection,
-          model.editors,
-        );
-      switch (cursor_info.undo_action) {
-      | None => model |> return_quiet
-      | Some(action) =>
-        let* editors =
-          Editors.Update.update(
-            ~globals=model.globals,
-            ~schedule_action=a => schedule_action(Editors(a)),
-            action,
-            model.editors,
-          );
-        {
-          ...model,
-          editors,
-        };
-      };
-    | Redo =>
-      let cursor_info =
-        Editors.Selection.get_cursor_info(
-          ~selection=model.selection,
-          model.editors,
-        );
-      switch (cursor_info.redo_action) {
-      | None => model |> return_quiet
-      | Some(action) =>
-        let* editors =
-          Editors.Update.update(
-            ~globals=model.globals,
-            ~schedule_action=a => schedule_action(Editors(a)),
-            action,
-            model.editors,
-          );
-        {
-          ...model,
-          editors,
-        };
-      };
+    | Undo
+    | Redo => failwith("Undo/Redo are handled in the history module")
     };
   };
 
@@ -296,6 +258,18 @@ module Update = {
     };
   };
 
+  let can_undo = (action: t) => {
+    switch (action) {
+    | Globals(action) => Globals.Update.can_undo(action)
+    | Editors(action) => Editors.Update.can_undo(action)
+    | ExplainThis(action) => ExplainThisUpdate.can_undo(action)
+    | MakeActive(_) => false
+    | Benchmark(_) => false
+    | Start => false
+    | Save => false
+    };
+  };
+
   let calculate = (~schedule_action, ~is_edited, model: Model.t) => {
     let editors =
       Editors.Update.calculate(
@@ -338,6 +312,26 @@ module Selection = {
       Some(Update.Globals(SetShowBackpackTargets(false)))
     | {key: D("F7"), sys: Mac | PC, shift: Down, meta: Up, ctrl: Up, alt: Up} =>
       Some(Update.Benchmark(Start))
+    | {
+        key: D("Z" | "z"),
+        sys: Mac,
+        shift: Down,
+        meta: Down,
+        ctrl: Up,
+        alt: Up,
+      }
+    | {
+        key: D("Z" | "z"),
+        sys: PC,
+        shift: Down,
+        meta: Up,
+        ctrl: Down,
+        alt: Up,
+      } =>
+      Some(Update.Globals(Redo))
+    | {key: D("Z" | "z"), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
+    | {key: D("Z" | "z"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
+      Some(Update.Globals(Undo))
     | _ =>
       Editors.Selection.handle_key_event(~selection, ~event, model.editors)
       |> Option.map(x => Update.Editors(x))
