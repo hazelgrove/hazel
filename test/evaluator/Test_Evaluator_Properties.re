@@ -220,14 +220,13 @@ let qcheck_preservation_test =
             ++ Printexc.to_string(e),
           );
           true;
-        };
+        }
       | _ => failwith("No type information found for stepped expression")
-          | exception e =>
-      print_endline(
-        "Skipping preservation test due to error: " ++ Printexc.to_string(e),
-      );
-      true;
-
+      | exception e =>
+        print_endline(
+          "Skipping preservation test due to error: " ++ Printexc.to_string(e),
+        );
+        true;
       }
     | (None, _) => true // If we can't take a step, we don't have to check preservation
     | exception e =>
