@@ -71,7 +71,6 @@ let values_group = (~globals: Globals.t) => {
       ("λ", "Functions", s.show_fn_bodies, Evaluation(ShowFnBodies)),
       ("|", "Cases", s.show_case_clauses, Evaluation(ShowCaseClauses)),
       ("f", "Fixpoints", s.show_fixpoints, Evaluation(ShowFixpoints)),
-      (Unicode.castArrowSym, "Casts", s.show_casts, Evaluation(ShowCasts)),
     ],
   );
 };
@@ -94,6 +93,12 @@ let stepper_group = (~globals: Globals.t) => {
         "Show filters",
         s.show_stepper_filters,
         Evaluation(ShowFilters),
+      ),
+      (
+        Unicode.castArrowSym,
+        "Show Cast Steps",
+        s.show_cast_steps,
+        Evaluation(ShowCastSteps),
       ),
     ],
   );
