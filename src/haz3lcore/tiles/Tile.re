@@ -8,7 +8,7 @@ exception Empty_tile;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = tile;
 
-let id = t => t.id;
+let id = (t: t) => t.id;
 
 let is_complete = (t: t) => List.length(t.label) == List.length(t.shards);
 

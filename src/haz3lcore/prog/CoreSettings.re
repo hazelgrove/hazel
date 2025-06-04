@@ -6,7 +6,7 @@ module Evaluation = {
     show_case_clauses: bool,
     show_fn_bodies: bool,
     show_fixpoints: bool,
-    show_casts: bool,
+    show_cast_steps: bool,
     show_lookup_steps: bool,
     show_stepper_filters: bool,
     // TODO[Matt]: Move this to somewhere where it is a per-scratch setting
@@ -19,7 +19,7 @@ module Evaluation = {
     show_case_clauses: true,
     show_fn_bodies: false,
     show_fixpoints: false,
-    show_casts: false,
+    show_cast_steps: false,
     show_lookup_steps: false,
     show_stepper_filters: false,
     stepper_history: false,
@@ -34,6 +34,7 @@ type t = {
   elaborate: bool,
   assist: bool,
   dynamics: bool,
+  flip_animations: bool,
   evaluation: Evaluation.t,
 };
 
@@ -42,6 +43,7 @@ let off: t = {
   elaborate: false,
   assist: false,
   dynamics: false,
+  flip_animations: false,
   evaluation: Evaluation.init,
 };
 
@@ -50,5 +52,6 @@ let on: t = {
   elaborate: true,
   assist: true,
   dynamics: true,
+  flip_animations: true,
   evaluation: Evaluation.init,
 };

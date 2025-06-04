@@ -6,7 +6,6 @@ type variant('a) =
   | Variant(Constructor.t, list(Id.t), option('a))
   | BadEntry('a);
 
-// Invariant: Must not have duplicate constructors
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t('a) = list(variant('a));
 
@@ -43,6 +42,14 @@ let equal_constructor =
   | (BadEntry(_), Variant(_))
   | (Variant(_), BadEntry(_)) => false
   };
+
+let is_empty = (x: t('a)): bool =>
+  List.for_all(
+    fun
+    | Variant(_, _, _) => false
+    | BadEntry(_) => true,
+    x,
+  );
 
 let same_constructor =
     (eq: ('a, 'a) => bool, x: variant('a), y: variant('a)): bool =>
@@ -88,17 +95,21 @@ let is_ground = is_hole =>
 let venn_regions =
     (f: ('a, 'a) => bool, xs: list('a), ys: list('a))
     : (list(('a, 'a)), list('a), list('a)) => {
-  let rec go = (xs, ys, acc, left, right) =>
+  let rec go = (xs, ys, seen_xs, acc, left, right) =>
     switch (xs) {
     | [] => (acc |> List.rev, left |> List.rev, List.rev_append(right, ys))
     | [x, ...xs] =>
       switch (List.partition(f(x, _), ys)) {
-      | ([], _) => go(xs, ys, acc, [x, ...left], right)
-      | ([y], ys') => go(xs, ys', [(x, y), ...acc], left, right)
-      | _ => failwith("Sum type has non-unique constructors")
+      | ([], _) =>
+        switch (List.partition(f(x, _), seen_xs)) {
+        | ([], _) => go(xs, ys, [x, ...seen_xs], acc, [x, ...left], right)
+        | (_, _) => go(xs, ys, seen_xs, acc, left, right)
+        }
+      | ([y, ..._], ys') =>
+        go(xs, ys', [x, ...seen_xs], [(x, y), ...acc], left, right)
       }
     };
-  go(xs, ys, [], [], []);
+  go(xs, ys, [], [], [], []);
 };
 
 let join_entry =
@@ -182,7 +193,7 @@ let equal = (eq: ('a, 'a) => bool, m1: t('a), m2: t('a)) => {
   };
 };
 
-let map = (f: option('a) => option('b), m: t('a)): t('b) => {
+let map = (type a, f: option(a) => option(a), m: t(a)): t(a) => {
   List.map(
     fun
     | Variant(ctr, args, value) => Variant(ctr, args, f(value))
@@ -191,10 +202,23 @@ let map = (f: option('a) => option('b), m: t('a)): t('b) => {
   );
 };
 
+let map_preserving = (type a, type b, f: a => b, m: t(a)): t(b) => {
+  List.map(
+    fun
+    | Variant(ctr, args, Some(value)) =>
+      Variant(ctr, args, Some(f(value)))
+    | Variant(ctr, args, None) => Variant(ctr, args, None)
+    | BadEntry(value) => BadEntry(f(value)),
+    m,
+  );
+};
+
+// TODO: maybe define a variant here instead of double option
 let get_entry = (ctr, m) =>
   List.find_map(
     fun
-    | Variant(ctr', _, value) when Constructor.equal(ctr, ctr') => value
+    | Variant(ctr', _, value) when Constructor.equal(ctr, ctr') =>
+      Some(value)
     | Variant(_)
     | BadEntry(_) => None,
     m,

@@ -1,6 +1,8 @@
 open Sexplib.Std;
 open Ppx_yojson_conv_lib.Yojson_conv;
 open Virtual_dom.Vdom;
+
+module Node = Node;
 open Node;
 open JsUtil;
 open Js_of_ocaml;
@@ -121,6 +123,9 @@ module TextArea = {
     };
   };
 
+  let is_last_pos = id => caret_at_end(get(id));
+  let is_first_pos = id => caret_at_start(get(id));
+
   let set_caret_to_start = (textarea: t): unit => {
     textarea##focus;
     textarea##.selectionStart := 0;
@@ -134,3 +139,5 @@ module TextArea = {
     textarea##.selectionEnd := content_length;
   };
 };
+
+let span_text = (text: string) => span(~attrs=[], [Node.text(text)]);

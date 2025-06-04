@@ -22,15 +22,24 @@ let suggest = (ci: Info.t, z: Zipper.t): list(Suggestion.t) => {
    * may not be desirable in other ways, for example maybe we want
    * recency bias in ctx. Revisit this later. I'm sorting before
    * combination because we want backpack candidates to show up first */
-  suggest_backpack(z)
-  @ (
-    AssistantForms.suggest_operand(ci)
-    @ AssistantForms.suggest_leading(ci)
-    @ AssistantCtx.suggest_variable(ci)
-    @ AssistantCtx.suggest_lookahead_variable(ci)
-    |> List.sort(Suggestion.compare)
-  )
-  @ (AssistantForms.suggest_operator(ci) |> List.sort(Suggestion.compare));
+  switch (ci) {
+  | InfoExp({cls: Exp(Label), _})
+  | InfoPat({cls: Pat(Label), _})
+  | InfoTyp({cls: Typ(Label), _})
+  | InfoExp({cls: Exp(TupLabel), _})
+  | InfoPat({cls: Pat(TupLabel), _})
+  | InfoTyp({cls: Typ(TupLabel), _}) => [] // TODO: Autocomplete for labels
+  | _ =>
+    suggest_backpack(z)
+    @ (
+      AssistantForms.suggest_operand(ci)
+      @ AssistantForms.suggest_leading(ci)
+      @ AssistantCtx.suggest_variable(ci)
+      @ AssistantCtx.suggest_lookahead_variable(ci)
+      |> List.sort(Suggestion.compare)
+    )
+    @ (AssistantForms.suggest_operator(ci) |> List.sort(Suggestion.compare))
+  };
 };
 
 /* If there is a monotile to the left of the caret, return it. We
@@ -49,10 +58,8 @@ let token_to_left = (z: Zipper.t): option(string) =>
 /* The selection buffer used by TyDi is currently unstructured; it simply
  * holds an unparsed string, which is parsed via the same mechanism as
  * Paste only when a suggestion is accepted. */
-let mk_unparsed_buffer =
-    (~sort: Sort.t, sibs: Siblings.t, t: Token.t): Segment.t => {
-  let mold = Siblings.mold_fitting_between(sort, Precedence.max, sibs);
-  [Tile({id: Id.mk(), label: [t], shards: [0], children: [], mold})];
+let mk_unparsed_buffer = (t: Token.t): Segment.t => {
+  [Secondary({id: Id.mk(), content: Comment(t)})];
 };
 
 /* If 'current' is a proper prefix of 'candidate', return the
@@ -70,13 +77,21 @@ let suffix_of = (candidate: Token.t, current: Token.t): option(Token.t) => {
 /* Returns the text content of the suggestion buffer */
 let get_buffer = (z: Zipper.t): option(Token.t) =>
   switch (z.selection.mode, z.selection.content) {
-  | (Buffer(Unparsed), [Tile({label: [completion], _})]) =>
+  | (Buffer(Unparsed), [Secondary({content: Comment(completion), _})]) =>
     Some(completion)
   | _ => None
   };
 
 /* Populates the suggestion buffer with a type-directed suggestion */
 let set_buffer = (~info_map: Statics.Map.t, z: Zipper.t): option(Zipper.t) => {
+  let* _ =
+    switch (z.selection.mode) {
+    /* Make sure not to populate the completion buffer if there is a non-empty
+     * selection, otherwise it will get clobbered by the buffer */
+    | Buffer(Unparsed) => Some()
+    | Normal when Selection.is_empty(z.selection) => Some()
+    | Normal => None
+    };
   let* tok_to_left = token_to_left(z);
   let* index = Indicated.index(z);
   let* ci = Id.Map.find_opt(index, info_map);
@@ -88,12 +103,7 @@ let set_buffer = (~info_map: Statics.Map.t, z: Zipper.t): option(Zipper.t) => {
        );
   let* top_suggestion = suggestions |> Util.ListUtil.hd_opt;
   let* suggestion_suffix = suffix_of(top_suggestion.content, tok_to_left);
-  let content =
-    mk_unparsed_buffer(
-      ~sort=Info.sort_of(ci),
-      z.relatives.siblings,
-      suggestion_suffix,
-    );
+  let content = mk_unparsed_buffer(suggestion_suffix);
   let z = Zipper.set_buffer(z, ~content, ~mode=Unparsed);
   Some(z);
 };

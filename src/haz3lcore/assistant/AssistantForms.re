@@ -14,11 +14,11 @@ module Typ = {
   let unk: Typ.t = Unknown(Internal) |> Typ.fresh;
 
   let of_const_mono_delim: list((Token.t, Typ.t)) = [
-    ("true", Bool |> Typ.fresh),
-    ("false", Bool |> Typ.fresh),
+    ("true", Atom(Bool) |> Typ.fresh),
+    ("false", Atom(Bool) |> Typ.fresh),
     //("[]", List(unk)), / *NOTE: would need to refactor buffer for this to show up */
     //("()", Prod([])), /* NOTE: would need to refactor buffer for this to show up */
-    ("\"\"", String |> Typ.fresh), /* NOTE: Irrelevent as second quote appears automatically */
+    ("\"\"", Atom(String) |> Typ.fresh), /* NOTE: Irrelevent as second quote appears automatically */
     ("_", unk),
   ];
 
@@ -38,43 +38,43 @@ module Typ = {
   let of_infix_delim: list((Token.t, Typ.term)) = [
     //("|>", Unknown(Internal)), /* annoying during case rules */
     (",", Prod([unk, unk])), /* NOTE: Current approach doesn't work for this, but irrelevant as 1-char */
-    ("::", List(unk)), /* annoying in patterns */
+    //("::", List(unk)), /* annoying in patterns. TODO: add codepath to show only if Ana(List(_)) */
     ("@", List(unk)),
     (";", Unknown(Internal)),
-    ("&&", Bool),
-    ("\\/", Bool),
-    ("||", Bool),
-    ("$==", Bool),
-    ("==.", Bool),
-    ("==", Bool),
-    ("!", Bool),
-    //("!=", Bool), /* annoying as != is more common */
-    //("!=.", Bool), /* annoying as != is more common */
-    ("<", Bool),
-    (">", Bool),
-    ("<=", Bool),
-    (">=", Bool),
-    ("<.", Bool),
-    (">.", Bool),
-    ("<=.", Bool),
-    (">=.", Bool),
-    ("+", Int),
-    ("-", Int),
-    ("*", Int),
-    ("/", Int),
-    ("**", Int),
-    ("+.", Float),
-    ("-.", Float),
-    ("*.", Float),
-    ("/.", Float),
-    ("**.", Float),
-    ("++", String),
+    ("&&", Atom(Bool)),
+    ("\\/", Atom(Bool)),
+    ("||", Atom(Bool)),
+    ("$==", Atom(Bool)),
+    ("==.", Atom(Bool)),
+    ("==", Atom(Bool)),
+    ("!", Atom(Bool)),
+    //("!=", Atom(Bool)), /* annoying as != is more common */
+    //("!=.", Atom(Bool)), /* annoying as != is more common */
+    ("<", Atom(Bool)),
+    (">", Atom(Bool)),
+    ("<=", Atom(Bool)),
+    (">=", Atom(Bool)),
+    ("<.", Atom(Bool)),
+    (">.", Atom(Bool)),
+    ("<=.", Atom(Bool)),
+    (">=.", Atom(Bool)),
+    ("+", Atom(Int)),
+    ("-", Atom(Int)),
+    ("*", Atom(Int)),
+    ("/", Atom(Int)),
+    ("**", Atom(Int)),
+    ("+.", Atom(Float)),
+    ("-.", Atom(Float)),
+    ("*.", Atom(Float)),
+    ("/.", Atom(Float)),
+    ("**.", Atom(Float)),
+    ("++", Atom(String)),
   ];
 
   let expected: Info.t => Typ.t =
     fun
-    | InfoExp({mode, _})
-    | InfoPat({mode, _}) => Mode.ty_of(mode)
+    | InfoExp({ana, _})
+    | InfoPat({ana, _}) => ana
     | _ => Unknown(Internal) |> Typ.fresh;
 
   let filter_by =
@@ -197,10 +197,22 @@ let suggest_form = (ty_map, delims_of_sort, ci: Info.t): list(Suggestion.t) => {
 };
 
 let suggest_operator: Info.t => list(Suggestion.t) =
-  suggest_form(
-    List.map(((a, b)) => (a, IdTagged.fresh(b)), Typ.of_infix_delim),
-    Delims.infix,
-  );
+  info => {
+    switch (info) {
+    | InfoExp({
+        term:
+          {term: Tuple([{term: TupLabel({term: Label(_), _}, _), _}]), _},
+        _,
+      }) =>
+      [] // Stop completing (a= to (a==
+    | _ =>
+      suggest_form(
+        List.map(((a, b)) => (a, IdTagged.fresh(b)), Typ.of_infix_delim),
+        Delims.infix,
+        info,
+      )
+    };
+  };
 
 let suggest_operand: Info.t => list(Suggestion.t) =
   suggest_form(Typ.of_const_mono_delim, Delims.const_mono);

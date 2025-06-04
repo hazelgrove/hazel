@@ -15,15 +15,7 @@
       rel="stylesheet"
     />
 
-    <!-- The current version of lit-html is broken so this overwrites it for the ninja-keys import. -->
-    <script type="importmap">
-      {
-          "imports": {
-              "https://unpkg.com/lit-html@latest/directives/ref.js?module": "https://unpkg.com/lit-html@2.2.6/directives/ref.js?module"
-          }
-      }
-  </script>
-  <script type="module" src="ninja_module.js"></script>
+  <script type="module" src="bundled.js"></script>
 
   </head>
 

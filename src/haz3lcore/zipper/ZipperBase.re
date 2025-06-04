@@ -1,7 +1,7 @@
 open Util;
 
 module Caret = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t =
     | Outer
     | Inner(int, int);
@@ -19,7 +19,7 @@ module Caret = {
 };
 
 // assuming single backpack, shards may appear in selection, backpack, or siblings
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = {
   selection: Selection.t,
   backpack: Backpack.t,
@@ -63,10 +63,10 @@ let sibs_with_sel =
   };
 
 module MapPiece = {
-  type updater = Piece.t => Piece.t;
+  type updater = Piece.t => Segment.t;
 
   let rec of_segment = (f: updater, seg: Segment.t): Segment.t => {
-    seg |> List.map(p => f(p)) |> List.map(of_piece(f));
+    seg |> List.concat_map(p => f(p)) |> List.map(of_piece(f));
   }
   and of_piece = (f: updater, piece: Piece.t): Piece.t => {
     switch (piece) {
@@ -130,22 +130,22 @@ module MapPiece = {
 
   let right_sib_has_id = sib_has_id(Siblings.right_neighbor);
 
-  let update_left_sib = (f: Piece.t => Piece.t, z: t) => {
+  let update_left_sib = (f: Piece.t => Segment.t, z: t) => {
     let (l, r) = z.relatives.siblings;
-    let sibs = (List.map(f, l), List.map(f, r));
+    let sibs = (List.concat_map(f, l), List.concat_map(f, r));
     put_siblings(sibs, z);
   };
 
-  let update_right_sib = (f: Piece.t => Piece.t, z: t) => {
+  let update_right_sib = (f: Piece.t => Segment.t, z: t) => {
     let sibs =
       switch (z.relatives.siblings) {
-      | (l, [hd, ...tl]) => (l, [f(hd), ...tl])
+      | (l, [hd, ...tl]) => (l, f(hd) @ tl)
       | sibs => sibs
       };
     put_siblings(sibs, z);
   };
 
-  let fast_local = (f: Piece.t => Piece.t, id: Id.t, z: t): t =>
+  let fast_local_seg = (f: Piece.t => Segment.t, id: Id.t, z: t): t =>
     /* This applies the function to the piece in the zipper having id id, and
      * then replaces the id of the resulting piece with the idea of the old
      * piece, ensuring that the root id remains stable. This function assumes
@@ -159,4 +159,15 @@ module MapPiece = {
     } else {
       go(f, z);
     };
+
+  let fast_local = (f: Piece.t => Piece.t, id: Id.t, z: t): t =>
+    fast_local_seg(p => [f(p)], id, z);
 };
+
+let remove_all_projectors = (z: t): t =>
+  MapPiece.go(
+    fun
+    | Projector(pr) => Piece.unparenthesize(pr.syntax)
+    | x => [x],
+    z,
+  );

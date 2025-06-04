@@ -2,11 +2,12 @@ open Util;
 
 exception Empty_shard_affix;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type step = int;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = {
+  [@equal (_, _) => true]
   id: Id.t,
   label: Label.t,
   mold: Mold.t,

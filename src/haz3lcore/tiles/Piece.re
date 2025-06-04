@@ -1,6 +1,6 @@
 include Base;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = piece;
 
 let secondary = w => Secondary(w);
@@ -15,8 +15,8 @@ let get = (f_w, f_g, f_t: tile => _, f_p: projector => _, p: t) =>
   | Projector(p) => f_p(p)
   };
 
-let proj_id = projector => projector.id;
-let id = get(Secondary.id, Grout.id, tile => tile.id, proj_id);
+let id =
+  get(Secondary.id, Grout.id, tile => tile.id, projector => projector.id);
 
 let sort =
   get(
@@ -35,7 +35,7 @@ let nibs =
     },
     t => Some(Tile.nibs(t)),
     p => {
-      let (l, r) = ProjectorBase.shapes(p);
+      let (l, r) = ProjectorCore.shapes(p);
       Some(Nib.({shape: l, sort: Any}, {shape: r, sort: Any}));
     },
   );
@@ -81,7 +81,7 @@ let shapes =
     _ => None,
     g => Some(Grout.shapes(g)),
     t => Some(Tile.shapes(t)),
-    p => Some(ProjectorBase.shapes(p)),
+    p => Some(ProjectorCore.shapes(p)),
   );
 
 let is_convex = (p: t): bool =>
@@ -185,4 +185,17 @@ let is_term = (p: t) =>
     true
   | Secondary(_) => false // debatable
   | _ => false
+  };
+
+/* If the piece is parentheses, return the child. Otherwise,
+ * return a singleton segment consisting of the piece */
+let unparenthesize = (piece: t): list(t) =>
+  switch (piece) {
+  | Tile({
+      label: ["(", ")"],
+      mold: {nibs: ({shape: Convex, _}, {shape: Convex, _}), _},
+      children: [seg],
+      _,
+    }) => seg
+  | _ => [piece]
   };

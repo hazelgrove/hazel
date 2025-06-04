@@ -1,146 +1,174 @@
 open Transition;
 
-module Result = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t =
-    | BoxedValue(DHExp.t)
-    | Indet(DHExp.t);
+[@deriving (show({with_path: false}), eq)]
+type step_constrained('a) =
+  | StepLimitExceeded
+  | Completed('a);
 
-  let unbox =
-    fun
-    | BoxedValue(d)
-    | Indet(d) => d;
+// This module defines the stack machine for the evaluator.
+module Trampoline = {
+  type t('a) =
+    | Bind(t('b), 'b => t('a)): t('a)
+    | Next(unit => t('a)): t('a)
+    | Done('a): t('a);
 
-  let fast_equal = (r1, r2) =>
-    switch (r1, r2) {
-    | (BoxedValue(d1), BoxedValue(d2))
-    | (Indet(d1), Indet(d2)) => DHExp.fast_equal(d1, d2)
-    | _ => false
+  type callstack('a, 'b) =
+    | Finished: callstack('a, 'a)
+    | Continue('a => t('b), callstack('b, 'c)): callstack('a, 'c);
+  let rec run:
+    type a b.
+      (~step_limit: int=?, ~step_counter: int=?, t(b), callstack(b, a)) =>
+      step_constrained(a) =
+    (
+      ~step_limit: option(int)=?,
+      ~step_counter=0,
+      t: t(b),
+      callstack: callstack(b, a),
+    ) => {
+      switch (step_limit) {
+      | Some(x) when x <= step_counter => StepLimitExceeded
+      | _ =>
+        switch (t) {
+        | Bind(t, f) =>
+          run(
+            ~step_limit?,
+            ~step_counter=step_counter + 1,
+            t,
+            Continue(f, callstack),
+          )
+        | Next(f) =>
+          run(~step_limit?, ~step_counter=step_counter + 1, f(), callstack)
+        | Done(x) =>
+          switch (callstack) {
+          | Finished => Completed(x)
+          | Continue(f, callstack) =>
+            run(
+              ~step_limit?,
+              ~step_counter=step_counter + 1,
+              f(x),
+              callstack,
+            )
+          }
+        }
+      };
     };
-};
 
-open Result;
+  let run = (~step_limit: option(int)=?, t) =>
+    run(~step_limit?, t, Finished);
+
+  let return = x => Done(x);
+
+  let bind = (t, f) => Bind(t, f);
+
+  module Syntax = {
+    let (let.trampoline) = (x, f) => bind(x, f);
+  };
+};
 
 module EvaluatorEVMode: {
   type status =
-    | BoxedValue
-    | Indet
+    | Final
     | Uneval;
 
   include
     EV_MODE with
-      type state = ref(EvaluatorState.t) and type result = (status, DHExp.t);
+      type state = ref(EvaluatorState.t) and
+      type result = Trampoline.t((status, DHExp.t));
 } = {
+  open Trampoline.Syntax;
+
   type status =
-    | BoxedValue
-    | Indet
+    | Final
     | Uneval;
 
-  type result = (status, DHExp.t);
-
-  type reqstate =
-    | BoxedReady
-    | IndetReady
-    | IndetBlocked;
-
-  let (&&) = (x, y) =>
-    switch (x, y) {
-    | (IndetBlocked, _) => IndetBlocked
-    | (_, IndetBlocked) => IndetBlocked
-    | (IndetReady, _) => IndetReady
-    | (_, IndetReady) => IndetReady
-    | (BoxedReady, BoxedReady) => BoxedReady
-    };
-
-  type requirement('a) = (reqstate, 'a);
-
-  type requirements('a, 'b) = (reqstate, 'a, 'b); // cumulative state, cumulative arguments, cumulative 'undo'
+  type result = Trampoline.t((status, DHExp.t));
+  type requirement('a) = Trampoline.t('a);
+  type requirements('a, 'b) = Trampoline.t(('a, 'b));
 
   type state = ref(EvaluatorState.t);
   let update_test = (state, id, v) =>
     state := EvaluatorState.add_test(state^, id, v);
 
-  let req_value = (f, _, x) =>
-    switch (f(x)) {
-    | (BoxedValue, x) => (BoxedReady, x)
-    | (Indet, x) => (IndetBlocked, x)
-    | (Uneval, _) => failwith("Unexpected Uneval")
+  let update_probe = (state, closure: Dynamics.Probe.Closure.t) =>
+    state := EvaluatorState.add_closure(state^, closure);
+
+  let req_final = (f, _, x) => {
+    let.trampoline x' = Next(() => f(x));
+    Trampoline.return(x' |> snd);
+  };
+  let rec req_all_final = (f, i, xs) =>
+    switch (xs) {
+    | [] => Trampoline.return([])
+    | [x, ...xs] =>
+      let.trampoline x' = req_final(f, x => x, x);
+      let.trampoline xs' = req_all_final(f, i, xs);
+      Trampoline.return([x', ...xs']);
     };
 
-  let rec req_all_value = (f, i) =>
-    fun
-    | [] => (BoxedReady, [])
-    | [x, ...xs] => {
-        let (r1, x') = req_value(f, x => x, x);
-        let (r2, xs') = req_all_value(f, i, xs);
-        (r1 && r2, [x', ...xs']);
-      };
-
-  let req_final = (f, _, x) =>
-    switch (f(x)) {
-    | (BoxedValue, x) => (BoxedReady, x)
-    | (Indet, x) => (IndetReady, x)
-    | (Uneval, _) => failwith("Unexpected Uneval")
-    };
-
-  let rec req_all_final = (f, i) =>
-    fun
-    | [] => (BoxedReady, [])
-    | [x, ...xs] => {
-        let (r1, x') = req_final(f, x => x, x);
-        let (r2, xs') = req_all_final(f, i, xs);
-        (r1 && r2, [x', ...xs']);
-      };
-
-  let req_final_or_value = (f, _, x) =>
-    switch (f(x)) {
-    | (BoxedValue, x) => (BoxedReady, (x, true))
-    | (Indet, x) => (IndetReady, (x, false))
-    | (Uneval, _) => failwith("Unexpected Uneval")
-    };
-
-  let otherwise = (_, c) => (BoxedReady, (), c);
-
-  let (and.) = ((r1, x1, c1), (r2, x2)) => (r1 && r2, (x1, x2), c1(x2));
-
-  let (let.) = ((r, x, c), s) =>
-    switch (r, s(x)) {
-    | (BoxedReady, Step({expr, state_update, is_value: true, _})) =>
+  let otherwise = (_, c) => Trampoline.return(((), c));
+  let (and.) = (t1, t2) => {
+    let.trampoline (x1, c1) = t1;
+    let.trampoline x2 = t2;
+    Trampoline.return(((x1, x2), c1(x2)));
+  };
+  let (let.) = (t1, s) => {
+    let.trampoline (x, c) = t1;
+    switch (s(x)) {
+    | Step({expr, state_update, is_value: true, _}) =>
       state_update();
-      (BoxedValue, expr);
-    | (IndetReady, Step({expr, state_update, is_value: true, _})) =>
+      Trampoline.return((Final, expr));
+    | Step({expr, state_update, is_value: false, _}) =>
       state_update();
-      (Indet, expr);
-    | (BoxedReady, Step({expr, state_update, is_value: false, _}))
-    | (IndetReady, Step({expr, state_update, is_value: false, _})) =>
-      state_update();
-      (Uneval, expr);
-    | (BoxedReady, Constructor) => (BoxedValue, c)
-    | (IndetReady, Constructor) => (Indet, c)
-    | (IndetBlocked, _) => (Indet, c)
-    | (_, Indet) => (Indet, c)
+      Trampoline.return((Uneval, expr));
+    | Constructor
+    | Value
+    | Indet => Trampoline.return((Final, c))
     };
-};
-module Eval = Transition(EvaluatorEVMode);
-
-let rec evaluate = (state, env, d) => {
-  let u = Eval.transition(evaluate, state, env, d);
-  switch (u) {
-  | (BoxedValue, x) => (BoxedValue, x)
-  | (Indet, x) => (Indet, x)
-  | (Uneval, x) => evaluate(state, env, x)
   };
 };
 
-let evaluate = (env, {d}: Elaborator.Elaboration.t) => {
+module Eval = Transition(EvaluatorEVMode);
+
+let rec evaluate = (~in_closure=?, state, env, d) => {
+  open Trampoline.Syntax;
+  let.trampoline u =
+    Eval.transition(
+      evaluate,
+      ~mode=`Environment,
+      ~in_closure?,
+      state,
+      env,
+      d,
+    );
+  switch (u) {
+  | (Final, x) => (EvaluatorEVMode.Final, x) |> Trampoline.return
+  | (Uneval, x) => Trampoline.Next(() => evaluate(state, env, x))
+  };
+};
+
+let evaluate_and_limit =
+    (~step_limit: option(int)=?, ~env, d: DHExp.t)
+    : step_constrained((Exp.t, EvaluatorState.t)) => {
   let state = ref(EvaluatorState.init);
   let env = ClosureEnvironment.of_environment(env);
   let result = evaluate(state, env, d);
-  let result =
-    switch (result) {
-    | (BoxedValue, x) => BoxedValue(x |> DHExp.repair_ids)
-    | (Indet, x) => Indet(x |> DHExp.repair_ids)
-    | (Uneval, x) => Indet(x |> DHExp.repair_ids)
-    };
-  (state^, result);
+  let result = Trampoline.run(~step_limit?, result);
+  switch (result) {
+  | Completed((_, x)) =>
+    Completed((
+      x
+      |> Exp.replace_all_ids
+      |> Exp.substitute_closures(env |> ClosureEnvironment.map_of),
+      state^,
+    ))
+  | StepLimitExceeded => StepLimitExceeded
+  };
+};
+
+let evaluate = (~env, d: DHExp.t): (Exp.t, EvaluatorState.t) => {
+  switch (evaluate_and_limit(~env, d)) {
+  | Completed((x, state)) => (x, state)
+  | StepLimitExceeded =>
+    raise(Failure("Impossible: Step limit exceeded when not set"))
+  };
 };

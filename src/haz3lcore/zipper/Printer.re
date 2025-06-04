@@ -13,7 +13,7 @@ and of_piece = (~holes, p: Piece.t): string =>
   | Grout({shape: Convex, _}) => " "
   | Secondary(w) =>
     Secondary.is_linebreak(w) ? "\n" : Secondary.get_string(w.content)
-  | Projector(p) => of_piece(~holes, p.syntax)
+  | Projector(p) => of_segment(~holes, Piece.unparenthesize(p.syntax))
   }
 and of_tile = (~holes, t: Tile.t): string =>
   Aba.mk(t.shards, t.children)
@@ -55,7 +55,10 @@ let to_rows =
 };
 
 let measured = z =>
-  z |> Zipper.seg_without_buffer |> Measured.of_segment(_, Id.Map.empty);
+  z
+  |> ZipperBase.remove_all_projectors
+  |> Zipper.seg_without_buffer
+  |> Measured.of_segment(_, ProjectorCore.Shape.Map.empty); // No projectors
 
 let pretty_print = (~holes: option(string)=Some(""), z: Zipper.t): string =>
   to_rows(
@@ -78,15 +81,16 @@ let zipper_to_string =
   )
   |> String.concat("\n");
 
-let to_string_selection = (editor: Editor.t): string =>
+let to_string_selection = (zipper: Zipper.t): string => {
   to_rows(
-    ~measured=measured(editor.state.zipper),
+    ~measured=measured(zipper),
     ~caret=None,
     ~indent=" ",
     ~holes=None,
-    ~segment=editor.state.zipper.selection.content,
+    ~segment=zipper.selection.content,
   )
   |> String.concat("\n");
+};
 
 let zipper_of_string =
     (~zipper_init=Zipper.init(), str: string): option(Zipper.t) => {
