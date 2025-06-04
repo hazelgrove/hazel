@@ -162,6 +162,18 @@ module Model = {
     model.cached_elab |> Calc.saved_to_option;
   };
 
+  let get_tactic_for_step = step => {
+    switch (step.step_kind) {
+    | SingleStep(m) =>
+      print_endline(
+        m.evalobj
+        |> EvaluatorStep.get_step_kind
+        |> Transition.stepper_justification,
+      )
+    | _ => print_endline("Not a single step")
+    };
+  };
+
   // TODO how can we get this to take a model with a full sequence of steps?
   let exportCoq = model => {
     let rec all_steps_of_step = step => {
@@ -179,6 +191,7 @@ module Model = {
       | [first, ..._] =>
         // Extract information from first step
         let step_expr = Calc.get_saved_exc(~print="step_expr", first.expr);
+        get_tactic_for_step(first);
         let step_kind_str =
           switch (first.step_kind) {
           | SingleStep(_) => "SingleStep"
@@ -204,6 +217,7 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type stepper =
     | RootAction(step)
+    | CoqExport
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   and step =
@@ -218,7 +232,6 @@ module Update = {
     | StepForward(int)
     | AddInduction(option(Exp.t))
     | AddForall
-    | CoqExport
     | AddAxiomStep(Exp.t, Exp.t)
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -236,17 +249,17 @@ module Update = {
     | InnerExp(step);
 
   let rec update_stepper =
-          (~settings, action: stepper, model: Model.stepper)
+          (~settings, action: stepper, stepper: Model.stepper)
           : Updated.t(Model.stepper) => {
     switch (action) {
-    | RootAction(CoqExport) =>
+    | CoqExport =>
       print_endline("Called CoqExport at update stepper handler");
-      Model.exportCoq(model);
-      model |> return_quiet;
+      Model.exportCoq(stepper);
+      stepper |> return_quiet;
     | RootAction(action) =>
-      let* new_root = update_step(~settings, action, model.root);
+      let* new_root = update_step(~settings, action, stepper.root);
       {
-        ...model,
+        ...stepper,
         root: new_root,
       };
     };
@@ -349,7 +362,6 @@ module Update = {
     //   // model is actually model.step here
     //   Model.exportCoq(model);
     //   model |> return_quiet;
-    | (CoqExport, _, _) => model |> return_quiet
     | (AddAxiomStep(at_exp, with_exp), MissingStep(_), _) =>
       let at_id = Exp.rep_id(at_exp);
       {
@@ -1186,6 +1198,7 @@ module View = {
         | HideStepper => signal(HideStepper),
       ~inject=u => inject(RootAction(u)),
       ~is_toplevel=true,
+      ~root_inject=inject,
       ~selected,
       model.root,
     )
@@ -1197,7 +1210,7 @@ module View = {
         ~globals: Globals.t,
         ~signal: event_step => Ui_effect.t(unit),
         ~inject: Update.step => Ui_effect.t(unit),
-        ~root_inject=inject,
+        ~root_inject,
         ~selected: option(Selection.step),
         ~is_toplevel: bool=false,
         root_step,
@@ -1224,7 +1237,7 @@ module View = {
         ~globals: Globals.t,
         ~signal: event_step => Ui_effect.t(unit),
         ~inject: Update.step => Ui_effect.t(unit),
-        ~root_inject: Update.step => Ui_effect.t(unit),
+        ~root_inject: Update.stepper => Ui_effect.t(unit),
         ~selected: option(Selection.step),
         ~is_toplevel: bool=false,
         ~undo: option(Ui_effect.t(unit)),
@@ -1311,6 +1324,7 @@ module View = {
             ~signal: event_step => Ui_effect.t(unit),
             ~inject: Update.step => Ui_effect.t(unit),
             ~is_toplevel,
+            ~root_inject: Update.stepper => Ui_effect.t(unit),
             ~undo,
             model.step_kind,
           );
@@ -1319,6 +1333,7 @@ module View = {
             ~globals,
             ~signal,
             ~inject,
+            ~root_inject,
             ~selected,
             model.step_kind,
           );
@@ -1375,6 +1390,7 @@ module View = {
         ~globals: Globals.t,
         ~signal: event_step => Ui_effect.t(unit),
         ~inject: Update.step => Ui_effect.t(unit),
+        ~root_inject: Update.stepper => Ui_effect.t(unit),
         ~undo: option(Ui_effect.t(unit)),
         ~is_toplevel: bool,
         step_kind: Model.step_kind,
@@ -1400,7 +1416,7 @@ module View = {
             | MakeActive(s) => signal(MakeActive(MissingStep(s)))
             | AddForall => inject(AddForall)
             | AddInduction(exp) => inject(AddInduction(exp))
-            | CoqExport => inject(CoqExport)
+            | CoqExport => root_inject(CoqExport)
             | AddAxiomStep(e1, e2) => inject(AddAxiomStep(e1, e2)),
           ~undo,
           ms,
@@ -1414,6 +1430,7 @@ module View = {
         ~globals: Globals.t,
         ~signal: event_step => Ui_effect.t(unit),
         ~inject: Update.step => Ui_effect.t(unit),
+        ~root_inject: Update.stepper => Ui_effect.t(unit),
         ~selected: option(Selection.step),
         step_kind: Model.step_kind,
       ) => {
@@ -1425,6 +1442,7 @@ module View = {
         ~globals,
         ~signal,
         ~inject,
+        ~root_inject,
         ~selected=
           switch (selected) {
           | Some(InductionStep(s)) => Some(s)
@@ -1440,7 +1458,7 @@ module View = {
           | MakeActive(s) => signal(MakeActive(ForallStep(InnerExp(s))))
           | HideStepper => signal(HideStepper),
         ~inject=x => inject(ForallStep(InnerExp(x))),
-        ~root_inject=inject,
+        ~root_inject,
         ~selected=
           switch (selected) {
           | Some(ForallStep(InnerExp(s))) => Some(s)
@@ -1458,6 +1476,7 @@ module View = {
         ~globals: Globals.t,
         ~signal: event_step => Ui_effect.t(unit),
         ~inject: Update.step => Ui_effect.t(unit),
+        ~root_inject: Update.stepper => Ui_effect.t(unit),
         ~selected: option(Selection.induction_step),
         model: Model.induction_step,
       ) => {
@@ -1523,6 +1542,7 @@ module View = {
                   signal(MakeActive(InductionStep(CaseStepper(i, s))))
                 | HideStepper => signal(HideStepper),
               ~inject=x => inject(InductionStep(CaseStepperUpdate(i, x))),
+              ~root_inject,
               ~selected=
                 switch (selected) {
                 | Some(CaseStepper(j, s)) when i == j => Some(s)

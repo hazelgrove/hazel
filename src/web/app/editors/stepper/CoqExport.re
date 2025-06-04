@@ -94,6 +94,7 @@ let rec string_of_d = (d: DHExp.t) => {
 //   //Printf.printf("new: %s\n", newExprString);
 //   // TODO(nishant): unpack the axiom correctly
 //   let evalTactic =
+// TODO these will be from AxiomSteps
 //     switch (step.step_kind) {
 //     //   switch (step.name) {
 //     //   | IdPlusL => "rewrite Qplus_0_l"
