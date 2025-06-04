@@ -329,7 +329,13 @@ module View = {
     );
   };
 
-  let file_menu = (~globals: Globals.t, ~inject: Update.t => 'a, _: Model.t) => {
+  let file_menu =
+      (
+        ~globals: Globals.t,
+        ~inject: Update.t => 'a,
+        ~cursor: Cursor.t,
+        _: Model.t,
+      ) => {
     let reset_button =
       Widgets.button_named(
         Icons.trash,
@@ -405,11 +411,17 @@ module View = {
         ~tooltip="Reset Hazel (LOSE ALL DATA)",
       );
 
+    let reparse_effect =
+      cursor.contextual_actions
+      |> List.find_opt((a: Cursor.shortcut) => a.label == "reparse")
+      |> Option.bind(_, a => a.update_action);
+
     let reparse =
-      button_named(
+      Widgets.button_named(
         Icons.backpack,
-        _ => globals.inject_global(ActiveEditor(Reparse)),
+        _ => reparse_effect |> Option.value(~default=Ui_effect.Ignore),
         ~tooltip="Reparse Editor",
+        ~disabled=Option.is_none(reparse_effect),
       );
 
     let file_group_exercises = () =>

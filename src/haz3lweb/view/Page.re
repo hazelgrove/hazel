@@ -276,8 +276,14 @@ module Focus = {
     };
   };
 
-  let get_cursor_info = (~selection: t, model: Model.t): Haz3lcore.Cursor.t => {
-    Editors.Selection.get_cursor_info(~selection, model.editors);
+  let get_cursor_info =
+      (~globals, ~inject, ~selection: t, model: Model.t): Haz3lcore.Cursor.t => {
+    Editors.Selection.get_cursor_info(
+      ~globals,
+      ~inject=a => inject(Update.Editors(a)),
+      ~selection,
+      model.editors,
+    );
   };
 };
 
@@ -294,6 +300,7 @@ module View = {
       (
         ~globals: Globals.t,
         ~inject: Editors.Update.t => 'a,
+        ~cursor: Haz3lcore.Cursor.t,
         ~editors: Editors.Model.t,
       ) => {
     NutMenu.(
@@ -309,7 +316,7 @@ module View = {
             submenu(
               ~tooltip="File",
               ~icon=Icons.disk,
-              Editors.View.file_menu(~globals, ~inject, editors),
+              Editors.View.file_menu(~globals, ~inject, ~cursor, editors),
             ),
             button(
               Icons.command_palette_sparkle,
@@ -334,7 +341,8 @@ module View = {
     );
   };
 
-  let top_bar = (~globals, ~inject: Update.t => Ui_effect.t(unit), ~editors) =>
+  let top_bar =
+      (~globals, ~inject: Update.t => Ui_effect.t(unit), ~cursor, ~editors) =>
     div(
       ~attrs=[Attr.id("top-bar")],
       [
@@ -342,7 +350,12 @@ module View = {
           ~attrs=[Attr.class_("wrap")],
           [a(~attrs=[Attr.class_("nut-icon")], [Icons.hazelnut])],
         ),
-        nut_menu(~globals, ~inject=a => inject(Editors(a)), ~editors),
+        nut_menu(
+          ~globals,
+          ~inject=a => inject(Editors(a)),
+          ~cursor,
+          ~editors,
+        ),
         div(
           ~attrs=[Attr.class_("wrap")],
           [div(~attrs=[Attr.id("title")], [text("hazel")])],
@@ -362,23 +375,13 @@ module View = {
 
   let main_view =
       (
+        ~globals,
         ~get_log_and: (string => unit) => unit,
         ~inject: Update.t => Ui_effect.t(unit),
-        ~cursor: Cursor.cursor(Editors.Update.t),
+        ~cursor,
         {globals, editors, explain_this: explainThisModel, selection} as model: Model.t,
       ) => {
-    let globals = {
-      ...globals,
-      inject_global: x => inject(Globals(x)),
-      get_log_and,
-      export_all: Export.export_all,
-    };
-    let bottom_bar =
-      CursorInspector.view(
-        ~globals,
-        ~inject=a => inject(Editors(a)),
-        cursor,
-      );
+    let bottom_bar = CursorInspector.view(~globals, cursor);
     let sidebar =
       globals.settings.explainThis.show && globals.settings.core.statics
         ? ExplainThis.view(
@@ -399,7 +402,7 @@ module View = {
         model.editors,
       );
     [
-      top_bar(~globals, ~inject, ~editors),
+      top_bar(~globals, ~inject, ~cursor, ~editors),
       div(
         ~attrs=[
           Attr.id("main"),
@@ -415,10 +418,23 @@ module View = {
 
   let view =
       (~get_log_and, ~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
-    let cursor = Focus.get_cursor_info(~selection=model.selection, model);
+    let globals = {
+      ...model.globals,
+      inject_global: x => inject(Globals(x)),
+      get_log_and,
+      export_all: Export.export_all,
+    };
+    let cursor =
+      Focus.get_cursor_info(
+        ~globals,
+        ~inject,
+        ~selection=model.selection,
+        model,
+      );
     div(
       ~attrs=[Attr.id("page"), ...handlers(~inject)],
-      [FontSpecimen.view] @ main_view(~get_log_and, ~cursor, ~inject, model),
+      [FontSpecimen.view]
+      @ main_view(~globals, ~get_log_and, ~cursor, ~inject, model),
     );
   };
 };

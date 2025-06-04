@@ -12,9 +12,12 @@ let button = (~tooltip="", icon, action) =>
     [icon],
   );
 
-let button_named = (~tooltip="", icon, action) =>
+let button_named = (~tooltip="", ~disabled=false, icon, action) =>
   div(
-    ~attrs=[clss(["named-menu-item"]), Attr.on_click(action)],
+    ~attrs=[
+      clss(["named-menu-item"] @ (disabled ? ["disabled"] : [])),
+      Attr.on_click(action),
+    ],
     [button(icon, _ => Effect.Ignore), div([text(tooltip)])],
   );
 

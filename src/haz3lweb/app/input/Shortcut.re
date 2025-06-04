@@ -1,6 +1,6 @@
 open Js_of_ocaml;
 
-type t = Cursor.shortcut;
+type t = Haz3lcore.Cursor.shortcut;
 
 let mk_shortcut = (~hotkey=?, ~mdIcon=?, ~section=?, label, update_action): t => {
   {

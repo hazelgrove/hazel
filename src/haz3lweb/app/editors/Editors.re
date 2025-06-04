@@ -298,19 +298,21 @@ module View = {
       )
     };
 
-  let file_menu = (~globals, ~inject, editors: Model.t) =>
+  let file_menu = (~globals, ~inject, ~cursor: Cursor.t, editors: Model.t) =>
     switch (editors) {
     | Scratch(s)
     | Documentation(s) =>
       ScratchMode.View.file_menu(
         ~globals,
         ~inject=x => inject(Update.Scratch(x)),
+        ~cursor,
         s,
       )
     | Exercises(e) =>
       ExercisesMode.View.file_menu(
         ~globals,
         ~inject=x => inject(Update.Exercises(x)),
+        ~cursor,
         e,
       )
     };
