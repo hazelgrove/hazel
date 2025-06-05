@@ -432,13 +432,48 @@ and uexp_to_info_map =
         );
       };
     | TupleExtension(e1, e2) =>
-      let (_, m) = go(e1, m);
-      let (_, m) = go(e2, m);
-      add(
-        ~self=Just(IdTagged.FreshGrammar.Typ.unknown(Internal)), // TODO: fix this
-        ~co_ctx=CoCtx.empty,
-        m,
-      );
+      let (t1, m) = go(e1, m);
+      let (t2, m) = go(e2, m);
+
+      switch (t1.ty.term, t2.ty.term) {
+      | (Prod(ts1), Prod(ts2)) =>
+        let extract_entry: Typ.t => (option(string), Typ.t) = (
+          t =>
+            switch (Typ.match_tup_label(t)) {
+            | Some((name, t)) => (Some(name), t)
+            | None => (None, t)
+            }
+        );
+        let e1_entries = List.map(extract_entry, ts1);
+        let e2_entries = List.map(extract_entry, ts2);
+
+        let ty: Grammar.typ_t(IdTagged.IdTag.t) =
+          IdTagged.FreshGrammar.Typ.(
+            prod(
+              List.map(
+                ((lab, d)) =>
+                  switch (lab) {
+                  | Some(l) => tup_label(label(l), d)
+                  | None => d
+                  },
+                LabeledTuple.extension(e1_entries, e2_entries),
+              ),
+            )
+          );
+
+        add(
+          ~self=Just(ty), // TODO: fix this
+          ~co_ctx=CoCtx.empty,
+          m,
+        );
+      | _ =>
+        add(
+          ~self=Just(IdTagged.FreshGrammar.Typ.unknown(Internal)), // TODO: fix this
+          ~co_ctx=CoCtx.empty,
+          m,
+        )
+      };
+
     | Tuple(es) =>
       let expected_labels =
         switch (Typ.weak_head_normalize(ctx, ana).term) {
