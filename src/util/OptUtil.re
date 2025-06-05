@@ -26,6 +26,12 @@ let unzip = (o: option(('a, 'b))): (option('a), option('b)) =>
   | None => (None, None)
   | Some((a, b)) => (Some(a), Some(b))
   };
+let traverse = (f: 'a => option('b), l: list('a)): option(list('b)) =>
+  List.fold_right(
+    (x, acc) => map2((y, ys) => [y, ...ys], f(x), acc),
+    l,
+    Some([]),
+  );
 
 let sequence = (l: list(option('a))): option(list('a)) =>
   List.fold_right(map2((x, xs) => [x, ...xs]), l, Some([]));
