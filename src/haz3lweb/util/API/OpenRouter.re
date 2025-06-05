@@ -4,12 +4,18 @@ open Util.OptUtil.Syntax;
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type tool_contents = {
+  tool_call_id: string,
+  name: string,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type role =
   | System
   | Developer
   | User
   | Assistant
-  | Tool;
+  | Tool(tool_contents);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type message = {
@@ -30,18 +36,12 @@ type reasoning =
   | Exclude(bool);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type tool = {
-  name: string,
-  description: string,
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
 type params = {
   model_id: string,
   reasoning,
   temperature: float,
   top_p: float,
-  tools: list(tool),
+  tools: list(Json.t),
   stream: bool,
   messages: list(message),
 };
@@ -54,8 +54,16 @@ type usage = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type tool_call = {
+  id: string,
+  name: string,
+  args: Json.t,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type reply = {
   content: string,
+  tool_call: option(tool_call),
   usage,
 };
 
@@ -75,7 +83,7 @@ let string_of_role =
   | Developer => "developer"
   | User => "user"
   | Assistant => "assistant"
-  | Tool => "tool";
+  | Tool(_) => "tool";
 
 let string_of_effort_level =
   fun
@@ -101,10 +109,20 @@ let set_to_default_params = (model_id: string): params => {
 };
 
 let mk_message = ({role, content}) =>
-  `Assoc([
-    ("role", `String(string_of_role(role))),
-    ("content", `String(content)),
-  ]);
+  switch (role) {
+  | Tool(tool_contents) =>
+    `Assoc([
+      ("role", `String(string_of_role(role))),
+      ("content", `String(content)),
+      ("tool_call_id", `String(tool_contents.tool_call_id)),
+      ("name", `String(tool_contents.name)),
+    ])
+  | _ =>
+    `Assoc([
+      ("role", `String(string_of_role(role))),
+      ("content", `String(content)),
+    ])
+  };
 
 let mk_reasoning = (reasoning: reasoning) =>
   switch (reasoning) {
@@ -121,6 +139,7 @@ let body = (~params: params, messages: list(message)): Json.t => {
     ("temperature", `Float(params.temperature)),
     ("top_p", `Float(params.top_p)),
     ("messages", `List(List.map(mk_message, messages))),
+    ("tools", `List(params.tools)),
     ("stream", `Bool(params.stream)),
   ]);
 };
@@ -165,8 +184,47 @@ let first_message_content = (choices: Json.t): option(string) => {
   let* choices = Json.list(choices);
   let* hd = Util.ListUtil.hd_opt(choices);
   let* message = Json.dot("message", hd);
+
   let* content = Json.dot("content", message);
   Json.str(content);
+};
+
+let parse_tool_args = (args: Json.t): Json.t => {
+  switch (args) {
+  | `String(str) =>
+    try(Yojson.Safe.from_string(str)) {
+    | _ => args
+    }
+  | json => json
+  };
+};
+
+let first_message_tool_call = (choices: Json.t): option(tool_call) => {
+  let* choices = Json.list(choices);
+  let* hd = Util.ListUtil.hd_opt(choices);
+  let* message = Json.dot("message", hd);
+
+  let* tool_calls = Json.dot("tool_calls", message);
+  let* tool_calls = Json.list(tool_calls);
+  let* tool_call = Util.ListUtil.hd_opt(tool_calls);
+
+  let* id = Json.dot("id", tool_call);
+  let* id = Json.str(id);
+
+  let* tool_call = Json.dot("function", tool_call);
+
+  let* name = Json.dot("name", tool_call);
+  let* name = Json.str(name);
+  let* args = Json.dot("arguments", tool_call);
+
+  let parsed_args = parse_tool_args(args);
+
+  let tool_call: tool_call = {
+    id,
+    name,
+    args: parsed_args,
+  };
+  Some(tool_call);
 };
 
 let parse_errs = (json: Json.t): option(error) => {
@@ -192,9 +250,11 @@ let handle_chat = (~db=ignore, response: option(Json.t)): option(result) => {
     let* choices = Json.dot("choices", json);
     let* usage = Json.dot("usage", json);
     let* content = first_message_content(choices);
+    let tool_call = first_message_tool_call(choices);
     let+ usage = of_usage(usage);
     Reply({
       content,
+      tool_call,
       usage,
     });
   };
@@ -212,6 +272,11 @@ let mk_user_msg = (content: string): message => {
 
 let mk_assistant_msg = (content: string): message => {
   role: Assistant,
+  content,
+};
+
+let mk_tool_msg = (content: string, tool_contents: tool_contents): message => {
+  role: Tool(tool_contents),
   content,
 };
 
@@ -253,6 +318,23 @@ let is_top_model = (name: string): bool => {
   || StringUtil.match(StringUtil.regexp("Meta"), name);
 };
 
+let has_required_parameters = (params_opt: option(Json.t)): bool => {
+  switch (params_opt) {
+  | Some(`List(params)) =>
+    let params_str =
+      List.map(
+        param =>
+          switch (param) {
+          | `String(s) => s
+          | _ => ""
+          },
+        params,
+      );
+    List.mem("tools", params_str); /*&& List.mem("tool_choice", params_str)*/
+  | _ => false
+  };
+};
+
 let parse_models_response = (json: Json.t): option(models_response) =>
   try(
     switch (json) {
@@ -267,39 +349,35 @@ let parse_models_response = (json: Json.t): option(models_response) =>
                 let id_opt = List.assoc_opt("id", model_fields);
                 let name_opt = List.assoc_opt("name", model_fields);
                 let pricing_opt = List.assoc_opt("pricing", model_fields);
-                switch (id_opt, name_opt, pricing_opt) {
-                | (
-                    Some(`String(id)),
-                    Some(`String(name)),
-                    Some(`Assoc(pricing_fields)),
-                  ) =>
-                  let prompt = List.assoc_opt("prompt", pricing_fields);
-                  let completion =
-                    List.assoc_opt("completion", pricing_fields);
-                  switch (prompt, completion) {
-                  | (Some(`String(p)), Some(`String(c))) =>
-                    Some({
-                      id,
-                      name,
-                      pricing: {
-                        prompt: p,
-                        completion: c,
-                      },
-                    })
-                  // Uncomment below for recommended models (as of May 2025)
-                  /* is_top_model(name)
-                     ? Some({
-                         id,
-                         name,
-                         pricing: {
-                           prompt: p,
-                           completion: c,
-                         },
-                       })
-                     : None */
+                let params_opt =
+                  List.assoc_opt("supported_parameters", model_fields);
+
+                if (!has_required_parameters(params_opt)) {
+                  None;
+                } else {
+                  switch (id_opt, name_opt, pricing_opt) {
+                  | (
+                      Some(`String(id)),
+                      Some(`String(name)),
+                      Some(`Assoc(pricing_fields)),
+                    ) =>
+                    let prompt = List.assoc_opt("prompt", pricing_fields);
+                    let completion =
+                      List.assoc_opt("completion", pricing_fields);
+                    switch (prompt, completion) {
+                    | (Some(`String(p)), Some(`String(c))) =>
+                      Some({
+                        id,
+                        name,
+                        pricing: {
+                          prompt: p,
+                          completion: c,
+                        },
+                      })
+                    | _ => None
+                    };
                   | _ => None
                   };
-                | _ => None
                 };
               | _ => None
               },

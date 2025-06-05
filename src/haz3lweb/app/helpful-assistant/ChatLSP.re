@@ -187,10 +187,12 @@ module Composition = {
             )
             == 0
               ? "None. Use a goto_* command to select a code segment."
-              : ErrorPrint.Print.seg(
-                  ~holes=Some("?"),
-                  editor.editor.state.zipper.selection.content,
-                )
+              : "```"
+                ++ ErrorPrint.Print.seg(
+                     ~holes=Some("?"),
+                     editor.editor.state.zipper.selection.content,
+                   )
+                ++ "```"
           ),
         ],
       ),

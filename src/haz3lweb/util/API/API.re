@@ -1,5 +1,6 @@
 open Js_of_ocaml;
 open Util.OptUtil.Syntax;
+open Sexplib.Sexp;
 
 let opt = Util.OptUtil.and_then;
 
@@ -20,8 +21,28 @@ let string_of_method =
 
 module Json = {
   type t = Yojson.Safe.t;
+
+  let t_of_yojson = json => json;
+  let yojson_of_t = json => json;
+
+  let t_of_sexp = sexp => {
+    switch (sexp) {
+    | Sexplib.Sexp.Atom(str) => Yojson.Safe.from_string(str)
+    | _ => failwith("Invalid JSON sexp")
+    };
+  };
+
+  let sexp_of_t = json => {
+    Sexplib.Sexp.Atom(Yojson.Safe.to_string(json));
+  };
+
+  let pp = (fmt, json) => {
+    Format.fprintf(fmt, "%s", Yojson.Safe.to_string(json));
+  };
+
   let to_string = Yojson.Safe.to_string;
   let from_string = Yojson.Safe.from_string;
+
   let bool = (json: t): option(bool) =>
     switch (json) {
     | `Bool(b) => Some(b)
