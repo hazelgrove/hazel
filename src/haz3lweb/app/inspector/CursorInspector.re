@@ -142,7 +142,12 @@ let common_err_view =
         view_any(label),
       ]
     | NoType(FreeConstructor(name)) => [code(name), text("not found")]
-    | NoType(WantTuple) => [text("Requires tuple for first argument")]
+    | NoType(DotOperatorRequiresTuple) => [
+        text("Requires tuple for first argument"),
+      ]
+    | NoType(TupleExtensionRequiresTuples) => [
+        text("Requires tuples for both arguments"),
+      ]
     | NoType(LabelNotFound(name, labels)) => [
         text("Label "),
         code(name),
@@ -402,7 +407,7 @@ let typ_err_view = (~globals, ok: Info.error_typ) => {
   | WantConstructorFoundAp
   | WantConstructorFoundType(_) => [text("Expected a constructor")]
   | WantTypeFoundAp => [text("Must be part of a sum type")]
-  | WantTuple => [text("Expect a valid tuple")]
+  | DotOperatorRequiresTuple => [text("Expect a valid tuple")]
   | WantLabel => [text("Expect a valid label")]
   | DuplicateLabels(labels, _) => [
       text("Duplicate labels within tuple: "),

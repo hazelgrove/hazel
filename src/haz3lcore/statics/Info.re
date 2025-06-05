@@ -58,8 +58,10 @@ type error_no_type =
   | FreeConstructor(Constructor.t)
   /* Livelit name not bound in ctx */
   | UnboundLivelit(string)
-  /* Dot Operator is ill-formed */
-  | WantTuple
+  /* Dot operator requires the left-hand argument to be a tuple */
+  | DotOperatorRequiresTuple
+  /* Tuple extension requires both arguments to be tuples */
+  | TupleExtensionRequiresTuples
   /* Label not found in tuple for dot operator */
   | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label))
   /* Sort error used as label in tuple */
@@ -176,7 +178,7 @@ type error_typ =
   | DuplicateLabels(list(LabeledTuple.label), Typ.t)
   | Duplicate(LabeledTuple.label, Typ.t)
   | WantTypeFoundAp
-  | WantTuple
+  | DotOperatorRequiresTuple
   | WantLabel
   | WantConstructorFoundType(Typ.t)
   | WantConstructorFoundAp;
@@ -500,7 +502,10 @@ let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
         ),
       )
     };
-  | (WantTuple, _) => InHole(NoType(WantTuple))
+  | (DotOperatorRequiresTuple, _) =>
+    InHole(NoType(DotOperatorRequiresTuple))
+  | (TupleExtensionRequiresTuples, _) =>
+    InHole(NoType(TupleExtensionRequiresTuples))
   | (LabelNotFound(name, labels), _) =>
     InHole(NoType(LabelNotFound(name, labels)))
   };
@@ -603,7 +608,7 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
       switch (Ctx.lookup_alias(ctx, name)) {
       | Some({term: Prod(_), _}) =>
         NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
-      | _ => InHole(WantTuple)
+      | _ => InHole(DotOperatorRequiresTuple)
       }
     | LabelExpected(_) =>
       switch (Ctx.lookup_alias(ctx, name)) {
@@ -631,14 +636,14 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
         NotInHole(VariantIncomplete(Arrow(ty_in, ty_variant) |> Typ.temp))
       }
     | ConstructorExpected(_) => InHole(WantConstructorFoundAp)
-    | TupleExpected => InHole(WantTuple)
+    | TupleExpected => InHole(DotOperatorRequiresTuple)
     | LabelExpected(_) => InHole(WantLabel)
     | TypeExpected => InHole(WantTypeFoundAp)
     }
   | Label(name) =>
     switch (expects) {
     | TypeExpected => NotInHole(Type(ty))
-    | TupleExpected => InHole(WantTuple)
+    | TupleExpected => InHole(DotOperatorRequiresTuple)
     | LabelExpected(Unique, _) => NotInHole(Type(ty))
     | LabelExpected(Duplicate, dupes) =>
       List.exists(l => name == l, dupes)
@@ -665,7 +670,7 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
   | _ =>
     switch (expects) {
     | TypeExpected => NotInHole(Type(ty))
-    | TupleExpected => InHole(WantTuple)
+    | TupleExpected => InHole(DotOperatorRequiresTuple)
     | LabelExpected(_) => InHole(WantLabel)
     | ConstructorExpected(_)
     | VariantExpected(_) => InHole(WantConstructorFoundType(ty))
@@ -736,7 +741,8 @@ let fixed_typ_err_common: error_common => Typ.t =
   | NoType(BadToken(_))
   | NoType(BadOperator(_))
   | NoType(BadTrivAp(_))
-  | NoType(WantTuple)
+  | NoType(DotOperatorRequiresTuple)
+  | NoType(TupleExtensionRequiresTuples)
   | NoType(LabelNotFound(_))
   | NoType(BadLabel(_))
   | NoType(UnboundLivelit(_))

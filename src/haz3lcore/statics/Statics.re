@@ -435,7 +435,10 @@ and uexp_to_info_map =
       let (t1, m) = go(e1, m);
       let (t2, m) = go(e2, m);
 
-      switch (t1.ty.term, t2.ty.term) {
+      switch (
+        Typ.normalize(ctx, t1.ty).term,
+        Typ.normalize(ctx, t2.ty).term,
+      ) {
       | (Prod(ts1), Prod(ts2)) =>
         let extract_entry: Typ.t => (option(string), Typ.t) = (
           t =>
@@ -466,12 +469,14 @@ and uexp_to_info_map =
           ~co_ctx=CoCtx.empty,
           m,
         );
-      | _ =>
+      | (Unknown(_), _)
+      | (_, Unknown(_)) =>
         add(
-          ~self=Just(IdTagged.FreshGrammar.Typ.unknown(Internal)), // TODO: fix this
+          ~self=Just(IdTagged.FreshGrammar.Typ.unknown(Internal)),
           ~co_ctx=CoCtx.empty,
           m,
         )
+      | _ => add(~self=TupleExtensionRequiresTuples, ~co_ctx=CoCtx.empty, m)
       };
 
     | Tuple(es) =>
@@ -740,7 +745,7 @@ and uexp_to_info_map =
           )
         | _ => add(~self=BadLabel(Exp(e2)), ~co_ctx=info_e2.co_ctx, m)
         };
-      | _ => add(~self=WantTuple, ~co_ctx=info_e2.co_ctx, m)
+      | _ => add(~self=DotOperatorRequiresTuple, ~co_ctx=info_e2.co_ctx, m)
       };
     | Test(e) =>
       let (e, m) = go(~ana=Atom(Bool) |> Typ.temp, e, m);
