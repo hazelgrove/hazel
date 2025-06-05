@@ -13,14 +13,16 @@ type system =
 type role =
   | System(system)
   | User
-  | Assistant;
+  | Assistant
+  | Tool;
 
 let string_of_role =
   fun
   | System(AssistantPrompt) => "System"
   | System(InternalError) => "Error"
   | User => "User"
-  | Assistant => "Assistant";
+  | Assistant => "Assistant"
+  | Tool => "Tool";
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type block_kind =

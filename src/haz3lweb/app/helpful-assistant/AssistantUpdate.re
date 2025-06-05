@@ -17,7 +17,7 @@ type completion =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type composition =
   | Request(string) // User-submitted task, question, etc
-  | Loop(int); // Iterative tool completion loop
+  | Loop(int, OpenRouter.tool_contents); // Iterative tool completion loop
 
 // Actions to send various kinds of messages to the LLM
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -57,7 +57,7 @@ type chat_action =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | SendMessage(send_message, CodeModel.t, Id.t)
-  | HandleResponse(handle_response, string, Id.t)
+  | HandleResponse(handle_response, OpenRouter.reply, Id.t)
   | EmployLLMAction(employ_llm_action)
   | ChatAction(chat_action)
   | InternalError(string, AssistantSettings.mode, Id.t);
@@ -104,27 +104,6 @@ let mk_message_display = (~content: string, ~role: Model.role): Model.display =>
       String.length(content) > Model.max_collapsed_length
       || role == System(AssistantPrompt),
   };
-};
-
-let extract_tool_calls = (response: string): list(string) => {
-  let rec extract_tool_calls =
-          (text: string, acc: list(string)): list(string) => {
-    let pattern = Str.regexp("~~~[ \n]*\\([^~]+\\)[ \n]*~~~");
-    switch (Str.search_forward(pattern, text, 0)) {
-    | exception Not_found => List.rev(acc)
-    | pos =>
-      let matched = Str.matched_group(1, text);
-      let rest =
-        String.sub(
-          text,
-          pos + String.length(Str.matched_string(text)),
-          String.length(text)
-          - (pos + String.length(Str.matched_string(text))),
-        );
-      extract_tool_calls(rest, [matched, ...acc]);
-    };
-  };
-  extract_tool_calls(response, []);
 };
 
 let add_chat_to_history =
@@ -449,21 +428,35 @@ let mk_llm_call =
       ~mode: AssistantSettings.mode,
       ~schedule_action: t => unit,
       ~updated_chat: Model.chat,
-      ~response_handler: string => t,
+      ~response_handler: OpenRouter.reply => t,
     )
     : unit => {
   switch (Store.Generic.load("API"), Store.Generic.load("MODEL")) {
   | (Some(key), Some(model_id)) =>
+    let tools =
+      if (mode == TaskCompletion) {
+        [
+          CompositionPrompt.goto_definition,
+          CompositionPrompt.goto_body,
+          CompositionPrompt.select_all,
+          CompositionPrompt.paste,
+          CompositionPrompt.delete,
+          //CompositionPrompt.submit,
+        ];
+      } else {
+        [];
+      };
     let params: OpenRouter.params = {
       ...OpenRouter.default_params,
       model_id,
+      tools,
     };
     try(
       OpenRouter.start_chat(
         ~params, ~key, ~outgoing_messages=updated_chat.outgoing_messages, req =>
         switch (OpenRouter.handle_chat(req)) {
         | Some(Reply(response)) =>
-          schedule_action(response_handler(response.content))
+          schedule_action(response_handler(response))
         | Some(Error({message, code})) =>
           schedule_action(
             InternalError(
@@ -582,6 +575,7 @@ let update =
         Id.Map.find(chat_id, model.chat_history.past_composition_chats);
       switch (kind) {
       | Request(content) =>
+        schedule_action(EmployLLMAction(SetLoop(false)));
         let user_message = OpenRouter.mk_user_msg(content);
         let ctx =
           ChatLSP.Composition.mk_ctx_prompt(ChatLSP.Options.init, editor);
@@ -613,16 +607,19 @@ let update =
         update_model_chat_history(~model, ~mode, ~updated_chat)
         |> Updated.return_quiet;
 
-      | Loop(fuel) =>
+      | Loop(fuel, tool_contents) =>
         let ctx =
           ChatLSP.Composition.mk_ctx_prompt(ChatLSP.Options.init, editor);
+
+        let tool_message = OpenRouter.mk_tool_msg(ctx.content, tool_contents);
+
         let new_message_displays = [
           mk_message_display(
             ~content=ctx.content,
             ~role=System(AssistantPrompt),
           ),
         ];
-        let new_outgoing_messages = [ctx];
+        let new_outgoing_messages = [tool_message];
 
         let updated_chat = {
           ...curr_chat,
@@ -662,16 +659,6 @@ let update =
                 sketch_z_with_tag,
               );
             let* index = Indicated.index(editor.editor.state.zipper);
-            print_endline("Debug: Index found: " ++ Id.to_string(index));
-            print_endline(
-              "Debug: Info map size: "
-              ++ string_of_int(Id.Map.cardinal(editor.statics.info_map)),
-            );
-            Id.Map.iter(
-              (k, _) =>
-                print_endline("Debug: Map entry: " ++ Id.to_string(k)),
-              editor.statics.info_map,
-            );
             let+ ci = Id.Map.find_opt(index, editor.statics.info_map);
             ChatLSP.Completion.prompt(
               ChatLSP.Options.init,
@@ -827,7 +814,7 @@ let update =
     update_model_chat_history(~model, ~mode, ~updated_chat)
     |> Updated.return_quiet;
 
-  | HandleResponse(response_kind, content, chat_id) =>
+  | HandleResponse(response_kind, response, chat_id) =>
     let (curr_chat, mode) =
       switch (response_kind) {
       | Tutor => (
@@ -849,6 +836,9 @@ let update =
       };
     create_chat_descriptor(~model, ~schedule_action, ~mode, ~chat_id);
 
+    let content = response.content;
+    let tool_call = response.tool_call;
+
     // If streaming, update the last message display
     let (updated_outgoing_messages, updated_message_displays) = {
       let last_display = ListUtil.last(curr_chat.message_displays);
@@ -861,11 +851,79 @@ let update =
           @ [mk_message_display(~content=updated_content, ~role=Assistant)],
         );
       } else {
-        (
-          curr_chat.outgoing_messages @ [OpenRouter.mk_assistant_msg(content)],
-          curr_chat.message_displays
-          @ [mk_message_display(~content, ~role=Assistant)],
-        );
+        switch (tool_call) {
+        | Some(tool_call) =>
+          let updated_message_displays =
+            mk_message_display(
+              ~content=
+                "Agent called \""
+                ++ tool_call.name
+                ++ "\" with the following arguments: "
+                ++ Json.to_string(tool_call.args),
+              ~role=Tool,
+            );
+          /*
+           switch (Json.dot("code", tool_call.args)) {
+           | Some(`String(arg)) =>
+             let curr_selection =
+               ErrorPrint.Print.seg(
+                 ~holes=Some("?"),
+                 editor.editor.state.zipper.selection.content,
+               );
+             if (curr_selection == "") {
+               mk_message_display(
+                 ~content=
+                   "Agent is inserting the following code: "
+                   ++ "```"
+                   ++ arg
+                   ++ "```",
+                 ~role=Tool,
+               );
+             } else {
+               mk_message_display(
+                 ~content=
+                   "Agent is replacing "
+                   ++ "```"
+                   ++ curr_selection
+                   ++ "``` with "
+                   ++ "```"
+                   ++ arg
+                   ++ "```",
+                 ~role=Tool,
+               );
+             };
+           | _ =>
+             mk_message_display(
+               ~content=
+                 "Agent called \""
+                 ++ tool_call.name
+                 ++ "\" with the following arguments: "
+                 ++ Json.to_string(tool_call.args),
+               ~role=Tool,
+             )
+           };
+           */
+
+          switch (content) {
+          | "" => (
+              curr_chat.outgoing_messages,
+              curr_chat.message_displays @ [updated_message_displays],
+            )
+          | _ => (
+              curr_chat.outgoing_messages
+              @ [OpenRouter.mk_assistant_msg(content)],
+              curr_chat.message_displays
+              @ [mk_message_display(~content, ~role=Assistant)]
+              @ [updated_message_displays],
+            )
+          };
+        | None => (
+            curr_chat.outgoing_messages
+            @ [OpenRouter.mk_assistant_msg(content)],
+            curr_chat.message_displays
+            @ [mk_message_display(~content, ~role=Assistant)],
+          )
+        };
       };
     };
 
@@ -877,8 +935,10 @@ let update =
 
     switch (response_kind) {
     | Tutor => ()
-    | CompositionLoopRound(editor, fuel) =>
-      if (fuel == 0) {
+    | CompositionLoopRound(_, fuel) =>
+      switch (tool_call, fuel) {
+      | (None, _) => ()
+      | (_, 0) =>
         schedule_action(
           InternalError(
             "By default, we stop the agent after "
@@ -887,153 +947,57 @@ let update =
             mode,
             chat_id,
           ),
-        );
-      } else {
-        let tool_calls = extract_tool_calls(content);
-        let rec process_tool_calls = (calls: list(string), loop: bool) => {
-          switch (calls) {
-          | [] =>
-            loop
-              ? schedule_action(
-                  SendMessage(Composition(Loop(fuel - 1)), editor, chat_id),
-                )
-              : ()
-          | [tool_call, ...remaining] =>
-            // If there are tool calls, we should set loop to be true
-            schedule_action(EmployLLMAction(SetLoop(true)));
-            let loop = true;
-
-            let parsed_response =
-              try(
-                switch (Json.from_string(tool_call)) {
-                | `Assoc(fields) =>
-                  let tool = List.assoc_opt("tool", fields);
-                  let arg = List.assoc_opt("args", fields);
-                  (tool, arg);
-                | _ => (None, None)
-                }
-              ) {
-              | Yojson.Json_error(_) => (None, None)
-              };
-            let tool =
-              switch (parsed_response) {
-              | (Some(`String(tool)), _) => tool
-              | _ =>
-                schedule_action(
-                  InternalError("Unable to parse tool call", mode, chat_id),
-                );
-                "submit";
-              };
-            let args =
-              switch (parsed_response) {
-              | (_, Some(`Assoc(args))) => args
-              | _ => []
-              };
-
-            let invalid_arg_type =
-                (tool: string, arg: string, typ: Json.t): string => {
-              tool
-              ++ " called with invalid type at argument position "
-              ++ arg
-              ++ ": "
-              ++ Json.to_string(typ);
-            };
-
-            let invalid_num_args =
-                (tool: string, expected: int, received: int): string => {
-              tool
-              ++ " expected "
-              ++ string_of_int(expected)
-              ++ " argument"
-              ++ (expected == 1 ? "" : "s")
-              ++ " but "
-              ++ string_of_int(received)
-              ++ " were given";
-            };
-
-            try(
-              switch (tool) {
-              | "goto_definition" =>
-                switch (
-                  List.assoc_opt("variable_name", args),
-                  List.length(args),
-                ) {
-                | (Some(`String(arg)), 1) =>
-                  goto(editor, ChatLSP.Composition.Definition, arg)
-                | (Some(inv_type), _) =>
-                  raise(
-                    Failure(
-                      invalid_arg_type(
-                        "goto_definition",
-                        "variable_name",
-                        inv_type,
-                      ),
-                    ),
-                  )
-                | (_, n) =>
-                  raise(Failure(invalid_num_args("goto_definition", 1, n)))
-                };
-                process_tool_calls(remaining, loop);
-              | "goto_body" =>
-                switch (
-                  List.assoc_opt("variable_name", args),
-                  List.length(args),
-                ) {
-                | (Some(`String(arg)), 1) =>
-                  goto(editor, ChatLSP.Composition.Body, arg)
-                | (Some(inv_type), _) =>
-                  raise(
-                    Failure(
-                      invalid_arg_type(
-                        "goto_body",
-                        "variable_name",
-                        inv_type,
-                      ),
-                    ),
-                  )
-                | (_, n) =>
-                  raise(Failure(invalid_num_args("goto_body", 1, n)))
-                };
-                process_tool_calls(remaining, loop);
-              | "select_all" =>
-                goto(editor, ChatLSP.Composition.All, "");
-                process_tool_calls(remaining, loop);
-              | "paste" =>
-                switch (List.assoc_opt("code", args), List.length(args)) {
-                | (Some(`String(arg)), 1) =>
-                  edit(ChatLSP.Composition.Current, arg)
-                | (Some(inv_type), _) =>
-                  raise(Failure(invalid_arg_type("edit", "code", inv_type)))
-                | (_, n) => raise(Failure(invalid_num_args("edit", 1, n)))
-                };
-                process_tool_calls(remaining, loop);
-              | "delete" =>
-                List.length(args) != 0
-                  ? raise(
-                      Failure(
-                        invalid_num_args("delete", 0, List.length(args)),
-                      ),
-                    )
-                  : edit(ChatLSP.Composition.Current, "");
-                process_tool_calls(remaining, loop);
-              | "submit" =>
-                List.length(args) != 0
-                  ? raise(
-                      Failure(
-                        invalid_num_args("submit", 0, List.length(args)),
-                      ),
-                    )
-                  // We set loop to false once submit is called
-                  : schedule_action(EmployLLMAction(SetLoop(false)))
-              | _ => raise(Failure("Unknown tool call: " ++ tool_call))
-              }
-            ) {
-            | Failure(err) =>
-              schedule_action(InternalError(err, mode, chat_id))
-            };
-          };
+        )
+      | (Some(tool_call), _) =>
+        let loop_message =
+          SendMessage(
+            Composition(
+              Loop(
+                fuel - 1,
+                {
+                  tool_call_id: tool_call.id,
+                  name: tool_call.name,
+                },
+              ),
+            ),
+            editor,
+            chat_id,
+          );
+        try(
+          switch (tool_call.name) {
+          | "goto_definition" =>
+            switch (Json.dot("variable", tool_call.args)) {
+            | Some(`String(arg)) =>
+              goto(editor, ChatLSP.Composition.Definition, arg);
+              schedule_action(loop_message);
+            | _ => raise(Failure("Invalid argument for goto_definition"))
+            }
+          | "goto_body" =>
+            switch (Json.dot("variable", tool_call.args)) {
+            | Some(`String(arg)) =>
+              goto(editor, ChatLSP.Composition.Body, arg);
+              schedule_action(loop_message);
+            | _ => raise(Failure("Invalid argument for goto_body"))
+            }
+          | "select_all" =>
+            goto(editor, ChatLSP.Composition.All, "");
+            schedule_action(loop_message);
+          | "paste" =>
+            switch (Json.dot("code", tool_call.args)) {
+            | Some(`String(arg)) =>
+              edit(ChatLSP.Composition.Current, arg);
+              schedule_action(loop_message);
+            | _ => raise(Failure("Invalid argument for paste"))
+            }
+          | "delete" =>
+            edit(ChatLSP.Composition.Current, "");
+            schedule_action(loop_message);
+          | "submit" => ()
+          | _ => raise(Failure("Unknown tool call: " ++ tool_call.name))
+          }
+        ) {
+        | Failure(err) => schedule_action(InternalError(err, mode, chat_id))
         };
-        process_tool_calls(tool_calls, model.loop);
       }
     | CompletionErrorRound(editor, fuel, tileId) =>
       // Split response into discussion and completion
@@ -1174,9 +1138,6 @@ let update =
         ) {
         | Invalid_argument(_) => true
         };
-      print_endline(
-        "Is prompt display: " ++ string_of_bool(is_prompt_display),
-      );
       let updated_message_displays =
         List.mapi(
           (i: int, msg: Model.display) =>
@@ -1187,10 +1148,6 @@ let update =
               };
             } else if (msg.role == System(AssistantPrompt)
                        && is_prompt_display) {
-              print_endline(
-                "Collapsing prompt display message at index: "
-                ++ string_of_int(i),
-              );
               {
                 ...msg,
                 collapsed: true,

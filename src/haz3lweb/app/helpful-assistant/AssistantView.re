@@ -583,6 +583,7 @@ let text_block =
         | Assistant => "llm-message"
         | System(AssistantPrompt) => "system-prompt-message"
         | System(InternalError) => "system-error-message"
+        | Tool => "tool-message"
         },
       ]),
       Attr.on_copy(_ => {Effect.Stop_propagation}),
@@ -637,6 +638,7 @@ let code_block =
         | Assistant => "llm"
         | System(AssistantPrompt) => "system-prompt"
         | System(InternalError) => "system-error"
+        | Tool => "tool"
         },
       ]),
     ],
@@ -787,6 +789,7 @@ let message_display =
                   | Assistant => "llm"
                   | System(AssistantPrompt) => "system-prompt"
                   | System(InternalError) => "system-error"
+                  | Tool => "tool"
                   },
                 ]),
               ],
@@ -827,6 +830,11 @@ let message_display =
                           div(
                             ~attrs=[clss(["system-error-identifier"])],
                             [text("System")],
+                          )
+                        | Tool =>
+                          div(
+                            ~attrs=[clss(["tool-identifier"])],
+                            [text("Tool")],
                           )
                         },
                       ],
@@ -1083,28 +1091,30 @@ let view =
     ) => {
   let settings = globals.settings;
   let inject_global = globals.inject_global;
-  let curr_chat =
-    Id.Map.find(
-      model.current_chats.curr_composition_chat,
-      model.chat_history.past_composition_chats,
-    );
-  let concat_text =
-    String.concat(
-      "\n",
-      List.map(
-        (message: Model.display) =>
-          "<"
-          ++ Model.string_of_role(message.role)
-          ++ ">"
-          ++ message.original_content
-          ++ "</"
-          ++ Model.string_of_role(message.role)
-          ++ ">\n",
-        curr_chat.message_displays,
-      ),
-    );
-  print_endline(concat_text);
-  Js_of_ocaml.Firebug.console##log(Js_of_ocaml.Js.string(concat_text));
+  /* For debugging: Uncomment to view chat history
+     let curr_chat =
+       Id.Map.find(
+         model.current_chats.curr_composition_chat,
+         model.chat_history.past_composition_chats,
+       );
+     let concat_text =
+       String.concat(
+         "\n",
+         List.map(
+           (message: Model.display) =>
+             "<"
+             ++ Model.string_of_role(message.role)
+             ++ ">"
+             ++ message.original_content
+             ++ "</"
+             ++ Model.string_of_role(message.role)
+             ++ ">\n",
+           curr_chat.message_displays,
+         ),
+       );
+     print_endline(concat_text);
+     Js_of_ocaml.Firebug.console##log(Js_of_ocaml.Js.string(concat_text));
+       */
   let view =
     div(
       ~attrs=[Attr.id("assistant")],

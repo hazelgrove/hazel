@@ -1,4 +1,5 @@
 module Sexp = Sexplib.Sexp;
+open API;
 
 let hazel_syntax_notes = HazelSyntaxNotes.self;
 
@@ -9,14 +10,17 @@ let instructions = [
   "You are an expert AI programming agent operating in the Hazel programming language.",
   "You are working with a user to accomplish a programming task in a paired programming setting.",
   "The user will ask you a question or to perform a task (implement a feature, fix an issue, etc).",
-  "You are a professional coding agent, meaning it is your duty to complete the users task or attempt to complete their task until you decide",
-  "the task is complete or it is completely infeasible to complete.",
-  "To reiterate, you are operating in the Hazel programming language. This is a low-resource language,",
-  "meaning you are expected to have little prior knowledge on the language and will be provided with relevant syntax and semantic information about the program",
-  "which you are expected to carefully study and review when generating your responses.",
-  "NEVER try to write code or infer syntax from another programming language other than Hazel.",
-  "You may explain and reason about the program/task/user query, but aim to keep your responses concise and to the point.",
+  "You are a professional coding agent, meaning it is your duty to complete the user's task or attempt to complete their task until you decide",
+  "the task is complete or it is absolutely infeasible to complete.",
+  "To reiterate, you are operating in the Hazel programming language. This is a known to be a low-resource language,",
+  "meaning you will be provided with relevant syntax and semantic information about the programming language",
+  "that you can carefully study and review when generating your responses.",
+  "NEVER try to write code from another programming language other than Hazel.",
+  "You may explain and reason about the program/task/user query, but aim to keep your thinking and explanations concise and to the point.",
   "If the user wants you to implement a feature that is quite complex, you should break it down into smaller tasks to work through step by step.",
+  "You do not need to repeat code in your response. You can simply call the tool to insert the code.",
+  "After calling a tool, you should pick up immediately from where you left off—No need to repeat or summarize what you've been doing.",
+  "You should avoid explicitly mentioning tool calls to the user. Your conversation with the user should be natural, as if you were their human pair programming partner.",
   "We will now provide you with the following:\n",
   "1. A toolkit along with a specification on how to call these tools throughout the attempted completion of the task.\n",
   "2. Hazel syntax notes.\n",
@@ -30,107 +34,221 @@ let instructions = [
 ];
 
 let toolkit = [
-  "<toolkitIntroduction>",
-  "You are to complete user-specified tasks using only the toolkit provided below.",
+  "<toolkitInstructions>",
+  "You are to complete user-specified tasks using only the tools provided.",
   "This toolkit contains specific action commands to navigate the sketch and modify code,",
   "essentially giving you a sort of cursor to work with and control.",
   "All actions commands interact with the high-level, definition-based structure of the program.",
-  "The toolkit is divided into three categories: 'NAVIGATION', 'EDITING', and 'TASK'.",
-  "Tools are called using JSON text formatting, and should be encapsulated in triple tildes \"~~~\".",
-  "Here is an example for reference:\n",
-  {|
-~~~{
-  "tool": "example_tool_name",
-  "args": { "arg_1": "example_arg_1", "arg_2" : "example_arg_2" }
-}~~~
-    |},
-  "</toolkitIntroduction>",
-  "<toolkitInstructions>",
-  "We now give you the toolkit as follows:\n",
-  "NAVIGATION:\n",
-  {|
-~~~{
-  "tool": "goto_definition",
-  "args": {
-    "variable_name": "<string>"
-  }
-}~~~"
-|},
-  "Description: goto_definition inclusively selects everything from the let keyword to the in keyword.",
-  "That is, it particualy focuses on the structure of the code by selecting the variable name itself,",
-  "along with its definition.",
-  "Critically, it does NOT select the body associated with the let operation.",
-  "Eg: Calling goto_definition with a variable name argument of \"x\" in",
-  "the program ```let y = 0 in\nlet x = 1 in\nx + y``` will select the string \"let x = 1 in\"\n",
-  {|
-~~~{
-  "tool": "goto_body",
-  "args": {
-    "variable_name": "<string>"
-  }
-}~~~"
-|},
-  "Description: goto_body selects everything within the respective variable name's body.",
-  "This will essentially be everything where the variable name is in scope.",
-  "Eg: Calling goto_body with a variable name argument of \"x\" in",
-  "the program ```let y = 0 in\nlet x = 1 in\nx + y``` will select the string \"x + y\"\n",
-  // todo: remove select_all by properly implementing goto navigators
-  {|
-~~~{
-  "tool": "select_all",
-}~~~"
-|},
-  "Description: Only to be used on smaller sketches in the rare case other navigation tools",
-  "don't seem to be working and corrupt state persists.",
-  "This will select the entire sketch.\n",
-  // end todo
-  "EDITING:\n",
-  {|
-~~~{
-  "tool": "paste",
-  "args": {
-    "code": "<string>"
-  }
-}~~~"
-|},
-  "Description: Simply pastes the code over whatever you currently have selected/highlighted.",
-  "This effectively deletes what you have selected and replaces it with the string in the \"code\" argument.",
-  "Eg: Calling paste with a code argument of \"(x * x) + (y * y)\" in",
-  "the program ```let y = 0 in\nlet x = 1 in\nx + y``` while the string \"x + y\" is selected (the body of \"x\"), ",
-  "will result in the program ```let y = 0 in\nlet x = 1 in\n(x * x) + (y * y)```\n",
-  {|
-~~~{
-  "tool": "delete"
-}~~~"
-|},
-  "Description: Deletes all of the currently selected text.\n",
-  "TASK:\n",
-  {|
-~~~{
-  "tool": "submit"
-}~~~"
-|},
-  "Description: Submits the task once you believe it to be complete,",
-  "ending the iterative tool call and task completion process.\n",
+  "In a sense, these allow you to navigate and alter meaningful semantic chunks of the program, akin to a structure editor (but with higher-level control).",
   "</toolkitInstructions>",
   "<toolkitNotes>",
   "You are an LLM placed in an environment where you are equipped with TOOLS.",
-  "Once you call ANY tool other than submit, this will initiate a continuous loop until you call \"submit\".",
-  "This loop is designed to allow you to confirm your edits to the code are taking effect as you intend them to.",
-  "Your response can and should contain multiple tool calls which will then take effect in the program editor in order.",
+  "Every tool call will perform an action on the program and give you updated feedback on the current sketch, any errors present, and your currently selected code.",
   "A strong recommendation is to break a complex task into smaller, more manageable steps,",
   "where once broken into smaller steps, you can implement each step in as few responses as possible.",
-  "Again, you can do this through chaining tool calls together, keeping in mind how each tool will navigate and affect the program.",
-  "You may end your response at any time (simply emitting the End of Sequence token).",
-  " If you did not call \"submit\" before the end of sequence token, you will be shown the current state of the program.",
-  "You should only call \"submit\" once you are HIGHLY satisfied with the current state of the editor",
-  "or you believe you cannot implement what the user has requested.",
-  "Calling \"submit\" is a tool call you cannot go back on. Once called, it ends the iterative process,",
-  "effectively submitting your changes to the user.",
+  "If you do NOT make a tool call in your response, you are effectively submitting the task to the user.",
   "You need NOT make a tool call if the user asks a question that does not require any editing of their code.",
-  "In this scenario, where you do NOT need to make a tool call, you do NOT need to call \"submit\".",
   "</toolkitNotes>",
 ];
+
+// idea: allow for multiple variables to be selected at once
+//       or rather, allow for beginning and end of selection to be specified (based on variable definitons)
+let goto_definition: Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("goto_definition")),
+        (
+          "description",
+          `String(
+            "Selects the definition of the given variable name. Eg. goto definition x will select ```let x = 1 in``` given a program ```let y = 0 in\nlet x = 1 in\nx + y```.",
+          ),
+        ),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            (
+              "properties",
+              `Assoc([
+                (
+                  "variable",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "The name of the variable whose definition associated with its let binding is to be selected.",
+                      ),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            ("required", `List([`String("variable")])),
+          ]),
+        ),
+      ]),
+    ),
+  ]);
+
+let goto_body: Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("goto_body")),
+        (
+          "description",
+          `String(
+            "Selects the body of the given variable name. Eg. goto body x will select ```x + y``` given a program ```let y = 0 in\nlet x = 1 in\nx + y```.",
+          ),
+        ),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            (
+              "properties",
+              `Assoc([
+                (
+                  "variable",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "The name of the variable whose body associated with its let bindingis to be selected.",
+                      ),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            ("required", `List([`String("variable")])),
+          ]),
+        ),
+      ]),
+    ),
+  ]);
+
+// todo: remove select_all by properly implementing goto navigators
+let select_all: Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("select_all")),
+        (
+          "description",
+          `String(
+            "Selects the entire sketch. Used in rare case where goto tools are not working.",
+          ),
+        ),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            ("properties", `Assoc([])),
+            ("required", `List([])),
+          ]),
+        ),
+      ]),
+    ),
+  ]);
+
+let paste: Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("paste")),
+        (
+          "description",
+          `String(
+            "Pastes the given code over whatever you currently have selected/highlighted.",
+          ),
+        ),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            (
+              "properties",
+              `Assoc([
+                (
+                  "code",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "The code to paste over whatever you currently have selected/highlighted.",
+                      ),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            ("required", `List([`String("code")])),
+          ]),
+        ),
+      ]),
+    ),
+  ]);
+
+let delete: Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("delete")),
+        (
+          "description",
+          `String("Deletes all of the currently selected text."),
+        ),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            ("properties", `Assoc([])),
+            ("required", `List([])),
+          ]),
+        ),
+      ]),
+    ),
+  ]);
+
+let submit: Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("submit")),
+        (
+          "description",
+          `String(
+            "Submits the task once you believe it to be complete, ending the iterative tool call and task completion process.",
+          ),
+        ),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            ("properties", `Assoc([])),
+            ("required", `List([])),
+          ]),
+        ),
+      ]),
+    ),
+  ]);
 
 let get_few_shot_comp_examples = () => {
   "<fewShotExamples>The following are GOLDEN EXAMPLES from agents who successfully implemented user-requested features."
@@ -144,5 +262,5 @@ let get_few_shot_comp_examples = () => {
   ++ "</fewShotExamples>";
 };
 
-let self = instructions @ toolkit;
-hazel_syntax_notes @ summarized_hazel_docs @ [get_few_shot_comp_examples()];
+let self = instructions @ hazel_syntax_notes @ summarized_hazel_docs;
+// @ [get_few_shot_comp_examples()];

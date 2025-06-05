@@ -94,6 +94,10 @@
     border-radius: 3.5px;
     border: none;
     transition: all 0.3s ease;
+    min-height: 20px;
+    max-height: 200px;
+    resize: none;
+    overflow-y: auto;
 }
 
 #assistant .message-input:focus {
@@ -863,4 +867,17 @@
     margin-top: 0.5em;
     text-align: center;
     font-weight: normal;
+}
+
+#assistant .tool {
+    align-items: center;
+}
+
+#assistant .tool-message {
+    padding: 8px 12px;
+    font-size: 0.75em;
+    max-width: 100%;
+    word-wrap: break-word;
+    opacity: 0.7;
+    text-align: center;
 }
