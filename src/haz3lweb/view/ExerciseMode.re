@@ -25,7 +25,13 @@ module Model = {
       CellEditor.Model.mk(item.editor);
     };
     let cells =
-      Exercise.stitch_term(editors)
+      editors
+      |> Exercise.map(
+           _,
+           x => x |> Editor.Update.make_term(~sort=Exp) |> fst,
+           x => x |> Editor.Update.make_term(~sort=Exp) |> fst,
+         )
+      |> Exercise.stitch_term
       |> Exercise.map_stitched(_ => term_item_to_cell);
     {
       spec,
@@ -147,6 +153,16 @@ module Update = {
   };
 
   let calculate = (~globals, ~schedule_action, model: Model.t): Model.t => {
+    let editors =
+      Exercise.map(
+        model.editors,
+        x => x |> Editor.Update.make_term(~sort=Exp) |> fst,
+        x => x |> Editor.Update.make_term(~sort=Exp) |> fst,
+      );
+    let model = {
+      ...model,
+      editors,
+    };
     let stitched_elabs = Exercise.stitch_term(model.editors);
     let worker_request = ref([]);
     let queue_worker = (pos, expr) => {
