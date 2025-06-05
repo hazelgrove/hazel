@@ -226,6 +226,8 @@ let mk_view =
       ~view_ed,
       ~view_editable,
       ~mk_ed,
+      ~mk_term_ed,
+      ~calculate_ed,
       {p, info, _}:
         Model.projector_data(ProjectorCore.model(ed_m, ed_a, ed_f)),
     )
@@ -239,6 +241,8 @@ let mk_view =
     ~view_ed,
     ~view_editable,
     ~mk_ed,
+    ~mk_term_ed,
+    ~calculate_ed,
     ~local,
     ~parent,
     ~focus=f => focus(F(kind_gadt, f)),
@@ -265,6 +269,8 @@ let split_views =
       ~view_ed,
       ~view_editable,
       ~mk_ed,
+      ~mk_term_ed,
+      ~calculate_ed,
       ~parent: ProjectorBase.external_action => Ui_effect.t(unit),
       ~inject: ProjectorCore.Update.t(ed_a) => Ui_effect.t(unit),
       ~focus: ProjectorCore.Focus.t(ed_f) => Ui_effect.t(unit),
@@ -286,6 +292,8 @@ let split_views =
       ~view_ed,
       ~view_editable,
       ~mk_ed,
+      ~mk_term_ed,
+      ~calculate_ed,
       projector_data,
     );
   let line_view = {

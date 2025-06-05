@@ -56,6 +56,8 @@ let methods:
       ~view_ed as _,
       ~view_editable as _,
       ~mk_ed as _,
+      ~mk_term_ed as _,
+      ~calculate_ed as _,
       ~local,
       ~parent as _,
       ~focus as _,

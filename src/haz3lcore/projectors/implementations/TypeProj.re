@@ -107,11 +107,13 @@ let icon = div(~attrs=[Attr.classes(["icon"])], []);
 
 let view =
     (
-      ~common as _,
+      ~common,
       ~ed_str,
       ~view_ed,
       ~view_editable as _,
       ~mk_ed,
+      ~mk_term_ed,
+      ~calculate_ed,
       ~local,
       ~parent as _,
       ~focus as _,
@@ -119,7 +121,20 @@ let view =
       model,
       info,
     ) => {
-  let view_any = x => x |> mk_ed |> view_ed(~sort=Any.sort(x));
+  let view_any = x =>
+    x
+    |> mk_ed
+    |> mk_term_ed(~sort=Any.sort(x))
+    |> fst
+    |> calculate_ed(
+         ~common=
+           ProjectorInterface.{
+             ...common,
+             statics: CachedStatics.empty,
+             dynamics: Dynamics.Map.empty,
+           },
+       )
+    |> view_ed(~sort=Any.sort(x));
   View.{
     inline:
       div(

@@ -158,6 +158,8 @@ module rec Projector: {
         ~inject,
         ~ed_str=Editor.View.print_string,
         ~mk_ed=Editor.Model.mk(~settings=common.settings),
+        ~mk_term_ed=Editor.Update.make_term,
+        ~calculate_ed=Editor.Update.calculate,
         ~view_ed=
           Editor.View.view(
             ~font_metrics=common.font_metrics,

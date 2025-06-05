@@ -150,6 +150,8 @@ type methods('model, 'action, 'focus, 'ed_m, 'ed_a, 'ed_f) = {
         ) =>
         Node.t,
       ~mk_ed: Any.t => 'ed_m,
+      ~mk_term_ed: (~sort: Sort.t, 'ed_m) => ('ed_m, Calc.t(Any.t)),
+      ~calculate_ed: (~common: ProjectorInterface.common, 'ed_m) => 'ed_m,
       ~local: 'action => Ui_effect.t(unit),
       ~parent: external_action => Ui_effect.t(unit),
       ~focus: 'focus => Ui_effect.t(unit),
