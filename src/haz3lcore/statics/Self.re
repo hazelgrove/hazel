@@ -44,7 +44,8 @@ type t =
     }) /* Tuple/TupLabel contains malformed labels, duplicate labels, and/or invalid labels */
   | IsMulti /* Multihole, treated as hole */
   | FreeConstructor(Constructor.t) /* Constructor not bound in context or ana type */
-  | WantTuple /* Want a Tuple, found not-tuple */
+  | DotOperatorRequiresTuple /* Want a Tuple, found not-tuple */
+  | TupleExtensionRequiresTuples /* Want two Tuples, found not-tuples */
   | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label))
   | InvalidUseMode({
       bad_typ: Typ.t,
@@ -109,7 +110,8 @@ let typ_of: (Ctx.t, t) => option(Typ.t) =
     | BadTrivAp(_)
     | IsMulti
     | Duplicate(_)
-    | WantTuple
+    | DotOperatorRequiresTuple
+    | TupleExtensionRequiresTuples
     | LabelNotFound(_)
     | BadLabel(_)
     | InvalidLabel(_)
