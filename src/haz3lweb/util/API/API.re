@@ -1,6 +1,5 @@
 open Js_of_ocaml;
 open Util.OptUtil.Syntax;
-open Sexplib.Sexp;
 
 let opt = Util.OptUtil.and_then;
 
