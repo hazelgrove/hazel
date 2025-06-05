@@ -32,6 +32,7 @@ module Model = {
         stepper_history: false,
         show_settings: false,
         show_hidden_steps: false,
+        enable_proof: false,
       },
     },
     async_evaluation: false,
@@ -74,6 +75,7 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type evaluation =
     | ShowRecord
+    | EnableProof
     | ShowCaseClauses
     | ShowFnBodies
     | ShowCastSteps
@@ -148,6 +150,10 @@ module Update = {
           | ShowRecord => {
               ...evaluation,
               stepper_history: !evaluation.stepper_history,
+            }
+          | EnableProof => {
+              ...evaluation,
+              enable_proof: !evaluation.enable_proof,
             }
           | ShowCaseClauses => {
               ...evaluation,

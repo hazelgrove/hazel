@@ -1154,7 +1154,8 @@ module View = {
               },
             ~overlays=
               switch (model.step_kind) {
-              | Model.MissingStep(m) =>
+              | Model.MissingStep(m)
+                  when globals.settings.core.evaluation.enable_proof =>
                 MissingStep.View.view_overlay(
                   ~globals,
                   ~inject=x => inject(MissingStep(x)),
