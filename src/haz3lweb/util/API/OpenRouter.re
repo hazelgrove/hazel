@@ -383,13 +383,17 @@ let parse_models_response = (json: Json.t): option(models_response) =>
               },
             models,
           );
-        Some({
-          data:
-            List.sort(
-              (a, b) => String.compare(a.name, b.name),
-              parsed_models,
-            ),
-        });
+        let sorted =
+          List.sort(
+            (a, b) => String.compare(a.name, b.name),
+            parsed_models,
+          );
+        let (free, paid) =
+          List.partition(
+            model => StringUtil.match(StringUtil.regexp("free"), model.name),
+            sorted,
+          );
+        Some({data: free @ paid});
       | _ => None
       }
     | _ => None
