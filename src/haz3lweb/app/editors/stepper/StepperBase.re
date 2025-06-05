@@ -1166,7 +1166,7 @@ module View = {
                     },
                   ~signal=
                     fun
-                    | HideStepper => Ui_effect.Ignore
+                    | HideStepper => signal(HideStepper)
                     | MakeActive(s) => signal(MakeActive(MissingStep(s)))
                     | AddForall => inject(AddForall)
                     | AddInduction => inject(AddInduction)
@@ -1266,7 +1266,7 @@ module View = {
           ~globals,
           ~signal=
             fun
-            | HideStepper => Ui_effect.Ignore
+            | HideStepper => signal(HideStepper)
             | MakeActive(s) => signal(MakeActive(MissingStep(s)))
             | AddForall => inject(AddForall)
             | AddInduction => inject(AddInduction)
@@ -1380,7 +1380,7 @@ module View = {
                 fun
                 | MakeActive(s) =>
                   signal(MakeActive(InductionStep(CaseStepper(i, s))))
-                | HideStepper => Ui_effect.Ignore, // TODO: prevent hiding inner steppers
+                | HideStepper => signal(HideStepper),
               ~inject=x => inject(InductionStep(CaseStepperUpdate(i, x))),
               ~selected=
                 switch (selected) {
