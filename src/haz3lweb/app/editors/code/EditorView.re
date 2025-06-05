@@ -45,6 +45,160 @@ module Focus = {
     };
   };
 
+  module Applicable = {
+    open OptUtil.Syntax;
+    /* If there are applicable projectors, we distinguish the first
+     * one, which will be the current active projector if the indicated
+     * term is already projected */
+    type t = option((ProjectorCore.Kind.t, list(ProjectorCore.Kind.t)));
+
+    /* Determines what term to target for projection. This logic
+     * should be kept in sync with the projector add/remove logic
+     * in ProjectorPerform */
+    let target_seg =
+        (
+          selection: option(Segment.t('a)),
+          indicated_piece: option(Piece.t('a)),
+        )
+        : option(Segment.t('a)) => {
+      let* seg =
+        switch (selection) {
+        | None => None
+        | Some([]) =>
+          switch (indicated_piece) {
+          | Some(Tile(_) as p)
+          | Some(Projector(_) as p) => Some([p])
+          | Some(Grout(_))
+          | Some(Secondary(_))
+          | None => None
+          }
+        | Some(seg) => Some(seg)
+        };
+      let* () = Segment.deep_tile_complete(seg) ? Some() : None;
+      let* () = Segment.is_padded(seg) ? None : Some();
+      let* skel =
+        switch (Segment.skel(seg)) {
+        | exception _ => None
+        | skel => Some(skel)
+        };
+      let* () =
+        switch (Segment.sort_of(skel, seg)) {
+        | Exp
+        | Pat
+        | Typ
+        | TPat => Some()
+        | Rul
+        | Any => None
+        };
+      Some(seg);
+    };
+
+    // TODO(matt|andrew): make this work more generally for different sorts
+    let target_term = (make_term_prj, seg: Segment.t('a)) =>
+      seg
+      |> Zipper.unzip
+      |> Editor.Model.mk
+      |> Editor.Update.make_term(~make_term_prj, ~sort=Exp)
+      |> snd
+      |> Calc.get_value;
+
+    let target_ed =
+        (seg: Segment.t('a), ())
+        : option(Editor.Model.t(ProjectorCore.Kind.t, 'p_m, 'p_a)) =>
+      switch (seg) {
+      | []
+      | [Projector(_)] => None
+      | s => Some(s |> Zipper.unzip |> Editor.Model.mk)
+      };
+
+    /* Is a projector of `kind` applicable to the target term? */
+    let is_applicable =
+        (
+          selection,
+          indicated_piece,
+          make_term_prj,
+          mk_projector:
+            (
+              ProjectorCore.Kind.t,
+              Any.t,
+              unit =>
+              option(Editor.Model.t(ProjectorCore.Kind.t, 'p_m, 'p_a))
+            ) =>
+            option(t),
+          kind: ProjectorCore.Kind.t,
+        )
+        : option(ProjectorCore.Kind.t) => {
+      let* target_seg = target_seg(selection, indicated_piece);
+      let term = target_term(make_term_prj, target_seg);
+      let ed = target_ed(target_seg);
+      let+ _ = mk_projector(kind, term, ed);
+      kind;
+    };
+
+    /* If the current indicated term is a projector, return its kind */
+    let indicated_kind =
+        (
+          editor: Editor.Model.t(ProjectorCore.Kind.t, 'p_m, 'p_a),
+          get_kind: 'a => ProjectorCore.Kind.t,
+        )
+        : option(ProjectorCore.Kind.t) => {
+      let* (piece, _, _) = Indicated.for_index(editor |> Editor.Model.get_z);
+      switch (piece) {
+      | Projector(p) => Some(get_kind(p.model))
+      | _ => None
+      };
+    };
+
+    /* The string names of all projectors applicable to the currently
+     * indicated syntax, with the currently applied projection (if any)
+     * lifted to the top of the list */
+    let lift_active_projector =
+        (editor, get_kind, applicable_projectors: list(ProjectorCore.Kind.t))
+        : list(ProjectorCore.Kind.t) => {
+      switch (indicated_kind(editor, get_kind)) {
+      | None => applicable_projectors
+      | Some(k) => ListUtil.lift(k, applicable_projectors)
+      };
+    };
+
+    let is_read_only = (editor, editor_read_only): bool =>
+      switch (editor) {
+      | None => true
+      | _ => editor_read_only
+      };
+
+    let projectors =
+        (
+          editor: Editor.Model.t(ProjectorCore.Kind.t, 'p_m, 'p_a),
+          selection,
+          indicated_piece,
+          read_only,
+          get_kind,
+          mk_projector,
+          make_term_prj,
+        )
+        : t =>
+      if (read_only) {
+        None;
+      } else {
+        let list =
+          ProjectorCore.Kind.projectors
+          |> List.filter_map(
+               is_applicable(
+                 selection,
+                 indicated_piece,
+                 make_term_prj,
+                 mk_projector,
+               ),
+             )
+          |> lift_active_projector(editor, get_kind);
+        switch (list) {
+        | [] => None
+        | [hd, ...tl] => Some((hd, tl))
+        };
+      };
+  };
+
   let get_cursor_info =
       (
         ~get_cursor_info_pr as
@@ -69,37 +223,48 @@ module Focus = {
 
     // TODO(Matt|Andrew): check if inner projector is focused
 
-    let projector_actions = [];
+    // let applicable_projectors = Applicable.projectors(
+    //   m,
+    //   Editor.Model.get_selection(m),
+    //   Indicated.piece(Editor.Model.get_z(m)),
+    //   read_only,
+    //   get_kind,
+    //   mk_projector,
+    //   make_term_prj,
+    // );
+
+    let projector_actions = [
+      // ContextualAction.mk(
+      //   ~hotkey="alt+f",
+      //   ~mdIcon="camera",
+      //   ~section="Projection",
+      //   "Fold",
+      //   inject(Project(SetIndicated(Specific(Fold)))),
+      // ),
+      // ContextualAction.mk(
+      //   ~hotkey="alt+v",
+      //   ~mdIcon="camera",
+      //   ~section="Projection",
+      //   "Probe",
+      //   inject(Project(SetIndicated(Specific(Probe)))),
+      // ),
+      ContextualAction.mk(
+        ~hotkey="alt+t",
+        ~mdIcon="camera",
+        ~section="Projection",
+        "Type",
+        inject(Project(SetIndicated(Specific(Info)))),
+      ),
+      ContextualAction.mk(
+        ~hotkey="alt+l",
+        ~mdIcon="camera",
+        ~section="Projection",
+        "Livelit",
+        inject(Project(SetIndicated(ChooseLivelit))),
+      ),
+    ];
 
     // TODO(Matt nominating Andrew): projector shortcuts
-    // mk_shortcut(
-    //   ~hotkey="alt+f",
-    //   ~mdIcon="camera",
-    //   ~section="Projection",
-    //   "Fold",
-    //   Globals(ActiveEditor(Project(SetIndicated(Specific(Fold))))),
-    // ),
-    // mk_shortcut(
-    //   ~hotkey="alt+v",
-    //   ~mdIcon="camera",
-    //   ~section="Projection",
-    //   "Probe",
-    //   Globals(ActiveEditor(Project(SetIndicated(Specific(Probe))))),
-    // ),
-    // mk_shortcut(
-    //   ~hotkey="alt+t",
-    //   ~mdIcon="camera",
-    //   ~section="Projection",
-    //   "Type",
-    //   Globals(ActiveEditor(Project(SetIndicated(Specific(Info))))),
-    // ),
-    // mk_shortcut(
-    //   ~hotkey="alt+l",
-    //   ~mdIcon="camera",
-    //   ~section="Projection",
-    //   "Livelit",
-    //   Globals(ActiveEditor(Project(SetIndicated(ChooseLivelit)))),
-    // ),
 
     let read_only_actions = [
       ContextualAction.mk(
@@ -151,6 +316,20 @@ module Focus = {
         ~mdIcon="assistant",
         "TyDi Assistant",
         inject(Buffer(Set(TyDi))) // I haven't figured out how to trigger this in the editor
+      ),
+      ContextualAction.mk(
+        // ctrl+k conflicts with the command palette
+        ~section="Diagnostics",
+        ~mdIcon="refresh",
+        "Reparse Current Editor",
+        inject(Reparse),
+      ),
+      ContextualAction.mk(
+        ~mdIcon="bolt",
+        ~section="Refactoring",
+        ~hotkey=Keyboard.meta(sys) ++ "+i",
+        "Introduce",
+        inject(Introduce),
       ),
     ];
 

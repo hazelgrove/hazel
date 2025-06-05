@@ -252,7 +252,7 @@ let select_view =
 let view = (cursor: Cursor.t) => {
   let applicable_projectors =
     List.filter(
-      (p: ContextualAction.t) => p.section == Some("projectors"),
+      (p: ContextualAction.t) => p.section == Some("Projection"),
       cursor.contextual_actions,
     );
   let unproject =

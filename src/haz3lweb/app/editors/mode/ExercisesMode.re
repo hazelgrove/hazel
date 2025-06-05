@@ -304,6 +304,14 @@ module Selection = {
       ~selection,
       List.nth(model.exercises, model.current),
     )
+    |> Cursor.with_actions([
+         ContextualAction.mk(
+           ~mdIcon="download",
+           ~section="Export",
+           "Export Submission",
+           inject(ExportSubmission) // TODO Would we rather skip contextual stuff for now or include it and have it fail
+         ),
+       ])
     |> Cursor.with_actions_if(
          globals.settings.instructor_mode,
          [

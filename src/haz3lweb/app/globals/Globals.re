@@ -87,4 +87,105 @@ module Update = {
   };
 };
 
+module ContextualAction = Haz3lcorep.ContextualAction;
+
+let contextual_actions = (~inject: Action.t => Ui_effect.t(unit)) => [
+  ContextualAction.mk(
+    ~section="Settings",
+    ~mdIcon="tune",
+    "Toggle Statics",
+    inject(Set(Statics)),
+  ),
+  ContextualAction.mk(
+    ~section="Settings",
+    ~mdIcon="tune",
+    "Toggle Completion",
+    inject(Set(Assist)),
+  ),
+  ContextualAction.mk(
+    ~section="Settings",
+    ~mdIcon="tune",
+    "Toggle Show Whitespace",
+    inject(Set(SecondaryIcons)),
+  ),
+  ContextualAction.mk(
+    ~section="Settings",
+    ~mdIcon="tune",
+    "Toggle Print Benchmarks",
+    inject(Set(Benchmark)),
+  ),
+  ContextualAction.mk(
+    ~section="Settings",
+    ~mdIcon="tune",
+    "Toggle Toggle Dynamics",
+    inject(Set(Dynamics)),
+  ),
+  ContextualAction.mk(
+    ~section="Settings",
+    ~mdIcon="tune",
+    "Toggle Show Elaboration",
+    inject(Set(Elaborate)),
+  ),
+  ContextualAction.mk(
+    ~section="Settings",
+    ~mdIcon="tune",
+    "Toggle Show Function Bodies",
+    inject(Set(Evaluation(ShowFnBodies))),
+  ),
+  ContextualAction.mk(
+    ~section="Settings",
+    ~mdIcon="tune",
+    "Toggle Show Case Clauses",
+    inject(Set(Evaluation(ShowCaseClauses))),
+  ),
+  ContextualAction.mk(
+    ~section="Settings",
+    ~mdIcon="tune",
+    "Toggle Show fixpoints",
+    inject(Set(Evaluation(ShowFixpoints))),
+  ),
+  ContextualAction.mk(
+    ~section="Settings",
+    ~mdIcon="tune",
+    "Toggle Show Casts",
+    inject(Set(Evaluation(ShowCasts))),
+  ),
+  ContextualAction.mk(
+    ~section="Settings",
+    ~mdIcon="tune",
+    "Toggle Show Lookup Steps",
+    inject(Set(Evaluation(ShowLookups))),
+  ),
+  ContextualAction.mk(
+    ~section="Settings",
+    ~mdIcon="tune",
+    "Toggle Show Stepper Filters",
+    inject(Set(Evaluation(ShowFilters))),
+  ),
+  ContextualAction.mk(
+    ~section="Settings",
+    ~mdIcon="tune",
+    "Toggle Show Hidden Steps",
+    inject(Set(Evaluation(ShowHiddenSteps))),
+  ),
+  ContextualAction.mk(
+    ~section="Settings",
+    ~mdIcon="tune",
+    "Toggle Show Docs Sidebar",
+    inject(Set(ExplainThis(ToggleShow))),
+  ),
+  ContextualAction.mk(
+    ~section="Settings",
+    ~mdIcon="tune",
+    "Toggle Show Docs Feedback",
+    inject(Set(ExplainThis(ToggleShowFeedback))),
+  ),
+  ContextualAction.mk(
+    ~mdIcon="download",
+    ~section="Export",
+    "Export For Init",
+    inject(ExportForInit),
+  ),
+];
+
 type t = Model.t;

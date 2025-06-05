@@ -283,7 +283,19 @@ module Focus = {
       ~inject=a => inject(Update.Editors(a)),
       ~selection,
       model.editors,
-    );
+    )
+    |> Haz3lcore.Cursor.with_actions(
+         Globals.contextual_actions(~inject=a => inject(Update.Globals(a))),
+       )
+    |> Haz3lcore.Cursor.with_actions([
+         Haz3lcore.ContextualAction.mk(
+           ~mdIcon="timer",
+           ~section="Diagnostics",
+           ~hotkey="F7",
+           "Run Benchmark",
+           inject(Update.Benchmark(Start)),
+         ),
+       ]);
   };
 };
 
@@ -430,6 +442,12 @@ module View = {
         ~selection=model.selection,
         model,
       );
+    NinjaKeys.initialize(
+      NinjaKeys.options(
+        ~schedule_effect=Bonsai.Effect.Expert.handle,
+        cursor.contextual_actions,
+      ),
+    );
     div(
       ~attrs=[Attr.id("page"), ...handlers(~inject)],
       [FontSpecimen.view] @ main_view(~globals, ~cursor, ~inject, model),

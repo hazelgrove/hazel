@@ -33,7 +33,7 @@ module MakeTerm = {
 module Parse = {
   include Parse;
   let parse_exp = parse_exp(~of_projector);
-}
+};
 
 module Segment = {
   include Segment;
