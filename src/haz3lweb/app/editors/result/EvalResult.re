@@ -104,6 +104,15 @@ module Update = {
     | EvalEditorAction(CodeSelectable.Update.t)
     | UpdateResult(Haz3lcore.ProgramResult.t(Haz3lcore.ProgramResult.inner));
 
+  let can_undo = (action: t) => {
+    switch (action) {
+    | ToggleStepper => true
+    | StepperAction(action) => StepperView.Update.can_undo(action)
+    | EvalEditorAction(action) => CodeSelectable.Update.can_undo(action)
+    | UpdateResult(_) => false
+    };
+  };
+
   // Update is meant to make minimal changes to the model, and calculate will do the rest.
   let update = (~settings, action, model: Model.t): Updated.t(Model.t) =>
     switch (action, model) {
@@ -278,10 +287,6 @@ module Update = {
           switch (result) {
           | ResultOk((exp, _state)) =>
             exp
-            |> (
-              settings.evaluation.show_casts
-                ? (x => x) : Haz3lcore.DHExp.strip_casts
-            )
             |> CodeSelectable.Model.mk_from_exp(~settings)
             |> (x => Calc.Calculated((exp, x)))
           | ResultFail(_) => Pending
