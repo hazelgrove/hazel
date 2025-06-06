@@ -347,6 +347,7 @@ and Editor: {
       Haz3lcorep.Editor.Update.calculate(
         ~common,
         ~projector_init=Projector.Model.mk,
+        // TODO[Matt]: Ask andrew about whether this sort argument should be unused
         ~projector_to_term=
           (~sort as _, ~id as _, m) => Projector.Model.get_cached_term(m),
         ~shape_of_projector=Projector.Model.get_shape,
