@@ -17,7 +17,7 @@ let int_of = (any: Any.t): option(Bigint.t) =>
   | _ => None
   };
 
-let init = (any: Term.Any.t, _ed) =>
+let init = (~copy_ed as _, any: Term.Any.t, _ed) =>
   switch (int_of(any)) {
   | Some(i) => Some(i)
   | None => None

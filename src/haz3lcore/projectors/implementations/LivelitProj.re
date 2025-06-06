@@ -16,7 +16,7 @@ type focus('ed_f) = unit;
 
 let methods:
   methods(model('ed_m), action('ed_a), focus('ed_f), 'ed_m, 'ed_a, 'ed_f) = {
-  init: (any: TermBase.Any.t, _ed) => {
+  init: (~copy_ed as _, any: TermBase.Any.t, _ed) => {
     print_endline("LivelitProj.init");
     switch (any) {
     | Exp({term: Ap(Forward, {term: LivelitName(ll), _}, model), _})

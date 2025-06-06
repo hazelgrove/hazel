@@ -7,7 +7,12 @@ module rec Projector: {
     type t;
 
     let mk:
-      (ProjectorCore.Kind.t, Any.t, unit => option(Editor.Model.t)) =>
+      (
+        ~copy_ed: Editor.Model.t => Editor.Model.t,
+        ProjectorCore.Kind.t,
+        Any.t,
+        unit => option(Editor.Model.t)
+      ) =>
       option(t);
 
     let get_kind: t => ProjectorCore.Kind.t;
@@ -200,6 +205,8 @@ and Editor: {
     let of_zipper: Zipper.t(Projector.Model.t) => t; // TODO: Replace with persistence logic
 
     let get_cached_term: t => Term.Any.t;
+
+    let copy: t => t;
   };
 
   module Update: {
@@ -320,6 +327,8 @@ and Editor: {
     let get_trailing_hole_ctx = Haz3lcorep.Editor.Model.trailing_hole_ctx;
 
     let get_cached_term = Haz3lcorep.Editor.Model.get_cached_term;
+
+    let copy = Haz3lcorep.Editor.Model.copy;
   };
 
   module Update = {
@@ -332,7 +341,7 @@ and Editor: {
       switch (
         Haz3lcorep.Editor.Update.update(
           ~settings=common.settings,
-          ~projector_init=Projector.Model.mk,
+          ~projector_init=Projector.Model.mk(~copy_ed=Editor.Model.copy),
           ~update_projector=Projector.Update.update(~common),
           ~seg_of_projector=
             p =>
@@ -362,7 +371,7 @@ and Editor: {
     let calculate = (~common: ProjectorInterface.common, ed: Model.t): Model.t =>
       Haz3lcorep.Editor.Update.calculate(
         ~common,
-        ~projector_init=Projector.Model.mk,
+        ~projector_init=Projector.Model.mk(~copy_ed=Editor.Model.copy),
         // TODO[Matt]: Ask andrew about whether this sort argument should be unused
         ~projector_to_term=
           (~sort as _, ~id as _, m) => Projector.Model.get_cached_term(m),
@@ -450,7 +459,7 @@ and Editor: {
         ~common,
         ~inject,
         ~read_only,
-        ~mk_projector=Projector.Model.mk,
+        ~mk_projector=Projector.Model.mk(~copy_ed=Editor.Model.copy),
         ~make_term_prj=Projector.Update.make_term,
         ~get_kind=Projector.Model.get_kind,
         m,

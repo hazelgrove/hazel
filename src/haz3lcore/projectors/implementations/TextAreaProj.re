@@ -187,7 +187,7 @@ let methods:
     'ed_a,
     'ed_f,
   ) = {
-  init: (any: Term.Any.t, _ed) =>
+  init: (~copy_ed as _, any: Term.Any.t, _ed) =>
     switch (any) {
     | Exp({term: Atom(String(str)), _}) => Some(str)
     | _ => None

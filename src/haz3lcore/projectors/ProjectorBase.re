@@ -92,7 +92,9 @@ module View = {
 };
 
 type methods('model, 'action, 'focus, 'ed_m, 'ed_a, 'ed_f) = {
-  init: (Term.Any.t, unit => option('ed_m)) => option('model),
+  init:
+    (~copy_ed: 'ed_m => 'ed_m, Term.Any.t, unit => option('ed_m)) =>
+    option('model),
   focusable: Focusable.t,
   dynamics: bool,
   update:

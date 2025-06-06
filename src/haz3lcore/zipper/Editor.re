@@ -98,6 +98,19 @@ module Model = {
     selection_ids: Calc.Pending,
   };
 
+  let copy = ed => {
+    {
+      id: Id.mk(),
+      zipper: ed.zipper,
+      selection: ed.selection,
+      col_target: ed.col_target,
+      term: ed.term,
+      sort: ed.sort,
+      syntax: ed.syntax,
+      selection_ids: ed.selection_ids,
+    };
+  };
+
   let get_z = model => model.zipper |> Calc.get_value;
 
   type persistent = PersistentZipper.t;

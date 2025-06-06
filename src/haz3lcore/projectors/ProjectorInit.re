@@ -6,6 +6,7 @@ let init =
       type ed,
       type ed_a,
       type ed_f,
+      ~copy_ed: ed => ed,
       kind: ProjectorCore.Kind.t,
       any: Term.Any.t,
       ed: unit => option(ed),
@@ -14,7 +15,7 @@ let init =
   open ProjectorCore.Kind;
   let.gadt W(kind_gadt) = kind;
   let methods = ProjectorCore.to_module(kind_gadt);
-  switch (methods.init(any, ed)) {
+  switch (methods.init(~copy_ed, any, ed)) {
   | None => None
   | Some(model) => Some(ProjectorCore.V(kind_gadt, model, Calc.Pending))
   };

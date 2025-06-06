@@ -35,7 +35,9 @@ type mode =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type model('ed) = (mode, 'ed);
 
-let init = (any: Term.Any.t, ed: unit => option('ed)): option(model('ed)) => {
+let init =
+    (~copy_ed as _, any: Term.Any.t, ed: unit => option('ed))
+    : option(model('ed)) => {
   switch (any) {
   | Exp(_)
   | Pat(_) =>
