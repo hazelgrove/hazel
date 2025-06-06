@@ -35,7 +35,7 @@ let methods:
       ~mk_term_ed as _,
       ~calculate_ed as _,
       ~local,
-      ~parent as _,
+      ~parent,
       ~focus,
       ~focussed,
       (ed1, ed2),
@@ -56,6 +56,16 @@ let methods:
                 | Some(Left(f)) => Some(f)
                 | _ => None
                 },
+              ~escape=
+                fun
+                | Direction.Left => parent(Escape(Left))
+                | Direction.Right =>
+                  enter_ed(
+                    ~inject=a => local(Right(a)),
+                    ~focus=f => focus(Right(f)),
+                    Direction.Left,
+                    ed2,
+                  ),
               ~sort=Exp,
               ed1,
             ),
@@ -64,6 +74,16 @@ let methods:
               ~common,
               ~inject=a => local(Right(a)),
               ~focus=f => focus(Right(f)),
+              ~escape=
+                fun
+                | Direction.Left =>
+                  enter_ed(
+                    ~inject=a => local(Left(a)),
+                    ~focus=f => focus(Left(f)),
+                    Direction.Right,
+                    ed1,
+                  )
+                | Direction.Right => parent(Escape(Right)),
               ~focussed=
                 switch (focussed) {
                 | Some(Right(f)) => Some(f)

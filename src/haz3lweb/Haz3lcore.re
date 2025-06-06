@@ -220,15 +220,6 @@ and Editor: {
 
     let calculate: (~common: ProjectorInterface.common, Model.t) => Model.t;
 
-    let key_handoff:
-      (Model.t, Key.t) =>
-      option(
-        Action.project(
-          ProjectorCore.Kind.t,
-          Projector.Model.t,
-          Projector.Update.t,
-        ),
-      );
     let jump_to_tile_action:
       (Id.t, Model.t) =>
       option(
@@ -290,6 +281,7 @@ and Editor: {
           Ui_effect.t(unit),
         ~focus: Focus.t => Ui_effect.t(unit),
         ~focussed: option(Focus.t),
+        ~escape: Direction.t => Ui_effect.t(unit),
         ~overlays: list(Web.Node.t)=?,
         ~sort: Sort.t,
         Model.t
@@ -386,48 +378,6 @@ and Editor: {
         ~calculate_projector=Projector.Update.calculate,
         ed,
       );
-
-    let move_dir = (key: Key.t): option(Direction.t) =>
-      switch (key) {
-      | {key: D("ArrowLeft"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up} =>
-        Some(Left)
-      | {
-          key: D("ArrowRight"),
-          sys: _,
-          shift: Up,
-          meta: Up,
-          ctrl: Up,
-          alt: Up,
-        } =>
-        Some(Right)
-      | _ => None
-      };
-
-    let key_handoff =
-        (editor: Model.t, key: Key.t)
-        : option(
-            Action.project(
-              ProjectorCore.Kind.t,
-              Projector.Model.t,
-              Projector.Update.t,
-            ),
-          ) => {
-      let z = Editor.Model.get_z(editor);
-      switch (move_dir(key), Siblings.neighbors(z.relatives.siblings)) {
-      | _ when z.caret != Outer => None
-      | (Some(Left), (Some(Projector({id, model, _})), _)) =>
-        let kind = Projector.Model.get_kind(model);
-        let focusable = Projector.Model.get_focusable(model);
-        focusable.keyboard != None
-          ? Some(Haz3lcorep.Action.Focus(id, kind, Some(Right))) : None;
-      | (Some(Right), (_, Some(Projector({id, model, _})))) =>
-        let kind = Projector.Model.get_kind(model);
-        let focusable = Projector.Model.get_focusable(model);
-        focusable.keyboard != None
-          ? Some(Haz3lcorep.Action.Focus(id, kind, Some(Left))) : None;
-      | _ => None
-      };
-    };
 
     let jump_to_tile_action = (tile, model: Model.t) =>
       switch (TileMap.find_opt(tile, Calc.get_saved_exc(model.syntax).tiles)) {

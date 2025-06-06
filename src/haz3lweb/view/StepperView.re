@@ -467,6 +467,7 @@ module View = {
                      ~inject=
                        (x: StepperEditor.Update.t) =>
                          inject(StepperEditor(i + 1, x)),
+                     ~escape=_ => Ui_effect.Ignore,
                      ~signal=
                        fun
                        | TakeStep(_) => Ui_effect.Ignore
@@ -553,6 +554,7 @@ module View = {
                         ),
                       ),
                     ),
+                ~escape=_ => Ui_effect.Ignore,
                 ~overlays=[],
                 {
                   editor: model.editor |> Calc.get_value,

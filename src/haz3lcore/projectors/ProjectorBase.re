@@ -151,6 +151,7 @@ type methods('model, 'action, 'focus, 'ed_m, 'ed_a, 'ed_f) = {
           ~inject: 'ed_a => Ui_effect.t(unit),
           ~focus: 'ed_f => Ui_effect.t(unit),
           ~focussed: option('ed_f),
+          ~escape: Direction.t => Ui_effect.t(unit),
           ~overlays: list(Node.t)=?,
           ~sort: Sort.t,
           'ed_m

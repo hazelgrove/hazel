@@ -202,6 +202,7 @@ module View = {
             statics: model.editor.statics,
             dynamics: model.editor.dynamics,
           },
+          ~escape=_ => Ui_effect.Ignore,
           ~focus=
             locked
               ? _ => Ui_effect.Ignore

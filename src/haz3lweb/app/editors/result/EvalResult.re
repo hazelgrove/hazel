@@ -400,6 +400,7 @@ module View = {
       CodeSelectable.View.view(
         ~focus=f => signal(MakeActive(Evaluation(f))),
         ~inject=a => inject(EvalEditorAction(a)),
+        ~escape=_ => Ui_effect.Ignore,
         ~common={
           settings: globals.settings.core,
           font_metrics: globals.font_metrics,

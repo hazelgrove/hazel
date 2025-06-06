@@ -19,9 +19,11 @@ module Focus = {
         ~key: Key.t,
         ~info_projector,
         ~enter_prj: (Id.t, Direction.t) => Ui_effect.t(unit),
+        ~escape: Direction.t => Ui_effect.t(unit),
         model: Editor.Model.t(p_k, p_m, p_a),
       )
       : Ui_effect.t(unit) => {
+    let z = model |> Editor.Model.get_z;
     switch (
       key,
       Siblings.neighbors(Editor.Model.get_z(model).relatives.siblings),
@@ -33,7 +35,6 @@ module Focus = {
        * but can't immediately put down, move to next position of
        * interest, which is closet of: nearest position where can
        * put down, farthest position where can put down, next hole */
-      let z = model |> Editor.Model.get_z;
       let eff =
         Selection.is_buffer(z.selection)
           ? inject(Buffer(Accept))
@@ -43,8 +44,15 @@ module Focus = {
     | (
         {key: D("ArrowLeft"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up},
         (Some(Projector({id, _})), _),
-      ) =>
+      )
+        when z.caret == Outer =>
       enter_prj(id, Right)
+    | (
+        {key: D("ArrowLeft"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up},
+        (None, _),
+      )
+        when z.caret == Outer =>
+      escape(Left)
     | (
         {
           key: D("ArrowRight"),
@@ -55,8 +63,22 @@ module Focus = {
           alt: Up,
         },
         (_, Some(Projector({id, _}))),
-      ) =>
+      )
+        when z.caret == Outer =>
       enter_prj(id, Left)
+    | (
+        {
+          key: D("ArrowRight"),
+          sys: _,
+          shift: Up,
+          meta: Up,
+          ctrl: Up,
+          alt: Up,
+        },
+        (_, None),
+      )
+        when z.caret == Outer =>
+      escape(Right)
     | _ =>
       switch (Keyboard.handle_key_event(~info_projector, key)) {
       | Some(action) =>
@@ -357,6 +379,7 @@ module Focus = {
         (),
       ),
       focus_parent(Here),
+      Effect.Stop_propagation,
     ]);
   };
 
@@ -466,6 +489,7 @@ let view_code_editable =
       ~inject: Action.t(ProjectorCore.Kind.t, p_m, p_a) => Ui_effect.t(unit),
       ~focus: Focus.t(p_f) => Ui_effect.t(unit),
       ~focussed: option(Focus.t(p_f)),
+      ~escape: Direction.t => Ui_effect.t(unit),
       ~overlays: list(Node.t)=[],
       ~sort,
       model: Editor.Model.t(ProjectorCore.Kind.t, p_m, p_a),
@@ -616,6 +640,7 @@ let view_code_editable =
           ~key,
           ~info_projector,
           ~enter_prj,
+          ~escape,
           model,
         )
       ),
