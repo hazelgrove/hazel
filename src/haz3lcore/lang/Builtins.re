@@ -652,12 +652,14 @@ let entries =
         name,
         typ,
         id: Id.invalid,
+        builtin: true,
       })
     | (name, Fn(t1, t2, _)) =>
       Ctx.VarEntry({
         name,
         typ: Fresh.Typ.arrow(t1, t2),
         id: Id.invalid,
+        builtin: true,
       }),
     Pervasives.builtins,
   )
