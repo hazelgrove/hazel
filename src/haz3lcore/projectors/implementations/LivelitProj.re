@@ -89,7 +89,7 @@ let methods:
     };
     View.mk(node);
   },
-  placeholder: (~ed_str as _, {livelit_name, _}, info) => {
+  placeholder: (~ed_size as _, {livelit_name, _}, info) => {
     let ctx =
       switch (info.statics) {
       | Some(InfoExp(exp)) => exp.ctx

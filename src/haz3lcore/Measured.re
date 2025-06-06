@@ -485,6 +485,26 @@ let length = (seg: Segment.t('p), map: t): int =>
     last.last.col - first.origin.col;
   };
 
+let width = (seg: Segment.t('p), map: t): int => {
+  let first = find_p(List.hd(seg), map);
+  let last = find_p(ListUtil.last(seg), map);
+  let rows =
+    List.init(last.last.row - first.origin.row + 1, i => first.origin.row + i);
+  Rows.max_col(rows, map.rows);
+};
+
+let height = (seg: Segment.t('p), map: t): int =>
+  switch (seg) {
+  | [] => 0
+  | [p] =>
+    let m = find_p(p, map);
+    m.last.row - m.origin.row;
+  | [hd, ...tl] =>
+    let first = find_p(hd, map);
+    let last = find_p(ListUtil.last(tl), map);
+    last.last.row - first.origin.row;
+  };
+
 /* Width in characters of row at measurement.origin */
 let start_row_width = (measurement: measurement, measured: t): int =>
   switch (IntMap.find_opt(measurement.origin.row, measured.rows)) {

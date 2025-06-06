@@ -45,7 +45,7 @@ let methods:
         Web.div_c(
           "main",
           [
-            Web.Node.text("("),
+            Web.div_c("pair-proj-parens", [Web.Node.text("(")]),
             view_editable(
               ~common,
               ~inject=a => local(Left(a)),
@@ -58,7 +58,7 @@ let methods:
               ~sort=Exp,
               ed1,
             ),
-            Web.Node.text(","),
+            Web.div_c("pair-proj-parens", [Web.Node.text(",")]),
             view_editable(
               ~common,
               ~inject=a => local(Right(a)),
@@ -71,16 +71,20 @@ let methods:
               ~sort=Exp,
               ed2,
             ),
-            Web.Node.text(")"),
+            Web.div_c("pair-proj-parens", [Web.Node.text(")")]),
           ],
         ),
       offside: None,
       overlay: None,
     },
-  placeholder: (~ed_str, (ed1, ed2), _info) =>
-    ProjectorShape.inline(
-      7 + String.length(ed_str(ed1)) + String.length(ed_str(ed2)),
-    ),
+  placeholder: (~ed_size, (ed1, ed2), _info) => {
+    let ed1_size = ed_size(ed1);
+    let ed2_size = ed_size(ed2);
+    ProjectorShape.{
+      horizontal: ed1_size.row + ed2_size.row + 5,
+      vertical: ProjectorShape.Block(max(ed1_size.col, ed2_size.col)),
+    };
+  },
   update:
     (~update_ed, ~common, ~sort as _, _info, (left: 'ed, right: 'ed), action) => {
     switch (action) {

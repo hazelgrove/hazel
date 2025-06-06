@@ -194,7 +194,7 @@ let methods:
     },
   focusable: Focusable.non,
   dynamics: false,
-  placeholder: (~ed_str as _, str, _) => {
+  placeholder: (~ed_size as _, str, _) => {
     ProjectorShape.{
       vertical: Block(StringUtil.num_linebreaks(str)),
       /* +2 for left and right padding */

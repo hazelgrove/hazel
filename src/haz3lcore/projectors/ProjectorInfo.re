@@ -7,7 +7,7 @@ module ShapeMapSemantics = {
         type ed,
         type ed_a,
         type ed_f,
-        ~ed_str,
+        ~ed_size,
         statics: Statics.Map.t,
         dynamics: Dynamics.Map.t,
         p: Base.projector(ProjectorCore.model(ed, ed_a, ed_f)),
@@ -19,7 +19,7 @@ module ShapeMapSemantics = {
      * separated out for dependency reasons */
 
     methods.placeholder(
-      ~ed_str,
+      ~ed_size,
       model,
       ProjectorCore.mk_info(~id=p.id, ~statics, ~dynamics),
     );

@@ -25,7 +25,7 @@ let init = (any: Term.Any.t, _ed) =>
 
 let focusable = Focusable.non;
 let dynamics = false;
-let placeholder = (~ed_str as _, _, _) => ProjectorShape.inline(10);
+let placeholder = (~ed_size as _, _, _) => ProjectorShape.inline(10);
 let update = (~update_ed as _, ~common as _, ~sort as _, _, _, Set(n)) => n;
 
 let view =

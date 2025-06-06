@@ -101,8 +101,8 @@ let typ_view = (model, info: info, view_any: Any.t => Node.t) => {
   div(~attrs=[Attr.classes(["type-cell"])], [Typ(typ) |> view_any]);
 };
 
-let placeholder = (~ed_str, (_, ed), _info) =>
-  ProjectorShape.inline(3 + String.length(ed_str(ed)));
+let placeholder = (~ed_size: 'a => Util.Point.t, (_, ed), _info) =>
+  ProjectorShape.inline(3 + ed_size(ed).row);
 let icon = div(~attrs=[Attr.classes(["icon"])], []);
 
 let view =

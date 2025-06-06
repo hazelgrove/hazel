@@ -84,7 +84,7 @@ module rec Projector: {
 
     let get_shape =
       Haz3lcorep.ProjectorInfo.ShapeMapSemantics.from_semantics(
-        ~ed_str=Editor.View.print_string,
+        ~ed_size=Editor.View.get_dimensions,
       );
     let get_kind = ProjectorCore.kind_of_model;
     let get_focusable = ProjectorInit.focusable_of_model;
@@ -254,6 +254,8 @@ and Editor: {
         Model.t
       ) =>
       Web.Node.t;
+
+    let get_dimensions: Model.t => Point.t;
 
     let view_editable:
       (
@@ -454,6 +456,9 @@ and Editor: {
         ~mk_status=Projector.View.mk_status,
         ~info_projector=ProjectorCore.Kind.Info,
       );
+
+    let get_dimensions = (ed: Model.t) =>
+      Haz3lcorep.Editor.Model.get_dimensions(ed);
 
     let print_string = (ed: Model.t) =>
       ed

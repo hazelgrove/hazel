@@ -160,7 +160,7 @@ type methods('model, 'action, 'focus, 'ed_m, 'ed_a, 'ed_f) = {
       info
     ) =>
     View.t,
-  placeholder: (~ed_str: 'ed_m => string, 'model, info) => ProjectorShape.t,
+  placeholder: (~ed_size: 'ed_m => Point.t, 'model, info) => ProjectorShape.t,
   sexp_of_model: ('ed_m => Sexplib.Sexp.t, 'model) => Sexplib.Sexp.t,
   model_of_sexp: (Sexplib.Sexp.t => 'ed_m, Sexplib.Sexp.t) => 'model,
   yojson_of_model: ('ed_m => Yojson.Safe.t, 'model) => Yojson.Safe.t,

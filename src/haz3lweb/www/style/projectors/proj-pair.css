@@ -23,3 +23,7 @@
     align-items: center;
     gap: 0.4em;
   }
+
+  .projector.pair .pair-proj-parens {
+    color: var(--BR2)
+  }

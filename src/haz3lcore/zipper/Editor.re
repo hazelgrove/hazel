@@ -156,6 +156,15 @@ module Model = {
   let get_web_id = (type p_k, type p, type p_a, model: t(p_k, p, p_a)) => {
     "editor_" ++ Id.str8(model.id);
   };
+
+  let get_dimensions = (ed: t('p_k, 'p, 'p_a)) => {
+    let measured = Calc.get_saved_exc(ed.syntax).measured;
+    let segment = Calc.get_saved_exc(ed.syntax).segment;
+    Point.{
+      row: Measured.width(segment, measured),
+      col: Measured.height(segment, measured),
+    };
+  };
 };
 
 module Update = {
