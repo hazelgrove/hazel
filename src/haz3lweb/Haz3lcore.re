@@ -433,6 +433,9 @@ and Editor: {
         ~common,
         ~inject,
         ~read_only,
+        ~mk_projector=Projector.Model.mk,
+        ~make_term_prj=Projector.Update.make_term,
+        ~get_kind=Projector.Model.get_kind,
         m,
         f,
       );
