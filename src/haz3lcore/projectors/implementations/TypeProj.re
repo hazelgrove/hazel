@@ -66,6 +66,11 @@ let mk_term = (~mk_term_ed, ~sort, ~prev as _, (mode, ed)) => {
   ((mode, ed'), term);
 };
 
+let calculate = (~calculate_ed, ~common, (mode, ed): model('ed)) => {
+  let ed' = calculate_ed(~common, ed);
+  (mode, ed');
+};
+
 /* =========== FOCUS =========== */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -175,8 +180,8 @@ let methods = {
   view,
   placeholder,
   update,
-  calculate: (~calculate_ed as _, ~common as _, m) => m,
   mk_term,
+  calculate,
   get_cursor_info,
   sexp_of_model,
   model_of_sexp,
