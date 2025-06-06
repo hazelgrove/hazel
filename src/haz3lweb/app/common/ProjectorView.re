@@ -225,6 +225,7 @@ let mk_view =
       ~ed_str,
       ~view_ed,
       ~view_editable,
+      ~enter_ed,
       ~mk_ed,
       ~mk_term_ed,
       ~calculate_ed,
@@ -240,6 +241,7 @@ let mk_view =
     ~ed_str,
     ~view_ed,
     ~view_editable,
+    ~enter_ed,
     ~mk_ed,
     ~mk_term_ed,
     ~calculate_ed,
@@ -268,6 +270,7 @@ let split_views =
       ~ed_str,
       ~view_ed,
       ~view_editable,
+      ~enter_ed,
       ~mk_ed,
       ~mk_term_ed,
       ~calculate_ed,
@@ -275,6 +278,8 @@ let split_views =
       ~inject: ProjectorCore.Update.t(ed_a) => Ui_effect.t(unit),
       ~focus: ProjectorCore.Focus.t(ed_f) => Ui_effect.t(unit),
       ~focussed: option(ProjectorCore.Focus.t(ed_f)),
+      ~handoff_map:
+         Hashtbl.t(Id.t, (Ui_effect.t(unit), Ui_effect.t(unit))),
       {p, offside_base, measurement, status, _} as projector_data:
         Model.projector_data(ProjectorCore.model(ed, ed_a, ed_f)),
     )
@@ -291,6 +296,7 @@ let split_views =
       ~ed_str,
       ~view_ed,
       ~view_editable,
+      ~enter_ed,
       ~mk_ed,
       ~mk_term_ed,
       ~calculate_ed,
@@ -307,6 +313,21 @@ let split_views =
       @ offside_view,
     );
   };
+  let enter_left =
+    switch (views.enter_left) {
+    | Some(v) => v
+    | None => parent(Escape(Right))
+    };
+  let enter_right =
+    switch (views.enter_right) {
+    | Some(v) => v
+    | None => parent(Escape(Left))
+    };
+  Hashtbl.add(
+    handoff_map,
+    projector_data.info.id,
+    (enter_left, enter_right),
+  );
   let overlay_view = Option.map(v => wrapper([v]), views.overlay);
   (line_view, overlay_view);
 };
@@ -334,6 +355,8 @@ let all =
            ~inject: 'p_a => Ui_effect.t(unit),
            ~focus: 'p_f => Ui_effect.t(unit),
            ~focussed: option('p_f),
+           ~handoff_map:
+             Hashtbl.t(Id.t, (Ui_effect.t(unit), Ui_effect.t(unit))),
            Model.projector_data(p)
          ) =>
          (Node.t, option(Node.t)),
@@ -341,6 +364,8 @@ let all =
       ~make_active: (Id.t, 'p_f) => Ui_effect.t(unit),
       ~focus,
       ~focussed: option((Id.t, 'p_f)),
+      ~handoff_map:
+         Hashtbl.t(Id.t, (Ui_effect.t(unit), Ui_effect.t(unit))),
       projector_data: list(Model.projector_data(p)),
     ) => {
   /* Sorting the projectors by position tends to be a good
@@ -354,6 +379,7 @@ let all =
     |> List.sort(by_measurement)
     |> List.map((data: Model.projector_data(p)) =>
          split_views(
+           ~handoff_map,
            ~sort=data.status.sort,
            ~parent=
              a =>

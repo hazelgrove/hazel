@@ -77,12 +77,17 @@ module View = {
     inline: Node.t,
     overlay: option(Node.t),
     offside: option(Node.t),
+    enter_left: option(Ui_effect.t(unit)),
+    enter_right: option(Ui_effect.t(unit)),
   };
 
-  let mk = (~overlay=None, ~offside=None, inline) => {
+  let mk =
+      (~overlay=None, ~offside=None, ~enter_left=?, ~enter_right=?, inline) => {
     inline,
     overlay,
     offside,
+    enter_left,
+    enter_right,
   };
 };
 
@@ -149,6 +154,14 @@ type methods('model, 'action, 'focus, 'ed_m, 'ed_a, 'ed_f) = {
           'ed_m
         ) =>
         Node.t,
+      ~enter_ed:
+        (
+          ~inject: 'ed_a => Ui_effect.t(unit),
+          ~focus: 'ed_f => Ui_effect.t(unit),
+          Direction.t,
+          'ed_m
+        ) =>
+        Ui_effect.t(unit),
       ~mk_ed: Any.t => 'ed_m,
       ~mk_term_ed: (~sort: Sort.t, 'ed_m) => ('ed_m, Calc.t(Any.t)),
       ~calculate_ed: (~common: ProjectorInterface.common, 'ed_m) => 'ed_m,

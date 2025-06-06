@@ -61,6 +61,8 @@ module rec Projector: {
         ~inject: Update.t => Ui_effect.t(unit),
         ~focus: Focus.t => Ui_effect.t(unit),
         ~focussed: option(Focus.t),
+        ~handoff_map:
+          Hashtbl.t(Id.t, (Ui_effect.t(unit), Ui_effect.t(unit))),
         ProjectorView.Model.projector_data(Model.t)
       ) =>
       (Web.Node.t, option(Web.Node.t));
@@ -149,6 +151,7 @@ module rec Projector: {
           ~inject: Update.t => Ui_effect.t(unit),
           ~focus: Focus.t => Ui_effect.t(unit),
           ~focussed: option(Focus.t),
+          ~handoff_map,
           m: ProjectorView.Model.projector_data(Model.t),
         )
         : (Web.Node.t, option(Web.Node.t)) =>
@@ -166,8 +169,10 @@ module rec Projector: {
             ~secondary_icons=common.secondary_icons,
           ),
         ~view_editable=Editor.View.view_editable,
+        ~enter_ed=Editor.Focus.enter,
         ~focus,
         ~focussed,
+        ~handoff_map,
         m,
       );
 
@@ -241,6 +246,15 @@ and Editor: {
         t
       ) =>
       Cursor.t;
+
+    let enter:
+      (
+        ~inject: Update.t => Ui_effect.t(unit),
+        ~focus: t => Ui_effect.t(unit),
+        Direction.t,
+        Model.t
+      ) =>
+      Ui_effect.t(unit);
   };
 
   module View: {
@@ -442,6 +456,16 @@ and Editor: {
         m,
         f,
       );
+
+    let enter =
+        (
+          ~inject: Update.t => Ui_effect.t(unit),
+          ~focus: t => Ui_effect.t(unit),
+          dir: Direction.t,
+          m: Model.t,
+        ) => {
+      EditorView.Focus.enter(~inject, ~focus, dir, m);
+    };
   };
 
   module View = {

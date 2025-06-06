@@ -18,11 +18,15 @@ module Focus = {
         ~inject: Action.t(p_k, p_m, p_a) => Ui_effect.t(unit),
         ~key: Key.t,
         ~info_projector,
+        ~enter_prj: (Id.t, Direction.t) => Ui_effect.t(unit),
         model: Editor.Model.t(p_k, p_m, p_a),
       )
       : Ui_effect.t(unit) => {
-    switch (key) {
-    | {key: D("Tab"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up} =>
+    switch (
+      key,
+      Siblings.neighbors(Editor.Model.get_z(model).relatives.siblings),
+    ) {
+    | ({key: D("Tab"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up}, _) =>
       /* Attempt to act intelligently when TAB is pressed.
        * TODO: Consider more advanced TAB logic. Instead
        * of simply moving to next hole, if the backpack is non-empty
@@ -36,6 +40,23 @@ module Focus = {
           : Zipper.can_put_down(z)
               ? inject(Put_down) : inject(Move(Goal(Piece(Grout, Right))));
       Effect.Many([eff, Effect.Stop_propagation]);
+    | (
+        {key: D("ArrowLeft"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up},
+        (Some(Projector({id, _})), _),
+      ) =>
+      enter_prj(id, Right)
+    | (
+        {
+          key: D("ArrowRight"),
+          sys: _,
+          shift: Up,
+          meta: Up,
+          ctrl: Up,
+          alt: Up,
+        },
+        (_, Some(Projector({id, _}))),
+      ) =>
+      enter_prj(id, Left)
     | _ =>
       switch (Keyboard.handle_key_event(~info_projector, key)) {
       | Some(action) =>
@@ -338,6 +359,42 @@ module Focus = {
       focus_parent(Here),
     ]);
   };
+
+  let enter =
+      (
+        ~inject:
+           Editor.Update.t(ProjectorCore.Kind.t, 'd, 'e) => Ui_effect.t(unit),
+        ~focus: t('f) => Ui_effect.t(unit),
+        dir: Direction.t,
+        m: Editor.Model.t('a, 'b, 'c),
+      ) =>
+    Ui_effect.Many([
+      focus_here(~focus_parent=focus, m),
+      switch (dir) {
+      | Left =>
+        inject(
+          Move(
+            Goal(
+              Point({
+                row: 0,
+                col: 0,
+              }),
+            ),
+          ),
+        )
+      | Right =>
+        inject(
+          Move(
+            Goal(
+              Point({
+                row: Int.max_int,
+                col: Int.max_int,
+              }),
+            ),
+          ),
+        )
+      },
+    ]);
 };
 
 let container_target = (current_target: Js.opt(Js.t(Dom_html.element))) =>
@@ -424,6 +481,10 @@ let view_code_editable =
       });
     Deco.editor(Editor.Model.get_z(model), focussed == Some(Here));
   };
+
+  let handoff_map: Hashtbl.t(Id.t, (Ui_effect.t(unit), Ui_effect.t(unit))) =
+    Hashtbl.create(0);
+
   let projectors =
     ProjectorView.all(
       ~split_views,
@@ -436,6 +497,7 @@ let view_code_editable =
         | Some(Projector(id, f)) => Some((id, f))
         | None => None
         },
+      ~handoff_map,
       ProjectorView.Model.mk(
         ~mk_status,
         Calc.get_saved_exc(model.syntax).projectors,
@@ -519,6 +581,16 @@ let view_code_editable =
     | _ => Effect.Ignore
     };
 
+  let enter_prj = (id: Id.t, dir: Direction.t) =>
+    switch (Hashtbl.find_opt(handoff_map, id)) {
+    | None => Ui_effect.Ignore
+    | Some((left, right)) =>
+      switch (dir) {
+      | Left => left
+      | Right => right
+      }
+    };
+
   Node.div(
     ~attrs=[
       Attr.id(Editor.Model.get_web_id(model)),
@@ -539,7 +611,13 @@ let view_code_editable =
       Attr.on_mousemove(evt => drag_select(Pointer.Event.mk(evt))),
       Attr.on_wheel(evt => drag_select(Pointer.Event.mk(evt))),
       Key.handler(~f=key =>
-        Focus.handle_key_event(~inject, ~key, ~info_projector, model)
+        Focus.handle_key_event(
+          ~inject,
+          ~key,
+          ~info_projector,
+          ~enter_prj,
+          model,
+        )
       ),
       Attr.on_copy(evt =>
         Ui_effect.Many([

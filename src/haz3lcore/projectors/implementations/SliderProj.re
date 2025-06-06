@@ -34,6 +34,7 @@ let view =
       ~ed_str as _,
       ~view_ed as _,
       ~view_editable as _,
+      ~enter_ed as _,
       ~mk_ed as _,
       ~mk_term_ed as _,
       ~calculate_ed as _,

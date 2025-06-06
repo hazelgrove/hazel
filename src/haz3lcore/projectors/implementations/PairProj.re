@@ -30,6 +30,7 @@ let methods:
       ~ed_str as _,
       ~view_ed as _,
       ~view_editable,
+      ~enter_ed,
       ~mk_ed as _,
       ~mk_term_ed as _,
       ~calculate_ed as _,
@@ -76,12 +77,30 @@ let methods:
         ),
       offside: None,
       overlay: None,
+      enter_left:
+        Some(
+          enter_ed(
+            ~inject=a => local(Left(a)),
+            ~focus=f => focus(Left(f)),
+            Direction.Left,
+            ed1,
+          ),
+        ),
+      enter_right:
+        Some(
+          enter_ed(
+            ~inject=a => local(Right(a)),
+            ~focus=f => focus(Right(f)),
+            Direction.Right,
+            ed2,
+          ),
+        ),
     },
   placeholder: (~ed_size, (ed1, ed2), _info) => {
     let ed1_size = ed_size(ed1);
     let ed2_size = ed_size(ed2);
     ProjectorShape.{
-      horizontal: ed1_size.row + ed2_size.row + 5,
+      horizontal: ed1_size.row + ed2_size.row + 6,
       vertical: ProjectorShape.Block(max(ed1_size.col, ed2_size.col)),
     };
   },

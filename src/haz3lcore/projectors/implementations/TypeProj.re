@@ -116,6 +116,7 @@ let view =
       ~ed_str,
       ~view_ed,
       ~view_editable as _,
+      ~enter_ed as _,
       ~mk_ed,
       ~mk_term_ed,
       ~calculate_ed,
@@ -160,6 +161,8 @@ let view =
         ),
       ),
     overlay: None,
+    enter_left: None,
+    enter_right: None,
   };
 };
 

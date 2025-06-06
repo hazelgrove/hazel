@@ -232,12 +232,13 @@ let methods:
       ~ed_str as _,
       ~view_ed as _,
       ~view_editable as _,
+      ~enter_ed as _,
       ~mk_ed as _,
       ~mk_term_ed as _,
       ~calculate_ed as _,
       ~local,
       ~parent,
-      ~focus as _,
+      ~focus,
       ~focussed as _,
       model,
       info,
@@ -253,6 +254,30 @@ let methods:
           ),
         ],
       ),
+      ~enter_left=
+        Ui_effect.Many([
+          focus(),
+          Ui_effect.of_sync_fun(
+            () =>
+              Web.TextArea.set_caret_to_start(
+                Web.TextArea.get(Id.cls(info.id)),
+              ),
+            (),
+          ),
+          Effect.Prevent_default,
+        ]),
+      ~enter_right=
+        Ui_effect.Many([
+          focus(),
+          Ui_effect.of_sync_fun(
+            () =>
+              Web.TextArea.set_caret_to_end(
+                Web.TextArea.get(Id.cls(info.id)),
+              ),
+            (),
+          ),
+          Effect.Prevent_default,
+        ]),
     ),
   sexp_of_model,
   model_of_sexp,
