@@ -134,6 +134,23 @@ module Model = {
     };
   };
 
+  let get_projector_model = (id: Id.t, m: t('p_k, 'p, 'p_a)): 'p => {
+    let zipper = m |> get_z;
+    let piece =
+      Zipper.FindPiece.in_zipper(
+        p =>
+          switch (p) {
+          | Projector(p) => p.id == id
+          | _ => false
+          },
+        zipper,
+      );
+    switch (piece) {
+    | Some(Projector(p)) => p.model
+    | _ => failwith("Editor.Model.get_projector_model: no projector found")
+    };
+  };
+
   let get_cached_term = editor => Calc.get_saved_exc(editor.term);
 
   let get_web_id = (type p_k, type p, type p_a, model: t(p_k, p, p_a)) => {

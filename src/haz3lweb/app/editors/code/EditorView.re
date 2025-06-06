@@ -193,16 +193,15 @@ module Focus = {
   let get_cursor_info =
       (
         type p_m,
-        ~get_cursor_info_pr as
-          _:
-            (
-              ~common: ProjectorInterface.common,
-              ~inject: 'p_a => Ui_effect.t(unit),
-              ~read_only: bool,
-              'p_m,
-              'p_f
-            ) =>
-            Cursor.t,
+        ~get_cursor_info_pr:
+           (
+             ~common: ProjectorInterface.common,
+             ~inject: 'p_a => Ui_effect.t(unit),
+             ~read_only: bool,
+             p_m,
+             'p_f
+           ) =>
+           Cursor.t,
         ~common: ProjectorInterface.common,
         ~inject:
            Editor.Update.t(ProjectorCore.Kind.t, p_m, 'p_a) =>
@@ -218,11 +217,9 @@ module Focus = {
         ~make_term_prj,
         ~get_kind,
         m: Editor.Model.t(ProjectorCore.Kind.t, p_m, 'p_a),
-        _f: t('p_f),
+        focus: t('p_f),
       ) => {
     let sys = Os.is_mac^ ? Key.Mac : Key.PC;
-
-    // TODO(Matt|Andrew): check if inner projector is focused
 
     let projector_actions =
       ProjectorActions.mk(
@@ -301,16 +298,28 @@ module Focus = {
       ),
     ];
 
-    Cursor.{
-      info: Indicated.ci_of(m |> Editor.Model.get_z, common.statics.info_map),
-      contextual_actions: projector_actions @ read_only_actions,
-      current_projector:
-        Option.map(
-          ProjectorCore.Kind.name,
-          ProjectorActions.indicated_kind(m, get_kind),
-        ),
-    }
-    |> Cursor.with_actions_if(!read_only, editor_actions);
+    switch (focus) {
+    | Here =>
+      Cursor.{
+        info:
+          Indicated.ci_of(m |> Editor.Model.get_z, common.statics.info_map),
+        contextual_actions: projector_actions @ read_only_actions,
+        current_projector:
+          Option.map(
+            ProjectorCore.Kind.name,
+            ProjectorActions.indicated_kind(m, get_kind),
+          ),
+      }
+      |> Cursor.with_actions_if(!read_only, editor_actions)
+    | Projector(id, f) =>
+      get_cursor_info_pr(
+        ~common,
+        ~inject=x => inject(Project(Perform(id, x))),
+        ~read_only,
+        Editor.Model.get_projector_model(id, m),
+        f,
+      )
+    };
   };
 
   let focus_here =
