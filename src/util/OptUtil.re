@@ -43,7 +43,20 @@ let replace = (f: 'a => option('a), o: 'a): 'a =>
   | Some(a) => a
   | None => o
   };
-
+let fold_left_opt:
+  type a acc. ((acc, a) => option(acc), list(a), acc) => option(acc) =
+  (f, list, init) => {
+    let rec aux = (acc, rest) =>
+      switch (rest) {
+      | [] => Some(acc)
+      | [x, ...xs] =>
+        switch (f(acc, x)) {
+        | None => None
+        | Some(nextAcc) => aux(nextAcc, xs)
+        }
+      };
+    aux(init, list);
+  };
 module Syntax = {
   let ( let* ) = Option.bind;
   let (let+) = (o, f) => Option.map(f, o);

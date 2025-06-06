@@ -10,6 +10,7 @@ type var_entry = {
   name: Var.t,
   id: Id.t,
   typ: TermBase.typ_t,
+  builtin: bool // true if this is a builtin
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -168,6 +169,7 @@ let add_ctrs = (ctx: t, name: string, id: Id.t, ctrs: TermBase.Typ.sum_map): t =
                 )
                 |> IdTagged.fresh
               },
+            builtin: false,
           }),
         )
       | ConstructorMap.BadEntry(_) => None,
