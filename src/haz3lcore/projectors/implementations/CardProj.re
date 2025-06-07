@@ -50,13 +50,6 @@ type mode =
   | Flipped;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type model('ed_m) = {
-  mode,
-  sort,
-  collection,
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
 type action('ed_a) =
   | SetMode(mode)
   | ReplaceCard(card)
@@ -66,27 +59,17 @@ type action('ed_a) =
 type focus('ed_f) =
   |;
 
-let model_of_sexp = (ed_of_sexp, sexp: Sexplib.Sexp.t): model('ed_m) =>
-  switch (model_of_sexp(ed_of_sexp, sexp)) {
-  | exception _ => {
-      mode: Show,
-      sort: Exp,
-      collection: Card((UnknownS, UnknownR)),
-    }
-  | m => m
-  };
-
 let sort_of = (sort: Sort.t): sort =>
   switch (sort) {
-  | Sort.Exp => Exp
-  | Sort.Pat => Pat
+  | Exp => Exp
+  | Pat => Pat
   | _ => Exp
   };
 
 let to_sort = (sort: sort): Sort.t =>
   switch (sort) {
-  | Exp => Sort.Exp
-  | Pat => Sort.Pat
+  | Exp => Exp
+  | Pat => Pat
   };
 
 let suit_to_int = (suit: suit): int =>
@@ -116,7 +99,26 @@ let rank_to_int = (rank: rank): int =>
   | UnknownR => 14
   };
 
-module SyntaxTerm = {
+module Model = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    mode,
+    sort,
+    collection,
+  };
+
+  let default_model: t = {
+    mode: Show,
+    sort: Exp,
+    collection: Card((UnknownS, UnknownR)),
+  };
+
+  let model_of_sexp = (sexp: Sexplib.Sexp.t): t =>
+    switch (t_of_sexp(sexp)) {
+    | exception _ => default_model
+    | m => m
+    };
+
   let rec strip_wraps_pat = (p: Pat.t): Pat.t => {
     switch (p.term) {
     | Parens(inner) =>
@@ -141,12 +143,13 @@ module SyntaxTerm = {
 
   open IdTagged.FreshGrammar;
   open OptUtil.Syntax;
+  open Sexplib;
 
   let card_to_exp = ((suit, rank): card): Term.Exp.t =>
     Exp.parens(
       Exp.tuple([
-        Exp.constructor(Sexplib.Sexp.to_string(sexp_of_suit(suit)), None),
-        Exp.constructor(Sexplib.Sexp.to_string(sexp_of_rank(rank)), None),
+        Exp.constructor(Sexp.to_string(sexp_of_suit(suit)), None),
+        Exp.constructor(Sexp.to_string(sexp_of_rank(rank)), None),
       ]),
     );
 
@@ -155,13 +158,11 @@ module SyntaxTerm = {
       Pat.tuple([
         switch (suit) {
         | UnknownS => Pat.wild()
-        | _ =>
-          Pat.constructor(Sexplib.Sexp.to_string(sexp_of_suit(suit)), None)
+        | _ => Pat.constructor(Sexp.to_string(sexp_of_suit(suit)), None)
         },
         switch (rank) {
         | UnknownR => Pat.wild()
-        | _ =>
-          Pat.constructor(Sexplib.Sexp.to_string(sexp_of_rank(rank)), None)
+        | _ => Pat.constructor(Sexp.to_string(sexp_of_rank(rank)), None)
         },
       ]),
     );
@@ -178,7 +179,7 @@ module SyntaxTerm = {
     | Hand(hand) => Pat.list_lit(List.map(card_to_pat, hand))
     };
 
-  let cards_to_term = (m: model(_)): Term.Any.t => {
+  let to_term = (m: t): Term.Any.t => {
     switch (m.sort) {
     | Exp => Exp(collection_to_exp(m.collection))
     | Pat => Pat(collection_to_pat(m.collection))
@@ -234,7 +235,7 @@ module SyntaxTerm = {
     };
   };
 
-  let term_to_cards = (term: Term.Any.t): option(model('ed_m)) => {
+  let of_term = (term: Term.Any.t): option(t) => {
     switch (term) {
     | Exp(term) =>
       switch (strip_wraps_exp(term).term) {
@@ -274,6 +275,9 @@ module SyntaxTerm = {
     };
   };
 };
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type model('ed_m) = Model.t;
 
 module Card = {
   /* Card images are stored in a spritesheet. The sheet image
@@ -555,7 +559,8 @@ let update =
       _,
       {mode, sort, collection} as old: model('ed_m),
       action,
-    ) =>
+    )
+    : model('ed_m) =>
   switch (action) {
   | SetMode(mode) => {
       mode,
@@ -611,8 +616,7 @@ let view =
 };
 
 let methods = {
-  init: (~copy_ed as _, term: TermBase.Any.t, _ed) =>
-    SyntaxTerm.term_to_cards(term),
+  init: (~copy_ed as _, term: TermBase.Any.t, _ed) => Model.of_term(term),
   focusable: Focusable.non,
   dynamics: false,
   placeholder: (~ed_size as _, model: model('ed), _info) => {
@@ -631,7 +635,7 @@ let methods = {
   update,
   mk_term: (~mk_term_ed as _, ~sort as _, ~prev as _, m) => (
     m,
-    NewValue(SyntaxTerm.cards_to_term(m)),
+    NewValue(Model.to_term(m)),
   ),
   view,
   calculate: Calculate.default,
