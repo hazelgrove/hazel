@@ -11,22 +11,18 @@ type action('ed_a) =
 type focus('ed_f) =
   |;
 
-let int_of = (any: Any.t): option(Bigint.t) =>
+let init = (~copy_ed as _, any: Term.Any.t, _ed) =>
   switch (any) {
   | Exp({term: Atom(Int(i)), _}) => Some(i)
   | _ => None
   };
 
-let init = (~copy_ed as _, any: Term.Any.t, _ed) =>
-  switch (int_of(any)) {
-  | Some(i) => Some(i)
-  | None => None
-  };
-
-let focusable = Focusable.non;
-let dynamics = false;
-let placeholder = (~ed_size as _, _, _) => ProjectorShape.inline(10);
-let update = (~update_ed as _, ~common as _, ~sort as _, _, _, Set(n)) => n;
+let mk_term =
+    (~mk_term_ed as _, ~sort as _, ~prev as _, m)
+    : (model('a), Calc.t(Any.t)) => (
+  m,
+  NewValue(Exp(Atom(Int(m)) |> Exp.fresh)),
+);
 
 let view =
     (
@@ -44,7 +40,8 @@ let view =
       ~focussed as _,
       model,
       _info,
-    ) =>
+    )
+    : View.t =>
   View.mk(
     Util.Web.range(
       ~attrs=[Attr.on_input((_, v) => local(Set(Bigint.of_string(v))))],
@@ -52,33 +49,16 @@ let view =
     ),
   );
 
-let mk_term =
-    (~mk_term_ed as _, ~sort as _, ~prev as _, m)
-    : (model('a), Calc.t(Any.t)) => (
-  m,
-  NewValue(Exp(Atom(Int(m)) |> Exp.fresh)),
-);
-
-let get_cursor_info =
-    (
-      ~get_cursor_info_ed as _,
-      ~common as _,
-      ~inject as _: action('a) => Ui_effect.t(unit),
-      ~read_only as _,
-      _model,
-      _focus,
-    ) => Cursor.empty;
-
 let methods = {
   init,
-  focusable,
-  dynamics,
-  placeholder,
+  focusable: Focusable.non,
+  dynamics: false,
+  placeholder: (~ed_size as _, _, _) => ProjectorShape.inline(10),
+  update: (~update_ed as _, ~common as _, ~sort as _, _, _, Set(n)) => n,
+  calculate: Calculate.default,
   view,
-  update,
-  calculate: (~calculate_ed as _, ~common as _, m) => m,
   mk_term,
-  get_cursor_info,
+  get_cursor_info: CursorInfo.default,
   sexp_of_model,
   model_of_sexp,
   yojson_of_model,

@@ -41,7 +41,14 @@ module Kind = {
                 'ed_a,
                 'ed_f,
               )
-    // | SliderF: gadt(SliderFProj.model('ed), SliderFProj.action, 'ed)
+    | SliderF: gadt(
+                 SliderFProj.model('ed),
+                 SliderFProj.action('ed_a),
+                 SliderFProj.focus('ed_f),
+                 'ed,
+                 'ed_a,
+                 'ed_f,
+               )
     // | Card: gadt(CardProj.model('ed), CardProj.action, 'ed)
     | Livelit: gadt(
                  LivelitProj.model('ed),
@@ -72,7 +79,7 @@ module Kind = {
     // | Probe
     // | Checkbox
     | Slider
-    // | SliderF
+    | SliderF
     // | Card
     | Livelit
     | TextArea;
@@ -101,6 +108,8 @@ module Kind = {
     | (Pair, _) => false
     | (Slider, Slider) => true
     | (Slider, _) => false
+    | (SliderF, SliderF) => true
+    | (SliderF, _) => false
     | (Livelit, Livelit) => true
     | (Livelit, _) => false
     | (TextArea, TextArea) => true
@@ -126,8 +135,8 @@ module Kind = {
     // | Probe => Probe
     // | Checkbox => Checkbox
     | Slider => Slider
+    | SliderF => SliderF
     | Livelit => Livelit
-    // | SliderF => SliderF
     // | Card => Card
     | TextArea => TextArea
     };
@@ -144,7 +153,7 @@ module Kind = {
     // | Checkbox => f(W(Checkbox))
     | Slider => f(W(Slider))
     | Livelit => f(W(Livelit))
-    // | SliderF => f(W(SliderF))
+    | SliderF => f(W(SliderF))
     // | Card => f(W(Card))
     | TextArea => f(W(TextArea))
     };
@@ -153,7 +162,7 @@ module Kind = {
     // Checkbox,
     Slider,
     Pair,
-    // SliderF,
+    SliderF,
     TextArea,
     // Card,
     // Livelit,
@@ -180,7 +189,7 @@ module Kind = {
     // | Checkbox => "check"
     | Slider => "slider"
     | Livelit => "livelit"
-    // | SliderF => "sliderf"
+    | SliderF => "sliderf"
     // | Card => "card"
     | TextArea => "text"
     };
@@ -197,7 +206,7 @@ module Kind = {
     // | "check" => Checkbox
     | "slider" => Slider
     | "livelit" => Livelit
-    // | "sliderf" => SliderF
+    | "sliderf" => SliderF
     | "text" => TextArea
     // | "card" => Card
     | _ => failwith("Unknown projector kind")
@@ -233,7 +242,7 @@ let to_module =
   // | Checkbox => CheckboxProj.methods
   | Slider => SliderProj.methods
   | Livelit => LivelitProj.methods
-  // | SliderF => SliderFProj.methods
+  | SliderF => SliderFProj.methods
   // | Card => CardProj.methods
   | TextArea => TextAreaProj.methods
   };

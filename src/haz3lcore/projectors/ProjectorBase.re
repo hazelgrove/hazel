@@ -46,6 +46,22 @@ module Focusable = {
   };
 };
 
+module Calculate = {
+  let default = (~calculate_ed as _, ~common as _, m) => m;
+};
+
+module CursorInfo = {
+  let default =
+      (
+        ~get_cursor_info_ed as _,
+        ~common as _,
+        ~inject as _,
+        ~read_only as _,
+        _model,
+        _focus,
+      ) => Cursor.empty;
+};
+
 /* External info proivded to all projectors */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type info = {
@@ -189,7 +205,7 @@ type methods('model, 'action, 'focus, 'ed_m, 'ed_a, 'ed_f) = {
   focus_of_sexp: (Sexplib.Sexp.t => 'ed_f, Sexplib.Sexp.t) => 'focus,
   yojson_of_focus: ('ed_f => Yojson.Safe.t, 'focus) => Yojson.Safe.t,
   focus_of_yojson: (Yojson.Safe.t => 'ed_f, Yojson.Safe.t) => 'focus,
-} /* }*/;
+};
 
 // /* To add a new projector:
 //  * 1. Create a new module implementing Projector (e.g. FoldProj)
