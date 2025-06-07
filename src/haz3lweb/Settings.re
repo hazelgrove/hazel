@@ -98,6 +98,13 @@ module Update = {
     | ExplainThis(ExplainThisModel.Settings.action)
     | FlipAnimations;
 
+  let can_undo = (action: t) => {
+    switch (action) {
+    | Evaluation(ShowSettings) => false
+    | _ => true
+    };
+  };
+
   let update = (action, settings: Model.t): Updated.t(Model.t) => {
     (
       switch (action) {
