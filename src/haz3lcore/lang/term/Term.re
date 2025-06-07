@@ -931,6 +931,14 @@ module Any = {
     fun
     | Typ(t) => Some(t)
     | _ => None;
+  let is_tpat: t => option(TermBase.TPat.t) =
+    fun
+    | TPat(tp) => Some(tp)
+    | _ => None;
+  let is_rul: t => option(TermBase.Rul.t) =
+    fun
+    | Rul(r) => Some(r)
+    | _ => None;
 
   let rec ids: TermBase.any_t => list(Id.t) =
     fun

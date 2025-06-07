@@ -14,7 +14,14 @@ open Util;
 
 module Kind = {
   type gadt('model, 'action, 'focus, 'ed, 'ed_a, 'ed_f) =
-    // | Fold: gadt(FoldProj.model('ed), FoldProj.action, 'ed)
+    | Fold: gadt(
+              FoldProj.model('ed),
+              FoldProj.action('ed_a),
+              FoldProj.focus('ed_f),
+              'ed,
+              'ed_a,
+              'ed_f,
+            )
     | Info: gadt(
               TypeProj.model('ed),
               TypeProj.action('ed_a),
@@ -80,7 +87,7 @@ module Kind = {
    * able to create and update their instances */
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t =
-    // | Fold
+    | Fold
     | Info
     | Pair
     // | Probe
@@ -111,6 +118,8 @@ module Kind = {
     switch (gadt1, gadt2) {
     | (Info, Info) => true
     | (Info, _) => false
+    | (Fold, Fold) => true
+    | (Fold, _) => false
     | (Checkbox, Checkbox) => true
     | (Checkbox, _) => false
     | (Slider, Slider) => true
@@ -138,7 +147,7 @@ module Kind = {
       )
       : t =>
     switch (kind) {
-    // | Fold => Fold
+    | Fold => Fold
     | Info => Info
     | Pair => Pair
     // | Probe => Probe
@@ -155,7 +164,7 @@ module Kind = {
 
   let (let.gadt) = (type b, kind: t, f: w('ed, 'ed_a, 'ed_f) => b) =>
     switch (kind) {
-    // | Fold => f(W(Fold))
+    | Fold => f(W(Fold))
     | Info => f(W(Info))
     | Pair => f(W(Pair))
     // | Probe => f(W(Probe))
@@ -180,7 +189,7 @@ module Kind = {
   let projectors: list(t) =
     livelit_projectors
     @ [
-      // Fold,
+      Fold,
       Info,
       Livelit,
       // Probe
@@ -191,7 +200,7 @@ module Kind = {
    * selecting projectors in the projector panel menu */
   let name = (p: t): string =>
     switch (p) {
-    // | Fold => "fold"
+    | Fold => "fold"
     | Info => "type"
     | Pair => "pair"
     // | Probe => "probe"
@@ -244,7 +253,7 @@ let to_module =
     )
     : ProjectorBase.methods(model, action, focus, ed_m, ed_a, ed_f) =>
   switch (kind) {
-  // | Fold => FoldProj.methods
+  | Fold => FoldProj.methods
   | Info => TypeProj.methods
   | Pair => PairProj.methods
   // | Probe => ProbeProj.methods

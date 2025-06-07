@@ -19,8 +19,8 @@ type focus('ed_f) =
 let methods:
   methods(model('ed_m), action('ed_a), focus('ed_f), 'ed_m, 'ed_a, 'ed_f) = {
   init: (~copy_ed, _any, ed) => {
-    let* ed = ed();
-    Some((ed, copy_ed(ed)));
+    let+ ed = ed();
+    (ed, copy_ed(ed));
   },
   focusable: Focusable.non, // TODO: Internal focus handling
   dynamics: false,
