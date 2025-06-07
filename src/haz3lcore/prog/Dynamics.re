@@ -43,8 +43,15 @@ module Probe = {
     let mk_entry = (env: Environment.t, {name, id, _}: Binding.t) =>
       switch (Environment.lookup(env, name)) {
       | Some(d) =>
-        let binding = Binding.{name, id};
-        Some({binding, value: elide(env, d)});
+        let binding =
+          Binding.{
+            name,
+            id,
+          };
+        Some({
+          binding,
+          value: elide(env, d),
+        });
       | None => None
       };
 

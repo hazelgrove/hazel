@@ -78,7 +78,10 @@ let tests = [
                     Exp(
                       Common(
                         Inconsistent(
-                          Expectation({ana: string(), syn: bool()}),
+                          Expectation({
+                            ana: string(),
+                            syn: bool(),
+                          }),
                         ),
                       ),
                     )
@@ -125,7 +128,10 @@ let tests = [
                     Exp(
                       Common(
                         Inconsistent(
-                          Expectation({ana: string(), syn: int()}),
+                          Expectation({
+                            ana: string(),
+                            syn: int(),
+                          }),
                         ),
                       ),
                     )

@@ -188,7 +188,13 @@ let rec parenthesize =
   | Closure(_, x)
   | DynamicErrorHole(x, _) => parenthesize(x)
   | Filter(Filter({pat, act}), x) =>
-    Filter(Filter({pat: parenthesize(pat), act}), parenthesize(x))
+    Filter(
+      Filter({
+        pat: parenthesize(pat),
+        act,
+      }),
+      parenthesize(x),
+    )
     |> rewrap
   | Filter(Residue(_), x) => x |> parenthesize
   // Other forms
@@ -706,7 +712,12 @@ let fold_fun_if = (condition, f_name: string, pieces) =>
    */
 let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   let go = (~inline=settings.inline) =>
-    exp_to_pretty(~settings={...settings, inline});
+    exp_to_pretty(
+      ~settings={
+        ...settings,
+        inline,
+      },
+    );
   switch (exp |> Exp.term_of) {
   // Assume these have been removed by the parenthesizer
   | DynamicErrorHole(_)
@@ -733,7 +744,12 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   | Invalid(x) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, x)
   | EmptyHole =>
     let id = exp |> Exp.rep_id;
-    p_just([Grout({id, shape: Convex})]);
+    p_just([
+      Grout({
+        id,
+        shape: Convex,
+      }),
+    ]);
   | Undefined => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "undefined")
   | Atom(c) =>
     text_to_pretty(exp |> Exp.rep_id, Sort.Exp, Atom.to_literal(c))
@@ -792,7 +808,13 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
     let+ es = es |> List.map(any_to_pretty(~settings)) |> all;
-    ListUtil.flat_intersperse(Grout({id, shape: Concave}), es);
+    ListUtil.flat_intersperse(
+      Grout({
+        id,
+        shape: Concave,
+      }),
+      es,
+    );
   | Parens({term: Fun(p, e, _, _), _} as inner_exp)
   | Probe({term: Fun(p, e, _, _), _} as inner_exp, _) =>
     // TODO: Add optional newlines
@@ -1085,7 +1107,12 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
   | Invalid(t) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, t)
   | EmptyHole =>
     let id = pat |> Pat.rep_id;
-    p_just([Grout({id, shape: Convex})]);
+    p_just([
+      Grout({
+        id,
+        shape: Convex,
+      }),
+    ]);
   | Wild => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "_")
   | Var(v) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, v)
   | Atom(c) =>
@@ -1160,7 +1187,13 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
   | MultiHole(es) =>
     let id = pat |> Pat.rep_id;
     let+ es = es |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
-    ListUtil.flat_intersperse(Grout({id, shape: Concave}), es);
+    ListUtil.flat_intersperse(
+      Grout({
+        id,
+        shape: Concave,
+      }),
+      es,
+    );
   | Ap(p1, p2) =>
     let id = pat |> Pat.rep_id;
     let+ p1 = go(p1)
@@ -1209,14 +1242,25 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
   | Unknown(Hole(EmptyHole)) =>
     if (settings.show_unknown_as_hole) {
       let id = typ |> Typ.rep_id;
-      p_just([Grout({id, shape: Convex})]);
+      p_just([
+        Grout({
+          id,
+          shape: Convex,
+        }),
+      ]);
     } else {
       text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "?");
     }
   | Unknown(Hole(MultiHole(es))) =>
     let id = typ |> Typ.rep_id;
     let+ es = es |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
-    ListUtil.flat_intersperse(Grout({id, shape: Concave}), es);
+    ListUtil.flat_intersperse(
+      Grout({
+        id,
+        shape: Concave,
+      }),
+      es,
+    );
 
   | Var(v) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, v)
   | Atom(Int) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Int")
@@ -1310,11 +1354,22 @@ and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
   | Invalid(t) => text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, t)
   | EmptyHole =>
     let id = tpat |> TPat.rep_id;
-    p_just([Grout({id, shape: Convex})]);
+    p_just([
+      Grout({
+        id,
+        shape: Convex,
+      }),
+    ]);
   | MultiHole(xs) =>
     let id = tpat |> TPat.rep_id;
     let+ xs = xs |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
-    ListUtil.flat_intersperse(Grout({id, shape: Concave}), xs);
+    ListUtil.flat_intersperse(
+      Grout({
+        id,
+        shape: Concave,
+      }),
+      xs,
+    );
   | Var(v) => text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, v)
   };
 }
@@ -1328,7 +1383,12 @@ and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
   | Rul(_) =>
     //TODO: print out invalid rules properly
     let id = any |> Any.rep_id;
-    p_just([Grout({id, shape: Convex})]);
+    p_just([
+      Grout({
+        id,
+        shape: Convex,
+      }),
+    ]);
   };
 };
 

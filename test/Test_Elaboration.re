@@ -886,7 +886,10 @@ module MenhirElaborationTests = {
   let filter_str = "eval 1 in 0";
   let stepper_filter_kind: TermBase.stepper_filter_kind_t =
     StepperFilter.(
-      filter({pat: Exp.int(1), act: (FilterAction.Eval, FilterAction.All)})
+      filter({
+        pat: Exp.int(1),
+        act: (FilterAction.Eval, FilterAction.All),
+      })
     );
   let filter_uexp: Exp.t = Exp.(filter(stepper_filter_kind, int(0)));
   let filter_menhir = () =>

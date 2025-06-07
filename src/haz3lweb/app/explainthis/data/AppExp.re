@@ -87,11 +87,20 @@ let deferred_funapp_exp: form = {
   };
 };
 
-let funaps: group = {id: FunApExp, forms: [funapp_exp]};
+let funaps: group = {
+  id: FunApExp,
+  forms: [funapp_exp],
+};
 
-let conaps: group = {id: ConApExp, forms: [conapp_exp]};
+let conaps: group = {
+  id: ConApExp,
+  forms: [conapp_exp],
+};
 
-let deferredaps: group = {id: DeferredApExp, forms: [deferred_funapp_exp]};
+let deferredaps: group = {
+  id: DeferredApExp,
+  forms: [deferred_funapp_exp],
+};
 
 let livelitapp_exp_ex = {
   sub_id: LivelitAp,
@@ -118,4 +127,7 @@ let livelitapp_exp: form = {
   };
 };
 
-let livelitaps: group = {id: LivelitApExp, forms: [livelitapp_exp]};
+let livelitaps: group = {
+  id: LivelitApExp,
+  forms: [livelitapp_exp],
+};

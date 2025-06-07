@@ -144,7 +144,10 @@ module Uf: {
     refs: ref(Map.t(M.rref('a))),
     store: M.store('a),
   };
-  let init = () => {refs: ref(Map.empty), store: M.new_store()};
+  let init = () => {
+    refs: ref(Map.empty),
+    store: M.new_store(),
+  };
   let rref = (id, s) => Map.find(id, s.refs^);
   let add = (id, a, s) =>
     switch (Map.find_opt(id, s.refs^)) {

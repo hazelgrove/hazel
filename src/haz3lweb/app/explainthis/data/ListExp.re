@@ -70,8 +70,17 @@ let list_concat_exp: form = {
   };
 };
 
-let listlits: group = {id: ListExp, forms: [list_exp]};
+let listlits: group = {
+  id: ListExp,
+  forms: [list_exp],
+};
 
-let listcons: group = {id: ConsExp, forms: [cons_exp]};
+let listcons: group = {
+  id: ConsExp,
+  forms: [cons_exp],
+};
 
-let listconcats: group = {id: ListConcatExp, forms: [list_concat_exp]};
+let listconcats: group = {
+  id: ListConcatExp,
+  forms: [list_concat_exp],
+};

@@ -177,7 +177,10 @@ module Transition = (EV: EV_MODE) => {
             DHExp.t
           ) =>
           EV.result,
-        ~mode: [ | `Substitution | `Environment],
+        ~mode: [
+           | `Substitution
+           | `Environment
+         ],
         ~in_closure: option(unit => unit)=?,
         state: state,
         env: TermBase.closure_environment_t, // Empty in substitution mode
@@ -186,7 +189,11 @@ module Transition = (EV: EV_MODE) => {
       : EV.result => {
     // Split DHExp into term and id information
     let (term, rewrap) = DHExp.unwrap(d);
-    let wrap_ctx = (term): EvalCtx.t => Term({term, ids: [rep_id(d)]});
+    let wrap_ctx = (term): EvalCtx.t =>
+      Term({
+        term,
+        ids: [rep_id(d)],
+      });
 
     let (let.wrap_closure) = (env, f: unit => rule) =>
       switch (mode) {
@@ -232,7 +239,12 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d1 => Seq(d1, d2) |> rewrap)
       and. _ =
         req_final(req(state, env), d1 => Seq1(d1, d2) |> wrap_ctx, d1);
-      Step({expr: d2, state_update, kind: Seq, is_value: false});
+      Step({
+        expr: d2,
+        state_update,
+        kind: Seq,
+        is_value: false,
+      });
     | Let(dp, d1, d2) =>
       let. _ = otherwise(env, d1 => Let(dp, d1, d2) |> rewrap)
       and. d1' =
@@ -433,7 +445,12 @@ module Transition = (EV: EV_MODE) => {
              });
         switch (builtin(d2')) {
         | Some(expr) =>
-          Step({expr, state_update, kind: BuiltinAp(ident), is_value: false})
+          Step({
+            expr,
+            state_update,
+            kind: BuiltinAp(ident),
+            is_value: false,
+          })
         | None => Indet
         };
       | DeferredAp(d3, d4s) =>
@@ -519,7 +536,12 @@ module Transition = (EV: EV_MODE) => {
             // e.g. divide by zero
             dynamic_error_hole(UnOp(op, d1) |> rewrap, error)
           };
-        Step({expr, state_update, kind: UnOp(op), is_value: true});
+        Step({
+          expr,
+          state_update,
+          kind: UnOp(op),
+          is_value: true,
+        });
       };
     | BinOp(Bool(And), d1, d2) =>
       let. _ = otherwise(env, d1 => BinOp(Bool(And), d1, d2) |> rewrap)
@@ -578,7 +600,12 @@ module Transition = (EV: EV_MODE) => {
             // e.g. divide by zero
             dynamic_error_hole(BinOp(op, d1, d2) |> rewrap, error)
           };
-        Step({expr, state_update, kind: BinOp(op), is_value: true});
+        Step({
+          expr,
+          state_update,
+          kind: BinOp(op),
+          is_value: true,
+        });
       };
     | Dot(d1, d2) =>
       let. _ = otherwise(env, (d1, d2) => Dot(d1, d2) |> rewrap)
@@ -590,7 +617,12 @@ module Transition = (EV: EV_MODE) => {
       | (Tuple(ds), Label(name)) =>
         switch (LabeledTuple.find_label(Exp.match_tup_label, ds, name)) {
         | Some({term: TupLabel(_, exp), _}) =>
-          Step({expr: exp, state_update, kind: Dot, is_value: false})
+          Step({
+            expr: exp,
+            state_update,
+            kind: Dot,
+            is_value: false,
+          })
         | _ => Indet
         }
       | (TupLabel(_, d), Label(name)) =>
@@ -598,7 +630,13 @@ module Transition = (EV: EV_MODE) => {
           Exp.match_tup_label(d1'),
           Some((name, d)),
         )
-          ? Step({expr: d, state_update, kind: Dot, is_value: false}) : Indet
+          ? Step({
+              expr: d,
+              state_update,
+              kind: Dot,
+              is_value: false,
+            })
+          : Indet
       | _ => Indet
       };
     | TupLabel(label, d1) =>
@@ -720,7 +758,12 @@ module Transition = (EV: EV_MODE) => {
       if (needs_closure^) {
         Constructor;
       } else {
-        Step({expr: d', state_update, kind: CompleteClosure, is_value: true});
+        Step({
+          expr: d',
+          state_update,
+          kind: CompleteClosure,
+          is_value: true,
+        });
       };
     | MultiHole(_) =>
       let. _ = otherwise(env, d);
@@ -740,7 +783,13 @@ module Transition = (EV: EV_MODE) => {
       and. d' =
         req_final(req(state, env), d => Cast(d, t1, t2) |> wrap_ctx, d);
       switch (Casts.transition(Cast(d', t1, t2) |> rewrap)) {
-      | Some(d) => Step({expr: d, state_update, kind: Cast, is_value: false})
+      | Some(d) =>
+        Step({
+          expr: d,
+          state_update,
+          kind: Cast,
+          is_value: false,
+        })
       | None => Constructor
       };
     | FailedCast(d1, t1, t2) =>
@@ -776,18 +825,38 @@ module Transition = (EV: EV_MODE) => {
       });
     | Parens(d) =>
       let. _ = otherwise(env, d);
-      Step({expr: d, state_update, kind: RemoveParens, is_value: false});
+      Step({
+        expr: d,
+        state_update,
+        kind: RemoveParens,
+        is_value: false,
+      });
     | TyAlias(_, _, d) =>
       let. _ = otherwise(env, d);
-      Step({expr: d, state_update, kind: RemoveTypeAlias, is_value: false});
+      Step({
+        expr: d,
+        state_update,
+        kind: RemoveTypeAlias,
+        is_value: false,
+      });
     | Use(_, d) =>
       let. _ = otherwise(env, d);
-      Step({expr: d, state_update, kind: RemoveUse, is_value: true});
+      Step({
+        expr: d,
+        state_update,
+        kind: RemoveUse,
+        is_value: true,
+      });
     | Filter(f1, d1) =>
       let. _ = otherwise(env, d1 => Filter(f1, d1) |> rewrap)
       and. d1 =
         req_final(req(state, env), d1 => Filter(f1, d1) |> wrap_ctx, d1);
-      Step({expr: d1, state_update, kind: CompleteFilter, is_value: true});
+      Step({
+        expr: d1,
+        state_update,
+        kind: CompleteFilter,
+        is_value: true,
+      });
     };
   };
 };

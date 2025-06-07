@@ -32,7 +32,11 @@ module M: Projector = {
     switch (
       info.utility.lift_syntax(
         fun
-        | Exp(t) => Exp({...t, term: Atom(Float(float_of_string(v)))})
+        | Exp(t) =>
+          Exp({
+            ...t,
+            term: Atom(Float(float_of_string(v))),
+          })
         | _ => failwith("SliderF: Put: not float literal"),
         info.syntax,
       )

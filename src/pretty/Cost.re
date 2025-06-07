@@ -15,9 +15,15 @@ let mk_height = (height_cost: int): t => mk(~overflow_cost=0, ~height_cost);
 let mk_overflow = (overflow_cost: int): t =>
   mk(~overflow_cost, ~height_cost=0);
 
-let zero: t = {overflow_cost: 0, height_cost: 0};
+let zero: t = {
+  overflow_cost: 0,
+  height_cost: 0,
+};
 
-let inf: t = {overflow_cost: max_int, height_cost: max_int};
+let inf: t = {
+  overflow_cost: max_int,
+  height_cost: max_int,
+};
 
 let add = (c1: t, c2: t): t => {
   overflow_cost: c1.overflow_cost + c2.overflow_cost,

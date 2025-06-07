@@ -110,7 +110,11 @@ let start = {
   let%sub size =
     BonsaiUtil.SizeObserver.observer(
       () => JsUtil.get_elem_by_id("font-specimen"),
-      ~default=BonsaiUtil.SizeObserver.Size.{width: 10., height: 10.},
+      ~default=
+        BonsaiUtil.SizeObserver.Size.{
+          width: 10.,
+          height: 10.,
+        },
     );
   let%sub () =
     /* Note: once Bonsai is threaded through the system, we won't need

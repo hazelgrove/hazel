@@ -87,7 +87,10 @@ module Slider: BuiltinLivelit = {
   };
 
   let size: ProjectorCore.Shape.t =
-    ProjectorCore.Shape.{vertical: Inline, horizontal: 20};
+    ProjectorCore.Shape.{
+      vertical: Inline,
+      horizontal: 20,
+    };
 };
 
 module Emotion: BuiltinLivelit = {
@@ -176,7 +179,11 @@ module Emotion: BuiltinLivelit = {
       | _ => None
       };
 
-  let size = ProjectorCore.Shape.{vertical: Block(10), horizontal: 20};
+  let size =
+    ProjectorCore.Shape.{
+      vertical: Block(10),
+      horizontal: 20,
+    };
 
   let view = (model: model_t, send_action) => {
     let n = model;
@@ -284,13 +291,19 @@ module Js: BuiltinLivelit = {
           {term: Atom(String(code)), _},
           {term: Atom(String(result)), _},
         ]) =>
-        Some({code, result})
+        Some({
+          code,
+          result,
+        })
       | _ => None
       };
     };
 
   /* Default model: "1 + 1" with empty result. */
-  let model_default: model_t = {code: "1 + 1", result: ""};
+  let model_default: model_t = {
+    code: "1 + 1",
+    result: "",
+  };
 
   /* Expansion type in Hazel: a string. */
   let hazel_expansion_t: TermBase.Typ.t = Typ.temp(Atom(String));
@@ -364,7 +377,12 @@ module Js: BuiltinLivelit = {
             _,
           },
         ) =>
-        Some(SetModel({code, result}))
+        Some(
+          SetModel({
+            code,
+            result,
+          }),
+        )
       | _ => None
       };
 
@@ -381,7 +399,10 @@ module Js: BuiltinLivelit = {
           Attr.on_input((_, v: string) => {
             /* Update the code, keep the same result */
             send_action(
-              SetModel({code: v, result: model.result}),
+              SetModel({
+                code: v,
+                result: model.result,
+              }),
             )
           }),
         ],
@@ -396,7 +417,10 @@ module Js: BuiltinLivelit = {
               Js_of_ocaml.Js.Unsafe.eval_string("String(" ++ code ++ ")");
 
             send_action(
-              SetModel({code, result: Js_of_ocaml.Js.to_string(evaluated)}),
+              SetModel({
+                code,
+                result: Js_of_ocaml.Js.to_string(evaluated),
+              }),
             );
           }),
         ],
@@ -409,7 +433,10 @@ module Js: BuiltinLivelit = {
 
   /* Reasonable default shape. */
   let size: ProjectorCore.Shape.t =
-    ProjectorCore.Shape.{vertical: Inline, horizontal: 40};
+    ProjectorCore.Shape.{
+      vertical: Inline,
+      horizontal: 40,
+    };
 };
 
 let livelits: list(raw_livelit) =

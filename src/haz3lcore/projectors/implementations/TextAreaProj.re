@@ -24,7 +24,10 @@ let put = (info, s: string): Base.segment =>
     info.utility.lift_syntax(
       fun
       | Exp(any) =>
-        Exp({...any, term: Atom(String(StringUtil.escape_linebreaks(s)))})
+        Exp({
+          ...any,
+          term: Atom(String(StringUtil.escape_linebreaks(s))),
+        })
       | _any => failwith("TextArea: put: not string literal"),
       info.syntax,
     )

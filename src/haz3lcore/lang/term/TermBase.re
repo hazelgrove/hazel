@@ -927,7 +927,11 @@ and ClosureEnvironment: {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = closure_environment_t;
 
-    let wrap = (id, env, call_stack): t => {id, env, call_stack};
+    let wrap = (id, env, call_stack): t => {
+      id,
+      env,
+      call_stack,
+    };
 
     let id_of = (t: t) => t.id;
     let map_of = (t: t) => t.env;
@@ -996,7 +1000,11 @@ and StepperFilterKind: {
 
   let map = (mapper, filter: t): t => {
     switch (filter) {
-    | Filter({act, pat}) => Filter({act, pat: mapper(pat)})
+    | Filter({act, pat}) =>
+      Filter({
+        act,
+        pat: mapper(pat),
+      })
     | Residue(idx, act) => Residue(idx, act)
     };
   };
@@ -1014,7 +1022,11 @@ and StepperFilterKind: {
       Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     (
       fun
-      | Filter({pat: e, act}) => Filter({pat: exp_map_term(e), act})
+      | Filter({pat: e, act}) =>
+        Filter({
+          pat: exp_map_term(e),
+          act,
+        })
       | Residue(i, a) => Residue(i, a):
         t => t
     );

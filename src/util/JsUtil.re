@@ -220,9 +220,21 @@ module QueryParams = {
 
   let set_arguments = (url: Url.url, args: list((string, string))): Url.url =>
     switch (url) {
-    | Http(u) => Http({...u, hu_arguments: args})
-    | Https(u) => Https({...u, hu_arguments: args})
-    | File(u) => File({...u, fu_arguments: args})
+    | Http(u) =>
+      Http({
+        ...u,
+        hu_arguments: args,
+      })
+    | Https(u) =>
+      Https({
+        ...u,
+        hu_arguments: args,
+      })
+    | File(u) =>
+      File({
+        ...u,
+        fu_arguments: args,
+      })
     };
 
   let get_param = (name: string) => {

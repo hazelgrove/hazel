@@ -770,13 +770,25 @@ let int_un_minus: group = {
   forms: [int_unary_minus_exp],
 };
 
-let int_plus: group = {id: BinOpExp(Int(Plus)), forms: [int_plus_exp]};
+let int_plus: group = {
+  id: BinOpExp(Int(Plus)),
+  forms: [int_plus_exp],
+};
 
-let int_minus: group = {id: BinOpExp(Int(Minus)), forms: [int_minus_exp]};
+let int_minus: group = {
+  id: BinOpExp(Int(Minus)),
+  forms: [int_minus_exp],
+};
 
-let int_times: group = {id: BinOpExp(Int(Times)), forms: [int_times_exp]};
+let int_times: group = {
+  id: BinOpExp(Int(Times)),
+  forms: [int_times_exp],
+};
 
-let int_power: group = {id: BinOpExp(Int(Power)), forms: [int_power_exp]};
+let int_power: group = {
+  id: BinOpExp(Int(Power)),
+  forms: [int_power_exp],
+};
 
 let int_divide: group = {
   id: BinOpExp(Int(Divide)),
@@ -803,7 +815,10 @@ let int_greater_than_equal: group = {
   forms: [int_gte_exp],
 };
 
-let int_equal: group = {id: BinOpExp(Int(Equals)), forms: [int_eq_exp]};
+let int_equal: group = {
+  id: BinOpExp(Int(Equals)),
+  forms: [int_eq_exp],
+};
 
 let int_not_equal: group = {
   id: BinOpExp(Int(NotEquals)),
@@ -865,9 +880,15 @@ let float_not_equal: group = {
   forms: [float_neq_exp],
 };
 
-let bool_and: group = {id: BinOpExp(Bool(And)), forms: [bool_and_exp]};
+let bool_and: group = {
+  id: BinOpExp(Bool(And)),
+  forms: [bool_and_exp],
+};
 
-let bool_or: group = {id: BinOpExp(Bool(Or)), forms: [bool_or_exp]};
+let bool_or: group = {
+  id: BinOpExp(Bool(Or)),
+  forms: [bool_or_exp],
+};
 
 let string_equal: group = {
   id: BinOpExp(String(Equals)),

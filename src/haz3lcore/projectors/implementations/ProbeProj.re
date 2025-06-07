@@ -155,7 +155,11 @@ module DynCursor = {
     mutable pinned_call: option(Probe.call_stack),
   };
 
-  let s: t = {call_cursor: [], indicated_call: None, pinned_call: None};
+  let s: t = {
+    call_cursor: [],
+    indicated_call: None,
+    pinned_call: None,
+  };
 
   let reset = () => {
     s.call_cursor = [];
@@ -473,7 +477,10 @@ let pos_rel_to_target = (e: Js.t(Dom_html.mouseEvent)): Point.t => {
   let y_rel = of_int(e##.clientY) -. text_box##getBoundingClientRect##.top;
   let row = to_int(y_rel /. row_height);
   let col = to_int(round(x_rel /. col_width));
-  {row, col};
+  {
+    row,
+    col,
+  };
 };
 
 let length_cls = (length: int): string =>
@@ -516,7 +523,11 @@ let value_view =
         e##.currentTarget |> Js.Opt.get(_, _ => failwith("no target"));
       JsUtil.setPointerCapture(target, e##.pointerId);
       ValueState.mousedown := Some(target);
-      ValueState.click_coords := Some({row: e##.clientY, col: e##.clientX});
+      ValueState.click_coords :=
+        Some({
+          row: e##.clientY,
+          col: e##.clientX,
+        });
     };
     DynCursor.capture(info, closure);
     Effect.Ignore;

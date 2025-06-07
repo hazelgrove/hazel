@@ -21,9 +21,18 @@ module Annotated = {
   //     };
 
   let term_of = x => x.term;
-  let unwrap = x => (x.term, term' => {...x, term: term'});
+  let unwrap = x => (
+    x.term,
+    term' => {
+      ...x,
+      term: term',
+    },
+  );
 
-  let empty = term => {term, annotation: ()};
+  let empty = term => {
+    term,
+    annotation: (),
+  };
 };
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -266,7 +275,10 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
             map_typ_annotation(f, t2),
           )
         };
-      {term, annotation: new_annotation};
+      {
+        term,
+        annotation: new_annotation,
+      };
     }:
       exp_t(b)
   )
@@ -394,7 +406,10 @@ and map_stepper_filter_kind_annotation:
   (f, e) => {
     switch (e) {
     | Filter(filter) =>
-      Filter({pat: map_exp_annotation(f, filter.pat), act: filter.act})
+      Filter({
+        pat: map_exp_annotation(f, filter.pat),
+        act: filter.act,
+      })
     | Residue(i, act) => Residue(i, act)
     };
   }
@@ -635,7 +650,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       cast(
         ~ann?,
         e,
-        {term: Unknown(Internal), annotation: default_annotation(ann)},
+        {
+          term: Unknown(Internal),
+          annotation: default_annotation(ann),
+        },
         t,
       );
   };
@@ -736,7 +754,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
         ~ann?,
         p,
         t,
-        {term: Unknown(Internal), annotation: default_annotation(ann)},
+        {
+          term: Unknown(Internal),
+          annotation: default_annotation(ann),
+        },
       );
   };
 
@@ -866,7 +887,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
 
   module StepperFilter = {
     let filter = (f): stepper_filter_kind_t(DefaultAnnotation.t) => {
-      Filter({pat: map_exp_annotation(x => x, f.pat), act: f.act});
+      Filter({
+        pat: map_exp_annotation(x => x, f.pat),
+        act: f.act,
+      });
     };
     let residue = (i, act): stepper_filter_kind_t(DefaultAnnotation.t) => {
       Residue(i, act);

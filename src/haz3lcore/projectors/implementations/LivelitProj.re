@@ -54,7 +54,10 @@ module M: Projector = {
       : TermBase.Any.t =>
     switch (start_term) {
     | Exp({term: Ap(Forward, name, _model), _} as rest) =>
-      Exp({...rest, term: Ap(Forward, name, updated_model_term)})
+      Exp({
+        ...rest,
+        term: Ap(Forward, name, updated_model_term),
+      })
     | _ =>
       print_endline("Warning - LivelitProj.replace_model_term: not an Ap");
       start_term;
@@ -68,7 +71,11 @@ module M: Projector = {
     JsUtil.get_elem_by_id(Id.cls(id))##focus;
   };
 
-  let focusable = Focusable.{pointer: Some(focus_pointer), keyboard: None};
+  let focusable =
+    Focusable.{
+      pointer: Some(focus_pointer),
+      keyboard: None,
+    };
 
   let dynamics = false;
 

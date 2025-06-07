@@ -82,7 +82,12 @@ type t('syntax) = {
   model: string,
 };
 
-let mk = (kind, syntax, model) => {id: Id.mk(), kind, syntax, model};
+let mk = (kind, syntax, model) => {
+  id: Id.mk(),
+  kind,
+  syntax,
+  model,
+};
 
 module Shape = {
   /* A projector shape determines the space left for
@@ -107,7 +112,10 @@ module Shape = {
     horizontal: int,
     vertical,
   };
-  let inline = (width: int): t => {horizontal: width, vertical: Inline};
+  let inline = (width: int): t => {
+    horizontal: width,
+    vertical: Inline,
+  };
   let default: t = inline(0);
 
   let token = (shape: t): string =>

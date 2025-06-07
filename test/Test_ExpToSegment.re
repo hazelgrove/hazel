@@ -260,7 +260,13 @@ let tests = (
         let segment =
           segmentize(
             IdTagged.FreshGrammar.Exp.(
-              filter(Filter({pat: int(1), act: (Step, One)}), int(2))
+              filter(
+                Filter({
+                  pat: int(1),
+                  act: (Step, One),
+                }),
+                int(2),
+              )
             ),
           );
         let serialized = Printer.of_segment(~holes=Some("?"), segment);

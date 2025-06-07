@@ -39,4 +39,7 @@ let if_exp: form = {
   };
 };
 
-let ifs: group = {id: IfExp, forms: [if_exp]};
+let ifs: group = {
+  id: IfExp,
+  forms: [if_exp],
+};

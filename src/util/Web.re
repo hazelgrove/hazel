@@ -67,11 +67,17 @@ module TextArea = {
   let caret_pos = (textarea: t): pos => {
     let rec find_position = (lines, cur_pos, row, col) => {
       switch (lines) {
-      | [] => {row, col}
+      | [] => {
+          row,
+          col,
+        }
       | [line, ...rest] =>
         let line_length = String.length(line);
         if (cur_pos <= line_length) {
-          {row, col: cur_pos};
+          {
+            row,
+            col: cur_pos,
+          };
         } else {
           find_position(rest, cur_pos - line_length - 1, row + 1, 0);
         };

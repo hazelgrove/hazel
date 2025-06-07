@@ -51,7 +51,10 @@ let indet_term_tpat: TPat.term = Invalid("?");
 
 let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
   let rewrap = (term: Exp.term): Exp.t => {
-    {...exp, term};
+    {
+      ...exp,
+      term,
+    };
   };
 
   let wrap_or = (term, str): Exp.term =>
@@ -370,10 +373,27 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
             let e2' = abbreviate_exp(e2);
             Let(p', e1', e2');
           } else {
-            Let(p', e1', {...e2, term: indet_term});
+            Let(
+              p',
+              e1',
+              {
+                ...e2,
+                term: indet_term,
+              },
+            );
           };
         } else {
-          Let(p', {...e1, term: indet_term}, {...e2, term: indet_term});
+          Let(
+            p',
+            {
+              ...e1,
+              term: indet_term,
+            },
+            {
+              ...e2,
+              term: indet_term,
+            },
+          );
         };
       }
 
@@ -397,7 +417,13 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           let e1' = abbreviate_exp(e1);
           Use(t1', e1');
         } else {
-          Use(t1', {...e1, term: indet_term});
+          Use(
+            t1',
+            {
+              ...e1,
+              term: indet_term,
+            },
+          );
         };
       }
 
@@ -425,13 +451,26 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
             let e' = abbreviate_exp(e);
             TyAlias(tp', t', e');
           } else {
-            TyAlias(tp', t', {...e, term: indet_term});
+            TyAlias(
+              tp',
+              t',
+              {
+                ...e,
+                term: indet_term,
+              },
+            );
           };
         } else {
           TyAlias(
             tp',
-            {...t, term: indet_term_typ},
-            {...e, term: indet_term},
+            {
+              ...t,
+              term: indet_term_typ,
+            },
+            {
+              ...e,
+              term: indet_term,
+            },
           );
         };
       }
@@ -456,7 +495,14 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           let e' = abbreviate_exp(e);
           FixF(p', e', t);
         } else {
-          FixF(p', {...e, term: indet_term}, t);
+          FixF(
+            p',
+            {
+              ...e,
+              term: indet_term,
+            },
+            t,
+          );
         };
       }
 
@@ -508,7 +554,13 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           let t' = abbreviate_typ(t);
           TypAp(e', t');
         } else {
-          TypAp(e', {...t, term: indet_term_typ});
+          TypAp(
+            e',
+            {
+              ...t,
+              term: indet_term_typ,
+            },
+          );
         };
       }
 
@@ -532,7 +584,14 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
           let e' = abbreviate_exp(e);
           TypFun(tp', e', name);
         } else {
-          TypFun(tp', {...e, term: indet_term}, name);
+          TypFun(
+            tp',
+            {
+              ...e,
+              term: indet_term,
+            },
+            name,
+          );
         };
       }
 
@@ -556,7 +615,10 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
 }
 and abbreviate_pat = (pat: Pat.t): Pat.t => {
   let rewrap = (term: Pat.term): Pat.t => {
-    {...pat, term};
+    {
+      ...pat,
+      term,
+    };
   };
 
   let wrap_or = (term, str): Pat.term =>
@@ -595,7 +657,13 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
           let p2' = abbreviate_pat(p2);
           Cons(p1', p2');
         } else {
-          Cons(p1', {...p2, term: indet_term_pat});
+          Cons(
+            p1',
+            {
+              ...p2,
+              term: indet_term_pat,
+            },
+          );
         };
       }
 
@@ -612,7 +680,13 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
           let p2' = abbreviate_pat(p2);
           Ap(p1', p2');
         } else {
-          Ap(p1', {...p2, term: indet_term_pat});
+          Ap(
+            p1',
+            {
+              ...p2,
+              term: indet_term_pat,
+            },
+          );
         };
       }
 
@@ -629,7 +703,14 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
           let t' = abbreviate_typ(t2);
           Cast(p', t1, t');
         } else {
-          Cast(p', t1, {...t2, term: indet_term_typ});
+          Cast(
+            p',
+            t1,
+            {
+              ...t2,
+              term: indet_term_typ,
+            },
+          );
         };
       }
 
@@ -693,7 +774,10 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
 }
 and abbreviate_typ = (typ: Typ.t): Typ.t => {
   let rewrap = (term: Typ.term): Typ.t => {
-    {...typ, term};
+    {
+      ...typ,
+      term,
+    };
   };
 
   let term: Typ.term =
@@ -754,7 +838,13 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
           let t2' = abbreviate_typ(t2);
           Arrow(t1', t2');
         } else {
-          Arrow(t1', {...t2, term: indet_term_typ});
+          Arrow(
+            t1',
+            {
+              ...t2,
+              term: indet_term_typ,
+            },
+          );
         };
       }
     | TupLabel(t1, t2) =>
@@ -800,7 +890,13 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
           let t2' = abbreviate_typ(t2);
           Ap(t1', t2');
         } else {
-          Ap(t1', {...t2, term: indet_term_typ});
+          Ap(
+            t1',
+            {
+              ...t2,
+              term: indet_term_typ,
+            },
+          );
         };
       }
     | Rec(tp, t) =>
@@ -814,7 +910,13 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
           let t' = abbreviate_typ(t);
           Rec(tp', t');
         } else {
-          Rec(tp', {...t, term: indet_term_typ});
+          Rec(
+            tp',
+            {
+              ...t,
+              term: indet_term_typ,
+            },
+          );
         };
       }
     | Forall(tp, t) =>
@@ -828,14 +930,23 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
           let t' = abbreviate_typ(t);
           Forall(tp', t');
         } else {
-          Forall(tp', {...t, term: indet_term_typ});
+          Forall(
+            tp',
+            {
+              ...t,
+              term: indet_term_typ,
+            },
+          );
         };
       }
     };
   rewrap(term);
 }
 and abbreviate_tpat = (tpat: TPat.t): TPat.t => {
-  let rewrap = term => {...tpat, term};
+  let rewrap = term => {
+    ...tpat,
+    term,
+  };
   let term =
     switch (tpat.term) {
     | EmptyHole => tpat.term

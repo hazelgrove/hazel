@@ -504,7 +504,10 @@ let get_doc =
         module Deco =
           Deco.Deco({
             let editor = editor;
-            let globals = {...globals, color_highlights: highlights};
+            let globals = {
+              ...globals,
+              color_highlights: highlights,
+            };
             let statics = statics;
           });
         [Deco.color_highlights()];
@@ -514,7 +517,11 @@ let get_doc =
           ~globals,
           ~overlays=highlight_deco @ [expander_deco],
           ~sort,
-          {editor, statics, dynamics},
+          {
+            editor,
+            statics,
+            dynamics,
+          },
         );
       let example_view =
         example_view(

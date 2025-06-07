@@ -276,7 +276,13 @@ let tests =
       ),
       full_parser_test(
         "Filter",
-        filter(Filter({act: (Eval, All), pat: int(3)}), int(3)),
+        filter(
+          Filter({
+            act: (Eval, All),
+            pat: int(3),
+          }),
+          int(3),
+        ),
         "eval 3 in 3" // TODO Use other filter commands
       ),
       full_parser_test(

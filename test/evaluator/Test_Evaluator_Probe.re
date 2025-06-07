@@ -197,8 +197,14 @@ let tests = (
                     {
                       term:
                         TupLabel(
-                          {term: Label("l"), annotation: ()},
-                          {term: Atom(String("a")), annotation: ()},
+                          {
+                            term: Label("l"),
+                            annotation: (),
+                          },
+                          {
+                            term: Atom(String("a")),
+                            annotation: (),
+                          },
                         ),
                       annotation: (),
                     },
@@ -272,8 +278,14 @@ let tests = (
                         {
                           term:
                             TupLabel(
-                              {term: Label("l"), annotation: ()},
-                              {term: Atom(String("a")), annotation: ()},
+                              {
+                                term: Label("l"),
+                                annotation: (),
+                              },
+                              {
+                                term: Atom(String("a")),
+                                annotation: (),
+                              },
                             ),
                           annotation: (),
                         },

@@ -32,7 +32,11 @@ module M: Projector = {
     switch (
       info.utility.lift_syntax(
         fun
-        | Exp(t) => Exp({...t, term: Atom(Int(Bigint.of_string(v)))})
+        | Exp(t) =>
+          Exp({
+            ...t,
+            term: Atom(Int(Bigint.of_string(v))),
+          })
         | _ => failwith("Slider: Put: not integer literal"),
         info.syntax,
       )

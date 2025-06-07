@@ -33,7 +33,11 @@ let elaborate = u =>
   |> fst;
 
 (exp, probes) => (
-  {term: exp, annotation: probes}: Grammar.pat_t(list(Grammar.exp_t(unit)))
+  {
+    term: exp,
+    annotation: probes,
+  }:
+    Grammar.pat_t(list(Grammar.exp_t(unit)))
 );
 let parse_and_evaluate = (s: string) =>
   fst(Evaluator.evaluate(~env=Builtins.env_init, elaborate(parse_exp(s))));

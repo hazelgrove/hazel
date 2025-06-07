@@ -132,7 +132,10 @@ module Update = {
                    )
                    |> ((u: Updated.t('a)) => u.model);
                  let editor = Calc.NewValue(editor);
-                 {...a, editor};
+                 {
+                   ...a,
+                   editor,
+                 };
                }),
              )
           |> Aba.mk(_, model.history |> Aba.get_bs),
@@ -164,10 +167,22 @@ module Update = {
         EvaluatorStep.get_status(~settings, next_expr, next_state);
       let next_steps =
         switch (next_status) {
-        | AutoStep(step) => [Model.{step, to_ids: [Id.mk()], hidden: true}]
+        | AutoStep(step) => [
+            Model.{
+              step,
+              to_ids: [Id.mk()],
+              hidden: true,
+            },
+          ]
         | AvailableSteps(steps) =>
           List.map(
-            step => {Model.{step, to_ids: [Id.mk()], hidden: false}},
+            step => {
+              Model.{
+                step,
+                to_ids: [Id.mk()],
+                hidden: false,
+              }
+            },
             steps,
           )
         };
@@ -226,7 +241,12 @@ module Update = {
                   x
                 ),
               )
-           |> (editor => {...a, editor})
+           |> (
+             editor => {
+               ...a,
+               editor,
+             }
+           )
          }),
        );
   };
@@ -288,11 +308,21 @@ module Update = {
               let next_steps =
                 switch (next_status) {
                 | AutoStep(step) => [
-                    Model.{step, to_ids: [Id.mk()], hidden: true},
+                    Model.{
+                      step,
+                      to_ids: [Id.mk()],
+                      hidden: true,
+                    },
                   ]
                 | AvailableSteps(steps) =>
                   List.map(
-                    step => {Model.{step, to_ids: [Id.mk()], hidden: false}},
+                    step => {
+                      Model.{
+                        step,
+                        to_ids: [Id.mk()],
+                        hidden: false,
+                      }
+                    },
                     steps,
                   )
                 };

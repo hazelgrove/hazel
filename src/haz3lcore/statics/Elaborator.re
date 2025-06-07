@@ -395,7 +395,11 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let kind' =
         switch (kind) {
         | Residue(_) => kind
-        | Filter({act, pat}) => Filter({act, pat: elaborate(m, pat) |> fst})
+        | Filter({act, pat}) =>
+          Filter({
+            act,
+            pat: elaborate(m, pat) |> fst,
+          })
         };
       Filter(kind', e') |> rewrap;
     | Closure(env, e) =>

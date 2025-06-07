@@ -41,7 +41,10 @@ type t = {
   entries: list(entry),
 };
 
-let empty: t = {use_mode: None, entries: []};
+let empty: t = {
+  use_mode: None,
+  entries: [],
+};
 
 let extend = (ctx: t, entry): t => {
   ...ctx,
@@ -52,11 +55,26 @@ let extend_tvar = (ctx: t, tvar_entry: tvar_entry): t =>
   extend(ctx, TVarEntry(tvar_entry));
 
 let extend_alias = (ctx: t, name: string, id: Id.t, ty: TermBase.Typ.t): t =>
-  extend_tvar(ctx, {name, id, kind: Singleton(ty)});
+  extend_tvar(
+    ctx,
+    {
+      name,
+      id,
+      kind: Singleton(ty),
+    },
+  );
 
 let extend_dummy_tvar = (ctx: t, tvar: TPat.t) =>
   switch (TPat.tyvar_of_utpat(tvar)) {
-  | Some(name) => extend_tvar(ctx, {kind: Abstract, name, id: Id.invalid})
+  | Some(name) =>
+    extend_tvar(
+      ctx,
+      {
+        kind: Abstract,
+        name,
+        id: Id.invalid,
+      },
+    )
   | None => ctx
   };
 
@@ -188,8 +206,14 @@ let added_bindings = (ctx_after: t, ctx_before: t): t => {
   let new_count =
     List.length(ctx_after.entries) - List.length(ctx_before.entries);
   switch (ListUtil.split_n_opt(new_count, ctx_after.entries)) {
-  | Some((ctx, _)) => {...ctx_after, entries: ctx}
-  | _ => {...ctx_after, entries: []}
+  | Some((ctx, _)) => {
+      ...ctx_after,
+      entries: ctx,
+    }
+  | _ => {
+      ...ctx_after,
+      entries: [],
+    }
   };
 };
 
@@ -253,11 +277,20 @@ let empty_pre_elaboration = {
   use_mode: Some(Operators.default_mode),
   entries: [],
 };
-let empty_post_elaboration = {use_mode: None, entries: []};
+let empty_post_elaboration = {
+  use_mode: None,
+  entries: [],
+};
 
 /* The binding (binding site id and name) of `name` in `ctx` */
 let binding_of = (ctx: t, name: Var.t): Binding.t =>
   switch (lookup_var(ctx, name)) {
-  | Some({id, _}) => {id, name}
-  | _ => {id: Id.invalid, name}
+  | Some({id, _}) => {
+      id,
+      name,
+    }
+  | _ => {
+      id: Id.invalid,
+      name,
+    }
   };

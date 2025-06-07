@@ -17,7 +17,12 @@ let tests = [
                 FTemp.Typ.(
                   Exp(
                     Common(
-                      Inconsistent(Expectation({ana: int(), syn: string()})),
+                      Inconsistent(
+                        Expectation({
+                          ana: int(),
+                          syn: string(),
+                        }),
+                      ),
                     ),
                   )
                 ),

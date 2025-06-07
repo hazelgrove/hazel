@@ -56,7 +56,10 @@ module Focusable = {
   };
 
   /* Default: A projector that cannot take focus */
-  let non: t = {pointer: None, keyboard: None};
+  let non: t = {
+    pointer: None,
+    keyboard: None,
+  };
 };
 
 /* External info proivded to all projectors */

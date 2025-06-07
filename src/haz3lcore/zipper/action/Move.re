@@ -194,7 +194,10 @@ module Make = (M: S) => {
        caret position to a target derived from the initial position */
     let cur_p = caret_point(z);
     let goal =
-      Point.{col: M.col_target, row: cur_p.row + (d == Right ? 1 : (-1))};
+      Point.{
+        col: M.col_target,
+        row: cur_p.row + (d == Right ? 1 : (-1)),
+      };
     do_towards(~force_progress=true, f, goal, z);
   };
 
@@ -203,10 +206,22 @@ module Make = (M: S) => {
     let cur_p = caret_point(z);
     let goal: Point.t =
       switch (d) {
-      | Right(_) => {col: Int.max_int, row: cur_p.row}
-      | Left(_) => {col: 0, row: cur_p.row}
-      | Up => {col: 0, row: 0}
-      | Down => {col: Int.max_int, row: Int.max_int}
+      | Right(_) => {
+          col: Int.max_int,
+          row: cur_p.row,
+        }
+      | Left(_) => {
+          col: 0,
+          row: cur_p.row,
+        }
+      | Up => {
+          col: 0,
+          row: 0,
+        }
+      | Down => {
+          col: Int.max_int,
+          row: Int.max_int,
+        }
       };
     do_towards(f, goal, z);
   };
