@@ -63,7 +63,14 @@ module Kind = {
                  'ed_a,
                  'ed_f,
                )
-    // | Card: gadt(CardProj.model('ed), CardProj.action, 'ed)
+    | Card: gadt(
+              CardProj.model('ed),
+              CardProj.action('ed_a),
+              CardProj.focus('ed_f),
+              'ed,
+              'ed_a,
+              'ed_f,
+            )
     | Livelit: gadt(
                  LivelitProj.model('ed),
                  LivelitProj.action('ed_a),
@@ -94,7 +101,7 @@ module Kind = {
     | Checkbox
     | Slider
     | SliderF
-    // | Card
+    | Card
     | Livelit
     | TextArea;
 
@@ -128,6 +135,8 @@ module Kind = {
     | (SliderF, _) => false
     | (TextArea, TextArea) => true
     | (TextArea, _) => false
+    | (Card, Card) => true
+    | (Card, _) => false
     | (Livelit, Livelit) => true
     | (Livelit, _) => false
     | (Pair, Pair) => true
@@ -155,7 +164,7 @@ module Kind = {
     | Slider => Slider
     | SliderF => SliderF
     | Livelit => Livelit
-    // | Card => Card
+    | Card => Card
     | TextArea => TextArea
     };
 
@@ -172,7 +181,7 @@ module Kind = {
     | Slider => f(W(Slider))
     | Livelit => f(W(Livelit))
     | SliderF => f(W(SliderF))
-    // | Card => f(W(Card))
+    | Card => f(W(Card))
     | TextArea => f(W(TextArea))
     };
 
@@ -182,8 +191,7 @@ module Kind = {
     Pair,
     SliderF,
     TextArea,
-    // Card,
-    // Livelit,
+    Card,
   ];
 
   let projectors: list(t) =
@@ -208,7 +216,7 @@ module Kind = {
     | Slider => "slider"
     | Livelit => "livelit"
     | SliderF => "sliderf"
-    // | Card => "card"
+    | Card => "card"
     | TextArea => "text"
     };
 
@@ -226,7 +234,7 @@ module Kind = {
     | "livelit" => Livelit
     | "sliderf" => SliderF
     | "text" => TextArea
-    // | "card" => Card
+    | "card" => Card
     | _ => failwith("Unknown projector kind")
     };
 };
@@ -261,7 +269,7 @@ let to_module =
   | Slider => SliderProj.methods
   | Livelit => LivelitProj.methods
   | SliderF => SliderFProj.methods
-  // | Card => CardProj.methods
+  | Card => CardProj.methods
   | TextArea => TextAreaProj.methods
   };
 

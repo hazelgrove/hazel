@@ -74,12 +74,7 @@ let methods = {
         text,
         ed,
       },
-      prev
-      |> {
-        open Calc.Syntax;
-        let.calc t = t;
-        t;
-      },
+      Calc.update(t, Fun.id, prev),
     );
   },
   view,
