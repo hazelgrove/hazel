@@ -32,7 +32,14 @@ module Kind = {
               'ed_f,
             )
     // | Probe: gadt(ProbeProj.model('ed), ProbeProj.action, 'ed)
-    // | Checkbox: gadt(CheckboxProj.model('ed), CheckboxProj.action, 'ed)
+    | Checkbox: gadt(
+                  CheckboxProj.model('ed),
+                  CheckboxProj.action('ed_a),
+                  CheckboxProj.focus('ed_f),
+                  'ed,
+                  'ed_a,
+                  'ed_f,
+                )
     | Slider: gadt(
                 SliderProj.model('ed),
                 SliderProj.action('ed_a),
@@ -77,7 +84,7 @@ module Kind = {
     | Info
     | Pair
     // | Probe
-    // | Checkbox
+    | Checkbox
     | Slider
     | SliderF
     // | Card
@@ -104,16 +111,18 @@ module Kind = {
     switch (gadt1, gadt2) {
     | (Info, Info) => true
     | (Info, _) => false
-    | (Pair, Pair) => true
-    | (Pair, _) => false
+    | (Checkbox, Checkbox) => true
+    | (Checkbox, _) => false
     | (Slider, Slider) => true
     | (Slider, _) => false
     | (SliderF, SliderF) => true
     | (SliderF, _) => false
-    | (Livelit, Livelit) => true
-    | (Livelit, _) => false
     | (TextArea, TextArea) => true
     | (TextArea, _) => false
+    | (Livelit, Livelit) => true
+    | (Livelit, _) => false
+    | (Pair, Pair) => true
+    | (Pair, _) => false
     };
   };
 
@@ -133,7 +142,7 @@ module Kind = {
     | Info => Info
     | Pair => Pair
     // | Probe => Probe
-    // | Checkbox => Checkbox
+    | Checkbox => Checkbox
     | Slider => Slider
     | SliderF => SliderF
     | Livelit => Livelit
@@ -150,7 +159,7 @@ module Kind = {
     | Info => f(W(Info))
     | Pair => f(W(Pair))
     // | Probe => f(W(Probe))
-    // | Checkbox => f(W(Checkbox))
+    | Checkbox => f(W(Checkbox))
     | Slider => f(W(Slider))
     | Livelit => f(W(Livelit))
     | SliderF => f(W(SliderF))
@@ -159,7 +168,7 @@ module Kind = {
     };
 
   let livelit_projectors: list(t) = [
-    // Checkbox,
+    Checkbox,
     Slider,
     Pair,
     SliderF,
@@ -186,7 +195,7 @@ module Kind = {
     | Info => "type"
     | Pair => "pair"
     // | Probe => "probe"
-    // | Checkbox => "check"
+    | Checkbox => "check"
     | Slider => "slider"
     | Livelit => "livelit"
     | SliderF => "sliderf"
@@ -203,7 +212,7 @@ module Kind = {
     | "type" => Info
     | "pair" => Pair
     // | "probe" => Probe
-    // | "check" => Checkbox
+    | "check" => Checkbox
     | "slider" => Slider
     | "livelit" => Livelit
     | "sliderf" => SliderF
@@ -239,7 +248,7 @@ let to_module =
   | Info => TypeProj.methods
   | Pair => PairProj.methods
   // | Probe => ProbeProj.methods
-  // | Checkbox => CheckboxProj.methods
+  | Checkbox => CheckboxProj.methods
   | Slider => SliderProj.methods
   | Livelit => LivelitProj.methods
   | SliderF => SliderFProj.methods
