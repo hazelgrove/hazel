@@ -38,7 +38,14 @@ module Kind = {
               'ed_a,
               'ed_f,
             )
-    // | Probe: gadt(ProbeProj.model('ed), ProbeProj.action, 'ed)
+    | Probe: gadt(
+               ProbeProj.model('ed),
+               ProbeProj.action('ed_a),
+               ProbeProj.focus('ed_f),
+               'ed,
+               'ed_a,
+               'ed_f,
+             )
     | Checkbox: gadt(
                   CheckboxProj.model('ed),
                   CheckboxProj.action('ed_a),
@@ -96,8 +103,8 @@ module Kind = {
   type t =
     | Fold
     | Info
+    | Probe
     | Pair
-    // | Probe
     | Checkbox
     | Slider
     | SliderF
@@ -127,6 +134,8 @@ module Kind = {
     | (Info, _) => false
     | (Fold, Fold) => true
     | (Fold, _) => false
+    | (Probe, Probe) => true
+    | (Probe, _) => false
     | (Checkbox, Checkbox) => true
     | (Checkbox, _) => false
     | (Slider, Slider) => true
@@ -158,8 +167,8 @@ module Kind = {
     switch (kind) {
     | Fold => Fold
     | Info => Info
+    | Probe => Probe
     | Pair => Pair
-    // | Probe => Probe
     | Checkbox => Checkbox
     | Slider => Slider
     | SliderF => SliderF
@@ -175,8 +184,8 @@ module Kind = {
     switch (kind) {
     | Fold => f(W(Fold))
     | Info => f(W(Info))
+    | Probe => f(W(Probe))
     | Pair => f(W(Pair))
-    // | Probe => f(W(Probe))
     | Checkbox => f(W(Checkbox))
     | Slider => f(W(Slider))
     | Livelit => f(W(Livelit))
@@ -195,13 +204,7 @@ module Kind = {
   ];
 
   let projectors: list(t) =
-    livelit_projectors
-    @ [
-      Fold,
-      Info,
-      Livelit,
-      // Probe
-    ];
+    livelit_projectors @ [Fold, Info, Livelit, Probe];
 
   /* A friendly name for each projector. This is used
    * both for identifying a projector in the CSS and for
@@ -211,7 +214,7 @@ module Kind = {
     | Fold => "fold"
     | Info => "type"
     | Pair => "pair"
-    // | Probe => "probe"
+    | Probe => "probe"
     | Checkbox => "check"
     | Slider => "slider"
     | Livelit => "livelit"
@@ -225,10 +228,10 @@ module Kind = {
    * projector in the projector panel menu */
   let of_name = (p: string): t =>
     switch (p) {
-    // | "fold" => Fold
+    | "fold" => Fold
     | "type" => Info
     | "pair" => Pair
-    // | "probe" => Probe
+    | "probe" => Probe
     | "check" => Checkbox
     | "slider" => Slider
     | "livelit" => Livelit
@@ -263,8 +266,8 @@ let to_module =
   switch (kind) {
   | Fold => FoldProj.methods
   | Info => TypeProj.methods
+  | Probe => ProbeProj.methods
   | Pair => PairProj.methods
-  // | Probe => ProbeProj.methods
   | Checkbox => CheckboxProj.methods
   | Slider => SliderProj.methods
   | Livelit => LivelitProj.methods
