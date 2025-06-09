@@ -135,6 +135,8 @@ let of_bin_op: Operators.op_bin => t =
     | LessThanOrEqual => eqs
     | GreaterThan => eqs
     | GreaterThanOrEqual => eqs
+    | Equals => eqs
+    | NotEquals => eqs
     }
   | Bool(op) =>
     switch (op) {

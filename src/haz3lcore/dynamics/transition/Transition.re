@@ -925,7 +925,7 @@ let stepper_justification: step_kind => string =
   | UnOp(Int(Minus) | Nat(Minus) | Float(Minus) | SInt(Minus))
   | BinOp(SInt(Plus | Minus | Times | Power | Divide))
   | BinOp(Nat(Plus | Minus | Times | Power | Divide))
-  | BinOp(Float(Plus | Minus | Times | Power | Divide))
+  | BinOp(Float(Plus | Minus | Times | Power | Divide | Equals | NotEquals))
   | BinOp(Int(Plus | Minus | Times | Power | Divide)) => "arithmetic"
   | BinOp(Nat(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual))
   | BinOp(Int(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual))

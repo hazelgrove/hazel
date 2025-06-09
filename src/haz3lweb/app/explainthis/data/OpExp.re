@@ -693,46 +693,46 @@ let float_gte_exp: form = {
     examples: [float_gte1_ex, float_gte2_ex, float_gte3_ex],
   };
 };
-/* let _exp1 = exp("e1");
-   let _exp2 = exp("e2");
-   let float_eq_exp_coloring_ids =
-       (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
-     _binop_exp_coloring_ids(
-       Piece.id(_exp1),
-       Piece.id(_exp2),
-       ~left_id,
-       ~right_id,
-     );
-   let float_eq_exp: form = {
-     let explanation = "If the [*left operand*](%s) is equal to the [*right operand*](%s), evaluates to `true`. Otherwise, evaluates to `false`.";
-     {
-       id: BinOpExp(Float(Equals)),
-       syntactic_form: [_exp1, space(), fequals(), space(), _exp2],
-       expandable_id: None,
-       explanation,
-       examples: [float_eq1_ex, float_eq2_ex],
-     };
-   };
-   let _exp1 = exp("e1");
-   let _exp2 = exp("e2");
-   let float_neq_exp_coloring_ids =
-       (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
-     _binop_exp_coloring_ids(
-       Piece.id(_exp1),
-       Piece.id(_exp2),
-       ~left_id,
-       ~right_id,
-     );
-   let float_neq_exp: form = {
-     let explanation = "If the [*left operand*](%s) is not equal to the [*right operand*](%s), evaluates to `true`. Otherwise, evaluates to `false`.";
-     {
-       id: BinOpExp(Float(NotEquals)),
-       syntactic_form: [_exp1, space(), fnot_equals(), space(), _exp2],
-       expandable_id: None,
-       explanation,
-       examples: [],
-     };
-   }; */
+let _exp1 = exp("e1");
+let _exp2 = exp("e2");
+let float_eq_exp_coloring_ids =
+    (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
+  _binop_exp_coloring_ids(
+    Piece.id(_exp1),
+    Piece.id(_exp2),
+    ~left_id,
+    ~right_id,
+  );
+let float_eq_exp: form = {
+  let explanation = "If the [*left operand*](%s) is equal to the [*right operand*](%s), evaluates to `true`. Otherwise, evaluates to `false`.";
+  {
+    id: BinOpExp(Float(Equals)),
+    syntactic_form: [_exp1, space(), fequals(), space(), _exp2],
+    expandable_id: None,
+    explanation,
+    examples: [float_eq1_ex, float_eq2_ex],
+  };
+};
+let _exp1 = exp("e1");
+let _exp2 = exp("e2");
+let float_neq_exp_coloring_ids =
+    (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
+  _binop_exp_coloring_ids(
+    Piece.id(_exp1),
+    Piece.id(_exp2),
+    ~left_id,
+    ~right_id,
+  );
+let float_neq_exp: form = {
+  let explanation = "If the [*left operand*](%s) is not equal to the [*right operand*](%s), evaluates to `true`. Otherwise, evaluates to `false`.";
+  {
+    id: BinOpExp(Float(NotEquals)),
+    syntactic_form: [_exp1, space(), fnot_equals(), space(), _exp2],
+    expandable_id: None,
+    explanation,
+    examples: [],
+  };
+};
 let _exp1 = exp("e1");
 let _exp2 = exp("e2");
 let bool_and_exp_coloring_ids =
@@ -925,15 +925,15 @@ let float_greater_than_equal: group = {
   forms: [float_gte_exp],
 };
 
-/* let float_equal: group = {
-     id: BinOpExp(Float(Equals)),
-     forms: [float_eq_exp],
-   };
+let float_equal: group = {
+  id: BinOpExp(Float(Equals)),
+  forms: [float_eq_exp],
+};
 
-   let float_not_equal: group = {
-     id: BinOpExp(Float(NotEquals)),
-     forms: [float_neq_exp],
-   }; */
+let float_not_equal: group = {
+  id: BinOpExp(Float(NotEquals)),
+  forms: [float_neq_exp],
+};
 
 let bool_and: group = {
   id: BinOpExp(Bool(And)),

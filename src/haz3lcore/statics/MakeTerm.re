@@ -405,9 +405,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           | ([">."], []) => BinOp(Float(GreaterThan), l, r)
           | (["<=."], []) => BinOp(Float(LessThanOrEqual), l, r)
           | ([">=."], []) => BinOp(Float(GreaterThanOrEqual), l, r)
-          // NOTE(zhiyao): I temporaryly use `Poly` for `==.` and `!=.`
-          | (["==."], []) => BinOp(Poly(Equals), l, r)
-          | (["!=."], []) => BinOp(Poly(NotEquals), l, r)
+          | (["==."], []) => BinOp(Float(Equals), l, r)
+          | (["!=."], []) => BinOp(Float(NotEquals), l, r)
           | (["&&"], []) => BinOp(Bool(And), l, r)
           | (["||"], []) => BinOp(Bool(Or), l, r)
           | (["::"], []) => Cons(l, r)

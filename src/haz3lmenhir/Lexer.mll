@@ -65,6 +65,9 @@ rule token =
     | "->" { DASH_ARROW }
     | "=>" { EQUAL_ARROW }
     | "=" { SINGLE_EQUAL }
+    (* Poly ops*)
+    | "==" { DOUBLE_EQUAL }
+    | "!=" { NOT_EQUAL }
     (* Int ops*)
     | "+" { PLUS }
     | "-" { MINUS }
@@ -85,6 +88,8 @@ rule token =
     | "<=." { LESS_THAN_EQUAL_FLOAT }
     | ">." { GREATER_THAN_FLOAT }
     | ">=." { GREATER_THAN_EQUAL_FLOAT }
+    | "==." { DOUBLE_EQUAL_FLOAT }
+    | "!=." { NOT_EQUAL_FLOAT }
     (* String Ops *)
     | "++" { STRING_CONCAT }
     | "$==" { STRING_EQUAL }

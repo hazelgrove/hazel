@@ -85,6 +85,8 @@ module Operators = {
         | LessThanOrEqual => LessThanOrEqual
         | GreaterThan => GreaterThan
         | GreaterThanOrEqual => GreaterThanOrEqual
+        | Equals => Equals
+        | NotEquals => NotEquals
         },
       )
     | Bool(op_bool) =>
@@ -138,7 +140,7 @@ module Operators = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  let float_op_of_menhir_ast = (op: AST.op_bin_float): op_bin_num => {
+  let float_op_of_menhir_ast = (op: AST.op_bin_float): op_bin_float => {
     switch (op) {
     | Plus => Plus
     | Minus => Minus
@@ -149,6 +151,8 @@ module Operators = {
     | LessThanOrEqual => LessThanOrEqual
     | GreaterThan => GreaterThan
     | GreaterThanOrEqual => GreaterThanOrEqual
+    | Equals => Equals
+    | NotEquals => NotEquals
     };
   };
 
