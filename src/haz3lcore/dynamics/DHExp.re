@@ -166,7 +166,17 @@ let rec ty_consistent = (d1, d2) => {
   | (Cast(d1, _, _), _) => ty_consistent(d1, d2)
   | (_, Cast(d2, _, _)) => ty_consistent(d1, d2)
   // TODO(zhiyao): are we allowed to compare int/sint/nat?
-  | (Atom(t1), Atom(t2)) => t1 == t2
+  | (Atom(t1), Atom(t2)) =>
+    switch (t1, t2) {
+    | (Int(_) | SInt(_) | Nat(_), Int(_) | SInt(_) | Nat(_)) => true
+    | (Int(_) | SInt(_) | Nat(_), _) => false
+    | (Bool(_), Bool(_)) => true
+    | (Bool(_), _) => false
+    | (String(_), String(_)) => true
+    | (String(_), _) => false
+    | (Float(_), Float(_)) => true
+    | (Float(_), _) => false
+    }
   | (Atom(_), _) => false
   | (Label(_), Label(_)) => true
   | (Label(_), _) => false
