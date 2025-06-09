@@ -925,7 +925,7 @@ let stepper_justification: step_kind => string =
   | UnOp(Int(Minus) | Nat(Minus) | Float(Minus) | SInt(Minus))
   | BinOp(SInt(Plus | Minus | Times | Power | Divide))
   | BinOp(Nat(Plus | Minus | Times | Power | Divide))
-  | BinOp(Float(Plus | Minus | Times | Power | Divide | Equals | NotEquals))
+  | BinOp(Float(Plus | Minus | Times | Power | Divide))
   | BinOp(Int(Plus | Minus | Times | Power | Divide)) => "arithmetic"
   | BinOp(Nat(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual))
   | BinOp(Int(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual))
@@ -935,8 +935,9 @@ let stepper_justification: step_kind => string =
   | BinOp(
       Float(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual),
     ) => "comparison"
-  | BinOp(String(Equals)) => "check string equality"
-  | BinOp(Poly(Equals | NotEquals)) => "check polymorphic equality"
+  | BinOp(String(Equals))
+  | BinOp(Float(Equals | NotEquals))
+  | BinOp(Poly(Equals | NotEquals)) => "check equality"
   | BinOp(String(Concat)) => "string manipulation"
   | UnOp(Bool(Not))
   | BinOp(Bool(_)) => "boolean logic"

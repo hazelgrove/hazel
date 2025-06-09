@@ -40,6 +40,7 @@ type op_bin_num =
   | GreaterThan
   | GreaterThanOrEqual;
 
+// TODO(zhiyao): We define `Equals` and `NotEquals` for float.
 [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
 type op_bin_float =
   | Plus
