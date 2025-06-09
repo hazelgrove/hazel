@@ -14,7 +14,7 @@ module Action = {
     | JumpToTile(Haz3lcore.Id.t) // Perform(Select(Term(Id(id, Left))))
     | InitImportAll([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
     | FinishImportAll(option(string))
-    | ExportPersistentData
+    | ExportForInit
     | ActiveEditor(Haz3lcore.Action.t)
     | Undo // These two currently happen at the editor level, and are just
     | Redo; // global actions so they can be accessed by the command palette
@@ -87,6 +87,22 @@ module Update = {
   let calculate = (color_highlights, model: Model.t): Model.t => {
     ...model,
     color_highlights,
+  };
+
+  let can_undo = (action: t) => {
+    switch (action) {
+    | SetMousedown(_) => false
+    | SetShowBackpackTargets(_) => false
+    | SetFontMetrics(_) => false
+    | Set(action) => Settings.Update.can_undo(action)
+    | JumpToTile(_) => false
+    | InitImportAll(_) => true
+    | FinishImportAll(_) => true
+    | ExportForInit => false
+    | ActiveEditor(_) => false
+    | Undo => false
+    | Redo => false
+    };
   };
 };
 

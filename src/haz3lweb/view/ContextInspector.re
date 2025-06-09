@@ -17,7 +17,6 @@ let context_entry_view = (~globals, entry: Haz3lcore.Ctx.entry): Node.t => {
         fold_case_clauses: false,
         fold_fn_bodies: false,
         hide_fixpoints: false,
-        fold_cast_types: false,
         show_filters: false,
         show_unknown_as_hole: true,
       },
@@ -47,6 +46,18 @@ let context_entry_view = (~globals, entry: Haz3lcore.Ctx.entry): Node.t => {
         div_name([alias_view(name)]),
         div(~attrs=[clss(["seperator"])], [text("::")]),
         Kind.view(~globals, kind),
+      ],
+    )
+  | LivelitEntry({name, expansion_t, _}) =>
+    div(
+      ~attrs=[
+        Attr.on_click(_ => globals.inject_global(jump_to(entry))),
+        clss(["context-entry", "code", "livelit-entry"]),
+      ],
+      [
+        div_name([text("^" ++ name)]),
+        div(~attrs=[clss(["seperator"])], [text(":")]),
+        view_type(expansion_t),
       ],
     )
   };

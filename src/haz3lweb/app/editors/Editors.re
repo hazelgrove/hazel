@@ -77,6 +77,14 @@ module Update = {
     // Exercises
     | Exercises(ExercisesMode.Update.t);
 
+  let can_undo = (action: t) => {
+    switch (action) {
+    | SwitchMode(_) => true
+    | Scratch(action) => ScratchMode.Update.can_undo(action)
+    | Exercises(action) => ExercisesMode.Update.can_undo(action)
+    };
+  };
+
   let update = (~globals: Globals.t, ~schedule_action, action, model: Model.t) => {
     switch (action, model) {
     | (Scratch(action), Scratch(m)) =>
