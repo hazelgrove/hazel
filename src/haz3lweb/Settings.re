@@ -36,7 +36,7 @@ module Model = {
     },
     async_evaluation: false,
     context_inspector: false,
-    instructor_mode: true,
+    instructor_mode: false,
     benchmark: false,
     explainThis: {
       show: true,

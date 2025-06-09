@@ -239,3 +239,27 @@
 #main.Exercises .context-entry {
   max-width: fit-content; /* Correct implementation type sigs */
 }
+
+#prompt-textarea-container {
+  position: relative;
+  width: 100%;
+  margin-bottom: 0.5em;
+}
+
+#prompt-input-box {
+  width: 96%;
+  min-height: 100px;
+  padding: 0.5em;
+  border: 1px solid var(--BR2);
+  border-radius: 4px;
+  color: var(--ui-text);
+  font-family: inherit;
+  font-size: inherit;
+  resize: vertical;
+  overflow-y: auto;
+}
+
+#prompt-input-box:focus {
+  outline: none;
+  border-color: var(--BR2);
+}
