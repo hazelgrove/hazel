@@ -8,7 +8,6 @@ module Settings = {
     fold_case_clauses: bool,
     fold_fn_bodies: bool,
     hide_fixpoints: bool,
-    fold_cast_types: bool,
     show_filters: bool,
     show_unknown_as_hole: bool,
   };
@@ -18,7 +17,6 @@ module Settings = {
     fold_case_clauses: false,
     fold_fn_bodies: false,
     hide_fixpoints: false,
-    fold_cast_types: false,
     show_filters: true,
     show_unknown_as_hole: true,
   };
@@ -28,7 +26,6 @@ module Settings = {
     fold_case_clauses: !settings.evaluation.show_case_clauses,
     fold_fn_bodies: !settings.evaluation.show_fn_bodies,
     hide_fixpoints: !settings.evaluation.show_fixpoints,
-    fold_cast_types: !settings.evaluation.show_casts,
     show_filters: settings.evaluation.show_stepper_filters,
     show_unknown_as_hole: true,
   };

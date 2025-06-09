@@ -19,21 +19,21 @@ let restart_caret_animation = () =>
 
 let apply =
     (
-      model: Page.Model.t,
-      action: Page.Update.t,
+      model: History.Model.t,
+      action: History.Update.t,
       ~schedule_action,
       ~schedule_autosave,
     )
-    : Page.Model.t => {
+    : History.Model.t => {
   restart_caret_animation();
 
   /* This function is split into two phases, update and calculate.
      The intention is that eventually, the calculate phase will be
      done automatically by incremental calculation. */
   // ---------- UPDATE PHASE ----------
-  let updated: Updated.t(Page.Model.t) =
+  let updated: Updated.t(History.Model.t) =
     try(
-      Page.Update.update(
+      History.Update.update(
         ~import_log=Log.import,
         ~get_log_and=Log.get_and,
         ~schedule_action,
@@ -57,7 +57,7 @@ let apply =
   // ---------- CALCULATE PHASE ----------
   let model' =
     updated.recalculate
-      ? updated.model |> Page.Update.calculate(~schedule_action)
+      ? updated.model |> History.Update.calculate(~schedule_action)
       : updated.model;
 
   if (updated.is_edit) {
@@ -83,8 +83,8 @@ let start = {
   let%sub save_scheduler = BonsaiUtil.Alarm.alarm;
   let%sub (app_model, app_inject) =
     Bonsai.state_machine1(
-      (module Page.Model),
-      (module Page.Update),
+      (module History.Model),
+      (module History.Update),
       ~apply_action=
         (~inject, ~schedule_event, input) => {
           let schedule_action = x => schedule_event(inject(x));
@@ -97,7 +97,8 @@ let start = {
           apply(~schedule_action, ~schedule_autosave);
         },
       ~default_model=
-        Page.Store.load() |> Page.Update.calculate(~schedule_action=_ => ()),
+        History.Model.init()
+        |> History.Update.calculate(~schedule_action=_ => ()),
       save_scheduler,
     );
 
@@ -171,7 +172,8 @@ let start = {
         } else {
           ();
         };
-        model.globals.settings.core.statics ? Haz3lcore.Animation.go() : ();
+        model.current.globals.settings.core.statics
+          ? Haz3lcore.Animation.go() : ();
       },
       (),
     );
@@ -181,7 +183,7 @@ let start = {
   // View function
   let%arr app_model = app_model
   and app_inject = app_inject;
-  Haz3lweb.Page.View.view(
+  Haz3lweb.History.View.view(
     app_model,
     ~inject=app_inject,
     ~get_log_and=Log.get_and,

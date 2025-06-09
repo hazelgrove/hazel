@@ -86,6 +86,14 @@ module Update = {
     | StepForward(int)
     | StepBackward;
 
+  let can_undo = (action: t) => {
+    switch (action) {
+    | StepperEditor(_, action) => StepperEditor.Update.can_undo(action)
+    | StepForward(_) => true
+    | StepBackward => true
+    };
+  };
+
   let update = (~globals, action: t, model: Model.t): Updated.t(Model.t) => {
     switch (action) {
     | StepForward(idx) =>
@@ -297,13 +305,7 @@ module Update = {
             |> {
               let.calc elab = elab
               and.calc settings = settings;
-              let elab =
-                elab
-                |> (
-                  settings.evaluation.show_casts
-                    ? x => x : Haz3lcore.DHExp.strip_casts
-                )
-                |> Typ.replace_temp_exp;
+              let elab = elab |> Typ.replace_temp_exp;
               let editor = CodeWithStatics.Model.mk_from_exp(~settings, elab);
               let next_status =
                 EvaluatorStep.get_status(

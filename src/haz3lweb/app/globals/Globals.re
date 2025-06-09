@@ -14,7 +14,9 @@ module Action = {
     | JumpToTile(Haz3lcore.Id.t) // Perform(Select(Term(Id(id, Left))))
     | InitImportAll([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
     | FinishImportAll(option(string))
-    | ExportForInit;
+    | ExportForInit
+    | Undo
+    | Redo;
 };
 
 module Model = {
@@ -85,6 +87,21 @@ module Update = {
     ...model,
     color_highlights,
   };
+
+  let can_undo = (action: t) => {
+    switch (action) {
+    | SetMousedown(_) => false
+    | SetShowBackpackTargets(_) => false
+    | SetFontMetrics(_) => false
+    | Set(action) => Settings.Update.can_undo(action)
+    | JumpToTile(_) => false
+    | InitImportAll(_) => true
+    | FinishImportAll(_) => true
+    | ExportForInit => false
+    | Undo => false
+    | Redo => false
+    };
+  };
 };
 
 module ContextualAction = Haz3lcorep.ContextualAction;
@@ -147,8 +164,8 @@ let contextual_actions = (~inject: Action.t => Ui_effect.t(unit)) => [
   ContextualAction.mk(
     ~section="Settings",
     ~mdIcon="tune",
-    "Toggle Show Casts",
-    inject(Set(Evaluation(ShowCasts))),
+    "Toggle Show Cast Steps",
+    inject(Set(Evaluation(ShowCastSteps))),
   ),
   ContextualAction.mk(
     ~section="Settings",

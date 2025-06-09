@@ -31,7 +31,7 @@ module MakeTerm = {
 };
 
 module Parse = {
-  include Parse;
+  include Haz3lcorep.Parse;
   let parse_exp = parse_exp(~of_projector);
 };
 

@@ -53,7 +53,9 @@ These two functions are separated for a couple reasons:
 
 The result of `Update.update` is wrapped in a `Updated.t(...)` which, among other things, records whether the entire app should recalculate after this change. If you return `Updated.return(model)` it will recalculate, and if you return `Updated.return_quiet(model)` it won't recalculate. If you're not sure it's generally safer to use `return`. Look at the optional arguments on `return` if you want more control over what gets recalculated.
 
-## Selection
+## Selection / Focus
+
+We are in the process of renaming Selection to Focus - currently about half the Selection modules have been renamed (June 2025)
 
 The `Selection` module is only required if it's possible for this component or a component inside this component to be active (i.e. has the cursor, takes key events).
 

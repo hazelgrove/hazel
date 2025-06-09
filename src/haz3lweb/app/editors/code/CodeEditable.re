@@ -15,6 +15,13 @@ module Update = {
 
   exception CantReset;
 
+  let can_undo = (action: t) => {
+    switch (action) {
+    | Perform(action) => Action.is_historic(action)
+    | DebugConsole(_) => false
+    };
+  };
+
   let update =
       (~globals: Globals.t, action: t, model: Model.t): Updated.t(Model.t) => {
     let perform = (action: Action.t, model: Model.t) =>

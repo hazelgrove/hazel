@@ -66,6 +66,8 @@ module Update = {
     | Start
     | Save;
 
+  let equal = (===);
+
   let update_global =
       (
         ~import_log,
@@ -172,6 +174,8 @@ module Update = {
           "let out : string * Haz3lcore.PersistentZipper.t = " ++ content,
       );
       model |> return_quiet;
+    | Undo
+    | Redo => failwith("Undo/Redo are handled in the history module")
     };
   };
 
@@ -232,6 +236,18 @@ module Update = {
     };
   };
 
+  let can_undo = (action: t) => {
+    switch (action) {
+    | Globals(action) => Globals.Update.can_undo(action)
+    | Editors(action) => Editors.Update.can_undo(action)
+    | ExplainThis(action) => ExplainThisUpdate.can_undo(action)
+    | MakeActive(_) => false
+    | Benchmark(_) => false
+    | Start => false
+    | Save => false
+    };
+  };
+
   let calculate = (~schedule_action, model: Model.t) => {
     let editors =
       Editors.Update.calculate(
@@ -272,6 +288,26 @@ module Focus = {
       inject(Update.Globals(SetShowBackpackTargets(false)))
     | {key: D("F7"), sys: Mac | PC, shift: Down, meta: Up, ctrl: Up, alt: Up} =>
       inject(Update.Benchmark(Start))
+    | {
+        key: D("Z" | "z"),
+        sys: Mac,
+        shift: Down,
+        meta: Down,
+        ctrl: Up,
+        alt: Up,
+      }
+    | {
+        key: D("Z" | "z"),
+        sys: PC,
+        shift: Down,
+        meta: Up,
+        ctrl: Down,
+        alt: Up,
+      } =>
+      inject(Update.Globals(Redo))
+    | {key: D("Z" | "z"), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
+    | {key: D("Z" | "z"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
+      inject(Update.Globals(Undo))
     | _ => Ui_effect.Ignore
     };
   };
