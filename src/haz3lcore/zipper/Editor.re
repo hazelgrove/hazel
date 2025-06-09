@@ -118,6 +118,11 @@ module Model = {
     model |> get_z |> PersistentZipper.persist(f);
   let unpersist = (f, p) => p |> PersistentZipper.unpersist(f) |> mk;
 
+  let sexp_of_t = (_, f, _, model: t('p_k, 'p, 'p_a)) =>
+    model |> persist(f) |> PersistentZipper.sexp_of_t;
+  let t_of_sexp = (_, f, _, s) =>
+    s |> PersistentZipper.t_of_sexp |> unpersist(f);
+
   let to_move_s =
       (type p', model: t('p_k, p', 'p_a)): (module Move.S with type p = p') => {
     let syntax = Calc.get_saved_exc(model.syntax);
