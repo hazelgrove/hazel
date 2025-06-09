@@ -414,14 +414,6 @@ and uexp_to_info_map =
     | BinOp(op, e1, e2) =>
       let op = Operators.replace_bin_op(op, ctx.use_mode); // Replace op if necessary due to `use`
       let op_semantics = Operators.semantics_of_bin_op(op);
-      print_endline(
-        "BinOp: "
-        ++ Operators.bin_op_to_string(op)
-        ++ ", e1: "
-        ++ Exp.show(e1)
-        ++ ", e2: "
-        ++ Exp.show(e2),
-      );
       switch (op_semantics) {
       | Undefined(msg) =>
         let (_, m) = go(~ana=syn, e1, m);
