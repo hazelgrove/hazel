@@ -822,7 +822,7 @@ module View = {
                                 signal(MakeActive(TextBox))
                               ),
                               Attr.create("rows", "5"),
-                              Attr.create("cols", "50"),
+                              Attr.create("cols", "30"),
                             ],
                             [text(eds.prompt)],
                           ),
