@@ -41,6 +41,32 @@ type op_bin_num =
   | GreaterThanOrEqual;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
+type op_bin_float =
+  | Plus
+  | Minus
+  | Times
+  | Power
+  | Divide
+  | LessThan
+  | LessThanOrEqual
+  | GreaterThan
+  | GreaterThanOrEqual
+  | Equals
+  | NotEquals;
+
+let op_bin_float_of_num: op_bin_num => op_bin_float =
+  fun
+  | Plus => Plus
+  | Minus => Minus
+  | Times => Times
+  | Power => Power
+  | Divide => Divide
+  | LessThan => LessThan
+  | LessThanOrEqual => LessThanOrEqual
+  | GreaterThan => GreaterThan
+  | GreaterThanOrEqual => GreaterThanOrEqual;
+
+[@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
 type op_bin_string =
   | Concat
   | Equals;
@@ -64,7 +90,7 @@ type op_bin =
   | Int(op_bin_num)
   | SInt(op_bin_num)
   | Nat(op_bin_num)
-  | Float(op_bin_num)
+  | Float(op_bin_float)
   | Bool(op_bin_bool)
   | String(op_bin_string)
   | Poly(op_bin_poly);
@@ -126,7 +152,8 @@ let replace_bin_op = (op: op_bin, use_mode: option(mode)): op_bin => {
   | (op, None) => op
   | (Int(op) | Nat(op) | SInt(op), Some(Int)) => Int(op)
   | (Int(op) | Nat(op) | SInt(op), Some(Nat)) => Nat(op)
-  | (Int(op) | Nat(op) | SInt(op), Some(Float)) => Float(op)
+  | (Int(op) | Nat(op) | SInt(op), Some(Float)) =>
+    Float(op_bin_float_of_num(op))
   | (Int(op) | Nat(op) | SInt(op), Some(SInt)) => SInt(op)
   | (Float(op), _) => Float(op)
   | (Bool(op), _) => Bool(op)
@@ -175,7 +202,7 @@ let show_op_bin_num: op_bin_num => string =
   | GreaterThan => "Greater Than"
   | GreaterThanOrEqual => "Greater Than or Equal";
 
-let show_op_bin_float: op_bin_num => string =
+let show_op_bin_float: op_bin_float => string =
   fun
   | Plus => "Float Addition"
   | Minus => "Float Subtraction"
@@ -185,7 +212,9 @@ let show_op_bin_float: op_bin_num => string =
   | LessThan => "Float Less Than"
   | LessThanOrEqual => "Float Less Than or Equal"
   | GreaterThan => "Float Greater Than"
-  | GreaterThanOrEqual => "Float Greater Than or Equal";
+  | GreaterThanOrEqual => "Float Greater Than or Equal"
+  | Equals => "Float Equality"
+  | NotEquals => "Float Inequality";
 
 let show_op_bin_string: op_bin_string => string =
   fun
@@ -228,7 +257,7 @@ let int_op_to_string = (op: op_bin_num): string => {
   };
 };
 
-let float_op_to_string = (op: op_bin_num): string => {
+let float_op_to_string = (op: op_bin_float): string => {
   switch (op) {
   | Plus => "+."
   | Minus => "-."
@@ -239,6 +268,8 @@ let float_op_to_string = (op: op_bin_num): string => {
   | LessThanOrEqual => "<=."
   | GreaterThan => ">."
   | GreaterThanOrEqual => ">=."
+  | Equals => "==."
+  | NotEquals => "!=."
   };
 };
 
@@ -372,6 +403,8 @@ let semantics_of_bin_op = (op: op_bin): bin_semantics =>
   | Float(LessThanOrEqual) => Defined(Float, Float, Bool, just((<=)))
   | Float(GreaterThan) => Defined(Float, Float, Bool, just((>)))
   | Float(GreaterThanOrEqual) => Defined(Float, Float, Bool, just((>=)))
+  | Float(Equals) => Defined(Float, Float, Bool, just((==)))
+  | Float(NotEquals) => Defined(Float, Float, Bool, just((!=)))
 
   | String(Concat) => Defined(String, String, String, just((++)))
   | String(Equals) => Defined(String, String, Bool, just((==)))
@@ -423,6 +456,8 @@ let op_name = (op: op_bin): string =>
   | Float(LessThanOrEqual) => "float_lte"
   | Float(GreaterThan) => "float_gt"
   | Float(GreaterThanOrEqual) => "float_gte"
+  | Float(Equals) => "float_eq"
+  | Float(NotEquals) => "float_neq"
   | String(Concat) => "string_concat"
   | String(Equals) => "string_eq"
   | Bool(And) => "bool_and"

@@ -91,37 +91,37 @@ module PlainTests = {
   let ap_fun = () =>
     alco_check("Application of a function", d7, dhexp_of_uexp(u7));
 
-  /* let u8: Exp.t =
-     Exp.(
-       match(
-         bin_op(Int(Equals), int(4), int(3)),
-         [(Pat.bool(true), int(24)), (Pat.bool(false), bool(false))],
-       )
-     ); */
+  let u8: Exp.t =
+    Exp.(
+      match(
+        bin_op(Poly(Equals), int(4), int(3)),
+        [(Pat.bool(true), int(24)), (Pat.bool(false), bool(false))],
+      )
+    );
 
-  /* let d8: Exp.t =
-     Exp.(
-       match(
-         bin_op(Int(Equals), int(4), int(3)),
-         [
-           (
-             Pat.(bool(true)),
-             cast(int(24), Typ.int(), Typ.unknown(Internal)),
-           ),
-           (
-             Pat.bool(false),
-             cast(bool(false), Typ.bool(), Typ.unknown(Internal)),
-           ),
-         ],
-       )
-     ); */
+  let d8: Exp.t =
+    Exp.(
+      match(
+        bin_op(Poly(Equals), int(4), int(3)),
+        [
+          (
+            Pat.(bool(true)),
+            cast(int(24), Typ.int(), Typ.unknown(Internal)),
+          ),
+          (
+            Pat.bool(false),
+            cast(bool(false), Typ.bool(), Typ.unknown(Internal)),
+          ),
+        ],
+      )
+    );
 
-  /* let inconsistent_case = () =>
-     alco_check(
-       "Inconsistent branches where the first branch is an integer and second branch is a boolean",
-       d8,
-       dhexp_of_uexp(u8),
-     ); */
+  let inconsistent_case = () =>
+    alco_check(
+      "Inconsistent branches where the first branch is an integer and second branch is a boolean",
+      d8,
+      dhexp_of_uexp(u8),
+    );
 
   let u9: Exp.t =
     Exp.(

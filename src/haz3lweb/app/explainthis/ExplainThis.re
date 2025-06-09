@@ -2058,8 +2058,8 @@ let get_doc =
               float_greater_than_equal,
               float_gte_exp_coloring_ids,
             )
-          /* | Float(Equals) => (float_equal, float_eq_exp_coloring_ids)
-             | Float(NotEquals) => (float_not_equal, float_neq_exp_coloring_ids) */
+          | Float(Equals) => (float_equal, float_eq_exp_coloring_ids)
+          | Float(NotEquals) => (float_not_equal, float_neq_exp_coloring_ids)
           | Bool(And) => (bool_and, bool_and_exp_coloring_ids)
           | Bool(Or) => (bool_or, bool_or_exp_coloring_ids)
           | String(Equals) => (string_equal, str_eq_exp_coloring_ids)
