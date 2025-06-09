@@ -200,13 +200,6 @@ let set_select_value = (select_id, value) => {
   );
 };
 
-let focus_current_target = (evt: Js.t(Dom_html.event)): Ui_effect.t(unit) => {
-  switch (evt##.currentTarget |> Js.Opt.to_option) {
-  | Some(target) => Ui_effect.of_sync_fun(() => {target##focus}, ())
-  | None => Ui_effect.Ignore
-  };
-};
-
 module QueryParams = {
   let get_arguments = (url: Url.url): list((string, string)) =>
     switch (url) {

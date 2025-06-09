@@ -549,24 +549,17 @@ let view_code_editable =
       e.loc,
     );
 
-  let move_or_select =
-      (
-        ~evt: Js.t(Dom_html.pointerEvent),
-        mouse: Pointer.Event.t,
-        pointer_id: int,
-      ) =>
+  let move_or_select = (mouse: Pointer.Event.t, pointer_id: int) =>
     switch (mouse) {
     | {shift: Down, _} =>
       Effect.Many([
-        JsUtil.focus_current_target(Js.Unsafe.coerce(evt)),
-        focus(Here),
+        Focus.focus_here(~focus_parent=focus, model),
         inject(Select(Resize(Goal(Point(loc(mouse)))))),
       ])
     | {sys: PC, ctrl: Down, _}
     | {sys: Mac, meta: Down, _} =>
       Effect.Many([
-        JsUtil.focus_current_target(Js.Unsafe.coerce(evt)),
-        focus(Here),
+        Focus.focus_here(~focus_parent=focus, model),
         inject(Move(Goal(Point(loc(mouse))))),
         inject(Jump(BindingSiteOfIndicatedVar)),
       ])
@@ -581,8 +574,7 @@ let view_code_editable =
         PointerCapture.set(mouse.current_target, pointer_id);
         print_endline("HERE 1");
         Effect.Many([
-          JsUtil.focus_current_target(Js.Unsafe.coerce(evt)),
-          focus(Here),
+          Focus.focus_here(~focus_parent=focus, model),
           inject(Move(Goal(Point(loc(mouse))))),
         ]);
       | 2 => inject(Select(Smart(2)))
@@ -623,11 +615,7 @@ let view_code_editable =
         @ (Option.is_some(focussed) ? ["selected"] : []),
       ),
       Attr.on_pointerdown(evt =>
-        move_or_select(
-          ~evt,
-          Pointer.Event.mk(evt),
-          Pointer.Event.id_of(evt),
-        )
+        move_or_select(Pointer.Event.mk(evt), Pointer.Event.id_of(evt))
       ),
       Attr.on_pointerup(evt =>
         toggle_button(Pointer.Event.mk(evt), Pointer.Event.id_of(evt))
