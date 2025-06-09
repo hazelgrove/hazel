@@ -262,6 +262,7 @@ module Update = {
     | Editor(_, action) => CellEditor.Update.can_undo(action)
     | ResetEditor(_) => true
     | ResetExercise => true
+    | Instructor(_) => false
     };
   };
 
@@ -810,13 +811,22 @@ module View = {
                 ? div(
                     ~attrs=[Attr.class_("prompt-edit")],
                     [
-                      textarea(
-                        ~attrs=[
-                          Attr.class_("prompt-text"),
-                          Attr.id("prompt-input-box"),
-                          Attr.on_focus(_ => signal(MakeActive(TextBox))),
+                      div(
+                        ~attrs=[Attr.id("prompt-textarea-container")],
+                        [
+                          textarea(
+                            ~attrs=[
+                              Attr.class_("prompt-text"),
+                              Attr.id("prompt-input-box"),
+                              Attr.on_focus(_ =>
+                                signal(MakeActive(TextBox))
+                              ),
+                              Attr.create("rows", "5"),
+                              Attr.create("cols", "50"),
+                            ],
+                            [text(eds.prompt)],
+                          ),
                         ],
-                        [text(eds.prompt)],
                       ),
                       div(
                         ~attrs=[Attr.class_("edit-icon")],
