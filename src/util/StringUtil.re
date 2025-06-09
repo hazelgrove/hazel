@@ -74,6 +74,11 @@ let trim_leading = (s: string): string => {
   |> Re.Str.global_replace(Re.Str.regexp("\n[ ]*"), "\n"); // Remove leading spaces after newlines
 };
 
+let isEmptyOrWhitespace = str => {
+  let trimmed = String.trim(str);
+  String.length(trimmed) == 0;
+};
+
 let compress = (s: string): string => {
   let result =
     Js_of_ocaml.Js.encodeURIComponent(Js_of_ocaml.Js.string(s))
