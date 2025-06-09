@@ -181,6 +181,16 @@ module Update = {
     | ExportTransitionary
     | ExportGrading;
 
+  let can_undo = (action: t) => {
+    switch (action) {
+    | SwitchExercise(_) => false
+    | Exercise(action) => ExerciseMode.Update.can_undo(action)
+    | ExportModule => false
+    | ExportSubmission => false
+    | ExportTransitionary => false
+    | ExportGrading => false
+    };
+  };
   let export_exercise_module = (exercises: Model.t): unit => {
     let exercise = Model.get_current(exercises);
     let module_name =
@@ -393,13 +403,6 @@ module View = {
         ~tooltip="Import Submission",
       );
 
-    let export_persistent_data =
-      button_named(
-        Icons.export,
-        _ => globals.inject_global(ExportPersistentData),
-        ~tooltip="Export All Persistent Data",
-      );
-
     let reset_hazel =
       button_named(
         Icons.bomb,
@@ -443,7 +446,6 @@ module View = {
         ~inject,
         "Developer Export",
         [
-          export_persistent_data,
           instructor_export,
           instructor_transitionary_export,
           instructor_grading_export,

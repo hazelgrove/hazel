@@ -1,6 +1,6 @@
 include Base;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = piece;
 
 let secondary = w => Secondary(w);
@@ -46,7 +46,7 @@ let nibs =
     },
     t => Some(Tile.nibs(t)),
     p => {
-      let (l, r) = ProjectorBase.shapes(p);
+      let (l, r) = ProjectorCore.shapes(p);
       Some(
         Nib.(
           {
@@ -103,7 +103,7 @@ let shapes =
     _ => None,
     g => Some(Grout.shapes(g)),
     t => Some(Tile.shapes(t)),
-    p => Some(ProjectorBase.shapes(p)),
+    p => Some(ProjectorCore.shapes(p)),
   );
 
 let is_convex = (p: t): bool =>
@@ -148,6 +148,30 @@ let is_complete: t => bool =
   fun
   | Tile(t) => Tile.is_complete(t)
   | _ => true;
+
+let replace_id = (id: Id.t, p: t): t =>
+  switch (p) {
+  | Tile(t) =>
+    Tile({
+      ...t,
+      id,
+    })
+  | Grout(g) =>
+    Grout({
+      ...g,
+      id,
+    })
+  | Secondary(w) =>
+    Secondary({
+      ...w,
+      id,
+    })
+  | Projector(p) =>
+    Projector({
+      ...p,
+      id,
+    })
+  };
 
 let mk_tile: (Form.t, list(list(t))) => t =
   (form, children) =>

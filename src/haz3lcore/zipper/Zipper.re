@@ -23,13 +23,13 @@ let init: unit => t =
 
 let next_blank = _ => Id.mk();
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type chunkiness =
   | ByChar
   | MonoByChar
   | ByToken;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type planar =
   | Up
   | Down
@@ -254,9 +254,6 @@ let destruct = (~destroy_kids=true, z: t): t => {
   };
 };
 
-let delete = (d: Direction.t, z: t): option(t) =>
-  z |> select(d) |> Option.map(destruct);
-
 let put_down = (d: Direction.t, z: t): option(t) => {
   let z = destruct(z);
   let* (_, popped, backpack) = pop_backpack(z);
@@ -341,6 +338,54 @@ let rec construct =
 let construct_mono = (d: Direction.t, t: Token.t, z: t): t =>
   construct(~caret=d, ~backpack=Left, [t], z);
 
+let rec get_leaf_pieces =
+        (syntaxNode: Piece.t, ~ignored_labels: list(list(string)))
+        : list(Piece.t) =>
+  switch (syntaxNode) {
+  | Tile(tile) =>
+    /* Check if this tile's label is in the ignored labels */
+    let should_ignore =
+      List.exists(label => label == tile.label, ignored_labels);
+    if (should_ignore) {
+      [];
+        /* Ignore this tile */
+    } else if (tile.children == []) {
+      [
+        /* It's a leaf piece */
+        Tile(tile),
+      ];
+    } else {
+      /* Recurse into the children */
+      tile.children
+      |> List.concat_map(segment =>
+           segment |> List.concat_map(get_leaf_pieces(~ignored_labels))
+         );
+    };
+  | _ => []
+  };
+
+let remove_projector = (id: Id.t, syntax: Piece.t) =>
+  switch (syntax) {
+  | Projector(pr) when pr.id == id =>
+    // just get the label, found as first leaf piece
+    get_leaf_pieces(pr.syntax, ~ignored_labels=[[","]]) |> List.hd
+  | x => x
+  };
+
+let delete = (d: Direction.t, z: t): option(t) => {
+  let to_delete = z |> select(d);
+
+  switch (to_delete) {
+  | Some({selection: {content: [Projector(p)], _}, _}) =>
+    switch (p.kind) {
+    | Livelit =>
+      Some(ZipperBase.MapPiece.fast_local(remove_projector(p.id), p.id, z))
+    | _ => to_delete |> Option.map(destruct)
+    }
+  | _ => to_delete |> Option.map(destruct)
+  };
+};
+
 let replace =
     (~caret: Direction.t, ~backpack: Direction.t, l: Label.t, z: t)
     : option(t) =>
@@ -406,6 +451,8 @@ let caret_point = (measured, z: t): Point.t => {
 let serialize = (z: t): string => {
   sexp_of_t(z) |> Sexplib.Sexp.to_string;
 };
+
+let to_sexp = (z: t): Sexplib.Sexp.t => sexp_of_t(z);
 
 let deserialize = (data: string): t => {
   Sexplib.Sexp.of_string(data) |> t_of_sexp;

@@ -86,14 +86,14 @@ let elements_noun: Cls.t => string =
   | Exp(ListLit)
   | Pat(ListLit) => "Elements"
   | Exp(ListConcat) => "Operands"
-  | _ => failwith("elements_noun: Cls doesn't have elements");
+  | cls =>
+    failwith("elements_noun: " ++ Cls.show(cls) ++ " cls has no elements");
 
 let code_view_settings: ExpToSegment.Settings.t = {
   inline: true,
   fold_case_clauses: false,
   fold_fn_bodies: false,
   hide_fixpoints: false,
-  fold_cast_types: false,
   show_filters: false,
   show_unknown_as_hole: true,
 };
@@ -173,6 +173,14 @@ let common_err_view =
           : [text("Invalid labels: "), ...List.map(code, invalid_labels)]
       )
     | DuplicateLabel(name, _) => [text("Duplicate Label:"), code(name)]
+    | NoType(UnboundLivelit(name)) => [
+        text("Livelit with name"),
+        code(name),
+        text("not found, and also, it's a livelit"),
+      ]
+    | Inconsistent(BadLivelitModel(_)) => [
+        text("Bad internal livelit model"),
+      ]
     | Inconsistent(WithArrow(typ)) => [
         text(":"),
         view_type(typ) |> code_box_container,

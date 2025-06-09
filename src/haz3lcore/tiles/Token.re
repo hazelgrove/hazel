@@ -1,7 +1,7 @@
 open Util;
 
 // make an enum
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = string;
 
 module Index = {
