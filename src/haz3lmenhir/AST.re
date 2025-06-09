@@ -1157,7 +1157,12 @@ and shrink_typ: QCheck.Shrink.t(typ) =
         }
       )
   );
-
+let arb_typ = (~minimal_idents=false, size) =>
+  QCheck.make(
+    ~print=show_typ,
+    ~shrink=shrink_typ,
+    gen_typ_sized(~minimal_idents, size),
+  );
 let arb_exp = (~minimal_idents=false, size) =>
   QCheck.make(
     ~print=show_exp,

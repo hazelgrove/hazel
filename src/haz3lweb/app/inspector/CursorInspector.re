@@ -95,7 +95,6 @@ let code_view_settings: ExpToSegment.Settings.t = {
   fold_case_clauses: false,
   fold_fn_bodies: false,
   hide_fixpoints: false,
-  fold_cast_types: false,
   show_filters: false,
   show_unknown_as_hole: true,
 };

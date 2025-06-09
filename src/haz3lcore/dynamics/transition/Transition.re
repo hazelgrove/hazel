@@ -364,19 +364,6 @@ module Transition = (EV: EV_MODE) => {
           kind: TypFunAp,
           is_value: false,
         })
-      | TFunCast(d'', tp1, t1, tp2, t2) =>
-        /* Rule ITTApCast */
-        Step({
-          expr:
-            cast(
-              typ_ap(d'', tau),
-              Typ.subst(tau, tp1, t1),
-              Typ.subst(tau, tp2, t2),
-            ),
-          state_update,
-          kind: CastTypAp,
-          is_value: false,
-        })
       };
     | DeferredAp(d1, ds) =>
       let. _ = otherwise(env, (d1, ds) => DeferredAp(d1, ds) |> rewrap)
@@ -445,14 +432,6 @@ module Transition = (EV: EV_MODE) => {
           })
         };
       | FunNoEnv(_) => Indet
-      | FunCast(d3', ty1, ty2, ty1', ty2') =>
-        Step({
-          expr: cast(ap(dir, d3', cast(d2', ty1', ty1)), ty2, ty2'),
-
-          state_update,
-          kind: CastAp,
-          is_value: false,
-        })
       | BuiltinFun(ident) =>
         let builtin =
           VarMap.lookup(Builtins.forms_init, ident)
@@ -923,7 +902,7 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | VarLookup => !settings.show_lookup_steps
   | CastTypAp
   | CastAp
-  | Cast => !settings.show_casts
+  | Cast => !settings.show_cast_steps
   | FixUnwrap => !settings.show_fixpoints
   | CompleteClosure
   | CompleteFilter
