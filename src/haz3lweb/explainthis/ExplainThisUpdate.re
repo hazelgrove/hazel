@@ -9,6 +9,15 @@ type update =
   | ToggleExampleFeedback(group_id, form_id, example_id, feedback_option)
   | UpdateGroupSelection(group_id, form_id);
 
+let can_undo = (action: update) => {
+  switch (action) {
+  | SpecificityOpen(_) => false
+  | ToggleExplanationFeedback(_) => false
+  | ToggleExampleFeedback(_) => false
+  | UpdateGroupSelection(_) => false
+  };
+};
+
 let set_update =
     (explainThisModel: ExplainThisModel.t, u: update)
     : Updated.t(ExplainThisModel.t) => {
