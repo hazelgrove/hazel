@@ -617,7 +617,6 @@ let view =
 
 let methods = {
   init: (~copy_ed as _, term: TermBase.Any.t, _ed) => Model.of_term(term),
-  focusable: Focusable.non,
   dynamics: false,
   placeholder: (~ed_size as _, model: model('ed), _info) => {
     horizontal:

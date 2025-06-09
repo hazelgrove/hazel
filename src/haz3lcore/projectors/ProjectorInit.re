@@ -35,16 +35,3 @@ let make_term =
   let (ed', term) = methods.mk_term(~mk_term_ed, ~sort, ~prev=exp_cache, m);
   (V(k, ed', term |> Calc.save), term);
 };
-
-let focusable_of_model =
-    (V(k, _, _): ProjectorCore.model('ed, 'ed_a, 'ed_f)) => {
-  let methods = ProjectorCore.to_module(k);
-  methods.focusable;
-};
-
-let focusable_of_kind = (k: ProjectorCore.Kind.t) => {
-  open ProjectorCore.Kind;
-  let.gadt W(kind_gadt) = k;
-  let methods = ProjectorCore.to_module(kind_gadt);
-  methods.focusable;
-};

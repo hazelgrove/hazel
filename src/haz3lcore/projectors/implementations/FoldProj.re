@@ -62,7 +62,6 @@ let methods = {
       ed,
     };
   },
-  focusable: Focusable.non,
   dynamics: false,
   placeholder: (~ed_size as _, m: model('ed), _) =>
     ProjectorShape.inline(m.text == "⋱" ? 2 : String.length(m.text)),

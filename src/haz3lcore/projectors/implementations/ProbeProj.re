@@ -873,12 +873,6 @@ let overlay_view = (info: info): Node.t =>
     [num_closures_view(info)] @ pin_view(info),
   );
 
-let focusable =
-  Focusable.{
-    pointer: Some(id => JsUtil.get_elem_by_id(Id.cls(id))##focus),
-    keyboard: None,
-  };
-
 let view =
     (
       ~common as _,
@@ -946,7 +940,6 @@ let methods = {
     }:
       option(model(_))
   ),
-  focusable,
   dynamics: true,
   placeholder: (~ed_size, m: model('ed), _) =>
     //TODO(andrew): abbreviate? 2d?

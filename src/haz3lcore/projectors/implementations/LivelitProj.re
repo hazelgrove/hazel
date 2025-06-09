@@ -32,7 +32,6 @@ let methods:
     | _ => None
     };
   },
-  focusable: Focusable.non,
   dynamics: false,
   update: (~update_ed as _, ~common as _, ~sort as _, info, model, action) => {
     let ctx =

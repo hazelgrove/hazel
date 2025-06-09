@@ -22,7 +22,6 @@ let methods:
     let+ ed = ed();
     (ed, copy_ed(ed));
   },
-  focusable: Focusable.non, // TODO: Internal focus handling
   dynamics: false,
   view:
     (

@@ -192,7 +192,6 @@ let methods:
     | Exp({term: Atom(String(str)), _}) => Some(str)
     | _ => None
     },
-  focusable: Focusable.non,
   dynamics: false,
   placeholder: (~ed_size as _, str, _) => {
     ProjectorShape.{

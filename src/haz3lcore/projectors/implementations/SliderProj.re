@@ -51,7 +51,6 @@ let view =
 
 let methods = {
   init,
-  focusable: Focusable.non,
   dynamics: false,
   placeholder: (~ed_size as _, _, _) => ProjectorShape.inline(10),
   update: (~update_ed as _, ~common as _, ~sort as _, _, _, Set(n)) => n,

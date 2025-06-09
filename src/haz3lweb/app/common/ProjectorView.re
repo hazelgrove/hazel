@@ -387,14 +387,7 @@ let all =
                  inject(Project(a))
                ),
            ~inject=a => inject(Project(Perform(data.info.id, a))),
-           ~focus=
-             f =>
-               Ui_effect.Many([
-                 make_active(data.info.id, f),
-                 inject(
-                   Project(Focus(data.info.id, data.status.kind, None)),
-                 ),
-               ]),
+           ~focus=f => Ui_effect.Many([make_active(data.info.id, f)]),
            ~focussed=
              switch (focussed) {
              | Some((id2, f)) when id2 == data.info.id => Some(f)

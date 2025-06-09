@@ -103,9 +103,7 @@ let go =
       ~projector_init,
       ~update_projector,
       ~seg_of_pr: p => Base.segment(p),
-      ~get_focusable: p_kind => ProjectorBase.Focusable.t,
       ~livelit_projectors,
-      jump_to_id_indicated,
       jump_to_side_of_id,
       select_term: Zipper.t(p) => option(Zipper.t(p)),
       a: Action.project(p_kind, p, p_a),
@@ -173,30 +171,6 @@ let go =
         z,
       ): ZipperBase.t(p),
     )
-  | Focus(id, kind, d) =>
-    switch (d) {
-    | None =>
-      /* Focus by mouse click */
-      switch (get_focusable(kind).pointer) {
-      | Some(focus) => focus(id)
-      | None => ()
-      };
-      Ok(Option.value(~default=z, jump_to_id_indicated(z, id)));
-    | Some(Right) =>
-      /* Focus by arrow key hand-off */
-      switch (get_focusable(kind).keyboard) {
-      | Some(focus) => focus(id, Right)
-      | None => ()
-      };
-      Ok(z);
-    | Some(Left) =>
-      /* Focus by arrow key hand-off */
-      switch (get_focusable(kind).keyboard) {
-      | Some(focus) => focus(id, Left)
-      | None => ()
-      };
-      Ok(z);
-    }
   | Escape(id, d) => Ok(jump_to_side_of_id(d, z, id))
   };
 };

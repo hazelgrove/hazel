@@ -180,7 +180,6 @@ let get_cursor_info =
 
 let methods = {
   init,
-  focusable: Focusable.non,
   dynamics: false,
   view,
   placeholder,

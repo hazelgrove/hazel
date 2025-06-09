@@ -18,8 +18,6 @@ module rec Projector: {
     let get_kind: t => ProjectorCore.Kind.t;
     let get_shape:
       (Statics.Map.t, Dynamics.Map.t, Base.projector(t)) => ProjectorShape.t;
-    let get_focusable: t => ProjectorBase.Focusable.t;
-    let focusable_of_kind: ProjectorCore.Kind.t => ProjectorBase.Focusable.t;
     let get_cached_term: t => Term.Any.t;
   };
 
@@ -94,8 +92,6 @@ module rec Projector: {
         ~ed_size=Editor.View.get_dimensions,
       );
     let get_kind = ProjectorCore.kind_of_model;
-    let get_focusable = ProjectorInit.focusable_of_model;
-    let focusable_of_kind = ProjectorInit.focusable_of_kind;
 
     let mk = ProjectorInit.init;
 
@@ -341,7 +337,6 @@ and Editor: {
               |> ExpToSegment.any_to_segment(
                    ~settings=ExpToSegment.Settings.on,
                  ),
-          ~get_focusable=Projector.Model.focusable_of_kind,
           ~livelit_projectors=ProjectorCore.Kind.livelit_projectors,
           action,
           common.statics,
@@ -372,7 +367,6 @@ and Editor: {
           p =>
             Projector.Model.get_cached_term(p)
             |> ExpToSegment.any_to_segment(~settings=ExpToSegment.Settings.on),
-        ~get_focusable=Projector.Model.focusable_of_kind,
         ~livelit_projectors=ProjectorCore.Kind.livelit_projectors,
         ~update_projector=Projector.Update.update(~common),
         ~calculate_projector=Projector.Update.calculate,
