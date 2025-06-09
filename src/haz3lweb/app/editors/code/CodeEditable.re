@@ -159,7 +159,7 @@ module Focus = {
 //               dynamics: model.dynamics,
 //             };
 //         });
-//       Deco.editor(model.editor |> Editor.Model.get_z, selected);
+//       Deco.editor(model.editor |> Editor.get_z, selected);
 //     };
 //     let projectors =
 //       Editor.View.all_projectors(

@@ -181,123 +181,39 @@ module rec Projector: {
   };
 }
 and Editor: {
-  module Model: {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t =
-      Haz3lcorep.Editor.t(
-        ProjectorCore.Kind.t,
-        Projector.Model.t,
-        Projector.Update.t,
-      ); // Transparent definition needed for handing editor to projectorinit
-
-    let mk: (~settings: CoreSettings.t, ~inline: bool=?, Any.t) => t;
-
-    let get_z: t => Zipper.t(Projector.Model.t);
-    let get_trailing_hole_ctx: (t, Statics.Map.t) => option(Ctx.t);
-    // [@deriving (show({with_path: false}), sexp, yojson)]
-    // type persistent;
-    // let persist: t => persistent;
-    // let unpersist: persistent => t;
-    let of_zipper: Zipper.t(Projector.Model.t) => t; // TODO: Replace with persistence logic
-
-    let get_cached_term: t => Term.Any.t;
-
-    let copy: t => t;
-  };
-
-  module Update: {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t =
-      Action.t(ProjectorCore.Kind.t, Projector.Model.t, Projector.Update.t);
-
-    let update: (~common: ProjectorInterface.common, t, Model.t) => Model.t;
-
-    let make_term: (~sort: Sort.t, Model.t) => (Model.t, Calc.t(Any.t));
-
-    let calculate: (~common: ProjectorInterface.common, Model.t) => Model.t;
-
-    let jump_to_tile_action:
-      (Id.t, Model.t) =>
-      option(
-        Action.t(ProjectorCore.Kind.t, Projector.Model.t, Projector.Update.t),
-      );
-  };
-
-  module Focus: {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t;
-
-    // TODO[Matt]: Used in jump to tile logic which will need updating.
-    // Thunked to make module "safe"
-    let here: unit => t;
-
-    let get_cursor_info:
-      (
-        ~common: ProjectorInterface.common,
-        ~inject: Update.t => Ui_effect.t(unit),
-        ~read_only: bool,
-        Model.t,
-        t
-      ) =>
-      Cursor.t;
-
-    let enter:
-      (
-        ~inject: Update.t => Ui_effect.t(unit),
-        ~focus: t => Ui_effect.t(unit),
-        Direction.t,
-        Model.t
-      ) =>
-      Ui_effect.t(unit);
-  };
-
-  module View: {
-    let print_string: Model.t => string;
-
-    let view:
-      (
-        ~font_metrics: FontMetrics.t,
-        ~secondary_icons: bool,
-        ~sort: Sort.t,
-        Model.t
-      ) =>
-      Web.Node.t;
-
-    let get_dimensions: Model.t => Point.t;
-
-    let view_editable:
-      (
-        ~common: ProjectorInterface.common,
-        ~inject:
-          Action.t(
-            ProjectorCore.Kind.t,
-            Projector.Model.t,
-            Projector.Update.t,
-          ) =>
-          Ui_effect.t(unit),
-        ~focus: Focus.t => Ui_effect.t(unit),
-        ~focussed: option(Focus.t),
-        ~escape: Direction.t => Ui_effect.t(unit),
-        ~overlays: list(Web.Node.t)=?,
-        ~sort: Sort.t,
-        Model.t
-      ) =>
-      Web.Node.t;
-  };
-
+  include
+    ProjectorInterface.EDITOR with
+      type model =
+        Haz3lcorep.Editor.t(
+          ProjectorCore.Kind.t,
+          Projector.Model.t,
+          Projector.Update.t,
+        ) and
+      type action =
+        Action.t(ProjectorCore.Kind.t, Projector.Model.t, Projector.Update.t);
   // TODO: refactor these helper functions away
 
   let get_measured: Model.t => Measured.t;
   let get_tiles: Model.t => TileMap.t(Projector.Model.t);
+  let get_z: Model.t => Haz3lcorep.Zipper.t(Projector.Model.t);
+  let of_zipper: Zipper.t(Projector.Model.t) => Model.t; // TODO: Replace with persistence logic
 } = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type model =
+    Haz3lcorep.Editor.t(
+      ProjectorCore.Kind.t,
+      Projector.Model.t,
+      Projector.Update.t,
+    );
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type action =
+    Action.t(ProjectorCore.Kind.t, Projector.Model.t, Projector.Update.t);
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type focus = EditorView.Focus.t(Projector.Focus.t);
+
   module Model = {
     [@deriving (show({with_path: false}), sexp, yojson)]
-    type t =
-      Haz3lcorep.Editor.t(
-        ProjectorCore.Kind.t,
-        Projector.Model.t,
-        Projector.Update.t,
-      );
+    type t = model;
 
     let mk = (~settings: CoreSettings.t, ~inline=false, term: Any.t): t => {
       ExpToSegment.any_to_segment(
@@ -307,8 +223,6 @@ and Editor: {
       |> Haz3lcorep.Zipper.unzip
       |> Haz3lcorep.Editor.Model.mk;
     };
-
-    let of_zipper = Haz3lcorep.Editor.Model.mk;
 
     let get_z = (m: t) => m |> Haz3lcorep.Editor.Model.get_z;
 
@@ -321,8 +235,7 @@ and Editor: {
 
   module Update = {
     [@deriving (show({with_path: false}), sexp, yojson)]
-    type t =
-      Action.t(ProjectorCore.Kind.t, Projector.Model.t, Projector.Update.t);
+    type t = action;
 
     let update =
         (~common: ProjectorInterface.common, action: t, editor: Model.t) => {
@@ -385,8 +298,7 @@ and Editor: {
 
   module Focus = {
     [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = EditorView.Focus.t(Projector.Focus.t);
-
+    type t = focus;
     let here = () => EditorView.Focus.Here;
 
     let get_cursor_info =
@@ -448,6 +360,9 @@ and Editor: {
           String.length(str) > 30 ? String.sub(str, 0, 30) ++ "..." : str
       );
   };
+
+  let get_z = Model.get_z;
+  let of_zipper = Haz3lcorep.Editor.Model.mk;
 };
 
 module PersistentZipper = {

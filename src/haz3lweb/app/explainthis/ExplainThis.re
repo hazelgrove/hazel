@@ -383,7 +383,7 @@ let example_view =
                   {
                     term
                     |> Zipper.unzip
-                    |> Editor.Model.of_zipper
+                    |> Editor.of_zipper
                     |> CellEditor.Model.mk
                     |> CellEditor.Update.calculate(
                          ~globals,
@@ -499,7 +499,7 @@ let get_doc =
         |> Id.Map.of_seq
         |> Option.some;
       let editor =
-        Editor.Model.of_zipper(doc.syntactic_form |> Zipper.unzip)
+        Editor.of_zipper(doc.syntactic_form |> Zipper.unzip)
         |> Editor.Update.make_term(~sort)
         |> fst
         |> Editor.Update.calculate(

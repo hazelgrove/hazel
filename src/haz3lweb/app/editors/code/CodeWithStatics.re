@@ -33,11 +33,11 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = PersistentZipper.t;
   let persist = (model: t) =>
-    model.editor |> Editor.Model.get_z |> PersistentZipper.persist;
+    model.editor |> Editor.get_z |> PersistentZipper.persist;
   let to_string = (model: t) =>
-    model.editor |> Editor.Model.get_z |> PersistentZipper.to_string;
+    model.editor |> Editor.get_z |> PersistentZipper.to_string;
   let unpersist = p =>
-    p |> PersistentZipper.unpersist |> Editor.Model.of_zipper |> mk;
+    p |> PersistentZipper.unpersist |> Editor.of_zipper |> mk;
 };
 
 module Update = {

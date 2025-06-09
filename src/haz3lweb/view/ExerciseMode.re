@@ -19,8 +19,7 @@ module Model = {
   };
 
   let of_spec = (~settings as _, ~instructor_mode as _: bool, spec) => {
-    let editors =
-      Exercise.map(spec, Editor.Model.of_zipper, Editor.Model.of_zipper);
+    let editors = Exercise.map(spec, Editor.of_zipper, Editor.of_zipper);
     let term_item_to_cell = (item: Exercise.TermItem.t): CellEditor.Model.t => {
       CellEditor.Model.mk(item.editor);
     };
@@ -49,7 +48,7 @@ module Model = {
          Exercise.visible_in(pos, ~instructor_mode)
        )
     |> List.map(((pos, editor: Editor.Model.t)) =>
-         (pos, editor |> Editor.Model.get_z |> PersistentZipper.persist)
+         (pos, editor |> Editor.get_z |> PersistentZipper.persist)
        );
   };
 
@@ -138,7 +137,7 @@ module Update = {
     | Editor(_, ResultAction(_)) => Updated.return_quiet(model) // TODO: I think this case should never happen
     | ResetEditor(pos) =>
       let spec = Exercise.main_editor_of_state(~selection=pos, model.spec);
-      let new_editor = Editor.Model.of_zipper(spec);
+      let new_editor = Editor.of_zipper(spec);
       {
         ...model,
         editors:
@@ -147,11 +146,7 @@ module Update = {
       |> Updated.return;
     | ResetExercise =>
       let new_editors =
-        Exercise.map(
-          model.spec,
-          Editor.Model.of_zipper,
-          Editor.Model.of_zipper,
-        );
+        Exercise.map(model.spec, Editor.of_zipper, Editor.of_zipper);
       {
         ...model,
         editors: new_editors,
