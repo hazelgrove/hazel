@@ -1,6 +1,7 @@
 open Util;
 open Virtual_dom.Vdom;
 open ProjectorBase;
+open ProjectorInterface;
 
 // let string_of = (any: Any.t): option(string) =>
 //   switch (any) {

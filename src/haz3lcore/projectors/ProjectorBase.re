@@ -15,10 +15,8 @@ open Virtual_dom.Vdom;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type syntax('p) = Base.piece('p);
 
-/* Global actions available to handlers in all projectors */
-type external_action =
-  | Remove /* Remove projector entirely */
-  | Escape(Util.Direction.t); /* Pass focus to parent editor */
+[@deriving (show({with_path: false}), sexp, yojson)]
+type external_action = ProjectorInterface.external_action;
 
 module Calculate = {
   let default = (~calculate_ed as _, ~common as _, m) => m;
@@ -36,50 +34,11 @@ module CursorInfo = {
       ) => Cursor.empty;
 };
 
+module View = ProjectorInterface.View;
+
 /* External info proivded to all projectors */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type info = {
-  /* The id of the projector, equal to the id of the root
-   * term of the syntax, provided directly here for convenience.
-   * This is mostly intended to be used as a persistent unique
-   * identifier to allow individual projectors to distiguish
-   * their DOM nodes. */
-  id: Id.t,
-  /* Static information about the syntax including type
-   * information. Statics may be disabled by the user;
-   * this case (None) must be handled by projector authors */
-  statics: option(Statics.Info.t),
-  /* Dynamic information about the syntax including
-   * live values of the syntax. Dynamics may be
-   * disabled by the user; this case (None) must be
-   * handled by projector authors */
-  dynamics: option(Dynamics.Info.t),
-};
-
-module View = {
-  /* A projector has an inline view, which replaces the underlying
-   * syntax. Optionally, it may have an overlay view, which is shown
-   * in the same place, but above most base editor decorations
-   * including the inline views of all other projectors, and/or
-   * an offside view, which is rendered at the end of the base
-   * editor line containing the projector */
-  type t = {
-    inline: Node.t,
-    overlay: option(Node.t),
-    offside: option(Node.t),
-    enter_left: option(Ui_effect.t(unit)),
-    enter_right: option(Ui_effect.t(unit)),
-  };
-
-  let mk =
-      (~overlay=None, ~offside=None, ~enter_left=?, ~enter_right=?, inline) => {
-    inline,
-    overlay,
-    offside,
-    enter_left,
-    enter_right,
-  };
-};
+type info = ProjectorInterface.info;
 
 type methods('model, 'action, 'focus, 'ed_m, 'ed_a, 'ed_f) = {
   init:

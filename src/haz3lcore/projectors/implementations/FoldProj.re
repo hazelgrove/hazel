@@ -1,5 +1,6 @@
 open Util;
 open ProjectorBase;
+open ProjectorInterface;
 open Virtual_dom.Vdom;
 open Node;
 

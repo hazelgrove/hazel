@@ -1,6 +1,7 @@
 open Virtual_dom.Vdom;
 open Node;
 open ProjectorBase;
+open ProjectorInterface;
 open Util.OptUtil.Syntax;
 
 /* =========== HELPERS ============ */
@@ -135,12 +136,11 @@ let view =
     |> mk_term_ed(~sort=Any.sort(x))
     |> fst
     |> calculate_ed(
-         ~common=
-           ProjectorInterface.{
-             ...common,
-             statics: CachedStatics.empty,
-             dynamics: Dynamics.Map.empty,
-           },
+         ~common={
+                   ...common,
+                   statics: CachedStatics.empty,
+                   dynamics: Dynamics.Map.empty,
+                 }: ProjectorInterface.common,
        )
     |> view_ed(~sort=Any.sort(x));
   View.{
