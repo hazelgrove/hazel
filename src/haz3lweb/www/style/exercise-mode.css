@@ -247,12 +247,11 @@
 }
 
 #prompt-input-box {
-  width: 100%;
+  width: 96%;
   min-height: 100px;
   padding: 0.5em;
   border: 1px solid var(--BR2);
   border-radius: 4px;
-  background-color: var(--ui-bkg);
   color: var(--ui-text);
   font-family: inherit;
   font-size: inherit;
@@ -262,6 +261,5 @@
 
 #prompt-input-box:focus {
   outline: none;
-  border-color: var(--cell-selected-accent);
-  box-shadow: 0 0 0 1px var(--cell-selected-accent);
+  border-color: var(--BR2);
 }
