@@ -48,6 +48,11 @@ module Store = {
   });
 
   let integrate_share = (model: t): t => {
+    let share_name =
+      switch (JsUtil.QueryParams.get_param("name")) {
+      | None => "Unknown Share"
+      | Some(name) => name
+      };
     switch (JsUtil.QueryParams.get_param("share"), model) {
     | (None, _) => model
     | (Some(data), (_current, scratchpads)) =>
@@ -57,7 +62,7 @@ module Store = {
         backup_text: shared_text,
       };
 
-      (List.length(scratchpads), scratchpads @ [("Shared", shared)]);
+      (List.length(scratchpads), scratchpads @ [(share_name, shared)]);
     };
   };
 };
@@ -105,9 +110,10 @@ module Update = {
   };
 
   let encode_scratch_slide = (model: Model.t): unit => {
-    let (_key, ed) = List.nth(model.scratchpads, model.current);
+    let (name, ed) = List.nth(model.scratchpads, model.current);
     let c = ed |> CellEditor.Model.to_string;
     JsUtil.QueryParams.set_param("share", StringUtil.compress(c));
+    JsUtil.QueryParams.set_param("name", name);
   };
 
   let update =
