@@ -88,6 +88,13 @@ module Model = {
 
   let init_missing_step = MissingStep(MissingStep.Model.init);
 
+  let is_missing_step = (step_kind: step_kind): bool => {
+    switch (step_kind) {
+    | MissingStep(_) => true
+    | _ => false
+    };
+  };
+
   let init_step = {
     expr: Calc.Pending,
     state: Calc.Pending,
@@ -1116,9 +1123,17 @@ module View = {
         ~undo: option(Ui_effect.t(unit)),
         model: Model.step,
       ) => {
+    let is_last_step = Model.is_missing_step(model.step_kind);
+    let is_skipped_step = model.hidden == Calc.Calculated(true);
+    let showing_skiped_steps =
+      globals.settings.core.evaluation.show_hidden_steps;
+    let showing_history = globals.settings.core.evaluation.stepper_history;
+    let this_step_shown =
+      is_last_step
+      || showing_history
+      && (!is_skipped_step || showing_skiped_steps);
     let current_step =
-      if (model.hidden == Calc.Calculated(true)
-          && !globals.settings.core.evaluation.show_hidden_steps) {
+      if (!this_step_shown) {
         [];
       } else {
         let taken_steps =
@@ -1199,8 +1214,10 @@ module View = {
             model.step_kind,
           );
         [
-          Web.div_c(
-            "step-border",
+          Web.Node.div(
+            ~attrs=
+              [Web.Attr.class_("step-border")]
+              @ (is_skipped_step ? [Web.Attr.class_("hidden")] : []),
             [
               Web.div_c(
                 "step-display",

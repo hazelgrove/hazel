@@ -3,6 +3,7 @@
 .stepper {
   display: flex;
   flex-direction: column;
+  gap: 0;
   padding: 0;
 }
 
@@ -13,6 +14,10 @@
   display: flex;
   flex-direction: column;
   gap: 0.5em;
+}
+
+.step-border.hidden {
+  background-color: var(--cell-result-hidden);
 }
 
 .step-display {
