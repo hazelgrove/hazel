@@ -237,7 +237,7 @@ module Selection = {
 module View = {
   open OptUtil.Syntax;
   type event =
-    | AddInduction
+    | AddInduction(option(Exp.t))
     | AddForall
     | HideStepper
     | AddAxiomStep(Exp.t, Exp.t)
@@ -371,7 +371,16 @@ module View = {
           @ [
             proof_button(~callback=inject(ProposeRewrite), "Rewrite ▼"),
             proof_button(~callback=inject(ToggleAxioms), "Axioms ▼"),
-            proof_button(~callback=signal(AddInduction), "Cases"),
+            proof_button(
+              ~callback=
+                signal(
+                  AddInduction(
+                    model.selected_exp
+                    |> Calc.get_saved_exc(~print="Selected Exp"),
+                  ),
+                ),
+              "Cases",
+            ),
           ],
         );
 

@@ -20,6 +20,17 @@ module Settings = {
     show_filters: settings.evaluation.show_stepper_filters,
     show_unknown_as_hole: true,
   };
+
+  let editable = (~inline) => {
+    {
+      inline,
+      fold_case_clauses: false,
+      fold_fn_bodies: false,
+      hide_fixpoints: false,
+      show_filters: true,
+      show_unknown_as_hole: true,
+    };
+  };
 };
 
 // Use Precedence.re to work out where your construct goes here.
