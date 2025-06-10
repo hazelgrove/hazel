@@ -1,7 +1,12 @@
 open Haz3lcore;
 
 let startup: PersistentData.t = {
-  scratch: (0, List.init(8, _ => Zipper.init() |> PersistentZipper.persist)),
+  scratch: (
+    0,
+    List.init(2, i =>
+      (string_of_int(i + 1), Zipper.init() |> PersistentZipper.persist)
+    ),
+  ),
   documentation: (
     0,
     [

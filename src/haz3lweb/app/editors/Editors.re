@@ -32,14 +32,12 @@ module Store = {
     switch (mode) {
     | Scratch =>
       Model.Scratch(
-        ScratchMode.Store.load()
-        |> ScratchMode.Store.integrate_share
-        |> ScratchMode.Model.unpersist(~settings),
+        ScratchMode.Store.load() |> ScratchMode.Model.unpersist(~settings),
       )
     | Documentation =>
       Model.Documentation(
         ScratchMode.StoreDocumentation.load()
-        |> ScratchMode.Model.unpersist_documentation(~settings),
+        |> ScratchMode.Model.unpersist(~settings),
       )
     | Exercises =>
       Model.Exercises(
@@ -56,9 +54,7 @@ module Store = {
       ScratchMode.Store.save(ScratchMode.Model.persist(m));
     | Model.Documentation(m) =>
       StoreMode.save(Documentation);
-      ScratchMode.StoreDocumentation.save(
-        ScratchMode.Model.persist_documentation(m),
-      );
+      ScratchMode.StoreDocumentation.save(ScratchMode.Model.persist(m));
     | Model.Exercises(m) =>
       StoreMode.save(Exercises);
       ExercisesMode.Store.save(~instructor_mode, m);
@@ -123,9 +119,7 @@ module Update = {
     | (SwitchMode(Documentation), _) =>
       Model.Documentation(
         ScratchMode.StoreDocumentation.load()
-        |> ScratchMode.Model.unpersist_documentation(
-             ~settings=globals.settings.core,
-           ),
+        |> ScratchMode.Model.unpersist(~settings=globals.settings.core),
       )
       |> return
     | (SwitchMode(Exercises), _) =>
@@ -352,14 +346,12 @@ module View = {
       | Scratch(m) =>
         ScratchMode.View.top_bar(
           ~globals,
-          ~named_slides=false,
           ~inject=a => Update.Scratch(a) |> inject,
           m,
         )
       | Documentation(m) =>
         ScratchMode.View.top_bar(
           ~globals,
-          ~named_slides=true,
           ~inject=a => Update.Scratch(a) |> inject,
           m,
         )
