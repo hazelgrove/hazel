@@ -141,7 +141,6 @@ open AST
 %left OPEN_PAREN CLOSE_PAREN
 %left DOLLAR_SIGN
 
-%left QUESTION
 %left TILDE
 %token SLASH_TILDE
 
