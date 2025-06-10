@@ -548,8 +548,23 @@ let get_doc =
       switch ((term: Exp.term)) {
       | Invalid(_) => simple("Not a valid expression")
       | DynamicErrorHole(_)
-      | Closure(_)
-      | Asc(_) => simple("Internal expression")
+      | Closure(_) => simple("Internal expression")
+      | Asc(e, t) =>
+        let exp_id = List.nth(IdTagged.ids(e), 0);
+        let typ_id = List.nth(IdTagged.ids(t), 0);
+        get_message(
+          ~colorings=AscExp.ascription_coloring_ids(~exp_id, ~typ_id),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s%s"),
+                  Id.to_string(exp_id),
+                  Id.to_string(typ_id),
+                ),
+            ),
+          AscExp.ascriptions,
+        );
       | Use(t, e) =>
         message_single(
           UseExp.single(~typ_id=Typ.rep_id(t), ~body_id=Exp.rep_id(e)),
