@@ -22,13 +22,18 @@ let view =
       ~rename: bool,
       ~signal: event => 'a,
       ~indicator: list(Node.t),
-    ) =>
-  [button(Icons.back, _ => signal(Previous))]
-  @ indicator
-  @ (rename ? [button(Icons.rename, _ => signal(Rename))] : [])
-  @ [button(Icons.forward, _ => signal(Next))]
-  @ (add_drop ? [button(Icons.trash, _ => signal(Delete))] : [])
-  @ (add_drop ? [button(Icons.add, _ => signal(Add))] : []);
+    ) => {
+  let nav_buttons =
+    [
+      button(Icons.back, _ => signal(Previous)),
+      button(Icons.forward, _ => signal(Next)),
+    ]
+    @ (rename ? [button(Icons.rename, _ => signal(Rename))] : [])
+    @ (add_drop ? [button(Icons.trash, _ => signal(Delete))] : [])
+    @ (add_drop ? [button(Icons.add, _ => signal(Add))] : []);
+
+  indicator @ [div(~attrs=[Attr.class_("nav-buttons")], nav_buttons)];
+};
 
 let indicator_n = (cur_slide, num_slides) => [
   text(Printf.sprintf("%d / %d", cur_slide + 1, num_slides)),

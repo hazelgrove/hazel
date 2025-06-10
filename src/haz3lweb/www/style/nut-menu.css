@@ -236,6 +236,28 @@
   color: var(--BR2);
   border-right: 0.6px solid var(--BR2);
   border-bottom: 0.6px solid var(--BR2);
+  position: relative;
+  transition: padding-right 0.2s ease-in-out;
+}
+
+#top-bar #editor-mode:hover {
+  padding-right: 10em; /* Increase padding to make room for the buttons */
+}
+
+/* Container for the navigation buttons that should be hidden by default */
+#top-bar #editor-mode .nav-buttons {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  opacity: 0;
+  transition: opacity 0.2s ease-in-out;
+  position: absolute;
+  right: 1.5em; /* Adjusted to position buttons properly within the expanded area */
+}
+
+/* Show navigation buttons on hover */
+#top-bar #editor-mode:hover .nav-buttons {
+  opacity: 1;
 }
 
 #top-bar #editor-mode .icon {
