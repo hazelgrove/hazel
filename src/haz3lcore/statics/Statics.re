@@ -432,13 +432,53 @@ and uexp_to_info_map =
         );
       };
     | TupleExtension(e1, e2) =>
-      let (_, m) = go(e1, m);
-      let (_, m) = go(e2, m);
-      add(
-        ~self=Just(IdTagged.FreshGrammar.Typ.unknown(Internal)), // TODO: fix this
-        ~co_ctx=CoCtx.empty,
-        m,
-      );
+      let (t1, m) = go(e1, m);
+      let (t2, m) = go(e2, m);
+
+      switch (
+        Typ.normalize(ctx, t1.ty).term,
+        Typ.normalize(ctx, t2.ty).term,
+      ) {
+      | (Prod(ts1), Prod(ts2)) =>
+        let extract_entry: Typ.t => (option(string), Typ.t) = (
+          t =>
+            switch (Typ.match_tup_label(t)) {
+            | Some((name, t)) => (Some(name), t)
+            | None => (None, t)
+            }
+        );
+        let e1_entries = List.map(extract_entry, ts1);
+        let e2_entries = List.map(extract_entry, ts2);
+
+        let ty: Grammar.typ_t(IdTagged.IdTag.t) =
+          IdTagged.FreshGrammar.Typ.(
+            prod(
+              List.map(
+                ((lab, d)) =>
+                  switch (lab) {
+                  | Some(l) => tup_label(label(l), d)
+                  | None => d
+                  },
+                LabeledTuple.extension(e1_entries, e2_entries),
+              ),
+            )
+          );
+
+        add(
+          ~self=Just(ty), // TODO: fix this
+          ~co_ctx=CoCtx.empty,
+          m,
+        );
+      | (Unknown(_), _)
+      | (_, Unknown(_)) =>
+        add(
+          ~self=Just(IdTagged.FreshGrammar.Typ.unknown(Internal)),
+          ~co_ctx=CoCtx.empty,
+          m,
+        )
+      | _ => add(~self=TupleExtensionRequiresTuples, ~co_ctx=CoCtx.empty, m)
+      };
+
     | Tuple(es) =>
       let expected_labels =
         switch (Typ.weak_head_normalize(ctx, ana).term) {
@@ -705,7 +745,7 @@ and uexp_to_info_map =
           )
         | _ => add(~self=BadLabel(Exp(e2)), ~co_ctx=info_e2.co_ctx, m)
         };
-      | _ => add(~self=WantTuple, ~co_ctx=info_e2.co_ctx, m)
+      | _ => add(~self=DotOperatorRequiresTuple, ~co_ctx=info_e2.co_ctx, m)
       };
     | Test(e) =>
       let (e, m) = go(~ana=Atom(Bool) |> Typ.temp, e, m);
@@ -767,6 +807,16 @@ and uexp_to_info_map =
           );
         }
       | _ =>
+        let is_builtin =
+          switch (fn.term) {
+          | BuiltinFun(_) => true
+          | Var(v) =>
+            Ctx.lookup_var(ctx, v)
+            |> Option.map((e: Ctx.var_entry) => e.builtin)
+            |> Option.value(~default=false)
+          | _ => false
+          };
+
         /* This logic lets us treat constructors differently to functions in
            terms of error localization */
         let fn_ana =
@@ -785,12 +835,78 @@ and uexp_to_info_map =
         let (fn, m) = go(~ana=fn_ana, fn, m);
         let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
 
-        let (arg, m) = go(~ana=ty_in, arg, m);
-        let self: Self.t =
-          Id.is_nullary_ap_flag(IdTagged.ids(arg.term))
-          && !Typ.is_consistent(ctx, ty_in, Prod([]) |> Typ.temp)
-            ? BadTrivAp(ty_in) : Just(ty_out);
-        add(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]), m);
+        switch (is_builtin, fn.term.term) {
+        | (true, Var("melt")) =>
+          print_endline(
+            "Exp.ap: is_builtin: "
+            ++ string_of_bool(is_builtin)
+            ++ ", fn: "
+            ++ Exp.show(fn.term),
+          );
+
+          let (arg, m) = go(~ana=ty_in, arg, m);
+          print_endline("Exp.ap: arg: " ++ Typ.show(arg.ty));
+
+          switch (Typ.normalize(ctx, arg.ty).term) {
+          | Prod([
+              {term: Prod(entries), _},
+              {term: Label(var_lab), _},
+              {term: Label(val_lab), _},
+            ]) =>
+            let entries:
+              option(list((string, Grammar.typ_t(IdTagged.IdTag.t)))) =
+              Util.OptUtil.traverse(Typ.match_tup_label, entries);
+            switch (entries) {
+            | Some(
+                entries: list((string, Grammar.typ_t(IdTagged.IdTag.t))),
+              ) =>
+              let val_typs = List.map(snd, entries);
+              let joined_typ =
+                Util.OptUtil.fold_left_opt(
+                  (acc, t) => Typ.join(ctx, acc, t),
+                  val_typs,
+                  Unknown(Internal) |> Typ.temp,
+                )
+                |> Option.value(~default=Unknown(Internal) |> Typ.temp);
+              add(
+                ~self=
+                  Just(
+                    IdTagged.FreshGrammar.Typ.(
+                      list(
+                        prod([
+                          tup_label(label(var_lab), string()),
+                          tup_label(label(val_lab), joined_typ),
+                        ]),
+                      )
+                    ),
+                  ),
+                ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
+                m,
+              );
+            | _ =>
+              add(
+                ~self=BadTrivAp(ty_in), // TODO Real error
+                ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
+                m,
+              )
+            };
+          | _ =>
+            // Argument is wrong type.
+            // TODO We should give errors if there's not labels or a product in the first argument.
+            let self: Self.t =
+              Id.is_nullary_ap_flag(IdTagged.ids(arg.term))
+              && !Typ.is_consistent(ctx, ty_in, Prod([]) |> Typ.temp)
+                ? BadTrivAp(ty_in) : Just(ty_out);
+            add(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]), m);
+          };
+        | _ =>
+          let (arg, m) = go(~ana=ty_in, arg, m);
+          let self: Self.t =
+            Id.is_nullary_ap_flag(IdTagged.ids(arg.term))
+            && !Typ.is_consistent(ctx, ty_in, Prod([]) |> Typ.temp)
+              ? BadTrivAp(ty_in) : Just(ty_out);
+          add(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]), m);
+        };
       }
     | TypAp(fn, utyp) =>
       let typfn_ana =
@@ -1424,6 +1540,7 @@ and upat_to_info_map =
           name,
           id: Pat.rep_id(upat),
           typ: ctx_typ,
+          builtin: false,
         });
       add(
         ~self=Just(unknown),

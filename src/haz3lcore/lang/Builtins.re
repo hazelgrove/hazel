@@ -417,21 +417,22 @@ module Pervasives = {
            ternary((e: DHExp.t, col_lab: DHExp.t, val_lab: DHExp.t) => {
              switch (col_lab.term, val_lab.term) {
              | (Label(col_lab), Label(val_lab)) =>
+               open OptUtil.Syntax;
                let-unbox entries:
                  list((option(string), Grammar.exp_t(IdTagged.IdTag.t))) = (
                  LabeledTupleEntries,
                  e,
                );
 
-               let entries: list((string, Grammar.exp_t(IdTagged.IdTag.t))) =
-                 List.filter_map(
+               let* entries: list((string, Grammar.exp_t(IdTagged.IdTag.t))) =
+                 OptUtil.traverse(
                    fun
                    | (Some(name), e) => Some((name, e))
                    | _ => None,
                    entries,
                  );
 
-               let bar =
+               let unpivoted_entries =
                  List.map(
                    ((name, e)) =>
                      IdTagged.FreshGrammar.(
@@ -454,7 +455,7 @@ module Pervasives = {
                    entries,
                  );
 
-               Some(IdTagged.FreshGrammar.Exp.list_lit(bar));
+               Some(IdTagged.FreshGrammar.Exp.list_lit(unpivoted_entries));
              | _ => None
              }
            }),
@@ -651,12 +652,14 @@ let entries =
         name,
         typ,
         id: Id.invalid,
+        builtin: true,
       })
     | (name, Fn(t1, t2, _)) =>
       Ctx.VarEntry({
         name,
         typ: Fresh.Typ.arrow(t1, t2),
         id: Id.invalid,
+        builtin: true,
       }),
     Pervasives.builtins,
   )
