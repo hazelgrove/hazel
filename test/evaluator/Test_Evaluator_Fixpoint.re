@@ -41,7 +41,7 @@ fun n -> if n == 0 then false else even(n - 1))) in even(1)|},
     test_case("Fixpoint with type ascription", `Quick, () =>
       parse_and_evaluate_test("fix 0 -> () : Int", {|fix 0 -> ()|})
     ),
-    test_case("Wild statics fixpoint list cons", `Quick, () =>
+    test_case("Ouroboros fixpoint", `Quick, () =>
       parse_and_evaluate_test("(1: [?]):: (1: [?])", {|fix(_:: x) -> x :: 1|})
     ),
   ],
