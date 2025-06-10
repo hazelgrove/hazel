@@ -120,10 +120,12 @@ let replace_un_op = (op: op_un, use_mode: option(mode)): op_un => {
 let replace_bin_op = (op: op_bin, use_mode: option(mode)): op_bin => {
   switch (op, use_mode) {
   | (op, None) => op
-  | (Int(op) | Nat(op) | SInt(op), Some(Int)) => Int(op)
-  | (Int(op) | Nat(op) | SInt(op), Some(Nat)) => Nat(op)
-  | (Int(op) | Nat(op) | SInt(op), Some(Float)) => Float(op)
-  | (Int(op) | Nat(op) | SInt(op), Some(SInt)) => SInt(op)
+  | (Int(op), Some(Int)) => Int(op)
+  | (Int(op), Some(Nat)) => Nat(op)
+  | (Int(op), Some(Float)) => Float(op)
+  | (Int(op), Some(SInt)) => SInt(op)
+  | (SInt(op), _) => SInt(op)
+  | (Nat(op), _) => Nat(op)
   | (Float(op), _) => Float(op)
   | (Bool(op), _) => Bool(op)
   | (String(op), _) => String(op)

@@ -484,8 +484,8 @@ module Update = {
              ~is_edited=true,
              ~ctx,
              ~dynamics=Dynamics.Map.empty,
-             ~stitch=x =>
-             x
+             ~stitch=_ =>
+             expr
            );
       };
     let (step_kind, hidden, next_expr_state) =
