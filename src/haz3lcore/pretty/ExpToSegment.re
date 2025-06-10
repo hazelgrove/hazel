@@ -964,9 +964,18 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
     let+ e1 = go(e1)
-    and+ e2 = go(e2)
-    and+ op = text_to_pretty(id, Sort.Exp, "|>");
-    e2 @ op @ e1;
+    and+ e2 = go(e2);
+    e2
+    @ [
+      Tile({
+        id,
+        label: ["|>"],
+        mold: Mold.mk_bin(Precedence.eqs, Sort.Exp, []),
+        shards: [0],
+        children: [],
+      }),
+    ]
+    @ e1;
   | TypAp(e, t) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
