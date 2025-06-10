@@ -67,8 +67,7 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
     | Atom(c) =>
       Typ.equal(ty, Atom(Atom.cls_of_t(c)) |> Typ.temp) ? Some([]) : None
     | Constructor(_) => Some([]) // TODO: make this stricter
-    | Cast(dhp, ty1, ty2) =>
-      Typ.equal(ty, ty2) ? dhpat_var_entry(dhp, ty1) : None
+    | Cast(dhp, ty1, _) => dhpat_var_entry(dhp, ty1)
     };
   };
   let+ l = dhpat_var_entry(dhpat, ty);
