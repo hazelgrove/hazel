@@ -217,7 +217,8 @@ let qcheck_preservation_test =
                 ++ " is not more precise than stepped type "
                 ++ Typ.show(ty),
               )
-        | _ => Alcotest.fail("No type information found for stepped expression")
+        | _ =>
+          Alcotest.fail("No type information found for stepped expression")
         }
       | (None, _) => true // If we can't take a step, we don't have to check preservation
       }
