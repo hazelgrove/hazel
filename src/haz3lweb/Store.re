@@ -9,7 +9,7 @@ type key =
   | Scratch
   | Documentation
   | CurrentExercise
-  | Exercise(Exercise.key);
+  | Exercise(Haz3lcore.Id.t);
 
 let key_to_string =
   fun
@@ -19,7 +19,7 @@ let key_to_string =
   | Scratch => "SAVE_SCRATCH"
   | Documentation => "SAVE_DOCUMENTATION"
   | CurrentExercise => "CUR_EXERCISE"
-  | Exercise(key) => key |> Exercise.sexp_of_key |> Sexplib.Sexp.to_string;
+  | Exercise(id) => Haz3lcore.Id.to_string(id);
 
 module F =
        (

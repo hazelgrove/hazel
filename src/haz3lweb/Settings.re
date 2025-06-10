@@ -36,7 +36,7 @@ module Model = {
     },
     async_evaluation: false,
     context_inspector: false,
-    instructor_mode: true,
+    instructor_mode: false,
     benchmark: false,
     explainThis: {
       show: true,
@@ -97,6 +97,13 @@ module Update = {
     | Evaluation(evaluation)
     | ExplainThis(ExplainThisModel.Settings.action)
     | FlipAnimations;
+
+  let can_undo = (action: t) => {
+    switch (action) {
+    | Evaluation(ShowSettings) => false
+    | _ => true
+    };
+  };
 
   let update = (action, settings: Model.t): Updated.t(Model.t) => {
     (
