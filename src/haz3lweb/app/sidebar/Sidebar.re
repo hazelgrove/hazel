@@ -82,7 +82,7 @@ let persistent_view = (~globals: Globals.t) => {
         [
           explain_this_tab(~globals),
           assistant_tab(~globals),
-          collapse_tab(~globals),
+          // collapse_tab(~globals),
         ],
       ),
     ],

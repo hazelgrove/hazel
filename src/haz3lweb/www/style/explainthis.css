@@ -1,11 +1,11 @@
 #explain-this {
   display: flex;
   flex: 1;
-  width: 25em;
-  padding: 0.4em;
+  padding: 1em;
   flex-direction: column;
   overflow-y: auto;
   gap: 1em;
+  overflow-x: hidden; /* Prevent outer scroll */
 }
 
 #explain-this #examples {
@@ -63,6 +63,9 @@
   display: flex;
   justify-content: flex-start;
   gap: 0.75em;
+  position: absolute;
+  right: 1em;
+  top: 1em;
 }
 
 #explain-this .header .close {
@@ -86,7 +89,6 @@
 #explain-this .section {
   display: flex;
   flex-direction: column;
-  padding: 0 0.75em;
   gap: 0.5em;
 }
 
@@ -98,7 +100,6 @@
   text-transform: uppercase;
   font-weight: bold;
   color: var(--ui-header-text);
-  font-size: 0.8em;
 }
 
 #explain-this .section .explanation-contents {

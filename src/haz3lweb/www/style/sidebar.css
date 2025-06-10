@@ -1,66 +1,67 @@
 #sidebar-button {
-    text-transform: none;
+  text-transform: none;
 }
 
 /* Persistent Sidebar */
 
 #persistent {
-    grid-row: 2 / span 1;
-    grid-column: 2 / span 1;
-    border-left: 0.6px solid var(--BR2);
-    overflow-y: auto;
-    overflow-x: hidden;
-    display: flex;
-    flex: 1;
-    width: 2.4em;
-    flex-direction: column;
-    gap: 1em;
-    background-color: var(--ui-bkg);
-    scrollbar-color: var(--main-scroll-thumb) var(--NONE);
+  grid-row: 2 / span 1;
+  grid-column: 2 / span 1;
+  border-left: 0.6px solid var(--BR2);
+  overflow-y: auto;
+  overflow-x: hidden;
+  display: flex;
+  flex: 1;
+  width: 2em;
+  flex-direction: column;
+  gap: 1em;
+  background-color: var(--ui-bkg);
+  scrollbar-color: var(--main-scroll-thumb) var(--NONE);
 }
 
 #persistent .tabs {
-    display: flex;
-    flex-direction: column;
-    flex-grow: 1;
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
 }
 
 #persistent .tab {
-    box-sizing: border-box;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 6.5em;
-    cursor: pointer;
-    transition: background-color 0.2s ease;
-    fill: var(--BR4);
+  box-sizing: border-box;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 6.5em;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+  fill: var(--BR3);
 }
 
 .collapse-button {
-    margin-top: auto;
+  margin-top: auto;
 }
-  
+
 #persistent .tab.active {
-    border-right: .2em solid var(--BR3);
-    padding-left: .2em;
+  border-right: 0.2em solid var(--BR3);
+  padding-left: 0.2em;
+  fill: var(--BR4);
 }
 
 #persistent .tab:hover {
-    background-color: var(--T2); 
+  background-color: var(--T2);
 }
 
 #persistent .tab:focus,
 #persistent .tab:active {
-    background-color: var(--T2); 
+  background-color: var(--T2);
 }
 
 .resize-handle {
-    position: absolute;
-    left: 0;
-    top: 0;
-    bottom: 0;
-    width: 4px;
-    cursor: col-resize;
-    background-color: transparent;
-    transition: background-color 0.2s ease;
-  }
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  cursor: col-resize;
+  background-color: transparent;
+  transition: background-color 0.2s ease;
+}

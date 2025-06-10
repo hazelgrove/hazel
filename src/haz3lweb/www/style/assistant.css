@@ -1,700 +1,646 @@
 #assistant {
-    display: flex;
-    flex: 1;
-    padding: 0.4em;
-    flex-direction: column;
-    overflow-y: auto;
-    gap: 1em;
-    overflow-x: hidden; /* Prevent outer scroll */
+  display: flex;
+  flex: 1;
+  padding: 1em;
+  flex-direction: column;
+  overflow-y: auto;
+  gap: 1em;
+  overflow-x: hidden; /* Prevent outer scroll */
 }
 
 #assistant .assistant-button {
-    text-transform: none;
+  text-transform: none;
 }
 
 #assistant .title {
-    text-transform: uppercase;
-    font-size: 0.8em;
-    font-weight: bold;
-    padding: 0.35em 0.75em;
-    color: var(--ui-header-text);
-    align-self: flex-start;
+  text-transform: uppercase;
+  font-weight: bold;
 }
 
 #assistant .main-title {
-    text-transform: uppercase;
-    font-size: 1.0em;
-    font-weight: bold;
-    padding: 0.35em 0.75em;
-    color: var(--ui-header-text);
-    align-self: flex-start;
+  text-transform: uppercase;
+  font-size: 1em;
+  font-weight: bold;
+  color: var(--ui-header-text);
+  align-self: flex-start;
 }
 
 #assistant .header {
-    display: flex;
-    text-transform: none;
-    font-weight: bold;
-    width: 100%;
-}
-
-#assistant .header-content {
-    display: flex;
-    width: 100%;
-    justify-content: space-between;
-    align-items: center;
+  display: flex;
+  width: 100%;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: bold;
 }
 
 #assistant .settings-box {
-    padding-bottom: 1em;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 2.25em;
-    margin-top: auto;
+  padding-bottom: 1em;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2.25em;
+  margin-top: auto;
 }
 
 #assistant .chat-button {
-    color: var(--STONE);
-    font-size: .75em;
-    padding: 0.5em 1em;
-    border-radius: 4px;
-    font-weight: bold;
-    display: flex;
-    height: 1.25em;  
-    cursor: pointer;  
-    margin: 4px;
-    border: 1px solid var(--STONE);
-    opacity: 0.8;
+  color: var(--BR4);
+  font-size: 0.8em;
+  padding: 0.5em 1em;
+  border-radius: 4px;
+  font-weight: bold;
+  cursor: pointer;
+  border: 0.75px solid var(--BR3);
+  background-color: var(--T1);
+  width: fit-content;
+  align-self: end;
 }
 
 #assistant .chat-button:hover {
-    opacity: 1.0;
-    border: 1px solid var(--STONE);
+  background-color: var(--Y1);
 }
 
 #assistant .chat-button:active {
-    background-color: var(--T3);
+  background-color: var(--T3);
 }
 
 #assistant .input-container {
-    align-items: center;
-    margin-top: auto;
-    padding: .2em 0em;
-    width: 100%;
-    display: flex;
-    gap: 10px;
-    transition: all 0.3s ease;
+  align-items: center;
+  margin-top: auto;
+  padding: 0.2em 0em;
+  width: 100%;
+  display: flex;
+  gap: 10px;
+  /* transition: all 0.3s ease; */
 }
 
 #assistant .message-input {
-    flex: 1;
-    background-color: var(--SAND);
-    padding: 14px;
-    outline: none;
-    border-radius: 3.5px;
-    border: none;
-    transition: all 0.3s ease;
-    min-height: 20px;
-    max-height: 200px;
-    resize: none;
-    overflow-y: auto;
+  flex: 1;
+  background-color: var(--SAND);
+  padding: 14px;
+  border: 0;
+  outline: 0.75px solid var(--BR3);
+  border-radius: 4px;
+  min-height: 20px;
+  max-height: 200px;
+  resize: none;
+  overflow-y: auto;
 }
 
 #assistant .message-input:focus {
-    box-shadow: 0px 0px 1px var(--SHADOW), 0 0 0 1px var(--SHADOW);
+  outline: 0.75px solid var(--BLACK);
+  background-color: white;
 }
 
 #assistant .send-button-disabled {
-    background-color: var(--SAND);
-    color: var(--STONE);
-    padding: .65em .75em;
-    border: 0 solid var(--SAND);
-    border-radius: .5em;
-    font-weight: bold;
-    cursor: not-allowed;
-    transition: all 0.3s ease;
-    pointer-events: none;
-    opacity: 0.5;
+  background-color: var(--SAND);
+  color: var(--STONE);
+  padding: 0.65em 0.75em;
+  border: 0 solid var(--SAND);
+  border-radius: 0.5em;
+  font-weight: bold;
+  cursor: not-allowed;
+  /* transition: all 0.3s ease; */
+  pointer-events: none;
+  opacity: 0.5;
 }
 
 #assistant .send-button-disabled:hover {
-    background-color: var(--SAND);
-    box-shadow: none;
+  background-color: var(--SAND);
+  box-shadow: none;
 }
 
 #assistant .send-button {
-    background-color: var(--SAND);
-    color: var(--STONE);
-    padding: .65em .75em;
-    border: 0 solid var(--SAND);
-    border-radius: .5em;
-    font-weight: bold;
-    cursor: pointer;
-    transition: all 0.3s ease;
+  color: var(--STONE);
+  padding: 0.75em;
+  border: 0.75px solid var(--BR3);
+  background-color: var(--T1);
+  border-radius: 4px;
+  font-weight: bold;
+  cursor: pointer;
+  /* transition: all 0.3s ease;*/
 }
 
 #assistant .send-button:hover {
-    background-color: var(--T1);  
-    box-shadow: 0px 4px 6px var(--SHADOW);  
+  background-color: var(--Y1);
 }
 
 #assistant .send-button:active {
-    background-color: var(--T3);
+  background-color: var(--Y2);
 }
 
 /* Message Display Container */
 #assistant .message-display-container {
-    display: flex;
-    flex-direction: column;
-    overflow-y: auto;
-    padding: 10px;
-    background-color: var(--UI-Background);
-    gap: 10px;
-    flex-grow: 1;
-    scroll-behavior: smooth;
-    display: flex;
+  display: flex;
+  flex-direction: column;
+  overflow-y: auto;
+  padding: 10px;
+  background-color: var(--UI-Background);
+  gap: 10px;
+  flex-grow: 1;
+  scroll-behavior: smooth;
+  display: flex;
 }
 
 /* Individual message container */
 #assistant .message-container {
-    display: flex;
-    flex-direction: column;
-    margin-bottom: 10px;
-    position: relative;
-    -moz-user-select: text;
-    -khtml-user-select: text;
-    -webkit-user-select: text;
-    -ms-user-select: text;
-    user-select: text;
-    white-space: pre-wrap;
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 10px;
+  position: relative;
+  -moz-user-select: text;
+  -khtml-user-select: text;
+  -webkit-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+  white-space: pre-wrap;
 }
 
 #assistant .message-identifier {
-    font-size: 0.8em;
-    color: var(--STONE);
-    opacity: 0.7;
-    margin-bottom: 4px;
-    padding: 0 12px;
+  font-size: 0.8em;
+  color: var(--STONE);
+  opacity: 0.7;
+  margin-bottom: 4px;
+  padding: 0 12px;
 }
 
 #assistant .llm-identifier {
-    display: flex;
-    align-items: center;
-    gap: 0.5em;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
 }
 
 #assistant .llm-identifier svg {
-    margin-right: 0.25em;
+  margin-right: 0.25em;
 }
 
 #assistant .system-identifier {
-    display: flex;
-    align-items: center;
-    gap: 0.5em;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
 }
 
 #assistant .system-identifier svg {
-    width: 14px;
-    height: 14px;
-    margin-right: 0.25em;
+  width: 14px;
+  height: 14px;
+  margin-right: 0.25em;
 }
 
 #assistant .user-identifier {
-    align-self: flex-end;
+  align-self: flex-end;
 }
 
 #assistant .llm {
-    align-items: flex-start;
+  align-items: flex-start;
 }
 
 #assistant .system-prompt {
-    display: flex;
-    flex-direction: column;
-    align-items: center;   /* centers horizontally */
-    justify-content: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center; /* centers horizontally */
+  justify-content: center;
 }
 
 #assistant .system-error {
-    align-items: flex-start;
+  align-items: flex-start;
 }
 
 #assistant .user {
-    align-items: flex-end;
+  align-items: flex-end;
 }
 
 #assistant .collapse-indicator {
-    width: 100%;
-    text-align: center;
-    color: var(--STONE);
-    font-size: 0.8em;
-    opacity: 0.7;
-    margin-top: 4px;
-    cursor: pointer;
+  width: 100%;
+  text-align: center;
+  color: var(--STONE);
+  font-size: 0.8em;
+  opacity: 0.7;
+  margin-top: 4px;
+  cursor: pointer;
 }
 
 #assistant .message-container.collapsed .collapse-indicator::after {
-    content: "▼ Show more";
+  content: "▼ Show more";
 }
 
 #assistant .message-container.expanded .collapse-indicator::after {
-    content: "▲ Show less";
+  content: "▲ Show less";
 }
 
 #assistant .llm-message {
-    padding: 8px 12px;
-    /* background-color: var(--T1); */
-    border-radius: 3px;
-    font-size: 1em;
-    max-width: 100%;
-    word-wrap: break-word;
+  padding: 8px 12px;
+  /* background-color: var(--T1); */
+  border-radius: 3px;
+  font-size: 1em;
+  max-width: 100%;
+  word-wrap: break-word;
 }
 
 #assistant .system-prompt-message {
-    padding: 8px 12px;
-    background-color: var(--T1);
-    border-radius: 3px;
-    font-size: 1em;
-    max-width: 100%;
-    word-wrap: break-word;
+  padding: 8px 12px;
+  background-color: var(--T1);
+  border-radius: 3px;
+  font-size: 1em;
+  max-width: 100%;
+  word-wrap: break-word;
 }
 
 #assistant .system-error-message {
-    padding: 8px 12px;
-    background-color: var(--ERRHOLE);
-    border-radius: 3px;
-    font-size: 1em;
-    max-width: 100%;
-    word-wrap: break-word;
+  padding: 8px 12px;
+  background-color: var(--ERRHOLE);
+  border-radius: 3px;
+  font-size: 1em;
+  max-width: 100%;
+  word-wrap: break-word;
 }
 
 #assistant .user-message {
-    padding: 8px 12px;
-    background-color: var(--T1);
-    border-radius: 3px;
-    font-size: 1em;
-    max-width: 100%;
-    word-wrap: break-word;
+  padding: 8px 12px;
+  background-color: var(--T1);
+  border-radius: 3px;
+  font-size: 1em;
+  max-width: 100%;
+  word-wrap: break-word;
 }
 
 #assistant .loading-dots {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-  
-  #assistant .dot {
-    width: 8px;
-    height: 8px;
-    background-color: var(--STONE);
-    border-radius: 50%;
-    animation: bounce 1.4s infinite ease-in-out both;
-  }
-  
-  #assistant .dot1 {
-    animation-delay: -0.32s;
-  }
-  
-  #assistant .dot2 {
-    animation-delay: -0.16s;
-  }
-  
-  @keyframes bounce {
-    0%, 80%, 100% { 
-      transform: scale(0.7);
-      opacity: 0.5;
-    }
-    40% { 
-      transform: scale(1);
-      opacity: 1;
-    }
-  }
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
 
-  /* API key container styling */
+#assistant .dot {
+  width: 8px;
+  height: 8px;
+  background-color: var(--STONE);
+  border-radius: 50%;
+  animation: bounce 1.4s infinite ease-in-out both;
+}
+
+#assistant .dot1 {
+  animation-delay: -0.32s;
+}
+
+#assistant .dot2 {
+  animation-delay: -0.16s;
+}
+
+@keyframes bounce {
+  0%,
+  80%,
+  100% {
+    transform: scale(0.7);
+    opacity: 0.5;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+/* API key container styling */
 #assistant .api-key-container {
-    display: flex;
-    flex-direction: column;
-    gap: 0.5em;
-    width: 100%;
-    align-items: center;
-    margin-bottom: 1em;
-    position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
 }
 
 #assistant .api-key-row {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    width: 100%;
-    justify-content: center;
-    position: relative;
+  position: relative;
 }
 
 #assistant .toggle-show-button {
-    position: absolute;
-    right: 20px;
-    top: -22.5px;
-    display: flex;
-    align-items: center;
-    cursor: pointer;
+  cursor: pointer;
 }
 
 #assistant .toggle-show-button svg {
-    fill: var(--STONE);
-    width: 18px;
-    height: 18px;
+  fill: var(--STONE);
+  width: 18px;
+  height: 18px;
 }
 
 #assistant .toggle-show-button svg {
-    fill: var(--STONE);
-    width: 18px;
-    height: 18px;
+  fill: var(--STONE);
+  width: 18px;
+  height: 18px;
 }
 
 #assistant .api-input {
-    width: 85%;
-    background-color: var(--SAND);
-    padding: 14px;
-    outline: none;
-    border-radius: 3.5px;
-    border: none;
-    transition: all 0.3s ease;
-    margin-bottom: 10px;
-    padding-right: 40px; /* Add padding to prevent text from going under the button */
+  background-color: var(--SAND);
+  padding: 14px;
+  outline: none;
+  border-radius: 3.5px;
+  border: none;
+  /* transition: all 0.3s ease; */
+  padding-right: 40px; /* Add padding to prevent text from going under the button */
 }
 
 #assistant .api-input:focus {
-    box-shadow: 0px 0px 1px var(--SHADOW), 0 0 0 1px var(--SHADOW);
+  box-shadow: 0px 0px 1px var(--SHADOW), 0 0 0 1px var(--SHADOW);
 }
 
 #assistant .llm-model-id-input {
-    width: 85%;
-    background-color: var(--SAND);
-    padding: 14px;
-    outline: none;
-    border-radius: 3.5px;
-    border: none;
-    transition: all 0.3s ease;
-    margin-bottom: 10px;
-    padding-right: 40px; /* Add padding to prevent text from going under the button */
+  background-color: var(--SAND);
+  padding: 14px;
+  outline: none;
+  border-radius: 3.5px;
+  border: none;
+  /* transition: all 0.3s ease; */
+  padding-right: 40px; /* Add padding to prevent text from going under the button */
 }
 
 #assistant .llm-model-id-input:focus {
-    box-shadow: 0px 0px 1px var(--SHADOW), 0 0 0 1px var(--SHADOW);
+  box-shadow: 0px 0px 1px var(--SHADOW), 0 0 0 1px var(--SHADOW);
 }
 
 /* LLM and LSP toggle button containers */
 #assistant .llm-button,
 #assistant .lsp-button {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    width: 100%;
-    margin-bottom: 0.5em;
-    padding: 0 1em;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  margin-bottom: 0.5em;
+  padding: 0 1em;
 }
 
 /* Example message container */
 #assistant .message-container.example {
-    width: 100%;
-    max-width: 100%;
-    margin-bottom: 20px;
+  width: 100%;
+  max-width: 100%;
+  margin-bottom: 20px;
 }
 
 #assistant .message-container.example .cell-editor {
-    width: 100%;
-    background-color: var(--UI-Background);
-    border-radius: 8px;
-    padding: 8px;
+  width: 100%;
+  background-color: var(--UI-Background);
+  border-radius: 8px;
+  padding: 8px;
 }
 
 #assistant .api-key-display {
-  width: 85%;
   padding: 12px;
-  background-color: var(--UI-Background);
-  border-radius: 3.5px;
-  border: 1px solid var(--SAND);
-  font-size: 0.9em;
+  border-radius: 4px;
+  border: 0.6px solid var(--BR2);
+  font-size: 0.8em;
   color: var(--STONE);
-  text-align: center;
   word-wrap: break-word;
-  margin-bottom: 10px;
-  font-family: monospace;
+  font-family: var(--code-font);
   overflow-x: auto;
 }
 
 #assistant .api-key-label {
-  font-size: 0.85em;
+  font-size: 0.8em;
   color: var(--STONE);
   opacity: 0.7;
   margin-bottom: 5px;
 }
 
-#assistant .text-display {
-    width: 85%;
-    padding: 12px;
-    background-color: var(--UI-Background);
-    font-size: 0.8em;
-    color: var(--STONE);
-    /* text-align: center; */
-    word-wrap: break-word;
-    margin-bottom: -15px;
-    overflow-x: auto;
-}
-
 .llm-selector {
-    margin: 0.5em auto;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    width: 85%;
+  margin: 0.25em 0 0.25em 0.5em;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
 
 .llm-label {
-    font-weight: bold;
-    margin-bottom: 0.5em;
-    font-size: 0.8em;
-    color: var(--STONE);
+  font-weight: bold;
+  font-size: 0.8em;
+  color: var(--STONE);
+  display: flex;
+  gap: 1em;
 }
 
 .llm-dropdown {
-    width: 100%;
-    padding: 8px;
-    border-radius: 4px;
-    border: 1px solid var(--SAND);
-    background-color: var(--SAND);
-    cursor: pointer;
-    color: var(--STONE);
-    font-size: 0.9em;
-    transition: all 0.2s ease;
+  padding: 14px;
+  border-radius: 4px;
+  border: 1px solid var(--SAND);
+  background-color: var(--SAND);
+  cursor: pointer;
+  font-size: 0.8em;
+  /* transition: all 0.2s ease; */
 }
 
 .llm-dropdown:hover {
-    background-color: var(--T1);
-    box-shadow: 0px 2px 4px var(--SHADOW);
+  /* background-color: var(--T1); */
+  box-shadow: 0px 2px 4px var(--SHADOW);
 }
 
 .llm-dropdown:focus {
-    outline: none;
-    box-shadow: 0px 0px 1px var(--SHADOW), 0 0 0 1px var(--SHADOW);
+  outline: none;
+  box-shadow: 0px 0px 1px var(--SHADOW), 0 0 0 1px var(--SHADOW);
 }
 
 .llm-dropdown option {
-    background-color: var(--UI-Background);
-    color: var(--STONE);
-    padding: 8px;
+  background-color: var(--UI-Background);
+  color: var(--STONE);
+  padding: 8px;
 }
 
 /* Mode buttons styling */
 #assistant .mode-buttons {
-    display: flex;
-    align-items: center;
-    gap: 4px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 #assistant .mode-button {
-    padding: 0.35em 0.75em;
-    font-size: 0.75em;
-    color: var(--STONE);
-    cursor: pointer;
-    border-radius: 3px;
-    transition: all 0.2s ease;
-    text-align: center;
+  padding: 0.35em 0.75em;
+  font-size: 0.8em;
+  color: var(--BR4);
+  cursor: pointer;
+  border-radius: 3px;
+  text-align: center;
 }
 
 #assistant .header-actions {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-}
-
-#assistant .mode-button:hover {
-    opacity: 0.7;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 #assistant .mode-button.active {
-    text-decoration: underline;
-    text-underline-offset: 8px;
-    color: var(--STONE);
+  text-decoration: underline;
+  text-underline-offset: 8px;
+  color: var(--BR4);
+}
+
+#assistant .mode-button:hover {
+  color: var(--Y3);
 }
 
 #assistant .add-button,
 #assistant .history-button {
-    color: var(--STONE);
-    padding: .45em .5em;
-    border-radius: 4px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    cursor: pointer;
-    transition: all 0.3s ease;
-    line-height: 0;
+  color: var(--BR4);
+  border-radius: 4px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  cursor: pointer;
+  line-height: 0;
+  fill: var(--BR4);
 }
 
 #assistant .add-button:hover,
 #assistant .history-button:hover {
-    background-color: var(--T1);
-    box-shadow: 0px 2px 4px var(--SHADOW);
-    opacity: 0.7;
+  fill: var(--Y3);
 }
 
 #assistant .add-button:active,
 #assistant .history-button:active {
-    background-color: var(--T3);
-    opacity: 0.5;
+  background-color: var(--T3);
+  opacity: 0.5;
 }
 
 /* History Menu Styling */
 #assistant #history-menu {
-    position: absolute;
-    top: 3.5em;
-    width: 350px;
-    /* background-color: var(--UI-Background); */
-    /* border: 1px solid var(--SAND); */
-    border-radius: 2px;
-    box-shadow: 0 4px 12px var(--SHADOW);
-    z-index: 1000;
-    overflow: hidden;
-    animation: slideIn 0.2s ease-out;
+  position: absolute;
+  top: 3.5em;
+  width: 350px;
+  border-radius: 2px;
+  box-shadow: 0 4px 12px var(--SHADOW);
+  z-index: 1000;
+  overflow: hidden;
+  animation: slideIn 0.2s ease-out;
 }
 
 @keyframes slideIn {
-    from {
-        opacity: 0;
-        transform: translateY(-10px);
-    }
-    to {
-        opacity: 1;
-        transform: translateY(0);
-    }
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
 #assistant .history-menu-header {
-    padding: 12px 16px;
-    background-color: var(--T1);
-    color: var(--STONE);
-    font-weight: bold;
-    border-bottom: 1px solid var(--SAND);
-    font-size: 0.9em;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
+  padding: 12px 16px;
+  background-color: var(--T1);
+  color: var(--STONE);
+  font-weight: bold;
+  border-bottom: 1px solid var(--SAND);
+  font-size: 0.9em;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
 }
 
 #assistant .history-menu-list {
-    background: var(--T2);
-    max-height: 400px;
-    overflow-y: auto;
-    padding: 4px 0;
+  background: var(--T2);
+  max-height: 400px;
+  overflow-y: auto;
+  padding: 4px 0;
 }
 
 #assistant .history-menu-list::-webkit-scrollbar {
-    width: 8px;
+  width: 8px;
 }
 
 #assistant .history-menu-list::-webkit-scrollbar-track {
-    background: var(--UI-Background);
+  background: var(--UI-Background);
 }
 
 #assistant .history-menu-list::-webkit-scrollbar-thumb {
-    background: var(--SAND);
-    border-radius: 4px;
+  background: var(--SAND);
+  border-radius: 4px;
 }
 
 #assistant .history-menu-item {
-    padding: 10px 16px;
-    background-color: var(--T2);
-    color: var(--STONE);
-    cursor: pointer;
-    transition: all 0.1s ease;
-    border-bottom: 1px solid var(--SAND);
-    font-size: 0.9em;
-    display: flex;
-    align-items: center;
+  padding: 10px 16px;
+  background-color: var(--T2);
+  color: var(--STONE);
+  cursor: pointer;
+  /* transition: all 0.1s ease; */
+  border-bottom: 1px solid var(--SAND);
+  font-size: 0.9em;
+  display: flex;
+  align-items: center;
 }
 
 #assistant .history-menu-item.active {
-    padding: 10px 16px;
-    background-color: var(--T3);
-    color: var(--STONE);
-    cursor: pointer;
-    transition: all 0.1s ease;
-    border-bottom: 1px solid var(--SAND);
-    font-size: 0.9em;
-    display: flex;
-    align-items: center;
+  padding: 10px 16px;
+  background-color: var(--T3);
+  color: var(--STONE);
+  cursor: pointer;
+  /* transition: all 0.1s ease; */
+  border-bottom: 1px solid var(--SAND);
+  font-size: 0.9em;
+  display: flex;
+  align-items: center;
 }
 
 #assistant .history-menu-item:hover:not(:has(.button:hover)) {
-    background-color: var(--T4);
-    padding-left: 18px;
+  background-color: var(--T4);
+  padding-left: 18px;
 }
 
 #assistant .history-menu-item:active:not(:has(.button:hover)) {
-    background-color: var(--T3);
+  background-color: var(--T3);
 }
 
 #assistant .history-menu-item-content {
-    flex: 1;
-    margin-right: 8px;
+  flex: 1;
+  margin-right: 8px;
 }
 
 #assistant .history-menu-item-actions {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  /* transition: all 0.2s ease; */
 }
 
 /* Show delete button only on hover */
 #assistant .delete-chat-button {
-    color: var(--STONE);
-    padding: 4px;
-    border-radius: 4px;
-    cursor: pointer;
-    opacity: 0;
-    transition: all 0.2s ease;
-    margin-left: 8px;
-    line-height: 0;
-    display: none;
-    transform: scale(0.75); /* Shrink the icon to 75% of its original size */
+  color: var(--STONE);
+  padding: 4px;
+  border-radius: 4px;
+  cursor: pointer;
+  opacity: 0;
+  /* transition: all 0.2s ease; */
+  margin-left: 8px;
+  line-height: 0;
+  display: none;
+  transform: scale(0.75); /* Shrink the icon to 75% of its original size */
 }
 
 #assistant .delete-chat-button svg {
-    width: 18px; /* Make the SVG icon smaller */
-    height: 18px;
+  width: 18px; /* Make the SVG icon smaller */
+  height: 18px;
 }
 
 #assistant .history-menu-item:hover .delete-chat-button {
-    opacity: 0.75;
-    display: block;
+  opacity: 0.75;
+  display: block;
 }
 
 #assistant .delete-chat-button:hover {
-    background-color: var(--T3);
-    opacity: 0.5 !important;
+  background-color: var(--T3);
+  opacity: 0.5 !important;
 }
 
 #assistant .history-menu-item-time {
-    font-size: 0.725em;
-    color: var(--STONE);
-    margin-left: 8px;
-    transition: all 0.2s ease;
+  font-size: 0.725em;
+  color: var(--STONE);
+  margin-left: 8px;
+  /* transition: all 0.2s ease; */
 }
 
 #assistant .history-menu-item:last-child {
-    border-bottom: none;
+  border-bottom: none;
 }
 
 #assistant .resuggest-button {
-    color: var(--STONE);
-    padding: 4px 8px;
-    cursor: pointer;
-    opacity: 0.6;
-    transition: all 0.2s ease;
-    font-size: 0.6em;
+  color: var(--STONE);
+  padding: 4px 8px;
+  cursor: pointer;
+  opacity: 0.6;
+  /* transition: all 0.2s ease; */
+  font-size: 0.6em;
 }
 
 #assistant .resuggest-button:hover {
-    opacity: 0.9 !important;
+  opacity: 0.9 !important;
 }
 
 #assistant .example {
@@ -753,54 +699,48 @@
 }
 
 #assistant .assistant-info-container {
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    font-size: 0.8em;
-    color: var(--STONE);
-    opacity: 0.7;
-    margin-bottom: 10px;
+  color: var(--STONE);
 }
 
 #assistant .assistant-info-container a {
-    color: var(--G0);
-    text-decoration: none;
-    transition: all 0.2s ease;
+  color: var(--Y3);
+  text-decoration: none;
+  /* transition: all 0.2s ease; */
 }
 
 #assistant .assistant-info-container a:hover {
-    opacity: 0.8;
-    text-decoration: underline;
+  opacity: 0.8;
+  text-decoration: underline;
 }
 
 #assistant .subtitle {
-    font-size: 0.8em;
-    color: var(--STONE);
-    opacity: 0.5;
-    margin: 1em 0 0.5em 0;
-    font-style: italic;
+  font-size: 0.8em;
+  color: var(--STONE);
+  opacity: 0.5;
+  margin: 1em 0 0.5em 0;
+  font-style: italic;
 }
 
 #assistant .show-prompt-button {
-    color: var(--STONE);
-    padding: 0.2em 1.35em;
-    border-radius: 4px;
-    font-weight: bold;
-    cursor: pointer;
-    transition: all 0.3s ease;
+  color: var(--STONE);
+  padding: 0.2em 1.35em;
+  border-radius: 4px;
+  font-weight: bold;
+  cursor: pointer;
+  /* transition: all 0.3s ease; */
 }
 
 #assistant .show-prompt-button svg {
-    width: 24px;
-    height: 24px;
-    opacity: 0.7;
-    fill: var(--STONE);
+  width: 24px;
+  height: 24px;
+  opacity: 0.7;
+  fill: var(--STONE);
 }
 
 #assistant .show-prompt-button:hover svg {
-    animation: wobble 0.6s ease 0s 1 normal forwards;
-    opacity: 0.9;
-    transition: opacity 0.3s ease;  
+  animation: wobble 0.6s ease 0s 1 normal forwards;
+  opacity: 0.9;
+  /* transition: opacity 0.3s ease; */
 }
 
 #assistant .message-identifier-row {
@@ -811,73 +751,73 @@
 }
 
 #assistant #prompt-display-container {
-    position: absolute;
-    top: 3.5em;
-    width: 350px;
-    max-height: 600px;
-    overflow-y: auto;  
-    border-radius: 2px;
-    box-shadow: 0 4px 12px var(--SHADOW);
-    z-index: 1000;
-    overflow-x: hidden;
-    animation: slideIn 0.2s ease-out;
+  position: absolute;
+  top: 3.5em;
+  width: 350px;
+  max-height: 600px;
+  overflow-y: auto;
+  border-radius: 4px;
+  box-shadow: 0 4px 12px var(--SHADOW);
+  z-index: 1000;
+  overflow-x: hidden;
+  animation: slideIn 0.2s ease-out;
 }
 
 /* Center the initial display in the message area */
 #assistant .initial-display {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    flex: 0.8;
-    width: 65%;
-    text-align: center;
-    gap: 1.5em;
-    margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 0.8;
+  width: 65%;
+  text-align: center;
+  gap: 1.5em;
+  margin: 0 auto;
 }
 
 #assistant .initial-display svg {
-    width: 72px;
-    height: 72px;
-    fill: var(--BR4);
-    opacity: 89%;
+  width: 72px;
+  height: 72px;
+  fill: var(--BR4);
+  opacity: 89%;
 }
 
 #assistant .initial-display-text {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 0.5em;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5em;
 }
 
 #assistant .initial-display-text span,
 #assistant .initial-display-text .vdom-text {
-    font-size: 1.25em;
-    color: var(--STONE);
-    margin-top: 0.25em;
-    font-weight: bold;
-    text-align: center;
+  font-size: 1.25em;
+  color: var(--STONE);
+  margin-top: 0.25em;
+  font-weight: bold;
+  text-align: center;
 }
 
 #assistant .disclaimer-display-text {
-    font-size: 0.75em;
-    color: var(--STONE);
-    opacity: 0.55;
-    margin-top: 0.5em;
-    text-align: center;
-    font-weight: normal;
+  font-size: 0.75em;
+  color: var(--STONE);
+  opacity: 0.55;
+  margin-top: 0.5em;
+  text-align: center;
+  font-weight: normal;
 }
 
 #assistant .tool {
-    align-items: center;
+  align-items: center;
 }
 
 #assistant .tool-message {
-    padding: 8px 12px;
-    font-size: 0.75em;
-    max-width: 100%;
-    word-wrap: break-word;
-    opacity: 0.7;
-    text-align: center;
+  padding: 8px 12px;
+  font-size: 0.75em;
+  max-width: 100%;
+  word-wrap: break-word;
+  opacity: 0.7;
+  text-align: center;
 }

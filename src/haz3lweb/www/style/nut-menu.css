@@ -273,4 +273,9 @@
 
 #top-bar #editor-mode select {
   text-transform: lowercase;
+  border-radius: 1em;
+}
+
+#top-bar #editor-mode select:hover {
+  background-color: var(--SAND);
 }
