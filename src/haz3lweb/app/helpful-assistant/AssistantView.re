@@ -97,7 +97,7 @@ let select_llm =
   div(
     ~attrs=[clss(["llm-selector"])],
     [
-      label(~attrs=[clss(["llm-label"])], [text("Select LLM Model: ")]),
+      label(~attrs=[clss(["llm-label"])], [text("LLM Model")]),
       select(
         ~attrs=[Attr.on_change(handle_change), clss(["llm-dropdown"])],
         List.map(
@@ -180,7 +180,7 @@ let api_input =
       div(
         ~attrs=[clss(["assistant-info-container"])],
         [
-          text("You can find or create an OpenRouter API key "),
+          text("Get an OpenRouter API key "),
           a(
             ~attrs=[
               Attr.href("https://openrouter.ai/settings/keys"),
@@ -188,53 +188,73 @@ let api_input =
             ],
             [text("here")],
           ),
+          text("."),
         ],
       ),
-      input(
-        ~attrs=[
-          Attr.id("api-input"),
-          Attr.placeholder("Enter your OpenRouter API key..."),
-          Attr.type_("password"),
-          Attr.property("autocomplete", Js.Unsafe.inject("off")),
-          Attr.on_focus(_ =>
-            signal(MakeActive(ScratchMode.Selection.TextBox))
+      div(
+        ~attrs=[clss(["llm-selector"])],
+        [
+          label(~attrs=[clss(["llm-label"])], [text("New API Key")]),
+          input(
+            ~attrs=[
+              Attr.id("api-input"),
+              Attr.placeholder("Click to enter your OpenRouter API key"),
+              Attr.type_("password"),
+              Attr.property("autocomplete", Js.Unsafe.inject("off")),
+              Attr.on_focus(_ =>
+                signal(MakeActive(ScratchMode.Selection.TextBox))
+              ),
+              Attr.on_keydown(handle_keydown),
+              clss(["api-input"]),
+              Attr.on_copy(_ => {Effect.Stop_propagation}),
+              Attr.on_paste(_ => {Effect.Stop_propagation}),
+              Attr.on_cut(_ => {Effect.Stop_propagation}),
+            ],
+            (),
           ),
-          Attr.on_keydown(handle_keydown),
-          clss(["api-input"]),
-          Attr.on_copy(_ => {Effect.Stop_propagation}),
-          Attr.on_paste(_ => {Effect.Stop_propagation}),
-          Attr.on_cut(_ => {Effect.Stop_propagation}),
         ],
-        (),
       ),
       div(
         ~attrs=[clss(["chat-button"]), Attr.on_click(submit_key)],
         [Widgets.button_named(~tooltip="Update API Key", None, submit_key)],
       ),
-      div(~attrs=[clss(["text-display"])], [text("Current API Key:\n")]),
       div(
-        ~attrs=[clss(["api-key-row"])],
+        ~attrs=[clss(["llm-selector"])],
         [
-          div(
-            ~attrs=[clss(["api-key-display"]), Attr.id("api-key-display")],
+          label(
+            ~attrs=[clss(["llm-label"])],
             [
-              text(
-                switch (Store.Generic.load("API")) {
-                | Some(key) when String.length(key) > 0 =>
-                  settings.show_api_key
-                    ? key : String.make(String.length(key), '*')
-                | _ => "No API key set"
-                },
+              text("Current API Key\n"),
+              div(
+                ~attrs=[clss(["toggle-show-button"])],
+                [
+                  Widgets.button(
+                    ~tooltip="Show/Hide Key",
+                    settings.show_api_key ? Icons.visible : Icons.invisible,
+                    toggle_visibility,
+                  ),
+                ],
               ),
             ],
           ),
           div(
-            ~attrs=[clss(["toggle-show-button"])],
+            ~attrs=[clss(["api-key-row"])],
             [
-              Widgets.button(
-                ~tooltip="Show/Hide Key",
-                settings.show_api_key ? Icons.visible : Icons.invisible,
-                toggle_visibility,
+              div(
+                ~attrs=[
+                  clss(["api-key-display"]),
+                  Attr.id("api-key-display"),
+                ],
+                [
+                  text(
+                    switch (Store.Generic.load("API")) {
+                    | Some(key) when String.length(key) > 0 =>
+                      settings.show_api_key
+                        ? key : String.make(String.length(key), '*')
+                    | _ => "No API key set"
+                    },
+                  ),
+                ],
               ),
             ],
           ),
@@ -247,7 +267,7 @@ let api_input =
 let llm_model_id_input =
     (
       ~inject_global: Globals.Action.t => Ui_effect.t(unit),
-      ~signal,
+      ~signal as _,
       ~settings: AssistantSettings.t,
     )
     : Node.t => {
@@ -291,13 +311,13 @@ let llm_model_id_input =
     handle_submission(message);
   };
 
-  let handle_keydown = event => {
-    let key = Js.Optdef.to_option(Js.Unsafe.get(event, "key"));
-    switch (key) {
-    | Some("Enter") => submit_key()
-    | _ => Virtual_dom.Vdom.Effect.Ignore
-    };
-  };
+  // let handle_keydown = event => {
+  //   let key = Js.Optdef.to_option(Js.Unsafe.get(event, "key"));
+  //   switch (key) {
+  //   | Some("Enter") => submit_key()
+  //   | _ => Virtual_dom.Vdom.Effect.Ignore
+  //   };
+  // };
 
   div(
     ~attrs=[clss(["api-key-container"])],
@@ -306,7 +326,7 @@ let llm_model_id_input =
       div(
         ~attrs=[clss(["assistant-info-container"])],
         [
-          text("You can find a comprehensive list of OpenRouter models "),
+          text("See available OpenRouter models "),
           a(
             ~attrs=[
               Attr.href("https://openrouter.ai/models"),
@@ -314,73 +334,87 @@ let llm_model_id_input =
             ],
             [text("here")],
           ),
+          text("."),
         ],
       ),
       select_llm(~inject_global, ~settings),
-      div(
-        ~attrs=[clss(["llm-label"])],
-        [text("Or Enter Model ID Manually:")],
-      ),
-      input(
-        ~attrs=[
-          Attr.id("llm-model-id-input"),
-          Attr.placeholder(
-            "Enter the ID of the OpenRouter model you wish to use...",
-          ),
-          Attr.type_("text"),
-          Attr.property("autocomplete", Js.Unsafe.inject("off")),
-          Attr.on_focus(_ =>
-            signal(MakeActive(ScratchMode.Selection.TextBox))
-          ),
-          Attr.on_keydown(handle_keydown),
-          clss(["llm-model-id-input"]),
-          Attr.on_copy(_ => {Effect.Stop_propagation}),
-          Attr.on_paste(_ => {Effect.Stop_propagation}),
-          Attr.on_cut(_ => {Effect.Stop_propagation}),
-        ],
-        (),
-      ),
+      // div(
+      //   ~attrs=[clss(["llm-selector"])],
+      //   [
+      //     div(
+      //       ~attrs=[clss(["llm-label"])],
+      //       [text("Or Enter Model ID Manually")],
+      //     ),
+      //     input(
+      //       ~attrs=[
+      //         Attr.id("llm-model-id-input"),
+      //         Attr.placeholder("Enter the ID of an OpenRouter model"),
+      //         Attr.type_("text"),
+      //         Attr.property("autocomplete", Js.Unsafe.inject("off")),
+      //         Attr.on_focus(_ =>
+      //           signal(MakeActive(ScratchMode.Selection.TextBox))
+      //         ),
+      //         Attr.on_keydown(handle_keydown),
+      //         clss(["llm-model-id-input"]),
+      //         Attr.on_copy(_ => {Effect.Stop_propagation}),
+      //         Attr.on_paste(_ => {Effect.Stop_propagation}),
+      //         Attr.on_cut(_ => {Effect.Stop_propagation}),
+      //       ],
+      //       (),
+      //     ),
+      //   ],
+      // ),
       div(
         ~attrs=[clss(["chat-button"]), Attr.on_click(submit_key)],
-        [Widgets.button_named(~tooltip="Update Model ID", None, submit_key)],
+        [Widgets.button_named(~tooltip="Update Model", None, submit_key)],
       ),
-      div(~attrs=[clss(["text-display"])], [text("Current Model ID:\n")]),
       div(
-        ~attrs=[clss(["api-key-display"]), Attr.id("api-key-display")],
+        ~attrs=[clss(["llm-selector"])],
         [
-          text(
-            switch (Store.Generic.load("MODEL")) {
-            | Some(model_id) when String.length(model_id) > 0 => model_id
-            | _ => "No model ID set"
-            },
+          label(~attrs=[clss(["llm-label"])], [text("Current Model\n")]),
+          div(
+            ~attrs=[clss(["api-key-display"]), Attr.id("api-key-display")],
+            [
+              text(
+                switch (Store.Generic.load("MODEL")) {
+                | Some(model_id) when String.length(model_id) > 0 => model_id
+                | _ => "No model ID set"
+                },
+              ),
+            ],
           ),
         ],
       ),
       div(
-        ~attrs=[clss(["text-display"])],
-        [text("Model Pricing (per million tokens):\n")],
-      ),
-      div(
-        ~attrs=[clss(["api-key-display"])],
+        ~attrs=[clss(["llm-selector"])],
         [
-          text(
-            switch (Store.Generic.load("MODEL")) {
-            | Some(model_id) when String.length(model_id) > 0 =>
-              let selected_model =
-                List.find_opt(
-                  (model: OpenRouter.model_info) => model.id == model_id,
-                  settings.available_models,
-                );
-              switch (selected_model) {
-              | Some(model) =>
-                "Prompt: "
-                ++ format_price_per_million(model.pricing.prompt)
-                ++ " / Completion: "
-                ++ format_price_per_million(model.pricing.completion)
-              | None => "Pricing information not available"
-              };
-            | _ => "No model selected"
-            },
+          label(
+            ~attrs=[clss(["llm-label"])],
+            [text("Model Pricing (per million tokens)\n")],
+          ),
+          div(
+            ~attrs=[clss(["api-key-display"])],
+            [
+              text(
+                switch (Store.Generic.load("MODEL")) {
+                | Some(model_id) when String.length(model_id) > 0 =>
+                  let selected_model =
+                    List.find_opt(
+                      (model: OpenRouter.model_info) => model.id == model_id,
+                      settings.available_models,
+                    );
+                  switch (selected_model) {
+                  | Some(model) =>
+                    "Prompt: "
+                    ++ format_price_per_million(model.pricing.prompt)
+                    ++ " / Completion: "
+                    ++ format_price_per_million(model.pricing.completion)
+                  | None => "Pricing information not available"
+                  };
+                | _ => "No model selected"
+                },
+              ),
+            ],
           ),
         ],
       ),
@@ -1122,32 +1156,18 @@ let view =
         div(
           ~attrs=[clss(["header"])],
           [
-            div(
-              ~attrs=[clss(["header-content"])],
-              [
-                settings.assistant.ongoing_chat
-                  ? mode_buttons(
-                      ~inject_global,
-                      ~settings=settings.assistant,
-                    )
-                  : div(
-                      ~attrs=[clss(["main-title"])],
-                      [text("Assistant Settings")],
-                    ),
-                div(
-                  ~attrs=[clss(["header-actions"])],
-                  [
-                    settings.assistant.ongoing_chat
-                      ? history_button(~inject, ~inject_global) : None,
-                    settings.assistant.ongoing_chat
-                      ? new_chat_button(~inject) : None,
-                    settings.assistant.ongoing_chat
-                      ? settings_button(~inject_global)
-                      : resume_chat_button(~inject_global),
-                  ],
+            settings.assistant.ongoing_chat
+              ? mode_buttons(~inject_global, ~settings=settings.assistant)
+              : div(
+                  ~attrs=[clss(["main-title"])],
+                  [text("Assistant Settings")],
                 ),
-              ],
-            ),
+            settings.assistant.ongoing_chat
+              ? history_button(~inject, ~inject_global) : None,
+            settings.assistant.ongoing_chat ? new_chat_button(~inject) : None,
+            settings.assistant.ongoing_chat
+              ? settings_button(~inject_global)
+              : resume_chat_button(~inject_global),
           ],
         ),
         settings.assistant.ongoing_chat
@@ -1177,7 +1197,7 @@ let view =
               ~signal,
               ~settings=settings.assistant,
             ),
-        settings.assistant.ongoing_chat ? None : settings_box(~inject_global),
+        //settings.assistant.ongoing_chat ? None : settings_box(~inject_global),
         settings.assistant.ongoing_chat && settings.assistant.show_history
           ? history_menu(~model, ~settings=settings.assistant, ~inject) : None,
         prompt_display(~globals, ~model, ~settings=settings.assistant),

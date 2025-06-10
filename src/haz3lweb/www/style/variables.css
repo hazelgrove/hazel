@@ -24,7 +24,9 @@
   --T1: oklch(97% 0.025 90); /* buffer shards */
   --T2: oklch(from var(--T1) 94% c h); /* projector shards */
   --T3: oklch(from var(--T1) 91% c h); /* result background */
-  --T4: oklch(from var(--T1) 88% c h); /* darker background, used in assistant */
+  --T4: oklch(
+    from var(--T1) 88% c h
+  ); /* darker background, used in assistant */
 
   /* MOLTEN - under construction */
   --Y0: oklch(95% 0.05 90); /* menu fill */
@@ -70,7 +72,7 @@
   --light-page-color: var(--menu-item-hover-bkg);
   --cell-active: var(--SAND);
   --main-scroll-thumb: var(--BR1);
-  --main-scroll-track: var(--SAND);
+  --main-scroll-track: var(--NONE);
   --cell-selected-accent: var(--R1);
 
   /* CODE DECO */

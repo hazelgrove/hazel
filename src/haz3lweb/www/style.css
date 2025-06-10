@@ -36,10 +36,6 @@ select {
   color: var(--select-text);
   /* text-transform: capitalize; */
 }
-select:hover {
-  border-radius: 1em;
-  background-color: var(--SAND);
-}
 
 :root {
   scrollbar-color: var(--main-scroll-thumb) var(--main-scroll-track);
@@ -100,10 +96,12 @@ select:hover {
   display: flex;
   flex-direction: column;
   border-left: 0.6px solid var(--BR2);
-  background-color: var(--T2);
+  background-color: var(--T1);
   position: relative;
   min-width: 300px;
   width: 400px;
+  scrollbar-color: var(--main-scroll-thumb) var(--NONE);
+  scrollbar-width: thin;
 }
 
 #sidebars {
