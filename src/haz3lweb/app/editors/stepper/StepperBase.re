@@ -104,15 +104,32 @@ module Model = {
     hidden: Calc.Pending,
   };
 
-  let init_induction_step = {
-    scrut: CodeEditable.Model.mk(Editor.Model.mk(Zipper.init())),
-    cases: [],
-    elab_scrut: Calc.Pending,
-    scrut_ty: Calc.Pending,
-    result: Calc.Pending,
-    result_state: Calc.Pending,
-    induction_valid: Calc.Pending,
-    join_exp: Calc.Pending,
+  let init_induction_step = (~exp: option(Exp.t)=?, ()) => {
+    let scrut =
+      switch (exp) {
+      | Some(e) =>
+        CodeEditable.Model.mk(
+          Editor.Model.mk(
+            Zipper.unzip(
+              ExpToSegment.exp_to_segment(
+                ~settings=ExpToSegment.Settings.editable(~inline=true),
+                e,
+              ),
+            ),
+          ),
+        )
+      | None => CodeEditable.Model.mk(Editor.Model.mk(Zipper.init()))
+      };
+    {
+      scrut,
+      cases: [],
+      elab_scrut: Calc.Pending,
+      scrut_ty: Calc.Pending,
+      result: Calc.Pending,
+      result_state: Calc.Pending,
+      induction_valid: Calc.Pending,
+      join_exp: Calc.Pending,
+    };
   };
 
   let init_forall_step = {
@@ -164,7 +181,7 @@ module Update = {
     | MissingStep(MissingStep.Update.t)
     | RemoveStep
     | StepForward(int)
-    | AddInduction
+    | AddInduction(option(Exp.t))
     | AddForall
     | AddAxiomStep(Exp.t, Exp.t)
 
@@ -273,13 +290,13 @@ module Update = {
       | None => model |> return_quiet
       };
     | (StepForward(_), _, _) => model |> return_quiet
-    | (AddInduction, MissingStep(_), _) =>
+    | (AddInduction(exp), MissingStep(_), _) =>
       {
         ...model,
-        step_kind: Model.InductionStep(Model.init_induction_step),
+        step_kind: Model.InductionStep(Model.init_induction_step(~exp?, ())),
       }
       |> return
-    | (AddInduction, _, _) => model |> return_quiet
+    | (AddInduction(_), _, _) => model |> return_quiet
     | (AddForall, MissingStep(_), _) =>
       {
         ...model,
@@ -1188,7 +1205,7 @@ module View = {
                     | HideStepper => signal(HideStepper)
                     | MakeActive(s) => signal(MakeActive(MissingStep(s)))
                     | AddForall => inject(AddForall)
-                    | AddInduction => inject(AddInduction)
+                    | AddInduction(exp) => inject(AddInduction(exp))
                     | AddAxiomStep(e1, e2) => inject(AddAxiomStep(e1, e2)),
                   ~editor=model.editor |> Calc.get_saved_exc(~print="Editor"),
                   m,
@@ -1294,7 +1311,7 @@ module View = {
             | HideStepper => signal(HideStepper)
             | MakeActive(s) => signal(MakeActive(MissingStep(s)))
             | AddForall => inject(AddForall)
-            | AddInduction => inject(AddInduction)
+            | AddInduction(exp) => inject(AddInduction(exp))
             | AddAxiomStep(e1, e2) => inject(AddAxiomStep(e1, e2)),
           ~undo,
           ms,
