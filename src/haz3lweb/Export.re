@@ -59,12 +59,7 @@ let import_all = (~import_log: string => unit, data, ~specs) => {
   ExplainThisModel.Store.import(all.explainThisModel);
   let instructor_mode = settings.instructor_mode;
   ScratchMode.Store.import(all.scratch);
-  ExercisesMode.Store.import(
-    ~settings=settings.core,
-    all.exercise,
-    ~specs,
-    ~instructor_mode,
-  );
+  ExercisesMode.Store.import(all.exercise, ~specs, ~instructor_mode);
   import_log(all.log);
 };
 
