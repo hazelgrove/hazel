@@ -4,8 +4,6 @@ open AST
 
 
 
-%token OPEN_CURLY
-%token CLOSE_CURLY
 %token T_TYP
 %token P_PAT
 %token TP_TPAT
@@ -136,7 +134,6 @@ open AST
 %nonassoc UMINUS   /* Unary minus (prefix) */
 %left COLON
 
-%left OPEN_CURLY
 
 
 %nonassoc TYP_AP_SYMBOL
@@ -144,7 +141,6 @@ open AST
 %left OPEN_PAREN CLOSE_PAREN
 %left DOLLAR_SIGN
 
-%left QUESTION
 %left TILDE
 %token SLASH_TILDE
 
