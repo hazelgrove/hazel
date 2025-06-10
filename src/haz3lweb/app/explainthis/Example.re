@@ -124,6 +124,7 @@ let labeled_pat = () => mk_monotile(Form.get(TupleLabeledPat));
 let labeled_typ = () => mk_monotile(Form.get(TupleLabeledTyp));
 let dot_exp = () => mk_monotile(Form.get(DotExp));
 let dot_typ = () => mk_monotile(Form.get(DotTyp));
+let ascription_exp = () => mk_monotile(Form.get(TypeAsc));
 let nil = () => exp("[]");
 let deferral = () => exp("_");
 let typeann = () => mk_monotile(Form.get(Typeann));
