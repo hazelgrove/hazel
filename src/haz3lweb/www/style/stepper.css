@@ -132,7 +132,7 @@
   cursor: pointer;
   pointer-events: all;
   background-color: var(--BR4);
-  color: var(--T3);
+  color: var(--T3) !important;
   padding: 0.2em 0.5em;
   border-radius: 0.2em;
   white-space: nowrap;
@@ -143,6 +143,17 @@
   border-radius: 0 0 0.5em 0;
   outline: 0.6px solid var(--menu-outline);
   box-shadow: 0px 10px 20px var(--menu-shadow);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.axiom-row {
+  display: flex;
+  flex-direction: row;
+  gap: 1em;
+  align-items: center;
 }
 
 .rewrite-box {
@@ -150,6 +161,10 @@
   border-radius: 0 0 0.5em 0;
   outline: 0.6px solid var(--menu-outline);
   box-shadow: 0px 10px 20px var(--menu-shadow);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
 }
 
 
