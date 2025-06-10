@@ -30,7 +30,7 @@ let view =
     ]
     @ (rename ? [button(Icons.rename, _ => signal(Rename))] : [])
     @ (add_drop ? [button(Icons.trash, _ => signal(Delete))] : [])
-    @ (add_drop ? [button(Icons.add, _ => signal(Add))] : []);
+    @ (add_drop ? [button(Icons.new_buffer, _ => signal(Add))] : []);
 
   indicator @ [div(~attrs=[Attr.class_("nav-buttons")], nav_buttons)];
 };

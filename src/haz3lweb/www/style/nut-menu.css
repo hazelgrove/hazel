@@ -265,6 +265,7 @@
   height: 21px;
   display: flex;
   align-items: center;
+  justify-content: center;
 }
 
 #top-bar #editor-mode .icon:hover {
