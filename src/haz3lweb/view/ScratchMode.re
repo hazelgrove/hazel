@@ -101,6 +101,9 @@ module Update = {
     | FinishImportScratchpad(_) => false
     | Export => false
     | Encode => false
+    | AddSlide => true
+    | RenameSlide => true
+    | DeleteSlide => true
     };
   };
 
