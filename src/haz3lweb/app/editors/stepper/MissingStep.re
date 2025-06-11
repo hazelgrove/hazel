@@ -237,7 +237,7 @@ module Selection = {
 module View = {
   open OptUtil.Syntax;
   type event =
-    | AddInduction
+    | AddInduction(option(Exp.t))
     | AddForall
     | HideStepper
     | AddAxiomStep(Exp.t, Exp.t)
@@ -294,20 +294,28 @@ module View = {
       List.map(
         (exp: Exp.t) =>
           [
-            exp
-            |> Haz3lcore.ExpToSegment.(
-                 exp_to_segment(
-                   ~settings=
-                     Settings.of_core(~inline=false, globals.settings.core),
-                 )
-               )
-            |> CodeViewable.view_segment(
-                 ~globals,
-                 ~sort=Exp,
-                 ~shape_map=Haz3lcore.Id.Map.empty,
-               ),
-            Widgets.button(Icons.star, _ =>
-              signal(AddAxiomStep(Model.get_selected_exp(model), exp))
+            Web.div_c(
+              "axiom-row",
+              [
+                Widgets.button(Icons.star, _ =>
+                  signal(AddAxiomStep(Model.get_selected_exp(model), exp))
+                ),
+                exp
+                |> Haz3lcore.ExpToSegment.(
+                     exp_to_segment(
+                       ~settings=
+                         Settings.of_core(
+                           ~inline=false,
+                           globals.settings.core,
+                         ),
+                     )
+                   )
+                |> CodeViewable.view_segment(
+                     ~globals,
+                     ~sort=Exp,
+                     ~shape_map=Haz3lcore.Id.Map.empty,
+                   ),
+              ],
             ),
           ],
         unpacked_rewrites,
@@ -364,14 +372,35 @@ module View = {
           (
             show_function_body_button
               ? [
-                proof_button(~callback=signal(AddForall), "Function Body"),
+                proof_button(
+                  ~callback=
+                    Ui_effect.Many([
+                      globals.inject_global(
+                        Set(Evaluation(ForceShowRecord)),
+                      ),
+                      signal(AddForall),
+                    ]),
+                  "Function Body",
+                ),
               ]
               : []
           )
           @ [
             proof_button(~callback=inject(ProposeRewrite), "Rewrite ▼"),
             proof_button(~callback=inject(ToggleAxioms), "Axioms ▼"),
-            proof_button(~callback=signal(AddInduction), "Cases"),
+            proof_button(
+              ~callback=
+                Ui_effect.Many([
+                  globals.inject_global(Set(Evaluation(ForceShowRecord))),
+                  signal(
+                    AddInduction(
+                      model.selected_exp
+                      |> Calc.get_saved_exc(~print="Selected Exp"),
+                    ),
+                  ),
+                ]),
+              "Cases",
+            ),
           ],
         );
 
@@ -429,39 +458,47 @@ module View = {
                     Web.div_c(
                       "rewrite-box",
                       [
-                        CodeEditable.View.view(
+                        Web.Node.text("Replace: "),
+                        CodeViewable.view_any(
                           ~globals,
-                          ~signal=
-                            fun
-                            | MakeActive =>
-                              signal(MakeActive(RewriteEditor())),
-                          ~inject=x => inject(RewriteEditorAction(x)),
-                          ~selected=
-                            switch (selected) {
-                            | Some(RewriteEditor ()) => true
-                            | _ => false
-                            },
-                          editor,
-                        ),
-                        Widgets.button(
-                          Icons.star,
-                          _ =>
-                            inject(
-                              UpdateResult(
-                                RewriteChecker.check_rewrite(
-                                  unboxed_selected_exp,
-                                  unboxed_cached_exp,
-                                ),
-                              ),
+                          ~settings=
+                            ExpToSegment.Settings.of_core(
+                              ~inline=false,
+                              globals.settings.core,
                             ),
-                          ~tooltip="check",
+                          ~shape_map=Haz3lcore.Id.Map.empty,
+                          Exp(unboxed_selected_exp),
+                        ),
+                        Web.Node.text("With: "),
+                        Web.div_c(
+                          "inline-editor-wrapper",
+                          [
+                            CodeEditable.View.view(
+                              ~globals,
+                              ~signal=
+                                fun
+                                | MakeActive =>
+                                  signal(MakeActive(RewriteEditor())),
+                              ~inject=x => inject(RewriteEditorAction(x)),
+                              ~selected=
+                                switch (selected) {
+                                | Some(RewriteEditor ()) => true
+                                | _ => false
+                                },
+                              editor,
+                            ),
+                          ],
                         ),
                       ]
                       @ {
                         switch (cached_result) {
                         | Some(true) => [
                             Web.Node.text("Valid"),
-                            Widgets.button(Icons.star, _ =>
+                            Widgets.button(
+                              ~clss=["proof-button"],
+                              Web.Node.text("Replace"),
+                              ~tooltip="replace",
+                              _ =>
                               signal(
                                 AddAxiomStep(
                                   unboxed_selected_exp,
@@ -471,7 +508,22 @@ module View = {
                             ),
                           ]
                         | Some(false) => [Web.Node.text("Invalid")]
-                        | None => []
+                        | None => [
+                            Widgets.button(
+                              ~clss=["proof-button"],
+                              Web.Node.text("Check"),
+                              _ =>
+                                inject(
+                                  UpdateResult(
+                                    RewriteChecker.check_rewrite(
+                                      unboxed_selected_exp,
+                                      unboxed_cached_exp,
+                                    ),
+                                  ),
+                                ),
+                              ~tooltip="check",
+                            ),
+                          ]
                         };
                       },
                     ),
@@ -490,6 +542,7 @@ module View = {
         ~globals: Globals.t,
         ~signal,
         ~undo: option(Ui_effect.t(unit)),
+        ~is_toplevel: bool,
         _model: Model.t,
       ) => {
     let button_back =
@@ -520,7 +573,11 @@ module View = {
       );
     Web.Node.div(
       ~attrs=[Web.Attr.classes(["stepper-controls"])],
-      [button_back, eval_settings, toggle_show_history, button_hide_stepper],
+      [button_back]
+      @ (
+        is_toplevel
+          ? [eval_settings, toggle_show_history, button_hide_stepper] : []
+      ),
     );
   };
 };

@@ -46,9 +46,7 @@ let rec get_rewrites = (ctx: t, exp: Exp.t) =>
           a |> MatchExp.substitute_exp(m),
           ...get_rewrites(rs, exp),
         ]
-      | None =>
-        print_endline("NOPE");
-        get_rewrites(rs, exp);
+      | None => get_rewrites(rs, exp)
       }
     };
   | [_, ...rs] => get_rewrites(rs, exp)
