@@ -729,7 +729,7 @@ module Transition = (EV: EV_MODE) => {
       | Some((env', d2, closures)) =>
         Step({
           expr:
-            closure(
+            subst_env(
               evaluate_extend_env(env', env, ~call_stack=env.call_stack),
               d2,
             ),

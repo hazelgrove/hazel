@@ -88,6 +88,13 @@ module Model = {
 
   let init_missing_step = MissingStep(MissingStep.Model.init);
 
+  let is_missing_step = (step_kind: step_kind): bool => {
+    switch (step_kind) {
+    | MissingStep(_) => true
+    | _ => false
+    };
+  };
+
   let init_step = {
     expr: Calc.Pending,
     state: Calc.Pending,
@@ -97,15 +104,32 @@ module Model = {
     hidden: Calc.Pending,
   };
 
-  let init_induction_step = {
-    scrut: CodeEditable.Model.mk(Editor.Model.mk(Zipper.init())),
-    cases: [],
-    elab_scrut: Calc.Pending,
-    scrut_ty: Calc.Pending,
-    result: Calc.Pending,
-    result_state: Calc.Pending,
-    induction_valid: Calc.Pending,
-    join_exp: Calc.Pending,
+  let init_induction_step = (~exp: option(Exp.t)=?, ()) => {
+    let scrut =
+      switch (exp) {
+      | Some(e) =>
+        CodeEditable.Model.mk(
+          Editor.Model.mk(
+            Zipper.unzip(
+              ExpToSegment.exp_to_segment(
+                ~settings=ExpToSegment.Settings.editable(~inline=true),
+                e,
+              ),
+            ),
+          ),
+        )
+      | None => CodeEditable.Model.mk(Editor.Model.mk(Zipper.init()))
+      };
+    {
+      scrut,
+      cases: [],
+      elab_scrut: Calc.Pending,
+      scrut_ty: Calc.Pending,
+      result: Calc.Pending,
+      result_state: Calc.Pending,
+      induction_valid: Calc.Pending,
+      join_exp: Calc.Pending,
+    };
   };
 
   let init_forall_step = {
@@ -157,7 +181,7 @@ module Update = {
     | MissingStep(MissingStep.Update.t)
     | RemoveStep
     | StepForward(int)
-    | AddInduction
+    | AddInduction(option(Exp.t))
     | AddForall
     | AddAxiomStep(Exp.t, Exp.t)
 
@@ -266,13 +290,13 @@ module Update = {
       | None => model |> return_quiet
       };
     | (StepForward(_), _, _) => model |> return_quiet
-    | (AddInduction, MissingStep(_), _) =>
+    | (AddInduction(exp), MissingStep(_), _) =>
       {
         ...model,
-        step_kind: Model.InductionStep(Model.init_induction_step),
+        step_kind: Model.InductionStep(Model.init_induction_step(~exp?, ())),
       }
       |> return
-    | (AddInduction, _, _) => model |> return_quiet
+    | (AddInduction(_), _, _) => model |> return_quiet
     | (AddForall, MissingStep(_), _) =>
       {
         ...model,
@@ -460,8 +484,8 @@ module Update = {
              ~is_edited=true,
              ~ctx,
              ~dynamics=Dynamics.Map.empty,
-             ~stitch=x =>
-             x
+             ~stitch=_ =>
+             expr
            );
       };
     let (step_kind, hidden, next_expr_state) =
@@ -1078,6 +1102,7 @@ module View = {
         | MakeActive(s) => signal(MakeActive(s))
         | HideStepper => signal(HideStepper),
       ~inject=u => inject(RootAction(u)),
+      ~is_toplevel=true,
       ~selected,
       model.root,
     )
@@ -1090,6 +1115,7 @@ module View = {
         ~signal: event_step => Ui_effect.t(unit),
         ~inject: Update.step => Ui_effect.t(unit),
         ~selected: option(Selection.step),
+        ~is_toplevel: bool=false,
         root_step,
       ) => {
     [
@@ -1100,6 +1126,7 @@ module View = {
           ~signal,
           ~inject,
           ~selected,
+          ~is_toplevel,
           ~undo=None,
           root_step,
         ),
@@ -1113,12 +1140,21 @@ module View = {
         ~signal: event_step => Ui_effect.t(unit),
         ~inject: Update.step => Ui_effect.t(unit),
         ~selected: option(Selection.step),
+        ~is_toplevel: bool=false,
         ~undo: option(Ui_effect.t(unit)),
         model: Model.step,
       ) => {
+    let is_last_step = Model.is_missing_step(model.step_kind);
+    let is_skipped_step = model.hidden == Calc.Calculated(true);
+    let showing_skiped_steps =
+      globals.settings.core.evaluation.show_hidden_steps;
+    let showing_history = globals.settings.core.evaluation.stepper_history;
+    let this_step_shown =
+      is_last_step
+      || showing_history
+      && (!is_skipped_step || showing_skiped_steps);
     let current_step =
-      if (model.hidden == Calc.Calculated(true)
-          && !globals.settings.core.evaluation.show_hidden_steps) {
+      if (!this_step_shown) {
         [];
       } else {
         let taken_steps =
@@ -1154,7 +1190,8 @@ module View = {
               },
             ~overlays=
               switch (model.step_kind) {
-              | Model.MissingStep(m) =>
+              | Model.MissingStep(m)
+                  when globals.settings.core.evaluation.enable_proof =>
                 MissingStep.View.view_overlay(
                   ~globals,
                   ~inject=x => inject(MissingStep(x)),
@@ -1165,10 +1202,10 @@ module View = {
                     },
                   ~signal=
                     fun
-                    | HideStepper => Ui_effect.Ignore
+                    | HideStepper => signal(HideStepper)
                     | MakeActive(s) => signal(MakeActive(MissingStep(s)))
                     | AddForall => inject(AddForall)
-                    | AddInduction => inject(AddInduction)
+                    | AddInduction(exp) => inject(AddInduction(exp))
                     | AddAxiomStep(e1, e2) => inject(AddAxiomStep(e1, e2)),
                   ~editor=model.editor |> Calc.get_saved_exc(~print="Editor"),
                   m,
@@ -1186,6 +1223,7 @@ module View = {
             ~globals: Globals.t,
             ~signal: event_step => Ui_effect.t(unit),
             ~inject: Update.step => Ui_effect.t(unit),
+            ~is_toplevel,
             ~undo,
             model.step_kind,
           );
@@ -1198,8 +1236,10 @@ module View = {
             model.step_kind,
           );
         [
-          Web.div_c(
-            "step-border",
+          Web.Node.div(
+            ~attrs=
+              [Web.Attr.class_("step-border")]
+              @ (is_skipped_step ? [Web.Attr.class_("hidden")] : []),
             [
               Web.div_c(
                 "step-display",
@@ -1218,6 +1258,7 @@ module View = {
       Option.map(
         view_step(
           ~globals,
+          ~is_toplevel,
           ~signal=
             fun
             | MakeActive(s) => signal(MakeActive(Next(s)))
@@ -1247,6 +1288,7 @@ module View = {
         ~signal: event_step => Ui_effect.t(unit),
         ~inject: Update.step => Ui_effect.t(unit),
         ~undo: option(Ui_effect.t(unit)),
+        ~is_toplevel: bool,
         step_kind: Model.step_kind,
       ) => {
     let justification =
@@ -1257,18 +1299,19 @@ module View = {
           |> EvaluatorStep.get_step_kind
           |> Transition.stepper_justification,
         )
-      | InductionStep(_) => Node.text("Induction Step")
+      | InductionStep(_) => Node.text("Case Analysis")
       | ForallStep(_) => Node.text("Enter Function")
       | AxiomStep(_) => Node.text("Axiom Step")
       | MissingStep(ms) =>
         MissingStep.View.view_justification(
           ~globals,
+          ~is_toplevel,
           ~signal=
             fun
-            | HideStepper => Ui_effect.Ignore
+            | HideStepper => signal(HideStepper)
             | MakeActive(s) => signal(MakeActive(MissingStep(s)))
             | AddForall => inject(AddForall)
-            | AddInduction => inject(AddInduction)
+            | AddInduction(exp) => inject(AddInduction(exp))
             | AddAxiomStep(e1, e2) => inject(AddAxiomStep(e1, e2)),
           ~undo,
           ms,
@@ -1345,14 +1388,23 @@ module View = {
       );
 
     let add_case_button =
-      Widgets.button(Icons.star, _ => inject(InductionStep(AddCase)));
+      Widgets.button(
+        Web.Node.text("Case ..."),
+        ~tooltip="Add case",
+        ~clss=["subtle-button", "add-case-button"],
+        _ =>
+        inject(InductionStep(AddCase))
+      );
 
     let cases =
       List.mapi(
         (i, Model.{pattern, step: stepper, _}) => {
           let remove_case_button =
-            Widgets.button(Icons.star, _ =>
-              inject(InductionStep(RemoveCase(i)))
+            Widgets.button(
+              Icons.trash,
+              _ => inject(InductionStep(RemoveCase(i))),
+              ~tooltip="Remove case",
+              ~clss=["subtle-button"],
             );
           let pattern_editor =
             CodeEditable.View.view(
@@ -1379,7 +1431,7 @@ module View = {
                 fun
                 | MakeActive(s) =>
                   signal(MakeActive(InductionStep(CaseStepper(i, s))))
-                | HideStepper => Ui_effect.Ignore, // TODO: prevent hiding inner steppers
+                | HideStepper => signal(HideStepper),
               ~inject=x => inject(InductionStep(CaseStepperUpdate(i, x))),
               ~selected=
                 switch (selected) {
@@ -1394,7 +1446,12 @@ module View = {
             [
               div_c(
                 "induction-case-header",
-                [remove_case_button, Node.text("Case "), pattern_editor],
+                [
+                  remove_case_button,
+                  Node.text("Case "),
+                  pattern_editor,
+                  Node.text(" : "),
+                ],
               ),
             ]
             @ stepper_view,
