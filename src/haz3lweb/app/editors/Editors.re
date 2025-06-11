@@ -1,3 +1,5 @@
+open Util;
+
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type mode =
@@ -28,24 +30,39 @@ module StoreMode =
 
 module Store = {
   let load = (~settings, ~instructor_mode) => {
-    let mode = StoreMode.load();
-    switch (mode) {
-    | Scratch =>
+    // Check if both name and share URL parameters are present
+    let has_share_params =
+      JsUtil.QueryParams.get_param("name") != None
+      && JsUtil.QueryParams.get_param("share") != None;
+
+    // If share parameters exist, force Scratch mode regardless of stored mode
+    if (has_share_params) {
       Model.Scratch(
         ScratchMode.Store.load()
         |> ScratchMode.Store.integrate_share
         |> ScratchMode.Model.unpersist(~settings),
-      )
-    | Documentation =>
-      Model.Documentation(
-        ScratchMode.StoreDocumentation.load()
-        |> ScratchMode.Model.unpersist(~settings),
-      )
-    | Exercises =>
-      Model.Exercises(
-        ExercisesMode.Store.load(~settings, ~instructor_mode)
-        |> ExercisesMode.Model.unpersist(~instructor_mode),
-      )
+      );
+    } else {
+      // Otherwise, proceed with normal mode loading
+      let mode = StoreMode.load();
+      switch (mode) {
+      | Scratch =>
+        Model.Scratch(
+          ScratchMode.Store.load()
+          |> ScratchMode.Store.integrate_share
+          |> ScratchMode.Model.unpersist(~settings),
+        )
+      | Documentation =>
+        Model.Documentation(
+          ScratchMode.StoreDocumentation.load()
+          |> ScratchMode.Model.unpersist(~settings),
+        )
+      | Exercises =>
+        Model.Exercises(
+          ExercisesMode.Store.load(~settings, ~instructor_mode)
+          |> ExercisesMode.Model.unpersist(~instructor_mode),
+        )
+      };
     };
   };
 
