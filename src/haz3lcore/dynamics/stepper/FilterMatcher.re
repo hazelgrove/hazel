@@ -259,7 +259,8 @@ let rec matches_exp =
       matches_exp(d1, f1) && matches_exp(d2, f2)
     | (Ap(_), _) => false
 
-    | (DeferredAp(d1, d2), DeferredAp(f1, f2)) =>
+    | (DeferredAp(d1, d2), DeferredAp(f1, f2))
+        when List.length(f2) == List.length(d2) =>
       matches_exp(d1, f1)
       && List.fold_left2(
            (acc, d, f) => acc && matches_exp(d, f),
@@ -284,7 +285,7 @@ let rec matches_exp =
       matches_exp(d1, f1) && matches_exp(d2, f2)
     | (Cons(_), _) => false
 
-    | (ListLit(dv), ListLit(fv)) =>
+    | (ListLit(dv), ListLit(fv)) when List.length(dv) == List.length(fv) =>
       List.fold_left2((acc, d, f) => acc && matches_exp(d, f), true, dv, fv)
     | (ListLit(_), _) => false
 
