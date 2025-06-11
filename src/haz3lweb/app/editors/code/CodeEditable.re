@@ -46,7 +46,7 @@ module Update = {
              switch (action) {
              | Move(_)
              | Jump(_)
-             | Select(Resize(_) | Term(_) | Smart(_) | Tile(_))
+             | Select(Resize(_) | Term(_) | Smart(_) | Tile(_) | Structure(_))
              | Destruct(_)
              | Insert(_)
              | Pick_up
@@ -271,7 +271,7 @@ module View = {
         let click_count = MouseState.count();
         /* Check how many clicks have happened recently
          * and cycle between options on-click */
-        switch (click_count mod 4 + 1) {
+        switch (click_count mod 5 + 1) {
         | 1 =>
           /* prepare to drag if the mouse moves */
           PointerCapture.set(mouse.current_target, pointer_id);
@@ -282,6 +282,7 @@ module View = {
         | 2 => inject(Perform(Select(Smart(2))))
         | 3 => inject(Perform(Select(Smart(3))))
         | 4 => inject(Perform(Select(Smart(4))))
+        | 5 => inject(Perform(Select(Smart(5))))
         | _ => failwith("THEN PERISH")
         };
       | _ => Effect.Ignore

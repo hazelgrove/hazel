@@ -1,5 +1,7 @@
 open Util;
 open Zipper;
+open TermBase;
+open Term;
 
 let buffer_clear = (z: t): t =>
   switch (z.selection.mode) {
@@ -95,44 +97,26 @@ let go_z =
       }
     };
 
-  let select_body = (z: t) => {
+  let select_body = (z: t): option(Zipper.t) => {
     open OptUtil.Syntax;
-    /* First select the current term (the let binding) */
-    let* (p, _, _) = Indicated.piece''(z);
-    let* z =
-      Piece.is_term(p)
-        ? Select.parent_of_indicated(z, statics.info_map)
-        : Select.current_term(~defs_exclude_bodies=true, ~case_rules=true, z);
-    print_endline("Selected let binding");
-    /* Helper to find next non-whitespace tile */
-    let rec find_next_non_whitespace = (z: t): option(t) => {
-      let z = Zipper.directional_unselect(Direction.Right, z);
-      print_endline("Moving right");
-      switch (Zipper.move(Right, z)) {
-      | None => None
-      | Some(z) =>
-        print_endline("Moved right");
-        switch (Indicated.piece''(z)) {
-        | None => find_next_non_whitespace(z)
-        | Some((p, _, _)) =>
-          print_endline("Piece is " ++ Piece.show(p));
-          switch (p) {
-          | Secondary(_) => find_next_non_whitespace(z)
-          | _ => Some(z)
-          };
-        };
+    let* body_id = Select.def_body_indicated(z, statics.info_map);
+    Select.term(body_id, z);
+  };
+
+  let select_definition = (z: t): option(Zipper.t) => {
+    open OptUtil.Syntax;
+    let* parent =
+      switch (Indicated.find_parent_with_label(z, ["let", "=", "in"])) {
+      | Some(p) => Some(p)
+      | None => Indicated.find_parent_with_label(z, ["type", "=", "in"])
       };
-    };
-    /* Iteratively find the next non-whitespace tile */
-    switch (find_next_non_whitespace(z)) {
-    | None => None
-    | Some(z) =>
-      /* Now we should be at the body */
-      Select.current_term(~defs_exclude_bodies=false, ~case_rules=true, z)
+    switch (parent) {
+    | Tile(t) => Select.tile(t.id, z)
+    | _ => None
     };
   };
 
-  let smart_select = (n, z): option(Zipper.t) => {
+  let smart_select = (n, z: t): option(Zipper.t) => {
     switch (n) {
     | 2 => Select.indicated_token(z)
     | 3 =>
@@ -143,7 +127,8 @@ let go_z =
       Piece.is_term(p)
         ? Select.parent_of_indicated(z, statics.info_map)
         : Select.current_term(~defs_exclude_bodies=true, ~case_rules=true, z);
-    | 4 => select_body(z)
+    | 4 => select_definition(z)
+    | 5 => select_body(z)
     | _ => None
     };
   };
@@ -254,6 +239,19 @@ let go_z =
     }
   | Select(Resize(d)) =>
     Select.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_select)
+  | Select(Structure(p)) =>
+    switch (p) {
+    | Definition =>
+      switch (select_definition(z)) {
+      | None => Error(Action.Failure.Cant_select)
+      | Some(z) => Ok(z)
+      }
+    | Body =>
+      switch (select_body(z)) {
+      | None => Error(Action.Failure.Cant_select)
+      | Some(z) => Ok(z)
+      }
+    }
   | Destruct(d) =>
     z
     |> Destruct.go(d)
