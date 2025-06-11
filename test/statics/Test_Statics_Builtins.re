@@ -74,4 +74,31 @@ let tests = [
       ),
     ),
   ),
+  test_case("Melt operation with missing labels", `Quick, () =>
+    annotated_tree_test(
+      "melt(1,2)",
+      FIError.Exp.(
+        ap(
+          ~ann=
+            Some(
+              Exp(
+                LabelsRequired(
+                  Typ.(
+                    list(
+                      prod([
+                        tup_label(label("label"), string()),
+                        tup_label(label("value"), unknown(Internal)),
+                      ]),
+                    )
+                  ),
+                ),
+              ),
+            ),
+          Forward,
+          var("melt"),
+          tuple([int(1), int(2)]),
+        )
+      ),
+    )
+  ),
 ];

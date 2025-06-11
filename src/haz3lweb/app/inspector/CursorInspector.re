@@ -490,6 +490,12 @@ let rec exp_view =
         ++ " arguments",
       ),
     ])
+  | InHole(LabelsRequired(_)) =>
+    div_err([
+      text(
+        "All entries in the argument must have labels, but some were not provided",
+      ),
+    ])
   | InHole(Common(error)) =>
     div_err(
       common_err_view(

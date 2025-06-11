@@ -873,8 +873,8 @@ and uexp_to_info_map =
                 m,
               );
             | _ =>
-              add(
-                ~self=BadTrivAp(ty_in), // TODO Real error
+              add'(
+                ~self=LabelsRequired(ty_out), // TODO Real error
                 ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
                 m,
               )

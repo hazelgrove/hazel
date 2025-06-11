@@ -26,6 +26,9 @@ let eq_info_error_exp = (a: Info.error_exp, b: Info.error_exp) => {
       Common(NoType(TupleExtensionRequiresTuples)),
     ) =>
     true
+  | (LabelsRequired(ty), LabelsRequired(ty')) => Typ.fast_equal(ty, ty')
+  | (LabelsRequired(_), _)
+  | (_, LabelsRequired(_)) => false
   | _ =>
     Alcotest.fail(
       "Not implemented for "
