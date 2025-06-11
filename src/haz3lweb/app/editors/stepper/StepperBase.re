@@ -868,7 +868,7 @@ module Update = {
           switch (exp |> Exp.term_of) {
           | Fun(p, d1, t, _) =>
             let t = OptUtil.get(() => Typ.fresh(Unknown(Internal)), t);
-            let* bindings = TypeAssignment.dhpat_extend_ctx(p, t, ctx);
+            let* bindings = ProofHacks.dhpat_extend_ctx(p, t, ctx);
             Some((bindings, d1));
           | _ => None
           };

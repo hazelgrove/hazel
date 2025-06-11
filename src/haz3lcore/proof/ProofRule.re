@@ -14,7 +14,7 @@ let rec exp_to_rule = (exp: Exp.t): t =>
   switch (exp |> Exp.term_of) {
   | Fun(p, e, Some(t), _) =>
     let bindings' =
-      TypeAssignment.dhpat_extend_ctx(p, t, Ctx.empty)
+      ProofHacks.dhpat_extend_ctx(p, t, Ctx.empty)
       |> Option.map((x: Ctx.t) => x.entries)
       |> OptUtil.get(() => []);
     let {bindings, assumptions, conclusion} = exp_to_rule(e);
