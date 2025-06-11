@@ -100,6 +100,12 @@ let stepper_group = (~globals: Globals.t) => {
         s.show_ascription_steps,
         Evaluation(ShowAscriptionSteps),
       ),
+      (
+        "π",
+        "Proof Steps (experimental)",
+        s.enable_proof,
+        Evaluation(EnableProof),
+      ),
     ],
   );
 };
