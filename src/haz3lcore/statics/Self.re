@@ -71,7 +71,8 @@ type exp =
   | InexhaustiveMatch(exp)
   | IsDeferral(Exp.deferral_position)
   | IsBadPartialAp(error_partial_ap)
-  | Common(t);
+  | Common(t)
+  | LabelsRequired(Typ.t) /* Melt requires labels for all tuple elements */;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pat =
@@ -124,7 +125,8 @@ let typ_of_exp: (Ctx.t, exp) => option(Typ.t) =
     | InexhaustiveMatch(_)
     | IsDeferral(_)
     | IsBadPartialAp(_) => None
-    | Common(self) => typ_of(ctx, self);
+    | Common(self) => typ_of(ctx, self)
+    | LabelsRequired(typ) => Some(typ);
 
 let rec typ_of_pat: (Ctx.t, pat) => option(Typ.t) =
   ctx =>

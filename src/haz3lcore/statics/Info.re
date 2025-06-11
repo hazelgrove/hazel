@@ -96,7 +96,8 @@ type error_exp =
   | InexhaustiveMatch(option(error_common))
   | UnusedDeferral
   | BadPartialAp(Self.error_partial_ap)
-  | Common(error_common);
+  | Common(error_common)
+  | LabelsRequired(Typ.t) /* Melt requires labels for all tuple elements */;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_pat =
@@ -565,7 +566,8 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
       | InHole(Common(InvalidUseMode(_)))
       | InHole(
           FreeVariable(_) | InexhaustiveMatch(_) | UnusedDeferral |
-          BadPartialAp(_),
+          BadPartialAp(_) |
+          LabelsRequired(_),
         ) =>
         failwith("InHole(InexhaustiveMatch(impossible_err))")
       };
@@ -574,6 +576,7 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
   | IsDeferral(InAp) => NotInHole(AnaDeferralConsistent(ty_ana))
   | IsDeferral(_) => InHole(UnusedDeferral)
   | IsBadPartialAp(_ as info) => InHole(BadPartialAp(info))
+  | LabelsRequired(typ) => InHole(LabelsRequired(typ))
   | Common(self_exp) =>
     switch (status_common(ctx, ty_ana, self_exp)) {
     | NotInHole(ok_exp) => NotInHole(Common(ok_exp))
@@ -762,7 +765,8 @@ let fixed_typ_err: error_exp => Typ.t =
   | UnusedDeferral => Unknown(Internal) |> Typ.temp
   | BadPartialAp(_) => Unknown(Internal) |> Typ.temp
   | InexhaustiveMatch(_) => Unknown(Internal) |> Typ.temp
-  | Common(err) => fixed_typ_err_common(err);
+  | Common(err) => fixed_typ_err_common(err)
+  | LabelsRequired(typ) => typ;
 
 let fixed_typ_err_pat: error_pat => Typ.t =
   fun
