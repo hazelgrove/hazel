@@ -424,53 +424,54 @@ module Pervasives = {
       |> fn(
            ~custom_statics=Ctx.MeltBuiltin,
            "melt",
-           Prod([unknown(Internal), unknown(Internal), unknown(Internal)]),
-           List(prod([unknown(Internal), unknown(Internal)])),
-           ternary((e: DHExp.t, col_lab: DHExp.t, val_lab: DHExp.t) => {
-             switch (col_lab.term, val_lab.term) {
-             | (Label(col_lab), Label(val_lab)) =>
-               open OptUtil.Syntax;
-               let-unbox entries:
-                 list((option(string), Grammar.exp_t(IdTagged.IdTag.t))) = (
-                 LabeledTupleEntries,
-                 e,
+           Unknown(Internal),
+           List(
+             prod([
+               tup_label(label("label"), string()),
+               tup_label(label("value"), unknown(Internal)),
+             ]),
+           ),
+           (e: DHExp.t) => {
+             open OptUtil.Syntax;
+             let-unbox entries:
+               list((option(string), Grammar.exp_t(IdTagged.IdTag.t))) = (
+               LabeledTupleEntries,
+               e,
+             );
+
+             let* entries: list((string, Grammar.exp_t(IdTagged.IdTag.t))) =
+               OptUtil.traverse(
+                 fun
+                 | (Some(name), e) => Some((name, e))
+                 | _ => None,
+                 entries,
                );
 
-               let* entries: list((string, Grammar.exp_t(IdTagged.IdTag.t))) =
-                 OptUtil.traverse(
-                   fun
-                   | (Some(name), e) => Some((name, e))
-                   | _ => None,
-                   entries,
-                 );
-
-               let unpivoted_entries =
-                 List.map(
-                   ((name, e)) =>
-                     IdTagged.FreshGrammar.(
-                       Exp.(
-                         cast(
-                           tuple([
-                             tup_label(label(col_lab), string(name)),
-                             tup_label(label(val_lab), e),
-                           ]),
-                           Typ.(
-                             prod([
-                               tup_label(label(col_lab), string()),
-                               tup_label(label(val_lab), unknown(Internal)) // TODO We need the actual type of the value
-                             ])
-                           ),
-                           Typ.unknown(Internal),
-                         )
+             let unpivoted_entries =
+               List.map(
+                 ((name, e)) =>
+                   IdTagged.FreshGrammar.(
+                     Exp.(
+                       cast(
+                         tuple([
+                           tup_label(label("label"), string(name)),
+                           tup_label(label("value"), e),
+                         ]),
+                         Typ.(
+                           prod([
+                             tup_label(label("label"), string()),
+                             tup_label(label("value"), unknown(Internal)) // TODO We need the actual type of the value
+                           ])
+                         ),
+                         Typ.unknown(Internal),
                        )
-                     ),
-                   entries,
-                 );
+                     )
+                   ),
+                 entries,
+               );
 
-               Some(IdTagged.FreshGrammar.Exp.list_lit(unpivoted_entries));
-             | _ => None
-             }
-           }),
+             Some(IdTagged.FreshGrammar.Exp.list_lit(unpivoted_entries));
+           },
          )
       |> fn(
            "project_labels",
