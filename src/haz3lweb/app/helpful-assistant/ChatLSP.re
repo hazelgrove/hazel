@@ -258,8 +258,8 @@ module Composition = {
           // definition when type annotation exists)
           Action.Move(Local(Left(ByToken))),
           switch (loc) {
-          | Definition => Action.Select(Smart(3))
-          | Body => Action.Select(Smart(4))
+          | Definition => Action.Select(Structure(Definition))
+          | Body => Action.Select(Structure(Body))
           | All => Action.Select(Term(Id(Id.invalid, Direction.Left)))
           },
           Action.Copy,
