@@ -14,7 +14,12 @@ module Fresh = IdTagged.FreshGrammar;
 [@deriving (show({with_path: false}), sexp)]
 type builtin =
   | Const(Typ.t, DHExp.t)
-  | Fn(Typ.t, Typ.t, DHExp.t => option(DHExp.t));
+  | Fn(
+      option(Ctx.custom_statics),
+      Typ.t,
+      Typ.t,
+      DHExp.t => option(DHExp.t),
+    );
 
 [@deriving (show({with_path: false}), sexp)]
 type t = VarMap.t_(builtin);
@@ -48,6 +53,7 @@ let const = (name: Var.t, typ: Typ.term, v: DHExp.t, builtins: t): t =>
   extend(builtins, (name, Const(typ |> Typ.fresh, v)));
 let fn =
     (
+      ~custom_statics: option(Ctx.custom_statics)=?,
       name: Var.t,
       t1: Typ.term,
       t2: Typ.term,
@@ -55,7 +61,10 @@ let fn =
       builtins: t,
     )
     : t =>
-  extend(builtins, (name, Fn(t1 |> Typ.fresh, t2 |> Typ.fresh, impl)));
+  extend(
+    builtins,
+    (name, Fn(custom_statics, t1 |> Typ.fresh, t2 |> Typ.fresh, impl)),
+  );
 
 let (let-unbox) = ((request, v), f) =>
   switch (Unboxing.unbox(request, v)) {
@@ -278,6 +287,7 @@ module Pervasives = {
     switch (b) {
     | OneFun(k1, k2, f) =>
       Fn(
+        None,
         Atom(k1 |> Atom.cls_of_kind) |> Typ.fresh,
         Atom(k2 |> Atom.cls_of_kind) |> Typ.fresh,
         (d: DHExp.t) => {
@@ -290,6 +300,7 @@ module Pervasives = {
       )
     | TwoFun(k1, k2, k3, f) =>
       Fn(
+        None,
         Prod([
           Atom(k1 |> Atom.cls_of_kind) |> Typ.fresh,
           Atom(k2 |> Atom.cls_of_kind) |> Typ.fresh,
@@ -411,6 +422,7 @@ module Pervasives = {
            }),
          )
       |> fn(
+           ~custom_statics=Ctx.MeltBuiltin,
            "melt",
            Prod([unknown(Internal), unknown(Internal), unknown(Internal)]),
            List(prod([unknown(Internal), unknown(Internal)])),
@@ -654,19 +666,12 @@ let entries =
         id: Id.invalid,
         custom_statics: None,
       })
-    | (name, Fn(t1, t2, _)) =>
+    | (name, Fn(custom_statics, t1, t2, _)) =>
       Ctx.VarEntry({
         name,
         typ: Fresh.Typ.arrow(t1, t2),
         id: Id.invalid,
-        custom_statics:
-          switch (name) {
-          | "melt" => Some(Ctx.MeltBuiltin)
-          | "project_labels" => Some(Ctx.ProjectLabelsBuiltin)
-          | "omit_labels" => Some(Ctx.OmitLabelsBuiltin)
-          | "drop_labels" => Some(Ctx.DropLabelsBuiltin)
-          | _ => None
-          },
+        custom_statics,
       }),
     Pervasives.builtins,
   )
@@ -698,7 +703,7 @@ let forms_init: forms =
   List.filter_map(
     fun
     | (_, Const(_)) => None
-    | (name, Fn(_, _, f)) => Some((name, f)),
+    | (name, Fn(_, _, _, f)) => Some((name, f)),
     Pervasives.builtins,
   );
 
