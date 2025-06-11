@@ -18,6 +18,8 @@ module Update = {
   let update = StepperBase.Update.update_stepper;
 
   let calculate = StepperBase.Update.calculate_stepper;
+
+  let can_undo = StepperBase.Update.can_undo_stepper;
 };
 
 module Selection = {

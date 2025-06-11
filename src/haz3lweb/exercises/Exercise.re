@@ -1,6 +1,5 @@
 open Util;
 open Haz3lcore;
-open Web;
 
 let output_header_grading = _module_name =>
   "module Exercise = GradePrelude.Exercise\n" ++ "let prompt = ()\n";
@@ -47,11 +46,10 @@ let validate_point_distribution =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type p('code) = {
+  id: Id.t,
   title: string,
-  version: int,
   module_name: string,
-  prompt:
-    [@printer (fmt, _) => Format.pp_print_string(fmt, "prompt")] [@opaque] Node.t,
+  prompt: string,
   point_distribution,
   prelude: 'code,
   correct_impl: 'code,
@@ -62,15 +60,14 @@ type p('code) = {
   syntax_tests,
 };
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type key = (string, int);
+type record = p(Zipper.t);
 
-let key_of = p => {
-  (p.title, p.version);
+let id_of = p => {
+  p.id;
 };
 
-let find_key_opt = (key, specs: list(p('code))) => {
-  specs |> Util.ListUtil.findi_opt(spec => key_of(spec) == key);
+let find_id_opt = (id, specs: list(p('code))) => {
+  specs |> Util.ListUtil.findi_opt(spec => id_of(spec) == id);
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -91,8 +88,8 @@ type transitionary_spec = p(CodeString.t);
 
 let map = (p: p('a), f: 'a => 'b, f_hidden: 'a => 'b): p('b) => {
   {
+    id: p.id,
     title: p.title,
-    version: p.version,
     module_name: p.module_name,
     prompt: p.prompt,
     point_distribution: p.point_distribution,
@@ -126,10 +123,34 @@ type eds = p(Editor.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type state = {eds};
 
-let key_of_state = eds => key_of(eds);
-
 [@deriving (show({with_path: false}), sexp, yojson)]
-type persistent_state = list((pos, PersistentZipper.t));
+type persistent_state = {
+  editors: list((pos, PersistentZipper.t)),
+  title: string,
+  hidden_bugs: list(wrong_impl(PersistentZipper.t)),
+  prompt: string,
+  point_distribution,
+  required: int,
+  module_name: string,
+  syntax_tests: list(syntax_test),
+  hidden_test_hints: list(string),
+  // NOTE: Add new fields to record here as new instructor editable features are
+  //       implemented (eg. prelude: PersistentZipper.t when adding the feature
+  //       to edit the prelude). After adding these field(s), we will need to
+  //       go into persistent_state_of_state and unpersist_state to implement
+  //       how these fields are saved and loaded to and from local memory
+  //       respectively.
+  // NOTE: It may be helpful to look at changes made in the mutant-add-delete and title-editor
+  //       branches in the Hazel repository to see and understand where changes
+  //       were made. It is likely that new implementations of editble features
+  //       will follow a similar route.
+};
+
+let clamp_idx = (eds: p('a), idx: int) => {
+  let length = List.length(eds.hidden_bugs);
+  let idx = idx > length - 1 ? idx - 1 : idx;
+  idx >= 0 ? Some(idx) : None;
+};
 
 let main_editor_of_state = (~selection: pos, eds) =>
   switch (selection) {
@@ -138,7 +159,11 @@ let main_editor_of_state = (~selection: pos, eds) =>
   | YourTestsValidation => eds.your_tests.tests
   | YourTestsTesting => eds.your_tests.tests
   | YourImpl => eds.your_impl
-  | HiddenBugs(i) => List.nth(eds.hidden_bugs, i).impl
+  | HiddenBugs(i) =>
+    switch (clamp_idx(eds, i)) {
+    | Some(idx) => List.nth(eds.hidden_bugs, idx).impl
+    | None => eds.your_impl
+    }
   | HiddenTests => eds.hidden_tests.tests
   };
 
@@ -196,7 +221,7 @@ let editors = eds =>
   @ List.map(wrong_impl => wrong_impl.impl, eds.hidden_bugs)
   @ [eds.hidden_tests.tests];
 
-let editor_positions = eds =>
+let editor_positions = (eds: p('a)) =>
   [Prelude, CorrectImpl, YourTestsTesting, YourTestsValidation, YourImpl]
   @ List.mapi((i, _) => HiddenBugs(i), eds.hidden_bugs)
   @ [HiddenTests];
@@ -249,8 +274,8 @@ let zipper_of_code = code => {
 let transition: transitionary_spec => spec =
   (
     {
+      id,
       title,
-      version,
       module_name,
       prompt,
       point_distribution,
@@ -298,8 +323,8 @@ let transition: transitionary_spec => spec =
       };
     };
     {
+      id,
       title,
-      version,
       module_name,
       prompt,
       point_distribution,
@@ -316,8 +341,8 @@ let transition: transitionary_spec => spec =
 let eds_of_spec =
     (
       {
+        id,
         title,
-        version,
         module_name,
         prompt,
         point_distribution,
@@ -361,8 +386,8 @@ let eds_of_spec =
     };
   };
   {
+    id,
     title,
-    version,
     module_name,
     prompt,
     point_distribution,
@@ -376,11 +401,6 @@ let eds_of_spec =
   };
 };
 
-//
-// Old version of above that did string-based parsing, may be useful
-// for transitions between zipper data structure versions (TODO)
-//
-
 let visible_in = (pos, ~instructor_mode) => {
   switch (pos) {
   | Prelude => instructor_mode
@@ -391,6 +411,149 @@ let visible_in = (pos, ~instructor_mode) => {
   | HiddenBugs(_) => instructor_mode
   | HiddenTests => instructor_mode
   };
+};
+
+let update_exercise_title = ({eds, _}: state, new_title: string) => {
+  eds: {
+    ...eds,
+    title: new_title,
+  },
+};
+
+let add_buggy_impl = (state: state) => {
+  let new_buggy_impl = {
+    impl: Editor.Model.mk(Zipper.init()),
+    hint: "No Hint Available",
+  };
+  {
+    eds: {
+      ...state.eds,
+      hidden_bugs: state.eds.hidden_bugs @ [new_buggy_impl],
+    },
+  };
+};
+
+let delete_buggy_impl = (state: state, index: int) => {
+  {
+    eds: {
+      ...state.eds,
+      hidden_bugs: List.filteri((i, _) => i != index, state.eds.hidden_bugs),
+    },
+  };
+};
+
+let edit_buggy_impl = (state: state, idx: int, impl: Editor.t, new_hint: hint) => {
+  let buggy_impl = {
+    impl,
+    hint: new_hint,
+  };
+  {
+    eds: {
+      ...state.eds,
+      hidden_bugs:
+        Util.ListUtil.put_nth(idx, buggy_impl, state.eds.hidden_bugs),
+    },
+  };
+};
+
+let update_exercise_prompt = ({eds}: state, new_prompt: string) => {
+  eds: {
+    ...eds,
+    prompt: new_prompt,
+  },
+};
+
+let update_test_val_rep = ({eds}: state, new_test_num: int, new_dist: int) => {
+  eds: {
+    ...eds,
+    your_tests: {
+      ...eds.your_tests,
+      required: new_test_num < 0 ? 0 : new_test_num,
+    },
+    point_distribution: {
+      ...eds.point_distribution,
+      test_validation: new_dist < 0 ? 0 : new_dist,
+    },
+  },
+};
+
+let update_mut_test_rep =
+    ({eds}: state, new_dist: int, new_hints: list(string)) => {
+  let updated_bugs =
+    List.mapi(
+      (i, bug) => {
+        let new_hint = List.nth_opt(new_hints, i);
+        switch (new_hint) {
+        | Some(hint) => {
+            ...bug,
+            hint,
+          }
+        | None => bug
+        };
+      },
+      eds.hidden_bugs,
+    );
+  {
+    eds: {
+      ...eds,
+      hidden_bugs: updated_bugs,
+      point_distribution: {
+        ...eds.point_distribution,
+        mutation_testing: new_dist < 0 ? 0 : new_dist,
+      },
+    },
+  };
+};
+
+let update_impl_grd_rep =
+    ({eds}: state, new_dist: int, new_hints: list(string)) => {
+  {
+    eds: {
+      ...eds,
+      hidden_tests: {
+        ...eds.hidden_tests,
+        hints: new_hints,
+      },
+      point_distribution: {
+        ...eds.point_distribution,
+        impl_grading: new_dist < 0 ? 0 : new_dist,
+      },
+    },
+  };
+};
+
+let update_syntax_rep = ({eds}: state, new_hints: list(string)) => {
+  eds: {
+    ...eds,
+    syntax_tests:
+      List.mapi(
+        (i, (_, predicate)) => {
+          let new_hint = List.nth_opt(new_hints, i);
+          switch (new_hint) {
+          | Some(hint) => (hint, predicate)
+          | None => ("No Hint Provided", predicate)
+          };
+        },
+        eds.syntax_tests,
+      ),
+  },
+};
+
+let update_module_name = ({eds}: state, new_module_name: string) => {
+  eds: {
+    ...eds,
+    module_name: new_module_name,
+  },
+};
+
+let update_prov_tests = ({eds}: state, new_prov_tests: int) => {
+  eds: {
+    ...eds,
+    your_tests: {
+      ...eds.your_tests,
+      provided: new_prov_tests,
+    },
+  },
 };
 
 // # Stitching
@@ -592,12 +755,8 @@ let editor_pp = (fmt, editor: Editor.t) => {
   Format.pp_print_string(fmt, serialization);
 };
 
-let export_module = (module_name, {eds, _}: state) => {
-  let prefix =
-    "let prompt = "
-    ++ module_name
-    ++ "_prompt.prompt\n"
-    ++ "let exercise: Exercise.spec = ";
+let export_module = ({eds, _}: state) => {
+  let prefix = "open Haz3lcore\n\n" ++ "let exercise: Exercise.spec = \n";
   let record = show_p(editor_pp, eds);
   let data = prefix ++ record ++ "\n";
   data;
@@ -654,10 +813,10 @@ let blank_spec =
     );
   let hidden_tests_tests = Zipper.next_blank();
   {
+    id: Id.mk(),
     title,
-    version: 1,
     module_name,
-    prompt: Node.text("TODO: prompt"),
+    prompt: "",
     point_distribution,
     prelude,
     correct_impl,
@@ -676,61 +835,97 @@ let blank_spec =
   };
 };
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type persistent_exercise_mode = list((pos, PersistentZipper.t));
+let persist = (state: state, ~instructor_mode: bool) => {
+  let zippers =
+    positioned_editors(state.eds)
+    |> List.filter(((pos, _)) => visible_in(pos, ~instructor_mode))
+    |> List.map(((pos, editor: Editor.t)) => {
+         (pos, PersistentZipper.persist(editor.state.zipper))
+       });
+  let persistent_hidden_bugs =
+    state.eds.hidden_bugs
+    |> List.map(({impl, hint}: wrong_impl(Editor.t)) => {
+         {
+           impl: PersistentZipper.persist(impl.state.zipper),
+           hint,
+         }
+       });
+  {
+    editors: zippers,
+    title: state.eds.title,
+    hidden_bugs: persistent_hidden_bugs,
+    prompt: state.eds.prompt,
+    point_distribution: state.eds.point_distribution,
+    required: state.eds.your_tests.required,
+    module_name: state.eds.module_name,
+    syntax_tests: state.eds.syntax_tests,
+    hidden_test_hints: state.eds.hidden_tests.hints,
+  };
+};
 
-let unpersist = (~instructor_mode, positioned_zippers, spec: spec): spec => {
+let unpersist =
+    (
+      {
+        editors,
+        title,
+        hidden_bugs,
+        prompt,
+        point_distribution,
+        required,
+        module_name,
+        syntax_tests,
+        hidden_test_hints,
+      }: persistent_state,
+      ~spec: spec,
+      ~instructor_mode: bool,
+    )
+    : state => {
   let lookup = (pos, default) =>
     if (visible_in(pos, ~instructor_mode)) {
-      positioned_zippers
-      |> List.assoc_opt(pos)
-      |> Option.map(PersistentZipper.unpersist)
-      |> Option.value(~default);
+      switch (List.assoc_opt(pos, editors)) {
+      | Some(persisted_zipper) =>
+        let zipper = PersistentZipper.unpersist(persisted_zipper);
+        Editor.Model.mk(zipper);
+      | None => Editor.Model.mk(default)
+      };
     } else {
-      default;
+      Editor.Model.mk(default);
     };
   let prelude = lookup(Prelude, spec.prelude);
   let correct_impl = lookup(CorrectImpl, spec.correct_impl);
   let your_tests_tests = lookup(YourTestsValidation, spec.your_tests.tests);
   let your_impl = lookup(YourImpl, spec.your_impl);
-  let (_, hidden_bugs) =
-    List.fold_left(
-      ((i, hidden_bugs: list(wrong_impl('a))), {impl, hint}) => {
-        let impl = lookup(HiddenBugs(i), impl);
-        (
-          i + 1,
-          hidden_bugs
-          @ [
-            {
-              impl,
-              hint,
-            },
-          ],
-        );
-      },
-      (0, []),
-      spec.hidden_bugs,
-    );
+  let hidden_bugs =
+    hidden_bugs
+    |> List.map(({impl, hint}) => {
+         let impl = Editor.Model.mk(PersistentZipper.unpersist(impl));
+         {
+           impl,
+           hint,
+         };
+       });
   let hidden_tests_tests = lookup(HiddenTests, spec.hidden_tests.tests);
   {
-    title: spec.title,
-    version: spec.version,
-    module_name: spec.module_name,
-    prompt: spec.prompt,
-    point_distribution: spec.point_distribution,
-    prelude,
-    correct_impl,
-    your_tests: {
-      tests: your_tests_tests,
-      required: spec.your_tests.required,
-      provided: spec.your_tests.provided,
+    eds: {
+      id: spec.id,
+      title,
+      module_name,
+      prompt,
+      point_distribution,
+      prelude,
+      correct_impl,
+      your_tests: {
+        tests: your_tests_tests,
+        required,
+        provided: spec.your_tests.provided,
+      },
+      your_impl,
+      hidden_bugs,
+      hidden_tests: {
+        tests: hidden_tests_tests,
+        hints: hidden_test_hints,
+      },
+      syntax_tests,
     },
-    your_impl,
-    hidden_bugs,
-    hidden_tests: {
-      tests: hidden_tests_tests,
-      hints: spec.hidden_tests.hints,
-    },
-    syntax_tests: spec.syntax_tests,
   };
 };

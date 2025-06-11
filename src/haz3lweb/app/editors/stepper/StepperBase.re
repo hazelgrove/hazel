@@ -415,6 +415,43 @@ module Update = {
     };
   };
 
+  let rec can_undo_stepper = (a: stepper): bool => {
+    switch (a) {
+    | RootAction(action) => can_undo_step(action)
+    };
+  }
+  and can_undo_step = (a: step): bool => {
+    switch (a) {
+    | EditorAction(action) => CodeSelectable.Update.can_undo(action)
+    | NextStep(next) => can_undo_step(next)
+    | SingleStep () => false
+    | InductionStep(action) => can_undo_induction_step(action)
+    | ForallStep(action) => can_undo_forall_step(action)
+    | MissingStep(action) => MissingStep.Update.can_undo(action)
+    | RemoveStep => true
+    | StepForward(_) => true
+    | AddInduction(_) => true
+    | AddForall => true
+    | AddAxiomStep(_, _) => true
+    };
+  }
+
+  and can_undo_induction_step = (a: induction_step): bool => {
+    switch (a) {
+    | ScrutUpdate(action) => CodeEditable.Update.can_undo(action)
+    | CasePatternUpdate(_, action) => CodeEditable.Update.can_undo(action)
+    | CaseStepperUpdate(_, step) => can_undo_step(step)
+    | AddCase => true
+    | RemoveCase(_) => true
+    };
+  }
+
+  and can_undo_forall_step = (a: forall_step): bool => {
+    switch (a) {
+    | InnerExp(step) => can_undo_step(step)
+    };
+  };
+
   let rec calculate_stepper =
           (
             ~settings,
