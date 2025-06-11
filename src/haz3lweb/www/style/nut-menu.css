@@ -237,11 +237,13 @@
   border-right: 0.6px solid var(--BR2);
   border-bottom: 0.6px solid var(--BR2);
   position: relative;
-  transition: padding-right 0.2s ease-in-out;
+  transition: padding-right 0.07s ease-in-out;
+  transition-delay: 0.02s;
 }
 
 #top-bar #editor-mode:hover {
   padding-right: 10em; /* Increase padding to make room for the buttons */
+  transition-delay: 0s;
 }
 
 /* Container for the navigation buttons that should be hidden by default */
@@ -250,14 +252,17 @@
   align-items: center;
   gap: 0.5em;
   opacity: 0;
-  transition: opacity 0.2s ease-in-out;
+  transition: opacity 0.02s ease-in-out;
+  transition-delay: 0s;
   position: absolute;
   right: 1.5em; /* Adjusted to position buttons properly within the expanded area */
+  z-index: 0;
 }
 
 /* Show navigation buttons on hover */
 #top-bar #editor-mode:hover .nav-buttons {
   opacity: 1;
+  transition-delay: 0.07s;
 }
 
 #top-bar #editor-mode .icon {
