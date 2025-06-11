@@ -652,14 +652,21 @@ let entries =
         name,
         typ,
         id: Id.invalid,
-        builtin: true,
+        custom_statics: None,
       })
     | (name, Fn(t1, t2, _)) =>
       Ctx.VarEntry({
         name,
         typ: Fresh.Typ.arrow(t1, t2),
         id: Id.invalid,
-        builtin: true,
+        custom_statics:
+          switch (name) {
+          | "melt" => Some(Ctx.MeltBuiltin)
+          | "project_labels" => Some(Ctx.ProjectLabelsBuiltin)
+          | "omit_labels" => Some(Ctx.OmitLabelsBuiltin)
+          | "drop_labels" => Some(Ctx.DropLabelsBuiltin)
+          | _ => None
+          },
       }),
     Pervasives.builtins,
   )
