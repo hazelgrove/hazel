@@ -75,6 +75,7 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type evaluation =
     | ShowRecord
+    | ForceShowRecord
     | EnableProof
     | ShowCaseClauses
     | ShowFnBodies
@@ -150,6 +151,10 @@ module Update = {
           | ShowRecord => {
               ...evaluation,
               stepper_history: !evaluation.stepper_history,
+            }
+          | ForceShowRecord => {
+              ...evaluation,
+              stepper_history: true,
             }
           | EnableProof => {
               ...evaluation,
