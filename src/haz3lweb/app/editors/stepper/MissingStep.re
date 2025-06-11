@@ -372,7 +372,16 @@ module View = {
           (
             show_function_body_button
               ? [
-                proof_button(~callback=signal(AddForall), "Function Body"),
+                proof_button(
+                  ~callback=
+                    Ui_effect.Many([
+                      globals.inject_global(
+                        Set(Evaluation(ForceShowRecord)),
+                      ),
+                      signal(AddForall),
+                    ]),
+                  "Function Body",
+                ),
               ]
               : []
           )
@@ -381,12 +390,15 @@ module View = {
             proof_button(~callback=inject(ToggleAxioms), "Axioms ▼"),
             proof_button(
               ~callback=
-                signal(
-                  AddInduction(
-                    model.selected_exp
-                    |> Calc.get_saved_exc(~print="Selected Exp"),
+                Ui_effect.Many([
+                  globals.inject_global(Set(Evaluation(ForceShowRecord))),
+                  signal(
+                    AddInduction(
+                      model.selected_exp
+                      |> Calc.get_saved_exc(~print="Selected Exp"),
+                    ),
                   ),
-                ),
+                ]),
               "Cases",
             ),
           ],
