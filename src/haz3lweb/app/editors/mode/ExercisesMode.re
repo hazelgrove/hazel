@@ -479,8 +479,8 @@ module View = {
       ~instructor_mode=globals.settings.instructor_mode,
     )
     @ EditorModeView.view(
-        ~add_drop=false,
-        ~rename=false,
+        ~nav_buttons=true,
+        ~edit_buttons=false,
         ~signal=
           fun
           | Previous =>

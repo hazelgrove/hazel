@@ -462,8 +462,8 @@ module View = {
 
   let top_bar = (~globals as _, ~inject: Update.t => 'a, model: Model.t) => {
     EditorModeView.view(
-      ~add_drop=true,
-      ~rename=true,
+      ~nav_buttons=false,
+      ~edit_buttons=true,
       ~signal=
         fun
         | Previous =>
