@@ -32,7 +32,12 @@ let view =
     @ (add_drop ? [button(Icons.trash, _ => signal(Delete))] : [])
     @ (add_drop ? [button(Icons.new_buffer, _ => signal(Add))] : []);
 
-  indicator @ [div(~attrs=[Attr.class_("nav-buttons")], nav_buttons)];
+  [
+    div(
+      ~attrs=[Attr.id("slide-navigation")],
+      indicator @ [div(~attrs=[Attr.id("nav-buttons")], nav_buttons)],
+    ),
+  ];
 };
 
 let indicator_n = (cur_slide, num_slides) => [
