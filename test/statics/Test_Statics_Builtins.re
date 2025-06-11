@@ -51,12 +51,12 @@ let tests = [
   ),
   fully_consistent_typecheck(
     "Melt operation with elements of the same type",
-    "melt((a=1, b=2, c=3, d=4), 'var', 'val')",
+    "melt((a=1, b=2, c=3, d=4))",
     Some(
       list(
         prod([
-          tup_label(label("var"), string()),
-          tup_label(label("val"), int()),
+          tup_label(label("label"), string()),
+          tup_label(label("value"), int()),
         ]),
       ),
     ),
@@ -64,12 +64,12 @@ let tests = [
   fully_consistent_typecheck(
     "Melt operation with type alias and autolabels",
     {|type Entry =(name=String, age=Int, quiz1=Int, quiz2=Int, midterm=Int, quiz3=Int, quiz4=Int, final=Int) in
-      melt(("bob",   12, 8, 9, 77, 7, 9, 87) : Entry, 'var', 'val')|},
+      melt(("bob",   12, 8, 9, 77, 7, 9, 87) : Entry)|},
     Some(
       list(
         prod([
-          tup_label(label("var"), string()),
-          tup_label(label("val"), unknown(Internal)),
+          tup_label(label("label"), string()),
+          tup_label(label("value"), unknown(Internal)),
         ]),
       ),
     ),
