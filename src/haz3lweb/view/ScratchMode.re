@@ -180,7 +180,9 @@ module Update = {
           "Are you SURE you want to delete this buffer? You will lose any existing code that you have written, and course staff have no way to restore it!",
         );
       if (confirmed) {
-        let new_sp = ListUtil.remove_nth(model.current, model.scratchpads);
+        let new_sp =
+          ListUtil.remove_nth(model.current, model.scratchpads)
+          |> Option.value(~default=model.scratchpads);
 
         Updated.return(
           {
