@@ -21,7 +21,7 @@ let strip_Wrap_and_add_builtins =
             VarMap.lookup(Haz3lcore.Builtins.Pervasives.builtins, x);
           cont(
             switch (builtin) {
-            | Some(Fn(_, _, _)) => cont(Fresh.Exp.builtin_fun(x))
+            | Some(Fn(_, _, _, _)) => cont(Fresh.Exp.builtin_fun(x))
             | Some(Const(_, _))
             | None => cont(e)
             },
