@@ -414,6 +414,8 @@ let get_step_id = (step: step): Id.t => step.d_loc |> DHExp.rep_id;
 
 let get_step_kind = (step: step): step_kind => step.knd;
 
+let get_step_ctx = (step: step): EvalCtx.t => step.ctx;
+
 let take_step = (step: EvalObj.t) => {
   let state = ref(EvaluatorState.init); // HACK: state isn't actually carried through the stepper...
   let+ next_expr = take_step(state, step.env, step.d_loc);

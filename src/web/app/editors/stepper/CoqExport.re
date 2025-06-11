@@ -72,7 +72,8 @@ let rec string_of_d = (d: DHExp.t) => {
       ++ Operators.int_op_to_string(op)
       ++ ""
       ++ string_of_d(arg2)
-    // | Int(n) => string_of_int(n)
+    | Atom(Int(n))
+    | Atom(Nat(n)) => Bigint.to_string(n)
     | Var(x) => x
     | _ => "ERROR"
     }

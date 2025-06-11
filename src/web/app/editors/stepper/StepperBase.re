@@ -174,7 +174,76 @@ module Model = {
     };
   };
 
-  // TODO how can we get this to take a model with a full sequence of steps?
+  // Takes a single step
+  let single_step_export = (ind, step, forall_str) => {
+    let {expr, next_step, step_kind, _} = step;
+
+    let oldFragmentString = CoqExport.string_of_d(expr |> Calc.get_saved_exc);
+    switch (next_step) {
+    | Some(next) =>
+      let newFragmentString =
+        CoqExport.string_of_d(next.expr |> Calc.get_saved_exc);
+      //Printf.printf("Step: %s -> %s\n", oldFragmentString, newFragmentString);
+      let oldExprString = CoqExport.string_of_d(expr |> Calc.get_saved_exc);
+      let newExprString =
+        CoqExport.string_of_d(next.expr |> Calc.get_saved_exc);
+      //Printf.printf("old: %s\n", oldExprString);
+      //Printf.printf("new: %s\n", newExprString);
+      // TODO(nishant): unpack the axiom correctly
+      let evalTactic =
+        switch (step_kind) {
+        //   switch (step.name) {
+        //   | IdPlusL => "rewrite Qplus_0_l"
+        //   | CommPlus => "rewrite Qplus_comm"
+        // | AssocPlusL => "rewrite Qplus_assoc"
+        // | AssocPlusR => "rewrite Qplus_assoc"
+        // | IdTimesL => "rewrite Qmult_1_r"
+        // | CommTimes => "rewrite Qmult_comm"
+        // | AssocTimesL => "rewrite Qmult_assoc"
+        // | AssocTimesR => "rewrite Qmult_assoc"
+        // | DistPlusTimesL => "rewrite Qmult_plus_distr_l"
+        // | DistPlusTimesR => "rewrite Qmult_plus_distr_l"
+        // | DistPlusTimesLC => "rewrite Qmult_plus_distr_r"
+        // | DistPlusTimesRC => "rewrite Qmult_plus_distr_r"
+        // | DistPlusDivL => "unfold Qdiv. rewrite Qmult_plus_distr_l"
+        // | DistPlusDivR => "unfold Qdiv. rewrite Qmult_plus_distr_l"
+        // | DefDivL => "unfold Qdiv. rewrite Qmult_1_l"
+        // | DefDivR => "unfold Qdiv. rewrite Qmult_1_l"
+        // | NilTimesL => "rewrite Qmult_0_l"
+        // | AssocTimesDivL => "unfold Qdiv. rewrite Qmult_assoc"
+        // | AssocTimesDivR => "unfold Qdiv. rewrite Qmult_assoc"
+        // };
+        | _ => "cbv"
+        };
+      let rewriteIndex =
+        switch (step_kind) {
+        | SingleStep(singlestep: single_step) =>
+          CoqExport.index_of_like_terms(
+            EvaluatorStep.get_step_ctx(singlestep.evalobj),
+            Calc.get_saved_exc(next.expr),
+          )
+        | _ => 1 // Default fallback
+        };
+      let coqLemmaString =
+        Printf.sprintf(
+          "Lemma equiv_exp%d:%s%s == %s.\nProof.\nintros.\ncut (%s==%s).\n- intros. rewrite <- H at %d. reflexivity.\n- intros. %s. reflexivity.\nQed.",
+          ind,
+          forall_str,
+          newExprString,
+          oldExprString,
+          oldFragmentString,
+          newFragmentString,
+          rewriteIndex,
+          evalTactic,
+        );
+      ();
+      // Printf.printf("Coq proof:\n%s\n", coqLemmaString);
+      coqLemmaString;
+    | None => "Not exporting proof with no steps"
+    };
+  };
+
+  // Takes a list of steps and generates the Coq proof of equivalence between the first and last steps
   let exportCoq = model => {
     let rec all_steps_of_step = step => {
       switch (step.next_step) {
@@ -182,32 +251,123 @@ module Model = {
       | Some(next_step) => [step] @ all_steps_of_step(next_step)
       };
     };
-
     print_endline("Inside exportCoq function");
     let steps = all_steps_of_step(model.root);
-    let steps_info =
-      switch (steps) {
-      | [] => "No steps available"
-      | [first, ..._] =>
-        // Extract information from first step
-        let step_expr = Calc.get_saved_exc(~print="step_expr", first.expr);
-        get_tactic_for_step(first);
-        let step_kind_str =
-          switch (first.step_kind) {
-          | SingleStep(_) => "SingleStep"
-          | InductionStep(_) => "InductionStep"
-          | ForallStep(_) => "ForallStep"
-          | MissingStep(_) => "MissingStep"
-          | AxiomStep(_) => "AxiomStep"
-          };
-        "First step: "
-        ++ step_kind_str
-        ++ " with expression: "
-        ++ Exp.show(step_expr);
-      };
 
-    print_endline(steps_info);
+    if (List.length(steps) == 0) {
+      "Not exporting proof with no steps";
+    } else {
+      let firstD =
+        Calc.get_saved_exc(List.nth(steps, List.length(steps) - 1).expr);
+      let unique_vars = CoqExport.unique_vars_in_ast(firstD);
+      let forall_str =
+        if (List.length(unique_vars) == 0) {
+          "";
+        } else {
+          "forall " ++ String.concat(" ", unique_vars) ++ ",";
+        };
+
+      let lemmasAndInvocations =
+        List.mapi(
+          (ind, step) =>
+            (
+              single_step_export(List.length(steps) - ind, step, forall_str),
+              Printf.sprintf(
+                "rewrite -> equiv_exp%d.",
+                List.length(steps) - ind,
+              ),
+            ),
+          steps,
+        );
+      let (lemmas, invocations) = List.split(lemmasAndInvocations);
+
+      switch (List.hd(steps).next_step) {
+      | Some(next) =>
+        let finalExpr = CoqExport.string_of_d(Calc.get_saved_exc(next.expr));
+        let firstExpr = CoqExport.string_of_d(firstD);
+
+        Printf.sprintf(
+          "From Stdlib Require QArith.\n%s\nTheorem equiv_exp:%s%s==%s.\nProof.\nintros.\n%s\nreflexivity. Qed.",
+          String.concat("\n", lemmas),
+          forall_str,
+          finalExpr,
+          firstExpr,
+          String.concat("\n", invocations),
+        );
+      | None => "Not exporting proof with no steps"
+      };
+    };
   };
+  // let single_step_export = (ind: int, ctx, step, forall_str: string) => {
+  //   let {expr, next_step, state, editor, step_kind, hidden} = step;
+  //   let oldFragmentString = CoqExport.string_of_d(expr |> Calc.get_saved_exc);
+  //   let newFragmentString =
+  //     switch (next_step) {
+  //     | None => "No next step"
+  //     | Some(next) => CoqExport.string_of_d(next.expr |> Calc.get_saved_exc)
+  //     };
+  //   //Printf.printf("Step: %s -> %s\n", oldFragmentString, newFragmentString);
+  //   let oldExprString =
+  //     CoqExport.string_of_d(
+  //       EvalCtx.compose(ctx, expr |> Calc.get_saved_exc),
+  //     );
+  //   let newExprString =
+  //     switch (next_step) {
+  //     | None => "nil"
+  //     | Some(next) =>
+  //       CoqExport.string_of_d(
+  //         EvalCtx.compose(ctx, next.expr |> Calc.get_saved_exc),
+  //       )
+  //     };
+  //   ();
+  //   //Printf.printf("old: %s\n", oldExprString);
+  //   //Printf.printf("new: %s\n", newExprString);
+  //   // TODO(nishant): unpack the axiom correctly
+  // };
+  // let get_evalctx_from_stepper = model => {
+  //   let step_kind = model.root.step_kind;
+  //   switch (step_kind) {
+  //   | SingleStep(single) => Some(single.evalobj.ctx)
+  //   | _ => None
+  //   };
+  // };
+  // let exportCoq = model => {
+  //   let rec all_steps_of_step = step => {
+  //     switch (step.next_step) {
+  //     | None => [step]
+  //     | Some(next_step) => [step] @ all_steps_of_step(next_step)
+  //     };
+  //   };
+  //   print_endline("Inside exportCoq function");
+  //   let steps = all_steps_of_step(model.root);
+  //   let steps_info =
+  //     switch (steps) {
+  //     | [] => "No steps available"
+  //     | [first, ..._] =>
+  //       // Extract information from first step
+  //       let step_expr = Calc.get_saved_exc(~print="step_expr", first.expr);
+  //       get_tactic_for_step(first);
+  //       let step_kind_str =
+  //         switch (first.step_kind) {
+  //         | SingleStep(_) => "SingleStep"
+  //         | InductionStep(_) => "InductionStep"
+  //         | ForallStep(_) => "ForallStep"
+  //         | MissingStep(_) => "MissingStep"
+  //         | AxiomStep(_) => "AxiomStep"
+  //         };
+  //       let evalctx = model |> get_evalctx_from_stepper;
+  //       switch (evalctx) {
+  //       | None => ()
+  //       | Some(ctx) =>
+  //         single_step_export(0, model |> get_evalctx_from_stepper, first, "")
+  //       };
+  //       "First step: "
+  //       ++ step_kind_str
+  //       ++ " with expression: "
+  //       ++ Exp.show(step_expr);
+  //     };
+  //   print_endline(steps_info);
+  // };
 };
 
 module Update = {
@@ -254,7 +414,13 @@ module Update = {
     switch (action) {
     | CoqExport =>
       print_endline("Called CoqExport at update stepper handler");
-      Model.exportCoq(stepper);
+      let coq_data = Model.exportCoq(stepper);
+      // Output to a fileAdd commentMore actions
+      JsUtil.download_string_file(
+        ~filename="stepper_coq_export.v",
+        ~content_type="text/plain",
+        ~contents=coq_data,
+      );
       stepper |> return_quiet;
     | RootAction(action) =>
       let* new_root = update_step(~settings, action, stepper.root);
