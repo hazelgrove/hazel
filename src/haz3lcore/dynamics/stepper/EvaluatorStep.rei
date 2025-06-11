@@ -15,7 +15,8 @@ type status =
 let get_status: (~settings: CoreSettings.t, Exp.t, EvaluatorState.t) => status; //[Matt] This should probably take an env argument eventually
 
 let refresh_step:
-  (~settings: CoreSettings.t, Exp.t, EvaluatorState.t, step) => option(step);
+  (~settings: CoreSettings.t, Exp.t, EvaluatorState.t, step) =>
+  option((FilterAction.action, step));
 
 // INVARIANT: this take_step function should never return an expression with closures.
 let take_step: step => option((Exp.t, EvaluatorState.t));
