@@ -106,6 +106,15 @@ module Update = {
     };
   };
 
+  let can_undo = (action: t): bool => {
+    switch (action) {
+    | ToggleAxioms
+    | ProposeRewrite
+    | UpdateResult(_)
+    | RewriteEditorAction(_) => false
+    };
+  };
+
   let calculate =
       (
         ~settings,
