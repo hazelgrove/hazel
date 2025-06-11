@@ -14,7 +14,12 @@ module Fresh = IdTagged.FreshGrammar;
 [@deriving (show({with_path: false}), sexp)]
 type builtin =
   | Const(Typ.t, DHExp.t)
-  | Fn(Typ.t, Typ.t, DHExp.t => option(DHExp.t));
+  | Fn(
+      option(Ctx.custom_statics),
+      Typ.t,
+      Typ.t,
+      DHExp.t => option(DHExp.t),
+    );
 
 [@deriving (show({with_path: false}), sexp)]
 type t = VarMap.t_(builtin);
@@ -48,6 +53,7 @@ let const = (name: Var.t, typ: Typ.term, v: DHExp.t, builtins: t): t =>
   extend(builtins, (name, Const(typ |> Typ.fresh, v)));
 let fn =
     (
+      ~custom_statics: option(Ctx.custom_statics)=?,
       name: Var.t,
       t1: Typ.term,
       t2: Typ.term,
@@ -55,7 +61,10 @@ let fn =
       builtins: t,
     )
     : t =>
-  extend(builtins, (name, Fn(t1 |> Typ.fresh, t2 |> Typ.fresh, impl)));
+  extend(
+    builtins,
+    (name, Fn(custom_statics, t1 |> Typ.fresh, t2 |> Typ.fresh, impl)),
+  );
 
 let (let-unbox) = ((request, v), f) =>
   switch (Unboxing.unbox(request, v)) {
@@ -278,6 +287,7 @@ module Pervasives = {
     switch (b) {
     | OneFun(k1, k2, f) =>
       Fn(
+        None,
         Atom(k1 |> Atom.cls_of_kind) |> Typ.fresh,
         Atom(k2 |> Atom.cls_of_kind) |> Typ.fresh,
         (d: DHExp.t) => {
@@ -290,6 +300,7 @@ module Pervasives = {
       )
     | TwoFun(k1, k2, k3, f) =>
       Fn(
+        None,
         Prod([
           Atom(k1 |> Atom.cls_of_kind) |> Typ.fresh,
           Atom(k2 |> Atom.cls_of_kind) |> Typ.fresh,
@@ -411,54 +422,56 @@ module Pervasives = {
            }),
          )
       |> fn(
+           ~custom_statics=Ctx.MeltBuiltin,
            "melt",
-           Prod([unknown(Internal), unknown(Internal), unknown(Internal)]),
-           List(prod([unknown(Internal), unknown(Internal)])),
-           ternary((e: DHExp.t, col_lab: DHExp.t, val_lab: DHExp.t) => {
-             switch (col_lab.term, val_lab.term) {
-             | (Label(col_lab), Label(val_lab)) =>
-               open OptUtil.Syntax;
-               let-unbox entries:
-                 list((option(string), Grammar.exp_t(IdTagged.IdTag.t))) = (
-                 LabeledTupleEntries,
-                 e,
+           Unknown(Internal),
+           List(
+             prod([
+               tup_label(label("label"), string()),
+               tup_label(label("value"), unknown(Internal)),
+             ]),
+           ),
+           (e: DHExp.t) => {
+             open OptUtil.Syntax;
+             let-unbox entries:
+               list((option(string), Grammar.exp_t(IdTagged.IdTag.t))) = (
+               LabeledTupleEntries,
+               e,
+             );
+
+             let* entries: list((string, Grammar.exp_t(IdTagged.IdTag.t))) =
+               OptUtil.traverse(
+                 fun
+                 | (Some(name), e) => Some((name, e))
+                 | _ => None,
+                 entries,
                );
 
-               let* entries: list((string, Grammar.exp_t(IdTagged.IdTag.t))) =
-                 OptUtil.traverse(
-                   fun
-                   | (Some(name), e) => Some((name, e))
-                   | _ => None,
-                   entries,
-                 );
-
-               let unpivoted_entries =
-                 List.map(
-                   ((name, e)) =>
-                     IdTagged.FreshGrammar.(
-                       Exp.(
-                         cast(
-                           tuple([
-                             tup_label(label(col_lab), string(name)),
-                             tup_label(label(val_lab), e),
-                           ]),
-                           Typ.(
-                             prod([
-                               tup_label(label(col_lab), string()),
-                               tup_label(label(val_lab), unknown(Internal)) // TODO We need the actual type of the value
-                             ])
-                           ),
-                           Typ.unknown(Internal),
-                         )
+             let unpivoted_entries =
+               List.map(
+                 ((name, e)) =>
+                   IdTagged.FreshGrammar.(
+                     Exp.(
+                       cast(
+                         tuple([
+                           tup_label(label("label"), string(name)),
+                           tup_label(label("value"), e),
+                         ]),
+                         Typ.(
+                           prod([
+                             tup_label(label("label"), string()),
+                             tup_label(label("value"), unknown(Internal)) // TODO We need the actual type of the value
+                           ])
+                         ),
+                         Typ.unknown(Internal),
                        )
-                     ),
-                   entries,
-                 );
+                     )
+                   ),
+                 entries,
+               );
 
-               Some(IdTagged.FreshGrammar.Exp.list_lit(unpivoted_entries));
-             | _ => None
-             }
-           }),
+             Some(IdTagged.FreshGrammar.Exp.list_lit(unpivoted_entries));
+           },
          )
       |> fn(
            "project_labels",
@@ -652,14 +665,14 @@ let entries =
         name,
         typ,
         id: Id.invalid,
-        builtin: true,
+        custom_statics: None,
       })
-    | (name, Fn(t1, t2, _)) =>
+    | (name, Fn(custom_statics, t1, t2, _)) =>
       Ctx.VarEntry({
         name,
         typ: Fresh.Typ.arrow(t1, t2),
         id: Id.invalid,
-        builtin: true,
+        custom_statics,
       }),
     Pervasives.builtins,
   )
@@ -691,7 +704,7 @@ let forms_init: forms =
   List.filter_map(
     fun
     | (_, Const(_)) => None
-    | (name, Fn(_, _, f)) => Some((name, f)),
+    | (name, Fn(_, _, _, f)) => Some((name, f)),
     Pervasives.builtins,
   );
 

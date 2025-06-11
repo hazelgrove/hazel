@@ -807,14 +807,13 @@ and uexp_to_info_map =
           );
         }
       | _ =>
-        let is_builtin =
+        /* If this is a builtin with custom statics */
+        let custom_statics =
           switch (fn.term) {
-          | BuiltinFun(_) => true
           | Var(v) =>
             Ctx.lookup_var(ctx, v)
-            |> Option.map((e: Ctx.var_entry) => e.builtin)
-            |> Option.value(~default=false)
-          | _ => false
+            |> Option.bind(_, (e: Ctx.var_entry) => e.custom_statics)
+          | _ => None
           };
 
         /* This logic lets us treat constructors differently to functions in
@@ -835,27 +834,16 @@ and uexp_to_info_map =
         let (fn, m) = go(~ana=fn_ana, fn, m);
         let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
 
-        switch (is_builtin, fn.term.term) {
-        | (true, Var("melt")) =>
-          print_endline(
-            "Exp.ap: is_builtin: "
-            ++ string_of_bool(is_builtin)
-            ++ ", fn: "
-            ++ Exp.show(fn.term),
-          );
-
+        switch (custom_statics) {
+        | Some(Ctx.MeltBuiltin) =>
           let (arg, m) = go(~ana=ty_in, arg, m);
-          print_endline("Exp.ap: arg: " ++ Typ.show(arg.ty));
 
           switch (Typ.normalize(ctx, arg.ty).term) {
-          | Prod([
-              {term: Prod(entries), _},
-              {term: Label(var_lab), _},
-              {term: Label(val_lab), _},
-            ]) =>
+          | Prod(entries) =>
             let entries:
               option(list((string, Grammar.typ_t(IdTagged.IdTag.t)))) =
               Util.OptUtil.traverse(Typ.match_tup_label, entries);
+
             switch (entries) {
             | Some(
                 entries: list((string, Grammar.typ_t(IdTagged.IdTag.t))),
@@ -868,14 +856,15 @@ and uexp_to_info_map =
                   Unknown(Internal) |> Typ.temp,
                 )
                 |> Option.value(~default=Unknown(Internal) |> Typ.temp);
+
               add(
                 ~self=
                   Just(
                     IdTagged.FreshGrammar.Typ.(
                       list(
                         prod([
-                          tup_label(label(var_lab), string()),
-                          tup_label(label(val_lab), joined_typ),
+                          tup_label(label("label"), string()),
+                          tup_label(label("value"), joined_typ),
                         ]),
                       )
                     ),
@@ -1540,7 +1529,7 @@ and upat_to_info_map =
           name,
           id: Pat.rep_id(upat),
           typ: ctx_typ,
-          builtin: false,
+          custom_statics: None,
         });
       add(
         ~self=Just(unknown),
