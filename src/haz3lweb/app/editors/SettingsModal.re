@@ -31,6 +31,12 @@ let view =
         Evaluation(ShowRecord),
       ),
       setting(
+        "π",
+        "proof steps (experimental)",
+        settings.enable_proof,
+        Evaluation(EnableProof),
+      ),
+      setting(
         "|",
         "show case clauses",
         settings.show_case_clauses,

@@ -176,15 +176,15 @@ module Transition = (EV: EV_MODE) => {
             ClosureEnvironment.t,
             DHExp.t
           ) =>
-          EV.result,
+          'a,
         ~mode: [
            | `Substitution
            | `Environment
          ],
-        ~in_closure: option(unit => unit)=?,
-        state: state,
-        env: TermBase.closure_environment_t, // Empty in substitution mode
-        d: t,
+        ~in_closure=?,
+        state,
+        env, // Empty in substitution mode
+        d,
       )
       : EV.result => {
     // Split DHExp into term and id information
@@ -747,7 +747,7 @@ module Transition = (EV: EV_MODE) => {
       | Some((env', d2, closures)) =>
         Step({
           expr:
-            closure(
+            subst_env(
               evaluate_extend_env(env', env, ~call_stack=env.call_stack),
               d2,
             ),
