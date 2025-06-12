@@ -448,7 +448,7 @@ let int_eq_exp_coloring_ids =
 /* let int_eq_exp: form = {
      let explanation = "If the [*left operand*](%s) is equal to the [*right operand*](%s), evaluates to `true`. Otherwise, evaluates to `false`.";
      {
-       id: BinOpExp(Int(Equals)),
+       id: BinOpExp(Poly(Equals)),
        syntactic_form: [_exp1, space(), equals(), space(), _exp2],
        expandable_id: None,
        explanation,
@@ -871,7 +871,7 @@ let int_greater_than_equal: group = {
 };
 
 /* let int_equal: group = {
-     id: BinOpExp(Int(Equals)),
+     id: BinOpExp(Poly(Equals)),
      forms: [int_eq_exp],
    };
 

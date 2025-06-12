@@ -785,7 +785,7 @@ module MenhirElaborationTests = {
   /* let inconsistent_case_uexp: Exp.t =
      Exp.(
        match(
-         bin_op(Int(Equals), int(4), int(3)),
+         bin_op(Poly(Equals), int(4), int(3)),
          [(Pat.bool(true), int(24)), (Pat.bool(false), bool(false))],
        )
      ); */
