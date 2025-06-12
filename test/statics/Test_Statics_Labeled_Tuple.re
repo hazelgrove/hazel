@@ -10,6 +10,10 @@ let tests = [
     () => {
     annotated_tree_test(
       "let x = (1, 2) in let y : (a=Int, b=Int) = x in y",
+      Typ.prod([
+        tup_label(label("a"), int()),
+        tup_label(label("b"), int()),
+      ]),
       FIError.(
         Exp.(
           let_(
@@ -67,6 +71,7 @@ let tests = [
     () => {
     annotated_tree_test(
       "let y : String = true",
+      string(),
       FIError.(
         Exp.(
           let_(
@@ -110,7 +115,8 @@ let tests = [
     `Quick,
     () => {
     annotated_tree_test(
-      "",
+      "let x : (l=String) = 1 in x",
+      prod([tup_label(label("l"), string())]),
       FIError.(
         Exp.(
           let_(
@@ -236,6 +242,11 @@ let tests = [
   test_case("Unknown label in last position", `Quick, () => {
     annotated_tree_test(
       {|(1, 1.2, z="hello") : (a=Int, b=Float, String)|},
+      prod([
+        tup_label(label("a"), int()),
+        tup_label(label("b"), float()),
+        string(),
+      ]),
       FIError.(
         Exp.(
           cast(
@@ -332,6 +343,7 @@ let tests = [
   test_case("Duplicate label synthesis", `Quick, () => {
     annotated_tree_test(
       {|(a="hello", a=3)|},
+      prod([tup_label(label("a"), unknown(Internal))]),
       FIError.(
         Exp.(
           parens(
@@ -419,6 +431,7 @@ let tests = [
   test_case("Bad label projection", `Quick, () => {
     annotated_tree_test(
       {|(1, 2) . 1|},
+      unknown(Internal),
       FIError.(
         Exp.(
           dot(
@@ -444,6 +457,7 @@ let tests = [
   test_case("Singleton Bad label synthesis", `Quick, () => {
     annotated_tree_test(
       {|(1="hello")|},
+      prod([tup_label(unknown(Internal), string())]),
       FIError.(
         Exp.(
           parens(
@@ -517,6 +531,10 @@ let tests = [
   test_case("Bad label synthesis", `Quick, () => {
     annotated_tree_test(
       {|(1="hello", a=3)|},
+      prod([
+        tup_label(unknown(Internal), string()),
+        tup_label(label("a"), int()),
+      ]),
       FIError.(
         Exp.(
           parens(
@@ -594,6 +612,7 @@ let tests = [
   test_case("Extra Label", `Quick, () => {
     annotated_tree_test(
       {|let extra_label : (Int, a=String) = (c=1, a="hello") in true|},
+      bool(),
       FIError.(
         Exp.(
           let_(
@@ -689,6 +708,7 @@ let tests = [
   test_case("tuple with cast to non-tuple", `Quick, () => {
     annotated_tree_test(
       {|(a=1, b=2) : Int|},
+      int(),
       FIError.(
         Exp.(
           cast(

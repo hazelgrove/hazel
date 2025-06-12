@@ -7,6 +7,7 @@ let tests = [
   test_case("Example error annotations", `Quick, () => {
     annotated_tree_test(
       "Inconsistent expectation on plus",
+      Typ.int(),
       FIError.Exp.(
         bin_op(
           Int(Plus),

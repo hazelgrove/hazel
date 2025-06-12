@@ -38,6 +38,7 @@ let tests = [
   test_case("Tuple extension with non-tuple args", `Quick, () =>
     annotated_tree_test(
       "1 ... 2",
+      unknown(Internal),
       FIError.(
         Exp.(
           tuple_extension(
@@ -77,6 +78,12 @@ let tests = [
   test_case("Melt operation with missing labels", `Quick, () =>
     annotated_tree_test(
       "melt(1,2)",
+      list(
+        prod([
+          tup_label(label("label"), string()),
+          tup_label(label("value"), unknown(Internal)),
+        ]),
+      ),
       FIError.Exp.(
         ap(
           ~ann=
@@ -104,6 +111,12 @@ let tests = [
   test_case("Melt operation applied to non-tuple", `Quick, () =>
     annotated_tree_test(
       "melt(1)",
+      list(
+        prod([
+          tup_label(label("label"), string()),
+          tup_label(label("value"), unknown(Internal)),
+        ]),
+      ),
       FIError.Exp.(
         ap(
           ~ann=
@@ -131,6 +144,12 @@ let tests = [
   test_case("Melt operation applied to value with unknown type", `Quick, () =>
     annotated_tree_test(
       "melt(?)",
+      list(
+        prod([
+          tup_label(label("label"), string()),
+          tup_label(label("value"), unknown(Internal)),
+        ]),
+      ),
       FIError.Exp.(ap(Forward, var("melt"), empty_hole())),
     )
   ),
