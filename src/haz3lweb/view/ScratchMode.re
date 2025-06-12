@@ -143,7 +143,23 @@ module Update = {
     | AddSlide =>
       let new_key =
         switch (is_documentation) {
-        | false => string_of_int(List.length(model.scratchpads) + 1)
+        | false =>
+          let used_scratchpads =
+            model.scratchpads
+            |> List.filter_map(scratchpad => {
+                 switch (String.split_on_char(' ', fst(scratchpad))) {
+                 | ["Scratchpad", num] => int_of_string_opt(num)
+                 | _ => None
+                 }
+               });
+          let unused_ids =
+            Seq.filter(i => !List.mem(i, used_scratchpads), Seq.ints(1));
+          let new_number =
+            Seq.uncons(unused_ids)
+            |> Option.get  // This is safe because unused_ids is infinite
+            |> fst;
+
+          "Scratchpad " ++ string_of_int(new_number);
         | true =>
           JsUtil.prompt("Enter new buffer name:", "New Buffer Name")
           |> Option.get
