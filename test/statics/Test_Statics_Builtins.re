@@ -101,4 +101,37 @@ let tests = [
       ),
     )
   ),
+  test_case("Melt operation applied to non-tuple", `Quick, () =>
+    annotated_tree_test(
+      "melt(1)",
+      FIError.Exp.(
+        ap(
+          ~ann=
+            Some(
+              Exp(
+                LabelsRequired(
+                  Typ.(
+                    list(
+                      prod([
+                        tup_label(label("label"), string()),
+                        tup_label(label("value"), unknown(Internal)),
+                      ]),
+                    )
+                  ),
+                ),
+              ),
+            ),
+          Forward,
+          var("melt"),
+          int(1),
+        )
+      ),
+    )
+  ),
+  test_case("Melt operation applied to value with unknown type", `Quick, () =>
+    annotated_tree_test(
+      "melt(?)",
+      FIError.Exp.(ap(Forward, var("melt"), empty_hole())),
+    )
+  ),
 ];

@@ -874,19 +874,23 @@ and uexp_to_info_map =
               );
             | _ =>
               add'(
-                ~self=LabelsRequired(ty_out), // TODO Real error
+                ~self=LabelsRequired(ty_out),
                 ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
                 m,
               )
             };
+          | Unknown(_) =>
+            add(
+              ~self=Just(ty_out),
+              ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
+              m,
+            )
           | _ =>
-            // Argument is wrong type.
-            // TODO We should give errors if there's not labels or a product in the first argument.
-            let self: Self.t =
-              Id.is_nullary_ap_flag(IdTagged.ids(arg.term))
-              && !Typ.is_consistent(ctx, ty_in, Prod([]) |> Typ.temp)
-                ? BadTrivAp(ty_in) : Just(ty_out);
-            add(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]), m);
+            add'(
+              ~self=LabelsRequired(ty_out),
+              ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
+              m,
+            )
           };
         | _ =>
           let (arg, m) = go(~ana=ty_in, arg, m);
