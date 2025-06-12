@@ -87,12 +87,19 @@ let fresh = (exp: Grammar.exp_t(unit)): TermBase.exp_t => {
   );
 };
 
-let annotated_tree_test = (name, expected) => {
-  let term = fresh(Grammar.map_exp_annotation(_ => (), expected));
+let annotated_tree_test = (name, expected_type, expected_error_tree) => {
+  let term = fresh(Grammar.map_exp_annotation(_ => (), expected_error_tree));
+  let s = statics(term);
   let annotated: Grammar.exp_t(option(Info.error)) =
-    annotate_static_errors(term, statics(term));
+    annotate_static_errors(term, s);
 
-  Alcotest.check(annotated_exp, name, expected, annotated);
+  let typ =
+    switch (Statics.Map.lookup(IdTagged.rep_id(term), s)) {
+    | Some(Info.InfoExp({ty, _})) => ty
+    | _ => Alcotest.fail("Expression info not found in statics map")
+    };
+  Alcotest.check(annotated_exp, name, expected_error_tree, annotated);
+  Alcotest.check(testable_typ, "Expected Type", expected_type, typ);
 };
 
 // Get the type from the statics
