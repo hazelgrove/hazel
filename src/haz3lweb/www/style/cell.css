@@ -30,7 +30,7 @@
   min-width: 100%;
 }
 
-.cell > * {
+.cell>* {
   padding-left: 1em;
   padding: 1em;
   padding-left: 1.2em;
@@ -58,6 +58,52 @@
   color: var(--BR4);
 }
 
+.title-cell .title-placeholder {
+  font-style: italic;
+  color: var(--BR4);
+  opacity: 0.5;
+}
+
+.edit-icon {
+  margin-left: 0.5em;
+  cursor: pointer;
+  fill: #7a6219;
+}
+
+.title-cell .title-edit {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: var(--light-text-color);
+  flex-grow: 1;
+  display: flex;
+  align-items: center;
+}
+
+.title-edit .edit-icon:hover {
+  animation: wobble 0.6s ease 0s 1 normal forwards;
+}
+
+.wrong-impl-cell-caption {
+  flex-grow: 1;
+  display: flex;
+  align-items: center;
+}
+
+.instructor-edit-icon {
+  margin-top: 0.175em;
+  margin-left: 1em;
+  cursor: pointer;
+  fill: #7a6219;
+}
+
+#add-icon {
+  margin-left: 0em;
+}
+
+.instructor-edit-icon:hover {
+  animation: wobble 0.6s ease 0s 1 normal forwards;
+}
+
 /* DOCUMENTATION SLIDES */
 
 .slide-img {
@@ -83,4 +129,131 @@
 
 .file-select-button {
   display: none;
+}
+
+/* EDITING */
+
+.cell-module-name {
+  padding-left: 1em;
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.module-name-text {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.module-name-edit {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+}
+
+.module-name-edit label {
+  white-space: nowrap;
+}
+
+.module-name-edit input {
+  margin: 0 0.5em;
+}
+
+.module-name-edit .edit-icon {
+  display: inline-flex;
+  align-items: center;
+  margin-left: 0.5em;
+}
+
+.module-placeholder {
+  display: inline;
+  font-style: italic;
+  color: var(--BR4);
+  opacity: 0.5;
+}
+
+.cell-prompt {
+  padding-left: 1em;
+  padding-top: 0.25em;
+  padding-bottom: 0.5em;
+}
+
+.prompt-edit .prompt-text {
+  width: 500px;
+  height: 300px;
+  padding: 10px;
+  font-size: 16px;
+
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.cell-prompt .prompt-edit {
+  font-size: 1.0rem;
+  width: 80%;
+  color: var(--light-text-color);
+  flex-grow: 1;
+  display: flex;
+  align-items: center;
+}
+
+.cell-prompt .prompt-edit .edit-pencil {
+  align-self: top;
+}
+
+.cell-prompt .prompt-edit .edit-icon {
+  align-self: flex-start;
+}
+
+.cell-prompt .prompt-placeholder {
+  font-style: italic;
+  color: var(--BR4);
+  opacity: 0.5;
+}
+
+.prompt-content {
+  font-size: 1rem;
+}
+
+.syntax-tests-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.syntax-test-item {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.test-checkbox {
+  display: flex;
+  align-items: center;
+}
+
+.test-checkbox input[type="checkbox"] {
+  width: 1.2rem;
+  height: 1.2rem;
+  cursor: pointer;
+}
+
+.edit-icon,
+.edit-pencil {
+  margin-left: 0.5em;
+  cursor: pointer;
+  fill: #7a6219;
+  display: inline;
+  vertical-align: top;
+}
+
+.edit-icon:hover,
+.edit-pencil:hover {
+  animation: wobble 0.6s ease 0s 1 normal forwards;
+}
+
+.point-num-input {
+  width: 50px;
+  font-size: 12px;
 }

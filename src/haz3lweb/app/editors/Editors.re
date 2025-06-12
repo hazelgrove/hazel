@@ -50,7 +50,7 @@ module Store = {
     | Exercises =>
       Model.Exercises(
         ExercisesMode.Store.load(~settings, ~instructor_mode)
-        |> ExercisesMode.Model.unpersist(~settings, ~instructor_mode),
+        |> ExercisesMode.Model.unpersist(~instructor_mode),
       )
     | Config =>
       Model.Config(
@@ -95,6 +95,14 @@ module Update = {
     | Scratch(ScratchMode.Update.t)
     // Exercises
     | Exercises(ExercisesMode.Update.t);
+
+  let can_undo = (action: t) => {
+    switch (action) {
+    | SwitchMode(_) => true
+    | Scratch(action) => ScratchMode.Update.can_undo(action)
+    | Exercises(action) => ExercisesMode.Update.can_undo(action)
+    };
+  };
 
   let update = (~globals: Globals.t, ~schedule_action, action, model: Model.t) => {
     switch (action, model) {
@@ -179,7 +187,6 @@ module Update = {
           ~instructor_mode=globals.settings.instructor_mode,
         )
         |> ExercisesMode.Model.unpersist(
-             ~settings=globals.settings.core,
              ~instructor_mode=globals.settings.instructor_mode,
            ),
       )
@@ -302,7 +309,7 @@ module Selection = {
     | Model.Scratch(_) => Scratch(MainEditor)
     | Model.Documentation(_) => Scratch(MainEditor)
     | Model.Config(_) => Scratch(MainEditor)
-    | Model.Exercises(_) => Exercises((Exercise.Prelude, MainEditor));
+    | Model.Exercises(_) => Exercises(Cell(Exercise.Prelude, MainEditor));
 };
 
 module View = {

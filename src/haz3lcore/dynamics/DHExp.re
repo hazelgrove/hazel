@@ -126,3 +126,16 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
     )
   };
 };
+
+let replace_exp = (replace, with_exp, in_exp) => {
+  map_term(
+    ~f_exp=
+      (continue, exp) =>
+        if (fast_equal(exp, replace)) {
+          with_exp;
+        } else {
+          continue(exp);
+        },
+    in_exp,
+  );
+};

@@ -42,3 +42,29 @@ let title_cell = title => {
     ),
   ]);
 };
+
+let wrong_impl_caption = (~inject_delete, sub: string, n: int) => {
+  div(
+    ~attrs=[Attr.class_("wrong-impl-cell-caption")],
+    [
+      caption("", ~rest=sub),
+      div(
+        ~attrs=[
+          Attr.class_("instructor-edit-icon"),
+          Attr.on_mousedown(_ =>
+            Virtual_dom.Vdom.Effect.(
+              Many([Prevent_default, Stop_propagation])
+            )
+          ),
+        ],
+        [
+          Widgets.button(
+            Icons.delete,
+            _ => inject_delete(n),
+            ~tooltip="Delete Buggy Implementation",
+          ),
+        ],
+      ),
+    ],
+  );
+};
