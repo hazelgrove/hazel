@@ -14,36 +14,35 @@ module Model = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = {
-    cur_exercise: Exercise.key,
-    exercise_data: list((Exercise.key, ExerciseMode.Model.persistent)),
+    cur_exercise: Haz3lcore.Id.t,
+    exercise_data: list((Haz3lcore.Id.t, ExerciseMode.Model.persistent)),
   };
 
   let persist = (~instructor_mode, model): persistent => {
-    cur_exercise:
-      Exercise.key_of_state(
-        List.nth(model.exercises, model.current).editors,
-      ),
-    exercise_data:
-      List.map(
-        (exercise: ExerciseMode.Model.t) =>
-          (
-            Exercise.key_of_state(exercise.editors),
-            ExerciseMode.Model.persist(~instructor_mode, exercise),
-          ),
-        model.exercises,
-      ),
+    {
+      cur_exercise: List.nth(model.exercises, model.current).editors.id,
+      exercise_data:
+        List.map(
+          (exercise: ExerciseMode.Model.t) =>
+            (
+              exercise.editors.id,
+              ExerciseMode.Model.persist(~instructor_mode, exercise),
+            ),
+          model.exercises,
+        ),
+    };
   };
 
-  let unpersist = (~settings, ~instructor_mode, persistent: persistent) => {
+  let unpersist = (~instructor_mode, persistent: persistent) => {
     let exercises =
       List.map2(
-        ExerciseMode.Model.unpersist(~settings, ~instructor_mode),
-        persistent.exercise_data |> List.map(snd),
+        ExerciseMode.Model.unpersist(~instructor_mode),
         ExerciseSettings.exercises,
+        persistent.exercise_data |> List.map(snd),
       );
     let current =
       ListUtil.findi_opt(
-        spec => Exercise.key_of(spec) == persistent.cur_exercise,
+        (spec: Exercise.spec) => spec.id == persistent.cur_exercise,
         ExerciseSettings.exercises,
       )
       |> Option.map(fst)
@@ -60,19 +59,19 @@ module Model = {
 module StoreExerciseKey =
   Store.F({
     [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = Exercise.key;
+    type t = Haz3lcore.Id.t;
     let default = () =>
-      List.nth(ExerciseSettings.exercises, 0) |> Exercise.key_of;
+      List.nth(ExerciseSettings.exercises, 0) |> Exercise.id_of;
     let key = Store.CurrentExercise;
   });
 
 module Store = {
   let keystring_of_key = key => {
-    key |> Exercise.sexp_of_key |> Sexplib.Sexp.to_string;
+    key |> Haz3lcore.Id.to_string;
   };
 
   let save_exercise = (exercise: ExerciseMode.Model.t, ~instructor_mode) => {
-    let key = Exercise.key_of_state(exercise.editors);
+    let key = Exercise.id_of(exercise.editors);
     let value = ExerciseMode.Model.persist(exercise, ~instructor_mode);
     module S =
       Store.F({
@@ -85,7 +84,7 @@ module Store = {
   };
 
   let init_exercise = (~settings, spec, ~instructor_mode) => {
-    let key = Exercise.key_of(spec);
+    let key = Exercise.id_of(spec);
     let exercise =
       ExerciseMode.Model.of_spec(spec, ~settings, ~instructor_mode);
     save_exercise(exercise, ~instructor_mode);
@@ -110,7 +109,7 @@ module Store = {
 
   let save = (model: Model.t, ~instructor_mode) => {
     let exercise = List.nth(model.exercises, model.current);
-    let key = Exercise.key_of(exercise.editors);
+    let key = Exercise.id_of(exercise.editors);
     save_exercise(exercise, ~instructor_mode);
     StoreExerciseKey.save(key);
   };
@@ -123,7 +122,7 @@ module Store = {
     let exercise_data =
       List.map(
         spec => {
-          let key = Exercise.key_of(spec);
+          let key = Exercise.id_of(spec);
           (key, load_exercise(~settings, key, spec, ~instructor_mode));
         },
         ExerciseSettings.exercises,
@@ -140,7 +139,7 @@ module Store = {
       exercise_data:
         List.map(
           spec => {
-            let key = Exercise.key_of(spec);
+            let key = Exercise.id_of(spec);
             (key, load_exercise(~settings, key, spec, ~instructor_mode));
           },
           ExerciseSettings.exercises,
@@ -149,25 +148,19 @@ module Store = {
     |> sexp_of_exercise_export
     |> Sexplib.Sexp.to_string;
 
-  let import = (~settings, data, ~specs, ~instructor_mode) => {
+  let import = (data, ~specs, ~instructor_mode) => {
     let exercise_export =
       data |> Sexplib.Sexp.of_string |> exercise_export_of_sexp;
     StoreExerciseKey.save(exercise_export.cur_exercise);
     List.iter(
       ((key, value)) => {
         let n =
-          ListUtil.findi_opt(spec => Exercise.key_of(spec) == key, specs)
+          ListUtil.findi_opt(spec => Exercise.id_of(spec) == key, specs)
           |> Option.get
           |> fst;
         let spec = List.nth(specs, n);
         save_exercise(
-          value
-          |> ExerciseMode.Model.unpersist(
-               ~settings,
-               ~instructor_mode,
-               _,
-               spec,
-             ),
+          value |> ExerciseMode.Model.unpersist(~instructor_mode, spec),
           ~instructor_mode,
         );
       },
@@ -188,13 +181,24 @@ module Update = {
     | ExportTransitionary
     | ExportGrading;
 
+  let can_undo = (action: t) => {
+    switch (action) {
+    | SwitchExercise(_) => false
+    | Exercise(action) => ExerciseMode.Update.can_undo(action)
+    | ExportModule => false
+    | ExportSubmission => false
+    | ExportTransitionary => false
+    | ExportGrading => false
+    };
+  };
   let export_exercise_module = (exercises: Model.t): unit => {
     let exercise = Model.get_current(exercises);
-    let module_name = exercise.editors.module_name;
-    let filename = exercise.editors.module_name ++ ".ml";
+    let module_name =
+      StringUtil.isEmptyOrWhitespace(exercise.editors.module_name)
+        ? "Unnamed Exercise Module" : exercise.editors.module_name;
+    let filename = module_name ++ ".ml";
     let content_type = "text/plain";
-    let contents =
-      Exercise.export_module(module_name, {eds: exercise.editors});
+    let contents = Exercise.export_module({eds: exercise.editors});
     JsUtil.download_string_file(~filename, ~content_type, ~contents);
   };
 
@@ -308,7 +312,8 @@ module Selection = {
     Update.Exercise(ci);
   };
 
-  let handle_key_event = (~selection, ~event, model: Model.t) =>
+  let handle_key_event =
+      (~selection: t, ~event, model: Model.t): option(Update.t) =>
     ExerciseMode.Selection.handle_key_event(
       ~selection,
       ~event,
