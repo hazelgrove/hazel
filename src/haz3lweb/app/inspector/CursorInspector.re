@@ -490,12 +490,27 @@ let rec exp_view =
         ++ " arguments",
       ),
     ])
-  | InHole(LabelsRequired(_)) =>
-    div_err([
-      text(
-        "All entries in the argument must have labels, but some were not provided",
-      ),
-    ])
+  | InHole(BuiltinError(e)) =>
+    switch (e) {
+    | ProjectLabelsNonLabels(labels) =>
+      div_err([
+        text("Projecting labels from non-labels: "),
+        ...List.map(view_any(~globals), labels),
+      ])
+    | MeltMissingLabelsOnTuple(_) =>
+      div_err([
+        text(
+          "All entries in the argument must have labels, but some were not provided",
+        ),
+      ])
+    | ProjectLabelsMissingLabels(labels) =>
+      div_err([
+        text("Projected tuple does not have the following labels: "),
+        ...List.map(code, labels),
+      ])
+    | ProjectLabelsFirstArgNotTuple =>
+      div_err([text("First argument must be a tuple")])
+    }
   | InHole(Common(error)) =>
     div_err(
       common_err_view(
