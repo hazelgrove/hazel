@@ -3,9 +3,7 @@ open Haz3lcore;
 let startup: PersistentData.t = {
   scratch: (
     0,
-    List.init(2, i =>
-      (string_of_int(i + 1), Zipper.init() |> PersistentZipper.persist)
-    ),
+    [("Empty Scratchpad 1", Zipper.init() |> PersistentZipper.persist)],
   ),
   documentation: (
     0,
