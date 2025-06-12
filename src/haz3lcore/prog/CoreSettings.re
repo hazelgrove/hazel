@@ -13,6 +13,7 @@ module Evaluation = {
     stepper_history: bool,
     show_settings: bool,
     show_hidden_steps: bool,
+    enable_proof: bool,
   };
 
   let init = {
@@ -25,6 +26,7 @@ module Evaluation = {
     stepper_history: false,
     show_settings: false,
     show_hidden_steps: false,
+    enable_proof: false,
   };
 };
 

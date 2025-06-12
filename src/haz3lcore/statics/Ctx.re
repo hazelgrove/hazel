@@ -303,3 +303,8 @@ let binding_of = (ctx: t, name: Var.t): Binding.t =>
       name,
     }
   };
+
+let concat = (ctx1: t, ctx2: t): t => {
+  ...ctx1,
+  entries: ctx1.entries @ ctx2.entries,
+};

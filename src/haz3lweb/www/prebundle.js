@@ -2,7 +2,8 @@
 // This file is bundled into bundle.js as part of the build process.
 import {NinjaKeys} from 'ninja-keys';
 import hotkeys from 'hotkeys-js'
-
+import Algebrite from 'algebrite';
+window.Algebrite = Algebrite;
 
 // This is the default behavior for the hotkeys module but I'm overriding it for the clipboard-shim
 hotkeys.filter = event => {
