@@ -345,6 +345,21 @@ module Selection = {
 };
 
 module View = {
+  let is_input_field = (elId: option(string)) => {
+    switch (elId) {
+    | Some("title-input-box")
+    | Some("module-name-input")
+    | Some("prompt-input-box")
+    | Some("test-required-input")
+    | Some("point-max-input") => true
+    | Some(id) when String.starts_with(~prefix="hint-input", id) => true
+    | Some(id) when String.starts_with(~prefix="syntax-hint-input", id) =>
+      true
+    | Some(id) when String.starts_with(~prefix="impl-hint-input", id) => true
+    | _ => false
+    };
+  };
+
   let handlers =
       (
         ~inject: Update.t => Ui_effect.t(unit),
@@ -380,47 +395,77 @@ module View = {
         JsUtil.focus_clipboard_shim();
         Effect.Ignore;
       }),
-      Attr.on_copy(_ => {
-        let str = (cursor.selected_text |> Option.value(~default=() => ""))();
-        /* Note that we cannot use the ClipboardCache system here unless
-         * we refine it further to replace unique ids on paste */
-        Haz3lcore.ClipboardCache.set(cursor.selection, str);
-        JsUtil.copy(str);
+      Attr.on_copy(evt => {
+        let target = Js.Opt.to_option(evt##.target);
+        switch (target) {
+        | Some(el) =>
+          let elId = Js.Opt.to_option(Js.Unsafe.coerce(el)##.id);
+          if (is_input_field(elId)) {
+            ();
+          } else {
+            let str =
+              (cursor.selected_text |> Option.value(~default=() => ""))();
+            /* Note that we cannot use the ClipboardCache system here unless
+             * we refine it further to replace unique ids on paste */
+            Haz3lcore.ClipboardCache.set(cursor.selection, str);
+            JsUtil.copy(str);
+          };
+        | None => ()
+        };
         Effect.Ignore;
       }),
-      Attr.on_cut(_ => {
-        let str = (cursor.selected_text |> Option.value(~default=() => ""))();
-        Haz3lcore.ClipboardCache.set(cursor.selection, str);
-        JsUtil.copy(str);
-        Option.map(
-          inject,
-          Selection.handle_key_event(
-            ~selection=Some(model.selection),
-            ~event=
-              Key.{
-                key: D("Delete"),
-                sys: Os.is_mac^ ? Mac : PC,
-                shift: Up,
-                meta: Up,
-                ctrl: Up,
-                alt: Up,
-              },
-            model,
-          ),
-        )
-        |> Option.value(~default=Effect.Ignore);
+      Attr.on_cut(evt => {
+        let target = Js.Opt.to_option(evt##.target);
+        switch (target) {
+        | Some(el) =>
+          let elId = Js.Opt.to_option(Js.Unsafe.coerce(el)##.id);
+          if (is_input_field(elId)) {
+            Effect.Ignore;
+          } else {
+            JsUtil.copy(
+              (cursor.selected_text |> Option.value(~default=() => ""))(),
+            );
+            Option.map(
+              inject,
+              Selection.handle_key_event(
+                ~selection=Some(model.selection),
+                ~event=
+                  Key.{
+                    key: D("Delete"),
+                    sys: Os.is_mac^ ? Mac : PC,
+                    shift: Up,
+                    meta: Up,
+                    ctrl: Up,
+                    alt: Up,
+                  },
+                model,
+              ),
+            )
+            |> Option.value(~default=Effect.Ignore);
+          };
+        | None => Effect.Ignore
+        };
       }),
     ]
     @ [
       Attr.on_paste(evt => {
-        Dom.preventDefault(evt);
-        let action =
-          Js.to_string(evt##.clipboardData##getData(Js.string("text")))
-          |> Haz3lcore.ClipboardCache.get
-          |> cursor.editor_action;
-        switch (action) {
+        let target = Js.Opt.to_option(evt##.target);
+        switch (target) {
+        | Some(el) =>
+          let elId = Js.Opt.to_option(Js.Unsafe.coerce(el)##.id);
+          if (is_input_field(elId)) {
+            Effect.Ignore;
+          } else {
+            let pasted_text =
+              Js.to_string(evt##.clipboardData##getData(Js.string("text")))
+              |> Str.global_replace(Str.regexp("\n[ ]*"), "\n");
+            Dom.preventDefault(evt);
+            switch (cursor.editor_action(Paste(String(pasted_text)))) {
+            | None => Effect.Ignore
+            | Some(action) => inject(Editors(action))
+            };
+          };
         | None => Effect.Ignore
-        | Some(action) => inject(Editors(action))
         };
       }),
     ];
