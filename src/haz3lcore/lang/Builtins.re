@@ -475,6 +475,7 @@ module Pervasives = {
          )
       |> fn(
            "project_labels",
+           ~custom_statics=Ctx.ProjectLabelsBuiltin,
            Unknown(Internal),
            Unknown(Internal),
            d => {

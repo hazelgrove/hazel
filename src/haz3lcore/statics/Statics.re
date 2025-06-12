@@ -835,7 +835,7 @@ and uexp_to_info_map =
         let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
 
         switch (custom_statics) {
-        | Some(Ctx.MeltBuiltin) =>
+        | Some(MeltBuiltin) =>
           let (arg, m) = go(~ana=ty_in, arg, m);
 
           switch (Typ.normalize(ctx, arg.ty).term) {
@@ -892,6 +892,75 @@ and uexp_to_info_map =
               m,
             )
           };
+        | Some(ProjectLabelsBuiltin) =>
+          let (arg_info, m) = go(~ana=ty_in, arg, m);
+          print_endline("Ty_out: " ++ Typ.show(ty_out));
+          print_endline("arg: " ++ Info.show_exp(arg_info));
+
+          switch (Typ.normalize(ctx, arg_info.ty).term) {
+          | Prod([{term: Prod(entries), _}, ...labels]) =>
+            print_endline(
+              "Entries': " ++ [%derive.show: list(Typ.t)](entries),
+            );
+            let labels =
+              Util.OptUtil.traverse(
+                (label: Typ.t) =>
+                  switch (label.term) {
+                  | Label(l) => Some(l)
+                  | _ => None
+                  },
+                labels,
+              );
+
+            switch (labels) {
+            | None =>
+              add'(
+                ~self=LabelsRequired(ty_out), // Better error message this is if args aren't labels
+                ~co_ctx=CoCtx.union([fn.co_ctx, arg_info.co_ctx]),
+                m,
+              )
+            | Some(labels) =>
+              let entries: list((string, Grammar.typ_t(IdTagged.IdTag.t))) =
+                List.filter_map(Typ.match_tup_label, entries);
+
+              let val_types =
+                Util.OptUtil.traverse(
+                  (label: string): option(Typ.t) => {
+                    switch (List.find_opt(((l, _)) => l == label, entries)) {
+                    | Some((_, typ)) => Some(typ)
+                    | None => None
+                    }
+                  },
+                  labels,
+                );
+
+              let self: Self.exp =
+                switch (val_types) {
+                | Some(val_types) =>
+                  Common(Just(Prod(val_types) |> Typ.temp))
+                | None => LabelsRequired(ty_out) // Better error message this is labels not found
+                };
+
+              add'(
+                ~self,
+                ~co_ctx=CoCtx.union([fn.co_ctx, arg_info.co_ctx]),
+                m,
+              );
+            };
+          | Unknown(_) =>
+            add(
+              ~self=Just(ty_out),
+              ~co_ctx=CoCtx.union([fn.co_ctx, arg_info.co_ctx]),
+              m,
+            )
+          | _ =>
+            add'(
+              ~self=LabelsRequired(ty_out), // Check if this is correct
+              ~co_ctx=CoCtx.union([fn.co_ctx, arg_info.co_ctx]),
+              m,
+            )
+          };
+
         | _ =>
           let (arg, m) = go(~ana=ty_in, arg, m);
           let self: Self.t =
