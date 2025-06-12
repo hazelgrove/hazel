@@ -1,13 +1,14 @@
 open Haz3lcore
 
-let prompt = Ex_RecursiveFibonacci_prompt.prompt
-
 let exercise : Exercise.spec =
   {
+    id = Option.get (Id.of_string "12f5e34d-d211-4332-91e2-815e9e183885");
     title = "Recursive Fibonacci";
-    version = 1;
     module_name = "Ex_RecursiveFibonacci";
-    prompt;
+    prompt =
+      "Write test cases for, and then implement, a function that recursively \
+       determines the nth Fibonacci number. \n\
+       `fib(n)` is equivalent to the `n`th Fibonacci number, assuming `n >= 0`.";
     point_distribution =
       { test_validation = 1; mutation_testing = 1; impl_grading = 2 };
     prelude =

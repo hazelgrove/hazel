@@ -186,7 +186,9 @@ module Update = {
         };
       }
     | DeleteSlide =>
-      let new_sp = ListUtil.remove_nth(model.current, model.scratchpads);
+      let new_sp =
+        ListUtil.remove_nth(model.current, model.scratchpads)
+        |> Option.value(~default=model.scratchpads);
 
       Updated.return(
         {
