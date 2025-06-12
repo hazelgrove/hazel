@@ -153,4 +153,25 @@ let tests = [
       FIError.Exp.(ap(Forward, var("melt"), empty_hole())),
     )
   ),
+  test_case("Project labels with appropriate labels", `Quick, () =>
+    annotated_tree_test(
+      {|project_labels((a=1, b=true, c=3), 'a', 'b')|},
+      prod([int(), bool()]),
+      FIError.Exp.(
+        ap(
+          Forward,
+          var("project_labels"),
+          tuple([
+            tuple([
+              tup_label(label("a"), int(1)),
+              tup_label(label("b"), bool(true)),
+              tup_label(label("c"), int(3)),
+            ]),
+            label("a"),
+            label("b"),
+          ]),
+        )
+      ),
+    )
+  ),
 ];
