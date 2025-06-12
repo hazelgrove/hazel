@@ -97,7 +97,7 @@ type error_exp =
   | UnusedDeferral
   | BadPartialAp(Self.error_partial_ap)
   | Common(error_common)
-  | LabelsRequired(Typ.t) /* Melt requires labels for all tuple elements */;
+  | BuiltinError(Self.error_builtin);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_pat =
@@ -242,7 +242,7 @@ type label_inference('a) =
 type exp = {
   term: Exp.t, /* The term under consideration */
   ancestors, /* Ascending list of containing term ids */
-  ctx: Ctx.t, /* Typing context for the term */
+  ctx: [@show.opaque] Ctx.t, /* Typing context for the term */
   ana: Typ.t, /* Parental type expectations  */
   self: Self.exp, /* Expectation-independent type info */
   co_ctx: CoCtx.t, /* Locally free variables */
@@ -564,10 +564,10 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
       | InHole(Common(TupleLabelError(_)))
       | InHole(Common(DuplicateLabel(_)))
       | InHole(Common(InvalidUseMode(_)))
+      | InHole(BuiltinError(_))
       | InHole(
           FreeVariable(_) | InexhaustiveMatch(_) | UnusedDeferral |
-          BadPartialAp(_) |
-          LabelsRequired(_),
+          BadPartialAp(_),
         ) =>
         failwith("InHole(InexhaustiveMatch(impossible_err))")
       };
@@ -576,7 +576,7 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
   | IsDeferral(InAp) => NotInHole(AnaDeferralConsistent(ty_ana))
   | IsDeferral(_) => InHole(UnusedDeferral)
   | IsBadPartialAp(_ as info) => InHole(BadPartialAp(info))
-  | LabelsRequired(typ) => InHole(LabelsRequired(typ))
+  | BuiltinError(err) => InHole(BuiltinError(err))
   | Common(self_exp) =>
     switch (status_common(ctx, ty_ana, self_exp)) {
     | NotInHole(ok_exp) => NotInHole(Common(ok_exp))
@@ -765,8 +765,12 @@ let fixed_typ_err: error_exp => Typ.t =
   | UnusedDeferral => Unknown(Internal) |> Typ.temp
   | BadPartialAp(_) => Unknown(Internal) |> Typ.temp
   | InexhaustiveMatch(_) => Unknown(Internal) |> Typ.temp
-  | Common(err) => fixed_typ_err_common(err)
-  | LabelsRequired(typ) => typ;
+  | BuiltinError(ProjectLabelsNonLabels(_))
+  | BuiltinError(ProjectLabelsMissingLabels(_))
+  | BuiltinError(ProjectLabelsFirstArgNotTuple) =>
+    Unknown(Internal) |> Typ.temp
+  | BuiltinError(MeltMissingLabelsOnTuple(typ)) => typ
+  | Common(err) => fixed_typ_err_common(err);
 
 let fixed_typ_err_pat: error_pat => Typ.t =
   fun

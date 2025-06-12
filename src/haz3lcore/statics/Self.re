@@ -63,6 +63,12 @@ type error_partial_ap =
       expected: int,
       actual: int,
     });
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type error_builtin =
+  | MeltMissingLabelsOnTuple(Typ.t) /* Melt requires labels for all tuple elements */
+  | ProjectLabelsNonLabels(list(Any.t)) /* Attempted to project non-labels from a tuple */
+  | ProjectLabelsMissingLabels(list(string)) /* Attempted to project labels from a tuple that doesn't have them */
+  | ProjectLabelsFirstArgNotTuple; /* First argument to label projection is not a tuple */
 
 /* Expressions can also be free variables */
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -72,7 +78,7 @@ type exp =
   | IsDeferral(Exp.deferral_position)
   | IsBadPartialAp(error_partial_ap)
   | Common(t)
-  | LabelsRequired(Typ.t) /* Melt requires labels for all tuple elements */;
+  | BuiltinError(error_builtin);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pat =
@@ -126,7 +132,10 @@ let typ_of_exp: (Ctx.t, exp) => option(Typ.t) =
     | IsDeferral(_)
     | IsBadPartialAp(_) => None
     | Common(self) => typ_of(ctx, self)
-    | LabelsRequired(typ) => Some(typ);
+    | BuiltinError(MeltMissingLabelsOnTuple(typ)) => Some(typ)
+    | BuiltinError(ProjectLabelsNonLabels(_))
+    | BuiltinError(ProjectLabelsMissingLabels(_))
+    | BuiltinError(ProjectLabelsFirstArgNotTuple) => None;
 
 let rec typ_of_pat: (Ctx.t, pat) => option(Typ.t) =
   ctx =>
