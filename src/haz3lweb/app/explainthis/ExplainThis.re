@@ -2030,7 +2030,7 @@ let get_doc =
             )
           /* | Nat(Equals)
              | SInt(Equals)
-             | Int(Equals) => (int_equal, int_eq_exp_coloring_ids)
+             | Poly(Equals) => (int_equal, int_eq_exp_coloring_ids)
              | Nat(NotEquals)
              | SInt(NotEquals)
              | Int(NotEquals) => (int_not_equal, int_neq_exp_coloring_ids) */
