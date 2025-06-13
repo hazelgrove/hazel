@@ -514,8 +514,8 @@ let rec exp_view =
   };
 };
 
-let rec pat_view =
-        (~globals, cls: Cls.t, status: Info.status_pat, info: Info.pat) => {
+let pat_view =
+    (~globals, ~errors, cls: Cls.t, status: Info.status_pat, info: Info.pat) => {
   let lifted_ty =
     switch (info.label_inference) {
     | Some(SingletonLabelInference(_)) => Some(info.ty)
@@ -530,19 +530,11 @@ let rec pat_view =
     | _ => []
     };
 
-  switch (status) {
-  | InHole(ExpectedConstructor) => div_err([text("Expected a constructor")])
-  | InHole(Redundant(additional_err)) =>
-    switch (additional_err) {
-    | None => div_err([text("Pattern is redundant")])
-    | Some(err) =>
-      div_err([
-        pat_view(~globals, cls, InHole(err), info) |> code_box_container,
-        text("; pattern is redundant"),
-      ])
-    }
-  | InHole(Common(error)) =>
-    div_err(
+  let display_error = (err: Info.error_pat) =>
+    switch (err) {
+    | ExpectedConstructor => [text("Expected a constructor")]
+    | Redundant(_) => [text("Pattern is redundant")]
+    | Common(error) =>
       common_err_view(
         ~globals,
         ~inferred_label,
@@ -550,9 +542,11 @@ let rec pat_view =
         ~lifted_ty,
         cls,
         error,
-      ),
-    )
-  | NotInHole(ok) =>
+      )
+    };
+  switch (errors, status) {
+  // Status is still used for the type consistency view
+  | ([], NotInHole(ok)) =>
     div_ok(
       common_ok_view(
         ~globals,
@@ -568,6 +562,12 @@ let rec pat_view =
         cls,
         ok,
       ),
+    )
+  | _ =>
+    div_err(
+      List.map(display_error, errors)
+      |> ListUtil.intersperse([text("; ")])
+      |> List.flatten,
     )
   };
 };
@@ -612,8 +612,8 @@ let view_of_info = (~globals, ci): list(Node.t) => {
   | Secondary(_) => wrapper(div([]))
   | InfoExp({cls, status, _} as ie) =>
     wrapper(exp_view(~globals, cls, status, ie))
-  | InfoPat({cls, status, _} as ip) =>
-    wrapper(pat_view(~globals, cls, status, ip))
+  | InfoPat({cls, status, errors, _} as ip) =>
+    wrapper(pat_view(~globals, ~errors, cls, status, ip))
   | InfoTyp({cls, status, _}) => wrapper(typ_view(~globals, cls, status))
   | InfoTPat({cls, status, _}) => wrapper(tpat_view(~globals, cls, status))
   };

@@ -265,6 +265,7 @@ type pat = {
   status: status_pat,
   ty: Typ.t,
   constraint_: Coverage.Constraint.t,
+  errors: list(error_pat), /* Errors on the pattern */
   label_inference: option(label_inference(pat)),
   inferred_label: option(LabeledTuple.label),
   label_sort: bool /* When in the position of a label */
@@ -507,14 +508,26 @@ let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
   };
 
 let status_pat =
-    (
-      ~redundant: bool,
-      ~expected_constructor: bool,
-      ctx: Ctx.t,
-      ty_ana: Typ.t,
-      self: Self.pat,
-    )
+    (~errors: list(error_pat), ctx: Ctx.t, ty_ana: Typ.t, self: Self.pat)
     : status_pat => {
+  let redundant =
+    List.exists(
+      err =>
+        switch (err) {
+        | Redundant(_) => true
+        | _ => false
+        },
+      errors,
+    );
+  let expected_constructor =
+    List.exists(
+      err =>
+        switch (err) {
+        | ExpectedConstructor => true
+        | _ => false
+        },
+      errors,
+    );
   let status: status_pat =
     switch (self) {
     | Common(FreeConstructor(name)) =>
@@ -779,10 +792,22 @@ let fixed_typ_err_pat: error_pat => Typ.t =
   | Redundant(_) => Unknown(Internal) |> Typ.temp
   | Common(err) => fixed_typ_err_common(err);
 
-let fixed_typ_pat =
-    (~expected_constructor, ctx, ty_ana: Typ.t, self: Self.pat): Typ.t => {
+let fixed_typ_pat = (~errors, ctx, ty_ana: Typ.t, self: Self.pat): Typ.t => {
   switch (
-    status_pat(~expected_constructor, ~redundant=false, ctx, ty_ana, self)
+    status_pat(
+      ~errors=
+        List.filter(
+          err =>
+            switch (err) {
+            | Redundant(_) => false
+            | _ => true
+            },
+          errors,
+        ),
+      ctx,
+      ty_ana,
+      self,
+    )
   ) {
   | InHole(err) => fixed_typ_err_pat(err)
   | NotInHole(ok) => fixed_typ_ok(ok)
@@ -838,19 +863,27 @@ let derived_pat =
       ~prev_synswitch,
       ~ana,
       ~ancestors,
-      ~self,
+      ~self: Self.pat,
       ~syn_typ: option(Typ.t),
-      ~redundant: bool,
-      ~expected_constructor: bool,
       ~constraint_,
       ~label_inference,
       ~inferred_label,
       ~label_sort,
+      ~errors,
     )
     : pat => {
   let cls = Cls.Pat(Pat.cls_of_term(upat.term));
-  let status = status_pat(~expected_constructor, ~redundant, ctx, ana, self);
-  let ty = fixed_typ_pat(~expected_constructor, ctx, ana, self);
+  let common_errors =
+    switch (self) {
+    | Common(c) =>
+      switch (status_common(ctx, ana, c)) {
+      | InHole(err) => [(Common(err): error_pat)]
+      | _ => []
+      }
+    };
+  let errors: list(error_pat) = errors @ common_errors;
+  let status = status_pat(~errors, ctx, ana, self);
+  let ty = fixed_typ_pat(~errors, ctx, ana, self);
   {
     cls,
     self,
@@ -862,6 +895,7 @@ let derived_pat =
     ctx,
     co_ctx,
     ancestors,
+    errors,
     term: upat,
     constraint_,
     label_inference,

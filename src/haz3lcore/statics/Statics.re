@@ -1017,23 +1017,19 @@ and uexp_to_info_map =
             let p = List.nth(ps, row);
             switch (Id.Map.find(IdTagged.rep_id(p), m)) {
             | Info.InfoPat(info) =>
-              let info =
-                Info.derived_pat(
-                  ~upat=info.term,
-                  ~ctx=info.ctx,
-                  ~co_ctx=info.co_ctx,
-                  ~prev_synswitch=info.prev_synswitch,
-                  ~ana=info.ana,
-                  ~ancestors=info.ancestors,
-                  ~self=info.self,
-                  ~redundant=true,
-                  ~expected_constructor=false, // Can't be expected constructor when redundant. TODO Allow for multiple errors
-                  ~syn_typ=info.syn_typ,
-                  ~constraint_=info.constraint_,
-                  ~label_inference=info.label_inference,
-                  ~inferred_label=info.inferred_label,
-                  ~label_sort=info.label_sort,
-                );
+              let info = {
+                ...info,
+                errors: [(Redundant(None): Info.error_pat)] @ info.errors,
+                status:
+                  InHole(
+                    Redundant(
+                      switch (info.status) {
+                      | InHole(status) => Some(status)
+                      | _ => None
+                      },
+                    ),
+                  ),
+              };
               add_info(IdTagged.ids(p), InfoPat(info), m);
             | _ => failwith("Invalid sort for pattern.")
             };
@@ -1187,14 +1183,13 @@ and upat_to_info_map =
         ~ana,
         ~ancestors,
         ~self=Common(Option.value(~default=self, override_self)),
-        ~redundant=false,
-        ~expected_constructor=false,
         ~syn_typ=
           Self.typ_of(ctx, Option.value(~default=self, override_self)),
         ~constraint_,
         ~label_inference,
         ~inferred_label,
         ~label_sort,
+        ~errors=[],
       );
     (info, add_info(ids, InfoPat(info), m));
   };
@@ -1387,7 +1382,7 @@ and upat_to_info_map =
          Unknown(Internal) is used in this case */
       let ctx_typ =
         Info.fixed_typ_pat(
-          ~expected_constructor=false,
+          ~errors=[],
           ctx,
           ana,
           Common(Just(Unknown(Internal) |> Typ.temp)),
@@ -1622,23 +1617,12 @@ and upat_to_info_map =
         switch (fn |> Pat.term_of) {
         | Constructor(_) => m
         | _ =>
-          let info =
-            Info.derived_pat(
-              ~upat=fn'.term,
-              ~ctx=fn'.ctx,
-              ~co_ctx=fn'.co_ctx,
-              ~prev_synswitch=fn'.prev_synswitch,
-              ~ana=fn'.ana,
-              ~ancestors=fn'.ancestors,
-              ~self=fn'.self,
-              ~expected_constructor=true,
-              ~redundant=false,
-              ~syn_typ=fn'.syn_typ,
-              ~constraint_=fn'.constraint_,
-              ~label_inference=fn'.label_inference,
-              ~inferred_label=fn'.inferred_label,
-              ~label_sort=fn'.label_sort,
-            );
+          let info = {
+            ...fn',
+            errors: [(ExpectedConstructor: Info.error_pat)] @ fn'.errors,
+            status: InHole(ExpectedConstructor),
+          };
+
           add_info(IdTagged.ids(fn), InfoPat(info), m);
         };
       };
