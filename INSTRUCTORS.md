@@ -35,6 +35,8 @@ between the two without clearing your local storage (in browser dev tools).
 
 # Generating Grade Reports (for Gradescope, etc.)
 
+NOTE: This is only relevant to the EECS490 repo (which include the haz3lschool build target).
+
 1. Open the exercise in instructor mode and export a grading version (button in top bar) which generates an OCaml file.
 
 2. Move the file to `src/haz3lschool/specs`.
