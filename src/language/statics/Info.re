@@ -499,15 +499,20 @@ let rec status_pat = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.pat): status_pat =>
       switch (status_pat(ctx, ty_ana, self)) {
       | InHole(
           Common(
-            Inconsistent(Internal(_) | Expectation(_) | BadLivelitModel(_)),
+            Inconsistent(Internal(_) | Expectation(_) | BadLivelitModel(_)) |
+            NoType(_),
           ) as err,
-        )
-      | InHole(Common(NoType(_)) as err) => Some(err)
+        ) =>
+        Some(err)
       | NotInHole(_) => None
-      | InHole(Common(DuplicateLabel(_)))
-      | InHole(Common(TupleLabelError(_)))
-      | InHole(Common(Inconsistent(WithArrow(_))))
-      | InHole(ExpectedConstructor | Redundant(_)) =>
+      | InHole(
+          Common(
+            DuplicateLabel(_) | TupleLabelError(_) |
+            Inconsistent(WithArrow(_)),
+          ) |
+          ExpectedConstructor |
+          Redundant(_),
+        ) =>
         // ExpectedConstructor cannot be a reason to hole-wrap the entire pattern
         failwith("InHole(Redundant(impossible_err))")
       };
@@ -540,11 +545,11 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
         Some(inconsistent_err)
       | NotInHole(_)
       | InHole(Common(Inconsistent(Expectation(_) | WithArrow(_)))) => None /* Type checking should fail and these errors would be nullified */
-      | InHole(Common(NoType(_)))
-      | InHole(Common(TupleLabelError(_)))
-      | InHole(Common(DuplicateLabel(_)))
       | InHole(
-          FreeVariable(_) | InexhaustiveMatch(_) | UnusedDeferral |
+          Common(NoType(_) | TupleLabelError(_) | DuplicateLabel(_)) |
+          FreeVariable(_) |
+          InexhaustiveMatch(_) |
+          UnusedDeferral |
           BadPartialAp(_) |
           InvalidUseMode(_) |
           UnboundLivelit(_),
@@ -735,13 +740,13 @@ let fixed_typ_err_common: error_common => Typ.t =
       ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
     ])
     |> Typ.temp
-  | NoType(BadToken(_))
-  | NoType(BadOperator(_))
-  | NoType(BadTrivAp(_))
-  | NoType(WantTuple)
-  | NoType(LabelNotFound(_))
-  | NoType(BadLabel(_))
-  | NoType(InvalidLabel(_)) => Unknown(Internal) |> Typ.temp
+  | NoType(
+      BadToken(_) | BadOperator(_) | BadTrivAp(_) | WantTuple |
+      LabelNotFound(_) |
+      BadLabel(_) |
+      InvalidLabel(_),
+    ) =>
+    Unknown(Internal) |> Typ.temp
   | TupleLabelError({typ, _})
   | DuplicateLabel(_, typ) => typ
   | Inconsistent(Expectation({ana, _}) | BadLivelitModel(ana)) => ana
@@ -752,17 +757,17 @@ let fixed_typ_err_common: error_common => Typ.t =
 
 let fixed_typ_err: error_exp => Typ.t =
   fun
-  | UnboundLivelit(_) => Unknown(Internal) |> Typ.temp
-  | FreeVariable(_) => Unknown(Internal) |> Typ.temp
-  | UnusedDeferral => Unknown(Internal) |> Typ.temp
-  | BadPartialAp(_) => Unknown(Internal) |> Typ.temp
+  | UnboundLivelit(_)
+  | FreeVariable(_)
+  | UnusedDeferral
+  | BadPartialAp(_)
   | InexhaustiveMatch(_) => Unknown(Internal) |> Typ.temp
   | Common(err) => fixed_typ_err_common(err)
   | InvalidUseMode({inner_typ, _}) => inner_typ;
 
 let fixed_typ_err_pat: error_pat => Typ.t =
   fun
-  | ExpectedConstructor => Unknown(Internal) |> Typ.temp
+  | ExpectedConstructor
   | Redundant(_) => Unknown(Internal) |> Typ.temp
   | Common(err) => fixed_typ_err_common(err);
 
