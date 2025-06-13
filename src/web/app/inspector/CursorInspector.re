@@ -130,18 +130,12 @@ let common_err_view =
       | BadInt => [text("Integer is too large or too small")]
       | Other => [text(Printf.sprintf("\"%s\" isn't a valid token", token))]
       }
-    | NoType(BadOperator(msg)) => [text("Invalid operator: "), text(msg)]
     | NoType(BadLabel(label)) => [
         text("Malformed Label: "),
         view_any(label),
       ]
     | NoType(FreeConstructor(name)) => [code(name), text("not found")]
-    | NoType(LabelNotFound(name, labels)) => [
-        text("Label "),
-        code(name),
-        text(" not found in tuple's labels: "),
-        ...List.map(code, labels),
-      ]
+
     | NoType(InvalidLabel(name)) => [text("Invalid label:"), code(name)]
     | TupleLabelError({malformed_labels, duplicate_labels, invalid_labels, _}) =>
       (
@@ -166,9 +160,6 @@ let common_err_view =
           : [text("Invalid labels: "), ...List.map(code, invalid_labels)]
       )
     | DuplicateLabel(name, _) => [text("Duplicate Label:"), code(name)]
-    | Inconsistent(BadLivelitModel(_)) => [
-        text("Bad internal livelit model"),
-      ]
     | Inconsistent(WithArrow(typ)) => [
         text(":"),
         view_type(typ) |> code_box_container,
@@ -500,6 +491,17 @@ let rec exp_view =
       code(name),
       text("not found, and also, it's a livelit"),
     ])
+  | InHole(BadOperator(msg)) =>
+    div_err([text("Invalid operator: "), text(msg)])
+  | InHole(LabelNotFound(name, labels)) =>
+    div_err([
+      text("Label "),
+      code(name),
+      text(" not found in tuple's labels: "),
+      ...List.map(code, labels),
+    ])
+  | InHole(BadLivelitModel(_)) =>
+    div_err([text("Bad internal livelit model")])
   | NotInHole(AnaDeferralConsistent(ana)) =>
     div_ok([text("Expecting type"), view_type(ana)])
   | NotInHole(Common(ok)) =>

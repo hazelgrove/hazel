@@ -31,8 +31,6 @@ type t =
   | NoJoin(join_type, list(Typ.source)) /* Inconsistent types for e.g match, listlits */
   | Duplicate(LabeledTuple.label, t) /* Duplicate label, marked as duplicate */
   | BadToken(string) /* Invalid expression token, continues with undefined behavior */
-  | BadOperator(string) /* Invalid operator, continues with undefined behavior */
-  | BadLivelitModel(Typ.t) /* Livelit model type is not valid */
   | BadLabel(Any.t) /* TupLabel label component is not a valid Label*/
   | InvalidLabel(LabeledTuple.label) /* Invalid label in a labeled tuple */
   | TupleLabelError({
@@ -42,9 +40,7 @@ type t =
       typ: Typ.t,
     }) /* Tuple/TupLabel contains malformed labels, duplicate labels, and/or invalid labels */
   | IsMulti /* Multihole, treated as hole */
-  | FreeConstructor(Constructor.t) /* Constructor not bound in context or ana type */
-  /* Currently used by the dot operator for a label not found */
-  | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label));
+  | FreeConstructor(Constructor.t); /* Constructor not bound in context or ana type */
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_partial_ap =
@@ -71,7 +67,10 @@ type exp =
       exp_t: Typ.t,
     })
   | BadTrivAp(Typ.t) /* Trivial (nullary) ap on function that doesn't take triv */
-  | WantTuple; /* Want a Tuple, found not-tuple */
+  | WantTuple /* Want a Tuple, found not-tuple */
+  | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label)) /* Currently used by the dot operator for a label not found */
+  | BadOperator(string) /* Invalid operator, continues with undefined behavior */
+  | BadLivelitModel(Typ.t); /* Livelit model type is not valid */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pat =
@@ -94,7 +93,6 @@ let typ_of: (Ctx.t, t) => option(Typ.t) =
     | Just(typ)
     | Duplicate(_, Just(typ))
     | TupleLabelError({typ, _}) => Some(typ)
-    | BadLivelitModel(typ) => Some(typ)
     | FreeConstructor(name) =>
       Some(
         Sum([
@@ -104,10 +102,8 @@ let typ_of: (Ctx.t, t) => option(Typ.t) =
         |> Typ.temp,
       )
     | BadToken(_)
-    | BadOperator(_)
     | IsMulti
     | Duplicate(_)
-    | LabelNotFound(_)
     | BadLabel(_)
     | InvalidLabel(_)
     | NoJoin(_) => None;
@@ -120,10 +116,13 @@ let typ_of_exp: (Ctx.t, exp) => option(Typ.t) =
     | IsDeferral(_)
     | IsBadPartialAp(_)
     | BadTrivAp(_)
+    | LabelNotFound(_)
+    | BadOperator(_)
     | WantTuple => None
     | Common(self) => typ_of(ctx, self)
     | InvalidUseMode({inner_typ, _}) => Some(inner_typ)
-    | IsLivelitName({exp_t, _}) => Some(exp_t);
+    | IsLivelitName({exp_t, _}) => Some(exp_t)
+    | BadLivelitModel(typ) => Some(typ);
 
 let rec typ_of_pat: (Ctx.t, pat) => option(Typ.t) =
   ctx =>
