@@ -1,6 +1,9 @@
 open Util;
 open PrettySegment;
 open Base;
+let mk_space = Secondary.mk_space;
+let mk_newline = Secondary.mk_newline;
+open Language;
 
 module Settings = {
   type t = {
@@ -657,10 +660,8 @@ let mk_form = (form_name: Form.compound_form, id, children): Piece.t => {
       ((l, child, r)) => {
         let lspace = should_add_space(l, child |> Segment.first_string);
         let rspace = should_add_space(child |> Segment.last_string, r);
-        (lspace ? [Secondary(Secondary.mk_space(Id.mk()))] : [])
-        @ (
-          rspace ? child @ [Secondary(Secondary.mk_space(Id.mk()))] : child
-        );
+        (lspace ? [Secondary(mk_space(Id.mk()))] : [])
+        @ (rspace ? child @ [Secondary(mk_space(Id.mk()))] : child);
       },
       Aba.mk(form.label, children),
     )
@@ -694,7 +695,7 @@ let (@) = (seg1: Segment.t, seg2: Segment.t): Segment.t =>
           Segment.last_string(seg1),
           Segment.first_string(seg2),
         )) {
-      seg1 @ [Secondary(Secondary.mk_space(Id.mk()))] @ seg2;
+      seg1 @ [Secondary(mk_space(Id.mk()))] @ seg2;
     } else {
       seg1 @ seg2;
     }
@@ -931,7 +932,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         }),
       ],
       if (Form.begins_with_potential_operator(Segment.first_string(e))) {
-        [Secondary(Secondary.mk_space(Id.mk()))] @ e;
+        [Secondary(mk_space(Id.mk()))] @ e;
       } else {
         e;
       },
@@ -948,9 +949,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let+ p = pat_to_pretty(~settings: Settings.t, p)
     and+ e1 = go(e1)
     and+ e2 = go(e2);
-    let e2 =
-      settings.inline
-        ? e2 : [Secondary(Secondary.mk_newline(Id.mk()))] @ e2;
+    let e2 = settings.inline ? e2 : [Secondary(mk_newline(Id.mk()))] @ e2;
     [mk_form(Let, id, [p, e1])] @ e2;
   | FixF(p, e, _) =>
     // TODO: Add optional newlines
@@ -968,15 +967,13 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let+ tp = tpat_to_pretty(~settings: Settings.t, tp)
     and+ t = typ_to_pretty(~settings: Settings.t, t)
     and+ e = go(e);
-    let e =
-      settings.inline ? e : [Secondary(Secondary.mk_newline(Id.mk()))] @ e;
+    let e = settings.inline ? e : [Secondary(mk_newline(Id.mk()))] @ e;
     [mk_form(TypeAlias, id, [tp, t])] @ e;
   | Use(t, e) =>
     let id = exp |> Exp.rep_id;
     let+ t = typ_to_pretty(~settings: Settings.t, t)
     and+ e = go(e);
-    let e =
-      settings.inline ? e : [Secondary(Secondary.mk_newline(Id.mk()))] @ e;
+    let e = settings.inline ? e : [Secondary(mk_newline(Id.mk()))] @ e;
     [mk_form(Use, id, [t])] @ e;
   | Ap(Forward, e1, e2) =>
     let id = exp |> Exp.rep_id;
@@ -1038,21 +1035,17 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let e2 =
       settings.inline
         ? e2
-        : [Secondary(Secondary.mk_newline(Id.mk()))]
+        : [Secondary(mk_newline(Id.mk()))]
           @ e2
-          @ [Secondary(Secondary.mk_newline(Id.mk()))];
-    let e3 =
-      settings.inline
-        ? e3 : [Secondary(Secondary.mk_newline(Id.mk()))] @ e3;
+          @ [Secondary(mk_newline(Id.mk()))];
+    let e3 = settings.inline ? e3 : [Secondary(mk_newline(Id.mk()))] @ e3;
     [mk_form(If, id, [e1, e2])] @ e3;
   | Seq(e1, e2) =>
     // TODO: Make newline optional
     let id = exp |> Exp.rep_id;
     let+ e1 = go(e1)
     and+ e2 = go(e2);
-    let e2 =
-      settings.inline
-        ? e2 : [Secondary(Secondary.mk_newline(Id.mk()))] @ e2;
+    let e2 = settings.inline ? e2 : [Secondary(mk_newline(Id.mk()))] @ e2;
     e1 @ [mk_form(CellJoin, id, [])] @ e2;
   | Test(e) =>
     let id = exp |> Exp.rep_id;
@@ -1124,10 +1117,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
           @ (
             List.map2(
               (id, (p, e)) =>
-                (
-                  settings.inline
-                    ? [] : [Secondary(Secondary.mk_newline(Id.mk()))]
-                )
+                (settings.inline ? [] : [Secondary(mk_newline(Id.mk()))])
                 @ [mk_form(Rule, id, [p])]
                 @ (e |> fold_if(settings.fold_case_clauses)),
               ids,
@@ -1135,10 +1125,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
             )
             |> List.flatten
           )
-          @ (
-            settings.inline
-              ? [] : [Secondary(Secondary.mk_newline(Id.mk()))]
-          ),
+          @ (settings.inline ? [] : [Secondary(mk_newline(Id.mk()))]),
         ],
       ),
     ];
@@ -1214,7 +1201,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
         }),
       ],
       if (Form.begins_with_potential_operator(Segment.first_string(p))) {
-        [Secondary(Secondary.mk_space(Id.mk()))] @ p;
+        [Secondary(mk_space(Id.mk()))] @ p;
       } else {
         p;
       },
@@ -1345,7 +1332,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
         }),
       ],
       if (Form.begins_with_potential_operator(Segment.first_string(t))) {
-        [Secondary(Secondary.mk_space(Id.mk()))] @ t;
+        [Secondary(mk_space(Id.mk()))] @ t;
       } else {
         t;
       },
