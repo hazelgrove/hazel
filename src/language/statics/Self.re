@@ -43,7 +43,6 @@ type t =
     }) /* Tuple/TupLabel contains malformed labels, duplicate labels, and/or invalid labels */
   | IsMulti /* Multihole, treated as hole */
   | FreeConstructor(Constructor.t) /* Constructor not bound in context or ana type */
-  | WantTuple /* Want a Tuple, found not-tuple */
   /* Currently used by the dot operator for a label not found */
   | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label));
 
@@ -71,7 +70,8 @@ type exp =
       name: string,
       exp_t: Typ.t,
     })
-  | BadTrivAp(Typ.t); /* Trivial (nullary) ap on function that doesn't take triv */
+  | BadTrivAp(Typ.t) /* Trivial (nullary) ap on function that doesn't take triv */
+  | WantTuple; /* Want a Tuple, found not-tuple */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pat =
@@ -107,7 +107,6 @@ let typ_of: (Ctx.t, t) => option(Typ.t) =
     | BadOperator(_)
     | IsMulti
     | Duplicate(_)
-    | WantTuple
     | LabelNotFound(_)
     | BadLabel(_)
     | InvalidLabel(_)
@@ -120,7 +119,8 @@ let typ_of_exp: (Ctx.t, exp) => option(Typ.t) =
     | InexhaustiveMatch(_)
     | IsDeferral(_)
     | IsBadPartialAp(_)
-    | BadTrivAp(_) => None
+    | BadTrivAp(_)
+    | WantTuple => None
     | Common(self) => typ_of(ctx, self)
     | InvalidUseMode({inner_typ, _}) => Some(inner_typ)
     | IsLivelitName({exp_t, _}) => Some(exp_t);

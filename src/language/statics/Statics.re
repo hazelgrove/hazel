@@ -671,7 +671,7 @@ and uexp_to_info_map =
           )
         | _ => add(~self=BadLabel(Exp(e2)), ~co_ctx=info_e2.co_ctx, m)
         };
-      | _ => add(~self=WantTuple, ~co_ctx=info_e2.co_ctx, m)
+      | _ => add'(~self=WantTuple, ~co_ctx=info_e2.co_ctx, m)
       };
     | Test(e) =>
       let (e, m) = go(~ana=Atom(Bool) |> Typ.temp, e, m);

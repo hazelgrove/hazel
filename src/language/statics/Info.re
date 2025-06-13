@@ -54,8 +54,6 @@ type error_no_type =
   | BadOperator(string)
   /* Sum constructor neiter bound nor in ana type */
   | FreeConstructor(Constructor.t)
-  /* Dot Operator is ill-formed */
-  | WantTuple
   /* Label not found in tuple for dot operator */
   | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label))
   /* Sort error used as label in tuple */
@@ -94,7 +92,9 @@ type error_exp =
   /* Livelit name not bound in ctx */
   | UnboundLivelit(string)
   /* Empty application of function with inconsistent type */
-  | BadTrivAp(Typ.t);
+  | BadTrivAp(Typ.t)
+  /* Dot Operator is ill-formed */
+  | WantTuple;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_pat =
@@ -486,7 +486,6 @@ let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
         ),
       )
     };
-  | (WantTuple, _) => InHole(NoType(WantTuple))
   | (LabelNotFound(name, labels), _) =>
     InHole(NoType(LabelNotFound(name, labels)))
   };
@@ -552,7 +551,8 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
           BadPartialAp(_) |
           InvalidUseMode(_) |
           UnboundLivelit(_) |
-          BadTrivAp(_),
+          BadTrivAp(_) |
+          WantTuple,
         ) =>
         failwith("InHole(InexhaustiveMatch(impossible_err))")
       };
@@ -568,6 +568,7 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
         bad_typ,
       }),
     )
+  | WantTuple => InHole(WantTuple)
   | IsLivelitName({name, _}) =>
     let ll = Ctx.lookup_livelit(ctx, name);
     switch (ll) {
@@ -742,7 +743,7 @@ let fixed_typ_err_common: error_common => Typ.t =
     ])
     |> Typ.temp
   | NoType(
-      BadToken(_) | BadOperator(_) | WantTuple | LabelNotFound(_) | BadLabel(_) |
+      BadToken(_) | BadOperator(_) | LabelNotFound(_) | BadLabel(_) |
       InvalidLabel(_),
     ) =>
     Unknown(Internal) |> Typ.temp
@@ -761,6 +762,7 @@ let fixed_typ_err: error_exp => Typ.t =
   | UnusedDeferral
   | BadPartialAp(_)
   | InexhaustiveMatch(_)
+  | WantTuple
   | BadTrivAp(_) => Unknown(Internal) |> Typ.temp
   | Common(err) => fixed_typ_err_common(err)
   | InvalidUseMode({inner_typ, _}) => inner_typ;
