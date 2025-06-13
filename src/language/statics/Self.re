@@ -87,49 +87,46 @@ let join_of = (j: join_type, ty: Typ.t): Typ.t =>
 /* What the type would be if the position had been
    synthetic, so no hole fixing. Returns none if
    there's no applicable synthetic rule. */
-let typ_of: (Ctx.t, t) => option(Typ.t) =
-  _ctx =>
-    fun
-    | Just(typ)
-    | Duplicate(_, Just(typ))
-    | TupleLabelError({typ, _}) => Some(typ)
-    | FreeConstructor(name) =>
-      Some(
-        Sum([
-          ConstructorMap.Variant(name, [Id.invalid], None),
-          ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
-        ])
-        |> Typ.temp,
-      )
-    | BadToken(_)
-    | IsMulti
-    | Duplicate(_)
-    | BadLabel(_)
-    | InvalidLabel(_)
-    | NoJoin(_) => None;
+let typ_of: t => option(Typ.t) =
+  fun
+  | Just(typ)
+  | Duplicate(_, Just(typ))
+  | TupleLabelError({typ, _}) => Some(typ)
+  | FreeConstructor(name) =>
+    Some(
+      Sum([
+        ConstructorMap.Variant(name, [Id.invalid], None),
+        ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
+      ])
+      |> Typ.temp,
+    )
+  | BadToken(_)
+  | IsMulti
+  | Duplicate(_)
+  | BadLabel(_)
+  | InvalidLabel(_)
+  | NoJoin(_) => None;
 
-let typ_of_exp: (Ctx.t, exp) => option(Typ.t) =
-  ctx =>
-    fun
-    | Free(_)
-    | InexhaustiveMatch(_)
-    | IsDeferral(_)
-    | IsBadPartialAp(_)
-    | BadTrivAp(_)
-    | LabelNotFound(_)
-    | BadOperator(_)
-    | WantTuple => None
-    | Common(self) => typ_of(ctx, self)
-    | InvalidUseMode({inner_typ, _}) => Some(inner_typ)
-    | IsLivelitName({exp_t, _}) => Some(exp_t)
-    | BadLivelitModel(typ) => Some(typ);
+let typ_of_exp: exp => option(Typ.t) =
+  fun
+  | Free(_)
+  | InexhaustiveMatch(_)
+  | IsDeferral(_)
+  | IsBadPartialAp(_)
+  | BadTrivAp(_)
+  | LabelNotFound(_)
+  | BadOperator(_)
+  | WantTuple => None
+  | Common(self) => typ_of(self)
+  | InvalidUseMode({inner_typ, _}) => Some(inner_typ)
+  | IsLivelitName({exp_t, _}) => Some(exp_t)
+  | BadLivelitModel(typ) => Some(typ);
 
-let rec typ_of_pat: (Ctx.t, pat) => option(Typ.t) =
-  ctx =>
-    fun
-    | Redundant(pat) => typ_of_pat(ctx, pat)
-    | ExpectedConstructor(pat) => typ_of_pat(ctx, pat)
-    | Common(self) => typ_of(ctx, self);
+let rec typ_of_pat: pat => option(Typ.t) =
+  fun
+  | Redundant(pat) => typ_of_pat(pat)
+  | ExpectedConstructor(pat) => typ_of_pat(pat)
+  | Common(self) => typ_of(self);
 
 /* The self of a var and livelit depends on the ctx; if the
    lookup fails, it is a free variable */
