@@ -697,18 +697,18 @@ let is_error = (ci: t): bool => {
     | InHole(_) => true
     | NotInHole(_) => false
     }
-  | InfoPat({ana, self, ctx, _}) =>
-    switch (status_pat(ctx, ana, self)) {
+  | InfoPat({status, _}) =>
+    switch (status) {
     | InHole(_) => true
     | NotInHole(_) => false
     }
-  | InfoTyp({expects, ctx, term, _}) =>
-    switch (status_typ(ctx, expects, term)) {
+  | InfoTyp({status, _}) =>
+    switch (status) {
     | InHole(_) => true
     | NotInHole(_) => false
     }
-  | InfoTPat({term, ctx, _}) =>
-    switch (status_tpat(ctx, term)) {
+  | InfoTPat({status, _}) =>
+    switch (status) {
     | InHole(_) => true
     | NotInHole(_) => false
     }
