@@ -1,6 +1,7 @@
 open Util;
 open Virtual_dom.Vdom;
 open ProjectorBase;
+open Language;
 
 let max_column_length = 12;
 
@@ -74,10 +75,12 @@ let key_handler = (id, ~parent, evt) => {
   let key = Key.mk(KeyDown, evt);
 
   switch (key.key) {
-  | D("ArrowRight" | "ArrowDown") when Web.TextArea.is_last_pos(Id.cls(id)) =>
+  | D("ArrowRight" | "ArrowDown")
+      when WebUtil.TextArea.is_last_pos(Id.cls(id)) =>
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
     Many([parent(Escape(Right)), Stop_propagation]);
-  | D("ArrowLeft" | "ArrowUp") when Web.TextArea.is_first_pos(Id.cls(id)) =>
+  | D("ArrowLeft" | "ArrowUp")
+      when WebUtil.TextArea.is_first_pos(Id.cls(id)) =>
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
     Many([parent(Escape(Left)), Stop_propagation]);
   /* Defer to parent editor undo for now */
@@ -93,29 +96,12 @@ let key_handler = (id, ~parent, evt) => {
   };
 };
 
-let rec of_segment = (~holes: option(string), seg: Segment.t): string =>
-  seg |> List.map(of_piece(~holes)) |> String.concat("")
-and of_piece = (~holes, p: Piece.t): string =>
-  switch (p) {
-  | Tile(t) => of_tile(~holes, t)
-  | Grout({shape: Concave, _}) => " "
-  | Grout({shape: Convex, _}) when holes != None => Option.get(holes)
-  | Grout({shape: Convex, _}) => " "
-  | Secondary(w) =>
-    Secondary.is_linebreak(w) ? "\n" : Secondary.get_string(w.content)
-  | Projector(p) => of_segment(~holes, Piece.unparenthesize(p.syntax))
-  }
-and of_tile = (~holes, t: Tile.t): string =>
-  Aba.mk(t.shards, t.children)
-  |> Aba.join(of_delim(t), of_segment(~holes))
-  |> String.concat("")
-and of_delim = (t: Piece.tile, i: int): string => List.nth(t.label, i);
-let len_seg = (seg: Segment.t): int =>
-  seg |> of_segment(~holes=Some("?")) |> String.length;
+let len_seg = (utility: utility, seg: Segment.t): int =>
+  seg |> utility.seg_to_string |> String.length;
 
 let seg_of_exp = (utility: utility, exp: Exp.t): (Segment.t, int) => {
   let seg = utility.term_to_seg(Exp(exp));
-  (seg, len_seg(seg));
+  (seg, len_seg(utility, seg));
 };
 
 let abbreviated_seg_of =
