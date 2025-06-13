@@ -33,7 +33,6 @@ type t =
   | BadToken(string) /* Invalid expression token, continues with undefined behavior */
   | BadOperator(string) /* Invalid operator, continues with undefined behavior */
   | BadLivelitModel(Typ.t) /* Livelit model type is not valid */
-  | BadTrivAp(Typ.t) /* Trivial (nullary) ap on function that doesn't take triv */
   | BadLabel(Any.t) /* TupLabel label component is not a valid Label*/
   | InvalidLabel(LabeledTuple.label) /* Invalid label in a labeled tuple */
   | TupleLabelError({
@@ -71,7 +70,8 @@ type exp =
   | IsLivelitName({
       name: string,
       exp_t: Typ.t,
-    });
+    })
+  | BadTrivAp(Typ.t); /* Trivial (nullary) ap on function that doesn't take triv */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pat =
@@ -105,7 +105,6 @@ let typ_of: (Ctx.t, t) => option(Typ.t) =
       )
     | BadToken(_)
     | BadOperator(_)
-    | BadTrivAp(_)
     | IsMulti
     | Duplicate(_)
     | WantTuple
@@ -120,7 +119,8 @@ let typ_of_exp: (Ctx.t, exp) => option(Typ.t) =
     | Free(_)
     | InexhaustiveMatch(_)
     | IsDeferral(_)
-    | IsBadPartialAp(_) => None
+    | IsBadPartialAp(_)
+    | BadTrivAp(_) => None
     | Common(self) => typ_of(ctx, self)
     | InvalidUseMode({inner_typ, _}) => Some(inner_typ)
     | IsLivelitName({exp_t, _}) => Some(exp_t);

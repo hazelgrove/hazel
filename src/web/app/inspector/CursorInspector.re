@@ -131,12 +131,6 @@ let common_err_view =
       | Other => [text(Printf.sprintf("\"%s\" isn't a valid token", token))]
       }
     | NoType(BadOperator(msg)) => [text("Invalid operator: "), text(msg)]
-    | NoType(BadTrivAp(ty)) => [
-        text("Function argument type"),
-        view_type(ty),
-        text("inconsistent with"),
-        view_type(Prod([]) |> Typ.fresh),
-      ]
     | NoType(BadLabel(label)) => [
         text("Malformed Label: "),
         view_any(label),
@@ -480,6 +474,13 @@ let rec exp_view =
       text("Cannot use type "),
       view_type(bad_typ) |> code_box_container,
       text(" for number operators and literals."),
+    ])
+  | InHole(BadTrivAp(ty)) =>
+    div_err([
+      text("Function argument type"),
+      view_type(ty),
+      text("inconsistent with"),
+      view_type(Prod([]) |> Typ.fresh),
     ])
   | InHole(Common(error)) =>
     div_err(
