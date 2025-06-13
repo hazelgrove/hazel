@@ -1,5 +1,5 @@
 open Alcotest;
-open Haz3lcore;
+open Language;
 
 let unboxed_testable = (inner_testable: testable('a)) =>
   testable(
