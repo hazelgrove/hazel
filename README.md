@@ -17,7 +17,7 @@ can also be accessed at:
 
 ### Short version
 
-If you already have `ocaml` version 5.2.0 and at least version 2.0 of `opam`
+If you already have `ocaml` version 5.2.0, at least version 2.0 of `opam`, and `npm`
 installed, you can build Hazel by running the following commands.
 
 - `git clone git@github.com:hazelgrove/hazel.git`
@@ -30,6 +30,8 @@ run it from a `file:///` URL due to browser restrictions on e.g. web workers.)
 
 If you have `python3` on your path, you can use the Python server via 
 `make serve`, then navigate to `http://0.0.0.0:8000/` in your browser.
+
+Alternatively, if you would live hot reloading, you can use `make hot` instead of `make serve`.
 
 Otherwise, run `make echo-html-dir` which will echo the directory that needs 
 to be served using some other server of your choice.
@@ -196,6 +198,8 @@ If Hazel is hanging on load or when you perform certain actions, you can load in
 You can run all of the unit tests located in `test` by running `make test`.
 
 Unit tests are written using the [Alcotest framework](https://github.com/mirage/alcotest).
+
+See more documentation in the [test README](test/README.md)
 
 #### Coverage
 Code coverage is provided by [bisect_ppx](https://github.com/aantron/bisect_ppx). To collect coverage statistics from tests run `make coverage`. After coverage statistics are generated, running `make generate-coverage-html` will generate a local webpage at `_coverage/index.html` that can be viewed to see line coverage per module.

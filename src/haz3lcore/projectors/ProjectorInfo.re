@@ -1,3 +1,5 @@
+open Language;
+
 /* Projector data which is dependent on semantics,
  * separated out for dependency reasons */
 
@@ -18,7 +20,13 @@ let utility: ProjectorBase.utility = {
     | None => None
     | Some(s) => Some(s |> fn |> term_to_seg)
     };
-  {term_to_seg, seg_to_term, lift_syntax};
+  let seg_to_string = Printer.of_segment(~holes=Some("?"));
+  {
+    term_to_seg,
+    seg_to_term,
+    lift_syntax,
+    seg_to_string,
+  };
 };
 
 let mk_info =

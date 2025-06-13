@@ -8,13 +8,13 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = unit;
 
-  let float_of = (any: Any.t): option(float) =>
+  let float_of = (any: Language.Any.t): option(float) =>
     switch (any) {
-    | Exp({term: Float(f), _}) => Some(f)
+    | Exp({term: Atom(Float(f)), _}) => Some(f)
     | _ => None
     };
 
-  let init = (any: Term.Any.t) =>
+  let init = (any: Language.Any.t) =>
     switch (float_of(any)) {
     | Some(_) => Some()
     | None => None
@@ -32,7 +32,11 @@ module M: Projector = {
     switch (
       info.utility.lift_syntax(
         fun
-        | Exp(t) => Exp({...t, term: Float(float_of_string(v))})
+        | Exp(t) =>
+          Exp({
+            ...t,
+            term: Atom(Float(float_of_string(v))),
+          })
         | _ => failwith("SliderF: Put: not float literal"),
         info.syntax,
       )
@@ -55,7 +59,7 @@ module M: Projector = {
         ~view_seg as _,
       ) =>
     View.mk(
-      Util.Web.range(
+      Util.WebUtil.range(
         ~attrs=[Attr.on_input((_, v) => parent(SetSyntax(put(info, v))))],
         info |> get |> Printf.sprintf("%.2f"),
       ),

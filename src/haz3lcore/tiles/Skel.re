@@ -44,9 +44,12 @@ let rel = (p1: Piece.t, p2: Piece.t): option(rel) =>
   | (Projector(_), _) => None
   | (_, Projector(_)) => None
   | (Tile(t1), Tile(t2)) =>
-    open Labels;
     let lbl1 = (==)(t1.label);
     let lbl2 = (==)(t2.label);
+    //TODO: unhardcode
+    let comma = [","];
+    let case = ["case"];
+    let rule = ["|", "=>"];
     let eq =
       [
         lbl1(case) && lbl2(rule),
@@ -93,7 +96,10 @@ module Stacks = {
     shunted: list(ip),
   };
 
-  let empty = {output: [], shunted: []};
+  let empty = {
+    output: [],
+    shunted: [],
+  };
 
   let rec pop_chain =
           (~popped=[], shunted: list(ip)): (list(ip), list(ip)) =>
@@ -159,7 +165,13 @@ module Stacks = {
           let (kids, r) = ListUtil.split_last(kids);
           [Bin(l, Aba.mk(is, kids), r), ...output];
         };
-      push_output(~prec?, {shunted, output});
+      push_output(
+        ~prec?,
+        {
+          shunted,
+          output,
+        },
+      );
     };
   };
 
@@ -170,7 +182,10 @@ module Stacks = {
       | Convex => stacks
       | Concave(prec) => push_output(~prec, stacks)
       };
-    {...stacks, shunted: [ip, ...stacks.shunted]};
+    {
+      ...stacks,
+      shunted: [ip, ...stacks.shunted],
+    };
   };
 
   let finish = stacks => push_output(stacks);

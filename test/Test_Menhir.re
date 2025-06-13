@@ -1,12 +1,9 @@
-open Haz3lmenhir;
+open MenhirParser;
 open Alcotest;
-open Haz3lcore;
+open Language;
 module Fresh = IdTagged.FreshGrammar;
 let alco_check =
-  testable(
-    Fmt.using(Haz3lcore.Exp.show, Fmt.string),
-    Haz3lcore.DHExp.fast_equal,
-  )
+  (testable(Fmt.using(Exp.show, Fmt.string)))(DHExp.fast_equal)
   |> Alcotest.check;
 
 let strip_Wrap_and_add_builtins =
@@ -17,8 +14,7 @@ let strip_Wrap_and_add_builtins =
         | Parens(e)
         | Probe(e, _) => cont(e)
         | Var(x) =>
-          let builtin =
-            VarMap.lookup(Haz3lcore.Builtins.Pervasives.builtins, x);
+          let builtin = Util.VarMap.lookup(Builtins.Pervasives.builtins, x);
           cont(
             switch (builtin) {
             | Some(Fn(_, _, _)) => cont(Fresh.Exp.builtin_fun(x))
@@ -47,7 +43,10 @@ let strip_Wrap_and_add_builtins =
 // Existing recovering parser
 let make_term_parse = (s: string) =>
   strip_Wrap_and_add_builtins(
-    MakeTerm.from_zip_for_sem(Option.get(Printer.zipper_of_string(s))).term,
+    Haz3lcore.MakeTerm.from_zip_for_sem(
+      Option.get(Haz3lcore.Printer.zipper_of_string(s)),
+    ).
+      term,
   );
 
 let menhir_matches = (exp: Term.Exp.t, actual: string) =>
@@ -55,10 +54,8 @@ let menhir_matches = (exp: Term.Exp.t, actual: string) =>
     "menhir matches expected parse",
     exp,
     Grammar.map_exp_annotation(
-      _: IdTagged.IdTag.t => {ids: [Id.invalid], copied: false},
-      Haz3lmenhir.Conversion.Exp.of_menhir_ast(
-        Haz3lmenhir.Interface.parse_program(actual),
-      ),
+      _: IdTagged.IdTag.t => {ids: [Id.invalid]},
+      Conversion.Exp.of_menhir_ast(Interface.parse_program(actual)),
     ),
   );
 
@@ -90,10 +87,8 @@ let menhir_maketerm_equivalent_test =
       "Menhir parse matches MakeTerm parse",
       make_term_parse(actual),
       Grammar.map_exp_annotation(
-        _: IdTagged.IdTag.t => {ids: [Id.invalid], copied: false},
-        Haz3lmenhir.Conversion.Exp.of_menhir_ast(
-          Haz3lmenhir.Interface.parse_program(actual),
-        ),
+        _: IdTagged.IdTag.t => {ids: [Id.invalid]},
+        Conversion.Exp.of_menhir_ast(Interface.parse_program(actual)),
       ),
     )
   });
@@ -107,27 +102,27 @@ let qcheck_menhir_maketerm_equivalent_test =
   QCheck.Test.make(
     ~name="Menhir and maketerm are equivalent",
     ~count=100,
-    QCheck.make(~print=AST.show_exp, AST.gen_exp_sized(7)),
-    exp => {
-      let unit_exp = Conversion.Exp.of_menhir_ast(exp);
-      let core_exp =
-        Grammar.map_exp_annotation(_ => IdTagged.IdTag.fresh(), unit_exp);
-
+    QCheck_Util.arb_exp(~minimal_idents=false, 7),
+    core_exp => {
       let segment =
-        ExpToSegment.exp_to_segment(
+        Haz3lcore.ExpToSegment.exp_to_segment(
           ~settings=
-            ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
+            Haz3lcore.ExpToSegment.Settings.of_core(
+              ~inline=true,
+              Language.CoreSettings.off,
+            ),
           core_exp,
         );
 
-      let serialized = Printer.of_segment(~holes=Some("?"), segment);
+      let serialized =
+        Haz3lcore.Printer.of_segment(~holes=Some("?"), segment);
       let make_term_parsed = make_term_parse(serialized);
-      let menhir_parsed = Haz3lmenhir.Interface.parse_program(serialized);
+      let menhir_parsed = Interface.parse_program(serialized);
       let menhir_parsed_converted =
-        Haz3lmenhir.Conversion.Exp.of_menhir_ast(menhir_parsed);
+        Conversion.Exp.of_menhir_ast(menhir_parsed);
 
       switch (
-        Haz3lcore.DHExp.fast_equal(
+        DHExp.fast_equal(
           make_term_parsed,
           Grammar.map_exp_annotation(
             _ => IdTagged.IdTag.fresh(),
@@ -161,26 +156,26 @@ let qcheck_menhir_serialized_equivalent_test =
   QCheck.Test.make(
     ~name="Menhir through ExpToSegment and back",
     ~count=1000,
-    QCheck.make(~print=AST.show_exp, AST.gen_exp_sized(7)),
+    AST.arb_exp(7),
     exp => {
       let unit_exp = Conversion.Exp.of_menhir_ast(exp);
       let core_exp =
         Grammar.map_exp_annotation(_ => IdTagged.IdTag.fresh(), unit_exp);
       let segment =
-        ExpToSegment.exp_to_segment(
+        Haz3lcore.ExpToSegment.exp_to_segment(
           ~settings={
             inline: true,
             fold_case_clauses: false,
             fold_fn_bodies: false,
             hide_fixpoints: false,
-            fold_cast_types: false,
             show_filters: true,
             show_unknown_as_hole: true,
           },
           core_exp,
         );
-      let serialized = Printer.of_segment(~holes=Some("?"), segment);
-      let menhir_parsed = Haz3lmenhir.Interface.parse_program(serialized);
+      let serialized =
+        Haz3lcore.Printer.of_segment(~holes=Some("?"), segment);
+      let menhir_parsed = Interface.parse_program(serialized);
       AST.equal_exp(menhir_parsed, exp);
     },
   );
@@ -251,13 +246,13 @@ let tests =
       ),
       menhir_only_test(
         "Constructor of specific sum type",
-        constructor("A", Some(Typ.int())),
+        constructor("A", Some(Some(Typ.int()))),
         "A ~ Int",
       ),
       // TODO Fix for the tests below
       menhir_only_test(
         "Constructor with Type Variable",
-        constructor("A", Some(Typ.var("T"))),
+        constructor("A", Some(Some(Typ.var("T")))),
         "A ~ T",
       ),
       full_parser_test(
@@ -281,7 +276,13 @@ let tests =
       ),
       full_parser_test(
         "Filter",
-        filter(Filter({act: (Eval, All), pat: int(3)}), int(3)),
+        filter(
+          Filter({
+            act: (Eval, All),
+            pat: int(3),
+          }),
+          int(3),
+        ),
         "eval 3 in 3" // TODO Use other filter commands
       ),
       full_parser_test(

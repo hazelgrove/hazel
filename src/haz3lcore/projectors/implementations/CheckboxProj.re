@@ -8,13 +8,13 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = unit;
 
-  let bool_of = (any: Any.t): option(bool) =>
+  let bool_of = (any: Language.Any.t): option(bool) =>
     switch (any) {
-    | Exp({term: Bool(b), _}) => Some(b)
+    | Exp({term: Atom(Bool(b)), _}) => Some(b)
     | _ => None
     };
 
-  let init = (any: Term.Any.t) =>
+  let init = (any: Language.Any.t) =>
     switch (bool_of(any)) {
     | Some(_) => Some()
     | None => None
@@ -32,7 +32,11 @@ module M: Projector = {
     switch (
       info.utility.lift_syntax(
         fun
-        | Exp({term: Bool(b), _} as t) => Exp({...t, term: Bool(!b)})
+        | Exp({term: Atom(Bool(b)), _} as t) =>
+          Exp({
+            ...t,
+            term: Atom(Bool(!b)),
+          })
         | _ => failwith("Checkbox: Toggle: not boolean literal"),
         info.syntax,
       )

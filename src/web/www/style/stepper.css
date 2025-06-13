@@ -1,0 +1,325 @@
+/* STEPPER */
+
+.stepper {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  padding: 0;
+}
+
+.step-border {
+  padding: 0.5em;
+  padding-left: 1.2em;
+  border-top: 1px dotted var(--cell-result-border);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+
+.step-border.hidden {
+  background-color: var(--cell-result-hidden);
+}
+
+.step-display {
+  display:flex;
+  flex-direction: row;
+  gap: 0.5em
+}
+
+.step-output {
+  flex-grow: 1;
+}
+
+.stepper-controls {
+  display:flex;
+  flex-direction: row;
+  gap: 0.5em;
+}
+
+.induction-scrut {
+  display: flex;
+  flex-direction: row;
+  gap: 0.5em;
+  align-items: center;
+}
+
+.induction-case {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+  margin-left: 2em;
+}
+
+.induction-case .stepper {
+  margin-left: 2em;
+}
+.induction-case-header {
+  display: flex;
+  flex-direction: row;
+  gap: 0.5em;
+  align-items: center;
+  border-top: 1px dotted var(--cell-result-border);
+  padding-top: 0.5em;
+  margin-left: -1em;
+}
+
+.induction-case-patten {
+  display: flex;
+  flex-direction: row;
+  gap: 0.5em;
+  align-items: center;
+}
+
+.stepper .subtle-button {
+  opacity: 0;
+  cursor: pointer;
+  border-radius: 2rem;
+  -webkit-transition: all 0.3s;
+  -moz-transition: all 0.3s;
+  -o-transition: all 0.3s;
+  -ms-transition: all 0.3s;
+  transition: all 0.3s;
+}
+
+.add-case-button {
+  margin-left: 2.5em;
+  color: --BR4;
+}
+
+.stepper .subtle-button:hover {
+  opacity: 1;
+}
+
+.stepper .induction-case:hover .subtle-button {
+  opacity: 1;
+}
+
+*:hover>.subtle-button {
+  opacity: 1;
+}
+
+
+.inline-editor-wrapper {
+  background-color: var(--light-page-color);
+  padding: 0.2em 0.5em 0.2em 0.5em;
+  clip-path: polygon(0.5em 0%, calc(100% - 0.5em) 0%, 100% 50%, calc(100% - 0.5em) 100%, 0.5em 100%, 0% 50%);
+  border: 1px dotted var(--cell-result-border);
+}
+
+/* PROVER */
+
+.missing-step-overlay-align {
+  position: absolute;
+}
+
+.proof-context-box {
+  position: absolute;
+  top: calc(100% + 0.5em);
+  left: 2em;
+  z-index: var(--stepper-interactive-z);
+  display: flex;
+  flex-direction: column;
+  gap: 0.5em;
+}
+
+.proof-selection-buttons {
+  display: flex;
+  flex-direction: row;
+  gap: 0.5em;
+}
+
+.proof-button {
+  cursor: pointer;
+  pointer-events: all;
+  background-color: var(--BR4);
+  color: var(--T3) !important;
+  padding: 0.2em 0.5em;
+  border-radius: 0.2em;
+  white-space: nowrap;
+}
+
+.axiom-box {
+  background-color: var(--menu-bkg);
+  border-radius: 0 0 0.5em 0;
+  outline: 0.6px solid var(--menu-outline);
+  box-shadow: 0px 10px 20px var(--menu-shadow);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.axiom-row {
+  display: flex;
+  flex-direction: row;
+  gap: 1em;
+  align-items: center;
+}
+
+.rewrite-box {
+  background-color: var(--menu-bkg);
+  border-radius: 0 0 0.5em 0;
+  outline: 0.6px solid var(--menu-outline);
+  box-shadow: 0px 10px 20px var(--menu-shadow);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+
+/* STEPPER (OLD) */
+
+.stepper-justification {
+  width: 260px;
+}
+
+.step-expand,
+.step-back {
+  cursor: pointer;
+}
+
+.step-expand:hover span,
+.step-back:hover span {
+  display: none;
+}
+
+.step-expand:hover:before {
+  content: "↕";
+}
+
+.step-back:hover:before {
+  content: "←";
+}
+
+.substituted {
+  text-decoration: line-through;
+  color: var(--STONE);
+}
+
+
+/* TILES */
+
+.tile-next-step path,
+.tile-next-step path *:not(.DHCode .EmptyHole *, .DHCode .EmptyHole) {
+  border: 1px var(--G1) !important;
+  fill: var(--G1) !important;
+  cursor: pointer;
+}
+
+.tile-taken-step path,
+.tile-taken-step path *:not(.DHCode .EmptyHole *, .DHCode .EmptyHole) {
+  border: 1px var(--BR1);
+  fill: var(--BR1);
+}
+
+.child-line.Exp.next-step-line {
+  stroke: var(--G2);
+}
+
+.child-line.Exp.taken-step-line {
+  stroke: var(--BR1);
+}
+
+.taken-step-line {
+  stroke: var(--BR1);
+}
+
+.tile-next-step .tile-path.Exp.indicated {
+  fill: var(--G1);
+}
+
+.tile-taken-step .tile-path.Exp.indicated {
+  fill: var(--BR1);
+}
+
+svg.tile-next-step {
+  pointer-events: all;
+  cursor: pointer;
+  z-index: var(--projector-overlay-z);
+  filter: drop-shadow(1px 1px var(--G2)) !important;
+}
+
+svg.tile-next-step-top {
+  pointer-events: all;
+  cursor: pointer;
+  visibility: hidden;
+  z-index: var(--stepper-interactive-z);
+  filter: drop-shadow(1px 1px var(--G2)) !important;
+}
+
+svg.tile-taken-step {
+  filter: drop-shadow(1px 1px var(--BR1)) !important;
+}
+
+.cell-result .code {
+  pointer-events: none;
+}
+
+
+/* STEPPER SETTINGS */
+
+.settings-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 300px;
+  max-width: 100%;
+  max-height: 100%;
+  background-color: var(--light-page-color);
+  border-radius: 0.4em;
+  z-index: var(--modal-z);
+  box-sizing: border-box;
+  padding: 1em;
+}
+
+.settings-modal-top {
+  justify-content: right;
+  display: flex;
+}
+
+.modal-back {
+  z-index: var(--modal-back-z);
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: #00000060;
+}
+
+.settings-toggle .toggle-switch {
+  margin-right: 1em;
+}
+
+.settings-toggle {
+  margin-bottom: 0.3em;
+}
+
+.settings-modal .icon:hover svg {
+  animation: wobble 0.6s ease 0s 1 normal forwards;
+  transform: scale(130%);
+  filter: brightness(1.1);
+}
+
+.settings-modal .icon {
+  cursor: pointer;
+  color: var(--BR2);
+  height: 20px;
+  left: 7px;
+  bottom: 7px;
+}
+
+.settings-modal .icon svg {
+  fill: var(--BR2);
+}
+
+.settings-modal .icon.disabled {
+  opacity: 0.35;
+}
+
+.settings-modal .icon.disabled:hover svg {
+  transform: scale(100%);
+  cursor: not-allowed;
+}

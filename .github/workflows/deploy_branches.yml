@@ -16,6 +16,13 @@ jobs:
           path: source
       - name: Add the name of the current branch to the environment as BRANCH_NAME
         uses: nelonoel/branch-name@v1.0.1
+      - name: Install node/npm
+        uses: actions/setup-node@v4
+        with:
+          node-version: "latest"
+      - name: Install NPM dependencies
+        run: npm install
+        working-directory: ./source
       - name: Set-up OCaml
         uses: ocaml/setup-ocaml@v3
         with:
@@ -25,7 +32,7 @@ jobs:
         id: opam-cache-switch
         uses: actions/cache@v4
         with:
-          path: '_opam'
+          path: "_opam"
           key: ${{ runner.os }}-modules-${{ hashFiles('./source/hazel.opam.locked') }}
       - name: Install dependencies
         run: |
@@ -53,11 +60,11 @@ jobs:
           sparse-checkout: |
             ${{ env.BRANCH_NAME }}
       - name: Clear any old build of this branch
-        run: if [ -d "${BRANCH_NAME}" ] ; then rm -rf "${BRANCH_NAME}" ; fi 
+        run: if [ -d "${BRANCH_NAME}" ] ; then rm -rf "${BRANCH_NAME}" ; fi
         working-directory: ./server
       - name: Copy in the newly built source
-        run: mkdir "./server/${BRANCH_NAME}" && cp -r "./source/_build/default/src/haz3lweb/www"/* "./server/${BRANCH_NAME}"
-      - name : Commit to the website aka deploy
+        run: mkdir "./server/${BRANCH_NAME}" && cp -r "./source/_build/default/src/web/www"/* "./server/${BRANCH_NAME}"
+      - name: Commit to the website aka deploy
         run: |
           git config user.name github-deploy-action
           git config user.email hazel-deploy@hazel.org
@@ -72,6 +79,7 @@ jobs:
           eval $(opam env)
           make ci
         working-directory: ./source
+        timeout-minutes: 10
       - name: Test Report
         uses: dorny/test-reporter@v1
         with:

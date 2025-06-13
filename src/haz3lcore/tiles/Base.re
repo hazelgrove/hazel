@@ -1,6 +1,6 @@
 open Util;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type segment = list(piece)
 and piece =
   | Tile(tile)
@@ -13,6 +13,7 @@ and tile = {
   // - length(shards) <= length(label)
   // - length(shards) == length(children) + 1
   // - sort(shards) == shards
+  [@equal (_, _) => true]
   id: Id.t,
   label: Label.t,
   mold: Mold.t,
@@ -22,4 +23,9 @@ and tile = {
 and projector = ProjectorCore.t(piece);
 
 // This is for comment insertion
-let mk_secondary = (id, content) => [Secondary({id, content})];
+let mk_secondary = (id, content) => [
+  Secondary({
+    id,
+    content,
+  }),
+];

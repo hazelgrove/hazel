@@ -2,11 +2,12 @@ open Util;
 
 exception Empty_shard_affix;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type step = int;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = {
+  [@equal (_, _) => true]
   id: Id.t,
   label: Label.t,
   mold: Mold.t,
@@ -47,7 +48,13 @@ let sorted_children = (a: t) => {
 };
 
 let remold = (a: t): list(t) =>
-  Molds.get(a.label) |> List.map(mold => {...a, mold});
+  Molds.get(a.label)
+  |> List.map(mold =>
+       {
+         ...a,
+         mold,
+       }
+     );
 
 let sort = (a: t): Sort.t => {
   let (pre, suf) = a.shards;

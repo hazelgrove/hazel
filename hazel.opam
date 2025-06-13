@@ -24,11 +24,13 @@ depends: [
   "uuidm" {= "0.9.8"}
   "unionFind"
   "ocamlformat"
-  "junit_alcotest" {>= "2.1.0" & with-test}
+  "junit_alcotest" {>= "2.2.0" & with-test}
   "ocaml-lsp-server"
+  "ocaml-index"
   "qcheck"
   "qcheck-alcotest"
   "ppx_deriving_qcheck"
+  "bignum"
   "odoc" {with-doc}
 ]
 build: [

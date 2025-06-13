@@ -47,12 +47,14 @@
   ocamlformat
   (junit_alcotest
    (and
-    (>= 2.1.0)
+    (>= 2.2.0)
     :with-test))
   ocaml-lsp-server
+  ocaml-index
   qcheck
   qcheck-alcotest
-  ppx_deriving_qcheck))
+  ppx_deriving_qcheck
+  bignum))
 
 ; After upgrading to opam 2.2 use with-dev https://opam.ocaml.org/blog/opam-2-2-0/
 

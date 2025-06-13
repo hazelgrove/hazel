@@ -1,13 +1,17 @@
 open Util;
 open Zipper;
+open Language;
 
 let buffer_clear = (z: t): t =>
   switch (z.selection.mode) {
-  | Buffer(_) => {...z, selection: Selection.mk([])}
+  | Buffer(_) => {
+      ...z,
+      selection: Selection.mk([]),
+    }
   | _ => z
   };
 
-let set_buffer = (info_map: Statics.Map.t, z: t): t =>
+let set_buffer = (info_map: Language.Statics.Map.t, z: t): t =>
   switch (TyDi.set_buffer(~info_map, z)) {
   | None => z
   | Some(z) => z
@@ -15,7 +19,7 @@ let set_buffer = (info_map: Statics.Map.t, z: t): t =>
 
 let go_z =
     (
-      ~settings as _: CoreSettings.t,
+      ~settings as _: Language.CoreSettings.t,
       statics: CachedStatics.t,
       a: Action.t,
       module M: Move.S,
@@ -39,7 +43,10 @@ let go_z =
 
   let paste_segment = (z: Zipper.t, segment: Segment.t): Zipper.t => {
     let replace_selection = (z, focus, segment): Zipper.t =>
-      {...z, selection: Selection.mk(~focus, segment)}
+      {
+        ...z,
+        selection: Selection.mk(~focus, segment),
+      }
       |> Zipper.unselect
       |> Zipper.remold_regrout(Util.Direction.Right)
       |> Zipper.remold_regrout(Util.Direction.Left);
@@ -92,6 +99,10 @@ let go_z =
     | None => Error(CantPaste)
     | Some(z) => Ok(z)
     }
+  | Introduce =>
+    Select.current_term(~defs_exclude_bodies=false, ~case_rules=false, z)
+    |> Option.bind(_, Introduce.introduce(statics.info_map, _))
+    |> Result.of_option(~error=Action.Failure.CantIntroduce)
   | Paste(Segment(segment)) => Ok(paste_segment(z, segment))
   | Cut =>
     /* System clipboard handling is done in Page.view handlers */
@@ -132,7 +143,7 @@ let go_z =
         open OptUtil.Syntax;
         let* idx = Indicated.index(z);
         let* ci = Id.Map.find_opt(idx, statics.info_map);
-        let* binding_id = Info.get_binding_site(ci);
+        let* binding_id = Language.Info.get_binding_site(ci);
         Move.jump_to_id(z, binding_id);
       | TileId(id) => Move.jump_to_id(z, id)
       }
@@ -194,11 +205,23 @@ let go_z =
     |> Option.map(remold_regrout(d))
     |> Result.of_option(~error=Action.Failure.Cant_destruct)
   | Insert(char) =>
+    let id =
+      switch (Indicated.index(z)) {
+      | Some(id) => id
+      | None => Id.invalid
+      };
+
+    let ctx =
+      switch (Id.Map.find_opt(id, statics.info_map)) {
+      | Some(ci) => Info.ctx_of(ci)
+      | None => Ctx.empty
+      };
+
     z
-    |> Insert.go(char)
+    |> Insert.go(char, ~ctx)
     /* note: remolding here is done case-by-case */
     //|> Option.map((z) => remold_regrout(Right, z))
-    |> Result.of_option(~error=Action.Failure.Cant_insert)
+    |> Result.of_option(~error=Action.Failure.Cant_insert);
   | Pick_up => Ok(remold_regrout(Left, Zipper.pick_up(z)))
   | Put_down =>
     let z =
@@ -211,7 +234,10 @@ let go_z =
     |> Option.map(remold_regrout(Left))
     |> Result.of_option(~error=Action.Failure.Cant_put_down);
   | RotateBackpack =>
-    let z = {...z, backpack: Util.ListUtil.rotate(z.backpack)};
+    let z = {
+      ...z,
+      backpack: Util.ListUtil.rotate(z.backpack),
+    };
     Ok(z);
   | MoveToBackpackTarget((Left(_) | Right(_)) as d) =>
     if (Backpack.restricted(z.backpack)) {

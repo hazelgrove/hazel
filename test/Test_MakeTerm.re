@@ -3,12 +3,15 @@
  * zippers into expressions.
  */
 open Alcotest;
-open Haz3lcore;
-module Fresh = IdTagged.FreshGrammar;
-let exp_typ = testable(Fmt.using(Exp.show, Fmt.string), Exp.fast_equal);
+module Fresh = Language.IdTagged.FreshGrammar;
+let exp_typ =
+  testable(
+    Fmt.using(Language.Exp.show, Fmt.string),
+    Language.Exp.fast_equal,
+  );
 
 let parse_exp = (s: string) => {
-  switch (MakeTerm.parse_exp(s)) {
+  switch (Parse.parse_exp(s)) {
   | Some(e) => e
   | None => Alcotest.fail("Failed to parse expression: " ++ s)
   };
@@ -149,6 +152,15 @@ let tests =
       ),
       test_case("Scientific notation floating point", `Quick, () =>
         exp_check(float(1.2e30), "1.2e30")
+      ),
+      test_case("Livelit name parsing", `Quick, () =>
+        exp_check(livelit_name("slider"), "^slider")
+      ),
+      test_case("Livelit ap parsing", `Quick, () =>
+        exp_check(
+          ap(Forward, livelit_name("slider"), int(50)),
+          "^slider(50)",
+        )
       ),
     ],
   );

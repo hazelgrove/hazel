@@ -1,5 +1,5 @@
 TEST_DIR="$(shell pwd)/_build/default/test"
-HTML_DIR="$(shell pwd)/_build/default/src/haz3lweb/www"
+HTML_DIR="$(shell pwd)/_build/default/src/web/www"
 SERVER="http://0.0.0.0:8000/"
 
 .PHONY: all deps change-deps setup-instructor setup-student dev dev-helper dev-student fmt watch watch-release release release-student echo-html-dir serve serve2 repl test clean
@@ -9,6 +9,7 @@ all: dev
 deps:
 	opam update
 	opam install ./hazel.opam.locked --deps-only --with-test --with-doc
+	npm install
 
 change-deps:
 	opam update
@@ -18,10 +19,10 @@ change-deps:
 	sed -i'.old' '/host-/d' hazel.opam.locked  # remove host- lines which are arch-specific. Not using -i '' because of portability issues https://stackoverflow.com/questions/4247068/sed-command-with-i-option-failing-on-mac-but-works-on-linux
 
 setup-instructor:
-	cp src/haz3lweb/exercises/settings/ExerciseSettings_instructor.re src/haz3lweb/exercises/settings/ExerciseSettings.re
+	cp src/web/exercises/settings/ExerciseSettings_instructor.re src/web/exercises/settings/ExerciseSettings.re
 
 setup-student: 
-	cp src/haz3lweb/exercises/settings/ExerciseSettings_student.re src/haz3lweb/exercises/settings/ExerciseSettings.re
+	cp src/web/exercises/settings/ExerciseSettings_student.re src/web/exercises/settings/ExerciseSettings.re
 
 dev-helper:
 	dune fmt --auto-promote || true
@@ -50,10 +51,13 @@ echo-html-dir:
 	@echo $(HTML_DIR)
 
 serve:
-	cd $(HTML_DIR); python3 -m http.server 8000
+	cd $(HTML_DIR); python3 -m http.server 8000 --bind 0.0.0.0
+
+hot:
+	npx vite
 
 serve2:
-	cd $(HTML_DIR); python3 -m http.server 8001
+	cd $(HTML_DIR); python3 -m http.server 8001 --bind 0.0.0.0
 
 repl:
 	dune utop src/haz3lcore
@@ -62,6 +66,10 @@ test:
 	dune fmt --auto-promote || true
 	dune build @ocaml-index @src/fmt @test/fmt --auto-promote src test --profile dev
 	node $(TEST_DIR)/haz3ltest.bc.js
+
+test-quick:
+	dune build @ocaml-index @src/fmt @test/fmt --auto-promote src test --profile dev
+	node $(TEST_DIR)/haz3ltest.bc.js -q
 
 watch-test:
 	dune build @ocaml-index @fmt @runtest @default --profile dev --auto-promote --watch
