@@ -173,11 +173,6 @@ let common_err_view =
           : [text("Invalid labels: "), ...List.map(code, invalid_labels)]
       )
     | DuplicateLabel(name, _) => [text("Duplicate Label:"), code(name)]
-    | NoType(UnboundLivelit(name)) => [
-        text("Livelit with name"),
-        code(name),
-        text("not found, and also, it's a livelit"),
-      ]
     | Inconsistent(BadLivelitModel(_)) => [
         text("Bad internal livelit model"),
       ]
@@ -497,6 +492,12 @@ let rec exp_view =
         error,
       ),
     )
+  | InHole(UnboundLivelit(name)) =>
+    div_err([
+      text("Livelit with name"),
+      code(name),
+      text("not found, and also, it's a livelit"),
+    ])
   | NotInHole(AnaDeferralConsistent(ana)) =>
     div_ok([text("Expecting type"), view_type(ana)])
   | NotInHole(Common(ok)) =>
