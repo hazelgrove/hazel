@@ -1118,18 +1118,18 @@ and uexp_to_info_map =
         | None => ctx
         };
       let (body, m) = go'(~ctx=ctx', ~ana, body, m);
-      let self: Self.t =
+      let self: Self.exp =
         switch (use_mode) {
-        | Some(_) => Just(body.ty)
+        | Some(_) => Common(Just(body.ty))
         | None when Typ.fast_equal(Unknown(Internal) |> Typ.temp, typ.term) =>
-          Just(body.ty)
+          Common(Just(body.ty))
         | None =>
           InvalidUseMode({
             bad_typ: typ.term,
             inner_typ: body.ty,
           })
         };
-      add(~self, ~co_ctx=body.co_ctx, m);
+      add'(~self, ~co_ctx=body.co_ctx, m);
     };
   };
 

@@ -46,10 +46,7 @@ type t =
   | FreeConstructor(Constructor.t) /* Constructor not bound in context or ana type */
   | WantTuple /* Want a Tuple, found not-tuple */
   | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label))
-  | InvalidUseMode({
-      bad_typ: Typ.t,
-      inner_typ: Typ.t,
-    }) /* Currently used by the dot operator for a label not found */
+  /* Currently used by the dot operator for a label not found */
   | IsLivelitName({
       name: string,
       exp_t: Typ.t,
@@ -70,7 +67,11 @@ type exp =
   | InexhaustiveMatch(exp)
   | IsDeferral(Exp.deferral_position)
   | IsBadPartialAp(error_partial_ap)
-  | Common(t);
+  | Common(t)
+  | InvalidUseMode({
+      bad_typ: Typ.t,
+      inner_typ: Typ.t,
+    });
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pat =
@@ -103,7 +104,6 @@ let typ_of: (Ctx.t, t) => option(Typ.t) =
         ])
         |> Typ.temp,
       )
-    | InvalidUseMode({inner_typ, _}) => Some(inner_typ)
     | BadToken(_)
     | BadOperator(_)
     | BadTrivAp(_)
@@ -122,7 +122,8 @@ let typ_of_exp: (Ctx.t, exp) => option(Typ.t) =
     | InexhaustiveMatch(_)
     | IsDeferral(_)
     | IsBadPartialAp(_) => None
-    | Common(self) => typ_of(ctx, self);
+    | Common(self) => typ_of(ctx, self)
+    | InvalidUseMode({inner_typ, _}) => Some(inner_typ);
 
 let rec typ_of_pat: (Ctx.t, pat) => option(Typ.t) =
   ctx =>
