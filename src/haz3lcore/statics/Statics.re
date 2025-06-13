@@ -1027,6 +1027,7 @@ and uexp_to_info_map =
                   ~ancestors=info.ancestors,
                   ~self=info.self,
                   ~redundant=true,
+                  ~expected_constructor=false, // Can't be expected constructor when redundant. TODO Allow for multiple errors
                   ~syn_typ=info.syn_typ,
                   ~constraint_=info.constraint_,
                   ~label_inference=info.label_inference,
@@ -1187,6 +1188,7 @@ and upat_to_info_map =
         ~ancestors,
         ~self=Common(Option.value(~default=self, override_self)),
         ~redundant=false,
+        ~expected_constructor=false,
         ~syn_typ=
           Self.typ_of(ctx, Option.value(~default=self, override_self)),
         ~constraint_,
@@ -1385,6 +1387,7 @@ and upat_to_info_map =
          Unknown(Internal) is used in this case */
       let ctx_typ =
         Info.fixed_typ_pat(
+          ~expected_constructor=false,
           ctx,
           ana,
           Common(Just(Unknown(Internal) |> Typ.temp)),
@@ -1627,7 +1630,8 @@ and upat_to_info_map =
               ~prev_synswitch=fn'.prev_synswitch,
               ~ana=fn'.ana,
               ~ancestors=fn'.ancestors,
-              ~self=Self.ExpectedConstructor(fn'.self),
+              ~self=fn'.self,
+              ~expected_constructor=true,
               ~redundant=false,
               ~syn_typ=fn'.syn_typ,
               ~constraint_=fn'.constraint_,

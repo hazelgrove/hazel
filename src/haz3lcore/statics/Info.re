@@ -507,12 +507,19 @@ let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
   };
 
 let status_pat =
-    (~redundant: bool, ctx: Ctx.t, ty_ana: Typ.t, self: Self.pat): status_pat => {
+    (
+      ~redundant: bool,
+      ~expected_constructor: bool,
+      ctx: Ctx.t,
+      ty_ana: Typ.t,
+      self: Self.pat,
+    )
+    : status_pat => {
   let status: status_pat =
     switch (self) {
     | Common(FreeConstructor(name)) =>
       InHole(Common(NoType(FreeConstructor(name))))
-    | ExpectedConstructor(_) => InHole(ExpectedConstructor)
+    | _ when expected_constructor => InHole(ExpectedConstructor)
     | Common(self_pat) =>
       switch (status_common(ctx, ty_ana, self_pat)) {
       | NotInHole(ok_pat) => NotInHole(ok_pat)
@@ -772,8 +779,11 @@ let fixed_typ_err_pat: error_pat => Typ.t =
   | Redundant(_) => Unknown(Internal) |> Typ.temp
   | Common(err) => fixed_typ_err_common(err);
 
-let fixed_typ_pat = (ctx, ty_ana: Typ.t, self: Self.pat): Typ.t => {
-  switch (status_pat(~redundant=false, ctx, ty_ana, self)) {
+let fixed_typ_pat =
+    (~expected_constructor, ctx, ty_ana: Typ.t, self: Self.pat): Typ.t => {
+  switch (
+    status_pat(~expected_constructor, ~redundant=false, ctx, ty_ana, self)
+  ) {
   | InHole(err) => fixed_typ_err_pat(err)
   | NotInHole(ok) => fixed_typ_ok(ok)
   };
@@ -831,6 +841,7 @@ let derived_pat =
       ~self,
       ~syn_typ: option(Typ.t),
       ~redundant: bool,
+      ~expected_constructor: bool,
       ~constraint_,
       ~label_inference,
       ~inferred_label,
@@ -838,8 +849,8 @@ let derived_pat =
     )
     : pat => {
   let cls = Cls.Pat(Pat.cls_of_term(upat.term));
-  let status = status_pat(~redundant, ctx, ana, self);
-  let ty = fixed_typ_pat(ctx, ana, self);
+  let status = status_pat(~expected_constructor, ~redundant, ctx, ana, self);
+  let ty = fixed_typ_pat(~expected_constructor, ctx, ana, self);
   {
     cls,
     self,
