@@ -1,5 +1,3 @@
-open Util;
-
 [@deriving sexp]
 type t('annot) =
   | Text(string)
