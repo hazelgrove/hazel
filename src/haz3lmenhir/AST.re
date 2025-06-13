@@ -158,6 +158,7 @@ type exp =
   | Undefined
   | Seq(exp, exp)
   | Test(exp)
+  | HintedTest(exp, exp)
   | Deferral
   | TypFun(tpat, exp)
   | Cons(exp, exp)
@@ -842,6 +843,16 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
           <+> {
             let* shrunk = shrink_exp(e);
             return(Test(shrunk));
+          }
+        | HintedTest(e, hint) =>
+          return(e)
+          <+> {
+            let* shrunk = shrink_exp(e);
+            return(HintedTest(shrunk, hint));
+          }
+          <+> {
+            let* shrunk = shrink_exp(hint);
+            return(HintedTest(e, shrunk));
           }
         | Deferral => Iter.empty
         | TypFun(tpat, e) =>

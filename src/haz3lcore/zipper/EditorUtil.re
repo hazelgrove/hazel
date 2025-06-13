@@ -24,6 +24,7 @@ let rec append_exp = (e1: Exp.t, e2: Exp.t): Exp.t => {
   | DeferredAp(_)
   | If(_)
   | Test(_)
+  | HintedTest(_)
   | Parens(_)
   | Probe(_)
   | Cons(_)

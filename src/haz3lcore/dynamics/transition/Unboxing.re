@@ -295,6 +295,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         If(_) |
         Seq(_) |
         Test(_) |
+        HintedTest(_) |
         Filter(_) |
         Closure(_) |
         Parens(_) |

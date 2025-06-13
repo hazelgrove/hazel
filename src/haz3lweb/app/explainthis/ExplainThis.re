@@ -1917,6 +1917,23 @@ let get_doc =
         );
       | Parens(term)
       | Probe(term, _) => get_message_exp(term.term) // No Special message?
+      | HintedTest(body, hint) =>
+        let hint_id = List.nth(IdTagged.ids(hint), 0);
+        let body_id = List.nth(IdTagged.ids(body), 0);
+        get_message(
+          ~colorings=
+            HintedTestExp.hinted_test_exp_coloring_ids(~body_id, ~hint_id),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s%s"),
+                  Id.to_string(hint_id),
+                  Id.to_string(body_id),
+                ),
+            ),
+          HintedTestExp.tests,
+        );
       | Cons(hd, tl) =>
         let hd_id = List.nth(IdTagged.ids(hd), 0);
         let tl_id = List.nth(IdTagged.ids(tl), 0);

@@ -259,6 +259,7 @@ and Exp: {
           If(exp_map_term(e1), exp_map_term(e2), exp_map_term(e3))
         | Seq(e1, e2) => Seq(exp_map_term(e1), exp_map_term(e2))
         | Test(e) => Test(exp_map_term(e))
+        | HintedTest(e, h) => HintedTest(exp_map_term(e), h)
         | Filter(f, e) => Filter(flt_map_term(f), exp_map_term(e))
         | Closure(env, e) => Closure(env, exp_map_term(e))
         | Parens(e) => Parens(exp_map_term(e))
@@ -348,6 +349,7 @@ and Exp: {
     | (Seq(e1, e2), Seq(e3, e4)) =>
       fast_equal(e1, e3) && fast_equal(e2, e4)
     | (Test(e1), Test(e2)) => fast_equal(e1, e2)
+    | (HintedTest(e1, _), HintedTest(e2, _)) => fast_equal(e1, e2)
     | (Filter(f1, e1), Filter(f2, e2)) =>
       StepperFilterKind.fast_equal(f1, f2) && fast_equal(e1, e2)
     | (Closure(c1, e1), Closure(c2, e2)) =>
@@ -398,6 +400,7 @@ and Exp: {
     | (If(_), _)
     | (Seq(_), _)
     | (Test(_), _)
+    | (HintedTest(_, _), _)
     | (Filter(_), _)
     | (Closure(_), _)
     | (Cons(_), _)

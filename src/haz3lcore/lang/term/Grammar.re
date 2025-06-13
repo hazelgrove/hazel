@@ -80,6 +80,7 @@ and exp_term('a) =
   | If(exp_t('a), exp_t('a), exp_t('a))
   | Seq(exp_t('a), exp_t('a))
   | Test(exp_t('a))
+  | HintedTest(exp_t('a), exp_t('a))
   | Filter(stepper_filter_kind_t('a), exp_t('a))
   | Closure([@show.opaque] closure_environment_t('a), exp_t('a))
   | Parens(exp_t('a)) // (
@@ -237,6 +238,8 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | Seq(e1, e2) =>
           Seq(map_exp_annotation(f, e1), map_exp_annotation(f, e2))
         | Test(e) => Test(map_exp_annotation(f, e))
+        | HintedTest(e1, h) =>
+          HintedTest(map_exp_annotation(f, e1), map_exp_annotation(f, h))
         | Filter(k, e) =>
           Filter(
             map_stepper_filter_kind_annotation(f, k),
@@ -587,6 +590,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let test = (~ann=?, e): exp_t(DefaultAnnotation.t) => {
       term: Test(e),
+      annotation: default_annotation(ann),
+    };
+    let hinted_test = (~ann=?, e, h): exp_t(DefaultAnnotation.t) => {
+      term: HintedTest(e, h),
       annotation: default_annotation(ann),
     };
     let filter = (~ann=?, k, e): exp_t(DefaultAnnotation.t) => {
