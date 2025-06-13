@@ -224,11 +224,6 @@ let common_err_view =
         text(elements_noun(cls) ++ " have inconsistent types:"),
         ...ListUtil.join(text(","), List.map(view_type, tys)),
       ]
-    | InvalidUseMode({bad_typ, _}) => [
-        text("Cannot use type "),
-        view_type(bad_typ) |> code_box_container,
-        text(" for number operators and literals."),
-      ]
     }
   )
   @ (
@@ -484,6 +479,12 @@ let rec exp_view =
         ++ string_of_int(actual)
         ++ " arguments",
       ),
+    ])
+  | InHole(InvalidUseMode({bad_typ, _})) =>
+    div_err([
+      text("Cannot use type "),
+      view_type(bad_typ) |> code_box_container,
+      text(" for number operators and literals."),
     ])
   | InHole(Common(error)) =>
     div_err(

@@ -82,10 +82,6 @@ type error_common =
       duplicate_labels: list(LabeledTuple.label),
       invalid_labels: list(LabeledTuple.label),
       typ: Typ.t,
-    })
-  | InvalidUseMode({
-      bad_typ: Typ.t,
-      inner_typ: Typ.t,
     });
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -94,7 +90,11 @@ type error_exp =
   | InexhaustiveMatch(option(error_common))
   | UnusedDeferral
   | BadPartialAp(Self.error_partial_ap)
-  | Common(error_common);
+  | Common(error_common)
+  | InvalidUseMode({
+      bad_typ: Typ.t,
+      inner_typ: Typ.t,
+    });
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_pat =
@@ -435,13 +435,6 @@ let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
   | (BadTrivAp(ty), _) => InHole(NoType(BadTrivAp(ty)))
   | (BadLabel(label), _) => InHole(NoType(BadLabel(label)))
   | (InvalidLabel(label), _) => InHole(NoType(InvalidLabel(label)))
-  | (InvalidUseMode({bad_typ, inner_typ}), _) =>
-    InHole(
-      InvalidUseMode({
-        bad_typ,
-        inner_typ,
-      }),
-    )
   | (
       TupleLabelError({
         malformed_labels,
@@ -517,7 +510,6 @@ let rec status_pat = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.pat): status_pat =>
         )
       | InHole(Common(NoType(_)) as err) => Some(err)
       | NotInHole(_) => None
-      | InHole(Common(InvalidUseMode(_)))
       | InHole(Common(DuplicateLabel(_)))
       | InHole(Common(TupleLabelError(_)))
       | InHole(Common(Inconsistent(WithArrow(_))))
@@ -557,10 +549,10 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
       | InHole(Common(NoType(_)))
       | InHole(Common(TupleLabelError(_)))
       | InHole(Common(DuplicateLabel(_)))
-      | InHole(Common(InvalidUseMode(_)))
       | InHole(
           FreeVariable(_) | InexhaustiveMatch(_) | UnusedDeferral |
-          BadPartialAp(_),
+          BadPartialAp(_) |
+          InvalidUseMode(_),
         ) =>
         failwith("InHole(InexhaustiveMatch(impossible_err))")
       };
@@ -569,6 +561,13 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
   | IsDeferral(InAp) => NotInHole(AnaDeferralConsistent(ty_ana))
   | IsDeferral(_) => InHole(UnusedDeferral)
   | IsBadPartialAp(_ as info) => InHole(BadPartialAp(info))
+  | InvalidUseMode({inner_typ, bad_typ}) =>
+    InHole(
+      InvalidUseMode({
+        inner_typ,
+        bad_typ,
+      }),
+    )
   | Common(self_exp) =>
     switch (status_common(ctx, ty_ana, self_exp)) {
     | NotInHole(ok_exp) => NotInHole(Common(ok_exp))
@@ -741,7 +740,6 @@ let fixed_typ_err_common: error_common => Typ.t =
   | NoType(BadLabel(_))
   | NoType(UnboundLivelit(_))
   | NoType(InvalidLabel(_)) => Unknown(Internal) |> Typ.temp
-  | InvalidUseMode({inner_typ, _}) => inner_typ
   | TupleLabelError({typ, _})
   | DuplicateLabel(_, typ) => typ
   | Inconsistent(Expectation({ana, _}) | BadLivelitModel(ana)) => ana
@@ -756,7 +754,8 @@ let fixed_typ_err: error_exp => Typ.t =
   | UnusedDeferral => Unknown(Internal) |> Typ.temp
   | BadPartialAp(_) => Unknown(Internal) |> Typ.temp
   | InexhaustiveMatch(_) => Unknown(Internal) |> Typ.temp
-  | Common(err) => fixed_typ_err_common(err);
+  | Common(err) => fixed_typ_err_common(err)
+  | InvalidUseMode({inner_typ, _}) => inner_typ;
 
 let fixed_typ_err_pat: error_pat => Typ.t =
   fun
