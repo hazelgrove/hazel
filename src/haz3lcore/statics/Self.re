@@ -74,7 +74,6 @@ type exp =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pat =
-  | Redundant(pat)
   | ExpectedConstructor(pat)
   | Common(t);
 
@@ -127,7 +126,6 @@ let typ_of_exp: (Ctx.t, exp) => option(Typ.t) =
 let rec typ_of_pat: (Ctx.t, pat) => option(Typ.t) =
   ctx =>
     fun
-    | Redundant(pat) => typ_of_pat(ctx, pat)
     | ExpectedConstructor(pat) => typ_of_pat(ctx, pat)
     | Common(self) => typ_of(ctx, self);
 

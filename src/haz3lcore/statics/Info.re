@@ -260,6 +260,7 @@ type pat = {
   prev_synswitch: option(Typ.t), // If a pattern is first synthesized, then analysed, the initial syn is stored here.
   ana: Typ.t,
   self: Self.pat,
+  syn_typ: option(Typ.t), /* The self type of the pattern, i.e. the type it would have if it were in a synthetic position */
   cls: Cls.t,
   status: status_pat,
   ty: Typ.t,
@@ -505,37 +506,44 @@ let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
     InHole(NoType(LabelNotFound(name, labels)))
   };
 
-let rec status_pat = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.pat): status_pat =>
-  switch (self) {
-  | Redundant(self) =>
-    let additional_err =
-      switch (status_pat(ctx, ty_ana, self)) {
-      | InHole(
-          Common(
-            Inconsistent(Internal(_) | Expectation(_) | BadLivelitModel(_)),
-          ) as err,
-        )
-      | InHole(Common(NoType(_)) as err) => Some(err)
-      | NotInHole(_) => None
-      | InHole(Common(InvalidUseMode(_)))
-      | InHole(Common(DuplicateLabel(_)))
-      | InHole(Common(TupleLabelError(_)))
-      | InHole(Common(Inconsistent(WithArrow(_))))
-      | InHole(ExpectedConstructor | Redundant(_)) =>
-        // ExpectedConstructor cannot be a reason to hole-wrap the entire pattern
-        failwith("InHole(Redundant(impossible_err))")
-      };
-    InHole(Redundant(additional_err));
-  | Common(FreeConstructor(name)) =>
-    InHole(Common(NoType(FreeConstructor(name))))
-  | ExpectedConstructor(_) => InHole(ExpectedConstructor)
-  | Common(self_pat) =>
-    switch (status_common(ctx, ty_ana, self_pat)) {
-    | NotInHole(ok_pat) => NotInHole(ok_pat)
-    | InHole(err_pat) => InHole(Common(err_pat))
-    }
+let status_pat =
+    (~redundant: bool, ctx: Ctx.t, ty_ana: Typ.t, self: Self.pat): status_pat => {
+  let status: status_pat =
+    switch (self) {
+    | Common(FreeConstructor(name)) =>
+      InHole(Common(NoType(FreeConstructor(name))))
+    | ExpectedConstructor(_) => InHole(ExpectedConstructor)
+    | Common(self_pat) =>
+      switch (status_common(ctx, ty_ana, self_pat)) {
+      | NotInHole(ok_pat) => NotInHole(ok_pat)
+      | InHole(err_pat) => InHole(Common(err_pat))
+      }
+    };
+  if (redundant) {
+    InHole(
+      Redundant(
+        switch (status) {
+        | InHole(
+            Common(
+              Inconsistent(Internal(_) | Expectation(_) | BadLivelitModel(_)),
+            ) as err,
+          )
+        | InHole(Common(NoType(_)) as err) => Some(err)
+        | NotInHole(_) => None
+        | InHole(Common(InvalidUseMode(_)))
+        | InHole(Common(DuplicateLabel(_)))
+        | InHole(Common(TupleLabelError(_)))
+        | InHole(Common(Inconsistent(WithArrow(_))))
+        | InHole(ExpectedConstructor | Redundant(_)) =>
+          // ExpectedConstructor cannot be a reason to hole-wrap the entire pattern
+          failwith("InHole(Redundant(impossible_err))")
+        },
+      ),
+    );
+  } else {
+    status;
   };
-
+};
 /* Determines whether an expression or pattern is in an error hole,
    depending on the mode, which represents the expectations of the
    surrounding syntactic context, and the self which represents the
@@ -697,8 +705,8 @@ let is_error = (ci: t): bool => {
     | InHole(_) => true
     | NotInHole(_) => false
     }
-  | InfoPat({ana, self, ctx, _}) =>
-    switch (status_pat(ctx, ana, self)) {
+  | InfoPat({status, _}) =>
+    switch (status) {
     | InHole(_) => true
     | NotInHole(_) => false
     }
@@ -765,13 +773,7 @@ let fixed_typ_err_pat: error_pat => Typ.t =
   | Common(err) => fixed_typ_err_common(err);
 
 let fixed_typ_pat = (ctx, ty_ana: Typ.t, self: Self.pat): Typ.t => {
-  // TODO: get rid of unwrapping (probably by changing the implementation of error_exp.Redundant)
-  let self =
-    switch (self) {
-    | Redundant(self) => self
-    | _ => self
-    };
-  switch (status_pat(ctx, ty_ana, self)) {
+  switch (status_pat(~redundant=false, ctx, ty_ana, self)) {
   | InHole(err) => fixed_typ_err_pat(err)
   | NotInHole(ok) => fixed_typ_ok(ok)
   };
@@ -827,6 +829,8 @@ let derived_pat =
       ~ana,
       ~ancestors,
       ~self,
+      ~syn_typ: option(Typ.t),
+      ~redundant: bool,
       ~constraint_,
       ~label_inference,
       ~inferred_label,
@@ -834,11 +838,12 @@ let derived_pat =
     )
     : pat => {
   let cls = Cls.Pat(Pat.cls_of_term(upat.term));
-  let status = status_pat(ctx, ana, self);
+  let status = status_pat(~redundant, ctx, ana, self);
   let ty = fixed_typ_pat(ctx, ana, self);
   {
     cls,
     self,
+    syn_typ,
     prev_synswitch,
     ana,
     ty,
