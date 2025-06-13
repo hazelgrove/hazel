@@ -116,16 +116,132 @@ module TestValidationReport = {
   };
 
   // YourTestsValidation
-  let view = (~signal_jump, report: t, max_points: int) => {
+  let view =
+      (
+        ~globals: Globals.t,
+        ~signal_jump,
+        ~signal_editing_test_val_rep,
+        ~signal_update_test_val,
+        ~signal_textbox_active,
+        ~editing_test_val_rep,
+        report: t,
+        max_points: int,
+        max_tests: int,
+      ) => {
     CellCommon.report_footer_view([
       div(
         ~attrs=[Attr.classes(["test-summary"])],
         [
-          div(
-            ~attrs=[Attr.class_("test-text")],
-            [score_view(score_of_percent(percentage(report), max_points))]
-            @ textual_summary(report),
-          ),
+          globals.settings.instructor_mode
+            ? editing_test_val_rep
+                ? div(
+                    ~attrs=[Attr.class_("test-text")],
+                    [
+                      div(
+                        ~attrs=[Attr.class_("input-field")],
+                        [
+                          label([text("Points:")]),
+                          input(
+                            ~attrs=[
+                              Attr.type_("number"),
+                              Attr.class_("point-num-input"),
+                              Attr.id("point-max-input"),
+                              Attr.create("min", "0"),
+                              Attr.value(string_of_int(max_points)),
+                              Attr.on_focus(_ => signal_textbox_active),
+                            ],
+                            (),
+                          ),
+                        ],
+                      ),
+                      div(
+                        ~attrs=[Attr.class_("input-field")],
+                        [
+                          label([text("Tests required:")]),
+                          input(
+                            ~attrs=[
+                              Attr.type_("number"),
+                              Attr.class_("point-num-input"),
+                              Attr.id("test-required-input"),
+                              Attr.create("min", "0"),
+                              Attr.value(string_of_int(max_tests)),
+                              Attr.on_focus(_ => signal_textbox_active),
+                            ],
+                            (),
+                          ),
+                        ],
+                      ),
+                      div(
+                        ~attrs=[Attr.class_("edit-icon")],
+                        [
+                          Widgets.button(
+                            Icons.confirm,
+                            _ => {
+                              let new_dist =
+                                Obj.magic(
+                                  Js_of_ocaml.Js.some(
+                                    JsUtil.get_elem_by_id("point-max-input"),
+                                  ),
+                                )##.value;
+                              let new_test_num =
+                                Obj.magic(
+                                  Js_of_ocaml.Js.some(
+                                    JsUtil.get_elem_by_id(
+                                      "test-required-input",
+                                    ),
+                                  ),
+                                )##.value;
+
+                              let update_events = [
+                                signal_editing_test_val_rep,
+                                signal_update_test_val(
+                                  int_of_string(new_test_num),
+                                  int_of_string(new_dist),
+                                ),
+                              ];
+                              Virtual_dom.Vdom.Effect.Many(update_events);
+                            },
+                          ),
+                        ],
+                      ),
+                      div(
+                        ~attrs=[Attr.class_("edit-icon")],
+                        [
+                          Widgets.button(Icons.cancel, _ =>
+                            signal_editing_test_val_rep
+                          ),
+                        ],
+                      ),
+                    ],
+                  )
+                : div(
+                    ~attrs=[Attr.class_("test-text")],
+                    [
+                      score_view(
+                        score_of_percent(percentage(report), max_points),
+                      ),
+                    ]
+                    @ textual_summary(report)
+                    @ [
+                      div(
+                        ~attrs=[Attr.class_("edit-icon")],
+                        [
+                          Widgets.button(Icons.pencil, _ =>
+                            signal_editing_test_val_rep
+                          ),
+                        ],
+                      ),
+                    ],
+                  )
+            : div(
+                ~attrs=[Attr.class_("test-text")],
+                [
+                  score_view(
+                    score_of_percent(percentage(report), max_points),
+                  ),
+                ]
+                @ textual_summary(report),
+              ),
         ]
         @ Option.to_list(
             report.test_results
@@ -229,10 +345,99 @@ module MutationTestingReport = {
     );
   };
 
-  let summary_message = (~score, ~total, ~found): Node.t =>
+  let summary_message =
+      (
+        ~globals: Globals.t,
+        ~editing_mut_test_rep,
+        ~select_textbox,
+        ~inject_editing_mut_test_rep,
+        ~inject_update_mut_test_rep,
+        ~score,
+        ~total,
+        ~found,
+        ~max_points,
+      )
+      : Node.t =>
     div(
-      ~attrs=[Attr.classes(["test-text"])],
-      [score_view(score), text(summary_str(~total, ~found))],
+      ~attrs=[Attr.class_("test-text")],
+      globals.settings.instructor_mode
+        ? editing_mut_test_rep
+            ? [
+              div(
+                ~attrs=[Attr.class_("input-field")],
+                [
+                  label([text("Points:")]),
+                  input(
+                    ~attrs=[
+                      Attr.type_("number"),
+                      Attr.class_("point-num-input"),
+                      Attr.id("point-max-input"),
+                      Attr.value(string_of_int(max_points)),
+                      Attr.create("min", "0"),
+                      Attr.on_focus(_ => select_textbox),
+                    ],
+                    (),
+                  ),
+                ],
+              ),
+              div(
+                ~attrs=[Attr.class_("edit-icon")],
+                [
+                  Widgets.button(
+                    Icons.confirm,
+                    _ => {
+                      let new_dist =
+                        Obj.magic(
+                          Js_of_ocaml.Js.some(
+                            JsUtil.get_elem_by_id("point-max-input"),
+                          ),
+                        )##.value;
+
+                      let new_hints =
+                        List.init(total, i =>
+                          Obj.magic(
+                            Js_of_ocaml.Js.some(
+                              JsUtil.get_elem_by_id(
+                                "hint-input-" ++ string_of_int(i),
+                              ),
+                            ),
+                          )##.value
+                        );
+
+                      let update_events = [
+                        inject_editing_mut_test_rep,
+                        inject_update_mut_test_rep(
+                          int_of_string(new_dist),
+                          new_hints,
+                        ),
+                      ];
+                      Virtual_dom.Vdom.Effect.Many(update_events);
+                    },
+                  ),
+                ],
+              ),
+              div(
+                ~attrs=[Attr.class_("edit-icon")],
+                [
+                  Widgets.button(Icons.cancel, _ =>
+                    inject_editing_mut_test_rep
+                  ),
+                ],
+              ),
+            ]
+            : [
+              score_view(score),
+              text(summary_str(~total, ~found)),
+              div(
+                ~attrs=[Attr.class_("edit-icon")],
+                [
+                  Widgets.button(Icons.pencil, _ =>
+                    inject_editing_mut_test_rep
+                  ),
+                ],
+              ),
+            ]
+        : [score_view(score), text(summary_str(~total, ~found))],
     );
 
   let bar = (~inject as _, instances) =>
@@ -251,7 +456,16 @@ module MutationTestingReport = {
       ),
     );
 
-  let summary = (~inject, ~report, ~max_points) => {
+  let summary =
+      (
+        ~globals: Globals.t,
+        ~editing_mut_test_rep,
+        ~inject_editing_mut_test_rep,
+        ~inject_update_mut_test_rep,
+        ~select_textbox,
+        ~report,
+        ~max_points,
+      ) => {
     let total = List.length(report.results);
     let found =
       List.length(
@@ -269,54 +483,116 @@ module MutationTestingReport = {
       ],
       [
         summary_message(
+          ~globals,
+          ~editing_mut_test_rep,
+          ~inject_editing_mut_test_rep,
+          ~inject_update_mut_test_rep,
+          ~select_textbox,
           ~score=score_of_percent(percentage(report), max_points),
           ~total,
           ~found,
+          ~max_points,
         ),
-        bar(~inject, report.results),
+        bar(~inject=(), report.results),
       ],
     );
   };
 
   let individual_report =
-      (id, ~inject as _, ~hint: string, ~status: TestStatus.t) =>
-    div(
-      ~attrs=[
-        Attr.classes(["test-report"]),
-        //TODO: wire up test ids
-      ],
-      [
-        div(
-          ~attrs=[
-            Attr.classes([
-              "test-id",
-              "Test" ++ TestStatus.to_string(status),
-            ]),
-          ],
-          /* NOTE: prints lexical index, not unique id */
-          [text(string_of_int(id + 1))],
-        ),
-        // TestView.test_instance_view(~font_metrics, instance),
-      ]
-      @ [
-        div(
-          ~attrs=[
-            Attr.classes([
-              "test-hint",
-              "test-instance",
-              TestStatus.to_string(status),
-            ]),
-          ],
-          [text(hint)],
-        ),
-      ],
-    );
+      (
+        ~i: int,
+        ~hint: string,
+        ~status,
+        ~editing_mut_test_rep,
+        ~globals: Globals.t,
+        ~select_textbox,
+      ) =>
+    if (globals.settings.instructor_mode && editing_mut_test_rep) {
+      div(
+        ~attrs=[
+          Attr.classes(["test-report"]),
+          //TODO: wire up test ids
+        ],
+        [
+          div(
+            ~attrs=[
+              Attr.classes([
+                "test-id",
+                "Test" ++ TestStatus.to_string(status),
+              ]),
+            ],
+            /* NOTE: prints lexical index, not unique id */
+            [text(string_of_int(i + 1))],
+          ),
+          // TestView.test_instance_view(~font_metrics, instance),
+        ]
+        @ [
+          label([text("Hint: ")]),
+          input(
+            ~attrs=[
+              //Attr.type_("string"),
+              Attr.classes(["test-hint", "test-instance"]),
+              Attr.id("hint-input-" ++ string_of_int(i)),
+              Attr.value(hint),
+              Attr.create("min", "0"),
+              Attr.on_focus(_ => select_textbox),
+            ],
+            (),
+          ),
+        ],
+      );
+    } else {
+      div(
+        ~attrs=[
+          Attr.classes(["test-report"]),
+          //TODO: wire up test ids
+        ],
+        [
+          div(
+            ~attrs=[
+              Attr.classes([
+                "test-id",
+                "Test" ++ TestStatus.to_string(status),
+              ]),
+            ],
+            /* NOTE: prints lexical index, not unique id */
+            [text(string_of_int(i + 1))],
+          ),
+          // TestView.test_instance_view(~font_metrics, instance),
+        ]
+        @ [
+          div(
+            ~attrs=[
+              Attr.classes([
+                "test-hint",
+                "test-instance",
+                TestStatus.to_string(status),
+              ]),
+            ],
+            [text(hint)],
+          ),
+        ],
+      );
+    };
 
-  let individual_reports = (~inject, coverage_results) =>
+  let individual_reports =
+      (
+        coverage_results,
+        ~editing_mut_test_rep,
+        ~globals: Globals.t,
+        ~select_textbox,
+      ) =>
     div(
       coverage_results
       |> List.mapi((i, (status, hint)) =>
-           individual_report(i, ~inject, ~hint, ~status)
+           individual_report(
+             ~i,
+             ~hint,
+             ~status,
+             ~editing_mut_test_rep,
+             ~globals,
+             ~select_textbox,
+           )
          ),
     );
 
@@ -377,22 +653,49 @@ module MutationTestingReport = {
   //   };
   // };
 
-  let view = (~inject, report: t, max_points: int) =>
-    if (max_points == 0) {
+  let view =
+      (
+        ~globals: Globals.t,
+        ~editing_mut_test_rep,
+        ~inject_editing_mut_test_rep,
+        ~inject_update_mut_test_rep,
+        ~select_textbox,
+        report: t,
+        max_points: int,
+      ) => {
+    let subcaption =
+      globals.settings.instructor_mode
+        ? ": Student Tests vs. Mutant Implementations"
+        : ": Your Tests vs. Mutant Implementations (hidden)";
+    if (max_points < 0) {
       Node.div([]);
     } else {
       CellCommon.panel(
         ~classes=["test-panel"],
         [
-          CellCommon.caption(
-            "Mutation Testing",
-            ~rest=": Your Tests vs. Buggy Implementations (hidden)",
+          CellCommon.caption("Mutation Testing", ~rest=subcaption),
+          individual_reports(
+            report.results,
+            ~editing_mut_test_rep,
+            ~globals,
+            ~select_textbox,
           ),
-          individual_reports(~inject, report.results),
         ],
-        ~footer=Some(summary(~inject, ~report, ~max_points)),
+        ~footer=
+          Some(
+            summary(
+              ~globals,
+              ~editing_mut_test_rep,
+              ~inject_editing_mut_test_rep,
+              ~inject_update_mut_test_rep,
+              ~select_textbox,
+              ~report,
+              ~max_points,
+            ),
+          ),
       );
     };
+  };
 };
 
 module SyntaxReport = {
@@ -416,47 +719,105 @@ module SyntaxReport = {
     };
   };
 
-  let individual_report = (i: int, hint: string, status: bool) => {
+  let individual_report =
+      (
+        i: int,
+        hint: string,
+        status: bool,
+        ~editing_syntax_rep,
+        ~globals: Globals.t,
+        ~select_textbox,
+      ) => {
     let result_string = status ? "Pass" : "Indet";
 
-    div(
-      ~attrs=[Attr.classes(["test-report"])],
-      [
-        div(
-          ~attrs=[Attr.classes(["test-id", "Test" ++ result_string])],
-          [text(string_of_int(i + 1))],
-        ),
-      ]
-      @ [
-        div(
-          ~attrs=[
-            Attr.classes(["test-hint", "test-instance", result_string]),
-          ],
-          [text(hint)],
-        ),
-      ],
-    );
+    if (globals.settings.instructor_mode && editing_syntax_rep) {
+      div(
+        ~attrs=[Attr.classes(["test-report"])],
+        [
+          div(
+            ~attrs=[Attr.classes(["test-id", "Test" ++ result_string])],
+            [text(string_of_int(i + 1))],
+          ),
+        ]
+        @ [
+          input(
+            ~attrs=[
+              Attr.classes(["test-hint", "test-instance"]),
+              Attr.id("syntax-hint-input-" ++ string_of_int(i)),
+              Attr.value(hint),
+              Attr.create("min", "0"),
+              Attr.on_focus(_ => select_textbox),
+            ],
+            (),
+          ),
+        ],
+      );
+    } else {
+      div(
+        ~attrs=[Attr.classes(["test-report"])],
+        [
+          div(
+            ~attrs=[Attr.classes(["test-id", "Test" ++ result_string])],
+            [text(string_of_int(i + 1))],
+          ),
+        ]
+        @ [
+          div(
+            ~attrs=[
+              Attr.classes(["test-hint", "test-instance", result_string]),
+            ],
+            [text(hint)],
+          ),
+        ],
+      );
+    };
   };
 
-  let individual_reports = (hinted_results: list((bool, string))) => {
+  let individual_reports =
+      (
+        hinted_results: list((bool, string)),
+        ~editing_syntax_rep,
+        ~globals,
+        ~select_textbox,
+      ) => {
     div(
       hinted_results
       |> List.mapi((i, (status, hint)) =>
-           individual_report(i, hint, status)
+           individual_report(
+             i,
+             hint,
+             status,
+             ~editing_syntax_rep,
+             ~globals,
+             ~select_textbox,
+           )
          ),
     );
   };
 
-  let view = (syntax_report: t) => {
+  let view =
+      (
+        ~globals: Globals.t,
+        ~editing_syntax_rep,
+        ~inject_set_editing_syntax_rep,
+        ~inject_update_syntax_rep,
+        ~select_textbox,
+        syntax_report: t,
+      ) => {
+    let subcaption =
+      globals.settings.instructor_mode
+        ? ": Does student's implementation satisfy the syntactic requirements?"
+        : ": Does your implementation satisfy the syntactic requirements?";
     CellCommon.panel(
       ~classes=["test-panel"],
       [
-        CellCommon.caption(
-          "Syntax Validation",
-          ~rest=
-            ": Does your implementation satisfy the syntactic requirements?",
+        CellCommon.caption("Syntax Validation", ~rest=subcaption),
+        individual_reports(
+          syntax_report.hinted_results,
+          ~editing_syntax_rep,
+          ~globals,
+          ~select_textbox,
         ),
-        individual_reports(syntax_report.hinted_results),
       ],
       ~footer=
         Some(
@@ -466,12 +827,69 @@ module SyntaxReport = {
               [
                 div(
                   ~attrs=[Attr.class_("test-text")],
-                  [
-                    percentage_view(syntax_report.percentage),
-                    text(
-                      " of the Implementation Validation points will be earned",
-                    ),
-                  ],
+                  globals.settings.instructor_mode
+                    ? editing_syntax_rep
+                        ? [
+                          div(
+                            ~attrs=[Attr.class_("edit-icon")],
+                            [
+                              Widgets.button(
+                                Icons.confirm,
+                                _ => {
+                                  let new_hints =
+                                    List.init(
+                                      List.length(
+                                        syntax_report.hinted_results,
+                                      ),
+                                      i =>
+                                      Obj.magic(
+                                        Js_of_ocaml.Js.some(
+                                          JsUtil.get_elem_by_id(
+                                            "syntax-hint-input-"
+                                            ++ string_of_int(i),
+                                          ),
+                                        ),
+                                      )##.value
+                                    );
+
+                                  let update_events = [
+                                    inject_set_editing_syntax_rep,
+                                    inject_update_syntax_rep(new_hints),
+                                  ];
+                                  Virtual_dom.Vdom.Effect.Many(update_events);
+                                },
+                              ),
+                            ],
+                          ),
+                          div(
+                            ~attrs=[Attr.class_("edit-icon")],
+                            [
+                              Widgets.button(Icons.cancel, _ =>
+                                inject_set_editing_syntax_rep
+                              ),
+                            ],
+                          ),
+                        ]
+                        : [
+                          percentage_view(syntax_report.percentage),
+                          text(
+                            " of the Implementation Validation points will be earned",
+                          ),
+                          div(
+                            ~attrs=[Attr.class_("edit-icon")],
+                            [
+                              Widgets.button(Icons.pencil, _ =>
+                                inject_set_editing_syntax_rep
+                              ),
+                            ],
+                          ),
+                        ]
+                    : [
+                      percentage_view(syntax_report.percentage),
+                      text(
+                        " of the Implementation Validation points will be earned",
+                      ),
+                    ],
                 ),
               ],
             ),
@@ -497,7 +915,7 @@ module ImplGradingReport = {
           statuses,
           hints,
           Language.TestStatus.Indet,
-          "No hint available.",
+          "No Hint available.",
         );
 
       | None =>
@@ -576,40 +994,94 @@ module ImplGradingReport = {
   //   );
   // };
 
-  let individual_report = (i, ~signal_jump, ~hint: string, ~status, (id, _)) =>
-    div(
-      ~attrs=[
-        Attr.classes(["test-report"]),
-        Attr.on_click(_ => signal_jump(id)),
-      ],
-      [
-        div(
-          ~attrs=[
-            Attr.classes([
-              "test-id",
-              "Test" ++ TestStatus.to_string(status),
-            ]),
-          ],
-          /* NOTE: prints lexical index, not unique id */
-          [text(string_of_int(i + 1))],
-        ),
-        // TestView.test_instance_view(~font_metrics, instance),
-      ]
-      @ [
-        div(
-          ~attrs=[
-            Attr.classes([
-              "test-hint",
-              "test-instance",
-              TestStatus.to_string(status),
-            ]),
-          ],
-          [text(hint)],
-        ),
-      ],
-    );
+  let individual_report =
+      (
+        i,
+        ~signal_jump,
+        ~hint: string,
+        ~status,
+        (id, _),
+        ~editing_impl_grd_rep,
+        ~globals: Globals.t,
+        ~select_textbox,
+      ) =>
+    if (globals.settings.instructor_mode && editing_impl_grd_rep) {
+      print_endline("We are here, trying to edit");
+      div(
+        ~attrs=[
+          Attr.classes(["test-report"]),
+          Attr.on_click(_ => signal_jump(id)),
+        ],
+        [
+          div(
+            ~attrs=[
+              Attr.classes([
+                "test-id",
+                "Test" ++ TestStatus.to_string(status),
+              ]),
+            ],
+            /* NOTE: prints lexical index, not unique id */
+            [text(string_of_int(i + 1))],
+          ),
+          // TestView.test_instance_view(~font_metrics, instance),
+        ]
+        @ [
+          label([text("Hint: ")]),
+          input(
+            ~attrs=[
+              //Attr.type_("string"),
+              Attr.classes(["test-hint", "test-instance"]),
+              Attr.id("impl-hint-input-" ++ string_of_int(i)),
+              Attr.value(hint),
+              Attr.create("min", "0"),
+              Attr.on_focus(_ => select_textbox),
+            ],
+            (),
+          ),
+        ],
+      );
+    } else {
+      div(
+        ~attrs=[
+          Attr.classes(["test-report"]),
+          Attr.on_click(_ => signal_jump(id)),
+        ],
+        [
+          div(
+            ~attrs=[
+              Attr.classes([
+                "test-id",
+                "Test" ++ TestStatus.to_string(status),
+              ]),
+            ],
+            /* NOTE: prints lexical index, not unique id */
+            [text(string_of_int(i + 1))],
+          ),
+          // TestView.test_instance_view(~font_metrics, instance),
+        ]
+        @ [
+          div(
+            ~attrs=[
+              Attr.classes([
+                "test-hint",
+                "test-instance",
+                TestStatus.to_string(status),
+              ]),
+            ],
+            [text(hint)],
+          ),
+        ],
+      );
+    };
 
-  let individual_reports = (~signal_jump, ~report) => {
+  let individual_reports =
+      (
+        ~signal_jump,
+        ~report,
+        ~editing_impl_grd_rep,
+        ~globals,
+        ~select_textbox,
+      ) => {
     switch (report.test_results) {
     | Some(test_results)
         when
@@ -626,6 +1098,9 @@ module ImplGradingReport = {
                ~hint,
                ~status,
                List.nth(test_results.test_map, i),
+               ~editing_impl_grd_rep,
+               ~globals,
+               ~select_textbox,
              )
            ),
       )
@@ -636,19 +1111,31 @@ module ImplGradingReport = {
   // HiddenTests
   let view =
       (
+        ~globals: Globals.t,
+        ~editing_impl_grd_rep,
         ~signal_jump,
+        ~inject_set_editing_impl_grd_rep,
+        ~inject_update_impl_grd_rep,
+        ~select_textbox,
         ~report: t,
         ~syntax_report: SyntaxReport.t,
         ~max_points: int,
       ) => {
+    let subcaption =
+      globals.settings.instructor_mode
+        ? ": Hidden Tests vs. Student's Implementation"
+        : ": Hidden Tests vs. Your Implementation";
     CellCommon.panel(
-      ~classes=["cell-item", "panel", "test-panel"],
+      ~classes=["test-panel"],
       [
-        CellCommon.caption(
-          "Implementation Grading",
-          ~rest=": Hidden Tests vs. Your Implementation",
+        CellCommon.caption("Implementation Grading", ~rest=subcaption),
+        individual_reports(
+          ~signal_jump,
+          ~report,
+          ~editing_impl_grd_rep,
+          ~globals,
+          ~select_textbox,
         ),
-        individual_reports(~signal_jump, ~report),
       ],
       ~footer=
         Some(
@@ -656,18 +1143,114 @@ module ImplGradingReport = {
             div(
               ~attrs=[Attr.classes(["test-summary"])],
               [
-                div(
-                  ~attrs=[Attr.class_("test-text")],
-                  [
-                    score_view(
-                      score_of_percent(
-                        percentage(report, syntax_report),
-                        max_points,
-                      ),
+                globals.settings.instructor_mode
+                  ? editing_impl_grd_rep
+                      ? div(
+                          ~attrs=[Attr.class_("test-text")],
+                          [
+                            div(
+                              ~attrs=[Attr.class_("input-field")],
+                              [
+                                label([text("Points:")]),
+                                input(
+                                  ~attrs=[
+                                    Attr.type_("number"),
+                                    Attr.class_("point-num-input"),
+                                    Attr.id("point-max-input"),
+                                    Attr.value(string_of_int(max_points)),
+                                    Attr.create("min", "0"),
+                                    Attr.on_focus(_ => select_textbox),
+                                  ],
+                                  (),
+                                ),
+                              ],
+                            ),
+                            div(
+                              ~attrs=[Attr.class_("edit-icon")],
+                              [
+                                Widgets.button(
+                                  Icons.confirm,
+                                  _ => {
+                                    let new_dist =
+                                      Obj.magic(
+                                        Js_of_ocaml.Js.some(
+                                          JsUtil.get_elem_by_id(
+                                            "point-max-input",
+                                          ),
+                                        ),
+                                      )##.value;
+
+                                    let new_hints =
+                                      List.init(
+                                        List.length(report.hinted_results), i =>
+                                        Obj.magic(
+                                          Js_of_ocaml.Js.some(
+                                            JsUtil.get_elem_by_id(
+                                              "impl-hint-input-"
+                                              ++ string_of_int(i),
+                                            ),
+                                          ),
+                                        )##.value
+                                      );
+
+                                    let update_events = [
+                                      inject_set_editing_impl_grd_rep,
+                                      inject_update_impl_grd_rep(
+                                        int_of_string(new_dist),
+                                        new_hints,
+                                      ),
+                                    ];
+                                    Virtual_dom.Vdom.Effect.Many(
+                                      update_events,
+                                    );
+                                  },
+                                ),
+                              ],
+                            ),
+                            div(
+                              ~attrs=[Attr.class_("edit-icon")],
+                              [
+                                Widgets.button(Icons.cancel, _ =>
+                                  inject_set_editing_impl_grd_rep
+                                ),
+                              ],
+                            ),
+                          ],
+                        )
+                      : div(
+                          ~attrs=[Attr.class_("test-text")],
+                          [
+                            score_view(
+                              score_of_percent(
+                                percentage(report, syntax_report),
+                                max_points,
+                              ),
+                            ),
+                          ]
+                          @ textual_summary(report)
+                          @ [
+                            div(
+                              ~attrs=[Attr.class_("edit-icon")],
+                              [
+                                Widgets.button(Icons.pencil, _ =>
+                                  inject_set_editing_impl_grd_rep
+                                ),
+                              ],
+                            ),
+                          ],
+                        )
+                  : div(
+                      ~attrs=[Attr.class_("test-text")],
+                      [
+                        score_view(
+                          score_of_percent(
+                            percentage(report, syntax_report),
+                            max_points,
+                          ),
+                        ),
+                      ]
+                      @ textual_summary(report),
                     ),
-                  ]
-                  @ textual_summary(report),
-                ),
               ]
               @ Option.to_list(
                   report.test_results

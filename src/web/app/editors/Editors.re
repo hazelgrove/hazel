@@ -44,7 +44,7 @@ module Store = {
     | Exercises =>
       Model.Exercises(
         ExercisesMode.Store.load(~settings, ~instructor_mode)
-        |> ExercisesMode.Model.unpersist(~settings, ~instructor_mode),
+        |> ExercisesMode.Model.unpersist(~instructor_mode),
       )
     };
   };
@@ -143,7 +143,6 @@ module Update = {
           ~instructor_mode=globals.settings.instructor_mode,
         )
         |> ExercisesMode.Model.unpersist(
-             ~settings=globals.settings.core,
              ~instructor_mode=globals.settings.instructor_mode,
            ),
       )
@@ -245,7 +244,7 @@ module Selection = {
     fun
     | Model.Scratch(_) => Scratch(MainEditor)
     | Model.Documentation(_) => Scratch(MainEditor)
-    | Model.Exercises(_) => Exercises((Exercise.Prelude, MainEditor));
+    | Model.Exercises(_) => Exercises(Cell(Exercise.Prelude, MainEditor));
 };
 
 module View = {

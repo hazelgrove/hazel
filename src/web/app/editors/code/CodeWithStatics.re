@@ -75,6 +75,7 @@ module Update = {
       (
         ~settings,
         ~is_edited,
+        ~ctx=?,
         ~stitch,
         ~dynamics: Language.Dynamics.Map.t,
         ~is_dynamic_term,
@@ -86,6 +87,7 @@ module Update = {
         ? CachedStatics.init(
             ~settings,
             ~stitch,
+            ~ctx?,
             ~is_dynamic_term,
             editor.state.zipper,
           )
