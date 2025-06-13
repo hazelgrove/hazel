@@ -1,5 +1,5 @@
 open Alcotest;
-open Haz3lcore;
+open Language;
 
 module F = IdTagged.FreshGrammar;
 

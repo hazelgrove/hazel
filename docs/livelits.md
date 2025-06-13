@@ -1,12 +1,15 @@
 # Livelits in Hazel
 
 ## Background
+
 Hazel implements a version of the live literals (livelits) mechanism described in [our PLDI 2021 paper](https://hazel.org/papers/livelits-pldi2021.pdf), currently limited to:
+
 - No parameters
 - No splices
 - No user-defined livelits (only builtins)
 
 ## Overview
+
 A livelit is a live GUI widget which can be inserted into expressions and generates code by expansion to an expression of some given type. To invoke a livelit, insert the name of the livelit (always prefixed with ^) then press space.
 
 Each livelit maintains an internal model, which we do not intend clients of the livelit to interact with. When testing a livelit you've created, you can unproject the livelit (by clicking the button on the bottom right of the Hazel UI) and edit this internal model directly.
@@ -50,7 +53,7 @@ module type BuiltinLivelit = {
 
   // View/rendering function
   let view: (model_t, action_t => Ui_effect.t(unit)) => node_or_list;
-  
+
   // Size specification
   let size: ProjectorCore.Shape.t;
 };
@@ -68,4 +71,4 @@ let livelits: list(raw_livelit) =
 
 ## Styling Livelits
 
-To add CSS to style your livelit, modify the `src/haz3lweb/www/style/projectors/proj-livelit.css` file.
+To add CSS to style your livelit, modify the `src/web/www/style/projectors/proj-livelit.css` file.

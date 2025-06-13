@@ -1,6 +1,6 @@
 open Util;
 open OptUtil.Syntax;
-
+open Language;
 // Find exp with id using ugly exception route
 
 exception Found(Exp.t);
