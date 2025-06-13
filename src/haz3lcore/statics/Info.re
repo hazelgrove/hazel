@@ -120,6 +120,11 @@ type ok_ana =
       nojoin: list(Typ.t),
     });
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type syn_info =
+  | Syn(Typ.t) /* The syn type, which is the type of the term in isolation */
+  | InternallyInconsistent({nojoin: list(Typ.t)});
+
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type ok_common =
   | Syn(Typ.t)
@@ -261,6 +266,7 @@ type pat = {
   ana: Typ.t,
   self: Self.pat,
   syn_typ: option(Typ.t), /* The self type of the pattern, i.e. the type it would have if it were in a synthetic position */
+  syn_information: option(syn_info), /* The self type of the pattern, i.e. the type it would have if it were in a synthetic position */
   cls: Cls.t,
   status: status_pat,
   ty: Typ.t,
@@ -865,6 +871,7 @@ let derived_pat =
       ~ancestors,
       ~self: Self.pat,
       ~syn_typ: option(Typ.t),
+      ~syn_information: option(syn_info),
       ~constraint_,
       ~label_inference,
       ~inferred_label,
@@ -888,6 +895,7 @@ let derived_pat =
     cls,
     self,
     syn_typ,
+    syn_information,
     prev_synswitch,
     ana,
     ty,

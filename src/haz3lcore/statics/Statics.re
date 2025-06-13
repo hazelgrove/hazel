@@ -1185,6 +1185,14 @@ and upat_to_info_map =
         ~self=Common(Option.value(~default=self, override_self)),
         ~syn_typ=
           Self.typ_of(ctx, Option.value(~default=self, override_self)),
+        ~syn_information=
+          switch (self) {
+          | NoJoin(i, ts) =>
+            Some(InternallyInconsistent({nojoin: Typ.of_source(ts)}))
+          | _ =>
+            Self.typ_of(ctx, Option.value(~default=self, override_self))
+            |> Option.map((t): Info.syn_info => Syn(t), _)
+          },
         ~constraint_,
         ~label_inference,
         ~inferred_label,
