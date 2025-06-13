@@ -1,5 +1,5 @@
 open Util;
-
+open Language;
 type conclusion =
   | Equality(Exp.t, Exp.t)
   | Other(Exp.t);
