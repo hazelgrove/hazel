@@ -45,12 +45,8 @@ type t =
   | IsMulti /* Multihole, treated as hole */
   | FreeConstructor(Constructor.t) /* Constructor not bound in context or ana type */
   | WantTuple /* Want a Tuple, found not-tuple */
-  | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label))
   /* Currently used by the dot operator for a label not found */
-  | IsLivelitName({
-      name: string,
-      exp_t: Typ.t,
-    });
+  | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label));
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_partial_ap =
@@ -71,6 +67,10 @@ type exp =
   | InvalidUseMode({
       bad_typ: Typ.t,
       inner_typ: Typ.t,
+    })
+  | IsLivelitName({
+      name: string,
+      exp_t: Typ.t,
     });
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -94,7 +94,6 @@ let typ_of: (Ctx.t, t) => option(Typ.t) =
     | Just(typ)
     | Duplicate(_, Just(typ))
     | TupleLabelError({typ, _}) => Some(typ)
-    | IsLivelitName({exp_t, _}) => Some(exp_t)
     | BadLivelitModel(typ) => Some(typ)
     | FreeConstructor(name) =>
       Some(
@@ -123,7 +122,8 @@ let typ_of_exp: (Ctx.t, exp) => option(Typ.t) =
     | IsDeferral(_)
     | IsBadPartialAp(_) => None
     | Common(self) => typ_of(ctx, self)
-    | InvalidUseMode({inner_typ, _}) => Some(inner_typ);
+    | InvalidUseMode({inner_typ, _}) => Some(inner_typ)
+    | IsLivelitName({exp_t, _}) => Some(exp_t);
 
 let rec typ_of_pat: (Ctx.t, pat) => option(Typ.t) =
   ctx =>
@@ -170,12 +170,10 @@ let of_exp_livelit_name = (ctx: Ctx.t, name: string): exp => {
   switch (res) {
   | None => Free(name)
   | Some(livelit) =>
-    Common(
-      IsLivelitName({
-        name: livelit.name,
-        exp_t: livelit.expansion_t,
-      }),
-    )
+    IsLivelitName({
+      name: livelit.name,
+      exp_t: livelit.expansion_t,
+    })
   };
 };
 

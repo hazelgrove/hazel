@@ -56,8 +56,6 @@ type error_no_type =
   | BadTrivAp(Typ.t)
   /* Sum constructor neiter bound nor in ana type */
   | FreeConstructor(Constructor.t)
-  /* Livelit name not bound in ctx */
-  | UnboundLivelit(string)
   /* Dot Operator is ill-formed */
   | WantTuple
   /* Label not found in tuple for dot operator */
@@ -94,7 +92,9 @@ type error_exp =
   | InvalidUseMode({
       bad_typ: Typ.t,
       inner_typ: Typ.t,
-    });
+    })
+  /* Livelit name not bound in ctx */
+  | UnboundLivelit(string);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_pat =
@@ -422,12 +422,6 @@ let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
         ),
       )
     }
-  | (IsLivelitName({name, _}), _) =>
-    let ll = Ctx.lookup_livelit(ctx, name);
-    switch (ll) {
-    | None => InHole(NoType(UnboundLivelit(name)))
-    | Some(_livelit) => NotInHole(Syn(Unknown(Internal) |> Typ.temp))
-    };
   | (BadLivelitModel(typ), _) => InHole(Inconsistent(BadLivelitModel(typ)))
   | (FreeConstructor(name), _) => InHole(NoType(FreeConstructor(name)))
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
@@ -552,7 +546,8 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
       | InHole(
           FreeVariable(_) | InexhaustiveMatch(_) | UnusedDeferral |
           BadPartialAp(_) |
-          InvalidUseMode(_),
+          InvalidUseMode(_) |
+          UnboundLivelit(_),
         ) =>
         failwith("InHole(InexhaustiveMatch(impossible_err))")
       };
@@ -568,6 +563,14 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
         bad_typ,
       }),
     )
+  | IsLivelitName({name, _}) =>
+    let ll = Ctx.lookup_livelit(ctx, name);
+    switch (ll) {
+    | None => InHole(UnboundLivelit(name))
+    | Some(_livelit) =>
+      NotInHole(Common(Syn(Unknown(Internal) |> Typ.temp)))
+    };
+
   | Common(self_exp) =>
     switch (status_common(ctx, ty_ana, self_exp)) {
     | NotInHole(ok_exp) => NotInHole(Common(ok_exp))
@@ -738,7 +741,6 @@ let fixed_typ_err_common: error_common => Typ.t =
   | NoType(WantTuple)
   | NoType(LabelNotFound(_))
   | NoType(BadLabel(_))
-  | NoType(UnboundLivelit(_))
   | NoType(InvalidLabel(_)) => Unknown(Internal) |> Typ.temp
   | TupleLabelError({typ, _})
   | DuplicateLabel(_, typ) => typ
@@ -750,6 +752,7 @@ let fixed_typ_err_common: error_common => Typ.t =
 
 let fixed_typ_err: error_exp => Typ.t =
   fun
+  | UnboundLivelit(_) => Unknown(Internal) |> Typ.temp
   | FreeVariable(_) => Unknown(Internal) |> Typ.temp
   | UnusedDeferral => Unknown(Internal) |> Typ.temp
   | BadPartialAp(_) => Unknown(Internal) |> Typ.temp
