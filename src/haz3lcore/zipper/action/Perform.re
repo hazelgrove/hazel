@@ -195,7 +195,10 @@ let go_z =
     | None => Error(Action.Failure.Cant_select)
     }
   | Select(Resize(d)) =>
-    Select.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_select)
+    switch (Select.go(d, z)) {
+    | Some(z) => Ok(z)
+    | None => Ok(z)
+    }
   | Destruct(d) =>
     z
     |> Destruct.go(d)
