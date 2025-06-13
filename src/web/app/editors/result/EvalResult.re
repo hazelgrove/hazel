@@ -53,7 +53,7 @@ module Model = {
       | OldValue(ResultFail(_) | ResultPending | Off(_))
       | NewValue(ResultFail(_) | ResultPending | Off(_)) => None
       }
-    | Stepper(s) => Some(s.history |> StepperView.Model.get_state)
+    | Stepper(s) => Some(s |> StepperView.Model.get_state)
     | NoElab => None
     };
 
@@ -259,7 +259,7 @@ module Update = {
         };
       | (Stepper, _) =>
         let s =
-          StepperView.Model.init()
+          StepperView.Model.init
           |> StepperView.Update.calculate(~settings, elab);
         {
           ...model,
@@ -476,7 +476,7 @@ module View = {
     | Stepper(s) =>
       StepperView.View.view(
         ~globals,
-        ~selection=
+        ~selected=
           switch (selected) {
           | Some(Stepper(s)) => Some(s)
           | _ => None
@@ -484,10 +484,8 @@ module View = {
         ~signal=
           fun
           | HideStepper => inject(ToggleStepper)
-          | JumpTo(id) => signal(JumpTo(id))
           | MakeActive(s) => signal(MakeActive(Stepper(s))),
         ~inject=x => inject(StepperAction(x)),
-        ~read_only=locked,
         s,
       )
     };
