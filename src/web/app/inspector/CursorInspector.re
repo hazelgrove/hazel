@@ -136,7 +136,6 @@ let common_err_view =
         view_any(label),
       ]
     | NoType(FreeConstructor(name)) => [code(name), text("not found")]
-    | NoType(WantTuple) => [text("Requires tuple for first argument")]
     | NoType(LabelNotFound(name, labels)) => [
         text("Label "),
         code(name),
@@ -482,6 +481,8 @@ let rec exp_view =
       text("inconsistent with"),
       view_type(Prod([]) |> Typ.fresh),
     ])
+  | InHole(WantTuple) =>
+    div_err([text("Requires tuple for first argument")])
   | InHole(Common(error)) =>
     div_err(
       common_err_view(
