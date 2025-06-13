@@ -29,7 +29,7 @@
   min-width: 100%;
 }
 
-.cell>* {
+.cell > * {
   padding-left: 1em;
   padding: 1em;
   padding-left: 1.2em;
@@ -115,6 +115,11 @@
   padding: 1em;
 }
 
+.slide {
+  padding: 1em;
+  padding-left: 1.2em;
+}
+
 .slide h1 {
   margin-top: 0;
   color: var(--BR4);
@@ -189,7 +194,7 @@
 }
 
 .cell-prompt .prompt-edit {
-  font-size: 1.0rem;
+  font-size: 1rem;
   width: 80%;
   color: var(--light-text-color);
   flex-grow: 1;
