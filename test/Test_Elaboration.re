@@ -1,5 +1,5 @@
 open Alcotest;
-open Haz3lcore;
+open Language;
 
 /*Create a testable type for dhexp which requires
   an equal function (dhexp_eq) and a print function (dhexp_print) */
@@ -18,7 +18,7 @@ module PlainTests = {
   open IdTagged.FreshGrammar;
 
   let parse_exp = (s: string) => {
-    switch (Haz3lcore.Parse.parse_exp(s)) {
+    switch (Parse.parse_exp(s)) {
     | Some(e) => e
     | None => Alcotest.fail("Failed to parse expression: " ++ s)
     };
@@ -707,8 +707,8 @@ module MenhirElaborationTests = {
       name,
       Grammar.map_exp_annotation(
         _ => IdTagged.IdTag.fresh(),
-        Haz3lmenhir.Conversion.Exp.of_menhir_ast(
-          Haz3lmenhir.Interface.parse_program(dhexp),
+        MenhirParser.Conversion.Exp.of_menhir_ast(
+          MenhirParser.Interface.parse_program(dhexp),
         ),
       ),
       dhexp_of_uexp(uexp),

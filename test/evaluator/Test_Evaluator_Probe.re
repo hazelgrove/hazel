@@ -1,5 +1,5 @@
 open Alcotest;
-open Haz3lcore;
+open Language;
 open Test_Evaluator_Prelude;
 let evaluate_probes = unevaluated =>
   unevaluated

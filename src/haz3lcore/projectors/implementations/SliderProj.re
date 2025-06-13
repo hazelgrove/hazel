@@ -8,13 +8,13 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = unit;
 
-  let int_of = (any: Any.t): option(Bigint.t) =>
+  let int_of = (any: Language.Any.t): option(Bigint.t) =>
     switch (any) {
     | Exp({term: Atom(Int(i)), _}) => Some(i)
     | _ => None
     };
 
-  let init = (any: Term.Any.t) =>
+  let init = (any: Language.Any.t) =>
     switch (int_of(any)) {
     | Some(_) => Some()
     | None => None
@@ -59,7 +59,7 @@ module M: Projector = {
         ~view_seg as _,
       ) =>
     View.mk(
-      Util.Web.range(
+      Util.WebUtil.range(
         ~attrs=[Attr.on_input((_, v) => parent(SetSyntax(put(info, v))))],
         info |> get |> Bigint.to_string,
       ),
