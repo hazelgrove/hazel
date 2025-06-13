@@ -1,17 +1,12 @@
 open Virtual_dom.Vdom;
 open Node;
 open ProjectorBase;
-
-let mode = (info: option(Info.t)): option(Mode.t) =>
-  switch (info) {
-  | Some(InfoExp({mode, _}))
-  | Some(InfoPat({mode, _})) => Some(mode)
-  | _ => None
-  };
+open Language;
 
 let expected_ty = (info: option(Info.t)): option(Typ.t) =>
-  switch (mode(info)) {
-  | Some(mode) => Some(Mode.ty_of(mode))
+  switch (info) {
+  | Some(InfoExp({ana, _}))
+  | Some(InfoPat({ana, _})) => Some(ana)
   | _ => None
   };
 
@@ -52,15 +47,16 @@ module M: Projector = {
 
   let display_ty = (model, statics): option(Typ.t) =>
     switch (model) {
-    | _ when mode(statics) == Some(Syn) => statics |> self_ty
+    | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn =>
+      statics |> self_ty
     | Self => statics |> self_ty
     | Expected => statics |> expected_ty
     };
 
-  let display_mode = (model: model, statics: option(Info.t)): string =>
+  let display_mode = (model: model, statics: option(Language.Info.t)): string =>
     switch (model) {
     | _ when self_ty(statics) == expected_ty(statics) => "⇔"
-    | _ when mode(statics) == Some(Syn) => "⇒"
+    | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn => "⇒"
     | Self => "⇒"
     | Expected => "⇐"
     };
@@ -88,7 +84,7 @@ module M: Projector = {
   let syntax_str = (info: info) => {
     let max_len = 30;
     let seg = Segment.unparenthesize(info.syntax);
-    let str = Printer.of_segment(~holes=Some("?"), seg);
+    let str = info.utility.seg_to_string(seg);
     let str = Re.Str.global_replace(Re.Str.regexp("\n"), " ", str);
     String.length(str) > max_len
       ? String.sub(str, 0, max_len) ++ "..." : str;

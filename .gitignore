@@ -59,3 +59,4 @@ hazel.opam.locked.old
 
 # Code coverage
 _coverage/
+node_modules/** 

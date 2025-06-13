@@ -59,6 +59,35 @@ let neighbor_movability =
   (l, r);
 };
 
+let pop_out = z => Some(z |> Zipper.set_caret(Outer));
+let pop_move = (d, z) => z |> Zipper.set_caret(Outer) |> Zipper.move(d);
+let inner_incr = (delim, c, z) =>
+  Some(Zipper.set_caret(Inner(delim, c + 1), z));
+let inner_decr = z => Some(Zipper.update_caret(Zipper.Caret.decrement, z));
+let inner_start = (d_init, z) =>
+  Some(Zipper.set_caret(Inner(d_init, 0), z));
+let inner_end = (d, d_init, c_max, z) =>
+  z |> Zipper.set_caret(Inner(d_init, c_max)) |> Zipper.move(d);
+
+let primary = (chunkiness: chunkiness, d: Direction.t, z: t): option(t) => {
+  switch (d, z.caret, neighbor_movability(chunkiness, z)) {
+  /* this case maybe shouldn't be necessary but currently covers an edge
+     (select an open parens to left of a multichar token and press left) */
+  | _ when z.selection.content != [] => pop_move(d, z)
+  | (Left, Outer, (CanEnter(dlm, c_max), _)) => inner_end(d, dlm, c_max, z)
+  | (Left, Outer, _) => Zipper.move(d, z)
+  | (Left, Inner(_), _) when chunkiness == ByToken => pop_out(z)
+  | (Left, Inner(_), _) =>
+    Some(Zipper.update_caret(Zipper.Caret.decrement, z))
+  | (Right, Outer, (_, CanEnter(d_init, _))) => inner_start(d_init, z)
+  | (Right, Outer, _) => Zipper.move(d, z)
+  | (Right, Inner(_, c), (_, CanEnter(_, c_max))) when c == c_max =>
+    pop_move(d, z)
+  | (Right, Inner(_), _) when chunkiness == ByToken => pop_move(d, z)
+  | (Right, Inner(delim, c), _) => inner_incr(delim, c, z)
+  };
+};
+
 module type S = {
   let measured: Measured.t;
   let term_ranges: TermRanges.t;
@@ -67,37 +96,7 @@ module type S = {
 
 module Make = (M: S) => {
   let caret_point = Zipper.caret_point(M.measured);
-
-  let pop_out = z => Some(z |> Zipper.set_caret(Outer));
-  let pop_move = (d, z) => z |> Zipper.set_caret(Outer) |> Zipper.move(d);
-  let inner_incr = (delim, c, z) =>
-    Some(Zipper.set_caret(Inner(delim, c + 1), z));
-  let inner_decr = z => Some(Zipper.update_caret(Zipper.Caret.decrement, z));
-  let inner_start = (d_init, z) =>
-    Some(Zipper.set_caret(Inner(d_init, 0), z));
-  let inner_end = (d, d_init, c_max, z) =>
-    z |> Zipper.set_caret(Inner(d_init, c_max)) |> Zipper.move(d);
-
-  let primary = (chunkiness: chunkiness, d: Direction.t, z: t): option(t) => {
-    switch (d, z.caret, neighbor_movability(chunkiness, z)) {
-    /* this case maybe shouldn't be necessary but currently covers an edge
-       (select an open parens to left of a multichar token and press left) */
-    | _ when z.selection.content != [] => pop_move(d, z)
-    | (Left, Outer, (CanEnter(dlm, c_max), _)) =>
-      inner_end(d, dlm, c_max, z)
-    | (Left, Outer, _) => Zipper.move(d, z)
-    | (Left, Inner(_), _) when chunkiness == ByToken => pop_out(z)
-    | (Left, Inner(_), _) =>
-      Some(Zipper.update_caret(Zipper.Caret.decrement, z))
-    | (Right, Outer, (_, CanEnter(d_init, _))) => inner_start(d_init, z)
-    | (Right, Outer, _) => Zipper.move(d, z)
-    | (Right, Inner(_, c), (_, CanEnter(_, c_max))) when c == c_max =>
-      pop_move(d, z)
-    | (Right, Inner(_), _) when chunkiness == ByToken => pop_move(d, z)
-    | (Right, Inner(delim, c), _) => inner_incr(delim, c, z)
-    };
-  };
-
+  let primary = primary;
   let is_at_side_of_row = (d: Direction.t, z: Zipper.t) => {
     let Point.{row, col} = caret_point(z);
     switch (Zipper.move(d, z)) {
@@ -149,23 +148,21 @@ module Make = (M: S) => {
        * we choose between current and previous (undershot) positions */
       | (Over, Over | Exact | Under) =>
         switch (force_progress) {
-        | false =>
-          /* Ideally we would use the same logic as from the below
-           * anchor case here; however that results in strange
-           * behavior when accidentally starting a drag at the end
-           * of a line, which triggers the (invisible) selection of
-           * a linebreak, making it appear that the caret has jumped
-           * to the next line. The downside of leaving this as-is is
-           * that multiline tokens (projectors) do not become part of
-           * the selection when dragging until you're all the way
-           * over them, which is slightly visually jarring */
-          prev
-        | true =>
-          /* Up/down kb movement works by setting a goal one row
-           * below the current. When adjacent to a multiline token,
-           * the nearest next caret position may be multiple lines down.
-           * We must allow this overshoot in order to make progress. */
-          caret_point(prev) == init ? curr : prev
+        /* Ideally we would use the same logic as from the below
+         * anchor case here; however that results in strange
+         * behavior when accidentally starting a drag at the end
+         * of a line, which triggers the (invisible) selection of
+         * a linebreak, making it appear that the caret has jumped
+         * to the next line. The downside of leaving this as-is is
+         * that multiline tokens (projectors) do not become part of
+         * the selection when dragging until you're all the way
+         * over them, which is slightly visually jarring */
+        | false => prev
+        /* Up/down kb movement works by setting a goal one row
+         * below the current. When adjacent to a multiline token,
+         * the nearest next caret position may be multiple lines down.
+         * We must allow this overshoot in order to make progress. */
+        | true => caret_point(prev) == init ? curr : prev
         }
       | (Exact, Over) =>
         switch (anchor) {
@@ -197,7 +194,10 @@ module Make = (M: S) => {
        caret position to a target derived from the initial position */
     let cur_p = caret_point(z);
     let goal =
-      Point.{col: M.col_target, row: cur_p.row + (d == Right ? 1 : (-1))};
+      Point.{
+        col: M.col_target,
+        row: cur_p.row + (d == Right ? 1 : (-1)),
+      };
     do_towards(~force_progress=true, f, goal, z);
   };
 
@@ -206,10 +206,22 @@ module Make = (M: S) => {
     let cur_p = caret_point(z);
     let goal: Point.t =
       switch (d) {
-      | Right(_) => {col: Int.max_int, row: cur_p.row}
-      | Left(_) => {col: 0, row: cur_p.row}
-      | Up => {col: 0, row: 0}
-      | Down => {col: Int.max_int, row: Int.max_int}
+      | Right(_) => {
+          col: Int.max_int,
+          row: cur_p.row,
+        }
+      | Left(_) => {
+          col: 0,
+          row: cur_p.row,
+        }
+      | Up => {
+          col: 0,
+          row: 0,
+        }
+      | Down => {
+          col: Int.max_int,
+          row: Int.max_int,
+        }
       };
     do_towards(f, goal, z);
   };

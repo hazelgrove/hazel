@@ -2,9 +2,10 @@ open Util;
 open Virtual_dom.Vdom;
 open ProjectorBase;
 
-let string_of = (any: Any.t): option(string) =>
+let string_of = (any: Language.Any.t): option(string) =>
   switch (any) {
-  | Exp({term: String(s), _}) => Some(StringUtil.unescape_linebreaks(s))
+  | Exp({term: Atom(String(s)), _}) =>
+    Some(StringUtil.unescape_linebreaks(s))
   | _ => None
   };
 
@@ -23,7 +24,10 @@ let put = (info, s: string): Base.segment =>
     info.utility.lift_syntax(
       fun
       | Exp(any) =>
-        Exp({...any, term: String(StringUtil.escape_linebreaks(s))})
+        Exp({
+          ...any,
+          term: Atom(String(StringUtil.escape_linebreaks(s))),
+        })
       | _any => failwith("TextArea: put: not string literal"),
       info.syntax,
     )
@@ -37,10 +41,12 @@ let key_handler = (id, ~parent, evt) => {
   let key = Key.mk(KeyDown, evt);
 
   switch (key.key) {
-  | D("ArrowRight" | "ArrowDown") when Web.TextArea.is_last_pos(Id.cls(id)) =>
+  | D("ArrowRight" | "ArrowDown")
+      when WebUtil.TextArea.is_last_pos(Id.cls(id)) =>
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
     Many([parent(Escape(Right)), Stop_propagation]);
-  | D("ArrowLeft" | "ArrowUp") when Web.TextArea.is_first_pos(Id.cls(id)) =>
+  | D("ArrowLeft" | "ArrowUp")
+      when WebUtil.TextArea.is_first_pos(Id.cls(id)) =>
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
     Many([parent(Escape(Left)), Stop_propagation]);
   /* Defer to parent editor undo for now */
@@ -82,7 +88,7 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = unit;
 
-  let init = (any: Term.Any.t) =>
+  let init = (any: Language.Any.t) =>
     switch (string_of(any)) {
     | Some(_) => Some()
     | None => None
@@ -91,8 +97,10 @@ module M: Projector = {
   let focus_keyboard = (id: Id.t, d: Direction.t) => {
     JsUtil.get_elem_by_id(Id.cls(id))##focus;
     switch (d) {
-    | Left => Web.TextArea.set_caret_to_start(Web.TextArea.get(Id.cls(id)))
-    | Right => Web.TextArea.set_caret_to_end(Web.TextArea.get(Id.cls(id)))
+    | Left =>
+      WebUtil.TextArea.set_caret_to_start(WebUtil.TextArea.get(Id.cls(id)))
+    | Right =>
+      WebUtil.TextArea.set_caret_to_end(WebUtil.TextArea.get(Id.cls(id)))
     };
   };
 
