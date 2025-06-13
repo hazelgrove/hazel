@@ -1,5 +1,6 @@
 open Util;
 open Virtual_dom.Vdom;
+open Language;
 
 /* This descibes the API for projectors: GUIs which
  * can replace part of the program syntax and perform
@@ -26,9 +27,10 @@ type external_action =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type utility = {
   /* Convert a segment to a term */
-  seg_to_term: Base.segment => option(Term.Any.t),
+  seg_to_term: Base.segment => option(Any.t),
   /* Convert a term to a segment */
   term_to_seg: Any.t => Base.segment,
+  seg_to_string: Base.segment => string,
   /* Lifts term->term functions to syntax->syntax. This will
    * proactively attempt to parenthesize resulting non-single
    * piece terms. As such, sorts that do not have parentheses
@@ -78,12 +80,12 @@ type info = {
   /* Static information about the syntax including type
    * information. Statics may be disabled by the user;
    * this case (None) must be handled by projector authors */
-  statics: option(Statics.Info.t),
+  statics: option(Language.Statics.Info.t),
   /* Dynamic information about the syntax including
    * live values of the syntax. Dynamics may be
    * disabled by the user; this case (None) must be
    * handled by projector authors */
-  dynamics: option(Dynamics.Info.t),
+  dynamics: option(Language.Dynamics.Info.t),
   /* Syntax utility functions/values for projector use,
    * provided here to resolve cyclic dependency issues */
   utility,
@@ -139,7 +141,7 @@ module type Projector = {
   /* Init should return None if the projector doesn't want
    * to handle the provided term. Otherwise, it should
    * return the desired initial state of the model. */
-  let init: Term.Any.t => option(model);
+  let init: Any.t => option(model);
   /* Does this projector have some notion of internal
    * positions, whose handling should override the editor
    * caret & keyboard handlers? If so, provide handlers
