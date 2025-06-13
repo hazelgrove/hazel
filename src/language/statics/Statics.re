@@ -752,11 +752,11 @@ and uexp_to_info_map =
         let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
 
         let (arg, m) = go(~ana=ty_in, arg, m);
-        let self: Self.t =
+        let self: Self.exp =
           Id.is_nullary_ap_flag(IdTagged.ids(arg.term))
           && !Typ.is_consistent(ctx, ty_in, Prod([]) |> Typ.temp)
-            ? BadTrivAp(ty_in) : Just(ty_out);
-        add(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]), m);
+            ? BadTrivAp(ty_in) : Common(Just(ty_out));
+        add'(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]), m);
       }
     | TypAp(fn, utyp) =>
       let typfn_ana =

@@ -52,8 +52,6 @@ type error_no_type =
   | BadToken(string)
   /* Invalid operator for current use mode, treated as hole */
   | BadOperator(string)
-  /* Empty application of function with inconsistent type */
-  | BadTrivAp(Typ.t)
   /* Sum constructor neiter bound nor in ana type */
   | FreeConstructor(Constructor.t)
   /* Dot Operator is ill-formed */
@@ -94,7 +92,9 @@ type error_exp =
       inner_typ: Typ.t,
     })
   /* Livelit name not bound in ctx */
-  | UnboundLivelit(string);
+  | UnboundLivelit(string)
+  /* Empty application of function with inconsistent type */
+  | BadTrivAp(Typ.t);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_pat =
@@ -426,7 +426,6 @@ let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
   | (FreeConstructor(name), _) => InHole(NoType(FreeConstructor(name)))
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
   | (BadOperator(op), _) => InHole(NoType(BadOperator(op)))
-  | (BadTrivAp(ty), _) => InHole(NoType(BadTrivAp(ty)))
   | (BadLabel(label), _) => InHole(NoType(BadLabel(label)))
   | (InvalidLabel(label), _) => InHole(NoType(InvalidLabel(label)))
   | (
@@ -552,7 +551,8 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
           UnusedDeferral |
           BadPartialAp(_) |
           InvalidUseMode(_) |
-          UnboundLivelit(_),
+          UnboundLivelit(_) |
+          BadTrivAp(_),
         ) =>
         failwith("InHole(InexhaustiveMatch(impossible_err))")
       };
@@ -575,6 +575,7 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
     | Some(_livelit) =>
       NotInHole(Common(Syn(Unknown(Internal) |> Typ.temp)))
     };
+  | BadTrivAp(ty) => InHole(BadTrivAp(ty))
 
   | Common(self_exp) =>
     switch (status_common(ctx, ty_ana, self_exp)) {
@@ -741,9 +742,7 @@ let fixed_typ_err_common: error_common => Typ.t =
     ])
     |> Typ.temp
   | NoType(
-      BadToken(_) | BadOperator(_) | BadTrivAp(_) | WantTuple |
-      LabelNotFound(_) |
-      BadLabel(_) |
+      BadToken(_) | BadOperator(_) | WantTuple | LabelNotFound(_) | BadLabel(_) |
       InvalidLabel(_),
     ) =>
     Unknown(Internal) |> Typ.temp
@@ -761,7 +760,8 @@ let fixed_typ_err: error_exp => Typ.t =
   | FreeVariable(_)
   | UnusedDeferral
   | BadPartialAp(_)
-  | InexhaustiveMatch(_) => Unknown(Internal) |> Typ.temp
+  | InexhaustiveMatch(_)
+  | BadTrivAp(_) => Unknown(Internal) |> Typ.temp
   | Common(err) => fixed_typ_err_common(err)
   | InvalidUseMode({inner_typ, _}) => inner_typ;
 
