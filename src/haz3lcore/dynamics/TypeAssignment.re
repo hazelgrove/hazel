@@ -268,6 +268,10 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
     let* ty = typ_of_dhexp(ctx, m, dtest);
     Typ.equal(ty, Atom(Bool) |> Typ.temp)
       ? Some(Prod([]) |> Typ.temp) : None;
+  | HintedTest(dtest, _) =>
+    let* ty = typ_of_dhexp(ctx, m, dtest);
+    Typ.equal(ty, Atom(Bool) |> Typ.temp)
+      ? Some(Prod([]) |> Typ.temp) : None;
   | Atom(c) => Some(Atom(c |> Atom.cls_of_t) |> Typ.temp)
   | BinOp(op, d1, d2) =>
     let* ty1 = typ_of_dhexp(ctx, m, d1);

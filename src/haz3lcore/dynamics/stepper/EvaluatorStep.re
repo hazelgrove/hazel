@@ -144,6 +144,9 @@ let rec matches =
       | Test(ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Test(ctx) |> rewrap;
+      | HintedTest(ctx, hint) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        HintedTest(ctx, hint) |> rewrap;
       | Parens(ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Parens(ctx) |> rewrap;

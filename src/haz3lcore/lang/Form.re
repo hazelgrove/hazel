@@ -108,6 +108,7 @@ let keywords = [
   "if",
   "then",
   "else",
+  "hint",
 ];
 let reserved_keywords = ["of", "when", "with", "switch", "match"];
 let keyword_regexp = regexp("^(" ++ String.concat("|", keywords) ++ ")$");
@@ -354,6 +355,7 @@ type compound_form =
   | AtSign
   | Case
   | Test
+  | HintedTest
   | Fun
   | Fix
   | TypFun
@@ -441,6 +443,7 @@ let get: compound_form => t =
   | AtSign => mk_nul_infix("@", P.eqs) // HACK: SUBSTRING REQ
   | Case => mk(ds, ["case", "end"], mk_op(Exp, [Rul]))
   | Test => mk(ds, ["test", "end"], mk_op(Exp, [Exp]))
+  | HintedTest => mk(ds, ["hint", "test", "end"], mk_op(Exp, [Exp, Exp]))
   | Fun => mk(ds, ["fun", "->"], mk_pre(P.fun_, Exp, [Pat]))
   | Fix => mk(ds, ["fix", "->"], mk_pre(P.fun_, Exp, [Pat]))
   | TypFun => mk(ds, ["typfun", "->"], mk_pre(P.fun_, Exp, [TPat]))

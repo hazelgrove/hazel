@@ -367,6 +367,7 @@ module Exp = {
     | If
     | Seq
     | Test
+    | HintedTest
     | Filter
     | Closure
     | Parens
@@ -429,6 +430,7 @@ module Exp = {
     | If(_) => If
     | Seq(_) => Seq
     | Test(_) => Test
+    | HintedTest(_) => HintedTest
     | Filter(_) => Filter
     | Closure(_) => Closure
     | Parens(_) => Parens
@@ -475,6 +477,7 @@ module Exp = {
     | If => "If expression"
     | Seq => "Sequence expression"
     | Test => "Test"
+    | HintedTest => "Hinted Test"
     | Filter => "Filter"
     | Closure => "Closure"
     | Parens => "Parenthesized expression"
@@ -555,6 +558,7 @@ module Exp = {
     | If(_)
     | Seq(_)
     | Test(_)
+    | HintedTest(_)
     | Filter(_)
     | Cons(_)
     | ListConcat(_)
@@ -617,6 +621,7 @@ module Exp = {
       | If(_)
       | Seq(_)
       | Test(_)
+      | HintedTest(_)
       | Filter(_)
       | Cons(_)
       | ListConcat(_)
@@ -677,6 +682,7 @@ module Exp = {
       | If(_)
       | Seq(_)
       | Test(_)
+      | HintedTest(_)
       | Cons(_)
       | ListConcat(_)
       | UnOp(_)
@@ -835,6 +841,7 @@ module Exp = {
           | If(_)
           | Seq(_)
           | Test(_)
+          | HintedTest(_)
           | Filter(_)
           | Parens(_)
           | Probe(_)

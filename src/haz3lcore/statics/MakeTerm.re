@@ -241,6 +241,11 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | term => ret(ListLit([term]))
         }
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
+      | (["hint", "test", "end"], [Exp(hint), Exp(test)]) =>
+        switch (hint.term) {
+        | Atom(String(_)) => ret(HintedTest(test, hint))
+        | _ => ret(hole(tm))
+        }
       | (
           ["case", "end"],
           [Rul({term: Rules(scrut, rules), annotation: {ids, _}})],

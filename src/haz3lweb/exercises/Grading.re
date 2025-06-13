@@ -493,6 +493,7 @@ module ImplGradingReport = {
       switch (test_results) {
       | Some(test_results) =>
         let statuses = test_results.statuses;
+        let hints = test_results.hints;
         Util.ListUtil.zip_defaults(
           statuses,
           hints,
