@@ -133,6 +133,53 @@ let rec is_arrow = (typ: t) => {
   };
 };
 
+let rec is_var = (typ: t) => {
+  switch (typ.term) {
+  | Parens(typ)
+  | TupLabel(_, typ) => is_var(typ)
+  | Var(v) =>
+    if (String.length(v) == 1 && Char.lowercase_ascii(v.[0]) == v.[0]) {
+      true;
+    } else {
+      false;
+    }
+  | Unknown(_)
+  | Int
+  | Float
+  | Bool
+  | String
+  | Arrow(_)
+  | List(_)
+  | Label(_)
+  | Prod(_)
+  | Ap(_)
+  | Sum(_)
+  | Forall(_)
+  | Rec(_) => false
+  };
+};
+
+let rec get_var_name = (typ: t) => {
+  switch (typ.term) {
+  | Parens(typ)
+  | TupLabel(_, typ) => get_var_name(typ)
+  | Var(v) => v
+  | Unknown(_)
+  | Int
+  | Float
+  | Bool
+  | String
+  | Arrow(_)
+  | List(_)
+  | Label(_)
+  | Prod(_)
+  | Ap(_)
+  | Sum(_)
+  | Forall(_)
+  | Rec(_) => raise(Invalid_argument("get_var_name"))
+  };
+};
+
 let rec is_forall = (typ: t) => {
   switch (typ.term) {
   | Parens(typ)

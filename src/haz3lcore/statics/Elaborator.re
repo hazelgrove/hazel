@@ -3,6 +3,7 @@
  */
 
 open Util;
+open Sets;
 
 exception MissingTypeInfo;
 
@@ -433,7 +434,190 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
           };
         }
       );
+
+      let (searchterm, imprewrap) = Pat.unwrap(p);
+
+      // // attempt without pattern matching
+      // let rec insert_forall = (ctx, typ, origtyp) =>
+      //   if (Typ.is_arrow(typ)) {
+      //     let (ty1, ty2) = Typ.matched_arrow(ctx, typ);
+      //     let (term1, rewrap1) = Typ.unwrap(ty1);
+      //     let (term2, rewrap2) = Typ.unwrap(ty2);
+
+      //     // print_endline("entering insert forall");
+      //     // a -> a -> a
+      //     // forall a -> forall a -> forall a
+      //     let forall_ty2 =
+      //       if (Typ.is_arrow(ty2)) {
+      //         // print_endline("found nested arrow");
+      //         insert_forall(
+      //           ctx,
+      //           ty2,
+      //           origtyp,
+      //         );
+      //       } else if (Typ.is_var(ty2)) {
+      //         let var_name = Typ.get_var_name(ty2);
+      //         // print_endline("found ty2 as lowercase variable");
+      //         // print_endline(var_name);
+      //         Forall(Var(var_name) |> TPat.fresh, origtyp) |> Typ.temp;
+      //       } else {
+      //         ty2;
+      //       };
+
+      //     // let forall_ty2 = insert_forall(ctx, ty2);
+
+      //     // print_endline("constructed forall_ty2");
+
+      //     if (Typ.is_var(ty1)) {
+      //       let var_name = Typ.get_var_name(ty1);
+      //       // print_endline("found ty1 as lowercase variable");
+      //       // print_endline(var_name);
+      //       let forall_ty1 =
+      //         Forall(Var(var_name) |> TPat.fresh, forall_ty2) |> Typ.temp;
+      //       forall_ty1;
+      //     } else {
+      //       typ;
+      //     };
+      //   } else {
+      //     typ;
+      //   };
+
+      // let (newpat, implins) =
+      //   switch (searchterm) {
+      //   | Cast(p, d, x) =>
+      //     // print_endline("inside new type checker");
+      //     if (Typ.is_arrow(d)) {
+      //       // print_endline("found arrow type");
+      //       let new_typ = insert_forall(ctx, d, d);
+      //       if (new_typ != d) {
+      //         let newsearch = Cast(p, new_typ, x) |> Pat.fresh;
+      //         let (newsearchterm, _) = Pat.unwrap(newsearch);
+      //         // print_endline("newsearchterm");
+      //         // print_endline(newsearchterm |> Pat.show_term);
+      //         (newsearchterm, true);
+      //       } else {
+      //         (searchterm, false);
+      //       };
+      //     } else {
+      //       (searchterm, false);
+      //     }
+      //   | _ => (searchterm, false)
+      //   };
+      // let newp = newpat |> imprewrap;
+
+      // attempt with pattern matching
+
+      let inserted_vars_ref = ref(StringSet.empty);
+      let implins = ref(true);
+      let rec parse_vars = (ctx, typ: Typ.t, origtyp, inserted_vars_ref) => {
+        switch (typ.term) {
+        | Parens(inner_typ) =>
+          // Recursively process the type inside parentheses
+          parse_vars(ctx, inner_typ, origtyp, inserted_vars_ref)
+
+        | TupLabel(_, inner_typ) =>
+          // Recursively process the type inside labeled tuples
+          parse_vars(ctx, inner_typ, origtyp, inserted_vars_ref)
+
+        | Arrow(ty1, ty2) =>
+          parse_vars(ctx, ty1, origtyp, inserted_vars_ref);
+          parse_vars(ctx, ty2, origtyp, inserted_vars_ref);
+
+        | Prod(types) =>
+          List.iter(
+            t => parse_vars(ctx, t, origtyp, inserted_vars_ref),
+            types,
+          )
+
+        // | Sum(variants) =>
+        // Sum causing issues, waiting till merge from live to uncomment
+        // List.iter(
+        //   v => parse_vars(ctx, v, origtyp, inserted_vars_ref),
+        //   List.map(
+        //     variant =>
+        //       switch (variant) {
+        //       | ConstructorMap.Variant(_, _, Some(param)) => param
+        //       | _ => Unknown(Internal) |> Typ.temp
+        //       },
+        //     variants,
+        //   ),
+        // )
+
+        // | Forall({term: Var(name), _} as utpat, tbody) =>
+        //   // Can either exclude from variable set or not allow implicit + explicit foralls
+
+        // | Rec({term: Var(name), _} as utpat, tbody) =>
+        //   // Handle recursive types
+
+        // | Ap(t1, t2) =>
+        //   // Necessary?
+
+        | Var(_) =>
+          // Handle type variables
+          // print_endline("Inside Var case of insert_forall");
+          if (Typ.is_var(typ)) {
+            let var_name = Typ.get_var_name(typ);
+            if (!StringSet.mem(var_name, inserted_vars_ref^)) {
+              // print_endline("Inserting variable: " ++ var_name);
+              inserted_vars_ref := StringSet.add(var_name, inserted_vars_ref^); // let forall_ty1 =
+                                                                    //   Forall(Var(var_name) |> TPat.fresh, typ) |> Typ.temp;
+            };
+          }
+        | _ => ()
+        // Default case: return the type as-is
+        };
+      };
+
+      // let newpat = parse_vars(ctx, def, def, inserted_vars_ref);
+      // printSet(inserted_vars_ref^);
+
+      let insert_foralls = (typ: Typ.t, vars: StringSet.t): Typ.t => {
+        // Convert the set of variables into a list
+        let var_list = List.rev(StringSet.elements(vars));
+
+        // Fold over the list of variables to prepend `forall` quantifiers
+        List.fold_left(
+          (acc_typ, var_name) =>
+            Forall(Var(var_name) |> TPat.fresh, acc_typ) |> Typ.temp,
+          typ,
+          var_list,
+        );
+      };
+
+      // let newpat = insert_foralls(newpat, inserted_vars_ref^);
+
+      // let (p, ty1) = elaborate_pattern(m, newp, false);
+
+      // print_endline("Old pattern");
+      // print_endline(p |> Pat.show);
+      // print_endline("Old definition");
+      // print_endline(def |> DHExp.show);
+      // print_endline("Old searchterm");
+      // print_endline(searchterm |> Pat.show_term);
+      // print_endline("Old body");
+      // print_endline(body |> DHExp.show);
+
+      let p =
+        switch (searchterm) {
+        | Cast(p, ann, x) =>
+          parse_vars(ctx, ann, ann, inserted_vars_ref);
+          let newpat = insert_foralls(ann, inserted_vars_ref^);
+          let newcast = Cast(p, newpat, x) |> Pat.fresh;
+          let (newsearchterm, _) = Pat.unwrap(newcast);
+          newsearchterm |> imprewrap;
+        | _ => p
+        };
+
       let (p, ty1) = elaborate_pattern(m, p, false);
+
+      // print_endline("Old searchterm");
+      // print_endline(searchterm |> Pat.show_term);
+      // print_endline("New searchterm");
+      // print_endline(newpat |> Pat.show_term);
+      print_endline("New elaborated pattern");
+      print_endline(p |> Pat.show);
+      print_endline("New elaborated type");
+      print_endline(ty1 |> Typ.show);
       // attach labels if needed for labeled tuples
       let (def_term, def_rewrap) = DHExp.unwrap(def);
       let def =

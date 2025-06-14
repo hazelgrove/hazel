@@ -27,7 +27,7 @@
    (B) propagate the necessary information through the syntax tree.
 
     */
-
+open Sets;
 module Info = Info;
 
 module Map = {
@@ -743,6 +743,10 @@ and uexp_to_info_map =
         go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~mode=Syn, p, m);
       let (def, p_ana_ctx, m, ty_p_ana) =
         if (!is_recursive(ctx, p, def, p_syn.ty)) {
+          // print_endline("Inside statics, showing p");
+          // print_endline(TermBase.show_pat_t(p));
+          // print_endline("Inside statics, showing def");
+          // print_endline(TermBase.show_exp_t(def));
           let (def, m) = go(~mode=Ana(p_syn.ty), def, m);
           let ty_p_ana = def.ty;
           let (p_ana', _) =
@@ -1465,7 +1469,177 @@ and upat_to_info_map =
           Constraint.of_ap(ctx, mode, ctr, arg.constraint_, Some(ty_out)),
         m,
       );
-    | Cast(p, ann, _) =>
+    | Cast(p, ann, x) =>
+      // print_endline("Inside upat_to_info_map now, cast case");
+      // print_endline("Showing p");
+      // print_endline(TermBase.show_pat_t(p));
+      // print_endline("Showing ann");
+      // print_endline(TermBase.show_typ_t(ann));
+      // print_endline("Showing ann term");
+      // print_endline(TermBase.show_typ_term(ann.term));
+
+      let (searchterm, imprewrap) = Pat.unwrap(p);
+
+      let inserted_vars_ref = ref(StringSet.empty);
+
+      // attempt#1 simple case
+      // let (ann, implins) =
+      //   if (Typ.is_arrow(ann)) {
+      //     print_endline("found arrow type");
+      //     let (ty1, ty2) = Typ.matched_arrow(ctx, ann);
+      //     let (term1, rewrap1) = Typ.unwrap(ty1);
+      //     let (term2, rewrap2) = Typ.unwrap(ty2);
+      //     if (Typ.is_var(ty1) && Typ.is_var(ty2)) {
+      //       print_endline("found ty1 and ty2 as lowercase variables");
+      //       let forallb = Forall(Var("b") |> TPat.fresh, ann) |> Typ.temp;
+      //       let foralla =
+      //         Forall(Var("a") |> TPat.fresh, forallb) |> Typ.temp;
+      //       (foralla, true);
+      //     } else {
+      //       (ann, false);
+      //     };
+      //   } else {
+      //     (ann, false);
+      //   };
+
+      // // attempt #2 with recursion
+      // let rec insert_forall = (ctx, typ: Typ.t, origtyp, inserted_vars_ref) =>
+      //   switch (typ.term) {
+      //   | Parens(typ1) =>
+      //     insert_forall(ctx, typ1, origtyp, inserted_vars_ref)
+      //   | TupLabel(_, typ1) =>
+      //     insert_forall(ctx, typ1, origtyp, inserted_vars_ref)
+      //   | Arrow(_, _) =>
+      //     let (ty1, ty2) = Typ.matched_arrow(ctx, typ);
+      //     let (term1, rewrap1) = Typ.unwrap(ty1);
+      //     let (term2, rewrap2) = Typ.unwrap(ty2);
+
+      //     let forall_ty2 =
+      //       if (Typ.is_arrow(ty2)) {
+      //         insert_forall(ctx, ty2, origtyp, inserted_vars_ref);
+      //       } else if (Typ.is_var(ty2)) {
+      //         let var_name = Typ.get_var_name(ty2);
+      //         if (!StringSet.mem(var_name, inserted_vars_ref^)) {
+      //           inserted_vars_ref :=
+      //             StringSet.add(var_name, inserted_vars_ref^);
+      //           Forall(Var(var_name) |> TPat.fresh, origtyp) |> Typ.temp;
+      //         } else {
+      //           ty2;
+      //         };
+      //       } else {
+      //         ty2;
+      //       };
+
+      //     if (Typ.is_var(ty1)) {
+      //       let var_name = Typ.get_var_name(ty1);
+      //       if (!StringSet.mem(var_name, inserted_vars_ref^)) {
+      //         inserted_vars_ref := StringSet.add(var_name, inserted_vars_ref^);
+      //         let forall_ty1 =
+      //           Forall(Var(var_name) |> TPat.fresh, forall_ty2) |> Typ.temp;
+      //         forall_ty1;
+      //       } else {
+      //         forall_ty2.term |> Typ.temp;
+      //       };
+      //     } else {
+      //       typ;
+      //     };
+      //   | _ => typ
+      //   };
+
+      // let ann =
+      //   if (Typ.is_arrow(ann)) {
+      //     let new_typ = insert_forall(ctx, ann, ann, inserted_vars_ref);
+      //     new_typ;
+      //   } else {
+      //     ann;
+      //   };
+
+      // attempt #3 with pattern matching + recursion
+      let implins = ref(true);
+      let rec parse_vars = (ctx, typ: Typ.t, origtyp, inserted_vars_ref) => {
+        switch (typ.term) {
+        | Parens(inner_typ) =>
+          // Recursively process the type inside parentheses
+          parse_vars(ctx, inner_typ, origtyp, inserted_vars_ref)
+
+        | TupLabel(_, inner_typ) =>
+          // Recursively process the type inside labeled tuples
+          parse_vars(ctx, inner_typ, origtyp, inserted_vars_ref)
+
+        | Arrow(ty1, ty2) =>
+          parse_vars(ctx, ty1, origtyp, inserted_vars_ref);
+          parse_vars(ctx, ty2, origtyp, inserted_vars_ref);
+
+        | Prod(types) =>
+          List.iter(
+            t => parse_vars(ctx, t, origtyp, inserted_vars_ref),
+            types,
+          )
+
+        // | Sum(variants) =>
+        // Sum causing issues, waiting till merge from live to uncomment
+        // List.iter(
+        //   v => parse_vars(ctx, v, origtyp, inserted_vars_ref),
+        //   List.map(
+        //     variant =>
+        //       switch (variant) {
+        //       | ConstructorMap.Variant(_, _, Some(param)) => param
+        //       | _ => Unknown(Internal) |> Typ.temp
+        //       },
+        //     variants,
+        //   ),
+        // )
+
+        // | Forall({term: Var(name), _} as utpat, tbody) =>
+        //   // Can either exclude from variable set or not allow implicit + explicit foralls
+
+        // | Rec({term: Var(name), _} as utpat, tbody) =>
+        //   // Handle recursive types
+
+        // | Ap(t1, t2) =>
+        //   // Necessary?
+
+        | Var(_) =>
+          // Handle type variables
+          // print_endline("Inside Var case of insert_forall");
+          if (Typ.is_var(typ)) {
+            let var_name = Typ.get_var_name(typ);
+            if (!StringSet.mem(var_name, inserted_vars_ref^)) {
+              // print_endline("Inserting variable: " ++ var_name);
+              inserted_vars_ref := StringSet.add(var_name, inserted_vars_ref^); // let forall_ty1 =
+                                                                    //   Forall(Var(var_name) |> TPat.fresh, typ) |> Typ.temp;
+            };
+          }
+        | _ => ()
+        // Default case: return the type as-is
+        };
+      };
+
+      // print_endline("Showing inserted_vars_ref");
+      let printSet = set => StringSet.iter(item => print_endline(item), set);
+
+      parse_vars(ctx, ann, ann, inserted_vars_ref);
+      // printSet(inserted_vars_ref^);
+
+      let insert_foralls = (typ: Typ.t, vars: StringSet.t): Typ.t => {
+        // Convert the set of variables into a list
+        let var_list = List.rev(StringSet.elements(vars));
+
+        // Fold over the list of variables to prepend `forall` quantifiers
+        List.fold_left(
+          (acc_typ, var_name) =>
+            Forall(Var(var_name) |> TPat.fresh, acc_typ) |> Typ.temp,
+          typ,
+          var_list,
+        );
+      };
+
+      // print_endline("Showing old ann term");
+      // print_endline(TermBase.show_typ_term(ann.term));
+      let ann = insert_foralls(ann, inserted_vars_ref^);
+      print_endline("Showing new_typ after inserting foralls");
+      print_endline(TermBase.show_typ_term(ann.term));
+
       let (ann, m) = utyp_to_info_map(~ctx, ~ancestors, ann, m);
       let (p, m) =
         go(~ctx, ~under_ascription=true, ~mode=Ana(ann.term), p, m);
