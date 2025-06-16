@@ -226,7 +226,7 @@ module Model = {
         };
       let coqLemmaString =
         Printf.sprintf(
-          "Lemma equiv_exp%d:%s%s == %s.\nProof.\nintros.\ncut (%s==%s).\n- intros. rewrite <- H at %d. reflexivity.\n- intros. %s. reflexivity.\nQed.",
+          "Lemma equiv_exp%d:%s%s = %s.\nProof.\nintros.\ncut (%s=%s).\n- intros. rewrite <- H at %d. reflexivity.\n- intros. %s. reflexivity.\nQed.",
           ind,
           forall_str,
           newExprString,
@@ -287,7 +287,7 @@ module Model = {
         let firstExpr = CoqExport.string_of_d(firstD);
 
         Printf.sprintf(
-          "From Stdlib Require QArith.\n%s\nTheorem equiv_exp:%s%s==%s.\nProof.\nintros.\n%s\nreflexivity. Qed.",
+          "From Stdlib Require QArith.\n%s\nTheorem equiv_exp:%s%s=%s.\nProof.\nintros.\n%s\nreflexivity. Qed.",
           String.concat("\n", lemmas),
           forall_str,
           finalExpr,
