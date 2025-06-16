@@ -25,8 +25,8 @@ follow these instructions instead of the shorter instructions in the
   - After enabling WSL, to install WSL, go the to Microsoft Store, and search for and install "Ubuntu".
     This will install WSL and the Ubuntu Linux distribution.
 
-  - From the start menu or taskbar, open the "Ubuntu" application.  This will
-    open a Bash shell on Ubuntu Linux.  Use this when running the commands in
+  - From the start menu or taskbar, open the "Ubuntu" application. This will
+    open a Bash shell on Ubuntu Linux. Use this when running the commands in
     the rest of these instructions.
 
 - If you are on MacOS, make sure you have [Homebrew](https://brew.sh/) installed.
@@ -60,6 +60,7 @@ follow these instructions instead of the shorter instructions in the
 ## Install and Initialize `opam`
 
 - Install the most recent version of `opam` (which must be at least 2.0):
+
   - If you are on Ubuntu Linux 19.04 (disco) or later, you can do this
     by running the following commands:
 
@@ -88,7 +89,7 @@ follow these instructions instead of the shorter instructions in the
   opam --version
   ```
 
-  This should report version 2.0 or greater.  If it does not, the following
+  This should report version 2.0 or greater. If it does not, the following
   instructions may not work.
 
 - Initialize `opam`, by running:
@@ -126,10 +127,12 @@ follow these instructions instead of the shorter instructions in the
   ```sh
    opam switch create 5.2.0 ocaml-base-compiler.5.2.0
   ```
+
 - Update the current switch environment
   ```sh
   eval $(opam env --switch=5.2.0)
   ```
+
 ## Clone the Source Code
 
 - Pick a directory that you want to be the parent of the directory that contains
@@ -152,8 +155,8 @@ follow these instructions instead of the shorter instructions in the
   inside the current directory.
 
   If you plan to `git push` or `git pull` frequently, you may want to consider
-  configuring your GitHub account to work with your SSH key.  This will prevent
-  you from having type your password every time.  For more information, see the
+  configuring your GitHub account to work with your SSH key. This will prevent
+  you from having type your password every time. For more information, see the
   GitHub documentation on [Connecting to GitHub with
   SSH](https://help.github.com/en/github/authenticating-to-github/connecting-to-github-with-ssh)
   and [Troubleshooting
@@ -162,7 +165,7 @@ follow these instructions instead of the shorter instructions in the
 ## Install Library Dependencies
 
 - Use the `cd` command to change to the directory containing the Hazel source
-  code.  If you just ran the `git clone` command, you can do this by running the
+  code. If you just ran the `git clone` command, you can do this by running the
   following command:
 
   ```sh
@@ -200,35 +203,35 @@ follow these instructions instead of the shorter instructions in the
 If the build fails, it sometimes helps to do a `make clean`.
 
 ## Run Hazel
-To view Hazel, you have to serve it, on localhost for development (you can't
-run it from a `file:///` URL due to browser restrictions on e.g. web workers.) 
 
-If you have `python3` on your path, you can use the Python server via 
+To view Hazel, you have to serve it, on localhost for development (you can't
+run it from a `file:///` URL due to browser restrictions on e.g. web workers.)
+
+If you have `python3` on your path, you can use the Python server via
 `make serve`, then navigate to `http://0.0.0.0:8000/` in your browser.
 
-Otherwise, run `make echo-html-dir` which will echo the directory that needs 
+Otherwise, run `make echo-html-dir` which will echo the directory that needs
 to be served using some other server of your choice.
 
 You can also run `make repl` to get a REPL in which you can play with the definitions
-in `haz3lcore`. The definitions in `haz3lweb` cannot be used in the REPL because that
+in `haz3lcore`. The definitions in `web` cannot be used in the REPL because that
 package needs a browser environment to run.
-
 
 ## (Optional) Install fswatch for automatic reformatting & recompilation
 
 Do this if you want to be able to run `make watch` to automatically watch
 the Hazel source for changes, triggering reformatting and recompilation.
 
-  - If you are on Ubuntu/Debian, you can do this by running the following commands:
+- If you are on Ubuntu/Debian, you can do this by running the following commands:
 
-    ```sh
-    sudo apt install fswatch
-    opam install fswatch
-    ```
+  ```sh
+  sudo apt install fswatch
+  opam install fswatch
+  ```
 
-  - If you are on MacOS, you can do this by running the following commands:
+- If you are on MacOS, you can do this by running the following commands:
 
-    ```sh
-    brew install fswatch
-    opam install fswatch
-    ```
+  ```sh
+  brew install fswatch
+  opam install fswatch
+  ```
