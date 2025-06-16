@@ -1,7 +1,5 @@
 open Util;
 open Zipper;
-open TermBase;
-open Term;
 
 let buffer_clear = (z: t): t =>
   switch (z.selection.mode) {
