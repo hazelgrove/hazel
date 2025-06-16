@@ -1,3 +1,5 @@
+open Language;
+
 let v: ProofCtx.t =
   []
   |> ProofCtx.add_entry(
