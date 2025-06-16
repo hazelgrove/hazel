@@ -122,7 +122,7 @@ let typ_of_exp: (Ctx.t, exp) => option(Typ.t) =
     | IsBadPartialAp(_) => None
     | Common(self) => typ_of(ctx, self);
 
-let rec typ_of_pat: (Ctx.t, pat) => option(Typ.t) =
+let typ_of_pat: (Ctx.t, pat) => option(Typ.t) =
   ctx =>
     fun
     | Common(self) => typ_of(ctx, self);
