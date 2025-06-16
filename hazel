@@ -1,0 +1,17 @@
+#!/usr/bin/env bash
+# Builds the JS file and runs it with node, forwarding any arguments.
+# All paths are resolved relative to this script's location.
+
+set -e
+
+# Resolve the directory this script lives in
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# Path to the JS target relative to the script
+JS_TARGET="$SCRIPT_DIR/_build/default/src/hazelcli/cli.bc.js"
+
+# Run Dune in the script's directory
+(cd "$SCRIPT_DIR" && dune build ./src/hazelcli/cli.bc.js)
+
+# Execute the compiled JavaScript with node
+node "$JS_TARGET" "$@"

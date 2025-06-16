@@ -9,7 +9,7 @@ open Util;
  * your new construct's precedence is below the comment with
  * the example. (i.e. higher int)
  */
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = int;
 
 let associativity_map: ref(list((t, Direction.t))) = ref([]);
@@ -108,7 +108,7 @@ let associativity_map: IntMap.t(Direction.t) =
 let associativity = (p: t): option(Direction.t) =>
   IntMap.find_opt(p, associativity_map);
 
-let of_bin_op: Operators.op_bin => t =
+let of_bin_op: Language.Operators.op_bin => t =
   fun
   | Nat(op)
   | SInt(op)

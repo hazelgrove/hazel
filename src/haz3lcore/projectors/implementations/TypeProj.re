@@ -1,6 +1,7 @@
 open Virtual_dom.Vdom;
 open Node;
 open ProjectorBase;
+open Language;
 
 let expected_ty = (info: option(Info.t)): option(Typ.t) =>
   switch (info) {
@@ -52,7 +53,7 @@ module M: Projector = {
     | Expected => statics |> expected_ty
     };
 
-  let display_mode = (model: model, statics: option(Info.t)): string =>
+  let display_mode = (model: model, statics: option(Language.Info.t)): string =>
     switch (model) {
     | _ when self_ty(statics) == expected_ty(statics) => "⇔"
     | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn => "⇒"
@@ -83,7 +84,7 @@ module M: Projector = {
   let syntax_str = (info: info) => {
     let max_len = 30;
     let seg = Segment.unparenthesize(info.syntax);
-    let str = Printer.of_segment(~holes=Some("?"), seg);
+    let str = info.utility.seg_to_string(seg);
     let str = Re.Str.global_replace(Re.Str.regexp("\n"), " ", str);
     String.length(str) > max_len
       ? String.sub(str, 0, max_len) ++ "..." : str;

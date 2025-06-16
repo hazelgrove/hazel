@@ -102,7 +102,8 @@ let index = (z: ZipperBase.t): option(Id.t) =>
 let piece'' = piece'(~no_ws=true, ~ign=Piece.is_secondary);
 
 let ci_of =
-    (z: ZipperBase.t, info_map: Statics.Map.t): option(Statics.Info.t) =>
+    (z: ZipperBase.t, info_map: Language.Statics.Map.t)
+    : option(Language.Statics.Info.t) =>
   /* This version takes into accounts Secondary, while accounting for the
    * fact that Secondary is not currently added to the info_map. First we
    * try the basic indication function, specifying that we do not want
@@ -133,11 +134,11 @@ let ci_of =
       | _ => None
       };
     let+ ci = Id.Map.find_opt(proxy_id, info_map);
-    Info.Secondary({
+    Language.Statics.Info.Secondary({
       id: proxy_id,
       cls: Secondary(cls),
-      sort: Info.sort_of(ci),
-      ctx: Info.ctx_of(ci),
+      sort: Language.Statics.Info.sort_of(ci),
+      ctx: Language.Statics.Info.ctx_of(ci),
     });
   };
 

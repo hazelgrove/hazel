@@ -1,3 +1,5 @@
+open Language;
+
 module type Introducable = {
   type t;
   let parse: Segment.t => t;
@@ -224,7 +226,6 @@ module Make =
           fold_case_clauses: false,
           fold_fn_bodies: false,
           hide_fixpoints: false,
-          fold_cast_types: false,
           show_filters: true,
           show_unknown_as_hole: true,
         },

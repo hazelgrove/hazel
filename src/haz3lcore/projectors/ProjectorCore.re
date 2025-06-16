@@ -16,7 +16,7 @@ module Kind = {
   /* The different kinds of projector. New projector
    * types need to be registered here in order to be
    * able to create and update their instances */
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t =
     | Fold
     | Info
@@ -25,6 +25,7 @@ module Kind = {
     | Slider
     | SliderF
     | Card
+    | Livelit
     | TextArea;
 
   let livelit_projectors: list(t) = [
@@ -33,6 +34,7 @@ module Kind = {
     SliderF,
     TextArea,
     Card,
+    Livelit,
   ];
 
   let projectors: list(t) = livelit_projectors @ [Fold, Info, Probe];
@@ -49,6 +51,7 @@ module Kind = {
     | Slider => "slider"
     | SliderF => "sliderf"
     | Card => "card"
+    | Livelit => "livelit"
     | TextArea => "text"
     };
 
@@ -64,13 +67,14 @@ module Kind = {
     | "slider" => Slider
     | "sliderf" => SliderF
     | "text" => TextArea
+    | "livelit" => Livelit
     | "card" => Card
     | _ => failwith("Unknown projector kind")
     };
 };
 
 /* Projectors in syntax */
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t('syntax) = {
   id: Id.t,
   kind: Kind.t,
@@ -85,56 +89,6 @@ let mk = (kind, syntax, model) => {
   model,
 };
 
-module Shape = {
-  /* A projector shape determines the space left for
-   * that projector, and how text flows around a projector
-   * in a text editor. All projectors have a horizontal
-   * extend (in characters), and the vertical extent may
-   * be either 1 character (Inline), or it may insert
-   * an additional number of linebreaks, either immediately
-   * after the projector (Block style) or defer them to
-   * the next linebreak (Tab style). In the latter case,
-   * if there are multiple Tab projectors on a line, the
-   * total extra linebreaks inserted is the maxium required
-   * to accomodate them */
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type vertical =
-    | Inline
-    | Tab(int)
-    | Block(int);
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {
-    horizontal: int,
-    vertical,
-  };
-  let inline = (width: int): t => {
-    horizontal: width,
-    vertical: Inline,
-  };
-  let default: t = inline(0);
-
-  let token = (shape: t): string =>
-    switch (shape.vertical) {
-    | Inline
-    | Tab(_) => String.make(shape.horizontal, ' ')
-    | Block(num_lb) =>
-      String.make(num_lb, '\n') ++ String.make(shape.horizontal, ' ')
-    };
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type shape = t;
-
-  module Map = {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = Id.Map.t(shape);
-
-    let empty: t = Id.Map.empty;
-
-    let lookup = (id: Id.t, shape_map: t): shape =>
-      switch (Id.Map.find_opt(id, shape_map)) {
-      | None => inline(0) //TODO: error reporting
-      | Some(shape) => shape
-      };
-  };
-};
+module Shape = Util.ProjectorShape;
+/* Projectors currently are all convex */
+let shapes = (_: t('a)): Nibs.shapes => Nib.Shape.(Convex, Convex);

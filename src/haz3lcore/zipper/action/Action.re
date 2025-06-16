@@ -2,7 +2,7 @@ open Util;
 
 open Zipper;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type piece_goal =
   | Grout;
 
@@ -14,33 +14,33 @@ let of_piece_goal =
       | _ => false
     );
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type goal =
   | Point(Point.t)
   | Piece(piece_goal, Direction.t);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type move =
   | Extreme(planar)
   | Local(planar)
   | Goal(goal);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type jump_target =
-  | TileId(Id.t)
+  | TileId([@equal (_, _) => true] Id.t)
   | BindingSiteOfIndicatedVar;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type rel =
   | Current
-  | Id(Id.t, Direction.t);
+  | Id([@equal (_, _) => true] Id.t, Direction.t);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type part =
   | Definition
   | Body;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type select =
   | All
   | Resize(move)
@@ -49,7 +49,7 @@ type select =
   | Term(rel)
   | Structure(part);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type chooser =
   | Specific(ProjectorCore.Kind.t)
   | ChooseLivelit;
@@ -58,7 +58,7 @@ type chooser =
  * projectors,as distinguished from external_action,
  * which defines the actions available internally to all projectors,
  * and from each projector's own internal action type */
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type project =
   | SetIndicated(chooser) /* Project syntax at caret */
   | RemoveIndicated /* Remove projector at caret */
@@ -67,23 +67,23 @@ type project =
   | Focus(Id.t, ProjectorCore.Kind.t, option(Util.Direction.t)) /* Pass control to projector */
   | Escape(Id.t, Direction.t); /* Pass control to parent editor */
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type agent =
   | TyDi
   | LLM(string);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type buffer =
   | Set(agent)
   | Clear
   | Accept;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type paste =
   | String(string)
   | Segment(Segment.t);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =
   | Reparse
   | Buffer(buffer)
@@ -104,7 +104,7 @@ type t =
   | Introduce;
 
 module Failure = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t =
     | Cant_move
     | Cant_insert
