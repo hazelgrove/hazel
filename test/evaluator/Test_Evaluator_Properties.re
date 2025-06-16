@@ -1,4 +1,5 @@
 open Haz3lcore;
+open Language;
 open Test_Evaluator_Prelude;
 open Alcotest;
 

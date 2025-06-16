@@ -1,6 +1,7 @@
 open Alcotest;
 open Test_Evaluator_Prelude;
-open Haz3lcore.IdTagged.FreshGrammar;
+open Language;
+open IdTagged.FreshGrammar;
 open Exp;
 let tests = (
   "Evaluator.Poly_Equal",
