@@ -1,11 +1,9 @@
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
-type cls =
-  | Whitespace
-  | Comment;
+type cls = Language.Secondary.cls;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type secondary_content =
   | Whitespace(string)
   | Comment(string);
@@ -16,6 +14,7 @@ type t = {
   content: secondary_content,
 };
 
+let equal = (a: t, b: t) => a.content == b.content;
 let cls_of = (s: t): cls =>
   switch (s.content) {
   | Whitespace(_) => Whitespace

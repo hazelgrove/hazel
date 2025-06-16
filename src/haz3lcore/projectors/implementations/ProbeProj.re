@@ -3,6 +3,7 @@ open ProjectorBase;
 open Virtual_dom.Vdom;
 open Node;
 open Js_of_ocaml;
+open Language;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type closure = Dynamics.Probe.Closure.t;
@@ -431,12 +432,12 @@ let abbreviate = (exp: Exp.t, available: int): Exp.t => {
   abbr_exp;
 };
 
-let len_seg = (seg: Segment.t): int =>
-  seg |> Printer.of_segment(~holes=Some("?")) |> String.length;
+let len_seg = (utility: utility, seg: Segment.t): int =>
+  seg |> utility.seg_to_string |> String.length;
 
 let seg_of_exp = (utility: utility, exp: Exp.t): (Segment.t, int) => {
   let seg = utility.term_to_seg(Exp(exp));
-  (seg, len_seg(seg));
+  (seg, len_seg(utility, seg));
 };
 
 let abbreviated_seg_of =
@@ -680,11 +681,11 @@ let pin_view = (info: info) =>
   DynCursor.show_pin(info)
     ? [div(~attrs=[Attr.classes(["pin"])], [])] : [];
 
-let syntax_str =
+let syntax_str = (utility: utility) =>
   Core.Memo.general(seg => {
     let max_len = 30;
     let seg = Segment.unparenthesize(seg);
-    let str = Printer.of_segment(~holes=Some("?"), seg);
+    let str = utility.seg_to_string(seg);
     let str = Re.Str.global_replace(Re.Str.regexp("\n"), " ", str);
     String.length(str) > max_len
       ? String.sub(str, 0, max_len) ++ "..." : str;
@@ -841,7 +842,7 @@ let view = (local, parent, info: info): Node.t =>
         local(NoOp);
       }),
     ],
-    [text(syntax_str(info.syntax)), icon],
+    [text(syntax_str(info.utility, info.syntax)), icon],
   );
 
 let overlay_view = (info: info): Node.t =>
@@ -883,7 +884,9 @@ module M: Projector = {
     };
 
   let placeholder = (_, info: info) =>
-    ProjectorCore.Shape.inline(2 + String.length(syntax_str(info.syntax)));
+    ProjectorCore.Shape.inline(
+      2 + String.length(syntax_str(info.utility, info.syntax)),
+    );
 
   let update = update;
 

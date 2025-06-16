@@ -2,7 +2,7 @@
 
 (library
  (name haz3lcore)
- (libraries util unix sexplib unionFind uuidm virtual_dom yojson core)
+ (libraries language)
  (js_of_ocaml)
  (instrumentation
   (backend bisect_ppx))

@@ -1,0 +1,67 @@
+/* PROJECTORS */
+
+@import "panel.css";
+@import "proj-probe.css";
+@import "proj-type.css";
+@import "proj-cards.css";
+@import "proj-text.css";
+@import "proj-fold.css";
+@import "proj-checkbox.css";
+@import "proj-slider.css";
+@import "proj-livelit.css";
+
+/* Default projector styles */
+
+.projector {
+  position: absolute;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: var(--BR2);
+  z-index: var(--projector-z);
+}
+
+.projector > svg {
+  z-index: var(--projector-underlay-z);
+}
+
+.projector.indicated {
+  z-index: var(--projector-indicated-z);
+}
+
+.projector.error:not(.selected) > svg path {
+  stroke-dasharray: 1, 1;
+  stroke: var(--R1);
+  stroke-width: 0.75px;
+  fill: var(--error-hole-fill);
+}
+
+.projector:hover {
+  z-index: var(--projector-hover-z);
+}
+
+.projector > *:not(svg) {
+  z-index: var(--projector-z);
+}
+
+.projectors .overlays .projector {
+  pointer-events: none;
+  z-index: var(--projector-overlay-z);
+}
+
+.projector > svg {
+  fill: var(--shard_projector);
+}
+
+.projector.indicated > svg {
+  fill: var(--shard-caret-exp);
+}
+
+.projector > svg > path {
+  vector-effect: non-scaling-stroke;
+}
+
+.cell-item.selected .projector.selected > svg,
+.cell-item.selected .projector.selected.indicated > svg {
+  fill: var(--shard-selected);
+}
