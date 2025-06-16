@@ -267,7 +267,7 @@ let api_input =
 let llm_model_id_input =
     (
       ~inject_global: Globals.Action.t => Ui_effect.t(unit),
-      ~signal as _,
+      ~signal,
       ~settings: AssistantSettings.t,
     )
     : Node.t => {
@@ -311,13 +311,13 @@ let llm_model_id_input =
     handle_submission(message);
   };
 
-  // let handle_keydown = event => {
-  //   let key = Js.Optdef.to_option(Js.Unsafe.get(event, "key"));
-  //   switch (key) {
-  //   | Some("Enter") => submit_key()
-  //   | _ => Virtual_dom.Vdom.Effect.Ignore
-  //   };
-  // };
+  let handle_keydown = event => {
+    let key = Js.Optdef.to_option(Js.Unsafe.get(event, "key"));
+    switch (key) {
+    | Some("Enter") => submit_key()
+    | _ => Virtual_dom.Vdom.Effect.Ignore
+    };
+  };
 
   div(
     ~attrs=[clss(["api-key-container"])],
@@ -338,32 +338,32 @@ let llm_model_id_input =
         ],
       ),
       select_llm(~inject_global, ~settings),
-      // div(
-      //   ~attrs=[clss(["llm-selector"])],
-      //   [
-      //     div(
-      //       ~attrs=[clss(["llm-label"])],
-      //       [text("Or Enter Model ID Manually")],
-      //     ),
-      //     input(
-      //       ~attrs=[
-      //         Attr.id("llm-model-id-input"),
-      //         Attr.placeholder("Enter the ID of an OpenRouter model"),
-      //         Attr.type_("text"),
-      //         Attr.property("autocomplete", Js.Unsafe.inject("off")),
-      //         Attr.on_focus(_ =>
-      //           signal(MakeActive(ScratchMode.Selection.TextBox))
-      //         ),
-      //         Attr.on_keydown(handle_keydown),
-      //         clss(["llm-model-id-input"]),
-      //         Attr.on_copy(_ => {Effect.Stop_propagation}),
-      //         Attr.on_paste(_ => {Effect.Stop_propagation}),
-      //         Attr.on_cut(_ => {Effect.Stop_propagation}),
-      //       ],
-      //       (),
-      //     ),
-      //   ],
-      // ),
+      div(
+        ~attrs=[clss(["llm-selector"])],
+        [
+          div(
+            ~attrs=[clss(["llm-label"])],
+            [text("Or Enter Model ID Manually")],
+          ),
+          input(
+            ~attrs=[
+              Attr.id("llm-model-id-input"),
+              Attr.placeholder("Enter the ID of an OpenRouter model"),
+              Attr.type_("text"),
+              Attr.property("autocomplete", Js.Unsafe.inject("off")),
+              Attr.on_focus(_ =>
+                signal(MakeActive(ScratchMode.Selection.TextBox))
+              ),
+              Attr.on_keydown(handle_keydown),
+              clss(["llm-model-id-input"]),
+              Attr.on_copy(_ => {Effect.Stop_propagation}),
+              Attr.on_paste(_ => {Effect.Stop_propagation}),
+              Attr.on_cut(_ => {Effect.Stop_propagation}),
+            ],
+            (),
+          ),
+        ],
+      ),
       div(
         ~attrs=[clss(["chat-button"]), Attr.on_click(submit_key)],
         [Widgets.button_named(~tooltip="Update Model", None, submit_key)],

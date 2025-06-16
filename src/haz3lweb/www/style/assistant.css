@@ -324,32 +324,21 @@
   height: 18px;
 }
 
-#assistant .api-input {
-  background-color: var(--SAND);
-  padding: 14px;
-  outline: none;
-  border-radius: 3.5px;
-  border: none;
-  /* transition: all 0.3s ease; */
-  padding-right: 40px; /* Add padding to prevent text from going under the button */
-}
-
-#assistant .api-input:focus {
-  box-shadow: 0px 0px 1px var(--SHADOW), 0 0 0 1px var(--SHADOW);
-}
-
+#assistant .api-input,
 #assistant .llm-model-id-input {
   background-color: var(--SAND);
   padding: 14px;
   outline: none;
   border-radius: 3.5px;
   border: none;
-  /* transition: all 0.3s ease; */
   padding-right: 40px; /* Add padding to prevent text from going under the button */
 }
 
+#assistant .api-input:hover,
+#assistant .llm-model-id-input:hover,
+#assistant .api-input:focus,
 #assistant .llm-model-id-input:focus {
-  box-shadow: 0px 0px 1px var(--SHADOW), 0 0 0 1px var(--SHADOW);
+  outline: 0.6px solid var(--BR2);
 }
 
 /* LLM and LSP toggle button containers */
@@ -421,13 +410,11 @@
 }
 
 .llm-dropdown:hover {
-  /* background-color: var(--T1); */
-  box-shadow: 0px 2px 4px var(--SHADOW);
+  outline: 0.6px solid var(--BR2);
 }
 
 .llm-dropdown:focus {
-  outline: none;
-  box-shadow: 0px 0px 1px var(--SHADOW), 0 0 0 1px var(--SHADOW);
+  outline: 0.6px solid var(--BR2);
 }
 
 .llm-dropdown option {
