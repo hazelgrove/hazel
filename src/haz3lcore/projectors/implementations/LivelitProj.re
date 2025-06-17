@@ -1,6 +1,7 @@
 open Util;
 open Virtual_dom.Vdom;
 open ProjectorBase;
+open Language;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type model('ed) = {

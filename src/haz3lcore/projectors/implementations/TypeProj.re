@@ -3,6 +3,7 @@ open Node;
 open ProjectorBase;
 open ProjectorInterface;
 open Util.OptUtil.Syntax;
+open Language;
 
 /* =========== HELPERS ============ */
 
@@ -110,7 +111,7 @@ let typ_view = (model, info: info, view_any: Any.t => Node.t) => {
 };
 
 let placeholder = (~ed_size: 'a => Util.Point.t, (_, ed), _info) =>
-  ProjectorShape.inline(3 + ed_size(ed).row);
+  Util.ProjectorShape.inline(3 + ed_size(ed).row);
 let icon = div(~attrs=[Attr.classes(["icon"])], []);
 
 let view =

@@ -1,3 +1,5 @@
+open Language;
+
 module type Introducable = {
   type t;
   let parse: Segment.t('p) => t;

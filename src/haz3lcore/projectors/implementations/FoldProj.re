@@ -54,7 +54,7 @@ let view =
   );
 
 let methods = {
-  init: (~copy_ed as _, _any: Term.Any.t, ed) => {
+  init: (~copy_ed as _, _any: Language.Term.Any.t, ed) => {
     //TODO(andrew): this doesn't init on nonconvex tiles
     open OptUtil.Syntax;
     let+ ed = ed();

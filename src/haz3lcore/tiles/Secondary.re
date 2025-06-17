@@ -1,9 +1,7 @@
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson, enumerate)]
-type cls =
-  | Whitespace
-  | Comment;
+type cls = Language.Secondary.cls;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type secondary_content =

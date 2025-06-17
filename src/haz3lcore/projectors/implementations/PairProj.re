@@ -2,6 +2,7 @@ open Util;
 open Calc.Syntax;
 open ProjectorBase;
 open OptUtil.Syntax;
+open Language;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type model('ed) = ('ed, 'ed);
@@ -42,10 +43,10 @@ let methods:
     ) =>
     View.{
       inline:
-        Web.div_c(
+        WebUtil.div_c(
           "main",
           [
-            Web.div_c("pair-proj-parens", [Web.Node.text("(")]),
+            WebUtil.div_c("pair-proj-parens", [WebUtil.Node.text("(")]),
             view_editable(
               ~common,
               ~inject=a => local(Left(a)),
@@ -68,7 +69,7 @@ let methods:
               ~sort=Exp,
               ed1,
             ),
-            Web.div_c("pair-proj-parens", [Web.Node.text(",")]),
+            WebUtil.div_c("pair-proj-parens", [WebUtil.Node.text(",")]),
             view_editable(
               ~common,
               ~inject=a => local(Right(a)),
@@ -91,7 +92,7 @@ let methods:
               ~sort=Exp,
               ed2,
             ),
-            Web.div_c("pair-proj-parens", [Web.Node.text(")")]),
+            WebUtil.div_c("pair-proj-parens", [WebUtil.Node.text(")")]),
           ],
         ),
       offside: None,

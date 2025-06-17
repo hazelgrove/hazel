@@ -1,3 +1,5 @@
+open Language;
+
 /* Projector data which is dependent on semantics,
  * separated out for dependency reasons */
 
@@ -12,7 +14,7 @@ module ShapeMapSemantics = {
         dynamics: Dynamics.Map.t,
         p: Base.projector(ProjectorCore.model(ed, ed_a, ed_f)),
       )
-      : ProjectorShape.t => {
+      : Util.ProjectorShape.t => {
     let ProjectorCore.V(kind, model, _) = p.model;
     let methods = ProjectorCore.to_module(kind);
     /* Projector data which is dependent on semantics,
@@ -33,6 +35,6 @@ module ShapeMapSemantics = {
         statics: Statics.Map.t,
         dynamics: Dynamics.Map.t,
       )
-      : Id.Map.t(ProjectorShape.t) =>
+      : Id.Map.t(Util.ProjectorShape.t) =>
     Id.Map.map(shape_of_projector(statics, dynamics), proj_map);
 };

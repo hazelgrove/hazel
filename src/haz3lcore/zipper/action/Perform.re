@@ -1,5 +1,6 @@
 open Util;
 open Zipper;
+open Language;
 
 let buffer_clear = (z: t('p)): t('p) =>
   switch (z.selection.mode) {
@@ -10,7 +11,7 @@ let buffer_clear = (z: t('p)): t('p) =>
   | _ => z
   };
 
-let set_buffer = (info_map: Statics.Map.t, z: t('p)): t('p) =>
+let set_buffer = (info_map: Language.Statics.Map.t, z: t('p)): t('p) =>
   switch (TyDi.set_buffer(~info_map, z)) {
   | None => z
   | Some(z) => z
@@ -21,7 +22,7 @@ let go_z =
       type p',
       type p_kind,
       type p_a,
-      ~settings as _: CoreSettings.t,
+      ~settings as _: Language.CoreSettings.t,
       ~seg_to_ed,
       ~projector_init,
       ~seg_of_projector as seg_of_pr,
@@ -155,7 +156,7 @@ let go_z =
         open OptUtil.Syntax;
         let* idx = Indicated.index(z);
         let* ci = Id.Map.find_opt(idx, statics.info_map);
-        let* binding_id = Info.get_binding_site(ci);
+        let* binding_id = Language.Info.get_binding_site(ci);
         Move.jump_to_id(z, binding_id);
       | TileId(id) => Move.jump_to_id(z, id)
       }
@@ -207,7 +208,10 @@ let go_z =
     | None => Error(Action.Failure.Cant_select)
     }
   | Select(Resize(d)) =>
-    Select.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_select)
+    switch (Select.go(d, z)) {
+    | Some(z) => Ok(z)
+    | None => Ok(z)
+    }
   | Destruct(d) =>
     z
     |> Destruct.go(d)

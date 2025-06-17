@@ -1,5 +1,6 @@
 open Util;
 open Virtual_dom.Vdom;
+open Language;
 
 /* This descibes the API for projectors: GUIs which
  * can replace part of the program syntax and perform

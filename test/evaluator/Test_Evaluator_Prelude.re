@@ -1,5 +1,5 @@
 open Alcotest;
-open Haz3lcore;
+open Language;
 
 module UG = Grammar.UnitGrammar;
 
@@ -19,12 +19,7 @@ let evaluate_probes = unevaluated =>
   |> snd
   |> EvaluatorState.get_probes;
 
-let parse_exp = (s: string) => {
-  switch (Parse.parse_exp(s)) {
-  | Some(e) => e
-  | None => Alcotest.fail("Failed to parse expression: " ++ s)
-  };
-};
+let parse_exp = Parse.parse_exp;
 let elaborate = u =>
   Elaborator.elaborate(
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), u),

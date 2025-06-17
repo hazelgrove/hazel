@@ -1,5 +1,5 @@
 type t = {
-  info: option(Info.t),
+  info: option(Language.Info.t),
   contextual_actions: list(ContextualAction.t),
   current_projector: option(string),
 };

@@ -44,9 +44,12 @@ let rel = (p1: Piece.t('p), p2: Piece.t('p)): option(rel) =>
   | (Projector(_), _) => None
   | (_, Projector(_)) => None
   | (Tile(t1), Tile(t2)) =>
-    open Labels;
     let lbl1 = (==)(t1.label);
     let lbl2 = (==)(t2.label);
+    //TODO: unhardcode
+    let comma = [","];
+    let case = ["case"];
+    let rule = ["|", "=>"];
     let eq =
       [
         lbl1(case) && lbl2(rule),

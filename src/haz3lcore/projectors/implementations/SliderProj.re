@@ -1,6 +1,7 @@
 open Util;
 open Virtual_dom.Vdom;
 open ProjectorBase;
+open Language;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type model('ed) = Bigint.t;
@@ -43,7 +44,7 @@ let view =
     )
     : View.t =>
   View.mk(
-    Util.Web.range(
+    Util.WebUtil.range(
       ~attrs=[Attr.on_input((_, v) => local(Set(Bigint.of_string(v))))],
       model |> Bigint.to_string,
     ),

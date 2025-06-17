@@ -3,6 +3,7 @@ open ProjectorBase;
 open Virtual_dom.Vdom;
 open Node;
 open Js_of_ocaml;
+open Language;
 
 type term_view = {
   view: Node.t,

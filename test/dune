@@ -2,18 +2,7 @@
 
 (test
  (name haz3ltest)
- (libraries
-  haz3lcorep
-  haz3lweb
-  alcotest
-  sexplib
-  base
-  ptmap
-  incr_dom
-  haz3lmenhir
-  junit
-  junit_alcotest
-  bisect_ppx.runtime)
+ (libraries web menhirParser junit_alcotest bisect_ppx.runtime)
  (modes js)
  (preprocess
   (pps

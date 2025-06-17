@@ -1,7 +1,7 @@
 include Haz3lcorep;
 open Util;
 
-let of_projector = (~sort as _, ~id as _, _) => Grammar.Any();
+let of_projector = (~sort as _, ~id as _, _) => Language.Grammar.Any();
 
 module Base = {
   include Base;
@@ -28,11 +28,6 @@ module Editor = {
 module MakeTerm = {
   include MakeTerm;
   let from_zip_for_sem = from_zip_for_sem(~of_projector);
-};
-
-module Parse = {
-  include Haz3lcorep.Parse;
-  let parse_exp = parse_exp(~of_projector);
 };
 
 module Segment = {

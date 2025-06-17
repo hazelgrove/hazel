@@ -8,7 +8,7 @@ let init =
       type ed_f,
       ~copy_ed: ed => ed,
       kind: ProjectorCore.Kind.t,
-      any: Term.Any.t,
+      any: Language.Any.t,
       ed: unit => option(ed),
     )
     : option(ProjectorCore.model(ed, ed_a, ed_f)) => {
@@ -30,7 +30,7 @@ let make_term =
       ~sort: Sort.t,
       V(k, m, exp_cache): ProjectorCore.model(ed, ed_a, ed_f),
     )
-    : (ProjectorCore.model(ed, ed_a, ed_f), Calc.t(Any.t)) => {
+    : (ProjectorCore.model(ed, ed_a, ed_f), Calc.t(Language.Any.t)) => {
   let methods = ProjectorCore.to_module(k);
   let (ed', term) = methods.mk_term(~mk_term_ed, ~sort, ~prev=exp_cache, m);
   (V(k, ed', term |> Calc.save), term);

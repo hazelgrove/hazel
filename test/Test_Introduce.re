@@ -1,4 +1,4 @@
-open Haz3lcore;
+open Language;
 open Alcotest;
 
 let exp = testable(Fmt.using(DHExp.show, Fmt.string), DHExp.fast_equal);
@@ -31,6 +31,7 @@ let introduction_test = (before: string, expected: string) => {
   open Util.OptUtil.Syntax;
 
   let serialized = {
+    open Haz3lcore;
     let* zip = Printer.zipper_of_string(before);
     let exp = MakeTerm.from_zip_for_sem(zip).term;
     let* hole_id = find_hole_id(exp);
@@ -56,7 +57,8 @@ let introduction_test = (before: string, expected: string) => {
 };
 
 let introduce_expression = (x: Typ.t): option(Exp.t) =>
-  Introduce.IntroduceExp.introduce(x) |> Option.map(((a, _b, _c)) => a);
+  Haz3lcore.Introduce.IntroduceExp.introduce(x)
+  |> Option.map(((a, _b, _c)) => a);
 
 let tests =
   IdTagged.FreshGrammar.[

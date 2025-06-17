@@ -25,6 +25,12 @@ let make_old = (x: t('a)): t('a) =>
   | NewValue(x) => OldValue(x)
   };
 
+let make_new = (x: t('a)): t('a) =>
+  switch (x) {
+  | OldValue(x)
+  | NewValue(x) => NewValue(x)
+  };
+
 let get_value = (x: t('a)): 'a =>
   switch (x) {
   | OldValue(x)
@@ -72,6 +78,13 @@ let map_saved = (f: 'a => 'b, x: saved('a)): saved('b) =>
   | Calculated(x) => Calculated(f(x))
   };
 
+let saved_pair = ((x: saved('a), y: saved('b))): saved(('a, 'b)) =>
+  switch (x, y) {
+  | (Pending, _)
+  | (_, Pending) => Pending
+  | (Calculated(x), Calculated(y)) => Calculated((x, y))
+  };
+
 /* Using update, we can make a value of saved('a) that recalculates whenever
    the value of t('a) changes. */
 let update = (x: t('a), f: 'a => 'b, y: saved('b)): t('b) =>
@@ -90,12 +103,25 @@ let set = (~eq: ('a, 'a) => bool=(==), x: 'a, y: saved('a)) =>
   | Calculated(_) => NewValue(x)
   };
 
+let const = (y: unit => 'a, x: saved('a)) => {
+  switch (x) {
+  | Pending => NewValue(y())
+  | Calculated(x) => OldValue(x)
+  };
+};
+
 /* Save takes a value of t('a) that has been recalculated and stores it in a
    saved so it can be put back in the model */
 let save = (x: t('a)): saved('a) =>
   switch (x) {
   | OldValue(x)
   | NewValue(x) => Calculated(x)
+  };
+
+let saved_to_option = (x: saved('a)): option('a) =>
+  switch (x) {
+  | Pending => None
+  | Calculated(x) => Some(x)
   };
 
 // ================================================================================
@@ -109,6 +135,20 @@ let to_option = (x: t(option('a))): option(t('a)) => {
   | NewValue(None) => None
   };
 };
+
+let to_pair = (x: t(('a, 'b))): (t('a), t('b)) => {
+  switch (x) {
+  | OldValue((x, y)) => (OldValue(x), OldValue(y))
+  | NewValue((x, y)) => (NewValue(x), NewValue(y))
+  };
+};
+
+let pair_saved = (x: saved('a), y: saved('b)): saved(('a, 'b)) =>
+  switch (x, y) {
+  | (Pending, _)
+  | (_, Pending) => Pending
+  | (Calculated(x), Calculated(y)) => Calculated((x, y))
+  };
 
 module Syntax = {
   let (let.calc) = update;

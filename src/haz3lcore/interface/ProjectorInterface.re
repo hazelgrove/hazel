@@ -1,14 +1,14 @@
 open Util;
-open Web;
+open WebUtil;
 
 type common = {
-  settings: CoreSettings.t,
+  settings: Language.CoreSettings.t,
   font_metrics: FontMetrics.t,
   secondary_icons: bool,
   show_backpack_targets: bool,
   color_highlights: option(ColorSteps.colorMap),
   statics: CachedStatics.t,
-  dynamics: Dynamics.Map.t,
+  dynamics: Language.Dynamics.Map.t,
 };
 
 type edit_mode('p_k, 'p_m, 'p_a, 'e_f) =
@@ -37,12 +37,12 @@ type info = {
   /* Static information about the syntax including type
    * information. Statics may be disabled by the user;
    * this case (None) must be handled by projector authors */
-  statics: option(Statics.Info.t),
+  statics: option(Language.Statics.Info.t),
   /* Dynamic information about the syntax including
    * live values of the syntax. Dynamics may be
    * disabled by the user; this case (None) must be
    * handled by projector authors */
-  dynamics: option(Dynamics.Info.t),
+  dynamics: option(Language.Dynamics.Info.t),
 };
 
 module View = {
@@ -79,11 +79,12 @@ module type EDITOR = {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = model; // Transparent definition needed for handing editor to projectorinit
 
-    let mk: (~settings: CoreSettings.t, ~inline: bool=?, Any.t) => t;
+    let mk: (~inline: bool=?, Language.Any.t) => t;
 
-    let get_trailing_hole_ctx: (t, Statics.Map.t) => option(Ctx.t);
+    let get_trailing_hole_ctx:
+      (t, Language.Statics.Map.t) => option(Language.Ctx.t);
 
-    let get_cached_term: t => Term.Any.t;
+    let get_cached_term: t => Language.Any.t;
 
     let copy: t => t;
   };
@@ -94,7 +95,8 @@ module type EDITOR = {
 
     let update: (~common: common, t, Model.t) => Model.t;
 
-    let make_term: (~sort: Sort.t, Model.t) => (Model.t, Calc.t(Any.t));
+    let make_term:
+      (~sort: Sort.t, Model.t) => (Model.t, Calc.t(Language.Any.t));
 
     let calculate: (~common: common, Model.t) => Model.t;
 
@@ -139,7 +141,7 @@ module type EDITOR = {
         ~sort: Sort.t,
         Model.t
       ) =>
-      Web.Node.t;
+      WebUtil.Node.t;
 
     let get_dimensions: Model.t => Point.t;
 
@@ -150,11 +152,11 @@ module type EDITOR = {
         ~focus: Focus.t => Ui_effect.t(unit),
         ~focussed: option(Focus.t),
         ~escape: Direction.t => Ui_effect.t(unit),
-        ~overlays: list(Web.Node.t)=?,
+        ~overlays: list(WebUtil.Node.t)=?,
         ~sort: Sort.t,
         Model.t
       ) =>
-      Web.Node.t;
+      WebUtil.Node.t;
   };
 };
 
@@ -167,14 +169,14 @@ module type PROJECTOR = {
   type focus;
 
   let init:
-    (~copy_ed: 'ed_m => 'ed_m, Term.Any.t, unit => option('ed_m)) =>
+    (~copy_ed: 'ed_m => 'ed_m, Language.Any.t, unit => option('ed_m)) =>
     option('model);
   let dynamics: bool;
   let update:
     (~common: common, ~sort: Sort.t, info, 'model, 'action) => 'model;
   let mk_term:
-    (~sort: Sort.t, ~prev: Calc.saved(Any.t), 'model) =>
-    ('model, Calc.t(Any.t));
+    (~sort: Sort.t, ~prev: Calc.saved(Language.Any.t), 'model) =>
+    ('model, Calc.t(Language.Any.t));
   let calculate: (~common: common, 'model) => 'model;
   let get_cursor_info:
     (

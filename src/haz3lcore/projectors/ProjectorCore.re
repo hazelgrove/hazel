@@ -243,7 +243,11 @@ module Kind = {
 };
 
 type model('ed_m, 'ed_a, 'ed_f) =
-  | V(Kind.gadt('a, 'b, 'c, 'ed_m, 'ed_a, 'ed_f), 'a, Calc.saved(Any.t))
+  | V(
+      Kind.gadt('a, 'b, 'c, 'ed_m, 'ed_a, 'ed_f),
+      'a,
+      Calc.saved(Language.Any.t),
+    )
     : model('ed_m, 'ed_a, 'ed_f);
 
 let kind_of_model = (V(x, _, _)) => Kind.of_gadt(x);
@@ -359,11 +363,15 @@ let yojson_of_model =
   };
 
 let mk_info =
-    (~id: Id.t, ~statics: Statics.Map.t, ~dynamics: Dynamics.Map.t)
+    (
+      ~id: Id.t,
+      ~statics: Language.Statics.Map.t,
+      ~dynamics: Language.Dynamics.Map.t,
+    )
     : ProjectorBase.info => {
   id,
-  statics: Statics.Map.lookup(id, statics),
-  dynamics: Dynamics.Map.lookup(id, dynamics),
+  statics: Language.Statics.Map.lookup(id, statics),
+  dynamics: Language.Dynamics.Map.lookup(id, dynamics),
 };
 
 module Update = {

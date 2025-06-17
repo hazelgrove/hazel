@@ -144,10 +144,12 @@ let key_handler = (id, ~parent, evt) => {
   open Effect;
   let key = Key.mk(KeyDown, evt);
   switch (key.key) {
-  | D("ArrowRight" | "ArrowDown") when Web.TextArea.is_last_pos(Id.cls(id)) =>
+  | D("ArrowRight" | "ArrowDown")
+      when WebUtil.TextArea.is_last_pos(Id.cls(id)) =>
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
     Many([parent(Escape(Right)), Stop_propagation]);
-  | D("ArrowLeft" | "ArrowUp") when Web.TextArea.is_first_pos(Id.cls(id)) =>
+  | D("ArrowLeft" | "ArrowUp")
+      when WebUtil.TextArea.is_first_pos(Id.cls(id)) =>
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
     Many([parent(Escape(Left)), Stop_propagation]);
   /* Defer to parent editor undo for now */
@@ -188,7 +190,7 @@ let methods:
     'ed_a,
     'ed_f,
   ) = {
-  init: (~copy_ed as _, any: Term.Any.t, _ed) =>
+  init: (~copy_ed as _, any: Language.Any.t, _ed) =>
     switch (any) {
     | Exp({term: Atom(String(str)), _}) => Some(str)
     | _ => None
@@ -206,10 +208,10 @@ let methods:
     (
       m,
       Calc.set(
-        ~eq=Any.fast_equal,
+        ~eq=Language.Any.fast_equal,
         switch (sort) {
-        | Sort.Exp => Exp(Atom(String(m)) |> Exp.fresh)
-        | Sort.Pat => Pat(Atom(String(m)) |> Pat.fresh)
+        | Sort.Exp => Exp(Atom(String(m)) |> Language.Exp.fresh)
+        | Sort.Pat => Pat(Atom(String(m)) |> Language.Pat.fresh)
         | _ => Any()
         },
         prev,
@@ -259,8 +261,8 @@ let methods:
           focus(),
           Ui_effect.of_sync_fun(
             () =>
-              Web.TextArea.set_caret_to_start(
-                Web.TextArea.get(Id.cls(info.id)),
+              WebUtil.TextArea.set_caret_to_start(
+                WebUtil.TextArea.get(Id.cls(info.id)),
               ),
             (),
           ),
@@ -271,8 +273,8 @@ let methods:
           focus(),
           Ui_effect.of_sync_fun(
             () =>
-              Web.TextArea.set_caret_to_end(
-                Web.TextArea.get(Id.cls(info.id)),
+              WebUtil.TextArea.set_caret_to_end(
+                WebUtil.TextArea.get(Id.cls(info.id)),
               ),
             (),
           ),

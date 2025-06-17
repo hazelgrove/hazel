@@ -3,18 +3,16 @@
  * zippers into expressions.
  */
 open Alcotest;
-open Haz3lcore;
-module Fresh = IdTagged.FreshGrammar;
-let exp_typ = testable(Fmt.using(Exp.show, Fmt.string), Exp.fast_equal);
+module Fresh = Language.IdTagged.FreshGrammar;
+let exp_typ =
+  testable(
+    Fmt.using(Language.Exp.show, Fmt.string),
+    Language.Exp.fast_equal,
+  );
 
-let parse_exp = (s: string) => {
-  switch (Parse.parse_exp(s)) {
-  | Some(e) => e
-  | None => Alcotest.fail("Failed to parse expression: " ++ s)
-  };
-};
+let parse_exp = Parse.parse_exp;
 let exp_check = (expected, actual) =>
-  check(exp_typ, actual, expected, parse_exp(actual));
+  check(exp_typ, actual, expected, Parse.parse_exp(actual));
 
 let tests =
   Fresh.(
