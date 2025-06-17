@@ -360,9 +360,10 @@ module Update = {
           (
             ed: CodeWithStatics.Model.t,
             loc: ChatLSP.Composition.loc_of_goto,
+            kind: ChatLSP.Composition.kind_of_goto,
             name: string,
           ) => {
-        let actions = ChatLSP.Composition.goto(ed, loc, name);
+        let actions = ChatLSP.Composition.goto(ed, loc, kind, name);
         // Apply each action in sequence
         List.iter(
           action => {
