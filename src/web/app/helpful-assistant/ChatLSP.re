@@ -209,6 +209,10 @@ module Composition = {
     | Definition
     | All;
 
+  type kind_of_goto =
+    | Variable
+    | Type;
+
   let get_static_context = (relevant_ctx: bool, ci: Info.t): list(string) =>
     switch (ci) {
     | InfoExp({ana, ctx, _})
@@ -223,7 +227,12 @@ module Composition = {
   // Finds the first matching variable as 'name' in the context
   // highlights the variable and definition (excluding the body)
   let goto =
-      (editor: CodeWithStatics.Model.t, loc: loc_of_goto, name: string)
+      (
+        editor: CodeWithStatics.Model.t,
+        loc: loc_of_goto,
+        kind: kind_of_goto,
+        name: string,
+      )
       : list(Action.t) =>
     if (loc == All) {
       print_endline("here selecting all");
@@ -239,9 +248,17 @@ module Composition = {
             | Some(_) => acc // Already found a match
             | None =>
               let ctx = Info.ctx_of(info);
-              switch (Ctx.lookup_var(ctx, name)) {
-              | Some(entry) => Some(entry.id)
-              | None => None
+              switch (kind) {
+              | Variable =>
+                switch (Ctx.lookup_var(ctx, name)) {
+                | Some(entry) => Some(entry.id)
+                | None => None
+                }
+              | Type =>
+                switch (Ctx.lookup_tvar_id(ctx, name)) {
+                | Some(id) => Some(id)
+                | None => None
+                }
               };
             }
           },

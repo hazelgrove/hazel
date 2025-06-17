@@ -437,6 +437,8 @@ let mk_llm_call =
         [
           CompositionPrompt.goto_definition,
           CompositionPrompt.goto_body,
+          CompositionPrompt.goto_type_definition,
+          CompositionPrompt.goto_type_body,
           CompositionPrompt.select_all,
           CompositionPrompt.paste,
           CompositionPrompt.delete,
@@ -967,19 +969,59 @@ let update =
           | "goto_definition" =>
             switch (Json.dot("variable", tool_call.args)) {
             | Some(`String(arg)) =>
-              goto(editor, ChatLSP.Composition.Definition, arg);
+              goto(
+                editor,
+                ChatLSP.Composition.Definition,
+                ChatLSP.Composition.Variable,
+                arg,
+              );
               schedule_action(loop_message);
             | _ => raise(Failure("Invalid argument for goto_definition"))
             }
           | "goto_body" =>
             switch (Json.dot("variable", tool_call.args)) {
             | Some(`String(arg)) =>
-              goto(editor, ChatLSP.Composition.Body, arg);
+              goto(
+                editor,
+                ChatLSP.Composition.Body,
+                ChatLSP.Composition.Variable,
+                arg,
+              );
               schedule_action(loop_message);
             | _ => raise(Failure("Invalid argument for goto_body"))
             }
+          | "goto_type_definition" =>
+            switch (Json.dot("variable", tool_call.args)) {
+            | Some(`String(arg)) =>
+              goto(
+                editor,
+                ChatLSP.Composition.Definition,
+                ChatLSP.Composition.Type,
+                arg,
+              );
+              schedule_action(loop_message);
+            | _ =>
+              raise(Failure("Invalid argument for goto_type_definition"))
+            }
+          | "goto_type_body" =>
+            switch (Json.dot("variable", tool_call.args)) {
+            | Some(`String(arg)) =>
+              goto(
+                editor,
+                ChatLSP.Composition.Body,
+                ChatLSP.Composition.Type,
+                arg,
+              );
+              schedule_action(loop_message);
+            | _ => raise(Failure("Invalid argument for goto_type_body"))
+            }
           | "select_all" =>
-            goto(editor, ChatLSP.Composition.All, "");
+            goto(
+              editor,
+              ChatLSP.Composition.All,
+              ChatLSP.Composition.Variable,
+              "",
+            );
             schedule_action(loop_message);
           | "paste" =>
             switch (Json.dot("code", tool_call.args)) {

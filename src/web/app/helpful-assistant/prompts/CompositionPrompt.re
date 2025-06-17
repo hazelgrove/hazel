@@ -62,7 +62,7 @@ let goto_definition: API.Json.t =
         (
           "description",
           `String(
-            "Selects the definition of the given variable name. Eg. goto definition x will select ```let x = 1 in``` given a program ```let y = 0 in\nlet x = 1 in\nx + y```.",
+            "Selects the definition of the given variable name. Eg. goto_definition x will select ```let x = 1 in``` given a program ```let y = 0 in\nlet x = 1 in\nx + y```.",
           ),
         ),
         (
@@ -103,7 +103,115 @@ let goto_body: API.Json.t =
         (
           "description",
           `String(
-            "Selects the body of the given variable name. Eg. goto body x will select ```x + y``` given a program ```let y = 0 in\nlet x = 1 in\nx + y```.",
+            "Selects the body of the given variable name. Eg. goto_body x will select ```x + y``` given a program ```let y = 0 in\nlet x = 1 in\nx + y```.",
+          ),
+        ),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            (
+              "properties",
+              `Assoc([
+                (
+                  "variable",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "The name of the variable whose body associated with its let bindingis to be selected.",
+                      ),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            ("required", `List([`String("variable")])),
+          ]),
+        ),
+      ]),
+    ),
+  ]);
+
+let goto_type_definition: API.Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("goto_type_definition")),
+        (
+          "description",
+          `String(
+            {|Selects the definition of the given type name. Eg. goto_type_definition t will select ```type t =
+  + A(Bool)
+  + B(Int, Bool)
+in``` given a program ```type t =
+  + A(Bool)
+  + B(Int, Bool)
+in
+let f = fun x: t ->
+  case x
+    | A(_) => "Argument has constructor A"
+    | B(_) => "Argument has constructor B"
+  end
+in f(A(false))```.|},
+          ),
+        ),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            (
+              "properties",
+              `Assoc([
+                (
+                  "variable",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "The name of the variable whose definition associated with its let binding is to be selected.",
+                      ),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            ("required", `List([`String("variable")])),
+          ]),
+        ),
+      ]),
+    ),
+  ]);
+
+let goto_type_body: API.Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("goto_type_body")),
+        (
+          "description",
+          `String(
+            {|Selects the body of the given type name. Eg. goto_type_body t will select ```let f = fun x: t ->
+  case x
+    | A(_) => "Argument has constructor A"
+    | B(_) => "Argument has constructor B"
+  end
+in f(A(false))``` given a program ```type t =
+  + A(Bool)
+  + B(Int, Bool)
+in
+let f = fun x: t ->
+  case x
+    | A(_) => "Argument has constructor A"
+    | B(_) => "Argument has constructor B"
+  end
+in f(A(false))```.|},
           ),
         ),
         (
