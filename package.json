@@ -13,7 +13,7 @@
     "@esbuild-plugins/node-resolve": "^0.2.2",
     "hotkeys-js": "^3.8.7",
     "ninja-keys": "^1.2.2",
-    "node": "^20.19.1"
+    "algebrite": "^1.4.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

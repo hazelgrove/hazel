@@ -17,7 +17,7 @@ module StringUtil = StringUtil;
 module Tree = Tree;
 module TimeUtil = TimeUtil;
 module TupleUtil = TupleUtil;
-module Web = Web;
+module WebUtil = WebUtil;
 module JsUtil = JsUtil;
 module Key = Key;
 module Os = Os;
@@ -25,6 +25,11 @@ module Point = Point;
 module Calc = Calc;
 module Sets = Sets;
 module Maps = Maps;
+module Id = Id;
+module Unicode = Unicode;
+module StructureShareSexp = StructureShareSexp;
+module VarMap = VarMap;
+module ProjectorShape = ProjectorShape;
 
 // Used by [@deriving sexp, yojson)]
 include Sexplib.Std;

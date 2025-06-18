@@ -1,5 +1,6 @@
 open Alcotest;
 open Haz3lcore;
+open Language;
 open Base;
 
 // Id ignoring equality for tiles
@@ -37,7 +38,6 @@ let exp_to_segment_settings: ExpToSegment.Settings.t = {
   fold_case_clauses: false,
   fold_fn_bodies: false,
   hide_fixpoints: false,
-  fold_cast_types: false,
   show_filters: true,
   show_unknown_as_hole: true,
 };
@@ -362,7 +362,6 @@ let tests = (
               fold_case_clauses: false,
               fold_fn_bodies: false,
               hide_fixpoints: false,
-              fold_cast_types: false,
               show_filters: true,
               show_unknown_as_hole: true,
             },
