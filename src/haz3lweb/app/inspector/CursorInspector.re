@@ -77,8 +77,7 @@ let term_view = (~globals: Globals.t, ci) => {
     [
       ctx_toggle(~globals),
       div(~attrs=[clss(["term-tag"])], [text(sort_text)]),
-      // TODO(zhiyao): disabled for study mode
-      // explain_this_toggle(~globals),
+      explain_this_toggle(~globals),
       cls_view(ci),
     ],
   );

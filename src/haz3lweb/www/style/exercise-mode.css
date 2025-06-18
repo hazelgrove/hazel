@@ -258,11 +258,6 @@
   align-items: flex-start;
 }
 
-/* TODO(zhiyao): disable for study mode */
-.cell-setup {
-  display: none;
-}
-
 .derivation-panel.cell-item {
   padding-top: 0;
   gap: 0;

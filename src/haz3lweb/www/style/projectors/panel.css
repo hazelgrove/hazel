@@ -1,9 +1,7 @@
 /* PROJECTORS PANEL */
 
 #projectors {
-  /* TODO(zhiyao): disable for study mode */
-  display: none;
-  /* display: flex; */
+  display: flex;
   gap: 0.75em;
   align-items: center;
   padding-left: 0.75em;
