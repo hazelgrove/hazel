@@ -71,8 +71,11 @@ module View = {
 };
 
 module type EDITOR = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type model;
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type action;
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type focus;
 
   module Model: {
@@ -105,7 +108,7 @@ module type EDITOR = {
 
   module Focus: {
     [@deriving (show({with_path: false}), sexp, yojson)]
-    type t;
+    type t = focus;
 
     // TODO[Matt]: Used in jump to tile logic which will need updating.
     // Thunked to make module "safe"
@@ -163,43 +166,41 @@ module type EDITOR = {
 
 module type PROJECTOR = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type model;
+  type model';
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type action;
+  type action';
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type focus;
+  type focus';
 
-  let init:
-    (~copy_ed: 'ed_m => 'ed_m, Language.Any.t, unit => option('ed_m)) =>
-    option('model);
+  type editor_model;
+
+  let init: (Language.Any.t, unit => option(editor_model)) => option(model');
   let dynamics: bool;
   let update:
-    (~common: common, ~sort: Sort.t, info, 'model, 'action) => 'model;
+    (~common: common, ~sort: Sort.t, info, model', action') => model';
   let mk_term:
-    (~sort: Sort.t, ~prev: Calc.saved(Language.Any.t), 'model) =>
-    ('model, Calc.t(Language.Any.t));
-  let calculate: (~common: common, 'model) => 'model;
+    (~sort: Sort.t, ~prev: Calc.saved(Language.Any.t), model') =>
+    (model', Calc.t(Language.Any.t));
+  let calculate: (~common: common, model') => model';
   let get_cursor_info:
     (
       ~common: common,
-      ~inject: 'action => Ui_effect.t(unit),
+      ~inject: action' => Ui_effect.t(unit),
       ~read_only: bool,
-      'model,
-      'focus
+      model',
+      focus'
     ) =>
     Cursor.t;
   let view:
     (
       ~common: common,
-      ~ed_str: 'ed_m => string,
-      ~local: 'action => Ui_effect.t(unit),
+      ~local: action' => Ui_effect.t(unit),
       ~parent: external_action => Ui_effect.t(unit),
-      ~focus: 'focus => Ui_effect.t(unit),
-      ~focussed: option('focus),
-      'model,
+      ~focus: focus' => Ui_effect.t(unit),
+      ~focussed: option(focus'),
+      model',
       info
     ) =>
     View.t;
-  let placeholder:
-    (~ed_size: 'ed_m => Point.t, 'model, info) => ProjectorShape.t;
+  let placeholder: (model', info) => ProjectorShape.t;
 };

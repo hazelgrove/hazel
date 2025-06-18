@@ -294,3 +294,76 @@ let methods:
   yojson_of_focus,
   focus_of_yojson,
 };
+
+module M =
+       (Editor: ProjectorInterface.EDITOR)
+
+         : (
+           ProjectorInterface.PROJECTOR with
+             type model' = model(Editor.model) and
+             type action' = action(Editor.action) and
+             type focus' = focus(Editor.focus) and
+             type editor_model = Editor.model
+       ) => {
+  type editor_model = Editor.model;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type model' = model(Editor.model);
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type action' = action(Editor.action);
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type focus' = focus(Editor.focus);
+
+  let init = (any, ed) => methods.init(~copy_ed=Editor.Model.copy, any, ed);
+  let dynamics = false;
+  let placeholder = (model, info) =>
+    methods.placeholder(~ed_size=Editor.View.get_dimensions, model, info);
+
+  let update = (~common, ~sort, info, model, action) =>
+    methods.update(
+      ~update_ed=Editor.Update.update,
+      ~common,
+      ~sort,
+      info,
+      model,
+      action,
+    );
+
+  let mk_term = (~sort, ~prev, model) =>
+    methods.mk_term(~mk_term_ed=Editor.Update.make_term, ~sort, ~prev, model);
+
+  let calculate = (~common, model) =>
+    methods.calculate(~calculate_ed=Editor.Update.calculate, ~common, model);
+
+  let get_cursor_info = (~common, ~inject, ~read_only, model, focus) =>
+    methods.get_cursor_info(
+      ~get_cursor_info_ed=Editor.Focus.get_cursor_info,
+      ~common,
+      ~inject,
+      ~read_only,
+      model,
+      focus,
+    );
+
+  let view = (~common, ~local, ~parent, ~focus, ~focussed, model, info) =>
+    methods.view(
+      ~common,
+      ~ed_str=Editor.View.print_string,
+      ~view_ed=
+        Editor.View.view(
+          ~font_metrics=common.font_metrics,
+          ~secondary_icons=common.secondary_icons,
+        ),
+      ~view_editable=Editor.View.view_editable,
+      ~enter_ed=Editor.Focus.enter,
+      ~mk_ed=Editor.Model.mk,
+      ~mk_term_ed=Editor.Update.make_term,
+      ~calculate_ed=Editor.Update.calculate,
+      ~local,
+      ~parent,
+      ~focus,
+      ~focussed,
+      model,
+      info,
+    );
+};

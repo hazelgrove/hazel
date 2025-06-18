@@ -17,125 +17,55 @@ type focus('ed_f) =
   | Left('ed_f)
   | Right('ed_f);
 
-let methods:
-  methods(model('ed_m), action('ed_a), focus('ed_f), 'ed_m, 'ed_a, 'ed_f) = {
-  init: (~copy_ed, _any, ed) => {
-    let+ ed = ed();
-    (ed, copy_ed(ed));
-  },
-  dynamics: false,
-  view:
-    (
-      ~common,
-      ~ed_str as _,
-      ~view_ed as _,
-      ~view_editable,
-      ~enter_ed,
-      ~mk_ed as _,
-      ~mk_term_ed as _,
-      ~calculate_ed as _,
-      ~local,
-      ~parent,
-      ~focus,
-      ~focussed,
-      (ed1, ed2),
-      _info,
-    ) =>
-    View.{
-      inline:
-        WebUtil.div_c(
-          "main",
-          [
-            WebUtil.div_c("pair-proj-parens", [WebUtil.Node.text("(")]),
-            view_editable(
-              ~common,
-              ~inject=a => local(Left(a)),
-              ~focus=f => focus(Left(f)),
-              ~focussed=
-                switch (focussed) {
-                | Some(Left(f)) => Some(f)
-                | _ => None
-                },
-              ~escape=
-                fun
-                | Direction.Left => parent(Escape(Left))
-                | Direction.Right =>
-                  enter_ed(
-                    ~inject=a => local(Right(a)),
-                    ~focus=f => focus(Right(f)),
-                    Direction.Left,
-                    ed2,
-                  ),
-              ~sort=Exp,
-              ed1,
-            ),
-            WebUtil.div_c("pair-proj-parens", [WebUtil.Node.text(",")]),
-            view_editable(
-              ~common,
-              ~inject=a => local(Right(a)),
-              ~focus=f => focus(Right(f)),
-              ~escape=
-                fun
-                | Direction.Left =>
-                  enter_ed(
-                    ~inject=a => local(Left(a)),
-                    ~focus=f => focus(Left(f)),
-                    Direction.Right,
-                    ed1,
-                  )
-                | Direction.Right => parent(Escape(Right)),
-              ~focussed=
-                switch (focussed) {
-                | Some(Right(f)) => Some(f)
-                | _ => None
-                },
-              ~sort=Exp,
-              ed2,
-            ),
-            WebUtil.div_c("pair-proj-parens", [WebUtil.Node.text(")")]),
-          ],
-        ),
-      offside: None,
-      overlay: None,
-      enter_left:
-        Some(
-          enter_ed(
-            ~inject=a => local(Left(a)),
-            ~focus=f => focus(Left(f)),
-            Direction.Left,
-            ed1,
-          ),
-        ),
-      enter_right:
-        Some(
-          enter_ed(
-            ~inject=a => local(Right(a)),
-            ~focus=f => focus(Right(f)),
-            Direction.Right,
-            ed2,
-          ),
-        ),
-    },
-  placeholder: (~ed_size, (ed1, ed2), _info) => {
-    let ed1_size = ed_size(ed1);
-    let ed2_size = ed_size(ed2);
-    ProjectorShape.{
-      horizontal: ed1_size.row + ed2_size.row + 6,
-      vertical: ProjectorShape.Block(max(ed1_size.col, ed2_size.col)),
-    };
-  },
-  update:
-    (~update_ed, ~common, ~sort as _, _info, (left: 'ed, right: 'ed), action) => {
+module M =
+       (Editor: ProjectorInterface.EDITOR)
+
+         : (
+           ProjectorInterface.PROJECTOR with
+             type model' = model(Editor.model) and
+             type action' = action(Editor.action) and
+             type focus' = focus(Editor.focus) and
+             type editor_model = Editor.model
+       ) => {
+  type editor_model = Editor.model;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type model' = model(Editor.model);
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type action' = action(Editor.action);
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type focus' = focus(Editor.focus);
+
+  // MODEL
+
+  let init = (_any, ed) => {
+    let* ed = ed();
+    Some((ed, Editor.Model.copy(ed)));
+  };
+
+  let dynamics = false;
+
+  // UPDATE
+
+  let update =
+      (
+        ~common,
+        ~sort as _,
+        _info,
+        (left: editor_model, right: editor_model),
+        action: action(Editor.action),
+      ) => {
     switch (action) {
     | Left(ed_ac) =>
-      let l_ed = update_ed(~common, ed_ac, left);
+      let l_ed = Editor.Update.update(~common, ed_ac, left);
       (l_ed, right);
     | Right(ed_ac) =>
-      let r_ed = update_ed(~common, ed_ac, right);
+      let r_ed = Editor.Update.update(~common, ed_ac, right);
       (left, r_ed);
     };
-  },
-  mk_term: (~mk_term_ed, ~sort, ~prev, (ed1, ed2)) => {
+  };
+
+  let mk_term = (~sort: Language.Sort.t, ~prev, (ed1, ed2)) => {
     let inner_sort =
       switch (sort) {
       | Exp
@@ -145,8 +75,8 @@ let methods:
       | TPat
       | Rul => Exp
       };
-    let (ed1', t1) = mk_term_ed(~sort=inner_sort, ed1);
-    let (ed2', t2) = mk_term_ed(~sort=inner_sort, ed2);
+    let (ed1', t1) = Editor.Update.make_term(~sort=inner_sort, ed1);
+    let (ed2', t2) = Editor.Update.make_term(~sort=inner_sort, ed2);
     let term' =
       prev
       |> {
@@ -195,23 +125,26 @@ let methods:
         };
       };
     ((ed1', ed2'), term');
-  },
-  calculate: (~calculate_ed, ~common, (left: 'ed, right: 'ed)) => (
-    calculate_ed(~common, left),
-    calculate_ed(~common, right),
-  ),
-  get_cursor_info:
-    (
-      ~get_cursor_info_ed,
-      ~common,
-      ~inject: action('a) => Ui_effect.t(unit),
-      ~read_only,
-      (ed1, ed2),
-      focus,
-    ) =>
+  };
+
+  let calculate = (~common, (left: editor_model, right: editor_model)) => (
+    Editor.Update.calculate(~common, left),
+    Editor.Update.calculate(~common, right),
+  );
+
+  // FOCUS
+
+  let get_cursor_info =
+      (
+        ~common,
+        ~inject: action' => Ui_effect.t(unit),
+        ~read_only,
+        (ed1, ed2),
+        focus,
+      ) =>
     switch (focus) {
     | Left(ed_f) =>
-      get_cursor_info_ed(
+      Editor.Focus.get_cursor_info(
         ~common,
         ~inject=x => inject(Left(x)),
         ~read_only,
@@ -219,24 +152,109 @@ let methods:
         ed_f,
       )
     | Right(ed_f) =>
-      get_cursor_info_ed(
+      Editor.Focus.get_cursor_info(
         ~common,
         ~inject=x => inject(Right(x)),
         ~read_only,
         ed2,
         ed_f,
       )
-    },
-  sexp_of_model,
-  model_of_sexp,
-  yojson_of_model,
-  model_of_yojson,
-  sexp_of_action,
-  action_of_sexp,
-  yojson_of_action,
-  action_of_yojson,
-  sexp_of_focus,
-  focus_of_sexp,
-  yojson_of_focus,
-  focus_of_yojson,
+    };
+
+  // VIEW
+
+  let view =
+      (
+        ~common,
+        ~local: action' => Ui_effect.t(unit),
+        ~parent,
+        ~focus: focus' => Ui_effect.t(unit),
+        ~focussed,
+        (ed1, ed2),
+        _info,
+      ) =>
+    View.{
+      inline:
+        WebUtil.div_c(
+          "main",
+          [
+            WebUtil.div_c("pair-proj-parens", [WebUtil.Node.text("(")]),
+            Editor.View.view_editable(
+              ~common,
+              ~inject=a => local(Left(a)),
+              ~focus=f => focus(Left(f)),
+              ~focussed=
+                switch (focussed) {
+                | Some(Left(f)) => Some(f)
+                | _ => None
+                },
+              ~escape=
+                fun
+                | Direction.Left => parent(ProjectorInterface.Escape(Left))
+                | Direction.Right =>
+                  Editor.Focus.enter(
+                    ~inject=a => local(Right(a)),
+                    ~focus=f => focus(Right(f)),
+                    Direction.Left,
+                    ed2,
+                  ),
+              ~sort=Exp,
+              ed1,
+            ),
+            WebUtil.div_c("pair-proj-parens", [WebUtil.Node.text(",")]),
+            Editor.View.view_editable(
+              ~common,
+              ~inject=a => local(Right(a)),
+              ~focus=f => focus(Right(f)),
+              ~escape=
+                fun
+                | Direction.Left =>
+                  Editor.Focus.enter(
+                    ~inject=a => local(Left(a)),
+                    ~focus=f => focus(Left(f)),
+                    Direction.Right,
+                    ed1,
+                  )
+                | Direction.Right => parent(Escape(Right)),
+              ~focussed=
+                switch (focussed) {
+                | Some(Right(f)) => Some(f)
+                | _ => None
+                },
+              ~sort=Exp,
+              ed2,
+            ),
+            WebUtil.div_c("pair-proj-parens", [WebUtil.Node.text(")")]),
+          ],
+        ),
+      offside: None,
+      overlay: None,
+      enter_left:
+        Some(
+          Editor.Focus.enter(
+            ~inject=a => local(Left(a)),
+            ~focus=f => focus(Left(f)),
+            Direction.Left,
+            ed1,
+          ),
+        ),
+      enter_right:
+        Some(
+          Editor.Focus.enter(
+            ~inject=a => local(Right(a)),
+            ~focus=f => focus(Right(f)),
+            Direction.Right,
+            ed2,
+          ),
+        ),
+    };
+
+  let placeholder = ((ed1, ed2), _info) => {
+    let ed1_size = Editor.View.get_dimensions(ed1);
+    let ed2_size = Editor.View.get_dimensions(ed2);
+    ProjectorShape.{
+      horizontal: ed1_size.row + ed2_size.row + 6,
+      vertical: ProjectorShape.Block(max(ed1_size.col, ed2_size.col)),
+    };
+  };
 };

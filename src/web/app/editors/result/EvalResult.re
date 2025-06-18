@@ -276,7 +276,7 @@ module Update = {
         editor
         |> Calc.map_saved(x => Calc.Calculated(x))
         |> {
-          let.calc settings = cached_settings
+          let.calc _ = cached_settings
           and.calc result = result;
           switch (result) {
           | ResultOk((exp, _state)) =>
