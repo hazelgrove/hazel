@@ -7,13 +7,14 @@ open WebUtil;
 let view =
     (
       type p',
+      ~background=false,
       ~font_metrics: Haz3lcorep.FontMetrics.t,
       ~secondary_icons,
       ~sort: Language.Sort.t,
       ~measured,
       ~buffer_ids,
-      ~segment: Haz3lcorep.Segment.t(p'),
       ~shape_map,
+      segment: Haz3lcorep.Segment.t(p'),
     )
     : Node.t => {
   module Text =
@@ -25,7 +26,14 @@ let view =
       let secondary_icons = secondary_icons;
     });
   let code = Text.of_segment(buffer_ids, false, sort, segment);
-  div_c("code", [span_c("code-text", code)]);
+  let backing =
+    /* Add a fun background to your editor */
+    background
+      ? [
+        Deco.quick_select_deco(~font_metrics, ~measured, ~shape_map, segment),
+      ]
+      : [];
+  div_c("code", [span_c("code-text", code)] @ backing);
 };
 
 let view_segment =
@@ -37,13 +45,14 @@ let view_segment =
     ) => {
   let measured = Haz3lcorep.Measured.of_segment(segment, shape_map);
   let buffer_ids = [];
-  view(~sort, ~measured, ~buffer_ids, ~segment, ~shape_map);
+  view(~sort, ~measured, ~buffer_ids, ~shape_map, segment);
 };
 
 let view_editor =
     (
       type p,
       ~sort: Language.Sort.t,
+      ~background=false,
       editor: Haz3lcorep.Editor.t('p_k, p, 'p_a),
     ) => {
   let syntax = Calc.get_saved_exc(editor.syntax);
@@ -55,7 +64,7 @@ let view_editor =
       ? Calc.get_saved_exc(editor.selection_ids) : [];
   let segment = syntax.segment;
   let shape_map = syntax.shape_map;
-  view(~sort, ~measured, ~buffer_ids, ~segment, ~shape_map);
+  view(~background, ~sort, ~measured, ~buffer_ids, ~shape_map, segment);
 };
 
 let view_typ = (~settings, typ: Language.Typ.t) => {

@@ -139,6 +139,7 @@ module type EDITOR = {
         ~font_metrics: FontMetrics.t,
         ~secondary_icons: bool,
         ~sort: Sort.t,
+        ~background: bool=?,
         Model.t
       ) =>
       WebUtil.Node.t;

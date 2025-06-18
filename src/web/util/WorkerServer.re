@@ -1,5 +1,4 @@
 open Util;
-open WebUtil;
 
 [@deriving (sexp, yojson)]
 type key = string;

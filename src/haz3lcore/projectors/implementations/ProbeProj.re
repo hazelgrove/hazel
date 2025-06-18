@@ -12,28 +12,20 @@ type term_view = {
 
 let view_term =
     (
-      ~view_ed: (~sort: Sort.t, 'ed_m) => Node.t,
+      ~view_ed: (~sort: Sort.t, ~background: bool=?, 'ed_m) => Node.t,
       ~mk_ed: Any.t => 'ed_m,
       ~ed_str: 'ed_m => string,
+      ~calculate_ed,
+      ~common,
       term: Any.t,
     )
     : term_view => {
   //TODO(andrew): cleanup
   let ed = mk_ed(term);
-  let length = ed_str(ed) |> String.length;
-  let view =
-    switch (term) {
-    //TODO(andrew): sort selection should be baked in upstream
-    | Exp(_) => view_ed(~sort=Exp, ed)
-    | Pat(_) => view_ed(~sort=Pat, ed)
-    | Typ(_) => view_ed(~sort=Typ, ed)
-    | TPat(_) => view_ed(~sort=TPat, ed)
-    | Rul(_) => view_ed(~sort=Rul, ed)
-    | Any(_) => view_ed(~sort=Any, ed)
-    };
+  let ed = calculate_ed(~common, ed);
   {
-    view,
-    length,
+    view: view_ed(~sort=Any.sort(term), ed),
+    length: ed |> ed_str |> String.length,
   };
 };
 
@@ -826,7 +818,7 @@ let view =
       info: info,
       m: model(_),
       ~len_of_exp,
-      ~view_ed: (~sort: Sort.t, 'ed_m) => Node.t,
+      ~view_ed: (~sort: Sort.t, ~background: bool=?, 'ed_m) => Node.t,
     )
     : Node.t =>
   div(
@@ -876,14 +868,14 @@ let overlay_view = (info: info): Node.t =>
 
 let view =
     (
-      ~common as _,
+      ~common,
       ~ed_str: 'ed_m => string,
-      ~view_ed: (~sort: Sort.t, 'ed_m) => Node.t,
+      ~view_ed: (~sort: Sort.t, ~background: bool=?, 'ed_m) => Node.t,
       ~view_editable as _,
       ~enter_ed as _,
       ~mk_ed: Any.t => 'ed_m,
       ~mk_term_ed as _,
-      ~calculate_ed as _,
+      ~calculate_ed,
       ~local: action(_) => Ui_effect.t(unit),
       ~parent: external_action => Ui_effect.t(unit),
       ~focus as _,
@@ -891,7 +883,8 @@ let view =
       model: model(_),
       info,
     ) => {
-  let view_term = view_term(~view_ed, ~mk_ed, ~ed_str);
+  let view_term =
+    view_term(~view_ed, ~mk_ed, ~ed_str, ~calculate_ed, ~common);
   let len_of_exp = len_of_exp(~mk_ed, ~ed_str);
 
   View.{

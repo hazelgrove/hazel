@@ -184,34 +184,6 @@ let offside_wrapper =
     [v],
   );
 
-// let simple_code = (~background=false, font_metrics, sort, segment): Node.t => {
-//   let shape_map = ProjectorShape.Map.empty; /* Assume this doesn't contain projectors */
-//   let map = Measured.of_segment(segment, shape_map);
-//   module Text =
-//     Code.Text({
-//       // TODO(Matt): text should be abtracted away from projectors
-//       type p = Projectors.model;
-//       let map = map;
-//       let secondary_icons = Settings.Model.init.secondary_icons;
-//       let shape_map = shape_map;
-//       let font_metrics = font_metrics;
-//     });
-//   let backing =
-//     if (background) {
-//       switch (Deco.quick_select_deco(segment)) {
-//       | exception _ => []
-//       | view => [view]
-//       };
-//     } else {
-//       [];
-//     };
-//   div(
-//     ~attrs=[Attr.class_("code")],
-//     [span_c("code-text", Text.of_segment([], false, sort, segment))]
-//     @ backing,
-//   );
-// };
-
 /* Route top-level metadata to the projector view function. */
 let mk_view =
     (

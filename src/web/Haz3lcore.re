@@ -338,8 +338,21 @@ and Editor: {
 
   module View = {
     // TODO[Matt]: This should be the only function in view.
-    let view = (~font_metrics, ~secondary_icons, ~sort, m: Model.t) =>
-      CodeViewable.view_editor(~font_metrics, ~secondary_icons, ~sort, m);
+    let view =
+        (
+          ~font_metrics,
+          ~secondary_icons,
+          ~sort,
+          ~background=false,
+          m: Model.t,
+        ) =>
+      CodeViewable.view_editor(
+        ~font_metrics,
+        ~secondary_icons,
+        ~sort,
+        ~background,
+        m,
+      );
 
     let view_editable = (~common) =>
       EditorView.view_code_editable(

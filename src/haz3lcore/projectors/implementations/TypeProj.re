@@ -118,7 +118,7 @@ let view =
     (
       ~common,
       ~ed_str,
-      ~view_ed,
+      ~view_ed: (~sort: Sort.t, ~background: bool=?, 'ed_m) => Node.t,
       ~view_editable as _,
       ~enter_ed as _,
       ~mk_ed,

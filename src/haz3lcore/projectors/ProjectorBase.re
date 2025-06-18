@@ -94,7 +94,7 @@ type methods('model, 'action, 'focus, 'ed_m, 'ed_a, 'ed_f) = {
       ~common: ProjectorInterface.common,
       ~ed_str: 'ed_m => string,
       //TODO(andrew): integrate sort into ed
-      ~view_ed: (~sort: Sort.t, 'ed_m) => Node.t,
+      ~view_ed: (~sort: Sort.t, ~background: bool=?, 'ed_m) => Node.t,
       ~view_editable:
         (
           ~common: ProjectorInterface.common,

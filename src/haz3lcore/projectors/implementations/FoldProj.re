@@ -19,20 +19,22 @@ type action('ed_a) =
 type focus('ed_f) =
   |;
 
-let hover_view = (view_ed, ed: 'ed_m) => {
-  //TODO(andrew): hardcoded sort below
-  //TODO(andrew): add background deco to view_ed below
+let hover_view =
+    (
+      view_ed: (~sort: Sort.t, ~background: bool=?, 'ed_m) => Node.t,
+      sort,
+      ed: 'ed_m,
+    ) =>
   div(
     ~attrs=[Attr.class_("hover-view")],
-    [view_ed(~sort=Sort.Exp, ed)],
+    [view_ed(~sort, ~background=true, ed)],
   );
-};
 
 let view =
     (
       ~common as _,
       ~ed_str as _,
-      ~view_ed,
+      ~view_ed: (~sort: Sort.t, ~background: bool=?, 'ed_m) => Node.t,
       ~view_editable as _,
       ~enter_ed as _,
       ~mk_ed as _,
@@ -49,13 +51,13 @@ let view =
   View.mk(
     div(
       ~attrs=[Attr.on_double_click(_ => parent(Remove))],
-      [text(m.text), hover_view(view_ed, m.ed)],
+      //TODO(andrew): hardcoded sort below
+      [text(m.text), hover_view(view_ed, Sort.Exp, m.ed)],
     ),
   );
 
 let methods = {
   init: (~copy_ed as _, _any: Language.Term.Any.t, ed) => {
-    //TODO(andrew): this doesn't init on nonconvex tiles
     open OptUtil.Syntax;
     let+ ed = ed();
     {
