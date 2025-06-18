@@ -14,17 +14,20 @@ let view_term =
     (
       ~view_ed: (~sort: Sort.t, ~background: bool=?, 'ed_m) => Node.t,
       ~mk_ed: Any.t => 'ed_m,
+      ~mk_term_ed: (~sort: Sort.t, 'ed_m) => ('ed_m, _),
       ~ed_str: 'ed_m => string,
-      ~calculate_ed,
-      ~common,
+      ~calculate_ed: (~common: ProjectorInterface.common, 'ed_m) => 'ed_m,
+      ~common: ProjectorInterface.common,
       term: Any.t,
     )
     : term_view => {
   //TODO(andrew): cleanup
-  let ed = mk_ed(term);
-  let ed = calculate_ed(~common, ed);
+  //TODO(andrew): sort should be provided in editor
+  let sort = Any.sort(term);
+  let ed =
+    term |> mk_ed |> mk_term_ed(~sort) |> fst |> calculate_ed(~common);
   {
-    view: view_ed(~sort=Any.sort(term), ed),
+    view: view_ed(~sort, ed),
     length: ed |> ed_str |> String.length,
   };
 };
@@ -874,7 +877,7 @@ let view =
       ~view_editable as _,
       ~enter_ed as _,
       ~mk_ed: Any.t => 'ed_m,
-      ~mk_term_ed as _,
+      ~mk_term_ed,
       ~calculate_ed,
       ~local: action(_) => Ui_effect.t(unit),
       ~parent: external_action => Ui_effect.t(unit),
@@ -884,7 +887,7 @@ let view =
       info,
     ) => {
   let view_term =
-    view_term(~view_ed, ~mk_ed, ~ed_str, ~calculate_ed, ~common);
+    view_term(~view_ed, ~mk_ed, ~mk_term_ed, ~ed_str, ~calculate_ed, ~common);
   let len_of_exp = len_of_exp(~mk_ed, ~ed_str);
 
   View.{
