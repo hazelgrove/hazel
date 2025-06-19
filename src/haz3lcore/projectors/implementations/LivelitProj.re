@@ -16,7 +16,7 @@ type action('ed_a) = LivelitCtx.action_exp;
 type focus('ed_f) = unit;
 
 module M =
-       (Editor: ProjectorInterface.EDITOR)
+       (Editor: EditorInterface.EDITOR)
 
          : (
            ProjectorInterface.PROJECTOR with
@@ -54,7 +54,7 @@ module M =
   let dynamics = false;
 
   /* Placeholder implementation */
-  let placeholder = (~common, ~id, model) => {
+  let placeholder = (~common: Common.t, ~id, model) => {
     let statics = Statics.Map.lookup(id, common.statics.info_map);
 
     let ctx =
@@ -73,7 +73,7 @@ module M =
   };
 
   /* Update implementation */
-  let update = (~common, ~sort as _, ~id, model, action) => {
+  let update = (~common: Common.t, ~sort as _, ~id, model, action) => {
     let ctx =
       switch (Statics.Map.lookup(id, common.statics.info_map)) {
       | Some(InfoExp(exp)) => exp.ctx
@@ -106,7 +106,7 @@ module M =
   /* View implementation */
   let view =
       (
-        ~common,
+        ~common: Common.t,
         ~inject,
         ~escape as _,
         ~take_focus as _,

@@ -15,9 +15,7 @@ module rec Projector: {
       option(t);
 
     let get_kind: t => ProjectorCore.Kind.t;
-    let get_shape:
-      (~common: ProjectorInterface.common, Base.projector(t)) =>
-      ProjectorShape.t;
+    let get_shape: (~common: Common.t, Base.projector(t)) => ProjectorShape.t;
     let get_cached_term: t => Language.Term.Any.t;
   };
 
@@ -26,19 +24,12 @@ module rec Projector: {
     type t;
 
     let update:
-      (
-        ~common: ProjectorInterface.common,
-        ~sort: Sort.t,
-        ~id: Id.t,
-        t,
-        Model.t
-      ) =>
-      Model.t;
+      (~common: Common.t, ~sort: Sort.t, ~id: Id.t, t, Model.t) => Model.t;
 
     let make_term:
       (~sort: Sort.t, Model.t) => (Model.t, Calc.t(Language.Any.t));
 
-    let calculate: (~common: ProjectorInterface.common, Model.t) => Model.t;
+    let calculate: (~common: Common.t, Model.t) => Model.t;
   };
 
   module Focus: {
@@ -47,7 +38,7 @@ module rec Projector: {
 
     let get_cursor_info:
       (
-        ~common: ProjectorInterface.common,
+        ~common: Common.t,
         ~inject: Update.t => Ui_effect.t(unit),
         ~read_only: bool,
         Model.t,
@@ -59,7 +50,7 @@ module rec Projector: {
   module View: {
     let split_views:
       (
-        ~common: ProjectorInterface.common,
+        ~common: Common.t,
         ~sort: Sort.t,
         ~parent: ProjectorInterface.external_action => Ui_effect.t(unit),
         ~inject: Update.t => Ui_effect.t(unit),
@@ -74,7 +65,7 @@ module rec Projector: {
     let mk_status:
       (
         Base.projector(Model.t),
-        ~common: ProjectorInterface.common,
+        ~common: Common.t,
         ~editor_active: bool,
         ~indicated: option((Id.t, Direction.t)),
         ~selection_ids: list(Id.t),
@@ -151,7 +142,7 @@ module rec Projector: {
 
     let get_cursor_info =
         (
-          ~common: ProjectorInterface.common,
+          ~common: Common.t,
           ~inject: Update.t => Ui_effect.t(unit),
           ~read_only: bool,
           model: Model.t,
@@ -171,7 +162,7 @@ module rec Projector: {
   module View = {
     let split_views =
         (
-          ~common: ProjectorInterface.common,
+          ~common: Common.t,
           ~sort as _: Sort.t,
           ~parent: ProjectorInterface.external_action => Ui_effect.t(unit),
           ~inject: Update.t => Ui_effect.t(unit),
@@ -197,7 +188,7 @@ module rec Projector: {
 }
 and Editor: {
   include
-    ProjectorInterface.EDITOR with
+    EditorInterface.EDITOR with
       type model =
         Haz3lcorep.Editor.t(
           ProjectorCore.Kind.t,
@@ -253,8 +244,7 @@ and Editor: {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = action;
 
-    let update =
-        (~common: ProjectorInterface.common, action: t, editor: Model.t) => {
+    let update = (~common: Common.t, action: t, editor: Model.t) => {
       switch (
         Haz3lcorep.Editor.Update.update(
           ~settings=common.settings,
@@ -284,7 +274,7 @@ and Editor: {
         m,
       );
 
-    let calculate = (~common: ProjectorInterface.common, ed: Model.t): Model.t =>
+    let calculate = (~common: Common.t, ed: Model.t): Model.t =>
       Haz3lcorep.Editor.Update.calculate(
         ~common,
         ~projector_init=Projector.Model.mk,
@@ -319,7 +309,7 @@ and Editor: {
 
     let get_cursor_info =
         (
-          ~common: ProjectorInterface.common,
+          ~common: Common.t,
           ~inject: Update.t => Ui_effect.t(unit),
           ~read_only: bool,
           m: Model.t,
@@ -388,7 +378,7 @@ and Editor: {
           String.length(str) > 30 ? String.sub(str, 0, 30) ++ "..." : str
       );
 
-    let term = (~common: ProjectorInterface.common, term: Language.Any.t) => {
+    let term = (~common: Common.t, term: Language.Any.t) => {
       let sort = Language.Any.sort(term);
       let ed =
         term

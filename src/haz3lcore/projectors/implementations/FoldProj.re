@@ -19,7 +19,7 @@ type focus('ed_f) =
   |;
 
 module M =
-       (Editor: ProjectorInterface.EDITOR)
+       (Editor: EditorInterface.EDITOR)
 
          : (
            ProjectorInterface.PROJECTOR with
@@ -87,7 +87,7 @@ module M =
 
   let view =
       (
-        ~common,
+        ~common: Common.t,
         ~inject as _,
         ~escape,
         ~take_focus as _,

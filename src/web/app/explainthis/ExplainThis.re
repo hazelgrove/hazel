@@ -234,7 +234,7 @@ let expander_deco =
       type projector_action = Projector.Update.t;
       let editor = editor;
       let globals =
-        ProjectorInterface.{
+        Common.{
           settings: globals.settings.core,
           font_metrics: globals.font_metrics,
           secondary_icons: globals.settings.secondary_icons,
@@ -500,7 +500,7 @@ let get_doc =
         |> fst
         |> Editor.Update.calculate(
              ~common=
-               ProjectorInterface.{
+               Common.{
                  settings: globals.settings.core,
                  font_metrics: globals.font_metrics,
                  secondary_icons: globals.settings.secondary_icons,
@@ -530,7 +530,7 @@ let get_doc =
             type projector_action = Projector.Update.t;
             let editor = editor;
             let globals =
-              ProjectorInterface.{
+              Common.{
                 settings: globals.settings.core,
                 font_metrics: globals.font_metrics,
                 secondary_icons: globals.settings.secondary_icons,

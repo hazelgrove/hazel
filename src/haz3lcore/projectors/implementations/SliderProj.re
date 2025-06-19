@@ -51,7 +51,7 @@ let view =
   );
 
 module M =
-       (Editor: ProjectorInterface.EDITOR)
+       (Editor: EditorInterface.EDITOR)
 
          : (
            ProjectorInterface.PROJECTOR with

@@ -84,7 +84,7 @@ module View = {
           type projector_action = Projector.Update.t;
           let editor = model.editor.editor;
           let globals =
-            ProjectorInterface.{
+            Common.{
               settings: globals.settings.core,
               font_metrics: globals.font_metrics,
               secondary_icons: globals.settings.secondary_icons,

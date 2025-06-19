@@ -24,7 +24,7 @@ type focus('ed_f) =
   |;
 
 module M =
-       (Editor: ProjectorInterface.EDITOR)
+       (Editor: EditorInterface.EDITOR)
 
          : (
            ProjectorInterface.PROJECTOR with
@@ -810,7 +810,7 @@ module M =
 
   let view =
       (
-        ~common: ProjectorInterface.common,
+        ~common: Common.t,
         local: action(_) => Ui_effect.t(unit),
         parent: external_action => Ui_effect.t(unit),
         id,
@@ -892,7 +892,7 @@ module M =
   let placeholder = (~common as _, ~id as _, model) =>
     ProjectorShape.inline(2 + Editor.View.get_dimensions(model.ed).row);
 
-  let update = (~common, ~sort as _, ~id, model, action) => {
+  let update = (~common: Common.t, ~sort as _, ~id, model, action) => {
     switch (action) {
     | ChangeLength(id, len) => ClosureLength.set(id, len)
     | ToggleShowAllVals(_) => Window.toggle_mode()
@@ -945,7 +945,15 @@ module M =
   let get_cursor_info = ProjectorInterface.Defaults.get_cursor_info;
 
   let view =
-      (~common, ~inject, ~escape, ~take_focus as _, ~focus as _, ~id, model) => {
+      (
+        ~common: Common.t,
+        ~inject,
+        ~escape,
+        ~take_focus as _,
+        ~focus as _,
+        ~id,
+        model,
+      ) => {
     let statics = Statics.Map.lookup(id, common.statics.info_map);
     let dynamics = Dynamics.Map.lookup(id, common.dynamics);
 

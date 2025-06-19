@@ -116,14 +116,14 @@ module Focus = {
         type p_m,
         ~get_cursor_info_pr:
            (
-             ~common: ProjectorInterface.common,
+             ~common: Common.t,
              ~inject: 'p_a => Ui_effect.t(unit),
              ~read_only: bool,
              p_m,
              'p_f
            ) =>
            Cursor.t,
-        ~common: ProjectorInterface.common,
+        ~common: Common.t,
         ~inject:
            Editor.Update.t(ProjectorCore.Kind.t, p_m, 'p_a) =>
            Ui_effect.t(unit),
@@ -336,7 +336,7 @@ let view_code_statics =
     (
       type p_m,
       type p_a,
-      ~common: ProjectorInterface.common,
+      ~common: Common.t,
       ~overlays: list(Node.t)=[],
       ~sort=Sort.root,
       editor,
@@ -370,7 +370,7 @@ let view_code_editable =
       type p_m,
       type p_a,
       type p_f,
-      ~common: ProjectorInterface.common,
+      ~common: Common.t,
       ~split_views,
       ~mk_status,
       // ~put_clipboard_cache: (string, Segment.t(p_m)) => unit,
@@ -567,7 +567,7 @@ let view_code_editable =
 
 // let view =
 //     (
-//       ~common: ProjectorInterface.common,
+//       ~common: Common.t,
 //       ~edit_mode: ProjectorInterface.edit_mode('p_k, 'p_m, Focus.t('p_f)),
 //       ~overlays: list(Node.t)=[],
 //       ~statics: option(CachedStatics.t),
