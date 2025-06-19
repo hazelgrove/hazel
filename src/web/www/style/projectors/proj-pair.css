@@ -33,6 +33,7 @@
 
 .projector.pair .pair-proj-parens {
   color: var(--BR1);
+  line-height: var(--line-height);
 }
 
 .projector.pair .pair-proj-parens:first-child {

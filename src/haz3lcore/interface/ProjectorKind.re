@@ -19,13 +19,13 @@ type t =
 let livelit_projectors: list(t) = [
   Checkbox,
   Slider,
-  Pair,
   SliderF,
   TextArea,
   Card,
 ];
 
-let projectors: list(t) = livelit_projectors @ [Fold, Info, Livelit, Probe];
+let projectors: list(t) =
+  livelit_projectors @ [Fold, Info, Livelit, Probe, Pair];
 
 /* A friendly name for each projector. This is used
  * both for identifying a projector in the CSS and for
