@@ -36,7 +36,12 @@ module ShapeMapSemantics = {
         ) => {
           Methods.placeholder(
             m,
-            ProjectorCore.mk_info(~id=p.id, ~statics, ~dynamics),
+            ProjectorCore.mk_info(
+              ~id=p.id,
+              ~sort=p.mold.out,
+              ~statics,
+              ~dynamics,
+            ),
           );
         }
       );

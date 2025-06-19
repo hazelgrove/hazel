@@ -69,7 +69,7 @@ let shape_affix =
       | Grout(g) => (Aba.cons([], g, wgw), s, tl)
       | Projector(p) =>
         let (l, _) =
-          ProjectorNibs.nibs(p) |> (d == Left ? TupleUtil.swap : Fun.id);
+          p.mold |> Mold.shapes |> (d == Left ? TupleUtil.swap : Fun.id);
         (empty_wgw, l, tl);
       | Tile(t) =>
         let (l, _) = Tile.shapes(t) |> (d == Left ? TupleUtil.swap : Fun.id);
@@ -134,7 +134,7 @@ and remold_typ = (shape, seg: t('p)): t('p) =>
     switch (hd) {
     | Secondary(_)
     | Grout(_) => [hd, ...remold_typ(shape, tl)]
-    | Projector(p) => [hd, ...remold_typ(snd(ProjectorNibs.nibs(p)), tl)]
+    | Projector(p) => [hd, ...remold_typ(p.mold |> Mold.shapes |> snd, tl)]
     | Tile(t) =>
       switch (remold_tile(Typ, shape, t)) {
       | None => [Tile(t), ...remold_typ(snd(Tile.shapes(t)), tl)]
@@ -158,7 +158,7 @@ and remold_typ_uni =
       ([hd, ...remolded], shape, rest);
     | Projector(p) =>
       let (remolded, shape, rest) =
-        remold_typ_uni(snd(ProjectorNibs.nibs(p)), tl, parent_sorts);
+        remold_typ_uni(p.mold |> Mold.shapes |> snd, tl, parent_sorts);
       ([hd, ...remolded], shape, rest);
     | Tile(t) =>
       switch (remold_tile(Typ, shape, t)) {
@@ -196,7 +196,7 @@ and remold_pat_uni =
       ([hd, ...remolded], shape, rest);
     | Projector(p) =>
       let (remolded, shape, rest) =
-        remold_pat_uni(snd(ProjectorNibs.nibs(p)), tl, parent_sorts);
+        remold_pat_uni(p.mold |> Mold.shapes |> snd, tl, parent_sorts);
       ([hd, ...remolded], shape, rest);
     | Tile(t) =>
       switch (remold_tile(Pat, shape, t)) {
@@ -229,7 +229,7 @@ and remold_pat = (shape, seg: t('p)): t('p) =>
     switch (hd) {
     | Secondary(_)
     | Grout(_) => [hd, ...remold_pat(shape, tl)]
-    | Projector(p) => [hd, ...remold_pat(snd(ProjectorNibs.nibs(p)), tl)]
+    | Projector(p) => [hd, ...remold_pat(p.mold |> Mold.shapes |> snd, tl)]
     | Tile(t) =>
       switch (remold_tile(Pat, shape, t)) {
       | None => [Tile(t), ...remold_pat(snd(Tile.shapes(t)), tl)]
@@ -260,7 +260,7 @@ and remold_tpat_uni =
       ([hd, ...remolded], shape, rest);
     | Projector(p) =>
       let (remolded, shape, rest) =
-        remold_tpat_uni(snd(ProjectorNibs.nibs(p)), tl, parent_sorts);
+        remold_tpat_uni(p.mold |> Mold.shapes |> snd, tl, parent_sorts);
       ([hd, ...remolded], shape, rest);
     | Tile(t) =>
       switch (remold_tile(TPat, shape, t)) {
@@ -287,7 +287,7 @@ and remold_tpat = (shape, seg: t('p)): t('p) =>
     switch (hd) {
     | Secondary(_)
     | Grout(_) => [hd, ...remold_tpat(shape, tl)]
-    | Projector(p) => [hd, ...remold_tpat(snd(ProjectorNibs.nibs(p)), tl)]
+    | Projector(p) => [hd, ...remold_tpat(p.mold |> Mold.shapes |> snd, tl)]
     | Tile(t) =>
       switch (remold_tile(TPat, shape, t)) {
       | None => [Tile(t), ...remold_tpat(snd(Tile.shapes(t)), tl)]
@@ -318,7 +318,7 @@ and remold_exp_uni =
       ([hd, ...remolded], shape, rest);
     | Projector(p) =>
       let (remolded, shape, rest) =
-        remold_exp_uni(snd(ProjectorNibs.nibs(p)), tl, parent_sorts);
+        remold_exp_uni(p.mold |> Mold.shapes |> snd, tl, parent_sorts);
       ([hd, ...remolded], shape, rest);
     | Tile(t) =>
       switch (remold_tile(Exp, shape, t)) {
@@ -366,7 +366,7 @@ and remold_rul = (shape, seg: t('p)): t('p) =>
     switch (hd) {
     | Secondary(_)
     | Grout(_) => [hd, ...remold_rul(shape, tl)]
-    | Projector(p) => [hd, ...remold_rul(snd(ProjectorNibs.nibs(p)), tl)]
+    | Projector(p) => [hd, ...remold_rul(p.mold |> Mold.shapes |> snd, tl)]
     | Tile(t) =>
       switch (remold_tile(Rul, shape, t)) {
       | Some(t) when !Tile.has_end(Right, t) =>
@@ -404,7 +404,7 @@ and remold_exp = (shape, seg: t('p)): t('p) =>
     switch (hd) {
     | Secondary(_)
     | Grout(_) => [hd, ...remold_exp(shape, tl)]
-    | Projector(p) => [hd, ...remold_exp(snd(ProjectorNibs.nibs(p)), tl)]
+    | Projector(p) => [hd, ...remold_exp(p.mold |> Mold.shapes |> snd, tl)]
     | Tile(t) =>
       switch (remold_tile(Exp, shape, t)) {
       | None => [Tile(t), ...remold_exp(snd(Tile.shapes(t)), tl)]
@@ -573,7 +573,7 @@ and regrout_affix =
         | Projector(pr) =>
           let p = Piece.Projector(pr);
           let (l', r') =
-            ProjectorNibs.nibs(pr) |> (d == Left ? TupleUtil.swap : Fun.id);
+            pr.mold |> Mold.shapes |> (d == Left ? TupleUtil.swap : Fun.id);
           let trim = Trim.regrout(d, (r', r), trim);
           (Trim.empty, l', [p, ...Trim.to_seg(trim)] @ tl);
         | Tile(t) =>

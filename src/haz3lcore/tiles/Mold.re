@@ -195,3 +195,5 @@ let chevron = (sort: Sort.t, p: Precedence.t, d: Util.Direction.t): t =>
   | Right => mk_post(p, sort, [])
   | Left => mk_pre(p, sort, [])
   };
+
+let shapes = (mold: t): Nibs.shapes => mold.nibs |> Nibs.shapes;

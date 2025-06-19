@@ -105,8 +105,8 @@ let mode_view = (model, info) =>
     [text(display_mode(model, info))],
   );
 
-let typ_view = (model, info: info, view_any: Any.t => Node.t) => {
-  let typ = display_ty(model, info.statics) |> totalize_ty;
+let typ_view = (model, info: option(Info.t), view_any: Any.t => Node.t) => {
+  let typ = display_ty(model, info) |> totalize_ty;
   div(~attrs=[Attr.classes(["type-cell"])], [Typ(typ) |> view_any]);
 };
 
@@ -116,7 +116,7 @@ let icon = div(~attrs=[Attr.classes(["icon"])], []);
 
 let view =
     (
-      ~common,
+      ~common: common,
       ~ed_str,
       ~view_ed: (~sort: Sort.t, ~background: bool=?, 'ed_m) => Node.t,
       ~view_editable as _,
@@ -131,6 +131,7 @@ let view =
       model,
       info,
     ) => {
+  let statics = Statics.Map.lookup(info.id, common.statics.info_map);
   let view_any = x =>
     x
     |> mk_ed
@@ -158,8 +159,8 @@ let view =
         div(
           ~attrs=[Attr.classes(["offside"])],
           [
-            mode_view(model, info.statics),
-            typ_view(fst(model), info, view_any),
+            mode_view(model, statics),
+            typ_view(fst(model), statics, view_any),
           ],
         ),
       ),

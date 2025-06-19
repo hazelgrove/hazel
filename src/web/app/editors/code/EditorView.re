@@ -389,6 +389,7 @@ let view_code_editable =
       ~handoff_map,
       ProjectorView.Model.mk(
         ~mk_status,
+        ~sort,
         Calc.get_saved_exc(model.syntax).projectors,
         Calc.get_saved_exc(model.syntax).measured,
         Calc.get_saved_exc(model.selection_ids),

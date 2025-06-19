@@ -23,7 +23,7 @@ let sort =
     _ => (Sort.Any, []),
     _ => (Sort.Any, []),
     t => (t.mold.out, t.mold.in_),
-    _ => (Sort.Any, []),
+    p => (p.mold.out, p.mold.in_),
     _,
   );
 
@@ -46,21 +46,7 @@ let nibs =
       );
     },
     t => Some(Tile.nibs(t)),
-    p => {
-      let (l, r) = ProjectorNibs.nibs(p);
-      Some(
-        Nib.(
-          {
-            shape: l,
-            sort: Any,
-          },
-          {
-            shape: r,
-            sort: Any,
-          },
-        ),
-      );
-    },
+    p => Some(p.mold.nibs),
     _,
   );
 
@@ -106,7 +92,7 @@ let shapes =
     _ => None,
     g => Some(Grout.shapes(g)),
     t => Some(Tile.shapes(t)),
-    p => Some(ProjectorNibs.nibs(p)),
+    p => Some(p.mold.nibs |> Nibs.shapes),
     _,
   );
 

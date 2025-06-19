@@ -45,14 +45,13 @@ let view =
       ~focus as _,
       ~focussed as _,
       m,
-      _info,
+      info,
     )
     : View.t =>
   View.mk(
     div(
       ~attrs=[Attr.on_double_click(_ => parent(Remove))],
-      //TODO(andrew): hardcoded sort below
-      [text(m.text), hover_view(view_ed, Sort.Exp, m.ed)],
+      [text(m.text), hover_view(view_ed, info.sort, m.ed)],
     ),
   );
 

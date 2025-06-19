@@ -30,23 +30,20 @@ let init =
       kind: 'p_kind,
       seg: Base.segment('p),
     )
-    : option(syntax('p)) =>
+    : option(syntax('p)) => {
   /* Projected syntax always gets parenthesized, but only the contents
    * of those parentheses are passed to the projector implementations  */
-  switch (
+  open OptUtil.Syntax;
+  let* any =
     MakeTerm.for_projection(
       ~of_projector=(~sort as _, ~id as _, _) => Any(),
       ~log_projector=_ => (),
       seg,
-    )
-  ) {
-  | None => None
-  | Some(any) =>
-    switch (projector_init(kind, any, () => seg_to_ed(seg))) {
-    | None => None
-    | Some(model) => Some(Base.Projector(Base.mk_projector(model)))
-    }
-  };
+    );
+  let+ model = projector_init(kind, any, () => seg_to_ed(seg));
+  let sort = Language.Term.Any.sort(any);
+  Base.Projector(Base.mk_projector(~sort, ~model));
+};
 
 let replace_selection_and_unselect =
     (piece: Base.piece('p), focus: Direction.t, z: Zipper.t('p))
@@ -89,7 +86,7 @@ let update =
 let get_model = (id: Id.t, z: ZipperBase.t('p)): option('p) => {
   switch (ZipperBase.FindPiece.in_zipper(x => Piece.id(x) == id, z)) {
   | Some(Projector(pr)) => Some(pr.model)
-  | Some(_) => None
+  | Some(_)
   | None => None
   };
 };
@@ -165,7 +162,7 @@ let go =
         pr =>
           {
             ...pr,
-            model: update_projector(~sort=Sort.Any, ~id, action, pr.model) // TODO[Matt]: we need sorts here.
+            model: update_projector(~sort=pr.mold.out, ~id, action, pr.model),
           },
         id,
         z,

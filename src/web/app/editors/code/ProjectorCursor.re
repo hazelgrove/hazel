@@ -17,18 +17,24 @@ let target_segment =
     : option(Segment.t('a)) => {
   //TODO(andrew): if targeted seg is projector, need to unproject
   // to figure out if syntax can be reprojected
+  /*TODO(andrew): redo this function. don't maketerm from scratch maybe?
+    use term from static map if available, otherwise maketerm. only
+    applies to real terms not pseudoterms maybe? will still need to
+    get the right segment; use term selection fn. so: term select to
+    get seg, then get root id, then get term from statics map, else
+    maketerm */
+  let* selection = selection;
   let* seg =
     switch (selection) {
-    | None => None
-    | Some([]) =>
+    | [] =>
+      let* indicated_piece = indicated_piece;
       switch (indicated_piece) {
-      | Some(Tile(_) as p)
-      | Some(Projector(_) as p) => Some([p])
-      | Some(Grout(_))
-      | Some(Secondary(_))
-      | None => None
-      }
-    | Some(seg) => Some(seg)
+      | Tile(_) as p
+      | Projector(_) as p => Some([p])
+      | Grout(_)
+      | Secondary(_) => None
+      };
+    | seg => Some(seg)
     };
   let* () = Segment.deep_tile_complete(seg) ? Some() : None;
   let* () = Segment.is_padded(seg) ? None : Some();
@@ -50,11 +56,11 @@ let target_segment =
 };
 
 // TODO(matt|andrew): make this work more generally for different sorts
-let target_term = (make_term_prj, seg: Segment.t('a)) =>
+let target_term = (~sort, make_term_prj, seg: Segment.t('a)) =>
   seg
   |> Zipper.unzip
   |> Editor.Model.mk
-  |> Editor.Update.make_term(~make_term_prj, ~sort=Exp)
+  |> Editor.Update.make_term(~make_term_prj, ~sort)
   |> snd
   |> Calc.get_value;
 
@@ -71,7 +77,12 @@ let is_applicable =
     (~selection, ~indicated_piece, ~make_term_prj, ~mk_projector, kind) => {
   /* Is a projector of `kind` applicable to the target term? */
   let* target_seg = target_segment(selection, indicated_piece);
-  let term = target_term(make_term_prj, target_seg);
+  let sort =
+    indicated_piece
+    |> Option.map(Piece.sort)
+    |> Option.value(~default=(Sort.Any, []))
+    |> fst;
+  let term = target_term(~sort, make_term_prj, target_seg);
   let ed = target_ed(target_seg);
   let+ _ = mk_projector(kind, term, ed);
   kind;

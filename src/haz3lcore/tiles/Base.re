@@ -22,6 +22,7 @@ and tile('p) = {
 }
 and projector('p) = {
   id: Id.t,
+  mold: Mold.t,
   model: 'p,
 };
 
@@ -33,7 +34,8 @@ let mk_secondary = (id, content) => [
   }),
 ];
 
-let mk_projector = model => {
+let mk_projector = (~sort: Sort.t, ~model) => {
   id: Id.mk(),
+  mold: Mold.mk_op(sort, []), /* Projectors currently are all convex */
   model,
 };

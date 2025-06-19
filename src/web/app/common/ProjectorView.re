@@ -54,7 +54,7 @@ module Model = {
       ) => {
     sort:
       Option.map(Language.Info.sort_of, info.statics)
-      |> Option.value(~default=Sort.Exp),
+      |> Option.value(~default=p.mold.out),
     error:
       Option.map(Language.Info.is_error, info.statics)
       |> Option.value(~default=false),
@@ -69,6 +69,7 @@ module Model = {
       (
         type p,
         ~mk_status,
+        ~sort: Sort.t,
         projectors: Id.Map.t(Base.projector(p)),
         measured: Measured.t,
         selection_ids: list(Id.t),
@@ -82,13 +83,7 @@ module Model = {
       ((id, _)) => {
         let* p = Id.Map.find_opt(id, projectors);
         let+ measurement = Measured.find_pr_opt(p, measured);
-        let info =
-          ProjectorCore.mk_info(
-            ~id,
-            ~statics,
-            ~dynamics,
-            //~utility=ProjectorInfo.utility,
-          );
+        let info = ProjectorCore.mk_info(~id, ~sort, ~statics, ~dynamics);
         {
           p,
           info,
@@ -114,11 +109,15 @@ module Model = {
  * to token decorations. This can be made transparent
  * in the CSS if no backing is wanted */
 let backing_deco =
-    (~font_metrics: FontMetrics.t, ~measurement: Measured.measurement, p) =>
+    (
+      ~font_metrics: FontMetrics.t,
+      ~measurement: Measured.measurement,
+      p: Base.projector('p),
+    ) =>
   ShardDec.relative({
     font_metrics,
     measurement,
-    tips: p |> ProjectorNibs.nibs |> ShardDec.tips_of_shapes,
+    tips: p.mold.nibs |> Nibs.shapes |> ShardDec.tips_of_shapes,
   });
 
 /* Adds attributes to a projector UI to support

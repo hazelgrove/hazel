@@ -5,3 +5,5 @@ type t = (Nib.t, Nib.t);
 type shapes = (Nib.Shape.t, Nib.Shape.t);
 
 let flip = ((l, r): t) => (r, l);
+
+let shapes = ((l, r): t) => (l.shape, r.shape);

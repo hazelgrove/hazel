@@ -372,11 +372,13 @@ let yojson_of_model =
 let mk_info =
     (
       ~id: Id.t,
+      ~sort: Sort.t,
       ~statics: Language.Statics.Map.t,
       ~dynamics: Language.Dynamics.Map.t,
     )
     : ProjectorBase.info => {
   id,
+  sort,
   statics: Language.Statics.Map.lookup(id, statics),
   dynamics: Language.Dynamics.Map.lookup(id, dynamics),
 };
@@ -567,6 +569,7 @@ module Update = {
                 ~sort,
                 mk_info(
                   ~id,
+                  ~sort,
                   ~statics=common.statics.info_map,
                   ~dynamics=common.dynamics,
                 ),

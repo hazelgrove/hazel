@@ -34,6 +34,7 @@ type info = {
    * identifier to allow individual projectors to distiguish
    * their DOM nodes. */
   id: Id.t,
+  sort: Sort.t,
   /* Static information about the syntax including type
    * information. Statics may be disabled by the user;
    * this case (None) must be handled by projector authors */

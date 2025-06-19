@@ -803,7 +803,7 @@ module Go = (P: {
       switch (p) {
       | Secondary(_)
       | Grout(_) => []
-      | Projector({model, id} as pr) =>
+      | Projector({model, id, _} as pr) =>
         log_projector(pr);
         [of_projector(~sort, ~id, model)];
       | Tile({mold, shards, children, _}) =>
