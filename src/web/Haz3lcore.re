@@ -206,12 +206,15 @@ and Editor: {
         ) and
       type action =
         Action.t(ProjectorCore.Kind.t, Projector.Model.t, Projector.Update.t);
-  // TODO: refactor these helper functions away
+  // model and action have transparent definitions for handing editor to projectorinit
 
+  // TODO: refactor these helper functions away
   let get_measured: Model.t => Measured.t;
   let get_tiles: Model.t => TileMap.t(Projector.Model.t);
   let get_z: Model.t => Haz3lcorep.Zipper.t(Projector.Model.t);
   let of_zipper: Zipper.t(Projector.Model.t) => Model.t; // TODO: Replace with persistence logic
+  let get_trailing_hole_ctx:
+    (Model.t, Language.Statics.Map.t) => option(Language.Ctx.t);
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model =
@@ -240,8 +243,6 @@ and Editor: {
     };
 
     let get_z = (m: t) => m |> Haz3lcorep.Editor.Model.get_z;
-
-    let get_trailing_hole_ctx = Haz3lcorep.Editor.Model.trailing_hole_ctx;
 
     let get_cached_term = Haz3lcorep.Editor.Model.get_cached_term;
 
@@ -390,6 +391,8 @@ and Editor: {
 
   let get_z = Model.get_z;
   let of_zipper = Haz3lcorep.Editor.Model.mk;
+
+  let get_trailing_hole_ctx = Haz3lcorep.Editor.Model.trailing_hole_ctx;
 };
 
 module PersistentZipper = {

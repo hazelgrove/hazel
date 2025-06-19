@@ -30,7 +30,7 @@ let init =
         any,
         ed,
       ) => {
-        Methods.init(any, ed);
+        Methods.mk(any, ed);
       }
     );
   switch (init(any, ed)) {

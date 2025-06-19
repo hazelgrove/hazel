@@ -74,7 +74,7 @@ module M =
   [@deriving (show({with_path: false}), sexp, yojson)]
   type focus' = focus(Editor.focus);
 
-  let init = (_any: Language.Term.Any.t, ed) => {
+  let mk = (_any: Language.Term.Any.t, ed) => {
     open OptUtil.Syntax;
     let+ ed = ed();
     {
