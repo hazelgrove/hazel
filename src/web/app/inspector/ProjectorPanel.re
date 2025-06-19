@@ -34,6 +34,7 @@ let toggle_view =
   | (Some(unproject), _) =>
     div(
       ~attrs=[
+        Attr.tabindex(-1),
         clss(["toggle-switch", "active"]),
         Attr.on_mousedown(_ =>
           unproject.update_action |> Option.value(~default=Ui_effect.Ignore)

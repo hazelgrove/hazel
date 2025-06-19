@@ -36,19 +36,34 @@ module Focus = {
           ? inject(Buffer(Accept))
           : Zipper.can_put_down(z)
               ? inject(Put_down) : inject(Move(Goal(Piece(Grout, Right))));
-      Effect.Many([eff, Effect.Stop_propagation]);
+      Effect.Many([eff, Effect.Stop_propagation, Effect.Prevent_default]);
     | (
         {key: D("ArrowLeft"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up},
         (Some(Projector({id, _})), _),
       )
         when z.caret == Outer =>
-      enter_prj(id, Right)
+      Ui_effect.Many([
+        enter_prj(id, Right),
+        Effect.Stop_propagation,
+        Effect.Prevent_default,
+      ])
     | (
-        {key: D("ArrowLeft"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up},
+        {
+          key: D("ArrowLeft" | "ArrowUp"),
+          sys: _,
+          shift: Up,
+          meta: Up,
+          ctrl: Up,
+          alt: Up,
+        },
         (None, _),
       )
         when z.caret == Outer && z.relatives.ancestors == [] =>
-      escape(Left)
+      Ui_effect.Many([
+        escape(Left),
+        Effect.Stop_propagation,
+        Effect.Prevent_default,
+      ])
     | (
         {
           key: D("ArrowRight"),
@@ -61,10 +76,14 @@ module Focus = {
         (_, Some(Projector({id, _}))),
       )
         when z.caret == Outer =>
-      enter_prj(id, Left)
+      Ui_effect.Many([
+        enter_prj(id, Left),
+        Effect.Stop_propagation,
+        Effect.Prevent_default,
+      ])
     | (
         {
-          key: D("ArrowRight"),
+          key: D("ArrowRight" | "ArrowDown"),
           sys: _,
           shift: Up,
           meta: Up,
@@ -74,7 +93,11 @@ module Focus = {
         (_, None),
       )
         when z.caret == Outer && z.relatives.ancestors == [] =>
-      escape(Right)
+      Ui_effect.Many([
+        escape(Right),
+        Effect.Stop_propagation,
+        Effect.Prevent_default,
+      ])
     | _ =>
       switch (Keyboard.handle_key_event(key)) {
       | Some(action) =>

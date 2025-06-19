@@ -230,6 +230,11 @@ svg.shard.selected.buffer > path {
   animation: 1s blink step-end infinite;
 }
 
+/* Turn off caret when editor not focussed */
+/* .code-editor:not(:focus) > .code-container > .code-deco > #caret > .caret-path {
+  fill: #0000;
+} */
+
 .caret-path {
   fill: var(--caret-color);
   stroke: none;

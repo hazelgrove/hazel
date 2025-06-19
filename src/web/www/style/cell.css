@@ -15,6 +15,7 @@
 #main .code-editor {
   /* Only code in primary editor is selectable atm */
   cursor: text;
+  outline: none; /* TODO: Add focus decoration for accessiblity */
 }
 
 #main.Scratch,

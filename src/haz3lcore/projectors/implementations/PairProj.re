@@ -167,7 +167,7 @@ module M =
     let ed1_size = Editor.View.get_dimensions(ed1);
     let ed2_size = Editor.View.get_dimensions(ed2);
     ProjectorShape.{
-      horizontal: ed1_size.row + ed2_size.row + 6,
+      horizontal: ed1_size.row + ed2_size.row + 3,
       vertical: ProjectorShape.Block(max(ed1_size.col, ed2_size.col)),
     };
   };
