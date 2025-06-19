@@ -1,6 +1,6 @@
 open Util;
 open Virtual_dom.Vdom;
-open ProjectorBase;
+open ProjectorInterface;
 open Language;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -69,49 +69,50 @@ module M =
   [@deriving (show({with_path: false}), sexp, yojson)]
   type focus' = focus(Editor.focus);
 
-  let mk = (any, ed) => init(~copy_ed=Editor.Model.copy, any, ed);
+  let mk = (any: Term.Any.t, _ed: unit => option(Editor.model)) =>
+    switch (any) {
+    | Exp({term: Atom(Int(i)), _}) => Some(i)
+    | _ => None
+    };
+
   let dynamics = false;
-  let placeholder = (_, _) => ProjectorShape.inline(10);
-  let update = (~common as _, ~sort as _, _info, _, Set(n)) => n;
 
-  let mk_term = mk_term(~mk_term_ed=Editor.Update.make_term);
+  let placeholder = (~common as _, ~id as _, _model) =>
+    ProjectorShape.inline(10);
 
-  let calculate = Calculate.default(~calculate_ed=Editor.Update.calculate);
+  let update = (~common as _, ~sort as _, ~id as _, _, Set(n)) => n;
+
+  let mk_term = (~sort as _, ~prev as _, m): (model', Calc.t(Any.t)) => (
+    m,
+    NewValue(Exp(Atom(Int(m)) |> Exp.fresh)),
+  );
+
+  let calculate = (~common as _, model) => model;
 
   let get_cursor_info =
-    CursorInfo.default(~get_cursor_info_ed=Editor.Focus.get_cursor_info);
+      (~common as _, ~inject as _, ~read_only as _, _model, _focus) => Cursor.empty;
 
   let view =
-    view(
-      ~ed_str=Editor.View.print_string,
-      ~mk_ed=Editor.Model.mk,
-      ~mk_term_ed=Editor.Update.make_term,
-      ~calculate_ed=Editor.Update.calculate,
-      ~view_ed=Editor.View.view,
-      ~view_editable=Editor.View.view_editable,
-      ~enter_ed=Editor.Focus.enter,
-    );
-};
-
-let methods = {
-  init,
-  dynamics: false,
-  placeholder: (~ed_size as _, _, _) => ProjectorShape.inline(10),
-  update: (~update_ed as _, ~common as _, ~sort as _, _, _, Set(n)) => n,
-  mk_term,
-  view,
-  calculate: Calculate.default,
-  get_cursor_info: CursorInfo.default,
-  sexp_of_model,
-  model_of_sexp,
-  yojson_of_model,
-  model_of_yojson,
-  sexp_of_action,
-  action_of_sexp,
-  yojson_of_action,
-  action_of_yojson,
-  sexp_of_focus,
-  focus_of_sexp,
-  yojson_of_focus,
-  focus_of_yojson,
+      (
+        ~common as _,
+        ~inject,
+        ~escape as _,
+        ~take_focus as _,
+        ~focus as _,
+        ~id as _,
+        model,
+      ) =>
+    ProjectorInterface.View.{
+      inline:
+        Util.WebUtil.range(
+          ~attrs=[
+            Attr.on_input((_, v) => inject(Set(Bigint.of_string(v)))),
+          ],
+          model |> Bigint.to_string,
+        ),
+      offside: None,
+      overlay: None,
+      enter_left: None,
+      enter_right: None,
+    };
 };

@@ -369,20 +369,6 @@ let yojson_of_model =
     `List([`String(name(kind_of_model(model))), m |> yojson_of_model]);
   };
 
-let mk_info =
-    (
-      ~id: Id.t,
-      ~sort: Sort.t,
-      ~statics: Language.Statics.Map.t,
-      ~dynamics: Language.Dynamics.Map.t,
-    )
-    : ProjectorBase.info => {
-  id,
-  sort,
-  statics: Language.Statics.Map.lookup(id, statics),
-  dynamics: Language.Dynamics.Map.lookup(id, dynamics),
-};
-
 module Update = {
   type t('ed_m, 'ed_a, 'ed_f) =
     | A(Kind.gadt('a, 'b, 'c, 'ed_m, 'ed_a, 'ed_f), 'b)
@@ -564,18 +550,7 @@ module Update = {
             action,
           ) => (
             {
-              Methods.update(
-                ~common,
-                ~sort,
-                mk_info(
-                  ~id,
-                  ~sort,
-                  ~statics=common.statics.info_map,
-                  ~dynamics=common.dynamics,
-                ),
-                model,
-                action,
-              );
+              Methods.update(~common, ~sort, ~id, model, action);
             }: p_m
           )
         );

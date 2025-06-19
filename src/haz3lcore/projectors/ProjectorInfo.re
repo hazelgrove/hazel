@@ -10,8 +10,7 @@ module ShapeMapSemantics = {
         type ed_a,
         type ed_f,
         ~editor_module,
-        statics: Statics.Map.t,
-        dynamics: Dynamics.Map.t,
+        ~common,
         p: Base.projector(ProjectorCore.model(ed_m, ed_a, ed_f)),
       )
       : Util.ProjectorShape.t => {
@@ -34,15 +33,7 @@ module ShapeMapSemantics = {
               type editor_model = ed_m,
           m,
         ) => {
-          Methods.placeholder(
-            m,
-            ProjectorCore.mk_info(
-              ~id=p.id,
-              ~sort=p.mold.out,
-              ~statics,
-              ~dynamics,
-            ),
-          );
+          Methods.placeholder(~common, ~id=p.id, m);
         }
       );
     placeholder(model);
@@ -51,11 +42,10 @@ module ShapeMapSemantics = {
   let mk =
       (
         type p,
+        ~common,
         ~shape_of_projector,
         proj_map: Id.Map.t(Base.projector(p)),
-        statics: Statics.Map.t,
-        dynamics: Dynamics.Map.t,
       )
       : Id.Map.t(Util.ProjectorShape.t) =>
-    Id.Map.map(shape_of_projector(statics, dynamics), proj_map);
+    Id.Map.map(shape_of_projector(~common), proj_map);
 };

@@ -35,15 +35,11 @@ type info = {
    * their DOM nodes. */
   id: Id.t,
   sort: Sort.t,
-  /* Static information about the syntax including type
-   * information. Statics may be disabled by the user;
-   * this case (None) must be handled by projector authors */
-  statics: option(Language.Statics.Info.t),
-  /* Dynamic information about the syntax including
-   * live values of the syntax. Dynamics may be
-   * disabled by the user; this case (None) must be
-   * handled by projector authors */
-  dynamics: option(Language.Dynamics.Info.t),
+};
+
+let mk_info = (~id: Id.t, ~sort: Sort.t): info => {
+  id,
+  sort,
 };
 
 module View = {
@@ -178,6 +174,8 @@ module type EDITOR = {
         Model.t
       ) =>
       WebUtil.Node.t;
+
+    let term: (~common: common, Language.Any.t) => (WebUtil.Node.t, Point.t);
   };
 };
 
@@ -204,7 +202,7 @@ module type PROJECTOR = {
   let dynamics: bool;
 
   let update:
-    (~common: common, ~sort: Sort.t, info, model', action') => model';
+    (~common: common, ~sort: Sort.t, ~id: Id.t, model', action') => model';
 
   let mk_term:
     (~sort: Sort.t, ~prev: Calc.saved(Language.Any.t), model') =>
@@ -223,17 +221,24 @@ module type PROJECTOR = {
     Cursor.t;
 
   /* The space left for the projector in the base editor */
-  let placeholder: (model', info) => ProjectorShape.t;
+  let placeholder: (~common: common, ~id: Id.t, model') => ProjectorShape.t;
 
   let view:
     (
       ~common: common,
-      ~local: action' => Ui_effect.t(unit),
-      ~parent: external_action => Ui_effect.t(unit),
-      ~focus: focus' => Ui_effect.t(unit),
-      ~focussed: option(focus'),
-      model',
-      info
+      ~inject: action' => Ui_effect.t(unit),
+      ~escape: external_action => Ui_effect.t(unit),
+      ~take_focus: focus' => Ui_effect.t(unit),
+      ~focus: option(focus'),
+      ~id: Id.t,
+      model'
     ) =>
     View.t;
+};
+
+module Defaults = {
+  let calculate = (~calculate_ed as _, ~common as _, m) => m;
+
+  let get_cursor_info =
+      (~common as _, ~inject as _, ~read_only as _, _model, _focus) => Cursor.empty;
 };

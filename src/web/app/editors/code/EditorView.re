@@ -388,8 +388,8 @@ let view_code_editable =
         },
       ~handoff_map,
       ProjectorView.Model.mk(
+        ~common,
         ~mk_status,
-        ~sort,
         Calc.get_saved_exc(model.syntax).projectors,
         Calc.get_saved_exc(model.syntax).measured,
         Calc.get_saved_exc(model.selection_ids),
@@ -397,8 +397,6 @@ let view_code_editable =
         | None => None
         | Some((p, side, _)) => Some((Piece.id(p), side))
         },
-        common.statics.info_map,
-        common.dynamics,
         Option.is_some(focussed),
       ),
     );
