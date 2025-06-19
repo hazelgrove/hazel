@@ -16,7 +16,7 @@ module rec Projector: {
 
     let get_kind: t => ProjectorCore.Kind.t;
     let get_shape:
-      (Language.Statics.Map.t, Language.Dynamics.Map.t, Base.projector(t)) =>
+      (~common: ProjectorInterface.common, Base.projector(t)) =>
       ProjectorShape.t;
     let get_cached_term: t => Language.Term.Any.t;
   };
@@ -61,7 +61,7 @@ module rec Projector: {
       (
         ~common: ProjectorInterface.common,
         ~sort: Sort.t,
-        ~parent: ProjectorBase.external_action => Ui_effect.t(unit),
+        ~parent: ProjectorInterface.external_action => Ui_effect.t(unit),
         ~inject: Update.t => Ui_effect.t(unit),
         ~focus: Focus.t => Ui_effect.t(unit),
         ~focussed: option(Focus.t),
@@ -74,10 +74,10 @@ module rec Projector: {
     let mk_status:
       (
         Base.projector(Model.t),
+        ~common: ProjectorInterface.common,
         ~editor_active: bool,
         ~indicated: option((Id.t, Direction.t)),
         ~selection_ids: list(Id.t),
-        ~info: ProjectorBase.info,
         ~id: Id.t
       ) =>
       ProjectorView.Model.status;
@@ -173,7 +173,7 @@ module rec Projector: {
         (
           ~common: ProjectorInterface.common,
           ~sort as _: Sort.t,
-          ~parent: ProjectorBase.external_action => Ui_effect.t(unit),
+          ~parent: ProjectorInterface.external_action => Ui_effect.t(unit),
           ~inject: Update.t => Ui_effect.t(unit),
           ~focus: Focus.t => Ui_effect.t(unit),
           ~focussed: option(Focus.t),
@@ -387,6 +387,28 @@ and Editor: {
         str =>
           String.length(str) > 30 ? String.sub(str, 0, 30) ++ "..." : str
       );
+
+    let term = (~common: ProjectorInterface.common, term: Language.Any.t) => {
+      let sort = Language.Any.sort(term);
+      let ed =
+        term
+        |> Editor.Model.mk
+        |> Editor.Update.make_term(~sort)
+        |> fst
+        |> Editor.Update.calculate(~common);
+      (
+        Editor.View.view(
+          ~font_metrics=common.font_metrics,
+          ~secondary_icons=common.secondary_icons,
+          ~sort,
+          ed,
+        ),
+        Point.{
+          row: ed |> Editor.View.print_string |> String.length,
+          col: 1,
+        },
+      );
+    };
   };
 
   let get_z = Model.get_z;

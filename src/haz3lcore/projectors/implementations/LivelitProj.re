@@ -1,6 +1,6 @@
 open Util;
 open Virtual_dom.Vdom;
-open ProjectorBase;
+open ProjectorInterface;
 open Language;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -14,123 +14,6 @@ type action('ed_a) = LivelitCtx.action_exp;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type focus('ed_f) = unit;
-
-let methods:
-  methods(model('ed_m), action('ed_a), focus('ed_f), 'ed_m, 'ed_a, 'ed_f) = {
-  init: (~copy_ed as _, any: TermBase.Any.t, _ed) => {
-    switch (any) {
-    | Exp({term: Ap(Forward, {term: LivelitName(ll), _}, model), _})
-    | Exp({
-        term:
-          Parens({term: Ap(Forward, {term: LivelitName(ll), _}, model), _}),
-        _,
-      }) =>
-      Some({
-        livelit_name: ll,
-        model,
-      })
-    | _ => None
-    };
-  },
-  dynamics: false,
-  update: (~update_ed as _, ~common as _, ~sort as _, info, model, action) => {
-    let ctx =
-      switch (info.statics) {
-      | Some(InfoExp(exp)) => exp.ctx
-      | _ => Ctx.empty
-      };
-    let ll = Ctx.lookup_livelit(ctx, model.livelit_name);
-    switch (ll) {
-    | Some(ll) => {
-        ...model,
-        model: ll.update(action, model.model),
-      }
-    | None => model
-    };
-  },
-  view:
-    (
-      ~common as _,
-      ~ed_str as _,
-      ~view_ed as _,
-      ~view_editable as _,
-      ~enter_ed as _,
-      ~mk_ed as _,
-      ~mk_term_ed as _,
-      ~calculate_ed as _,
-      ~local,
-      ~parent as _,
-      ~focus as _,
-      ~focussed as _,
-      {livelit_name, model},
-      info,
-    ) => {
-    let ctx =
-      switch (info.statics) {
-      | Some(InfoExp(exp)) => exp.ctx
-      | _ => Ctx.empty
-      };
-    let node = {
-      let ll = Ctx.lookup_livelit(ctx, livelit_name);
-      switch (ll) {
-      | Some(ll) =>
-        let action_callback = (action: LivelitCtx.action_exp) => {
-          local(action);
-        };
-        let list_contents = ll.view(model, action_callback);
-        Node.div(
-          ~attrs=[Attr.class_(livelit_name), Attr.id(Id.cls(info.id))],
-          [list_contents],
-        );
-      | None =>
-        print_endline("Warning - LivelitProj.view: not found in context");
-        Node.text("No livelit found");
-      };
-    };
-    View.mk(node);
-  },
-  placeholder: (~ed_size as _, {livelit_name, _}, info) => {
-    let ctx =
-      switch (info.statics) {
-      | Some(InfoExp(exp)) => exp.ctx
-      | _ => Ctx.empty
-      };
-
-    let ll = Ctx.lookup_livelit(ctx, livelit_name);
-    switch (ll) {
-    | Some(ll) => ll.size
-    | None =>
-      /* Default size */
-      ProjectorShape.inline(32)
-    };
-  },
-  mk_term: (~mk_term_ed as _, ~sort as _, ~prev as _, model) => (
-    model,
-    Calc.NewValue(Exp(model.model)),
-  ),
-  calculate: (~calculate_ed as _, ~common as _, m) => m,
-  get_cursor_info:
-    (
-      ~get_cursor_info_ed as _,
-      ~common as _,
-      ~inject as _: action('a) => Ui_effect.t(unit),
-      ~read_only as _,
-      _model,
-      _focus,
-    ) => Cursor.empty,
-  sexp_of_model,
-  model_of_sexp,
-  yojson_of_model,
-  model_of_yojson,
-  sexp_of_action,
-  action_of_sexp,
-  yojson_of_action,
-  action_of_yojson,
-  sexp_of_focus,
-  focus_of_sexp,
-  yojson_of_focus,
-  focus_of_yojson,
-};
 
 module M =
        (Editor: ProjectorInterface.EDITOR)
@@ -151,56 +34,109 @@ module M =
   [@deriving (show({with_path: false}), sexp, yojson)]
   type focus' = focus(Editor.focus);
 
-  let mk = (any, e) => methods.init(~copy_ed=Editor.Model.copy, any, e);
+  let mk =
+      (any: Term.Any.t, _ed: unit => option(Editor.model))
+      : option(model(Editor.model)) =>
+    switch (any) {
+    | Exp({term: Ap(Forward, {term: LivelitName(ll), _}, model), _})
+    | Exp({
+        term:
+          Parens({term: Ap(Forward, {term: LivelitName(ll), _}, model), _}),
+        _,
+      }) =>
+      Some({
+        livelit_name: ll,
+        model,
+      })
+    | _ => None
+    };
+
   let dynamics = false;
-  let placeholder = (model, info) =>
-    methods.placeholder(~ed_size=Editor.View.get_dimensions, model, info);
 
-  let update = (~common, ~sort, info, model, action) =>
-    methods.update(
-      ~update_ed=Editor.Update.update,
-      ~common,
-      ~sort,
-      info,
-      model,
-      action,
-    );
+  /* Placeholder implementation */
+  let placeholder = (~common, ~id, model) => {
+    let statics = Statics.Map.lookup(id, common.statics.info_map);
 
-  let mk_term = (~sort, ~prev, model) =>
-    methods.mk_term(~mk_term_ed=Editor.Update.make_term, ~sort, ~prev, model);
+    let ctx =
+      switch (statics) {
+      | Some(InfoExp(exp)) => exp.ctx
+      | _ => Ctx.empty
+      };
 
-  let calculate = (~common, model) =>
-    methods.calculate(~calculate_ed=Editor.Update.calculate, ~common, model);
+    let ll = Ctx.lookup_livelit(ctx, model.livelit_name);
+    switch (ll) {
+    | Some(ll) => ll.size
+    | None =>
+      /* Default size */
+      ProjectorShape.inline(32)
+    };
+  };
 
-  let get_cursor_info = (~common, ~inject, ~read_only, model, focus) =>
-    methods.get_cursor_info(
-      ~get_cursor_info_ed=Editor.Focus.get_cursor_info,
-      ~common,
-      ~inject,
-      ~read_only,
-      model,
-      focus,
-    );
+  /* Update implementation */
+  let update = (~common, ~sort as _, ~id, model, action) => {
+    let ctx =
+      switch (Statics.Map.lookup(id, common.statics.info_map)) {
+      | Some(InfoExp(exp)) => exp.ctx
+      | _ => Ctx.empty
+      };
+    let ll = Ctx.lookup_livelit(ctx, model.livelit_name);
+    switch (ll) {
+    | Some(ll) => {
+        ...model,
+        model: ll.update(action, model.model),
+      }
+    | None => model
+    };
+  };
 
-  let view = (~common, ~local, ~parent, ~focus, ~focussed, model, info) =>
-    methods.view(
-      ~common,
-      ~ed_str=Editor.View.print_string,
-      ~view_ed=
-        Editor.View.view(
-          ~font_metrics=common.font_metrics,
-          ~secondary_icons=common.secondary_icons,
-        ),
-      ~view_editable=Editor.View.view_editable,
-      ~enter_ed=Editor.Focus.enter,
-      ~mk_ed=Editor.Model.mk,
-      ~mk_term_ed=Editor.Update.make_term,
-      ~calculate_ed=Editor.Update.calculate,
-      ~local,
-      ~parent,
-      ~focus,
-      ~focussed,
-      model,
-      info,
-    );
+  /* Make term implementation */
+  let mk_term =
+      (~sort as _, ~prev as _, model): (model(Editor.model), Calc.t(Any.t)) => (
+    model,
+    Calc.NewValue(Exp(model.model)),
+  );
+
+  /* Calculate implementation */
+  let calculate = (~common as _, model) => model;
+
+  /* Cursor info implementation */
+  let get_cursor_info =
+      (~common as _, ~inject as _, ~read_only as _, _model, _focus) => Cursor.empty;
+
+  /* View implementation */
+  let view =
+      (
+        ~common,
+        ~inject,
+        ~escape as _,
+        ~take_focus as _,
+        ~focus as _,
+        ~id,
+        model,
+      ) => {
+    let ctx =
+      switch (Statics.Map.lookup(id, common.statics.info_map)) {
+      | Some(InfoExp(exp)) => exp.ctx
+      | _ => Ctx.empty
+      };
+    let ll = Ctx.lookup_livelit(ctx, model.livelit_name);
+
+    let node =
+      switch (ll) {
+      | Some(ll) =>
+        let action_callback = action => inject(action);
+        let list_contents = ll.view(model.model, action_callback);
+        Node.div(
+          ~attrs=[Attr.class_(model.livelit_name), Attr.id(Id.cls(id))],
+          [list_contents],
+        );
+      | None =>
+        Node.div(
+          ~attrs=[Attr.classes(["missing-livelit"])],
+          [Node.text("Missing: " ++ model.livelit_name)],
+        )
+      };
+
+    View.mk(node);
+  };
 };

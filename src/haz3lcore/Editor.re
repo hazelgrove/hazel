@@ -38,10 +38,9 @@ module CachedSyntax = {
   let init =
       (
         type p,
+        ~common,
         ~shape_of_projector,
         ~projector_to_term,
-        ~info_map,
-        ~dyn_map,
         ~sort: Sort.t,
         z: Zipper.t(p),
       )
@@ -51,10 +50,9 @@ module CachedSyntax = {
       MakeTerm.go(sort, segment, ~of_projector=projector_to_term);
     let projector_shapes =
       ProjectorInfo.ShapeMapSemantics.mk(
+        ~common,
         ~shape_of_projector,
         projectors,
-        info_map,
-        dyn_map,
       );
     {
       segment,
@@ -434,10 +432,9 @@ module Update = {
       |> {
         let.calc z = zipper;
         CachedSyntax.init(
+          ~common,
           ~projector_to_term,
           ~shape_of_projector,
-          ~info_map=common.statics.info_map,
-          ~dyn_map=common.dynamics,
           ~sort=Calc.get_saved_exc(model.term) |> Language.Any.sort,
           z,
         );

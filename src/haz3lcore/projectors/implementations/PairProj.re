@@ -1,6 +1,6 @@
 open Util;
 open Calc.Syntax;
-open ProjectorBase;
+open ProjectorInterface;
 open OptUtil.Syntax;
 open Language;
 
@@ -51,7 +51,7 @@ module M =
       (
         ~common,
         ~sort as _,
-        _info,
+        ~id as _,
         (left: editor_model, right: editor_model),
         action: action(Editor.action),
       ) => {
@@ -163,15 +163,24 @@ module M =
 
   // VIEW
 
+  let placeholder = (~common as _, ~id as _, (ed1, ed2)) => {
+    let ed1_size = Editor.View.get_dimensions(ed1);
+    let ed2_size = Editor.View.get_dimensions(ed2);
+    ProjectorShape.{
+      horizontal: ed1_size.row + ed2_size.row + 6,
+      vertical: ProjectorShape.Block(max(ed1_size.col, ed2_size.col)),
+    };
+  };
+
   let view =
       (
         ~common,
-        ~local: action' => Ui_effect.t(unit),
-        ~parent,
-        ~focus: focus' => Ui_effect.t(unit),
-        ~focussed,
+        ~inject: action' => Ui_effect.t(unit),
+        ~escape,
+        ~take_focus: focus' => Ui_effect.t(unit),
+        ~focus,
+        ~id as _,
         (ed1, ed2),
-        _info,
       ) =>
     View.{
       inline:
@@ -181,20 +190,20 @@ module M =
             WebUtil.div_c("pair-proj-parens", [WebUtil.Node.text("(")]),
             Editor.View.view_editable(
               ~common,
-              ~inject=a => local(Left(a)),
-              ~focus=f => focus(Left(f)),
+              ~inject=a => inject(Left(a)),
+              ~focus=f => take_focus(Left(f)),
               ~focussed=
-                switch (focussed) {
+                switch (focus) {
                 | Some(Left(f)) => Some(f)
                 | _ => None
                 },
               ~escape=
                 fun
-                | Direction.Left => parent(ProjectorInterface.Escape(Left))
+                | Direction.Left => escape(ProjectorInterface.Escape(Left))
                 | Direction.Right =>
                   Editor.Focus.enter(
-                    ~inject=a => local(Right(a)),
-                    ~focus=f => focus(Right(f)),
+                    ~inject=a => inject(Right(a)),
+                    ~focus=f => take_focus(Right(f)),
                     Direction.Left,
                     ed2,
                   ),
@@ -204,20 +213,20 @@ module M =
             WebUtil.div_c("pair-proj-parens", [WebUtil.Node.text(",")]),
             Editor.View.view_editable(
               ~common,
-              ~inject=a => local(Right(a)),
-              ~focus=f => focus(Right(f)),
+              ~inject=a => inject(Right(a)),
+              ~focus=f => take_focus(Right(f)),
               ~escape=
                 fun
                 | Direction.Left =>
                   Editor.Focus.enter(
-                    ~inject=a => local(Left(a)),
-                    ~focus=f => focus(Left(f)),
+                    ~inject=a => inject(Left(a)),
+                    ~focus=f => take_focus(Left(f)),
                     Direction.Right,
                     ed1,
                   )
-                | Direction.Right => parent(Escape(Right)),
+                | Direction.Right => escape(Escape(Right)),
               ~focussed=
-                switch (focussed) {
+                switch (focus) {
                 | Some(Right(f)) => Some(f)
                 | _ => None
                 },
@@ -232,8 +241,8 @@ module M =
       enter_left:
         Some(
           Editor.Focus.enter(
-            ~inject=a => local(Left(a)),
-            ~focus=f => focus(Left(f)),
+            ~inject=a => inject(Left(a)),
+            ~focus=f => take_focus(Left(f)),
             Direction.Left,
             ed1,
           ),
@@ -241,20 +250,11 @@ module M =
       enter_right:
         Some(
           Editor.Focus.enter(
-            ~inject=a => local(Right(a)),
-            ~focus=f => focus(Right(f)),
+            ~inject=a => inject(Right(a)),
+            ~focus=f => take_focus(Right(f)),
             Direction.Right,
             ed2,
           ),
         ),
     };
-
-  let placeholder = ((ed1, ed2), _info) => {
-    let ed1_size = Editor.View.get_dimensions(ed1);
-    let ed2_size = Editor.View.get_dimensions(ed2);
-    ProjectorShape.{
-      horizontal: ed1_size.row + ed2_size.row + 6,
-      vertical: ProjectorShape.Block(max(ed1_size.col, ed2_size.col)),
-    };
-  };
 };

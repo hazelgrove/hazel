@@ -1,7 +1,7 @@
 open Haz3lcorep;
 open Virtual_dom.Vdom;
 open Node;
-open ProjectorBase;
+open ProjectorInterface;
 open Util;
 open Util.OptUtil.Syntax;
 open Util.WebUtil;
@@ -17,7 +17,7 @@ module Model = {
 
   type projector_data('p) = {
     p: Piece.projector('p),
-    info: ProjectorBase.info,
+    id: Id.t,
     measurement: Measured.measurement,
     offside_base: int,
     status,
@@ -46,17 +46,23 @@ module Model = {
         type ed_a,
         type ed_f,
         p: Base.projector(ProjectorCore.model(ed, ed_a, ed_f)),
+        ~common: ProjectorInterface.common,
         ~editor_active: bool,
         ~indicated: option((Id.t, Direction.t)),
         ~selection_ids: list(Id.t),
-        ~info: ProjectorBase.info,
         ~id: Id.t,
       ) => {
     sort:
-      Option.map(Language.Info.sort_of, info.statics)
+      Option.map(
+        Language.Info.sort_of,
+        Language.Statics.Map.lookup(id, common.statics.info_map),
+      )
       |> Option.value(~default=p.mold.out),
     error:
-      Option.map(Language.Info.is_error, info.statics)
+      Option.map(
+        Language.Info.is_error,
+        Language.Statics.Map.lookup(id, common.statics.info_map),
+      )
       |> Option.value(~default=false),
     kind:
       p.model
@@ -69,13 +75,11 @@ module Model = {
       (
         type p,
         ~mk_status,
-        ~sort: Sort.t,
+        ~common,
         projectors: Id.Map.t(Base.projector(p)),
         measured: Measured.t,
         selection_ids: list(Id.t),
         indicated: option((Id.t, Direction.t)),
-        statics: Language.Statics.Map.t,
-        dynamics: Language.Dynamics.Map.t,
         editor_active: bool,
       )
       : list(projector_data(p)) => {
@@ -83,19 +87,18 @@ module Model = {
       ((id, _)) => {
         let* p = Id.Map.find_opt(id, projectors);
         let+ measurement = Measured.find_pr_opt(p, measured);
-        let info = ProjectorCore.mk_info(~id, ~sort, ~statics, ~dynamics);
         {
           p,
-          info,
+          id,
           measurement,
           offside_base: offside_base(~offset=4, measurement, measured),
           status:
             mk_status(
               p,
+              ~common,
               ~editor_active,
               ~indicated,
               ~selection_ids,
-              ~info,
               ~id,
             ),
         };
@@ -195,11 +198,11 @@ let mk_view =
       type ed_f,
       ~editor_module,
       ~common,
-      ~parent: ProjectorBase.external_action => Ui_effect.t(unit),
+      ~parent: external_action => Ui_effect.t(unit),
       ~inject: ProjectorCore.Update.t(ed_m, ed_a, ed_f) => Ui_effect.t(unit),
       ~focus: ProjectorCore.Focus.t(ed_m, ed_a, ed_f) => Ui_effect.t(unit),
       ~focussed: option(ProjectorCore.Focus.t(ed_m, ed_a, ed_f)),
-      {p, info, _}:
+      {p, id, _}:
         Model.projector_data(ProjectorCore.model(ed_m, ed_a, ed_f)),
     )
     : View.t => {
@@ -225,17 +228,17 @@ let mk_view =
     );
   view(
     ~common,
-    ~local,
-    ~parent,
-    ~focus=f => focus(F(kind_gadt, f)),
-    ~focussed=
+    ~inject=local,
+    ~escape=parent,
+    ~take_focus=f => focus(F(kind_gadt, f)),
+    ~focus=
       switch (focussed) {
       | Some(F(k, f)) when ProjectorCore.Kind.gadt_eq(k, kind_gadt) =>
         Some(Obj.magic(f)) // Note(Matt): Using Obj.magic here because we know the types are the same if gadt_eq(k, kind_gadt) is true
       | _ => None
       },
+    ~id,
     model,
-    info,
   );
 };
 
@@ -248,7 +251,7 @@ let split_views =
       type ed_f,
       ~editor_module,
       ~common: ProjectorInterface.common,
-      ~parent: ProjectorBase.external_action => Ui_effect.t(unit),
+      ~parent: external_action => Ui_effect.t(unit),
       ~inject: ProjectorCore.Update.t(ed_m, ed_a, ed_f) => Ui_effect.t(unit),
       ~focus: ProjectorCore.Focus.t(ed_m, ed_a, ed_f) => Ui_effect.t(unit),
       ~focussed: option(ProjectorCore.Focus.t(ed_m, ed_a, ed_f)),
@@ -291,11 +294,7 @@ let split_views =
     | Some(v) => v
     | None => parent(Escape(Left))
     };
-  Hashtbl.add(
-    handoff_map,
-    projector_data.info.id,
-    (enter_left, enter_right),
-  );
+  Hashtbl.add(handoff_map, projector_data.id, (enter_left, enter_right));
   let overlay_view = Option.map(v => wrapper([v]), views.overlay);
   (line_view, overlay_view);
 };
@@ -351,14 +350,12 @@ let all =
            ~sort=data.status.sort,
            ~parent=
              a =>
-               handle(data.info.id, a, ~focus, ~inject=a =>
-                 inject(Project(a))
-               ),
-           ~inject=a => inject(Project(Perform(data.info.id, a))),
-           ~focus=f => Ui_effect.Many([make_active(data.info.id, f)]),
+               handle(data.id, a, ~focus, ~inject=a => inject(Project(a))),
+           ~inject=a => inject(Project(Perform(data.id, a))),
+           ~focus=f => Ui_effect.Many([make_active(data.id, f)]),
            ~focussed=
              switch (focussed) {
-             | Some((id2, f)) when id2 == data.info.id => Some(f)
+             | Some((id2, f)) when id2 == data.id => Some(f)
              | _ => None
              },
            data,

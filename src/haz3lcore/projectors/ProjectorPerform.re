@@ -1,4 +1,3 @@
-open ProjectorBase;
 open Util;
 open OptUtil.Syntax;
 
@@ -30,7 +29,7 @@ let init =
       kind: 'p_kind,
       seg: Base.segment('p),
     )
-    : option(syntax('p)) => {
+    : option(Base.piece('p)) => {
   /* Projected syntax always gets parenthesized, but only the contents
    * of those parentheses are passed to the projector implementations  */
   open OptUtil.Syntax;

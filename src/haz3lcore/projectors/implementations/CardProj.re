@@ -1,6 +1,5 @@
 open Util;
 open Virtual_dom.Vdom;
-open ProjectorBase;
 open ProjectorInterface;
 open Language;
 
@@ -546,10 +545,10 @@ module Hand = {
       ],
       [CardInHand.view(mode, local, sort, card, index)],
     );
-  let view = (info, mode, local, sort: Sort.t, hand: hand): Node.t =>
+  let view = (~id, mode, local, sort: Sort.t, hand: hand): Node.t =>
     Node.div(
       ~attrs=[Attr.classes(["hand", Sort.show(sort)])],
-      List.mapi(card_wrapper(info.id, mode, local, sort), hand),
+      List.mapi(card_wrapper(id, mode, local, sort), hand),
     );
 };
 
@@ -602,57 +601,19 @@ let view =
       ~parent as _,
       ~focus as _,
       ~focussed as _,
+      ~id,
       m: model('ed),
-      info,
     )
     : View.t => {
   inline:
     switch (m.collection) {
     | Card(card) => Singleton.view(m.mode, local, to_sort(m.sort), card)
-    | Hand(hand) => Hand.view(info, m.mode, local, to_sort(m.sort), hand)
+    | Hand(hand) => Hand.view(~id, m.mode, local, to_sort(m.sort), hand)
     },
   offside: None,
   overlay: None,
   enter_left: None,
   enter_right: None,
-};
-
-let methods = {
-  init: (~copy_ed as _, term: TermBase.Any.t, _ed) => Model.of_term(term),
-  dynamics: false,
-  placeholder: (~ed_size as _, model: model('ed), _info) => {
-    horizontal:
-      switch (model.collection) {
-      | Card(_)
-      | Hand([_]) => 4
-      | Hand(hand) =>
-        Float.ceil(
-          3.5 +. 81. /. 100. *. (Float.of_int(List.length(hand)) -. 1.),
-        )
-        |> Float.to_int
-      },
-    vertical: Tab(1),
-  },
-  update,
-  mk_term: (~mk_term_ed as _, ~sort as _, ~prev as _, m) => (
-    m,
-    NewValue(Model.to_term(m)),
-  ),
-  view,
-  calculate: Calculate.default,
-  get_cursor_info: CursorInfo.default,
-  sexp_of_model,
-  model_of_sexp,
-  yojson_of_model,
-  model_of_yojson,
-  sexp_of_action,
-  action_of_sexp,
-  yojson_of_action,
-  action_of_yojson,
-  sexp_of_focus,
-  focus_of_sexp,
-  focus_of_yojson,
-  yojson_of_focus,
 };
 
 module M =
@@ -674,11 +635,12 @@ module M =
   [@deriving (show({with_path: false}), sexp, yojson)]
   type focus' = focus(Editor.focus);
 
-  let mk = (any, _ed) => Model.of_term(any);
+  let mk = (any: Term.Any.t, _ed: unit => option(Editor.model)) =>
+    Model.of_term(any);
 
   let dynamics = false;
 
-  let placeholder = (model: model', _info) =>
+  let placeholder = (~common as _, ~id as _, model: model') =>
     ProjectorShape.{
       horizontal:
         switch (model.collection) {
@@ -693,26 +655,62 @@ module M =
       vertical: Tab(1),
     };
 
-  let update = update(~update_ed=Editor.Update.update);
+  let update = (~common as _, ~sort as _, ~id as _, model, action): Model.t =>
+    switch (action) {
+    | SetMode(mode) => {
+        ...model,
+        mode,
+      }
+    | ReplaceCard(new_card) =>
+      switch (model.collection) {
+      | Card(_) => {
+          ...model,
+          collection: Card(new_card),
+        }
+      | Hand(_) => model
+      }
+    | ReplaceCardInHand(i, card) =>
+      switch (model.collection) {
+      | Card(_) => model
+      | Hand(hand) => {
+          ...model,
+          collection: Hand(ListUtil.update_nth(i, hand, _ => card)),
+        }
+      }
+    };
 
   let mk_term = (~sort as _, ~prev as _, m) => (
     m,
     Calc.NewValue(Model.to_term(m)),
   );
 
-  let calculate = Calculate.default(~calculate_ed=Editor.Update.calculate);
+  let calculate = (~common as _, model) => model;
 
   let get_cursor_info =
-    CursorInfo.default(~get_cursor_info_ed=Editor.Focus.get_cursor_info);
+      (~common as _, ~inject as _, ~read_only as _, _model, _focus) => Cursor.empty;
 
   let view =
-    view(
-      ~ed_str=Editor.View.print_string,
-      ~view_ed=Editor.View.view,
-      ~view_editable=Editor.View.view_editable,
-      ~enter_ed=Editor.Focus.enter,
-      ~mk_ed=Editor.Model.mk,
-      ~mk_term_ed=Editor.Update.make_term,
-      ~calculate_ed=Editor.Update.calculate,
-    );
+      (
+        ~common as _,
+        ~inject,
+        ~escape as _,
+        ~take_focus as _,
+        ~focus as _,
+        ~id,
+        model: model',
+      ) => {
+    View.{
+      inline:
+        switch (model.collection) {
+        | Card(card) =>
+          Singleton.view(model.mode, inject, to_sort(model.sort), card)
+        | Hand(hand) =>
+          Hand.view(~id, model.mode, inject, to_sort(model.sort), hand)
+        },
+      offside: None,
+      overlay: None,
+      enter_left: None,
+      enter_right: None,
+    };
+  };
 };
