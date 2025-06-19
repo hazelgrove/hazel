@@ -203,33 +203,31 @@ let to_module =
       type model,
       type action,
       type focus,
+      module Editor:
+        ProjectorInterface.EDITOR with
+          type model = ed_m and type action = ed_a and type focus = ed_f,
       kind: Kind.gadt(model, action, focus, ed_m, ed_a, ed_f),
     )
-    : ProjectorBase.methods(model, action, focus, ed_m, ed_a, ed_f) =>
+    : (module ProjectorInterface.PROJECTOR with
+         type model' = model and
+         type action' = action and
+         type focus' = focus and
+         type editor_model = ed_m) =>
   switch (kind) {
-  | Fold => FoldProj.methods
-  | Info => TypeProj.methods
-  | Probe => ProbeProj.methods
-  | Pair => PairProj.methods
-  | Checkbox => CheckboxProj.methods
-  | Slider => SliderProj.methods
-  | Livelit => LivelitProj.methods
-  | SliderF => SliderFProj.methods
-  | Card => CardProj.methods
-  | TextArea => TextAreaProj.methods
+  | Fold => (module FoldProj.M(Editor))
+  | Info => (module TypeProj.M(Editor))
+  | Probe => (module ProbeProj.M(Editor))
+  | Pair => (module PairProj.M(Editor))
+  | Checkbox => (module CheckboxProj.M(Editor))
+  | Slider => (module SliderProj.M(Editor))
+  | Livelit => (module LivelitProj.M(Editor))
+  | SliderF => (module SliderFProj.M(Editor))
+  | Card => (module CardProj.M(Editor))
+  | TextArea => (module TextAreaProj.M(Editor))
   };
 
 let pp_model =
-    (
-      type ed,
-      type ed_a,
-      type ed_f,
-      _pp_ed,
-      _pp_ed_a,
-      _pp_ed_f,
-      _f,
-      _model: model(ed, ed_a, ed_f),
-    ) => {
+    (type ed, type ed_a, type ed_f, _f, _model: model(ed, ed_a, ed_f)) => {
   // Format.printf(f, model |> kind_of_model |> Kind.name);  // Note(matt): I tried to make this but it gnarly type errors
   failwith(
     "cannot print",
@@ -237,14 +235,34 @@ let pp_model =
 };
 
 let model_of_sexp =
-    (ed_of_sexp, _ed_a_of_sexp, _ed_f_of_sexp, sexp: Sexplib.Sexp.t)
-    : model('ed, 'ed_a, 'ed_f) =>
+    (type ed_m, ~editor_module, sexp: Sexplib.Sexp.t)
+    : model(ed_m, 'ed_a, 'ed_f) =>
   switch (sexp) {
   | List([Atom(kind_string), m]) =>
     open Kind;
     let.gadt W(kind_gadt) = kind_string |> Kind.of_name;
-    let methods = to_module(kind_gadt);
-    V(kind_gadt, m |> methods.model_of_sexp(ed_of_sexp), Calc.Pending);
+    let methods = to_module(editor_module, kind_gadt);
+    let of_sexp =
+      methods
+      |> (
+        (
+          type p_m,
+          type p_a,
+          type p_f,
+          module Methods:
+            ProjectorInterface.PROJECTOR with
+              type model' = p_m and
+              type action' = p_a and
+              type focus' = p_f and
+              type editor_model = ed_m,
+          sexp,
+        ) => (
+          {
+            Methods.model'_of_sexp(sexp);
+          }: p_m
+        )
+      );
+    V(kind_gadt, m |> of_sexp, Calc.Pending);
   | _ => failwith("Projector desearialization failed")
   };
 
@@ -253,31 +271,66 @@ let sexp_of_model =
       type ed,
       type ed_a,
       type ed_f,
-      sexp_of_ed: ed => Sexplib.Sexp.t,
-      _sexp_of_ed_a: ed_a => Sexplib.Sexp.t,
-      _sexp_of_ed_f: ed_f => Sexplib.Sexp.t,
+      ~editor_module,
       model: model(ed, ed_a, ed_f),
     )
     : Sexplib.Sexp.t =>
   switch (model) {
   | V(kind_gadt, m, _) =>
     open Kind;
-    let methods = to_module(kind_gadt);
-    List([
-      Atom(name(kind_of_model(model))),
-      m |> methods.sexp_of_model(sexp_of_ed),
-    ]);
+    let methods = to_module(editor_module, kind_gadt);
+    let sexp_of_model =
+      methods
+      |> (
+        (
+          type p_m,
+          type p_a,
+          type p_f,
+          module Methods:
+            ProjectorInterface.PROJECTOR with
+              type model' = p_m and
+              type action' = p_a and
+              type focus' = p_f and
+              type editor_model = ed,
+          m,
+        ) => (
+          {
+            Methods.sexp_of_model'(m);
+          }: Sexplib.Sexp.t
+        )
+      );
+    List([Atom(name(kind_of_model(model))), m |> sexp_of_model]);
   };
 
 let model_of_yojson =
-    (ed_of_yojson, _ed_a_of_yojson, _ed_f_of_yojson, yojson: Yojson.Safe.t)
-    : model('ed, 'ed_a, 'ed_f) =>
+    (type ed_m, ~editor_module, yojson: Yojson.Safe.t)
+    : model(ed_m, 'ed_a, 'ed_f) =>
   switch (yojson) {
   | `List([`String(kind_string), m]) =>
     open Kind;
     let.gadt W(kind_gadt) = kind_string |> Kind.of_name;
-    let methods = to_module(kind_gadt);
-    V(kind_gadt, m |> methods.model_of_yojson(ed_of_yojson), Calc.Pending);
+    let methods = to_module(editor_module, kind_gadt);
+    let of_yojson =
+      methods
+      |> (
+        (
+          type p_m,
+          type p_a,
+          type p_f,
+          module Methods:
+            ProjectorInterface.PROJECTOR with
+              type model' = p_m and
+              type action' = p_a and
+              type focus' = p_f and
+              type editor_model = ed_m,
+          json,
+        ) => (
+          {
+            Methods.model'_of_yojson(json);
+          }: p_m
+        )
+      );
+    V(kind_gadt, m |> of_yojson, Calc.Pending);
   | _ => failwith("Projector desearialization failed")
   };
 
@@ -286,19 +339,34 @@ let yojson_of_model =
       type ed,
       type ed_a,
       type ed_f,
-      yojson_of_ed: ed => Yojson.Safe.t,
-      _yojson_of_ed_a: ed_a => Yojson.Safe.t,
-      _yojson_of_ed_f: ed_f => Yojson.Safe.t,
+      ~editor_module,
       model: model(ed, ed_a, ed_f),
     ) =>
   switch (model) {
   | V(kind_gadt, m, _) =>
     open Kind;
-    let methods = to_module(kind_gadt);
-    `List([
-      `String(name(kind_of_model(model))),
-      m |> methods.yojson_of_model(yojson_of_ed),
-    ]);
+    let methods = to_module(editor_module, kind_gadt);
+    let yojson_of_model =
+      methods
+      |> (
+        (
+          type p_m,
+          type p_a,
+          type p_f,
+          module Methods:
+            ProjectorInterface.PROJECTOR with
+              type model' = p_m and
+              type action' = p_a and
+              type focus' = p_f and
+              type editor_model = ed,
+          m,
+        ) => (
+          {
+            Methods.yojson_of_model'(m);
+          }: Yojson.Safe.t
+        )
+      );
+    `List([`String(name(kind_of_model(model))), m |> yojson_of_model]);
   };
 
 let mk_info =
@@ -314,179 +382,429 @@ let mk_info =
 };
 
 module Update = {
-  type t('ed_f) =
-    | A(Kind.gadt('a, 'b, 'c, 'ed_m, 'ed_a, 'ed_f), 'b): t('ed_a);
+  type t('ed_m, 'ed_a, 'ed_f) =
+    | A(Kind.gadt('a, 'b, 'c, 'ed_m, 'ed_a, 'ed_f), 'b)
+      : t('ed_m, 'ed_a, 'ed_f);
 
   let kind_of_focus = (A(x, _)) => Kind.of_gadt(x);
 
-  let pp = (type ed_f, _pp_ed_f, _f, _focus: t(ed_f)) => {
+  let pp =
+      (type ed_m, type ed_a, type ed_f, _f, _focus: t(ed_m, ed_a, ed_f))
+      : unit => {
     failwith("cannot print");
   };
 
   let sexp_of_t =
-      (type ed_f, sexp_of_ed_f: ed_f => Sexplib.Sexp.t, t: t(ed_f))
+      (
+        type ed_m,
+        type ed_a,
+        type ed_f,
+        ~editor_module,
+        t: t(ed_m, ed_a, ed_f),
+      )
       : Sexplib.Sexp.t =>
     switch (t) {
     | A(kind_gadt, m) =>
       open Kind;
-      let methods = to_module(kind_gadt);
-      List([
-        Atom(name(of_gadt(kind_gadt))),
-        m |> methods.sexp_of_action(sexp_of_ed_f),
-      ]);
+      let methods = to_module(editor_module, kind_gadt);
+      let sexp_of_action =
+        methods
+        |> (
+          (
+            type p_m,
+            type p_a,
+            type p_f,
+            type ed_m,
+            module Methods:
+              ProjectorInterface.PROJECTOR with
+                type model' = p_m and
+                type action' = p_a and
+                type focus' = p_f and
+                type editor_model = ed_m,
+            a,
+          ) => (
+            {
+              Methods.sexp_of_action'(a);
+            }: Sexplib.Sexp.t
+          )
+        );
+      List([Atom(name(of_gadt(kind_gadt))), m |> sexp_of_action]);
     };
 
-  let t_of_sexp = (ed_f_of_sexp, sexp: Sexplib.Sexp.t): t('ed_f) =>
+  let t_of_sexp =
+      (type ed_m, type ed_a, type ed_f, ~editor_module, sexp: Sexplib.Sexp.t)
+      : t(ed_m, ed_a, ed_f) =>
     switch (sexp) {
     | List([Atom(kind_string), m]) =>
       open Kind;
       let.gadt W(kind_gadt) = kind_string |> Kind.of_name;
-      let methods = to_module(kind_gadt);
-      A(kind_gadt, m |> methods.action_of_sexp(ed_f_of_sexp));
+      let methods = to_module(editor_module, kind_gadt);
+      let action_of_sexp =
+        methods
+        |> (
+          (
+            type p_m,
+            type p_a,
+            type p_f,
+            module Methods:
+              ProjectorInterface.PROJECTOR with
+                type model' = p_m and
+                type action' = p_a and
+                type focus' = p_f and
+                type editor_model = ed_m,
+            sexp,
+          ) => (
+            {
+              Methods.action'_of_sexp(sexp);
+            }: p_a
+          )
+        );
+      A(kind_gadt, m |> action_of_sexp);
     | _ => failwith("Projector focus deserialization failed")
     };
 
   let yojson_of_t =
-      (type ed_f, yojson_of_ed_f: ed_f => Yojson.Safe.t, t: t(ed_f)) =>
+      (
+        type ed_m,
+        type ed_a,
+        type ed_f,
+        ~editor_module,
+        t: t(ed_m, ed_a, ed_f),
+      ) =>
     switch (t) {
     | A(kind_gadt, m) =>
       open Kind;
-      let methods = to_module(kind_gadt);
-      `List([
-        `String(name(of_gadt(kind_gadt))),
-        m |> methods.yojson_of_action(yojson_of_ed_f),
-      ]);
+      let methods = to_module(editor_module, kind_gadt);
+      let yojson_of_action =
+        methods
+        |> (
+          (
+            type p_m,
+            type p_a,
+            type p_f,
+            module Methods:
+              ProjectorInterface.PROJECTOR with
+                type model' = p_m and
+                type action' = p_a and
+                type focus' = p_f and
+                type editor_model = ed_m,
+            a,
+          ) => (
+            {
+              Methods.yojson_of_action'(a);
+            }: Yojson.Safe.t
+          )
+        );
+      `List([`String(name(of_gadt(kind_gadt))), m |> yojson_of_action]);
     };
 
-  let t_of_yojson = (ed_f_of_yojson, yojson: Yojson.Safe.t): t('ed_f) =>
+  let t_of_yojson =
+      (type ed_m, type ed_a, type ed_f, ~editor_module, yojson: Yojson.Safe.t)
+      : t(ed_m, ed_a, ed_f) =>
     switch (yojson) {
     | `List([`String(kind_string), m]) =>
       open Kind;
       let.gadt W(kind_gadt) = kind_string |> Kind.of_name;
-      let methods = to_module(kind_gadt);
-      A(kind_gadt, m |> methods.action_of_yojson(ed_f_of_yojson));
+      let methods = to_module(editor_module, kind_gadt);
+      let action_of_yojson =
+        methods
+        |> (
+          (
+            type p_m,
+            type p_a,
+            type p_f,
+            module Methods:
+              ProjectorInterface.PROJECTOR with
+                type model' = p_m and
+                type action' = p_a and
+                type focus' = p_f and
+                type editor_model = ed_m,
+            json,
+          ) => (
+            {
+              Methods.action'_of_yojson(json);
+            }: p_a
+          )
+        );
+      A(kind_gadt, m |> action_of_yojson);
     | _ => failwith("Projector focus deserialization failed")
     };
 
   let update =
       (
+        type ed_m,
+        type ed_a,
+        type ed_f,
+        ~editor_module,
         ~common: ProjectorInterface.common,
-        ~update_ed,
         ~sort: Sort.t,
         ~id: Id.t,
         A(gadt1, action),
         V(gadt2, model, exp_cache),
       )
-      : model('ed_m, 'ed_a, 'ed_f) =>
+      : model(ed_m, ed_a, ed_f) =>
     if (Kind.gadt_eq(gadt1, gadt2)) {
-      let methods = to_module(gadt2);
-      V(
-        gadt2,
-        methods.update(
-          ~update_ed,
-          ~common,
-          ~sort,
-          mk_info(
-            ~id,
-            ~statics=common.statics.info_map,
-            ~dynamics=common.dynamics,
-          ),
-          model,
-          action |> Obj.magic // Note(Matt): Using Obj.magic here because we know the types are the same if gadt_eq(gadt1, gadt2) is true
-        ),
-        exp_cache,
-      );
+      let methods = to_module(editor_module, gadt2);
+      let update =
+        methods
+        |> (
+          (
+            type p_m,
+            type p_a,
+            type p_f,
+            module Methods:
+              ProjectorInterface.PROJECTOR with
+                type model' = p_m and
+                type action' = p_a and
+                type focus' = p_f and
+                type editor_model = ed_m,
+            model,
+            action,
+          ) => (
+            {
+              Methods.update(
+                ~common,
+                ~sort,
+                mk_info(
+                  ~id,
+                  ~statics=common.statics.info_map,
+                  ~dynamics=common.dynamics,
+                ),
+                model,
+                action,
+              );
+            }: p_m
+          )
+        );
+      V(gadt2, update(model, Obj.magic(action)), exp_cache);
     } else {
       raise(Failure.Exception(Wrong_projector));
     };
 
   let calculate =
       (
-        ~calculate_ed,
+        type ed_m,
+        type ed_a,
+        type ed_f,
+        ~editor_module,
         ~common: ProjectorInterface.common,
-        V(gadt, model, exp_cache): model('ed_m, 'ed_a, 'ed_f),
+        V(gadt, model, exp_cache): model(ed_m, ed_a, ed_f),
       )
-      : model('ed_m, 'ed_a, 'ed_f) => {
-    let methods = to_module(gadt);
-    V(gadt, methods.calculate(~calculate_ed, ~common, model), exp_cache);
+      : model(ed_m, ed_a, ed_f) => {
+    let methods = to_module(editor_module, gadt);
+    let calculate =
+      methods
+      |> (
+        (
+          type p_m,
+          type p_a,
+          type p_f,
+          module Methods:
+            ProjectorInterface.PROJECTOR with
+              type model' = p_m and
+              type action' = p_a and
+              type focus' = p_f and
+              type editor_model = ed_m,
+          m,
+        ) => (
+          {
+            Methods.calculate(~common, m);
+          }: p_m
+        )
+      );
+    V(gadt, calculate(model), exp_cache);
   };
 };
 
 module Focus = {
-  type t('ed_f) =
-    | F(Kind.gadt('a, 'b, 'c, 'ed_m, 'ed_a, 'ed_f), 'c): t('ed_f);
+  type t('ed_m, 'ed_a, 'ed_f) =
+    | F(Kind.gadt('a, 'b, 'c, 'ed_m, 'ed_a, 'ed_f), 'c)
+      : t('ed_m, 'ed_a, 'ed_f);
 
   let get_cursor_info =
       (
-        ~get_cursor_info_ed,
+        type ed_m,
+        type ed_a,
+        type ed_f,
+        ~editor_module,
         ~common: ProjectorInterface.common,
-        ~inject: Update.t('ed_a) => Ui_effect.t(unit),
+        ~inject: Update.t(ed_m, ed_a, ed_f) => Ui_effect.t(unit),
         ~read_only: bool,
-        V(gadt1, model, _exp_cache): model('ed_m, 'ed_a, 'ed_f),
-        F(gadt2, focus): t('ed_f),
+        V(gadt1, model, _exp_cache): model(ed_m, ed_a, ed_f),
+        F(gadt2, focus): t(ed_m, ed_a, ed_f),
       ) =>
     if (Kind.gadt_eq(gadt1, gadt2)) {
-      let methods = to_module(gadt1);
-      methods.get_cursor_info(
-        ~get_cursor_info_ed,
-        ~common,
-        ~inject=a => inject(Update.A(gadt1, Obj.magic(a))), // Note(Matt): Using Obj.magic here because we know the types are the same if gadt_eq(gadt1, gadt2) is true
-        ~read_only,
-        model,
-        focus |> Obj.magic // Note(Matt): Using Obj.magic here because we know the types are the same if gadt_eq(gadt1, gadt2) is true
-      );
+      let methods = to_module(editor_module, gadt1);
+      let get_cursor_info =
+        methods
+        |> (
+          (
+            type p_m,
+            type p_a,
+            type p_f,
+            module Methods:
+              ProjectorInterface.PROJECTOR with
+                type model' = p_m and
+                type action' = p_a and
+                type focus' = p_f and
+                type editor_model = ed_m,
+            model,
+            focus,
+          ) => (
+            {
+              Methods.get_cursor_info(
+                ~common,
+                ~inject=a => inject(Update.A(gadt1, Obj.magic(a))),
+                ~read_only,
+                model,
+                focus,
+              );
+            }: Cursor.t
+          )
+        );
+      get_cursor_info(model, Obj.magic(focus));
     } else {
       Cursor.empty;
     };
 
   let kind_of_focus = (F(x, _)) => Kind.of_gadt(x);
 
-  let pp = (type ed_f, _pp_ed_f, _f, _focus: t(ed_f)) => {
+  let pp = (type ed_m, type ed_a, type ed_f, _f, _focus: t(ed_m, ed_a, ed_f)) => {
     failwith("cannot print");
   };
 
   let sexp_of_t =
-      (type ed_f, sexp_of_ed_f: ed_f => Sexplib.Sexp.t, t: t(ed_f))
+      (
+        type ed_m,
+        type ed_a,
+        type ed_f,
+        ~editor_module,
+        t: t(ed_m, ed_a, ed_f),
+      )
       : Sexplib.Sexp.t =>
     switch (t) {
     | F(kind_gadt, m) =>
       open Kind;
-      let methods = to_module(kind_gadt);
-      List([
-        Atom(name(of_gadt(kind_gadt))),
-        m |> methods.sexp_of_focus(sexp_of_ed_f),
-      ]);
+      let methods = to_module(editor_module, kind_gadt);
+      let sexp_of_focus =
+        methods
+        |> (
+          (
+            type p_m,
+            type p_a,
+            type p_f,
+            module Methods:
+              ProjectorInterface.PROJECTOR with
+                type model' = p_m and
+                type action' = p_a and
+                type focus' = p_f and
+                type editor_model = ed_m,
+            f,
+          ) => (
+            {
+              Methods.sexp_of_focus'(f);
+            }: Sexplib.Sexp.t
+          )
+        );
+      List([Atom(name(of_gadt(kind_gadt))), m |> sexp_of_focus]);
     };
 
-  let t_of_sexp = (ed_f_of_sexp, sexp: Sexplib.Sexp.t): t('ed_f) =>
+  let t_of_sexp =
+      (type ed_m, type ed_a, type ed_f, ~editor_module, sexp: Sexplib.Sexp.t)
+      : t(ed_m, ed_a, ed_f) =>
     switch (sexp) {
     | List([Atom(kind_string), m]) =>
       open Kind;
       let.gadt W(kind_gadt) = kind_string |> Kind.of_name;
-      let methods = to_module(kind_gadt);
-      F(kind_gadt, m |> methods.focus_of_sexp(ed_f_of_sexp));
+      let methods = to_module(editor_module, kind_gadt);
+      let focus_of_sexp =
+        methods
+        |> (
+          (
+            type p_m,
+            type p_a,
+            type p_f,
+            module Methods:
+              ProjectorInterface.PROJECTOR with
+                type model' = p_m and
+                type action' = p_a and
+                type focus' = p_f and
+                type editor_model = ed_m,
+            sexp,
+          ) => (
+            {
+              Methods.focus'_of_sexp(sexp);
+            }: p_f
+          )
+        );
+      F(kind_gadt, m |> focus_of_sexp);
     | _ => failwith("Projector focus deserialization failed")
     };
 
   let yojson_of_t =
-      (type ed_f, yojson_of_ed_f: ed_f => Yojson.Safe.t, t: t(ed_f)) =>
+      (
+        type ed_m,
+        type ed_a,
+        type ed_f,
+        ~editor_module,
+        t: t(ed_m, ed_a, ed_f),
+      ) =>
     switch (t) {
     | F(kind_gadt, m) =>
       open Kind;
-      let methods = to_module(kind_gadt);
-      `List([
-        `String(name(of_gadt(kind_gadt))),
-        m |> methods.yojson_of_focus(yojson_of_ed_f),
-      ]);
+      let methods = to_module(editor_module, kind_gadt);
+      let yojson_of_focus =
+        methods
+        |> (
+          (
+            type p_m,
+            type p_a,
+            type p_f,
+            module Methods:
+              ProjectorInterface.PROJECTOR with
+                type model' = p_m and
+                type action' = p_a and
+                type focus' = p_f and
+                type editor_model = ed_m,
+            f,
+          ) => (
+            {
+              Methods.yojson_of_focus'(f);
+            }: Yojson.Safe.t
+          )
+        );
+      `List([`String(name(of_gadt(kind_gadt))), m |> yojson_of_focus]);
     };
 
-  let t_of_yojson = (ed_f_of_yojson, yojson: Yojson.Safe.t): t('ed_f) =>
+  let t_of_yojson =
+      (type ed_m, type ed_a, type ed_f, ~editor_module, yojson: Yojson.Safe.t)
+      : t(ed_m, ed_a, ed_f) =>
     switch (yojson) {
     | `List([`String(kind_string), m]) =>
       open Kind;
       let.gadt W(kind_gadt) = kind_string |> Kind.of_name;
-      let methods = to_module(kind_gadt);
-      F(kind_gadt, m |> methods.focus_of_yojson(ed_f_of_yojson));
+      let methods = to_module(editor_module, kind_gadt);
+      let focus_of_yojson =
+        methods
+        |> (
+          (
+            type p_m,
+            type p_a,
+            type p_f,
+            module Methods:
+              ProjectorInterface.PROJECTOR with
+                type model' = p_m and
+                type action' = p_a and
+                type focus' = p_f and
+                type editor_model = ed_m,
+            json,
+          ) => (
+            {
+              Methods.focus'_of_yojson(json);
+            }: p_f
+          )
+        );
+      F(kind_gadt, m |> focus_of_yojson);
     | _ => failwith("Projector focus deserialization failed")
     };
 };

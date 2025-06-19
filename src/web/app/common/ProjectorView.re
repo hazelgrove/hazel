@@ -194,34 +194,38 @@ let mk_view =
       type ed_m,
       type ed_a,
       type ed_f,
+      ~editor_module,
       ~common,
       ~parent: ProjectorBase.external_action => Ui_effect.t(unit),
-      ~inject: ProjectorCore.Update.t(ed_a) => Ui_effect.t(unit),
-      ~focus: ProjectorCore.Focus.t(ed_f) => Ui_effect.t(unit),
-      ~focussed: option(ProjectorCore.Focus.t(ed_f)),
-      ~ed_str,
-      ~view_ed,
-      ~view_editable,
-      ~enter_ed,
-      ~mk_ed,
-      ~mk_term_ed,
-      ~calculate_ed,
+      ~inject: ProjectorCore.Update.t(ed_m, ed_a, ed_f) => Ui_effect.t(unit),
+      ~focus: ProjectorCore.Focus.t(ed_m, ed_a, ed_f) => Ui_effect.t(unit),
+      ~focussed: option(ProjectorCore.Focus.t(ed_m, ed_a, ed_f)),
       {p, info, _}:
         Model.projector_data(ProjectorCore.model(ed_m, ed_a, ed_f)),
     )
     : View.t => {
   let ProjectorCore.V(kind_gadt, model, _) = p.model;
-  let methods = ProjectorCore.to_module(kind_gadt);
+  let methods = ProjectorCore.to_module(editor_module, kind_gadt);
   let local = a => inject(ProjectorCore.Update.A(kind_gadt, a));
-  methods.view(
+  let view =
+    methods
+    |> (
+      (
+        type p_m,
+        type p_a,
+        type p_f,
+        module Methods:
+          ProjectorInterface.PROJECTOR with
+            type model' = p_m and
+            type action' = p_a and
+            type focus' = p_f and
+            type editor_model = ed_m,
+      ) => {
+        Methods.view;
+      }
+    );
+  view(
     ~common,
-    ~ed_str,
-    ~view_ed,
-    ~view_editable,
-    ~enter_ed,
-    ~mk_ed,
-    ~mk_term_ed,
-    ~calculate_ed,
     ~local,
     ~parent,
     ~focus=f => focus(F(kind_gadt, f)),
@@ -240,43 +244,31 @@ let mk_view =
  * in order to stratify z-levels across all projectors */
 let split_views =
     (
-      type ed,
+      type ed_m,
       type ed_a,
       type ed_f,
+      ~editor_module,
       ~common: ProjectorInterface.common,
-      ~ed_str,
-      ~view_ed,
-      ~view_editable,
-      ~enter_ed,
-      ~mk_ed,
-      ~mk_term_ed,
-      ~calculate_ed,
       ~parent: ProjectorBase.external_action => Ui_effect.t(unit),
-      ~inject: ProjectorCore.Update.t(ed_a) => Ui_effect.t(unit),
-      ~focus: ProjectorCore.Focus.t(ed_f) => Ui_effect.t(unit),
-      ~focussed: option(ProjectorCore.Focus.t(ed_f)),
+      ~inject: ProjectorCore.Update.t(ed_m, ed_a, ed_f) => Ui_effect.t(unit),
+      ~focus: ProjectorCore.Focus.t(ed_m, ed_a, ed_f) => Ui_effect.t(unit),
+      ~focussed: option(ProjectorCore.Focus.t(ed_m, ed_a, ed_f)),
       ~handoff_map:
          Hashtbl.t(Id.t, (Ui_effect.t(unit), Ui_effect.t(unit))),
       {p, offside_base, measurement, status, _} as projector_data:
-        Model.projector_data(ProjectorCore.model(ed, ed_a, ed_f)),
+        Model.projector_data(ProjectorCore.model(ed_m, ed_a, ed_f)),
     )
     : (Node.t, option(Node.t)) => {
   let wrapper =
     view_wrapper(~font_metrics=common.font_metrics, ~measurement, ~status);
   let views =
     mk_view(
+      ~editor_module,
       ~common,
       ~parent,
       ~inject,
       ~focus,
       ~focussed,
-      ~ed_str,
-      ~view_ed,
-      ~view_editable,
-      ~enter_ed,
-      ~mk_ed,
-      ~mk_term_ed,
-      ~calculate_ed,
       projector_data,
     );
   let line_view = {

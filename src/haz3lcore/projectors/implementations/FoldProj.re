@@ -56,6 +56,77 @@ let view =
     ),
   );
 
+module M =
+       (Editor: ProjectorInterface.EDITOR)
+
+         : (
+           ProjectorInterface.PROJECTOR with
+             type model' = model(Editor.model) and
+             type action' = action(Editor.action) and
+             type focus' = focus(Editor.focus) and
+             type editor_model = Editor.model
+       ) => {
+  type editor_model = Editor.model;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type model' = model(Editor.model);
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type action' = action(Editor.action);
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type focus' = focus(Editor.focus);
+
+  let init = (_any: Language.Term.Any.t, ed) => {
+    open OptUtil.Syntax;
+    let+ ed = ed();
+    {
+      text: "⋱",
+      ed,
+    };
+  };
+
+  let dynamics = false;
+
+  let placeholder = (m: model', _) =>
+    ProjectorShape.inline(m.text == "⋱" ? 2 : String.length(m.text));
+
+  let update = (~common as _, ~sort as _, _info, m, _) => m;
+
+  let mk_term = (~sort, ~prev, {text, ed}) => {
+    let (ed, t) = Editor.Update.make_term(~sort, ed);
+    (
+      {
+        text,
+        ed,
+      },
+      Calc.update(t, Fun.id, prev),
+    );
+  };
+
+  let calculate = (~common, {text, ed}) => {
+    text,
+    ed: Editor.Update.calculate(~common, ed),
+  };
+
+  let get_cursor_info =
+    CursorInfo.default(~get_cursor_info_ed=Editor.Focus.get_cursor_info);
+
+  let view = (~common) =>
+    view(
+      ~common,
+      ~ed_str=Editor.View.print_string,
+      ~mk_ed=Editor.Model.mk,
+      ~mk_term_ed=Editor.Update.make_term,
+      ~calculate_ed=Editor.Update.calculate,
+      ~view_ed=
+        Editor.View.view(
+          ~font_metrics=common.font_metrics,
+          ~secondary_icons=common.secondary_icons,
+        ),
+      ~view_editable=Editor.View.view_editable,
+      ~enter_ed=Editor.Focus.enter,
+    );
+};
+
 let methods = {
   init: (~copy_ed as _, _any: Language.Term.Any.t, ed) => {
     open OptUtil.Syntax;

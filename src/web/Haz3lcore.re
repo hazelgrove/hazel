@@ -8,7 +8,6 @@ module rec Projector: {
 
     let mk:
       (
-        ~copy_ed: Editor.Model.t => Editor.Model.t,
         ProjectorCore.Kind.t,
         Language.Any.t,
         unit => option(Editor.Model.t)
@@ -85,47 +84,70 @@ module rec Projector: {
   };
 } = {
   module Model = {
-    [@deriving (show({with_path: false}), sexp, yojson)]
     type t =
       ProjectorCore.model(Editor.Model.t, Editor.Update.t, Editor.Focus.t);
+    let pp = ProjectorCore.pp_model;
+    let show = Format.asprintf("%a", pp);
+    let t_of_sexp =
+      ProjectorCore.model_of_sexp(~editor_module=(module Editor));
+    let sexp_of_t =
+      ProjectorCore.sexp_of_model(~editor_module=(module Editor));
+    let yojson_of_t =
+      ProjectorCore.yojson_of_model(~editor_module=(module Editor));
+    let t_of_yojson =
+      ProjectorCore.model_of_yojson(~editor_module=(module Editor));
 
+    [@deriving (show({with_path: false}), sexp, yojson)]
     let get_shape =
       Haz3lcorep.ProjectorInfo.ShapeMapSemantics.from_semantics(
-        ~ed_size=Editor.View.get_dimensions,
+        ~editor_module=(module Editor),
       );
     let get_kind = ProjectorCore.kind_of_model;
 
-    let mk = ProjectorInit.init;
+    let mk = ProjectorInit.init(~editor_module=(module Editor));
 
     let get_cached_term = (ProjectorCore.V(_, _, exp_cache)) =>
       Calc.get_saved_exc(exp_cache);
   };
 
   module Update = {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = ProjectorCore.Update.t(Editor.Update.t);
+    type t =
+      ProjectorCore.Update.t(Editor.Model.t, Editor.Update.t, Editor.Focus.t);
+    let pp = ProjectorCore.Update.pp;
+    let show = Format.asprintf("%a", pp);
+    let t_of_sexp =
+      ProjectorCore.Update.t_of_sexp(~editor_module=(module Editor));
+    let sexp_of_t =
+      ProjectorCore.Update.sexp_of_t(~editor_module=(module Editor));
+    let yojson_of_t =
+      ProjectorCore.Update.yojson_of_t(~editor_module=(module Editor));
+    let t_of_yojson =
+      ProjectorCore.Update.t_of_yojson(~editor_module=(module Editor));
 
     let update = (~common) =>
-      ProjectorCore.Update.update(~common, ~update_ed=Editor.Update.update);
+      ProjectorCore.Update.update(~editor_module=(module Editor), ~common);
 
     let make_term =
         (~sort, model: Model.t): (Model.t, Calc.t(Language.Any.t)) =>
-      ProjectorInit.make_term(
-        ~mk_term_ed=Editor.Update.make_term,
-        ~sort,
-        model,
-      );
+      ProjectorInit.make_term(~editor_module=(module Editor), ~sort, model);
 
     let calculate = (~common) =>
-      ProjectorCore.Update.calculate(
-        ~calculate_ed=Editor.Update.calculate,
-        ~common,
-      );
+      ProjectorCore.Update.calculate(~editor_module=(module Editor), ~common);
   };
 
   module Focus = {
-    [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = ProjectorCore.Focus.t(Editor.Focus.t);
+    type t =
+      ProjectorCore.Focus.t(Editor.Model.t, Editor.Update.t, Editor.Focus.t);
+    let pp = ProjectorCore.Focus.pp;
+    let show = Format.asprintf("%a", pp);
+    let t_of_sexp =
+      ProjectorCore.Focus.t_of_sexp(~editor_module=(module Editor));
+    let sexp_of_t =
+      ProjectorCore.Focus.sexp_of_t(~editor_module=(module Editor));
+    let yojson_of_t =
+      ProjectorCore.Focus.yojson_of_t(~editor_module=(module Editor));
+    let t_of_yojson =
+      ProjectorCore.Focus.t_of_yojson(~editor_module=(module Editor));
 
     let get_cursor_info =
         (
@@ -137,7 +159,7 @@ module rec Projector: {
         )
         : Cursor.t =>
       ProjectorCore.Focus.get_cursor_info(
-        ~get_cursor_info_ed=Editor.Focus.get_cursor_info,
+        ~editor_module=(module Editor),
         ~common,
         ~inject,
         ~read_only,
@@ -160,20 +182,10 @@ module rec Projector: {
         )
         : (WebUtil.Node.t, option(WebUtil.Node.t)) =>
       ProjectorView.split_views(
+        ~editor_module=(module Editor),
         ~common,
         ~parent,
         ~inject,
-        ~ed_str=Editor.View.print_string,
-        ~mk_ed=Editor.Model.mk,
-        ~mk_term_ed=Editor.Update.make_term,
-        ~calculate_ed=Editor.Update.calculate,
-        ~view_ed=
-          Editor.View.view(
-            ~font_metrics=common.font_metrics,
-            ~secondary_icons=common.secondary_icons,
-          ),
-        ~view_editable=Editor.View.view_editable,
-        ~enter_ed=Editor.Focus.enter,
         ~focus,
         ~focussed,
         ~handoff_map,
@@ -245,7 +257,7 @@ and Editor: {
       switch (
         Haz3lcorep.Editor.Update.update(
           ~settings=common.settings,
-          ~projector_init=Projector.Model.mk(~copy_ed=Editor.Model.copy),
+          ~projector_init=Projector.Model.mk,
           ~update_projector=Projector.Update.update(~common),
           ~seg_of_projector=
             p =>
@@ -274,7 +286,7 @@ and Editor: {
     let calculate = (~common: ProjectorInterface.common, ed: Model.t): Model.t =>
       Haz3lcorep.Editor.Update.calculate(
         ~common,
-        ~projector_init=Projector.Model.mk(~copy_ed=Editor.Model.copy),
+        ~projector_init=Projector.Model.mk,
         // TODO[Matt]: Ask andrew about whether this sort argument should be unused
         ~projector_to_term=
           (~sort as _, ~id as _, m) => Projector.Model.get_cached_term(m),
@@ -318,7 +330,7 @@ and Editor: {
         ~common,
         ~inject,
         ~read_only,
-        ~mk_projector=Projector.Model.mk(~copy_ed=Editor.Model.copy),
+        ~mk_projector=Projector.Model.mk,
         ~make_term_prj=Projector.Update.make_term,
         ~get_kind=Projector.Model.get_kind,
         m,

@@ -654,3 +654,65 @@ let methods = {
   focus_of_yojson,
   yojson_of_focus,
 };
+
+module M =
+       (Editor: ProjectorInterface.EDITOR)
+
+         : (
+           ProjectorInterface.PROJECTOR with
+             type model' = model(Editor.model) and
+             type action' = action(Editor.action) and
+             type focus' = focus(Editor.focus) and
+             type editor_model = Editor.model
+       ) => {
+  type editor_model = Editor.model;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type model' = model(Editor.model);
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type action' = action(Editor.action);
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type focus' = focus(Editor.focus);
+
+  let init = (any, _ed) => Model.of_term(any);
+
+  let dynamics = false;
+
+  let placeholder = (model: model', _info) =>
+    ProjectorShape.{
+      horizontal:
+        switch (model.collection) {
+        | Card(_)
+        | Hand([_]) => 4
+        | Hand(hand) =>
+          Float.ceil(
+            3.5 +. 81. /. 100. *. (Float.of_int(List.length(hand)) -. 1.),
+          )
+          |> Float.to_int
+        },
+      vertical: Tab(1),
+    };
+
+  let update = update(~update_ed=Editor.Update.update);
+
+  let mk_term = (~sort as _, ~prev as _, m) => (
+    m,
+    Calc.NewValue(Model.to_term(m)),
+  );
+
+  let calculate = Calculate.default(~calculate_ed=Editor.Update.calculate);
+
+  let get_cursor_info =
+    CursorInfo.default(~get_cursor_info_ed=Editor.Focus.get_cursor_info);
+
+  let view =
+    view(
+      ~ed_str=Editor.View.print_string,
+      ~view_ed=Editor.View.view,
+      ~view_editable=Editor.View.view_editable,
+      ~enter_ed=Editor.Focus.enter,
+      ~mk_ed=Editor.Model.mk,
+      ~mk_term_ed=Editor.Update.make_term,
+      ~calculate_ed=Editor.Update.calculate,
+    );
+};

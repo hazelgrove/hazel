@@ -35,7 +35,7 @@ let strip_Wrap_and_add_builtins =
       (cont, e) =>
         switch (e.term) {
         | Parens(e) => cont(e)
-        | _ => cont(e) 
+        | _ => cont(e)
         },
     _,
   );
@@ -45,7 +45,8 @@ let make_term_parse = (s: string) =>
   strip_Wrap_and_add_builtins(
     Haz3lcore.MakeTerm.from_zip_for_sem(
       Option.get(Haz3lcore.Printer.zipper_of_string(s)),
-    ).term
+    ).
+      term
     |> Any.is_exp
     |> Option.get,
   );
