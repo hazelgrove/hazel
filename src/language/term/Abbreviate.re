@@ -20,6 +20,7 @@ let is_flat_ellipses = (term: IdTagged.t(Exp.term)): bool =>
   | Atom(String(s)) => s == flat_ellipses
   | Constructor(s, _) => s == flat_ellipses
   | Var(s) => s == flat_ellipses
+  | Module(_) => false
   | _ => false
   };
 let available = ref(0);
@@ -602,6 +603,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         exp,
       )
 
+    | Module(_) as m => m
     | MultiHole(things) =>
       if (available^ <= 1) {
         indet_term;
@@ -919,6 +921,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
           );
         };
       }
+    | ModuleSignature(_) as m => m
     | Forall(tp, t) =>
       if (available^ <= 6) {
         indet_term_typ;
@@ -962,6 +965,48 @@ and abbreviate_tpat = (tpat: TPat.t): TPat.t => {
     };
   rewrap(term);
 }
+and abbreviate_module_entry = (entry: ModuleEntry.t): ModuleEntry.t => {
+  let rewrap = (term: TermBase.module_entry_term): ModuleEntry.t => {
+    {
+      ...entry,
+      term,
+    };
+  };
+
+  let term: TermBase.module_entry_term =
+    switch (entry.term) {
+    | Grammar.ValBinding(p, e) =>
+      Grammar.ValBinding(abbreviate_pat(p), abbreviate_exp(e))
+    | Grammar.TypeDef(tp, t) =>
+      Grammar.TypeDef(abbreviate_tpat(tp), abbreviate_typ(t))
+    | Grammar.Hole(things) => Grammar.Hole(List.map(abbreviate_any, things))
+    | Grammar.MultipleEntries(_) =>
+      failwith("MultipleEntries should never show up")
+    };
+  rewrap(term);
+}
+and abbreviate_module_signature_entry =
+    (entry: ModuleSignatureEntry.t): ModuleSignatureEntry.t => {
+  let rewrap =
+      (term: TermBase.module_signature_entry_term): ModuleSignatureEntry.t => {
+    {
+      ...entry,
+      term,
+    };
+  };
+
+  let term: TermBase.module_signature_entry_term =
+    switch (entry.term) {
+    | Grammar.ValType(p, t) =>
+      Grammar.ValType(abbreviate_pat(p), abbreviate_typ(t))
+    | Grammar.TypeDef(tp, t) =>
+      Grammar.TypeDef(abbreviate_tpat(tp), abbreviate_typ(t))
+    | Grammar.Hole(things) => Grammar.Hole(List.map(abbreviate_any, things))
+    | Grammar.MultipleEntries(_) =>
+      failwith("MultipleEntries should never show up")
+    };
+  rewrap(term);
+}
 and abbreviate_any = (any: Any.t): Any.t =>
   switch (any) {
   | Exp(e) => Exp(abbreviate_exp(e))
@@ -969,6 +1014,9 @@ and abbreviate_any = (any: Any.t): Any.t =>
   | Typ(t) => Typ(abbreviate_typ(t))
   | TPat(tp) => TPat(abbreviate_tpat(tp))
   | Rul(_r) => failwith("TODO")
+  | ModuleEntry(me) => ModuleEntry(abbreviate_module_entry(me))
+  | ModuleSignatureEntry(mse) =>
+    ModuleSignatureEntry(abbreviate_module_signature_entry(mse))
   | Any(_) => any
   };
 

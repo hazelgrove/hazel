@@ -332,6 +332,7 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     let+ ty = join'(ty1, ty2);
     List(ty) |> temp;
   | (List(_), _) => None
+  | (ModuleSignature(_), _) => None // TODO
   | (Ap(_), _) => failwith("Type join of ap")
   };
 };
@@ -610,6 +611,7 @@ let rec is_syn = (ty: t): bool =>
   | List(_)
   | Arrow(_)
   | Prod(_)
+  | ModuleSignature(_)
   | Sum(_) => false
   };
 
@@ -627,6 +629,7 @@ let rec is_ana_atom = (ty: t) =>
   | List(_)
   | Arrow(_)
   | Prod(_)
+  | ModuleSignature(_)
   | Sum(_) => None
   };
 
@@ -644,6 +647,7 @@ let rec is_syn_fun = (ty: t): bool =>
   | Forall(_)
   | List(_)
   | Prod(_)
+  | ModuleSignature(_)
   | Sum(_) => false
   };
 
@@ -662,6 +666,7 @@ let rec is_syn_plus = (ty: t): bool =>
   | Rec(_)
   | List(_)
   | Prod(_)
+  | ModuleSignature(_)
   | Sum(_) => false
   };
 
@@ -680,6 +685,7 @@ let rec needs_parens = (ty: t): bool =>
   | Forall(_, _)
   | Arrow(_, _)
   | Prod(_)
+  | ModuleSignature(_)
   | Sum(_) => true /* disambiguate between (A + B) -> C and A + (B -> C) */
   };
 

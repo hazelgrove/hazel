@@ -857,6 +857,10 @@ module Transition = (EV: EV_MODE) => {
         kind: CompleteFilter,
         is_value: true,
       });
+    | Module(entries) =>
+      // TODO
+      let. _ = otherwise(env, Module(entries) |> rewrap);
+      Constructor;
     };
   };
 };

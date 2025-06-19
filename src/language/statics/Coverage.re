@@ -123,6 +123,7 @@ module Ctr = {
           (cons_ctr, [Prod([elt_ty, ty]) |> Typ.temp]),
         ]),
       )
+    | ModuleSignature(_) => Unknown
     | Atom(Bool) => Finite(Map.of_list([(true_ctr, []), (false_ctr, [])]))
     | Unknown(_) => Unknown
     | Atom(Int)

@@ -705,6 +705,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | BinOp(_)
   | BuiltinFun(_)
   | Cast(_)
+  | Module(_)
   | Match(_) => {
       term: Seq(e1, e2),
       annotation: {

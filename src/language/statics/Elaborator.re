@@ -423,6 +423,35 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         List.map(p => elaborate_pattern(m, p, false), ps) |> ListUtil.unzip;
       let (es', _) = List.map(elaborate(m), es) |> ListUtil.unzip;
       Match(e', List.combine(ps', es')) |> rewrap;
+    | Module(entries) =>
+      let entries' =
+        entries
+        |> List.map(entry => {
+             let (term, rewrap) = IdTagged.unwrap(entry);
+             let (term', _) =
+               switch (term) {
+               | Grammar.ValBinding(pat, exp) =>
+                 let (pat', pat_ty) = elaborate_pattern(m, pat, false);
+                 let (exp', _) = elaborate(m, exp);
+                 (Grammar.ValBinding(pat', exp'), pat_ty);
+               | Grammar.TypeDef(tpat, typ) =>
+                 // For type definitions, we normalize the type
+                 let typ' = Typ.normalize(ctx, typ);
+                 (
+                   Grammar.TypeDef(tpat, typ'),
+                   Unknown(Internal) |> Typ.fresh,
+                 );
+               | Grammar.Hole(anys) =>
+                 // Pass through holes as-is
+                 (Grammar.Hole(anys), Unknown(Internal) |> Typ.fresh)
+               | Grammar.MultipleEntries(_) =>
+                 failwith(
+                   "MultipleEntries should not appear during elaboration",
+                 )
+               };
+             rewrap(term');
+           });
+      Module(entries') |> rewrap;
     };
   (dhexp, elaborated_type);
 };

@@ -309,6 +309,9 @@ and map_any_annotation: 'a 'b. ('a => 'b, any_t('a)) => any_t('b) =
     | Typ(t) => Typ(map_typ_annotation(f, t))
     | TPat(tp) => TPat(map_tpat_annotation(f, tp))
     | Rul(r) => Rul(map_rul_annotation(f, r))
+    | ModuleEntry(me) => ModuleEntry(map_module_entry_annotation(f, me))
+    | ModuleSignatureEntry(me) =>
+      ModuleSignatureEntry(map_module_signature_entry_annotation(f, me))
     | Any(_) => Any()
     };
   }
@@ -375,6 +378,10 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
           TupLabel(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
         | Sum(m) =>
           Sum(ConstructorMap.map_preserving(map_typ_annotation(f), m))
+        | ModuleSignature(l) =>
+          ModuleSignature(
+            List.map(x => map_module_signature_entry_annotation(f, x), l),
+          )
         },
       annotation: new_annotation,
     };
@@ -480,6 +487,32 @@ and map_module_entry_annotation:
         | MultipleEntries(entries) =>
           MultipleEntries(
             List.map(x => map_module_entry_annotation(f, x), entries),
+          )
+        },
+      annotation: new_annotation,
+    };
+  }
+and map_module_signature_entry_annotation:
+  'a 'b.
+  ('a => 'b, module_signature_entry_t('a)) => module_signature_entry_t('b)
+ =
+  (f, e) => {
+    let (term, annotation) = (e.term, e.annotation);
+    let new_annotation = f(annotation);
+    {
+      term:
+        switch (term) {
+        | ValType(p, t) =>
+          ValType(map_pat_annotation(f, p), map_typ_annotation(f, t))
+        | TypeDef(tp, t) =>
+          TypeDef(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
+        | Hole(l) => Hole(List.map(x => map_any_annotation(f, x), l))
+        | MultipleEntries(entries) =>
+          MultipleEntries(
+            List.map(
+              x => map_module_signature_entry_annotation(f, x),
+              entries,
+            ),
           )
         },
       annotation: new_annotation,

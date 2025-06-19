@@ -1057,6 +1057,8 @@ let for_projection =
           Segment.sort_of(skel, seg),
         );
         switch (sort) {
+        | ModuleEntry
+        | ModuleSignatureEntry => None
         | Exp =>
           switch (exp(unsorted)) {
           | {term: Tuple(_), _} => None

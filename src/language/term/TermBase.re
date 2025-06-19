@@ -118,6 +118,8 @@ module rec Any: {
     | Typ(_) => Typ
     | TPat(_) => TPat
     | Rul(_) => Rul
+    | ModuleEntry(_) => ModuleEntry
+    | ModuleSignatureEntry(_) => ModuleSignatureEntry
     | Any(_) => Any
     };
 
@@ -145,6 +147,30 @@ module rec Any: {
         )
       | Rul(x) =>
         Rul(Rul.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, x))
+      | ModuleEntry(x) =>
+        ModuleEntry(
+          ModuleEntry.map_term(
+            ~f_exp,
+            ~f_pat,
+            ~f_typ,
+            ~f_tpat,
+            ~f_rul,
+            ~f_any,
+            x,
+          ),
+        )
+      | ModuleSignatureEntry(x) =>
+        ModuleSignatureEntry(
+          ModuleSignatureEntry.map_term(
+            ~f_exp,
+            ~f_pat,
+            ~f_typ,
+            ~f_tpat,
+            ~f_rul,
+            ~f_any,
+            x,
+          ),
+        )
       | Any () => Any()
       };
     x |> f_any(rec_call);
@@ -157,11 +183,16 @@ module rec Any: {
     | (Typ(x), Typ(y)) => Typ.fast_equal(x, y)
     | (TPat(x), TPat(y)) => TPat.fast_equal(x, y)
     | (Rul(x), Rul(y)) => Rul.fast_equal(x, y)
+    | (ModuleEntry(x), ModuleEntry(y)) => ModuleEntry.fast_equal(x, y)
+    | (ModuleSignatureEntry(x), ModuleSignatureEntry(y)) =>
+      ModuleSignatureEntry.fast_equal(x, y)
     | (Any (), Any ()) => true
     | (Exp(_), _)
     | (Pat(_), _)
     | (Typ(_), _)
     | (TPat(_), _)
+    | (ModuleEntry(_), _)
+    | (ModuleSignatureEntry(_), _)
     | (Rul(_), _)
     | (Any (), _) => false
     };
@@ -281,6 +312,22 @@ and Exp: {
         | BinOp(op, e1, e2) =>
           BinOp(op, exp_map_term(e1), exp_map_term(e2))
         | BuiltinFun(str) => BuiltinFun(str)
+        | Module(bs) =>
+          Module(
+            List.map(
+              entry =>
+                ModuleEntry.map_term(
+                  ~f_exp,
+                  ~f_pat,
+                  ~f_typ,
+                  ~f_tpat,
+                  ~f_rul,
+                  ~f_any,
+                  entry,
+                ),
+              bs,
+            ),
+          )
         | Match(e, rls) =>
           Match(
             exp_map_term(e),
@@ -673,6 +720,7 @@ and Typ: {
       | Var(y) => str == y ? s : Var(y) |> rewrap
       | Parens(ty) => Parens(subst(s, x, ty)) |> rewrap
       | Ap(t1, t2) => Ap(subst(s, x, t1), subst(s, x, t2)) |> rewrap
+      | ModuleSignature(entries) => ModuleSignature(entries) |> rewrap
       };
     | None => ty
     };
@@ -1080,17 +1128,17 @@ and ModuleEntry: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = module_entry_t;
 
-  // let map_term:
-  //   (
-  //     ~f_exp: (Exp.t => Exp.t, Exp.t) => Exp.t=?,
-  //     ~f_pat: (Pat.t => Pat.t, Pat.t) => Pat.t=?,
-  //     ~f_typ: (Typ.t => Typ.t, Typ.t) => Typ.t=?,
-  //     ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
-  //     ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
-  //     ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
-  //     t
-  //   ) =>
-  //   t;
+  let map_term:
+    (
+      ~f_exp: (Exp.t => Exp.t, Exp.t) => Exp.t=?,
+      ~f_pat: (Pat.t => Pat.t, Pat.t) => Pat.t=?,
+      ~f_typ: (Typ.t => Typ.t, Typ.t) => Typ.t=?,
+      ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
+      ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
+      ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
+      t
+    ) =>
+    t;
 
   let fast_equal: (t, t) => bool;
 } = {
@@ -1113,6 +1161,41 @@ and ModuleEntry: {
     | (Hole(_), _)
     | (MultipleEntries(_), _) => false
     };
+
+  let map_term =
+      (
+        ~f_exp=continue,
+        ~f_pat=continue,
+        ~f_typ=continue,
+        ~f_tpat=continue,
+        ~f_rul=continue,
+        ~f_any=continue,
+        x,
+      ) => {
+    let pat_map_term =
+      Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+    let typ_map_term =
+      Typ.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+    let tpat_map_term =
+      TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+    let exp_map_term =
+      Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+    let any_map_term =
+      Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+    let rec_call = ({term, _} as entry: t) => {
+      ...entry,
+      term:
+        switch (term) {
+        | ValBinding(p, e) =>
+          Grammar.ValBinding(pat_map_term(p), f_exp(exp_map_term, e))
+        | TypeDef(p, e) => TypeDef(tpat_map_term(p), typ_map_term(e))
+        | Hole(things) => Hole(List.map(any_map_term, things))
+        | MultipleEntries(_) =>
+          failwith("ModuleEntry.map_term: MultipleEntries not supported")
+        },
+    };
+    rec_call(x);
+  };
 }
 and ModuleSignatureEntry: {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -1181,6 +1264,7 @@ and ModuleSignatureEntry: {
       && List.equal(Any.fast_equal, xs, ys)
     | (Hole(_), _)
     | (ValType(_), _)
-    | (TypeDef(_), _) => false
+    | (TypeDef(_), _)
+    | (MultipleEntries(_), _) => false
     };
 };

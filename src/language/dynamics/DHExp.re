@@ -120,6 +120,7 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | DeferredAp(_)
           | Parens(_)
           | Probe(_)
+          | Module(_)
           | UnOp(_) => continue(exp)
           },
       exp,
