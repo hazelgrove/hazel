@@ -78,7 +78,11 @@ module Focus = {
     | _ =>
       switch (Keyboard.handle_key_event(key)) {
       | Some(action) =>
-        Ui_effect.Many([inject(action), Effect.Stop_propagation])
+        Ui_effect.Many([
+          inject(action),
+          Effect.Stop_propagation,
+          Effect.Prevent_default,
+        ])
       | None => Ui_effect.Ignore
       }
     };
