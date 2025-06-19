@@ -34,15 +34,11 @@ let view_term =
 
 let len_of_exp =
     (~mk_ed: Any.t => 'ed_m, ~ed_str: 'ed_m => string, exp: Exp.t): int =>
-  //TODO(andrew): get this more performantly
+  //TODO(andrew): do more performantly
   Exp(exp) |> mk_ed |> ed_str |> String.length;
 
-let abbreviated_exp = (available: int, exp: Exp.t): Exp.t => {
-  //TODO(andrew): cleanup
-  let (abbr_exp, _length) =
-    exp |> DHExp.strip_casts |> Abbreviate.abbreviate_exp(~available);
-  abbr_exp;
-};
+let abbreviated_exp = (available: int, exp: Exp.t): Exp.t =>
+  exp |> DHExp.strip_casts |> Abbreviate.abbreviate_exp(~available) |> fst;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type closure = Dynamics.Probe.Closure.t;
@@ -930,7 +926,6 @@ let methods = {
         | Any(_) =>
           let+ ed = ed();
           {ed: ed};
-        //TODO(andrew): make sure this works on nonconvex tiles
         | _ => None
         }
       );

@@ -838,9 +838,7 @@ let pos_of_key = (key: string): pos =>
 // // Module Export
 
 let editor_pp = (fmt, editor: Editor.Model.t) => {
-  let serialization =
-    //TODO(andrew): actual serialization fn for projectors
-    Editor.get_z(editor) |> PersistentZipper.to_string;
+  let serialization = Editor.get_z(editor) |> PersistentZipper.to_string;
   // let string_literal = "\"" ++ String.escaped(serialization) ++ "\"";
   Format.pp_print_string(fmt, serialization);
 };
@@ -853,9 +851,7 @@ let export_module = ({eds, _}: state) => {
 };
 
 let transitionary_editor_pp = (fmt, editor: Editor.Model.t) => {
-  let serialization =
-    //TODO(andrew): actual serialization fn for projectors
-    Editor.get_z(editor) |> PersistentZipper.to_string;
+  let serialization = Editor.get_z(editor) |> PersistentZipper.to_string;
 
   Format.pp_print_string(fmt, "\"" ++ String.escaped(serialization) ++ "\"");
 };

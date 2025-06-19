@@ -96,7 +96,6 @@ let handle_key_event = (k: Key.t): option(Action.t('p_k, 'p, 'p_a)) => {
     | "e" => now(Move(Extreme(Right(ByToken))))
     | _ => None
     }
-  //TODO(andrew): reinstate
   | {key: D("f"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     Some(Project(SetIndicated(Specific(ProjectorKind.Fold))))
   | {key: D("ƒ"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
