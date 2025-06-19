@@ -274,6 +274,8 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | UnOp(op, e) => UnOp(op, map_exp_annotation(f, e))
         | BinOp(op, e1, e2) =>
           BinOp(op, map_exp_annotation(f, e1), map_exp_annotation(f, e2))
+        | Module(entries) =>
+          Module(List.map(x => map_module_entry_annotation(f, x), entries))
         | BuiltinFun(s) => BuiltinFun(s)
         | Match(e, l) =>
           Match(

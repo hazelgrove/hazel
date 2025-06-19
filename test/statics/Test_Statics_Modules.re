@@ -4,12 +4,12 @@ open Typ;
 open Alcotest;
 let tests = [
   fully_consistent_typecheck(
-    "nested_sum_constructors",
+    "Empty module signature",
     {| {} |},
     Some(module_signature([])),
   ),
   fully_consistent_typecheck(
-    "nested_sum_constructors",
+    "Module with single value",
     {| { val x = 3 } |},
     Some(
       module_signature([
@@ -18,7 +18,7 @@ let tests = [
     ),
   ),
   fully_consistent_typecheck(
-    "nested_sum_constructors",
+    "Module with value and type definition",
     {| { val x = 3 ;; typedef T = Int } |},
     Some(
       module_signature([

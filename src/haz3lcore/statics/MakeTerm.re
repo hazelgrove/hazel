@@ -356,9 +356,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           )
         | (["use", "in"], [Typ(ty)]) => Use(ty, r)
         | (["type", "=", "in"], [TPat(tpat), Typ(def)]) =>
-          print_endline("TyAlias pat: " ++ (tpat |> TPat.show));
-          print_endline("TyAlias def: " ++ (def |> Typ.show));
-          TyAlias(tpat, def, r);
+          TyAlias(tpat, def, r)
         | (["if", "then", "else"], [Exp(cond), Exp(conseq)]) =>
           If(cond, conseq, r)
         | _ => hole(tm)

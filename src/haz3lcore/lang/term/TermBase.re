@@ -629,6 +629,20 @@ and Typ: {
           )
         | Rec(tp, t) => Rec(tpat_map_term(tp), typ_map_term(t))
         | Forall(tp, t) => Forall(tpat_map_term(tp), typ_map_term(t))
+        | ModuleSignature(bs) =>
+          ModuleSignature(
+            List.map(
+              ModuleSignatureEntry.map_term(
+                ~f_exp,
+                ~f_pat,
+                ~f_typ,
+                ~f_tpat,
+                ~f_rul,
+                ~f_any,
+              ),
+              bs,
+            ),
+          )
         },
     };
     x |> f_typ(rec_call);
@@ -1100,10 +1114,57 @@ and ModuleSignatureEntry: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = module_signature_entry_t;
 
+  let map_term:
+    (
+      ~f_exp: (Exp.t => Exp.t, Exp.t) => Exp.t=?,
+      ~f_pat: (Pat.t => Pat.t, Pat.t) => Pat.t=?,
+      ~f_typ: (Typ.t => Typ.t, Typ.t) => Typ.t=?,
+      ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
+      ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
+      ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
+      t
+    ) =>
+    t;
+
   let fast_equal: (t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = module_signature_entry_t;
+
+  let map_term =
+      (
+        ~f_exp=continue,
+        ~f_pat=continue,
+        ~f_typ=continue,
+        ~f_tpat=continue,
+        ~f_rul=continue,
+        ~f_any=continue,
+        x,
+      ) => {
+    let pat_map_term =
+      Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+    let typ_map_term =
+      Typ.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+    let tpat_map_term =
+      TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+    let any_map_term =
+      Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+    let rec_call = ({term, _} as exp: t) => {
+      ...exp,
+      term:
+        switch (term) {
+        | ValType(p, ty) =>
+          Grammar.ValType(pat_map_term(p), typ_map_term(ty))
+        | TypeDef(tp, ty) => TypeDef(tpat_map_term(tp), typ_map_term(ty))
+        | Hole(things) => Hole(List.map(any_map_term, things))
+        | MultipleEntries(_) =>
+          failwith(
+            "ModuleSignatureEntry.map_term: MultipleEntries not supported",
+          )
+        },
+    };
+    rec_call(x);
+  };
 
   let fast_equal = (m1: t, m2: t) =>
     switch (m1.term, m2.term) {

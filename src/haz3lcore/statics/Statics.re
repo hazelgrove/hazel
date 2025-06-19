@@ -1155,7 +1155,6 @@ and uexp_to_info_map =
             IdTagged.fresh(
               ValType(p, ty_p_ana): TermBase.module_signature_entry_term,
             );
-          print_endline("");
 
           (m, p_syn.ctx, signature_entry); // Verify ctx
         | TypeDef(typat, utyp) =>
@@ -1228,7 +1227,13 @@ and uexp_to_info_map =
               ),
             );
           };
-        | _ => assert(false)
+        | Hole(typ) => (
+            m,
+            ctx,
+            IdTagged.fresh(Hole(typ): TermBase.module_signature_entry_term),
+          )
+        | MultipleEntries(_) =>
+          failwith("MultipleEntries not supported in module signatures")
         };
       };
 
