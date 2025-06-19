@@ -23,10 +23,7 @@ module Focus = {
       )
       : Ui_effect.t(unit) => {
     let z = model |> Editor.Model.get_z;
-    switch (
-      key,
-      Siblings.neighbors(Editor.Model.get_z(model).relatives.siblings),
-    ) {
+    switch (key, Siblings.neighbors(z.relatives.siblings)) {
     | ({key: D("Tab"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up}, _) =>
       /* Attempt to act intelligently when TAB is pressed.
        * TODO: Consider more advanced TAB logic. Instead
@@ -50,7 +47,7 @@ module Focus = {
         {key: D("ArrowLeft"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up},
         (None, _),
       )
-        when z.caret == Outer =>
+        when z.caret == Outer && z.relatives.ancestors == [] =>
       escape(Left)
     | (
         {
@@ -76,7 +73,7 @@ module Focus = {
         },
         (_, None),
       )
-        when z.caret == Outer =>
+        when z.caret == Outer && z.relatives.ancestors == [] =>
       escape(Right)
     | _ =>
       switch (Keyboard.handle_key_event(key)) {
