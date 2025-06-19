@@ -80,15 +80,19 @@ module type EDITOR = {
 
   module Model: {
     [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = model; // Transparent definition needed for handing editor to projectorinit
+    type t = model;
 
+    /* Makes a new editor for the given term. This function
+     * does not run `make_term` or `calculate`, so the
+     * editor will not have any cached term or statics
+     * and cannot be rendered until those functions are called. */
     let mk: (~inline: bool=?, Language.Any.t) => t;
 
-    let get_trailing_hole_ctx:
-      (t, Language.Statics.Map.t) => option(Language.Ctx.t);
-
+    /* Must be called after `make_term`. Throws an
+     * exception if no cached term is available. */
     let get_cached_term: t => Language.Any.t;
 
+    /* Copies an editor but gives it a new id */
     let copy: t => t;
   };
 
@@ -98,9 +102,12 @@ module type EDITOR = {
 
     let update: (~common: common, t, Model.t) => Model.t;
 
+    /* Makes a term from the editor, returning the updated
+     * editor (with the term cached) and the term */
     let make_term:
       (~sort: Sort.t, Model.t) => (Model.t, Calc.t(Language.Any.t));
 
+    /* Must be called after `make_term`. */
     let calculate: (~common: common, Model.t) => Model.t;
 
     let jump_to_tile_action: (Id.t, Model.t) => option(action);
@@ -110,8 +117,8 @@ module type EDITOR = {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = focus;
 
-    // TODO[Matt]: Used in jump to tile logic which will need updating.
-    // Thunked to make module "safe"
+    /* This value is thunked to make the module "safe" for the Ocaml
+     * compiler. */
     let here: unit => t;
 
     let get_cursor_info:
@@ -124,6 +131,10 @@ module type EDITOR = {
       ) =>
       Cursor.t;
 
+    /* Focus this editor at the leftmost/rightmost position.
+     * This function requires an `inject` function so that it
+     * can move the cursor in the editor, and a `focus`
+     * function so that it can update the focus to point to itself */
     let enter:
       (
         ~inject: Update.t => Ui_effect.t(unit),
@@ -135,8 +146,14 @@ module type EDITOR = {
   };
 
   module View: {
+    /* Returns the editor contents as a string */
     let print_string: Model.t => string;
 
+    /* Must be called after `make_term` and `calculate`.
+     * Returns the dimensions of the editor contents. */
+    let get_dimensions: Model.t => Point.t;
+
+    /* Must be called after `make_term` and `calculate`.*/
     let view:
       (
         ~font_metrics: FontMetrics.t,
@@ -147,8 +164,7 @@ module type EDITOR = {
       ) =>
       WebUtil.Node.t;
 
-    let get_dimensions: Model.t => Point.t;
-
+    /* Must be called after `make_term` and `calculate`.*/
     let view_editable:
       (
         ~common: common,
@@ -172,16 +188,29 @@ module type PROJECTOR = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type focus';
 
+  /* Used for type checker bookkeeping - should always be Editor.model */
   type editor_model;
 
-  let init: (Language.Any.t, unit => option(editor_model)) => option(model');
+  /* Mk should return None if the projector doesn't want
+   * to handle the provided term. Otherwise, it should
+   * return the desired initial state of the model
+   * before `mk_term` and `calculate` are called. */
+  let mk: (Language.Any.t, unit => option(editor_model)) => option(model');
+
+  /* If dynamics is true, this projector will be
+   * instrumented with a probe to collect dynamic
+   * information during evaluation */
   let dynamics: bool;
+
   let update:
     (~common: common, ~sort: Sort.t, info, model', action') => model';
+
   let mk_term:
     (~sort: Sort.t, ~prev: Calc.saved(Language.Any.t), model') =>
     (model', Calc.t(Language.Any.t));
+
   let calculate: (~common: common, model') => model';
+
   let get_cursor_info:
     (
       ~common: common,
@@ -191,6 +220,10 @@ module type PROJECTOR = {
       focus'
     ) =>
     Cursor.t;
+
+  /* The space left for the projector in the base editor */
+  let placeholder: (model', info) => ProjectorShape.t;
+
   let view:
     (
       ~common: common,
@@ -202,5 +235,4 @@ module type PROJECTOR = {
       info
     ) =>
     View.t;
-  let placeholder: (model', info) => ProjectorShape.t;
 };

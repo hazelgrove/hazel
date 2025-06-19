@@ -221,7 +221,7 @@ module M =
   [@deriving (show({with_path: false}), sexp, yojson)]
   type focus' = focus(Editor.focus);
 
-  let init = (any, ed) => init(~copy_ed=Editor.Model.copy, any, ed);
+  let mk = (any, ed) => init(~copy_ed=Editor.Model.copy, any, ed);
   let dynamics = false;
   let placeholder = (model, info) =>
     placeholder(~ed_size=Editor.View.get_dimensions, model, info);

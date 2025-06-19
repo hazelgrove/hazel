@@ -38,7 +38,7 @@ module M =
 
   // MODEL
 
-  let init = (_any, ed) => {
+  let mk = (_any, ed) => {
     let* ed = ed();
     Some((ed, Editor.Model.copy(ed)));
   };

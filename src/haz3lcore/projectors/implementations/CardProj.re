@@ -674,7 +674,7 @@ module M =
   [@deriving (show({with_path: false}), sexp, yojson)]
   type focus' = focus(Editor.focus);
 
-  let init = (any, _ed) => Model.of_term(any);
+  let mk = (any, _ed) => Model.of_term(any);
 
   let dynamics = false;
 

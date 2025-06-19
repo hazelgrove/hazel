@@ -76,7 +76,7 @@ module M =
   [@deriving (show({with_path: false}), sexp, yojson)]
   type focus' = focus(Editor.focus);
 
-  let init = (any, ed) => init(~copy_ed=Editor.Model.copy, any, ed);
+  let mk = (any, ed) => init(~copy_ed=Editor.Model.copy, any, ed);
   let dynamics = false;
   let placeholder = (_, _) => ProjectorShape.inline(2);
   let update = (~common as _, ~sort as _, _info, b, Toggle) => !b;
