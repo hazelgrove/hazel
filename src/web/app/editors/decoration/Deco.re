@@ -311,6 +311,7 @@ module Deco =
   };
 
   let associative_segment = (z: Zipper.t) => {
+    print_endline(Zipper.pp_zipper(z));
     /* Extract all Tile IDs from the selection segment */
     let tile_ids =
       z.selection.content
@@ -320,11 +321,16 @@ module Deco =
            | _ => None
            }
          );
+    // List.iter(
+    //   id => print_endline("Tile ID: " ++ Zipper.short_id(id)),
+    //   tile_ids,
+    // );
     /* Compute associative IDs for every selected tile */
-    let assoc_ids =
-      tile_ids
-      |> List.concat_map(find_assoc_for_id)
-      |> List.sort_uniq(compare);
+    let assoc_ids = tile_ids |> List.concat_map(find_assoc_for_id);
+    print_endline(
+      "Assoc IDs: "
+      ++ String.concat(", ", List.map(id => Zipper.short_id(id), assoc_ids)),
+    );
     let tiles =
       assoc_ids
       |> List.filter_map(id => Id.Map.find_opt(id, M.editor.syntax.tiles));
@@ -336,11 +342,23 @@ module Deco =
         ["selected"] @ (Selection.is_buffer(z.selection) ? ["buffer"] : []),
       )
     | tiles =>
-      let classes =
-        ["selected"] @ (Selection.is_buffer(z.selection) ? ["buffer"] : []);
-      let initial_shape = Some(fst(Siblings.shapes(z.relatives.siblings)));
       let segment = tiles |> List.concat_map(Tile.disassemble);
-      Highlight.go(segment, initial_shape, classes);
+      // Deduplicate pieces by ID to avoid duplicates from Tile.disassemble
+      let unique_segment =
+        ListUtil.dedup_f(
+          (p1, p2) => Piece.id(p1) == Piece.id(p2),
+          segment,
+        );
+      let segment_ids =
+        unique_segment |> List.map(piece => Zipper.short_id(Piece.id(piece)));
+      print_endline(
+        "Segment piece IDs: " ++ String.concat(", ", segment_ids),
+      );
+      Highlight.go(
+        unique_segment,
+        Some(fst(Siblings.shapes(z.relatives.siblings))),
+        ["selected"] @ (Selection.is_buffer(z.selection) ? ["buffer"] : []),
+      );
     };
   };
 

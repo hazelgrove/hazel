@@ -622,5 +622,16 @@ let pp_relatives = ({siblings: (l, r), ancestors}: Relatives.t): string => {
 };
 
 let pp_zipper = (z): string => {
-  "Relatives: \n\t" ++ pp_relatives(z.relatives);
+  "Selection: \n\t"
+  ++ "Content: ["
+  ++ (z.selection.content |> List.map(pp_piece) |> String.concat(", "))
+  ++ "]\n\t"
+  ++ "Focus: "
+  ++ (z.selection.focus == Left ? "Left" : "Right")
+  ++ "\n\t"
+  ++ "Caret: "
+  ++ (z.caret |> Caret.show)
+  ++ "\n\t"
+  ++ "Relatives: \n\t"
+  ++ pp_relatives(z.relatives);
 };
