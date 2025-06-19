@@ -39,6 +39,7 @@ module Map = {
 
   let empty = Id.Map.empty;
   let lookup = Id.Map.find_opt;
+  let filter = Id.Map.filter;
 
   let error_ids = (info_map: t): list(Id.t) =>
     Id.Map.fold(
@@ -986,6 +987,7 @@ and uexp_to_info_map =
           ps,
           m,
         );
+
       let p_ctxs = List.map(Info.pat_ctx, ps');
       let (es, m) =
         List.fold_left2(
@@ -995,6 +997,7 @@ and uexp_to_info_map =
           es,
           p_ctxs,
         );
+
       let e_tys = List.map(Info.exp_ty, es);
       let e_co_ctxs =
         List.map2(CoCtx.mk(ctx), p_ctxs, List.map(Info.exp_co_ctx, es));
@@ -1008,12 +1011,14 @@ and uexp_to_info_map =
           ) => {
             let (info, m) =
               go_pat(~is_synswitch=false, ~co_ctx, ~ana=scrut.ty, p, m);
+
             let p_constraint = Info.pat_constraint(info);
             ([p_constraint, ...constraints], m);
           },
           ([], m),
           List.combine(ps, e_co_ctxs),
         );
+
       let constraints = List.rev(constraints);
 
       let normalized_scrut_ty = Typ.normalize(ctx, scrut.ty);
@@ -1205,6 +1210,19 @@ and upat_to_info_map =
         ~inferred_label,
         ~label_sort,
       );
+
+    // Place the constraint "in a hole" if the status
+    // of the current constraint is in a hole
+    let info =
+      if (Info.is_error(InfoPat(info))) {
+        {
+          ...info,
+          Info.constraint_: Coverage.Constraint.NEHole(constraint_),
+        };
+      } else {
+        info;
+      };
+
     (info, add_info(ids, InfoPat(info), m));
   };
   let upat_to_info_map =

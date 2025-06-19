@@ -18,7 +18,8 @@ module Constraint = {
     | Float(float)
     | String(string)
     | Ap(Constructor.t, option(t))
-    | Tuple(list(t));
+    | Tuple(list(t))
+    | NEHole(t); // expresses that the constraint inside is inside of a hole
 
   let nil = Ap("nil", None);
   let cons = (hd, tl) => Ap("cons", Some(Tuple([hd, tl])));
@@ -29,30 +30,44 @@ module Constraint = {
 
 module Ctr = {
   module M = {
-    // Ctrs are Constructors equipped with arities.
+    // A status marker used for building missing pattern examples.
+    // The primary purpose is building examples when patterns with holes
+    // exists.
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type status =
+      | Unknown
+      | Okay
+      | NEHole // the first ctr inside a non-empty hole
+      | InHole;
+
+    // Ctrs are Constructors equipped with arities and a status.
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = {
       ctr: Constructor.t,
       num_args: int,
       string_key: string,
+      status,
     };
+
     let compare =
         (
-          {ctr: _, num_args: _, string_key: string_key1},
-          {ctr: _, num_args: _, string_key: string_key2},
+          {ctr: _, num_args: _, string_key: string_key1, status: _},
+          {ctr: _, num_args: _, string_key: string_key2, status: _},
         ) =>
       compare(string_key1, string_key2);
   };
+
   include M;
   module Map = MapUtil.Make(M);
   module Set = Set.Make(M);
 
-  let mk = (ctr, num_args) => {
+  let mk = (ctr, num_args, status) => {
     let string_key = string_of_int(num_args) ++ "~" ++ ctr;
     {
       ctr,
       num_args,
       string_key,
+      status,
     };
   };
   let num_args_of = (ctr: t): int => ctr.num_args;
@@ -63,7 +78,7 @@ module Ctr = {
   let of_sint = n => mk(string_of_int(n), 0);
   let of_float = x => mk(string_of_float(x), 0);
   let of_string = s => mk("\"" ++ s, 0); // don't need closing quote, just need to distinguish from others
-  let tuple_ctr: int => t = n => mk("tuple", n);
+  let tuple_ctr = n => mk("tuple", n);
   let nil_ctr = mk("nil", 0);
   let cons_ctr = mk("cons", 1);
   let true_ctr = mk("true", 0);
@@ -104,9 +119,9 @@ module Ctr = {
         |> List.filter_map(
              fun
              | ConstructorMap.Variant(ctr, _, None) =>
-               Some((mk(ctr, 0), []))
+               Some((mk(ctr, 0, Unknown), []))
              | Variant(ctr, _, Some(arg_ty)) =>
-               Some((mk(ctr, 1), [arg_ty]))
+               Some((mk(ctr, 1, Unknown), [arg_ty]))
              | BadEntry(_) => None,
            )
         |> Map.of_list,
@@ -114,16 +129,20 @@ module Ctr = {
     | Rec({term: Var(w), _}, {term: Var(v), _}) when v == w => Unknown
     | Rec(_) => all_ctrs_of_typ(Typ.unroll(ty))
     | Prod(elts) =>
-      Finite(Map.singleton(tuple_ctr(List.length(elts)), elts))
-    | TupLabel(_, ty) => Finite(Map.singleton(tuple_ctr(1), [ty]))
+      Finite(Map.singleton(tuple_ctr(List.length(elts), Unknown), elts))
+    | TupLabel(_, ty) =>
+      Finite(Map.singleton(tuple_ctr(1, Unknown), [ty]))
     | List(elt_ty) =>
       Finite(
         Map.of_list([
-          (nil_ctr, []),
-          (cons_ctr, [Prod([elt_ty, ty]) |> Typ.temp]),
+          (nil_ctr(Unknown), []),
+          (cons_ctr(Unknown), [Prod([elt_ty, ty]) |> Typ.temp]),
         ]),
       )
-    | Atom(Bool) => Finite(Map.of_list([(true_ctr, []), (false_ctr, [])]))
+    | Atom(Bool) =>
+      Finite(
+        Map.of_list([(true_ctr(Unknown), []), (false_ctr(Unknown), [])]),
+      )
     | Unknown(_) => Unknown
     | Atom(Int)
     | Atom(SInt) // technically sint and float are finite, but ya know
@@ -152,6 +171,31 @@ module Ctr = {
       |> List.for_all(ctr => Set.mem(ctr, seen_ctrs))
     };
   };
+
+  // is the status that is "most correct" of two constructors. That is,
+  // - if any constructor is Okay, the lub is Okay.
+  // - if one is InHole and the other is NEHole, the lub is NEHole
+  // - if both are InHole, the lub is InHole
+  let lub_ctr_status = (ctr_a: t, ctr_b: t) => {
+    switch (ctr_a.status) {
+    | Unknown => ctr_b.status
+    | Okay => Okay
+    | NEHole =>
+      switch (ctr_b.status) {
+      | Okay => Okay
+      | Unknown
+      | InHole
+      | NEHole => NEHole
+      }
+    | InHole =>
+      switch (ctr_b.status) {
+      | Okay => Okay
+      | Unknown
+      | InHole => InHole
+      | NEHole => NEHole
+      }
+    };
+  };
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -159,9 +203,15 @@ type redundant_rows = list(int);
 
 module Matrix = {
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type col = {
+    cons: Constraint.t,
+    in_hole: bool // primarily used for generating examples when holes exist
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type row = {
     idx: int, // retaining row index from original matrix when constructing submatrices
-    cols: list(Constraint.t),
+    cols: list(col),
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -174,7 +224,14 @@ module Matrix = {
           idx,
           cols: [xi],
         },
-      xis,
+      List.map(
+        xi =>
+          {
+            cons: xi,
+            in_hole: false,
+          },
+        xis,
+      ),
     );
   };
 
@@ -206,171 +263,250 @@ module Seen = {
   };
 };
 
-// A list of expressions that represents an unseen pattern.
-module UnseenPatternList = {
-  open IdTagged.FreshGrammar.Pat;
-
-  include Seen;
-
+module type UnseenPatternList = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = list(Grammar.pat_t(IdTagged.IdTag.t));
+  type status;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type pat_list;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t;
 
-  let empty = [];
+  let empty: t;
+
+  let has_no_holes: t => bool;
 
   /* prepend the constructor to the unseen pattern list. Based on the constructor
      amd the column type, the list will be modified in different ways.*/
-  let prepend_ctr = (ctr: Ctr.t, col_type: Typ.t, unseen_pattern: t) => {
-    switch (col_type.term) {
-    | Sum(_)
-    | Rec(_) =>
-      // convert default ctr to a wildcard
-      let pat_ctr =
-        if (ctr == Ctr.default_ctr) {
-          wild();
-        } else {
-          constructor(ctr.ctr, None);
-        };
+  let cons_ctr: (Ctr.t, Typ.t, t) => t;
 
-      if (Ctr.num_args_of(ctr) == 0) {
-        [pat_ctr, ...unseen_pattern];
-      } else {
-        // absorb the args of the constructor
-        // the empty case can happen if the example is providing a constructor
-        // that has args, but no args are provided
-        switch (unseen_pattern) {
-        | [] => [ap(pat_ctr, empty_hole()), ...unseen_pattern]
-        | [hd, ...tl] => [
-            // absorb the args of the constructor
-            ap(pat_ctr, hd),
-            ...tl,
-          ]
-        };
-      };
-    | Prod(_) =>
-      // take the number of elements we need from the unseen list
-      // and package them into the tuple
-      let num_elts = Ctr.num_args_of(ctr);
-      let rec partition_first_n = (n, list, acc) =>
-        if (n == 0) {
-          (acc, list);
-        } else {
-          switch (list) {
-          | [] => (acc, list)
-          | [hd, ...tl] => partition_first_n(n - 1, tl, [hd, ...acc])
-          };
-        };
-
-      let (first_n, tl) = partition_first_n(num_elts, unseen_pattern, []);
-
-      [tuple(List.rev(first_n)), ...tl];
-    | TupLabel(body, _) =>
-      // associate the tuple's labels to element in the unseen list
-      switch (IdTagged.term_of(body)) {
-      | Label(pat_label) =>
-        switch (unseen_pattern) {
-        | [] => [label(pat_label), empty_hole()]
-        | [hd, ...tl] => [tup_label(label(pat_label), hd), ...tl]
-        }
-      | _ => unseen_pattern
-      }
-    | List(_) =>
-      switch (ctr.ctr) {
-      | "nil" => [list_lit([]), ...unseen_pattern]
-      | "cons" =>
-        switch (unseen_pattern) {
-        | [] => [cons(wild(), wild()), ...unseen_pattern]
-        | [hd, ...tl] =>
-          // the structure of the list should have a tuple that contains
-          // the element in the first position, and a cons in the second.
-          // Everything else is just making sure weird errors don't happen.
-          let term = IdTagged.term_of(hd);
-          let cons =
-            switch (term) {
-            | Tuple([fst, snd]) => cons(fst, snd)
-            | _ => cons(wild(), hd)
-            };
-          [cons, ...tl];
-        }
-      | _ => [wild(), ...unseen_pattern]
-      }
-    | Atom(Bool) =>
-      let boolTyp =
-        switch (ctr.ctr) {
-        | "true" => bool(true)
-        | "false" => bool(false)
-        | _ => wild()
-        };
-      [boolTyp, ...unseen_pattern];
-    | Unknown(_) => [wild(), ...unseen_pattern]
-    | Atom(Int) => [
-        // while the user is perfroming actions, parse errors can occur.
-        // this just inserts a wildcard instead of that happens.
-        try(big_int(Bigint.of_string(ctr.ctr))) {
-        | _ => wild()
-        },
-        ...unseen_pattern,
-      ]
-    | Atom(SInt) => [
-        try(sint(int_of_string(ctr.ctr))) {
-        | _ => wild()
-        },
-        ...unseen_pattern,
-      ]
-    | Atom(Float) => [
-        try(float(float_of_string(ctr.ctr))) {
-        | _ => wild()
-        },
-        ...unseen_pattern,
-      ]
-    | Atom(Nat) => [
-        try(nat(Bigint.of_string(ctr.ctr))) {
-        | _ => wild()
-        },
-        ...unseen_pattern,
-      ]
-    | Atom(String) => [
-        // treat any string wildcard as a nromal wildcard
-        if (ctr == Ctr.default_ctr) {
-          wild();
-        } else {
-          // ctr has a " as the first character
-          string(
-            String.sub(ctr.ctr, 1, String.length(ctr.ctr) - 1),
-          );
-        },
-        ...unseen_pattern,
-      ]
-    | Arrow(_)
-    | Forall(_)
-    | Var(_) => unseen_pattern
-    | Parens(_)
-    | Ap(_)
-    | Label(_) =>
-      failwith(
-        "prepend_ctr called with a non-normalized type: "
-        ++ Typ.show(col_type),
-      )
-    };
-  };
-
-  let find_first_unseen_ctr = (seen_in_col: seen, all_ctrs) => {
-    seen_in_col.seen_all_ctrs
-      ? Ctr.default_ctr
-      : List.split(Ctr.Map.bindings(all_ctrs))
-        |> fst
-        |> List.find(ctr => !Ctr.Set.mem(ctr, seen_in_col.seen_ctrs));
-  };
+  // prepends a wildcard to the unseen pattern list
+  let cons_unknown: t => t;
 
   /*
    Generate and prepend the new item to the list based on the type of the column.
 
    `use_type_default` is used to determine if we should use a default for the column
-   rather than an unseen type.seen_ints
+   rather than an unseen type.
    - E.g. for ints/string/etc. this default type is a wildcard.
    */
-  let prepend_from_type =
+  let cons_from_type: (Seen.seen, Typ.t, Ctr.t, t, bool) => t;
+
+  /*The unseen list as a grammatical pattern*/
+  let to_pat: t => Grammar.any_t(IdTagged.IdTag.t);
+};
+
+// A list of expressions that represents an unseen pattern.
+module UnseenPatternList: UnseenPatternList = {
+  open IdTagged.FreshGrammar.Pat;
+
+  include Seen;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type status =
+    | Empty
+    | HasHole
+    | NoHole;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type pat_list = list(Grammar.pat_t(IdTagged.IdTag.t));
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    list: pat_list,
+    status,
+  };
+
+  let empty = {
+    list: [],
+    status: Empty,
+  };
+
+  let cons_pat_t =
+      (pat: Grammar.pat_t(IdTagged.IdTag.t), unseen_pat_list: pat_list) => {
+    [pat, ...unseen_pat_list];
+  };
+
+  let has_no_holes = unseen_pat => {
+    switch (unseen_pat.status) {
+    | Empty => false
+    | HasHole => false
+    | NoHole => true
+    };
+  };
+
+  let cons_ctr = (ctr: Ctr.t, col_type: Typ.t, unseen_pattern: t) => {
+    let list =
+      switch (col_type.term) {
+      // wildcards do nothing special
+      // also resolves an edge case with ctr/col_type mismatch
+      | _ when Ctr.compare(ctr, Ctr.default_ctr(ctr.status)) == 0 =>
+        cons_pat_t(wild(), unseen_pattern.list)
+      | Sum(_)
+      | Rec(_) =>
+        let pat_ctr = constructor(ctr.ctr, None);
+
+        if (Ctr.num_args_of(ctr) == 0) {
+          cons_pat_t(pat_ctr, unseen_pattern.list);
+        } else {
+          // absorb the args of the constructor
+          // the empty case can happen if the example is providing a constructor
+          // that has args, but no args are provided
+          switch (unseen_pattern.list) {
+          | [] => cons_pat_t(ap(pat_ctr, wild()), unseen_pattern.list)
+          | [hd, ...tl] =>
+            cons_pat_t(
+              // absorb the args of the constructor
+              ap(pat_ctr, hd),
+              tl,
+            )
+          };
+        };
+      | Prod(_) =>
+        // take the number of elements we need from the unseen list
+        // and package them into the tuple
+        let num_elts = Ctr.num_args_of(ctr);
+        let rec partition_first_n = (n, list, acc) =>
+          if (n == 0) {
+            (acc, list);
+          } else {
+            switch (list) {
+            | [] => (acc, list)
+            | [hd, ...tl] => partition_first_n(n - 1, tl, [hd, ...acc])
+            };
+          };
+
+        let (first_n, tl) =
+          partition_first_n(num_elts, unseen_pattern.list, []);
+
+        cons_pat_t(tuple(List.rev(first_n)), tl);
+      | TupLabel(body, _) =>
+        // associate the tuple's labels to element in the unseen list
+        switch (IdTagged.term_of(body)) {
+        | Label(pat_label) =>
+          switch (unseen_pattern.list) {
+          | [] => [label(pat_label), empty_hole()]
+          | [hd, ...tl] => cons_pat_t(tup_label(label(pat_label), hd), tl)
+          }
+        | _ => unseen_pattern.list
+        }
+      | List(_) =>
+        switch (ctr.ctr) {
+        | "nil" => cons_pat_t(list_lit([]), unseen_pattern.list)
+        | "cons" =>
+          switch (unseen_pattern.list) {
+          | [] => cons_pat_t(cons(wild(), wild()), unseen_pattern.list)
+          | [hd, ...tl] =>
+            // the structure of the list should have a tuple that contains
+            // the element in the first position, and a cons in the second.
+            // Everything else is just making sure weird errors don't happen.
+            let term = IdTagged.term_of(hd);
+            let cons =
+              switch (term) {
+              | Tuple([fst, snd]) => cons(fst, snd)
+              | _ => cons(wild(), hd)
+              };
+            cons_pat_t(cons, tl);
+          }
+        | _ => cons_pat_t(wild(), unseen_pattern.list)
+        }
+      | Atom(Bool) =>
+        let boolTyp =
+          switch (ctr.ctr) {
+          | "true" => bool(true)
+          | "false" => bool(false)
+          | _ => wild()
+          };
+        cons_pat_t(boolTyp, unseen_pattern.list);
+      | Unknown(_) => cons_pat_t(wild(), unseen_pattern.list)
+      | Atom(Int) =>
+        cons_pat_t(
+          // while the user is perfroming actions, parse errors can occur.
+          // this just inserts a wildcard instead of that happens.
+          try(big_int(Bigint.of_string(ctr.ctr))) {
+          | _ => wild()
+          },
+          unseen_pattern.list,
+        )
+      | Atom(SInt) =>
+        cons_pat_t(
+          try(sint(int_of_string(ctr.ctr))) {
+          | _ => wild()
+          },
+          unseen_pattern.list,
+        )
+      | Atom(Float) =>
+        cons_pat_t(
+          try(float(float_of_string(ctr.ctr))) {
+          | _ => wild()
+          },
+          unseen_pattern.list,
+        )
+      | Atom(Nat) =>
+        cons_pat_t(
+          try(nat(Bigint.of_string(ctr.ctr))) {
+          | _ => wild()
+          },
+          unseen_pattern.list,
+        )
+      | Atom(String) =>
+        cons_pat_t(
+          // treat any string wildcard as a normal wildcard
+          if (Ctr.compare(ctr, Ctr.default_ctr(ctr.status)) == 0) {
+            wild();
+          } else {
+            // ctr has a " as the first character
+            string(
+              String.sub(ctr.ctr, 1, String.length(ctr.ctr) - 1),
+            );
+          },
+          unseen_pattern.list,
+        )
+      | Arrow(_)
+      | Forall(_)
+      | Var(_) => unseen_pattern.list
+      | Parens(_)
+      | Ap(_)
+      | Label(_) =>
+        failwith(
+          "prepend_ctr called with a non-normalized type: "
+          ++ Typ.show(col_type),
+        )
+      };
+
+    let status =
+      if (has_no_holes(unseen_pattern) || unseen_pattern.status == Empty) {
+        switch (ctr.status) {
+        | NEHole => HasHole
+        | Unknown
+        | Okay => NoHole
+        | InHole => HasHole
+        };
+      } else {
+        HasHole;
+      };
+
+    let res = {
+      list,
+      status,
+    };
+    res;
+  };
+
+  /* Adds a wildcard pattern with a hole status */
+  let cons_unknown =
+    cons_ctr(Ctr.default_ctr(NEHole), Typ.temp(Unknown(Internal)));
+
+  let find_first_unseen_ctr = (seen_in_col: seen, all_ctrs) => {
+    seen_in_col.seen_all_ctrs
+      ? Ctr.default_ctr(Okay)
+      : List.split(Ctr.Map.bindings(all_ctrs))
+        |> fst
+        |> List.find(ctr => !Ctr.Set.mem(ctr, seen_in_col.seen_ctrs));
+  };
+
+  let cons_from_type =
       (
-        seen_in_first_col: seen,
+        seen_in_col: seen,
         col_type: Typ.t,
         col_ctr: Ctr.t,
         unseen_pattern: t,
@@ -379,29 +515,29 @@ module UnseenPatternList = {
       : t => {
     let all_ctrs = Ctr.all_ctrs_of_typ(col_type);
 
-    let (elt, unseen_pattern) =
+    let (elt, unseen_pattern_list) =
       switch (col_type.term) {
       | Sum(_)
       | Rec(_) =>
         switch (all_ctrs) {
         | Unknown
-        | Infinite => (Ctr.default_ctr, unseen_pattern)
+        | Infinite => (Ctr.default_ctr(col_ctr.status), unseen_pattern.list)
         | Finite(all_ctrs) =>
           let new_ctr =
             if (use_type_default) {
               Ctr.Map.choose(all_ctrs) |> fst;
             } else {
-              find_first_unseen_ctr(seen_in_first_col, all_ctrs);
+              find_first_unseen_ctr(seen_in_col, all_ctrs);
             };
 
           // handle the case where the old constructor has arguments
           // that have accumulated in the list
           // Do this by just removing them, since the args will
           // be packaged into a tuple
-          let unseen_pattern =
-            switch (unseen_pattern) {
+          let unseen_pattern_list =
+            switch (unseen_pattern.list) {
             | [_, ...tl] when Ctr.num_args_of(col_ctr) > 0 => tl
-            | _ => unseen_pattern
+            | _ => unseen_pattern.list
             };
 
           if (Ctr.num_args_of(new_ctr) > 0) {
@@ -409,119 +545,125 @@ module UnseenPatternList = {
               // if the new construct has args, we need to give it
               // an argument
               new_ctr,
-              [wild(), ...unseen_pattern],
+              cons_pat_t(wild(), unseen_pattern_list),
             );
           } else {
-            (new_ctr, unseen_pattern);
+            (new_ctr, unseen_pattern_list);
           };
         }
       | Atom(Bool) =>
         switch (all_ctrs) {
         | Unknown
-        | Infinite => (Ctr.default_ctr, unseen_pattern)
+        | Infinite => (Ctr.default_ctr(col_ctr.status), unseen_pattern.list)
         | Finite(all_ctrs) => (
             if (use_type_default) {
-              Ctr.false_ctr;
+              Ctr.false_ctr(col_ctr.status);
             } else {
-              find_first_unseen_ctr(seen_in_first_col, all_ctrs);
+              find_first_unseen_ctr(seen_in_col, all_ctrs);
             },
-            unseen_pattern,
+            unseen_pattern.list,
           )
         }
       | List(_) =>
         switch (all_ctrs) {
         | Unknown
-        | Infinite => (col_ctr, unseen_pattern)
+        | Infinite => (col_ctr, unseen_pattern.list)
         | Finite(all_ctrs) =>
           if (use_type_default) {
             // the terminal cons/nil case will have 0 arguments,
             // so we want to generate a default constructor for it
             if (Ctr.num_args_of(col_ctr) <= 0) {
-              (Ctr.default_ctr, unseen_pattern);
+              (Ctr.default_ctr(col_ctr.status), unseen_pattern.list);
             } else {
               // otherwise, the non-terminal ctr wants to generate
               // a new wildcard. So, discard the existing wildcard.
-              switch (unseen_pattern) {
-              | [] => (Ctr.default_ctr, unseen_pattern)
-              | [_, ...tl] => (Ctr.default_ctr, tl)
+              switch (unseen_pattern.list) {
+              | [] => (Ctr.default_ctr(col_ctr.status), unseen_pattern.list)
+              | [_, ...tl] => (Ctr.default_ctr(col_ctr.status), tl)
               };
             };
           } else {
-            let unseen_ctr =
-              find_first_unseen_ctr(seen_in_first_col, all_ctrs);
-            if (col_ctr == Ctr.nil_ctr) {
-              (unseen_ctr, [wild(), ...unseen_pattern]);
+            let unseen_ctr = find_first_unseen_ctr(seen_in_col, all_ctrs);
+            if (Ctr.compare(col_ctr, Ctr.nil_ctr(col_ctr.status)) == 0) {
+              (unseen_ctr, cons_pat_t(wild(), unseen_pattern.list));
             } else if (Ctr.num_args_of(col_ctr) > 0
-                       && unseen_ctr == Ctr.nil_ctr) {
+                       && Ctr.compare(
+                            unseen_ctr,
+                            Ctr.nil_ctr(col_ctr.status),
+                          )
+                       == 0) {
               // if the unseen ctr is a nil, and the current ctr has args,
               // it's a cons and we need to get rid of those args
               // it's guaranteed to be a tuple of whatever.
               // when the user is performing actions, unseen_pattern may be empty
-              switch (unseen_pattern) {
-              | [] => (unseen_ctr, unseen_pattern)
+              switch (unseen_pattern.list) {
+              | [] => (unseen_ctr, unseen_pattern.list)
               | [_, ...tl] => (unseen_ctr, tl)
               };
             } else {
-              (unseen_ctr, unseen_pattern);
+              (unseen_ctr, unseen_pattern.list);
             };
           }
         }
-      | Prod(_) => (col_ctr, unseen_pattern) // will be ignored in the later prepend step
-      | Unknown(_) => (col_ctr, unseen_pattern)
-      | TupLabel(_) => (col_ctr, unseen_pattern)
+      | Prod(_) => (col_ctr, unseen_pattern.list)
+      | Unknown(_) => (col_ctr, unseen_pattern.list)
+      | TupLabel(_) => (col_ctr, unseen_pattern.list)
       | Atom(Int)
       | Atom(Nat) => (
           if (use_type_default) {
-            Ctr.default_ctr;
+            Ctr.default_ctr(col_ctr.status);
           } else {
             let rec first_unused_bigint = n => {
               let big_int = Bigint.of_int(n);
-              IntSet.mem(big_int, seen_in_first_col.seen_ints)
-                ? first_unused_bigint(n + 1) : Ctr.of_int(Bigint.of_int(n));
+              IntSet.mem(big_int, seen_in_col.seen_ints)
+                ? first_unused_bigint(n + 1)
+                : Ctr.of_int(Bigint.of_int(n), col_ctr.status);
             };
             first_unused_bigint(0);
           },
-          unseen_pattern,
+          unseen_pattern.list,
         )
       | Atom(SInt) => (
           if (use_type_default) {
-            Ctr.default_ctr;
+            Ctr.default_ctr(col_ctr.status);
           } else {
             let rec first_unused_sint = n => {
-              SIntSet.mem(n, seen_in_first_col.seen_sints)
-                ? first_unused_sint(n + 1) : Ctr.of_sint(n);
+              SIntSet.mem(n, seen_in_col.seen_sints)
+                ? first_unused_sint(n + 1) : Ctr.of_sint(n, col_ctr.status);
             };
             first_unused_sint(0);
           },
-          unseen_pattern,
+          unseen_pattern.list,
         )
       | Atom(Float) => (
           if (use_type_default) {
-            Ctr.default_ctr;
+            Ctr.default_ctr(col_ctr.status);
           } else {
             let rec first_unused_float = n => {
-              FloatSet.mem(n, seen_in_first_col.seen_floats)
-                ? first_unused_float(n +. 1.) : Ctr.of_float(n);
+              FloatSet.mem(n, seen_in_col.seen_floats)
+                ? first_unused_float(n +. 1.)
+                : Ctr.of_float(n, col_ctr.status);
             };
             first_unused_float(0.);
           },
-          unseen_pattern,
+          unseen_pattern.list,
         )
       | Atom(String) => (
           if (use_type_default) {
-            Ctr.default_ctr;
+            Ctr.default_ctr(col_ctr.status);
           } else {
             let rec first_unused_str = n => {
-              StringSet.mem(n, seen_in_first_col.seen_strings)
-                ? first_unused_str(n ++ "*") : Ctr.of_string(n);
+              StringSet.mem(n, seen_in_col.seen_strings)
+                ? first_unused_str(n ++ "*")
+                : Ctr.of_string(n, col_ctr.status);
             };
             first_unused_str("");
           },
-          unseen_pattern,
+          unseen_pattern.list,
         )
       | Arrow(_)
       | Forall(_)
-      | Var(_) => (Ctr.default_ctr, unseen_pattern)
+      | Var(_) => (Ctr.default_ctr(col_ctr.status), unseen_pattern.list)
       | Parens(_)
       | Ap(_)
       | Label(_) =>
@@ -531,16 +673,20 @@ module UnseenPatternList = {
         )
       };
 
-    prepend_ctr(elt, col_type, unseen_pattern);
+    let unseen_pattern = {
+      ...unseen_pattern,
+      list: unseen_pattern_list,
+    };
+
+    cons_ctr(elt, col_type, unseen_pattern);
   };
 
-  /*The unseen list as a grammatical pattern*/
   let to_pat = (unseen_pattern: t) => {
     Grammar.Pat(
-      switch (List.length(unseen_pattern)) {
-      | 1 => List.hd(unseen_pattern)
+      switch (List.length(unseen_pattern.list)) {
+      | 1 => List.hd(unseen_pattern.list)
       | 0 => wild()
-      | _ => tuple(unseen_pattern)
+      | _ => tuple(unseen_pattern.list)
       },
     );
   };
@@ -554,8 +700,7 @@ module Submatrices = {
     ctrs: Ctr.Map.t(Matrix.t),
     first_col_exhaustive: bool,
     first_col_redundant_rows: redundant_rows,
-    prepend_first_col_unseen_ctr:
-      (Ctr.t, UnseenPatternList.t, bool) => UnseenPatternList.t,
+    cons_unseen_ctr: (Ctr.t, UnseenPatternList.t, bool) => UnseenPatternList.t,
   };
 
   let rev = (s: t): t => {
@@ -567,8 +712,8 @@ module Submatrices = {
     ctrs: Ctr.Map.empty,
     first_col_exhaustive: false,
     first_col_redundant_rows: [],
-    prepend_first_col_unseen_ctr: (_, _, _) => {
-      [];
+    cons_unseen_ctr: (_, _, _) => {
+      UnseenPatternList.empty;
     },
   };
 
@@ -593,117 +738,133 @@ module Submatrices = {
 
   // data accumulation pass over the first column of the matrix
   let seen = (m: Matrix.t, all_ctrs: Ctr.all_ctrs): seen => {
-    List.fold_left(
-      (seen, row: Matrix.row) =>
-        switch (row.cols) {
-        | [] => seen
-        | [BigInt(n), ..._] => {
-            ...seen,
-            seen_ints: IntSet.add(n, seen.seen_ints),
-            first_col_redundant_rows:
-              add_redundant_row_if(
-                IntSet.mem(n, seen.seen_ints) || seen.seen_truth,
-                row.idx,
-                seen.first_col_redundant_rows,
-              ),
-          }
-        | [SInt(n), ..._] => {
-            ...seen,
-            seen_sints: SIntSet.add(n, seen.seen_sints),
-            first_col_redundant_rows:
-              add_redundant_row_if(
-                SIntSet.mem(n, seen.seen_sints) || seen.seen_truth,
-                row.idx,
-                seen.first_col_redundant_rows,
-              ),
-          }
-        | [Float(x), ..._] => {
-            ...seen,
-            seen_floats: seen.seen_floats |> FloatSet.add(x),
-            first_col_redundant_rows:
-              add_redundant_row_if(
-                FloatSet.mem(x, seen.seen_floats) || seen.seen_truth,
-                row.idx,
-                seen.first_col_redundant_rows,
-              ),
-          }
-        | [String(s), ..._] => {
-            ...seen,
-            seen_strings: seen.seen_strings |> StringSet.add(s),
-            first_col_redundant_rows:
-              add_redundant_row_if(
-                StringSet.mem(s, seen.seen_strings) || seen.seen_truth,
-                row.idx,
-                seen.first_col_redundant_rows,
-              ),
-          }
-        | [Tuple(elts), ..._] =>
-          let ctr = Ctr.tuple_ctr(List.length(elts));
-          let seen_ctrs = Ctr.Set.add(ctr, seen.seen_ctrs);
-          let seen_all_ctrs =
-            seen.seen_all_ctrs || Ctr.seen_all_ctrs(seen_ctrs, all_ctrs);
+    let rec seen' = (seen: seen, row: Matrix.row) => {
+      switch (row.cols) {
+      | [] => seen
+      | [{cons: BigInt(n), in_hole: _}, ..._] => {
+          ...seen,
+          seen_ints: IntSet.add(n, seen.seen_ints),
+          first_col_redundant_rows:
+            add_redundant_row_if(
+              IntSet.mem(n, seen.seen_ints) || seen.seen_truth,
+              row.idx,
+              seen.first_col_redundant_rows,
+            ),
+        }
+      | [{cons: SInt(n), in_hole: _}, ..._] => {
+          ...seen,
+          seen_sints: SIntSet.add(n, seen.seen_sints),
+          first_col_redundant_rows:
+            add_redundant_row_if(
+              SIntSet.mem(n, seen.seen_sints) || seen.seen_truth,
+              row.idx,
+              seen.first_col_redundant_rows,
+            ),
+        }
+      | [{cons: Float(x), in_hole: _}, ..._] => {
+          ...seen,
+          seen_floats: seen.seen_floats |> FloatSet.add(x),
+          first_col_redundant_rows:
+            add_redundant_row_if(
+              FloatSet.mem(x, seen.seen_floats) || seen.seen_truth,
+              row.idx,
+              seen.first_col_redundant_rows,
+            ),
+        }
+      | [{cons: String(s), in_hole: _}, ..._] => {
+          ...seen,
+          seen_strings: seen.seen_strings |> StringSet.add(s),
+          first_col_redundant_rows:
+            add_redundant_row_if(
+              StringSet.mem(s, seen.seen_strings) || seen.seen_truth,
+              row.idx,
+              seen.first_col_redundant_rows,
+            ),
+        }
+      | [{cons: Tuple(elts), in_hole: _}, ..._] =>
+        let ctr = Ctr.tuple_ctr(List.length(elts), Okay);
+        let seen_ctrs = Ctr.Set.add(ctr, seen.seen_ctrs);
+        let seen_all_ctrs =
+          seen.seen_all_ctrs || Ctr.seen_all_ctrs(seen_ctrs, all_ctrs);
+        {
+          ...seen,
+          seen_ctrs,
+          seen_all_ctrs,
+          first_col_redundant_rows:
+            add_redundant_row_if(
+              Ctr.Set.mem(ctr, seen.seen_ctrs) || seen.seen_truth,
+              row.idx,
+              seen.first_col_redundant_rows,
+            ),
+        };
+      | [{cons: Ap(c, arg), in_hole: _}, ..._] =>
+        let ctr =
+          Ctr.mk(
+            c,
+            switch (arg) {
+            | Some(_) => 1
+            | None => 0
+            },
+            Okay,
+          );
+        let seen_ctrs = Ctr.Set.add(ctr, seen.seen_ctrs);
+        let seen_all_ctrs =
+          seen.seen_all_ctrs || Ctr.seen_all_ctrs(seen_ctrs, all_ctrs);
+        {
+          ...seen,
+          seen_ctrs,
+          seen_all_ctrs,
+          first_col_redundant_rows:
+            add_redundant_row_if(
+              Ctr.Set.mem(ctr, seen.seen_ctrs) || seen.seen_truth,
+              row.idx,
+              seen.first_col_redundant_rows,
+            ),
+        };
+      | [{cons: Truth, in_hole: _}, ..._] => {
+          ...seen,
+          seen_truth: true,
+          first_col_redundant_rows:
+            add_redundant_row_if(
+              seen.seen_truth || seen.seen_all_ctrs,
+              row.idx,
+              seen.first_col_redundant_rows,
+            ),
+        }
+      | [{cons: Hole, in_hole: _}, ..._] => {
+          ...seen,
+          seen_hole: true,
+          first_col_redundant_rows:
+            add_redundant_row_if(
+              seen.seen_truth || seen.seen_all_ctrs,
+              row.idx,
+              seen.first_col_redundant_rows,
+            ),
+        }
+      | [{cons: NEHole(arg), in_hole: _}, ..._] =>
+        seen'(
+          seen,
           {
-            ...seen,
-            seen_ctrs,
-            seen_all_ctrs,
-            first_col_redundant_rows:
-              add_redundant_row_if(
-                Ctr.Set.mem(ctr, seen.seen_ctrs) || seen.seen_truth,
-                row.idx,
-                seen.first_col_redundant_rows,
-              ),
-          };
-        | [Ap(c, arg), ..._] =>
-          let ctr =
-            Ctr.mk(
-              c,
-              switch (arg) {
-              | Some(_) => 1
-              | None => 0
+            cols: [
+              {
+                cons: arg,
+                in_hole: true,
               },
-            );
-          let seen_ctrs = Ctr.Set.add(ctr, seen.seen_ctrs);
-          let seen_all_ctrs =
-            seen.seen_all_ctrs || Ctr.seen_all_ctrs(seen_ctrs, all_ctrs);
-          {
-            ...seen,
-            seen_ctrs,
-            seen_all_ctrs,
-            first_col_redundant_rows:
-              add_redundant_row_if(
-                Ctr.Set.mem(ctr, seen.seen_ctrs) || seen.seen_truth,
-                row.idx,
-                seen.first_col_redundant_rows,
-              ),
-          };
-        | [Truth, ..._] => {
-            ...seen,
-            seen_truth: true,
-            first_col_redundant_rows:
-              add_redundant_row_if(
-                seen.seen_truth || seen.seen_all_ctrs,
-                row.idx,
-                seen.first_col_redundant_rows,
-              ),
-          }
-        | [Hole, ..._] => {
-            ...seen,
-            seen_hole: true,
-            first_col_redundant_rows:
-              add_redundant_row_if(
-                seen.seen_truth || seen.seen_all_ctrs,
-                row.idx,
-                seen.first_col_redundant_rows,
-              ),
-          }
-        },
+            ],
+            idx: row.idx,
+          },
+        )
+      };
+    };
+    List.fold_left(
+      (seen, row: Matrix.row) => {seen'(seen, row)},
       init_seen,
       m,
     );
   };
 
   let add_row =
-      (idx: int, cols: list(Constraint.t), data: option(Matrix.t))
+      (idx: int, cols: list(Matrix.col), data: option(Matrix.t))
       : option(Matrix.t) =>
     switch (data) {
     | Some(matrix) =>
@@ -723,24 +884,50 @@ module Submatrices = {
       ])
     };
 
+  let add_col = (cols, cons, in_hole) => {
+    [
+      Matrix.{
+        cons,
+        in_hole,
+      },
+      ...cols,
+    ];
+  };
+
   let update_ctrs =
       (
         ctr: Ctr.t,
         idx: int,
-        cols: list(Constraint.t),
+        cols: list(Matrix.col),
         ctrs: Ctr.Map.t(Matrix.t),
       )
-      : Ctr.Map.t(Matrix.t) =>
+      : Ctr.Map.t(Matrix.t) => {
+    // overwrite the key's status to be the "most useful" status
+    // for the purposes of generating complete examples.
+    let status =
+      switch (
+        Ctr.Map.find_first_opt(ct => {Ctr.compare(ct, ctr) == 0}, ctrs)
+      ) {
+      | Some((other_ctr, _)) => Ctr.lub_ctr_status(ctr, other_ctr)
+      | None => ctr.status
+      };
+
+    let ctr = {
+      ...ctr,
+      status,
+    };
+
     Ctr.Map.update(ctr, add_row(idx, cols), ctrs);
+  };
 
   let of_matrix =
       (m: Matrix.t, all_ctrs: Ctr.all_ctrs, first_col_ty: Typ.t): t => {
     let seen_data = seen(m, all_ctrs);
     let {
-      seen_ints: _,
-      seen_sints: _,
-      seen_floats: _,
-      seen_strings: _,
+      seen_ints,
+      seen_sints,
+      seen_floats,
+      seen_strings,
       seen_ctrs,
       seen_all_ctrs,
       seen_truth,
@@ -755,92 +942,203 @@ module Submatrices = {
       | Finite(_) => !seen_all_ctrs
       };
 
-    let submatrices =
-      List.fold_left(
-        (submatrices, row: Matrix.row) => {
-          switch (row.cols) {
-          | [] => submatrices
-          | [SInt(n), ...cols] => {
-              ...submatrices,
-              ctrs:
-                update_ctrs(Ctr.of_sint(n), row.idx, cols, submatrices.ctrs),
-            }
-          | [BigInt(n), ...cols] => {
-              ...submatrices,
-              ctrs:
-                update_ctrs(Ctr.of_int(n), row.idx, cols, submatrices.ctrs),
-            }
-          | [Float(x), ...cols] => {
-              ...submatrices,
-              ctrs:
-                update_ctrs(
-                  Ctr.of_float(x),
-                  row.idx,
-                  cols,
-                  submatrices.ctrs,
-                ),
-            }
-          | [String(s), ...cols] => {
-              ...submatrices,
-              ctrs:
-                update_ctrs(
-                  Ctr.of_string(s),
-                  row.idx,
-                  cols,
-                  submatrices.ctrs,
-                ),
-            }
-          | [Tuple(xis), ...cols] =>
-            let cols' = xis @ cols;
-            {
-              ...submatrices,
-              ctrs:
-                update_ctrs(
-                  Ctr.tuple_ctr(List.length(xis)),
-                  row.idx,
-                  cols',
-                  submatrices.ctrs,
-                ),
-            };
-          | [Ap(c, arg), ...cols] =>
-            let (ctr, cols') =
-              switch (arg) {
-              | Some(arg) => (Ctr.mk(c, 1), [arg, ...cols])
-              | None => (Ctr.mk(c, 0), cols)
-              };
-            {
-              ...submatrices,
-              ctrs: update_ctrs(ctr, row.idx, cols', submatrices.ctrs),
-            };
-          | [Truth | Hole, ...cols] =>
-            // holes act like truth for the purposes of exhaustiveness checking
+    // is the current status if `in_hole` is false,
+    // otherwise overrides the current status with `InHole`
+    let get_status = (ctr_status, in_hole) => {
+      in_hole ? Ctr.InHole : ctr_status;
+    };
 
-            // update all submatrices for seen ctrs
-            let ctrs =
-              Ctr.Set.fold(
-                (ctr, ctrs) => {
-                  let num_args = Ctr.num_args_of(ctr);
-                  let cols = List.init(num_args, _ => Constraint.Truth) @ cols;
-                  update_ctrs(ctr, row.idx, cols, ctrs);
-                },
-                seen_ctrs,
-                submatrices.ctrs,
-              );
-
-            let ctrs =
-              include_default
-                ? update_ctrs(Ctr.default_ctr, row.idx, cols, ctrs) : ctrs;
-
-            {
-              ...submatrices,
-              ctrs,
-            };
-          }
-        },
-        empty,
-        m,
+    let is_in_hole = (ctr_status, in_hole) =>
+      in_hole
+      || (
+        switch (ctr_status) {
+        | Ctr.InHole => true
+        | Ctr.NEHole => true
+        | Ctr.Okay => false
+        | Ctr.Unknown => false
+        }
       );
-    let submatrices = rev(submatrices); // needed so that rows show up in order for redundancy checking
+
+    let ctr_set_of_list = (to_ctr, elts) => {
+      Ctr.Set.of_list(List.map(to_ctr, elts));
+    };
+
+    let submatrices = () => {
+      open Matrix;
+
+      let rec submatrix =
+              (submatrices, row: Matrix.row, col_ctr_status: Ctr.status) => {
+        // switch (row_cols) {
+        // | [] => ()
+        // | [fst, ..._] => print_endline(Constraint.show(fst.cons))
+        // };
+
+        let get_status = get_status(col_ctr_status);
+        let is_in_hole = is_in_hole(col_ctr_status);
+
+        switch (row.cols) {
+        | [] => submatrices
+        | [{cons: SInt(n), in_hole}, ...cols] => {
+            ...submatrices,
+            ctrs:
+              update_ctrs(
+                Ctr.of_sint(n, get_status(in_hole)),
+                row.idx,
+                cols,
+                submatrices.ctrs,
+              ),
+          }
+        | [{cons: BigInt(n), in_hole}, ...cols] => {
+            ...submatrices,
+            ctrs:
+              update_ctrs(
+                Ctr.of_int(n, get_status(in_hole)),
+                row.idx,
+                cols,
+                submatrices.ctrs,
+              ),
+          }
+        | [{cons: Float(x), in_hole}, ...cols] => {
+            ...submatrices,
+            ctrs:
+              update_ctrs(
+                Ctr.of_float(x, get_status(in_hole)),
+                row.idx,
+                cols,
+                submatrices.ctrs,
+              ),
+          }
+        | [{cons: String(s), in_hole}, ...cols] => {
+            ...submatrices,
+            ctrs:
+              update_ctrs(
+                Ctr.of_string(s, get_status(in_hole)),
+                row.idx,
+                cols,
+                submatrices.ctrs,
+              ),
+          }
+        | [{cons: Tuple(xis), in_hole}, ...cols] =>
+          let cols' =
+            List.map(
+              cons =>
+                {
+                  cons,
+                  in_hole: is_in_hole(in_hole),
+                },
+              xis,
+            )
+            @ cols;
+          {
+            ...submatrices,
+            ctrs:
+              update_ctrs(
+                Ctr.tuple_ctr(List.length(xis), get_status(in_hole)),
+                row.idx,
+                cols',
+                submatrices.ctrs,
+              ),
+          };
+        | [{cons: Ap(c, arg), in_hole}, ...cols] =>
+          let (ctr, cols') =
+            switch (arg) {
+            | Some(cons) => (
+                Ctr.mk(c, 1),
+                add_col(cols, cons, is_in_hole(in_hole)),
+              )
+            | None => (Ctr.mk(c, 0), cols)
+            };
+          {
+            ...submatrices,
+            ctrs:
+              update_ctrs(
+                ctr(get_status(in_hole)),
+                row.idx,
+                cols',
+                submatrices.ctrs,
+              ),
+          };
+        | [{cons: Truth, in_hole} | {cons: Hole, in_hole}, ...cols] =>
+          // holes act like truth for the purposes of exhaustiveness checking
+
+          // update all submatrices for seen ctrs
+          let update_ctrs_with_truth = (seen_ctrs, ctrs) =>
+            Ctr.Set.fold(
+              (ctr, ctrs) => {
+                let num_args = Ctr.num_args_of(ctr);
+                let cols =
+                  List.init(num_args, _ =>
+                    {
+                      cons: Constraint.Truth,
+                      in_hole: is_in_hole(in_hole),
+                    }
+                  )
+                  @ cols;
+                update_ctrs(ctr, row.idx, cols, ctrs);
+              },
+              seen_ctrs,
+              ctrs,
+            );
+
+          // update seen ctrs, ints, sints, floats, strings to be truths
+          let ctrs =
+            update_ctrs_with_truth(seen_ctrs, submatrices.ctrs)
+            |> update_ctrs_with_truth(
+                 ctr_set_of_list(
+                   elt => {Ctr.of_int(elt, get_status(in_hole))},
+                   IntSet.to_list(seen_ints),
+                 ),
+               )
+            |> update_ctrs_with_truth(
+                 ctr_set_of_list(
+                   elt => {Ctr.of_sint(elt, get_status(in_hole))},
+                   SIntSet.to_list(seen_sints),
+                 ),
+               )
+            |> update_ctrs_with_truth(
+                 ctr_set_of_list(
+                   elt => {Ctr.of_float(elt, get_status(in_hole))},
+                   FloatSet.to_list(seen_floats),
+                 ),
+               )
+            |> update_ctrs_with_truth(
+                 ctr_set_of_list(
+                   elt => {Ctr.of_string(elt, get_status(in_hole))},
+                   StringSet.to_list(seen_strings),
+                 ),
+               );
+
+          let ctrs =
+            include_default
+              ? update_ctrs(
+                  Ctr.default_ctr(get_status(in_hole)),
+                  row.idx,
+                  cols,
+                  ctrs,
+                )
+              : ctrs;
+
+          {
+            ...submatrices,
+            ctrs,
+          };
+        | [{cons: NEHole(arg), in_hole}, ...cols] =>
+          // assign the status of the immediate argument to NEHole
+          submatrix(
+            submatrices,
+            {
+              cols: add_col(cols, arg, is_in_hole(in_hole)),
+              idx: row.idx,
+            },
+            Ctr.NEHole,
+          )
+        };
+      };
+
+      List.fold_left((sm, row) => {submatrix(sm, row, Ctr.Okay)}, empty, m);
+    };
+
+    let submatrices = rev(submatrices()); // needed so that rows show up in order for redundancy checking
 
     let first_col_exhaustive =
       switch (all_ctrs) {
@@ -855,14 +1153,14 @@ module Submatrices = {
     //
     // this is designed this way to avoid recomputation/returning
     // of seen data
-    let prepend_first_col_unseen_ctr =
-      UnseenPatternList.prepend_from_type(seen_data, first_col_ty);
+    let cons_unseen_ctr =
+      UnseenPatternList.cons_from_type(seen_data, first_col_ty);
 
     {
       ...submatrices,
       first_col_exhaustive,
       first_col_redundant_rows,
-      prepend_first_col_unseen_ctr,
+      cons_unseen_ctr,
     };
   };
 };
@@ -899,47 +1197,85 @@ let rec check_matrix = (m: Matrix.t, col_tys: list(Typ.t)): result => {
             switch (col_tys) {
             | [] =>
               let unseen_pattern =
-                submatrices.prepend_first_col_unseen_ctr(
-                  ctr,
-                  UnseenPatternList.empty,
-                  submatrices.first_col_exhaustive,
-                );
+                switch (ctr.status) {
+                | Okay =>
+                  submatrices.cons_unseen_ctr(
+                    ctr,
+                    UnseenPatternList.empty,
+                    submatrices.first_col_exhaustive,
+                  )
+                | Ctr.InHole
+                    when !UnseenPatternList.has_no_holes(unseen_pattern) => unseen_pattern
+                | Ctr.NEHole
+                    when !UnseenPatternList.has_no_holes(unseen_pattern) =>
+                  UnseenPatternList.cons_unknown(UnseenPatternList.empty)
+                | Ctr.NEHole
+                | Ctr.InHole
+                | Ctr.Unknown => unseen_pattern
+                };
               (is_exhaustive, redundant_rows, unseen_pattern);
             | _ =>
               let submatrix_check_result = check_matrix(submatrix, col_tys);
               let is_still_exhaustive =
                 is_exhaustive && submatrix_check_result.is_exhaustive;
 
-              // update the unseen list based on exhaustiveness
+              // used to bias the pattern builder against invalid patterns
+              // unless necessary
+              let can_use_okay_pat =
+                UnseenPatternList.has_no_holes(
+                  submatrix_check_result.unseen_pattern,
+                )
+                || !UnseenPatternList.has_no_holes(unseen_pattern)  // if the current pattern has a hole
+                || submatrices.first_col_exhaustive; // for when an invalid pattern uses a ctr we need
+
+              // u              pdate the unseen list based on exhaustiveness
+              // we ignore matricies where every row has an error since they
+              // can mess up structure, among other things.
               let unseen_pattern =
-                if (is_still_exhaustive && !submatrices.first_col_exhaustive) {
-                  // if the following column did not break exhaustiveness, but this one does,
-                  // we place the unseen value into the list
-                  submatrices.prepend_first_col_unseen_ctr(
-                    ctr,
+                switch (ctr.status) {
+                | Ctr.Okay when can_use_okay_pat =>
+                  if (is_still_exhaustive && !submatrices.first_col_exhaustive) {
+                    // if the following column did not break exhaustiveness, but this one does,
+                    // we place the unseen value into the list
+                    submatrices.cons_unseen_ctr(
+                      ctr,
+                      submatrix_check_result.unseen_pattern,
+                      false,
+                    );
+                  } else if (is_still_exhaustive
+                             && submatrices.first_col_exhaustive) {
+                    // if this column is exhaustive and the following column did not break exhaustiveness,
+                    // use the default unseen value for the type
+                    submatrices.cons_unseen_ctr(
+                      ctr,
+                      submatrix_check_result.unseen_pattern,
+                      true,
+                    );
+                  } else if (is_exhaustive) {
+                    // otherwise, we just use a default/known to be exhauxstive ctr.
+                    // This effectively builds a chain of "known" values that
+                    // are already in the pattern, so we don't have to "make stuff up"
+                    UnseenPatternList.cons_ctr(
+                      ctr,
+                      first_col_ty,
+                      submatrix_check_result.unseen_pattern,
+                    );
+                  } else {
+                    // otherwise, just keep the current pattern
+                    unseen_pattern;
+                  }
+                | Ctr.InHole
+                    when !UnseenPatternList.has_no_holes(unseen_pattern) =>
+                  submatrix_check_result.unseen_pattern
+                | Ctr.NEHole
+                    when !UnseenPatternList.has_no_holes(unseen_pattern) =>
+                  UnseenPatternList.cons_unknown(
                     submatrix_check_result.unseen_pattern,
-                    false,
-                  );
-                } else if (is_still_exhaustive
-                           && submatrices.first_col_exhaustive) {
-                  // if this column is exhaustive and the following column did not break exhaustiveness,
-                  // use the default unseen value for the type
-                  submatrices.prepend_first_col_unseen_ctr(
-                    ctr,
-                    submatrix_check_result.unseen_pattern,
-                    true,
-                  );
-                } else if (is_exhaustive) {
-                  // otherwise, we just use a default/known to exist ctr
-                  // this effectively builds a chain of "known" values that
-                  // are already in the pattern, so we don't have to "make stuff up"
-                  UnseenPatternList.prepend_ctr(
-                    ctr,
-                    first_col_ty,
-                    submatrix_check_result.unseen_pattern,
-                  );
-                } else {
-                  unseen_pattern;
+                  )
+                | Ctr.NEHole
+                | Ctr.InHole
+                | Ctr.Okay
+                | Ctr.Unknown => unseen_pattern
                 };
 
               let redundant_rows =
@@ -950,6 +1286,7 @@ let rec check_matrix = (m: Matrix.t, col_tys: list(Typ.t)): result => {
                   },
                   redundant_rows,
                 );
+
               (is_still_exhaustive, redundant_rows, unseen_pattern);
             };
           },

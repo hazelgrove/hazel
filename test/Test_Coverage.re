@@ -15,7 +15,13 @@ let parse_menhir = (s: string) => {
   );
 };
 
-let has_errors = (name: string, exp: string, errors: list(Info.error)) => {
+let has_errors =
+    (
+      ~actual_errors_filter=?,
+      name: string,
+      exp: string,
+      errors: list(Info.error),
+    ) => {
   test_case(
     name,
     `Quick,
@@ -25,8 +31,14 @@ let has_errors = (name: string, exp: string, errors: list(Info.error)) => {
         Haz3lmenhir.Conversion.Exp.get_indicated_ids(indicated_exp);
 
       let s = statics(e);
-      let actual_errors = Statics.Map.collect_errors(s);
+      let errors_map = Statics.Map.collect_errors(s);
+      let actual_errors =
+        switch (actual_errors_filter) {
+        | Some(f) => f(errors_map)
+        | None => errors_map
+        };
       let expected_errors = Id.Map.of_list(List.combine(ids, errors));
+
       Alcotest.check(
         testable_error_map,
         "Static Errors",
@@ -36,6 +48,18 @@ let has_errors = (name: string, exp: string, errors: list(Info.error)) => {
     },
   );
 };
+
+let has_non_common_errors =
+  has_errors(
+    ~actual_errors_filter=
+      Statics.Map.filter((_, err) =>
+        switch (err) {
+        | Info.Pat(Info.Common(_)) => false
+        | Info.Exp(Info.Common(_)) => false
+        | _ => true
+        }
+      ),
+  );
 
 let no_errors = (name: string, exp: string) => has_errors(name, exp, []);
 
@@ -1167,6 +1191,139 @@ end|},
     [Info.Pat(Redundant(None))],
   );
 
+let extra_constructor_args =
+  has_non_common_errors(
+    "Extra Constructor Arguments: Inxhaustive",
+    {|
+type Ty = +A + B(Int) + C(Int, Int) in
+let f = fun (x: (Ty, Ty)) ->
+  {{{case x
+    | (A, _) => 1
+    | (B((_, _)), _) => 2
+    | (C((_, _)), _) => 3
+  end}}}
+in ?|},
+    [
+      Info.Exp(
+        InexhaustiveMatch(
+          None,
+          Grammar.Pat(
+            IdTagged.FreshGrammar.Pat.(
+              tuple([
+                ap(constructor("B", None), wild()),
+                constructor("A", None),
+              ])
+            ),
+          ),
+        ),
+      ),
+    ],
+  );
+
+let extra_constructor_args_tuple_ctr =
+  has_non_common_errors(
+    "Extra Constructor Arguments w/ Tuple Ctr: Inxhaustive",
+    {|
+type Ty = +A + B(Int) + C(Int, Int) in
+let f = fun (x: (Ty, Ty)) ->
+  {{{case x
+    | (A, _) => 1
+    | (B(_), _) => 2
+    | (C((_, _, _)), _) => 3
+  end}}}
+in ?|},
+    [
+      Info.Exp(
+        InexhaustiveMatch(
+          None,
+          Grammar.Pat(
+            IdTagged.FreshGrammar.Pat.(
+              tuple([
+                ap(constructor("C", None), wild()),
+                constructor("A", None),
+              ])
+            ),
+          ),
+        ),
+      ),
+    ],
+  );
+
+let missing_constructor_args =
+  has_non_common_errors(
+    "Missing Constructor Arguments: Inxhaustive",
+    {|
+type Ty = +A + B(Int) + C(Int, Int) in
+let f = fun (x: (Ty, Ty)) ->
+  {{{case x
+    | (A, _) => 1
+    | (B(_), _) => 2
+    | (C((0)), _) => 3
+  end}}}
+in ?|},
+    [
+      Info.Exp(
+        InexhaustiveMatch(
+          None,
+          Grammar.Pat(
+            IdTagged.FreshGrammar.Pat.(
+              tuple([
+                ap(constructor("C", None), wild()),
+                constructor("A", None),
+              ])
+            ),
+          ),
+        ),
+      ),
+    ],
+  );
+
+let inconsistent_tuple =
+  has_non_common_errors(
+    "Inconsistent Tuple: Inxhaustive",
+    {|
+let f = fun (x: (Int, Int)) ->
+  {{{case x
+    | (0, 0, 0) => 1
+  end}}}
+in ?|},
+    [
+      Info.Exp(
+        InexhaustiveMatch(
+          None,
+          Grammar.Pat(IdTagged.FreshGrammar.Pat.(wild())),
+        ),
+      ),
+    ],
+  );
+
+let inconsistent_tuple_elt =
+  has_non_common_errors(
+    "Inconsistent Tuple Element: Inxhaustive",
+    {|
+let f = fun (x: (Int, Int, Int)) ->
+  {{{case x
+    | (0, 0, "hello") => 1
+  end}}}
+in ?|},
+    [
+      Info.Exp(
+        InexhaustiveMatch(
+          None,
+          Grammar.Pat(
+            IdTagged.FreshGrammar.Pat.(
+              tuple([
+                big_int(Bigint.of_int(0)),
+                big_int(Bigint.of_int(0)),
+                wild(),
+              ])
+            ),
+          ),
+        ),
+      ),
+    ],
+  );
+
 let tests = (
   "Pattern Coverage Checker",
   [
@@ -1227,5 +1384,10 @@ let tests = (
     labeled_tuple_inexhaustiveness,
     labeled_tuple_redundancy,
     function_scrutinee,
+    extra_constructor_args,
+    extra_constructor_args_tuple_ctr,
+    missing_constructor_args,
+    inconsistent_tuple,
+    inconsistent_tuple_elt,
   ],
 );
