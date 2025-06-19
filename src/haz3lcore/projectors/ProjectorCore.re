@@ -137,7 +137,7 @@ module Kind = {
     };
   };
 
-  include Util.ProjectorKind;
+  include ProjectorKind;
 
   let of_gadt =
       (
@@ -204,7 +204,7 @@ let to_module =
       type action,
       type focus,
       module Editor:
-        ProjectorInterface.EDITOR with
+        EditorInterface.EDITOR with
           type model = ed_m and type action = ed_a and type focus = ed_f,
       kind: Kind.gadt(model, action, focus, ed_m, ed_a, ed_f),
     )
@@ -524,7 +524,7 @@ module Update = {
         type ed_a,
         type ed_f,
         ~editor_module,
-        ~common: ProjectorInterface.common,
+        ~common: Common.t,
         ~sort: Sort.t,
         ~id: Id.t,
         A(gadt1, action),
@@ -565,7 +565,7 @@ module Update = {
         type ed_a,
         type ed_f,
         ~editor_module,
-        ~common: ProjectorInterface.common,
+        ~common: Common.t,
         V(gadt, model, exp_cache): model(ed_m, ed_a, ed_f),
       )
       : model(ed_m, ed_a, ed_f) => {
@@ -605,7 +605,7 @@ module Focus = {
         type ed_a,
         type ed_f,
         ~editor_module,
-        ~common: ProjectorInterface.common,
+        ~common: Common.t,
         ~inject: Update.t(ed_m, ed_a, ed_f) => Ui_effect.t(unit),
         ~read_only: bool,
         V(gadt1, model, _exp_cache): model(ed_m, ed_a, ed_f),

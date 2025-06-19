@@ -27,7 +27,7 @@ module Update = {
     let perform = (action: Action.t, model: Model.t) =>
       Editor.Update.update(
         ~common=
-          ProjectorInterface.{
+          Common.{
             settings: globals.settings.core,
             font_metrics: globals.font_metrics,
             secondary_icons: globals.settings.secondary_icons,
@@ -85,7 +85,7 @@ module Focus = {
       (~globals: Globals.t, ~inject, ~read_only, model: Model.t, focus) =>
     Editor.Focus.get_cursor_info(
       ~common=
-        ProjectorInterface.{
+        Common.{
           settings: globals.settings.core,
           font_metrics: globals.font_metrics,
           secondary_icons: globals.settings.secondary_icons,

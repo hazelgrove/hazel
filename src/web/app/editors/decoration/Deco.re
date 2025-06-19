@@ -220,7 +220,7 @@ module Deco =
            type projector_kind;
            type projector;
            type projector_action;
-           let globals: ProjectorInterface.common;
+           let globals: Common.t;
            let editor:
              Editor.Model.t(projector_kind, projector, projector_action);
          },

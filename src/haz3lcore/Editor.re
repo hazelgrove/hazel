@@ -348,7 +348,7 @@ module Update = {
   let calculate =
       (
         type p,
-        ~common: ProjectorInterface.common,
+        ~common: Common.t,
         ~projector_init,
         ~projector_to_term,
         ~seg_of_projector,

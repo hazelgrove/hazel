@@ -69,7 +69,7 @@ module Update = {
     let editor =
       Editor.Update.calculate(
         ~common=
-          ProjectorInterface.{
+          Common.{
             settings: globals.settings.core,
             font_metrics: globals.font_metrics,
             secondary_icons: globals.settings.secondary_icons,

@@ -1477,7 +1477,7 @@ module View = {
     let scrut_editor =
       Editor.View.view_editable(
         ~common=
-          ProjectorInterface.{
+          Common.{
             settings: globals.settings.core,
             font_metrics: globals.font_metrics,
             secondary_icons: globals.settings.secondary_icons,
@@ -1522,7 +1522,7 @@ module View = {
           let pattern_editor =
             Editor.View.view_editable(
               ~common=
-                ProjectorInterface.{
+                Common.{
                   settings: globals.settings.core,
                   font_metrics: globals.font_metrics,
                   secondary_icons: globals.settings.secondary_icons,
