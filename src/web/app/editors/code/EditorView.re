@@ -11,16 +11,15 @@ module Focus = {
     | Projector(Id.t, 'p_f);
 
   let handle_key_event =
+      //type p_k,
       (
-        type p_k,
         type p_m,
         type p_a,
-        ~inject: Action.t(p_k, p_m, p_a) => Ui_effect.t(unit),
+        ~inject: Action.t(ProjectorKind.t, p_m, p_a) => Ui_effect.t(unit),
         ~key: Key.t,
-        ~info_projector,
         ~enter_prj: (Id.t, Direction.t) => Ui_effect.t(unit),
         ~escape: Direction.t => Ui_effect.t(unit),
-        model: Editor.Model.t(p_k, p_m, p_a),
+        model: Editor.Model.t(ProjectorKind.t, p_m, p_a),
       )
       : Ui_effect.t(unit) => {
     let z = model |> Editor.Model.get_z;
@@ -80,156 +79,11 @@ module Focus = {
         when z.caret == Outer =>
       escape(Right)
     | _ =>
-      switch (Keyboard.handle_key_event(~info_projector, key)) {
+      switch (Keyboard.handle_key_event(key)) {
       | Some(action) =>
         Ui_effect.Many([inject(action), Effect.Stop_propagation])
       | None => Ui_effect.Ignore
       }
-    };
-  };
-
-  module ProjectorActions = {
-    open OptUtil.Syntax;
-    /* If there are applicable projectors, we distinguish the first
-     * one, which will be the current active projector if the indicated
-     * term is already projected */
-    type t = option((ProjectorCore.Kind.t, list(ProjectorCore.Kind.t)));
-
-    /* Determines what term to target for projection. This logic
-     * should be kept in sync with the projector add/remove logic
-     * in ProjectorPerform */
-    let target_seg =
-        (
-          selection: option(Segment.t('a)),
-          indicated_piece: option(Piece.t('a)),
-        )
-        : option(Segment.t('a)) => {
-      //TODO(andrew): if targeted seg is projector, need to unproject
-      // to figure out if syntax can be reprojected
-      let* seg =
-        switch (selection) {
-        | None => None
-        | Some([]) =>
-          switch (indicated_piece) {
-          | Some(Tile(_) as p)
-          | Some(Projector(_) as p) => Some([p])
-          | Some(Grout(_))
-          | Some(Secondary(_))
-          | None => None
-          }
-        | Some(seg) => Some(seg)
-        };
-      let* () = Segment.deep_tile_complete(seg) ? Some() : None;
-      let* () = Segment.is_padded(seg) ? None : Some();
-      let* skel =
-        switch (Segment.skel(seg)) {
-        | exception _ => None
-        | skel => Some(skel)
-        };
-      let* () =
-        switch (Segment.sort_of(skel, seg)) {
-        | Exp
-        | Pat
-        | Typ
-        | TPat => Some()
-        | Rul
-        | Any => None
-        };
-      Some(seg);
-    };
-
-    // TODO(matt|andrew): make this work more generally for different sorts
-    let target_term = (make_term_prj, seg: Segment.t('a)) =>
-      seg
-      |> Zipper.unzip
-      |> Editor.Model.mk
-      |> Editor.Update.make_term(~make_term_prj, ~sort=Exp)
-      |> snd
-      |> Calc.get_value;
-
-    let target_ed =
-        (seg: Segment.t('a), ())
-        : option(Editor.Model.t(ProjectorCore.Kind.t, 'p_m, 'p_a)) =>
-      switch (seg) {
-      | []
-      | [Projector(_)] => None
-      | s => Some(s |> Zipper.unzip |> Editor.Model.mk)
-      };
-
-    /* If the current indicated term is a projector, return its kind */
-    let indicated_kind =
-        (
-          editor: Editor.Model.t(ProjectorCore.Kind.t, 'p_m, 'p_a),
-          get_kind: 'a => ProjectorCore.Kind.t,
-        )
-        : option(ProjectorCore.Kind.t) => {
-      let* (piece, _, _) = Indicated.for_index(editor |> Editor.Model.get_z);
-      switch (piece) {
-      | Projector(p) => Some(get_kind(p.model))
-      | _ => None
-      };
-    };
-
-    /* The string names of all projectors applicable to the currently
-     * indicated syntax, with the currently applied projection (if any)
-     * lifted to the top of the list */
-    let lift_active_projector =
-        (editor, get_kind, applicable_projectors: list(ProjectorCore.Kind.t))
-        : list(ProjectorCore.Kind.t) => {
-      switch (indicated_kind(editor, get_kind)) {
-      | None => applicable_projectors
-      | Some(k) => ListUtil.lift(k, applicable_projectors)
-      };
-    };
-
-    let mk =
-        (
-          m,
-          read_only,
-          get_kind,
-          mk_projector,
-          make_term_prj,
-          inject:
-            Editor.Update.t(ProjectorCore.Kind.t, 'p_m, 'p_a) =>
-            Ui_effect.t(unit),
-        ) => {
-      let indicated_piece =
-        m
-        |> Editor.Model.get_z
-        |> Indicated.piece''
-        |> Option.map(((p, _, _)) => p);
-      let selection = Some(Editor.Model.get_z(m).selection.content);
-      let applicable_projectors =
-        if (read_only) {
-          [];
-        } else {
-          ProjectorCore.Kind.projectors
-          |> List.filter_map(kind => {
-               /* Is a projector of `kind` applicable to the target term? */
-               let* target_seg = target_seg(selection, indicated_piece);
-               let term = target_term(make_term_prj, target_seg);
-               let ed = target_ed(target_seg);
-               let+ _ = mk_projector(kind, term, ed);
-               kind;
-             })
-          |> lift_active_projector(m, get_kind);
-        };
-      let mk_action = kind =>
-        ContextualAction.mk(
-          //TODO(andrew): hotkey
-          ~hotkey="TODO",
-          ~section="Projection",
-          ProjectorCore.Kind.name(kind),
-          inject(Project(SetIndicated(Specific(kind)))),
-        );
-      let unproject =
-        ContextualAction.mk(
-          ~section="Projection",
-          "Unproject",
-          inject(Project(RemoveIndicated)),
-        );
-      List.map(mk_action, applicable_projectors)
-      @ (indicated_kind(m, get_kind) != None ? [unproject] : []);
     };
   };
 
@@ -264,14 +118,23 @@ module Focus = {
       ) => {
     let sys = Os.is_mac^ ? Key.Mac : Key.PC;
 
+    let indicated_piece =
+      m
+      |> Editor.Model.get_z
+      |> Indicated.piece''
+      |> Option.map(((p, _, _)) => p);
+
+    let selection = Some(Editor.Model.get_z(m).selection.content);
+
     let projector_actions =
-      ProjectorActions.mk(
-        m,
-        read_only,
-        get_kind,
-        mk_projector,
-        make_term_prj,
-        inject,
+      ProjectorCursor.mk(
+        ~indicated_piece,
+        ~selection,
+        ~read_only,
+        ~get_kind,
+        ~mk_projector,
+        ~make_term_prj,
+        ~inject,
       );
 
     let read_only_actions = [
@@ -350,7 +213,7 @@ module Focus = {
         current_projector:
           Option.map(
             ProjectorCore.Kind.name,
-            ProjectorActions.indicated_kind(m, get_kind),
+            ProjectorCursor.indicated_kind(indicated_piece, get_kind),
           ),
       }
       |> Cursor.with_actions_if(!read_only, editor_actions)
@@ -488,7 +351,6 @@ let view_code_editable =
       ~mk_status,
       // ~put_clipboard_cache: (string, Segment.t(p_m)) => unit,
       // ~get_clipboard_cache: string => option(Segment.t(p_m)),
-      ~info_projector,
       ~inject: Action.t(ProjectorCore.Kind.t, p_m, p_a) => Ui_effect.t(unit),
       ~focus: Focus.t(p_f) => Ui_effect.t(unit),
       ~focussed: option(Focus.t(p_f)),
@@ -626,14 +488,7 @@ let view_code_editable =
       Attr.on_mousemove(evt => drag_select(Pointer.Event.mk(evt))),
       Attr.on_wheel(evt => drag_select(Pointer.Event.mk(evt))),
       Key.handler(~f=key =>
-        Focus.handle_key_event(
-          ~inject,
-          ~key,
-          ~info_projector,
-          ~enter_prj,
-          ~escape,
-          model,
-        )
+        Focus.handle_key_event(~inject, ~key, ~enter_prj, ~escape, model)
       ),
       Attr.on_copy(evt =>
         Ui_effect.Many([

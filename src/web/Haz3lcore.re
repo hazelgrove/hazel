@@ -359,7 +359,6 @@ and Editor: {
         ~common,
         ~split_views=Projector.View.split_views(~common),
         ~mk_status=Projector.View.mk_status,
-        ~info_projector=ProjectorCore.Kind.Info,
       );
 
     let get_dimensions = (ed: Model.t) =>

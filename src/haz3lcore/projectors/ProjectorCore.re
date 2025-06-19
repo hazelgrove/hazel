@@ -96,22 +96,6 @@ module Kind = {
             'ed_f,
           );
 
-  /* The different kinds of projector. New projector
-   * types need to be registered here in order to be
-   * able to create and update their instances */
-  [@deriving (show({with_path: false}), sexp, yojson, eq)]
-  type t =
-    | Fold
-    | Info
-    | Probe
-    | Pair
-    | Checkbox
-    | Slider
-    | SliderF
-    | Card
-    | Livelit
-    | TextArea;
-
   let gadt_eq =
       (
         type a,
@@ -153,6 +137,8 @@ module Kind = {
     };
   };
 
+  include Util.ProjectorKind;
+
   let of_gadt =
       (
         type m,
@@ -192,53 +178,6 @@ module Kind = {
     | SliderF => f(W(SliderF))
     | Card => f(W(Card))
     | TextArea => f(W(TextArea))
-    };
-
-  let livelit_projectors: list(t) = [
-    Checkbox,
-    Slider,
-    Pair,
-    SliderF,
-    TextArea,
-    Card,
-  ];
-
-  let projectors: list(t) =
-    livelit_projectors @ [Fold, Info, Livelit, Probe];
-
-  /* A friendly name for each projector. This is used
-   * both for identifying a projector in the CSS and for
-   * selecting projectors in the projector panel menu */
-  let name = (p: t): string =>
-    switch (p) {
-    | Fold => "fold"
-    | Info => "type"
-    | Pair => "pair"
-    | Probe => "probe"
-    | Checkbox => "check"
-    | Slider => "slider"
-    | Livelit => "livelit"
-    | SliderF => "sliderf"
-    | Card => "card"
-    | TextArea => "text"
-    };
-
-  /* This must be updated and kept 1-to-1 with the above
-   * name function in order to be able to select the
-   * projector in the projector panel menu */
-  let of_name = (p: string): t =>
-    switch (p) {
-    | "fold" => Fold
-    | "type" => Info
-    | "pair" => Pair
-    | "probe" => Probe
-    | "check" => Checkbox
-    | "slider" => Slider
-    | "livelit" => Livelit
-    | "sliderf" => SliderF
-    | "text" => TextArea
-    | "card" => Card
-    | _ => failwith("Unknown projector kind")
     };
 };
 

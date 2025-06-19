@@ -11,8 +11,7 @@ let meta = (sys: Key.sys): string => {
   };
 };
 
-let handle_key_event =
-    (~info_projector: 'p_k, k: Key.t): option(Action.t('p_k, 'p, 'p_a)) => {
+let handle_key_event = (k: Key.t): option(Action.t('p_k, 'p, 'p_a)) => {
   let now = (a: Action.t('p_k, 'p, 'p_a)) => Some(a);
   switch (k) {
   | {key: U(key), _} =>
@@ -98,21 +97,21 @@ let handle_key_event =
     | _ => None
     }
   //TODO(andrew): reinstate
-  // | {key: D("f"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
-  //   Some(Project(SetIndicated(Specific(Fold))))
-  // | {key: D("ƒ"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
-  //   /* Curly ƒ is what holding option turns f into on Mac */
-  //   Some(Project(SetIndicated(Specific(Fold))))
-  // | {key: D("v"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
-  //   Some(Project(SetIndicated(Specific(Probe))))
-  // | {key: D("√"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
-  //   /* √ is what holding option turns f into on Mac */
-  //   Some(Project(SetIndicated(Specific(Probe))))
+  | {key: D("f"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
+    Some(Project(SetIndicated(Specific(ProjectorKind.Fold))))
+  | {key: D("ƒ"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
+    /* Curly ƒ is what holding option turns f into on Mac */
+    Some(Project(SetIndicated(Specific(Fold))))
+  | {key: D("v"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
+    Some(Project(SetIndicated(Specific(Probe))))
+  | {key: D("√"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
+    /* √ is what holding option turns f into on Mac */
+    Some(Project(SetIndicated(Specific(Probe))))
   | {key: D("t"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
-    Some(Project(SetIndicated(Specific(info_projector))))
+    Some(Project(SetIndicated(Specific(Info))))
   | {key: D("†"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     /* † is what holding option turns t into on Mac */
-    Some(Project(SetIndicated(Specific(info_projector))))
+    Some(Project(SetIndicated(Specific(Info))))
   | {key: D("l"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     Some(Project(SetIndicated(ChooseLivelit)))
   | {key: D("¬"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>

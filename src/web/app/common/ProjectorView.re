@@ -125,7 +125,11 @@ let backing_deco =
  * custom styling when selected or indicated */
 let projector_clss =
     ({kind, sort, indication, selected, error}: Model.status) =>
-  ["projector", ProjectorCore.Kind.name(kind), Sort.show(sort)]
+  [
+    "projector",
+    ProjectorCore.Kind.name(kind) |> String.lowercase_ascii,
+    Sort.show(sort),
+  ]
   @ (selected ? ["selected"] : [])
   @ (error ? ["error"] : [])
   @ (

@@ -29,6 +29,7 @@ module Unicode = Unicode;
 module StructureShareSexp = StructureShareSexp;
 module VarMap = VarMap;
 module ProjectorShape = ProjectorShape;
+module ProjectorKind = ProjectorKind;
 
 // Used by [@deriving sexp, yojson)]
 include Sexplib.Std;
