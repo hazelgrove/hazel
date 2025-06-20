@@ -642,7 +642,7 @@ module Update = {
   let rec can_undo_stepper = (a: stepper): bool => {
     switch (a) {
     | RootAction(action) => can_undo_step(action)
-    | CoqExport => true // TODO(Nishant) check with matt
+    | CoqExport => false
     };
   }
   and can_undo_step = (a: step): bool => {
