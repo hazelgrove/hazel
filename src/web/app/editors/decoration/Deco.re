@@ -298,7 +298,19 @@ module Deco =
             switch (left_contents.term.term) {
             | BinOp(left_op, _, left_right) when left_op == op =>
               let left_assoc = left_right |> Exp.rep_id;
-              [left_assoc, right_id];
+              [left_assoc, right_id]; // OLD WAY
+            // BELOW THIS NEW WAY
+            // switch (Statics.Map.lookup(left_assoc, M.statics.info_map)) {
+            // | Some(InfoExp(right_contents)) =>
+            //   switch (right_contents.term.term) {
+            //   | BinOp(_, _, right_right) =>
+            //     let right_right_id = right_right |> Exp.rep_id;
+            //     [left_assoc, right_right_id];
+            //   | _ => [left_assoc, right_id]
+            //   }
+            // | _ => [left_assoc, right_id]
+            // };
+            // ABOVE THIS NEW WAY
             | _ => [left_id, right_id]
             }
           | _ => [left_id, right_id]
@@ -321,10 +333,10 @@ module Deco =
            | _ => None
            }
          );
-    // List.iter(
-    //   id => print_endline("Tile ID: " ++ Zipper.short_id(id)),
-    //   tile_ids,
-    // );
+    List.iter(
+      id => print_endline("Tile ID: " ++ Zipper.short_id(id)),
+      tile_ids,
+    );
     /* Compute associative IDs for every selected tile */
     let assoc_ids = tile_ids |> List.concat_map(find_assoc_for_id);
     print_endline(
