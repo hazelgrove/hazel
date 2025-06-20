@@ -568,20 +568,6 @@ module View = {
         ~disabled=Option.is_none(undo),
         ~tooltip="Step Backwards",
       );
-    let button_induction =
-      Widgets.button_d(
-        Icons.star,
-        signal(AddInduction),
-        ~disabled=false,
-        ~tooltip="Begin a proof by induction",
-      );
-    let button_forall =
-      Widgets.button_d(
-        Icons.star,
-        signal(AddForall),
-        ~disabled=false,
-        ~tooltip="Prove a forall",
-      );
     let button_prover_export =
       Widgets.button_d(
         Icons.export,
@@ -610,7 +596,13 @@ module View = {
       [button_back]
       @ (
         is_toplevel
-          ? [button_prover_export,eval_settings, toggle_show_history, button_hide_stepper] : []
+          ? [
+            button_prover_export,
+            eval_settings,
+            toggle_show_history,
+            button_hide_stepper,
+          ]
+          : []
       ),
     );
   };

@@ -5,8 +5,8 @@ open Haz3lcore;
 open Util;
 
 let rec unique_vars_in_ast_helper =
-        (d: DHExp.t, unique_vars: Hashtbl.t(string, unit)) => {
-  switch (Exp.term_of(d)) {
+        (d: Language.DHExp.t, unique_vars: Hashtbl.t(string, unit)) => {
+  switch (Language.Exp.term_of(d)) {
   | BinOp(Int(_), arg1, arg2) =>
     unique_vars_in_ast_helper(arg1, unique_vars);
     unique_vars_in_ast_helper(arg2, unique_vars);
@@ -20,16 +20,17 @@ let rec unique_vars_in_ast_helper =
   };
 };
 
-let unique_vars_in_ast = (d: DHExp.t) => {
+let unique_vars_in_ast = (d: Language.DHExp.t) => {
   let unique_vars = Hashtbl.create(1);
   unique_vars_in_ast_helper(d, unique_vars);
   List.of_seq(Hashtbl.to_seq_keys(unique_vars));
 };
 
 // Count all occurrences of an integer v in the AST v
-let rec index_of_like_terms_helper_dhexp = (d: DHExp.t, v: DHExp.t) => {
-  switch (Exp.term_of(d)) {
-  | _ when DHExp.fast_equal(d, v) => 1
+let rec index_of_like_terms_helper_dhexp =
+        (d: Language.DHExp.t, v: Language.DHExp.t) => {
+  switch (Language.Exp.term_of(d)) {
+  | _ when Language.DHExp.fast_equal(d, v) => 1
   | BinOp(Int(_), argL, argR) =>
     index_of_like_terms_helper_dhexp(argL, v)
     + index_of_like_terms_helper_dhexp(argR, v)
@@ -40,7 +41,8 @@ let rec index_of_like_terms_helper_dhexp = (d: DHExp.t, v: DHExp.t) => {
 // Count all occurrences of integer v that are not to the right of the marker,
 // including the marker itself. This function assumes there is always
 // a marker somewhere in the AST.
-let rec index_of_like_terms_helper_ctx = (d: EvalCtx.t, v: DHExp.t) => {
+let rec index_of_like_terms_helper_ctx =
+        (d: Language.EvalCtx.t, v: Language.DHExp.t) => {
   switch (d) {
   | Mark => 1
   | Term({term, _}) =>
@@ -58,18 +60,18 @@ let rec index_of_like_terms_helper_ctx = (d: EvalCtx.t, v: DHExp.t) => {
 
 // For some integer literal t and context AST d, find out how many occurrences of t do not occur to the right of the Mark in d.
 
-let index_of_like_terms = (d: EvalCtx.t, v: DHExp.t) => {
+let index_of_like_terms = (d: Language.EvalCtx.t, v: Language.DHExp.t) => {
   index_of_like_terms_helper_ctx(d, v);
 };
 
-let rec string_of_d = (d: DHExp.t) => {
+let rec string_of_d = (d: Language.DHExp.t) => {
   "("
   ++ (
-    switch (Exp.term_of(d)) {
+    switch (Language.Exp.term_of(d)) {
     | BinOp(Int(op), arg1, arg2) =>
       string_of_d(arg1)
       ++ ""
-      ++ Operators.int_op_to_string(op)
+      ++ Language.Operators.int_op_to_string(op)
       ++ ""
       ++ string_of_d(arg2)
     | Atom(Int(n))
