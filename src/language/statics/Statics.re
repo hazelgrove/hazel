@@ -1143,7 +1143,7 @@ and uexp_to_info_map =
             go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
           let (def, m) = go'(~ctx, ~ana=p_syn.ty, e, m);
           let ty_p_ana = def.ty;
-          let (p_ana', _) =
+          let (_p_ana', _) =
             go_pat(
               ~is_synswitch=false,
               ~co_ctx=CoCtx.empty,

@@ -84,7 +84,8 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
   | Atom(_)
   | Label(_)
   | LivelitName(_)
-  | Constructor(_) => d2
+  | Constructor(_)
+  | Module(_) => d2 // TODO: ??
   | ListLit(ds) => ListLit(List.map(subst_var(d1, x), ds)) |> rewrap
   | Cons(d3, d4) =>
     let d3 = subst_var(d1, x, d3);
