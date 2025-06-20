@@ -199,7 +199,7 @@ module View = {
       ~attrs=[Attr.classes(["cell", locked ? "locked" : "unlocked"])],
       Option.to_list(caption)
       @ [
-        Editor.View.view_editable(
+        Editor.View.view(
           ~common={
             settings: globals.settings.core,
             font_metrics: globals.font_metrics,
@@ -209,20 +209,23 @@ module View = {
             statics: model.editor.statics,
             dynamics: model.editor.dynamics,
           },
-          ~escape=_ => Ui_effect.Ignore,
-          ~focus=
-            locked
-              ? _ => Ui_effect.Ignore
-              : (f => signal(MakeActive(MainEditor(f)))),
-          ~focussed=
-            switch (selected) {
-            | Some(MainEditor(f)) => Some(f)
-            | _ => None
-            },
-          ~inject=
-            locked
-              ? _ => Ui_effect.Ignore
-              : (action => inject(MainEditor(Perform(action)))),
+          ~mode=
+            Editable({
+              inject:
+                locked
+                  ? _ => Ui_effect.Ignore
+                  : (a => inject(MainEditor(Perform(a)))),
+              take_focus:
+                locked
+                  ? _ => Ui_effect.Ignore
+                  : (f => signal(MakeActive(MainEditor(f)))),
+              escape: _ => Ui_effect.Ignore,
+              focus:
+                switch (selected) {
+                | Some(MainEditor(f)) => Some(f)
+                | _ => None
+                },
+            }),
           ~overlays=overlays(model.editor.editor),
           ~sort,
           model.editor.editor,

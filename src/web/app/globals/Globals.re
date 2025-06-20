@@ -206,3 +206,13 @@ let contextual_actions = (~inject: Action.t => Ui_effect.t(unit)) => [
 ];
 
 type t = Model.t;
+
+let to_common_global = (model: t): Haz3lcore.Common.global => {
+  {
+    settings: model.settings.core,
+    font_metrics: model.font_metrics,
+    color_highlights: model.color_highlights,
+    secondary_icons: model.settings.secondary_icons,
+    show_backpack_targets: model.show_backpack_targets,
+  };
+};

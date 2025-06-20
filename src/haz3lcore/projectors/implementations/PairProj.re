@@ -188,48 +188,56 @@ module M =
           "main",
           [
             WebUtil.div_c("pair-proj-parens", [WebUtil.Node.text("(")]),
-            Editor.View.view_editable(
+            Editor.View.view(
               ~common,
-              ~inject=a => inject(Left(a)),
-              ~focus=f => take_focus(Left(f)),
-              ~focussed=
-                switch (focus) {
-                | Some(Left(f)) => Some(f)
-                | _ => None
-                },
-              ~escape=
-                fun
-                | Direction.Left => escape(ProjectorInterface.Escape(Left))
-                | Direction.Right =>
-                  Editor.Focus.enter(
-                    ~inject=a => inject(Right(a)),
-                    ~focus=f => take_focus(Right(f)),
-                    Direction.Left,
-                    ed2,
-                  ),
+              ~mode=
+                Editable({
+                  inject: a => inject(Left(a)),
+                  take_focus: f => take_focus(Left(f)),
+                  escape:
+                    fun
+                    | Direction.Left =>
+                      escape(ProjectorInterface.Escape(Left))
+                    | Direction.Right =>
+                      Editor.Focus.enter(
+                        ~inject=a => inject(Right(a)),
+                        ~focus=f => take_focus(Right(f)),
+                        Direction.Left,
+                        ed2,
+                      ),
+                  focus:
+                    switch (focus) {
+                    | Some(Left(f)) => Some(f)
+                    | _ => None
+                    },
+                }),
               ~sort=Exp,
               ed1,
             ),
             WebUtil.div_c("pair-proj-parens", [WebUtil.Node.text(",")]),
-            Editor.View.view_editable(
+            Editor.View.view(
               ~common,
-              ~inject=a => inject(Right(a)),
-              ~focus=f => take_focus(Right(f)),
-              ~escape=
-                fun
-                | Direction.Left =>
-                  Editor.Focus.enter(
-                    ~inject=a => inject(Left(a)),
-                    ~focus=f => take_focus(Left(f)),
-                    Direction.Right,
-                    ed1,
-                  )
-                | Direction.Right => escape(Escape(Right)),
-              ~focussed=
-                switch (focus) {
-                | Some(Right(f)) => Some(f)
-                | _ => None
-                },
+              ~mode=
+                Editable({
+                  inject: a => inject(Right(a)),
+                  take_focus: f => take_focus(Right(f)),
+                  escape:
+                    fun
+                    | Direction.Left =>
+                      Editor.Focus.enter(
+                        ~inject=a => inject(Left(a)),
+                        ~focus=f => take_focus(Left(f)),
+                        Direction.Right,
+                        ed1,
+                      )
+                    | Direction.Right =>
+                      escape(ProjectorInterface.Escape(Right)),
+                  focus:
+                    switch (focus) {
+                    | Some(Right(f)) => Some(f)
+                    | _ => None
+                    },
+                }),
               ~sort=Exp,
               ed2,
             ),

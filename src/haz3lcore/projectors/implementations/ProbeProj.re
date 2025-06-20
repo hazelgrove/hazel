@@ -851,15 +851,7 @@ module M =
         }),
       ],
       //TODO(andrew): accurate sort, abbreviate, styling
-      [
-        Editor.View.view(
-          ~font_metrics=common.font_metrics,
-          ~secondary_icons=common.secondary_icons,
-          ~sort=Any,
-          m.ed,
-        ),
-        icon,
-      ],
+      [Editor.View.view(~common, ~mode=ReadOnly, ~sort=Any, m.ed), icon],
     );
 
   let overlay_view = (statics, dynamics): Node.t =>

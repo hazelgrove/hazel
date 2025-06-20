@@ -1,14 +1,6 @@
 open Util;
 open WebUtil;
 
-type edit_mode('p_k, 'p_m, 'p_a, 'e_f) =
-  | ReadOnly
-  | Editable({
-      inject: Action.t('p_k, 'p_m, 'p_a) => Ui_effect.t(unit),
-      make_active: 'e_f => Ui_effect.t(unit),
-      has_focus: option('e_f),
-    });
-
 /* Global actions available to handlers in all projectors */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type external_action =

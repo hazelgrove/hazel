@@ -394,7 +394,7 @@ module View = {
       };
     let code_view =
       CodeSelectable.View.view(
-        ~focus=f => signal(MakeActive(Evaluation(f))),
+        ~take_focus=f => signal(MakeActive(Evaluation(f))),
         ~inject=a => inject(EvalEditorAction(a)),
         ~escape=_ => Ui_effect.Ignore,
         ~common={
@@ -406,7 +406,7 @@ module View = {
           statics: editor.statics,
           dynamics: editor.dynamics,
         },
-        ~focussed=selected,
+        ~focus=selected,
         ~sort=Haz3lcore.Sort.root,
         editor.editor,
       );
