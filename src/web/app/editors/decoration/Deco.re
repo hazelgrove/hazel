@@ -292,30 +292,40 @@ module Deco =
       | BinOp(op, left, right) when Language.Operators.is_associative_op(op) =>
         let left_id = left |> Language.Exp.rep_id;
         let right_id = right |> Language.Exp.rep_id;
-        let assoc_ids =
+        let left_assoc =
           switch (Language.Statics.Map.lookup(left_id, M.statics.info_map)) {
           | Some(InfoExp(left_contents)) =>
             switch (left_contents.term.term) {
             | BinOp(left_op, _, left_right) when left_op == op =>
-              let left_assoc = left_right |> Language.Exp.rep_id;
-              [left_assoc, right_id]; // OLD WAY
-            // BELOW THIS NEW WAY
-            // switch (Language.Statics.Map.lookup(left_assoc, M.statics.info_map)) {
-            // | Some(InfoExp(right_contents)) =>
-            //   switch (right_contents.term.term) {
-            //   | BinOp(_, _, right_right) =>
-            //     let right_right_id = right_right |> Exp.rep_id;
-            //     [left_assoc, right_right_id];
-            //   | _ => [left_assoc, right_id]
-            //   }
-            // | _ => [left_assoc, right_id]
-            // };
-            // ABOVE THIS NEW WAY
-            | _ => [left_id, right_id]
+              left_right |> Language.Exp.rep_id
+            | _ => left_id
             }
-          | _ => [left_id, right_id]
+          | _ => left_id
           };
-        assoc_ids;
+
+        // Special selection snapping handling: if the associative operators we
+        // select are BinOps, we grab the left/right child of that BinOp
+        let left_left_id =
+          switch (Language.Statics.Map.lookup(left_assoc, M.statics.info_map)) {
+          | Some(InfoExp(left_contents)) =>
+            switch (left_contents.term.term) {
+            // only grab a child if it's a BinOp, otherwise return the original
+            | BinOp(_, left_left, _) => left_left |> Language.Exp.rep_id
+            | _ => left_assoc
+            }
+          | _ => left_assoc
+          };
+        let right_assoc =
+          switch (Language.Statics.Map.lookup(right_id, M.statics.info_map)) {
+          | Some(InfoExp(right_contents)) =>
+            switch (right_contents.term.term) {
+            // only grab a child if it's a BinOp, otherwise return the original
+            | BinOp(_, _, right_right) => right_right |> Language.Exp.rep_id
+            | _ => right_id
+            }
+          | _ => right_id
+          };
+        [left_left_id, right_assoc];
       | _ => []
       }
     | _ => []
