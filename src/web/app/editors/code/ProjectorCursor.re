@@ -66,7 +66,7 @@ let target_term = (~sort, make_term_prj, seg: Segment.t('a)) =>
 
 let target_ed =
     (seg: Segment.t('a), ())
-    : option(Editor.Model.t(ProjectorCore.Kind.t, 'p_m, 'p_a)) =>
+    : option(Editor.Model.t(ProjectorKind.t, 'p_m, 'p_a)) =>
   switch (seg) {
   | []
   | [Projector(_)] => None
@@ -90,11 +90,8 @@ let is_applicable =
 
 /* If the current indicated term is a projector, return its kind */
 let indicated_kind =
-    (
-      indicated_piece: option(Piece.t('a)),
-      get_kind: 'a => ProjectorCore.Kind.t,
-    )
-    : option(ProjectorCore.Kind.t) => {
+    (indicated_piece: option(Piece.t('a)), get_kind: 'a => ProjectorKind.t)
+    : option(ProjectorKind.t) => {
   switch (indicated_piece) {
   | Some(Projector(p)) => Some(get_kind(p.model))
   | _ => None
@@ -105,8 +102,8 @@ let indicated_kind =
  * indicated syntax, with the currently applied projection (if any)
  * lifted to the top of the list */
 let lift_active_projector =
-    (indicated_kind, applicable_projectors: list(ProjectorCore.Kind.t))
-    : list(ProjectorCore.Kind.t) =>
+    (indicated_kind, applicable_projectors: list(ProjectorKind.t))
+    : list(ProjectorKind.t) =>
   switch (indicated_kind) {
   | Some(kind) => ListUtil.lift(kind, applicable_projectors)
   | None => applicable_projectors
@@ -121,15 +118,14 @@ let mk =
       ~mk_projector,
       ~make_term_prj,
       ~inject:
-         Editor.Update.t(ProjectorCore.Kind.t, 'p_m, 'p_a) =>
-         Ui_effect.t(unit),
+         Editor.Update.t(ProjectorKind.t, 'p_m, 'p_a) => Ui_effect.t(unit),
     ) => {
   let indicated_kind = indicated_kind(indicated_piece, get_kind);
   let applicable_projectors =
     if (read_only) {
       [];
     } else {
-      ProjectorCore.Kind.projectors
+      ProjectorKind.projectors
       |> List.filter_map(
            is_applicable(
              ~selection,
@@ -143,7 +139,7 @@ let mk =
   let mk_action = kind =>
     ContextualAction.mk(
       ~section="Projection",
-      ProjectorCore.Kind.name(kind),
+      ProjectorKind.name(kind),
       ~hotkey=?ProjectorKind.shortcut_of(kind),
       inject(Project(SetIndicated(Specific(kind)))),
     );

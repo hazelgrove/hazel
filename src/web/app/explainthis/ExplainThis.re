@@ -229,7 +229,7 @@ let expander_deco =
     ) => {
   module Deco =
     Deco.Deco({
-      type projector_kind = ProjectorCore.Kind.t;
+      type projector_kind = ProjectorKind.t;
       type projector = Projector.Model.t;
       type projector_action = Projector.Update.t;
       let editor = editor;
@@ -525,7 +525,7 @@ let get_doc =
       let highlight_deco = {
         module Deco =
           Deco.Deco({
-            type projector_kind = ProjectorCore.Kind.t;
+            type projector_kind = ProjectorKind.t;
             type projector = Projector.Model.t;
             type projector_action = Projector.Update.t;
             let editor = editor;

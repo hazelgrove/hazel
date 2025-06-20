@@ -35,6 +35,16 @@ module CachedSyntax = {
   let yojson_of_t = _ => failwith("Editor.Meta.yojson_of_t");
   let t_of_yojson = _ => failwith("Editor.Meta.t_of_yojson");
 
+  let mk_proj_shape_map =
+      (
+        type p,
+        ~common,
+        ~shape_of_projector,
+        proj_map: Id.Map.t(Base.projector(p)),
+      )
+      : Id.Map.t(Util.ProjectorShape.t) =>
+    Id.Map.map(shape_of_projector(~common), proj_map);
+
   let init =
       (
         type p,
@@ -49,11 +59,7 @@ module CachedSyntax = {
     let MakeTerm.{term: _, terms, projectors} =
       MakeTerm.go(sort, segment, ~of_projector=projector_to_term);
     let projector_shapes =
-      ProjectorInfo.ShapeMapSemantics.mk(
-        ~common,
-        ~shape_of_projector,
-        projectors,
-      );
+      mk_proj_shape_map(~common, ~shape_of_projector, projectors);
     {
       segment,
       term_ranges: TermRanges.mk(segment),

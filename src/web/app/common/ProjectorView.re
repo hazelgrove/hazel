@@ -8,7 +8,7 @@ open Util.WebUtil;
 
 module Model = {
   type status = {
-    kind: ProjectorCore.Kind.t,
+    kind: ProjectorKind.t,
     sort: Sort.t,
     indication: option(Direction.t),
     selected: bool,
@@ -45,7 +45,7 @@ module Model = {
         type ed,
         type ed_a,
         type ed_f,
-        p: Base.projector(ProjectorCore.model(ed, ed_a, ed_f)),
+        p: Base.projector(Projector.model(ed, ed_a, ed_f)),
         ~common: Common.t,
         ~editor_active: bool,
         ~indicated: option((Id.t, Direction.t)),
@@ -64,9 +64,7 @@ module Model = {
         Language.Statics.Map.lookup(id, common.statics.info_map),
       )
       |> Option.value(~default=false),
-    kind:
-      p.model
-      |> ((ProjectorCore.V(kind, _, _)) => ProjectorCore.Kind.of_gadt(kind)),
+    kind: p.model |> Projector.kind_of_model,
     indication: editor_active ? indication(indicated, id) : None,
     selected: editor_active ? List.mem(id, selection_ids) : false,
   };
@@ -129,7 +127,7 @@ let projector_clss =
     ({kind, sort, indication, selected, error}: Model.status) =>
   [
     "projector",
-    ProjectorCore.Kind.name(kind) |> String.lowercase_ascii,
+    ProjectorKind.name(kind) |> String.lowercase_ascii,
     Sort.show(sort),
   ]
   @ (selected ? ["selected"] : [])
@@ -190,88 +188,36 @@ let offside_wrapper =
     [v],
   );
 
-/* Route top-level metadata to the projector view function. */
-let mk_view =
-    (
-      type ed_m,
-      type ed_a,
-      type ed_f,
-      ~editor_module,
-      ~common,
-      ~parent: external_action => Ui_effect.t(unit),
-      ~inject: ProjectorCore.Update.t(ed_m, ed_a, ed_f) => Ui_effect.t(unit),
-      ~focus: ProjectorCore.Focus.t(ed_m, ed_a, ed_f) => Ui_effect.t(unit),
-      ~focussed: option(ProjectorCore.Focus.t(ed_m, ed_a, ed_f)),
-      {p, id, _}:
-        Model.projector_data(ProjectorCore.model(ed_m, ed_a, ed_f)),
-    )
-    : View.t => {
-  let ProjectorCore.V(kind_gadt, model, _) = p.model;
-  let methods = ProjectorCore.to_module(editor_module, kind_gadt);
-  let local = a => inject(ProjectorCore.Update.A(kind_gadt, a));
-  let view =
-    methods
-    |> (
-      (
-        type p_m,
-        type p_a,
-        type p_f,
-        module Methods:
-          ProjectorInterface.PROJECTOR with
-            type model' = p_m and
-            type action' = p_a and
-            type focus' = p_f and
-            type editor_model = ed_m,
-      ) => {
-        Methods.view;
-      }
-    );
-  view(
-    ~common,
-    ~inject=local,
-    ~escape=parent,
-    ~take_focus=f => focus(F(kind_gadt, f)),
-    ~focus=
-      switch (focussed) {
-      | Some(F(k, f)) when ProjectorCore.Kind.gadt_eq(k, kind_gadt) =>
-        Some(Obj.magic(f)) // Note(Matt): Using Obj.magic here because we know the types are the same if gadt_eq(k, kind_gadt) is true
-      | _ => None
-      },
-    ~id,
-    model,
-  );
-};
-
 /* Extract and collate different layers of the resulting view
  * in order to stratify z-levels across all projectors */
 let split_views =
     (
-      type ed_m,
-      type ed_a,
-      type ed_f,
-      ~editor_module,
+      type p_m,
+      type p_a,
+      type p_f,
+      ~view_projector,
       ~common: Common.t,
-      ~parent: external_action => Ui_effect.t(unit),
-      ~inject: ProjectorCore.Update.t(ed_m, ed_a, ed_f) => Ui_effect.t(unit),
-      ~focus: ProjectorCore.Focus.t(ed_m, ed_a, ed_f) => Ui_effect.t(unit),
-      ~focussed: option(ProjectorCore.Focus.t(ed_m, ed_a, ed_f)),
+      ~inject: p_a => Ui_effect.t(unit),
+      ~escape: external_action => Ui_effect.t(unit),
+      ~take_focus: p_f => Ui_effect.t(unit),
+      ~focus: option(p_f),
       ~handoff_map:
          Hashtbl.t(Id.t, (Ui_effect.t(unit), Ui_effect.t(unit))),
       {p, offside_base, measurement, status, _} as projector_data:
-        Model.projector_data(ProjectorCore.model(ed_m, ed_a, ed_f)),
+        Model.projector_data(p_m),
     )
     : (Node.t, option(Node.t)) => {
   let wrapper =
     view_wrapper(~font_metrics=common.font_metrics, ~measurement, ~status);
-  let views =
-    mk_view(
-      ~editor_module,
+  let views: ProjectorInterface.View.t =
+    view_projector(
       ~common,
-      ~parent,
       ~inject,
+      ~escape,
+      ~take_focus,
       ~focus,
-      ~focussed,
-      projector_data,
+      ~id=projector_data.id,
+      projector_data.p.model,
     );
   let line_view = {
     let offside_view =
@@ -287,12 +233,12 @@ let split_views =
   let enter_left =
     switch (views.enter_left) {
     | Some(v) => v
-    | None => parent(Escape(Right))
+    | None => escape(Escape(Right))
     };
   let enter_right =
     switch (views.enter_right) {
     | Some(v) => v
-    | None => parent(Escape(Left))
+    | None => escape(Escape(Left))
     };
   Hashtbl.add(handoff_map, projector_data.id, (enter_left, enter_right));
   let overlay_view = Option.map(v => wrapper([v]), views.overlay);
@@ -315,18 +261,8 @@ let by_measurement =
 let all =
     (
       type p,
-      ~split_views:
-         (
-           ~sort: Sort.t,
-           ~parent: external_action => Ui_effect.t(unit),
-           ~inject: 'p_a => Ui_effect.t(unit),
-           ~focus: 'p_f => Ui_effect.t(unit),
-           ~focussed: option('p_f),
-           ~handoff_map:
-             Hashtbl.t(Id.t, (Ui_effect.t(unit), Ui_effect.t(unit))),
-           Model.projector_data(p)
-         ) =>
-         (Node.t, option(Node.t)),
+      ~common,
+      ~view_projector,
       ~inject: Action.t('p_k, p, 'p_a) => Ui_effect.t(unit),
       ~make_active: (Id.t, 'p_f) => Ui_effect.t(unit),
       ~focus,
@@ -346,18 +282,19 @@ let all =
     |> List.sort(by_measurement)
     |> List.map((data: Model.projector_data(p)) =>
          split_views(
-           ~handoff_map,
-           ~sort=data.status.sort,
-           ~parent=
+           ~view_projector,
+           ~common,
+           ~inject=a => inject(Project(Perform(data.id, a))),
+           ~escape=
              a =>
                handle(data.id, a, ~focus, ~inject=a => inject(Project(a))),
-           ~inject=a => inject(Project(Perform(data.id, a))),
-           ~focus=f => Ui_effect.Many([make_active(data.id, f)]),
-           ~focussed=
+           ~take_focus=f => make_active(data.id, f),
+           ~focus=
              switch (focussed) {
              | Some((id2, f)) when id2 == data.id => Some(f)
              | _ => None
              },
+           ~handoff_map,
            data,
          )
        )

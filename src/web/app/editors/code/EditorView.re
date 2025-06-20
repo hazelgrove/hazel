@@ -125,19 +125,18 @@ module Focus = {
            Cursor.t,
         ~common: Common.t,
         ~inject:
-           Editor.Update.t(ProjectorCore.Kind.t, p_m, 'p_a) =>
-           Ui_effect.t(unit),
+           Editor.Update.t(ProjectorKind.t, p_m, 'p_a) => Ui_effect.t(unit),
         ~read_only: bool,
         ~mk_projector:
            (
-             ProjectorCore.Kind.t,
+             ProjectorKind.t,
              Language.Any.t,
              unit => option(Editor.Model.t(_, _, _))
            ) =>
            option(p_m),
         ~make_term_prj,
         ~get_kind,
-        m: Editor.Model.t(ProjectorCore.Kind.t, p_m, 'p_a),
+        m: Editor.Model.t(ProjectorKind.t, p_m, 'p_a),
         focus: t('p_f),
       ) => {
     let sys = Os.is_mac^ ? Key.Mac : Key.PC;
@@ -236,7 +235,7 @@ module Focus = {
         contextual_actions: projector_actions @ read_only_actions,
         current_projector:
           Option.map(
-            ProjectorCore.Kind.name,
+            ProjectorKind.name,
             ProjectorCursor.indicated_kind(indicated_piece, get_kind),
           ),
       }
@@ -273,7 +272,7 @@ module Focus = {
   let enter =
       (
         ~inject:
-           Editor.Update.t(ProjectorCore.Kind.t, 'd, 'e) => Ui_effect.t(unit),
+           Editor.Update.t(ProjectorKind.t, 'd, 'e) => Ui_effect.t(unit),
         ~focus: t('f) => Ui_effect.t(unit),
         dir: Direction.t,
         m: Editor.Model.t('a, 'b, 'c),
@@ -351,7 +350,7 @@ let view_code_statics =
   let statics_decos = {
     module Deco =
       Deco.Deco({
-        type projector_kind = ProjectorCore.Kind.t;
+        type projector_kind = ProjectorKind.t;
         type projector = p_m;
         type projector_action = p_a;
         let globals = common;
@@ -371,23 +370,23 @@ let view_code_editable =
       type p_a,
       type p_f,
       ~common: Common.t,
-      ~split_views,
+      ~view_projector,
       ~mk_status,
       // ~put_clipboard_cache: (string, Segment.t(p_m)) => unit,
       // ~get_clipboard_cache: string => option(Segment.t(p_m)),
-      ~inject: Action.t(ProjectorCore.Kind.t, p_m, p_a) => Ui_effect.t(unit),
+      ~inject: Action.t(ProjectorKind.t, p_m, p_a) => Ui_effect.t(unit),
       ~focus: Focus.t(p_f) => Ui_effect.t(unit),
       ~focussed: option(Focus.t(p_f)),
       ~escape: Direction.t => Ui_effect.t(unit),
       ~overlays: list(Node.t)=[],
       ~sort,
-      model: Editor.Model.t(ProjectorCore.Kind.t, p_m, p_a),
+      model: Editor.Model.t(ProjectorKind.t, p_m, p_a),
     ) => {
   let edit_decos = {
     module Deco =
       Deco.Deco({
         type projector = p_m;
-        type projector_kind = ProjectorCore.Kind.t;
+        type projector_kind = ProjectorKind.t;
         type projector_action = p_a;
         let editor = model;
         let globals = common;
@@ -400,7 +399,8 @@ let view_code_editable =
 
   let projectors =
     ProjectorView.all(
-      ~split_views,
+      ~common,
+      ~view_projector,
       ~inject,
       ~make_active=(id, f) => focus(Projector(id, f)),
       ~focus=Focus.focus_here(~focus_parent=focus, model),
