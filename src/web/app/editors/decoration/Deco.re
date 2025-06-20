@@ -367,10 +367,22 @@ module Deco =
       let segment = tiles |> List.concat_map(Tile.disassemble);
       // Deduplicate pieces by ID to avoid duplicates from Tile.disassemble
       let unique_segment =
-        ListUtil.dedup_f(
-          (p1, p2) => Piece.id(p1) == Piece.id(p2),
+        List.fold_left(
+          (acc, piece) => {
+            let piece_id = Piece.id(piece);
+            if (List.exists(p => Piece.id(p) == piece_id, acc)) {
+              acc; // Skip if we've already seen this ID
+            } else {
+              [
+                piece,
+                ...acc // Add to accumulator
+              ];
+            };
+          },
+          [],
           segment,
-        );
+        )
+        |> List.rev; // Reverse to maintain original order
       let segment_ids =
         unique_segment |> List.map(piece => Zipper.short_id(Piece.id(piece)));
       print_endline(
