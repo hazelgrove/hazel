@@ -285,22 +285,22 @@ module Deco =
     // upon finding that we were looking at a +.
     // If, however, we had (1 * 2) + 3, we step left once, find *, and
     // return the ID of that subterm (1 * 2).
-    let statics_opt = Statics.Map.lookup(id, M.statics.info_map);
+    let statics_opt = Language.Statics.Map.lookup(id, M.statics.info_map);
     switch (statics_opt) {
     | Some(InfoExp(exp)) =>
       switch (exp.term.term) {
-      | BinOp(op, left, right) when Operators.is_associative_op(op) =>
-        let left_id = left |> Exp.rep_id;
-        let right_id = right |> Exp.rep_id;
+      | BinOp(op, left, right) when Language.Operators.is_associative_op(op) =>
+        let left_id = left |> Language.Exp.rep_id;
+        let right_id = right |> Language.Exp.rep_id;
         let assoc_ids =
-          switch (Statics.Map.lookup(left_id, M.statics.info_map)) {
+          switch (Language.Statics.Map.lookup(left_id, M.statics.info_map)) {
           | Some(InfoExp(left_contents)) =>
             switch (left_contents.term.term) {
             | BinOp(left_op, _, left_right) when left_op == op =>
-              let left_assoc = left_right |> Exp.rep_id;
+              let left_assoc = left_right |> Language.Exp.rep_id;
               [left_assoc, right_id]; // OLD WAY
             // BELOW THIS NEW WAY
-            // switch (Statics.Map.lookup(left_assoc, M.statics.info_map)) {
+            // switch (Language.Statics.Map.lookup(left_assoc, M.statics.info_map)) {
             // | Some(InfoExp(right_contents)) =>
             //   switch (right_contents.term.term) {
             //   | BinOp(_, _, right_right) =>
