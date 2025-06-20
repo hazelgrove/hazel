@@ -1135,7 +1135,7 @@ and uexp_to_info_map =
       add(~self, ~co_ctx=body.co_ctx, m);
     | Module(entries) =>
       let go_entry =
-          (~ctx, ~co_ctx, entry: TermBase.module_entry_t, m: Map.t)
+          (~ctx, entry: TermBase.module_entry_t, m: Map.t)
           : (Map.t, Ctx.t, TermBase.module_signature_entry_t) => {
         switch (entry.term) {
         | ValBinding(p, e) =>
@@ -1237,10 +1237,10 @@ and uexp_to_info_map =
         };
       };
 
-      let (m, ctx, entries) =
+      let (m, _ctx, entries) =
         List.fold_left(
           ((m, ctx, entries), entry) =>
-            go_entry(~ctx, ~co_ctx=CoCtx.empty, entry, m)
+            go_entry(~ctx, entry, m)
             |> (((m, ctx, entry)) => (m, ctx, entries @ [entry])),
           (m, ctx, []),
           entries,
