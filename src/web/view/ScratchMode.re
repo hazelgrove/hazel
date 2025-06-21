@@ -116,64 +116,6 @@ module Update = {
     JsUtil.QueryParams.set_param("share", StringUtil.compress(c));
   };
 
-  let calculate =
-      (
-        ~settings: Language.CoreSettings.t,
-        ~schedule_action,
-        ~is_edited,
-        model: Model.t,
-      )
-      : Model.t => {
-    let (key, ed) = List.nth(model.scratchpads, model.current);
-    let worker_request = ref([]);
-    let queue_worker =
-      Some(expr => {worker_request := worker_request^ @ [("", expr)]});
-    let new_ed =
-      CellEditor.Update.calculate(
-        ~settings,
-        ~is_edited,
-        ~queue_worker,
-        ~stitch=x => x,
-        ed,
-      );
-    switch (worker_request^) {
-    | [] => ()
-    | _ =>
-      WorkerClient.request(
-        worker_request^,
-        ~handler=
-          r =>
-            schedule_action(
-              CellAction(
-                ResultAction(
-                  UpdateResult(
-                    switch (r |> List.hd |> snd) {
-                    | Ok((r, s)) =>
-                      Language.ProgramResult.ResultOk({
-                        result: r,
-                        state: s,
-                      })
-                    | Error(e) => Language.ProgramResult.ResultFail(e)
-                    },
-                  ),
-                ),
-              ),
-            ),
-        ~timeout=
-          _ =>
-            schedule_action(
-              CellAction(ResultAction(UpdateResult(ResultFail(Timeout)))),
-            ),
-      )
-    };
-    let new_sp =
-      ListUtil.put_nth(model.current, (key, new_ed), model.scratchpads);
-    {
-      ...model,
-      scratchpads: new_sp,
-    };
-  };
-
   let update =
       (
         ~schedule_action,
