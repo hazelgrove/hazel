@@ -438,8 +438,8 @@ module Update = {
     | Globals(action) => Globals.Update.can_undo(action)
     | Editors(action) => Editors.Update.can_undo(action)
     | ExplainThis(action) => ExplainThisUpdate.can_undo(action)
-    | Assistant(_) => false // TODO: ??
-    | MakeActive(_) => false
+    | Assistant(action) => AssistantUpdate.can_undo(action)
+    | MakeActive(_)
     | Benchmark(_) => false
     | Start => false
     | Save => false

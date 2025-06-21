@@ -61,6 +61,17 @@ type t =
   | ChatAction(chat_action)
   | InternalError(string, AssistantSettings.mode, Id.t);
 
+let can_undo = (action: t) => {
+  // TODO: Implement the handling of actions that should be undoable
+  switch (action) {
+  | SendMessage(_) => false
+  | HandleResponse(_) => false
+  | EmployLLMAction(_) => false
+  | ChatAction(_) => false
+  | InternalError(_) => false
+  };
+};
+
 let parse_blocks = (response: string): list(Model.block_kind) => {
   let rec parse_blocks =
           (str: string, acc: list(Model.block_kind)): list(Model.block_kind) => {
