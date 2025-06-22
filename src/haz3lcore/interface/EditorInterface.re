@@ -72,6 +72,7 @@ module type EDITOR = {
       (
         ~common: Common.t,
         ~inject: Update.t => Ui_effect.t(unit),
+        ~take_focus: t => Ui_effect.t(unit),
         ~read_only: bool,
         Model.t,
         t

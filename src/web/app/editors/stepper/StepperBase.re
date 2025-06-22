@@ -1064,23 +1064,48 @@ module Selection = {
   and forall_step =
     | InnerExp(step);
 
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type event_stepper =
+    | MakeActive(stepper)
+    | HideStepper;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type event_step =
+    | MakeActive(step)
+    | HideStepper;
+
   let rec get_cursor_info_stepper =
-          (~globals, ~inject, ~selection: stepper, model: Model.stepper)
+          (
+            ~globals,
+            ~inject,
+            ~signal: event_stepper => Ui_effect.t(unit),
+            ~selection: stepper,
+            model: Model.stepper,
+          )
           : Cursor.t => {
     get_cursor_info_step(
       ~globals,
       ~inject=x => inject(Update.RootAction(x)),
+      ~signal,
       ~selection,
       model.root,
     );
   }
   and get_cursor_info_step =
-      (~globals, ~inject, ~selection: step, model: Model.step): Cursor.t =>
+      (
+        ~globals,
+        ~inject,
+        ~signal: event_stepper => Ui_effect.t(unit),
+        ~selection: step,
+        model: Model.step,
+      )
+      : Cursor.t =>
     switch (selection, model.step_kind, model.next_step) {
     | (Here(a), _, _) =>
       StepperEditor.Selection.get_cursor_info(
         ~globals,
         ~inject=x => inject(Update.EditorAction(x)),
+        ~take_focus=f => signal(MakeActive(Here(f))),
         model.editor |> Calc.get_saved_exc(~print="Step editor selection"),
         a,
       )
@@ -1088,6 +1113,7 @@ module Selection = {
       get_cursor_info_step(
         ~globals,
         ~inject=x => inject(Update.NextStep(x)),
+        ~signal,
         ~selection=a,
         next_step,
       )
@@ -1107,6 +1133,7 @@ module Selection = {
       MissingStep.Selection.get_cursor_info(
         ~globals,
         ~inject=x => inject(Update.MissingStep(x)),
+        ~signal=x => signal(MakeActive(MissingStep(x))),
         a,
         m,
       )
@@ -1171,16 +1198,6 @@ module Selection = {
 };
 
 module View = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type event_stepper =
-    | MakeActive(Selection.stepper)
-    | HideStepper;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type event_step =
-    | MakeActive(Selection.step)
-    | HideStepper;
-
   let rec view_stepper =
           (
             ~globals: Globals.t,

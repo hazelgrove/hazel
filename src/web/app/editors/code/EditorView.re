@@ -111,6 +111,24 @@ module Focus = {
     };
   };
 
+  let focus_here =
+      (~focus_parent, m: Editor.Model.t('a, 'b, 'c)): Ui_effect.t(unit) => {
+    Ui_effect.Many([
+      Ui_effect.of_sync_fun(
+        () => {
+          Dom_html.document##getElementById(
+            Js.string(Editor.Model.get_web_id(m)),
+          )
+          |> Js.Opt.to_option
+          |> Option.iter(x => x##focus)
+        },
+        (),
+      ),
+      focus_parent(Here),
+      Effect.Stop_propagation,
+    ]);
+  };
+
   let get_cursor_info =
       (
         type p_m,
@@ -118,6 +136,7 @@ module Focus = {
            (
              ~common: Common.t,
              ~inject: 'p_a => Ui_effect.t(unit),
+             ~take_focus: 'p_f => Ui_effect.t(unit),
              ~read_only: bool,
              p_m,
              'p_f
@@ -136,6 +155,7 @@ module Focus = {
            option(p_m),
         ~make_term_prj,
         ~get_kind,
+        ~take_focus: t('p_f) => Ui_effect.t(unit),
         m: Editor.Model.t(ProjectorKind.t, p_m, 'p_a),
         focus: t('p_f),
       ) => {
@@ -148,6 +168,9 @@ module Focus = {
       |> Option.map(((p, _, _)) => p);
 
     let selection = Some(Editor.Model.get_z(m).selection.content);
+
+    //TODO(andrew): route to projectorcursor;
+    let _ = focus_here(~focus_parent=take_focus, m);
 
     let projector_actions =
       ProjectorCursor.mk(
@@ -244,29 +267,12 @@ module Focus = {
       get_cursor_info_pr(
         ~common,
         ~inject=x => inject(Project(Perform(id, x))),
+        ~take_focus=f => take_focus(Projector(id, f)),
         ~read_only,
         Editor.Model.get_projector_model(id, m),
         f,
       )
     };
-  };
-
-  let focus_here =
-      (~focus_parent, m: Editor.Model.t('a, 'b, 'c)): Ui_effect.t(unit) => {
-    Ui_effect.Many([
-      Ui_effect.of_sync_fun(
-        () => {
-          Dom_html.document##getElementById(
-            Js.string(Editor.Model.get_web_id(m)),
-          )
-          |> Js.Opt.to_option
-          |> Option.iter(x => x##focus)
-        },
-        (),
-      ),
-      focus_parent(Here),
-      Effect.Stop_propagation,
-    ]);
   };
 
   let enter =

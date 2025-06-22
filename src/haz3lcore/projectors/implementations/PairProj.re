@@ -138,6 +138,7 @@ module M =
       (
         ~common,
         ~inject: action' => Ui_effect.t(unit),
+        ~take_focus: focus' => Ui_effect.t(unit),
         ~read_only,
         (ed1, ed2),
         focus,
@@ -147,6 +148,7 @@ module M =
       Editor.Focus.get_cursor_info(
         ~common,
         ~inject=x => inject(Left(x)),
+        ~take_focus=f => take_focus(Left(f)),
         ~read_only,
         ed1,
         ed_f,
@@ -155,6 +157,7 @@ module M =
       Editor.Focus.get_cursor_info(
         ~common,
         ~inject=x => inject(Right(x)),
+        ~take_focus=f => take_focus(Right(f)),
         ~read_only,
         ed2,
         ed_f,

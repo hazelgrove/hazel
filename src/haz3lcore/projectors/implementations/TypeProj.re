@@ -131,7 +131,14 @@ module M =
   };
 
   let get_cursor_info =
-      (~common as _, ~inject as _, ~read_only as _, _model, _focus) => Cursor.empty;
+      (
+        ~common as _,
+        ~inject as _,
+        ~take_focus as _,
+        ~read_only as _,
+        _model,
+        _focus,
+      ) => Cursor.empty;
 
   let view =
       (

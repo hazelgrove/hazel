@@ -69,7 +69,7 @@ module M =
     ed: Editor.Update.calculate(~common, ed),
   };
 
-  let get_cursor_info = ProjectorInterface.Defaults.get_cursor_info;
+  let get_cursor_info = Defaults.get_cursor_info;
 
   let hover_view = (~common, sort, ed: 'ed_m) =>
     div(

@@ -448,6 +448,7 @@ let get_cursor_info =
       ~editor_module,
       ~common: Common.t,
       ~inject: action(ed_m, ed_a, ed_f) => Ui_effect.t(unit),
+      ~take_focus: focus(ed_m, ed_a, ed_f) => Ui_effect.t(unit),
       ~read_only: bool,
       V(gadt1, model, _exp_cache): model(ed_m, ed_a, ed_f),
       F(gadt2, focus): focus(ed_m, ed_a, ed_f),
@@ -474,6 +475,7 @@ let get_cursor_info =
             Methods.get_cursor_info(
               ~common,
               ~inject=a => inject(A(gadt1, Obj.magic(a))),
+              ~take_focus=f => take_focus(F(gadt1, Obj.magic(f))),
               ~read_only,
               model,
               focus,

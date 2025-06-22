@@ -35,6 +35,7 @@ module rec Projector: {
       (
         ~common: Common.t,
         ~inject: Update.t => Ui_effect.t(unit),
+        ~take_focus: t => Ui_effect.t(unit),
         ~read_only: bool,
         Model.t,
         t
@@ -151,7 +152,8 @@ module rec Projector: {
         (
           ~common: Common.t,
           ~inject: Update.t => Ui_effect.t(unit),
-          ~read_only: bool,
+          ~take_focus: t => Ui_effect.t(unit),
+          ~read_only,
           model: Model.t,
           focus: t,
         )
@@ -160,6 +162,7 @@ module rec Projector: {
         ~editor_module=(module Editor),
         ~common,
         ~inject,
+        ~take_focus,
         ~read_only,
         model,
         focus,
@@ -326,6 +329,7 @@ and Editor: {
         (
           ~common: Common.t,
           ~inject: Update.t => Ui_effect.t(unit),
+          ~take_focus: t => Ui_effect.t(unit),
           ~read_only: bool,
           m: Model.t,
           f: t,
@@ -339,6 +343,7 @@ and Editor: {
         ~mk_projector=Projector.Model.mk,
         ~make_term_prj=Projector.Update.make_term,
         ~get_kind=Projector.Model.get_kind,
+        ~take_focus,
         m,
         f,
       );

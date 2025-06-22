@@ -225,12 +225,21 @@ module Selection = {
   type t =
     | RewriteEditor(CodeEditable.Focus.t);
 
-  let get_cursor_info = (~globals, ~inject, focus, model: Model.t): Cursor.t => {
+  type event =
+    | AddInduction(option(Exp.t))
+    | AddForall
+    | HideStepper
+    | AddAxiomStep(Exp.t, Exp.t)
+    | MakeActive(t);
+
+  let get_cursor_info =
+      (~globals, ~inject, ~signal, focus, model: Model.t): Cursor.t => {
     switch (focus, model.open_box) {
     | (RewriteEditor(focus), RewritesOpen({editor, _})) =>
       CodeEditable.Focus.get_cursor_info(
         ~globals,
         ~inject=x => inject(Update.RewriteEditorAction(x)),
+        ~take_focus=f => signal(MakeActive(RewriteEditor(f))),
         ~read_only=false,
         editor,
         focus,
@@ -242,12 +251,8 @@ module Selection = {
 
 module View = {
   open OptUtil.Syntax;
-  type event =
-    | AddInduction(option(Exp.t))
-    | AddForall
-    | HideStepper
-    | AddAxiomStep(Exp.t, Exp.t)
-    | MakeActive(Selection.t);
+
+  type event = Selection.event;
 
   let get_segment_bounds = (~measured: Measured.t, segment: Segment.t) => {
     let* first_piece = ListUtil.hd_opt(segment);
@@ -307,7 +312,12 @@ module View = {
               "axiom-row",
               [
                 Widgets.button(Icons.star, _ =>
-                  signal(AddAxiomStep(Model.get_selected_exp(model), exp))
+                  signal(
+                    Selection.AddAxiomStep(
+                      Model.get_selected_exp(model),
+                      exp,
+                    ),
+                  )
                 ),
                 exp
                 |> Haz3lcore.ExpToSegment.(
@@ -584,7 +594,7 @@ module View = {
       );
     let button_hide_stepper =
       Widgets.toggle(~tooltip="Show Stepper", "s", true, _ =>
-        signal(HideStepper)
+        signal(Selection.HideStepper)
       );
     let toggle_show_history =
       Widgets.toggle(

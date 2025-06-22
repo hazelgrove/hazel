@@ -119,13 +119,24 @@ module Selection = {
     | MainEditor(Editor.Focus.t)
     | Result(EvalResult.Selection.t);
 
+  type event =
+    | MakeActive(t);
+
   let get_cursor_info =
-      (~globals, ~inject, ~selection, model: Model.t): Cursor.t => {
+      (
+        ~globals,
+        ~inject,
+        ~signal: event => Ui_effect.t(unit),
+        ~selection,
+        model: Model.t,
+      )
+      : Cursor.t => {
     switch (selection) {
     | MainEditor(f) =>
       CodeEditable.Focus.get_cursor_info(
         ~globals,
         ~read_only=false,
+        ~take_focus=f => signal(MakeActive(MainEditor(f))),
         ~inject=x => inject(Update.MainEditor(x)),
         model.editor,
         f,
@@ -149,13 +160,10 @@ module Selection = {
 };
 
 module View = {
-  type event =
-    | MakeActive(Selection.t);
-
   let view =
       (
         ~globals: Globals.t,
-        ~signal: event => Ui_effect.t(unit),
+        ~signal: Selection.event => Ui_effect.t(unit),
         ~inject: Update.t => Ui_effect.t(unit),
         ~selected: option(Selection.t),
         ~caption: option(Node.t)=?,
