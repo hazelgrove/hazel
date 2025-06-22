@@ -22,6 +22,7 @@ type nonrec t('p) = t(range('p));
 //
 // tail-recursive in outer recursion
 let rec mk = (seg: Segment.t('p)) => {
+  assert(seg != []);
   let rec go = (skel: Skel.t): (range('p), t('p)) => {
     let root = Skel.root(skel) |> Aba.map_a(List.nth(seg));
     let root_l = Aba.first_a(root);
