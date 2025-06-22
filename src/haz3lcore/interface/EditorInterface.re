@@ -22,6 +22,10 @@ module type EDITOR = {
      * exception if no cached term is available. */
     let get_cached_term: t => Language.Any.t;
 
+    /* Splits an editor into many editors, each rooted at a
+     * at subterm inside the given editor with an id in the list */
+    let split: (t, list(Id.t)) => Id.Map.t(t);
+
     /* Copies an editor but gives it a new id */
     let copy: t => t;
   };

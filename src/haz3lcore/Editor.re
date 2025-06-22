@@ -188,6 +188,14 @@ module Model = {
       col: Measured.height(segment, measured),
     };
   };
+
+  let split =
+      (type p_k, type p, type p_a, ed: t(p_k, p, p_a), ids: list(Id.t))
+      : Id.Map.t(t(p_k, p, p_a)) => {
+    let segment = Zipper.unselect_and_zip(ed |> get_z);
+    let seg_map = TermRanges.split(ids, segment);
+    Id.Map.map(seg => seg |> Zipper.unzip |> mk, seg_map);
+  };
 };
 
 module Update = {

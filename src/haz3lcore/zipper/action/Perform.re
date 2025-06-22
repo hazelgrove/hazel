@@ -150,6 +150,33 @@ let go_z =
   | Move(d) =>
     Move.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_move)
   | Jump(jump_target) =>
+    //TODO(andrew): cleanup debugging code below
+    // let segment =
+    //   Zipper.smart_seg(~dump_backpack=true, ~erase_buffer=true, z);
+    // let id = Indicated.index(z);
+    // print_endline("LOOKING FORID");
+    // switch (id) {
+    // | Some(id) => print_endline(Id.to_string(id))
+    // | None => print_endline("NONE")
+    // };
+    // print_endline("INITIAL SEGMENT:");
+    // Segment.show((_, _) => (), segment) |> print_endline;
+    // switch (id) {
+    // | Some(id) =>
+    //   let segs = TermRanges.split([id], segment);
+    //   let _ =
+    //     switch (Id.Map.find_opt(id, segs)) {
+    //     | Some(seg) =>
+    //       print_endline("FOUND SEGMENT:");
+    //       Segment.show((_, _) => (), seg) |> print_endline;
+    //       ();
+    //     | None =>
+    //       print_endline("NO SEGMENT FOUND");
+    //       ();
+    //     };
+    //   ();
+    // | None => ()
+    // };
     (
       switch (jump_target) {
       | BindingSiteOfIndicatedVar =>

@@ -242,6 +242,8 @@ and Editor: {
       |> Haz3lcorep.Editor.Model.mk;
     };
 
+    let split = Haz3lcorep.Editor.Model.split;
+
     let get_z = (m: t) => m |> Haz3lcorep.Editor.Model.get_z;
 
     let get_cached_term = Haz3lcorep.Editor.Model.get_cached_term;

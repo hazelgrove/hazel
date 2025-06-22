@@ -4,8 +4,6 @@ include Id.Map;
 type range('p) = (Piece.t('p), Piece.t('p));
 type nonrec t('p) = t(range('p));
 
-let union = union((_, range, _) => Some(range), _);
-
 //TODO(andrew): reinstate memo
 
 /* PERF: Up to 50% reduction in some cases by memoizing
@@ -40,28 +38,45 @@ let rec mk = (seg: Segment.t('p)) => {
       | Bin(l, _, r) =>
         let ((l, _), map_l) = go(l);
         let ((_, r), map_r) = go(r);
-        ((l, r), union(map_l, map_r));
+        (
+          (l, r),
+          Id.Map.union((_, range, _) => Some(range), map_l, map_r),
+        );
       };
     let between_child_map =
       Aba.get_bs(root)
       |> List.map(go)
       |> List.map(snd)
-      |> List.fold_left(union, empty);
+      |> List.fold_left(
+           (map1, map2) =>
+             Id.Map.union((_, range, _) => Some(range), map1, map2),
+           empty,
+         );
     let map =
       Aba.get_as(root)
       |> List.map(Piece.id)
       |> List.fold_left(
            (map, id) => Id.Map.add(id, range, map),
-           union(between_child_map, unichild_map),
+           Id.Map.union(
+             (_, range, _) => Some(range),
+             between_child_map,
+             unichild_map,
+           ),
          );
     (range, map);
   };
   Segment.children(seg)
   |> List.fold_left(
-       (map, kid) => union(map, mk(kid)),
-       union(empty, snd(go(Segment.skel(seg)))),
+       (map, kid) =>
+         Id.Map.union((_, range, _) => Some(range), map, mk(kid)),
+       Id.Map.union(
+         (_, range, _) => Some(range),
+         empty,
+         snd(go(Segment.skel(seg))),
+       ),
      );
 };
+
 // and mk = seg =>
 //   try(Hashtbl.find(range_hash, seg)) {
 //   | _ =>
@@ -69,3 +84,54 @@ let rec mk = (seg: Segment.t('p)) => {
 //     Hashtbl.add(range_hash, seg, res);
 //     res;
 //   };
+
+let subseg =
+    (seg: Segment.t('p), (start_idx: int, end_idx: int)): Segment.t('p) =>
+  ListUtil.sublist((start_idx, end_idx + 1), seg);
+
+let rec split =
+        (ids: list(Id.t), seg: Segment.t('p)): Id.Map.t(Segment.t('p)) => {
+  let union = Id.Map.union((_, s, _) => Some(s));
+  let rec go = (skel: Skel.t): ((int, int), Id.Map.t(Segment.t('p))) => {
+    let root = Skel.root(skel);
+    let root_l = Aba.first_a(root);
+    let root_r = Aba.last_a(root); /* always the same as root_l except for bin? */
+    let add_maybe = (range, map) => {
+      /* This is rep_id i think? */
+      let this_id = List.nth(seg, root_l) |> Piece.id;
+      List.mem(this_id, ids)
+        ? Id.Map.add(this_id, subseg(seg, range), map) : map;
+    };
+    let (range, outer_kids_map) =
+      switch (skel) {
+      | Op(_) =>
+        let range = (root_l, root_r);
+        (range, add_maybe(range, empty));
+      | Pre(_, r) =>
+        let ((_, r), map) = go(r);
+        let range = (root_l, r);
+        (range, add_maybe(range, map));
+      | Post(l, _) =>
+        let ((l, _), map) = go(l);
+        let range = (l, root_r);
+        (range, add_maybe(range, map));
+      | Bin(l, _, r) =>
+        let ((l, _), map_l) = go(l);
+        let ((_, r), map_r) = go(r);
+        let range = (l, r);
+        (range, add_maybe(range, union(map_l, map_r)));
+      };
+    let inner_kids_map =
+      Aba.get_bs(root)
+      |> List.map(go)
+      |> List.map(snd)
+      |> List.fold_left(union, empty);
+    (range, union(inner_kids_map, outer_kids_map));
+  };
+  Segment.children(seg)
+  |> List.fold_left(
+       (map: Id.Map.t(Segment.t('p)), kid: Segment.t('p)) =>
+         union(map, split(ids, kid)),
+       snd(go(Segment.skel(seg))),
+     );
+};
