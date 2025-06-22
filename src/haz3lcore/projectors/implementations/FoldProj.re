@@ -71,17 +71,11 @@ module M =
 
   let get_cursor_info = ProjectorInterface.Defaults.get_cursor_info;
 
-  let hover_view = (~font_metrics, ~secondary_icons, sort, ed: 'ed_m) =>
+  let hover_view = (~common, sort, ed: 'ed_m) =>
     div(
       ~attrs=[Attr.class_("hover-view")],
       [
-        Editor.View.view(
-          ~font_metrics,
-          ~secondary_icons,
-          ~sort,
-          ~background=true,
-          ed,
-        ),
+        Editor.View.view(~common, ~mode=ReadOnly, ~sort, ~background=true, ed),
       ],
     );
 
@@ -100,15 +94,7 @@ module M =
       div(
         ~attrs=[Attr.on_double_click(_ => escape(Remove))],
         //TODO(andrew): hardcoded sort below
-        [
-          text(m.text),
-          hover_view(
-            ~font_metrics=common.font_metrics,
-            ~secondary_icons=common.secondary_icons,
-            Sort.Exp,
-            m.ed,
-          ),
-        ],
+        [text(m.text), hover_view(~common, Sort.Exp, m.ed)],
       ),
     );
 };

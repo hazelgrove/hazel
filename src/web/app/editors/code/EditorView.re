@@ -338,12 +338,14 @@ let view_code_statics =
       ~common: Common.t,
       ~overlays: list(Node.t)=[],
       ~sort=Sort.root,
+      ~background: option(bool)=?,
       editor,
     ) => {
   let code_text_view =
     CodeViewable.view_editor(
       ~secondary_icons=common.secondary_icons,
       ~font_metrics=common.font_metrics,
+      ~background?,
       ~sort,
       editor,
     );
@@ -380,6 +382,7 @@ let view_code_editable =
       ~escape: Direction.t => Ui_effect.t(unit),
       ~overlays: list(Node.t)=[],
       ~sort,
+      ~background=?,
       model: Editor.Model.t(ProjectorKind.t, p_m, p_a),
     ) => {
   let edit_decos = {
@@ -428,7 +431,8 @@ let view_code_editable =
     [Node.div(~attrs=[Attr.classes(["code-deco"])], edit_decos)]
     @ [Node.div(~attrs=[Attr.classes(["overlays"])], overlays)]
     @ projectors;
-  let code_view = view_code_statics(~common, ~overlays, ~sort, model);
+  let code_view =
+    view_code_statics(~common, ~overlays, ~sort, ~background?, model);
 
   let loc = (e: Pointer.Event.t) =>
     FontMetrics.get_goal(
@@ -562,6 +566,36 @@ let view_code_editable =
     [code_view],
   );
 } /*   */;
+
+let view =
+    (
+      ~view_projector,
+      ~mk_status,
+      ~common: Common.t,
+      ~mode: EditorInterface.edit_mode('ed_a, 'ed_f),
+      ~overlays: option(list(Node.t))=?,
+      ~background: option(bool)=?,
+      ~sort,
+      model,
+    ) =>
+  switch (mode) {
+  | ReadOnly =>
+    view_code_statics(~common, ~overlays?, ~background?, ~sort, model)
+  | Editable({inject, escape, take_focus, focus}) =>
+    view_code_editable(
+      ~common,
+      ~view_projector,
+      ~mk_status,
+      ~inject,
+      ~focus=take_focus,
+      ~focussed=focus,
+      ~escape,
+      ~overlays?,
+      ~background?,
+      ~sort,
+      model,
+    )
+  };
 
 // TODO: Add projectors to read-only view.
 

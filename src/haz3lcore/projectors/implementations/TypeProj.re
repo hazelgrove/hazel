@@ -156,11 +156,7 @@ module M =
                      dynamics: Dynamics.Map.empty,
                    }: Common.t,
          )
-      |> Editor.View.view(
-           ~font_metrics=common.font_metrics,
-           ~secondary_icons=common.secondary_icons,
-           ~sort=Any.sort(x),
-         );
+      |> Editor.View.view(~common, ~mode=ReadOnly, ~sort=Any.sort(x));
 
     View.{
       inline:

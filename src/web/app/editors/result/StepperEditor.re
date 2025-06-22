@@ -99,8 +99,8 @@ module View = {
       @ Deco.next_steps(model.next_steps, ~inject=x => signal(TakeStep(x)));
     };
     CodeSelectable.View.view(
-      ~focus=f => signal(MakeActive(f)),
-      ~focussed=selected,
+      ~take_focus=f => signal(MakeActive(f)),
+      ~focus=selected,
       ~common={
         settings: globals.settings.core,
         font_metrics: globals.font_metrics,

@@ -1475,7 +1475,7 @@ module View = {
         model: Model.induction_step,
       ) => {
     let scrut_editor =
-      Editor.View.view_editable(
+      Editor.View.view(
         ~common=
           Common.{
             settings: globals.settings.core,
@@ -1486,16 +1486,18 @@ module View = {
             statics: CachedStatics.empty,
             dynamics: Dynamics.Map.empty,
           },
-        ~inject=
-          x =>
-            inject(Update.InductionStep(Update.ScrutUpdate(Perform(x)))),
-        ~focus=f => signal(MakeActive(InductionStep(Scrut(f)))),
-        ~focussed=
-          switch (selected) {
-          | Some(Scrut(f)) => Some(f)
-          | _ => None
-          },
-        ~escape=_ => Ui_effect.Ignore,
+        ~mode=
+          Editable({
+            inject: x =>
+              inject(Update.InductionStep(Update.ScrutUpdate(Perform(x)))),
+            escape: _ => Ui_effect.Ignore,
+            take_focus: f => signal(MakeActive(InductionStep(Scrut(f)))),
+            focus:
+              switch (selected) {
+              | Some(Scrut(f)) => Some(f)
+              | _ => None
+              },
+          }),
         ~sort=Exp,
         model.scrut.editor,
       );
@@ -1520,7 +1522,7 @@ module View = {
               ~clss=["subtle-button"],
             );
           let pattern_editor =
-            Editor.View.view_editable(
+            Editor.View.view(
               ~common=
                 Common.{
                   settings: globals.settings.core,
@@ -1531,17 +1533,23 @@ module View = {
                   statics: CachedStatics.empty,
                   dynamics: Dynamics.Map.empty,
                 },
-              ~inject=
-                x =>
-                  inject(InductionStep(CasePatternUpdate(i, Perform(x)))),
-              ~focus=
-                f => signal(MakeActive(InductionStep(CasePattern(i, f)))),
-              ~focussed=
-                switch (selected) {
-                | Some(CasePattern(j, f)) when i == j => Some(f)
-                | _ => None
-                },
-              ~escape=_ => Ui_effect.Ignore,
+              ~mode=
+                Editable({
+                  inject: x =>
+                    inject(
+                      InductionStep(
+                        Update.CasePatternUpdate(i, Perform(x)),
+                      ),
+                    ),
+                  escape: _ => Ui_effect.Ignore,
+                  take_focus: f =>
+                    signal(MakeActive(InductionStep(CasePattern(i, f)))),
+                  focus:
+                    switch (selected) {
+                    | Some(CasePattern(j, f)) when i == j => Some(f)
+                    | _ => None
+                    },
+                }),
               ~sort=Exp,
               pattern.editor,
             );

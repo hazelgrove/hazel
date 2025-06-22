@@ -308,6 +308,10 @@ and Editor: {
       | Some(_) => Some(Haz3lcorep.Action.Jump(TileId(tile)))
       | None => None
       };
+
+    let can_undo = Action.is_historic;
+    let is_edit = Action.is_edit;
+    let should_scroll_active = Action.should_scroll_active;
   };
 
   let get_measured = (m: Model.t) => Calc.get_saved_exc(m.syntax).measured;
@@ -353,24 +357,7 @@ and Editor: {
   module View = {
     // TODO[Matt]: This should be the only function in view.
     let view =
-        (
-          ~font_metrics,
-          ~secondary_icons,
-          ~sort,
-          ~background=false,
-          m: Model.t,
-        ) =>
-      CodeViewable.view_editor(
-        ~font_metrics,
-        ~secondary_icons,
-        ~sort,
-        ~background,
-        m,
-      );
-
-    let view_editable = (~common) =>
-      EditorView.view_code_editable(
-        ~common,
+      EditorView.view(
         ~view_projector=Projector.View.view,
         ~mk_status=Projector.View.mk_status,
       );
@@ -398,12 +385,7 @@ and Editor: {
         |> fst
         |> Editor.Update.calculate(~common);
       (
-        Editor.View.view(
-          ~font_metrics=common.font_metrics,
-          ~secondary_icons=common.secondary_icons,
-          ~sort,
-          ed,
-        ),
+        Editor.View.view(~common, ~mode=ReadOnly, ~sort, ed),
         Point.{
           row: ed |> Editor.View.print_string |> String.length,
           col: 1,
@@ -485,3 +467,5 @@ module Indicated = {
   let ci_of:
     (Zipper.t, Language.Statics.Map.t) => option(Language.Statics.Info.t) = Indicated.ci_of;
 };
+
+module EditorManager = EditorManager.M(Editor);

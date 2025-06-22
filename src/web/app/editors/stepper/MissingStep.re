@@ -486,7 +486,7 @@ module View = {
                         div_c(
                           "inline-editor-wrapper",
                           [
-                            Editor.View.view_editable(
+                            Editor.View.view(
                               ~common={
                                 settings: globals.settings.core,
                                 font_metrics: globals.font_metrics,
@@ -498,17 +498,19 @@ module View = {
                                 statics: CachedStatics.empty,
                                 dynamics: Id.Map.empty,
                               },
-                              ~focus=
-                                f => signal(MakeActive(RewriteEditor(f))),
-                              ~inject=
-                                x =>
-                                  inject(RewriteEditorAction(Perform(x))),
-                              ~focussed=
-                                switch (selected) {
-                                | Some(RewriteEditor(f)) => Some(f)
-                                | _ => None
-                                },
-                              ~escape=_ => Ui_effect.Ignore,
+                              ~mode=
+                                Editable({
+                                  inject: x =>
+                                    inject(RewriteEditorAction(Perform(x))),
+                                  take_focus: f =>
+                                    signal(MakeActive(RewriteEditor(f))),
+                                  escape: _ => Ui_effect.Ignore,
+                                  focus:
+                                    switch (selected) {
+                                    | Some(RewriteEditor(f)) => Some(f)
+                                    | _ => None
+                                    },
+                                }),
                               ~sort=Exp,
                               editor.editor,
                             ),

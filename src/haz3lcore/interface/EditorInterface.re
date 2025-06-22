@@ -1,5 +1,14 @@
 open Util;
 
+type edit_mode('ed_a, 'ed_f) =
+  | ReadOnly
+  | Editable({
+      inject: 'ed_a => Ui_effect.t(unit),
+      escape: Util.Direction.t => Ui_effect.t(unit),
+      take_focus: 'ed_f => Ui_effect.t(unit),
+      focus: option('ed_f),
+    });
+
 module type EDITOR = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model;
@@ -45,6 +54,10 @@ module type EDITOR = {
     let calculate: (~common: Common.t, Model.t) => Model.t;
 
     let jump_to_tile_action: (Id.t, Model.t) => option(action);
+
+    let can_undo: t => bool;
+    let is_edit: t => bool;
+    let should_scroll_active: t => bool;
   };
 
   module Focus: {
@@ -90,23 +103,10 @@ module type EDITOR = {
     /* Must be called after `make_term` and `calculate`.*/
     let view:
       (
-        ~font_metrics: FontMetrics.t,
-        ~secondary_icons: bool,
-        ~sort: Sort.t,
-        ~background: bool=?,
-        Model.t
-      ) =>
-      WebUtil.Node.t;
-
-    /* Must be called after `make_term` and `calculate`.*/
-    let view_editable:
-      (
         ~common: Common.t,
-        ~inject: action => Ui_effect.t(unit),
-        ~focus: Focus.t => Ui_effect.t(unit),
-        ~focussed: option(Focus.t),
-        ~escape: Direction.t => Ui_effect.t(unit),
+        ~mode: edit_mode(Update.t, Focus.t),
         ~overlays: list(WebUtil.Node.t)=?,
+        ~background: bool=?,
         ~sort: Sort.t,
         Model.t
       ) =>

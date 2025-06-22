@@ -83,11 +83,18 @@ module View = {
   type event =
     | MakeActive(Editor.Focus.t);
 
-  let view = (~inject: Update.t => 'a) =>
-    Editor.View.view_editable(~inject=a =>
-      switch (Update.convert_action(Perform(a))) {
-      | Some(action) => inject(action)
-      | None => Ui_effect.Ignore
-      }
+  let view = (~inject: Update.t => 'a, ~escape, ~take_focus, ~focus) =>
+    Editor.View.view(
+      ~mode=
+        Editable({
+          inject: a =>
+            switch (Update.convert_action(Perform(a))) {
+            | Some(action) => inject(action)
+            | None => Ui_effect.Ignore
+            },
+          escape,
+          take_focus,
+          focus,
+        }),
     );
 };
