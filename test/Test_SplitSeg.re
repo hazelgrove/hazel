@@ -4,7 +4,6 @@ open Language;
 open Web;
 open Example;
 
-// Create simple testable types
 let segment_typ =
   testable(
     Fmt.using(Segment.show, Fmt.string),
@@ -131,6 +130,34 @@ let tests = (
           |> Id.Map.add(id2_times_3, [p2, times, p3]);
 
         check(id_map_segment_typ, "expression 1 + 2*3", expected, result);
+      },
+    ),
+    test_case(
+      "split tuple expression 1,2,3 by first comma (representing whole tuple) and 2",
+      `Quick,
+      () => {
+        let p1 = int("1");
+        let p2 = int("2");
+        let p3 = int("3");
+        let comma1 = comma_exp();
+        let comma2 = comma_exp();
+
+        // Create the tuple expression: 1,2,3
+        let seg = [p1, comma1, p2, comma2, p3];
+
+        // Get IDs for the terms we want to split by
+        let first_comma_id = Piece.id(comma1);
+        let id2 = Piece.id(p2);
+
+        let result = TermRanges.split([first_comma_id, id2], seg);
+
+        // Expected: first_comma_id -> [1, ,, 2, ,, 3] (whole tuple), id2 -> [2]
+        let expected =
+          Id.Map.empty
+          |> Id.Map.add(first_comma_id, seg)
+          |> Id.Map.add(id2, [p2]);
+
+        check(id_map_segment_typ, "tuple expression 1,2,3", expected, result);
       },
     ),
   ],
