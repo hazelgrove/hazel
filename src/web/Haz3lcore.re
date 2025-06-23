@@ -64,7 +64,7 @@ module rec Projector: {
         ~escape: ProjectorInterface.external_action => Ui_effect.t(unit),
         ~take_focus: Focus.t => Ui_effect.t(unit),
         ~focus: option(Focus.t),
-        ~id: Id.t,
+        ~info: ProjectorInterface.info,
         Model.t
       ) =>
       ProjectorInterface.View.t;
@@ -180,7 +180,7 @@ module rec Projector: {
           ~escape: ProjectorInterface.external_action => Ui_effect.t(unit),
           ~take_focus: Focus.t => Ui_effect.t(unit),
           ~focus: option(Focus.t),
-          ~id: Id.t,
+          ~info: ProjectorInterface.info,
           m: Model.t,
         ) =>
       Haz3lcorep.Projector.view(
@@ -190,7 +190,7 @@ module rec Projector: {
         ~escape,
         ~take_focus,
         ~focus,
-        ~id,
+        ~info,
         m,
       );
   };

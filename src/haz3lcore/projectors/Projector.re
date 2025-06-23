@@ -533,7 +533,7 @@ let view =
       ~escape: ProjectorInterface.external_action => Ui_effect.t(unit),
       ~take_focus: focus(ed_m, ed_a, ed_f) => Ui_effect.t(unit),
       ~focus: option(focus(ed_m, ed_a, ed_f)),
-      ~id: Id.t,
+      ~info: ProjectorInterface.info,
       model,
     )
     : ProjectorInterface.View.t => {
@@ -566,7 +566,7 @@ let view =
       | Some(F(k, f)) when gadt_eq(k, kind_gadt) => Some(Obj.magic(f)) // Note(Matt): Using Obj.magic here because we know the types are the same if gadt_eq(k, kind_gadt) is true
       | _ => None
       },
-    ~id,
+    ~info,
     model,
   );
 };

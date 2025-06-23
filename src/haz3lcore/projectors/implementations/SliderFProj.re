@@ -99,7 +99,7 @@ module M =
         ~escape as _,
         ~take_focus as _,
         ~focus as _,
-        ~id as _,
+        ~info as _,
         model,
       ) =>
     ProjectorInterface.View.{

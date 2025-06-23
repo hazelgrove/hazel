@@ -943,16 +943,17 @@ module M =
         ~escape,
         ~take_focus as _,
         ~focus as _,
-        ~id,
+        ~info,
         model,
       ) => {
-    let statics = Statics.Map.lookup(id, common.statics.info_map);
-    let dynamics = Dynamics.Map.lookup(id, common.dynamics);
-
+    let statics = Statics.Map.lookup(info.id, common.statics.info_map);
+    let dynamics = Dynamics.Map.lookup(info.id, common.dynamics);
     View.{
-      inline: view(~common, inject, escape, id, statics, dynamics, model),
+      inline:
+        view(~common, inject, escape, info.id, statics, dynamics, model),
       overlay: Some(overlay_view(statics, dynamics)),
-      offside: Some(offside_view(~common, id, statics, dynamics, inject)),
+      offside:
+        Some(offside_view(~common, info.id, statics, dynamics, inject)),
       enter_left: None,
       enter_right: None,
     };

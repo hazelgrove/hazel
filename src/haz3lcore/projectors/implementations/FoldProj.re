@@ -86,15 +86,14 @@ module M =
         ~escape,
         ~take_focus as _,
         ~focus as _,
-        ~id as _,
+        ~info,
         m,
       )
       : View.t =>
     View.mk(
       div(
         ~attrs=[Attr.on_double_click(_ => escape(Remove))],
-        //TODO(andrew): hardcoded sort below
-        [text(m.text), hover_view(~common, Sort.Exp, m.ed)],
+        [text(m.text), hover_view(~common, info.sort, m.ed)],
       ),
     );
 };

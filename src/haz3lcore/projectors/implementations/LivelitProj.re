@@ -111,11 +111,11 @@ module M =
         ~escape as _,
         ~take_focus as _,
         ~focus as _,
-        ~id,
+        ~info,
         model,
       ) => {
     let ctx =
-      switch (Statics.Map.lookup(id, common.statics.info_map)) {
+      switch (Statics.Map.lookup(info.id, common.statics.info_map)) {
       | Some(InfoExp(exp)) => exp.ctx
       | _ => Ctx.empty
       };
@@ -127,7 +127,10 @@ module M =
         let action_callback = action => inject(action);
         let list_contents = ll.view(model.model, action_callback);
         Node.div(
-          ~attrs=[Attr.class_(model.livelit_name), Attr.id(Id.cls(id))],
+          ~attrs=[
+            Attr.class_(model.livelit_name),
+            Attr.id(Id.cls(info.id)),
+          ],
           [list_contents],
         );
       | None =>

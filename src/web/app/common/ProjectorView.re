@@ -52,6 +52,10 @@ module Model = {
         ~selection_ids: list(Id.t),
         ~id: Id.t,
       ) => {
+    /* If statics is not available, use the sort that's on the mold,
+     * which should be accurate as of projector intialization time,
+     * but may not have been updated if the grammatical context of
+     * the projector has changed due to remolding or being copied */
     sort:
       Option.map(
         Language.Info.sort_of,
@@ -216,7 +220,8 @@ let split_views =
       ~escape,
       ~take_focus,
       ~focus,
-      ~id=projector_data.id,
+      ~info=
+        ProjectorInterface.mk_info(~id=projector_data.id, ~sort=status.sort),
       projector_data.p.model,
     );
   let line_view = {

@@ -179,7 +179,7 @@ module M =
         ~escape,
         ~take_focus: focus' => Ui_effect.t(unit),
         ~focus,
-        ~id as _,
+        ~info as _,
         (ed1, ed2),
       ) =>
     View.{

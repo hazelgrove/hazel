@@ -140,10 +140,10 @@ module M =
         ~escape as _,
         ~take_focus as _,
         ~focus as _,
-        ~id,
+        ~info,
         model,
       ) => {
-    let statics = Statics.Map.lookup(id, common.statics.info_map);
+    let statics = Statics.Map.lookup(info.id, common.statics.info_map);
     let view_any = x =>
       x
       |> Editor.Model.mk

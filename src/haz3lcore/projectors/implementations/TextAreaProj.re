@@ -117,7 +117,7 @@ module M =
         ~escape,
         ~take_focus,
         ~focus as _,
-        ~id,
+        ~info,
         model: model',
       ) => {
     View.mk(
@@ -127,7 +127,7 @@ module M =
           Node.div(
             ~attrs=[Attr.classes(["cols", "code"])],
             [Node.text("·")]
-            @ [textarea(id, ~inject, ~parent=escape, model)],
+            @ [textarea(info.id, ~inject, ~parent=escape, model)],
           ),
         ],
       ),
@@ -137,7 +137,7 @@ module M =
           Ui_effect.of_sync_fun(
             () =>
               WebUtil.TextArea.set_caret_to_start(
-                WebUtil.TextArea.get(Id.cls(id)),
+                WebUtil.TextArea.get(Id.cls(info.id)),
               ),
             (),
           ),
@@ -149,7 +149,7 @@ module M =
           Ui_effect.of_sync_fun(
             () =>
               WebUtil.TextArea.set_caret_to_end(
-                WebUtil.TextArea.get(Id.cls(id)),
+                WebUtil.TextArea.get(Id.cls(info.id)),
               ),
             (),
           ),

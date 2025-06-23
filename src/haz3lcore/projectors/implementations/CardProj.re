@@ -696,7 +696,7 @@ module M =
         ~escape as _,
         ~take_focus as _,
         ~focus as _,
-        ~id,
+        ~info as {id, _},
         model: model',
       ) => {
     View.{

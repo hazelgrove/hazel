@@ -100,7 +100,7 @@ module type PROJECTOR = {
       ~escape: external_action => Ui_effect.t(unit),
       ~take_focus: focus' => Ui_effect.t(unit),
       ~focus: option(focus'),
-      ~id: Id.t,
+      ~info: info,
       model'
     ) =>
     View.t;
