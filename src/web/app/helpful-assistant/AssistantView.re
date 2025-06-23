@@ -1083,9 +1083,7 @@ let history_menu =
                   [
                     div(
                       ~attrs=[clss(["history-menu-item-time"])],
-                      [
-                        text(AssistantUtil.format_time_diff(chat.timestamp)),
-                      ],
+                      [text(TimeUtil.format_time_diff(chat.timestamp))],
                     ),
                     div(
                       ~attrs=[
