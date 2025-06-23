@@ -4,7 +4,7 @@
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =
   | Fold
-  | Info
+  | Type
   | Probe
   | Pair
   | Checkbox
@@ -25,7 +25,7 @@ let livelit_projectors: list(t) = [
 ];
 
 let projectors: list(t) =
-  livelit_projectors @ [Fold, Info, Livelit, Probe, Pair];
+  livelit_projectors @ [Fold, Type, Livelit, Probe, Pair];
 
 /* A friendly name for each projector. This is used
  * both for identifying a projector in the CSS and for
@@ -41,7 +41,7 @@ let of_name = (p: string): t => p |> Sexplib.Sexp.of_string |> t_of_sexp;
 let shortcut_of = (kind: t): option(string) =>
   switch (kind) {
   | Fold => Some("Option-f")
-  | Info => Some("Option-t")
+  | Type => Some("Option-t")
   | Probe => Some("Option-v")
   | Checkbox
   | Slider

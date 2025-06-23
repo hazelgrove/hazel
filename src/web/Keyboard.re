@@ -107,10 +107,10 @@ let handle_key_event = (k: Key.t): option(Action.t('p_k, 'p, 'p_a)) => {
     /* √ is what holding option turns f into on Mac */
     Some(Project(SetIndicated(Specific(Probe))))
   | {key: D("t"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
-    Some(Project(SetIndicated(Specific(Info))))
+    Some(Project(SetIndicated(Specific(Type))))
   | {key: D("†"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     /* † is what holding option turns t into on Mac */
-    Some(Project(SetIndicated(Specific(Info))))
+    Some(Project(SetIndicated(Specific(Type))))
   | {key: D("l"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     Some(Project(SetIndicated(ChooseLivelit)))
   | {key: D("¬"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>

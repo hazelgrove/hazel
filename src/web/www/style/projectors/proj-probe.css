@@ -34,11 +34,9 @@
 
 .projector.probe.Exp > svg {
   fill: var(--exp-base);
-  filter: drop-shadow(0.7px 0.7px 0px var(--exp-shadow));
 }
 .projector.probe.Pat > svg {
   fill: var(--pat-base);
-  filter: drop-shadow(0.7px 0.7px 0px var(--pat-shadow));
 }
 
 .projector.probe.selected > svg {
@@ -46,9 +44,11 @@
 }
 .projector.probe.indicated.Exp > svg {
   fill: var(--exp-indicated);
+  filter: drop-shadow(0.7px 0.7px 0px var(--exp-shadow));
 }
 .projector.probe.indicated.Pat > svg {
   fill: var(--pat-indicated);
+  filter: drop-shadow(0.7px 0.7px 0px var(--pat-shadow));
 }
 .projector.probe:has(.ap.pinned) > svg {
   /* fill: var(--exp-ap-indicated); */
@@ -67,8 +67,12 @@
   justify-content: space-evenly;
   width: 100%;
 }
-.projector.probe.indicated:not(.selected):not(.error) .main,
-.cell-item:not(.selected):not(.error) .projector.probe.indicated .main {
+.projector.probe.indicated:not(.selected):not(.error) .main .code .token,
+.cell-item:not(.selected):not(.error)
+  .projector.probe.indicated
+  .main
+  .code
+  .token {
   color: white;
 }
 .projector.probe .main:focus {

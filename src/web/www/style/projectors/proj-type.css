@@ -10,7 +10,7 @@
 /* BACKING */
 
 .projector.type > svg {
-  filter: drop-shadow(0.7px 0.7px 0px var(--BR3));
+  fill: var(--main-base);
 }
 
 .projector.type.indicated > svg {
@@ -38,7 +38,7 @@
   gap: 0.4em;
 }
 
-.projector.type.indicated:not(.selected):not(.error) .main {
+.projector.type.indicated:not(.selected):not(.error) .main .code .token {
   color: white;
 }
 
@@ -47,7 +47,7 @@
   height: 16px;
   background-image: url(../../img/noun-microscope-7023456.svg);
   background-size: cover;
-  filter: invert(1) brightness(0.4) sepia(1) saturate(1.8) hue-rotate(245deg);
+  filter: invert(1) brightness(0.4) sepia(1) saturate(3) hue-rotate(225deg);
 }
 .projector.type.indicated:not(.selected):not(.error) .main .icon {
   filter: invert(1);

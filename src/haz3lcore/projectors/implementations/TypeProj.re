@@ -10,7 +10,10 @@ type mode =
   | Self;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type model('ed) = (mode, 'ed);
+type model('ed) = {
+  mode,
+  ed: 'ed,
+};
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action('ed_a) =
@@ -73,8 +76,8 @@ module M =
     switch (model) {
     | _ when self_ty(statics) == expected_ty(statics) => "⇔"
     | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn => "⇒"
-    | (Self, _) => "⇒"
-    | (Expected, _) => "⇐"
+    | {mode: Self, _} => "⇒"
+    | {mode: Expected, _} => "⇐"
     };
 
   let mode_view = (model, info) =>
@@ -99,35 +102,60 @@ module M =
     | Exp(_)
     | Pat(_) =>
       let* ed = ed();
-      Some((Expected, ed));
+      Some({
+        mode: Expected,
+        ed,
+      });
     | Any () =>
       let* ed = ed();
-      Some((Expected, ed)); /* Grout don't have sorts rn */
+      Some({
+        mode: Expected,
+        ed,
+      }); /* Grout don't have sorts rn */
     | _ => None
     };
   };
 
   let dynamics = false;
 
-  let placeholder = (~common as _, ~id as _, model) =>
-    Util.ProjectorShape.inline(
-      3 + Editor.View.get_dimensions(snd(model)).row,
-    );
+  let placeholder = (~common as _, ~id as _, model) => {
+    let ed_size = Editor.View.get_dimensions(model.ed);
+    Util.ProjectorShape.{
+      horizontal: ed_size.row + 3,
+      vertical: Util.ProjectorShape.Block(ed_size.col),
+    };
+  };
+  //  Util.ProjectorShape.inline(3 + Editor.View.get_dimensions(model.ed).row);
 
   let update = (~common as _, ~sort as _, ~id as _, model, a) =>
     switch (a, model) {
-    | (ToggleDisplay, (Expected, m)) => (Self, m)
-    | (ToggleDisplay, (Self, m)) => (Expected, m)
+    | (ToggleDisplay, {mode: Expected, ed}) => {
+        mode: Self,
+        ed,
+      }
+    | (ToggleDisplay, {mode: Self, ed}) => {
+        mode: Expected,
+        ed,
+      }
     };
 
-  let mk_term = (~sort, ~prev as _, (mode, ed)) => {
+  let mk_term = (~sort, ~prev as _, {mode, ed}) => {
     let (ed', term) = Editor.Update.make_term(~sort, ed);
-    ((mode, ed'), term);
+    (
+      {
+        mode,
+        ed: ed',
+      },
+      term,
+    );
   };
 
-  let calculate = (~common, (mode, ed)) => {
+  let calculate = (~common, {mode, ed}) => {
     let ed' = Editor.Update.calculate(~common, ed);
-    (mode, ed');
+    {
+      mode,
+      ed: ed',
+    };
   };
 
   let get_cursor_info =
@@ -140,10 +168,10 @@ module M =
         ~escape as _,
         ~take_focus as _,
         ~focus as _,
-        ~info,
+        ~info as {id, sort, _},
         model,
       ) => {
-    let statics = Statics.Map.lookup(info.id, common.statics.info_map);
+    let statics = Statics.Map.lookup(id, common.statics.info_map);
     let view_any = x =>
       x
       |> Editor.Model.mk
@@ -165,7 +193,8 @@ module M =
             Attr.classes(["main"]),
             Attr.on_double_click(_ => inject(ToggleDisplay)),
           ],
-          [model |> snd |> Editor.View.print_string |> text, icon],
+          //TODO(andrew): abbreviate
+          [Editor.View.view(~common, ~mode=ReadOnly, ~sort, model.ed), icon],
         ),
       offside:
         Some(
@@ -173,7 +202,7 @@ module M =
             ~attrs=[Attr.classes(["offside"])],
             [
               mode_view(model, statics),
-              typ_view(fst(model), statics, view_any),
+              typ_view(model.mode, statics, view_any),
             ],
           ),
         ),

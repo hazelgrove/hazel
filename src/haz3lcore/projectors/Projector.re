@@ -43,7 +43,7 @@ module GADTPrivate = {
               'ed_a,
               'ed_f,
             )
-    | Info: gadt(
+    | Type: gadt(
               TypeProj.model('ed),
               TypeProj.action('ed_a),
               TypeProj.focus('ed_f),
@@ -135,7 +135,7 @@ module GADTPrivate = {
      * without understanding how GADTs work. */
     switch (kind) {
     | Fold => f(W(Fold))
-    | Info => f(W(Info))
+    | Type => f(W(Type))
     | Probe => f(W(Probe))
     | Pair => f(W(Pair))
     | Checkbox => f(W(Checkbox))
@@ -160,7 +160,7 @@ module GADTPrivate = {
       : ProjectorKind.t =>
     switch (gadt) {
     | Fold => Fold
-    | Info => Info
+    | Type => Type
     | Probe => Probe
     | Pair => Pair
     | Checkbox => Checkbox
@@ -191,8 +191,8 @@ module GADTPrivate = {
         gadt2: gadt(g, h, i, j, k, l),
       ) => {
     switch (gadt1, gadt2) {
-    | (Info, Info) => true
-    | (Info, _) => false
+    | (Type, Type) => true
+    | (Type, _) => false
     | (Fold, Fold) => true
     | (Fold, _) => false
     | (Probe, Probe) => true
@@ -236,7 +236,7 @@ module GADTPrivate = {
            type editor_model = ed_m) =>
     switch (kind) {
     | Fold => (module FoldProj.M(Editor))
-    | Info => (module TypeProj.M(Editor))
+    | Type => (module TypeProj.M(Editor))
     | Probe => (module ProbeProj.M(Editor))
     | Pair => (module PairProj.M(Editor))
     | Checkbox => (module CheckboxProj.M(Editor))

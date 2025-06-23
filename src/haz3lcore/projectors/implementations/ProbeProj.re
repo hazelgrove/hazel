@@ -813,7 +813,7 @@ module M =
         ~common: Common.t,
         local: action(_) => Ui_effect.t(unit),
         parent: external_action => Ui_effect.t(unit),
-        id,
+        info: info,
         statics,
         dynamics,
         m: model(_),
@@ -821,10 +821,10 @@ module M =
       : Node.t =>
     div(
       ~attrs=[
-        Attr.id(Id.cls(id)),
+        Attr.id(Id.cls(info.id)),
         Attr.tabindex(0),
         Attr.on_keydown(
-          key_handler(len_of_exp, local, id, statics, dynamics, parent),
+          key_handler(len_of_exp, local, info.id, statics, dynamics, parent),
         ),
         Attr.classes(
           ["main"]
@@ -838,7 +838,7 @@ module M =
           Effect.Ignore;
         }),
         Attr.on_pointerup(_ => {
-          JsUtil.get_elem_by_id(Id.cls(id))##blur;
+          JsUtil.get_elem_by_id(Id.cls(info.id))##blur;
           Effect.Ignore;
         }),
         Attr.on_mouseenter(_ => {
@@ -850,8 +850,11 @@ module M =
           local(NoOp);
         }),
       ],
-      //TODO(andrew): accurate sort, abbreviate, styling
-      [Editor.View.view(~common, ~mode=ReadOnly, ~sort=Any, m.ed), icon],
+      //TODO(andrew): abbreviate
+      [
+        Editor.View.view(~common, ~mode=ReadOnly, ~sort=info.sort, m.ed),
+        icon,
+      ],
     );
 
   let overlay_view = (statics, dynamics): Node.t =>
@@ -949,8 +952,7 @@ module M =
     let statics = Statics.Map.lookup(info.id, common.statics.info_map);
     let dynamics = Dynamics.Map.lookup(info.id, common.dynamics);
     View.{
-      inline:
-        view(~common, inject, escape, info.id, statics, dynamics, model),
+      inline: view(~common, inject, escape, info, statics, dynamics, model),
       overlay: Some(overlay_view(statics, dynamics)),
       offside:
         Some(offside_view(~common, info.id, statics, dynamics, inject)),
