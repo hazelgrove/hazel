@@ -10,6 +10,7 @@ module Model = {
   type status = {
     kind: ProjectorKind.t,
     sort: Sort.t,
+    term: Language.Term.Any.t, /* This should probably be in the data type instead */
     indication: option(Direction.t),
     selected: bool,
     error: bool,
@@ -68,7 +69,8 @@ module Model = {
         Language.Statics.Map.lookup(id, common.statics.info_map),
       )
       |> Option.value(~default=false),
-    kind: p.model |> Projector.kind_of_model,
+    kind: Projector.kind_of_model(p.model),
+    term: Projector.get_cached_term(p.model),
     indication: editor_active ? indication(indicated, id) : None,
     selected: editor_active ? List.mem(id, selection_ids) : false,
   };
@@ -128,7 +130,7 @@ let backing_deco =
 /* Adds attributes to a projector UI to support
  * custom styling when selected or indicated */
 let projector_clss =
-    ({kind, sort, indication, selected, error}: Model.status) =>
+    ({kind, sort, indication, selected, error, _}: Model.status) =>
   [
     "projector",
     ProjectorKind.name(kind) |> String.lowercase_ascii,
@@ -221,7 +223,11 @@ let split_views =
       ~take_focus,
       ~focus,
       ~info=
-        ProjectorInterface.mk_info(~id=projector_data.id, ~sort=status.sort),
+        ProjectorInterface.mk_info(
+          ~id=projector_data.id,
+          ~sort=status.sort,
+          ~term=status.term,
+        ),
       projector_data.p.model,
     );
   let line_view = {

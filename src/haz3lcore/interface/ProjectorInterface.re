@@ -17,11 +17,13 @@ type info = {
    * their DOM nodes. */
   id: Id.t,
   sort: Sort.t,
+  term: Language.Term.Any.t,
 };
 
-let mk_info = (~id: Id.t, ~sort: Sort.t): info => {
+let mk_info = (~id: Id.t, ~sort: Sort.t, ~term: Language.Term.Any.t): info => {
   id,
   sort,
+  term,
 };
 
 module View = {
