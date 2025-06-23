@@ -8,6 +8,7 @@ let tests = [
   Test_Evaluator_List.tests,
   Test_Evaluator_Atom.tests,
   Test_Evaluator_Let.tests,
+  Test_Evaluator_Modules.tests,
   Test_Evaluator_Operators.tests,
   Test_Evaluator_Sum_Types.tests,
   Test_Stepper.tests,

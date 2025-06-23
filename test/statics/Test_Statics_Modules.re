@@ -39,17 +39,15 @@ let tests = [
               string(
                 ~ann=
                   Some(
-                    FTemp.Typ.(
-                      Exp(
-                        Common(
-                          Inconsistent(
-                            Expectation({
-                              syn: FTemp.Typ.string(),
-                              ana: FTemp.Typ.var("T"),
-                            }),
-                          ),
+                    Exp(
+                      Common(
+                        Inconsistent(
+                          Expectation({
+                            syn: FTemp.Typ.string(),
+                            ana: FTemp.Typ.var("T"),
+                          }),
                         ),
-                      )
+                      ),
                     ),
                   ),
                 "hello",
