@@ -87,10 +87,9 @@ module M =
     NewValue(Exp(Atom(Float(m)) |> Exp.fresh)),
   );
 
-  let calculate = (~common as _, model) => model;
+  let calculate = Defaults.calculate;
 
-  let get_cursor_info =
-      (~common as _, ~inject as _, ~read_only as _, _model, _focus) => Cursor.empty;
+  let get_cursor_info = Defaults.get_cursor_info;
 
   let view =
       (

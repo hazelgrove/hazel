@@ -223,7 +223,8 @@ let rec go =
       let name = Form.parse_livelit(t);
       switch (Language.Ctx.lookup_livelit(ctx, name)) {
       // if we find a matching livelit, insert it, projected
-      | Some(ll) =>
+      | Some(_ll) =>
+        //TODO(andrew)
         // let exp_to_segment =
         //   ExpToSegment.(
         //     exp_to_segment(

@@ -109,7 +109,7 @@ module type PROJECTOR = {
 };
 
 module Defaults = {
-  let calculate = (~calculate_ed as _, ~common as _, m) => m;
+  let calculate = (~common as _, m) => m;
 
   let get_cursor_info =
       (~common as _, ~inject as _, ~read_only as _, _model, _focus) => Cursor.empty;

@@ -151,15 +151,11 @@ module M =
   };
 
   let calculate = (~common, {mode, ed}) => {
-    let ed' = Editor.Update.calculate(~common, ed);
-    {
-      mode,
-      ed: ed',
-    };
+    mode,
+    ed: Editor.Update.calculate(~common, ed),
   };
 
-  let get_cursor_info =
-      (~common as _, ~inject as _, ~read_only as _, _model, _focus) => Cursor.empty;
+  let get_cursor_info = Defaults.get_cursor_info;
 
   let view =
       (

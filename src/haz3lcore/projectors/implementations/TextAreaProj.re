@@ -18,11 +18,12 @@ let key_handler = (id, ~parent, evt) => {
   | D("ArrowRight" | "ArrowDown")
       when WebUtil.TextArea.is_last_pos(Id.cls(id)) =>
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
-    Many([parent(Escape(Right)), Stop_propagation]);
+    Many([parent(Escape(Right)), Stop_propagation, Prevent_default]);
+  /* Prevent_default above and below is necessary to prevent scrolling */
   | D("ArrowLeft" | "ArrowUp")
       when WebUtil.TextArea.is_first_pos(Id.cls(id)) =>
     JsUtil.get_elem_by_id(Id.cls(id))##blur;
-    Many([parent(Escape(Left)), Stop_propagation]);
+    Many([parent(Escape(Left)), Stop_propagation, Prevent_default]);
   /* Defer to parent editor undo for now */
   | D("z" | "Z" | "y" | "Y") when Key.ctrl_held(evt) || Key.meta_held(evt) =>
     Many([Prevent_default])
@@ -75,7 +76,8 @@ module M =
       (any: Language.Any.t, _ed: unit => option(Editor.model))
       : option(model') =>
     switch (any) {
-    | Exp({term: Atom(String(str)), _}) => Some(str)
+    | Exp({term: Atom(String(str)), _}) =>
+      Some(StringUtil.unescape_linebreaks(str))
     | _ => None
     };
 
@@ -90,25 +92,23 @@ module M =
 
   let update = (~common as _, ~sort as _, ~id as _, _model, SetString(s)) => s;
 
-  let mk_term = (~sort, ~prev, m: model'): (model', Calc.t(Any.t)) => {
+  let mk_term = (~sort as _, ~prev, m: model'): (model', Calc.t(Any.t)) => {
     (
       m,
       Calc.set(
         ~eq=Language.Any.fast_equal,
-        switch (sort) {
-        | Sort.Exp => Exp(Atom(String(m)) |> Language.Exp.fresh)
-        | Sort.Pat => Pat(Atom(String(m)) |> Language.Pat.fresh)
-        | _ => Any()
-        },
+        Exp(
+          Atom(String(StringUtil.escape_linebreaks(m)))
+          |> Language.Exp.fresh,
+        ),
         prev,
       ),
     );
   };
 
-  let calculate = (~common as _, model) => model;
+  let calculate = Defaults.calculate;
 
-  let get_cursor_info =
-      (~common as _, ~inject as _, ~read_only as _, _model, _focus) => Cursor.empty;
+  let get_cursor_info = Defaults.get_cursor_info;
 
   let view =
       (
