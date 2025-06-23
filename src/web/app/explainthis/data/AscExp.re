@@ -9,7 +9,7 @@ let ascription_example_1 = {
 };
 let ascription_example_2 = {
   sub_id: Asc2,
-  term: mk_example("3 + 4 : Int"),
+  term: mk_example("(3 + 4) : Int"),
   message: "An addition expression 3 + 4 ascribed with the type Int.",
 };
 
