@@ -55,13 +55,8 @@ let step_limited = (t: Alcotest.testable('a)) =>
     Fmt.using(Evaluator.show_step_constrained(pp(t)), Fmt.string),
     Evaluator.equal_step_constrained(equal(t)),
   );
-let single_step = (exp: Exp.t) => {
-  let step =
-    EvaluatorStep.get_status(
-      ~settings=CoreSettings.on,
-      exp,
-      EvaluatorState.init,
-    );
+let single_step = (~state=EvaluatorState.init, exp: Exp.t) => {
+  let step = EvaluatorStep.get_status(~settings=CoreSettings.on, exp, state);
   switch (step) {
   | AutoStep(step) => EvaluatorStep.take_step(step)
   | AvailableSteps([step, ..._]) => EvaluatorStep.take_step(step)
@@ -89,4 +84,24 @@ let full_small_step_reduction =
   | None => StepLimitExceeded
   | Some((new_exp, _)) => Completed(new_exp)
   };
+};
+
+/* Helper function to assert on a sequence of steps during evaluation using Seq.unfold */
+let assert_steps =
+    (~msg: string, initial_exp: Exp.t, expected_steps: list(Exp.t)) => {
+  let steps_seq =
+    Seq.unfold(
+      ((current_exp, state)) => {
+        switch (single_step(~state, current_exp)) {
+        | Some((next_exp, new_state)) =>
+          Some((next_exp, (next_exp, new_state)))
+        | None => None
+        }
+      },
+      (initial_exp, EvaluatorState.init),
+    );
+
+  let expected_seq = List.to_seq(expected_steps);
+  let seq_testable = Alcotest.seq(dhexp_typ);
+  Alcotest.check(seq_testable, msg, expected_seq, steps_seq);
 };
