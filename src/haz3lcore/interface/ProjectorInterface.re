@@ -106,6 +106,8 @@ module type PROJECTOR = {
       model'
     ) =>
     View.t;
+
+  let unproject: model' => editor_model;
 };
 
 module Defaults = {

@@ -713,4 +713,7 @@ module M =
       enter_right: None,
     };
   };
+
+  let unproject = (model: model(_)) =>
+    Editor.Model.mk(Model.to_term(model));
 };

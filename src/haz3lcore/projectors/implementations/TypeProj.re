@@ -211,4 +211,6 @@ module M =
       enter_right: None,
     };
   };
+
+  let unproject = (model: model(_)) => model.ed;
 };

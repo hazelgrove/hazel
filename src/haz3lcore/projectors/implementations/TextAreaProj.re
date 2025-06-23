@@ -90,19 +90,11 @@ module M =
 
   let update = (~common as _, ~sort as _, ~id as _, _model, SetString(s)) => s;
 
-  let mk_term = (~sort, ~prev, m: model'): (model', Calc.t(Any.t)) => {
-    (
-      m,
-      Calc.set(
-        ~eq=Language.Any.fast_equal,
-        switch (sort) {
-        | Sort.Exp => Exp(Atom(String(m)) |> Language.Exp.fresh)
-        | Sort.Pat => Pat(Atom(String(m)) |> Language.Pat.fresh)
-        | _ => Any()
-        },
-        prev,
-      ),
-    );
+  let term_of = (model: model(_)): Term.Any.t =>
+    Exp(Atom(String(model)) |> Exp.fresh);
+
+  let mk_term = (~sort as _, ~prev, m: model'): (model', Calc.t(Any.t)) => {
+    (m, Calc.set(~eq=Language.Any.fast_equal, term_of(m), prev));
   };
 
   let calculate = (~common as _, model) => model;
@@ -157,4 +149,6 @@ module M =
         ]),
     );
   };
+
+  let unproject = (model: model(_)) => Editor.Model.mk(term_of(model));
 };

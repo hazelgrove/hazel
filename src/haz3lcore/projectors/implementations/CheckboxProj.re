@@ -46,9 +46,12 @@ module M =
 
   let update = (~common as _, ~sort as _, ~id as _, b, Toggle) => !b;
 
+  let term_of = (model: model(_)): Term.Any.t =>
+    Exp(Atom(Bool(model)) |> Exp.fresh);
+
   let mk_term = (~sort as _, ~prev as _, m): (model('a), Calc.t(Any.t)) => (
     m,
-    NewValue(Exp(Atom(Bool(m)) |> Exp.fresh)),
+    NewValue(term_of(m)),
   );
 
   let calculate = (~common as _, model) => model;
@@ -77,4 +80,6 @@ module M =
         (),
       ),
     );
+
+  let unproject = (model: model(_)) => Editor.Model.mk(term_of(model));
 };

@@ -265,4 +265,7 @@ module M =
           ),
         ),
     };
+
+  let unproject = (model: model(_)) =>
+    Editor.Model.mk(mk_term(model, ~sort=Exp, ~prev=Pending));
 };

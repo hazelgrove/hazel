@@ -316,6 +316,41 @@ let init =
   };
 };
 
+let unproject =
+    (
+      type ed,
+      type ed_a,
+      type ed_f,
+      ~editor_module,
+      model: model(ed, ed_a, ed_f),
+    )
+    : ed => {
+  let.gadt W(kind_gadt) = kind;
+  let methods = to_module(editor_module, gadt1);
+  let unproject =
+    methods
+    |> (
+      (
+        type p_m,
+        type p_a,
+        type p_f,
+        module Methods:
+          ProjectorInterface.PROJECTOR with
+            type model' = p_m and
+            type action' = p_a and
+            type focus' = p_f and
+            type editor_model = ed_m,
+        model,
+        focus,
+      ) => (
+        {
+          Methods.unproject(model);
+        }: ed
+      )
+    );
+  unproject(model);
+};
+
 let update =
     (
       type ed_m,

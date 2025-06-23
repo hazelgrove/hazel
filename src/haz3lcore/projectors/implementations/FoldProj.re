@@ -96,4 +96,6 @@ module M =
         [text(m.text), hover_view(~common, info.sort, m.ed)],
       ),
     );
+
+  let unproject = (model: model(_)) => model.ed;
 };

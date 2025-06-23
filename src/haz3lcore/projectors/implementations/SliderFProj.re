@@ -82,9 +82,12 @@ module M =
 
   let update = (~common as _, ~sort as _, ~id as _, _, Set(f)) => f;
 
+  let term_of = (model: model(_)): Term.Any.t =>
+    Exp(Atom(Float(model)) |> Exp.fresh);
+
   let mk_term = (~sort as _, ~prev as _, m): (model', Calc.t(Any.t)) => (
     m,
-    NewValue(Exp(Atom(Float(m)) |> Exp.fresh)),
+    NewValue(term_of(m)),
   );
 
   let calculate = (~common as _, model) => model;
@@ -115,4 +118,6 @@ module M =
       enter_left: None,
       enter_right: None,
     };
+
+  let unproject = (model: model(_)) => Editor.Model.mk(term_of(model));
 };

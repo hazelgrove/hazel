@@ -94,6 +94,9 @@ module rec Projector: {
 
     let get_cached_term = (Haz3lcorep.Projector.V(_, _, exp_cache)) =>
       Calc.get_saved_exc(exp_cache);
+
+    let unproject: t => Editor.Model.t =
+      Haz3lcorep.Projector.unproject(~editor_module=(module Editor));
   };
 
   module Update = {
