@@ -53,5 +53,23 @@ let tests = (
         );
       },
     ),
+    test_case("Module projection of single value", `Quick, () =>
+      parse_and_evaluate_test(
+        {|{ val x = 5 }.x|},
+        {| 5 |},
+      )
+    ),
+    test_case("Module projection from multiple bindings", `Quick, () =>
+      parse_and_evaluate_test(
+        {|{ val x = 3 ;; val y = 7 ;; val z = 10 }.y|},
+        {| 7 |},
+      )
+    ),
+    test_case("Module projection of computed value", `Quick, () =>
+      parse_and_evaluate_test(
+        {|{ val x = 4 * 2 ;; val y = x + 3 }.y|},
+        {| 11 |},
+      )
+    ),
   ],
 );
