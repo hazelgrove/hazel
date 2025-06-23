@@ -244,7 +244,7 @@ module QueryParams = {
       })
     };
 
-  let get_param = (name: string) => {
+  let get_param = (name: string): option(string) => {
     let q_opt =
       Url.Current.get()
       |> Option.map(url =>
