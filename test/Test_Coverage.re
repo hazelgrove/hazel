@@ -1,5 +1,5 @@
 open Alcotest;
-open Haz3lcore;
+open Language;
 
 let testable_error_map =
   testable(
@@ -10,8 +10,8 @@ let testable_error_map =
 let statics = Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
 
 let parse_menhir = (s: string) => {
-  Haz3lmenhir.Conversion.Exp.of_menhir_ast(
-    Haz3lmenhir.Interface.parse_program(s),
+  MenhirParser.Conversion.Exp.of_menhir_ast(
+    MenhirParser.Interface.parse_program(s),
   );
 };
 
@@ -28,7 +28,7 @@ let has_errors =
     () => {
       let indicated_exp: Grammar.exp_t(bool) = parse_menhir(exp);
       let (e, ids) =
-        Haz3lmenhir.Conversion.Exp.get_indicated_ids(indicated_exp);
+        MenhirParser.Conversion.Exp.get_indicated_ids(indicated_exp);
 
       let s = statics(e);
       let errors_map = Statics.Map.collect_errors(s);
