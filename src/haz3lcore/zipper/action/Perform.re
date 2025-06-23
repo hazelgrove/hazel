@@ -132,8 +132,6 @@ let go_z =
     };
   };
 
-  //let go_to = (z): option(Zipper.t) => {};
-
   switch (a) {
   | Paste(String(clipboard)) =>
     switch (paste(z, clipboard)) {

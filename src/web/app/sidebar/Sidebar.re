@@ -87,36 +87,59 @@ let persistent_view = (~globals: Globals.t) => {
   );
 };
 
+let updateElementStyles = (new_width: int) => {
+  let elements = [
+    ("side-bar", "width"),
+    ("prompt-display-container", "right"),
+    ("history-menu", "right"),
+  ];
+
+  List.iter(
+    ((id, style)) => {
+      switch (get_elem_by_id_opt(id)) {
+      | Some(elem) =>
+        let value =
+          style == "width"
+            ? string_of_int(new_width) ++ "px"
+            : string_of_int(new_width + 20) ++ "px";
+        let elem_style = Js.Unsafe.coerce(elem)##.style;
+        switch (style) {
+        | "width" => elem_style##.width := Js.string(value)
+        | "right" => elem_style##.right := Js.string(value)
+        | _ => ()
+        };
+      | None => ()
+      }
+    },
+    elements,
+  );
+};
+
+let resetElementStyles = () => {
+  let elements = [
+    ("side-bar", "width"),
+    ("prompt-display-container", "right"),
+    ("history-menu", "right"),
+  ];
+  List.iter(
+    ((id, style)) => {
+      switch (get_elem_by_id_opt(id)) {
+      | Some(elem) =>
+        let elem_style = Js.Unsafe.coerce(elem)##.style;
+        switch (style) {
+        | "width" => elem_style##.width := Js.string("")
+        | "right" => elem_style##.right := Js.string("")
+        | _ => ()
+        };
+      | None => ()
+      }
+    },
+    elements,
+  );
+};
+
 let resize_handle = (): Node.t => {
   let isResizing = ref(false);
-
-  let updateElementStyles = (new_width: int) => {
-    let elements = [
-      ("side-bar", "width"),
-      ("prompt-display-container", "right"),
-      ("history-menu", "right"),
-    ];
-
-    List.iter(
-      ((id, style)) => {
-        switch (get_elem_by_id_opt(id)) {
-        | Some(elem) =>
-          let value =
-            style == "width"
-              ? string_of_int(new_width) ++ "px"
-              : string_of_int(new_width + 20) ++ "px";
-          let elem_style = Js.Unsafe.coerce(elem)##.style;
-          switch (style) {
-          | "width" => elem_style##.width := Js.string(value)
-          | "right" => elem_style##.right := Js.string(value)
-          | _ => ()
-          };
-        | None => ()
-        }
-      },
-      elements,
-    );
-  };
 
   let rec handle_mousemove = event => {
     if (isResizing^) {
@@ -188,6 +211,7 @@ let view =
           ],
         )
       : {
+        resetElementStyles();
         div([]);
       };
   div(~attrs=[Attr.id("sidebars")], [sub, persistent_view(~globals)]);

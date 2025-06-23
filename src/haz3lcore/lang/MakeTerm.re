@@ -255,9 +255,9 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           Match(scrut, rules),
           ids,
         )
-      | ([t], [])
-          when t != " " && !Form.is_explicit_hole(t) && !Form.is_llm_hole(t) =>
-        ret(Invalid(t))
+      | ([t], []) when Form.is_explicit_hole(t) || Form.is_llm_hole(t) =>
+        ret(hole(tm))
+      | ([t], []) => ret(Invalid(t))
       | _ => ret(hole(tm))
       }
     | _ => ret(hole(tm))
