@@ -153,6 +153,7 @@ let view_wrapper =
       ~font_metrics: FontMetrics.t,
       ~measurement: Measured.measurement,
       ~status: Model.status,
+      ~escape: external_action => Ui_effect.t(unit),
       views: list(Node.t),
     ) =>
   div(
@@ -160,7 +161,9 @@ let view_wrapper =
       Attr.classes(projector_clss(status)),
       /* Stopping propagation here is stops the base editor's
        * drag-select interaction from being triggered */
-      Attr.on_pointerdown(_ => {Effect.Many([Effect.Stop_propagation])}),
+      Attr.on_pointerdown(_ => {
+        Effect.Many([Effect.Stop_propagation, escape(MoveCaretTo)])
+      }),
       DecUtil.abs_style(measurement, ~font_metrics),
     ],
     views,
@@ -177,6 +180,7 @@ let handle =
   switch (action) {
   | Remove => inject(RemoveIndicated)
   | Escape(d) => Ui_effect.Many([focus, inject(Escape(id, d))])
+  | MoveCaretTo => inject(MoveCaretTo(id))
   };
 
 let offside_wrapper =
@@ -214,7 +218,12 @@ let split_views =
     )
     : (Node.t, option(Node.t)) => {
   let wrapper =
-    view_wrapper(~font_metrics=common.font_metrics, ~measurement, ~status);
+    view_wrapper(
+      ~font_metrics=common.font_metrics,
+      ~measurement,
+      ~status,
+      ~escape,
+    );
   let views: ProjectorInterface.View.t =
     view_projector(
       ~common,

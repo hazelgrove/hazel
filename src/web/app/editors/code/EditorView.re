@@ -464,7 +464,6 @@ let view_code_editable =
       | 1 =>
         /* prepare to drag if the mouse moves */
         PointerCapture.set(mouse.current_target, pointer_id);
-        print_endline("HERE 1");
         Effect.Many([
           Focus.focus_here(~focus_parent=focus, model),
           inject(Move(Goal(Point(loc(mouse))))),

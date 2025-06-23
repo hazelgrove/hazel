@@ -5,6 +5,7 @@ open WebUtil;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type external_action =
   | Remove /* Remove projector entirely */
+  | MoveCaretTo /* Move parent splice caret to projector */
   | Escape(Util.Direction.t); /* Pass focus to parent editor */
 
 /* External info proivded to all projectors */

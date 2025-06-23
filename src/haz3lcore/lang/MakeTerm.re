@@ -861,7 +861,6 @@ let go = (type p', ~of_projector, sort: Sort.t, seg: Segment.t(p')) =>
         ref(Id.Map.empty);
       /* Strip a projector from a segment and log it in the map */
       let log_projector = (pr: Base.projector(p')): unit => {
-        print_endline("Projector Logged.");
         projectors := Id.Map.add(pr.id, pr, projectors^);
       };
 

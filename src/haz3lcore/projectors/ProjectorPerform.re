@@ -168,5 +168,12 @@ let go =
       ): ZipperBase.t(p),
     )
   | Escape(id, d) => Ok(jump_to_side_of_id(d, z, id))
+  | MoveCaretTo(target_id) =>
+    switch (Indicated.index(z)) {
+    | Some(indicated_id) when indicated_id != target_id =>
+      /* May as well not flop sides willy nilly */
+      Ok(jump_to_side_of_id(Left, z, target_id))
+    | _ => Ok(z)
+    }
   };
 };

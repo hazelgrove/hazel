@@ -184,8 +184,8 @@ let go_z =
         let* idx = Indicated.index(z);
         let* ci = Id.Map.find_opt(idx, statics.info_map);
         let* binding_id = Language.Info.get_binding_site(ci);
-        Move.jump_to_id(z, binding_id);
-      | TileId(id) => Move.jump_to_id(z, id)
+        Move.jump_to_id_indicated(z, binding_id);
+      | TileId(id) => Move.jump_to_id_indicated(z, id)
       }
     )
     |> Result.of_option(~error=Action.Failure.Cant_move)

@@ -57,6 +57,7 @@ type project('p_kind, 'p_m, 'p_a) =
   | SetIndicated(chooser('p_kind)) /* Project syntax at caret */
   | RemoveIndicated /* Remove projector at caret */
   | Perform(Id.t, 'p_a) /* Set serialized projector model */
+  | MoveCaretTo(Id.t) /* Move parent splice caret to projector */
   | Escape(Id.t, Direction.t); /* Pass control to parent editor */
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -124,7 +125,8 @@ let is_edit: t('k, 'p, 'a) => bool =
     | Perform(_)
     | SetIndicated(_)
     | RemoveIndicated => true
-    | Escape(_) => false
+    | Escape(_)
+    | MoveCaretTo(_) => false
     };
 
 /* Determines whether undo/redo skips action */
@@ -152,7 +154,8 @@ let is_historic: t('k, 'p, 'a) => bool =
     | Perform(_)
     | SetIndicated(_)
     | RemoveIndicated => true
-    | Escape(_) => false
+    | Escape(_)
+    | MoveCaretTo(_) => false
     };
 
 let prevent_in_read_only_editor = (a: t('k, 'p, 'a)) => {
@@ -178,7 +181,8 @@ let prevent_in_read_only_editor = (a: t('k, 'p, 'a)) => {
     | Perform(_) => true // TODO: let projecors decide whether this is allowed
     | SetIndicated(_)
     | RemoveIndicated
-    | Escape(_) => false
+    | Escape(_)
+    | MoveCaretTo(_) => false
     }
   };
 };
