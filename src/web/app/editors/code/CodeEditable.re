@@ -52,7 +52,7 @@ module Update = {
              switch (action) {
              | Move(_)
              | Jump(_)
-             | Select(Resize(_) | Term(_) | Smart(_) | Tile(_) | Structure(_))
+             | Select(Resize(_) | Term(_) | Smart(_) | Tile(_))
              | Destruct(_)
              | Insert(_)
              | Pick_up

@@ -275,8 +275,10 @@ module Composition = {
           // definition when type annotation exists)
           Action.Move(Local(Left(ByToken))),
           switch (loc) {
-          | Definition => Action.Select(Structure(Definition))
-          | Body => Action.Select(Structure(Body))
+          // TODO: Implement structure-based navigation actions
+          | Definition =>
+            Action.Select(Term(Id(Id.invalid, Direction.Left)))
+          | Body => Action.Select(Term(Id(Id.invalid, Direction.Left)))
           | All => Action.Select(Term(Id(Id.invalid, Direction.Left)))
           },
           Action.Copy,
