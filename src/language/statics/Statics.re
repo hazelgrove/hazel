@@ -309,8 +309,7 @@ and uexp_to_info_map =
     | MultiHole(tms) =>
       let (co_ctxs, m) = multi(~ctx, ~ancestors, m, tms);
       add(~self=IsMulti, ~co_ctx=CoCtx.union(co_ctxs), m);
-    | Cast(e, _, t2)
-    | FailedCast(e, _, t2) =>
+    | Asc(e, t2) =>
       let (t, m) = go_typ(t2, ~expects=Info.TypeExpected, m);
       let (e, m) = go'(~ana=t.term, ~ctx=t.ctx, e, m);
       add(~self=Just(t.term), ~co_ctx=e.co_ctx, m);
@@ -1643,7 +1642,7 @@ and upat_to_info_map =
         | None => Coverage.Constraint.Hole
         };
       add(~self=Just(ty_out), ~ctx=arg.ctx, ~constraint_, m);
-    | Cast(p, ann, _) =>
+    | Asc(p, ann) =>
       let (ann, m) = utyp_to_info_map(~ctx, ~ancestors, ann, m);
       let (p, m) = go(~ctx, ~under_ascription=true, ~ana=ann.term, p, m);
       add(~self=Just(ann.term), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
