@@ -97,8 +97,10 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (ListLitn(_), ListLit(_)) => DoesNotMatch
     /* A cons final form is always indet, so either does NOT match or indet matches with a listliteral*/
     | (ListLitn(0), Cons(_)) => DoesNotMatch // Cons is not an empty list
-    | (ListLitn(n), Cons(_, xs)) => unbox(ListLitn(n - 1), xs)
-    | (ListLit, Cons(_)) => IndetMatch // WIthout length of ListLit we cannot know
+    | (ListLitn(n), Cons(x, xs)) =>
+      let* tail = unbox(ListLitn(n - 1), xs);
+      Matches([x, ...tail]);
+    | (ListLit, Cons(_)) => IndetMatch // Without length of ListLit we cannot know
 
     | (Cons, ListLit([x, ...xs])) =>
       Matches((x, ListLit(xs) |> DHExp.fresh))

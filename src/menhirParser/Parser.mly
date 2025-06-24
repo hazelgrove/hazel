@@ -320,7 +320,7 @@ exp:
     | c = CONSTRUCTOR_IDENT { Constructor(c, None)}
     | c = CONSTRUCTOR_IDENT; SLASH_TILDE; { Constructor(c, Some(None)) } 
     | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { Constructor(c, Some(Some(t))) }
-    | c = CONSTRUCTOR_IDENT; COLON; t = typ;  { Asc(Constructor(c, None), t) }
+    | e = exp; COLON; t = typ { Asc(e, t) }
     | s = STRING { Atom (String s)}
     | OPEN_TRIPLE_CURLY; e = exp; CLOSE_TRIPLE_CURLY { IndicationExp(e) }
     | OPEN_PAREN; e = exp; CLOSE_PAREN { e } 
