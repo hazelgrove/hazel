@@ -83,6 +83,7 @@ module Update = {
     AssistantUpdate.check_req(
       char,
       a => schedule_action(Assistant(a)),
+      a => schedule_action(Globals(Set(Assistant(a)))),
       editor,
       chat_id,
     );

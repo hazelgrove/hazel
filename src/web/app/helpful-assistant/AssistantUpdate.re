@@ -363,6 +363,7 @@ let check_req =
     (
       _: string,
       schedule_action: t => unit,
+      schedule_setting: AssistantSettings.action => unit,
       editor: CodeEditable.Model.t,
       chat_id: Id.t,
     )
@@ -371,6 +372,7 @@ let check_req =
   let caret = z.caret;
   let siblings = z.relatives.siblings;
   let send_message = (tile_id, advanced_reasoning) => {
+    schedule_setting(AssistantSettings.SwitchMode(CodeSuggestion));
     schedule_action(
       SendMessage(
         Completion(Request(tile_id, advanced_reasoning)),
@@ -666,11 +668,8 @@ let update =
       let mode = AssistantSettings.CodeSuggestion;
       switch (kind) {
       | Request(tile_id, advanced_reasoning) =>
-        // Create a new suggestion chat for each completion request
-        // TODO: If you aren't in CodeSuggestion mode, we need to switch to it
-        // I tried this but it doesn't work
-        ignore(Globals.Action.Set(Assistant(SwitchMode(mode))));
         let new_chat = init_chat(mode);
+        print_endline("new_chat: " ++ Id.to_string(new_chat.id));
         let updated_past_chats =
           add_chat_to_history(
             new_chat,
