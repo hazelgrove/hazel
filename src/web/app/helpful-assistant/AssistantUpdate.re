@@ -667,6 +667,9 @@ let update =
       switch (kind) {
       | Request(tile_id, advanced_reasoning) =>
         // Create a new suggestion chat for each completion request
+        // TODO: If you aren't in CodeSuggestion mode, we need to switch to it
+        // I tried this but it doesn't work
+        ignore(Globals.Action.Set(Assistant(SwitchMode(mode))));
         let new_chat = init_chat(mode);
         let updated_past_chats =
           add_chat_to_history(
