@@ -9,6 +9,8 @@ type mode =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   mode,
+  api_key: string,
+  llm_model: string,
   ongoing_chat: bool,
   show_history: bool,
   show_api_key: bool,
@@ -24,10 +26,10 @@ type action =
   | SwitchMode(mode)
   // Toggles the chat history
   | ToggleHistory
-  // Toggles the visibility of the API key in the settings menu
-  | ToggleAPIKeyVisibility
   // Sets the LLM model
   | SetLLM(string)
+  // Toggles the visibility of the API key in the settings menu
+  | ToggleAPIKeyVisibility
   // Sets the API key
   | SetAPIKey(string)
   // Sets the list of available LLMs from OpenRouter
