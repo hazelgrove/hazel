@@ -12,7 +12,6 @@ let (suite, _) =
   run_and_report(
     ~and_exit=false,
     ~argv=Sys.argv,
-    ~quick_only=true,
     "HazelTests",
     [
       Test_Grammar.tests,
