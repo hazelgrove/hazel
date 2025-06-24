@@ -72,22 +72,6 @@ module Update = {
     | Start
     | Save;
 
-  // Helper function to check for insertion of '??' or '?a' and trigger assistant updates
-  let send_assistant_insertion_info =
-      (
-        ~char: string,
-        ~editor: CodeEditable.Model.t,
-        ~schedule_action,
-        ~chat_id,
-      ) => {
-    AssistantUpdate.check_req(
-      char,
-      a => schedule_action(Assistant(a)),
-      a => schedule_action(Globals(Set(Assistant(a)))),
-      editor,
-      chat_id,
-    );
-  };
   let equal = (===);
 
   let update_global =
@@ -155,8 +139,10 @@ module Update = {
             ~globals,
             ~schedule_action=a => schedule_action(Editors(a)),
             ~send_assistant_insertion_info=
-              send_assistant_insertion_info(
-                ~schedule_action,
+              AssistantUpdate.check_req(
+                ~schedule_action=a => schedule_action(Assistant(a)),
+                ~schedule_setting=
+                  a => schedule_action(Globals(Set(Assistant(a)))),
                 ~chat_id=model.assistant.current_chats.curr_suggestion_chat,
               ),
             action,
@@ -219,8 +205,10 @@ module Update = {
             ~globals=model.globals,
             ~schedule_action=a => schedule_action(Editors(a)),
             ~send_assistant_insertion_info=
-              send_assistant_insertion_info(
-                ~schedule_action,
+              AssistantUpdate.check_req(
+                ~schedule_action=a => schedule_action(Assistant(a)),
+                ~schedule_setting=
+                  a => schedule_action(Globals(Set(Assistant(a)))),
                 ~chat_id=model.assistant.current_chats.curr_suggestion_chat,
               ),
             action,
@@ -231,59 +219,6 @@ module Update = {
           editors,
         };
       };
-    //TODO: Figure out how below is impacted by new global undo/redo
-    // | Undo =>
-    //   let cursor_info =
-    //     Editors.Selection.get_cursor_info(
-    //       ~selection=model.selection,
-    //       model.editors,
-    //     );
-    //   switch (cursor_info.undo_action) {
-    //   | None => model |> return_quiet
-    //   | Some(action) =>
-    //     let* editors =
-    //       Editors.Update.update(
-    //         ~globals=model.globals,
-    //         ~schedule_action=a => schedule_action(Editors(a)),
-    //         ~send_assistant_insertion_info=
-    //           send_assistant_insertion_info(
-    //             ~schedule_action,
-    //             ~chat_id=model.assistant.current_chats.curr_suggestion_chat,
-    //           ),
-    //         action,
-    //         model.editors,
-    //       );
-    //     {
-    //       ...model,
-    //       editors,
-    //     };
-    //   };
-    // | Redo =>
-    //   let cursor_info =
-    //     Editors.Selection.get_cursor_info(
-    //       ~selection=model.selection,
-    //       model.editors,
-    //     );
-    //   switch (cursor_info.redo_action) {
-    //   | None => model |> return_quiet
-    //   | Some(action) =>
-    //     let* editors =
-    //       Editors.Update.update(
-    //         ~globals=model.globals,
-    //         ~schedule_action=a => schedule_action(Editors(a)),
-    //         ~send_assistant_insertion_info=
-    //           send_assistant_insertion_info(
-    //             ~schedule_action,
-    //             ~chat_id=model.assistant.current_chats.curr_suggestion_chat,
-    //           ),
-    //         action,
-    //         model.editors,
-    //       );
-    //     {
-    //       ...model,
-    //       editors,
-    //     };
-    //   };
     | Undo
     | Redo => failwith("Undo/Redo are handled in the history module")
     };
@@ -311,8 +246,10 @@ module Update = {
           ~globals,
           ~schedule_action=a => schedule_action(Editors(a)),
           ~send_assistant_insertion_info=
-            send_assistant_insertion_info(
-              ~schedule_action,
+            AssistantUpdate.check_req(
+              ~schedule_action=a => schedule_action(Assistant(a)),
+              ~schedule_setting=
+                a => schedule_action(Globals(Set(Assistant(a)))),
               ~chat_id=model.assistant.current_chats.curr_suggestion_chat,
             ),
           action,

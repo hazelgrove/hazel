@@ -7,7 +7,7 @@ type instance_report = {
   status: TestStatus.t,
   hint: string,
 };
-// type instance_report = (DHExp.t, TestStatus.t);
+
 let get_status: instance_report => TestStatus.t = report => report.status;
 
 let joint_status: list(instance_report) => TestStatus.t =

@@ -48,6 +48,8 @@ module Model = {
     },
     assistant: {
       mode: CodeSuggestion,
+      api_key: "",
+      llm_model: "",
       ongoing_chat: false,
       show_history: false,
       show_api_key: false,
@@ -288,11 +290,13 @@ module Update = {
               show_history: !settings.assistant.show_history,
             },
           }
-        | SetLLM(llm_id) =>
-          {
-            Store.Generic.save("MODEL", llm_id);
-          };
-          settings;
+        | SetLLM(llm_id) => {
+            ...settings,
+            assistant: {
+              ...settings.assistant,
+              llm_model: llm_id,
+            },
+          }
         | ToggleAPIKeyVisibility => {
             ...settings,
             assistant: {
@@ -301,8 +305,6 @@ module Update = {
             },
           }
         | SetAPIKey(api_key) =>
-          // Store the API Key
-          Store.Generic.save("API", api_key);
           // Set the available models using the provided API key
           OpenRouter.get_models(~key=api_key, ~handler=response => {
             switch (response) {
@@ -321,7 +323,13 @@ module Update = {
               )
             }
           });
-          settings;
+          {
+            ...settings,
+            assistant: {
+              ...settings.assistant,
+              api_key,
+            },
+          };
         | SetListOfLLMs(llms) => {
             ...settings,
             assistant: {
