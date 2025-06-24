@@ -317,7 +317,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
       )
     | HintedTest(e, hint) =>
       handle_op_indet(
-        ~cost=9, // "hint " + " test " + " end"
+        ~cost=15, // "hint " + " test " + " end"
         ~make_term=(e', hint') => HintedTest(e', hint'),
         e,
         hint,
