@@ -140,9 +140,9 @@ let rec elaborate_pattern =
     | Parens(p) =>
       let (p', _) = elaborate_pattern(m, p);
       p';
-    | Cast(p, t1, t2) =>
+    | Asc(p, t) =>
       let (p', _) = elaborate_pattern(m, p);
-      Cast(p', Typ.normalize(ctx, t1), t2) |> rewrap;
+      Asc(p', Typ.normalize(ctx, t)) |> rewrap;
     | Probe(p, probe) =>
       let (e', _) = elaborate_pattern(m, p);
       let probe = Dynamics.Probe.instrument_pat(m, Pat.rep_id(upat), probe);
@@ -163,27 +163,6 @@ let rec elaborate_pattern =
     };
   (dpat, elaborated_type);
 };
-
-/* The primary goal of elaboration is to convert from a type system
-   where we have consistency, to a type system where types are either
-   equal or they're not. Anything that was just consistent needs to
-   become a cast. [The one other thing elaboration does is make
-   recursive let bindings explicit.]
-
-   At the top of this function we work out the "elaborated type" of
-   of the expression. We also return this elaborated type so we can
-   use it in the recursive call. When elaborate returns, you can trust
-   that the returned expression will have the returned type. There is
-   however, no guarantee that the returned type is even consistent with
-   the "elaborated type" at the top, so you should fresh_cast EVERYWHERE
-   just in case.
-
-   Important invariant: any cast in an elaborated expression should have
-   normalized types.
-
-   [Matt] A lot of these fresh_cast calls are redundant, however if you
-   want to remove one, I'd ask you instead comment it out and leave
-   a comment explaining why it's redundant.  */
 
 let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
   // In the case of singleton labeled tuples we update the syntax in Statics.
@@ -212,10 +191,8 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
     | DynamicErrorHole(e, err) =>
       let (e', _) = elaborate(m, e);
       DynamicErrorHole(e', err) |> rewrap;
-    | Cast(e, t1, t2) =>
-      Cast(elaborate(m, e) |> fst, t1, Typ.normalize(ctx, t2)) |> rewrap
-    | FailedCast(e, t1, t2) =>
-      FailedCast(elaborate(m, e) |> fst, t1, t2) |> rewrap
+    | Asc(e, t) =>
+      Asc(elaborate(m, e) |> fst, Typ.normalize(ctx, t)) |> rewrap
     | Parens(e) =>
       let (e', _) = elaborate(m, e);
       e';
