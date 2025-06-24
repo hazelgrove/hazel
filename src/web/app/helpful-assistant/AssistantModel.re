@@ -77,3 +77,6 @@ let sorted_chats = (chat_map: Id.Map.t(chat)): list(chat) => {
 };
 
 let max_collapsed_length: int = 500;
+
+let basic_reasoning_token: string = "??";
+let advanced_reasoning_token: string = "?a";

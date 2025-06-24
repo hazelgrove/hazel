@@ -138,10 +138,6 @@ module Update = {
       switch (a) {
       // Check for assistant hole completion triggers
       | MainEditor(Perform(Insert(char))) =>
-        // todo: This might hinder runtime performance since we'll ultimately
-        //       calculat the info map twice. A hacky idea of fixing this is
-        //       to set a flag if '??' or '?a' was inserted and only send the
-        //       completion request after scheduled info calculation is complete.
         send_assistant_insertion_info(~char, ~editor=new_ed.editor)
       | _ => ()
       };
