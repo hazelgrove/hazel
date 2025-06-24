@@ -361,11 +361,10 @@ let create_chat_descriptor =
 
 let check_req =
     (
-      _: string,
-      schedule_action: t => unit,
-      schedule_setting: AssistantSettings.action => unit,
-      editor: CodeEditable.Model.t,
-      chat_id: Id.t,
+      ~schedule_action: t => unit,
+      ~schedule_setting: AssistantSettings.action => unit,
+      ~editor: CodeEditable.Model.t,
+      ~chat_id: Id.t,
     )
     : unit => {
   let z = editor.editor.state.zipper;
@@ -385,12 +384,12 @@ let check_req =
   // Check if user just typed ??
   switch (caret, Zipper.neighbor_monotiles(siblings)) {
   | (Outer, (_, Some("??")))
-  | (Outer, (Some("??"), None)) =>
+  | (Outer, (Some("??"), _)) =>
     let tileId = Option.get(Indicated.index(z));
     let advanced_reasoning = false;
     send_message(tileId, advanced_reasoning);
   | (Outer, (_, Some("?a")))
-  | (Outer, (Some("?a"), None)) =>
+  | (Outer, (Some("?a"), _)) =>
     let tileId = Option.get(Indicated.index(z));
     let advanced_reasoning = true;
     send_message(tileId, advanced_reasoning);
