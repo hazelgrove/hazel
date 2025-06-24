@@ -1187,7 +1187,7 @@ and upat_to_info_map =
           Self.typ_of(ctx, Option.value(~default=self, override_self)),
         ~syn_information=
           switch (self) {
-          | NoJoin(i, ts) =>
+          | NoJoin(_, ts) =>
             Some(InternallyInconsistent({nojoin: Typ.of_source(ts)}))
           | _ =>
             Self.typ_of(ctx, Option.value(~default=self, override_self))
