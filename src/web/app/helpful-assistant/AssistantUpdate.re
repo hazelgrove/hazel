@@ -361,11 +361,10 @@ let create_chat_descriptor =
 
 let check_req =
     (
-      _: string,
-      schedule_action: t => unit,
-      schedule_setting: AssistantSettings.action => unit,
-      editor: CodeEditable.Model.t,
-      chat_id: Id.t,
+      ~schedule_action: t => unit,
+      ~schedule_setting: AssistantSettings.action => unit,
+      ~editor: CodeEditable.Model.t,
+      ~chat_id: Id.t,
     )
     : unit => {
   let z = editor.editor.state.zipper;
@@ -384,38 +383,16 @@ let check_req =
 
   // Check if user just typed ??
   switch (caret, Zipper.neighbor_monotiles(siblings)) {
-  | (Outer, (_, Some(_))) =>
-    switch (Zipper.right_neighbor_monotile(siblings)) {
-    | Some(c) =>
-      switch (c) {
-      | "??" =>
-        let tileId = Option.get(Indicated.index(z));
-        let advanced_reasoning = false;
-        send_message(tileId, advanced_reasoning);
-      | "?a" =>
-        let tileId = Option.get(Indicated.index(z));
-        let advanced_reasoning = true;
-        send_message(tileId, advanced_reasoning);
-      | _ => ()
-      }
-    | _ => ()
-    }
-  | (Outer, (_, None)) =>
-    switch (Zipper.left_neighbor_monotile(siblings)) {
-    | Some(c) =>
-      switch (c) {
-      | "??" =>
-        let tileId = Option.get(Indicated.index(z));
-        let advanced_reasoning = false;
-        send_message(tileId, advanced_reasoning);
-      | "?a" =>
-        let tileId = Option.get(Indicated.index(z));
-        let advanced_reasoning = true;
-        send_message(tileId, advanced_reasoning);
-      | _ => ()
-      }
-    | _ => ()
-    }
+  | (Outer, (_, Some("??")))
+  | (Outer, (Some("??"), _)) =>
+    let tileId = Option.get(Indicated.index(z));
+    let advanced_reasoning = false;
+    send_message(tileId, advanced_reasoning);
+  | (Outer, (_, Some("?a")))
+  | (Outer, (Some("?a"), _)) =>
+    let tileId = Option.get(Indicated.index(z));
+    let advanced_reasoning = true;
+    send_message(tileId, advanced_reasoning);
   | _ => ()
   };
 };
@@ -438,13 +415,20 @@ let set_buffer = (~response: string, z: Zipper.t): option(Zipper.t) => {
 let mk_llm_call =
     (
       ~mode: AssistantSettings.mode,
+      ~settings: Settings.t,
       ~schedule_action: t => unit,
       ~updated_chat: Model.chat,
       ~response_handler: OpenRouter.reply => t,
     )
     : unit => {
-  switch (Store.Generic.load("API"), Store.Generic.load("MODEL")) {
-  | (Some(key), Some(model_id)) =>
+  switch (settings.assistant.api_key, settings.assistant.llm_model) {
+  | ("", _) =>
+    let content = "No API key found. Please set an API key in the assistant settings.";
+    schedule_action(InternalError(content, mode, updated_chat.id));
+  | (_, "") =>
+    let content = "No model ID found. Please set a model ID in the assistant settings.";
+    schedule_action(InternalError(content, mode, updated_chat.id));
+  | (key, model_id) =>
     let tools =
       if (mode == TaskCompletion) {
         [
@@ -499,12 +483,6 @@ let mk_llm_call =
       )
     | _ => ()
     };
-  | (None, _) =>
-    let content = "No API key found. Please set an API key in the assistant settings.";
-    schedule_action(InternalError(content, mode, updated_chat.id));
-  | (_, None) =>
-    let content = "No model ID found. Please set a model ID in the assistant settings.";
-    schedule_action(InternalError(content, mode, updated_chat.id));
   };
 };
 
@@ -585,7 +563,11 @@ let update =
       };
 
       mk_llm_call(
-        ~mode, ~schedule_action, ~updated_chat, ~response_handler=response =>
+        ~mode,
+        ~settings,
+        ~schedule_action,
+        ~updated_chat,
+        ~response_handler=response =>
         HandleResponse(Tutor, response, chat_id)
       );
 
@@ -619,7 +601,11 @@ let update =
         };
 
         mk_llm_call(
-          ~mode, ~schedule_action, ~updated_chat, ~response_handler=response =>
+          ~mode,
+          ~settings,
+          ~schedule_action,
+          ~updated_chat,
+          ~response_handler=response =>
           HandleResponse(
             CompositionLoopRound(editor, ChatLSP.Composition.max_tool_calls),
             response,
@@ -652,7 +638,11 @@ let update =
         };
 
         mk_llm_call(
-          ~mode, ~schedule_action, ~updated_chat, ~response_handler=response =>
+          ~mode,
+          ~settings,
+          ~schedule_action,
+          ~updated_chat,
+          ~response_handler=response =>
           HandleResponse(
             CompositionLoopRound(editor, fuel),
             response,
@@ -727,7 +717,11 @@ let update =
             message_displays: new_chat.message_displays @ new_message_displays,
           };
           mk_llm_call(
-            ~mode, ~schedule_action, ~updated_chat, ~response_handler=response =>
+            ~mode,
+            ~settings,
+            ~schedule_action,
+            ~updated_chat,
+            ~response_handler=response =>
             HandleResponse(
               CompletionErrorRound(
                 editor,
@@ -770,7 +764,11 @@ let update =
         };
 
         mk_llm_call(
-          ~mode, ~schedule_action, ~updated_chat, ~response_handler=response =>
+          ~mode,
+          ~settings,
+          ~schedule_action,
+          ~updated_chat,
+          ~response_handler=response =>
           HandleResponse(CompletionQueryResponse, response, chat_id)
         );
 
@@ -809,7 +807,11 @@ let update =
           schedule_action(InternalError(content, mode, updated_chat.id));
         } else {
           mk_llm_call(
-            ~mode, ~schedule_action, ~updated_chat, ~response_handler=response =>
+            ~mode,
+            ~settings,
+            ~schedule_action,
+            ~updated_chat,
+            ~response_handler=response =>
             HandleResponse(
               CompletionErrorRound(
                 editor,
