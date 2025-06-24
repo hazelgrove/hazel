@@ -12,6 +12,7 @@ let (suite, _) =
   run_and_report(
     ~and_exit=false,
     ~argv=Sys.argv,
+    ~quick_only=true,
     "HazelTests",
     [
       Test_Grammar.tests,
@@ -27,6 +28,7 @@ let (suite, _) =
         @ Test_Statics_Labeled_Tuple.tests
         @ Test_Statics_Polymorphism.tests
         @ Test_Statics_Sums.tests
+        @ Test_Statics_Lists.tests
         @ Test_Statics_Types.tests
         @ Test_Statics_Fixpoint.tests
         @ Test_Statics_Property_DoesNotCrash.tests,

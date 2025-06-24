@@ -21,6 +21,11 @@ let eq_info_error_exp = (a: Info.error_exp, b: Info.error_exp) => {
     && List.equal(String.equal, err.duplicate_labels, err'.duplicate_labels)
     && List.equal(String.equal, err.invalid_labels, err'.invalid_labels)
     && Typ.fast_equal(err.typ, err'.typ)
+  | (
+      Common(NoType(FreeConstructor(a))),
+      Common(NoType(FreeConstructor(b))),
+    ) =>
+    String.equal(a, b)
   | _ =>
     Alcotest.fail(
       "Not implemented for "
