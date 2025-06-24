@@ -384,38 +384,16 @@ let check_req =
 
   // Check if user just typed ??
   switch (caret, Zipper.neighbor_monotiles(siblings)) {
-  | (Outer, (_, Some(_))) =>
-    switch (Zipper.right_neighbor_monotile(siblings)) {
-    | Some(c) =>
-      switch (c) {
-      | "??" =>
-        let tileId = Option.get(Indicated.index(z));
-        let advanced_reasoning = false;
-        send_message(tileId, advanced_reasoning);
-      | "?a" =>
-        let tileId = Option.get(Indicated.index(z));
-        let advanced_reasoning = true;
-        send_message(tileId, advanced_reasoning);
-      | _ => ()
-      }
-    | _ => ()
-    }
-  | (Outer, (_, None)) =>
-    switch (Zipper.left_neighbor_monotile(siblings)) {
-    | Some(c) =>
-      switch (c) {
-      | "??" =>
-        let tileId = Option.get(Indicated.index(z));
-        let advanced_reasoning = false;
-        send_message(tileId, advanced_reasoning);
-      | "?a" =>
-        let tileId = Option.get(Indicated.index(z));
-        let advanced_reasoning = true;
-        send_message(tileId, advanced_reasoning);
-      | _ => ()
-      }
-    | _ => ()
-    }
+  | (Outer, (_, Some("??")))
+  | (Outer, (Some("??"), None)) =>
+    let tileId = Option.get(Indicated.index(z));
+    let advanced_reasoning = false;
+    send_message(tileId, advanced_reasoning);
+  | (Outer, (_, Some("?a")))
+  | (Outer, (Some("?a"), None)) =>
+    let tileId = Option.get(Indicated.index(z));
+    let advanced_reasoning = true;
+    send_message(tileId, advanced_reasoning);
   | _ => ()
   };
 };
