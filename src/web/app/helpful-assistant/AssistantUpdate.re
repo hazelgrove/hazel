@@ -363,6 +363,7 @@ let check_req =
     (
       _: string,
       schedule_action: t => unit,
+      schedule_setting: AssistantSettings.action => unit,
       editor: CodeEditable.Model.t,
       chat_id: Id.t,
     )
@@ -371,6 +372,7 @@ let check_req =
   let caret = z.caret;
   let siblings = z.relatives.siblings;
   let send_message = (tile_id, advanced_reasoning) => {
+    schedule_setting(AssistantSettings.SwitchMode(CodeSuggestion));
     schedule_action(
       SendMessage(
         Completion(Request(tile_id, advanced_reasoning)),
@@ -507,26 +509,35 @@ let mk_llm_call =
   };
 };
 
-let mk_mode_prompt = (~mode: AssistantSettings.mode): OpenRouter.message => {
+let mk_mode_prompt =
+    (~mode: AssistantSettings.mode): option(OpenRouter.message) => {
   let prompt =
     switch (mode) {
-    | HazelTutor => InitPrompts.mk_tutor()
-    | CodeSuggestion => InitPrompts.mk_suggestion()
-    | TaskCompletion => InitPrompts.mk_composition()
+    | HazelTutor => Some(InitPrompts.mk_tutor())
+    | CodeSuggestion => None
+    | TaskCompletion => Some(InitPrompts.mk_composition())
     };
   prompt;
 };
 
 let init_chat = (mode: AssistantSettings.mode): Model.chat => {
-  let init_message = mk_mode_prompt(~mode);
-  let init_message_display =
-    mk_message_display(
-      ~content=init_message.content,
-      ~role=System(AssistantPrompt),
-    );
+  let (init_message, init_message_display) =
+    switch (mk_mode_prompt(~mode)) {
+    | Some(init_message) => (
+        [init_message],
+        [
+          mk_message_display(
+            ~content=init_message.content,
+            ~role=System(AssistantPrompt),
+          ),
+        ],
+      )
+    | None => ([], [])
+    };
+
   {
-    outgoing_messages: [init_message],
-    message_displays: [init_message_display],
+    outgoing_messages: init_message,
+    message_displays: init_message_display,
     id: Id.mk(),
     descriptor: "",
     timestamp: JsUtil.timestamp(),
@@ -668,10 +679,22 @@ let update =
 
     | Completion(kind) =>
       let mode = AssistantSettings.CodeSuggestion;
-      let curr_chat =
-        Id.Map.find(chat_id, model.chat_history.past_suggestion_chats);
       switch (kind) {
       | Request(tile_id, advanced_reasoning) =>
+        let new_chat = init_chat(mode);
+        print_endline("new_chat: " ++ Id.to_string(new_chat.id));
+        let updated_past_chats =
+          add_chat_to_history(
+            new_chat,
+            model.chat_history.past_suggestion_chats,
+          );
+        let model_with_new_chat =
+          resculpt_model(
+            ~model,
+            ~mode,
+            ~updated_past_chats,
+            ~chat_id=new_chat.id,
+          );
         let tag = String.sub(Id.to_string(tile_id), 0, 3);
         switch (
           {
@@ -696,22 +719,25 @@ let update =
         ) {
         | None =>
           print_endline("Suggestion prompt generation failed");
-          model |> Updated.return_quiet;
+          model_with_new_chat |> Updated.return_quiet;
         | Some(suggestion_prompt) =>
-          let new_message_displays =
-            List.map(
-              (msg: OpenRouter.message) =>
-                mk_message_display(
-                  ~content=msg.content,
-                  ~role=System(AssistantPrompt),
+          let new_message_displays = [
+            mk_message_display(
+              ~content=
+                String.concat(
+                  "\n",
+                  List.map(
+                    (msg: OpenRouter.message) => msg.content,
+                    suggestion_prompt,
+                  ),
                 ),
-              suggestion_prompt,
-            );
+              ~role=System(AssistantPrompt),
+            ),
+          ];
           let updated_chat = {
-            ...curr_chat,
-            outgoing_messages: curr_chat.outgoing_messages @ suggestion_prompt,
-            message_displays:
-              curr_chat.message_displays @ new_message_displays,
+            ...new_chat,
+            outgoing_messages: new_chat.outgoing_messages @ suggestion_prompt,
+            message_displays: new_chat.message_displays @ new_message_displays,
           };
           mk_llm_call(
             ~mode,
@@ -726,17 +752,19 @@ let update =
                 tile_id,
               ),
               response,
-              chat_id,
+              new_chat.id,
             )
           );
           update_model_chat_history(
-            ~model,
+            ~model=model_with_new_chat,
             ~mode=settings.assistant.mode,
             ~updated_chat,
           )
           |> Updated.return_quiet;
         };
       | Query(content) =>
+        let curr_chat =
+          Id.Map.find(chat_id, model.chat_history.past_suggestion_chats);
         let user_message = OpenRouter.mk_user_msg(content);
         let ctx =
           OpenRouter.mk_user_msg(
@@ -771,6 +799,8 @@ let update =
         |> Updated.return_quiet;
 
       | Loop(error, tile_id, fuel) =>
+        let curr_chat =
+          Id.Map.find(chat_id, model.chat_history.past_suggestion_chats);
         let error_message =
           OpenRouter.mk_user_msg(
             "Your previous response caused the following error. Please fix it in your response: "
