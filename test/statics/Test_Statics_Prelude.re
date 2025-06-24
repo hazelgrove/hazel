@@ -26,6 +26,7 @@ let eq_info_error_exp = (a: Info.error_exp, b: Info.error_exp) => {
       Common(NoType(FreeConstructor(b))),
     ) =>
     String.equal(a, b)
+  | (FreeVariable(a), FreeVariable(b)) => String.equal(a, b)
   | _ =>
     Alcotest.fail(
       "Not implemented for "
