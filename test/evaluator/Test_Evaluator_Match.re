@@ -149,5 +149,19 @@ go(Var("yo"))|},
           end)|},
       )
     }),
+    test_case("Preservation of type with unknown in if expression", `Quick, () => {
+      full_preservation_test(parse_exp({|if false then 1 else ("" : ?)|}))
+    }),
+    test_case(
+      "Preservation of type with unknown in case expression", `Quick, () => {
+      full_preservation_test(
+        parse_exp(
+          {|case 2
+      | 1 => true
+      | _ => "hello" : ?
+      |},
+        ),
+      )
+    }),
   ],
 );
