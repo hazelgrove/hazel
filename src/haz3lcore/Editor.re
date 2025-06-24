@@ -117,6 +117,18 @@ module Model = {
 
   let get_z = model => model.zipper |> Calc.get_value;
 
+  let indicated_term = (model: t('p_k, 'p, 'p_a)): option(Language.Any.t) => {
+    let zipper = get_z(model);
+    open OptUtil.Syntax;
+    let* indicated_index = Indicated.index(zipper);
+    switch (model.syntax) {
+    | Pending =>
+      print_endline("WARNING: get_indicated_term called on pending model");
+      None;
+    | Calculated(syntax) => Id.Map.find_opt(indicated_index, syntax.terms)
+    };
+  };
+
   type persistent = PersistentZipper.t;
   let persist = (f: 'p => 'q, model: t('p_k, 'p, 'p_a)) =>
     model |> get_z |> PersistentZipper.persist(f);

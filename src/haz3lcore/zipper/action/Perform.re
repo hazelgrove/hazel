@@ -142,8 +142,9 @@ let go_z =
       ~seg_of_pr,
       ~update_projector,
       ~livelit_projectors,
-      Move.jump_to_side_of_id,
-      Select.current_term(~defs_exclude_bodies=false, ~case_rules=false),
+      ~jump_to_side_of_id=Move.jump_to_side_of_id,
+      ~select_term=
+        Select.current_term(~defs_exclude_bodies=false, ~case_rules=false),
       a,
       z,
     )

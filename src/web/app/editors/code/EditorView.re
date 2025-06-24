@@ -111,6 +111,69 @@ module Focus = {
     };
   };
 
+  let applicable_projectors = (m, indicated_kind, mk_projector, read_only) => {
+    /* NOTE: This determines which projectors are shown in the projector panel select menu.
+     * This approximates but is not fully in sync with the logic in perform
+     * which determines what is actually selectable. This should be revisited
+     * in the future. This is also a performance problem waiting to happen. */
+    let selection = Editor.Model.get_z(m).selection.content;
+    let is_projector_indicated =
+      switch (indicated_kind, selection) {
+      | (Some(_), []) => true
+      | (_, [Projector(_)]) => true //TODO
+      | _ => false
+      };
+    let candidate_term =
+      if (is_projector_indicated) {
+        None;
+      } else if (selection == []) {
+        /* Note: this will be not exactly the same as the term in the perform logic */
+        Editor.Model.indicated_term(
+          m,
+        );
+      } else {
+        MakeTerm.for_projection(
+          ~of_projector=(~sort as _, ~id as _, _) => Any(), //TODO
+          ~log_projector=_ => (),
+          selection,
+        );
+      };
+    let is_applicable = kind =>
+      OptUtil.Syntax.(
+        let* candidate_term = candidate_term;
+        /* Note: below elides actually factoring in the editor, because
+         * this is awkward to get here in the indicated term case. So
+         * this may not work if projector init method actually introspects
+         * on the editor */
+        let+ _ =
+          mk_projector(kind, candidate_term, () =>
+            Some(Editor.Model.mk(Zipper.init()))
+          );
+        kind
+      );
+    if (read_only) {
+      [];
+    } else {
+      let projectors =
+        ProjectorKind.projectors |> List.filter_map(is_applicable);
+      switch (indicated_kind) {
+      | Some(kind) => ListUtil.lift(kind, projectors)
+      | None => projectors
+      };
+    };
+  };
+
+  let indicated_kind = (m, get_kind) =>
+    switch (
+      m
+      |> Editor.Model.get_z
+      |> Indicated.piece''
+      |> Option.map(((p, _, _)) => p)
+    ) {
+    | Some(Projector(p)) => Some(get_kind(p.model))
+    | _ => None
+    };
+
   let get_cursor_info =
       (
         type p_m,
@@ -134,31 +197,34 @@ module Focus = {
              unit => option(Editor.Model.t(_, _, _))
            ) =>
            option(p_m),
-        ~make_term_prj,
+        ~make_term_prj as _, //TODO(andrew): rm?
         ~get_kind,
         m: Editor.Model.t(ProjectorKind.t, p_m, 'p_a),
         focus: t('p_f),
       ) => {
     let sys = Os.is_mac^ ? Key.Mac : Key.PC;
 
-    let indicated_piece =
-      m
-      |> Editor.Model.get_z
-      |> Indicated.piece''
-      |> Option.map(((p, _, _)) => p);
+    let indicated_kind = indicated_kind(m, get_kind);
 
-    let selection = Some(Editor.Model.get_z(m).selection.content);
-
-    let projector_actions =
-      ProjectorCursor.mk(
-        ~indicated_piece,
-        ~selection,
-        ~read_only,
-        ~get_kind,
-        ~mk_projector,
-        ~make_term_prj,
-        ~inject,
+    let mk_projection_action = kind =>
+      ContextualAction.mk(
+        ~section="Projection",
+        ProjectorKind.name(kind),
+        ~hotkey=?ProjectorKind.shortcut_of(kind),
+        inject(Project(SetIndicated(Specific(kind)))),
       );
+    let unproject =
+      ContextualAction.mk(
+        ~section="Projection",
+        "Unproject",
+        inject(Project(RemoveIndicated)),
+      );
+    let projector_actions =
+      List.map(
+        mk_projection_action,
+        applicable_projectors(m, indicated_kind, mk_projector, read_only),
+      )
+      @ (indicated_kind != None ? [unproject] : []);
 
     let read_only_actions = [
       ContextualAction.mk(
@@ -233,11 +299,7 @@ module Focus = {
         info:
           Indicated.ci_of(m |> Editor.Model.get_z, common.statics.info_map),
         contextual_actions: projector_actions @ read_only_actions,
-        current_projector:
-          Option.map(
-            ProjectorKind.name,
-            ProjectorCursor.indicated_kind(indicated_piece, get_kind),
-          ),
+        current_projector: Option.map(ProjectorKind.name, indicated_kind),
       }
       |> Cursor.with_actions_if(!read_only, editor_actions)
     | Projector(id, f) =>

@@ -90,55 +90,78 @@ let get_model = (id: Id.t, z: ZipperBase.t('p)): option('p) => {
   };
 };
 
+let setup_selection =
+    (
+      type p,
+      ~select_term: Zipper.t(p) => option(Zipper.t(p)),
+      z: Zipper.t(p),
+    )
+    : option((Direction.t, Zipper.t(p))) =>
+  Selection.is_empty(z.selection)
+    ? switch (select_term(z), Indicated.direction(z)) {
+      | (Some(z), Some(d)) => Some((Direction.toggle(d), z))
+      | _ => None
+      }
+    : Some((z.selection.focus, z));
+
+let remove_indicated =
+    (
+      type p,
+      ~select_term: Zipper.t(p) => option(Zipper.t(p)),
+      ~seg_of_pr: p => Base.segment(p),
+      z: Zipper.t(p),
+    )
+    : option(Zipper.t(p)) => {
+  let* (focus, z) = setup_selection(~select_term, z);
+  switch (z.selection.content) {
+  | [Projector(pr)] => Some(remove(seg_of_pr(pr.model), focus, z))
+  | _ => None
+  };
+};
+
+let set_indicated =
+    (
+      type p,
+      ~select_term: Zipper.t(p) => option(Zipper.t(p)),
+      ~seg_of_pr: p => Base.segment(p),
+      ~projector_init,
+      ~seg_to_ed,
+      z: Zipper.t(p),
+      kind,
+    )
+    : option(Zipper.t(p)) => {
+  /* If not projected, project. If already same kind, remove. If other kind, change */
+  // TODO [Matt]: Make this check the kind again
+  let* (focus, z) = setup_selection(~select_term, z);
+  switch (z.selection.content) {
+  | [Projector(pr)] => Some(remove(seg_of_pr(pr.model), focus, z))
+  // | [Projector(pr)] =>
+  //   let+ piece =
+  //     init(~projector_init, kind, Piece.unparenthesize(pr.syntax));
+  //   replace_selection_and_unselect(piece, focus, z);
+  | seg =>
+    let+ piece = init(~projector_init, ~seg_to_ed, kind, seg);
+    replace_selection_and_unselect(piece, focus, z);
+  };
+};
+
 let go =
     (
       type p,
-      type p_kind,
-      type p_a,
       ~seg_to_ed,
       ~projector_init,
       ~update_projector,
       ~seg_of_pr: p => Base.segment(p),
       ~livelit_projectors,
-      jump_to_side_of_id,
-      select_term: Zipper.t(p) => option(Zipper.t(p)),
-      a: Action.project(p_kind, p, p_a),
+      ~jump_to_side_of_id,
+      ~select_term: Zipper.t(p) => option(Zipper.t(p)),
+      a: Action.project('kind, p, 'p_a),
       z: Zipper.t(p),
     )
     : result(ZipperBase.t(p), Action.Failure.t) => {
-  let setup_selection =
-      (z: Zipper.t(p)): option((Direction.t, Zipper.t(p))) =>
-    Selection.is_empty(z.selection)
-      ? switch (select_term(z), Indicated.direction(z)) {
-        | (Some(z), Some(d)) => Some((Direction.toggle(d), z))
-        | _ => None
-        }
-      : Some((z.selection.focus, z));
-
-  let set_indicated = (z: Zipper.t(p), kind: p_kind): option(Zipper.t(p)) => {
-    /* If not projected, project. If already same kind, remove. If other kind, change */
-    // TODO [Matt]: Make this check the kind again
-    let* (focus, z) = setup_selection(z);
-    switch (z.selection.content) {
-    | [Projector(pr)] => Some(remove(seg_of_pr(pr.model), focus, z))
-    // | [Projector(pr)] =>
-    //   let+ piece =
-    //     init(~projector_init, kind, Piece.unparenthesize(pr.syntax));
-    //   replace_selection_and_unselect(piece, focus, z);
-    | seg =>
-      let+ piece = init(~projector_init, ~seg_to_ed, kind, seg);
-      replace_selection_and_unselect(piece, focus, z);
-    };
-  };
-
-  let remove_indicated = (z: Zipper.t(p)): option(Zipper.t(p)) => {
-    let* (focus, z) = setup_selection(z);
-    switch (z.selection.content) {
-    | [Projector(pr)] => Some(remove(seg_of_pr(pr.model), focus, z))
-    | _ => None
-    };
-  };
-
+  let set_indicated =
+    set_indicated(~select_term, ~seg_of_pr, ~projector_init, ~seg_to_ed);
+  let remove_indicated = remove_indicated(~select_term, ~seg_of_pr);
   switch (a) {
   | SetIndicated(Specific(kind)) =>
     switch (set_indicated(z, kind)) {
@@ -171,7 +194,7 @@ let go =
   | MoveCaretTo(target_id) =>
     switch (Indicated.index(z)) {
     | Some(indicated_id) when indicated_id != target_id =>
-      /* May as well not flop sides willy nilly */
+      /* May as well not flop sides willy nilly if already there */
       Ok(jump_to_side_of_id(Left, z, target_id))
     | _ => Ok(z)
     }
