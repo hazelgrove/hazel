@@ -303,6 +303,7 @@ module Focus = {
       }
       |> Cursor.with_actions_if(!read_only, editor_actions)
     | Projector(id, f) =>
+      //TODO(andrew): perf problem maybe
       get_cursor_info_pr(
         ~common,
         ~inject=x => inject(Project(Perform(id, x))),

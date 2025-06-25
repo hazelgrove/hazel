@@ -170,6 +170,7 @@ module Model = {
   };
 
   let get_projector_model = (id: Id.t, m: t('p_k, 'p, 'p_a)): 'p => {
+    //WARNING!! This is linear in the size of the program!
     let zipper = m |> get_z;
     let piece =
       Zipper.FindPiece.in_zipper(

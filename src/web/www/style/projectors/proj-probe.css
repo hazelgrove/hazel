@@ -194,6 +194,7 @@
   flex-direction: row;
   align-items: baseline;
   gap: 6px;
+  outline: none;
 }
 .projector.probe .live-offside:empty {
   display: none;
