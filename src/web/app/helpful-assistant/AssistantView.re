@@ -267,12 +267,7 @@ let api_input =
 };
 
 let llm_model_id_input =
-    (
-      ~inject: Update.t => Ui_effect.t(unit),
-      ~signal,
-      ~model: Model.t,
-      ~settings: AssistantSettings.t,
-    )
+    (~inject: Update.t => Ui_effect.t(unit), ~signal, ~model: Model.t)
     : Node.t => {
   let format_price_per_million = (price: string): string => {
     // Convert string to float, multiply by 1000 to get per million tokens
@@ -1198,13 +1193,7 @@ let view =
               ~settings=settings.assistant,
             ),
         settings.assistant.ongoing_chat
-          ? None
-          : llm_model_id_input(
-              ~inject,
-              ~model,
-              ~signal,
-              ~settings=settings.assistant,
-            ),
+          ? None : llm_model_id_input(~inject, ~model, ~signal),
         //settings.assistant.ongoing_chat ? None : settings_box(~inject_global),
         settings.assistant.ongoing_chat && settings.assistant.show_history
           ? history_menu(~model, ~settings=settings.assistant, ~inject) : None,
