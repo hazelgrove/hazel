@@ -112,11 +112,7 @@ module Update = {
       |> Updated.return_quiet(~scroll_active=true)
     | Set(action) =>
       let* settings =
-        Settings.Update.update(
-          ~action,
-          ~schedule_action=a => schedule_action(Globals(Set(a))),
-          ~settings=model.globals.settings,
-        );
+        Settings.Update.update(~action, ~settings=model.globals.settings);
       {
         ...model,
         globals: {
