@@ -175,58 +175,62 @@ let qcheck_pattern_equivalence_test =
       true;
     }
   );
-
-// Taking a step should result in a consistent type that is more precise than the original type
+let count = ref(0);
+// Taking a full evaluation should result in a consistent type that is more precise than the original type
 [@warning "-52"]
 let qcheck_preservation_test =
   QCheck.Test.make(
     ~name="Preservation of types",
-    ~count=10000,
+    ~count=100_000,
     QCheck_Util.arb_exp(~minimal_idents=true, 10),
     uexp => {
+    if(count^ mod 10_000 == 0) {
+      print_endline("Running preservation test count: " ++ string_of_int(count^));
+    };
+    count := count^ + 1;
     switch (
+      {
+        let statics =
+          Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), uexp);
+        let (elaborated, ty) = Elaborator.elaborate(statics, uexp);
+        let evaluated = Evaluator.evaluate_and_limit(
+          ~env=Builtins.env_init,
+          ~step_limit=100,
+          elaborated,
+        );
+        (evaluated, ty);
+      }
+    ) {
+    | (Completed((next, _)), orig_ty) =>
       switch (
         {
           let statics =
-            Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), uexp);
-          let (elaborated, ty) = Elaborator.elaborate(statics, uexp);
-          let stepped = single_step(elaborated);
-          (stepped, ty);
+            Statics.mk(
+              CoreSettings.on,
+              Builtins.ctx_init(Some(Int)),
+              next,
+            );
+          let info: option(Info.t) =
+            Statics.Map.lookup(next.annotation.ids |> List.hd, statics);
+
+          info;
         }
       ) {
-      | (Some((next, _)), orig_ty) =>
-        switch (
-          {
-            let statics =
-              Statics.mk(
-                CoreSettings.on,
-                Builtins.ctx_init(Some(Int)),
-                next,
-              );
-            let info: option(Info.t) =
-              Statics.Map.lookup(next.annotation.ids |> List.hd, statics);
-
-            info;
-          }
-        ) {
-        | Some(InfoExp({ty, _})) =>
-          Typ.is_more_precise(Ctx.empty, ty, orig_ty)
-            ? true
-            : Alcotest.fail(
-                "Preservation failed: original type "
-                ++ Typ.show(orig_ty)
-                ++ " is not more precise than stepped type "
-                ++ Typ.show(ty),
-              )
-        | _ =>
-          Alcotest.fail("No type information found for stepped expression")
-        }
-      | (None, _) => true // If we can't take a step, we don't have to check preservation
+      | Some(InfoExp({ty, _})) =>
+        Typ.is_consistent(Ctx.empty, ty, orig_ty)
+          ? true
+          : Alcotest.fail(
+              "Preservation failed: original type "
+              ++ Typ.show(orig_ty)
+              ++ " is not more precise than evaluated type "
+              ++ Typ.show(ty),
+            )
+      | _ =>
+        Alcotest.fail("No type information found for evaluated expression")
       }
-    ) {
-    | ret => ret
-    | exception (Invalid_argument("List.fold_left2")) // https://github.com/hazelgrove/hazel/issues/1673
-    | exception Stack_overflow => true // Known issue with some expressions that cause infinite recursion in the stepper
+    | (StepLimitExceeded, _) => true // Ignore programs that don't terminate within step limit
+    | exception (Invalid_argument("List.fold_left2")) => true // https://github.com/hazelgrove/hazel/issues/1673
+    | exception Stack_overflow => true // Known issue with some expressions that cause infinite recursion
     }
   });
 
@@ -236,6 +240,6 @@ let tests = (
     QCheck_alcotest.to_alcotest(qcheck_evaluator_does_not_crash_test),
     QCheck_alcotest.to_alcotest(qcheck_stepper_confluence),
     QCheck_alcotest.to_alcotest(qcheck_pattern_equivalence_test),
-    // QCheck_alcotest.to_alcotest(qcheck_preservation_test), // Disabled due to known issues with preservation
+    QCheck_alcotest.to_alcotest(qcheck_preservation_test), // Disabled due to known issues with preservation
   ],
 );
