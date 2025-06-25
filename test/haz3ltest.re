@@ -2,8 +2,8 @@ open Junit_alcotest;
 
 Printexc.register_printer(exn => {
   switch (exn) {
-  | Haz3lcore.EvaluatorError.Exception(msg) =>
-    Some(Haz3lcore.EvaluatorError.show(msg))
+  | Language.EvaluatorError.Exception(msg) =>
+    Some(Language.EvaluatorError.show(msg))
   | _ => None
   }
 });
@@ -28,6 +28,7 @@ let (suite, _) =
         @ Test_Statics_Polymorphism.tests
         @ Test_Statics_Sums.tests
         @ Test_Statics_Types.tests
+        @ Test_Statics_Fixpoint.tests
         @ Test_Statics_Property_DoesNotCrash.tests,
       ),
     ]

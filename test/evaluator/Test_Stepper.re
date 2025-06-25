@@ -1,5 +1,5 @@
 open Alcotest;
-open Haz3lcore;
+open Language;
 open Test_Evaluator_Prelude;
 
 let tests = (
@@ -51,7 +51,7 @@ let tests = (
         );
       },
     ),
-    test_case("Single step casting of list", `Quick, () => {
+    test_case("Single step ascription of list", `Quick, () => {
       check(
         option(dhexp_typ),
         "let x  =[1,2,3,4] : [Int] in x -> let x = [1 : Int, 2 : Int, 3 : Int, 4 : Int] in x",

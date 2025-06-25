@@ -1,0 +1,23 @@
+(include_subdirs unqualified)
+
+(library
+ (name language)
+ (libraries util)
+ (js_of_ocaml)
+ (instrumentation
+  (backend bisect_ppx))
+ (preprocess
+  (pps
+   ppx_yojson_conv
+   ppx_sexp_conv
+   ppx_enumerate
+   ppx_deriving.show
+   ppx_deriving.eq)))
+
+(env
+ (dev
+  (js_of_ocaml
+   (flags :standard --debuginfo --noinline --dynlink --linkall --sourcemap)))
+ (release
+  (js_of_ocaml
+   (flags :standard))))

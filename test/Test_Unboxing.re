@@ -1,5 +1,5 @@
 open Alcotest;
-open Haz3lcore;
+open Language;
 
 let unboxed_testable = (inner_testable: testable('a)) =>
   testable(
@@ -79,10 +79,10 @@ let tests = (
         cons(1 |> int, cons(2 |> int, empty_hole())),
       ),
       test_indet_match(
-        "CastedHole to ListLit",
+        "Ascribed Hole to ListLit",
         list(dhexp_typ),
         ListLit,
-        cast(empty_hole(), Typ.(empty_hole()), Typ.(list(empty_hole()))),
+        asc(empty_hole(), Typ.(list(empty_hole()))),
       ),
       // ListLitn requests
       test_matches(
@@ -104,11 +104,18 @@ let tests = (
         ListLitn(1),
         cons(1 |> int, cons(2 |> int, empty_hole())),
       ),
+      test_matches(
+        "ListLitn to Cons, correct length",
+        list(dhexp_typ),
+        ListLitn(3),
+        cons(1 |> int, list_lit([int(2), int(3)])),
+        [1, 2, 3] |> List.map(int),
+      ),
       test_indet_match(
-        "CastedHole to ListLitn",
+        "Ascribed Hole to ListLitn",
         list(dhexp_typ),
         ListLitn(0),
-        cast(empty_hole(), Typ.(empty_hole()), Typ.(list(empty_hole()))),
+        asc(empty_hole(), Typ.(list(empty_hole()))),
       ),
       // Cons requests
       test_matches(
@@ -139,10 +146,10 @@ let tests = (
         (1 |> int, cons(2 |> int, empty_hole())),
       ),
       test_indet_match(
-        "CastedHole to Cons",
+        "Ascribed Hole to Cons",
         pair(dhexp_typ, dhexp_typ),
         Cons,
-        cast(empty_hole(), Typ.(empty_hole()), Typ.(list(empty_hole()))),
+        asc(empty_hole(), Typ.(list(empty_hole()))),
       ),
     ]
   ),

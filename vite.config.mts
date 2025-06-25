@@ -20,7 +20,7 @@ function watchExternalPlugin(filePath: string): Plugin {
 }
 
 export default defineConfig({
-  root: "src/haz3lweb/www",
+  root: "src/web/www",
   server: {
     port: 8000,
     host: true,
@@ -28,16 +28,16 @@ export default defineConfig({
   plugins: [
     viteStaticCopy({
       targets: [
-        { src: "../../../_build/default/src/haz3lweb/www/worker.js", dest: "" },
+        { src: "../../../_build/default/src/web/www/worker.js", dest: "" },
         {
-          src: "../../../_build/default/src/haz3lweb/www/bundled.js",
+          src: "../../../_build/default/src/web/www/bundled.js",
           dest: "",
         },
-        { src: "../../../_build/default/src/haz3lweb/www/hazel.js", dest: "" },
+        { src: "../../../_build/default/src/web/www/hazel.js", dest: "" },
       ],
     }),
-    watchExternalPlugin("./_build/default/src/haz3lweb/www/worker.js"),
-    watchExternalPlugin("./_build/default/src/haz3lweb/www/bundled.js"),
-    watchExternalPlugin("./_build/default/src/haz3lweb/www/hazel.js"),
+    watchExternalPlugin("./_build/default/src/web/www/worker.js"),
+    watchExternalPlugin("./_build/default/src/web/www/bundled.js"),
+    watchExternalPlugin("./_build/default/src/web/www/hazel.js"),
   ],
 });
