@@ -19,6 +19,7 @@ let strip_Wrap_and_add_builtins =
             switch (builtin) {
             | Some(Fn(_, _, _)) => cont(Fresh.Exp.builtin_fun(x))
             | Some(Const(_, _))
+            | Some(HazelFn(_, _, _)) => cont(e)
             | None => cont(e)
             },
           );

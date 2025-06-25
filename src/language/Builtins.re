@@ -14,7 +14,8 @@ module Fresh = IdTagged.FreshGrammar;
 [@deriving (show({with_path: false}), sexp)]
 type builtin =
   | Const(Typ.t, DHExp.t)
-  | Fn(Typ.t, Typ.t, DHExp.t => option(DHExp.t));
+  | Fn(Typ.t, Typ.t, DHExp.t => option(DHExp.t))
+  | HazelFn(Typ.t, Typ.t, Exp.t);
 
 [@deriving (show({with_path: false}), sexp)]
 type t = VarMap.t_(builtin);
@@ -56,6 +57,10 @@ let fn =
     )
     : t =>
   extend(builtins, (name, Fn(t1 |> Typ.fresh, t2 |> Typ.fresh, impl)));
+
+let hazel_fn =
+    (name: Var.t, t1: Typ.term, t2: Typ.term, expr: Exp.t, builtins: t): t =>
+  extend(builtins, (name, HazelFn(t1 |> Typ.fresh, t2 |> Typ.fresh, expr)));
 
 let (let-unbox) = ((request, v), f) =>
   switch (Unboxing.unbox(request, v)) {
@@ -352,6 +357,46 @@ module Pervasives = {
            float_mod("mod"),
          )
       |> fn("string_length", Atom(String), Atom(Int), string_length)
+      |> hazel_fn(
+           "length",
+           List(unknown(Internal)),
+           Atom(Int),
+           {
+             /*fix length -> fun xs -> case xs
+                 | [] => 0
+                 | [x] => 1
+                 | x :: xs => 1 + length(xs)
+               end*/
+             Fresh.(
+               Exp.(
+                 fix_f(
+                   Pat.var("length"),
+                   fn(
+                     Pat.var("xs"),
+                     match(
+                       var("xs"),
+                       [
+                         (Pat.list_lit([]), int(0)),
+                         (Pat.list_lit([Pat.wild()]), int(1)),
+                         (
+                           Pat.cons(Pat.wild(), Pat.var("xs")),
+                           bin_op(
+                             Int(Plus),
+                             int(1),
+                             ap(Forward, var("length"), var("xs")),
+                           ),
+                         ),
+                       ],
+                     ),
+                     None,
+                     None,
+                   ),
+                   None,
+                 )
+               )
+             );
+           },
+         )
       |> fn(
            "string_compare",
            Prod([string(), string()]),
@@ -411,6 +456,12 @@ let entries =
         name,
         typ: Fresh.Typ.arrow(t1, t2),
         id: Id.invalid,
+      })
+    | (name, HazelFn(t1, t2, _)) =>
+      Ctx.VarEntry({
+        name,
+        typ: Fresh.Typ.arrow(t1, t2),
+        id: Id.invalid,
       }),
     Pervasives.builtins,
   )
@@ -442,7 +493,16 @@ let forms_init: forms =
   List.filter_map(
     fun
     | (_, Const(_)) => None
-    | (name, Fn(_, _, f)) => Some((name, f)),
+    | (name, Fn(_, _, f)) => Some((name, f))
+    | (name, HazelFn(_, _, f)) =>
+      Some((
+        name,
+        (
+          (d: DHExp.t) => {
+            Some(Fresh.Exp.ap(Forward, f, d));
+          }
+        ),
+      )),
     Pervasives.builtins,
   );
 
@@ -452,6 +512,8 @@ let env_init: Environment.t =
       fun
       | (name, Const(_, d)) => Environment.extend(env, (name, d))
       | (name, Fn(_)) =>
+        Environment.extend(env, (name, Fresh.Exp.builtin_fun(name)))
+      | (name, HazelFn(_, _, _)) =>
         Environment.extend(env, (name, Fresh.Exp.builtin_fun(name))),
     Environment.empty,
     Pervasives.builtins,
