@@ -1,25 +1,7 @@
-open Util;
 open Virtual_dom.Vdom;
 open Node;
 open ProjectorBase;
-
-let rec of_segment = (~holes: option(string), seg: Segment.t): string =>
-  seg |> List.map(of_piece(~holes)) |> String.concat("")
-and of_piece = (~holes, p: Piece.t): string =>
-  switch (p) {
-  | Tile(t) => of_tile(~holes, t)
-  | Grout({shape: Concave, _}) => " "
-  | Grout({shape: Convex, _}) when holes != None => Option.get(holes)
-  | Grout({shape: Convex, _}) => " "
-  | Secondary(w) =>
-    Secondary.is_linebreak(w) ? "\n" : Secondary.get_string(w.content)
-  | Projector(p) => of_segment(~holes, Piece.unparenthesize(p.syntax))
-  }
-and of_tile = (~holes, t: Tile.t): string =>
-  Aba.mk(t.shards, t.children)
-  |> Aba.join(of_delim(t), of_segment(~holes))
-  |> String.concat("")
-and of_delim = (t: Piece.tile, i: int): string => List.nth(t.label, i);
+open Language;
 
 let expected_ty = (info: option(Info.t)): option(Typ.t) =>
   switch (info) {
@@ -30,8 +12,8 @@ let expected_ty = (info: option(Info.t)): option(Typ.t) =>
 
 let self_ty = (info: option(Info.t)): option(Typ.t) =>
   switch (info) {
-  | Some(InfoExp({self, ctx, _})) => Self.typ_of_exp(ctx, self)
-  | Some(InfoPat({self, ctx, _})) => Self.typ_of_pat(ctx, self)
+  | Some(InfoExp({self, _})) => Self.typ_of_exp(self)
+  | Some(InfoPat({self, _})) => Self.typ_of_pat(self)
   | _ => None
   };
 
@@ -71,7 +53,7 @@ module M: Projector = {
     | Expected => statics |> expected_ty
     };
 
-  let display_mode = (model: model, statics: option(Info.t)): string =>
+  let display_mode = (model: model, statics: option(Language.Info.t)): string =>
     switch (model) {
     | _ when self_ty(statics) == expected_ty(statics) => "⇔"
     | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn => "⇒"
@@ -102,7 +84,7 @@ module M: Projector = {
   let syntax_str = (info: info) => {
     let max_len = 30;
     let seg = Segment.unparenthesize(info.syntax);
-    let str = of_segment(~holes=Some("?"), seg);
+    let str = info.utility.seg_to_string(seg);
     let str = Re.Str.global_replace(Re.Str.regexp("\n"), " ", str);
     String.length(str) > max_len
       ? String.sub(str, 0, max_len) ++ "..." : str;

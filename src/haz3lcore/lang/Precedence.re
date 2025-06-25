@@ -47,7 +47,7 @@ let dot = 22;
 let ap = 23;
 // _____(x)
 // 5 : _____
-let cast = 24 |> left_associative;
+let asc = 24 |> left_associative;
 // _____ : T
 // - _____
 let neg = 25;
@@ -108,7 +108,7 @@ let associativity_map: IntMap.t(Direction.t) =
 let associativity = (p: t): option(Direction.t) =>
   IntMap.find_opt(p, associativity_map);
 
-let of_bin_op: Operators.op_bin => t =
+let of_bin_op: Language.Operators.op_bin => t =
   fun
   | Nat(op)
   | SInt(op)

@@ -1,5 +1,5 @@
 open Alcotest;
-open Haz3lcore;
+open Language;
 open Test_Evaluator_Prelude;
 
 open IdTagged.FreshGrammar;
@@ -36,12 +36,12 @@ let tests = (
         parse_and_evaluate_test("1. : String", {|1. : String|});
         evaluation_test(
           "Nat",
-          cast(nat(Bigint.of_int(4)), Typ.unknown(Internal), Typ.string()),
+          asc(nat(Bigint.of_int(4)), Typ.string()),
           elaborate(parse_exp({|4 : Nat : String|})),
         );
         evaluation_test(
           "SInt",
-          cast(sint(4), Typ.unknown(Internal), Typ.string()),
+          asc(sint(4), Typ.string()),
           elaborate(parse_exp({|4 : SInt : String|})),
         );
       },

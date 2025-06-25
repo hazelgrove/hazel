@@ -1,5 +1,5 @@
 open Alcotest;
-open Haz3lcore;
+open Language;
 open Test_Evaluator_Prelude;
 let evaluate_probes = unevaluated =>
   unevaluated
@@ -25,8 +25,11 @@ let probe_test =
         let probe_closures = Dynamics.Map.lookup(List.hd(ids), probes);
         Option.map(
           List.map((c: Dynamics.Probe.Closure.t) =>
-            Grammar.map_exp_annotation(_ => (), DHExp.strip_casts(c.value))
-          ), // Idk why there's casts on the probed values
+            Grammar.map_exp_annotation(
+              _ => (),
+              DHExp.strip_ascriptions(c.value),
+            )
+          ), // Idk why there's ascriptions on the probed values
           probe_closures,
         )
         |> Option.value(~default=[]);
@@ -174,7 +177,7 @@ let tests = (
           np(
             Let(
               npp(
-                Cast(
+                Asc(
                   npp(Var("x")),
                   npt(
                     Parens(
@@ -187,7 +190,6 @@ let tests = (
                       ),
                     ),
                   ),
-                  npt(Unknown(Internal)),
                 ),
               ),
               p(
@@ -233,8 +235,11 @@ let tests = (
         };
         let uexp =
           np(
-            Cast(
-              p(Atom(String("a")), [Atom(String("a"))]),
+            Asc(
+              p(
+                Atom(String("a")),
+                UG.Exp.[Tuple([tup_label(label("l"), string("a"))])],
+              ),
               npt(
                 Parens(
                   npt(
@@ -244,7 +249,6 @@ let tests = (
                   ),
                 ),
               ),
-              npt(Unknown(Internal)),
             ),
           );
 
@@ -270,7 +274,7 @@ let tests = (
           np(
             Let(
               npp(
-                Cast(
+                Asc(
                   p(
                     Var("x"),
                     [
@@ -303,7 +307,6 @@ let tests = (
                       ),
                     ),
                   ),
-                  npt(Unknown(Internal)),
                 ),
               ),
               np(Atom(String("a"))),

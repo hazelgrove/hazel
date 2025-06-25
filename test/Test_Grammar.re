@@ -1,12 +1,12 @@
-open Haz3lcore;
+open Language;
 open Alcotest;
 let qcheck_map_annotation_test =
   QCheck.Test.make(
     ~name="Map annotation to something and back",
     ~count=100,
-    Haz3lmenhir.AST.arb_exp(7),
+    MenhirParser.AST.arb_exp(7),
     exp => {
-      let indicated_exp = Haz3lmenhir.Conversion.Exp.of_menhir_ast(exp);
+      let indicated_exp = MenhirParser.Conversion.Exp.of_menhir_ast(exp);
       let core_exp =
         Grammar.map_exp_annotation(
           _ => IdTagged.IdTag.fresh(),
@@ -35,7 +35,6 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | EmptyHole => empty_hole()
       | MultiHole => multi_hole([Exp(empty_hole()), Exp(empty_hole())])
       | DynamicErrorHole => dynamic_error_hole(empty_hole(), DivideByZero)
-      | FailedCast => failed_cast(empty_hole(), Typ.int(), Typ.string())
       | Deferral => deferral(InAp)
       | Undefined => undefined()
       | Atom(Bool) => bool(true)
@@ -88,7 +87,7 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | BinOp(op) => bin_op(op, empty_hole(), empty_hole())
       | BuiltinFun => builtin_fun("string_compare")
       | Match => match(empty_hole(), [])
-      | Cast => cast(empty_hole(), Typ.int(), Typ.string())
+      | Asc => asc(empty_hole(), Typ.string())
       | ListConcat => list_concat(empty_hole(), empty_hole())
       }
     )
@@ -118,7 +117,7 @@ let sample_pattern = (cls_pat: Pat.cls): Grammar.UnitGrammar.pat => {
       | Parens => parens(empty_hole())
       | Probe => probe(empty_hole(), Probe.empty)
       | Ap => ap(empty_hole(), empty_hole())
-      | Cast => cast(empty_hole(), Typ.int(), Typ.string())
+      | Asc => asc(empty_hole(), Typ.string())
       | Wild => wild()
       }
     )

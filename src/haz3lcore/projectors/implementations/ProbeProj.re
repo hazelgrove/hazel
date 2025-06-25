@@ -3,24 +3,7 @@ open ProjectorBase;
 open Virtual_dom.Vdom;
 open Node;
 open Js_of_ocaml;
-
-let rec of_segment = (~holes: option(string), seg: Segment.t): string =>
-  seg |> List.map(of_piece(~holes)) |> String.concat("")
-and of_piece = (~holes, p: Piece.t): string =>
-  switch (p) {
-  | Tile(t) => of_tile(~holes, t)
-  | Grout({shape: Concave, _}) => " "
-  | Grout({shape: Convex, _}) when holes != None => Option.get(holes)
-  | Grout({shape: Convex, _}) => " "
-  | Secondary(w) =>
-    Secondary.is_linebreak(w) ? "\n" : Secondary.get_string(w.content)
-  | Projector(p) => of_segment(~holes, Piece.unparenthesize(p.syntax))
-  }
-and of_tile = (~holes, t: Tile.t): string =>
-  Aba.mk(t.shards, t.children)
-  |> Aba.join(of_delim(t), of_segment(~holes))
-  |> String.concat("")
-and of_delim = (t: Piece.tile, i: int): string => List.nth(t.label, i);
+open Language;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type closure = Dynamics.Probe.Closure.t;
@@ -445,22 +428,22 @@ module Closures = {
 
 let abbreviate = (exp: Exp.t, available: int): Exp.t => {
   let (abbr_exp, _length) =
-    exp |> DHExp.strip_casts |> Abbreviate.abbreviate_exp(~available);
+    exp |> DHExp.strip_ascriptions |> Abbreviate.abbreviate_exp(~available);
   abbr_exp;
 };
 
-let len_seg = (seg: Segment.t): int =>
-  seg |> of_segment(~holes=Some("?")) |> String.length;
+let len_seg = (utility: utility, seg: Segment.t): int =>
+  seg |> utility.seg_to_string |> String.length;
 
 let seg_of_exp = (utility: utility, exp: Exp.t): (Segment.t, int) => {
   let seg = utility.term_to_seg(Exp(exp));
-  (seg, len_seg(seg));
+  (seg, len_seg(utility, seg));
 };
 
 let abbreviated_seg_of =
     (utility: utility, available: int, exp: Exp.t): (Segment.t, int) => {
   let (abbr_exp, _length) =
-    exp |> DHExp.strip_casts |> Abbreviate.abbreviate_exp(~available);
+    exp |> DHExp.strip_ascriptions |> Abbreviate.abbreviate_exp(~available);
   seg_of_exp(utility, abbr_exp);
 };
 
@@ -698,11 +681,11 @@ let pin_view = (info: info) =>
   DynCursor.show_pin(info)
     ? [div(~attrs=[Attr.classes(["pin"])], [])] : [];
 
-let syntax_str =
+let syntax_str = (utility: utility) =>
   Core.Memo.general(seg => {
     let max_len = 30;
     let seg = Segment.unparenthesize(seg);
-    let str = of_segment(~holes=Some("?"), seg);
+    let str = utility.seg_to_string(seg);
     let str = Re.Str.global_replace(Re.Str.regexp("\n"), " ", str);
     String.length(str) > max_len
       ? String.sub(str, 0, max_len) ++ "..." : str;
@@ -732,7 +715,8 @@ let round_up = (utility: utility, closure): unit => {
   let (_, cur) =
     abbreviated_seg_of(utility, ClosureLength.get(closure), closure.value);
   let goal = cur + 1;
-  let (_, max_len) = seg_of_exp(utility, DHExp.strip_casts(closure.value));
+  let (_, max_len) =
+    seg_of_exp(utility, DHExp.strip_ascriptions(closure.value));
   let rec find_target = (target: int): int => {
     let attempt_len =
       abbreviated_seg_of(utility, target, closure.value) |> snd;
@@ -859,7 +843,7 @@ let view = (local, parent, info: info): Node.t =>
         local(NoOp);
       }),
     ],
-    [text(syntax_str(info.syntax)), icon],
+    [text(syntax_str(info.utility, info.syntax)), icon],
   );
 
 let overlay_view = (info: info): Node.t =>
@@ -901,7 +885,9 @@ module M: Projector = {
     };
 
   let placeholder = (_, info: info) =>
-    ProjectorCore.Shape.inline(2 + String.length(syntax_str(info.syntax)));
+    ProjectorCore.Shape.inline(
+      2 + String.length(syntax_str(info.utility, info.syntax)),
+    );
 
   let update = update;
 
