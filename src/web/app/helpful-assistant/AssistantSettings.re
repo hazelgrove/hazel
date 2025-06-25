@@ -9,30 +9,22 @@ type mode =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   mode,
-  api_key: string,
-  llm_model: string,
   ongoing_chat: bool,
   show_history: bool,
   show_api_key: bool,
-  available_models: list(OpenRouter.model_info),
 };
 
 // Note: Settings actions are handled in Settings.re
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action =
-  // Flips between ongoing and not ongoing chat
+  // Flips between ongoing and non-ongoing chat
   | UpdateChatStatus
   // Switches the mode of the assistant (Suggest, Complete, Compose)
+  // Future Idea: Combine modes into a single interface, similar to what Cursor or Copilot does
   | SwitchMode(mode)
-  // Toggles the chat history
+  // Toggles the chat history to be displayed or collapsed, adjacent to the sidebar-chat interface
   | ToggleHistory
-  // Sets the LLM model
-  | SetLLM(string)
   // Toggles the visibility of the API key in the settings menu
-  | ToggleAPIKeyVisibility
-  // Sets the API key
-  | SetAPIKey(string)
-  // Sets the list of available LLMs from OpenRouter
-  | SetListOfLLMs(list(OpenRouter.model_info));
+  | ToggleAPIKeyVisibility;
 
 let make_descriptor_max = 3;

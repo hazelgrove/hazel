@@ -48,12 +48,9 @@ module Model = {
     },
     assistant: {
       mode: CodeSuggestion,
-      api_key: "",
-      llm_model: "",
       ongoing_chat: false,
       show_history: false,
       show_api_key: false,
-      available_models: [],
     },
     sidebar: {
       panel: LanguageDocumentation,
@@ -290,51 +287,11 @@ module Update = {
               show_history: !settings.assistant.show_history,
             },
           }
-        | SetLLM(llm_id) => {
-            ...settings,
-            assistant: {
-              ...settings.assistant,
-              llm_model: llm_id,
-            },
-          }
         | ToggleAPIKeyVisibility => {
             ...settings,
             assistant: {
               ...settings.assistant,
               show_api_key: !settings.assistant.show_api_key,
-            },
-          }
-        | SetAPIKey(api_key) =>
-          // Set the available models using the provided API key
-          OpenRouter.get_models(~key=api_key, ~handler=response => {
-            switch (response) {
-            | Some(json) =>
-              switch (OpenRouter.parse_models_response(json)) {
-              | Some(models_response) =>
-                schedule_action(
-                  Assistant(SetListOfLLMs(models_response.data)),
-                )
-              | None =>
-                print_endline("Assistant: failed to parse models response")
-              }
-            | None =>
-              print_endline(
-                "Assistant: no response received from OpenRouter API",
-              )
-            }
-          });
-          {
-            ...settings,
-            assistant: {
-              ...settings.assistant,
-              api_key,
-            },
-          };
-        | SetListOfLLMs(llms) => {
-            ...settings,
-            assistant: {
-              ...settings.assistant,
-              available_models: llms,
             },
           }
         }
