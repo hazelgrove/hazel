@@ -763,7 +763,12 @@ let fixed_typ_err: (error_exp, Typ.t) => Typ.t =
     | WantTuple
     | BadOperator(_)
     | LabelNotFound(_, _)
-    | BadTrivAp(_) => Unknown(Internal) |> Typ.temp
+    | BadTrivAp(_) =>
+      if (Typ.is_syn_plus(ana)) {
+        Unknown(Internal) |> Typ.temp;
+      } else {
+        ana;
+      }
     | Common(err) => fixed_typ_err_common(err, ana)
     | InvalidUseMode({inner_typ, _}) => inner_typ
     | BadLivelitModel(ana) => ana

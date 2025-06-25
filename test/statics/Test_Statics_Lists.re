@@ -21,5 +21,15 @@ let tests = (
         ),
       )
     }),
+    test_case("Free variable list concatenation", `Quick, () => {
+      annotated_tree_test(
+        "a @ a",
+        list(unknown(Internal)),
+        FIError.Exp.(
+          let a = var(~ann=Some(Exp(FreeVariable("a"))), "a");
+          list_concat(a, a)
+        ),
+      )
+    }),
   ],
 );
