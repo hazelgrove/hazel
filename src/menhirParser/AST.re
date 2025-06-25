@@ -884,15 +884,17 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
             let* shrunk = shrink_exp(e);
             return(Test(shrunk));
           }
-        | HintedTest(e, hint) =>
-          return(e)
-          <+> {
-            let* shrunk = shrink_exp(e);
-            return(HintedTest(shrunk, hint));
+        | HintedTest(e1, e2) =>
+          {
+            of_list([e1, e2]);
           }
           <+> {
-            let* shrunk = shrink_exp(hint);
-            return(HintedTest(e, shrunk));
+            let* shrunk = shrink_exp(e1);
+            return(HintedTest(shrunk, e2));
+          }
+          <+> {
+            let* shrunk = shrink_exp(e2);
+            return(HintedTest(e1, shrunk));
           }
         | Deferral => Iter.empty
         | TypFun(tpat, e) =>
