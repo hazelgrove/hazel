@@ -1669,7 +1669,14 @@ and upat_to_info_map =
       let (arg, m) = go(~ctx, ~ana=ty_in, arg, m);
       let constraint_ =
         switch (ctr) {
-        | Some(ctr) => Coverage.Constraint.Ap(ctr, Some(arg.constraint_))
+        | Some(ctr) =>
+          switch (fn'.constraint_) {
+          | NEHole(_) =>
+            Coverage.Constraint.NEHole(
+              Coverage.Constraint.Ap(ctr, Some(arg.constraint_)),
+            )
+          | _ => Coverage.Constraint.Ap(ctr, Some(arg.constraint_))
+          }
         | None => Coverage.Constraint.Hole
         };
       add(~self=Just(ty_out), ~ctx=arg.ctx, ~constraint_, m);

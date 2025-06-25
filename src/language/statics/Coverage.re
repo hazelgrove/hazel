@@ -409,8 +409,7 @@ module UnseenPatternList: UnseenPatternList = {
       | Label(pat_label) =>
         switch (pat_list) {
         | [] =>
-          cons_pat_t(empty_hole(), unseen_pattern)
-          |> cons_pat_t(label(pat_label))
+          cons_pat_t(wild(), unseen_pattern) |> cons_pat_t(label(pat_label))
         | [hd, ...tl] =>
           cons_pat_t(
             tup_label(label(pat_label), hd),
@@ -420,14 +419,14 @@ module UnseenPatternList: UnseenPatternList = {
             },
           )
         }
-      | _ => unseen_pattern
+      | _ => failwith("TupLabel without a label in unseen pattern list")
       }
     | List(_) =>
       switch (ctr.ctr) {
       | "nil" => cons_pat_t(list_lit([]), unseen_pattern)
       | "cons" =>
         switch (pat_list) {
-        | [] => cons_pat_t(cons(wild(), wild()), unseen_pattern)
+        | [] => cons_pat_t(cons(wild(), wild()), unseen_pattern) // this shouldn't happen
         | [hd, ...tl] =>
           // the structure of the list should have a tuple that contains
           // the element in the first position, and a cons in the second.
@@ -438,6 +437,7 @@ module UnseenPatternList: UnseenPatternList = {
             | Tuple([fst, snd]) => cons(fst, snd)
             | _ => cons(wild(), hd)
             };
+
           cons_pat_t(
             cons,
             {
@@ -518,7 +518,7 @@ module UnseenPatternList: UnseenPatternList = {
 
   let find_first_unseen_ctr = (seen_in_col: seen, all_ctrs: Ctr.Map.t('a)) => {
     seen_in_col.seen_all_ctrs
-      ? Ctr.default_ctr(Okay)
+      ? Ctr.default_ctr(Unknown)
       : List.split(Ctr.Map.bindings(all_ctrs))
         |> fst
         |> List.find(ctr => !Ctr.Set.mem(ctr, seen_in_col.seen_ctrs));
@@ -580,7 +580,7 @@ module UnseenPatternList: UnseenPatternList = {
       | Infinite => cons_ctr(col_ctr, col_type, unseen_pattern)
       | Finite(all_ctrs) =>
         let unseen_ctr = find_first_unseen_ctr(seen_in_col, all_ctrs);
-        let is_ctr_nil =
+        let is_unseen_ctr_nil =
           Ctr.compare(unseen_ctr, Ctr.nil_ctr(col_ctr.status)) == 0;
         if (Ctr.compare(col_ctr, Ctr.nil_ctr(col_ctr.status)) == 0) {
           cons_ctr(
@@ -588,7 +588,7 @@ module UnseenPatternList: UnseenPatternList = {
             col_type,
             cons_wild(col_ctr.status, unseen_pattern),
           );
-        } else if (Ctr.num_args_of(col_ctr) > 0 && is_ctr_nil) {
+        } else if (Ctr.num_args_of(col_ctr) > 0 && is_unseen_ctr_nil) {
           // if the unseen ctr is a nil, and the current ctr has args,
           // it's a cons and we need to get rid of those args
           // it's guaranteed to be a tuple of whatever.

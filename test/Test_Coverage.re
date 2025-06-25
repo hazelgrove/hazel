@@ -305,21 +305,14 @@ let list_inexhaustive_cons_long =
         InexhaustiveMatch(
           None,
           Grammar.Pat(
-            IdTagged.FreshGrammar.Pat.cons(
-              IdTagged.FreshGrammar.Pat.wild(),
-              IdTagged.FreshGrammar.Pat.cons(
-                IdTagged.FreshGrammar.Pat.wild(),
-                IdTagged.FreshGrammar.Pat.cons(
-                  IdTagged.FreshGrammar.Pat.wild(),
-                  IdTagged.FreshGrammar.Pat.cons(
-                    IdTagged.FreshGrammar.Pat.wild(),
-                    IdTagged.FreshGrammar.Pat.cons(
-                      IdTagged.FreshGrammar.Pat.wild(),
-                      IdTagged.FreshGrammar.Pat.wild(),
-                    ),
-                  ),
+            IdTagged.FreshGrammar.Pat.(
+              cons(
+                wild(),
+                cons(
+                  wild(),
+                  cons(wild(), cons(wild(), cons(wild(), wild()))),
                 ),
-              ),
+              )
             ),
           ),
         ),
@@ -439,6 +432,7 @@ let list_inexhaustive_middle_quad =
       ),
     ],
   );
+
 let integers_exhaustive =
   no_errors(
     "Integers: Exhaustive",
@@ -1549,6 +1543,57 @@ let inconsistent_inexhaustive__first_col_tuple_truth =
   );
 
 // test that wilds work with primitive types
+let inconsistent_inexhaustive_ctr_no_args =
+  has_non_common_errors(
+    "Inconsistent Inexhaustive Constructor Type w/ no args",
+    {|
+      type Ty = + A in
+      let f : (Int, Int) -> Bool =
+        fun x ->
+          {{{case x
+          | (A((a, a)), 0) => false
+          end}}}
+      in ?
+    |},
+    [
+      Info.Exp(
+        InexhaustiveMatch(
+          None,
+          Grammar.Pat(
+            IdTagged.FreshGrammar.Pat.(
+              tuple([wild(), big_int(Bigint.of_int(1))])
+            ),
+          ),
+        ),
+      ),
+    ],
+  );
+
+let inconsistent_fun_ctr_arg =
+  has_non_common_errors(
+    "Fun w/ Invalid Arg Ctr",
+    {|
+      type y = + B(Float) in
+      {{{fun B("": Int) -> 0}}}
+    |},
+    [
+      Info.Exp(
+        InexhaustiveMatch(
+          None,
+          Grammar.Pat(
+            IdTagged.FreshGrammar.Pat.(ap(constructor("B", None), wild())),
+          ),
+        ),
+      ),
+    ],
+  );
+
+// tests a weird edge case where the label has no argument
+let fun_labeled_tuple =
+  no_errors("e", {|
+      let _ = fun (a=_) -> 0 in ?
+    |});
+
 let exhaustive_ints_with_wilds =
   no_errors(
     "Exhaustive Int Tuples with Wilds",
@@ -1557,36 +1602,36 @@ let exhaustive_ints_with_wilds =
       fun x ->
         case x
           | (0, _, 0) => false
-            | _ => false
-          end
+          | _ => false
+        end
       in ?
     |},
   );
 
 let exhaustive_strings_with_wilds =
   no_errors(
-    "Exhaustive Int Tuples with Wilds",
+    "Exhaustive Strings Tuples with Wilds",
     {|
       let f : (String, String, String) -> Bool =
       fun x ->
         case x
           | ("", _, "") => false
-            | _ => false
-          end
+          | _ => false
+        end
       in ?
     |},
   );
 
 let exhaustive_bools_with_wilds =
   no_errors(
-    "Exhaustive Int Tuples with Wilds",
+    "Exhaustive Bools Tuples with Wilds",
     {|
       let f : (Bool, Bool, Bool) -> Bool =
       fun x ->
         case x
           | (false, _, false) => false
-            | _ => false
-          end
+          | _ => false
+        end
       in ?
     |},
   );
@@ -1664,6 +1709,9 @@ let tests = (
     inconsistent_less_errors_bias_ctrs,
     inconsistent_undefined_ctrs,
     inconsistent_inexhaustive__first_col_tuple_truth,
+    inconsistent_inexhaustive_ctr_no_args,
+    inconsistent_fun_ctr_arg,
+    fun_labeled_tuple,
     exhaustive_ints_with_wilds,
     exhaustive_strings_with_wilds,
     exhaustive_bools_with_wilds,
