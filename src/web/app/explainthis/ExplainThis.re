@@ -394,7 +394,7 @@ let rec bypass_parens_and_annot_pat = (pat: Pat.t) => {
   switch (pat.term) {
   | Parens(p)
   | Probe(p, _)
-  | Cast(p, _, _) => bypass_parens_and_annot_pat(p)
+  | Asc(p, _) => bypass_parens_and_annot_pat(p)
   | _ => pat
   };
 };
@@ -549,9 +549,23 @@ let get_doc =
       switch ((term: Exp.term)) {
       | Invalid(_) => simple("Not a valid expression")
       | DynamicErrorHole(_)
-      | FailedCast(_)
-      | Closure(_)
-      | Cast(_) => simple("Internal expression")
+      | Closure(_) => simple("Internal expression")
+      | Asc(e, t) =>
+        let exp_id = List.nth(IdTagged.ids(e), 0);
+        let typ_id = List.nth(IdTagged.ids(t), 0);
+        get_message(
+          ~colorings=AscExp.ascription_coloring_ids(~exp_id, ~typ_id),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s%s"),
+                  Id.to_string(exp_id),
+                  Id.to_string(typ_id),
+                ),
+            ),
+          AscExp.ascriptions,
+        );
       | Use(t, e) =>
         message_single(
           UseExp.single(~typ_id=Typ.rep_id(t), ~body_id=Exp.rep_id(e)),
@@ -1136,7 +1150,7 @@ let get_doc =
         | Parens(_)
         | Probe(_)
         | Label(_)
-        | Cast(_) => default // Shouldn't get hit?
+        | Asc(_) => default // Shouldn't get hit?
         };
       | Label(name) =>
         get_message(
@@ -1721,7 +1735,7 @@ let get_doc =
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_)
         | Probe(_) => default // Shouldn't get hit?
-        | Cast(_) => default // Shouldn't get hit?
+        | Asc(_) => default // Shouldn't get hit?
         };
       | FixF(pat, body, _) =>
         message_single(
@@ -2357,7 +2371,7 @@ let get_doc =
           ),
         TerminalPat.ctr(con),
       )
-    | Cast(pat, typ, _) =>
+    | Asc(pat, typ) =>
       let pat_id = List.nth(IdTagged.ids(pat), 0);
       let typ_id = List.nth(IdTagged.ids(typ), 0);
       get_message(
