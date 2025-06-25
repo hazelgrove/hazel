@@ -446,6 +446,273 @@ module Pervasives = {
              );
            },
          )
+      |> hazel_fn(
+           "filter",
+           Prod([
+             list(unknown(Internal)),
+             arrow(unknown(Internal), bool()),
+           ]),
+           List(unknown(Internal)),
+           {
+             /*fix filter -> fun xs f -> case xs
+                 | [] => []
+                 | [x] => if f(x) then [x] else []
+                 | x :: xs => if f(x) then x :: filter(f, xs) else filter(f, xs)
+               end*/
+             Fresh.(
+               Exp.(
+                 fix_f(
+                   Pat.var("filter"),
+                   fn(
+                     Pat.tuple([Pat.var("xs"), Pat.var("f")]),
+                     match(
+                       var("xs"),
+                       [
+                         (Pat.list_lit([]), list_lit([])),
+                         (
+                           Pat.list_lit([Pat.var("x")]),
+                           if_(
+                             ap(Forward, var("f"), var("x")),
+                             list_lit([var("x")]),
+                             list_lit([]),
+                           ),
+                         ),
+                         (
+                           Pat.cons(Pat.var("x"), Pat.var("xs")),
+                           if_(
+                             ap(Forward, var("f"), var("x")),
+                             cons(
+                               var("x"),
+                               ap(
+                                 Forward,
+                                 var("filter"),
+                                 tuple([var("xs"), var("f")]),
+                               ),
+                             ),
+                             ap(
+                               Forward,
+                               var("filter"),
+                               tuple([var("xs"), var("f")]),
+                             ),
+                           ),
+                         ),
+                       ],
+                     ),
+                     None,
+                     None,
+                   ),
+                   None,
+                 )
+               )
+             );
+           },
+         )
+      |> hazel_fn(
+           "fold_left",
+           Prod([
+             list(unknown(Internal)),
+             arrow(
+               prod([unknown(Internal), unknown(Internal)]),
+               unknown(Internal),
+             ),
+             unknown(Internal),
+           ]),
+           Unknown(Internal),
+           {
+             /*fix fold_left -> fun xs f acc -> case xs
+                 | [] => acc
+                 | [x] => f(acc, x)
+                 | x :: xs => fold_left(xs, f, f(acc, x))
+               end*/
+             Fresh.(
+               Exp.(
+                 fix_f(
+                   Pat.var("fold_left"),
+                   fn(
+                     Pat.tuple([
+                       Pat.var("xs"),
+                       Pat.var("f"),
+                       Pat.var("acc"),
+                     ]),
+                     match(
+                       var("xs"),
+                       [
+                         (Pat.list_lit([]), var("acc")),
+                         (
+                           Pat.list_lit([Pat.var("x")]),
+                           ap(
+                             Forward,
+                             var("f"),
+                             tuple([var("acc"), var("x")]),
+                           ),
+                         ),
+                         (
+                           Pat.cons(Pat.var("x"), Pat.var("xs")),
+                           ap(
+                             Forward,
+                             var("fold_left"),
+                             tuple([
+                               var("xs"),
+                               var("f"),
+                               ap(
+                                 Forward,
+                                 var("f"),
+                                 tuple([var("acc"), var("x")]),
+                               ),
+                             ]),
+                           ),
+                         ),
+                       ],
+                     ),
+                     None,
+                     None,
+                   ),
+                   None,
+                 )
+               )
+             );
+           },
+         )
+      |> hazel_fn(
+           "flat_map",
+           Prod([
+             list(unknown(Internal)),
+             arrow(unknown(Internal), list(unknown(Internal))),
+           ]),
+           List(unknown(Internal)),
+           {
+             /*(fix flat_map -> fun (xs, f) -> fold_left(xs, fun (acc,x) -> acc @ f(x), []))([1,2],fun x ->[x,x])*/
+             Fresh.(
+               Exp.(
+                 fix_f(
+                   Pat.var("flat_map"),
+                   fn(
+                     Pat.tuple([Pat.var("xs"), Pat.var("f")]),
+                     ap(
+                       Forward,
+                       var("fold_left"),
+                       tuple([
+                         var("xs"),
+                         fn(
+                           Pat.tuple([Pat.var("acc"), Pat.var("x")]),
+                           Exp.list_concat(
+                             ap(Forward, var("f"), var("x")),
+                             var("acc"),
+                           ),
+                           None,
+                           None,
+                         ),
+                         list_lit([]),
+                       ]),
+                     ),
+                     None,
+                     None,
+                   ),
+                   None,
+                 )
+               )
+             );
+           },
+         )
+      |> hazel_fn(
+           "zip",
+           Prod([list(unknown(Internal)), list(unknown(Internal))]),
+           List(prod([unknown(Internal), unknown(Internal)])),
+           {
+             /*(fix zip -> fun (xs, ys) -> case (xs, ys)
+                 | [], _ => []
+                 | _, [] => []
+                 | (x :: xs, y :: ys) => (x,y) :: zip(xs,ys)
+               end)*/
+             Fresh.(
+               Exp.(
+                 fix_f(
+                   Pat.var("zip"),
+                   fn(
+                     Pat.tuple([Pat.var("xs"), Pat.var("ys")]),
+                     match(
+                       tuple([var("xs"), var("ys")]),
+                       [
+                         (
+                           Pat.tuple([Pat.list_lit([]), Pat.wild()]),
+                           list_lit([]),
+                         ),
+                         (
+                           Pat.tuple([Pat.wild(), Pat.list_lit([])]),
+                           list_lit([]),
+                         ),
+                         (
+                           Pat.tuple([
+                             Pat.cons(Pat.var("x"), Pat.var("xs")),
+                             Pat.cons(Pat.var("y"), Pat.var("ys")),
+                           ]),
+                           cons(
+                             tuple([var("x"), var("y")]),
+                             ap(
+                               Forward,
+                               var("zip"),
+                               tuple([var("xs"), var("ys")]),
+                             ),
+                           ),
+                         ),
+                       ],
+                     ),
+                     None,
+                     None,
+                   ),
+                   None,
+                 )
+               )
+             );
+           },
+         )
+      |> hazel_fn(
+           "unzip",
+           List(prod([unknown(Internal), unknown(Internal)])),
+           Prod([list(unknown(Internal)), list(unknown(Internal))]),
+           {
+             /*fix unzip -> fun xs -> case xs
+                 |[]=> ([], [])
+                 | ((a,b) :: xs) => let (as, bs) = unzip(xs) in ((a :: as), (b ::bs))
+               end*/
+             Fresh.(
+               Exp.(
+                 fix_f(
+                   Pat.var("unzip"),
+                   fn(
+                     Pat.var("xs"),
+                     match(
+                       var("xs"),
+                       [
+                         (
+                           Pat.list_lit([]),
+                           tuple([list_lit([]), list_lit([])]),
+                         ),
+                         (
+                           Pat.cons(
+                             Pat.tuple([Pat.var("a"), Pat.var("b")]),
+                             Pat.var("xs"),
+                           ),
+                           let_(
+                             Pat.tuple([Pat.var("as"), Pat.var("bs")]),
+                             ap(Forward, var("unzip"), var("xs")),
+                             tuple([
+                               cons(var("a"), var("as")),
+                               cons(var("b"), var("bs")),
+                             ]),
+                           ),
+                         ),
+                       ],
+                     ),
+                     None,
+                     None,
+                   ),
+                   None,
+                 )
+               )
+             );
+           },
+         )
       |> fn(
            "string_compare",
            Prod([string(), string()]),
