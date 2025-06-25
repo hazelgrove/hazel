@@ -526,6 +526,7 @@ let try_to_dump_backpack = (zipper: t) => {
         | None => z_can
         | Some(z) =>
           let z = regrout(Right, z);
+          let z = regrout(Left, z);
           go(z);
         };
       } else {
@@ -535,6 +536,7 @@ let try_to_dump_backpack = (zipper: t) => {
         | None => z_can
         | Some(z) =>
           let z = regrout(Right, z);
+          let z = regrout(Left, z);
           go(z);
         };
       };
