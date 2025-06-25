@@ -235,7 +235,6 @@ module Composition = {
       )
       : list(Action.t) =>
     if (loc == All) {
-      print_endline("here selecting all");
       [Action.Select(All), Action.Copy];
     } else {
       let statics = CodeWithStatics.Model.get_statics(editor);

@@ -54,21 +54,36 @@ type chat_action =
   | FilterLoadingMessages;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type external_api_action =
+  // Sets the LLM model
+  | SetLLM(string)
+  // Sets the API key.
+  // This will implicitely make a call to OpenRouter to get and set the list of available LLMs.
+  | SetAPIKey(string)
+  // Sets the list of available LLMs from OpenRouter
+  | SetListOfLLMs(list(OpenRouter.model_info));
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | SendMessage(send_message, CodeModel.t, Id.t)
   | HandleResponse(handle_response, OpenRouter.reply, Id.t)
   | EmployLLMAction(employ_llm_action)
   | ChatAction(chat_action)
-  | InternalError(string, AssistantSettings.mode, Id.t);
+  | InternalError(string, AssistantSettings.mode, Id.t)
+  | ExternalAPIAction(external_api_action);
 
 let can_undo = (action: t) => {
   // TODO: Implement the handling of actions that should be undoable
+  // I'm thinking none of these actions should be undoable...
+  // Maybe set API key?
+  // That could be a good starter project to navigate this assistant part of the codebase.
   switch (action) {
   | SendMessage(_) => false
   | HandleResponse(_) => false
   | EmployLLMAction(_) => false
   | ChatAction(_) => false
   | InternalError(_) => false
+  | ExternalAPIAction(_) => false
   };
 };
 
@@ -325,8 +340,8 @@ let create_chat_descriptor =
   // Only make descriptor after first few exchanges
   List.length(filtered_messages) <= AssistantSettings.make_descriptor_max
     ? try({
-        let model_id = Option.get(Store.Generic.load("MODEL"));
-        let key = Option.get(Store.Generic.load("API"));
+        let model_id = model.external_api_info.set_model;
+        let key = model.external_api_info.api_key;
         let params: OpenRouter.params = {
           ...OpenRouter.default_params,
           model_id,
@@ -415,13 +430,13 @@ let set_buffer = (~response: string, z: Zipper.t): option(Zipper.t) => {
 let mk_llm_call =
     (
       ~mode: AssistantSettings.mode,
-      ~settings: Settings.t,
+      ~model: Model.t,
       ~schedule_action: t => unit,
       ~updated_chat: Model.chat,
       ~response_handler: OpenRouter.reply => t,
     )
     : unit => {
-  switch (settings.assistant.api_key, settings.assistant.llm_model) {
+  switch (model.external_api_info.api_key, model.external_api_info.set_model) {
   | ("", _) =>
     let content = "No API key found. Please set an API key in the assistant settings.";
     schedule_action(InternalError(content, mode, updated_chat.id));
@@ -564,7 +579,7 @@ let update =
 
       mk_llm_call(
         ~mode,
-        ~settings,
+        ~model,
         ~schedule_action,
         ~updated_chat,
         ~response_handler=response =>
@@ -602,7 +617,7 @@ let update =
 
         mk_llm_call(
           ~mode,
-          ~settings,
+          ~model,
           ~schedule_action,
           ~updated_chat,
           ~response_handler=response =>
@@ -639,7 +654,7 @@ let update =
 
         mk_llm_call(
           ~mode,
-          ~settings,
+          ~model,
           ~schedule_action,
           ~updated_chat,
           ~response_handler=response =>
@@ -718,7 +733,7 @@ let update =
           };
           mk_llm_call(
             ~mode,
-            ~settings,
+            ~model,
             ~schedule_action,
             ~updated_chat,
             ~response_handler=response =>
@@ -765,7 +780,7 @@ let update =
 
         mk_llm_call(
           ~mode,
-          ~settings,
+          ~model,
           ~schedule_action,
           ~updated_chat,
           ~response_handler=response =>
@@ -808,16 +823,12 @@ let update =
         } else {
           mk_llm_call(
             ~mode,
-            ~settings,
+            ~model,
             ~schedule_action,
             ~updated_chat,
             ~response_handler=response =>
             HandleResponse(
-              CompletionErrorRound(
-                editor,
-                ChatLSP.Options.init.error_rounds_max,
-                tile_id,
-              ),
+              CompletionErrorRound(editor, fuel, tile_id),
               response,
               chat_id,
             )
@@ -1085,7 +1096,6 @@ let update =
       }
     | CompletionErrorRound(editor, fuel, tileId) =>
       // Split response into discussion and completion
-      print_endline("fuel remaining: " ++ string_of_int(fuel));
       let code_pattern =
         Str.regexp(
           "\\(\\(.\\|\n\\)*\\)```[ \n]*\\([^`]+\\)[ \n]*```\\(\\(.\\|\n\\)*\\)",
@@ -1310,6 +1320,52 @@ let update =
       }
       |> Updated.return_quiet
     }
+  | ExternalAPIAction(external_api_action) =>
+    switch (external_api_action) {
+    | SetLLM(llm_id) =>
+      {
+        ...model,
+        external_api_info: {
+          ...model.external_api_info,
+          set_model: llm_id,
+        },
+      }
+      |> Updated.return_quiet
+    | SetAPIKey(api_key) =>
+      // Set the available models using the provided API key
+      OpenRouter.get_models(~key=api_key, ~handler=response => {
+        switch (response) {
+        | Some(json) =>
+          switch (OpenRouter.parse_models_response(json)) {
+          | Some(models_response) =>
+            schedule_action(
+              ExternalAPIAction(SetListOfLLMs(models_response.data)),
+            )
+          | None =>
+            print_endline("Assistant: failed to parse models response")
+          }
+        | None =>
+          print_endline("Assistant: no response received from OpenRouter API")
+        }
+      });
+      {
+        ...model,
+        external_api_info: {
+          ...model.external_api_info,
+          api_key,
+        },
+      }
+      |> Updated.return_quiet;
+    | SetListOfLLMs(llms) =>
+      {
+        ...model,
+        external_api_info: {
+          ...model.external_api_info,
+          available_models: llms,
+        },
+      }
+      |> Updated.return_quiet
+    }
   };
 };
 
@@ -1332,6 +1388,11 @@ let init: Model.t = {
         add_chat_to_history(init_suggestion_chat, Id.Map.empty),
       past_composition_chats:
         add_chat_to_history(init_composition_chat, Id.Map.empty),
+    },
+    external_api_info: {
+      available_models: [],
+      set_model: "",
+      api_key: "",
     },
     loop: false,
   };
