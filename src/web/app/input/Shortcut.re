@@ -180,8 +180,8 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
     mk_shortcut(
       ~section="Settings",
       ~mdIcon="tune",
-      "Toggle Show Cast Steps",
-      Globals(Set(Evaluation(ShowCastSteps))),
+      "Toggle Show Ascription Steps",
+      Globals(Set(Evaluation(ShowAscriptionSteps))),
     ),
     mk_shortcut(
       ~section="Settings",
@@ -257,6 +257,24 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       ~hotkey=Keyboard.meta(sys) ++ "+i",
       "Introduce",
       Globals(ActiveEditor(Introduce)),
+    ),
+    mk_shortcut(
+      "Add New Buffer",
+      ~mdIcon="add",
+      ~section="Buffers",
+      Editors(Scratch(AddSlide)),
+    ),
+    mk_shortcut(
+      "Rename Current Buffer",
+      ~mdIcon="edit",
+      ~section="Buffers",
+      Editors(Scratch(RenameSlide)),
+    ),
+    mk_shortcut(
+      ~mdIcon="delete",
+      ~section="Buffers",
+      "Delete Current Buffer",
+      Editors(Scratch(DeleteSlide)),
     ),
   ]
   @ (if (ExerciseSettings.show_instructor) {instructor_shortcuts} else {[]});

@@ -34,6 +34,11 @@ jobs:
         with:
           path: "_opam"
           key: ${{ runner.os }}-modules-${{ hashFiles('./source/hazel.opam.locked') }}
+      - name: Add opam repository archive
+        run: |
+          eval $(opam env)
+          export OPAMYES=1
+          opam repo add archive git+https://github.com/ocaml/opam-repository-archive
       - name: Install dependencies
         run: |
           eval $(opam env)

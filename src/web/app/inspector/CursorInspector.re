@@ -151,25 +151,12 @@ let common_err_view =
       | BadInt => [text("Integer is too large or too small")]
       | Other => [text(Printf.sprintf("\"%s\" isn't a valid token", token))]
       }
-    | NoType(BadOperator(msg)) => [text("Invalid operator: "), text(msg)]
-    | NoType(BadTrivAp(ty)) => [
-        text("Function argument type"),
-        view_type(ty),
-        text("inconsistent with"),
-        view_type(Prod([]) |> Typ.fresh),
-      ]
     | NoType(BadLabel(label)) => [
         text("Malformed Label: "),
         view_any(label),
       ]
     | NoType(FreeConstructor(name)) => [code(name), text("not found")]
-    | NoType(WantTuple) => [text("Requires tuple for first argument")]
-    | NoType(LabelNotFound(name, labels)) => [
-        text("Label "),
-        code(name),
-        text(" not found in tuple's labels: "),
-        ...List.map(code, labels),
-      ]
+
     | NoType(InvalidLabel(name)) => [text("Invalid label:"), code(name)]
     | TupleLabelError({malformed_labels, duplicate_labels, invalid_labels, _}) =>
       (
@@ -194,14 +181,6 @@ let common_err_view =
           : [text("Invalid labels: "), ...List.map(code, invalid_labels)]
       )
     | DuplicateLabel(name, _) => [text("Duplicate Label:"), code(name)]
-    | NoType(UnboundLivelit(name)) => [
-        text("Livelit with name"),
-        code(name),
-        text("not found, and also, it's a livelit"),
-      ]
-    | Inconsistent(BadLivelitModel(_)) => [
-        text("Bad internal livelit model"),
-      ]
     | Inconsistent(WithArrow(typ)) => [
         text(":"),
         view_type(typ) |> code_box_container,
@@ -244,11 +223,6 @@ let common_err_view =
     | Inconsistent(Internal(tys)) => [
         text(elements_noun(cls) ++ " have inconsistent types:"),
         ...ListUtil.join(text(","), List.map(view_type, tys)),
-      ]
-    | InvalidUseMode({bad_typ, _}) => [
-        text("Cannot use type "),
-        view_type(bad_typ) |> code_box_container,
-        text(" for number operators and literals."),
       ]
     }
   )
@@ -506,6 +480,21 @@ let rec exp_view =
         ++ " arguments",
       ),
     ])
+  | InHole(InvalidUseMode({bad_typ, _})) =>
+    div_err([
+      text("Cannot use type "),
+      view_type(bad_typ) |> code_box_container,
+      text(" for number operators and literals."),
+    ])
+  | InHole(BadTrivAp(ty)) =>
+    div_err([
+      text("Function argument type"),
+      view_type(ty),
+      text("inconsistent with"),
+      view_type(Prod([]) |> Typ.fresh),
+    ])
+  | InHole(WantTuple) =>
+    div_err([text("Requires tuple for first argument")])
   | InHole(Common(error)) =>
     div_err(
       common_err_view(
@@ -517,6 +506,23 @@ let rec exp_view =
         error,
       ),
     )
+  | InHole(UnboundLivelit(name)) =>
+    div_err([
+      text("Livelit with name"),
+      code(name),
+      text("not found, and also, it's a livelit"),
+    ])
+  | InHole(BadOperator(msg)) =>
+    div_err([text("Invalid operator: "), text(msg)])
+  | InHole(LabelNotFound(name, labels)) =>
+    div_err([
+      text("Label "),
+      code(name),
+      text(" not found in tuple's labels: "),
+      ...List.map(code, labels),
+    ])
+  | InHole(BadLivelitModel(_)) =>
+    div_err([text("Bad internal livelit model")])
   | NotInHole(AnaDeferralConsistent(ana)) =>
     div_ok([text("Expecting type"), view_type(ana)])
   | NotInHole(Common(ok)) =>
