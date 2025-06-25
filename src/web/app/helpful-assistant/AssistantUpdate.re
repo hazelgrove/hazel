@@ -1085,6 +1085,7 @@ let update =
       }
     | CompletionErrorRound(editor, fuel, tileId) =>
       // Split response into discussion and completion
+      print_endline("fuel remaining: " ++ string_of_int(fuel));
       let code_pattern =
         Str.regexp(
           "\\(\\(.\\|\n\\)*\\)```[ \n]*\\([^`]+\\)[ \n]*```\\(\\(.\\|\n\\)*\\)",
