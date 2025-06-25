@@ -122,8 +122,7 @@ module Update = {
     };
   };
 
-  let update =
-      (~action, ~schedule_action, ~settings: Model.t): Updated.t(Model.t) => {
+  let update = (~action, ~settings: Model.t): Updated.t(Model.t) => {
     (
       switch (action) {
       | Statics => {
