@@ -397,6 +397,55 @@ module Pervasives = {
              );
            },
          )
+      |> hazel_fn(
+           "map",
+           Prod([
+             list(unknown(Internal)),
+             arrow(unknown(Internal), unknown(Internal)),
+           ]),
+           List(unknown(Internal)),
+           {
+             /*fix map -> fun xs f -> case xs
+                 | [] => []
+                 | [x] => [f(x)]
+                 | x :: xs => f(x) :: map(f, xs)
+               end*/
+             Fresh.(
+               Exp.(
+                 fix_f(
+                   Pat.var("map"),
+                   fn(
+                     Pat.tuple([Pat.var("xs"), Pat.var("f")]),
+                     match(
+                       var("xs"),
+                       [
+                         (Pat.list_lit([]), list_lit([])),
+                         (
+                           Pat.list_lit([Pat.var("x")]),
+                           list_lit([ap(Forward, var("f"), var("x"))]),
+                         ),
+                         (
+                           Pat.cons(Pat.var("x"), Pat.var("xs")),
+                           cons(
+                             ap(Forward, var("f"), var("x")),
+                             ap(
+                               Forward,
+                               var("map"),
+                               tuple([var("xs"), var("f")]),
+                             ),
+                           ),
+                         ),
+                       ],
+                     ),
+                     None,
+                     None,
+                   ),
+                   None,
+                 )
+               )
+             );
+           },
+         )
       |> fn(
            "string_compare",
            Prod([string(), string()]),
