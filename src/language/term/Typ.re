@@ -111,7 +111,7 @@ let show_cls: cls => string =
   | Label => "Label"
   | Sum => "Sum type"
   | Parens => "Parenthesized type"
-  | Ap => "Constructor application"
+  | Ap => "Constructor application" // Unused
   | Rec => "Recursive type"
   | Forall => "Forall type";
 

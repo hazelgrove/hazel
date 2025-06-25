@@ -77,7 +77,7 @@ module Pat = {
     | Tuple => "Tuple"
     | Parens => "Parenthesized pattern"
     | Probe => "Probe"
-    | Ap => "Constructor application"
+    | Ap => "Application" // Previously "Constructor application"
     | Cast => "Annotation";
 
   let rec is_var = (pat: t) => {

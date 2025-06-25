@@ -1672,28 +1672,40 @@ let get_doc =
               basic(LetExp.lets_tuple);
             }
           };
-        | Ap(con, arg) =>
-          if (LetExp.let_ap_exp.id == get_specificity_level(LetExp.lets_ap)) {
-            let con_id = List.nth(IdTagged.ids(con), 0);
+        | Ap(x, arg) =>
+          let (lets_ap, let_ap_exp_coloring_ids, let_ap_exp_id) =
+            switch (x.term) {
+            | Constructor(_, _) => (
+                LetExp.lets_conap,
+                LetExp.let_conap_exp_coloring_ids,
+                LetExp.let_conap_exp.id,
+              )
+            | _ => (
+                LetExp.lets_funap,
+                LetExp.let_funap_exp_coloring_ids,
+                LetExp.let_funap_exp.id,
+              )
+            };
+          if (let_ap_exp_id == get_specificity_level(lets_ap)) {
+            let x_id = List.nth(IdTagged.ids(x), 0);
             let arg_id = List.nth(IdTagged.ids(arg), 0);
             get_message(
-              ~colorings=
-                LetExp.let_ap_exp_coloring_ids(~con_id, ~arg_id, ~def_id),
+              ~colorings=let_ap_exp_coloring_ids(~x_id, ~arg_id, ~def_id),
               ~format=
                 Some(
                   msg =>
                     Printf.sprintf(
                       Scanf.format_from_string(msg, "%s%s%s"),
                       Id.to_string(def_id),
-                      Id.to_string(con_id),
+                      Id.to_string(x_id),
                       Id.to_string(arg_id),
                     ),
                 ),
-              LetExp.lets_ap,
+              lets_ap,
             );
           } else {
-            basic(LetExp.lets_ap);
-          }
+            basic(lets_ap);
+          };
         | Constructor(v, _) =>
           if (LetExp.let_ctr_exp.id == get_specificity_level(LetExp.lets_ctr)) {
             get_message(
@@ -2316,22 +2328,41 @@ let get_doc =
         }
       | _ => basic(TuplePat.tuple)
       };
-    | Ap(con, arg) =>
-      let con_id = List.nth(IdTagged.ids(con), 0);
+    | Ap(x, arg) =>
+      let x_id = List.nth(IdTagged.ids(x), 0);
       let arg_id = List.nth(IdTagged.ids(arg), 0);
-      get_message(
-        ~colorings=AppPat.ap_pat_coloring_ids(~con_id, ~arg_id),
-        ~format=
-          Some(
-            msg =>
-              Printf.sprintf(
-                Scanf.format_from_string(msg, "%s%s"),
-                Id.to_string(con_id),
-                Id.to_string(arg_id),
-              ),
-          ),
-        AppPat.ap,
-      );
+      let basic = (group, format, coloring_ids) => {
+        get_message(
+          ~colorings=coloring_ids(~x_id, ~arg_id),
+          ~format=Some(format),
+          group,
+        );
+      };
+
+      switch (x.term) {
+      | Constructor(_, _) =>
+        basic(
+          AppPat.conaps,
+          msg =>
+            Printf.sprintf(
+              Scanf.format_from_string(msg, "%s%s"),
+              Id.to_string(x_id),
+              Id.to_string(arg_id),
+            ),
+          AppPat.conapp_pat_coloring_ids,
+        )
+      | _ =>
+        basic(
+          AppPat.funaps,
+          msg =>
+            Printf.sprintf(
+              Scanf.format_from_string(msg, "%s%s"),
+              Id.to_string(x_id),
+              Id.to_string(arg_id),
+            ),
+          AppPat.funapp_pat_coloring_ids,
+        )
+      };
     | Constructor(con, _) =>
       get_message(
         ~format=

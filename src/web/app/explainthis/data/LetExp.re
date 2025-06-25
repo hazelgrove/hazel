@@ -82,11 +82,16 @@ let let_ctr_ex = {
   term: mk_example("type T = None + Some(Int)\n in let None = None\nin 2"),
   message: "The None is thrown away, so the expression evaluates to 2.",
 };
-let let_ap_ex = {
+let let_conap_ex = {
   sub_id: Let(Ap),
   term:
     mk_example("type T = None + Some(Int)\n in let Some(a) = Some(2)\nin a"),
   message: "The a is bound to 2, so the expression evaluates to 2.",
+};
+let let_funap_ex = {
+  sub_id: Let(Ap),
+  term: mk_example("let f(x) = x*2\nin f(3)"),
+  message: "The variable x is bound to a function transforming x to x * 2, so the expression evaluates to 3 * 2 = 6.",
 };
 let _pat_def_body_let_exp_coloring_ids =
     (
@@ -566,13 +571,13 @@ let let_ctr_exp: form = {
 let _pat_con = pat("p_con");
 let _pat_arg = pat("p_arg");
 let _exp_def = exp("e_def");
-let let_ap_exp_coloring_ids =
-    (~con_id: Id.t, ~arg_id: Id.t, ~def_id: Id.t): list((Id.t, Id.t)) => [
-  (Piece.id(_pat_con), con_id),
+let let_conap_exp_coloring_ids =
+    (~x_id: Id.t, ~arg_id: Id.t, ~def_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_pat_con), x_id),
   (Piece.id(_pat_arg), arg_id),
   (Piece.id(_exp_def), def_id),
 ];
-let let_ap_exp: form = {
+let let_conap_exp: form = {
   let explanation = "The only values for the [*definition*](%s) that match the *pattern* are the [*constructor*](%s) where the *argument* matches the [*argument pattern*](%s).";
   let ap = mk_ap_pat([[_pat_arg]]);
   let form = [
@@ -584,12 +589,42 @@ let let_ap_exp: form = {
     exp("e_body"),
   ];
   {
-    id: LetExp(Ap),
+    id: LetExp(ApCons),
     syntactic_form: form,
     expandable_id:
-      Some((Piece.id(ap), [pat("p_con"), mk_ap_pat([[pat("p_arg")]])])),
+      Some((Piece.id(ap), [_pat_con, mk_ap_pat([[_pat_arg]])])),
     explanation,
-    examples: [let_ap_ex],
+    examples: [let_conap_ex],
+  };
+};
+
+let _pat_fun = pat("p_fun");
+let _pat_arg = pat("p_arg");
+let _exp_def = exp("e_def");
+let let_funap_exp_coloring_ids =
+    (~x_id: Id.t, ~arg_id: Id.t, ~def_id: Id.t): list((Id.t, Id.t)) => [
+  (Piece.id(_pat_fun), x_id),
+  (Piece.id(_pat_arg), arg_id),
+  (Piece.id(_exp_def), def_id),
+];
+let let_funap_exp: form = {
+  let explanation = "The only values for the [*definition*](%s) that match the *pattern* are the [*function*](%s) where the *argument* matches the [*argument pattern*](%s).";
+  let ap = mk_ap_pat([[_pat_arg]]);
+  let form = [
+    mk_let([
+      [space(), _pat_fun, ap, space()],
+      [space(), _exp_def, space()],
+    ]),
+    linebreak(),
+    exp("e_body"),
+  ];
+  {
+    id: LetExp(ApFunc),
+    syntactic_form: form,
+    expandable_id:
+      Some((Piece.id(ap), [_pat_fun, mk_ap_pat([[_pat_arg]])])),
+    explanation,
+    examples: [let_funap_ex],
   };
 };
 
@@ -678,7 +713,12 @@ let lets_ctr: group = {
   forms: [let_ctr_exp, let_base_exp],
 };
 
-let lets_ap: group = {
-  id: LetExp(Ap),
-  forms: [let_ap_exp, let_base_exp],
+let lets_conap: group = {
+  id: LetExp(ApCons),
+  forms: [let_conap_exp, let_base_exp],
+};
+
+let lets_funap: group = {
+  id: LetExp(ApFunc),
+  forms: [let_funap_exp, let_base_exp],
 };
