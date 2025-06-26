@@ -273,6 +273,7 @@ module View = {
         ~selection: option(Selection.t),
         ~signal,
         ~inject,
+        ~inject_explainthis: ExplainThisUpdate.update => 'b,
         editors: Model.t,
       ) =>
     switch (editors) {
@@ -316,6 +317,7 @@ module View = {
           | _ => None
           },
         ~inject=a => Update.Exercises(a) |> inject,
+        ~inject_explainthis: ExplainThisUpdate.update => 'b,
         m,
       )
     };
