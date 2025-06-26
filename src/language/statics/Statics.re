@@ -180,7 +180,7 @@ let check_annotated_function =
   let (pat_term, _) = IdTagged.unwrap(pat);
   let (inner_pat, ret_type) =
     switch (pat_term) {
-    | Cast(inner_pat, _, ret_type) => (inner_pat, Some(ret_type))
+    | Asc(inner_pat, ret_type) => (inner_pat, Some(ret_type))
     | _ => (pat, None) // (pat, UTyp.Unknown(Hole(EmptyHole)) |> pat_rule)
     };
   check_annotated_function_helper(inner_pat)
