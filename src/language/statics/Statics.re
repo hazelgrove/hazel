@@ -1548,7 +1548,7 @@ and upat_to_info_map =
               ~ana,
               ~inferred_label?,
               ~duplicates=duplicate_labels,
-              ~duplicate_vars=duplicate_bindings,
+              ~duplicate_vars=duplicate_bindings @ duplicate_vars,
               ~expected_labels?,
               e,
               m,
@@ -1618,7 +1618,7 @@ and upat_to_info_map =
         : atomic(self, Coverage.Constraint.Truth);
     | Parens(p)
     | Probe(p, _) =>
-      let (p, m) = go(~ctx, ~ana, p, m);
+      let (p, m) = go(~ctx, ~ana, p, ~duplicate_vars, m);
       add(~self=Just(p.ty), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
     | Constructor(ctr, ty) =>
       let self = Self.of_ctr(ctx, ctr, ana, ty);

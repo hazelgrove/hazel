@@ -226,11 +226,11 @@ module Pat = {
       | Cast(pat, _, _)
       | TupLabel(_, pat) => get_bindings(pat)
       | Tuple(pats) =>
-        let vars = pats |> List.map(get_var);
+        let vars = pats |> List.map(get_bindings);
         if (List.exists(Option.is_none, vars)) {
           None;
         } else {
-          Some(List.map(Option.get, vars));
+          Some(vars |> List.map(Option.get) |> List.flatten);
         };
       | Label(_)
       | Invalid(_)
