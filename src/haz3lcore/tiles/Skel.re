@@ -194,7 +194,6 @@ module Stacks = {
 [@deriving show({with_path: false})]
 type dip = list(ip);
 let mk = (seg: list(ip)): t => {
-  print_endline("seg: " ++ show_dip(seg));
   let stacks =
     seg
     |> List.fold_left(Fun.flip(Stacks.push_shunted), Stacks.empty)
