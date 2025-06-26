@@ -2,9 +2,12 @@ open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type system =
-  // Issue that we catch and inform the user about. Do not send this to the model.
+  // Issue that we catch and inform the user about.
+  // Do not send this to the model and display to user as error message
   | InternalError
-  // The system prompt that we send to the model.
+  // The system prompt for the model.
+  // Send this to the model.
+  // Display to user as expandable/collapsable system message.
   | AssistantPrompt;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -62,9 +65,17 @@ type current_chats = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type external_api_info = {
+  available_models: list(OpenRouter.model_info),
+  set_model: string,
+  api_key: string,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   current_chats,
   chat_history,
+  external_api_info,
   loop: bool,
 };
 

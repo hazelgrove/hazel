@@ -28,7 +28,7 @@ module Model = {
         show_case_clauses: true,
         show_fn_bodies: false,
         show_fixpoints: false,
-        show_cast_steps: false,
+        show_ascription_steps: false,
         show_lookup_steps: false,
         show_stepper_filters: false,
         stepper_history: false,
@@ -48,12 +48,9 @@ module Model = {
     },
     assistant: {
       mode: CodeSuggestion,
-      api_key: "",
-      llm_model: "",
       ongoing_chat: false,
       show_history: false,
       show_api_key: false,
-      available_models: [],
     },
     sidebar: {
       panel: LanguageDocumentation,
@@ -94,7 +91,7 @@ module Update = {
     | EnableProof
     | ShowCaseClauses
     | ShowFnBodies
-    | ShowCastSteps
+    | ShowAscriptionSteps
     | ShowFixpoints
     | ShowLookups
     | ShowFilters
@@ -125,8 +122,7 @@ module Update = {
     };
   };
 
-  let update =
-      (~action, ~schedule_action, ~settings: Model.t): Updated.t(Model.t) => {
+  let update = (~action, ~settings: Model.t): Updated.t(Model.t) => {
     (
       switch (action) {
       | Statics => {
@@ -193,9 +189,9 @@ module Update = {
               ...evaluation,
               show_fn_bodies: !evaluation.show_fn_bodies,
             }
-          | ShowCastSteps => {
+          | ShowAscriptionSteps => {
               ...evaluation,
-              show_cast_steps: !evaluation.show_cast_steps,
+              show_ascription_steps: !evaluation.show_ascription_steps,
             }
           | ShowFixpoints => {
               ...evaluation,
@@ -290,51 +286,11 @@ module Update = {
               show_history: !settings.assistant.show_history,
             },
           }
-        | SetLLM(llm_id) => {
-            ...settings,
-            assistant: {
-              ...settings.assistant,
-              llm_model: llm_id,
-            },
-          }
         | ToggleAPIKeyVisibility => {
             ...settings,
             assistant: {
               ...settings.assistant,
               show_api_key: !settings.assistant.show_api_key,
-            },
-          }
-        | SetAPIKey(api_key) =>
-          // Set the available models using the provided API key
-          OpenRouter.get_models(~key=api_key, ~handler=response => {
-            switch (response) {
-            | Some(json) =>
-              switch (OpenRouter.parse_models_response(json)) {
-              | Some(models_response) =>
-                schedule_action(
-                  Assistant(SetListOfLLMs(models_response.data)),
-                )
-              | None =>
-                print_endline("Assistant: failed to parse models response")
-              }
-            | None =>
-              print_endline(
-                "Assistant: no response received from OpenRouter API",
-              )
-            }
-          });
-          {
-            ...settings,
-            assistant: {
-              ...settings.assistant,
-              api_key,
-            },
-          };
-        | SetListOfLLMs(llms) => {
-            ...settings,
-            assistant: {
-              ...settings.assistant,
-              available_models: llms,
             },
           }
         }

@@ -3,7 +3,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
     {
       zipper =
         "((selection((focus Left)(content())(mode \
-         Normal)))(backpack())(relatives((siblings(((Secondary((id \
+         Normal)))(backpack())(relatives((siblings(()((Secondary((id \
          4b993118-7181-44f4-9ebc-5135577cb42e)(content(Comment\"# Hazel \
          Language Quick Reference #\"))))(Secondary((id \
          3d39cc52-4179-4dbd-8d7f-8444c8c48de9)(content(Whitespace\"\\n\"))))(Secondary((id \
@@ -62,8 +62,6 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Exp))))))(shards(0))(children())))(Secondary((id \
          791ed55a-ce5f-4398-8772-54209ad86244)(content(Whitespace\" \
          \")))))))))(Secondary((id \
-         100e3ae8-5942-4b9d-aecf-3be6f603808b)(content(Whitespace\" \
-         \"))))(Secondary((id \
          fdee7287-47a8-48ce-b823-9f59fc313629)(content(Whitespace\"\\n\"))))(Secondary((id \
          0141e36d-2974-43ec-994d-30cb244fa5c6)(content(Whitespace\"\\n\"))))(Secondary((id \
          a0f55543-a78d-4fa0-b763-8ba69aba702a)(content(Comment\"# Booleans \
@@ -93,7 +91,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
          cafe7e8c-16f0-44f1-bc68-55a9cbc819cf)(content(Whitespace\" \
-         \"))))))))))((Secondary((id \
+         \")))))))))(Secondary((id \
          a939976f-0365-45b4-afef-bf55ae0ca282)(content(Whitespace\"\\n\"))))(Tile((id \
          e197b30f-cbac-4be4-85eb-cbc8bd93515a)(label(let = in))(mold((out \
          Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
@@ -187,15 +185,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \"))))(Tile((id \
          804e5948-0221-473e-b762-2f81175ac2e5)(label(num))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
-         Pat))))))(shards(0))(children())))(Tile((id \
-         a741f97f-9db1-49cf-a8fd-ad3acbb408df)(label(:))(mold((out \
-         Pat)(in_())(nibs(((shape(Concave 24))(sort Pat))((shape(Concave \
-         24))(sort Typ))))))(shards(0))(children())))(Secondary((id \
-         1e5810d0-362e-4eef-b109-0ef0ede6c371)(content(Whitespace\" \
-         \"))))(Tile((id \
-         6149213b-5426-446c-8193-7e7f511715e5)(label(Int))(mold((out \
-         Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
-         Typ))))))(shards(0))(children())))(Secondary((id \
+         Pat))))))(shards(0))(children())))(Secondary((id \
          dc96edaf-9980-478b-bb73-95e4f8b52cfa)(content(Whitespace\" \
          \")))))((Secondary((id \
          bd7b7819-9cd1-4fcf-b2e7-25cccad7fcb8)(content(Whitespace\" \
@@ -203,6 +193,16 @@ let out : string * Haz3lcore.PersistentZipper.t =
          4f1f7e7e-af31-47de-97f3-4830ac9883ef)(label(1))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
+         da55f7b0-e696-4e01-ba0f-05d5dfe8318e)(content(Whitespace\" \
+         \"))))(Tile((id \
+         dba8e08a-bfaf-429f-a1ff-42769473ab5b)(label(:))(mold((out \
+         Exp)(in_())(nibs(((shape(Concave 24))(sort Exp))((shape(Concave \
+         24))(sort Typ))))))(shards(0))(children())))(Secondary((id \
+         6c7e0af1-467c-4dcb-b585-36d1cc8dcf4a)(content(Whitespace\" \
+         \"))))(Tile((id \
+         f35e961b-85b4-4af1-b2d8-f9d83a2e24a4)(label(Int))(mold((out \
+         Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
+         Typ))))))(shards(0))(children())))(Secondary((id \
          88bda50e-cc53-4f52-83f7-262a319acdb7)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          0935d09d-717f-49ca-9289-5a8dd83c71fa)(content(Whitespace\"\\n\"))))(Tile((id \
@@ -792,10 +792,12 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \"))))(Tile((id \
          9f634ad6-6491-465b-b40c-586125a827fd)(label(string))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))(Tile((id \
+         Exp))))))(shards(0))(children())))(Secondary((id \
+         96a36bba-70bd-4a76-a2f9-c36fdc56d6aa)(content(Whitespace\" \
+         \"))))(Tile((id \
          2985292f-ee8c-4870-9b49-ad673e920a30)(label($==))(mold((out \
-         Exp)(in_())(nibs(((shape(Concave 9))(sort Exp))((shape(Concave \
-         9))(sort Exp))))))(shards(0))(children())))(Secondary((id \
+         Exp)(in_())(nibs(((shape(Concave 31))(sort Exp))((shape(Concave \
+         31))(sort Exp))))))(shards(0))(children())))(Secondary((id \
          7a1b3ff5-df08-45ac-b554-c8bfc4cc9574)(content(Whitespace\" \
          \"))))(Tile((id \
          b8fd12a4-7234-4d09-a41f-e54ef6aed750)(label(\"\\\"Hello, \
@@ -2763,13 +2765,13 @@ let out : string * Haz3lcore.PersistentZipper.t =
          let empty_hole =   in\n\n\
          # Non-empty holes are the red boxes around type errors #\n\
          # (you can still run programs with non-empty holes) #\n\
-         let non_empty_hole : Int = true in \n\n\
+         let non_empty_hole : Int = true in\n\n\
          # Booleans #\n\
          let bool: Bool = true in\n\
          let operators = !true && false || true in\n\
          let conditional = if !true then 1 else 2 in\n\n\
          # Integers #\n\
-         let num: Int = 1 in\n\
+         let num = 1 : Int in\n\
          let arithmetic = -num*1 + 2/3 - 4**5 in\n\
          let comparison =\n\
          (0 == 0, 0 < 1, 1 <= 1, 2 > 1, 1 >= 1)  \n\
@@ -2795,7 +2797,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          # Strings #\n\
          let string = \"Hello, world!\" in \n\
          let concatenation  = string ++ \" Goodbye.\" in\n\
-         let comparison = string$== \"Hello, world!\" in\n\n\
+         let comparison = string $== \"Hello, world!\" in\n\n\
          # Tuples (Destructured with let expressions) #\n\
          let tuple : (Int, Bool, (Bool, Int)) =\n\
          (1, true, (false, 3)) in\n\

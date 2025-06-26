@@ -36,18 +36,12 @@ type rel =
   | Id([@equal (_, _) => true] Id.t, Direction.t);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type part =
-  | Definition
-  | Body;
-
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type select =
   | All
   | Resize(move)
   | Smart(int)
   | Tile(rel)
-  | Term(rel)
-  | Structure(part);
+  | Term(rel);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type chooser =
@@ -227,8 +221,7 @@ let should_animate: t => bool =
     | All
     | Smart(_)
     | Tile(_)
-    | Term(_)
-    | Structure(_) => true
+    | Term(_) => true
     }
   | Unselect(_)
   | Paste(_)

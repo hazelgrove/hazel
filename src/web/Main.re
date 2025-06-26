@@ -148,11 +148,6 @@ let start = {
       >= 0;
     NinjaKeys.initialize(Shortcut.options(schedule_action));
     JsUtil.focus_clipboard_shim();
-    switch (Store.Generic.load("API")) {
-    | Some(key) =>
-      schedule_action(Globals(Set(Assistant(SetAPIKey(key)))))
-    | None => ()
-    };
     schedule_action(
       Assistant(AssistantUpdate.ChatAction(FilterLoadingMessages)),
     );
