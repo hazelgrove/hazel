@@ -1,5 +1,3 @@
-open Util;
-
 module F =
   Store.F({
     [@deriving (show({with_path: false}), yojson, sexp)]
