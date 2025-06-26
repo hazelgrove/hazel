@@ -657,6 +657,7 @@ module View = {
           fun
           | MakeActive(selection) => inject(MakeActive(selection)),
         ~inject=a => inject(Editors(a)),
+        ~inject_explainthis=a => inject(ExplainThis(a)),
         ~selection=Some(selection),
         model.editors,
       );
