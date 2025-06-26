@@ -713,6 +713,454 @@ module Pervasives = {
              );
            },
          )
+      |> hazel_fn(
+           "reverse",
+           List(unknown(Internal)),
+           List(unknown(Internal)),
+           {
+             /*fix reverse -> fun xs -> case xs
+                 | [] => []
+                 | x :: xs => reverse(xs) @ [x]
+               end*/
+             Fresh.(
+               Exp.(
+                 fix_f(
+                   Pat.var("reverse"),
+                   fn(
+                     Pat.var("xs"),
+                     match(
+                       var("xs"),
+                       [
+                         (Pat.list_lit([]), list_lit([])),
+                         (
+                           Pat.cons(Pat.var("x"), Pat.var("xs")),
+                           list_concat(
+                             ap(Forward, var("reverse"), var("xs")),
+                             list_lit([var("x")]),
+                           ),
+                         ),
+                       ],
+                     ),
+                     None,
+                     None,
+                   ),
+                   None,
+                 )
+               )
+             );
+           },
+         )
+      |> hazel_fn(
+           "take",
+           Prod([list(unknown(Internal)), int()]),
+           List(unknown(Internal)),
+           {
+             /*fix take -> fun (xs, n) -> case xs
+                 | [] => []
+                 | _ => if n <= 0 then [] else case xs
+                   | x :: xs => x :: take(xs, n - 1)
+                 end
+               end*/
+             Fresh.(
+               Exp.(
+                 fix_f(
+                   Pat.var("take"),
+                   fn(
+                     Pat.tuple([Pat.var("xs"), Pat.var("n")]),
+                     match(
+                       var("xs"),
+                       [
+                         (Pat.list_lit([]), list_lit([])),
+                         (
+                           Pat.wild(),
+                           if_(
+                             bin_op(
+                               Int(LessThanOrEqual),
+                               var("n"),
+                               int(0),
+                             ),
+                             list_lit([]),
+                             match(
+                               var("xs"),
+                               [
+                                 (
+                                   Pat.cons(Pat.var("x"), Pat.var("xs")),
+                                   cons(
+                                     var("x"),
+                                     ap(
+                                       Forward,
+                                       var("take"),
+                                       tuple([
+                                         var("xs"),
+                                         bin_op(
+                                           Int(Minus),
+                                           var("n"),
+                                           int(1),
+                                         ),
+                                       ]),
+                                     ),
+                                   ),
+                                 ),
+                               ],
+                             ),
+                           ),
+                         ),
+                       ],
+                     ),
+                     None,
+                     None,
+                   ),
+                   None,
+                 )
+               )
+             );
+           },
+         )
+      |> hazel_fn(
+           "drop",
+           Prod([list(unknown(Internal)), int()]),
+           List(unknown(Internal)),
+           {
+             /*fix drop -> fun (xs, n) -> case xs
+                 | [] => []
+                 | _ => if n <= 0 then xs else case xs
+                   | x :: xs => drop(xs, n - 1)
+                 end
+               end*/
+             Fresh.(
+               Exp.(
+                 fix_f(
+                   Pat.var("drop"),
+                   fn(
+                     Pat.tuple([Pat.var("xs"), Pat.var("n")]),
+                     match(
+                       var("xs"),
+                       [
+                         (Pat.list_lit([]), list_lit([])),
+                         (
+                           Pat.wild(),
+                           if_(
+                             bin_op(
+                               Int(LessThanOrEqual),
+                               var("n"),
+                               int(0),
+                             ),
+                             var("xs"),
+                             match(
+                               var("xs"),
+                               [
+                                 (
+                                   Pat.cons(Pat.var("x"), Pat.var("xs")),
+                                   ap(
+                                     Forward,
+                                     var("drop"),
+                                     tuple([
+                                       var("xs"),
+                                       bin_op(
+                                         Int(Minus),
+                                         var("n"),
+                                         int(1),
+                                       ),
+                                     ]),
+                                   ),
+                                 ),
+                               ],
+                             ),
+                           ),
+                         ),
+                       ],
+                     ),
+                     None,
+                     None,
+                   ),
+                   None,
+                 )
+               )
+             );
+           },
+         )
+      |> hazel_fn(
+           "contains",
+           Prod([
+             list(unknown(Internal)),
+             arrow(unknown(Internal), bool()),
+           ]),
+           Atom(Bool),
+           {
+             /*fix contains -> fun (xs, pred) -> case xs
+                 | [] => false
+                 | x :: xs => if pred(x) then true else contains(xs, pred)
+               end*/
+             Fresh.(
+               Exp.(
+                 fix_f(
+                   Pat.var("contains"),
+                   fn(
+                     Pat.tuple([Pat.var("xs"), Pat.var("pred")]),
+                     match(
+                       var("xs"),
+                       [
+                         (Pat.list_lit([]), bool(false)),
+                         (
+                           Pat.cons(Pat.var("x"), Pat.var("xs")),
+                           if_(
+                             ap(Forward, var("pred"), var("x")),
+                             bool(true),
+                             ap(
+                               Forward,
+                               var("contains"),
+                               tuple([var("xs"), var("pred")]),
+                             ),
+                           ),
+                         ),
+                       ],
+                     ),
+                     None,
+                     None,
+                   ),
+                   None,
+                 )
+               )
+             );
+           },
+         )
+      |> hazel_fn(
+           "range",
+           Prod([int(), int()]),
+           List(int()),
+           {
+             /*fix range -> fun (start, end) -> if start > end then [] else start :: range(start + 1, end)*/
+             Fresh.(
+               Exp.(
+                 fix_f(
+                   Pat.var("range"),
+                   fn(
+                     Pat.tuple([Pat.var("start"), Pat.var("end")]),
+                     if_(
+                       bin_op(Int(GreaterThan), var("start"), var("end")),
+                       list_lit([]),
+                       cons(
+                         var("start"),
+                         ap(
+                           Forward,
+                           var("range"),
+                           tuple([
+                             bin_op(Int(Plus), var("start"), int(1)),
+                             var("end"),
+                           ]),
+                         ),
+                       ),
+                     ),
+                     None,
+                     None,
+                   ),
+                   None,
+                 )
+               )
+             );
+           },
+         )
+      |> hazel_fn(
+           "enumerate",
+           List(unknown(Internal)),
+           List(prod([int(), unknown(Internal)])),
+           {
+             /*fix enumerate -> fun xs -> enumerate_helper(xs, 0)
+               fix enumerate_helper -> fun (xs, index) -> case xs
+                 | [] => []
+                 | x :: xs => (index, x) :: enumerate_helper(xs, index + 1)
+               end*/
+             Fresh.(
+               Exp.(
+                 fix_f(
+                   Pat.var("enumerate"),
+                   fn(
+                     Pat.var("xs"),
+                     ap(
+                       Forward,
+                       fix_f(
+                         Pat.var("enumerate_helper"),
+                         fn(
+                           Pat.tuple([Pat.var("xs"), Pat.var("index")]),
+                           match(
+                             var("xs"),
+                             [
+                               (Pat.list_lit([]), list_lit([])),
+                               (
+                                 Pat.cons(Pat.var("x"), Pat.var("xs")),
+                                 cons(
+                                   tuple([var("index"), var("x")]),
+                                   ap(
+                                     Forward,
+                                     var("enumerate_helper"),
+                                     tuple([
+                                       var("xs"),
+                                       bin_op(
+                                         Int(Plus),
+                                         var("index"),
+                                         int(1),
+                                       ),
+                                     ]),
+                                   ),
+                                 ),
+                               ),
+                             ],
+                           ),
+                           None,
+                           None,
+                         ),
+                         None,
+                       ),
+                       tuple([var("xs"), int(0)]),
+                     ),
+                     None,
+                     None,
+                   ),
+                   None,
+                 )
+               )
+             );
+           },
+         )
+      |> hazel_fn(
+           "any",
+           Prod([
+             list(unknown(Internal)),
+             arrow(unknown(Internal), bool()),
+           ]),
+           Atom(Bool),
+           {
+             /*fix any -> fun (xs, pred) -> case xs
+                 | [] => false
+                 | x :: xs => if pred(x) then true else any(xs, pred)
+               end*/
+             Fresh.(
+               Exp.(
+                 fix_f(
+                   Pat.var("any"),
+                   fn(
+                     Pat.tuple([Pat.var("xs"), Pat.var("pred")]),
+                     match(
+                       var("xs"),
+                       [
+                         (Pat.list_lit([]), bool(false)),
+                         (
+                           Pat.cons(Pat.var("x"), Pat.var("xs")),
+                           if_(
+                             ap(Forward, var("pred"), var("x")),
+                             bool(true),
+                             ap(
+                               Forward,
+                               var("any"),
+                               tuple([var("xs"), var("pred")]),
+                             ),
+                           ),
+                         ),
+                       ],
+                     ),
+                     None,
+                     None,
+                   ),
+                   None,
+                 )
+               )
+             );
+           },
+         )
+      |> hazel_fn(
+           "all",
+           Prod([
+             list(unknown(Internal)),
+             arrow(unknown(Internal), bool()),
+           ]),
+           Atom(Bool),
+           {
+             /*fix all -> fun (xs, pred) -> case xs
+                 | [] => true
+                 | x :: xs => if pred(x) then all(xs, pred) else false
+               end*/
+             Fresh.(
+               Exp.(
+                 fix_f(
+                   Pat.var("all"),
+                   fn(
+                     Pat.tuple([Pat.var("xs"), Pat.var("pred")]),
+                     match(
+                       var("xs"),
+                       [
+                         (Pat.list_lit([]), bool(true)),
+                         (
+                           Pat.cons(Pat.var("x"), Pat.var("xs")),
+                           if_(
+                             ap(Forward, var("pred"), var("x")),
+                             ap(
+                               Forward,
+                               var("all"),
+                               tuple([var("xs"), var("pred")]),
+                             ),
+                             bool(false),
+                           ),
+                         ),
+                       ],
+                     ),
+                     None,
+                     None,
+                   ),
+                   None,
+                 )
+               )
+             );
+           },
+         )
+      |> hazel_fn(
+           "intersperse",
+           Prod([list(unknown(Internal)), unknown(Internal)]),
+           List(unknown(Internal)),
+           {
+             /*fix intersperse -> fun (xs, sep) -> case xs
+                 | [] => []
+                 | [x] => [x]
+                 | x :: xs => x :: sep :: intersperse(xs, sep)
+               end*/
+             Fresh.(
+               Exp.(
+                 fix_f(
+                   Pat.var("intersperse"),
+                   fn(
+                     Pat.tuple([Pat.var("xs"), Pat.var("sep")]),
+                     match(
+                       var("xs"),
+                       [
+                         (Pat.list_lit([]), list_lit([])),
+                         (
+                           Pat.list_lit([Pat.var("x")]),
+                           list_lit([var("x")]),
+                         ),
+                         (
+                           Pat.cons(Pat.var("x"), Pat.var("xs")),
+                           cons(
+                             var("x"),
+                             cons(
+                               var("sep"),
+                               ap(
+                                 Forward,
+                                 var("intersperse"),
+                                 tuple([var("xs"), var("sep")]),
+                               ),
+                             ),
+                           ),
+                         ),
+                       ],
+                     ),
+                     None,
+                     None,
+                   ),
+                   None,
+                 )
+               )
+             );
+           },
+         )
       |> fn(
            "string_compare",
            Prod([string(), string()]),
