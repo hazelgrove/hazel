@@ -93,11 +93,10 @@ let expand_neighbors_and_make_new_tile = (char: Token.t, state: t): option(t) =>
      The order here could be revisited if barfing was more sophisticated.
      */
   let* z = expand_or_barf_left_neighbor(state);
-  //let (z) = regrout(Left, z);
-  /* Note to david: I'm not sure why the above regrout is necessary.
-     Without it, there is a Nonconvex segment error thrown in exactly
-     one case, the double barf case: insert space on "if then|else" */
   let+ z = expand_or_barf_right_neighbor(z);
+  /* If contemplating changing regrouting behavior here, try these
+   * two cases: pressing space on `if then|else` and `if true|then` */
+  let z = remold_regrout_prev(z);
   make_new_tile(char, Left, z);
 };
 
@@ -153,17 +152,17 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
    * to append the new char to the left half, and then the right half,
    * and only if those fail creating a new center token. */
   let (l, r) = Token.split_nth(idx, t);
-  z
-  |> Zipper.set_caret(Outer)
-  |> Zipper.select(Right)
-  |> (
-    /* overwrite selection */
-    switch (Form.duomerges([l, r])) {
-    | Some(_) => insert_duo([l, r])
-    | None => insert_monos(l, r)
-    }
-  )
-  |> OptUtil.and_then(expand_neighbors_and_make_new_tile(char));
+  /* overwrite selection */
+  let z = z |> Zipper.set_caret(Outer) |> Zipper.select(Right);
+  switch (Form.duomerges([l, r])) {
+  | Some(_) =>
+    let+ z = insert_duo([l, r], z);
+    make_new_tile(char, Left, z) |> remold_regrout(Right);
+  | None =>
+    let* z = insert_monos(l, r, z);
+    let+ z = expand_neighbors_and_make_new_tile(char, z);
+    z |> remold_regrout(Right);
+  };
 };
 
 let opt_regrold = d => Option.map(remold_regrout(d));
@@ -286,7 +285,7 @@ let rec go =
         |> Zipper.set_caret(Inner(d_idx, idx))
         |> Zipper.replace_mono(Right, new_t)
         |> opt_regrold(Left)
-      : split(z, char, idx, t) |> opt_regrold(Right);
+      : split(z, char, idx, t);
   /* Can't insert inside delimiter */
   | (Inner(_, _), (_, None)) => None
   | (Outer, (_, Some(_))) =>
