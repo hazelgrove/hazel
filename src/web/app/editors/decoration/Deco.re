@@ -266,12 +266,19 @@ module Deco =
       let font_metrics = font_metrics;
     });
 
-  let segment_selected = (z: Zipper.t) =>
+  let segment_selected = (z: Zipper.t) => {
+    print_endline(Zipper.pp_zipper(z));
+    print_endline("Selection content:");
+    List.iter(
+      piece => print_endline("  " ++ Zipper.pp_piece(piece)),
+      z.selection.content,
+    );
     Highlight.go(
       z.selection.content,
       Some(fst(Siblings.shapes(z.relatives.siblings))),
       ["selected", Selection.buffer_cls(z.selection)],
     );
+  };
 
   let find_assoc_for_id = (id: Id.t): list(Id.t) => {
     /* Compute associative IDs for a given tile ID */
@@ -326,20 +333,27 @@ module Deco =
           | _ => right_id
           };
         [left_left_id, right_assoc];
-      | _ => []
+      | _ => [id]
       }
-    | _ => []
+    | _ => [id]
     };
   };
 
   let associative_segment = (z: Zipper.t) => {
     print_endline(Zipper.pp_zipper(z));
+    print_endline("Selection content:");
+    List.iter(
+      piece => print_endline("  " ++ Zipper.pp_piece(piece)),
+      z.selection.content,
+    );
+
     /* Extract all Tile IDs from the selection segment */
     let tile_ids =
       z.selection.content
       |> List.filter_map(piece =>
            switch (piece) {
            | Piece.Tile(t) => Some(Tile.id(t))
+           | Piece.Secondary(s) => Some(Secondary.id(s))
            | _ => None
            }
          );
