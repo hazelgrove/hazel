@@ -39,26 +39,14 @@ let prn = Printf.sprintf;
 
 let common_error: Info.error_common => string =
   fun
-  | NoType(WantTuple) => "Expected a tuple"
-  | NoType(LabelNotFound(_, _)) => "Label not found"
   | NoType(BadLabel(_)) => "Invalid label"
   | NoType(InvalidLabel(_)) => "Invalid label"
   | DuplicateLabel(_, _) => "Duplicate label"
   | TupleLabelError(_) => "Invalid tuple label"
   | NoType(BadToken(token)) => prn("\"%s\" isn't a valid token", token)
-  | NoType(BadTrivAp(ty)) =>
-    prn("Function argument type \"%s\" inconsistent with ()", Print.typ(ty))
   | Inconsistent(WithArrow(ty)) =>
     prn("type %s is not consistent with arrow type", Print.typ(ty))
   | NoType(FreeConstructor(_name)) => prn("Constructor is not defined")
-  | NoType(BadOperator(msg)) => prn("Invalid operator: %s", msg)
-  | NoType(UnboundLivelit(name)) =>
-    prn("Livelit with name %s not found, and also, it's a livelit", name)
-  | InvalidUseMode({bad_typ, _}) =>
-    prn(
-      "Cannot use type %s for number operators and literals.",
-      Print.typ(bad_typ),
-    )
   | Inconsistent(Internal(tys)) =>
     prn(
       "Expecting branches to have consistent types but got types: %s",
@@ -69,11 +57,22 @@ let common_error: Info.error_common => string =
       "Expecting type %s but got inconsistent type %s",
       Print.typ(ana),
       Print.typ(syn),
-    )
-  | Inconsistent(BadLivelitModel(_)) => prn("Bad internal livelit model");
+    );
 
 let exp_error: Info.error_exp => string =
   fun
+  | WantTuple => "Expected a tuple"
+  | LabelNotFound(_, _) => "Label not found"
+  | UnboundLivelit(_) => "Livelit unbound and not found"
+  | BadTrivAp(ty) =>
+    prn("Function argument type \"%s\" inconsistent with ()", Print.typ(ty))
+  | InvalidUseMode({bad_typ, _}) =>
+    prn(
+      "Cannot use type %s for number operators and literals.",
+      Print.typ(bad_typ),
+    )
+  | BadOperator(_) => "Invalid operator"
+  | BadLivelitModel(_) => "Bad internal livelit model"
   | FreeVariable(name) => "Variable " ++ name ++ " is not bound"
   | InexhaustiveMatch(_) => "Match is not exhaustive" //TODO: elaborate
   | UnusedDeferral => "Unused deferral" //TODO: better message

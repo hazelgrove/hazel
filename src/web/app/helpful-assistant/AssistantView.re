@@ -80,15 +80,11 @@ let history_button =
 };
 
 let select_llm =
-    (
-      ~inject_global: Globals.Action.t => Ui_effect.t(unit),
-      ~settings: AssistantSettings.t,
-    )
-    : Node.t => {
+    (~inject: Update.t => Ui_effect.t(unit), ~model: Model.t): Node.t => {
   let handle_change = (event, _) => {
     let value = Js.to_string(Js.Unsafe.coerce(event)##.target##.value);
     Virtual_dom.Vdom.Effect.Many([
-      inject_global(Set(Assistant(SetLLM(value)))),
+      inject(ExternalAPIAction(SetLLM(value))),
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   };
@@ -100,18 +96,23 @@ let select_llm =
       select(
         ~attrs=[Attr.on_change(handle_change), clss(["llm-dropdown"])],
         List.map(
-          (model: OpenRouter.model_info) =>
+          (open_router_model: OpenRouter.model_info) =>
             option(
               ~attrs=[
-                Attr.value(model.id),
-                switch (Store.Generic.load("MODEL")) {
-                | Some(current_model) when current_model == model.id => Attr.selected
-                | _ => Attr.empty
+                Attr.value(open_router_model.id),
+                switch (model.external_api_info.set_model) {
+                | "" => Attr.empty
+                | current_model =>
+                  if (current_model == open_router_model.id) {
+                    Attr.selected;
+                  } else {
+                    Attr.empty;
+                  }
                 },
               ],
-              [text(model.name)],
+              [text(open_router_model.name)],
             ),
-          settings.available_models,
+          model.external_api_info.available_models,
         ),
       ),
     ],
@@ -128,14 +129,16 @@ let settings_box =
 
 let api_input =
     (
+      ~inject: Update.t => Ui_effect.t(unit),
       ~inject_global: Globals.Action.t => Ui_effect.t(unit),
       ~signal,
+      ~model: Model.t,
       ~settings: AssistantSettings.t,
     )
     : Node.t => {
   let handle_submission = (api_key: string) => {
     Virtual_dom.Vdom.Effect.Many([
-      inject_global(Set(Assistant(SetAPIKey(api_key)))),
+      inject(ExternalAPIAction(SetAPIKey(api_key))),
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   };
@@ -246,11 +249,11 @@ let api_input =
                 ],
                 [
                   text(
-                    switch (Store.Generic.load("API")) {
-                    | Some(key) when String.length(key) > 0 =>
+                    switch (model.external_api_info.api_key) {
+                    | "" => "No API key set"
+                    | key =>
                       settings.show_api_key
                         ? key : String.make(String.length(key), '*')
-                    | _ => "No API key set"
                     },
                   ),
                 ],
@@ -264,11 +267,7 @@ let api_input =
 };
 
 let llm_model_id_input =
-    (
-      ~inject_global: Globals.Action.t => Ui_effect.t(unit),
-      ~signal,
-      ~settings: AssistantSettings.t,
-    )
+    (~inject: Update.t => Ui_effect.t(unit), ~signal, ~model: Model.t)
     : Node.t => {
   let format_price_per_million = (price: string): string => {
     // Convert string to float, multiply by 1000 to get per million tokens
@@ -287,7 +286,7 @@ let llm_model_id_input =
 
   let handle_submission = (llm_model: string) => {
     Virtual_dom.Vdom.Effect.Many([
-      inject_global(Set(Assistant(SetLLM(llm_model)))),
+      inject(ExternalAPIAction(SetLLM(llm_model))),
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   };
@@ -336,7 +335,7 @@ let llm_model_id_input =
           text("."),
         ],
       ),
-      select_llm(~inject_global, ~settings),
+      select_llm(~inject, ~model),
       div(
         ~attrs=[clss(["llm-selector"])],
         [
@@ -375,9 +374,9 @@ let llm_model_id_input =
             ~attrs=[clss(["api-key-display"]), Attr.id("api-key-display")],
             [
               text(
-                switch (Store.Generic.load("MODEL")) {
-                | Some(model_id) when String.length(model_id) > 0 => model_id
-                | _ => "No model ID set"
+                switch (model.external_api_info.set_model) {
+                | "" => "No model ID set"
+                | model_id => model_id
                 },
               ),
             ],
@@ -395,12 +394,13 @@ let llm_model_id_input =
             ~attrs=[clss(["api-key-display"])],
             [
               text(
-                switch (Store.Generic.load("MODEL")) {
-                | Some(model_id) when String.length(model_id) > 0 =>
+                switch (model.external_api_info.set_model) {
+                | "" => "No model selected"
+                | model_id =>
                   let selected_model =
                     List.find_opt(
                       (model: OpenRouter.model_info) => model.id == model_id,
-                      settings.available_models,
+                      model.external_api_info.available_models,
                     );
                   switch (selected_model) {
                   | Some(model) =>
@@ -410,7 +410,6 @@ let llm_model_id_input =
                     ++ format_price_per_million(model.pricing.completion)
                   | None => "Pricing information not available"
                   };
-                | _ => "No model selected"
                 },
               ),
             ],
@@ -1186,14 +1185,15 @@ let view =
           : None,
         settings.assistant.ongoing_chat
           ? None
-          : api_input(~inject_global, ~signal, ~settings=settings.assistant),
-        settings.assistant.ongoing_chat
-          ? None
-          : llm_model_id_input(
+          : api_input(
+              ~inject,
               ~inject_global,
               ~signal,
+              ~model,
               ~settings=settings.assistant,
             ),
+        settings.assistant.ongoing_chat
+          ? None : llm_model_id_input(~inject, ~model, ~signal),
         //settings.assistant.ongoing_chat ? None : settings_box(~inject_global),
         settings.assistant.ongoing_chat && settings.assistant.show_history
           ? history_menu(~model, ~settings=settings.assistant, ~inject) : None,

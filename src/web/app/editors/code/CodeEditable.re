@@ -52,7 +52,7 @@ module Update = {
              switch (action) {
              | Move(_)
              | Jump(_)
-             | Select(Resize(_) | Term(_) | Smart(_) | Tile(_) | Structure(_))
+             | Select(Resize(_) | Term(_) | Smart(_) | Tile(_))
              | Destruct(_)
              | Insert(_)
              | Pick_up
@@ -248,8 +248,6 @@ module View = {
           ]);
         | 2 => inject(Perform(Select(Smart(2))))
         | 3 => inject(Perform(Select(Smart(3))))
-        | 4 => inject(Perform(Select(Smart(4))))
-        | 5 => inject(Perform(Select(Smart(5))))
         | _ => failwith("THEN PERISH")
         };
       | _ => Effect.Ignore

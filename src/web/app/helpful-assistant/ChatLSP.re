@@ -150,6 +150,37 @@ module Completion = {
         ),
       ),
     ];
+
+  let add_suggestion =
+      (
+        ~response: string,
+        ~tile: Id.t,
+        ~resuggest: bool,
+        ~schedule_action: Editors.Update.t => unit,
+      ) => {
+    let actions =
+      resuggest
+        ? [
+          Action.Select(Tile(Id(tile, Direction.Left))),
+          Action.Buffer(Set(LLM(response))),
+        ]
+        : [
+          Action.Select(Tile(Id(tile, Direction.Left))),
+          Action.Destruct(Direction.Left),
+          Action.Insert(" "),
+          Action.Buffer(Set(LLM(response))),
+        ];
+    // Apply each action in sequence
+    List.iter(
+      action => {
+        let perform_action = CodeEditable.Update.Perform(action);
+        let cell_action = CellEditor.Update.MainEditor(perform_action);
+        let scratch_action = Editors.Update.Scratch(CellAction(cell_action));
+        schedule_action(scratch_action);
+      },
+      actions,
+    );
+  };
 };
 
 module Composition = {
@@ -209,8 +240,8 @@ module Composition = {
     | Definition
     | All;
 
-  type kind_of_goto =
-    | Variable
+  type goto_var =
+    | Value
     | Type;
 
   let get_static_context = (relevant_ctx: bool, ci: Info.t): list(string) =>
@@ -228,44 +259,42 @@ module Composition = {
   // highlights the variable and definition (excluding the body)
   let goto =
       (
-        editor: CodeWithStatics.Model.t,
-        loc: loc_of_goto,
-        kind: kind_of_goto,
-        name: string,
+        ~ed: CodeWithStatics.Model.t,
+        ~loc: loc_of_goto,
+        ~goto_var_of_kind: goto_var,
+        ~name: string,
+        ~schedule_action: Editors.Update.t => unit,
       )
-      : list(Action.t) =>
-    if (loc == All) {
-      print_endline("here selecting all");
-      [Action.Select(All), Action.Copy];
-    } else {
-      let statics = CodeWithStatics.Model.get_statics(editor);
-      // Find the first matching variable in the context using fold
-      // TODO: Handle shadowed variables
-      let matching_id =
-        Id.Map.fold(
-          (_, info, acc) => {
-            switch (acc) {
-            | Some(_) => acc // Already found a match
-            | None =>
-              let ctx = Info.ctx_of(info);
-              switch (kind) {
-              | Variable =>
-                switch (Ctx.lookup_var(ctx, name)) {
-                | Some(entry) => Some(entry.id)
-                | None => None
-                }
-              | Type =>
-                switch (Ctx.lookup_tvar_id(ctx, name)) {
-                | Some(id) => Some(id)
-                | None => None
-                }
-              };
-            }
-          },
-          statics.info_map,
-          None,
-        );
-      // Return appropriate action based on whether we found a match
+      : unit => {
+    let statics = CodeWithStatics.Model.get_statics(ed);
+    // Find the first matching variable in the context using fold
+    // TODO: Handle shadowed variables
+    let matching_id =
+      Id.Map.fold(
+        (_, info, acc) => {
+          switch (acc) {
+          | Some(_) => acc // Already found a match
+          | None =>
+            let ctx = Info.ctx_of(info);
+            switch (goto_var_of_kind) {
+            | Value =>
+              switch (Ctx.lookup_var(ctx, name)) {
+              | Some(entry) => Some(entry.id)
+              | None => None
+              }
+            | Type =>
+              switch (Ctx.lookup_tvar_id(ctx, name)) {
+              | Some(id) => Some(id)
+              | None => None
+              }
+            };
+          }
+        },
+        statics.info_map,
+        None,
+      );
+    // Return appropriate action based on whether we found a match
+    let actions =
       switch (matching_id) {
       | Some(id) => [
           Action.Jump(TileId(id)),
@@ -275,48 +304,76 @@ module Composition = {
           // definition when type annotation exists)
           Action.Move(Local(Left(ByToken))),
           switch (loc) {
-          | Definition => Action.Select(Structure(Definition))
-          | Body => Action.Select(Structure(Body))
+          // TODO: Implement structure-based navigation actions
+          | Definition =>
+            Action.Select(Term(Id(Id.invalid, Direction.Left)))
+          | Body => Action.Select(Term(Id(Id.invalid, Direction.Left)))
           | All => Action.Select(Term(Id(Id.invalid, Direction.Left)))
           },
           Action.Copy,
         ]
       | None => [Action.Select(Term(Id(Id.invalid, Direction.Left)))]
       };
-    };
 
-  let edit = (loc: loc_of_edit, code: string): list(Action.t) => {
+    List.iter(
+      action => {
+        let perform_action = CodeEditable.Update.Perform(action);
+        let cell_action = CellEditor.Update.MainEditor(perform_action);
+        let scratch_action = Editors.Update.Scratch(CellAction(cell_action));
+        schedule_action(scratch_action);
+      },
+      actions,
+    );
+  };
+
+  let edit =
+      (
+        ~loc: loc_of_edit,
+        ~code: string,
+        ~schedule_action: Editors.Update.t => unit,
+      )
+      : unit => {
     // TODO: Might be helpful to paste a segment instead of a string
     // This may allow for better error handling.
-    switch (loc) {
-    | Before => [
-        // Unselect current definition
-        Action.Unselect(Some(Left)),
-        // Paste new code
-        Action.Paste(String(code ++ "\n")),
-      ]
-    | After => [
-        // Unselect current definition
-        Action.Unselect(Some(Direction.Right)),
-        // Paste new code
-        Action.Paste(String("\n" ++ code)),
-      ]
-    | Current =>
-      String.length(code) == 0
-        ? [
-          // This implies the calling of the ```delete``` tool
-          // Replace current definition
-          Action.Paste(String(code)),
-          // Destruct left
-          Action.Destruct(Left),
+    let actions =
+      switch (loc) {
+      | Before => [
+          // Unselect current definition
+          Action.Unselect(Some(Left)),
+          // Paste new code
+          Action.Paste(String(code ++ "\n")),
         ]
-        : [
-          // Replace current definition
-          Action.Paste(String(code)),
+      | After => [
+          // Unselect current definition
+          Action.Unselect(Some(Direction.Right)),
+          // Paste new code
+          Action.Paste(String("\n" ++ code)),
         ]
-    // We paste the code edit, then reselect the definition, and copy
-    // to clipboard shim to give context to assistant.
-    };
+      | Current =>
+        String.length(code) == 0
+          ? [
+            // This implies the calling of the ```delete``` tool
+            // Replace current definition
+            Action.Paste(String(code)),
+            // Destruct left
+            Action.Destruct(Left),
+          ]
+          : [
+            // Replace current definition
+            Action.Paste(String(code)),
+          ]
+      // We paste the code edit, then reselect the definition, and copy
+      // to clipboard shim to give context to assistant.
+      };
+    List.iter(
+      action => {
+        let perform_action = CodeEditable.Update.Perform(action);
+        let cell_action = CellEditor.Update.MainEditor(perform_action);
+        let scratch_action = Editors.Update.Scratch(CellAction(cell_action));
+        schedule_action(scratch_action);
+      },
+      actions,
+    );
   };
 };
 

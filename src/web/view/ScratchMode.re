@@ -1,3 +1,4 @@
+open Haz3lcore;
 open Util;
 
 /* This file follows conventions in [docs/ui-architecture.md] */
@@ -14,28 +15,13 @@ module Model = {
 
   let persist = model => (
     model.current,
-    List.map(((_, m)) => CellEditor.Model.persist(m), model.scratchpads),
-  );
-
-  let unpersist = (~settings, (current, slides)) => {
-    current,
-    scratchpads:
-      List.mapi(
-        (i, m) =>
-          (string_of_int(i), CellEditor.Model.unpersist(~settings, m)),
-        slides,
-      ),
-  };
-
-  let persist_documentation = model => (
-    model.current,
     List.map(
       ((s, m)) => (s, CellEditor.Model.persist(m)),
       model.scratchpads,
     ),
   );
 
-  let unpersist_documentation = (~settings, (current, slides)) => {
+  let unpersist = (~settings, (current, slides)) => {
     current,
     scratchpads:
       List.map(
@@ -56,12 +42,17 @@ module StoreDocumentation =
 module Store = {
   include Store.F({
     [@deriving (show({with_path: false}), sexp, yojson)]
-    type t = (int, list(CellEditor.Model.persistent));
+    type t = Model.persistent;
     let key = Store.Scratch;
     let default = () => Init.startup.scratch;
   });
 
   let integrate_share = (model: t): t => {
+    let share_name =
+      switch (JsUtil.QueryParams.get_param("name")) {
+      | None => "Unknown Share"
+      | Some(name) => name
+      };
     switch (JsUtil.QueryParams.get_param("share"), model) {
     | (None, _) => model
     | (Some(data), (_current, scratchpads)) =>
@@ -71,7 +62,7 @@ module Store = {
         backup_text: shared_text,
       };
 
-      (List.length(scratchpads), scratchpads @ [shared]);
+      (List.length(scratchpads), scratchpads @ [(share_name, shared)]);
     };
   };
 };
@@ -86,7 +77,10 @@ module Update = {
     | InitImportScratchpad([@opaque] Js_of_ocaml.Js.t(Js_of_ocaml.File.file))
     | FinishImportScratchpad(option(string))
     | Export
-    | Encode;
+    | Encode
+    | AddSlide
+    | RenameSlide
+    | DeleteSlide;
 
   let can_undo = (action: t) => {
     switch (action) {
@@ -97,23 +91,29 @@ module Update = {
     | FinishImportScratchpad(_) => false
     | Export => false
     | Encode => false
+    | AddSlide => true
+    | DeleteSlide => true
+    | RenameSlide => true
     };
   };
 
   let export_scratch_slide = (model: Model.t): unit => {
     Store.save(model |> Model.persist);
     let data = Store.export();
+    let current_name = List.nth(model.scratchpads, model.current) |> fst;
+    let filename = current_name |> StringUtil.sanitize_filename;
     JsUtil.download_string_file(
-      ~filename="hazel-scratchpad",
+      ~filename,
       ~content_type="text/plain",
       ~contents=data,
     );
   };
 
   let encode_scratch_slide = (model: Model.t): unit => {
-    let (_key, ed) = List.nth(model.scratchpads, model.current);
+    let (name, ed) = List.nth(model.scratchpads, model.current);
     let c = ed |> CellEditor.Model.to_string;
     JsUtil.QueryParams.set_param("share", StringUtil.compress(c));
+    JsUtil.QueryParams.set_param("name", name);
   };
 
   let update =
@@ -149,17 +149,91 @@ module Update = {
         ...model,
         current,
       };
+    | AddSlide =>
+      let new_key =
+        switch (is_documentation) {
+        | false =>
+          let used_scratchpads =
+            model.scratchpads
+            |> List.filter_map(scratchpad => {
+                 switch (String.split_on_char(' ', fst(scratchpad))) {
+                 | ["Scratchpad", num] => int_of_string_opt(num)
+                 | _ => None
+                 }
+               });
+          let unused_ids =
+            Seq.filter(i => !List.mem(i, used_scratchpads), Seq.ints(1));
+          let new_number =
+            Seq.uncons(unused_ids)
+            |> Option.get  // This is safe because unused_ids is infinite
+            |> fst;
+
+          "Scratchpad " ++ string_of_int(new_number);
+        | true =>
+          JsUtil.prompt("Enter new buffer name:", "New Buffer Name")
+          |> Option.get
+        };
+      let new_sp: list((string, CellEditor.Model.t)) =
+        model.scratchpads
+        @ [(new_key, CellEditor.Model.mk(Editor.Model.mk(Zipper.init())))];
+      Updated.return(
+        {
+          current: List.length(new_sp) - 1,
+          scratchpads: new_sp,
+        }: Model.t,
+      );
+    | RenameSlide =>
+      let current = List.nth(model.scratchpads, model.current);
+      let new_name = JsUtil.prompt("Enter new buffer name:", fst(current));
+      switch (new_name) {
+      | None => model |> return_quiet
+      | Some(new_name) =>
+        let new_sp =
+          ListUtil.put_nth(
+            model.current,
+            (new_name, snd(current)),
+            model.scratchpads,
+          );
+        Updated.return({
+          ...model,
+          scratchpads: new_sp,
+        });
+      };
+    | DeleteSlide =>
+      let confirmed =
+        JsUtil.confirm(
+          "Are you SURE you want to delete this buffer? You will lose any existing code that you have written, and course staff have no way to restore it!",
+        );
+      if (confirmed) {
+        let new_sp =
+          ListUtil.remove_nth(model.current, model.scratchpads)
+          |> Option.value(~default=model.scratchpads);
+
+        Updated.return(
+          {
+            current: max(model.current - 1, 0),
+            scratchpads: new_sp,
+          }: Model.t,
+        );
+      } else {
+        model |> return_quiet;
+      };
+
     | ResetCurrent =>
       let (key, _) = List.nth(model.scratchpads, model.current);
       let source =
         switch (is_documentation) {
-        | false => Init.startup.scratch |> snd
-        | true => Init.startup.documentation |> snd |> List.map(snd)
+        | false => Zipper.init() |> PersistentZipper.persist
+        | true =>
+          Init.startup.documentation
+          |> snd
+          |> List.map(snd)
+          |> List.nth(_, model.current)
         };
       let* data =
-        List.nth(source, model.current)
-        |> Haz3lcore.PersistentZipper.unpersist
-        |> Haz3lcore.Editor.Model.mk
+        source
+        |> PersistentZipper.unpersist
+        |> Editor.Model.mk
         |> CellEditor.Model.mk
         |> Updated.return;
       {
@@ -427,14 +501,10 @@ module View = {
     [file_group_scratch, reset_group_scratch];
   };
 
-  let top_bar =
-      (
-        ~globals as _,
-        ~named_slides: bool,
-        ~inject: Update.t => 'a,
-        model: Model.t,
-      ) => {
+  let top_bar = (~globals as _, ~inject: Update.t => 'a, model: Model.t) => {
     EditorModeView.view(
+      ~nav_buttons=false,
+      ~edit_buttons=true,
       ~signal=
         fun
         | Previous =>
@@ -449,18 +519,16 @@ module View = {
             SwitchSlide(
               (model.current + 1) mod List.length(model.scratchpads),
             ),
-          ),
+          )
+        | Add => inject(AddSlide)
+        | Rename => inject(RenameSlide)
+        | Delete => inject(DeleteSlide),
       ~indicator=
-        named_slides
-          ? EditorModeView.indicator_select(
-              ~signal=i => inject(SwitchSlide(i)),
-              model.current,
-              List.map(((s, _)) => s, model.scratchpads),
-            )
-          : EditorModeView.indicator_n(
-              model.current,
-              List.length(model.scratchpads),
-            ),
+        EditorModeView.indicator_select(
+          ~signal=i => inject(SwitchSlide(i)),
+          model.current,
+          List.map(((s, _)) => s, model.scratchpads),
+        ),
     );
   };
 };
