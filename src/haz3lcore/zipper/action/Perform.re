@@ -220,7 +220,6 @@ let go_z =
     z
     |> Insert.go(char, ~ctx)
     /* note: remolding here is done case-by-case */
-    //|> Option.map((z) => remold_regrout(Right, z))
     |> Result.of_option(~error=Action.Failure.Cant_insert);
   | Pick_up => Ok(remold_regrout(Left, Zipper.pick_up(z)))
   | Put_down =>
@@ -228,11 +227,9 @@ let go_z =
       /* Alternatively, putting down inside token could eiter merge-in or split */
       switch (z.caret) {
       | Inner(_) => None
-      | Outer => Zipper.put_down(Left, z)
+      | Outer => Zipper.put_down_regrout_remold(Left, z)
       };
-    z
-    |> Option.map(remold_regrout(Left))
-    |> Result.of_option(~error=Action.Failure.Cant_put_down);
+    z |> Result.of_option(~error=Action.Failure.Cant_put_down);
   | RotateBackpack =>
     let z = {
       ...z,
