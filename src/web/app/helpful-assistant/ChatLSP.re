@@ -209,8 +209,8 @@ module Composition = {
     | Definition
     | All;
 
-  type kind_of_goto =
-    | Variable
+  type goto_var =
+    | Value
     | Type;
 
   let get_static_context = (relevant_ctx: bool, ci: Info.t): list(string) =>
@@ -230,7 +230,7 @@ module Composition = {
       (
         editor: CodeWithStatics.Model.t,
         loc: loc_of_goto,
-        kind: kind_of_goto,
+        goto_var_of_kind: goto_var,
         name: string,
       )
       : list(Action.t) =>
@@ -247,8 +247,8 @@ module Composition = {
             | Some(_) => acc // Already found a match
             | None =>
               let ctx = Info.ctx_of(info);
-              switch (kind) {
-              | Variable =>
+              switch (goto_var_of_kind) {
+              | Value =>
                 switch (Ctx.lookup_var(ctx, name)) {
                 | Some(entry) => Some(entry.id)
                 | None => None

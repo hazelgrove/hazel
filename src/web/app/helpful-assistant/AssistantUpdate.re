@@ -1026,7 +1026,7 @@ let update =
               goto(
                 editor,
                 ChatLSP.Composition.Definition,
-                ChatLSP.Composition.Variable,
+                ChatLSP.Composition.Value,
                 arg,
               );
               schedule_action(loop_message);
@@ -1038,7 +1038,7 @@ let update =
               goto(
                 editor,
                 ChatLSP.Composition.Body,
-                ChatLSP.Composition.Variable,
+                ChatLSP.Composition.Value,
                 arg,
               );
               schedule_action(loop_message);
@@ -1073,7 +1073,7 @@ let update =
             goto(
               editor,
               ChatLSP.Composition.All,
-              ChatLSP.Composition.Variable,
+              ChatLSP.Composition.Value,
               "",
             );
             schedule_action(loop_message);

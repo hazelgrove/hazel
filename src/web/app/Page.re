@@ -294,7 +294,7 @@ module Update = {
           (
             ed: CodeWithStatics.Model.t,
             loc: ChatLSP.Composition.loc_of_goto,
-            kind: ChatLSP.Composition.kind_of_goto,
+            kind: ChatLSP.Composition.goto_var,
             name: string,
           ) => {
         let actions = ChatLSP.Composition.goto(ed, loc, kind, name);
