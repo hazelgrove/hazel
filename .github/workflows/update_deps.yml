@@ -1,0 +1,77 @@
+name: Update Dependencies
+
+on:
+  schedule:
+    - cron: '0 9 * * *'  # everyday at 09:00 UTC
+  workflow_dispatch:
+
+jobs:
+  update-dependencies:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout `dev`
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0  # fetch full history for branch operations
+
+      - name: Install node/npm
+        uses: actions/setup-node@v4
+        with:
+            node-version: "latest"
+
+      - name: Install NPM dependencies
+        run: npm install
+
+      - name: Set-up OCaml
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: 5.2.0
+          dune-cache: true
+
+      - name: Add opam repository archive
+        run: |
+          eval $(opam env)
+          export OPAMYES=1
+          opam repo add archive git+https://github.com/ocaml/opam-repository-archive
+          
+      - name: Set up Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Create new update-deps branch from `dev`
+        run: |
+          git switch -c bot/update-deps
+
+      - name: Run change-deps
+        run: make change-deps
+
+      - name: Check for changes
+        id: changes
+        run: |
+          git add -A
+          if git diff --cached --quiet; then
+            echo "no_changes=true" >> $GITHUB_OUTPUT
+          else
+            echo "no_changes=false" >> $GITHUB_OUTPUT
+
+      - name: Commit and push changes
+        if: steps.changes.outputs.no_changes == 'false'
+        run: |
+          git commit -m "chore: update dependencies"
+          git push --force origin bot/update-deps
+
+      - name: Create or update PR
+        if: steps.changes.outputs.no_changes == 'false'
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          title: "chore: weekly dependency update"
+          body: "Automated update from `make change-deps` based on `dev`."
+          commit-message: "chore: update dependencies"
+          branch: bot/update-deps
+          base: dev
+          delete-branch: false
