@@ -140,6 +140,7 @@ let rec any_to_info_map =
         ~co_ctx=CoCtx.empty,
         ~ancestors,
         ~duplicates=[],
+        ~duplicate_vars=[],
         ~ctx,
         p,
         m,
@@ -237,7 +238,8 @@ and uexp_to_info_map =
         go(~ana, ~duplicates, e, m) |> (((e, m)) => (es @ [e], m)),
       ([], m),
     );
-  let go_pat = upat_to_info_map(~ctx, ~ancestors, ~duplicates);
+  let go_pat =
+    upat_to_info_map(~ctx, ~ancestors, ~duplicates, ~duplicate_vars=[]);
   let go_typ = utyp_to_info_map(~ctx, ~ancestors);
 
   // This lifts an expression into a singleton labeled tuple by rewriting the syntax in the Statics Map
@@ -1156,6 +1158,7 @@ and upat_to_info_map =
       ~co_ctx,
       ~ancestors: Info.ancestors,
       ~duplicates: list(string),
+      ~duplicate_vars: list(string),
       ~expected_labels=?,
       ~ana: Typ.t=Unknown(Internal) |> Typ.temp,
       ~under_ascription: bool=false,
@@ -1198,6 +1201,7 @@ and upat_to_info_map =
         ~co_ctx,
         ~ancestors,
         ~duplicates=[],
+        ~duplicate_vars: list(string)=[],
         ~expected_labels=?,
         ~ana,
         ~under_ascription=false,
@@ -1213,6 +1217,7 @@ and upat_to_info_map =
       ~co_ctx,
       ~ancestors,
       ~duplicates,
+      ~duplicate_vars,
       ~ana,
       ~under_ascription,
       ~override_self?,
@@ -1390,12 +1395,22 @@ and upat_to_info_map =
           id: Pat.rep_id(upat),
           typ: ctx_typ,
         });
-      add(
-        ~self=Just(unknown),
-        ~ctx=Ctx.extend(ctx, entry),
-        ~constraint_=Coverage.Constraint.Truth,
-        m,
-      );
+      let self = Self.Just(Label(name) |> Typ.temp);
+
+      List.exists(l => name == l, duplicate_vars)
+        ? add(
+            ~self=Duplicate(name, self),
+            ~ctx=Ctx.extend(ctx, entry),
+            ~constraint_=Coverage.Constraint.Truth,
+            m,
+          )
+        : add(
+            ~self=Just(unknown),
+            ~ctx=Ctx.extend(ctx, entry),
+            ~constraint_=Coverage.Constraint.Truth,
+            m,
+          );
+
     | TupLabel(label, p) =>
       let (lab, p, m) =
         switch (Typ.matched_label(ctx, ana)) {
@@ -1524,6 +1539,7 @@ and upat_to_info_map =
         List.map(p => Pat.match_tup_label(p) |> Option.map(fst), ps);
       let duplicate_labels =
         LabeledTuple.get_duplicate_labels(Pat.match_tup_label, ps);
+      let duplicate_bindings = Pat.get_duplicate_bindings(Pat.fresh(term));
       let (ctx, tys, cons, m, info_pats) =
         List.fold_left2(
           ((ctx, tys, cons, m, info_all), (inferred_label, e), ana) =>
@@ -1532,6 +1548,7 @@ and upat_to_info_map =
               ~ana,
               ~inferred_label?,
               ~duplicates=duplicate_labels,
+              ~duplicate_vars=duplicate_bindings,
               ~expected_labels?,
               e,
               m,

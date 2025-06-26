@@ -246,6 +246,22 @@ module Pat = {
       }
     };
 
+  let get_duplicate_bindings = (pat: t) =>
+    get_bindings(pat)
+    |> (
+      bindings => {
+        switch (bindings) {
+        | Some(bindings) =>
+          List.filter(
+            binding => {
+              List.length(List.filter(x => x == binding, bindings)) > 1
+            },
+            bindings,
+          )
+        | _ => []
+        };
+      }
+    );
   let rec get_num_of_vars = (pat: t) =>
     if (is_var(pat)) {
       Some(1);
