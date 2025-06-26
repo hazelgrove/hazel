@@ -264,66 +264,6 @@ module Update = {
       };
     | Assistant(action) =>
       let settings = globals.settings;
-      open Haz3lcore;
-      let add_suggestion = (~response: string, tile: Id.t, resuggest: bool) => {
-        let actions =
-          resuggest
-            ? [
-              Action.Select(Tile(Id(tile, Direction.Left))),
-              Action.Buffer(Set(LLM(response))),
-            ]
-            : [
-              Action.Select(Tile(Id(tile, Direction.Left))),
-              Action.Destruct(Direction.Left),
-              Action.Insert(" "),
-              Action.Buffer(Set(LLM(response))),
-            ];
-        // Apply each action in sequence
-        List.iter(
-          action => {
-            let perform_action = CodeEditable.Update.Perform(action);
-            let cell_action = CellEditor.Update.MainEditor(perform_action);
-            let scratch_action =
-              Editors.Update.Scratch(CellAction(cell_action));
-            schedule_action(Editors(scratch_action));
-          },
-          actions,
-        );
-      };
-      let goto =
-          (
-            ed: CodeWithStatics.Model.t,
-            loc: ChatLSP.Composition.loc_of_goto,
-            kind: ChatLSP.Composition.goto_var,
-            name: string,
-          ) => {
-        let actions = ChatLSP.Composition.goto(ed, loc, kind, name);
-        // Apply each action in sequence
-        List.iter(
-          action => {
-            let perform_action = CodeEditable.Update.Perform(action);
-            let cell_action = CellEditor.Update.MainEditor(perform_action);
-            let scratch_action =
-              Editors.Update.Scratch(CellAction(cell_action));
-            schedule_action(Editors(scratch_action));
-          },
-          actions,
-        );
-      };
-      let edit = (loc: ChatLSP.Composition.loc_of_edit, code: string) => {
-        let actions = ChatLSP.Composition.edit(loc, code);
-        // Apply each action in sequence
-        List.iter(
-          action => {
-            let perform_action = CodeEditable.Update.Perform(action);
-            let cell_action = CellEditor.Update.MainEditor(perform_action);
-            let scratch_action =
-              Editors.Update.Scratch(CellAction(cell_action));
-            schedule_action(Editors(scratch_action));
-          },
-          actions,
-        );
-      };
       let ed: CellEditor.Model.t =
         switch (model.editors) {
         | Scratch(m) => List.nth(m.scratchpads, m.current) |> snd
@@ -337,9 +277,18 @@ module Update = {
           ~model=model.assistant,
           ~editor=ed.editor,
           ~schedule_action=a => schedule_action(Assistant(a)),
-          ~add_suggestion,
-          ~goto,
-          ~edit,
+          ~add_suggestion=
+            ChatLSP.Completion.add_suggestion(~schedule_action=a =>
+              schedule_action(Editors(a))
+            ),
+          ~goto=
+            ChatLSP.Composition.goto(~schedule_action=a =>
+              schedule_action(Editors(a))
+            ),
+          ~edit=
+            ChatLSP.Composition.edit(~schedule_action=a =>
+              schedule_action(Editors(a))
+            ),
         );
       {
         ...model,

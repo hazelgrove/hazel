@@ -1024,10 +1024,10 @@ let update =
             switch (Json.dot("variable", tool_call.args)) {
             | Some(`String(arg)) =>
               goto(
-                editor,
-                ChatLSP.Composition.Definition,
-                ChatLSP.Composition.Value,
-                arg,
+                ~ed=editor,
+                ~loc=ChatLSP.Composition.Definition,
+                ~goto_var_of_kind=ChatLSP.Composition.Value,
+                ~name=arg,
               );
               schedule_action(loop_message);
             | _ => raise(Failure("Invalid argument for goto_definition"))
@@ -1036,10 +1036,10 @@ let update =
             switch (Json.dot("variable", tool_call.args)) {
             | Some(`String(arg)) =>
               goto(
-                editor,
-                ChatLSP.Composition.Body,
-                ChatLSP.Composition.Value,
-                arg,
+                ~ed=editor,
+                ~loc=ChatLSP.Composition.Body,
+                ~goto_var_of_kind=ChatLSP.Composition.Value,
+                ~name=arg,
               );
               schedule_action(loop_message);
             | _ => raise(Failure("Invalid argument for goto_body"))
@@ -1048,10 +1048,10 @@ let update =
             switch (Json.dot("variable", tool_call.args)) {
             | Some(`String(arg)) =>
               goto(
-                editor,
-                ChatLSP.Composition.Definition,
-                ChatLSP.Composition.Type,
-                arg,
+                ~ed=editor,
+                ~loc=ChatLSP.Composition.Definition,
+                ~goto_var_of_kind=ChatLSP.Composition.Type,
+                ~name=arg,
               );
               schedule_action(loop_message);
             | _ =>
@@ -1061,31 +1061,31 @@ let update =
             switch (Json.dot("variable", tool_call.args)) {
             | Some(`String(arg)) =>
               goto(
-                editor,
-                ChatLSP.Composition.Body,
-                ChatLSP.Composition.Type,
-                arg,
+                ~ed=editor,
+                ~loc=ChatLSP.Composition.Body,
+                ~goto_var_of_kind=ChatLSP.Composition.Type,
+                ~name=arg,
               );
               schedule_action(loop_message);
             | _ => raise(Failure("Invalid argument for goto_type_body"))
             }
           | "select_all" =>
             goto(
-              editor,
-              ChatLSP.Composition.All,
-              ChatLSP.Composition.Value,
-              "",
+              ~ed=editor,
+              ~loc=ChatLSP.Composition.All,
+              ~goto_var_of_kind=ChatLSP.Composition.Value,
+              ~name="",
             );
             schedule_action(loop_message);
           | "paste" =>
             switch (Json.dot("code", tool_call.args)) {
             | Some(`String(arg)) =>
-              edit(ChatLSP.Composition.Current, arg);
+              edit(~loc=ChatLSP.Composition.Current, ~code=arg);
               schedule_action(loop_message);
             | _ => raise(Failure("Invalid argument for paste"))
             }
           | "delete" =>
-            edit(ChatLSP.Composition.Current, "");
+            edit(~loc=ChatLSP.Composition.Current, ~code="");
             schedule_action(loop_message);
           | "submit" => ()
           | _ => raise(Failure("Unknown tool call: " ++ tool_call.name))
@@ -1141,11 +1141,11 @@ let update =
     switch (action) {
     | RemoveAndSuggest(response, tileId) =>
       // Only side effects in the editor are performed here
-      add_suggestion(~response, tileId, false);
+      add_suggestion(~response, ~tile=tileId, ~resuggest=false);
       model |> Updated.return_quiet;
     | Resuggest(response, tileId) =>
       // Only side effects in the editor are performed here
-      add_suggestion(~response, tileId, true);
+      add_suggestion(~response, ~tile=tileId, ~resuggest=true);
       model |> Updated.return_quiet;
     | Describe(content, mode, chat_id) =>
       let (past_chats, _) = get_mode_info(mode, model);
