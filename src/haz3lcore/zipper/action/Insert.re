@@ -144,6 +144,18 @@ let insert_monos = (l: Token.t, r: Token.t, z: option(t)): option(t) =>
   |> Option.map(Zipper.construct_mono(Right, r))
   |> Option.map(Zipper.construct_mono(Left, l));
 
+let should_supress_space = (z: t): bool => {
+  /* Figure out if we should avoid inserting a space because a grout
+   * is due to be inserted instead */
+  let z_cand = z |> remold_regrout(Right);
+  let init_left_nhbr = Siblings.left_neighbor(z.relatives.siblings);
+  let candidate_nhbr = Siblings.left_neighbor(z_cand.relatives.siblings);
+  switch (Siblings.left_neighbor(z_cand.relatives.siblings)) {
+  | None => false
+  | Some(p) => Piece.is_grout(p) && candidate_nhbr != init_left_nhbr
+  };
+};
+
 let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
   /* Current this necessarily creates three tokens; two from splitting
    * the existing one, and a new one. The two splitting tokens may become
@@ -157,11 +169,39 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
   switch (Form.duomerges([l, r])) {
   | Some(_) =>
     let+ z = insert_duo([l, r], z);
-    make_new_tile(char, Left, z) |> remold_regrout(Right);
+    /* If we're inserting a space, don't bother to insert it;
+     * we'll get a convex grout anyway from regrouting */
+    (Form.space != char ? make_new_tile(char, Left, z) : z)
+    |> remold_regrout(Right);
   | None =>
+    /* If contemplating changing regrouting behavior here, try these
+     * two cases: pressing (A) space and (B) open parens on:
+     * `if then|else` (needs convex grout in prev seg and current seg by caret)
+     * `if true|then` (no grout needed by caret, and later)
+     * `if|then` (needs convex grout by caret in current seg)
+     * `1|1` (needs concave grout by caret in current seg)
+     * `if|if` (no grout needed by caret, and later)
+     * `case|end` */
     let* z = insert_monos(l, r, z);
-    let+ z = expand_neighbors_and_make_new_tile(char, z);
-    z |> remold_regrout(Right);
+    let* z = expand_or_barf_left_neighbor(z);
+    let+ z = expand_or_barf_right_neighbor(z);
+    if (Form.space == char && should_supress_space(z)) {
+      /* This is a finnicky case. remold_regrout_prev regrouts
+       * the parent segment if we're at the beginning of the current
+       * segment, but that also causes it to regrout the current
+       * segment, which may result in us ending up on the wrong
+       * side of the grout */
+      let z = z |> remold_regrout_prev |> remold_regrout(Left);
+      switch (move(Right, z)) {
+      | None => z
+      | Some(z) => z
+      };
+    } else {
+      z
+      |> remold_regrout_prev
+      |> make_new_tile(char, Left)
+      |> remold_regrout(Right);
+    };
   };
 };
 
