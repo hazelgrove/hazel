@@ -6,6 +6,11 @@ open Alcotest;
 open Haz3lcore;
 module Fresh = Language.IdTagged.FreshGrammar;
 
+/* The following special characters are used in the tests to represent
+ * grout and the caret. I'd like to use extended ascii/unicode chars
+ * to avoid collisions (and be prettier) but some of the below logic
+ * seems to choke on fancy chars... */
+
 let caret_char = "¦"; /* Note this is two bytes */
 let convex_char = "?";
 let concave_char = "~";
