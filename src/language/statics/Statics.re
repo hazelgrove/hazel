@@ -140,7 +140,6 @@ let rec any_to_info_map =
         ~co_ctx=CoCtx.empty,
         ~ancestors,
         ~duplicates=[],
-        ~duplicate_vars=[],
         ~ctx,
         p,
         m,
@@ -238,8 +237,7 @@ and uexp_to_info_map =
         go(~ana, ~duplicates, e, m) |> (((e, m)) => (es @ [e], m)),
       ([], m),
     );
-  let go_pat =
-    upat_to_info_map(~ctx, ~ancestors, ~duplicates, ~duplicate_vars=[]);
+  let go_pat = upat_to_info_map(~ctx, ~ancestors, ~duplicates);
   let go_typ = utyp_to_info_map(~ctx, ~ancestors);
 
   // This lifts an expression into a singleton labeled tuple by rewriting the syntax in the Statics Map
@@ -1158,7 +1156,6 @@ and upat_to_info_map =
       ~co_ctx,
       ~ancestors: Info.ancestors,
       ~duplicates: list(string),
-      ~duplicate_vars: list(string),
       ~expected_labels=?,
       ~ana: Typ.t=Unknown(Internal) |> Typ.temp,
       ~under_ascription: bool=false,
@@ -1201,7 +1198,6 @@ and upat_to_info_map =
         ~co_ctx,
         ~ancestors,
         ~duplicates=[],
-        ~duplicate_vars: list(string)=[],
         ~expected_labels=?,
         ~ana,
         ~under_ascription=false,
@@ -1217,7 +1213,6 @@ and upat_to_info_map =
       ~co_ctx,
       ~ancestors,
       ~duplicates,
-      ~duplicate_vars,
       ~ana,
       ~under_ascription,
       ~override_self?,
@@ -1397,7 +1392,7 @@ and upat_to_info_map =
         });
       let self = Self.Just(Label(name) |> Typ.temp);
 
-      List.exists(l => name == l, duplicate_vars)
+      List.exists(l => name == l, duplicates)
         ? add(
             ~self=Duplicate(name, self),
             ~ctx=Ctx.extend(ctx, entry),
@@ -1502,6 +1497,7 @@ and upat_to_info_map =
         m,
       );
     | Tuple(ps) =>
+      print_endline("tuple!");
       let expected_labels =
         switch (Typ.weak_head_normalize(ctx, ana).term) {
         | Prod(ts) =>
@@ -1537,9 +1533,9 @@ and upat_to_info_map =
 
       let new_labels =
         List.map(p => Pat.match_tup_label(p) |> Option.map(fst), ps);
-      let duplicate_labels =
-        LabeledTuple.get_duplicate_labels(Pat.match_tup_label, ps);
-      let duplicate_bindings = Pat.get_duplicate_bindings(Pat.fresh(term));
+      let duplicate_bindings =
+        Pat.get_duplicate_bindings(Pat.fresh(term))
+        @ LabeledTuple.get_duplicate_labels(Pat.match_tup_label, ps);
       let (ctx, tys, cons, m, info_pats) =
         List.fold_left2(
           ((ctx, tys, cons, m, info_all), (inferred_label, e), ana) =>
@@ -1547,8 +1543,9 @@ and upat_to_info_map =
               ~ctx,
               ~ana,
               ~inferred_label?,
-              ~duplicates=duplicate_labels,
-              ~duplicate_vars=duplicate_bindings @ duplicate_vars,
+              // Perhaps multiple copies of something in duplicates, but probably not an issue.
+              // Needed so that nested tuples can have duplicate bindings saved.
+              ~duplicates=duplicate_bindings @ duplicates,
               ~expected_labels?,
               e,
               m,
@@ -1618,7 +1615,7 @@ and upat_to_info_map =
         : atomic(self, Coverage.Constraint.Truth);
     | Parens(p)
     | Probe(p, _) =>
-      let (p, m) = go(~ctx, ~ana, p, ~duplicate_vars, m);
+      let (p, m) = go(~ctx, ~ana, p, ~duplicates, m);
       add(~self=Just(p.ty), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
     | Constructor(ctr, ty) =>
       let self = Self.of_ctr(ctx, ctr, ana, ty);

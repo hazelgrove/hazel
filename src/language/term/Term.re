@@ -174,7 +174,8 @@ module Pat = {
     | Parens(pat)
     | Probe(pat, _)
     | TupLabel(_, pat) => get_var(pat)
-    | Var(x) => Some(x)
+    | Var(x)
+    | Label(x) => Some(x)
     | Cast(x, _, _) => get_var(x)
     | Invalid(_)
     | EmptyHole
@@ -183,7 +184,6 @@ module Pat = {
     | Atom(_)
     | ListLit(_)
     | Cons(_, _)
-    | Label(_)
     | Tuple(_)
     | Constructor(_)
     | Ap(_) => None
@@ -216,6 +216,8 @@ module Pat = {
     };
   };
 
+  // Returns None if list does not provide any Bindings
+  // Otherwise, returns Some of all bindings.
   let rec get_bindings = (pat: t) =>
     switch (get_var(pat)) {
     | Some(x) => Some([x])
@@ -223,11 +225,16 @@ module Pat = {
       switch (pat.term) {
       | Parens(pat)
       | Probe(pat, _)
-      | Cast(pat, _, _)
-      | TupLabel(_, pat) => get_bindings(pat)
+      | Cast(pat, _, _) => get_bindings(pat)
+      | TupLabel(lab, pat) =>
+        let bindings =
+          Option.value(get_bindings(lab), ~default=[])
+          @ Option.value(get_bindings(pat), ~default=[]);
+        List.is_empty(bindings) ? None : Some(bindings);
       | Tuple(pats) =>
-        let vars = pats |> List.map(get_bindings);
-        if (List.exists(Option.is_none, vars)) {
+        let vars =
+          pats |> List.map(get_bindings) |> List.filter(Option.is_some);
+        if (List.is_empty(vars)) {
           None;
         } else {
           Some(vars |> List.map(Option.get) |> List.flatten);
