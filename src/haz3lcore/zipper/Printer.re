@@ -30,7 +30,7 @@ let to_string_basic = (z: Zipper.t): string => {
 
 let lines_to_list = String.split_on_char('\n');
 
-let caret_str = "░";
+let caret_str = "¦";
 
 let to_rows =
     (
@@ -88,6 +88,7 @@ let zipper_to_string =
     (
       ~holes: option(string)=Some(""),
       ~concave_holes: option(string)=None,
+      ~caret: option(Point.t)=None,
       z: Zipper.t,
     )
     : string =>
@@ -95,7 +96,7 @@ let zipper_to_string =
     ~holes,
     ~concave_holes,
     ~measured=measured(z),
-    ~caret=None,
+    ~caret,
     ~indent="",
     ~segment=seg_of_zip(z),
   )
