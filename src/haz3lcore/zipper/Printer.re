@@ -3,26 +3,29 @@ open Util.OptUtil.Syntax;
 
 let seg_of_zip = Zipper.seg_without_buffer;
 
-let rec of_segment = (~holes, seg: Segment.t): string =>
-  seg |> List.map(of_piece(~holes)) |> String.concat("")
-and of_piece = (~holes, p: Piece.t): string =>
+let rec of_segment = (~holes, ~concave_holes=None, seg: Segment.t): string =>
+  seg |> List.map(of_piece(~holes, ~concave_holes)) |> String.concat("")
+and of_piece = (~holes, ~concave_holes, p: Piece.t): string =>
   switch (p) {
-  | Tile(t) => of_tile(~holes, t)
+  | Tile(t) => of_tile(~holes, ~concave_holes, t)
+  | Grout({shape: Concave, _}) when concave_holes != None =>
+    Option.get(concave_holes)
   | Grout({shape: Concave, _}) => " "
   | Grout({shape: Convex, _}) when holes != None => Option.get(holes)
   | Grout({shape: Convex, _}) => " "
   | Secondary(w) =>
     Secondary.is_linebreak(w) ? "\n" : Secondary.get_string(w.content)
-  | Projector(p) => of_segment(~holes, Piece.unparenthesize(p.syntax))
+  | Projector(p) =>
+    of_segment(~holes, ~concave_holes, Piece.unparenthesize(p.syntax))
   }
-and of_tile = (~holes, t: Tile.t): string =>
+and of_tile = (~holes, ~concave_holes, t: Tile.t): string =>
   Aba.mk(t.shards, t.children)
-  |> Aba.join(of_delim(t), of_segment(~holes))
+  |> Aba.join(of_delim(t), of_segment(~holes, ~concave_holes))
   |> String.concat("")
 and of_delim = (t: Piece.tile, i: int): string => List.nth(t.label, i);
 
 let to_string_basic = (z: Zipper.t): string => {
-  z |> seg_of_zip |> of_segment(~holes=None);
+  z |> seg_of_zip |> of_segment(~holes=None, ~concave_holes=None);
 };
 
 let lines_to_list = String.split_on_char('\n');
@@ -32,6 +35,7 @@ let caret_str = "░";
 let to_rows =
     (
       ~holes: option(string),
+      ~concave_holes: option(string),
       ~measured: Measured.t,
       ~caret: option(Point.t),
       ~indent: string,
@@ -41,7 +45,10 @@ let to_rows =
   let indent_of = i => Measured.Rows.find(i, measured.rows).indent;
   let mk_indent = (i, r) => StringUtil.repeat(indent_of(i), indent) ++ r;
   let rows =
-    segment |> of_segment(~holes) |> lines_to_list |> List.mapi(mk_indent);
+    segment
+    |> of_segment(~holes, ~concave_holes)
+    |> lines_to_list
+    |> List.mapi(mk_indent);
   switch (caret) {
   | Some({row, col}) =>
     switch (ListUtil.split_nth_opt(row, rows)) {
@@ -60,9 +67,16 @@ let measured = z =>
   |> Zipper.seg_without_buffer
   |> Measured.of_segment(_, ProjectorCore.Shape.Map.empty); // No projectors
 
-let pretty_print = (~holes: option(string)=Some(""), z: Zipper.t): string =>
+let pretty_print =
+    (
+      ~holes: option(string)=Some(""),
+      ~concave_holes: option(string)=None,
+      z: Zipper.t,
+    )
+    : string =>
   to_rows(
     ~holes,
+    ~concave_holes,
     ~measured=measured(z),
     ~caret=None,
     ~indent=" ",
@@ -71,9 +85,15 @@ let pretty_print = (~holes: option(string)=Some(""), z: Zipper.t): string =>
   |> String.concat("\n");
 
 let zipper_to_string =
-    (~holes: option(string)=Some(""), z: Zipper.t): string =>
+    (
+      ~holes: option(string)=Some(""),
+      ~concave_holes: option(string)=None,
+      z: Zipper.t,
+    )
+    : string =>
   to_rows(
     ~holes,
+    ~concave_holes,
     ~measured=measured(z),
     ~caret=None,
     ~indent="",
@@ -87,6 +107,7 @@ let to_string_selection = (zipper: Zipper.t): string => {
     ~caret=None,
     ~indent=" ",
     ~holes=None,
+    ~concave_holes=None,
     ~segment=zipper.selection.content,
   )
   |> String.concat("\n");
