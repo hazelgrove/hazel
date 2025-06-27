@@ -6,17 +6,24 @@ open Alcotest;
 open Haz3lcore;
 module Fresh = Language.IdTagged.FreshGrammar;
 
-let zipper_testable =
-  testable(Fmt.using(Zipper.show, Fmt.string), Zipper.equal);
+let caret_char = "¦"; /* Note this is two bytes */
+let convex_char = "?";
+let concave_char = "~";
 
-let syntax_string = testable(Fmt.string, String.equal);
-
-let parse_zipper = (s: string) => {
+let parser = (s: string): Zipper.t => {
   switch (Printer.zipper_of_string(s)) {
   | Some(zip) => zip
   | None => Alcotest.fail("Failed to parse expression: " ++ s)
   };
 };
+
+let printer = (z: Zipper.t): string =>
+  Printer.zipper_to_string(
+    ~holes=Some(convex_char),
+    ~concave_holes=Some(concave_char),
+    ~caret=Some(Zipper.caret_point(Printer.measured(z), z)),
+    z,
+  );
 
 let perform = (zip: Zipper.t, actions: list(Action.t)): Zipper.t => {
   /* This is a simplified testing harness for zipper actions.
@@ -50,29 +57,27 @@ let perform = (zip: Zipper.t, actions: list(Action.t)): Zipper.t => {
       | Ok(z) => z
       | Error(err) =>
         print_endline(Zipper.show(z));
-        Alcotest.fail(
-          "Failed to perform action: " ++ Action.Failure.show(err),
-        );
+        Alcotest.fail("Failed on action: " ++ Action.Failure.show(err));
       },
     zip,
     actions,
   );
 };
-let find_pilcrow = (str: string): (int, string) => {
-  let caret_char = "¦"; /* Note this is two bytes */
-  let caret_regexp = Js_of_ocaml.Regexp.regexp(caret_char);
-  (
-    Js_of_ocaml.Regexp.search(caret_regexp, str, 0) |> Option.get |> fst,
-    Js_of_ocaml.Regexp.global_replace(caret_regexp, str, ""),
-  );
-};
 
 let zip_check =
-    (init_with_tilde: string, actions: list(Action.t), actual: string) => {
+    (init: string, actions: list(Action.t), actual: string): return => {
   /* This harness uses a tilde to represent caret position.
-   * This assumes there are no syntactic tildes preceeding
-   * the caret tilde in the syntax.  */
-  let (caret_index, init_without_tilde) = find_pilcrow(init_with_tilde);
+   * This assumes there are no literal instances of the caret
+   * char proceeding the caret tilde in the syntax.  */
+
+  let caret_regexp = Js_of_ocaml.Regexp.regexp(caret_char);
+  let caret_index =
+    switch (Js_of_ocaml.Regexp.search(caret_regexp, init, 0)) {
+    | Some((idx, _)) => idx
+    | None => Alcotest.fail("Failed to find caret in: " ++ init)
+    };
+  let init_without_caret =
+    Js_of_ocaml.Regexp.global_replace(caret_regexp, init, "");
 
   /* NOTE: The first action (move to start) will fail if the syntax
    * is empty, as that means we're already at the start */
@@ -86,18 +91,10 @@ let zip_check =
 
   let all_actions = List.append(movement_actions, actions);
 
-  let printer = z =>
-    Printer.zipper_to_string(
-      ~holes=Some("?"),
-      ~concave_holes=Some("~"),
-      ~caret=Some(Zipper.caret_point(Printer.measured(z), z)),
-      z,
-    );
-
   check(
-    syntax_string,
+    testable(Fmt.string, String.equal),
     actual,
-    perform(parse_zipper(init_without_tilde), all_actions) |> printer,
+    perform(parser(init_without_caret), all_actions) |> printer,
     actual,
   );
 };
@@ -154,9 +151,9 @@ let tests = (
       zip_check("if¦if", [Insert("+")], "if?+¦if?")
     ),
     /* Below test is slightly precious. Can't directly write
-     * `if then¦else` as then will instantly expand, so need
-     * to do this indirectly. The space after the first hole
-     * isn't perfect but it'll do */
+       `if then¦else` as then will instantly expand, so need
+       to do this indirectly. The space after the first hole
+       isn't perfect but it'll do */
     test_case("`if then¦else` Insert space", `Quick, () =>
       zip_check(
         "if the¦else",
