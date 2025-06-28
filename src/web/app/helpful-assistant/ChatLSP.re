@@ -261,7 +261,7 @@ module Composition = {
       (
         ~ed: CodeWithStatics.Model.t,
         ~loc: loc_of_goto,
-        ~goto_var_of_kind: goto_var,
+        ~kind_of_goto: goto_var,
         ~name: string,
         ~schedule_action: Editors.Update.t => unit,
       )
@@ -276,7 +276,7 @@ module Composition = {
           | Some(_) => acc // Already found a match
           | None =>
             let ctx = Info.ctx_of(info);
-            switch (goto_var_of_kind) {
+            switch (kind_of_goto) {
             | Value =>
               switch (Ctx.lookup_var(ctx, name)) {
               | Some(entry) => Some(entry.id)
@@ -293,27 +293,42 @@ module Composition = {
         statics.info_map,
         None,
       );
-    // Return appropriate action based on whether we found a match
+
+    print_endline("Here #1");
+    let info = Id.Map.find_opt(Option.get(matching_id), statics.info_map);
+    print_endline("matching_id term info: " ++ Info.show(Option.get(info)));
+    print_endline("Here #2");
+    let info = Option.get(info);
+    print_endline("Here #3");
+    let ctx = Info.ancestors_of(info);
+    let first_ancestor = List.hd(ctx);
+    let first_ancestor_term =
+      Id.Map.find_opt(first_ancestor, statics.info_map);
+    let first_ancestor_term = Option.get(first_ancestor_term);
+    print_endline("Here #4");
     let actions =
-      switch (matching_id) {
-      | Some(id) => [
-          Action.Jump(TileId(id)),
-          // Moving left by token is essentially a hacky method to get
-          // off of a variable name (term), and triple/quad click on let binding
-          // itself (this properly highlights full variable name and
-          // definition when type annotation exists)
-          Action.Move(Local(Left(ByToken))),
+      switch (Info.any_of(first_ancestor_term)) {
+      | Some(Exp(exp)) =>
+        switch (Exp.term_of(exp)) {
+        | Let(pat, def, bod) =>
+          print_endline("Let binding: " ++ Pat.show(pat));
+          print_endline("Def: " ++ Exp.show(def));
+          print_endline("Bod: " ++ Exp.show(bod));
           switch (loc) {
-          // TODO: Implement structure-based navigation actions
-          | Definition =>
-            Action.Select(Term(Id(Id.invalid, Direction.Left)))
-          | Body => Action.Select(Term(Id(Id.invalid, Direction.Left)))
-          | All => Action.Select(Term(Id(Id.invalid, Direction.Left)))
-          },
-          Action.Copy,
-        ]
-      | None => [Action.Select(Term(Id(Id.invalid, Direction.Left)))]
+          | Definition => [
+              Action.Select(Term(Id(Pat.rep_id(pat), Direction.Left))),
+              Action.Select(Term(Id(Exp.rep_id(def), Direction.Left))),
+            ]
+          | Body => [
+              Action.Select(Term(Id(Exp.rep_id(bod), Direction.Left))),
+            ]
+          | All => [Action.Select(All)]
+          };
+        | _ => []
+        }
+      | _ => []
       };
+    print_endline("first_ancestor_term: " ++ Info.show(first_ancestor_term));
 
     List.iter(
       action => {

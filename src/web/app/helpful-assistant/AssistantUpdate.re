@@ -1026,7 +1026,7 @@ let update =
               goto(
                 ~ed=editor,
                 ~loc=ChatLSP.Composition.Definition,
-                ~goto_var_of_kind=ChatLSP.Composition.Value,
+                ~kind_of_goto=ChatLSP.Composition.Value,
                 ~name=arg,
               );
               schedule_action(loop_message);
@@ -1038,7 +1038,7 @@ let update =
               goto(
                 ~ed=editor,
                 ~loc=ChatLSP.Composition.Body,
-                ~goto_var_of_kind=ChatLSP.Composition.Value,
+                ~kind_of_goto=ChatLSP.Composition.Value,
                 ~name=arg,
               );
               schedule_action(loop_message);
@@ -1050,7 +1050,7 @@ let update =
               goto(
                 ~ed=editor,
                 ~loc=ChatLSP.Composition.Definition,
-                ~goto_var_of_kind=ChatLSP.Composition.Type,
+                ~kind_of_goto=ChatLSP.Composition.Type,
                 ~name=arg,
               );
               schedule_action(loop_message);
@@ -1063,7 +1063,7 @@ let update =
               goto(
                 ~ed=editor,
                 ~loc=ChatLSP.Composition.Body,
-                ~goto_var_of_kind=ChatLSP.Composition.Type,
+                ~kind_of_goto=ChatLSP.Composition.Type,
                 ~name=arg,
               );
               schedule_action(loop_message);
@@ -1073,7 +1073,7 @@ let update =
             goto(
               ~ed=editor,
               ~loc=ChatLSP.Composition.All,
-              ~goto_var_of_kind=ChatLSP.Composition.Value,
+              ~kind_of_goto=ChatLSP.Composition.Value,
               ~name="",
             );
             schedule_action(loop_message);
