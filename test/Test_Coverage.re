@@ -134,9 +134,8 @@ in ?|},
         InexhaustiveMatch(
           None,
           Grammar.Pat(
-            IdTagged.FreshGrammar.Pat.ap(
-              IdTagged.FreshGrammar.Pat.constructor("Leaf", None),
-              IdTagged.FreshGrammar.Pat.wild(),
+            IdTagged.FreshGrammar.Pat.(
+              ap(constructor("Leaf", None), wild())
             ),
           ),
         ),
@@ -174,10 +173,7 @@ let odd_length : [Int] -> Bool =
         InexhaustiveMatch(
           None,
           Grammar.Pat(
-            IdTagged.FreshGrammar.Pat.cons(
-              IdTagged.FreshGrammar.Pat.wild(),
-              IdTagged.FreshGrammar.Pat.list_lit([]),
-            ),
+            IdTagged.FreshGrammar.Pat.(cons(wild(), list_lit([]))),
           ),
         ),
       ),
@@ -254,7 +250,7 @@ let list_inexhaustive_nil =
       Info.Exp(
         InexhaustiveMatch(
           None,
-          Grammar.Pat(IdTagged.FreshGrammar.Pat.list_lit([])),
+          Grammar.Pat(IdTagged.FreshGrammar.Pat.(list_lit([]))),
         ),
       ),
     ],
@@ -275,13 +271,7 @@ let list_inexhaustive_cons =
         InexhaustiveMatch(
           None,
           Grammar.Pat(
-            IdTagged.FreshGrammar.Pat.cons(
-              IdTagged.FreshGrammar.Pat.wild(),
-              IdTagged.FreshGrammar.Pat.cons(
-                IdTagged.FreshGrammar.Pat.wild(),
-                IdTagged.FreshGrammar.Pat.wild(),
-              ),
-            ),
+            IdTagged.FreshGrammar.Pat.(cons(wild(), cons(wild(), wild()))),
           ),
         ),
       ),
@@ -334,16 +324,9 @@ let list_inexhaustive_tuple_with_elt =
         InexhaustiveMatch(
           None,
           Grammar.Pat(
-            IdTagged.FreshGrammar.Pat.tuple([
-              IdTagged.FreshGrammar.Pat.cons(
-                IdTagged.FreshGrammar.Pat.wild(),
-                IdTagged.FreshGrammar.Pat.cons(
-                  IdTagged.FreshGrammar.Pat.wild(),
-                  IdTagged.FreshGrammar.Pat.wild(),
-                ),
-              ),
-              IdTagged.FreshGrammar.Pat.wild(),
-            ]),
+            IdTagged.FreshGrammar.Pat.(
+              tuple([cons(wild(), cons(wild(), wild())), wild()])
+            ),
           ),
         ),
       ),
@@ -389,11 +372,9 @@ let list_inexhaustive_triple_elt_first =
         InexhaustiveMatch(
           None,
           Grammar.Pat(
-            IdTagged.FreshGrammar.Pat.tuple([
-              IdTagged.FreshGrammar.Pat.big_int(Bigint.of_int(1)),
-              IdTagged.FreshGrammar.Pat.wild(),
-              IdTagged.FreshGrammar.Pat.wild(),
-            ]),
+            IdTagged.FreshGrammar.Pat.(
+              tuple([big_int(Bigint.of_int(1)), wild(), wild()])
+            ),
           ),
         ),
       ),
@@ -415,18 +396,14 @@ let list_inexhaustive_middle_quad =
         InexhaustiveMatch(
           None,
           Grammar.Pat(
-            IdTagged.FreshGrammar.Pat.tuple([
-              IdTagged.FreshGrammar.Pat.cons(
-                IdTagged.FreshGrammar.Pat.wild(),
-                IdTagged.FreshGrammar.Pat.wild(),
-              ),
-              IdTagged.FreshGrammar.Pat.cons(
-                IdTagged.FreshGrammar.Pat.wild(),
-                IdTagged.FreshGrammar.Pat.wild(),
-              ),
-              IdTagged.FreshGrammar.Pat.wild(),
-              IdTagged.FreshGrammar.Pat.wild(),
-            ]),
+            IdTagged.FreshGrammar.Pat.(
+              tuple([
+                cons(wild(), wild()),
+                cons(wild(), wild()),
+                wild(),
+                wild(),
+              ])
+            ),
           ),
         ),
       ),
@@ -458,7 +435,9 @@ end}}}|},
       Info.Exp(
         InexhaustiveMatch(
           None,
-          Grammar.Pat(IdTagged.FreshGrammar.Pat.big_int(Bigint.of_int(0))),
+          Grammar.Pat(
+            IdTagged.FreshGrammar.Pat.(big_int(Bigint.of_int(0))),
+          ),
         ),
       ),
     ],
@@ -478,10 +457,9 @@ end}}}|},
         InexhaustiveMatch(
           None,
           Grammar.Pat(
-            IdTagged.FreshGrammar.Pat.tuple([
-              IdTagged.FreshGrammar.Pat.big_int(Bigint.of_int(1)),
-              IdTagged.FreshGrammar.Pat.wild(),
-            ]),
+            IdTagged.FreshGrammar.Pat.(
+              tuple([big_int(Bigint.of_int(1)), wild()])
+            ),
           ),
         ),
       ),
@@ -527,7 +505,7 @@ end}}}|},
       Info.Exp(
         InexhaustiveMatch(
           None,
-          Grammar.Pat(IdTagged.FreshGrammar.Pat.float(0.0)),
+          Grammar.Pat(IdTagged.FreshGrammar.Pat.(float(0.0))),
         ),
       ),
     ],
@@ -547,10 +525,7 @@ end}}}|},
         InexhaustiveMatch(
           None,
           Grammar.Pat(
-            IdTagged.FreshGrammar.Pat.tuple([
-              IdTagged.FreshGrammar.Pat.float(1.0),
-              IdTagged.FreshGrammar.Pat.wild(),
-            ]),
+            IdTagged.FreshGrammar.Pat.(tuple([float(1.0), wild()])),
           ),
         ),
       ),
@@ -596,7 +571,7 @@ end}}}|},
       Info.Exp(
         InexhaustiveMatch(
           None,
-          Grammar.Pat(IdTagged.FreshGrammar.Pat.string("*")),
+          Grammar.Pat(IdTagged.FreshGrammar.Pat.(string("*"))),
         ),
       ),
     ],
@@ -615,7 +590,7 @@ end}}}|},
       Info.Exp(
         InexhaustiveMatch(
           None,
-          Grammar.Pat(IdTagged.FreshGrammar.Pat.string("")),
+          Grammar.Pat(IdTagged.FreshGrammar.Pat.(string(""))),
         ),
       ),
     ],
@@ -636,10 +611,7 @@ end}}}|},
         InexhaustiveMatch(
           None,
           Grammar.Pat(
-            IdTagged.FreshGrammar.Pat.tuple([
-              IdTagged.FreshGrammar.Pat.string("*"),
-              IdTagged.FreshGrammar.Pat.wild(),
-            ]),
+            IdTagged.FreshGrammar.Pat.(tuple([string("*"), wild()])),
           ),
         ),
       ),
@@ -688,13 +660,13 @@ end}}} in ?
       Info.Exp(
         InexhaustiveMatch(
           None,
-          Grammar.Pat(IdTagged.FreshGrammar.Pat.bool(true)),
+          Grammar.Pat(IdTagged.FreshGrammar.Pat.(bool(true))),
         ),
       ),
       Info.Exp(
         InexhaustiveMatch(
           None,
-          Grammar.Pat(IdTagged.FreshGrammar.Pat.bool(false)),
+          Grammar.Pat(IdTagged.FreshGrammar.Pat.(bool(false))),
         ),
       ),
     ],
@@ -801,10 +773,9 @@ end}}} in ?
         InexhaustiveMatch(
           None,
           Grammar.Pat(
-            IdTagged.FreshGrammar.Pat.tuple([
-              IdTagged.FreshGrammar.Pat.wild(),
-              IdTagged.FreshGrammar.Pat.constructor("Jack", None),
-            ]),
+            IdTagged.FreshGrammar.Pat.(
+              tuple([wild(), constructor("Jack", None)])
+            ),
           ),
         ),
       ),
@@ -827,7 +798,7 @@ let x : Rank = ? in
       Info.Exp(
         InexhaustiveMatch(
           None,
-          Grammar.Pat(IdTagged.FreshGrammar.Pat.constructor("Jack", None)),
+          Grammar.Pat(IdTagged.FreshGrammar.Pat.(constructor("Jack", None))),
         ),
       ),
     ],
@@ -849,7 +820,7 @@ let f = {{{fun Ace -> ?}}} in
       Info.Exp(
         InexhaustiveMatch(
           None,
-          Grammar.Pat(IdTagged.FreshGrammar.Pat.constructor("Jack", None)),
+          Grammar.Pat(IdTagged.FreshGrammar.Pat.(constructor("Jack", None))),
         ),
       ),
     ],
@@ -875,12 +846,8 @@ in ?|},
         InexhaustiveMatch(
           None,
           Grammar.Pat(
-            IdTagged.FreshGrammar.Pat.ap(
-              IdTagged.FreshGrammar.Pat.constructor("Node", None),
-              IdTagged.FreshGrammar.Pat.cons(
-                IdTagged.FreshGrammar.Pat.wild(),
-                IdTagged.FreshGrammar.Pat.list_lit([]),
-              ),
+            IdTagged.FreshGrammar.Pat.(
+              ap(constructor("Node", None), cons(wild(), list_lit([])))
             ),
           ),
         ),
@@ -978,9 +945,8 @@ in ?|},
         InexhaustiveMatch(
           None,
           Grammar.Pat(
-            IdTagged.FreshGrammar.Pat.ap(
-              IdTagged.FreshGrammar.Pat.constructor("Node", None),
-              IdTagged.FreshGrammar.Pat.wild(),
+            IdTagged.FreshGrammar.Pat.(
+              ap(constructor("Node", None), wild())
             ),
           ),
         ),
@@ -1005,9 +971,8 @@ in ?|},
         InexhaustiveMatch(
           None,
           Grammar.Pat(
-            IdTagged.FreshGrammar.Pat.ap(
-              IdTagged.FreshGrammar.Pat.constructor("Node", None),
-              IdTagged.FreshGrammar.Pat.wild(),
+            IdTagged.FreshGrammar.Pat.(
+              ap(constructor("Node", None), wild())
             ),
           ),
         ),
@@ -1036,9 +1001,8 @@ in ?|},
         InexhaustiveMatch(
           None,
           Grammar.Pat(
-            IdTagged.FreshGrammar.Pat.ap(
-              IdTagged.FreshGrammar.Pat.constructor("Node", None),
-              IdTagged.FreshGrammar.Pat.wild(),
+            IdTagged.FreshGrammar.Pat.(
+              ap(constructor("Node", None), wild())
             ),
           ),
         ),
@@ -1093,20 +1057,13 @@ in ?|},
         InexhaustiveMatch(
           None,
           Grammar.Pat(
-            IdTagged.FreshGrammar.Pat.tuple([
-              IdTagged.FreshGrammar.Pat.tup_label(
-                IdTagged.FreshGrammar.Pat.label("x"),
-                IdTagged.FreshGrammar.Pat.constructor("D", None),
-              ),
-              IdTagged.FreshGrammar.Pat.tup_label(
-                IdTagged.FreshGrammar.Pat.label("y"),
-                IdTagged.FreshGrammar.Pat.wild(),
-              ),
-              IdTagged.FreshGrammar.Pat.tup_label(
-                IdTagged.FreshGrammar.Pat.label("z"),
-                IdTagged.FreshGrammar.Pat.constructor("A", None),
-              ),
-            ]),
+            IdTagged.FreshGrammar.Pat.(
+              tuple([
+                tup_label(label("x"), constructor("D", None)),
+                tup_label(label("y"), wild()),
+                tup_label(label("z"), constructor("A", None)),
+              ])
+            ),
           ),
         ),
       ),
@@ -1134,20 +1091,13 @@ in ?|},
         InexhaustiveMatch(
           None,
           Grammar.Pat(
-            IdTagged.FreshGrammar.Pat.tuple([
-              IdTagged.FreshGrammar.Pat.tup_label(
-                IdTagged.FreshGrammar.Pat.label("x"),
-                IdTagged.FreshGrammar.Pat.constructor("A", None),
-              ),
-              IdTagged.FreshGrammar.Pat.tup_label(
-                IdTagged.FreshGrammar.Pat.label("y"),
-                IdTagged.FreshGrammar.Pat.constructor("E", None),
-              ),
-              IdTagged.FreshGrammar.Pat.tup_label(
-                IdTagged.FreshGrammar.Pat.label("z"),
-                IdTagged.FreshGrammar.Pat.constructor("B", None),
-              ),
-            ]),
+            IdTagged.FreshGrammar.Pat.(
+              tuple([
+                tup_label(label("x"), constructor("A", None)),
+                tup_label(label("y"), constructor("E", None)),
+                tup_label(label("z"), constructor("B", None)),
+              ])
+            ),
           ),
         ),
       ),
