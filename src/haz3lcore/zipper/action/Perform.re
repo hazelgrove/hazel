@@ -209,7 +209,7 @@ let go_z =
       // Wraps selected text in # comments
       let selection_text = Printer.to_string_selection(z);
       let lines = StringUtil.to_lines(selection_text);
-      let commented_lines = List.map(line => "#" ++ line ++ "#", lines);
+      let commented_lines = List.map(line => char ++ line ++ char, lines);
       paste(z, String.concat("\n", commented_lines))
       |> Result.of_option(~error=Action.Failure.Cant_insert);
     } else {
