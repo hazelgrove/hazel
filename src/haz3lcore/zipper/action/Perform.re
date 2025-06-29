@@ -20,7 +20,15 @@ let set_tydi_buffer = (info_map: Language.Statics.Map.t, z: t): t =>
   };
 
 let set_llm_buffer = (z: t, response: string): t =>
-  switch (TyDi.set_llm_buffer(z, response)) {
+  switch (
+    {
+      open OptUtil.Syntax;
+      //TODO: Error feedback on below
+      let* content = Printer.zipper_of_string(response);
+      let+ _ = [] == content.backpack ? Some() : None;
+      Zipper.set_buffer(z, ~content=Zipper.zip(content), ~mode=Parsed);
+    }
+  ) {
   | None => z
   | Some(z) => z
   };
@@ -65,7 +73,7 @@ let go_z =
     switch (z.selection.mode) {
     | Normal => None
     | Buffer(Parsed) =>
-      let z = Zipper.directional_unselect(z.selection.focus, z);
+      let z = Zipper.directional_unselect(Right, z);
       Some(z);
     | Buffer(Unparsed) =>
       switch (TyDi.get_unparsed_buffer(z)) {
