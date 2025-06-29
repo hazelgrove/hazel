@@ -28,10 +28,29 @@
   justify-content: center;
 }
 
+@keyframes initial-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(-1440deg);
+  }
+}
+
+@keyframes continuous-spin {
+  from {
+    transform: rotate(-1440deg);
+  }
+  to {
+    transform: rotate(-1800deg);
+  }
+}
+
 #container .loading .spinner img {
   width: 1.2em;
-  animation: rotation 0.75s linear infinite;
-  animation-direction: reverse;
+  animation: initial-spin 0.7s linear, continuous-spin 0.9s linear 0.7s infinite;
+  /* animation: rotation 0.75s linear infinite; */
+  /* animation-direction: reverse; */
 }
 
 #container .loading .spinner .nut-container {
@@ -45,9 +64,6 @@
   align-items: center;
 }
 
-#container .loading .spinner .nut-container .spinner-nut {
-}
-
 .loader {
   width: 80px;
   height: 80px;
@@ -56,7 +72,9 @@
   border-radius: 50%;
   display: inline-block;
   box-sizing: border-box;
-  animation: rotation 8s linear infinite;
+  animation: initial-spin 0.7s linear reverse,
+    continuous-spin 8s linear 0.7s infinite reverse;
+  /* animation: rotation 8s linear infinite; */
 }
 
 @keyframes rotation {
