@@ -96,6 +96,19 @@ let go_z =
       }
     };
 
+  let select_definition = (z: t): option(Zipper.t) => {
+    open OptUtil.Syntax;
+    let* parent =
+      switch (Indicated.find_parent_with_label(z, ["let", "=", "in"])) {
+      | Some(p) => Some(p)
+      | None => Indicated.find_parent_with_label(z, ["type", "=", "in"])
+      };
+    switch (parent) {
+    | Tile(t) => Select.tile(t.id, z)
+    | _ => None
+    };
+  };
+
   let smart_select = (n, z: t): option(Zipper.t) => {
     switch (n) {
     | 2 => Select.indicated_token(z)
@@ -215,6 +228,20 @@ let go_z =
     }
   | Select(Resize(d)) =>
     Select.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_select)
+  | Select(Assistant(Def(id))) =>
+    switch (Move.jump_to_id(z, id)) {
+    | Some(z) =>
+      switch (select_definition(z)) {
+      | Some(z) => Ok(z)
+      | None => Error(Action.Failure.Cant_select)
+      }
+    | None => Error(Action.Failure.Cant_move)
+    }
+  | Select(Assistant(Body(id))) =>
+    switch (Select.term(id, z)) {
+    | Some(z) => Ok(z)
+    | None => Error(Action.Failure.Cant_select)
+    }
   | Destruct(d) =>
     z
     |> Destruct.go(d)

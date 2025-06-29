@@ -240,10 +240,6 @@ module Composition = {
     | Definition
     | All;
 
-  type goto_var =
-    | Value
-    | Type;
-
   let get_static_context = (relevant_ctx: bool, ci: Info.t): list(string) =>
     switch (ci) {
     | InfoExp({ana, ctx, _})
@@ -261,7 +257,6 @@ module Composition = {
       (
         ~ed: CodeWithStatics.Model.t,
         ~loc: loc_of_goto,
-        ~kind_of_goto: goto_var,
         ~name: string,
         ~schedule_action: Editors.Update.t => unit,
       )
@@ -276,13 +271,9 @@ module Composition = {
           | Some(_) => acc // Already found a match
           | None =>
             let ctx = Info.ctx_of(info);
-            switch (kind_of_goto) {
-            | Value =>
-              switch (Ctx.lookup_var(ctx, name)) {
-              | Some(entry) => Some(entry.id)
-              | None => None
-              }
-            | Type =>
+            switch (Ctx.lookup_var(ctx, name)) {
+            | Some(entry) => Some(entry.id)
+            | None =>
               switch (Ctx.lookup_tvar_id(ctx, name)) {
               | Some(id) => Some(id)
               | None => None
@@ -295,40 +286,59 @@ module Composition = {
       );
 
     print_endline("Here #1");
-    let info = Id.Map.find_opt(Option.get(matching_id), statics.info_map);
-    print_endline("matching_id term info: " ++ Info.show(Option.get(info)));
+    let var_info =
+      Id.Map.find_opt(Option.get(matching_id), statics.info_map);
+    print_endline(
+      "matching_id term info: " ++ Info.show(Option.get(var_info)),
+    );
     print_endline("Here #2");
-    let info = Option.get(info);
-    print_endline("Here #3");
-    let ctx = Info.ancestors_of(info);
-    let first_ancestor = List.hd(ctx);
-    let first_ancestor_term =
-      Id.Map.find_opt(first_ancestor, statics.info_map);
-    let first_ancestor_term = Option.get(first_ancestor_term);
-    print_endline("Here #4");
-    let actions =
-      switch (Info.any_of(first_ancestor_term)) {
-      | Some(Exp(exp)) =>
-        switch (Exp.term_of(exp)) {
-        | Let(pat, def, bod) =>
-          print_endline("Let binding: " ++ Pat.show(pat));
-          print_endline("Def: " ++ Exp.show(def));
-          print_endline("Bod: " ++ Exp.show(bod));
-          switch (loc) {
-          | Definition => [
-              Action.Select(Term(Id(Pat.rep_id(pat), Direction.Left))),
-              Action.Select(Term(Id(Exp.rep_id(def), Direction.Left))),
-            ]
-          | Body => [
-              Action.Select(Term(Id(Exp.rep_id(bod), Direction.Left))),
-            ]
-          | All => [Action.Select(All)]
-          };
-        | _ => []
+
+    let rec lowest_enclosing_id = (ancestors: list(Id.t)) => {
+      switch (ancestors) {
+      | [] => (Id.invalid, Id.invalid, Id.invalid)
+      | [hd_anc, ...rem_ancs] =>
+        switch (Id.Map.find_opt(hd_anc, statics.info_map)) {
+        | Some(hd_anc_term) =>
+          switch (Info.any_of(hd_anc_term)) {
+          | Some(Exp(exp)) =>
+            switch (Exp.term_of(exp)) {
+            | TyAlias(var, def, body) => (
+                TPat.rep_id(var),
+                Typ.rep_id(def),
+                Exp.rep_id(body),
+              )
+            | Let(var, def, body) => (
+                Pat.rep_id(var),
+                Exp.rep_id(def),
+                Exp.rep_id(body),
+              )
+            // Not a let binding, recurse
+            | _ => lowest_enclosing_id(rem_ancs)
+            }
+          | _ => lowest_enclosing_id(rem_ancs)
+          }
+        | _ => lowest_enclosing_id(rem_ancs)
         }
-      | _ => []
       };
-    print_endline("first_ancestor_term: " ++ Info.show(first_ancestor_term));
+    };
+
+    let (var, def, body) =
+      switch (var_info) {
+      | Some(info) =>
+        let ancestors = Info.ancestors_of(info);
+        print_endline("Here #4");
+        lowest_enclosing_id(ancestors);
+      | None =>
+        print_endline("No var info found");
+        (Id.invalid, Id.invalid, Id.invalid);
+      };
+
+    let actions =
+      switch (loc) {
+      | Definition => [Action.Select(Assistant(Def(var)))]
+      | Body => [Action.Select(Assistant(Body(body)))]
+      | All => [Action.Select(All)]
+      };
 
     List.iter(
       action => {

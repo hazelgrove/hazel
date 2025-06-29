@@ -141,3 +141,25 @@ let ci_of =
       ctx: Language.Statics.Info.ctx_of(ci),
     });
   };
+
+let rec find_parent_with_label =
+        (z: ZipperBase.t, target_label: Label.t): option(Piece.t) => {
+  switch (ZipperBase.parent(z)) {
+  | None => None
+  | Some(p) =>
+    print_endline("Parent is " ++ Piece.show(p));
+    switch (p) {
+    | Tile(t) when t.label == target_label => Some(p)
+    | _ =>
+      // Create a new zipper with this parent as the current position
+      let new_z = {
+        ...z,
+        relatives: {
+          ancestors: List.tl(z.relatives.ancestors),
+          siblings: ([], []),
+        },
+      };
+      find_parent_with_label(new_z, target_label);
+    };
+  };
+};

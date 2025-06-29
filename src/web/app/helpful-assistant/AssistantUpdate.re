@@ -1026,7 +1026,6 @@ let update =
               goto(
                 ~ed=editor,
                 ~loc=ChatLSP.Composition.Definition,
-                ~kind_of_goto=ChatLSP.Composition.Value,
                 ~name=arg,
               );
               schedule_action(loop_message);
@@ -1035,12 +1034,7 @@ let update =
           | "goto_body" =>
             switch (Json.dot("variable", tool_call.args)) {
             | Some(`String(arg)) =>
-              goto(
-                ~ed=editor,
-                ~loc=ChatLSP.Composition.Body,
-                ~kind_of_goto=ChatLSP.Composition.Value,
-                ~name=arg,
-              );
+              goto(~ed=editor, ~loc=ChatLSP.Composition.Body, ~name=arg);
               schedule_action(loop_message);
             | _ => raise(Failure("Invalid argument for goto_body"))
             }
@@ -1050,7 +1044,6 @@ let update =
               goto(
                 ~ed=editor,
                 ~loc=ChatLSP.Composition.Definition,
-                ~kind_of_goto=ChatLSP.Composition.Type,
                 ~name=arg,
               );
               schedule_action(loop_message);
@@ -1060,22 +1053,12 @@ let update =
           | "goto_type_body" =>
             switch (Json.dot("variable", tool_call.args)) {
             | Some(`String(arg)) =>
-              goto(
-                ~ed=editor,
-                ~loc=ChatLSP.Composition.Body,
-                ~kind_of_goto=ChatLSP.Composition.Type,
-                ~name=arg,
-              );
+              goto(~ed=editor, ~loc=ChatLSP.Composition.Body, ~name=arg);
               schedule_action(loop_message);
             | _ => raise(Failure("Invalid argument for goto_type_body"))
             }
           | "select_all" =>
-            goto(
-              ~ed=editor,
-              ~loc=ChatLSP.Composition.All,
-              ~kind_of_goto=ChatLSP.Composition.Value,
-              ~name="",
-            );
+            goto(~ed=editor, ~loc=ChatLSP.Composition.All, ~name="");
             schedule_action(loop_message);
           | "paste" =>
             switch (Json.dot("code", tool_call.args)) {
