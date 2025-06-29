@@ -261,83 +261,87 @@ module Composition = {
         ~schedule_action: Editors.Update.t => unit,
       )
       : unit => {
-    let statics = CodeWithStatics.Model.get_statics(ed);
-    // Find the first matching variable in the context using fold
-    // TODO: Handle shadowed variables
-    let matching_id =
-      Id.Map.fold(
-        (_, info, acc) => {
-          switch (acc) {
-          | Some(_) => acc // Already found a match
-          | None =>
-            let ctx = Info.ctx_of(info);
-            switch (Ctx.lookup_var(ctx, name)) {
-            | Some(entry) => Some(entry.id)
-            | None =>
-              switch (Ctx.lookup_tvar_id(ctx, name)) {
-              | Some(id) => Some(id)
-              | None => None
+    let actions =
+      if (loc == All) {
+        [Action.Select(All)];
+      } else {
+        let statics = CodeWithStatics.Model.get_statics(ed);
+        // Find the first matching variable in the context using fold
+        // TODO: Handle shadowed variables
+        let matching_id =
+          Id.Map.fold(
+            (_, info, acc) => {
+              switch (acc) {
+              | Some(_) => acc // Already found a match
+              | None =>
+                let ctx = Info.ctx_of(info);
+                switch (Ctx.lookup_var(ctx, name)) {
+                | Some(entry) => Some(entry.id)
+                | None =>
+                  switch (Ctx.lookup_tvar_id(ctx, name)) {
+                  | Some(id) => Some(id)
+                  | None => None
+                  }
+                };
               }
-            };
-          }
-        },
-        statics.info_map,
-        None,
-      );
+            },
+            statics.info_map,
+            None,
+          );
 
-    print_endline("Here #1");
-    let var_info =
-      Id.Map.find_opt(Option.get(matching_id), statics.info_map);
-    print_endline(
-      "matching_id term info: " ++ Info.show(Option.get(var_info)),
-    );
-    print_endline("Here #2");
+        print_endline("Here #1");
+        let var_info =
+          Id.Map.find_opt(Option.get(matching_id), statics.info_map);
+        print_endline(
+          "matching_id term info: " ++ Info.show(Option.get(var_info)),
+        );
+        print_endline("Here #2");
 
-    let rec lowest_enclosing_id = (ancestors: list(Id.t)) => {
-      switch (ancestors) {
-      | [] => (Id.invalid, Id.invalid, Id.invalid)
-      | [hd_anc, ...rem_ancs] =>
-        switch (Id.Map.find_opt(hd_anc, statics.info_map)) {
-        | Some(hd_anc_term) =>
-          switch (Info.any_of(hd_anc_term)) {
-          | Some(Exp(exp)) =>
-            switch (Exp.term_of(exp)) {
-            | TyAlias(var, def, body) => (
-                TPat.rep_id(var),
-                Typ.rep_id(def),
-                Exp.rep_id(body),
-              )
-            | Let(var, def, body) => (
-                Pat.rep_id(var),
-                Exp.rep_id(def),
-                Exp.rep_id(body),
-              )
-            // Not a let binding, recurse
+        let rec lowest_enclosing_id = (ancestors: list(Id.t)) => {
+          switch (ancestors) {
+          | [] => (Id.invalid, Id.invalid, Id.invalid)
+          | [hd_anc, ...rem_ancs] =>
+            switch (Id.Map.find_opt(hd_anc, statics.info_map)) {
+            | Some(hd_anc_term) =>
+              switch (Info.any_of(hd_anc_term)) {
+              | Some(Exp(exp)) =>
+                switch (Exp.term_of(exp)) {
+                | TyAlias(var, def, body) => (
+                    TPat.rep_id(var),
+                    Typ.rep_id(def),
+                    Exp.rep_id(body),
+                  )
+                | Let(var, def, body) => (
+                    Pat.rep_id(var),
+                    Exp.rep_id(def),
+                    Exp.rep_id(body),
+                  )
+                // Not a let binding, recurse
+                | _ => lowest_enclosing_id(rem_ancs)
+                }
+              | _ => lowest_enclosing_id(rem_ancs)
+              }
             | _ => lowest_enclosing_id(rem_ancs)
             }
-          | _ => lowest_enclosing_id(rem_ancs)
-          }
-        | _ => lowest_enclosing_id(rem_ancs)
-        }
-      };
-    };
+          };
+        };
 
-    let (var, def, body) =
-      switch (var_info) {
-      | Some(info) =>
-        let ancestors = Info.ancestors_of(info);
-        print_endline("Here #4");
-        lowest_enclosing_id(ancestors);
-      | None =>
-        print_endline("No var info found");
-        (Id.invalid, Id.invalid, Id.invalid);
-      };
+        let (var, _, body) =
+          switch (var_info) {
+          | Some(info) =>
+            let ancestors = Info.ancestors_of(info);
+            print_endline("Here #4");
+            lowest_enclosing_id(ancestors);
+          | None =>
+            print_endline("No var info found");
+            (Id.invalid, Id.invalid, Id.invalid);
+          };
 
-    let actions =
-      switch (loc) {
-      | Definition => [Action.Select(Assistant(Def(var)))]
-      | Body => [Action.Select(Assistant(Body(body)))]
-      | All => [Action.Select(All)]
+        switch (loc) {
+        | Definition => [Action.Select(Assistant(Def(var)))]
+        | Body => [Action.Select(Assistant(Body(body)))]
+        | All => [Action.Select(All)]
+        };
       };
 
     List.iter(

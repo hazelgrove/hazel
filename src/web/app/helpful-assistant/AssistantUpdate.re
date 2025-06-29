@@ -449,8 +449,8 @@ let mk_llm_call =
         [
           CompositionPrompt.goto_definition,
           CompositionPrompt.goto_body,
-          CompositionPrompt.goto_type_definition,
-          CompositionPrompt.goto_type_body,
+          //CompositionPrompt.goto_type_definition,
+          //CompositionPrompt.goto_type_body,
           CompositionPrompt.select_all,
           CompositionPrompt.paste,
           CompositionPrompt.delete,
@@ -1070,7 +1070,7 @@ let update =
           | "delete" =>
             edit(~loc=ChatLSP.Composition.Current, ~code="");
             schedule_action(loop_message);
-          | "submit" => ()
+          // | "submit" => ()
           | _ => raise(Failure("Unknown tool call: " ++ tool_call.name))
           }
         ) {
