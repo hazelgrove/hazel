@@ -116,12 +116,3 @@ let set_buffer = (~info_map: Statics.Map.t, z: Zipper.t): option(Zipper.t) => {
   let z = Zipper.set_buffer(z, ~content, ~mode=Unparsed);
   Some(z);
 };
-
-let set_llm_buffer = (z: Zipper.t, response: string): option(Zipper.t) => {
-  let* content = Printer.zipper_of_string(response);
-  let* _ = [] == z.backpack ? Some() : None;
-  let content = Zipper.zip(content);
-  //let* z = Zipper.select(Left, z);
-  let z = Zipper.set_llm_buffer(z, ~content, ~mode=Parsed);
-  Some(z);
-};

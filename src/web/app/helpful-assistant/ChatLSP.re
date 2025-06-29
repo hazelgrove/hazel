@@ -166,8 +166,6 @@ module Completion = {
         ]
         : [
           Action.Select(Tile(Id(tile, Direction.Left))),
-          // Action.Destruct(Direction.Left),
-          // Action.Insert(" "),
           Action.Buffer(Set(LLM(response))),
         ];
     // Apply each action in sequence

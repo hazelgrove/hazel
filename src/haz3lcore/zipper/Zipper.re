@@ -469,11 +469,6 @@ let set_buffer = (z: t, ~mode: Selection.buffer, ~content: Segment.t): t => {
   selection: Selection.mk_buffer(mode, content),
 };
 
-let set_llm_buffer = (z: t, ~mode: Selection.buffer, ~content: Segment.t): t => {
-  ...z,
-  selection: Selection.mk_llm_buffer(mode, content),
-};
-
 let is_linebreak_to_right_of_caret =
     ({relatives: {siblings: (_, r), _}, _}: t): bool => {
   switch (r) {

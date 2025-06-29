@@ -144,9 +144,12 @@ module Update = {
       )
       : Action.Result.t(Model.t) => {
     open Result.Syntax;
+    let old_zipper = state.zipper;
     // 1. Clear the autocomplete buffer if relevant
+    let clear_condition =
+      settings.assist && settings.statics && a != Buffer(Accept);
     let state =
-      settings.assist && settings.statics && a != Buffer(Accept)
+      clear_condition
         ? {
           ...state,
           zipper:
@@ -166,8 +169,28 @@ module Update = {
         }
         : state;
     let syntax =
-      if (settings.assist && settings.statics && a != Buffer(Accept)) {
+      if (clear_condition) {
         CachedSyntax.mark_old(syntax);
+      } else {
+        syntax;
+      };
+    /* TODO(andrew): Apologize to matt for below.
+       The general idea here is the if a buffer clear happens above then
+       we need to recalculate the syntax cache as otherwise the measured,
+       in particular caret_point, will be looking for tiles inside the
+       buffer, for example if we try to click or move down to dismiss a
+       completion. I'm not exactly sure why we didn't run into this with
+       the TyDi buffer though so I'm not 100% confident I'm thinking
+       about this correctly */
+    let syntax =
+      if (clear_condition
+          && Selection.non_empty_parsed_buffer(old_zipper.selection)) {
+        CachedSyntax.calculate(
+          state.zipper,
+          old_statics.info_map,
+          Id.Map.empty, //TODO
+          syntax,
+        );
       } else {
         syntax;
       };
