@@ -587,7 +587,7 @@ let update =
       let mode = AssistantSettings.CodeSuggestion;
       switch (kind) {
       | Request(tile_id, advanced_reasoning) =>
-        let new_chat = Model.init_chat(mode);
+        let new_chat = Model.new_chat(model, mode);
         print_endline("new_chat: " ++ Id.to_string(new_chat.id));
         let updated_past_chats =
           Model.add_chat_to_history(
@@ -1107,7 +1107,7 @@ let update =
     | NewChat =>
       let mode = settings.assistant.mode;
       let (past_chats, _) = get_mode_info(mode, model);
-      let new_chat: Model.chat = Model.init_chat(mode);
+      let new_chat: Model.chat = Model.new_chat(model, mode);
       let updated_history = Model.add_chat_to_history(new_chat, past_chats);
       resculpt_model(
         ~model,
