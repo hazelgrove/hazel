@@ -74,6 +74,13 @@ module Update = {
 
   let equal = (===);
 
+  let assistant_callback = (~schedule_action: t => unit, model: Model.t) =>
+    AssistantUpdate.check_req(
+      ~schedule_action=a => schedule_action(Assistant(a)),
+      ~schedule_setting=a => schedule_action(Globals(Set(Assistant(a)))),
+      ~chat_id=model.assistant.current_chats.curr_suggestion_chat,
+    );
+
   let update_global =
       (
         ~import_log,
@@ -135,12 +142,7 @@ module Update = {
             ~globals,
             ~schedule_action=a => schedule_action(Editors(a)),
             ~send_assistant_insertion_info=
-              AssistantUpdate.check_req(
-                ~schedule_action=a => schedule_action(Assistant(a)),
-                ~schedule_setting=
-                  a => schedule_action(Globals(Set(Assistant(a)))),
-                ~chat_id=model.assistant.current_chats.curr_suggestion_chat,
-              ),
+              assistant_callback(~schedule_action, model),
             action,
             model.editors,
           );
@@ -201,12 +203,7 @@ module Update = {
             ~globals=model.globals,
             ~schedule_action=a => schedule_action(Editors(a)),
             ~send_assistant_insertion_info=
-              AssistantUpdate.check_req(
-                ~schedule_action=a => schedule_action(Assistant(a)),
-                ~schedule_setting=
-                  a => schedule_action(Globals(Set(Assistant(a)))),
-                ~chat_id=model.assistant.current_chats.curr_suggestion_chat,
-              ),
+              assistant_callback(~schedule_action, model),
             action,
             model.editors,
           );
@@ -242,12 +239,7 @@ module Update = {
           ~globals,
           ~schedule_action=a => schedule_action(Editors(a)),
           ~send_assistant_insertion_info=
-            AssistantUpdate.check_req(
-              ~schedule_action=a => schedule_action(Assistant(a)),
-              ~schedule_setting=
-                a => schedule_action(Globals(Set(Assistant(a)))),
-              ~chat_id=model.assistant.current_chats.curr_suggestion_chat,
-            ),
+            assistant_callback(~schedule_action, model),
           action,
           model.editors,
         );
