@@ -51,12 +51,12 @@
 .loader {
   width: 80px;
   height: 80px;
-  border: 3px solid var(--G0);
+  border: 9px solid var(--G0);
   border-bottom-color: transparent;
   border-radius: 50%;
   display: inline-block;
   box-sizing: border-box;
-  animation: rotation 5s linear infinite;
+  animation: rotation 8s linear infinite;
 }
 
 @keyframes rotation {

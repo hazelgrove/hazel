@@ -83,7 +83,8 @@ let ctx_toggle = (~globals: Globals.t): Node.t =>
         ["gamma"] @ (globals.settings.context_inspector ? ["visible"] : []),
       ),
     ],
-    [text("Γ")],
+    [Icons.gamma],
+    //[text("Γ")],
   );
 
 let term_view = (~globals: Globals.t, ci) => {
@@ -96,6 +97,7 @@ let term_view = (~globals: Globals.t, ci) => {
     [
       ctx_toggle(~globals),
       div(~attrs=[clss(["term-tag"])], [text(sort)]),
+      div(~attrs=[clss(["divider"])], [text("/")]),
       cls_view(ci),
     ],
   );
