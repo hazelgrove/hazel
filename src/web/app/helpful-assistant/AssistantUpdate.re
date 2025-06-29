@@ -459,9 +459,7 @@ let update =
       // todo: Find a way to track unqique editor between concurrent actions
       ~editor: CodeModel.t,
       ~schedule_action: t => unit,
-      ~add_suggestion,
-      ~goto,
-      ~edit,
+      ~schedule_editor_action: Editors.Update.t => unit,
     )
     : Updated.t(Model.t) => {
   switch (action) {
@@ -926,6 +924,10 @@ let update =
           ),
         )
       | (Some(tool_call), _) =>
+        let goto =
+          ChatLSP.Composition.goto(~schedule_action=schedule_editor_action);
+        let edit =
+          ChatLSP.Composition.edit(~schedule_action=schedule_editor_action);
         let loop_message =
           SendMessage(
             Composition(
@@ -1060,6 +1062,10 @@ let update =
     update_model_chat_history(~model, ~mode, ~updated_chat)
     |> Updated.return_quiet;
   | EmployLLMAction(action) =>
+    let add_suggestion =
+      ChatLSP.Completion.add_suggestion(
+        ~schedule_action=schedule_editor_action,
+      );
     switch (action) {
     | RemoveAndSuggest(response, tileId) =>
       // Only side effects in the editor are performed here
@@ -1093,7 +1099,7 @@ let update =
         loop,
       }
       |> Updated.return_quiet
-    }
+    };
 
   | ChatAction(action) =>
     switch (action) {

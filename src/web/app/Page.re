@@ -268,27 +268,14 @@ module Update = {
         explain_this,
       };
     | Assistant(action) =>
-      let settings = globals.settings;
-
       let* assistant =
         AssistantUpdate.update(
-          ~settings,
           ~action,
+          ~settings=globals.settings,
           ~model=model.assistant,
           ~editor=get_editor(model),
           ~schedule_action=a => schedule_action(Assistant(a)),
-          ~add_suggestion=
-            ChatLSP.Completion.add_suggestion(~schedule_action=a =>
-              schedule_action(Editors(a))
-            ),
-          ~goto=
-            ChatLSP.Composition.goto(~schedule_action=a =>
-              schedule_action(Editors(a))
-            ),
-          ~edit=
-            ChatLSP.Composition.edit(~schedule_action=a =>
-              schedule_action(Editors(a))
-            ),
+          ~schedule_editor_action=a => schedule_action(Editors(a)),
         );
       {
         ...model,
