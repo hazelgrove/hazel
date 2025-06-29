@@ -381,7 +381,7 @@ module View = {
         ~globals,
         ~signal: event => 'a,
         ~inject: Update.t => 'a,
-        ~selection: option(Selection.t),
+        ~selected: option(Selection.t),
         model: Model.t,
       ) => {
     (
@@ -398,7 +398,7 @@ module View = {
           | MakeActive(selection) => signal(MakeActive(Cell(selection))),
         ~inject=a => inject(CellAction(a)),
         ~selected=
-          switch (selection) {
+          switch (selected) {
           | Some(Selection.Cell(s)) => Some(s)
           | _ => None
           },

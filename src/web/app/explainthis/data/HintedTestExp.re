@@ -6,7 +6,7 @@ let hinted_test_true_ex = {
   term: mk_example("hint \"Always true\"\n test true end"),
   message: "This is reported as a passing test because the body of the test is true.",
 };
-// TODO are these really the correct messages/explanations; maybe include something about the result being triv
+
 let hinted_test_false_ex = {
   sub_id: HintedTestFalse,
   term: mk_example("hint \"Always false\"\n test 3 < 1 end"),

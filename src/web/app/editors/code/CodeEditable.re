@@ -28,7 +28,7 @@ module Update = {
 
   let update =
       (~settings: Settings.t, action: t, model: Model.t): Updated.t(Model.t) => {
-    let perform = (action: Action.t, model: Model.t) => {
+    let perform = (action: Action.t, model: Model.t) =>
       Editor.Update.update(
         ~settings=settings.core,
         action,
@@ -71,7 +71,6 @@ module Update = {
              };
            },
          );
-    };
     switch (action) {
     | Perform(action) =>
       settings.core.flip_animations && Action.should_animate(action)
@@ -238,7 +237,7 @@ module View = {
         let click_count = MouseState.count();
         /* Check how many clicks have happened recently
          * and cycle between options on-click */
-        switch (click_count mod 5 + 1) {
+        switch (click_count mod 3 + 1) {
         | 1 =>
           /* prepare to drag if the mouse moves */
           PointerCapture.set(mouse.current_target, pointer_id);

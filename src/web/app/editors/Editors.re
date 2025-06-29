@@ -293,7 +293,7 @@ module View = {
           fun
           | MakeActive(s) => signal(MakeActive(Scratch(s))),
         ~globals,
-        ~selection=
+        ~selected=
           switch (selection) {
           | Some(Scratch(s)) => Some(s)
           | _ => None
@@ -307,7 +307,7 @@ module View = {
           fun
           | MakeActive(s) => signal(MakeActive(Scratch(s))),
         ~globals,
-        ~selection=
+        ~selected=
           switch (selection) {
           | Some(Scratch(s)) => Some(s)
           | _ => None
