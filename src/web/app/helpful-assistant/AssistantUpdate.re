@@ -429,15 +429,16 @@ let mk_llm_call =
             ),
           )
         | None =>
-          let str_of_mode =
-            switch (mode) {
-            | HazelTutor => "HazelTutor"
-            | CodeSuggestion => "CodeSuggestion"
-            | TaskCompletion => "TaskCompletion"
-            };
-          print_endline(
-            "Assistant: response parse failed (" ++ str_of_mode ++ ")",
-          );
+          /*let str_of_mode =
+              switch (mode) {
+              | HazelTutor => "HazelTutor"
+              | CodeSuggestion => "CodeSuggestion"
+              | TaskCompletion => "TaskCompletion"
+              };
+            print_endline(
+              "Assistant: response parse failed (" ++ str_of_mode ++ ")",
+            );*/
+          ()
         }
       )
     ) {
