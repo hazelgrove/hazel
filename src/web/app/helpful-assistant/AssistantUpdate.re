@@ -254,6 +254,13 @@ let create_chat_descriptor =
         "You will be given a conversation between an assistant and a user. ",
         "Focus on the giving a summarizing topic title to the conversation between the assistant and the user. ",
         "NEVER use first person pronouns in your response. ",
+        "EVERY response will be displayed as a summarizaing title, so do NOT respond with anything other than a summarizing title. ",
+        switch (mode) {
+        | HazelTutor => "This is known to be a chat between a hazel user and an LLM acting as a tutor."
+        | CodeSuggestion => "This is known to be a chat between a hazel user and an LLM acting as a code suggestion assistant. This means there won't be much dialogue, rather just a prompt, code contexts, and a code suggestion (potentially with a chain of thought), so please do your best to summarize based on the code context and the code suggestion."
+        | TaskCompletion => "This is known to be a chat between a student and an LLM acting as a task completion assistant."
+        },
+        "With this said, please now provide a summary for the conversation: ",
       ],
     );
 
@@ -429,15 +436,16 @@ let mk_llm_call =
             ),
           )
         | None =>
-          let str_of_mode =
-            switch (mode) {
-            | HazelTutor => "HazelTutor"
-            | CodeSuggestion => "CodeSuggestion"
-            | TaskCompletion => "TaskCompletion"
-            };
-          print_endline(
-            "Assistant: response parse failed (" ++ str_of_mode ++ ")",
-          );
+          /*let str_of_mode =
+              switch (mode) {
+              | HazelTutor => "HazelTutor"
+              | CodeSuggestion => "CodeSuggestion"
+              | TaskCompletion => "TaskCompletion"
+              };
+            print_endline(
+              "Assistant: response parse failed (" ++ str_of_mode ++ ")",
+            );*/
+          ()
         }
       )
     ) {
@@ -586,7 +594,7 @@ let update =
       let mode = AssistantSettings.CodeSuggestion;
       switch (kind) {
       | Request(tile_id, advanced_reasoning) =>
-        let new_chat = Model.init_chat(mode);
+        let new_chat = Model.new_chat(model, mode);
         print_endline("new_chat: " ++ Id.to_string(new_chat.id));
         let updated_past_chats =
           Model.add_chat_to_history(
@@ -1091,7 +1099,18 @@ let update =
             },
           past_chats,
         );
-      resculpt_model(~model, ~mode, ~updated_past_chats, ~chat_id)
+      let curr_chat_id =
+        switch (mode) {
+        | HazelTutor => model.current_chats.curr_tutor_chat
+        | CodeSuggestion => model.current_chats.curr_suggestion_chat
+        | TaskCompletion => model.current_chats.curr_composition_chat
+        };
+      resculpt_model(
+        ~model,
+        ~mode,
+        ~updated_past_chats,
+        ~chat_id=curr_chat_id,
+      )
       |> Updated.return_quiet;
     | SetLoop(loop) =>
       {
@@ -1106,7 +1125,7 @@ let update =
     | NewChat =>
       let mode = settings.assistant.mode;
       let (past_chats, _) = get_mode_info(mode, model);
-      let new_chat: Model.chat = Model.init_chat(mode);
+      let new_chat: Model.chat = Model.new_chat(model, mode);
       let updated_history = Model.add_chat_to_history(new_chat, past_chats);
       resculpt_model(
         ~model,

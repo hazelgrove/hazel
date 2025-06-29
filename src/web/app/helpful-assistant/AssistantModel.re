@@ -72,10 +72,19 @@ type external_api_info = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type init_prompt_data = {
+  init_tutor_chat: chat,
+  init_composition_chat: chat,
+  init_suggestion_chat_basic: chat,
+  init_suggestion_chat_cot: chat,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   current_chats,
   chat_history,
   external_api_info,
+  init_prompt_data,
   loop: bool,
 };
 
@@ -169,6 +178,33 @@ let init_chat = (mode: AssistantSettings.mode): chat => {
   };
 };
 
+let new_chat = (model: t, mode: AssistantSettings.mode): chat => {
+  let (init_message, init_message_display) =
+    switch (mode) {
+    | HazelTutor => (
+        model.init_prompt_data.init_tutor_chat.outgoing_messages,
+        model.init_prompt_data.init_tutor_chat.message_displays,
+      )
+    | CodeSuggestion =>
+      //todo: this is non functional right now, all initial prompting is done in chatlsp
+      (
+        model.init_prompt_data.init_suggestion_chat_basic.outgoing_messages,
+        model.init_prompt_data.init_suggestion_chat_basic.message_displays,
+      )
+    | TaskCompletion => (
+        model.init_prompt_data.init_composition_chat.outgoing_messages,
+        model.init_prompt_data.init_composition_chat.message_displays,
+      )
+    };
+  {
+    outgoing_messages: init_message,
+    message_displays: init_message_display,
+    id: Id.mk(),
+    descriptor: "",
+    timestamp: JsUtil.timestamp(),
+  };
+};
+
 let add_chat_to_history =
     (chat: chat, history: Id.Map.t(chat)): Id.Map.t(chat) =>
   Id.Map.add(chat.id, chat, history);
@@ -181,6 +217,12 @@ let init: t = {
     init_chat(TaskCompletion),
   );
   {
+    init_prompt_data: {
+      init_tutor_chat,
+      init_composition_chat,
+      init_suggestion_chat_basic: init_suggestion_chat,
+      init_suggestion_chat_cot: init_suggestion_chat,
+    },
     current_chats: {
       curr_tutor_chat: init_tutor_chat.id,
       curr_suggestion_chat: init_suggestion_chat.id,
