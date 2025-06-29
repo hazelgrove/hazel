@@ -369,18 +369,6 @@ let check_req =
   };
 };
 
-let set_buffer = (~response: string, z: Zipper.t): option(Zipper.t) => {
-  let zipper_of_response = Option.get(Printer.zipper_of_string(response));
-  let seg_of_response =
-    Zipper.smart_seg(
-      ~dump_backpack=true,
-      ~erase_buffer=true,
-      zipper_of_response,
-    );
-  let z = Zipper.set_buffer(z, ~content=seg_of_response, ~mode=Unparsed);
-  Some(z);
-};
-
 // Sends a request to OpenRouter given outgoing messages.
 // Handles the response from OpenRouter.
 // Emits internal error if API key or model ID is not set.

@@ -4,10 +4,12 @@ open Language;
 
 let buffer_clear = (z: t): t =>
   switch (z.selection.mode) {
-  | Buffer(_) => {
+  | Buffer(_) =>
+    {
       ...z,
       selection: Selection.mk([]),
     }
+    |> Zipper.regrout(Left)
   | _ => z
   };
 
@@ -62,8 +64,11 @@ let go_z =
   let buffer_accept = (z): option(Zipper.t) =>
     switch (z.selection.mode) {
     | Normal => None
+    | Buffer(Parsed) =>
+      let z = Zipper.directional_unselect(z.selection.focus, z);
+      Some(z);
     | Buffer(Unparsed) =>
-      switch (TyDi.get_buffer(z)) {
+      switch (TyDi.get_unparsed_buffer(z)) {
       | None => None
       | Some(completion)
           when StringUtil.match(StringUtil.regexp(".*\\)::$"), completion) =>
