@@ -90,6 +90,8 @@ select {
   overflow: auto;
   padding: 0;
   background-color: var(--main-bkg);
+  display: flex;
+  flex-direction: column;
 }
 
 #side-bar {
