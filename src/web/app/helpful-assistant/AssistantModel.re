@@ -72,7 +72,7 @@ type external_api_info = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type prompt_data = {
+type init_prompt_data = {
   init_tutor_chat: chat,
   init_composition_chat: chat,
   init_suggestion_chat_basic: chat,
@@ -84,7 +84,7 @@ type t = {
   current_chats,
   chat_history,
   external_api_info,
-  prompt_data,
+  init_prompt_data,
   loop: bool,
 };
 
@@ -182,16 +182,18 @@ let new_chat = (model: t, mode: AssistantSettings.mode): chat => {
   let (init_message, init_message_display) =
     switch (mode) {
     | HazelTutor => (
-        model.prompt_data.init_tutor_chat.outgoing_messages,
-        model.prompt_data.init_tutor_chat.message_displays,
+        model.init_prompt_data.init_tutor_chat.outgoing_messages,
+        model.init_prompt_data.init_tutor_chat.message_displays,
       )
-    | CodeSuggestion => (
-        model.prompt_data.init_suggestion_chat_basic.outgoing_messages,
-        model.prompt_data.init_suggestion_chat_basic.message_displays,
+    | CodeSuggestion =>
+      //todo: this is non functional right now, all initial prompting is done in chatlsp
+      (
+        model.init_prompt_data.init_suggestion_chat_basic.outgoing_messages,
+        model.init_prompt_data.init_suggestion_chat_basic.message_displays,
       )
     | TaskCompletion => (
-        model.prompt_data.init_composition_chat.outgoing_messages,
-        model.prompt_data.init_composition_chat.message_displays,
+        model.init_prompt_data.init_composition_chat.outgoing_messages,
+        model.init_prompt_data.init_composition_chat.message_displays,
       )
     };
   {
@@ -215,7 +217,7 @@ let init: t = {
     init_chat(TaskCompletion),
   );
   {
-    prompt_data: {
+    init_prompt_data: {
       init_tutor_chat,
       init_composition_chat,
       init_suggestion_chat_basic: init_suggestion_chat,
