@@ -643,7 +643,7 @@ let update =
                     [ctx_prompt],
                   ),
                 ),
-              ~role=System(AssistantPrompt),
+              ~role=User,
             );
           let updated_chat = {
             ...new_chat,
