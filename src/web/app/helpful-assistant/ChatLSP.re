@@ -109,47 +109,47 @@ module Completion = {
     | Secondary(_) => []
     };
 
-  let prompt =
-      (
-        options: Options.t,
-        ci: Info.t,
-        sketch: Segment.t,
-        hole_label: string,
-        advanced_reasoning: bool,
-      )
-      : list(OpenRouter.message) =>
-    [
-      OpenRouter.mk_system_msg(
-        SystemPrompt.mk_suggestion_prompt(
-          options,
-          hole_label,
-          advanced_reasoning,
-        ),
+  let mk_const_prompt =
+      (options: Options.t, hole_label: string, advanced_reasoning: bool)
+      : OpenRouter.message => {
+    let prompt =
+      String.concat(
+        "\n",
+        [
+          SystemPrompt.mk_suggestion_prompt(
+            options,
+            hole_label,
+            advanced_reasoning,
+          ),
+        ]
+        @ CompletionExamples.get(
+            options.num_examples,
+            hole_label,
+            advanced_reasoning,
+          ),
+      );
+    OpenRouter.mk_system_msg(prompt);
+  };
+
+  let mk_ctx_prompt =
+      (options: Options.t, ci: Info.t, sketch: Segment.t, hole_label: string)
+      : OpenRouter.message =>
+    OpenRouter.mk_user_msg(
+      String.concat(
+        "\n",
+        [
+          "sketch: ```"
+          ++ ErrorPrint.Print.seg(~holes=Some("?"), sketch)
+          ++ "```",
+        ]
+        @ get_static_context(
+            options.expected_type,
+            options.relevant_ctx,
+            ci,
+            hole_label,
+          ),
       ),
-    ]
-    @ CompletionExamples.get(
-        options.num_examples,
-        hole_label,
-        advanced_reasoning,
-      )
-    @ [
-      OpenRouter.mk_user_msg(
-        String.concat(
-          "\n",
-          [
-            "sketch: ```"
-            ++ ErrorPrint.Print.seg(~holes=Some("?"), sketch)
-            ++ "```",
-          ]
-          @ get_static_context(
-              options.expected_type,
-              options.relevant_ctx,
-              ci,
-              hole_label,
-            ),
-        ),
-      ),
-    ];
+    );
 
   let add_suggestion =
       (

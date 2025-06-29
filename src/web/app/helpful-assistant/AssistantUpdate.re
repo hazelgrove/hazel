@@ -609,36 +609,35 @@ let update =
               );
             let* index = Indicated.index(editor.editor.state.zipper);
             let+ ci = Id.Map.find_opt(index, editor.statics.info_map);
-            ChatLSP.Completion.prompt(
+            ChatLSP.Completion.mk_ctx_prompt(
               ChatLSP.Options.init,
               ci,
               sketch_seg,
               (advanced_reasoning ? "?a" : "??") ++ tag,
-              advanced_reasoning,
             );
           }
         ) {
         | None =>
           print_endline("Suggestion prompt generation failed");
           model_with_new_chat |> Updated.return_quiet;
-        | Some(suggestion_prompt) =>
-          let new_message_displays = [
+        | Some(ctx_prompt) =>
+          let new_message_display =
             Model.mk_message_display(
               ~content=
                 String.concat(
                   "\n",
                   List.map(
                     (msg: OpenRouter.message) => msg.content,
-                    suggestion_prompt,
+                    [ctx_prompt],
                   ),
                 ),
-              ~role=System(AssistantPrompt),
-            ),
-          ];
+              ~role=User,
+            );
           let updated_chat = {
             ...new_chat,
-            outgoing_messages: new_chat.outgoing_messages @ suggestion_prompt,
-            message_displays: new_chat.message_displays @ new_message_displays,
+            outgoing_messages: new_chat.outgoing_messages @ [ctx_prompt],
+            message_displays:
+              new_chat.message_displays @ [new_message_display],
           };
           mk_llm_call(
             ~mode,
