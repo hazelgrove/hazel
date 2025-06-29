@@ -87,6 +87,13 @@ module Update = {
       ~editor,
     );
 
+  let get_editor = (model: Model.t): CodeEditable.Model.t =>
+    switch (model.editors) {
+    | Scratch(m) => (List.nth(m.scratchpads, m.current) |> snd).editor
+    | Documentation(m) => (List.nth(m.scratchpads, m.current) |> snd).editor
+    | Exercises(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
+    };
+
   let update_global =
       (
         ~import_log,
@@ -262,18 +269,13 @@ module Update = {
       };
     | Assistant(action) =>
       let settings = globals.settings;
-      let ed: CellEditor.Model.t =
-        switch (model.editors) {
-        | Scratch(m) => List.nth(m.scratchpads, m.current) |> snd
-        | Documentation(m) => List.nth(m.scratchpads, m.current) |> snd
-        | Exercises(m) => List.nth(m.exercises, m.current).cells.user_impl
-        };
+
       let* assistant =
         AssistantUpdate.update(
           ~settings,
           ~action,
           ~model=model.assistant,
-          ~editor=ed.editor,
+          ~editor=get_editor(model),
           ~schedule_action=a => schedule_action(Assistant(a)),
           ~add_suggestion=
             ChatLSP.Completion.add_suggestion(~schedule_action=a =>
@@ -623,31 +625,20 @@ module View = {
         ~inject=a => inject(Editors(a)),
         cursor,
       );
-    let sidebar = {
-      let ed: CellEditor.Model.t =
-        switch (model.editors) {
-        | Scratch(m) => List.nth(m.scratchpads, m.current) |> snd
-        | Documentation(m) => List.nth(m.scratchpads, m.current) |> snd
-        | Exercises(m) => List.nth(m.exercises, m.current).cells.user_impl
-        };
-      open Editors.View;
-      let signal =
-        fun
-        | MakeActive(selection: selection) => inject(MakeActive(selection));
-      let signal: AssistantView.event => Ui_effect.t(unit) =
-        fun
-        | MakeActive(s) => signal(MakeActive(Scratch(s)));
+    let sidebar =
       Sidebar.view(
         ~globals,
         ~explain_this_inject=action => inject(ExplainThis(action)),
         ~assistant_inject=action => inject(Assistant(action)),
-        ~signal,
+        ~signal=
+          fun
+          | MakeActive(s) => inject(MakeActive(Scratch(s))),
         ~explainThisModel,
         ~assistantModel,
-        ~editor=ed.editor,
+        ~editor=Update.get_editor(model),
         cursor.info,
       );
-    };
+
     let editors_view =
       Editors.View.view(
         ~globals,
