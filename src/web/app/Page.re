@@ -552,7 +552,7 @@ module View = {
               Editors.View.file_menu(~globals, ~inject, editors),
             ),
             button(
-              Icons.command_palette_sparkle,
+              Icons.command_palette_terminal,
               _ => {
                 NinjaKeys.open_command_palette();
                 Effect.Ignore;
