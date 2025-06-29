@@ -226,11 +226,10 @@ let const_mono_delims =
 
 let explicit_hole = "?";
 let llm_hole = "??";
-
 let llm_advanced_reasoning_hole = "?a";
 let is_explicit_hole = t => t == explicit_hole;
-
 let is_llm_hole = t => t == llm_hole || t == llm_advanced_reasoning_hole;
+
 let bad_token_cls: string => bad_token_cls =
   t =>
     switch () {

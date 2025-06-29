@@ -88,3 +88,128 @@ let sorted_chats = (chat_map: Id.Map.t(chat)): list(chat) => {
 };
 
 let max_collapsed_length: int = 500;
+
+let mk_mode_prompt =
+    (~mode: AssistantSettings.mode): option(OpenRouter.message) => {
+  let prompt =
+    switch (mode) {
+    | HazelTutor => Some(InitPrompts.mk_tutor())
+    | CodeSuggestion => None
+    | TaskCompletion => Some(InitPrompts.mk_composition())
+    };
+  prompt;
+};
+
+let parse_blocks = (response: string): list(block_kind) => {
+  let rec parse_blocks =
+          (str: string, acc: list(block_kind)): list(block_kind) => {
+    open Haz3lcore;
+    let pattern = Str.regexp("```[ \n]*\\([^`]+\\)[ \n]*```");
+    switch (Str.search_forward(pattern, str, 0)) {
+    | exception Not_found => acc
+    | pos =>
+      let acc = ListUtil.leading(acc);
+      let code = Str.matched_group(1, str);
+      let zipper_of_code = Printer.zipper_of_string(code);
+      let sketch =
+        switch (zipper_of_code) {
+        | Some(z) => Zipper.seg_for_view(z)
+        | None =>
+          print_endline("Failed to parse content into segment.\n");
+          Zipper.seg_for_view(Zipper.init());
+        };
+      let before = Str.string_before(str, pos);
+      let rest_start = pos + String.length(Str.matched_string(str));
+      if (rest_start >= String.length(str)) {
+        acc @ [Text(before), Code(sketch)];
+      } else {
+        let rest = Str.string_after(str, rest_start);
+        parse_blocks(
+          rest,
+          acc @ [Text(before), Code(sketch), Text(rest)],
+        );
+      };
+    };
+  };
+  parse_blocks(response, [Text(response)]);
+};
+
+let mk_message_display = (~content: string, ~role: role): display => {
+  {
+    displayable_content: parse_blocks(content),
+    original_content: content,
+    role,
+    collapsed:
+      String.length(content) > max_collapsed_length
+      || role == System(AssistantPrompt),
+  };
+};
+
+let init_chat = (mode: AssistantSettings.mode): chat => {
+  let (init_message, init_message_display) =
+    switch (mk_mode_prompt(~mode)) {
+    | Some(init_message) => (
+        [init_message],
+        [
+          mk_message_display(
+            ~content=init_message.content,
+            ~role=System(AssistantPrompt),
+          ),
+        ],
+      )
+    | None => ([], [])
+    };
+
+  {
+    outgoing_messages: init_message,
+    message_displays: init_message_display,
+    id: Id.mk(),
+    descriptor: "",
+    timestamp: JsUtil.timestamp(),
+  };
+};
+
+let add_chat_to_history =
+    (chat: chat, history: Id.Map.t(chat)): Id.Map.t(chat) =>
+  Id.Map.add(chat.id, chat, history);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+let init: t = {
+  let (init_tutor_chat, init_suggestion_chat, init_composition_chat) = (
+    init_chat(HazelTutor),
+    init_chat(CodeSuggestion),
+    init_chat(TaskCompletion),
+  );
+  {
+    current_chats: {
+      curr_tutor_chat: init_tutor_chat.id,
+      curr_suggestion_chat: init_suggestion_chat.id,
+      curr_composition_chat: init_composition_chat.id,
+    },
+    chat_history: {
+      past_tutor_chats: add_chat_to_history(init_tutor_chat, Id.Map.empty),
+      past_suggestion_chats:
+        add_chat_to_history(init_suggestion_chat, Id.Map.empty),
+      past_composition_chats:
+        add_chat_to_history(init_composition_chat, Id.Map.empty),
+    },
+    external_api_info: {
+      available_models: [],
+      set_model: "",
+      api_key: "",
+    },
+    loop: false,
+  };
+};
+
+[@deriving (show({with_path: false}), yojson, sexp)]
+type model = t;
+
+module Store =
+  Store.F({
+    [@deriving (show({with_path: false}), yojson, sexp)]
+    type t = model;
+    let default = () => init;
+
+    let key = Store.Assistant;
+  });

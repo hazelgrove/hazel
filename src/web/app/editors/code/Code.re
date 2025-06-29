@@ -23,7 +23,7 @@ let of_delim' =
         switch (label) {
         | _ when !is_consistent => "sort-inconsistent"
         | _ when !is_complete => "incomplete"
-        | [s] when s == Form.llm_hole || s == Form.llm_advanced_reasoning_hole => "llm-waiting"
+        | [s] when Form.is_llm_hole(s) => "llm-waiting"
         | [s] when s == Form.explicit_hole => "explicit-hole"
         | [s] when Form.is_string(s) => "string-lit"
         | _ => Sort.to_string(sort)

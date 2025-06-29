@@ -32,7 +32,7 @@ module Store = {
         ~instructor_mode=globals.settings.instructor_mode,
       );
     let explain_this = ExplainThisModel.Store.load();
-    let assistant = AssistantStore.F.load();
+    let assistant = AssistantModel.Store.load();
     {
       editors,
       globals,
@@ -49,7 +49,7 @@ module Store = {
     );
     Globals.Model.save(m.globals);
     ExplainThisModel.Store.save(m.explain_this);
-    AssistantStore.F.save(m.assistant);
+    AssistantModel.Store.save(m.assistant);
   };
 };
 

@@ -9,13 +9,18 @@ type t =
   | StaticErrors(list(string))
   | NoErrors;
 
+let remove_projectors = (segment: Segment.t) =>
+  //TODO: Remove this when splices is merged
+  ZipperBase.MapPiece.of_segment(
+    fun
+    | Projector(pr) => [pr.syntax]
+    | x => [x],
+    segment,
+  );
+
 module Print = {
   let seg = (~holes: option(string)=Some(""), segment: Segment.t): string => {
-    let segment =
-      ZipperBase.MapPiece.of_segment(
-        syntax => [ProjectorPerform.remove_any_projector(syntax)],
-        segment,
-      );
+    let segment = remove_projectors(segment);
     Printer.to_rows(
       ~holes,
       ~measured=Measured.of_segment(segment, Id.Map.empty),

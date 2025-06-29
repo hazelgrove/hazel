@@ -47,18 +47,6 @@ let go_z =
   module Move = Move.Make(M);
   module Select = Select.Make(M);
 
-  let paste = (z: Zipper.t, str: string): option(Zipper.t) => {
-    open Util.OptUtil.Syntax;
-    let* z = Printer.zipper_of_string(~zipper_init=z, str);
-    /* HACK(andrew): Insert/Destruct below is a hack to deal
-       with the fact that pasting something like "let a = b in"
-       won't trigger the barfing of the "in"; to trigger this,
-       we insert a space, and then we immediately delete it */
-    let* z = Insert.go(" ", z);
-    let+ z = Destruct.go(Left, z);
-    remold_regrout(Left, z);
-  };
-
   let paste_segment = (z: Zipper.t, segment: Segment.t): Zipper.t => {
     let replace_selection = (z, focus, segment): Zipper.t =>
       {

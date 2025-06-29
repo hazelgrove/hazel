@@ -14,48 +14,6 @@ let code_box_container = x =>
 let code = (code: string): Node.t =>
   div(~attrs=[clss(["code"])], [text(code)]);
 
-/*
- let explain_this_toggle = (~globals: Globals.t): Node.t => {
-   let tooltip = "Switch Language ocumentation";
-   let toggle_explain_this = _ =>
-     Virtual_dom.Vdom.Effect.Many([
-       globals.inject_global(Set(ExplainThis(ToggleShow))),
-       Virtual_dom.Vdom.Effect.Stop_propagation,
-     ]);
-   div(
-     ~attrs=[clss(["explain-this-button"])],
-     [
-       Widgets.toggle(
-         ~tooltip,
-         "?",
-         globals.settings.explainThis.show,
-         toggle_explain_this,
-       ),
-     ],
-   );
- };
-
- let assistant_toggle = (~globals: Globals.t): Node.t => {
-   let tooltip = "Switch LLM-assistant coder";
-   let toggle_assistant = _ =>
-     Virtual_dom.Vdom.Effect.Many([
-       globals.inject_global(Set(Assistant(ToggleShow))),
-       Virtual_dom.Vdom.Effect.Stop_propagation,
-     ]);
-   div(
-     ~attrs=[clss(["assisstant-button"])],
-     [
-       Widgets.toggle(
-         ~tooltip,
-         "?",
-         globals.settings.assistant.show,
-         toggle_assistant,
-       ),
-     ],
-   );
- };
- */
-
 let cls_view = (ci: Info.t): Node.t => {
   let cls = ci |> Info.cls_of;
 

@@ -13,20 +13,19 @@ let tab = (~tooltip="", icon, action, isActive) => {
 };
 
 let explain_this_tab = (~globals: Globals.t): Node.t => {
-  let tooltip = "Switch to Language Documentation";
   let switch_explain_this = _ =>
-    Virtual_dom.Vdom.Effect.Many([
+    Effect.Many([
       globals.inject_global(
         Set(Sidebar(SwitchPanel(LanguageDocumentation))),
       ),
-      Virtual_dom.Vdom.Effect.Stop_propagation,
+      Effect.Stop_propagation,
     ]);
   div(
     ~attrs=[clss(["explain-this-button"])],
     [
       tab(
         Icons.explain_this,
-        ~tooltip,
+        ~tooltip="Switch to Language Documentation",
         switch_explain_this,
         globals.settings.sidebar.panel == LanguageDocumentation
         && globals.settings.sidebar.show,
@@ -36,18 +35,17 @@ let explain_this_tab = (~globals: Globals.t): Node.t => {
 };
 
 let assistant_tab = (~globals: Globals.t): Node.t => {
-  let tooltip = "Switch to Helpful Assistant";
   let switch_assistant = _ =>
-    Virtual_dom.Vdom.Effect.Many([
+    Effect.Many([
       globals.inject_global(Set(Sidebar(SwitchPanel(HelpfulAssistant)))),
-      Virtual_dom.Vdom.Effect.Stop_propagation,
+      Effect.Stop_propagation,
     ]);
   div(
     ~attrs=[clss(["assistant-button"])],
     [
       tab(
         Icons.hazelnut_agent,
-        ~tooltip,
+        ~tooltip="Switch to Helpful Assistant",
         switch_assistant,
         globals.settings.sidebar.panel == HelpfulAssistant
         && globals.settings.sidebar.show,
@@ -61,9 +59,9 @@ let collapse_tab = (~globals: Globals.t): Node.t => {
     globals.settings.sidebar.show ? "Collapse Sidebar" : "Expand Sidebar";
   let icon = globals.settings.sidebar.show ? Icons.collapse : Icons.expand;
   let switch_assistant = _ =>
-    Virtual_dom.Vdom.Effect.Many([
+    Effect.Many([
       globals.inject_global(Set(Sidebar(ToggleShow))),
-      Virtual_dom.Vdom.Effect.Stop_propagation,
+      Effect.Stop_propagation,
     ]);
   div(
     ~attrs=[clss(["collapse-button"])],
@@ -71,21 +69,16 @@ let collapse_tab = (~globals: Globals.t): Node.t => {
   );
 };
 
-let persistent_view = (~globals: Globals.t) => {
+let persistent_view = (~globals: Globals.t) =>
   div(
     ~attrs=[Attr.id("persistent")],
     [
       div(
         ~attrs=[clss(["tabs"])],
-        [
-          explain_this_tab(~globals),
-          assistant_tab(~globals),
-          // collapse_tab(~globals),
-        ],
+        [explain_this_tab(~globals), assistant_tab(~globals)],
       ),
     ],
   );
-};
 
 let updateElementStyles = (new_width: int) => {
   let elements = [
@@ -93,7 +86,6 @@ let updateElementStyles = (new_width: int) => {
     ("prompt-display-container", "right"),
     ("history-menu", "right"),
   ];
-
   List.iter(
     ((id, style)) => {
       switch (get_elem_by_id_opt(id)) {
@@ -165,7 +157,7 @@ let resize_handle = (): Node.t => {
     let doc = Js.Unsafe.coerce(Dom_html.document);
     let _ = doc##addEventListener("mousemove", handle_mousemove);
     let _ = doc##addEventListener("mouseup", handle_mouseup);
-    Virtual_dom.Vdom.Effect.Ignore;
+    Effect.Ignore;
   };
 
   div(

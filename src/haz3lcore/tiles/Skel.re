@@ -191,8 +191,6 @@ module Stacks = {
   let finish = stacks => push_output(stacks);
 };
 
-[@deriving show({with_path: false})]
-type dip = list(ip);
 let mk = (seg: list(ip)): t => {
   let stacks =
     seg
