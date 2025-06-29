@@ -84,13 +84,12 @@ let suffix_of = (candidate: Token.t, current: Token.t): option(Token.t) => {
 };
 
 /* Returns the text content of the suggestion buffer */
-let get_buffer = (z: Zipper.t): option(Token.t) => {
+let get_buffer = (z: Zipper.t): option(Token.t) =>
   switch (z.selection.mode, z.selection.content) {
   | (Buffer(Unparsed), [Secondary({content: Comment(completion), _})]) =>
     Some(completion)
   | _ => None
   };
-};
 
 /* Populates the suggestion buffer with a type-directed suggestion */
 let set_buffer = (~info_map: Statics.Map.t, z: Zipper.t): option(Zipper.t) => {

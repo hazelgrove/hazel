@@ -48,7 +48,7 @@ module Model = {
   };
 
   let load = () => {
-    let settings = Settings.SettingsStore.load();
+    let settings = Settings.Store.load();
     {
       font_metrics: FontMetrics.init,
       show_backpack_targets: false,
@@ -75,7 +75,7 @@ module Model = {
   };
 
   let save = model => {
-    Settings.SettingsStore.save(model.settings);
+    Settings.Store.save(model.settings);
   };
 };
 

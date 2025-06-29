@@ -46,12 +46,6 @@ let remove = (piece: Base.piece, focus: Direction.t, z: Zipper.t): Zipper.t => {
   };
 };
 
-let remove_any_projector = (syntax: syntax) =>
-  switch (syntax) {
-  | Projector(pr) => pr.syntax
-  | x => x
-  };
-
 let update_piece =
     (f: Base.projector => Base.projector, id: Id.t, piece: Base.piece)
     : Base.segment =>
