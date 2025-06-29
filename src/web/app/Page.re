@@ -74,11 +74,17 @@ module Update = {
 
   let equal = (===);
 
-  let assistant_callback = (~schedule_action: t => unit, model: Model.t) =>
+  let assistant_callback =
+      (
+        ~schedule_action: t => unit,
+        model: Model.t,
+        editor: CodeEditable.Model.t,
+      ) =>
     AssistantUpdate.check_req(
       ~schedule_action=a => schedule_action(Assistant(a)),
       ~schedule_setting=a => schedule_action(Globals(Set(Assistant(a)))),
       ~chat_id=model.assistant.current_chats.curr_suggestion_chat,
+      ~editor,
     );
 
   let update_global =
