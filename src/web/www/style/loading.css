@@ -48,9 +48,9 @@
 
 #container .loading .spinner img {
   width: 1.2em;
-  animation: initial-spin 0.7s linear, continuous-spin 0.9s linear 0.7s infinite;
-  /* animation: rotation 0.75s linear infinite; */
-  /* animation-direction: reverse; */
+  /* animation: initial-spin 0.7s linear, continuous-spin 0.9s linear 0.7s infinite; */
+  animation: rotation 0.75s linear infinite;
+  animation-direction: reverse;
 }
 
 #container .loading .spinner .nut-container {
@@ -72,9 +72,9 @@
   border-radius: 50%;
   display: inline-block;
   box-sizing: border-box;
-  animation: initial-spin 0.7s linear reverse,
-    continuous-spin 8s linear 0.7s infinite reverse;
-  /* animation: rotation 8s linear infinite; */
+  /* animation: initial-spin 0.7s linear reverse,
+    continuous-spin 8s linear 0.7s infinite reverse; */
+  animation: rotation 8s linear infinite;
 }
 
 @keyframes rotation {
