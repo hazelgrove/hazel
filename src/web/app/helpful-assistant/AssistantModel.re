@@ -103,7 +103,14 @@ let mk_mode_prompt =
   let prompt =
     switch (mode) {
     | HazelTutor => Some(InitPrompts.mk_tutor())
-    | CodeSuggestion => None
+    | CodeSuggestion =>
+      Some(
+        ChatLSP.Completion.mk_const_prompt(
+          ChatLSP.Options.init,
+          "code_suggestion",
+          false,
+        ),
+      )
     | TaskCompletion => Some(InitPrompts.mk_composition())
     };
   prompt;
@@ -185,9 +192,7 @@ let new_chat = (model: t, mode: AssistantSettings.mode): chat => {
         model.init_prompt_data.init_tutor_chat.outgoing_messages,
         model.init_prompt_data.init_tutor_chat.message_displays,
       )
-    | CodeSuggestion =>
-      //todo: this is non functional right now, all initial prompting is done in chatlsp
-      (
+    | CodeSuggestion => (
         model.init_prompt_data.init_suggestion_chat_basic.outgoing_messages,
         model.init_prompt_data.init_suggestion_chat_basic.message_displays,
       )
