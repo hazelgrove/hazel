@@ -245,6 +245,7 @@ type exp = {
   co_ctx: CoCtx.t, /* Locally free variables */
   cls: Cls.t, /* DERIVED: Syntax class (i.e. form name) */
   status: status_exp, /* DERIVED: Ok/Error statuses for display */
+  warning: Warning.t,
   ty: Typ.t, /* DERIVED: Type after nonempty hole fixing */
   label_inference: option(label_inference(exp)), /* Label inference information for the tuple */
   inferred_label: option(LabeledTuple.label), /* Inferred label for an expression within the tuple */
@@ -262,6 +263,7 @@ type pat = {
   self: Self.pat,
   cls: Cls.t,
   status: status_pat,
+  warning: Warning.t,
   ty: Typ.t,
   constraint_: Coverage.Constraint.t,
   label_inference: option(label_inference(pat)),
@@ -277,6 +279,7 @@ type typ = {
   expects: typ_expects,
   cls: Cls.t,
   status: status_typ,
+  warning: Warning.t,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -286,6 +289,7 @@ type tpat = {
   ctx: Ctx.t,
   cls: Cls.t,
   status: status_tpat,
+  warning: Warning.t,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -370,6 +374,14 @@ let error_of: t => option(error) =
   | InfoPat({status: InHole(err), _}) => Some(Pat(err))
   | InfoTyp({status: InHole(err), _}) => Some(Typ(err))
   | InfoTPat({status: InHole(err), _}) => Some(TPat(err))
+  | Secondary(_) => None;
+
+let warning_of: t => Warning.t =
+  fun
+  | InfoExp({warning, _})
+  | InfoPat({warning, _})
+  | InfoTyp({warning, _})
+  | InfoTPat({warning, _}) => warning
   | Secondary(_) => None;
 
 let exp_co_ctx: exp => CoCtx.t = ({co_ctx, _}) => co_ctx;
@@ -716,6 +728,20 @@ let is_error = (ci: t): bool => {
   };
 };
 
+let is_warning = (ci: t): bool => {
+  switch (ci) {
+  | InfoExp({warning, _})
+  | InfoPat({warning, _})
+  | InfoTyp({warning, _})
+  | InfoTPat({warning, _}) =>
+    switch (warning) {
+    | None => false
+    | _ => true
+    }
+  | Secondary(_) => false
+  };
+};
+
 /* Determined the type of an expression or pattern 'after hole fixing';
    that is, some ill-typed terms are considered to be 'wrapped in
    non-empty holes', i.e. assigned Unknown type. */
@@ -793,6 +819,7 @@ let derived_exp =
       ~ancestors,
       ~self,
       ~co_ctx,
+      ~warning: Warning.t,
       ~label_inference: option(label_inference(exp)),
       ~inferred_label: option(LabeledTuple.label),
       ~label_sort,
@@ -807,6 +834,7 @@ let derived_exp =
     ty,
     ana,
     status,
+    warning,
     ctx,
     co_ctx,
     ancestors,
@@ -831,6 +859,7 @@ let derived_pat =
       ~label_inference,
       ~inferred_label,
       ~label_sort,
+      ~warning: Warning.t,
     )
     : pat => {
   let cls = Cls.Pat(Pat.cls_of_term(upat.term));
@@ -843,6 +872,7 @@ let derived_pat =
     ana,
     ty,
     status,
+    warning,
     ctx,
     co_ctx,
     ancestors,
@@ -855,7 +885,8 @@ let derived_pat =
 };
 
 /* Add derivable attributes for types */
-let derived_typ = (~utyp: Typ.t, ~ctx, ~ancestors, ~expects): typ => {
+let derived_typ =
+    (~utyp: Typ.t, ~ctx, ~ancestors, ~expects, ~warning: Warning.t): typ => {
   let cls: Cls.t =
     /* Hack to improve CI display */
     switch (expects, Typ.cls_of_term(utyp.term)) {
@@ -869,19 +900,22 @@ let derived_typ = (~utyp: Typ.t, ~ctx, ~ancestors, ~expects): typ => {
     ctx,
     ancestors,
     status,
+    warning,
     expects,
     term: utyp,
   };
 };
 
 /* Add derivable attributes for type patterns */
-let derived_tpat = (~utpat: TPat.t, ~ctx, ~ancestors): tpat => {
+let derived_tpat =
+    (~utpat: TPat.t, ~ctx, ~ancestors, ~warning: Warning.t): tpat => {
   let cls = Cls.TPat(TPat.cls_of_term(utpat.term));
   let status = status_tpat(ctx, utpat);
   {
     cls,
     ancestors,
     status,
+    warning,
     ctx,
     term: utpat,
   };
