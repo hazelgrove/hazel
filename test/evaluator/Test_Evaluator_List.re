@@ -4,7 +4,7 @@ open Test_Evaluator_Prelude;
 let tests = (
   "Evaluator.List",
   [
-    test_case("Cast goes through cons", `Quick, () => {
+    test_case("Ascription goes through cons", `Quick, () => {
       parse_and_evaluate_test(
         "? : [Int]",
         {|let x :: y = ((1 :: ?): [Int]) in y|},
@@ -21,6 +21,9 @@ let tests = (
         "[1 : String,2 : String,3 : String]",
         {|type T = [String] in [1,2,3] : T|},
       )
+    }),
+    test_case("List cons passes type inside", `Quick, () => {
+      parse_and_evaluate_test({|[1, "hello" : Int]|}, {|1 :: ["hello"]|})
     }),
   ],
 );
