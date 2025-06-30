@@ -223,6 +223,19 @@ let common_err_view =
   );
 };
 
+let common_warn_view = (warning: Warning.t) => {
+  switch (warning) {
+  | WarningPat(w) =>
+    switch (w) {
+    | UnusedVar(name) => [text("Warning: Unused variable "), code(name)]
+    | _ => [text("Warning: " ++ Warning.show(warning))]
+    }
+  | WarningExp(_)
+  | WarningTyp(_)
+  | WarningTPat(_) => [text("Warning: " ++ Warning.show(warning))]
+  | None => []
+  };
+};
 let common_ok_view =
     (
       ~globals,
@@ -569,7 +582,6 @@ let rec pat_view =
       ),
     )
   | NotInHole(ok) =>
-    // get warnings from info map
     let ok_view =
       common_ok_view(
         ~globals,
@@ -589,8 +601,12 @@ let rec pat_view =
     | WarningPat(_)
     | WarningExp(_)
     | WarningTyp(_)
-    | WarningTPat(_) when globals.settings.core.display_warnings =>
-      div_warn(ok_view)
+    | WarningTPat(_) =>
+      if (globals.settings.core.display_warnings) {
+        div_warn(common_warn_view(info.warning));
+      } else {
+        div_ok(ok_view);
+      }
     | _ => div_ok(ok_view)
     };
   };
