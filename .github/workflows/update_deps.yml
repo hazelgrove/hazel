@@ -56,7 +56,10 @@ jobs:
           git switch -c bot/update-deps
 
       - name: Run change-deps
-        run: make change-deps
+        run: |
+           eval $(opam env)
+           export OPAMYES=1
+           make change-deps
 
       - name: Check for changes
         id: changes
