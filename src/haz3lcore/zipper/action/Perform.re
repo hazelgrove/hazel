@@ -205,32 +205,41 @@ let go_z =
     |> Option.map(remold_regrout(d))
     |> Result.of_option(~error=Action.Failure.Cant_destruct)
   | Insert(char) =>
-    if (char == "#") {
-      // Wraps selected text in # comments
-      let selection_text = Printer.to_string_selection(z);
-      let lines = StringUtil.to_lines(selection_text);
-      let commented_lines = List.map(line => char ++ line ++ char, lines);
-      paste(z, String.concat("\n", commented_lines))
-      |> Result.of_option(~error=Action.Failure.Cant_insert);
-    } else {
-      let id =
-        switch (Indicated.index(z)) {
-        | Some(id) => id
-        | None => Id.invalid
-        };
+    let id =
+      switch (Indicated.index(z)) {
+      | Some(id) => id
+      | None => Id.invalid
+      };
 
-      let ctx =
-        switch (Id.Map.find_opt(id, statics.info_map)) {
-        | Some(ci) => Info.ctx_of(ci)
-        | None => Ctx.empty
-        };
+    let ctx =
+      switch (Id.Map.find_opt(id, statics.info_map)) {
+      | Some(ci) => Info.ctx_of(ci)
+      | None => Ctx.empty
+      };
 
-      z
-      |> Insert.go(char, ~ctx)
-      /* note: remolding here is done case-by-case */
-      //|> Option.map((z) => remold_regrout(Right, z))
-      |> Result.of_option(~error=Action.Failure.Cant_insert);
-    }
+    z
+    |> Insert.go(char, ~ctx)
+    /* note: remolding here is done case-by-case */
+    //|> Option.map((z) => remold_regrout(Right, z))
+    |> Result.of_option(~error=Action.Failure.Cant_insert);
+  | Comment =>
+    // Wraps selected text in # comments
+    let selection_text = Printer.to_string_selection(z);
+    let lines = StringUtil.to_lines(selection_text);
+    let commented_lines =
+      List.map(
+        line => {
+          let is_commented = StringUtil.trim_leading(line).[0] == '#';
+          if (is_commented) {
+            StringUtil.replace(StringUtil.regexp("#"), line, "");
+          } else {
+            "#" ++ line ++ "#";
+          };
+        },
+        lines,
+      );
+    paste(z, String.concat("\n", commented_lines))
+    |> Result.of_option(~error=Action.Failure.Cant_insert);
   | Pick_up => Ok(remold_regrout(Left, Zipper.pick_up(z)))
   | Put_down =>
     let z =

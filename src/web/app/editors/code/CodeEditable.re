@@ -57,6 +57,7 @@ module Update = {
              | Insert(_)
              | Pick_up
              | Put_down
+             | Comment
              | RotateBackpack
              | MoveToBackpackTarget(_)
              | Buffer(Set(_) | Accept | Clear)

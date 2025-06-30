@@ -92,6 +92,7 @@ type t =
   | Insert(string)
   | RotateBackpack
   | MoveToBackpackTarget(planar)
+  | Comment
   | Pick_up
   | Put_down
   | Introduce;
@@ -129,6 +130,7 @@ let is_edit: t => bool =
   | Destruct(_)
   | Pick_up
   | Put_down
+  | Comment
   | Introduce
   | Buffer(Accept | Clear | Set(_)) => true
   | Copy
@@ -167,6 +169,7 @@ let is_historic: t => bool =
   | Destruct(_)
   | Pick_up
   | Put_down
+  | Comment
   | Introduce => true
   | Project(p) =>
     switch (p) {
@@ -193,6 +196,7 @@ let prevent_in_read_only_editor = (a: t) => {
   | Insert(_)
   | Pick_up
   | Put_down
+  | Comment
   | RotateBackpack
   | MoveToBackpackTarget(_)
   | Introduce => true
@@ -231,6 +235,7 @@ let should_animate: t => bool =
   | Destruct(_)
   | Pick_up
   | Put_down
+  | Comment
   | Buffer(Accept | Clear | Set(_))
   | Copy
   | Move(_)
