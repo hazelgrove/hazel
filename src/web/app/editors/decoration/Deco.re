@@ -367,40 +367,37 @@ module Deco =
       "Assoc IDs: "
       ++ String.concat(", ", List.map(id => Zipper.short_id(id), assoc_ids)),
     );
-    let tiles =
-      assoc_ids
-      |> List.filter_map(id => Id.Map.find_opt(id, M.editor.syntax.tiles));
-    switch (tiles) {
+    switch (assoc_ids) {
     | [] =>
       Highlight.go(
         z.selection.content,
         Some(fst(Siblings.shapes(z.relatives.siblings))),
         ["selected"] @ (Selection.is_buffer(z.selection) ? ["buffer"] : []),
       )
-    | tiles =>
-      let segment = tiles |> List.concat_map(Tile.disassemble);
-      // Deduplicate pieces by ID to avoid duplicates from Tile.disassemble
+    | assoc_ids =>
       let unique_segment =
-        List.fold_left(
-          (acc, piece) => {
-            let piece_id = Piece.id(piece);
-            if (List.exists(p => Piece.id(p) == piece_id, acc)) {
-              acc; // Skip if we've already seen this ID
-            } else {
-              [
-                piece,
-                ...acc // Add to accumulator
-              ];
-            };
-          },
-          [],
-          segment,
-        )
-        |> List.rev; // Reverse to maintain original order
-      let segment_ids =
-        unique_segment |> List.map(piece => Zipper.short_id(Piece.id(piece)));
+        Zipper.zip(z)
+        |> List.fold_left(
+             (acc, piece) => {
+               let pid = Piece.id(piece);
+               if (List.exists(id => id == pid, assoc_ids)
+                   && !List.exists(p => Piece.id(p) == pid, acc)) {
+                 acc @ [piece];
+               } else {
+                 acc;
+               };
+             },
+             [],
+           );
       print_endline(
-        "Segment piece IDs: " ++ String.concat(", ", segment_ids),
+        "IDs drawn in selection: "
+        ++ String.concat(
+             ", ",
+             List.map(
+               piece => Zipper.short_id(Piece.id(piece)),
+               unique_segment,
+             ),
+           ),
       );
       Highlight.go(
         unique_segment,
@@ -630,7 +627,6 @@ module Deco =
 
   // original version
   // let selection = (z: Zipper.t) => div_c("selects", segment_selected(z));
-
   // associative version with selection snapping
   let selection = (z: Zipper.t) => div_c("selects", associative_segment(z));
 
