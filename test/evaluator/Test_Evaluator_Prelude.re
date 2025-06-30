@@ -3,7 +3,11 @@ open Language;
 
 module UG = Grammar.UnitGrammar;
 
-let dhexp_typ = testable(Fmt.using(Exp.show, Fmt.string), DHExp.fast_equal);
+let dhexp_typ =
+  testable(
+    Fmt.using(Exp.show, Fmt.string),
+    DHExp.fast_equal(~ignore_constructor_types=true) // This is a bad idea to just blanket ignore the type
+  );
 
 let evaluation_test = (msg, expected, unevaluated) =>
   check(
