@@ -34,7 +34,7 @@ let tests = [
     )
   }),
   fully_consistent_typecheck(
-    "Forall alpha equivalent in cast",
+    "Forall alpha equivalent in ascription",
     {|let x : forall a -> a = in (x : forall b -> b)|},
     FTemp.Typ.(Some(forall(TPat.var("b"), var("b")))),
   ),
