@@ -115,7 +115,7 @@ type t = Spec.t(Drv.Exp.t);
 
 module M_Id = {
   module M_Id =
-    Grammar.Drv.M({
+    DrvGrammar.M({
       [@deriving (show({with_path: false}), sexp, yojson, eq)]
       type t('a, 'b) = 'a;
     });

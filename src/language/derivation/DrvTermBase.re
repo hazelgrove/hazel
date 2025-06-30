@@ -2,25 +2,25 @@ let continue = x => x;
 let stop = (_, x) => x;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type any_t = Grammar.Drv.any_t(IdTagged.IdTag.t);
+type any_t = DrvGrammar.any_t(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
-type exp_t = Grammar.Drv.exp_t(IdTagged.IdTag.t);
+type exp_t = DrvGrammar.exp_t(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
-type exp_term = Grammar.Drv.exp_term(IdTagged.IdTag.t);
+type exp_term = DrvGrammar.exp_term(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
-type pat_t = Grammar.Drv.pat_t(IdTagged.IdTag.t);
+type pat_t = DrvGrammar.pat_t(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
-type pat_term = Grammar.Drv.pat_term(IdTagged.IdTag.t);
+type pat_term = DrvGrammar.pat_term(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
-type typ_t = Grammar.Drv.typ_t(IdTagged.IdTag.t);
+type typ_t = DrvGrammar.typ_t(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
-type typ_term = Grammar.Drv.typ_term(IdTagged.IdTag.t);
+type typ_term = DrvGrammar.typ_term(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
-type tpat_t = Grammar.Drv.tpat_t(IdTagged.IdTag.t);
+type tpat_t = DrvGrammar.tpat_t(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
-type tpat_term = Grammar.Drv.tpat_term(IdTagged.IdTag.t);
+type tpat_term = DrvGrammar.tpat_term(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
-type type_hole = Grammar.Drv.type_hole(IdTagged.IdTag.t);
+type type_hole = DrvGrammar.type_hole(IdTagged.IdTag.t);
 
 module rec Any: {
   [@deriving (show({with_path: false}), sexp, yojson)]

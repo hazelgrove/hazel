@@ -289,7 +289,7 @@ and Exp: {
   };
 
   let rec fast_equal = (e1: t, e2: t) =>
-    switch (e1 |> Grammar.Annotated.term_of, e2 |> Grammar.Annotated.term_of) {
+    switch (e1 |> Annotated.term_of, e2 |> Annotated.term_of) {
     | (DynamicErrorHole(x, _), _)
     | (Parens(x), _) => fast_equal(x, e2)
     | (_, DynamicErrorHole(x, _))
@@ -484,7 +484,7 @@ and Pat: {
   };
 
   let rec fast_equal = (p1: t, p2: t) =>
-    switch (p1 |> Grammar.Annotated.term_of, p2 |> Grammar.Annotated.term_of) {
+    switch (p1 |> Annotated.term_of, p2 |> Annotated.term_of) {
     /* Below is kind of a hack to make EvalResult.calculate go after adding a projector.
      * We should clarify syntactic/semantic equality here */
     | (Probe(x1, _), Probe(x2, _)) => fast_equal(x1, x2)
@@ -622,7 +622,7 @@ and Typ: {
   let rec subst = (s: t, x: TPat.t, ty: t): typ_t => {
     switch (TPat.tyvar_of_utpat(x)) {
     | Some(str) =>
-      let (term, rewrap) = Grammar.Annotated.unwrap(ty);
+      let (term, rewrap) = Annotated.unwrap(ty);
       switch (term) {
       | Atom(_) => ty
       | DrvTyp(d) => Grammar.DrvTyp(d) |> rewrap
@@ -654,7 +654,7 @@ and Typ: {
      Other types may be equivalent but this will not detect so if they are not normalized. */
 
   let rec eq_internal = (~alpha_equivalence: bool, n: int, t1: t, t2: t) => {
-    switch (Grammar.Annotated.term_of(t1), Grammar.Annotated.term_of(t2)) {
+    switch (Annotated.term_of(t1), Annotated.term_of(t2)) {
     | (Parens(t1), _) => eq_internal(~alpha_equivalence, n, t1, t2)
     | (_, Parens(t2)) => eq_internal(~alpha_equivalence, n, t1, t2)
     | (TupLabel(label1, t1'), TupLabel(label2, t2')) =>
@@ -778,10 +778,7 @@ and TPat: {
     };
 
   let fast_equal = (tp1: t, tp2: t) =>
-    switch (
-      tp1 |> Grammar.Annotated.term_of,
-      tp2 |> Grammar.Annotated.term_of,
-    ) {
+    switch (tp1 |> Annotated.term_of, tp2 |> Annotated.term_of) {
     | (EmptyHole, EmptyHole) => true
     | (Invalid(s1), Invalid(s2)) => s1 == s2
     | (MultiHole(xs), MultiHole(ys)) =>
@@ -857,7 +854,7 @@ and Rul: {
   };
 
   let fast_equal = (r1: t, r2: t) =>
-    switch (r1 |> Grammar.Annotated.term_of, r2 |> Grammar.Annotated.term_of) {
+    switch (r1 |> Annotated.term_of, r2 |> Annotated.term_of) {
     | (Invalid(s1), Invalid(s2)) => s1 == s2
     | (Hole(xs), Hole(ys)) =>
       List.length(xs) == List.length(ys)

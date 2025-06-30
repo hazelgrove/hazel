@@ -945,8 +945,8 @@ module Any = {
        )
     |> (
       fun
-      | [] => Grammar.Drv.EmptyHole
-      | tms => Grammar.Drv.MultiHole(tms)
+      | [] => DrvGrammar.EmptyHole
+      | tms => DrvGrammar.MultiHole(tms)
     );
 
   let rec ids: TermBase.any_t => list(Id.t) =

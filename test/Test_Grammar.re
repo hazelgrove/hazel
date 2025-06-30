@@ -45,7 +45,7 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | Atom(Nat) => nat(Bigint.one)
       | DrvExp =>
         // TODO(zhiyao): I might need instructions on how to write this part for derivation term
-        drv_exp(Drv.placeholder(), DrvSort.Jdmt)
+        drv_exp(DrvGrammar.placeholder(), DrvSort.Jdmt)
       | ListLit => list_lit([])
       | Constructor => constructor("A", None)
       | Fun => fn(Pat.var("x"), var("x"), None, None)

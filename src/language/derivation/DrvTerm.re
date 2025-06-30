@@ -56,7 +56,7 @@ module Exp = {
     | Falsity
     | NumLit
     | Neg
-    | BinOp(Grammar.Drv.op_bin)
+    | BinOp(DrvGrammar.op_bin)
     | True
     | False
     | If

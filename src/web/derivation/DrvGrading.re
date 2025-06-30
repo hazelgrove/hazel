@@ -112,7 +112,7 @@ module VerifiedTree = {
                 |> List.map(
                      fun
                      | Some(prem) => prem
-                     | None => Drv.Exp.fresh(Hole(Grammar.Drv.EmptyHole)),
+                     | None => Drv.Exp.fresh(Hole(DrvGrammar.EmptyHole)),
                    );
               let res = RuleVerify.verify(spec, (concl, prems));
               switch (res) {

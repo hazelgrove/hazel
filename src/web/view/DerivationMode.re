@@ -832,31 +832,6 @@ module View = {
         [editor_view(Setup, setup, ~caption="Setup", ~sort=Exp)],
       );
 
-    // let editor_view =
-    //     (
-    //       this_pos,
-    //       ~editor,
-    //       ~di: Exp.t,
-    //       ~caption,
-    //       ~footer,
-    //       ~sort,
-    //     ) =>
-    //   Cell.editor_view(
-    //     ~selected=(Proof(pos): Exercise.pos) == this_pos,
-    //     ~override_statics=di.statics,
-    //     ~inject,
-    //     ~ui_state,
-    //     ~mousedown_updates=[SwitchEditor(this_pos)],
-    //     ~settings,
-    //     ~highlights,
-    //     ~caption,
-    //     ~target_id=Exercise.show_pos(this_pos),
-    //     ~test_results=ModelResult.test_results(di.result),
-    //     ~footer,
-    //     ~sort,
-    //     editor,
-    //   );
-
     let conclusion_view = (~pos, ~editor) =>
       div(
         ~attrs=[Attr.class_("deduction-concl")],
