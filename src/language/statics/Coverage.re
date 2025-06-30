@@ -280,6 +280,7 @@ module type UnseenPatternList = {
   type t;
 
   let empty: t;
+
   let is_empty: t => bool;
 
   let has_holes: t => bool;
@@ -1219,171 +1220,216 @@ type result = {
   unseen_pattern: UnseenPatternList.t,
 };
 
-// We assume col_tys is already normalized.
-let rec check_matrix = (m: Matrix.t, col_tys: list(Typ.t)): result => {
-  switch (col_tys) {
-  | [] => failwith("Empty column types.")
-  | [first_col_ty, ...rem_col_tys] =>
-    if (Typ.is_void(first_col_ty)) {
-      {
-        is_exhaustive: true,
-        redundant_rows: List.init(List.length(m), i => i),
-        unseen_pattern: UnseenPatternList.empty,
-      };
-    } else {
-      let all_ctrs = Ctr.all_ctrs_of_typ(first_col_ty);
-      let Submatrices.{
-        ctrs,
-        first_col_exhaustive,
-        first_col_redundant_rows,
-        cons_unseen_ctr,
-        cons_unseen_type_default,
-      } =
-        Submatrices.of_matrix(m, all_ctrs, first_col_ty);
+module type CheckMatrix = {
+  let check: (list(Constraint.t), Typ.t) => result;
+};
 
-      let (is_exhaustive, redundant_rows, unseen_pattern) =
-        Ctr.Map.fold(
-          (ctr, submatrix, (is_exhaustive, redundant_rows, unseen_pattern)) => {
-            // for each submatrix, recursively check_matrix, computing the col_tys based
-            // on the first_col_ty and the constructor name.
-            let arity = Ctr.arity_of(ctr, all_ctrs);
-            let col_tys = arity @ rem_col_tys;
-            switch (col_tys) {
-            | [] =>
-              let unseen_pat_has_holes =
-                UnseenPatternList.(
-                  has_holes(unseen_pattern) || is_empty(unseen_pattern)
-                );
+module CheckMatrix: CheckMatrix = {
+  let extend_empty_unseen_pat =
+      (
+        ctr: Ctr.t,
+        first_col_exhaustive: bool,
+        cons_unseen_ctr: (Ctr.t, UnseenPatternList.t) => UnseenPatternList.t,
+        cons_unseen_type_default:
+          (Ctr.t, UnseenPatternList.t) => UnseenPatternList.t,
+        unseen_pattern: UnseenPatternList.t,
+      ) => {
+    let unseen_pat_has_holes =
+      UnseenPatternList.(
+        has_holes(unseen_pattern) || is_empty(unseen_pattern)
+      );
 
-              let unseen_pattern =
-                switch (ctr.status) {
-                | Okay =>
-                  if (first_col_exhaustive) {
-                    cons_unseen_type_default(ctr, UnseenPatternList.empty);
-                  } else {
-                    cons_unseen_ctr(ctr, UnseenPatternList.empty);
-                  }
-                | Ctr.InHole when unseen_pat_has_holes => unseen_pattern
-                | Ctr.NEHole when unseen_pat_has_holes =>
-                  UnseenPatternList.cons_wild(
-                    Ctr.NEHole,
-                    UnseenPatternList.empty,
-                  )
-                | Ctr.NEHole
-                | Ctr.InHole
-                | Ctr.Unknown => unseen_pattern
-                };
+    switch (ctr.status) {
+    | Okay =>
+      if (first_col_exhaustive) {
+        cons_unseen_type_default(ctr, UnseenPatternList.empty);
+      } else {
+        cons_unseen_ctr(ctr, UnseenPatternList.empty);
+      }
+    | Ctr.InHole when unseen_pat_has_holes => unseen_pattern
+    | Ctr.NEHole when unseen_pat_has_holes =>
+      UnseenPatternList.cons_wild(Ctr.NEHole, UnseenPatternList.empty)
+    | Ctr.NEHole
+    | Ctr.InHole
+    | Ctr.Unknown => unseen_pattern
+    };
+  };
 
-              (is_exhaustive, redundant_rows, unseen_pattern);
-            | _ =>
-              let {
-                is_exhaustive: is_submatrix_exhaustive,
-                redundant_rows: submatrix_redundant_rows,
-                unseen_pattern: submatrix_unseen_pattern,
-              } =
-                check_matrix(submatrix, col_tys);
-
-              let is_still_exhaustive =
-                is_exhaustive && is_submatrix_exhaustive;
-
-              let submatrix_pat_has_less_errs =
-                UnseenPatternList.has_less_errors(
-                  submatrix_unseen_pattern,
-                  unseen_pattern,
-                )
-                || UnseenPatternList.is_empty(unseen_pattern);
-
-              // update the unseen list based on exhaustiveness
-              let unseen_pattern =
-                switch (ctr.status) {
-                | Ctr.Okay =>
-                  let new_unseen_pattern =
-                    if (is_still_exhaustive && !first_col_exhaustive) {
-                      // if the following column did not break exhaustiveness, but this one does,
-                      // we place the unseen value into the list
-                      cons_unseen_ctr(
-                        ctr,
-                        submatrix_unseen_pattern,
-                      );
-                    } else if (is_still_exhaustive && first_col_exhaustive) {
-                      // If the following column did not break exhaustiveness,
-                      // and this one also doesn't, use the default unseen value
-                      // for the type
-                      cons_unseen_type_default(
-                        ctr,
-                        submatrix_unseen_pattern,
-                      );
-                    } else if (!is_submatrix_exhaustive) {
-                      // otherwise, we just use a default/known to exist ctr
-                      // from an inexhaustive pattern.
-                      // This effectively builds a chain of "known" values that
-                      // are already in a pattern, so we don't have to "make stuff up".
-                      UnseenPatternList.cons_ctr(
-                        ctr,
-                        first_col_ty,
-                        submatrix_unseen_pattern,
-                      );
-                    } else {
-                      unseen_pattern;
-                    };
-
-                  if (UnseenPatternList.has_holes(new_unseen_pattern)) {
-                    if (UnseenPatternList.has_less_errors(
-                          new_unseen_pattern,
-                          unseen_pattern,
-                        )
-                        || first_col_exhaustive) {
-                      // TODO: may have a bug that allows worse patterns to replace better ones
-                      // allow certain invalid patterns to replace valid ones
-                      new_unseen_pattern;
-                    } else {
-                      unseen_pattern;
-                    };
-                  } else {
-                    new_unseen_pattern;
-                  };
-                | Ctr.InHole when submatrix_pat_has_less_errs => submatrix_unseen_pattern
-                | Ctr.NEHole when submatrix_pat_has_less_errs =>
-                  UnseenPatternList.cons_wild(
-                    Ctr.NEHole,
-                    submatrix_unseen_pattern,
-                  )
-                | Ctr.NEHole
-                | Ctr.InHole
-                | Ctr.Unknown => unseen_pattern
-                };
-
-              let redundant_rows =
-                List.filter(
-                  (idx: int) => {
-                    !Matrix.contains_row(idx, submatrix)
-                    || List.mem(idx, submatrix_redundant_rows)
-                  },
-                  redundant_rows,
-                );
-
-              (is_still_exhaustive, redundant_rows, unseen_pattern);
-            };
-          },
-          ctrs,
-          (
-            true, // fold initialized to true regardless of current column so unseen checks work.
-            first_col_redundant_rows,
-            UnseenPatternList.empty,
-          ),
-        );
-
-      {
-        is_exhaustive: is_exhaustive && first_col_exhaustive,
-        redundant_rows,
+  let extend_unseen_pat =
+      (
+        ctr: Ctr.t,
+        first_col_ty: Typ.t,
+        is_still_exhaustive: bool,
+        first_col_exhaustive: bool,
+        is_submatrix_exhaustive: bool,
+        submatrix_unseen_pattern: UnseenPatternList.t,
+        cons_unseen_ctr: (Ctr.t, UnseenPatternList.t) => UnseenPatternList.t,
+        cons_unseen_type_default:
+          (Ctr.t, UnseenPatternList.t) => UnseenPatternList.t,
+        unseen_pattern: UnseenPatternList.t,
+      ) => {
+    let submatrix_pat_has_less_errs =
+      UnseenPatternList.has_less_errors(
+        submatrix_unseen_pattern,
         unseen_pattern,
+      )
+      || UnseenPatternList.is_empty(unseen_pattern);
+
+    // update the unseen list based on exhaustiveness
+    switch (ctr.status) {
+    | Ctr.Okay =>
+      let new_unseen_pattern =
+        if (is_still_exhaustive && !first_col_exhaustive) {
+          // if the following column did not break exhaustiveness, but this one does,
+          // we place the unseen value into the list
+          cons_unseen_ctr(
+            ctr,
+            submatrix_unseen_pattern,
+          );
+        } else if (is_still_exhaustive && first_col_exhaustive) {
+          // If the following column did not break exhaustiveness,
+          // and this one also doesn't, use the default unseen value
+          // for the type
+          cons_unseen_type_default(
+            ctr,
+            submatrix_unseen_pattern,
+          );
+        } else if (!is_submatrix_exhaustive) {
+          // otherwise, we just use a default/known to exist ctr
+          // from an inexhaustive pattern.
+          // This effectively builds a chain of "known" values that
+          // are already in a pattern, so we don't have to "make stuff up".
+          UnseenPatternList.cons_ctr(
+            ctr,
+            first_col_ty,
+            submatrix_unseen_pattern,
+          );
+        } else {
+          unseen_pattern;
+        };
+
+      if (UnseenPatternList.has_holes(new_unseen_pattern)) {
+        if (UnseenPatternList.has_less_errors(
+              new_unseen_pattern,
+              unseen_pattern,
+            )
+            || first_col_exhaustive) {
+          // TODO: may have a bug that allows worse patterns to replace better ones
+          // allow certain invalid patterns to replace valid ones
+          new_unseen_pattern;
+        } else {
+          unseen_pattern;
+        };
+      } else {
+        new_unseen_pattern;
       };
-    }
+    | Ctr.InHole when submatrix_pat_has_less_errs => submatrix_unseen_pattern
+    | Ctr.NEHole when submatrix_pat_has_less_errs =>
+      UnseenPatternList.cons_wild(Ctr.NEHole, submatrix_unseen_pattern)
+    | Ctr.NEHole
+    | Ctr.InHole
+    | Ctr.Unknown => unseen_pattern
+    };
+  };
+
+  // We assume col_tys is already normalized.
+  let rec check_matrix = (m: Matrix.t, col_tys: list(Typ.t)): result => {
+    switch (col_tys) {
+    | [] => failwith("Empty column types.")
+    | [first_col_ty, ...rem_col_tys] =>
+      if (Typ.is_void(first_col_ty)) {
+        {
+          is_exhaustive: true,
+          redundant_rows: List.init(List.length(m), i => i),
+          unseen_pattern: UnseenPatternList.empty,
+        };
+      } else {
+        let all_ctrs = Ctr.all_ctrs_of_typ(first_col_ty);
+        let Submatrices.{
+          ctrs,
+          first_col_exhaustive,
+          first_col_redundant_rows,
+          cons_unseen_ctr,
+          cons_unseen_type_default,
+        } =
+          Submatrices.of_matrix(m, all_ctrs, first_col_ty);
+
+        let (is_exhaustive, redundant_rows, unseen_pattern) =
+          Ctr.Map.fold(
+            (ctr, submatrix, (is_exhaustive, redundant_rows, unseen_pattern)) => {
+              // for each submatrix, recursively check_matrix, computing the col_tys based
+              // on the first_col_ty and the constructor name.
+              let arity = Ctr.arity_of(ctr, all_ctrs);
+              let col_tys = arity @ rem_col_tys;
+              switch (col_tys) {
+              | [] =>
+                let unseen_pattern =
+                  extend_empty_unseen_pat(
+                    ctr,
+                    first_col_exhaustive,
+                    cons_unseen_ctr,
+                    cons_unseen_type_default,
+                    unseen_pattern,
+                  );
+                (is_exhaustive, redundant_rows, unseen_pattern);
+              | _ =>
+                let {
+                  is_exhaustive: is_submatrix_exhaustive,
+                  redundant_rows: submatrix_redundant_rows,
+                  unseen_pattern: submatrix_unseen_pattern,
+                } =
+                  check_matrix(submatrix, col_tys);
+
+                let is_still_exhaustive =
+                  is_exhaustive && is_submatrix_exhaustive;
+
+                let unseen_pattern =
+                  extend_unseen_pat(
+                    ctr,
+                    first_col_ty,
+                    is_still_exhaustive,
+                    first_col_exhaustive,
+                    is_submatrix_exhaustive,
+                    submatrix_unseen_pattern,
+                    cons_unseen_ctr,
+                    cons_unseen_type_default,
+                    unseen_pattern,
+                  );
+
+                let redundant_rows =
+                  List.filter(
+                    (idx: int) => {
+                      !Matrix.contains_row(idx, submatrix)
+                      || List.mem(idx, submatrix_redundant_rows)
+                    },
+                    redundant_rows,
+                  );
+
+                (is_still_exhaustive, redundant_rows, unseen_pattern);
+              };
+            },
+            ctrs,
+            (
+              true, // fold initialized to true regardless of current column so unseen checks work.
+              first_col_redundant_rows,
+              UnseenPatternList.empty,
+            ),
+          );
+
+        {
+          is_exhaustive: is_exhaustive && first_col_exhaustive,
+          redundant_rows,
+          unseen_pattern,
+        };
+      }
+    };
+  };
+
+  // IMPORTANT: ty should already be fully normalized.
+  let check = (xis: list(Constraint.t), ty: Typ.t): result => {
+    let res = check_matrix(Matrix.of_constraints(xis), [ty]);
+    res;
   };
 };
 
-// IMPORTANT: ty should already be fully normalized.
-let check = (xis: list(Constraint.t), ty: Typ.t): result => {
-  let res = check_matrix(Matrix.of_constraints(xis), [ty]);
-  res;
-};
+let check = CheckMatrix.check;
