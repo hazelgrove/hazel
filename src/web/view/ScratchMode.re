@@ -116,6 +116,38 @@ module Update = {
     JsUtil.QueryParams.set_param("name", name);
   };
 
+  let mk_new_scratchpad =
+      (model: Model.t, is_documentation: bool)
+      : list((string, CellEditor.Model.t)) => {
+    let new_key =
+      switch (is_documentation) {
+      | false =>
+        let used_scratchpads =
+          model.scratchpads
+          |> List.filter_map(scratchpad => {
+               switch (String.split_on_char(' ', fst(scratchpad))) {
+               | ["Scratchpad", num] => int_of_string_opt(num)
+               | _ => None
+               }
+             });
+        let unused_ids =
+          Seq.filter(i => !List.mem(i, used_scratchpads), Seq.ints(1));
+        let new_number =
+          Seq.uncons(unused_ids)
+          |> Option.get  // This is safe because unused_ids is infinite
+          |> fst;
+
+        "Scratchpad " ++ string_of_int(new_number);
+      | true =>
+        JsUtil.prompt("Enter new buffer name:", "New Buffer Name")
+        |> Option.get
+      };
+    let new_sp =
+      model.scratchpads
+      @ [(new_key, CellEditor.Model.mk(Editor.Model.mk(Zipper.init())))];
+    new_sp;
+  };
+
   let update =
       (
         ~schedule_action,
@@ -141,32 +173,7 @@ module Update = {
         current,
       };
     | AddSlide =>
-      let new_key =
-        switch (is_documentation) {
-        | false =>
-          let used_scratchpads =
-            model.scratchpads
-            |> List.filter_map(scratchpad => {
-                 switch (String.split_on_char(' ', fst(scratchpad))) {
-                 | ["Scratchpad", num] => int_of_string_opt(num)
-                 | _ => None
-                 }
-               });
-          let unused_ids =
-            Seq.filter(i => !List.mem(i, used_scratchpads), Seq.ints(1));
-          let new_number =
-            Seq.uncons(unused_ids)
-            |> Option.get  // This is safe because unused_ids is infinite
-            |> fst;
-
-          "Scratchpad " ++ string_of_int(new_number);
-        | true =>
-          JsUtil.prompt("Enter new buffer name:", "New Buffer Name")
-          |> Option.get
-        };
-      let new_sp: list((string, CellEditor.Model.t)) =
-        model.scratchpads
-        @ [(new_key, CellEditor.Model.mk(Editor.Model.mk(Zipper.init())))];
+      let new_sp = mk_new_scratchpad(model, is_documentation);
       Updated.return(
         {
           current: List.length(new_sp) - 1,
@@ -199,11 +206,20 @@ module Update = {
         let new_sp =
           ListUtil.remove_nth(model.current, model.scratchpads)
           |> Option.value(~default=model.scratchpads);
-
+        let safe_sp =
+          new_sp |> List.length == 0
+            ? mk_new_scratchpad(
+                {
+                  ...model,
+                  scratchpads: new_sp,
+                },
+                is_documentation,
+              )
+            : new_sp;
         Updated.return(
           {
             current: max(model.current - 1, 0),
-            scratchpads: new_sp,
+            scratchpads: safe_sp,
           }: Model.t,
         );
       } else {
