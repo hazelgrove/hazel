@@ -1,0 +1,2513 @@
+module Fresh = IdTagged.FreshGrammar;
+
+type fn = {
+  name: string,
+  arg: Typ.term,
+  ret: Typ.term,
+  str: string,
+  imp: Exp.t,
+};
+
+/*
+  DONE:
+  length
+  map
+  filter
+  fold_left
+  flat_map
+  zip
+  unzip
+  reverse
+  take
+  drop
+  range
+  enumerate
+  any
+  all
+  intersperse
+  cons
+  hd
+  tl
+  is_empty
+  nth
+  fold_right
+  append
+  concat
+  mapi
+  filteri
+  mem
+  partition
+  rev_append
+  fold_left2
+  fold_right2
+  map2
+  all2
+  any2
+  find
+  take_while
+  drop_while
+
+  DONE ALIASES:
+  contains
+  flatten
+  rev
+  exists
+  for_all
+  exists2
+  for_all2
+  concat_map
+  split
+  combine
+
+  DONE TYPES:
+  Option
+
+ IMPLEMENTED BUT TESTS FAILING:
+  sort
+  filter_map
+  nth_opt
+  find_opt
+  find_index
+  find_map
+  find_mapi
+
+ TODO:
+ init (misunderstood the first time around)
+ assocation lists
+
+  */
+
+open Fresh.Typ;
+let builtins = [
+  {
+    str: {|fix length -> fun xs -> case xs
+               | [] => 0
+               | [x] => 1
+               | x :: xs => 1 + length(xs)
+             end|},
+    name: "length",
+    arg: List(unknown(Internal)),
+    ret: Atom(Int),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("length"),
+            fn(
+              Pat.var("xs"),
+              match(
+                var("xs"),
+                [
+                  (Pat.list_lit([]), int(0)),
+                  (Pat.list_lit([Pat.wild()]), int(1)),
+                  (
+                    Pat.cons(Pat.wild(), Pat.var("xs")),
+                    bin_op(
+                      Int(Plus),
+                      int(1),
+                      ap(Forward, var("length"), var("xs")),
+                    ),
+                  ),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix map -> fun xs f -> case xs
+               | [] => []
+               | [x] => [f(x)]
+               | x :: xs => f(x) :: map(f, xs)
+             end|},
+    name: "map",
+    arg:
+      Prod([
+        list(unknown(Internal)),
+        arrow(unknown(Internal), unknown(Internal)),
+      ]),
+    ret: List(unknown(Internal)),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("map"),
+            fn(
+              Pat.tuple([Pat.var("xs"), Pat.var("f")]),
+              match(
+                var("xs"),
+                [
+                  (Pat.list_lit([]), list_lit([])),
+                  (
+                    Pat.list_lit([Pat.var("x")]),
+                    list_lit([ap(Forward, var("f"), var("x"))]),
+                  ),
+                  (
+                    Pat.cons(Pat.var("x"), Pat.var("xs")),
+                    cons(
+                      ap(Forward, var("f"), var("x")),
+                      ap(
+                        Forward,
+                        var("map"),
+                        tuple([var("xs"), var("f")]),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix filter -> fun xs f -> case xs
+             | [] => []
+             | [x] => if f(x) then [x] else []
+             | x :: xs => if f(x) then x :: filter(f, xs) else filter(f, xs)
+           end|},
+    name: "filter",
+    arg:
+      Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
+    ret: List(unknown(Internal)),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("filter"),
+            fn(
+              Pat.tuple([Pat.var("xs"), Pat.var("f")]),
+              match(
+                var("xs"),
+                [
+                  (Pat.list_lit([]), list_lit([])),
+                  (
+                    Pat.list_lit([Pat.var("x")]),
+                    if_(
+                      ap(Forward, var("f"), var("x")),
+                      list_lit([var("x")]),
+                      list_lit([]),
+                    ),
+                  ),
+                  (
+                    Pat.cons(Pat.var("x"), Pat.var("xs")),
+                    if_(
+                      ap(Forward, var("f"), var("x")),
+                      cons(
+                        var("x"),
+                        ap(
+                          Forward,
+                          var("filter"),
+                          tuple([var("xs"), var("f")]),
+                        ),
+                      ),
+                      ap(
+                        Forward,
+                        var("filter"),
+                        tuple([var("xs"), var("f")]),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix fold_left -> fun xs f acc -> case xs
+             | [] => acc
+             | [x] => f(acc, x)
+             | x :: xs => fold_left(xs, f, f(acc, x))
+           end|},
+    name: "fold_left",
+    arg:
+      Prod([
+        list(unknown(Internal)),
+        arrow(
+          prod([unknown(Internal), unknown(Internal)]),
+          unknown(Internal),
+        ),
+        unknown(Internal),
+      ]),
+    ret: Typ.term_of(unknown(Internal)),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("fold_left"),
+            fn(
+              Pat.tuple([Pat.var("xs"), Pat.var("f"), Pat.var("acc")]),
+              match(
+                var("xs"),
+                [
+                  (Pat.list_lit([]), var("acc")),
+                  (
+                    Pat.list_lit([Pat.var("x")]),
+                    ap(Forward, var("f"), tuple([var("acc"), var("x")])),
+                  ),
+                  (
+                    Pat.cons(Pat.var("x"), Pat.var("xs")),
+                    ap(
+                      Forward,
+                      var("fold_left"),
+                      tuple([
+                        var("xs"),
+                        var("f"),
+                        ap(
+                          Forward,
+                          var("f"),
+                          tuple([var("acc"), var("x")]),
+                        ),
+                      ]),
+                    ),
+                  ),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix flat_map -> fun (xs, f) -> fold_left(xs, fun (acc,x) -> acc @ f(x), []))([1,2],fun x ->[x,x])|},
+    name: "flat_map", //TODO: weird string content above
+    arg:
+      Prod([
+        list(unknown(Internal)),
+        arrow(unknown(Internal), list(unknown(Internal))),
+      ]),
+    ret: List(unknown(Internal)),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("flat_map"),
+            fn(
+              Pat.tuple([Pat.var("xs"), Pat.var("f")]),
+              ap(
+                Forward,
+                var("fold_left"),
+                tuple([
+                  var("xs"),
+                  fn(
+                    Pat.tuple([Pat.var("acc"), Pat.var("x")]),
+                    Exp.list_concat(
+                      ap(Forward, var("f"), var("x")),
+                      var("acc"),
+                    ),
+                    None,
+                    None,
+                  ),
+                  list_lit([]),
+                ]),
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix zip -> fun (xs, ys) -> case (xs, ys)
+             | [], _ => []
+             | _, [] => []
+             | (x :: xs, y :: ys) => (x,y) :: zip(xs,ys)
+           end|},
+    name: "zip",
+    arg: Prod([list(unknown(Internal)), list(unknown(Internal))]),
+    ret: List(prod([unknown(Internal), unknown(Internal)])),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("zip"),
+            fn(
+              Pat.tuple([Pat.var("xs"), Pat.var("ys")]),
+              match(
+                tuple([var("xs"), var("ys")]),
+                [
+                  (Pat.tuple([Pat.list_lit([]), Pat.wild()]), list_lit([])),
+                  (
+                    Pat.tuple([Pat.wild(), Pat.list_lit([])]),
+                    list_lit([]),
+                  ),
+                  (
+                    Pat.tuple([
+                      Pat.cons(Pat.var("x"), Pat.var("xs")),
+                      Pat.cons(Pat.var("y"), Pat.var("ys")),
+                    ]),
+                    cons(
+                      tuple([var("x"), var("y")]),
+                      ap(
+                        Forward,
+                        var("zip"),
+                        tuple([var("xs"), var("ys")]),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix unzip -> fun xs -> case xs
+             |[]=> ([], [])
+             | ((a,b) :: xs) => let (as, bs) = unzip(xs) in ((a :: as), (b ::bs))
+           end|},
+    name: "unzip",
+    arg: List(prod([unknown(Internal), unknown(Internal)])),
+    ret: Prod([list(unknown(Internal)), list(unknown(Internal))]),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("unzip"),
+            fn(
+              Pat.var("xs"),
+              match(
+                var("xs"),
+                [
+                  (Pat.list_lit([]), tuple([list_lit([]), list_lit([])])),
+                  (
+                    Pat.cons(
+                      Pat.tuple([Pat.var("a"), Pat.var("b")]),
+                      Pat.var("xs"),
+                    ),
+                    let_(
+                      Pat.tuple([Pat.var("as"), Pat.var("bs")]),
+                      ap(Forward, var("unzip"), var("xs")),
+                      tuple([
+                        cons(var("a"), var("as")),
+                        cons(var("b"), var("bs")),
+                      ]),
+                    ),
+                  ),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix reverse -> fun xs -> case xs
+             | [] => []
+             | x :: xs => reverse(xs) @ [x]
+           end|},
+    name: "reverse",
+    arg: List(unknown(Internal)),
+    ret: List(unknown(Internal)),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("reverse"),
+            fn(
+              Pat.var("xs"),
+              match(
+                var("xs"),
+                [
+                  (Pat.list_lit([]), list_lit([])),
+                  (
+                    Pat.cons(Pat.var("x"), Pat.var("xs")),
+                    list_concat(
+                      ap(Forward, var("reverse"), var("xs")),
+                      list_lit([var("x")]),
+                    ),
+                  ),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix take -> fun (xs, n) -> case xs
+             | [] => []
+             | _ => if n <= 0 then [] else case xs
+             | x :: xs => x :: take(xs, n - 1)
+           end|},
+    name: "take",
+    arg: Prod([list(unknown(Internal)), int()]),
+    ret: List(unknown(Internal)),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("take"),
+            fn(
+              Pat.tuple([Pat.var("xs"), Pat.var("n")]),
+              match(
+                var("xs"),
+                [
+                  (Pat.list_lit([]), list_lit([])),
+                  (
+                    Pat.wild(),
+                    if_(
+                      bin_op(Int(LessThanOrEqual), var("n"), int(0)),
+                      list_lit([]),
+                      match(
+                        var("xs"),
+                        [
+                          (
+                            Pat.cons(Pat.var("x"), Pat.var("xs")),
+                            cons(
+                              var("x"),
+                              ap(
+                                Forward,
+                                var("take"),
+                                tuple([
+                                  var("xs"),
+                                  bin_op(Int(Minus), var("n"), int(1)),
+                                ]),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix drop -> fun (xs, n) -> case xs
+             | [] => []
+             | _ => if n <= 0 then xs else case xs
+               | x :: xs => drop(xs, n - 1)
+             end|},
+    name: "drop",
+    arg: Prod([list(unknown(Internal)), int()]),
+    ret: List(unknown(Internal)),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("drop"),
+            fn(
+              Pat.tuple([Pat.var("xs"), Pat.var("n")]),
+              match(
+                var("xs"),
+                [
+                  (Pat.list_lit([]), list_lit([])),
+                  (
+                    Pat.wild(),
+                    if_(
+                      bin_op(Int(LessThanOrEqual), var("n"), int(0)),
+                      var("xs"),
+                      match(
+                        var("xs"),
+                        [
+                          (
+                            Pat.cons(Pat.var("x"), Pat.var("xs")),
+                            ap(
+                              Forward,
+                              var("drop"),
+                              tuple([
+                                var("xs"),
+                                bin_op(Int(Minus), var("n"), int(1)),
+                              ]),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix range -> fun (start, end) -> if start > end then [] else start :: range(start + 1, end)|},
+    name: "range",
+    arg: Prod([int(), int()]),
+    ret: List(int()),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("range"),
+            fn(
+              Pat.tuple([Pat.var("start"), Pat.var("end")]),
+              if_(
+                bin_op(Int(GreaterThan), var("start"), var("end")),
+                list_lit([]),
+                cons(
+                  var("start"),
+                  ap(
+                    Forward,
+                    var("range"),
+                    tuple([
+                      bin_op(Int(Plus), var("start"), int(1)),
+                      var("end"),
+                    ]),
+                  ),
+                ),
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix enumerate -> fun xs -> enumerate_helper(xs, 0)
+           fix enumerate_helper -> fun (xs, index) -> case xs
+             | [] => []
+             | x :: xs => (index, x) :: enumerate_helper(xs, index + 1)
+           end|},
+    name: "enumerate",
+    arg: List(unknown(Internal)),
+    ret: List(prod([int(), unknown(Internal)])),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("enumerate"),
+            fn(
+              Pat.var("xs"),
+              ap(
+                Forward,
+                fix_f(
+                  Pat.var("enumerate_helper"),
+                  fn(
+                    Pat.tuple([Pat.var("xs"), Pat.var("index")]),
+                    match(
+                      var("xs"),
+                      [
+                        (Pat.list_lit([]), list_lit([])),
+                        (
+                          Pat.cons(Pat.var("x"), Pat.var("xs")),
+                          cons(
+                            tuple([var("index"), var("x")]),
+                            ap(
+                              Forward,
+                              var("enumerate_helper"),
+                              tuple([
+                                var("xs"),
+                                bin_op(Int(Plus), var("index"), int(1)),
+                              ]),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    None,
+                    None,
+                  ),
+                  None,
+                ),
+                tuple([var("xs"), int(0)]),
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix any -> fun (xs, pred) -> case xs
+             | [] => false
+             | x :: xs => if pred(x) then true else any(xs, pred)
+           end|},
+    name: "any",
+    arg:
+      Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
+    ret: Atom(Bool),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("any"),
+            fn(
+              Pat.tuple([Pat.var("xs"), Pat.var("pred")]),
+              match(
+                var("xs"),
+                [
+                  (Pat.list_lit([]), bool(false)),
+                  (
+                    Pat.cons(Pat.var("x"), Pat.var("xs")),
+                    if_(
+                      ap(Forward, var("pred"), var("x")),
+                      bool(true),
+                      ap(
+                        Forward,
+                        var("any"),
+                        tuple([var("xs"), var("pred")]),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix all -> fun (xs, pred) -> case xs
+             | [] => true
+             | x :: xs => if pred(x) then all(xs, pred) else false
+           end|},
+    name: "all",
+    arg:
+      Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
+    ret: Atom(Bool),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("all"),
+            fn(
+              Pat.tuple([Pat.var("xs"), Pat.var("pred")]),
+              match(
+                var("xs"),
+                [
+                  (Pat.list_lit([]), bool(true)),
+                  (
+                    Pat.cons(Pat.var("x"), Pat.var("xs")),
+                    if_(
+                      ap(Forward, var("pred"), var("x")),
+                      ap(
+                        Forward,
+                        var("all"),
+                        tuple([var("xs"), var("pred")]),
+                      ),
+                      bool(false),
+                    ),
+                  ),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix intersperse -> fun (xs, sep) -> case xs
+             | [] => []
+             | [x] => [x]
+             | x :: xs => x :: sep :: intersperse(xs, sep)
+           end|},
+    name: "intersperse",
+    arg: Prod([list(unknown(Internal)), unknown(Internal)]),
+    ret: List(unknown(Internal)),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("intersperse"),
+            fn(
+              Pat.tuple([Pat.var("xs"), Pat.var("sep")]),
+              match(
+                var("xs"),
+                [
+                  (Pat.list_lit([]), list_lit([])),
+                  (Pat.list_lit([Pat.var("x")]), list_lit([var("x")])),
+                  (
+                    Pat.cons(Pat.var("x"), Pat.var("xs")),
+                    cons(
+                      var("x"),
+                      cons(
+                        var("sep"),
+                        ap(
+                          Forward,
+                          var("intersperse"),
+                          tuple([var("xs"), var("sep")]),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix cons -> fun (x, xs) -> x :: xs|},
+    name: "cons",
+    arg: Prod([unknown(Internal), list(unknown(Internal))]),
+    ret: List(unknown(Internal)),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("cons"),
+            fn(
+              Pat.tuple([Pat.var("x"), Pat.var("xs")]),
+              cons(var("x"), var("xs")),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix hd -> fun xs -> case xs
+             | [] => error("hd: empty list")
+             | x :: _ => x
+           end|},
+    name: "hd",
+    arg: List(unknown(Internal)),
+    ret: Unknown(Internal),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("hd"),
+            fn(
+              Pat.var("xs"),
+              match(
+                var("xs"),
+                [
+                  (
+                    Pat.list_lit([]),
+                    dynamic_error_hole(
+                      var("xs"),
+                      InvalidOperationError.IndexOutOfBounds,
+                    ),
+                  ),
+                  (Pat.cons(Pat.var("x"), Pat.wild()), var("x")),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix tl -> fun xs -> case xs
+             | [] => error("tl: empty list")
+             | _ :: xs => xs
+           end|},
+    name: "tl",
+    arg: List(unknown(Internal)),
+    ret: List(unknown(Internal)),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("tl"),
+            fn(
+              Pat.var("xs"),
+              match(
+                var("xs"),
+                [
+                  (
+                    Pat.list_lit([]),
+                    dynamic_error_hole(
+                      var("xs"),
+                      InvalidOperationError.IndexOutOfBounds,
+                    ),
+                  ),
+                  (Pat.cons(Pat.wild(), Pat.var("xs")), var("xs")),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix is_empty -> fun xs -> case xs
+             | [] => true
+             | _ => false
+           end|},
+    name: "is_empty",
+    arg: List(unknown(Internal)),
+    ret: Atom(Bool),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("is_empty"),
+            fn(
+              Pat.var("xs"),
+              match(
+                var("xs"),
+                [
+                  (Pat.list_lit([]), bool(true)),
+                  (Pat.wild(), bool(false)),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix nth -> fun (xs, n) -> case xs
+             | [] => error("nth: index out of bounds")
+             | x :: xs => if n == 0 then x else nth(xs, n - 1)
+           end|},
+    name: "nth",
+    arg: Prod([list(unknown(Internal)), int()]),
+    ret: Unknown(Internal),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("nth"),
+            fn(
+              Pat.tuple([Pat.var("xs"), Pat.var("n")]),
+              match(
+                var("xs"),
+                [
+                  (
+                    Pat.list_lit([]),
+                    dynamic_error_hole(
+                      var("xs"),
+                      InvalidOperationError.IndexOutOfBounds,
+                    ),
+                  ),
+                  (
+                    Pat.cons(Pat.var("x"), Pat.var("xs")),
+                    if_(
+                      bin_op(Int(Equals), var("n"), int(0)),
+                      var("x"),
+                      ap(
+                        Forward,
+                        var("nth"),
+                        tuple([
+                          var("xs"),
+                          bin_op(Int(Minus), var("n"), int(1)),
+                        ]),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix fold_right -> fun (xs, f, acc) -> case xs
+             | [] => acc
+             | x :: xs => f(x, fold_right(xs, f, acc))
+           end|},
+    name: "fold_right",
+    arg:
+      Prod([
+        list(unknown(Internal)),
+        arrow(
+          prod([unknown(Internal), unknown(Internal)]),
+          unknown(Internal),
+        ),
+        unknown(Internal),
+      ]),
+    ret: Unknown(Internal),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("fold_right"),
+            fn(
+              Pat.tuple([Pat.var("xs"), Pat.var("f"), Pat.var("acc")]),
+              match(
+                var("xs"),
+                [
+                  (Pat.list_lit([]), var("acc")),
+                  (
+                    Pat.cons(Pat.var("x"), Pat.var("xs")),
+                    ap(
+                      Forward,
+                      var("f"),
+                      tuple([
+                        var("x"),
+                        ap(
+                          Forward,
+                          var("fold_right"),
+                          tuple([var("xs"), var("f"), var("acc")]),
+                        ),
+                      ]),
+                    ),
+                  ),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix append -> fun (xs, ys) -> xs @ ys|},
+    name: "append",
+    arg: Prod([list(unknown(Internal)), list(unknown(Internal))]),
+    ret: List(unknown(Internal)),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("append"),
+            fn(
+              Pat.tuple([Pat.var("xs"), Pat.var("ys")]),
+              list_concat(var("xs"), var("ys")),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix concat -> fun xss -> case xss
+             | [] => []
+             | xs :: xss => xs @ concat(xss)
+           end|},
+    name: "concat",
+    arg: List(list(unknown(Internal))),
+    ret: List(unknown(Internal)),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("concat"),
+            fn(
+              Pat.var("xss"),
+              match(
+                var("xss"),
+                [
+                  (Pat.list_lit([]), list_lit([])),
+                  (
+                    Pat.cons(Pat.var("xs"), Pat.var("xss")),
+                    list_concat(
+                      var("xs"),
+                      ap(Forward, var("concat"), var("xss")),
+                    ),
+                  ),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix mapi -> fun xs f -> mapi_helper(xs, f, 0)
+           fix mapi_helper -> fun (xs, f, i) -> case xs
+             | [] => []
+             | x :: xs => f(i, x) :: mapi_helper(xs, f, i + 1)
+           end|},
+    name: "mapi",
+    arg:
+      Prod([
+        list(unknown(Internal)),
+        arrow(prod([int(), unknown(Internal)]), unknown(Internal)),
+      ]),
+    ret: List(unknown(Internal)),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("mapi"),
+            fn(
+              Pat.tuple([Pat.var("xs"), Pat.var("f")]),
+              ap(
+                Forward,
+                fix_f(
+                  Pat.var("mapi_helper"),
+                  fn(
+                    Pat.tuple([Pat.var("xs"), Pat.var("f"), Pat.var("i")]),
+                    match(
+                      var("xs"),
+                      [
+                        (Pat.list_lit([]), list_lit([])),
+                        (
+                          Pat.cons(Pat.var("x"), Pat.var("xs")),
+                          cons(
+                            ap(
+                              Forward,
+                              var("f"),
+                              tuple([var("i"), var("x")]),
+                            ),
+                            ap(
+                              Forward,
+                              var("mapi_helper"),
+                              tuple([
+                                var("xs"),
+                                var("f"),
+                                bin_op(Int(Plus), var("i"), int(1)),
+                              ]),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    None,
+                    None,
+                  ),
+                  None,
+                ),
+                tuple([var("xs"), var("f"), int(0)]),
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix filteri -> fun xs f -> filteri_helper(xs, f, 0)
+           fix filteri_helper -> fun (xs, f, i) -> case xs
+             | [] => []
+             | x :: xs => if f(i, x) then x :: filteri_helper(xs, f, i + 1) else filteri_helper(xs, f, i + 1)
+           end|},
+    name: "filteri",
+    arg:
+      Prod([
+        list(unknown(Internal)),
+        arrow(prod([int(), unknown(Internal)]), bool()),
+      ]),
+    ret: List(unknown(Internal)),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("filteri"),
+            fn(
+              Pat.tuple([Pat.var("xs"), Pat.var("f")]),
+              ap(
+                Forward,
+                fix_f(
+                  Pat.var("filteri_helper"),
+                  fn(
+                    Pat.tuple([Pat.var("xs"), Pat.var("f"), Pat.var("i")]),
+                    match(
+                      var("xs"),
+                      [
+                        (Pat.list_lit([]), list_lit([])),
+                        (
+                          Pat.cons(Pat.var("x"), Pat.var("xs")),
+                          if_(
+                            ap(
+                              Forward,
+                              var("f"),
+                              tuple([var("i"), var("x")]),
+                            ),
+                            cons(
+                              var("x"),
+                              ap(
+                                Forward,
+                                var("filteri_helper"),
+                                tuple([
+                                  var("xs"),
+                                  var("f"),
+                                  bin_op(Int(Plus), var("i"), int(1)),
+                                ]),
+                              ),
+                            ),
+                            ap(
+                              Forward,
+                              var("filteri_helper"),
+                              tuple([
+                                var("xs"),
+                                var("f"),
+                                bin_op(Int(Plus), var("i"), int(1)),
+                              ]),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    None,
+                    None,
+                  ),
+                  None,
+                ),
+                tuple([var("xs"), var("f"), int(0)]),
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix mem -> fun (xs, x) -> case xs
+             | [] => false
+             | y :: xs => if x == y then true else mem(xs, x)
+           end|},
+    name: "mem",
+    arg: Prod([list(unknown(Internal)), unknown(Internal)]),
+    ret: Atom(Bool),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("mem"),
+            fn(
+              Pat.tuple([Pat.var("xs"), Pat.var("x")]),
+              match(
+                var("xs"),
+                [
+                  (Pat.list_lit([]), bool(false)),
+                  (
+                    Pat.cons(Pat.var("y"), Pat.var("xs")),
+                    if_(
+                      bin_op(Int(Equals), var("x"), var("y")),
+                      bool(true),
+                      ap(
+                        Forward,
+                        var("mem"),
+                        tuple([var("xs"), var("x")]),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix partition -> fun (xs, pred) -> case xs
+             | [] => ([], [])
+             | x :: xs => let (trues, falses) = partition(xs, pred) in
+               if pred(x) then (x :: trues, falses) else (trues, x :: falses)
+           end|},
+    name: "partition",
+    arg:
+      Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
+    ret: Prod([list(unknown(Internal)), list(unknown(Internal))]),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("partition"),
+            fn(
+              Pat.tuple([Pat.var("xs"), Pat.var("pred")]),
+              match(
+                var("xs"),
+                [
+                  (Pat.list_lit([]), tuple([list_lit([]), list_lit([])])),
+                  (
+                    Pat.cons(Pat.var("x"), Pat.var("xs")),
+                    let_(
+                      Pat.tuple([Pat.var("trues"), Pat.var("falses")]),
+                      ap(
+                        Forward,
+                        var("partition"),
+                        tuple([var("xs"), var("pred")]),
+                      ),
+                      if_(
+                        ap(Forward, var("pred"), var("x")),
+                        tuple([
+                          cons(var("x"), var("trues")),
+                          var("falses"),
+                        ]),
+                        tuple([
+                          var("trues"),
+                          cons(var("x"), var("falses")),
+                        ]),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix rev_append -> fun (xs, ys) -> case xs
+             | [] => ys
+             | x :: xs => rev_append(xs, x :: ys)
+           end|},
+    name: "rev_append",
+    arg: Prod([list(unknown(Internal)), list(unknown(Internal))]),
+    ret: List(unknown(Internal)),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("rev_append"),
+            fn(
+              Pat.tuple([Pat.var("xs"), Pat.var("ys")]),
+              match(
+                var("xs"),
+                [
+                  (Pat.list_lit([]), var("ys")),
+                  (
+                    Pat.cons(Pat.var("x"), Pat.var("xs")),
+                    ap(
+                      Forward,
+                      var("rev_append"),
+                      tuple([var("xs"), cons(var("x"), var("ys"))]),
+                    ),
+                  ),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix fold_left2 -> fun (xs, ys, f, acc) -> case (xs, ys)
+             | ([], _) => acc
+             | (_, []) => acc
+             | (x :: xs, y :: ys) => fold_left2(xs, ys, f, f(acc, x, y))
+           end|},
+    name: "fold_left2",
+    arg:
+      Prod([
+        list(unknown(Internal)),
+        list(unknown(Internal)),
+        arrow(
+          prod([unknown(Internal), unknown(Internal), unknown(Internal)]),
+          unknown(Internal),
+        ),
+        unknown(Internal),
+      ]),
+    ret: Unknown(Internal),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("fold_left2"),
+            fn(
+              Pat.tuple([
+                Pat.var("xs"),
+                Pat.var("ys"),
+                Pat.var("f"),
+                Pat.var("acc"),
+              ]),
+              match(
+                tuple([var("xs"), var("ys")]),
+                [
+                  (Pat.tuple([Pat.list_lit([]), Pat.wild()]), var("acc")),
+                  (Pat.tuple([Pat.wild(), Pat.list_lit([])]), var("acc")),
+                  (
+                    Pat.tuple([
+                      Pat.cons(Pat.var("x"), Pat.var("xs")),
+                      Pat.cons(Pat.var("y"), Pat.var("ys")),
+                    ]),
+                    ap(
+                      Forward,
+                      var("fold_left2"),
+                      tuple([
+                        var("xs"),
+                        var("ys"),
+                        var("f"),
+                        ap(
+                          Forward,
+                          var("f"),
+                          tuple([var("acc"), var("x"), var("y")]),
+                        ),
+                      ]),
+                    ),
+                  ),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix fold_right2 -> fun (xs, ys, f, acc) -> case (xs, ys)
+             | ([], _) => acc
+             | (_, []) => acc
+             | (x :: xs, y :: ys) => f(x, y, fold_right2(xs, ys, f, acc))
+           end|},
+    name: "fold_right2",
+    arg:
+      Prod([
+        list(unknown(Internal)),
+        list(unknown(Internal)),
+        arrow(
+          prod([unknown(Internal), unknown(Internal), unknown(Internal)]),
+          unknown(Internal),
+        ),
+        unknown(Internal),
+      ]),
+    ret: Unknown(Internal),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("fold_right2"),
+            fn(
+              Pat.tuple([
+                Pat.var("xs"),
+                Pat.var("ys"),
+                Pat.var("f"),
+                Pat.var("acc"),
+              ]),
+              match(
+                tuple([var("xs"), var("ys")]),
+                [
+                  (Pat.tuple([Pat.list_lit([]), Pat.wild()]), var("acc")),
+                  (Pat.tuple([Pat.wild(), Pat.list_lit([])]), var("acc")),
+                  (
+                    Pat.tuple([
+                      Pat.cons(Pat.var("x"), Pat.var("xs")),
+                      Pat.cons(Pat.var("y"), Pat.var("ys")),
+                    ]),
+                    ap(
+                      Forward,
+                      var("f"),
+                      tuple([
+                        var("x"),
+                        var("y"),
+                        ap(
+                          Forward,
+                          var("fold_right2"),
+                          tuple([
+                            var("xs"),
+                            var("ys"),
+                            var("f"),
+                            var("acc"),
+                          ]),
+                        ),
+                      ]),
+                    ),
+                  ),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix map2 -> fun (xs, ys, f) -> case (xs, ys)
+             | ([], _) => []
+             | (_, []) => []
+             | (x :: xs, y :: ys) => f(x, y) :: map2(xs, ys, f)
+           end|},
+    name: "map2",
+    arg:
+      Prod([
+        list(unknown(Internal)),
+        list(unknown(Internal)),
+        arrow(
+          prod([unknown(Internal), unknown(Internal)]),
+          unknown(Internal),
+        ),
+      ]),
+    ret: List(unknown(Internal)),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("map2"),
+            fn(
+              Pat.tuple([Pat.var("xs"), Pat.var("ys"), Pat.var("f")]),
+              match(
+                tuple([var("xs"), var("ys")]),
+                [
+                  (Pat.tuple([Pat.list_lit([]), Pat.wild()]), list_lit([])),
+                  (
+                    Pat.tuple([Pat.wild(), Pat.list_lit([])]),
+                    list_lit([]),
+                  ),
+                  (
+                    Pat.tuple([
+                      Pat.cons(Pat.var("x"), Pat.var("xs")),
+                      Pat.cons(Pat.var("y"), Pat.var("ys")),
+                    ]),
+                    cons(
+                      ap(Forward, var("f"), tuple([var("x"), var("y")])),
+                      ap(
+                        Forward,
+                        var("map2"),
+                        tuple([var("xs"), var("ys"), var("f")]),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix all2 -> fun (xs, ys, pred) -> case (xs, ys)
+             | ([], _) => true
+             | (_, []) => true
+             | (x :: xs, y :: ys) => if pred(x, y) then all2(xs, ys, pred) else false
+           end|},
+    name: "all2",
+    arg:
+      Prod([
+        list(unknown(Internal)),
+        list(unknown(Internal)),
+        arrow(prod([unknown(Internal), unknown(Internal)]), bool()),
+      ]),
+    ret: Atom(Bool),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("all2"),
+            fn(
+              Pat.tuple([Pat.var("xs"), Pat.var("ys"), Pat.var("pred")]),
+              match(
+                tuple([var("xs"), var("ys")]),
+                [
+                  (Pat.tuple([Pat.list_lit([]), Pat.wild()]), bool(true)),
+                  (Pat.tuple([Pat.wild(), Pat.list_lit([])]), bool(true)),
+                  (
+                    Pat.tuple([
+                      Pat.cons(Pat.var("x"), Pat.var("xs")),
+                      Pat.cons(Pat.var("y"), Pat.var("ys")),
+                    ]),
+                    if_(
+                      ap(
+                        Forward,
+                        var("pred"),
+                        tuple([var("x"), var("y")]),
+                      ),
+                      ap(
+                        Forward,
+                        var("all2"),
+                        tuple([var("xs"), var("ys"), var("pred")]),
+                      ),
+                      bool(false),
+                    ),
+                  ),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix any2 -> fun (xs, ys, pred) -> case (xs, ys)
+             | ([], _) => false
+             | (_, []) => false
+             | (x :: xs, y :: ys) => if pred(x, y) then true else any2(xs, ys, pred)
+           end|},
+    name: "any2",
+    arg:
+      Prod([
+        list(unknown(Internal)),
+        list(unknown(Internal)),
+        arrow(prod([unknown(Internal), unknown(Internal)]), bool()),
+      ]),
+    ret: Atom(Bool),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("any2"),
+            fn(
+              Pat.tuple([Pat.var("xs"), Pat.var("ys"), Pat.var("pred")]),
+              match(
+                tuple([var("xs"), var("ys")]),
+                [
+                  (Pat.tuple([Pat.list_lit([]), Pat.wild()]), bool(false)),
+                  (Pat.tuple([Pat.wild(), Pat.list_lit([])]), bool(false)),
+                  (
+                    Pat.tuple([
+                      Pat.cons(Pat.var("x"), Pat.var("xs")),
+                      Pat.cons(Pat.var("y"), Pat.var("ys")),
+                    ]),
+                    if_(
+                      ap(
+                        Forward,
+                        var("pred"),
+                        tuple([var("x"), var("y")]),
+                      ),
+                      bool(true),
+                      ap(
+                        Forward,
+                        var("any2"),
+                        tuple([var("xs"), var("ys"), var("pred")]),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix find -> fun (xs, pred) -> case xs
+             | [] => error("find: element not found")
+             | x :: xs => if pred(x) then x else find(xs, pred)
+           end|},
+    name: "find",
+    arg:
+      Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
+    ret: Unknown(Internal),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("find"),
+            fn(
+              Pat.tuple([Pat.var("xs"), Pat.var("pred")]),
+              match(
+                var("xs"),
+                [
+                  (
+                    Pat.list_lit([]),
+                    dynamic_error_hole(
+                      var("xs"),
+                      InvalidOperationError.IndexOutOfBounds,
+                    ),
+                  ),
+                  (
+                    Pat.cons(Pat.var("x"), Pat.var("xs")),
+                    if_(
+                      ap(Forward, var("pred"), var("x")),
+                      var("x"),
+                      ap(
+                        Forward,
+                        var("find"),
+                        tuple([var("xs"), var("pred")]),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix take_while -> fun (xs, pred) -> case xs
+             | [] => []
+             | x :: xs => if pred(x) then x :: take_while(xs, pred) else []
+           end|},
+    name: "take_while",
+    arg:
+      Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
+    ret: List(unknown(Internal)),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("take_while"),
+            fn(
+              Pat.tuple([Pat.var("xs"), Pat.var("pred")]),
+              match(
+                var("xs"),
+                [
+                  (Pat.list_lit([]), list_lit([])),
+                  (
+                    Pat.cons(Pat.var("x"), Pat.var("xs")),
+                    if_(
+                      ap(Forward, var("pred"), var("x")),
+                      cons(
+                        var("x"),
+                        ap(
+                          Forward,
+                          var("take_while"),
+                          tuple([var("xs"), var("pred")]),
+                        ),
+                      ),
+                      list_lit([]),
+                    ),
+                  ),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix drop_while -> fun (xs, pred) -> case xs
+             | [] => []
+             | x :: xs => if pred(x) then drop_while(xs, pred) else xs
+           end|},
+    name: "drop_while",
+    arg:
+      Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
+    ret: List(unknown(Internal)),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("drop_while"),
+            fn(
+              Pat.tuple([Pat.var("xs"), Pat.var("pred")]),
+              match(
+                var("xs"),
+                [
+                  (Pat.list_lit([]), list_lit([])),
+                  (
+                    Pat.cons(Pat.var("x"), Pat.var("xs")),
+                    if_(
+                      ap(Forward, var("pred"), var("x")),
+                      ap(
+                        Forward,
+                        var("drop_while"),
+                        tuple([var("xs"), var("pred")]),
+                      ),
+                      cons(var("x"), var("xs")),
+                    ),
+                  ),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix filter_map -> fun (xs, f) -> case xs
+             | [] => []
+             | x :: xs => case f(x)
+               | None => filter_map(xs, f)
+               | Some(y) => y :: filter_map(xs, f)
+             end
+           end|},
+    name: "filter_map",
+    arg:
+      Prod([
+        list(unknown(Internal)),
+        arrow(unknown(Internal), unknown(Internal)),
+      ]),
+    ret: List(unknown(Internal)),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("filter_map"),
+            fn(
+              Pat.tuple([Pat.var("xs"), Pat.var("f")]),
+              match(
+                var("xs"),
+                [
+                  (Pat.list_lit([]), list_lit([])),
+                  (
+                    Pat.cons(Pat.var("x"), Pat.var("xs")),
+                    match(
+                      ap(Forward, var("f"), var("x")),
+                      [
+                        (
+                          Pat.constructor("None", None),
+                          ap(
+                            Forward,
+                            var("filter_map"),
+                            tuple([var("xs"), var("f")]),
+                          ),
+                        ),
+                        (
+                          Pat.ap(
+                            Pat.constructor("Some", None),
+                            Pat.var("y"),
+                          ),
+                          cons(
+                            var("y"),
+                            ap(
+                              Forward,
+                              var("filter_map"),
+                              tuple([var("xs"), var("f")]),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix nth_opt -> fun (xs, n) -> case xs
+             | [] => None
+             | x :: xs => if n == 0 then Some(x) else nth_opt(xs, n - 1)
+           end|},
+    name: "nth_opt",
+    arg: Prod([list(unknown(Internal)), int()]),
+    ret: Unknown(Internal),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("nth_opt"),
+            fn(
+              Pat.tuple([Pat.var("xs"), Pat.var("n")]),
+              match(
+                var("xs"),
+                [
+                  (Pat.list_lit([]), constructor("None", None)),
+                  (
+                    Pat.cons(Pat.var("x"), Pat.var("xs")),
+                    if_(
+                      bin_op(Int(Equals), var("n"), int(0)),
+                      ap(Forward, constructor("Some", None), var("x")),
+                      ap(
+                        Forward,
+                        var("nth_opt"),
+                        tuple([
+                          var("xs"),
+                          bin_op(Int(Minus), var("n"), int(1)),
+                        ]),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix find_opt -> fun (xs, pred) -> case xs
+             | [] => None
+             | x :: xs => if pred(x) then Some(x) else find_opt(xs, pred)
+           end|},
+    name: "find_opt",
+    arg:
+      Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
+    ret: Unknown(Internal),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("find_opt"),
+            fn(
+              Pat.tuple([Pat.var("xs"), Pat.var("pred")]),
+              match(
+                var("xs"),
+                [
+                  (Pat.list_lit([]), constructor("None", None)),
+                  (
+                    Pat.cons(Pat.var("x"), Pat.var("xs")),
+                    if_(
+                      ap(Forward, var("pred"), var("x")),
+                      ap(Forward, constructor("Some", None), var("x")),
+                      ap(
+                        Forward,
+                        var("find_opt"),
+                        tuple([var("xs"), var("pred")]),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix find_index -> fun (xs, pred) -> find_index_helper(xs, pred, 0)
+           fix find_index_helper -> fun (xs, pred, i) -> case xs
+             | [] => None
+             | x :: xs => if pred(x) then Some(i) else find_index_helper(xs, pred, i + 1)
+           end|},
+    name: "find_index",
+    arg:
+      Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
+    ret: Unknown(Internal),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("find_index"),
+            fn(
+              Pat.tuple([Pat.var("xs"), Pat.var("pred")]),
+              ap(
+                Forward,
+                fix_f(
+                  Pat.var("find_index_helper"),
+                  fn(
+                    Pat.tuple([
+                      Pat.var("xs"),
+                      Pat.var("pred"),
+                      Pat.var("i"),
+                    ]),
+                    match(
+                      var("xs"),
+                      [
+                        (Pat.list_lit([]), constructor("None", None)),
+                        (
+                          Pat.cons(Pat.var("x"), Pat.var("xs")),
+                          if_(
+                            ap(Forward, var("pred"), var("x")),
+                            ap(
+                              Forward,
+                              constructor("Some", None),
+                              var("i"),
+                            ),
+                            ap(
+                              Forward,
+                              var("find_index_helper"),
+                              tuple([
+                                var("xs"),
+                                var("pred"),
+                                bin_op(Int(Plus), var("i"), int(1)),
+                              ]),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    None,
+                    None,
+                  ),
+                  None,
+                ),
+                tuple([var("xs"), var("pred"), int(0)]),
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix find_map -> fun (xs, f) -> case xs
+             | [] => None
+             | x :: xs => case f(x)
+               | None => find_map(xs, f)
+               | Some(y) => Some(y)
+             end
+           end|},
+    name: "find_map",
+    arg:
+      Prod([
+        list(unknown(Internal)),
+        arrow(unknown(Internal), unknown(Internal)),
+      ]),
+    ret: Unknown(Internal),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("find_map"),
+            fn(
+              Pat.tuple([Pat.var("xs"), Pat.var("f")]),
+              match(
+                var("xs"),
+                [
+                  (Pat.list_lit([]), constructor("None", None)),
+                  (
+                    Pat.cons(Pat.var("x"), Pat.var("xs")),
+                    match(
+                      ap(Forward, var("f"), var("x")),
+                      [
+                        (
+                          Pat.constructor("None", None),
+                          ap(
+                            Forward,
+                            var("find_map"),
+                            tuple([var("xs"), var("f")]),
+                          ),
+                        ),
+                        (
+                          Pat.ap(
+                            Pat.constructor("Some", None),
+                            Pat.var("y"),
+                          ),
+                          ap(Forward, constructor("Some", None), var("y")),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix find_mapi -> fun (xs, f) -> find_mapi_helper(xs, f, 0)
+           fix find_mapi_helper -> fun (xs, f, i) -> case xs
+             | [] => None
+             | x :: xs => case f(i, x)
+               | None => find_mapi_helper(xs, f, i + 1)
+               | Some(y) => Some(y)
+             end
+           end|},
+    name: "find_mapi",
+    arg:
+      Prod([
+        list(unknown(Internal)),
+        arrow(prod([int(), unknown(Internal)]), unknown(Internal)),
+      ]),
+    ret: Unknown(Internal),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("find_mapi"),
+            fn(
+              Pat.tuple([Pat.var("xs"), Pat.var("f")]),
+              ap(
+                Forward,
+                fix_f(
+                  Pat.var("find_mapi_helper"),
+                  fn(
+                    Pat.tuple([Pat.var("xs"), Pat.var("f"), Pat.var("i")]),
+                    match(
+                      var("xs"),
+                      [
+                        (Pat.list_lit([]), constructor("None", None)),
+                        (
+                          Pat.cons(Pat.var("x"), Pat.var("xs")),
+                          match(
+                            ap(
+                              Forward,
+                              var("f"),
+                              tuple([var("i"), var("x")]),
+                            ),
+                            [
+                              (
+                                Pat.constructor("None", None),
+                                ap(
+                                  Forward,
+                                  var("find_mapi_helper"),
+                                  tuple([
+                                    var("xs"),
+                                    var("f"),
+                                    bin_op(Int(Plus), var("i"), int(1)),
+                                  ]),
+                                ),
+                              ),
+                              (
+                                Pat.ap(
+                                  Pat.constructor("Some", None),
+                                  Pat.var("y"),
+                                ),
+                                ap(
+                                  Forward,
+                                  constructor("Some", None),
+                                  var("y"),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                    None,
+                    None,
+                  ),
+                  None,
+                ),
+                tuple([var("xs"), var("f"), int(0)]),
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix sort -> fun (xs, cmp) -> case xs
+             | [] => []
+             | [x] => [x]
+             | _ => let (left, right) = split_list(xs) in
+               merge(sort(left, cmp), sort(right, cmp), cmp)
+           end
+           fix split_list -> fun xs -> split_list_helper(xs, [], [])
+           fix split_list_helper -> fun (xs, left, right) -> case xs
+             | [] => (reverse(left), reverse(right))
+             | [x] => (reverse(x :: left), reverse(right))
+             | x :: y :: xs => split_list_helper(xs, x :: left, y :: right)
+           end
+           fix merge -> fun (xs, ys, cmp) -> case (xs, ys)
+             | ([], _) => ys
+             | (_, []) => xs
+             | (x :: xs, y :: ys) => if cmp(x, y) <= 0 then x :: merge(xs, ys, cmp) else y :: merge(xs, ys, cmp)
+           end|},
+    name: "sort",
+    arg:
+      Prod([
+        list(unknown(Internal)),
+        arrow(prod([unknown(Internal), unknown(Internal)]), int()),
+      ]),
+    ret: List(unknown(Internal)),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("sort"),
+            fn(
+              Pat.tuple([Pat.var("xs"), Pat.var("cmp")]),
+              match(
+                var("xs"),
+                [
+                  (Pat.list_lit([]), list_lit([])),
+                  (Pat.list_lit([Pat.var("x")]), list_lit([var("x")])),
+                  (
+                    Pat.wild(),
+                    let_(
+                      Pat.tuple([Pat.var("left"), Pat.var("right")]),
+                      ap(
+                        Forward,
+                        fix_f(
+                          Pat.var("split_list"),
+                          fn(
+                            Pat.var("xs"),
+                            ap(
+                              Forward,
+                              fix_f(
+                                Pat.var("split_list_helper"),
+                                fn(
+                                  Pat.tuple([
+                                    Pat.var("xs"),
+                                    Pat.var("left"),
+                                    Pat.var("right"),
+                                  ]),
+                                  match(
+                                    var("xs"),
+                                    [
+                                      (
+                                        Pat.list_lit([]),
+                                        tuple([
+                                          ap(
+                                            Forward,
+                                            var("reverse"),
+                                            var("left"),
+                                          ),
+                                          ap(
+                                            Forward,
+                                            var("reverse"),
+                                            var("right"),
+                                          ),
+                                        ]),
+                                      ),
+                                      (
+                                        Pat.list_lit([Pat.var("x")]),
+                                        tuple([
+                                          ap(
+                                            Forward,
+                                            var("reverse"),
+                                            cons(var("x"), var("left")),
+                                          ),
+                                          ap(
+                                            Forward,
+                                            var("reverse"),
+                                            var("right"),
+                                          ),
+                                        ]),
+                                      ),
+                                      (
+                                        Pat.cons(
+                                          Pat.var("x"),
+                                          Pat.cons(
+                                            Pat.var("y"),
+                                            Pat.var("xs"),
+                                          ),
+                                        ),
+                                        ap(
+                                          Forward,
+                                          var("split_list_helper"),
+                                          tuple([
+                                            var("xs"),
+                                            cons(var("x"), var("left")),
+                                            cons(var("y"), var("right")),
+                                          ]),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                  None,
+                                  None,
+                                ),
+                                None,
+                              ),
+                              tuple([
+                                var("xs"),
+                                list_lit([]),
+                                list_lit([]),
+                              ]),
+                            ),
+                            None,
+                            None,
+                          ),
+                          None,
+                        ),
+                        var("xs"),
+                      ),
+                      ap(
+                        Forward,
+                        fix_f(
+                          Pat.var("merge"),
+                          fn(
+                            Pat.tuple([
+                              Pat.var("xs"),
+                              Pat.var("ys"),
+                              Pat.var("cmp"),
+                            ]),
+                            match(
+                              tuple([var("xs"), var("ys")]),
+                              [
+                                (
+                                  Pat.tuple([Pat.list_lit([]), Pat.wild()]),
+                                  var("ys"),
+                                ),
+                                (
+                                  Pat.tuple([Pat.wild(), Pat.list_lit([])]),
+                                  var("xs"),
+                                ),
+                                (
+                                  Pat.tuple([
+                                    Pat.cons(Pat.var("x"), Pat.var("xs")),
+                                    Pat.cons(Pat.var("y"), Pat.var("ys")),
+                                  ]),
+                                  if_(
+                                    bin_op(
+                                      Int(LessThanOrEqual),
+                                      ap(
+                                        Forward,
+                                        var("cmp"),
+                                        tuple([var("x"), var("y")]),
+                                      ),
+                                      int(0),
+                                    ),
+                                    cons(
+                                      var("x"),
+                                      ap(
+                                        Forward,
+                                        var("merge"),
+                                        tuple([
+                                          var("xs"),
+                                          var("ys"),
+                                          var("cmp"),
+                                        ]),
+                                      ),
+                                    ),
+                                    cons(
+                                      var("y"),
+                                      ap(
+                                        Forward,
+                                        var("merge"),
+                                        tuple([
+                                          var("xs"),
+                                          var("ys"),
+                                          var("cmp"),
+                                        ]),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            None,
+                            None,
+                          ),
+                          None,
+                        ),
+                        tuple([
+                          ap(
+                            Forward,
+                            var("sort"),
+                            tuple([var("left"), var("cmp")]),
+                          ),
+                          ap(
+                            Forward,
+                            var("sort"),
+                            tuple([var("right"), var("cmp")]),
+                          ),
+                          var("cmp"),
+                        ]),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|any|}, //alias
+    name: "contains",
+    arg:
+      Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
+    ret: Atom(Bool),
+    imp: {
+      Fresh.(Exp.(var("any")));
+    },
+  },
+  {
+    str: {|concat|}, //alias
+    name: "flatten",
+    arg: List(list(unknown(Internal))),
+    ret: List(unknown(Internal)),
+    imp: {
+      Fresh.(Exp.(var("concat")));
+    },
+  },
+  {
+    str: {|reverse|}, //alias
+    name: "rev",
+    arg: List(unknown(Internal)),
+    ret: List(unknown(Internal)),
+    imp: {
+      Fresh.(Exp.(var("reverse")));
+    },
+  },
+  {
+    str: {|any|}, //alias
+    name: "exists",
+    arg:
+      Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
+    ret: Atom(Bool),
+    imp: {
+      Fresh.(Exp.(var("any")));
+    },
+  },
+  {
+    str: {|all|}, //alias
+    name: "for_all",
+    arg:
+      Prod([list(unknown(Internal)), arrow(unknown(Internal), bool())]),
+    ret: Atom(Bool),
+    imp: {
+      Fresh.(Exp.(var("all")));
+    },
+  },
+  {
+    str: {|any2|}, //alias
+    name: "exists2",
+    arg:
+      Prod([
+        list(unknown(Internal)),
+        list(unknown(Internal)),
+        arrow(prod([unknown(Internal), unknown(Internal)]), bool()),
+      ]),
+    ret: Atom(Bool),
+    imp: {
+      Fresh.(Exp.(var("any2")));
+    },
+  },
+  {
+    str: {|all2|}, //alias
+    name: "for_all2",
+    arg:
+      Prod([
+        list(unknown(Internal)),
+        list(unknown(Internal)),
+        arrow(prod([unknown(Internal), unknown(Internal)]), bool()),
+      ]),
+    ret: Atom(Bool),
+    imp: {
+      Fresh.(Exp.(var("all2")));
+    },
+  },
+  {
+    str: {|flat_map|}, //alias
+    name: "concat_map",
+    arg:
+      Prod([
+        list(unknown(Internal)),
+        arrow(unknown(Internal), list(unknown(Internal))),
+      ]),
+    ret: List(unknown(Internal)),
+    imp: {
+      Fresh.(Exp.(var("flat_map")));
+    },
+  },
+  {
+    str: {|unzip|}, //alias
+    name: "split",
+    arg: List(prod([unknown(Internal), unknown(Internal)])),
+    ret: Prod([list(unknown(Internal)), list(unknown(Internal))]),
+    imp: {
+      Fresh.(Exp.(var("unzip")));
+    },
+  },
+  {
+    str: {|zip|}, //alias
+    name: "combine",
+    arg: Prod([list(unknown(Internal)), list(unknown(Internal))]),
+    ret: List(prod([unknown(Internal), unknown(Internal)])),
+    imp: {
+      Fresh.(Exp.(var("zip")));
+    },
+  },
+];
