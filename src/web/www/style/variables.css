@@ -33,7 +33,7 @@
 
   /* WARNING HOLE DECO */
   --warning-hole-stroke: oklch(0.6 0.1258 78.35);
-  --warning-hole-fill: oklch(0.968 0.211 109.77);
+  --warning-hole-fill: oklch(0.9097 0.144 95.11);
 
   /* MAGMA - opportunities */
   --R0: oklch(85% 0.1 30); /* broken shard fill */

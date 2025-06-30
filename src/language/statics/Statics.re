@@ -40,31 +40,13 @@ module Map = {
   let empty = Id.Map.empty;
   let lookup = Id.Map.find_opt;
 
-  let error_ids = (info_map: t): list(Id.t) =>
-    Id.Map.fold(
-      (id, info, acc) =>
-        /* Second clause is to eliminate non-representative ids,
-         * which will not be found in the measurements map */
-        Info.is_error(info) && id == Info.id_of(info) ? [id, ...acc] : acc,
-      info_map,
-      [],
-    );
-  let warning_ids = (info_map: t): list(Id.t) =>
-    Id.Map.fold(
-      (id, info, acc) =>
-        /* Second clause is to eliminate non-representative ids,
-         * which will not be found in the measurements map */
-        Info.is_warning(info) && id == Info.id_of(info)
-          ? [id, ...acc] : acc,
-      info_map,
-      [],
-    );
-
   // single pass to return two lists: one of the error ids and one of the warning ids
   let error_and_warning_ids = (info_map: t): (list(Id.t), list(Id.t)) =>
     Id.Map.fold(
       (id, info, acc) => {
         let (errors, warnings) = acc;
+        /* Second clause is to eliminate non-representative ids,
+         * which will not be found in the measurements map */
         Info.is_error(info) && id == Info.id_of(info)
           ? ([id, ...errors], warnings)
           : Info.is_warning(info) && id == Info.id_of(info)
