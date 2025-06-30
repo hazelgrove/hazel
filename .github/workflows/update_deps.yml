@@ -34,6 +34,12 @@ jobs:
           ocaml-compiler: 5.2.0
           dune-cache: true
 
+      - name: Install dune
+        run: |
+          eval $(opam env)
+          export OPAMYES=1
+          opam install dune
+  
       - name: Add opam repository archive
         run: |
           eval $(opam env)
