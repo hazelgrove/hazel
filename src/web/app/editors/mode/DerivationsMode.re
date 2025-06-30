@@ -570,6 +570,8 @@ module View = {
       highlight_toggle(~globals),
     ]
     @ EditorModeView.view(
+        ~nav_buttons=true,
+        ~edit_buttons=false,
         ~signal=
           fun
           | Previous =>
@@ -584,7 +586,10 @@ module View = {
               Update.SwitchExercise(
                 (model.current + 1) mod List.length(model.exercises),
               ),
-            ),
+            )
+          | Add
+          | Rename
+          | Delete => Ui_effect.Ignore,
         ~indicator=
           EditorModeView.indicator_n(
             model.current,

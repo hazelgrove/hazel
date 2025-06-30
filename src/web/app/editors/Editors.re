@@ -72,6 +72,11 @@ module Store = {
           ExercisesMode.Store.load(~settings, ~instructor_mode)
           |> ExercisesMode.Model.unpersist(~instructor_mode),
         )
+      | Derivations =>
+        Model.Derivations(
+          DerivationsMode.Store.load(~settings, ~instructor_mode)
+          |> DerivationsMode.Model.unpersist(~settings, ~instructor_mode),
+        )
       };
     };
   };

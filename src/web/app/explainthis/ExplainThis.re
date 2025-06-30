@@ -493,7 +493,8 @@ let get_doc_deduction =
         [],
       );
     | Colorings =>
-      let (_, color_map) = mk_translation(~globals, explanation_msg);
+      let (_, color_map) =
+        mk_translation(~globals, ~inject=_ => (), explanation_msg);
       ([], ([], color_map), []);
     };
   };
@@ -715,6 +716,7 @@ let get_doc =
           [],
           mk_translation(
             ~globals,
+            ~inject=_ => (),
             "A converting expression from a derivation term. There is a total of 5 valid converting expressions:\n1) `of_jdmt`\n2) `of_ctx`\n3) `of_prop`\n4) `of_alfa_exp`\n5) `of_alfa_typ`",
           ),
           [],
@@ -2806,7 +2808,7 @@ let get_doc =
         [
           div(
             ~attrs=[clss(["explanation-contents"])],
-            msg |> mk_translation(~globals) |> fst,
+            msg |> mk_translation(~globals, ~inject=_ => ()) |> fst,
           ),
         ],
         (Id.Map.empty, 0),

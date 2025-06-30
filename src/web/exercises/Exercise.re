@@ -681,6 +681,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | Undefined
   | Deferral(_)
   | Atom(_)
+  | DrvExp(_)
   | ListLit(_)
   | Constructor(_)
   | Closure(_)

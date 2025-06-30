@@ -32,7 +32,7 @@ module ProofTree = {
       (result: option(Exp.t)): result(Drv.Exp.t, ExternalError.t) => {
     switch (result) {
     | Some(e) =>
-      switch (IdTagged.term_of(DHExp.strip_casts(e))) {
+      switch (IdTagged.term_of(e)) {
       | DrvExp(Exp(d), _) => Ok(d)
       | _ => Error(NotAJudgment)
       }

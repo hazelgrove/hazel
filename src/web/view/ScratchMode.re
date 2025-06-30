@@ -166,7 +166,12 @@ module Update = {
         };
       let new_sp: list((string, CellEditor.Model.t)) =
         model.scratchpads
-        @ [(new_key, CellEditor.Model.mk(Editor.Model.mk(Zipper.init())))];
+        @ [
+          (
+            new_key,
+            CellEditor.Model.mk(Editor.Model.mk(Zipper.init(), ~root=Exp)),
+          ),
+        ];
       Updated.return(
         {
           current: List.length(new_sp) - 1,
@@ -224,7 +229,7 @@ module Update = {
       let* data =
         source
         |> PersistentZipper.unpersist(~root=Exp)
-        |> Editor.Model.mk
+        |> Editor.Model.mk(~root=Exp)
         |> CellEditor.Model.mk
         |> Updated.return;
       {

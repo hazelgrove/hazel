@@ -510,7 +510,7 @@ let drv_get: drv_compound_form => t =
       mk_bin'(P.rule_sep, Drv(Exp), Drv(Exp), [Drv(Pat)], Drv(Exp)),
     )
   | Cast =>
-    mk(ss, [":"], mk_bin'(P.cast, Drv(Pat), Drv(Pat), [], Drv(Typ)))
+    mk(ss, [":"], mk_bin'(P.asc, Drv(Pat), Drv(Pat), [], Drv(Typ)))
   | Arrow => mk_infix("->", Drv(Typ), P.type_arrow)
   | Prod => mk_infix("*", Drv(Typ), P.type_prod)
   | Sum => mk_infix("+", Drv(Typ), P.type_plus)

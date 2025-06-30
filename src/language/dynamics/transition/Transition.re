@@ -177,7 +177,7 @@ module Transition = (EV: EV_MODE) => {
         | Quote(x) =>
           switch (ClosureEnvironment.lookup(env, x)) {
           | Some(d) =>
-            switch (DHExp.term_of(DHExp.strip_casts(d))) {
+            switch (DHExp.term_of(d)) {
             | DrvExp(Exp({term, _}), _) => term
             | _ => Hole(AbbrNotDrvTerm)
             }
@@ -248,7 +248,7 @@ module Transition = (EV: EV_MODE) => {
         | Quote(x) =>
           switch (ClosureEnvironment.lookup(env, x)) {
           | Some(d) =>
-            switch (DHExp.term_of(DHExp.strip_casts(d))) {
+            switch (DHExp.term_of(d)) {
             | DrvExp(Typ({term, _}), _) => term
             | _ => Hole(AbbrNotDrvTerm)
             }
@@ -275,7 +275,7 @@ module Transition = (EV: EV_MODE) => {
         | Quote(x) =>
           switch (ClosureEnvironment.lookup(env, x)) {
           | Some(d) =>
-            switch (DHExp.term_of(DHExp.strip_casts(d))) {
+            switch (DHExp.term_of(d)) {
             | DrvExp(Pat({term, _}), _) => term
             | _ => Hole(AbbrNotDrvTerm)
             }
@@ -298,7 +298,7 @@ module Transition = (EV: EV_MODE) => {
         | Quote(x) =>
           switch (ClosureEnvironment.lookup(env, x)) {
           | Some(d) =>
-            switch (DHExp.term_of(DHExp.strip_casts(d))) {
+            switch (DHExp.term_of(d)) {
             | DrvExp(TPat({term, _}), _) => term
             | _ => Hole(AbbrNotDrvTerm)
             }

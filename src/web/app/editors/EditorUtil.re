@@ -4,7 +4,6 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | Invalid(_)
   | MultiHole(_)
   | DynamicErrorHole(_)
-  | FailedCast(_)
   | Undefined
   | Deferral(_)
   | DrvExp(_)
@@ -33,7 +32,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | UnOp(_)
   | BinOp(_)
   | BuiltinFun(_)
-  | Cast(_)
+  | Asc(_)
   | Match(_) => {
       term: Seq(e1, e2),
       annotation: {
