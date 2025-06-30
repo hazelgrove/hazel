@@ -20,38 +20,36 @@ let mk = (ids, term): t => {
 };
 
 // Also strips static error holes - kinda like unelaboration
-let rec strip_casts =
+let rec strip_ascriptions =
   map_term(
     ~f_pat=
       (continue, t) =>
         switch (t.term) {
-        | Cast(p, _, _) => strip_casts_pat(p)
+        | Asc(p, _) => strip_ascriptions_pat(p)
         | _ => continue(t)
         },
     ~f_exp=
       (continue, exp) => {
         switch (term_of(exp)) {
-        /* Remove casts*/
-        | Cast(d, _, _) => strip_casts(d)
-        /* Keep failed casts*/
-        | FailedCast(_, _, _)
+        /* Remove Asciptions */
+        | Asc(d, _) => strip_ascriptions(d)
         | _ => continue(exp)
         }
       },
     _,
   )
-and strip_casts_pat = (p: Pat.t): Pat.t => {
+and strip_ascriptions_pat = (p: Pat.t): Pat.t => {
   Pat.map_term(
     ~f_pat=
       (continue, t) =>
         switch (t.term) {
-        | Cast(p, _, _) => strip_casts_pat(p)
+        | Asc(p, _) => strip_ascriptions_pat(p)
         | _ => continue(t)
         },
     ~f_exp=
       (continue, t) =>
         switch (t.term) {
-        | Cast(e, _, _) => strip_casts(e)
+        | Asc(e, _) => strip_ascriptions(e)
         | _ => continue(t)
         },
     p,
@@ -83,7 +81,7 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
             | None => continue(exp)
             /* Note that we do not have to worry about capture avoidance, since s will always be closed. */
             }
-          | Cast(_)
+          | Asc(_)
           | FixF(_)
           | Fun(_)
           | TypAp(_)
@@ -113,7 +111,6 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | Var(_)
           | Atom(_)
           | DrvExp(_)
-          | FailedCast(_, _, _)
           | MultiHole(_)
           | Deferral(_)
           | TyAlias(_)

@@ -355,7 +355,6 @@ and exp_term('a) =
   | EmptyHole
   | MultiHole(list(any_t('a)))
   | DynamicErrorHole(exp_t('a), InvalidOperationError.t)
-  | FailedCast(exp_t('a), typ_t('a), typ_t('a))
   | Deferral(deferral_position_t)
   | Undefined
   | Atom(Atom.t)
@@ -394,10 +393,7 @@ and exp_term('a) =
   | BinOp(Operators.op_bin, exp_t('a), exp_t('a))
   | BuiltinFun(string)
   | Match(exp_t('a), list((pat_t('a), exp_t('a))))
-  /* INVARIANT: in dynamic expressions, casts must be between
-     two consistent types. Both types should be normalized in
-     dynamics for the cast calculus to work right. */
-  | Cast(exp_t('a), typ_t('a), typ_t('a))
+  | Asc(exp_t('a), typ_t('a))
 and exp_t('a) = Annotated.t(exp_term('a), 'a)
 and pat_term('a) =
   | Invalid(string)
@@ -415,7 +411,7 @@ and pat_term('a) =
   | Parens(pat_t('a))
   | Probe(pat_t('a), Probe.t)
   | Ap(pat_t('a), pat_t('a))
-  | Cast(pat_t('a), typ_t('a), typ_t('a))
+  | Asc(pat_t('a), typ_t('a))
 and pat_t('a) = Annotated.t(pat_term('a), 'a)
 and typ_term('a) =
   | Unknown(type_provenance('a))
@@ -480,12 +476,6 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
           MultiHole(List.map(x => map_any_annotation(f, x), l))
         | DynamicErrorHole(e, err) =>
           DynamicErrorHole(map_exp_annotation(f, e), err)
-        | FailedCast(e: exp_t(a), t1, t2) =>
-          FailedCast(
-            map_exp_annotation(f, e),
-            map_typ_annotation(f, t1),
-            map_typ_annotation(f, t2),
-          )
         | Deferral(pos) => Deferral(pos)
         | Undefined => Undefined
         | Atom(c) => Atom(c)
@@ -573,12 +563,8 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
               l,
             ),
           )
-        | Cast(e, t1, t2) =>
-          Cast(
-            map_exp_annotation(f, e),
-            map_typ_annotation(f, t1),
-            map_typ_annotation(f, t2),
-          )
+        | Asc(e, t) =>
+          Asc(map_exp_annotation(f, e), map_typ_annotation(f, t))
         };
       {
         term,
@@ -627,12 +613,8 @@ and map_pat_annotation: 'a 'b. ('a => 'b, pat_t('a)) => pat_t('b) =
         | Probe(p, probe) => Probe(map_pat_annotation(f, p), probe)
         | Ap(p1, p2) =>
           Ap(map_pat_annotation(f, p1), map_pat_annotation(f, p2))
-        | Cast(p, t1, t2) =>
-          Cast(
-            map_pat_annotation(f, p),
-            map_typ_annotation(f, t1),
-            map_typ_annotation(f, t2),
-          )
+        | Asc(p, t) =>
+          Asc(map_pat_annotation(f, p), map_typ_annotation(f, t))
         },
       annotation: new_annotation,
     };
@@ -788,10 +770,6 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let dynamic_error_hole = (~ann=?, e, err): exp_t(DefaultAnnotation.t) => {
       term: DynamicErrorHole(e, err),
-      annotation: default_annotation(ann),
-    };
-    let failed_cast = (~ann=?, e, t1, t2): exp_t(DefaultAnnotation.t) => {
-      term: FailedCast(e, t1, t2),
       annotation: default_annotation(ann),
     };
     let deferral = (~ann=?, pos): exp_t(DefaultAnnotation.t) => {
@@ -960,20 +938,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Match(e, l),
       annotation: default_annotation(ann),
     };
-    let cast = (~ann=?, e, t1, t2): exp_t(DefaultAnnotation.t) => {
-      term: Cast(e, t1, t2),
+    let asc = (~ann=?, e, t): exp_t(DefaultAnnotation.t) => {
+      term: Asc(e, t),
       annotation: default_annotation(ann),
     };
-    let asc = (~ann=?, e, t): exp_t(DefaultAnnotation.t) =>
-      cast(
-        ~ann?,
-        e,
-        {
-          term: Unknown(Internal),
-          annotation: default_annotation(ann),
-        },
-        t,
-      );
   };
   module Pat = {
     let invalid = (~ann=?, s): pat_t(DefaultAnnotation.t) => {
@@ -1062,21 +1030,11 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Ap(p1, p2),
       annotation: default_annotation(ann),
     };
-    let cast = (~ann=?, p, t1, t2): pat_t(DefaultAnnotation.t) => {
-      term: Cast(p, t1, t2),
+
+    let asc = (~ann=?, p, t): pat_t(DefaultAnnotation.t) => {
+      term: Asc(p, t),
       annotation: default_annotation(ann),
     };
-
-    let asc = (~ann=?, p, t): pat_t(DefaultAnnotation.t) =>
-      cast(
-        ~ann?,
-        p,
-        t,
-        {
-          term: Unknown(Internal),
-          annotation: default_annotation(ann),
-        },
-      );
   };
 
   module Typ = {

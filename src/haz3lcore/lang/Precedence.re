@@ -49,7 +49,7 @@ let dot = 22;
 let ap = 23;
 // _____(x)
 // 5 : _____
-let cast = 24 |> left_associative;
+let asc = 24 |> left_associative;
 // _____ : T
 // - _____
 let neg = 25;

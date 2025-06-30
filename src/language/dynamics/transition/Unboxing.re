@@ -6,11 +6,9 @@ open Util;
    is it a list literal? Sadly not necessarily, it might be:
 
     - an indeterminate list cons: e.g. 1 :: ?
-    - a list literal or list cons with some casts wrapped around it
-    - an indet term in a cast to a list type
+    - an indet term in a ascription to a list type
 
-    Unboxing is the process of turning a list literal into a list literal if it is a list literal,
-    by pushing casts inside data structures, or giving up if it is not a list literal.
+    Unboxing is the process of turning a list literal into a list literal if it is a list literal, or giving up if it is not a list literal.
     It may give up in two distinct ways:
     - IndetMatch: Due to holes in the expression it may or may not match the unboxing request
                   depending on possible substitutions of the holes.
@@ -20,7 +18,7 @@ open Util;
                   e.g. 1 :: ? definitely does NOT match a list of length 0 (ListLitn(0))
 
     Note unboxing only works one layer deep, if we have a list of lists then
-    the inner lists may still have casts around them after unboxing.
+    the inner lists may still have indet ascriptions around them after unboxing.
     */
 
 type unboxed_tfun =
@@ -40,7 +38,7 @@ type unbox_request('a) =
   | Tuple(int): unbox_request(list(DHExp.t))
   | TupLabel(DHPat.t): unbox_request(DHExp.t)
   | ListLit: unbox_request(list(DHExp.t)) // Unboxes to a known length list LITERAL. Not all list final forms land in this category (e.g. Cons: 1 :: ?)
-  | ListLitn(int): unbox_request(list(DHExp.t)) // This request is used for performance reasons to prevent casting lists of the wrong length and for matching list lits against cons expressions
+  | ListLitn(int): unbox_request(list(DHExp.t)) // This request is used for performance reasons to prevent matching lists of the wrong length and for matching list lits against cons expressions
   | Cons: unbox_request((DHExp.t, DHExp.t))
   | SumNoArg(string): unbox_request(unit)
   | SumWithArg(string): unbox_request(DHExp.t)
@@ -60,7 +58,7 @@ let ( let* ) = (x: unboxed('a), f: 'a => unboxed('b)): unboxed('b) =>
   | Matches(x) => f(x)
   };
 
-let fixup_cast = Casts.transition_multiple;
+let fixup_ascriptions = Ascriptions.transition_multiple;
 
 /* This function has a different return type depending on what kind of request
    it is given. This unfortunately uses a crazy OCaml feature called GADTS, but
@@ -87,41 +85,36 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         DoesNotMatch;
       }
     | (TupLabel(_), _) => Matches(expr)
-    /* Base types are always already unboxed because of the ITCastID rule*/
     | (Atom(r), Atom(x)) =>
       switch (Atom.unbox(r, x)) {
       | Some(x) => Matches(x)
       | None => IndetMatch
       }
 
-    /* Lists can be either lists or cons with indet tail or list casts */
+    /* Lists can be either lists or cons with indet tail */
     | (ListLit, ListLit(l)) => Matches(l)
     | (ListLitn(n), ListLit(l)) when ListUtil.is_length(n, l) => Matches(l)
     | (ListLitn(_), ListLit(_)) => DoesNotMatch
     /* A cons final form is always indet, so either does NOT match or indet matches with a listliteral*/
     | (ListLitn(0), Cons(_)) => DoesNotMatch // Cons is not an empty list
-    | (ListLitn(n), Cons(_, xs)) => unbox(ListLitn(n - 1), xs)
-    | (ListLit, Cons(_)) => IndetMatch // WIthout length of ListLit we cannot know
+    | (ListLitn(n), Cons(x, xs)) =>
+      let* tail = unbox(ListLitn(n - 1), xs);
+      Matches([x, ...tail]);
+    | (ListLit, Cons(_)) => IndetMatch // Without length of ListLit we cannot know
 
     | (Cons, ListLit([x, ...xs])) =>
       Matches((x, ListLit(xs) |> DHExp.fresh))
     | (Cons, ListLit([])) => DoesNotMatch
     | (Cons, Cons(x, xs)) => Matches((x, xs))
-    /* Tuples can be either tuples or tuple casts */
+    /* Tuples  */
     | (Tuple(n), Tuple(t)) when List.length(t) == n => Matches(t)
     | (Tuple(_), Tuple(_)) => IndetMatch
-    /* Sum constructors can be either sum constructors, sum constructors
-       applied to some value or sum casts */
+    /* Sum constructors can be either sum constructors or sum constructors
+       applied to some value  */
     | (SumNoArg(name1), Constructor(name2, _)) when name1 == name2 =>
       Matches()
     | (SumNoArg(_), Constructor(_)) => DoesNotMatch
     | (SumNoArg(_), Ap(_, {term: Constructor(_), _}, _)) => DoesNotMatch
-    | (SumNoArg(name), Cast(d1, {term: Sum(_), _}, {term: Sum(s2), _}))
-        when
-          ConstructorMap.has_constructor_no_args(name, s2)
-          || ConstructorMap.has_bad_entry(s2) =>
-      let* d1 = unbox(SumNoArg(name), d1);
-      Matches(d1);
     | (SumWithArg(_), Constructor(_)) => DoesNotMatch
     | (SumWithArg(name1), Ap(_, {term: Constructor(name2, _), _}, d3))
         when name1 == name2 =>
@@ -140,11 +133,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       Matches(TypFun(utpat, Closure(env', tfbody) |> Exp.fresh, name))
     | (TypFun, TypFun(utpat, tfbody, name)) =>
       Matches(TypFun(utpat, tfbody, name))
-    /* Any failed cast is indet */
-    | (_, FailedCast(_)) => IndetMatch
-
-    /* Forms that are the wrong type of value - these cases indicate an error
-       in elaboration or in the cast calculus. */
+    /* Forms that are the wrong type of value - these cases indicate an error */
     | (
         _,
         Atom(_) | Label(_) | Constructor(_) | BuiltinFun(_) | Deferral(_) |
@@ -154,7 +143,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         Cons(_) |
         TupLabel(_) |
         Tuple(_) |
-        Cast(_) |
+        Asc(_) |
         TypFun(_, _, _) |
         Ap(_, {term: Constructor(_), _}, _),
       ) =>

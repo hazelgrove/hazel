@@ -1,3 +1,5 @@
+open Util;
+
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type mode =
@@ -38,29 +40,39 @@ module StoreMode =
 
 module Store = {
   let load = (~settings, ~instructor_mode) => {
-    let mode = StoreMode.load();
-    switch (mode) {
-    | Scratch =>
+    // Check if both name and share URL parameters are present
+    let has_share_params =
+      JsUtil.QueryParams.get_param("name") != None
+      && JsUtil.QueryParams.get_param("share") != None;
+
+    // If share parameters exist, force Scratch mode regardless of stored mode
+    if (has_share_params) {
       Model.Scratch(
         ScratchMode.Store.load()
         |> ScratchMode.Store.integrate_share
         |> ScratchMode.Model.unpersist(~settings, ~root=Exp),
-      )
-    | Documentation =>
-      Model.Documentation(
-        ScratchMode.StoreDocumentation.load()
-        |> ScratchMode.Model.unpersist_documentation(~settings, ~root=Exp),
-      )
-    | Exercises =>
-      Model.Exercises(
-        ExercisesMode.Store.load(~settings, ~instructor_mode)
-        |> ExercisesMode.Model.unpersist(~instructor_mode),
-      )
-    | Derivations =>
-      Model.Derivations(
-        DerivationsMode.Store.load(~settings, ~instructor_mode)
-        |> DerivationsMode.Model.unpersist(~settings, ~instructor_mode),
-      )
+      );
+    } else {
+      // Otherwise, proceed with normal mode loading
+      let mode = StoreMode.load();
+      switch (mode) {
+      | Scratch =>
+        Model.Scratch(
+          ScratchMode.Store.load()
+          |> ScratchMode.Store.integrate_share
+          |> ScratchMode.Model.unpersist(~settings, ~root=Exp),
+        )
+      | Documentation =>
+        Model.Documentation(
+          ScratchMode.StoreDocumentation.load()
+          |> ScratchMode.Model.unpersist(~settings, ~root=Exp),
+        )
+      | Exercises =>
+        Model.Exercises(
+          ExercisesMode.Store.load(~settings, ~instructor_mode)
+          |> ExercisesMode.Model.unpersist(~instructor_mode),
+        )
+      };
     };
   };
 
@@ -71,9 +83,7 @@ module Store = {
       ScratchMode.Store.save(ScratchMode.Model.persist(m));
     | Model.Documentation(m) =>
       StoreMode.save(Documentation);
-      ScratchMode.StoreDocumentation.save(
-        ScratchMode.Model.persist_documentation(m),
-      );
+      ScratchMode.StoreDocumentation.save(ScratchMode.Model.persist(m));
     | Model.Exercises(m) =>
       StoreMode.save(Exercises);
       ExercisesMode.Store.save(~instructor_mode, m);
@@ -170,7 +180,7 @@ module Update = {
     | (SwitchMode(Documentation), _) =>
       Model.Documentation(
         ScratchMode.StoreDocumentation.load()
-        |> ScratchMode.Model.unpersist_documentation(
+        |> ScratchMode.Model.unpersist(
              ~settings=globals.settings.core,
              ~root=Exp,
            ),
@@ -342,6 +352,7 @@ module View = {
         ~selection: option(Selection.t),
         ~signal,
         ~inject,
+        ~inject_explainthis: ExplainThisUpdate.update => 'b,
         editors: Model.t,
       ) =>
     switch (editors) {
@@ -385,6 +396,7 @@ module View = {
           | _ => None
           },
         ~inject=a => Update.Exercises(a) |> inject,
+        ~inject_explainthis: ExplainThisUpdate.update => 'b,
         m,
       )
     | Derivations(m) =>
@@ -463,14 +475,12 @@ module View = {
       | Scratch(m) =>
         ScratchMode.View.top_bar(
           ~globals,
-          ~named_slides=false,
           ~inject=a => Update.Scratch(a) |> inject,
           m,
         )
       | Documentation(m) =>
         ScratchMode.View.top_bar(
           ~globals,
-          ~named_slides=true,
           ~inject=a => Update.Scratch(a) |> inject,
           m,
         )

@@ -583,6 +583,7 @@ module View = {
         ~globals: Globals.t,
         ~signal: event => 'b,
         ~inject: Update.t => 'b,
+        ~inject_explainthis: ExplainThisUpdate.update => 'b,
         ~selection: option(Selection.t),
         model: Model.t,
       ) => {
@@ -812,7 +813,11 @@ module View = {
     let prompt_view = {
       let prompt_placeholder = eds.prompt == "" ? "Empty Prompt" : eds.prompt;
       let (msg, _) =
-        ExplainThis.mk_translation(~globals, prompt_placeholder);
+        ExplainThis.mk_translation(
+          ~globals,
+          ~inject=inject_explainthis,
+          prompt_placeholder,
+        );
       div(
         ~attrs=[Attr.class_("cell-prompt")],
         [

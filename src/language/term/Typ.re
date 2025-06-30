@@ -388,6 +388,19 @@ let join_all = (~empty: t, ctx: Ctx.t, ts: list(t)): option(t) =>
 let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
   join(ctx, ty1, ty2) != None;
 
+/**
+   * Determines if one type (`ty1`) is more precise than another type (`ty2`) within a given context (`ctx`).
+   *
+   * @return - `true` if `ty1` is more precise than `ty2`, otherwise `false`.
+   */
+let is_more_precise = (ctx: Ctx.t, ty1: t, ty2: t): bool => {
+  let joined = join(ctx, ty1, ty2);
+  switch (joined) {
+  | None => false
+  | Some(joined) => fast_equal(~alpha_equivalence=true, joined, ty1)
+  };
+};
+
 let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   if (rec_counter > 1000) {
     failwith("weak_head_normalize exceeded 1000 recursive calls");
