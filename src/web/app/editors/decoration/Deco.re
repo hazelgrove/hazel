@@ -235,7 +235,8 @@ module Deco =
   let rows = measured.rows;
   let projectors = M.editor.syntax.projectors;
   let error_ids = M.statics.error_ids;
-  let warning_ids = M.statics.warning_ids;
+  let warning_ids =
+    M.globals.settings.core.display_warnings ? M.statics.warning_ids : [];
   let color_highlights = M.globals.color_highlights;
   let segment = M.editor.syntax.segment;
 

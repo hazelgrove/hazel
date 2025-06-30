@@ -75,7 +75,9 @@ let term_view = (~globals: Globals.t, ci) => {
         ["ci-header", sort]
         @ (
           Info.is_error(ci)
-            ? [errc] : Info.is_warning(ci) ? [warnc] : [okc]
+            ? [errc]
+            : Info.is_warning(ci) && globals.settings.core.display_warnings
+                ? [warnc] : [okc]
         ),
       ),
     ],
@@ -342,20 +344,6 @@ let common_ok_view =
   );
 };
 
-let common_warn_view = (warning: Warning.t) => {
-  switch (warning) {
-  | WarningPat(w) =>
-    switch (w) {
-    | UnusedVar(name) => [text("Unused variable: "), code(name)]
-    | _ => []
-    }
-  | WarningExp(_)
-  | WarningTyp(_)
-  | WarningTPat(_) => [text("Warning: " ++ Warning.show(warning))]
-  | None => []
-  };
-};
-
 let typ_ok_view = (~globals, cls: Cls.t, ok: Info.ok_typ) => {
   let view_type = view_type(~globals);
   switch (ok) {
@@ -582,29 +570,29 @@ let rec pat_view =
     )
   | NotInHole(ok) =>
     // get warnings from info map
+    let ok_view =
+      common_ok_view(
+        ~globals,
+        ~lifted_ty,
+        ~reordered=
+          switch (info.label_inference) {
+          | Some(MultiLabelInference({reordered, _})) => reordered
+          | _ => false
+          },
+        ~introduced_labels,
+        ~inferred_label,
+        ~label_sort=info.label_sort,
+        cls,
+        ok,
+      );
     switch (info.warning) {
     | WarningPat(_)
     | WarningExp(_)
     | WarningTyp(_)
-    | WarningTPat(_) => div_warn(common_warn_view(info.warning))
-    | _ =>
-      div_ok(
-        common_ok_view(
-          ~globals,
-          ~lifted_ty,
-          ~reordered=
-            switch (info.label_inference) {
-            | Some(MultiLabelInference({reordered, _})) => reordered
-            | _ => false
-            },
-          ~introduced_labels,
-          ~inferred_label,
-          ~label_sort=info.label_sort,
-          cls,
-          ok,
-        ),
-      )
-    }
+    | WarningTPat(_) when globals.settings.core.display_warnings =>
+      div_warn(ok_view)
+    | _ => div_ok(ok_view)
+    };
   };
 };
 
@@ -655,11 +643,16 @@ let view_of_info = (~globals, ci): list(Node.t) => {
   };
 };
 
-let inspector_view = (~globals, ci): Node.t =>
+let inspector_view = (~globals: Globals.t, ci): Node.t =>
   div(
     ~attrs=[
       Attr.id("cursor-inspector"),
-      clss([Info.is_error(ci) ? errc : Info.is_warning(ci) ? warnc : okc]),
+      clss([
+        Info.is_error(ci)
+          ? errc
+          : Info.is_warning(ci) && globals.settings.core.display_warnings
+              ? warnc : okc,
+      ]),
     ],
     view_of_info(~globals, ci),
   );
