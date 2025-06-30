@@ -98,7 +98,7 @@
   background-color: var(--eval-exception);
 }
 
-.cell-item.cell-result .error-msg {
+.cell-item.cell-result .error-msg .warning-msg {
   padding: 0.25em;
   color: var(--BLACK);
 }
@@ -148,6 +148,13 @@
   fill: var(--R0);
   stroke-dasharray: 1, 1;
   stroke: var(--R1);
+  stroke-width: 1.2px;
+}
+
+.DHCode svg.warning {
+  fill: var(--warning-hole-fill);
+  stroke-dasharray: 1, 1;
+  stroke: var(--warning-hole-stroke);
   stroke-width: 1.2px;
 }
 

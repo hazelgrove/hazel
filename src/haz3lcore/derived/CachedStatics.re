@@ -7,6 +7,7 @@ type t = {
   elaborated: Exp.t,
   info_map: Statics.Map.t,
   error_ids: list(Id.t),
+  warning_ids: list(Id.t),
 };
 
 let empty: t = {
@@ -24,6 +25,7 @@ let empty: t = {
   },
   info_map: Id.Map.empty,
   error_ids: [],
+  warning_ids: [],
 };
 
 let elaborate =
@@ -39,6 +41,7 @@ let init_from_term = (~settings, ~is_dynamic_term, ~ctx=?, term): t => {
     );
   let info_map = Statics.mk(settings, ctx_init, term);
   let error_ids = Statics.Map.error_ids(info_map);
+  let warning_ids = Statics.Map.warning_ids(info_map);
   let elaborated =
     switch () {
     | _ when !settings.statics => dh_err("Statics disabled")
@@ -55,6 +58,7 @@ let init_from_term = (~settings, ~is_dynamic_term, ~ctx=?, term): t => {
     elaborated,
     info_map,
     error_ids,
+    warning_ids,
   };
 };
 

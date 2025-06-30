@@ -5,9 +5,11 @@ open Util;
 open Language;
 
 let errc = "error";
+let warnc = "warning";
 let okc = "ok";
 let div_err = div(~attrs=[clss(["status", errc])]);
 let div_ok = div(~attrs=[clss(["status", okc])]);
+let div_warn = div(~attrs=[clss(["status", warnc])]);
 let code_box_container = x =>
   div(~attrs=[clss(["code-box-container"])], [x]);
 
@@ -69,7 +71,13 @@ let term_view = (~globals: Globals.t, ci) => {
 
   div(
     ~attrs=[
-      clss(["ci-header", sort] @ (Info.is_error(ci) ? [errc] : [okc])),
+      clss(
+        ["ci-header", sort]
+        @ (
+          Info.is_error(ci)
+            ? [errc] : Info.is_warning(ci) ? [warnc] : [okc]
+        ),
+      ),
     ],
     [
       ctx_toggle(~globals),
@@ -360,6 +368,20 @@ let common_ok_view =
   );
 };
 
+let common_warn_view = (warning: Warning.t) => {
+  switch (warning) {
+  | WarningPat(w) =>
+    switch (w) {
+    | UnusedVar(name) => [text("Unused variable: "), code(name)]
+    | _ => []
+    }
+  | WarningExp(_)
+  | WarningTyp(_)
+  | WarningTPat(_) => [text("Warning: " ++ Warning.show(warning))]
+  | None => []
+  };
+};
+
 let typ_ok_view = (~globals, cls: Cls.t, ok: Info.ok_typ) => {
   let view_type = view_type(~globals);
   switch (ok) {
@@ -553,22 +575,30 @@ let rec pat_view =
       ),
     )
   | NotInHole(ok) =>
-    div_ok(
-      common_ok_view(
-        ~globals,
-        ~lifted_ty,
-        ~reordered=
-          switch (info.label_inference) {
-          | Some(MultiLabelInference({reordered, _})) => reordered
-          | _ => false
-          },
-        ~introduced_labels,
-        ~inferred_label,
-        ~label_sort=info.label_sort,
-        cls,
-        ok,
-      ),
-    )
+    // get warnings from info map
+    switch (info.warning) {
+    | WarningPat(_)
+    | WarningExp(_)
+    | WarningTyp(_)
+    | WarningTPat(_) => div_warn(common_warn_view(info.warning))
+    | _ =>
+      div_ok(
+        common_ok_view(
+          ~globals,
+          ~lifted_ty,
+          ~reordered=
+            switch (info.label_inference) {
+            | Some(MultiLabelInference({reordered, _})) => reordered
+            | _ => false
+            },
+          ~introduced_labels,
+          ~inferred_label,
+          ~label_sort=info.label_sort,
+          cls,
+          ok,
+        ),
+      )
+    }
   };
 };
 
@@ -623,7 +653,7 @@ let inspector_view = (~globals, ci): Node.t =>
   div(
     ~attrs=[
       Attr.id("cursor-inspector"),
-      clss([Info.is_error(ci) ? errc : okc]),
+      clss([Info.is_error(ci) ? errc : Info.is_warning(ci) ? warnc : okc]),
     ],
     view_of_info(~globals, ci),
   );

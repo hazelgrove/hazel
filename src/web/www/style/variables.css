@@ -31,6 +31,10 @@
   --Y2: oklch(88% 0.2 95); /* explicit hole */
   --Y3: oklch(71% 0.2 95); /* incomplete shards */
 
+  /* WARNING HOLE DECO */
+  --warning-hole-stroke: oklch(0.6 0.1258 78.35);
+  --warning-hole-fill: oklch(0.968 0.211 109.77);
+
   /* MAGMA - opportunities */
   --R0: oklch(85% 0.1 30); /* broken shard fill */
   --R1: oklch(60% 0.3 30); /* caret, error stroke */
@@ -174,6 +178,8 @@
   --ci-status-text: var(--BR4);
   --ci-status-error-text: var(--R2);
   --ci-status-error-bkg: var(--test-fail-active);
+  --ci-status-warning-text: var(--warning-hole-stroke);
+  --ci-status-warning-bkg: var(--warning-hole-fill);
   --context-inspector-colon: var(--BR2);
 
   --ui-header-text: var(--BR3);
@@ -199,8 +205,9 @@
   /* BELOW CODE LEVEL */
   --err-hole-arms-z: 1;
   --tile-z: 2;
-  --err-hole-z: 3;
-  --select-z: 4;
+  --err-hole-z: 4;
+  --warn-hole-z: 3;
+  --select-z: 5;
   --projector-underlay-z: 9;
 
   /* AT CODE LEVEL */
