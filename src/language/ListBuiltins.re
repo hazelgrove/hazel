@@ -78,6 +78,40 @@ type fn = {
   */
 
 open Fresh.Typ;
+
+// TODO Move these option type helpers somewhere else and merge with Buitlins.TypeAliases
+let create_constructor_map =
+    (variants: list((string, option(Typ.t)))): ConstructorMap.t(Typ.t) => {
+  List.map(
+    ((name, typ_opt)) => ConstructorMap.Variant(name, [Id.mk()], typ_opt),
+    variants,
+  );
+};
+let option_type: Typ.t = {
+  let option_cons_map =
+    create_constructor_map([
+      ("None", None),
+      ("Some", Some(Unknown(Internal) |> Typ.fresh)),
+    ]);
+  sum(option_cons_map);
+};
+
+// Confirm that we want the type on the constructors for both expressions and patterns
+let some =
+  IdTagged.FreshGrammar.Exp.constructor(
+    "Some",
+    Some(Some(arrow(unknown(SynSwitch), option_type))),
+  );
+let pat_some =
+  IdTagged.FreshGrammar.Pat.constructor(
+    "Some",
+    Some(Some(arrow(unknown(SynSwitch), option_type))),
+  );
+let pat_none =
+  IdTagged.FreshGrammar.Pat.constructor("None", Some(Some(option_type)));
+let none =
+  IdTagged.FreshGrammar.Exp.constructor("None", Some(Some(option_type)));
+
 let builtins = [
   {
     str: {|fix length -> fun xs -> case xs
@@ -1841,7 +1875,7 @@ let builtins = [
                       ap(Forward, var("f"), var("x")),
                       [
                         (
-                          Pat.constructor("None", None),
+                          pat_none,
                           ap(
                             Forward,
                             var("filter_map"),
@@ -1849,10 +1883,7 @@ let builtins = [
                           ),
                         ),
                         (
-                          Pat.ap(
-                            Pat.constructor("Some", None),
-                            Pat.var("y"),
-                          ),
+                          Pat.ap(pat_some, Pat.var("y")),
                           cons(
                             var("y"),
                             ap(
@@ -1894,12 +1925,12 @@ let builtins = [
               match(
                 var("xs"),
                 [
-                  (Pat.list_lit([]), constructor("None", None)),
+                  (Pat.list_lit([]), none),
                   (
                     Pat.cons(Pat.var("x"), Pat.var("xs")),
                     if_(
                       bin_op(Int(Equals), var("n"), int(0)),
-                      ap(Forward, constructor("Some", None), var("x")),
+                      ap(Forward, some, var("x")),
                       ap(
                         Forward,
                         var("nth_opt"),
@@ -1940,12 +1971,12 @@ let builtins = [
               match(
                 var("xs"),
                 [
-                  (Pat.list_lit([]), constructor("None", None)),
+                  (Pat.list_lit([]), none),
                   (
                     Pat.cons(Pat.var("x"), Pat.var("xs")),
                     if_(
                       ap(Forward, var("pred"), var("x")),
-                      ap(Forward, constructor("Some", None), var("x")),
+                      ap(Forward, some, var("x")),
                       ap(
                         Forward,
                         var("find_opt"),
@@ -1994,16 +2025,12 @@ let builtins = [
                     match(
                       var("xs"),
                       [
-                        (Pat.list_lit([]), constructor("None", None)),
+                        (Pat.list_lit([]), none),
                         (
                           Pat.cons(Pat.var("x"), Pat.var("xs")),
                           if_(
                             ap(Forward, var("pred"), var("x")),
-                            ap(
-                              Forward,
-                              constructor("Some", None),
-                              var("i"),
-                            ),
+                            ap(Forward, some, var("i")),
                             ap(
                               Forward,
                               var("find_index_helper"),
@@ -2058,14 +2085,14 @@ let builtins = [
               match(
                 var("xs"),
                 [
-                  (Pat.list_lit([]), constructor("None", None)),
+                  (Pat.list_lit([]), none),
                   (
                     Pat.cons(Pat.var("x"), Pat.var("xs")),
                     match(
                       ap(Forward, var("f"), var("x")),
                       [
                         (
-                          Pat.constructor("None", None),
+                          pat_none,
                           ap(
                             Forward,
                             var("find_map"),
@@ -2073,11 +2100,8 @@ let builtins = [
                           ),
                         ),
                         (
-                          Pat.ap(
-                            Pat.constructor("Some", None),
-                            Pat.var("y"),
-                          ),
-                          ap(Forward, constructor("Some", None), var("y")),
+                          Pat.ap(pat_some, Pat.var("y")),
+                          ap(Forward, some, var("y")),
                         ),
                       ],
                     ),
@@ -2125,7 +2149,7 @@ let builtins = [
                     match(
                       var("xs"),
                       [
-                        (Pat.list_lit([]), constructor("None", None)),
+                        (Pat.list_lit([]), none),
                         (
                           Pat.cons(Pat.var("x"), Pat.var("xs")),
                           match(
@@ -2136,7 +2160,7 @@ let builtins = [
                             ),
                             [
                               (
-                                Pat.constructor("None", None),
+                                pat_none,
                                 ap(
                                   Forward,
                                   var("find_mapi_helper"),
@@ -2148,15 +2172,8 @@ let builtins = [
                                 ),
                               ),
                               (
-                                Pat.ap(
-                                  Pat.constructor("Some", None),
-                                  Pat.var("y"),
-                                ),
-                                ap(
-                                  Forward,
-                                  constructor("Some", None),
-                                  var("y"),
-                                ),
+                                Pat.ap(pat_some, Pat.var("y")),
+                                ap(Forward, some, var("y")),
                               ),
                             ],
                           ),

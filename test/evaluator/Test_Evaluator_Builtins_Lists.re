@@ -4,6 +4,19 @@ open Test_Evaluator_Prelude;
 open IdTagged.FreshGrammar;
 open Exp;
 
+// Instead of using these explicitly we could call elaboration in the tests/use the parse_and_evaluate_test
+let some =
+  Exp.constructor(
+    "Some",
+    Some(
+      Some(
+        Typ.(arrow(unknown(SynSwitch), Builtins.TypeAliases.option_type)),
+      ),
+    ),
+  );
+let none =
+  Exp.constructor("None", Some(Some(Builtins.TypeAliases.option_type)));
+
 let tests = (
   "Evaluator.ListBuiltins",
   [
@@ -756,12 +769,8 @@ let tests = (
                   ),
                   int(0),
                 ),
-                ap(
-                  Forward,
-                  builtin_fun("Some"),
-                  bin_op(Int(Times), var("x"), int(2)),
-                ),
-                ap(Forward, builtin_fun("None"), tuple([])),
+                ap(Forward, some, bin_op(Int(Times), var("x"), int(2))),
+                none,
               ),
               None,
               None,
@@ -773,7 +782,7 @@ let tests = (
     test_case("nth_opt valid index", `Quick, () =>
       evaluation_test(
         "nth_opt([1, 2, 3], 1)",
-        ap(Forward, builtin_fun("Some"), int(2)),
+        ap(Forward, some, int(2)),
         ap(
           Forward,
           builtin_fun("nth_opt"),
@@ -784,7 +793,7 @@ let tests = (
     test_case("nth_opt invalid index", `Quick, () =>
       evaluation_test(
         "nth_opt([1, 2, 3], 5)",
-        ap(Forward, builtin_fun("None"), tuple([])),
+        none,
         ap(
           Forward,
           builtin_fun("nth_opt"),
@@ -795,7 +804,7 @@ let tests = (
     test_case("find_opt found element", `Quick, () =>
       evaluation_test(
         "find_opt([1, 2, 3, 4], fun x -> int_mod(x, 2) == 0)",
-        ap(Forward, builtin_fun("Some"), int(2)),
+        ap(Forward, some, int(2)),
         ap(
           Forward,
           builtin_fun("find_opt"),
@@ -822,7 +831,7 @@ let tests = (
     test_case("find_opt not found", `Quick, () =>
       evaluation_test(
         "find_opt([1, 3, 5], fun x -> int_mod(x, 2) == 0)",
-        ap(Forward, builtin_fun("None"), tuple([])),
+        none,
         ap(
           Forward,
           builtin_fun("find_opt"),
@@ -849,7 +858,7 @@ let tests = (
     test_case("find_index found element", `Quick, () =>
       evaluation_test(
         "find_index([1, 2, 3, 4], fun x -> int_mod(x, 2) == 0)",
-        ap(Forward, builtin_fun("Some"), int(1)),
+        ap(Forward, some, int(1)),
         ap(
           Forward,
           builtin_fun("find_index"),
@@ -876,7 +885,7 @@ let tests = (
     test_case("find_index not found", `Quick, () =>
       evaluation_test(
         "find_index([1, 3, 5], fun x -> int_mod(x, 2) == 0)",
-        ap(Forward, builtin_fun("None"), tuple([])),
+        none,
         ap(
           Forward,
           builtin_fun("find_index"),
@@ -903,7 +912,7 @@ let tests = (
     test_case("find_map found element", `Quick, () =>
       evaluation_test(
         "find_map([1, 2, 3, 4], fun x -> if int_mod(x, 2) == 0 then Some(x * 2) else None)",
-        ap(Forward, builtin_fun("Some"), int(4)),
+        ap(Forward, some, int(4)),
         ap(
           Forward,
           builtin_fun("find_map"),
@@ -921,12 +930,8 @@ let tests = (
                   ),
                   int(0),
                 ),
-                ap(
-                  Forward,
-                  builtin_fun("Some"),
-                  bin_op(Int(Times), var("x"), int(2)),
-                ),
-                ap(Forward, builtin_fun("None"), tuple([])),
+                ap(Forward, some, bin_op(Int(Times), var("x"), int(2))),
+                none,
               ),
               None,
               None,
@@ -938,7 +943,7 @@ let tests = (
     test_case("find_map not found", `Quick, () =>
       evaluation_test(
         "find_map([1, 3, 5], fun x -> if int_mod(x, 2) == 0 then Some(x * 2) else None)",
-        ap(Forward, builtin_fun("None"), tuple([])),
+        none,
         ap(
           Forward,
           builtin_fun("find_map"),
@@ -956,12 +961,8 @@ let tests = (
                   ),
                   int(0),
                 ),
-                ap(
-                  Forward,
-                  builtin_fun("Some"),
-                  bin_op(Int(Times), var("x"), int(2)),
-                ),
-                ap(Forward, builtin_fun("None"), tuple([])),
+                ap(Forward, some, bin_op(Int(Times), var("x"), int(2))),
+                none,
               ),
               None,
               None,
@@ -973,7 +974,7 @@ let tests = (
     test_case("find_mapi found element", `Quick, () =>
       evaluation_test(
         "find_mapi([1, 2, 3, 4], fun (i, x) -> if int_mod(x, 2) == 0 then Some(i) else None)",
-        ap(Forward, builtin_fun("Some"), int(1)),
+        ap(Forward, some, int(1)),
         ap(
           Forward,
           builtin_fun("find_mapi"),
@@ -991,8 +992,8 @@ let tests = (
                   ),
                   int(0),
                 ),
-                ap(Forward, builtin_fun("Some"), var("i")),
-                ap(Forward, builtin_fun("None"), tuple([])),
+                ap(Forward, some, var("i")),
+                none,
               ),
               None,
               None,
@@ -1004,7 +1005,7 @@ let tests = (
     test_case("find_mapi not found", `Quick, () =>
       evaluation_test(
         "find_mapi([1, 3, 5], fun (i, x) -> if int_mod(x, 2) == 0 then Some(i) else None)",
-        ap(Forward, builtin_fun("None"), tuple([])),
+        none,
         ap(
           Forward,
           builtin_fun("find_mapi"),
@@ -1022,8 +1023,8 @@ let tests = (
                   ),
                   int(0),
                 ),
-                ap(Forward, builtin_fun("Some"), var("i")),
-                ap(Forward, builtin_fun("None"), tuple([])),
+                ap(Forward, some, var("i")),
+                none,
               ),
               None,
               None,
