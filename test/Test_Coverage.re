@@ -1436,6 +1436,37 @@ let inconsistent_less_errors_bias_ctrs =
     ],
   );
 
+let inconsistent_exhaustive_first_col_less_errors_biars =
+  has_non_common_errors(
+    "Inexhaustive Inconsistent: Exhaustive first col less errors bias",
+    {|
+      type Ty = +A + B(Int, Int) in
+      let x: (Ty, Int, Int) = ? in
+      {{{case x
+        | (A, 0, 0) => false
+        | (B((0, 0, 0)), "", "") => false
+        | (B((0, 0, 0)), 0, 0) => false
+        | (C((0, 0, 0)), "", 0) => false
+      end}}}
+    |},
+    [
+      Info.Exp(
+        InexhaustiveMatch(
+          None,
+          Grammar.Pat(
+            IdTagged.FreshGrammar.Pat.(
+              tuple([
+                ap(constructor("B", None), wild()),
+                big_int(Bigint.of_int(0)),
+                big_int(Bigint.of_int(1)),
+              ])
+            ),
+          ),
+        ),
+      ),
+    ],
+  );
+
 let inconsistent_undefined_ctrs =
   has_non_common_errors(
     "Inconsistent Inexhaustive Undefined Ctrs",
@@ -1540,7 +1571,7 @@ let inconsistent_fun_ctr_arg =
 
 // tests a weird edge case where the label has no argument
 let fun_labeled_tuple =
-  no_errors("e", {|
+  no_errors("Exhaustive fun w/ labeled tuple", {|
       let _ = fun (a=_) -> 0 in ?
     |});
 
@@ -1657,6 +1688,7 @@ let tests = (
     inconsistent_valid_bias,
     inconsistent_less_errors_bias,
     inconsistent_less_errors_bias_ctrs,
+    inconsistent_exhaustive_first_col_less_errors_biars,
     inconsistent_undefined_ctrs,
     inconsistent_inexhaustive__first_col_tuple_truth,
     inconsistent_inexhaustive_ctr_no_args,

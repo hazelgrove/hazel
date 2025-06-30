@@ -1314,8 +1314,6 @@ module CheckMatrix: CheckMatrix = {
               unseen_pattern,
             )
             || first_col_exhaustive) {
-          // TODO: may have a bug that allows worse patterns to replace better ones
-          // allow certain invalid patterns to replace valid ones
           new_unseen_pattern;
         } else {
           unseen_pattern;
