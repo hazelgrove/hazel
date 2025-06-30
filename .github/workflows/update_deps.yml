@@ -4,6 +4,9 @@ on:
   schedule:
     - cron: '0 9 * * *'  # everyday at 09:00 UTC
   workflow_dispatch:
+  push:
+    branches:
+      -  bot_update_dependencies # TODO remove this branch once the workflow is stable
 
 jobs:
   update-dependencies:
