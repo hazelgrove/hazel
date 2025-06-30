@@ -116,8 +116,7 @@ module Update = {
     | SwitchMode(_) => true
     | Scratch(action) => ScratchMode.Update.can_undo(action)
     | Exercises(action) => ExercisesMode.Update.can_undo(action)
-    // TODO(zhiyao): add undo for derivations
-    | Derivations(_) => false
+    | Derivations(action) => DerivationsMode.Update.can_undo(action)
     };
   };
 

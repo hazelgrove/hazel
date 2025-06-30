@@ -95,6 +95,15 @@ module Update = {
     | Refresh
     | ResetExercise;
 
+  let can_undo = (action: t) => {
+    switch (action) {
+    | Editor(_, action) => CellEditor.Update.can_undo(action)
+    | MapEditor(_) => true
+    | Refresh => false
+    | ResetExercise => false
+    };
+  };
+
   let update_editor_action =
       (
         action: CodeEditable.Update.t,
