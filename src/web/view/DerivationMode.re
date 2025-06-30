@@ -57,6 +57,16 @@ module Model = {
     };
   };
 
+  let is_editable =
+      (~instructor_mode, pos: DerivationTree.pos, model: t): bool => {
+    switch (pos) {
+    | Prelude => instructor_mode
+    | Setup => true
+    | Trees(i, Value) when i + 1 == List.length(model.editors.trees) => instructor_mode
+    | Trees(_) => true
+    };
+  };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = DerivationTree.persistent_exercise_mode;
 
@@ -85,12 +95,44 @@ module Update = {
     | Refresh
     | ResetExercise;
 
+  let update_editor_action =
+      (
+        action: CodeEditable.Update.t,
+        pos: DerivationTree.pos,
+        model: Model.t,
+        settings,
+      ) => {
+    let editor =
+      DerivationTree.main_editor_of_state(~selection=pos, model.editors);
+    let* new_editor =
+      // Hack[Matt]: put Editor.t into a CodeEditor.t to use its update function
+      editor
+      |> CodeEditable.Model.mk
+      |> CodeEditable.Update.update(~settings, action);
+    {
+      ...model,
+      pos,
+      editors:
+        DerivationTree.put_main_editor(
+          ~selection=pos,
+          model.editors,
+          new_editor.editor,
+        ),
+    };
+  };
+
   let update =
       (~settings: Settings.t, ~schedule_action as _, action, model: Model.t)
       : Updated.t(Model.t) => {
+    let instructor_mode = settings.instructor_mode;
     switch (action) {
-    | Editor(pos, MainEditor(action)) =>
+    | Editor(pos, MainEditor(action))
+        when Model.is_editable(pos, ~instructor_mode, model) =>
       // Redirect to editors
+      print_endline(
+        "DerivationMode.Update: redirecting to editors at position "
+        ++ DerivationTree.show_pos(pos),
+      );
       let editor =
         DerivationTree.main_editor_of_state(~selection=pos, model.editors);
       let* new_editor =
@@ -108,6 +150,28 @@ module Update = {
             new_editor.editor,
           ),
       };
+    | Editor(pos, MainEditor(action)) =>
+      switch (CodeSelectable.Update.convert_action(action)) {
+      | Some(action) =>
+        let editor =
+          DerivationTree.main_editor_of_state(~selection=pos, model.editors);
+        let* new_editor =
+          // Hack[Matt]: put Editor.t into a CodeSelectable.t to use its update function
+          editor
+          |> CodeSelectable.Model.mk
+          |> CodeSelectable.Update.update(~settings, action);
+        {
+          ...model,
+          pos,
+          editors:
+            DerivationTree.put_main_editor(
+              ~selection=pos,
+              model.editors,
+              new_editor.editor,
+            ),
+        };
+      | None => Updated.return_quiet(model)
+      }
     | Editor(pos, ResultAction(UpdateResult(_)) as action) =>
       let cell = DerivationTree.get_stitched(pos, model.cells);
       let* new_cell = CellEditor.Update.update(~settings, action, cell);
@@ -155,10 +219,6 @@ module Update = {
     let cells: DerivationTree.stitched(CellEditor.Model.t) =
       DerivationTree.map_stitched(
         (pos, {term, editor}: DerivationTree.TermItem.t) => {
-          print_endline(
-            "DerivationMode.calculate: stitching cell at position "
-            ++ DerivationTree.show_pos(pos),
-          );
           (
             try({
               let cell = DerivationTree.get_stitched(pos, model.cells);
@@ -184,7 +244,7 @@ module Update = {
                ~queue_worker=Some(queue_worker(pos)),
                ~stitch=_ =>
                term
-             );
+             )
         },
         stitched_elabs,
       );

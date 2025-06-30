@@ -531,44 +531,8 @@ module View = {
   // TODO(zhiyao): disabled for study mode
   ignore(instructor_toggle);
 
-  let highlight_toggle = (~globals: Globals.t) =>
-    Widgets.toggle(
-      ~tooltip="Toggle highlighting",
-      "🔆",
-      globals.settings.explainThis.highlight == All,
-      _ =>
-      globals.inject_global(Set(ExplainThis(SetHighlight(Toggle))))
-    );
-
-  let evaluation_toggle = (~globals: Globals.t) =>
-    Widgets.toggle(
-      ~tooltip="Toggle evaluation",
-      "δ",
-      globals.settings.core.dynamics == true,
-      _ =>
-      globals.inject_global(Set(Dynamics))
-    );
-
-  let documentation_toggle = (~globals: Globals.t) =>
-    Widgets.toggle(
-      ~tooltip="Toggle documentation",
-      "📖",
-      globals.settings.explainThis.show,
-      _ =>
-      globals.inject_global(Set(ExplainThis(ToggleShow)))
-    );
-  // : [];
-
   let top_bar = (~globals: Globals.t, ~inject: Update.t => 'a, model: Model.t) =>
-    [
-      // instructor_toggle(
-      //   ~inject=globals.inject_global,
-      //   ~globals,
-      // ),
-      evaluation_toggle(~globals),
-      documentation_toggle(~globals),
-      highlight_toggle(~globals),
-    ]
+    [instructor_toggle(~inject=globals.inject_global, ~globals)]
     @ EditorModeView.view(
         ~nav_buttons=true,
         ~edit_buttons=false,
