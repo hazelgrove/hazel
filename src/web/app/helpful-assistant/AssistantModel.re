@@ -214,8 +214,7 @@ let add_chat_to_history =
     (chat: chat, history: Id.Map.t(chat)): Id.Map.t(chat) =>
   Id.Map.add(chat.id, chat, history);
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-let init: t = {
+let init = (): t => {
   let (init_tutor_chat, init_suggestion_chat, init_composition_chat) = (
     init_chat(HazelTutor),
     init_chat(CodeSuggestion),
@@ -249,6 +248,47 @@ let init: t = {
   };
 };
 
+// We defer true initialization of the assistant model until the user opens the chat interface.
+let null_model = (): t => {
+  let null_chat = {
+    outgoing_messages: [],
+    message_displays: [
+      mk_message_display(
+        ~content=
+          "Please set an API key in the settings to start using the Hazel Assistant.",
+        ~role=System(InternalError),
+      ),
+    ],
+    id: Id.invalid,
+    descriptor: "Please set an API key",
+    timestamp: JsUtil.timestamp(),
+  };
+  {
+    init_prompt_data: {
+      init_tutor_chat: null_chat,
+      init_composition_chat: null_chat,
+      init_suggestion_chat_basic: null_chat,
+      init_suggestion_chat_cot: null_chat,
+    },
+    current_chats: {
+      curr_tutor_chat: null_chat.id,
+      curr_suggestion_chat: null_chat.id,
+      curr_composition_chat: null_chat.id,
+    },
+    chat_history: {
+      past_tutor_chats: add_chat_to_history(null_chat, Id.Map.empty),
+      past_suggestion_chats: add_chat_to_history(null_chat, Id.Map.empty),
+      past_composition_chats: add_chat_to_history(null_chat, Id.Map.empty),
+    },
+    external_api_info: {
+      available_models: [],
+      set_model: "",
+      api_key: "",
+    },
+    loop: false,
+  };
+};
+
 [@deriving (show({with_path: false}), yojson, sexp)]
 type model = t;
 
@@ -256,7 +296,7 @@ module Store =
   Store.F({
     [@deriving (show({with_path: false}), yojson, sexp)]
     type t = model;
-    let default = () => init;
+    let default = () => null_model();
 
     let key = Store.Assistant;
   });
