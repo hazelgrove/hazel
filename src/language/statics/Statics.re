@@ -60,6 +60,20 @@ module Map = {
       [],
     );
 
+  // single pass to return two lists: one of the error ids and one of the warning ids
+  let error_and_warning_ids = (info_map: t): (list(Id.t), list(Id.t)) =>
+    Id.Map.fold(
+      (id, info, acc) => {
+        let (errors, warnings) = acc;
+        Info.is_error(info) && id == Info.id_of(info)
+          ? ([id, ...errors], warnings)
+          : Info.is_warning(info) && id == Info.id_of(info)
+              ? (errors, [id, ...warnings]) : (errors, warnings);
+      },
+      info_map,
+      ([], []),
+    );
+
   let errors = (map: t): list((Id.t, Info.error)) =>
     Id.Map.fold(
       (id, info: Info.t, acc) =>
