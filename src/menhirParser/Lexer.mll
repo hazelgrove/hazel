@@ -56,8 +56,6 @@ rule token =
     | "else" { ELSE }
     | "[" { OPEN_SQUARE_BRACKET }
     | "]" { CLOSE_SQUARE_BRACKET }
-    | "{" { OPEN_CURLY }
-    | "}" { CLOSE_CURLY }
     | "(" { OPEN_PAREN }
     | ")" { CLOSE_PAREN }
     | "{{{" { OPEN_TRIPLE_CURLY }

@@ -20,38 +20,36 @@ let mk = (ids, term): t => {
 };
 
 // Also strips static error holes - kinda like unelaboration
-let rec strip_casts =
+let rec strip_ascriptions =
   map_term(
     ~f_pat=
       (continue, t) =>
         switch (t.term) {
-        | Cast(p, _, _) => strip_casts_pat(p)
+        | Asc(p, _) => strip_ascriptions_pat(p)
         | _ => continue(t)
         },
     ~f_exp=
       (continue, exp) => {
         switch (term_of(exp)) {
-        /* Remove casts*/
-        | Cast(d, _, _) => strip_casts(d)
-        /* Keep failed casts*/
-        | FailedCast(_, _, _)
+        /* Remove Asciptions */
+        | Asc(d, _) => strip_ascriptions(d)
         | _ => continue(exp)
         }
       },
     _,
   )
-and strip_casts_pat = (p: Pat.t): Pat.t => {
+and strip_ascriptions_pat = (p: Pat.t): Pat.t => {
   Pat.map_term(
     ~f_pat=
       (continue, t) =>
         switch (t.term) {
-        | Cast(p, _, _) => strip_casts_pat(p)
+        | Asc(p, _) => strip_ascriptions_pat(p)
         | _ => continue(t)
         },
     ~f_exp=
       (continue, t) =>
         switch (t.term) {
-        | Cast(e, _, _) => strip_casts(e)
+        | Asc(e, _) => strip_ascriptions(e)
         | _ => continue(t)
         },
     p,
@@ -83,7 +81,7 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
             | None => continue(exp)
             /* Note that we do not have to worry about capture avoidance, since s will always be closed. */
             }
-          | Cast(_)
+          | Asc(_)
           | FixF(_)
           | Fun(_)
           | TypAp(_)
@@ -112,7 +110,6 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | Constructor(_)
           | Var(_)
           | Atom(_)
-          | FailedCast(_, _, _)
           | MultiHole(_)
           | Deferral(_)
           | TyAlias(_)
@@ -138,7 +135,6 @@ let rec ty_consistent = (d1, d2) => {
   | (EmptyHole, _)
   | (MultiHole(_), _)
   | (DynamicErrorHole(_), _)
-  | (FailedCast(_), _)
   | (Deferral(_), _)
   | (DeferredAp(_), _)
   | (Undefined, _)
@@ -163,8 +159,8 @@ let rec ty_consistent = (d1, d2) => {
   | (LivelitName(_), _) => false
   | (Parens(d1), _) => ty_consistent(d1, d2)
   | (_, Parens(d2)) => ty_consistent(d1, d2)
-  | (Cast(d1, _, _), _) => ty_consistent(d1, d2)
-  | (_, Cast(d2, _, _)) => ty_consistent(d1, d2)
+  | (Asc(d1, _), _) => ty_consistent(d1, d2)
+  | (_, Asc(d2, _)) => ty_consistent(d1, d2)
   // TODO(zhiyao): are we allowed to compare int/sint/nat?
   | (Atom(t1), Atom(t2)) =>
     switch (t1, t2) {
@@ -227,7 +223,6 @@ let rec ty_has_arrow = (d: t): bool =>
   | EmptyHole
   | MultiHole(_)
   | DynamicErrorHole(_)
-  | FailedCast(_)
   | Deferral(_)
   | DeferredAp(_)
   | Undefined
@@ -253,7 +248,7 @@ let rec ty_has_arrow = (d: t): bool =>
   | Use(_)
   | Label(_) => false
   | Parens(d)
-  | Cast(d, _, _)
+  | Asc(d, _)
   | TupLabel(_, d) => ty_has_arrow(d)
   | Fun(_)
   | BuiltinFun(_)
@@ -281,7 +276,6 @@ let rec poly_equal = (d1, d2): bool => {
   | (EmptyHole, _)
   | (MultiHole(_), _)
   | (DynamicErrorHole(_), _)
-  | (FailedCast(_), _)
   | (Deferral(_), _)
   | (DeferredAp(_), _)
   | (Undefined, _)
@@ -309,8 +303,8 @@ let rec poly_equal = (d1, d2): bool => {
   | (BuiltinFun(_), _) => false
   | (Parens(d1), _) => poly_equal(d1, d2)
   | (_, Parens(d2)) => poly_equal(d1, d2)
-  | (Cast(d1, _, _), _) => poly_equal(d1, d2)
-  | (_, Cast(d2, _, _)) => poly_equal(d1, d2)
+  | (Asc(d1, _), _) => poly_equal(d1, d2)
+  | (_, Asc(d2, _)) => poly_equal(d1, d2)
   // TODO(zhiyao): do we want to define equality for atom separately?
   | (Atom(t1), Atom(t2)) => t1 == t2
   | (Atom(_), _) => false

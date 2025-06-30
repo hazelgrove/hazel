@@ -14,20 +14,16 @@ let tests = (
         ap(Forward, var("float_of_int"), int(1)),
       )
     ),
-    test_case("Multi-arg builtin with cast", `Quick, () =>
+    test_case("Multi-arg builtin with ascription", `Quick, () =>
       evaluation_test(
         {|string_compare(("Hello", "World"):(?, ?))|},
         int(-1),
         ap(
           Forward,
           builtin_fun("string_compare"),
-          cast(
-            tuple([
-              cast(string("Hello"), Typ.string(), Typ.unknown(Internal)),
-              cast(string("World"), Typ.string(), Typ.unknown(Internal)),
-            ]),
+          asc(
+            tuple([string("Hello"), string("World")]),
             Typ.(prod([Typ.unknown(Internal), Typ.unknown(Internal)])),
-            Typ.(prod([string(), string()])),
           ),
         ),
       )
@@ -38,20 +34,19 @@ let tests = (
         {|string_join(" ", ["hazel", "hello", "world"])|},
       )
     }),
-    test_case("Multi arg builtin cast", `Quick, () =>
+    test_case("Multi arg builtin ascription", `Quick, () =>
       evaluation_test(
-        {|string_compare(("Hello", "World"):(?, ?))|},
+        {|string_compare(("Hello": ?, "World": ?):(?, ?))|},
         int(-1),
         ap(
           Forward,
           builtin_fun("string_compare"),
-          cast(
+          asc(
             tuple([
-              cast(string("Hello"), Typ.string(), Typ.unknown(Internal)),
-              cast(string("World"), Typ.string(), Typ.unknown(Internal)),
+              asc(string("Hello"), Typ.unknown(Internal)),
+              asc(string("World"), Typ.unknown(Internal)),
             ]),
             Typ.(prod([Typ.unknown(Internal), Typ.unknown(Internal)])),
-            Typ.(prod([string(), string()])),
           ),
         ),
       )

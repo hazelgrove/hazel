@@ -4,8 +4,6 @@ open AST
 
 
 
-%token OPEN_CURLY
-%token CLOSE_CURLY
 %token T_TYP
 %token P_PAT
 %token TP_TPAT
@@ -138,7 +136,6 @@ open AST
 %nonassoc UMINUS   /* Unary minus (prefix) */
 %left COLON
 
-%left OPEN_CURLY
 
 
 %nonassoc TYP_AP_SYMBOL
@@ -146,7 +143,6 @@ open AST
 %left OPEN_PAREN CLOSE_PAREN
 %left DOLLAR_SIGN
 
-%left QUESTION
 %left TILDE
 %token SLASH_TILDE
 
@@ -265,7 +261,7 @@ nonAscriptingPat:
     | QUESTION { EmptyHolePat }
     | OPEN_SQUARE_BRACKET; l = separated_list(COMMA, pat); CLOSE_SQUARE_BRACKET; { ListPat(l) }
     | c = CONSTRUCTOR_IDENT { ConstructorPat(c, None)}
-    | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { CastPat(ConstructorPat(c, None), UnknownType(Internal), t) }
+    | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { AscPat(ConstructorPat(c, None), t) }
     | p = IDENT { VarPat(p) }
     | i = INT { AtomPat (Int (Bigint.of_int i)) }
     | f = FLOAT { AtomPat (Float f) }
@@ -275,11 +271,11 @@ nonAscriptingPat:
     | f = pat; OPEN_PAREN; a = pat; CLOSE_PAREN { ApPat(f, a) }
 
 funPat:
-    | OPEN_PAREN; p1 = pat; COLON; t1 = typ; CLOSE_PAREN;  { CastPat(p1, t1, UnknownType(Internal)) }
+    | OPEN_PAREN; p1 = pat; COLON; t1 = typ; CLOSE_PAREN;  { AscPat(p1, t1) }
     | p = nonAscriptingPat; { p }
 
 pat:
-    | p1 = pat; COLON; t1 = typ;  { CastPat(p1, t1, UnknownType(Internal)) }
+    | p1 = pat; COLON; t1 = typ;  { AscPat(p1, t1) }
     (* | p1 = pat; AS; p2 = pat; { AsPat(p1, p2) } *)
     | p1 = pat; CONS; p2 = pat { ConsPat(p1, p2) } 
     | UNIT { TuplePat([]) }
@@ -329,7 +325,7 @@ exp:
     | c = CONSTRUCTOR_IDENT { Constructor(c, None)}
     | c = CONSTRUCTOR_IDENT; SLASH_TILDE; { Constructor(c, Some(None)) } 
     | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { Constructor(c, Some(Some(t))) }
-    | c = CONSTRUCTOR_IDENT; COLON; t = typ;  { Cast(Constructor(c, None), UnknownType(Internal), t) }
+    | e = exp; COLON; t = typ { Asc(e, t) }
     | s = STRING { Atom (String s)}
     | OPEN_TRIPLE_CURLY; e = exp; CLOSE_TRIPLE_CURLY { IndicationExp(e) }
     | OPEN_PAREN; e = exp; CLOSE_PAREN { e } 
@@ -342,8 +338,6 @@ exp:
     | f = exp; OPEN_PAREN; a = exp; COMMA; tl = separated_nonempty_list(COMMA, exp); CLOSE_PAREN { ApExp(f, TupleExp(a :: tl)) } 
     | LET; i = pat; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { Let (i, e1, e2) } %prec LET_EXP
     | i = ifExp { i }
-    | e1 = exp; QUESTION; OPEN_CURLY; t1 = typ; EQUAL_ARROW; t2 = typ; CLOSE_CURLY {FailedCast(e1, t1, t2)}
-    | e1 = exp; OPEN_CURLY; t1 = typ; EQUAL_ARROW; t2 = typ; CLOSE_CURLY { Cast(e1, t1, t2) }
     | TRUE { Atom (Bool true) }
     | f = funExp {f}
     | FALSE { Atom (Bool false) }    

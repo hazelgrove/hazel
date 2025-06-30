@@ -287,14 +287,7 @@ module rec Exp: {
           l,
         );
       match(d_scrut, d_rules);
-    | Cast(e, t1, t2) =>
-      cast(of_menhir_ast(e), Typ.of_menhir_ast(t1), Typ.of_menhir_ast(t2))
-    | FailedCast(e, t1, t2) =>
-      failed_cast(
-        of_menhir_ast(e),
-        Typ.of_menhir_ast(t1),
-        Typ.of_menhir_ast(t2),
-      )
+    | Asc(e, t) => asc(of_menhir_ast(e), Typ.of_menhir_ast(t))
     | EmptyHole => empty_hole()
     | Seq(e1, e2) => seq(of_menhir_ast(e1), of_menhir_ast(e2))
     | Test(e) => test(of_menhir_ast(e))
@@ -353,10 +346,7 @@ module rec Exp: {
         of_core(e),
         List.map(((p, e)) => (Pat.of_core(p), of_core(e)), l),
       )
-    | Cast(e, t1, t2) =>
-      Cast(of_core(e), Typ.of_core(t1), Typ.of_core(t2))
-    | FailedCast(e, t1, t2) =>
-      FailedCast(of_core(e), Typ.of_core(t1), Typ.of_core(t2))
+    | Asc(e, t) => Asc(of_core(e), Typ.of_core(t))
     | EmptyHole => EmptyHole
     | Seq(e1, e2) => Seq(of_core(e1), of_core(e2))
     | Test(e) => Test(of_core(e))
@@ -535,14 +525,7 @@ and Pat: {
     switch (pat) {
     | InvalidPat(s) => invalid(s)
     | AtomPat(c) => basic(c)
-    | CastPat(p, t1, t2) =>
-      parens(
-        cast(
-          of_menhir_ast(p),
-          Typ.of_menhir_ast(t1),
-          Typ.of_menhir_ast(t2),
-        ),
-      )
+    | AscPat(p, t) => parens(asc(of_menhir_ast(p), Typ.of_menhir_ast(t)))
     | VarPat(x) => var(x)
     | ConstructorPat(x, ty) =>
       constructor(x, Option.map(Option.map(Typ.of_menhir_ast), ty))
@@ -576,8 +559,7 @@ and Pat: {
     | EmptyHole => EmptyHolePat
     | Wild => WildPat
     | MultiHole(_) => raise(Failure("MultiHole not supported"))
-    | Cast(p, t1, t2) =>
-      CastPat(of_core(p), Typ.of_core(t1), Typ.of_core(t2))
+    | Asc(p, t) => AscPat(of_core(p), Typ.of_core(t))
     | Parens(p) => of_core(p)
     | Probe(p, _) => of_core(p)
     | Label(s) => LabelPat(s)
