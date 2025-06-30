@@ -66,9 +66,11 @@ jobs:
         run: |
           git add -A
           if git diff --cached --quiet; then
-            echo "no_changes=true" >> "$GITHUB_OUTPUT"
+            echo "✅ No changes detected"
+            echo "no_changes=true" >> $GITHUB_OUTPUT
           else
-            echo "no_changes=false" >> "$GITHUB_OUTPUT"
+            echo "🚨 Changes detected"
+            echo "no_changes=false" >> $GITHUB_OUTPUT
           fi         
 
       - name: Commit and push changes
