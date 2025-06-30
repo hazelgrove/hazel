@@ -78,6 +78,14 @@ module State = {
   };
 };
 
+// NOTE(zhiyao): The field `root` serves 2 purposes here. Regretfully, it is
+// not possible to derive the root sort from the zipper.
+// 1. Considering Ancestors.sort of `[]` cases, the "root" sort should bytes
+//    returned. `Drv(Exp)` is needed to here to ensure the correctness of
+//    remolding and regrouting.
+// 2. Usually start with Editor.Model.mk(~root), which is used in frontend
+//    to construct the term with the correct sort.
+
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
