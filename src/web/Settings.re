@@ -22,6 +22,7 @@ module Model = {
       assist: true,
       dynamics: true,
       flip_animations: true,
+      display_warnings: false,
       evaluation: {
         show_case_clauses: true,
         show_fn_bodies: false,
@@ -99,7 +100,8 @@ module Update = {
     | InstructorMode
     | Evaluation(evaluation)
     | ExplainThis(ExplainThisModel.Settings.action)
-    | FlipAnimations;
+    | FlipAnimations
+    | DisplayWarnings;
 
   let can_undo = (action: t) => {
     switch (action) {
@@ -149,6 +151,13 @@ module Update = {
           core: {
             ...settings.core,
             flip_animations: !settings.core.flip_animations,
+          },
+        }
+      | DisplayWarnings => {
+          ...settings,
+          core: {
+            ...settings.core,
+            display_warnings: !settings.core.display_warnings,
           },
         }
       | Evaluation(u) =>
