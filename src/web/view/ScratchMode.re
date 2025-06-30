@@ -142,10 +142,8 @@ module Update = {
         JsUtil.prompt("Enter new buffer name:", "New Buffer Name")
         |> Option.get
       };
-    let new_sp =
-      model.scratchpads
-      @ [(new_key, CellEditor.Model.mk(Editor.Model.mk(Zipper.init())))];
-    new_sp;
+    model.scratchpads
+    @ [(new_key, CellEditor.Model.mk(Editor.Model.mk(Zipper.init())))];
   };
 
   let update =
