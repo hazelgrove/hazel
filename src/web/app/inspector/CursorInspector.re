@@ -505,7 +505,7 @@ let rec exp_view =
       text("inconsistent with"),
       view_type(Prod([]) |> Typ.fresh),
     ])
-  | InHole(WantTuple) =>
+  | InHole(DotOperatorRequiresTuple) =>
     div_err([text("Requires tuple for first argument")])
   | InHole(Common(error)) =>
     div_err(
