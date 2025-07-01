@@ -7,7 +7,6 @@ open ADTBuiltins;
  to later be replaced by a Hazel standard library.
 
  TODO:
- - sort tests are failing (commented out)
  - Use Ord for sort
 
  Types:
@@ -2517,16 +2516,16 @@ let go: ([?], [?], [?]) -> [?] =
                             Pat.tuple([Pat.list_lit([]), Pat.wild()]),
                             ap(
                               Forward,
-                              ap(Forward, var("rev_append"), var("acc")),
-                              var("ys"),
+                              var("rev_append"),
+                              tuple([var("acc"), var("ys")]),
                             ),
                           ),
                           (
                             Pat.tuple([Pat.wild(), Pat.list_lit([])]),
                             ap(
                               Forward,
-                              ap(Forward, var("rev_append"), var("acc")),
-                              var("xs"),
+                              var("rev_append"),
+                              tuple([var("acc"), var("xs")]),
                             ),
                           ),
                           (
