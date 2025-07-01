@@ -52,17 +52,99 @@ let toolkit = [
 
 // idea: allow for multiple variables to be selected at once
 //       or rather, allow for beginning and end of selection to be specified (based on variable definitons)
-let goto_definition: API.Json.t =
+// let goto_definition: API.Json.t =
+//   `Assoc([
+//     ("type", `String("function")),
+//     (
+//       "function",
+//       `Assoc([
+//         ("name", `String("goto_definition")),
+//         (
+//           "description",
+//           `String(
+//             "Selects the definition of the given variable name. Eg. goto_definition x will select ```let x = 1 in``` given a program ```let y = 0 in\nlet x = 1 in\nx + y```.",
+//           ),
+//         ),
+//         (
+//           "parameters",
+//           `Assoc([
+//             ("type", `String("object")),
+//             (
+//               "properties",
+//               `Assoc([
+//                 (
+//                   "variable",
+//                   `Assoc([
+//                     ("type", `String("string")),
+//                     (
+//                       "description",
+//                       `String(
+//                         "The name of the variable whose definition associated with its let binding is to be selected.",
+//                       ),
+//                     ),
+//                   ]),
+//                 ),
+//               ]),
+//             ),
+//             ("required", `List([`String("variable")])),
+//           ]),
+//         ),
+//       ]),
+//     ),
+//   ]);
+
+// let goto_body: API.Json.t =
+//   `Assoc([
+//     ("type", `String("function")),
+//     (
+//       "function",
+//       `Assoc([
+//         ("name", `String("goto_body")),
+//         (
+//           "description",
+//           `String(
+//             "Selects the body of the given variable name. Eg. goto_body x will select ```x + y``` given a program ```let y = 0 in\nlet x = 1 in\nx + y```.",
+//           ),
+//         ),
+//         (
+//           "parameters",
+//           `Assoc([
+//             ("type", `String("object")),
+//             (
+//               "properties",
+//               `Assoc([
+//                 (
+//                   "variable",
+//                   `Assoc([
+//                     ("type", `String("string")),
+//                     (
+//                       "description",
+//                       `String(
+//                         "The name of the variable whose body associated with its let bindingis to be selected.",
+//                       ),
+//                     ),
+//                   ]),
+//                 ),
+//               ]),
+//             ),
+//             ("required", `List([`String("variable")])),
+//           ]),
+//         ),
+//       ]),
+//     ),
+//   ]);
+
+let rename_variable: API.Json.t =
   `Assoc([
     ("type", `String("function")),
     (
       "function",
       `Assoc([
-        ("name", `String("goto_definition")),
+        ("name", `String("rename_variable")),
         (
           "description",
           `String(
-            "Selects the definition of the given variable name. Eg. goto_definition x will select ```let x = 1 in``` given a program ```let y = 0 in\nlet x = 1 in\nx + y```.",
+            "Renames the given variable name. Eg. rename_variable x y will rename ```let x = 1 in``` to ```let y = 1 in``` given a program ```let y = 0 in\nlet x = 1 in\nx + y```.",
           ),
         ),
         (
@@ -73,37 +155,51 @@ let goto_definition: API.Json.t =
               "properties",
               `Assoc([
                 (
-                  "variable",
+                  "current_variable_name",
                   `Assoc([
                     ("type", `String("string")),
                     (
                       "description",
-                      `String(
-                        "The name of the variable whose definition associated with its let binding is to be selected.",
-                      ),
+                      `String("The name of the variable to be renamed."),
+                    ),
+                  ]),
+                ),
+                (
+                  "new_variable_name",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String("The new name of the variable."),
                     ),
                   ]),
                 ),
               ]),
             ),
-            ("required", `List([`String("variable")])),
+            (
+              "required",
+              `List([
+                `String("current_variable_name"),
+                `String("new_variable_name"),
+              ]),
+            ),
           ]),
         ),
       ]),
     ),
   ]);
 
-let goto_body: API.Json.t =
+let update_definition: API.Json.t =
   `Assoc([
     ("type", `String("function")),
     (
       "function",
       `Assoc([
-        ("name", `String("goto_body")),
+        ("name", `String("update_definition")),
         (
           "description",
           `String(
-            "Selects the body of the given variable name. Eg. goto_body x will select ```x + y``` given a program ```let y = 0 in\nlet x = 1 in\nx + y```.",
+            "Updates the definition of the given variable name. Eg. update_definition x 3 will update ```let x = 1 in``` to ```let x = 3 in``` given a program ```let y = 0 in\nlet x = 1 in\nx + y```.",
           ),
         ),
         (
@@ -114,20 +210,167 @@ let goto_body: API.Json.t =
               "properties",
               `Assoc([
                 (
-                  "variable",
+                  "variable_name",
                   `Assoc([
                     ("type", `String("string")),
                     (
                       "description",
                       `String(
-                        "The name of the variable whose body associated with its let bindingis to be selected.",
+                        "The name of the variable to have its definition updated.",
+                      ),
+                    ),
+                  ]),
+                ),
+                (
+                  "new_definition",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String("The new definition of the variable."),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            (
+              "required",
+              `List([`String("variable_name"), `String("new_definition")]),
+            ),
+          ]),
+        ),
+      ]),
+    ),
+  ]);
+
+let delete_variable: API.Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("delete_variable")),
+        (
+          "description",
+          `String(
+            "Deletes the given variable name. Eg. delete_variable x will delete ```let x = 1 in``` given a program ```let y = 0 in\nlet x = 1 in\nx + y```.",
+          ),
+        ),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            (
+              "properties",
+              `Assoc([
+                (
+                  "variable_name",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String("The name of the variable to be deleted."),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            ("required", `List([`String("variable_name")])),
+          ]),
+        ),
+      ]),
+    ),
+  ]);
+
+let update_body: API.Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("update_body")),
+        (
+          "description",
+          `String(
+            "Updates the body of the given variable name. Eg. update_body x 3 will update ```x + y``` to ```3``` given a program ```let y = 0 in\nlet x = 1 in\nx + y```.",
+          ),
+        ),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            (
+              "properties",
+              `Assoc([
+                (
+                  "variable_name",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "The name of the variable to have its body updated.",
+                      ),
+                    ),
+                  ]),
+                ),
+                (
+                  "new_body",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String("The new body of the variable."),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            (
+              "required",
+              `List([`String("variable_name"), `String("new_body")]),
+            ),
+          ]),
+        ),
+      ]),
+    ),
+  ]);
+
+let delete_body: API.Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("delete_body")),
+        (
+          "description",
+          `String(
+            "Deletes the body of the given variable name. Eg. delete_body x will delete ```x + y``` given a program ```let y = 0 in\nlet x = 1 in\nx + y```.",
+          ),
+        ),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            (
+              "properties",
+              `Assoc([
+                (
+                  "variable_name",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "The name of the variable to have its body deleted.",
                       ),
                     ),
                   ]),
                 ),
               ]),
             ),
-            ("required", `List([`String("variable")])),
+            ("required", `List([`String("variable_name")])),
           ]),
         ),
       ]),

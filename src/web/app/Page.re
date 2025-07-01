@@ -281,12 +281,8 @@ module Update = {
             ChatLSP.Completion.add_suggestion(~schedule_action=a =>
               schedule_action(Editors(a))
             ),
-          ~goto=
-            ChatLSP.Composition.goto(~schedule_action=a =>
-              schedule_action(Editors(a))
-            ),
-          ~edit=
-            ChatLSP.Composition.edit(~schedule_action=a =>
+          ~apply_edit_action=
+            ChatLSP.Composition.apply_edit_action(~schedule_action=a =>
               schedule_action(Editors(a))
             ),
         );

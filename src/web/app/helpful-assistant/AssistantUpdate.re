@@ -447,13 +447,18 @@ let mk_llm_call =
     let tools =
       if (mode == TaskCompletion) {
         [
-          CompositionPrompt.goto_definition,
-          CompositionPrompt.goto_body,
-          //CompositionPrompt.goto_type_definition,
-          //CompositionPrompt.goto_type_body,
-          CompositionPrompt.select_all,
-          CompositionPrompt.paste,
-          CompositionPrompt.delete,
+          CompositionPrompt.rename_variable,
+          CompositionPrompt.update_definition,
+          CompositionPrompt.delete_variable,
+          CompositionPrompt.update_body,
+          CompositionPrompt.delete_body,
+          // CompositionPrompt.goto_definition,
+          // CompositionPrompt.goto_body,
+          // //CompositionPrompt.goto_type_definition,
+          // //CompositionPrompt.goto_type_body,
+          // CompositionPrompt.select_all,
+          // CompositionPrompt.paste,
+          // CompositionPrompt.delete,
           //CompositionPrompt.submit,
         ];
       } else {
@@ -479,15 +484,17 @@ let mk_llm_call =
             ),
           )
         | None =>
-          let str_of_mode =
-            switch (mode) {
-            | HazelTutor => "HazelTutor"
-            | CodeSuggestion => "CodeSuggestion"
-            | TaskCompletion => "TaskCompletion"
-            };
-          print_endline(
-            "Assistant: response parse failed (" ++ str_of_mode ++ ")",
-          );
+          /*let str_of_mode =
+                switch (mode) {
+                | HazelTutor => "HazelTutor"
+                | CodeSuggestion => "CodeSuggestion"
+                | TaskCompletion => "TaskCompletion"
+                };
+              ();
+            print_endline(
+                "Assistant: response parse failed (" ++ str_of_mode ++ ")",
+              );*/
+          ()
         }
       )
     ) {
@@ -545,8 +552,13 @@ let update =
       ~editor: CodeModel.t,
       ~schedule_action: t => unit,
       ~add_suggestion,
-      ~goto,
-      ~edit,
+      ~apply_edit_action:
+         (
+           ~ed: CodeWithStatics.Model.t,
+           ~edit_action: ChatLSP.Composition.edit_action,
+           ~variable_name: string
+         ) =>
+         unit,
     )
     : Updated.t(Model.t) => {
   switch (action) {
@@ -1020,58 +1032,145 @@ let update =
           );
         try(
           switch (tool_call.name) {
-          | "goto_definition" =>
-            switch (Json.dot("variable", tool_call.args)) {
-            | Some(`String(arg)) =>
-              goto(
-                ~ed=editor,
-                ~loc=ChatLSP.Composition.Definition,
-                ~name=arg,
-              );
-              schedule_action(loop_message);
-            | _ => raise(Failure("Invalid argument for goto_definition"))
-            }
-          | "goto_body" =>
-            switch (Json.dot("variable", tool_call.args)) {
-            | Some(`String(arg)) =>
-              goto(~ed=editor, ~loc=ChatLSP.Composition.Body, ~name=arg);
-              schedule_action(loop_message);
-            | _ => raise(Failure("Invalid argument for goto_body"))
-            }
-          | "goto_type_definition" =>
-            switch (Json.dot("variable", tool_call.args)) {
-            | Some(`String(arg)) =>
-              goto(
-                ~ed=editor,
-                ~loc=ChatLSP.Composition.Definition,
-                ~name=arg,
-              );
-              schedule_action(loop_message);
-            | _ =>
-              raise(Failure("Invalid argument for goto_type_definition"))
-            }
-          | "goto_type_body" =>
-            switch (Json.dot("variable", tool_call.args)) {
-            | Some(`String(arg)) =>
-              goto(~ed=editor, ~loc=ChatLSP.Composition.Body, ~name=arg);
-              schedule_action(loop_message);
-            | _ => raise(Failure("Invalid argument for goto_type_body"))
-            }
-          | "select_all" =>
-            goto(~ed=editor, ~loc=ChatLSP.Composition.All, ~name="");
+          | "rename_variable" =>
+            let (current_variable_name, new_variable_name) =
+              switch (
+                Json.dot("current_variable_name", tool_call.args),
+                Json.dot("new_variable_name", tool_call.args),
+              ) {
+              | (
+                  Some(`String(current_variable_name)),
+                  Some(`String(new_variable_name)),
+                ) => (
+                  current_variable_name,
+                  new_variable_name,
+                )
+              | _ => raise(Failure("Invalid arguments for rename_variable"))
+              };
+            apply_edit_action(
+              ~ed=editor,
+              ~edit_action=
+                ChatLSP.Composition.RenameVariable(new_variable_name),
+              ~variable_name=current_variable_name,
+            );
             schedule_action(loop_message);
-          | "paste" =>
-            switch (Json.dot("code", tool_call.args)) {
-            | Some(`String(arg)) =>
-              edit(~loc=ChatLSP.Composition.Current, ~code=arg);
-              schedule_action(loop_message);
-            | _ => raise(Failure("Invalid argument for paste"))
-            }
-          | "delete" =>
-            edit(~loc=ChatLSP.Composition.Current, ~code="");
+          | "update_definition" =>
+            let (variable_name, new_definition) =
+              switch (
+                Json.dot("variable_name", tool_call.args),
+                Json.dot("new_definition", tool_call.args),
+              ) {
+              | (
+                  Some(`String(variable_name)),
+                  Some(`String(new_definition)),
+                ) => (
+                  variable_name,
+                  new_definition,
+                )
+              | _ =>
+                raise(Failure("Invalid arguments for update_definition"))
+              };
+            apply_edit_action(
+              ~ed=editor,
+              ~edit_action=
+                ChatLSP.Composition.UpdateDefinition(new_definition),
+              ~variable_name,
+            );
             schedule_action(loop_message);
-          // | "submit" => ()
+          | "delete_variable" =>
+            let variable_name =
+              switch (Json.dot("variable_name", tool_call.args)) {
+              | Some(`String(variable_name)) => variable_name
+              | _ => raise(Failure("Invalid argument for delete_variable"))
+              };
+            apply_edit_action(
+              ~ed=editor,
+              ~edit_action=ChatLSP.Composition.DeleteVariable,
+              ~variable_name,
+            );
+            schedule_action(loop_message);
+          | "update_body" =>
+            let (variable_name, new_body) =
+              switch (
+                Json.dot("variable_name", tool_call.args),
+                Json.dot("new_body", tool_call.args),
+              ) {
+              | (Some(`String(variable_name)), Some(`String(new_body))) => (
+                  variable_name,
+                  new_body,
+                )
+              | _ => raise(Failure("Invalid arguments for update_body"))
+              };
+            apply_edit_action(
+              ~ed=editor,
+              ~edit_action=ChatLSP.Composition.UpdateBody(new_body),
+              ~variable_name,
+            );
+            schedule_action(loop_message);
+          | "delete_body" =>
+            let variable_name =
+              switch (Json.dot("variable_name", tool_call.args)) {
+              | Some(`String(variable_name)) => variable_name
+              | _ => raise(Failure("Invalid argument for delete_body"))
+              };
+            apply_edit_action(
+              ~ed=editor,
+              ~edit_action=ChatLSP.Composition.DeleteBody,
+              ~variable_name,
+            );
+            schedule_action(loop_message);
           | _ => raise(Failure("Unknown tool call: " ++ tool_call.name))
+          // | "goto_definition" =>
+          //   switch (Json.dot("variable", tool_call.args)) {
+          //   | Some(`String(arg)) =>
+          //     goto(
+          //       ~ed=editor,
+          //       ~loc=ChatLSP.Composition.Definition,
+          //       ~name=arg,
+          //     );
+          //     schedule_action(loop_message);
+          //   | _ => raise(Failure("Invalid argument for goto_definition"))
+          //   }
+          // | "goto_body" =>
+          //   switch (Json.dot("variable", tool_call.args)) {
+          //   | Some(`String(arg)) =>
+          //     goto(~ed=editor, ~loc=ChatLSP.Composition.Body, ~name=arg);
+          //     schedule_action(loop_message);
+          //   | _ => raise(Failure("Invalid argument for goto_body"))
+          //   }
+          // | "goto_type_definition" =>
+          //   switch (Json.dot("variable", tool_call.args)) {
+          //   | Some(`String(arg)) =>
+          //     goto(
+          //       ~ed=editor,
+          //       ~loc=ChatLSP.Composition.Definition,
+          //       ~name=arg,
+          //     );
+          //     schedule_action(loop_message);
+          //   | _ =>
+          //     raise(Failure("Invalid argument for goto_type_definition"))
+          //   }
+          // | "goto_type_body" =>
+          //   switch (Json.dot("variable", tool_call.args)) {
+          //   | Some(`String(arg)) =>
+          //     goto(~ed=editor, ~loc=ChatLSP.Composition.Body, ~name=arg);
+          //     schedule_action(loop_message);
+          //   | _ => raise(Failure("Invalid argument for goto_type_body"))
+          //   }
+          // | "select_all" =>
+          //   goto(~ed=editor, ~loc=ChatLSP.Composition.All, ~name="");
+          //   schedule_action(loop_message);
+          // | "paste" =>
+          //   switch (Json.dot("code", tool_call.args)) {
+          //   | Some(`String(arg)) =>
+          //     edit(~loc=ChatLSP.Composition.Current, ~code=arg);
+          //     schedule_action(loop_message);
+          //   | _ => raise(Failure("Invalid argument for paste"))
+          //   }
+          // | "delete" =>
+          //   edit(~loc=ChatLSP.Composition.Current, ~code="");
+          //   schedule_action(loop_message);
+          // | "submit" => ()
           }
         ) {
         | Failure(err) => schedule_action(InternalError(err, mode, chat_id))

@@ -228,7 +228,17 @@ let go_z =
     }
   | Select(Resize(d)) =>
     Select.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_select)
+  | Select(Assistant(Var(id))) =>
+    switch (Select.term(id, z)) {
+    | Some(z) => Ok(z)
+    | None => Error(Action.Failure.Cant_select)
+    }
   | Select(Assistant(Def(id))) =>
+    switch (Select.term(id, z)) {
+    | Some(z) => Ok(z)
+    | None => Error(Action.Failure.Cant_select)
+    }
+  | Select(Assistant(VarDef(id))) =>
     switch (Move.jump_to_id(z, id)) {
     | Some(z) =>
       switch (select_definition(z)) {
