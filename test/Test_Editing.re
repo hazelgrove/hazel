@@ -17,10 +17,10 @@ let convex_char = "?";
 let concave_char = "~";
 
 let printer = (z: Zipper.t): string =>
-  Printer.zipper_to_string(
-    ~holes=Some(convex_char),
-    ~concave_holes=Some(concave_char),
-    ~caret=Some(Zipper.caret_point(Printer.measured(z), z)),
+  Printer.of_zipper(
+    ~holes=convex_char,
+    ~concave_holes=concave_char,
+    ~caret=caret_char,
     z,
   );
 
@@ -116,23 +116,23 @@ let insertion_tests = [
   /* INSERTION : BASIC*/
   test(
     ~name="Insert char at end of token",
-    ~acts=mk("fo¦") @ [Insert("o")],
-    ~goal="foo¦",
+    ~acts=mk({|fo¦|}) @ [Insert("o")],
+    ~goal={|foo¦|},
   ),
   test(
     ~name="Insert char at start of token",
-    ~acts=mk("¦oo") @ [Insert("f")],
-    ~goal="f¦oo",
+    ~acts=mk({|¦oo|}) @ [Insert("f")],
+    ~goal={|f¦oo|},
   ),
   test(
     ~name="Insert char inside token",
-    ~acts=mk("fi¦me") @ [Insert("x")],
-    ~goal="fix¦me",
+    ~acts=mk({|fi¦me|}) @ [Insert("x")],
+    ~goal={|fix¦me|},
   ),
   test(
     ~name="Inserting string quote inserts closing quote as well",
-    ~acts=mk("¦") @ [Insert("\"")],
-    ~goal="\"¦\"",
+    ~acts=mk({|¦|}) @ [Insert("\"")],
+    ~goal={|"¦"|},
   ),
   /* INSERTION: GROUT/SPACE TRANSMUTATION */
   /* When you insert an `i` here, it will be treated as a variable
@@ -141,53 +141,53 @@ let insertion_tests = [
      any to avoid jutter */
   test(
     ~name="Grout transmutation 1: Space to Concave Grout",
-    ~acts=mk("let a = 1 ¦") @ [Insert("i")],
-    ~goal="let a = 1~i¦",
+    ~acts=mk({|let a = 1 ¦|}) @ [Insert("i")],
+    ~goal={|let a = 1~i¦|},
   ),
   /* Then, when you drop the n, the concave grout that appears in the
      above case should disappear, leaving a space */
   test(
     ~name="Grout transmutation 2: Concave Grout to Space",
-    ~acts=mk("let a = 1 i¦") @ [Insert("n")],
-    ~goal="let a = 1 in¦?",
+    ~acts=mk({|let a = 1 i¦|}) @ [Insert("n")],
+    ~goal={|let a = 1 in¦?|},
   ),
   /* INSERTION: TOKEN SPLITTING */
   test(
     ~name="`Split empty list",
-    ~acts=mk("[¦]") @ [Insert(" ")],
-    ~goal="[?¦]",
+    ~acts=mk({|[¦]|}) @ [Insert(" ")],
+    ~goal={|[?¦]|},
   ),
   test(
     ~name="Split case end",
-    ~acts=mk("case¦end") @ [Insert(" ")],
-    ~goal="case?¦end",
+    ~acts=mk({|case¦end|}) @ [Insert(" ")],
+    ~goal={|case?¦end|},
   ),
   test(
     ~name="`Split number literal",
-    ~acts=mk("1¦1") @ [Insert(" ")],
-    ~goal="1~¦1",
+    ~acts=mk({|1¦1|}) @ [Insert(" ")],
+    ~goal={|1~¦1|},
   ),
   /* Spliting tokens when the latter must drop from backpack */
   test(
     ~name="Split 1st and 2nd delims of 3-delim form with space",
-    ~acts=mk("if¦then") @ [Insert(" ")],
-    ~goal="if?¦then?",
+    ~acts=mk({|if¦then|}) @ [Insert(" ")],
+    ~goal={|if?¦then?|},
   ),
   test(
     ~name="`Split mono child and 2nd delim of 3-delim form",
-    ~acts=mk("if true¦then") @ [Insert(" ")],
-    ~goal="if true ¦then?",
+    ~acts=mk({|if true¦then|}) @ [Insert(" ")],
+    ~goal={|if true ¦then?|},
   ),
   test(
     ~name="Split 1st and 2nd delims of 3-delim form with instant expander",
-    ~acts=mk("if¦then") @ [Insert("(")],
-    ~goal="if(¦?then?",
+    ~acts=mk({|if¦then|}) @ [Insert("(")],
+    ~goal={|if(¦?then?|},
   ),
   /* Spliting tokens when both must expand */
   test(
     ~name="Split two leading delated expander delims with bin op",
-    ~acts=mk("if¦if") @ [Insert("+")],
-    ~goal="if?+¦if?",
+    ~acts=mk({|if¦if|}) @ [Insert("+")],
+    ~goal={|if?+¦if?|},
   ),
   /* Below test is slightly precious. Can't directly write
      `if then¦else` as then will instantly expand, so need
@@ -195,8 +195,8 @@ let insertion_tests = [
      isn't perfect but it'll do for now */
   test(
     ~name="Split 2nd delim of 3-delim form with space",
-    ~acts=mk("if the¦else") @ [Insert("n"), Insert(" ")],
-    ~goal="if? then?¦else?",
+    ~acts=mk({|if the¦else|}) @ [Insert("n"), Insert(" ")],
+    ~goal={|if? then?¦else?|},
   ),
 ];
 
@@ -204,29 +204,29 @@ let destruct_tests = [
   /* DESTRUCTION: BASIC */
   test(
     ~name="Delete char from token by backspacing",
-    ~acts=mk("f¦oo") @ [Destruct(Left)],
-    ~goal="¦oo",
+    ~acts=mk({|f¦oo|}) @ [Destruct(Left)],
+    ~goal={|¦oo|},
   ),
   test(
     ~name="Deleting string delimiter deletes string",
-    ~acts=mk("\"¦\"") @ [Destruct(Left)],
-    ~goal="¦?",
+    ~acts=mk({|"¦"|}) @ [Destruct(Left)],
+    ~goal={|¦?|},
   ),
   /* DESTRUCTION: TOKEN MERGING */
   test(
     ~name="`Merge to empty list by backspacing",
-    ~acts=mk("[1¦]") @ [Destruct(Left)],
-    ~goal="[¦]",
+    ~acts=mk({|[1¦]|}) @ [Destruct(Left)],
+    ~goal={|[¦]|},
   ),
   test(
     ~name="`Merge to empty tuple by deleting",
-    ~acts=mk("(¦1)") @ [Destruct(Right)],
-    ~goal="(¦)",
+    ~acts=mk({|(¦1)|}) @ [Destruct(Right)],
+    ~goal={|(¦)|},
   ),
   test(
     ~name="`Merge number literals across bin op by backspacing",
-    ~acts=mk("1+¦1") @ [Destruct(Left)],
-    ~goal="1¦1",
+    ~acts=mk({|1+¦1|}) @ [Destruct(Left)],
+    ~goal={|1¦1|},
   ),
 ];
 

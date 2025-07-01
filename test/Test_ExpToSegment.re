@@ -30,9 +30,6 @@ let exp_to_segment =
     exp_to_segment(~settings=Settings.of_core(~inline=true, CoreSettings.on))
   );
 
-let zipper_parse = (s: string) =>
-  Option.map(Printer.seg_of_zip, Printer.zipper_of_string(s));
-
 let exp_to_segment_settings: ExpToSegment.Settings.t = {
   inline: true,
   fold_case_clauses: false,
@@ -42,17 +39,16 @@ let exp_to_segment_settings: ExpToSegment.Settings.t = {
   show_unknown_as_hole: true,
 };
 let equivalent_to_make_term = (serialized: string) => {
-  switch (Printer.zipper_of_string(serialized)) {
+  switch (Parser.to_term(serialized)) {
   | None => Alcotest.fail("Failed to parse term")
-  | Some(zb) =>
-    let exp = MakeTerm.from_zip_for_sem(zb).term;
+  | Some(exp) =>
     let seg =
       ExpToSegment.exp_to_segment(~settings=exp_to_segment_settings, exp);
     check(
       string,
       "Make term print equivalent: " ++ serialized,
       serialized,
-      Printer.of_segment(~holes=Some("?"), seg),
+      Printer.of_segment(~holes="?", seg),
     );
     check(
       segment,
@@ -133,7 +129,7 @@ let tests = (
               empty_hole(),
             ),
           );
-        let serialized = Printer.of_segment(~holes=Some("?"), segment);
+        let serialized = Printer.of_segment(~holes="?", segment);
 
         check(
           Alcotest.string,
@@ -165,7 +161,7 @@ let tests = (
         check(
           option(segment),
           "2-ary",
-          zipper_parse("(1, 2)"),
+          Parser.to_segment("(1, 2)"),
           Some(exp_to_segment(tuple([int(1), int(2)]))),
         );
       },
@@ -179,7 +175,7 @@ let tests = (
         check(
           option(segment),
           "Singleton Labeled",
-          zipper_parse("(x=1)"),
+          Parser.to_segment("(x=1)"),
           Some(exp_to_segment(tuple([tup_label(label("x"), int(1))]))),
         );
         equivalent_to_make_term({|(x=1, y=2)|});
@@ -206,7 +202,7 @@ let tests = (
               ],
             ),
           );
-        let serialized = Printer.of_segment(~holes=Some("?"), segment);
+        let serialized = Printer.of_segment(~holes="?", segment);
 
         check(
           Alcotest.string,
@@ -229,7 +225,7 @@ let tests = (
               ),
             )
           );
-        let serialized = Printer.of_segment(~holes=Some("?"), segment);
+        let serialized = Printer.of_segment(~holes="?", segment);
 
         check(
           string,
@@ -245,7 +241,7 @@ let tests = (
       () => {
         let segment =
           IdTagged.FreshGrammar.Exp.(segmentize(test(bool(true))));
-        let serialized = Printer.of_segment(~holes=Some("?"), segment);
+        let serialized = Printer.of_segment(~holes="?", segment);
 
         check(string, "Test of true", {|test true end|}, serialized);
       },
@@ -266,7 +262,7 @@ let tests = (
               )
             ),
           );
-        let serialized = Printer.of_segment(~holes=Some("?"), segment);
+        let serialized = Printer.of_segment(~holes="?", segment);
 
         check(string, "Pause", serialized, {|pause 1 in 2|});
       },
@@ -279,7 +275,7 @@ let tests = (
           string,
           "No parens",
           Printer.of_segment(
-            ~holes=Some("?"),
+            ~holes="?",
             segmentize(
               IdTagged.FreshGrammar.Exp.(
                 bin_op(
@@ -296,7 +292,7 @@ let tests = (
           string,
           "Parens",
           Printer.of_segment(
-            ~holes=Some("?"),
+            ~holes="?",
             segmentize(
               IdTagged.FreshGrammar.Exp.(
                 bin_op(
@@ -313,7 +309,7 @@ let tests = (
           string,
           "Arrow types",
           Printer.of_segment(
-            ~holes=Some("?"),
+            ~holes="?",
             segmentize(
               IdTagged.FreshGrammar.(
                 Exp.ty_alias(
@@ -334,7 +330,7 @@ let tests = (
         "Unit type",
         "()",
         Printer.of_segment(
-          ~holes=Some("?"),
+          ~holes="?",
           ExpToSegment.typ_to_segment(
             ~settings=exp_to_segment_settings,
             IdTagged.FreshGrammar.Typ.prod([]),
@@ -351,7 +347,7 @@ let tests = (
         "Unit pattern",
         "()",
         Printer.of_segment(
-          ~holes=Some("?"),
+          ~holes="?",
           ExpToSegment.any_to_segment(
             ~settings={
               inline: true,

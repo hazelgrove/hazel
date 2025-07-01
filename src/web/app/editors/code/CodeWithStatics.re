@@ -47,7 +47,13 @@ module Model = {
       Indicated.piece''(model.editor.state.zipper)
       |> Option.map(((p, _, _)) => p),
     selected_text:
-      Some(() => Printer.to_string_selection(model.editor.state.zipper)),
+      Some(
+        () =>
+          Printer.of_segment(
+            ~measured=model.editor.syntax.measured,
+            model.editor.state.zipper.selection.content,
+          ),
+      ),
     selection: Some(model.editor.state.zipper.selection.content),
     editor: Some(model.editor),
     editor_read_only: true,

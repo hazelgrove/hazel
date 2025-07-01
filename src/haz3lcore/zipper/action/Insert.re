@@ -94,8 +94,6 @@ let expand_neighbors_and_make_new_tile = (char: Token.t, state: t): option(t) =>
      */
   let* z = expand_or_barf_left_neighbor(state);
   let+ z = expand_or_barf_right_neighbor(z);
-  /* If contemplating changing regrouting behavior here, try these
-   * two cases: pressing space on `if then|else` and `if true|then` */
   let z = remold_regrout_prev(z);
   make_new_tile(char, Left, z);
 };
@@ -245,14 +243,7 @@ let rec go =
   | (Outer, (Some(t), _)) when closing_stringlit_or_comment(char, t) =>
     Some(z)
   | (Outer, (Some(t), _)) when Form.is_livelit(t) && char == " " =>
-    let insert = (z: option(Zipper.t), c: string): option(Zipper.t) => {
-      let* z = z;
-      try(c == "\r" ? Some(z) : go(c, z)) {
-      | exn =>
-        print_endline("WARN: zipper_of_string: " ++ Printexc.to_string(exn));
-        None;
-      };
-    };
+    let insert = (z, c) => Option.bind(z, go(c));
     switch (ctx) {
     | Some(ctx) =>
       let name = Form.parse_livelit(t);
