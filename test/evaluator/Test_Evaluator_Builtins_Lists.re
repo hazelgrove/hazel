@@ -181,84 +181,29 @@ let tests = (
     test_case("sort singleton list", `Quick, () =>
       parse_and_evaluate_test({|[1]|}, {|sort([1], fun (x, y) -> x - y)|})
     ),
+    // These might be failing due to an eval bug?
     // test_case("sort sorted list of 2 numbers", `Quick, () =>
-    //   evaluation_test(
-    //     "sort([1, 2], fun (x, y) -> x - y)",
-    //     list_lit([int(1), int(2)]),
-    //     ap(
-    //       Forward,
-    //       builtin_fun("sort"),
-    //       tuple([
-    //         list_lit([int(1), int(2)]),
-    //         fn(
-    //           Pat.tuple([Pat.var("x"), Pat.var("y")]),
-    //           bin_op(Int(Minus), var("x"), var("y")),
-    //           None,
-    //           None,
-    //         ),
-    //       ]),
-    //     ),
+    //   parse_and_evaluate_test(
+    //     {|[1, 2]|},
+    //     {|sort([1, 2], fun (x, y) -> x - y)|},
     //   )
     // ),
     // test_case("sort ascending numbers", `Quick, () =>
-    //   evaluation_test(
-    //     "sort([3, 1, 4, 1, 5], fun (x, y) -> x - y)",
-    //     list_lit([int(1), int(1), int(3), int(4), int(5)]),
-    //     ap(
-    //       Forward,
-    //       builtin_fun("sort"),
-    //       tuple([
-    //         list_lit([int(3), int(1), int(4), int(1), int(5)]),
-    //         fn(
-    //           Pat.tuple([Pat.var("x"), Pat.var("y")]),
-    //           bin_op(Int(Minus), var("x"), var("y")),
-    //           None,
-    //           None,
-    //         ),
-    //       ]),
-    //     ),
+    //   parse_and_evaluate_test(
+    //     {|[1, 1, 3, 4, 5]|},
+    //     {|sort([3, 1, 4, 1, 5], fun (x, y) -> x - y)|},
     //   )
     // ),
     // test_case("sort descending numbers", `Quick, () =>
-    //   evaluation_test(
-    //     "sort([3, 1, 4, 1, 5], fun (x, y) -> y - x)",
-    //     list_lit([int(5), int(4), int(3), int(1), int(1)]),
-    //     ap(
-    //       Forward,
-    //       builtin_fun("sort"),
-    //       tuple([
-    //         list_lit([int(3), int(1), int(4), int(1), int(5)]),
-    //         fn(
-    //           Pat.tuple([Pat.var("x"), Pat.var("y")]),
-    //           bin_op(Int(Minus), var("y"), var("x")),
-    //           None,
-    //           None,
-    //         ),
-    //       ]),
-    //     ),
+    //   parse_and_evaluate_test(
+    //     {|[5, 4, 3, 1, 1]|},
+    //     {|sort([3, 1, 4, 1, 5], fun (x, y) -> y - x)|},
     //   )
     // ),
     // test_case("sort by absolute value", `Quick, () =>
-    //   evaluation_test(
-    //     "sort([-3, 1, -4, 2], fun (x, y) -> abs(x) - abs(y))",
-    //     list_lit([int(1), int(2), int(-3), int(-4)]),
-    //     ap(
-    //       Forward,
-    //       builtin_fun("sort"),
-    //       tuple([
-    //         list_lit([int(-3), int(1), int(-4), int(2)]),
-    //         fn(
-    //           Pat.tuple([Pat.var("x"), Pat.var("y")]),
-    //           bin_op(
-    //             Int(Minus),
-    //             ap(Forward, builtin_fun("abs"), var("x")),
-    //             ap(Forward, builtin_fun("abs"), var("y")),
-    //           ),
-    //           None,
-    //           None,
-    //         ),
-    //       ]),
-    //     ),
+    //   parse_and_evaluate_test(
+    //     {|[1, 2, -3, -4]|},
+    //     {|sort([-3, 1, -4, 2], fun (x, y) -> abs(x) - abs(y))|},
     //   )
     // ),
     test_case("filter_map with Some values", `Quick, () =>
