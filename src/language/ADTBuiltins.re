@@ -53,7 +53,7 @@ module Option = {
     {
       str: {|fun (opt, f) -> case opt
                | None => None
-               | Some x => Some(f(x))
+               | Some(x) => Some(f(x))
              end|},
       name: "option_map",
       arg:
@@ -67,9 +67,9 @@ module Option = {
               match(
                 var("opt"),
                 [
-                  (Pat.constructor("None", None), none),
+                  (pat_none, none),
                   (
-                    Pat.ap(Pat.constructor("Some", None), Pat.var("x")),
+                    Pat.ap(pat_some, Pat.var("x")),
                     ap(Forward, some, ap(Forward, var("f"), var("x"))),
                   ),
                 ],
@@ -98,9 +98,9 @@ module Option = {
               match(
                 var("opt"),
                 [
-                  (Pat.constructor("None", None), none),
+                  (pat_none, none),
                   (
-                    Pat.ap(Pat.constructor("Some", None), Pat.var("x")),
+                    Pat.ap(pat_some, Pat.var("x")),
                     ap(Forward, var("f"), var("x")),
                   ),
                 ],
@@ -128,11 +128,8 @@ module Option = {
               match(
                 var("opt"),
                 [
-                  (Pat.constructor("None", None), list_lit([])),
-                  (
-                    Pat.ap(Pat.constructor("Some", None), Pat.var("x")),
-                    list_lit([var("x")]),
-                  ),
+                  (pat_none, list_lit([])),
+                  (Pat.ap(pat_some, Pat.var("x")), list_lit([var("x")])),
                 ],
               ),
               None,
