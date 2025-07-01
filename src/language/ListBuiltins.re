@@ -3,91 +3,99 @@ open Fresh.Typ;
 open ADTBuiltins;
 
 /*
-  DONE (lists):
-  length
-  map
-  filter
-  fold_left
-  flat_map
-  zip
-  unzip
-  reverse
-  take
-  drop
-  range
-  enumerate
-  any
-  all
-  intersperse
-  cons
-  hd
-  tl
-  is_empty
-  nth
-  fold_right
-  append
-  concat
-  mapi
-  filteri
-  mem
-  partition
-  rev_append
-  fold_left2
-  fold_right2
-  map2
-  all2
-  any2
-  find
-  take_while
-  drop_while
+ This PR add a few types and several dozen functions to the buiitins,
+ to later be replaced by a Hazel standard library.
 
-  DONE ALIASES:
-  contains
-  flatten
-  rev
-  exists
-  for_all
-  exists2
-  for_all2
-  concat_map
-  split
-  combine
-  filter_map
-  nth_opt
-  find_opt
-  find_index
-  find_map
-  find_mapi
+ Types:
+ - Ord = Lt + Eq + Gt
+ - Option = None + Some(?)
+ - Result = Ok(?) + Error(?)
 
-  DONE (non-list):
-  fst, snd (on pairs)
-  option_map
-  option_bind
-  option_to_list
+ Pair functions:
+ - fst
+ - snd
 
-  DONE TYPES:
-  Option
-  Result
-  Ord = Lt+Eq+Gt
+ Option functions:
+ - option_map
+ - option_bind
+ - option_to_list
 
- IMPLEMENTED BUT TESTS FAILING:
-  sort
+ List functions:
+ - length
+ - map
+ - filter
+ - fold_left
+ - flat_map
+ - zip
+ - unzip
+ - reverse
+ - take
+ - drop
+ - range
+ - enumerate
+ - any
+ - all
+ - intersperse
+ - cons
+ - hd
+ - tl
+ - is_empty
+ - nth
+ - fold_right
+ - append
+ - concat
+ - mapi
+ - filteri
+ - mem
+ - partition
+ - rev_append
+ - fold_left2
+ - fold_right2
+ - map2
+ - all2
+ - any2
+ - find
+ - take_while
+ - drop_while
+ - init
+ - slice
+
+ List types involving options:
+ - filter_map
+ - nth_opt
+ - find_opt
+ - find_index
+ - find_map
+ - find_mapi
+
+ Association list functions:
+ - assoc
+ - assoc_opt
+ - mem_assoc
+ - remove_assoc
+
+ List function aliases:
+ - contains
+ - flatten
+ - rev
+ - exists
+ - for_all
+ - exists2
+ - for_all2
+ - concat_map
+ - split
+ - combine
 
  TODO:
- Use Ord for sort
- init: int -> (int -> ?) -> [?]
- assocation lists (assoc, assoc_opt, mem_assoc, remove_assoc)
- slice: (int, int, [?]) -> [?]
- string fns
+ - sort - tests failing
+ - Use Ord for sort
+ - string fns
+ - int_of_string_opt
+ - float_of_string_opt
+ - bool_of_string_opt
+ - etc...
 
- TODO (non-list)
- int_of_string_opt
- float_of_string_opt
- bool_of_string_opt
- etc...
-
-
-  */
+ */
 
 let builtins = [
   {
@@ -2174,6 +2182,267 @@ let builtins = [
     },
   },
   {
+    str: {|fix init -> fun (n, f) -> init_helper(n, f, 0)
+           fix init_helper -> fun (n, f, i) -> if i >= n then [] else f(i) :: init_helper(n, f, i + 1)
+           end|},
+    name: "init",
+    arg: Prod([int(), arrow(int(), unknown(Internal))]),
+    ret: List(unknown(Internal)),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("init"),
+            fn(
+              Pat.tuple([Pat.var("n"), Pat.var("f")]),
+              ap(
+                Forward,
+                fix_f(
+                  Pat.var("init_helper"),
+                  fn(
+                    Pat.tuple([Pat.var("n"), Pat.var("f"), Pat.var("i")]),
+                    if_(
+                      bin_op(Int(GreaterThanOrEqual), var("i"), var("n")),
+                      list_lit([]),
+                      cons(
+                        ap(Forward, var("f"), var("i")),
+                        ap(
+                          Forward,
+                          var("init_helper"),
+                          tuple([
+                            var("n"),
+                            var("f"),
+                            bin_op(Int(Plus), var("i"), int(1)),
+                          ]),
+                        ),
+                      ),
+                    ),
+                    None,
+                    None,
+                  ),
+                  None,
+                ),
+                tuple([var("n"), var("f"), int(0)]),
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix assoc -> fun (xs, key) -> case xs
+             | [] => error("assoc: key not found")
+             | (k, v) :: xs => if k == key then v else assoc(xs, key)
+           end|},
+    name: "assoc",
+    arg:
+      Prod([
+        list(prod([unknown(Internal), unknown(Internal)])),
+        unknown(Internal),
+      ]),
+    ret: Unknown(Internal),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("assoc"),
+            fn(
+              Pat.tuple([Pat.var("xs"), Pat.var("key")]),
+              match(
+                var("xs"),
+                [
+                  (
+                    Pat.list_lit([]),
+                    dynamic_error_hole(
+                      var("xs"),
+                      InvalidOperationError.IndexOutOfBounds,
+                    ),
+                  ),
+                  (
+                    Pat.cons(
+                      Pat.tuple([Pat.var("k"), Pat.var("v")]),
+                      Pat.var("xs"),
+                    ),
+                    if_(
+                      bin_op(Int(Equals), var("k"), var("key")),
+                      var("v"),
+                      ap(
+                        Forward,
+                        var("assoc"),
+                        tuple([var("xs"), var("key")]),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix assoc_opt -> fun (xs, key) -> case xs
+             | [] => None
+             | (k, v) :: xs => if k == key then Some(v) else assoc_opt(xs, key)
+           end|},
+    name: "assoc_opt",
+    arg:
+      Prod([
+        list(prod([unknown(Internal), unknown(Internal)])),
+        unknown(Internal),
+      ]),
+    ret: Unknown(Internal),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("assoc_opt"),
+            fn(
+              Pat.tuple([Pat.var("xs"), Pat.var("key")]),
+              match(
+                var("xs"),
+                [
+                  (Pat.list_lit([]), Option.none),
+                  (
+                    Pat.cons(
+                      Pat.tuple([Pat.var("k"), Pat.var("v")]),
+                      Pat.var("xs"),
+                    ),
+                    if_(
+                      bin_op(Int(Equals), var("k"), var("key")),
+                      ap(Forward, Option.some, var("v")),
+                      ap(
+                        Forward,
+                        var("assoc_opt"),
+                        tuple([var("xs"), var("key")]),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix mem_assoc -> fun (xs, key) -> case xs
+             | [] => false
+             | (k, _) :: xs => if k == key then true else mem_assoc(xs, key)
+           end|},
+    name: "mem_assoc",
+    arg:
+      Prod([
+        list(prod([unknown(Internal), unknown(Internal)])),
+        unknown(Internal),
+      ]),
+    ret: Atom(Bool),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("mem_assoc"),
+            fn(
+              Pat.tuple([Pat.var("xs"), Pat.var("key")]),
+              match(
+                var("xs"),
+                [
+                  (Pat.list_lit([]), bool(false)),
+                  (
+                    Pat.cons(
+                      Pat.tuple([Pat.var("k"), Pat.wild()]),
+                      Pat.var("xs"),
+                    ),
+                    if_(
+                      bin_op(Int(Equals), var("k"), var("key")),
+                      bool(true),
+                      ap(
+                        Forward,
+                        var("mem_assoc"),
+                        tuple([var("xs"), var("key")]),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix remove_assoc -> fun (xs, key) -> case xs
+             | [] => []
+             | (k, v) :: xs => if k == key then remove_assoc(xs, key) else (k, v) :: remove_assoc(xs, key)
+           end|},
+    name: "remove_assoc",
+    arg:
+      Prod([
+        list(prod([unknown(Internal), unknown(Internal)])),
+        unknown(Internal),
+      ]),
+    ret: List(prod([unknown(Internal), unknown(Internal)])),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("remove_assoc"),
+            fn(
+              Pat.tuple([Pat.var("xs"), Pat.var("key")]),
+              match(
+                var("xs"),
+                [
+                  (Pat.list_lit([]), list_lit([])),
+                  (
+                    Pat.cons(
+                      Pat.tuple([Pat.var("k"), Pat.var("v")]),
+                      Pat.var("xs"),
+                    ),
+                    if_(
+                      bin_op(Int(Equals), var("k"), var("key")),
+                      ap(
+                        Forward,
+                        var("remove_assoc"),
+                        tuple([var("xs"), var("key")]),
+                      ),
+                      cons(
+                        tuple([var("k"), var("v")]),
+                        ap(
+                          Forward,
+                          var("remove_assoc"),
+                          tuple([var("xs"), var("key")]),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
     str: {|let merge: ((?, ?) -> Int, [?], [?]) -> [?] =
 fun cmp, xs, ys ->
 let go: ([?], [?], [?]) -> [?] =
@@ -2402,6 +2671,39 @@ let go: ([?], [?], [?]) -> [?] =
                     ),
                   ),
                 ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix slice -> fun (start, len, xs) -> take(drop(xs, start),len)|},
+    name: "slice",
+    arg: Prod([int(), int(), list(unknown(Internal))]),
+    ret: List(unknown(Internal)),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("slice"),
+            fn(
+              Pat.tuple([Pat.var("start"), Pat.var("len"), Pat.var("xs")]),
+              ap(
+                Forward,
+                var("take"),
+                tuple([
+                  ap(
+                    Forward,
+                    var("drop"),
+                    tuple([var("xs"), var("start")]),
+                  ),
+                  var("len"),
+                ]),
               ),
               None,
               None,

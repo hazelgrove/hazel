@@ -175,37 +175,30 @@ let tests = (
         {|drop_while([1, 2, 0, 4], fun x -> x > 0)|},
       )
     ),
-    test_case("sort empty list", `Quick, () =>
-      parse_and_evaluate_test({|[]|}, {|sort([], fun (x, y) -> x - y)|})
+    test_case("init with identity function", `Quick, () =>
+      parse_and_evaluate_test({|[0, 1, 2]|}, {|init(3, fun i -> i)|})
     ),
-    test_case("sort singleton list", `Quick, () =>
-      parse_and_evaluate_test({|[1]|}, {|sort([1], fun (x, y) -> x - y)|})
+    test_case("init with square function", `Quick, () =>
+      parse_and_evaluate_test({|[0, 1, 4, 9]|}, {|init(4, fun i -> i * i)|})
     ),
-    // These might be failing due to an eval bug?
-    // test_case("sort sorted list of 2 numbers", `Quick, () =>
-    //   parse_and_evaluate_test(
-    //     {|[1, 2]|},
-    //     {|sort([1, 2], fun (x, y) -> x - y)|},
-    //   )
-    // ),
-    // test_case("sort ascending numbers", `Quick, () =>
-    //   parse_and_evaluate_test(
-    //     {|[1, 1, 3, 4, 5]|},
-    //     {|sort([3, 1, 4, 1, 5], fun (x, y) -> x - y)|},
-    //   )
-    // ),
-    // test_case("sort descending numbers", `Quick, () =>
-    //   parse_and_evaluate_test(
-    //     {|[5, 4, 3, 1, 1]|},
-    //     {|sort([3, 1, 4, 1, 5], fun (x, y) -> y - x)|},
-    //   )
-    // ),
-    // test_case("sort by absolute value", `Quick, () =>
-    //   parse_and_evaluate_test(
-    //     {|[1, 2, -3, -4]|},
-    //     {|sort([-3, 1, -4, 2], fun (x, y) -> abs(x) - abs(y))|},
-    //   )
-    // ),
+    test_case("init empty list", `Quick, () =>
+      parse_and_evaluate_test({|[]|}, {|init(0, fun i -> i)|})
+    ),
+    test_case("slice middle of list", `Quick, () =>
+      parse_and_evaluate_test({|[2, 3, 4]|}, {|slice(1, 3, [1, 2, 3, 4, 5])|})
+    ),
+    test_case("slice from beginning", `Quick, () =>
+      parse_and_evaluate_test({|[1, 2, 3]|}, {|slice(0, 3, [1, 2, 3, 4, 5])|})
+    ),
+    test_case("slice to end", `Quick, () =>
+      parse_and_evaluate_test({|[3, 4, 5]|}, {|slice(2, 3, [1, 2, 3, 4, 5])|})
+    ),
+    test_case("slice empty result", `Quick, () =>
+      parse_and_evaluate_test({|[]|}, {|slice(5, 2, [1, 2, 3, 4, 5])|})
+    ),
+    test_case("slice with length 0", `Quick, () =>
+      parse_and_evaluate_test({|[]|}, {|slice(1, 0, [1, 2, 3, 4, 5])|})
+    ),
     test_case("filter_map with Some values", `Quick, () =>
       parse_and_evaluate_test(
         {|[4, 8]|},
@@ -266,5 +259,84 @@ let tests = (
         {|find_mapi([1, 3, 5], fun (i, x) -> if int_mod(x, 2) == 0 then Some(i) else None)|},
       )
     ),
+    test_case("assoc found key", `Quick, () =>
+      parse_and_evaluate_test(
+        {|42|},
+        {|assoc([(1, 10), (2, 42), (3, 30)], 2)|},
+      )
+    ),
+    test_case("assoc_opt found key", `Quick, () =>
+      parse_and_evaluate_test(
+        {|Some(42)|},
+        {|assoc_opt([(1, 10), (2, 42), (3, 30)], 2)|},
+      )
+    ),
+    test_case("assoc_opt not found", `Quick, () =>
+      parse_and_evaluate_test(
+        {|None|},
+        {|assoc_opt([(1, 10), (2, 42), (3, 30)], 5)|},
+      )
+    ),
+    test_case("mem_assoc found key", `Quick, () =>
+      parse_and_evaluate_test(
+        {|true|},
+        {|mem_assoc([(1, 10), (2, 42), (3, 30)], 2)|},
+      )
+    ),
+    test_case("mem_assoc not found", `Quick, () =>
+      parse_and_evaluate_test(
+        {|false|},
+        {|mem_assoc([(1, 10), (2, 42), (3, 30)], 5)|},
+      )
+    ),
+    test_case("remove_assoc removes first occurrence", `Quick, () =>
+      parse_and_evaluate_test(
+        {|[(1, 10), (3, 30)]|},
+        {|remove_assoc([(1, 10), (2, 42), (3, 30)], 2)|},
+      )
+    ),
+    test_case("remove_assoc removes all occurrences", `Quick, () =>
+      parse_and_evaluate_test(
+        {|[(1, 10), (3, 30)]|},
+        {|remove_assoc([(1, 10), (2, 42), (2, 99), (3, 30)], 2)|},
+      )
+    ),
+    test_case("remove_assoc key not found", `Quick, () =>
+      parse_and_evaluate_test(
+        {|[(1, 10), (2, 42), (3, 30)]|},
+        {|remove_assoc([(1, 10), (2, 42), (3, 30)], 5)|},
+      )
+    ),
+    test_case("sort empty list", `Quick, () =>
+      parse_and_evaluate_test({|[]|}, {|sort([], fun (x, y) -> x - y)|})
+    ),
+    test_case("sort singleton list", `Quick, () =>
+      parse_and_evaluate_test({|[1]|}, {|sort([1], fun (x, y) -> x - y)|})
+    ),
+    // These might be failing due to an eval bug?
+    // test_case("sort sorted list of 2 numbers", `Quick, () =>
+    //   parse_and_evaluate_test(
+    //     {|[1, 2]|},
+    //     {|sort([1, 2], fun (x, y) -> x - y)|},
+    //   )
+    // ),
+    // test_case("sort ascending numbers", `Quick, () =>
+    //   parse_and_evaluate_test(
+    //     {|[1, 1, 3, 4, 5]|},
+    //     {|sort([3, 1, 4, 1, 5], fun (x, y) -> x - y)|},
+    //   )
+    // ),
+    // test_case("sort descending numbers", `Quick, () =>
+    //   parse_and_evaluate_test(
+    //     {|[5, 4, 3, 1, 1]|},
+    //     {|sort([3, 1, 4, 1, 5], fun (x, y) -> y - x)|},
+    //   )
+    // ),
+    // test_case("sort by absolute value", `Quick, () =>
+    //   parse_and_evaluate_test(
+    //     {|[1, 2, -3, -4]|},
+    //     {|sort([-3, 1, -4, 2], fun (x, y) -> abs(x) - abs(y))|},
+    //   )
+    // ),
   ],
 );
