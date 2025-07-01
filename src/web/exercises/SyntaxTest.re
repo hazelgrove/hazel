@@ -32,7 +32,7 @@ let rec find_var_upat = (name: string, upat: Pat.t): bool => {
   | Parens(up)
   | Probe(up, _) => find_var_upat(name, up)
   | Ap(up1, up2) => find_var_upat(name, up1) || find_var_upat(name, up2)
-  | Cast(up, _, _) => find_var_upat(name, up)
+  | Asc(up, _) => find_var_upat(name, up)
   };
 };
 
@@ -50,7 +50,7 @@ let rec find_in_let =
     find_in_let(name, up, ue, l)
   | (Parens(up) | Probe(up, _), _) => find_in_let(name, up, def, l)
   | (_, Parens(ue) | Probe(ue, _)) => find_in_let(name, upat, ue, l)
-  | (Cast(up, _, _), _) => find_in_let(name, up, def, l)
+  | (Asc(up, _), _) => find_in_let(name, up, def, l)
   | (Var(x), Fun(_)) => x == name ? [def, ...l] : l
   | (TupLabel(_, up), TupLabel(_, ue)) => find_in_let(name, up, ue, l)
   | (TupLabel(_, up), _) => find_in_let(name, up, def, l)
@@ -95,7 +95,7 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   | TypAp(u1, _)
   | Parens(u1)
   | Probe(u1, _)
-  | Cast(u1, _, _)
+  | Asc(u1, _)
   | UnOp(_, u1)
   | TyAlias(_, _, u1)
   | Use(_, u1)
@@ -126,7 +126,6 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   | Invalid(_)
   | MultiHole(_)
   | DynamicErrorHole(_)
-  | FailedCast(_)
   | Atom(_)
   | Label(_)
   | LivelitName(_)
@@ -164,7 +163,7 @@ let rec var_mention_upat = (name: string, upat: Pat.t): bool => {
   | TupLabel(_, up) => var_mention_upat(name, up)
   | Ap(up1, up2) =>
     var_mention_upat(name, up1) || var_mention_upat(name, up2)
-  | Cast(up, _, _) => var_mention_upat(name, up)
+  | Asc(up, _) => var_mention_upat(name, up)
   };
 };
 
@@ -202,12 +201,11 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | TupLabel(_, u)
   | Filter(_, u) => var_mention(name, u)
   | DynamicErrorHole(u, _) => var_mention(name, u)
-  | FailedCast(u, _, _) => var_mention(name, u)
   | FixF(args, body, _) =>
     var_mention_upat(name, args) ? false : var_mention(name, body)
   | Closure(_, u) => var_mention(name, u)
   | BuiltinFun(_) => false
-  | Cast(d, _, _) => var_mention(name, d)
+  | Asc(d, _) => var_mention(name, d)
   | Ap(_, u1, u2)
   | Dot(u1, u2)
   | Seq(u1, u2)
@@ -272,11 +270,10 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
     | _ => var_applied(name, u)
     }
   | DynamicErrorHole(_) => false
-  | FailedCast(_) => false
   // This case shouldn't come up!
   | Closure(_) => false
   | BuiltinFun(_) => false
-  | Cast(d, _, _) => var_applied(name, d)
+  | Asc(d, _) => var_applied(name, d)
   | Ap(_, u1, u2) =>
     switch (u1.term) {
     | Var(x) => x == name ? true : var_applied(name, u2)
@@ -336,7 +333,6 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | Invalid(_)
   | MultiHole(_)
   | DynamicErrorHole(_)
-  | FailedCast(_)
   | Atom(_)
   | Label(_)
   | Constructor(_)
@@ -357,7 +353,7 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | Test(_) => false
   | TyAlias(_, _, u)
   | Use(_, u)
-  | Cast(u, _, _)
+  | Asc(u, _)
   | TupLabel(_, u)
   | Filter(_, u)
   | Closure(_, u)

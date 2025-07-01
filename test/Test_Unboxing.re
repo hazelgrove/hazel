@@ -86,10 +86,10 @@ let tests = (
         cons(1 |> int, cons(2 |> int, empty_hole())),
       ),
       test_indet_match(
-        "CastedHole to ListLit",
+        "Ascribed Hole to ListLit",
         list(dhexp_typ),
         ListLit,
-        cast(empty_hole(), Typ.(empty_hole()), Typ.(list(empty_hole()))),
+        asc(empty_hole(), Typ.(list(empty_hole()))),
       ),
       // ListLitn requests
       test_matches(
@@ -111,11 +111,18 @@ let tests = (
         ListLitn(1),
         cons(1 |> int, cons(2 |> int, empty_hole())),
       ),
+      test_matches(
+        "ListLitn to Cons, correct length",
+        list(dhexp_typ),
+        ListLitn(3),
+        cons(1 |> int, list_lit([int(2), int(3)])),
+        [1, 2, 3] |> List.map(int),
+      ),
       test_indet_match(
-        "CastedHole to ListLitn",
+        "Ascribed Hole to ListLitn",
         list(dhexp_typ),
         ListLitn(0),
-        cast(empty_hole(), Typ.(empty_hole()), Typ.(list(empty_hole()))),
+        asc(empty_hole(), Typ.(list(empty_hole()))),
       ),
       // Cons requests
       test_matches(
@@ -146,10 +153,10 @@ let tests = (
         (1 |> int, cons(2 |> int, empty_hole())),
       ),
       test_indet_match(
-        "CastedHole to Cons",
+        "Ascribed Hole to Cons",
         pair(dhexp_typ, dhexp_typ),
         Cons,
-        cast(empty_hole(), Typ.(empty_hole()), Typ.(list(empty_hole()))),
+        asc(empty_hole(), Typ.(list(empty_hole()))),
       ),
       test_case("Unboxing integer", `Quick, () => {
         check(
@@ -186,87 +193,6 @@ let tests = (
         },
       ),
       test_case(
-        "Dot projection",
-        `Quick,
-        () => {
-          open F;
-          let uncasted_tuple =
-            Exp.(
-              tuple([
-                tup_label(
-                  label("a"),
-                  list_lit([
-                    cast(
-                      tup_label(
-                        label("j"),
-                        cast(int(1), Typ.int(), Typ.unknown(Internal)),
-                      ),
-                      Typ.tup_label(
-                        Typ.unknown(Internal),
-                        Typ.unknown(Internal),
-                      ),
-                      Typ.unknown(Internal),
-                    ),
-                    cast(int(3), Typ.int(), Typ.unknown(Internal)),
-                  ]),
-                ),
-                tup_label(
-                  label("b"),
-                  list_lit([
-                    cast(
-                      tup_label(
-                        label("j"),
-                        cast(int(2), Typ.int(), Typ.unknown(Internal)),
-                      ),
-                      Typ.tup_label(
-                        Typ.unknown(Internal),
-                        Typ.unknown(Internal),
-                      ),
-                      Typ.unknown(Internal),
-                    ),
-                    cast(int(9), Typ.int(), Typ.unknown(Internal)),
-                  ]),
-                ),
-                tup_label(
-                  label("c"),
-                  list_lit([
-                    cast(
-                      tup_label(
-                        label("j"),
-                        cast(int(3), Typ.int(), Typ.unknown(Internal)),
-                      ),
-                      Typ.tup_label(
-                        Typ.unknown(Internal),
-                        Typ.unknown(Internal),
-                      ),
-                      Typ.unknown(Internal),
-                    ),
-                    cast(int(9), Typ.int(), Typ.unknown(Internal)),
-                  ]),
-                ),
-              ])
-            );
-          let casted_tuple =
-            Exp.(
-              cast(
-                cast(
-                  uncasted_tuple,
-                  Typ.unknown(Internal),
-                  Typ.prod([Typ.unknown(Internal)]),
-                ),
-                Typ.(prod([unknown(Internal)])),
-                Typ.(prod([tup_label(label("a"), unknown(Internal))])),
-              )
-            );
-          check(
-            unboxed_testable(exp),
-            "Dot projection",
-            Matches(uncasted_tuple),
-            unbox(LabeledTupleProjection("a"), casted_tuple),
-          );
-        },
-      ),
-      test_case(
         "Dot projection of casted tup label",
         `Quick,
         () => {
@@ -274,15 +200,14 @@ let tests = (
           let orig =
             Exp.(
               tuple([
-                cast(
+                asc(
                   tup_label(
                     label("j"),
-                    cast(int(1), Typ.int(), Typ.unknown(Internal)),
+                    asc(int(1), Typ.unknown(Internal)),
                   ),
-                  Typ.(tup_label(unknown(Internal), unknown(Internal))),
                   Typ.unknown(Internal),
                 ),
-                cast(int(3), Typ.int(), Typ.unknown(Internal)),
+                asc(int(3), Typ.unknown(Internal)),
               ])
             );
           check(

@@ -42,22 +42,14 @@ type error_inconsistent =
   /* Inconsistent match or listlit */
   | Internal(list(Typ.t))
   /* Bad function position */
-  | WithArrow(Typ.t)
-  /* Bad Livelit model */
-  | BadLivelitModel(Typ.t);
+  | WithArrow(Typ.t);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_no_type =
   /* Invalid expression token, treated as hole */
   | BadToken(string)
-  /* Invalid operator for current use mode, treated as hole */
-  | BadOperator(string)
-  /* Empty application of function with inconsistent type */
-  | BadTrivAp(Typ.t)
   /* Sum constructor neiter bound nor in ana type */
   | FreeConstructor(Constructor.t)
-  /* Livelit name not bound in ctx */
-  | UnboundLivelit(string)
   /* Dot operator requires the left-hand argument to be a tuple */
   | DotOperatorRequiresTuple
   /* Tuple extension requires both arguments to be tuples */
@@ -84,10 +76,6 @@ type error_common =
       duplicate_labels: list(LabeledTuple.label),
       invalid_labels: list(LabeledTuple.label),
       typ: Typ.t,
-    })
-  | InvalidUseMode({
-      bad_typ: Typ.t,
-      inner_typ: Typ.t,
     });
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -97,7 +85,23 @@ type error_exp =
   | UnusedDeferral
   | BadPartialAp(Self.error_partial_ap)
   | Common(error_common)
-  | BuiltinError(Self.error_builtin);
+  | BuiltinError(Self.error_builtin)
+  | InvalidUseMode({
+      bad_typ: Typ.t,
+      inner_typ: Typ.t,
+    })
+  /* Livelit name not bound in ctx */
+  | UnboundLivelit(string)
+  /* Empty application of function with inconsistent type */
+  | BadTrivAp(Typ.t)
+  /* Dot Operator is ill-formed */
+  | WantTuple
+  /* Invalid operator for current use mode, treated as hole */
+  | BadOperator(string)
+  /* Label not found in tuple for dot operator */
+  | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label))
+  /* Bad Livelit model */
+  | BadLivelitModel(Typ.t);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_pat =
@@ -425,26 +429,10 @@ let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
         ),
       )
     }
-  | (IsLivelitName({name, _}), _) =>
-    let ll = Ctx.lookup_livelit(ctx, name);
-    switch (ll) {
-    | None => InHole(NoType(UnboundLivelit(name)))
-    | Some(_livelit) => NotInHole(Syn(Unknown(Internal) |> Typ.temp))
-    };
-  | (BadLivelitModel(typ), _) => InHole(Inconsistent(BadLivelitModel(typ)))
   | (FreeConstructor(name), _) => InHole(NoType(FreeConstructor(name)))
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
-  | (BadOperator(op), _) => InHole(NoType(BadOperator(op)))
-  | (BadTrivAp(ty), _) => InHole(NoType(BadTrivAp(ty)))
   | (BadLabel(label), _) => InHole(NoType(BadLabel(label)))
   | (InvalidLabel(label), _) => InHole(NoType(InvalidLabel(label)))
-  | (InvalidUseMode({bad_typ, inner_typ}), _) =>
-    InHole(
-      InvalidUseMode({
-        bad_typ,
-        inner_typ,
-      }),
-    )
   | (
       TupleLabelError({
         malformed_labels,
@@ -507,8 +495,6 @@ let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
     InHole(NoType(DotOperatorRequiresTuple))
   | (TupleExtensionRequiresTuples, _) =>
     InHole(NoType(TupleExtensionRequiresTuples))
-  | (LabelNotFound(name, labels), _) =>
-    InHole(NoType(LabelNotFound(name, labels)))
   };
 
 let rec status_pat = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.pat): status_pat =>
@@ -517,17 +503,18 @@ let rec status_pat = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.pat): status_pat =>
     let additional_err =
       switch (status_pat(ctx, ty_ana, self)) {
       | InHole(
-          Common(
-            Inconsistent(Internal(_) | Expectation(_) | BadLivelitModel(_)),
-          ) as err,
-        )
-      | InHole(Common(NoType(_)) as err) => Some(err)
+          Common(Inconsistent(Internal(_) | Expectation(_)) | NoType(_)) as err,
+        ) =>
+        Some(err)
       | NotInHole(_) => None
-      | InHole(Common(InvalidUseMode(_)))
-      | InHole(Common(DuplicateLabel(_)))
-      | InHole(Common(TupleLabelError(_)))
-      | InHole(Common(Inconsistent(WithArrow(_))))
-      | InHole(ExpectedConstructor | Redundant(_)) =>
+      | InHole(
+          Common(
+            DuplicateLabel(_) | TupleLabelError(_) |
+            Inconsistent(WithArrow(_)),
+          ) |
+          ExpectedConstructor |
+          Redundant(_),
+        ) =>
         // ExpectedConstructor cannot be a reason to hole-wrap the entire pattern
         failwith("InHole(Redundant(impossible_err))")
       };
@@ -552,22 +539,24 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
   | InexhaustiveMatch(self) =>
     let additional_err =
       switch (status_exp(ctx, ty_ana, self)) {
-      | InHole(
-          Common(
-            Inconsistent(Internal(_) | BadLivelitModel(_)) as inconsistent_err,
-          ),
-        ) =>
+      | InHole(Common(Inconsistent(Internal(_)) as inconsistent_err)) =>
         Some(inconsistent_err)
       | NotInHole(_)
       | InHole(Common(Inconsistent(Expectation(_) | WithArrow(_)))) => None /* Type checking should fail and these errors would be nullified */
       | InHole(Common(NoType(_)))
       | InHole(Common(TupleLabelError(_)))
       | InHole(Common(DuplicateLabel(_)))
-      | InHole(Common(InvalidUseMode(_)))
       | InHole(BuiltinError(_))
       | InHole(
           FreeVariable(_) | InexhaustiveMatch(_) | UnusedDeferral |
-          BadPartialAp(_),
+          BadPartialAp(_) |
+          InvalidUseMode(_) |
+          UnboundLivelit(_) |
+          BadTrivAp(_) |
+          WantTuple |
+          BadLivelitModel(_) |
+          BadOperator(_) |
+          LabelNotFound(_),
         ) =>
         failwith("InHole(InexhaustiveMatch(impossible_err))")
       };
@@ -577,6 +566,25 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
   | IsDeferral(_) => InHole(UnusedDeferral)
   | IsBadPartialAp(_ as info) => InHole(BadPartialAp(info))
   | BuiltinError(err) => InHole(BuiltinError(err))
+  | InvalidUseMode({inner_typ, bad_typ}) =>
+    InHole(
+      InvalidUseMode({
+        inner_typ,
+        bad_typ,
+      }),
+    )
+  | WantTuple => InHole(WantTuple)
+  | IsLivelitName({name, _}) =>
+    let ll = Ctx.lookup_livelit(ctx, name);
+    switch (ll) {
+    | None => InHole(UnboundLivelit(name))
+    | Some(_livelit) =>
+      NotInHole(Common(Syn(Unknown(Internal) |> Typ.temp)))
+    };
+  | BadTrivAp(ty) => InHole(BadTrivAp(ty))
+  | BadOperator(op) => InHole(BadOperator(op))
+  | LabelNotFound(label, labels) => InHole(LabelNotFound(label, labels))
+  | BadLivelitModel(typ) => InHole(BadLivelitModel(typ))
   | Common(self_exp) =>
     switch (status_common(ctx, ty_ana, self_exp)) {
     | NotInHole(ok_exp) => NotInHole(Common(ok_exp))
@@ -705,18 +713,18 @@ let is_error = (ci: t): bool => {
     | InHole(_) => true
     | NotInHole(_) => false
     }
-  | InfoPat({ana, self, ctx, _}) =>
-    switch (status_pat(ctx, ana, self)) {
+  | InfoPat({status, _}) =>
+    switch (status) {
     | InHole(_) => true
     | NotInHole(_) => false
     }
-  | InfoTyp({expects, ctx, term, _}) =>
-    switch (status_typ(ctx, expects, term)) {
+  | InfoTyp({status, _}) =>
+    switch (status) {
     | InHole(_) => true
     | NotInHole(_) => false
     }
-  | InfoTPat({term, ctx, _}) =>
-    switch (status_tpat(ctx, term)) {
+  | InfoTPat({status, _}) =>
+    switch (status) {
     | InHole(_) => true
     | NotInHole(_) => false
     }
@@ -742,18 +750,14 @@ let fixed_typ_err_common: error_common => Typ.t =
     ])
     |> Typ.temp
   | NoType(BadToken(_))
-  | NoType(BadOperator(_))
-  | NoType(BadTrivAp(_))
   | NoType(DotOperatorRequiresTuple)
   | NoType(TupleExtensionRequiresTuples)
   | NoType(LabelNotFound(_))
   | NoType(BadLabel(_))
-  | NoType(UnboundLivelit(_))
   | NoType(InvalidLabel(_)) => Unknown(Internal) |> Typ.temp
-  | InvalidUseMode({inner_typ, _}) => inner_typ
   | TupleLabelError({typ, _})
   | DuplicateLabel(_, typ) => typ
-  | Inconsistent(Expectation({ana, _}) | BadLivelitModel(ana)) => ana
+  | Inconsistent(Expectation({ana, _})) => ana
   | Inconsistent(Internal(_)) => Unknown(Internal) |> Typ.temp // Should this be some sort of meet?
   | Inconsistent(WithArrow(_)) =>
     Arrow(Unknown(Internal) |> Typ.temp, Unknown(Internal) |> Typ.temp)
@@ -761,20 +765,26 @@ let fixed_typ_err_common: error_common => Typ.t =
 
 let fixed_typ_err: error_exp => Typ.t =
   fun
-  | FreeVariable(_) => Unknown(Internal) |> Typ.temp
-  | UnusedDeferral => Unknown(Internal) |> Typ.temp
-  | BadPartialAp(_) => Unknown(Internal) |> Typ.temp
-  | InexhaustiveMatch(_) => Unknown(Internal) |> Typ.temp
+  | UnboundLivelit(_)
+  | FreeVariable(_)
+  | UnusedDeferral
+  | BadPartialAp(_)
+  | InexhaustiveMatch(_)
+  | WantTuple
+  | BadOperator(_)
+  | LabelNotFound(_, _)
   | BuiltinError(ProjectLabelsNonLabels(_))
   | BuiltinError(ProjectLabelsMissingLabels(_))
-  | BuiltinError(ProjectLabelsFirstArgNotTuple) =>
-    Unknown(Internal) |> Typ.temp
-  | BuiltinError(MeltMissingLabelsOnTuple(typ)) => typ
-  | Common(err) => fixed_typ_err_common(err);
+  | BuiltinError(ProjectLabelsFirstArgNotTuple)
+  | BadTrivAp(_) => Unknown(Internal) |> Typ.temp
+  | BuiltinError(MeltMissingLabelsOnTuple(ty)) => ty
+  | Common(err) => fixed_typ_err_common(err)
+  | InvalidUseMode({inner_typ, _}) => inner_typ
+  | BadLivelitModel(ana) => ana;
 
 let fixed_typ_err_pat: error_pat => Typ.t =
   fun
-  | ExpectedConstructor => Unknown(Internal) |> Typ.temp
+  | ExpectedConstructor
   | Redundant(_) => Unknown(Internal) |> Typ.temp
   | Common(err) => fixed_typ_err_common(err);
 
