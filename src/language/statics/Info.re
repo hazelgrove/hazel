@@ -51,11 +51,11 @@ type error_no_type =
   /* Sum constructor neiter bound nor in ana type */
   | FreeConstructor(Constructor.t)
   /* Dot operator requires the left-hand argument to be a tuple */
-  | DotOperatorRequiresTuple
+  | DotOperatorRequiresTuple // TODO Should be exp only
   /* Tuple extension requires both arguments to be tuples */
-  | TupleExtensionRequiresTuples
+  | TupleExtensionRequiresTuples // TODO Should be exp only
   /* Label not found in tuple for dot operator */
-  | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label))
+  | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label)) // TODO Should be exp only
   /* Sort error used as label in tuple */
   | BadLabel(Any.t)
   /* Invalid label in tuple */
@@ -95,7 +95,7 @@ type error_exp =
   /* Empty application of function with inconsistent type */
   | BadTrivAp(Typ.t)
   /* Dot Operator is ill-formed */
-  | WantTuple
+  | DotOperatorRequiresTuple
   /* Invalid operator for current use mode, treated as hole */
   | BadOperator(string)
   /* Label not found in tuple for dot operator */
@@ -183,7 +183,7 @@ type error_typ =
   | DuplicateLabels(list(LabeledTuple.label), Typ.t)
   | Duplicate(LabeledTuple.label, Typ.t)
   | WantTypeFoundAp
-  | DotOperatorRequiresTuple
+  | DotOperatorRequiresTuple // TODO Should be exp only
   | WantLabel
   | WantConstructorFoundType(Typ.t)
   | WantConstructorFoundAp;
@@ -491,8 +491,6 @@ let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
         ),
       )
     };
-  | (DotOperatorRequiresTuple, _) =>
-    InHole(NoType(DotOperatorRequiresTuple))
   | (TupleExtensionRequiresTuples, _) =>
     InHole(NoType(TupleExtensionRequiresTuples))
   };
@@ -553,7 +551,7 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
           InvalidUseMode(_) |
           UnboundLivelit(_) |
           BadTrivAp(_) |
-          WantTuple |
+          DotOperatorRequiresTuple |
           BadLivelitModel(_) |
           BadOperator(_) |
           LabelNotFound(_),
@@ -573,7 +571,7 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
         bad_typ,
       }),
     )
-  | WantTuple => InHole(WantTuple)
+  | DotOperatorRequiresTuple => InHole(DotOperatorRequiresTuple)
   | IsLivelitName({name, _}) =>
     let ll = Ctx.lookup_livelit(ctx, name);
     switch (ll) {
@@ -770,7 +768,7 @@ let fixed_typ_err: error_exp => Typ.t =
   | UnusedDeferral
   | BadPartialAp(_)
   | InexhaustiveMatch(_)
-  | WantTuple
+  | DotOperatorRequiresTuple
   | BadOperator(_)
   | LabelNotFound(_, _)
   | BuiltinError(ProjectLabelsNonLabels(_))
