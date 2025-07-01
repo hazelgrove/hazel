@@ -51,10 +51,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Create new update-deps branch from `test-update-bot`
-        run: |
-          git switch -c bot/update-deps
-
       - name: Run change-deps
         run: |
            eval $(opam env)
@@ -68,6 +64,6 @@ jobs:
           title: "chore: weekly dependency update"
           body: "Automated update from `make change-deps` based on `test-update-bot`."
           commit-message: "chore: update dependencies"
-          branch: bot/update-deps
+          branch: bot-update-deps
           base: test-update-bot
           delete-branch: true
