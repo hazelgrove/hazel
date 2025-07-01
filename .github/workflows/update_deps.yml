@@ -16,10 +16,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout `test-update-bot`
+      - name: Checkout `dev`
         uses: actions/checkout@v4
         with:
-          ref: test-update-bot
+          ref: dev
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0  # fetch full history for branch operations
 
@@ -65,8 +65,8 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           title: "chore: update dependencies"
-          body: "Automated update from `make change-deps` based on `test-update-bot`."
+          body: "Automated update from `make change-deps` based on `dev`."
           commit-message: "chore: update dependencies"
           branch: bot-update-deps
-          base: test-update-bot
+          base: dev
           delete-branch: true
