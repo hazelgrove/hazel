@@ -296,7 +296,6 @@ module Transition = (EV: EV_MODE) => {
             env'',
             env |> Option.value(~default=ClosureEnvironment.empty),
           );
-
         Step({
           expr: subst_env(env''', d1),
           state_update,
