@@ -313,31 +313,62 @@ let tests = (
     test_case("sort singleton list", `Quick, () =>
       parse_and_evaluate_test({|[1]|}, {|sort(fun (x, y) -> x - y, [1])|})
     ),
-    //These might be failing due to an eval bug?
-    test_case("sort sorted list of 2 numbers", `Quick, () => {
-      //let _ = Alcotest.skip();
-      parse_and_evaluate_test(
-        {|[1, 2]|},
-        {|sort(fun (x, y) -> x - y, [1, 2])|},
-      )
-    }),
-    // test_case("sort ascending numbers", `Quick, () =>
-    //   parse_and_evaluate_test(
-    //     {|[1, 1, 3, 4, 5]|},
-    //     {|sort([3, 1, 4, 1, 5], fun (x, y) -> x - y)|},
-    //   )
-    // ),
-    // test_case("sort descending numbers", `Quick, () =>
-    //   parse_and_evaluate_test(
-    //     {|[5, 4, 3, 1, 1]|},
-    //     {|sort([3, 1, 4, 1, 5], fun (x, y) -> y - x)|},
-    //   )
-    // ),
-    // test_case("sort by absolute value", `Quick, () =>
-    //   parse_and_evaluate_test(
-    //     {|[1, 2, -3, -4]|},
-    //     {|sort([-3, 1, -4, 2], fun (x, y) -> abs(x) - abs(y))|},
-    //   )
-    // ),
+    // These fail due to an eval bug
+    // Should work after https://github.com/hazelgrove/hazel/pull/1729
+    test_case(
+      "sort sorted list of 2 numbers",
+      `Quick,
+      () => {
+        let _ = Alcotest.skip();
+        parse_and_evaluate_test(
+          {|[1, 2]|},
+          {|sort(fun (x, y) -> x - y, [1, 2])|},
+        );
+      },
+    ),
+    test_case(
+      "sort unsorted list of 2 numbers",
+      `Quick,
+      () => {
+        let _ = Alcotest.skip();
+        parse_and_evaluate_test(
+          {|[1, 2]|},
+          {|sort(fun (x, y) -> x - y, [2, 1])|},
+        );
+      },
+    ),
+    test_case(
+      "sort unsorted list of 3 numbers",
+      `Quick,
+      () => {
+        let _ = Alcotest.skip();
+        parse_and_evaluate_test(
+          {|[1, 2, 3]|},
+          {|sort(fun (x, y) -> x - y, [1, 3, 2])|},
+        );
+      },
+    ),
+    test_case(
+      "sort ascending",
+      `Quick,
+      () => {
+        let _ = Alcotest.skip();
+        parse_and_evaluate_test(
+          {|[1, 1, 3, 4, 5]|},
+          {|sort(fun (x, y) -> x - y, [3, 1, 4, 1, 5])|},
+        );
+      },
+    ),
+    test_case(
+      "sort descending",
+      `Quick,
+      () => {
+        let _ = Alcotest.skip();
+        parse_and_evaluate_test(
+          {|[5, 4, 3, 1, 1]|},
+          {|sort(fun (x, y) -> y - x, [3, 1, 4, 1, 5])|},
+        );
+      },
+    ),
   ],
 );
