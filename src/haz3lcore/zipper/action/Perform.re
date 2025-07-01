@@ -225,21 +225,53 @@ let go_z =
   | Comment =>
     // Wraps selected text in # comments
     let selection_text = Printer.to_string_selection(z);
-    let lines = StringUtil.to_lines(selection_text);
-    let commented_lines =
-      List.map(
-        line => {
+    let drop_comments = (line: string): string =>
+      StringUtil.replace(StringUtil.regexp("#"), line, "");
+    // No selection case: Handle current line cursor is on
+    if (selection_text == "") {
+      switch (
+        {
+          let z =
+            switch (Move.go(Extreme(Left(ByToken)), z)) {
+            | Some(z) => z
+            | None => z // This case likely just means the cursor is at the beginning of the line already
+            };
+          Select.go(Extreme(Right(ByToken)), z);
+        }
+      ) {
+      | Some(z) =>
+        let selection_text = Printer.to_string_selection(z);
+        let handled_line =
+          StringUtil.trim_leading(selection_text).[0] == '#'
+            ? drop_comments(selection_text)
+            : "#" ++ drop_comments(selection_text) ++ "#";
+        paste(z, handled_line)
+        |> Result.of_option(~error=Action.Failure.Cant_insert);
+      | None => Error(Action.Failure.Cant_select)
+      // Selection case: Handle selection
+      };
+    } else {
+      let lines = StringUtil.to_lines(selection_text);
+      // If the selection contains only comments, we drop all "#"s
+      // o.w. drop all "#"s and rewrap each line in beginning and closing "#"s
+      let rec are_all_comments = (lines: list(string)): bool => {
+        switch (lines) {
+        | [] => true
+        | [line, ...rest] =>
           let is_commented = StringUtil.trim_leading(line).[0] == '#';
-          if (is_commented) {
-            StringUtil.replace(StringUtil.regexp("#"), line, "");
-          } else {
-            "#" ++ line ++ "#";
-          };
-        },
-        lines,
-      );
-    paste(z, String.concat("\n", commented_lines))
-    |> Result.of_option(~error=Action.Failure.Cant_insert);
+          is_commented && are_all_comments(rest);
+        };
+      };
+      let are_all_comments = are_all_comments(lines);
+      let handled_lines =
+        List.map(
+          are_all_comments
+            ? drop_comments : (line => "#" ++ drop_comments(line) ++ "#"),
+          lines,
+        );
+      paste(z, String.concat("\n", handled_lines))
+      |> Result.of_option(~error=Action.Failure.Cant_insert);
+    };
   | Pick_up => Ok(remold_regrout(Left, Zipper.pick_up(z)))
   | Put_down =>
     let z =
