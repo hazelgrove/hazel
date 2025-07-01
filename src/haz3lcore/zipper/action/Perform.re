@@ -31,7 +31,7 @@ let go_z =
 
   let paste = (z: Zipper.t, str: string): option(Zipper.t) => {
     open Util.OptUtil.Syntax;
-    let* z = Printer.zipper_of_string(~zipper_init=z, str);
+    let* z = Parser.to_zipper(~zipper_init=z, str);
     /* HACK(andrew): Insert/Destruct below is a hack to deal
        with the fact that pasting something like "let a = b in"
        won't trigger the barfing of the "in"; to trigger this,
@@ -115,10 +115,18 @@ let go_z =
      * This doesn't change state but is included here for logging purposes */
     Ok(z)
   | Reparse =>
-    switch (Printer.reparse(z)) {
+    /* This serializes the current editor to text, resets the current
+       editor, and then deserializes. It is intended as a (tactical)
+       nuclear option for weird backpack states */
+    let reparse = z =>
+      Parser.to_zipper(
+        ~zipper_init=Zipper.init(),
+        Printer.of_zipper(~holes="", ~concave_holes=" ", ~indent="", z),
+      );
+    switch (reparse(z)) {
     | None => Error(CantReparse)
     | Some(z) => Ok(z)
-    }
+    };
   | Buffer(Set(TyDi)) => Ok(set_buffer(statics.info_map, z))
   | Buffer(Accept) =>
     switch (buffer_accept(z)) {
