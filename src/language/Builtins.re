@@ -227,6 +227,31 @@ module Pervasives = {
       Some(string(String.trim(s)));
     };
 
+    let string_escaped = d => {
+      let-unbox s = (Atom(String), d);
+      Some(string(String.escaped(s)));
+    };
+
+    let string_uppercase = d => {
+      let-unbox s = (Atom(String), d);
+      Some(string(String.uppercase_ascii(s)));
+    };
+
+    let string_lowercase = d => {
+      let-unbox s = (Atom(String), d);
+      Some(string(String.lowercase_ascii(s)));
+    };
+
+    let string_capitalize = d => {
+      let-unbox s = (Atom(String), d);
+      Some(string(String.capitalize_ascii(s)));
+    };
+
+    let string_uncapitalize = d => {
+      let-unbox s = (Atom(String), d);
+      Some(string(String.uncapitalize_ascii(s)));
+    };
+
     let string_of: DHExp.t => option(string) =
       d => {
         let-unbox s = (Atom(String), d);
@@ -265,13 +290,45 @@ module Pervasives = {
         };
       });
 
-    let string_split = _ =>
+    let string_split =
       binary((d1, d2) => {
         let-unbox s = (Atom(String), d1);
         let-unbox sep = (Atom(String), d2);
-        let split_str = Util.StringUtil.plain_split(sep, s);
+        let split_str = StringUtil.plain_split(sep, s);
         let split_str' = List.map(s => string(s), split_str);
         Some(list_lit(split_str'));
+      });
+
+    let string_match =
+      binary((d1, d2) => {
+        let-unbox regexp = (Atom(String), d1);
+        let-unbox str = (Atom(String), d2);
+        Some(bool(StringUtil.plain_match(regexp, str)));
+      });
+
+    let string_replace =
+      ternary((d1, d2, d3) => {
+        let-unbox regexp = (Atom(String), d1);
+        let-unbox str = (Atom(String), d2);
+        let-unbox repl = (Atom(String), d3);
+        Some(string(StringUtil.plain_replace(regexp, str, repl)));
+      });
+
+    let string_search =
+      /* Budget implementation. Only returns the index,
+         and returns -1 if not found */
+      ternary((d1, d2, d3) => {
+        let-unbox regexp = (Atom(String), d1);
+        let-unbox str = (Atom(String), d2);
+        let-unbox idx = (Atom(Int), d3);
+        Some(
+          int(
+            switch (Bigint.to_int(idx)) {
+            | None => (-1)
+            | Some(idx) => StringUtil.plain_search(regexp, str, idx)
+            },
+          ),
+        );
       });
 
     let fst = d => {
@@ -380,6 +437,31 @@ module Pervasives = {
            string_compare,
          )
       |> fn("string_trim", Atom(String), Atom(String), string_trim)
+      |> fn("string_escaped", Atom(String), Atom(String), string_escaped)
+      |> fn(
+           "string_uppercase",
+           Atom(String),
+           Atom(String),
+           string_uppercase,
+         )
+      |> fn(
+           "string_lowercase",
+           Atom(String),
+           Atom(String),
+           string_lowercase,
+         )
+      |> fn(
+           "string_capitalize",
+           Atom(String),
+           Atom(String),
+           string_capitalize,
+         )
+      |> fn(
+           "string_uncapitalize",
+           Atom(String),
+           Atom(String),
+           string_uncapitalize,
+         )
       |> fn(
            "string_join",
            Prod([string(), list(string())]),
@@ -396,7 +478,25 @@ module Pervasives = {
            "string_split",
            Prod([string(), string()]),
            List(string()),
-           string_split("string_split"),
+           string_split,
+         )
+      |> fn(
+           "string_match",
+           Prod([string(), string()]),
+           Atom(Bool),
+           string_match,
+         )
+      |> fn(
+           "string_replace",
+           Prod([string(), string(), string()]),
+           Atom(String),
+           string_replace,
+         )
+      |> fn(
+           "string_search",
+           Prod([string(), string(), int()]),
+           Atom(Int),
+           string_search,
          )
       |> fn(
            "fst",
