@@ -308,18 +308,19 @@ let tests = (
       )
     ),
     test_case("sort empty list", `Quick, () =>
-      parse_and_evaluate_test({|[]|}, {|sort([], fun (x, y) -> x - y)|})
+      parse_and_evaluate_test({|[]|}, {|sort(fun (x, y) -> x - y, [])|})
     ),
     test_case("sort singleton list", `Quick, () =>
-      parse_and_evaluate_test({|[1]|}, {|sort([1], fun (x, y) -> x - y)|})
+      parse_and_evaluate_test({|[1]|}, {|sort(fun (x, y) -> x - y, [1])|})
     ),
-    // These might be failing due to an eval bug?
-    // test_case("sort sorted list of 2 numbers", `Quick, () =>
-    //   parse_and_evaluate_test(
-    //     {|[1, 2]|},
-    //     {|sort([1, 2], fun (x, y) -> x - y)|},
-    //   )
-    // ),
+    //These might be failing due to an eval bug?
+    test_case("sort sorted list of 2 numbers", `Quick, () => {
+      //let _ = Alcotest.skip();
+      parse_and_evaluate_test(
+        {|[1, 2]|},
+        {|sort(fun (x, y) -> x - y, [1, 2])|},
+      )
+    }),
     // test_case("sort ascending numbers", `Quick, () =>
     //   parse_and_evaluate_test(
     //     {|[1, 1, 3, 4, 5]|},
