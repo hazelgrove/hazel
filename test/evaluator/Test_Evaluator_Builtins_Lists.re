@@ -321,5 +321,45 @@ let tests = (
         {|find_mapi([1, 3, 5], fun (i, x) -> if int_mod(x, 2) == 0 then Some(i) else None)|},
       )
     ),
+    test_case("Mergesort example", `Quick, () =>
+      parse_and_evaluate_test(
+        {|[1, 2]|},
+        {|
+        let sort = let merge: ((?,?) -> Int, [?], [?]) -> [?] =
+  fun cmp, xs, ys ->
+    let go: ([?], [?], [?]) -> [?] =
+      fun xs, ys,acc ->
+        case (xs,ys)
+          | [], [] => rev(acc)
+          | [], ys => rev_append(acc,ys)
+          | xs, [] => rev_append(acc,xs)
+          | x::xs, y ::ys =>
+          if cmp(x,y) <= 0 then go(xs, y::ys, x::acc)
+          else go(x::xs, ys, y::acc)
+    end in
+go(xs, ys, []) in
+  fun cmp, xs ->
+    let split: [?] -> ([?], [?]) = fun xs ->
+      case xs
+        | [] => ([], [])
+        | [x] => ([x], [])
+        | x::y::ys =>
+        let (xs, ys) = split(ys) in
+        (x::xs, y::ys)
+    end in
+    let merge_sort : [?] -> [?] = fun xs -> case xs
+      | [] => []
+      | [x] => [x]
+      | _ =>
+      let (left, right) = split(xs) in
+      merge(cmp, merge_sort(left), merge_sort(right))
+    end in
+    merge_sort(xs)
+in
+let comp = fun x,y -> x-y in
+sort(comp, [1,2])
+        |},
+      )
+    ),
   ],
 );

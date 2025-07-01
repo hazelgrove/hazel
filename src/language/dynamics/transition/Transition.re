@@ -280,13 +280,7 @@ module Transition = (EV: EV_MODE) => {
       | Matches(env') =>
         let env'' =
           VarBstMap.Ordered.mapo(
-            ((p, exp)) =>
-              FixF(
-                Var(p) |> Pat.fresh,
-                exp,
-                Some(ClosureEnvironment.of_environment(env')),
-              )
-              |> rewrap,
+            ((p, exp)) => FixF(Var(p) |> Pat.fresh, exp, env) |> rewrap,
             env',
           );
         let env''' =
@@ -297,6 +291,7 @@ module Transition = (EV: EV_MODE) => {
             env'',
             env |> Option.value(~default=ClosureEnvironment.empty),
           );
+
         Step({
           expr: subst_env(env''', d1),
           state_update,
