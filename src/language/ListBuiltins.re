@@ -11,6 +11,16 @@ open ADTBuiltins;
  - Option = None + Some(?)
  - Result = Ok(?) + Error(?)
 
+ String functions (some use regexps provided as plain strings)
+ - string_escaped
+ - string_uppercase
+ - string_lowercase
+ - string_capitalize
+ - string_uncapitalize
+ - string_match
+ - string_replace
+ - string_search
+
  Pair functions:
  - fst
  - snd
@@ -60,7 +70,7 @@ open ADTBuiltins;
  - init
  - slice
 
- List types involving options:
+ List types involving option:
  - filter_map
  - nth_opt
  - find_opt
@@ -87,14 +97,9 @@ open ADTBuiltins;
  - combine
 
  TODO:
- - sort - tests failing
+ - sort tests are failing (commented out)
  - Use Ord for sort
- - string fns
- - int_of_string_opt
- - float_of_string_opt
- - bool_of_string_opt
- - etc...
-
+ - Add tests for new string functions
  */
 
 let builtins = [
