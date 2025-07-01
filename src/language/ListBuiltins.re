@@ -6,6 +6,10 @@ open ADTBuiltins;
  This PR add a few types and several dozen functions to the buiitins,
  to later be replaced by a Hazel standard library.
 
+ TODO:
+ - sort tests are failing (commented out)
+ - Use Ord for sort
+
  Types:
  - Ord = Lt + Eq + Gt
  - Option = None + Some(?)
@@ -96,10 +100,6 @@ open ADTBuiltins;
  - split
  - combine
 
- TODO:
- - sort tests are failing (commented out)
- - Use Ord for sort
- - Add tests for new string functions
  */
 
 let builtins = [
