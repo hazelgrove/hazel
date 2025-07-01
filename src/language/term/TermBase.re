@@ -231,8 +231,6 @@ and Exp: {
         | Undefined => term
         | MultiHole(things) => MultiHole(List.map(any_map_term, things))
         | DynamicErrorHole(e, err) => DynamicErrorHole(exp_map_term(e), err)
-        | FailedCast(e, t1, t2) =>
-          FailedCast(exp_map_term(e), typ_map_term(t1), typ_map_term(t2))
         | ListLit(ts) => ListLit(List.map(exp_map_term, ts))
         | Fun(p, e, t, f) =>
           Fun(
@@ -281,8 +279,7 @@ and Exp: {
               rls,
             ),
           )
-        | Cast(e, t1, t2) =>
-          Cast(exp_map_term(e), typ_map_term(t1), typ_map_term(t2))
+        | Asc(e, t) => Asc(exp_map_term(e), typ_map_term(t))
         },
     };
     x |> f_exp(rec_call);
@@ -304,10 +301,6 @@ and Exp: {
     | (Invalid(s1), Invalid(s2)) => s1 == s2
     | (MultiHole(xs), MultiHole(ys)) when List.length(xs) == List.length(ys) =>
       List.equal(Any.fast_equal, xs, ys)
-    | (FailedCast(e1, t1, t2), FailedCast(e2, t3, t4)) =>
-      Exp.fast_equal(e1, e2)
-      && Typ.fast_equal(t1, t3)
-      && Typ.fast_equal(t2, t4)
     | (Deferral(d1), Deferral(d2)) => d1 == d2
     | (Atom(c1), Atom(c2)) => c1 == c2
     | (Label(l1), Label(l2)) => l1 == l2
@@ -373,8 +366,8 @@ and Exp: {
            rls1,
            rls2,
          )
-    | (Cast(e1, t1, t2), Cast(e2, t3, t4)) =>
-      fast_equal(e1, e2) && Typ.fast_equal(t1, t3) && Typ.fast_equal(t2, t4)
+    | (Asc(e1, t1), Asc(e2, t2)) =>
+      fast_equal(e1, e2) && Typ.fast_equal(t1, t2)
     | (TupLabel(e1, e2), TupLabel(e3, e4)) =>
       fast_equal(e1, e3) && fast_equal(e2, e4)
     | (Dot(e1, e2), Dot(e3, e4)) =>
@@ -382,7 +375,6 @@ and Exp: {
     | (TupleExtension(e1, e2), TupleExtension(e3, e4)) =>
       fast_equal(e1, e3) && fast_equal(e2, e4)
     | (Invalid(_), _)
-    | (FailedCast(_), _)
     | (Deferral(_), _)
     | (Atom(_), _)
     | (Label(_), _)
@@ -414,7 +406,7 @@ and Exp: {
     | (BinOp(_), _)
     | (BuiltinFun(_), _)
     | (Match(_), _)
-    | (Cast(_), _)
+    | (Asc(_), _)
     | (MultiHole(_), _)
     | (EmptyHole, _)
     | (Undefined, _) => false
@@ -483,8 +475,7 @@ and Pat: {
           TupLabel(pat_map_term(label), pat_map_term(e))
         | Parens(e) => Parens(pat_map_term(e))
         | Probe(e, tag) => Probe(pat_map_term(e), tag)
-        | Cast(e, t1, t2) =>
-          Cast(pat_map_term(e), typ_map_term(t1), typ_map_term(t2))
+        | Asc(e, t) => Asc(pat_map_term(e), typ_map_term(t))
         },
     };
     x |> f_pat(rec_call);
@@ -520,8 +511,8 @@ and Pat: {
     | (Tuple(xs), Tuple(ys)) =>
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
     | (Ap(x1, y1), Ap(x2, y2)) => fast_equal(x1, x2) && fast_equal(y1, y2)
-    | (Cast(x1, t1, t2), Cast(x2, u1, u2)) =>
-      fast_equal(x1, x2) && Typ.fast_equal(t1, u1) && Typ.fast_equal(t2, u2)
+    | (Asc(x1, t1), Asc(x2, u1)) =>
+      fast_equal(x1, x2) && Typ.fast_equal(t1, u1)
     | (EmptyHole, _)
     | (MultiHole(_), _)
     | (Invalid(_), _)
@@ -535,7 +526,7 @@ and Pat: {
     | (TupLabel(_), _)
     | (Tuple(_), _)
     | (Ap(_), _)
-    | (Cast(_), _) => false
+    | (Asc(_), _) => false
     };
   let equal = fast_equal;
 }

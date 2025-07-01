@@ -21,7 +21,7 @@ let tests = [
             parens(tuple([int(1), int(2)])),
             let_(
               Pat.(
-                cast(
+                asc(
                   var("y"),
                   Typ.(
                     parens(
@@ -31,7 +31,6 @@ let tests = [
                       ]),
                     )
                   ),
-                  Typ.unknown(Internal),
                 )
               ),
               var(
@@ -75,7 +74,7 @@ let tests = [
       FIError.(
         Exp.(
           let_(
-            Pat.(cast(var("y"), Typ.(string()), Typ.(unknown(Internal)))),
+            Pat.(asc(var("y"), Typ.(string()))),
             bool(
               ~ann=
                 Some(
@@ -121,10 +120,9 @@ let tests = [
         Exp.(
           let_(
             Pat.(
-              cast(
+              asc(
                 var("x"),
                 Typ.(parens(prod([tup_label(label("l"), string())]))),
-                Typ.unknown(Internal),
               )
             ),
             int(
@@ -249,7 +247,7 @@ let tests = [
       ]),
       FIError.(
         Exp.(
-          cast(
+          asc(
             parens(
               ~ann=
                 Some(
@@ -325,7 +323,6 @@ let tests = [
                 ],
               ),
             ),
-            Typ.unknown(Internal),
             Typ.(
               parens(
                 prod([
@@ -617,12 +614,11 @@ let tests = [
         Exp.(
           let_(
             Pat.(
-              cast(
+              asc(
                 var("extra_label"),
                 Typ.(
                   parens(prod([int(), tup_label(label("a"), string())]))
                 ),
-                Typ.unknown(Internal),
               )
             ),
             parens(
@@ -705,13 +701,13 @@ let tests = [
       ),
     )
   }),
-  test_case("tuple with cast to non-tuple", `Quick, () => {
+  test_case("tuple ascribed to non-tuple", `Quick, () => {
     annotated_tree_test(
       {|(a=1, b=2) : Int|},
       int(),
       FIError.(
         Exp.(
-          cast(
+          asc(
             parens(
               tuple(
                 ~ann=
@@ -739,7 +735,6 @@ let tests = [
                 ],
               ),
             ),
-            Typ.unknown(Internal),
             Typ.int(),
           )
         )

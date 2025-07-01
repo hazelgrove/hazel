@@ -5,6 +5,7 @@ let tests = [
   Test_Evaluator_Builtins.tests,
   Test_Evaluator_Match.tests,
   Test_Evaluator_Function.tests,
+  Test_Evaluator_Fixpoint.tests,
   Test_Evaluator_List.tests,
   Test_Evaluator_Atom.tests,
   Test_Evaluator_Let.tests,

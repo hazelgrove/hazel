@@ -87,3 +87,36 @@ let full_small_step_reduction =
   | Some((new_exp, _)) => Completed(new_exp)
   };
 };
+
+let full_preservation_test = (uexp: TermBase.exp_t): unit => {
+  let statics =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), uexp);
+  let (elaborated, ty) = Elaborator.elaborate(statics, uexp);
+
+  let evaluated =
+    Evaluator.evaluate(~env=Builtins.env_init, elaborated) |> fst;
+  let new_statics =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), evaluated);
+
+  let new_ty =
+    switch (
+      Statics.Map.lookup(evaluated.annotation.ids |> List.hd, new_statics)
+    ) {
+    | Some(InfoExp({ty, _})) => ty
+    | _ =>
+      Alcotest.fail(
+        "Preservation check failed: No type information found for evaluated expression",
+      )
+    };
+
+  if (Typ.is_consistent(Ctx.empty, new_ty, ty)) {
+    ();
+  } else {
+    Alcotest.fail(
+      "Preservation check failed: "
+      ++ Typ.show(ty)
+      ++ " !~ "
+      ++ Typ.show(new_ty),
+    );
+  };
+};

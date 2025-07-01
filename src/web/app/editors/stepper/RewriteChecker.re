@@ -28,7 +28,7 @@ let rec print_exp_for_algebrite = (exp: Exp.t): string =>
   | Parens(exp) => "(" ++ print_exp_for_algebrite(exp) ++ ")"
   | Var(value) => value
   // TODO: think harder about weird corner cases where we'd want to ensure the types in Cast are valid
-  | Cast(exp, _, _) => print_exp_for_algebrite(exp)
+  | Asc(exp, _) => print_exp_for_algebrite(exp)
   // If we don't know how to print the expression, we can use a hash to create a unique string
   // Modulo keeps it short
   | _ => "unknown_" ++ string_of_int(Hashtbl.hash(exp) mod 100000)
