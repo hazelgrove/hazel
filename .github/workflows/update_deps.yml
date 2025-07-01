@@ -7,6 +7,9 @@ on:
   push:
     branches:
       -  bot_update_dependencies # TODO remove this branch once the workflow is stable
+permissions: # Necessary for created pull request to trigger CI
+  contents: write
+  pull-requests: write
 
 jobs:
   update-dependencies:
@@ -61,7 +64,7 @@ jobs:
         uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
-          title: "chore: weekly dependency update"
+          title: "chore: update dependencies"
           body: "Automated update from `make change-deps` based on `test-update-bot`."
           commit-message: "chore: update dependencies"
           branch: bot-update-deps
