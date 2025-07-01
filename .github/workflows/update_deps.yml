@@ -61,27 +61,8 @@ jobs:
            export OPAMYES=1
            make change-deps
 
-      - name: Check for changes
-        id: changes
-        run: |
-          git add -A
-          if git diff --cached --quiet; then
-            echo "✅ No changes detected"
-            echo "no_changes=true" >> $GITHUB_OUTPUT
-          else
-            echo "🚨 Changes detected"
-            echo "no_changes=false" >> $GITHUB_OUTPUT
-          fi         
-
-      - name: Commit and push changes
-        if: steps.changes.outputs.no_changes == 'false'
-        run: |
-          git commit -m "chore: update dependencies"
-          git push --force origin bot/update-deps
-
       - name: Create or update PR
-        if: steps.changes.outputs.no_changes == 'false'
-        uses: peter-evans/create-pull-request@v6
+        uses: peter-evans/create-pull-request@v7
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           title: "chore: weekly dependency update"
@@ -89,4 +70,4 @@ jobs:
           commit-message: "chore: update dependencies"
           branch: bot/update-deps
           base: test-update-bot
-          delete-branch: false
+          delete-branch: true
