@@ -2448,7 +2448,8 @@ let builtins = [
     },
   },
   {
-    str: {|let merge: ((?, ?) -> Int, [?], [?]) -> [?] =
+    str: {|fun (cmp, xs) ->
+    let merge: ((?, ?) -> Int, [?], [?]) -> [?] =
 fun cmp, xs, ys ->
 let go: ([?], [?], [?]) -> [?] =
   fun xs, ys, acc ->
@@ -2462,7 +2463,6 @@ let go: ([?], [?], [?]) -> [?] =
             else go(x::xs, ys, y::acc)
             end in
             go(xs, ys, []) in
-            fun cmp, xs ->
       let split: [?] -> ([?], [?]) = fun xs ->
   case xs
   | [] => ([], [])
@@ -2483,203 +2483,194 @@ let go: ([?], [?], [?]) -> [?] =
     name: "sort",
     arg:
       Prod([
-        list(unknown(Internal)),
         arrow(prod([unknown(Internal), unknown(Internal)]), int()),
+        list(unknown(Internal)),
       ]),
     ret: List(unknown(Internal)),
     imp: {
       Fresh.(
         Exp.(
-          fix_f(
-            Pat.var("sort"),
-            fn(
-              Pat.tuple([Pat.var("xs"), Pat.var("cmp")]),
-              match(
-                var("xs"),
-                [
-                  (Pat.list_lit([]), list_lit([])),
-                  (Pat.list_lit([Pat.var("x")]), list_lit([var("x")])),
-                  (
-                    Pat.wild(),
-                    let_(
-                      Pat.tuple([Pat.var("left"), Pat.var("right")]),
-                      ap(
-                        Forward,
-                        fix_f(
-                          Pat.var("split_list"),
-                          fn(
-                            Pat.var("xs"),
+          fn(
+            Pat.tuple([Pat.var("cmp"), Pat.var("xs")]),
+            let_(
+              Pat.var("merge"),
+              fn(
+                Pat.tuple([Pat.var("cmp"), Pat.var("xs"), Pat.var("ys")]),
+                let_(
+                  Pat.var("go"),
+                  fix_f(
+                    Pat.var("go"),
+                    fn(
+                      Pat.tuple([
+                        Pat.var("xs"),
+                        Pat.var("ys"),
+                        Pat.var("acc"),
+                      ]),
+                      match(
+                        tuple([var("xs"), var("ys")]),
+                        [
+                          (
+                            Pat.tuple([Pat.list_lit([]), Pat.list_lit([])]),
+                            ap(Forward, var("reverse"), var("acc")),
+                          ),
+                          (
+                            Pat.tuple([Pat.list_lit([]), Pat.wild()]),
                             ap(
                               Forward,
-                              fix_f(
-                                Pat.var("split_list_helper"),
-                                fn(
-                                  Pat.tuple([
-                                    Pat.var("xs"),
-                                    Pat.var("left"),
-                                    Pat.var("right"),
-                                  ]),
-                                  match(
-                                    var("xs"),
-                                    [
-                                      (
-                                        Pat.list_lit([]),
-                                        tuple([
-                                          ap(
-                                            Forward,
-                                            var("reverse"),
-                                            var("left"),
-                                          ),
-                                          ap(
-                                            Forward,
-                                            var("reverse"),
-                                            var("right"),
-                                          ),
-                                        ]),
-                                      ),
-                                      (
-                                        Pat.list_lit([Pat.var("x")]),
-                                        tuple([
-                                          ap(
-                                            Forward,
-                                            var("reverse"),
-                                            cons(var("x"), var("left")),
-                                          ),
-                                          ap(
-                                            Forward,
-                                            var("reverse"),
-                                            var("right"),
-                                          ),
-                                        ]),
-                                      ),
-                                      (
-                                        Pat.cons(
-                                          Pat.var("x"),
-                                          Pat.cons(
-                                            Pat.var("y"),
-                                            Pat.var("xs"),
-                                          ),
-                                        ),
-                                        ap(
-                                          Forward,
-                                          var("split_list_helper"),
-                                          tuple([
-                                            var("xs"),
-                                            cons(var("x"), var("left")),
-                                            cons(var("y"), var("right")),
-                                          ]),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  None,
-                                  None,
-                                ),
-                                None,
-                              ),
-                              tuple([
-                                var("xs"),
-                                list_lit([]),
-                                list_lit([]),
-                              ]),
+                              ap(Forward, var("rev_append"), var("acc")),
+                              var("ys"),
                             ),
-                            None,
-                            None,
                           ),
-                          None,
-                        ),
-                        var("xs"),
-                      ),
-                      ap(
-                        Forward,
-                        fix_f(
-                          Pat.var("merge"),
-                          fn(
+                          (
+                            Pat.tuple([Pat.wild(), Pat.list_lit([])]),
+                            ap(
+                              Forward,
+                              ap(Forward, var("rev_append"), var("acc")),
+                              var("xs"),
+                            ),
+                          ),
+                          (
                             Pat.tuple([
-                              Pat.var("xs"),
-                              Pat.var("ys"),
-                              Pat.var("cmp"),
+                              Pat.cons(Pat.var("x"), Pat.var("xs")),
+                              Pat.cons(Pat.var("y"), Pat.var("ys")),
                             ]),
-                            match(
-                              tuple([var("xs"), var("ys")]),
-                              [
-                                (
-                                  Pat.tuple([Pat.list_lit([]), Pat.wild()]),
-                                  var("ys"),
+                            if_(
+                              bin_op(
+                                Int(LessThanOrEqual),
+                                ap(
+                                  Forward,
+                                  var("cmp"),
+                                  tuple([var("x"), var("y")]),
                                 ),
-                                (
-                                  Pat.tuple([Pat.wild(), Pat.list_lit([])]),
+                                int(0),
+                              ),
+                              ap(
+                                Forward,
+                                var("go"),
+                                tuple([
                                   var("xs"),
-                                ),
-                                (
-                                  Pat.tuple([
-                                    Pat.cons(Pat.var("x"), Pat.var("xs")),
-                                    Pat.cons(Pat.var("y"), Pat.var("ys")),
-                                  ]),
-                                  if_(
-                                    bin_op(
-                                      Int(LessThanOrEqual),
-                                      ap(
-                                        Forward,
-                                        var("cmp"),
-                                        tuple([var("x"), var("y")]),
-                                      ),
-                                      int(0),
-                                    ),
-                                    cons(
-                                      var("x"),
-                                      ap(
-                                        Forward,
-                                        var("merge"),
-                                        tuple([
-                                          var("xs"),
-                                          var("ys"),
-                                          var("cmp"),
-                                        ]),
-                                      ),
-                                    ),
-                                    cons(
-                                      var("y"),
-                                      ap(
-                                        Forward,
-                                        var("merge"),
-                                        tuple([
-                                          var("xs"),
-                                          var("ys"),
-                                          var("cmp"),
-                                        ]),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ],
+                                  cons(var("y"), var("ys")),
+                                  cons(var("x"), var("acc")),
+                                ]),
+                              ),
+                              ap(
+                                Forward,
+                                var("go"),
+                                tuple([
+                                  cons(var("x"), var("xs")),
+                                  var("ys"),
+                                  cons(var("y"), var("acc")),
+                                ]),
+                              ),
                             ),
-                            None,
-                            None,
                           ),
-                          None,
-                        ),
-                        tuple([
-                          ap(
-                            Forward,
-                            var("sort"),
-                            tuple([var("left"), var("cmp")]),
-                          ),
-                          ap(
-                            Forward,
-                            var("sort"),
-                            tuple([var("right"), var("cmp")]),
-                          ),
-                          var("cmp"),
-                        ]),
+                        ],
                       ),
+                      None,
+                      None,
                     ),
+                    None,
                   ),
-                ],
+                  ap(
+                    Forward,
+                    var("go"),
+                    tuple([var("xs"), var("ys"), list_lit([])]),
+                  ),
+                ),
+                None,
+                None,
               ),
-              None,
-              None,
+              let_(
+                Pat.var("split"),
+                fix_f(
+                  Pat.var("split"),
+                  fn(
+                    Pat.var("xs"),
+                    match(
+                      var("xs"),
+                      [
+                        (
+                          Pat.list_lit([]),
+                          tuple([list_lit([]), list_lit([])]),
+                        ),
+                        (
+                          Pat.list_lit([Pat.var("x")]),
+                          tuple([list_lit([var("x")]), list_lit([])]),
+                        ),
+                        (
+                          Pat.cons(
+                            Pat.var("x"),
+                            Pat.cons(Pat.var("y"), Pat.var("ys")),
+                          ),
+                          let_(
+                            Pat.tuple([Pat.var("xs"), Pat.var("ys")]),
+                            ap(Forward, var("split"), var("ys")),
+                            tuple([
+                              cons(var("x"), var("xs")),
+                              cons(var("y"), var("ys")),
+                            ]),
+                          ),
+                        ),
+                      ],
+                    ),
+                    None,
+                    None,
+                  ),
+                  None,
+                ),
+                let_(
+                  Pat.var("merge_sort"),
+                  fix_f(
+                    Pat.var("merge_sort"),
+                    fn(
+                      Pat.var("xs"),
+                      match(
+                        var("xs"),
+                        [
+                          (Pat.list_lit([]), list_lit([])),
+                          (
+                            Pat.list_lit([Pat.var("x")]),
+                            list_lit([var("x")]),
+                          ),
+                          (
+                            Pat.wild(),
+                            let_(
+                              Pat.tuple([
+                                Pat.var("left"),
+                                Pat.var("right"),
+                              ]),
+                              ap(Forward, var("split"), var("xs")),
+                              ap(
+                                Forward,
+                                var("merge"),
+                                tuple([
+                                  var("cmp"),
+                                  ap(
+                                    Forward,
+                                    var("merge_sort"),
+                                    var("left"),
+                                  ),
+                                  ap(
+                                    Forward,
+                                    var("merge_sort"),
+                                    var("right"),
+                                  ),
+                                ]),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      None,
+                      None,
+                    ),
+                    None,
+                  ),
+                  ap(Forward, var("merge_sort"), var("xs")),
+                ),
+              ),
             ),
+            None,
             None,
           )
         )
