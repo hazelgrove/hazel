@@ -10,10 +10,10 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Checkout `dev`
+      - name: Checkout `test-update-bot`
         uses: actions/checkout@v4
         with:
-          ref: dev
+          ref: test-update-bot
           token: ${{ secrets.GITHUB_TOKEN }}
           fetch-depth: 0  # fetch full history for branch operations
 
@@ -48,7 +48,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
 
-      - name: Create new update-deps branch from `dev`
+      - name: Create new update-deps branch from `test-update-bot`
         run: |
           git switch -c bot/update-deps
 
@@ -82,8 +82,8 @@ jobs:
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           title: "chore: weekly dependency update"
-          body: "Automated update from `make change-deps` based on `dev`."
+          body: "Automated update from `make change-deps` based on `test-update-bot`."
           commit-message: "chore: update dependencies"
           branch: bot/update-deps
-          base: dev
+          base: test-update-bot
           delete-branch: false
