@@ -88,7 +88,7 @@ let premises_view = (~spec as {prems, tests, _}: RuleSpec.t, ~rule, ~globals) =>
             List.map(
               test =>
                 switch (test) {
-                | RuleSpec.Formula.Ignore(_) => Node.none
+                | RuleFormula.M_Annotated.Ignore(_) => Node.none
                 | _ =>
                   Node.div(
                     ~attrs=[Attr.class_("drv-explainthis")],

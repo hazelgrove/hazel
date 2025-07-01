@@ -27,8 +27,8 @@ let show_linked = ((spec, syntax): specced): string =>
 [@deriving (show({with_path: false}), sexp, yojson)]
 type map = [@opaque] Map.t(specced);
 
-module Formula = {
-  include Formula;
+module RuleFormula = {
+  include RuleFormula;
   // let rec show_linked = (p, map: map, op) =>
   //   switch (op) {
   //   | Get(s) =>
@@ -286,21 +286,21 @@ let go_test = (map: map, test: test): option(failure) => {
     fun
     | (_, TPat(syntax)) => syntax
     | _ => raise(Unreachable);
-  let rec go: type a. Formula.t(a) => a =
+  let rec go: type a. RuleFormula.t(a) => a =
     formula =>
-      switch (formula) {
+      switch (formula.term) {
       | LookUpExp(s) => s |> lookup |> exp_of_specced
       | LookUpPat(s) => s |> lookup |> pat_of_specced
       | LookUpTyp(s) => s |> lookup |> typ_of_specced
       | LookUpTPat(s) => s |> lookup |> tpat_of_specced
-      | UnboxCtx(LookUpExp(s)) =>
+      | UnboxCtx({term: LookUpExp(s), _}) =>
         let specced = lookup(s);
         switch (Drv.Exp.term_of(exp_of_specced(specced))) {
         | Ctx(syntax) => syntax
         | _ => raise(Failure(FailUnbox(specced, Exp(Ctx))))
         };
       | UnboxCtx(_) => raise(Unreachable)
-      | UnboxNumLit(LookUpExp(s)) =>
+      | UnboxNumLit({term: LookUpExp(s), _}) =>
         let specced = lookup(s);
         switch (Drv.Exp.term_of(exp_of_specced(specced))) {
         | NumLit(i) => i
@@ -308,14 +308,14 @@ let go_test = (map: map, test: test): option(failure) => {
         | _ => raise(Failure(FailUnbox(specced, Exp(NumLit))))
         };
       | UnboxNumLit(_) => raise(Unreachable)
-      | UnboxExpVar(LookUpExp(s)) =>
+      | UnboxExpVar({term: LookUpExp(s), _}) =>
         let specced = lookup(s);
         switch (Drv.Exp.term_of(exp_of_specced(specced))) {
         | Var(s) => s
         | _ => raise(Failure(FailUnbox(specced, Exp(Var))))
         };
       | UnboxExpVar(_) => raise(Unreachable)
-      | UnboxPatVar(LookUpPat(s)) =>
+      | UnboxPatVar({term: LookUpPat(s), _}) =>
         let specced = lookup(s);
         let rec f = p =>
           switch (Drv.Pat.term_of(p)) {
@@ -324,14 +324,14 @@ let go_test = (map: map, test: test): option(failure) => {
           | _ => raise(Failure(FailUnbox(specced, Pat(Var))))
           };
         f(pat_of_specced(specced));
-      | UnboxTypVar(LookUpTyp(s)) =>
+      | UnboxTypVar({term: LookUpTyp(s), _}) =>
         let specced = lookup(s);
         switch (Drv.Typ.term_of(typ_of_specced(specced))) {
         | Var(s) => s
         | _ => raise(Failure(FailUnbox(specced, Typ(Var))))
         };
       | UnboxTypVar(_) => raise(Unreachable)
-      | UnboxTPatVar(LookUpTPat(s)) =>
+      | UnboxTPatVar({term: LookUpTPat(s), _}) =>
         let specced = lookup(s);
         switch (Drv.TPat.term_of(tpat_of_specced(specced))) {
         | Var(s) => s

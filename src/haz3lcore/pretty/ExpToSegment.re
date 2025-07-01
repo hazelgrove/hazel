@@ -1046,11 +1046,10 @@ and drv_to_pretty = (~settings: Settings.t, drv: Drv.Any.t, ~sort): pretty => {
   };
 };
 
-let rec drv_formula_to_pretty:
-  type a. (RuleSpec.Formula.t(a), DrvSort.t) => pretty =
+let rec drv_formula_to_pretty: type a. (RuleFormula.t(a), DrvSort.t) => pretty =
   (formula, sort) => {
     let go = drv_formula_to_pretty;
-    let id = Id.invalid;
+    let id = List.hd(formula.annotation.ids);
     let mk_jdmt_binop = (op, l, r, sort_l, sort_r) => {
       let+ l = go(l, sort_l)
       and+ r = go(r, sort_r);
@@ -1079,7 +1078,7 @@ let rec drv_formula_to_pretty:
       ]
       @ r;
     };
-    switch (formula) {
+    switch (formula.term) {
     | LookUpExp(x)
     | LookUpPat(x)
     | LookUpTyp(x)

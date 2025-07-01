@@ -1,117 +1,19 @@
 open Util;
 
-/**
-  This module describles the speculation of rules for:
-  1) Unboxing
-    e.g. Unboxing `let x = 1 in x` results in: `x`(pat), `1`(exp), `x`(exp)
-    - An error occurs if unboxing is not possible.
-  2) Unifying
-    e.g. If unboxing reveals that `f` is unified with `fun x -> x`, any
-    subsequent attempt to unify `f` with a value not equal to `fun x -> x`
-    will result in an error.
-  This module does not include `checking` functionalities, such as:
-  e.g. Calculations like verifying NumLit(1) + NumLit(2) = NumLit(3) and
-  subst(3, x, let y = 1 in x) = (let y = 1 in 3).
-  Refer to `RuleTest.re` for checking functionalities.
- */
-module Formula = {
-  open DrvTermBase;
-  type ctx_t = list(exp_t);
-
-  type t('a) =
-    | LookUpExp(Var.t): t(exp_t)
-    | LookUpPat(Var.t): t(pat_t)
-    | LookUpTyp(Var.t): t(typ_t)
-    | LookUpTPat(Var.t): t(tpat_t)
-    | UnboxCtx(t(exp_t)): t(ctx_t)
-    | UnboxNumLit(t(exp_t)): t(int)
-    | UnboxExpVar(t(exp_t)): t(Var.t)
-    | UnboxPatVar(t(pat_t)): t(Var.t)
-    | UnboxTypVar(t(typ_t)): t(Var.t)
-    | UnboxTPatVar(t(tpat_t)): t(Var.t)
-    | ExpVar(t(Var.t)): t(exp_t)
-    | HasType(t(exp_t), t(typ_t)): t(exp_t)
-    | Type(t(typ_t)): t(exp_t)
-    | Fix(t(pat_t), t(exp_t)): t(exp_t)
-    | Subst(t(exp_t), t(Var.t), t(exp_t)): t(exp_t)
-    | Ctx(t(ctx_t)): t(exp_t)
-    | Cons(t(exp_t), t(ctx_t)): t(ctx_t)
-    | Neg(t(int)): t(int)
-    | Plus(t(int), t(int)): t(int)
-    | Minus(t(int), t(int)): t(int)
-    | Times(t(int), t(int)): t(int)
-    | TypVar(t(Var.t)): t(typ_t)
-    | Rec(t(tpat_t), t(typ_t)): t(typ_t)
-    | Glb(t(typ_t), t(typ_t)): t(typ_t)
-    | SubstTy(t(typ_t), t(Var.t), t(typ_t)): t(typ_t)
-    | Ignore(t('a)): t(bool)
-    | Gt(t(int), t(int)): t(bool)
-    | Lt(t(int), t(int)): t(bool)
-    | Eq(t(int), t(int)): t(bool)
-    | NotGt(t(int), t(int)): t(bool)
-    | NotLt(t(int), t(int)): t(bool)
-    | NotEq(t(int), t(int)): t(bool)
-    | EqExp(t(exp_t), t(exp_t)): t(bool)
-    | EqCtx(t(ctx_t), t(ctx_t)): t(bool)
-    | EqTyp(t(typ_t), t(typ_t)): t(bool)
-    | Mem(t(exp_t), t(ctx_t)): t(bool)
-    | Subset(t(ctx_t), t(ctx_t)): t(bool);
-
-  let rec get_symbols: type a. t(a) => list(string) =
-    fun
-    | LookUpExp(s) => [s]
-    | LookUpPat(s) => [s]
-    | LookUpTyp(s) => [s]
-    | LookUpTPat(s) => [s]
-    | UnboxCtx(a) => get_symbols(a)
-    | UnboxNumLit(a) => get_symbols(a)
-    | UnboxExpVar(a) => get_symbols(a)
-    | UnboxPatVar(a) => get_symbols(a)
-    | UnboxTypVar(a) => get_symbols(a)
-    | UnboxTPatVar(a) => get_symbols(a)
-    | ExpVar(a) => get_symbols(a)
-    | HasType(a, b) => get_symbols(a) @ get_symbols(b)
-    | Type(a) => get_symbols(a)
-    | Fix(a, b) => get_symbols(a) @ get_symbols(b)
-    | Subst(a, b, c) => get_symbols(a) @ get_symbols(b) @ get_symbols(c)
-    | Ctx(a) => get_symbols(a)
-    | Cons(a, b) => get_symbols(a) @ get_symbols(b)
-    | Neg(a) => get_symbols(a)
-    | Plus(a, b) => get_symbols(a) @ get_symbols(b)
-    | Minus(a, b) => get_symbols(a) @ get_symbols(b)
-    | Times(a, b) => get_symbols(a) @ get_symbols(b)
-    | TypVar(a) => get_symbols(a)
-    | Rec(a, b) => get_symbols(a) @ get_symbols(b)
-    | Glb(a, b) => get_symbols(a) @ get_symbols(b)
-    | SubstTy(a, b, c) => get_symbols(a) @ get_symbols(b) @ get_symbols(c)
-    | Ignore(a) => get_symbols(a)
-    | Gt(a, b) => get_symbols(a) @ get_symbols(b)
-    | Lt(a, b) => get_symbols(a) @ get_symbols(b)
-    | Eq(a, b) => get_symbols(a) @ get_symbols(b)
-    | NotGt(a, b) => get_symbols(a) @ get_symbols(b)
-    | NotLt(a, b) => get_symbols(a) @ get_symbols(b)
-    | NotEq(a, b) => get_symbols(a) @ get_symbols(b)
-    | EqExp(a, b) => get_symbols(a) @ get_symbols(b)
-    | EqCtx(a, b) => get_symbols(a) @ get_symbols(b)
-    | EqTyp(a, b) => get_symbols(a) @ get_symbols(b)
-    | Mem(a, b) => get_symbols(a) @ get_symbols(b)
-    | Subset(a, b) => get_symbols(a) @ get_symbols(b);
-};
-
 [@deriving (show({with_path: false}), sexp, yojson)]
-type test = [@opaque] Formula.t(bool);
+type test = RuleFormula.t(bool);
 
 module Spec = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t('a) = {
+  type t('a, 'b) = {
     prems: list('a),
     concl: 'a,
-    tests: list(test),
+    tests: list('b),
   };
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t = Spec.t(Drv.Exp.t);
+type t = Spec.t(Drv.Exp.t, test);
 
 module M_Id = {
   module M_Id =
@@ -130,13 +32,13 @@ module M_Id = {
   type tpat_t = M_Id.tpat_t(unit);
 };
 
-let of_spec: Rule.t => Spec.t(M_Id.exp_t) = {
+let of_spec: Rule.t => Spec.t(M_Id.exp_t, RuleFormula.M_Id.t(bool, unit)) = {
   module TestSymbolMap =
     SymbolMap.M({
-      type exp = Formula.t(Drv.Exp.t);
-      type pat = Formula.t(Drv.Pat.t);
-      type typ = Formula.t(Drv.Typ.t);
-      type tpat = Formula.t(Drv.TPat.t);
+      type exp = RuleFormula.M_Id.t(Drv.Exp.t, unit);
+      type pat = RuleFormula.M_Id.t(Drv.Pat.t, unit);
+      type typ = RuleFormula.M_Id.t(Drv.Typ.t, unit);
+      type tpat = RuleFormula.M_Id.t(Drv.TPat.t, unit);
       let exp: string => exp = s => LookUpExp(s);
       let pat: string => pat = s => LookUpPat(s);
       let typ: string => typ = s => LookUpTyp(s);
@@ -1265,6 +1167,6 @@ let of_spec: Rule.t => t =
     {
       concl: tag_exp(concl),
       prems: List.map(tag_exp, prems),
-      tests,
+      tests: List.map(RuleFormula.M_Id.tag, tests),
     };
   };

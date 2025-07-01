@@ -97,7 +97,7 @@ let copy_color_map =
     | FailUnbox(specced, _) => [specced]
     | FailTest(map, test) =>
       test
-      |> RuleSpec.Formula.get_symbols
+      |> RuleFormula.get_symbols
       |> List.map(RuleVerify.Map.find_opt(_, map))
       |> List.filter_map(Fun.id)
     };
