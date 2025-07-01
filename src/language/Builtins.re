@@ -273,28 +273,27 @@ module Pervasives = {
         let split_str' = List.map(s => string(s), split_str);
         Some(list_lit(split_str'));
       });
+
+    let fst = d => {
+      let-unbox t = (Tuple(2), d);
+      switch (t) {
+      | [x, _] => Some(x)
+      | _ => None
+      };
+    };
+
+    let snd = d => {
+      let-unbox t = (Tuple(2), d);
+      switch (t) {
+      | [_, y] => Some(y)
+      | _ => None
+      };
+    };
   };
 
   open Impls;
 
   // Update src/menhirParser/Lexer.mll when any new builtin is added
-
-  // Convert ListBuiltins.fn records to Builtins.builtin values
-  let of_list_builtin = (list_fn: ListBuiltins.fn): builtin => {
-    HazelFn(list_fn.arg |> Typ.fresh, list_fn.ret |> Typ.fresh, list_fn.imp);
-  };
-
-  // Add list builtins to the main builtins map
-  let add_list_builtins = (builtins: t): t => {
-    ListBuiltins.builtins
-    |> List.map((list_fn: ListBuiltins.fn) =>
-         (list_fn.name, of_list_builtin(list_fn))
-       )
-    |> List.fold_left(
-         (acc, (name, builtin)) => extend(acc, (name, builtin)),
-         builtins,
-       );
-  };
 
   let of_atom_builtin = (b: Atom.builtin): builtin => {
     switch (b) {
@@ -399,6 +398,18 @@ module Pervasives = {
            List(string()),
            string_split("string_split"),
          )
+      |> fn(
+           "fst",
+           Prod([unknown(Internal), unknown(Internal)]),
+           Unknown(Internal),
+           fst,
+         )
+      |> fn(
+           "snd",
+           Prod([unknown(Internal), unknown(Internal)]),
+           Unknown(Internal),
+           snd,
+         )
     )
     |> concat(
          _,
@@ -414,68 +425,18 @@ module Pervasives = {
            Operators.builtins,
          ),
        )
-    |> add_list_builtins;
-};
-
-module TypeAliases = {
-  // Helper function to create a type alias entry
-  let create_type_alias = (name: string, typ: Typ.t): Ctx.entry => {
-    Ctx.TVarEntry({
-      name,
-      id: Id.invalid,
-      kind: Ctx.Singleton(typ),
-    });
-  };
-
-  // Helper function to create constructor map for sum types
-  let create_constructor_map =
-      (variants: list((string, option(Typ.t)))): ConstructorMap.t(Typ.t) => {
-    List.map(
-      ((name, typ_opt)) =>
-        ConstructorMap.Variant(name, [Id.mk()], typ_opt),
-      variants,
+    |> (
+      ListBuiltins.builtins
+      @ ADTBuiltins.Option.builtins
+      |> List.map(({name, arg, ret, imp, _}: ADTBuiltins.fn) =>
+           (name, HazelFn(arg |> Typ.fresh, ret |> Typ.fresh, imp))
+         )
+      |> List.fold_left(extend)
     );
-  };
-
-  // Option type: None + Some(?)
-  let option_type: Typ.t = {
-    let option_cons_map =
-      create_constructor_map([
-        ("None", None),
-        ("Some", Some(Unknown(Internal) |> Typ.fresh)),
-      ]);
-    Fresh.Typ.sum(option_cons_map);
-  };
-
-  // List of type aliases to add to the context
-  let type_aliases: list((string, Typ.t)) = [("Option", option_type)];
-
-  // Convert type aliases to context entries
-  let entries: list(Ctx.entry) =
-    List.map(((name, typ)) => create_type_alias(name, typ), type_aliases);
-
-  // Add constructors for type aliases to the context
-  let add_constructors = (ctx: Ctx.t): Ctx.t => {
-    List.fold_left(
-      (ctx, (name, typ)) => {
-        let cons_map =
-          switch (Typ.term_of(typ)) {
-          | Sum(cons_map) => cons_map
-          | _ => failwith("Type alias must be a sum type")
-          };
-        Ctx.add_ctrs(ctx, name, Id.invalid, cons_map);
-      },
-      ctx,
-      type_aliases,
-    );
-  };
 };
-
-let livelits_init =
-  Livelit.livelits |> List.map(entry => Ctx.LivelitEntry(entry));
 
 let entries =
-  TypeAliases.entries
+  ADTBuiltins.types
   |> List.append(
        List.map(
          fun
@@ -506,28 +467,8 @@ let entries =
 
 let ctx_init: option(Operators.mode) => Ctx.t =
   use_mode => {
-    let meta_cons_map: ConstructorMap.t(Typ.t) = [
-      Variant("$e", [Id.mk()], None),
-      Variant("$v", [Id.mk()], None),
-    ];
-    let meta =
-      Ctx.TVarEntry({
-        name: "$Meta",
-        id: Id.invalid,
-        kind: Ctx.Singleton(Fresh.Typ.sum(meta_cons_map)),
-      });
-    Ctx.{
-      use_mode,
-      entries:
-        TypeAliases.add_constructors({
-          use_mode,
-          entries: [],
-        }).
-          entries
-        @ entries,
-    }
-    |> Ctx.extend(_, meta)
-    |> Ctx.add_ctrs(_, "$Meta", Id.invalid, meta_cons_map);
+    use_mode,
+    entries: ADTBuiltins.constructors.entries @ entries,
   };
 
 let forms_init: forms =

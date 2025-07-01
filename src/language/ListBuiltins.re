@@ -1,15 +1,9 @@
 module Fresh = IdTagged.FreshGrammar;
-
-type fn = {
-  name: string,
-  arg: Typ.term,
-  ret: Typ.term,
-  str: string,
-  imp: Exp.t,
-};
+open Fresh.Typ;
+open ADTBuiltins;
 
 /*
-  DONE:
+  DONE (lists):
   length
   map
   filter
@@ -58,12 +52,6 @@ type fn = {
   concat_map
   split
   combine
-
-  DONE TYPES:
-  Option
-
- IMPLEMENTED BUT TESTS FAILING:
-  sort
   filter_map
   nth_opt
   find_opt
@@ -71,46 +59,35 @@ type fn = {
   find_map
   find_mapi
 
+  DONE (non-list):
+  fst, snd (on pairs)
+  option_map
+  option_bind
+  option_to_list
+
+  DONE TYPES:
+  Option
+  Result
+  Ord = Lt+Eq+Gt
+
+ IMPLEMENTED BUT TESTS FAILING:
+  sort
+
  TODO:
- init (misunderstood the first time around)
- assocation lists
+ Use Ord for sort
+ init: int -> (int -> ?) -> [?]
+ assocation lists (assoc, assoc_opt, mem_assoc, remove_assoc)
+ slice: (int, int, [?]) -> [?]
+ string fns
+
+ TODO (non-list)
+ int_of_string_opt
+ float_of_string_opt
+ bool_of_string_opt
+ etc...
+
 
   */
-
-open Fresh.Typ;
-
-// TODO Move these option type helpers somewhere else and merge with Buitlins.TypeAliases
-let create_constructor_map =
-    (variants: list((string, option(Typ.t)))): ConstructorMap.t(Typ.t) => {
-  List.map(
-    ((name, typ_opt)) => ConstructorMap.Variant(name, [Id.mk()], typ_opt),
-    variants,
-  );
-};
-let option_type: Typ.t = {
-  let option_cons_map =
-    create_constructor_map([
-      ("None", None),
-      ("Some", Some(Unknown(Internal) |> Typ.fresh)),
-    ]);
-  sum(option_cons_map);
-};
-
-// Confirm that we want the type on the constructors for both expressions and patterns
-let some =
-  IdTagged.FreshGrammar.Exp.constructor(
-    "Some",
-    Some(Some(arrow(unknown(SynSwitch), option_type))),
-  );
-let pat_some =
-  IdTagged.FreshGrammar.Pat.constructor(
-    "Some",
-    Some(Some(arrow(unknown(SynSwitch), option_type))),
-  );
-let pat_none =
-  IdTagged.FreshGrammar.Pat.constructor("None", Some(Some(option_type)));
-let none =
-  IdTagged.FreshGrammar.Exp.constructor("None", Some(Some(option_type)));
 
 let builtins = [
   {
@@ -1875,7 +1852,7 @@ let builtins = [
                       ap(Forward, var("f"), var("x")),
                       [
                         (
-                          pat_none,
+                          Option.pat_none,
                           ap(
                             Forward,
                             var("filter_map"),
@@ -1883,7 +1860,7 @@ let builtins = [
                           ),
                         ),
                         (
-                          Pat.ap(pat_some, Pat.var("y")),
+                          Pat.ap(Option.pat_some, Pat.var("y")),
                           cons(
                             var("y"),
                             ap(
@@ -1925,12 +1902,12 @@ let builtins = [
               match(
                 var("xs"),
                 [
-                  (Pat.list_lit([]), none),
+                  (Pat.list_lit([]), Option.none),
                   (
                     Pat.cons(Pat.var("x"), Pat.var("xs")),
                     if_(
                       bin_op(Int(Equals), var("n"), int(0)),
-                      ap(Forward, some, var("x")),
+                      ap(Forward, Option.some, var("x")),
                       ap(
                         Forward,
                         var("nth_opt"),
@@ -1971,12 +1948,12 @@ let builtins = [
               match(
                 var("xs"),
                 [
-                  (Pat.list_lit([]), none),
+                  (Pat.list_lit([]), Option.none),
                   (
                     Pat.cons(Pat.var("x"), Pat.var("xs")),
                     if_(
                       ap(Forward, var("pred"), var("x")),
-                      ap(Forward, some, var("x")),
+                      ap(Forward, Option.some, var("x")),
                       ap(
                         Forward,
                         var("find_opt"),
@@ -2025,12 +2002,12 @@ let builtins = [
                     match(
                       var("xs"),
                       [
-                        (Pat.list_lit([]), none),
+                        (Pat.list_lit([]), Option.none),
                         (
                           Pat.cons(Pat.var("x"), Pat.var("xs")),
                           if_(
                             ap(Forward, var("pred"), var("x")),
-                            ap(Forward, some, var("i")),
+                            ap(Forward, Option.some, var("i")),
                             ap(
                               Forward,
                               var("find_index_helper"),
@@ -2085,14 +2062,14 @@ let builtins = [
               match(
                 var("xs"),
                 [
-                  (Pat.list_lit([]), none),
+                  (Pat.list_lit([]), Option.none),
                   (
                     Pat.cons(Pat.var("x"), Pat.var("xs")),
                     match(
                       ap(Forward, var("f"), var("x")),
                       [
                         (
-                          pat_none,
+                          Option.pat_none,
                           ap(
                             Forward,
                             var("find_map"),
@@ -2100,8 +2077,8 @@ let builtins = [
                           ),
                         ),
                         (
-                          Pat.ap(pat_some, Pat.var("y")),
-                          ap(Forward, some, var("y")),
+                          Pat.ap(Option.pat_some, Pat.var("y")),
+                          ap(Forward, Option.some, var("y")),
                         ),
                       ],
                     ),
@@ -2149,7 +2126,7 @@ let builtins = [
                     match(
                       var("xs"),
                       [
-                        (Pat.list_lit([]), none),
+                        (Pat.list_lit([]), Option.none),
                         (
                           Pat.cons(Pat.var("x"), Pat.var("xs")),
                           match(
@@ -2160,7 +2137,7 @@ let builtins = [
                             ),
                             [
                               (
-                                pat_none,
+                                Option.pat_none,
                                 ap(
                                   Forward,
                                   var("find_mapi_helper"),
@@ -2172,8 +2149,8 @@ let builtins = [
                                 ),
                               ),
                               (
-                                Pat.ap(pat_some, Pat.var("y")),
-                                ap(Forward, some, var("y")),
+                                Pat.ap(Option.pat_some, Pat.var("y")),
+                                ap(Forward, Option.some, var("y")),
                               ),
                             ],
                           ),
@@ -2197,23 +2174,38 @@ let builtins = [
     },
   },
   {
-    str: {|fix sort -> fun (xs, cmp) -> case xs
-             | [] => []
-             | [x] => [x]
-             | _ => let (left, right) = split_list(xs) in
-               merge(sort(left, cmp), sort(right, cmp), cmp)
-           end
-           fix split_list -> fun xs -> split_list_helper(xs, [], [])
-           fix split_list_helper -> fun (xs, left, right) -> case xs
-             | [] => (reverse(left), reverse(right))
-             | [x] => (reverse(x :: left), reverse(right))
-             | x :: y :: xs => split_list_helper(xs, x :: left, y :: right)
-           end
-           fix merge -> fun (xs, ys, cmp) -> case (xs, ys)
-             | ([], _) => ys
-             | (_, []) => xs
-             | (x :: xs, y :: ys) => if cmp(x, y) <= 0 then x :: merge(xs, ys, cmp) else y :: merge(xs, ys, cmp)
-           end|},
+    str: {|let merge: ((?, ?) -> Int, [?], [?]) -> [?] =
+fun cmp, xs, ys ->
+let go: ([?], [?], [?]) -> [?] =
+  fun xs, ys, acc ->
+    case (xs, ys)
+      | [], [] => rev(acc)
+        | [], ys => rev_append(acc, ys)
+          | xs, [] => rev_append(acc, xs)
+            | x::xs, y::ys =>
+            if cmp(x, y) <= 0
+            then go(xs, y::ys, x::acc)
+            else go(x::xs, ys, y::acc)
+            end in
+            go(xs, ys, []) in
+            fun cmp, xs ->
+      let split: [?] -> ([?], [?]) = fun xs ->
+  case xs
+  | [] => ([], [])
+    | [x] => ([x], [])
+      | x::y::ys =>
+        let (xs, ys) = split(ys) in
+        (x::xs, y::ys)
+        end in
+        let merge_sort: [?] -> [?] = fun xs ->
+        case xs
+    | [] => []
+    | [x] => [x]
+      | _ =>
+        let (left, right) = split(xs) in
+        merge(cmp, merge_sort(left), merge_sort(right))
+        end in
+        merge_sort(xs)|},
     name: "sort",
     arg:
       Prod([
