@@ -514,24 +514,25 @@ let try_to_dump_backpack = (zipper: t) => {
       } else {
         z;
       };
-    let rec go = (z: t): t => {
-      let z_can = can_put_down(z) ? z : move_until_can_put_down(z);
-      let z_cant = move_until_cant_put_down(z_can, z_can);
-      switch (put_down(Left, z_cant)) {
-      | None => z_cant
-      | Some(z) =>
-        let z = z |> regrout(Right);
-        switch (move(Left, z)) {
-        | None => go(z)
-        | Some(z_left) =>
-          let z_left = z_left |> regrout(Right);
-          switch (move(Right, z_left)) {
-          | None => failwith("Zipper.try_to_dump_backpack: move fail")
-          | Some(z_right) => go(z_right)
-          };
+    let rec go = (z: t): t =>
+      if (can_put_down(z)) {
+        let z_can = move_until_cant_put_down(z, z);
+        switch (put_down(Right, z_can)) {
+        | None => z_can
+        | Some(z) =>
+          let z = regrout(Right, z);
+          go(z);
+        };
+      } else {
+        let z_can = move_until_can_put_down(z);
+        let z_can = move_until_cant_put_down(z_can, z_can);
+        switch (put_down(Right, z_can)) {
+        | None => z_can
+        | Some(z) =>
+          let z = regrout(Right, z);
+          go(z);
         };
       };
-    };
     go(zipper);
   };
 };
