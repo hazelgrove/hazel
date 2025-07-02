@@ -15,6 +15,7 @@ let (suite, _) =
     "HazelTests",
     [
       Test_ListUtil.tests,
+      Test_OptUtil.tests,
       Test_Grammar.tests,
       Test_ExpToSegment.tests,
       Test_LabeledTuple.tests,
