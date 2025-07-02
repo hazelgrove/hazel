@@ -121,7 +121,7 @@ let go_z =
     let reparse = z =>
       Parser.to_zipper(
         ~zipper_init=Zipper.init(),
-        Printer.of_zipper(~holes="", ~concave_holes=" ", ~indent="", z),
+        Printer.of_zipper(~holes="", ~indent="", z),
       );
     switch (reparse(z)) {
     | None => Error(CantReparse)
