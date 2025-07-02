@@ -161,6 +161,10 @@ module Completion = {
     let actions =
       resuggest
         ? [
+          //TODO: Performing two actions like this creates
+          //an extraneous undo state. maybe combine these somehow,
+          //eg put the ?? in the buffer immediately and then
+          //clobber it when a response is recieved
           Action.Select(Tile(Id(tile, Direction.Left))),
           Action.Buffer(Set(LLM(response))),
         ]

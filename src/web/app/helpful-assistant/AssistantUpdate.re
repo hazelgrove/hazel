@@ -79,7 +79,7 @@ let can_undo = (action: t) => {
   // That could be a good starter project to navigate this assistant part of the codebase.
   switch (action) {
   | SendMessage(_) => false
-  | HandleResponse(_) => false
+  | HandleResponse(_) => true /* Necessary to make completion instantiation undoable */
   | EmployLLMAction(_) => false
   | ChatAction(_) => false
   | InternalError(_) => false
