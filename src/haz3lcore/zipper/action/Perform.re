@@ -4,13 +4,13 @@ open Language;
 
 let buffer_clear = (z: t): t =>
   switch (z.selection.mode) {
-  | Buffer(_) =>
-    {
+  | Buffer(Unparsed) => {
       ...z,
       selection: Selection.mk([]),
     }
-    |> Zipper.regrout(Left)
-  | _ => z
+
+  | Buffer(Parsed) => z |> Zipper.destruct |> Zipper.regrout(Left)
+  | Normal => z
   };
 
 let set_tydi_buffer = (info_map: Language.Statics.Map.t, z: t): t =>
