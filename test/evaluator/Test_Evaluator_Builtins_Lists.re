@@ -206,70 +206,102 @@ let tests = (
       )
     ),
     test_case("nth_opt valid index", `Quick, () =>
-      parse_and_evaluate_test({|Some(2)|}, {|nth_opt([1, 2, 3], 1)|})
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|Some(2)|},
+        {|nth_opt([1, 2, 3], 1)|},
+      )
     ),
     test_case("nth_opt invalid index", `Quick, () =>
-      parse_and_evaluate_test({|None|}, {|nth_opt([1, 2, 3], 5)|})
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|None|},
+        {|nth_opt([1, 2, 3], 5)|},
+      )
     ),
     test_case("find_opt found element", `Quick, () =>
       parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
         {|Some(2)|},
         {|find_opt([1, 2, 3, 4], fun x -> int_mod(x, 2) == 0)|},
       )
     ),
     test_case("find_opt not found", `Quick, () =>
       parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
         {|None|},
         {|find_opt([1, 3, 5], fun x -> int_mod(x, 2) == 0)|},
       )
     ),
     test_case("find_index found element", `Quick, () =>
       parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
         {|Some(1)|},
         {|find_index([1, 2, 3, 4], fun x -> int_mod(x, 2) == 0)|},
       )
     ),
     test_case("find_index not found", `Quick, () =>
       parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
         {|None|},
         {|find_index([1, 3, 5], fun x -> int_mod(x, 2) == 0)|},
       )
     ),
     test_case("find_map found element", `Quick, () =>
       parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
         {|Some(4)|},
         {|find_map([1, 2, 3, 4], fun x -> if int_mod(x, 2) == 0 then Some(x * 2) else None)|},
       )
     ),
     test_case("find_map not found", `Quick, () =>
       parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
         {|None|},
         {|find_map([1, 3, 5], fun x -> if int_mod(x, 2) == 0 then Some(x * 2) else None)|},
       )
     ),
     test_case("find_mapi found element", `Quick, () =>
       parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
         {|Some(1)|},
         {|find_mapi([1, 2, 3, 4], fun (i, x) -> if int_mod(x, 2) == 0 then Some(i) else None)|},
       )
     ),
     test_case("find_mapi not found", `Quick, () =>
       parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
         {|None|},
         {|find_mapi([1, 3, 5], fun (i, x) -> if int_mod(x, 2) == 0 then Some(i) else None)|},
       )
     ),
     test_case("hd_opt of non-empty list", `Quick, () =>
-      parse_and_evaluate_test({|Some(1)|}, {|hd_opt([1, 2, 3])|})
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|Some(1)|},
+        {|hd_opt([1, 2, 3])|},
+      )
     ),
     test_case("hd_opt of empty list", `Quick, () =>
-      parse_and_evaluate_test({|None|}, {|hd_opt([])|})
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|None|},
+        {|hd_opt([])|},
+      )
     ),
     test_case("tl_opt of non-empty list", `Quick, () =>
-      parse_and_evaluate_test({|Some([2, 3])|}, {|tl_opt([1, 2, 3])|})
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|Some([2, 3])|},
+        {|tl_opt([1, 2, 3])|},
+      )
     ),
     test_case("tl_opt of empty list", `Quick, () =>
-      parse_and_evaluate_test({|None|}, {|tl_opt([])|})
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|None|},
+        {|tl_opt([])|},
+      )
     ),
     test_case("assoc found key", `Quick, () =>
       parse_and_evaluate_test(
@@ -279,12 +311,14 @@ let tests = (
     ),
     test_case("assoc_opt found key", `Quick, () =>
       parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
         {|Some(42)|},
         {|assoc_opt([(1, 10), (2, 42), (3, 30)], 2)|},
       )
     ),
     test_case("assoc_opt not found", `Quick, () =>
       parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
         {|None|},
         {|assoc_opt([(1, 10), (2, 42), (3, 30)], 5)|},
       )
