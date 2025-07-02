@@ -1,18 +1,18 @@
 module Fresh = IdTagged.FreshGrammar;
 open Fresh.Typ;
-open ADTBuiltins;
+open BuiltinUtil;
+open BuiltinsADT;
 
 /*
  This PR add a few types and several dozen functions to the buiitins,
- to later be replaced by a Hazel standard library.
-
- TODO:
- - Use Ord for sort
+ to later be replaced by a Hazel standard library. Non-total functions
+ return 'undefined' as the dynamic error constructor doesn't seem to
+ show up in the value display. All added functions have dynamic tests.
 
  Types:
- - Ord = Lt + Eq + Gt
  - Option = None + Some(?)
- - Result = Ok(?) + Error(?)
+ - Either = Left(?) + Right(?) (used for partition_map)
+ - Ord = Lt + Eq + Gt (used for sort)
 
  String functions (some use regexps provided as plain strings)
  - string_escaped
@@ -34,31 +34,36 @@ open ADTBuiltins;
  - option_to_list
 
  List functions:
+ - cons
+ - hd
+ - tl
+ - is_empty
  - length
  - map
  - filter
  - fold_left
+ - fold_right
  - flat_map
  - zip
  - unzip
  - reverse
  - take
  - drop
+ - take_while
+ - drop_while
+ - slice
+ - init
  - range
  - enumerate
  - any
  - all
  - intersperse
- - cons
- - hd
- - tl
- - is_empty
  - nth
- - fold_right
  - append
  - concat
  - mapi
  - filteri
+ - find
  - mem
  - partition
  - rev_append
@@ -67,19 +72,19 @@ open ADTBuiltins;
  - map2
  - all2
  - any2
- - find
- - take_while
- - drop_while
- - init
- - slice
 
- List types involving option:
+ List functions involving option:
+ - hd_opt
+ - tl_opt
  - filter_map
  - nth_opt
  - find_opt
  - find_index
  - find_map
  - find_mapi
+
+ List functions involving either:
+ - partition_map
 
  Association list functions:
  - assoc
@@ -859,13 +864,7 @@ let builtins = [
               match(
                 var("xs"),
                 [
-                  (
-                    Pat.list_lit([]),
-                    dynamic_error_hole(
-                      var("xs"),
-                      InvalidOperationError.IndexOutOfBounds,
-                    ),
-                  ),
+                  (Pat.list_lit([]), undefined()),
                   (Pat.cons(Pat.var("x"), Pat.wild()), var("x")),
                 ],
               ),
@@ -896,13 +895,7 @@ let builtins = [
               match(
                 var("xs"),
                 [
-                  (
-                    Pat.list_lit([]),
-                    dynamic_error_hole(
-                      var("xs"),
-                      InvalidOperationError.IndexOutOfBounds,
-                    ),
-                  ),
+                  (Pat.list_lit([]), undefined()),
                   (Pat.cons(Pat.wild(), Pat.var("xs")), var("xs")),
                 ],
               ),
@@ -964,13 +957,7 @@ let builtins = [
               match(
                 var("xs"),
                 [
-                  (
-                    Pat.list_lit([]),
-                    dynamic_error_hole(
-                      var("xs"),
-                      InvalidOperationError.IndexOutOfBounds,
-                    ),
-                  ),
+                  (Pat.list_lit([]), undefined()),
                   (
                     Pat.cons(Pat.var("x"), Pat.var("xs")),
                     if_(
@@ -1713,13 +1700,7 @@ let builtins = [
               match(
                 var("xs"),
                 [
-                  (
-                    Pat.list_lit([]),
-                    dynamic_error_hole(
-                      var("xs"),
-                      InvalidOperationError.IndexOutOfBounds,
-                    ),
-                  ),
+                  (Pat.list_lit([]), undefined()),
                   (
                     Pat.cons(Pat.var("x"), Pat.var("xs")),
                     if_(
@@ -2259,13 +2240,7 @@ let builtins = [
               match(
                 var("xs"),
                 [
-                  (
-                    Pat.list_lit([]),
-                    dynamic_error_hole(
-                      var("xs"),
-                      InvalidOperationError.IndexOutOfBounds,
-                    ),
-                  ),
+                  (Pat.list_lit([]), undefined()),
                   (
                     Pat.cons(
                       Pat.tuple([Pat.var("k"), Pat.var("v")]),
@@ -2447,6 +2422,74 @@ let builtins = [
     },
   },
   {
+    str: {|fix partition_map -> fun (xs, f) -> case xs
+             | [] => ([], [])
+             | x :: xs => let (lefts, rights) = partition_map(xs, f) in
+               case f(x)
+               | Left(y) => (y :: lefts, rights)
+               | Right(y) => (lefts, y :: rights)
+             end
+           end|},
+    name: "partition_map",
+    arg:
+      Prod([
+        list(unknown(Internal)),
+        arrow(unknown(Internal), unknown(Internal)),
+      ]),
+    ret: Prod([list(unknown(Internal)), list(unknown(Internal))]),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("partition_map"),
+            fn(
+              Pat.tuple([Pat.var("xs"), Pat.var("f")]),
+              match(
+                var("xs"),
+                [
+                  (Pat.list_lit([]), tuple([list_lit([]), list_lit([])])),
+                  (
+                    Pat.cons(Pat.var("x"), Pat.var("xs")),
+                    let_(
+                      Pat.tuple([Pat.var("lefts"), Pat.var("rights")]),
+                      ap(
+                        Forward,
+                        var("partition_map"),
+                        tuple([var("xs"), var("f")]),
+                      ),
+                      match(
+                        ap(Forward, var("f"), var("x")),
+                        [
+                          (
+                            Pat.ap(Either.pat_left, Pat.var("y")),
+                            tuple([
+                              cons(var("y"), var("lefts")),
+                              var("rights"),
+                            ]),
+                          ),
+                          (
+                            Pat.ap(Either.pat_right, Pat.var("y")),
+                            tuple([
+                              var("lefts"),
+                              cons(var("y"), var("rights")),
+                            ]),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
     str: {|fun (cmp, xs) ->
     let merge: ((?, ?) -> Int, [?], [?]) -> [?] =
 fun cmp, xs, ys ->
@@ -2457,9 +2500,10 @@ let go: ([?], [?], [?]) -> [?] =
         | [], ys => rev_append(acc, ys)
           | xs, [] => rev_append(acc, xs)
             | x::xs, y::ys =>
-            if cmp(x, y) <= 0
-            then go(xs, y::ys, x::acc)
-            else go(x::xs, ys, y::acc)
+            case cmp(x, y)
+            | Lt => go(xs, y::ys, x::acc)
+            | Eq => go(xs, y::ys, x::acc)
+            | Gt => go(x::xs, ys, y::acc)
             end in
             go(xs, ys, []) in
       let split: [?] -> ([?], [?]) = fun xs ->
@@ -2533,34 +2577,50 @@ let go: ([?], [?], [?]) -> [?] =
                               Pat.cons(Pat.var("x"), Pat.var("xs")),
                               Pat.cons(Pat.var("y"), Pat.var("ys")),
                             ]),
-                            if_(
-                              bin_op(
-                                Int(LessThanOrEqual),
-                                ap(
-                                  Forward,
-                                  var("cmp"),
-                                  tuple([var("x"), var("y")]),
+                            match(
+                              ap(
+                                Forward,
+                                var("cmp"),
+                                tuple([var("x"), var("y")]),
+                              ),
+                              [
+                                (
+                                  Ord.lt_pat,
+                                  ap(
+                                    Forward,
+                                    var("go"),
+                                    tuple([
+                                      var("xs"),
+                                      cons(var("y"), var("ys")),
+                                      cons(var("x"), var("acc")),
+                                    ]),
+                                  ),
                                 ),
-                                int(0),
-                              ),
-                              ap(
-                                Forward,
-                                var("go"),
-                                tuple([
-                                  var("xs"),
-                                  cons(var("y"), var("ys")),
-                                  cons(var("x"), var("acc")),
-                                ]),
-                              ),
-                              ap(
-                                Forward,
-                                var("go"),
-                                tuple([
-                                  cons(var("x"), var("xs")),
-                                  var("ys"),
-                                  cons(var("y"), var("acc")),
-                                ]),
-                              ),
+                                (
+                                  Ord.eq_pat,
+                                  ap(
+                                    Forward,
+                                    var("go"),
+                                    tuple([
+                                      var("xs"),
+                                      cons(var("y"), var("ys")),
+                                      cons(var("x"), var("acc")),
+                                    ]),
+                                  ),
+                                ),
+                                (
+                                  Ord.gt_pat,
+                                  ap(
+                                    Forward,
+                                    var("go"),
+                                    tuple([
+                                      cons(var("x"), var("xs")),
+                                      var("ys"),
+                                      cons(var("y"), var("acc")),
+                                    ]),
+                                  ),
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -2699,6 +2759,74 @@ let go: ([?], [?], [?]) -> [?] =
                   ),
                   var("len"),
                 ]),
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix hd_opt -> fun xs -> case xs
+             | [] => None
+             | x :: _ => Some(x)
+           end|},
+    name: "hd_opt",
+    arg: List(unknown(Internal)),
+    ret: Unknown(Internal),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("hd_opt"),
+            fn(
+              Pat.var("xs"),
+              match(
+                var("xs"),
+                [
+                  (Pat.list_lit([]), Option.none),
+                  (
+                    Pat.cons(Pat.var("x"), Pat.wild()),
+                    ap(Forward, Option.some, var("x")),
+                  ),
+                ],
+              ),
+              None,
+              None,
+            ),
+            None,
+          )
+        )
+      );
+    },
+  },
+  {
+    str: {|fix tl_opt -> fun xs -> case xs
+             | [] => None
+             | _ :: xs => Some(xs)
+           end|},
+    name: "tl_opt",
+    arg: List(unknown(Internal)),
+    ret: Unknown(Internal),
+    imp: {
+      Fresh.(
+        Exp.(
+          fix_f(
+            Pat.var("tl_opt"),
+            fn(
+              Pat.var("xs"),
+              match(
+                var("xs"),
+                [
+                  (Pat.list_lit([]), Option.none),
+                  (
+                    Pat.cons(Pat.wild(), Pat.var("xs")),
+                    ap(Forward, Option.some, var("xs")),
+                  ),
+                ],
               ),
               None,
               None,

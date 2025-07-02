@@ -259,6 +259,18 @@ let tests = (
         {|find_mapi([1, 3, 5], fun (i, x) -> if int_mod(x, 2) == 0 then Some(i) else None)|},
       )
     ),
+    test_case("hd_opt of non-empty list", `Quick, () =>
+      parse_and_evaluate_test({|Some(1)|}, {|hd_opt([1, 2, 3])|})
+    ),
+    test_case("hd_opt of empty list", `Quick, () =>
+      parse_and_evaluate_test({|None|}, {|hd_opt([])|})
+    ),
+    test_case("tl_opt of non-empty list", `Quick, () =>
+      parse_and_evaluate_test({|Some([2, 3])|}, {|tl_opt([1, 2, 3])|})
+    ),
+    test_case("tl_opt of empty list", `Quick, () =>
+      parse_and_evaluate_test({|None|}, {|tl_opt([])|})
+    ),
     test_case("assoc found key", `Quick, () =>
       parse_and_evaluate_test(
         {|42|},
@@ -307,11 +319,41 @@ let tests = (
         {|remove_assoc([(1, 10), (2, 42), (3, 30)], 5)|},
       )
     ),
+    test_case("partition_map with Left and Right values", `Quick, () =>
+      parse_and_evaluate_test(
+        {|([2, 4], [1, 3])|},
+        {|partition_map([1, 2, 3, 4], fun x -> if int_mod(x, 2) == 0 then Left(x) else Right(x))|},
+      )
+    ),
+    test_case("partition_map with all Left values", `Quick, () =>
+      parse_and_evaluate_test(
+        {|([1, 2, 3], [])|},
+        {|partition_map([1, 2, 3], fun x -> Left(x))|},
+      )
+    ),
+    test_case("partition_map with all Right values", `Quick, () =>
+      parse_and_evaluate_test(
+        {|([], [1, 2, 3])|},
+        {|partition_map([1, 2, 3], fun x -> Right(x))|},
+      )
+    ),
+    test_case("partition_map with empty list", `Quick, () =>
+      parse_and_evaluate_test(
+        {|([], [])|},
+        {|partition_map([], fun x -> Left(x))|},
+      )
+    ),
     test_case("sort empty list", `Quick, () =>
-      parse_and_evaluate_test({|[]|}, {|sort(fun (x, y) -> x - y, [])|})
+      parse_and_evaluate_test(
+        {|[]|},
+        {|sort(fun (x, y) -> if x == y then Eq else (if x < y then Lt else Gt), [])|},
+      )
     ),
     test_case("sort singleton list", `Quick, () =>
-      parse_and_evaluate_test({|[1]|}, {|sort(fun (x, y) -> x - y, [1])|})
+      parse_and_evaluate_test(
+        {|[1]|},
+        {|sort(fun (x, y) -> if x == y then Eq else (if x < y then Lt else Gt), [1])|},
+      )
     ),
     // These fail due to an eval bug
     // Should work after https://github.com/hazelgrove/hazel/pull/1729
@@ -322,7 +364,7 @@ let tests = (
         let _ = Alcotest.skip();
         parse_and_evaluate_test(
           {|[1, 2]|},
-          {|sort(fun (x, y) -> x - y, [1, 2])|},
+          {|sort(fun (x, y) -> if x == y then Eq else (if x < y then Lt else Gt), [1, 2])|},
         );
       },
     ),
@@ -333,7 +375,7 @@ let tests = (
         let _ = Alcotest.skip();
         parse_and_evaluate_test(
           {|[1, 2]|},
-          {|sort(fun (x, y) -> x - y, [2, 1])|},
+          {|sort(fun (x, y) -> if x == y then Eq else (if x < y then Lt else Gt), [2, 1])|},
         );
       },
     ),
@@ -344,7 +386,7 @@ let tests = (
         let _ = Alcotest.skip();
         parse_and_evaluate_test(
           {|[1, 2, 3]|},
-          {|sort(fun (x, y) -> x - y, [1, 3, 2])|},
+          {|sort(fun (x, y) -> if x == y then Eq else (if x < y then Lt else Gt), [1, 3, 2])|},
         );
       },
     ),
@@ -355,7 +397,7 @@ let tests = (
         let _ = Alcotest.skip();
         parse_and_evaluate_test(
           {|[1, 1, 3, 4, 5]|},
-          {|sort(fun (x, y) -> x - y, [3, 1, 4, 1, 5])|},
+          {|sort(fun (x, y) -> if x == y then Eq else (if x < y then Lt else Gt), [3, 1, 4, 1, 5])|},
         );
       },
     ),
@@ -366,7 +408,7 @@ let tests = (
         let _ = Alcotest.skip();
         parse_and_evaluate_test(
           {|[5, 4, 3, 1, 1]|},
-          {|sort(fun (x, y) -> y - x, [3, 1, 4, 1, 5])|},
+          {|sort(fun (x, y) -> if x == y then Eq else (if x < y then Gt else Lt), [3, 1, 4, 1, 5])|},
         );
       },
     ),

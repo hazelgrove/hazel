@@ -1,13 +1,6 @@
+open BuiltinUtil;
 module Fresh = IdTagged.FreshGrammar;
 open Fresh.Typ;
-
-type fn = {
-  name: string,
-  arg: Typ.term,
-  ret: Typ.term,
-  str: string,
-  imp: Exp.t,
-};
 
 let sum_type = (variants: list((string, option(Typ.t)))): Typ.t =>
   variants
@@ -18,46 +11,65 @@ let sum_type = (variants: list((string, option(Typ.t)))): Typ.t =>
 
 let meta_type: Typ.t = sum_type([("$e", None), ("$v", None)]);
 
-let option_type: Typ.t =
-  sum_type([
-    ("None", None),
-    ("Some", Some(Unknown(Internal) |> Typ.fresh)),
-  ]);
+module Ord = {
+  let t: Typ.t = sum_type([("Lt", None), ("Eq", None), ("Gt", None)]);
 
-let result_type: Typ.t =
-  sum_type([
-    ("Ok", Some(Unknown(Internal) |> Typ.fresh)),
-    ("Error", Some(Unknown(Internal) |> Typ.fresh)),
-  ]);
+  open IdTagged.FreshGrammar;
+  let lt = Exp.constructor("Lt", Some(Some(t)));
+  let eq = Exp.constructor("Eq", Some(Some(t)));
+  let gt = Exp.constructor("Gt", Some(Some(t)));
+  let lt_pat = Pat.constructor("Lt", Some(Some(t)));
+  let eq_pat = Pat.constructor("Eq", Some(Some(t)));
+  let gt_pat = Pat.constructor("Gt", Some(Some(t)));
+};
 
-let ord_type: Typ.t = sum_type([("Lt", None), ("Eq", None), ("Gt", None)]);
+module Either = {
+  let t: Typ.t =
+    sum_type([
+      ("Left", Some(Unknown(Internal) |> Typ.fresh)),
+      ("Right", Some(Unknown(Internal) |> Typ.fresh)),
+    ]);
+
+  open IdTagged.FreshGrammar;
+  let left =
+    Exp.constructor("Left", Some(Some(arrow(unknown(SynSwitch), t))));
+  let right =
+    Exp.constructor("Right", Some(Some(arrow(unknown(SynSwitch), t))));
+
+  let pat_left =
+    Pat.constructor("Left", Some(Some(arrow(unknown(SynSwitch), t))));
+  let pat_right =
+    Pat.constructor("Right", Some(Some(arrow(unknown(SynSwitch), t))));
+};
 
 module Option = {
-  // Confirm that we want the type on the constructors for both expressions and patterns
-  let some =
-    IdTagged.FreshGrammar.Exp.constructor(
-      "Some",
-      Some(Some(arrow(unknown(SynSwitch), option_type))),
-    );
-  let pat_some =
-    IdTagged.FreshGrammar.Pat.constructor(
-      "Some",
-      Some(Some(arrow(unknown(SynSwitch), option_type))),
-    );
-  let pat_none =
-    IdTagged.FreshGrammar.Pat.constructor("None", Some(Some(option_type)));
-  let none =
-    IdTagged.FreshGrammar.Exp.constructor("None", Some(Some(option_type)));
+  let t: Typ.t =
+    sum_type([
+      ("None", None),
+      ("Some", Some(Unknown(Internal) |> Typ.fresh)),
+    ]);
 
-  let builtins = [
+  open IdTagged.FreshGrammar;
+
+  // Confirm that we want the type on the constructors for both expressions and patterns
+  let none = Exp.constructor("None", Some(Some(t)));
+
+  let some =
+    Exp.constructor("Some", Some(Some(arrow(unknown(SynSwitch), t))));
+
+  let pat_none = Pat.constructor("None", Some(Some(t)));
+
+  let pat_some =
+    Pat.constructor("Some", Some(Some(arrow(unknown(SynSwitch), t))));
+
+  let builtins: list(hazel_fn) = [
     {
       str: {|fun (opt, f) -> case opt
                | None => None
                | Some(x) => Some(f(x))
              end|},
       name: "option_map",
-      arg:
-        Prod([option_type, arrow(unknown(Internal), unknown(Internal))]),
+      arg: Prod([t, arrow(unknown(Internal), unknown(Internal))]),
       ret: Unknown(Internal),
       imp: {
         Fresh.(
@@ -87,8 +99,7 @@ module Option = {
                | Some x => f(x)
              end|},
       name: "option_bind",
-      arg:
-        Prod([option_type, arrow(unknown(Internal), unknown(Internal))]),
+      arg: Prod([t, arrow(unknown(Internal), unknown(Internal))]),
       ret: Unknown(Internal),
       imp: {
         Fresh.(
@@ -114,7 +125,7 @@ module Option = {
     },
     {
       name: "option_to_list",
-      arg: option_type.term,
+      arg: t.term,
       ret: List(unknown(Internal)),
       str: {|fun opt -> case opt
                | None => []
@@ -144,19 +155,18 @@ module Option = {
 
 // List of type aliases to add to the context
 let type_aliases: list((string, Typ.t)) = [
-  ("Ord", ord_type),
-  ("Result", result_type),
-  ("Option", option_type),
+  ("Ord", Ord.t),
+  ("Option", Option.t),
+  ("Either", Either.t),
   ("$Meta", meta_type),
 ];
 
-let create_type_alias = (name: string, typ: Typ.t): Ctx.entry => {
+let create_type_alias = (name: string, typ: Typ.t): Ctx.entry =>
   Ctx.TVarEntry({
     name,
     id: Id.invalid,
     kind: Ctx.Singleton(typ),
   });
-};
 
 // Convert type aliases to context entries
 let types: list(Ctx.entry) =
@@ -177,3 +187,7 @@ let constructors: Ctx.t = {
     type_aliases,
   );
 };
+
+let entries = constructors.entries @ types;
+
+let builtins = Option.builtins;
