@@ -3,6 +3,8 @@ open Haz3lcore;
 open Language;
 open Base;
 
+let print_seg = Printer.of_segment(~holes="?");
+
 // Id ignoring equality for tiles
 let rec equal_segment = (a: segment, b: segment) => {
   List.equal(equal_piece, a, b);
@@ -48,7 +50,7 @@ let equivalent_to_make_term = (serialized: string) => {
       string,
       "Make term print equivalent: " ++ serialized,
       serialized,
-      Printer.of_segment(~holes="?", seg),
+      print_seg(seg),
     );
     check(
       segment,
@@ -129,7 +131,7 @@ let tests = (
               empty_hole(),
             ),
           );
-        let serialized = Printer.of_segment(~holes="?", segment);
+        let serialized = print_seg(segment);
 
         check(
           Alcotest.string,
@@ -202,7 +204,7 @@ let tests = (
               ],
             ),
           );
-        let serialized = Printer.of_segment(~holes="?", segment);
+        let serialized = print_seg(segment);
 
         check(
           Alcotest.string,
@@ -225,7 +227,7 @@ let tests = (
               ),
             )
           );
-        let serialized = Printer.of_segment(~holes="?", segment);
+        let serialized = print_seg(segment);
 
         check(
           string,
@@ -241,7 +243,7 @@ let tests = (
       () => {
         let segment =
           IdTagged.FreshGrammar.Exp.(segmentize(test(bool(true))));
-        let serialized = Printer.of_segment(~holes="?", segment);
+        let serialized = print_seg(segment);
 
         check(string, "Test of true", {|test true end|}, serialized);
       },
@@ -262,7 +264,7 @@ let tests = (
               )
             ),
           );
-        let serialized = Printer.of_segment(~holes="?", segment);
+        let serialized = print_seg(segment);
 
         check(string, "Pause", serialized, {|pause 1 in 2|});
       },
@@ -274,8 +276,7 @@ let tests = (
         check(
           string,
           "No parens",
-          Printer.of_segment(
-            ~holes="?",
+          print_seg(
             segmentize(
               IdTagged.FreshGrammar.Exp.(
                 bin_op(
@@ -291,8 +292,7 @@ let tests = (
         check(
           string,
           "Parens",
-          Printer.of_segment(
-            ~holes="?",
+          print_seg(
             segmentize(
               IdTagged.FreshGrammar.Exp.(
                 bin_op(
@@ -308,8 +308,7 @@ let tests = (
         check(
           string,
           "Arrow types",
-          Printer.of_segment(
-            ~holes="?",
+          print_seg(
             segmentize(
               IdTagged.FreshGrammar.(
                 Exp.ty_alias(
@@ -329,8 +328,7 @@ let tests = (
         string,
         "Unit type",
         "()",
-        Printer.of_segment(
-          ~holes="?",
+        print_seg(
           ExpToSegment.typ_to_segment(
             ~settings=exp_to_segment_settings,
             IdTagged.FreshGrammar.Typ.prod([]),
@@ -346,8 +344,7 @@ let tests = (
         string,
         "Unit pattern",
         "()",
-        Printer.of_segment(
-          ~holes="?",
+        print_seg(
           ExpToSegment.any_to_segment(
             ~settings={
               inline: true,

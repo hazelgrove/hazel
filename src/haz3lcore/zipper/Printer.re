@@ -13,7 +13,7 @@ let measured_no_projectors = (segment: Segment.t) =>
   |> Measured.of_segment(_, ProjectorCore.Shape.Map.empty);
 
 /* This is a low-level function; use below entry point */
-let rec of_segment = (~holes=" ", ~concave_holes=" ", seg: Segment.t): string =>
+let rec of_segment = (~holes, ~concave_holes, seg: Segment.t): string =>
   seg |> List.map(of_piece(~holes, ~concave_holes)) |> String.concat("")
 and of_piece = (~holes, ~concave_holes, p: Piece.t): string =>
   switch (p) {
@@ -65,7 +65,9 @@ let mk_indent = (segment, measured, indent: string, rows: list(string)) =>
     );
   };
 
-/* Use this to pretty-print segments */
+/* Use this to pretty-print segments. Note that printing holes with
+ * a space may result in extraneous whitespace, but printing without
+ * a space may result in tokens getting glued together. You can't win */
 let of_segment =
     (
       ~holes=" ",
@@ -83,35 +85,19 @@ let of_segment =
   |> add_caret(caret)
   |> String.concat("\n");
 
-/* Use this to pretty-print zippers */
+/* Use this to pretty-print zippers. See above comments on holes */
 let of_zipper =
-    (
-      ~holes=" ",
-      ~concave_holes: string=" ",
-      ~indent=" ",
-      ~caret=?,
-      ~measured=?,
-      z: Zipper.t,
-    )
-    : string => {
-  let seg_of_zip = Zipper.seg_without_buffer;
-  let (caret, measured) =
+    (~holes=?, ~concave_holes=?, ~indent=?, ~caret=?, z: Zipper.t): string => {
+  let segment = Zipper.seg_without_buffer(z);
+  /* Note that we can't just pass in the measured from editor as
+   * we must recalculate the measured after removing projectors */
+  let measured = measured_no_projectors(segment);
+  let caret =
     switch (caret) {
-    | None => (None, measured)
+    | None => None
     | Some(char) =>
-      let measured =
-        switch (measured) {
-        | None => z |> seg_of_zip |> measured_no_projectors
-        | Some(m) => m
-        };
-      (Some((char, Zipper.caret_point(measured, z))), Some(measured));
+      let caret_pos = Zipper.caret_point(measured, z);
+      Some((char, caret_pos));
     };
-  of_segment(
-    ~holes,
-    ~concave_holes,
-    ~indent,
-    ~caret,
-    ~measured?,
-    seg_of_zip(z),
-  );
+  of_segment(~holes?, ~concave_holes?, ~indent?, ~caret, ~measured, segment);
 };
