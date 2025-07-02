@@ -544,6 +544,58 @@ let init_chat = (mode: AssistantSettings.mode): Model.chat => {
   };
 };
 
+let mk_structure_edit_msg =
+    (~tool_call: string, ~args: option(list((string, string)))) => {
+  switch (tool_call) {
+  | "rename_variable" =>
+    switch (args) {
+    | Some([(_, current_variable_name), (_, new_variable_name)]) =>
+      "Agent renamed variable "
+      ++ current_variable_name
+      ++ " to "
+      ++ new_variable_name
+    | _ => "Agent called rename_variable with invalid arguments"
+    }
+  | "update_definition" =>
+    switch (args) {
+    | Some([(_, variable_name), (_, code)]) =>
+      "Agent updated the definition of the variable " ++ variable_name
+    | _ => "Agent called update_definition with invalid arguments"
+    }
+  | "update_body" =>
+    switch (args) {
+    | Some([(_, variable_name), (_, code)]) =>
+      "Agent updated the body of the variable " ++ variable_name
+    | _ => "Agent called update_body with invalid arguments"
+    }
+  | "delete_variable" =>
+    switch (args) {
+    | Some([(_, variable_name)]) =>
+      "Agent deleted the variable " ++ variable_name
+    | _ => "Agent called delete_variable with invalid arguments"
+    }
+  | "delete_body" =>
+    switch (args) {
+    | Some([(_, variable_name)]) =>
+      "Agent deleted the body of the variable " ++ variable_name
+    | _ => "Agent called delete_body with invalid arguments"
+    }
+  | "add_before" =>
+    switch (args) {
+    | Some([(_, variable_name), (_, code)]) =>
+      "Agent added code before the variable " ++ variable_name
+    | _ => "Agent called add_before with invalid arguments"
+    }
+  | "add_after" =>
+    switch (args) {
+    | Some([(_, variable_name), (_, code)]) =>
+      "Agent added code after the variable " ++ variable_name
+    | _ => "Agent called add_after with invalid arguments"
+    }
+  | _ => "Agent made an invalid tool call"
+  };
+};
+
 let update =
     (
       ~settings: Settings.t,
@@ -924,10 +976,10 @@ let update =
           let updated_message_displays =
             mk_message_display(
               ~content=
-                "Agent called \""
-                ++ tool_call.name
-                ++ "\" with the following arguments: "
-                ++ Json.to_string(tool_call.args),
+                mk_structure_edit_msg(
+                  ~tool_call=tool_call.name,
+                  ~args=Json.get_string_kvs(tool_call.args),
+                ),
               ~role=Tool,
             );
           /*
