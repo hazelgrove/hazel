@@ -162,7 +162,6 @@ type status_variant =
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type typ_expects =
   | TypeExpected
-  | TupleExpected
   | LabelExpected(status_variant, list(LabeledTuple.label)) // list of duplicate labels
   | ConstructorExpected(status_variant, Typ.t)
   | VariantExpected(status_variant, Typ.t);
@@ -179,7 +178,6 @@ type error_typ =
   | DuplicateLabels(list(LabeledTuple.label), Typ.t)
   | Duplicate(LabeledTuple.label, Typ.t)
   | WantTypeFoundAp
-  | DotOperatorRequiresTuple // TODO Should be exp only
   | WantLabel
   | WantConstructorFoundType(Typ.t)
   | WantConstructorFoundAp;
@@ -609,12 +607,6 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
     | VariantExpected(Duplicate, _)
     | ConstructorExpected(Duplicate, _) =>
       InHole(DuplicateConstructor(name))
-    | TupleExpected =>
-      switch (Ctx.lookup_alias(ctx, name)) {
-      | Some({term: Prod(_), _}) =>
-        NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
-      | _ => InHole(DotOperatorRequiresTuple)
-      }
     | LabelExpected(_) =>
       switch (Ctx.lookup_alias(ctx, name)) {
       | Some({term: Label(_), _}) =>
@@ -641,14 +633,12 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
         NotInHole(VariantIncomplete(Arrow(ty_in, ty_variant) |> Typ.temp))
       }
     | ConstructorExpected(_) => InHole(WantConstructorFoundAp)
-    | TupleExpected => InHole(DotOperatorRequiresTuple)
     | LabelExpected(_) => InHole(WantLabel)
     | TypeExpected => InHole(WantTypeFoundAp)
     }
   | Label(name) =>
     switch (expects) {
     | TypeExpected => NotInHole(Type(ty))
-    | TupleExpected => InHole(DotOperatorRequiresTuple)
     | LabelExpected(Unique, _) => NotInHole(Type(ty))
     | LabelExpected(Duplicate, dupes) =>
       List.exists(l => name == l, dupes)
@@ -656,26 +646,9 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
     | ConstructorExpected(_)
     | VariantExpected(_) => InHole(WantConstructorFoundType(ty))
     }
-  | Prod(ts) =>
-    switch (expects) {
-    | TypeExpected
-    | TupleExpected =>
-      let duplicate_labels =
-        LabeledTuple.get_duplicate_labels(Typ.match_tup_label, ts);
-
-      if (duplicate_labels == []) {
-        NotInHole(Type(ty));
-      } else {
-        InHole(DuplicateLabels(duplicate_labels, ty));
-      };
-    | LabelExpected(_) => InHole(WantLabel)
-    | ConstructorExpected(_)
-    | VariantExpected(_) => InHole(WantConstructorFoundType(ty))
-    }
   | _ =>
     switch (expects) {
     | TypeExpected => NotInHole(Type(ty))
-    | TupleExpected => InHole(DotOperatorRequiresTuple)
     | LabelExpected(_) => InHole(WantLabel)
     | ConstructorExpected(_)
     | VariantExpected(_) => InHole(WantConstructorFoundType(ty))

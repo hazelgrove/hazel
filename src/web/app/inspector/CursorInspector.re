@@ -376,7 +376,6 @@ let typ_err_view = (~globals, ok: Info.error_typ) => {
   | WantConstructorFoundAp
   | WantConstructorFoundType(_) => [text("Expected a constructor")]
   | WantTypeFoundAp => [text("Must be part of a sum type")]
-  | DotOperatorRequiresTuple => [text("Expect a valid tuple")]
   | WantLabel => [text("Expect a valid label")]
   | DuplicateLabels(labels, _) => [
       text("Duplicate labels within tuple: "),
