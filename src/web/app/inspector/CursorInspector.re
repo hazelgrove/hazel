@@ -135,18 +135,6 @@ let common_err_view =
         view_any(label),
       ]
     | NoType(FreeConstructor(name)) => [code(name), text("not found")]
-    | NoType(DotOperatorRequiresTuple) => [
-        text("Requires tuple for first argument"),
-      ]
-    | NoType(TupleExtensionRequiresTuples) => [
-        text("Requires tuples for both arguments"),
-      ]
-    | NoType(LabelNotFound(name, labels)) => [
-        text("Label "),
-        code(name),
-        text(" not found in tuple's labels: "),
-        ...List.map(code, labels),
-      ]
 
     | NoType(InvalidLabel(name)) => [text("Invalid label:"), code(name)]
     | TupleLabelError({malformed_labels, duplicate_labels, invalid_labels, _}) =>
@@ -505,6 +493,9 @@ let rec exp_view =
       text("inconsistent with"),
       view_type(Prod([]) |> Typ.fresh),
     ])
+  | InHole(TupleExtensionRequiresTuples) =>
+    div_err([text("Requires tuples for both arguments")])
+
   | InHole(DotOperatorRequiresTuple) =>
     div_err([text("Requires tuple for first argument")])
   | InHole(Common(error)) =>

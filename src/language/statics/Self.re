@@ -40,7 +40,6 @@ type t =
       typ: Typ.t,
     }) /* Tuple/TupLabel contains malformed labels, duplicate labels, and/or invalid labels */
   | IsMulti /* Multihole, treated as hole */
-  | TupleExtensionRequiresTuples /* Want two Tuples, found not-tuples */
   | FreeConstructor(Constructor.t); /* Constructor not bound in context or ana type */
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -76,6 +75,7 @@ type exp =
     })
   | BadTrivAp(Typ.t) /* Trivial (nullary) ap on function that doesn't take triv */
   | DotOperatorRequiresTuple /* Want a Tuple, found not-tuple */
+  | TupleExtensionRequiresTuples /* Want two Tuples, found not-tuples */
   | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label)) /* Currently used by the dot operator for a label not found */
   | BadOperator(string) /* Invalid operator, continues with undefined behavior */
   | BadLivelitModel(Typ.t); /* Livelit model type is not valid */
@@ -113,8 +113,7 @@ let typ_of: t => option(Typ.t) =
   | Duplicate(_)
   | BadLabel(_)
   | InvalidLabel(_)
-  | NoJoin(_)
-  | TupleExtensionRequiresTuples => None;
+  | NoJoin(_) => None;
 
 let typ_of_exp: exp => option(Typ.t) =
   fun
@@ -125,7 +124,8 @@ let typ_of_exp: exp => option(Typ.t) =
   | BadTrivAp(_)
   | LabelNotFound(_)
   | BadOperator(_)
-  | DotOperatorRequiresTuple => None
+  | DotOperatorRequiresTuple
+  | TupleExtensionRequiresTuples => None
   | Common(self) => typ_of(self)
   | InvalidUseMode({inner_typ, _}) => Some(inner_typ)
   | IsLivelitName({exp_t, _}) => Some(exp_t)
