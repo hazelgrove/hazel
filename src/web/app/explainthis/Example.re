@@ -150,9 +150,9 @@ let linebreak = () => mk_secondary(Form.linebreak);
 let space = () => mk_secondary(Form.space);
 
 let mk_example = str => {
-  switch (Printer.zipper_of_string(str)) {
+  switch (Parser.to_segment(str)) {
   | None => []
-  | Some(z) => Zipper.zip(z)
+  | Some(seg) => seg
   };
 };
 
