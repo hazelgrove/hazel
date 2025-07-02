@@ -367,7 +367,6 @@ module Transition = (EV: EV_MODE) => {
       and. d2' =
         req_final(req(state, env), d2 => Ap2(dir, d1, d2) |> wrap_ctx, d2);
       let-unbox unboxed_fun = (Fun, d1');
-
       switch (unboxed_fun) {
       | Constructor(_) => Constructor
       | FunEnv(dp, d3, function_lexical_env) =>
