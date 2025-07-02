@@ -34,7 +34,7 @@ let traverse = (f: 'a => option('b), l: list('a)): option(list('b)) =>
   );
 
 let sequence = (l: list(option('a))): option(list('a)) =>
-  List.fold_right(map2((x, xs) => [x, ...xs]), l, Some([]));
+  traverse(Fun.id, l);
 
 let and_then = (f, o) => Option.bind(o, f);
 
