@@ -239,7 +239,33 @@ and uexp_to_info_map =
     );
   let go_pat = upat_to_info_map(~ctx, ~ancestors, ~duplicates);
   let go_typ = utyp_to_info_map(~ctx, ~ancestors);
-
+  let label_to_info_map =
+      (labmode, label: Exp.t, m: Map.t): (Info.exp, Map.t) => {
+    switch (label.term, expected_labels) {
+    | (Label(name), Some(expected_labels))
+        when !List.mem(name, expected_labels) =>
+      go(
+        ~ana=labmode,
+        ~override_self=Common(InvalidLabel(name)),
+        ~label_sort=true,
+        ~duplicates,
+        label,
+        m,
+      )
+    | (Label(_), _)
+    | (EmptyHole, _) =>
+      go(~ana=labmode, ~label_sort=true, ~duplicates, label, m)
+    | _ =>
+      go(
+        ~ana=labmode,
+        ~override_self=Common(BadLabel(Exp(label))),
+        ~label_sort=true,
+        ~duplicates,
+        label,
+        m,
+      )
+    };
+  };
   // This lifts an expression into a singleton labeled tuple by rewriting the syntax in the Statics Map
   let autolabel_singleton_tuple = (uexp: Exp.t, inner_ty, l, m) => {
     let (term, rewrap) = Exp.unwrap(uexp);
@@ -589,42 +615,13 @@ and uexp_to_info_map =
       let (lab, e, m) =
         switch (Typ.matched_label(ctx, ana)) {
         | Some((labmode, val_mode)) =>
-          let label_self: option(Self.exp) =
-            switch (label.term) {
-            | Label(_)
-            | EmptyHole => None
-            | _ => Some(Common(BadLabel(Exp(label))))
-            };
+          let (lab, m) = label_to_info_map(labmode, label, m);
 
-          let (lab, m) =
-            go(
-              ~ana=labmode,
-              ~override_self=?label_self,
-              ~label_sort=true,
-              ~duplicates,
-              label,
-              m,
-            );
           let (e, m) = go(~ana=val_mode, ~inferred_label?, e, m);
           (lab, e, m);
         | _ =>
           let (lab, m) =
-            go(
-              ~ana=Unknown(Internal) |> Typ.temp,
-              ~override_self=?
-                switch (label.term, expected_labels) {
-                | (Label(name), Some(expected_labels))
-                    when !List.mem(name, expected_labels) =>
-                  Some(Common(InvalidLabel(name)))
-                | (Label(_), _)
-                | (EmptyHole, _) => None
-                | _ => Some(Common(BadLabel(Exp(label))))
-                },
-              ~duplicates,
-              ~label_sort=true,
-              label,
-              m,
-            );
+            label_to_info_map(Unknown(SynSwitch) |> Typ.temp, label, m);
 
           let (e, m) =
             go(~ana=Unknown(Internal) |> Typ.temp, ~inferred_label?, e, m);
