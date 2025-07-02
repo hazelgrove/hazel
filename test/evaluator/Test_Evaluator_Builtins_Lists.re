@@ -185,19 +185,19 @@ let tests = (
       parse_and_evaluate_test({|[]|}, {|init(0, fun i -> i)|})
     ),
     test_case("slice middle of list", `Quick, () =>
-      parse_and_evaluate_test({|[2, 3, 4]|}, {|slice(1, 3, [1, 2, 3, 4, 5])|})
+      parse_and_evaluate_test({|[2, 3, 4]|}, {|slice(1, 4, [1, 2, 3, 4, 5])|})
     ),
     test_case("slice from beginning", `Quick, () =>
       parse_and_evaluate_test({|[1, 2, 3]|}, {|slice(0, 3, [1, 2, 3, 4, 5])|})
     ),
     test_case("slice to end", `Quick, () =>
-      parse_and_evaluate_test({|[3, 4, 5]|}, {|slice(2, 3, [1, 2, 3, 4, 5])|})
+      parse_and_evaluate_test({|[3, 4, 5]|}, {|slice(2, 5, [1, 2, 3, 4, 5])|})
     ),
     test_case("slice empty result", `Quick, () =>
-      parse_and_evaluate_test({|[]|}, {|slice(5, 2, [1, 2, 3, 4, 5])|})
+      parse_and_evaluate_test({|[]|}, {|slice(5, 7, [1, 2, 3, 4, 5])|})
     ),
     test_case("slice with length 0", `Quick, () =>
-      parse_and_evaluate_test({|[]|}, {|slice(1, 0, [1, 2, 3, 4, 5])|})
+      parse_and_evaluate_test({|[]|}, {|slice(1, 1, [1, 2, 3, 4, 5])|})
     ),
     test_case("filter_map with Some values", `Quick, () =>
       parse_and_evaluate_test(

@@ -97,7 +97,6 @@ let builtins = [
   {
     str: {|fix filter -> fun xs f -> case xs
              | [] => []
-             | [x] => if f(x) then [x] else []
              | x :: xs => if f(x) then x :: filter(f, xs) else filter(f, xs)
            end|},
     name: "filter",
@@ -115,14 +114,6 @@ let builtins = [
                 var("xs"),
                 [
                   (Pat.list_lit([]), list_lit([])),
-                  (
-                    Pat.list_lit([Pat.var("x")]),
-                    if_(
-                      ap(Forward, var("f"), var("x")),
-                      list_lit([var("x")]),
-                      list_lit([]),
-                    ),
-                  ),
                   (
                     Pat.cons(Pat.var("x"), Pat.var("xs")),
                     if_(
@@ -156,7 +147,6 @@ let builtins = [
   {
     str: {|fix fold_left -> fun xs f acc -> case xs
              | [] => acc
-             | [x] => f(acc, x)
              | x :: xs => fold_left(xs, f, f(acc, x))
            end|},
     name: "fold_left",
@@ -181,10 +171,6 @@ let builtins = [
                 var("xs"),
                 [
                   (Pat.list_lit([]), var("acc")),
-                  (
-                    Pat.list_lit([Pat.var("x")]),
-                    ap(Forward, var("f"), tuple([var("acc"), var("x")])),
-                  ),
                   (
                     Pat.cons(Pat.var("x"), Pat.var("xs")),
                     ap(
@@ -213,8 +199,8 @@ let builtins = [
     },
   },
   {
-    str: {|fix flat_map -> fun (xs, f) -> fold_left(xs, fun (acc,x) -> acc @ f(x), []))([1,2],fun x ->[x,x])|},
-    name: "flat_map", //TODO: weird string content above
+    str: {|fix flat_map -> fun (xs, f) -> fold_left(xs, fun (acc,x) -> acc @ f(x), []))|},
+    name: "flat_map",
     arg:
       Prod([
         list(unknown(Internal)),
@@ -352,6 +338,7 @@ let builtins = [
              | [] => []
              | x :: xs => reverse(xs) @ [x]
            end|},
+    /* Faster (possibly) than tail-rec variant in medium-length cases since @ is builtin */
     name: "reverse",
     arg: List(unknown(Internal)),
     ret: List(unknown(Internal)),
@@ -385,9 +372,10 @@ let builtins = [
     },
   },
   {
-    str: {|fix take -> fun (xs, n) -> case xs
+    str: {|fix take -> fun (xs, n) ->
+             if n <= 0 then []
+             else case xs
              | [] => []
-             | _ => if n <= 0 then [] else case xs
              | x :: xs => x :: take(xs, n - 1)
            end|},
     name: "take",
@@ -400,37 +388,29 @@ let builtins = [
             Pat.var("take"),
             fn(
               Pat.tuple([Pat.var("xs"), Pat.var("n")]),
-              match(
-                var("xs"),
-                [
-                  (Pat.list_lit([]), list_lit([])),
-                  (
-                    Pat.wild(),
-                    if_(
-                      bin_op(Int(LessThanOrEqual), var("n"), int(0)),
-                      list_lit([]),
-                      match(
-                        var("xs"),
-                        [
-                          (
-                            Pat.cons(Pat.var("x"), Pat.var("xs")),
-                            cons(
-                              var("x"),
-                              ap(
-                                Forward,
-                                var("take"),
-                                tuple([
-                                  var("xs"),
-                                  bin_op(Int(Minus), var("n"), int(1)),
-                                ]),
-                              ),
-                            ),
-                          ),
-                        ],
+              if_(
+                bin_op(Int(LessThanOrEqual), var("n"), int(0)),
+                list_lit([]),
+                match(
+                  var("xs"),
+                  [
+                    (Pat.list_lit([]), list_lit([])),
+                    (
+                      Pat.cons(Pat.var("x"), Pat.var("xs")),
+                      cons(
+                        var("x"),
+                        ap(
+                          Forward,
+                          var("take"),
+                          tuple([
+                            var("xs"),
+                            bin_op(Int(Minus), var("n"), int(1)),
+                          ]),
+                        ),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               None,
               None,
@@ -442,11 +422,11 @@ let builtins = [
     },
   },
   {
-    str: {|fix drop -> fun (xs, n) -> case xs
+    str: {|fix drop -> fun (xs, n) ->
+             if n <= 0 then xs else case xs
              | [] => []
-             | _ => if n <= 0 then xs else case xs
-               | x :: xs => drop(xs, n - 1)
-             end|},
+             | x :: xs => drop(xs, n - 1)
+           end|},
     name: "drop",
     arg: Prod([list(unknown(Internal)), int()]),
     ret: List(unknown(Internal)),
@@ -457,34 +437,26 @@ let builtins = [
             Pat.var("drop"),
             fn(
               Pat.tuple([Pat.var("xs"), Pat.var("n")]),
-              match(
+              if_(
+                bin_op(Int(LessThanOrEqual), var("n"), int(0)),
                 var("xs"),
-                [
-                  (Pat.list_lit([]), list_lit([])),
-                  (
-                    Pat.wild(),
-                    if_(
-                      bin_op(Int(LessThanOrEqual), var("n"), int(0)),
-                      var("xs"),
-                      match(
-                        var("xs"),
-                        [
-                          (
-                            Pat.cons(Pat.var("x"), Pat.var("xs")),
-                            ap(
-                              Forward,
-                              var("drop"),
-                              tuple([
-                                var("xs"),
-                                bin_op(Int(Minus), var("n"), int(1)),
-                              ]),
-                            ),
-                          ),
-                        ],
+                match(
+                  var("xs"),
+                  [
+                    (Pat.list_lit([]), list_lit([])),
+                    (
+                      Pat.cons(Pat.var("x"), Pat.var("xs")),
+                      ap(
+                        Forward,
+                        var("drop"),
+                        tuple([
+                          var("xs"),
+                          bin_op(Int(Minus), var("n"), int(1)),
+                        ]),
                       ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
               None,
               None,
@@ -532,11 +504,12 @@ let builtins = [
     },
   },
   {
-    str: {|fix enumerate -> fun xs -> enumerate_helper(xs, 0)
-           fix enumerate_helper -> fun (xs, index) -> case xs
+    str: {|fix enumerate ->
+             fun xs -> (fix enumerate_helper -> fun (xs, index) -> case xs
              | [] => []
-             | x :: xs => (index, x) :: enumerate_helper(xs, index + 1)
-           end|},
+             | x :: xs => (index, x) :: enumerate_helper((xs, index + 1))
+           end)((xs, 0))
+           |},
     name: "enumerate",
     arg: List(unknown(Internal)),
     ret: List(prod([int(), unknown(Internal)])),
@@ -1140,41 +1113,29 @@ let builtins = [
     },
   },
   {
-    str: {|fix mem -> fun (xs, x) -> case xs
-             | [] => false
-             | y :: xs => if x == y then true else mem(xs, x)
-           end|},
+    str: {|fun (xs, x) -> any(xs, fun t -> x == t)|},
     name: "mem",
     arg: Prod([list(unknown(Internal)), unknown(Internal)]),
     ret: Atom(Bool),
     imp: {
       Fresh.(
         Exp.(
-          fix_f(
-            Pat.var("mem"),
-            fn(
-              Pat.tuple([Pat.var("xs"), Pat.var("x")]),
-              match(
+          fn(
+            Pat.tuple([Pat.var("xs"), Pat.var("x")]),
+            ap(
+              Forward,
+              var("any"),
+              tuple([
                 var("xs"),
-                [
-                  (Pat.list_lit([]), bool(false)),
-                  (
-                    Pat.cons(Pat.var("y"), Pat.var("xs")),
-                    if_(
-                      bin_op(Int(Equals), var("x"), var("y")),
-                      bool(true),
-                      ap(
-                        Forward,
-                        var("mem"),
-                        tuple([var("xs"), var("x")]),
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              None,
-              None,
+                fn(
+                  Pat.var("t"),
+                  bin_op(Int(Equals), var("x"), var("t")),
+                  None,
+                  None,
+                ),
+              ]),
             ),
+            None,
             None,
           )
         )
@@ -2634,7 +2595,7 @@ let go: ([?], [?], [?]) -> [?] =
     },
   },
   {
-    str: {|fix slice -> fun (start, len, xs) -> take(drop(xs, start),len)|},
+    str: {|fix slice -> fun (start, end, xs) -> take(drop(xs, start), end - start)|},
     name: "slice",
     arg: Prod([int(), int(), list(unknown(Internal))]),
     ret: List(unknown(Internal)),
@@ -2644,7 +2605,7 @@ let go: ([?], [?], [?]) -> [?] =
           fix_f(
             Pat.var("slice"),
             fn(
-              Pat.tuple([Pat.var("start"), Pat.var("len"), Pat.var("xs")]),
+              Pat.tuple([Pat.var("start"), Pat.var("end"), Pat.var("xs")]),
               ap(
                 Forward,
                 var("take"),
@@ -2654,7 +2615,7 @@ let go: ([?], [?], [?]) -> [?] =
                     var("drop"),
                     tuple([var("xs"), var("start")]),
                   ),
-                  var("len"),
+                  bin_op(Int(Minus), var("end"), var("start")),
                 ]),
               ),
               None,

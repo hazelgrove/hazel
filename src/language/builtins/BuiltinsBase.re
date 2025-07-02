@@ -302,6 +302,15 @@ let string_fns: list(BuiltinsUtil.fn) = [
     },
   },
   {
+    name: "string_unescaped",
+    arg: Atom(String),
+    ret: Atom(String),
+    imp: d => {
+      let-unbox s = (Atom(String), d);
+      Some(Exp.string(Scanf.unescaped(s)));
+    },
+  },
+  {
     name: "string_uppercase",
     arg: Atom(String),
     ret: Atom(String),
