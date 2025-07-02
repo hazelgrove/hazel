@@ -19,7 +19,7 @@ let get_sketch_and_error_ctx =
   let ctx =
     [
       "PROGRAM SKETCH: ```"
-      ++ ErrorPrint.Print.seg(~holes=Some("?"), sketch_seg)
+      ++ ErrorPrint.Print.seg(~holes="?", sketch_seg)
       ++ "```",
     ]
     @ ["STATIC ERRORS: "]
@@ -137,11 +137,7 @@ module Completion = {
     OpenRouter.mk_user_msg(
       String.concat(
         "\n",
-        [
-          "sketch: ```"
-          ++ ErrorPrint.Print.seg(~holes=Some("?"), sketch)
-          ++ "```",
-        ]
+        ["sketch: ```" ++ ErrorPrint.Print.seg(~holes="?", sketch) ++ "```"]
         @ get_static_context(
             options.expected_type,
             options.relevant_ctx,
@@ -203,7 +199,7 @@ module Composition = {
           ++ (
             String.length(
               ErrorPrint.Print.seg(
-                ~holes=Some("?"),
+                ~holes="?",
                 editor.editor.state.zipper.selection.content,
               ),
             )
@@ -211,7 +207,7 @@ module Composition = {
               ? "None. Use a goto_* command to select a code segment."
               : "```"
                 ++ ErrorPrint.Print.seg(
-                     ~holes=Some("?"),
+                     ~holes="?",
                      editor.editor.state.zipper.selection.content,
                    )
                 ++ "```"
@@ -383,7 +379,7 @@ module ErrorRound = {
       | [_, ..._] as orphans =>
         let orphans =
           List.map(
-            (s: Selection.t) => Printer.of_segment(~holes=None, s.content),
+            (s: Selection.t) => Printer.of_segment(~holes="", s.content),
             orphans,
           );
         Error(
