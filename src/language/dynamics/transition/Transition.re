@@ -253,7 +253,6 @@ module Transition = (EV: EV_MODE) => {
       let.wrap_closure _ = env;
       let {matches, closures} = matches(dp, d1');
       let.match env' = (env, matches, env.call_stack);
-
       Step({
         expr: subst_env(env', d2),
         state_update: capture_closures(env, state, closures),
