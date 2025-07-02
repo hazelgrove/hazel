@@ -468,9 +468,3 @@ let pair_fns: list(BuiltinUtil.fn) = [
     },
   },
 ];
-
-let builtins =
-  concat(
-    of_list_fn(numeric_fns @ string_fns @ pair_fns),
-    of_list_const(numeric_constants),
-  );

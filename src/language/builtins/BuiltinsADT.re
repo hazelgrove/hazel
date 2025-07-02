@@ -188,6 +188,5 @@ let constructors: Ctx.t = {
   );
 };
 
-let entries = constructors.entries @ types;
-
 let builtins = Option.builtins;
+let constructor_entries = constructors.entries @ types;

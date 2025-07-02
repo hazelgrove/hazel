@@ -284,9 +284,6 @@ and Exp: {
   };
 
   let rec fast_equal = (~ignore_constructor_types: bool=false, e1: t, e2: t) => {
-    print_endline(
-      "Ignore constructor types: " ++ string_of_bool(ignore_constructor_types),
-    );
     let fast_equal = fast_equal(~ignore_constructor_types);
     switch (e1 |> Grammar.Annotated.term_of, e2 |> Grammar.Annotated.term_of) {
     | (DynamicErrorHole(x, _), _)
