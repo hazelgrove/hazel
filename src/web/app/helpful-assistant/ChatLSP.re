@@ -375,27 +375,33 @@ module ErrorRound = {
   let get_parse_errs =
       (sketch_z: Zipper.t, completion: string): Result.t(Zipper.t, string) =>
     //NOTE: This function is pretty basic; reporting approach could be improved
-    switch (
-      {
-        let* sketch_z = Destruct.go(Left, sketch_z);
-        let* sketch_z = Destruct.go(Left, sketch_z);
-        Perform.paste(sketch_z, completion);
-      }
-    ) {
+    /* For now we required that the completion be complete in-itself: */
+    switch (Perform.paste(Zipper.init(), completion)) {
     | None => Error("Undocumented parse error, no feedback available")
     | Some(completion_z) =>
-      switch (
-        completion_z.backpack
-        |> List.map((s: Selection.t) =>
-             Printer.of_segment(~holes=None, s.content)
-           )
-      ) {
+      switch (completion_z.backpack) {
       | [_, ..._] as orphans =>
+        let orphans =
+          List.map(
+            (s: Selection.t) => Printer.of_segment(~holes=None, s.content),
+            orphans,
+          );
         Error(
-          "The parser has detected the following unmatched delimiters:. The presence of a '=>' in the list likely indicates that a '->' was mistakingly used in a case expression: "
+          "The parser has detected unmatched delimiters. (The presence of a '=>' in the list likely indicates that a '->' was mistakingly used in a case expression). Unmatched delimiters: "
           ++ String.concat(", ", orphans),
-        )
-      | [] => Ok(completion_z)
+        );
+      | [] =>
+        let segment = Zipper.zip(completion_z);
+        switch (
+          {
+            let* sketch_z = Destruct.go(Left, sketch_z);
+            let+ sketch_z = Destruct.go(Left, sketch_z);
+            Perform.paste_segment(sketch_z, segment);
+          }
+        ) {
+        | None => Error("Undocumented parse error, no feedback available")
+        | Some(completion_z) => Ok(completion_z)
+        };
       }
     };
 
