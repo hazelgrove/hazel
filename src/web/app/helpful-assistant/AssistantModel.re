@@ -152,7 +152,7 @@ let parse_blocks = (response: string): list(block_kind) => {
 
 let mk_message_display = (~content: string, ~role: role): display => {
   {
-    displayable_content: parse_blocks(content),
+    displayable_content: [Text(content)],
     original_content: content,
     role,
     collapsed:
