@@ -1,6 +1,6 @@
 open Util;
 open OptUtil.Syntax;
-open BuiltinUtil;
+open BuiltinsUtil;
 
 module Fresh = IdTagged.FreshGrammar;
 
@@ -46,7 +46,7 @@ let numeric_constants =
     },
   ];
 
-let numeric_fns: list(BuiltinUtil.fn) = [
+let numeric_fns: list(BuiltinsUtil.fn) = [
   {
     name: "is_finite",
     arg: Atom(Float),
@@ -262,7 +262,7 @@ let numeric_fns: list(BuiltinUtil.fn) = [
   },
 ];
 
-let string_fns: list(BuiltinUtil.fn) = [
+let string_fns: list(BuiltinsUtil.fn) = [
   {
     name: "string_length",
     arg: Atom(String),
@@ -442,7 +442,7 @@ let string_fns: list(BuiltinUtil.fn) = [
   },
 ];
 
-let pair_fns: list(BuiltinUtil.fn) = [
+let pair_fns: list(BuiltinsUtil.fn) = [
   {
     name: "fst",
     arg: Prod([unknown(Internal), unknown(Internal)]),

@@ -1,4 +1,4 @@
-open BuiltinUtil;
+open BuiltinsUtil;
 
 /* Built-in functions for Hazel.
    Update src/menhirParser/Lexer.mll when any new builtin is added */
