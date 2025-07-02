@@ -475,17 +475,16 @@ module Trim = {
 
   let add_grout = (~d: Direction.t, shape: Nib.Shape.t, (wss, gs): t): t => {
     let g = Grout.mk_fits_shape(shape);
-    /* When adding a grout to the left, consume a space. Note
-       changes made to the logic here should also take into
+    /* When adding a concave grout to the left, consume a space.
+       Note changes made to the logic here should also take into
        account the other direction in 'regrout' below */
     let wss' =
-      switch (d) {
+      switch (g.shape, d) {
+      /* Left Concave e.g. Insert "i" `let a = 1 i|` => `let a = 1><i|` (Consume) */
+      | (Concave, Left) => rm_up_to_one_space(wss)
       /* Right Convex e.g. Backspace `1| + 2` => `|<> + 2` (Don't consume) */
       /* Right Concave e.g. Backspace `1 +| 1` => `1 |>< 1` (Don't consume) */
-      | Right => wss
-      /* Left Convex e.g. Insert Space `[|]` => `[ |]` => `[<>|]` (Consume) */
-      /* Left Concave e.g. Insert "i" `let a = 1 i|` => `let a = 1><i|` (Consume) */
-      | Left => rm_up_to_one_space(wss)
+      | _ => wss
       };
     cons_g(g, (wss', gs));
   };
@@ -494,33 +493,30 @@ module Trim = {
   let regrout = (d: Direction.t, (l, r): Nibs.shapes, trim: t): t =>
     if (Nib.Shape.fits(l, r)) {
       let (wss, gs) = trim;
-      /* When removing a grout to the Left, add a space. Note
-         changes made to the logic here should also take into
-         account the other direction in 'add_grout' above */
       let new_spaces =
         List.filter_map(
           (g: Grout.t) => {
             switch (g.shape, d) {
             /* Left Concave e.g. `let a = 1><in|` => `let a = 1 in |` (Add) */
-            /* NOTE(andrew): Not sure why d here seems reversed. Also not sure why
-             * restriction to concave is necessary but seems to prevent addition
-             * of needless whitespace in some situation such as when inserting
-             * on `(|)`, which seems to add whitespace after the right parens
-             * without this shape restirction */
+            /* NOTE(andrew): Not sure why d here seems reversed. */
             | (Concave, Right) => Some(Secondary.mk_space(g.id))
             | _ => None
             }
           },
           gs,
         );
-      /* Note below that it is important that we add the new spaces
+      /* When removing a grout to the Left, add a space. Note
+         changes made to the logic here should also take into
+         account the other direction in 'add_grout' above.
+
+         Note below that it is important that we add the new spaces
          before the existing wss, as doing otherwise may result
          in the new spaces ending up leading a line. This approach is
          somewhat hacky; we may just want to remove all the spaces
          whenever there is a linebreak; not making this chance now
-         as I'm worried about it introducing subtle jank */
+         as I'm worried about it introducing subtle jank.
 
-      /* David PR comment:
+         David PR comment:
          All these changes assume the trim is ordered left-to-right,
          but this may not be true when Trim.regrout is called by
          regrout_affix(Left, ...) below, which reverses the affix before
@@ -532,8 +528,7 @@ module Trim = {
          Similar threading for add_grout. That said, I couldn't trigger any
          undesirable behavior with these changes and am fine with going ahead
          with this for now. */
-      let wss = [new_spaces @ List.concat(wss)];
-      Aba.mk(wss, []);
+      Aba.mk([new_spaces @ List.concat(wss)], []);
     } else {
       let (_, gs) as merged = merge(trim);
       switch (gs) {
