@@ -45,6 +45,18 @@ let paste = (z: Zipper.t, str: string): option(Zipper.t) => {
   remold_regrout(Left, z);
 };
 
+let paste_segment = (z: Zipper.t, segment: Segment.t): Zipper.t => {
+  let replace_selection = (z, focus, segment): Zipper.t =>
+    {
+      ...z,
+      selection: Selection.mk(~focus, segment),
+    }
+    |> Zipper.unselect
+    |> Zipper.remold_regrout(Util.Direction.Right)
+    |> Zipper.remold_regrout(Util.Direction.Left);
+  replace_selection(z, z.selection.focus, segment);
+};
+
 let go_z =
     (
       ~settings as _: Language.CoreSettings.t,
@@ -56,18 +68,6 @@ let go_z =
     : Action.Result.t(Zipper.t) => {
   module Move = Move.Make(M);
   module Select = Select.Make(M);
-
-  let paste_segment = (z: Zipper.t, segment: Segment.t): Zipper.t => {
-    let replace_selection = (z, focus, segment): Zipper.t =>
-      {
-        ...z,
-        selection: Selection.mk(~focus, segment),
-      }
-      |> Zipper.unselect
-      |> Zipper.remold_regrout(Util.Direction.Right)
-      |> Zipper.remold_regrout(Util.Direction.Left);
-    replace_selection(z, z.selection.focus, segment);
-  };
 
   let buffer_accept = (z): option(Zipper.t) =>
     switch (z.selection.mode) {
