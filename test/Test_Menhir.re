@@ -14,7 +14,7 @@ let strip_Wrap_and_add_builtins =
         | Parens(e)
         | Probe(e, _) => cont(e)
         | Var(x) =>
-          let builtin = Util.VarMap.lookup(Builtins.Pervasives.builtins, x);
+          let builtin = Util.VarMap.lookup(Builtins.builtins, x);
           cont(
             switch (builtin) {
             | Some(Fn(_, _, _)) => cont(Fresh.Exp.builtin_fun(x))
