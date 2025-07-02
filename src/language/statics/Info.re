@@ -50,12 +50,6 @@ type error_no_type =
   | BadToken(string)
   /* Sum constructor neiter bound nor in ana type */
   | FreeConstructor(Constructor.t)
-  /* Dot operator requires the left-hand argument to be a tuple */
-  | DotOperatorRequiresTuple // TODO Should be exp only
-  /* Tuple extension requires both arguments to be tuples */
-  | TupleExtensionRequiresTuples // TODO Should be exp only
-  /* Label not found in tuple for dot operator */
-  | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label)) // TODO Should be exp only
   /* Sort error used as label in tuple */
   | BadLabel(Any.t)
   /* Invalid label in tuple */
@@ -96,6 +90,8 @@ type error_exp =
   | BadTrivAp(Typ.t)
   /* Dot Operator is ill-formed */
   | DotOperatorRequiresTuple
+  /* Tuple extension requires both arguments to be tuples */
+  | TupleExtensionRequiresTuples // TODO Should be exp only
   /* Invalid operator for current use mode, treated as hole */
   | BadOperator(string)
   /* Label not found in tuple for dot operator */
@@ -491,8 +487,6 @@ let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
         ),
       )
     };
-  | (TupleExtensionRequiresTuples, _) =>
-    InHole(NoType(TupleExtensionRequiresTuples))
   };
 
 let rec status_pat = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.pat): status_pat =>
@@ -544,7 +538,7 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
       | InHole(Common(NoType(_)))
       | InHole(Common(TupleLabelError(_)))
       | InHole(Common(DuplicateLabel(_)))
-      | InHole(BuiltinError(_))
+      | InHole(TupleExtensionRequiresTuples)
       | InHole(
           FreeVariable(_) | InexhaustiveMatch(_) | UnusedDeferral |
           BadPartialAp(_) |
@@ -554,7 +548,8 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
           DotOperatorRequiresTuple |
           BadLivelitModel(_) |
           BadOperator(_) |
-          LabelNotFound(_),
+          LabelNotFound(_) |
+          BuiltinError(_),
         ) =>
         failwith("InHole(InexhaustiveMatch(impossible_err))")
       };
@@ -579,6 +574,7 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
     | Some(_livelit) =>
       NotInHole(Common(Syn(Unknown(Internal) |> Typ.temp)))
     };
+  | TupleExtensionRequiresTuples => InHole(TupleExtensionRequiresTuples)
   | BadTrivAp(ty) => InHole(BadTrivAp(ty))
   | BadOperator(op) => InHole(BadOperator(op))
   | LabelNotFound(label, labels) => InHole(LabelNotFound(label, labels))
@@ -748,9 +744,6 @@ let fixed_typ_err_common: error_common => Typ.t =
     ])
     |> Typ.temp
   | NoType(BadToken(_))
-  | NoType(DotOperatorRequiresTuple)
-  | NoType(TupleExtensionRequiresTuples)
-  | NoType(LabelNotFound(_))
   | NoType(BadLabel(_))
   | NoType(InvalidLabel(_)) => Unknown(Internal) |> Typ.temp
   | TupleLabelError({typ, _})
@@ -771,6 +764,7 @@ let fixed_typ_err: error_exp => Typ.t =
   | DotOperatorRequiresTuple
   | BadOperator(_)
   | LabelNotFound(_, _)
+  | TupleExtensionRequiresTuples
   | BuiltinError(ProjectLabelsNonLabels(_))
   | BuiltinError(ProjectLabelsMissingLabels(_))
   | BuiltinError(ProjectLabelsFirstArgNotTuple)

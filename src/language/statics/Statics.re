@@ -475,7 +475,7 @@ and uexp_to_info_map =
           ~co_ctx=CoCtx.empty,
           m,
         )
-      | _ => add(~self=TupleExtensionRequiresTuples, ~co_ctx=CoCtx.empty, m)
+      | _ => add'(~self=TupleExtensionRequiresTuples, ~co_ctx=CoCtx.empty, m)
       };
 
     | Tuple(es) =>
