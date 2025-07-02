@@ -2050,12 +2050,6 @@ let get_doc =
               int_greater_than_equal,
               int_gte_exp_coloring_ids,
             )
-          /* | Nat(Equals)
-             | SInt(Equals)
-             | Poly(Equals) => (int_equal, int_eq_exp_coloring_ids)
-             | Nat(NotEquals)
-             | SInt(NotEquals)
-             | Int(NotEquals) => (int_not_equal, int_neq_exp_coloring_ids) */
           | Float(Plus) => (float_plus, float_plus_exp_coloring_ids)
           | Float(Minus) => (float_minus, float_minus_exp_coloring_ids)
           | Float(Times) => (float_times, float_times_exp_coloring_ids)

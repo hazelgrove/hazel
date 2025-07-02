@@ -103,10 +103,7 @@ module PlainTests = {
     Exp.(
       match(
         bin_op(Poly(Equals), int(4), int(3)),
-        [
-          (Pat.bool(true), asc(int(24), Typ.int())),
-          (Pat.bool(false), asc(bool(false), Typ.bool())),
-        ],
+        [(Pat.bool(true), int(24)), (Pat.bool(false), bool(false))],
       )
     );
 
@@ -388,7 +385,7 @@ module PlainTests = {
     test_case("Consistent if statement", `Quick, consistent_if),
     test_case("An unapplied function", `Quick, unapplied_function),
     test_case("Application of function on free variable", `Quick, ap_fun),
-    /* test_case("Inconsistent case statement", `Quick, inconsistent_case), */
+    test_case("Inconsistent case statement", `Quick, inconsistent_case),
     test_case("Let expression for a function", `Quick, let_fun),
     test_case(
       "Function application with a deferred argument",
@@ -751,20 +748,20 @@ module MenhirElaborationTests = {
     | false => false
     end
 ";
-  /* let inconsistent_case_uexp: Exp.t =
-     Exp.(
-       match(
-         bin_op(Poly(Equals), int(4), int(3)),
-         [(Pat.bool(true), int(24)), (Pat.bool(false), bool(false))],
-       )
-     ); */
+  let inconsistent_case_uexp: Exp.t =
+    Exp.(
+      match(
+        bin_op(Poly(Equals), int(4), int(3)),
+        [(Pat.bool(true), int(24)), (Pat.bool(false), bool(false))],
+      )
+    );
 
-  /* let inconsistent_case_menhir = () =>
-     alco_check_menhir(
-       "Inconsistent branches where the first branch is an integer and second branch is a boolean (menhir)",
-       inconsistent_case_menhir_str,
-       inconsistent_case_uexp,
-     ); */
+  let inconsistent_case_menhir = () =>
+    alco_check_menhir(
+      "Inconsistent branches where the first branch is an integer and second branch is a boolean (menhir)",
+      inconsistent_case_menhir_str,
+      inconsistent_case_uexp,
+    );
 
   //Consistent if statement menhir test
   let consistent_if_uexp: Exp.t = Exp.(if_(bool(false), int(8), int(6)));

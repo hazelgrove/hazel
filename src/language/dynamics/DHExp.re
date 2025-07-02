@@ -153,10 +153,11 @@ let rec ty_consistent = (d1, d2) => {
   | (UnOp(_), _)
   | (BinOp(_), _)
   | (Match(_), _)
-  | (Probe(_), _)
   | (Use(_), _)
   | (Dot(_), _)
   | (LivelitName(_), _) => false
+  | (Probe(d1, _), _) => ty_consistent(d1, d2)
+  | (_, Probe(d2, _)) => ty_consistent(d1, d2)
   | (Parens(d1), _) => ty_consistent(d1, d2)
   | (_, Parens(d2)) => ty_consistent(d1, d2)
   | (Asc(d1, _), _) => ty_consistent(d1, d2)
@@ -164,8 +165,12 @@ let rec ty_consistent = (d1, d2) => {
   // TODO(zhiyao): are we allowed to compare int/sint/nat?
   | (Atom(t1), Atom(t2)) =>
     switch (t1, t2) {
-    | (Int(_) | SInt(_) | Nat(_), Int(_) | SInt(_) | Nat(_)) => true
-    | (Int(_) | SInt(_) | Nat(_), _) => false
+    | (Int(_), Int(_)) => true
+    | (Int(_), _) => false
+    | (SInt(_), SInt(_)) => true
+    | (SInt(_), _) => false
+    | (Nat(_), Nat(_)) => true
+    | (Nat(_), _) => false
     | (Bool(_), Bool(_)) => true
     | (Bool(_), _) => false
     | (String(_), String(_)) => true
@@ -244,9 +249,9 @@ let rec ty_has_arrow = (d: t): bool =>
   | Dot(_)
   | LivelitName(_)
   | Atom(_)
-  | Probe(_)
   | Use(_)
   | Label(_) => false
+  | Probe(d, _)
   | Parens(d)
   | Asc(d, _)
   | TupLabel(_, d) => ty_has_arrow(d)
@@ -298,15 +303,29 @@ let rec poly_equal = (d1, d2): bool => {
   | (LivelitName(_), _)
   | (Fun(_), _)
   | (TypFun(_), _)
-  | (Probe(_), _)
   | (Use(_), _)
   | (BuiltinFun(_), _) => false
+  | (Probe(d1, _), _) => poly_equal(d1, d2)
+  | (_, Probe(d2, _)) => poly_equal(d1, d2)
   | (Parens(d1), _) => poly_equal(d1, d2)
   | (_, Parens(d2)) => poly_equal(d1, d2)
   | (Asc(d1, _), _) => poly_equal(d1, d2)
   | (_, Asc(d2, _)) => poly_equal(d1, d2)
-  // TODO(zhiyao): do we want to define equality for atom separately?
-  | (Atom(t1), Atom(t2)) => t1 == t2
+  | (Atom(t1), Atom(t2)) =>
+    switch (t1, t2) {
+    | (Int(n1), Int(n2)) => n1 == n2
+    | (Int(_), _) => false
+    | (SInt(n1), SInt(n2)) => n1 == n2
+    | (SInt(_), _) => false
+    | (Nat(n1), Nat(n2)) => n1 == n2
+    | (Nat(_), _) => false
+    | (Bool(b1), Bool(b2)) => b1 == b2
+    | (Bool(_), _) => false
+    | (String(s1), String(s2)) => s1 == s2
+    | (String(_), _) => false
+    | (Float(f1), Float(f2)) => f1 == f2
+    | (Float(_), _) => false
+    }
   | (Atom(_), _) => false
   | (Label(l1), Label(l2)) => l1 == l2
   | (Label(_), _) => false
