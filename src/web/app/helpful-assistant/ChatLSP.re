@@ -155,23 +155,12 @@ module Completion = {
       (
         ~response: string,
         ~tile: Id.t,
-        ~resuggest: bool,
         ~schedule_action: Editors.Update.t => unit,
       ) => {
-    let actions =
-      resuggest
-        ? [
-          //TODO: Performing two actions like this creates
-          //an extraneous undo state. maybe combine these somehow,
-          //eg put the ?? in the buffer immediately and then
-          //clobber it when a response is recieved
-          Action.Select(Tile(Id(tile, Direction.Left))),
-          Action.Buffer(Set(LLM(response))),
-        ]
-        : [
-          Action.Select(Tile(Id(tile, Direction.Left))),
-          Action.Buffer(Set(LLM(response))),
-        ];
+    let actions = [
+      Action.Select(Tile(Id(tile, Direction.Left))),
+      Action.Buffer(Set(LLM(response))),
+    ];
     // Apply each action in sequence
     List.iter(
       action => {
