@@ -14,7 +14,6 @@ let combine_result = (r1: match_result, r2: match_result): match_result =>
 
 let rec matches = (capture, dp: Pat.t, d: DHExp.t): match_result => {
   let matches = matches(capture);
-
   let d = Ascriptions.transition_multiple(d);
   switch (DHPat.term_of(dp)) {
   | Invalid(_)
@@ -52,7 +51,6 @@ let rec matches = (capture, dp: Pat.t, d: DHExp.t): match_result => {
     matches(x, x');
   | Tuple(ps) =>
     let* ds = Unboxing.unbox(Tuple(List.length(ps)), d);
-
     List.map2(matches, ps, ds)
     |> List.fold_left(combine_result, Matches(Environment.empty));
   | Parens(p) => matches(p, d)
