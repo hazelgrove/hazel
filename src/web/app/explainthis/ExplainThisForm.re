@@ -77,12 +77,7 @@ type numeric_bin_op_examples =
   | GreaterThanFalse
   | GreaterThanEqualGreater
   | GreaterThanEqualEqual
-  | GreaterThanEqualFalse
-  | EqualFalse
-  | EqualTrue
-  | PolyEqualFalse
-  | PolyEqualTrue
-  | PolyNotEqualTrue;
+  | GreaterThanEqualFalse;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type example_id =
@@ -118,6 +113,11 @@ type example_id =
   | IntUnaryMinus
   | Int(numeric_bin_op_examples)
   | Float(numeric_bin_op_examples)
+  | FloatEqualFalse
+  | FloatEqualTrue
+  | PolyEqualFalse
+  | PolyEqualTrue
+  | PolyNotEqualTrue
   | AndFalse
   | AndTrue
   | OrFalse
