@@ -377,6 +377,114 @@ let delete_body: API.Json.t =
     ),
   ]);
 
+let add_before: API.Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("add_before")),
+        (
+          "description",
+          `String(
+            "Adds the given code before the definition of the given variable name. Eg. add_before \"x\" \"let a = 3 in\\n\" will add ```let a = 3 in\\n``` before ```let x = 1 in``` given a program ```let y = 0 in\nlet x = 1 in\nx + y```, resulting in ```let y = 0 in\nlet a = 3 in\nlet x = 1 in\nx + y```.
+            If no variable name is provided, the code is added to the BEGINNING of the program, which may be useful for certain tasks.",
+          ),
+        ),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            (
+              "properties",
+              `Assoc([
+                (
+                  "variable_name",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "The name of the variable to have code added before its definition.",
+                      ),
+                    ),
+                  ]),
+                ),
+                (
+                  "code",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "The code to add before the definition of the variable.",
+                      ),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            ("required", `List([`String("code")])),
+          ]),
+        ),
+      ]),
+    ),
+  ]);
+
+let add_after: API.Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("add_after")),
+        (
+          "description",
+          `String(
+            "Adds the given code after the definition of the given variable name. Eg. add_after \"x\" \"let a = 3 in\\n\" will add ```let a = 3 in\\n``` after ```let x = 1 in``` given a program ```let y = 0 in\nlet x = 1 in\nx + y```, resulting in ```let y = 0 in\nlet x = 1 in\nlet a = 3 in\nx + y```.
+            If no variable name is provided, the code is added to the END of the program, which may be useful for certain tasks.",
+          ),
+        ),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            (
+              "properties",
+              `Assoc([
+                (
+                  "variable_name",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "The name of the variable to have code added after its definition.",
+                      ),
+                    ),
+                  ]),
+                ),
+                (
+                  "code",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "The code to add after the definition of the variable.",
+                      ),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            ("required", `List([`String("code")])),
+          ]),
+        ),
+      ]),
+    ),
+  ]);
+
 /*
  let goto_type_definition: API.Json.t =
    `Assoc([

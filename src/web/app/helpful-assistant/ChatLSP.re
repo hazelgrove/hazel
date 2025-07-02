@@ -155,21 +155,14 @@ module Completion = {
       (
         ~response: string,
         ~tile: Id.t,
-        ~resuggest: bool,
         ~schedule_action: Editors.Update.t => unit,
       ) => {
-    let actions =
-      resuggest
-        ? [
-          Action.Select(Tile(Id(tile, Direction.Left))),
-          Action.Buffer(Set(LLM(response))),
-        ]
-        : [
-          Action.Select(Tile(Id(tile, Direction.Left))),
-          Action.Destruct(Direction.Left),
-          Action.Insert(" "),
-          Action.Buffer(Set(LLM(response))),
-        ];
+    let actions = [
+      Action.Select(Tile(Id(tile, Direction.Left))),
+      Action.Destruct(Direction.Left),
+      Action.Insert(" "),
+      Action.Buffer(Set(LLM(response))),
+    ];
     // Apply each action in sequence
     List.iter(
       action => {
@@ -240,12 +233,19 @@ module Composition = {
     | Definition
     | All;
 
+  type code = string;
+
+  type loc_of_add =
+    | Before
+    | After;
+
   type edit_action =
-    | RenameVariable(string)
-    | UpdateDefinition(string)
-    | UpdateBody(string)
+    | RenameVariable(code)
+    | UpdateDefinition(code)
+    | UpdateBody(code)
     | DeleteVariable
-    | DeleteBody;
+    | DeleteBody
+    | Add(loc_of_add, code);
 
   let get_static_context = (relevant_ctx: bool, ci: Info.t): list(string) =>
     switch (ci) {
@@ -264,166 +264,150 @@ module Composition = {
       (
         ~ed: CodeWithStatics.Model.t,
         ~edit_action: edit_action,
-        ~variable_name: string,
+        ~variable_name: option(string),
         ~schedule_action: Editors.Update.t => unit,
       )
       : unit => {
-    let actions = {
-      let statics = CodeWithStatics.Model.get_statics(ed);
-      // Find the first matching variable in the context using fold
-      // TODO: Handle shadowed variables
-      let matching_id =
-        Id.Map.fold(
-          (_, info, acc) => {
-            switch (acc) {
-            | Some(_) => acc // Already found a match
-            | None =>
-              let ctx = Info.ctx_of(info);
-              switch (Ctx.lookup_var(ctx, variable_name)) {
-              | Some(entry) => Some(entry.id)
+    let actions =
+      switch (variable_name) {
+      | Some(variable_name) =>
+        let statics = CodeWithStatics.Model.get_statics(ed);
+        // Find the first matching variable in the context using fold
+        // TODO: Handle shadowed variables
+        let matching_id =
+          Id.Map.fold(
+            (_, info, acc) => {
+              switch (acc) {
+              | Some(_) => acc // Already found a match
               | None =>
-                switch (Ctx.lookup_tvar_id(ctx, variable_name)) {
-                | Some(id) => Some(id)
-                | None => None
-                }
-              };
-            }
-          },
-          statics.info_map,
-          None,
-        );
-
-      print_endline("Here #1");
-      let var_info =
-        Id.Map.find_opt(Option.get(matching_id), statics.info_map);
-      print_endline(
-        "matching_id term info: " ++ Info.show(Option.get(var_info)),
-      );
-      print_endline("Here #2");
-
-      let rec lowest_enclosing_id = (ancestors: list(Id.t)) => {
-        switch (ancestors) {
-        | [] => (Id.invalid, Id.invalid, Id.invalid)
-        | [hd_anc, ...rem_ancs] =>
-          switch (Id.Map.find_opt(hd_anc, statics.info_map)) {
-          | Some(hd_anc_term) =>
-            print_endline("hd_anc: " ++ Id.show(hd_anc));
-            switch (Info.any_of(hd_anc_term)) {
-            | Some(Exp(exp)) =>
-              switch (Exp.term_of(exp)) {
-              | TyAlias(var, def, body) => (
-                  TPat.rep_id(var),
-                  Typ.rep_id(def),
-                  Exp.rep_id(body),
-                )
-              | Let(var, def, body) => (
-                  Pat.rep_id(var),
-                  Exp.rep_id(def),
-                  Exp.rep_id(body),
-                )
-              /* todo: figure out how to find hinted test from up above matching_id
-                 | HintedTest(_, _) => lowest_enclosing_id(rem_ancs)
-                 | Seq(e1, e2) => (
-                     Exp.rep_id(e1),
-                     Id.invalid,
-                     Exp.rep_id(e2),
-                   )
-                 */
-              // Not a definition binding, recurse
-              | _ => lowest_enclosing_id(rem_ancs)
+                let ctx = Info.ctx_of(info);
+                switch (Ctx.lookup_var(ctx, variable_name)) {
+                | Some(entry) => Some(entry.id)
+                | None =>
+                  switch (Ctx.lookup_tvar_id(ctx, variable_name)) {
+                  | Some(id) => Some(id)
+                  | None => None
+                  }
+                };
               }
+            },
+            statics.info_map,
+            None,
+          );
+
+        print_endline("Here #1");
+        let var_info =
+          Id.Map.find_opt(Option.get(matching_id), statics.info_map);
+        print_endline(
+          "matching_id term info: " ++ Info.show(Option.get(var_info)),
+        );
+        print_endline("Here #2");
+
+        let rec lowest_enclosing_id = (ancestors: list(Id.t)) => {
+          switch (ancestors) {
+          | [] => (Id.invalid, Id.invalid, Id.invalid)
+          | [hd_anc, ...rem_ancs] =>
+            switch (Id.Map.find_opt(hd_anc, statics.info_map)) {
+            | Some(hd_anc_term) =>
+              print_endline("hd_anc: " ++ Id.show(hd_anc));
+              switch (Info.any_of(hd_anc_term)) {
+              | Some(Exp(exp)) =>
+                switch (Exp.term_of(exp)) {
+                | TyAlias(var, def, body) => (
+                    TPat.rep_id(var),
+                    Typ.rep_id(def),
+                    Exp.rep_id(body),
+                  )
+                | Let(var, def, body) => (
+                    Pat.rep_id(var),
+                    Exp.rep_id(def),
+                    Exp.rep_id(body),
+                  )
+                /* todo: figure out how to find hinted test from up above matching_id
+                   | HintedTest(_, _) => lowest_enclosing_id(rem_ancs)
+                   | Seq(e1, e2) => (
+                       Exp.rep_id(e1),
+                       Id.invalid,
+                       Exp.rep_id(e2),
+                     )
+                   */
+                // Not a definition binding, recurse
+                | _ => lowest_enclosing_id(rem_ancs)
+                }
+              | _ => lowest_enclosing_id(rem_ancs)
+              };
             | _ => lowest_enclosing_id(rem_ancs)
-            };
-          | _ => lowest_enclosing_id(rem_ancs)
+            }
+          };
+        };
+
+        let (var, def, body) =
+          switch (var_info) {
+          | Some(info) =>
+            let ancestors = Info.ancestors_of(info);
+            print_endline("Here #4");
+            lowest_enclosing_id(ancestors);
+          | None =>
+            print_endline("No var info found");
+            (Id.invalid, Id.invalid, Id.invalid);
+          };
+
+        switch (edit_action) {
+        | RenameVariable(new_variable_name) => [
+            Action.Select(Assistant(Var(var))),
+            Action.Paste(String(new_variable_name)),
+          ]
+        | UpdateDefinition(new_definition) => [
+            Action.Select(Assistant(Def(def))),
+            Action.Paste(String(new_definition)),
+          ]
+        | UpdateBody(new_body) => [
+            Action.Select(Assistant(Body(body))),
+            Action.Paste(String(new_body)),
+          ]
+        | DeleteVariable => [
+            Action.Select(Assistant(VarDef(var))),
+            Action.Paste(String("")),
+          ]
+        | DeleteBody => [
+            Action.Select(Assistant(Body(body))),
+            Action.Paste(String("")),
+          ]
+        | Add(loc, code) =>
+          switch (loc) {
+          | Before => [
+              Action.Select(Assistant(VarDef(var))),
+              Action.Move(Local(Left(ByToken))),
+              Action.Paste(String(code)),
+            ]
+          | After => [
+              Action.Select(Assistant(VarDef(var))),
+              Action.Move(Local(Right(ByToken))),
+              Action.Paste(String(code)),
+            ]
           }
         };
+      | None =>
+        switch (edit_action) {
+        | Add(loc, code) =>
+          switch (loc) {
+          | Before => [
+              Action.Move(Extreme(Up)),
+              Action.Paste(String(code)),
+            ]
+          | After => [
+              Action.Move(Extreme(Down)),
+              Action.Paste(String(code)),
+            ]
+          }
+        | _ =>
+          print_endline(
+            "Error applying assistant edit action: No variable name provided",
+          );
+          [];
+        }
       };
 
-      let (var, def, body) =
-        switch (var_info) {
-        | Some(info) =>
-          let ancestors = Info.ancestors_of(info);
-          print_endline("Here #4");
-          lowest_enclosing_id(ancestors);
-        | None =>
-          print_endline("No var info found");
-          (Id.invalid, Id.invalid, Id.invalid);
-        };
-
-      switch (edit_action) {
-      | RenameVariable(new_variable_name) => [
-          Action.Select(Assistant(Var(var))),
-          Action.Paste(String(new_variable_name)),
-        ]
-      | UpdateDefinition(new_definition) => [
-          Action.Select(Assistant(Def(def))),
-          Action.Paste(String(new_definition)),
-        ]
-      | UpdateBody(new_body) => [
-          Action.Select(Assistant(Body(body))),
-          Action.Paste(String(new_body)),
-        ]
-      | DeleteVariable => [
-          Action.Select(Assistant(VarDef(var))),
-          Action.Paste(String("")),
-        ]
-      | DeleteBody => [
-          Action.Select(Assistant(Body(body))),
-          Action.Paste(String("")),
-        ]
-      };
-    };
-
-    List.iter(
-      action => {
-        let perform_action = CodeEditable.Update.Perform(action);
-        let cell_action = CellEditor.Update.MainEditor(perform_action);
-        let scratch_action = Editors.Update.Scratch(CellAction(cell_action));
-        schedule_action(scratch_action);
-      },
-      actions,
-    );
-  };
-
-  let edit =
-      (
-        ~loc: loc_of_edit,
-        ~code: string,
-        ~schedule_action: Editors.Update.t => unit,
-      )
-      : unit => {
-    // TODO: Might be helpful to paste a segment instead of a string
-    // This may allow for better error handling.
-    let actions =
-      switch (loc) {
-      | Before => [
-          // Unselect current definition
-          Action.Unselect(Some(Left)),
-          // Paste new code
-          Action.Paste(String(code ++ "\n")),
-        ]
-      | After => [
-          // Unselect current definition
-          Action.Unselect(Some(Direction.Right)),
-          // Paste new code
-          Action.Paste(String("\n" ++ code)),
-        ]
-      | Current =>
-        String.length(code) == 0
-          ? [
-            // This implies the calling of the ```delete``` tool
-            // Replace current definition
-            Action.Paste(String(code)),
-            // Destruct left
-            Action.Destruct(Left),
-          ]
-          : [
-            // Replace current definition
-            Action.Paste(String(code)),
-          ]
-      // We paste the code edit, then reselect the definition, and copy
-      // to clipboard shim to give context to assistant.
-      };
     List.iter(
       action => {
         let perform_action = CodeEditable.Update.Perform(action);

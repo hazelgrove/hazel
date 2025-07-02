@@ -37,7 +37,6 @@ type handle_response =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type employ_llm_action =
   | RemoveAndSuggest(string, Id.t)
-  | Resuggest(string, Id.t)
   | Describe(string, AssistantSettings.mode, Id.t)
   | SetLoop(bool);
 
@@ -452,6 +451,8 @@ let mk_llm_call =
           CompositionPrompt.delete_variable,
           CompositionPrompt.update_body,
           CompositionPrompt.delete_body,
+          CompositionPrompt.add_before,
+          CompositionPrompt.add_after,
           // CompositionPrompt.goto_definition,
           // CompositionPrompt.goto_body,
           // //CompositionPrompt.goto_type_definition,
@@ -556,7 +557,7 @@ let update =
          (
            ~ed: CodeWithStatics.Model.t,
            ~edit_action: ChatLSP.Composition.edit_action,
-           ~variable_name: string
+           ~variable_name: option(string)
          ) =>
          unit,
     )
@@ -1042,7 +1043,7 @@ let update =
                   Some(`String(current_variable_name)),
                   Some(`String(new_variable_name)),
                 ) => (
-                  current_variable_name,
+                  Some(current_variable_name),
                   new_variable_name,
                 )
               | _ => raise(Failure("Invalid arguments for rename_variable"))
@@ -1064,7 +1065,7 @@ let update =
                   Some(`String(variable_name)),
                   Some(`String(new_definition)),
                 ) => (
-                  variable_name,
+                  Some(variable_name),
                   new_definition,
                 )
               | _ =>
@@ -1080,7 +1081,7 @@ let update =
           | "delete_variable" =>
             let variable_name =
               switch (Json.dot("variable_name", tool_call.args)) {
-              | Some(`String(variable_name)) => variable_name
+              | Some(`String(variable_name)) => Some(variable_name)
               | _ => raise(Failure("Invalid argument for delete_variable"))
               };
             apply_edit_action(
@@ -1096,7 +1097,7 @@ let update =
                 Json.dot("new_body", tool_call.args),
               ) {
               | (Some(`String(variable_name)), Some(`String(new_body))) => (
-                  variable_name,
+                  Some(variable_name),
                   new_body,
                 )
               | _ => raise(Failure("Invalid arguments for update_body"))
@@ -1110,12 +1111,50 @@ let update =
           | "delete_body" =>
             let variable_name =
               switch (Json.dot("variable_name", tool_call.args)) {
-              | Some(`String(variable_name)) => variable_name
+              | Some(`String(variable_name)) => Some(variable_name)
               | _ => raise(Failure("Invalid argument for delete_body"))
               };
             apply_edit_action(
               ~ed=editor,
               ~edit_action=ChatLSP.Composition.DeleteBody,
+              ~variable_name,
+            );
+            schedule_action(loop_message);
+          | "add_before" =>
+            let (variable_name, code) =
+              switch (
+                Json.dot("variable_name", tool_call.args),
+                Json.dot("code", tool_call.args),
+              ) {
+              | (Some(`String(variable_name)), Some(`String(code))) => (
+                  Some(variable_name),
+                  code,
+                )
+              | (_, Some(`String(code))) => (None, code)
+              | _ => raise(Failure("Invalid arguments for add_before"))
+              };
+            apply_edit_action(
+              ~ed=editor,
+              ~edit_action=ChatLSP.Composition.Add(Before, code),
+              ~variable_name,
+            );
+            schedule_action(loop_message);
+          | "add_after" =>
+            let (variable_name, code) =
+              switch (
+                Json.dot("variable_name", tool_call.args),
+                Json.dot("code", tool_call.args),
+              ) {
+              | (Some(`String(variable_name)), Some(`String(code))) => (
+                  Some(variable_name),
+                  code,
+                )
+              | (_, Some(`String(code))) => (None, code)
+              | _ => raise(Failure("Invalid arguments for add_after"))
+              };
+            apply_edit_action(
+              ~ed=editor,
+              ~edit_action=ChatLSP.Composition.Add(After, code),
               ~variable_name,
             );
             schedule_action(loop_message);
@@ -1223,11 +1262,7 @@ let update =
     switch (action) {
     | RemoveAndSuggest(response, tileId) =>
       // Only side effects in the editor are performed here
-      add_suggestion(~response, ~tile=tileId, ~resuggest=false);
-      model |> Updated.return_quiet;
-    | Resuggest(response, tileId) =>
-      // Only side effects in the editor are performed here
-      add_suggestion(~response, ~tile=tileId, ~resuggest=true);
+      add_suggestion(~response, ~tile=tileId);
       model |> Updated.return_quiet;
     | Describe(content, mode, chat_id) =>
       let (past_chats, _) = get_mode_info(mode, model);
