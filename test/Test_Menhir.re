@@ -6,22 +6,13 @@ let alco_check =
   (testable(Fmt.using(Exp.show, Fmt.string)))(DHExp.fast_equal)
   |> Alcotest.check;
 
-let strip_Wrap_and_add_builtins =
+let strip_wrap =
   Exp.map_term(
     ~f_exp=
       (cont: TermBase.exp_t => TermBase.exp_t, e: TermBase.exp_t) =>
         switch (e.term) {
         | Parens(e)
         | Probe(e, _) => cont(e)
-        | Var(x) =>
-          let builtin = Util.VarMap.lookup(Builtins.Pervasives.builtins, x);
-          cont(
-            switch (builtin) {
-            | Some(Fn(_, _, _)) => cont(Fresh.Exp.builtin_fun(x))
-            | Some(Const(_, _))
-            | None => cont(e)
-            },
-          );
         | _ => cont(e)
         },
     ~f_pat=
@@ -42,7 +33,7 @@ let strip_Wrap_and_add_builtins =
 
 // Existing recovering parser
 let make_term_parse = (s: string) =>
-  strip_Wrap_and_add_builtins(
+  strip_wrap(
     Haz3lcore.MakeTerm.from_zip_for_sem(
       Option.get(Haz3lcore.Parser.to_zipper(s)),
     ).
