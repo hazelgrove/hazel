@@ -436,6 +436,7 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
   type pat = pat_t(DefaultAnnotation.t);
   type typ = typ_t(DefaultAnnotation.t);
   type tpat = tpat_t(DefaultAnnotation.t);
+  type any = any_t(DefaultAnnotation.t);
   type typ_provenance = type_provenance(DefaultAnnotation.t);
 
   let default_annotation = ann =>

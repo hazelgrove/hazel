@@ -196,13 +196,18 @@ module Operators = {
 };
 
 module rec Exp: {
-  let of_menhir_ast: AST.exp => IndicatedG.exp;
+  let of_menhir_ast:
+    (~placeholders: list((string, IndicatedG.any))=?, AST.exp) =>
+    IndicatedG.exp;
   let of_core: IndicatedG.exp => AST.exp;
   let get_indicated_ids:
     IndicatedG.exp => (Language.Exp.t, list(Language.Id.t));
 } = {
   open IndicatedG.Exp;
-  let rec of_menhir_ast = (exp: AST.exp): IndicatedG.exp => {
+  let rec of_menhir_ast =
+          (~placeholders: list((string, IndicatedG.any))=[], exp: AST.exp)
+          : IndicatedG.exp => {
+    let of_menhir_ast = of_menhir_ast(~placeholders);
     switch (exp) {
     | InvalidExp(s) => invalid(s)
     | Atom(c) => basic(c)
@@ -305,6 +310,17 @@ module rec Exp: {
         annotation: true,
         term: of_menhir_ast(e).term,
       }
+    | PlaceholderExp(s) =>
+      List.assoc_opt(s, placeholders)
+      |> Option.map(x => x)
+      |> (
+        x =>
+          switch (x) {
+          | None => raise(Failure("Placeholder not found: " ++ s))
+          | Some(Exp(e)) => e
+          | Some(other) => IndicatedG.Exp.multi_hole([other])
+          }
+      )
     };
   };
 

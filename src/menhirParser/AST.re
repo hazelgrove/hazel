@@ -168,7 +168,8 @@ type exp =
   | DynamicErrorHole(exp, string)
   | TyAlias(tpat, typ, exp)
   | Use(typ, exp)
-  | IndicationExp(exp);
+  | IndicationExp(exp)
+  | PlaceholderExp(string);
 
 /**
  * Generates a random CONSTRUCTOR_IDENT string. Used for CONSTRUCTOR_IDENT in the lexer.
@@ -653,6 +654,7 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
     (exp: exp) =>
       Iter.(
         switch (exp) {
+        | PlaceholderExp(_) => Iter.empty
         | Atom(a) =>
           switch (a) {
           | Int(i) =>

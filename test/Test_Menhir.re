@@ -6,6 +6,12 @@ let alco_check =
   (testable(Fmt.using(Exp.show, Fmt.string)))(DHExp.fast_equal)
   |> Alcotest.check;
 
+let parse_exp_payloads =
+    (~placeholders: list((string, Conversion.IndicatedG.any))=[], s: string) => {
+  let p = Interface.parse_program(s);
+  Conversion.Exp.of_menhir_ast(~placeholders, p);
+};
+
 let strip_wrap =
   Exp.map_term(
     ~f_exp=
@@ -711,5 +717,94 @@ let ex5 = list_of_mylist(x) in
       ),
       QCheck_alcotest.to_alcotest(qcheck_menhir_maketerm_equivalent_test),
       QCheck_alcotest.to_alcotest(qcheck_menhir_serialized_equivalent_test),
+      test_case(
+        "Parse expression payloads",
+        `Quick,
+        () => {
+          open Conversion;
+          let placeholders: list((string, IndicatedG.any)) = [
+            ("a", Exp(IndicatedG.Exp.int(1))),
+          ];
+          let exp = parse_exp_payloads(~placeholders, "{a}");
+          let foo = exp =>
+            Grammar.map_exp_annotation(
+              _: IdTagged.IdTag.t => {ids: [Id.invalid]},
+              exp,
+            );
+          alco_check(
+            "Parsed expression matches expected",
+            IdTagged.FreshGrammar.Exp.int(1),
+            foo(exp),
+          );
+        },
+      ),
+      test_case(
+        "Larger expression with a bunch of placeholders",
+        `Quick,
+        () => {
+          open Conversion;
+          let placeholders: list((string, IndicatedG.any)) = [
+            ("a", Exp(IndicatedG.Exp.int(1))),
+            ("b", Exp(IndicatedG.Exp.int(2))),
+            ("c", Exp(IndicatedG.Exp.int(3))),
+            ("d", Exp(IndicatedG.Exp.int(4))),
+          ];
+          let exp =
+            parse_exp_payloads(~placeholders, "{a} + {b} * ( {c} - {d} )");
+          let foo = exp =>
+            Grammar.map_exp_annotation(
+              _: IdTagged.IdTag.t => {ids: [Id.invalid]},
+              exp,
+            );
+          alco_check(
+            "Parsed larger expression matches expected",
+            make_term_parse("1 + 2 * (3 - 4)"),
+            foo(exp),
+          );
+        },
+      ),
+      test_case(
+        "Case statement with placeholders",
+        `Quick,
+        () => {
+          open Conversion;
+          open IndicatedG;
+          let placeholders: list((string, IndicatedG.any)) = [
+            ("a", Exp(Exp.int(1))),
+            ("b", Exp(Exp.int(2))),
+            // a variant with a placeholder
+            ("c", Exp(Exp.constructor("C", Some(Some(Typ.int()))))),
+          ];
+          let exp =
+            parse_exp_payloads(
+              ~placeholders,
+              {|case {a}
+              | ? => {b}
+              | ? => {c}
+             end|},
+            );
+          let foo = exp =>
+            Grammar.map_exp_annotation(
+              _: IdTagged.IdTag.t => {ids: [Id.invalid]},
+              exp,
+            );
+          alco_check(
+            "Parsed case statement matches expected",
+            foo(
+              Conversion.Exp.of_menhir_ast(
+                Interface.parse_program(
+                  {|
+            case 1
+              | ? => 2
+              | ? => C ~ Int
+            end
+            |},
+                ),
+              ),
+            ),
+            foo(exp),
+          );
+        },
+      ),
     ],
   );

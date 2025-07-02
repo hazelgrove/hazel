@@ -33,6 +33,7 @@ let identifier = ['a'-'z' '_'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
 let constructor_ident = ['A'-'Z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
 let sexp_string = '`' [^'`']* '`'
 let ints = ['0'-'9']+
+let placeholder = '{' ['a'-'z' 'A'-'Z' '0'-'9' '_']+ '}'
 
 rule token = 
     parse 
@@ -42,6 +43,7 @@ rule token =
     | ints as i { INT (int_of_string i) }
     | float as f { FLOAT (parse_float_string f )}
     | string as s { STRING (String.sub s 1 (String.length s - 2)) }
+    | placeholder as s { PLACEHOLDER (String.sub s 1 (String.length s - 2)) }
     | sexp_string as s { SEXP_STRING (String.sub s 1 (String.length s - 2)) }
     | "true" { TRUE }
     | "false" { FALSE }

@@ -15,6 +15,7 @@ open AST
 %token UNDEF
 %token <string> SEXP_STRING
 %token DOLLAR_SIGN
+%token <string> PLACEHOLDER
 %token TYP
 %token TYP_FUN
 %token FIX
@@ -317,6 +318,7 @@ exp:
     | f = FLOAT { Atom (Float f) }
     | v = IDENT { Var v }
     | c = CONSTRUCTOR_IDENT { Constructor(c, None)}
+    | s = PLACEHOLDER { PlaceholderExp(s) }
     | c = CONSTRUCTOR_IDENT; SLASH_TILDE; { Constructor(c, Some(None)) } 
     | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { Constructor(c, Some(Some(t))) }
     | e = exp; COLON; t = typ { Asc(e, t) }

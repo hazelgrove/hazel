@@ -20,3 +20,9 @@ let parse = (f, s) => {
 };
 
 let parse_program = s => parse(Parser.program, s);
+
+let parse_exp_payloads =
+    (~placeholders: list((string, Conversion.IndicatedG.any))=[], s: string) => {
+  let p = parse_program(s);
+  Conversion.Exp.of_menhir_ast(~placeholders, p);
+};
