@@ -13,8 +13,8 @@ let builtins =
   @ List.map(fn_builtin, BuiltinsBase.numeric_fns)
   @ List.map(const_builtin, BuiltinsBase.numeric_constants);
 
-/* Mostly just build this map to check for accidental duplicates */
-let builtin_map = to_map(builtins);
+/* Check for accidental duplicates */
+let _ = to_map(builtins);
 
 let ctx_entries =
   List.map(ctx_entry_of_builtin, builtins)
