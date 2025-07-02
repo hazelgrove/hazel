@@ -84,7 +84,7 @@ let qcheck_stepper_confluence =
                  ),
                _,
              )
-          |> Printer.of_segment(~holes=Some("?"), _);
+          |> Printer.of_segment(~holes="?", _);
 
         Alcotest.check(
           testable(Fmt.using(show_core_exp, Fmt.string), DHExp.fast_equal), // Output is easier to view through ExpToSegment. This may result in a loss of information
@@ -115,7 +115,7 @@ let show_core_exp = exp =>
          ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
        _,
      )
-  |> Printer.of_segment(~holes=Some("?"), _);
+  |> Printer.of_segment(~holes="?", _);
 
 // Property that states let x : T = e in x is equivalent to e : T
 let qcheck_pattern_equivalence_test =
