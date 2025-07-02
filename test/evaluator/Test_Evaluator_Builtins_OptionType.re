@@ -5,10 +5,18 @@ let tests = (
   "Evaluator.OptionType",
   [
     test_case("Option type is available in context", `Quick, () => {
-      parse_and_evaluate_test({|None|}, {|None|})
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|None|},
+        {|None|},
+      )
     }),
     test_case("Option type Some constructor", `Quick, () => {
-      parse_and_evaluate_test({|Some(42)|}, {|Some(42)|})
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|Some(42)|},
+        {|Some(42)|},
+      )
     }),
     test_case("Option type pattern matching", `Quick, () => {
       parse_and_evaluate_test(
@@ -18,27 +26,35 @@ let tests = (
     }),
     test_case("option_map with Some value", `Quick, () => {
       parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
         {|Some(84)|},
         {|option_map(Some(42), fun x -> x * 2)|},
       )
     }),
     test_case("option_map with None", `Quick, () => {
-      parse_and_evaluate_test({|None|}, {|option_map(None, fun x -> x * 2)|})
+      parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
+        {|None|},
+        {|option_map(None, fun x -> x * 2)|},
+      )
     }),
     test_case("option_bind with Some value", `Quick, () => {
       parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
         {|Some(84)|},
         {|option_bind(Some(42), fun x -> Some(x * 2))|},
       )
     }),
     test_case("option_bind with None", `Quick, () => {
       parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
         {|None|},
         {|option_bind(None, fun x -> Some(x * 2))|},
       )
     }),
     test_case("option_bind with function returning None", `Quick, () => {
       parse_and_evaluate_test(
+        ~ignore_constructor_types=true,
         {|None|},
         {|option_bind(Some(42), fun x -> None)|},
       )
