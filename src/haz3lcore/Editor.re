@@ -145,9 +145,22 @@ module Update = {
       : Action.Result.t(Model.t) => {
     open Result.Syntax;
     let old_zipper = state.zipper;
-    // 1. Clear the autocomplete buffer if relevant
+    /* 1. Clear the autocomplete buffer if relevant. We clear the TyDi
+     * (unparsed) buffer on every action except accept; for the LLM
+     * (parsed) buffer, we accept resize actions to permit incremental
+     * accepteance token-by-token or line-by-line */
     let clear_condition =
-      settings.assist && settings.statics && a != Buffer(Accept);
+      (settings.assist && settings.statics && a != Buffer(Accept))
+      && !(
+           Selection.non_empty_parsed_buffer(state.zipper.selection)
+           && (
+             switch (a) {
+             | Select(Resize(Local(_))) => true
+             | _ => false
+             }
+           )
+         );
+
     let state =
       clear_condition
         ? {
@@ -159,7 +172,6 @@ module Update = {
               Buffer(Clear),
               Model.to_move_s({
                 state,
-
                 syntax,
               }),
               state.zipper,
@@ -175,13 +187,10 @@ module Update = {
         syntax;
       };
     /* TODO(andrew): Apologize to matt for below.
-       The general idea here is the if a buffer clear happens above then
-       we need to recalculate the syntax cache as otherwise the measured,
-       in particular caret_point, will be looking for tiles inside the
-       buffer, for example if we try to click or move down to dismiss a
-       completion. I'm not exactly sure why we didn't run into this with
-       the TyDi buffer though so I'm not 100% confident I'm thinking
-       about this correctly */
+       If a buffer clear happens above then we must recalculate the
+       syntax cache as otherwise the measured, in particular caret_point,
+       will be looking for tiles inside the buffer, for example if we try
+       to click or move down to dismiss a completion.*/
     let syntax =
       if (clear_condition
           && Selection.non_empty_parsed_buffer(old_zipper.selection)) {
@@ -219,7 +228,6 @@ module Update = {
         a,
         Model.to_move_s({
           state,
-
           syntax,
         }),
         state.zipper,
