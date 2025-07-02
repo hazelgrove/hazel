@@ -54,9 +54,44 @@ type usage = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+// Tool Calls
+type structure_action =
+  | RenameVariable
+  | UpdateDefinition
+  | UpdateBody
+  | DeleteVariable
+  | DeleteBody
+  | AddBefore
+  | AddAfter
+  | InvalidStructureAction;
+
+let string_of_structure_action =
+  fun
+  | RenameVariable => "rename_variable"
+  | UpdateDefinition => "update_definition"
+  | UpdateBody => "update_body"
+  | DeleteVariable => "delete_variable"
+  | DeleteBody => "delete_body"
+  | AddBefore => "add_before"
+  | AddAfter => "add_after"
+  | InvalidStructureAction => "invalid_structure_action";
+
+let structure_action_of_string = (structure_action: string) =>
+  switch (structure_action) {
+  | "rename_variable" => RenameVariable
+  | "update_definition" => UpdateDefinition
+  | "update_body" => UpdateBody
+  | "delete_variable" => DeleteVariable
+  | "delete_body" => DeleteBody
+  | "add_before" => AddBefore
+  | "add_after" => AddAfter
+  | _ => InvalidStructureAction
+  };
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type tool_call = {
   id: string,
-  name: string,
+  name: structure_action,
   args: Json.t,
 };
 
@@ -221,7 +256,7 @@ let first_message_tool_call = (choices: Json.t): option(tool_call) => {
 
   let tool_call: tool_call = {
     id,
-    name,
+    name: structure_action_of_string(name),
     args: parsed_args,
   };
   Some(tool_call);

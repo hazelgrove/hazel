@@ -295,13 +295,13 @@ module Composition = {
             None,
           );
 
-        print_endline("Here #1");
+        print_endline("here #1");
         let var_info =
-          Id.Map.find_opt(Option.get(matching_id), statics.info_map);
-        print_endline(
-          "matching_id term info: " ++ Info.show(Option.get(var_info)),
-        );
-        print_endline("Here #2");
+          switch (matching_id) {
+          | Some(id) => Id.Map.find_opt(id, statics.info_map)
+          | None => raise(Failure("Variable not found in context"))
+          };
+        print_endline("here #2");
 
         let rec lowest_enclosing_id = (ancestors: list(Id.t)) => {
           switch (ancestors) {

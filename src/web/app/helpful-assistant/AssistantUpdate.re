@@ -2,6 +2,7 @@ open Haz3lcore;
 open Util;
 open Util.OptUtil.Syntax;
 open API;
+open Util.Maps;
 
 module CodeModel = CodeEditable.Model;
 
@@ -485,17 +486,17 @@ let mk_llm_call =
             ),
           )
         | None =>
-          /*let str_of_mode =
-                switch (mode) {
-                | HazelTutor => "HazelTutor"
-                | CodeSuggestion => "CodeSuggestion"
-                | TaskCompletion => "TaskCompletion"
-                };
-              ();
-            print_endline(
-                "Assistant: response parse failed (" ++ str_of_mode ++ ")",
-              );*/
-          ()
+          let str_of_mode =
+            switch (mode) {
+            | HazelTutor => "HazelTutor"
+            | CodeSuggestion => "CodeSuggestion"
+            | TaskCompletion => "TaskCompletion"
+            };
+          ();
+          print_endline(
+            "Assistant: response still generating in " ++ str_of_mode,
+          );
+          ();
         }
       )
     ) {
@@ -545,56 +546,53 @@ let init_chat = (mode: AssistantSettings.mode): Model.chat => {
 };
 
 let mk_structure_edit_msg =
-    (~tool_call: string, ~args: option(list((string, string)))) => {
-  switch (tool_call) {
-  | "rename_variable" =>
-    switch (args) {
-    | Some([(_, current_variable_name), (_, new_variable_name)]) =>
+    (~tool_call: string, ~args: option(StringMap.t(string))) =>
+  try({
+    let args = Option.get(args);
+    switch (OpenRouter.structure_action_of_string(tool_call)) {
+    | OpenRouter.RenameVariable =>
+      let current_variable_name =
+        StringMap.find("current_variable_name", args);
+      let new_variable_name = StringMap.find("new_variable_name", args);
       "Agent renamed variable "
       ++ current_variable_name
       ++ " to "
-      ++ new_variable_name
-    | _ => "Agent called rename_variable with invalid arguments"
-    }
-  | "update_definition" =>
-    switch (args) {
-    | Some([(_, variable_name), (_, code)]) =>
-      "Agent updated the definition of the variable " ++ variable_name
-    | _ => "Agent called update_definition with invalid arguments"
-    }
-  | "update_body" =>
-    switch (args) {
-    | Some([(_, variable_name), (_, code)]) =>
-      "Agent updated the body of the variable " ++ variable_name
-    | _ => "Agent called update_body with invalid arguments"
-    }
-  | "delete_variable" =>
-    switch (args) {
-    | Some([(_, variable_name)]) =>
-      "Agent deleted the variable " ++ variable_name
-    | _ => "Agent called delete_variable with invalid arguments"
-    }
-  | "delete_body" =>
-    switch (args) {
-    | Some([(_, variable_name)]) =>
-      "Agent deleted the body of the variable " ++ variable_name
-    | _ => "Agent called delete_body with invalid arguments"
-    }
-  | "add_before" =>
-    switch (args) {
-    | Some([(_, variable_name), (_, code)]) =>
-      "Agent added code before the variable " ++ variable_name
-    | _ => "Agent called add_before with invalid arguments"
-    }
-  | "add_after" =>
-    switch (args) {
-    | Some([(_, variable_name), (_, code)]) =>
-      "Agent added code after the variable " ++ variable_name
-    | _ => "Agent called add_after with invalid arguments"
-    }
-  | _ => "Agent made an invalid tool call"
+      ++ new_variable_name;
+
+    | OpenRouter.UpdateDefinition =>
+      let variable_name = StringMap.find("variable_name", args);
+      "Agent updated the definition of the variable " ++ variable_name;
+    | OpenRouter.UpdateBody =>
+      let variable_name = StringMap.find("variable_name", args);
+      "Agent updated the body of the variable " ++ variable_name;
+    | OpenRouter.DeleteVariable =>
+      let variable_name = StringMap.find("variable_name", args);
+      "Agent deleted the variable " ++ variable_name;
+    | OpenRouter.DeleteBody =>
+      let variable_name = StringMap.find("variable_name", args);
+      "Agent deleted the body of the variable " ++ variable_name;
+    | OpenRouter.AddBefore =>
+      switch (StringMap.find_opt("variable_name", args)) {
+      | Some(variable_name) =>
+        "Agent added code before the variable " ++ variable_name
+      | None => "Agent added code at the beginning of the sketch"
+      }
+
+    | OpenRouter.AddAfter =>
+      switch (StringMap.find_opt("variable_name", args)) {
+      | Some(variable_name) =>
+        "Agent added code after the variable " ++ variable_name
+      | None => "Agent added code at the end of the sketch"
+      }
+    | OpenRouter.InvalidStructureAction =>
+      raise(Failure("Unknown structure action: " ++ tool_call))
+    };
+  }) {
+  | Not_found => "Agent called " ++ tool_call ++ " with invalid arguments"
+  | Invalid_argument(e) =>
+    "Not sure what the agent did here, but the argument map creation failed: "
+    ++ e
   };
-};
 
 let update =
     (
@@ -977,7 +975,8 @@ let update =
             mk_message_display(
               ~content=
                 mk_structure_edit_msg(
-                  ~tool_call=tool_call.name,
+                  ~tool_call=
+                    OpenRouter.string_of_structure_action(tool_call.name),
                   ~args=Json.get_string_kvs(tool_call.args),
                 ),
               ~role=Tool,
@@ -1076,7 +1075,7 @@ let update =
                 fuel - 1,
                 {
                   tool_call_id: tool_call.id,
-                  name: tool_call.name,
+                  name: OpenRouter.string_of_structure_action(tool_call.name),
                 },
               ),
             ),
@@ -1085,7 +1084,7 @@ let update =
           );
         try(
           switch (tool_call.name) {
-          | "rename_variable" =>
+          | OpenRouter.RenameVariable =>
             let (current_variable_name, new_variable_name) =
               switch (
                 Json.dot("current_variable_name", tool_call.args),
@@ -1098,7 +1097,13 @@ let update =
                   Some(current_variable_name),
                   new_variable_name,
                 )
-              | _ => raise(Failure("Invalid arguments for rename_variable"))
+              | _ =>
+                raise(
+                  Failure(
+                    "Invalid arguments for "
+                    ++ OpenRouter.string_of_structure_action(tool_call.name),
+                  ),
+                )
               };
             apply_edit_action(
               ~ed=editor,
@@ -1107,7 +1112,7 @@ let update =
               ~variable_name=current_variable_name,
             );
             schedule_action(loop_message);
-          | "update_definition" =>
+          | OpenRouter.UpdateDefinition =>
             let (variable_name, new_definition) =
               switch (
                 Json.dot("variable_name", tool_call.args),
@@ -1121,7 +1126,12 @@ let update =
                   new_definition,
                 )
               | _ =>
-                raise(Failure("Invalid arguments for update_definition"))
+                raise(
+                  Failure(
+                    "Invalid arguments for "
+                    ++ OpenRouter.string_of_structure_action(tool_call.name),
+                  ),
+                )
               };
             apply_edit_action(
               ~ed=editor,
@@ -1130,11 +1140,17 @@ let update =
               ~variable_name,
             );
             schedule_action(loop_message);
-          | "delete_variable" =>
+          | OpenRouter.DeleteVariable =>
             let variable_name =
               switch (Json.dot("variable_name", tool_call.args)) {
               | Some(`String(variable_name)) => Some(variable_name)
-              | _ => raise(Failure("Invalid argument for delete_variable"))
+              | _ =>
+                raise(
+                  Failure(
+                    "Invalid argument for "
+                    ++ OpenRouter.string_of_structure_action(tool_call.name),
+                  ),
+                )
               };
             apply_edit_action(
               ~ed=editor,
@@ -1142,7 +1158,7 @@ let update =
               ~variable_name,
             );
             schedule_action(loop_message);
-          | "update_body" =>
+          | OpenRouter.UpdateBody =>
             let (variable_name, new_body) =
               switch (
                 Json.dot("variable_name", tool_call.args),
@@ -1152,7 +1168,13 @@ let update =
                   Some(variable_name),
                   new_body,
                 )
-              | _ => raise(Failure("Invalid arguments for update_body"))
+              | _ =>
+                raise(
+                  Failure(
+                    "Invalid arguments for "
+                    ++ OpenRouter.string_of_structure_action(tool_call.name),
+                  ),
+                )
               };
             apply_edit_action(
               ~ed=editor,
@@ -1160,11 +1182,17 @@ let update =
               ~variable_name,
             );
             schedule_action(loop_message);
-          | "delete_body" =>
+          | OpenRouter.DeleteBody =>
             let variable_name =
               switch (Json.dot("variable_name", tool_call.args)) {
               | Some(`String(variable_name)) => Some(variable_name)
-              | _ => raise(Failure("Invalid argument for delete_body"))
+              | _ =>
+                raise(
+                  Failure(
+                    "Invalid argument for "
+                    ++ OpenRouter.string_of_structure_action(tool_call.name),
+                  ),
+                )
               };
             apply_edit_action(
               ~ed=editor,
@@ -1172,7 +1200,7 @@ let update =
               ~variable_name,
             );
             schedule_action(loop_message);
-          | "add_before" =>
+          | OpenRouter.AddBefore =>
             let (variable_name, code) =
               switch (
                 Json.dot("variable_name", tool_call.args),
@@ -1183,7 +1211,13 @@ let update =
                   code,
                 )
               | (_, Some(`String(code))) => (None, code)
-              | _ => raise(Failure("Invalid arguments for add_before"))
+              | _ =>
+                raise(
+                  Failure(
+                    "Invalid arguments for "
+                    ++ OpenRouter.string_of_structure_action(tool_call.name),
+                  ),
+                )
               };
             apply_edit_action(
               ~ed=editor,
@@ -1191,7 +1225,7 @@ let update =
               ~variable_name,
             );
             schedule_action(loop_message);
-          | "add_after" =>
+          | OpenRouter.AddAfter =>
             let (variable_name, code) =
               switch (
                 Json.dot("variable_name", tool_call.args),
@@ -1202,7 +1236,13 @@ let update =
                   code,
                 )
               | (_, Some(`String(code))) => (None, code)
-              | _ => raise(Failure("Invalid arguments for add_after"))
+              | _ =>
+                raise(
+                  Failure(
+                    "Invalid arguments for "
+                    ++ OpenRouter.string_of_structure_action(tool_call.name),
+                  ),
+                )
               };
             apply_edit_action(
               ~ed=editor,
@@ -1210,7 +1250,13 @@ let update =
               ~variable_name,
             );
             schedule_action(loop_message);
-          | _ => raise(Failure("Unknown tool call: " ++ tool_call.name))
+          | OpenRouter.InvalidStructureAction =>
+            raise(
+              Failure(
+                "Unknown tool call: "
+                ++ OpenRouter.string_of_structure_action(tool_call.name),
+              ),
+            )
           // | "goto_definition" =>
           //   switch (Json.dot("variable", tool_call.args)) {
           //   | Some(`String(arg)) =>
