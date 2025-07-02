@@ -70,9 +70,9 @@ let move_by_char_left_actions = (n: int): list(Action.t) =>
   List.init(n, _ => Action.Move(Local(Left(ByChar))));
 
 let mk = (init: string): list(Action.t) => {
-  /* This harness uses a tilde to represent caret position.
+  /* This harness uses a ¦ to represent caret position.
    * This assumes there are no literal instances of the caret
-   * char proceeding the caret tilde in the syntax. This creates
+   * char proceeding the caret ¦ in the syntax. This creates
    * a list of actions intended to insert the init string into the
    * zipper character-by-character, except for the caret character,
    * and then move left character by character until the indicated
