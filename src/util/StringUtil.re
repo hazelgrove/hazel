@@ -29,8 +29,6 @@ type regexp = Js_of_ocaml.Regexp.regexp;
 
 let regexp: string => regexp = Js_of_ocaml.Regexp.regexp;
 
-let search = Js_of_ocaml.Regexp.search;
-
 let match = (r: regexp, s: string): bool =>
   Js_of_ocaml.Regexp.string_match(r, s, 0) |> Option.is_some;
 
