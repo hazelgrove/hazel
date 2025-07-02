@@ -1,87 +1,35 @@
-open Util;
 open BuiltinUtil;
 
-/*
-   Built-in functions for Hazel.
-   Update src/menhirParser/Lexer.mll when any new builtin is added
- */
+/* Built-in functions for Hazel.
+   Update src/menhirParser/Lexer.mll when any new builtin is added */
 
 let builtins =
-  BuiltinsBase.builtins
-  |> concat(
-       _,
-       List.map(
-         ((n, b)) => (n, of_atom_builtin(b)),
-         Atom.converter_builtins,
-       ),
-     )
-  |> concat(
-       _,
-       List.map(((n, b)) => (n, of_atom_builtin(b)), Operators.builtins),
-     )
-  |> concat(
-       _,
-       List.map(
-         ({name, arg, ret, imp, _}: hazel_fn) =>
-           (name, HazelFn(arg |> Typ.fresh, ret |> Typ.fresh, imp)),
-         BuiltinsList.builtins @ BuiltinsADT.builtins,
-       ),
-     );
+  List.map(fn_builtin, BuiltinsBase.string_fns)
+  @ List.map(fn_builtin, BuiltinsBase.pair_fns)
+  @ List.map(of_atom_builtin, Atom.converter_builtins)
+  @ List.map(of_atom_builtin, Operators.builtins)
+  @ List.map(hazel_fn_builtin, BuiltinsList.builtins)
+  @ List.map(hazel_fn_builtin, BuiltinsADT.builtins)
+  @ List.map(fn_builtin, BuiltinsBase.numeric_fns)
+  @ List.map(const_builtin, BuiltinsBase.numeric_constants);
 
-let entries =
-  List.concat([
-    List.map(
-      fun
-      | (name, Const(typ, _)) =>
-        Ctx.VarEntry({
-          name,
-          typ,
-          id: Id.invalid,
-        })
-      | (name, Fn(t1, t2, _))
-      | (name, HazelFn(t1, t2, _)) =>
-        Ctx.VarEntry({
-          name,
-          typ: Fresh.Typ.arrow(t1, t2),
-          id: Id.invalid,
-        }),
-      builtins,
-    ),
-    List.map(entry => Ctx.LivelitEntry(entry), Livelit.livelits),
-    BuiltinsADT.entries,
-  ]);
+/* Mostly just build this map to check for accidental duplicates */
+let builtin_map = to_map(builtins);
+
+let ctx_entries =
+  List.map(ctx_entry_of_builtin, builtins)
+  @ List.map(entry => Ctx.LivelitEntry(entry), Livelit.livelits)
+  @ BuiltinsADT.constructor_entries;
 
 let ctx_init: option(Operators.mode) => Ctx.t =
   use_mode => {
     use_mode,
-    entries,
+    entries: ctx_entries,
   };
 
-let forms_init: forms =
-  List.filter_map(
-    fun
-    | (_, Const(_)) => None
-    | (name, Fn(_, _, f)) => Some((name, f))
-    | (name, HazelFn(_, _, f)) =>
-      Some((
-        name,
-        (
-          (d: DHExp.t) => {
-            Some(Fresh.Exp.ap(Forward, f, d));
-          }
-        ),
-      )),
-    builtins,
-  );
+let forms_init: forms = List.filter_map(form_of_builtin, builtins);
 
 let env_init: Environment.t =
-  List.fold_left(
-    env =>
-      fun
-      | (name, Const(_, d)) => Environment.extend(env, (name, d))
-      | (name, Fn(_))
-      | (name, HazelFn(_, _, _)) =>
-        Environment.extend(env, (name, Fresh.Exp.builtin_fun(name))),
-    Environment.empty,
-    builtins,
-  );
+  builtins
+  |> List.map(imp_of_builtin)
+  |> List.fold_left(Environment.extend, Environment.empty);

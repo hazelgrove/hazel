@@ -14,12 +14,12 @@ let strip_Wrap_and_add_builtins =
         | Parens(e)
         | Probe(e, _) => cont(e)
         | Var(x) =>
-          let builtin = Util.VarMap.lookup(Builtins.builtins, x);
+          let builtin = Util.VarMap.lookup(Builtins.builtin_map, x);
           cont(
             switch (builtin) {
-            | Some(Fn(_, _, _)) => cont(Fresh.Exp.builtin_fun(x))
-            | Some(Const(_, _))
-            | Some(HazelFn(_, _, _)) => cont(e)
+            | Some(Fn(_))
+            | Some(HazelFn(_)) => cont(Fresh.Exp.builtin_fun(x))
+            | Some(Const(_))
             | None => cont(e)
             },
           );
