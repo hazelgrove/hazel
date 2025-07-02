@@ -1,4 +1,4 @@
-open BuiltinUtil;
+open BuiltinsUtil;
 module Fresh = IdTagged.FreshGrammar;
 open Fresh.Typ;
 

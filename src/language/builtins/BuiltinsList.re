@@ -1,6 +1,6 @@
 module Fresh = IdTagged.FreshGrammar;
 open Fresh.Typ;
-open BuiltinUtil;
+open BuiltinsUtil;
 open BuiltinsADT;
 
 let builtins = [
