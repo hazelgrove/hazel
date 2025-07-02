@@ -173,6 +173,7 @@ let common_err_view =
           : [text("Invalid labels: "), ...List.map(code, invalid_labels)]
       )
     | DuplicateLabel(name, _) => [text("Duplicate Label:"), code(name)]
+    | DuplicateVar(name, _) => [text("Duplicate Variable:"), code(name)]
     | NoType(UnboundLivelit(name)) => [
         text("Livelit with name"),
         code(name),

@@ -1394,7 +1394,7 @@ and upat_to_info_map =
 
       List.exists(l => name == l, duplicates)
         ? add(
-            ~self=Duplicate(name, self),
+            ~self=DuplicateVar(name, self),
             ~ctx=Ctx.extend(ctx, entry),
             ~constraint_=Coverage.Constraint.Truth,
             m,

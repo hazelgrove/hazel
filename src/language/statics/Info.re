@@ -76,6 +76,7 @@ type error_common =
   | Inconsistent(error_inconsistent)
   /* The error on a specific duplicate label */
   | DuplicateLabel(LabeledTuple.label, Typ.t)
+  | DuplicateVar(string, Typ.t)
   /* Tuple/TupLabel contains malformed labels, duplicate labels, and/or invalid labels */
   | TupleLabelError({
       malformed_labels: list(Any.t),
@@ -460,8 +461,11 @@ let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
       }),
     )
   | (Duplicate(lab, Just(ty)), _) => InHole(DuplicateLabel(lab, ty))
+  | (DuplicateVar(lab, Just(ty)), _) => InHole(DuplicateVar(lab, ty))
   | (Duplicate(lab, _), _) =>
     InHole(DuplicateLabel(lab, Unknown(Internal) |> Typ.temp))
+  | (DuplicateVar(lab, _), _) =>
+    InHole(DuplicateVar(lab, Unknown(Internal) |> Typ.temp))
   | (IsMulti, _) => NotInHole(Syn(Unknown(Internal) |> Typ.temp))
   | (NoJoin(_, tys), {term: Unknown(SynSwitch), _}) =>
     InHole(Inconsistent(Internal(Typ.of_source(tys))))
@@ -519,6 +523,7 @@ let rec status_pat = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.pat): status_pat =>
       | NotInHole(_) => None
       | InHole(Common(InvalidUseMode(_)))
       | InHole(Common(DuplicateLabel(_)))
+      | InHole(Common(DuplicateVar(_)))
       | InHole(Common(TupleLabelError(_)))
       | InHole(Common(Inconsistent(WithArrow(_))))
       | InHole(ExpectedConstructor | Redundant(_)) =>
@@ -557,6 +562,7 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
       | InHole(Common(NoType(_)))
       | InHole(Common(TupleLabelError(_)))
       | InHole(Common(DuplicateLabel(_)))
+      | InHole(Common(DuplicateVar(_)))
       | InHole(Common(InvalidUseMode(_)))
       | InHole(
           FreeVariable(_) | InexhaustiveMatch(_) | UnusedDeferral |
@@ -744,6 +750,7 @@ let fixed_typ_err_common: error_common => Typ.t =
   | InvalidUseMode({inner_typ, _}) => inner_typ
   | TupleLabelError({typ, _})
   | DuplicateLabel(_, typ) => typ
+  | DuplicateVar(_, typ) => typ
   | Inconsistent(Expectation({ana, _}) | BadLivelitModel(ana)) => ana
   | Inconsistent(Internal(_)) => Unknown(Internal) |> Typ.temp // Should this be some sort of meet?
   | Inconsistent(WithArrow(_)) =>
