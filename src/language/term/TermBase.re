@@ -177,8 +177,8 @@ and Exp: {
     ) =>
     t;
 
-  let fast_equal: (t, t) => bool;
-  let equal: (t, t) => bool;
+  let fast_equal: (~ignore_constructor_types: bool=?, t, t) => bool;
+  let equal: (~ignore_constructor_types: bool=?, t, t) => bool;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = exp_term;
@@ -283,7 +283,8 @@ and Exp: {
     x |> f_exp(rec_call);
   };
 
-  let rec fast_equal = (e1: t, e2: t) =>
+  let rec fast_equal = (~ignore_constructor_types: bool=false, e1: t, e2: t) => {
+    let fast_equal = fast_equal(~ignore_constructor_types);
     switch (e1 |> Grammar.Annotated.term_of, e2 |> Grammar.Annotated.term_of) {
     | (DynamicErrorHole(x, _), _)
     | (Parens(x), _) => fast_equal(x, e2)
@@ -304,6 +305,9 @@ and Exp: {
     | (Label(l1), Label(l2)) => l1 == l2
     | (ListLit(xs), ListLit(ys)) =>
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
+    | (Constructor(c1, _), Constructor(c2, _))
+        when ignore_constructor_types == true =>
+      c1 == c2
     | (Constructor(c1, Some(Some(ty1))), Constructor(c2, Some(Some(ty2)))) =>
       c1 == c2 && Typ.fast_equal(ty1, ty2)
     | (Constructor(c1, Some(None)), Constructor(c2, Some(None)))
@@ -406,6 +410,7 @@ and Exp: {
     | (EmptyHole, _)
     | (Undefined, _) => false
     };
+  };
   let equal = fast_equal;
 }
 and Pat: {
