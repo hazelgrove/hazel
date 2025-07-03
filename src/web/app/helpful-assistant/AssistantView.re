@@ -692,7 +692,25 @@ let code_block =
             |> Editor.Model.mk
             |> CellEditor.Model.mk
             |> CellEditor.Update.calculate(
-                 ~settings=globals.settings.core,
+                 ~settings={
+                   statics: false,
+                   elaborate: false,
+                   assist: false,
+                   dynamics: false,
+                   flip_animations: false,
+                   evaluation: {
+                     show_case_clauses: false,
+                     show_fn_bodies: false,
+                     show_fixpoints: false,
+                     show_ascription_steps: false,
+                     show_lookup_steps: false,
+                     show_stepper_filters: false,
+                     stepper_history: false,
+                     show_settings: false,
+                     show_hidden_steps: false,
+                     enable_proof: false,
+                   },
+                 },
                  ~is_edited=true,
                  ~stitch=x => x,
                  ~queue_worker=None,
