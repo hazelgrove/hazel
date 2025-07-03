@@ -1,5 +1,3 @@
-open Util;
-
 [@deriving sexp]
 type t = {
   row: int,
@@ -15,4 +13,7 @@ let compare = (pos1, pos2) =>
     Int.compare(pos1.col, pos2.col);
   };
 
-let zero = {row: 0, col: 0};
+let zero = {
+  row: 0,
+  col: 0,
+};

@@ -1,13 +1,17 @@
 open Util;
 open Zipper;
+open Language;
 
 let buffer_clear = (z: t): t =>
   switch (z.selection.mode) {
-  | Buffer(_) => {...z, selection: Selection.mk([])}
+  | Buffer(_) => {
+      ...z,
+      selection: Selection.mk([]),
+    }
   | _ => z
   };
 
-let set_buffer = (info_map: Statics.Map.t, z: t): t =>
+let set_buffer = (info_map: Language.Statics.Map.t, z: t): t =>
   switch (TyDi.set_buffer(~info_map, z)) {
   | None => z
   | Some(z) => z
@@ -15,24 +19,19 @@ let set_buffer = (info_map: Statics.Map.t, z: t): t =>
 
 let go_z =
     (
-      ~meta: option(Editor.Meta.t)=?,
-      ~settings: CoreSettings.t,
+      ~settings as _: Language.CoreSettings.t,
+      statics: CachedStatics.t,
       a: Action.t,
+      module M: Move.S,
       z: Zipper.t,
     )
     : Action.Result.t(Zipper.t) => {
-  let meta =
-    switch (meta) {
-    | Some(m) => m
-    | None => Editor.Meta.init(z, ~settings)
-    };
-  module M = (val Editor.Meta.module_of_t(meta));
   module Move = Move.Make(M);
   module Select = Select.Make(M);
 
   let paste = (z: Zipper.t, str: string): option(Zipper.t) => {
     open Util.OptUtil.Syntax;
-    let* z = Printer.zipper_of_string(~zipper_init=z, str);
+    let* z = Parser.to_zipper(~zipper_init=z, str);
     /* HACK(andrew): Insert/Destruct below is a hack to deal
        with the fact that pasting something like "let a = b in"
        won't trigger the barfing of the "in"; to trigger this,
@@ -40,6 +39,18 @@ let go_z =
     let* z = Insert.go(" ", z);
     let+ z = Destruct.go(Left, z);
     remold_regrout(Left, z);
+  };
+
+  let paste_segment = (z: Zipper.t, segment: Segment.t): Zipper.t => {
+    let replace_selection = (z, focus, segment): Zipper.t =>
+      {
+        ...z,
+        selection: Selection.mk(~focus, segment),
+      }
+      |> Zipper.unselect
+      |> Zipper.remold_regrout(Util.Direction.Right)
+      |> Zipper.remold_regrout(Util.Direction.Left);
+    replace_selection(z, z.selection.focus, segment);
   };
 
   let buffer_accept = (z): option(Zipper.t) =>
@@ -76,18 +87,23 @@ let go_z =
        * no additional effect, select the parent term instead */
       let* (p, _, _) = Indicated.piece''(z);
       Piece.is_term(p)
-        ? Select.parent_of_indicated(z, meta.statics.info_map)
-        : Select.nice_term(z);
+        ? Select.parent_of_indicated(z, statics.info_map)
+        : Select.current_term(~defs_exclude_bodies=true, ~case_rules=true, z);
     | _ => None
     };
   };
 
   switch (a) {
-  | Paste(clipboard) =>
+  | Paste(String(clipboard)) =>
     switch (paste(z, clipboard)) {
     | None => Error(CantPaste)
     | Some(z) => Ok(z)
     }
+  | Introduce =>
+    Select.current_term(~defs_exclude_bodies=false, ~case_rules=false, z)
+    |> Option.bind(_, Introduce.introduce(statics.info_map, _))
+    |> Result.of_option(~error=Action.Failure.CantIntroduce)
+  | Paste(Segment(segment)) => Ok(paste_segment(z, segment))
   | Cut =>
     /* System clipboard handling is done in Page.view handlers */
     switch (Destruct.go(Left, z)) {
@@ -99,11 +115,19 @@ let go_z =
      * This doesn't change state but is included here for logging purposes */
     Ok(z)
   | Reparse =>
-    switch (Printer.reparse(z)) {
+    /* This serializes the current editor to text, resets the current
+       editor, and then deserializes. It is intended as a (tactical)
+       nuclear option for weird backpack states */
+    let reparse = z =>
+      Parser.to_zipper(
+        ~zipper_init=Zipper.init(),
+        Printer.of_zipper(~holes="", ~indent="", z),
+      );
+    switch (reparse(z)) {
     | None => Error(CantReparse)
     | Some(z) => Ok(z)
-    }
-  | Buffer(Set(TyDi)) => Ok(set_buffer(meta.statics.info_map, z))
+    };
+  | Buffer(Set(TyDi)) => Ok(set_buffer(statics.info_map, z))
   | Buffer(Accept) =>
     switch (buffer_accept(z)) {
     | None => Error(CantAccept)
@@ -114,6 +138,7 @@ let go_z =
     ProjectorPerform.go(
       Move.jump_to_id_indicated,
       Move.jump_to_side_of_id,
+      Select.current_term(~defs_exclude_bodies=false, ~case_rules=false),
       a,
       z,
     )
@@ -125,8 +150,8 @@ let go_z =
       | BindingSiteOfIndicatedVar =>
         open OptUtil.Syntax;
         let* idx = Indicated.index(z);
-        let* ci = Id.Map.find_opt(idx, meta.statics.info_map);
-        let* binding_id = Info.get_binding_site(ci);
+        let* ci = Id.Map.find_opt(idx, statics.info_map);
+        let* binding_id = Language.Info.get_binding_site(ci);
         Move.jump_to_id(z, binding_id);
       | TileId(id) => Move.jump_to_id(z, id)
       }
@@ -137,16 +162,19 @@ let go_z =
     let z = Zipper.directional_unselect(z.selection.focus, z);
     Ok(z);
   | Select(All) =>
-    switch (Move.do_extreme(Move.primary(ByToken), Up, z)) {
-    | Some(z) =>
-      switch (Select.go(Extreme(Down), z)) {
-      | Some(z) => Ok(z)
-      | None => Error(Action.Failure.Cant_select)
-      }
+    let z =
+      switch (Move.do_extreme(Move.primary(ByToken), Up, z)) {
+      | Some(z) => z
+      | None => z
+      };
+    switch (Select.go(Extreme(Down), z)) {
+    | Some(z) => Ok(z)
     | None => Error(Action.Failure.Cant_select)
-    }
+    };
   | Select(Term(Current)) =>
-    switch (Select.current_term(z)) {
+    switch (
+      Select.current_term(~defs_exclude_bodies=true, ~case_rules=true, z)
+    ) {
     | None => Error(Cant_select)
     | Some(z) => Ok(z)
     }
@@ -175,31 +203,46 @@ let go_z =
     | None => Error(Action.Failure.Cant_select)
     }
   | Select(Resize(d)) =>
-    Select.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_select)
+    switch (Select.go(d, z)) {
+    | Some(z) => Ok(z)
+    | None => Ok(z)
+    }
   | Destruct(d) =>
     z
     |> Destruct.go(d)
     |> Option.map(remold_regrout(d))
     |> Result.of_option(~error=Action.Failure.Cant_destruct)
   | Insert(char) =>
+    let id =
+      switch (Indicated.index(z)) {
+      | Some(id) => id
+      | None => Id.invalid
+      };
+
+    let ctx =
+      switch (Id.Map.find_opt(id, statics.info_map)) {
+      | Some(ci) => Info.ctx_of(ci)
+      | None => Ctx.empty
+      };
+
     z
-    |> Insert.go(char)
+    |> Insert.go(char, ~ctx)
     /* note: remolding here is done case-by-case */
-    //|> Option.map((z) => remold_regrout(Right, z))
-    |> Result.of_option(~error=Action.Failure.Cant_insert)
+    |> Result.of_option(~error=Action.Failure.Cant_insert);
   | Pick_up => Ok(remold_regrout(Left, Zipper.pick_up(z)))
   | Put_down =>
     let z =
       /* Alternatively, putting down inside token could eiter merge-in or split */
       switch (z.caret) {
       | Inner(_) => None
-      | Outer => Zipper.put_down(Left, z)
+      | Outer => Zipper.put_down_regrout_remold(Left, z)
       };
-    z
-    |> Option.map(remold_regrout(Left))
-    |> Result.of_option(~error=Action.Failure.Cant_put_down);
+    z |> Result.of_option(~error=Action.Failure.Cant_put_down);
   | RotateBackpack =>
-    let z = {...z, backpack: Util.ListUtil.rotate(z.backpack)};
+    let z = {
+      ...z,
+      backpack: Util.ListUtil.rotate(z.backpack),
+    };
     Ok(z);
   | MoveToBackpackTarget((Left(_) | Right(_)) as d) =>
     if (Backpack.restricted(z.backpack)) {
@@ -214,46 +257,3 @@ let go_z =
     |> Result.of_option(~error=Action.Failure.Cant_move)
   };
 };
-
-let go_history =
-    (~settings: CoreSettings.t, a: Action.t, ed: Editor.t)
-    : Action.Result.t(Editor.t) => {
-  open Result.Syntax;
-  /* This function records action history */
-  let Editor.State.{zipper, meta} = ed.state;
-  let+ z = go_z(~settings, ~meta, a, zipper);
-  Editor.new_state(~settings, a, z, ed);
-};
-
-let go =
-    (~settings: CoreSettings.t, a: Action.t, ed: Editor.t)
-    : Action.Result.t(Editor.t) =>
-  /* This function wraps assistant completions. If completions are enabled,
-   * then beginning any action (other than accepting a completion) clears
-   * the completion buffer before performing the action. Conversely,
-   * after any edit action, a new completion is set in the buffer */
-  if (ed.read_only && Action.prevent_in_read_only_editor(a)) {
-    Ok(ed);
-  } else if (settings.assist && settings.statics) {
-    open Result.Syntax;
-    let ed =
-      a == Buffer(Accept)
-        ? ed
-        : (
-          switch (go_history(~settings, Buffer(Clear), ed)) {
-          | Ok(ed) => ed
-          | Error(_) => ed
-          }
-        );
-    let* ed = go_history(~settings, a, ed);
-    Action.is_edit(a)
-      ? {
-        switch (go_history(~settings, Buffer(Set(TyDi)), ed)) {
-        | Error(err) => Error(err)
-        | Ok(ed) => Ok(ed)
-        };
-      }
-      : Ok(ed);
-  } else {
-    go_history(~settings, a, ed);
-  };

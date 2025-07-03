@@ -32,6 +32,12 @@ let sequence = (l: list(option('a))): option(list('a)) =>
 
 let and_then = (f, o) => Option.bind(o, f);
 
+let replace = (f: 'a => option('a), o: 'a): 'a =>
+  switch (f(o)) {
+  | Some(a) => a
+  | None => o
+  };
+
 module Syntax = {
   let ( let* ) = Option.bind;
   let (let+) = (o, f) => Option.map(f, o);

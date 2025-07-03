@@ -1,7 +1,7 @@
 open Util;
 
 module Shape = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t =
     | Convex
     | Concave(Precedence.t);
@@ -45,7 +45,7 @@ module Shape = {
     };
 };
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = {
   shape: Shape.t,
   sort: Sort.t,
@@ -53,4 +53,7 @@ type t = {
 
 let shape = n => n.shape;
 
-let flip = (nib: t) => {...nib, shape: Shape.flip(nib.shape)};
+let flip = (nib: t) => {
+  ...nib,
+  shape: Shape.flip(nib.shape),
+};

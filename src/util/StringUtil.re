@@ -36,6 +36,25 @@ let replace = Js_of_ocaml.Regexp.global_replace;
 
 let split = Js_of_ocaml.Regexp.split;
 
+let search = Js_of_ocaml.Regexp.search;
+
+let plain_split: (string, string) => list(string) =
+  (str, sep) => split(Js_of_ocaml.Regexp.regexp_string(sep), str);
+
+let plain_match: (string, string) => bool =
+  (regexp, str) => match(Js_of_ocaml.Regexp.regexp_string(regexp), str);
+
+let plain_replace: (string, string, string) => string =
+  (regexp, str, repl) =>
+    replace(Js_of_ocaml.Regexp.regexp_string(regexp), str, repl);
+
+let plain_search: (string, string, int) => int =
+  (regexp, str, idx) =>
+    switch (search(Js_of_ocaml.Regexp.regexp(regexp), str, idx)) {
+    | Some((idx, _)) => idx
+    | None => (-1)
+    };
+
 let to_lines = String.split_on_char('\n');
 
 let line_widths = (s: string): list(int) =>
@@ -54,7 +73,8 @@ let num_linebreaks = (s: string) => {
 // let unescape_linebreaks: string => string = replace(regexp("\\\\n"), "\n");
 // let trim_leading = replace(regexp("\n[ ]*"), "\n");
 
-//TODO(andrew): figure out why above dont work
+/* TODO(andrew): figure out why above dont work. When they're
+ * gone we can remove Re.Str entirely */
 
 let escape_linebreaks: string => string =
   Re.Str.global_replace(Re.Str.regexp("\n"), "\\n");
@@ -62,4 +82,31 @@ let escape_linebreaks: string => string =
 let unescape_linebreaks: string => string =
   Re.Str.global_replace(Re.Str.regexp("\\\\n"), "\n");
 
-let trim_leading = Re.Str.global_replace(Re.Str.regexp("\n[ ]*"), "\n");
+let trim_leading = (s: string): string => {
+  s
+  |> Re.Str.global_replace(Re.Str.regexp("^[ ]*"), "")  // Remove leading spaces at start
+  |> Re.Str.global_replace(Re.Str.regexp("\n[ ]*"), "\n"); // Remove leading spaces after newlines
+};
+
+let isEmptyOrWhitespace = str => {
+  let trimmed = String.trim(str);
+  String.length(trimmed) == 0;
+};
+
+let compress = (s: string): string => {
+  let result =
+    Js_of_ocaml.Js.encodeURIComponent(Js_of_ocaml.Js.string(s))
+    |> Js_of_ocaml.Js.to_string;
+  result;
+};
+
+let decompress = (s: string): string => {
+  let result =
+    Js_of_ocaml.Js.decodeURIComponent(Js_of_ocaml.Js.string(s))
+    |> Js_of_ocaml.Js.to_string;
+  result;
+};
+
+let sanitize_filename = (s: string): string => {
+  replace(regexp("[^a-zA-Z0-9_-]"), s, "");
+};

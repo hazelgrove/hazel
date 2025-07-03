@@ -1,0 +1,11 @@
+/* PROJECTOR: CHECKBOX */
+
+.projector.check input {
+  margin: 0;
+  filter: sepia(1);
+  cursor: pointer;
+  outline: none;
+}
+.projector.check:not(.indicated):not(:hover) > svg {
+  fill: var(--NONE);
+}

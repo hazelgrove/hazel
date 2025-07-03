@@ -93,11 +93,8 @@ let expand_neighbors_and_make_new_tile = (char: Token.t, state: t): option(t) =>
      The order here could be revisited if barfing was more sophisticated.
      */
   let* z = expand_or_barf_left_neighbor(state);
-  //let (z) = regrout(Left, z);
-  /* Note to david: I'm not sure why the above regrout is necessary.
-     Without it, there is a Nonconvex segment error thrown in exactly
-     one case, the double barf case: insert space on "if then|else" */
   let+ z = expand_or_barf_right_neighbor(z);
+  let z = remold_regrout_prev(z);
   make_new_tile(char, Left, z);
 };
 
@@ -145,6 +142,18 @@ let insert_monos = (l: Token.t, r: Token.t, z: option(t)): option(t) =>
   |> Option.map(Zipper.construct_mono(Right, r))
   |> Option.map(Zipper.construct_mono(Left, l));
 
+let should_supress_space = (z: t): bool => {
+  /* Figure out if we should avoid inserting a space because a grout
+   * is due to be inserted instead */
+  let z_cand = z |> remold_regrout(Right);
+  let init_left_nhbr = Siblings.left_neighbor(z.relatives.siblings);
+  let candidate_nhbr = Siblings.left_neighbor(z_cand.relatives.siblings);
+  switch (Siblings.left_neighbor(z_cand.relatives.siblings)) {
+  | None => false
+  | Some(p) => Piece.is_grout(p) && candidate_nhbr != init_left_nhbr
+  };
+};
+
 let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
   /* Current this necessarily creates three tokens; two from splitting
    * the existing one, and a new one. The two splitting tokens may become
@@ -153,17 +162,45 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
    * to append the new char to the left half, and then the right half,
    * and only if those fail creating a new center token. */
   let (l, r) = Token.split_nth(idx, t);
-  z
-  |> Zipper.set_caret(Outer)
-  |> Zipper.select(Right)
-  |> (
-    /* overwrite selection */
-    switch (Form.duomerges([l, r])) {
-    | Some(_) => insert_duo([l, r])
-    | None => insert_monos(l, r)
-    }
-  )
-  |> OptUtil.and_then(expand_neighbors_and_make_new_tile(char));
+  /* overwrite selection */
+  let z = z |> Zipper.set_caret(Outer) |> Zipper.select(Right);
+  switch (Form.duomerges([l, r])) {
+  | Some(_) =>
+    let+ z = insert_duo([l, r], z);
+    /* If we're inserting a space, don't bother to insert it;
+     * we'll get a convex grout anyway from regrouting */
+    (Form.space != char ? make_new_tile(char, Left, z) : z)
+    |> remold_regrout(Right);
+  | None =>
+    /* If contemplating changing regrouting behavior here, try these
+     * two cases: pressing (A) space and (B) open parens on:
+     * `if then|else` (needs convex grout in prev seg and current seg by caret)
+     * `if true|then` (no grout needed by caret, and later)
+     * `if|then` (needs convex grout by caret in current seg)
+     * `1|1` (needs concave grout by caret in current seg)
+     * `if|if` (no grout needed by caret, and later)
+     * `case|end` */
+    let* z = insert_monos(l, r, z);
+    let* z = expand_or_barf_left_neighbor(z);
+    let+ z = expand_or_barf_right_neighbor(z);
+    if (Form.space == char && should_supress_space(z)) {
+      /* This is a finnicky case. remold_regrout_prev regrouts
+       * the parent segment if we're at the beginning of the current
+       * segment, but that also causes it to regrout the current
+       * segment, which may result in us ending up on the wrong
+       * side of the grout */
+      let z = z |> remold_regrout_prev |> remold_regrout(Left);
+      switch (move(Right, z)) {
+      | None => z
+      | Some(z) => z
+      };
+    } else {
+      z
+      |> remold_regrout_prev
+      |> make_new_tile(char, Left)
+      |> remold_regrout(Right);
+    };
+  };
 };
 
 let opt_regrold = d => Option.map(remold_regrout(d));
@@ -187,8 +224,13 @@ let closing_stringlit_or_comment = (char, t) =>
   || Form.is_comment(t)
   && Form.is_comment_delim(char);
 
-let go =
-    (char: string, {caret, relatives: {siblings, _}, _} as z: t): option(t) => {
+let rec go =
+        (
+          ~ctx: option(Language.Ctx.t)=?,
+          char: string,
+          {caret, relatives: {siblings, _}, _} as z: t,
+        )
+        : option(t) => {
   /* If there's a selection, delete it before proceeding */
   let z = z.selection.content != [] ? Zipper.destruct(z) : z;
   switch (caret, neighbor_monotiles(siblings)) {
@@ -200,6 +242,64 @@ let go =
     z |> Zipper.set_caret(Outer) |> Zipper.move(Right)
   | (Outer, (Some(t), _)) when closing_stringlit_or_comment(char, t) =>
     Some(z)
+  | (Outer, (Some(t), _)) when Form.is_livelit(t) && char == " " =>
+    let insert = (z, c) => Option.bind(z, go(c));
+    switch (ctx) {
+    | Some(ctx) =>
+      let name = Form.parse_livelit(t);
+      switch (Language.Ctx.lookup_livelit(ctx, name)) {
+      // if we find a matching livelit, insert it, projected
+      | Some(ll) =>
+        let exp_to_segment =
+          ExpToSegment.(
+            exp_to_segment(
+              ~settings=
+                Settings.of_core(~inline=true, Language.CoreSettings.on),
+            )
+          );
+
+        let model_segment =
+          switch (ll.model_default) {
+          | {term: Tuple(_), _} => ll.model_default |> exp_to_segment
+          | _ => [Segment.parenthesize(ll.model_default |> exp_to_segment)]
+          };
+
+        let model_zipper =
+          model_segment
+          |> Segment.to_string(~holes=None)
+          |> StringUtil.to_list
+          |> List.fold_left(insert, Some(z));
+
+        let args_and_name =
+          switch (model_zipper) {
+          | Some(z) =>
+            Some(z.relatives.siblings |> fst |> List.rev |> ListUtil.take(2))
+          | None => None
+          };
+
+        let updated_syntax =
+          ProjectorInit.init_or_noop(
+            Livelit,
+            Segment.parenthesize(Option.get(args_and_name)),
+            MakeTerm.for_projection(Option.get(args_and_name)) |> Option.get,
+          );
+
+        let new_left_siblings =
+          switch (List.rev(fst(z.relatives.siblings))) {
+          | [_hd, ...tl] => List.rev([updated_syntax, ...tl])
+          | [] => []
+          };
+
+        Some(
+          Option.get(model_zipper)
+          |> Zipper.update_siblings(((_, r)) => (new_left_siblings, r)),
+        );
+
+      // No matching livelit found, insert space
+      | None => insert_outer(char, z)
+      };
+    | None => insert(Some(z), char)
+    };
   | (Inner(d_idx, n), (_, Some(t))) =>
     let idx = n + 1;
     let new_t = Token.insert_nth(idx, char, t);
@@ -216,7 +316,7 @@ let go =
         |> Zipper.set_caret(Inner(d_idx, idx))
         |> Zipper.replace_mono(Right, new_t)
         |> opt_regrold(Left)
-      : split(z, char, idx, t) |> opt_regrold(Right);
+      : split(z, char, idx, t);
   /* Can't insert inside delimiter */
   | (Inner(_, _), (_, None)) => None
   | (Outer, (_, Some(_))) =>
