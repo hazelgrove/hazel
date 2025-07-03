@@ -901,7 +901,7 @@ and uexp_to_info_map =
           | Tuple([tup, ...labs]) =>
             let (tup_info, m) =
               go(~ana=Unknown(SynSwitch) |> Typ.temp, tup, m);
-            // Run label_to_info_map on the labels accumulating the map and a list of the labels
+
             let (labels, m) =
               List.fold_left(
                 ((labels: list(Info.exp), m: Map.t), label) => {
@@ -938,92 +938,72 @@ and uexp_to_info_map =
 
             switch (Typ.normalize(ctx, tup_info.ty).term) {
             | Prod(entries) =>
-              let (bad_labels: list(TermBase.any_t), labels) =
-                List.partition_map(
+              let labels =
+                List.map(
                   (label: Info.exp) =>
                     switch (label.ty.term) {
-                    | Label(l) => Right(Some(l))
-                    | Unknown(_) => Right(None)
-                    | _ => Left(Exp(label.term): Any.t)
+                    | Label(l) => Some(l)
+                    | _ => None
                     },
                   labels,
                 );
 
-              switch (bad_labels) {
-              | [] =>
-                let entries = List.filter_map(Typ.match_tup_label, entries);
+              let entries = List.filter_map(Typ.match_tup_label, entries);
 
-                let (missing_labels, val_types) =
-                  List.partition_map(
-                    (label: option(string)) => {
-                      switch (label) {
-                      | Some(label) =>
-                        switch (
-                          List.find_opt(((l, _)) => l == label, entries)
-                        ) {
-                        | Some((_, typ)) => Right(typ)
-                        | None => Left(label)
-                        }
-                      | None => Right(Unknown(Internal) |> Typ.temp)
+              let (missing_labels, val_types) =
+                List.partition_map(
+                  (label: option(string)) => {
+                    switch (label) {
+                    | Some(label) =>
+                      switch (
+                        List.find_opt(((l, _)) => l == label, entries)
+                      ) {
+                      | Some((_, typ)) => Right(typ)
+                      | None => Left(label)
                       }
-                    },
-                    labels,
-                  );
-
-                let self: Self.exp =
-                  switch (missing_labels) {
-                  | [] => Common(Just(Prod(val_types) |> Typ.temp))
-                  | _ =>
-                    BuiltinError(ProjectLabelsMissingLabels(missing_labels)) // Better error message this is labels not found
-                  };
-
-                add'(
-                  ~self,
-                  ~co_ctx=CoCtx.union([fn.co_ctx, tup_info.co_ctx]),
-                  m,
+                    | None => Right(Unknown(Internal) |> Typ.temp)
+                    }
+                  },
+                  labels,
                 );
-              | _ =>
-                add'(
-                  ~self=BuiltinError(ProjectLabelsNonLabels(bad_labels)), // Better error message this is labels not found
-                  ~co_ctx=CoCtx.union([fn.co_ctx, tup_info.co_ctx]),
-                  m,
-                )
-              };
+
+              let self: Self.exp =
+                switch (missing_labels) {
+                | [] => Common(Just(Prod(val_types) |> Typ.temp))
+                | _ =>
+                  BuiltinError(ProjectLabelsMissingLabels(missing_labels)) // Better error message this is labels not found
+                };
+
+              add'(
+                ~self,
+                ~co_ctx=CoCtx.union([fn.co_ctx, tup_info.co_ctx]),
+                m,
+              );
             | Unknown(_) =>
-              let (bad_labels: list(TermBase.any_t), labels) =
-                List.partition_map(
+              let labels =
+                List.map(
                   (label: Info.exp) =>
                     switch (label.ty.term) {
-                    | Label(l) => Right(Some(l))
-                    | Unknown(_) => Right(None)
-                    | _ => Left(Exp(label.term): Any.t)
+                    | Label(l) => Some(l)
+                    | _ => None
                     },
                   labels,
                 );
 
-              switch (bad_labels) {
-              | [] =>
-                let val_types =
-                  List.map(_ => {Unknown(Internal) |> Typ.temp}, labels);
+              let val_types =
+                List.map(_ => {Unknown(Internal) |> Typ.temp}, labels);
 
-                let self: Self.exp =
-                  Common(
-                    Just(
-                      switch (val_types) {
-                      | [x] => x
-                      | _ => Prod(val_types) |> Typ.temp
-                      },
-                    ),
-                  );
+              let self: Self.exp =
+                Common(
+                  Just(
+                    switch (val_types) {
+                    | [x] => x
+                    | _ => Prod(val_types) |> Typ.temp
+                    },
+                  ),
+                );
 
-                add'(~self, ~co_ctx=fn.co_ctx, m);
-              | _ =>
-                add'(
-                  ~self=BuiltinError(ProjectLabelsNonLabels(bad_labels)), // Better error message this is labels not found
-                  ~co_ctx=fn.co_ctx,
-                  m,
-                )
-              };
+              add'(~self, ~co_ctx=fn.co_ctx, m);
             | _ =>
               let (_, m) =
                 uexp_to_info_map(
