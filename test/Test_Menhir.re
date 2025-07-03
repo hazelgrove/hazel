@@ -1,31 +1,18 @@
-open Haz3lmenhir;
+open MenhirParser;
 open Alcotest;
-open Haz3lcore;
+open Language;
 module Fresh = IdTagged.FreshGrammar;
 let alco_check =
-  testable(
-    Fmt.using(Haz3lcore.Exp.show, Fmt.string),
-    Haz3lcore.DHExp.fast_equal,
-  )
+  (testable(Fmt.using(Exp.show, Fmt.string)))(DHExp.fast_equal)
   |> Alcotest.check;
 
-let strip_Wrap_and_add_builtins =
+let strip_wrap =
   Exp.map_term(
     ~f_exp=
       (cont: TermBase.exp_t => TermBase.exp_t, e: TermBase.exp_t) =>
         switch (e.term) {
         | Parens(e)
         | Probe(e, _) => cont(e)
-        | Var(x) =>
-          let builtin =
-            VarMap.lookup(Haz3lcore.Builtins.Pervasives.builtins, x);
-          cont(
-            switch (builtin) {
-            | Some(Fn(_, _, _)) => cont(Fresh.Exp.builtin_fun(x))
-            | Some(Const(_, _))
-            | None => cont(e)
-            },
-          );
         | _ => cont(e)
         },
     ~f_pat=
@@ -46,8 +33,11 @@ let strip_Wrap_and_add_builtins =
 
 // Existing recovering parser
 let make_term_parse = (s: string) =>
-  strip_Wrap_and_add_builtins(
-    MakeTerm.from_zip_for_sem(Option.get(Printer.zipper_of_string(s))).term,
+  strip_wrap(
+    Haz3lcore.MakeTerm.from_zip_for_sem(
+      Option.get(Haz3lcore.Parser.to_zipper(s)),
+    ).
+      term,
   );
 
 let menhir_matches = (exp: Term.Exp.t, actual: string) =>
@@ -56,9 +46,7 @@ let menhir_matches = (exp: Term.Exp.t, actual: string) =>
     exp,
     Grammar.map_exp_annotation(
       _: IdTagged.IdTag.t => {ids: [Id.invalid]},
-      Haz3lmenhir.Conversion.Exp.of_menhir_ast(
-        Haz3lmenhir.Interface.parse_program(actual),
-      ),
+      Conversion.Exp.of_menhir_ast(Interface.parse_program(actual)),
     ),
   );
 
@@ -91,9 +79,7 @@ let menhir_maketerm_equivalent_test =
       make_term_parse(actual),
       Grammar.map_exp_annotation(
         _: IdTagged.IdTag.t => {ids: [Id.invalid]},
-        Haz3lmenhir.Conversion.Exp.of_menhir_ast(
-          Haz3lmenhir.Interface.parse_program(actual),
-        ),
+        Conversion.Exp.of_menhir_ast(Interface.parse_program(actual)),
       ),
     )
   });
@@ -110,20 +96,23 @@ let qcheck_menhir_maketerm_equivalent_test =
     QCheck_Util.arb_exp(~minimal_idents=false, 7),
     core_exp => {
       let segment =
-        ExpToSegment.exp_to_segment(
+        Haz3lcore.ExpToSegment.exp_to_segment(
           ~settings=
-            ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
+            Haz3lcore.ExpToSegment.Settings.of_core(
+              ~inline=true,
+              Language.CoreSettings.off,
+            ),
           core_exp,
         );
 
-      let serialized = Printer.of_segment(~holes=Some("?"), segment);
+      let serialized = Haz3lcore.Printer.of_segment(~holes="?", segment);
       let make_term_parsed = make_term_parse(serialized);
-      let menhir_parsed = Haz3lmenhir.Interface.parse_program(serialized);
+      let menhir_parsed = Interface.parse_program(serialized);
       let menhir_parsed_converted =
-        Haz3lmenhir.Conversion.Exp.of_menhir_ast(menhir_parsed);
+        Conversion.Exp.of_menhir_ast(menhir_parsed);
 
       switch (
-        Haz3lcore.DHExp.fast_equal(
+        DHExp.fast_equal(
           make_term_parsed,
           Grammar.map_exp_annotation(
             _ => IdTagged.IdTag.fresh(),
@@ -163,7 +152,7 @@ let qcheck_menhir_serialized_equivalent_test =
       let core_exp =
         Grammar.map_exp_annotation(_ => IdTagged.IdTag.fresh(), unit_exp);
       let segment =
-        ExpToSegment.exp_to_segment(
+        Haz3lcore.ExpToSegment.exp_to_segment(
           ~settings={
             inline: true,
             fold_case_clauses: false,
@@ -174,8 +163,8 @@ let qcheck_menhir_serialized_equivalent_test =
           },
           core_exp,
         );
-      let serialized = Printer.of_segment(~holes=Some("?"), segment);
-      let menhir_parsed = Haz3lmenhir.Interface.parse_program(serialized);
+      let serialized = Haz3lcore.Printer.of_segment(~holes="?", segment);
+      let menhir_parsed = Interface.parse_program(serialized);
       AST.equal_exp(menhir_parsed, exp);
     },
   );
@@ -240,8 +229,8 @@ let tests =
       menhir_only_test("Unit", tuple([]), "()"),
       menhir_only_test("Constructor", constructor("A", None), "A"),
       menhir_only_test(
-        "Constructor cast",
-        cast(constructor("A", None), Typ.unknown(Internal), Typ.int()),
+        "Constructor ascription",
+        asc(constructor("A", None), Typ.int()),
         "A : Int",
       ),
       menhir_only_test(
@@ -257,11 +246,7 @@ let tests =
       ),
       full_parser_test(
         "Type Variable",
-        let_(
-          Pat.cast(Pat.var("x"), Typ.var("T"), Typ.unknown(Internal)),
-          empty_hole(),
-          var("x"),
-        ),
+        let_(Pat.asc(Pat.var("x"), Typ.var("T")), empty_hole(), var("x")),
         "let x : T = ? in x",
       ),
       full_parser_test(
@@ -340,11 +325,7 @@ let tests =
       ),
       full_parser_test(
         "Let binding with type ascription",
-        let_(
-          Pat.cast(Pat.var("x"), Typ.int(), Typ.unknown(Internal)),
-          int(5),
-          var("x"),
-        ),
+        let_(Pat.asc(Pat.var("x"), Typ.int()), int(5), var("x")),
         "let (x: Int) = 5 in x",
       ),
       menhir_only_test(
@@ -360,14 +341,13 @@ let tests =
       full_parser_test(
         "basic sum type",
         let_(
-          Pat.cast(
+          Pat.asc(
             Pat.var("x"),
             Typ.sum([
               Variant("A", [], None),
               Variant("B", [], None),
               Variant("C", [], Some(Typ.int())),
             ]),
-            Typ.unknown(Internal),
           ),
           ap(Forward, constructor("C", None), int(7)),
           var("x"),
@@ -380,9 +360,9 @@ let tests =
         "fun (b : Bool) -> b",
       ),
       full_parser_test(
-        "Type Hole in arrow cast",
+        "Type Hole in arrow ascription",
         fn(
-          Pat.cast(
+          Pat.asc(
             Pat.var("b"),
             Typ.(
               parens(
@@ -392,7 +372,6 @@ let tests =
                 ),
               )
             ),
-            Typ.unknown(Internal),
           ),
           empty_hole(),
           None,

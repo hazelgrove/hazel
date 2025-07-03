@@ -1,10 +1,11 @@
 open Haz3lcore;
+open Language;
 open QCheck;
-open Haz3lmenhir;
+open MenhirParser;
 
 /**
  * An arbitrary generator for expressions of type `Exp.t`.
- * This uses the generator from the Haz3lmenhir AST to produce random instances of `Exp.t`
+ * This uses the generator from the menhirParser AST to produce random instances of `Exp.t`
  * for property-based testing.
  */
 let arb_exp = (~minimal_idents: bool, size: int) => {
@@ -15,7 +16,7 @@ let arb_exp = (~minimal_idents: bool, size: int) => {
            ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
          _,
        )
-    |> Printer.of_segment(~holes=Some("?"), _);
+    |> Printer.of_segment(~holes="?", _);
   let arb_exp =
     map(
       ~rev=
@@ -40,7 +41,7 @@ let arb_typ = (~minimal_idents: bool, size: int) => {
            ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
          _,
        )
-    |> Printer.of_segment(~holes=Some("?"), _);
+    |> Printer.of_segment(~holes="?", _);
   let arb_typ =
     map(
       ~rev=

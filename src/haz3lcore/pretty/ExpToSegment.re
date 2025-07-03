@@ -1,6 +1,9 @@
 open Util;
 open PrettySegment;
 open Base;
+let mk_space = Secondary.mk_space;
+let mk_newline = Secondary.mk_newline;
+open Language;
 
 module Settings = {
   type t = {
@@ -66,8 +69,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   // Other forms
   | UnOp(Meta(Unquote), _) => Precedence.unquote
 
-  | Cast(_)
-  | FailedCast(_) => Precedence.cast
+  | Asc(_) => Precedence.asc
   | Ap(Forward, _, _)
   | DeferredAp(_)
   | TypAp(_) => Precedence.ap
@@ -115,7 +117,7 @@ let external_precedence_pat = (dp: Pat.t) =>
   // Other forms
   | Cons(_) => Precedence.cons
   | Ap(_) => Precedence.ap
-  | Cast(_) => Precedence.cast
+  | Asc(_) => Precedence.asc
   | Tuple(_) => Precedence.prod
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
@@ -210,10 +212,7 @@ let rec parenthesize =
   | Filter(Residue(_), x) => x |> parenthesize
   // Other forms
   | Constructor(c, t) =>
-    Constructor(
-      c,
-      Option.map(Option.map(paren_typ_at(Precedence.cast)), t),
-    )
+    Constructor(c, Option.map(Option.map(paren_typ_at(Precedence.asc)), t))
     |> rewrap
   | Fun(p, e, typ, n) =>
     Fun(
@@ -314,18 +313,10 @@ let rec parenthesize =
       parenthesize(e2) |> paren_assoc_at(Precedence.semi),
     )
     |> rewrap
-  | Cast(e, t1, t2) =>
-    Cast(
-      parenthesize(e) |> paren_assoc_at(Precedence.cast),
-      parenthesize_typ(t1) |> paren_typ_at(Precedence.cast),
-      parenthesize_typ(t2) |> paren_typ_at(Precedence.cast),
-    )
-    |> rewrap
-  | FailedCast(e, t1, t2) =>
-    FailedCast(
-      parenthesize(e) |> paren_at(Precedence.cast),
-      parenthesize_typ(t1) |> paren_typ_at(Precedence.cast),
-      parenthesize_typ(t2) |> paren_typ_at(Precedence.cast),
+  | Asc(e, t) =>
+    Asc(
+      parenthesize(e) |> paren_assoc_at(Precedence.asc),
+      parenthesize_typ(t) |> paren_typ_at(Precedence.asc),
     )
     |> rewrap
   | Test(e) => Test(parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
@@ -455,11 +446,10 @@ and parenthesize_pat =
     |> rewrap
   | MultiHole(xs) =>
     MultiHole(List.map(parenthesize_any(~show_filters), xs)) |> rewrap
-  | Cast(p, t1, t2) =>
-    Cast(
-      parenthesize_pat(p) |> paren_pat_assoc_at(Precedence.cast),
-      parenthesize_typ(t1) |> paren_typ_at(Precedence.max), // Hack[Matt]: always add parens to get the arrows right
-      parenthesize_typ(t2) |> paren_typ_at(Precedence.max),
+  | Asc(p, t) =>
+    Asc(
+      parenthesize_pat(p) |> paren_pat_assoc_at(Precedence.asc),
+      parenthesize_typ(t) |> paren_typ_at(Precedence.max) // Hack[Matt]: always add parens to get the arrows right
     )
     |> rewrap
   };
@@ -650,10 +640,8 @@ let mk_form = (form_name: Form.compound_form, id, children): Piece.t => {
       ((l, child, r)) => {
         let lspace = should_add_space(l, child |> Segment.first_string);
         let rspace = should_add_space(child |> Segment.last_string, r);
-        (lspace ? [Secondary(Secondary.mk_space(Id.mk()))] : [])
-        @ (
-          rspace ? child @ [Secondary(Secondary.mk_space(Id.mk()))] : child
-        );
+        (lspace ? [Secondary(mk_space(Id.mk()))] : [])
+        @ (rspace ? child @ [Secondary(mk_space(Id.mk()))] : child);
       },
       Aba.mk(form.label, children),
     )
@@ -687,7 +675,7 @@ let (@) = (seg1: Segment.t, seg2: Segment.t): Segment.t =>
           Segment.last_string(seg1),
           Segment.first_string(seg2),
         )) {
-      seg1 @ [Secondary(Secondary.mk_space(Id.mk()))] @ seg2;
+      seg1 @ [Secondary(mk_space(Id.mk()))] @ seg2;
     } else {
       seg1 @ seg2;
     }
@@ -719,7 +707,7 @@ let fold_fun_if = (condition, f_name: string, pieces) =>
   };
 
 /* We assume that parentheses have already been added as necessary, and
-      that the expression has no Closures, DynamicErrorHoles, Casts, or FailedCasts
+      that the expression has no Closures or DynamicErrorHoles
    */
 let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   let go = (~inline=settings.inline) =>
@@ -858,7 +846,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       | None => p
       | Some(t) =>
         let t = t |> Typ.replace_temp;
-        Pat.fresh(Cast(p, t, t))
+        Pat.fresh(Asc(p, t))
         |> parenthesize_pat(~show_filters=settings.show_filters);
       };
     let+ p = pat_to_pretty(~settings: Settings.t, p)
@@ -924,7 +912,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         }),
       ],
       if (Form.begins_with_potential_operator(Segment.first_string(e))) {
-        [Secondary(Secondary.mk_space(Id.mk()))] @ e;
+        [Secondary(mk_space(Id.mk()))] @ e;
       } else {
         e;
       },
@@ -941,9 +929,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let+ p = pat_to_pretty(~settings: Settings.t, p)
     and+ e1 = go(e1)
     and+ e2 = go(e2);
-    let e2 =
-      settings.inline
-        ? e2 : [Secondary(Secondary.mk_newline(Id.mk()))] @ e2;
+    let e2 = settings.inline ? e2 : [Secondary(mk_newline(Id.mk()))] @ e2;
     [mk_form(Let, id, [p, e1])] @ e2;
   | FixF(p, e, _) =>
     // TODO: Add optional newlines
@@ -961,15 +947,13 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let+ tp = tpat_to_pretty(~settings: Settings.t, tp)
     and+ t = typ_to_pretty(~settings: Settings.t, t)
     and+ e = go(e);
-    let e =
-      settings.inline ? e : [Secondary(Secondary.mk_newline(Id.mk()))] @ e;
+    let e = settings.inline ? e : [Secondary(mk_newline(Id.mk()))] @ e;
     [mk_form(TypeAlias, id, [tp, t])] @ e;
   | Use(t, e) =>
     let id = exp |> Exp.rep_id;
     let+ t = typ_to_pretty(~settings: Settings.t, t)
     and+ e = go(e);
-    let e =
-      settings.inline ? e : [Secondary(Secondary.mk_newline(Id.mk()))] @ e;
+    let e = settings.inline ? e : [Secondary(mk_newline(Id.mk()))] @ e;
     [mk_form(Use, id, [t])] @ e;
   | Ap(Forward, e1, e2) =>
     let id = exp |> Exp.rep_id;
@@ -1031,21 +1015,17 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let e2 =
       settings.inline
         ? e2
-        : [Secondary(Secondary.mk_newline(Id.mk()))]
+        : [Secondary(mk_newline(Id.mk()))]
           @ e2
-          @ [Secondary(Secondary.mk_newline(Id.mk()))];
-    let e3 =
-      settings.inline
-        ? e3 : [Secondary(Secondary.mk_newline(Id.mk()))] @ e3;
+          @ [Secondary(mk_newline(Id.mk()))];
+    let e3 = settings.inline ? e3 : [Secondary(mk_newline(Id.mk()))] @ e3;
     [mk_form(If, id, [e1, e2])] @ e3;
   | Seq(e1, e2) =>
     // TODO: Make newline optional
     let id = exp |> Exp.rep_id;
     let+ e1 = go(e1)
     and+ e2 = go(e2);
-    let e2 =
-      settings.inline
-        ? e2 : [Secondary(Secondary.mk_newline(Id.mk()))] @ e2;
+    let e2 = settings.inline ? e2 : [Secondary(mk_newline(Id.mk()))] @ e2;
     e1 @ [mk_form(CellJoin, id, [])] @ e2;
   | Test(e) =>
     let id = exp |> Exp.rep_id;
@@ -1087,8 +1067,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
      could have been overriden in this scope; worth fixing when we fix
      closures. */
   | BuiltinFun(f) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, f)
-  | FailedCast(e, _, t)
-  | Cast(e, _, t) =>
+  | Asc(e, t) =>
     let id = exp |> Exp.rep_id;
     let+ e = go(e)
     and+ t = typ_to_pretty(~settings: Settings.t, t);
@@ -1117,10 +1096,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
           @ (
             List.map2(
               (id, (p, e)) =>
-                (
-                  settings.inline
-                    ? [] : [Secondary(Secondary.mk_newline(Id.mk()))]
-                )
+                (settings.inline ? [] : [Secondary(mk_newline(Id.mk()))])
                 @ [mk_form(Rule, id, [p])]
                 @ (e |> fold_if(settings.fold_case_clauses)),
               ids,
@@ -1128,10 +1104,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
             )
             |> List.flatten
           )
-          @ (
-            settings.inline
-              ? [] : [Secondary(Secondary.mk_newline(Id.mk()))]
-          ),
+          @ (settings.inline ? [] : [Secondary(mk_newline(Id.mk()))]),
         ],
       ),
     ];
@@ -1207,7 +1180,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
         }),
       ],
       if (Form.begins_with_potential_operator(Segment.first_string(p))) {
-        [Secondary(Secondary.mk_space(Id.mk()))] @ p;
+        [Secondary(mk_space(Id.mk()))] @ p;
       } else {
         p;
       },
@@ -1235,7 +1208,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     let+ p1 = go(p1)
     and+ p2 = go(p2);
     p1 @ [mk_form(ApPat, id, [p2])];
-  | Cast(p, t, _) =>
+  | Asc(p, t) =>
     let id = pat |> Pat.rep_id;
     let+ p = go(p)
     and+ t = typ_to_pretty(~settings: Settings.t, t);
@@ -1338,7 +1311,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
         }),
       ],
       if (Form.begins_with_potential_operator(Segment.first_string(t))) {
-        [Secondary(Secondary.mk_space(Id.mk()))] @ t;
+        [Secondary(mk_space(Id.mk()))] @ t;
       } else {
         t;
       },

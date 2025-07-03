@@ -1,5 +1,6 @@
 open Util;
 open Zipper;
+open Language;
 
 let buffer_clear = (z: t): t =>
   switch (z.selection.mode) {
@@ -10,7 +11,7 @@ let buffer_clear = (z: t): t =>
   | _ => z
   };
 
-let set_buffer = (info_map: Statics.Map.t, z: t): t =>
+let set_buffer = (info_map: Language.Statics.Map.t, z: t): t =>
   switch (TyDi.set_buffer(~info_map, z)) {
   | None => z
   | Some(z) => z
@@ -18,7 +19,7 @@ let set_buffer = (info_map: Statics.Map.t, z: t): t =>
 
 let go_z =
     (
-      ~settings as _: CoreSettings.t,
+      ~settings as _: Language.CoreSettings.t,
       statics: CachedStatics.t,
       a: Action.t,
       module M: Move.S,
@@ -30,7 +31,7 @@ let go_z =
 
   let paste = (z: Zipper.t, str: string): option(Zipper.t) => {
     open Util.OptUtil.Syntax;
-    let* z = Printer.zipper_of_string(~zipper_init=z, str);
+    let* z = Parser.to_zipper(~zipper_init=z, str);
     /* HACK(andrew): Insert/Destruct below is a hack to deal
        with the fact that pasting something like "let a = b in"
        won't trigger the barfing of the "in"; to trigger this,
@@ -114,10 +115,18 @@ let go_z =
      * This doesn't change state but is included here for logging purposes */
     Ok(z)
   | Reparse =>
-    switch (Printer.reparse(z)) {
+    /* This serializes the current editor to text, resets the current
+       editor, and then deserializes. It is intended as a (tactical)
+       nuclear option for weird backpack states */
+    let reparse = z =>
+      Parser.to_zipper(
+        ~zipper_init=Zipper.init(),
+        Printer.of_zipper(~holes="", ~indent="", z),
+      );
+    switch (reparse(z)) {
     | None => Error(CantReparse)
     | Some(z) => Ok(z)
-    }
+    };
   | Buffer(Set(TyDi)) => Ok(set_buffer(statics.info_map, z))
   | Buffer(Accept) =>
     switch (buffer_accept(z)) {
@@ -142,7 +151,7 @@ let go_z =
         open OptUtil.Syntax;
         let* idx = Indicated.index(z);
         let* ci = Id.Map.find_opt(idx, statics.info_map);
-        let* binding_id = Info.get_binding_site(ci);
+        let* binding_id = Language.Info.get_binding_site(ci);
         Move.jump_to_id(z, binding_id);
       | TileId(id) => Move.jump_to_id(z, id)
       }
@@ -194,7 +203,10 @@ let go_z =
     | None => Error(Action.Failure.Cant_select)
     }
   | Select(Resize(d)) =>
-    Select.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_select)
+    switch (Select.go(d, z)) {
+    | Some(z) => Ok(z)
+    | None => Ok(z)
+    }
   | Destruct(d) =>
     z
     |> Destruct.go(d)
@@ -216,7 +228,6 @@ let go_z =
     z
     |> Insert.go(char, ~ctx)
     /* note: remolding here is done case-by-case */
-    //|> Option.map((z) => remold_regrout(Right, z))
     |> Result.of_option(~error=Action.Failure.Cant_insert);
   | Pick_up => Ok(remold_regrout(Left, Zipper.pick_up(z)))
   | Put_down =>
@@ -224,11 +235,9 @@ let go_z =
       /* Alternatively, putting down inside token could eiter merge-in or split */
       switch (z.caret) {
       | Inner(_) => None
-      | Outer => Zipper.put_down(Left, z)
+      | Outer => Zipper.put_down_regrout_remold(Left, z)
       };
-    z
-    |> Option.map(remold_regrout(Left))
-    |> Result.of_option(~error=Action.Failure.Cant_put_down);
+    z |> Result.of_option(~error=Action.Failure.Cant_put_down);
   | RotateBackpack =>
     let z = {
       ...z,

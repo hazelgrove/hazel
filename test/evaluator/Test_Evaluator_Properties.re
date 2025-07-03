@@ -1,4 +1,5 @@
 open Haz3lcore;
+open Language;
 open Test_Evaluator_Prelude;
 open Alcotest;
 
@@ -83,7 +84,7 @@ let qcheck_stepper_confluence =
                  ),
                _,
              )
-          |> Printer.of_segment(~holes=Some("?"), _);
+          |> Printer.of_segment(~holes="?", _);
 
         Alcotest.check(
           testable(Fmt.using(show_core_exp, Fmt.string), DHExp.fast_equal), // Output is easier to view through ExpToSegment. This may result in a loss of information
@@ -114,7 +115,7 @@ let show_core_exp = exp =>
          ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
        _,
      )
-  |> Printer.of_segment(~holes=Some("?"), _);
+  |> Printer.of_segment(~holes="?", _);
 
 // Property that states let x : T = e in x is equivalent to e : T
 let qcheck_pattern_equivalence_test =
@@ -175,11 +176,66 @@ let qcheck_pattern_equivalence_test =
     }
   );
 
+// Taking a step should result in a consistent type that is more precise than the original type
+[@warning "-52"]
+let qcheck_preservation_test =
+  QCheck.Test.make(
+    ~name="Preservation of types",
+    ~count=10000,
+    QCheck_Util.arb_exp(~minimal_idents=true, 10),
+    uexp => {
+    switch (
+      switch (
+        {
+          let statics =
+            Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), uexp);
+          let (elaborated, ty) = Elaborator.elaborate(statics, uexp);
+          let stepped = single_step(elaborated);
+          (stepped, ty);
+        }
+      ) {
+      | (Some((next, _)), orig_ty) =>
+        switch (
+          {
+            let statics =
+              Statics.mk(
+                CoreSettings.on,
+                Builtins.ctx_init(Some(Int)),
+                next,
+              );
+            let info: option(Info.t) =
+              Statics.Map.lookup(next.annotation.ids |> List.hd, statics);
+
+            info;
+          }
+        ) {
+        | Some(InfoExp({ty, _})) =>
+          Typ.is_more_precise(Ctx.empty, ty, orig_ty)
+            ? true
+            : Alcotest.fail(
+                "Preservation failed: original type "
+                ++ Typ.show(orig_ty)
+                ++ " is not more precise than stepped type "
+                ++ Typ.show(ty),
+              )
+        | _ =>
+          Alcotest.fail("No type information found for stepped expression")
+        }
+      | (None, _) => true // If we can't take a step, we don't have to check preservation
+      }
+    ) {
+    | ret => ret
+    | exception (Invalid_argument("List.fold_left2")) // https://github.com/hazelgrove/hazel/issues/1673
+    | exception Stack_overflow => true // Known issue with some expressions that cause infinite recursion in the stepper
+    }
+  });
+
 let tests = (
   "Evaluator.Properties",
   [
     QCheck_alcotest.to_alcotest(qcheck_evaluator_does_not_crash_test),
     QCheck_alcotest.to_alcotest(qcheck_stepper_confluence),
     QCheck_alcotest.to_alcotest(qcheck_pattern_equivalence_test),
+    // QCheck_alcotest.to_alcotest(qcheck_preservation_test), // Disabled due to known issues with preservation
   ],
 );

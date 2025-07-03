@@ -1,5 +1,6 @@
 open Util;
 open OptUtil.Syntax;
+open Language;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type match_ctx = list((string, option(Exp.t)));
@@ -55,12 +56,6 @@ let rec match_exp =
       when err1 == err2 =>
     match_exp(alphas, ctx, e1, e2)
   | (DynamicErrorHole(_, _), _) => None
-  | (FailedCast(e1, t1, t2), FailedCast(e2, t3, t4)) =>
-    let* ctx = match_exp(alphas, ctx, e1, e2);
-    let* () = match_typ(t1, t3);
-    let* () = match_typ(t2, t4);
-    Some(ctx);
-  | (FailedCast(_, _, _), _) => None
   | (Deferral(d1), Deferral(d2)) when d1 == d2 => Some(ctx)
   | (Deferral(_), _) => None
   | (Undefined, Undefined) => Some(ctx)
@@ -180,12 +175,11 @@ let rec match_exp =
     );
   | (Match(_, _), _) => None
   // TODO: Cast logic
-  | (Cast(e1, t1, t2), Cast(e2, t3, t4)) =>
+  | (Asc(e1, t1), Asc(e2, t3)) =>
     let* ctx = match_exp(alphas, ctx, e1, e2);
     let* () = match_typ(t1, t3);
-    let* () = match_typ(t2, t4);
     Some(ctx);
-  | (Cast(_, _, _), _) => None
+  | (Asc(_, _), _) => None
   | (Label(l1), Label(l2)) when l1 == l2 => Some(ctx)
   | (Label(_), _) => None
 
@@ -265,12 +259,11 @@ and match_pat = (pat_r: Pat.t, pat: Pat.t): option(alphas) =>
     let* alphas2 = match_pat(x2, y2);
     Some(alphas1 @ alphas2);
   | (Ap(_, _), _) => None
-  | (Cast(x, t1, t2), Cast(y, t3, t4)) =>
+  | (Asc(x, t1), Asc(y, t2)) =>
     let* alphas1 = match_pat(x, y);
-    let* () = match_typ(t1, t3);
-    let* () = match_typ(t2, t4);
+    let* () = match_typ(t1, t2);
     Some(alphas1);
-  | (Cast(_, _, _), _) => None
+  | (Asc(_, _), _) => None
   | (Label(l1), Label(l2)) when l1 == l2 => Some([])
   | (Label(_), _) => None
   | (TupLabel(e1, e2), TupLabel(e3, e4)) =>

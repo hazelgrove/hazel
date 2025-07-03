@@ -1,5 +1,5 @@
 open Alcotest;
-open Haz3lcore;
+open Language;
 
 /*Create a testable type for dhexp which requires
   an equal function (dhexp_eq) and a print function (dhexp_print) */
@@ -18,7 +18,7 @@ module PlainTests = {
   open IdTagged.FreshGrammar;
 
   let parse_exp = (s: string) => {
-    switch (Haz3lcore.Parse.parse_exp(s)) {
+    switch (Haz3lcore.Parser.to_term(s)) {
     | Some(e) => e
     | None => Alcotest.fail("Failed to parse expression: " ++ s)
     };
@@ -52,8 +52,8 @@ module PlainTests = {
     Exp.(
       bin_op(
         Int(Plus),
-        failed_cast(bool(false), Typ.(bool()), Typ.int()),
-        cast(var("y"), Typ.unknown(Internal), Typ.int()),
+        asc(bool(false), Typ.int()),
+        asc(var("y"), Typ.int()),
       )
     );
 
@@ -117,13 +117,7 @@ module PlainTests = {
   let u9: Exp.t =
     Exp.(
       let_(
-        Pat.(
-          cast(
-            var("f"),
-            Typ.arrow(Typ.int(), Typ.int()),
-            Typ.unknown(Internal),
-          )
-        ),
+        Pat.(asc(var("f"), Typ.arrow(Typ.int(), Typ.int()))),
         fn(
           Pat.var("x"),
           bin_op(Int(Plus), int(1), var("x")),
@@ -137,13 +131,7 @@ module PlainTests = {
   let d9: Exp.t =
     Exp.(
       let_(
-        Pat.(
-          cast(
-            var("f"),
-            Typ.arrow(Typ.int(), Typ.int()),
-            Typ.unknown(Internal),
-          )
-        ),
+        Pat.(asc(var("f"), Typ.arrow(Typ.int(), Typ.int()))),
         fn(
           Pat.var("x"),
           bin_op(Int(Plus), int(1), var("x")),
@@ -266,7 +254,7 @@ module PlainTests = {
     let full_labeled_tuple_program: Exp.t =
       Exp.(
         let_(
-          Pat.(cast(var("add"), typ, Typ.unknown(Internal))),
+          Pat.(asc(var("add"), typ)),
           parens(
             tuple([
               string("123 Maple St"),
@@ -283,7 +271,7 @@ module PlainTests = {
       "Labeled Tuple label introduction",
       Exp.(
         let_(
-          Pat.(cast(var("add"), typ, Typ.unknown(Internal))),
+          Pat.(asc(var("add"), typ)),
           tuple([
             tup_label(label("street"), string("123 Maple St")),
             tup_label(label("city"), string("Ann Arbor")),
@@ -314,11 +302,7 @@ module PlainTests = {
       Exp.(
         let_(
           Pat.(
-            cast(
-              var("x"),
-              Typ.(prod([tup_label(label("l"), string())])),
-              Typ.unknown(Internal),
-            )
+            asc(var("x"), Typ.(prod([tup_label(label("l"), string())])))
           ),
           tuple([tup_label(label("l"), string("a"))]),
           var("x"),
@@ -351,7 +335,7 @@ module PlainTests = {
     let rearranged_labeled_tuple_program: Exp.t =
       Exp.(
         let_(
-          Pat.(cast(var("val"), typ, Typ.unknown(Internal))),
+          Pat.(asc(var("val"), typ)),
           parens(
             tuple([
               int(1),
@@ -368,7 +352,7 @@ module PlainTests = {
       "Labeled Tuple rearrangement",
       Exp.(
         let_(
-          Pat.(cast(var("val"), typ, Typ.unknown(Internal))),
+          Pat.(asc(var("val"), typ)),
           tuple([
             tup_label(label("a"), int(1)),
             tup_label(label("b"), string("a")),
@@ -417,19 +401,13 @@ module PlainTests = {
       alco_check(
         {|4 : String|},
         parse_exp({|4 : String|}),
-        dhexp_of_uexp(parse_exp({|4 : String|})) // Ignoring casts for now
+        dhexp_of_uexp(parse_exp({|4 : String|})),
       )
     ),
     test_case("Inconsistent let ascription", `Quick, () =>
       alco_check(
         {|let x : String = 4  in x|},
-        Exp.(
-          let_(
-            Pat.(cast(var("x"), Typ.string(), Typ.unknown(Internal))),
-            int(4),
-            var("x"),
-          )
-        ),
+        Exp.(let_(Pat.(asc(var("x"), Typ.string())), int(4), var("x"))),
         dhexp_of_uexp(parse_exp({|let x : String = 4 in x|})),
       )
     ),
@@ -470,7 +448,7 @@ module PlainTests = {
           "Singleton labeled tuple analysis adds label",
           Exp.(
             let_(
-              Pat.(cast(var("x"), typ, Typ.unknown(Internal))),
+              Pat.(asc(var("x"), typ)),
               tuple([tup_label(label("l"), string("a"))]),
               var("x"),
             )
@@ -478,7 +456,7 @@ module PlainTests = {
           dhexp_of_uexp(
             Exp.(
               let_(
-                Pat.(cast(var("x"), typ, Typ.unknown(Internal))),
+                Pat.(asc(var("x"), typ)),
                 parens(string("a")),
                 var("x"),
               )
@@ -495,11 +473,7 @@ module PlainTests = {
         Exp.(
           let_(
             Pat.(
-              cast(
-                var("x"),
-                Typ.(prod([tup_label(label("a"), string())])),
-                Typ.unknown(Internal),
-              )
+              asc(var("x"), Typ.(prod([tup_label(label("a"), string())])))
             ),
             tuple([tup_label(label("a"), string("hello"))]),
             var("x"),
@@ -517,10 +491,9 @@ module PlainTests = {
         Exp.(
           let_(
             Pat.(
-              cast(
+              asc(
                 var("zip_only"),
                 Typ.(prod([tup_label(label("zip"), int())])),
-                Typ.unknown(Internal),
               )
             ),
             tuple([tup_label(label("zip"), int(12345))]),
@@ -552,7 +525,7 @@ module PlainTests = {
             tuple([tup_label(label("a"), int(1))]),
           )
         ),
-        dhexp_of_uexp(parse_exp({|(fun a=(x:Int) -> x)(a=1)|})) // Ignoring casts for now
+        dhexp_of_uexp(parse_exp({|(fun a=(x:Int) -> x)(a=1)|})),
       )
     ),
     test_case(
@@ -628,7 +601,9 @@ module PlainTests = {
             tuple([tup_label(label("a"), int(1))]),
           )
         ),
-        DHExp.strip_casts(dhexp_of_uexp(parse_exp({|(fun a=x->x)(a=1)|}))),
+        DHExp.strip_ascriptions(
+          dhexp_of_uexp(parse_exp({|(fun a=x->x)(a=1)|})),
+        ),
       )
     ),
     test_case("Singleton labeled argument let with unknown type", `Quick, () =>
@@ -641,9 +616,9 @@ module PlainTests = {
             var("x"),
           )
         ),
-        DHExp.strip_casts(
+        DHExp.strip_ascriptions(
           dhexp_of_uexp(parse_exp({|let x : (a=?) = (a=1) in x|})),
-        ) // Ignoring casts for now
+        ),
       )
     ),
     test_case(
@@ -670,7 +645,7 @@ in 1|},
       alco_check(
         "Does not add label",
         parse_exp({|(1, 2)|}),
-        DHExp.strip_casts(
+        DHExp.strip_ascriptions(
           dhexp_of_uexp(parse_exp({|(1, 2) : (a= ,b= ,  )|})),
         ),
       )
@@ -732,8 +707,8 @@ module MenhirElaborationTests = {
       name,
       Grammar.map_exp_annotation(
         _ => IdTagged.IdTag.fresh(),
-        Haz3lmenhir.Conversion.Exp.of_menhir_ast(
-          Haz3lmenhir.Interface.parse_program(dhexp),
+        MenhirParser.Conversion.Exp.of_menhir_ast(
+          MenhirParser.Interface.parse_program(dhexp),
         ),
       ),
       dhexp_of_uexp(uexp),
@@ -864,15 +839,6 @@ module MenhirElaborationTests = {
       dynamic_error_hole_uexp,
     );
 
-  let builtin_fun_str = "infinity";
-  let builtin_fun_uexp: Exp.t = Exp.builtin_fun("infinity");
-  let builtin_fun_menhir = () =>
-    alco_check_menhir(
-      "Builtin function test (menhir)",
-      builtin_fun_str,
-      builtin_fun_uexp,
-    );
-
   let undef_str = "undef";
   let undef_uexp: Exp.t = Exp.undefined();
   let undef_menhir = () =>
@@ -955,7 +921,7 @@ x
   let seq_menhir = () =>
     alco_check_menhir("Sequence test (menhir)", seq_str, seq_uexp);
 
-  let fixf_str = "fix x -> 1";
+  let fixf_str = "fix x -> (1 : ?)";
   let fixf_uexp: Exp.t = Exp.(fix_f(Pat.var("x"), int(1), None));
   let fixf_menhir = () =>
     alco_check_menhir("FixF test (menhir)", fixf_str, fixf_uexp);
@@ -963,7 +929,6 @@ x
   let tests = [
     test_case("Filter test (menhir)", `Quick, filter_menhir),
     test_case("Test failed (menhir)", `Quick, test_menhir),
-    test_case("Built-in function (menhir)", `Quick, builtin_fun_menhir),
     test_case(
       "Dynamic error hole (menhir)",
       `Quick,
