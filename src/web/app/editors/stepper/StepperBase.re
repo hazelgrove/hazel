@@ -239,7 +239,7 @@ module Model = {
       ();
       // Printf.printf("Coq proof:\n%s\n", coqLemmaString);
       coqLemmaString;
-    | None => "Not exporting proof with no steps"
+    | None => ""
     };
   };
 
@@ -247,18 +247,16 @@ module Model = {
   let exportCoq = model => {
     let rec all_steps_of_step = step => {
       switch (step.next_step) {
-      | None => [step]
+      | None => []
       | Some(next_step) => [step] @ all_steps_of_step(next_step)
       };
     };
-    print_endline("Inside exportCoq function");
     let steps = all_steps_of_step(model.root);
 
     if (List.length(steps) == 0) {
       "Not exporting proof with no steps";
     } else {
-      let firstD =
-        Calc.get_saved_exc(List.nth(steps, List.length(steps) - 1).expr);
+      let firstD = Calc.get_saved_exc(List.nth(steps, 0).expr);
       let unique_vars = CoqExport.unique_vars_in_ast(firstD);
       let forall_str =
         if (List.length(unique_vars) == 0) {
@@ -273,7 +271,7 @@ module Model = {
             (
               single_step_export(List.length(steps) - ind, step, forall_str),
               Printf.sprintf(
-                "rewrite -> equiv_exp%d.",
+                "rewrite <- equiv_exp%d.",
                 List.length(steps) - ind,
               ),
             ),
@@ -281,11 +279,11 @@ module Model = {
         );
       let (lemmas, invocations) = List.split(lemmasAndInvocations);
 
-      switch (List.hd(steps).next_step) {
+      let firstExpr = CoqExport.string_of_d(firstD);
+      let laststep = List.nth(steps, List.length(steps) - 1);
+      switch (laststep.next_step) {
       | Some(next) =>
         let finalExpr = CoqExport.string_of_d(Calc.get_saved_exc(next.expr));
-        let firstExpr = CoqExport.string_of_d(firstD);
-
         Printf.sprintf(
           "From Stdlib Require QArith.\n%s\nTheorem equiv_exp:%s%s=%s.\nProof.\nintros.\n%s\nreflexivity. Qed.",
           String.concat("\n", lemmas),
@@ -294,7 +292,7 @@ module Model = {
           firstExpr,
           String.concat("\n", invocations),
         );
-      | None => "Not exporting proof with no steps"
+      | None => ""
       };
     };
   };
@@ -413,9 +411,8 @@ module Update = {
           : Updated.t(Model.stepper) => {
     switch (action) {
     | CoqExport =>
-      print_endline("Called CoqExport at update stepper handler");
       let coq_data = Model.exportCoq(stepper);
-      // Output to a fileAdd commentMore actions
+      // Output to a file
       JsUtil.download_string_file(
         ~filename="stepper_coq_export.v",
         ~content_type="text/plain",
