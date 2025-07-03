@@ -1,0 +1,7 @@
+/* PROJECTOR: MARKDOWN */
+
+.projector.markdown * {
+  margin: 0;
+  white-space: normal; /* Allow wrapping and collapse whitespace */
+  /* Optional fallback in case newer CSS properties are in use: */
+}

@@ -1,4 +1,4 @@
-# Hazel ![Build Status](https://github.com/hazelgrove/hazel/actions/workflows/deploy_branches.yml/badge.svg)
+# Hazel ![Build Status](https://github.com/hazelgrove/hazel/actions/workflows/deploy_branches.yml/badge.svg) [![codecov](https://codecov.io/gh/hazelgrove/hazel/graph/badge.svg?token=lOGAH9Shqe)](https://codecov.io/gh/hazelgrove/hazel)
 
 Hazel is a live functional-programming environment rooted in the principles of
 type theory. You can find the relevant papers and more motivation at [the Hazel
@@ -17,7 +17,7 @@ can also be accessed at:
 
 ### Short version
 
-If you already have `ocaml` version 5.2.0 and at least version 2.0 of `opam`
+If you already have `ocaml` version 5.2.0, at least version 2.0 of `opam`, and `npm`
 installed, you can build Hazel by running the following commands.
 
 - `git clone git@github.com:hazelgrove/hazel.git`
@@ -30,6 +30,8 @@ run it from a `file:///` URL due to browser restrictions on e.g. web workers.)
 
 If you have `python3` on your path, you can use the Python server via 
 `make serve`, then navigate to `http://0.0.0.0:8000/` in your browser.
+
+Alternatively, if you would live hot reloading, you can use `make hot` instead of `make serve`.
 
 Otherwise, run `make echo-html-dir` which will echo the directory that needs 
 to be served using some other server of your choice.
@@ -197,6 +199,8 @@ You can run all of the unit tests located in `test` by running `make test`.
 
 Unit tests are written using the [Alcotest framework](https://github.com/mirage/alcotest).
 
+See more documentation in the [test README](test/README.md)
+
 #### Coverage
 Code coverage is provided by [bisect_ppx](https://github.com/aantron/bisect_ppx). To collect coverage statistics from tests run `make coverage`. After coverage statistics are generated, running `make generate-coverage-html` will generate a local webpage at `_coverage/index.html` that can be viewed to see line coverage per module.
 
@@ -211,7 +215,7 @@ It usually takes about 2 minutes if the build environment cache hits, or
 20+ minutes if not. You can view the status of the build in the [Actions 
 tab on Github](https://github.com/hazelgrove/hazel/actions).
 
-Builds prior to July 2024 are archived at `https://hazel.org/build/<branch name>`.
+Builds prior to July 2024 are archived at `https://hazel.org/build-pre-july2024/<branch name>`.
 
 Note: If another archive needs to be performed, make sure to redeploy the following
 branches manually since we refer to them in various public material (websites and
