@@ -309,8 +309,7 @@ and uexp_to_info_map =
     | MultiHole(tms) =>
       let (co_ctxs, m) = multi(~ctx, ~ancestors, m, tms);
       add(~self=IsMulti, ~co_ctx=CoCtx.union(co_ctxs), m);
-    | Cast(e, _, t2)
-    | FailedCast(e, _, t2) =>
+    | Asc(e, t2) =>
       let (t, m) = go_typ(t2, ~expects=Info.TypeExpected, m);
       let (e, m) = go'(~ana=t.term, ~ctx=t.ctx, e, m);
       add(~self=Just(t.term), ~co_ctx=e.co_ctx, m);
@@ -397,14 +396,14 @@ and uexp_to_info_map =
       add(~self=Just(ty_out), ~co_ctx=e.co_ctx, m);
     | UnOp(Meta(Unquote), e) =>
       let (e, m) = go(~ana=syn, e, m);
-      add(~self=BadOperator("Unquote not in filter"), ~co_ctx=e.co_ctx, m);
+      add'(~self=BadOperator("Unquote not in filter"), ~co_ctx=e.co_ctx, m);
     | UnOp(op, e) =>
       let op = Operators.replace_un_op(op, ctx.use_mode); // Replace op if necessary due to `use`
       let op_semantics = Operators.semantics_of_un_op(op);
       switch (op_semantics) {
       | Undefined(msg) =>
         let (_, m) = go(~ana=syn, e, m);
-        add(~self=BadOperator(msg), ~co_ctx=CoCtx.empty, m);
+        add'(~self=BadOperator(msg), ~co_ctx=CoCtx.empty, m);
       | Defined(ty_in, ty_out, _) =>
         let ty_in = Atom(Atom.cls_of_kind(ty_in)) |> Typ.temp;
         let ty_out = Atom(Atom.cls_of_kind(ty_out)) |> Typ.temp;
@@ -418,7 +417,7 @@ and uexp_to_info_map =
       | Undefined(msg) =>
         let (_, m) = go(~ana=syn, e1, m);
         let (_, m) = go(~ana=syn, e2, m);
-        add(~self=BadOperator(msg), ~co_ctx=CoCtx.empty, m);
+        add'(~self=BadOperator(msg), ~co_ctx=CoCtx.empty, m);
       | Defined(ty1, ty2, ty_out, _) =>
         let ty1 = Atom(Atom.cls_of_kind(ty1)) |> Typ.temp;
         let ty2 = Atom(Atom.cls_of_kind(ty2)) |> Typ.temp;
@@ -661,7 +660,11 @@ and uexp_to_info_map =
           | Some({term: TupLabel(_, typ), _})
           | Some(typ) => add(~self=Just(typ), ~co_ctx=info_e2.co_ctx, m)
           | None =>
-            add(~self=LabelNotFound(name, labels), ~co_ctx=info_e2.co_ctx, m)
+            add'(
+              ~self=LabelNotFound(name, labels),
+              ~co_ctx=info_e2.co_ctx,
+              m,
+            )
           };
         | EmptyHole =>
           add(
@@ -671,7 +674,7 @@ and uexp_to_info_map =
           )
         | _ => add(~self=BadLabel(Exp(e2)), ~co_ctx=info_e2.co_ctx, m)
         };
-      | _ => add(~self=WantTuple, ~co_ctx=info_e2.co_ctx, m)
+      | _ => add'(~self=WantTuple, ~co_ctx=info_e2.co_ctx, m)
       };
     | Test(e) =>
       let (e, m) = go(~ana=Atom(Bool) |> Typ.temp, e, m);
@@ -716,7 +719,7 @@ and uexp_to_info_map =
             )
           | None =>
             // if we can't expand, flag as improper model
-            add(
+            add'(
               ~self=BadLivelitModel(expansion_t),
               ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
               m,
@@ -752,11 +755,11 @@ and uexp_to_info_map =
         let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
 
         let (arg, m) = go(~ana=ty_in, arg, m);
-        let self: Self.t =
+        let self: Self.exp =
           Id.is_nullary_ap_flag(IdTagged.ids(arg.term))
           && !Typ.is_consistent(ctx, ty_in, Prod([]) |> Typ.temp)
-            ? BadTrivAp(ty_in) : Just(ty_out);
-        add(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]), m);
+            ? BadTrivAp(ty_in) : Common(Just(ty_out));
+        add'(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]), m);
       }
     | TypAp(fn, utyp) =>
       let typfn_ana =
@@ -1118,18 +1121,18 @@ and uexp_to_info_map =
         | None => ctx
         };
       let (body, m) = go'(~ctx=ctx', ~ana, body, m);
-      let self: Self.t =
+      let self: Self.exp =
         switch (use_mode) {
-        | Some(_) => Just(body.ty)
+        | Some(_) => Common(Just(body.ty))
         | None when Typ.fast_equal(Unknown(Internal) |> Typ.temp, typ.term) =>
-          Just(body.ty)
+          Common(Just(body.ty))
         | None =>
           InvalidUseMode({
             bad_typ: typ.term,
             inner_typ: body.ty,
           })
         };
-      add(~self, ~co_ctx=body.co_ctx, m);
+      add'(~self, ~co_ctx=body.co_ctx, m);
     };
   };
 
@@ -1639,7 +1642,7 @@ and upat_to_info_map =
         | None => Coverage.Constraint.Hole
         };
       add(~self=Just(ty_out), ~ctx=arg.ctx, ~constraint_, m);
-    | Cast(p, ann, _) =>
+    | Asc(p, ann) =>
       let (ann, m) = utyp_to_info_map(~ctx, ~ancestors, ann, m);
       let (p, m) = go(~ctx, ~under_ascription=true, ~ana=ann.term, p, m);
       add(~self=Just(ann.term), ~ctx=p.ctx, ~constraint_=p.constraint_, m);

@@ -3,11 +3,18 @@ open Language;
 
 module UG = Grammar.UnitGrammar;
 
-let dhexp_typ = testable(Fmt.using(Exp.show, Fmt.string), DHExp.fast_equal);
+let testable_exp = (~ignore_constructor_types=?, ()) =>
+  testable(
+    Fmt.using(Exp.show, Fmt.string),
+    DHExp.fast_equal(~ignore_constructor_types?),
+  );
 
-let evaluation_test = (msg, expected, unevaluated) =>
+let dhexp_typ = testable_exp();
+
+let evaluation_test =
+    (~ignore_constructor_types=?, msg, expected, unevaluated) =>
   check(
-    dhexp_typ,
+    testable_exp(~ignore_constructor_types?, ()),
     msg,
     expected,
     unevaluated |> Evaluator.evaluate(~env=Builtins.env_init) |> fst,
@@ -20,7 +27,7 @@ let evaluate_probes = unevaluated =>
   |> EvaluatorState.get_probes;
 
 let parse_exp = (s: string) => {
-  switch (Parse.parse_exp(s)) {
+  switch (Haz3lcore.Parser.to_term(s)) {
   | Some(e) => e
   | None => Alcotest.fail("Failed to parse expression: " ++ s)
   };
@@ -43,8 +50,14 @@ let parse_and_evaluate = (s: string) =>
   fst(Evaluator.evaluate(~env=Builtins.env_init, elaborate(parse_exp(s))));
 
 let parse_and_evaluate_test =
-    (~msg: option(string)=?, expected: string, actual: string) =>
+    (
+      ~msg: option(string)=?,
+      ~ignore_constructor_types=?,
+      expected: string,
+      actual: string,
+    ) =>
   evaluation_test(
+    ~ignore_constructor_types?,
     Option.value(~default=expected ++ " == " ++ actual, msg),
     parse_exp(expected),
     elaborate(parse_exp(actual)),
@@ -88,5 +101,38 @@ let full_small_step_reduction =
   switch (go(~state, ~steps_counter=0, exp)) {
   | None => StepLimitExceeded
   | Some((new_exp, _)) => Completed(new_exp)
+  };
+};
+
+let full_preservation_test = (uexp: TermBase.exp_t): unit => {
+  let statics =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), uexp);
+  let (elaborated, ty) = Elaborator.elaborate(statics, uexp);
+
+  let evaluated =
+    Evaluator.evaluate(~env=Builtins.env_init, elaborated) |> fst;
+  let new_statics =
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), evaluated);
+
+  let new_ty =
+    switch (
+      Statics.Map.lookup(evaluated.annotation.ids |> List.hd, new_statics)
+    ) {
+    | Some(InfoExp({ty, _})) => ty
+    | _ =>
+      Alcotest.fail(
+        "Preservation check failed: No type information found for evaluated expression",
+      )
+    };
+
+  if (Typ.is_consistent(Ctx.empty, new_ty, ty)) {
+    ();
+  } else {
+    Alcotest.fail(
+      "Preservation check failed: "
+      ++ Typ.show(ty)
+      ++ " !~ "
+      ++ Typ.show(new_ty),
+    );
   };
 };

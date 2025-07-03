@@ -219,6 +219,12 @@ let set_css_variable = (name: string, value: string) => {
     style##setProperty(Js.string(name), Js.string(value), Js.undefined);
   ();
 };
+let prompt = (message: string, default: string): option(string) => {
+  Js.Opt.to_option(
+    Dom_html.window##prompt(Js.string(message), Js.string(default)),
+  )
+  |> Option.map(Js.to_string);
+};
 
 module QueryParams = {
   let get_arguments = (url: Url.url): list((string, string)) =>
@@ -247,7 +253,7 @@ module QueryParams = {
       })
     };
 
-  let get_param = (name: string) => {
+  let get_param = (name: string): option(string) => {
     let q_opt =
       Url.Current.get()
       |> Option.map(url =>
