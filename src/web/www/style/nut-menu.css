@@ -248,7 +248,7 @@
 }
 
 #top-bar #editor-mode #slide-navigation:hover:has(#edit-buttons) {
-  padding-right: 5em; /* Increase padding to make room for the buttons */
+  padding-right: 5.5em; /* Increase padding to make room for the buttons */
   transition-delay: 0s;
 }
 
@@ -262,11 +262,11 @@
   transition-delay: 0s;
   position: absolute;
   right: 0em; /* Adjusted to position buttons properly within the expanded area */
-  pointer-events:none;
+  pointer-events: none;
 }
 
 /* Show navigation buttons on hover */
-#top-bar #editor-mode #slide-navigation:hover >  #edit-buttons {
+#top-bar #editor-mode #slide-navigation:hover > #edit-buttons {
   opacity: 1;
   transition-delay: 0.07s;
   pointer-events: all;

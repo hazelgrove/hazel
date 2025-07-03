@@ -281,12 +281,11 @@ module Transition = (EV: EV_MODE) => {
         let env'' =
           VarBstMap.Ordered.mapo(
             ((p, exp)) =>
-              FixF(
-                Var(p) |> Pat.fresh,
-                exp,
-                Some(ClosureEnvironment.of_environment(env')),
-              )
-              |> rewrap,
+              if (VarBstMap.Ordered.length(env') > 1) {
+                let_(dp, FixF(dp, d1, env) |> rewrap, var(p));
+              } else {
+                FixF(Var(p) |> Pat.fresh, exp, env) |> rewrap;
+              },
             env',
           );
         let env''' =
