@@ -564,7 +564,7 @@ let mk_structure_edit_msg =
       "Agent updated the definition of the variable " ++ variable_name;
     | OpenRouter.UpdateBinding =>
       let variable_name = StringMap.find("variable_name", args);
-      let new_binding = StringMap.find("new_binding", args);
+      let _ = StringMap.find("new_binding", args);
       "Agent updated the entire binding of the variable " ++ variable_name;
     | OpenRouter.UpdateBody =>
       let variable_name = StringMap.find("variable_name", args);

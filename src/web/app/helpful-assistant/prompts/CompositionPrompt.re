@@ -389,60 +389,6 @@ let update_binding: API.Json.t =
     ),
   ]);
 
-let update_binding: API.Json.t =
-  `Assoc([
-    ("type", `String("function")),
-    (
-      "function",
-      `Assoc([
-        ("name", `String("update_binding")),
-        (
-          "description",
-          `String(
-            "Updates the ENTIRE binding, inclusive from the \"let\" or \"type\" delimiter to the \"in\" delimiter of the given variable name. Eg. update_binding \"x\" \"let b : Int = 0 in\" will update ```let y = 0 in\nlet x : Int = 1 in\nx + y``` to ```let y = 0 in\nlet b : Int = 0 in\nx + y```.",
-          ),
-        ),
-        (
-          "parameters",
-          `Assoc([
-            ("type", `String("object")),
-            (
-              "properties",
-              `Assoc([
-                (
-                  "variable_name",
-                  `Assoc([
-                    ("type", `String("string")),
-                    (
-                      "description",
-                      `String(
-                        "The name of the variable to have its binding updated.",
-                      ),
-                    ),
-                  ]),
-                ),
-                (
-                  "new_binding",
-                  `Assoc([
-                    ("type", `String("string")),
-                    (
-                      "description",
-                      `String("The new binding of the variable."),
-                    ),
-                  ]),
-                ),
-              ]),
-            ),
-            (
-              "required",
-              `List([`String("variable_name"), `String("new_binding")]),
-            ),
-          ]),
-        ),
-      ]),
-    ),
-  ]);
-
 let delete_body: API.Json.t =
   `Assoc([
     ("type", `String("function")),
