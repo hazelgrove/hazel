@@ -174,7 +174,7 @@ let rec ty_consistent = (d1, d2) => {
     | (Float(_), _) => false
     }
   | (Atom(_), _) => false
-  | (Label(_), Label(_)) => true
+  | (Label(l1), Label(l2)) => l1 == l2
   | (Label(_), _) => false
   | (TupLabel(l1, d1), TupLabel(l2, d2)) =>
     ty_consistent(l1, l2) && ty_consistent(d1, d2)
