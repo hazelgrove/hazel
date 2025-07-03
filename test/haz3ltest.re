@@ -15,6 +15,7 @@ let (suite, _) =
     "HazelTests",
     [
       Test_ListUtil.tests,
+      Test_OptUtil.tests,
       Test_Grammar.tests,
       Test_ExpToSegment.tests,
       Test_LabeledTuple.tests,
@@ -30,6 +31,7 @@ let (suite, _) =
         @ Test_Statics_Sums.tests
         @ Test_Statics_Types.tests
         @ Test_Statics_Builtins.tests
+        @ Test_Statics_Fixpoint.tests
         @ Test_Statics_Property_DoesNotCrash.tests,
       ),
       Test_PatternMatch.tests,

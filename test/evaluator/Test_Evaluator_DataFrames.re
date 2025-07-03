@@ -10,11 +10,7 @@ let tests = (
         dhexp_typ,
         "[1, 2]",
         parse_exp("[1, 2]"),
-        DHExp.strip_casts(
-          evaluate(
-            elaborate(parse_exp({|[(a=1, b=false), (a=2, b=true)].a|})),
-          ),
-        ),
+        parse_and_evaluate({|[(a=1, b=false), (a=2, b=true)].a|}),
       )
     ),
     test_case("Primitive pivot of list of labeled tuple", `Quick, () =>
@@ -22,14 +18,8 @@ let tests = (
         dhexp_typ,
         {|primitive_pivot([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], 'l')|},
         parse_exp({|a=[(j=1, 3)], b=[(j=2, 9)], c=[(j=3, 9)]|}),
-        DHExp.strip_casts(
-          evaluate(
-            elaborate(
-              parse_exp(
-                {|primitive_pivot([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], 'l')|},
-              ),
-            ),
-          ),
+        parse_and_evaluate(
+          {|primitive_pivot([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], 'l')|},
         ),
       )
     ),
@@ -38,14 +28,8 @@ let tests = (
         dhexp_typ,
         {|primitive_pivot([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], 'l').a|},
         parse_exp({|[(j=1, 3)]|}),
-        DHExp.strip_casts(
-          evaluate(
-            elaborate(
-              parse_exp(
-                {|primitive_pivot([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], 'l').a|},
-              ),
-            ),
-          ),
+        parse_and_evaluate(
+          {|primitive_pivot([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], 'l').a|},
         ),
       )
     ),
@@ -55,14 +39,8 @@ let tests = (
         dhexp_typ,
         {|primitive_pivot([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], 'l')|},
         parse_exp({|[1]|}),
-        DHExp.strip_casts(
-          evaluate(
-            elaborate(
-              parse_exp(
-                {|primitive_pivot([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], 'l').a.j|},
-              ),
-            ),
-          ),
+        parse_and_evaluate(
+          {|primitive_pivot([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], 'l').a.j|},
         ),
       )
     ),
@@ -71,14 +49,8 @@ let tests = (
         dhexp_typ,
         {|let i = [(l="a", j=1, 3)] in primitive_pivot(i, 'l').a|},
         parse_exp({|[(j=1, 3)]|}),
-        DHExp.strip_casts(
-          evaluate(
-            elaborate(
-              parse_exp(
-                {|let i = [(l="a", j=1, 3)] in primitive_pivot(i, 'l').a|},
-              ),
-            ),
-          ),
+        parse_and_evaluate(
+          {|let i = [(l="a", j=1, 3)] in primitive_pivot(i, 'l').a|},
         ),
       )
     ),
@@ -90,14 +62,8 @@ let tests = (
         parse_exp(
           {|(a=[(1, true), (4, true)], b=[(2, true)], c=[(3, true)])|},
         ),
-        DHExp.strip_casts(
-          evaluate(
-            elaborate(
-              parse_exp(
-                {|primitive_pivot([(l="a", 1, true), (l="b", 2, true), (l="c", 3, true), (l="a", 4, true)], 'l')|},
-              ),
-            ),
-          ),
+        parse_and_evaluate(
+          {|primitive_pivot([(l="a", 1, true), (l="b", 2, true), (l="c", 3, true), (l="a", 4, true)], 'l')|},
         ),
       )
     ),
@@ -111,13 +77,7 @@ let tests = (
              (label="quiz3", value=9),
              (label="quiz4", value=77)]|},
         ),
-        DHExp.strip_casts(
-          evaluate(
-            elaborate(
-              parse_exp({|melt(quiz1=12, quiz2=8, quiz3=9, quiz4=77)|}),
-            ),
-          ),
-        ),
+        parse_and_evaluate({|melt(quiz1=12, quiz2=8, quiz3=9, quiz4=77)|}),
       )
     ),
     test_case(
@@ -132,7 +92,7 @@ let tests = (
           dhexp_typ,
           program,
           parse_exp({|true|}),
-          DHExp.strip_casts(evaluate(elaborated)),
+          parse_and_evaluate(program),
         );
       },
     ),
@@ -148,7 +108,7 @@ let tests = (
           dhexp_typ,
           program,
           parse_exp({|(label="a", value=true)|}),
-          DHExp.strip_casts(evaluate(elaborate(parse_exp(program)))),
+          parse_and_evaluate(program),
         );
       },
     ),
@@ -171,7 +131,7 @@ filter@<(label=String, value=Bool)>(fun a,b ->b, melted).label|};
           dhexp_typ,
           program,
           parse_exp({|["get_acne", "green"]|}),
-          DHExp.strip_casts(evaluate(elaborate(parse_exp(program)))),
+          parse_and_evaluate(program),
         );
       },
     ),

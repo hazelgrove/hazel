@@ -6,11 +6,9 @@ open Util;
    is it a list literal? Sadly not necessarily, it might be:
 
     - an indeterminate list cons: e.g. 1 :: ?
-    - a list literal or list cons with some casts wrapped around it
-    - an indet term in a cast to a list type
+    - an indet term in a ascription to a list type
 
-    Unboxing is the process of turning a list literal into a list literal if it is a list literal,
-    by pushing casts inside data structures, or giving up if it is not a list literal.
+    Unboxing is the process of turning a list literal into a list literal if it is a list literal, or giving up if it is not a list literal.
     It may give up in two distinct ways:
     - IndetMatch: Due to holes in the expression it may or may not match the unboxing request
                   depending on possible substitutions of the holes.
@@ -20,7 +18,7 @@ open Util;
                   e.g. 1 :: ? definitely does NOT match a list of length 0 (ListLitn(0))
 
     Note unboxing only works one layer deep, if we have a list of lists then
-    the inner lists may still have casts around them after unboxing.
+    the inner lists may still have indet ascriptions around them after unboxing.
     */
 
 type unboxed_tfun =
@@ -40,7 +38,7 @@ type unbox_request('a) =
   | Tuple(int): unbox_request(list(DHExp.t))
   | TupLabel(DHPat.t): unbox_request(DHExp.t)
   | ListLit: unbox_request(list(DHExp.t)) // Unboxes to a known length list LITERAL. Not all list final forms land in this category (e.g. Cons: 1 :: ?)
-  | ListLitn(int): unbox_request(list(DHExp.t)) // This request is used for performance reasons to prevent casting lists of the wrong length and for matching list lits against cons expressions
+  | ListLitn(int): unbox_request(list(DHExp.t)) // This request is used for performance reasons to prevent matching lists of the wrong length and for matching list lits against cons expressions
   | Cons: unbox_request((DHExp.t, DHExp.t))
   | SumNoArg(string): unbox_request(unit)
   | SumWithArg(string): unbox_request(DHExp.t)
@@ -75,7 +73,7 @@ let sequence = (l: list(unboxed('a))): unboxed(list('a)) =>
     Matches([]),
     l,
   );
-let fixup_cast = Casts.transition_multiple;
+let fixup_ascriptions = Ascriptions.transition_multiple;
 
 /* This function has a different return type depending on what kind of request
    it is given. This unfortunately uses a crazy OCaml feature called GADTS, but
@@ -103,47 +101,19 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         DoesNotMatch;
       }
     | (TupLabel(_), _) => Matches(expr)
-
     /* Remove Tuplabels from casts otherwise */
-    | (_, Cast(e, {term: TupLabel(_, e1), _}, e2)) =>
-      switch (DHExp.term_of(e)) {
-      | TupLabel(_, e) =>
-        unbox(request, fixup_cast(Cast(e, e1, e2) |> DHExp.fresh))
-      | _ => unbox(request, fixup_cast(Cast(e, e1, e2) |> DHExp.fresh))
-      }
     | (Label, Label(l)) => Matches(l)
-    | (LabeledTupleProjection(l), Cast(_, _, {term: List(_), _})) =>
-      let* ls: list(TermBase.exp_t) = unbox(ListLit, expr);
-      let* elements: list(TermBase.exp_t) =
-        sequence(List.map(unbox(LabeledTupleProjection(l)), ls));
-      let exp: TermBase.exp_t = ListLit(elements) |> Exp.fresh;
-      Matches(exp);
-    | (LabeledTupleProjection(l), Cast(_, {term: List(_), _}, _)) =>
-      let* ls: list(TermBase.exp_t) = unbox(ListLit, expr);
-      let* elements: list(TermBase.exp_t) =
-        sequence(List.map(unbox(LabeledTupleProjection(l)), ls));
-      let exp: TermBase.exp_t = ListLit(elements) |> Exp.fresh;
-      Matches(exp);
-    | (LabeledTupleProjection(_), Cast(d, _, {term: Prod(_), _})) =>
-      unbox(request, d)
     | (LabeledTupleProjection(l), Tuple(ds)) =>
       switch (LabeledTuple.find_label(Exp.match_tup_label, ds, l)) {
       | Some(_) => Matches(expr) // Choosing to just return the original expression here
       | _ => IndetMatch // TODO Should this be DoesNotMatch?
       }
     | (LabeledTupleProjection(_), ListLit(_)) => Matches(expr)
-    // TODO Do tuple element pivot with LabeledTupleEntries
-    | (TupleElementPivot(_), Cast(d, _, {term: Unknown(_), _})) =>
-      unbox(request, d)
-    | (TupleElementPivot(_), Cast(d, ty1, ty2))
-        when Typ.is_consistent(Ctx.empty_pre_elaboration, ty1, ty2) =>
-      // TODO: This is a hack. We need a better way to handle this than an empty context.
-      unbox(request, d)
     | (TupleElementPivot(l), Tuple(ds)) =>
       let found_pivot: option((string, list(Exp.t))) =
         ListUtil.find_with_rest(
           exp => {
-            switch (Exp.match_tup_label(DHExp.strip_casts(exp))) {
+            switch (Exp.match_tup_label(DHExp.strip_ascriptions(exp))) {
             // TODO: I need a better plan than stripping casts
             | Some((name, {term: Atom(String(e)), _})) when name == l =>
               Some(e)
@@ -156,87 +126,13 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       | None => DoesNotMatch
       | Some(a) => Matches(a)
       };
-    | (
-        LabeledTupleEntries,
-        Cast(d, {term: Prod(tys), _}, {term: Unknown(_), _}),
-      ) =>
-      let* entries: list((option(LabeledTuple.label), DHExp.t)) =
-        unbox(request, d);
 
-      if (List.length(entries) == List.length(tys)) {
-        let entries =
-          List.map2(
-            ((lab, e), ty) =>
-              (
-                lab,
-                fixup_cast(
-                  Cast(e, ty, Unknown(Internal) |> Typ.fresh) |> DHExp.fresh,
-                ),
-              ),
-            entries,
-            tys,
-          );
-        Matches(entries);
-      } else {
-        DoesNotMatch;
-      };
-    | (
-        LabeledTupleEntries,
-        Cast(t, {term: Prod(t1s), _}, {term: Prod(t2s), _}),
-      )
-        when List.length(t1s) == List.length(t2s) =>
-      let* t = unbox(LabeledTupleEntries, t);
-      let t =
-        ListUtil.map3(
-          ((lab, d), t1, t2) => {
-            let value_ty1 =
-              Typ.match_tup_label(t1)
-              |> Option.map(snd)
-              |> Option.value(~default=t1);
-            let value_ty2 =
-              Typ.match_tup_label(t2)
-              |> Option.map(snd)
-              |> Option.value(~default=t2);
-
-            (lab, fixup_cast(Cast(d, value_ty1, value_ty2) |> DHExp.fresh));
-          },
-          t,
-          t1s,
-          t2s,
-        );
-      Matches(t);
     | (LabeledTupleEntries, Tuple(ds)) =>
-      let rec unbox_tup_label =
-              (d: Exp.t): option((option(LabeledTuple.label), Exp.t)) => {
-        switch (Casts.transition_multiple(d).term) {
+      let unbox_tup_label =
+          (d: Exp.t): option((option(LabeledTuple.label), Exp.t)) => {
+        switch (Ascriptions.transition_multiple(d).term) {
         // TODO Think about whether we should transition here
         | TupLabel({term: Label(l), _}, e) => Some((Some(l), e))
-        | Cast(
-            tl,
-            {term: TupLabel(_, ty1), _},
-            {term: TupLabel(_, ty2), _},
-          ) =>
-          Option.map(
-            ((lab, e)) =>
-              (lab, fixup_cast(Cast(e, ty1, ty2) |> DHExp.fresh)),
-            unbox_tup_label(tl),
-          )
-        | Cast(
-            tl,
-            {term: TupLabel(_, ty1), _},
-            {term: Unknown(Internal), _},
-          ) =>
-          Option.map(
-            ((lab, e)) =>
-              (
-                lab,
-                fixup_cast(
-                  Cast(e, ty1, Unknown(Internal) |> Typ.fresh) |> DHExp.fresh,
-                ),
-              ),
-            unbox_tup_label(tl),
-          )
-        | Cast(_) => assert(false) // Figure out what to do here
         | _ => Some((None, d))
         };
       };
@@ -255,34 +151,30 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       | None => IndetMatch
       }
 
-    /* Lists can be either lists or cons with indet tail or list casts */
+    /* Lists can be either lists or cons with indet tail */
     | (ListLit, ListLit(l)) => Matches(l)
     | (ListLitn(n), ListLit(l)) when ListUtil.is_length(n, l) => Matches(l)
     | (ListLitn(_), ListLit(_)) => DoesNotMatch
     /* A cons final form is always indet, so either does NOT match or indet matches with a listliteral*/
     | (ListLitn(0), Cons(_)) => DoesNotMatch // Cons is not an empty list
-    | (ListLitn(n), Cons(_, xs)) => unbox(ListLitn(n - 1), xs)
-    | (ListLit, Cons(_)) => IndetMatch // WIthout length of ListLit we cannot know
+    | (ListLitn(n), Cons(x, xs)) =>
+      let* tail = unbox(ListLitn(n - 1), xs);
+      Matches([x, ...tail]);
+    | (ListLit, Cons(_)) => IndetMatch // Without length of ListLit we cannot know
 
     | (Cons, ListLit([x, ...xs])) =>
       Matches((x, ListLit(xs) |> DHExp.fresh))
     | (Cons, ListLit([])) => DoesNotMatch
     | (Cons, Cons(x, xs)) => Matches((x, xs))
-    /* Tuples can be either tuples or tuple casts */
+    /* Tuples  */
     | (Tuple(n), Tuple(t)) when List.length(t) == n => Matches(t)
     | (Tuple(_), Tuple(_)) => IndetMatch
-    /* Sum constructors can be either sum constructors, sum constructors
-       applied to some value or sum casts */
+    /* Sum constructors can be either sum constructors or sum constructors
+       applied to some value  */
     | (SumNoArg(name1), Constructor(name2, _)) when name1 == name2 =>
       Matches()
     | (SumNoArg(_), Constructor(_)) => DoesNotMatch
     | (SumNoArg(_), Ap(_, {term: Constructor(_), _}, _)) => DoesNotMatch
-    | (SumNoArg(name), Cast(d1, {term: Sum(_), _}, {term: Sum(s2), _}))
-        when
-          ConstructorMap.has_constructor_no_args(name, s2)
-          || ConstructorMap.has_bad_entry(s2) =>
-      let* d1 = unbox(SumNoArg(name), d1);
-      Matches(d1);
     | (SumWithArg(_), Constructor(_)) => DoesNotMatch
     | (SumWithArg(name1), Ap(_, {term: Constructor(name2, _), _}, d3))
         when name1 == name2 =>
@@ -301,11 +193,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       Matches(TypFun(utpat, Closure(env', tfbody) |> Exp.fresh, name))
     | (TypFun, TypFun(utpat, tfbody, name)) =>
       Matches(TypFun(utpat, tfbody, name))
-    /* Any failed cast is indet */
-    | (_, FailedCast(_)) => IndetMatch
-
-    /* Forms that are the wrong type of value - these cases indicate an error
-       in elaboration or in the cast calculus. */
+    /* Forms that are the wrong type of value - these cases indicate an error */
     | (
         _,
         Atom(_) | Label(_) | Constructor(_) | BuiltinFun(_) | Deferral(_) |
@@ -314,7 +202,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         Cons(_) |
         TupLabel(_) |
         Tuple(_) |
-        Cast(_) |
+        Asc(_) |
         TypFun(_, _, _) |
         Ap(_, {term: Constructor(_), _}, _),
       ) =>

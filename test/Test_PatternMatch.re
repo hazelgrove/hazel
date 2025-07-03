@@ -17,30 +17,23 @@ let tests = (
           );
         let expression =
           Exp.(
-            cast(
+            asc(
               tuple([
-                cast(
+                asc(
                   tup_label(
                     label("var"),
-                    cast(
-                      string("get_acne"),
-                      Typ.string(),
-                      Typ.unknown(Internal),
-                    ),
+                    asc(string("get_acne"), Typ.unknown(Internal)),
                   ),
-                  Typ.(tup_label(unknown(Internal), unknown(Internal))),
                   Typ.unknown(Internal),
                 ),
-                cast(
+                asc(
                   tup_label(
                     label("val"),
-                    cast(bool(true), Typ.bool(), Typ.unknown(Internal)),
+                    asc(bool(true), Typ.unknown(Internal)),
                   ),
-                  Typ.(tup_label(unknown(Internal), unknown(Internal))),
                   Typ.unknown(Internal),
                 ),
               ]),
-              Typ.(prod([unknown(Internal), unknown(Internal)])),
               Typ.(
                 prod([
                   tup_label(label("var"), unknown(SynSwitch)),

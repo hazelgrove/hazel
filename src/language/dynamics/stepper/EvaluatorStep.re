@@ -174,12 +174,9 @@ let rec matches =
       | MultiHole(ctx, (dl, dr)) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         MultiHole(ctx, (dl, dr)) |> rewrap;
-      | Cast(ctx, ty, ty') =>
+      | Asc(ctx, ty) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Cast(ctx, ty, ty') |> rewrap;
-      | FailedCast(ctx, ty, ty') =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        FailedCast(ctx, ty, ty') |> rewrap;
+        Asc(ctx, ty) |> rewrap;
       | DynamicErrorHole(ctx, error) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         DynamicErrorHole(ctx, error) |> rewrap;

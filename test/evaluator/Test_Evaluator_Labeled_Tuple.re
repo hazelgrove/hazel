@@ -15,7 +15,7 @@ let tests = (
         {|let x : (a=Int) -> Int = fun a -> a in x(2)|},
       )
     ),
-    test_case("Cast removal for labels in let pattern", `Quick, () => {
+    test_case("Ascription removal for labels in let pattern", `Quick, () => {
       parse_and_evaluate_test("(a=1)", {|let x : (a=Int) = (a=1) in x|})
     }),
     test_case("Labeled tuple field access", `Quick, () =>

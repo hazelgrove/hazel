@@ -56,7 +56,7 @@ let rec exp_to_pat = (exp: Exp.t): Pat.t => {
   | Tuple(xs) => rewrap(Tuple(List.map(exp_to_pat, xs)))
   | Parens(e) => rewrap(Parens(exp_to_pat(e)))
   | Ap(_, e1, e2) => rewrap(Ap(exp_to_pat(e1), exp_to_pat(e2)))
-  | Cast(e, t1, t2) => rewrap(Cast(exp_to_pat(e), t1, t2))
+  | Asc(e, t1) => rewrap(Asc(exp_to_pat(e), t1))
   | _ => MultiHole([Exp(exp)]) |> Pat.fresh
   };
 };
@@ -81,7 +81,7 @@ let rec pat_to_exp = (pat: Pat.t): Exp.t => {
   | Tuple(xs) => rewrap(Tuple(List.map(pat_to_exp, xs)))
   | Parens(e) => rewrap(Parens(pat_to_exp(e)))
   | Ap(e1, e2) => rewrap(Ap(Forward, pat_to_exp(e1), pat_to_exp(e2)))
-  | Cast(e, t1, t2) => rewrap(Cast(pat_to_exp(e), t1, t2))
+  | Asc(e, t1) => rewrap(Asc(pat_to_exp(e), t1))
   | Label(l) => rewrap(Label(l))
   | TupLabel(l, e) => rewrap(TupLabel(pat_to_exp(l), pat_to_exp(e)))
   | Probe(e, probe) => rewrap(Probe(pat_to_exp(e), probe))
@@ -95,7 +95,7 @@ let add_wrapping_function = (~typ=?, pat: Pat.t): Exp.t => {
 let rec remove_wrapping_function = (exp: Exp.t): Pat.t => {
   switch (exp |> Exp.term_of) {
   | Fun(p, _, _, _) => p
-  | Cast(e, _, _) => remove_wrapping_function(e) // see https://github.com/hazelgrove/hazel/issues/1586
+  | Asc(e, _) => remove_wrapping_function(e) // see https://github.com/hazelgrove/hazel/issues/1586
   | _ => MultiHole([Exp(exp)]) |> Pat.fresh
   };
 };
@@ -167,7 +167,7 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
     | Atom(c) =>
       Typ.equal(ty, Atom(Atom.cls_of_t(c)) |> Typ.temp) ? Some([]) : None
     | Constructor(_) => Some([]) // TODO: make this stricter
-    | Cast(dhp, ty1, _) => dhpat_var_entry(dhp, ty1)
+    | Asc(dhp, ty1) => dhpat_var_entry(dhp, ty1)
     };
   };
   let+ l = dhpat_var_entry(dhpat, ty);

@@ -42,7 +42,7 @@ let tests = [
       FIError.(
         Exp.(
           tuple_extension(
-            ~ann=Some(Exp(Common(NoType(TupleExtensionRequiresTuples)))),
+            ~ann=Some(Exp(TupleExtensionRequiresTuples)),
             int(1),
             int(2),
           )
