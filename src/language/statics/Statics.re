@@ -897,108 +897,165 @@ and uexp_to_info_map =
             )
           };
         | Some(ProjectLabelsBuiltin) =>
-          let (arg_info, m) = go(~ana=ty_in, arg, m);
-
-          switch (Typ.normalize(ctx, arg_info.ty).term) {
-          | Prod([{term: Prod(entries), _}, ...labels]) =>
-            let (bad_labels, labels) =
-              List.partition_map(
-                (label: Typ.t) =>
-                  switch (label.term) {
-                  | Label(l) => Right(Some(l))
-                  | Unknown(_) => Right(None)
-                  | _ => Left(Typ(label): Any.t)
-                  },
-                labels,
+          switch (arg.term) {
+          | Tuple([tup, ...labs]) =>
+            let (tup_info, m) =
+              go(~ana=Unknown(SynSwitch) |> Typ.temp, tup, m);
+            // Run label_to_info_map on the labels accumulating the map and a list of the labels
+            let (labels, m) =
+              List.fold_left(
+                ((labels: list(Info.exp), m: Map.t), label) => {
+                  let (label_info, m) =
+                    label_to_info_map(
+                      Unknown(SynSwitch) |> Typ.temp,
+                      label,
+                      m,
+                    );
+                  (labels @ [label_info], m);
+                },
+                ([], m),
+                labs,
               );
 
-            switch (bad_labels) {
-            | [] =>
-              let entries = List.filter_map(Typ.match_tup_label, entries);
+            let m =
+              add_info(
+                arg.annotation.ids,
+                InfoExp(
+                  Info.derived_exp(
+                    ~uexp=arg,
+                    ~ctx,
+                    ~ana=Unknown(SynSwitch) |> Typ.temp,
+                    ~ancestors,
+                    ~self=Common(Just(Unknown(Internal) |> Typ.temp)),
+                    ~co_ctx=CoCtx.empty,
+                    ~label_inference=None,
+                    ~inferred_label,
+                    ~label_sort,
+                  ),
+                ),
+                m,
+              );
 
-              let (missing_labels, val_types) =
+            switch (Typ.normalize(ctx, tup_info.ty).term) {
+            | Prod(entries) =>
+              let (bad_labels: list(TermBase.any_t), labels) =
                 List.partition_map(
-                  (label: option(string)) => {
-                    switch (label) {
-                    | Some(label) =>
-                      switch (
-                        List.find_opt(((l, _)) => l == label, entries)
-                      ) {
-                      | Some((_, typ)) => Right(typ)
-                      | None => Left(label)
-                      }
-                    | None => Right(Unknown(Internal) |> Typ.temp)
-                    }
-                  },
+                  (label: Info.exp) =>
+                    switch (label.ty.term) {
+                    | Label(l) => Right(Some(l))
+                    | Unknown(_) => Right(None)
+                    | _ => Left(Exp(label.term): Any.t)
+                    },
                   labels,
                 );
 
-              let self: Self.exp =
-                switch (missing_labels) {
-                | [] => Common(Just(Prod(val_types) |> Typ.temp))
-                | _ =>
-                  BuiltinError(ProjectLabelsMissingLabels(missing_labels)) // Better error message this is labels not found
-                };
+              switch (bad_labels) {
+              | [] =>
+                let entries = List.filter_map(Typ.match_tup_label, entries);
 
-              add'(
-                ~self,
-                ~co_ctx=CoCtx.union([fn.co_ctx, arg_info.co_ctx]),
-                m,
-              );
-            | _ =>
-              add'(
-                ~self=BuiltinError(ProjectLabelsNonLabels(bad_labels)), // Better error message this is labels not found
-                ~co_ctx=CoCtx.union([fn.co_ctx, arg_info.co_ctx]),
-                m,
-              )
-            };
-          | Prod([{term: Unknown(_), _}, ...labels]) =>
-            let (bad_labels, labels) =
-              List.partition_map(
-                (label: Typ.t) =>
-                  switch (label.term) {
-                  | Label(l) => Right(Some(l))
-                  | Unknown(_) => Right(None)
-                  | _ => Left(Typ(label): Any.t)
-                  },
-                labels,
-              );
-
-            switch (bad_labels) {
-            | [] =>
-              let val_types =
-                List.map(_ => {Unknown(Internal) |> Typ.temp}, labels);
-
-              let self: Self.exp =
-                Common(
-                  Just(
-                    switch (val_types) {
-                    | [x] => x
-                    | _ => Prod(val_types) |> Typ.temp
+                let (missing_labels, val_types) =
+                  List.partition_map(
+                    (label: option(string)) => {
+                      switch (label) {
+                      | Some(label) =>
+                        switch (
+                          List.find_opt(((l, _)) => l == label, entries)
+                        ) {
+                        | Some((_, typ)) => Right(typ)
+                        | None => Left(label)
+                        }
+                      | None => Right(Unknown(Internal) |> Typ.temp)
+                      }
                     },
-                  ),
+                    labels,
+                  );
+
+                let self: Self.exp =
+                  switch (missing_labels) {
+                  | [] => Common(Just(Prod(val_types) |> Typ.temp))
+                  | _ =>
+                    BuiltinError(ProjectLabelsMissingLabels(missing_labels)) // Better error message this is labels not found
+                  };
+
+                add'(
+                  ~self,
+                  ~co_ctx=CoCtx.union([fn.co_ctx, tup_info.co_ctx]),
+                  m,
+                );
+              | _ =>
+                add'(
+                  ~self=BuiltinError(ProjectLabelsNonLabels(bad_labels)), // Better error message this is labels not found
+                  ~co_ctx=CoCtx.union([fn.co_ctx, tup_info.co_ctx]),
+                  m,
+                )
+              };
+            | Unknown(_) =>
+              let (bad_labels: list(TermBase.any_t), labels) =
+                List.partition_map(
+                  (label: Info.exp) =>
+                    switch (label.ty.term) {
+                    | Label(l) => Right(Some(l))
+                    | Unknown(_) => Right(None)
+                    | _ => Left(Exp(label.term): Any.t)
+                    },
+                  labels,
                 );
 
-              add'(
-                ~self,
-                ~co_ctx=CoCtx.union([fn.co_ctx, arg_info.co_ctx]),
+              switch (bad_labels) {
+              | [] =>
+                let val_types =
+                  List.map(_ => {Unknown(Internal) |> Typ.temp}, labels);
+
+                let self: Self.exp =
+                  Common(
+                    Just(
+                      switch (val_types) {
+                      | [x] => x
+                      | _ => Prod(val_types) |> Typ.temp
+                      },
+                    ),
+                  );
+
+                add'(~self, ~co_ctx=fn.co_ctx, m);
+              | _ =>
+                add'(
+                  ~self=BuiltinError(ProjectLabelsNonLabels(bad_labels)), // Better error message this is labels not found
+                  ~co_ctx=fn.co_ctx,
+                  m,
+                )
+              };
+            | _ =>
+              let (_, m) =
+                uexp_to_info_map(
+                  ~ctx,
+                  ~ana=Unknown(SynSwitch) |> Typ.temp,
+                  ~ancestors,
+                  ~override_self=BuiltinError(ProjectLabelsFirstArgNotTuple),
+                  tup,
+                  m,
+                );
+              add(
+                ~self=Just(Unknown(Internal) |> Typ.temp), // Consider if there's a better way to show no type information
+                ~co_ctx=CoCtx.union([fn.co_ctx, tup_info.co_ctx]),
                 m,
               );
-            | _ =>
-              add'(
-                ~self=BuiltinError(ProjectLabelsNonLabels(bad_labels)), // Better error message this is labels not found
-                ~co_ctx=CoCtx.union([fn.co_ctx, arg_info.co_ctx]),
-                m,
-              )
             };
           | _ =>
-            add'(
-              ~self=BuiltinError(ProjectLabelsFirstArgNotTuple), // Better error message this is if args aren't labels
+            let (arg_info, m) =
+              uexp_to_info_map(
+                ~ctx,
+                ~ana=Unknown(SynSwitch) |> Typ.temp,
+                ~ancestors,
+                ~override_self=BuiltinError(ProjectLabelsFirstArgNotTuple),
+                arg,
+                m,
+              );
+            add(
+              ~self=Just(Unknown(Internal) |> Typ.temp), // Consider if there's a better way to show no type information
               ~co_ctx=CoCtx.union([fn.co_ctx, arg_info.co_ctx]),
               m,
-            )
-          };
-
+            );
+          }
         | _ =>
           let (arg, m) = go(~ana=ty_in, arg, m);
           let self: Self.exp =
