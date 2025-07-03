@@ -781,8 +781,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
                 (id, x) =>
                   [mk_form(CommaExp, id, [])]
                   @ (
-                    settings.inline
-                      ? [] : [Secondary(Secondary.mk_newline(Id.mk()))]
+                    settings.inline ? [] : [Secondary(mk_newline(Id.mk()))]
                   )
                   @ x,
                 ids,
@@ -886,10 +885,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         List.map2(
           (id, x) =>
             [mk_form(CommaExp, id, [])]
-            @ (
-              settings.inline
-                ? [] : [Secondary(Secondary.mk_newline(Id.mk()))]
-            )
+            @ (settings.inline ? [] : [Secondary(mk_newline(Id.mk()))])
             @ x,
           ids,
           xs,
