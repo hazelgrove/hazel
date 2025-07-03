@@ -107,7 +107,7 @@ let seg_of_exp = (utility: utility, exp: Exp.t): (Segment.t, int) => {
 let abbreviated_seg_of =
     (utility: utility, available: int, exp: Exp.t): (Segment.t, int) => {
   let (abbr_exp, _length) =
-    exp |> DHExp.strip_casts |> Abbreviate.abbreviate_exp(~available);
+    exp |> DHExp.strip_ascriptions |> Abbreviate.abbreviate_exp(~available);
   seg_of_exp(utility, abbr_exp);
 };
 let length_cls = (length: int): string =>
