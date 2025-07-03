@@ -64,7 +64,11 @@ let annotate_static_errors = (exp: TermBase.exp_t, info_map: Statics.Map.t) => {
   Grammar.map_exp_annotation(
     ({ids, _}: IdTagged.IdTag.t) => {
       let new_info = Id.Map.find_opt(List.hd(ids), info_map);
-      Option.bind(new_info, Info.error_of);
+      switch (new_info) {
+      | Some(info) => Option.bind(Some(info), Info.error_of)
+      | None =>
+        Alcotest.fail("No info found for the id: " ++ Id.show(List.hd(ids)))
+      };
     },
     exp,
   );
