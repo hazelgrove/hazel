@@ -10,9 +10,15 @@ let read_input = path => {
   );
 };
 
+let parse_program = (s: string) =>
+  switch (Haz3lcore.Parser.to_term(s)) {
+  | Some(e) => e
+  | None => failwith("Failed to parse expression: " ++ s)
+  };
+
 let run_hazel = path => {
   let program = read_input(path);
-  let parsed = Parse.parse_program(program);
+  let parsed = parse_program(program);
   let evaluated = Run.evaluate(parsed);
 
   print_endline(Print.print(evaluated));
@@ -20,13 +26,13 @@ let run_hazel = path => {
 
 let format_hazel = path => {
   let program = read_input(path);
-  let parsed = Parse.parse_program(program);
+  let parsed = parse_program(program);
   print_endline(Print.print(parsed));
 };
 
 let analyze_hazel = path => {
   let program = read_input(path);
-  let parsed = Parse.parse_program(program);
+  let parsed = parse_program(program);
   open Language;
   let static_map =
     Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), parsed);

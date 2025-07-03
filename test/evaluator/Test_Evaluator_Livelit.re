@@ -27,15 +27,12 @@ let tests = (
           let model_string =
             switch (model) {
             | {term: Tuple(_), _} =>
-              Printer.of_segment(~holes=None, exp_to_segment(model))
-            | _ =>
-              "("
-              ++ Printer.of_segment(~holes=None, exp_to_segment(model))
-              ++ ")"
+              Printer.of_segment(exp_to_segment(model))
+            | _ => "(" ++ Printer.of_segment(exp_to_segment(model)) ++ ")"
             };
 
           parse_and_evaluate_test(
-            Printer.of_segment(~holes=None, exp_to_segment(expected_eval)),
+            Printer.of_segment(exp_to_segment(expected_eval)),
             "^" ++ livelit.name ++ model_string,
           );
         },
