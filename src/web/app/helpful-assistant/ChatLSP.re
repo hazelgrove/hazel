@@ -376,12 +376,12 @@ module Composition = {
           switch (loc) {
           | Before => [
               Action.Select(Assistant(EntireBinding(var))),
-              Action.Move(Local(Left(ByToken))),
+              Action.Unselect(Some(Left)),
               Action.Paste(Assistant(code)),
             ]
           | After => [
               Action.Select(Assistant(EntireBinding(var))),
-              Action.Move(Local(Right(ByToken))),
+              Action.Unselect(Some(Right)),
               Action.Paste(Assistant(code)),
             ]
           }

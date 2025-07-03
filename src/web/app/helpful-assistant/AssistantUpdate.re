@@ -540,10 +540,10 @@ let mk_structure_edit_msg =
       | Some(variable_name) =>
         "Agent added code before the variable "
         ++ variable_name
-        ++ " to: "
+        ++ ": "
         ++ enclose_in_backticks(code)
       | None =>
-        "Agent added code at the beginning of the sketch to "
+        "Agent added code at the beginning of the sketch "
         ++ enclose_in_backticks(code)
       };
 
@@ -553,10 +553,10 @@ let mk_structure_edit_msg =
       | Some(variable_name) =>
         "Agent added code after the variable "
         ++ variable_name
-        ++ " to: "
+        ++ ": "
         ++ enclose_in_backticks(code)
       | None =>
-        "Agent added code at the end of the sketch to "
+        "Agent added code at the end of the sketch "
         ++ enclose_in_backticks(code)
       };
     | OpenRouter.InvalidStructureAction =>
