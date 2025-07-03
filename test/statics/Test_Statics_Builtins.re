@@ -2,7 +2,7 @@ open Test_Statics_Prelude;
 open Alcotest;
 open FTemp;
 open Typ;
-
+// TODO do versions with variables where appropriate and do reverse partial application
 let tests = [
   fully_consistent_typecheck(
     "Tuple extension",
@@ -178,16 +178,34 @@ let tests = [
       ),
     )
   ),
+  test_case("project_labels with more appropriate labels", `Quick, () =>
+    annotated_tree_test(
+      {|project_labels((a=1,b=2,c=3), 'c', 'a', 'c')|},
+      prod([int(), int(), int()]),
+      FIError.Exp.(
+        ap(
+          Forward,
+          var("project_labels"),
+          tuple([
+            tuple([
+              tup_label(label("a"), int(1)),
+              tup_label(label("b"), int(2)),
+              tup_label(label("c"), int(3)),
+            ]),
+            label("c"),
+            label("a"),
+            label("c"),
+          ]),
+        )
+      ),
+    )
+  ),
   test_case("project_labels with non-label", `Quick, () =>
     annotated_tree_test(
       {|project_labels((a=1, b=true, c=3), 'a', 3, 'c')|},
-      unknown(Internal),
+      prod([int(), unknown(Internal), int()]),
       FIError.Exp.(
         ap(
-          ~ann=
-            Some(
-              Exp(BuiltinError(ProjectLabelsNonLabels([Typ(Typ.int())]))),
-            ),
           Forward,
           var("project_labels"),
           tuple([
@@ -197,7 +215,10 @@ let tests = [
               tup_label(label("c"), int(3)),
             ]),
             label("a"),
-            int(3),
+            int(
+              ~ann=Some(Exp(Common(NoType(BadLabel(Exp(Exp.int(3))))))),
+              3,
+            ),
             label("c"),
           ]),
         )
@@ -253,10 +274,22 @@ let tests = [
       unknown(Internal),
       FIError.Exp.(
         ap(
-          ~ann=Some(Exp(BuiltinError(ProjectLabelsFirstArgNotTuple))),
           Forward,
           var("project_labels"),
-          tuple([int(1), int(2), int(3)]),
+          tuple([
+            int(
+              ~ann=Some(Exp(BuiltinError(ProjectLabelsFirstArgNotTuple))),
+              1,
+            ),
+            int(
+              ~ann=Some(Exp(Common(NoType(BadLabel(Exp(Exp.int(2))))))),
+              2,
+            ),
+            int(
+              ~ann=Some(Exp(Common(NoType(BadLabel(Exp(Exp.int(3))))))),
+              3,
+            ),
+          ]),
         )
       ),
     )
@@ -267,10 +300,12 @@ let tests = [
       unknown(Internal),
       FIError.Exp.(
         ap(
-          ~ann=Some(Exp(BuiltinError(ProjectLabelsFirstArgNotTuple))),
           Forward,
           var("project_labels"),
-          int(1),
+          int(
+            ~ann=Some(Exp(BuiltinError(ProjectLabelsFirstArgNotTuple))),
+            1,
+          ),
         )
       ),
     )
@@ -281,10 +316,12 @@ let tests = [
       unknown(Internal),
       FIError.Exp.(
         ap(
-          ~ann=Some(Exp(BuiltinError(ProjectLabelsFirstArgNotTuple))),
           Forward,
           var("project_labels"),
-          tuple([]),
+          tuple(
+            ~ann=Some(Exp(BuiltinError(ProjectLabelsFirstArgNotTuple))),
+            [],
+          ),
         )
       ),
     )
