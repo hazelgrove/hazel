@@ -160,7 +160,6 @@ let is_edit: t => bool =
 /* Determines whether undo/redo skips action */
 let is_historic: t => bool =
   fun
-  | Buffer(Set(_) | Clear)
   | Copy
   | Move(_)
   | Jump(_)
@@ -169,7 +168,7 @@ let is_historic: t => bool =
   | RotateBackpack
   | MoveToBackpackTarget(_) => false
   | Cut
-  | Buffer(Accept)
+  | Buffer(Accept | Clear | Set(_))
   | Paste(_)
   | Reparse
   | Insert(_)

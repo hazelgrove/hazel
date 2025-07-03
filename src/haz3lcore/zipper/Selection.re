@@ -2,7 +2,7 @@ open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type buffer =
-  //| Parsed
+  | Parsed
   | Unparsed;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -26,13 +26,21 @@ let mk = (~mode=Normal, ~focus=Direction.Left, content: Segment.t) => {
 
 let mk_buffer = buffer => mk(~mode=Buffer(buffer), ~focus=Direction.Left);
 
-let mk_llm_buffer = buffer =>
-  mk(~mode=Buffer(buffer), ~focus=Direction.Right);
-
 let is_buffer: t => bool =
   fun
   | {mode: Buffer(_), _} => true
   | _ => false;
+
+let non_empty_parsed_buffer: t => bool =
+  fun
+  | {mode: Buffer(Parsed), content: [_, ..._], _} => true
+  | _ => false;
+
+let buffer_cls: t => string =
+  fun
+  | {mode: Buffer(Unparsed), _} => "buffer-unparsed"
+  | {mode: Buffer(Parsed), _} => "buffer-parsed"
+  | _ => "not-buffer";
 
 let selection_ids = (sel: t): list(Id.t) => Segment.ids(sel.content);
 

@@ -28,7 +28,7 @@ module Update = {
 
   let update =
       (~settings: Settings.t, action: t, model: Model.t): Updated.t(Model.t) => {
-    let perform = (action: Action.t, model: Model.t) => {
+    let perform = (action: Action.t, model: Model.t) =>
       Editor.Update.update(
         ~settings=settings.core,
         action,
@@ -71,7 +71,6 @@ module Update = {
              };
            },
          );
-    };
     switch (action) {
     | Perform(action) =>
       settings.core.flip_animations && Action.should_animate(action)

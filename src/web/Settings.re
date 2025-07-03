@@ -75,7 +75,7 @@ module Model = {
   let unpersist = fix_instructor_mode;
 };
 
-module SettingsStore =
+module Store =
   Store.F({
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = Model.persistent;

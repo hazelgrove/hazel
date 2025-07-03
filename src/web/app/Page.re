@@ -32,7 +32,7 @@ module Store = {
         ~instructor_mode=globals.settings.instructor_mode,
       );
     let explain_this = ExplainThisModel.Store.load();
-    let assistant = AssistantStore.F.load();
+    let assistant = AssistantModel.Store.load();
     {
       editors,
       globals,
@@ -49,7 +49,7 @@ module Store = {
     );
     Globals.Model.save(m.globals);
     ExplainThisModel.Store.save(m.explain_this);
-    AssistantStore.F.save(m.assistant);
+    AssistantModel.Store.save(m.assistant);
   };
 };
 
@@ -73,6 +73,26 @@ module Update = {
     | Save;
 
   let equal = (===);
+
+  let assistant_callback =
+      (
+        ~schedule_action: t => unit,
+        model: Model.t,
+        editor: CodeEditable.Model.t,
+      ) =>
+    AssistantUpdate.check_req(
+      ~schedule_action=a => schedule_action(Assistant(a)),
+      ~schedule_setting=a => schedule_action(Globals(Set(Assistant(a)))),
+      ~chat_id=model.assistant.current_chats.curr_suggestion_chat,
+      ~editor,
+    );
+
+  let get_editor = (model: Model.t): CodeEditable.Model.t =>
+    switch (model.editors) {
+    | Scratch(m) => (List.nth(m.scratchpads, m.current) |> snd).editor
+    | Documentation(m) => (List.nth(m.scratchpads, m.current) |> snd).editor
+    | Exercises(m) => List.nth(m.exercises, m.current).cells.user_impl.editor
+    };
 
   let update_global =
       (
@@ -135,12 +155,7 @@ module Update = {
             ~globals,
             ~schedule_action=a => schedule_action(Editors(a)),
             ~send_assistant_insertion_info=
-              AssistantUpdate.check_req(
-                ~schedule_action=a => schedule_action(Assistant(a)),
-                ~schedule_setting=
-                  a => schedule_action(Globals(Set(Assistant(a)))),
-                ~chat_id=model.assistant.current_chats.curr_suggestion_chat,
-              ),
+              assistant_callback(~schedule_action, model),
             action,
             model.editors,
           );
@@ -201,12 +216,7 @@ module Update = {
             ~globals=model.globals,
             ~schedule_action=a => schedule_action(Editors(a)),
             ~send_assistant_insertion_info=
-              AssistantUpdate.check_req(
-                ~schedule_action=a => schedule_action(Assistant(a)),
-                ~schedule_setting=
-                  a => schedule_action(Globals(Set(Assistant(a)))),
-                ~chat_id=model.assistant.current_chats.curr_suggestion_chat,
-              ),
+              assistant_callback(~schedule_action, model),
             action,
             model.editors,
           );
@@ -242,12 +252,7 @@ module Update = {
           ~globals,
           ~schedule_action=a => schedule_action(Editors(a)),
           ~send_assistant_insertion_info=
-            AssistantUpdate.check_req(
-              ~schedule_action=a => schedule_action(Assistant(a)),
-              ~schedule_setting=
-                a => schedule_action(Globals(Set(Assistant(a)))),
-              ~chat_id=model.assistant.current_chats.curr_suggestion_chat,
-            ),
+            assistant_callback(~schedule_action, model),
           action,
           model.editors,
         );
@@ -263,24 +268,14 @@ module Update = {
         explain_this,
       };
     | Assistant(action) =>
-      let settings = globals.settings;
-      let ed: CellEditor.Model.t =
-        switch (model.editors) {
-        | Scratch(m) => List.nth(m.scratchpads, m.current) |> snd
-        | Documentation(m) => List.nth(m.scratchpads, m.current) |> snd
-        | Exercises(m) => List.nth(m.exercises, m.current).cells.user_impl
-        };
       let* assistant =
         AssistantUpdate.update(
-          ~settings,
           ~action,
+          ~settings=globals.settings,
           ~model=model.assistant,
-          ~editor=ed.editor,
+          ~editor=get_editor(model),
           ~schedule_action=a => schedule_action(Assistant(a)),
-          ~add_suggestion=
-            ChatLSP.Completion.add_suggestion(~schedule_action=a =>
-              schedule_action(Editors(a))
-            ),
+          ~schedule_editor_action=a => schedule_action(Editors(a)),
           ~apply_edit_action=
             ChatLSP.Composition.apply_edit_action(~schedule_action=a =>
               schedule_action(Editors(a))
@@ -548,7 +543,7 @@ module View = {
               Editors.View.file_menu(~globals, ~inject, editors),
             ),
             button(
-              Icons.command_palette_sparkle,
+              Icons.command_palette_terminal,
               _ => {
                 NinjaKeys.open_command_palette();
                 Effect.Ignore;
@@ -621,31 +616,20 @@ module View = {
         ~inject=a => inject(Editors(a)),
         cursor,
       );
-    let sidebar = {
-      let ed: CellEditor.Model.t =
-        switch (model.editors) {
-        | Scratch(m) => List.nth(m.scratchpads, m.current) |> snd
-        | Documentation(m) => List.nth(m.scratchpads, m.current) |> snd
-        | Exercises(m) => List.nth(m.exercises, m.current).cells.user_impl
-        };
-      open Editors.View;
-      let signal =
-        fun
-        | MakeActive(selection: selection) => inject(MakeActive(selection));
-      let signal: AssistantView.event => Ui_effect.t(unit) =
-        fun
-        | MakeActive(s) => signal(MakeActive(Scratch(s)));
+    let sidebar =
       Sidebar.view(
         ~globals,
         ~explain_this_inject=action => inject(ExplainThis(action)),
         ~assistant_inject=action => inject(Assistant(action)),
-        ~signal,
+        ~signal=
+          fun
+          | MakeActive(s) => inject(MakeActive(Scratch(s))),
         ~explainThisModel,
         ~assistantModel,
-        ~editor=ed.editor,
+        ~editor=Update.get_editor(model),
         cursor.info,
       );
-    };
+
     let editors_view =
       Editors.View.view(
         ~globals,

@@ -440,7 +440,7 @@ let add_before: API.Json.t =
         (
           "description",
           `String(
-            "Adds the given code before the definition of the given variable name. Eg. add_before \"x\" \"let a = 3 in\\n\" will add ```let a = 3 in\\n``` before ```let x = 1 in``` given a program ```let y = 0 in\nlet x = 1 in\nx + y```, resulting in ```let y = 0 in\nlet a = 3 in\nlet x = 1 in\nx + y```.
+            "Adds the given code before the binding of the given variable name. Eg. add_before \"x\" \"let a = 3 in\\n\" will add ```let a = 3 in\\n``` before ```let x = 1 in``` given a program ```let y = 0 in\nlet x = 1 in\nx + y```, resulting in ```let y = 0 in\nlet a = 3 in\nlet x = 1 in\nx + y```.
             If no variable name is provided, the code is added to the BEGINNING of the program, which may be useful for certain tasks.",
           ),
         ),
@@ -458,7 +458,7 @@ let add_before: API.Json.t =
                     (
                       "description",
                       `String(
-                        "The name of the variable to have code added before its definition.",
+                        "The name of the variable to have code added before its binding.",
                       ),
                     ),
                   ]),
@@ -470,7 +470,7 @@ let add_before: API.Json.t =
                     (
                       "description",
                       `String(
-                        "The code to add before the definition of the variable.",
+                        "The code to add before the binding of the variable.",
                       ),
                     ),
                   ]),
@@ -494,7 +494,7 @@ let add_after: API.Json.t =
         (
           "description",
           `String(
-            "Adds the given code after the definition of the given variable name. Eg. add_after \"x\" \"let a = 3 in\\n\" will add ```let a = 3 in\\n``` after ```let x = 1 in``` given a program ```let y = 0 in\nlet x = 1 in\nx + y```, resulting in ```let y = 0 in\nlet x = 1 in\nlet a = 3 in\nx + y```.
+            "Adds the given code after the binding of the given variable name. Eg. add_after \"x\" \"let a = 3 in\\n\" will add ```let a = 3 in\\n``` after ```let x = 1 in``` given a program ```let y = 0 in\nlet x = 1 in\nx + y```, resulting in ```let y = 0 in\nlet x = 1 in\nlet a = 3 in\nx + y```.
             If no variable name is provided, the code is added to the END of the program, which may be useful for certain tasks.",
           ),
         ),
@@ -512,7 +512,7 @@ let add_after: API.Json.t =
                     (
                       "description",
                       `String(
-                        "The name of the variable to have code added after its definition.",
+                        "The name of the variable to have code added after its binding.",
                       ),
                     ),
                   ]),
@@ -524,7 +524,7 @@ let add_after: API.Json.t =
                     (
                       "description",
                       `String(
-                        "The code to add after the definition of the variable.",
+                        "The code to add after the binding of the variable.",
                       ),
                     ),
                   ]),

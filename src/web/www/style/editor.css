@@ -65,8 +65,12 @@
 }
 
 /* code completion tokens */
-.code .in-buffer {
+.code .in-unparsed-buffer {
   color: var(--token-buffer);
+}
+
+.code .in-parsed-buffer {
+  opacity: 0.5;
 }
 
 .code .token.sort-inconsistent {
@@ -104,13 +108,27 @@
 }
 
 @keyframes rainbow {
-  0% { color: #4477ff; }  /* Start with muted blue */
-  17% { color: #9944ff; } /* Muted purple */
-  33% { color: #ff4488; } /* Muted pink */
-  50% { color: #ff7744; } /* Muted orange */
-  67% { color: #88aa44; } /* Muted green */
-  83% { color: #44aaff; } /* Muted cyan */
-  100% { color: #4477ff; } /* Back to muted blue */
+  0% {
+    color: #4477ff;
+  } /* Start with muted blue */
+  17% {
+    color: #9944ff;
+  } /* Muted purple */
+  33% {
+    color: #ff4488;
+  } /* Muted pink */
+  50% {
+    color: #ff7744;
+  } /* Muted orange */
+  67% {
+    color: #88aa44;
+  } /* Muted green */
+  83% {
+    color: #44aaff;
+  } /* Muted cyan */
+  100% {
+    color: #4477ff;
+  } /* Back to muted blue */
 }
 
 /* TOKEN BACKING DECOS */
@@ -119,7 +137,7 @@ svg.shard > path {
   vector-effect: non-scaling-stroke;
 }
 
-svg.shard.indicated {
+svg.shard {
   --off-x: 0.85px;
   --off-y: 1px;
   --blur: 0;
@@ -215,12 +233,21 @@ svg.shard.error > path {
 
 /* Code completion decoration */
 
-svg.shard.selected.buffer {
+svg.shard.selected.buffer-unparsed {
   filter: none;
 }
-svg.shard.selected.buffer > path {
+svg.shard.selected.buffer-unparsed > path {
   fill: #0000;
   stroke-width: 0;
+}
+svg.shard.selected.buffer-parsed {
+  filter: drop-shadow(
+    var(--off-x) var(--off-y) var(--blur) var(--shard-lines-exp)
+  );
+}
+svg.shard.selected.buffer-parsed > path {
+  fill: var(--T1);
+  stroke: var(--T1);
 }
 
 /* EMPTY HOLE DECO */

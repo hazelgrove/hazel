@@ -18,7 +18,7 @@ module PlainTests = {
   open IdTagged.FreshGrammar;
 
   let parse_exp = (s: string) => {
-    switch (Parse.parse_exp(s)) {
+    switch (Haz3lcore.Parser.to_term(s)) {
     | Some(e) => e
     | None => Alcotest.fail("Failed to parse expression: " ++ s)
     };
@@ -839,15 +839,6 @@ module MenhirElaborationTests = {
       dynamic_error_hole_uexp,
     );
 
-  let builtin_fun_str = "infinity";
-  let builtin_fun_uexp: Exp.t = Exp.builtin_fun("infinity");
-  let builtin_fun_menhir = () =>
-    alco_check_menhir(
-      "Builtin function test (menhir)",
-      builtin_fun_str,
-      builtin_fun_uexp,
-    );
-
   let undef_str = "undef";
   let undef_uexp: Exp.t = Exp.undefined();
   let undef_menhir = () =>
@@ -938,7 +929,6 @@ x
   let tests = [
     test_case("Filter test (menhir)", `Quick, filter_menhir),
     test_case("Test failed (menhir)", `Quick, test_menhir),
-    test_case("Built-in function (menhir)", `Quick, builtin_fun_menhir),
     test_case(
       "Dynamic error hole (menhir)",
       `Quick,

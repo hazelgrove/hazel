@@ -5,7 +5,6 @@ open API;
 open Util.Maps;
 
 module CodeModel = CodeEditable.Model;
-
 module Model = AssistantModel;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -70,7 +69,8 @@ type t =
   | EmployLLMAction(employ_llm_action)
   | ChatAction(chat_action)
   | InternalError(string, AssistantSettings.mode, Id.t)
-  | ExternalAPIAction(external_api_action);
+  | ExternalAPIAction(external_api_action)
+  | InitializeAssistant;
 
 let can_undo = (action: t) => {
   // TODO: Implement the handling of actions that should be undoable
@@ -79,61 +79,13 @@ let can_undo = (action: t) => {
   // That could be a good starter project to navigate this assistant part of the codebase.
   switch (action) {
   | SendMessage(_) => false
-  | HandleResponse(_) => false
+  | HandleResponse(_) => true /* Necessary to make completion instantiation undoable */
   | EmployLLMAction(_) => false
   | ChatAction(_) => false
   | InternalError(_) => false
   | ExternalAPIAction(_) => false
+  | InitializeAssistant => false
   };
-};
-
-let parse_blocks = (response: string): list(Model.block_kind) => {
-  let rec parse_blocks =
-          (str: string, acc: list(Model.block_kind)): list(Model.block_kind) => {
-    let pattern = Str.regexp("```[ \n]*\\([^`]+\\)[ \n]*```");
-    switch (Str.search_forward(pattern, str, 0)) {
-    | exception Not_found => acc
-    | pos =>
-      let acc = ListUtil.leading(acc);
-      let code = Str.matched_group(1, str);
-      let zipper_of_code = Printer.zipper_of_string(code);
-      let sketch =
-        switch (zipper_of_code) {
-        | Some(z) => Zipper.seg_for_view(z)
-        | None =>
-          print_endline("Failed to parse content into segment.\n");
-          Zipper.seg_for_view(Zipper.init());
-        };
-      let before = Str.string_before(str, pos);
-      let rest_start = pos + String.length(Str.matched_string(str));
-      if (rest_start >= String.length(str)) {
-        acc @ [Text(before), Code(sketch)];
-      } else {
-        let rest = Str.string_after(str, rest_start);
-        parse_blocks(
-          rest,
-          acc @ [Text(before), Code(sketch), Text(rest)],
-        );
-      };
-    };
-  };
-  parse_blocks(response, [Text(response)]);
-};
-
-let mk_message_display = (~content: string, ~role: Model.role): Model.display => {
-  {
-    displayable_content: parse_blocks(content),
-    original_content: content,
-    role,
-    collapsed:
-      String.length(content) > Model.max_collapsed_length
-      || role == System(AssistantPrompt),
-  };
-};
-
-let add_chat_to_history =
-    (chat: Model.chat, history: Id.Map.t(Model.chat)): Id.Map.t(Model.chat) => {
-  Id.Map.add(chat.id, chat, history);
 };
 
 let get_mode_info = (mode: AssistantSettings.mode, model: Model.t) => {
@@ -304,6 +256,13 @@ let create_chat_descriptor =
         "You will be given a conversation between an assistant and a user. ",
         "Focus on the giving a summarizing topic title to the conversation between the assistant and the user. ",
         "NEVER use first person pronouns in your response. ",
+        "EVERY response will be displayed as a summarizaing title, so do NOT respond with anything other than a summarizing title. ",
+        switch (mode) {
+        | HazelTutor => "This is known to be a chat between a hazel user and an LLM acting as a tutor."
+        | CodeSuggestion => "This is known to be a chat between a hazel user and an LLM acting as a code suggestion assistant. This means there won't be much dialogue, rather just a prompt, code contexts, and a code suggestion (potentially with a chain of thought), so please do your best to summarize based on the code context and the code suggestion."
+        | TaskCompletion => "This is known to be a chat between a student and an LLM acting as a task completion assistant."
+        },
+        "With this said, please now provide a summary for the conversation: ",
       ],
     );
 
@@ -412,18 +371,6 @@ let check_req =
   };
 };
 
-let set_buffer = (~response: string, z: Zipper.t): option(Zipper.t) => {
-  let zipper_of_response = Option.get(Printer.zipper_of_string(response));
-  let seg_of_response =
-    Zipper.smart_seg(
-      ~dump_backpack=true,
-      ~erase_buffer=true,
-      zipper_of_response,
-    );
-  let z = Zipper.set_buffer(z, ~content=seg_of_response, ~mode=Unparsed);
-  Some(z);
-};
-
 // Sends a request to OpenRouter given outgoing messages.
 // Handles the response from OpenRouter.
 // Emits internal error if API key or model ID is not set.
@@ -495,7 +442,7 @@ let mk_llm_call =
             };
           ();
           print_endline(
-            "Assistant: response still generating in " ++ str_of_mode,
+            "Assistant: response still generating: " ++ str_of_mode,
           );
           ();
         }
@@ -528,7 +475,7 @@ let init_chat = (mode: AssistantSettings.mode): Model.chat => {
     | Some(init_message) => (
         [init_message],
         [
-          mk_message_display(
+          Model.mk_message_display(
             ~content=init_message.content,
             ~role=System(AssistantPrompt),
           ),
@@ -606,7 +553,7 @@ let update =
       // todo: Find a way to track unqique editor between concurrent actions
       ~editor: CodeModel.t,
       ~schedule_action: t => unit,
-      ~add_suggestion,
+      ~schedule_editor_action: Editors.Update.t => unit,
       ~apply_edit_action:
          (
            ~ed: CodeWithStatics.Model.t,
@@ -618,226 +565,29 @@ let update =
     : Updated.t(Model.t) => {
   switch (action) {
   | SendMessage(kind, _, chat_id) =>
-    switch (kind) {
-    | Tutor(content) =>
-      let mode = AssistantSettings.HazelTutor;
-      let curr_chat =
-        Id.Map.find(chat_id, model.chat_history.past_tutor_chats);
-      let user_message = OpenRouter.mk_user_msg(content);
-      let ctx =
-        OpenRouter.mk_user_msg(
-          String.concat("\n", ChatLSP.get_sketch_and_error_ctx(editor)),
-        );
-      let new_message_displays = [
-        mk_message_display(~content=user_message.content, ~role=User),
-        mk_message_display(
-          ~content=ctx.content,
-          ~role=System(AssistantPrompt),
-        ),
-      ];
-      let new_outgoing_messages =
-        curr_chat.outgoing_messages @ [user_message, ctx];
-
-      let updated_chat = {
-        ...curr_chat,
-        outgoing_messages: curr_chat.outgoing_messages @ new_outgoing_messages,
-        message_displays: curr_chat.message_displays @ new_message_displays,
-      };
-
-      mk_llm_call(
-        ~mode,
-        ~model,
-        ~schedule_action,
-        ~updated_chat,
-        ~response_handler=response =>
-        HandleResponse(Tutor, response, chat_id)
-      );
-
-      update_model_chat_history(~model, ~mode, ~updated_chat)
-      |> Updated.return_quiet;
-
-    | Composition(kind) =>
-      let mode = AssistantSettings.TaskCompletion;
-      let curr_chat =
-        Id.Map.find(chat_id, model.chat_history.past_composition_chats);
+    if (model.current_chats.curr_tutor_chat == Id.invalid) {
+      model |> Updated.return_quiet;
+    } else {
       switch (kind) {
-      | Request(content) =>
-        schedule_action(EmployLLMAction(SetLoop(false)));
-        let user_message = OpenRouter.mk_user_msg(content);
-        let ctx =
-          ChatLSP.Composition.mk_ctx_prompt(ChatLSP.Options.init, editor);
-        let new_message_displays = [
-          mk_message_display(~content=user_message.content, ~role=User),
-          mk_message_display(
-            ~content=ctx.content,
-            ~role=System(AssistantPrompt),
-          ),
-        ];
-        let new_outgoing_messages = [user_message, ctx];
-
-        let updated_chat = {
-          ...curr_chat,
-          outgoing_messages:
-            curr_chat.outgoing_messages @ new_outgoing_messages,
-          message_displays: curr_chat.message_displays @ new_message_displays,
-        };
-
-        mk_llm_call(
-          ~mode,
-          ~model,
-          ~schedule_action,
-          ~updated_chat,
-          ~response_handler=response =>
-          HandleResponse(
-            CompositionLoopRound(editor, ChatLSP.Composition.max_tool_calls),
-            response,
-            chat_id,
-          )
-        );
-
-        update_model_chat_history(~model, ~mode, ~updated_chat)
-        |> Updated.return_quiet;
-
-      | Loop(fuel, tool_contents) =>
-        let ctx =
-          ChatLSP.Composition.mk_ctx_prompt(ChatLSP.Options.init, editor);
-
-        let tool_message = OpenRouter.mk_tool_msg(ctx.content, tool_contents);
-
-        let new_message_displays = [
-          mk_message_display(
-            ~content=ctx.content,
-            ~role=System(AssistantPrompt),
-          ),
-        ];
-        let new_outgoing_messages = [tool_message];
-
-        let updated_chat = {
-          ...curr_chat,
-          outgoing_messages:
-            curr_chat.outgoing_messages @ new_outgoing_messages,
-          message_displays: curr_chat.message_displays @ new_message_displays,
-        };
-
-        mk_llm_call(
-          ~mode,
-          ~model,
-          ~schedule_action,
-          ~updated_chat,
-          ~response_handler=response =>
-          HandleResponse(
-            CompositionLoopRound(editor, fuel),
-            response,
-            chat_id,
-          )
-        );
-
-        update_model_chat_history(~model, ~mode, ~updated_chat)
-        |> Updated.return_quiet;
-      };
-
-    | Completion(kind) =>
-      let mode = AssistantSettings.CodeSuggestion;
-      switch (kind) {
-      | Request(tile_id, advanced_reasoning) =>
-        let new_chat = init_chat(mode);
-        print_endline("new_chat: " ++ Id.to_string(new_chat.id));
-        let updated_past_chats =
-          add_chat_to_history(
-            new_chat,
-            model.chat_history.past_suggestion_chats,
-          );
-        let model_with_new_chat =
-          resculpt_model(
-            ~model,
-            ~mode,
-            ~updated_past_chats,
-            ~chat_id=new_chat.id,
-          );
-        let tag = String.sub(Id.to_string(tile_id), 0, 3);
-        switch (
-          {
-            let* sketch_z_with_tag =
-              Perform.paste(editor.editor.state.zipper, tag);
-            let sketch_seg =
-              Zipper.smart_seg(
-                ~dump_backpack=true,
-                ~erase_buffer=true,
-                sketch_z_with_tag,
-              );
-            let* index = Indicated.index(editor.editor.state.zipper);
-            let+ ci = Id.Map.find_opt(index, editor.statics.info_map);
-            ChatLSP.Completion.prompt(
-              ChatLSP.Options.init,
-              ci,
-              sketch_seg,
-              (advanced_reasoning ? "?a" : "??") ++ tag,
-              advanced_reasoning,
-            );
-          }
-        ) {
-        | None =>
-          print_endline("Suggestion prompt generation failed");
-          model_with_new_chat |> Updated.return_quiet;
-        | Some(suggestion_prompt) =>
-          let new_message_displays = [
-            mk_message_display(
-              ~content=
-                String.concat(
-                  "\n",
-                  List.map(
-                    (msg: OpenRouter.message) => msg.content,
-                    suggestion_prompt,
-                  ),
-                ),
-              ~role=System(AssistantPrompt),
-            ),
-          ];
-          let updated_chat = {
-            ...new_chat,
-            outgoing_messages: new_chat.outgoing_messages @ suggestion_prompt,
-            message_displays: new_chat.message_displays @ new_message_displays,
-          };
-          mk_llm_call(
-            ~mode,
-            ~model,
-            ~schedule_action,
-            ~updated_chat,
-            ~response_handler=response =>
-            HandleResponse(
-              CompletionErrorRound(
-                editor,
-                ChatLSP.Options.init.error_rounds_max,
-                tile_id,
-              ),
-              response,
-              new_chat.id,
-            )
-          );
-          update_model_chat_history(
-            ~model=model_with_new_chat,
-            ~mode=settings.assistant.mode,
-            ~updated_chat,
-          )
-          |> Updated.return_quiet;
-        };
-      | Query(content) =>
+      | Tutor(content) =>
+        let mode = AssistantSettings.HazelTutor;
         let curr_chat =
-          Id.Map.find(chat_id, model.chat_history.past_suggestion_chats);
+          Id.Map.find(chat_id, model.chat_history.past_tutor_chats);
         let user_message = OpenRouter.mk_user_msg(content);
         let ctx =
           OpenRouter.mk_user_msg(
             String.concat("\n", ChatLSP.get_sketch_and_error_ctx(editor)),
           );
         let new_message_displays = [
-          mk_message_display(~content=user_message.content, ~role=User),
-          mk_message_display(
+          Model.mk_message_display(~content=user_message.content, ~role=User),
+          Model.mk_message_display(
             ~content=ctx.content,
             ~role=System(AssistantPrompt),
           ),
         ];
         let new_outgoing_messages =
           curr_chat.outgoing_messages @ [user_message, ctx];
+
         let updated_chat = {
           ...curr_chat,
           outgoing_messages:
@@ -851,43 +601,42 @@ let update =
           ~schedule_action,
           ~updated_chat,
           ~response_handler=response =>
-          HandleResponse(CompletionQueryResponse, response, chat_id)
+          HandleResponse(Tutor, response, chat_id)
         );
 
         update_model_chat_history(~model, ~mode, ~updated_chat)
         |> Updated.return_quiet;
 
-      | Loop(error, tile_id, fuel) =>
+      | Composition(kind) =>
+        let mode = AssistantSettings.TaskCompletion;
         let curr_chat =
-          Id.Map.find(chat_id, model.chat_history.past_suggestion_chats);
-        let error_message =
-          OpenRouter.mk_user_msg(
-            "Your previous response caused the following error. Please fix it in your response: "
-            ++ error,
-          );
-        let new_outgoing_messages = [error_message];
-        let new_message_displays = [
-          mk_message_display(
-            ~content=error_message.content,
-            ~role=System(AssistantPrompt),
-          ),
-        ];
-        let updated_chat = {
-          ...curr_chat,
-          outgoing_messages:
-            curr_chat.outgoing_messages @ new_outgoing_messages,
-          message_displays: curr_chat.message_displays @ new_message_displays,
-        };
-
-        // check that fuel is not 0
-        if (fuel < 0) {
-          let content =
-            "By default we stop the assistant after "
-            ++ string_of_int(ChatLSP.Options.init.error_rounds_max)
-            ++ " error rounds.";
+          Id.Map.find(chat_id, model.chat_history.past_composition_chats);
+        switch (kind) {
+        | Request(content) =>
           schedule_action(EmployLLMAction(SetLoop(false)));
-          schedule_action(InternalError(content, mode, updated_chat.id));
-        } else {
+          let user_message = OpenRouter.mk_user_msg(content);
+          let ctx =
+            ChatLSP.Composition.mk_ctx_prompt(ChatLSP.Options.init, editor);
+          let new_message_displays = [
+            Model.mk_message_display(
+              ~content=user_message.content,
+              ~role=User,
+            ),
+            Model.mk_message_display(
+              ~content=ctx.content,
+              ~role=System(AssistantPrompt),
+            ),
+          ];
+          let new_outgoing_messages = [user_message, ctx];
+
+          let updated_chat = {
+            ...curr_chat,
+            outgoing_messages:
+              curr_chat.outgoing_messages @ new_outgoing_messages,
+            message_displays:
+              curr_chat.message_displays @ new_message_displays,
+          };
+
           mk_llm_call(
             ~mode,
             ~model,
@@ -895,14 +644,230 @@ let update =
             ~updated_chat,
             ~response_handler=response =>
             HandleResponse(
-              CompletionErrorRound(editor, fuel, tile_id),
+              CompositionLoopRound(
+                editor,
+                ChatLSP.Composition.max_tool_calls,
+              ),
               response,
               chat_id,
             )
           );
+
+          update_model_chat_history(~model, ~mode, ~updated_chat)
+          |> Updated.return_quiet;
+
+        | Loop(fuel, tool_contents) =>
+          let ctx =
+            ChatLSP.Composition.mk_ctx_prompt(ChatLSP.Options.init, editor);
+
+          let tool_message =
+            OpenRouter.mk_tool_msg(ctx.content, tool_contents);
+
+          let new_message_displays = [
+            Model.mk_message_display(
+              ~content=ctx.content,
+              ~role=System(AssistantPrompt),
+            ),
+          ];
+          let new_outgoing_messages = [tool_message];
+
+          let updated_chat = {
+            ...curr_chat,
+            outgoing_messages:
+              curr_chat.outgoing_messages @ new_outgoing_messages,
+            message_displays:
+              curr_chat.message_displays @ new_message_displays,
+          };
+
+          mk_llm_call(
+            ~mode,
+            ~model,
+            ~schedule_action,
+            ~updated_chat,
+            ~response_handler=response =>
+            HandleResponse(
+              CompositionLoopRound(editor, fuel),
+              response,
+              chat_id,
+            )
+          );
+
+          update_model_chat_history(~model, ~mode, ~updated_chat)
+          |> Updated.return_quiet;
         };
-        update_model_chat_history(~model, ~mode, ~updated_chat)
-        |> Updated.return_quiet;
+
+      | Completion(kind) =>
+        let mode = AssistantSettings.CodeSuggestion;
+        switch (kind) {
+        | Request(tile_id, advanced_reasoning) =>
+          let new_chat = Model.new_chat(model, mode);
+          print_endline("new_chat: " ++ Id.to_string(new_chat.id));
+          let updated_past_chats =
+            Model.add_chat_to_history(
+              new_chat,
+              model.chat_history.past_suggestion_chats,
+            );
+          let model_with_new_chat =
+            resculpt_model(
+              ~model,
+              ~mode,
+              ~updated_past_chats,
+              ~chat_id=new_chat.id,
+            );
+          let tag = String.sub(Id.to_string(tile_id), 0, 3);
+          switch (
+            {
+              let* sketch_z_with_tag =
+                Perform.paste(editor.editor.state.zipper, tag);
+              let sketch_seg =
+                Zipper.smart_seg(
+                  ~dump_backpack=true,
+                  ~erase_buffer=true,
+                  sketch_z_with_tag,
+                );
+              let* index = Indicated.index(editor.editor.state.zipper);
+              let+ ci = Id.Map.find_opt(index, editor.statics.info_map);
+              ChatLSP.Completion.mk_ctx_prompt(
+                ChatLSP.Options.init,
+                ci,
+                sketch_seg,
+                (advanced_reasoning ? "?a" : "??") ++ tag,
+              );
+            }
+          ) {
+          | None =>
+            print_endline("Suggestion prompt generation failed");
+            model_with_new_chat |> Updated.return_quiet;
+          | Some(ctx_prompt) =>
+            let new_message_display =
+              Model.mk_message_display(
+                ~content=
+                  String.concat(
+                    "\n",
+                    List.map(
+                      (msg: OpenRouter.message) => msg.content,
+                      [ctx_prompt],
+                    ),
+                  ),
+                ~role=User,
+              );
+            let updated_chat = {
+              ...new_chat,
+              outgoing_messages: new_chat.outgoing_messages @ [ctx_prompt],
+              message_displays:
+                new_chat.message_displays @ [new_message_display],
+            };
+            mk_llm_call(
+              ~mode,
+              ~model,
+              ~schedule_action,
+              ~updated_chat,
+              ~response_handler=response =>
+              HandleResponse(
+                CompletionErrorRound(
+                  editor,
+                  ChatLSP.Options.init.error_rounds_max,
+                  tile_id,
+                ),
+                response,
+                new_chat.id,
+              )
+            );
+            update_model_chat_history(
+              ~model=model_with_new_chat,
+              ~mode=settings.assistant.mode,
+              ~updated_chat,
+            )
+            |> Updated.return_quiet;
+          };
+        | Query(content) =>
+          let curr_chat =
+            Id.Map.find(chat_id, model.chat_history.past_suggestion_chats);
+          let user_message = OpenRouter.mk_user_msg(content);
+          let ctx =
+            OpenRouter.mk_user_msg(
+              String.concat("\n", ChatLSP.get_sketch_and_error_ctx(editor)),
+            );
+          let new_message_displays = [
+            Model.mk_message_display(
+              ~content=user_message.content,
+              ~role=User,
+            ),
+            Model.mk_message_display(
+              ~content=ctx.content,
+              ~role=System(AssistantPrompt),
+            ),
+          ];
+          let new_outgoing_messages =
+            curr_chat.outgoing_messages @ [user_message, ctx];
+          let updated_chat = {
+            ...curr_chat,
+            outgoing_messages:
+              curr_chat.outgoing_messages @ new_outgoing_messages,
+            message_displays:
+              curr_chat.message_displays @ new_message_displays,
+          };
+
+          mk_llm_call(
+            ~mode,
+            ~model,
+            ~schedule_action,
+            ~updated_chat,
+            ~response_handler=response =>
+            HandleResponse(CompletionQueryResponse, response, chat_id)
+          );
+
+          update_model_chat_history(~model, ~mode, ~updated_chat)
+          |> Updated.return_quiet;
+
+        | Loop(error, tile_id, fuel) =>
+          let curr_chat =
+            Id.Map.find(chat_id, model.chat_history.past_suggestion_chats);
+          let error_message =
+            OpenRouter.mk_user_msg(
+              "Your previous response caused the following error. Please fix it in your response: "
+              ++ error,
+            );
+          let new_outgoing_messages = [error_message];
+          let new_message_displays = [
+            Model.mk_message_display(
+              ~content=error_message.content,
+              ~role=System(AssistantPrompt),
+            ),
+          ];
+          let updated_chat = {
+            ...curr_chat,
+            outgoing_messages:
+              curr_chat.outgoing_messages @ new_outgoing_messages,
+            message_displays:
+              curr_chat.message_displays @ new_message_displays,
+          };
+
+          // check that fuel is not 0
+          if (fuel < 0) {
+            let content =
+              "By default we stop the assistant after "
+              ++ string_of_int(ChatLSP.Options.init.error_rounds_max)
+              ++ " error rounds.";
+            schedule_action(EmployLLMAction(SetLoop(false)));
+            schedule_action(InternalError(content, mode, updated_chat.id));
+          } else {
+            mk_llm_call(
+              ~mode,
+              ~model,
+              ~schedule_action,
+              ~updated_chat,
+              ~response_handler=response =>
+              HandleResponse(
+                CompletionErrorRound(editor, fuel, tile_id),
+                response,
+                chat_id,
+              )
+            );
+          };
+          update_model_chat_history(~model, ~mode, ~updated_chat)
+          |> Updated.return_quiet;
+        };
       };
     }
   | InternalError(content, mode, chat_id) =>
@@ -921,7 +886,7 @@ let update =
     let new_outgoing_messages = [OpenRouter.mk_system_msg(content)];
 
     let new_message_displays = [
-      mk_message_display(~content, ~role=System(InternalError)),
+      Model.mk_message_display(~content, ~role=System(InternalError)),
     ];
 
     // Note: We aren't sending a message here, but we do add it to the chat history.
@@ -970,13 +935,18 @@ let update =
           ListUtil.leading(curr_chat.outgoing_messages)
           @ [OpenRouter.mk_assistant_msg(updated_content)],
           ListUtil.leading(curr_chat.message_displays)
-          @ [mk_message_display(~content=updated_content, ~role=Assistant)],
+          @ [
+            Model.mk_message_display(
+              ~content=updated_content,
+              ~role=Assistant,
+            ),
+          ],
         );
       } else {
         switch (tool_call) {
         | Some(tool_call) =>
           let updated_message_displays =
-            mk_message_display(
+            Model.mk_message_display(
               ~content=
                 mk_structure_edit_msg(
                   ~tool_call=
@@ -1036,15 +1006,17 @@ let update =
               curr_chat.outgoing_messages
               @ [OpenRouter.mk_assistant_msg(content)],
               curr_chat.message_displays
-              @ [mk_message_display(~content, ~role=Assistant)]
-              @ [updated_message_displays],
+              @ [
+                Model.mk_message_display(~content, ~role=Assistant),
+                updated_message_displays,
+              ],
             )
           };
         | None => (
             curr_chat.outgoing_messages
             @ [OpenRouter.mk_assistant_msg(content)],
             curr_chat.message_displays
-            @ [mk_message_display(~content, ~role=Assistant)],
+            @ [Model.mk_message_display(~content, ~role=Assistant)],
           )
         };
       };
@@ -1381,6 +1353,10 @@ let update =
     update_model_chat_history(~model, ~mode, ~updated_chat)
     |> Updated.return_quiet;
   | EmployLLMAction(action) =>
+    let add_suggestion =
+      ChatLSP.Completion.add_suggestion(
+        ~schedule_action=schedule_editor_action,
+      );
     switch (action) {
     | RemoveAndSuggest(response, tileId) =>
       // Only side effects in the editor are performed here
@@ -1402,7 +1378,18 @@ let update =
             },
           past_chats,
         );
-      resculpt_model(~model, ~mode, ~updated_past_chats, ~chat_id)
+      let curr_chat_id =
+        switch (mode) {
+        | HazelTutor => model.current_chats.curr_tutor_chat
+        | CodeSuggestion => model.current_chats.curr_suggestion_chat
+        | TaskCompletion => model.current_chats.curr_composition_chat
+        };
+      resculpt_model(
+        ~model,
+        ~mode,
+        ~updated_past_chats,
+        ~chat_id=curr_chat_id,
+      )
       |> Updated.return_quiet;
     | SetLoop(loop) =>
       {
@@ -1410,15 +1397,15 @@ let update =
         loop,
       }
       |> Updated.return_quiet
-    }
+    };
 
   | ChatAction(action) =>
     switch (action) {
     | NewChat =>
       let mode = settings.assistant.mode;
       let (past_chats, _) = get_mode_info(mode, model);
-      let new_chat: Model.chat = init_chat(mode);
-      let updated_history = add_chat_to_history(new_chat, past_chats);
+      let new_chat: Model.chat = Model.new_chat(model, mode);
+      let updated_history = Model.add_chat_to_history(new_chat, past_chats);
       resculpt_model(
         ~model,
         ~mode,
@@ -1605,34 +1592,6 @@ let update =
       }
       |> Updated.return_quiet
     }
-  };
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-let init: Model.t = {
-  let (init_tutor_chat, init_suggestion_chat, init_composition_chat) = (
-    init_chat(HazelTutor),
-    init_chat(CodeSuggestion),
-    init_chat(TaskCompletion),
-  );
-  {
-    current_chats: {
-      curr_tutor_chat: init_tutor_chat.id,
-      curr_suggestion_chat: init_suggestion_chat.id,
-      curr_composition_chat: init_composition_chat.id,
-    },
-    chat_history: {
-      past_tutor_chats: add_chat_to_history(init_tutor_chat, Id.Map.empty),
-      past_suggestion_chats:
-        add_chat_to_history(init_suggestion_chat, Id.Map.empty),
-      past_composition_chats:
-        add_chat_to_history(init_composition_chat, Id.Map.empty),
-    },
-    external_api_info: {
-      available_models: [],
-      set_model: "",
-      api_key: "",
-    },
-    loop: false,
+  | InitializeAssistant => AssistantModel.init() |> Updated.return_quiet
   };
 };

@@ -29,6 +29,8 @@ type regexp = Js_of_ocaml.Regexp.regexp;
 
 let regexp: string => regexp = Js_of_ocaml.Regexp.regexp;
 
+let search = Js_of_ocaml.Regexp.search;
+
 let match = (r: regexp, s: string): bool =>
   Js_of_ocaml.Regexp.string_match(r, s, 0) |> Option.is_some;
 
@@ -36,10 +38,24 @@ let replace = Js_of_ocaml.Regexp.global_replace;
 
 let split = Js_of_ocaml.Regexp.split;
 
+let search = Js_of_ocaml.Regexp.search;
+
 let plain_split: (string, string) => list(string) =
-  (str, sep) => {
-    split(Js_of_ocaml.Regexp.regexp_string(sep), str);
-  };
+  (str, sep) => split(Js_of_ocaml.Regexp.regexp_string(sep), str);
+
+let plain_match: (string, string) => bool =
+  (regexp, str) => match(Js_of_ocaml.Regexp.regexp_string(regexp), str);
+
+let plain_replace: (string, string, string) => string =
+  (regexp, str, repl) =>
+    replace(Js_of_ocaml.Regexp.regexp_string(regexp), str, repl);
+
+let plain_search: (string, string, int) => int =
+  (regexp, str, idx) =>
+    switch (search(Js_of_ocaml.Regexp.regexp(regexp), str, idx)) {
+    | Some((idx, _)) => idx
+    | None => (-1)
+    };
 
 let to_lines = String.split_on_char('\n');
 
@@ -59,7 +75,7 @@ let num_linebreaks = (s: string) => {
 // let unescape_linebreaks: string => string = replace(regexp("\\\\n"), "\n");
 // let trim_leading = replace(regexp("\n[ ]*"), "\n");
 
-/* TODO(andrew): figure out why above dont work. When they're
+/* WEIRD: figure out why above dont work. When they're
  * gone we can remove Re.Str entirely */
 
 let escape_linebreaks: string => string =

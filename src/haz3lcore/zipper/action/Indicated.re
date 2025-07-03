@@ -48,7 +48,7 @@ let piece' =
   /* No R and there is a P => indicate P */
   | ((_, None), Some(parent)) => Some((parent, Right, Parent))
   /* There is an L but no R and no P => indicate L */
-  //TODO(andrew): Right below seems wrong but it gets fucky otherwise
+  //WEIRD: Right below seems wrong but behaves right
   | ((Some(l), None), None) => Some((l, Right, Sibling))
   };
 };

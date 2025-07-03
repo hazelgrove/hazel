@@ -233,15 +233,10 @@ List.merge(cmp, merge_sort_helper(left), merge_sort_helper(right))
 
 let get =
     (num_examples: int, hole_label: string, advanced_reasoning: bool)
-    : list(Util.OpenRouter.message) =>
+    : list(string) =>
   Util.ListUtil.flat_map(
-    ((sketch, expected_ty, completion)): list(Util.OpenRouter.message) =>
-      [
-        Util.OpenRouter.mk_user_msg(
-          String.concat("\n", [sketch] @ ["expected_ty: " ++ expected_ty]),
-        ),
-        Util.OpenRouter.mk_assistant_msg(completion),
-      ],
+    ((sketch, expected_ty, completion)): list(string) =>
+      [sketch] @ ["expected_ty: " ++ expected_ty] @ [completion],
     switch (
       Util.ListUtil.split_n_opt(
         num_examples,

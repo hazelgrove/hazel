@@ -162,11 +162,11 @@
   --menu-bkg: var(--Y0);
   --menu-item-hover-bkg: var(--SAND);
   --menu-item-text: var(--STONE);
-  --menu-scroll-track: var(--BR1);
-  --menu-scroll-thumb: var(--BR2);
   --menu-outline: var(--BR2);
-  --menu-icon: var(--BR2);
-  --menu-group-name: var(--BR4);
+  --menu-icon: var(--BR4);
+  --menu-group-name: var(--menu-icon);
+  --menu-scroll-thumb: var(--menu-outline);
+  --menu-scroll-track: var(--BR1);
   --menu-divider: var(--CREASE);
   --menu-shadow: var(--SHADOW);
 

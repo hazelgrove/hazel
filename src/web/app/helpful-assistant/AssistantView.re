@@ -45,13 +45,15 @@ let settings_button =
   );
 };
 
-let new_chat_button = (~inject): Node.t => {
+let new_chat_button = (~inject, ~model: Model.t): Node.t => {
   let tooltip = "New Chat";
+  let new_chat_action =
+    model.current_chats.curr_tutor_chat == Id.invalid
+      ? [] : [inject(Update.ChatAction(NewChat))];
   let new_chat = _ =>
-    Virtual_dom.Vdom.Effect.Many([
-      inject(Update.ChatAction(NewChat)),
-      Virtual_dom.Vdom.Effect.Stop_propagation,
-    ]);
+    Virtual_dom.Vdom.Effect.Many(
+      new_chat_action @ [Virtual_dom.Vdom.Effect.Stop_propagation],
+    );
   div(
     ~attrs=[clss(["add-button"]), Attr.on_click(new_chat)],
     [
@@ -119,14 +121,6 @@ let select_llm =
   );
 };
 
-let settings_box =
-    (~inject_global: Globals.Action.t => Ui_effect.t(unit)): Node.t => {
-  div(
-    ~attrs=[clss(["settings-box"])],
-    [resume_chat_button(~inject_global)],
-  );
-};
-
 let api_input =
     (
       ~inject: Update.t => Ui_effect.t(unit),
@@ -136,11 +130,17 @@ let api_input =
       ~settings: AssistantSettings.t,
     )
     : Node.t => {
+  let init_assistant_model =
+    model.current_chats.curr_tutor_chat == Id.invalid
+      ? [inject(Update.InitializeAssistant)] : [];
   let handle_submission = (api_key: string) => {
-    Virtual_dom.Vdom.Effect.Many([
-      inject(ExternalAPIAction(SetAPIKey(api_key))),
-      Virtual_dom.Vdom.Effect.Stop_propagation,
-    ]);
+    Virtual_dom.Vdom.Effect.Many(
+      init_assistant_model
+      @ [
+        inject(ExternalAPIAction(SetAPIKey(api_key))),
+        Virtual_dom.Vdom.Effect.Stop_propagation,
+      ],
+    );
   };
 
   let toggle_visibility = _ =>
@@ -1160,7 +1160,8 @@ let view =
                 ),
             settings.assistant.ongoing_chat
               ? history_button(~inject, ~inject_global) : None,
-            settings.assistant.ongoing_chat ? new_chat_button(~inject) : None,
+            settings.assistant.ongoing_chat
+              ? new_chat_button(~inject, ~model) : None,
             settings.assistant.ongoing_chat
               ? settings_button(~inject_global)
               : resume_chat_button(~inject_global),
@@ -1194,7 +1195,6 @@ let view =
             ),
         settings.assistant.ongoing_chat
           ? None : llm_model_id_input(~inject, ~model, ~signal),
-        //settings.assistant.ongoing_chat ? None : settings_box(~inject_global),
         settings.assistant.ongoing_chat && settings.assistant.show_history
           ? history_menu(~model, ~settings=settings.assistant, ~inject) : None,
         prompt_display(~globals, ~model, ~settings=settings.assistant),

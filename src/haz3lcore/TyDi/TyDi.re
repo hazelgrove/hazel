@@ -84,13 +84,12 @@ let suffix_of = (candidate: Token.t, current: Token.t): option(Token.t) => {
 };
 
 /* Returns the text content of the suggestion buffer */
-let get_buffer = (z: Zipper.t): option(Token.t) => {
+let get_unparsed_buffer = (z: Zipper.t): option(Token.t) =>
   switch (z.selection.mode, z.selection.content) {
   | (Buffer(Unparsed), [Secondary({content: Comment(completion), _})]) =>
     Some(completion)
   | _ => None
   };
-};
 
 /* Populates the suggestion buffer with a type-directed suggestion */
 let set_buffer = (~info_map: Statics.Map.t, z: Zipper.t): option(Zipper.t) => {
@@ -98,7 +97,7 @@ let set_buffer = (~info_map: Statics.Map.t, z: Zipper.t): option(Zipper.t) => {
     switch (z.selection.mode) {
     /* Make sure not to populate the completion buffer if there is a non-empty
      * selection, otherwise it will get clobbered by the buffer */
-    | Buffer(Unparsed) => Some()
+    | Buffer(Unparsed | Parsed) => Some()
     | Normal when Selection.is_empty(z.selection) => Some()
     | Normal => None
     };
@@ -115,11 +114,5 @@ let set_buffer = (~info_map: Statics.Map.t, z: Zipper.t): option(Zipper.t) => {
   let* suggestion_suffix = suffix_of(top_suggestion.content, tok_to_left);
   let content = mk_unparsed_buffer(suggestion_suffix);
   let z = Zipper.set_buffer(z, ~content, ~mode=Unparsed);
-  Some(z);
-};
-
-let set_llm_buffer = (z: Zipper.t, response: string): option(Zipper.t) => {
-  let content = mk_unparsed_buffer(response);
-  let z = Zipper.set_llm_buffer(z, ~content, ~mode=Unparsed);
   Some(z);
 };
