@@ -37,9 +37,9 @@ type rel =
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type structure =
-  | Var(Id.t)
-  | Def(Id.t)
-  | VarDef(Id.t)
+  | Pattern(Id.t)
+  | Definition(Id.t)
+  | EntireBinding(Id.t)
   | Body(Id.t);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]

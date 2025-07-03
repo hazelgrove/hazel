@@ -349,11 +349,11 @@ module Composition = {
 
         switch (edit_action) {
         | UpdatePattern(new_pattern) => [
-            Action.Select(Assistant(Var(var))),
+            Action.Select(Assistant(Pattern(var))),
             Action.Paste(Assistant(new_pattern)),
           ]
         | UpdateDefinition(new_definition) => [
-            Action.Select(Assistant(Def(def))),
+            Action.Select(Assistant(Definition(def))),
             Action.Paste(Assistant(new_definition)),
           ]
         | UpdateBody(new_body) => [
@@ -361,11 +361,11 @@ module Composition = {
             Action.Paste(Assistant(new_body)),
           ]
         | UpdateBinding(new_binding) => [
-            Action.Select(Assistant(VarDef(var))),
+            Action.Select(Assistant(EntireBinding(var))),
             Action.Paste(Assistant(new_binding)),
           ]
         | DeleteBinding => [
-            Action.Select(Assistant(VarDef(var))),
+            Action.Select(Assistant(EntireBinding(var))),
             Action.Paste(Assistant("")),
           ]
         | DeleteBody => [
@@ -375,12 +375,12 @@ module Composition = {
         | Add(loc, code) =>
           switch (loc) {
           | Before => [
-              Action.Select(Assistant(VarDef(var))),
+              Action.Select(Assistant(EntireBinding(var))),
               Action.Move(Local(Left(ByToken))),
               Action.Paste(Assistant(code)),
             ]
           | After => [
-              Action.Select(Assistant(VarDef(var))),
+              Action.Select(Assistant(EntireBinding(var))),
               Action.Move(Local(Right(ByToken))),
               Action.Paste(Assistant(code)),
             ]

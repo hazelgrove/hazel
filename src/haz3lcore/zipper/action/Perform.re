@@ -264,17 +264,17 @@ let go_z =
     }
   | Select(Resize(d)) =>
     Select.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_select)
-  | Select(Assistant(Var(id))) =>
+  | Select(Assistant(Pattern(id))) =>
     switch (Select.term(id, z)) {
     | Some(z) => Ok(z)
     | None => Error(Action.Failure.Cant_select)
     }
-  | Select(Assistant(Def(id))) =>
+  | Select(Assistant(Definition(id))) =>
     switch (Select.term(id, z)) {
     | Some(z) => Ok(z)
     | None => Error(Action.Failure.Cant_select)
     }
-  | Select(Assistant(VarDef(id))) =>
+  | Select(Assistant(EntireBinding(id))) =>
     switch (Move.jump_to_id(z, id)) {
     | Some(z) =>
       switch (select_definition(z)) {
