@@ -1,5 +1,4 @@
 open Util;
-open Haz3lcore;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type system =
@@ -118,48 +117,10 @@ let mk_mode_prompt =
   prompt;
 };
 
-let mk_move = (z: Zipper.t): (module Move.S) => {
-  Editor.Model.to_move_s({
-    state: {
-      zipper: z,
-      col_target: None,
-    },
-    syntax:
-      Editor.CachedSyntax.init(
-        ~info_map=Language.Statics.Map.empty,
-        ~dyn_map=Language.Dynamics.Map.empty,
-        z,
-      ),
-  });
-};
-
-let highlighted_zipper = (z: Zipper.t, module M: Move.S): Zipper.t => {
-  module Move = Move.Make(M);
-  module Select = Select.Make(M);
-  print_endline("Here #1");
-  let z' =
-    switch (Move.do_extreme(Move.primary(ByToken), Up, z)) {
-    | Some(z') =>
-      print_endline("Here #2");
-      z';
-    | None =>
-      print_endline("Here #3");
-      z;
-    };
-  print_endline("Here #4");
-  switch (Select.go(Extreme(Down), z')) {
-  | Some(z'') =>
-    print_endline("Here #5");
-    z'';
-  | None =>
-    print_endline("Here #6");
-    z';
-  };
-};
-
 let parse_blocks = (response: string): list(block_kind) => {
   let rec parse_blocks =
           (str: string, acc: list(block_kind)): list(block_kind) => {
+    open Haz3lcore;
     let pattern = Str.regexp("```[ \n]*\\([^`]+\\)[ \n]*```");
     switch (Str.search_forward(pattern, str, 0)) {
     | exception Not_found => acc
@@ -167,13 +128,13 @@ let parse_blocks = (response: string): list(block_kind) => {
       let acc = ListUtil.leading(acc);
       let code = Str.matched_group(1, str);
       let zipper_of_code = Parser.to_zipper(code);
-      print_endline("Here #0");
-      let z =
+      let sketch =
         switch (zipper_of_code) {
-        | Some(z) => highlighted_zipper(z, mk_move(z))
-        | None => Zipper.init()
+        | Some(z) => Zipper.seg_for_view(z)
+        | None =>
+          print_endline("Failed to parse content into segment.\n");
+          Zipper.seg_for_view(Zipper.init());
         };
-      let sketch = Zipper.seg_for_view(z);
       let before = Str.string_before(str, pos);
       let rest_start = pos + String.length(Str.matched_string(str));
       if (rest_start >= String.length(str)) {
