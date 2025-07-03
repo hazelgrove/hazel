@@ -1,0 +1,78 @@
+/* PROJECTOR: FOLD */
+
+.projector.comp,
+.projector.indicated.comp {
+  color: green;
+}
+
+.projector.comp {
+  cursor: pointer;
+  font-family: var(--code-font);
+}
+
+.result .projector.comp {
+  cursor: default;
+}
+
+.projector.comp > svg {
+  --shadow: var(--BR3);
+  filter: drop-shadow(0.7px 0.7px 0px var(--shadow));
+}
+
+.projector.comp {
+  fill: green;
+}
+
+/* Make backing decoration transparent by default for comp projector */
+.projector.comp > svg.shard > path {
+  fill: transparent;
+  stroke: transparent;
+}
+
+/* Show green backing decoration when comp projector is hovered */
+.projector.comp:hover > svg.shard > path {
+  fill: green !important;
+  opacity: 0.3;
+  stroke: green;
+  stroke-width: 0.5px;
+}
+
+.projector.indicated
+
+.projector.comp .comp-view {
+  display: none;
+  position: absolute;
+}
+.projector.comp .comp-view,
+.projector.comp .comp-view path {
+  display: block;
+  left: 0;
+  top: 0;
+}
+
+.projector.comp .comp-view {
+  filter: drop-shadow(3px 3px 2px #00000010);
+}
+
+.projector.comp .comp-view svg {
+  --shadow: var(--BR3);
+  filter: drop-shadow(0.7px 0.7px 0px var(--shadow));
+}
+
+.projector.comp .comp-view path {
+  --fill: #00ff0020;
+  fill: var(--fill);
+  stroke: var(--fill);
+}
+
+.projector.comp .comp-view .incoming path {
+  --fill: #00ff0020;
+  fill: var(--fill);
+  stroke: var(--fill);
+}
+
+.projector.comp .comp-view .previous path {
+  --fill: #ff000020;
+  fill: var(--fill);
+  stroke: var(--fill);
+}

@@ -69,7 +69,7 @@ module Kind = {
     | Card => "card"
     | Livelit => "livelit"
     | TextArea => "text"
-    | Composition => "composition"
+    | Composition => "comp"
     };
 
   /* This must be updated and kept 1-to-1 with the above

@@ -3,12 +3,8 @@ open ProjectorBase;
 open Virtual_dom.Vdom;
 open Node;
 
-let segment_of = (any: Language.Any.t): option(string) =>
-  switch (any) {
-  | Exp({term: Atom(String(s)), _}) =>
-    Some(StringUtil.unescape_linebreaks(s))
-  | _ => None
-  };
+let seg_to_str = (info: info): string =>
+  Segment.to_string(~holes=None, info.syntax);
 
 module M: Projector = {
   // Describes whether this code is old, or newly suggested by the agent.
@@ -44,26 +40,28 @@ module M: Projector = {
   let focusable = Focusable.non;
   let dynamics = false;
 
-  let placeholder = (m, _) =>
-    ProjectorCore.Shape.inline(m.generation == Incoming ? 2 : 3);
-  let update = (m, _, _) => m;
-
-  let hover_view = (view_seg: View.seg, info: info) => {
-    let seg = Segment.unparenthesize(info.syntax);
-    let sort = Segment.sort_of(Segment.skel(seg), seg);
-    div(
-      ~attrs=[Attr.class_("hover-view")],
-      [
-        view_seg(~background=true, sort, Segment.unparenthesize(info.syntax)),
-      ],
-    );
+  let placeholder = (_, info: info) => {
+    let str = info |> seg_to_str;
+    let lines = StringUtil.to_lines(str);
+    let max_line_width =
+      List.fold_left(max, 0, lines |> List.map(String.length));
+    ProjectorCore.Shape.{
+      vertical: Block(List.length(lines) - 1),
+      horizontal: max_line_width,
+    };
   };
 
-  let view = (m: model, info, ~local as _, ~parent, ~view_seg) =>
-    ProjectorBase.View.mk(
-      div(
-        ~attrs=[Attr.on_double_click(_ => parent(Remove))],
-        [text("test"), hover_view(view_seg, info)],
-      ),
+  let update = (m, _, _) => m;
+
+  let view = (_: model, info, ~local as _, ~parent, ~view_seg: View.seg) =>
+    View.mk(
+      {
+        let seg = Segment.unparenthesize(info.syntax);
+        let sort = Segment.sort_of(Segment.skel(seg), seg);
+        div(
+          ~attrs=[Attr.class_("comp-view")],
+          [view_seg(~background=true, sort, info.syntax)],
+        );
+      },
     );
 };
