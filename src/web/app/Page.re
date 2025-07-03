@@ -276,10 +276,6 @@ module Update = {
           ~editor=get_editor(model),
           ~schedule_action=a => schedule_action(Assistant(a)),
           ~schedule_editor_action=a => schedule_action(Editors(a)),
-          ~apply_edit_action=
-            ChatLSP.Composition.apply_edit_action(~schedule_action=a =>
-              schedule_action(Editors(a))
-            ),
         );
       {
         ...model,

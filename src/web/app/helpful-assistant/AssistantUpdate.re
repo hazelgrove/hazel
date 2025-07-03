@@ -578,13 +578,6 @@ let update =
       ~editor: CodeModel.t,
       ~schedule_action: t => unit,
       ~schedule_editor_action: Editors.Update.t => unit,
-      ~apply_edit_action:
-         (
-           ~ed: CodeWithStatics.Model.t,
-           ~edit_action: ChatLSP.Composition.edit_action,
-           ~variable_name: option(string)
-         ) =>
-         unit,
     )
     : Updated.t(Model.t) => {
   switch (action) {
@@ -1081,6 +1074,10 @@ let update =
             ),
             editor,
             chat_id,
+          );
+        let apply_edit_action =
+          ChatLSP.Composition.apply_edit_action(
+            ~schedule_action=schedule_editor_action,
           );
         try(
           switch (tool_call.name) {
