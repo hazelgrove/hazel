@@ -496,6 +496,7 @@ let init_chat = (mode: AssistantSettings.mode): Model.chat => {
 let mk_structure_edit_msg =
     (~tool_call: string, ~args: option(StringMap.t(string))) =>
   try({
+    let enclose_in_backticks = (str: string) => "```" ++ str ++ "```";
     let args = Option.get(args);
     switch (OpenRouter.structure_action_of_string(tool_call)) {
     | OpenRouter.UpdatePattern =>
@@ -503,19 +504,30 @@ let mk_structure_edit_msg =
       let new_pattern = StringMap.find("new_pattern", args);
       "Agent updated the pattern of the variable "
       ++ variable_name
-      ++ " to "
-      ++ new_pattern;
+      ++ " to: "
+      ++ enclose_in_backticks(new_pattern);
 
     | OpenRouter.UpdateDefinition =>
       let variable_name = StringMap.find("variable_name", args);
-      "Agent updated the definition of the variable " ++ variable_name;
+      let new_definition = StringMap.find("new_definition", args);
+      "Agent updated the definition of the variable "
+      ++ variable_name
+      ++ " to: "
+      ++ enclose_in_backticks(new_definition);
     | OpenRouter.UpdateBinding =>
       let variable_name = StringMap.find("variable_name", args);
-      let _ = StringMap.find("new_binding", args);
-      "Agent updated the entire binding of the variable " ++ variable_name;
+      let new_binding = StringMap.find("new_binding", args);
+      "Agent updated the entire binding of the variable "
+      ++ variable_name
+      ++ " to: "
+      ++ enclose_in_backticks(new_binding);
     | OpenRouter.UpdateBody =>
       let variable_name = StringMap.find("variable_name", args);
-      "Agent updated the body of the variable " ++ variable_name;
+      let new_body = StringMap.find("new_body", args);
+      "Agent updated the body of the variable "
+      ++ variable_name
+      ++ " to: "
+      ++ enclose_in_backticks(new_body);
     | OpenRouter.DeleteBinding =>
       let variable_name = StringMap.find("variable_name", args);
       "Agent deleted the variable " ++ variable_name;
@@ -523,18 +535,30 @@ let mk_structure_edit_msg =
       let variable_name = StringMap.find("variable_name", args);
       "Agent deleted the body of the variable " ++ variable_name;
     | OpenRouter.AddBefore =>
+      let code = StringMap.find("code", args);
       switch (StringMap.find_opt("variable_name", args)) {
       | Some(variable_name) =>
-        "Agent added code before the variable " ++ variable_name
-      | None => "Agent added code at the beginning of the sketch"
-      }
+        "Agent added code before the variable "
+        ++ variable_name
+        ++ " to: "
+        ++ enclose_in_backticks(code)
+      | None =>
+        "Agent added code at the beginning of the sketch to "
+        ++ enclose_in_backticks(code)
+      };
 
     | OpenRouter.AddAfter =>
+      let code = StringMap.find("code", args);
       switch (StringMap.find_opt("variable_name", args)) {
       | Some(variable_name) =>
-        "Agent added code after the variable " ++ variable_name
-      | None => "Agent added code at the end of the sketch"
-      }
+        "Agent added code after the variable "
+        ++ variable_name
+        ++ " to: "
+        ++ enclose_in_backticks(code)
+      | None =>
+        "Agent added code at the end of the sketch to "
+        ++ enclose_in_backticks(code)
+      };
     | OpenRouter.InvalidStructureAction =>
       raise(Failure("Unknown structure action: " ++ tool_call))
     };

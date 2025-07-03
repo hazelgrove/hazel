@@ -83,7 +83,8 @@ type buffer =
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type paste =
   | String(string)
-  | Segment(Segment.t);
+  | Segment(Segment.t)
+  | Assistant(string);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =

@@ -350,39 +350,39 @@ module Composition = {
         switch (edit_action) {
         | UpdatePattern(new_pattern) => [
             Action.Select(Assistant(Var(var))),
-            Action.Paste(String(new_pattern)),
+            Action.Paste(Assistant(new_pattern)),
           ]
         | UpdateDefinition(new_definition) => [
             Action.Select(Assistant(Def(def))),
-            Action.Paste(String(new_definition)),
+            Action.Paste(Assistant(new_definition)),
           ]
         | UpdateBody(new_body) => [
             Action.Select(Assistant(Body(body))),
-            Action.Paste(String(new_body)),
+            Action.Paste(Assistant(new_body)),
           ]
         | UpdateBinding(new_binding) => [
             Action.Select(Assistant(VarDef(var))),
-            Action.Paste(String(new_binding)),
+            Action.Paste(Assistant(new_binding)),
           ]
         | DeleteBinding => [
             Action.Select(Assistant(VarDef(var))),
-            Action.Paste(String("")),
+            Action.Paste(Assistant("")),
           ]
         | DeleteBody => [
             Action.Select(Assistant(Body(body))),
-            Action.Paste(String("")),
+            Action.Paste(Assistant("")),
           ]
         | Add(loc, code) =>
           switch (loc) {
           | Before => [
               Action.Select(Assistant(VarDef(var))),
               Action.Move(Local(Left(ByToken))),
-              Action.Paste(String(code)),
+              Action.Paste(Assistant(code)),
             ]
           | After => [
               Action.Select(Assistant(VarDef(var))),
               Action.Move(Local(Right(ByToken))),
-              Action.Paste(String(code)),
+              Action.Paste(Assistant(code)),
             ]
           }
         };
@@ -392,11 +392,11 @@ module Composition = {
           switch (loc) {
           | Before => [
               Action.Move(Extreme(Up)),
-              Action.Paste(String(code)),
+              Action.Paste(Assistant(code)),
             ]
           | After => [
               Action.Move(Extreme(Down)),
-              Action.Paste(String(code)),
+              Action.Paste(Assistant(code)),
             ]
           }
         | _ =>

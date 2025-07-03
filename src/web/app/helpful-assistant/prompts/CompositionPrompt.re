@@ -345,7 +345,7 @@ let update_binding: API.Json.t =
         (
           "description",
           `String(
-            "Updates the ENTIRE binding, inclusive from the \"let\" or \"type\" delimiter to the \"in\" delimiter of the given variable name. Eg. update_binding \"x\" \"let b : Int = 0 in\" will update ```let y = 0 in\nlet x : Int = 1 in\nx + y``` to ```let y = 0 in\nlet b : Int = 0 in\nx + y```.",
+            "Updates the ENTIRE binding, inclusive from the \"let\" or \"type\" delimiter to the \"in\" delimiter of the given variable name, but NOT the body of the binding. Eg. update_binding \"x\" \"let b : Int = 0 in\" will update ```let y = 0 in\nlet x : Int = 1 in\nx + y``` to ```let y = 0 in\nlet b : Int = 0 in\nx + y```.",
           ),
         ),
         (
