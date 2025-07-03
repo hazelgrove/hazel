@@ -56,10 +56,11 @@ type usage = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 // Tool Calls
 type structure_action =
-  | RenameVariable
+  | UpdatePattern
   | UpdateDefinition
   | UpdateBody
-  | DeleteVariable
+  | UpdateBinding
+  | DeleteBinding
   | DeleteBody
   | AddBefore
   | AddAfter
@@ -67,10 +68,11 @@ type structure_action =
 
 let string_of_structure_action =
   fun
-  | RenameVariable => "rename_variable"
+  | UpdatePattern => "update_pattern"
   | UpdateDefinition => "update_definition"
   | UpdateBody => "update_body"
-  | DeleteVariable => "delete_variable"
+  | UpdateBinding => "update_binding"
+  | DeleteBinding => "delete_binding"
   | DeleteBody => "delete_body"
   | AddBefore => "add_before"
   | AddAfter => "add_after"
@@ -78,10 +80,11 @@ let string_of_structure_action =
 
 let structure_action_of_string = (structure_action: string) =>
   switch (structure_action) {
-  | "rename_variable" => RenameVariable
+  | "update_pattern" => UpdatePattern
   | "update_definition" => UpdateDefinition
   | "update_body" => UpdateBody
-  | "delete_variable" => DeleteVariable
+  | "update_binding" => UpdateBinding
+  | "delete_binding" => DeleteBinding
   | "delete_body" => DeleteBody
   | "add_before" => AddBefore
   | "add_after" => AddAfter

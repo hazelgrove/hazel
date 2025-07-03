@@ -240,10 +240,11 @@ module Composition = {
     | After;
 
   type edit_action =
-    | RenameVariable(code)
+    | UpdatePattern(code)
     | UpdateDefinition(code)
     | UpdateBody(code)
-    | DeleteVariable
+    | UpdateBinding(code)
+    | DeleteBinding
     | DeleteBody
     | Add(loc_of_add, code);
 
@@ -353,9 +354,9 @@ module Composition = {
           };
 
         switch (edit_action) {
-        | RenameVariable(new_variable_name) => [
+        | UpdatePattern(new_pattern) => [
             Action.Select(Assistant(Var(var))),
-            Action.Paste(String(new_variable_name)),
+            Action.Paste(String(new_pattern)),
           ]
         | UpdateDefinition(new_definition) => [
             Action.Select(Assistant(Def(def))),
@@ -365,7 +366,11 @@ module Composition = {
             Action.Select(Assistant(Body(body))),
             Action.Paste(String(new_body)),
           ]
-        | DeleteVariable => [
+        | UpdateBinding(new_binding) => [
+            Action.Select(Assistant(VarDef(var))),
+            Action.Paste(String(new_binding)),
+          ]
+        | DeleteBinding => [
             Action.Select(Assistant(VarDef(var))),
             Action.Paste(String("")),
           ]

@@ -447,10 +447,11 @@ let mk_llm_call =
     let tools =
       if (mode == TaskCompletion) {
         [
-          CompositionPrompt.rename_variable,
+          CompositionPrompt.update_pattern,
           CompositionPrompt.update_definition,
-          CompositionPrompt.delete_variable,
+          CompositionPrompt.delete_binding,
           CompositionPrompt.update_body,
+          CompositionPrompt.update_binding,
           CompositionPrompt.delete_body,
           CompositionPrompt.add_before,
           CompositionPrompt.add_after,
@@ -550,22 +551,25 @@ let mk_structure_edit_msg =
   try({
     let args = Option.get(args);
     switch (OpenRouter.structure_action_of_string(tool_call)) {
-    | OpenRouter.RenameVariable =>
-      let current_variable_name =
-        StringMap.find("current_variable_name", args);
-      let new_variable_name = StringMap.find("new_variable_name", args);
-      "Agent renamed variable "
-      ++ current_variable_name
+    | OpenRouter.UpdatePattern =>
+      let variable_name = StringMap.find("variable_name", args);
+      let new_pattern = StringMap.find("new_pattern", args);
+      "Agent updated the pattern of the variable "
+      ++ variable_name
       ++ " to "
-      ++ new_variable_name;
+      ++ new_pattern;
 
     | OpenRouter.UpdateDefinition =>
       let variable_name = StringMap.find("variable_name", args);
       "Agent updated the definition of the variable " ++ variable_name;
+    | OpenRouter.UpdateBinding =>
+      let variable_name = StringMap.find("variable_name", args);
+      let new_binding = StringMap.find("new_binding", args);
+      "Agent updated the entire binding of the variable " ++ variable_name;
     | OpenRouter.UpdateBody =>
       let variable_name = StringMap.find("variable_name", args);
       "Agent updated the body of the variable " ++ variable_name;
-    | OpenRouter.DeleteVariable =>
+    | OpenRouter.DeleteBinding =>
       let variable_name = StringMap.find("variable_name", args);
       "Agent deleted the variable " ++ variable_name;
     | OpenRouter.DeleteBody =>
@@ -1084,18 +1088,15 @@ let update =
           );
         try(
           switch (tool_call.name) {
-          | OpenRouter.RenameVariable =>
-            let (current_variable_name, new_variable_name) =
+          | OpenRouter.UpdatePattern =>
+            let (variable_name, new_pattern) =
               switch (
-                Json.dot("current_variable_name", tool_call.args),
-                Json.dot("new_variable_name", tool_call.args),
+                Json.dot("variable_name", tool_call.args),
+                Json.dot("new_pattern", tool_call.args),
               ) {
-              | (
-                  Some(`String(current_variable_name)),
-                  Some(`String(new_variable_name)),
-                ) => (
-                  Some(current_variable_name),
-                  new_variable_name,
+              | (Some(`String(variable_name)), Some(`String(new_pattern))) => (
+                  Some(variable_name),
+                  new_pattern,
                 )
               | _ =>
                 raise(
@@ -1107,9 +1108,8 @@ let update =
               };
             apply_edit_action(
               ~ed=editor,
-              ~edit_action=
-                ChatLSP.Composition.RenameVariable(new_variable_name),
-              ~variable_name=current_variable_name,
+              ~edit_action=ChatLSP.Composition.UpdatePattern(new_pattern),
+              ~variable_name,
             );
             schedule_action(loop_message);
           | OpenRouter.UpdateDefinition =>
@@ -1140,7 +1140,7 @@ let update =
               ~variable_name,
             );
             schedule_action(loop_message);
-          | OpenRouter.DeleteVariable =>
+          | OpenRouter.DeleteBinding =>
             let variable_name =
               switch (Json.dot("variable_name", tool_call.args)) {
               | Some(`String(variable_name)) => Some(variable_name)
@@ -1154,7 +1154,31 @@ let update =
               };
             apply_edit_action(
               ~ed=editor,
-              ~edit_action=ChatLSP.Composition.DeleteVariable,
+              ~edit_action=ChatLSP.Composition.DeleteBinding,
+              ~variable_name,
+            );
+            schedule_action(loop_message);
+          | OpenRouter.UpdateBinding =>
+            let (variable_name, new_binding) =
+              switch (
+                Json.dot("variable_name", tool_call.args),
+                Json.dot("new_binding", tool_call.args),
+              ) {
+              | (Some(`String(variable_name)), Some(`String(new_binding))) => (
+                  Some(variable_name),
+                  new_binding,
+                )
+              | _ =>
+                raise(
+                  Failure(
+                    "Invalid arguments for "
+                    ++ OpenRouter.string_of_structure_action(tool_call.name),
+                  ),
+                )
+              };
+            apply_edit_action(
+              ~ed=editor,
+              ~edit_action=ChatLSP.Composition.UpdateBinding(new_binding),
               ~variable_name,
             );
             schedule_action(loop_message);

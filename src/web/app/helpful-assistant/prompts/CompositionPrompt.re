@@ -134,17 +134,17 @@ let toolkit = [
 //     ),
 //   ]);
 
-let rename_variable: API.Json.t =
+let update_pattern: API.Json.t =
   `Assoc([
     ("type", `String("function")),
     (
       "function",
       `Assoc([
-        ("name", `String("rename_variable")),
+        ("name", `String("update_pattern")),
         (
           "description",
           `String(
-            "Renames the given variable name. Eg. rename_variable x y will rename ```let x = 1 in``` to ```let y = 1 in``` given a program ```let y = 0 in\nlet x = 1 in\nx + y```.",
+            "Updates the pattern (or typed pattern. Eg. ```(x, y) : (Int, Int)``` would be overwritten in ```let (x, y) : (Int, Int) = (1, 2) in...```) which encloses the given variable name. Eg. update_pattern x \"x : Int\" will update ```let x = 1 in``` to ```let x : Int = 1 in``` given a program ```let y = 0 in\nlet x = 1 in\nx + y```.",
           ),
         ),
         (
@@ -155,22 +155,22 @@ let rename_variable: API.Json.t =
               "properties",
               `Assoc([
                 (
-                  "current_variable_name",
+                  "variable_name",
                   `Assoc([
                     ("type", `String("string")),
                     (
                       "description",
-                      `String("The name of the variable to be renamed."),
+                      `String("The name of the variable to be updated."),
                     ),
                   ]),
                 ),
                 (
-                  "new_variable_name",
+                  "new_pattern",
                   `Assoc([
                     ("type", `String("string")),
                     (
                       "description",
-                      `String("The new name of the variable."),
+                      `String("The new pattern of the variable."),
                     ),
                   ]),
                 ),
@@ -178,10 +178,7 @@ let rename_variable: API.Json.t =
             ),
             (
               "required",
-              `List([
-                `String("current_variable_name"),
-                `String("new_variable_name"),
-              ]),
+              `List([`String("variable_name"), `String("new_pattern")]),
             ),
           ]),
         ),
@@ -243,17 +240,17 @@ let update_definition: API.Json.t =
     ),
   ]);
 
-let delete_variable: API.Json.t =
+let delete_binding: API.Json.t =
   `Assoc([
     ("type", `String("function")),
     (
       "function",
       `Assoc([
-        ("name", `String("delete_variable")),
+        ("name", `String("delete_binding")),
         (
           "description",
           `String(
-            "Deletes the given variable name. Eg. delete_variable x will delete ```let x = 1 in``` given a program ```let y = 0 in\nlet x = 1 in\nx + y```.",
+            "Deletes the binding which binds the given variable name. Eg. delete_binding x will delete ```let x = 1 in``` given a program ```let y = 0 in\nlet x = 1 in\nx + y```.",
           ),
         ),
         (
@@ -269,7 +266,9 @@ let delete_variable: API.Json.t =
                     ("type", `String("string")),
                     (
                       "description",
-                      `String("The name of the variable to be deleted."),
+                      `String(
+                        "The name of the variable to have its binding deleted.",
+                      ),
                     ),
                   ]),
                 ),
@@ -329,6 +328,114 @@ let update_body: API.Json.t =
             (
               "required",
               `List([`String("variable_name"), `String("new_body")]),
+            ),
+          ]),
+        ),
+      ]),
+    ),
+  ]);
+
+let update_binding: API.Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("update_binding")),
+        (
+          "description",
+          `String(
+            "Updates the ENTIRE binding, inclusive from the \"let\" or \"type\" delimiter to the \"in\" delimiter of the given variable name. Eg. update_binding \"x\" \"let b : Int = 0 in\" will update ```let y = 0 in\nlet x : Int = 1 in\nx + y``` to ```let y = 0 in\nlet b : Int = 0 in\nx + y```.",
+          ),
+        ),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            (
+              "properties",
+              `Assoc([
+                (
+                  "variable_name",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "The name of the variable to have its binding updated.",
+                      ),
+                    ),
+                  ]),
+                ),
+                (
+                  "new_binding",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String("The new binding of the variable."),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            (
+              "required",
+              `List([`String("variable_name"), `String("new_binding")]),
+            ),
+          ]),
+        ),
+      ]),
+    ),
+  ]);
+
+let update_binding: API.Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("update_binding")),
+        (
+          "description",
+          `String(
+            "Updates the ENTIRE binding, inclusive from the \"let\" or \"type\" delimiter to the \"in\" delimiter of the given variable name. Eg. update_binding \"x\" \"let b : Int = 0 in\" will update ```let y = 0 in\nlet x : Int = 1 in\nx + y``` to ```let y = 0 in\nlet b : Int = 0 in\nx + y```.",
+          ),
+        ),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            (
+              "properties",
+              `Assoc([
+                (
+                  "variable_name",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "The name of the variable to have its binding updated.",
+                      ),
+                    ),
+                  ]),
+                ),
+                (
+                  "new_binding",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String("The new binding of the variable."),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            (
+              "required",
+              `List([`String("variable_name"), `String("new_binding")]),
             ),
           ]),
         ),
