@@ -532,8 +532,11 @@ let mk_structure_edit_msg =
       let variable_name = StringMap.find("variable_name", args);
       "Agent deleted the variable " ++ variable_name;
     | OpenRouter.DeleteBody =>
-      let variable_name = StringMap.find("variable_name", args);
-      "Agent deleted the body of the variable " ++ variable_name;
+      switch (StringMap.find_opt("variable_name", args)) {
+      | Some(variable_name) =>
+        "Agent deleted the body of the variable " ++ variable_name
+      | None => "Agent deleted the entire sketch"
+      }
     | OpenRouter.AddBefore =>
       let code = StringMap.find("code", args);
       switch (StringMap.find_opt("variable_name", args)) {
@@ -1203,6 +1206,7 @@ let update =
             let variable_name =
               switch (Json.dot("variable_name", tool_call.args)) {
               | Some(`String(variable_name)) => Some(variable_name)
+              | None => None
               | _ =>
                 raise(
                   Failure(

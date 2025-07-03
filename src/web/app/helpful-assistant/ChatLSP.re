@@ -399,6 +399,7 @@ module Composition = {
               Action.Paste(Assistant(code)),
             ]
           }
+        | DeleteBody => [Action.Select(All), Action.Paste(Assistant(""))]
         | _ =>
           print_endline(
             "Error applying assistant edit action: No variable name provided",
