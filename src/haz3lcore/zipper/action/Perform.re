@@ -97,12 +97,34 @@ let go_z =
       }
     };
 
+  let rec find_parent_with_label =
+          (z: ZipperBase.t, target_label: Label.t): option(Piece.t) => {
+    switch (ZipperBase.parent(z)) {
+    | None => None
+    | Some(p) =>
+      print_endline("Parent is " ++ Piece.show(p));
+      switch (p) {
+      | Tile(t) when t.label == target_label => Some(p)
+      | _ =>
+        // Create a new zipper with this parent as the current position
+        let new_z = {
+          ...z,
+          relatives: {
+            ancestors: List.tl(z.relatives.ancestors),
+            siblings: ([], []),
+          },
+        };
+        find_parent_with_label(new_z, target_label);
+      };
+    };
+  };
+
   let select_definition = (z: t): option(Zipper.t) => {
     open OptUtil.Syntax;
     let* parent =
-      switch (Indicated.find_parent_with_label(z, ["let", "=", "in"])) {
+      switch (find_parent_with_label(z, ["let", "=", "in"])) {
       | Some(p) => Some(p)
-      | None => Indicated.find_parent_with_label(z, ["type", "=", "in"])
+      | None => find_parent_with_label(z, ["type", "=", "in"])
       };
     switch (parent) {
     | Tile(t) => Select.tile(t.id, z)
