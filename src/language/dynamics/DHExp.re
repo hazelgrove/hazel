@@ -125,11 +125,6 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
 };
 
 let rec ty_consistent = (d1, d2) => {
-  // Note(zhiyao): This is a necessary condition for consistency, but not
-  // sufficient. If for any reason an Arrow type escapes the type checker,
-  // we will not be able to check the inconsistency here, because the type
-  // is hidden and not elaborated to DHExp, though it will still be caught as
-  // CompareArrow in later stage.
   switch (term_of(d1), term_of(d2)) {
   | (Invalid(_), _)
   | (EmptyHole, _)
