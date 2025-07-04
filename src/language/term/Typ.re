@@ -539,17 +539,12 @@ let rec matched_args_strict = (ctx, ty, arity): Either.t('a, int) => {
   | Prod(tys) when List.length(tys) == arity => L(tys)
   | Prod(tys) => R(List.length(tys))
   | _ when arity == 1 => L([ty])
-  | Unknown((SynSwitch | Internal) as p) =>
+  | Unknown((SynSwitch | Internal | Hole(EmptyHole)) as p) =>
+    // TODO: Should this just work for all unknowns?
     L(List.init(arity, _ => Unknown(p) |> temp))
   | _ => R(1)
   };
 };
-
-let matched_args = (ctx, ty, arity) =>
-  switch (matched_args_strict(ctx, ty, arity)) {
-  | L(tys) => tys
-  | R(_) => List.init(arity, _ => Unknown(Internal) |> temp)
-  };
 
 let matched_label = (ctx, ty): option((t, t)) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {

@@ -81,4 +81,22 @@ let tests = [
       ),
     )
   ),
+  test_case("Unknown arg could be any arity for deferrals", `Quick, () =>
+    annotated_tree_test(
+      {|(? : (? -> ?))(1, _, _)|},
+      FIError.(
+        Exp.(
+          deferred_ap(
+            asc(
+              empty_hole(),
+              Typ.(
+                arrow(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
+              ),
+            ),
+            [int(1), deferral(InAp), deferral(InAp)],
+          )
+        )
+      ),
+    )
+  ),
 ];
