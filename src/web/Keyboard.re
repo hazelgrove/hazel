@@ -91,13 +91,11 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | _ => None
     }
   | {key: D(key), sys: Mac, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
-    print_endline("Mac Ctrl");
-    print_endline(key);
     switch (key) {
     | "a" => now(Move(Extreme(Left(ByToken))))
     | "e" => now(Move(Extreme(Right(ByToken))))
     | _ => None
-    };
+    }
   | {key: D("f"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     Some(Project(SetIndicated(Specific(Fold))))
   | {key: D("ƒ"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
