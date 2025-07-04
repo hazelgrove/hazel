@@ -339,4 +339,54 @@ let tests = [
       ),
     )
   ),
+  test_case("project_labels with deferral as first arg", `Quick, () => {
+    [@warning "-21"]
+    {
+      Alcotest.skip();
+      annotated_tree_test(
+        {|project_labels(_, 'a', 'b')|},
+        unknown(Internal),
+        FIError.Exp.(
+          deferred_ap(
+            var("project_labels"),
+            [deferral(InAp), label("a"), label("b")],
+          )
+        ),
+      );
+    }
+  }),
+  test_case("project_labels with deferral in subsequent args", `Quick, () => {
+    [@warning "-21"]
+    {
+      Alcotest.skip();
+      annotated_tree_test(
+        {|project_labels((a=1, b=true, c=3), 'a', _, 'c')|},
+        prod([int(), unknown(Internal), int()]),
+        FIError.Exp.(
+          ap(
+            Forward,
+            var("project_labels"),
+            tuple([
+              tuple([
+                tup_label(label("a"), int(1)),
+                tup_label(label("b"), bool(true)),
+                tup_label(label("c"), int(3)),
+              ]),
+              label("a"),
+              deferral(
+                ~ann=
+                  Some(
+                    Exp(
+                      Common(NoType(BadLabel(Exp(Exp.deferral(InAp))))),
+                    ),
+                  ),
+                InAp,
+              ),
+              label("c"),
+            ]),
+          )
+        ),
+      );
+    }
+  }),
 ];
