@@ -139,6 +139,28 @@ let basic_tests = [
     ~acts=mk("¦") @ [Paste(String({|([)(|}))],
     ~goal={|([?)(¦?|},
   ),
+  test(
+    ~name="Split two prefix op !s into bin op !!",
+    ~acts=mk("--1¦") @ mv_l(2) @ [Insert(" ")],
+    // caret pos is invalid here in a way not represented in these tetesl
+    ~goal={|- ¦-1|},
+  ),
+  test(
+    ~name="Delete leading constructor in sum type with prefix plus",
+    ~acts=mk("1:(+A¦ +A)") @ [Destruct(Left)],
+    // suceeds but crashes later with split_kids
+    ~goal={|1:(+¦ +A)|},
+  ),
+  // test(
+  //   ~name="Merge two prefix op !s into bin op !!",
+  //   ~acts=mk("! ! X¦") @ mv_l(3) @ [Destruct(Left)],
+  //   ~goal={|?!¦! X|},
+  // ),
+  // test(
+  //   ~name="Split ++ op in type sort context",
+  //   ~acts=mk("1:(++A)¦") @ mv_l(3) @ [Insert(" ")],
+  //   ~goal={|1:(+?¦+A)|},
+  // ),
 ];
 
 let insertion_tests = [
@@ -227,6 +249,62 @@ let insertion_tests = [
     ~acts=mk({|if the¦else|}) @ [Insert("n"), Insert(" ")],
     ~goal={|if? then?¦else?|},
   ),
+  /* INSERTTION: AMPHIBIOUS PREFIX/INFIX OP */
+  test(
+    ~name="Amphibious Plus 0",
+    ~acts=mk({|type T = A ¦|}),
+    ~goal={|type T = A ¦|},
+  ),
+  test(
+    ~name="Amphibious Plus - At End - 1",
+    ~acts=mk({|type T = A ¦|}) @ [Insert("+")],
+    ~goal={|type T = A +¦?|},
+  ),
+  test(
+    ~name="Amphibious Plus - At End - 2",
+    ~acts=mk({|type T = A + B + ¦|}) @ [Insert("C")],
+    ~goal={|type T = A + B + C¦|},
+  ),
+  test(
+    ~name="Amphibious Plus - At End - 3",
+    ~acts=mk({|type T = + ¦|}),
+    ~goal={|type T = + ¦?|},
+  ),
+  test(
+    ~name="Amphibious Plus - At End - 4",
+    ~acts=mk({|type T = + ¦|}) @ [Insert("A")],
+    ~goal={|type T = + A¦|},
+  ),
+  test(
+    ~name="Amphibious Plus - At End - 5",
+    ~acts=mk({|type T = + A + B + C¦|}),
+    ~goal={|type T = + A + B + C¦|},
+  ),
+  test(
+    ~name="Amphibious Plus - Before - 1",
+    ~acts=mk({|type T = ¦A|}) @ [Insert("+")],
+    ~goal={|type T = +¦A|},
+  ),
+  test(
+    ~name="Amphibious Plus - Before - 2",
+    ~acts=mk({|type T = ¦+ B|}) @ [Insert("A")],
+    ~goal={|type T = A¦+ B|},
+  ),
+  test(
+    ~name="Amphibious Plus - Before - 3 (Prelude)",
+    ~acts=mk({|type T = A ¦ B|}),
+    ~goal={|type T = A~¦ B|},
+  ),
+  test(
+    ~name="Amphibious Plus - Before - 3",
+    ~acts=mk({|type T = A ¦ B|}) @ [Insert("+")],
+    ~goal={|type T = A+¦ B|},
+  ),
+  test(
+    ~name="Amphibious Plus - Before - 4",
+    ~acts=mk({|type T = ¦ + A + B|}) @ [Insert("+")],
+    ~goal={|type T = +¦ + A + B|},
+  ),
   /* DROPPING */
   test(
     ~name="Insert between non-leading delims when leading in backpack",
@@ -276,6 +354,64 @@ let destruct_tests = [
     ~name="Destruct leading delim in prefix 3-form",
     ~acts=mk({|if¦ 1 then 2 else 3|}) @ [Destruct(Left)],
     ~goal={|¦ 1 then 2 else 3|},
+  ),
+  /* DESTRUCTION: AMPHIBIOUS PREFIX/INFIX OP */
+  test(
+    ~name="Amphibious Plus Destruct 1",
+    ~acts=mk({|type T = A +¦|}) @ [Destruct(Left)],
+    ~goal={|type T = A ¦|},
+  ),
+  test(
+    ~name="Amphibious Plus Destruct 2",
+    ~acts=mk({|type T = A + B +¦|}) @ [Destruct(Left)],
+    ~goal={|type T = A + B ¦|},
+  ),
+  test(
+    ~name="Amphibious Plus Destruct 3",
+    ~acts=mk({|type T = A + B + C¦|}) @ [Destruct(Left)],
+    ~goal={|type T = A + B + ¦?|},
+  ),
+  test(
+    ~name="Amphibious Plus Destruct 4",
+    ~acts=mk({|type T = + A¦|}) @ [Destruct(Left)],
+    ~goal={|type T = + ¦?|},
+  ),
+  test(
+    ~name="Amphibious Plus Destruct 5",
+    ~acts=mk({|type T = + A +¦|}) @ [Destruct(Left)],
+    ~goal={|type T = + A ¦|},
+  ),
+  test(
+    ~name="Amphibious Plus Destruct 6",
+    ~acts=mk({|type T = + A + B¦|}) @ [Destruct(Left)],
+    ~goal={|type T = + A + ¦?|},
+  ),
+  test(
+    ~name="Amphibious Plus Destruct 7",
+    ~acts=mk({|type T = + A + B +¦|}) @ [Destruct(Left)],
+    ~goal={|type T = + A + B ¦|},
+  ),
+  test(
+    ~name="Amphibious Plus Destruct 8",
+    ~acts=mk({|type T = +¦ A + B + C|}) @ [Destruct(Left)],
+    ~goal={|type T = ¦ A + B + C|},
+  ),
+  test(
+    ~name="Amphibious Plus Destruct 8",
+    ~acts=mk({|type T = + A¦ + B + C|}) @ [Destruct(Left)],
+    /* Ideally this would have a hole but okay-ish */
+    ~goal={|type T = + ¦ + B + C|},
+  ),
+  test(
+    ~name="Amphibious Plus Destruct 9",
+    ~acts=mk({|type T = + A + B +¦ C|}) @ [Destruct(Left)],
+    ~goal={|type T = + A + B ¦~ C|},
+  ),
+  test(
+    ~name="Amphibious Plus Destruct 10",
+    ~acts=mk({|type T = + A + B¦ + C|}) @ [Destruct(Left)],
+    /* Ideally this would have a hole but okay-ish */
+    ~goal={|type T = + A + ¦ + C|},
   ),
 ];
 
