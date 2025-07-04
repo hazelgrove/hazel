@@ -523,8 +523,6 @@ let rec status_pat = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.pat): status_pat =>
    surrounding syntactic context, and the self which represents the
    makeup of the expression / pattern itself. */
 let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp => {
-  print_endline("status_exp: " ++ [%derive.show: Self.exp](self));
-  print_endline("ty_ana: " ++ Typ.show(ty_ana));
   switch (self) {
   | Free(name) => InHole(FreeVariable(name))
   | InexhaustiveMatch(self) =>
