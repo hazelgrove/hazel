@@ -13,6 +13,13 @@ let builtins =
   @ List.map(fn_builtin, BuiltinsBase.numeric_fns)
   @ List.map(const_builtin, BuiltinsBase.numeric_constants);
 
+let builtins =
+  List.sort(
+    (a: builtin, b: builtin) =>
+      String.compare(name_of_builtin(b), name_of_builtin(a)),
+    builtins,
+  );
+
 /* Check for accidental duplicates */
 let _ = to_map(builtins);
 
