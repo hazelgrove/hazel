@@ -2,89 +2,86 @@ open Zipper;
 open Util;
 open OptUtil.Syntax;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type movability =
-  | CanEnter(int, int)
-  | CanPass
-  | CantEven;
+/* A label and an index into that label, representing a delimiter */
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type indexed = option((int, Label.t));
 
-let movability = (chunkiness: chunkiness, label, delim_idx): movability => {
-  assert(delim_idx < List.length(label));
-  switch (chunkiness, label, delim_idx) {
-  | (ByChar, _, _)
-  | (MonoByChar, [_], 0) =>
-    let char_max = Token.length(List.nth(label, delim_idx)) - 2;
-    char_max < 0 ? CanPass : CanEnter(delim_idx, char_max);
-  | (ByToken, _, _)
-  | (MonoByChar, _, _) => CanPass
+/* The index of a delimiter and its maximum internal caret position */
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type token_info = option((int, int));
+
+let piece_neighbor = (d: Direction.t, p: Piece.t): indexed =>
+  switch (p) {
+  | Tile(t) => Some((Tile.shard_on_side(Direction.toggle(d), t), t.label))
+  | Secondary(w) => Some((0, [Secondary.get_string(w.content)]))
+  | Grout(_) => None
+  | Projector(_) => None
+  };
+
+let ancestor_neighbor = (d: Direction.t, ancestors: Ancestors.t): indexed => {
+  let+ {shards: (l, r), label, _} = Ancestors.parent(ancestors);
+  switch (d) {
+  | Left => (ListUtil.last(l), label)
+  | Right => (List.hd(r), label)
   };
 };
 
-let neighbor_movability =
-    (chunkiness: chunkiness, {relatives: {siblings, ancestors}, _}: t)
-    : (movability, movability) => {
-  let movability = movability(chunkiness);
-  let (supernhbr_l, supernhbr_r) =
-    switch (ancestors) {
-    | [] => (CantEven, CantEven)
-    | [({children: (l_kids, _), label, _}, _), ..._] => (
-        movability(label, List.length(l_kids)),
-        movability(label, List.length(l_kids) + 1),
-      )
-    };
-  let (l_nhbr, r_nhbr) = Siblings.neighbors(siblings);
-  let l =
-    switch (l_nhbr) {
-    | Some(Tile({label, _})) => movability(label, List.length(label) - 1)
-    | Some(Secondary(w)) when Secondary.is_comment(w) =>
-      // Comments are always length >= 2
-      let content_string = Secondary.get_string(w.content);
-      CanEnter(
-        Unicode.length(content_string) - 1,
-        Unicode.length(content_string) - 2,
-      );
-    | Some(Secondary(_) | Grout(_) | Projector(_)) => CanPass
-    | None => supernhbr_l
-    };
-  let r =
-    switch (r_nhbr) {
-    | Some(Tile({label, _})) => movability(label, 0)
-    | Some(Secondary(w)) when Secondary.is_comment(w) =>
-      // Comments are always length >= 2
-      let content_string = Secondary.get_string(w.content);
-      CanEnter(0, Unicode.length(content_string) - 2);
-    | Some(Secondary(_) | Grout(_) | Projector(_)) => CanPass
-    | None => supernhbr_r
-    };
-  (l, r);
+let indexes = ((delim_idx: int, label: Label.t)): token_info => {
+  assert(delim_idx < List.length(label));
+  let char_max = Token.length(List.nth(label, delim_idx)) - 2;
+  char_max < 0 ? None : Some((delim_idx, char_max));
 };
 
-let pop_out = z => Some(z |> Zipper.set_caret(Outer));
-let pop_move = (d, z) => z |> Zipper.set_caret(Outer) |> Zipper.move(d);
-let inner_incr = (delim, c, z) =>
-  Some(Zipper.set_caret(Inner(delim, c + 1), z));
-let inner_decr = z => Some(Zipper.update_caret(Zipper.Caret.decrement, z));
-let inner_start = (d_init, z) =>
-  Some(Zipper.set_caret(Inner(d_init, 0), z));
-let inner_end = (d, d_init, c_max, z) =>
-  z |> Zipper.set_caret(Inner(d_init, c_max)) |> Zipper.move(d);
+let nhbr = (d: Direction.t, r: Relatives.t): indexed =>
+  switch (Siblings.neighbor(d, r.siblings)) {
+  | Some(p) => piece_neighbor(d, p)
+  | None => ancestor_neighbor(d, r.ancestors)
+  };
+
+let move_by_char_left = (z: t): option(t) =>
+  switch (z.caret, Option.bind(nhbr(Left, z.relatives), indexes)) {
+  | (Outer, None) => z |> move(Left)
+  | (Outer, Some((delim_init, char_max))) =>
+    z |> set_caret(Inner(delim_init, char_max)) |> move(Left)
+  | (Inner(_, char), None | Some((_, _))) when char == 0 =>
+    z |> set_caret(Outer) |> Option.some
+  | (Inner(delim, char), None | Some(_)) =>
+    z |> set_caret(Inner(delim, char - 1)) |> Option.some
+  };
+
+let move_by_char_right = (z: t): option(t) =>
+  switch (z.caret, Option.bind(nhbr(Right, z.relatives), indexes)) {
+  | (Outer, None) => z |> move(Right)
+  | (Outer, Some((delim_init, _))) =>
+    z |> set_caret(Inner(delim_init, 0)) |> Option.some
+  | (Inner(_, char), Some((_, char_max))) when char == char_max =>
+    z |> set_caret(Outer) |> move(Right)
+  | (Inner(delim, char), None | Some(_)) =>
+    z |> set_caret(Inner(delim, char + 1)) |> Option.some
+  };
+
+let move_by_char = (d: Direction.t, z: t): option(t) =>
+  switch (d) {
+  | Left => move_by_char_left(z)
+  | Right => move_by_char_right(z)
+  };
+
+let move_by_token = (d: Direction.t, z: t): option(t) =>
+  switch (z.caret) {
+  | Outer => move(d, z)
+  | Inner(_) =>
+    let z = set_caret(Outer, z);
+    switch (d) {
+    | Left => Some(z)
+    | Right => move(Right, z)
+    };
+  };
 
 let primary = (chunkiness: chunkiness, d: Direction.t, z: t): option(t) => {
-  switch (d, z.caret, neighbor_movability(chunkiness, z)) {
-  /* this case maybe shouldn't be necessary but currently covers an edge
-     (select an open parens to left of a multichar token and press left) */
-  | _ when z.selection.content != [] => pop_move(d, z)
-  | (Left, Outer, (CanEnter(dlm, c_max), _)) => inner_end(d, dlm, c_max, z)
-  | (Left, Outer, _) => Zipper.move(d, z)
-  | (Left, Inner(_), _) when chunkiness == ByToken => pop_out(z)
-  | (Left, Inner(_), _) =>
-    Some(Zipper.update_caret(Zipper.Caret.decrement, z))
-  | (Right, Outer, (_, CanEnter(d_init, _))) => inner_start(d_init, z)
-  | (Right, Outer, _) => Zipper.move(d, z)
-  | (Right, Inner(_, c), (_, CanEnter(_, c_max))) when c == c_max =>
-    pop_move(d, z)
-  | (Right, Inner(_), _) when chunkiness == ByToken => pop_move(d, z)
-  | (Right, Inner(delim, c), _) => inner_incr(delim, c, z)
+  let z = unselect(z);
+  switch (chunkiness) {
+  | ByToken => move_by_token(d, z)
+  | ByChar => move_by_char(d, z)
   };
 };
 
@@ -97,6 +94,7 @@ module type S = {
 module Make = (M: S) => {
   let caret_point = Zipper.caret_point(M.measured);
   let primary = primary;
+
   let is_at_side_of_row = (d: Direction.t, z: Zipper.t) => {
     let Point.{row, col} = caret_point(z);
     switch (Zipper.move(d, z)) {

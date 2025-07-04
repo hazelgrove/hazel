@@ -34,19 +34,17 @@ let match = (r: regexp, s: string): bool =>
 
 let replace = Js_of_ocaml.Regexp.global_replace;
 
-let split = Js_of_ocaml.Regexp.split;
-
 let search = Js_of_ocaml.Regexp.search;
 
 let plain_split: (string, string) => list(string) =
-  (str, sep) => split(Js_of_ocaml.Regexp.regexp_string(sep), str);
+  (str, sep) =>
+    Js_of_ocaml.Regexp.split(Js_of_ocaml.Regexp.regexp_string(sep), str);
 
 let plain_match: (string, string) => bool =
-  (regexp, str) => match(Js_of_ocaml.Regexp.regexp_string(regexp), str);
+  regexp => match(Js_of_ocaml.Regexp.regexp(regexp));
 
 let plain_replace: (string, string, string) => string =
-  (regexp, str, repl) =>
-    replace(Js_of_ocaml.Regexp.regexp_string(regexp), str, repl);
+  regexp => replace(Js_of_ocaml.Regexp.regexp(regexp));
 
 let plain_search: (string, string, int) => int =
   (regexp, str, idx) =>

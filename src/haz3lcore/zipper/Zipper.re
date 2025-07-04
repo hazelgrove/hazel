@@ -26,7 +26,6 @@ let next_blank = _ => Id.mk();
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type chunkiness =
   | ByChar
-  | MonoByChar
   | ByToken;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -195,6 +194,9 @@ let directional_unselect = (d: Direction.t, z: t): t => {
     selection,
   });
 };
+
+let unselect = (z: t): t =>
+  z.selection.content == [] ? z : directional_unselect(z.selection.focus, z);
 
 let move = (d: Direction.t, z: t): option(t) =>
   if (Selection.is_empty(z.selection)) {
@@ -563,7 +565,9 @@ let try_to_dump_backpack = (zipper: t) => {
 
 let smart_seg = (~dump_backpack: bool, ~erase_buffer: bool, z: t) => {
   let z = erase_buffer ? clear_unparsed_buffer(z) : z;
+  // print_endline("z before: " ++ Siblings.show(z.relatives.siblings));
   let z = dump_backpack ? try_to_dump_backpack(z) : z;
+  // print_endline("z after: " ++ Siblings.show(z.relatives.siblings));
   unselect_and_zip(~erase_buffer, z);
 };
 
