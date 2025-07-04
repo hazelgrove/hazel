@@ -69,6 +69,18 @@ let unzip = (seg: Segment.t): t => {
 let pop_backpack = (z: t) =>
   Backpack.pop(Relatives.local_incomplete_tiles(z.relatives), z.backpack);
 
+let will_barf = (t: Token.t, z: t): bool =>
+  switch (pop_backpack(z)) {
+  | Some((_, {content: [p], _}, _)) =>
+    switch (p) {
+    | Tile({shards: [i], label, _}) =>
+      assert(i < List.length(label));
+      List.nth(label, i) == t;
+    | _ => false
+    }
+  | _ => false
+  };
+
 let left_neighbor_monotile: Siblings.t => option(Token.t) =
   s => s |> Siblings.left_neighbor |> OptUtil.and_then(Piece.monotile);
 
