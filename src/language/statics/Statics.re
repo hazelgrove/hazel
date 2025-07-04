@@ -154,21 +154,22 @@ let rec any_to_info_map =
       CoCtx.empty,
       utyp_to_info_map(~ctx, ~ancestors, ty, m) |> snd,
     )
-  | Rul(rt) =>
-    switch (rt.term) {
+  | Rul(r) =>
+    switch (r.term) {
     | Rules(scrut, rules) =>
+      /* Treat rules not properly positioned in cases as multiholes.
+       * Properly positioned rules would already have been removed
+       * in maketerm and became part of case expressions */
       let tms =
         rules
-        |> List.map(((p, e)) => (Grammar.Pat(p), Grammar.Exp(e)))
-        |> List.split
-        |> (((a, b)) => a @ b);
-      let tms = [Grammar.Exp(scrut), ...tms];
+        |> List.map(((p, e)) => [Grammar.Pat(p), Grammar.Exp(e)])
+        |> List.concat;
       any_to_info_map(
         ~ctx,
         ~ancestors,
         Exp({
-          term: MultiHole(tms),
-          annotation: rt.annotation,
+          term: MultiHole([Exp(scrut), ...tms]),
+          annotation: r.annotation,
         }),
         m,
       );
