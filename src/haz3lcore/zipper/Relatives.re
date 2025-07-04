@@ -102,6 +102,7 @@ let regrout = (d: Direction.t, {siblings, ancestors}: t): t => {
   let siblings = {
     let ((pre, s_l, trim_l), (trim_r, s_r, suf)) =
       Siblings.regrout(siblings);
+
     let (trim_l, trim_r) = {
       open Segment.Trim;
       let ((_, gs_l), (_, gs_r)) = (trim_l, trim_r);

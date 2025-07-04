@@ -208,11 +208,15 @@ let insertion_tests = [
     ~goal={|if? then?¦else?|},
   ),
   /* DROPPING */
-  // test(
-  //   ~name="Hint 1",
-  //   ~acts=mk({|hint 1¦|}) @ [Put_down],
-  //   ~goal={|hint 1¦|},
-  // ),
+  test(
+    ~name="Insert between non-leading delims when leading in backpack",
+    ~acts=
+      mk({|if¦ 1 then 2 else 3|})
+      @ [Destruct(Left)]
+      @ mv_r(8)
+      @ [Insert(" ")],
+    ~goal={| 1 then  ¦2 else 3|},
+  ),
 ];
 
 let destruct_tests = [
@@ -244,7 +248,12 @@ let destruct_tests = [
   ),
   /* DESTRUCTION: MATCHING */
   test(
-    ~name="Destruct leading delim",
+    ~name="Destruct leading delim in convex 2-form",
+    ~acts=mk({|(¦1)|}) @ [Destruct(Left)],
+    ~goal={|¦1)|},
+  ),
+  test(
+    ~name="Destruct leading delim in prefix 3-form",
     ~acts=mk({|if¦ 1 then 2 else 3|}) @ [Destruct(Left)],
     ~goal={|¦ 1 then 2 else 3|},
   ),

@@ -427,7 +427,6 @@ and remold_exp = (shape, seg: t): t =>
   };
 
 let skel = seg => {
-  print_endline("seg before skel: " ++ show(seg));
   seg
   |> List.mapi((i, p) => (i, p))
   |> List.filter(((_, p)) => !Piece.is_secondary(p))

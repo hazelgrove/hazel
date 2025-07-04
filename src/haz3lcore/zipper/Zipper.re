@@ -81,10 +81,11 @@ let neighbor_monotiles: Siblings.t => (option(Token.t), option(Token.t)) =
 let regrout = (d: Direction.t, z: t): t => {
   assert(Selection.is_empty(z.selection));
   let relatives = Relatives.regrout(d, z.relatives);
-  {
+  let z = {
     ...z,
     relatives,
   };
+  z;
 };
 
 let remold = (z: t): t => {
@@ -282,7 +283,7 @@ let remold_regrout_prev = (z: t): t =>
   switch (move(Left, z)) {
   | None => z
   | Some(z_left) =>
-    let z_left = z_left |> regrout(Right) |> remold;
+    let z_left = z_left |> regrout(Right);
     switch (move(Right, z_left)) {
     | None => failwith("Zipper.put_down: move fail")
     | Some(z_right) => z_right
