@@ -282,7 +282,7 @@ let remold_regrout_prev = (z: t): t =>
   switch (move(Left, z)) {
   | None => z
   | Some(z_left) =>
-    let z_left = z_left |> regrout(Right);
+    let z_left = z_left |> remold |> regrout(Right);
     switch (move(Right, z_left)) {
     | None => failwith("Zipper.put_down: move fail")
     | Some(z_right) => z_right

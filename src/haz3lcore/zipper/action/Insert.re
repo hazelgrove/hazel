@@ -95,7 +95,9 @@ let expand_neighbors_and_make_new_tile = (char: Token.t, state: t): option(t) =>
   let* z = expand_or_barf_left_neighbor(state);
   let+ z = expand_or_barf_right_neighbor(z);
   let z = remold_regrout_prev(z);
-  make_new_tile(char, Left, z);
+  let z = make_new_tile(char, Left, z);
+  let z = remold_regrout_prev(z);
+  z;
 };
 
 let replace_tile = (t: Token.t, d: Direction.t, z: t): option(t) => {
