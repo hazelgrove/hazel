@@ -587,14 +587,6 @@ let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
   };
 };
 
-let rec is_unknown = (ty: t): bool =>
-  switch (ty |> term_of) {
-  | TupLabel(_, x)
-  | Parens(x) => is_unknown(x)
-  | Unknown(_) => true
-  | _ => false
-  };
-
 let rec is_syn = (ty: t): bool =>
   switch (ty |> term_of) {
   | TupLabel(_, x)
@@ -628,23 +620,6 @@ let rec is_ana_atom = (ty: t) =>
   | Arrow(_)
   | Prod(_)
   | Sum(_) => None
-  };
-
-let rec is_syn_fun = (ty: t): bool =>
-  switch (ty |> term_of) {
-  | TupLabel(_, x)
-  | Parens(x) => is_syn_fun(x)
-  | Arrow(t1, t2) => is_syn(t1) && is_syn_fun(t2)
-  | Unknown(_)
-  | Atom(_)
-  | Label(_)
-  | Var(_)
-  | Ap(_)
-  | Rec(_)
-  | Forall(_)
-  | List(_)
-  | Prod(_)
-  | Sum(_) => false
   };
 
 let rec is_syn_plus = (ty: t): bool =>
