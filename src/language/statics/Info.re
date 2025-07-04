@@ -522,7 +522,7 @@ let rec status_pat = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.pat): status_pat =>
    depending on the mode, which represents the expectations of the
    surrounding syntactic context, and the self which represents the
    makeup of the expression / pattern itself. */
-let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp => {
+let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
   switch (self) {
   | Free(name) => InHole(FreeVariable(name))
   | InexhaustiveMatch(self) =>
@@ -577,7 +577,6 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp => {
     | InHole(err_exp) => InHole(Common(err_exp))
     }
   };
-};
 
 /* This logic determines whether a type should be put
    in a hole or not. It's mostly syntactic, determining
