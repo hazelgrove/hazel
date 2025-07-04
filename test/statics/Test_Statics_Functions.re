@@ -1,3 +1,4 @@
+open Alcotest;
 open Test_Statics_Prelude;
 open FTemp;
 open Typ;
@@ -57,5 +58,27 @@ let tests = [
         unknown(Internal),
       ),
     ),
+  ),
+  test_case("Wrong number of deferrals", `Quick, () =>
+    annotated_tree_test(
+      {|string_sub(_, _, 2, 3)|},
+      FIError.Exp.(
+        deferred_ap(
+          ~ann=
+            Some(
+              Exp(
+                BadPartialAp(
+                  ArityMismatch({
+                    expected: 3,
+                    actual: 4,
+                  }),
+                ),
+              ),
+            ),
+          var("string_sub"),
+          [deferral(InAp), deferral(InAp), int(2), int(3)],
+        )
+      ),
+    )
   ),
 ];
