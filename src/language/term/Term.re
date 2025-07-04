@@ -896,7 +896,7 @@ module Rul = {
     | [_, ..._] => ids
     | [] =>
       switch (term) {
-      | Hole([tm, ..._]) => any_ids(tm)
+      | MultiHole([tm, ..._]) => any_ids(tm)
       | Rules(scrut, []) => IdTagged.ids(scrut)
       | _ => []
       }

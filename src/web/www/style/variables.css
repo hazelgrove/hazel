@@ -87,14 +87,13 @@
   --token-string-lit: var(--Y3);
   --token-comment: var(--G2);
   --token-incomplete: var(--Y3);
-  --token-inconsistent: var(--BR2);
+  --token-inconsistent: var(--token-exp);
   --token-buffer: var(--BR1);
   --token-explicit-hole: var(--Y2);
   --token-explicit-hole-shadow: var(--BLACK);
   --token-secondary: var(--shard-exp);
   --token-rul: var(--token-exp);
-  --token-nul: var(--R2);
-  --token-any: var(--token-nul);
+  --token-any: var(--R2);
 
   /* CODE SHARDS */
 
@@ -112,10 +111,9 @@
   --shard_projector: var(--T2);
   --shard-rul: var(--shard-exp);
   --shard-lines-rul: var(--shard-lines-exp);
-  --shard-nul: var(--R0);
-  --shadow-nul: var(--R0);
-  --shard-any: var(--shard-nul);
-  --shadow-any: var(--shadow-nul);
+  --shadow-selected: var(--R0);
+  --shard-any: var(--shard-exp);
+  --shadow-any: var(--R0);
 
   /* EMPTY HOLE DECO */
 
