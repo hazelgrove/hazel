@@ -222,14 +222,11 @@ let go_z =
       | Some(ci) => Info.ctx_of(ci)
       | None => Ctx.empty
       };
-    print_endline("Inserting " ++ char);
-    let z =
-      z
-      |> Insert.go(char, ~ctx)
-      /* note: remolding here is done case-by-case */
-      |> Result.of_option(~error=Action.Failure.Cant_insert);
-    print_endline("Inserted " ++ char);
-    z;
+
+    z
+    |> Insert.go(char, ~ctx)
+    /* note: remolding here is done case-by-case */
+    |> Result.of_option(~error=Action.Failure.Cant_insert);
   | Pick_up => Ok(remold_regrout(Left, Zipper.pick_up(z)))
   | Put_down =>
     let z =
