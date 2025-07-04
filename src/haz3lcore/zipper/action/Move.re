@@ -94,7 +94,6 @@ module type S = {
 module Make = (M: S) => {
   let caret_point = Zipper.caret_point(M.measured);
   let primary = primary;
-
   let is_at_side_of_row = (d: Direction.t, z: Zipper.t) => {
     let Point.{row, col} = caret_point(z);
     switch (Zipper.move(d, z)) {
