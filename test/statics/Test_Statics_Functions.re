@@ -43,4 +43,19 @@ let tests = [
     {|(fix f : (Int -> Int) -> fun x -> x + 1)(3)|},
     Some(int()),
   ),
+  fully_consistent_typecheck(
+    "Deferrals applied to known type",
+    {|string_sub(_, 2, 3)|},
+    Some(arrow(string(), string())),
+  ),
+  fully_consistent_typecheck(
+    "Deferrals applied to unknown type",
+    {|?(1, _, _)|},
+    Some(
+      arrow(
+        prod([unknown(Internal), unknown(Internal)]),
+        unknown(Internal),
+      ),
+    ),
+  ),
 ];
