@@ -907,6 +907,8 @@ module Rul = {
     | [] => raise(Invalid_argument("Exp.rep_id"))
     | [id, ..._] => id
     };
+
+  let unwrap: t => (term, term => t) = IdTagged.unwrap;
 };
 
 module Any = {

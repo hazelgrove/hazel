@@ -189,18 +189,14 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
     | Invalid(_)
     | Undefined
     | EmptyHole => uexp
-    | MultiHole(_) =>
-      /* I don't think there's a meaningful elaboration story here;
-       * currently it causes problems for case expressions containing
-       * multiholes so I'm disabling it */
-      // Any.map_term(
-      //   ~f_exp=(_, exp) => {elaborate(m, exp) |> fst},
-      //   ~f_pat=(_, pat) => {elaborate_pattern(m, pat, false) |> fst},
-      //   _,
-      // )
-      // |> List.map(_, stuff)
-      // |> (stuff => MultiHole(stuff) |> rewrap)
-      EmptyHole |> rewrap
+    | MultiHole(stuff) =>
+      Any.map_term(
+        ~f_exp=(_, exp) => {elaborate(m, exp) |> fst},
+        ~f_pat=(_, pat) => {elaborate_pattern(m, pat, false) |> fst},
+        _,
+      )
+      |> List.map(_, stuff)
+      |> (stuff => MultiHole(stuff) |> rewrap)
     | DynamicErrorHole(e, err) =>
       let (e', _) = elaborate(m, e);
       DynamicErrorHole(e', err) |> rewrap;

@@ -154,10 +154,32 @@ let rec any_to_info_map =
       CoCtx.empty,
       utyp_to_info_map(~ctx, ~ancestors, ty, m) |> snd,
     )
-  | Rul(_)
+  | Rul(rt) =>
+    switch (rt.term) {
+    | Rules(scrut, rules) =>
+      let tms =
+        rules
+        |> List.map(((p, e)) => (Grammar.Pat(p), Grammar.Exp(e)))
+        |> List.split
+        |> (((a, b)) => a @ b);
+      let tms = [Grammar.Exp(scrut), ...tms];
+      any_to_info_map(
+        ~ctx,
+        ~ancestors,
+        Exp({
+          term: MultiHole(tms),
+          annotation: rt.annotation,
+        }),
+        m,
+      );
+    | MultiHole(tms) =>
+      let (co_ctxs, m) = multi(~ctx, ~ancestors, m, tms);
+      (CoCtx.union(co_ctxs), m);
+    | Invalid(_) => (CoCtx.empty, m)
+    }
   | Any () => (CoCtx.empty, m)
   }
-and multi = (~ctx, ~ancestors, m, tms) =>
+and multi = (~ctx, ~ancestors, m, tms): (list(CoCtx.t), Map.t) =>
   List.fold_left(
     ((co_ctxs, m), any) => {
       let (co_ctx, m) = any_to_info_map(~ctx, ~ancestors, any, m);
