@@ -1877,37 +1877,3 @@ let mk =
 
 let mk = (core: CoreSettings.t, ctx, exp) =>
   core.statics ? mk(ctx, exp) : Id.Map.empty;
-
-let get_error_at = (info_map: Map.t, id: Id.t) => {
-  id
-  |> Id.Map.find_opt(_, info_map)
-  |> Option.bind(
-       _,
-       fun
-       | InfoExp(e) => Some(e)
-       | _ => None,
-     )
-  |> Option.bind(_, e =>
-       switch (e.status) {
-       | InHole(err_info) => Some(err_info)
-       | NotInHole(_) => None
-       }
-     );
-};
-
-let get_pat_error_at = (info_map: Map.t, id: Id.t) => {
-  id
-  |> Id.Map.find_opt(_, info_map)
-  |> Option.bind(
-       _,
-       fun
-       | InfoPat(e) => Some(e)
-       | _ => None,
-     )
-  |> Option.bind(_, e =>
-       switch (e.status) {
-       | InHole(err_info) => Some(err_info)
-       | NotInHole(_) => None
-       }
-     );
-};
