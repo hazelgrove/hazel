@@ -126,31 +126,28 @@ let mk_bin' = (p, out, sort_l, in_, sort_r) => {
   };
 };
 
-let nibs = (~index=?, mold: t): Nibs.t =>
-  switch (index) {
-  | None => mold.nibs
-  | Some(i) =>
-    let (l, r) = mold.nibs;
-    let in_ = mold.in_;
-    let l =
-      i == 0
-        ? l
-        : Nib.{
-            shape: Shape.concave(),
-            sort: List.nth(in_, i - 1),
-          };
-    let r =
-      i == List.length(in_)
-        ? r
-        : Nib.{
-            shape: Shape.concave(),
-            sort: List.nth(in_, i),
-          };
-    (l, r);
-  };
+let nibs = (~index, mold: t): Nibs.t => {
+  let (l, r) = mold.nibs;
+  let in_ = mold.in_;
+  let l =
+    index == 0
+      ? l
+      : Nib.{
+          shape: Shape.concave(),
+          sort: List.nth(in_, index - 1),
+        };
+  let r =
+    index == List.length(in_)
+      ? r
+      : Nib.{
+          shape: Shape.concave(),
+          sort: List.nth(in_, index),
+        };
+  (l, r);
+};
 
-let nib_shapes = (~index=?, mold: t): Nibs.shapes => {
-  let (nib_l, nib_r) = nibs(~index?, mold);
+let nib_shapes = (~index, mold: t): Nibs.shapes => {
+  let (nib_l, nib_r) = nibs(~index, mold);
   (nib_l.shape, nib_r.shape);
 };
 

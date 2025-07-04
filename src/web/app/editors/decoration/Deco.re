@@ -6,7 +6,6 @@ type shard_data = (Measured.measurement, Nibs.shapes);
 
 let sel_shard_svg =
     (
-      ~index=?,
       ~start_shape: ShardDec.tip,
       measurement: Measured.measurement,
       p: Piece.t,
@@ -14,9 +13,8 @@ let sel_shard_svg =
     : (Measured.measurement, (ShardDec.tip, ShardDec.tip)) => (
   measurement,
   switch (p) {
-  | Tile(t) => Mold.nib_shapes(~index?, t.mold) |> ShardDec.tips_of_shapes
-  | Grout(g) =>
-    Mold.nib_shapes(Mold.of_grout(g, Any)) |> ShardDec.tips_of_shapes
+  | Tile(t) => t |> Tile.shapes |> ShardDec.tips_of_shapes
+  | Grout(g) => g |> Grout.shapes |> ShardDec.tips_of_shapes
   | Secondary(_) => (
       Option.map(
         (s: Nib.Shape.t) =>
@@ -105,7 +103,7 @@ module HighlightSegment =
       |> List.map(((index, m)) => {
            let token = List.nth(t.label, index);
            switch (StringUtil.num_linebreaks(token)) {
-           | 0 => [Some(sel_shard_svg(~start_shape, ~index, m, Tile(t)))]
+           | 0 => [Some(sel_shard_svg(~start_shape, m, Tile(t)))]
            | num_lb =>
              multiline_shard(num_lb, m, (Some(Convex), Some(Convex)))
            };
