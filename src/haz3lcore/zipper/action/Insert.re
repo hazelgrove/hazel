@@ -156,6 +156,19 @@ let should_supress_space = (z: t): bool => {
   };
 };
 
+let move_into_if_stringlit_or_comment = (char, z) =>
+  /* This is special-case logic for advancing the caret to position between the quotes
+     in newly-created stringlits. The main stringlit special-case is in Zipper.constuct
+     and ideally this logic would be located there as well, but both regrouting and
+     subsequent caret position logic at this function's callsites dicate that this
+     be done after. Not too happy about this tbh. */
+  Form.is_string_delim(char) || Form.is_comment_delim(char)
+    ? switch (move(Left, z)) {
+      | None => z
+      | Some(z) => z |> set_caret(Inner(0, 0))
+      }
+    : z;
+
 let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
   /* Current this necessarily creates three tokens; two from splitting
    * the existing one, and a new one. The two splitting tokens may become
@@ -171,8 +184,11 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
     let+ z = insert_duo([l, r], z);
     /* If we're inserting a space, don't bother to insert it;
      * we'll get a convex grout anyway from regrouting */
+
     (Form.space != char ? make_new_tile(char, Left, z) : z)
-    |> remold_regrout(Right);
+    |> remold_regrout(Right)
+    |> move_into_if_stringlit_or_comment(char);
+
   | None =>
     /* If contemplating changing regrouting behavior here, try these
      * two cases: pressing (A) space and (B) open parens on:
@@ -200,25 +216,11 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
       z
       |> remold_regrout_prev
       |> make_new_tile(char, Left)
-      |> remold_regrout(Right);
+      |> remold_regrout(Right)
+      |> move_into_if_stringlit_or_comment(char);
     };
   };
 };
-
-let opt_regrold = d => Option.map(remold_regrout(d));
-
-let move_into_if_stringlit_or_comment = (char, z) =>
-  /* This is special-case logic for advancing the caret to position between the quotes
-     in newly-created stringlits. The main stringlit special-case is in Zipper.constuct
-     and ideally this logic would be located there as well, but both regrouting and
-     subsequent caret position logic at this function's callsites dicate that this
-     be done after. Not too happy about this tbh. */
-  Form.is_string_delim(char) || Form.is_comment_delim(char)
-    ? switch (move(Left, z)) {
-      | None => z
-      | Some(z) => z |> set_caret(Inner(0, 0))
-      }
-    : z;
 
 let closing_stringlit_or_comment = (char, t) =>
   Form.is_string(t)
@@ -317,7 +319,7 @@ let rec go =
       ? z
         |> Zipper.set_caret(Inner(d_idx, idx))
         |> Zipper.replace_mono(Right, new_t)
-        |> opt_regrold(Left)
+        |> Option.map(remold_regrout(Left))
       : split(z, char, idx, t);
   /* Can't insert inside delimiter */
   | (Inner(_, _), (_, None)) => None
@@ -334,12 +336,12 @@ let rec go =
     z
     |> insert_outer(char)
     |> Option.map(Zipper.set_caret(caret))
-    |> opt_regrold(Left)
+    |> Option.map(remold_regrout(Left))
     |> Option.map(move_into_if_stringlit_or_comment(char));
   | (Outer, (_, None)) =>
     z
     |> insert_outer(char)
-    |> opt_regrold(Left)
+    |> Option.map(remold_regrout(Left))
     |> Option.map(move_into_if_stringlit_or_comment(char))
   };
 };

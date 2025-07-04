@@ -119,6 +119,21 @@ let basic_tests = [
     ~acts=mk("¦foo"),
     ~goal="¦foo",
   ),
+  test(
+    ~name="Paste string duo-splitting empty tuple",
+    ~acts=mk("(¦)") @ [Paste(String({|"foo"|}))],
+    ~goal={|("foo"¦)|},
+  ),
+  test(
+    ~name="Paste string splitting token",
+    ~acts=mk("1¦1") @ [Paste(String({|"foo"|}))],
+    ~goal={|1~"foo"¦~1|},
+  ),
+  test(
+    ~name="Paste string splitting consecutive delimiters",
+    ~acts=mk("if¦then") @ [Paste(String({|"foo"|}))],
+    ~goal={|if"foo"¦then?|},
+  ),
 ];
 
 let insertion_tests = [
