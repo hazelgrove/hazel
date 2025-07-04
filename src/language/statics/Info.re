@@ -522,7 +522,9 @@ let rec status_pat = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.pat): status_pat =>
    depending on the mode, which represents the expectations of the
    surrounding syntactic context, and the self which represents the
    makeup of the expression / pattern itself. */
-let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
+let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp => {
+  print_endline("status_exp: " ++ [%derive.show: Self.exp](self));
+  print_endline("ty_ana: " ++ Typ.show(ty_ana));
   switch (self) {
   | Free(name) => InHole(FreeVariable(name))
   | InexhaustiveMatch(self) =>
@@ -549,7 +551,6 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
         failwith("InHole(InexhaustiveMatch(impossible_err))")
       };
     InHole(InexhaustiveMatch(additional_err));
-  | IsDeferral(_) when Typ.is_syn_plus(ty_ana) => InHole(UnusedDeferral)
   | IsDeferral(InAp) => NotInHole(AnaDeferralConsistent(ty_ana))
   | IsDeferral(_) => InHole(UnusedDeferral)
   | IsBadPartialAp(_ as info) => InHole(BadPartialAp(info))
@@ -578,6 +579,7 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
     | InHole(err_exp) => InHole(Common(err_exp))
     }
   };
+};
 
 /* This logic determines whether a type should be put
    in a hole or not. It's mostly syntactic, determining
