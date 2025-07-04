@@ -92,7 +92,7 @@ module HighlightSegment =
     let start_shape =
       switch (Piece.nibs(p)) {
       | None => start_shape
-      | Some((_, {shape, _})) => Some(shape)
+      | Some((_, {shape, _})) => Some(Nib.Shape.flip(shape))
       };
     (start_shape, shard_data);
   }

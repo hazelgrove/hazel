@@ -58,19 +58,20 @@ let shape_affix =
     | [] => (empty_wgw, r, [])
     | [p, ...tl] =>
       let (wgw, s, tl) = go(tl, r);
+      let shape =
+        switch (Piece.shapes(p)) {
+        | Some(shapes) =>
+          shapes |> (d == Left ? TupleUtil.swap : Fun.id) |> fst
+        | None => s
+        };
       switch (p) {
       | Secondary(w) =>
         let (wss, gs) = wgw;
         let (ws, wss) = ListUtil.split_first(wss);
-        (([[w, ...ws], ...wss], gs), s, tl);
-      | Grout(g) => (Aba.cons([], g, wgw), s, tl)
-      | Projector(p) =>
-        let (l, _) =
-          ProjectorCore.shapes(p) |> (d == Left ? TupleUtil.swap : Fun.id);
-        (empty_wgw, l, tl);
-      | Tile(t) =>
-        let (l, _) = Tile.shapes(t) |> (d == Left ? TupleUtil.swap : Fun.id);
-        (empty_wgw, l, tl);
+        (([[w, ...ws], ...wss], gs), shape, tl);
+      | Grout(g) => (Aba.cons([], g, wgw), shape, tl)
+      | Projector(_) => (empty_wgw, shape, tl)
+      | Tile(_) => (empty_wgw, shape, tl)
       };
     };
   go((d == Left ? List.rev : Fun.id)(affix), r);
