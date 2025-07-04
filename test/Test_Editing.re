@@ -134,6 +134,11 @@ let basic_tests = [
     ~acts=mk("if¦then") @ [Paste(String({|"foo"|}))],
     ~goal={|if"foo"¦then?|},
   ),
+  test(
+    ~name="Paste string with a backpack barf false friend",
+    ~acts=mk("¦") @ [Paste(String({|([)(|}))],
+    ~goal={|([?)(¦?|},
+  ),
 ];
 
 let insertion_tests = [

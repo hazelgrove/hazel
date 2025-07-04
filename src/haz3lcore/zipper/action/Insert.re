@@ -24,7 +24,7 @@ let expand_or_barf_left_neighbor = (z as s: t): option(t) =>
   /* If left neighbor is a monotile (a) string-matching the shard at the
      top of the backpack, barf it, or (b) an expansing keyword, expand it. */
   switch (left_neighbor_monotile(z.relatives.siblings)) {
-  | Some(t) when Backpack.will_barf(t, z.backpack) => barf(Left, s)
+  | Some(t) when Zipper.will_barf(t, z) => barf(Left, s)
   | Some(t) when Molds.is_delayed(t) => delayed_expand(t, Left, s)
   | _ => Some(s)
   };
@@ -33,7 +33,7 @@ let expand_or_barf_right_neighbor = (z as s: t): option(t) =>
   /* If right neighbor is a monotile (a) string-matching the shard at the
      top of the backpack, barf it, or (b) an expansing keyword, expand it. */
   switch (right_neighbor_monotile(z.relatives.siblings)) {
-  | Some(t) when Backpack.will_barf(t, z.backpack) => barf(Right, s)
+  | Some(t) when Zipper.will_barf(t, z) => barf(Right, s)
   | Some(t) when Molds.is_delayed(t) => delayed_expand(t, Right, s)
   | _ => Some(s)
   };
@@ -67,11 +67,14 @@ let make_new_tile = (t: Token.t, caret: Direction.t, z: t): t =>
   /* Adds a new tile at the caret. If the new token matches the top
      of the backpack, the backpack shard is dropped. Otherwise, we
      construct a new tile, which may immediately expand. */
-  Backpack.will_barf(t, z.backpack)
+  Zipper.will_barf(t, z)
     ? switch (neighbor_can_duomerge(t, z.relatives.siblings)) {
       | Some((lbl, d)) =>
-        Zipper.replace(~caret=d, ~backpack=d, lbl, z) |> Option.get
-      | None => put_down(caret, z) |> Option.get
+        let z = Zipper.replace(~caret=d, ~backpack=d, lbl, z) |> Option.get;
+        z;
+      | None =>
+        let z = put_down(caret, z) |> Option.get;
+        z;
       }
     : {
       let (lbl, backpack) = Molds.instant_expansion(t);
