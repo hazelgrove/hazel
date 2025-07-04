@@ -262,33 +262,29 @@ module Make = (M: S) => {
     | Some(z) => Some(z)
     };
 
-  /* Jump to id moves the caret to the leftmost edge of
+  /* This moves the caret to the directionmost edge of
    * the piece with the target id. Note that this may not
    * mean that the piece at that id will be considered
-   * indicate from the point of view of the code decorations
-   * and cursor info display, since for example in the
-   * expression with (caret "|") "true && !|flag", the
-   * caret is at the leftmost edge of flag, but the not
-   * operator ("!") is indicated */
-  let jump_to_id = (z: t, id: Id.t): option(t) => {
-    let* {origin, _} = Measured.find_by_id(id, M.measured);
-    let z =
-      switch (to_start(z)) {
-      | None => z
-      | Some(z) => z
+   * indicated from the point of view of the code deco
+   * and cursor info display. This is true even when the
+   * direction is set to the Left, though in relatively
+   * few cases including for example `true && !|flag`,
+   * where the caret (|) is at the leftmost edge of
+   * `flag`, but the not operator ("!") is indicated */
+  let jump_to_side_of_id = (d: Direction.t, z, id): option(t) => {
+    let jump_to_left_of_id = (z: t, id: Id.t): option(t) => {
+      let* {origin, _} = Measured.find_by_id(id, M.measured);
+      let z =
+        switch (to_start(z)) {
+        | None => z
+        | Some(z) => z
+        };
+      switch (do_towards(primary(ByChar), origin, z)) {
+      | None => Some(z)
+      | Some(z) => Some(z)
       };
-    switch (do_towards(primary(ByChar), origin, z)) {
-    | None => Some(z)
-    | Some(z) => Some(z)
     };
-  };
-
-  let jump_to_side_of_id = (d: Direction.t, z, id) => {
-    let z =
-      switch (jump_to_id(z, id)) {
-      | Some(z) => z /* Move to left of id */
-      | None => z
-      };
+    let+ z = jump_to_left_of_id(z, id);
     switch (d) {
     | Left => z
     | Right =>
@@ -299,10 +295,10 @@ module Make = (M: S) => {
     };
   };
 
-  /* Same as jump to id, but if the end position doesn't
-   * indicate the target id, move one token to the right.
-   * This is an approximate solution (that I believe works
-   * for all current cases) */
+  /* Moves to the left side of the token with the given id,
+   * then checks if it's indicated. If not, move one token
+   * to the right. I believe but have not proved this
+   * always results in the token being indicated  */
   let jump_to_id_indicated = (z: t, id: Id.t): option(t) => {
     let* {origin, _} = Measured.find_by_id(id, M.measured);
     let z =
