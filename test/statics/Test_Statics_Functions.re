@@ -99,4 +99,16 @@ let tests = [
       ),
     )
   ),
+  test_case("Deferral outside of function args", `Quick, () =>
+    annotated_tree_test(
+      {|1 + _|},
+      FIError.Exp.(
+        bin_op(
+          Int(Plus),
+          int(1),
+          deferral(~ann=Some(Exp(UnusedDeferral)), OutsideAp),
+        )
+      ),
+    )
+  ),
 ];
