@@ -266,7 +266,7 @@ let rec go =
 
         let model_zipper =
           model_segment
-          |> Segment.to_string(~holes=None)
+          |> Segment.to_string
           |> StringUtil.to_list
           |> List.fold_left(insert, Some(z));
 

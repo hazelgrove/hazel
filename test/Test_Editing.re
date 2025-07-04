@@ -5,6 +5,7 @@
 open Util;
 open Alcotest;
 open Haz3lcore;
+open Action;
 module Fresh = Language.IdTagged.FreshGrammar;
 
 /* The following special characters are used in the tests to represent
@@ -66,8 +67,17 @@ let perform = (zip: Zipper.t, actions: list(Action.t)): Zipper.t => {
 let string_to_ltr_actions = (s: string): list(Action.t) =>
   s |> Util.StringUtil.to_list |> List.map(c => Action.Insert(c));
 
-let move_by_char_left_actions = (n: int): list(Action.t) =>
+let mv_l = (n: int): list(Action.t) =>
   List.init(n, _ => Action.Move(Local(Left(ByChar))));
+
+let mv_r = (n: int): list(Action.t) =>
+  List.init(n, _ => Action.Move(Local(Right(ByChar))));
+
+let mv_l_token = (n: int): list(Action.t) =>
+  List.init(n, _ => Action.Move(Local(Left(ByToken))));
+
+let mv_r_token = (n: int): list(Action.t) =>
+  List.init(n, _ => Action.Move(Local(Right(ByToken))));
 
 let mk = (init: string): list(Action.t) => {
   /* This harness uses a ¦ to represent caret position.
@@ -90,8 +100,7 @@ let mk = (init: string): list(Action.t) => {
    * of characters that come after the caret position */
   let chars_after_caret = String.length(init_without_caret) - caret_index;
 
-  string_to_ltr_actions(init_without_caret)
-  @ move_by_char_left_actions(chars_after_caret);
+  string_to_ltr_actions(init_without_caret) @ mv_l(chars_after_caret);
 };
 
 let test = (~name, ~acts, ~goal): test_case(_) =>
@@ -198,6 +207,12 @@ let insertion_tests = [
     ~acts=mk({|if the¦else|}) @ [Insert("n"), Insert(" ")],
     ~goal={|if? then?¦else?|},
   ),
+  /* DROPPING */
+  // test(
+  //   ~name="Hint 1",
+  //   ~acts=mk({|hint 1¦|}) @ [Put_down],
+  //   ~goal={|hint 1¦|},
+  // ),
 ];
 
 let destruct_tests = [
@@ -212,21 +227,194 @@ let destruct_tests = [
     ~acts=mk({|"¦"|}) @ [Destruct(Left)],
     ~goal={|¦?|},
   ),
-  /* DESTRUCTION: TOKEN MERGING */
   test(
-    ~name="`Merge to empty list by backspacing",
+    ~name="Merge to empty list by backspacing",
     ~acts=mk({|[1¦]|}) @ [Destruct(Left)],
     ~goal={|[¦]|},
   ),
   test(
-    ~name="`Merge to empty tuple by deleting",
+    ~name="Merge to empty tuple by deleting",
     ~acts=mk({|(¦1)|}) @ [Destruct(Right)],
     ~goal={|(¦)|},
   ),
   test(
-    ~name="`Merge number literals across bin op by backspacing",
+    ~name="Merge number literals across bin op by backspacing",
     ~acts=mk({|1+¦1|}) @ [Destruct(Left)],
     ~goal={|1¦1|},
+  ),
+  /* DESTRUCTION: MATCHING */
+  test(
+    ~name="Destruct leading delim",
+    ~acts=mk({|if¦ 1 then 2 else 3|}) @ [Destruct(Left)],
+    ~goal={|¦ 1 then 2 else 3|},
+  ),
+];
+
+let move_tests = [
+  // ByToken Right Complete Syntax
+  test(
+    ~name="Caret movement by token 1",
+    ~acts=mk({|¦let foo = 1 in foo|}) @ mv_r_token(1),
+    ~goal={|let¦ foo = 1 in foo|},
+  ),
+  test(
+    ~name="Caret movement by token 2",
+    ~acts=mk({|let¦ foo = 1 in foo|}) @ mv_r_token(1),
+    ~goal={|let ¦foo = 1 in foo|},
+  ),
+  test(
+    ~name="Caret movement by token 3",
+    ~acts=mk({|let ¦foo = 1 in foo|}) @ mv_r_token(1),
+    ~goal={|let foo¦ = 1 in foo|},
+  ),
+  test(
+    ~name="Caret movement by token 4",
+    ~acts=mk({|let foo¦ = 1 in foo|}) @ mv_r_token(1),
+    ~goal={|let foo ¦= 1 in foo|},
+  ),
+  test(
+    ~name="Caret movement by token 5",
+    ~acts=mk({|let foo ¦= 1 in foo|}) @ mv_r_token(1),
+    ~goal={|let foo =¦ 1 in foo|},
+  ),
+  test(
+    ~name="Caret movement by token 6",
+    ~acts=mk({|let foo =¦ 1 in foo|}) @ mv_r_token(1),
+    ~goal={|let foo = ¦1 in foo|},
+  ),
+  test(
+    ~name="Caret movement by token 7",
+    ~acts=mk({|let foo = ¦1 in foo|}) @ mv_r_token(1),
+    ~goal={|let foo = 1¦ in foo|},
+  ),
+  test(
+    ~name="Caret movement by token 8",
+    ~acts=mk({|let foo = 1¦ in foo|}) @ mv_r_token(1),
+    ~goal={|let foo = 1 ¦in foo|},
+  ),
+  test(
+    ~name="Caret movement by token 9",
+    ~acts=mk({|let foo = 1 ¦in foo|}) @ mv_r_token(1),
+    ~goal={|let foo = 1 in¦ foo|},
+  ),
+  test(
+    ~name="Caret movement by token 10",
+    ~acts=mk({|let foo = 1 in¦ foo|}) @ mv_r_token(1),
+    ~goal={|let foo = 1 in ¦foo|},
+  ),
+  test(
+    ~name="Caret movement by token 11",
+    ~acts=mk({|let foo = 1 in ¦foo|}) @ mv_r_token(1),
+    ~goal={|let foo = 1 in foo¦|},
+  ),
+  // ByToken Left Complete Syntax
+  test(
+    ~name="Caret movement by token Left 1",
+    ~acts=mk({|let foo = 1 in foo¦|}) @ mv_l_token(1),
+    ~goal={|let foo = 1 in ¦foo|},
+  ),
+  test(
+    ~name="Caret movement by token Left 2",
+    ~acts=mk({|let foo = 1 in ¦foo|}) @ mv_l_token(1),
+    ~goal={|let foo = 1 in¦ foo|},
+  ),
+  test(
+    ~name="Caret movement by token Left 3",
+    ~acts=mk({|let foo = 1 in¦ foo|}) @ mv_l_token(1),
+    ~goal={|let foo = 1 ¦in foo|},
+  ),
+  test(
+    ~name="Caret movement by token Left 4",
+    ~acts=mk({|let foo = 1 ¦in foo|}) @ mv_l_token(1),
+    ~goal={|let foo = 1¦ in foo|},
+  ),
+  test(
+    ~name="Caret movement by token Left 5",
+    ~acts=mk({|let foo = 1¦ in foo|}) @ mv_l_token(1),
+    ~goal={|let foo = ¦1 in foo|},
+  ),
+  test(
+    ~name="Caret movement by token Left 6",
+    ~acts=mk({|let foo = ¦1 in foo|}) @ mv_l_token(1),
+    ~goal={|let foo =¦ 1 in foo|},
+  ),
+  test(
+    ~name="Caret movement by token Left 7",
+    ~acts=mk({|let foo =¦ 1 in foo|}) @ mv_l_token(1),
+    ~goal={|let foo ¦= 1 in foo|},
+  ),
+  test(
+    ~name="Caret movement by token Left 8",
+    ~acts=mk({|let foo ¦= 1 in foo|}) @ mv_l_token(1),
+    ~goal={|let foo¦ = 1 in foo|},
+  ),
+  test(
+    ~name="Caret movement by token Left 9",
+    ~acts=mk({|let foo¦ = 1 in foo|}) @ mv_l_token(1),
+    ~goal={|let ¦foo = 1 in foo|},
+  ),
+  test(
+    ~name="Caret movement by token Left 10",
+    ~acts=mk({|let ¦foo = 1 in foo|}) @ mv_l_token(1),
+    ~goal={|let¦ foo = 1 in foo|},
+  ),
+  test(
+    ~name="Caret movement by token Left 11",
+    ~acts=mk({|let¦ foo = 1 in foo|}) @ mv_l_token(1),
+    ~goal={|¦let foo = 1 in foo|},
+  ),
+  // ByToken Escapes inside if starts inside token
+  test(
+    ~name="ByToken escapes token left",
+    ~acts=mk({|foo¦bar|}) @ mv_l_token(1),
+    ~goal={|¦foobar|},
+  ),
+  test(
+    ~name="ByToken escapes token right",
+    ~acts=mk({|foo¦bar|}) @ mv_r_token(1),
+    ~goal={|foobar¦|},
+  ),
+  // ByChar Complete Syntax
+  test(
+    ~name="Caret movement 3-delim R 1",
+    ~acts=mk({|¦if 1 then 2 else 3|}) @ mv_r(1),
+    ~goal={|i¦f 1 then 2 else 3|},
+  ),
+  test(
+    ~name="Caret movement 3-delim R 2",
+    ~acts=mk({|if 1 ¦then 2 else 3|}) @ mv_r(1),
+    ~goal={|if 1 t¦hen 2 else 3|},
+  ),
+  test(
+    ~name="Caret movement 3-delim R 3",
+    ~acts=mk({|if 1 the¦n 2 else 3|}) @ mv_r(1),
+    ~goal={|if 1 then¦ 2 else 3|},
+  ),
+  test(
+    ~name="Caret movement 3-delim L 1",
+    ~acts=mk({|if 1 then¦ 2 else 3|}) @ mv_l(1),
+    ~goal={|if 1 the¦n 2 else 3|},
+  ),
+  test(
+    ~name="Caret movement 3-delim L 2",
+    ~acts=mk({|if 1 th¦en 2 else 3|}) @ mv_l(1),
+    ~goal={|if 1 t¦hen 2 else 3|},
+  ),
+  test(
+    ~name="Caret movement 3-delim L 3",
+    ~acts=mk({|if 1 t¦hen 2 else 3|}) @ mv_l(1),
+    ~goal={|if 1 ¦then 2 else 3|},
+  ),
+  test(
+    ~name="Caret movement takes into account which shards are down - Right",
+    ~acts=mk({|if¦ 1 then 2 else 3|}) @ [Destruct(Left), ...mv_r(4)],
+    ~goal={| 1 t¦hen 2 else 3|},
+  ),
+  test(
+    ~name="Caret movement takes into account which shards are down - Left",
+    ~acts=
+      mk({|if¦ 1 then 2 else 3|}) @ [Destruct(Left)] @ mv_r(7) @ mv_l(1),
+    ~goal={| 1 the¦n 2 else 3|},
   ),
 ];
 
@@ -234,4 +422,5 @@ let tests = [
   ("Editing.Basic", basic_tests),
   ("Editing.Insertion", insertion_tests),
   ("Editing.Destruction", destruct_tests),
+  ("Editing.Move", move_tests),
 ];

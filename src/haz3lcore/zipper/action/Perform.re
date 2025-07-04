@@ -158,9 +158,7 @@ let go_z =
     )
     |> Result.of_option(~error=Action.Failure.Cant_move)
   | Unselect(Some(d)) => Ok(Zipper.directional_unselect(d, z))
-  | Unselect(None) =>
-    let z = Zipper.directional_unselect(z.selection.focus, z);
-    Ok(z);
+  | Unselect(None) => Ok(Zipper.unselect(z))
   | Select(All) =>
     let z =
       switch (Move.do_extreme(Move.primary(ByToken), Up, z)) {
