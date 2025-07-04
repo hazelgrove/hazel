@@ -151,16 +151,28 @@ let basic_tests = [
     // suceeds but crashes later with split_kids
     ~goal={|1:(+¦ +A)|},
   ),
-  // test(
-  //   ~name="Merge two prefix op !s into bin op !!",
-  //   ~acts=mk("! ! X¦") @ mv_l(3) @ [Destruct(Left)],
-  //   ~goal={|?!¦! X|},
-  // ),
-  // test(
-  //   ~name="Split ++ op in type sort context",
-  //   ~acts=mk("1:(++A)¦") @ mv_l(3) @ [Insert(" ")],
-  //   ~goal={|1:(+?¦+A)|},
-  // ),
+  test(
+    ~name="Split ++ op in type sort context",
+    ~acts=mk({|1:(++A)¦|}) @ mv_l(3) @ [Insert(" ")],
+    ~goal={|1:(+ ¦+A)|},
+  ),
+  test(
+    ~name="Split !! infix op !s into prefix ops !]",
+    ~acts=mk("!¦! X") @ [Insert(" ")],
+    ~goal={|! ¦! X|},
+  ),
+  //wrong caret placement (and its in weird escapee mode...)
+  test(
+    ~name="Merge 2 prefix ops ! into infix op !!",
+    ~acts=mk("! ! X¦") @ mv_l(3) @ [Destruct(Left)],
+    ~goal={|?!¦! X|},
+  ),
+  // wrong caret placement (and its in weird escapee mode...)
+  test(
+    ~name="Merge + + ops in type sort context",
+    ~acts=mk({|1:(+ ¦+A)|}) @ [Destruct(Left)],
+    ~goal={|1:(?+¦+A)|},
+  ),
 ];
 
 let insertion_tests = [
