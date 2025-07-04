@@ -568,8 +568,8 @@ and parenthesize_rul = (~show_filters: bool, rul: Rul.t): Rul.t => {
       ),
     )
     |> rewrap
-  | Hole(xs) =>
-    Hole(List.map(parenthesize_any(~show_filters), xs)) |> rewrap
+  | MultiHole(xs) =>
+    MultiHole(List.map(parenthesize_any(~show_filters), xs)) |> rewrap
   };
 }
 
