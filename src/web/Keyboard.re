@@ -96,8 +96,6 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     switch (key) {
     | "a" => now(Move(Extreme(Left(ByToken))))
     | "e" => now(Move(Extreme(Right(ByToken))))
-    | "j" => now(Move(Local(Left(ByToken))))
-    | "k" => now(Move(Local(Right(ByToken))))
     | _ => None
     };
   | {key: D("f"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
