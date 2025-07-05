@@ -133,31 +133,27 @@ let rec is_arrow = (typ: t) => {
   };
 };
 
-let rec has_arrow = (ctx: Ctx.t, typ: t) =>
+let rec has_fun = (typ: t) =>
   switch (typ.term) {
-  | Parens(typ) => has_arrow(ctx, typ)
-  | TupLabel(_, typ) => has_arrow(ctx, typ)
+  | Parens(typ) => has_fun(typ)
+  | TupLabel(_, typ) => has_fun(typ)
   | Arrow(_)
   | Forall(_) => true
   | Unknown(_)
   | Atom(_)
-  | Label(_) => false
-  | Var(tvar) =>
-    switch (Ctx.lookup_alias(ctx, tvar)) {
-    | Some(t) => has_arrow(ctx, t)
-    | None => false
-    }
-  | List(t) => has_arrow(ctx, t)
-  | Rec(tvar, tbody) => has_arrow(Ctx.extend_dummy_tvar(ctx, tvar), tbody)
+  | Label(_)
+  | Var(_) => false
+  | List(t) => has_fun(t)
+  | Rec(_, t) => has_fun(t)
   | Sum(sm) =>
     List.exists(
       fun
-      | ConstructorMap.Variant(_, _, Some(t)) => has_arrow(ctx, t)
+      | ConstructorMap.Variant(_, _, Some(t)) => has_fun(t)
       | _ => false,
       sm,
     )
-  | Ap(t1, t2) => has_arrow(ctx, t1) || has_arrow(ctx, t2)
-  | Prod(tys) => List.exists(has_arrow(ctx), tys)
+  | Ap(t1, t2) => has_fun(t1) || has_fun(t2)
+  | Prod(tys) => List.exists(has_fun, tys)
   };
 
 let rec is_forall = (typ: t) => {

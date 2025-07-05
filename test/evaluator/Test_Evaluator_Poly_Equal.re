@@ -63,14 +63,14 @@ let tests = (
       () => {
         evaluation_test(
           "Hidden inconsistency caught in dynamics",
-          dynamic_error_hole(elaborate(parse_exp("1 == 1.")), Inconsistent),
+          dynamic_error_hole(elaborate(parse_exp("1 == 1.")), Incomparable),
           elaborate(parse_exp("let x: ? = 1 in let y: ? = 1. in x == y")),
         );
         evaluation_test(
           "Hidden containing arrow caught in dynamics",
           dynamic_error_hole(
             elaborate(parse_exp("(fun x -> x) == (fun x -> x)")),
-            CompareArrow,
+            Incomparable,
           ),
           elaborate(parse_exp("let f = fun x -> x in f == f")),
         );
@@ -82,7 +82,7 @@ let tests = (
                 "type T2 = +A(Int->Int)+B in let b1 : ? = B in b1 == b1",
               ),
             ),
-            CompareArrow,
+            Incomparable,
           ),
           elaborate(
             parse_exp(

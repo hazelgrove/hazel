@@ -162,7 +162,7 @@ let common_err_view =
       )
     | DuplicateLabel(name, _) => [text("Duplicate Label:"), code(name)]
     | Inconsistent(CompareArrow(ty)) => [
-        text("values of arrow-containing cannot be compared:"),
+        text("values cannot be compared:"),
         view_type(ty),
       ]
     | Inconsistent(WithArrow(typ)) => [

@@ -6,8 +6,7 @@ type t =
   | NegativeExponent
   | NegativeNat
   | IntegerTooBig
-  | CompareArrow
-  | Inconsistent;
+  | Incomparable;
 
 let err_msg = (err: t): string =>
   switch (err) {
@@ -17,6 +16,5 @@ let err_msg = (err: t): string =>
   | NegativeExponent => "Error: Negative Exponent in Integer Exponentiation (Consider using **.)"
   | NegativeNat => "Error: Cannot convert negative number to Nat"
   | IntegerTooBig => "Error: Integer too big"
-  | CompareArrow => "Error: Comparison of Arrow Types"
-  | Inconsistent => "Error: Inconsistent Type"
+  | Incomparable => "Error: Incomparable Types"
   };
