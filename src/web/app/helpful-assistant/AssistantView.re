@@ -4,6 +4,7 @@ open Node;
 open Util.WebUtil;
 open Util;
 open Js_of_ocaml;
+open Key;
 
 module Update = AssistantUpdate;
 
@@ -420,21 +421,25 @@ let llm_model_id_input =
   );
 };
 
-let message_input =
+let mk_input_handlers =
     (
-      ~signal,
-      ~inject,
-      ~model: Model.t,
-      ~settings: AssistantSettings.t,
-      ~editor: CodeEditable.Model.t,
-    )
-    : Node.t => {
+      settings: AssistantSettings.t,
+      model: Model.t,
+      index: option(int),
+      inject: Update.t => Ui_effect.t(unit),
+      editor: CodeEditable.Model.t,
+      which_input: string,
+    ) => {
   let mode = settings.mode;
   let handle_send = (content: string) => {
     Js_of_ocaml.Firebug.console##log(
       Js_of_ocaml.Js.string("Message sent: " ++ content),
     );
     Virtual_dom.Vdom.Effect.Many([
+      switch (index) {
+      | Some(index) => inject(Update.ChatAction(Lop(index)))
+      | _ => Virtual_dom.Vdom.Effect.Ignore
+      },
       switch (mode) {
       | HazelTutor =>
         inject(
@@ -465,31 +470,50 @@ let message_input =
     ]);
   };
   let (past_chats, curr_chat) = Update.get_mode_info(settings.mode, model);
-  let curr_messages = Id.Map.find(curr_chat.id, past_chats).message_displays;
+  let curr_messages = Id.Map.find(curr_chat.id, past_chats).messages;
   let send_message = _ => {
     let message =
       Js.Opt.case(
-        Dom_html.document##getElementById(Js.string("message-input")),
+        Dom_html.document##getElementById(Js.string(which_input)),
         () => "",
         el =>
           switch (Js.Unsafe.coerce(el)) {
           | input => Js.to_string(input##.value)
           },
       );
-    Js.Opt.case(
-      Dom_html.document##getElementById(Js.string("message-input")),
-      () => (),
-      el => Js.Unsafe.coerce(el)##.value := Js.string(""),
-    );
+    switch (index) {
+    | Some(_) => ()
+    | _ =>
+      Js.Opt.case(
+        Dom_html.document##getElementById(Js.string(which_input)),
+        () => (),
+        el => Js.Unsafe.coerce(el)##.value := Js.string(""),
+      )
+    };
     handle_send(message);
   };
   let handle_keydown = event => {
     let key = Js.Optdef.to_option(Js.Unsafe.get(event, "key"));
+    let shift_pressed = shift_held(event);
     switch (key, ListUtil.last_opt(curr_messages)) {
-    | (Some("Enter"), _) => send_message()
+    | (Some("Enter"), _) when !shift_pressed => send_message()
     | _ => Virtual_dom.Vdom.Effect.Ignore
     };
   };
+  (send_message, handle_keydown);
+};
+
+let message_input =
+    (
+      ~signal,
+      ~inject,
+      ~model: Model.t,
+      ~settings: AssistantSettings.t,
+      ~editor: CodeEditable.Model.t,
+    )
+    : Node.t => {
+  let (send_message, handle_keydown) =
+    mk_input_handlers(settings, model, None, inject, editor, "message-input");
   div(
     ~attrs=[clss(["input-container"])],
     [
@@ -516,15 +540,14 @@ let message_input =
         ],
         (),
       ),
-      switch (ListUtil.last_opt(curr_messages)) {
-      // todo: update, since we remove loading dots
+      switch (
+        ListUtil.last_opt(
+          [] /*curr_messages*/ /* todo: change. temporarily repressed.*/,
+        )
+      ) {
+      // todo: change, maybe to allowing for stop button to cancel request
       | Some(
-          {
-            role: Assistant,
-            displayable_content: [Text("...")],
-            original_content: "...",
-            collapsed: false,
-          }: Model.display,
+          {displayable_content: [Text("...")], collapsed: false}: Model.display,
         ) =>
         div(
           ~attrs=[
@@ -563,32 +586,32 @@ let message_input =
 
 let form_collapse_toggle =
     (
-      ~message: Model.display,
+      ~message: Model.message,
       ~toggle_collapse,
       ~index: int,
       ~is_first: bool,
       ~is_last: bool,
     )
     : Node.t =>
-  if (message.collapsed && is_first) {
+  if (message.display.collapsed && is_first) {
     div(
       ~attrs=[
         clss(["collapse-indicator"]),
         Attr.on_click(_ => toggle_collapse(index)),
-        String.length(message.original_content) >= Model.max_collapsed_length
+        String.length(message.content.content) >= Model.max_collapsed_length
           ? Attr.empty : Attr.hidden,
       ],
       [text("▼ Show more")],
     );
-  } else if (!message.collapsed
-             && String.length(message.original_content)
+  } else if (!message.display.collapsed
+             && String.length(message.content.content)
              >= Model.max_collapsed_length
              && is_last) {
     div(
       ~attrs=[
         clss(["collapse-indicator"]),
         Attr.on_click(_ => toggle_collapse(index)),
-        String.length(message.original_content) >= Model.max_collapsed_length
+        String.length(message.content.content) >= Model.max_collapsed_length
           ? Attr.empty : Attr.hidden,
       ],
       [text("▲ Show less")],
@@ -597,62 +620,234 @@ let form_collapse_toggle =
     None;
   };
 
+let mk_translation = (~text: string): list(Node.t) => {
+  let omd = Omd.of_string(text);
+  //print_markdown(omd);
+
+  let rec translate_inline =
+          (inline: Omd.inline(_), msg: list(Node.t)): list(Node.t) => {
+    switch (inline) {
+    | Omd.Concat(_, items) =>
+      let nodes =
+        List.fold_left(
+          (msg, item) => {
+            let translated_item = translate_inline(item, []);
+            List.concat([msg, translated_item]);
+          },
+          [],
+          items,
+        );
+      List.append(msg, nodes);
+    | Omd.Text(_, d) => List.append(msg, [Node.text(d)])
+    | Omd.Code(_, d) =>
+      List.append(
+        msg,
+        [
+          Node.span(
+            ~attrs=[
+              Attr.style(
+                Css_gen.create(~field="font-family", ~value="monospace"),
+              ),
+            ],
+            [Node.text(d)],
+          ),
+        ],
+      )
+    | Omd.Link(_, {label, destination, _}) =>
+      let d = translate_inline(label, []);
+      let _ =
+        switch (Id.of_string(destination)) {
+        | Some(id) => id
+        | None => Id.invalid
+        };
+      let inner_msg = Node.span(~attrs=[], d);
+      List.append(msg, [inner_msg]);
+    | Omd.Emph(_, d) =>
+      let d = translate_inline(d, []);
+      List.append(
+        msg,
+        [
+          Node.span(
+            ~attrs=[
+              Attr.style(
+                Css_gen.create(~field="font-style", ~value="italic"),
+              ),
+            ],
+            d,
+          ),
+        ],
+      );
+    | Omd.Strong(_, d) =>
+      let d = translate_inline(d, []);
+      List.append(
+        msg,
+        [
+          Node.span(
+            ~attrs=[
+              Attr.style(
+                Css_gen.create(~field="font-weight", ~value="bold"),
+              ),
+            ],
+            d,
+          ),
+        ],
+      );
+    | Omd.Soft_break(_) => List.append(msg, [Node.br()])
+    | Omd.Hard_break(_) => List.append(msg, [Node.br(), Node.br()])
+    | _ => msg
+    };
+  };
+
+  let rec translate_block = (doc: Omd.doc): list(Node.t) => {
+    List.fold_left(
+      (msg, elem) => {
+        switch (elem) {
+        | Omd.Paragraph(_, d) => translate_inline(d, msg)
+        | Omd.List(_, _, _, items) =>
+          let bullets =
+            List.fold_left(
+              (nodes, d) => {
+                let n = translate_block(d);
+                List.append(nodes, [Node.li(n)]);
+              },
+              [],
+              items,
+            );
+          List.append(msg, [Node.ul(bullets)]);
+        | Omd.Blockquote(_, d) =>
+          List.append(msg, [Node.blockquote(translate_block(d))])
+        | Omd.Heading(_, _, d) =>
+          List.append(msg, [Node.h1(translate_inline(d, []))])
+        | Omd.Thematic_break(_) => List.append(msg, [Node.hr()])
+        | Omd.Code_block(_, _, d) =>
+          // Todo: Potentially remove parse_blocks and favor pure markdown instead.
+          // This will require a bit of rewiring, however.
+          List.append(msg, [Node.text(d)])
+        | Omd.Html_block(_, d) => List.append(msg, [Node.text(d)])
+        | _ => msg
+        }
+      },
+      [],
+      doc,
+    );
+  };
+  [Node.br()] @ translate_block(omd);
+};
+
 let text_block =
     (
-      ~message: Model.display,
+      ~message: Model.message,
       ~content: string,
       ~toggle_collapse,
       ~index: int,
+      ~signal,
+      ~settings: AssistantSettings.t,
+      ~model: Model.t,
+      ~inject: Update.t => Ui_effect.t(unit),
+      ~editor: CodeEditable.Model.t,
       ~is_first: bool,
       ~is_last: bool,
     )
-    : Node.t => {
-  div(
-    ~attrs=[
-      clss([
-        switch (message.role) {
-        | User => "user-message"
-        | Assistant => "llm-message"
-        | System(AssistantPrompt) => "system-prompt-message"
-        | System(InternalError) => "system-error-message"
-        | Tool => "tool-message"
-        },
-      ]),
-      Attr.on_copy(_ => {Effect.Stop_propagation}),
-      Attr.on_paste(_ => {Effect.Stop_propagation}),
-      Attr.on_cut(_ => {Effect.Stop_propagation}),
-    ],
-    [
-      message.collapsed
-      && String.length(message.original_content) >= Model.max_collapsed_length
-        ? text(
-            String.concat(
-              "",
-              [
-                String.sub(
-                  content,
-                  0,
-                  min(String.length(content), Model.max_collapsed_length),
-                ),
-                "...",
-              ],
-            ),
-          )
-        : text(content),
-      form_collapse_toggle(
-        ~message,
-        ~toggle_collapse,
-        ~index,
-        ~is_first,
-        ~is_last,
-      ),
-    ],
-  );
-};
+    : Node.t =>
+  if (message.role == User) {
+    let unique_id = "user-message-input-" ++ string_of_int(index);
+    let (send_message, handle_keydown) =
+      mk_input_handlers(
+        settings,
+        model,
+        Some(index),
+        inject,
+        editor,
+        unique_id,
+      );
+    div(
+      ~attrs=[clss(["user-message-input-container"])],
+      [
+        textarea(
+          ~attrs=[
+            clss(["user-message-input"]),
+            Attr.id(unique_id),
+            Attr.value(content),
+            Attr.property("autocomplete", Js.Unsafe.inject("off")),
+            Attr.on_focus(_ => {
+              JsUtil.autosize_textarea(unique_id);
+              signal(MakeActive(ScratchMode.Selection.TextBox));
+            }),
+            Attr.on_input(_ => {
+              JsUtil.autosize_textarea(unique_id);
+              _ => Virtual_dom.Vdom.Effect.Ignore;
+            }),
+            Attr.on_copy(_ => {Effect.Stop_propagation}),
+            Attr.on_paste(_ => {
+              JsUtil.delay(0.0, () => JsUtil.autosize_textarea(unique_id));
+              Effect.Stop_propagation;
+            }),
+            Attr.on_cut(_ => {Effect.Stop_propagation}),
+            Attr.on_keydown(handle_keydown),
+          ],
+          [text(content)],
+        ),
+        div(
+          ~attrs=[
+            clss(["user-send-button", "icon"]),
+            Attr.on_click(send_message),
+            Attr.title("Submit Message"),
+          ],
+          [Icons.send],
+        ),
+      ],
+    );
+  } else {
+    div(
+      ~attrs=[
+        clss([
+          switch (message.role) {
+          | User => "user-message"
+          | Assistant => "llm-message"
+          | System(AssistantPrompt) => "system-prompt-message"
+          | System(InternalError) => "system-error-message"
+          | Tool => "tool-message"
+          },
+        ]),
+        Attr.on_copy(_ => {Effect.Stop_propagation}),
+        Attr.on_paste(_ => {Effect.Stop_propagation}),
+        Attr.on_cut(_ => {Effect.Stop_propagation}),
+        Attr.on_click(_ => {Effect.Stop_propagation}),
+      ],
+      {
+        let content =
+          message.display.collapsed
+          && String.length(message.content.content)
+          >= Model.max_collapsed_length
+            ? String.concat(
+                "",
+                [
+                  String.sub(
+                    content,
+                    0,
+                    min(String.length(content), Model.max_collapsed_length),
+                  ),
+                  "...",
+                ],
+              )
+            : content;
+        mk_translation(~text=content)
+        @ [
+          form_collapse_toggle(
+            ~message,
+            ~toggle_collapse,
+            ~index,
+            ~is_first,
+            ~is_last,
+          ),
+        ];
+      },
+    );
+  };
 
 let code_block =
     (
-      ~message: Model.display,
+      ~message: Model.message,
       ~sketch: Segment.t,
       ~toggle_collapse,
       ~index: int,
@@ -730,16 +925,21 @@ let code_block =
 
 let form_block =
     (
-      ~message: Model.display,
+      ~message: Model.message,
       ~block: Model.block_kind,
       ~toggle_collapse,
       ~index: int,
       ~is_first: bool,
       ~is_last: bool,
       ~globals: Globals.t,
+      ~settings: AssistantSettings.t,
+      ~signal,
+      ~model: Model.t,
+      ~inject: Update.t => Ui_effect.t(unit),
+      ~editor: CodeEditable.Model.t,
     )
     : Node.t =>
-  if (!message.collapsed || message.collapsed && is_first) {
+  if (!message.display.collapsed || message.display.collapsed && is_first) {
     switch (block) {
     | Text(content) =>
       text_block(
@@ -749,6 +949,11 @@ let form_block =
         ~index,
         ~is_first,
         ~is_last,
+        ~settings,
+        ~signal,
+        ~model,
+        ~inject,
+        ~editor,
       )
     | Code(sketch) =>
       code_block(
@@ -768,7 +973,7 @@ let form_block =
 let initial_display =
     (~model: Model.t, ~settings: AssistantSettings.t): Node.t => {
   let (past_chats, curr_chat) = Update.get_mode_info(settings.mode, model);
-  let curr_messages = Id.Map.find(curr_chat.id, past_chats).message_displays;
+  let curr_messages = Id.Map.find(curr_chat.id, past_chats).messages;
   List.length(curr_messages) <= 1
     ? div(
         ~attrs=[clss(["initial-display"])],
@@ -805,6 +1010,8 @@ let message_display =
       ~inject,
       ~model: Model.t,
       ~settings: AssistantSettings.t,
+      ~signal,
+      ~editor: CodeEditable.Model.t,
     )
     : Node.t => {
   let toggle_collapse = (is_system_prompt, index) => {
@@ -824,11 +1031,11 @@ let message_display =
     );
   };
   let (past_chats, curr_chat) = Update.get_mode_info(settings.mode, model);
-  let curr_messages = Id.Map.find(curr_chat.id, past_chats).message_displays;
+  let curr_messages = Id.Map.find(curr_chat.id, past_chats).messages;
   let message_nodes =
     List.flatten(
       List.mapi(
-        (index: int, message: Model.display) => {
+        (index: int, message: Model.message) => {
           [
             div(
               ~attrs=[
@@ -907,7 +1114,7 @@ let message_display =
                 message.role == System(AssistantPrompt)
                   ? [None]
                   : {
-                    let parsed_blocks = message.displayable_content;
+                    let parsed_blocks = message.display.displayable_content;
                     List.mapi(
                       (idx, block: Model.block_kind) =>
                         form_block(
@@ -918,6 +1125,11 @@ let message_display =
                           ~is_first=idx == 0,
                           ~is_last=idx == List.length(parsed_blocks) - 1,
                           ~globals,
+                          ~settings,
+                          ~signal,
+                          ~model,
+                          ~inject,
+                          ~editor,
                         ),
                       parsed_blocks,
                     );
@@ -958,14 +1170,21 @@ let get_sidebar_width = () => {
 };
 
 let prompt_display =
-    (~globals: Globals.t, ~model: Model.t, ~settings: AssistantSettings.t)
+    (
+      ~globals: Globals.t,
+      ~model: Model.t,
+      ~settings: AssistantSettings.t,
+      ~signal,
+      ~inject,
+      ~editor: CodeEditable.Model.t,
+    )
     : Node.t => {
   let (past_chats, curr_chat) = Update.get_mode_info(settings.mode, model);
-  let curr_messages = Id.Map.find(curr_chat.id, past_chats).message_displays;
+  let curr_messages = Id.Map.find(curr_chat.id, past_chats).messages;
   let display =
     List.find_mapi(
-      (index: int, message: Model.display) => {
-        message.role == System(AssistantPrompt) && !message.collapsed
+      (index: int, message: Model.message) => {
+        message.role == System(AssistantPrompt) && !message.display.collapsed
           ? Some(
               div(
                 ~attrs=[
@@ -978,7 +1197,7 @@ let prompt_display =
                   ),
                 ],
                 {
-                  let parsed_blocks = message.displayable_content;
+                  let parsed_blocks = message.display.displayable_content;
                   List.map(
                     (block: Model.block_kind) =>
                       form_block(
@@ -989,6 +1208,11 @@ let prompt_display =
                         ~is_first=false,
                         ~is_last=false,
                         ~globals,
+                        ~settings,
+                        ~signal,
+                        ~model,
+                        ~inject,
+                        ~editor,
                       ),
                     parsed_blocks,
                   );
@@ -1191,6 +1415,8 @@ let view =
               ~inject,
               ~model,
               ~settings=settings.assistant,
+              ~signal,
+              ~editor,
             )
           : None,
         settings.assistant.ongoing_chat
@@ -1215,7 +1441,14 @@ let view =
           ? None : llm_model_id_input(~inject, ~model, ~signal),
         settings.assistant.ongoing_chat && settings.assistant.show_history
           ? history_menu(~model, ~settings=settings.assistant, ~inject) : None,
-        prompt_display(~globals, ~model, ~settings=settings.assistant),
+        prompt_display(
+          ~globals,
+          ~model,
+          ~settings=settings.assistant,
+          ~signal,
+          ~inject,
+          ~editor,
+        ),
       ],
     );
   view;

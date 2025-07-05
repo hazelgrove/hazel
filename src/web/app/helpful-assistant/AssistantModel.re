@@ -25,23 +25,34 @@ let string_of_role =
   | Assistant => "Assistant"
   | Tool => "Tool";
 
+// We currently parse code blocks out here
+// In the future we could move this to have the Omd module handle this
 [@deriving (show({with_path: false}), sexp, yojson)]
 type block_kind =
   | Text(string)
   | Code(Haz3lcore.Segment.t);
 
+// The displayable content of a message. This is here mainly to cache it
+// in storage, avoiding runtime hindrances from parsing the content on the fly.
 [@deriving (show({with_path: false}), sexp, yojson)]
 type display = {
   displayable_content: list(block_kind),
-  original_content: string,
-  role,
   collapsed: bool,
 };
 
+// A coupling of a message sent to the LLM and the displayable content of the message.
+[@deriving (show({with_path: false}), sexp, yojson)]
+type message = {
+  content: OpenRouter.message,
+  display,
+  role,
+};
+
+// A chat is simply a collection of messages, attached to an ID
+// We also include a timestamp and a descriptor for stylistic purposes.
 [@deriving (show({with_path: false}), sexp, yojson)]
 type chat = {
-  outgoing_messages: list(OpenRouter.message),
-  message_displays: list(display),
+  messages: list(message),
   id: Id.t,
   descriptor: string,
   timestamp: float,
@@ -56,6 +67,7 @@ type chat_history = {
   past_composition_chats: Id.Map.t(chat),
 };
 
+// We need to keep track of the chats which the user currently has active in each mode.
 [@deriving (show({with_path: false}), sexp, yojson)]
 type current_chats = {
   // Current active chat IDs for each mode
@@ -64,6 +76,7 @@ type current_chats = {
   curr_composition_chat: Id.t,
 };
 
+// A record of the external API information, typically set in the settings menu.
 [@deriving (show({with_path: false}), sexp, yojson)]
 type external_api_info = {
   available_models: list(OpenRouter.model_info),
@@ -71,6 +84,8 @@ type external_api_info = {
   api_key: string,
 };
 
+// We cache these to avoid runtime hindrances from parsing the content on the fly.
+// Pitfall: If prompt(s) ever change, must do hard reset of Hazel/clear local storage.
 [@deriving (show({with_path: false}), sexp, yojson)]
 type init_prompt_data = {
   init_tutor_chat: chat,
@@ -79,6 +94,10 @@ type init_prompt_data = {
   init_suggestion_chat_cot: chat,
 };
 
+// The AssistantModel type houses the current active chats, the history of past chats,
+// the external API information, and the initial prompt data.
+// The loop parameter is used exclusively for the task completion mode...
+// there is likely a much better way to do this.
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   current_chats,
@@ -88,7 +107,7 @@ type t = {
   loop: bool,
 };
 
-// This is important when we need to display the history of chats in chronological order.
+// Allow for the displaying of chats in chronological order.
 let sorted_chats = (chat_map: Id.Map.t(chat)): list(chat) => {
   chat_map
   |> Id.Map.bindings
@@ -98,25 +117,36 @@ let sorted_chats = (chat_map: Id.Map.t(chat)): list(chat) => {
 
 // --- Constant Magic Ints ---
 let max_collapsed_length: int = 500;
+// --- End Constant Magic Ints ---
 
-let mk_mode_prompt =
-    (~mode: AssistantSettings.mode): option(OpenRouter.message) => {
+// --- Helper Functions ---
+
+let get_messages_content =
+    (messages: list(message)): list(OpenRouter.message) => {
+  List.map(message => message.content, messages);
+};
+
+let get_messages_display = (messages: list(message)): list(display) => {
+  List.map(message => message.display, messages);
+};
+
+let mk_mode_prompt = (~mode: AssistantSettings.mode): OpenRouter.message => {
   let prompt =
     switch (mode) {
-    | HazelTutor => Some(InitPrompts.mk_tutor())
+    | HazelTutor => InitPrompts.mk_tutor()
     | CodeSuggestion =>
-      Some(
-        ChatLSP.Completion.mk_const_prompt(
-          ChatLSP.Options.init,
-          "code_suggestion",
-          false,
-        ),
+      ChatLSP.Completion.mk_const_prompt(
+        ChatLSP.Options.init,
+        "code_suggestion",
+        false,
       )
-    | TaskCompletion => Some(InitPrompts.mk_composition())
+    | TaskCompletion => InitPrompts.mk_composition()
     };
   prompt;
 };
 
+// This is essentially a reimplementation of what Omd does
+// Todo: Readapt to use Omd instead.
 let parse_blocks = (response: string): list(block_kind) => {
   let rec parse_blocks =
           (str: string, acc: list(block_kind)): list(block_kind) => {
@@ -156,8 +186,6 @@ let mk_message_display = (~content: string, ~role: role): display => {
     displayable_content:
       String.length(content) <= max_collapsed_length
         ? parse_blocks(content) : [Text(content)],
-    original_content: content,
-    role,
     collapsed:
       String.length(content) > max_collapsed_length
       || role == System(AssistantPrompt),
@@ -165,23 +193,19 @@ let mk_message_display = (~content: string, ~role: role): display => {
 };
 
 let init_chat = (mode: AssistantSettings.mode): chat => {
-  let (init_message, init_message_display) =
-    switch (mk_mode_prompt(~mode)) {
-    | Some(init_message) => (
-        [init_message],
-        [
+  let init_message = mk_mode_prompt(~mode);
+  {
+    messages: [
+      {
+        content: init_message,
+        display:
           mk_message_display(
             ~content=init_message.content,
             ~role=System(AssistantPrompt),
           ),
-        ],
-      )
-    | None => ([], [])
-    };
-
-  {
-    outgoing_messages: init_message,
-    message_displays: init_message_display,
+        role: System(AssistantPrompt),
+      },
+    ],
     id: Id.mk(),
     descriptor: "",
     timestamp: JsUtil.timestamp(),
@@ -189,24 +213,15 @@ let init_chat = (mode: AssistantSettings.mode): chat => {
 };
 
 let new_chat = (model: t, mode: AssistantSettings.mode): chat => {
-  let (init_message, init_message_display) =
+  let init_message =
     switch (mode) {
-    | HazelTutor => (
-        model.init_prompt_data.init_tutor_chat.outgoing_messages,
-        model.init_prompt_data.init_tutor_chat.message_displays,
-      )
-    | CodeSuggestion => (
-        model.init_prompt_data.init_suggestion_chat_basic.outgoing_messages,
-        model.init_prompt_data.init_suggestion_chat_basic.message_displays,
-      )
-    | TaskCompletion => (
-        model.init_prompt_data.init_composition_chat.outgoing_messages,
-        model.init_prompt_data.init_composition_chat.message_displays,
-      )
+    | HazelTutor => model.init_prompt_data.init_tutor_chat.messages
+    | CodeSuggestion =>
+      model.init_prompt_data.init_suggestion_chat_basic.messages
+    | TaskCompletion => model.init_prompt_data.init_composition_chat.messages
     };
   {
-    outgoing_messages: init_message,
-    message_displays: init_message_display,
+    messages: init_message,
     id: Id.mk(),
     descriptor: "",
     timestamp: JsUtil.timestamp(),
@@ -254,14 +269,7 @@ let init = (): t => {
 // We defer true initialization of the assistant model until the user opens the chat interface.
 let null_model = (): t => {
   let null_chat = {
-    outgoing_messages: [],
-    message_displays: [
-      mk_message_display(
-        ~content=
-          "Please set an API key in the settings to start using the Hazel Assistant.",
-        ~role=System(InternalError),
-      ),
-    ],
+    messages: [],
     id: Id.invalid,
     descriptor: "Please set an API key",
     timestamp: JsUtil.timestamp(),

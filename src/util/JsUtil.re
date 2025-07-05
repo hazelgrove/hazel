@@ -291,3 +291,9 @@ module QueryParams = {
          );
        });
 };
+
+let autosize_textarea = (id: string) => {
+  let el = get_elem_by_id(id);
+  el##.style##.height := Js.string("auto");
+  el##.style##.height := Js.string(string_of_int(el##.scrollHeight) ++ "px");
+};

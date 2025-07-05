@@ -13,21 +13,6 @@ open Util;
  * (to avoid cyclical dependencies due to MakeTerm and ExpToSegment) */
 
 module Kind = {
-  [@deriving (show({with_path: false}), sexp, yojson, eq)]
-  type whom =
-    | Target
-    | Child;
-
-  [@deriving (show({with_path: false}), sexp, yojson, eq)]
-  type age =
-    | Fresh
-    | Old;
-
-  [@deriving (show({with_path: false}), sexp, yojson, eq)]
-  type composition =
-    | Parent
-    | Child;
-
   /* The different kinds of projector. New projector
    * types need to be registered here in order to be
    * able to create and update their instances */

@@ -76,7 +76,7 @@
 #assistant .message-input {
   flex: 1;
   background-color: var(--SAND);
-  padding: 14px;
+  padding: 8px 12px;
   border: 0;
   outline: 0.75px solid var(--BR3);
   border-radius: 4px;
@@ -84,6 +84,7 @@
   max-height: 200px;
   resize: none;
   overflow-y: auto;
+  box-sizing: border-box;
 }
 
 #assistant .message-input:focus {
@@ -233,6 +234,7 @@
   font-size: 1em;
   max-width: 100%;
   word-wrap: break-word;
+  white-space: pre-wrap;
 }
 
 #assistant .system-prompt-message {
@@ -242,6 +244,7 @@
   font-size: 1em;
   max-width: 100%;
   word-wrap: break-word;
+  white-space: pre-wrap;
 }
 
 #assistant .system-error-message {
@@ -251,15 +254,107 @@
   font-size: 1em;
   max-width: 100%;
   word-wrap: break-word;
+  white-space: pre-wrap;
 }
 
 #assistant .user-message {
   padding: 8px 12px;
-  background-color: var(--T1);
+  background-color: rgba(0, 0, 0, 0.03); /* Very subtle background */
+  border: 0.75px solid var(--BR3);
   border-radius: 3px;
   font-size: 1em;
   max-width: 100%;
   word-wrap: break-word;
+  white-space: pre-wrap;
+}
+
+#assistant .user-message:hover {
+  cursor: pointer;
+  background-color: rgba(0, 0, 0, 0.02); /* Very subtle background */
+}
+
+/* User message input container styling */
+#assistant .user-message-input-container {
+  position: relative;
+  display: flex;
+  align-items: flex-end;
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+#assistant .user-message-input {
+  --SAND-30: oklch(99% 0.012 90 / 0.3);
+  flex: 1;
+  background-color: var(--SAND-30);
+  padding: 8px 12px;
+  padding-right: 44px; /* Space for the send button */
+  border: 0.75px solid var(--BR3);
+  border-radius: 3px;
+  min-height: 40px;
+  max-height: 200px;
+  resize: none;
+  overflow-y: auto;
+  font-family: inherit;
+  font-size: inherit;
+  font-weight: normal;
+  color: var(--STONE);
+  line-height: 1.;
+  box-sizing: border-box;
+}
+
+#assistant .user-message-input:hover {
+  --SAND-50: oklch(99% 0.012 90 / 0.7);
+  cursor: pointer;
+  background-color: var(--SAND-50);
+  border-color: var(--BR2);
+}
+
+#assistant .user-message-input:focus {
+  outline: 0.75px solid var(--BLACK);
+  background-color: white;
+  border-color: var(--BLACK);
+  cursor: text;
+}
+
+#assistant .user-send-button {
+  position: absolute;
+  bottom: 6px;
+  right: 6px;
+  color: var(--STONE);
+  width: 21px;
+  height: 21px;
+  border: 0.75px solid var(--BR3);
+  background-color: var(--T1);
+  border-radius: 50%;
+  font-weight: bold;
+  cursor: pointer;
+  line-height: 0;
+  z-index: 1;
+  opacity: 0.7;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+}
+
+#assistant .user-send-button svg {
+  width: 14px;
+  height: 14px;
+}
+
+#assistant .user-message-input-container:focus-within .user-send-button {
+  opacity: 1;
+  background-color: var(--T2);
+}
+
+#assistant .user-send-button:hover {
+  background-color: var(--Y1);
+  opacity: 1;
+}
+
+#assistant .user-send-button:active {
+  background-color: var(--Y2);
 }
 
 #assistant .loading-dots {
@@ -327,11 +422,12 @@
 #assistant .api-input,
 #assistant .llm-model-id-input {
   background-color: var(--SAND);
-  padding: 14px;
+  padding: 8px 12px;
   outline: none;
   border-radius: 3.5px;
   border: none;
   padding-right: 40px; /* Add padding to prevent text from going under the button */
+  box-sizing: border-box;
 }
 
 #assistant .api-input:hover,
@@ -805,6 +901,7 @@
   font-size: 0.75em;
   max-width: 100%;
   word-wrap: break-word;
+  white-space: pre-wrap;
   opacity: 0.7;
   text-align: center;
 }

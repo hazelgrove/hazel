@@ -50,7 +50,8 @@ type chat_action =
   | DeleteChat(Id.t)
   | SwitchChat(Id.t)
   | CollapseMessage(int)
-  | FilterLoadingMessages;
+  | FilterLoadingMessages
+  | Lop(int);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type external_api_action =
@@ -124,16 +125,12 @@ let get_mode_info = (mode: AssistantSettings.mode, model: Model.t) => {
  */
 
 let filter_chat_messages =
-    (message_displays: list(Model.display)): list(Model.display) => {
+    (messages: list(Model.message)): list(Model.message) => {
   List.filter(
-    (message_display: Model.display) => {
-      !(
-        message_display.role == Assistant
-        && message_display.displayable_content == [Text("...")]
-        && !message_display.collapsed
-      )
+    (message: Model.message) => {
+      message.role != Assistant || message.display.collapsed
     },
-    message_displays,
+    messages,
   );
 };
 
@@ -268,21 +265,21 @@ let create_chat_descriptor =
 
   let filtered_messages =
     List.filter(
-      (message: Model.display) => {
+      (message: Model.message) => {
         message.role == User || message.role == Assistant
       },
-      curr_chat.message_displays,
+      curr_chat.messages,
     );
 
   let combined_messages =
     String.concat(
       "\n",
       List.map(
-        (message: Model.display) => {
+        (message: Model.message) => {
           "<"
           ++ Model.string_of_role(message.role)
           ++ ">"
-          ++ message.original_content
+          ++ message.content.content
           ++ "</"
           ++ Model.string_of_role(message.role)
           ++ ">"
@@ -421,7 +418,10 @@ let mk_llm_call =
     };
     try(
       OpenRouter.start_chat(
-        ~params, ~key, ~outgoing_messages=updated_chat.outgoing_messages, req =>
+        ~params,
+        ~key,
+        ~outgoing_messages=Model.get_messages_content(updated_chat.messages),
+        req =>
         switch (OpenRouter.handle_chat(req)) {
         | Some(Reply(response)) =>
           schedule_action(response_handler(response))
@@ -455,41 +455,6 @@ let mk_llm_call =
       )
     | _ => ()
     };
-  };
-};
-
-let mk_mode_prompt =
-    (~mode: AssistantSettings.mode): option(OpenRouter.message) => {
-  let prompt =
-    switch (mode) {
-    | HazelTutor => Some(InitPrompts.mk_tutor())
-    | CodeSuggestion => None
-    | TaskCompletion => Some(InitPrompts.mk_composition())
-    };
-  prompt;
-};
-
-let init_chat = (mode: AssistantSettings.mode): Model.chat => {
-  let (init_message, init_message_display) =
-    switch (mk_mode_prompt(~mode)) {
-    | Some(init_message) => (
-        [init_message],
-        [
-          Model.mk_message_display(
-            ~content=init_message.content,
-            ~role=System(AssistantPrompt),
-          ),
-        ],
-      )
-    | None => ([], [])
-    };
-
-  {
-    outgoing_messages: init_message,
-    message_displays: init_message_display,
-    id: Id.mk(),
-    descriptor: "",
-    timestamp: JsUtil.timestamp(),
   };
 };
 
@@ -593,26 +558,27 @@ let update =
         let mode = AssistantSettings.HazelTutor;
         let curr_chat =
           Id.Map.find(chat_id, model.chat_history.past_tutor_chats);
-        let user_message = OpenRouter.mk_user_msg(content);
-        let ctx =
-          OpenRouter.mk_user_msg(
-            String.concat("\n", ChatLSP.get_sketch_and_error_ctx(editor)),
-          );
-        let new_message_displays = [
-          Model.mk_message_display(~content=user_message.content, ~role=User),
-          Model.mk_message_display(
-            ~content=ctx.content,
-            ~role=System(AssistantPrompt),
-          ),
-        ];
-        let new_outgoing_messages =
-          curr_chat.outgoing_messages @ [user_message, ctx];
+        let content_message: Model.message = {
+          content: OpenRouter.mk_user_msg(content),
+          display: Model.mk_message_display(~content, ~role=User),
+          role: User,
+        };
+        let ctx_message: Model.message = {
+          content:
+            OpenRouter.mk_user_msg(
+              String.concat("\n", ChatLSP.get_sketch_and_error_ctx(editor)),
+            ),
+          display:
+            Model.mk_message_display(
+              ~content,
+              ~role=System(AssistantPrompt),
+            ),
+          role: System(AssistantPrompt),
+        };
 
         let updated_chat = {
           ...curr_chat,
-          outgoing_messages:
-            curr_chat.outgoing_messages @ new_outgoing_messages,
-          message_displays: curr_chat.message_displays @ new_message_displays,
+          messages: curr_chat.messages @ [content_message, ctx_message],
         };
 
         mk_llm_call(
@@ -633,28 +599,39 @@ let update =
           Id.Map.find(chat_id, model.chat_history.past_composition_chats);
         switch (kind) {
         | Request(content) =>
+          print_endline("handling composition request");
           schedule_action(EmployLLMAction(SetLoop(false)));
-          let user_message = OpenRouter.mk_user_msg(content);
-          let ctx =
-            ChatLSP.Composition.mk_ctx_prompt(ChatLSP.Options.init, editor);
-          let new_message_displays = [
-            Model.mk_message_display(
-              ~content=user_message.content,
-              ~role=User,
-            ),
-            Model.mk_message_display(
-              ~content=ctx.content,
-              ~role=System(AssistantPrompt),
-            ),
-          ];
-          let new_outgoing_messages = [user_message, ctx];
+          let content_message: Model.message = {
+            content: OpenRouter.mk_user_msg(content),
+            display: Model.mk_message_display(~content, ~role=User),
+            role: User,
+          };
+          let ctx_message: Model.message = {
+            content:
+              OpenRouter.mk_user_msg(
+                String.concat(
+                  "\n",
+                  ChatLSP.get_sketch_and_error_ctx(editor),
+                ),
+              ),
+            display:
+              Model.mk_message_display(
+                ~content,
+                ~role=System(AssistantPrompt),
+              ),
+            role: System(AssistantPrompt),
+          };
+
+          // print all current messages
+          print_endline("current messages: ");
+          List.iter(
+            (msg: Model.message) => print_endline(msg.content.content),
+            curr_chat.messages,
+          );
 
           let updated_chat = {
             ...curr_chat,
-            outgoing_messages:
-              curr_chat.outgoing_messages @ new_outgoing_messages,
-            message_displays:
-              curr_chat.message_displays @ new_message_displays,
+            messages: curr_chat.messages @ [content_message, ctx_message],
           };
 
           mk_llm_call(
@@ -680,23 +657,19 @@ let update =
           let ctx =
             ChatLSP.Composition.mk_ctx_prompt(ChatLSP.Options.init, editor);
 
-          let tool_message =
-            OpenRouter.mk_tool_msg(ctx.content, tool_contents);
-
-          let new_message_displays = [
-            Model.mk_message_display(
-              ~content=ctx.content,
-              ~role=System(AssistantPrompt),
-            ),
-          ];
-          let new_outgoing_messages = [tool_message];
+          let ctx_message: Model.message = {
+            content: OpenRouter.mk_tool_msg(ctx.content, tool_contents),
+            display:
+              Model.mk_message_display(
+                ~content=ctx.content,
+                ~role=System(AssistantPrompt),
+              ),
+            role: System(AssistantPrompt),
+          };
 
           let updated_chat = {
             ...curr_chat,
-            outgoing_messages:
-              curr_chat.outgoing_messages @ new_outgoing_messages,
-            message_displays:
-              curr_chat.message_displays @ new_message_displays,
+            messages: curr_chat.messages @ [ctx_message],
           };
 
           mk_llm_call(
@@ -759,23 +732,18 @@ let update =
             print_endline("Suggestion prompt generation failed");
             model_with_new_chat |> Updated.return_quiet;
           | Some(ctx_prompt) =>
-            let new_message_display =
-              Model.mk_message_display(
-                ~content=
-                  String.concat(
-                    "\n",
-                    List.map(
-                      (msg: OpenRouter.message) => msg.content,
-                      [ctx_prompt],
-                    ),
-                  ),
-                ~role=User,
-              );
+            let ctx_message: Model.message = {
+              content: ctx_prompt,
+              display:
+                Model.mk_message_display(
+                  ~content=ctx_prompt.content,
+                  ~role=System(AssistantPrompt),
+                ),
+              role: System(AssistantPrompt),
+            };
             let updated_chat = {
               ...new_chat,
-              outgoing_messages: new_chat.outgoing_messages @ [ctx_prompt],
-              message_displays:
-                new_chat.message_displays @ [new_message_display],
+              messages: new_chat.messages @ [ctx_message],
             };
             mk_llm_call(
               ~mode,
@@ -808,24 +776,27 @@ let update =
             OpenRouter.mk_user_msg(
               String.concat("\n", ChatLSP.get_sketch_and_error_ctx(editor)),
             );
-          let new_message_displays = [
-            Model.mk_message_display(
-              ~content=user_message.content,
-              ~role=User,
-            ),
-            Model.mk_message_display(
-              ~content=ctx.content,
-              ~role=System(AssistantPrompt),
-            ),
-          ];
-          let new_outgoing_messages =
-            curr_chat.outgoing_messages @ [user_message, ctx];
+          let ctx_message: Model.message = {
+            content: ctx,
+            display:
+              Model.mk_message_display(
+                ~content=ctx.content,
+                ~role=System(AssistantPrompt),
+              ),
+            role: System(AssistantPrompt),
+          };
+          let content_message: Model.message = {
+            content: user_message,
+            display:
+              Model.mk_message_display(
+                ~content=user_message.content,
+                ~role=User,
+              ),
+            role: User,
+          };
           let updated_chat = {
             ...curr_chat,
-            outgoing_messages:
-              curr_chat.outgoing_messages @ new_outgoing_messages,
-            message_displays:
-              curr_chat.message_displays @ new_message_displays,
+            messages: curr_chat.messages @ [ctx_message, content_message],
           };
 
           mk_llm_call(
@@ -848,19 +819,18 @@ let update =
               "Your previous response caused the following error. Please fix it in your response: "
               ++ error,
             );
-          let new_outgoing_messages = [error_message];
-          let new_message_displays = [
-            Model.mk_message_display(
-              ~content=error_message.content,
-              ~role=System(AssistantPrompt),
-            ),
-          ];
+          let error_message: Model.message = {
+            content: error_message,
+            display:
+              Model.mk_message_display(
+                ~content=error_message.content,
+                ~role=System(AssistantPrompt),
+              ),
+            role: System(AssistantPrompt),
+          };
           let updated_chat = {
             ...curr_chat,
-            outgoing_messages:
-              curr_chat.outgoing_messages @ new_outgoing_messages,
-            message_displays:
-              curr_chat.message_displays @ new_message_displays,
+            messages: curr_chat.messages @ [error_message],
           };
 
           // check that fuel is not 0
@@ -903,11 +873,12 @@ let update =
 
     // todo: Should this be a user, assistant, or system message?
     //       We could make it assistant and put it in the first-person.
-    let new_outgoing_messages = [OpenRouter.mk_system_msg(content)];
-
-    let new_message_displays = [
-      Model.mk_message_display(~content, ~role=System(InternalError)),
-    ];
+    let system_message: Model.message = {
+      content: OpenRouter.mk_system_msg(content),
+      display:
+        Model.mk_message_display(~content, ~role=System(InternalError)),
+      role: System(InternalError),
+    };
 
     // Note: We aren't sending a message here, but we do add it to the chat history.
     //       for future reference for the LLM so it isn't confused.
@@ -915,8 +886,7 @@ let update =
     //        is why their prior task completion was not successful.)
     let updated_chat = {
       ...curr_chat,
-      outgoing_messages: curr_chat.outgoing_messages @ new_outgoing_messages,
-      message_displays: curr_chat.message_displays @ new_message_displays,
+      messages: curr_chat.messages @ [system_message],
     };
     update_model_chat_history(~model, ~mode, ~updated_chat)
     |> Updated.return_quiet;
@@ -945,27 +915,34 @@ let update =
 
     let content = response.content;
     let tool_call = response.tool_call;
+    let assistant_message: Model.message = {
+      content: OpenRouter.mk_assistant_msg(content),
+      display: Model.mk_message_display(~content, ~role=Assistant),
+      role: Assistant,
+    };
 
     // If streaming, update the last message display
-    let (updated_outgoing_messages, updated_message_displays) = {
-      let last_display = ListUtil.last(curr_chat.message_displays);
-      if (last_display.role == Assistant) {
-        let updated_content = last_display.original_content ++ content;
-        (
-          ListUtil.leading(curr_chat.outgoing_messages)
-          @ [OpenRouter.mk_assistant_msg(updated_content)],
-          ListUtil.leading(curr_chat.message_displays)
-          @ [
-            Model.mk_message_display(
-              ~content=updated_content,
-              ~role=Assistant,
-            ),
-          ],
-        );
-      } else {
-        switch (tool_call) {
-        | Some(tool_call) =>
-          let updated_message_displays =
+    let updated_messages = {
+      /* let last_display = ListUtil.last(curr_chat.message_displays);
+         if (last_display.role == Assistant) {
+           let updated_content = last_display.original_content ++ content;
+           (
+             ListUtil.leading(curr_chat.messages)
+             @ [OpenRouter.mk_assistant_msg(updated_content)],
+             ListUtil.leading(curr_chat.messages)
+             @ [
+               Model.mk_message_display(
+                 ~content=updated_content,
+                 ~role=Assistant,
+               ),
+             ],
+           );
+         } else */
+      switch (tool_call) {
+      | Some(tool_call) =>
+        let structure_edit_message: Model.message = {
+          content: OpenRouter.mk_system_msg(""),
+          display:
             Model.mk_message_display(
               ~content=
                 mk_structure_edit_msg(
@@ -974,78 +951,21 @@ let update =
                   ~args=Json.get_string_kvs(tool_call.args),
                 ),
               ~role=Tool,
-            );
-          /*
-           switch (Json.dot("code", tool_call.args)) {
-           | Some(`String(arg)) =>
-             let curr_selection =
-               ErrorPrint.Print.seg(
-                 ~holes=Some("?"),
-                 editor.editor.state.zipper.selection.content,
-               );
-             if (curr_selection == "") {
-               mk_message_display(
-                 ~content=
-                   "Agent is inserting the following code: "
-                   ++ "```"
-                   ++ arg
-                   ++ "```",
-                 ~role=Tool,
-               );
-             } else {
-               mk_message_display(
-                 ~content=
-                   "Agent is replacing "
-                   ++ "```"
-                   ++ curr_selection
-                   ++ "``` with "
-                   ++ "```"
-                   ++ arg
-                   ++ "```",
-                 ~role=Tool,
-               );
-             };
-           | _ =>
-             mk_message_display(
-               ~content=
-                 "Agent called \""
-                 ++ tool_call.name
-                 ++ "\" with the following arguments: "
-                 ++ Json.to_string(tool_call.args),
-               ~role=Tool,
-             )
-           };
-           */
-
-          switch (content) {
-          | "" => (
-              curr_chat.outgoing_messages,
-              curr_chat.message_displays @ [updated_message_displays],
-            )
-          | _ => (
-              curr_chat.outgoing_messages
-              @ [OpenRouter.mk_assistant_msg(content)],
-              curr_chat.message_displays
-              @ [
-                Model.mk_message_display(~content, ~role=Assistant),
-                updated_message_displays,
-              ],
-            )
-          };
-        | None => (
-            curr_chat.outgoing_messages
-            @ [OpenRouter.mk_assistant_msg(content)],
-            curr_chat.message_displays
-            @ [Model.mk_message_display(~content, ~role=Assistant)],
-          )
+            ),
+          role: Tool,
         };
+        switch (content) {
+        | "" => curr_chat.messages @ [structure_edit_message]
+        | _ =>
+          curr_chat.messages @ [structure_edit_message, assistant_message]
+        };
+      | None => curr_chat.messages @ [assistant_message]
       };
     };
 
     let updated_chat = {
       ...curr_chat,
-      outgoing_messages: updated_outgoing_messages,
-      message_displays: updated_message_displays,
+      messages: updated_messages,
     };
 
     switch (response_kind) {
@@ -1479,29 +1399,34 @@ let update =
       let (past_chats, curr_chat) = get_mode_info(mode, model);
       let is_prompt_display =
         try(
-          List.nth(curr_chat.message_displays, index).role
-          == System(AssistantPrompt)
+          List.nth(curr_chat.messages, index).role == System(AssistantPrompt)
         ) {
         | Invalid_argument(_) => true
         };
-      let updated_message_displays =
+      let updated_messages =
         List.mapi(
-          (i: int, msg: Model.display) =>
+          (i: int, msg: Model.message) =>
             if (i == index) {
               {
                 ...msg,
-                collapsed: !msg.collapsed,
+                display: {
+                  ...msg.display,
+                  collapsed: !msg.display.collapsed,
+                },
               };
             } else if (msg.role == System(AssistantPrompt)
                        && is_prompt_display) {
               {
                 ...msg,
-                collapsed: true,
+                display: {
+                  ...msg.display,
+                  collapsed: true,
+                },
               };
             } else {
               msg;
             },
-          curr_chat.message_displays,
+          curr_chat.messages,
         );
       let updated_past_chats =
         Id.Map.update(
@@ -1511,7 +1436,7 @@ let update =
             | Some(chat: Model.chat) =>
               Some({
                 ...chat,
-                message_displays: updated_message_displays,
+                messages: updated_messages,
               })
             | None => None
             },
@@ -1539,8 +1464,7 @@ let update =
               (chat: Model.chat) => {
                 {
                   ...chat,
-                  message_displays:
-                    filter_chat_messages(chat.message_displays),
+                  messages: filter_chat_messages(chat.messages),
                 }
               },
               model.chat_history.past_tutor_chats,
@@ -1550,8 +1474,7 @@ let update =
               (chat: Model.chat) => {
                 {
                   ...chat,
-                  message_displays:
-                    filter_chat_messages(chat.message_displays),
+                  messages: filter_chat_messages(chat.messages),
                 }
               },
               model.chat_history.past_suggestion_chats,
@@ -1561,8 +1484,7 @@ let update =
               (chat: Model.chat) => {
                 {
                   ...chat,
-                  message_displays:
-                    filter_chat_messages(chat.message_displays),
+                  messages: filter_chat_messages(chat.messages),
                 }
               },
               model.chat_history.past_composition_chats,
@@ -1570,6 +1492,21 @@ let update =
         },
       }
       |> Updated.return_quiet
+    | Lop(index) =>
+      // Lop off the messages after the index
+      let mode = settings.assistant.mode;
+      let (_, curr_chat) = get_mode_info(mode, model);
+      print_endline(
+        "Lopping off messages after index: " ++ string_of_int(index),
+      );
+      let updated_messages =
+        curr_chat.messages |> ListUtil.take_up_to_n(index);
+      let updated_chat = {
+        ...curr_chat,
+        messages: updated_messages,
+      };
+      update_model_chat_history(~model, ~mode, ~updated_chat)
+      |> Updated.return_quiet;
     }
   | ExternalAPIAction(external_api_action) =>
     switch (external_api_action) {
