@@ -89,13 +89,18 @@ let poly_eq1_ex = {
 };
 let poly_eq2_ex = {
   sub_id: PolyEqualTrue,
-  term: mk_example("true == true"),
-  message: "true is equal to true, so the expression evaluates to true.",
+  term: mk_example("(true, \"str\") == (true, \"str\")"),
+  message: "(true, \"str\") is equal to (true, \"str\"), so the expression evaluates to true.",
 };
 let poly_neq1_ex = {
   sub_id: PolyNotEqualTrue,
-  term: mk_example("true != false"),
-  message: "true is not equal to false, so the expression evaluates to true.",
+  term: mk_example("[1, 2] != [1, 2, 3]"),
+  message: "[1, 2] is not equal to [1, 2, 3], so the expression evaluates to true.",
+};
+let poly_neq2_ex = {
+  sub_id: PolyNotEqualFalse,
+  term: mk_example("true != true"),
+  message: "true is equal to true, so the expression evaluates to false.",
 };
 let float_plus_ex = {
   sub_id: Float(Plus),
@@ -462,7 +467,7 @@ let poly_neq_exp: form = {
     syntactic_form: [_exp1, space(), not_equals(), space(), _exp2],
     expandable_id: None,
     explanation,
-    examples: [poly_neq1_ex],
+    examples: [poly_neq1_ex, poly_neq2_ex],
   };
 };
 let _exp1 = exp("e1");
