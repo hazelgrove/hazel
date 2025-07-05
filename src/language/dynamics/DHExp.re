@@ -124,7 +124,7 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
   };
 };
 
-let rec ty_consistent = (d1, d2) => {
+let rec ty_comparable = (d1, d2) => {
   switch (term_of(d1), term_of(d2)) {
   | (Invalid(_), _)
   | (EmptyHole, _)
@@ -150,14 +150,16 @@ let rec ty_consistent = (d1, d2) => {
   | (Match(_), _)
   | (Use(_), _)
   | (Dot(_), _)
-  | (LivelitName(_), _) => false
-  | (Probe(d1, _), _) => ty_consistent(d1, d2)
-  | (_, Probe(d2, _)) => ty_consistent(d1, d2)
-  | (Parens(d1), _) => ty_consistent(d1, d2)
-  | (_, Parens(d2)) => ty_consistent(d1, d2)
-  | (Asc(d1, _), _) => ty_consistent(d1, d2)
-  | (_, Asc(d2, _)) => ty_consistent(d1, d2)
-  // TODO(zhiyao): are we allowed to compare int/sint/nat?
+  | (LivelitName(_), _)
+  | (Fun(_), _)
+  | (BuiltinFun(_), _)
+  | (TypFun(_), _) => false
+  | (Probe(d1, _), _) => ty_comparable(d1, d2)
+  | (_, Probe(d2, _)) => ty_comparable(d1, d2)
+  | (Parens(d1), _) => ty_comparable(d1, d2)
+  | (_, Parens(d2)) => ty_comparable(d1, d2)
+  | (Asc(d1, _), _) => ty_comparable(d1, d2)
+  | (_, Asc(d2, _)) => ty_comparable(d1, d2)
   | (Atom(t1), Atom(t2)) =>
     switch (t1, t2) {
     | (Int(_), Int(_)) => true
@@ -177,25 +179,19 @@ let rec ty_consistent = (d1, d2) => {
   | (Label(l1), Label(l2)) => l1 == l2
   | (Label(_), _) => false
   | (TupLabel(l1, d1), TupLabel(l2, d2)) =>
-    ty_consistent(l1, l2) && ty_consistent(d1, d2)
+    ty_comparable(l1, l2) && ty_comparable(d1, d2)
   | (TupLabel(_), _) => false
-  // Note(zhiyao): We want to leave err:CompareArrow to be caught in
-  // the later stage because we don't have the type information here.
-  | (Fun(_) | BuiltinFun(_), Fun(_) | BuiltinFun(_)) => true
-  | (Fun(_) | BuiltinFun(_), _) => false
-  | (TypFun(_), TypFun(_)) => true
-  | (TypFun(_), _) => false
   // Note(zhiyao): Listlit checks the consistency of all elements,
   // which is different from Tuple (check pairwise consistency).
   | (ListLit(ds1), ListLit(ds2)) =>
     switch (ds1 @ ds2) {
     | [] => true
-    | [hd, ...tl] => List.for_all(ty_consistent(hd), tl)
+    | [hd, ...tl] => List.for_all(ty_comparable(hd), tl)
     }
   | (ListLit(_), _) => false
   | (Tuple(ds1), Tuple(ds2)) =>
     List.length(ds1) == List.length(ds2)
-    && List.for_all2(ty_consistent, ds1, ds2)
+    && List.for_all2(ty_comparable, ds1, ds2)
   | (Tuple(_), _) => false
   | (
       Constructor(_, Some(Some(t1))) |
@@ -211,63 +207,11 @@ let rec ty_consistent = (d1, d2) => {
         _,
       ),
     ) =>
-    Typ.is_consistent(Ctx.empty_post_elaboration, t1, t2)
+    Typ.is_consistent(Ctx.empty_post_elaboration, t1, t2) && !Typ.has_fun(t1)
   | (Constructor(_), _) => false
   | (Ap(_), _) => false
   };
 };
-
-let rec ty_has_arrow = (d: t): bool =>
-  switch (term_of(d)) {
-  | Invalid(_)
-  | EmptyHole
-  | MultiHole(_)
-  | DynamicErrorHole(_)
-  | Deferral(_)
-  | DeferredAp(_)
-  | Undefined
-  | Var(_)
-  | Let(_)
-  | FixF(_)
-  | TyAlias(_)
-  | TypAp(_)
-  | If(_)
-  | Seq(_)
-  | Test(_)
-  | Filter(_)
-  | Closure(_)
-  | Cons(_)
-  | ListConcat(_)
-  | UnOp(_)
-  | BinOp(_)
-  | Match(_)
-  | Dot(_)
-  | LivelitName(_)
-  | Atom(_)
-  | Use(_)
-  | Label(_) => false
-  | Probe(d, _)
-  | Parens(d)
-  | Asc(d, _)
-  | TupLabel(_, d) => ty_has_arrow(d)
-  | Fun(_)
-  | BuiltinFun(_)
-  | TypFun(_) => true
-  | ListLit(ds)
-  | Tuple(ds) => List.exists(ty_has_arrow, ds)
-  | Constructor(_, Some(Some(t))) =>
-    Typ.has_arrow(Ctx.empty_post_elaboration, t)
-  | Constructor(_) => false
-  | Ap(
-      _,
-      {term: Constructor(_, Some(Some({term: Arrow(_, t), _}))), _},
-      d,
-    ) =>
-    // Note(zhiyao): It's necessary to check the type of the argument because
-    // elaborated types may contain Hole.
-    Typ.has_arrow(Ctx.empty_post_elaboration, t) || ty_has_arrow(d)
-  | Ap(_, _, _) => false
-  };
 
 let rec poly_equal = (d1, d2): bool => {
   // With assumption that the types are consistent and have no arrow type

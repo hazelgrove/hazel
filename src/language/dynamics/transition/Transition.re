@@ -567,11 +567,8 @@ module Transition = (EV: EV_MODE) => {
       | Undefined(_) => Indet
       | DefinedPoly(poly_op) =>
         let expr: t =
-          if (!DHExp.ty_consistent(d1, d2)) {
-            DynamicErrorHole(BinOp(op, d1, d2) |> rewrap, Inconsistent)
-            |> fresh;
-          } else if (DHExp.ty_has_arrow(d1) || DHExp.ty_has_arrow(d2)) {
-            DynamicErrorHole(BinOp(op, d1, d2) |> rewrap, CompareArrow)
+          if (!DHExp.ty_comparable(d1, d2)) {
+            DynamicErrorHole(BinOp(op, d1, d2) |> rewrap, Incomparable)
             |> fresh;
           } else {
             let res = DHExp.poly_equal(d1, d2);
