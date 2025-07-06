@@ -23,13 +23,13 @@ let view =
       ~signal: event => 'a,
       ~indicator: list(Node.t),
     ) => {
-  let navigation_buttons =
-    nav_buttons
-      ? [
-        button(Icons.back, _ => signal(Previous)),
-        button(Icons.forward, _ => signal(Next)),
-      ]
-      : [];
+  // let navigation_buttons =
+  //   nav_buttons
+  //     ? [
+  //       button(Icons.back, _ => signal(Previous)),
+  //       button(Icons.forward, _ => signal(Next)),
+  //     ]
+  //     : [];
 
   let edit_buttons_list = [
     button(~tooltip="Rename Current Slide", Icons.rename, _ =>
