@@ -42,8 +42,9 @@ let view =
   [
     div(
       ~attrs=[Attr.id("slide-navigation")],
-      indicator
-      @ navigation_buttons
+      [button(Icons.back, _ => signal(Previous))]
+      @ indicator
+      @ [button(Icons.forward, _ => signal(Next))]
       @ (
         edit_buttons
           ? [div(~attrs=[Attr.id("edit-buttons")], edit_buttons_list)] : []
