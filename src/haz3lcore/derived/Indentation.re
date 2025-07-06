@@ -151,8 +151,7 @@ let rec go' = ((not_top, base: int, seg: Segment.t)) => {
         switch (p) {
         | Secondary(w) when Secondary.is_linebreak(w) =>
           let (prev, next) = prev_next;
-          /* Linebreaks following these tiles should reset indent
-           * to its level at the beginning of the bidelimited ctx */
+
           let level =
             // switch (prev_next) {
             // | (_, None) => base
@@ -182,7 +181,7 @@ let rec go' = ((not_top, base: int, seg: Segment.t)) => {
             };
           (level, Id.Map.add(w.id, level, map));
         | Secondary(_)
-        | Grout(_) => (level, map)
+        | Grout(_)
         | Projector(_) => (level, map) //TODO(andrew)
         | Tile(t) =>
           let map =
