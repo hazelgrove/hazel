@@ -104,9 +104,24 @@ let test = (~name, ~acts, ~goal): test_case(_) =>
     )
   );
 
-let test_indent = (~name, ~init, ~goal): test_case(_) =>
+let test_indent = (~name, ~init, ~goal): test_case(_) => {
   /* Here, we trim trailing whitespace as current regrouting may
      introduce extraneous trailing whitespace during entry */
+  // let z = init |> string_to_ltr_actions |> perform(Zipper.init());
+  // if (name == "Bidelimited context same-line terminator indents") {
+  //   print_endline("test zipper: ");
+  //   print_endline(z |> Zipper.show);
+  //   print_endline(
+  //     "goal: "
+  //     ++ Printer.of_zipper(
+  //          ~holes=convex_char,
+  //          ~concave_holes=concave_char,
+  //          ~caret="", /* No caret for now */
+  //          ~indent=" ",
+  //          z,
+  //        ),
+  //   );
+  // };
   test_case(name, `Quick, () =>
     check(
       testable(Fmt.string, (a, b) =>
@@ -123,11 +138,12 @@ let test_indent = (~name, ~init, ~goal): test_case(_) =>
       |> Printer.of_zipper(
            ~holes=convex_char,
            ~concave_holes=concave_char,
-           //~caret=caret_char,
+           ~caret="", /* No caret for now */
            ~indent=" ",
          ),
     )
   );
+};
 
 let basic_tests = [
   test(
@@ -256,6 +272,67 @@ let destruct_tests = [
 
 let indentation_tests = [
   /* INDENTATION OF COMPLETE SYNTAX */
+  //   test_indent(
+  //     ~name="Top level doesn't auto indent",
+  //     ~init={|
+  // 1|},
+  //     ~goal={|
+  // 1|},
+  //   ),
+  //   test_indent(
+  //     ~name="Bidelimited context same-line terminator indents",
+  //     ~init={|(
+  // 1)|},
+  //     ~goal={|(
+  //   1)|},
+  //   ),
+  //   test_indent(
+  //     ~name=
+  //       "Double bidelimited context same-line terminator doesn't double indents",
+  //     ~init={|((
+  // 1))|},
+  //     ~goal={|((
+  //   1))|},
+  //   ),
+  // below test doesn't fail with default resetter=false even though it should
+  test_indent(
+    ~name="let",
+    ~init={|let a =
+b
+in 1|},
+    ~goal={|let a =
+  b
+in 1|},
+  ),
+  test_indent(
+    ~name="if then else",
+    ~init={|if true
+then
+1
+else 2|},
+    ~goal={|if true
+then
+  1
+else 2|},
+  ),
+  test_indent(
+    ~name="Bidelimited context indents",
+    ~init={|(
+1
+)|},
+    ~goal={|(
+  1
+)|},
+  ),
+  test_indent(
+    ~name="Double bidelimited context doesn't double indents",
+    ~init={|((
+1
+))|},
+    ~goal={|((
+  1
+))|},
+  ),
   test_indent(
     ~name="Operators don't indent 1",
     ~init={|1 +
@@ -269,6 +346,28 @@ let indentation_tests = [
 + 2|},
     ~goal={|1
 + 2|},
+  ),
+  test_indent(
+    ~name="Operators in nested context",
+    ~init={|(
+1+
+2
+)|},
+    ~goal={|(
+  1+
+  2
+)|},
+  ),
+  test_indent(
+    ~name="Function application",
+    ~init={|go(
+1,
+2
+)|},
+    ~goal={|go(
+  1,
+  2
+)|},
   ),
   test_indent(
     ~name="Nested function application",
@@ -348,9 +447,91 @@ go(subst(arg, x, body)) end
         go(subst(arg, x, body)) end
 | _ => Error("Not a Function") end end in go|},
   ),
-  test_indent(~name="Indentation 0", ~init={|let
-a|}, ~goal={|let
-  a|}),
+  test_indent(
+    ~name="Even: commas, function literals, if expression",
+    ~init=
+      {|let (even : Int -> Bool, odd : Int -> Bool) = (
+fun n ->
+if n == 0
+then
+true
+else
+odd(n - 1),
+fun n ->
+if n == 0 then false else even(n - 1)
+) in 1|},
+    ~goal=
+      {|let (even : Int -> Bool, odd : Int -> Bool) = (
+  fun n ->
+    if n == 0
+    then
+      true
+    else
+      odd(n - 1),
+  fun n ->
+    if n == 0 then false else even(n - 1)
+) in 1|},
+  ),
+  test_indent(
+    ~name="Indentation of Complete Tuples 1",
+    ~init={|let a = (
+1,
+2
+) in 1|},
+    ~goal={|let a = (
+  1,
+  2
+) in 1|},
+  ),
+  test_indent(
+    ~name="Indentation of Complete Tuples 2",
+    ~init={|let a = (
+fun x -> x,
+1
+) in 1|},
+    ~goal={|let a = (
+  fun x -> x,
+  1
+) in 1|},
+  ),
+  test_indent(
+    ~name="Indentation of Complete Tuples 3 (Commas reset)",
+    ~init={|let a = (
+fun x ->
+x,
+1
+) in 1|},
+    ~goal={|let a = (
+  fun x ->
+    x,
+  1
+) in 1|},
+  ),
+  test_indent(
+    ~name="Indentation of Complete Tuples 3 (Commas on own linereset)",
+    ~init={|let a =
+(
+fun x ->
+x
+,
+2
+) in 1|},
+    ~goal={|let a =
+  (
+    fun x ->
+      x
+    ,
+    2
+) in 1|},
+  ),
+  /* INDENTATION OF INCOMPLETE SYNTAX */
+  test_indent(
+    ~name="Indentation Incomplete Flow 0",
+    ~init={|let
+a|},
+    ~goal={|let
+  a|},
+  ),
   test_indent(
     ~name="Indentation Incomplete Flow 1",
     ~init={|let a =
@@ -422,21 +603,17 @@ b|},
 let b = 2 in
 b|},
   ),
-  // SPECIAL CASES (comma and case rules)
-  //   test_indent(
-  //     ~name="Commas should reset indentation",
-  //     ~init={|let a = (
-  // fun x ->
-  // 1,
-  // 2)
-  // in a|},
-  //     ~goal={|let a = (
-  //   fun x ->
-  //     1,
-  //   2)
-  // in a|},
-  //   ),
-  // INCOMPLETE
+  test_indent(
+    ~name="Commas should reset indentation",
+    ~init={|let a = (
+fun x ->
+1,
+|},
+    ~goal={|let a = (
+  fun x ->
+    1,
+  ?|},
+  ),
 ];
 
 let tests = [
