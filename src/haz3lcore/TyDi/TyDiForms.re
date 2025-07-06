@@ -44,7 +44,7 @@ module Typ = {
     (";", Unknown(Internal)),
     ("&&", Atom(Bool)),
     ("\\/", Atom(Bool)),
-    ("||", Atom(Bool)),
+    //("||", Atom(Bool)),
     ("$==", Atom(Bool)),
     ("==.", Atom(Bool)),
     ("==", Atom(Bool)),
@@ -68,7 +68,7 @@ module Typ = {
     ("-.", Atom(Float)),
     ("*.", Atom(Float)),
     ("/.", Atom(Float)),
-    ("**.", Atom(Float)),
+    //("**.", Atom(Float)), /* annoying as *. is more common */
     ("++", Atom(String)),
   ];
 

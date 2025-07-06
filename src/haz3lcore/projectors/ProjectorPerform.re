@@ -172,6 +172,10 @@ let go =
       };
       Ok(z);
     }
-  | Escape(id, d) => Ok(jump_to_side_of_id(d, z, id))
+  | Escape(id, d) =>
+    switch (jump_to_side_of_id(d, z, id)) {
+    | Some(z) => Ok(z)
+    | None => Error(Cant_project)
+    }
   };
 };
