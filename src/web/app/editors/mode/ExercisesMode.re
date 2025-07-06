@@ -482,7 +482,6 @@ module View = {
       ~instructor_mode=globals.settings.instructor_mode,
     )
     @ EditorModeView.view(
-        ~nav_buttons=true,
         ~edit_buttons=false,
         ~signal=
           fun
