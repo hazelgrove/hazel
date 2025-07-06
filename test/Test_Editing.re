@@ -104,6 +104,31 @@ let test = (~name, ~acts, ~goal): test_case(_) =>
     )
   );
 
+let test_indent = (~name, ~init, ~goal): test_case(_) =>
+  /* Here, we trim trailing whitespace as current regrouting may
+     introduce extraneous trailing whitespace during entry */
+  test_case(name, `Quick, () =>
+    check(
+      testable(Fmt.string, (a, b) =>
+        String.equal(
+          StringUtil.trim_trailing_whitespace(a),
+          StringUtil.trim_trailing_whitespace(b),
+        )
+      ),
+      goal,
+      goal,
+      init
+      |> string_to_ltr_actions
+      |> perform(Zipper.init())
+      |> Printer.of_zipper(
+           ~holes=convex_char,
+           ~concave_holes=concave_char,
+           //~caret=caret_char,
+           ~indent=" ",
+         ),
+    )
+  );
+
 let basic_tests = [
   test(
     ~name="Initialize caret position from string",
@@ -111,7 +136,6 @@ let basic_tests = [
     ~goal="¦foo",
   ),
 ];
-
 let insertion_tests = [
   /* INSERTION : BASIC*/
   test(
@@ -230,8 +254,159 @@ let destruct_tests = [
   ),
 ];
 
+let indentation_tests = [
+  /* INDENTATION OF COMPLETE SYNTAX */
+  test_indent(
+    ~name="Operators don't indent 1",
+    ~init={|1 +
+2|},
+    ~goal={|1 +
+2|},
+  ),
+  test_indent(
+    ~name="Operators don't indent 2",
+    ~init={|1
++ 2|},
+    ~goal={|1
++ 2|},
+  ),
+  test_indent(
+    ~name="Nested function application",
+    ~init={|go(
+Ap(
+Lam(
+"yo",
+Var("yo")),
+Lam(
+"bro",
+Var("bro")))
+)|},
+    ~goal=
+      {|go(
+  Ap(
+    Lam(
+      "yo",
+    Var("yo")),
+    Lam(
+      "bro",
+  Var("bro")))
+)|},
+  ),
+  test_indent(
+    ~name="Case rules with and without linebreaks after `=>`",
+    ~init=
+      {|let length : [Int] -> Int =
+fun xs ->
+case xs
+| [] => 0
+| hd::tl =>
+1 + length(tl)
+end
+in 1|},
+    ~goal=
+      {|let length : [Int] -> Int =
+  fun xs ->
+    case xs
+    | [] => 0
+    | hd::tl =>
+      1 + length(tl)
+    end
+in 1|},
+  ),
+  test_indent(
+    ~name="Nested cases",
+    ~init=
+      {|let go: Exp -> Result =
+fun e ->
+case e
+| Var(n) =>
+Error("Free Variable")
+| Lam(x, body) =>
+Ok(Lam(x, body))
+| Ap(e1,e2) =>
+case go(e1)
+| Ok(Lam(x, body))=>
+case go(e2)
+| Error(err) =>  Error(err)
+| Ok(arg) =>
+go(subst(arg, x, body)) end
+| _ => Error("Not a Function") end end in go|},
+    ~goal=
+      {|let go: Exp -> Result =
+  fun e ->
+    case e
+    | Var(n) =>
+      Error("Free Variable")
+    | Lam(x, body) =>
+      Ok(Lam(x, body))
+    | Ap(e1,e2) =>
+      case go(e1)
+      | Ok(Lam(x, body))=>
+        case go(e2)
+        | Error(err) =>  Error(err)
+        | Ok(arg) =>
+        go(subst(arg, x, body)) end
+| _ => Error("Not a Function") end end in go|},
+  ),
+  test_indent(~name="Indentation 0", ~init={|let
+a|}, ~goal={|let
+  a|}),
+  test_indent(
+    ~name="Indentation 1",
+    ~init={|let a =
+    1|},
+    ~goal={|let a =
+      1|},
+  ),
+  test_indent(
+    ~name="Indentation 2",
+    ~init={|let a =
+fun x ->
+|},
+    ~goal={|let a =
+  fun x ->
+    ?|},
+  ),
+  test_indent(
+    ~name="Indentation - Wrapping immediate next lines",
+    ~init={|let a =
+let b = 2 in
+b|},
+    ~goal={|let a =
+  let b = 2 in
+  b|},
+  ),
+  test_indent(
+    ~name="Indentation - Don't wrap over blank line",
+    ~init={|let a =
+
+let b = 2 in
+b|},
+    ~goal={|let a =
+
+let b = 2 in
+b|},
+  ),
+  // SPECIAL CASES (comma and case rules)
+  //   test_indent(
+  //     ~name="Commas should reset indentation",
+  //     ~init={|let a = (
+  // fun x ->
+  // 1,
+  // 2)
+  // in a|},
+  //     ~goal={|let a = (
+  //   fun x ->
+  //     1,
+  //   2)
+  // in a|},
+  //   ),
+  // INCOMPLETE
+];
+
 let tests = [
   ("Editing.Basic", basic_tests),
   ("Editing.Insertion", insertion_tests),
   ("Editing.Destruction", destruct_tests),
+  ("Editing.Indentation", indentation_tests),
 ];

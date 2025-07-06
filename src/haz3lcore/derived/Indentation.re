@@ -23,20 +23,21 @@ let is_incrementor = (p: Piece.t): bool =>
 let is_resetter = (p: Piece.t): bool =>
   switch (p) {
   | Tile(t) =>
-    switch (Tile.shapes(t)) {
-    | _ when t.label == ["i"] => true /* hack to reduce let-in jank */
-    | (Concave(_), _) when t.label == ["|"] => true
-    | (Concave(_), _) when t.label == ["|", "=>"] => true
+    switch (t.label) {
+    | _ when t.label == ["i"] => true /* hack to reduce let-in jank; comes at a cost */
+    | [","] => true
+    | ["|"] => true /* hack */
+    | ["|", "=>"] => true
     | _ => false
     }
   | _ => false
   };
 
-/* Remove non-contentful items (whitespace and concave grout) */
+/* Remove non-contentful items (whitespace and grout) */
 let trim_non_content: Segment.t => Segment.t =
   List.filter_map(
     fun
-    | Piece.Grout({shape: Concave, _}) => None
+    | Piece.Grout({shape: Concave, _}) /*{shape: Concave, _}*/ => None
     | Secondary(s) when Secondary.is_space(s) => None
     | p => Some(p),
   );
@@ -72,26 +73,43 @@ let union_all =
 let rec shallow_complete_segment = (seg: Segment.t): Segment.t =>
   switch (seg) {
   | [] => []
-  | [Tile(t), ...rest]
-      when
-        !Tile.is_complete(t) && List.length(t.label) == 2 && t.shards == [0] => [
+  | [Tile(t), ...rest] when !Tile.is_complete(t) => [
       Tile({
         ...t,
-        shards: [0, 1],
+        shards: List.init(List.length(t.label), i => i),
         children: t.children @ [shallow_complete_segment(rest)],
+        // note wrong number of children
       }),
     ]
-  | [Tile(t), ...rest]
-      when
-        !Tile.is_complete(t)
-        && List.length(t.label) == 3
-        && t.shards == [0, 1] => [
-      Tile({
-        ...t,
-        shards: [0, 1, 2],
-        children: t.children @ [shallow_complete_segment(rest)],
-      }),
-    ]
+  // | [Tile(t), ...rest]
+  //     when
+  //       !Tile.is_complete(t) && List.length(t.label) == 2 && t.shards == [0] => [
+  //     Tile({
+  //       ...t,
+  //       shards: [0, 1],
+  //       children: t.children @ [shallow_complete_segment(rest)],
+  //     }),
+  //   ]
+  // | [Tile(t), ...rest]
+  //     when
+  //       !Tile.is_complete(t)
+  //       && List.length(t.label) == 3
+  //       && t.shards == [0, 1] => [
+  //     Tile({
+  //       ...t,
+  //       shards: [0, 1, 2],
+  //       children: t.children @ [shallow_complete_segment(rest)],
+  //     }),
+  //   ]
+  // | [Tile(t), ...rest]
+  //     when
+  //       !Tile.is_complete(t) && List.length(t.label) == 3 && t.shards == [0] => [
+  //     Tile({
+  //       ...t,
+  //       shards: [0, 1, 2],
+  //       children: t.children @ [shallow_complete_segment(rest)],
+  //     }),
+  //   ]
   | [p, ...rest] => [p, ...shallow_complete_segment(rest)]
   };
 
@@ -121,14 +139,15 @@ let split_at_consecutive_linebreaks =
           if (incomplete_before') {
             /* All incomplete tiles are before this point, so we can split here */
             Some((
-              List.rev(acc),
-              rest2,
+              List.rev([p, ...acc]),
+              /* note to live one linebreak in and one out (empty line) */
+              [Secondary(w2), ...rest2],
             ));
           } else {
             /* Continue searching */
             find_split_point(
               rest2,
-              [p, ...acc],
+              [Secondary(w2), p, ...acc],
               incomplete_before',
             );
           }
@@ -147,9 +166,10 @@ let split_at_consecutive_linebreaks =
 };
 
 let rec go' = ((base: int, seg: Segment.t)) => {
+  let trimmed_seg = trim_non_content(seg);
   let trimmed_seg =
-    switch (split_at_consecutive_linebreaks(seg)) {
-    | None => shallow_complete_segment(trim_non_content(seg))
+    switch (split_at_consecutive_linebreaks(trimmed_seg)) {
+    | None => shallow_complete_segment(trimmed_seg)
     | Some((before, after)) => shallow_complete_segment(before) @ after
     };
   let (_, map) =
