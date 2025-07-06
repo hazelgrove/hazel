@@ -111,6 +111,7 @@ let basic_tests = [
     ~goal="¦foo",
   ),
 ];
+
 let insertion_tests = [
   /* INSERTION : BASIC*/
   test(

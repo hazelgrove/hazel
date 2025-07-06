@@ -44,7 +44,7 @@ module Typ = {
     (";", Unknown(Internal)),
     ("&&", Atom(Bool)),
     ("\\/", Atom(Bool)),
-    // ("||", Atom(Bool)),
+    ("||", Atom(Bool)),
     ("$==", Atom(Bool)),
     ("==.", Atom(Bool)),
     ("==", Atom(Bool)),
