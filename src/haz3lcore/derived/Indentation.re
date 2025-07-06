@@ -4,6 +4,12 @@ let ends_with_in = (t: Tile.t): bool =>
   | _ => false
   };
 
+let is_comma = (p: Piece.t): bool =>
+  switch (p) {
+  | Tile(t) => t.label == [","]
+  | _ => false
+  };
+
 /* Linebreaks following these tiles should increment the indent */
 let is_incrementor = (p: Piece.t): bool =>
   switch (p) {
@@ -12,6 +18,7 @@ let is_incrementor = (p: Piece.t): bool =>
   | Tile(t) =>
     switch (Tile.shapes(t)) {
     // convexity at beginning would exclude `| =>`
+    //| (_, Concave(_)) when is_comma(p) => true
     | (_, Concave(_)) when List.length(t.label) >= 2 => true
     | _ => false
     }
@@ -25,7 +32,9 @@ let is_resetter = (p: Piece.t): bool =>
   | Tile(t) =>
     switch (t.label) {
     | _ when t.label == ["i"] => true /* hack to reduce let-in jank; comes at a cost */
-    | [","] => true
+    // | [","] =>
+    //   print_endline("resetting on comma");
+    //   true;
     | ["|"] => true /* hack */
     | ["|", "=>"] => true
     | _ => false
@@ -81,39 +90,11 @@ let rec shallow_complete_segment = (seg: Segment.t): Segment.t =>
         // note wrong number of children
       }),
     ]
-  // | [Tile(t), ...rest]
-  //     when
-  //       !Tile.is_complete(t) && List.length(t.label) == 2 && t.shards == [0] => [
-  //     Tile({
-  //       ...t,
-  //       shards: [0, 1],
-  //       children: t.children @ [shallow_complete_segment(rest)],
-  //     }),
-  //   ]
-  // | [Tile(t), ...rest]
-  //     when
-  //       !Tile.is_complete(t)
-  //       && List.length(t.label) == 3
-  //       && t.shards == [0, 1] => [
-  //     Tile({
-  //       ...t,
-  //       shards: [0, 1, 2],
-  //       children: t.children @ [shallow_complete_segment(rest)],
-  //     }),
-  //   ]
-  // | [Tile(t), ...rest]
-  //     when
-  //       !Tile.is_complete(t) && List.length(t.label) == 3 && t.shards == [0] => [
-  //     Tile({
-  //       ...t,
-  //       shards: [0, 1, 2],
-  //       children: t.children @ [shallow_complete_segment(rest)],
-  //     }),
-  //   ]
   | [p, ...rest] => [p, ...shallow_complete_segment(rest)]
   };
 
 /* Split segment at first run of two consecutive linebreaks where all incomplete tiles occur before those linebreaks */
+//TODO(andrew): should maybe(??) split along all double linebreaks and complete subsegs? pros and cons...
 let split_at_consecutive_linebreaks =
     (seg: Segment.t): option((Segment.t, Segment.t)) => {
   let rec find_split_point =
@@ -185,8 +166,12 @@ let rec go' = ((base: int, seg: Segment.t)) => {
               level + 2;
             } else if (next
                        |> Option.map(is_resetter)
-                       |> Option.value(~default=true)) {
+                       |> Option.value(~default=false)) {
               base;
+              // } else if (prev
+              //            |> Option.map(is_comma)
+              //            |> Option.value(~default=false)) {
+              //   base;
             } else {
               level;
             };
