@@ -34,12 +34,12 @@ module Model = {
       List.map2(
         TutorialMode.Model.unpersist(~settings, ~instructor_mode),
         persistent.exercise_data |> List.map(snd),
-        TutorialSettings.exercises,
+        TutorialSettings.lessons,
       );
     let current =
       ListUtil.findi_opt(
         (spec: Tutorial.spec) => spec.id == persistent.cur_exercise,
-        TutorialSettings.exercises,
+        TutorialSettings.lessons,
       )
       |> Option.map(fst)
       |> Option.value(~default=0);
@@ -55,7 +55,7 @@ module StoreTutorialKey =
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = Haz3lcore.Id.t;
     let default = () =>
-      List.nth(TutorialSettings.exercises, 0) |> Tutorial.id_of;
+      List.nth(TutorialSettings.lessons, 0) |> Tutorial.id_of;
     let key = Store.CurrentTutorial;
   });
 module Store = {
@@ -103,7 +103,7 @@ module Store = {
     // let key = spec.id;
     save_exercise(exercise, ~instructor_mode);
     let key =
-      List.nth(TutorialSettings.exercises, model.current) |> Tutorial.id_of;
+      List.nth(TutorialSettings.lessons, model.current) |> Tutorial.id_of;
     StoreTutorialKey.save(key);
     print_endline(
       "Saving current tutorial key: " ++ Haz3lcore.Id.to_string(key),
@@ -119,7 +119,7 @@ module Store = {
           let key = Tutorial.id_of(spec);
           (key, load_exercise(~settings, key, spec, ~instructor_mode));
         },
-        TutorialSettings.exercises,
+        TutorialSettings.lessons,
       );
     {
       cur_exercise,
@@ -135,7 +135,7 @@ module Store = {
             let key = Tutorial.id_of(spec);
             (key, load_exercise(~settings, key, spec, ~instructor_mode));
           },
-          TutorialSettings.exercises,
+          TutorialSettings.lessons,
         ),
     }
     |> sexp_of_exercise_export
