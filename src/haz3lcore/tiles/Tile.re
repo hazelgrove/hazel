@@ -34,6 +34,9 @@ let shapes = (t: t) => {
   (l.shape, r.shape);
 };
 
+let effective_label = (t: t): Label.t =>
+  t.shards |> List.filter_map(List.nth_opt(t.label));
+
 let to_piece = t => Tile(t);
 
 let sorted_children = ({mold, shards, children, _}: t) =>

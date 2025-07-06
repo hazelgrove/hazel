@@ -135,23 +135,10 @@ let rec add_n_rows = (origin: Point.t, row_indent, n: abs_indent, map: t): t =>
        )
   };
 
-let singleton_w = (w, m) => empty |> add_w(w, m);
-let singleton_g = (g, m) => empty |> add_g(g, m);
-let singleton_s = (id, shard, m) => empty |> add_s(id, shard, m);
-
-// TODO(d) rename
-let find_opt_shards = (t: Tile.t, map) => Id.Map.find_opt(t.id, map.tiles);
 let find_shards = (~msg="", t: Tile.t, map) =>
   try(Id.Map.find(t.id, map.tiles)) {
   | _ => failwith("find_shards: " ++ msg)
   };
-
-let find_shards' = (id: Id.t, map) =>
-  switch (Id.Map.find_opt(id, map.tiles)) {
-  | None => []
-  | Some(ss) => ss
-  };
-
 let find_w = (~msg="", w: Secondary.t, map): measurement =>
   try(Id.Map.find(w.id, map.secondary)) {
   | _ => failwith("find_w: " ++ msg)
@@ -168,7 +155,7 @@ let find_pr_opt = (p: Base.projector, map): option(measurement) =>
   Id.Map.find_opt(p.id, map.projectors);
 // returns the measurement spanning the whole tile
 let find_t = (t: Tile.t, map): measurement => {
-  let shards = Id.Map.find(t.id, map.tiles);
+  let shards = find_shards(t, map);
   let (first, last) =
     try({
       let first = ListUtil.assoc_err(Tile.l_shard(t), shards, "find_t");
@@ -231,53 +218,6 @@ let find_by_id = (id: Id.t, map: t): option(measurement) => {
   };
 };
 
-let post_tile_indent = (t: Tile.t) => {
-  // hack for indent following fun/if tiles.
-  // proper fix involves updating mold datatype
-  // to specify whether a right-facing concave
-  // tip imposes indentation on a following newline.
-  let complete_fun =
-    Tile.is_complete(t)
-    && (
-      t.label == Form.get(Fun).label
-      || t.label == Form.get(TypFun).label
-      || t.label == Form.get(If).label
-    );
-  let missing_right_extreme = Tile.r_shard(t) < List.length(t.label) - 1;
-  complete_fun || missing_right_extreme;
-};
-
-let missing_left_extreme = (t: Tile.t) => Tile.l_shard(t) > 0;
-
-let is_indented_map = (seg: Segment.t) => {
-  let rec go = (~is_indented=false, ~map=Id.Map.empty, seg: Segment.t) =>
-    seg
-    |> List.fold_left(
-         ((is_indented, map), p: Piece.t) =>
-           switch (p) {
-           | Secondary(w) when Secondary.is_linebreak(w) => (
-               false,
-               Id.Map.add(w.id, is_indented, map),
-             )
-           | Secondary(_)
-           | Grout(_) => (is_indented, map)
-           | Projector(_) => (is_indented, map)
-           | Tile(t) =>
-             let is_indented = is_indented || post_tile_indent(t);
-             let map =
-               t.children
-               |> List.fold_left(
-                    (map, child) => go(~is_indented=true, ~map, child),
-                    map,
-                  );
-             (is_indented, map);
-           },
-         (is_indented, map),
-       )
-    |> snd;
-  go(seg);
-};
-
 /* Tab projectors add linebreaks after the end of their line */
 let deferred_linebreaks: ref(int) = ref(0);
 
@@ -288,28 +228,26 @@ let consume_deferred_linebreaks = (): int => {
 };
 
 let of_segment =
-    (seg: Segment.t, shape_map: Id.Map.t(ProjectorCore.Shape.t)): t => {
+    (
+      ~indent_level=Id.Map.empty,
+      seg: Segment.t,
+      shape_map: Id.Map.t(ProjectorCore.Shape.t),
+    )
+    : t => {
+  let indent_level =
+    Id.Map.is_empty(indent_level)
+      ? Indentation.level_map(seg) : indent_level;
+
   deferred_linebreaks := 0;
-  let is_indented = is_indented_map(seg);
 
   // recursive across seg's bidelimited containers
   let rec go_nested =
-          (
-            ~map,
-            ~container_indent: abs_indent=0,
-            ~origin=Point.zero,
-            seg: Segment.t,
-          )
+          (~map, ~prev_indent, ~origin: Point.t, seg: Segment.t)
           : (Point.t, t) => {
     // recursive across seg's list structure
     let rec go_seq =
-            (
-              ~map,
-              ~contained_indent: rel_indent=0,
-              ~origin: Point.t,
-              seg: Segment.t,
-            )
-            : (Point.t, t) =>
+            (~map, ~prev_indent: int, ~origin: Point.t, seg: Segment.t)
+            : (int, Point.t, t) =>
       switch (seg) {
       | [] =>
         let map =
@@ -317,27 +255,30 @@ let of_segment =
           |> add_row(
                origin.row,
                {
-                 indent: container_indent + contained_indent,
+                 indent: prev_indent,
                  max_col: origin.col,
                },
              );
-        (origin, map);
+        (prev_indent, origin, map);
       | [hd, ...tl] =>
-        let (contained_indent, origin, map) =
+        let (prev_indent, origin, map) =
           switch (hd) {
           | Secondary(w) when Secondary.is_linebreak(w) =>
-            let row_indent = container_indent + contained_indent;
+            let row_shape =
+              Rows.{
+                indent: prev_indent,
+                max_col: origin.col,
+              };
             let indent =
-              if (Segment.sameline_secondary(tl)) {
-                0;
-              } else {
-                contained_indent + (Id.Map.find(w.id, is_indented) ? 2 : 0);
+              switch (Id.Map.find_opt(w.id, indent_level)) {
+              | Some(indent) => indent
+              | None => 0
               };
             let num_extra_rows = 1 + consume_deferred_linebreaks();
             let last =
               Point.{
                 row: origin.row + num_extra_rows,
-                col: container_indent + indent,
+                col: indent,
               };
             let map =
               map
@@ -348,42 +289,45 @@ let of_segment =
                      last,
                    },
                  )
-              |> add_n_rows(origin, row_indent, num_extra_rows);
+              |> add_n_rows(origin, row_shape.indent, num_extra_rows); //TODO(andrew):indent was prev row_indent. different?
             (indent, last, map);
           | Secondary(w) =>
-            let wspace_length =
-              Unicode.length(Secondary.get_string(w.content));
             let last = {
               ...origin,
-              col: origin.col + wspace_length,
+              col:
+                origin.col + Unicode.length(Secondary.get_string(w.content)),
             };
             let map =
-              map
-              |> add_w(
-                   w,
-                   {
-                     origin,
-                     last,
-                   },
-                 );
-            (contained_indent, last, map);
+              add_w(
+                w,
+                {
+                  origin,
+                  last,
+                },
+                map,
+              );
+            (prev_indent, last, map);
           | Grout(g) =>
             let last = {
               ...origin,
               col: origin.col + 1,
             };
             let map =
-              map
-              |> add_g(
-                   g,
-                   {
-                     origin,
-                     last,
-                   },
-                 );
-            (contained_indent, last, map);
+              add_g(
+                g,
+                {
+                  origin,
+                  last,
+                },
+                map,
+              );
+            (prev_indent, last, map);
           | Projector(p) =>
-            let row_indent = container_indent + contained_indent;
+            let indent =
+              switch (Id.Map.find_opt(p.id, indent_level)) {
+              | Some(indent) => indent
+              | None => 0
+              };
             let shape = ProjectorCore.Shape.Map.lookup(p.id, shape_map);
             let num_extra_rows =
               switch (shape.vertical) {
@@ -406,7 +350,7 @@ let of_segment =
             };
             let map =
               map
-              |> add_n_rows(origin, row_indent, num_extra_rows)
+              |> add_n_rows(origin, indent, num_extra_rows)
               |> add_pr(
                    p,
                    {
@@ -414,10 +358,10 @@ let of_segment =
                      last,
                    },
                  );
-            (contained_indent, last, map);
+            (indent, last, map);
           | Tile(t) =>
             let extra_rows = (token, origin, map) => {
-              let row_indent = container_indent + contained_indent;
+              let row_indent = prev_indent;
               let num_lb = StringUtil.num_linebreaks(token);
               let num_extra_rows =
                 StringUtil.num_linebreaks(token) + num_lb == 0
@@ -428,7 +372,7 @@ let of_segment =
               col: origin.col + StringUtil.max_line_width(token),
               row: origin.row + StringUtil.num_linebreaks(token),
             };
-            let add_shard = (origin, shard, map) => {
+            let add_shard = (origin, map, shard) => {
               let token = List.nth(t.label, shard);
               let map = extra_rows(token, origin, map);
               let last = last_of_token(token, origin);
@@ -447,42 +391,25 @@ let of_segment =
             let (last, map) =
               Aba.mk(t.shards, t.children)
               |> Aba.fold_left(
-                   shard => add_shard(origin, shard, map),
+                   add_shard(origin, map),
                    ((origin, map), child, shard) => {
                      let (child_last, child_map) =
-                       go_nested(
-                         ~map,
-                         ~container_indent=container_indent + contained_indent,
-                         ~origin,
-                         child,
-                       );
-                     add_shard(child_last, shard, child_map);
+                       go_nested(~map, ~prev_indent, ~origin, child);
+                     add_shard(child_last, child_map, shard);
                    },
                  );
-            (contained_indent, last, map);
+            (prev_indent, last, map);
           };
-        let (tl_last, map) = go_seq(~map, ~contained_indent, ~origin, tl);
-        (tl_last, map);
+        go_seq(~map, ~prev_indent, ~origin, tl);
       };
-    go_seq(~map, ~origin, seg);
+    let (_, tl_last, map) = go_seq(~map, ~origin, ~prev_indent, seg);
+    (tl_last, map);
   };
-  snd(go_nested(~map=empty, seg));
+  snd(go_nested(~map=empty, ~prev_indent=0, ~origin=Point.zero, seg));
 };
 
 /* Memoized for perf */
 let of_segment = Core.Memo.general(of_segment);
-
-let length = (seg: Segment.t, map: t): int =>
-  switch (seg) {
-  | [] => 0
-  | [p] =>
-    let m = find_p(p, map);
-    m.last.col - m.origin.col;
-  | [hd, ...tl] =>
-    let first = find_p(hd, map);
-    let last = find_p(ListUtil.last(tl), map);
-    last.last.col - first.origin.col;
-  };
 
 /* Width in characters of row at measurement.origin */
 let start_row_width = (measurement: measurement, measured: t): int =>
