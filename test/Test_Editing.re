@@ -272,13 +272,13 @@ let destruct_tests = [
 
 let indentation_tests = [
   /* INDENTATION OF COMPLETE SYNTAX */
-  //   test_indent(
-  //     ~name="Top level doesn't auto indent",
-  //     ~init={|
-  // 1|},
-  //     ~goal={|
-  // 1|},
-  //   ),
+  test_indent(
+    ~name="Top level doesn't auto indent",
+    ~init={|
+  1|},
+    ~goal={|
+  1|},
+  ),
   //   test_indent(
   //     ~name="Bidelimited context same-line terminator indents",
   //     ~init={|(

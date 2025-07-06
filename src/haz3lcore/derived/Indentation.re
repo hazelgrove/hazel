@@ -1,40 +1,14 @@
-let ends_with_in = (t: Tile.t): bool =>
-  switch (t.label |> List.rev) {
-  | ["in", ..._] => true
-  | _ => false
-  };
-
 let is_comma = (p: Piece.t): bool =>
   switch (p) {
   | Tile(t) => t.label == [","]
   | _ => false
   };
 
-/* Linebreaks following these tiles should increment the indent */
-let is_incrementor = (p: Piece.t): bool =>
-  switch (p) {
-  //| Tile(t) when Tile.effective_label(t) == ["case"] => true
-  | Tile(t) when ends_with_in(t) => false
-  | Tile(t) =>
-    switch (Tile.shapes(t)) {
-    // convexity at beginning would exclude `| =>`
-    //| (_, Concave(_)) when is_comma(p) => true
-    | (_, Concave(_)) when List.length(t.label) >= 2 => true
-    | _ => false
-    }
-  | _ => false
-  };
-
-/* Linebreaks following these tiles should reset indent
- * to its level at the beginning of the bidelimited ctx */
-let is_resetter = (p: Piece.t): bool =>
+let is_case_rule = (p: Piece.t): bool =>
   switch (p) {
   | Tile(t) =>
     switch (t.label) {
-    | _ when t.label == ["i"] => true /* hack to reduce let-in jank; comes at a cost */
-    // | [","] =>
-    //   print_endline("resetting on comma");
-    //   true;
+    //| _ when t.label == ["i"] => true /* hack to reduce let-in jank; comes at a cost */
     | ["|"] => true /* hack */
     | ["|", "=>"] => true
     | _ => false
@@ -42,11 +16,29 @@ let is_resetter = (p: Piece.t): bool =>
   | _ => false
   };
 
-/* Remove non-contentful items (whitespace and grout) */
+let ends_with_in = (t: Tile.t): bool =>
+  switch (t.label |> List.rev) {
+  | ["in", ..._] => true
+  | _ => false
+  };
+
+/* Linebreaks following these tiles should increment the indent */
+let is_incrementor = (p: Piece.t): bool =>
+  switch (p) {
+  | Tile(t) =>
+    switch (Tile.shapes(t)) {
+    | _ when ends_with_in(t) => false
+    | (_, Concave(_)) when List.length(t.label) >= 2 => true
+    | _ => false
+    }
+  | _ => false
+  };
+
+/* Remove non-contentful items (whitespace and concave grout) */
 let trim_non_content: Segment.t => Segment.t =
   List.filter_map(
     fun
-    | Piece.Grout({shape: Concave, _}) /*{shape: Concave, _}*/ => None
+    | Piece.Grout({shape: Concave, _}) => None
     | Secondary(s) when Secondary.is_space(s) => None
     | p => Some(p),
   );
@@ -146,7 +138,7 @@ let split_at_consecutive_linebreaks =
   find_split_point(seg, [], false);
 };
 
-let rec go' = ((base: int, seg: Segment.t)) => {
+let rec go' = ((not_top, base: int, seg: Segment.t)) => {
   let trimmed_seg = trim_non_content(seg);
   let trimmed_seg =
     switch (split_at_consecutive_linebreaks(trimmed_seg)) {
@@ -159,7 +151,18 @@ let rec go' = ((base: int, seg: Segment.t)) => {
         switch (p) {
         | Secondary(w) when Secondary.is_linebreak(w) =>
           let (prev, next) = prev_next;
+          /* Linebreaks following these tiles should reset indent
+           * to its level at the beginning of the bidelimited ctx */
           let level =
+            // switch (prev_next) {
+            // | (_, None) => base
+            // | (_, Some(next)) when is_comma(next) => base + 2
+            // | (None, _) when not_top => level + 2
+            // | (Some(prev), _) when is_incrementor(prev) => level + 2
+            // | (Some(prev), _) when is_comma(prev) => base + 2
+            // | (_, Some(next)) when is_case_rule(next) => base
+            // | _ => level
+            // };
             if (next |> Option.map(is_comma) |> Option.value(~default=false)) {
               base + 2;
             } else if (prev
@@ -168,10 +171,10 @@ let rec go' = ((base: int, seg: Segment.t)) => {
               base + 2;
             } else if (prev
                        |> Option.map(is_incrementor)
-                       |> Option.value(~default=true)) {
+                       |> Option.value(~default=not_top)) {
               level + 2;
             } else if (next
-                       |> Option.map(is_resetter)
+                       |> Option.map(is_case_rule)
                        |> Option.value(~default=true)) {
               base;
             } else {
@@ -182,7 +185,11 @@ let rec go' = ((base: int, seg: Segment.t)) => {
         | Grout(_) => (level, map)
         | Projector(_) => (level, map) //TODO(andrew)
         | Tile(t) =>
-          let map = union_all([map, ...List.map(go(level), t.children)]);
+          let map =
+            union_all([
+              map,
+              ...List.map(go(~not_top=true, level), t.children),
+            ]);
           (level, map);
         }
       },
@@ -192,8 +199,8 @@ let rec go' = ((base: int, seg: Segment.t)) => {
     );
   map;
 }
-and go = (base: int, seg: Segment.t) => {
-  let arg = (base, seg);
+and go = (~not_top, base: int, seg: Segment.t) => {
+  let arg = (not_top, base, seg);
   try(Hashtbl.find(indent_hash, arg)) {
   | _ =>
     let res = go'(arg);
@@ -202,4 +209,5 @@ and go = (base: int, seg: Segment.t) => {
   };
 };
 
-let level_map = (seg: Segment.t): Id.Map.t(int) => go(0, seg);
+let level_map = (seg: Segment.t): Id.Map.t(int) =>
+  go(~not_top=false, 0, seg);
