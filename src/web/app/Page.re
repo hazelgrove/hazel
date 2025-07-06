@@ -145,7 +145,12 @@ module Update = {
       model |> return_quiet;
     | FinishImportAll(None) => model |> return_quiet
     | FinishImportAll(Some(data)) =>
-      Export.import_all(~import_log, data, ~specs=ExerciseSettings.exercises);
+      Export.import_all(
+        ~import_log,
+        data,
+        ~specs=ExerciseSettings.exercises,
+        ~tutorial_specs=TutorialSettings.exercises,
+      );
       Store.load() |> return;
     | ExportForInit =>
       let (filename, content) =
@@ -161,6 +166,11 @@ module Update = {
               current |> fst,
               current |> snd |> CellEditor.Model.persist,
             ));
+          (filename, content);
+        | Tutorial(model) =>
+          let current = List.nth(model.exercises, model.current);
+          let filename = current.editors.module_name ++ ".ml";
+          let content = "not supported";
           (filename, content);
         | Exercises(model) =>
           let current = List.nth(model.exercises, model.current);
