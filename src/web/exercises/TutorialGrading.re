@@ -47,14 +47,6 @@ module TestValidationReport = {
     provided: int,
   };
 
-  // let mk = (eds: eds, test_results: option(TestResults.t)) => {
-  //   {
-  //     test_results,
-  //     required: eds.your_tests.required,
-  //     provided: eds.your_tests.provided,
-  //   };
-  // };
-
   let percentage = (report: t): percentage => {
     switch (report.test_results) {
     | None => 0.0
@@ -115,7 +107,6 @@ module TestValidationReport = {
     };
   };
 
-  // YourTestsValidation
   let view = (~signal_jump, report: t, max_points: int) => {
     CellCommon.report_footer_view([
       div(
@@ -296,7 +287,6 @@ module MutationTestingReport = {
           /* NOTE: prints lexical index, not unique id */
           [text(string_of_int(id + 1))],
         ),
-        // TestView.test_instance_view(~font_metrics, instance),
       ]
       @ [
         div(
@@ -319,63 +309,6 @@ module MutationTestingReport = {
            individual_report(i, ~inject, ~hint, ~status)
          ),
     );
-
-  // let passing_test_ids = test_map =>
-  //   test_map
-  //   |> List.filter(((_id, reports)) =>
-  //        List.for_all(
-  //          ((_, status)) => status == Haz3lcore.TestStatus.Pass,
-  //          reports,
-  //        )
-  //      )
-  //   |> List.split
-  //   |> fst;
-
-  // let failing_test_ids = test_map =>
-  //   test_map
-  //   |> List.filter(((_id, reports)) =>
-  //        List.for_all(
-  //          ((_, status)) => status == Haz3lcore.TestStatus.Fail,
-  //          reports,
-  //        )
-  //      )
-  //   |> List.split
-  //   |> fst;
-
-  // let get_test_map = (editors: list(Haz3lcore.Editor.t)) => {
-  //   let (reference_term, reference_map) = spliced_statics(editors);
-  //   let result_reference =
-  //     Interface.test_results(reference_map, reference_term);
-  //   switch (result_reference) {
-  //   | None => []
-  //   | Some(test_results) => test_results.test_map
-  //   };
-  // };
-  // let show_term = (editor: Editor.t, _) =>
-  //   editor.state.zipper
-  //   |> Zipper.zip
-  //   |> MakeTerm.go
-  //   |> fst
-  //   |> Exp.show
-  //   |> print_endline
-  //   |> (_ => Virtual_dom.Vdom.Effect.Ignore);
-
-  // let get_first_common =
-  //     (reference_passing, wrong): (TestStatus.t, option('a)) => {
-  //   let wrong_test_map = wrong |> get_test_map;
-  //   let wrong_failing = wrong_test_map |> failing_test_ids;
-  //   let common =
-  //     List.filter(x => List.mem(x, reference_passing), wrong_failing);
-  //   let instance: option(list('a)) =
-  //     switch (common) {
-  //     | [] => None
-  //     | [x, ..._] => List.assoc_opt(x, wrong_test_map)
-  //     };
-  //   switch (instance) {
-  //   | Some([instance, ..._]) => (TestStatus.Pass, Some(instance))
-  //   | _ => (TestStatus.Fail, None)
-  //   };
-  // };
 
   let view = (~inject, report: t, max_points: int) =>
     if (max_points == 0) {
@@ -523,11 +456,6 @@ module ImplGradingReport = {
     |> List.length;
   };
 
-  // let percentage = (report: t, syntax_report: SyntaxReport.t): percentage => {
-  //   syntax_report.percentage
-  //   *. (float_of_int(num_passed(report)) /. float_of_int(total(report)));
-  // };
-
   let percentage = (report: t): float => {
     let passed = float_of_int(num_passed(report));
     let total = float_of_int(total(report));
@@ -562,31 +490,6 @@ module ImplGradingReport = {
     };
   };
 
-  // let summary = (~inject, ~report, ~max_points) => {
-  //   let percentage = percentage(report);
-  //   let score = score_of_percent(percentage);
-  //   let total = total(report);
-  //   let num_passed = num_passed(report);
-  //   let status_class = total == num_passed ? "Pass" : "Fail";
-  //   div(
-  //     ~attrs=
-  //       Attr.classes([
-  //         "cell-item",
-  //         "test-summary",
-  //         "cell-report",
-  //         status_class,
-  //       ]),
-  //     [
-  //       summary_message(
-  //         ~score,
-  //         ~total,
-  //         ~found=num_passed,
-  //       ),
-  //       bar(~inject, report.results),
-  //     ],
-  //   );
-  // };
-
   let individual_report = (i, ~signal_jump, ~hint: string, ~status, (id, _)) =>
     div(
       ~attrs=[
@@ -604,7 +507,6 @@ module ImplGradingReport = {
           /* NOTE: prints lexical index, not unique id */
           [text(string_of_int(i + 1))],
         ),
-        // TestView.test_instance_view(~font_metrics, instance),
       ]
       @ [
         div(
@@ -645,13 +547,7 @@ module ImplGradingReport = {
   };
 
   // HiddenTests
-  let view =
-      (
-        ~signal_jump,
-        ~report: t,
-        // ~syntax_report: SyntaxReport.t,
-        ~max_points: int,
-      ) => {
+  let view = (~signal_jump, ~report: t, ~max_points: int) => {
     CellCommon.panel(
       ~classes=["cell-item", "panel", "test-panel"],
       [
@@ -694,26 +590,9 @@ module ImplGradingReport = {
 };
 
 module GradingReport = {
-  type t = {
-    // point_distribution,
-    // test_validation_report: TestValidationReport.t,
-    // mutation_testing_report: MutationTestingReport.t,
-    // syntax_report: SyntaxReport.t,
-    impl_grading_report: ImplGradingReport.t,
-  };
+  type t = {impl_grading_report: ImplGradingReport.t};
 
   let mk = (eds: eds, ~stitched_tests: stitched(option(TestResults.t))) => {
-    // point_distribution: eds.point_distribution,
-    // test_validation_report:
-    //   TestValidationReport.mk(eds, stitched_tests.test_validation),
-    // mutation_testing_report:
-    //   MutationTestingReport.mk(
-    //     ~test_validation=stitched_tests.test_validation,
-    //     ~hidden_bugs_state=eds.hidden_bugs,
-    //     ~hidden_bugs=stitched_tests.hidden_bugs,
-    //   ),
-    // syntax_report:
-    //   SyntaxReport.mk(~your_impl=eds.your_impl, ~tests=eds.syntax_tests),
     impl_grading_report:
       ImplGradingReport.mk(
         ~hints=eds.hidden_tests.hints,
@@ -721,28 +600,7 @@ module GradingReport = {
       ),
   };
 
-  let overall_score =
-      (
-        {
-          // point_distribution,
-          // test_validation_report,
-          // mutation_testing_report,
-          // syntax_report,
-          impl_grading_report,
-          _,
-        }: t,
-      )
-      : score => {
-    // let (tv_points, tv_max) =
-    //   score_of_percent(
-    //     TestValidationReport.percentage(test_validation_report),
-    //     point_distribution.test_validation,
-    //   );
-    // let (mt_points, mt_max) =
-    //   score_of_percent(
-    //     MutationTestingReport.percentage(mutation_testing_report),
-    //     point_distribution.mutation_testing,
-    //   );
+  let overall_score = ({impl_grading_report, _}: t): score => {
     let (ig_points, ig_max) =
       score_of_percent(ImplGradingReport.percentage(impl_grading_report), 1);
     let total_points = ig_points;

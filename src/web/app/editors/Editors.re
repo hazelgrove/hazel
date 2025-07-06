@@ -145,14 +145,14 @@ module Update = {
         );
       Model.Tutorial(exercises);
     | (Exercises(action), Exercises(m)) =>
-      let* exercises =
+      let* m' =
         ExercisesMode.Update.update(
           ~globals,
           ~schedule_action=a => schedule_action(Exercises(a)),
           action,
           m,
         );
-      Model.Exercises(exercises);
+      Model.Exercises(m');
     | (Tutorial(_), Exercises(_))
     | (Tutorial(_), Scratch(_))
     | (Tutorial(_), Documentation(_))

@@ -23,7 +23,7 @@ let key_to_string =
   | Tutorial(id) => Haz3lcore.Id.to_string(id)
   | CurrentTutorial => "CUR_TUTORIAL"
   | CurrentExercise => "CUR_EXERCISE"
-  | Exercise(id) => Haz3lcore.Id.to_string(id);
+  | Exercise(id) => "TUTORIAL" ++ Haz3lcore.Id.to_string(id);
 
 module F =
        (

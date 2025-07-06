@@ -1,6 +1,6 @@
 let filename = "haz3l-demo";
 let log_key = filename;
-let exercises: list(Tutorial.spec) = [
+let lessons: list(Tutorial.spec) = [
   Tu_ExpressiveProgramming.exercise,
   Tu_ComposingArithmetic_and_Scope.exercise,
   Tu_ComputingEquationally_Shadow.exercise,

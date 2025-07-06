@@ -148,8 +148,8 @@ module Update = {
       Export.import_all(
         ~import_log,
         data,
-        ~specs=ExerciseSettings.exercises,
-        ~tutorial_specs=TutorialSettings.exercises,
+        ~exercise_specs=ExerciseSettings.exercises,
+        ~tutorial_specs=TutorialSettings.lessons,
       );
       Store.load() |> return;
     | ExportForInit =>
