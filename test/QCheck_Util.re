@@ -16,7 +16,7 @@ let arb_exp = (~minimal_idents: bool, size: int) => {
            ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
          _,
        )
-    |> Printer.of_segment(~holes=Some("?"), _);
+    |> Printer.of_segment(~holes="?", _);
   let arb_exp =
     map(
       ~rev=
@@ -41,7 +41,7 @@ let arb_typ = (~minimal_idents: bool, size: int) => {
            ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
          _,
        )
-    |> Printer.of_segment(~holes=Some("?"), _);
+    |> Printer.of_segment(~holes="?", _);
   let arb_typ =
     map(
       ~rev=
