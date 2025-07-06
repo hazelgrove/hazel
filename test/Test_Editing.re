@@ -352,20 +352,44 @@ go(subst(arg, x, body)) end
 a|}, ~goal={|let
   a|}),
   test_indent(
-    ~name="Indentation 1",
+    ~name="Indentation Incomplete Flow 1",
     ~init={|let a =
     1|},
     ~goal={|let a =
       1|},
   ),
   test_indent(
-    ~name="Indentation 2",
+    ~name="Indentation Incomplete Flow 2",
     ~init={|let a =
 fun x ->
 |},
     ~goal={|let a =
   fun x ->
     ?|},
+  ),
+  test_indent(
+    ~name="Indentation Incomplete Flow 3",
+    ~init={|let a =
+fun x ->
+case x
+||},
+    ~goal={|let a =
+  fun x ->
+    case x
+    |?|},
+  ),
+  test_indent(
+    ~name="Indentation Incomplete Flow 4",
+    ~init={|let a =
+fun x ->
+case x
+| _ =>
+|},
+    ~goal={|let a =
+  fun x ->
+    case x
+    | _ =>
+      ?|},
   ),
   test_indent(
     ~name="Indentation - Wrapping immediate next lines",
@@ -377,12 +401,23 @@ b|},
   b|},
   ),
   test_indent(
-    ~name="Indentation - Don't wrap over blank line",
+    ~name="Indentation - Don't wrap over blank line 1",
     ~init={|let a =
 
 let b = 2 in
 b|},
     ~goal={|let a =
+
+let b = 2 in
+b|},
+  ),
+  test_indent(
+    ~name="Indentation - Don't wrap over blank line 2",
+    ~init={|let a = fun x ->
+
+let b = 2 in
+b|},
+    ~goal={|let a = fun x ->
 
 let b = 2 in
 b|},
