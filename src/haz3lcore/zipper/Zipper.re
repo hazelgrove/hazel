@@ -26,7 +26,6 @@ let next_blank = _ => Id.mk();
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type chunkiness =
   | ByChar
-  | MonoByChar
   | ByToken;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -69,6 +68,18 @@ let unzip = (seg: Segment.t): t => {
 
 let pop_backpack = (z: t) =>
   Backpack.pop(Relatives.local_incomplete_tiles(z.relatives), z.backpack);
+
+let will_barf = (t: Token.t, z: t): bool =>
+  switch (pop_backpack(z)) {
+  | Some((_, {content: [p], _}, _)) =>
+    switch (p) {
+    | Tile({shards: [i], label, _}) =>
+      assert(i < List.length(label));
+      List.nth(label, i) == t;
+    | _ => false
+    }
+  | _ => false
+  };
 
 let left_neighbor_monotile: Siblings.t => option(Token.t) =
   s => s |> Siblings.left_neighbor |> OptUtil.and_then(Piece.monotile);
@@ -196,6 +207,9 @@ let directional_unselect = (d: Direction.t, z: t): t => {
   });
 };
 
+let unselect = (z: t): t =>
+  z.selection.content == [] ? z : directional_unselect(z.selection.focus, z);
+
 let move = (d: Direction.t, z: t): option(t) =>
   if (Selection.is_empty(z.selection)) {
     let+ (p, relatives) = Relatives.pop(d, z.relatives);
@@ -280,7 +294,7 @@ let remold_regrout_prev = (z: t): t =>
   switch (move(Left, z)) {
   | None => z
   | Some(z_left) =>
-    let z_left = z_left |> regrout(Right) |> remold;
+    let z_left = z_left |> remold |> regrout(Right);
     switch (move(Right, z_left)) {
     | None => failwith("Zipper.put_down: move fail")
     | Some(z_right) => z_right
