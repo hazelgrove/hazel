@@ -90,5 +90,13 @@ let tests = (
         ),
       )
     }),
+    test_case("trim trailing whitespace 2", `Quick, () => {
+      check(
+        string,
+        "trim trailing whitespace 2",
+        "(\n  1)",
+        StringUtil.trim_trailing_whitespace("(\n  1)"),
+      )
+    }),
   ],
 );

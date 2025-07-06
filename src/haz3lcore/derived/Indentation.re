@@ -160,18 +160,20 @@ let rec go' = ((base: int, seg: Segment.t)) => {
         | Secondary(w) when Secondary.is_linebreak(w) =>
           let (prev, next) = prev_next;
           let level =
-            if (prev
-                |> Option.map(is_incrementor)
-                |> Option.value(~default=true)) {
+            if (next |> Option.map(is_comma) |> Option.value(~default=false)) {
+              base + 2;
+            } else if (prev
+                       |> Option.map(is_comma)
+                       |> Option.value(~default=false)) {
+              base + 2;
+            } else if (prev
+                       |> Option.map(is_incrementor)
+                       |> Option.value(~default=true)) {
               level + 2;
             } else if (next
                        |> Option.map(is_resetter)
-                       |> Option.value(~default=false)) {
+                       |> Option.value(~default=true)) {
               base;
-              // } else if (prev
-              //            |> Option.map(is_comma)
-              //            |> Option.value(~default=false)) {
-              //   base;
             } else {
               level;
             };
