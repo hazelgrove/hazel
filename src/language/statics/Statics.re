@@ -1361,7 +1361,8 @@ and uexp_to_info_map =
                   labels,
                 );
 
-              let entries = List.filter_map(Typ.match_tup_label, entries);
+              let entries =
+                List.filter_map(Typ.match_tup_optional_label, entries);
 
               let missing_labels =
                 List.filter_map(
@@ -1369,7 +1370,10 @@ and uexp_to_info_map =
                     switch (label) {
                     | Some(label) =>
                       switch (
-                        List.find_opt(((l, _)) => l == label, entries)
+                        List.find_opt(
+                          ((l, _)) => l == Some(label),
+                          entries,
+                        )
                       ) {
                       | Some(_) => None
                       | None => Some(label)
@@ -1382,13 +1386,18 @@ and uexp_to_info_map =
 
               let val_types =
                 List.filter_map(
-                  ((label: string, typ: Typ.t)) =>
-                    if (!List.mem(Some(label), labels)) {
+                  ((label: option(string), typ: Typ.t)) =>
+                    switch (label) {
+                    | Some(label) when !List.mem(Some(label), labels) =>
                       Some(
                         TupLabel(Label(label) |> Typ.temp, typ) |> Typ.temp,
-                      );
-                    } else {
-                      None;
+                      )
+                    | Some(_) => None
+                    | None =>
+                      Some(
+                        TupLabel(Unknown(Internal) |> Typ.temp, typ)
+                        |> Typ.temp,
+                      )
                     },
                   entries,
                 );
