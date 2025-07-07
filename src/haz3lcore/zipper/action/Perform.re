@@ -208,13 +208,6 @@ let go_z =
   | Destruct(d) =>
     z
     |> Destruct.go(d)
-    |> Option.map(z => {
-         print_endline("z1: " ++ Printer.of_zipper(~caret="|", z));
-         //let z = remold_regrout(d, z);
-         print_endline("z2: " ++ Printer.of_zipper(~caret="|", z));
-         print_endline("z2': " ++ Zipper.show(z));
-         z;
-       })
     |> Result.of_option(~error=Action.Failure.Cant_destruct)
   | Insert(char) =>
     let id =
