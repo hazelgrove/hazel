@@ -1036,7 +1036,8 @@ and uexp_to_info_map =
               m,
             );
           }
-        | Some(SelectLabels) => // TODO Combine with ProjectLabels
+        | Some(SelectLabels) =>
+          // TODO Combine with ProjectLabels
           switch (arg.term) {
           | Tuple([tup, ...labs]) =>
             let (tup_info, m) =
