@@ -14,9 +14,15 @@ let destruct =
     z |> Zipper.set_caret(Outer) |> Zipper.delete(Right);
   let delete_left = Zipper.delete(Left);
   let construct_right = (l, s) =>
-    Option.map(Zipper.construct(~caret=Right, ~backpack=Right, l), s);
+    Option.map(
+      Zipper.construct(~settings=false, ~caret=Right, ~backpack=Right, l),
+      s,
+    );
   let construct_left = (l, s) =>
-    Option.map(Zipper.construct(~caret=Left, ~backpack=Left, l), s);
+    Option.map(
+      Zipper.construct(~settings=false, ~caret=Left, ~backpack=Left, l),
+      s,
+    );
   switch (d, caret, neighbor_monotiles((l_sibs, r_sibs))) {
   /* When there's a selection, defer to Outer */
   | _ when z.selection.content != [] => z |> Zipper.destruct |> Option.some
@@ -89,7 +95,7 @@ let parent_merge = (lbl: Label.t, z: t): t => {
   z
   |> Zipper.delete_parent
   |> Zipper.set_caret(Inner(0, 0))  /* Note 2-token assumption */
-  |> Zipper.construct(~caret=Right, ~backpack=Left, lbl)
+  |> Zipper.construct(~settings=false, ~caret=Right, ~backpack=Left, lbl)
   /* Below regrouting important for parens/ap positioning */
   |> remold_regrout(Right);
 };

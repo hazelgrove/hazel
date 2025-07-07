@@ -319,8 +319,46 @@ let put_down_regrout_remold = (d: Direction.t, z: t): option(t) => {
   };
 };
 
+let rec put_down_n = (n: int, d: Direction.t, z: t): option(t) => {
+  switch (n) {
+  | 0 => Some(z)
+  | n =>
+    let* z = put_down(d, z);
+    put_down_n(n - 1, d, z);
+  };
+};
+
+let structural_construct = (label: Label.t, z: t): t => {
+  let z = destruct(z);
+  let molds = Molds.get(label);
+  assert(molds != []);
+  let mold = List.hd(molds);
+  let mk_space = () => Piece.mk_secondary(Whitespace(Form.space));
+  let should_pad = Molds.is_delayed(List.hd(label));
+  let children =
+    List.init(List.length(label) - 1, i =>
+      (i == 0 ? [] : [mk_space()])
+      @ (should_pad ? [Piece.mk_grout(Convex), mk_space()] : [])
+    );
+  let piece = Piece.mk_tile(label, mold, children);
+  let z = regrout(Left, z);
+  let z = {
+    ...z,
+    selection: Selection.mk([piece]),
+  };
+  //print_endline("z after: " ++ show(z));
+  z;
+};
+
 let rec construct =
-        (~caret: Direction.t, ~backpack: Direction.t, label: Label.t, z: t): t => {
+        (
+          ~settings=true,
+          ~caret: Direction.t,
+          ~backpack: Direction.t,
+          label: Label.t,
+          z: t,
+        )
+        : t => {
   switch (label) {
   | [t] when Form.is_string_delim(t) =>
     /* Special case for constructing string literals.
@@ -359,6 +397,10 @@ let rec construct =
            r,
          )
        );
+  | _ when List.length(label) > 1 && settings =>
+    //TODO(andrew): this shouldn't catch splitting () (parens or ap) and [] cases
+    //those cause exns rn
+    structural_construct(label, z)
   | _ =>
     let z = destruct(z);
     let molds = Molds.get(label);

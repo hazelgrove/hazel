@@ -70,16 +70,19 @@ let make_new_tile = (t: Token.t, caret: Direction.t, z: t): t =>
   Zipper.will_barf(t, z)
     ? switch (neighbor_can_duomerge(t, z.relatives.siblings)) {
       | Some((lbl, d)) =>
-        let z = Zipper.replace(~caret=d, ~backpack=d, lbl, z) |> Option.get;
-        z;
-      | None =>
-        let z = put_down(caret, z) |> Option.get;
-        z;
+        Zipper.replace(~caret=d, ~backpack=d, lbl, z) |> Option.get
+
+      | None => put_down(caret, z) |> Option.get
       }
     : {
       let (lbl, backpack) = Molds.instant_expansion(t);
-      let z = construct(~caret, ~backpack, lbl, z);
-      z;
+      //TODO(andrew): document this
+      let settings =
+        switch (lbl) {
+        | [hd, _] => t == hd
+        | _ => false
+        };
+      construct(~settings, ~caret, ~backpack, lbl, z);
     };
 
 let expand_neighbors_and_make_new_tile = (char: Token.t, state: t): option(t) => {
@@ -133,7 +136,17 @@ let insert_outer = (char: string, z as state: t): option(t) =>
 
 let insert_duo = (lbl: Label.t, z: option(t)): option(t) =>
   z
-  |> Option.map(z => Zipper.construct(~caret=Left, ~backpack=Left, lbl, z))
+  |> Option.map(z
+       // TODO(andrew): false below to avoid structural construct case
+       =>
+         Zipper.construct(
+           ~settings=false,
+           ~caret=Left,
+           ~backpack=Left,
+           lbl,
+           z,
+         )
+       )
   |> OptUtil.and_then(z => {
        //NOTE: regrout to put e.g. ap(1|) back together
        z
