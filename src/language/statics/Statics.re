@@ -844,14 +844,11 @@ and uexp_to_info_map =
 
           switch (Typ.normalize(ctx, arg.ty).term) {
           | Prod(entries) =>
-            let entries:
-              option(list((string, Grammar.typ_t(IdTagged.IdTag.t)))) =
-              Util.OptUtil.traverse(Typ.match_tup_label, entries);
+            let entries =
+              Util.OptUtil.traverse(Typ.match_tup_optional_label, entries);
 
             switch (entries) {
-            | Some(
-                entries: list((string, Grammar.typ_t(IdTagged.IdTag.t))),
-              ) =>
+            | Some(entries) =>
               let val_typs = List.map(snd, entries);
               let joined_typ =
                 Util.OptUtil.fold_left_opt(
