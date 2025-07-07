@@ -277,10 +277,7 @@ let tests = [
           Forward,
           var("project_labels"),
           tuple([
-            int(
-              ~ann=Some(Exp(BuiltinError(ProjectLabelsFirstArgNotTuple))),
-              1,
-            ),
+            int(~ann=Some(Exp(BuiltinError(ArgumentMustBeTuple))), 1),
             int(
               ~ann=Some(Exp(Common(NoType(BadLabel(Exp(Exp.int(2))))))),
               2,
@@ -302,10 +299,7 @@ let tests = [
         ap(
           Forward,
           var("project_labels"),
-          int(
-            ~ann=Some(Exp(BuiltinError(ProjectLabelsFirstArgNotTuple))),
-            1,
-          ),
+          int(~ann=Some(Exp(BuiltinError(ArgumentMustBeTuple))), 1),
         )
       ),
     )
@@ -318,10 +312,7 @@ let tests = [
         ap(
           Forward,
           var("project_labels"),
-          tuple(
-            ~ann=Some(Exp(BuiltinError(ProjectLabelsFirstArgNotTuple))),
-            [],
-          ),
+          tuple(~ann=Some(Exp(BuiltinError(ArgumentMustBeTuple))), []),
         )
       ),
     )
@@ -389,4 +380,154 @@ let tests = [
       );
     }
   }),
+  fully_consistent_typecheck(
+    "primitive_pivot with single tuple",
+    {|primitive_pivot([(a="hello", b=3, c=4)], 'a')|},
+    Some(unknown(Internal)),
+  ),
+  fully_consistent_typecheck(
+    "primitive_pivot with multiple tuples",
+    {|primitive_pivot([(a="hello", b=3, c=4), (a="World", b=2, c=2)], 'a')|},
+    Some(unknown(Internal)),
+  ),
+  test_case("primitive_pivot with missing label", `Quick, () =>
+    annotated_tree_test(
+      {|primitive_pivot([(a="hello", b=3)], 'c')|},
+      unknown(Internal),
+      FIError.Exp.(
+        ap(
+          ~ann=Some(Exp(BuiltinError(MissingLabels(["c"])))),
+          Forward,
+          var("primitive_pivot"),
+          tuple([
+            list_lit([
+              tuple([
+                tup_label(label("a"), string("hello")),
+                tup_label(label("b"), int(3)),
+              ]),
+            ]),
+            label("c"),
+          ]),
+        )
+      ),
+    )
+  ),
+  test_case("primitive_pivot with non-string pivot field", `Quick, () =>
+    annotated_tree_test(
+      {|primitive_pivot([(a=1, b=3)], 'a')|},
+      unknown(Internal),
+      FIError.Exp.(
+        ap(
+          ~ann=Some(Exp(BuiltinError(PivotLabelIsNotString(Typ.int())))),
+          Forward,
+          var("primitive_pivot"),
+          tuple([
+            list_lit([
+              tuple([
+                tup_label(label("a"), int(1)),
+                tup_label(label("b"), int(3)),
+              ]),
+            ]),
+            label("a"),
+          ]),
+        )
+      ),
+    )
+  ),
+  test_case("primitive_pivot with non-label second argument", `Quick, () =>
+    annotated_tree_test(
+      {|primitive_pivot([(a="hello", b=3)], 5)|},
+      unknown(Internal),
+      FIError.Exp.(
+        ap(
+          Forward,
+          var("primitive_pivot"),
+          tuple([
+            list_lit([
+              tuple([
+                tup_label(label("a"), string("hello")),
+                tup_label(label("b"), int(3)),
+              ]),
+            ]),
+            int(
+              ~ann=Some(Exp(Common(NoType(BadLabel(Exp(Exp.int(5))))))),
+              5,
+            ),
+          ]),
+        )
+      ),
+    )
+  ),
+  test_case("primitive_pivot with non-list first argument", `Quick, () =>
+    annotated_tree_test(
+      {|primitive_pivot(5, 'a')|},
+      unknown(Internal),
+      FIError.Exp.(
+        ap(
+          Forward,
+          var("primitive_pivot"),
+          tuple([
+            int(
+              ~ann=Some(Exp(BuiltinError(PivotFirstArgNotListOfTuples))),
+              5,
+            ),
+            label("a"),
+          ]),
+        )
+      ),
+    )
+  ),
+  test_case("primitive_pivot with extra arguments", `Quick, () =>
+    annotated_tree_test(
+      {|primitive_pivot([(a="hello", b=3)], 'a', 'b')|},
+      unknown(Internal),
+      FIError.Exp.(
+        ap(
+          Forward,
+          var("primitive_pivot"),
+          tuple(
+            ~ann=
+              Some(
+                Exp(
+                  Common(
+                    Inconsistent(
+                      Typ.(
+                        Expectation({
+                          ana:
+                            prod([
+                              list(unknown(Internal)),
+                              unknown(Internal),
+                            ]),
+                          syn:
+                            prod([
+                              list(
+                                prod([
+                                  tup_label(label("a"), string()),
+                                  tup_label(label("b"), int()),
+                                ]),
+                              ),
+                              label("a"),
+                              label("b"),
+                            ]),
+                        })
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            [
+              list_lit([
+                tuple([
+                  tup_label(label("a"), string("hello")),
+                  tup_label(label("b"), int(3)),
+                ]),
+              ]),
+              label("a"),
+              label("b"),
+            ],
+          ),
+        )
+      ),
+    )
+  ),
 ];

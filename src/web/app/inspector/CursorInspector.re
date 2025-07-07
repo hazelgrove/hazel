@@ -465,6 +465,11 @@ let rec exp_view =
         text("Projecting labels from non-labels: "),
         ...List.map(view_any(~globals), labels),
       ])
+    | MissingLabels(labels) =>
+      div_err([
+        text("Labels not present in tuple: "),
+        ...List.map(code, labels),
+      ])
     | MeltMissingLabelsOnTuple(_) =>
       div_err([
         text(
@@ -476,8 +481,14 @@ let rec exp_view =
         text("Projected tuple does not have the following labels: "),
         ...List.map(code, labels),
       ])
-    | ProjectLabelsFirstArgNotTuple =>
-      div_err([text("First argument must be a tuple")])
+    | ArgumentMustBeTuple => div_err([text("Argument must be a tuple")])
+    | PivotFirstArgNotListOfTuples =>
+      div_err([text("First argument must be a list of labeled tuples")])
+    | PivotLabelIsNotString(ty) =>
+      div_err([
+        text("Pivot column must be a string, but got: "),
+        view_type(ty),
+      ])
     }
   | InHole(InvalidUseMode({bad_typ, _})) =>
     div_err([

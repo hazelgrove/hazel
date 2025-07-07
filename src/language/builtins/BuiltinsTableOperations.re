@@ -36,7 +36,7 @@ let builtins: list(BuiltinsUtil.fn) = [
         | _ => None
         }
       }),
-    custom_statics: None,
+    custom_statics: Some(PrimitivePivot),
   },
   {
     name: "melt",
