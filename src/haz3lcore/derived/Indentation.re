@@ -23,11 +23,10 @@ let next_pieces = (seg: Segment.t): list(option(Piece.t)) => {
     switch (xs) {
     | [] => []
     | [_] => [None]
-    | [_, ...xs] => [Some(List.hd(xs)), ...go(xs)]
+    | [_, next, ...rest] => [Some(next), ...go([next, ...rest])]
     };
   go(seg);
 };
-
 /* Memoize for perf */
 let indent_hash = Hashtbl.create(10000);
 
