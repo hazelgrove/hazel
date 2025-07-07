@@ -7,7 +7,7 @@ let mk_secondary: string => Piece.t =
       content: Whitespace(content),
     });
 
-let mk_tile = Piece.mk_tile;
+let mk_tile = Piece.mk_tile_from_form;
 
 let mk_ancestor: (Form.t, (list(Segment.t), list(Segment.t))) => Ancestor.t =
   //TODO: asserts

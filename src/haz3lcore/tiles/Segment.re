@@ -768,7 +768,7 @@ let rec deep_tile_complete = (seg: t): bool =>
   );
 
 let mk_duo = (sort: Sort.t, seg: t): Piece.t =>
-  Piece.mk_tile(Form.mk_parens(sort), [seg]);
+  Piece.mk_tile_from_form(Form.mk_parens(sort), [seg]);
 
 let parenthesize = (~sort: option(Sort.t)=?, seg: t): Piece.t => {
   /* If piece is anything other than a Tile, and override sort is not
