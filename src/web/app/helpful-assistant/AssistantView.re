@@ -482,12 +482,20 @@ let mk_input_handlers =
           },
       );
     switch (index) {
-    | Some(_) => ()
+    | Some(_) =>
+      Js.Opt.case(
+        Dom_html.document##getElementById(Js.string(which_input)),
+        () => (),
+        el => {Js.Unsafe.coerce(el)##blur()},
+      )
     | _ =>
       Js.Opt.case(
         Dom_html.document##getElementById(Js.string(which_input)),
         () => (),
-        el => Js.Unsafe.coerce(el)##.value := Js.string(""),
+        el => {
+          Js.Unsafe.coerce(el)##.value := Js.string("");
+          Js.Unsafe.coerce(el)##blur();
+        },
       )
     };
     handle_send(message);
@@ -760,6 +768,9 @@ let text_block =
         editor,
         unique_id,
       );
+
+    // Auto-resize textarea when first rendered with content
+    JsUtil.delay(0.0, () => JsUtil.autosize_textarea(unique_id));
     div(
       ~attrs=[clss(["user-message-input-container"])],
       [
