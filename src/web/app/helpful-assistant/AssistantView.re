@@ -1118,8 +1118,7 @@ let message_display =
                       ? div(
                           ~attrs=[clss(["show-prompt-button"])],
                           [
-                            Widgets.button(
-                              ~tooltip="Show Prompt", Icons.info, _ =>
+                            Widgets.button(~tooltip="Show Prompt", Icons.doc, _ =>
                               toggle_collapse(true, index)
                             ),
                           ],
