@@ -156,7 +156,7 @@ let builtins: list(BuiltinsUtil.fn) = [
         };
       };
     },
-    custom_statics: None,
+    custom_statics: Some(SelectLabels),
   },
   {
     name: "omit_labels",

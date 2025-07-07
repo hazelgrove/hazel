@@ -380,6 +380,241 @@ let tests = [
       );
     }
   }),
+  test_case("select_labels with appropriate labels", `Quick, () =>
+    annotated_tree_test(
+      {|select_labels((a=1, b=true, c=3), 'a', 'b')|},
+      prod([tup_label(label("a"), int()), tup_label(label("b"), bool())]),
+      FIError.Exp.(
+        ap(
+          Forward,
+          var("select_labels"),
+          tuple([
+            tuple([
+              tup_label(label("a"), int(1)),
+              tup_label(label("b"), bool(true)),
+              tup_label(label("c"), int(3)),
+            ]),
+            label("a"),
+            label("b"),
+          ]),
+        )
+      ),
+    )
+  ),
+  test_case("select_labels with more appropriate labels", `Quick, () =>
+    annotated_tree_test(
+      {|select_labels((a=1,b=2,c=3), 'c', 'a', 'c')|},
+      prod([
+        tup_label(label("c"), int()),
+        tup_label(label("a"), int()),
+        tup_label(label("c"), int()),
+      ]),
+      FIError.Exp.(
+        ap(
+          Forward,
+          var("select_labels"),
+          tuple([
+            tuple([
+              tup_label(label("a"), int(1)),
+              tup_label(label("b"), int(2)),
+              tup_label(label("c"), int(3)),
+            ]),
+            label("c"),
+            label("a"),
+            label("c"),
+          ]),
+        )
+      ),
+    )
+  ),
+  test_case("select_labels with non-label", `Quick, () =>
+    annotated_tree_test(
+      {|select_labels((a=1, b=true, c=3), 'a', 3, 'c')|},
+      prod([
+        tup_label(label("a"), int()),
+        unknown(Internal),
+        tup_label(label("c"), int()),
+      ]),
+      FIError.Exp.(
+        ap(
+          Forward,
+          var("select_labels"),
+          tuple([
+            tuple([
+              tup_label(label("a"), int(1)),
+              tup_label(label("b"), bool(true)),
+              tup_label(label("c"), int(3)),
+            ]),
+            label("a"),
+            int(
+              ~ann=Some(Exp(Common(NoType(BadLabel(Exp(Exp.int(3))))))),
+              3,
+            ),
+            label("c"),
+          ]),
+        )
+      ),
+    )
+  ),
+  test_case("select_labels with holes for labels", `Quick, () =>
+    annotated_tree_test(
+      {|select_labels((a=1, b="", c=true), 'a', ?, 'c')|},
+      prod([
+        tup_label(label("a"), int()),
+        unknown(Internal),
+        tup_label(label("c"), bool()),
+      ]),
+      FIError.Exp.(
+        ap(
+          Forward,
+          var("select_labels"),
+          tuple([
+            tuple([
+              tup_label(label("a"), int(1)),
+              tup_label(label("b"), string("")),
+              tup_label(label("c"), bool(true)),
+            ]),
+            label("a"),
+            empty_hole(),
+            label("c"),
+          ]),
+        )
+      ),
+    )
+  ),
+  test_case("select_labels with label not in tuple", `Quick, () =>
+    annotated_tree_test(
+      {|select_labels((a=1, b=true, c=3), 'd')|},
+      unknown(Internal),
+      FIError.Exp.(
+        ap(
+          ~ann=Some(Exp(BuiltinError(ProjectLabelsMissingLabels(["d"])))),
+          Forward,
+          var("select_labels"),
+          tuple([
+            tuple([
+              tup_label(label("a"), int(1)),
+              tup_label(label("b"), bool(true)),
+              tup_label(label("c"), int(3)),
+            ]),
+            label("d"),
+          ]),
+        )
+      ),
+    )
+  ),
+  test_case("select_labels with a single tuple and no labels", `Quick, () =>
+    annotated_tree_test(
+      {|select_labels((1, 2, 3))|},
+      unknown(Internal),
+      FIError.Exp.(
+        ap(
+          Forward,
+          var("select_labels"),
+          tuple([
+            int(~ann=Some(Exp(BuiltinError(ArgumentMustBeTuple))), 1),
+            int(
+              ~ann=Some(Exp(Common(NoType(BadLabel(Exp(Exp.int(2))))))),
+              2,
+            ),
+            int(
+              ~ann=Some(Exp(Common(NoType(BadLabel(Exp(Exp.int(3))))))),
+              3,
+            ),
+          ]),
+        )
+      ),
+    )
+  ),
+  test_case("select_labels called with single arg", `Quick, () =>
+    annotated_tree_test(
+      {|select_labels(1)|},
+      unknown(Internal),
+      FIError.Exp.(
+        ap(
+          Forward,
+          var("select_labels"),
+          int(~ann=Some(Exp(BuiltinError(ArgumentMustBeTuple))), 1),
+        )
+      ),
+    )
+  ),
+  test_case("select_labels with no args", `Quick, () =>
+    annotated_tree_test(
+      {|select_labels()|},
+      unknown(Internal),
+      FIError.Exp.(
+        ap(
+          Forward,
+          var("select_labels"),
+          tuple(~ann=Some(Exp(BuiltinError(ArgumentMustBeTuple))), []),
+        )
+      ),
+    )
+  ),
+  test_case("select_labels with first arg unknown type", `Quick, () =>
+    annotated_tree_test(
+      {|select_labels(?, 'a')|},
+      unknown(Internal),
+      FIError.Exp.(
+        ap(
+          Forward,
+          var("select_labels"),
+          tuple([empty_hole(), label("a")]),
+        )
+      ),
+    )
+  ),
+  test_case("select_labels with deferral as first arg", `Quick, () => {
+    [@warning "-21"]
+    {
+      Alcotest.skip();
+      annotated_tree_test(
+        {|select_labels(_, 'a', 'b')|},
+        unknown(Internal),
+        FIError.Exp.(
+          deferred_ap(
+            var("select_labels"),
+            [deferral(InAp), label("a"), label("b")],
+          )
+        ),
+      );
+    }
+  }),
+  test_case("select_labels with deferral in subsequent args", `Quick, () => {
+    [@warning "-21"]
+    {
+      Alcotest.skip();
+      annotated_tree_test(
+        {|select_labels((a=1, b=true, c=3), 'a', _, 'c')|},
+        prod([int(), unknown(Internal), int()]),
+        FIError.Exp.(
+          ap(
+            Forward,
+            var("select_labels"),
+            tuple([
+              tuple([
+                tup_label(label("a"), int(1)),
+                tup_label(label("b"), bool(true)),
+                tup_label(label("c"), int(3)),
+              ]),
+              label("a"),
+              deferral(
+                ~ann=
+                  Some(
+                    Exp(
+                      Common(NoType(BadLabel(Exp(Exp.deferral(InAp))))),
+                    ),
+                  ),
+                InAp,
+              ),
+              label("c"),
+            ]),
+          )
+        ),
+      );
+    }
+  }),
   fully_consistent_typecheck(
     "primitive_pivot with single tuple",
     {|primitive_pivot([(a="hello", b=3, c=4)], 'a')|},
