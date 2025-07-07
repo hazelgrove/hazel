@@ -5,7 +5,8 @@ type custom_statics =
   | MeltBuiltin
   | ProjectLabelsBuiltin
   | OmitLabelsBuiltin
-  | DropLabelsBuiltin;
+  | DropLabelsBuiltin
+  | PrimitivePivot;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type kind =

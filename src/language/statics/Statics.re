@@ -1010,7 +1010,7 @@ and uexp_to_info_map =
                   ~ctx,
                   ~ana=Unknown(SynSwitch) |> Typ.temp,
                   ~ancestors,
-                  ~override_self=BuiltinError(ProjectLabelsFirstArgNotTuple),
+                  ~override_self=BuiltinError(ArgumentMustBeTuple),
                   tup,
                   m,
                 );
@@ -1026,7 +1026,7 @@ and uexp_to_info_map =
                 ~ctx,
                 ~ana=Unknown(SynSwitch) |> Typ.temp,
                 ~ancestors,
-                ~override_self=BuiltinError(ProjectLabelsFirstArgNotTuple),
+                ~override_self=BuiltinError(ArgumentMustBeTuple),
                 arg,
                 m,
               );
@@ -1036,6 +1036,139 @@ and uexp_to_info_map =
               m,
             );
           }
+        | Some(PrimitivePivot) =>
+          print_endline("Arg: " ++ Exp.show(arg));
+          switch (arg.term) {
+          | Tuple([tup, pivot_label]) =>
+            let (tup_info, m) =
+              go(
+                ~ana=List(Unknown(SynSwitch) |> Typ.temp) |> Typ.temp,
+                tup,
+                m,
+              );
+
+            let (label_info, m) =
+              label_to_info_map(
+                Unknown(SynSwitch) |> Typ.temp,
+                pivot_label,
+                m,
+              );
+
+            let m =
+              add_info(
+                arg.annotation.ids,
+                InfoExp(
+                  Info.derived_exp(
+                    ~uexp=arg,
+                    ~ctx,
+                    ~ana=Unknown(SynSwitch) |> Typ.temp,
+                    ~ancestors,
+                    ~self=Common(Just(Unknown(Internal) |> Typ.temp)),
+                    ~co_ctx=CoCtx.empty,
+                    ~label_inference=None,
+                    ~inferred_label,
+                    ~label_sort,
+                  ),
+                ),
+                m,
+              );
+
+            switch (Typ.normalize(ctx, tup_info.ty).term) {
+            | List({term: Prod(entries), _}) =>
+              let pivot_label =
+                switch (label_info.ty.term) {
+                | Label(l) => Some(l)
+                | _ => None
+                };
+
+              let entries: list((string, Grammar.typ_t(IdTagged.IdTag.t))) =
+                List.filter_map(Typ.match_tup_label, entries);
+
+              let pivot_entry:
+                option((string, Grammar.typ_t(IdTagged.IdTag.t))) =
+                List.find_opt(
+                  ((l, _): (string, Grammar.typ_t(IdTagged.IdTag.t))) =>
+                    Some(l) == pivot_label,
+                  entries,
+                );
+
+              let self: Self.exp =
+                switch (pivot_entry, pivot_label) {
+                | (_, None) => Common(Just(Unknown(Internal) |> Typ.temp)) // No pivot label provided
+                | (None, Some(pivot_label)) =>
+                  BuiltinError(MissingLabels([pivot_label]))
+                | (Some((_, typ)), _) =>
+                  switch (Typ.normalize(ctx, typ).term) {
+                  | Atom(String) =>
+                    Common(Just(Unknown(Internal) |> Typ.temp)) // Happy path
+                  | Unknown(_) =>
+                    Common(Just(Unknown(Internal) |> Typ.temp)) // No type information
+                  | _ => BuiltinError(PivotLabelIsNotString(typ)) // Pivot label not a string
+                  }
+                };
+
+              add'(
+                ~self,
+                ~co_ctx=CoCtx.union([fn.co_ctx, tup_info.co_ctx]),
+                m,
+              );
+            | Unknown(_) =>
+              let self: Self.exp =
+                Common(Just(Unknown(Internal) |> Typ.temp));
+
+              add'(~self, ~co_ctx=fn.co_ctx, m);
+            | _ =>
+              let (_, m) =
+                uexp_to_info_map(
+                  ~ctx,
+                  ~ana=Unknown(SynSwitch) |> Typ.temp,
+                  ~ancestors,
+                  ~override_self=BuiltinError(PivotFirstArgNotListOfTuples),
+                  tup,
+                  m,
+                );
+              add(
+                ~self=Just(Unknown(Internal) |> Typ.temp), // Consider if there's a better way to show no type information
+                ~co_ctx=CoCtx.union([fn.co_ctx, tup_info.co_ctx]),
+                m,
+              );
+            };
+          | Tuple(_) =>
+            let (arg_info, m) =
+              uexp_to_info_map(
+                ~ctx,
+                ~ana=
+                  Prod([
+                    List(Unknown(Internal) |> Typ.temp) |> Typ.temp,
+                    Unknown(Internal) |> Typ.temp,
+                  ])
+                  |> Typ.temp,
+                ~ancestors,
+                arg,
+                m,
+              );
+            add(
+              ~self=Just(Unknown(Internal) |> Typ.temp), // Consider if there's a better way to show no type information
+              ~co_ctx=CoCtx.union([fn.co_ctx, arg_info.co_ctx]),
+              m,
+            );
+
+          | _ =>
+            let (arg_info, m) =
+              uexp_to_info_map(
+                ~ctx,
+                ~ana=Unknown(SynSwitch) |> Typ.temp,
+                ~ancestors,
+                ~override_self=BuiltinError(ArgumentMustBeTuple),
+                arg,
+                m,
+              );
+            add(
+              ~self=Just(Unknown(Internal) |> Typ.temp), // Consider if there's a better way to show no type information
+              ~co_ctx=CoCtx.union([fn.co_ctx, arg_info.co_ctx]),
+              m,
+            );
+          };
         | _ =>
           let (arg, m) = go(~ana=ty_in, arg, m);
           let self: Self.exp =
