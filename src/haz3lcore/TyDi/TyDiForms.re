@@ -1,5 +1,3 @@
-open Util;
-open OptUtil.Syntax;
 open Language;
 
 /* This module generates TyDi suggestions which depend
@@ -23,17 +21,14 @@ module Typ = {
     ("_", unk),
   ];
 
+  /* Only need to add forms here if they have a non-trivial type */
   let of_leading_delim: list((Token.t, Typ.t)) = [
-    ("case" ++ leading_expander, unk),
     ("fun" ++ leading_expander, Arrow(unk, unk) |> Typ.fresh),
     (
       "typfun" ++ leading_expander,
       Forall(Var("") |> TPat.fresh, unk) |> Typ.fresh,
     ),
-    ("if" ++ leading_expander, unk),
-    ("let" ++ leading_expander, unk),
     ("test" ++ leading_expander, Prod([]) |> Typ.fresh),
-    ("type" ++ leading_expander, unk),
   ];
 
   let of_infix_delim: list((Token.t, Typ.term)) = [
@@ -87,11 +82,13 @@ module Typ = {
       )
       : list((Token.t, Typ.t)) =>
     List.filter_map(
-      delim => {
-        let* self_ty = List.assoc_opt(delim, self_tys);
-        Typ.is_consistent(ctx, expected_ty, self_ty)
-          ? Some((delim, self_ty)) : None;
-      },
+      delim =>
+        switch (List.assoc_opt(delim, self_tys)) {
+        | None => Some((delim, unk))
+        | Some(self_ty) when Typ.is_consistent(ctx, expected_ty, self_ty) =>
+          Some((delim, self_ty))
+        | Some(_) => None
+        },
       delims,
     );
 };
