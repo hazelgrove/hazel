@@ -891,9 +891,191 @@ module PrimitivePivot = {
   ];
 };
 
+module OmitLabels = {
+  let tests = [
+    test_case("omit_labels with appropriate labels", `Quick, () =>
+      annotated_tree_test(
+        {|omit_labels((a=1, b=true, c=3), 'a', 'b')|},
+        prod([tup_label(label("c"), int())]),
+        FIError.Exp.(
+          ap(
+            Forward,
+            var("omit_labels"),
+            tuple([
+              tuple([
+                tup_label(label("a"), int(1)),
+                tup_label(label("b"), bool(true)),
+                tup_label(label("c"), int(3)),
+              ]),
+              label("a"),
+              label("b"),
+            ]),
+          )
+        ),
+      )
+    ),
+    test_case("omit_labels with non-label", `Quick, () =>
+      annotated_tree_test(
+        {|omit_labels((a=1, b=true, c=3), 'a', 3, 'c')|},
+        prod([tup_label(label("b"), bool())]),
+        FIError.Exp.(
+          ap(
+            Forward,
+            var("omit_labels"),
+            tuple([
+              tuple([
+                tup_label(label("a"), int(1)),
+                tup_label(label("b"), bool(true)),
+                tup_label(label("c"), int(3)),
+              ]),
+              label("a"),
+              int(
+                ~ann=
+                  Some(Exp(Common(NoType(BadLabel(Exp(Exp.int(3))))))),
+                3,
+              ),
+              label("c"),
+            ]),
+          )
+        ),
+      )
+    ),
+    test_case("omit_labels with holes for labels to omit", `Quick, () =>
+      annotated_tree_test(
+        {|omit_labels((a=1, b="", c=true), 'a', ?, 'c')|},
+        prod([tup_label(label("b"), string())]), // I don't know what we want here. We could just return unknown
+        FIError.Exp.(
+          ap(
+            Forward,
+            var("omit_labels"),
+            tuple([
+              tuple([
+                tup_label(label("a"), int(1)),
+                tup_label(label("b"), string("")),
+                tup_label(label("c"), bool(true)),
+              ]),
+              label("a"),
+              empty_hole(),
+              label("c"),
+            ]),
+          )
+        ),
+      )
+    ),
+    test_case("omit_labels with label not in tuple", `Quick, () =>
+      annotated_tree_test(
+        {|omit_labels((a=1, b=true, c=3), 'd')|},
+        unknown(Internal),
+        FIError.Exp.(
+          ap(
+            ~ann=
+              Some(Exp(BuiltinError(ProjectLabelsMissingLabels(["d"])))),
+            Forward,
+            var("omit_labels"),
+            tuple([
+              tuple([
+                tup_label(label("a"), int(1)),
+                tup_label(label("b"), bool(true)),
+                tup_label(label("c"), int(3)),
+              ]),
+              label("d"),
+            ]),
+          )
+        ),
+      )
+    ),
+    test_case("omit_labels with hole in tuple label position", `Quick, () =>
+      annotated_tree_test(
+        {|omit_labels((?=1, b=true, c=3), 'b', 'c')|},
+        prod([tup_label(empty_hole(), int())]),
+        FIError.Exp.(
+          ap(
+            Forward,
+            var("omit_labels"),
+            tuple([
+              tuple([
+                tup_label(empty_hole(), int(1)),
+                tup_label(label("b"), bool(true)),
+                tup_label(label("c"), int(3)),
+              ]),
+              label("b"),
+              label("c"),
+            ]),
+          )
+        ),
+      )
+    ),
+    test_case("omit_labels with a single tuple and no labels", `Quick, () =>
+      annotated_tree_test(
+        {|omit_labels((1, 2, 3))|},
+        unknown(Internal),
+        FIError.Exp.(
+          ap(
+            Forward,
+            var("omit_labels"),
+            tuple([
+              int(~ann=Some(Exp(BuiltinError(ArgumentMustBeTuple))), 1),
+              int(
+                ~ann=
+                  Some(Exp(Common(NoType(BadLabel(Exp(Exp.int(2))))))),
+                2,
+              ),
+              int(
+                ~ann=
+                  Some(Exp(Common(NoType(BadLabel(Exp(Exp.int(3))))))),
+                3,
+              ),
+            ]),
+          )
+        ),
+      )
+    ),
+    test_case("omit_labels called with single arg", `Quick, () =>
+      annotated_tree_test(
+        {|omit_labels(1)|},
+        unknown(Internal),
+        FIError.Exp.(
+          ap(
+            Forward,
+            var("omit_labels"),
+            int(~ann=Some(Exp(BuiltinError(ArgumentMustBeTuple))), 1),
+          )
+        ),
+      )
+    ),
+    test_case("omit_labels with no args", `Quick, () =>
+      annotated_tree_test(
+        {|omit_labels()|},
+        unknown(Internal),
+        FIError.Exp.(
+          ap(
+            Forward,
+            var("omit_labels"),
+            tuple(~ann=Some(Exp(BuiltinError(ArgumentMustBeTuple))), []),
+          )
+        ),
+      )
+    ),
+    test_case("omit_labels with first arg unknown type", `Quick, () =>
+      annotated_tree_test(
+        {|omit_labels(?, 'a')|},
+        unknown(Internal),
+        FIError.Exp.(
+          ap(
+            Forward,
+            var("omit_labels"),
+            tuple([empty_hole(), label("a")]),
+          )
+        ),
+      )
+    ),
+  ];
+};
+
 let tests =
   TupleExtension.tests
   @ MeltOperation.tests
   @ ProjectLabels.tests
   @ SelectLabels.tests
-  @ PrimitivePivot.tests;
+  @ PrimitivePivot.tests
+  @ OmitLabels.tests;
