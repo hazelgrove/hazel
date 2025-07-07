@@ -266,17 +266,8 @@ let go_z =
         switch (select_definition(z)) {
         | Some(z') => z'
         | None =>
-          // Failsafe is to comment out entire program if no lowest-enclosing type/value binding exists
-          switch (Move.do_extreme(Move.primary(ByToken), Up, z)) {
-          | Some(z') =>
-            switch (Select.go(Extreme(Down), z')) {
-            | Some(z'') => z''
-            // Default on line-based approach
-            | None => z
-            }
-          // Default on line-based approach
-          | None => z
-          }
+          // Fall back to line-based approach
+          z
         }
       };
     // Wraps selected text in # comments
