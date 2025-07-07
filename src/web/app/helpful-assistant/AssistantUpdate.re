@@ -620,7 +620,11 @@ let update =
               ),
             display:
               Model.mk_message_display(
-                ~content,
+                ~content=
+                  String.concat(
+                    "\n",
+                    ChatLSP.get_sketch_and_error_ctx(editor),
+                  ),
                 ~role=System(AssistantPrompt),
               ),
             role: System(AssistantPrompt),
@@ -961,7 +965,7 @@ let update =
         switch (content) {
         | "" => curr_chat.messages @ [structure_edit_message]
         | _ =>
-          curr_chat.messages @ [structure_edit_message, assistant_message]
+          curr_chat.messages @ [assistant_message, structure_edit_message]
         };
       | None => curr_chat.messages @ [assistant_message]
       };

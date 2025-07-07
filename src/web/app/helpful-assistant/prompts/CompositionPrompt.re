@@ -409,7 +409,7 @@ let delete_body: API.Json.t =
         (
           "description",
           `String(
-            "Deletes the body of the given variable name. Eg. delete_body x will delete ```x + y``` given a program ```let y = 0 in\nlet x = 1 in\nx + y```. If no variable name is given, the entire sketch is deleted. This is useful when no or few bindings exist and/or the sketch is relatively small.",
+            "Deletes the body of the given variable name. Eg. delete_body x will delete ```x + y``` given a program ```let y = 0 in\nlet x = 1 in\nx + y```. If no variable name is given, the entire sketch is deleted.",
           ),
         ),
         (
