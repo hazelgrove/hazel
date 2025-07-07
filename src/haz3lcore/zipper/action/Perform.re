@@ -78,6 +78,41 @@ let go_z =
       }
     };
 
+  let rec find_parent_with_label =
+          (z: ZipperBase.t, target_label: Label.t): option(Piece.t) => {
+    switch (ZipperBase.parent(z)) {
+    | None => None
+    | Some(p) =>
+      print_endline("Parent is " ++ Piece.show(p));
+      switch (p) {
+      | Tile(t) when t.label == target_label => Some(p)
+      | _ =>
+        // Create a new zipper with this parent as the current position
+        let new_z = {
+          ...z,
+          relatives: {
+            ancestors: List.tl(z.relatives.ancestors),
+            siblings: ([], []),
+          },
+        };
+        find_parent_with_label(new_z, target_label);
+      };
+    };
+  };
+
+  let select_definition = (z: t): option(Zipper.t) => {
+    open OptUtil.Syntax;
+    let* parent =
+      switch (find_parent_with_label(z, ["let", "=", "in"])) {
+      | Some(p) => Some(p)
+      | None => find_parent_with_label(z, ["type", "=", "in"])
+      };
+    switch (parent) {
+    | Tile(t) => Select.tile(t.id, z)
+    | _ => None
+    };
+  };
+
   let smart_select = (n, z): option(Zipper.t) => {
     switch (n) {
     | 2 => Select.indicated_token(z)
@@ -222,7 +257,23 @@ let go_z =
     /* note: remolding here is done case-by-case */
     //|> Option.map((z) => remold_regrout(Right, z))
     |> Result.of_option(~error=Action.Failure.Cant_insert);
-  | Comment =>
+  | Comment(lvl) =>
+    let z =
+      switch (lvl) {
+      | Line => z
+      | Structure =>
+        // A high-level structure-based comment, commenting out the lowest-enclosing type/value binding
+        switch (select_definition(z)) {
+        | Some(z) => z
+        | None =>
+          // Failsafe is to comment out entire program if no lowest-enclosing type/value binding exists
+          switch (Move.do_extreme(Move.primary(ByToken), Up, z)) {
+          | Some(z) => z
+          // Default on line-based approach
+          | None => z
+          }
+        }
+      };
     // Wraps selected text in # comments
     let selection_text = Printer.to_string_selection(z);
     let drop_comments = (line: string): string =>

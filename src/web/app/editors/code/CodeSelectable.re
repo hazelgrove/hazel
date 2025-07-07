@@ -52,7 +52,7 @@ module Update = {
         Destruct(_) | Insert(_) | RotateBackpack | MoveToBackpackTarget(_) |
         Pick_up |
         Put_down |
-        Comment |
+        Comment(_) |
         Paste(_) |
         Reparse |
         Cut |

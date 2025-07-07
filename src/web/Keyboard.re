@@ -54,6 +54,7 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "ArrowRight" => now(Select(Resize(Extreme(Right(ByToken)))))
     | "ArrowUp" => now(Select(Resize(Extreme(Up))))
     | "ArrowDown" => now(Select(Resize(Extreme(Down))))
+    | "/" => Some(Comment(Structure))
     | _ => None
     }
   | {key: D(key), sys: PC, shift: Down, meta: Up, ctrl: Down, alt: Up} =>
@@ -64,6 +65,7 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "ArrowDown" => now(Select(Resize(Local(Down))))
     | "Home" => now(Select(Resize(Extreme(Up))))
     | "End" => now(Select(Resize(Extreme(Down))))
+    | "/" => Some(Comment(Structure))
     | _ => None
     }
   | {key: D(key), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up} =>
@@ -72,7 +74,7 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "p" => now(Pick_up)
     | "a" => now(Select(All))
     | "b" => Some(Buffer(Set(TyDi)))
-    | "/" => Some(Comment)
+    | "/" => Some(Comment(Line))
     | "ArrowLeft" => now(Move(Extreme(Left(ByToken))))
     | "ArrowRight" => now(Move(Extreme(Right(ByToken))))
     | "ArrowUp" => now(Move(Extreme(Up)))
@@ -85,7 +87,7 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "p" => now(Pick_up)
     | "a" => now(Select(All))
     | "b" => Some(Buffer(Set(TyDi)))
-    | "/" => Some(Comment)
+    | "/" => Some(Comment(Line))
     | "ArrowLeft" => now(Move(Local(Left(ByToken))))
     | "ArrowRight" => now(Move(Local(Right(ByToken))))
     | "Home" => now(Move(Extreme(Up)))
