@@ -1181,7 +1181,6 @@ and uexp_to_info_map =
             );
           }
         | Some(PrimitivePivot) =>
-          print_endline("Arg: " ++ Exp.show(arg));
           switch (arg.term) {
           | Tuple([tup, pivot_label]) =>
             let (tup_info, m) =
