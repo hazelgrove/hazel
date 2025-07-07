@@ -1,3 +1,114 @@
+/* Remove non-contentful items (whitespace and concave grout) */
+let trim_non_content: Segment.t => Segment.t =
+  List.filter_map(
+    fun
+    | Piece.Grout({shape: Concave, _}) => None
+    | Secondary(s) when Secondary.is_space(s) => None
+    | p => Some(p),
+  );
+
+let prev_pieces = (seg: Segment.t): list(option(Piece.t)) => {
+  let rec go =
+          (xs: list(Piece.t), prev: option(Piece.t))
+          : list(option(Piece.t)) =>
+    switch (xs) {
+    | [] => []
+    | [x, ...xs] => [prev, ...go(xs, Some(x))]
+    };
+  go(seg, None);
+};
+
+let next_pieces = (seg: Segment.t): list(option(Piece.t)) => {
+  let rec go = (xs: list(Piece.t)): list(option(Piece.t)) =>
+    switch (xs) {
+    | [] => []
+    | [_] => [None]
+    | [_, ...xs] => [Some(List.hd(xs)), ...go(xs)]
+    };
+  go(seg);
+};
+
+/* Memoize for perf */
+let indent_hash = Hashtbl.create(10000);
+
+let union_all =
+  List.fold_left(
+    (map, new_map) => Id.Map.union((_, a, _) => Some(a), new_map, map),
+    Id.Map.empty,
+  );
+
+/* This does not strictly 'complete' a segment but rather does a
+ * rough version of it that suffices for indentation calculation */
+let rec shallow_complete_segment = (seg: Segment.t): Segment.t =>
+  switch (seg) {
+  | [] => []
+  | [Tile(t), ...rest] when !Tile.is_complete(t) => [
+      Tile({
+        ...t,
+        shards: List.init(List.length(t.label), i => i),
+        children: t.children @ [shallow_complete_segment(rest)],
+        /* Note: Potentially wrong number of children */
+      }),
+    ]
+  | [p, ...rest] => [p, ...shallow_complete_segment(rest)]
+  };
+
+/* Find the shortest prefix of the segment containing all incomplete tiles
+ * followed by two consecutive linebreaks (aka a blank line)  */
+let incomplete_subseg_before_blank_line =
+    (seg: Segment.t): option((Segment.t, Segment.t)) => {
+  let rec find_split_point =
+          (seg: Segment.t, acc: Segment.t, incomplete_before: bool)
+          : option((Segment.t, Segment.t)) => {
+    switch (seg) {
+    | [] => None
+    | [Secondary(w1) as p, Secondary(w2), ...rest]
+        when Secondary.is_linebreak(w1) && Secondary.is_linebreak(w2) =>
+      let incomplete_before = incomplete_before || !Piece.is_complete(p);
+      if (incomplete_before) {
+        /* Note: Leaves one linebreak in and one out (empty line) */
+        Some((
+          List.rev([Piece.Secondary(w1), ...acc]),
+          [Secondary(w2), ...rest],
+        ));
+      } else {
+        find_split_point(
+          rest,
+          [Secondary(w2), Secondary(w1), ...acc],
+          incomplete_before,
+        );
+      };
+    | [p, ...rest] =>
+      find_split_point(
+        rest,
+        [p, ...acc],
+        incomplete_before || !Piece.is_complete(p),
+      )
+    };
+  };
+  find_split_point(seg, [], false);
+};
+
+/* When a segment is incomplete, we try to complete it before calculating
+ * indentation. This is necessarily a heuristic process. One obvious way
+ * would be to consider dropping the backpack at the cursor, but making
+ * this calcuation cursor-sensitive (and hence active on movement) is
+ * potentially expensive and janky. Thus we use a different indication
+ * of user intent: leaving a blank line. In effect, this attempts to
+ * completes the segment in the specific case where all incomplete tiles
+ * in the segment are found before a blank line (two consecutive linebreaks).
+ * There are many cases where this won't apply, but it is sufficient to
+ * ensure non-janky left-to-right entry of a new definition seperated
+ * from the rest of the existing below bidelimited context by an empty line,
+ * assuming that the below bidelimited context doesn't contain incomplete
+ * tiles at the top level. */
+let complete_segment = (seg: Segment.t): Segment.t => {
+  switch (incomplete_subseg_before_blank_line(seg)) {
+  | None => shallow_complete_segment(seg)
+  | Some((before, after)) => shallow_complete_segment(before) @ after
+  };
+};
+
 let is_comma = (p: Piece.t): bool =>
   switch (p) {
   | Tile(t) => t.label == [","]
@@ -6,13 +117,8 @@ let is_comma = (p: Piece.t): bool =>
 
 let is_case_rule = (p: Piece.t): bool =>
   switch (p) {
-  | Tile(t) =>
-    switch (t.label) {
-    //| _ when t.label == ["i"] => true /* hack to reduce let-in jank; comes at a cost */
-    | ["|"] => true /* hack */
-    | ["|", "=>"] => true
-    | _ => false
-    }
+  | Tile({label: ["|"], _}) => true /* hack to reduce case-rule entry jank */
+  | Tile({label: ["|", "=>"], _}) => true
   | _ => false
   };
 
@@ -22,7 +128,9 @@ let ends_with_in = (t: Tile.t): bool =>
   | _ => false
   };
 
-/* Linebreaks following these tiles should increment the indent */
+/* Linebreaks following these tiles should increment the indent. Basically
+ * any non-infix-operator tiles which are concave on the right, except
+ * for definition forms */
 let is_incrementor = (p: Piece.t): bool =>
   switch (p) {
   | Tile(t) =>
@@ -34,155 +142,27 @@ let is_incrementor = (p: Piece.t): bool =>
   | _ => false
   };
 
-/* Remove non-contentful items (whitespace and concave grout) */
-let trim_non_content: Segment.t => Segment.t =
-  List.filter_map(
-    fun
-    | Piece.Grout({shape: Concave, _}) => None
-    | Secondary(s) when Secondary.is_space(s) => None
-    | p => Some(p),
-  );
-
-let prev_pieces = (seg: Segment.t): list(option(Piece.t)) =>
-  seg
-  |> List.map(Option.some)
-  |> List.cons(None)
-  |> List.rev
-  |> List.tl
-  |> List.rev;
-
-let next_pieces = (seg: Segment.t): list(option(Piece.t)) =>
-  seg
-  |> List.map(Option.some)
-  |> List.rev
-  |> List.cons(None)
-  |> List.rev
-  |> List.tl;
-
-/* Memoize for perf */
-let indent_hash = Hashtbl.create(10000);
-
-/* While a traversal would in isolation be move efficient
- * than unioning, we adopt the approach that avoids taking
- * the map as an argument to make memo hits more likely. */
-let union_all =
-  List.fold_left(
-    (map, new_map) => Id.Map.union((_, a, _) => Some(a), new_map, map),
-    Id.Map.empty,
-  );
-
-let rec shallow_complete_segment = (seg: Segment.t): Segment.t =>
-  switch (seg) {
-  | [] => []
-  | [Tile(t), ...rest] when !Tile.is_complete(t) => [
-      Tile({
-        ...t,
-        shards: List.init(List.length(t.label), i => i),
-        children: t.children @ [shallow_complete_segment(rest)],
-        // note wrong number of children
-      }),
-    ]
-  | [p, ...rest] => [p, ...shallow_complete_segment(rest)]
-  };
-
-/* Split segment at first run of two consecutive linebreaks where all incomplete tiles occur before those linebreaks */
-//TODO(andrew): should maybe(??) split along all double linebreaks and complete subsegs? pros and cons...
-let split_at_consecutive_linebreaks =
-    (seg: Segment.t): option((Segment.t, Segment.t)) => {
-  let rec find_split_point =
-          (seg: Segment.t, acc: Segment.t, incomplete_before: bool)
-          : option((Segment.t, Segment.t)) => {
-    switch (seg) {
-    | [] => None
-    | [p, ...rest] =>
-      let incomplete_here =
-        switch (p) {
-        | Tile(t) => !Tile.is_complete(t)
-        | _ => false
-        };
-
-      let incomplete_before' = incomplete_before || incomplete_here;
-
-      switch (p) {
-      | Secondary(w) when Secondary.is_linebreak(w) =>
-        /* Check if next piece is also a linebreak */
-        switch (rest) {
-        | [Secondary(w2), ...rest2] when Secondary.is_linebreak(w2) =>
-          /* Found two consecutive linebreaks */
-          if (incomplete_before') {
-            /* All incomplete tiles are before this point, so we can split here */
-            Some((
-              List.rev([p, ...acc]),
-              /* note to live one linebreak in and one out (empty line) */
-              [Secondary(w2), ...rest2],
-            ));
-          } else {
-            /* Continue searching */
-            find_split_point(
-              rest2,
-              [Secondary(w2), p, ...acc],
-              incomplete_before',
-            );
-          }
-        | _ =>
-          /* Single linebreak, continue */
-          find_split_point(rest, [p, ...acc], incomplete_before')
-        }
-      | _ =>
-        /* Not a linebreak, continue */
-        find_split_point(rest, [p, ...acc], incomplete_before')
-      };
-    };
-  };
-
-  find_split_point(seg, [], false);
-};
-
 let rec go' = ((not_top, base: int, seg: Segment.t)) => {
-  let trimmed_seg = trim_non_content(seg);
-  let trimmed_seg =
-    switch (split_at_consecutive_linebreaks(trimmed_seg)) {
-    | None => shallow_complete_segment(trimmed_seg)
-    | Some((before, after)) => shallow_complete_segment(before) @ after
-    };
+  let complete_trimmed_seg = complete_segment(trim_non_content(seg));
   let (_, map) =
     List.fold_left2(
       ((level: int, map: Id.Map.t(int)), p: Piece.t, prev_next) => {
         switch (p) {
         | Secondary(w) when Secondary.is_linebreak(w) =>
-          let (prev, next) = prev_next;
-
           let level =
-            // switch (prev_next) {
-            // | (_, None) => base
-            // | (_, Some(next)) when is_comma(next) => base + 2
-            // | (None, _) when not_top => level + 2
-            // | (Some(prev), _) when is_incrementor(prev) => level + 2
-            // | (Some(prev), _) when is_comma(prev) => base + 2
-            // | (_, Some(next)) when is_case_rule(next) => base
-            // | _ => level
-            // };
-            if (next |> Option.map(is_comma) |> Option.value(~default=false)) {
-              base + 2;
-            } else if (prev
-                       |> Option.map(is_comma)
-                       |> Option.value(~default=false)) {
-              base + 2;
-            } else if (prev
-                       |> Option.map(is_incrementor)
-                       |> Option.value(~default=not_top)) {
-              level + 2;
-            } else if (next
-                       |> Option.map(is_case_rule)
-                       |> Option.value(~default=true)) {
-              base;
-            } else {
-              level;
+            switch (prev_next) {
+            | (_, Some(next)) when is_comma(next) => base + 2
+            | (Some(prev), _) when is_comma(prev) => base + 2
+            | (Some(prev), _) when is_incrementor(prev) => level + 2
+            | (None, _) when not_top => level + 2
+            | (_, Some(next)) when is_case_rule(next) => base
+            | (_, None) => base
+            | (_, Some(_)) => level
             };
           (level, Id.Map.add(w.id, level, map));
         | Secondary(_)
         | Grout(_)
-        | Projector(_) => (level, map) //TODO(andrew)
+        | Projector(_) => (level, map)
         | Tile(t) =>
           let map =
             union_all([
@@ -193,8 +173,11 @@ let rec go' = ((not_top, base: int, seg: Segment.t)) => {
         }
       },
       (base, Id.Map.empty),
-      trimmed_seg,
-      List.combine(prev_pieces(trimmed_seg), next_pieces(trimmed_seg)),
+      complete_trimmed_seg,
+      List.combine(
+        prev_pieces(complete_trimmed_seg),
+        next_pieces(complete_trimmed_seg),
+      ),
     );
   map;
 }
