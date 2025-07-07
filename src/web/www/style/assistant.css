@@ -85,6 +85,12 @@
   resize: none;
   overflow-y: auto;
   box-sizing: border-box;
+  color: var(--STONE);
+}
+
+#assistant .message-input::placeholder {
+  color: var(--STONE);
+  opacity: 0.5;
 }
 
 #assistant .message-input:focus {
@@ -302,6 +308,11 @@
   box-sizing: border-box;
 }
 
+#assistant .user-message-input::placeholder {
+  color: var(--STONE);
+  opacity: 0.5;
+}
+
 #assistant .user-message-input:hover {
   --SAND-50: oklch(99% 0.012 90 / 0.7);
   cursor: pointer;
@@ -330,12 +341,13 @@
   cursor: pointer;
   line-height: 0;
   z-index: 1;
-  opacity: 0.7;
+  opacity: 0;
   transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 0;
+  pointer-events: none;
 }
 
 #assistant .user-send-button svg {
@@ -344,8 +356,9 @@
 }
 
 #assistant .user-message-input-container:focus-within .user-send-button {
-  opacity: 1;
+  opacity: 0.7;
   background-color: var(--T2);
+  pointer-events: auto;
 }
 
 #assistant .user-send-button:hover {

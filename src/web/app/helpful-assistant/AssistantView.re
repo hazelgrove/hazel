@@ -779,6 +779,13 @@ let text_block =
             clss(["user-message-input"]),
             Attr.id(unique_id),
             Attr.value(content),
+            Attr.placeholder(
+              switch (settings.mode) {
+              | HazelTutor => "Ask a question about Hazel (or anything)..."
+              | CodeSuggestion => "Followup with a question about the agent's code suggestion..."
+              | TaskCompletion => "Ask the agent to help clarify, plan, or write code..."
+              },
+            ),
             Attr.property("autocomplete", Js.Unsafe.inject("off")),
             Attr.on_focus(_ => {
               JsUtil.autosize_textarea(unique_id);
