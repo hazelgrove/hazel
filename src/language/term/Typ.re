@@ -187,14 +187,16 @@ let join_type_provenance =
   | (SynSwitch, SynSwitch) => SynSwitch
   };
 
-let rec match_tup_label = ty =>
+let rec match_tup_optional_label = (ty: t) =>
   switch (term_of(ty)) {
-  | Parens(ty) => match_tup_label(ty)
-  | TupLabel(label, t') =>
-    switch (term_of(label)) {
-    | Label(name) => Some((name, t'))
-    | _ => None
-    }
+  | Parens(ty) => match_tup_optional_label(ty)
+  | TupLabel({term: Label(name), _}, t') => Some((Some(name), t'))
+  | TupLabel({term: Unknown(_), _}, t') => Some((None, t'))
+  | _ => None
+  };
+let match_tup_label = ty =>
+  switch (match_tup_optional_label(ty)) {
+  | Some((Some(name), t')) => Some((name, t'))
   | _ => None
   };
 

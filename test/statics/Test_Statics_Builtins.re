@@ -164,6 +164,28 @@ module MeltOperation = {
         FIError.Exp.(ap(Forward, var("melt"), empty_hole())),
       )
     ),
+    test_case("Melt operation with hole in tuple label position", `Quick, () =>
+      annotated_tree_test(
+        "melt((?=1, b=2, c=3))",
+        list(
+          prod([
+            tup_label(label("label"), string()),
+            tup_label(label("value"), int()),
+          ]),
+        ),
+        FIError.Exp.(
+          ap(
+            Forward,
+            var("melt"),
+            tuple([
+              tup_label(empty_hole(), int(1)),
+              tup_label(label("b"), int(2)),
+              tup_label(label("c"), int(3)),
+            ]),
+          )
+        ),
+      )
+    ),
   ];
 };
 
@@ -342,6 +364,27 @@ module ProjectLabels = {
             Forward,
             var("project_labels"),
             tuple([empty_hole(), label("a")]),
+          )
+        ),
+      )
+    ),
+    test_case("project_labels with hole in tuple label position", `Quick, () =>
+      annotated_tree_test(
+        {|project_labels((?=1, b=true, c=3), 'b', 'c')|},
+        prod([bool(), int()]),
+        FIError.Exp.(
+          ap(
+            Forward,
+            var("project_labels"),
+            tuple([
+              tuple([
+                tup_label(empty_hole(), int(1)),
+                tup_label(label("b"), bool(true)),
+                tup_label(label("c"), int(3)),
+              ]),
+              label("b"),
+              label("c"),
+            ]),
           )
         ),
       )
@@ -593,6 +636,30 @@ module SelectLabels = {
         ),
       )
     ),
+    test_case("select_labels with hole in tuple label position", `Quick, () =>
+      annotated_tree_test(
+        {|select_labels((?=1, b=true, c=3), 'b', 'c')|},
+        prod([
+          tup_label(label("b"), bool()),
+          tup_label(label("c"), int()),
+        ]),
+        FIError.Exp.(
+          ap(
+            Forward,
+            var("select_labels"),
+            tuple([
+              tuple([
+                tup_label(empty_hole(), int(1)),
+                tup_label(label("b"), bool(true)),
+                tup_label(label("c"), int(3)),
+              ]),
+              label("b"),
+              label("c"),
+            ]),
+          )
+        ),
+      )
+    ),
     test_case("select_labels with deferral as first arg", `Quick, () => {
       [@warning "-21"]
       {
@@ -795,6 +862,28 @@ module PrimitivePivot = {
                 label("b"),
               ],
             ),
+          )
+        ),
+      )
+    ),
+    test_case("primitive_pivot with hole in tuple label position", `Quick, () =>
+      annotated_tree_test(
+        {|primitive_pivot([(a="hello", ?=3, c=4)], 'a')|},
+        unknown(Internal),
+        FIError.Exp.(
+          ap(
+            Forward,
+            var("primitive_pivot"),
+            tuple([
+              list_lit([
+                tuple([
+                  tup_label(label("a"), string("hello")),
+                  tup_label(empty_hole(), int(3)),
+                  tup_label(label("c"), int(4)),
+                ]),
+              ]),
+              label("a"),
+            ]),
           )
         ),
       )
