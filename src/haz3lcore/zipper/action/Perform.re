@@ -264,11 +264,16 @@ let go_z =
       | Structure =>
         // A high-level structure-based comment, commenting out the lowest-enclosing type/value binding
         switch (select_definition(z)) {
-        | Some(z) => z
+        | Some(z') => z'
         | None =>
           // Failsafe is to comment out entire program if no lowest-enclosing type/value binding exists
           switch (Move.do_extreme(Move.primary(ByToken), Up, z)) {
-          | Some(z) => z
+          | Some(z') =>
+            switch (Select.go(Extreme(Down), z')) {
+            | Some(z'') => z''
+            // Default on line-based approach
+            | None => z
+            }
           // Default on line-based approach
           | None => z
           }
