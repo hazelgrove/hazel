@@ -19,7 +19,10 @@ let delayed_expand =
   let (new_label, backpack) = Molds.delayed_expansion(t);
   //TODO(andrew): document
   let (new_label, backpack) =
-    /* This logic is problematic if the case is incomplete... */
+    /* This logic is problematic if the case is incomplete...
+       also when trying to make an or in a case branch. maybe have them
+       expand only on the start of a line, when inside a case, or in a segment
+       somewhere after an incomplete case tile */
     switch (Ancestors.parent(z.relatives.ancestors)) {
     | _ when t == "|" => ([t], Direction.Left)
     | _ => (new_label, backpack)
