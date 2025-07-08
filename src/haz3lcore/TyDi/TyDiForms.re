@@ -84,6 +84,8 @@ module Typ = {
     List.filter_map(
       delim =>
         switch (List.assoc_opt(delim, self_tys)) {
+        | _ when List.mem(delim, ["|>", "||", "::", "!=", "!=.", "**."]) =>
+          None
         | None => Some((delim, unk))
         | Some(self_ty) when Typ.is_consistent(ctx, expected_ty, self_ty) =>
           Some((delim, self_ty))
