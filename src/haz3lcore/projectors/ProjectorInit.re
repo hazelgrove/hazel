@@ -15,7 +15,6 @@ let to_module = (kind: ProjectorCore.Kind.t): (module Cooked) =>
   | TextArea => (module Cook(TextAreaProj.M))
   | Livelit => (module Cook(LivelitProj.M))
   | Card => (module Cook(CardProj.M))
-  | Composition => (module Cook(CompProj.M))
   };
 
 let init =

@@ -393,10 +393,10 @@ let mk_llm_call =
         [
           CompositionPrompt.update_pattern,
           CompositionPrompt.update_definition,
-          CompositionPrompt.delete_binding,
           CompositionPrompt.update_body,
-          CompositionPrompt.update_binding,
           CompositionPrompt.delete_body,
+          CompositionPrompt.update_binding,
+          CompositionPrompt.delete_binding,
           CompositionPrompt.add_before,
           CompositionPrompt.add_after,
           // CompositionPrompt.goto_definition,

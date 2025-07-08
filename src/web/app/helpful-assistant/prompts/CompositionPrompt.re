@@ -154,7 +154,7 @@ let update_pattern: API.Json.t =
         (
           "description",
           `String(
-            "Updates the pattern (or typed pattern. Eg. ```(x, y) : (Int, Int)``` would be overwritten in ```let (x, y) : (Int, Int) = (1, 2) in...```) which encloses the given variable name. Eg. update_pattern x \"x : Int\" will update ```let x = 1 in``` to ```let x : Int = 1 in``` given a program ```let y = 0 in\nlet x = 1 in\nx + y```.",
+            "Updates the pattern (or typed pattern). Eg. ```(x, y) : (Int, Int)``` would be overwritten in ```let (x, y) : (Int, Int) = (1, 2) in...```) which encloses the given variable name. Eg. update_pattern x \"x : Int\" will update ```let x = 1 in``` to ```let x : Int = 1 in``` given a program ```let y = 0 in\nlet x = 1 in\nx + y```.",
           ),
         ),
         (
