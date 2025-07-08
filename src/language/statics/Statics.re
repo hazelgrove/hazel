@@ -1471,7 +1471,41 @@ and uexp_to_info_map =
               m,
             );
           }
-        | _ =>
+        | Some(DropLabelsBuiltin) =>
+          let (arg, m) = go(~ana=ty_in, arg, m);
+          print_endline("Arg.ty" ++ Typ.show(arg.ty));
+
+          switch (Typ.normalize(ctx, arg.ty).term) {
+          | Prod(entries) =>
+            let entries =
+              List.map(
+                (e: Typ.t) =>
+                  switch (e.term) {
+                  | TupLabel(_, typ) => typ
+                  | _ => e
+                  },
+                entries,
+              );
+
+            add(
+              ~self=Just(IdTagged.FreshGrammar.Typ.(list(prod(entries)))),
+              ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
+              m,
+            );
+          | Unknown(_) =>
+            add(
+              ~self=Just(ty_out),
+              ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
+              m,
+            )
+          | _ =>
+            add'(
+              ~self=BuiltinError(ArgumentMustBeTuple),
+              ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
+              m,
+            )
+          };
+        | None =>
           let (arg, m) = go(~ana=ty_in, arg, m);
           let self: Self.exp =
             Id.is_nullary_ap_flag(IdTagged.ids(arg.term))

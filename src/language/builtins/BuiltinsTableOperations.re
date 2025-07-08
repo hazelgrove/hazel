@@ -228,6 +228,6 @@ let builtins: list(BuiltinsUtil.fn) = [
         );
       Some(IdTagged.FreshGrammar.Exp.tuple(entries));
     },
-    custom_statics: None,
+    custom_statics: Some(DropLabelsBuiltin),
   },
 ];
