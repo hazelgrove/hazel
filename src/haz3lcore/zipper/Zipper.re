@@ -347,7 +347,10 @@ let structural_construct = (label: Label.t, z: t): t => {
   let z = {
     ...z,
     selection:
-      Selection.mk([piece] @ (shape_right != Convex ? [mk_space()] : [])),
+      Selection.mk(
+        [piece]
+        @ (shape_right != Convex && label != ["|", "=>"] ? [mk_space()] : []),
+      ),
   };
   //print_endline("z after: " ++ show(z));
   z;
