@@ -36,6 +36,7 @@ type t = {
   elaborate: bool,
   assist: bool,
   dynamics: bool,
+  structural: bool,
   flip_animations: bool,
   evaluation: Evaluation.t,
 };
@@ -45,6 +46,7 @@ let off: t = {
   elaborate: false,
   assist: false,
   dynamics: false,
+  structural: false,
   flip_animations: false,
   evaluation: Evaluation.init,
 };
@@ -54,6 +56,7 @@ let on: t = {
   elaborate: true,
   assist: true,
   dynamics: true,
+  structural: false,
   flip_animations: true,
   evaluation: Evaluation.init,
 };

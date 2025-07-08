@@ -312,6 +312,8 @@ module Selection = {
       Some(Update.Globals(SetShowBackpackTargets(false)))
     | {key: D("F7"), sys: Mac | PC, shift: Down, meta: Up, ctrl: Up, alt: Up} =>
       Some(Update.Benchmark(Start))
+    | {key: D("e"), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up} =>
+      Some(Update.Globals(Set(Structural)))
     | {
         key: D("Z" | "z"),
         sys: Mac,

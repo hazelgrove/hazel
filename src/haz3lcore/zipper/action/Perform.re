@@ -19,7 +19,7 @@ let set_buffer = (info_map: Language.Statics.Map.t, z: t): t =>
 
 let go_z =
     (
-      ~settings as _: Language.CoreSettings.t,
+      ~settings: Language.CoreSettings.t,
       statics: CachedStatics.t,
       a: Action.t,
       module M: Move.S,
@@ -36,7 +36,7 @@ let go_z =
        with the fact that pasting something like "let a = b in"
        won't trigger the barfing of the "in"; to trigger this,
        we insert a space, and then we immediately delete it */
-    let* z = Insert.go(" ", z);
+    let* z = Insert.go(~structmode=false, " ", z);
     let+ z = Destruct.go(Left, z);
     remold_regrout(Left, z);
   };
@@ -223,7 +223,7 @@ let go_z =
       };
 
     z
-    |> Insert.go(char, ~ctx)
+    |> Insert.go(~structmode=settings.structural, char, ~ctx)
     /* note: remolding here is done case-by-case */
     |> Result.of_option(~error=Action.Failure.Cant_insert);
   | Pick_up => Ok(remold_regrout(Left, Zipper.pick_up(z)))
