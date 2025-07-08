@@ -47,6 +47,23 @@ let remove_matching = (t: Tile.t) =>
     | p => Some(p),
   );
 
+let all_filler: t => bool =
+  List.for_all(
+    fun
+    | Piece.Grout(_)
+    | Secondary(_) => true
+    | _ => false,
+  );
+
+let remove_matching_empty = (t: Tile.t) =>
+  List.filter_map(
+    fun
+    | Piece.Tile(t')
+        when t'.id == t.id && List.for_all(all_filler, t.children) =>
+      None
+    | p => Some(p),
+  );
+
 let snoc = (tiles, tile) => tiles @ [tile];
 
 let shape_affix =

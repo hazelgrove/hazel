@@ -189,6 +189,9 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
     | Invalid(_)
     | Undefined
     | EmptyHole => uexp
+    | MultiHole([Exp(e1), Exp(e2)]) =>
+      /* Treat two-expression multiholes as seqs */
+      Seq(fst(elaborate(m, e1)), fst(elaborate(m, e2))) |> rewrap
     | MultiHole(stuff) =>
       Any.map_term(
         ~f_exp=(_, exp) => {elaborate(m, exp) |> fst},

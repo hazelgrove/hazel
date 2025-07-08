@@ -474,7 +474,6 @@ let remove_projector = (id: Id.t, syntax: Piece.t) =>
 
 let delete = (d: Direction.t, z: t): option(t) => {
   let to_delete = z |> select(d);
-
   switch (to_delete) {
   | Some({selection: {content: [Projector(p)], _}, _}) =>
     switch (p.kind) {
@@ -485,6 +484,34 @@ let delete = (d: Direction.t, z: t): option(t) => {
   | _ => to_delete |> Option.map(destruct)
   };
 };
+
+let containing_tile_is_empty = z =>
+  switch (Ancestors.parent(z.relatives.ancestors)) {
+  | Some({children: (l, r), _}) =>
+    List.for_all(Segment.all_filler, l)
+    && List.for_all(Segment.all_filler, r)
+    && List.for_all(Segment.all_filler, [fst(z.relatives.siblings)])
+    && List.for_all(Segment.all_filler, [snd(z.relatives.siblings)])
+  | _ => false
+  };
+
+let structural_delete = (d: Direction.t, z: t): option(t) =>
+  switch (select(d, z)) {
+  | Some(
+      {selection: {content: [Tile({shards: [0], _} as t)], _}, _} as new_z,
+    )
+      when containing_tile_is_empty(z) =>
+    /* Shards [0] means this applies to only leading delimiter */
+    /* Removes any shards matching tile t from local segment and backpack */
+    let rm = Segment.remove_matching_empty(t);
+    {
+      ...update_siblings(((l, r)) => (rm(l), rm(r)), new_z),
+      backpack: Backpack.remove_matching_empty(t, z.backpack),
+      selection: Selection.empty,
+    }
+    |> Option.some;
+  | _ => delete(d, z)
+  };
 
 let replace =
     (~caret: Direction.t, ~backpack: Direction.t, l: Label.t, z: t)

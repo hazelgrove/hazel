@@ -37,7 +37,7 @@ let go_z =
        won't trigger the barfing of the "in"; to trigger this,
        we insert a space, and then we immediately delete it */
     let* z = Insert.go(~structmode=false, " ", z);
-    let+ z = Destruct.go(Left, z);
+    let+ z = Destruct.go(~structmode=false, Left, z);
     remold_regrout(Left, z);
   };
 
@@ -106,7 +106,7 @@ let go_z =
   | Paste(Segment(segment)) => Ok(paste_segment(z, segment))
   | Cut =>
     /* System clipboard handling is done in Page.view handlers */
-    switch (Destruct.go(Left, z)) {
+    switch (Destruct.go(~structmode=false, Left, z)) {
     | None => Error(Cant_destruct)
     | Some(z) => Ok(z)
     }
@@ -207,7 +207,7 @@ let go_z =
     }
   | Destruct(d) =>
     z
-    |> Destruct.go(d)
+    |> Destruct.go(~structmode=settings.structural, d)
     |> Result.of_option(~error=Action.Failure.Cant_destruct)
   | Insert(char) =>
     let id =

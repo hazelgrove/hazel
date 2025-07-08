@@ -17,6 +17,13 @@ let delayed_expand =
      keyword-expansion; precondition: the d-neighbor should be a monotile
      string-matching a keyword of an expanding form */
   let (new_label, backpack) = Molds.delayed_expansion(t);
+  //TODO(andrew): document
+  let (new_label, backpack) =
+    /* This logic is problematic if the case is incomplete... */
+    switch (Ancestors.parent(z.relatives.ancestors)) {
+    | _ when t == "|" => ([t], Direction.Left)
+    | _ => (new_label, backpack)
+    };
   let+ z = delete(caret, z);
   construct(~settings, ~backpack, ~caret, new_label, z);
 };
@@ -80,6 +87,7 @@ let make_new_tile = (~structmode, t: Token.t, caret: Direction.t, z: t): t =>
       let (lbl, backpack) = Molds.instant_expansion(t);
       //TODO(andrew): document this
       let (lbl, backpack) =
+        /* This logic is problematic if the case is incomplete... */
         switch (Ancestors.parent(z.relatives.ancestors)) {
         | Some({label: ["case", "end"], _}) when t == "|" => (
             ["|", "=>"],

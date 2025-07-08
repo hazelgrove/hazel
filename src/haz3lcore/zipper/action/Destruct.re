@@ -5,9 +5,11 @@ open OptUtil.Syntax;
 let destruct =
     (
       d: Direction.t,
+      ~structmode: bool,
       {caret, relatives: {siblings: (l_sibs, r_sibs), _}, _} as z: t,
     )
     : option(t) => {
+  let outer_delete = structmode ? Zipper.structural_delete : Zipper.delete;
   /* Could add checks on valid tokens (all of these hold assuming substring) */
   let last_inner_pos = t => Token.length(t) - 2;
   let delete_right = z =>
@@ -69,7 +71,7 @@ let destruct =
   | (Left, Inner(_), (_, None))
   | (Right, Inner(_), (_, None)) =>
     /* Note: Counterintuitve, but yes, these cases are identically handled */
-    z |> Zipper.set_caret(Outer) |> Zipper.delete(Right)
+    z |> Zipper.set_caret(Outer) |> outer_delete(Right)
 
   //| (_, Inner(_), (_, None)) => None
   | (Left, Outer, (Some(t), _)) when Token.length(t) > 1 =>
@@ -77,7 +79,7 @@ let destruct =
   | (Right, Outer, (_, Some(t))) when Token.length(t) > 1 =>
     Zipper.replace_mono(Right, Token.rm_first(t), z)
   | (_, Outer, (Some(_), _)) /* t.length == 1 */
-  | (_, Outer, (None, _)) => z |> Zipper.delete(d)
+  | (_, Outer, (None, _)) => z |> outer_delete(d)
   };
 };
 
@@ -107,8 +109,8 @@ let parent_duomerges = (z: Zipper.t) => {
   Form.duomerges(lbl);
 };
 
-let go = (d: Direction.t, z: t): option(t) => {
-  let* z = destruct(d, z);
+let go = (~structmode, d: Direction.t, z: t): option(t) => {
+  let* z = destruct(~structmode, d, z);
   switch (
     parent_duomerges(z),
     z.caret,
