@@ -19,22 +19,21 @@ let remove_projectors = (segment: Segment.t) =>
   );
 
 module Print = {
-  let seg = (~holes: option(string)=Some(""), segment: Segment.t): string => {
+  let seg = (~holes, segment: Segment.t): string => {
     let segment = remove_projectors(segment);
-    Printer.to_rows(
+    Printer.of_segment(
       ~holes,
       ~measured=Measured.of_segment(segment, Id.Map.empty),
       ~caret=None,
       ~indent=" ",
-      ~segment,
-    )
-    |> String.concat("\n");
+      segment,
+    );
   };
 
   let term = (term: Term.Any.t): string => {
     let settings =
       ExpToSegment.Settings.of_core(~inline=false, CoreSettings.off);
-    term |> ExpToSegment.any_to_pretty(~settings) |> seg(~holes=None);
+    term |> ExpToSegment.any_to_pretty(~settings) |> seg(~holes="");
   };
 
   let typ = (ty: Typ.t): string => term(Typ(ty));

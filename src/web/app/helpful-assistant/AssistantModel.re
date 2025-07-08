@@ -126,7 +126,7 @@ let parse_blocks = (response: string): list(block_kind) => {
     | pos =>
       let acc = ListUtil.leading(acc);
       let code = Str.matched_group(1, str);
-      let zipper_of_code = Printer.zipper_of_string(code);
+      let zipper_of_code = Parser.to_zipper(code);
       let sketch =
         switch (zipper_of_code) {
         | Some(z) => Zipper.seg_for_view(z)
@@ -152,7 +152,7 @@ let parse_blocks = (response: string): list(block_kind) => {
 
 let mk_message_display = (~content: string, ~role: role): display => {
   {
-    displayable_content: parse_blocks(content),
+    displayable_content: [Text(content)],
     original_content: content,
     role,
     collapsed:

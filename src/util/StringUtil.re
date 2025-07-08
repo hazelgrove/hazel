@@ -36,10 +36,24 @@ let replace = Js_of_ocaml.Regexp.global_replace;
 
 let split = Js_of_ocaml.Regexp.split;
 
+let search = Js_of_ocaml.Regexp.search;
+
 let plain_split: (string, string) => list(string) =
-  (str, sep) => {
-    split(Js_of_ocaml.Regexp.regexp_string(sep), str);
-  };
+  (str, sep) => split(Js_of_ocaml.Regexp.regexp_string(sep), str);
+
+let plain_match: (string, string) => bool =
+  (regexp, str) => match(Js_of_ocaml.Regexp.regexp_string(regexp), str);
+
+let plain_replace: (string, string, string) => string =
+  (regexp, str, repl) =>
+    replace(Js_of_ocaml.Regexp.regexp_string(regexp), str, repl);
+
+let plain_search: (string, string, int) => int =
+  (regexp, str, idx) =>
+    switch (search(Js_of_ocaml.Regexp.regexp(regexp), str, idx)) {
+    | Some((idx, _)) => idx
+    | None => (-1)
+    };
 
 let to_lines = String.split_on_char('\n');
 

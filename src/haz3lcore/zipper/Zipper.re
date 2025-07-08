@@ -255,6 +255,12 @@ let destruct = (~destroy_kids=true, z: t): t => {
 };
 
 let put_down = (d: Direction.t, z: t): option(t) => {
+  /* Note that this does not regrout/remold on its own. After using
+   * this function, you may have to regrout/remold on BOTH sides of
+   * the dropped delimiter. If you don't want to have to do this, use
+   * the integrated variant below. However, this version is retained
+   * for use in cases where this pre-emptive regrouting can interfere
+   * with other behavior, for example token split/merging  */
   let z = destruct(z);
   let* (_, popped, backpack) = pop_backpack(z);
   let z =
@@ -264,6 +270,35 @@ let put_down = (d: Direction.t, z: t): option(t) => {
     }
     |> put_selection(popped)
     |> unselect;
+  switch (d) {
+  | Left => Some(z)
+  | Right => move(Left, z)
+  };
+};
+
+let remold_regrout_prev = (z: t): t =>
+  switch (move(Left, z)) {
+  | None => z
+  | Some(z_left) =>
+    let z_left = z_left |> regrout(Right) |> remold;
+    switch (move(Right, z_left)) {
+    | None => failwith("Zipper.put_down: move fail")
+    | Some(z_right) => z_right
+    };
+  };
+
+let put_down_regrout_remold = (d: Direction.t, z: t): option(t) => {
+  let z = destruct(z);
+  let* (_, popped, backpack) = pop_backpack(z);
+  let z =
+    {
+      ...z,
+      backpack,
+    }
+    |> put_selection(popped)
+    |> unselect;
+  let z = z |> regrout(Left) |> remold;
+  let z = remold_regrout_prev(z);
   switch (d) {
   | Left => Some(z)
   | Right => move(Left, z)
@@ -517,19 +552,9 @@ let try_to_dump_backpack = (zipper: t) => {
     let rec go = (z: t): t => {
       let z_can = can_put_down(z) ? z : move_until_can_put_down(z);
       let z_cant = move_until_cant_put_down(z_can, z_can);
-      switch (put_down(Left, z_cant)) {
+      switch (put_down_regrout_remold(Right, z_cant)) {
       | None => z_cant
-      | Some(z) =>
-        let z = z |> regrout(Right);
-        switch (move(Left, z)) {
-        | None => go(z)
-        | Some(z_left) =>
-          let z_left = z_left |> regrout(Right);
-          switch (move(Right, z_left)) {
-          | None => failwith("Zipper.try_to_dump_backpack: move fail")
-          | Some(z_right) => go(z_right)
-          };
-        };
+      | Some(z) => go(z)
       };
     };
     go(zipper);

@@ -19,7 +19,7 @@ let get_sketch_and_error_ctx =
   let ctx =
     [
       "PROGRAM SKETCH: ```"
-      ++ ErrorPrint.Print.seg(~holes=Some("?"), sketch_seg)
+      ++ ErrorPrint.Print.seg(~holes="?", sketch_seg)
       ++ "```",
     ]
     @ ["STATIC ERRORS: "]
@@ -137,11 +137,7 @@ module Completion = {
     OpenRouter.mk_user_msg(
       String.concat(
         "\n",
-        [
-          "sketch: ```"
-          ++ ErrorPrint.Print.seg(~holes=Some("?"), sketch)
-          ++ "```",
-        ]
+        ["sketch: ```" ++ ErrorPrint.Print.seg(~holes="?", sketch) ++ "```"]
         @ get_static_context(
             options.expected_type,
             options.relevant_ctx,
@@ -155,19 +151,12 @@ module Completion = {
       (
         ~response: string,
         ~tile: Id.t,
-        ~resuggest: bool,
         ~schedule_action: Editors.Update.t => unit,
       ) => {
-    let actions =
-      resuggest
-        ? [
-          Action.Select(Tile(Id(tile, Direction.Left))),
-          Action.Buffer(Set(LLM(response))),
-        ]
-        : [
-          Action.Select(Tile(Id(tile, Direction.Left))),
-          Action.Buffer(Set(LLM(response))),
-        ];
+    let actions = [
+      Action.Select(Tile(Id(tile, Direction.Left))),
+      Action.Buffer(Set(LLM(response))),
+    ];
     // Apply each action in sequence
     List.iter(
       action => {
@@ -210,7 +199,7 @@ module Composition = {
           ++ (
             String.length(
               ErrorPrint.Print.seg(
-                ~holes=Some("?"),
+                ~holes="?",
                 editor.editor.state.zipper.selection.content,
               ),
             )
@@ -218,7 +207,7 @@ module Composition = {
               ? "None. Use a goto_* command to select a code segment."
               : "```"
                 ++ ErrorPrint.Print.seg(
-                     ~holes=Some("?"),
+                     ~holes="?",
                      editor.editor.state.zipper.selection.content,
                    )
                 ++ "```"
@@ -382,27 +371,33 @@ module ErrorRound = {
   let get_parse_errs =
       (sketch_z: Zipper.t, completion: string): Result.t(Zipper.t, string) =>
     //NOTE: This function is pretty basic; reporting approach could be improved
-    switch (
-      {
-        let* sketch_z = Destruct.go(Left, sketch_z);
-        let* sketch_z = Destruct.go(Left, sketch_z);
-        Perform.paste(sketch_z, completion);
-      }
-    ) {
+    /* For now we required that the completion be complete in-itself: */
+    switch (Perform.paste(Zipper.init(), completion)) {
     | None => Error("Undocumented parse error, no feedback available")
     | Some(completion_z) =>
-      switch (
-        completion_z.backpack
-        |> List.map((s: Selection.t) =>
-             Printer.of_segment(~holes=None, s.content)
-           )
-      ) {
+      switch (completion_z.backpack) {
       | [_, ..._] as orphans =>
+        let orphans =
+          List.map(
+            (s: Selection.t) => Printer.of_segment(~holes="", s.content),
+            orphans,
+          );
         Error(
-          "The parser has detected the following unmatched delimiters:. The presence of a '=>' in the list likely indicates that a '->' was mistakingly used in a case expression: "
+          "The parser has detected unmatched delimiters. (The presence of a '=>' in the list likely indicates that a '->' was mistakingly used in a case expression). Unmatched delimiters: "
           ++ String.concat(", ", orphans),
-        )
-      | [] => Ok(completion_z)
+        );
+      | [] =>
+        let segment = Zipper.zip(completion_z);
+        switch (
+          {
+            let* sketch_z = Destruct.go(Left, sketch_z);
+            let+ sketch_z = Destruct.go(Left, sketch_z);
+            Perform.paste_segment(sketch_z, segment);
+          }
+        ) {
+        | None => Error("Undocumented parse error, no feedback available")
+        | Some(completion_z) => Ok(completion_z)
+        };
       }
     };
 
