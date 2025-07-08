@@ -341,11 +341,13 @@ let structural_construct = (label: Label.t, z: t): t => {
       @ (should_pad ? [Piece.mk_grout(Convex), mk_space()] : [])
     );
   let piece = Piece.mk_tile(label, mold, children);
+  let shape_right = mold.nibs |> snd |> Nib.shape;
   let z = unselect(z);
   let z = regrout(Left, z);
   let z = {
     ...z,
-    selection: Selection.mk([piece]),
+    selection:
+      Selection.mk([piece] @ (shape_right != Convex ? [mk_space()] : [])),
   };
   //print_endline("z after: " ++ show(z));
   z;
