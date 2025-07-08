@@ -439,10 +439,33 @@
   text-align: center;
 }
 
-#assistant .header-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
+#assistant .mode-button.disabled {
+  color: var(--BR1);
+  position: relative;
+}
+
+#assistant .mode-button .hover-view {
+  display: none;
+  position: absolute;
+  color: var(--STONE);
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 0.8em;
+  white-space: nowrap;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  margin-top: 4px;
+  box-shadow: 0 2px 8px var(--SHADOW);
+  border: 1px solid var(--SAND);
+}
+
+#assistant .mode-button.disabled:hover {
+  color: var(--BR1);
+}
+
+#assistant .mode-button.disabled:hover .hover-view {
+  display: block;
 }
 
 #assistant .mode-button.active {
