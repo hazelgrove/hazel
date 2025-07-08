@@ -65,7 +65,7 @@ let neighbor_can_duomerge =
   | _ => None
   };
 
-let make_new_tile = (t: Token.t, caret: Direction.t, z: t): t =>
+let make_new_tile = (~structmode, t: Token.t, caret: Direction.t, z: t): t =>
   /* Adds a new tile at the caret. If the new token matches the top
      of the backpack, the backpack shard is dropped. Otherwise, we
      construct a new tile, which may immediately expand. */
@@ -79,15 +79,28 @@ let make_new_tile = (t: Token.t, caret: Direction.t, z: t): t =>
     : {
       let (lbl, backpack) = Molds.instant_expansion(t);
       //TODO(andrew): document this
-      let settings =
-        switch (lbl) {
-        | [hd, _] => t == hd
-        | _ => false
+      let (lbl, backpack) =
+        switch (Ancestors.parent(z.relatives.ancestors)) {
+        | Some({label: ["case", "end"], _}) when t == "|" => (
+            ["|", "=>"],
+            Direction.Left,
+          )
+        | _ => (lbl, backpack)
         };
+      //TODO(andrew): document this
+      let settings =
+        structmode
+        && (
+          switch (lbl) {
+          | [hd, _] => t == hd
+          | _ => false
+          }
+        );
       construct(~settings, ~caret, ~backpack, lbl, z);
     };
 
-let expand_neighbors_and_make_new_tile = (char: Token.t, state: t): option(t) => {
+let expand_neighbors_and_make_new_tile =
+    (~structmode, char: Token.t, state: t): option(t) => {
   /* Trigger a token boundary event and create a new tile.
      This process potentially involves both neighboring tiles,
      potentially triggering up to 3 expansions or backpack barfs.
@@ -100,17 +113,17 @@ let expand_neighbors_and_make_new_tile = (char: Token.t, state: t): option(t) =>
      barf the "then", before it is buried by the ")" added to the BP.
      The order here could be revisited if barfing was more sophisticated.
      */
-  let* z = expand_or_barf_left_neighbor(~settings=true, state);
+  let* z = expand_or_barf_left_neighbor(~settings=structmode, state);
   let+ z = expand_or_barf_right_neighbor(~settings=false, z);
   let z = remold_regrout_prev(z);
-  let z = make_new_tile(char, Left, z);
+  let z = make_new_tile(~structmode, char, Left, z);
   let z = remold_regrout_prev(z);
   z;
 };
 
-let replace_tile = (t: Token.t, d: Direction.t, z: t): option(t) => {
+let replace_tile = (~structmode, t: Token.t, d: Direction.t, z: t): option(t) => {
   let+ z = delete(d, z);
-  make_new_tile(t, d, z);
+  make_new_tile(~structmode, t, d, z);
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -129,11 +142,11 @@ let sibling_appendability: (string, Siblings.t) => appendability =
     | _ => MakeNew
     };
 
-let insert_outer = (char: string, z as state: t): option(t) =>
+let insert_outer = (~structmode, char: string, z as state: t): option(t) =>
   switch (sibling_appendability(char, z.relatives.siblings)) {
-  | MakeNew => expand_neighbors_and_make_new_tile(char, state)
-  | AppendLeft(t) => replace_tile(t, Left, state)
-  | AppendRight(t) => replace_tile(t, Right, state)
+  | MakeNew => expand_neighbors_and_make_new_tile(~structmode, char, state)
+  | AppendLeft(t) => replace_tile(~structmode, t, Left, state)
+  | AppendRight(t) => replace_tile(~structmode, t, Right, state)
   };
 
 let insert_duo = (lbl: Label.t, z: option(t)): option(t) =>
@@ -203,7 +216,7 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
     /* If we're inserting a space, don't bother to insert it;
      * we'll get a convex grout anyway from regrouting */
 
-    (Form.space != char ? make_new_tile(char, Left, z) : z)
+    (Form.space != char ? make_new_tile(~structmode=false, char, Left, z) : z)
     |> remold_regrout(Right)
     |> move_into_if_stringlit_or_comment(char);
 
@@ -233,7 +246,7 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
     } else {
       z
       |> remold_regrout_prev
-      |> make_new_tile(char, Left)
+      |> make_new_tile(~structmode=false, char, Left)
       |> remold_regrout(Right)
       |> move_into_if_stringlit_or_comment(char);
     };
@@ -249,6 +262,7 @@ let closing_stringlit_or_comment = (char, t) =>
 let rec go =
         (
           ~ctx: option(Language.Ctx.t)=?,
+          ~structmode,
           char: string,
           {caret, relatives: {siblings, _}, _} as z: t,
         )
@@ -265,7 +279,7 @@ let rec go =
   | (Outer, (Some(t), _)) when closing_stringlit_or_comment(char, t) =>
     Some(z)
   | (Outer, (Some(t), _)) when Form.is_livelit(t) && char == " " =>
-    let insert = (z, c) => Option.bind(z, go(c));
+    let insert = (z, c) => Option.bind(z, go(~structmode, c));
     switch (ctx) {
     | Some(ctx) =>
       let name = Form.parse_livelit(t);
@@ -318,7 +332,7 @@ let rec go =
         );
 
       // No matching livelit found, insert space
-      | None => insert_outer(char, z)
+      | None => insert_outer(~structmode=false, char, z)
       };
     | None => insert(Some(z), char)
     };
@@ -352,13 +366,13 @@ let rec go =
       | AppendLeft(_) => Outer
       };
     z
-    |> insert_outer(char)
+    |> insert_outer(~structmode, char)
     |> Option.map(Zipper.set_caret(caret))
     |> Option.map(remold_regrout(Left))
     |> Option.map(move_into_if_stringlit_or_comment(char));
   | (Outer, (_, None)) =>
     z
-    |> insert_outer(char)
+    |> insert_outer(~structmode, char)
     |> Option.map(remold_regrout(Left))
     |> Option.map(move_into_if_stringlit_or_comment(char))
   };
