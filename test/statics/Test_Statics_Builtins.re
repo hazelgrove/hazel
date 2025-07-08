@@ -1072,10 +1072,80 @@ module OmitLabels = {
   ];
 };
 
+module DropLabels = {
+  let tests = [
+    fully_consistent_typecheck(
+      "Drop labels with some labels",
+      {|drop_labels((a=1, b=2.0, true, d=""))|},
+      Some(list(prod([int(), float(), bool(), string()]))),
+    ),
+    fully_consistent_typecheck(
+      "Drop labels with type alias and autolabels",
+      {|type Entry =(name=String, age=Int, quiz1=Int, quiz2=Int, midterm=Int, quiz3=Int, quiz4=Int, final=Int) in
+        drop_labels(("bob",   12, 8, 9, 77, 7, 9, 87) : Entry)|},
+      Some(
+        list(
+          prod([string(), int(), int(), int(), int(), int(), int(), int()]),
+        ),
+      ),
+    ),
+    test_case("Drop labels operation with no labels", `Quick, () =>
+      annotated_tree_test(
+        "drop_labels(1, 2)",
+        list(prod([int(), int()])),
+        FIError.Exp.(
+          ap(Forward, var("drop_labels"), tuple([int(1), int(2)]))
+        ),
+      )
+    ),
+    test_case("Drop labels applied to non-tuple", `Quick, () =>
+      annotated_tree_test(
+        "drop_labels(1)",
+        unknown(Internal),
+        FIError.Exp.(
+          ap(
+            ~ann=Some(Exp(BuiltinError(ArgumentMustBeTuple))),
+            Forward,
+            var("drop_labels"),
+            int(1),
+          )
+        ),
+      )
+    ),
+    test_case(
+      "Drop labels operation applied to value with unknown type", `Quick, () =>
+      annotated_tree_test(
+        "drop_labels(?)",
+        unknown(Internal),
+        FIError.Exp.(ap(Forward, var("drop_labels"), empty_hole())),
+      )
+    ),
+    test_case(
+      "Drop labels operation with hole in tuple label position", `Quick, () =>
+      annotated_tree_test(
+        "drop_labels((?=1, b=2, c=3))",
+        list(prod([int(), int(), int()])),
+        FIError.Exp.(
+          ap(
+            Forward,
+            var("drop_labels"),
+            tuple([
+              tup_label(empty_hole(), int(1)),
+              tup_label(label("b"), int(2)),
+              tup_label(label("c"), int(3)),
+            ]),
+          )
+        ),
+      )
+    ),
+  ];
+};
+
 let tests =
   TupleExtension.tests
   @ MeltOperation.tests
   @ ProjectLabels.tests
   @ SelectLabels.tests
   @ PrimitivePivot.tests
-  @ OmitLabels.tests;
+  @ OmitLabels.tests
+  @ DropLabels.tests;
