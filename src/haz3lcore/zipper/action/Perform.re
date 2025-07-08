@@ -4,13 +4,13 @@ open Language;
 
 let buffer_clear = (z: t): t =>
   switch (z.selection.mode) {
-  | Buffer(_) =>
-    {
+  | Buffer(Unparsed) => {
       ...z,
       selection: Selection.mk([]),
     }
-    |> Zipper.regrout(Left)
-  | _ => z
+
+  | Buffer(Parsed) => z |> Zipper.destruct |> Zipper.regrout(Left)
+  | Normal => z
   };
 
 let set_tydi_buffer = (info_map: Language.Statics.Map.t, z: t): t =>
@@ -24,7 +24,7 @@ let set_llm_buffer = (z: t, response: string): t =>
     {
       open OptUtil.Syntax;
       //TODO: Error feedback on below
-      let* content = Printer.zipper_of_string(response);
+      let* content = Parser.to_zipper(response);
       let+ _ = [] == content.backpack ? Some() : None;
       Zipper.set_buffer(z, ~content=Zipper.zip(content), ~mode=Parsed);
     }
@@ -35,7 +35,7 @@ let set_llm_buffer = (z: t, response: string): t =>
 
 let paste = (z: Zipper.t, str: string): option(Zipper.t) => {
   open Util.OptUtil.Syntax;
-  let* z = Printer.zipper_of_string(~zipper_init=z, str);
+  let* z = Parser.to_zipper(~zipper_init=z, str);
   /* HACK(andrew): Insert/Destruct below is a hack to deal
      with the fact that pasting something like "let a = b in"
      won't trigger the barfing of the "in"; to trigger this,
@@ -43,6 +43,18 @@ let paste = (z: Zipper.t, str: string): option(Zipper.t) => {
   let* z = Insert.go(" ", z);
   let+ z = Destruct.go(Left, z);
   remold_regrout(Left, z);
+};
+
+let paste_segment = (z: Zipper.t, segment: Segment.t): Zipper.t => {
+  let replace_selection = (z, focus, segment): Zipper.t =>
+    {
+      ...z,
+      selection: Selection.mk(~focus, segment),
+    }
+    |> Zipper.unselect
+    |> Zipper.remold_regrout(Util.Direction.Right)
+    |> Zipper.remold_regrout(Util.Direction.Left);
+  replace_selection(z, z.selection.focus, segment);
 };
 
 let go_z =
@@ -56,18 +68,6 @@ let go_z =
     : Action.Result.t(Zipper.t) => {
   module Move = Move.Make(M);
   module Select = Select.Make(M);
-
-  let paste_segment = (z: Zipper.t, segment: Segment.t): Zipper.t => {
-    let replace_selection = (z, focus, segment): Zipper.t =>
-      {
-        ...z,
-        selection: Selection.mk(~focus, segment),
-      }
-      |> Zipper.unselect
-      |> Zipper.remold_regrout(Util.Direction.Right)
-      |> Zipper.remold_regrout(Util.Direction.Left);
-    replace_selection(z, z.selection.focus, segment);
-  };
 
   let buffer_accept = (z): option(Zipper.t) =>
     switch (z.selection.mode) {
@@ -134,10 +134,18 @@ let go_z =
      * This doesn't change state but is included here for logging purposes */
     Ok(z)
   | Reparse =>
-    switch (Printer.reparse(z)) {
+    /* This serializes the current editor to text, resets the current
+       editor, and then deserializes. It is intended as a (tactical)
+       nuclear option for weird backpack states */
+    let reparse = z =>
+      Parser.to_zipper(
+        ~zipper_init=Zipper.init(),
+        Printer.of_zipper(~holes="", ~indent="", z),
+      );
+    switch (reparse(z)) {
     | None => Error(CantReparse)
     | Some(z) => Ok(z)
-    }
+    };
   | Buffer(Set(TyDi)) => Ok(set_tydi_buffer(statics.info_map, z))
   | Buffer(Set(LLM(response))) => Ok(set_llm_buffer(z, response))
   | Buffer(Accept) =>
@@ -215,7 +223,10 @@ let go_z =
     | None => Error(Action.Failure.Cant_select)
     }
   | Select(Resize(d)) =>
-    Select.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_select)
+    switch (Select.go(d, z)) {
+    | None => Ok(z)
+    | Some(z) => Ok(z)
+    }
   | Destruct(d) =>
     z
     |> Destruct.go(d)
@@ -237,7 +248,6 @@ let go_z =
     z
     |> Insert.go(char, ~ctx)
     /* note: remolding here is done case-by-case */
-    //|> Option.map((z) => remold_regrout(Right, z))
     |> Result.of_option(~error=Action.Failure.Cant_insert);
   | Pick_up => Ok(remold_regrout(Left, Zipper.pick_up(z)))
   | Put_down =>
@@ -245,11 +255,9 @@ let go_z =
       /* Alternatively, putting down inside token could eiter merge-in or split */
       switch (z.caret) {
       | Inner(_) => None
-      | Outer => Zipper.put_down(Left, z)
+      | Outer => Zipper.put_down_regrout_remold(Left, z)
       };
-    z
-    |> Option.map(remold_regrout(Left))
-    |> Result.of_option(~error=Action.Failure.Cant_put_down);
+    z |> Result.of_option(~error=Action.Failure.Cant_put_down);
   | RotateBackpack =>
     let z = {
       ...z,

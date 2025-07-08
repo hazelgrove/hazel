@@ -36,7 +36,6 @@ type handle_response =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type employ_llm_action =
   | RemoveAndSuggest(string, Id.t)
-  | Resuggest(string, Id.t)
   | Describe(string, AssistantSettings.mode, Id.t)
   | SetLoop(bool);
 
@@ -79,7 +78,7 @@ let can_undo = (action: t) => {
   // That could be a good starter project to navigate this assistant part of the codebase.
   switch (action) {
   | SendMessage(_) => false
-  | HandleResponse(_) => false
+  | HandleResponse(_) => true /* Necessary to make completion instantiation undoable */
   | EmployLLMAction(_) => false
   | ChatAction(_) => false
   | InternalError(_) => false
@@ -1085,11 +1084,7 @@ let update =
     switch (action) {
     | RemoveAndSuggest(response, tileId) =>
       // Only side effects in the editor are performed here
-      add_suggestion(~response, ~tile=tileId, ~resuggest=false);
-      model |> Updated.return_quiet;
-    | Resuggest(response, tileId) =>
-      // Only side effects in the editor are performed here
-      add_suggestion(~response, ~tile=tileId, ~resuggest=true);
+      add_suggestion(~response, ~tile=tileId);
       model |> Updated.return_quiet;
     | Describe(content, mode, chat_id) =>
       let (past_chats, _) = get_mode_info(mode, model);
