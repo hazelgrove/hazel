@@ -839,7 +839,7 @@ and uexp_to_info_map =
         let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
 
         switch (custom_statics) {
-        | Some(MeltBuiltin) =>
+        | Some(Melt) =>
           let (arg, m) = go(~ana=ty_in, arg, m);
 
           switch (Typ.normalize(ctx, arg.ty).term) {
@@ -893,7 +893,7 @@ and uexp_to_info_map =
               m,
             )
           };
-        | Some(ProjectLabelsBuiltin) =>
+        | Some(ProjectLabels) =>
           switch (arg.term) {
           | Tuple([tup, ...labs]) =>
             let (tup_info, m) =
@@ -1309,7 +1309,7 @@ and uexp_to_info_map =
               m,
             );
           }
-        | Some(OmitLabelsBuiltin) =>
+        | Some(OmitLabels) =>
           switch (arg.term) {
           | Tuple([tup, ...labs]) =>
             let (tup_info, m) =
@@ -1471,7 +1471,7 @@ and uexp_to_info_map =
               m,
             );
           }
-        | Some(DropLabelsBuiltin) =>
+        | Some(DropLabels) =>
           let (arg, m) = go(~ana=ty_in, arg, m);
           print_endline("Arg.ty" ++ Typ.show(arg.ty));
 
