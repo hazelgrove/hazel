@@ -341,6 +341,7 @@ let structural_construct = (label: Label.t, z: t): t => {
       @ (should_pad ? [Piece.mk_grout(Convex), mk_space()] : [])
     );
   let piece = Piece.mk_tile(label, mold, children);
+  let z = unselect(z);
   let z = regrout(Left, z);
   let z = {
     ...z,
@@ -352,7 +353,7 @@ let structural_construct = (label: Label.t, z: t): t => {
 
 let rec construct =
         (
-          ~settings=true,
+          ~settings,
           ~caret: Direction.t,
           ~backpack: Direction.t,
           label: Label.t,
@@ -363,7 +364,13 @@ let rec construct =
   | [t] when Form.is_string_delim(t) =>
     /* Special case for constructing string literals.
        See Insert.move_into_if_stringlit for more special-casing. */
-    construct(~caret, ~backpack, [Form.string_delim ++ Form.string_delim], z)
+    construct(
+      ~settings,
+      ~caret,
+      ~backpack,
+      [Form.string_delim ++ Form.string_delim],
+      z,
+    )
   | [content] when Form.is_comment(content) =>
     /* Special case for comments, can't rely on the last branch to construct */
     let content = Secondary.construct_comment(content);
@@ -427,7 +434,7 @@ let rec construct =
 };
 
 let construct_mono = (d: Direction.t, t: Token.t, z: t): t =>
-  construct(~caret=d, ~backpack=Left, [t], z);
+  construct(~settings=false, ~caret=d, ~backpack=Left, [t], z);
 
 let rec get_leaf_pieces =
         (syntaxNode: Piece.t, ~ignored_labels: list(list(string)))
@@ -481,7 +488,9 @@ let replace =
     (~caret: Direction.t, ~backpack: Direction.t, l: Label.t, z: t)
     : option(t) =>
   /* i.e. select and construct, overwriting the selection */
-  z |> delete(caret) |> Option.map(construct(~caret, ~backpack, l));
+  z
+  |> delete(caret)
+  |> Option.map(construct(~settings=false, ~caret, ~backpack, l));
 
 let replace_mono = (d: Direction.t, t: Token.t, z: t): option(t) =>
   replace(~caret=d, ~backpack=Left, [t], z);

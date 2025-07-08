@@ -11,30 +11,32 @@ let barf = (d: Direction.t, z: t): option(t) => {
   z;
 };
 
-let delayed_expand = (t: Token.t, caret: Direction.t, z: t): option(t) => {
+let delayed_expand =
+    (~settings, t: Token.t, caret: Direction.t, z: t): option(t) => {
   /* Removes the d-neighboring tile and reconstructs it, triggering
      keyword-expansion; precondition: the d-neighbor should be a monotile
      string-matching a keyword of an expanding form */
   let (new_label, backpack) = Molds.delayed_expansion(t);
   let+ z = delete(caret, z);
-  construct(~backpack, ~caret, new_label, z);
+  construct(~settings, ~backpack, ~caret, new_label, z);
 };
 
-let expand_or_barf_left_neighbor = (z as s: t): option(t) =>
+let expand_or_barf_left_neighbor = (~settings, z as s: t): option(t) =>
   /* If left neighbor is a monotile (a) string-matching the shard at the
      top of the backpack, barf it, or (b) an expansing keyword, expand it. */
   switch (left_neighbor_monotile(z.relatives.siblings)) {
   | Some(t) when Zipper.will_barf(t, z) => barf(Left, s)
-  | Some(t) when Molds.is_delayed(t) => delayed_expand(t, Left, s)
+  | Some(t) when Molds.is_delayed(t) => delayed_expand(~settings, t, Left, s)
   | _ => Some(s)
   };
 
-let expand_or_barf_right_neighbor = (z as s: t): option(t) =>
+let expand_or_barf_right_neighbor = (~settings, z as s: t): option(t) =>
   /* If right neighbor is a monotile (a) string-matching the shard at the
      top of the backpack, barf it, or (b) an expansing keyword, expand it. */
   switch (right_neighbor_monotile(z.relatives.siblings)) {
   | Some(t) when Zipper.will_barf(t, z) => barf(Right, s)
-  | Some(t) when Molds.is_delayed(t) => delayed_expand(t, Right, s)
+  | Some(t) when Molds.is_delayed(t) =>
+    delayed_expand(~settings, t, Right, s)
   | _ => Some(s)
   };
 
@@ -98,8 +100,8 @@ let expand_neighbors_and_make_new_tile = (char: Token.t, state: t): option(t) =>
      barf the "then", before it is buried by the ")" added to the BP.
      The order here could be revisited if barfing was more sophisticated.
      */
-  let* z = expand_or_barf_left_neighbor(state);
-  let+ z = expand_or_barf_right_neighbor(z);
+  let* z = expand_or_barf_left_neighbor(~settings=true, state);
+  let+ z = expand_or_barf_right_neighbor(~settings=false, z);
   let z = remold_regrout_prev(z);
   let z = make_new_tile(char, Left, z);
   let z = remold_regrout_prev(z);
@@ -215,8 +217,8 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
      * `if|if` (no grout needed by caret, and later)
      * `case|end` */
     let* z = insert_monos(l, r, z);
-    let* z = expand_or_barf_left_neighbor(z);
-    let+ z = expand_or_barf_right_neighbor(z);
+    let* z = expand_or_barf_left_neighbor(~settings=false, z);
+    let+ z = expand_or_barf_right_neighbor(~settings=false, z);
     if (Form.space == char && should_supress_space(z)) {
       /* This is a finnicky case. remold_regrout_prev regrouts
        * the parent segment if we're at the beginning of the current
