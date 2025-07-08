@@ -191,10 +191,10 @@ module MeltOperation = {
 
 module ProjectLabels = {
   let tests = [
-    test_case("project_labels with appropriate labels", `Quick, () =>
+    test_case("project_labels with more appropriate labels", `Quick, () =>
       annotated_tree_test(
-        {|project_labels((a=1, b=true, c=3), 'a', 'b')|},
-        prod([int(), bool()]),
+        {|project_labels((a=1,b=true,c=3.0), 'c', 'a', 'c')|},
+        prod([float(), int(), float()]),
         FIError.Exp.(
           ap(
             Forward,
@@ -203,36 +203,20 @@ module ProjectLabels = {
               tuple([
                 tup_label(label("a"), int(1)),
                 tup_label(label("b"), bool(true)),
-                tup_label(label("c"), int(3)),
+                tup_label(label("c"), float(3.0)),
               ]),
+              label("c"),
               label("a"),
-              label("b"),
+              label("c"),
             ]),
           )
         ),
       )
     ),
-    test_case("project_labels with more appropriate labels", `Quick, () =>
-      annotated_tree_test(
-        {|project_labels((a=1,b=2,c=3), 'c', 'a', 'c')|},
-        prod([int(), int(), int()]),
-        FIError.Exp.(
-          ap(
-            Forward,
-            var("project_labels"),
-            tuple([
-              tuple([
-                tup_label(label("a"), int(1)),
-                tup_label(label("b"), int(2)),
-                tup_label(label("c"), int(3)),
-              ]),
-              label("c"),
-              label("a"),
-              label("c"),
-            ]),
-          )
-        ),
-      )
+    fully_consistent_typecheck(
+      "project_labels with appropriate labels",
+      {|project_labels((a=1, b=true, c=3), 'a')|},
+      Some(int()),
     ),
     test_case("project_labels with non-label", `Quick, () =>
       annotated_tree_test(
@@ -260,27 +244,10 @@ module ProjectLabels = {
         ),
       )
     ),
-    test_case("project_labels with holes for labels", `Quick, () =>
-      annotated_tree_test(
-        {|project_labels((a=1, b="", c=true), 'a', ?, 'c')|},
-        prod([int(), unknown(Internal), bool()]),
-        FIError.Exp.(
-          ap(
-            Forward,
-            var("project_labels"),
-            tuple([
-              tuple([
-                tup_label(label("a"), int(1)),
-                tup_label(label("b"), string("")),
-                tup_label(label("c"), bool(true)),
-              ]),
-              label("a"),
-              empty_hole(),
-              label("c"),
-            ]),
-          )
-        ),
-      )
+    fully_consistent_typecheck(
+      "project_labels with holes for labels",
+      {|project_labels((a=1, b="", c=true), 'a', ?, 'c')|},
+      Some(prod([int(), unknown(Internal), bool()])),
     ),
     test_case("project_labels with label not in tuple", `Quick, () =>
       annotated_tree_test(
@@ -288,8 +255,6 @@ module ProjectLabels = {
         unknown(Internal),
         FIError.Exp.(
           ap(
-            ~ann=
-              Some(Exp(BuiltinError(ProjectLabelsMissingLabels(["d"])))),
             Forward,
             var("project_labels"),
             tuple([
@@ -298,7 +263,10 @@ module ProjectLabels = {
                 tup_label(label("b"), bool(true)),
                 tup_label(label("c"), int(3)),
               ]),
-              label("d"),
+              label(
+                ~ann=Some(Exp(Common(NoType(InvalidLabel("d"))))),
+                "d",
+              ),
             ]),
           )
         ),
@@ -306,8 +274,8 @@ module ProjectLabels = {
     ),
     test_case("project_labels with a single tuple and no labels", `Quick, () =>
       annotated_tree_test(
-        {|project_labels((1, 2, 3))|},
-        unknown(Internal),
+        {|project_labels(1, 2, 3)|},
+        prod([unknown(Internal), unknown(Internal)]),
         FIError.Exp.(
           ap(
             Forward,
@@ -325,6 +293,22 @@ module ProjectLabels = {
                 3,
               ),
             ]),
+          )
+        ),
+      )
+    ),
+    test_case("project_labels with a single tuple and no labels", `Quick, () =>
+      annotated_tree_test(
+        {|project_labels((1, 2, 3))|},
+        unknown(Internal),
+        FIError.Exp.(
+          ap(
+            Forward,
+            var("project_labels"),
+            parens(
+              ~ann=Some(Exp(BuiltinError(ArgumentMustBeTuple))),
+              tuple([int(1), int(2), int(3)]),
+            ),
           )
         ),
       )

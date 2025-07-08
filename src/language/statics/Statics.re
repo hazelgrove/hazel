@@ -240,7 +240,7 @@ and uexp_to_info_map =
   let go_pat = upat_to_info_map(~ctx, ~ancestors, ~duplicates);
   let go_typ = utyp_to_info_map(~ctx, ~ancestors);
   let label_to_info_map =
-      (labmode, label: Exp.t, m: Map.t): (Info.exp, Map.t) => {
+      (expected_labels, labmode, label: Exp.t, m: Map.t): (Info.exp, Map.t) => {
     switch (label.term, expected_labels) {
     | (Label(name), Some(expected_labels))
         when !List.mem(name, expected_labels) =>
@@ -615,13 +615,19 @@ and uexp_to_info_map =
       let (lab, e, m) =
         switch (Typ.matched_label(ctx, ana)) {
         | Some((labmode, val_mode)) =>
-          let (lab, m) = label_to_info_map(labmode, label, m);
+          let (lab, m) =
+            label_to_info_map(expected_labels, labmode, label, m);
 
           let (e, m) = go(~ana=val_mode, ~inferred_label?, e, m);
           (lab, e, m);
         | _ =>
           let (lab, m) =
-            label_to_info_map(Unknown(SynSwitch) |> Typ.temp, label, m);
+            label_to_info_map(
+              expected_labels,
+              Unknown(SynSwitch) |> Typ.temp,
+              label,
+              m,
+            );
 
           let (e, m) =
             go(~ana=Unknown(Internal) |> Typ.temp, ~inferred_label?, e, m);
@@ -899,11 +905,63 @@ and uexp_to_info_map =
             let (tup_info, m) =
               go(~ana=Unknown(SynSwitch) |> Typ.temp, tup, m);
 
+            let (
+              labeled_tup_info: option(list((option(string), Typ.t))),
+              m: Map.t,
+            ) = {
+              let (tup_info, m) =
+                go(~ana=Unknown(SynSwitch) |> Typ.temp, tup, m);
+
+              switch (Typ.normalize(ctx, tup_info.ty).term) {
+              | Prod(entries) => (
+                  Some(
+                    List.map(
+                      (entry: Typ.t) => {
+                        switch (entry.term) {
+                        | TupLabel({term: Label(l), _}, typ) => (
+                            Some(l),
+                            typ,
+                          )
+                        | TupLabel(_, typ) => (None, typ)
+                        | _ => (None, entry)
+                        }
+                      },
+                      entries,
+                    ),
+                  ),
+                  m,
+                )
+              | Unknown(_) => (None, m)
+              | _ =>
+                let (_, m) =
+                  uexp_to_info_map(
+                    ~ctx,
+                    ~ana=Unknown(SynSwitch) |> Typ.temp,
+                    ~ancestors,
+                    ~override_self=BuiltinError(ArgumentMustBeTuple),
+                    tup,
+                    m,
+                  );
+                (None, m);
+              };
+            };
+            let expected_labels =
+              switch (labeled_tup_info) {
+              | Some(entries) =>
+                Some(
+                  List.filter_map(
+                    (entry: (option(string), Typ.t)) => fst(entry),
+                    entries,
+                  ),
+                )
+              | None => None
+              };
             let (labels, m) =
               List.fold_left(
                 ((labels: list(Info.exp), m: Map.t), label) => {
                   let (label_info, m) =
                     label_to_info_map(
+                      expected_labels,
                       Unknown(SynSwitch) |> Typ.temp,
                       label,
                       m,
@@ -933,90 +991,46 @@ and uexp_to_info_map =
                 m,
               );
 
-            switch (Typ.normalize(ctx, tup_info.ty).term) {
-            | Prod(entries) =>
-              let labels =
-                List.map(
-                  (label: Info.exp) =>
-                    switch (label.ty.term) {
-                    | Label(l) => Some(l)
-                    | _ => None
-                    },
-                  labels,
-                );
-
-              let entries = List.filter_map(Typ.match_tup_label, entries);
-
-              let (missing_labels, val_types) =
-                List.partition_map(
-                  (label: option(string)) => {
-                    switch (label) {
-                    | Some(label) =>
-                      switch (
-                        List.find_opt(((l, _)) => l == label, entries)
-                      ) {
-                      | Some((_, typ)) => Right(typ)
-                      | None => Left(label)
-                      }
-                    | None => Right(Unknown(Internal) |> Typ.temp)
-                    }
+            let labels =
+              List.map(
+                (label: Info.exp) =>
+                  switch (label.ty.term) {
+                  | Label(l) => Some(l)
+                  | _ => None
                   },
-                  labels,
-                );
-
-              let self: Self.exp =
-                switch (missing_labels) {
-                | [] => Common(Just(Prod(val_types) |> Typ.temp))
-                | _ =>
-                  BuiltinError(ProjectLabelsMissingLabels(missing_labels)) // Better error message this is labels not found
-                };
-
-              add'(
-                ~self,
-                ~co_ctx=CoCtx.union([fn.co_ctx, tup_info.co_ctx]),
-                m,
+                labels,
               );
-            | Unknown(_) =>
-              let labels =
-                List.map(
-                  (label: Info.exp) =>
-                    switch (label.ty.term) {
-                    | Label(l) => Some(l)
-                    | _ => None
-                    },
-                  labels,
-                );
-
-              let val_types =
-                List.map(_ => {Unknown(Internal) |> Typ.temp}, labels);
-
-              let self: Self.exp =
-                Common(
-                  Just(
-                    switch (val_types) {
-                    | [x] => x
-                    | _ => Prod(val_types) |> Typ.temp
-                    },
-                  ),
-                );
-
-              add'(~self, ~co_ctx=fn.co_ctx, m);
-            | _ =>
-              let (_, m) =
-                uexp_to_info_map(
-                  ~ctx,
-                  ~ana=Unknown(SynSwitch) |> Typ.temp,
-                  ~ancestors,
-                  ~override_self=BuiltinError(ArgumentMustBeTuple),
-                  tup,
-                  m,
-                );
-              add(
-                ~self=Just(Unknown(Internal) |> Typ.temp), // Consider if there's a better way to show no type information
-                ~co_ctx=CoCtx.union([fn.co_ctx, tup_info.co_ctx]),
-                m,
+            let val_types =
+              List.map(
+                optional_lab => {
+                  switch (optional_lab) {
+                  | Some(l: string) =>
+                    List.find_map(
+                      ((entry_lab: option(string), ty)) =>
+                        Some(l) == entry_lab ? Some(ty) : None,
+                      labeled_tup_info |> Option.value(~default=[]),
+                    )
+                    |> Option.value(~default=Unknown(Internal) |> Typ.temp)
+                  | None => Unknown(Internal) |> Typ.temp
+                  }
+                },
+                labels,
               );
-            };
+            let self: Self.exp =
+              Common(
+                Just(
+                  switch (val_types) {
+                  | [x] => x
+                  | _ => Prod(val_types) |> Typ.temp
+                  },
+                ),
+              );
+
+            add'(
+              ~self,
+              ~co_ctx=CoCtx.union([fn.co_ctx, tup_info.co_ctx]),
+              m,
+            );
           | _ =>
             let (arg_info, m) =
               uexp_to_info_map(
@@ -1045,6 +1059,7 @@ and uexp_to_info_map =
                 ((labels: list(Info.exp), m: Map.t), label) => {
                   let (label_info, m) =
                     label_to_info_map(
+                      None,
                       Unknown(SynSwitch) |> Typ.temp,
                       label,
                       m,
@@ -1189,6 +1204,7 @@ and uexp_to_info_map =
 
             let (label_info, m) =
               label_to_info_map(
+                None,
                 Unknown(SynSwitch) |> Typ.temp,
                 pivot_label,
                 m,
@@ -1320,6 +1336,7 @@ and uexp_to_info_map =
                 ((labels: list(Info.exp), m: Map.t), label) => {
                   let (label_info, m) =
                     label_to_info_map(
+                      None,
                       Unknown(SynSwitch) |> Typ.temp,
                       label,
                       m,
