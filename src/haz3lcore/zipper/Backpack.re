@@ -275,6 +275,14 @@ let remove_matching = (ts: list(Tile.t), bp: t) =>
     ts,
   );
 
+let remove_matching_empty = (t: Tile.t) =>
+  List.filter_map(sel =>
+    switch (Selection.map(Segment.remove_matching_empty(t), sel)) {
+    | {content: [], _} => None
+    | sel => Some(sel)
+    }
+  );
+
 let remove_uni_tiles_with_deep_matches = (bp: t, sel: Selection.t): t => {
   /* This is a hack to prevent incomplete tiles inside selection tiles
    * from being orphaned on deletion, e.g. if you delete segment "([)"
