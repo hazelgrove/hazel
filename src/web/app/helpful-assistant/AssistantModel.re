@@ -40,12 +40,16 @@ type display = {
   collapsed: bool,
 };
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type sketch_snapshot = option(CodeEditable.Model.t);
+
 // A coupling of a message sent to the LLM and the displayable content of the message.
 [@deriving (show({with_path: false}), sexp, yojson)]
 type message = {
   content: OpenRouter.message,
   display,
   role,
+  sketch_snapshot,
 };
 
 // A chat is simply a collection of messages, attached to an ID
@@ -204,6 +208,7 @@ let init_chat = (mode: AssistantSettings.mode): chat => {
             ~role=System(AssistantPrompt),
           ),
         role: System(AssistantPrompt),
+        sketch_snapshot: None,
       },
     ],
     id: Id.mk(),

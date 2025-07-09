@@ -104,7 +104,8 @@ type t =
   | MoveToBackpackTarget(planar)
   | Pick_up
   | Put_down
-  | Introduce;
+  | Introduce
+  | Restore(Zipper.t);
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -147,6 +148,7 @@ let is_edit: t => bool =
   | Select(_)
   | Unselect(_)
   | RotateBackpack
+  | Restore(_)
   | MoveToBackpackTarget(_) => false
   | Project(p) =>
     switch (p) {
@@ -167,6 +169,7 @@ let is_historic: t => bool =
   | Select(_)
   | Unselect(_)
   | RotateBackpack
+  | Restore(_)
   | MoveToBackpackTarget(_) => false
   | Cut
   | Buffer(Accept | Clear | Set(_))
@@ -203,6 +206,7 @@ let prevent_in_read_only_editor = (a: t) => {
   | Pick_up
   | Put_down
   | RotateBackpack
+  | Restore(_)
   | MoveToBackpackTarget(_)
   | Introduce => true
   | Project(p) =>
@@ -246,5 +250,6 @@ let should_animate: t => bool =
   | Move(_)
   | Jump(_)
   | RotateBackpack
+  | Restore(_)
   | MoveToBackpackTarget(_)
   | Project(_) => true;

@@ -431,6 +431,28 @@ let mk_input_handlers =
       which_input: string,
     ) => {
   let mode = settings.mode;
+  let curr_chat_id =
+    switch (mode) {
+    | CodeSuggestion => model.current_chats.curr_suggestion_chat
+    | TaskCompletion => model.current_chats.curr_composition_chat
+    | HazelTutor => model.current_chats.curr_tutor_chat
+    };
+  let curr_messages =
+    switch (mode) {
+    | CodeSuggestion =>
+      Id.Map.find(curr_chat_id, model.chat_history.past_suggestion_chats).
+        messages
+    | TaskCompletion =>
+      Id.Map.find(curr_chat_id, model.chat_history.past_composition_chats).
+        messages
+    | HazelTutor =>
+      Id.Map.find(curr_chat_id, model.chat_history.past_tutor_chats).messages
+    };
+  let editor_opt =
+    switch (index) {
+    | Some(idx) => List.nth(curr_messages, idx).sketch_snapshot
+    | None => None
+    };
   let handle_send = (content: string) => {
     Js_of_ocaml.Firebug.console##log(
       Js_of_ocaml.Js.string("Message sent: " ++ content),
@@ -445,7 +467,7 @@ let mk_input_handlers =
         inject(
           Update.SendMessage(
             Tutor(content),
-            editor,
+            editor_opt,
             model.current_chats.curr_tutor_chat,
           ),
         )
@@ -453,7 +475,7 @@ let mk_input_handlers =
         inject(
           Update.SendMessage(
             Completion(Query(content)),
-            editor,
+            editor_opt,
             model.current_chats.curr_suggestion_chat,
           ),
         )
@@ -461,7 +483,7 @@ let mk_input_handlers =
         inject(
           Update.SendMessage(
             Composition(Request(content)),
-            editor,
+            editor_opt,
             model.current_chats.curr_composition_chat,
           ),
         )

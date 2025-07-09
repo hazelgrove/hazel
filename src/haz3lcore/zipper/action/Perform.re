@@ -293,6 +293,7 @@ let go_z =
     | Some(z) => Ok(z)
     | None => Error(Action.Failure.Cant_select)
     }
+  | Restore(sketch) => Ok(sketch)
   | Destruct(d) =>
     z
     |> Destruct.go(d)

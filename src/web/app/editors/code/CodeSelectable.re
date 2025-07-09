@@ -57,7 +57,8 @@ module Update = {
         Cut |
         Buffer(_) |
         Project(_) |
-        Introduce,
+        Introduce |
+        Restore(_),
       )
     | DebugConsole(_)
     | TAB => None;

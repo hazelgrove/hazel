@@ -65,7 +65,7 @@ type external_api_action =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
-  | SendMessage(send_message, CodeModel.t, Id.t)
+  | SendMessage(send_message, option(CodeModel.t), Id.t)
   | HandleResponse(handle_response, OpenRouter.reply, Id.t)
   | EmployLLMAction(employ_llm_action)
   | ChatAction(chat_action)
@@ -346,7 +346,7 @@ let check_req =
     schedule_action(
       SendMessage(
         Completion(Request(tile_id, advanced_reasoning)),
-        editor,
+        None,
         chat_id,
       ),
     );
@@ -458,6 +458,17 @@ let mk_llm_call =
   };
 };
 
+let mk_user_content_message =
+    (~content: string, ~role: Model.role, ~editor: CodeEditable.Model.t)
+    : Model.message => {
+  {
+    content: OpenRouter.mk_user_msg(content),
+    display: Model.mk_message_display(~content, ~role),
+    role,
+    sketch_snapshot: Some(editor),
+  };
+};
+
 let mk_structure_edit_msg =
     (~tool_call: string, ~args: option(StringMap.t(string))) =>
   try({
@@ -549,7 +560,12 @@ let update =
     )
     : Updated.t(Model.t) => {
   switch (action) {
-  | SendMessage(kind, _, chat_id) =>
+  | SendMessage(kind, editor_opt, chat_id) =>
+    let editor =
+      switch (editor_opt) {
+      | Some(editor) => editor
+      | None => editor
+      };
     if (model.current_chats.curr_tutor_chat == Id.invalid) {
       model |> Updated.return_quiet;
     } else {
@@ -558,11 +574,8 @@ let update =
         let mode = AssistantSettings.HazelTutor;
         let curr_chat =
           Id.Map.find(chat_id, model.chat_history.past_tutor_chats);
-        let content_message: Model.message = {
-          content: OpenRouter.mk_user_msg(content),
-          display: Model.mk_message_display(~content, ~role=User),
-          role: User,
-        };
+        let content_message =
+          mk_user_content_message(~content, ~role=User, ~editor);
         let ctx_message: Model.message = {
           content:
             OpenRouter.mk_user_msg(
@@ -578,6 +591,7 @@ let update =
               ~role=System(AssistantPrompt),
             ),
           role: System(AssistantPrompt),
+          sketch_snapshot: None,
         };
 
         let updated_chat = {
@@ -605,11 +619,8 @@ let update =
         | Request(content) =>
           print_endline("handling composition request");
           schedule_action(EmployLLMAction(SetLoop(false)));
-          let content_message: Model.message = {
-            content: OpenRouter.mk_user_msg(content),
-            display: Model.mk_message_display(~content, ~role=User),
-            role: User,
-          };
+          let content_message: Model.message =
+            mk_user_content_message(~content, ~role=User, ~editor);
           let ctx_message: Model.message = {
             content:
               OpenRouter.mk_user_msg(
@@ -628,6 +639,7 @@ let update =
                 ~role=System(AssistantPrompt),
               ),
             role: System(AssistantPrompt),
+            sketch_snapshot: None,
           };
 
           // print all current messages
@@ -673,6 +685,7 @@ let update =
                 ~role=System(AssistantPrompt),
               ),
             role: System(AssistantPrompt),
+            sketch_snapshot: None,
           };
 
           let updated_chat = {
@@ -748,6 +761,7 @@ let update =
                   ~role=System(AssistantPrompt),
                 ),
               role: System(AssistantPrompt),
+              sketch_snapshot: None,
             };
             let updated_chat = {
               ...new_chat,
@@ -779,7 +793,6 @@ let update =
         | Query(content) =>
           let curr_chat =
             Id.Map.find(chat_id, model.chat_history.past_suggestion_chats);
-          let user_message = OpenRouter.mk_user_msg(content);
           let ctx =
             OpenRouter.mk_user_msg(
               String.concat("\n", ChatLSP.get_sketch_and_error_ctx(editor)),
@@ -792,16 +805,10 @@ let update =
                 ~role=System(AssistantPrompt),
               ),
             role: System(AssistantPrompt),
+            sketch_snapshot: None,
           };
-          let content_message: Model.message = {
-            content: user_message,
-            display:
-              Model.mk_message_display(
-                ~content=user_message.content,
-                ~role=User,
-              ),
-            role: User,
-          };
+          let content_message =
+            mk_user_content_message(~content, ~role=User, ~editor);
           let updated_chat = {
             ...curr_chat,
             messages: curr_chat.messages @ [ctx_message, content_message],
@@ -835,6 +842,7 @@ let update =
                 ~role=System(AssistantPrompt),
               ),
             role: System(AssistantPrompt),
+            sketch_snapshot: None,
           };
           let updated_chat = {
             ...curr_chat,
@@ -867,7 +875,7 @@ let update =
           |> Updated.return_quiet;
         };
       };
-    }
+    };
   | InternalError(content, mode, chat_id) =>
     let curr_chat =
       switch (
@@ -886,6 +894,7 @@ let update =
       display:
         Model.mk_message_display(~content, ~role=System(InternalError)),
       role: System(InternalError),
+      sketch_snapshot: None,
     };
 
     // Note: We aren't sending a message here, but we do add it to the chat history.
@@ -927,6 +936,7 @@ let update =
       content: OpenRouter.mk_assistant_msg(content),
       display: Model.mk_message_display(~content, ~role=Assistant),
       role: Assistant,
+      sketch_snapshot: None,
     };
 
     // If streaming, update the last message display
@@ -961,6 +971,7 @@ let update =
               ~role=Tool,
             ),
           role: Tool,
+          sketch_snapshot: None,
         };
         switch (content) {
         | "" => curr_chat.messages @ [structure_edit_message]
@@ -1003,7 +1014,7 @@ let update =
                 },
               ),
             ),
-            editor,
+            None,
             chat_id,
           );
         let apply_edit_action =
@@ -1296,7 +1307,7 @@ let update =
         schedule_action(
           SendMessage(
             Completion(Loop(error, tileId, fuel - 1)),
-            editor,
+            None,
             chat_id,
           ),
         );
@@ -1507,6 +1518,17 @@ let update =
       print_endline(
         "Lopping off messages after index: " ++ string_of_int(index),
       );
+      let sketch_snapshot =
+        List.nth(curr_chat.messages, index).sketch_snapshot;
+      switch (sketch_snapshot) {
+      | Some(sketch) =>
+        let perform_action =
+          CodeEditable.Update.Perform(Restore(sketch.editor.state.zipper));
+        let cell_action = CellEditor.Update.MainEditor(perform_action);
+        let scratch_action = Editors.Update.Scratch(CellAction(cell_action));
+        schedule_editor_action(scratch_action);
+      | None => ()
+      };
       let updated_messages =
         curr_chat.messages |> ListUtil.take_up_to_n(index);
       let updated_chat = {

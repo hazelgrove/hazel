@@ -67,6 +67,7 @@ module Update = {
              | Introduce => true
              | Project(_)
              | Unselect(_)
+             | Restore(_)
              | Select(All | Assistant(_)) => false
              };
            },
