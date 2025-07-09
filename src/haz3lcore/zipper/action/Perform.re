@@ -163,7 +163,7 @@ let go_z =
     let code' = code |> StringUtil.trim_leading;
     switch (paste(z, code')) {
     | None => Error(CantPaste)
-    | Some(z) => Ok(Zipper.try_to_dump_backpack(z))
+    | Some(z') => Ok(Zipper.try_to_dump_backpack(z'))
     };
   | Cut =>
     /* System clipboard handling is done in Page.view handlers */
