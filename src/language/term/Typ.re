@@ -539,9 +539,7 @@ let rec matched_args_strict = (ctx, ty, arity): Either.t('a, int) => {
   | Prod(tys) when List.length(tys) == arity => L(tys)
   | Prod(tys) => R(List.length(tys))
   | _ when arity == 1 => L([ty])
-  | Unknown((SynSwitch | Internal | Hole(EmptyHole)) as p) =>
-    // TODO: Should this just work for all unknowns?
-    L(List.init(arity, _ => Unknown(p) |> temp))
+  | Unknown(_) => L(List.init(arity, _ => Unknown(Internal) |> temp))
   | _ => R(1)
   };
 };
