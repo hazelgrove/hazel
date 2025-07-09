@@ -108,3 +108,23 @@ let decompress = (s: string): string => {
 let sanitize_filename = (s: string): string => {
   replace(regexp("[^a-zA-Z0-9_-]"), s, "");
 };
+
+let trim_trailing_whitespace = (str: string): string => {
+  let lines = String.split_on_char('\n', str);
+  let trim_line = (line: string): string => {
+    let chars = String.to_seq(line) |> List.of_seq;
+    let rec drop_leading_spaces = (chars: list(char)): list(char) =>
+      switch (chars) {
+      | [] => []
+      | [' ', ...rest] => drop_leading_spaces(rest)
+      | [c, ...rest] => [c, ...rest]
+      };
+    // Reverse, drop leading spaces, reverse back = drop trailing spaces
+    let reversed_chars = List.rev(chars);
+    let trimmed_reversed = drop_leading_spaces(reversed_chars);
+    let trimmed_chars = List.rev(trimmed_reversed);
+    String.of_seq(List.to_seq(trimmed_chars));
+  };
+  let trimmed_lines = List.map(trim_line, lines);
+  String.concat("\n", trimmed_lines);
+};
