@@ -993,7 +993,8 @@ let mode_buttons =
       ~settings: AssistantSettings.t,
     )
     : Node.t => {
-  let mode_button = (mode: AssistantSettings.mode, label: string) => {
+  let mode_button =
+      (mode: AssistantSettings.mode, label: string, ~disabled: bool) => {
     let switch_mode = _ =>
       Virtual_dom.Vdom.Effect.Many([
         inject_global(Set(Assistant(SwitchMode(mode)))),
@@ -1001,19 +1002,28 @@ let mode_buttons =
       ]);
     div(
       ~attrs=[
-        clss(["mode-button", settings.mode == mode ? "active" : ""]),
-        Attr.on_click(switch_mode),
+        clss([
+          "mode-button",
+          settings.mode == mode ? "active" : "",
+          disabled ? "disabled" : "",
+        ]),
+        Attr.on_click(disabled ? _ => Effect.Many([]) : switch_mode),
       ],
-      [text(label)],
+      [
+        text(label),
+        disabled
+          ? div(~attrs=[clss(["hover-view"])], [text("Coming soon!")])
+          : None,
+      ],
     );
   };
 
   div(
     ~attrs=[clss(["mode-buttons"])],
     [
-      mode_button(HazelTutor, "Tutor"),
-      mode_button(CodeSuggestion, "Suggest"),
-      mode_button(TaskCompletion, "Compose"),
+      mode_button(HazelTutor, "Tutor", ~disabled=false),
+      mode_button(CodeSuggestion, "Suggest", ~disabled=false),
+      mode_button(TaskCompletion, "Compose", ~disabled=true),
     ],
   );
 };
