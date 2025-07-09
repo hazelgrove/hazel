@@ -159,10 +159,12 @@ let go_z =
     |> Result.of_option(~error=Action.Failure.CantIntroduce)
   | Paste(Segment(segment)) => Ok(paste_segment(z, segment))
   | Paste(Assistant(code)) =>
-    switch (paste(z, code)) {
+    // trim leading whitespace in assistant code
+    let code' = code |> StringUtil.trim_leading;
+    switch (paste(z, code')) {
     | None => Error(CantPaste)
     | Some(z) => Ok(Zipper.try_to_dump_backpack(z))
-    }
+    };
   | Cut =>
     /* System clipboard handling is done in Page.view handlers */
     switch (Destruct.go(Left, z)) {
