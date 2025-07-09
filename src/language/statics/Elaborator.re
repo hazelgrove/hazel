@@ -366,6 +366,10 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
     | Test(e) =>
       let (e', _) = elaborate(m, e);
       Test(e') |> rewrap;
+    | HintedTest(e1, e2) =>
+      let (e1', _) = elaborate(m, e1);
+      let (e2', _) = elaborate(m, e2);
+      HintedTest(e1', e2') |> rewrap;
     | Filter(kind, e) =>
       let (e', _) = elaborate(m, e);
       let kind' =

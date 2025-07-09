@@ -271,7 +271,7 @@ module Deco =
     Highlight.go(
       z.selection.content,
       Some(fst(Siblings.shapes(z.relatives.siblings))),
-      ["selected"] @ (Selection.is_buffer(z.selection) ? ["buffer"] : []),
+      ["selected", Selection.buffer_cls(z.selection)],
     );
 
   let term_range = (p): option((Point.t, Point.t)) => {

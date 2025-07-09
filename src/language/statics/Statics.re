@@ -702,6 +702,14 @@ and uexp_to_info_map =
     | Test(e) =>
       let (e, m) = go(~ana=Atom(Bool) |> Typ.temp, e, m);
       add(~self=Just(Prod([]) |> Typ.temp), ~co_ctx=e.co_ctx, m);
+    | HintedTest(e, hint) =>
+      let (e, m) = go(~ana=Atom(Bool) |> Typ.temp, e, m);
+      let (hint, m) = go(~ana=Atom(String) |> Typ.temp, hint, m);
+      add(
+        ~self=Just(Prod([]) |> Typ.temp),
+        ~co_ctx=CoCtx.union([e.co_ctx, hint.co_ctx]),
+        m,
+      );
     | Filter(Filter({pat: cond, _}), body) =>
       let (cond, m) =
         go(~ana=Unknown(SynSwitch) |> Typ.temp, cond, m, ~is_in_filter=true);

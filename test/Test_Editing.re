@@ -80,7 +80,7 @@ let mv_r_token = (n: int): list(Action.t) =>
   List.init(n, _ => Action.Move(Local(Right(ByToken))));
 
 let mk = (init: string): list(Action.t) => {
-  /* This harness uses a ¦ to represent caret position.
+  /* This harness uses a  to represent caret position.
    * This assumes there are no literal instances of the caret
    * char proceeding the caret ¦ in the syntax. This creates
    * a list of actions intended to insert the init string into the
