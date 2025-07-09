@@ -555,8 +555,6 @@ module SelectLabels = {
         unknown(Internal),
         FIError.Exp.(
           ap(
-            ~ann=
-              Some(Exp(BuiltinError(ProjectLabelsMissingLabels(["d"])))),
             Forward,
             var("select_labels"),
             tuple([
@@ -565,7 +563,10 @@ module SelectLabels = {
                 tup_label(label("b"), bool(true)),
                 tup_label(label("c"), int(3)),
               ]),
-              label("d"),
+              label(
+                ~ann=Some(Exp(Common(NoType(InvalidLabel("d"))))),
+                "d",
+              ),
             ]),
           )
         ),
@@ -573,8 +574,8 @@ module SelectLabels = {
     ),
     test_case("select_labels with a single tuple and no labels", `Quick, () =>
       annotated_tree_test(
-        {|select_labels((1, 2, 3))|},
-        unknown(Internal),
+        {|select_labels(1, 2, 3)|},
+        prod([unknown(Internal), unknown(Internal)]),
         FIError.Exp.(
           ap(
             Forward,
@@ -602,9 +603,10 @@ module SelectLabels = {
         unknown(Internal),
         FIError.Exp.(
           ap(
+            ~ann=Some(Exp(BuiltinError(AtLeast2Arguments))),
             Forward,
             var("select_labels"),
-            int(~ann=Some(Exp(BuiltinError(ArgumentMustBeTuple))), 1),
+            int(1),
           )
         ),
       )
@@ -615,9 +617,10 @@ module SelectLabels = {
         unknown(Internal),
         FIError.Exp.(
           ap(
+            ~ann=Some(Exp(BuiltinError(AtLeast2Arguments))),
             Forward,
             var("select_labels"),
-            tuple(~ann=Some(Exp(BuiltinError(ArgumentMustBeTuple))), []),
+            tuple([]),
           )
         ),
       )
