@@ -1018,7 +1018,7 @@ let initial_display =
             ~attrs=[clss(["disclaimer-display-text"])],
             [
               text(
-                "AI-based technologies, such as the Hazel Assistant, are prone to making mistakes. Always verify critical information independently.",
+                "AI-based technologies, such as Hazelbot, are prone to making mistakes. Always verify critical information independently.",
               ),
             ],
           ),

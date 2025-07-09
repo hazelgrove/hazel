@@ -131,7 +131,7 @@ let string_of_effort_level =
 
 let default_params = {
   model_id: "",
-  reasoning: Effort(Low),
+  reasoning: Exclude(true),
   temperature: 0.9,
   top_p: 1.0,
   tools: [],

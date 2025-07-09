@@ -60,6 +60,16 @@ let toolkit = [
   "</toolkitNotes>",
 ];
 
+// IDEA: Give the agent a modified version of the program, where each variable is guaranteed to be unique.
+// This mitigates the possibility of unreachable shadowed variables.
+// We should emphasize this to the agent, and make sure it omits the '_i' suffix from the variable names in any modifications it might make.
+// We do this to EACH variable (even if they aren't shadowed), guaranteeing consistency.
+// 1. Snapshot of the sketch
+// 2. Append a unique suffix to each variable name
+// 3. Send uniquely modified program to the agent
+// 4. Agent should respond with variable_name = [unique_name] for appropriate tool calls
+// 5. Receive agent's response, parse, and apply the changes to the ORIGINAL program
+
 // idea: allow for multiple variables to be selected at once
 //       or rather, allow for beginning and end of selection to be specified (based on variable definitons)
 // let goto_definition: API.Json.t =
@@ -154,7 +164,11 @@ let update_pattern: API.Json.t =
         (
           "description",
           `String(
-            "Updates the pattern (or typed pattern). Eg. ```(x, y) : (Int, Int)``` would be overwritten in ```let (x, y) : (Int, Int) = (1, 2) in...```) which encloses the given variable name. Eg. update_pattern x \"x : Int\" will update ```let x = 1 in``` to ```let x : Int = 1 in``` given a program ```let y = 0 in\nlet x = 1 in\nx + y```.",
+            "Updates the pattern (or typed pattern). The \"pattern\" is all of the"
+            ++ "tokens enclosed between the \"let\" and \"=\" delimiters, exclusive. "
+            ++ "Eg. Given a program ```let (x, y) : (Int, Int) = (1, 2) in...```) "
+            ++ ", calling this tool with variable_name = x and new_pattern = \"(a, b) : (Int, Int)\" "
+            ++ "will update the program to ```let (a, b) : (Int, Int) = (1, 2) in...```.",
           ),
         ),
         (
@@ -206,7 +220,11 @@ let update_definition: API.Json.t =
         (
           "description",
           `String(
-            "Updates the definition of the given variable name. Eg. update_definition x 3 will update ```let x = 1 in``` to ```let x = 3 in``` given a program ```let y = 0 in\nlet x = 1 in\nx + y```.",
+            "Updates the definition of the given variable name. The \"definition\" is all of the"
+            ++ "tokens enclosed between the \"=\" and \"in\" delimiters, exclusive. "
+            ++ "Eg. Given a program ```let y = 0 in\nlet x = 1 in\nx + y```, "
+            ++ "calling this tool with variable_name = x and new_definition = 3 "
+            ++ "will update the program to ```let y = 0 in\nlet x = 3 in\nx + y```.",
           ),
         ),
         (
@@ -250,47 +268,6 @@ let update_definition: API.Json.t =
     ),
   ]);
 
-let delete_binding: API.Json.t =
-  `Assoc([
-    ("type", `String("function")),
-    (
-      "function",
-      `Assoc([
-        ("name", `String("delete_binding")),
-        (
-          "description",
-          `String(
-            "Deletes the binding which binds the given variable name. Eg. delete_binding x will delete ```let x = 1 in``` given a program ```let y = 0 in\nlet x = 1 in\nx + y```.",
-          ),
-        ),
-        (
-          "parameters",
-          `Assoc([
-            ("type", `String("object")),
-            (
-              "properties",
-              `Assoc([
-                (
-                  "variable_name",
-                  `Assoc([
-                    ("type", `String("string")),
-                    (
-                      "description",
-                      `String(
-                        "The name of the variable to have its binding deleted.",
-                      ),
-                    ),
-                  ]),
-                ),
-              ]),
-            ),
-            ("required", `List([`String("variable_name")])),
-          ]),
-        ),
-      ]),
-    ),
-  ]);
-
 let update_body: API.Json.t =
   `Assoc([
     ("type", `String("function")),
@@ -301,7 +278,11 @@ let update_body: API.Json.t =
         (
           "description",
           `String(
-            "Updates the body of the given variable name. Eg. update_body x 3 will update ```x + y``` to ```3``` given a program ```let y = 0 in\nlet x = 1 in\nx + y```.",
+            "Updates the body of the given variable name. "
+            ++ "The \"body\" is all of the tokens AFTER the \"in\" delimiter, exclusive. "
+            ++ "Eg. Given a program ```let y = 0 in\nlet x = 1 in\nx + y```, "
+            ++ "calling this tool with variable_name = x and new_body = (x * x) + (y * y) "
+            ++ "will update the program to ```let y = 0 in\nlet x = 1 in\n(x * x) + (y * y)```.",
           ),
         ),
         (
@@ -355,7 +336,11 @@ let update_binding: API.Json.t =
         (
           "description",
           `String(
-            "Updates the ENTIRE binding, inclusive from the \"let\" or \"type\" delimiter to the \"in\" delimiter of the given variable name, but NOT the body of the binding. Eg. update_binding \"x\" \"let b : Int = 0 in\" will update ```let y = 0 in\nlet x : Int = 1 in\nx + y``` to ```let y = 0 in\nlet b : Int = 0 in\nx + y```.",
+            "Updates the ENTIRE binding associated with the given variable name. "
+            ++ "The \"binding\" is all of the tokens between the \"let\" or \"type\" delimiter and the \"in\" delimiter, inclusive (meaning the \"let\" or \"type\" and \"in\" delimiters are included). "
+            ++ "Eg. Given a program ```let y = 0 in\nlet x : Int = 1 in\nx + y```, "
+            ++ "calling this tool with variable_name = x and new_binding = \"let b : Int = 0 in\" "
+            ++ "will update the program to ```let y = 0 in\nlet b : Int = 0 in\nx + y```.",
           ),
         ),
         (
@@ -409,7 +394,12 @@ let delete_body: API.Json.t =
         (
           "description",
           `String(
-            "Deletes the body of the given variable name. Eg. delete_body x will delete ```x + y``` given a program ```let y = 0 in\nlet x = 1 in\nx + y```. If no variable name is given, the entire sketch is deleted.",
+            "Deletes the body of the given variable name. "
+            ++ "The \"body\" is all of the tokens AFTER the \"in\" delimiter, exclusive. "
+            ++ "Eg. Given a program ```let y = 0 in\nlet x = 1 in\nx + y```, "
+            ++ "calling this tool with variable_name = x "
+            ++ "will update the program to ```let y = 0 in\nlet x = 1 in```. "
+            ++ "(Note that your might action now might be to update the definition of y to take care of the unbounded variable x.)",
           ),
         ),
         (
@@ -440,6 +430,52 @@ let delete_body: API.Json.t =
     ),
   ]);
 
+let delete_binding: API.Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("delete_binding")),
+        (
+          "description",
+          `String(
+            "Deletes the binding which binds the given variable name. "
+            ++ "The \"binding\" is all of the tokens between the \"let\" or \"type\" delimiter and the \"in\" delimiter, inclusive (meaning the \"let\" or \"type\" and \"in\" delimiters are included). "
+            ++ "Eg. Given a program ```let y = 0 in\nlet x : Int = 1 in\nx + y```, "
+            ++ "calling this tool with variable_name = x "
+            ++ "will update the program to ```let y = 0 in\nx + y```. "
+            ++ "(Note that your might action now might be to update the body of y to take care of the unbounded variable x.)",
+          ),
+        ),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            (
+              "properties",
+              `Assoc([
+                (
+                  "variable_name",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "The name of the variable to have its binding deleted.",
+                      ),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            ("required", `List([`String("variable_name")])),
+          ]),
+        ),
+      ]),
+    ),
+  ]);
+
 let add_before: API.Json.t =
   `Assoc([
     ("type", `String("function")),
@@ -450,8 +486,12 @@ let add_before: API.Json.t =
         (
           "description",
           `String(
-            "Adds the given code before the binding of the given variable name. Eg. add_before \"x\" \"let a = 3 in\\n\" will add ```let a = 3 in\\n``` before ```let x = 1 in``` given a program ```let y = 0 in\nlet x = 1 in\nx + y```, resulting in ```let y = 0 in\nlet a = 3 in\nlet x = 1 in\nx + y```.
-            If no variable name is provided, the code is added to the BEGINNING of the program, which may be useful for certain tasks.",
+            "Adds the given code before the binding of the given variable name, "
+            ++ "i.e. puts code IMMEDIATELY before the \"let\" or \"type\" delimiter associated with the given variable name "
+            ++ "Eg. Given a program ```let x = 0 in\nlet z = 1 in\nx + z```, "
+            ++ "calling this tool with variable_name = z and code = \"let y = 3 in\\n\" "
+            ++ "will update the program to ```let x = 0 in\nlet y = 3 in\nlet z = 1 in\nx + y```. "
+            ++ "SPECIAL CASE: If no variable name is provided, the code is added to the BEGINNING of the program, which may be useful for certain tasks such as adding global variables.",
           ),
         ),
         (
@@ -504,8 +544,12 @@ let add_after: API.Json.t =
         (
           "description",
           `String(
-            "Adds the given code after the binding of the given variable name. Eg. add_after \"x\" \"let a = 3 in\\n\" will add ```let a = 3 in\\n``` after ```let x = 1 in``` given a program ```let y = 0 in\nlet x = 1 in\nx + y```, resulting in ```let y = 0 in\nlet x = 1 in\nlet a = 3 in\nx + y```.
-            If no variable name is provided, the code is added to the END of the program, which may be useful for certain tasks.",
+            "Adds the given code after the binding of the given variable name, "
+            ++ "i.e. puts code IMMEDIATELY after the \"in\" delimiter associated with the given variable name "
+            ++ "Eg. Given a program ```let x = 0 in\nlet y = 1 in\nx + y```, "
+            ++ "calling this tool with variable_name = y and code = \"let z = 3 in\\n\" "
+            ++ "will update the program to ```let x = 0 in\nlet y = 1 in\nlet z = 3 in\nx + y```. "
+            ++ "SPECIAL CASE: If no variable name is provided, the code is added to the END of the program, which may be useful for certain tasks such as initializing empty sketches.",
           ),
         ),
         (
@@ -542,6 +586,51 @@ let add_after: API.Json.t =
               ]),
             ),
             ("required", `List([`String("code")])),
+          ]),
+        ),
+      ]),
+    ),
+  ]);
+
+let move_cursor: API.Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("move_cursor")),
+        (
+          "description",
+          `String(
+            "Moves the cursor to the given variable name in the program. "
+            ++ "Note that we have supplied you with a slightly modified version of the program, where each variable is guaranteed to be unique. "
+            ++ "Thus mitigating the possibility of unreachable shadowed variables. "
+            ++ "Because many of the tool calls depend on "
+            ++ "This action is purely navigational, and has no effects on the state of the program itself. ",
+          ),
+        ),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            (
+              "properties",
+              `Assoc([
+                (
+                  "variable_name",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "The name of the variable to move the cursor to.",
+                      ),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            ("required", `List([`String("variable_name")])),
           ]),
         ),
       ]),
