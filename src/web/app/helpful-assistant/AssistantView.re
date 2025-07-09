@@ -427,7 +427,6 @@ let mk_input_handlers =
       model: Model.t,
       index: option(int),
       inject: Update.t => Ui_effect.t(unit),
-      editor: CodeEditable.Model.t,
       which_input: string,
     ) => {
   let mode = settings.mode;
@@ -534,16 +533,10 @@ let mk_input_handlers =
 };
 
 let message_input =
-    (
-      ~signal,
-      ~inject,
-      ~model: Model.t,
-      ~settings: AssistantSettings.t,
-      ~editor: CodeEditable.Model.t,
-    )
+    (~signal, ~inject, ~model: Model.t, ~settings: AssistantSettings.t)
     : Node.t => {
   let (send_message, handle_keydown) =
-    mk_input_handlers(settings, model, None, inject, editor, "message-input");
+    mk_input_handlers(settings, model, None, inject, "message-input");
   div(
     ~attrs=[clss(["input-container"])],
     [
@@ -774,7 +767,6 @@ let text_block =
       ~settings: AssistantSettings.t,
       ~model: Model.t,
       ~inject: Update.t => Ui_effect.t(unit),
-      ~editor: CodeEditable.Model.t,
       ~is_first: bool,
       ~is_last: bool,
     )
@@ -782,14 +774,7 @@ let text_block =
   if (message.role == User) {
     let unique_id = "user-message-input-" ++ string_of_int(index);
     let (send_message, handle_keydown) =
-      mk_input_handlers(
-        settings,
-        model,
-        Some(index),
-        inject,
-        editor,
-        unique_id,
-      );
+      mk_input_handlers(settings, model, Some(index), inject, unique_id);
 
     // Auto-resize textarea when first rendered with content
     JsUtil.delay(0.0, () => JsUtil.autosize_textarea(unique_id));
@@ -976,7 +961,6 @@ let form_block =
       ~signal,
       ~model: Model.t,
       ~inject: Update.t => Ui_effect.t(unit),
-      ~editor: CodeEditable.Model.t,
     )
     : Node.t =>
   if (!message.display.collapsed || message.display.collapsed && is_first) {
@@ -993,7 +977,6 @@ let form_block =
         ~signal,
         ~model,
         ~inject,
-        ~editor,
       )
     | Code(sketch) =>
       code_block(
@@ -1051,7 +1034,6 @@ let message_display =
       ~model: Model.t,
       ~settings: AssistantSettings.t,
       ~signal,
-      ~editor: CodeEditable.Model.t,
     )
     : Node.t => {
   let toggle_collapse = (is_system_prompt, index) => {
@@ -1168,7 +1150,6 @@ let message_display =
                           ~signal,
                           ~model,
                           ~inject,
-                          ~editor,
                         ),
                       parsed_blocks,
                     );
@@ -1215,7 +1196,6 @@ let prompt_display =
       ~settings: AssistantSettings.t,
       ~signal,
       ~inject,
-      ~editor: CodeEditable.Model.t,
     )
     : Node.t => {
   let (past_chats, curr_chat) = Update.get_mode_info(settings.mode, model);
@@ -1251,7 +1231,6 @@ let prompt_display =
                         ~signal,
                         ~model,
                         ~inject,
-                        ~editor,
                       ),
                     parsed_blocks,
                   );
@@ -1398,7 +1377,6 @@ let view =
       ~signal,
       ~inject: Update.t => Ui_effect.t(unit),
       ~model: Model.t,
-      ~editor: CodeEditable.Model.t,
     ) => {
   let settings = globals.settings;
   let inject_global = globals.inject_global;
@@ -1455,7 +1433,6 @@ let view =
               ~model,
               ~settings=settings.assistant,
               ~signal,
-              ~editor,
             )
           : None,
         settings.assistant.ongoing_chat
@@ -1464,7 +1441,6 @@ let view =
               ~inject,
               ~model,
               ~settings=settings.assistant,
-              ~editor,
             )
           : None,
         settings.assistant.ongoing_chat
@@ -1486,7 +1462,6 @@ let view =
           ~settings=settings.assistant,
           ~signal,
           ~inject,
-          ~editor,
         ),
       ],
     );

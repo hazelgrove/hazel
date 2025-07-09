@@ -174,7 +174,6 @@ let view =
       ~signal,
       ~explainThisModel: ExplainThisModel.t,
       ~assistantModel: AssistantModel.t,
-      ~editor,
       info: option(Language.Info.t),
     ) => {
   let sub =
@@ -197,7 +196,6 @@ let view =
                 ~signal,
                 ~inject=assistant_inject,
                 ~model=assistantModel,
-                ~editor,
               )
             },
           ],

@@ -622,7 +622,6 @@ module View = {
           | MakeActive(s) => inject(MakeActive(Scratch(s))),
         ~explainThisModel,
         ~assistantModel,
-        ~editor=Update.get_editor(model),
         cursor.info,
       );
 
