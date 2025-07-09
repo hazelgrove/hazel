@@ -792,3 +792,20 @@ let remove_duplicate_labels =
     ),
   );
 };
+
+/**
+ * Converts a list of types (`tys`) into a product type.
+ *
+ * If the list contains a single type, it is returned as-is since singleton
+ * products are not supported.
+ *
+ * @param tys - A list of types to be combined into a product type.
+ * @return A product type representing the combination of the input types,
+ *         or the single type if the list contains only one element.
+ */
+let to_product = (tys: list(t)): t =>
+  switch (tys) {
+  | [] => Prod([]) |> temp
+  | [ty] => ty
+  | _ => Prod(tys) |> temp
+  };

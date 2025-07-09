@@ -743,7 +743,9 @@ let fixed_typ_err: error_exp => Typ.t =
       ProjectLabelsMissingLabels(_) | MissingLabels(_) |
       PivotLabelIsNotString(_),
     )
-  | BuiltinError(ArgumentMustBeTuple | PivotFirstArgNotListOfTuples)
+  | BuiltinError(
+      ArgumentMustBeTuple | PivotFirstArgNotListOfTuples | AtLeast2Arguments,
+    )
   | BadTrivAp(_) => Unknown(Internal) |> Typ.temp
   | BuiltinError(MeltMissingLabelsOnTuple(ty)) => ty
   | Common(err) => fixed_typ_err_common(err)
