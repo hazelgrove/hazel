@@ -1,5 +1,6 @@
 open StaticsBase;
 
+type tuple_type = list((option(string), Typ.t));
 let analyze_tuple_argument = (module S: ExpressionStatics, ~ctx, m, tup) => {
   open S;
 
@@ -36,12 +37,48 @@ let analyze_tuple_argument = (module S: ExpressionStatics, ~ctx, m, tup) => {
     (None, tup_info, m);
   };
 };
+let extract_labels = (entries: tuple_type) =>
+  List.filter_map(
+    (entry: (option(string), Typ.t)) => fst(entry),
+    entries,
+  );
+
+let labels_to_info_map =
+    (
+      module S: ExpressionStatics,
+      expected_labels: option(list(string)),
+      labs: list(Exp.t),
+      m: Map.t,
+    )
+    : (list(option(string)), Map.t) => {
+  List.fold_left(
+    ((labels: list(option(string)), m: Map.t), label) => {
+      let (label, _, m) =
+        S.label_to_info_map(
+          expected_labels,
+          Unknown(SynSwitch) |> Typ.temp,
+          label,
+          m,
+        );
+      (labels @ [label], m);
+    },
+    ([], m),
+    labs,
+  );
+};
+
+let get_tuple_label = (tuple: tuple_type, label: string): Typ.t => {
+  switch (List.find_opt(((l, _)) => l == Some(label), tuple)) {
+  | Some((_, typ)) => typ
+  | None => Unknown(Internal) |> Typ.temp
+  };
+};
 
 let project_labels_statics =
     (
       module S: ExpressionStatics,
-      ~inferred_label,
-      ~label_sort,
+      ~inferred_label as _,
+      ~label_sort as _,
       ~fn_info: Info.exp,
       ~ancestors: list(Id.t),
       ~ctx: Ctx.t,
@@ -51,39 +88,17 @@ let project_labels_statics =
   S.(
     switch (arg.term) {
     | Tuple([tup, ...labs]) when List.length(labs) > 0 =>
-      let (
-        labeled_tup_info: option(list((option(string), Typ.t))),
-        tup_info,
-        m: Map.t,
-      ) =
+      let (labeled_tup_info: option(tuple_type), tup_info, m: Map.t) =
         analyze_tuple_argument((module S), ~ctx, m, tup);
 
-      let expected_labels =
-        switch (labeled_tup_info) {
-        | Some(entries) =>
-          Some(
-            List.filter_map(
-              (entry: (option(string), Typ.t)) => fst(entry),
-              entries,
-            ),
-          )
-        | None => None
-        };
+      let expected_labels = Option.map(extract_labels, labeled_tup_info);
 
       let (labels, m) =
-        List.fold_left(
-          ((labels: list(option(string)), m: Map.t), label) => {
-            let (label, _, m) =
-              label_to_info_map(
-                expected_labels,
-                Unknown(SynSwitch) |> Typ.temp,
-                label,
-                m,
-              );
-            (labels @ [label], m);
-          },
-          ([], m),
-          labs,
+        labels_to_info_map((module S), expected_labels, labs, m);
+      let args_typ =
+        Typ.to_product(
+          [tup_info.ty]
+          @ List.map(__ => Unknown(Internal) |> Typ.temp, labs),
         );
 
       let m =
@@ -95,11 +110,11 @@ let project_labels_statics =
               ~ctx,
               ~ana=Unknown(SynSwitch) |> Typ.temp,
               ~ancestors,
-              ~self=Common(Just(Unknown(Internal) |> Typ.temp)),
+              ~self=Common(Just(args_typ)),
               ~co_ctx=CoCtx.empty,
               ~label_inference=None,
-              ~inferred_label,
-              ~label_sort,
+              ~inferred_label=None,
+              ~label_sort=false,
             ),
           ),
           m,
@@ -107,17 +122,9 @@ let project_labels_statics =
 
       let val_types =
         List.map(
-          optional_lab => {
-            switch (optional_lab) {
-            | Some(l: string) =>
-              List.find_map(
-                ((entry_lab: option(string), ty)) =>
-                  Some(l) == entry_lab ? Some(ty) : None,
-                labeled_tup_info |> Option.value(~default=[]),
-              )
-              |> Option.value(~default=Unknown(Internal) |> Typ.temp)
-            | None => Unknown(Internal) |> Typ.temp
-            }
+          (optional_lab: option(string)) => {
+            Util.OptUtil.map2(get_tuple_label, labeled_tup_info, optional_lab)
+            |> Option.value(~default=Unknown(Internal) |> Typ.temp)
           },
           labels,
         );
