@@ -198,6 +198,22 @@ let insertion_tests = [
     ~acts=mk({|if the¦else|}) @ [Insert("n"), Insert(" ")],
     ~goal={|if? then?¦else?|},
   ),
+    test(
+    ~name="Insert let binding before prefix negation",
+    ~acts=
+      mk({|¦-_|})
+      @ [
+        Insert("l"),
+        Insert("e"),
+        Insert("t"),
+        Insert(" "),
+        Insert("x"),
+        Insert("="),
+        Insert(" "),
+        Move(Local(Right(ByChar))),
+      ],
+    ~goal={|let x = -¦_|},
+  ),
 ];
 
 let destruct_tests = [
