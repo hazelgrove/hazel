@@ -733,7 +733,6 @@ module PrimitivePivot = {
         unknown(Internal),
         FIError.Exp.(
           ap(
-            ~ann=Some(Exp(BuiltinError(MissingLabels(["c"])))),
             Forward,
             var("primitive_pivot"),
             tuple([
@@ -743,7 +742,10 @@ module PrimitivePivot = {
                   tup_label(label("b"), int(3)),
                 ]),
               ]),
-              label("c"),
+              label(
+                ~ann=Some(Exp(Common(NoType(InvalidLabel("c"))))),
+                "c",
+              ),
             ]),
           )
         ),
@@ -755,7 +757,6 @@ module PrimitivePivot = {
         unknown(Internal),
         FIError.Exp.(
           ap(
-            ~ann=Some(Exp(BuiltinError(PivotLabelIsNotString(Typ.int())))),
             Forward,
             var("primitive_pivot"),
             tuple([
@@ -765,7 +766,13 @@ module PrimitivePivot = {
                   tup_label(label("b"), int(3)),
                 ]),
               ]),
-              label("a"),
+              label(
+                ~ann=
+                  Some(
+                    Exp(BuiltinError(PivotLabelIsNotString(Typ.int()))),
+                  ),
+                "a",
+              ),
             ]),
           )
         ),
@@ -806,7 +813,7 @@ module PrimitivePivot = {
             var("primitive_pivot"),
             tuple([
               int(
-                ~ann=Some(Exp(BuiltinError(PivotFirstArgNotListOfTuples))),
+                ~ann=Some(Exp(BuiltinError(ArgumentMustBeListOfTuples))),
                 5,
               ),
               label("a"),
@@ -821,49 +828,19 @@ module PrimitivePivot = {
         unknown(Internal),
         FIError.Exp.(
           ap(
+            ~ann=Some(Exp(BuiltinError(Exactly2Arguments))),
             Forward,
             var("primitive_pivot"),
-            tuple(
-              ~ann=
-                Some(
-                  Exp(
-                    Common(
-                      Inconsistent(
-                        Typ.(
-                          Expectation({
-                            ana:
-                              prod([
-                                list(unknown(Internal)),
-                                unknown(Internal),
-                              ]),
-                            syn:
-                              prod([
-                                list(
-                                  prod([
-                                    tup_label(label("a"), string()),
-                                    tup_label(label("b"), int()),
-                                  ]),
-                                ),
-                                label("a"),
-                                label("b"),
-                              ]),
-                          })
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              [
-                list_lit([
-                  tuple([
-                    tup_label(label("a"), string("hello")),
-                    tup_label(label("b"), int(3)),
-                  ]),
+            tuple([
+              list_lit([
+                tuple([
+                  tup_label(label("a"), string("hello")),
+                  tup_label(label("b"), int(3)),
                 ]),
-                label("a"),
-                label("b"),
-              ],
-            ),
+              ]),
+              label("a"),
+              label("b"),
+            ]),
           )
         ),
       )
@@ -886,6 +863,66 @@ module PrimitivePivot = {
               ]),
               label("a"),
             ]),
+          )
+        ),
+      )
+    ),
+    test_case("primitive pivot with unknown type in first arg", `Quick, () =>
+      annotated_tree_test(
+        {|primitive_pivot(?, 'a')|},
+        unknown(Internal),
+        FIError.Exp.(
+          ap(
+            Forward,
+            var("primitive_pivot"),
+            tuple([empty_hole(), label("a")]),
+          )
+        ),
+      )
+    ),
+    test_case(
+      "primitive pivot with ascription to unknown in label position",
+      `Quick,
+      () =>
+      annotated_tree_test(
+        {|primitive_pivot([(a="hello", b=3)], 'a' : ?)|},
+        unknown(Internal),
+        FIError.(
+          Exp.(
+            ap(
+              Forward,
+              var("primitive_pivot"),
+              tuple([
+                list_lit([
+                  tuple([
+                    tup_label(label("a"), string("hello")),
+                    tup_label(label("b"), int(3)),
+                  ]),
+                ]),
+                asc(
+                  ~ann=
+                    Some(
+                      Exp(
+                        Common(
+                          NoType(
+                            BadLabel(
+                              Exp(
+                                FTemp.(
+                                  Exp.(
+                                    asc(label("a"), Typ.unknown(Internal))
+                                  )
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  label("a"),
+                  Typ.unknown(Internal),
+                ),
+              ]),
+            )
           )
         ),
       )

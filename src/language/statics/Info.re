@@ -744,7 +744,8 @@ let fixed_typ_err: error_exp => Typ.t =
       PivotLabelIsNotString(_),
     )
   | BuiltinError(
-      ArgumentMustBeTuple | PivotFirstArgNotListOfTuples | AtLeast2Arguments,
+      ArgumentMustBeTuple | ArgumentMustBeListOfTuples | AtLeast2Arguments |
+      Exactly2Arguments,
     )
   | BadTrivAp(_) => Unknown(Internal) |> Typ.temp
   | BuiltinError(MeltMissingLabelsOnTuple(ty)) => ty

@@ -37,6 +37,44 @@ let analyze_tuple_argument = (module S: ExpressionStatics, ~ctx, m, tup) => {
     (None, tup_info, m);
   };
 };
+
+let analyze_table_argument = (module S: ExpressionStatics, ~ctx, m, table) => {
+  open S;
+
+  let (table_info, m) =
+    uexp_to_info_map(~ctx, ~ana=Unknown(SynSwitch) |> Typ.temp, table, m);
+
+  switch (Typ.normalize(ctx, table_info.ty).term) {
+  | List({term: Prod(entries), _}) => (
+      Some(
+        List.map(
+          (entry: Typ.t) => {
+            switch (entry.term) {
+            | TupLabel({term: Label(l), _}, typ) => (Some(l), typ)
+            | TupLabel(_, typ) => (None, typ)
+            | _ => (None, entry)
+            }
+          },
+          entries,
+        ),
+      ),
+      table_info,
+      m,
+    )
+  | Unknown(_) => (None, table_info, m)
+  | _ =>
+    let (_, m) =
+      uexp_to_info_map(
+        ~ctx,
+        ~ana=Unknown(SynSwitch) |> Typ.temp,
+        ~override_self=BuiltinError(ArgumentMustBeListOfTuples),
+        table,
+        m,
+      );
+    (None, table_info, m);
+  };
+};
+
 let extract_labels = (entries: tuple_type) =>
   List.filter_map(
     (entry: (option(string), Typ.t)) => fst(entry),
@@ -159,18 +197,14 @@ let primitive_pivot_statics =
     ) => {
   S.(
     switch (arg.term) {
-    | Tuple([tup, pivot_label]) =>
-      let (tup_info, m) =
-        uexp_to_info_map(
-          ~ctx,
-          ~ana=List(Unknown(SynSwitch) |> Typ.temp) |> Typ.temp,
-          tup,
-          m,
-        );
+    | Tuple([table, pivot_label]) =>
+      let (row_info: option(tuple_type), table_info, m) =
+        analyze_table_argument((module S), ~ctx, m, table);
 
-      let (_, label_info, m) =
+      let expected_labels = Option.map(extract_labels, row_info);
+      let (label, _, m) =
         label_to_info_map(
-          None,
+          expected_labels,
           Unknown(SynSwitch) |> Typ.temp,
           pivot_label,
           m,
@@ -185,7 +219,13 @@ let primitive_pivot_statics =
               ~ctx,
               ~ana=Unknown(SynSwitch) |> Typ.temp,
               ~ancestors,
-              ~self=Common(Just(Unknown(Internal) |> Typ.temp)),
+              ~self=
+                Common(
+                  Just(
+                    Prod([table_info.ty, Unknown(Internal) |> Typ.temp])
+                    |> Typ.temp,
+                  ),
+                ),
               ~co_ctx=CoCtx.empty,
               ~label_inference=None,
               ~inferred_label,
@@ -194,92 +234,43 @@ let primitive_pivot_statics =
           ),
           m,
         );
+      let pivot_type =
+        Util.OptUtil.map2(
+          (entries: list((option(string), TermBase.typ_t)), label: string) => {
+            List.find_map(
+              ((l: option(string), ty: Typ.t)) =>
+                l == Some(label) ? Some(ty) : None,
+              entries,
+            )
+          },
+          row_info,
+          label,
+        )
+        |> Option.join;
 
-      switch (Typ.normalize(ctx, tup_info.ty).term) {
-      | List({term: Prod(entries), _}) =>
-        let pivot_label =
-          switch (label_info.ty.term) {
-          | Label(l) => Some(l)
-          | _ => None
-          };
-
-        let entries: list((string, Grammar.typ_t(IdTagged.IdTag.t))) =
-          List.filter_map(Typ.match_tup_label, entries);
-
-        let pivot_entry: option((string, Grammar.typ_t(IdTagged.IdTag.t))) =
-          List.find_opt(
-            ((l, _): (string, Grammar.typ_t(IdTagged.IdTag.t))) =>
-              Some(l) == pivot_label,
-            entries,
-          );
-
-        let self: Self.exp =
-          switch (pivot_entry, pivot_label) {
-          | (_, None) => Common(Just(Unknown(Internal) |> Typ.temp)) // No pivot label provided
-          | (None, Some(pivot_label)) =>
-            BuiltinError(MissingLabels([pivot_label]))
-          | (Some((_, typ)), _) =>
-            switch (Typ.normalize(ctx, typ).term) {
-            | Atom(String) => Common(Just(Unknown(Internal) |> Typ.temp)) // Happy path
-            | Unknown(_) => Common(Just(Unknown(Internal) |> Typ.temp)) // No type information
-            | _ => BuiltinError(PivotLabelIsNotString(typ)) // Pivot label not a string
-            }
-          };
-
-        add'(
-          ~self,
-          ~co_ctx=CoCtx.union([fn_info.co_ctx, tup_info.co_ctx]),
-          m,
-        );
-      | Unknown(_) =>
-        let self: Self.exp = Common(Just(Unknown(Internal) |> Typ.temp));
-
-        add'(~self, ~co_ctx=fn_info.co_ctx, m);
-      | _ =>
-        let (_, m) =
+      let m =
+        switch (pivot_type) {
+        | Some(ty) when !Typ.is_consistent(ctx, ty, Typ.temp(Atom(String))) =>
           uexp_to_info_map(
             ~ctx,
-            ~ana=Unknown(SynSwitch) |> Typ.temp,
-            ~ancestors,
-            ~override_self=BuiltinError(PivotFirstArgNotListOfTuples),
-            tup,
+            ~label_sort=true,
+            ~override_self=BuiltinError(PivotLabelIsNotString(ty)),
+            pivot_label,
             m,
-          );
-        add'(
-          ~self=Common(Just(Unknown(Internal) |> Typ.temp)), // Consider if there's a better way to show no type information
-          ~co_ctx=CoCtx.union([fn_info.co_ctx, tup_info.co_ctx]),
-          m,
-        );
-      };
-    | Tuple(_) =>
-      let (arg_info, m) =
-        uexp_to_info_map(
-          ~ctx,
-          ~ana=
-            Prod([
-              List(Unknown(Internal) |> Typ.temp) |> Typ.temp,
-              Unknown(Internal) |> Typ.temp,
-            ])
-            |> Typ.temp,
-          arg,
-          m,
-        );
+          )
+          |> snd
+        | _ => m
+        };
+
       add'(
-        ~self=Common(Just(Unknown(Internal) |> Typ.temp)), // Consider if there's a better way to show no type information
-        ~co_ctx=CoCtx.union([fn_info.co_ctx, arg_info.co_ctx]),
+        ~self=Common(Just(Unknown(Internal) |> Typ.temp)),
+        ~co_ctx=CoCtx.union([fn_info.co_ctx, table_info.co_ctx]),
         m,
       );
     | _ =>
-      let (arg_info, m) =
-        uexp_to_info_map(
-          ~ctx,
-          ~ana=Unknown(SynSwitch) |> Typ.temp,
-          ~override_self=BuiltinError(ArgumentMustBeTuple),
-          arg,
-          m,
-        );
+      let (arg_info, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
       add'(
-        ~self=Common(Just(Unknown(Internal) |> Typ.temp)), // Consider if there's a better way to show no type information
+        ~self=BuiltinError(Exactly2Arguments),
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg_info.co_ctx]),
         m,
       );
