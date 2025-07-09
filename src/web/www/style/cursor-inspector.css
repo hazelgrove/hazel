@@ -31,17 +31,30 @@
 #cursor-inspector .gamma {
   cursor: pointer;
   display: flex;
-  align-items: center;
   font-family: math;
   font-weight: normal;
   background-color: var(--ci-icon-bkg);
   border-radius: 0 1.1em 0 0;
-  padding-left: 0.5em;
-  padding-right: 0.7em;
   color: var(--light-page-color);
+  width: 2em;
   height: 100%;
   transition: border-radius 0.2s ease-in;
+  align-items: center;
 }
+
+#cursor-inspector .gamma svg {
+  pointer-events: auto;
+  fill: var(--cell-active);
+  scale: 0.66;
+  padding-left: 0.3em;
+  transition: scale 0.1s ease-in;
+}
+
+#cursor-inspector .gamma:hover svg {
+  scale: 0.9;
+  animation: jello 0.6s ease 0s 1 normal forwards;
+}
+
 #cursor-inspector .Exp .gamma {
   background-color: var(--ci-icon-bkg);
 }
@@ -58,14 +71,16 @@
   background-color: var(--token-label);
 }
 
-#cursor-inspector .ci-header .gamma:hover,
-#cursor-inspector .ci-header.error .gamma:hover,
 #cursor-inspector .ci-header .gamma.visible,
 #cursor-inspector .ci-header.error .gamma.visible,
 #bottom-bar:has(~ .context-inspector:hover) .gamma {
   background-color: #dfcc99;
   outline: 0.3px solid var(--BR3);
   color: var(--BR4);
+}
+
+#cursor-inspector .ci-header .gamma.visible svg {
+  fill: var(--BR4);
 }
 
 #cursor-inspector .gamma.visible,
@@ -147,10 +162,6 @@
   background-color: var(--shard-typ);
   color: var(--token-typ);
 }
-#cursor-inspector .ci-header.ok.Rul {
-  background-color: var(--shard-rul);
-  color: var(--shard-lines-rul);
-}
 #cursor-inspector .ci-header.ok.TPat {
   background-color: var(--shard-tpat);
   color: var(--token-tpat);
@@ -163,6 +174,22 @@
 #cursor-inspector .term-tag {
   font-weight: bolder;
   text-transform: uppercase;
+}
+
+#cursor-inspector .divider {
+  color: var(--BR2);
+}
+#cursor-inspector.error .divider {
+  color: var(--R2);
+}
+#cursor-inspector .Pat .divider {
+  color: var(--token-pat);
+}
+#cursor-inspector .Typ .divider {
+  color: var(--token-typ);
+}
+#cursor-inspector .TPat .divider {
+  color: var(--token-tpat);
 }
 
 #cursor-inspector .status.error .code {

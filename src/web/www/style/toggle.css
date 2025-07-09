@@ -2,7 +2,7 @@
 
 .toggle-switch,
 .toggle-switch .toggle-knob {
-  transition: all 0.1s ease-in;
+  transition: margin 0.1s ease-in;
 }
 
 .toggle-switch {
