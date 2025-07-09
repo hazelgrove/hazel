@@ -177,7 +177,7 @@ let body = (~params: params, messages: list(message)): Json.t => {
     ("temperature", `Float(params.temperature)),
     ("top_p", `Float(params.top_p)),
     ("messages", `List(List.map(mk_message, messages))),
-    ("tools", `List(params.tools)),
+    ("tools", params.tools == [] ? `Null : `List(params.tools)),
     ("stream", `Bool(params.stream)),
   ]);
 };
