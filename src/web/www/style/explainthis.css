@@ -30,6 +30,10 @@
   background-color: var(--T2);
 }
 
+#explain-this .example .cell-item {
+  overflow: auto;
+}
+
 #explain-this .example .cell-result {
   border-radius: 0 0 0.4em 0.4em;
 }

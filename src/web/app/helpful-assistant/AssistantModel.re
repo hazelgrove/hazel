@@ -129,10 +129,15 @@ let parse_blocks = (response: string): list(block_kind) => {
       let zipper_of_code = Parser.to_zipper(code);
       let sketch =
         switch (zipper_of_code) {
-        | Some(z) => Zipper.seg_for_view(z)
+        | Some(z) =>
+          Zipper.smart_seg(~erase_buffer=false, ~dump_backpack=true, z)
         | None =>
           print_endline("Failed to parse content into segment.\n");
-          Zipper.seg_for_view(Zipper.init());
+          Zipper.smart_seg(
+            ~erase_buffer=false,
+            ~dump_backpack=true,
+            Zipper.init(),
+          );
         };
       let before = Str.string_before(str, pos);
       let rest_start = pos + String.length(Str.matched_string(str));

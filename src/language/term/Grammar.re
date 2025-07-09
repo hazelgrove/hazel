@@ -134,7 +134,7 @@ and tpat_term('a) =
 and tpat_t('a) = Annotated.t(tpat_term('a), 'a)
 and rul_term('a) =
   | Invalid(string)
-  | Hole(list(any_t('a)))
+  | MultiHole(list(any_t('a)))
   | Rules(exp_t('a), list((pat_t('a), exp_t('a))))
 and rul_t('a) = Annotated.t(rul_term('a), 'a)
 and environment_t('a) = VarBstMap.Ordered.t_(exp_t('a))
@@ -370,7 +370,8 @@ and map_rul_annotation: 'a 'b. ('a => 'b, rul_t('a)) => rul_t('b) =
       term:
         switch (term) {
         | Invalid(s) => Invalid(s)
-        | Hole(l) => Hole(List.map(x => map_any_annotation(f, x), l))
+        | MultiHole(l) =>
+          MultiHole(List.map(x => map_any_annotation(f, x), l))
         | Rules(e, l) =>
           Rules(
             map_exp_annotation(f, e),
@@ -830,7 +831,7 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       annotation: default_annotation(ann),
     };
     let rul_hole = (~ann=?, l): rul_t(DefaultAnnotation.t) => {
-      term: Hole(l),
+      term: MultiHole(l),
       annotation: default_annotation(ann),
     };
     let rul_rules = (~ann=?, e, l): rul_t(DefaultAnnotation.t) => {
