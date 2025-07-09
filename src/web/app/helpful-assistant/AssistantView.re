@@ -1007,9 +1007,9 @@ let initial_display =
             [
               text(
                 switch (settings.mode) {
-                | HazelTutor => "Hi, I'm Hazelnut! Ask me anything about Hazel."
-                | CodeSuggestion => "Hi, I'm Hazelnut! Ask me for code suggestions."
-                | TaskCompletion => "Hi, I'm Hazelnut! Let's work on your task together."
+                | HazelTutor => "Hi, I'm Hazelbot! Ask me anything about Hazel."
+                | CodeSuggestion => "Hi, I'm Hazelbot! Ask me for code suggestions."
+                | TaskCompletion => "Hi, I'm Hazelbot! Let's work on your task together."
                 },
               ),
             ],
