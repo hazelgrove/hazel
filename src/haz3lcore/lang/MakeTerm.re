@@ -243,13 +243,13 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | term => ret(ListLit([term]))
         }
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
-      | (
-          ["case", "end"],
-          [Rul({term: Rules(scrut, rules), annotation: {ids, _}})],
-        ) => (
-          Match(scrut, rules),
-          ids,
-        )
+      | (["case", "end"], [Rul({term, annotation: {ids, _}})]) =>
+        switch (term) {
+        | Rules(scrut, rules) => (Match(scrut, rules), ids)
+        // If the rule parser is correct, below should be impossible
+        | MultiHole(anys) => (MultiHole(anys), ids)
+        | Invalid(string) => (Invalid(string), ids)
+        }
       | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
         ret(Invalid(t))
       | _ => ret(hole(tm))
@@ -729,45 +729,30 @@ and tpat_term: unsorted => TPat.term = {
   | tm => ret(hole(tm));
 }
 
-// and rul = unsorted => {
-//   let term = rul_term(unsorted);
-//   let ids = ids(unsorted);
-//   return(r => Rul(r), ids, {ids, term});
-// }
 and rul = (unsorted): Rul.t => {
-  let hole: Rul.term = Hole(kids_of_unsorted(unsorted));
-  switch (exp(unsorted)) {
+  let e = exp(unsorted);
+  let mk_rules = (scrut: Exp.t, rules, ids): Rul.t => {
+    term: Rules(scrut, rules),
+    annotation: {
+      ids: ids,
+    },
+  };
+  switch (e) {
   | {term: MultiHole(_), _} =>
     switch (unsorted) {
     | Bin(Exp(scrut), tiles, Exp(last_clause)) =>
       switch (is_rules(tiles)) {
-      | Some((ps, leading_clauses)) => {
-          annotation: {
-            ids: ids(unsorted),
-          },
-          term:
-            Rules(scrut, List.combine(ps, leading_clauses @ [last_clause])),
-        }
-      | None => {
-          term: hole,
-          annotation: {
-            ids: ids(unsorted),
-          },
-        }
+      | Some((ps, leading_clauses)) =>
+        mk_rules(
+          scrut,
+          List.combine(ps, leading_clauses @ [last_clause]),
+          ids(unsorted),
+        )
+      | None => mk_rules(e, [], [])
       }
-    | _ => {
-        term: hole,
-        annotation: {
-          ids: ids(unsorted),
-        },
-      }
+    | _ => mk_rules(e, [], [])
     }
-  | e => {
-      term: Rules(e, []),
-      annotation: {
-        ids: [],
-      },
-    }
+  | _ => mk_rules(e, [], [])
   };
 }
 

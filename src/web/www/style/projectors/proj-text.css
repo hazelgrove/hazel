@@ -54,7 +54,7 @@
   );
 }
 .projector.text.selected > svg {
-  filter: drop-shadow(1px 1px 0 var(--shadow-nul));
+  filter: drop-shadow(1px 1px 0 var(--R0));
 }
 
 .projector.text textarea {
