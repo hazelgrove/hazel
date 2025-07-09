@@ -1,0 +1,70 @@
+name: Update Dependencies
+
+on:
+  schedule:
+    - cron: '0 9 * * *'  # everyday at 09:00 UTC
+  workflow_dispatch:
+    
+permissions: # Necessary for created pull request to trigger CI
+  contents: write
+  pull-requests: write
+
+jobs:
+  update-dependencies:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout `dev`
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          token: ${{ secrets.GITHUB_TOKEN }}
+          fetch-depth: 0  # fetch full history for branch operations
+
+      - name: Install node/npm
+        uses: actions/setup-node@v4
+        with:
+            node-version: "latest"
+
+      - name: Install NPM dependencies
+        run: npm install
+
+      - name: Set-up OCaml
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: 5.2.0
+          dune-cache: true
+
+      - name: Install dune
+        run: |
+          eval $(opam env)
+          export OPAMYES=1
+          opam install dune
+  
+      - name: Add opam repository archive
+        run: |
+          eval $(opam env)
+          export OPAMYES=1
+          opam repo add archive git+https://github.com/ocaml/opam-repository-archive
+          
+      - name: Set up Git
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Run change-deps
+        run: |
+           eval $(opam env)
+           export OPAMYES=1
+           make change-deps
+
+      - name: Create or update PR
+        uses: peter-evans/create-pull-request@v7
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          title: "chore: update dependencies"
+          body: "Automated update from `make change-deps` based on `dev`."
+          commit-message: "chore: update dependencies"
+          branch: bot-update-deps
+          base: dev
+          delete-branch: true
