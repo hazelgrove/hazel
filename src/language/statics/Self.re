@@ -57,8 +57,9 @@ type error_builtin =
   | MissingLabels(list(string)) // Operation with labels that are not present in the tuple
   | PivotLabelIsNotString(Typ.t) /* Pivot column must be a string */
   | ArgumentMustBeTuple
-  | PivotFirstArgNotListOfTuples /* Argument to label projection is not a tuple */
-  | AtLeast2Arguments; /* Builtin function must have direct arguments, a variable of type tuple or a parenthesized expression */
+  | ArgumentMustBeListOfTuples /* Argument to label projection is not a tuple */
+  | AtLeast2Arguments /* Builtin function must have direct arguments, a variable of type tuple or a parenthesized expression */
+  | Exactly2Arguments;
 
 /* Expressions can also be free variables */
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -139,7 +140,8 @@ let typ_of_exp: exp => option(Typ.t) =
   | BuiltinError(ProjectLabelsMissingLabels(_))
   | BuiltinError(MissingLabels(_) | PivotLabelIsNotString(_))
   | BuiltinError(
-      ArgumentMustBeTuple | PivotFirstArgNotListOfTuples | AtLeast2Arguments,
+      ArgumentMustBeTuple | ArgumentMustBeListOfTuples | AtLeast2Arguments |
+      Exactly2Arguments,
     ) =>
     None;
 
