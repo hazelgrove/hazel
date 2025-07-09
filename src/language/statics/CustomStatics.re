@@ -1,5 +1,42 @@
 open StaticsBase;
 
+let analyze_tuple_argument = (module S: ExpressionStatics, ~ctx, m, tup) => {
+  open S;
+
+  let (tup_info, m) =
+    uexp_to_info_map(~ctx, ~ana=Unknown(SynSwitch) |> Typ.temp, tup, m);
+
+  switch (Typ.normalize(ctx, tup_info.ty).term) {
+  | Prod(entries) => (
+      Some(
+        List.map(
+          (entry: Typ.t) => {
+            switch (entry.term) {
+            | TupLabel({term: Label(l), _}, typ) => (Some(l), typ)
+            | TupLabel(_, typ) => (None, typ)
+            | _ => (None, entry)
+            }
+          },
+          entries,
+        ),
+      ),
+      tup_info,
+      m,
+    )
+  | Unknown(_) => (None, tup_info, m)
+  | _ =>
+    let (_, m) =
+      uexp_to_info_map(
+        ~ctx,
+        ~ana=Unknown(SynSwitch) |> Typ.temp,
+        ~override_self=BuiltinError(ArgumentMustBeTuple),
+        tup,
+        m,
+      );
+    (None, tup_info, m);
+  };
+};
+
 let project_labels_statics =
     (
       module S: ExpressionStatics,
@@ -18,47 +55,8 @@ let project_labels_statics =
         labeled_tup_info: option(list((option(string), Typ.t))),
         tup_info,
         m: Map.t,
-      ) = {
-        let (tup_info, m) =
-          uexp_to_info_map(
-            ~ctx,
-            ~ancestors,
-            ~ana=Unknown(SynSwitch) |> Typ.temp,
-            tup,
-            m,
-          );
-
-        switch (Typ.normalize(ctx, tup_info.ty).term) {
-        | Prod(entries) => (
-            Some(
-              List.map(
-                (entry: Typ.t) => {
-                  switch (entry.term) {
-                  | TupLabel({term: Label(l), _}, typ) => (Some(l), typ)
-                  | TupLabel(_, typ) => (None, typ)
-                  | _ => (None, entry)
-                  }
-                },
-                entries,
-              ),
-            ),
-            tup_info,
-            m,
-          )
-        | Unknown(_) => (None, tup_info, m)
-        | _ =>
-          let (_, m) =
-            uexp_to_info_map(
-              ~ctx,
-              ~ana=Unknown(SynSwitch) |> Typ.temp,
-              ~ancestors,
-              ~override_self=BuiltinError(ArgumentMustBeTuple),
-              tup,
-              m,
-            );
-          (None, tup_info, m);
-        };
-      };
+      ) =
+        analyze_tuple_argument((module S), ~ctx, m, tup);
 
       let expected_labels =
         switch (labeled_tup_info) {
@@ -131,13 +129,7 @@ let project_labels_statics =
       );
     | _ =>
       let (arg_info, m) =
-        uexp_to_info_map(
-          ~ctx,
-          ~ana=Unknown(SynSwitch) |> Typ.temp,
-          ~ancestors,
-          arg,
-          m,
-        );
+        uexp_to_info_map(~ctx, ~ana=Unknown(SynSwitch) |> Typ.temp, arg, m);
       add'(
         ~self=BuiltinError(AtLeast2Arguments),
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg_info.co_ctx]),
@@ -163,7 +155,6 @@ let primitive_pivot_statics =
     | Tuple([tup, pivot_label]) =>
       let (tup_info, m) =
         uexp_to_info_map(
-          ~ancestors,
           ~ctx,
           ~ana=List(Unknown(SynSwitch) |> Typ.temp) |> Typ.temp,
           tup,
@@ -263,7 +254,6 @@ let primitive_pivot_statics =
               Unknown(Internal) |> Typ.temp,
             ])
             |> Typ.temp,
-          ~ancestors,
           arg,
           m,
         );
@@ -277,7 +267,6 @@ let primitive_pivot_statics =
         uexp_to_info_map(
           ~ctx,
           ~ana=Unknown(SynSwitch) |> Typ.temp,
-          ~ancestors,
           ~override_self=BuiltinError(ArgumentMustBeTuple),
           arg,
           m,
@@ -297,7 +286,7 @@ let melt_statics =
       ~inferred_label as _,
       ~label_sort as _,
       ~fn_info: Info.exp,
-      ~ancestors: list(Id.t),
+      ~ancestors as _: list(Id.t),
       ~ctx: Ctx.t,
       m: Map.t,
       arg: Exp.t,
@@ -305,7 +294,7 @@ let melt_statics =
   open S;
   let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn_info.ty);
 
-  let (arg, m) = uexp_to_info_map(~ancestors, ~ctx, ~ana=ty_in, arg, m);
+  let (arg, m) = uexp_to_info_map(~ctx, ~ana=ty_in, arg, m);
 
   switch (Typ.normalize(ctx, arg.ty).term) {
   | Prod(entries) =>
@@ -378,13 +367,7 @@ let select_labels_statics =
     switch (arg.term) {
     | Tuple([tup, ...labs]) =>
       let (tup_info, m) =
-        uexp_to_info_map(
-          ~ctx,
-          ~ancestors,
-          ~ana=Unknown(SynSwitch) |> Typ.temp,
-          tup,
-          m,
-        );
+        uexp_to_info_map(~ctx, ~ana=Unknown(SynSwitch) |> Typ.temp, tup, m);
 
       let (labels, m) =
         List.fold_left(
@@ -492,7 +475,6 @@ let select_labels_statics =
           uexp_to_info_map(
             ~ctx,
             ~ana=Unknown(SynSwitch) |> Typ.temp,
-            ~ancestors,
             ~override_self=BuiltinError(ArgumentMustBeTuple),
             tup,
             m,
@@ -508,7 +490,6 @@ let select_labels_statics =
         uexp_to_info_map(
           ~ctx,
           ~ana=Unknown(SynSwitch) |> Typ.temp,
-          ~ancestors,
           ~override_self=BuiltinError(ArgumentMustBeTuple),
           arg,
           m,
@@ -536,13 +517,7 @@ let omit_labels_statics =
     switch (arg.term) {
     | Tuple([tup, ...labs]) =>
       let (tup_info, m) =
-        uexp_to_info_map(
-          ~ctx,
-          ~ancestors,
-          ~ana=Unknown(SynSwitch) |> Typ.temp,
-          tup,
-          m,
-        );
+        uexp_to_info_map(~ctx, ~ana=Unknown(SynSwitch) |> Typ.temp, tup, m);
 
       let (labels, m) =
         List.fold_left(
@@ -666,7 +641,6 @@ let omit_labels_statics =
           uexp_to_info_map(
             ~ctx,
             ~ana=Unknown(SynSwitch) |> Typ.temp,
-            ~ancestors,
             ~override_self=BuiltinError(ArgumentMustBeTuple),
             tup,
             m,
@@ -682,7 +656,6 @@ let omit_labels_statics =
         uexp_to_info_map(
           ~ctx,
           ~ana=Unknown(SynSwitch) |> Typ.temp,
-          ~ancestors,
           ~override_self=BuiltinError(ArgumentMustBeTuple),
           arg,
           m,
@@ -702,7 +675,7 @@ let drop_labels_statics =
       ~inferred_label as _,
       ~label_sort as _,
       ~fn_info: Info.exp,
-      ~ancestors: list(Id.t),
+      ~ancestors as _: list(Id.t),
       ~ctx: Ctx.t,
       m: Map.t,
       arg: Exp.t,
@@ -710,7 +683,7 @@ let drop_labels_statics =
   S.(
     let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn_info.ty);
 
-    let (arg, m) = uexp_to_info_map(~ctx, ~ancestors, ~ana=ty_in, arg, m);
+    let (arg, m) = uexp_to_info_map(~ctx, ~ana=ty_in, arg, m);
 
     switch (Typ.normalize(ctx, arg.ty).term) {
     | Prod(entries) =>
