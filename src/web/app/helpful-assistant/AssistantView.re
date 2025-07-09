@@ -1002,9 +1002,9 @@ let initial_display =
             [
               text(
                 switch (settings.mode) {
-                | HazelTutor => "Hi, I'm Hazel's AI Tutor! Ask me anything about Hazel."
-                | CodeSuggestion => "Hi, I'm Hazel's AI Code Completion Assistant! Ask me for code suggestions."
-                | TaskCompletion => "Hi, I'm Hazel's AI Coding Agent! Let's work on your task together."
+                | HazelTutor => "Hi, I'm Hazelnut! Ask me anything about Hazel."
+                | CodeSuggestion => "Hi, I'm Hazelnut! Ask me for code suggestions."
+                | TaskCompletion => "Hi, I'm Hazelnut! Let's work on your task together."
                 },
               ),
             ],
