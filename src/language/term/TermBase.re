@@ -836,7 +836,7 @@ and Rul: {
       term:
         switch (term) {
         | Invalid(_) => term
-        | Hole(things) => Hole(List.map(any_map_term, things))
+        | MultiHole(things) => MultiHole(List.map(any_map_term, things))
         | Rules(e, rls) =>
           Rules(
             exp_map_term(e),
@@ -853,7 +853,7 @@ and Rul: {
   let fast_equal = (r1: t, r2: t) =>
     switch (r1 |> Grammar.Annotated.term_of, r2 |> Grammar.Annotated.term_of) {
     | (Invalid(s1), Invalid(s2)) => s1 == s2
-    | (Hole(xs), Hole(ys)) =>
+    | (MultiHole(xs), MultiHole(ys)) =>
       List.length(xs) == List.length(ys)
       && List.equal(Any.fast_equal, xs, ys)
     | (Rules(e1, rls1), Rules(e2, rls2)) =>
@@ -866,7 +866,7 @@ and Rul: {
            rls2,
          )
     | (Invalid(_), _)
-    | (Hole(_), _)
+    | (MultiHole(_), _)
     | (Rules(_), _) => false
     };
   let equal = fast_equal;

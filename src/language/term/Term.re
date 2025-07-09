@@ -896,7 +896,7 @@ module Rul = {
     | [_, ..._] => ids
     | [] =>
       switch (term) {
-      | Hole([tm, ..._]) => any_ids(tm)
+      | MultiHole([tm, ..._]) => any_ids(tm)
       | Rules(scrut, []) => IdTagged.ids(scrut)
       | _ => []
       }
@@ -907,6 +907,8 @@ module Rul = {
     | [] => raise(Invalid_argument("Exp.rep_id"))
     | [id, ..._] => id
     };
+
+  let unwrap: t => (term, term => t) = IdTagged.unwrap;
 };
 
 module Any = {

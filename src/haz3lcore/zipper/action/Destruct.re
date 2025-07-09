@@ -75,12 +75,24 @@ let destruct =
   };
 };
 
-let merge = ((l, r): (Token.t, Token.t), z: t): option(t) =>
+let merge = ((l, r): (Token.t, Token.t), z: t): option(t) => {
+  let z = Zipper.set_caret(Inner(0, Token.length(l) - 1), z); /* Note monotile assumption */
+  let* z = Zipper.delete(Left, z);
+  let* z = Zipper.delete(Right, z);
+  let z = Zipper.construct_mono(Right, l ++ r, z);
+  /* Regrouting direction needed to merge prefixs into infix eg ! */
+  let z = remold_regrout(Right, z);
+  Some(z);
+};
+
+let parent_merge = (lbl: Label.t, z: t): t => {
   z
-  |> Zipper.set_caret(Inner(0, Token.length(l) - 1))  // note monotile assumption
-  |> Zipper.delete(Left)
-  |> OptUtil.and_then(Zipper.delete(Right))
-  |> Option.map(Zipper.construct_mono(Right, l ++ r));
+  |> Zipper.delete_parent
+  |> Zipper.set_caret(Inner(0, 0))  /* Note 2-token assumption */
+  |> Zipper.construct(~caret=Right, ~backpack=Left, lbl)
+  /* Below regrouting important for parens/ap positioning */
+  |> remold_regrout(Right);
+};
 
 /* Check if containing duo form has a mono equivalent e.g. list literals */
 let parent_duomerges = (z: Zipper.t) => {
@@ -101,15 +113,9 @@ let go = (d: Direction.t, z: t): option(t) => {
     /* Note: we must do the no_siblings check, it does not suffice
        to check no monotile neighbors as there could be other neighbors
        for example edge case: "((|))" */
-    z
-    |> Zipper.delete_parent
-    |> Zipper.set_caret(Inner(0, 0))
-    |> Zipper.construct(~caret=Right, ~backpack=Left, lbl)
-    /* Below regrouting important for parens/ap positioning */
-    |> Zipper.regrout(Right)
-    |> Option.some
+    z |> parent_merge(lbl) |> Option.some
   | (_, Outer, (Some(l), Some(r))) when Molds.allow_merge(l, r) =>
-    merge((l, r), z)
-  | _ => Some(z)
+    z |> merge((l, r))
+  | _ => Some(z) |> Option.map(remold_regrout(d))
   };
 };
