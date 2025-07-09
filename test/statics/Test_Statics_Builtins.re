@@ -191,7 +191,7 @@ module MeltOperation = {
 
 module ProjectLabels = {
   let tests = [
-    test_case("project_labels with more appropriate labels", `Quick, () =>
+    test_case("project_labels with appropriate labels", `Quick, () =>
       annotated_tree_test(
         {|project_labels((a=1,b=true,c=3.0), 'c', 'a', 'c')|},
         prod([float(), int(), float()]),
@@ -214,7 +214,7 @@ module ProjectLabels = {
       )
     ),
     fully_consistent_typecheck(
-      "project_labels with appropriate labels",
+      "project_labels with single appropriate labels",
       {|project_labels((a=1, b=true, c=3), 'a')|},
       Some(int()),
     ),
@@ -297,18 +297,17 @@ module ProjectLabels = {
         ),
       )
     ),
-    test_case("project_labels with a single tuple and no labels", `Quick, () =>
+    test_case(
+      "project_labels with a single tuple in parens and no labels", `Quick, () =>
       annotated_tree_test(
         {|project_labels((1, 2, 3))|},
         unknown(Internal),
         FIError.Exp.(
           ap(
+            ~ann=Some(Exp(BuiltinError(AtLeast2Arguments))),
             Forward,
             var("project_labels"),
-            parens(
-              ~ann=Some(Exp(BuiltinError(ArgumentMustBeTuple))),
-              tuple([int(1), int(2), int(3)]),
-            ),
+            parens(tuple([int(1), int(2), int(3)])),
           )
         ),
       )
@@ -319,9 +318,10 @@ module ProjectLabels = {
         unknown(Internal),
         FIError.Exp.(
           ap(
+            ~ann=Some(Exp(BuiltinError(AtLeast2Arguments))),
             Forward,
             var("project_labels"),
-            int(~ann=Some(Exp(BuiltinError(ArgumentMustBeTuple))), 1),
+            int(1),
           )
         ),
       )
@@ -332,9 +332,10 @@ module ProjectLabels = {
         unknown(Internal),
         FIError.Exp.(
           ap(
+            ~ann=Some(Exp(BuiltinError(AtLeast2Arguments))), // Has to be on the ap to show up
             Forward,
             var("project_labels"),
-            tuple(~ann=Some(Exp(BuiltinError(ArgumentMustBeTuple))), []),
+            tuple([]),
           )
         ),
       )
@@ -373,6 +374,20 @@ module ProjectLabels = {
         ),
       )
     ),
+    test_case("project labels with a single labeled entry", `Quick, () => {
+      annotated_tree_test(
+        {|project_labels(b=3)|},
+        unknown(Internal),
+        FIError.Exp.(
+          ap(
+            ~ann=Some(Exp(BuiltinError(AtLeast2Arguments))),
+            Forward,
+            var("project_labels"),
+            tuple([tup_label(label("b"), int(3))]),
+          )
+        ),
+      )
+    }),
     test_case("project_labels with deferral as first arg", `Quick, () => {
       [@warning "-21"]
       {

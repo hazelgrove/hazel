@@ -482,6 +482,8 @@ let rec exp_view =
         ...List.map(code, labels),
       ])
     | ArgumentMustBeTuple => div_err([text("Argument must be a tuple")])
+    | AtLeast2Arguments =>
+      div_err([text("Must have 2 or more direct arguments")])
     | PivotFirstArgNotListOfTuples =>
       div_err([text("First argument must be a list of labeled tuples")])
     | PivotLabelIsNotString(ty) =>

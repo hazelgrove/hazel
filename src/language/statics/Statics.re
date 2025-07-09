@@ -240,30 +240,38 @@ and uexp_to_info_map =
   let go_pat = upat_to_info_map(~ctx, ~ancestors, ~duplicates);
   let go_typ = utyp_to_info_map(~ctx, ~ancestors);
   let label_to_info_map =
-      (expected_labels, labmode, label: Exp.t, m: Map.t): (Info.exp, Map.t) => {
+      (expected_labels, labmode, label: Exp.t, m: Map.t)
+      : (option(string), Info.exp, Map.t) => {
     switch (label.term, expected_labels) {
     | (Label(name), Some(expected_labels))
         when !List.mem(name, expected_labels) =>
-      go(
-        ~ana=labmode,
-        ~override_self=Common(InvalidLabel(name)),
-        ~label_sort=true,
-        ~duplicates,
-        label,
-        m,
-      )
-    | (Label(_), _)
+      let (i, m) =
+        go(
+          ~ana=labmode,
+          ~override_self=Common(InvalidLabel(name)),
+          ~label_sort=true,
+          ~duplicates,
+          label,
+          m,
+        );
+      (None, i, m);
+    | (Label(lab), _) =>
+      let (i, m) = go(~ana=labmode, ~label_sort=true, ~duplicates, label, m);
+      (Some(lab), i, m);
     | (EmptyHole, _) =>
-      go(~ana=labmode, ~label_sort=true, ~duplicates, label, m)
+      let (i, m) = go(~ana=labmode, ~label_sort=true, ~duplicates, label, m);
+      (None, i, m);
     | _ =>
-      go(
-        ~ana=labmode,
-        ~override_self=Common(BadLabel(Exp(label))),
-        ~label_sort=true,
-        ~duplicates,
-        label,
-        m,
-      )
+      let (i, m) =
+        go(
+          ~ana=labmode,
+          ~override_self=Common(BadLabel(Exp(label))),
+          ~label_sort=true,
+          ~duplicates,
+          label,
+          m,
+        );
+      (None, i, m);
     };
   };
   // This lifts an expression into a singleton labeled tuple by rewriting the syntax in the Statics Map
@@ -615,13 +623,13 @@ and uexp_to_info_map =
       let (lab, e, m) =
         switch (Typ.matched_label(ctx, ana)) {
         | Some((labmode, val_mode)) =>
-          let (lab, m) =
+          let (_, lab, m) =
             label_to_info_map(expected_labels, labmode, label, m);
 
           let (e, m) = go(~ana=val_mode, ~inferred_label?, e, m);
           (lab, e, m);
         | _ =>
-          let (lab, m) =
+          let (_, lab, m) =
             label_to_info_map(
               expected_labels,
               Unknown(SynSwitch) |> Typ.temp,
@@ -901,12 +909,10 @@ and uexp_to_info_map =
           };
         | Some(ProjectLabels) =>
           switch (arg.term) {
-          | Tuple([tup, ...labs]) =>
-            let (tup_info, m) =
-              go(~ana=Unknown(SynSwitch) |> Typ.temp, tup, m);
-
+          | Tuple([tup, ...labs]) when List.length(labs) > 0 =>
             let (
               labeled_tup_info: option(list((option(string), Typ.t))),
+              tup_info,
               m: Map.t,
             ) = {
               let (tup_info, m) =
@@ -929,9 +935,10 @@ and uexp_to_info_map =
                       entries,
                     ),
                   ),
+                  tup_info,
                   m,
                 )
-              | Unknown(_) => (None, m)
+              | Unknown(_) => (None, tup_info, m)
               | _ =>
                 let (_, m) =
                   uexp_to_info_map(
@@ -942,9 +949,10 @@ and uexp_to_info_map =
                     tup,
                     m,
                   );
-                (None, m);
+                (None, tup_info, m);
               };
             };
+
             let expected_labels =
               switch (labeled_tup_info) {
               | Some(entries) =>
@@ -956,17 +964,18 @@ and uexp_to_info_map =
                 )
               | None => None
               };
+
             let (labels, m) =
               List.fold_left(
-                ((labels: list(Info.exp), m: Map.t), label) => {
-                  let (label_info, m) =
+                ((labels: list(option(string)), m: Map.t), label) => {
+                  let (label, _, m) =
                     label_to_info_map(
                       expected_labels,
                       Unknown(SynSwitch) |> Typ.temp,
                       label,
                       m,
                     );
-                  (labels @ [label_info], m);
+                  (labels @ [label], m);
                 },
                 ([], m),
                 labs,
@@ -991,15 +1000,6 @@ and uexp_to_info_map =
                 m,
               );
 
-            let labels =
-              List.map(
-                (label: Info.exp) =>
-                  switch (label.ty.term) {
-                  | Label(l) => Some(l)
-                  | _ => None
-                  },
-                labels,
-              );
             let val_types =
               List.map(
                 optional_lab => {
@@ -1016,18 +1016,9 @@ and uexp_to_info_map =
                 },
                 labels,
               );
-            let self: Self.exp =
-              Common(
-                Just(
-                  switch (val_types) {
-                  | [x] => x
-                  | _ => Prod(val_types) |> Typ.temp
-                  },
-                ),
-              );
 
             add'(
-              ~self,
+              ~self=Common(Just(Typ.to_product(val_types))),
               ~co_ctx=CoCtx.union([fn.co_ctx, tup_info.co_ctx]),
               m,
             );
@@ -1037,12 +1028,11 @@ and uexp_to_info_map =
                 ~ctx,
                 ~ana=Unknown(SynSwitch) |> Typ.temp,
                 ~ancestors,
-                ~override_self=BuiltinError(ArgumentMustBeTuple),
                 arg,
                 m,
               );
-            add(
-              ~self=Just(Unknown(Internal) |> Typ.temp), // Consider if there's a better way to show no type information
+            add'(
+              ~self=BuiltinError(AtLeast2Arguments),
               ~co_ctx=CoCtx.union([fn.co_ctx, arg_info.co_ctx]),
               m,
             );
@@ -1057,7 +1047,7 @@ and uexp_to_info_map =
             let (labels, m) =
               List.fold_left(
                 ((labels: list(Info.exp), m: Map.t), label) => {
-                  let (label_info, m) =
+                  let (_, label_info, m) =
                     label_to_info_map(
                       None,
                       Unknown(SynSwitch) |> Typ.temp,
@@ -1202,7 +1192,7 @@ and uexp_to_info_map =
                 m,
               );
 
-            let (label_info, m) =
+            let (_, label_info, m) =
               label_to_info_map(
                 None,
                 Unknown(SynSwitch) |> Typ.temp,
@@ -1334,7 +1324,7 @@ and uexp_to_info_map =
             let (labels, m) =
               List.fold_left(
                 ((labels: list(Info.exp), m: Map.t), label) => {
-                  let (label_info, m) =
+                  let (_, label_info, m) =
                     label_to_info_map(
                       None,
                       Unknown(SynSwitch) |> Typ.temp,
