@@ -117,7 +117,20 @@ let common_err_view =
       ]
     | NoType(FreeConstructor(name)) => [code(name), text("not found")]
 
-    | NoType(InvalidLabel(name)) => [text("Invalid label:"), code(name)]
+    | NoType(InvalidLabel(name, expected_labels)) =>
+      switch (expected_labels) {
+      | [] => [
+          text("Invalid label: "),
+          code(name),
+          text(". No labels were expected."),
+        ]
+      | _ => [
+          text("Invalid label: "),
+          code(name),
+          text(" is not part of the expected labels: "),
+          ...List.map(code, expected_labels),
+        ]
+      }
     | TupleLabelError({malformed_labels, duplicate_labels, invalid_labels, _}) =>
       (
         List.is_empty(malformed_labels)

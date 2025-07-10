@@ -385,7 +385,14 @@ let tests =
                           ),
                         ),
                       label(
-                        ~ann=Some(Exp(Common(NoType(InvalidLabel("z"))))),
+                        ~ann=
+                          Some(
+                            Exp(
+                              Common(
+                                NoType(InvalidLabel("z", ["a", "b"])),
+                              ),
+                            ),
+                          ),
                         "z",
                       ),
                       string("hello"),
@@ -762,7 +769,11 @@ let tests =
                           ),
                         label(
                           ~ann=
-                            Some(Exp(Common(NoType(InvalidLabel("c"))))),
+                            Some(
+                              Exp(
+                                Common(NoType(InvalidLabel("c", ["a"]))),
+                              ),
+                            ),
                           "c",
                         ),
                         int(1),

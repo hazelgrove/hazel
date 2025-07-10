@@ -221,7 +221,7 @@ and uexp_to_info_map =
       let (i, m) =
         go(
           ~ana=labmode,
-          ~override_self=Common(InvalidLabel(name)),
+          ~override_self=Common(InvalidLabel(name, expected_labels)),
           ~label_sort=true,
           ~duplicates,
           label,
@@ -642,7 +642,7 @@ and uexp_to_info_map =
               Inconsistent(Expectation({syn: {term: Label(name), _}, _})),
             ),
           )
-        | InHole(Common(NoType(InvalidLabel(name)))) =>
+        | InHole(Common(NoType(InvalidLabel(name, _)))) =>
           Self.TupleLabelError({
             malformed_labels: [],
             duplicate_labels: [],
@@ -1551,7 +1551,7 @@ and upat_to_info_map =
                 switch (label.term, expected_labels) {
                 | (Label(name), Some(expected_labels))
                     when !List.mem(name, expected_labels) =>
-                  Some(InvalidLabel(name))
+                  Some(InvalidLabel(name, expected_labels))
                 | (Label(_), _)
                 | (EmptyHole, _) => None
                 | _ => Some(BadLabel(Pat(label)))
@@ -1580,7 +1580,7 @@ and upat_to_info_map =
               Inconsistent(Expectation({syn: {term: Label(name), _}, _})),
             ),
           )
-        | InHole(Common(NoType(InvalidLabel(name)))) =>
+        | InHole(Common(NoType(InvalidLabel(name, _)))) =>
           Self.TupleLabelError({
             malformed_labels: [],
             duplicate_labels: [],

@@ -32,7 +32,7 @@ type t =
   | Duplicate(LabeledTuple.label, t) /* Duplicate label, marked as duplicate */
   | BadToken(string) /* Invalid expression token, continues with undefined behavior */
   | BadLabel(Any.t) /* TupLabel label component is not a valid Label*/
-  | InvalidLabel(LabeledTuple.label) /* Invalid label in a labeled tuple */
+  | InvalidLabel(LabeledTuple.label, list(LabeledTuple.label)) /* Invalid label in a labeled tuple where these labels are expected */
   | TupleLabelError({
       malformed_labels: list(Any.t), // Labels that are not of the right syntactic form
       duplicate_labels: list(LabeledTuple.label),

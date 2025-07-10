@@ -231,7 +231,12 @@ module ProjectLabels = {
                 tup_label(label("c"), int(3)),
               ]),
               label(
-                ~ann=Some(Exp(Common(NoType(InvalidLabel("d"))))),
+                ~ann=
+                  Some(
+                    Exp(
+                      Common(NoType(InvalidLabel("d", ["a", "b", "c"]))),
+                    ),
+                  ),
                 "d",
               ),
             ]),
@@ -531,7 +536,12 @@ module SelectLabels = {
                 tup_label(label("c"), int(3)),
               ]),
               label(
-                ~ann=Some(Exp(Common(NoType(InvalidLabel("d"))))),
+                ~ann=
+                  Some(
+                    Exp(
+                      Common(NoType(InvalidLabel("d", ["a", "b", "c"]))),
+                    ),
+                  ),
                 "d",
               ),
             ]),
@@ -710,7 +720,10 @@ module PrimitivePivot = {
                 ]),
               ]),
               label(
-                ~ann=Some(Exp(Common(NoType(InvalidLabel("c"))))),
+                ~ann=
+                  Some(
+                    Exp(Common(NoType(InvalidLabel("c", ["a", "b"])))),
+                  ),
                 "c",
               ),
             ]),
@@ -1013,7 +1026,12 @@ module OmitLabels = {
                 tup_label(label("c"), int(3)),
               ]),
               label(
-                ~ann=Some(Exp(Common(NoType(InvalidLabel("d"))))),
+                ~ann=
+                  Some(
+                    Exp(
+                      Common(NoType(InvalidLabel("d", ["a", "b", "c"]))),
+                    ),
+                  ),
                 "d",
               ),
             ]),
