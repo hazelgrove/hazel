@@ -997,11 +997,13 @@ module OmitLabels = {
     test_case("omit_labels with label not in tuple", `Quick, () =>
       annotated_tree_test(
         {|omit_labels((a=1, b=true, c=3), 'd')|},
-        unknown(Internal),
+        prod([
+          tup_label(label("a"), int()),
+          tup_label(label("b"), bool()),
+          tup_label(label("c"), int()),
+        ]),
         FIError.Exp.(
           ap(
-            ~ann=
-              Some(Exp(BuiltinError(ProjectLabelsMissingLabels(["d"])))),
             Forward,
             var("omit_labels"),
             tuple([
@@ -1010,7 +1012,10 @@ module OmitLabels = {
                 tup_label(label("b"), bool(true)),
                 tup_label(label("c"), int(3)),
               ]),
-              label("d"),
+              label(
+                ~ann=Some(Exp(Common(NoType(InvalidLabel("d"))))),
+                "d",
+              ),
             ]),
           )
         ),
@@ -1068,9 +1073,10 @@ module OmitLabels = {
         unknown(Internal),
         FIError.Exp.(
           ap(
+            ~ann=Some(Exp(BuiltinError(AtLeast2Arguments))),
             Forward,
             var("omit_labels"),
-            int(~ann=Some(Exp(BuiltinError(ArgumentMustBeTuple))), 1),
+            int(1),
           )
         ),
       )
@@ -1081,9 +1087,10 @@ module OmitLabels = {
         unknown(Internal),
         FIError.Exp.(
           ap(
+            ~ann=Some(Exp(BuiltinError(AtLeast2Arguments))),
             Forward,
             var("omit_labels"),
-            tuple(~ann=Some(Exp(BuiltinError(ArgumentMustBeTuple))), []),
+            tuple([]),
           )
         ),
       )

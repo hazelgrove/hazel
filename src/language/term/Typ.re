@@ -946,7 +946,8 @@ let remove_duplicate_labels =
  */
 let to_product = (tys: list(t)): t =>
   switch (tys) {
-  | [] => Prod([]) |> temp
+  | []
+  | [{term: TupLabel(_), _}] => Prod(tys) |> temp
   | [ty] => ty
   | _ => Prod(tys) |> temp
   };
