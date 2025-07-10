@@ -209,6 +209,7 @@ let rec match_tup_optional_label = (ty: t) =>
   | Parens(ty) => match_tup_optional_label(ty)
   | TupLabel({term: Label(name), _}, t') => Some((Some(name), t'))
   | TupLabel({term: Unknown(_), _}, t') => Some((None, t'))
+  | Unknown(_) => Some((None, ty))
   | _ => None
   };
 let match_tup_label = ty =>
