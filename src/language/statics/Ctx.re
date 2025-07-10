@@ -2,10 +2,12 @@ open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type custom_statics =
-  | MeltBuiltin
-  | ProjectLabelsBuiltin
-  | OmitLabelsBuiltin
-  | DropLabelsBuiltin;
+  | Melt
+  | ProjectLabels
+  | OmitLabels
+  | DropLabels
+  | PrimitivePivot
+  | SelectLabels;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type kind =

@@ -36,7 +36,7 @@ let builtins: list(BuiltinsUtil.fn) = [
         | _ => None
         }
       }),
-    custom_statics: None,
+    custom_statics: Some(PrimitivePivot),
   },
   {
     name: "melt",
@@ -77,7 +77,7 @@ let builtins: list(BuiltinsUtil.fn) = [
         );
       Some(IdTagged.FreshGrammar.Exp.list_lit(unpivoted_entries));
     },
-    custom_statics: Some(Ctx.MeltBuiltin),
+    custom_statics: Some(Ctx.Melt),
   },
   {
     name: "project_labels",
@@ -115,7 +115,7 @@ let builtins: list(BuiltinsUtil.fn) = [
         };
       };
     },
-    custom_statics: Some(Ctx.ProjectLabelsBuiltin),
+    custom_statics: Some(Ctx.ProjectLabels),
   },
   {
     name: "select_labels",
@@ -156,7 +156,7 @@ let builtins: list(BuiltinsUtil.fn) = [
         };
       };
     },
-    custom_statics: None,
+    custom_statics: Some(SelectLabels),
   },
   {
     name: "omit_labels",
@@ -208,7 +208,7 @@ let builtins: list(BuiltinsUtil.fn) = [
         };
       };
     },
-    custom_statics: None,
+    custom_statics: Some(OmitLabels),
   },
   {
     name: "drop_labels",
@@ -228,6 +228,6 @@ let builtins: list(BuiltinsUtil.fn) = [
         );
       Some(IdTagged.FreshGrammar.Exp.tuple(entries));
     },
-    custom_statics: None,
+    custom_statics: Some(DropLabels),
   },
 ];

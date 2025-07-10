@@ -739,8 +739,14 @@ let fixed_typ_err: error_exp => Typ.t =
   | LabelNotFound(_, _)
   | TupleExtensionRequiresTuples
   | BuiltinError(ProjectLabelsNonLabels(_))
-  | BuiltinError(ProjectLabelsMissingLabels(_))
-  | BuiltinError(ProjectLabelsFirstArgNotTuple)
+  | BuiltinError(
+      ProjectLabelsMissingLabels(_) | MissingLabels(_) |
+      PivotLabelIsNotString(_),
+    )
+  | BuiltinError(
+      ArgumentMustBeTuple | ArgumentMustBeListOfTuples | AtLeast2Arguments |
+      Exactly2Arguments,
+    )
   | BadTrivAp(_) => Unknown(Internal) |> Typ.temp
   | BuiltinError(MeltMissingLabelsOnTuple(ty)) => ty
   | Common(err) => fixed_typ_err_common(err)

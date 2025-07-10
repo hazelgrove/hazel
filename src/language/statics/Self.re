@@ -54,7 +54,12 @@ type error_builtin =
   | MeltMissingLabelsOnTuple(Typ.t) /* Melt requires labels for all tuple elements */
   | ProjectLabelsNonLabels(list(Any.t)) /* Attempted to project non-labels from a tuple */
   | ProjectLabelsMissingLabels(list(string)) /* Attempted to project labels from a tuple that doesn't have them */
-  | ProjectLabelsFirstArgNotTuple; /* First argument to label projection is not a tuple */
+  | MissingLabels(list(string)) // Operation with labels that are not present in the tuple
+  | PivotLabelIsNotString(Typ.t) /* Pivot column must be a string */
+  | ArgumentMustBeTuple
+  | ArgumentMustBeListOfTuples /* Argument to label projection is not a tuple */
+  | AtLeast2Arguments /* Builtin function must have direct arguments, a variable of type tuple or a parenthesized expression */
+  | Exactly2Arguments;
 
 /* Expressions can also be free variables */
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -133,7 +138,12 @@ let typ_of_exp: exp => option(Typ.t) =
   | BuiltinError(MeltMissingLabelsOnTuple(typ)) => Some(typ)
   | BuiltinError(ProjectLabelsNonLabels(_))
   | BuiltinError(ProjectLabelsMissingLabels(_))
-  | BuiltinError(ProjectLabelsFirstArgNotTuple) => None;
+  | BuiltinError(MissingLabels(_) | PivotLabelIsNotString(_))
+  | BuiltinError(
+      ArgumentMustBeTuple | ArgumentMustBeListOfTuples | AtLeast2Arguments |
+      Exactly2Arguments,
+    ) =>
+    None;
 
 let rec typ_of_pat: pat => option(Typ.t) =
   fun
