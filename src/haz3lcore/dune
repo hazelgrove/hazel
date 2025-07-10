@@ -14,6 +14,7 @@
    ppx_sexp_conv
    ppx_enumerate
    ppx_deriving.show
+   ppx_deriving.ord
    ppx_deriving.eq)))
 
 (env
