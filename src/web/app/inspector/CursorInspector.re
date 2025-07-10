@@ -131,6 +131,12 @@ let common_err_view =
           ...List.map(code, expected_labels),
         ]
       }
+    | NoType(UnexpectedLabelSort(name)) => [
+        text("Label "),
+        code(name),
+        text(" is here, but another sort is expected."),
+      ]
+
     | TupleLabelError({malformed_labels, duplicate_labels, invalid_labels, _}) =>
       (
         List.is_empty(malformed_labels)
