@@ -484,7 +484,7 @@ let rec exp_view =
       view_type(Prod([]) |> Typ.fresh),
     ])
   | InHole(TupleExtensionRequiresTuples) =>
-    div_err([text("Requires tuples for both arguments")])
+    div_err([text("Tuple extension requires tuple")])
 
   | InHole(DotOperatorRequiresTuple) =>
     div_err([text("Requires tuple for first argument")])
