@@ -100,6 +100,7 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   | TyAlias(_, _, u1)
   | Use(_, u1)
   | Test(u1)
+  | HintedTest(u1, _)
   | Closure(_, u1)
   | Filter(_, u1) => l |> find_fn(name, u1)
   | Ap(_, u1, u2)
@@ -192,6 +193,7 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | TypFun(_, u, _)
   | TypAp(u, _)
   | Test(u)
+  | HintedTest(u, _)
   | Parens(u)
   | Probe(u, _)
   | UnOp(_, u)
@@ -255,6 +257,7 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
       ? false : var_applied(name, def) || var_applied(name, body)
   | TypFun(_, u, _)
   | Test(u)
+  | HintedTest(u, _)
   | Parens(u)
   | Probe(u, _)
   | UnOp(_, u)
@@ -348,6 +351,7 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
     //If l has no recursive calls then true
     !List.fold_left((acc, ue) => {acc || var_mention(name, ue)}, false, l)
   | Test(_) => false
+  | HintedTest(_) => false
   | TyAlias(_, _, u)
   | Use(_, u)
   | Asc(u, _)

@@ -284,6 +284,8 @@ module rec Exp: {
     | EmptyHole => empty_hole()
     | Seq(e1, e2) => seq(of_menhir_ast(e1), of_menhir_ast(e2))
     | Test(e) => test(of_menhir_ast(e))
+    | HintedTest(e, hint) =>
+      hinted_test(of_menhir_ast(e), of_menhir_ast(hint))
     | Cons(e1, e2) => cons(of_menhir_ast(e1), of_menhir_ast(e2))
     | ListConcat(e1, e2) =>
       list_concat(of_menhir_ast(e1), of_menhir_ast(e2))
@@ -354,6 +356,7 @@ module rec Exp: {
     | EmptyHole => EmptyHole
     | Seq(e1, e2) => Seq(of_core(e1), of_core(e2))
     | Test(e) => Test(of_core(e))
+    | HintedTest(e, hint) => HintedTest(of_core(e), of_core(hint))
     | Cons(e1, e2) => Cons(of_core(e1), of_core(e2))
     | ListConcat(e1, e2) => ListConcat(of_core(e1), of_core(e2))
     | Filter(Filter({pat, act}), body) =>
