@@ -58,19 +58,20 @@ let shape_affix =
     | [] => (empty_wgw, r, [])
     | [p, ...tl] =>
       let (wgw, s, tl) = go(tl, r);
+      let shape =
+        switch (Piece.shapes(p)) {
+        | Some(shapes) =>
+          shapes |> (d == Left ? TupleUtil.swap : Fun.id) |> fst
+        | None => s
+        };
       switch (p) {
       | Secondary(w) =>
         let (wss, gs) = wgw;
         let (ws, wss) = ListUtil.split_first(wss);
-        (([[w, ...ws], ...wss], gs), s, tl);
-      | Grout(g) => (Aba.cons([], g, wgw), s, tl)
-      | Projector(p) =>
-        let (l, _) =
-          ProjectorCore.shapes(p) |> (d == Left ? TupleUtil.swap : Fun.id);
-        (empty_wgw, l, tl);
-      | Tile(t) =>
-        let (l, _) = Tile.shapes(t) |> (d == Left ? TupleUtil.swap : Fun.id);
-        (empty_wgw, l, tl);
+        (([[w, ...ws], ...wss], gs), shape, tl);
+      | Grout(g) => (Aba.cons([], g, wgw), shape, tl)
+      | Projector(_) => (empty_wgw, shape, tl)
+      | Tile(_) => (empty_wgw, shape, tl)
       };
     };
   go((d == Left ? List.rev : Fun.id)(affix), r);
@@ -427,12 +428,12 @@ and remold_exp = (shape, seg: t): t =>
   };
 
 let skel =
-  Core.Memo.general(~cache_size_bound=10000, seg =>
+  Core.Memo.general(~cache_size_bound=10000, seg => {
     seg
     |> List.mapi((i, p) => (i, p))
     |> List.filter(((_, p)) => !Piece.is_secondary(p))
     |> Skel.mk
-  );
+  });
 
 let sorted_children = List.concat_map(Piece.sorted_children);
 let children = seg => List.map(snd, sorted_children(seg));
@@ -850,20 +851,4 @@ module IDs = {
   };
 };
 
-let rec to_string = (~holes, seg: t): string =>
-  seg |> List.map(str_from_piece(~holes)) |> String.concat("")
-and str_from_piece = (~holes, p: Piece.t): string =>
-  switch (p) {
-  | Tile(t) => str_from_tile(~holes, t)
-  | Grout({shape: Concave, _}) => " "
-  | Grout({shape: Convex, _}) when holes != None => Option.get(holes)
-  | Grout({shape: Convex, _}) => " "
-  | Secondary(w) =>
-    Secondary.is_linebreak(w) ? "\n" : Secondary.get_string(w.content)
-  | Projector(p) => to_string(~holes, Piece.unparenthesize(p.syntax))
-  }
-and str_from_tile = (~holes, t: Tile.t): string =>
-  Aba.mk(t.shards, t.children)
-  |> Aba.join(str_from_delim(t), to_string(~holes))
-  |> String.concat("")
-and str_from_delim = (t: Piece.tile, i: int): string => List.nth(t.label, i);
+let to_string = Base.segment_to_string;

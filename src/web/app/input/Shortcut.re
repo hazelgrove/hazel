@@ -204,8 +204,8 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
     mk_shortcut(
       ~section="Settings",
       ~mdIcon="tune",
-      "Toggle Show Docs Sidebar",
-      Globals(Set(ExplainThis(ToggleShow))),
+      "Toggle Show Sidebar",
+      Globals(Set(Sidebar(ToggleShow))),
     ),
     mk_shortcut(
       ~section="Settings",
