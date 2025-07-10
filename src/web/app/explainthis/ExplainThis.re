@@ -1978,8 +1978,22 @@ let get_doc =
             ),
           ListExp.listcons,
         );
-      | TupleExtension(_, _) =>
-        failwith("TupleExtension ExplainThis not supported") // TODO
+      | TupleExtension(x, y) =>
+        let x_id = List.nth(IdTagged.ids(x), 0);
+        let y_id = List.nth(IdTagged.ids(y), 0);
+        get_message(
+          ~colorings=TupleExp.tuple_extension_exp_coloring_ids(~x_id, ~y_id),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s%s"),
+                  Id.to_string(x_id),
+                  Id.to_string(y_id),
+                ),
+            ),
+          TupleExp.tuple_extensions,
+        );
       | ListConcat(xs, ys) =>
         let xs_id = List.nth(IdTagged.ids(xs), 0);
         let ys_id = List.nth(IdTagged.ids(ys), 0);
