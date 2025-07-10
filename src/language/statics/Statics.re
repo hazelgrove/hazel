@@ -171,6 +171,24 @@ and uexp_to_info_map =
       m,
     );
   };
+  let replace_self = (m: Map.t, original_info: Info.exp, self: Self.exp) => {
+    let new_info =
+      Info.derived_exp(
+        ~uexp=original_info.term,
+        ~ctx=original_info.ctx,
+        ~ana=original_info.ana,
+        ~ancestors=original_info.ancestors,
+        ~self,
+        ~co_ctx=original_info.co_ctx,
+        ~label_inference=original_info.label_inference,
+        ~inferred_label=original_info.inferred_label,
+        ~label_sort=original_info.label_sort,
+      );
+    (
+      new_info,
+      add_info(IdTagged.ids(original_info.term), InfoExp(new_info), m),
+    );
+  };
   let go' = uexp_to_info_map(~ancestors);
   let go:
     (
@@ -420,55 +438,23 @@ and uexp_to_info_map =
         );
       };
     | TupleExtension(e1, e2) =>
-      let (t1, m) = go(e1, m);
-      // Override the derived_info and self for e1
-      let m =
+      let (t1, m) = {
+        let (t1, m) = go(e1, m);
         switch (Typ.normalize(ctx, t1.ty).term) {
-        | Prod(_) => m
-        | Unknown(_) => m
-        | _ =>
-          add_info(
-            IdTagged.ids(e1),
-            InfoExp(
-              Info.derived_exp(
-                ~uexp=t1.term,
-                ~ctx=t1.ctx,
-                ~ana=t1.ana,
-                ~ancestors=t1.ancestors,
-                ~self=TupleExtensionRequiresTuples,
-                ~co_ctx=t1.co_ctx,
-                ~label_inference=t1.label_inference,
-                ~inferred_label=t1.inferred_label,
-                ~label_sort=t1.label_sort,
-              ),
-            ),
-            m,
-          )
+        | Prod(_)
+        | Unknown(_) => (t1, m)
+        | _ => replace_self(m, t1, TupleExtensionRequiresTuples)
         };
-      let (t2, m) = go(e2, m);
-      let m =
+      };
+      let (t2, m) = {
+        let (t2, m) = go(e2, m);
         switch (Typ.normalize(ctx, t2.ty).term) {
-        | Prod(_) => m
-        | Unknown(_) => m
-        | _ =>
-          add_info(
-            IdTagged.ids(e2),
-            InfoExp(
-              Info.derived_exp(
-                ~uexp=t2.term,
-                ~ctx=t2.ctx,
-                ~ana=t2.ana,
-                ~ancestors=t2.ancestors,
-                ~self=TupleExtensionRequiresTuples,
-                ~co_ctx=t2.co_ctx,
-                ~label_inference=t2.label_inference,
-                ~inferred_label=t2.inferred_label,
-                ~label_sort=t2.label_sort,
-              ),
-            ),
-            m,
-          )
+        | Prod(_)
+        | Unknown(_) => (t2, m)
+        | _ => replace_self(m, t2, TupleExtensionRequiresTuples)
         };
+      };
+
       switch (
         Typ.normalize(ctx, t1.ty).term,
         Typ.normalize(ctx, t2.ty).term,
