@@ -71,6 +71,7 @@ let zipper: Zipper.t = {
 // TODO Should this have its own ID generator or is using the Example one fine?
 let cons_exp = () => mk_monotile(Form.get(ConsExp));
 let list_concat_exp = () => mk_monotile(Form.get(ListConcat));
+let tuple_extension_exp = () => mk_monotile(Form.get(TupleExtension));
 let cons_pat = () => mk_monotile(Form.get(ConsPat));
 let seq = () => mk_monotile(Form.get(CellJoin));
 let exp = v => mk_monotile(Form.mk(Form.ss, [v], Mold.(mk_op(Exp, []))));
