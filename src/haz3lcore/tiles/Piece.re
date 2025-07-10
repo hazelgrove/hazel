@@ -224,16 +224,3 @@ let is_term = (p: t) =>
   | Secondary(_) => false // debatable
   | _ => false
   };
-
-/* If the piece is parentheses, return the child. Otherwise,
- * return a singleton segment consisting of the piece */
-let unparenthesize = (piece: t): list(t) =>
-  switch (piece) {
-  | Tile({
-      label: ["(", ")"],
-      mold: {nibs: ({shape: Convex, _}, {shape: Convex, _}), _},
-      children: [seg],
-      _,
-    }) => seg
-  | _ => [piece]
-  };
