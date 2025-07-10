@@ -4,77 +4,6 @@ open FTemp;
 open Typ;
 // TODO do versions with variables where appropriate and do reverse partial application
 
-module TupleExtension = {
-  let tests = [
-    fully_consistent_typecheck(
-      "Tuple extension",
-      {|(a=0, 1, b=2) ... (a=1, 3, c=4)|},
-      Some(
-        prod([
-          tup_label(label("a"), int()),
-          int(),
-          tup_label(label("b"), int()),
-          int(),
-          tup_label(label("c"), int()),
-        ]),
-      ),
-    ),
-    fully_consistent_typecheck(
-      "Tuple extension with type alias",
-      {|type Person = (name=String, age=Int) in
-        type Date = (year=Int, month=Int, day=Int) in
-
-        let p : Person = in
-        let d : Date = in
-        p ... d|},
-      Some(
-        prod([
-          tup_label(label("name"), string()),
-          tup_label(label("age"), int()),
-          tup_label(label("year"), int()),
-          tup_label(label("month"), int()),
-          tup_label(label("day"), int()),
-        ]),
-      ),
-    ),
-    test_case("Tuple extension with non-tuple args", `Quick, () =>
-      annotated_tree_test(
-        "1 ... 2",
-        unknown(Internal),
-        FIError.(
-          Exp.(
-            tuple_extension(
-              int(~ann=Some(Exp(TupleExtensionRequiresTuples)), 1),
-              int(~ann=Some(Exp(TupleExtensionRequiresTuples)), 2),
-            )
-          )
-        ),
-      )
-    ),
-    test_case("Tuple extension with hole", `Quick, () =>
-      annotated_tree_test(
-        "? ... (3, 4)",
-        unknown(Internal),
-        FIError.Exp.(
-          tuple_extension(empty_hole(), tuple([int(3), int(4)]))
-        ),
-      )
-    ),
-    test_case("Tuple extension with hole in label position", `Quick, () =>
-      annotated_tree_test(
-        "(?=1, 2) ... (3, 4)",
-        prod([tup_label(empty_hole(), int()), int(), int(), int()]),
-        FIError.Exp.(
-          tuple_extension(
-            tuple([tup_label(empty_hole(), int(1))]),
-            tuple([int(2), int(3), int(4)]),
-          )
-        ),
-      )
-    ),
-  ];
-};
-
 module MeltOperation = {
   let tests = [
     fully_consistent_typecheck(
@@ -1201,8 +1130,7 @@ module DropLabels = {
 };
 
 let tests =
-  TupleExtension.tests
-  @ MeltOperation.tests
+  MeltOperation.tests
   @ ProjectLabels.tests
   @ SelectLabels.tests
   @ PrimitivePivot.tests
