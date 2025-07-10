@@ -64,6 +64,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Probe(_)
   | ListLit(_)
   | Test(_)
+  | HintedTest(_)
   | Match(_) => Precedence.max
 
   // Other forms
@@ -327,6 +328,8 @@ let rec parenthesize =
     )
     |> rewrap
   | Test(e) => Test(parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
+  | HintedTest(e, hint) =>
+    HintedTest(parenthesize(e) |> paren_at(Precedence.min), hint) |> rewrap
   | Parens(e) =>
     Parens(parenthesize(~already_paren=true, e) |> paren_at(Precedence.min))
     |> rewrap
@@ -575,8 +578,8 @@ and parenthesize_rul = (~show_filters: bool, rul: Rul.t): Rul.t => {
       ),
     )
     |> rewrap
-  | Hole(xs) =>
-    Hole(List.map(parenthesize_any(~show_filters), xs)) |> rewrap
+  | MultiHole(xs) =>
+    MultiHole(List.map(parenthesize_any(~show_filters), xs)) |> rewrap
   };
 }
 
@@ -1038,6 +1041,11 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let id = exp |> Exp.rep_id;
     let+ e = go(e);
     [mk_form(Test, id, [e])];
+  | HintedTest(e, hint) =>
+    let id = exp |> Exp.rep_id;
+    let* hint = go(hint)
+    and* e = go(e);
+    [mk_form(HintedTest, id, [hint, e])];
   | Parens(e) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;

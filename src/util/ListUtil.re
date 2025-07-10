@@ -683,6 +683,12 @@ let take = (n, xs) => {
   loop(n, xs, []);
 };
 
+let take_up_to_n = (n: int, xs: list('a)): list('a) =>
+  switch (split_n_opt(n, xs)) {
+  | Some((xs, _)) => xs
+  | None => xs
+  };
+
 /* Move the first element equal to x to the front of the list */
 let lift = (x: 'a, xs: list('a)): list('a) =>
   List.cons(x, List.filter((!=)(x), xs));
