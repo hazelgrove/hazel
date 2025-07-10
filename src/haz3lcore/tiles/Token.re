@@ -8,7 +8,7 @@ module Index = {
   type t = int;
 };
 
-let length = String.length;
+let length = Unicode.length;
 let compare = String.compare;
 let rm_nth = Util.StringUtil.remove_nth;
 let rm_last = Util.StringUtil.remove_last;
