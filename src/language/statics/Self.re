@@ -32,9 +32,6 @@ type t =
   | DuplicateLabel(LabeledTuple.label, t) /* Duplicate label, marked as duplicate */
   | DuplicateVar(string, t)
   | BadToken(string) /* Invalid expression token, continues with undefined behavior */
-  | BadOperator(string) /* Invalid operator, continues with undefined behavior */
-  | BadLivelitModel(Typ.t) /* Livelit model type is not valid */
-  | BadTrivAp(Typ.t) /* Trivial (nullary) ap on function that doesn't take triv */
   | BadLabel(Any.t) /* TupLabel label component is not a valid Label*/
   | InvalidLabel(LabeledTuple.label) /* Invalid label in a labeled tuple */
   | TupleLabelError({
@@ -44,17 +41,7 @@ type t =
       typ: Typ.t,
     }) /* Tuple/TupLabel contains malformed labels, duplicate labels, and/or invalid labels */
   | IsMulti /* Multihole, treated as hole */
-  | FreeConstructor(Constructor.t) /* Constructor not bound in context or ana type */
-  | WantTuple /* Want a Tuple, found not-tuple */
-  | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label))
-  | InvalidUseMode({
-      bad_typ: Typ.t,
-      inner_typ: Typ.t,
-    }) /* Currently used by the dot operator for a label not found */
-  | IsLivelitName({
-      name: string,
-      exp_t: Typ.t,
-    });
+  | FreeConstructor(Constructor.t); /* Constructor not bound in context or ana type */
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_partial_ap =
@@ -71,7 +58,20 @@ type exp =
   | InexhaustiveMatch(exp)
   | IsDeferral(Exp.deferral_position)
   | IsBadPartialAp(error_partial_ap)
-  | Common(t);
+  | Common(t)
+  | InvalidUseMode({
+      bad_typ: Typ.t,
+      inner_typ: Typ.t,
+    })
+  | IsLivelitName({
+      name: string,
+      exp_t: Typ.t,
+    })
+  | BadTrivAp(Typ.t) /* Trivial (nullary) ap on function that doesn't take triv */
+  | WantTuple /* Want a Tuple, found not-tuple */
+  | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label)) /* Currently used by the dot operator for a label not found */
+  | BadOperator(string) /* Invalid operator, continues with undefined behavior */
+  | BadLivelitModel(Typ.t); /* Livelit model type is not valid */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type pat =
@@ -88,51 +88,48 @@ let join_of = (j: join_type, ty: Typ.t): Typ.t =>
 /* What the type would be if the position had been
    synthetic, so no hole fixing. Returns none if
    there's no applicable synthetic rule. */
-let typ_of: (Ctx.t, t) => option(Typ.t) =
-  _ctx =>
-    fun
-    | Just(typ)
-    | DuplicateLabel(_, Just(typ))
-    | DuplicateVar(_, Just(typ))
-    | TupleLabelError({typ, _}) => Some(typ)
-    | IsLivelitName({exp_t, _}) => Some(exp_t)
-    | BadLivelitModel(typ) => Some(typ)
-    | FreeConstructor(name) =>
-      Some(
-        Sum([
-          ConstructorMap.Variant(name, [Id.invalid], None),
-          ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
-        ])
-        |> Typ.temp,
-      )
-    | InvalidUseMode({inner_typ, _}) => Some(inner_typ)
-    | BadToken(_)
-    | BadOperator(_)
-    | BadTrivAp(_)
-    | IsMulti
-    | DuplicateLabel(_)
-    | DuplicateVar(_)
-    | WantTuple
-    | LabelNotFound(_)
-    | BadLabel(_)
-    | InvalidLabel(_)
-    | NoJoin(_) => None;
+let typ_of: t => option(Typ.t) =
+  fun
+  | Just(typ)
+  | DuplicateLabel(_, Just(typ))
+  | DuplicateVar(_, Just(typ))
+  | TupleLabelError({typ, _}) => Some(typ)
+  | FreeConstructor(name) =>
+    Some(
+      Sum([
+        ConstructorMap.Variant(name, [Id.invalid], None),
+        ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
+      ])
+      |> Typ.temp,
+    )
+  | BadToken(_)
+  | IsMulti
+  | DuplicateLabel(_)
+  | DuplicateVar(_)
+  | BadLabel(_)
+  | InvalidLabel(_)
+  | NoJoin(_) => None;
 
-let typ_of_exp: (Ctx.t, exp) => option(Typ.t) =
-  ctx =>
-    fun
-    | Free(_)
-    | InexhaustiveMatch(_)
-    | IsDeferral(_)
-    | IsBadPartialAp(_) => None
-    | Common(self) => typ_of(ctx, self);
+let typ_of_exp: exp => option(Typ.t) =
+  fun
+  | Free(_)
+  | InexhaustiveMatch(_)
+  | IsDeferral(_)
+  | IsBadPartialAp(_)
+  | BadTrivAp(_)
+  | LabelNotFound(_)
+  | BadOperator(_)
+  | WantTuple => None
+  | Common(self) => typ_of(self)
+  | InvalidUseMode({inner_typ, _}) => Some(inner_typ)
+  | IsLivelitName({exp_t, _}) => Some(exp_t)
+  | BadLivelitModel(typ) => Some(typ);
 
-let rec typ_of_pat: (Ctx.t, pat) => option(Typ.t) =
-  ctx =>
-    fun
-    | Redundant(pat) => typ_of_pat(ctx, pat)
-    | ExpectedConstructor(pat) => typ_of_pat(ctx, pat)
-    | Common(self) => typ_of(ctx, self);
+let rec typ_of_pat: pat => option(Typ.t) =
+  fun
+  | Redundant(pat) => typ_of_pat(pat)
+  | ExpectedConstructor(pat) => typ_of_pat(pat)
+  | Common(self) => typ_of(self);
 
 /* The self of a var and livelit depends on the ctx; if the
    lookup fails, it is a free variable */
@@ -172,12 +169,10 @@ let of_exp_livelit_name = (ctx: Ctx.t, name: string): exp => {
   switch (res) {
   | None => Free(name)
   | Some(livelit) =>
-    Common(
-      IsLivelitName({
-        name: livelit.name,
-        exp_t: livelit.expansion_t,
-      }),
-    )
+    IsLivelitName({
+      name: livelit.name,
+      exp_t: livelit.expansion_t,
+    })
   };
 };
 
