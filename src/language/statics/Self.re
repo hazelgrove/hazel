@@ -29,7 +29,7 @@ type join_type =
 type t =
   | Just(Typ.t) /* Just a regular type */
   | NoJoin(join_type, list(Typ.source)) /* Inconsistent types for e.g match, listlits */
-  | Duplicate(LabeledTuple.label, t) /* Duplicate label, marked as duplicate */
+  | DuplicateLabel(LabeledTuple.label, t) /* Duplicate label, marked as duplicate */
   | DuplicateVar(string, t)
   | BadToken(string) /* Invalid expression token, continues with undefined behavior */
   | BadOperator(string) /* Invalid operator, continues with undefined behavior */
@@ -92,7 +92,7 @@ let typ_of: (Ctx.t, t) => option(Typ.t) =
   _ctx =>
     fun
     | Just(typ)
-    | Duplicate(_, Just(typ))
+    | DuplicateLabel(_, Just(typ))
     | DuplicateVar(_, Just(typ))
     | TupleLabelError({typ, _}) => Some(typ)
     | IsLivelitName({exp_t, _}) => Some(exp_t)
@@ -110,7 +110,7 @@ let typ_of: (Ctx.t, t) => option(Typ.t) =
     | BadOperator(_)
     | BadTrivAp(_)
     | IsMulti
-    | Duplicate(_)
+    | DuplicateLabel(_)
     | DuplicateVar(_)
     | WantTuple
     | LabelNotFound(_)

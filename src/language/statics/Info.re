@@ -460,9 +460,9 @@ let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
         typ,
       }),
     )
-  | (Duplicate(lab, Just(ty)), _) => InHole(DuplicateLabel(lab, ty))
+  | (DuplicateLabel(lab, Just(ty)), _) => InHole(DuplicateLabel(lab, ty))
   | (DuplicateVar(lab, Just(ty)), _) => InHole(DuplicateVar(lab, ty))
-  | (Duplicate(lab, _), _) =>
+  | (DuplicateLabel(lab, _), _) =>
     InHole(DuplicateLabel(lab, Unknown(Internal) |> Typ.temp))
   | (DuplicateVar(lab, _), _) =>
     InHole(DuplicateVar(lab, Unknown(Internal) |> Typ.temp))

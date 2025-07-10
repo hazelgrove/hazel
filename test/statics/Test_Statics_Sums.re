@@ -335,6 +335,27 @@ end
     let _ : +Yo = Yo("lol") in ?
     |} |> parse_exp,
   ),
+  inconsistent_typecheck(
+    "duplicate variables in patterns",
+    // #err: type incons#
+    {|
+    case (1,2,3) | (x, y, x) => 0 end
+    |} |> parse_exp,
+  ),
+  inconsistent_typecheck(
+    "duplicate variables in patterns with nested tuples",
+    // #err: type incons#
+    {|
+    case (1,(2,3),4) | (x, (x,y), z) => 0 end
+    |} |> parse_exp,
+  ),
+  inconsistent_typecheck(
+    "duplicate variables in patterns with labels",
+    // #err: type incons#
+    {|
+    case (1,(2,3),4) | (x=1, (x,y), z) => 0 end
+    |} |> parse_exp,
+  ),
   // ======================== KNOWN BUGS ==============================
   skip_known_bug(
     // inconsistent_typecheck(

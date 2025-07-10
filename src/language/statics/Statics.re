@@ -618,7 +618,7 @@ and uexp_to_info_map =
     | Label(name) =>
       let self = Self.Just(Label(name) |> Typ.temp);
       List.exists(l => name == l, duplicates)
-        ? atomic(Duplicate(name, self)) : atomic(self);
+        ? atomic(DuplicateLabel(name, self)) : atomic(self);
     | BuiltinFun(string) =>
       add'(
         ~self=Self.of_exp_var(Builtins.ctx_init(None), string),
@@ -1611,7 +1611,7 @@ and upat_to_info_map =
     | Label(name) =>
       let self = Self.Just(Label(name) |> Typ.temp);
       List.exists(l => name == l, duplicates)
-        ? atomic(Duplicate(name, self), Coverage.Constraint.Truth)
+        ? atomic(DuplicateLabel(name, self), Coverage.Constraint.Truth)
         : atomic(self, Coverage.Constraint.Truth);
     | Parens(p)
     | Probe(p, _) =>

@@ -234,10 +234,14 @@ module Pat = {
       | Tuple(pats) =>
         let vars =
           pats |> List.map(get_bindings) |> List.filter(Option.is_some);
+        // get_bindings returns a list of options, so vars has type list of some(list of string)
         if (List.is_empty(vars)) {
           None;
         } else {
-          Some(vars |> List.map(Option.get) |> List.flatten);
+          // Converts vars to some(list of string)
+          Some(
+            vars |> List.map(Option.get) |> List.flatten,
+          );
         };
       | Label(_)
       | Invalid(_)
@@ -259,13 +263,14 @@ module Pat = {
       bindings => {
         switch (bindings) {
         | Some(bindings) =>
+          // O(n^2) search, for each binding, look through entire string to see if it appears more than once
           List.filter(
             binding => {
               List.length(List.filter(x => x == binding, bindings)) > 1
             },
             bindings,
           )
-        | _ => []
+        | None => []
         };
       }
     );
