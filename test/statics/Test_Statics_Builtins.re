@@ -113,6 +113,24 @@ module MeltOperation = {
         FIError.Exp.(ap(Forward, var("melt"), empty_hole())),
       )
     ),
+    test_case("Melt operation applied to tuple with unknown entry", `Quick, () =>
+      annotated_tree_test(
+        "melt((?, b=2))",
+        list(
+          prod([
+            tup_label(label("label"), string()),
+            tup_label(label("value"), int()),
+          ]),
+        ),
+        FIError.Exp.(
+          ap(
+            Forward,
+            var("melt"),
+            tuple([empty_hole(), tup_label(label("b"), int(2))]),
+          )
+        ),
+      )
+    ),
     test_case("Melt operation with hole in tuple label position", `Quick, () =>
       annotated_tree_test(
         "melt((?=1, b=2, c=3))",
