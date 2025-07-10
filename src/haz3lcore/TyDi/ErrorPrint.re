@@ -83,11 +83,6 @@ let exp_error: Info.error_exp => string =
       "All entries in the argument must have labels, but some were not provided: %s",
       Print.typ(ty),
     )
-  | BuiltinError(ProjectLabelsNonLabels(labels)) =>
-    prn(
-      "Projecting labels from non-labels: %s",
-      String.concat(", ", List.map(Print.term, labels)),
-    )
   | BuiltinError(AtLeast2Arguments) => "Must have 2 or more direct arguments"
   | BuiltinError(Exactly2Arguments) => "Must have exactly 2 direct arguments"
   | BuiltinError(ArgumentMustBeListOfTuples) => "Argument must be a list of labeled tuples"

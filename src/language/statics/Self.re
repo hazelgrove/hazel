@@ -52,7 +52,6 @@ type error_partial_ap =
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_builtin =
   | MeltMissingLabelsOnTuple(Typ.t) /* Melt requires labels for all tuple elements */
-  | ProjectLabelsNonLabels(list(Any.t)) /* Attempted to project non-labels from a tuple */
   | ProjectLabelsMissingLabels(list(string)) /* Attempted to project labels from a tuple that doesn't have them */
   | MissingLabels(list(string)) // Operation with labels that are not present in the tuple
   | PivotLabelIsNotString(Typ.t) /* Pivot column must be a string */
@@ -136,7 +135,6 @@ let typ_of_exp: exp => option(Typ.t) =
   | IsLivelitName({exp_t, _}) => Some(exp_t)
   | BadLivelitModel(typ) => Some(typ)
   | BuiltinError(MeltMissingLabelsOnTuple(typ)) => Some(typ)
-  | BuiltinError(ProjectLabelsNonLabels(_))
   | BuiltinError(ProjectLabelsMissingLabels(_))
   | BuiltinError(MissingLabels(_) | PivotLabelIsNotString(_))
   | BuiltinError(
