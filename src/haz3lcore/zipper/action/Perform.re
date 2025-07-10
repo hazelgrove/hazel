@@ -278,7 +278,7 @@ let go_z =
     | None => Error(Action.Failure.Cant_select)
     }
   | Select(Assistant(EntireBinding(id))) =>
-    switch (Move.jump_to_id(z, id)) {
+    switch (Move.jump_to_id_indicated(z, id)) {
     | Some(z) =>
       switch (select_definition(z)) {
       | Some(z) => Ok(z)
