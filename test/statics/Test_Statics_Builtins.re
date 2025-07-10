@@ -847,6 +847,32 @@ module PrimitivePivot = {
         ),
       )
     ),
+    test_case("primitive pivot with unknown type inside list", `Quick, () =>
+      annotated_tree_test(
+        {|primitive_pivot([(a="hello", b=3):?], 'b')|},
+        unknown(Internal),
+        FIError.(
+          Exp.(
+            ap(
+              Forward,
+              var("primitive_pivot"),
+              tuple([
+                list_lit([
+                  asc(
+                    tuple([
+                      tup_label(label("a"), string("hello")),
+                      tup_label(label("b"), int(3)),
+                    ]),
+                    Typ.unknown(Internal),
+                  ),
+                ]),
+                label("b"),
+              ]),
+            )
+          )
+        ),
+      )
+    ),
     test_case(
       "primitive pivot with ascription to unknown in label position",
       `Quick,
