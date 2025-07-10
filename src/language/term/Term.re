@@ -321,6 +321,7 @@ module Exp = {
     | If
     | Seq
     | Test
+    | HintedTest
     | Filter
     | Closure
     | Parens
@@ -388,6 +389,7 @@ module Exp = {
     | If(_) => If
     | Seq(_) => Seq
     | Test(_) => Test
+    | HintedTest(_) => HintedTest
     | Filter(_) => Filter
     | Closure(_) => Closure
     | Parens(_) => Parens
@@ -434,6 +436,7 @@ module Exp = {
     | If => "If expression"
     | Seq => "Sequence expression"
     | Test => "Test"
+    | HintedTest => "Hinted Test"
     | Filter => "Filter"
     | Closure => "Closure"
     | Parens => "Parenthesized expression"
@@ -515,6 +518,7 @@ module Exp = {
     | If(_)
     | Seq(_)
     | Test(_)
+    | HintedTest(_)
     | Filter(_)
     | Cons(_)
     | ListConcat(_)
@@ -577,6 +581,7 @@ module Exp = {
       | If(_)
       | Seq(_)
       | Test(_)
+      | HintedTest(_)
       | Filter(_)
       | Cons(_)
       | ListConcat(_)
@@ -637,6 +642,7 @@ module Exp = {
       | If(_)
       | Seq(_)
       | Test(_)
+      | HintedTest(_)
       | Cons(_)
       | ListConcat(_)
       | UnOp(_)
@@ -795,6 +801,7 @@ module Exp = {
           | If(_)
           | Seq(_)
           | Test(_)
+          | HintedTest(_)
           | Filter(_)
           | Parens(_)
           | Probe(_)
@@ -851,7 +858,7 @@ module Rul = {
     | [_, ..._] => ids
     | [] =>
       switch (term) {
-      | Hole([tm, ..._]) => any_ids(tm)
+      | MultiHole([tm, ..._]) => any_ids(tm)
       | Rules(scrut, []) => IdTagged.ids(scrut)
       | _ => []
       }
@@ -862,6 +869,8 @@ module Rul = {
     | [] => raise(Invalid_argument("Exp.rep_id"))
     | [id, ..._] => id
     };
+
+  let unwrap: t => (term, term => t) = IdTagged.unwrap;
 };
 
 module Any = {
