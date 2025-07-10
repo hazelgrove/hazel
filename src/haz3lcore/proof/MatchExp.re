@@ -143,6 +143,10 @@ let rec match_exp =
   | (Seq(_, _), _) => None
   | (Test(e1), Test(e2)) => match_exp(alphas, ctx, e1, e2)
   | (Test(_), _) => None
+  | (HintedTest(e1, e2), HintedTest(e3, e4)) =>
+    let* ctx = match_exp(alphas, ctx, e1, e3);
+    match_exp(alphas, ctx, e2, e4);
+  | (HintedTest(_), _) => None
   | (Filter(f1, e1), Filter(f2, e2)) when f1 == f2 =>
     match_exp(alphas, ctx, e1, e2)
   | (Filter(_, _), _) => None

@@ -28,6 +28,7 @@ type term =
   | Dot1(t, DHExp.t)
   | Dot2(DHExp.t, t)
   | Test(t)
+  | HintedTest(t, DHExp.t)
   | Parens(t)
   | Probe(t, Probe.t)
   | ListLit(t, (list(DHExp.t), list(DHExp.t)))
@@ -94,6 +95,9 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
     | Test(ctx) =>
       let d1 = compose(ctx, d);
       Test(d1) |> wrap;
+    | HintedTest(ctx, h) =>
+      let d1 = compose(ctx, d);
+      HintedTest(d1, h) |> wrap;
     | Parens(ctx) =>
       let d1 = compose(ctx, d);
       Parens(d1) |> wrap;
