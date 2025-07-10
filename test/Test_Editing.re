@@ -16,14 +16,52 @@ module Fresh = Language.IdTagged.FreshGrammar;
 let caret_char = "¦"; /* Note this is two bytes */
 let convex_char = "?";
 let concave_char = "~";
+let selection_char = "§"; /* Note this is two bytes */
+let caret_regexp = StringUtil.regexp(caret_char);
 
-let printer = (z: Zipper.t): string =>
-  Printer.of_zipper(
-    ~holes=convex_char,
-    ~concave_holes=concave_char,
-    ~caret=caret_char,
-    z,
-  );
+let selection_size = (z: Zipper.t): option(int) => {
+  (
+    switch (z.selection) {
+    | {mode: Buffer(_), _} => None
+    | {content, mode: Normal, focus: Right} =>
+      Some(- String.length(Printer.of_segment(~holes=convex_char, content)))
+    | {content, mode: Normal, focus: Left} =>
+      Some(String.length(Printer.of_segment(~holes=convex_char, content)))
+    }
+  )
+  |> Util.OptUtil.filter(size => size != 0) /* Don't show selection if it's empty */;
+};
+
+let printer = (z: Zipper.t): string => {
+  let serialized_with_caret =
+    Printer.of_zipper(
+      ~holes=convex_char,
+      ~concave_holes=concave_char,
+      ~caret=caret_char,
+      z,
+    );
+  let caret_index =
+    switch (StringUtil.search(caret_regexp, serialized_with_caret, 0)) {
+    | Some((idx, _)) => idx
+    | None =>
+      Alcotest.fail("Failed to find caret in: " ++ serialized_with_caret)
+    };
+
+  let selection_size = selection_size(z);
+  // Place selection character n chars away from the caret
+  switch (selection_size) {
+  | None => serialized_with_caret
+  | Some(size) =>
+    let selection_pos = caret_index + size;
+    String.sub(serialized_with_caret, 0, selection_pos)
+    ++ selection_char
+    ++ String.sub(
+         serialized_with_caret,
+         selection_pos,
+         String.length(serialized_with_caret) - selection_pos,
+       );
+  };
+};
 
 let perform = (zip: Zipper.t, actions: list(Action.t)): Zipper.t => {
   /* This is a simplified testing harness for zipper actions.
@@ -88,7 +126,6 @@ let mk = (init: string): list(Action.t) => {
    * and then move left character by character until the indicated
    * caret position is reached */
 
-  let caret_regexp = StringUtil.regexp(caret_char);
   let caret_index =
     switch (StringUtil.search(caret_regexp, init, 0)) {
     | Some((idx, _)) => idx
@@ -612,9 +649,40 @@ let move_tests = [
   ),
 ];
 
+let selection_tests = [
+  test(
+    ~name="Move to right from selection",
+    ~acts=
+      mk({|¦(1,2,3,4,5)|}) @ [Action.Select(Term(Current))] @ mv_r(1),
+    ~goal={|(1,2,3,4,5)¦|},
+  ),
+  test(
+    ~name="Select term with selection",
+    ~acts=mk({|¦(1,2,3,4,5)|}) @ [Action.Select(Term(Current))],
+    ~goal={|§(1,2,3,4,5)¦|},
+  ),
+  test(
+    ~name="Select subterm with selection",
+    ~acts=mk({|(1 + (2 ¦+ 3)|}) @ [Action.Select(Term(Current))],
+    ~goal={|(1 + (§2 + 3¦)|},
+  ),
+  test(
+    ~name="Select term with let binding does not select body",
+    ~acts=mk({|¦let x = 1 in x|}) @ [Action.Select(Term(Current))],
+    ~goal={|§let x = 1 in¦ x|},
+  ),
+  // test(
+  //   ~name="Move to left from selection",
+  //   ~acts=
+  //     mk({|¦(1,2,3,4,5)|}) @ [Action.Select(Term(Current))] @ mv_l(1),
+  //   ~goal={|¦(1,2,3,4,5)|},
+  // ),
+];
+
 let tests = [
   ("Editing.Basic", basic_tests),
   ("Editing.Insertion", insertion_tests),
   ("Editing.Destruction", destruct_tests),
   ("Editing.Move", move_tests),
+  ("Editing.Selection", selection_tests),
 ];
