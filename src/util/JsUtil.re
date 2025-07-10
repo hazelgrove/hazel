@@ -291,3 +291,41 @@ module QueryParams = {
          );
        });
 };
+
+let ensurePortalRoot = () =>
+  switch (Dom_html.getElementById("portal-root")) {
+  | exception _ =>
+    let root = Dom_html.createDiv(Dom_html.document);
+    root##.id := Js.string("portal-root");
+    root##.style##.position := Js.string("absolute");
+    root##.style##.top := Js.string("0");
+    root##.style##.left := Js.string("0");
+    root##.style##.zIndex := Js.string("99999");
+    Dom_html.document##.body##appendChild(root |> Js.Unsafe.coerce) |> ignore;
+
+  | _ => ()
+  };
+
+let portalElement = (el: Js.t(Dom_html.element)) => {
+  switch (Dom_html.getElementById("portal-root")) {
+  | exception _ => Firebug.console##error(Js.string("No portal root!"))
+  | root =>
+    root##appendChild(el |> Js.Unsafe.coerce) |> ignore;
+    el##.id := Js.string("sdfsdfs");
+  };
+};
+
+let positionRelativeTo =
+    (target: Js.t(Dom_html.element), overlay: Js.t(Dom_html.element)) => {
+  let rect = target##getBoundingClientRect;
+  overlay##.style##.position := Js.string("absolute");
+  overlay##.style##.top := Js.string(Float.to_string(rect##.bottom) ++ "px");
+  overlay##.style##.left := Js.string(Float.to_string(rect##.left) ++ "px");
+};
+
+let removeElement = (el: Js.t(Dom_html.element)) => {
+  switch (el##.parentNode |> Js.Opt.to_option) {
+  | Some(parent) => parent##removeChild(el |> Js.Unsafe.coerce) |> ignore
+  | None => ()
+  };
+};

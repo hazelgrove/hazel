@@ -17,6 +17,9 @@ let restart_caret_animation = () =>
   | _ => ()
   };
 
+let top = ref(0.0);
+let left = ref(0.0);
+
 let apply =
     (
       model: History.Model.t,
@@ -146,6 +149,7 @@ let start = {
         Js.string("MAC"),
       )
       >= 0;
+    JsUtil.ensurePortalRoot();
     NinjaKeys.initialize(Shortcut.options(schedule_action));
     JsUtil.focus_clipboard_shim();
     schedule_action(
@@ -173,6 +177,27 @@ let start = {
     let%map model = app_model;
     Bonsai.Effect.of_sync_fun(
       () => {
+        switch (
+          JsUtil.get_elem_by_id_opt("backpack"),
+          JsUtil.get_elem_by_id_opt("main"),
+        ) {
+        | (Some(backpack), _) =>
+          let rect = backpack##getBoundingClientRect;
+          let top_new = rect##.top;
+          let left_new = rect##.left;
+          if (top^ != top_new || left^ != left_new) {
+            print_endline("moving backpack");
+            JsUtil.portalElement(backpack);
+            backpack##.style##.position := Js.string("absolute");
+            backpack##.style##.top :=
+              Js.string(Float.to_string(top_new) ++ "px");
+            backpack##.style##.left :=
+              Js.string(Float.to_string(left_new) ++ "px");
+            top := top_new;
+            left := left_new;
+          };
+        | _ => ()
+        };
         if (scroll_to_caret.contents) {
           scroll_to_caret := false;
           JsUtil.scroll_cursor_into_view_if_needed();

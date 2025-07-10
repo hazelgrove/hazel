@@ -209,6 +209,7 @@ let view =
     );
   div(
     ~attrs=[
+      Attr.id("backpack"),
       Attr.classes(["backpack"] @ (can_put_down ? [] : ["cant-put-down"])),
     ],
     [
