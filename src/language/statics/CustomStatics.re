@@ -430,8 +430,8 @@ let select_labels_statics =
 let omit_labels_statics =
     (
       module S: ExpressionStatics,
-      ~inferred_label,
-      ~label_sort,
+      ~inferred_label as _,
+      ~label_sort as _,
       ~fn_info: Info.exp,
       ~ancestors: list(Id.t),
       ~ctx: Ctx.t,
@@ -440,24 +440,19 @@ let omit_labels_statics =
     ) => {
   S.(
     switch (arg.term) {
-    | Tuple([tup, ...labs]) =>
-      let (tup_info, m) =
-        uexp_to_info_map(~ctx, ~ana=Unknown(SynSwitch) |> Typ.temp, tup, m);
+    | Tuple([tup, ...labs]) when List.length(labs) > 0 =>
+      let (labeled_tup_info: option(tuple_type), tup_info, m: Map.t) =
+        analyze_tuple_argument((module S), ~ctx, m, tup);
 
-      let (labels, m) =
-        List.fold_left(
-          ((labels: list(Info.exp), m: Map.t), label) => {
-            let (_, label_info, m) =
-              label_to_info_map(
-                None,
-                Unknown(SynSwitch) |> Typ.temp,
-                label,
-                m,
-              );
-            (labels @ [label_info], m);
-          },
-          ([], m),
-          labs,
+      let expected_labels = Option.map(extract_labels, labeled_tup_info);
+
+      let (labels_to_drop, m) =
+        labels_to_info_map((module S), expected_labels, labs, m);
+      let labels_to_drop = List.filter_map(Fun.id, labels_to_drop);
+      let args_typ =
+        Typ.to_product(
+          [tup_info.ty]
+          @ List.map(__ => Unknown(Internal) |> Typ.temp, labs),
         );
 
       let m =
@@ -469,124 +464,56 @@ let omit_labels_statics =
               ~ctx,
               ~ana=Unknown(SynSwitch) |> Typ.temp,
               ~ancestors,
-              ~self=Common(Just(Unknown(Internal) |> Typ.temp)),
+              ~self=Common(Just(args_typ)),
               ~co_ctx=CoCtx.empty,
               ~label_inference=None,
-              ~inferred_label,
-              ~label_sort,
+              ~inferred_label=None,
+              ~label_sort=false,
             ),
           ),
           m,
         );
 
-      switch (Typ.normalize(ctx, tup_info.ty).term) {
-      | Prod(entries) =>
-        let labels =
-          List.map(
-            (label: Info.exp) =>
-              switch (label.ty.term) {
-              | Label(l) => Some(l)
-              | _ => None
-              },
-            labels,
-          );
-
-        let entries = List.filter_map(Typ.match_tup_optional_label, entries);
-
-        let missing_labels =
-          List.filter_map(
-            (label: option(string)) => {
-              switch (label) {
-              | Some(label) =>
-                switch (
-                  List.find_opt(((l, _)) => l == Some(label), entries)
-                ) {
-                | Some(_) => None
-                | None => Some(label)
-                }
-              | None => None
-              }
-            },
-            labels,
-          );
-
-        let val_types =
-          List.filter_map(
-            ((label: option(string), typ: Typ.t)) =>
-              switch (label) {
-              | Some(label) when !List.mem(Some(label), labels) =>
-                Some(TupLabel(Label(label) |> Typ.temp, typ) |> Typ.temp)
-              | Some(_) => None
-              | None =>
-                Some(
-                  TupLabel(Unknown(Internal) |> Typ.temp, typ) |> Typ.temp,
+      let ty =
+        switch (labeled_tup_info) {
+        | None => Unknown(Internal) |> Typ.temp
+        | Some(labeled_tup_info) =>
+          let tys =
+            List.filter_map(
+              ((optional_lab, ty)) => {
+                Option.map(
+                  (lab: string) => !List.mem(lab, labels_to_drop),
+                  optional_lab,
                 )
+                |> Option.value(~default=true)
+                  ? Some(
+                      TupLabel(
+                        switch (optional_lab) {
+                        | Some(lab) => Label(lab) |> Typ.temp
+                        | None => Unknown(Internal) |> Typ.temp
+                        },
+                        ty,
+                      )
+                      |> Typ.temp,
+                    )
+                  : None
               },
-            entries,
-          );
+              labeled_tup_info,
+            );
 
-        let self: Self.exp =
-          switch (missing_labels) {
-          | [] => Common(Just(Prod(val_types) |> Typ.temp))
-          | _ => BuiltinError(ProjectLabelsMissingLabels(missing_labels)) // Better error message this is labels not found
-          };
+          Typ.to_product(tys);
+        };
 
-        add'(
-          ~self,
-          ~co_ctx=CoCtx.union([fn_info.co_ctx, tup_info.co_ctx]),
-          m,
-        );
-      | Unknown(_) =>
-        let labels =
-          List.map(
-            (label: Info.exp) =>
-              switch (label.ty.term) {
-              | Label(l) => Some(l)
-              | _ => None
-              },
-            labels,
-          );
-
-        let val_types =
-          List.map(_ => {Unknown(Internal) |> Typ.temp}, labels);
-
-        let self: Self.exp =
-          Common(
-            Just(
-              switch (val_types) {
-              | [x] => x
-              | _ => Prod(val_types) |> Typ.temp
-              },
-            ),
-          );
-
-        add'(~self, ~co_ctx=fn_info.co_ctx, m);
-      | _ =>
-        let (_, m) =
-          uexp_to_info_map(
-            ~ctx,
-            ~ana=Unknown(SynSwitch) |> Typ.temp,
-            ~override_self=BuiltinError(ArgumentMustBeTuple),
-            tup,
-            m,
-          );
-        add'(
-          ~self=Common(Just(Unknown(Internal) |> Typ.temp)), // Consider if there's a better way to show no type information
-          ~co_ctx=CoCtx.union([fn_info.co_ctx, tup_info.co_ctx]),
-          m,
-        );
-      };
+      add'(
+        ~self=Common(Just(ty)),
+        ~co_ctx=CoCtx.union([fn_info.co_ctx, tup_info.co_ctx]),
+        m,
+      );
     | _ =>
       let (arg_info, m) =
-        uexp_to_info_map(
-          ~ctx,
-          ~ana=Unknown(SynSwitch) |> Typ.temp,
-          ~override_self=BuiltinError(ArgumentMustBeTuple),
-          arg,
-          m,
-        );
+        uexp_to_info_map(~ctx, ~ana=Unknown(SynSwitch) |> Typ.temp, arg, m);
       add'(
-        ~self=Common(Just(Unknown(Internal) |> Typ.temp)), // Consider if there's a better way to show no type information
+        ~self=BuiltinError(AtLeast2Arguments),
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg_info.co_ctx]),
         m,
       );
