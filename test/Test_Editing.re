@@ -671,6 +671,12 @@ let selection_tests = [
     ~acts=mk({|¦let x = 1 in x|}) @ [Action.Select(Term(Current))],
     ~goal={|§let x = 1 in¦ x|},
   ),
+  test(
+    ~name="Select term when on comma in tuple selects whole tuple",
+    ~acts=
+      mk({|let x = 1 in (x, 1,¦ ?)|}) @ [Action.Select(Term(Current))],
+    ~goal={|let x = 1 in §(x, 1, ?)¦|},
+  ),
   // test(
   //   ~name="Move to left from selection",
   //   ~acts=
