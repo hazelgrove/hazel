@@ -91,7 +91,7 @@ type error_exp =
   /* Dot Operator is ill-formed */
   | DotOperatorRequiresTuple
   /* Tuple extension requires both arguments to be tuples */
-  | TupleExtensionRequiresTuples // TODO Should be exp only
+  | TupleExtensionRequiresTuples
   /* Invalid operator for current use mode, treated as hole */
   | BadOperator(string)
   /* Label not found in tuple for dot operator */
