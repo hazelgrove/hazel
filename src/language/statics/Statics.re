@@ -154,10 +154,33 @@ let rec any_to_info_map =
       CoCtx.empty,
       utyp_to_info_map(~ctx, ~ancestors, ty, m) |> snd,
     )
-  | Rul(_)
+  | Rul(r) =>
+    switch (r.term) {
+    | Rules(scrut, rules) =>
+      /* Treat rules not properly positioned in cases as multiholes.
+       * Properly positioned rules would already have been removed
+       * in maketerm and became part of case expressions */
+      let tms =
+        rules
+        |> List.map(((p, e)) => [Grammar.Pat(p), Grammar.Exp(e)])
+        |> List.concat;
+      any_to_info_map(
+        ~ctx,
+        ~ancestors,
+        Exp({
+          term: MultiHole([Exp(scrut), ...tms]),
+          annotation: r.annotation,
+        }),
+        m,
+      );
+    | MultiHole(tms) =>
+      let (co_ctxs, m) = multi(~ctx, ~ancestors, m, tms);
+      (CoCtx.union(co_ctxs), m);
+    | Invalid(_) => (CoCtx.empty, m)
+    }
   | Any () => (CoCtx.empty, m)
   }
-and multi = (~ctx, ~ancestors, m, tms) =>
+and multi = (~ctx, ~ancestors, m, tms): (list(CoCtx.t), Map.t) =>
   List.fold_left(
     ((co_ctxs, m), any) => {
       let (co_ctx, m) = any_to_info_map(~ctx, ~ancestors, any, m);

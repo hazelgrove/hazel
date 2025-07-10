@@ -146,10 +146,6 @@
   color: var(--token-label);
 }
 
-#cursor-inspector .ci-header.ok.Nul {
-  background-color: var(--shard-nul);
-  color: var(--shadow-nul);
-}
 #cursor-inspector .ci-header.ok.Any {
   background-color: var(--shard-any);
   color: var(--shadow-any);
