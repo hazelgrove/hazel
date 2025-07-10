@@ -1500,7 +1500,6 @@ and upat_to_info_map =
         m,
       );
     | Tuple(ps) =>
-      print_endline("tuple!");
       let expected_labels =
         switch (Typ.weak_head_normalize(ctx, ana).term) {
         | Prod(ts) =>

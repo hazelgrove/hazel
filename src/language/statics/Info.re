@@ -503,7 +503,8 @@ let rec status_pat = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.pat): status_pat =>
       | InHole(
           Common(
             DuplicateLabel(_) | TupleLabelError(_) |
-            Inconsistent(WithArrow(_))| DuplicateVar(_),
+            Inconsistent(WithArrow(_)) |
+            DuplicateVar(_),
           ) |
           ExpectedConstructor |
           Redundant(_),
@@ -537,7 +538,10 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
       | NotInHole(_)
       | InHole(Common(Inconsistent(Expectation(_) | WithArrow(_)))) => None /* Type checking should fail and these errors would be nullified */
       | InHole(
-          Common(NoType(_) | TupleLabelError(_) | DuplicateLabel(_) | DuplicateVar(_)) |
+          Common(
+            NoType(_) | TupleLabelError(_) | DuplicateLabel(_) |
+            DuplicateVar(_),
+          ) |
           FreeVariable(_) |
           InexhaustiveMatch(_) |
           UnusedDeferral |

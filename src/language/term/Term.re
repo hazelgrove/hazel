@@ -216,64 +216,6 @@ module Pat = {
     };
   };
 
-  // Returns None if list does not provide any Bindings
-  // Otherwise, returns Some of all bindings.
-  let rec get_bindings = (pat: t) =>
-    switch (get_var(pat)) {
-    | Some(x) => Some([x])
-    | None =>
-      switch (pat.term) {
-      | Parens(pat)
-      | Probe(pat, _)
-      | Asc(pat, _) => get_bindings(pat)
-      | TupLabel(lab, pat) =>
-        let bindings =
-          Option.value(get_bindings(lab), ~default=[])
-          @ Option.value(get_bindings(pat), ~default=[]);
-        List.is_empty(bindings) ? None : Some(bindings);
-      | Tuple(pats) =>
-        let vars =
-          pats |> List.map(get_bindings) |> List.filter(Option.is_some);
-        // get_bindings returns a list of options, so vars has type list of some(list of string)
-        if (List.is_empty(vars)) {
-          None;
-        } else {
-          // Converts vars to some(list of string)
-          Some(
-            vars |> List.map(Option.get) |> List.flatten,
-          );
-        };
-      | Label(_)
-      | Invalid(_)
-      | EmptyHole
-      | MultiHole(_)
-      | Wild
-      | Atom(_)
-      | ListLit(_)
-      | Cons(_, _)
-      | Var(_)
-      | Constructor(_)
-      | Ap(_) => None
-      }
-    };
-
-  let get_duplicate_bindings = (pat: t) =>
-    get_bindings(pat)
-    |> (
-      bindings => {
-        switch (bindings) {
-        | Some(bindings) =>
-          // O(n^2) search, for each binding, look through entire string to see if it appears more than once
-          List.filter(
-            binding => {
-              List.length(List.filter(x => x == binding, bindings)) > 1
-            },
-            bindings,
-          )
-        | None => []
-        };
-      }
-    );
   let rec get_num_of_vars = (pat: t) =>
     if (is_var(pat)) {
       Some(1);
@@ -363,6 +305,13 @@ module Pat = {
            }
          }
        );
+  let get_duplicate_bindings = (pat: t) => {
+    let bindings = bound_vars(pat);
+    List.filter(
+      binding => {List.length(List.filter(x => x == binding, bindings)) > 1},
+      bindings,
+    );
+  };
 };
 
 module Exp = {
