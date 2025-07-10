@@ -24,7 +24,7 @@ let expand_or_barf_left_neighbor = (z as s: t): option(t) =>
   /* If left neighbor is a monotile (a) string-matching the shard at the
      top of the backpack, barf it, or (b) an expansing keyword, expand it. */
   switch (left_neighbor_monotile(z.relatives.siblings)) {
-  | Some(t) when Backpack.will_barf(t, z.backpack) => barf(Left, s)
+  | Some(t) when Zipper.will_barf(t, z) => barf(Left, s)
   | Some(t) when Molds.is_delayed(t) => delayed_expand(t, Left, s)
   | _ => Some(s)
   };
@@ -33,7 +33,7 @@ let expand_or_barf_right_neighbor = (z as s: t): option(t) =>
   /* If right neighbor is a monotile (a) string-matching the shard at the
      top of the backpack, barf it, or (b) an expansing keyword, expand it. */
   switch (right_neighbor_monotile(z.relatives.siblings)) {
-  | Some(t) when Backpack.will_barf(t, z.backpack) => barf(Right, s)
+  | Some(t) when Zipper.will_barf(t, z) => barf(Right, s)
   | Some(t) when Molds.is_delayed(t) => delayed_expand(t, Right, s)
   | _ => Some(s)
   };
@@ -67,11 +67,14 @@ let make_new_tile = (t: Token.t, caret: Direction.t, z: t): t =>
   /* Adds a new tile at the caret. If the new token matches the top
      of the backpack, the backpack shard is dropped. Otherwise, we
      construct a new tile, which may immediately expand. */
-  Backpack.will_barf(t, z.backpack)
+  Zipper.will_barf(t, z)
     ? switch (neighbor_can_duomerge(t, z.relatives.siblings)) {
       | Some((lbl, d)) =>
-        Zipper.replace(~caret=d, ~backpack=d, lbl, z) |> Option.get
-      | None => put_down(caret, z) |> Option.get
+        let z = Zipper.replace(~caret=d, ~backpack=d, lbl, z) |> Option.get;
+        z;
+      | None =>
+        let z = put_down(caret, z) |> Option.get;
+        z;
       }
     : {
       let (lbl, backpack) = Molds.instant_expansion(t);
@@ -95,7 +98,9 @@ let expand_neighbors_and_make_new_tile = (char: Token.t, state: t): option(t) =>
   let* z = expand_or_barf_left_neighbor(state);
   let+ z = expand_or_barf_right_neighbor(z);
   let z = remold_regrout_prev(z);
-  make_new_tile(char, Left, z);
+  let z = make_new_tile(char, Left, z);
+  let z = remold_regrout_prev(z);
+  z;
 };
 
 let replace_tile = (t: Token.t, d: Direction.t, z: t): option(t) => {
@@ -154,6 +159,19 @@ let should_supress_space = (z: t): bool => {
   };
 };
 
+let move_into_if_stringlit_or_comment = (char, z) =>
+  /* This is special-case logic for advancing the caret to position between the quotes
+     in newly-created stringlits. The main stringlit special-case is in Zipper.constuct
+     and ideally this logic would be located there as well, but both regrouting and
+     subsequent caret position logic at this function's callsites dicate that this
+     be done after. Not too happy about this tbh. */
+  Form.is_string_delim(char) || Form.is_comment_delim(char)
+    ? switch (move(Left, z)) {
+      | None => z
+      | Some(z) => z |> set_caret(Inner(0, 0))
+      }
+    : z;
+
 let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
   /* Current this necessarily creates three tokens; two from splitting
    * the existing one, and a new one. The two splitting tokens may become
@@ -169,8 +187,11 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
     let+ z = insert_duo([l, r], z);
     /* If we're inserting a space, don't bother to insert it;
      * we'll get a convex grout anyway from regrouting */
+
     (Form.space != char ? make_new_tile(char, Left, z) : z)
-    |> remold_regrout(Right);
+    |> remold_regrout(Right)
+    |> move_into_if_stringlit_or_comment(char);
+
   | None =>
     /* If contemplating changing regrouting behavior here, try these
      * two cases: pressing (A) space and (B) open parens on:
@@ -195,28 +216,14 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
       | Some(z) => z
       };
     } else {
-      z
-      |> remold_regrout_prev
-      |> make_new_tile(char, Left)
-      |> remold_regrout(Right);
+      let z = remold(z);
+      let z = z |> remold_regrout_prev |> make_new_tile(char, Left);
+      let z = z |> remold_regrout(Right);
+      let z = z |> move_into_if_stringlit_or_comment(char);
+      z;
     };
   };
 };
-
-let opt_regrold = d => Option.map(remold_regrout(d));
-
-let move_into_if_stringlit_or_comment = (char, z) =>
-  /* This is special-case logic for advancing the caret to position between the quotes
-     in newly-created stringlits. The main stringlit special-case is in Zipper.constuct
-     and ideally this logic would be located there as well, but both regrouting and
-     subsequent caret position logic at this function's callsites dicate that this
-     be done after. Not too happy about this tbh. */
-  Form.is_string_delim(char) || Form.is_comment_delim(char)
-    ? switch (move(Left, z)) {
-      | None => z
-      | Some(z) => z |> set_caret(Inner(0, 0))
-      }
-    : z;
 
 let closing_stringlit_or_comment = (char, t) =>
   Form.is_string(t)
@@ -266,7 +273,7 @@ let rec go =
 
         let model_zipper =
           model_segment
-          |> Segment.to_string(~holes=None)
+          |> Segment.to_string
           |> StringUtil.to_list
           |> List.fold_left(insert, Some(z));
 
@@ -315,7 +322,7 @@ let rec go =
       ? z
         |> Zipper.set_caret(Inner(d_idx, idx))
         |> Zipper.replace_mono(Right, new_t)
-        |> opt_regrold(Left)
+        |> Option.map(remold_regrout(Left))
       : split(z, char, idx, t);
   /* Can't insert inside delimiter */
   | (Inner(_, _), (_, None)) => None
@@ -332,12 +339,12 @@ let rec go =
     z
     |> insert_outer(char)
     |> Option.map(Zipper.set_caret(caret))
-    |> opt_regrold(Left)
+    |> Option.map(remold_regrout(Left))
     |> Option.map(move_into_if_stringlit_or_comment(char));
   | (Outer, (_, None)) =>
     z
     |> insert_outer(char)
-    |> opt_regrold(Left)
+    |> Option.map(remold_regrout(Left))
     |> Option.map(move_into_if_stringlit_or_comment(char))
   };
 };
