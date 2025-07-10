@@ -818,8 +818,14 @@ module PrimitivePivot = {
                   tup_label(label("b"), int(3)),
                 ]),
               ]),
-              label("a"),
-              label("b"),
+              label(
+                ~ann=Some(Exp(Common(NoType(UnexpectedLabelSort("a"))))),
+                "a",
+              ),
+              label(
+                ~ann=Some(Exp(Common(NoType(UnexpectedLabelSort("b"))))),
+                "b",
+              ),
             ]),
           )
         ),
@@ -924,7 +930,11 @@ module PrimitivePivot = {
                         ),
                       ),
                     ),
-                  label("a"),
+                  label(
+                    ~ann=
+                      Some(Exp(Common(NoType(UnexpectedLabelSort("a"))))),
+                    "a",
+                  ),
                   Typ.unknown(Internal),
                 ),
               ]),

@@ -53,7 +53,8 @@ type error_no_type =
   /* Sort error used as label in tuple */
   | BadLabel(Any.t)
   /* Invalid label in tuple */
-  | InvalidLabel(LabeledTuple.label, list(LabeledTuple.label));
+  | InvalidLabel(LabeledTuple.label, list(LabeledTuple.label))
+  | UnexpectedLabelSort(LabeledTuple.label) /* A Label is present but not expected */;
 
 /* Errors which can apply to either expression or patterns */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -426,6 +427,8 @@ let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
   | (FreeConstructor(name), _) => InHole(NoType(FreeConstructor(name)))
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
   | (BadLabel(label), _) => InHole(NoType(BadLabel(label)))
+  | (UnexpectedLabelSort(label), _) =>
+    InHole(NoType(UnexpectedLabelSort(label)))
   | (InvalidLabel(label, expected_labels), _) =>
     InHole(NoType(InvalidLabel(label, expected_labels)))
   | (
@@ -719,7 +722,8 @@ let fixed_typ_err_common: error_common => Typ.t =
     |> Typ.temp
   | NoType(BadToken(_))
   | NoType(BadLabel(_))
-  | NoType(InvalidLabel(_)) => Unknown(Internal) |> Typ.temp
+  | NoType(InvalidLabel(_))
+  | NoType(UnexpectedLabelSort(_)) => Unknown(Internal) |> Typ.temp
   | TupleLabelError({typ, _})
   | DuplicateLabel(_, typ) => typ
   | Inconsistent(Expectation({ana, _})) => ana

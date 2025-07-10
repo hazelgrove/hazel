@@ -665,10 +665,13 @@ and uexp_to_info_map =
           })
         };
       add(~self, ~co_ctx=CoCtx.union([lab.co_ctx, e.co_ctx]), m);
-    | Label(name) =>
+    | Label(name) when label_sort =>
       let self = Self.Just(Label(name) |> Typ.temp);
       List.exists(l => name == l, duplicates)
         ? atomic(Duplicate(name, self)) : atomic(self);
+    | Label(name) =>
+      let self = Self.UnexpectedLabelSort(name);
+      atomic(self);
     | BuiltinFun(string) =>
       add'(
         ~self=Self.of_exp_var(Builtins.ctx_init(None), string),
@@ -678,7 +681,8 @@ and uexp_to_info_map =
 
     | Dot(e1, e2) =>
       let (info_e1, m) = go(~ana=Unknown(SynSwitch) |> Typ.temp, e1, m);
-      let (info_e2, m) = go(~ana=Label("") |> Typ.temp, e2, m);
+      let (info_e2, m) =
+        go(~label_sort=true, ~ana=Label("") |> Typ.temp, e2, m);
       let (ty, m) = {
         switch (info_e1.ty.term, info_e2.ty.term) {
         | (Unknown(_), Label(name)) =>

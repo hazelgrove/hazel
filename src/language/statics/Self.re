@@ -33,6 +33,7 @@ type t =
   | BadToken(string) /* Invalid expression token, continues with undefined behavior */
   | BadLabel(Any.t) /* TupLabel label component is not a valid Label*/
   | InvalidLabel(LabeledTuple.label, list(LabeledTuple.label)) /* Invalid label in a labeled tuple where these labels are expected */
+  | UnexpectedLabelSort(LabeledTuple.label) /* A label is present but not expected */
   | TupleLabelError({
       malformed_labels: list(Any.t), // Labels that are not of the right syntactic form
       duplicate_labels: list(LabeledTuple.label),
@@ -117,7 +118,8 @@ let typ_of: t => option(Typ.t) =
   | Duplicate(_)
   | BadLabel(_)
   | InvalidLabel(_)
-  | NoJoin(_) => None;
+  | NoJoin(_)
+  | UnexpectedLabelSort(_) => None;
 
 let typ_of_exp: exp => option(Typ.t) =
   fun

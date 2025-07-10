@@ -595,7 +595,19 @@ let tests =
                             ),
                           ),
                         ),
-                      [Exp(label("1"))],
+                      [
+                        Exp(
+                          label(
+                            ~ann=
+                              Some(
+                                Exp(
+                                  Common(NoType(UnexpectedLabelSort("1"))),
+                                ),
+                              ), // Has UnexpectedLabelSort because the label is wrapped in a multi-hole
+                            "1",
+                          ),
+                        ),
+                      ],
                     ),
                     string("hello"),
                   ),
@@ -844,5 +856,19 @@ let tests =
       {|([(a=1)] : [(a=Int)]).a|},
       Some(list(int())),
     ),
+    test_case("Label not in tuple", `Quick, () => {
+      annotated_tree_test(
+        {|'a'|},
+        unknown(Internal),
+        FIError.(
+          Exp.(
+            label(
+              ~ann=Some(Exp(Common(NoType(UnexpectedLabelSort("a"))))),
+              "a",
+            )
+          )
+        ),
+      )
+    }),
   ]
   @ TupleExtension.tests;
