@@ -44,10 +44,30 @@ module TupleExtension = {
         FIError.(
           Exp.(
             tuple_extension(
-              ~ann=Some(Exp(TupleExtensionRequiresTuples)),
-              int(1),
-              int(2),
+              int(~ann=Some(Exp(TupleExtensionRequiresTuples)), 1),
+              int(~ann=Some(Exp(TupleExtensionRequiresTuples)), 2),
             )
+          )
+        ),
+      )
+    ),
+    test_case("Tuple extension with hole", `Quick, () =>
+      annotated_tree_test(
+        "? ... (3, 4)",
+        unknown(Internal),
+        FIError.Exp.(
+          tuple_extension(empty_hole(), tuple([int(3), int(4)]))
+        ),
+      )
+    ),
+    test_case("Tuple extension with hole in label position", `Quick, () =>
+      annotated_tree_test(
+        "(?=1, 2) ... (3, 4)",
+        prod([tup_label(empty_hole(), int()), int(), int(), int()]),
+        FIError.Exp.(
+          tuple_extension(
+            tuple([tup_label(empty_hole(), int(1))]),
+            tuple([int(2), int(3), int(4)]),
           )
         ),
       )

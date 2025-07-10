@@ -421,8 +421,54 @@ and uexp_to_info_map =
       };
     | TupleExtension(e1, e2) =>
       let (t1, m) = go(e1, m);
+      // Override the derived_info and self for e1
+      let m =
+        switch (Typ.normalize(ctx, t1.ty).term) {
+        | Prod(_) => m
+        | Unknown(_) => m
+        | _ =>
+          add_info(
+            IdTagged.ids(e1),
+            InfoExp(
+              Info.derived_exp(
+                ~uexp=t1.term,
+                ~ctx=t1.ctx,
+                ~ana=t1.ana,
+                ~ancestors=t1.ancestors,
+                ~self=TupleExtensionRequiresTuples,
+                ~co_ctx=t1.co_ctx,
+                ~label_inference=t1.label_inference,
+                ~inferred_label=t1.inferred_label,
+                ~label_sort=t1.label_sort,
+              ),
+            ),
+            m,
+          )
+        };
       let (t2, m) = go(e2, m);
-
+      let m =
+        switch (Typ.normalize(ctx, t2.ty).term) {
+        | Prod(_) => m
+        | Unknown(_) => m
+        | _ =>
+          add_info(
+            IdTagged.ids(e2),
+            InfoExp(
+              Info.derived_exp(
+                ~uexp=t2.term,
+                ~ctx=t2.ctx,
+                ~ana=t2.ana,
+                ~ancestors=t2.ancestors,
+                ~self=TupleExtensionRequiresTuples,
+                ~co_ctx=t2.co_ctx,
+                ~label_inference=t2.label_inference,
+                ~inferred_label=t2.inferred_label,
+                ~label_sort=t2.label_sort,
+              ),
+            ),
+            m,
+          )
+        };
       switch (
         Typ.normalize(ctx, t1.ty).term,
         Typ.normalize(ctx, t2.ty).term,
@@ -464,7 +510,12 @@ and uexp_to_info_map =
           ~co_ctx=CoCtx.empty,
           m,
         )
-      | _ => add'(~self=TupleExtensionRequiresTuples, ~co_ctx=CoCtx.empty, m)
+      | _ =>
+        add(
+          ~self=Just(IdTagged.FreshGrammar.Typ.unknown(Internal)),
+          ~co_ctx=CoCtx.empty,
+          m,
+        )
       };
 
     | Tuple(es) =>
