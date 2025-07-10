@@ -275,21 +275,6 @@ let remove_matching = (ts: list(Tile.t), bp: t) =>
     ts,
   );
 
-let will_barf = (t: Token.t, bp: t): bool =>
-  /* Does the first selection in the backpack consist
-     of a single token which matches the one provided? */
-  switch (bp) {
-  | [] => false
-  | [{content: [p], _}, ..._] =>
-    switch (p) {
-    | Tile({shards: [i], label, _}) =>
-      assert(i < List.length(label));
-      List.nth(label, i) == t;
-    | _ => false
-    }
-  | _ => false
-  };
-
 let remove_uni_tiles_with_deep_matches = (bp: t, sel: Selection.t): t => {
   /* This is a hack to prevent incomplete tiles inside selection tiles
    * from being orphaned on deletion, e.g. if you delete segment "([)"

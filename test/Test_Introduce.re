@@ -38,7 +38,7 @@ let introduction_test = (before: string, expected: string) => {
     module S = (val Editor.Model.to_move_s(Editor.Model.mk(zip)));
     module Move = Move.Make(S);
     module Select = Select.Make(S);
-    let* zip = Move.jump_to_id(zip, hole_id);
+    let* zip = Move.jump_to_side_of_id(Left, zip, hole_id);
     let* zip = Move.go(Local(Right(ByChar)), zip); // To get on the hole itself
     let* zip =
       Select.current_term(~defs_exclude_bodies=false, ~case_rules=false, zip);
