@@ -8,7 +8,7 @@ type id = {
 };
 
 module IdMap =
-  Map.Make({
+  MapUtil.Make({
     [@deriving (show({with_path: false}), sexp, yojson, eq, ord)]
     type t = id;
     let compare = compare;
@@ -34,6 +34,7 @@ and tile = {
   children: list(id),
 };
 
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = IdMap.t(segment);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -99,7 +100,7 @@ let seg_to_auto_seg = (~id=root, seg: Segment.t): IdMap.t(segment) => {
       (acc, (index, piece)) => {
         switch (piece) {
         | Base.Tile(tile) =>
-          List.fold_left(go(mk_id(index, id.uuid)), acc, tile.children)
+          List.fold_left(go(mk_id(index, tile.id)), acc, tile.children)
         | _ => acc
         }
       },
@@ -151,4 +152,30 @@ let auto_seg_to_seg = (auto_seg: t): Segment.t => {
     };
 
   auto_seg_to_seg(root, auto_seg);
+};
+
+let mk_diff = (auto_seg1: t, auto_seg2: t): diff => {
+  let deletions =
+    IdMap.fold(
+      (id, _, acc) =>
+        IdMap.mem(id, auto_seg2) ? acc : [Delete(id), ...acc],
+      auto_seg1,
+      [],
+    );
+
+  let insertions_and_updates =
+    IdMap.fold(
+      (id, segment2, acc) => {
+        switch (IdMap.find_opt(id, auto_seg1)) {
+        | None => [Insert(id, segment2), ...acc]
+        | Some(segment1) =>
+          segment1 == segment2
+            ? acc : [Delete(id), Insert(id, segment2), ...acc]
+        }
+      },
+      auto_seg2,
+      [],
+    );
+
+  deletions @ insertions_and_updates;
 };

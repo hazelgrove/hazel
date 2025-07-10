@@ -220,6 +220,11 @@ module Update = {
       col_target,
     };
 
+    print_endline("yo");
+
+    let auto_seg = AutoSeg.seg_to_auto_seg(state.zipper |> Zipper.zip);
+    print_endline(AutoSeg.show(auto_seg));
+
     // 4. Update the zipper
     let+ zipper =
       Perform.go_z(
@@ -232,6 +237,11 @@ module Update = {
         }),
         state.zipper,
       );
+
+    let auto_seg_2 = AutoSeg.seg_to_auto_seg(zipper |> Zipper.zip);
+    let diff = AutoSeg.mk_diff(auto_seg, auto_seg_2);
+    print_endline(AutoSeg.show(auto_seg_2));
+    print_endline(AutoSeg.show_diff(diff));
 
     // Recombine
     Model.{
