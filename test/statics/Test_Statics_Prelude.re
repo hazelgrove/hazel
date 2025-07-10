@@ -23,7 +23,7 @@ let annotate_static_errors = (exp: TermBase.exp_t, info_map: Statics.Map.t) => {
     ({ids, _}: IdTagged.IdTag.t) => {
       let new_info = Id.Map.find_opt(List.hd(ids), info_map);
       switch (new_info) {
-      | Some(info) => Option.bind(Some(info), Info.error_of)
+      | Some(info) => Info.error_of(info)
       | None =>
         Alcotest.fail("No info found for the id: " ++ Id.show(List.hd(ids)))
       };
