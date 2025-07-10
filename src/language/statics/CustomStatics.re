@@ -61,6 +61,7 @@ let analyze_table_argument = (module S: ExpressionStatics, ~ctx, m, table) => {
       table_info,
       m,
     )
+  | List({term: Unknown(_), _})
   | Unknown(_) => (None, table_info, m)
   | _ =>
     let (_, m) =
