@@ -441,11 +441,6 @@ let rec exp_view =
     ])
   | InHole(BuiltinError(e)) =>
     switch (e) {
-    | ProjectLabelsNonLabels(labels) =>
-      div_err([
-        text("Projecting labels from non-labels: "),
-        ...List.map(view_any(~globals), labels),
-      ])
     | MissingLabels(labels) =>
       div_err([
         text("Labels not present in tuple: "),

@@ -738,7 +738,6 @@ let fixed_typ_err: error_exp => Typ.t =
   | BadOperator(_)
   | LabelNotFound(_, _)
   | TupleExtensionRequiresTuples
-  | BuiltinError(ProjectLabelsNonLabels(_))
   | BuiltinError(
       ProjectLabelsMissingLabels(_) | MissingLabels(_) |
       PivotLabelIsNotString(_),
