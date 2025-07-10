@@ -269,26 +269,22 @@ module Composition = {
         let statics = CodeWithStatics.Model.get_statics(ed);
         // Find the first matching variable in the context using fold
         // TODO: Handle shadowed variables
+        let cursor_info =
+          Indicated.ci_of(ed.editor.state.zipper, statics.info_map);
+        let cursor_ctx =
+          switch (cursor_info) {
+          | Some(info) => Info.ctx_of(info)
+          | None => Ctx.empty
+          };
         let matching_id =
-          Id.Map.fold(
-            (_, info, acc) => {
-              switch (acc) {
-              | Some(_) => acc // Already found a match
-              | None =>
-                let ctx = Info.ctx_of(info);
-                switch (Ctx.lookup_var(ctx, variable_name)) {
-                | Some(entry) => Some(entry.id)
-                | None =>
-                  switch (Ctx.lookup_tvar_id(ctx, variable_name)) {
-                  | Some(id) => Some(id)
-                  | None => None
-                  }
-                };
-              }
-            },
-            statics.info_map,
-            None,
-          );
+          switch (Ctx.lookup_var(cursor_ctx, variable_name)) {
+          | Some(entry) => Some(entry.id)
+          | None =>
+            switch (Ctx.lookup_tvar_id(cursor_ctx, variable_name)) {
+            | Some(id) => Some(id)
+            | None => None
+            }
+          };
 
         print_endline("here #1");
         let var_info =
