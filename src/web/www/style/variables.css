@@ -24,6 +24,7 @@
   --T1: oklch(97% 0.025 90); /* buffer shards */
   --T2: oklch(from var(--T1) 94% c h); /* projector shards */
   --T3: oklch(from var(--T1) 91% c h); /* result background */
+  --T4: oklch(from var(--T1) 88% c h); /* darker background */
 
   /* MOLTEN - under construction */
   --Y0: oklch(95% 0.05 90); /* menu fill */
@@ -69,7 +70,7 @@
   --light-page-color: var(--menu-item-hover-bkg);
   --cell-active: var(--SAND);
   --main-scroll-thumb: var(--BR1);
-  --main-scroll-track: var(--SAND);
+  --main-scroll-track: var(--NONE);
   --cell-selected-accent: var(--R1);
 
   /* CODE DECO */
@@ -87,14 +88,13 @@
   --token-string-lit: var(--Y3);
   --token-comment: var(--G2);
   --token-incomplete: var(--Y3);
-  --token-inconsistent: var(--BR2);
+  --token-inconsistent: var(--token-exp);
   --token-buffer: var(--BR1);
   --token-explicit-hole: var(--Y2);
   --token-explicit-hole-shadow: var(--BLACK);
   --token-secondary: var(--shard-exp);
   --token-rul: var(--token-exp);
-  --token-nul: var(--R2);
-  --token-any: var(--token-nul);
+  --token-any: var(--R2);
 
   /* CODE SHARDS */
 
@@ -112,10 +112,9 @@
   --shard_projector: var(--T2);
   --shard-rul: var(--shard-exp);
   --shard-lines-rul: var(--shard-lines-exp);
-  --shard-nul: var(--R0);
-  --shadow-nul: var(--R0);
-  --shard-any: var(--shard-nul);
-  --shadow-any: var(--shadow-nul);
+  --shadow-selected: var(--R0);
+  --shard-any: var(--shard-exp);
+  --shadow-any: var(--R0);
 
   /* EMPTY HOLE DECO */
 
@@ -161,11 +160,11 @@
   --menu-bkg: var(--Y0);
   --menu-item-hover-bkg: var(--SAND);
   --menu-item-text: var(--STONE);
-  --menu-scroll-track: var(--BR1);
-  --menu-scroll-thumb: var(--BR2);
   --menu-outline: var(--BR2);
-  --menu-icon: var(--BR2);
-  --menu-group-name: var(--BR4);
+  --menu-icon: var(--BR4);
+  --menu-group-name: var(--menu-icon);
+  --menu-scroll-thumb: var(--menu-outline);
+  --menu-scroll-track: var(--BR1);
   --menu-divider: var(--CREASE);
   --menu-shadow: var(--SHADOW);
 
