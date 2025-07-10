@@ -427,6 +427,7 @@ let select_labels_statics =
     }
   );
 };
+
 let omit_labels_statics =
     (
       module S: ExpressionStatics,
