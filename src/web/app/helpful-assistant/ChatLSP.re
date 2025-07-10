@@ -1,6 +1,295 @@
 open Util;
 open Haz3lcore;
 open Language;
+open Language.Statics;
+
+let uniquify =
+    (editor: CodeWithStatics.Model.t): (Segment.t, VarMap.t_(Id.t)) => {
+  // Extract the segment from the editor
+  let sketch =
+    Zipper.smart_seg(
+      ~dump_backpack=true,
+      ~erase_buffer=true,
+      editor.editor.state.zipper,
+    );
+
+  // Helper function to check if a token is a variable name
+  let is_var_token = (token: Token.t): bool => {
+    Form.is_var(token);
+  };
+
+  // Helper function to uniquify a variable name
+  let uniquify_var_name = (name: string, suffix: int): string => {
+    name ++ "_" ++ string_of_int(suffix);
+  };
+
+  // Collect all variable names and their occurrences from the static info map
+  // Separate bindings from references
+  let collect_vars_from_statics =
+      (): (list((string, Id.t)), list((string, Id.t))) => {
+    let statics = CodeWithStatics.Model.get_statics(editor);
+    Id.Map.fold(
+      (id, info, (bindings, references)) => {
+        switch (info) {
+        | Info.InfoExp({term, ctx, _}) =>
+          switch (term.term) {
+          | Var(name) =>
+            // This is a variable reference - add it to references
+            (bindings, [(name, id), ...references])
+          | _ => (bindings, references)
+          }
+        | InfoPat({term, ctx, _}) =>
+          switch (term.term) {
+          | Var(name) =>
+            // This is a variable binding - add it to bindings
+            ([(name, id), ...bindings], references)
+          | _ => (bindings, references)
+          }
+        | _ => (bindings, references)
+        }
+      },
+      statics.info_map,
+      ([], []),
+    );
+  };
+
+  // Group variables by name and assign unique suffixes
+  let (bindings, references) = collect_vars_from_statics();
+  let all_vars = bindings @ references;
+  print_endline(
+    "Found "
+    ++ string_of_int(List.length(bindings))
+    ++ " bindings and "
+    ++ string_of_int(List.length(references))
+    ++ " references",
+  );
+
+  // Group bindings by name and assign unique suffixes
+  let binding_groups =
+    List.fold_left(
+      (acc, (name, id)) => {
+        let existing = List.assoc_opt(name, acc);
+        switch (existing) {
+        | Some(ids) =>
+          // Remove the old entry and add the updated one
+          let filtered_acc = List.filter(((n, _)) => n != name, acc);
+          [(name, [id, ...ids]), ...filtered_acc];
+        | None => [(name, [id]), ...acc]
+        };
+      },
+      [],
+      bindings,
+    );
+
+  // Debug: print binding groups
+  List.iter(
+    ((name, ids)) => {
+      print_endline(
+        "Binding group: "
+        ++ name
+        ++ " -> ["
+        ++ String.concat(", ", List.map(Id.show, ids))
+        ++ "]",
+      )
+    },
+    binding_groups,
+  );
+
+  // Create mapping from binding ID to uniquified name
+  let binding_id_to_uniquified =
+    List.fold_left(
+      (acc, (name, ids)) => {
+        List.fold_left(
+          (acc, (index, id)) => {
+            let uniquified_name = uniquify_var_name(name, index);
+            [(id, uniquified_name), ...acc];
+          },
+          acc,
+          List.mapi((index, id) => (index, id), ids),
+        )
+      },
+      [],
+      binding_groups,
+    );
+
+  // Get the TermMap to map tile IDs to terms
+  let terms = editor.editor.syntax.terms;
+
+  // Create universal context mapping from uniquified names to original IDs
+  let universal_ctx =
+    List.fold_left(
+      (acc, (name, ids)) => {
+        List.fold_left(
+          (acc, (index, id)) => {
+            let uniquified_name = uniquify_var_name(name, index);
+            print_endline(
+              "Uniquifying: "
+              ++ name
+              ++ " -> "
+              ++ uniquified_name
+              ++ " (ID: "
+              ++ Id.show(id)
+              ++ ")",
+            );
+            [(uniquified_name, id), ...acc];
+          },
+          acc,
+          List.mapi((index, id) => (index, id), ids),
+        )
+      },
+      [],
+      binding_groups,
+    );
+
+  // Helper function to replace variable names in a segment
+  let rec replace_vars = (seg: Segment.t): Segment.t => {
+    List.map(replace_vars_piece, seg);
+  }
+  and replace_vars_piece = (piece: Piece.t): Piece.t => {
+    switch (piece) {
+    | Tile(tile) =>
+      // Check if this tile represents a variable
+      let is_var_tile =
+        List.length(tile.label) == 1 && is_var_token(List.hd(tile.label));
+
+      let new_label =
+        if (is_var_tile) {
+          let var_name = List.hd(tile.label);
+          print_endline(
+            "Processing tile with var_name: "
+            ++ var_name
+            ++ ", tile.id: "
+            ++ Id.show(tile.id),
+          );
+
+          // Look up the term ID for this tile using the TermMap
+          let term_id_opt = Id.Map.find_opt(tile.id, terms);
+          print_endline(
+            "TermMap lookup for tile.id: "
+            ++ Id.show(tile.id)
+            ++ " -> "
+            ++ (
+              switch (term_id_opt) {
+              | Some(term) => "Some(" ++ Id.show(Any.rep_id(term)) ++ ")"
+              | None => "None"
+              }
+            ),
+          );
+
+          // Look up the uniquified name using the term ID
+          let uniquified_name =
+            switch (term_id_opt) {
+            | Some(term) =>
+              let term_id = Any.rep_id(term);
+              // First check if this is a binding
+              let binding_result =
+                List.assoc_opt(term_id, binding_id_to_uniquified);
+              switch (binding_result) {
+              | Some(name) =>
+                print_endline(
+                  "Found binding for term.id: "
+                  ++ Id.show(term_id)
+                  ++ " -> "
+                  ++ name,
+                );
+                Some(name);
+              | None =>
+                // This is a reference - find which binding it refers to
+                let statics = CodeWithStatics.Model.get_statics(editor);
+                switch (Id.Map.find_opt(term_id, statics.info_map)) {
+                | Some(Info.InfoExp({ctx, _})) =>
+                  switch (Ctx.lookup_var(ctx, var_name)) {
+                  | Some(entry) =>
+                    let ref_result =
+                      List.assoc_opt(entry.id, binding_id_to_uniquified);
+                    print_endline(
+                      "Reference for var '"
+                      ++ var_name
+                      ++ "' at term.id: "
+                      ++ Id.show(term_id)
+                      ++ " refers to binding id: "
+                      ++ Id.show(entry.id)
+                      ++ " -> "
+                      ++ (
+                        switch (ref_result) {
+                        | Some(n) => n
+                        | None => "None"
+                        }
+                      ),
+                    );
+                    ref_result;
+                  | None =>
+                    print_endline(
+                      "Reference for var '"
+                      ++ var_name
+                      ++ "' at term.id: "
+                      ++ Id.show(term_id)
+                      ++ " could not resolve binding, using original name.",
+                    );
+                    Some(var_name);
+                  }
+                | _ =>
+                  print_endline(
+                    "Reference for var '"
+                    ++ var_name
+                    ++ "' at term.id: "
+                    ++ Id.show(term_id)
+                    ++ " has no static info, using original name.",
+                  );
+                  Some(var_name);
+                };
+              };
+            | None => None
+            };
+
+          switch (uniquified_name) {
+          | Some(name) =>
+            print_endline("Replacing " ++ var_name ++ " with " ++ name);
+            [name];
+          | None =>
+            print_endline("Keeping original: " ++ var_name);
+            [var_name];
+          };
+        } else {
+          tile.label;
+        };
+
+      let new_children = List.map(replace_vars, tile.children);
+
+      Tile({
+        ...tile,
+        label: new_label,
+        children: new_children,
+      });
+    | Grout(grout) => Grout(grout)
+    | Secondary(secondary) => Secondary(secondary)
+    | Projector(projector) =>
+      let new_syntax = replace_vars_piece(projector.syntax);
+      Projector({
+        ...projector,
+        syntax: new_syntax,
+      });
+    };
+  };
+
+  let uniquified_sketch = replace_vars(sketch);
+
+  // Debug: print the universal context
+  print_endline("=== UNIVERSAL CONTEXT ===");
+  List.iter(
+    ((uniquified_name, id)) => {
+      print_endline("  " ++ uniquified_name ++ " -> " ++ Id.show(id))
+    },
+    universal_ctx,
+  );
+
+  // Debug: print the uniquified sketch
+  print_endline("=== UNIQUIFIED SKETCH ===");
+  print_endline(ErrorPrint.Print.seg(~holes="?", uniquified_sketch));
+  print_endline("=========================");
+
+  (uniquified_sketch, universal_ctx);
+};
 
 let get_sketch_and_error_ctx =
     (editor: CodeWithStatics.Model.t): list(string) => {
@@ -10,6 +299,7 @@ let get_sketch_and_error_ctx =
       ~erase_buffer=true,
       editor.editor.state.zipper,
     );
+  let (sketch_seg, _) = uniquify(editor);
   let errors = ErrorPrint.all(editor.statics.info_map);
   let static_error_arr =
     switch (errors) {
@@ -271,19 +561,38 @@ module Composition = {
         // TODO: Handle shadowed variables
         let cursor_info =
           Indicated.ci_of(ed.editor.state.zipper, statics.info_map);
+        let (_, universal_ctx) = uniquify(ed);
         let cursor_ctx =
           switch (cursor_info) {
           | Some(info) => Info.ctx_of(info)
           | None => Ctx.empty
           };
         let matching_id =
-          switch (Ctx.lookup_var(cursor_ctx, variable_name)) {
-          | Some(entry) => Some(entry.id)
+          // First try to find the variable in the universal context (uniquified names)
+          switch (VarMap.lookup(universal_ctx, variable_name)) {
+          | Some(id) =>
+            print_endline(
+              "Found variable '"
+              ++ variable_name
+              ++ "' in universal context with ID: "
+              ++ Id.show(id),
+            );
+            Some(id);
           | None =>
-            switch (Ctx.lookup_tvar_id(cursor_ctx, variable_name)) {
-            | Some(id) => Some(id)
-            | None => None
-            }
+            print_endline(
+              "Variable '"
+              ++ variable_name
+              ++ "' not found in universal context, falling back to cursor context",
+            );
+            // Fall back to the original context lookup
+            switch (Ctx.lookup_var(cursor_ctx, variable_name)) {
+            | Some(entry) => Some(entry.id)
+            | None =>
+              switch (Ctx.lookup_tvar_id(cursor_ctx, variable_name)) {
+              | Some(id) => Some(id)
+              | None => None
+              }
+            };
           };
 
         print_endline("here #1");

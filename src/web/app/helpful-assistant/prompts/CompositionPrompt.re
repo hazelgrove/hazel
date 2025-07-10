@@ -58,6 +58,21 @@ let toolkit = [
   "If you do NOT make a tool call in your response, you are effectively submitting the task to the user.",
   "You need NOT make a tool call if the user asks a question that does not require any editing of their code.",
   "</toolkitNotes>",
+  "<Notes>",
+  "You will be given a modified, 'uniquified' version of the program, where each variable is guaranteed to be unique.",
+  "This is done by universally appending '_i' to the end of each variable name, where i is a unique integer for each variable.",
+  "When giving 'variable_name' arguments, you SHOULD reference the uniquified name, NOT the original name.",
+  "HOWEVER, when giving new code, you should ALWAYS reference variables by their original names.",
+  "i.e. Use the unique names to NAVIGATE and READ code, while using the original names to WRITE new code (including for defining new variables!!)",
+  "You can derive the original name from the uniquified name by simply removing the '_i' suffix.",
+  "EVERY variable in the program will be uniquified, even if it is not shadowed.",
+  "This is done to ensure a sound and complete navigation system for you, using purely natural language.",
+  "We 'uniquify' the program, send you this uniquified version, navigate the cursor using your uniquified variable arguments on the uniquified program,",
+  "and then apply the changes to the original program.",
+  "Due to this pipeline process, after each edit you make, the uniquified IDs for a given variable are susceptible to change!!",
+  "If you EVER talk to the user or plan using chain of thought reasoning, do NOT refer to a variable by its uniquified name.",
+  "To summarize, uniquified names are SOLELY for navigating throughout the program, and should almost be thought of as something separate from the variable itself.",
+  "</Notes>",
 ];
 
 // IDEA: Give the agent a modified version of the program, where each variable is guaranteed to be unique.
@@ -69,6 +84,9 @@ let toolkit = [
 // 3. Send uniquely modified program to the agent
 // 4. Agent should respond with variable_name = [unique_name] for appropriate tool calls
 // 5. Receive agent's response, parse, and apply the changes to the ORIGINAL program
+
+// IDEA: Allow for a paramter that allows the agent to uniquify the program, and then send it to the user.
+// this way it can control to uniquify the program only if it ABSOLUTELY needs to, such as shadowing and failure modes.
 
 // idea: allow for multiple variables to be selected at once
 //       or rather, allow for beginning and end of selection to be specified (based on variable definitons)
@@ -874,5 +892,5 @@ let get_few_shot_comp_examples = () => {
   ++ "</fewShotExamples>";
 };
 
-let self = instructions @ hazel_syntax_notes @ summarized_hazel_docs;
+let self = instructions @ toolkit @ hazel_syntax_notes @ summarized_hazel_docs;
 // @ [get_few_shot_comp_examples()];
