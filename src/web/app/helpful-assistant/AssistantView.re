@@ -1283,7 +1283,7 @@ let mode_buttons =
     [
       mode_button(HazelTutor, "Tutor", ~disabled=false),
       mode_button(CodeSuggestion, "Suggest", ~disabled=false),
-      mode_button(TaskCompletion, "Compose", ~disabled=true),
+      mode_button(TaskCompletion, "Compose", ~disabled=false),
     ],
   );
 };
