@@ -423,25 +423,23 @@ module Make = (M: S) => {
     } else {
       /* Always empty selection on move action,
        * even if we don't actually move */
+      let z =
+        switch (d) {
+        | Local(planar)
+        | Extreme(planar) =>
+          Zipper.directional_unselect(Zipper.from_plane(planar), z)
+        | Goal(_) => Zipper.directional_unselect(z.selection.focus, z)
+        };
+
       switch (d) {
       // By char just unselects
-      | Local(Left(ByChar) as planar)
-      | Local(Right(ByChar) as planar) =>
-        Some(Zipper.directional_unselect(Zipper.from_plane(planar), z))
-      | Local(planar)
-      | Extreme(planar) =>
-        // Escape selection and apply move
-        let z = Zipper.directional_unselect(Zipper.from_plane(planar), z);
+      | Local(Left(ByChar))
+      | Local(Right(ByChar)) => Some(z)
+      | _ =>
         switch (move_dispatch(d, z)) {
         | Some(z) => Some(z)
         | None => Some(z)
-        };
-      | Goal(_) =>
-        let z = Zipper.directional_unselect(z.selection.focus, z);
-        switch (move_dispatch(d, z)) {
-        | Some(z) => Some(z)
-        | None => Some(z)
-        };
+        }
       };
     };
 
