@@ -389,11 +389,11 @@ module Options = {
 module SystemPrompt = {
   let prelude = ["You are a helpful coding assistant in Hazel. \n"];
 
-  let normal_suggestion_prompt = (completion_token: string) =>
-    SuggestionPrompt_normal.self(completion_token);
+  let normal_completion_prompt = (completion_token: string) =>
+    CompletionPrompt_normal.self(completion_token);
 
-  let cot_suggestion_prompt = (completion_token: string) =>
-    SuggestionPrompt_cot.self(completion_token);
+  let cot_completion_prompt = (completion_token: string) =>
+    CompletionPrompt_cot.self(completion_token);
 
   let hazel_syntax_notes = HazelSyntaxNotes.self;
 
@@ -415,8 +415,8 @@ module SystemPrompt = {
           ? prelude
             @ (
               advanced_reasoning
-                ? cot_suggestion_prompt(completion_token)
-                : normal_suggestion_prompt(completion_token)
+                ? cot_completion_prompt(completion_token)
+                : normal_completion_prompt(completion_token)
             )
           : []
       )

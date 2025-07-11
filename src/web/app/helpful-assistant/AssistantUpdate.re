@@ -391,14 +391,14 @@ let mk_llm_call =
     let tools =
       if (mode == TaskCompletion) {
         [
-          CompositionPrompt.update_pattern,
-          CompositionPrompt.update_definition,
-          CompositionPrompt.update_body,
-          CompositionPrompt.delete_body,
-          CompositionPrompt.update_binding,
-          CompositionPrompt.delete_binding,
-          CompositionPrompt.add_before,
-          CompositionPrompt.add_after,
+          CompositionTools.update_pattern,
+          CompositionTools.update_definition,
+          CompositionTools.update_body,
+          CompositionTools.delete_body,
+          CompositionTools.update_binding,
+          CompositionTools.delete_binding,
+          CompositionTools.add_before,
+          CompositionTools.add_after,
           // CompositionPrompt.goto_definition,
           // CompositionPrompt.goto_body,
           // //CompositionPrompt.goto_type_definition,
