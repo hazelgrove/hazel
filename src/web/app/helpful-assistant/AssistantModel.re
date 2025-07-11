@@ -106,7 +106,10 @@ type init_prompt_data = {
 type t = {
   current_chats,
   chat_history,
+  // This our information for 
   external_api_info,
+  // Loading in and parsing the prompts is an expensive operation, so we perform this eagerly,
+  // before the user sends their first request. This is currently done when the user sets an API key.
   init_prompt_data,
   loop: bool,
 };

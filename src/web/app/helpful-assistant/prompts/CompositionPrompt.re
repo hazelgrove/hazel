@@ -60,11 +60,11 @@ let toolkit = [
   "</toolkitNotes>",
   "<Notes>",
   "You will be given a modified, 'uniquified' version of the program, where each variable is guaranteed to be unique.",
-  "This is done by universally appending '_i' to the end of each variable name, where i is a unique integer for each variable.",
+  "This is done by universally appending '^i' to the end of each variable name, where i is a unique integer for each variable.",
   "When giving 'variable_name' arguments, you SHOULD reference the uniquified name, NOT the original name.",
   "HOWEVER, when giving new code, you should ALWAYS reference variables by their original names.",
   "i.e. Use the unique names to NAVIGATE and READ code, while using the original names to WRITE new code (including for defining new variables!!)",
-  "You can derive the original name from the uniquified name by simply removing the '_i' suffix.",
+  "You can derive the original name from the uniquified name by simply removing the '^i' suffix.",
   "EVERY variable in the program will be uniquified, even if it is not shadowed.",
   "This is done to ensure a sound and complete navigation system for you, using purely natural language.",
   "We 'uniquify' the program, send you this uniquified version, navigate the cursor using your uniquified variable arguments on the uniquified program,",
@@ -202,7 +202,21 @@ let update_pattern: API.Json.t =
                     ("type", `String("string")),
                     (
                       "description",
-                      `String("The name of the variable to be updated."),
+                      `String(
+                        "The name of the variable to be updated. Make sure to exclude the '^' and all characters after it.",
+                      ),
+                    ),
+                  ]),
+                ),
+                (
+                  "variable_id",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "The unique id of the variable to be updated. These are the characters after the '^'. ",
+                      ),
                     ),
                   ]),
                 ),
@@ -220,7 +234,11 @@ let update_pattern: API.Json.t =
             ),
             (
               "required",
-              `List([`String("variable_name"), `String("new_pattern")]),
+              `List([
+                `String("variable_name"),
+                `String("variable_id"),
+                `String("new_pattern"),
+              ]),
             ),
           ]),
         ),
@@ -259,7 +277,19 @@ let update_definition: API.Json.t =
                     (
                       "description",
                       `String(
-                        "The name of the variable to have its definition updated.",
+                        "The name of the variable to have its definition updated. Make sure to exclude the '^' and all characters after it.",
+                      ),
+                    ),
+                  ]),
+                ),
+                (
+                  "variable_id",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "The unique id of the variable to be updated. These are the characters after the '^'.",
                       ),
                     ),
                   ]),
@@ -278,7 +308,11 @@ let update_definition: API.Json.t =
             ),
             (
               "required",
-              `List([`String("variable_name"), `String("new_definition")]),
+              `List([
+                `String("variable_name"),
+                `String("variable_id"),
+                `String("new_definition"),
+              ]),
             ),
           ]),
         ),
@@ -317,7 +351,19 @@ let update_body: API.Json.t =
                     (
                       "description",
                       `String(
-                        "The name of the variable to have its body updated.",
+                        "The name of the variable to have its body updated. Make sure to exclude the '^' and all characters after it.",
+                      ),
+                    ),
+                  ]),
+                ),
+                (
+                  "variable_id",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "The unique id of the variable to be updated. These are the characters after the '^'.",
                       ),
                     ),
                   ]),
@@ -336,7 +382,11 @@ let update_body: API.Json.t =
             ),
             (
               "required",
-              `List([`String("variable_name"), `String("new_body")]),
+              `List([
+                `String("variable_name"),
+                `String("variable_id"),
+                `String("new_body"),
+              ]),
             ),
           ]),
         ),
@@ -375,7 +425,19 @@ let update_binding: API.Json.t =
                     (
                       "description",
                       `String(
-                        "The name of the variable to have its binding updated.",
+                        "The name of the variable to have its binding updated. Make sure to exclude the '^' and all characters after it.",
+                      ),
+                    ),
+                  ]),
+                ),
+                (
+                  "variable_id",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "The unique id of the variable to be updated. These are the characters after the '^'.",
                       ),
                     ),
                   ]),
@@ -394,7 +456,11 @@ let update_binding: API.Json.t =
             ),
             (
               "required",
-              `List([`String("variable_name"), `String("new_binding")]),
+              `List([
+                `String("variable_name"),
+                `String("variable_id"),
+                `String("new_binding"),
+              ]),
             ),
           ]),
         ),
@@ -434,7 +500,19 @@ let delete_body: API.Json.t =
                     (
                       "description",
                       `String(
-                        "The name of the variable to have its body deleted.",
+                        "The name of the variable to have its body deleted. Make sure to exclude the '^' and all characters after it.",
+                      ),
+                    ),
+                  ]),
+                ),
+                (
+                  "variable_id",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "The unique id of the variable to be updated. These are the characters after the '^'.",
                       ),
                     ),
                   ]),
@@ -485,9 +563,24 @@ let delete_binding: API.Json.t =
                     ),
                   ]),
                 ),
+                (
+                  "variable_id",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "The unique id of the variable to be updated. These are the characters after the '^'.",
+                      ),
+                    ),
+                  ]),
+                ),
               ]),
             ),
-            ("required", `List([`String("variable_name")])),
+            (
+              "required",
+              `List([`String("variable_name"), `String("variable_id")]),
+            ),
           ]),
         ),
       ]),
@@ -526,7 +619,19 @@ let add_before: API.Json.t =
                     (
                       "description",
                       `String(
-                        "The name of the variable to have code added before its binding.",
+                        "The name of the variable to have code added before its binding. Make sure to exclude the '^' and all characters after it.",
+                      ),
+                    ),
+                  ]),
+                ),
+                (
+                  "variable_id",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "The unique id of the variable to be updated. These are the characters after the '^'.",
                       ),
                     ),
                   ]),
@@ -584,7 +689,19 @@ let add_after: API.Json.t =
                     (
                       "description",
                       `String(
-                        "The name of the variable to have code added after its binding.",
+                        "The name of the variable to have code added after its binding. Make sure to exclude the '^' and all characters after it.",
+                      ),
+                    ),
+                  ]),
+                ),
+                (
+                  "variable_id",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "The unique id of the variable to be updated. These are the characters after the '^'.",
                       ),
                     ),
                   ]),
@@ -646,9 +763,24 @@ let move_cursor: API.Json.t =
                     ),
                   ]),
                 ),
+                (
+                  "variable_id",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String(
+                        "The unique id of the variable to be updated. These are the characters after the '^'.",
+                      ),
+                    ),
+                  ]),
+                ),
               ]),
             ),
-            ("required", `List([`String("variable_name")])),
+            (
+              "required",
+              `List([`String("variable_name"), `String("variable_id")]),
+            ),
           ]),
         ),
       ]),

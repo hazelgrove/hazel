@@ -20,7 +20,7 @@ let uniquify =
 
   // Helper function to uniquify a variable name
   let uniquify_var_name = (name: string, suffix: int): string => {
-    name ++ "_" ++ string_of_int(suffix);
+    name ++ "^" ++ string_of_int(suffix);
   };
 
   // Collect all variable names and their occurrences from the static info map
@@ -42,6 +42,20 @@ let uniquify =
           switch (term.term) {
           | Var(name) =>
             // This is a variable binding - add it to bindings
+            ([(name, id), ...bindings], references)
+          | _ => (bindings, references)
+          }
+        | InfoTyp({term, ctx, _}) =>
+          switch (term.term) {
+          | Var(name) =>
+            // This is a type variable reference - add it to references
+            (bindings, [(name, id), ...references])
+          | _ => (bindings, references)
+          }
+        | InfoTPat({term, ctx, _}) =>
+          switch (term.term) {
+          | Var(name) =>
+            // This is a type variable binding - add it to bindings
             ([(name, id), ...bindings], references)
           | _ => (bindings, references)
           }
@@ -221,6 +235,37 @@ let uniquify =
                   | None =>
                     print_endline(
                       "Reference for var '"
+                      ++ var_name
+                      ++ "' at term.id: "
+                      ++ Id.show(term_id)
+                      ++ " could not resolve binding, using original name.",
+                    );
+                    Some(var_name);
+                  }
+                | Some(Info.InfoTyp({ctx, _})) =>
+                  switch (Ctx.lookup_tvar_id(ctx, var_name)) {
+                  | Some(id) =>
+                    let ref_result =
+                      List.assoc_opt(id, binding_id_to_uniquified);
+                    print_endline(
+                      "Reference for type var '"
+                      ++ var_name
+                      ++ "' at term.id: "
+                      ++ Id.show(term_id)
+                      ++ " refers to binding id: "
+                      ++ Id.show(id)
+                      ++ " -> "
+                      ++ (
+                        switch (ref_result) {
+                        | Some(n) => n
+                        | None => "None"
+                        }
+                      ),
+                    );
+                    ref_result;
+                  | None =>
+                    print_endline(
+                      "Reference for type var '"
                       ++ var_name
                       ++ "' at term.id: "
                       ++ Id.show(term_id)
@@ -550,12 +595,14 @@ module Composition = {
         ~ed: CodeWithStatics.Model.t,
         ~edit_action: edit_action,
         ~variable_name: option(string),
+        ~variable_id: option(string),
         ~schedule_action: Editors.Update.t => unit,
       )
       : unit => {
     let actions =
-      switch (variable_name) {
-      | Some(variable_name) =>
+      switch (variable_name, variable_id) {
+      | (Some(variable_name), Some(variable_id)) =>
+        let variable = variable_name ++ "^" ++ variable_id;
         let statics = CodeWithStatics.Model.get_statics(ed);
         // Find the first matching variable in the context using fold
         // TODO: Handle shadowed variables
@@ -569,11 +616,11 @@ module Composition = {
           };
         let matching_id =
           // First try to find the variable in the universal context (uniquified names)
-          switch (VarMap.lookup(universal_ctx, variable_name)) {
+          switch (VarMap.lookup(universal_ctx, variable)) {
           | Some(id) =>
             print_endline(
               "Found variable '"
-              ++ variable_name
+              ++ variable
               ++ "' in universal context with ID: "
               ++ Id.show(id),
             );
@@ -581,14 +628,14 @@ module Composition = {
           | None =>
             print_endline(
               "Variable '"
-              ++ variable_name
+              ++ variable
               ++ "' not found in universal context, falling back to cursor context",
             );
             // Fall back to the original context lookup
-            switch (Ctx.lookup_var(cursor_ctx, variable_name)) {
+            switch (Ctx.lookup_var(cursor_ctx, variable)) {
             | Some(entry) => Some(entry.id)
             | None =>
-              switch (Ctx.lookup_tvar_id(cursor_ctx, variable_name)) {
+              switch (Ctx.lookup_tvar_id(cursor_ctx, variable)) {
               | Some(id) => Some(id)
               | None => None
               }
@@ -632,6 +679,21 @@ module Composition = {
                      )
                    */
                 // Not a definition binding, recurse
+                | _ => lowest_enclosing_id(rem_ancs)
+                }
+              | Some(Typ(typ)) =>
+                switch (Typ.term_of(typ)) {
+                | Forall(tvar, body) => (
+                    TPat.rep_id(tvar),
+                    Id.invalid,
+                    Typ.rep_id(body),
+                  )
+                | Rec(tvar, body) => (
+                    TPat.rep_id(tvar),
+                    Id.invalid,
+                    Typ.rep_id(body),
+                  )
+                // Not a type variable binding, recurse
                 | _ => lowest_enclosing_id(rem_ancs)
                 }
               | _ => lowest_enclosing_id(rem_ancs)
@@ -691,7 +753,7 @@ module Composition = {
             ]
           }
         };
-      | None =>
+      | (_, _) =>
         switch (edit_action) {
         | Add(loc, code) =>
           switch (loc) {

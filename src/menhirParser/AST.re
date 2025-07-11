@@ -201,7 +201,7 @@ let gen_constructor_ident: (~minimal_idents: bool) => QCheck.Gen.t(string) =
  *
  * @return A QCheck generator for Identifier.
  *
- * ['a'-'z' '_'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
+ * ['a'-'z' '_'] ['a'-'z' 'A'-'Z' '0'-'9' '_' '^']*
  */
 let gen_ident: (~minimal_idents: bool) => QCheck.Gen.t(string) =
   (~minimal_idents) =>

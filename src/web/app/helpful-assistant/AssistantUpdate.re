@@ -1024,13 +1024,19 @@ let update =
         try(
           switch (tool_call.name) {
           | OpenRouter.UpdatePattern =>
-            let (variable_name, new_pattern) =
+            let (variable_name, variable_id, new_pattern) =
               switch (
                 Json.dot("variable_name", tool_call.args),
+                Json.dot("variable_id", tool_call.args),
                 Json.dot("new_pattern", tool_call.args),
               ) {
-              | (Some(`String(variable_name)), Some(`String(new_pattern))) => (
+              | (
+                  Some(`String(variable_name)),
+                  Some(`String(variable_id)),
+                  Some(`String(new_pattern)),
+                ) => (
                   Some(variable_name),
+                  Some(variable_id),
                   new_pattern,
                 )
               | _ =>
@@ -1045,19 +1051,23 @@ let update =
               ~ed=editor,
               ~edit_action=ChatLSP.Composition.UpdatePattern(new_pattern),
               ~variable_name,
+              ~variable_id,
             );
             schedule_action(loop_message);
           | OpenRouter.UpdateDefinition =>
-            let (variable_name, new_definition) =
+            let (variable_name, variable_id, new_definition) =
               switch (
                 Json.dot("variable_name", tool_call.args),
+                Json.dot("variable_id", tool_call.args),
                 Json.dot("new_definition", tool_call.args),
               ) {
               | (
                   Some(`String(variable_name)),
+                  Some(`String(variable_id)),
                   Some(`String(new_definition)),
                 ) => (
                   Some(variable_name),
+                  Some(variable_id),
                   new_definition,
                 )
               | _ =>
@@ -1073,12 +1083,19 @@ let update =
               ~edit_action=
                 ChatLSP.Composition.UpdateDefinition(new_definition),
               ~variable_name,
+              ~variable_id,
             );
             schedule_action(loop_message);
           | OpenRouter.DeleteBinding =>
-            let variable_name =
-              switch (Json.dot("variable_name", tool_call.args)) {
-              | Some(`String(variable_name)) => Some(variable_name)
+            let (variable_name, variable_id) =
+              switch (
+                Json.dot("variable_name", tool_call.args),
+                Json.dot("variable_id", tool_call.args),
+              ) {
+              | (Some(`String(variable_name)), Some(`String(variable_id))) => (
+                  Some(variable_name),
+                  Some(variable_id),
+                )
               | _ =>
                 raise(
                   Failure(
@@ -1091,16 +1108,23 @@ let update =
               ~ed=editor,
               ~edit_action=ChatLSP.Composition.DeleteBinding,
               ~variable_name,
+              ~variable_id,
             );
             schedule_action(loop_message);
           | OpenRouter.UpdateBinding =>
-            let (variable_name, new_binding) =
+            let (variable_name, variable_id, new_binding) =
               switch (
                 Json.dot("variable_name", tool_call.args),
+                Json.dot("variable_id", tool_call.args),
                 Json.dot("new_binding", tool_call.args),
               ) {
-              | (Some(`String(variable_name)), Some(`String(new_binding))) => (
+              | (
+                  Some(`String(variable_name)),
+                  Some(`String(variable_id)),
+                  Some(`String(new_binding)),
+                ) => (
                   Some(variable_name),
+                  Some(variable_id),
                   new_binding,
                 )
               | _ =>
@@ -1115,16 +1139,23 @@ let update =
               ~ed=editor,
               ~edit_action=ChatLSP.Composition.UpdateBinding(new_binding),
               ~variable_name,
+              ~variable_id,
             );
             schedule_action(loop_message);
           | OpenRouter.UpdateBody =>
-            let (variable_name, new_body) =
+            let (variable_name, variable_id, new_body) =
               switch (
                 Json.dot("variable_name", tool_call.args),
+                Json.dot("variable_id", tool_call.args),
                 Json.dot("new_body", tool_call.args),
               ) {
-              | (Some(`String(variable_name)), Some(`String(new_body))) => (
+              | (
+                  Some(`String(variable_name)),
+                  Some(`String(variable_id)),
+                  Some(`String(new_body)),
+                ) => (
                   Some(variable_name),
+                  Some(variable_id),
                   new_body,
                 )
               | _ =>
@@ -1139,38 +1170,45 @@ let update =
               ~ed=editor,
               ~edit_action=ChatLSP.Composition.UpdateBody(new_body),
               ~variable_name,
+              ~variable_id,
             );
             schedule_action(loop_message);
           | OpenRouter.DeleteBody =>
-            let variable_name =
-              switch (Json.dot("variable_name", tool_call.args)) {
-              | Some(`String(variable_name)) => Some(variable_name)
-              | None => None
-              | _ =>
-                raise(
-                  Failure(
-                    "Invalid argument for "
-                    ++ OpenRouter.string_of_structure_action(tool_call.name),
-                  ),
+            let (variable_name, variable_id) =
+              switch (
+                Json.dot("variable_name", tool_call.args),
+                Json.dot("variable_id", tool_call.args),
+              ) {
+              | (Some(`String(variable_name)), Some(`String(variable_id))) => (
+                  Some(variable_name),
+                  Some(variable_id),
                 )
+              | _ => (None, None)
               };
             apply_edit_action(
               ~ed=editor,
               ~edit_action=ChatLSP.Composition.DeleteBody,
               ~variable_name,
+              ~variable_id,
             );
             schedule_action(loop_message);
           | OpenRouter.AddBefore =>
-            let (variable_name, code) =
+            let (variable_name, variable_id, code) =
               switch (
                 Json.dot("variable_name", tool_call.args),
+                Json.dot("variable_id", tool_call.args),
                 Json.dot("code", tool_call.args),
               ) {
-              | (Some(`String(variable_name)), Some(`String(code))) => (
+              | (
+                  Some(`String(variable_name)),
+                  Some(`String(variable_id)),
+                  Some(`String(code)),
+                ) => (
                   Some(variable_name),
+                  Some(variable_id),
                   code,
                 )
-              | (_, Some(`String(code))) => (None, code)
+              | (_, _, Some(`String(code))) => (None, None, code)
               | _ =>
                 raise(
                   Failure(
@@ -1183,19 +1221,26 @@ let update =
               ~ed=editor,
               ~edit_action=ChatLSP.Composition.Add(Before, code),
               ~variable_name,
+              ~variable_id,
             );
             schedule_action(loop_message);
           | OpenRouter.AddAfter =>
-            let (variable_name, code) =
+            let (variable_name, variable_id, code) =
               switch (
                 Json.dot("variable_name", tool_call.args),
+                Json.dot("variable_id", tool_call.args),
                 Json.dot("code", tool_call.args),
               ) {
-              | (Some(`String(variable_name)), Some(`String(code))) => (
+              | (
+                  Some(`String(variable_name)),
+                  Some(`String(variable_id)),
+                  Some(`String(code)),
+                ) => (
                   Some(variable_name),
+                  Some(variable_id),
                   code,
                 )
-              | (_, Some(`String(code))) => (None, code)
+              | (_, _, Some(`String(code))) => (None, None, code)
               | _ =>
                 raise(
                   Failure(
@@ -1208,6 +1253,7 @@ let update =
               ~ed=editor,
               ~edit_action=ChatLSP.Composition.Add(After, code),
               ~variable_name,
+              ~variable_id,
             );
             schedule_action(loop_message);
           | OpenRouter.InvalidStructureAction =>

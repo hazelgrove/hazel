@@ -159,7 +159,7 @@ let undefined = "undefined";
 let is_undefined = match(regexp("^" ++ undefined ++ "$"));
 
 let is_livelit = str => {
-  let re = regexp("^(\\^)([a-z][A-Za-z0-9_]*)$");
+  let re = regexp("^(\\^)([a-z][A-Za-z0-9_^]*)$");
   let result = match(re, str);
   result;
 };
@@ -172,7 +172,7 @@ let parse_livelit = (str): string =>
 
 let var_regexp =
   regexp(
-    {|(^[a-z_][A-Za-z0-9_']*$)|(^[A-Z][A-Za-z0-9_']*\.[a-z][A-Za-z0-9_']*$)|},
+    {|(^[a-z_][A-Za-z0-9_^']*$)|(^[A-Z][A-Za-z0-9_^']*\.[a-z][A-Za-z0-9_^']*$)|},
   );
 let is_var = str =>
   !is_bool(str)
@@ -180,7 +180,7 @@ let is_var = str =>
   && !is_livelit(str)
   && str != "_"
   && match(var_regexp, str);
-let capitalized_name_regexp = regexp("^[A-Z][A-Za-z0-9_]*$");
+let capitalized_name_regexp = regexp("^[A-Z][A-Za-z0-9_^]*$");
 let is_ctr = match(capitalized_name_regexp);
 let base_typs = ["String", "Int", "Float", "Bool"];
 let is_base_typ =
