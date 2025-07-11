@@ -330,22 +330,6 @@ let rec vars = (ty: t): list(Var.t) =>
   | TupLabel(_, ty) => vars(ty)
   };
 
-let rec aliases_deep = (ctx: Ctx.t, ty: t): list((string, t)) => {
-  let defs =
-    ListUtil.flat_map(
-      var =>
-        switch (Ctx.lookup_alias(ctx, var)) {
-        | Some(ty) => [(var, ty)]
-        | None => [(var, fresh(Unknown(Internal)))]
-        },
-      vars(ty),
-    )
-    |> List.sort_uniq(((x, _), (y, _)) => compare(x, y));
-  let rec_calls =
-    ListUtil.flat_map(((_, ty')) => aliases_deep(ctx, ty'), defs);
-  rec_calls @ defs;
-};
-
 let var_count = ref(0);
 let fresh_var = (var_name: string) => {
   let x = var_count^;
