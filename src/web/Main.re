@@ -186,7 +186,7 @@ let start = {
   };
   let%sub () = Bonsai.Edge.after_display(after_display);
 
-  Iframe.init_iframe();
+  Haz3lcore.Iframe.init_iframe();
 
   // View function
   let%arr app_model = app_model

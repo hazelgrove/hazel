@@ -179,3 +179,83 @@ let mk_diff = (auto_seg1: t, auto_seg2: t): diff => {
 
   deletions @ insertions_and_updates;
 };
+
+/**
+ * Converts an AutoSeg.diff to Delta.EditScript.t
+ * Maps:
+ * - Insert(id, segment) to Delta.EditOp.t with `U_s3_Insert variant
+ * - Delete(id) to Delta.EditOp.t with `U_s1_Delete variant
+ */
+let diff_to_ts = (diff: diff): Delta.EditScript.t => {
+  // Convert a single tile to Delta.Tile.t
+  let convert_tile = (tile: tile): Delta.Tile.t => {
+    // Create Delta Nibs for the Mold
+    let create_nib = () => {
+      Delta.Nib.create(~shape=`L_s0_Convex, ~sort=`L_s2_Exp, ());
+    };
+
+    // Convert Mold
+    let convert_mold = (mold: Mold.t): Delta.Mold.t => {
+      Delta.Mold.create(
+        ~out=`L_s2_Exp,
+        ~in_=List.map(_ => `L_s2_Exp, mold.in_),
+        ~nibs=(create_nib(), create_nib()),
+        (),
+      );
+    };
+
+    // Create Delta Tile
+    Delta.Tile.create(
+      ~t=`L_s4_Tile,
+      ~id=Id.to_string(tile.id),
+      ~label=tile.label,
+      ~mold=convert_mold(tile.mold),
+      ~shards=List.map(float_of_int, tile.shards),
+      ~children=[], // Simplifying by not handling children recursively
+      (),
+    );
+  };
+
+  // Convert a segment to a list of Delta Tiles
+  let convert_segment = (segment: segment): list(Delta.Tile.t) => {
+    List.fold_left(
+      (acc, piece) => {
+        switch (piece) {
+        | Tile(tile) => [convert_tile(tile), ...acc]
+        | _ => acc // Skip Grout and Secondary pieces
+        }
+      },
+      [],
+      segment,
+    )
+    |> List.rev;
+  };
+
+  // Map each change to a Delta EditOp
+  List.map(
+    (change: change) => {
+      switch (change) {
+      | Insert(id, segment) =>
+        `U_s3_Insert(
+          Delta.InsertOp.create(
+            ~t=`L_s3_Insert,
+            ~uuid=Id.to_string(id.uuid),
+            ~index=float_of_int(id.index),
+            ~tiles=convert_segment(segment),
+            (),
+          ),
+        )
+      | Delete(id) =>
+        `U_s1_Delete(
+          Delta.DeleteOp.create(
+            ~t=`L_s1_Delete,
+            ~uuid=Id.to_string(id.uuid),
+            ~index=float_of_int(id.index),
+            (),
+          ),
+        )
+      }
+    },
+    diff,
+  );
+};

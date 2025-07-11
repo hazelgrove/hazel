@@ -15,12 +15,6 @@
  (preprocess
   (pps ppx_yojson_conv ppx_sexp_conv ppx_deriving.show)))
 
-(rule
- (targets MessageTypes.ml)
- (deps MessageTypes.mli)
- (action
-  (run %{bin:gen_js_api} %{deps})))
-
 (library
  (name web)
  (instrumentation

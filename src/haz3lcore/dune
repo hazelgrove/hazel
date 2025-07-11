@@ -1,8 +1,20 @@
 (include_subdirs unqualified)
 
+(rule
+ (targets Delta.ml)
+ (deps Delta.mli)
+ (action
+  (run %{bin:gen_js_api} %{deps})))
+
+(rule
+ (targets MessageTypes.ml)
+ (deps MessageTypes.mli)
+ (action
+  (run %{bin:gen_js_api} %{deps})))
+
 (library
  (name haz3lcore)
- (libraries language)
+ (libraries language ts2ocaml-jsoo-stdlib)
  (js_of_ocaml)
  (instrumentation
   (backend bisect_ppx))
