@@ -1,6 +1,5 @@
 open Js_of_ocaml;
 open MessageTypes;
-open Util;
 
 let send_to_parent = (message: Ojs.t) => {
   Js.Unsafe.fun_call(
