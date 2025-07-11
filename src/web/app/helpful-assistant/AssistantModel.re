@@ -105,8 +105,9 @@ type init_prompt_data = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   current_chats,
+  //
   chat_history,
-  // This our information for 
+  // Information for OpenRouter API
   external_api_info,
   // Loading in and parsing the prompts is an expensive operation, so we perform this eagerly,
   // before the user sends their first request. This is currently done when the user sets an API key.
@@ -142,7 +143,7 @@ let mk_mode_prompt = (~mode: AssistantSettings.mode): OpenRouter.message => {
     switch (mode) {
     | HazelTutor => InitPrompts.mk_tutor()
     | CodeSuggestion =>
-      ChatLSP.Completion.mk_const_prompt(
+      AssistantMode.Completion.mk_const_prompt(
         ChatLSP.Options.init,
         "code_suggestion",
         false,

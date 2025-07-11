@@ -663,7 +663,7 @@ let update =
             HandleResponse(
               CompositionLoopRound(
                 editor,
-                ChatLSP.Composition.max_tool_calls,
+                AssistantMode.Composition.max_tool_calls,
               ),
               response,
               chat_id,
@@ -675,7 +675,10 @@ let update =
 
         | Loop(fuel, tool_contents) =>
           let ctx =
-            ChatLSP.Composition.mk_ctx_prompt(ChatLSP.Options.init, editor);
+            AssistantMode.Composition.mk_ctx_prompt(
+              ChatLSP.Options.init,
+              editor,
+            );
 
           let ctx_message: Model.message = {
             content: OpenRouter.mk_tool_msg(ctx.content, tool_contents),
@@ -741,7 +744,7 @@ let update =
                 );
               let* index = Indicated.index(editor.editor.state.zipper);
               let+ ci = Id.Map.find_opt(index, editor.statics.info_map);
-              ChatLSP.Completion.mk_ctx_prompt(
+              AssistantMode.Completion.mk_ctx_prompt(
                 ChatLSP.Options.init,
                 ci,
                 sketch_seg,
@@ -996,7 +999,7 @@ let update =
         schedule_action(
           InternalError(
             "By default, we stop the agent after "
-            ++ string_of_int(ChatLSP.Composition.max_tool_calls)
+            ++ string_of_int(AssistantMode.Composition.max_tool_calls)
             ++ " tool calls.",
             mode,
             chat_id,
@@ -1018,7 +1021,7 @@ let update =
             chat_id,
           );
         let apply_edit_action =
-          ChatLSP.Composition.apply_edit_action(
+          AssistantMode.Composition.apply_edit_action(
             ~schedule_action=schedule_editor_action,
           );
         try(
@@ -1049,7 +1052,8 @@ let update =
               };
             apply_edit_action(
               ~ed=editor,
-              ~edit_action=ChatLSP.Composition.UpdatePattern(new_pattern),
+              ~edit_action=
+                AssistantMode.Composition.UpdatePattern(new_pattern),
               ~variable_name,
               ~variable_id,
             );
@@ -1081,7 +1085,7 @@ let update =
             apply_edit_action(
               ~ed=editor,
               ~edit_action=
-                ChatLSP.Composition.UpdateDefinition(new_definition),
+                AssistantMode.Composition.UpdateDefinition(new_definition),
               ~variable_name,
               ~variable_id,
             );
@@ -1106,7 +1110,7 @@ let update =
               };
             apply_edit_action(
               ~ed=editor,
-              ~edit_action=ChatLSP.Composition.DeleteBinding,
+              ~edit_action=AssistantMode.Composition.DeleteBinding,
               ~variable_name,
               ~variable_id,
             );
@@ -1137,7 +1141,8 @@ let update =
               };
             apply_edit_action(
               ~ed=editor,
-              ~edit_action=ChatLSP.Composition.UpdateBinding(new_binding),
+              ~edit_action=
+                AssistantMode.Composition.UpdateBinding(new_binding),
               ~variable_name,
               ~variable_id,
             );
@@ -1168,7 +1173,7 @@ let update =
               };
             apply_edit_action(
               ~ed=editor,
-              ~edit_action=ChatLSP.Composition.UpdateBody(new_body),
+              ~edit_action=AssistantMode.Composition.UpdateBody(new_body),
               ~variable_name,
               ~variable_id,
             );
@@ -1187,7 +1192,7 @@ let update =
               };
             apply_edit_action(
               ~ed=editor,
-              ~edit_action=ChatLSP.Composition.DeleteBody,
+              ~edit_action=AssistantMode.Composition.DeleteBody,
               ~variable_name,
               ~variable_id,
             );
@@ -1219,7 +1224,7 @@ let update =
               };
             apply_edit_action(
               ~ed=editor,
-              ~edit_action=ChatLSP.Composition.Add(Before, code),
+              ~edit_action=AssistantMode.Composition.Add(Before, code),
               ~variable_name,
               ~variable_id,
             );
@@ -1251,7 +1256,7 @@ let update =
               };
             apply_edit_action(
               ~ed=editor,
-              ~edit_action=ChatLSP.Composition.Add(After, code),
+              ~edit_action=AssistantMode.Composition.Add(After, code),
               ~variable_name,
               ~variable_id,
             );
@@ -1339,7 +1344,9 @@ let update =
           ("", content |> StringUtil.trim_leading); // Fallback if no code block found
         };
 
-      switch (ChatLSP.ErrorRound.mk_reply(ci, sketch_z, completion)) {
+      switch (
+        AssistantMode.Completion.ErrorRound.mk_reply(ci, sketch_z, completion)
+      ) {
       | None =>
         print_endline("ERROR ROUNDS (Non-error Response): " ++ completion);
         schedule_action(
@@ -1364,7 +1371,7 @@ let update =
     |> Updated.return_quiet;
   | EmployLLMAction(action) =>
     let add_suggestion =
-      ChatLSP.Completion.add_suggestion(
+      AssistantMode.Completion.add_suggestion(
         ~schedule_action=schedule_editor_action,
       );
     switch (action) {
