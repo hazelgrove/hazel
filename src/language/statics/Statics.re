@@ -116,6 +116,42 @@ let is_recursive = (ctx, p, def, syn: Typ.t) => {
   };
 };
 
+
+let rec synth_kind = (~ctx: Ctx.t, t: Typ.t): Ctx.kind =>
+  switch (t.term) {
+  | Var(name) =>
+    switch (Ctx.lookup_tvar(ctx, name)) {
+    | Some(k) => k
+    | None => Ctx.Abstract
+    }
+  | Arrow(t1, t2) =>
+    let k1 = synth_kind(~ctx, t1);
+    let k2 = synth_kind(~ctx, t2);
+    Ctx.Arr(k1, k2)
+  | Prod(ts) =>
+    List.fold_right(
+      (t, acc) => {
+        let k = synth_kind(~ctx, t);
+        Ctx.Prod(k, acc);
+      },
+      ts,
+      Ctx.Abstract,
+    )
+  | Ap(t1, t2) =>
+    switch (synth_kind(~ctx, t1)) {
+    | Ctx.Arr(k_arg, k_res) =>
+      let k2 = synth_kind(~ctx, t2);
+      if (k_arg == k2) {
+        k_res
+      } else {
+        Ctx.Abstract // Mismatched context
+      }
+    | _ => Ctx.Abstract
+    }
+   // FIXME: implement more cases later
+  | _ => Ctx.Abstract
+  };
+
 let syn = Unknown(SynSwitch) |> Typ.temp;
 
 let rec any_to_info_map =
@@ -1755,15 +1791,17 @@ and utyp_to_info_map =
     add'(~expects=TypeExpected, m);
   | Label(_) => add(m)
   | Ap(t1, t2) =>
+  // Flag, Insert checking application here
+
     let t1_mode: Info.typ_expects =
       switch (expects) {
       | VariantExpected(m, sum_ty) =>
-        ConstructorExpected(m, Arrow(t2, sum_ty) |> Typ.temp)
+          ConstructorExpected(m, Arrow(t2, sum_ty) |> Typ.temp)
       | _ =>
-        ConstructorExpected(
-          Unique,
-          Arrow(t2, Unknown(Internal) |> Typ.temp) |> Typ.temp,
-        )
+          ConstructorExpected(
+            Unique,
+            Arrow(t2, Unknown(Internal) |> Typ.temp) |> Typ.temp,
+          )
       };
     let m = go'(~expects=t1_mode, t1, m) |> snd;
     let m = go'(~expects=TypeExpected, t2, m) |> snd;
