@@ -78,10 +78,10 @@ let import = (data: string): unit =>
     }
   );
 
-let update = (action: Page.Update.t, result: Updated.t('a)): unit =>
+let update = (action: Page.Update.t, result: Updated.t('a)): unit => {
   if (result.logged) {
-    JsUtil.add_toast(Page.Update.show(action));
     Entry.save(Entry.mk(action));
   };
+};
 let get_and = (f: string => unit): unit =>
   DB.get_all(entries => f("(" ++ String.concat(" ", entries) ++ ")"));
