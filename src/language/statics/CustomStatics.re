@@ -551,8 +551,7 @@ let drop_labels_statics =
         );
 
       add'(
-        ~self=
-          Common(Just(IdTagged.FreshGrammar.Typ.(list(prod(entries))))),
+        ~self=Common(Just(IdTagged.FreshGrammar.Typ.(prod(entries)))),
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
         m,
       );

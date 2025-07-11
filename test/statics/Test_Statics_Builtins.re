@@ -1144,22 +1144,20 @@ module DropLabels = {
     fully_consistent_typecheck(
       "Drop labels with some labels",
       {|drop_labels((a=1, b=2.0, true, d=""))|},
-      Some(list(prod([int(), float(), bool(), string()]))),
+      Some(prod([int(), float(), bool(), string()])),
     ),
     fully_consistent_typecheck(
       "Drop labels with type alias and autolabels",
       {|type Entry =(name=String, age=Int, quiz1=Int, quiz2=Int, midterm=Int, quiz3=Int, quiz4=Int, final=Int) in
         drop_labels(("bob",   12, 8, 9, 77, 7, 9, 87) : Entry)|},
       Some(
-        list(
-          prod([string(), int(), int(), int(), int(), int(), int(), int()]),
-        ),
+        prod([string(), int(), int(), int(), int(), int(), int(), int()]),
       ),
     ),
     test_case("Drop labels operation with no labels", `Quick, () =>
       annotated_tree_test(
         "drop_labels(1, 2)",
-        list(prod([int(), int()])),
+        prod([int(), int()]),
         FIError.Exp.(
           ap(Forward, var("drop_labels"), tuple([int(1), int(2)]))
         ),
@@ -1191,7 +1189,7 @@ module DropLabels = {
       "Drop labels operation with hole in tuple label position", `Quick, () =>
       annotated_tree_test(
         "drop_labels((?=1, b=2, c=3))",
-        list(prod([int(), int(), int()])),
+        prod([int(), int(), int()]),
         FIError.Exp.(
           ap(
             Forward,
