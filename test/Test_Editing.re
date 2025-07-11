@@ -677,12 +677,46 @@ let selection_tests = [
       mk({|let x = 1 in (x, 1,¦ ?)|}) @ [Action.Select(Term(Current))],
     ~goal={|let x = 1 in §(x, 1, ?)¦|},
   ),
-  // test(
-  //   ~name="Move to left from selection",
-  //   ~acts=
-  //     mk({|¦(1,2,3,4,5)|}) @ [Action.Select(Term(Current))] @ mv_l(1),
-  //   ~goal={|¦(1,2,3,4,5)|},
-  // ),
+  test(
+    ~name="Move to left from selection starting at left",
+    ~acts=
+      mk({|¦(1,2,3,4,5)|}) @ [Action.Select(Term(Current))] @ mv_l(1),
+    ~goal={|¦(1,2,3,4,5)|},
+  ),
+  test(
+    ~name="Move to left from selection starting at right",
+    ~acts=
+      mk({|(1,2,3,4,5)¦|}) @ [Action.Select(Term(Current))] @ mv_l(1),
+    ~goal={|¦(1,2,3,4,5)|},
+  ),
+  test(
+    ~name="Move to right from selection starting at right",
+    ~acts=
+      mk({|(1,2,3,4,5)¦|}) @ [Action.Select(Term(Current))] @ mv_r(1),
+    ~goal={|(1,2,3,4,5)¦|},
+  ),
+  test(
+    ~name="Move to right from selection starting at right",
+    ~acts=
+      mk({|¦(1,2,3,4,5)|}) @ [Action.Select(Term(Current))] @ mv_r(1),
+    ~goal={|(1,2,3,4,5)¦|},
+  ),
+  test(
+    ~name="Move right by token from selection",
+    ~acts=
+      mk({|(1, ¦(2, 3), 4, 5)|})
+      @ [Action.Select(Term(Current))]
+      @ mv_r_token(1),
+    ~goal={|(1, (2, 3),¦ 4, 5)|},
+  ),
+  test(
+    ~name="Move left by token from selection",
+    ~acts=
+      mk({|(1, (2, 3)¦, 4, 5)|})
+      @ [Action.Select(Term(Current))]
+      @ mv_l_token(1),
+    ~goal={|(1,¦ (2, 3), 4, 5)|},
+  ),
 ];
 
 let tests = [
