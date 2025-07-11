@@ -305,7 +305,19 @@ let get_content =
         ],
       ),
     )
-  | "Tuples" => Some(slide("Tuples", []))
+  | "Tuples" =>
+    Some(
+      slide(
+        "Tuples",
+        [
+          p([
+            text(
+              "Tuples are ordered collections of values that can optionally include labels for some or all elements. Labels enable more expressive programming by allowing access via name rather than position, and Hazel supports a flexible mix of labeled and unlabeled elements within the same tuple.",
+            ),
+          ]),
+        ],
+      ),
+    )
   | "Pattern Matching on Tuples" =>
     Some(slide("Pattern Matching on Tuples", []))
   | "Recursion" => Some(slide("Recursion", []))
