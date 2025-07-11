@@ -1,7 +1,7 @@
 open Sexplib.Std;
 open Ppx_yojson_conv_lib.Yojson_conv;
 // invariant: List.length(as) == List.length(bs) + 1
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t('a, 'b) = (list('a), list('b));
 
 let mk = (as_: list('a), bs: list('b)): t('a, 'b) => {
@@ -47,6 +47,19 @@ let rec aba_triples = (aba: t('a, 'b)): list(('a, 'b, 'a)) =>
     ]
   | _ => []
   };
+let rec bab_triples' =
+        (b1: option('b), aba: t('a, 'b))
+        : list((option('b), 'a, option('b))) =>
+  switch (aba) {
+  | ([a, ...as_], [b2, ...bs]) => [
+      (b1, a, Some(b2)),
+      ...bab_triples'(Some(b2), (as_, bs)),
+    ]
+  | ([a], []) => [(b1, a, None)]
+  | _ => []
+  };
+let bab_triples: t('a, 'b) => list((option('b), 'a, option('b))) =
+  aba => bab_triples'(None, aba);
 
 let map_a = (f_a: 'a => 'c, (as_, bs): t('a, 'b)): t('c, 'b) => (
   List.map(f_a, as_),
@@ -61,6 +74,18 @@ let map_abas =
   as_,
   List.map(f_aba, aba_triples(aba)),
 );
+let map_hd = (f_a: 'a => 'a, (as_, bs): t('a, 'b)): t('a, 'b) => (
+  [as_ |> List.hd |> f_a, ...as_ |> List.tl],
+  bs,
+);
+
+let pop = ((as_, bs): t('a, 'b)): option(('a, 'b, t('a, 'b))) =>
+  switch (bs) {
+  | [] => None
+  | [b, ...bs] =>
+    let (a, as_) = ListUtil.split_first(as_);
+    Some((a, b, mk(as_, bs)));
+  };
 
 let trim = ((as_, bs): t('a, 'b)): option(('a, t('b, 'a), 'a)) =>
   switch (bs) {

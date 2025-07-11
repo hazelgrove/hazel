@@ -8,13 +8,6 @@ type t =
   | Bin(t, root, t)
 and root = Aba.t(int, t);
 
-// let rec size =
-//   fun
-//   | Op(_) => 1
-//   | Pre(_, r) => 1 + size(r)
-//   | Post(l, _) => size(l) + 1
-//   | Bin(l, _, r) => size(l) + 1 + size(r);
-
 // TODO(d): rename to reflect aba
 let root =
   fun
@@ -22,36 +15,6 @@ let root =
   | Pre(r, _)
   | Post(_, r)
   | Bin(_, r, _) => r;
-
-// let children =
-//   fun
-//   | Op(_) => []
-//   | Pre(_, skel) => [(Direction.Right, skel)]
-//   | Post(skel, _) => [(Left, skel)]
-//   | Bin(l, _, r) => [(Left, l), (Right, r)];
-
-// returns inclusive lower bound, exclusive upper bound
-// let rec range =
-//   fun
-//   | Op(n) => (n, n + 1)
-//   | Pre(n, r) => (n, snd(range(r)))
-//   | Post(l, n) => (fst(range(l)), n + 1)
-//   | Bin(l, _, r) => (fst(range(l)), snd(range(r)));
-
-// let rec skel_at = (n, skel) =>
-//   switch (skel) {
-//   | Op(m) => n == m ? skel : raise(Invalid_argument("Skel.skel_at"))
-//   | Pre(m, r) => n == m ? skel : skel_at(n, r)
-//   | Post(l, m) => n == m ? skel : skel_at(n, l)
-//   | Bin(l, m, r) =>
-//     if (n < m) {
-//       skel_at(n, l);
-//     } else if (n > m) {
-//       skel_at(n, r);
-//     } else {
-//       skel;
-//     }
-//   };
 
 exception Input_contains_secondary;
 exception Nonconvex_segment;
@@ -78,16 +41,28 @@ let rel = (p1: Piece.t, p2: Piece.t): option(rel) =>
     | Convex => Some(Lt)
     | Concave => Some(Gt)
     }
+  | (Projector(_), _) => None
+  | (_, Projector(_)) => None
   | (Tile(t1), Tile(t2)) =>
-    open Labels;
     let lbl1 = (==)(t1.label);
     let lbl2 = (==)(t2.label);
+    //TODO: unhardcode
+    let comma = [","];
+    let case = ["case", "end"];
+    let rule = ["|", "=>"];
+    let plus = ["+"];
     let eq =
       [
         lbl1(case) && lbl2(rule),
         lbl1(rule) && lbl2(rule),
-        lbl1(comma) && lbl2(comma) && t1.mold == t2.mold,
-        lbl1(["+"]) && lbl2(["+"]) && t1.mold == t2.mold,
+        lbl1(comma)
+        && lbl2(comma)
+        && Mold.is_infix_op(t1.mold)
+        && Mold.is_infix_op(t2.mold),
+        lbl1(plus)
+        && lbl2(plus)
+        && Mold.is_infix_op(t1.mold)
+        && Mold.is_infix_op(t2.mold),
       ]
       |> List.fold_left((||), false);
     if (eq) {
@@ -128,7 +103,10 @@ module Stacks = {
     shunted: list(ip),
   };
 
-  let empty = {output: [], shunted: []};
+  let empty = {
+    output: [],
+    shunted: [],
+  };
 
   let rec pop_chain =
           (~popped=[], shunted: list(ip)): (list(ip), list(ip)) =>
@@ -171,9 +149,7 @@ module Stacks = {
       let is = List.map(fst, chain);
       let split_kids = n =>
         try(ListUtil.split_n(n, stacks.output) |> PairUtil.map_fst(List.rev)) {
-        | _ =>
-          print_endline(show(stacks));
-          failwith("Skel.push_output: split_kids: index out of bounds");
+        | _ => failwith("Skel.push_output: split_kids: index out of bounds")
         };
       let output =
         switch (l, r) {
@@ -194,7 +170,13 @@ module Stacks = {
           let (kids, r) = ListUtil.split_last(kids);
           [Bin(l, Aba.mk(is, kids), r), ...output];
         };
-      push_output(~prec?, {shunted, output});
+      push_output(
+        ~prec?,
+        {
+          shunted,
+          output,
+        },
+      );
     };
   };
 
@@ -205,7 +187,10 @@ module Stacks = {
       | Convex => stacks
       | Concave(prec) => push_output(~prec, stacks)
       };
-    {...stacks, shunted: [ip, ...stacks.shunted]};
+    {
+      ...stacks,
+      shunted: [ip, ...stacks.shunted],
+    };
   };
 
   let finish = stacks => push_output(stacks);

@@ -1,1 +1,0 @@
-include TypBase.Kind;

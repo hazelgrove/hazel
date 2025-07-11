@@ -1,0 +1,87 @@
+/* LOADING: This shows before the app is loaded */
+
+#container {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  width: 100vw;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background-color: var(--ui-bkg);
+  color: var(--G0);
+  font-size: 1.4em;
+}
+
+#container .loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5em;
+}
+
+#container .loading .spinner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+@keyframes initial-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(-1440deg);
+  }
+}
+
+@keyframes continuous-spin {
+  from {
+    transform: rotate(-1440deg);
+  }
+  to {
+    transform: rotate(-1800deg);
+  }
+}
+
+#container .loading .spinner img {
+  width: 1.2em;
+  /* animation: initial-spin 0.7s linear, continuous-spin 0.9s linear 0.7s infinite; */
+  animation: rotation 0.75s linear infinite;
+  animation-direction: reverse;
+}
+
+#container .loading .spinner .nut-container {
+  background-color: var(--nut-menu);
+  border-radius: 10em;
+  width: 2em;
+  height: 2em;
+  position: fixed;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.loader {
+  width: 80px;
+  height: 80px;
+  border: 9px solid var(--G0);
+  border-bottom-color: transparent;
+  border-radius: 50%;
+  display: inline-block;
+  box-sizing: border-box;
+  /* animation: initial-spin 0.7s linear reverse,
+    continuous-spin 8s linear 0.7s infinite reverse; */
+  animation: rotation 8s linear infinite;
+}
+
+@keyframes rotation {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}

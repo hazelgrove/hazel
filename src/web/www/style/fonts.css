@@ -1,0 +1,37 @@
+@font-face {
+  font-family: "Helvetica Neue";
+  font-style: normal;
+  font-weight: normal;
+  src: url("fonts/HelveticaNeue-Regular.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Helvetica Neue";
+  font-style: normal;
+  font-weight: bold;
+  src: url("fonts/HelveticaNeue-Bold.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Source Code Pro";
+  font-weight: normal;
+  font-style: normal;
+  font-stretch: normal;
+  src: url("fonts/SourceCodePro-Regular.otf.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Source Code Pro";
+  font-weight: bold;
+  font-style: normal;
+  font-stretch: normal;
+  src: url("fonts/SourceCodePro-Bold.otf.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Source Code Pro";
+  font-weight: 900;
+  font-style: normal;
+  font-stretch: normal;
+  src: url("fonts/SourceCodePro-Black.otf.woff2") format("woff2");
+}

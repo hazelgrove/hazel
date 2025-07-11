@@ -1,12 +1,15 @@
 open Util;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = {
   siblings: Siblings.t,
   ancestors: Ancestors.t,
 };
 
-let empty = {siblings: Siblings.empty, ancestors: Ancestors.empty};
+let empty = {
+  siblings: Siblings.empty,
+  ancestors: Ancestors.empty,
+};
 
 let push = (d: Direction.t, p: Piece.t, rs: t): t => {
   ...rs,
@@ -15,12 +18,22 @@ let push = (d: Direction.t, p: Piece.t, rs: t): t => {
 
 let prepend = (d: Direction.t, seg: Segment.t, rs: t): t => {
   let siblings = Siblings.prepend(d, seg, rs.siblings);
-  {...rs, siblings};
+  {
+    ...rs,
+    siblings,
+  };
 };
 
 let pop = (d: Direction.t, rs: t): option((Piece.t, t)) =>
   switch (Siblings.pop(d, rs.siblings)) {
-  | Some((p, siblings)) => Some((p, {...rs, siblings}))
+  | Some((p, siblings)) =>
+    Some((
+      p,
+      {
+        ...rs,
+        siblings,
+      },
+    ))
   | None =>
     switch (rs.ancestors) {
     | [] => None
@@ -29,7 +42,13 @@ let pop = (d: Direction.t, rs: t): option((Piece.t, t)) =>
       let siblings' = Ancestor.disassemble(ancestor);
       let+ (p, siblings) =
         Siblings.(pop(d, concat([rs.siblings, siblings', siblings])));
-      (p, {siblings, ancestors});
+      (
+        p,
+        {
+          siblings,
+          ancestors,
+        },
+      );
     }
   };
 
@@ -56,7 +75,10 @@ let parent =
 
 let delete_parent = ({siblings, ancestors}: t): t => {
   switch (ancestors) {
-  | [] => {siblings, ancestors}
+  | [] => {
+      siblings,
+      ancestors,
+    }
   | [(_, p_sibs), ...ancestors] => {
       siblings: Siblings.concat([siblings, p_sibs]),
       ancestors,
@@ -64,13 +86,13 @@ let delete_parent = ({siblings, ancestors}: t): t => {
   };
 };
 
-let disassemble = ({siblings, ancestors}: t): Siblings.t =>
-  Siblings.concat([siblings, Ancestors.disassemble(ancestors)]);
-
 let remold = ({siblings, ancestors}: t): t => {
   let s = Ancestors.sort(ancestors);
   let siblings = Siblings.remold(siblings, s);
-  {ancestors, siblings};
+  {
+    ancestors,
+    siblings,
+  };
 };
 
 let regrout = (d: Direction.t, {siblings, ancestors}: t): t => {
@@ -117,26 +139,11 @@ let regrout = (d: Direction.t, {siblings, ancestors}: t): t => {
     };
     (pre @ trim_l, trim_r @ suf);
   };
-  {siblings, ancestors};
+  {
+    siblings,
+    ancestors,
+  };
 };
-
-let prepend_generation = ((a, sibs): Ancestors.generation, rs: t): t => {
-  siblings: Siblings.empty,
-  ancestors: [(a, Siblings.concat([sibs, rs.siblings])), ...rs.ancestors],
-};
-let prepend_siblings = (sibs: Siblings.t, rs: t): t => {
-  ...rs,
-  siblings: Siblings.concat([sibs, rs.siblings]),
-};
-
-let concat = (rss: list(t)): t =>
-  List.fold_right(
-    (rs: t, cat: t) =>
-      List.fold_right(prepend_generation, rs.ancestors, cat)
-      |> prepend_siblings(rs.siblings),
-    rss,
-    empty,
-  );
 
 let reassemble_parent = (rs: t): t =>
   switch (rs.ancestors) {
@@ -180,7 +187,10 @@ let reassemble_parent = (rs: t): t =>
         };
         (a, inner_r);
       };
-    {siblings: (l, r), ancestors: [(a, sibs), ...ancs]};
+    {
+      siblings: (l, r),
+      ancestors: [(a, sibs), ...ancs],
+    };
   };
 
 let reassemble_siblings = (rs: t) => {
@@ -201,77 +211,35 @@ let reassemble = (rs: t): t => {
       | (_, None) => failwith("impossible")
       | (None, Some((inner_r, match_r, outer_r))) =>
         let {siblings: (pre, suf), ancestors} =
-          go({...rs, siblings: (fst(rs.siblings), outer_r)});
+          go({
+            ...rs,
+            siblings: (fst(rs.siblings), outer_r),
+          });
         let t = Tile.reassemble(match_r);
         let suf = Segment.concat([inner_r, [Tile.to_piece(t), ...suf]]);
-        {siblings: (pre, suf), ancestors};
+        {
+          siblings: (pre, suf),
+          ancestors,
+        };
       | (
           Some((outer_l, match_l, inner_l)),
           Some((inner_r, match_r, outer_r)),
         ) =>
-        let rs = go({...rs, siblings: (outer_l, outer_r)});
+        let rs =
+          go({
+            ...rs,
+            siblings: (outer_l, outer_r),
+          });
         let ancestors = [
           (Ancestor.reassemble(match_l, match_r), rs.siblings),
           ...rs.ancestors,
         ];
         let siblings = (inner_l, inner_r);
-        {ancestors, siblings};
+        {
+          ancestors,
+          siblings,
+        };
       }
     };
   rs |> reassemble_siblings |> reassemble_parent |> go;
 };
-
-// let rec reassemble = (rs: t): t => {
-//   let siblings = Siblings.reassemble(rs.siblings);
-//   switch (Siblings.incomplete_tiles(siblings)) {
-//   | ([], _)
-//   | (_, []) => {...rs, siblings}
-//   | ([_, ..._], [t, ..._]) =>
-//     switch (
-//       siblings
-//       |> Siblings.split_by_matching(t.id)
-//       |> TupleUtil.map2(Aba.trim)
-//     ) {
-//     | (None, None) => {...rs, siblings}
-//     | (None, Some((inner_r, match_r, outer_r))) =>
-//       let {siblings: (l, r), ancestors} =
-//         reassemble({...rs, siblings: (fst(siblings), outer_r)});
-//       {
-//         siblings: (
-//           l,
-//           Segment.concat([inner_r, Ancestor.Match.Suffix.join(match_r), r]),
-//         ),
-//         ancestors,
-//       };
-//     | (Some((inner_l, match_l, outer_l)), None) =>
-//       let {siblings: (l, r), ancestors} =
-//         reassemble({...rs, siblings: (outer_l, snd(rs.siblings))});
-//       {
-//         siblings: (
-//           Segment.concat([inner_l, Ancestor.Match.Suffix.join(match_l), l]),
-//           r,
-//         ),
-//         ancestors,
-//       };
-//     | (Some((inner_l, match_l, outer_l)), Some((inner_r, match_r, outer_r))) =>
-//       let match = (match_l, match_r);
-//       let rs_inner =
-//         switch (Ancestor.Match.complete(match)) {
-//         | None => {
-//             siblings:
-//               Siblings.concat([
-//                 (inner_l, inner_r),
-//                 Ancestor.Match.join(match),
-//               ]),
-//             ancestors: Ancestors.empty,
-//           }
-//         | Some(a) => {
-//             siblings: (inner_l, inner_r),
-//             ancestors: [(a, Siblings.empty)],
-//           }
-//         };
-//       let rs_outer = reassemble({...rs, siblings: (outer_l, outer_r)});
-//       concat([rs_inner, rs_outer]);
-//     }
-//   };
-// };

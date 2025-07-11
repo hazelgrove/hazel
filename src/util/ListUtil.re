@@ -1,15 +1,28 @@
 let rev_if = (b: bool) => b ? List.rev : Fun.id;
 
-let dedup = xs =>
+let dedup_f = (f, xs) =>
   List.fold_right(
-    (x, deduped) => List.mem(x, deduped) ? deduped : [x, ...deduped],
+    (x, deduped) => List.exists(f(x), deduped) ? deduped : [x, ...deduped],
     xs,
     [],
   );
 
-let are_duplicates = xs =>
-  List.length(List.sort_uniq(compare, xs)) == List.length(xs);
+let dedup = xs => dedup_f((==), xs);
 
+/**
+  Groups elements of a list by a specified key.
+
+ {b Note: The groups are not guaranteed to preserve the order of elements from the original list. }
+
+  @param key
+  The key function used to determine the grouping key.
+
+  @param xs
+  The list of elements to be grouped.
+
+  @return
+  A list of tuples where each tuple contains the grouping key and a list of elements that belong to that group.
+*/
 let group_by = (key: 'x => 'k, xs: list('x)): list(('k, list('x))) =>
   List.fold_left(
     (grouped, x) => {
@@ -25,7 +38,7 @@ let group_by = (key: 'x => 'k, xs: list('x)): list(('k, list('x))) =>
     xs,
   );
 
-let rec range = (~lo=0, hi) =>
+let rec range = (~lo: int=0, hi: int) =>
   if (lo > hi) {
     raise(Invalid_argument("ListUtil.range"));
   } else if (lo == hi) {
@@ -164,7 +177,15 @@ let split_sublist_opt =
 let split_sublist =
     (i: int, j: int, xs: list('x)): (list('x), list('x), list('x)) =>
   switch (split_sublist_opt(i, j, xs)) {
-  | None => raise(Invalid_argument("ListUtil.split_sublist"))
+  | None =>
+    raise(
+      Invalid_argument(
+        "ListUtil.split_sublist: "
+        ++ string_of_int(i)
+        ++ ", "
+        ++ string_of_int(j),
+      ),
+    )
   | Some(r) => r
   };
 let sublist = ((i, j), xs: list('x)): list('x) => {
@@ -480,3 +501,217 @@ let first_and_last = (xss: list(list('a))): list(('a, 'a)) =>
        | [x] => Some((x, x))
        | [x, ...xs] => Some((x, last(xs))),
      );
+
+let rec unsnoc = (xs: list('a)): option(('a, list('a))) => {
+  switch ((xs: list('a))) {
+  | [] => None
+  | [head, ...tail] =>
+    switch (unsnoc(tail)) {
+    | None => Some((head, []))
+    | Some((tail_last: 'a, tail_init: list('a))) =>
+      Some((tail_last, [head, ...tail_init]))
+    }
+  };
+};
+
+let rec rev_concat: (list('a), list('a)) => list('a) =
+  (ls, rs) => {
+    switch (ls) {
+    | [] => rs
+    | [hd, ...tl] => rev_concat(tl, [hd, ...rs])
+    };
+  };
+
+let rec map3 = (f, xs, ys, zs) =>
+  switch (xs, ys, zs) {
+  | ([], [], []) => []
+  | ([x, ...xs], [y, ...ys], [z, ...zs]) => [
+      f(x, y, z),
+      ...map3(f, xs, ys, zs),
+    ]
+  | _ => failwith("Lists are of unequal length")
+  };
+
+let rec unzip = (lst: list(('a, 'b))): (list('a), list('b)) => {
+  switch (lst) {
+  | [] => ([], [])
+  | [(a, b), ...tail] =>
+    let (_as, bs) = unzip(tail);
+    ([a, ..._as], [b, ...bs]);
+  };
+};
+
+let cross = (xs, ys) =>
+  List.concat(List.map(x => List.map(y => (x, y), ys), xs));
+
+let rec intersperse = (sep, xs) =>
+  switch (xs) {
+  | [] => []
+  | [x] => [x]
+  | [x, ...xs] => [x, sep, ...intersperse(sep, xs)]
+  };
+
+let rec flat_intersperse = (sep, xss) =>
+  switch (xss) {
+  | [] => []
+  | [xs] => xs
+  | [xs, ...xss] => xs @ [sep, ...flat_intersperse(sep, xss)]
+  };
+
+let rec map_last_only = (f, xs) =>
+  switch (xs) {
+  | [] => []
+  | [x] => [f(x)]
+  | [x, ...xs] => [x, ...map_last_only(f, xs)]
+  };
+
+let rec split_last = (xs: list('x)): (list('x), 'x) =>
+  switch (xs) {
+  | [] => failwith("ListUtil.split_last")
+  | [x] => ([], x)
+  | [x, ...xs] =>
+    let (prefix, last) = split_last(xs);
+    ([x, ...prefix], last);
+  };
+
+let minimum = (f: 'a => int, xs: list('a)): option('a) =>
+  switch (xs) {
+  | [] => None
+  | [x, ...xs] =>
+    let rec loop = (best: 'a, best_f: int, xs: list('a)): option('a) =>
+      switch (xs) {
+      | [] => Some(best)
+      | [x, ...xs] =>
+        let f_x = f(x);
+        if (f_x < best_f) {
+          loop(x, f_x, xs);
+        } else {
+          loop(best, best_f, xs);
+        };
+      };
+    loop(x, f(x), xs);
+  };
+
+/* Given two lists, return their maximum common suffix */
+let max_common_suffix = (a: list('a), b: list('a)): list('a) => {
+  let rec loop = (a, b, acc) =>
+    switch (a, b) {
+    | ([], _)
+    | (_, []) => acc
+    | ([ha, ...ta], [hb, ...tb]) when ha == hb =>
+      loop(ta, tb, [ha, ...acc])
+    | _ => acc
+    };
+  loop(List.rev(a), List.rev(b), []);
+};
+
+let common_suffix_length = (s1, s2) =>
+  List.length(max_common_suffix(s1, s2));
+
+let is_suffix_of = (s1, s2) =>
+  common_suffix_length(s1, s2) == List.length(s1);
+
+/* Returns Some(depth) if xs is a suffix of ys at depth, None otherwise */
+
+let suffix_at_depth = (xs: list('a), ys: list('a)): option(int) => {
+  let rec go = (depth: int, xs, ys): option(int) =>
+    if (xs == ys) {
+      Some(depth);
+    } else {
+      switch (ys) {
+      | [] => None
+      | [_, ...rest] => go(depth + 1, xs, rest)
+      };
+    };
+  go(0, xs, ys);
+};
+
+/* list truncated after at most n elementsnts */
+let truncate = (n: int, xs: list('a)): list('a) => {
+  let rec loop = (n, xs, acc) =>
+    switch (n, xs) {
+    | (0, _) => acc
+    | (_, []) => acc
+    | (n, [x, ...xs]) => loop(n - 1, xs, [x, ...acc])
+    };
+  loop(n, xs, []);
+};
+
+/* list without the first n elements, recurse into list until 0 then return rest */
+let rec remove_first_n = (n: int, xs: list('a)): list('a) => {
+  switch (n, xs) {
+  | (0, _) => xs
+  | (_, []) => []
+  | (n, [_x, ...xs]) => remove_first_n(n - 1, xs)
+  };
+};
+
+/* Return at most k elements starting from index i */
+let slice = (i: int, k: int, xs: list('x)): list('x) =>
+  xs |> remove_first_n(i) |> truncate(k);
+
+let rec rotate_n = (n: int, xs: list('a)): list('a) => {
+  let n = IntUtil.modulo(n, List.length(xs));
+  switch (n) {
+  | 0 => xs
+  | _ => rotate_n(n - 1, rotate(xs))
+  };
+};
+
+let take = (n, xs) => {
+  let rec loop = (n, xs, acc) =>
+    switch (n, xs) {
+    | (0, _) => acc
+    | (_, []) => acc
+    | (n, [x, ...xs]) => loop(n - 1, xs, [x, ...acc])
+    };
+  loop(n, xs, []);
+};
+
+let take_up_to_n = (n: int, xs: list('a)): list('a) =>
+  switch (split_n_opt(n, xs)) {
+  | Some((xs, _)) => xs
+  | None => xs
+  };
+
+/* Move the first element equal to x to the front of the list */
+let lift = (x: 'a, xs: list('a)): list('a) =>
+  List.cons(x, List.filter((!=)(x), xs));
+
+// for performance, doesn't check the whole list if already above length
+let rec is_length = (n: int, xs: list('a)): bool =>
+  switch (xs) {
+  | [] when n == 0 => true
+  | _ when n <= 0 => false
+  | [] => false
+  | [_, ...xs] => is_length(n - 1, xs)
+  };
+
+/* Length of ys but be equal to the number of `None`s in xs */
+let rec fill_nones = (xs: list(option('a)), ys: list('a)): list('a) =>
+  switch (xs, ys) {
+  | ([], []) => []
+  | ([None, ...xs], [y, ...ys]) => [y, ...fill_nones(xs, ys)]
+  | ([Some(x), ...xs], ys) => [x, ...fill_nones(xs, ys)]
+  | _ => failwith("ListUtil.fill_nones: lengths do not match")
+  };
+
+let rec remove_nth = (n: int, xs: list('a)): option(list('a)) =>
+  switch (n, xs) {
+  | (_, []) => None
+  | (0, [_hd, ...tl]) => Some(tl)
+  | (n, [hd, ...tl]) =>
+    remove_nth(n - 1, tl) |> Option.map(tl' => [hd, ...tl'])
+  };
+
+let rec fold_left_opt =
+        (f: ('a, 'b) => option('a), acc: 'a, xs: list('b)): option('a) => {
+  switch (xs) {
+  | [] => Some(acc)
+  | [x, ...xs] =>
+    switch (f(acc, x)) {
+    | None => None
+    | Some(acc') => fold_left_opt(f, acc', xs)
+    }
+  };
+};

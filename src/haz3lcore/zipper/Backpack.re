@@ -154,7 +154,10 @@ module ShardInfo = {
     counts: Counts.t,
   };
 
-  let init = () => {order: Order.init(), counts: Counts.init()};
+  let init = () => {
+    order: Order.init(),
+    counts: Counts.init(),
+  };
 
   let add_sel = (sel: Selection.t, {counts, order}: t): unit => {
     let ts = Segment.incomplete_tiles(sel.content);
@@ -203,7 +206,7 @@ module ShardInfo = {
   };
 };
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = list(Selection.t);
 
 let empty = [];
@@ -271,21 +274,6 @@ let remove_matching = (ts: list(Tile.t), bp: t) =>
     bp,
     ts,
   );
-
-let will_barf = (t: Token.t, bp: t): bool =>
-  /* Does the first selection in the backpack consist
-     of a single token which matches the one provided? */
-  switch (bp) {
-  | [] => false
-  | [{content: [p], _}, ..._] =>
-    switch (p) {
-    | Tile({shards: [i], label, _}) =>
-      assert(i < List.length(label));
-      List.nth(label, i) == t;
-    | _ => false
-    }
-  | _ => false
-  };
 
 let remove_uni_tiles_with_deep_matches = (bp: t, sel: Selection.t): t => {
   /* This is a hack to prevent incomplete tiles inside selection tiles

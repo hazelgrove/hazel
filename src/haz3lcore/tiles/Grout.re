@@ -1,6 +1,6 @@
 open Util;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type shape =
   | Convex
   | Concave;
@@ -10,7 +10,7 @@ type t = {
   id: Id.t,
   shape,
 };
-
+let equal = (a: t, b: t) => a.shape == b.shape;
 let id = g => g.id;
 
 let shapes = g =>
@@ -27,7 +27,10 @@ let mk_fits_shape = (s: Nib.Shape.t): t => {
     | Convex => Concave
     | Concave(_) => Convex
     };
-  {id, shape};
+  {
+    id,
+    shape,
+  };
 };
 //let mk_fits = ((l, r): Nibs.shapes): option(t) =>
 //  Nib.Shape.fits(l, r) ? None : Some(mk_fits_shape(l));

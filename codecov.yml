@@ -1,0 +1,21 @@
+codecov:
+  branch: dev
+
+coverage:
+  status:
+    project: # more options at https://docs.codecov.com/docs/commit-status
+      default:
+        target: auto # Monotonically increasing coverage
+        threshold: 2% # Allows coverage to drop by 2%
+        informational: true
+    patch:
+      default:
+        informational: true
+
+comment:
+  layout: " diff, files"
+  behavior: default # update comment, if exists. Otherwise post new
+  require_changes: true
+  require_base: false
+  require_head: true
+  hide_project_coverage: false

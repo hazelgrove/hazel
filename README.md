@@ -1,4 +1,4 @@
-# Hazel ![Build Status](https://github.com/hazelgrove/hazel/actions/workflows/deploy_branches.yml/badge.svg)
+# Hazel ![Build Status](https://github.com/hazelgrove/hazel/actions/workflows/deploy_branches.yml/badge.svg) [![codecov](https://codecov.io/gh/hazelgrove/hazel/graph/badge.svg?token=lOGAH9Shqe)](https://codecov.io/gh/hazelgrove/hazel)
 
 Hazel is a live functional-programming environment rooted in the principles of
 type theory. You can find the relevant papers and more motivation at [the Hazel
@@ -17,7 +17,7 @@ can also be accessed at:
 
 ### Short version
 
-If you already have `ocaml` version 5.2.0 and at least version 2.0 of `opam`
+If you already have `ocaml` version 5.2.0, at least version 2.0 of `opam`, and `npm`
 installed, you can build Hazel by running the following commands.
 
 - `git clone git@github.com:hazelgrove/hazel.git`
@@ -30,6 +30,8 @@ run it from a `file:///` URL due to browser restrictions on e.g. web workers.)
 
 If you have `python3` on your path, you can use the Python server via 
 `make serve`, then navigate to `http://0.0.0.0:8000/` in your browser.
+
+Alternatively, if you would live hot reloading, you can use `make hot` instead of `make serve`.
 
 Otherwise, run `make echo-html-dir` which will echo the directory that needs 
 to be served using some other server of your choice.
@@ -185,7 +187,9 @@ helper functions for printing and serializing this data. For a type named `t`, t
 for a type named something else like `q`, it will be `show_q`.
 
 #### Source Maps
-`js_of_ocaml` does support source maps and has some other flags that might be useful. If you experiment with those and get them to work, please update this README with some notes.
+Source maps for `js_of_ocaml` should be configured when making locally with the dev profile (`make`). This is configured using the env stanzas present in the `dune` files for each top-level directory.
+
+Since source maps are generated browser developer tools should show reason code in the debugger and source tree. Stack traces should also include reason line numbers.
 
 #### Debug Mode
 If Hazel is hanging on load or when you perform certain actions, you can load into Debug Mode by appending `#debug` to the URL and reloading. From there, you have some buttons that will change settings or reset local storage. Refresh without the `#debug` flag and hopefully you can resolve the situation from there.
@@ -194,6 +198,11 @@ If Hazel is hanging on load or when you perform certain actions, you can load in
 You can run all of the unit tests located in `test` by running `make test`.
 
 Unit tests are written using the [Alcotest framework](https://github.com/mirage/alcotest).
+
+See more documentation in the [test README](test/README.md)
+
+#### Coverage
+Code coverage is provided by [bisect_ppx](https://github.com/aantron/bisect_ppx). To collect coverage statistics from tests run `make coverage`. After coverage statistics are generated, running `make generate-coverage-html` will generate a local webpage at `_coverage/index.html` that can be viewed to see line coverage per module.
 
 ### Continuous Integration
 
@@ -206,7 +215,7 @@ It usually takes about 2 minutes if the build environment cache hits, or
 20+ minutes if not. You can view the status of the build in the [Actions 
 tab on Github](https://github.com/hazelgrove/hazel/actions).
 
-Builds prior to July 2024 are archived at `https://hazel.org/build/<branch name>`.
+Builds prior to July 2024 are archived at `https://hazel.org/build-pre-july2024/<branch name>`.
 
 Note: If another archive needs to be performed, make sure to redeploy the following
 branches manually since we refer to them in various public material (websites and
