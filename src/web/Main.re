@@ -186,9 +186,12 @@ let start = {
   };
   let%sub () = Bonsai.Edge.after_display(after_display);
 
+  Iframe.init_iframe();
+
   // View function
   let%arr app_model = app_model
   and app_inject = app_inject;
+
   History.View.view(app_model, ~inject=app_inject, ~get_log_and=Log.get_and);
 };
 
