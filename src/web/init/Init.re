@@ -12,6 +12,7 @@ let startup: PersistentData.t = {
       Projectors.out,
       ADTs.out,
       Tuples.out,
+      Tables.out,
       Polymorphism.out,
       Cards.out,
       Probes.out,
