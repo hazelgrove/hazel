@@ -727,6 +727,22 @@ let selection_tests = [
     ~acts=mk({|(1, 2,¦ 3, 4)|}) @ [Action.Select(All)] @ mv_r_token(1),
     ~goal={|(1, 2, 3, 4)¦|},
   ),
+  test(
+    ~name="Move extreme left with multiline selection",
+    ~acts=
+      mk({|(1,
+2,
+¦3,
+4,
+5)|})
+      @ [Action.Select(All)]
+      @ [Action.Move(Extreme(Left(ByToken)))],
+    ~goal={|¦(1,
+  2,
+  3,
+  4,
+  5)|},
+  ),
 ];
 
 let tests = [
