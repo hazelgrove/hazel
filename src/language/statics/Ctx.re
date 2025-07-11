@@ -3,7 +3,9 @@ open Util;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type kind =
   | Singleton(TermBase.typ_t)
-  | Abstract;
+  | Abstract // Changed
+  | Arr(kind,kind)
+  | Prod(kind,kind);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type var_entry = {
@@ -48,6 +50,14 @@ let extend = (ctx: t, entry): t => {
 
 let extend_tvar = (ctx: t, tvar_entry: tvar_entry): t =>
   extend(ctx, TVarEntry(tvar_entry));
+
+let extend_tctor = (ctx: t, name: string, id: Id.t, kind: kind): t => // type constructor wrapper
+  extend_tvar(ctx, {
+    name,
+    id,
+    kind,
+  });
+
 
 let extend_alias = (ctx: t, name: string, id: Id.t, ty: TermBase.Typ.t): t =>
   extend_tvar(
@@ -120,16 +130,20 @@ let lookup_ctr = (ctx: t, name: string): option(var_entry) =>
     ctx.entries,
   );
 
-let is_alias = (ctx: t, name: string): bool =>
+let is_alias = (ctx: t, name: string): bool =>  // Fixme: Redundant def for readibility 
   switch (lookup_tvar(ctx, name)) {
   | Some(Singleton(_)) => true
+  | Some(Arr(_,_)) 
+  | Some(Prod(_,_))
   | Some(Abstract)
   | None => false
   };
 
-let is_abstract = (ctx: t, name: string): bool =>
+let is_abstract = (ctx: t, name: string): bool => // Check if non-alias type is abstract (*,*->*,etc)
   switch (lookup_tvar(ctx, name)) {
-  | Some(Abstract) => true
+  | Some(Abstract)
+  | Some(Arr(_,_)) 
+  | Some(Prod(_,_)) => true
   | Some(Singleton(_))
   | None => false
   };
@@ -137,7 +151,9 @@ let is_abstract = (ctx: t, name: string): bool =>
 let lookup_alias = (ctx: t, name: string): option(TermBase.Typ.t) =>
   switch (lookup_tvar(ctx, name)) {
   | Some(Singleton(ty)) => Some(ty)
-  | Some(Abstract) => None
+  | Some(Abstract)
+  | Some(Arr(_,_))
+  | Some(Prod(_,_)) => None
   | None =>
     Some(
       (Unknown(Hole(Invalid(name))): TermBase.Typ.term) |> IdTagged.fresh,
