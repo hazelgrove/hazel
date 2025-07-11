@@ -425,23 +425,13 @@ module Make = (M: S) => {
        * even if we don't actually move */
       switch (d) {
       // By char just unselects
-      | Local(Left(ByChar)) => Some(Zipper.directional_unselect(Left, z))
-      | Local(Right(ByChar)) => Some(Zipper.directional_unselect(Right, z))
-      | Local(Left(_))
-      | Extreme(Left(_) | Up)
-      | Local(Up) =>
-        // Go to beginning of selection and apply move
-        let z = Zipper.directional_unselect(Left, z);
-        switch (move_dispatch(d, z)) {
-        | Some(z) => Some(z)
-        | None => Some(z)
-        };
-      | Extreme(Right(_))
-      | Local(Down)
-      | Local(Right(ByToken))
-      | Extreme(Down) =>
-        // Go to end of selection and apply move
-        let z = Zipper.directional_unselect(Right, z);
+      | Local(Left(ByChar) as planar)
+      | Local(Right(ByChar) as planar) =>
+        Some(Zipper.directional_unselect(Zipper.from_plane(planar), z))
+      | Local(planar)
+      | Extreme(planar) =>
+        // Escape selection and apply move
+        let z = Zipper.directional_unselect(Zipper.from_plane(planar), z);
         switch (move_dispatch(d, z)) {
         | Some(z) => Some(z)
         | None => Some(z)
