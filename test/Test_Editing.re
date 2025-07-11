@@ -717,6 +717,16 @@ let selection_tests = [
       @ mv_l_token(1),
     ~goal={|(1,¦ (2, 3), 4, 5)|},
   ),
+  test(
+    ~name="Move left by token when selecting everything",
+    ~acts=mk({|(1, 2,¦ 3, 4)|}) @ [Action.Select(All)] @ mv_l_token(1),
+    ~goal={|¦(1, 2, 3, 4)|},
+  ),
+  test(
+    ~name="Move right by token when selecting everything",
+    ~acts=mk({|(1, 2,¦ 3, 4)|}) @ [Action.Select(All)] @ mv_r_token(1),
+    ~goal={|(1, 2, 3, 4)¦|},
+  ),
 ];
 
 let tests = [
