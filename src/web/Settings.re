@@ -11,6 +11,8 @@ module Model = {
     instructor_mode: bool,
     benchmark: bool,
     explainThis: ExplainThisModel.Settings.t,
+    assistant: AssistantSettings.t,
+    sidebar: SidebarModel.Settings.t,
   };
 
   let init = {
@@ -44,6 +46,16 @@ module Model = {
       show: true,
       show_feedback: false,
       highlight: NoHighlight,
+    },
+    assistant: {
+      mode: CodeSuggestion,
+      ongoing_chat: false,
+      show_history: false,
+      show_api_key: false,
+    },
+    sidebar: {
+      panel: LanguageDocumentation,
+      show: true,
     },
   };
 
@@ -99,9 +111,11 @@ module Update = {
     | ContextInspector
     | InstructorMode
     | Evaluation(evaluation)
+    | Sidebar(SidebarModel.Settings.action)
     | ExplainThis(ExplainThisModel.Settings.action)
-    | FlipAnimations
-    | DisplayWarnings;
+    | DisplayWarnings
+    | Assistant(AssistantSettings.action)
+    | FlipAnimations;
 
   let can_undo = (action: t) => {
     switch (action) {
@@ -110,7 +124,7 @@ module Update = {
     };
   };
 
-  let update = (action, settings: Model.t): Updated.t(Model.t) => {
+  let update = (~action, ~settings: Model.t): Updated.t(Model.t) => {
     (
       switch (action) {
       | Statics => {
@@ -216,11 +230,21 @@ module Update = {
             evaluation,
           },
         };
-      | ExplainThis(ToggleShow) => {
+      | Sidebar(ToggleShow) => {
           ...settings,
-          explainThis: {
-            ...settings.explainThis,
-            show: !settings.explainThis.show,
+          sidebar: {
+            ...settings.sidebar,
+            show: !settings.sidebar.show,
+          },
+        }
+      | Sidebar(SwitchPanel(windowToSwitchTo)) => {
+          ...settings,
+          sidebar: {
+            show:
+              !settings.sidebar.show
+                ? true
+                : settings.sidebar.panel == windowToSwitchTo ? false : true,
+            panel: windowToSwitchTo,
           },
         }
       | ExplainThis(ToggleShowFeedback) => {
@@ -248,6 +272,37 @@ module Update = {
           ...settings,
           explainThis,
         };
+      | Assistant(u) =>
+        switch (u) {
+        | UpdateChatStatus => {
+            ...settings,
+            assistant: {
+              ...settings.assistant,
+              ongoing_chat: !settings.assistant.ongoing_chat,
+            },
+          }
+        | SwitchMode(mode) => {
+            ...settings,
+            assistant: {
+              ...settings.assistant,
+              mode,
+            },
+          }
+        | ToggleHistory => {
+            ...settings,
+            assistant: {
+              ...settings.assistant,
+              show_history: !settings.assistant.show_history,
+            },
+          }
+        | ToggleAPIKeyVisibility => {
+            ...settings,
+            assistant: {
+              ...settings.assistant,
+              show_api_key: !settings.assistant.show_api_key,
+            },
+          }
+        }
       | Benchmark => {
           ...settings,
           benchmark: !settings.benchmark,

@@ -160,10 +160,33 @@ let rec any_to_info_map =
       CoCtx.empty,
       utyp_to_info_map(~ctx, ~ancestors, ty, m) |> snd,
     )
-  | Rul(_)
+  | Rul(r) =>
+    switch (r.term) {
+    | Rules(scrut, rules) =>
+      /* Treat rules not properly positioned in cases as multiholes.
+       * Properly positioned rules would already have been removed
+       * in maketerm and became part of case expressions */
+      let tms =
+        rules
+        |> List.map(((p, e)) => [Grammar.Pat(p), Grammar.Exp(e)])
+        |> List.concat;
+      any_to_info_map(
+        ~ctx,
+        ~ancestors,
+        Exp({
+          term: MultiHole([Exp(scrut), ...tms]),
+          annotation: r.annotation,
+        }),
+        m,
+      );
+    | MultiHole(tms) =>
+      let (co_ctxs, m) = multi(~ctx, ~ancestors, m, tms);
+      (CoCtx.union(co_ctxs), m);
+    | Invalid(_) => (CoCtx.empty, m)
+    }
   | Any () => (CoCtx.empty, m)
   }
-and multi = (~ctx, ~ancestors, m, tms) =>
+and multi = (~ctx, ~ancestors, m, tms): (list(CoCtx.t), Map.t) =>
   List.fold_left(
     ((co_ctxs, m), any) => {
       let (co_ctx, m) = any_to_info_map(~ctx, ~ancestors, any, m);
@@ -695,6 +718,14 @@ and uexp_to_info_map =
     | Test(e) =>
       let (e, m) = go(~ana=Atom(Bool) |> Typ.temp, e, m);
       add(~self=Just(Prod([]) |> Typ.temp), ~co_ctx=e.co_ctx, m);
+    | HintedTest(e, hint) =>
+      let (e, m) = go(~ana=Atom(Bool) |> Typ.temp, e, m);
+      let (hint, m) = go(~ana=Atom(String) |> Typ.temp, hint, m);
+      add(
+        ~self=Just(Prod([]) |> Typ.temp),
+        ~co_ctx=CoCtx.union([e.co_ctx, hint.co_ctx]),
+        m,
+      );
     | Filter(Filter({pat: cond, _}), body) =>
       let (cond, m) =
         go(~ana=Unknown(SynSwitch) |> Typ.temp, cond, m, ~is_in_filter=true);
@@ -1005,8 +1036,14 @@ and uexp_to_info_map =
           p_ctxs,
         );
       let e_tys = List.map(Info.exp_ty, es);
+      let p_ctxs_and_ctx_zip =
+        List.combine(p_ctxs, List.map(_ps => ctx, ps));
       let e_co_ctxs =
-        List.map2(CoCtx.mk(ctx), p_ctxs, List.map(Info.exp_co_ctx, es));
+        List.map2(
+          ((p_ctx, ctx)) => CoCtx.mk(p_ctx, ctx),
+          p_ctxs_and_ctx_zip,
+          List.map(Info.exp_co_ctx, es),
+        );
       let unwrapped_self: Self.exp =
         Common(Self.match(ctx, e_tys, branch_ids));
       let (constraints, m) =

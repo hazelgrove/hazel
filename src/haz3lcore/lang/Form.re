@@ -109,6 +109,7 @@ let keywords = [
   "if",
   "then",
   "else",
+  "hint",
 ];
 let reserved_keywords = ["of", "when", "with", "switch", "match"];
 let keyword_regexp = regexp("^(" ++ String.concat("|", keywords) ++ ")$");
@@ -123,7 +124,7 @@ let is_potential_operand =
  *  delimiters, string delimiters, or the instant expanding paired
  *  delimiters: ()[]| */
 let potential_operator_regexp =
-  regexp("^[^a-zA-Z0-9_'?\"#\n\\s\\[\\]\\(\\)]+$"); /* Multiline operators not supported */
+  regexp("^[^a-zA-Z0-9_'?\\^\"#\n\\s\\[\\]\\(\\)]+$"); /* Multiline operators not supported */
 let is_potential_operator = match(potential_operator_regexp);
 let begins_with_potential_operator =
   match(regexp("^[^a-zA-Z0-9_'?\"#\n\\s\\[\\]\\(\\)]+"));
@@ -224,7 +225,11 @@ let const_mono_delims =
   base_typs @ bools @ [undefined, wild, empty_list, empty_tuple, empty_string];
 
 let explicit_hole = "?";
+let llm_hole = "??";
+let llm_advanced_reasoning_hole = "?a";
 let is_explicit_hole = t => t == explicit_hole;
+let is_llm_hole = t => t == llm_hole || t == llm_advanced_reasoning_hole;
+
 let bad_token_cls: string => bad_token_cls =
   t =>
     switch () {
@@ -242,6 +247,7 @@ let mk_parens = (sort: Sort.t) => mk(ii, tuple_lbl, mk_op(sort, [sort]));
 type atomic_form =
   | Var
   | ExplicitHole
+  | LLMHole
   | Wild
   | String
   | IntLit
@@ -262,6 +268,10 @@ let get_atomic_form: atomic_form => (string => bool, list(Mold.t)) =
   | Var => (is_var, [mk_op(Exp, []), mk_op(Pat, [])])
   | ExplicitHole => (
       is_explicit_hole,
+      [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, []), mk_op(TPat, [])],
+    )
+  | LLMHole => (
+      is_llm_hole,
       [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, []), mk_op(TPat, [])],
     )
   | Wild => (is_wild, [mk_op(Pat, [])])
@@ -359,6 +369,7 @@ type compound_form =
   | AtSign
   | Case
   | Test
+  | HintedTest
   | Fun
   | Fix
   | TypFun
@@ -446,6 +457,7 @@ let get: compound_form => t =
   | AtSign => mk_nul_infix("@", P.eqs) // HACK: SUBSTRING REQ
   | Case => mk(ds, ["case", "end"], mk_op(Exp, [Rul]))
   | Test => mk(ds, ["test", "end"], mk_op(Exp, [Exp]))
+  | HintedTest => mk(ds, ["hint", "test", "end"], mk_op(Exp, [Exp, Exp]))
   | Fun => mk(ds, ["fun", "->"], mk_pre(P.fun_, Exp, [Pat]))
   | Fix => mk(ds, ["fix", "->"], mk_pre(P.fun_, Exp, [Pat]))
   | TypFun => mk(ds, ["typfun", "->"], mk_pre(P.fun_, Exp, [TPat]))

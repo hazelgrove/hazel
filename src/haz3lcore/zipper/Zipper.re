@@ -26,7 +26,6 @@ let next_blank = _ => Id.mk();
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type chunkiness =
   | ByChar
-  | MonoByChar
   | ByToken;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -69,6 +68,18 @@ let unzip = (seg: Segment.t): t => {
 
 let pop_backpack = (z: t) =>
   Backpack.pop(Relatives.local_incomplete_tiles(z.relatives), z.backpack);
+
+let will_barf = (t: Token.t, z: t): bool =>
+  switch (pop_backpack(z)) {
+  | Some((_, {content: [p], _}, _)) =>
+    switch (p) {
+    | Tile({shards: [i], label, _}) =>
+      assert(i < List.length(label));
+      List.nth(label, i) == t;
+    | _ => false
+    }
+  | _ => false
+  };
 
 let left_neighbor_monotile: Siblings.t => option(Token.t) =
   s => s |> Siblings.left_neighbor |> OptUtil.and_then(Piece.monotile);
@@ -196,6 +207,9 @@ let directional_unselect = (d: Direction.t, z: t): t => {
   });
 };
 
+let unselect = (z: t): t =>
+  z.selection.content == [] ? z : directional_unselect(z.selection.focus, z);
+
 let move = (d: Direction.t, z: t): option(t) =>
   if (Selection.is_empty(z.selection)) {
     let+ (p, relatives) = Relatives.pop(d, z.relatives);
@@ -255,6 +269,12 @@ let destruct = (~destroy_kids=true, z: t): t => {
 };
 
 let put_down = (d: Direction.t, z: t): option(t) => {
+  /* Note that this does not regrout/remold on its own. After using
+   * this function, you may have to regrout/remold on BOTH sides of
+   * the dropped delimiter. If you don't want to have to do this, use
+   * the integrated variant below. However, this version is retained
+   * for use in cases where this pre-emptive regrouting can interfere
+   * with other behavior, for example token split/merging  */
   let z = destruct(z);
   let* (_, popped, backpack) = pop_backpack(z);
   let z =
@@ -264,6 +284,35 @@ let put_down = (d: Direction.t, z: t): option(t) => {
     }
     |> put_selection(popped)
     |> unselect;
+  switch (d) {
+  | Left => Some(z)
+  | Right => move(Left, z)
+  };
+};
+
+let remold_regrout_prev = (z: t): t =>
+  switch (move(Left, z)) {
+  | None => z
+  | Some(z_left) =>
+    let z_left = z_left |> remold |> regrout(Right);
+    switch (move(Right, z_left)) {
+    | None => failwith("Zipper.put_down: move fail")
+    | Some(z_right) => z_right
+    };
+  };
+
+let put_down_regrout_remold = (d: Direction.t, z: t): option(t) => {
+  let z = destruct(z);
+  let* (_, popped, backpack) = pop_backpack(z);
+  let z =
+    {
+      ...z,
+      backpack,
+    }
+    |> put_selection(popped)
+    |> unselect;
+  let z = z |> regrout(Left) |> remold;
+  let z = remold_regrout_prev(z);
   switch (d) {
   | Left => Some(z)
   | Right => move(Left, z)
@@ -514,25 +563,14 @@ let try_to_dump_backpack = (zipper: t) => {
       } else {
         z;
       };
-    let rec go = (z: t): t =>
-      if (can_put_down(z)) {
-        let z_can = move_until_cant_put_down(z, z);
-        switch (put_down(Right, z_can)) {
-        | None => z_can
-        | Some(z) =>
-          let z = regrout(Right, z);
-          go(z);
-        };
-      } else {
-        let z_can = move_until_can_put_down(z);
-        let z_can = move_until_cant_put_down(z_can, z_can);
-        switch (put_down(Right, z_can)) {
-        | None => z_can
-        | Some(z) =>
-          let z = regrout(Right, z);
-          go(z);
-        };
+    let rec go = (z: t): t => {
+      let z_can = can_put_down(z) ? z : move_until_can_put_down(z);
+      let z_cant = move_until_cant_put_down(z_can, z_can);
+      switch (put_down_regrout_remold(Right, z_cant)) {
+      | None => z_cant
+      | Some(z) => go(z)
       };
+    };
     go(zipper);
   };
 };
@@ -542,8 +580,5 @@ let smart_seg = (~dump_backpack: bool, ~erase_buffer: bool, z: t) => {
   let z = dump_backpack ? try_to_dump_backpack(z) : z;
   unselect_and_zip(~erase_buffer, z);
 };
-
-let seg_for_view = smart_seg(~erase_buffer=false, ~dump_backpack=false);
-let seg_for_sem = smart_seg(~erase_buffer=true, ~dump_backpack=true);
 
 let seg_without_buffer = smart_seg(~erase_buffer=true, ~dump_backpack=false);

@@ -281,12 +281,11 @@ module Transition = (EV: EV_MODE) => {
         let env'' =
           VarBstMap.Ordered.mapo(
             ((p, exp)) =>
-              FixF(
-                Var(p) |> Pat.fresh,
-                exp,
-                Some(ClosureEnvironment.of_environment(env')),
-              )
-              |> rewrap,
+              if (VarBstMap.Ordered.length(env') > 1) {
+                let_(dp, FixF(dp, d1, env) |> rewrap, var(p));
+              } else {
+                FixF(Var(p) |> Pat.fresh, exp, env) |> rewrap;
+              },
             env',
           );
         let env''' =
@@ -316,7 +315,46 @@ module Transition = (EV: EV_MODE) => {
       Step({
         expr: tuple([]),
         state_update: () =>
-          update_test(state, DHExp.rep_id(d), (d', result)),
+          update_test(
+            state,
+            DHExp.rep_id(d),
+            {
+              exp: d,
+              status: result,
+              hint: "No hint available.",
+            },
+          ),
+        // update_test(state, DHExp.rep_id(d), (d', result)),
+        kind: UpdateTest,
+        is_value: true,
+      });
+    | HintedTest(d'', h) =>
+      let. _ = otherwise(env, d => HintedTest(d, h) |> rewrap)
+      and. d' =
+        req_final(req(state, env), d => HintedTest(d, h) |> wrap_ctx, d'');
+      let result: TestStatus.t =
+        switch (Unboxing.unbox(Atom(Bool), d')) {
+        | DoesNotMatch
+        | IndetMatch => Indet
+        | Matches(b) => b ? Pass : Fail
+        };
+      let h: string =
+        switch (h.term) {
+        | Atom(String(s)) => s
+        | _ => "No hint available."
+        };
+      Step({
+        expr: Tuple([]) |> fresh,
+        state_update: () =>
+          update_test(
+            state,
+            DHExp.rep_id(d),
+            {
+              exp: d,
+              status: result,
+              hint: h,
+            },
+          ),
         kind: UpdateTest,
         is_value: true,
       });
