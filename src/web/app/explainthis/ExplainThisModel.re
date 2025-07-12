@@ -1,4 +1,4 @@
-module Sexp = Sexplib.Sexp;
+open Sexplib;
 open Haz3lcore;
 open ExplainThisForm;
 open Util;
@@ -57,7 +57,6 @@ module Settings = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action =
-    | ToggleShow
     | ToggleShowFeedback
     | SetHighlight(highlight_action);
 

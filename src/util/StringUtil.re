@@ -71,7 +71,7 @@ let num_linebreaks = (s: string) => {
 // let unescape_linebreaks: string => string = replace(regexp("\\\\n"), "\n");
 // let trim_leading = replace(regexp("\n[ ]*"), "\n");
 
-/* TODO(andrew): figure out why above dont work. When they're
+/* WEIRD: figure out why above dont work. When they're
  * gone we can remove Re.Str entirely */
 
 let escape_linebreaks: string => string =
