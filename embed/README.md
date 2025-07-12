@@ -8,8 +8,6 @@ React component for embedding Hazel in other applications.
 
 You can install the package directly from GitHub:
 
-For a specific folder within the repository:
-
 ```bash
 pnpm add https://gitpkg.vercel.app/hazelgrove/hazel/embed?patchwork
 ```
