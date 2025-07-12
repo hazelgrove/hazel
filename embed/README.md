@@ -8,28 +8,10 @@ React component for embedding Hazel in other applications.
 
 You can install the package directly from GitHub:
 
-```bash
-# Using pnpm (recommended)
-pnpm add github:hazelgrove/hazel#patchwork
-
-# Using yarn
-yarn add github:hazelgrove/hazel#patchwork
-
-# Using npm
-npm install github:hazelgrove/hazel#patchwork
-```
-
 For a specific folder within the repository:
 
 ```bash
-# Using pnpm (recommended)
-pnpm add github:hazelgrove/hazel#patchwork:embed
-
-# Using yarn
-yarn add github:hazelgrove/hazel#patchwork:embed
-
-# Using npm
-npm install github:hazelgrove/hazel#patchwork:embed
+pnpm add https://gitpkg.vercel.app/hazelgrove/hazel/embed?patchwork
 ```
 
 ## Usage
