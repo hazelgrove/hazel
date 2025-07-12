@@ -1,0 +1,65 @@
+{
+  "name": "@hazelgrove/hazel-embed",
+  "private": false,
+  "version": "0.1.0",
+  "description": "React component for embedding Hazel in other applications",
+  "author": "Hazel Team",
+  "license": "MIT",
+  "keywords": [
+    "hazel",
+    "embed",
+    "react",
+    "component",
+    "iframe"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/hazelgrove/hazel.git",
+    "directory": "embed"
+  },
+  "type": "module",
+  "main": "dist/hazel-embed.umd.js",
+  "module": "dist/hazel-embed.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/hazel-embed.js",
+      "require": "./dist/hazel-embed.umd.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "prepublishOnly": "npm run build",
+    "type:messages": "tsx node_modules/@ocsigen/ts2ocaml/dist/ts2ocaml.js jsoo --preset full --output-dir src/types src/types/messages.d.ts && cp src/types/messages.mli ../src/haz3lcore/MessageTypes.mli",
+    "type:delta": "tsx node_modules/@ocsigen/ts2ocaml/dist/ts2ocaml.js jsoo --preset full --output-dir src/types src/types/delta.d.ts && cp src/types/delta.mli ../src/haz3lcore/Delta.mli",
+    "type": "npm run type:messages && npm run type:delta",
+    "style": "prettier --write ."
+  },
+  "dependencies": {
+    "react-d3-tree": "^3.6.6",
+    "react-icons": "^5.5.0"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0 || ^19.0.0",
+    "react-dom": "^18.0.0 || ^19.0.0"
+  },
+  "devDependencies": {
+    "@ocsigen/ts2ocaml": "^1.4.6",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "@vitejs/plugin-react": "^4.6.0",
+    "globals": "^16.3.0",
+    "prettier": "^3.6.2",
+    "tsx": "^4.20.3",
+    "typescript": "~5.8.3",
+    "vite": "^7.0.4",
+    "vite-plugin-dts": "^4.5.4"
+  },
+  "packageManager": "pnpm@9.6.0"
+}

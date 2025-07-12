@@ -1,0 +1,9 @@
+**/build/**
+**/dist/**
+**/.mypy_cache/**
+**/.pytest_cache/**
+**/.venv/**
+**/output/**
+pnpm-lock.yaml
+**/ios/**
+**/vendor/**
