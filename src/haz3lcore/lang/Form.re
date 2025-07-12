@@ -259,7 +259,24 @@ type atomic_form =
 
 let get_atomic_form: atomic_form => (string => bool, list(Mold.t)) =
   fun
-  | Var => (is_var, [mk_op(Exp, []), mk_op(Pat, [])])
+  | Var =>
+    /* minimum applicability:
+       infix trailing delims: -> => = in then else
+       first three not an issue as already have operator mold
+       so either: non-leading non-terminal delim of any form
+       (so necessarily label length >= 3)
+       or
+       terminal delim of prefix form (or leading of postfix in principle?)
+       */
+    (
+      is_var,
+      [
+        mk_op(Exp, []),
+        mk_op(Pat, []),
+        mk_bin(Precedence.max, Exp, []),
+        mk_bin(Precedence.max, Pat, []),
+      ],
+    )
   | ExplicitHole => (
       is_explicit_hole,
       [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, []), mk_op(TPat, [])],

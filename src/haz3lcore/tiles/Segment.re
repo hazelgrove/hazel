@@ -491,38 +491,41 @@ module Trim = {
     | [ws, ...wss] => List.cons(ws, rm_up_to_one_space(wss))
     };
 
-  let add_grout = (~d: Direction.t, shape: Nib.Shape.t, (wss, gs): t): t => {
+  let add_grout = (~d as _: Direction.t, shape: Nib.Shape.t, (wss, gs): t): t => {
     let g = Grout.mk_fits_shape(shape);
     /* When adding a concave grout to the left, consume a space.
        Note changes made to the logic here should also take into
        account the other direction in 'regrout' below */
-    let wss' =
-      switch (g.shape, d) {
-      /* Left Concave e.g. Insert "i" `let a = 1 i|` => `let a = 1><i|` (Consume) */
-      | (Concave, Left) => rm_up_to_one_space(wss)
-      /* Right Convex e.g. Backspace `1| + 2` => `|<> + 2` (Don't consume) */
-      /* Right Concave e.g. Backspace `1 +| 1` => `1 |>< 1` (Don't consume) */
-      | _ => wss
-      };
-    cons_g(g, (wss', gs));
+    //TODO(andrew)
+    // let wss' =
+    //   switch (g.shape, d) {
+    //   /* Left Concave e.g. Insert "i" `let a = 1 i|` => `let a = 1><i|` (Consume) */
+    //   | (Concave, Left) => rm_up_to_one_space(wss)
+    //   /* Right Convex e.g. Backspace `1| + 2` => `|<> + 2` (Don't consume) */
+    //   /* Right Concave e.g. Backspace `1 +| 1` => `1 |>< 1` (Don't consume) */
+    //   | _ => wss
+    //   };
+    // cons_g(g, (wss', gs));
+    cons_g(g, (wss, gs));
   };
 
   // assumes grout in trim fit r but may not fit l
   let regrout = (d: Direction.t, (l, r): Nibs.shapes, trim: t): t =>
     if (Nib.Shape.fits(l, r)) {
-      let (wss, gs) = trim;
-      let new_spaces =
-        List.filter_map(
-          (g: Grout.t) => {
-            switch (g.shape, d) {
-            /* Left Concave e.g. `let a = 1><in|` => `let a = 1 in |` (Add) */
-            /* NOTE(andrew): Not sure why d here seems reversed. */
-            | (Concave, Right) => Some(Secondary.mk_space(g.id))
-            | _ => None
-            }
-          },
-          gs,
-        );
+      //TODO(andrew)
+      // let (wss, gs) = trim;
+      // let new_spaces =
+      //   List.filter_map(
+      //     (g: Grout.t) => {
+      //       switch (g.shape, d) {
+      //       /* Left Concave e.g. `let a = 1><in|` => `let a = 1 in |` (Add) */
+      //       /* NOTE(andrew): Not sure why d here seems reversed. */
+      //       | (Concave, Right) => Some(Secondary.mk_space(g.id))
+      //       | _ => None
+      //       }
+      //     },
+      //     gs,
+      //   );
       /* When removing a grout to the Left, add a space. Note
          changes made to the logic here should also take into
          account the other direction in 'add_grout' above.
@@ -546,7 +549,11 @@ module Trim = {
          Similar threading for add_grout. That said, I couldn't trigger any
          undesirable behavior with these changes and am fine with going ahead
          with this for now. */
-      Aba.mk([new_spaces @ List.concat(wss)], []);
+      //Aba.mk([new_spaces @ List.concat(wss)], []);
+      Aba.mk(
+        [List.concat(trim |> fst)],
+        [],
+      );
     } else {
       let (_, gs) as merged = merge(trim);
       switch (gs) {
