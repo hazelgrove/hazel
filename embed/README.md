@@ -4,12 +4,32 @@ React component for embedding Hazel in other applications.
 
 ## Installation
 
+### From Git
+
+You can install the package directly from GitHub:
+
 ```bash
 # Using pnpm (recommended)
-pnpm add @hazelgrove/hazel-embed
+pnpm add github:hazelgrove/hazel#patchwork
 
 # Using yarn
-yarn add @hazelgrove/hazel-embed
+yarn add github:hazelgrove/hazel#patchwork
+
+# Using npm
+npm install github:hazelgrove/hazel#patchwork
+```
+
+For a specific folder within the repository:
+
+```bash
+# Using pnpm (recommended)
+pnpm add github:hazelgrove/hazel#patchwork:embed
+
+# Using yarn
+yarn add github:hazelgrove/hazel#patchwork:embed
+
+# Using npm
+npm install github:hazelgrove/hazel#patchwork:embed
 ```
 
 ## Usage
@@ -71,7 +91,7 @@ Props:
 | `instanceId` | `string` | Yes | Unique identifier for this Hazel instance |
 | `onMessage` | `(message: HazelToParent, sourceInstanceId: string) => void` | Yes | Callback function that receives messages from the Hazel iframe |
 | `registerSendMessage` | `(sendMessageFn: (message: ParentToHazel) => void) => void` | Yes | Function to register the sendMessage function for communicating with Hazel |
-| `url` | `string` | No | URL of the Hazel instance to embed. Defaults to localhost:8000 in development and hazel.org/build/patchwork/ in production |
+| `url` | `string` | No (defaults to https://hazel.org/build/patchwork/) | URL of the Hazel instance to embed. Defaults to localhost:8000 in development and hazel.org/build/patchwork/ in production |
 
 ### Types
 
@@ -81,13 +101,3 @@ The package exports the following TypeScript types:
 - `ParentToHazel` - Messages sent from the parent application to Hazel
 - Message types: `Init`, `Ping`, `Pong`, `EditorDelta`
 - Delta types: `EditScript`, `EditOp`, `DeleteOp`, `InsertOp`, etc.
-
-### Utilities
-
-#### `getQueryParam(name: string, defaultValue: string = ""): string`
-
-Helper function to get a query parameter from the URL.
-
-## License
-
-MIT
