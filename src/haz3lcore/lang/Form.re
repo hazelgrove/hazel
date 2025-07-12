@@ -234,74 +234,6 @@ let bad_token_cls: string => bad_token_cls =
 
 let mk_parens = (sort: Sort.t) => mk(ii, tuple_lbl, mk_op(sort, [sort]));
 
-/* B. Operands:
-   Order in this type determines relative remolding
-   priority for forms with overlapping regexps */
-
-[@deriving enumerate]
-type atomic_form =
-  | Var
-  | ExplicitHole
-  | Wild
-  | String
-  | IntLit
-  | FloatLit
-  | BoolLit
-  | LivelitName
-  | UndefinedLit
-  | EmptyList
-  | EmptyTuple
-  | Deferral
-  | TyVar
-  | TyVarP
-  | Ctr
-  | Type;
-
-let get_atomic_form: atomic_form => (string => bool, list(Mold.t)) =
-  fun
-  | Var =>
-    /* minimum applicability:
-       infix trailing delims: -> => = in then else
-       first three not an issue as already have operator mold
-       so either: non-leading non-terminal delim of any form
-       (so necessarily label length >= 3)
-       or
-       terminal delim of prefix form (or leading of postfix in principle?)
-       */
-    (
-      is_var,
-      [
-        mk_op(Exp, []),
-        mk_op(Pat, []),
-        mk_bin(Precedence.max, Exp, []),
-        mk_bin(Precedence.max, Pat, []),
-      ],
-    )
-  | ExplicitHole => (
-      is_explicit_hole,
-      [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, []), mk_op(TPat, [])],
-    )
-  | Wild => (is_wild, [mk_op(Pat, [])])
-  | String => (is_string, [mk_op(Exp, []), mk_op(Pat, [])])
-  | IntLit => (is_int, [mk_op(Exp, []), mk_op(Pat, [])])
-  | FloatLit => (is_float, [mk_op(Exp, []), mk_op(Pat, [])])
-  | LivelitName => (is_livelit, [mk_op(Exp, []), mk_op(Pat, [])])
-  | BoolLit => (is_bool, [mk_op(Exp, []), mk_op(Pat, [])])
-  | UndefinedLit => (is_undefined, [mk_op(Exp, []), mk_op(Pat, [])])
-  | EmptyList => (is_empty_list, [mk_op(Exp, []), mk_op(Pat, [])])
-  | EmptyTuple => (
-      is_empty_tuple,
-      [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, [])],
-    )
-  | Deferral => (is_wild, [mk_op(Exp, [])])
-  | TyVar => (is_typ_var, [mk_op(Typ, [])])
-  | TyVarP => (is_typ_var, [mk_op(TPat, [])])
-  | Ctr => (is_ctr, [mk_op(Exp, []), mk_op(Pat, [])])
-  | Type => (is_base_typ, [mk_op(Typ, [])]);
-
-let atomic_forms: list((atomic_form, (string => bool, list(Mold.t)))) =
-  List.map(f => (f, get_atomic_form(f)), all_of_atomic_form);
-
 /* C. Compound Forms:
    Order in this type determines relative remolding
    priority for forms which share the same labels
@@ -485,10 +417,95 @@ let get: compound_form => t =
 let forms: list((compound_form, t)) =
   List.map(f => (f, get(f)), all_of_compound_form);
 
+/* Returns a list of all strings which are proper prefixes of
+ * a non-leading alphanumeric concave delimiter of a compount form.
+ * These are assigned a special backup infix-op mode, so that
+ * when you're entering e.g. the `in` in a let, you don't get
+ * disruptive switching between a convex variable and concaved
+ * delimiter */
+let infix_delimiter_ops_prefixes: list(string) =
+  forms
+  |> List.filter_map(f => {
+       let form = get(fst(f));
+       switch ((form.mold.nibs |> snd).shape) {
+       | Convex when List.length(form.label) >= 3 =>
+         Some(form.label |> ListUtil.split_last |> fst |> List.tl)
+       | Concave(_) when List.length(form.label) >= 2 =>
+         Some(List.tl(form.label))
+       | _ => None
+       };
+     })
+  |> List.concat
+  |> List.filter(is_potential_operand)
+  |> List.sort_uniq(compare)
+  |> List.map(StringUtil.proper_prefixes)
+  |> List.concat;
+
+let is_infix_delimiter_op_prefix = t =>
+  List.mem(t, infix_delimiter_ops_prefixes);
+
 let delims: list(Token.t) =
   forms
   |> List.fold_left((acc, (_, {label, _}: t)) => {label @ acc}, [])
   |> List.sort_uniq(compare);
+
+/* B. Operands:
+   Order in this type determines relative remolding
+   priority for forms with overlapping regexps */
+
+[@deriving enumerate]
+type atomic_form =
+  | Var
+  | ExplicitHole
+  | Wild
+  | String
+  | IntLit
+  | FloatLit
+  | BoolLit
+  | LivelitName
+  | UndefinedLit
+  | EmptyList
+  | EmptyTuple
+  | Deferral
+  | TyVar
+  | TyVarP
+  | Ctr
+  | Type
+  | InfixDelimiterPrefix;
+
+let get_atomic_form: atomic_form => (string => bool, list(Mold.t)) =
+  fun
+  | Var => (is_var, [mk_op(Exp, []), mk_op(Pat, [])])
+  | InfixDelimiterPrefix =>
+    /* See comment on infix_delimiter_ops_prefixes */
+    (
+      is_infix_delimiter_op_prefix,
+      [mk_bin(Precedence.max, Exp, []), mk_bin(Precedence.max, Pat, [])],
+    )
+  | ExplicitHole => (
+      is_explicit_hole,
+      [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, []), mk_op(TPat, [])],
+    )
+  | Wild => (is_wild, [mk_op(Pat, [])])
+  | String => (is_string, [mk_op(Exp, []), mk_op(Pat, [])])
+  | IntLit => (is_int, [mk_op(Exp, []), mk_op(Pat, [])])
+  | FloatLit => (is_float, [mk_op(Exp, []), mk_op(Pat, [])])
+  | LivelitName => (is_livelit, [mk_op(Exp, []), mk_op(Pat, [])])
+  | BoolLit => (is_bool, [mk_op(Exp, []), mk_op(Pat, [])])
+  | UndefinedLit => (is_undefined, [mk_op(Exp, []), mk_op(Pat, [])])
+  | EmptyList => (is_empty_list, [mk_op(Exp, []), mk_op(Pat, [])])
+  | EmptyTuple => (
+      is_empty_tuple,
+      [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, [])],
+    )
+  | Deferral => (is_wild, [mk_op(Exp, [])])
+  | TyVar => (is_typ_var, [mk_op(Typ, [])])
+  | TyVarP => (is_typ_var, [mk_op(TPat, [])])
+  | Ctr => (is_ctr, [mk_op(Exp, []), mk_op(Pat, [])])
+  | Type => (is_base_typ, [mk_op(Typ, [])]);
+
+let atomic_forms: list((atomic_form, (string => bool, list(Mold.t)))) =
+  List.map(f => (f, get_atomic_form(f)), all_of_atomic_form);
 
 let atomic_molds: Token.t => list(Mold.t) =
   s => {
