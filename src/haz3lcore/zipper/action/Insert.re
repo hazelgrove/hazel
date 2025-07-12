@@ -11,6 +11,22 @@ let barf = (d: Direction.t, z: t): option(t) => {
   z;
 };
 
+let before_case_shard = (z: t): bool =>
+  List.exists(
+    (p: Piece.t) =>
+      switch (p) {
+      | Tile({label: ["case", "end"], shards: [0], _}) => true
+      | _ => false
+      },
+    z.relatives.siblings |> fst,
+  );
+
+let inside_case = (z: t): bool =>
+  switch (Ancestors.parent(z.relatives.ancestors)) {
+  | Some({label: ["case", "end"], _}) => true
+  | _ => false
+  };
+
 let delayed_expand =
     (~settings, t: Token.t, caret: Direction.t, z: t): option(t) => {
   /* Removes the d-neighboring tile and reconstructs it, triggering
@@ -19,11 +35,11 @@ let delayed_expand =
   let (new_label, backpack) = Molds.delayed_expansion(t);
   //TODO(andrew): document
   let (new_label, backpack) =
-    /* This logic is problematic if the case is incomplete...
-       also when trying to make an or in a case branch. maybe have them
-       expand only on the start of a line, when inside a case, or in a segment
-       somewhere after an incomplete case tile */
-    switch (Ancestors.parent(z.relatives.ancestors)) {
+    switch () {
+    | () when (before_case_shard(z) || inside_case(z)) && t == "|" => (
+        ["|", "=>"],
+        Direction.Left,
+      )
     | _ when t == "|" => ([t], Direction.Left)
     | _ => (new_label, backpack)
     };
@@ -89,15 +105,17 @@ let make_new_tile = (~structmode, t: Token.t, caret: Direction.t, z: t): t =>
     : {
       let (lbl, backpack) = Molds.instant_expansion(t);
       //TODO(andrew): document this
-      let (lbl, backpack) =
-        /* This logic is problematic if the case is incomplete... */
-        switch (Ancestors.parent(z.relatives.ancestors)) {
-        | Some({label: ["case", "end"], _}) when t == "|" => (
-            ["|", "=>"],
-            Direction.Left,
-          )
-        | _ => (lbl, backpack)
-        };
+      // let (lbl, backpack) =
+      //   /* Instant expanding always inside case is overly aggressive
+      //      and prevents entering || operator in branches... could maybe
+      //      do it immediately after linebreaks... */
+      //   switch () {
+      //   | _ when (before_case_shard(z) || inside_case(z)) && t == "|" => (
+      //       ["|", "=>"],
+      //       Direction.Left,
+      //     )
+      //   | _ => (lbl, backpack)
+      //   };
       //TODO(andrew): document this
       let settings =
         structmode
