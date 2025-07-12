@@ -49,7 +49,8 @@ let of_delim = (is_consistent, indent, t: Piece.tile, i: int): list(Node.t) =>
     t.mold.out,
     is_consistent,
     Tile.is_complete(t),
-    Mold.is_infix_op(t.mold) && Form.is_var(List.nth(t.label, i)),
+    Mold.is_infix_op(t.mold)
+    && Form.is_infix_delimiter_op_prefix(List.nth(t.label, i)),
     indent,
     i,
   ));
