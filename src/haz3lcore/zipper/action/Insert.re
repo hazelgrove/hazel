@@ -273,11 +273,14 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
       | Some(z) => z
       };
     } else {
-      z
-      |> remold_regrout_prev
-      |> make_new_tile(~structmode=false, char, Left)
-      |> remold_regrout(Right)
-      |> move_into_if_stringlit_or_comment(char);
+      let z = remold(z);
+      let z =
+        z
+        |> remold_regrout_prev
+        |> make_new_tile(~structmode=false, char, Left);
+      let z = z |> remold_regrout(Right);
+      let z = z |> move_into_if_stringlit_or_comment(char);
+      z;
     };
   };
 };

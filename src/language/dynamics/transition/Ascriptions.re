@@ -176,6 +176,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Fun(_), _)
     | (TypFun(_), _)
     | (Test(_), _)
+    | (HintedTest(_), _)
     | (Cons(_), _)
     | (Constructor(_), _) => None
     }

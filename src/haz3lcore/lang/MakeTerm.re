@@ -161,6 +161,9 @@ let mk_bad = (ctr, ids, value) => {
   };
 };
 
+let is_hole_label = (t: string) =>
+  t == " " || Form.is_explicit_hole(t) || Form.is_llm_hole(t);
+
 let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
   switch (s) {
   | Pat => Pat(pat(unsorted(skel, seg)))
@@ -243,6 +246,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | term => ret(ListLit([term]))
         }
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
+      | (["hint", "test", "end"], [Exp(hint), Exp(test)]) =>
+        ret(HintedTest(test, hint))
       | (["case", "end"], [Rul({term, annotation: {ids, _}})]) =>
         switch (term) {
         | Rules(scrut, rules) => (Match(scrut, rules), ids)
@@ -250,6 +255,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | MultiHole(anys) => (MultiHole(anys), ids)
         | Invalid(string) => (Invalid(string), ids)
         }
+      | ([t], []) when is_hole_label(t) => ret(hole(tm))
       | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
         ret(Invalid(t))
       | _ => ret(hole(tm))
@@ -499,8 +505,6 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
         | ([t], []) when Form.is_var(t) => Var(t)
         | ([t], []) when Form.is_wild(t) => Wild
         | ([t], []) when Form.is_ctr(t) => Constructor(t, None)
-        | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
-          Invalid(t)
         | (["(", ")"], [Pat(body)]) => Parens(body)
         | (label, [Pat(body)]) when is_probe_wrap(label) =>
           should_instrument(id) ? Probe(body, Probe.empty) : body.term
@@ -509,6 +513,8 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
           | {term: Tuple(ps), _} => ListLit(ps)
           | term => ListLit([term])
           }
+        | ([t], []) when is_hole_label(t) => hole(tm)
+        | ([t], []) => Invalid(t)
         | _ => hole(tm)
         },
       )
@@ -614,8 +620,8 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | (["(", ")"], [Typ(body)]) => Parens(body)
         | (label, [Typ(body)]) when is_probe_wrap(label) => body.term
         | (["[", "]"], [Typ(body)]) => List(body)
-        | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
-          Unknown(Hole(Invalid(t)))
+        | ([t], []) when is_hole_label(t) => hole(tm)
+        | ([t], []) => Unknown(Hole(Invalid(t)))
         | _ => hole(tm)
         },
       )
@@ -717,8 +723,8 @@ and tpat_term: unsorted => TPat.term = {
       ret(
         switch (tile) {
         | ([t], []) when Form.is_typ_var(t) => Var(t)
-        | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
-          Invalid(t)
+        | ([t], []) when is_hole_label(t) => hole(tm)
+        | ([t], []) => Invalid(t)
         | (label, [TPat(body)]) when is_probe_wrap(label) => body.term
         | _ => hole(tm)
         },
