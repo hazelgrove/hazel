@@ -92,27 +92,50 @@ let view =
     | Some(_) => z.caret == Outer
     | None => false
     };
+  let ind_p_d =
+    switch (Indicated.piece(z)) {
+    | Some((_, d, _)) => Some(d)
+    | None => None
+    };
+  let caret_d = Zipper.caret_direction(z);
   let caret_adj = {
-    let shape = Zipper.caret_direction(z);
-    let side =
-      switch (Indicated.piece(z)) {
-      | Some((_, side, _)) => side
-      | _ => Right
-      };
-    ShardDec.shape_adjust(side, shape);
+    switch (caret_d) {
+    | None => 0.
+    | Some(Left) =>
+      switch (ind_p_d) {
+      | Some(Left) => ShardDec.shape_adjust(Left, Some(Left)) +. 3.0
+      | Some(Right) => ShardDec.shape_adjust(Right, Some(Left)) +. 2.0
+      | _ => 2.5
+      }
+    | Some(Right) =>
+      switch (ind_p_d) {
+      | Some(Left) => ShardDec.shape_adjust(Left, Some(Right)) -. 2.0
+      | Some(Right) => ShardDec.shape_adjust(Right, Some(Right)) -. 3.0
+      | _ => (-2.0)
+      }
+    };
   };
-  let caret_adj_px =
-    // Figure out why we need this mystery pixel below
-    (-1.) +. caret_adj *. font_metrics.col_width;
-  let max_disp = 3; /* Maximum vertical backpack displacement */
+  let caret_adj_px = (-1.) +. caret_adj;
+  let max_disp = 4; /* Maximum vertical backpack displacement */
   let vertical_disp = origin.row <= max_disp ? origin.row : max_disp;
+  print_endline(
+    Printf.sprintf(
+      "vertical_disp: %d, origin.row: %d, max_disp: %d",
+      vertical_disp,
+      origin.row,
+      max_disp,
+    ),
+  );
   let selections_style =
     Printf.sprintf(
       "position: absolute; left: %fpx; top: %fpx;",
       Float.of_int(origin.col) *. font_metrics.col_width +. caret_adj_px,
-      Float.of_int(origin.row - vertical_disp - height_head - 1)
+      Float.of_int(
+        origin.row - vertical_disp - height_head + (origin.row == 0 ? 0 : 1),
+      )
       *. font_metrics.row_height,
     );
+  print_endline(selections_style);
   let scale_fn = idx => float_of_int(100 - 12 * idx) /. 100.;
   let x_fn = idx => float_of_int(12 * idx);
   let init_opacity = 100.;
@@ -166,10 +189,8 @@ let view =
     Printf.sprintf(
       "position: absolute; left: %fpx; top: %fpx; height: %fpx;",
       Float.of_int(origin.col) *. font_metrics.col_width +. caret_adj_px,
-      (-3.)
-      +. Float.of_int(origin.row - vertical_disp)
-      *. font_metrics.row_height,
-      3. +. Float.of_int(vertical_disp) *. font_metrics.row_height,
+      +. Float.of_int(origin.row - vertical_disp) *. font_metrics.row_height,
+      Float.of_int(vertical_disp) *. font_metrics.row_height,
     );
   let joiner =
     div(
@@ -179,6 +200,7 @@ let view =
       ],
       [],
     );
+  let genie_height = 0.3;
   let genie_view =
     DecUtil.code_svg(
       ~font_metrics,
@@ -193,17 +215,32 @@ let view =
           x: 0.,
           y: 0.,
         }),
-        V({y: (-1.0)}),
+        V({y: -. genie_height}),
         H_({dx: Float.of_int(length)}),
         V_({dy: 0.0}),
         Z,
       ],
     );
+
   let genie_style =
     Printf.sprintf(
       "position: absolute; left: %fpx; top: %fpx;",
       Float.of_int(origin.col) *. font_metrics.col_width +. caret_adj_px,
-      Float.of_int(origin.row - vertical_disp)
+      (
+        Float.of_int(
+          origin.row
+          - vertical_disp
+          + (
+            switch (origin.row) {
+            | 0 => 0
+            | 1 => 1
+            | _ => 2
+            }
+          ),
+        )
+        -. 1.0
+        +. genie_height
+      )
       *. font_metrics.row_height
       +. 1.,
     );
