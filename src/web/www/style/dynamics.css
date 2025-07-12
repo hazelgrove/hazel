@@ -5,6 +5,7 @@
 .cell-result {
   display: flex;
   flex-direction: row;
+  flex-grow: 1;
   background-color: var(--cell-result);
   gap: 0.5em;
   color: var(--cell-result-text);
@@ -12,7 +13,7 @@
   padding-left: 1.2em;
 }
 
-.cell>.cell-result {
+.cell > .cell-result {
   border-top: 1px dotted var(--cell-result-border);
 }
 

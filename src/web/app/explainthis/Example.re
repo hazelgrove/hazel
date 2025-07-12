@@ -139,6 +139,7 @@ let mk_use = mk_tile(Form.get(Use));
 let mk_tyalias = mk_tile(Form.get(TypeAlias));
 let mk_if = mk_tile(Form.get(If));
 let mk_test = mk_tile(Form.get(Test));
+let mk_hinted_test = mk_tile(Form.get(HintedTest));
 let mk_case = mk_tile(Form.get(Case));
 let mk_rule = mk_tile(Form.get(Rule));
 let mk_hide = mk_tile(Form.get(FilterHide));
@@ -150,9 +151,9 @@ let linebreak = () => mk_secondary(Form.linebreak);
 let space = () => mk_secondary(Form.space);
 
 let mk_example = str => {
-  switch (Printer.zipper_of_string(str)) {
+  switch (Parser.to_segment(str)) {
   | None => []
-  | Some(z) => Zipper.zip(z)
+  | Some(seg) => seg
   };
 };
 
