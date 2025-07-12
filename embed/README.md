@@ -81,3 +81,21 @@ The package exports the following TypeScript types:
 - `ParentToHazel` - Messages sent from the parent application to Hazel
 - Message types: `Init`, `Ping`, `Pong`, `EditorDelta`
 - Delta types: `EditScript`, `EditOp`, `DeleteOp`, `InsertOp`, etc.
+
+## Development
+
+### Dependencies
+
+To install dependencies, run:
+
+```bash
+pnpm install
+```
+
+### Running
+
+To use the basic vite server, run:
+
+```bash
+pnpm dev
+```
