@@ -730,18 +730,18 @@ let selection_tests = [
   test(
     ~name="Move extreme left with multiline selection",
     ~acts=
-      mk({|(1,
-2,
-¦3,
-4,
-5)|})
+      mk({|(12345,
+23456789,
+¦345678,
+45678,
+56789)|})
       @ [Action.Select(All)]
       @ [Action.Move(Extreme(Left(ByToken)))],
-    ~goal={|¦(1,
-  2,
-  3,
-  4,
-  5)|},
+    ~goal={|(12345,
+  23456789,
+  345678,
+  45678,
+  ¦56789)|},
   ),
 ];
 
