@@ -426,8 +426,9 @@ module Make = (M: S) => {
       let z =
         switch (d) {
         | Local(planar)
-        | Extreme(planar) =>
+        | Extreme((Up | Down) as planar) =>
           Zipper.directional_unselect(Zipper.from_plane(planar), z)
+        | Extreme(Left(_) | Right(_))
         | Goal(_) => Zipper.directional_unselect(z.selection.focus, z)
         };
 
