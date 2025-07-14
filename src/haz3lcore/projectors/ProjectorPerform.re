@@ -172,6 +172,34 @@ let go =
       };
       Ok(z);
     }
+  | SelectedCheckboxes =>
+    /* Select all checkboxes in the indicated projector */
+    let selection = z.selection;
+    let selected_ids = Selection.selected_ids(selection);
+    print_endline(
+      "Selected ids: "
+      ++ String.concat(", ", List.map(Id.show, selected_ids)),
+    );
+    let z =
+      List.fold_left(
+        (z, id) => {
+          switch (jump_to_id_indicated(z, id)) {
+          | Some(z) =>
+            set_indicated(z, ProjectorCore.Kind.Checkbox)
+            |> Option.value(~default=z)
+          | None =>
+            print_endline("Failed to jump to id: " ++ Id.show(id));
+            z;
+          | exception _ =>
+            print_endline("Failed to jump to id: " ++ Id.show(id));
+            z;
+          }
+        },
+        z,
+        selected_ids,
+      );
+
+    Ok(z);
   | Escape(id, d) =>
     switch (jump_to_side_of_id(d, z, id)) {
     | Some(z) => Ok(z)

@@ -59,7 +59,8 @@ type project =
   | SetSyntax(Id.t, Base.segment) /* Set underlying syntax */
   | SetModel(Id.t, string) /* Set serialized projector model */
   | Focus(Id.t, ProjectorCore.Kind.t, option(Util.Direction.t)) /* Pass control to projector */
-  | Escape(Id.t, Direction.t); /* Pass control to parent editor */
+  | Escape(Id.t, Direction.t) /* Pass control to parent editor */
+  | SelectedCheckboxes;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type agent =
@@ -144,7 +145,8 @@ let is_edit: t => bool =
     | SetSyntax(_)
     | SetModel(_)
     | SetIndicated(_)
-    | RemoveIndicated => true
+    | RemoveIndicated
+    | SelectedCheckboxes => true
     | Focus(_)
     | Escape(_) => false
     };
@@ -173,7 +175,8 @@ let is_historic: t => bool =
     | SetSyntax(_)
     | SetModel(_)
     | SetIndicated(_)
-    | RemoveIndicated => true
+    | RemoveIndicated
+    | SelectedCheckboxes => true
     | Focus(_)
     | Escape(_) => false
     };
@@ -201,6 +204,7 @@ let prevent_in_read_only_editor = (a: t) => {
     | SetSyntax(_) => true
     | SetModel(_)
     | SetIndicated(_)
+    | SelectedCheckboxes
     | RemoveIndicated
     | Focus(_)
     | Escape(_) => false

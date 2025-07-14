@@ -96,3 +96,5 @@ let pop = (sel: t): option((Piece.t, t)) =>
       },
     ));
   };
+
+let selected_ids = (sel: t): list(Id.t) => sel.content |> Segment.ids;

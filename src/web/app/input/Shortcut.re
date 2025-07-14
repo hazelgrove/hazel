@@ -124,6 +124,12 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       Globals(ActiveEditor(Project(SetIndicated(ChooseLivelit)))),
     ),
     mk_shortcut(
+      ~section="Projection",
+      ~mdIcon="check_box",
+      "Project all selected booleans as checkboxes",
+      Globals(ActiveEditor(Project(SelectedCheckboxes))),
+    ),
+    mk_shortcut(
       ~section="Settings",
       ~mdIcon="tune",
       "Toggle Statics",
