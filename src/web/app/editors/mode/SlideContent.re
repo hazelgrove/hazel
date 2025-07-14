@@ -318,6 +318,24 @@ let get_content =
         ],
       ),
     )
+  | "Tables" =>
+    Some(
+      slide(
+        "Tables",
+        [
+          p([
+            text(
+              "Tables in Hazel are represented as lists of labeled tuples, where each tuple corresponds to a row and the labels correspond to column names. This structure enables familiar table-like operations such as projection, filtering, and transformation.",
+            ),
+          ]),
+          p([
+            text(
+              "Label-based projection works the same way as it does on individual tuples, but automatically broadcasts across the list to extract a column of values.",
+            ),
+          ]),
+        ],
+      ),
+    )
   | "Pattern Matching on Tuples" =>
     Some(slide("Pattern Matching on Tuples", []))
   | "Recursion" => Some(slide("Recursion", []))
