@@ -3,6 +3,8 @@ open Haz3lcore;
 open Language;
 open Language.Statics;
 
+// --- Completion Mode ---
+// LLM-suggested hole completions, based strongly on https://hazel.org/papers/chatlsp-oopsla2024.pdf
 module Completion = {
   let get_static_context =
       (
@@ -191,6 +193,9 @@ module Completion = {
   };
 };
 
+// --- Composition Mode ---
+// LLM-based agentic code sysnthesis. Differs from code completion in that it can
+// navigate the program structure, and perform more complex, multi-step edits.
 module Composition = {
   let max_tool_calls = 10;
 
@@ -471,4 +476,11 @@ module Composition = {
       actions,
     );
   };
+};
+
+// --- Tutor Mode ---
+module Tutor = {
+  // Empty module for now
+  // Tutor mode is pretty simple, and basically just an LLM chat bot,
+  // prompted with hazel-specific information.
 };

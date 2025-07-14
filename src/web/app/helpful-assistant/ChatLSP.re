@@ -399,8 +399,6 @@ module SystemPrompt = {
 
   let composition_prompt = CompositionPrompt.self;
 
-  let summarized_hazel_docs = SummarizedHazelDocs.self;
-
   let mk_suggestion_prompt =
       (
         {instructions, syntax_notes, _}: Options.t,

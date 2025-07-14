@@ -49,4 +49,4 @@ let prelude = "
                   Uniquely, every incomplete program that you can construct using Hazel's language of edit actions is both statically and dynamically well-defined, i.e. it has a (possibly incomplete) type, and you can run it to produce a (possibly incomplete) result. Consequently, Hazel serves as an elegant platform for research on the future of programming (and programming education).
                   ";
 
-let self = prelude;
+let self = [prelude];

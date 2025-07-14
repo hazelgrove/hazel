@@ -2,7 +2,7 @@ open Util;
 
 let hazel_syntax_notes = HazelSyntaxNotes.self;
 
-let summarized_hazel_docs = SummarizedHazelDocs.self;
+let hazel_documentation = HazelDocumentation.self;
 
 let instructions = [
   "<instructions>",
@@ -100,5 +100,9 @@ let get_few_shot_comp_examples = () => {
   ++ "</fewShotExamples>";
 };
 
-let self = instructions @ toolkit @ hazel_syntax_notes @ summarized_hazel_docs;
+let self =
+  instructions
+  @ toolkit
+  @ hazel_syntax_notes
+  @ hazel_documentation(~summarized=false);
 // @ [get_few_shot_comp_examples()];

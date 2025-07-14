@@ -609,7 +609,7 @@ let update =
         );
 
         update_model_chat_history(~model, ~mode, ~updated_chat)
-        |> Updated.return_quiet;
+        |> Updated.return;
 
       | Composition(kind) =>
         let mode = AssistantSettings.TaskCompletion;
@@ -671,7 +671,7 @@ let update =
           );
 
           update_model_chat_history(~model, ~mode, ~updated_chat)
-          |> Updated.return_quiet;
+          |> Updated.return;
 
         | Loop(fuel, tool_contents) =>
           let ctx =
@@ -710,7 +710,7 @@ let update =
           );
 
           update_model_chat_history(~model, ~mode, ~updated_chat)
-          |> Updated.return_quiet;
+          |> Updated.return;
         };
 
       | Completion(kind) =>
@@ -754,7 +754,7 @@ let update =
           ) {
           | None =>
             print_endline("Suggestion prompt generation failed");
-            model_with_new_chat |> Updated.return_quiet;
+            model_with_new_chat |> Updated.return;
           | Some(ctx_prompt) =>
             let ctx_message: Model.message = {
               content: ctx_prompt,
@@ -791,7 +791,7 @@ let update =
               ~mode=settings.assistant.mode,
               ~updated_chat,
             )
-            |> Updated.return_quiet;
+            |> Updated.return;
           };
         | Query(content) =>
           let curr_chat =
@@ -827,7 +827,7 @@ let update =
           );
 
           update_model_chat_history(~model, ~mode, ~updated_chat)
-          |> Updated.return_quiet;
+          |> Updated.return;
 
         | Loop(error, tile_id, fuel) =>
           let curr_chat =
@@ -875,7 +875,7 @@ let update =
             );
           };
           update_model_chat_history(~model, ~mode, ~updated_chat)
-          |> Updated.return_quiet;
+          |> Updated.return;
         };
       };
     };

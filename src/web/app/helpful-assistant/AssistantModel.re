@@ -52,7 +52,7 @@ type message = {
   sketch_snapshot,
 };
 
-// A chat is simply a collection of messages, attached to an ID
+// A chat is a collection of messages, attached to an ID
 // We also include a timestamp and a descriptor for stylistic purposes.
 [@deriving (show({with_path: false}), sexp, yojson)]
 type chat = {

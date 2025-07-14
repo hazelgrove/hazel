@@ -1,4 +1,29 @@
-let self = [
+open Util;
+
+let get_documentation_as_text = () => {
+  let (_, slides) = ScratchMode.StoreDocumentation.load();
+  let documentation =
+    slides
+    |> List.map(((name, persistent)) => {
+         let cell_model =
+           CellEditor.Model.unpersist(
+             ~settings=Language.CoreSettings.off,
+             persistent,
+           );
+         let text =
+           Haz3lcore.Printer.of_zipper(cell_model.editor.editor.state.zipper);
+         "<slide_name>"
+         ++ name
+         ++ "</slide_name>\n"
+         ++ "<slide_text>"
+         ++ text
+         ++ "</slide_text>";
+       })
+    |> String.concat("\n\n");
+  "<hazelDocumentation>" ++ documentation ++ "</hazelDocumentation>";
+};
+
+let summarized_docs = [
   "<summarizedHazelDocs>",
   "- Hazel is a live functional programming environment that supports incomplete programs via typed holes.",
   "- Typed holes, denoted as `?`, can stand for missing expressions or types.",
@@ -83,3 +108,7 @@ let self = [
   "- An important note is that comments in Hazel are enclosed by `#` symbols. Eg `# This is a comment #`. The program WILL be erroneous if you do not include an ending '#' symbol for a comment.",
   "</summarizedHazelDocs>",
 ];
+
+let self = (~summarized: bool) => {
+  summarized ? summarized_docs : [get_documentation_as_text()];
+};
