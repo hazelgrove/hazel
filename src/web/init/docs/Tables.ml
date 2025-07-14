@@ -1,5 +1,5 @@
 let out : string * Haz3lcore.PersistentZipper.t =
-  ( "tables",
+  ( "Tables",
     {
       zipper =
         "((selection((focus Left)(content())(mode \
