@@ -1,5 +1,3 @@
-open Util;
-
 let hazel_syntax_notes = HazelSyntaxNotes.self;
 
 let hazel_documentation = HazelDocumentation.self;

@@ -1,5 +1,3 @@
-open Util;
-
 let get_documentation_as_text = () => {
   let (_, slides) = ScratchMode.StoreDocumentation.load();
   let documentation =
