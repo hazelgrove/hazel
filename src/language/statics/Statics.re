@@ -759,6 +759,12 @@ and uexp_to_info_map =
           )
         | _ => add(~self=BadLabel(Exp(e2)), ~co_ctx=info_e2.co_ctx, m)
         };
+      | List({term: Unknown(_), _}) =>
+        add(
+          ~self=Just(List(Unknown(Internal) |> Typ.temp) |> Typ.temp),
+          ~co_ctx=info_e2.co_ctx,
+          m,
+        )
       | _ => add'(~self=DotOperatorRequiresTuple, ~co_ctx=info_e2.co_ctx, m)
       };
     | Test(e) =>
