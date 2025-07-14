@@ -353,6 +353,7 @@ type compound_form =
   | ParensTyp
   | ApExpEmpty
   | ApExp
+  | ApPatEmpty
   | ApPat
   | ApTyp
   | ApExpTyp
@@ -439,6 +440,7 @@ let get: compound_form => t =
   | ParensTyp => mk_parens(Typ)
   | ApExpEmpty => mk(ii, ["()"], mk_post(P.ap, Exp, []))
   | ApExp => mk(ii, ["(", ")"], mk_post(P.ap, Exp, [Exp]))
+  | ApPatEmpty => mk(ii, ["()"], mk_post(P.ap, Pat, []))
   | ApPat => mk(ii, ["(", ")"], mk_post(P.ap, Pat, [Pat]))
   | ApTyp => mk(ii, ["(", ")"], mk_post(P.type_sum_ap, Typ, [Typ]))
   | ApExpTyp =>

@@ -519,6 +519,16 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
     | ([(_id, t)], []) =>
       ret(
         switch (t) {
+        | (["()"], []) =>
+          Ap(
+            l,
+            {
+              annotation: {
+                ids: [Id.nullary_ap_flag],
+              },
+              term: Tuple([]),
+            },
+          )
         | (["(", ")"], [Pat(arg)]) => Ap(l, arg)
         | _ => hole(tm)
         },
