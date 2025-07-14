@@ -870,5 +870,15 @@ let tests =
         ),
       )
     }),
+    fully_consistent_typecheck(
+      "Projection of unknown",
+      {|((a=1) : ?) .a|},
+      Some(unknown(Internal)),
+    ),
+    fully_consistent_typecheck(
+      "Projection of list of unknown",
+      {|([(a=1) : ?]).a|},
+      Some(list(unknown(Internal))),
+    ),
   ]
   @ TupleExtension.tests;
