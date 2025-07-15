@@ -200,12 +200,10 @@ let mk_bad = (ctr, ids, value) => {
   };
 };
 
-let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t => {
-  // print_endline("\n");
-  // print_endline("Sort: " ++ Sort.show(s));
-  // print_endline("Skel: " ++ [%derive.show: Skel.t](skel));
-  // print_endline("Seg: " ++ [%derive.show: Segment.t](seg));
-  // print_endline("\n");
+let is_hole_label = (t: string) =>
+  t == " " || Form.is_explicit_hole(t) || Form.is_llm_hole(t);
+
+let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
   switch (s) {
   | ModuleEntry => ModuleEntry(module_entry(skel, seg))
   | ModuleSignatureEntry =>
@@ -231,9 +229,7 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t => {
         }
       }
     };
-  };
-}
-
+  }
 and exp = unsorted => {
   let (term, inner_ids) = exp_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
@@ -297,13 +293,16 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | _ => ret(Module([a]))
         }
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
-      | (
-          ["case", "end"],
-          [Rul({term: Rules(scrut, rules), annotation: {ids, _}})],
-        ) => (
-          Match(scrut, rules),
-          ids,
-        )
+      | (["hint", "test", "end"], [Exp(hint), Exp(test)]) =>
+        ret(HintedTest(test, hint))
+      | (["case", "end"], [Rul({term, annotation: {ids, _}})]) =>
+        switch (term) {
+        | Rules(scrut, rules) => (Match(scrut, rules), ids)
+        // If the rule parser is correct, below should be impossible
+        | MultiHole(anys) => (MultiHole(anys), ids)
+        | Invalid(string) => (Invalid(string), ids)
+        }
+      | ([t], []) when is_hole_label(t) => ret(hole(tm))
       | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
         ret(Invalid(t))
       | _ => ret(hole(tm))
@@ -412,8 +411,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
     }
   | Bin(Exp(l), tiles: tiles, Typ(r)) as tm =>
     switch (tiles) {
-    | ([(_id, ([":"], []))], []) =>
-      ret(Cast(l, Unknown(Internal) |> Typ.fresh, r))
+    | ([(_id, ([":"], []))], []) => ret(Asc(l, r))
     | _ => ret(hole(tm))
     }
   | Bin(Exp(l), tiles, Exp(r)) as tm =>
@@ -680,8 +678,6 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
         | ([t], []) when Form.is_var(t) => Var(t)
         | ([t], []) when Form.is_wild(t) => Wild
         | ([t], []) when Form.is_ctr(t) => Constructor(t, None)
-        | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
-          Invalid(t)
         | (["(", ")"], [Pat(body)]) => Parens(body)
         | (label, [Pat(body)]) when is_probe_wrap(label) =>
           should_instrument(id) ? Probe(body, Probe.empty) : body.term
@@ -690,6 +686,8 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
           | {term: Tuple(ps), _} => ListLit(ps)
           | term => ListLit([term])
           }
+        | ([t], []) when is_hole_label(t) => hole(tm)
+        | ([t], []) => Invalid(t)
         | _ => hole(tm)
         },
       )
@@ -709,8 +707,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
   | Pre(_) as tm => ret(hole(tm))
   | Bin(Pat(p), tiles, Typ(ty)) as tm =>
     switch (tiles) {
-    | ([(_id, ([":"], []))], []) =>
-      ret(Cast(p, ty, Unknown(Internal) |> Typ.fresh))
+    | ([(_id, ([":"], []))], []) => ret(Asc(p, ty))
     | _ => ret(hole(tm))
     }
   | Bin(Pat(l), tiles, Pat(r)) as tm =>
@@ -803,8 +800,8 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
           | _ => ModuleSignature([a])
           }
         | (["[", "]"], [Typ(body)]) => List(body)
-        | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
-          Unknown(Hole(Invalid(t)))
+        | ([t], []) when is_hole_label(t) => hole(tm)
+        | ([t], []) => Unknown(Hole(Invalid(t)))
         | _ => hole(tm)
         },
       )
@@ -906,8 +903,8 @@ and tpat_term: unsorted => TPat.term = {
       ret(
         switch (tile) {
         | ([t], []) when Form.is_typ_var(t) => Var(t)
-        | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
-          Invalid(t)
+        | ([t], []) when is_hole_label(t) => hole(tm)
+        | ([t], []) => Invalid(t)
         | (label, [TPat(body)]) when is_probe_wrap(label) => body.term
         | _ => hole(tm)
         },
@@ -918,45 +915,30 @@ and tpat_term: unsorted => TPat.term = {
   | tm => ret(hole(tm));
 }
 
-// and rul = unsorted => {
-//   let term = rul_term(unsorted);
-//   let ids = ids(unsorted);
-//   return(r => Rul(r), ids, {ids, term});
-// }
 and rul = (unsorted): Rul.t => {
-  let hole: Rul.term = Hole(kids_of_unsorted(unsorted));
-  switch (exp(unsorted)) {
+  let e = exp(unsorted);
+  let mk_rules = (scrut: Exp.t, rules, ids): Rul.t => {
+    term: Rules(scrut, rules),
+    annotation: {
+      ids: ids,
+    },
+  };
+  switch (e) {
   | {term: MultiHole(_), _} =>
     switch (unsorted) {
     | Bin(Exp(scrut), tiles, Exp(last_clause)) =>
       switch (is_rules(tiles)) {
-      | Some((ps, leading_clauses)) => {
-          annotation: {
-            ids: ids(unsorted),
-          },
-          term:
-            Rules(scrut, List.combine(ps, leading_clauses @ [last_clause])),
-        }
-      | None => {
-          term: hole,
-          annotation: {
-            ids: ids(unsorted),
-          },
-        }
+      | Some((ps, leading_clauses)) =>
+        mk_rules(
+          scrut,
+          List.combine(ps, leading_clauses @ [last_clause]),
+          ids(unsorted),
+        )
+      | None => mk_rules(e, [], [])
       }
-    | _ => {
-        term: hole,
-        annotation: {
-          ids: ids(unsorted),
-        },
-      }
+    | _ => mk_rules(e, [], [])
     }
-  | e => {
-      term: Rules(e, []),
-      annotation: {
-        ids: [],
-      },
-    }
+  | _ => mk_rules(e, [], [])
   };
 }
 

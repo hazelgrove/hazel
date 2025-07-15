@@ -54,10 +54,7 @@ let tests = (
       },
     ),
     test_case("Module projection of single value", `Quick, () =>
-      parse_and_evaluate_test(
-        {|{ val x = 5 }.x|},
-        {| 5 |},
-      )
+      parse_and_evaluate_test({|{ val x = 5 }.x|}, {| 5 |})
     ),
     test_case("Module projection from multiple bindings", `Quick, () =>
       parse_and_evaluate_test(

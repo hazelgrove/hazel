@@ -55,9 +55,9 @@ let view =
       ),
       setting(
         Util.Unicode.castArrowSym,
-        "show cast steps",
-        settings.show_cast_steps,
-        Evaluation(ShowCastSteps),
+        "show ascription steps",
+        settings.show_ascription_steps,
+        Evaluation(ShowAscriptionSteps),
       ),
       // Disabled until we have a way to print closures
       // setting(

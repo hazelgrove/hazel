@@ -11,7 +11,7 @@ let exp_typ =
   );
 
 let parse_exp = (s: string) => {
-  switch (Parse.parse_exp(s)) {
+  switch (Haz3lcore.Parser.to_term(s)) {
   | Some(e) => e
   | None => Alcotest.fail("Failed to parse expression: " ++ s)
   };
@@ -34,7 +34,7 @@ let module_tests =
         exp_check(
           module_([
             ModuleEntry.val_binding(
-              Pat.(cast(var("x"), Typ.int(), Typ.unknown(Internal))),
+              Pat.(asc(var("x"), Typ.int())),
               int(1),
             ),
           ]),
@@ -116,7 +116,7 @@ let module_tests =
         exp_check(
           module_([
             ModuleEntry.val_binding(
-              Pat.(cast(var("x"), Typ.int(), Typ.unknown(Internal))),
+              Pat.(asc(var("x"), Typ.int())),
               int(7),
             ),
           ]),
@@ -128,7 +128,7 @@ let module_tests =
           module_([
             ModuleEntry.type_def(TPat.var("S"), Typ.int()),
             ModuleEntry.val_binding(
-              Pat.(cast(var("x"), Typ.var("S"), Typ.unknown(Internal))),
+              Pat.(asc(var("x"), Typ.var("S"))),
               int(7),
             ),
           ]),
@@ -242,10 +242,9 @@ let tests = [
       test_case("Singleton Labled Tuple ascription in let", `Quick, () =>
         exp_check(
           let_(
-            Pat.cast(
+            Pat.asc(
               Pat.var("x"),
               Typ.(parens(prod([tup_label(label("l"), string())]))),
-              Typ.unknown(Internal),
             ),
             parens(string("a")),
             var("x"),
@@ -260,10 +259,9 @@ let tests = [
             parens(tuple([tup_label(label("l"), int(32))])),
             let_(
               Pat.(
-                cast(
+                asc(
                   var("y"),
                   Typ.(parens(prod([tup_label(label("l"), int())]))),
-                  Typ.unknown(Internal),
                 )
               ),
               var("x"),
@@ -289,7 +287,7 @@ let tests = [
         exp_check(
           let_(
             Pat.(
-              cast(
+              asc(
                 var("x"),
                 Typ.(
                   parens(
@@ -299,7 +297,6 @@ let tests = [
                     ]),
                   )
                 ),
-                Typ.unknown(Internal),
               )
             ),
             parens(

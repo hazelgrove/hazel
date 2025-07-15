@@ -27,11 +27,14 @@ let (suite, _) =
         @ Test_Statics_Sums.tests
         @ Test_Statics_Types.tests
         @ Test_Statics_Modules.tests
+        @ Test_Statics_Fixpoint.tests
         @ Test_Statics_Property_DoesNotCrash.tests,
       ),
     ]
     @ Test_Elaboration.tests
     @ Test_Evaluator.tests
+    @ Test_Editing.tests
+    @ Test_Indentation.tests
     @ [Test_Coverage.tests, Test_ListUtil.tests, Test_Unboxing.tests]
     @ Test_Introduce.tests,
   );

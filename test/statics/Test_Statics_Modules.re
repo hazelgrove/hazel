@@ -35,7 +35,7 @@ let tests = [
           module_([
             ModuleEntry.type_def(TPat.var("T"), Typ.int()),
             ModuleEntry.val_binding(
-              Pat.(cast(var("x"), Typ.var("T"), Typ.unknown(Internal))),
+              Pat.(asc(var("x"), Typ.var("T"))),
               string(
                 ~ann=
                   Some(

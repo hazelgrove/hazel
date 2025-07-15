@@ -180,8 +180,8 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
     mk_shortcut(
       ~section="Settings",
       ~mdIcon="tune",
-      "Toggle Show Cast Steps",
-      Globals(Set(Evaluation(ShowCastSteps))),
+      "Toggle Show Ascription Steps",
+      Globals(Set(Evaluation(ShowAscriptionSteps))),
     ),
     mk_shortcut(
       ~section="Settings",
@@ -204,8 +204,8 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
     mk_shortcut(
       ~section="Settings",
       ~mdIcon="tune",
-      "Toggle Show Docs Sidebar",
-      Globals(Set(ExplainThis(ToggleShow))),
+      "Toggle Show Sidebar",
+      Globals(Set(Sidebar(ToggleShow))),
     ),
     mk_shortcut(
       ~section="Settings",

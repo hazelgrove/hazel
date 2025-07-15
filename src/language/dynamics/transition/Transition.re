@@ -58,8 +58,8 @@ type step_kind =
   | TypFunAp
   | FunAp
   | DeferredAp
-  | CastTypAp
-  | CastAp
+  | AscriptionTypAp
+  | AscriptionAp
   | BuiltinWrap
   | BuiltinAp(string)
   | UnOp(Operators.op_un)
@@ -72,7 +72,7 @@ type step_kind =
   | CaseApply
   | CompleteClosure
   | CompleteFilter
-  | Cast
+  | Ascription
   | RemoveTypeAlias
   | RemoveUse
   | RemoveParens;
@@ -272,60 +272,37 @@ module Transition = (EV: EV_MODE) => {
         is_value: false,
       });
     | FixF(dp, d1, env) =>
-      switch (DHPat.get_var(dp)) {
-      // Simple Recursion case
-      | Some(f) =>
-        let. _ =
-          otherwise(
-            env |> Option.value(~default=ClosureEnvironment.empty),
-            d,
-          );
+      let. _ =
+        otherwise(env |> Option.value(~default=ClosureEnvironment.empty), d);
+      switch (matches(dp, d1).matches) {
+      | IndetMatch
+      | DoesNotMatch => Indet
+      | Matches(env') =>
         let env'' =
+          VarBstMap.Ordered.mapo(
+            ((p, exp)) =>
+              if (VarBstMap.Ordered.length(env') > 1) {
+                let_(dp, FixF(dp, d1, env) |> rewrap, var(p));
+              } else {
+                FixF(Var(p) |> Pat.fresh, exp, env) |> rewrap;
+              },
+            env',
+          );
+        let env''' =
           evaluate_extend_env(
             ~call_stack=
               (env |> Option.value(~default=ClosureEnvironment.empty)).
                 call_stack,
-            Environment.singleton((f, FixF(dp, d1, env) |> rewrap)),
+            env'',
             env |> Option.value(~default=ClosureEnvironment.empty),
           );
         Step({
-          expr: subst_env(env'', d1),
+          expr: subst_env(env''', d1),
           state_update,
           kind: FixUnwrap,
           is_value: false,
         });
-      // Mutual Recursion case
-      | None =>
-        let. _ =
-          otherwise(
-            env |> Option.value(~default=ClosureEnvironment.empty),
-            d,
-          );
-        let bindings = DHPat.bound_vars(dp);
-        let substitutions =
-          List.map(
-            binding =>
-              (
-                binding,
-                let_(dp, FixF(dp, d1, env) |> rewrap, var(binding)),
-              ),
-            bindings,
-          );
-        let env'' =
-          evaluate_extend_env(
-            ~call_stack=
-              (env |> Option.value(~default=ClosureEnvironment.empty)).
-                call_stack,
-            Environment.of_list(substitutions),
-            env |> Option.value(~default=ClosureEnvironment.empty),
-          );
-        Step({
-          expr: subst_env(env'', d1),
-          state_update,
-          kind: FixUnwrap,
-          is_value: false,
-        });
-      }
+      };
     | Test(d'') =>
       let. _ = otherwise(env, d => Test(d) |> rewrap)
       and. d' = req_final(req(state, env), d => Test(d) |> wrap_ctx, d'');
@@ -338,7 +315,46 @@ module Transition = (EV: EV_MODE) => {
       Step({
         expr: tuple([]),
         state_update: () =>
-          update_test(state, DHExp.rep_id(d), (d', result)),
+          update_test(
+            state,
+            DHExp.rep_id(d),
+            {
+              exp: d,
+              status: result,
+              hint: "No hint available.",
+            },
+          ),
+        // update_test(state, DHExp.rep_id(d), (d', result)),
+        kind: UpdateTest,
+        is_value: true,
+      });
+    | HintedTest(d'', h) =>
+      let. _ = otherwise(env, d => HintedTest(d, h) |> rewrap)
+      and. d' =
+        req_final(req(state, env), d => HintedTest(d, h) |> wrap_ctx, d'');
+      let result: TestStatus.t =
+        switch (Unboxing.unbox(Atom(Bool), d')) {
+        | DoesNotMatch
+        | IndetMatch => Indet
+        | Matches(b) => b ? Pass : Fail
+        };
+      let h: string =
+        switch (h.term) {
+        | Atom(String(s)) => s
+        | _ => "No hint available."
+        };
+      Step({
+        expr: Tuple([]) |> fresh,
+        state_update: () =>
+          update_test(
+            state,
+            DHExp.rep_id(d),
+            {
+              exp: d,
+              status: result,
+              hint: h,
+            },
+          ),
         kind: UpdateTest,
         is_value: true,
       });
@@ -554,7 +570,7 @@ module Transition = (EV: EV_MODE) => {
       let.wrap_closure _ = env;
       let-unbox b1 = (Atom(Bool), d1');
       Step({
-        expr: b1 ? d2 : bool(false),
+        expr: b1 ? asc(d2, IdTagged.FreshGrammar.Typ.bool()) : bool(false),
         state_update,
         kind: BinOp(Bool(And)),
         is_value: false,
@@ -570,7 +586,7 @@ module Transition = (EV: EV_MODE) => {
       let.wrap_closure _ = env;
       let-unbox b1 = (Atom(Bool), d1');
       Step({
-        expr: b1 ? bool(true) : d2,
+        expr: b1 ? bool(true) : asc(d2, IdTagged.FreshGrammar.Typ.bool()),
         state_update,
         kind: BinOp(Bool(Or)),
         is_value: false,
@@ -778,29 +794,19 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d);
       let.wrap_closure _ = env;
       Indet;
-    | Cast(d, t1, t2) =>
-      let. _ = otherwise(env, d => Cast(d, t1, t2) |> rewrap)
-      and. d' =
-        req_final(req(state, env), d => Cast(d, t1, t2) |> wrap_ctx, d);
-      switch (Casts.transition(Cast(d', t1, t2) |> rewrap)) {
+    | Asc(d, t) =>
+      let. _ = otherwise(env, d => Asc(d, t) |> rewrap)
+      and. d' = req_final(req(state, env), d => Asc(d, t) |> wrap_ctx, d);
+      switch (Ascriptions.transition(Asc(d', t) |> rewrap)) {
       | Some(d) =>
         Step({
           expr: d,
           state_update,
-          kind: Cast,
+          kind: Ascription,
           is_value: false,
         })
       | None => Constructor
       };
-    | FailedCast(d1, t1, t2) =>
-      let. _ = otherwise(env, d1 => FailedCast(d1, t1, t2) |> rewrap)
-      and. _ =
-        req_final(
-          req(state, env),
-          d1 => FailedCast(d1, t1, t2) |> wrap_ctx,
-          d1,
-        );
-      Indet;
     | Undefined =>
       let. _ = otherwise(env, d);
       Indet;
@@ -886,9 +892,9 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | RemoveUse
   | InvalidStep => false
   | VarLookup => !settings.show_lookup_steps
-  | CastTypAp
-  | CastAp
-  | Cast => !settings.show_cast_steps
+  | AscriptionTypAp
+  | AscriptionAp
+  | Ascription => !settings.show_ascription_steps
   | FixUnwrap => !settings.show_fixpoints
   | CompleteClosure
   | CompleteFilter
@@ -936,9 +942,9 @@ let stepper_justification: step_kind => string =
   | Projection => "projection" // TODO(Matt): We don't want to show projection to the user
   | InvalidStep => "error"
   | VarLookup => "variable lookup"
-  | CastTypAp
-  | CastAp
-  | Cast => "cast calculus"
+  | AscriptionTypAp
+  | AscriptionAp
+  | Ascription => "ascription transition"
   | FixClosure => "fixpoint closure"
   | CompleteFilter => "complete filter"
   | CompleteClosure => "complete closure"

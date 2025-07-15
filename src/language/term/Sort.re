@@ -11,13 +11,6 @@ type t =
 
 let root = Exp;
 
-let consistent = (s, s') =>
-  switch (s, s') {
-  | (Any, _)
-  | (_, Any) => true
-  | _ => s == s'
-  };
-
 let to_string = show;
 
 let to_string_verbose =
