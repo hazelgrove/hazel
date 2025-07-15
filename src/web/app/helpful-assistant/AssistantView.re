@@ -1084,6 +1084,7 @@ let message_display =
     List.flatten(
       List.mapi(
         (index: int, message: Model.message) => {
+          let is_last_message = index == List.length(curr_messages) - 1;
           [
             div(
               ~attrs=[
@@ -1097,6 +1098,7 @@ let message_display =
                   | Tool => "tool"
                   },
                 ]),
+                is_last_message ? Attr.id("last-message") : Attr.empty,
               ],
               [
                 div(
@@ -1182,11 +1184,18 @@ let message_display =
                   };
               },
             ),
-          ]
+          ];
         },
         curr_messages,
       ),
     );
+  // Autoscroll to the last message after render
+  JsUtil.delay(0.0, () => {
+    Js.Opt.iter(
+      Dom_html.document##getElementById(Js.string("last-message")), el => {
+      Js.Unsafe.coerce(el)##scrollIntoView()
+    })
+  });
   div(
     ~attrs=[clss(["message-display-container"])],
     message_nodes @ [initial_display(~model, ~settings)],
