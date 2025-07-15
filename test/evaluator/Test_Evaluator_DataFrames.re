@@ -135,5 +135,78 @@ filter@<(label=String, value=Bool)>(fun a,b ->b, melted).label|};
         );
       },
     ),
+    test_case(
+      "From entries with singleton list of tuples",
+      `Quick,
+      () => {
+        let program = {|from_entries([(label="col", value=3)])|};
+        check(
+          dhexp_typ,
+          program,
+          parse_exp({|(col=3)|}),
+          parse_and_evaluate(program),
+        );
+      },
+    ),
+    test_case(
+      "From entries with multiple entries",
+      `Quick,
+      () => {
+        let program = {|from_entries([(label="col1", value=3), (label="col2", value=true)])|};
+        check(
+          dhexp_typ,
+          program,
+          parse_exp({|(col1=3, col2=true)|}),
+          parse_and_evaluate(program),
+        );
+      },
+    ),
+    test_case(
+      "From entries with empty list",
+      `Quick,
+      () => {
+        let program = {|from_entries([])|};
+        check(
+          dhexp_typ,
+          program,
+          parse_exp({|()|}),
+          parse_and_evaluate(program),
+        );
+      },
+    ),
+    test_case(
+      "From entries with bad data",
+      `Quick,
+      () => {
+        let program = {|from_entries([(x=1)])|};
+        check(
+          dhexp_typ,
+          program,
+          IdTagged.FreshGrammar.(
+            Exp.(
+              ap(
+                Forward,
+                builtin_fun("from_entries"),
+                list_lit([tuple([tup_label(label("x"), int(1))])]),
+              )
+            )
+          ),
+          parse_and_evaluate(program),
+        );
+      },
+    ),
+    test_case(
+      "From entries with label holes",
+      `Quick,
+      () => {
+        let program = {|from_entries([(label="col1", value=3), (label="col2", value=true), (label=?, value=5)])|};
+        check(
+          dhexp_typ,
+          program,
+          parse_exp({|(col1=3, col2=true, ?=5)|}),
+          parse_and_evaluate(program),
+        );
+      },
+    ),
   ],
 );

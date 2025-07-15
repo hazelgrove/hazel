@@ -80,6 +80,50 @@ let builtins: list(BuiltinsUtil.fn) = [
     custom_statics: Some(Ctx.Melt),
   },
   {
+    name: "from_entries",
+    arg:
+      List(
+        prod([
+          tup_label(label("label"), string()),
+          tup_label(label("value"), unknown(Internal)),
+        ]),
+      ),
+    ret: Unknown(Internal),
+    imp: (e: DHExp.t) => {
+      open OptUtil.Syntax;
+      let-unbox elems: list(Exp.t) = (ListLit, e);
+      let* tuple_entries =
+        OptUtil.traverse(
+          elem => {
+            let-unbox tuple_parts = (LabeledTupleEntries, elem);
+
+            switch (tuple_parts) {
+            | [
+                (Some("label"), {term: Atom(String(s)), _}),
+                (Some("value"), v),
+              ] =>
+              Some((Label(s) |> Exp.temp, v))
+            | [(Some("label"), {term: EmptyHole, _}), (Some("value"), v)] =>
+              Some((EmptyHole |> Exp.temp, v))
+            | [(Some("label"), bad_label), (Some("value"), v)] =>
+              Some((MultiHole([Exp(bad_label)]) |> Exp.temp, v))
+            | _ => None
+            };
+          },
+          elems,
+        );
+
+      let tuple_entries =
+        List.map(
+          ((e1, e2)) => {TupLabel(e1, e2) |> Exp.temp},
+          tuple_entries,
+        );
+
+      Some(IdTagged.FreshGrammar.Exp.tuple(tuple_entries));
+    },
+    custom_statics: None,
+  },
+  {
     name: "project_labels",
     arg: Unknown(Internal),
     ret: Unknown(Internal),
