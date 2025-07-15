@@ -1136,6 +1136,22 @@ module OmitLabels = {
         ),
       )
     ),
+    test_case("Omit labels with non-labeled elements", `Quick, () =>
+      annotated_tree_test(
+        {|omit_labels((1, 2, a=3), 'a')|},
+        prod([int(), int()]),
+        FIError.Exp.(
+          ap(
+            Forward,
+            var("omit_labels"),
+            tuple([
+              tuple([int(1), int(2), tup_label(label("a"), int(3))]),
+              label("a"),
+            ]),
+          )
+        ),
+      )
+    ),
   ];
 };
 

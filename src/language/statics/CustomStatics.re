@@ -1,6 +1,10 @@
 open StaticsBase;
 
-type tuple_type = list((option(string), Typ.t));
+type tuple_entry =
+  | Unlabeled(Typ.t)
+  | Labeled(option(string), Typ.t);
+type tuple_type = list(tuple_entry);
+
 let analyze_tuple_argument = (module S: ExpressionStatics, ~ctx, m, tup) => {
   open S;
 
@@ -13,9 +17,9 @@ let analyze_tuple_argument = (module S: ExpressionStatics, ~ctx, m, tup) => {
         List.map(
           (entry: Typ.t) => {
             switch (entry.term) {
-            | TupLabel({term: Label(l), _}, typ) => (Some(l), typ)
-            | TupLabel(_, typ) => (None, typ)
-            | _ => (None, entry)
+            | TupLabel({term: Label(l), _}, typ) => Labeled(Some(l), typ)
+            | TupLabel(_, typ) => Labeled(None, typ)
+            | _ => Unlabeled(entry)
             }
           },
           entries,
@@ -50,9 +54,9 @@ let analyze_table_argument = (module S: ExpressionStatics, ~ctx, m, table) => {
         List.map(
           (entry: Typ.t) => {
             switch (entry.term) {
-            | TupLabel({term: Label(l), _}, typ) => (Some(l), typ)
-            | TupLabel(_, typ) => (None, typ)
-            | _ => (None, entry)
+            | TupLabel({term: Label(l), _}, typ) => Labeled(Some(l), typ)
+            | TupLabel(_, typ) => Labeled(None, typ)
+            | _ => Unlabeled(entry)
             }
           },
           entries,
@@ -76,11 +80,18 @@ let analyze_table_argument = (module S: ExpressionStatics, ~ctx, m, table) => {
   };
 };
 
+let extract_label = (entry: tuple_entry): option(string) =>
+  switch (entry) {
+  | Labeled(Some(label), _) => Some(label)
+  | _ => None
+  };
+let extract_type = (entry: tuple_entry): Typ.t =>
+  switch (entry) {
+  | Unlabeled(typ) => typ
+  | Labeled(_, typ) => typ
+  };
 let extract_labels = (entries: tuple_type) =>
-  List.filter_map(
-    (entry: (option(string), Typ.t)) => fst(entry),
-    entries,
-  );
+  List.filter_map((entry: tuple_entry) => extract_label(entry), entries);
 
 let labels_to_info_map =
     (
@@ -107,8 +118,10 @@ let labels_to_info_map =
 };
 
 let get_tuple_label = (tuple: tuple_type, label: string): Typ.t => {
-  switch (List.find_opt(((l, _)) => l == Some(label), tuple)) {
-  | Some((_, typ)) => typ
+  switch (
+    List.find_opt(entry => extract_label(entry) == Some(label), tuple)
+  ) {
+  | Some(entry) => extract_type(entry)
   | None => Unknown(Internal) |> Typ.temp
   };
 };
@@ -237,10 +250,11 @@ let primitive_pivot_statics =
         );
       let pivot_type =
         Util.OptUtil.map2(
-          (entries: list((option(string), TermBase.typ_t)), label: string) => {
+          (entries: list(tuple_entry), label: string) => {
             List.find_map(
-              ((l: option(string), ty: Typ.t)) =>
-                l == Some(label) ? Some(ty) : None,
+              entry =>
+                extract_label(entry) == Some(label)
+                  ? Some(extract_type(entry)) : None,
               entries,
             )
           },
@@ -481,23 +495,20 @@ let omit_labels_statics =
         | Some(labeled_tup_info) =>
           let tys =
             List.filter_map(
-              ((optional_lab, ty)) => {
-                Option.map(
-                  (lab: string) => !List.mem(lab, labels_to_drop),
-                  optional_lab,
-                )
-                |> Option.value(~default=true)
-                  ? Some(
-                      TupLabel(
-                        switch (optional_lab) {
-                        | Some(lab) => Label(lab) |> Typ.temp
-                        | None => Unknown(Internal) |> Typ.temp
-                        },
-                        ty,
-                      )
-                      |> Typ.temp,
-                    )
-                  : None
+              entry => {
+                switch (entry) {
+                | Unlabeled(typ) => Some(typ)
+                | Labeled(None, typ) =>
+                  Some(
+                    TupLabel(Unknown(Internal) |> Typ.temp, typ) |> Typ.temp,
+                  )
+                | Labeled(Some(lab), typ) =>
+                  if (List.mem(lab, labels_to_drop)) {
+                    None;
+                  } else {
+                    Some(TupLabel(Label(lab) |> Typ.temp, typ) |> Typ.temp);
+                  }
+                }
               },
               labeled_tup_info,
             );
