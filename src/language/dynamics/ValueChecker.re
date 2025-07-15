@@ -31,6 +31,23 @@ module ValueCheckerEVMode: {
       ([], Value),
     );
 
+  let rec req_all_cuml' = (values, vc, ds) => {
+    switch (ds) {
+    | [] => (values, Value)
+    | [d, ...ds] =>
+      let (v, r) = req_final(vc(values), x => x, d);
+      switch (r) {
+      | Expr => (List.rev_append(values, ds), Expr)
+      | Indet
+      | Value =>
+        let (vs, r2) = req_all_cuml'([v, ...values], vc, ds);
+        ([v, ...vs], combine(r, r2));
+      };
+    };
+  };
+
+  let req_all_cuml = (vc, _, ds) => req_all_cuml'([], vc, ds);
+
   let otherwise = (_, _) => ((), Value);
 
   let (let.) = ((v, r), rule) =>

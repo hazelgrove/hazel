@@ -287,6 +287,23 @@ module Decompose = {
       req_all_final'(cont, wr, [], ds);
     };
 
+    let rec req_all_cuml' = (prevs, cont, wr, ds') =>
+      switch (ds') {
+      | [] => Result.BoxedValue
+      | [d, ...ds] =>
+        let (r1, v1) = req_final(cont(prevs), wr(_, (prevs, ds)), d);
+        switch (r1) {
+        | Result.Step(ss) =>
+          Result.Step(List.map(EvalObj.wrap(wr(_, (prevs, ds))), ss))
+        | Result.Indet
+        | Result.BoxedValue => req_all_cuml'([v1, ...prevs], cont, wr, ds)
+        };
+      };
+
+    let req_all_cuml = (cont, wr, ds) => {
+      (req_all_cuml'([], cont, wr, ds), ds);
+    };
+
     let (let.): (requirements('a, DHExp.t), 'a => rule) => result =
       (rq, rl) =>
         switch (rq) {
@@ -345,6 +362,8 @@ module TakeStep = {
     // Assume that everything is either value or final as required.
     let req_final = (_, _, d) => d;
     let req_all_final = (_, _, ds) => ds;
+
+    let req_all_cuml = (_, _, ds) => ds;
 
     let (let.) = (rq: requirements('a, DHExp.t), rl: 'a => rule) =>
       switch (rl(rq)) {
