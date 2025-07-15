@@ -14,9 +14,14 @@ type completion =
   | Loop(string, Id.t, int); // Error rounds
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type status =
+  | Success
+  | Failure(string);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type composition =
   | Request(string) // User-submitted task, question, etc
-  | Loop(int, OpenRouter.tool_contents); // Iterative tool completion loop
+  | Loop(int, OpenRouter.tool_contents, status); // Iterative tool completion loop
 
 // Actions to send various kinds of messages to the LLM
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -773,11 +778,11 @@ let parse_and_apply_structure_edit =
       };
     // Apply the edit action to the editor
     apply_edit_action(~ed=editor, ~edit_action, ~variable_name, ~variable_id);
-    schedule_action(loop_message);
+    schedule_action(loop_message(Success));
   }) {
   | Failure(err) =>
     schedule_action(InternalError(err, mode, chat_id));
-    schedule_action(loop_message);
+    schedule_action(loop_message(Failure(err)));
   };
 };
 
@@ -919,7 +924,7 @@ let update =
           update_model_chat_history(~model, ~mode, ~updated_chat)
           |> Updated.return;
 
-        | Loop(fuel, tool_contents) =>
+        | Loop(fuel, tool_contents, status) =>
           // This is step (2) from the directed graph above --
           //    The agent just made a tool call. After
           //    (assumably) handling the tool call previously, we gather the new context
@@ -946,10 +951,28 @@ let update =
             sketch_snapshot: None,
           };
 
-          let updated_chat = {
-            ...curr_chat,
-            messages: curr_chat.messages @ [ctx_message],
-          };
+          let updated_chat =
+            switch (status) {
+            | Success => {
+                ...curr_chat,
+                messages: curr_chat.messages @ [ctx_message],
+              }
+            | Failure(err) =>
+              let err_message: Model.message = {
+                content: OpenRouter.mk_user_msg(err),
+                display:
+                  Model.mk_message_display(
+                    ~content=err,
+                    ~role=System(InternalError),
+                  ),
+                role: System(InternalError),
+                sketch_snapshot: None,
+              };
+              {
+                ...curr_chat,
+                messages: curr_chat.messages @ [err_message, ctx_message],
+              };
+            };
 
           mk_llm_call(
             ~mode,
@@ -1148,7 +1171,7 @@ let update =
     // todo: Should this be a user, assistant, or system message?
     //       We could make it assistant and put it in the first-person.
     let system_message: Model.message = {
-      content: OpenRouter.mk_system_msg(content),
+      content: OpenRouter.mk_user_msg(content),
       display:
         Model.mk_message_display(~content, ~role=System(InternalError)),
       role: System(InternalError),
@@ -1270,7 +1293,7 @@ let update =
       | (Some(tool_call), _) =>
         // The agent made a tool call, we need to handle it and then perform a loop
         // round (the loop round itself will later handle it)
-        let loop_message =
+        let loop_message = (status: status) =>
           SendMessage(
             Composition(
               Loop(
@@ -1279,6 +1302,7 @@ let update =
                   tool_call_id: tool_call.id,
                   name: OpenRouter.string_of_structure_action(tool_call.name),
                 },
+                status,
               ),
             ),
             None,
