@@ -466,11 +466,12 @@ let mk_llm_call =
 let mk_user_content_message =
     (~content: string, ~role: Model.role, ~editor: CodeEditable.Model.t)
     : Model.message => {
+  let _ = editor;
   {
     content: OpenRouter.mk_user_msg(content),
     display: Model.mk_message_display(~content, ~role),
     role,
-    sketch_snapshot: Some(editor),
+    sketch_snapshot: None // Some(editor), todo: figure out how to serialize editor
   };
 };
 
