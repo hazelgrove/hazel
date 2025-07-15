@@ -548,6 +548,239 @@ let mk_structure_edit_msg =
     ++ e
   };
 
+let parse_and_apply_structure_edit =
+    (
+      ~editor: CodeEditable.Model.t,
+      ~tool_call: OpenRouter.tool_call,
+      ~apply_edit_action:
+         (
+           ~ed: CodeEditable.Model.t,
+           ~edit_action: AssistantMode.Composition.edit_action,
+           ~variable_name: option(string),
+           ~variable_id: option(string)
+         ) =>
+         unit,
+      ~schedule_action: t => unit,
+      ~loop_message,
+      ~mode,
+      ~chat_id,
+    )
+    : unit => {
+  let invalid_args_failure = (tool_call: OpenRouter.structure_action) => {
+    raise(
+      Failure(
+        "Invalid arguments for "
+        ++ OpenRouter.string_of_structure_action(tool_call),
+      ),
+    );
+  };
+  // Extract the variable name and id from the tool call,
+  // matching on the edit action itself (tool call name)
+  try({
+    let (edit_action, variable_name, variable_id) =
+      switch (tool_call.name) {
+      /* --------- [Begin] UpdatePattern [Begin] --------- */
+      | OpenRouter.UpdatePattern =>
+        let (variable_name, variable_id, new_pattern) =
+          switch (
+            Json.dot("variable_name", tool_call.args),
+            Json.dot("variable_id", tool_call.args),
+            Json.dot("new_pattern", tool_call.args),
+          ) {
+          | (
+              Some(`String(variable_name)),
+              Some(`String(variable_id)),
+              Some(`String(new_pattern)),
+            ) => (
+              Some(variable_name),
+              Some(variable_id),
+              new_pattern,
+            )
+          | _ => invalid_args_failure(tool_call.name)
+          };
+        (
+          AssistantMode.Composition.UpdatePattern(new_pattern),
+          variable_name,
+          variable_id,
+        );
+      /* --------- [End] UpdatePattern [End] --------- */
+      /* --------- [Begin] UpdateDefinition [Begin] --------- */
+      | OpenRouter.UpdateDefinition =>
+        let (variable_name, variable_id, new_definition) =
+          switch (
+            Json.dot("variable_name", tool_call.args),
+            Json.dot("variable_id", tool_call.args),
+            Json.dot("new_definition", tool_call.args),
+          ) {
+          | (
+              Some(`String(variable_name)),
+              Some(`String(variable_id)),
+              Some(`String(new_definition)),
+            ) => (
+              Some(variable_name),
+              Some(variable_id),
+              new_definition,
+            )
+          | _ => invalid_args_failure(tool_call.name)
+          };
+        (
+          AssistantMode.Composition.UpdateDefinition(new_definition),
+          variable_name,
+          variable_id,
+        );
+      /* --------- [End] UpdateDefinition [End] --------- */
+      /* --------- [Begin] DeleteBinding [Begin] --------- */
+      | OpenRouter.DeleteBinding =>
+        let (variable_name, variable_id) =
+          switch (
+            Json.dot("variable_name", tool_call.args),
+            Json.dot("variable_id", tool_call.args),
+          ) {
+          | (Some(`String(variable_name)), Some(`String(variable_id))) => (
+              Some(variable_name),
+              Some(variable_id),
+            )
+          | _ => invalid_args_failure(tool_call.name)
+          };
+        (AssistantMode.Composition.DeleteBinding, variable_name, variable_id);
+      /* --------- [End] DeleteBinding [End] --------- */
+      /* --------- [Begin] UpdateBinding [Begin] --------- */
+      | OpenRouter.UpdateBinding =>
+        let (variable_name, variable_id, new_binding) =
+          switch (
+            Json.dot("variable_name", tool_call.args),
+            Json.dot("variable_id", tool_call.args),
+            Json.dot("new_binding", tool_call.args),
+          ) {
+          | (
+              Some(`String(variable_name)),
+              Some(`String(variable_id)),
+              Some(`String(new_binding)),
+            ) => (
+              Some(variable_name),
+              Some(variable_id),
+              new_binding,
+            )
+          | _ => invalid_args_failure(tool_call.name)
+          };
+        (
+          AssistantMode.Composition.UpdateBinding(new_binding),
+          variable_name,
+          variable_id,
+        );
+      /* --------- [End] UpdateBinding [End] --------- */
+      /* --------- [Begin] UpdateBody [Begin] --------- */
+      | OpenRouter.UpdateBody =>
+        let (variable_name, variable_id, new_body) =
+          switch (
+            Json.dot("variable_name", tool_call.args),
+            Json.dot("variable_id", tool_call.args),
+            Json.dot("new_body", tool_call.args),
+          ) {
+          | (
+              Some(`String(variable_name)),
+              Some(`String(variable_id)),
+              Some(`String(new_body)),
+            ) => (
+              Some(variable_name),
+              Some(variable_id),
+              new_body,
+            )
+          | _ => invalid_args_failure(tool_call.name)
+          };
+        (
+          AssistantMode.Composition.UpdateBody(new_body),
+          variable_name,
+          variable_id,
+        );
+      /* --------- [End] UpdateBody [End] --------- */
+      /* --------- [Begin] DeleteBody [Begin] --------- */
+      | OpenRouter.DeleteBody =>
+        let (variable_name, variable_id) =
+          switch (
+            Json.dot("variable_name", tool_call.args),
+            Json.dot("variable_id", tool_call.args),
+          ) {
+          | (Some(`String(variable_name)), Some(`String(variable_id))) => (
+              Some(variable_name),
+              Some(variable_id),
+            )
+          | _ => (None, None)
+          };
+        (AssistantMode.Composition.DeleteBody, variable_name, variable_id);
+      /* --------- [End] DeleteBody [End] --------- */
+      /* --------- [Begin] AddBefore [Begin] --------- */
+      | OpenRouter.AddBefore =>
+        let (variable_name, variable_id, code) =
+          switch (
+            Json.dot("variable_name", tool_call.args),
+            Json.dot("variable_id", tool_call.args),
+            Json.dot("code", tool_call.args),
+          ) {
+          | (
+              Some(`String(variable_name)),
+              Some(`String(variable_id)),
+              Some(`String(code)),
+            ) => (
+              Some(variable_name),
+              Some(variable_id),
+              code,
+            )
+          | (_, _, Some(`String(code))) => (None, None, code)
+          | _ => invalid_args_failure(tool_call.name)
+          };
+        (
+          AssistantMode.Composition.Add(Before, code),
+          variable_name,
+          variable_id,
+        );
+      /* --------- [End] AddBefore [End] --------- */
+      /* --------- [Begin] AddAfter [Begin] --------- */
+      | OpenRouter.AddAfter =>
+        let (variable_name, variable_id, code) =
+          switch (
+            Json.dot("variable_name", tool_call.args),
+            Json.dot("variable_id", tool_call.args),
+            Json.dot("code", tool_call.args),
+          ) {
+          | (
+              Some(`String(variable_name)),
+              Some(`String(variable_id)),
+              Some(`String(code)),
+            ) => (
+              Some(variable_name),
+              Some(variable_id),
+              code,
+            )
+          | (_, _, Some(`String(code))) => (None, None, code)
+          | _ => invalid_args_failure(tool_call.name)
+          };
+        (
+          AssistantMode.Composition.Add(After, code),
+          variable_name,
+          variable_id,
+        );
+      /* --------- [End] AddAfter [End] --------- */
+      /* --------- [Begin] InvalidStructureAction [Begin] --------- */
+      | OpenRouter.InvalidStructureAction =>
+        raise(
+          Failure(
+            "Unknown tool call: "
+            ++ OpenRouter.string_of_structure_action(tool_call.name),
+          ),
+        )
+      /* --------- [End] InvalidStructureAction [End] --------- */
+      };
+    // Apply the edit action to the editor
+    apply_edit_action(~ed=editor, ~edit_action, ~variable_name, ~variable_id);
+    schedule_action(loop_message);
+  }) {
+  | Failure(err) =>
+    schedule_action(InternalError(err, mode, chat_id));
+    schedule_action(loop_message);
+  };
+};
+
 let update =
     (
       ~settings: Settings.t,
@@ -616,7 +849,20 @@ let update =
         let curr_chat =
           Id.Map.find(chat_id, model.chat_history.past_composition_chats);
         switch (kind) {
+        // The initial message sent to the LLM via the User --
+        // We can think of the agentic looping as a directed graph:
+        // 1. The user sends a message to the LLM, appending with info from (2)
+        // 2. We gather context of the program relative to the cursor
+        //    and send it as a user message.
+        // 3. The LLM responds with either a tool call or no tool call.
+        //        if tool call, parse and handle it and then loop back to (2)
+        //            (this cyclic edge is what makes enables the "agentic" nature)
+        //        if no tool call, output final result to the user
         | Request(content) =>
+          // This is step (1) of the directed graph example above.
+          // The user sends a message to the LLM, appending with info from (2)
+          // Note: (2) is done here, jointly with (1) and done in Loop(_, _) below,
+          //       after a tool call has been handled.
           print_endline("handling composition request");
           schedule_action(EmployLLMAction(SetLoop(false)));
           let content_message: Model.message =
@@ -674,6 +920,15 @@ let update =
           |> Updated.return;
 
         | Loop(fuel, tool_contents) =>
+          // This is step (2) from the directed graph above --
+          //    The agent just made a tool call. After
+          //    (assumably) handling the tool call previously, we gather the new context
+          //    from the program and cursor location, and then append these to our list
+          //    of messages. This message is an OpenRouter tool message (as opposed to a user message),
+          //    which takes the tool call and the tool call results (which we send as the context).
+          //    We then send off this message to the LLM and await a response, either
+          //    an end output to the user (implying no more looping) or a new tool call.
+
           let ctx =
             AssistantMode.Composition.mk_ctx_prompt(
               ChatLSP.Options.init,
@@ -960,6 +1215,8 @@ let update =
            );
          } else */
       switch (tool_call) {
+      // This commented out code below is for streaming, if we ever choose add
+
       | Some(tool_call) =>
         let structure_edit_message: Model.message = {
           content: OpenRouter.mk_system_msg(""),
@@ -993,9 +1250,14 @@ let update =
     switch (response_kind) {
     | Tutor => ()
     | CompositionLoopRound(_, fuel) =>
+      // This is step (3) from the directed graph above --
       switch (tool_call, fuel) {
-      | (None, _) => ()
+      | (None, _) =>
+        // The agent did not make a tool call, thus there is nothing to handle on the backend,
+        // we can proceed as if there were a normal LLM chat interaction.
+        ()
       | (_, 0) =>
+        // The agent ran out of fuel. We should experiment with this in the future.
         schedule_action(
           InternalError(
             "By default, we stop the agent after "
@@ -1006,6 +1268,8 @@ let update =
           ),
         )
       | (Some(tool_call), _) =>
+        // The agent made a tool call, we need to handle it and then perform a loop
+        // round (the loop round itself will later handle it)
         let loop_message =
           SendMessage(
             Composition(
@@ -1024,305 +1288,15 @@ let update =
           AssistantMode.Composition.apply_edit_action(
             ~schedule_action=schedule_editor_action,
           );
-        try(
-          switch (tool_call.name) {
-          | OpenRouter.UpdatePattern =>
-            let (variable_name, variable_id, new_pattern) =
-              switch (
-                Json.dot("variable_name", tool_call.args),
-                Json.dot("variable_id", tool_call.args),
-                Json.dot("new_pattern", tool_call.args),
-              ) {
-              | (
-                  Some(`String(variable_name)),
-                  Some(`String(variable_id)),
-                  Some(`String(new_pattern)),
-                ) => (
-                  Some(variable_name),
-                  Some(variable_id),
-                  new_pattern,
-                )
-              | _ =>
-                raise(
-                  Failure(
-                    "Invalid arguments for "
-                    ++ OpenRouter.string_of_structure_action(tool_call.name),
-                  ),
-                )
-              };
-            apply_edit_action(
-              ~ed=editor,
-              ~edit_action=
-                AssistantMode.Composition.UpdatePattern(new_pattern),
-              ~variable_name,
-              ~variable_id,
-            );
-            schedule_action(loop_message);
-          | OpenRouter.UpdateDefinition =>
-            let (variable_name, variable_id, new_definition) =
-              switch (
-                Json.dot("variable_name", tool_call.args),
-                Json.dot("variable_id", tool_call.args),
-                Json.dot("new_definition", tool_call.args),
-              ) {
-              | (
-                  Some(`String(variable_name)),
-                  Some(`String(variable_id)),
-                  Some(`String(new_definition)),
-                ) => (
-                  Some(variable_name),
-                  Some(variable_id),
-                  new_definition,
-                )
-              | _ =>
-                raise(
-                  Failure(
-                    "Invalid arguments for "
-                    ++ OpenRouter.string_of_structure_action(tool_call.name),
-                  ),
-                )
-              };
-            apply_edit_action(
-              ~ed=editor,
-              ~edit_action=
-                AssistantMode.Composition.UpdateDefinition(new_definition),
-              ~variable_name,
-              ~variable_id,
-            );
-            schedule_action(loop_message);
-          | OpenRouter.DeleteBinding =>
-            let (variable_name, variable_id) =
-              switch (
-                Json.dot("variable_name", tool_call.args),
-                Json.dot("variable_id", tool_call.args),
-              ) {
-              | (Some(`String(variable_name)), Some(`String(variable_id))) => (
-                  Some(variable_name),
-                  Some(variable_id),
-                )
-              | _ =>
-                raise(
-                  Failure(
-                    "Invalid argument for "
-                    ++ OpenRouter.string_of_structure_action(tool_call.name),
-                  ),
-                )
-              };
-            apply_edit_action(
-              ~ed=editor,
-              ~edit_action=AssistantMode.Composition.DeleteBinding,
-              ~variable_name,
-              ~variable_id,
-            );
-            schedule_action(loop_message);
-          | OpenRouter.UpdateBinding =>
-            let (variable_name, variable_id, new_binding) =
-              switch (
-                Json.dot("variable_name", tool_call.args),
-                Json.dot("variable_id", tool_call.args),
-                Json.dot("new_binding", tool_call.args),
-              ) {
-              | (
-                  Some(`String(variable_name)),
-                  Some(`String(variable_id)),
-                  Some(`String(new_binding)),
-                ) => (
-                  Some(variable_name),
-                  Some(variable_id),
-                  new_binding,
-                )
-              | _ =>
-                raise(
-                  Failure(
-                    "Invalid arguments for "
-                    ++ OpenRouter.string_of_structure_action(tool_call.name),
-                  ),
-                )
-              };
-            apply_edit_action(
-              ~ed=editor,
-              ~edit_action=
-                AssistantMode.Composition.UpdateBinding(new_binding),
-              ~variable_name,
-              ~variable_id,
-            );
-            schedule_action(loop_message);
-          | OpenRouter.UpdateBody =>
-            let (variable_name, variable_id, new_body) =
-              switch (
-                Json.dot("variable_name", tool_call.args),
-                Json.dot("variable_id", tool_call.args),
-                Json.dot("new_body", tool_call.args),
-              ) {
-              | (
-                  Some(`String(variable_name)),
-                  Some(`String(variable_id)),
-                  Some(`String(new_body)),
-                ) => (
-                  Some(variable_name),
-                  Some(variable_id),
-                  new_body,
-                )
-              | _ =>
-                raise(
-                  Failure(
-                    "Invalid arguments for "
-                    ++ OpenRouter.string_of_structure_action(tool_call.name),
-                  ),
-                )
-              };
-            apply_edit_action(
-              ~ed=editor,
-              ~edit_action=AssistantMode.Composition.UpdateBody(new_body),
-              ~variable_name,
-              ~variable_id,
-            );
-            schedule_action(loop_message);
-          | OpenRouter.DeleteBody =>
-            let (variable_name, variable_id) =
-              switch (
-                Json.dot("variable_name", tool_call.args),
-                Json.dot("variable_id", tool_call.args),
-              ) {
-              | (Some(`String(variable_name)), Some(`String(variable_id))) => (
-                  Some(variable_name),
-                  Some(variable_id),
-                )
-              | _ => (None, None)
-              };
-            apply_edit_action(
-              ~ed=editor,
-              ~edit_action=AssistantMode.Composition.DeleteBody,
-              ~variable_name,
-              ~variable_id,
-            );
-            schedule_action(loop_message);
-          | OpenRouter.AddBefore =>
-            let (variable_name, variable_id, code) =
-              switch (
-                Json.dot("variable_name", tool_call.args),
-                Json.dot("variable_id", tool_call.args),
-                Json.dot("code", tool_call.args),
-              ) {
-              | (
-                  Some(`String(variable_name)),
-                  Some(`String(variable_id)),
-                  Some(`String(code)),
-                ) => (
-                  Some(variable_name),
-                  Some(variable_id),
-                  code,
-                )
-              | (_, _, Some(`String(code))) => (None, None, code)
-              | _ =>
-                raise(
-                  Failure(
-                    "Invalid arguments for "
-                    ++ OpenRouter.string_of_structure_action(tool_call.name),
-                  ),
-                )
-              };
-            apply_edit_action(
-              ~ed=editor,
-              ~edit_action=AssistantMode.Composition.Add(Before, code),
-              ~variable_name,
-              ~variable_id,
-            );
-            schedule_action(loop_message);
-          | OpenRouter.AddAfter =>
-            let (variable_name, variable_id, code) =
-              switch (
-                Json.dot("variable_name", tool_call.args),
-                Json.dot("variable_id", tool_call.args),
-                Json.dot("code", tool_call.args),
-              ) {
-              | (
-                  Some(`String(variable_name)),
-                  Some(`String(variable_id)),
-                  Some(`String(code)),
-                ) => (
-                  Some(variable_name),
-                  Some(variable_id),
-                  code,
-                )
-              | (_, _, Some(`String(code))) => (None, None, code)
-              | _ =>
-                raise(
-                  Failure(
-                    "Invalid arguments for "
-                    ++ OpenRouter.string_of_structure_action(tool_call.name),
-                  ),
-                )
-              };
-            apply_edit_action(
-              ~ed=editor,
-              ~edit_action=AssistantMode.Composition.Add(After, code),
-              ~variable_name,
-              ~variable_id,
-            );
-            schedule_action(loop_message);
-          | OpenRouter.InvalidStructureAction =>
-            raise(
-              Failure(
-                "Unknown tool call: "
-                ++ OpenRouter.string_of_structure_action(tool_call.name),
-              ),
-            )
-          // | "goto_definition" =>
-          //   switch (Json.dot("variable", tool_call.args)) {
-          //   | Some(`String(arg)) =>
-          //     goto(
-          //       ~ed=editor,
-          //       ~loc=ChatLSP.Composition.Definition,
-          //       ~name=arg,
-          //     );
-          //     schedule_action(loop_message);
-          //   | _ => raise(Failure("Invalid argument for goto_definition"))
-          //   }
-          // | "goto_body" =>
-          //   switch (Json.dot("variable", tool_call.args)) {
-          //   | Some(`String(arg)) =>
-          //     goto(~ed=editor, ~loc=ChatLSP.Composition.Body, ~name=arg);
-          //     schedule_action(loop_message);
-          //   | _ => raise(Failure("Invalid argument for goto_body"))
-          //   }
-          // | "goto_type_definition" =>
-          //   switch (Json.dot("variable", tool_call.args)) {
-          //   | Some(`String(arg)) =>
-          //     goto(
-          //       ~ed=editor,
-          //       ~loc=ChatLSP.Composition.Definition,
-          //       ~name=arg,
-          //     );
-          //     schedule_action(loop_message);
-          //   | _ =>
-          //     raise(Failure("Invalid argument for goto_type_definition"))
-          //   }
-          // | "goto_type_body" =>
-          //   switch (Json.dot("variable", tool_call.args)) {
-          //   | Some(`String(arg)) =>
-          //     goto(~ed=editor, ~loc=ChatLSP.Composition.Body, ~name=arg);
-          //     schedule_action(loop_message);
-          //   | _ => raise(Failure("Invalid argument for goto_type_body"))
-          //   }
-          // | "select_all" =>
-          //   goto(~ed=editor, ~loc=ChatLSP.Composition.All, ~name="");
-          //   schedule_action(loop_message);
-          // | "paste" =>
-          //   switch (Json.dot("code", tool_call.args)) {
-          //   | Some(`String(arg)) =>
-          //     edit(~loc=ChatLSP.Composition.Current, ~code=arg);
-          //     schedule_action(loop_message);
-          //   | _ => raise(Failure("Invalid argument for paste"))
-          //   }
-          // | "delete" =>
-          //   edit(~loc=ChatLSP.Composition.Current, ~code="");
-          //   schedule_action(loop_message);
-          // | "submit" => ()
-          }
-        ) {
-        | Failure(err) => schedule_action(InternalError(err, mode, chat_id))
-        };
+        parse_and_apply_structure_edit(
+          ~editor,
+          ~tool_call,
+          ~apply_edit_action,
+          ~loop_message,
+          ~schedule_action,
+          ~mode,
+          ~chat_id,
+        );
       }
     | CompletionErrorRound(editor, fuel, tileId) =>
       // Split response into discussion and completion
