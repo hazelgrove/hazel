@@ -19,48 +19,14 @@ let concave_char = "~";
 let selection_char = "§"; /* Note this is two bytes */
 let caret_regexp = StringUtil.regexp(caret_char);
 
-let selection_size = (z: Zipper.t): option(int) => {
-  (
-    switch (z.selection) {
-    | {mode: Buffer(_), _} => None
-    | {content, mode: Normal, focus: Right} =>
-      Some(- String.length(Printer.of_segment(~holes=convex_char, content)))
-    | {content, mode: Normal, focus: Left} =>
-      Some(String.length(Printer.of_segment(~holes=convex_char, content)))
-    }
-  )
-  |> Util.OptUtil.filter(size => size != 0) /* Don't show selection if it's empty */;
-};
-
 let printer = (z: Zipper.t): string => {
-  let serialized_with_caret =
-    Printer.of_zipper(
-      ~holes=convex_char,
-      ~concave_holes=concave_char,
-      ~caret=caret_char,
-      z,
-    );
-  let caret_index =
-    switch (StringUtil.search(caret_regexp, serialized_with_caret, 0)) {
-    | Some((idx, _)) => idx
-    | None =>
-      Alcotest.fail("Failed to find caret in: " ++ serialized_with_caret)
-    };
-
-  let selection_size = selection_size(z);
-  // Place selection character n chars away from the caret
-  switch (selection_size) {
-  | None => serialized_with_caret
-  | Some(size) =>
-    let selection_pos = caret_index + size;
-    String.sub(serialized_with_caret, 0, selection_pos)
-    ++ selection_char
-    ++ String.sub(
-         serialized_with_caret,
-         selection_pos,
-         String.length(serialized_with_caret) - selection_pos,
-       );
-  };
+  Printer.of_zipper(
+    ~holes=convex_char,
+    ~concave_holes=concave_char,
+    ~caret=caret_char,
+    ~selection_anchor=selection_char,
+    z,
+  );
 };
 
 let perform = (zip: Zipper.t, actions: list(Action.t)): Zipper.t => {
@@ -742,6 +708,13 @@ let selection_tests = [
   345678,
   45678,
   ¦56789)|},
+  ),
+  test(
+    ~name="Extend selection left by token",
+    ~acts=
+      mk({|let x = 1 in (x, 12345¦, ?)|})
+      @ [Action.Select(Resize(Local(Left(ByToken))))],
+    ~goal={|let x = 1 in (x, ¦12345§, ?)|},
   ),
 ];
 
