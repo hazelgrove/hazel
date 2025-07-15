@@ -567,8 +567,6 @@ let parse_and_apply_structure_edit =
          unit,
       ~schedule_action: t => unit,
       ~loop_message,
-      ~mode,
-      ~chat_id,
     )
     : unit => {
   let invalid_args_failure = (tool_call: OpenRouter.structure_action) => {
@@ -780,9 +778,7 @@ let parse_and_apply_structure_edit =
     apply_edit_action(~ed=editor, ~edit_action, ~variable_name, ~variable_id);
     schedule_action(loop_message(Success));
   }) {
-  | Failure(err) =>
-    schedule_action(InternalError(err, mode, chat_id));
-    schedule_action(loop_message(Failure(err)));
+  | Failure(err) => schedule_action(loop_message(Failure(err)))
   };
 };
 
@@ -959,7 +955,7 @@ let update =
               }
             | Failure(err) =>
               let err_message: Model.message = {
-                content: OpenRouter.mk_user_msg(err),
+                content: OpenRouter.mk_tool_msg(err, tool_contents),
                 display:
                   Model.mk_message_display(
                     ~content=err,
@@ -970,7 +966,7 @@ let update =
               };
               {
                 ...curr_chat,
-                messages: curr_chat.messages @ [err_message, ctx_message],
+                messages: curr_chat.messages @ [err_message],
               };
             };
 
@@ -1318,8 +1314,6 @@ let update =
           ~apply_edit_action,
           ~loop_message,
           ~schedule_action,
-          ~mode,
-          ~chat_id,
         );
       }
     | CompletionErrorRound(editor, fuel, tileId) =>
