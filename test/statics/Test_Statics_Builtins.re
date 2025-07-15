@@ -1222,10 +1222,25 @@ module DropLabels = {
   ];
 };
 
+module FromEntries = {
+  let tests = [
+    fully_consistent_typecheck(
+      "From entries with list of tuples",
+      {|from_entries([(label="col", value=3)])|},
+      Some(unknown(Internal)),
+    ),
+    fully_consistent_typecheck(
+      "From entries with list of tuples and multiple entries",
+      {|from_entries([(label="col1", value=3), (label="col2", value=true)])|},
+      Some(unknown(Internal)),
+    ),
+  ];
+};
 let tests =
   MeltOperation.tests
   @ ProjectLabels.tests
   @ SelectLabels.tests
   @ PrimitivePivot.tests
   @ OmitLabels.tests
-  @ DropLabels.tests;
+  @ DropLabels.tests
+  @ FromEntries.tests;
