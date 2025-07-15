@@ -246,7 +246,6 @@ module Transition = (EV: EV_MODE) => {
         is_value: false,
       });
     | Let(dp, d1, d2) =>
-      print_endline(Term.Pat.show(dp));
       let. _ = otherwise(env, d1 => Let(dp, d1, d2) |> rewrap)
       and. d1' =
         req_final(req(state, env), d1 => Let1(dp, d1, d2) |> wrap_ctx, d1);
@@ -257,7 +256,8 @@ module Transition = (EV: EV_MODE) => {
         | IndetMatch
         | DoesNotMatch => ""
         | Matches(env) =>
-          VarBstMap.Ordered.to_listk(env)
+          VarBstMap.Ordered.to_listo(env)
+          |> List.rev
           |> List.map(((s, _)) => s)
           |> String.concat(", ")
         };
