@@ -104,8 +104,9 @@ type init_prompt_data = {
 // there is likely a much better way to do this.
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
+  // Uuids of the currently active chats in each mode
   current_chats,
-  //
+  // Collection of past chats of each mode, stored as a hash map with chat IDs as keys
   chat_history,
   // Information for OpenRouter API
   external_api_info,

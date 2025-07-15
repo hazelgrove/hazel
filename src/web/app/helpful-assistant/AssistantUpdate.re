@@ -801,7 +801,7 @@ let update =
       | None => editor
       };
     if (model.current_chats.curr_tutor_chat == Id.invalid) {
-      model |> Updated.return_quiet;
+      model |> Updated.return;
     } else {
       switch (kind) {
       | Tutor(content) =>
@@ -1182,8 +1182,7 @@ let update =
       ...curr_chat,
       messages: curr_chat.messages @ [system_message],
     };
-    update_model_chat_history(~model, ~mode, ~updated_chat)
-    |> Updated.return_quiet;
+    update_model_chat_history(~model, ~mode, ~updated_chat) |> Updated.return;
 
   | HandleResponse(response_kind, response, chat_id) =>
     let (curr_chat, mode) =
@@ -1359,8 +1358,7 @@ let update =
       };
     | CompletionQueryResponse => ()
     };
-    update_model_chat_history(~model, ~mode, ~updated_chat)
-    |> Updated.return_quiet;
+    update_model_chat_history(~model, ~mode, ~updated_chat) |> Updated.return;
   | EmployLLMAction(action) =>
     let add_suggestion =
       AssistantMode.Completion.add_suggestion(
@@ -1370,7 +1368,7 @@ let update =
     | RemoveAndSuggest(response, tileId) =>
       // Only side effects in the editor are performed here
       add_suggestion(~response, ~tile=tileId);
-      model |> Updated.return_quiet;
+      model |> Updated.return;
     | Describe(content, mode, chat_id) =>
       let (past_chats, _) = get_mode_info(mode, model);
       let updated_past_chats =
@@ -1399,13 +1397,13 @@ let update =
         ~updated_past_chats,
         ~chat_id=curr_chat_id,
       )
-      |> Updated.return_quiet;
+      |> Updated.return;
     | SetLoop(loop) =>
       {
         ...model,
         loop,
       }
-      |> Updated.return_quiet
+      |> Updated.return
     };
 
   | ChatAction(action) =>
@@ -1421,7 +1419,7 @@ let update =
         ~updated_past_chats=updated_history,
         ~chat_id=new_chat.id,
       )
-      |> Updated.return_quiet;
+      |> Updated.return;
     | DeleteChat(chat_to_be_gone_id) =>
       let mode = settings.assistant.mode;
       // Filter out the chat we're deleting
@@ -1453,7 +1451,7 @@ let update =
               ~updated_past_chats=filtered_past_chats,
               ~chat_id=curr_chat.id,
             );
-      updated_model |> Updated.return_quiet;
+      updated_model |> Updated.return;
 
     // Concat LS' error message and await_llm_response (... animation)
     // This works even if out of fuel, as both Respond and ErrorRespond
@@ -1512,13 +1510,13 @@ let update =
         ~updated_past_chats,
         ~chat_id=curr_chat.id,
       )
-      |> Updated.return_quiet;
+      |> Updated.return;
 
     | SwitchChat(chat_id) =>
       let mode = settings.assistant.mode;
       let (past_chats, _) = get_mode_info(mode, model);
       resculpt_model(~model, ~mode, ~updated_past_chats=past_chats, ~chat_id)
-      |> Updated.return_quiet;
+      |> Updated.return;
     | FilterLoadingMessages =>
       Model.{
         ...model,
@@ -1555,7 +1553,7 @@ let update =
             ),
         },
       }
-      |> Updated.return_quiet
+      |> Updated.return
     | Lop(index) =>
       // Lop off the messages after the index
       let mode = settings.assistant.mode;
@@ -1581,7 +1579,7 @@ let update =
         messages: updated_messages,
       };
       update_model_chat_history(~model, ~mode, ~updated_chat)
-      |> Updated.return_quiet;
+      |> Updated.return;
     }
   | ExternalAPIAction(external_api_action) =>
     switch (external_api_action) {
@@ -1593,7 +1591,7 @@ let update =
           set_model: llm_id,
         },
       }
-      |> Updated.return_quiet
+      |> Updated.return
     | SetAPIKey(api_key) =>
       // Set the available models using the provided API key
       OpenRouter.get_models(~key=api_key, ~handler=response => {
@@ -1618,7 +1616,7 @@ let update =
           api_key,
         },
       }
-      |> Updated.return_quiet;
+      |> Updated.return;
     | SetListOfLLMs(llms) =>
       {
         ...model,
@@ -1627,8 +1625,8 @@ let update =
           available_models: llms,
         },
       }
-      |> Updated.return_quiet
+      |> Updated.return
     }
-  | InitializeAssistant => AssistantModel.init() |> Updated.return_quiet
+  | InitializeAssistant => AssistantModel.init() |> Updated.return
   };
 };
