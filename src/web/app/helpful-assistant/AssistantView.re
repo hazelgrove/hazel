@@ -661,7 +661,23 @@ let mk_translation = (~text: string): list(Node.t) => {
           items,
         );
       List.append(msg, nodes);
-    | Omd.Text(_, d) => List.append(msg, [Node.text(d)])
+    | Omd.Text(_, d) =>
+      // Split on '\n' and interleave <br> nodes
+      let lines = String.split_on_char('\n', d);
+      let num_lines = List.length(lines);
+      let nodes =
+        List.concat(
+          List.mapi(
+            (i, line) =>
+              if (i < num_lines - 1) {
+                [Node.text(line), Node.br()];
+              } else {
+                [Node.text(line)];
+              },
+            lines,
+          ),
+        );
+      List.append(msg, nodes);
     | Omd.Code(_, d) =>
       List.append(
         msg,
@@ -678,12 +694,14 @@ let mk_translation = (~text: string): list(Node.t) => {
       )
     | Omd.Link(_, {label, destination, _}) =>
       let d = translate_inline(label, []);
-      let _ =
-        switch (Id.of_string(destination)) {
-        | Some(id) => id
-        | None => Id.invalid
-        };
-      let inner_msg = Node.span(~attrs=[], d);
+      let inner_msg =
+        Node.a(
+          ~attrs=[
+            Attr.href(destination),
+            Attr.target("_blank") // open in new tab
+          ],
+          d,
+        );
       List.append(msg, [inner_msg]);
     | Omd.Emph(_, d) =>
       let d = translate_inline(d, []);
@@ -739,8 +757,16 @@ let mk_translation = (~text: string): list(Node.t) => {
           List.append(msg, [Node.ul(bullets)]);
         | Omd.Blockquote(_, d) =>
           List.append(msg, [Node.blockquote(translate_block(d))])
-        | Omd.Heading(_, _, d) =>
-          List.append(msg, [Node.h1(translate_inline(d, []))])
+        | Omd.Heading(_, i, d) =>
+          switch (i) {
+          | 1 => List.append(msg, [Node.h1(translate_inline(d, []))])
+          | 2 => List.append(msg, [Node.h2(translate_inline(d, []))])
+          | 3 => List.append(msg, [Node.h3(translate_inline(d, []))])
+          | 4 => List.append(msg, [Node.h4(translate_inline(d, []))])
+          | 5 => List.append(msg, [Node.h5(translate_inline(d, []))])
+          | 6 => List.append(msg, [Node.h6(translate_inline(d, []))])
+          | _ => msg
+          }
         | Omd.Thematic_break(_) => List.append(msg, [Node.hr()])
         | Omd.Code_block(_, _, d) =>
           // Todo: Potentially remove parse_blocks and favor pure markdown instead.
