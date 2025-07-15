@@ -44,6 +44,7 @@ type term =
       t,
       (list((Pat.t, DHExp.t)), list((Pat.t, DHExp.t))),
     )
+  | ValBinding(Pat.t, t, (list(ModuleEntry.t), list(ModuleEntry.t)))
 and t =
   | Mark
   | Term({
@@ -168,6 +169,15 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
     | TypAp(ctx, ty) =>
       let d = compose(ctx, d);
       TypAp(d, ty) |> wrap;
+    | ValBinding(p, ctx, (entries, entries')) =>
+      let d = compose(ctx, d);
+      Module(
+        ListUtil.rev_concat(
+          entries,
+          [ValBinding(p, d) |> ModuleEntry.temp, ...entries'],
+        ),
+      )
+      |> wrap;
     };
   };
 };

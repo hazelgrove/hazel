@@ -97,10 +97,10 @@ let (let-unbox) = ((request, v), f) =>
   };
 
 module type EV_MODE = {
-  type state;
-  type result;
-  type requirement('a);
-  type requirements('a, 'b);
+  type state; // state of the evaluator -- e.g., checkmarks, probes
+  type result; // expression * state (could be flag, list of next, etc.)
+  type requirement('a); // a final sub-expression
+  type requirements('a, 'b); // combines all sub-expressions -- 'b is a function
 
   let req_final:
     (DHExp.t => result, EvalCtx.t => EvalCtx.t, DHExp.t) =>
@@ -864,8 +864,75 @@ module Transition = (EV: EV_MODE) => {
         is_value: true,
       });
     | Module(entries) =>
-      // TODO
+      //   let. _ = otherwise(env, d => Module(d) |> rewrap);
+      let val_bindings =
+        List.fold_left(
+          (acc: requirements(unit, DHExp.t), entry: TermBase.module_entry_t) => {
+            let d' =
+              switch (entry.term) {
+              | ValBinding(v, d) =>
+                let. _ = acc
+                and. d' =
+                  req_final(
+                    req(state, env),
+                    d => ValBinding(v, d, ([], [])) |> wrap_ctx,
+                    d,
+                  );
+                Constructor;
+              | _ => assert(false)
+              };
+            acc;
+          },
+          otherwise(env, entries),
+          entries,
+        );
+
+      /*
+         fold_left(
+           acc => {
+
+             and. d' = req_final(d);
+
+             ValBinding(v, d')
+           }
+
+
+           otherwise(env, entries)
+         )
+       */
+
+      //   // For each entry in entries req_final the entry then rebuild the module
+      //   let val_bindings =
+      //     List.fold_left(
+      //       (
+      //         (acc, env: TermBase.closure_environment_t),
+      //         entry: TermBase.module_entry_t,
+      //       ) => {
+      //         switch (entry.term) {
+      //         | ValBinding(v, d) =>
+      //           let. fst =
+      //             req_final(req(state, env), d => ValBinding(v, d), d);
+      //           fst;
+      //           let _ = (acc @ [(v, d)], env');
+      //           let _: (
+      //             list(TermBase.module_entry_t),
+      //             TermBase.closure_environment_t,
+      //           ) =
+      //             assert(false);
+      //           assert(false);
+      //         | _ => assert(false)
+      //         }
+      //       },
+      //       ([], env),
+      //       entries,
+      //     );
+
+      // {val x = 2 + 3;; val y = 5 + x}
+      // {val x = 5;; val y = 5 + x}
+
+      // req_final_all(val_bindings, evaluated_ds => List.map(, entries))
       let. _ = otherwise(env, Module(entries) |> rewrap);
+
       Constructor;
     };
   };
