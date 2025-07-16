@@ -61,7 +61,7 @@ jobs:
       - name: Create or update PR
         uses: peter-evans/create-pull-request@v7
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
+          token: ${{ secrets.HAZEL_DEPENDENCIES }}
           title: "chore: update dependencies"
           body: "Automated update from `make change-deps` based on `dev`."
           commit-message: "chore: update dependencies"
