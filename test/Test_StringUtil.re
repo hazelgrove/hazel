@@ -79,5 +79,16 @@ let tests = (
         StringUtil.sanitize_filename("Gregory Croisdale Jr."),
       )
     }),
+    test_case(
+      "trim trailing whitespace should not trim leading whitespace", `Quick, () => {
+      check(
+        string,
+        "trim trailing whitespace",
+        " let a =\n\n  let b = 2 in\n\n  b",
+        StringUtil.trim_trailing_whitespace(
+          " let a = \n  \n  let b = 2 in  \n\n  b",
+        ),
+      )
+    }),
   ],
 );
