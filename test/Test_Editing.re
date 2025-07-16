@@ -16,14 +16,18 @@ module Fresh = Language.IdTagged.FreshGrammar;
 let caret_char = "¦"; /* Note this is two bytes */
 let convex_char = "?";
 let concave_char = "~";
+let selection_char = "§"; /* Note this is two bytes */
+let caret_regexp = StringUtil.regexp(caret_char);
 
-let printer = (z: Zipper.t): string =>
+let printer = (z: Zipper.t): string => {
   Printer.of_zipper(
     ~holes=convex_char,
     ~concave_holes=concave_char,
     ~caret=caret_char,
+    ~selection_anchor=selection_char,
     z,
   );
+};
 
 let perform = (zip: Zipper.t, actions: list(Action.t)): Zipper.t => {
   /* This is a simplified testing harness for zipper actions.
@@ -88,7 +92,6 @@ let mk = (init: string): list(Action.t) => {
    * and then move left character by character until the indicated
    * caret position is reached */
 
-  let caret_regexp = StringUtil.regexp(caret_char);
   let caret_index =
     switch (StringUtil.search(caret_regexp, init, 0)) {
     | Some((idx, _)) => idx
@@ -612,9 +615,113 @@ let move_tests = [
   ),
 ];
 
+let selection_tests = [
+  test(
+    ~name="Move to right from selection",
+    ~acts=
+      mk({|¦(1,2,3,4,5)|}) @ [Action.Select(Term(Current))] @ mv_r(1),
+    ~goal={|(1,2,3,4,5)¦|},
+  ),
+  test(
+    ~name="Select term with selection",
+    ~acts=mk({|¦(1,2,3,4,5)|}) @ [Action.Select(Term(Current))],
+    ~goal={|§(1,2,3,4,5)¦|},
+  ),
+  test(
+    ~name="Select subterm with selection",
+    ~acts=mk({|(1 + (2 ¦+ 3)|}) @ [Action.Select(Term(Current))],
+    ~goal={|(1 + (§2 + 3¦)|},
+  ),
+  test(
+    ~name="Select term with let binding does not select body",
+    ~acts=mk({|¦let x = 1 in x|}) @ [Action.Select(Term(Current))],
+    ~goal={|§let x = 1 in¦ x|},
+  ),
+  test(
+    ~name="Select term when on comma in tuple selects whole tuple",
+    ~acts=
+      mk({|let x = 1 in (x, 1,¦ ?)|}) @ [Action.Select(Term(Current))],
+    ~goal={|let x = 1 in §(x, 1, ?)¦|},
+  ),
+  test(
+    ~name="Move to left from selection starting at left",
+    ~acts=
+      mk({|¦(1,2,3,4,5)|}) @ [Action.Select(Term(Current))] @ mv_l(1),
+    ~goal={|¦(1,2,3,4,5)|},
+  ),
+  test(
+    ~name="Move to left from selection starting at right",
+    ~acts=
+      mk({|(1,2,3,4,5)¦|}) @ [Action.Select(Term(Current))] @ mv_l(1),
+    ~goal={|¦(1,2,3,4,5)|},
+  ),
+  test(
+    ~name="Move to right from selection starting at right",
+    ~acts=
+      mk({|(1,2,3,4,5)¦|}) @ [Action.Select(Term(Current))] @ mv_r(1),
+    ~goal={|(1,2,3,4,5)¦|},
+  ),
+  test(
+    ~name="Move to right from selection starting at right",
+    ~acts=
+      mk({|¦(1,2,3,4,5)|}) @ [Action.Select(Term(Current))] @ mv_r(1),
+    ~goal={|(1,2,3,4,5)¦|},
+  ),
+  test(
+    ~name="Move right by token from selection",
+    ~acts=
+      mk({|(1, ¦(2, 3), 4, 5)|})
+      @ [Action.Select(Term(Current))]
+      @ mv_r_token(1),
+    ~goal={|(1, (2, 3),¦ 4, 5)|},
+  ),
+  test(
+    ~name="Move left by token from selection",
+    ~acts=
+      mk({|(1, (2, 3)¦, 4, 5)|})
+      @ [Action.Select(Term(Current))]
+      @ mv_l_token(1),
+    ~goal={|(1,¦ (2, 3), 4, 5)|},
+  ),
+  test(
+    ~name="Move left by token when selecting everything",
+    ~acts=mk({|(1, 2,¦ 3, 4)|}) @ [Action.Select(All)] @ mv_l_token(1),
+    ~goal={|¦(1, 2, 3, 4)|},
+  ),
+  test(
+    ~name="Move right by token when selecting everything",
+    ~acts=mk({|(1, 2,¦ 3, 4)|}) @ [Action.Select(All)] @ mv_r_token(1),
+    ~goal={|(1, 2, 3, 4)¦|},
+  ),
+  test(
+    ~name="Move extreme left with multiline selection",
+    ~acts=
+      mk({|(12345,
+23456789,
+¦345678,
+45678,
+56789)|})
+      @ [Action.Select(All)]
+      @ [Action.Move(Extreme(Left(ByToken)))],
+    ~goal={|(12345,
+  23456789,
+  345678,
+  45678,
+  ¦56789)|},
+  ),
+  test(
+    ~name="Extend selection left by token",
+    ~acts=
+      mk({|let x = 1 in (x, 12345¦, ?)|})
+      @ [Action.Select(Resize(Local(Left(ByToken))))],
+    ~goal={|let x = 1 in (x, ¦12345§, ?)|},
+  ),
+];
+
 let tests = [
   ("Editing.Basic", basic_tests),
   ("Editing.Insertion", insertion_tests),
   ("Editing.Destruction", destruct_tests),
   ("Editing.Move", move_tests),
+  ("Editing.Selection", selection_tests),
 ];
