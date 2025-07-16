@@ -57,6 +57,13 @@ let fold_left_opt:
       };
     aux(init, list);
   };
+
+let filter = (f: 'a => bool, o: option('a)): option('a) =>
+  switch (o) {
+  | None => None
+  | Some(a) => f(a) ? Some(a) : None
+  };
+
 module Syntax = {
   let ( let* ) = Option.bind;
   let (let+) = (o, f) => Option.map(f, o);
