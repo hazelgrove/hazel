@@ -20,7 +20,7 @@ can also be accessed at:
 If you already have `ocaml` version 5.2.0, at least version 2.0 of `opam`, and `npm`
 installed, you can build Hazel by running the following commands.
 
-- `git clone git@github.com:hazelgrove/hazel.git`
+- `git clone https://github.com/hazelgrove/hazel.git`
 - `cd hazel`
 - `make deps`
 - `make dev`
@@ -147,7 +147,7 @@ To obtain an clean build, you may need to:
   enter the project root of your cloned Hazel project.
 
   ```sh
-  git clone git@github.com:hazelgrove/hazel.git
+  git clone https://github.com/hazelgrove/hazel.git
   cd hazel
   ```
 
