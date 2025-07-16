@@ -1,40 +1,72 @@
 let out : string * Haz3lcore.PersistentZipper.t =
-  ( "B2T2 Datasheet",
+  ( "[B2T2] Datasheet",
     {
       zipper =
         "((selection((focus Left)(content())(mode \
-         Normal)))(backpack())(relatives((siblings(((Secondary((id \
-         f27e32ec-3568-460a-a36b-6cfce99f99bf)(content(Comment\"# Reference \
+         Normal)))(backpack())(relatives((siblings(((Tile((id \
+         27dc8ab9-8155-46f5-8f82-9c523d1c9589)(label(\"(\"\")\"))(mold((out \
+         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
+         Exp))))))(shards(0 1))(children(((Secondary((id \
+         a454628c-6d9b-41aa-8599-3dc358d0eaaf)(content(Whitespace\"\\n\"))))(Secondary((id \
+         e11c7dcd-7396-42a4-9b8e-8fda4790e0ad)(content(Comment\"# Reference \
          #\"))))(Secondary((id \
-         fac62c32-b1d6-4109-acf4-cc3992f3ded8)(content(Whitespace\"\\n\"))))(Secondary((id \
-         bf579f4b-bf06-4110-ad55-bdb5c42a06ba)(content(Whitespace\"\\n\"))))(Secondary((id \
-         c0f67443-a299-45b4-b864-53662d953092)(content(Comment\"# Q. Where can \
+         5dacaac4-77b4-4067-ab40-f181053c99df)(content(Whitespace\"\\n\"))))(Secondary((id \
+         ee796850-88e7-4592-8d4a-100ce1a0a134)(content(Comment\"# Q. Where can \
          we learn about the programming medium covered by this datasheet? \
          #\"))))(Secondary((id \
-         54592828-5a87-47dd-9ea8-98c02077fb90)(content(Whitespace\"\\n\"))))(Secondary((id \
-         9a65ff7e-48f2-4801-9db8-b8440c2703ca)(content(Comment\"# (Feel free \
+         ecfd6fe7-bab9-46a0-a3fd-7b4e8c22ef8a)(content(Whitespace\"\\n\"))))(Secondary((id \
+         926d20e2-550f-4ed6-8dda-0ed93c8121af)(content(Comment\"# (Feel free \
          to link to multiple kinds of artifacts: repositories, papers, videos, \
          etc. #\"))))(Secondary((id \
-         b4dd9d82-bd8f-4ec5-ac4b-59bc0c3b9a75)(content(Whitespace\"\\n\"))))(Secondary((id \
-         999d45aa-c156-4f51-8b99-e707074a01dd)(content(Comment\"# Please also \
+         38ba7840-f152-47d7-9319-0cae039fbca8)(content(Whitespace\"\\n\"))))(Secondary((id \
+         44bf1d07-90d7-46a9-86c0-79943249dc8e)(content(Comment\"# Please also \
          include version information where applicable.) #\"))))(Secondary((id \
-         c9236855-8a5d-4851-ba93-e2fd64ea70ed)(content(Whitespace\"\\n\"))))(Secondary((id \
-         518f9d49-0597-4833-ada9-bd62616465c3)(content(Whitespace\"\\n\"))))(Secondary((id \
-         5757c069-2a31-4541-83a9-eed53e86e2a3)(content(Whitespace\"\\n\"))))(Secondary((id \
-         15959d89-5be0-4e4a-bce6-00010f32c495)(content(Comment\"# Q. What is \
+         6df075f7-519f-404b-a540-3e9db9d7af9f)(content(Whitespace\"\\n\"))))(Secondary((id \
+         ed0984df-8a1f-4f23-917c-0b2d1ac4290d)(content(Comment\"# Website: \
+         http://hazel.org #\"))))(Secondary((id \
+         d9d856de-5864-4070-9b87-b11aa3b2b584)(content(Whitespace\"\\n\"))))(Secondary((id \
+         ad9d319d-6910-422d-b6d4-4a5cbb0316cb)(content(Comment\"# Source code: \
+         https://github.com/hazelgrove/hazel/ TODO: Add version \
+         #\"))))(Secondary((id \
+         1430237c-766a-45d3-939e-d6e862b66d2b)(content(Whitespace\"\\n\"))))(Secondary((id \
+         9b32480f-45a2-4056-be32-57d390e3452e)(content(Comment\"# App: \
+         https://hazel.org/build/dev/ #\"))))(Secondary((id \
+         6263491d-7a55-421e-b01f-4613e79d6dc3)(content(Whitespace\"\\n\"))))(Grout((id \
+         b466c4a0-19fe-4ae5-92b5-b3c2cc661bdd)(shape Convex)))(Secondary((id \
+         f140357a-8f8b-45ff-889b-1dc9a7b3d1dc)(content(Whitespace\"\\n\"))))(Secondary((id \
+         880f3f4a-1039-4517-b7e5-fd9e661097fe)(content(Whitespace\"\\n\"))))(Secondary((id \
+         fda65573-26d6-4e8c-94db-ef484642bf98)(content(Comment\"# Q. What is \
          the URL of the version of the benchmark being used? \
          #\"))))(Secondary((id \
-         28c5a78d-f767-41fc-9810-90134ccb898e)(content(Whitespace\"\\n\"))))(Secondary((id \
-         a796a88c-ce39-47c2-9c0e-77880c35aa4b)(content(Whitespace\"\\n\"))))(Secondary((id \
-         9fbcaef1-e62f-4777-b5c8-baa5d067afe3)(content(Comment\"# Q. On what \
+         07e7f9a4-26bd-4764-9661-3cb820395500)(content(Whitespace\"\\n\"))))(Secondary((id \
+         8e104cfc-dbfc-4d07-a834-9eb35e82b4bb)(content(Comment\"# \
+         https://github.com/brownplt/B2T2/blob/fd227efadf532a20aefd25c7a8580978c2d684a2/Datasheet.md \
+         #\"))))(Secondary((id \
+         79dd45fa-34d0-479d-be2e-fda9ff1b7bc2)(content(Whitespace\"\\n\"))))(Secondary((id \
+         96645f3b-abf0-42b1-a599-aac90ae30354)(content(Whitespace\"\\n\"))))(Secondary((id \
+         a70bf8f9-36ad-45ba-afa7-0d0208e43473)(content(Comment\"# Q. On what \
          date was this version of the datasheet last updated? \
          #\"))))(Secondary((id \
-         071fbaa2-be5d-4591-85a2-08b86a5067b0)(content(Whitespace\"\\n\"))))(Secondary((id \
-         5e309892-de31-4766-8957-b7fbfabb0868)(content(Whitespace\"\\n\"))))(Secondary((id \
-         fab6fefc-4888-478e-a3dc-32e8acde3cdb)(content(Comment\"# Q. If you \
+         0de8532b-b9f4-4622-80ca-d597426d7219)(content(Whitespace\"\\n\"))))(Secondary((id \
+         e8e08505-40a8-4036-8dd8-8b0f5d319a4d)(content(Comment\"# 2024-06-13 \
+         #\"))))(Secondary((id \
+         2944f5eb-0fdd-4ac9-bc9a-f0685d4cd32a)(content(Whitespace\"\\n\"))))(Secondary((id \
+         74656890-38ea-4570-8dd2-5b156d29ad3e)(content(Whitespace\"\\n\"))))(Secondary((id \
+         f9817a8c-3c64-41d5-94db-91e3e05cd199)(content(Comment\"# Q. If you \
          are not using the latest benchmark available on that date, please \
          explain why not. #\"))))(Secondary((id \
-         0196282a-8e74-463d-b963-152971dd5fa6)(content(Whitespace\"\\n\"))))(Secondary((id \
+         8c45a2e9-b2d6-4be5-9d66-20f135715c8c)(content(Whitespace\"\\n\"))))(Secondary((id \
+         88b0a2c2-1ad5-425d-bad5-ac90bbaaecc5)(content(Comment\"# N/A \
+         #\"))))(Secondary((id \
+         a544c98c-11ed-43c2-985f-df08de1fa91e)(content(Whitespace\"\\n\"))))(Secondary((id \
+         0196282a-8e74-463d-b963-152971dd5fa6)(content(Whitespace\"\\n\")))))))))(Tile((id \
+         4ee1bb47-7fc4-4eec-9865-235636d2ed95)(label(\";\"))(mold((out \
+         Exp)(in_())(nibs(((shape(Concave 38))(sort Exp))((shape(Concave \
+         38))(sort Exp))))))(shards(0))(children())))(Secondary((id \
+         20a9f1fc-827d-4180-9b1a-6761db58e2aa)(content(Whitespace\"\\n\"))))(Tile((id \
+         21fc1108-848f-451b-92f2-9388b0732897)(label(\"(\"\")\"))(mold((out \
+         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
+         Exp))))))(shards(0 1))(children(((Secondary((id \
          c93628e3-0a3a-4436-a430-fe1848e78929)(content(Whitespace\"\\n\"))))(Secondary((id \
          348f7e3e-6ca1-4b94-8c21-55fe88f32dc7)(content(Comment\"# Example \
          Tables #\"))))(Secondary((id \
@@ -44,47 +76,103 @@ let out : string * Haz3lcore.PersistentZipper.t =
          express heterogeneous data, or must data be homogenized? \
          #\"))))(Secondary((id \
          31b46bb0-a060-4985-9425-895e27200f98)(content(Whitespace\"\\n\"))))(Secondary((id \
+         1807a488-0860-4b8f-a5fd-edc14d8af3d4)(content(Comment\"# Hazel Tables \
+         are represented a lists of labeled tuples. The tuples are \
+         heterogenously typed elemnents with labels so columns can be \
+         heterogenous but rows must be homogenous. #\"))))(Secondary((id \
+         69eb21be-091f-4b62-b3a0-d0597d8abef6)(content(Whitespace\"\\n\"))))(Secondary((id \
          b350be91-eab8-46b1-8584-0c6eabdb1c76)(content(Whitespace\"\\n\"))))(Secondary((id \
          66f4cecb-127c-41e5-8b9c-f936bb29882d)(content(Comment\"# Q. Do tables \
          capture missing data and, if so, how? Do missing values affect the \
          output constraints of any operations, for example `groupBy`? \
          #\"))))(Secondary((id \
          b8df7f79-6dff-4b5a-8057-a020f7892f5d)(content(Whitespace\"\\n\"))))(Secondary((id \
+         4a490b35-665e-4bf6-95f1-f630d29bd308)(content(Comment\"# Missing data \
+         must be tracked explicitly by the type using an Option type. \
+         Incomplete programs can also utilize expression holes for missing \
+         data but there's no way to handle these holes programatically. \
+         #\"))))(Secondary((id \
+         c1611ba8-28c4-43e5-90ec-ca8916346ddf)(content(Whitespace\"\\n\"))))(Secondary((id \
+         bfc03344-e5a7-47f8-8fe0-e979bd729dfc)(content(Comment\"# Since option \
+         types are treated as ordinary values there is no special \
+         considerations for operations. #\"))))(Secondary((id \
+         f1e53c34-c06e-4bfd-80b8-5c0ebf72f462)(content(Whitespace\"\\n\"))))(Secondary((id \
          8f59adec-5273-4be5-8702-20fda5f9161b)(content(Whitespace\"\\n\"))))(Secondary((id \
          a7acccc7-5c7b-44de-bb70-b4de6b353208)(content(Comment\"# Q. Are \
          mutable tables supported? Are there any limitations? \
          #\"))))(Secondary((id \
-         6bce6449-5b61-468b-bef9-838f1d9750bd)(content(Whitespace\"\\n\"))))(Secondary((id \
-         d81d6bed-6691-4120-899b-d25cfc829a29)(content(Whitespace\"\\n\"))))(Secondary((id \
-         e860faca-a504-43c6-9238-4104aab66c78)(content(Comment\"# You may \
+         7dcb499d-7df3-4e2c-aec5-2434fcb7c65f)(content(Whitespace\"\\n\"))))(Secondary((id \
+         c9650ca1-f5ec-4859-be95-54da2fc14717)(content(Comment \
+         #No#))))(Grout((id 7af3bf21-69dc-46c6-8a18-d848066672c7)(shape \
+         Convex)))(Secondary((id \
+         6bce6449-5b61-468b-bef9-838f1d9750bd)(content(Whitespace\"\\n\")))))))))(Tile((id \
+         36952e6b-3088-4561-9397-9cf86889337e)(label(\";\"))(mold((out \
+         Exp)(in_())(nibs(((shape(Concave 38))(sort Exp))((shape(Concave \
+         38))(sort Exp))))))(shards(0))(children())))(Secondary((id \
+         33f03b05-23ae-4981-a253-7aeb572f855c)(content(Whitespace\"\\n\"))))(Tile((id \
+         3fd52c9a-3dbb-4024-af7c-78d718147e6a)(label(\"(\"\")\"))(mold((out \
+         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
+         Exp))))))(shards(0 1))(children(((Secondary((id \
+         6ce35e79-26b2-4db2-ab5d-4fba70ed245d)(content(Whitespace\"\\n\"))))(Secondary((id \
+         34568193-071f-4109-8c3e-94990d256fd2)(content(Comment\"# You may \
          reference, instead of duplicating, the responses to the above \
          questions in answering those below: #\"))))(Secondary((id \
-         cd3fb2c8-0551-412f-83f5-f031ab327507)(content(Whitespace\"\\n\"))))(Secondary((id \
-         592f9869-21dd-4d63-90ff-189e4d53b8ef)(content(Whitespace\"\\n\"))))(Secondary((id \
-         781f2c3f-1e93-4348-a44d-9e33bdca8bb3)(content(Comment\"# Q. Which \
+         dabfcb15-8d37-436c-ba66-7ecb0f351fad)(content(Whitespace\"\\n\"))))(Secondary((id \
+         613ca5ce-cc3f-4075-97ea-8f0d6abda032)(content(Whitespace\"\\n\"))))(Secondary((id \
+         45f3ec08-3023-48e3-8e66-ccfc5b5ef1af)(content(Comment\"# Q. Which \
          tables are inexpressible? Why? #\"))))(Secondary((id \
-         4ee37c98-3450-45c9-a9f7-23eb11632f28)(content(Whitespace\"\\n\"))))(Secondary((id \
-         579316d6-4e5c-4314-bbc4-9cf2d5a6fb8a)(content(Whitespace\"\\n\"))))(Secondary((id \
-         cfda6a20-853f-472f-a9d9-a6a904e93547)(content(Comment\"# Q. Which \
+         695b17de-0961-4227-9070-ab56a4746cf1)(content(Whitespace\"\\n\"))))(Secondary((id \
+         c46e08e5-e2d0-49d3-aea9-4a130c975d75)(content(Comment\"# All the \
+         tables are expressible. As stated above missing values are \
+         represented using option types.#\"))))(Secondary((id \
+         34189efc-4286-4c83-9207-d8e9c240f749)(content(Whitespace\"\\n\"))))(Grout((id \
+         6c31216e-0e03-4992-807e-934ca9eca969)(shape Convex)))(Secondary((id \
+         bfc6be9c-35c9-4d8d-a955-fbe0104e7523)(content(Whitespace\"\\n\"))))(Secondary((id \
+         c668fafe-d8e6-4c8a-8daf-d39ac09d8494)(content(Comment\"# Q. Which \
          tables are only partially expressible? Why, and what\\226\\128\\153s \
          missing? #\"))))(Secondary((id \
-         6cc998a7-d463-4f66-b139-46580b0bd028)(content(Whitespace\"\\n\"))))(Secondary((id \
-         4a441abc-a1a0-4673-966b-1c9ed4e4590f)(content(Whitespace\"\\n\"))))(Secondary((id \
-         7a7dd45e-3d6a-4c9f-bd0f-8f4901626838)(content(Comment\"# Q. Which \
+         8d726878-c927-41d8-9dc2-a51b6f11d363)(content(Whitespace\"\\n\"))))(Secondary((id \
+         43c92beb-c79b-403c-bbb3-00b657d0dba9)(content(Comment\"# N/A \
+         #\"))))(Secondary((id \
+         05a9dc8e-0b84-4175-9cd1-09af0c56a683)(content(Whitespace\"\\n\"))))(Secondary((id \
+         3b78d7da-8137-4fc2-9a44-6df38a458a9c)(content(Comment\"# Q. Which \
          tables\\226\\128\\153 expressibility is unknown? Why? \
          #\"))))(Secondary((id \
-         6fd6137d-5922-4c94-b5f3-692c17607ab1)(content(Whitespace\"\\n\"))))(Secondary((id \
-         a89e73a7-d5ea-4ef5-8030-6a8b144fe078)(content(Whitespace\"\\n\"))))(Secondary((id \
-         0f19f3ce-10e5-4c55-85db-efbc1d6848c3)(content(Comment\"# Q. Which \
+         a395d659-1959-4c19-a926-70c57049a86b)(content(Whitespace\"\\n\"))))(Secondary((id \
+         cee9e753-3f9f-49a9-b87a-9791acb263ff)(content(Comment\"# N/A \
+         #\"))))(Secondary((id \
+         8bdc968c-166b-4d90-b1a2-6b798784838c)(content(Whitespace\"\\n\"))))(Secondary((id \
+         e51685fe-0e1e-4a3f-93be-acc6ec76351f)(content(Comment\"# Q. Which \
          tables can be expressed more precisely than in the benchmark? How? \
          #\"))))(Secondary((id \
-         b8be6ed7-b380-48b7-8016-6aaa9b6bf6bc)(content(Whitespace\"\\n\"))))(Secondary((id \
-         e6d268ec-4777-4cb3-900e-2c87b3546bb7)(content(Whitespace\"\\n\"))))(Secondary((id \
-         9254f65f-9230-4563-ac10-8e5a0f3aad8b)(content(Comment\"# Q. How \
+         0120ab95-03b0-4614-a918-505e1c7a5caf)(content(Whitespace\"\\n\"))))(Secondary((id \
+         536be8f5-7e77-42bf-9ce0-b429001be72e)(content(Comment\"# All tables \
+         are expressed as precisely as the benchmark. #\"))))(Secondary((id \
+         849da368-66aa-4db5-b2ea-e4795cdece50)(content(Whitespace\"\\n\"))))(Secondary((id \
+         efd48cd1-ec44-43e9-9a38-75500de8d304)(content(Comment\"# Q. How \
          direct is the mapping from the tables in the benchmark to \
          representations in your system? How complex is the encoding? \
          #\"))))(Secondary((id \
-         56ca255b-5da2-4fe9-835f-521edde7df50)(content(Whitespace\"\\n\"))))(Secondary((id \
+         a438c15b-4e7f-4cf5-bbc2-098b77c31f66)(content(Whitespace\"\\n\"))))(Secondary((id \
+         b6ed0037-0385-4174-a8d7-3df26e859141)(content(Comment\"# Very direct. \
+         Each benchmark table maps naturally to a Hazel list of labeled \
+         tuples. Labels are first-class and can be declared either at the \
+         point of construction or inferred from types.#\"))))(Secondary((id \
+         58ef1ee3-5df5-41ca-805c-840cc643917a)(content(Whitespace\"\\n\"))))(Secondary((id \
+         aadd23d6-9753-4f3c-bcc5-54321752ecda)(content(Comment\"# Tables with \
+         missing values have to be converted to None/Some constructors and \
+         nested tables need to use nested lists of tuples. \
+         #\"))))(Secondary((id \
+         4a547350-0553-4f7e-b71d-8c2c906e5570)(content(Whitespace\"\\n\")))))))))(Tile((id \
+         426aa0ec-43cf-4305-941f-fa532e79f289)(label(\";\"))(mold((out \
+         Exp)(in_())(nibs(((shape(Concave 38))(sort Exp))((shape(Concave \
+         38))(sort Exp))))))(shards(0))(children())))(Secondary((id \
+         610e1886-d630-441a-a54d-0595e0b49613)(content(Whitespace\"\\n\"))))(Secondary((id \
+         85f8c58c-26a5-4996-84db-ae2bf83f13e6)(content(Whitespace\"\\n\"))))(Tile((id \
+         a1749b67-b72a-403c-9907-07e6628d205b)(label(\"(\"\")\"))(mold((out \
+         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
+         Exp))))))(shards(0 1))(children(((Grout((id \
+         32c57ab4-01f4-4c56-b1d7-1d0d894febe6)(shape Convex)))(Secondary((id \
          4de86a16-ad75-4595-8d43-19000b2a5090)(content(Whitespace\"\\n\"))))(Secondary((id \
          e06217e6-3cca-4ed4-a0ea-d3d1a48dc902)(content(Comment\"# TableAPI \
          #\"))))(Secondary((id \
@@ -112,14 +200,19 @@ let out : string * Haz3lcore.PersistentZipper.t =
          91be40f2-2343-46ec-bf1c-3be47eddda51)(content(Comment\"# Q. Which \
          operations can be expressed more precisely than in the benchmark? \
          How? #\"))))(Secondary((id \
-         fe4c0cc7-5236-47b8-af77-7c05edeacc79)(content(Whitespace\"\\n\"))))(Secondary((id \
+         fe4c0cc7-5236-47b8-af77-7c05edeacc79)(content(Whitespace\"\\n\")))))))))(Tile((id \
+         07ea13a6-a3da-47ff-993e-066c826749fb)(label(\";\"))(mold((out \
+         Exp)(in_())(nibs(((shape(Concave 38))(sort Exp))((shape(Concave \
+         38))(sort Exp))))))(shards(0))(children())))(Secondary((id \
+         1fcfa3be-54fa-41c9-999d-e89f2e5436b0)(content(Whitespace\"\\n\"))))(Grout((id \
+         d6ae25ea-ef5b-4f6b-92d3-38653543d6bc)(shape Convex)))(Secondary((id \
          7132096e-8e86-4746-9d91-87eb5d4d3366)(content(Whitespace\"\\n\"))))(Secondary((id \
          f01ce7e4-671e-4b28-ac28-d650ba7e6829)(content(Comment\"# Example \
          Programs #\"))))(Secondary((id \
          c6c4a9c1-5f61-41e8-b7d3-0cd840b301f6)(content(Whitespace\"\\n\"))))(Secondary((id \
          e3bf348f-4fdb-4a1c-b8d7-93bd0a29c96f)(content(Whitespace\"\\n\"))))(Secondary((id \
          2c471aef-b509-4ce0-bd27-89cca11bfd08)(content(Comment\"# Q. Which \
-         examples are inexpressible? Why? #\")))))((Secondary((id \
+         examples are inexpressible? Why? #\"))))(Secondary((id \
          46adee40-a579-4289-8197-bd760ab1c2e6)(content(Whitespace\"\\n\"))))(Secondary((id \
          a0e935c2-4d50-457d-911a-5f4abe1f09d6)(content(Whitespace\"\\n\"))))(Secondary((id \
          2f50c953-a5d5-4c0d-8bc3-7c6ae9373687)(content(Comment\"# Q. Which \
@@ -168,7 +261,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          eb3e5a12-5c6b-43ce-8d75-5146b45aae39)(content(Comment\"# \
          Expressiveness, in turn, can be for multiple artifacts: \
          #\"))))(Secondary((id \
-         d7de6552-78f8-4169-adc1-3b2c8a36d829)(content(Whitespace\"\\n\"))))(Secondary((id \
+         d7de6552-78f8-4169-adc1-3b2c8a36d829)(content(Whitespace\"\\n\")))))((Secondary((id \
          adc578fb-869e-473b-937b-3193d2ebeed1)(content(Whitespace\"\\n\"))))(Secondary((id \
          628cb572-6834-4c50-941c-47702a5f12ef)(content(Comment\"# - the buggy \
          versions of the programs #\"))))(Secondary((id \
@@ -217,37 +310,71 @@ let out : string * Haz3lcore.PersistentZipper.t =
          bc060f1f-4173-4cd4-ad37-437ec32be8b8)(content(Whitespace\"\\n\"))))(Secondary((id \
          d3b50aec-185d-4040-b563-77f1472a38e9)(content(Comment\"# Q. For each \
          error situation that is prevented from being constructed, what is the \
-         quality of feedback to the programmer? #\"))))(Grout((id \
-         05a7daa3-0774-44d0-aead-fe4b4b0d9f62)(shape \
-         Convex))))))(ancestors())))(caret Outer))";
+         quality of feedback to the programmer? \
+         #\")))))))(ancestors())))(caret Outer))";
       backup_text =
-        "# Reference #\n\n\
+        "(\n\
+         # Reference #\n\
          # Q. Where can we learn about the programming medium covered by this \
          datasheet? #\n\
          # (Feel free to link to multiple kinds of artifacts: repositories, \
          papers, videos, etc. #\n\
-         # Please also include version information where applicable.) #\n\n\n\
-         # Q. What is the URL of the version of the benchmark being used? #\n\n\
-         # Q. On what date was this version of the datasheet last updated? #\n\n\
+         # Please also include version information where applicable.) #\n\
+         # Website: http://hazel.org #\n\
+         # Source code: https://github.com/hazelgrove/hazel/ TODO: Add version #\n\
+         # App: https://hazel.org/build/dev/ #\n\n\n\
+         # Q. What is the URL of the version of the benchmark being used? #\n\
+         # \
+         https://github.com/brownplt/B2T2/blob/fd227efadf532a20aefd25c7a8580978c2d684a2/Datasheet.md \
+         #\n\n\
+         # Q. On what date was this version of the datasheet last updated? #\n\
+         # 2024-06-13 #\n\n\
          # Q. If you are not using the latest benchmark available on that \
-         date, please explain why not. #\n\n\
+         date, please explain why not. #\n\
+         # N/A #\n\n\
+         );\n\
+         (\n\
          # Example Tables #\n\n\
          # Q. Do tables express heterogeneous data, or must data be \
-         homogenized? #\n\n\
+         homogenized? #\n\
+         # Hazel Tables are represented a lists of labeled tuples. The tuples \
+         are heterogenously typed elemnents with labels so columns can be \
+         heterogenous but rows must be homogenous. #\n\n\
          # Q. Do tables capture missing data and, if so, how? Do missing \
          values affect the output constraints of any operations, for example \
-         `groupBy`? #\n\n\
-         # Q. Are mutable tables supported? Are there any limitations? #\n\n\
+         `groupBy`? #\n\
+         # Missing data must be tracked explicitly by the type using an Option \
+         type. Incomplete programs can also utilize expression holes for \
+         missing data but there's no way to handle these holes \
+         programatically. #\n\
+         # Since option types are treated as ordinary values there is no \
+         special considerations for operations. #\n\n\
+         # Q. Are mutable tables supported? Are there any limitations? #\n\
+         #No#\n\
+         );\n\
+         (\n\
          # You may reference, instead of duplicating, the responses to the \
          above questions in answering those below: #\n\n\
-         # Q. Which tables are inexpressible? Why? #\n\n\
+         # Q. Which tables are inexpressible? Why? #\n\
+         # All the tables are expressible. As stated above missing values are \
+         represented using option types.#\n\n\
          # Q. Which tables are only partially expressible? Why, and \
-         what\226\128\153s missing? #\n\n\
-         # Q. Which tables\226\128\153 expressibility is unknown? Why? #\n\n\
+         what\226\128\153s missing? #\n\
+         # N/A #\n\
+         # Q. Which tables\226\128\153 expressibility is unknown? Why? #\n\
+         # N/A #\n\
          # Q. Which tables can be expressed more precisely than in the \
-         benchmark? How? #\n\n\
+         benchmark? How? #\n\
+         # All tables are expressed as precisely as the benchmark. #\n\
          # Q. How direct is the mapping from the tables in the benchmark to \
-         representations in your system? How complex is the encoding? #\n\n\
+         representations in your system? How complex is the encoding? #\n\
+         # Very direct. Each benchmark table maps naturally to a Hazel list of \
+         labeled tuples. Labels are first-class and can be declared either at \
+         the point of construction or inferred from types.#\n\
+         # Tables with missing values have to be converted to None/Some \
+         constructors and nested tables need to use nested lists of tuples. #\n\
+         );\n\n\
+         (\n\
          # TableAPI #\n\n\
          # Q. Are there consistent changes made to the way the operations are \
          represented? #\n\n\
@@ -256,7 +383,8 @@ let out : string * Haz3lcore.PersistentZipper.t =
          what\226\128\153s missing? #\n\n\
          # Q. Which operations\226\128\153 expressibility is unknown? Why? #\n\n\
          # Q. Which operations can be expressed more precisely than in the \
-         benchmark? How? #\n\n\
+         benchmark? How? #\n\
+         );\n\n\
          # Example Programs #\n\n\
          # Q. Which examples are inexpressible? Why? #\n\n\
          # Q. Which examples\226\128\153 expressibility is unknown? Why? #\n\n\
@@ -290,5 +418,5 @@ let out : string * Haz3lcore.PersistentZipper.t =
          # Q. For each error situation that is at least partially expressible, \
          what is the quality of feedback to the programmer? #\n\n\
          # Q. For each error situation that is prevented from being \
-         constructed, what is the quality of feedback to the programmer? # ";
+         constructed, what is the quality of feedback to the programmer? #";
     } )

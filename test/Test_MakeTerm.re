@@ -153,6 +153,12 @@ let tests =
           "(1=3)",
         )
       ),
+      test_case("Single quoted label in tuple", `Quick, () =>
+        exp_check(tuple([tup_label(label("a"), int(3))]), "('a'=3)")
+      ),
+      test_case("Dot projection with single quoted label", `Quick, () =>
+        exp_check(dot(empty_hole(), label("a")), "? . 'a'")
+      ),
       test_case("Scientific notation floating point", `Quick, () =>
         exp_check(float(1.2e30), "1.2e30")
       ),

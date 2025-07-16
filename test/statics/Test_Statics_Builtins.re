@@ -4,57 +4,6 @@ open FTemp;
 open Typ;
 // TODO do versions with variables where appropriate and do reverse partial application
 
-module TupleExtension = {
-  let tests = [
-    fully_consistent_typecheck(
-      "Tuple extension",
-      {|(a=0, 1, b=2) ... (a=1, 3, c=4)|},
-      Some(
-        prod([
-          tup_label(label("a"), int()),
-          int(),
-          tup_label(label("b"), int()),
-          int(),
-          tup_label(label("c"), int()),
-        ]),
-      ),
-    ),
-    fully_consistent_typecheck(
-      "Tuple extension with type alias",
-      {|type Person = (name=String, age=Int) in
-        type Date = (year=Int, month=Int, day=Int) in
-
-        let p : Person = in
-        let d : Date = in
-        p ... d|},
-      Some(
-        prod([
-          tup_label(label("name"), string()),
-          tup_label(label("age"), int()),
-          tup_label(label("year"), int()),
-          tup_label(label("month"), int()),
-          tup_label(label("day"), int()),
-        ]),
-      ),
-    ),
-    test_case("Tuple extension with non-tuple args", `Quick, () =>
-      annotated_tree_test(
-        "1 ... 2",
-        unknown(Internal),
-        FIError.(
-          Exp.(
-            tuple_extension(
-              ~ann=Some(Exp(TupleExtensionRequiresTuples)),
-              int(1),
-              int(2),
-            )
-          )
-        ),
-      )
-    ),
-  ];
-};
-
 module MeltOperation = {
   let tests = [
     fully_consistent_typecheck(
@@ -164,6 +113,24 @@ module MeltOperation = {
         FIError.Exp.(ap(Forward, var("melt"), empty_hole())),
       )
     ),
+    test_case("Melt operation applied to tuple with unknown entry", `Quick, () =>
+      annotated_tree_test(
+        "melt((?, b=2))",
+        list(
+          prod([
+            tup_label(label("label"), string()),
+            tup_label(label("value"), int()),
+          ]),
+        ),
+        FIError.Exp.(
+          ap(
+            Forward,
+            var("melt"),
+            tuple([empty_hole(), tup_label(label("b"), int(2))]),
+          )
+        ),
+      )
+    ),
     test_case("Melt operation with hole in tuple label position", `Quick, () =>
       annotated_tree_test(
         "melt((?=1, b=2, c=3))",
@@ -264,7 +231,12 @@ module ProjectLabels = {
                 tup_label(label("c"), int(3)),
               ]),
               label(
-                ~ann=Some(Exp(Common(NoType(InvalidLabel("d"))))),
+                ~ann=
+                  Some(
+                    Exp(
+                      Common(NoType(InvalidLabel("d", ["a", "b", "c"]))),
+                    ),
+                  ),
                 "d",
               ),
             ]),
@@ -564,7 +536,12 @@ module SelectLabels = {
                 tup_label(label("c"), int(3)),
               ]),
               label(
-                ~ann=Some(Exp(Common(NoType(InvalidLabel("d"))))),
+                ~ann=
+                  Some(
+                    Exp(
+                      Common(NoType(InvalidLabel("d", ["a", "b", "c"]))),
+                    ),
+                  ),
                 "d",
               ),
             ]),
@@ -743,7 +720,10 @@ module PrimitivePivot = {
                 ]),
               ]),
               label(
-                ~ann=Some(Exp(Common(NoType(InvalidLabel("c"))))),
+                ~ann=
+                  Some(
+                    Exp(Common(NoType(InvalidLabel("c", ["a", "b"])))),
+                  ),
                 "c",
               ),
             ]),
@@ -838,8 +818,14 @@ module PrimitivePivot = {
                   tup_label(label("b"), int(3)),
                 ]),
               ]),
-              label("a"),
-              label("b"),
+              label(
+                ~ann=Some(Exp(Common(NoType(UnexpectedLabelSort("a"))))),
+                "a",
+              ),
+              label(
+                ~ann=Some(Exp(Common(NoType(UnexpectedLabelSort("b"))))),
+                "b",
+              ),
             ]),
           )
         ),
@@ -876,6 +862,32 @@ module PrimitivePivot = {
             Forward,
             var("primitive_pivot"),
             tuple([empty_hole(), label("a")]),
+          )
+        ),
+      )
+    ),
+    test_case("primitive pivot with unknown type inside list", `Quick, () =>
+      annotated_tree_test(
+        {|primitive_pivot([(a="hello", b=3):?], 'b')|},
+        unknown(Internal),
+        FIError.(
+          Exp.(
+            ap(
+              Forward,
+              var("primitive_pivot"),
+              tuple([
+                list_lit([
+                  asc(
+                    tuple([
+                      tup_label(label("a"), string("hello")),
+                      tup_label(label("b"), int(3)),
+                    ]),
+                    Typ.unknown(Internal),
+                  ),
+                ]),
+                label("b"),
+              ]),
+            )
           )
         ),
       )
@@ -918,7 +930,11 @@ module PrimitivePivot = {
                         ),
                       ),
                     ),
-                  label("a"),
+                  label(
+                    ~ann=
+                      Some(Exp(Common(NoType(UnexpectedLabelSort("a"))))),
+                    "a",
+                  ),
                   Typ.unknown(Internal),
                 ),
               ]),
@@ -1004,11 +1020,13 @@ module OmitLabels = {
     test_case("omit_labels with label not in tuple", `Quick, () =>
       annotated_tree_test(
         {|omit_labels((a=1, b=true, c=3), 'd')|},
-        unknown(Internal),
+        prod([
+          tup_label(label("a"), int()),
+          tup_label(label("b"), bool()),
+          tup_label(label("c"), int()),
+        ]),
         FIError.Exp.(
           ap(
-            ~ann=
-              Some(Exp(BuiltinError(ProjectLabelsMissingLabels(["d"])))),
             Forward,
             var("omit_labels"),
             tuple([
@@ -1017,7 +1035,15 @@ module OmitLabels = {
                 tup_label(label("b"), bool(true)),
                 tup_label(label("c"), int(3)),
               ]),
-              label("d"),
+              label(
+                ~ann=
+                  Some(
+                    Exp(
+                      Common(NoType(InvalidLabel("d", ["a", "b", "c"]))),
+                    ),
+                  ),
+                "d",
+              ),
             ]),
           )
         ),
@@ -1075,9 +1101,10 @@ module OmitLabels = {
         unknown(Internal),
         FIError.Exp.(
           ap(
+            ~ann=Some(Exp(BuiltinError(AtLeast2Arguments))),
             Forward,
             var("omit_labels"),
-            int(~ann=Some(Exp(BuiltinError(ArgumentMustBeTuple))), 1),
+            int(1),
           )
         ),
       )
@@ -1088,9 +1115,10 @@ module OmitLabels = {
         unknown(Internal),
         FIError.Exp.(
           ap(
+            ~ann=Some(Exp(BuiltinError(AtLeast2Arguments))),
             Forward,
             var("omit_labels"),
-            tuple(~ann=Some(Exp(BuiltinError(ArgumentMustBeTuple))), []),
+            tuple([]),
           )
         ),
       )
@@ -1108,6 +1136,22 @@ module OmitLabels = {
         ),
       )
     ),
+    test_case("Omit labels with non-labeled elements", `Quick, () =>
+      annotated_tree_test(
+        {|omit_labels((1, 2, a=3), 'a')|},
+        prod([int(), int()]),
+        FIError.Exp.(
+          ap(
+            Forward,
+            var("omit_labels"),
+            tuple([
+              tuple([int(1), int(2), tup_label(label("a"), int(3))]),
+              label("a"),
+            ]),
+          )
+        ),
+      )
+    ),
   ];
 };
 
@@ -1116,22 +1160,20 @@ module DropLabels = {
     fully_consistent_typecheck(
       "Drop labels with some labels",
       {|drop_labels((a=1, b=2.0, true, d=""))|},
-      Some(list(prod([int(), float(), bool(), string()]))),
+      Some(prod([int(), float(), bool(), string()])),
     ),
     fully_consistent_typecheck(
       "Drop labels with type alias and autolabels",
       {|type Entry =(name=String, age=Int, quiz1=Int, quiz2=Int, midterm=Int, quiz3=Int, quiz4=Int, final=Int) in
         drop_labels(("bob",   12, 8, 9, 77, 7, 9, 87) : Entry)|},
       Some(
-        list(
-          prod([string(), int(), int(), int(), int(), int(), int(), int()]),
-        ),
+        prod([string(), int(), int(), int(), int(), int(), int(), int()]),
       ),
     ),
     test_case("Drop labels operation with no labels", `Quick, () =>
       annotated_tree_test(
         "drop_labels(1, 2)",
-        list(prod([int(), int()])),
+        prod([int(), int()]),
         FIError.Exp.(
           ap(Forward, var("drop_labels"), tuple([int(1), int(2)]))
         ),
@@ -1163,7 +1205,7 @@ module DropLabels = {
       "Drop labels operation with hole in tuple label position", `Quick, () =>
       annotated_tree_test(
         "drop_labels((?=1, b=2, c=3))",
-        list(prod([int(), int(), int()])),
+        prod([int(), int(), int()]),
         FIError.Exp.(
           ap(
             Forward,
@@ -1180,11 +1222,25 @@ module DropLabels = {
   ];
 };
 
+module FromEntries = {
+  let tests = [
+    fully_consistent_typecheck(
+      "From entries with list of tuples",
+      {|from_entries([(label="col", value=3)])|},
+      Some(unknown(Internal)),
+    ),
+    fully_consistent_typecheck(
+      "From entries with list of tuples and multiple entries",
+      {|from_entries([(label="col1", value=3), (label="col2", value=true)])|},
+      Some(unknown(Internal)),
+    ),
+  ];
+};
 let tests =
-  TupleExtension.tests
-  @ MeltOperation.tests
+  MeltOperation.tests
   @ ProjectLabels.tests
   @ SelectLabels.tests
   @ PrimitivePivot.tests
   @ OmitLabels.tests
-  @ DropLabels.tests;
+  @ DropLabels.tests
+  @ FromEntries.tests;

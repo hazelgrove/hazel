@@ -171,6 +171,24 @@ and uexp_to_info_map =
       m,
     );
   };
+  let replace_self = (m: Map.t, original_info: Info.exp, self: Self.exp) => {
+    let new_info =
+      Info.derived_exp(
+        ~uexp=original_info.term,
+        ~ctx=original_info.ctx,
+        ~ana=original_info.ana,
+        ~ancestors=original_info.ancestors,
+        ~self,
+        ~co_ctx=original_info.co_ctx,
+        ~label_inference=original_info.label_inference,
+        ~inferred_label=original_info.inferred_label,
+        ~label_sort=original_info.label_sort,
+      );
+    (
+      new_info,
+      add_info(IdTagged.ids(original_info.term), InfoExp(new_info), m),
+    );
+  };
   let go' = uexp_to_info_map(~ancestors);
   let go:
     (
@@ -203,7 +221,7 @@ and uexp_to_info_map =
       let (i, m) =
         go(
           ~ana=labmode,
-          ~override_self=Common(InvalidLabel(name)),
+          ~override_self=Common(InvalidLabel(name, expected_labels)),
           ~label_sort=true,
           ~duplicates,
           label,
@@ -420,8 +438,22 @@ and uexp_to_info_map =
         );
       };
     | TupleExtension(e1, e2) =>
-      let (t1, m) = go(e1, m);
-      let (t2, m) = go(e2, m);
+      let (t1, m) = {
+        let (t1, m) = go(e1, m);
+        switch (Typ.normalize(ctx, t1.ty).term) {
+        | Prod(_)
+        | Unknown(_) => (t1, m)
+        | _ => replace_self(m, t1, TupleExtensionRequiresTuples)
+        };
+      };
+      let (t2, m) = {
+        let (t2, m) = go(e2, m);
+        switch (Typ.normalize(ctx, t2.ty).term) {
+        | Prod(_)
+        | Unknown(_) => (t2, m)
+        | _ => replace_self(m, t2, TupleExtensionRequiresTuples)
+        };
+      };
 
       switch (
         Typ.normalize(ctx, t1.ty).term,
@@ -464,7 +496,12 @@ and uexp_to_info_map =
           ~co_ctx=CoCtx.empty,
           m,
         )
-      | _ => add'(~self=TupleExtensionRequiresTuples, ~co_ctx=CoCtx.empty, m)
+      | _ =>
+        add(
+          ~self=Just(IdTagged.FreshGrammar.Typ.unknown(Internal)),
+          ~co_ctx=CoCtx.empty,
+          m,
+        )
       };
 
     | Tuple(es) =>
@@ -605,7 +642,7 @@ and uexp_to_info_map =
               Inconsistent(Expectation({syn: {term: Label(name), _}, _})),
             ),
           )
-        | InHole(Common(NoType(InvalidLabel(name)))) =>
+        | InHole(Common(NoType(InvalidLabel(name, _)))) =>
           Self.TupleLabelError({
             malformed_labels: [],
             duplicate_labels: [],
@@ -628,10 +665,13 @@ and uexp_to_info_map =
           })
         };
       add(~self, ~co_ctx=CoCtx.union([lab.co_ctx, e.co_ctx]), m);
-    | Label(name) =>
+    | Label(name) when label_sort =>
       let self = Self.Just(Label(name) |> Typ.temp);
       List.exists(l => name == l, duplicates)
         ? atomic(Duplicate(name, self)) : atomic(self);
+    | Label(name) =>
+      let self = Self.UnexpectedLabelSort(name);
+      atomic(self);
     | BuiltinFun(string) =>
       add'(
         ~self=Self.of_exp_var(Builtins.ctx_init(None), string),
@@ -641,7 +681,8 @@ and uexp_to_info_map =
 
     | Dot(e1, e2) =>
       let (info_e1, m) = go(~ana=Unknown(SynSwitch) |> Typ.temp, e1, m);
-      let (info_e2, m) = go(~ana=Label("") |> Typ.temp, e2, m);
+      let (info_e2, m) =
+        go(~label_sort=true, ~ana=Label("") |> Typ.temp, e2, m);
       let (ty, m) = {
         switch (info_e1.ty.term, info_e2.ty.term) {
         | (Unknown(_), Label(name)) =>
@@ -718,6 +759,12 @@ and uexp_to_info_map =
           )
         | _ => add(~self=BadLabel(Exp(e2)), ~co_ctx=info_e2.co_ctx, m)
         };
+      | List({term: Unknown(_), _}) =>
+        add(
+          ~self=Just(List(Unknown(Internal) |> Typ.temp) |> Typ.temp),
+          ~co_ctx=info_e2.co_ctx,
+          m,
+        )
       | _ => add'(~self=DotOperatorRequiresTuple, ~co_ctx=info_e2.co_ctx, m)
       };
     | Test(e) =>
@@ -1514,7 +1561,7 @@ and upat_to_info_map =
                 switch (label.term, expected_labels) {
                 | (Label(name), Some(expected_labels))
                     when !List.mem(name, expected_labels) =>
-                  Some(InvalidLabel(name))
+                  Some(InvalidLabel(name, expected_labels))
                 | (Label(_), _)
                 | (EmptyHole, _) => None
                 | _ => Some(BadLabel(Pat(label)))
@@ -1543,7 +1590,7 @@ and upat_to_info_map =
               Inconsistent(Expectation({syn: {term: Label(name), _}, _})),
             ),
           )
-        | InHole(Common(NoType(InvalidLabel(name)))) =>
+        | InHole(Common(NoType(InvalidLabel(name, _)))) =>
           Self.TupleLabelError({
             malformed_labels: [],
             duplicate_labels: [],

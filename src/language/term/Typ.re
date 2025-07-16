@@ -209,6 +209,7 @@ let rec match_tup_optional_label = (ty: t) =>
   | Parens(ty) => match_tup_optional_label(ty)
   | TupLabel({term: Label(name), _}, t') => Some((Some(name), t'))
   | TupLabel({term: Unknown(_), _}, t') => Some((None, t'))
+  | Unknown(_) => Some((None, ty))
   | _ => None
   };
 let match_tup_label = ty =>
@@ -945,7 +946,8 @@ let remove_duplicate_labels =
  */
 let to_product = (tys: list(t)): t =>
   switch (tys) {
-  | [] => Prod([]) |> temp
+  | []
+  | [{term: TupLabel(_), _}] => Prod(tys) |> temp
   | [ty] => ty
   | _ => Prod(tys) |> temp
   };

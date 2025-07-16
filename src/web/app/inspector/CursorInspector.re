@@ -117,7 +117,26 @@ let common_err_view =
       ]
     | NoType(FreeConstructor(name)) => [code(name), text("not found")]
 
-    | NoType(InvalidLabel(name)) => [text("Invalid label:"), code(name)]
+    | NoType(InvalidLabel(name, expected_labels)) =>
+      switch (expected_labels) {
+      | [] => [
+          text("Invalid label: "),
+          code(name),
+          text(". No labels were expected."),
+        ]
+      | _ => [
+          text("Invalid label: "),
+          code(name),
+          text(" is not part of the expected labels: "),
+          ...List.map(code, expected_labels),
+        ]
+      }
+    | NoType(UnexpectedLabelSort(name)) => [
+        text("Label "),
+        code(name),
+        text(" is here, but another sort is expected."),
+      ]
+
     | TupleLabelError({malformed_labels, duplicate_labels, invalid_labels, _}) =>
       (
         List.is_empty(malformed_labels)
@@ -441,11 +460,6 @@ let rec exp_view =
     ])
   | InHole(BuiltinError(e)) =>
     switch (e) {
-    | ProjectLabelsNonLabels(labels) =>
-      div_err([
-        text("Projecting labels from non-labels: "),
-        ...List.map(view_any(~globals), labels),
-      ])
     | MissingLabels(labels) =>
       div_err([
         text("Labels not present in tuple: "),
@@ -489,7 +503,7 @@ let rec exp_view =
       view_type(Prod([]) |> Typ.fresh),
     ])
   | InHole(TupleExtensionRequiresTuples) =>
-    div_err([text("Requires tuples for both arguments")])
+    div_err([text("Tuple extension requires tuple")])
 
   | InHole(DotOperatorRequiresTuple) =>
     div_err([text("Requires tuple for first argument")])

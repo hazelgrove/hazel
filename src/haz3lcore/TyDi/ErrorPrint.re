@@ -47,6 +47,7 @@ let common_error: Info.error_common => string =
   | NoType(InvalidLabel(_)) => "Invalid label"
   | DuplicateLabel(_, _) => "Duplicate label"
   | TupleLabelError(_) => "Invalid tuple label"
+  | NoType(UnexpectedLabelSort(_)) => "Unexpected label sort"
   | NoType(BadToken(token)) => prn("\"%s\" isn't a valid token", token)
   | Inconsistent(WithArrow(ty)) =>
     prn("type %s is not consistent with arrow type", Print.typ(ty))
@@ -82,11 +83,6 @@ let exp_error: Info.error_exp => string =
     prn(
       "All entries in the argument must have labels, but some were not provided: %s",
       Print.typ(ty),
-    )
-  | BuiltinError(ProjectLabelsNonLabels(labels)) =>
-    prn(
-      "Projecting labels from non-labels: %s",
-      String.concat(", ", List.map(Print.term, labels)),
     )
   | BuiltinError(AtLeast2Arguments) => "Must have 2 or more direct arguments"
   | BuiltinError(Exactly2Arguments) => "Must have exactly 2 direct arguments"

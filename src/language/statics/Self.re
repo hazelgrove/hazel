@@ -32,7 +32,8 @@ type t =
   | Duplicate(LabeledTuple.label, t) /* Duplicate label, marked as duplicate */
   | BadToken(string) /* Invalid expression token, continues with undefined behavior */
   | BadLabel(Any.t) /* TupLabel label component is not a valid Label*/
-  | InvalidLabel(LabeledTuple.label) /* Invalid label in a labeled tuple */
+  | InvalidLabel(LabeledTuple.label, list(LabeledTuple.label)) /* Invalid label in a labeled tuple where these labels are expected */
+  | UnexpectedLabelSort(LabeledTuple.label) /* A label is present but not expected */
   | TupleLabelError({
       malformed_labels: list(Any.t), // Labels that are not of the right syntactic form
       duplicate_labels: list(LabeledTuple.label),
@@ -52,7 +53,6 @@ type error_partial_ap =
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_builtin =
   | MeltMissingLabelsOnTuple(Typ.t) /* Melt requires labels for all tuple elements */
-  | ProjectLabelsNonLabels(list(Any.t)) /* Attempted to project non-labels from a tuple */
   | ProjectLabelsMissingLabels(list(string)) /* Attempted to project labels from a tuple that doesn't have them */
   | MissingLabels(list(string)) // Operation with labels that are not present in the tuple
   | PivotLabelIsNotString(Typ.t) /* Pivot column must be a string */
@@ -118,7 +118,8 @@ let typ_of: t => option(Typ.t) =
   | Duplicate(_)
   | BadLabel(_)
   | InvalidLabel(_)
-  | NoJoin(_) => None;
+  | NoJoin(_)
+  | UnexpectedLabelSort(_) => None;
 
 let typ_of_exp: exp => option(Typ.t) =
   fun
@@ -136,7 +137,6 @@ let typ_of_exp: exp => option(Typ.t) =
   | IsLivelitName({exp_t, _}) => Some(exp_t)
   | BadLivelitModel(typ) => Some(typ)
   | BuiltinError(MeltMissingLabelsOnTuple(typ)) => Some(typ)
-  | BuiltinError(ProjectLabelsNonLabels(_))
   | BuiltinError(ProjectLabelsMissingLabels(_))
   | BuiltinError(MissingLabels(_) | PivotLabelIsNotString(_))
   | BuiltinError(
