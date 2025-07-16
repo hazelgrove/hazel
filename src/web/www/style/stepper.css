@@ -236,7 +236,7 @@
 svg.tile-next-step {
   pointer-events: all;
   cursor: pointer;
-  z-index: var(--projector-overlay-z);
+  z-index: var(--stepper-interactive-z) !important;
   filter: drop-shadow(1px 1px var(--G2)) !important;
 }
 
@@ -244,7 +244,7 @@ svg.tile-next-step-top {
   pointer-events: all;
   cursor: pointer;
   visibility: hidden;
-  z-index: var(--stepper-interactive-z);
+  z-index: var(--stepper-interactive-z) !important;
   filter: drop-shadow(1px 1px var(--G2)) !important;
 }
 
