@@ -17,7 +17,7 @@ let tests = (
     test_case("Multi-arg builtin with ascription", `Quick, () =>
       evaluation_test(
         {|string_compare(("Hello", "World"):(?, ?))|},
-        int(-1),
+        BuiltinsADT.Ord.lt,
         ap(
           Forward,
           builtin_fun("string_compare"),
@@ -37,7 +37,7 @@ let tests = (
     test_case("Multi arg builtin ascription", `Quick, () =>
       evaluation_test(
         {|string_compare(("Hello": ?, "World": ?):(?, ?))|},
-        int(-1),
+        BuiltinsADT.Ord.lt,
         ap(
           Forward,
           builtin_fun("string_compare"),
