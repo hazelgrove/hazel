@@ -631,9 +631,6 @@ module Transition = (EV: EV_MODE) => {
         req_final(req(state, env), d1 => Dot1(d1, d2) |> wrap_ctx, d1)
       and. d2' =
         req_final(req(state, env), d2 => Dot2(d1, d2) |> wrap_ctx, d2);
-      print_endline("Projection");
-      print_endline(DHExp.show(d1'));
-      print_endline(DHExp.show(d2'));
       switch (DHExp.term_of(d2')) {
       | Label(name) =>
         switch (Unboxing.unbox(LabeledTupleProjection(name), d1')) {
