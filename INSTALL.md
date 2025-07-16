@@ -2,45 +2,22 @@
 
 This guide contains step-by-step instructions for building and running Hazel.
 If you are unfamiliar with `ocaml` or `opam` or get stuck, we recommend you
-follow these instructions instead of the shorter instructions in the
+follow these instructions instead of the shorter instructions in 
 [README.md](README.md).
 
 ## Prerequisites
 
-- If you are on Windows, install the Windows Subsystem for Linux (WSL) by doing the
-  following.
+- If you are on Windows, [install the Windows Subsystem for Linux (WSL)](https://learn.microsoft.com/en-us/windows/wsl/install).
 
-  - WSL has to be enabled before it can be installed. So, to enable WSL, do the following:
-
-    - From the start menu or task bar, open the "PowerShell" application **as an administrator** (by right-clicking on it when you search for it in the start menu).
-
-    - Run the following command at the PowerShell prompt:
-
-      ```sh
-      Enable-WindowsOptionalFeature -Online -FeatureName Microsoft-Windows-Subsystem-Linux
-      ```
-
-    - When this command asks you if you want to reboot, reboot by pressing `y`.
-
-  - After enabling WSL, to install WSL, go the to Microsoft Store, and search for and install "Ubuntu".
-    This will install WSL and the Ubuntu Linux distribution.
-
-  - From the start menu or taskbar, open the "Ubuntu" application. This will
-    open a Bash shell on Ubuntu Linux. Use this when running the commands in
-    the rest of these instructions.
-
-- If you are on MacOS, make sure you have [Homebrew](https://brew.sh/) installed.
+- If you are on MacOS, you probably want to have [Homebrew](https://brew.sh/) installed.
 
 - Make sure `gcc`, `git`, `make`, `nodejs`, and `m4` are installed.
 
-  - If you are on Ubuntu or Windows, you can do this by running the following
+  - If you are on Ubuntu or WSL + Ubuntu, you can do this by running the following
     commands:
 
     ```sh
     sudo apt update
-    ```
-
-    ```sh
     sudo apt install gcc git make m4 nodejs pkg-config
     ```
 
@@ -51,9 +28,6 @@ follow these instructions instead of the shorter instructions in the
 
     ```sh
     brew update
-    ```
-
-    ```sh
     brew install gcc git make node pkg-config
     ```
 
@@ -66,9 +40,6 @@ follow these instructions instead of the shorter instructions in the
 
     ```sh
     sudo apt update
-    ```
-
-    ```sh
     sudo apt install opam
     ```
 
@@ -76,9 +47,6 @@ follow these instructions instead of the shorter instructions in the
 
     ```sh
     brew update
-    ```
-
-    ```sh
     brew install opam
     ```
 
@@ -94,7 +62,7 @@ follow these instructions instead of the shorter instructions in the
 
 - Initialize `opam`, by running:
 
-  - If you are on Windows:
+  - If you are on WSL:
 
     ```sh
     opam init github git+https://github.com/ocaml/opam-repository.git
@@ -112,7 +80,12 @@ follow these instructions instead of the shorter instructions in the
   eval $(opam env)
   ```
 
+ - You may want to put that line into your `~/.zshrc` file (default on recent Macs) and `~/.bashrc` (used by the VS Code shell) so you don't have to run it again every time you open a new shell.
+
 ## Install OCaml
+You can use either a global opam switch or a switch local to the Hazel source directory.
+
+### Global Switch
 
 - Update the list of available `opam` packages:
 
@@ -120,7 +93,7 @@ follow these instructions instead of the shorter instructions in the
   opam update
   ```
 
-- Install OCaml 5.2.0 (some older versions may also work; see the
+- Install OCaml 5.2.0 (see the
   ["Current version" section of `Updating.md`](docs/Updating-OCaml-Version.md) for
   why we may not use the newest version of OCaml).
 
@@ -128,24 +101,39 @@ follow these instructions instead of the shorter instructions in the
    opam switch create 5.2.0 ocaml-base-compiler.5.2.0
   ```
 
-- Update the current switch environment
+- Update the current switch (OCaml environment):
   ```sh
-  eval $(opam env --switch=5.2.0)
+  opam switch 5.2.0
+  eval $(opam env)
+  ```
+
+### Local Opam Switch
+
+If you are working on multiple OCaml projects, it may be helpful to set up a local Opam switch. You can do so as follows:
+
+  ```sh
+  opam update
+  opam switch create ./ 5.2.0
+  eval $(opam env)
+  make deps
   ```
 
 ## Clone the Source Code
+
 
 - Pick a directory that you want to be the parent of the directory that contains
   the Hazel source code and use the `cd` command to change to that
   directory.
 
-- Clone a copy of the source code by either running the following command:
+- Clone a copy of the source code.
+
+  **Recommended**: You should first make sure you have [GitHub SSH keys setup](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account). Then you can run the following command to clone Hazel:
 
   ```
   git clone git@github.com:hazelgrove/hazel.git
   ```
 
-  Or running the following command:
+  **Quick and Dirty**: You can alternatively run the following command even if you have not set up GitHub SSH. However, this requires setting up a personal access token if you want to push to the repository at any point (in which case the ssh approach is recommended):
 
   ```
   git clone https://github.com/hazelgrove/hazel.git
@@ -153,14 +141,6 @@ follow these instructions instead of the shorter instructions in the
 
   This will put create a `hazel` directory containing the Hazel source code
   inside the current directory.
-
-  If you plan to `git push` or `git pull` frequently, you may want to consider
-  configuring your GitHub account to work with your SSH key. This will prevent
-  you from having type your password every time. For more information, see the
-  GitHub documentation on [Connecting to GitHub with
-  SSH](https://help.github.com/en/github/authenticating-to-github/connecting-to-github-with-ssh)
-  and [Troubleshooting
-  SSH](https://help.github.com/en/github/authenticating-to-github/troubleshooting-ssh).
 
 ## Install Library Dependencies
 
@@ -180,7 +160,7 @@ follow these instructions instead of the shorter instructions in the
   Makefile
   README.md
   src
-  UPDATING.md
+  ...
   ```
 
   If you do not see these files, use `cd` to change to the directory containing
@@ -192,46 +172,7 @@ follow these instructions instead of the shorter instructions in the
   make deps
   ```
 
-## Compile Hazel
+## Build and Run Hazel
 
-- You can now compile Hazel by running one of the following.
-
-  - If you want to compile a development version of Hazel, run `make` (or equivalently, `make dev`)
-
-  - If you want to compile a release version of Hazel, which optimizes more aggressively, run `make release`
-
-If the build fails, it sometimes helps to do a `make clean`.
-
-## Run Hazel
-
-To view Hazel, you have to serve it, on localhost for development (you can't
-run it from a `file:///` URL due to browser restrictions on e.g. web workers.)
-
-If you have `python3` on your path, you can use the Python server via
-`make serve`, then navigate to `http://0.0.0.0:8000/` in your browser.
-
-Otherwise, run `make echo-html-dir` which will echo the directory that needs
-to be served using some other server of your choice.
-
-You can also run `make repl` to get a REPL in which you can play with the definitions
-in `haz3lcore`. The definitions in `web` cannot be used in the REPL because that
-package needs a browser environment to run.
-
-## (Optional) Install fswatch for automatic reformatting & recompilation
-
-Do this if you want to be able to run `make watch` to automatically watch
-the Hazel source for changes, triggering reformatting and recompilation.
-
-- If you are on Ubuntu/Debian, you can do this by running the following commands:
-
-  ```sh
-  sudo apt install fswatch
-  opam install fswatch
-  ```
-
-- If you are on MacOS, you can do this by running the following commands:
-
-  ```sh
-  brew install fswatch
-  opam install fswatch
-  ```
+You can now go back to 
+[README.md](README.md) and follow the instructions there to build and run Hazel.
