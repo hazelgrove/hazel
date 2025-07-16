@@ -63,7 +63,7 @@ nnoremap <silent> <F2> :call LanguageClient#textDocument_rename()<CR>
 ### Other Editors
 If you use another editor (Emacs??) and want to add your setup suggestions here, please submit a PR!
 
-### Build System Details
+## Build System Details
 
 Hazel is compiled to Javascript for the web browser via the `js_of_ocaml` compiler.
 
@@ -80,36 +80,7 @@ The `make dev` and `make release` commands do three things:
    (`_build/default/src/hazelweb/www/hazel.js`) using `js_of_ocaml`.
 
 
-#### Clean Build
-
-To obtain an clean build, you may need to:
-
-- Clone the repository (if you have not), and
-  enter the project root of your cloned Hazel project.
-
-  ```sh
-  git clone git@github.com:hazelgrove/hazel.git
-  cd hazel
-  ```
-
-- Setup a local OCaml environment specific to the project, and compile.
-  If you have setup a local OCaml environment (there is a directory
-  called `_opam`), you may want to first remove it.
-
-  ```sh
-  # opam switch remove ./
-  opam switch create ./ 5.2.0
-  eval $(opam env)
-  make deps
-  make
-  ```
-
-This sets up a standalone OCaml environment in the cloned project,
-independent of the one you sent in your home directory. This allow you to
-alternate dependencies, or test dependencies changes, without affect
-existing OCaml projects.
-
-### Debugging
+## Debugging
 
 #### Printing
 You can print to the browser console using the standard `print_endline` function. This is probably the easiest method right now.
