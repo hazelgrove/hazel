@@ -24,11 +24,6 @@ If you already have `ocaml` version 5.2.0, at least version 2.0 of `opam`, and a
 - `make deps`
 - `make dev`
 
-For a smoother dev experience, use `make watch` rather than `make dev` to automatically watch 
-for file changes. This may require installing `fswatch` (see INSTALL.md).
-You can also run `make watch-release` to continuously build the release
-build (takes longer per build).
-
 ### Long Version
 
 If the above pre-requisites don't apply, please follow the step-by-step installation instructions contained in [INSTALL.md](INSTALL.md).
@@ -55,7 +50,7 @@ This is due various [upstream library issues](https://github.com/hazelgrove/haze
 ### Locally
 To run Hazel, you have to serve it on localhost or at some other non-file URL (you can't run it from a `file:///` URL due to browser restrictions e.g. on web workers.) 
 
-If you have `python3` on your path, you can use the Python server via 
+If you have `python3` on your path, you can use the built in Python server via 
 `make serve`, then navigate to `http://0.0.0.0:8000/` in your browser.
 
 Alternatively, if you would live hot reloading, you can use `make hot` instead of `make serve`.
@@ -64,14 +59,10 @@ Otherwise, run `make echo-html-dir` which will echo the directory that needs
 to be served using some other server of your choice.
 
 ### Build Server
-Every other branch that has been pushed to GitHub and successfully builds
-can also be accessed at:
+Every branch that has been pushed to GitHub and successfully builds
+can also be accessed at the following URL (once the GitHub action is finished building and deploying it):
 
   `https://hazel.org/build/<branch_name>`
 
-For older branch that were last built pre-July-2024, you should use:
-
-  `https://hazel.org/build-pre-july2024/<branch_name>`
-
 ## Contributing to Hazel
-We welcome open source contributions to Hazel! If you are planning to contribute, please review the information in CONTRIBUTING.md. You may also want to contact Cyrus Omar (comar@umich.edu) about your plans. We have a team Slack that might be helpful for you to join if you are planning to make non-trivial contributions and are happy to invite (and assist) external contributors!
+We welcome open source contributions to Hazel! If you are planning to contribute, please review the information in [CONTRIBUTING.md](CONTRIBUTING.md). You may also want to contact Cyrus Omar (comar@umich.edu) about your plans. We have a team Slack that might be helpful for you to join if you are planning to make non-trivial contributions and are happy to invite (and assist) external contributors!
