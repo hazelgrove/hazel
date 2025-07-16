@@ -497,6 +497,30 @@ let caret_point = (measured, z: t): Point.t => {
   };
 };
 
+let selection_anchor_point = (measured, z: t): option(Point.t) => {
+  switch (z.selection) {
+  | {content: [], _} => None
+  | {content, focus: Right, _} =>
+    Some(
+      Measured.find_p(
+        ~msg="selection_anchor_point",
+        List.hd(content),
+        measured,
+      ).
+        origin,
+    )
+  | {content, focus: Left, _} =>
+    Some(
+      Measured.find_p(
+        ~msg="selection_anchor_point",
+        ListUtil.last(content),
+        measured,
+      ).
+        last,
+    )
+  };
+};
+
 let serialize = (z: t): string => {
   sexp_of_t(z) |> Sexplib.Sexp.to_string;
 };
