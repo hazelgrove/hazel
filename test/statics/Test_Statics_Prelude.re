@@ -50,10 +50,10 @@ let eq_info_error = (a: Info.error, b: Info.error) => {
   };
 };
 let testable_info_error_exp =
-  testable(Fmt.using(Info.show_error_exp, Fmt.string), eq_info_error_exp);
+  testable(Fmt.using(Info.show_error_exp, Fmt.string), Info.equal_error_exp);
 
 let testable_error: testable(Info.error) =
-  testable(Fmt.using(Info.show_error, Fmt.string), (==));
+  testable(Fmt.using(Info.show_error, Fmt.string), Info.equal_error);
 
 let statics = Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
 
@@ -80,7 +80,7 @@ let annotated_exp: testable(Grammar.exp_t(option(Info.error))) =
       [%derive.show: Grammar.exp_t(option(Info.error))],
       Fmt.string,
     ),
-    Grammar.equal_exp_t(Option.equal(eq_info_error)),
+    Grammar.equal_exp_t(Option.equal(Info.equal_error)),
   );
 
 let fresh = (exp: Grammar.exp_t(unit)): TermBase.exp_t => {

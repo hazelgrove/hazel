@@ -1,5 +1,3 @@
-open Language;
-
 type entry = {
   name: string,
   exp: Exp.t,
