@@ -133,6 +133,11 @@ follow these instructions instead of the shorter instructions in the
   eval $(opam env --switch=5.2.0)
   ```
 
+- Add the opam archive (TODO Remove this at next release version bump)
+- ```sh
+  opam repo add archive git+https://github.com/ocaml/opam-repository-archive
+  ```
+
 ## Clone the Source Code
 
 - Pick a directory that you want to be the parent of the directory that contains
