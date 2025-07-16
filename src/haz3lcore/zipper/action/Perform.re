@@ -225,6 +225,7 @@ let go_z =
     | None => Ok(z)
     | Some(z) => Ok(z)
     }
+  | Select(ToggleFocus) => Ok(Zipper.toggle_focus(z))
   | Destruct(d) =>
     z
     |> Destruct.go(d)
