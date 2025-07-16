@@ -96,6 +96,12 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       Globals(ActiveEditor(Select(All))),
     ),
     mk_shortcut(
+      ~mdIcon="flip-horizontal",
+      ~section="Selection",
+      "Toggle Selection Focus",
+      Globals(ActiveEditor(Select(ToggleFocus))),
+    ),
+    mk_shortcut(
       ~hotkey="alt+f",
       ~mdIcon="camera",
       ~section="Projection",
