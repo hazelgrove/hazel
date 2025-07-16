@@ -113,6 +113,14 @@ module type EV_MODE = {
     ) =>
     requirement(list(DHExp.t));
 
+  let req_all_cuml:
+    (
+      (list(DHExp.t), DHExp.t) => result,
+      (EvalCtx.t, (list(DHExp.t), list(DHExp.t))) => EvalCtx.t,
+      list(DHExp.t)
+    ) =>
+    requirement(list(DHExp.t));
+
   let (let.): (requirements('a, DHExp.t), 'a => rule) => result;
   let (and.):
     (requirements('a, 'c => 'b), requirement('c)) =>

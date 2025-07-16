@@ -105,6 +105,18 @@ module EvaluatorEVMode: {
       Trampoline.return([x', ...xs']);
     };
 
+  let req_all_cuml = (f, _, xs) => {
+    let rec go = (xs, values) =>
+      switch (xs) {
+      | [] => Trampoline.return([])
+      | [x, ...xs] =>
+        let.trampoline x' = req_final(f(values), x => x, x);
+        let.trampoline xs' = go(xs, [x', ...values]);
+        Trampoline.return([x', ...xs']);
+      };
+    go(xs, []);
+  };
+
   let otherwise = (_, c) => Trampoline.return(((), c));
   let (and.) = (t1, t2) => {
     let.trampoline (x1, c1) = t1;
