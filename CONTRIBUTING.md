@@ -79,6 +79,12 @@ The `make dev` and `make release` commands do three things:
 4. Compile the OCaml bytecode to JavaScript
    (`_build/default/src/hazelweb/www/hazel.js`) using `js_of_ocaml`.
 
+## Live Building 
+For a smoother dev experience, use `make watch` rather than `make dev` to automatically watch 
+for file changes and rebuild immediately. You can also run `make watch-release` to continuously build the release
+build (takes longer per build).
+
+This can be combined with using `make hot` rather than `make serve` to add hot reloading to your browser instance of Hazel.
 
 ## Debugging
 
@@ -131,7 +137,7 @@ tab on Github](https://github.com/hazelgrove/hazel/actions).
 
 Builds prior to July 2024 are archived at `https://hazel.org/build-pre-july2024/<branch name>`.
 
-Note: If another archive needs to be performed, make sure to redeploy the following
+Note for core team: If another archive needs to be performed, make sure to redeploy the following
 branches manually since we refer to them in various public material (websites and
 published papers):
 
