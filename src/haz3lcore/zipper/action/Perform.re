@@ -111,6 +111,9 @@ let go_z =
     | _ => None
     };
   };
+  let (l, r) = Zipper.local_wanted_shards(z);
+  print_endline("shards L: " ++ String.concat(", ", l));
+  print_endline("shards R: " ++ String.concat(", ", r));
 
   switch (a) {
   | Paste(String(clipboard)) =>

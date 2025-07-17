@@ -2,12 +2,12 @@ open Zipper;
 open Util;
 open OptUtil.Syntax;
 
-let barf = (d: Direction.t, z: t): option(t) => {
+let barf = (d: Direction.t, tok: Token.t, z: t): option(t) => {
   /* Removes the d-neighboring tile and drops from backpack;
      precondition: the d-neighbor should be a monotile
      string-matching the dropping shard */
   let* z = delete(d, z);
-  let+ z = put_down(d, z);
+  let+ z = put_down2(d, tok, z);
   z;
 };
 
@@ -51,7 +51,7 @@ let expand_or_barf_left_neighbor = (~settings, z as s: t): option(t) =>
   /* If left neighbor is a monotile (a) string-matching the shard at the
      top of the backpack, barf it, or (b) an expansing keyword, expand it. */
   switch (left_neighbor_monotile(z.relatives.siblings)) {
-  | Some(t) when Zipper.will_barf(t, z) => barf(Left, s)
+  | Some(t) when Zipper.will_barf2(t, z) => barf(Left, t, s)
   | Some(t) when Molds.is_delayed(t) => delayed_expand(~settings, t, Left, s)
   | _ => Some(s)
   };
@@ -60,7 +60,7 @@ let expand_or_barf_right_neighbor = (~settings, z as s: t): option(t) =>
   /* If right neighbor is a monotile (a) string-matching the shard at the
      top of the backpack, barf it, or (b) an expansing keyword, expand it. */
   switch (right_neighbor_monotile(z.relatives.siblings)) {
-  | Some(t) when Zipper.will_barf(t, z) => barf(Right, s)
+  | Some(t) when Zipper.will_barf2(t, z) => barf(Right, t, s)
   | Some(t) when Molds.is_delayed(t) =>
     delayed_expand(~settings, t, Right, s)
   | _ => Some(s)
@@ -100,7 +100,7 @@ let make_new_tile = (~structmode, t: Token.t, caret: Direction.t, z: t): t =>
       | Some((lbl, d)) =>
         Zipper.replace(~caret=d, ~backpack=d, lbl, z) |> Option.get
 
-      | None => put_down(caret, z) |> Option.get
+      | None => put_down2(caret, t, z) |> Option.get
       }
     : {
       let (lbl, backpack) = Molds.instant_expansion(t);
@@ -195,7 +195,7 @@ let insert_duo = (lbl: Label.t, z: option(t)): option(t) =>
        //NOTE: regrout to put e.g. ap(1|) back together
        z
        |> remold_regrout(Left)
-       |> Zipper.put_down(Left)
+       |> Zipper.put_down2(Left, List.nth(lbl, 1))
        |> OptUtil.and_then(Zipper.move(Left))
      });
 
