@@ -43,3 +43,17 @@ let parent_matches = (t: Tile.t, ancs: t) =>
   | [] => false
   | [(a, _), ..._] => a.id == t.id
   };
+
+let rec non_local_incomplete_tiles = (~idx as _=0, ancs: t) =>
+  switch (ancs) {
+  | [] => []
+  | [(_a, (l, r)), ...rest] =>
+    /* Skip first ancestor as those shards can be used in child */
+    //TODO(andrew): ancestor incompletes
+    //TODO(andrew): sibling deep incompletes (but not shallow ones)
+    //let anc_miss = idx == 0 ? [] : Ancestor.container_shards_missing(a);
+
+    Segment.incomplete_tiles_deep(l)
+    @ Segment.incomplete_tiles_deep(r)
+    @ non_local_incomplete_tiles(rest)
+  };

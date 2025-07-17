@@ -19,6 +19,18 @@ let incomplete_tiles =
     | Piece.Tile(t) when !Tile.is_complete(t) => Some(t)
     | _ => None,
   );
+
+let rec incomplete_tiles_deep = seg =>
+  List.map(
+    fun
+    | Piece.Tile(t) =>
+      (!Tile.is_complete(t) ? [t] : [])
+      @ (List.map(incomplete_tiles_deep, t.children) |> List.concat)
+    | _ => [],
+    seg,
+  )
+  |> List.concat;
+
 let tiles =
   List.filter_map(
     fun

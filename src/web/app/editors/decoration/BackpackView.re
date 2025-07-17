@@ -73,19 +73,26 @@ let backpack_sel_view =
 };
 
 let view =
-    (
-      ~font_metrics: FontMetrics.t,
-      ~origin: Point.t,
-      {backpack, _} as z: Zipper.t,
-    )
-    : Node.t => {
+    (~font_metrics: FontMetrics.t, ~origin: Point.t, z: Zipper.t): Node.t => {
   // This function is a mess
+  let backpack =
+    Zipper.local_wanted_shards'(z)
+    @ (
+      Ancestors.non_local_incomplete_tiles(z.relatives.ancestors)
+      |> List.map(incomplete =>
+           Tile.right_missing_shards(incomplete)
+           @ Tile.left_missing_shards(incomplete)
+         )
+      |> List.concat
+    )
+    |> List.map(t => Selection.mk(~focus=Right, [Tile(t)]));
   let height_head =
     switch (backpack) {
     | [] => 0
     | [hd, ..._] => segment_height(hd.content)
     };
   let can_put_down =
+    //TODO(andrew): update with new logic
     switch (Zipper.pop_backpack(z)) {
     // caret thing is hack; i don't know why pop_backpack
     // gives us what we want here
