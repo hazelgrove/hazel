@@ -209,6 +209,7 @@
   --err-hole-z: 3;
   --warn-hole-z: 3;
   --select-z: 4;
+  --stepper-interactive-z: 5;
   --projector-underlay-z: 9;
 
   /* AT CODE LEVEL */
@@ -219,7 +220,6 @@
   --backpack-targets-z: 11;
   --projector-indicated-z: 11;
   --projector-hover-z: 12;
-  --stepper-interactive-z: 15;
   --caret-z: 20;
   --projector-overlay-z: 29;
 
