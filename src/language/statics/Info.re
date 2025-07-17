@@ -561,7 +561,6 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
         failwith("InHole(InexhaustiveMatch(impossible_err))")
       };
     InHole(InexhaustiveMatch(additional_err));
-  | IsDeferral(_) when Typ.is_syn_plus(ty_ana) => InHole(UnusedDeferral)
   | IsDeferral(InAp) => NotInHole(AnaDeferralConsistent(ty_ana))
   | IsDeferral(_) => InHole(UnusedDeferral)
   | IsBadPartialAp(_ as info) => InHole(BadPartialAp(info))
