@@ -10,6 +10,13 @@ type system =
   // Display to user as expandable/collapsable system message.
   | AssistantPrompt;
 
+// Role of the entity sending the message.
+// This is kept separate from the OpenRouter.role type,
+// as we need to keep track of the system role for display purposes.
+// (AssistantModel.System(InternalError) != OpenRouter.System)
+// (AssistantModel.System(AssistantPrompt) != OpenRouter.System, an example
+// of this is sketch displays. The only thing that is an OpenRouter.System type is
+// the initial prompt itself.)
 [@deriving (show({with_path: false}), sexp, yojson)]
 type role =
   | System(system)
@@ -60,6 +67,7 @@ type chat = {
   id: Id.t,
   descriptor: string,
   timestamp: float,
+  total_tokens: int,
 };
 
 // We save the history of past chats as a hash map with chat IDs as keys.
@@ -84,7 +92,7 @@ type current_chats = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type external_api_info = {
   available_models: list(OpenRouter.model_info),
-  set_model: string,
+  set_model_info: OpenRouter.model_info,
   api_key: string,
 };
 
@@ -128,6 +136,8 @@ let sorted_chats = (chat_map: Id.Map.t(chat)): list(chat) => {
 
 // --- Constant Magic Ints ---
 let max_collapsed_length: int = 500;
+
+let context_threshold_ratio: float = 0.03;
 // --- End Constant Magic Ints ---
 
 // --- Helper Functions ---
@@ -197,14 +207,12 @@ let parse_blocks = (response: string): list(block_kind) => {
   parse_blocks(response, [Text(response)]);
 };
 
-let mk_message_display = (~content: string, ~role: role): display => {
+let mk_message_display = (~content: string): display => {
   {
     displayable_content:
       String.length(content) <= max_collapsed_length
         ? parse_blocks(content) : [Text(content)],
-    collapsed:
-      String.length(content) > max_collapsed_length
-      || role == System(AssistantPrompt),
+    collapsed: String.length(content) > max_collapsed_length,
   };
 };
 
@@ -214,11 +222,7 @@ let init_chat = (mode: AssistantSettings.mode): chat => {
     messages: [
       {
         content: init_message,
-        display:
-          mk_message_display(
-            ~content=init_message.content,
-            ~role=System(AssistantPrompt),
-          ),
+        display: mk_message_display(~content=init_message.content),
         role: System(AssistantPrompt),
         sketch_snapshot: None,
       },
@@ -226,6 +230,7 @@ let init_chat = (mode: AssistantSettings.mode): chat => {
     id: Id.mk(),
     descriptor: "",
     timestamp: JsUtil.timestamp(),
+    total_tokens: String.length(init_message.content),
   };
 };
 
@@ -242,6 +247,12 @@ let new_chat = (model: t, mode: AssistantSettings.mode): chat => {
     id: Id.mk(),
     descriptor: "",
     timestamp: JsUtil.timestamp(),
+    total_tokens:
+      List.fold_left(
+        (acc, message) => acc + String.length(message.content.content),
+        0,
+        init_message,
+      ),
   };
 };
 
@@ -276,7 +287,15 @@ let init = (): t => {
     },
     external_api_info: {
       available_models: [],
-      set_model: "",
+      set_model_info: {
+        id: "n/a",
+        name: "n/a",
+        context_length: 0,
+        pricing: {
+          prompt: "n/a",
+          completion: "n/a",
+        },
+      },
       api_key: "",
     },
     loop: false,
@@ -290,6 +309,7 @@ let null_model = (): t => {
     id: Id.invalid,
     descriptor: "Please set an API key",
     timestamp: JsUtil.timestamp(),
+    total_tokens: 0,
   };
   {
     init_prompt_data: {
@@ -310,7 +330,15 @@ let null_model = (): t => {
     },
     external_api_info: {
       available_models: [],
-      set_model: "",
+      set_model_info: {
+        id: "n/a",
+        name: "n/a",
+        context_length: 0,
+        pricing: {
+          prompt: "n/a",
+          completion: "n/a",
+        },
+      },
       api_key: "",
     },
     loop: false,

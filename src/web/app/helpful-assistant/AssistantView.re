@@ -86,10 +86,19 @@ let select_llm =
     (~inject: Update.t => Ui_effect.t(unit), ~model: Model.t): Node.t => {
   let handle_change = (event, _) => {
     let value = Js.to_string(Js.Unsafe.coerce(event)##.target##.value);
-    Virtual_dom.Vdom.Effect.Many([
-      inject(ExternalAPIAction(SetLLM(value))),
-      Virtual_dom.Vdom.Effect.Stop_propagation,
-    ]);
+    let selected_model =
+      List.find_opt(
+        (m: OpenRouter.model_info) => m.id == value,
+        model.external_api_info.available_models,
+      );
+    switch (selected_model) {
+    | Some(model_info) =>
+      Virtual_dom.Vdom.Effect.Many([
+        inject(ExternalAPIAction(SetLLM(model_info))),
+        Virtual_dom.Vdom.Effect.Stop_propagation,
+      ])
+    | None => Virtual_dom.Vdom.Effect.Ignore
+    };
   };
 
   div(
@@ -103,7 +112,7 @@ let select_llm =
             option(
               ~attrs=[
                 Attr.value(open_router_model.id),
-                switch (model.external_api_info.set_model) {
+                switch (model.external_api_info.set_model_info.id) {
                 | "" => Attr.empty
                 | current_model =>
                   if (current_model == open_router_model.id) {
@@ -286,10 +295,19 @@ let llm_model_id_input =
   };
 
   let handle_submission = (llm_model: string) => {
-    Virtual_dom.Vdom.Effect.Many([
-      inject(ExternalAPIAction(SetLLM(llm_model))),
-      Virtual_dom.Vdom.Effect.Stop_propagation,
-    ]);
+    let selected_model =
+      List.find_opt(
+        (m: OpenRouter.model_info) => m.id == llm_model,
+        model.external_api_info.available_models,
+      );
+    switch (selected_model) {
+    | Some(model_info) =>
+      Virtual_dom.Vdom.Effect.Many([
+        inject(ExternalAPIAction(SetLLM(model_info))),
+        Virtual_dom.Vdom.Effect.Stop_propagation,
+      ])
+    | None => Virtual_dom.Vdom.Effect.Ignore
+    };
   };
 
   let submit_key = _ => {
@@ -375,7 +393,7 @@ let llm_model_id_input =
             ~attrs=[clss(["api-key-display"]), Attr.id("api-key-display")],
             [
               text(
-                switch (model.external_api_info.set_model) {
+                switch (model.external_api_info.set_model_info.id) {
                 | "" => "No model ID set"
                 | model_id => model_id
                 },
@@ -395,7 +413,7 @@ let llm_model_id_input =
             ~attrs=[clss(["api-key-display"])],
             [
               text(
-                switch (model.external_api_info.set_model) {
+                switch (model.external_api_info.set_model_info.id) {
                 | "" => "No model selected"
                 | model_id =>
                   let selected_model =

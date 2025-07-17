@@ -328,6 +328,7 @@ type pricing = {
 type model_info = {
   id: string,
   name: string,
+  context_length: int,
   pricing,
 };
 
@@ -389,15 +390,17 @@ let parse_models_response = (json: Json.t): option(models_response) =>
                 let pricing_opt = List.assoc_opt("pricing", model_fields);
                 let params_opt =
                   List.assoc_opt("supported_parameters", model_fields);
-
+                let context_length_opt =
+                  List.assoc_opt("context_length", model_fields);
                 if (!has_required_parameters(params_opt)) {
                   None;
                 } else {
-                  switch (id_opt, name_opt, pricing_opt) {
+                  switch (id_opt, name_opt, pricing_opt, context_length_opt) {
                   | (
                       Some(`String(id)),
                       Some(`String(name)),
                       Some(`Assoc(pricing_fields)),
+                      Some(`Int(context_length)),
                     ) =>
                     let prompt = List.assoc_opt("prompt", pricing_fields);
                     let completion =
@@ -407,6 +410,7 @@ let parse_models_response = (json: Json.t): option(models_response) =>
                       Some({
                         id,
                         name,
+                        context_length,
                         pricing: {
                           prompt: p,
                           completion: c,
@@ -414,6 +418,21 @@ let parse_models_response = (json: Json.t): option(models_response) =>
                       })
                     | _ => None
                     };
+                  | (
+                      Some(`String(id)),
+                      Some(`String(name)),
+                      _,
+                      Some(`Int(context_length)),
+                    ) =>
+                    Some({
+                      id,
+                      name,
+                      context_length,
+                      pricing: {
+                        prompt: "n/a",
+                        completion: "n/a",
+                      },
+                    })
                   | _ => None
                   };
                 };
