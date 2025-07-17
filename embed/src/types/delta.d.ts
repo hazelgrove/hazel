@@ -23,6 +23,20 @@ interface Tile {
   readonly children: Tile[];
 }
 
+type TileId = `TILE:${UUID}`;
+interface FlatTile {
+  readonly t: "Tile";
+  readonly id: TileId;
+  readonly label: string[];
+  readonly mold: Mold;
+  readonly shards: number[];
+  readonly children: TileId[];
+}
+type HazelDoc = {
+    tiles: FlatTile[];
+    root: TileId;
+}
+
 interface DeleteOp {
   readonly t: "Delete";
   readonly uuid: UUID;
