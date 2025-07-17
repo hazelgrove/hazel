@@ -45,7 +45,8 @@ module Map = {
       (id, info, acc) =>
         /* Second clause is to eliminate non-representative ids,
          * which will not be found in the measurements map */
-        Info.is_error(info) && id == Info.id_of(info) ? [id, ...acc] : acc,
+        Info.is_error(info) && id == Info.id_of(info)
+          ? Info.error_ids_of(info) @ acc : acc,
       info_map,
       [],
     );

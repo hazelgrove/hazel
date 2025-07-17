@@ -62,7 +62,7 @@ let common_error: Info.error_common => string =
       Print.typ(ana),
       Print.typ(syn),
     )
-  | AsymmetricUnknown(ty) =>
+  | AsymmetricUnknown(ty, _) =>
     prn("Unfilled type hole. Fill with %s", Print.typ(ty));
 
 let exp_error: Info.error_exp => string =

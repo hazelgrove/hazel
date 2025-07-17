@@ -184,7 +184,7 @@ let common_err_view =
         text(elements_noun(cls) ++ " have inconsistent types:"),
         ...ListUtil.join(text(","), List.map(view_type, tys)),
       ]
-    | AsymmetricUnknown(ty) => [
+    | AsymmetricUnknown(ty, _) => [
         text(": Unfilled type hole should have type: "),
         view_type(ty),
       ]

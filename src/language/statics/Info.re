@@ -62,8 +62,8 @@ type error_common =
   | NoType(error_no_type)
   /* Overdetermined: Conflicting type expectations */
   | Inconsistent(error_inconsistent)
-  /* Syn is more specific than analysed unknown: Type hole should be filled */
-  | AsymmetricUnknown(Typ.t)
+  /* Syn is more specific than analysed unknown: Type hole of given id should be filled */
+  | AsymmetricUnknown(Typ.t, Id.t)
   /* The error on a specific duplicate label */
   | DuplicateLabel(LabeledTuple.label, Typ.t)
   /* Tuple/TupLabel contains malformed labels, duplicate labels, and/or invalid labels */
@@ -374,6 +374,22 @@ let error_of: t => option(error) =
   | InfoTPat({status: InHole(err), _}) => Some(TPat(err))
   | Secondary(_) => None;
 
+/* May include non-local error ids for asymmetric unknown type errors */
+let error_ids_of: t => list(Id.t) =
+  i =>
+    [id_of(i)]
+    @ (
+      switch (error_of(i)) {
+      | Some(
+          Exp(Common(AsymmetricUnknown(_, hole_id))) |
+          Pat(Common(AsymmetricUnknown(_, hole_id))),
+        ) => [
+          hole_id,
+        ]
+      | _ => []
+      }
+    );
+
 let exp_co_ctx: exp => CoCtx.t = ({co_ctx, _}) => co_ctx;
 let exp_ty: exp => Typ.t = ({ty, _}) => ty;
 let pat_ctx: pat => Ctx.t = ({ctx, _}) => ctx;
@@ -384,8 +400,8 @@ let pat_constraint: pat => Coverage.Constraint.t =
 let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
   switch (self, ty_ana) {
   | (Just(ty), {term: Unknown(SynSwitch), _}) => NotInHole(Syn(ty))
-  | (Just(ty), {term: Unknown(_), _}) when !Typ.is_unknown(ty) =>
-    InHole(AsymmetricUnknown(ty)) /* Disallow analysing against ? except for terms synthesising ? */
+  | (Just(ty), ana) when !Typ.is_unknown(ty) && Typ.is_unknown(ana) =>
+    InHole(AsymmetricUnknown(ty, Typ.rep_id(ana))) /* Disallow analysing against ? except for terms synthesising ? */
   | (Just(syn), ana) =>
     switch (
       Typ.join(
