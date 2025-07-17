@@ -130,14 +130,10 @@ let get_mode_info = (mode: AssistantSettings.mode, model: Model.t) => {
  };
  */
 
+// todo: remove this function
 let filter_chat_messages =
     (messages: list(Model.message)): list(Model.message) => {
-  List.filter(
-    (message: Model.message) => {
-      message.role != Assistant || message.display.collapsed
-    },
-    messages,
-  );
+  List.filter((_: Model.message) => {true}, messages);
 };
 
 let resculpt_model =
@@ -792,17 +788,9 @@ let parse_and_apply_structure_edit =
 };
 
 let udpate_chat = (chat: Model.chat, messages: list(Model.message)) => {
-  let incoming_token_count =
-    List.fold_left(
-      (acc: int, message: Model.message) =>
-        acc + String.length(message.content.content),
-      0,
-      messages,
-    );
   {
     ...chat,
     messages: chat.messages @ messages,
-    total_tokens: chat.total_tokens + incoming_token_count,
   };
 };
 
@@ -814,53 +802,41 @@ let summarize_chat =
       schedule_action: t => unit,
     )
     : unit => {
-  // 90% of the context length
-  let threshold =
-    int_of_float(
-      float_of_int(model.external_api_info.set_model_info.context_length)
-      *. Model.context_threshold_ratio,
-    );
-  print_endline("threshold: " ++ string_of_int(threshold));
-  print_endline("chat.total_tokens: " ++ string_of_int(chat.total_tokens));
-  if (chat.total_tokens > threshold) {
-    // Filter our initial prompt
-    let outgoing_messages: list(OpenRouter.message) =
-      List.filter(
-        (message: Model.message) => message.content.role != System,
-        chat.messages,
-      )
-      |> List.map((message: Model.message) => message.content);
-    let summarize_message: OpenRouter.message =
-      OpenRouter.mk_user_msg(SummarizePrompt.prelude);
-    let outgoing_messages = outgoing_messages @ [summarize_message];
-    try({
-      let model_id = model.external_api_info.set_model_info.id;
-      let key = model.external_api_info.api_key;
-      let params: OpenRouter.params = {
-        ...OpenRouter.default_params,
-        model_id,
-        stream: false,
-      };
-      OpenRouter.start_chat(~params, ~key, ~outgoing_messages, req =>
-        switch (OpenRouter.handle_chat(req)) {
-        | Some(Reply({content, _})) =>
-          schedule_action(
-            EmployLLMAction(Summarize(content, mode, chat.id)),
-          )
-        | Some(Error(_)) =>
-          raise(
-            Invalid_argument(
-              "Error in receiving response from OpenRouter when summarizing chat",
-            ),
-          )
-        | None => ()
-        }
-      );
-    }) {
-    | Invalid_argument(e) =>
-      print_endline("Invalid_argument when summarizing chat: " ++ e);
-      ();
+  // Filter our initial prompt
+  let outgoing_messages: list(OpenRouter.message) =
+    List.filter(
+      (message: Model.message) => message.content.role != System,
+      chat.messages,
+    )
+    |> List.map((message: Model.message) => message.content);
+  let summarize_message: OpenRouter.message =
+    OpenRouter.mk_user_msg(SummarizePrompt.prelude);
+  let outgoing_messages = outgoing_messages @ [summarize_message];
+  try({
+    let model_id = model.external_api_info.set_model_info.id;
+    let key = model.external_api_info.api_key;
+    let params: OpenRouter.params = {
+      ...OpenRouter.default_params,
+      model_id,
+      stream: false,
     };
+    OpenRouter.start_chat(~params, ~key, ~outgoing_messages, req =>
+      switch (OpenRouter.handle_chat(req)) {
+      | Some(Reply({content, _})) =>
+        schedule_action(EmployLLMAction(Summarize(content, mode, chat.id)))
+      | Some(Error(_)) =>
+        raise(
+          Invalid_argument(
+            "Error in receiving response from OpenRouter when summarizing chat",
+          ),
+        )
+      | None => ()
+      }
+    );
+  }) {
+  | Invalid_argument(e) =>
+    print_endline("Invalid_argument when summarizing chat: " ++ e);
+    ();
   };
 };
 
@@ -1245,7 +1221,21 @@ let update =
           AssistantSettings.CodeSuggestion,
         )
       };
+
     create_chat_descriptor(~model, ~schedule_action, ~mode, ~chat_id);
+    let threshold =
+      int_of_float(
+        float_of_int(model.external_api_info.set_model_info.context_length)
+        *. Model.context_threshold_ratio,
+      );
+    print_endline("threshold: " ++ string_of_int(threshold));
+    print_endline(
+      "response.usage.total_tokens: "
+      ++ string_of_int(response.usage.total_tokens),
+    );
+    if (response.usage.total_tokens > threshold) {
+      summarize_chat(model, curr_chat, mode, schedule_action);
+    };
 
     let content = response.content;
     let tool_call = response.tool_call;
@@ -1300,14 +1290,14 @@ let update =
     };
 
     switch (response_kind) {
-    | Tutor => summarize_chat(model, curr_chat, mode, schedule_action)
+    | Tutor => ()
     | CompositionLoopRound(_, fuel) =>
       // This is step (3) from the directed graph above --
       switch (tool_call, fuel) {
       | (None, _) =>
         // The agent did not make a tool call, thus there is nothing to handle on the backend,
         // we can proceed as if there were a normal LLM chat interaction.
-        summarize_chat(model, curr_chat, mode, schedule_action)
+        ()
       | (_, 0) =>
         // The agent ran out of fuel. We should experiment with this in the future.
         schedule_action(
@@ -1319,7 +1309,7 @@ let update =
             chat_id,
           ),
         );
-        summarize_chat(model, curr_chat, mode, schedule_action);
+        ();
       | (Some(tool_call), _) =>
         // We don't summarize while the agent loops on tool calls.
 
@@ -1411,7 +1401,7 @@ let update =
       let curr_chat = Id.Map.find(chat_id, past_chats);
       // Only keep the prompt
       // Decide what else to keep here (last few code contexts?)
-      let truncated_outgoing_messages: list(Model.message) =
+      let truncated_messages: list(Model.message) =
         List.map(
           (message: Model.message) => {
             switch (message.content.role) {
@@ -1430,14 +1420,7 @@ let update =
         );
       let truncated_chat = {
         ...curr_chat,
-        messages: truncated_outgoing_messages,
-        total_tokens:
-          List.fold_left(
-            (acc: int, message: Model.message) =>
-              acc + String.length(message.content.content),
-            0,
-            truncated_outgoing_messages,
-          ),
+        messages: truncated_messages,
       };
       let summarization_message_content = "Approaching Context Limit: A summary of the chat has been generated...";
       let summarization_message: Model.message = {
@@ -1674,13 +1657,6 @@ let update =
       let updated_chat = {
         ...curr_chat,
         messages: updated_messages,
-        total_tokens:
-          List.fold_left(
-            (acc: int, message: Model.message) =>
-              acc + String.length(message.content.content),
-            0,
-            updated_messages,
-          ),
       };
       update_model_chat_history(~model, ~mode, ~updated_chat)
       |> Updated.return;

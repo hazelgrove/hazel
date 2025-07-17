@@ -67,7 +67,6 @@ type chat = {
   id: Id.t,
   descriptor: string,
   timestamp: float,
-  total_tokens: int,
 };
 
 // We save the history of past chats as a hash map with chat IDs as keys.
@@ -137,7 +136,7 @@ let sorted_chats = (chat_map: Id.Map.t(chat)): list(chat) => {
 // --- Constant Magic Ints ---
 let max_collapsed_length: int = 500;
 
-let context_threshold_ratio: float = 0.03;
+let context_threshold_ratio: float = 0.9;
 // --- End Constant Magic Ints ---
 
 // --- Helper Functions ---
@@ -230,7 +229,6 @@ let init_chat = (mode: AssistantSettings.mode): chat => {
     id: Id.mk(),
     descriptor: "",
     timestamp: JsUtil.timestamp(),
-    total_tokens: String.length(init_message.content),
   };
 };
 
@@ -247,12 +245,6 @@ let new_chat = (model: t, mode: AssistantSettings.mode): chat => {
     id: Id.mk(),
     descriptor: "",
     timestamp: JsUtil.timestamp(),
-    total_tokens:
-      List.fold_left(
-        (acc, message) => acc + String.length(message.content.content),
-        0,
-        init_message,
-      ),
   };
 };
 
@@ -309,7 +301,6 @@ let null_model = (): t => {
     id: Id.invalid,
     descriptor: "Please set an API key",
     timestamp: JsUtil.timestamp(),
-    total_tokens: 0,
   };
   {
     init_prompt_data: {
