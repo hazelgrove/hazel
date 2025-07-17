@@ -325,76 +325,76 @@ module Make = (M: S) => {
       ? do_vertical(primary(ByChar), d, z)
       : Some(Zipper.directional_unselect(d, z));
 
-  let targets_within_row = (z: t): list(t) => {
-    let init = caret_point(z);
-    let rec go = (d: Direction.t, z: t) => {
-      switch (primary(ByChar, d, z)) {
-      | None => []
-      | Some(z) =>
-        if (caret_point(z).row != init.row) {
-          [];
-        } else {
-          switch (pop_backpack(z)) {
-          | None => go(d, z)
-          | Some(_) => [z, ...go(d, z)]
-          };
-        }
-      };
-    };
-    let curr =
-      switch (pop_backpack(z)) {
-      | None => []
-      | Some(_) => [z]
-      };
-    List.rev(go(Left, z)) @ curr @ go(Right, z);
-  };
+  // let targets_within_row = (z: t): list(t) => {
+  //   let init = caret_point(z);
+  //   let rec go = (d: Direction.t, z: t) => {
+  //     switch (primary(ByChar, d, z)) {
+  //     | None => []
+  //     | Some(z) =>
+  //       if (caret_point(z).row != init.row) {
+  //         [];
+  //       } else {
+  //         switch (pop_backpack(z)) {
+  //         | None => go(d, z)
+  //         | Some(_) => [z, ...go(d, z)]
+  //         };
+  //       }
+  //     };
+  //   };
+  //   let curr =
+  //     switch (pop_backpack(z)) {
+  //     | None => []
+  //     | Some(_) => [z]
+  //     };
+  //   List.rev(go(Left, z)) @ curr @ go(Right, z);
+  // };
 
-  // TODO(d): unify this logic with rest of movement logic
-  let rec to_backpack_target = (d: planar, z: t): option(t) => {
-    let done_or_try_again = (d, z) =>
-      switch (pop_backpack(z)) {
-      | None => to_backpack_target(d, z)
-      | Some(_) => Some(z)
-      };
-    switch (d) {
-    | Left(chunk) =>
-      let* z = primary(chunk, Left, z);
-      done_or_try_again(d, z);
-    | Right(chunk) =>
-      let* z = primary(chunk, Right, z);
-      done_or_try_again(d, z);
-    | Up =>
-      let* z = vertical(Left, z);
-      let zs =
-        targets_within_row(z)
-        |> List.sort((z1, z2) => {
-             let dist1 = caret_point(z1).col - M.col_target;
-             let dist2 = caret_point(z2).col - M.col_target;
-             let c = Int.compare(abs(dist1), abs(dist2));
-             // favor left
-             c != 0 ? c : Int.compare(dist1, dist2);
-           });
-      switch (zs) {
-      | [] => to_backpack_target(d, z)
-      | [z, ..._] => Some(z)
-      };
-    | Down =>
-      let* z = vertical(Right, z);
-      let zs =
-        targets_within_row(z)
-        |> List.sort((z1, z2) => {
-             let dist1 = caret_point(z1).col - M.col_target;
-             let dist2 = caret_point(z2).col - M.col_target;
-             let c = Int.compare(abs(dist1), abs(dist2));
-             // favor right
-             c != 0 ? c : - Int.compare(dist1, dist2);
-           });
-      switch (zs) {
-      | [] => to_backpack_target(d, z)
-      | [z, ..._] => Some(z)
-      };
-    };
-  };
+  // // TODO(d): unify this logic with rest of movement logic
+  // let rec to_backpack_target = (d: planar, z: t): option(t) => {
+  //   let done_or_try_again = (d, z) =>
+  //     switch (pop_backpack(z)) {
+  //     | None => to_backpack_target(d, z)
+  //     | Some(_) => Some(z)
+  //     };
+  //   switch (d) {
+  //   | Left(chunk) =>
+  //     let* z = primary(chunk, Left, z);
+  //     done_or_try_again(d, z);
+  //   | Right(chunk) =>
+  //     let* z = primary(chunk, Right, z);
+  //     done_or_try_again(d, z);
+  //   | Up =>
+  //     let* z = vertical(Left, z);
+  //     let zs =
+  //       targets_within_row(z)
+  //       |> List.sort((z1, z2) => {
+  //            let dist1 = caret_point(z1).col - M.col_target;
+  //            let dist2 = caret_point(z2).col - M.col_target;
+  //            let c = Int.compare(abs(dist1), abs(dist2));
+  //            // favor left
+  //            c != 0 ? c : Int.compare(dist1, dist2);
+  //          });
+  //     switch (zs) {
+  //     | [] => to_backpack_target(d, z)
+  //     | [z, ..._] => Some(z)
+  //     };
+  //   | Down =>
+  //     let* z = vertical(Right, z);
+  //     let zs =
+  //       targets_within_row(z)
+  //       |> List.sort((z1, z2) => {
+  //            let dist1 = caret_point(z1).col - M.col_target;
+  //            let dist2 = caret_point(z2).col - M.col_target;
+  //            let c = Int.compare(abs(dist1), abs(dist2));
+  //            // favor right
+  //            c != 0 ? c : - Int.compare(dist1, dist2);
+  //          });
+  //     switch (zs) {
+  //     | [] => to_backpack_target(d, z)
+  //     | [z, ..._] => Some(z)
+  //     };
+  //   };
+  // };
 
   let move_dispatch = (d: Action.move, z: Zipper.t): option(Zipper.t) =>
     switch (d) {
