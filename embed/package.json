@@ -18,9 +18,7 @@
     "directory": "embed"
   },
   "type": "module",
-  "main": "dist/hazel-embed.umd.js",
-  "module": "dist/hazel-embed.js",
-  "types": "dist/index.d.ts",
+  "main": "src/index.ts",
   "exports": {
     ".": {
       "import": "./src/index.ts"
