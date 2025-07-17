@@ -62,6 +62,8 @@ type error_common =
   | NoType(error_no_type)
   /* Overdetermined: Conflicting type expectations */
   | Inconsistent(error_inconsistent)
+  /* Syn is more specific than analysed unknown: Type hole should be filled */
+  | AsymmetricUnknown(Typ.t)
   /* The error on a specific duplicate label */
   | DuplicateLabel(LabeledTuple.label, Typ.t)
   /* Tuple/TupLabel contains malformed labels, duplicate labels, and/or invalid labels */
@@ -382,6 +384,8 @@ let pat_constraint: pat => Coverage.Constraint.t =
 let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
   switch (self, ty_ana) {
   | (Just(ty), {term: Unknown(SynSwitch), _}) => NotInHole(Syn(ty))
+  | (Just(ty), {term: Unknown(_), _}) when !Typ.is_unknown(ty) =>
+    InHole(AsymmetricUnknown(ty)) /* Disallow analysing against ? except for terms synthesising ? */
   | (Just(syn), ana) =>
     switch (
       Typ.join(
@@ -492,7 +496,10 @@ let rec status_pat = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.pat): status_pat =>
     let additional_err =
       switch (status_pat(ctx, ty_ana, self)) {
       | InHole(
-          Common(Inconsistent(Internal(_) | Expectation(_)) | NoType(_)) as err,
+          Common(
+            Inconsistent(Internal(_) | Expectation(_)) | NoType(_) |
+            AsymmetricUnknown(_),
+          ) as err,
         ) =>
         Some(err)
       | NotInHole(_) => None
@@ -531,7 +538,12 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
       | InHole(Common(Inconsistent(Internal(_)) as inconsistent_err)) =>
         Some(inconsistent_err)
       | NotInHole(_)
-      | InHole(Common(Inconsistent(Expectation(_) | WithArrow(_)))) => None /* Type checking should fail and these errors would be nullified */
+      | InHole(
+          Common(
+            Inconsistent(Expectation(_) | WithArrow(_)) | AsymmetricUnknown(_),
+          ),
+        ) =>
+        None /* Type checking should fail and these errors would be nullified */
       | InHole(
           Common(NoType(_) | TupleLabelError(_) | DuplicateLabel(_)) |
           FreeVariable(_) |
@@ -736,8 +748,8 @@ let fixed_typ_err_common: error_common => Typ.t =
       ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
     ])
     |> Typ.temp
-  | NoType(BadToken(_) | BadLabel(_) | InvalidLabel(_)) =>
-    Unknown(Internal) |> Typ.temp
+  | NoType(BadToken(_) | BadLabel(_) | InvalidLabel(_))
+  | AsymmetricUnknown(_) => Unknown(Internal) |> Typ.temp
   | TupleLabelError({typ, _})
   | DuplicateLabel(_, typ) => typ
   | Inconsistent(Expectation({ana, _})) => ana

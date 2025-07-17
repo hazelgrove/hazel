@@ -61,7 +61,9 @@ let common_error: Info.error_common => string =
       "Expecting type %s but got inconsistent type %s",
       Print.typ(ana),
       Print.typ(syn),
-    );
+    )
+  | AsymmetricUnknown(ty) =>
+    prn("Unfilled type hole. Fill with %s", Print.typ(ty));
 
 let exp_error: Info.error_exp => string =
   fun
