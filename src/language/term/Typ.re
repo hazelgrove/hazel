@@ -186,21 +186,25 @@ type source = {
 /* Strip location information from a list of sources */
 let of_source = List.map((source: source) => source.ty);
 
-/* How type provenance information should be collated when
-   joining unknown types. This probably requires more thought,
-   but right now TypeHole strictly predominates over Internal
-   which strictly predominates over SynSwitch. */
+/* Internal > Hole(_) > SynSwitch  and  Invalid > MultiHole > EmptyHole
+   Note: Important for asymmetric unknown type checking that Internal > SynSwitch */
 let join_type_provenance =
     (p1: TermBase.type_provenance, p2: TermBase.type_provenance)
     : TermBase.type_provenance =>
   switch (p1, p2) {
-  | (Hole(h1), Hole(h2)) when h1 == h2 => Hole(h1)
-  | (Hole(EmptyHole), Hole(EmptyHole) | SynSwitch)
-  | (SynSwitch, Hole(EmptyHole)) => Hole(EmptyHole)
-  | (SynSwitch, Internal)
-  | (Internal, SynSwitch) => SynSwitch
-  | (Internal | Hole(_), _)
-  | (_, Hole(_)) => Internal
+  /* Internal > x */
+  | (Internal, Internal | SynSwitch | Hole(_))
+  | (SynSwitch | Hole(_), Internal) => Internal
+  /* Invalid > x */
+  | (Hole(Invalid(s)), Hole(_))
+  | (Hole(_), Hole(Invalid(s))) => Hole(Invalid(s))
+  /* MultiHole > EmptyHole */
+  | (Hole(MultiHole(e)), Hole(_))
+  | (Hole(_), Hole(MultiHole(e))) => Hole(MultiHole(e))
+  | (Hole(EmptyHole), Hole(EmptyHole)) => Hole(EmptyHole)
+  /* Hole(_) > SynSwitch */
+  | (Hole(h), SynSwitch)
+  | (SynSwitch, Hole(h)) => Hole(h)
   | (SynSwitch, SynSwitch) => SynSwitch
   };
 
