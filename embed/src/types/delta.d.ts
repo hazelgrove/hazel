@@ -33,6 +33,7 @@ export interface FlatTile {
   readonly children: TileId[];
 }
 export type HazelDoc = {
+    title: string;
     tiles: FlatTile[];
     root: TileId;
 }
