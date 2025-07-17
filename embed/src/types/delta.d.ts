@@ -23,8 +23,8 @@ interface Tile {
   readonly children: Tile[];
 }
 
-type TileId = `TILE:${UUID}`;
-interface FlatTile {
+export type TileId = `TILE:${UUID}`;
+export interface FlatTile {
   readonly t: "Tile";
   readonly id: TileId;
   readonly label: string[];
@@ -32,7 +32,7 @@ interface FlatTile {
   readonly shards: number[];
   readonly children: TileId[];
 }
-type HazelDoc = {
+export type HazelDoc = {
     tiles: FlatTile[];
     root: TileId;
 }
