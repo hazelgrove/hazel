@@ -413,12 +413,12 @@ module Deco =
       z,
     );
 
-  let backpack_targets = (backpack, seg) =>
-    div_c(
-      "backpack-targets",
-      show_backpack_targets && Backpack.restricted(backpack)
-        ? targets(backpack, seg) : [],
-    );
+  // let backpack_targets = (backpack, seg) =>
+  //   div_c(
+  //     "backpack-targets",
+  //     show_backpack_targets && Backpack.restricted(backpack)
+  //       ? targets(backpack, seg) : [],
+  //   );
 
   let term_decoration =
       (~id: Id.t, deco: ((Point.t, Point.t, SvgUtil.Path.t)) => Node.t) => {
@@ -630,7 +630,7 @@ module Deco =
         indication(z),
         selection(z),
         backpack(z),
-        backpack_targets(z.backpack, segment),
+        //backpack_targets(z.backpack, segment),
         color_highlights(),
       ]
       : [];

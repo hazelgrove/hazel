@@ -5,7 +5,6 @@ include ZipperBase;
 let init: unit => t =
   () => {
     selection: Selection.mk([]),
-    backpack: [],
     relatives: {
       siblings: (
         [],
@@ -58,7 +57,6 @@ let zip = (z: t): Segment.t =>
 
 let unzip = (seg: Segment.t): t => {
   selection: Selection.mk([]),
-  backpack: [],
   relatives: {
     siblings: (seg, []),
     ancestors: [],
@@ -97,21 +95,6 @@ let local_wanted_shards = (z: t): (list(Token.t), list(Token.t)) => {
     |> List.concat,
   );
 };
-
-let pop_backpack = (z: t) =>
-  Backpack.pop(Relatives.local_incomplete_tiles(z.relatives), z.backpack);
-
-let will_barf = (t: Token.t, z: t): bool =>
-  switch (pop_backpack(z)) {
-  | Some((_, {content: [p], _}, _)) =>
-    switch (p) {
-    | Tile({shards: [i], label, _}) =>
-      assert(i < List.length(label));
-      List.nth(label, i) == t;
-    | _ => false
-    }
-  | _ => false
-  };
 
 let left_neighbor_monotile: Siblings.t => option(Token.t) =
   s => s |> Siblings.left_neighbor |> OptUtil.and_then(Piece.monotile);
@@ -261,46 +244,71 @@ let select = (d: Direction.t, z: t): option(t) =>
   d == z.selection.focus ? grow_selection(z) : shrink_selection(z);
 
 let pick_up = (z: t): t => {
-  let (selected, z) = update_selection(Selection.empty, z);
-  let selection =
-    selected.content
-    |> Segment.trim_grout_around_secondary(Left)
-    |> Segment.trim_grout_around_secondary(Right)
-    |> Selection.mk;
-  let backpack = Backpack.push(selection, z.backpack);
-  {
-    ...z,
-    backpack,
-  };
+  //TODO(andrew): rm
+  // let (selected, z) = update_selection(Selection.empty, z);
+  // let selection =
+  //   selected.content
+  //   |> Segment.trim_grout_around_secondary(Left)
+  //   |> Segment.trim_grout_around_secondary(Right)
+  //   |> Selection.mk;
+  // let backpack = Backpack.push(selection, z.backpack);
+  // {
+  //   ...z,
+  //   backpack,
+  // };
+  z;
 };
 
 let destruct = (~destroy_kids=true, z: t): t => {
-  let backpack =
-    Backpack.remove_uni_tiles_with_deep_matches(z.backpack, z.selection);
+  // let backpack =
+  //   Backpack.remove_uni_tiles_with_deep_matches(z.backpack, z.selection);
   let (selected, z) = update_selection(Selection.empty, z);
-  let (to_pick_up, to_remove) =
+  let (to_pick_up, _to_remove) =
     Segment.incomplete_tiles(selected.content)
     |> List.partition(t =>
          Siblings.contains_matching(t, z.relatives.siblings)
          || Ancestors.parent_matches(t, z.relatives.ancestors)
        );
   /* If flag is set, break up tiles and remove children */
-  let to_pick_up =
+  let _to_pick_up =
     destroy_kids
       ? List.map(Tile.disintegrate, to_pick_up) |> List.flatten : to_pick_up;
-  let backpack =
-    backpack
-    |> Backpack.remove_matching(to_remove)
-    |> Backpack.push_s(
-         to_pick_up |> List.map(Segment.of_tile) |> List.map(Selection.mk),
-       );
-  {
-    ...z,
-    backpack,
-  };
+  // let backpack =
+  //   backpack
+  //   |> Backpack.remove_matching(to_remove)
+  //   |> Backpack.push_s(
+  //        to_pick_up |> List.map(Segment.of_tile) |> List.map(Selection.mk),
+  //      );
+  // {
+  //   ...z,
+  //   backpack,
+  // };
+  z;
 };
 
-let put_down = (d: Direction.t, z: t): option(t) => {
+// let put_down = (d: Direction.t, z: t): option(t) => {
+//   /* Note that this does not regrout/remold on its own. After using
+//    * this function, you may have to regrout/remold on BOTH sides of
+//    * the dropped delimiter. If you don't want to have to do this, use
+//    * the integrated variant below. However, this version is retained
+//    * for use in cases where this pre-emptive regrouting can interfere
+//    * with other behavior, for example token split/merging  */
+//   let z = destruct(z);
+//   let* (_, popped, backpack) = pop_backpack(z);
+//   let z =
+//     {
+//       ...z,
+//       backpack,
+//     }
+//     |> put_selection(popped)
+//     |> unselect;
+//   switch (d) {
+//   | Left => Some(z)
+//   | Right => move(Left, z)
+//   };
+// };
+
+let put_down_p = (d: Direction.t, seg: Segment.t, z: t): t => {
   /* Note that this does not regrout/remold on its own. After using
    * this function, you may have to regrout/remold on BOTH sides of
    * the dropped delimiter. If you don't want to have to do this, use
@@ -308,18 +316,35 @@ let put_down = (d: Direction.t, z: t): option(t) => {
    * for use in cases where this pre-emptive regrouting can interfere
    * with other behavior, for example token split/merging  */
   let z = destruct(z);
-  let* (_, popped, backpack) = pop_backpack(z);
   let z =
     {
       ...z,
-      backpack,
+      selection: Selection.mk(~focus=Right, seg),
     }
-    |> put_selection(popped)
-    |> unselect;
+    |> unselect
+    |> unselect; /* Not sure why this is needed but it do... */
   switch (d) {
-  | Left => Some(z)
-  | Right => move(Left, z)
+  | Left => z
+  | Right =>
+    switch (move(Left, z)) {
+    | None => z
+    | Some(z) => z
+    }
   };
+};
+
+let put_down' = (d: Direction.t, target: Tile.t, z: t): t => {
+  /* Note that this does not regrout/remold on its own. After using
+   * this function, you may have to regrout/remold on BOTH sides of
+   * the dropped delimiter. If you don't want to have to do this, use
+   * the integrated variant below. However, this version is retained
+   * for use in cases where this pre-emptive regrouting can interfere
+   * with other behavior, for example token split/merging  */
+  put_down_p(
+    d,
+    [Tile(target)],
+    z,
+  );
 };
 
 let put_down2 = (d: Direction.t, tok: Token.t, z: t): option(t) => {
@@ -331,23 +356,18 @@ let put_down2 = (d: Direction.t, tok: Token.t, z: t): option(t) => {
    * with other behavior, for example token split/merging  */
   let local_wanted = local_wanted_shards'(z);
   //TODO(andrew): which one if there's more than one?
-  let* target =
+  let+ target =
     List.find_map(
       t => Tile.effective_label(t) == [tok] ? Some(t) : None,
       local_wanted,
     );
-  let z = destruct(z);
-  let z =
-    {
-      ...z,
-      selection: Selection.mk(~focus=Right, [Tile(target)]),
-    }
-    |> unselect
-    |> unselect; /* Not sure why this is needed but it do... */
-  switch (d) {
-  | Left => Some(z)
-  | Right => move(Left, z)
-  };
+  put_down'(d, target, z);
+};
+
+let put_down = (d: Direction.t, z: t): option(t) => {
+  let local_wanted = local_wanted_shards'(z);
+  let+ target = ListUtil.hd_opt(local_wanted);
+  put_down'(d, target, z);
 };
 
 let will_barf2 = (tok: Token.t, z: t): bool =>
@@ -364,7 +384,7 @@ let remold_regrout_prev = (z: t): t =>
     };
   };
 
-let put_down_regrout_remold2 = (d: Direction.t, z: t): option(t) => {
+let put_down_regrout_remold = (d: Direction.t, z: t): option(t) => {
   let z = destruct(z);
   let local_wanted = local_wanted_shards'(z);
   let* target = ListUtil.hd_opt(local_wanted);
@@ -384,32 +404,32 @@ let put_down_regrout_remold2 = (d: Direction.t, z: t): option(t) => {
   };
 };
 
-let put_down_regrout_remold = (d: Direction.t, z: t): option(t) => {
-  let z = destruct(z);
-  let* (_, popped, backpack) = pop_backpack(z);
-  let z =
-    {
-      ...z,
-      backpack,
-    }
-    |> put_selection(popped)
-    |> unselect;
-  let z = z |> regrout(Left) |> remold;
-  let z = remold_regrout_prev(z);
-  switch (d) {
-  | Left => Some(z)
-  | Right => move(Left, z)
-  };
-};
+// let put_down_regrout_remold = (d: Direction.t, z: t): option(t) => {
+//   let z = destruct(z);
+//   let* (_, popped, backpack) = pop_backpack(z);
+//   let z =
+//     {
+//       ...z,
+//       backpack,
+//     }
+//     |> put_selection(popped)
+//     |> unselect;
+//   let z = z |> regrout(Left) |> remold;
+//   let z = remold_regrout_prev(z);
+//   switch (d) {
+//   | Left => Some(z)
+//   | Right => move(Left, z)
+//   };
+// };
 
-let rec put_down_n = (n: int, d: Direction.t, z: t): option(t) => {
-  switch (n) {
-  | 0 => Some(z)
-  | n =>
-    let* z = put_down(d, z);
-    put_down_n(n - 1, d, z);
-  };
-};
+// let rec put_down_n = (n: int, d: Direction.t, z: t): option(t) => {
+//   switch (n) {
+//   | 0 => Some(z)
+//   | n =>
+//     let* z = put_down(d, z);
+//     put_down_n(n - 1, d, z);
+//   };
+// };
 
 let structural_construct = (label: Label.t, z: t): t => {
   let z = destruct(z);
@@ -464,18 +484,7 @@ let rec construct =
     let content = Secondary.construct_comment(content);
     let id = Id.mk();
     let z = destruct(z);
-    let selections = [Selection.mk(Base.mk_secondary(id, content))];
-    let backpack = Backpack.push_s(selections, z.backpack);
-    Option.get(
-      put_down(
-        caret,
-        {
-          ...z,
-          backpack,
-        },
-      ),
-    );
-
+    put_down_p(caret, Base.mk_secondary(id, content), z);
   | [content] when Form.is_secondary(content) =>
     let content = Secondary.Whitespace(content);
     let id = Id.mk();
@@ -506,18 +515,10 @@ let rec construct =
     let selections =
       Tile.split_shards(id, label, mold, List.mapi((i, _) => i, label))
       |> List.map(Segment.of_tile)
-      |> List.map(Selection.mk)
+      //|> List.map(Selection.mk)
       |> ListUtil.rev_if(backpack == Right);
-    let backpack = Backpack.push_s(selections, z.backpack);
-    Option.get(
-      put_down(
-        caret,
-        {
-          ...z,
-          backpack,
-        },
-      ),
-    );
+    //TODO(andrew): cleanup
+    put_down_p(caret, List.hd(selections), z);
   };
 };
 
@@ -592,7 +593,7 @@ let structural_delete = (d: Direction.t, z: t): option(t) =>
     let rm = Segment.remove_matching_empty(t);
     {
       ...update_siblings(((l, r)) => (rm(l), rm(r)), new_z),
-      backpack: Backpack.remove_matching_empty(t, z.backpack),
+      //backpack: Backpack.remove_matching_empty(t, z.backpack),
       selection: Selection.empty,
     }
     |> Option.some;
@@ -698,9 +699,9 @@ let deserialize = (data: string): t => {
 };
 
 let can_put_down = z =>
-  switch (pop_backpack(z)) {
-  | Some(_) => z.caret == Outer
-  | None => false
+  switch (local_wanted_shards'(z)) {
+  | [] => false
+  | _ => z.caret == Outer
   };
 
 let set_buffer = (z: t, ~mode: Selection.buffer, ~content: Segment.t): t => {
@@ -728,41 +729,43 @@ let is_linebreak_to_right_of_caret =
  * try to look at live evaluation while typing inside a string lit with
  * stuff left to drop in backpack with below set: Outer disabled. */
 let try_to_dump_backpack = (zipper: t) => {
-  switch (zipper.backpack) {
-  | [] => zipper
-  | _ =>
-    let zipper = {
-      ...zipper,
-      caret: Outer,
-    };
-    let rec move_until_cant_put_down = (z_last, z: t) =>
-      if (can_put_down(z) && !is_linebreak_to_right_of_caret(z)) {
-        switch (move(Right, z)) {
-        | None => z
-        | Some(z_new) => move_until_cant_put_down(z, z_new)
-        };
-      } else {
-        z_last;
-      };
-    let rec move_until_can_put_down = (z: t) =>
-      if (!can_put_down(z)) {
-        switch (move(Right, z)) {
-        | None => z
-        | Some(z_new) => move_until_can_put_down(z_new)
-        };
-      } else {
-        z;
-      };
-    let rec go = (z: t): t => {
-      let z_can = can_put_down(z) ? z : move_until_can_put_down(z);
-      let z_cant = move_until_cant_put_down(z_can, z_can);
-      switch (put_down_regrout_remold(Right, z_cant)) {
-      | None => z_cant
-      | Some(z) => go(z)
-      };
-    };
-    go(zipper);
-  };
+  //TODO(andrew)
+  // switch (zipper.backpack) {
+  // | [] => zipper
+  // | _ =>
+  //   let zipper = {
+  //     ...zipper,
+  //     caret: Outer,
+  //   };
+  //   let rec move_until_cant_put_down = (z_last, z: t) =>
+  //     if (can_put_down(z) && !is_linebreak_to_right_of_caret(z)) {
+  //       switch (move(Right, z)) {
+  //       | None => z
+  //       | Some(z_new) => move_until_cant_put_down(z, z_new)
+  //       };
+  //     } else {
+  //       z_last;
+  //     };
+  //   let rec move_until_can_put_down = (z: t) =>
+  //     if (!can_put_down(z)) {
+  //       switch (move(Right, z)) {
+  //       | None => z
+  //       | Some(z_new) => move_until_can_put_down(z_new)
+  //       };
+  //     } else {
+  //       z;
+  //     };
+  //   let rec go = (z: t): t => {
+  //     let z_can = can_put_down(z) ? z : move_until_can_put_down(z);
+  //     let z_cant = move_until_cant_put_down(z_can, z_can);
+  //     switch (put_down_regrout_remold(Right, z_cant)) {
+  //     | None => z_cant
+  //     | Some(z) => go(z)
+  //     };
+  //   };
+  //   go(zipper);
+  // };
+  zipper;
 };
 
 let smart_seg = (~dump_backpack: bool, ~erase_buffer: bool, z: t) => {

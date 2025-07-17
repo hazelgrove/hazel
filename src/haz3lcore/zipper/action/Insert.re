@@ -95,7 +95,7 @@ let make_new_tile = (~structmode, t: Token.t, caret: Direction.t, z: t): t =>
   /* Adds a new tile at the caret. If the new token matches the top
      of the backpack, the backpack shard is dropped. Otherwise, we
      construct a new tile, which may immediately expand. */
-  Zipper.will_barf(t, z)
+  Zipper.will_barf2(t, z)
     ? switch (neighbor_can_duomerge(t, z.relatives.siblings)) {
       | Some((lbl, d)) =>
         Zipper.replace(~caret=d, ~backpack=d, lbl, z) |> Option.get

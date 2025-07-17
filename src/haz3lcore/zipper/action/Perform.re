@@ -25,7 +25,7 @@ let set_llm_buffer = (z: t, response: string): t =>
       open OptUtil.Syntax;
       //TODO: Error feedback on below
       let* content = Parser.to_zipper(response);
-      let+ _ = [] == content.backpack ? Some() : None;
+      let+ _ = [] == Zipper.local_wanted_shards'(content) ? Some() : None;
       Zipper.set_buffer(z, ~content=Zipper.zip(content), ~mode=Parsed);
     }
   ) {
@@ -259,21 +259,23 @@ let go_z =
       };
     z |> Result.of_option(~error=Action.Failure.Cant_put_down);
   | RotateBackpack =>
-    let z = {
-      ...z,
-      backpack: Util.ListUtil.rotate(z.backpack),
-    };
-    Ok(z);
+    // let z = {
+    //   ...z,
+    //   backpack: Util.ListUtil.rotate(z.backpack),
+    // };
+    Ok(z)
   | MoveToBackpackTarget((Left(_) | Right(_)) as d) =>
-    if (Backpack.restricted(z.backpack)) {
-      Move.to_backpack_target(d, z)
-      |> Result.of_option(~error=Action.Failure.Cant_move);
-    } else {
-      Move.go(Local(d), z)
-      |> Result.of_option(~error=Action.Failure.Cant_move);
-    }
+    // if (Backpack.restricted(z.backpack)) {
+    //   Move.to_backpack_target(d, z)
+    //   |> Result.of_option(~error=Action.Failure.Cant_move);
+    // } else {
+    //   Move.go(Local(d), z)
+    //   |> Result.of_option(~error=Action.Failure.Cant_move);
+    // }
+    Error(Action.Failure.Cant_move)
   | MoveToBackpackTarget((Up | Down) as d) =>
-    Move.to_backpack_target(d, z)
-    |> Result.of_option(~error=Action.Failure.Cant_move)
+    // Move.to_backpack_target(d, z)
+    // |> Result.of_option(~error=Action.Failure.Cant_move)
+    Error(Action.Failure.Cant_move)
   };
 };

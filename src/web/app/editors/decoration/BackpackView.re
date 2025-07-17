@@ -93,11 +93,9 @@ let view =
     };
   let can_put_down =
     //TODO(andrew): update with new logic
-    switch (Zipper.pop_backpack(z)) {
-    // caret thing is hack; i don't know why pop_backpack
-    // gives us what we want here
-    | Some(_) => z.caret == Outer
-    | None => false
+    switch (Zipper.local_wanted_shards'(z)) {
+    | [] => false
+    | _ => z.caret == Outer
     };
   let ind_p_d =
     switch (Indicated.piece(z)) {
