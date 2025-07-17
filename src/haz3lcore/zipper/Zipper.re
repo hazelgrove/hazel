@@ -69,7 +69,7 @@ let local_wanted_shards' = (z: t): list(Tile.t) => {
   let ll =
     switch (z.relatives.ancestors) {
     | [] => []
-    | [(a, _), ..._] => Ancestor.container_shards_missing(a)
+    | [(a, _), ..._] => Ancestor.container_shards_missing_middle(a)
     };
   // rev as want to match with lexically closest one
   (List.map(Tile.right_missing_shards, l) |> List.rev |> List.concat)
@@ -82,7 +82,7 @@ let local_wanted_shards = (z: t): (list(Token.t), list(Token.t)) => {
   let ll =
     switch (z.relatives.ancestors) {
     | [] => []
-    | [(a, _), ..._] => Ancestor.container_shards_missing(a)
+    | [(a, _), ..._] => Ancestor.container_shards_missing_middle(a)
     };
   (
     (List.map(Tile.right_missing_shards, l) |> List.rev |> List.concat)

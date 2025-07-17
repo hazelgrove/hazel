@@ -78,13 +78,23 @@ let disassemble =
   (flatten(shards_l, kids_l), flatten(shards_r, kids_r));
 };
 
-let container_shards_missing = (a: t): list(Tile.t) => {
+let container_shards_missing_middle = (a: t): list(Tile.t) => {
   let (shards_l, shards_r) = a.shards;
+  print_endline(
+    "container_shards_missing: "
+    ++ String.concat(",", List.map(string_of_int, shards_l))
+    ++ " "
+    ++ String.concat(",", List.map(string_of_int, shards_r)),
+  );
   let last_l =
     ListUtil.last_opt(shards_l) |> OptUtil.get_or_raise(Empty_shard_affix);
   let first_r =
     ListUtil.hd_opt(shards_r) |> OptUtil.get_or_raise(Empty_shard_affix);
   let ls = List.init(first_r - last_l - 1, i => last_l + i + 1);
+  print_endline(
+    "container_shards_missing: ls: "
+    ++ String.concat(",", List.map(string_of_int, ls)),
+  );
   Tile.split_shards(a.id, a.label, a.mold, ls);
 };
 

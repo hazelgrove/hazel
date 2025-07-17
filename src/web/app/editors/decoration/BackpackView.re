@@ -77,14 +77,7 @@ let view =
   // This function is a mess
   let backpack =
     Zipper.local_wanted_shards'(z)
-    @ (
-      Ancestors.non_local_incomplete_tiles(z.relatives.ancestors)
-      |> List.map(incomplete =>
-           Tile.right_missing_shards(incomplete)
-           @ Tile.left_missing_shards(incomplete)
-         )
-      |> List.concat
-    )
+    @ Relatives.non_local_missing_shards(z.relatives)
     |> List.map(t => Selection.mk(~focus=Right, [Tile(t)]));
   let height_head =
     switch (backpack) {
