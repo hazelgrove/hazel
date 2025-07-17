@@ -87,7 +87,13 @@ let code_node = text =>
   Node.span(~attrs=[clss(["code"])], [Node.text(text)]);
 
 let highlight =
-    (~globals: Globals.t, msg: list(Node.t), id: Id.t, mapping: ColorSteps.t)
+    (
+      ~globals: Globals.t,
+      ~inject as _: ExplainThisUpdate.update => 'a,
+      msg: list(Node.t),
+      id: Id.t,
+      mapping: ColorSteps.t,
+    )
     : (Node.t, ColorSteps.t) => {
   let (c, mapping) = ColorSteps.get_color(id, mapping);
   let classes = clss(["highlight-" ++ c, "clickable"]);
@@ -112,12 +118,13 @@ let highlight =
  code: `code`
  italics: *word*
  */
-let mk_translation = (~globals, text: string): (list(Node.t), ColorSteps.t) => {
+let mk_translation =
+    (~globals, ~inject, text: string): (list(Node.t), ColorSteps.t) => {
   let omd = Omd.of_string(text);
   //print_markdown(omd);
 
   let rec translate_inline =
-          (inline: Omd.inline(_), msg, mapping: ColorSteps.t)
+          (inline: Omd.inline(_), msg, mapping: ColorSteps.t, ~inject)
           : (list(Node.t), ColorSteps.t) => {
     switch (inline) {
     | Omd.Concat(_, items) =>
@@ -125,7 +132,7 @@ let mk_translation = (~globals, text: string): (list(Node.t), ColorSteps.t) => {
         List.fold_left(
           ((msg, mapping), item) => {
             let (translated_item, mapping) =
-              translate_inline(item, [], mapping);
+              translate_inline(item, [], mapping, ~inject);
             (List.concat([msg, translated_item]), mapping);
           },
           ([], mapping),
@@ -135,16 +142,17 @@ let mk_translation = (~globals, text: string): (list(Node.t), ColorSteps.t) => {
     | Omd.Text(_, d) => (List.append(msg, [Node.text(d)]), mapping)
     | Omd.Code(_, d) => (List.append(msg, [code_node(d)]), mapping)
     | Omd.Link(_, {label, destination, _}) =>
-      let (d, mapping) = translate_inline(label, [], mapping);
+      let (d, mapping) = translate_inline(label, [], mapping, ~inject);
       let id =
         switch (Id.of_string(destination)) {
         | Some(id) => id
         | None => Id.invalid
         };
-      let (inner_msg, mapping) = highlight(~globals, d, id, mapping);
+      let (inner_msg, mapping) =
+        highlight(~globals, ~inject, d, id, mapping);
       (List.append(msg, [inner_msg]), mapping);
     | Omd.Emph(_, d) =>
-      let (d, mapping) = translate_inline(d, [], mapping);
+      let (d, mapping) = translate_inline(d, [], mapping, ~inject);
       (
         List.append(
           msg,
@@ -172,9 +180,7 @@ let mk_translation = (~globals, text: string): (list(Node.t), ColorSteps.t) => {
     List.fold_left(
       ((msg, mapping), elem) => {
         switch (elem) {
-        | Omd.Paragraph(_, d) =>
-          let (n, _) = translate_inline(d, [], mapping);
-          (List.append(msg, [Node.p(n)]), mapping);
+        | Omd.Paragraph(_, d) => translate_inline(d, msg, mapping, ~inject)
         | Omd.List(_, _, _, items) =>
           let (bullets, mapping) =
             List.fold_left(
@@ -207,7 +213,7 @@ let mk_explanation =
       model: ExplainThisModel.t,
     )
     : (Node.t, ColorSteps.t) => {
-  let (msg, color_map) = mk_translation(~globals, text);
+  let (msg, color_map) = mk_translation(~globals, ~inject, text);
   let feedback =
     globals.settings.explainThis.show_feedback
       ? [explanation_feedback_view(~inject, group_id, form_id, model)] : [];
@@ -405,7 +411,7 @@ let rec bypass_parens_and_annot_pat = (pat: Pat.t) => {
   switch (pat.term) {
   | Parens(p)
   | Probe(p, _)
-  | Cast(p, _, _) => bypass_parens_and_annot_pat(p)
+  | Asc(p, _) => bypass_parens_and_annot_pat(p)
   | _ => pat
   };
 };
@@ -568,7 +574,8 @@ let get_doc =
         );
       ([syntactic_form_view], ([explanation], color_map), example_view);
     | Colorings =>
-      let (_, color_map) = mk_translation(~globals, explanation_msg);
+      let (_, color_map) =
+        mk_translation(~globals, ~inject=_ => (), explanation_msg);
       ([], ([], color_map), []);
     };
   };
@@ -587,9 +594,23 @@ let get_doc =
       switch ((term: Exp.term)) {
       | Invalid(_) => simple("Not a valid expression")
       | DynamicErrorHole(_)
-      | FailedCast(_)
-      | Closure(_)
-      | Cast(_) => simple("Internal expression")
+      | Closure(_) => simple("Internal expression")
+      | Asc(e, t) =>
+        let exp_id = List.nth(IdTagged.ids(e), 0);
+        let typ_id = List.nth(IdTagged.ids(t), 0);
+        get_message(
+          ~colorings=AscExp.ascription_coloring_ids(~exp_id, ~typ_id),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s%s"),
+                  Id.to_string(exp_id),
+                  Id.to_string(typ_id),
+                ),
+            ),
+          AscExp.ascriptions,
+        );
       | Use(t, e) =>
         message_single(
           UseExp.single(~typ_id=Typ.rep_id(t), ~body_id=Exp.rep_id(e)),
@@ -1174,7 +1195,7 @@ let get_doc =
         | Parens(_)
         | Probe(_)
         | Label(_)
-        | Cast(_) => default // Shouldn't get hit?
+        | Asc(_) => default // Shouldn't get hit?
         };
       | Label(name) =>
         get_message(
@@ -1759,7 +1780,7 @@ let get_doc =
         | Invalid(_) => default // Shouldn't get hit
         | Parens(_)
         | Probe(_) => default // Shouldn't get hit?
-        | Cast(_) => default // Shouldn't get hit?
+        | Asc(_) => default // Shouldn't get hit?
         };
       | FixF(pat, body, _) =>
         message_single(
@@ -1962,6 +1983,23 @@ let get_doc =
         );
       | Parens(term)
       | Probe(term, _) => get_message_exp(term.term) // No Special message?
+      | HintedTest(body, hint) =>
+        let hint_id = List.nth(IdTagged.ids(hint), 0);
+        let body_id = List.nth(IdTagged.ids(body), 0);
+        get_message(
+          ~colorings=
+            HintedTestExp.hinted_test_exp_coloring_ids(~body_id, ~hint_id),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s%s"),
+                  Id.to_string(hint_id),
+                  Id.to_string(body_id),
+                ),
+            ),
+          HintedTestExp.tests,
+        );
       | Cons(hd, tl) =>
         let hd_id = List.nth(IdTagged.ids(hd), 0);
         let tl_id = List.nth(IdTagged.ids(tl), 0);
@@ -2378,7 +2416,7 @@ let get_doc =
           ),
         TerminalPat.ctr(con),
       )
-    | Cast(pat, typ, _) =>
+    | Asc(pat, typ) =>
       let pat_id = List.nth(IdTagged.ids(pat), 0);
       let typ_id = List.nth(IdTagged.ids(typ), 0);
       get_message(
@@ -2654,11 +2692,11 @@ let section = (~section_clss: string, ~title: string, contents: list(Node.t)) =>
 let get_color_map =
     (~globals: Globals.t, ~explainThisModel: ExplainThisModel.t, info) =>
   switch (globals.settings.explainThis.highlight) {
-  | All when globals.settings.explainThis.show =>
+  | All when globals.settings.sidebar.show =>
     let (_, (_, (color_map, _)), _) =
       get_doc(~globals, ~docs=explainThisModel, info, Colorings);
     Some(color_map);
-  | One(id) when globals.settings.explainThis.show =>
+  | One(id) when globals.settings.sidebar.show =>
     let (_, (_, (color_map, _)), _) =
       get_doc(~globals, ~docs=explainThisModel, info, Colorings);
     Some(Id.Map.filter((id', _) => id == id', color_map));
@@ -2682,52 +2720,36 @@ let view =
       MessageContent(inject, globals),
     );
   div(
-    ~attrs=[Attr.id("side-bar")],
+    ~attrs=[Attr.id("explain-this")],
     [
       div(
-        ~attrs=[Attr.id("explain-this")],
+        ~attrs=[clss(["header"])],
         [
-          div(
-            ~attrs=[clss(["header"])],
-            [
-              Widgets.toggle(
-                ~tooltip="Toggle highlighting",
-                "🔆",
-                globals.settings.explainThis.highlight == All,
-                _ =>
-                globals.inject_global(
-                  Set(ExplainThis(SetHighlight(Toggle))),
-                )
-              ),
-              div(
-                ~attrs=[
-                  clss(["close"]),
-                  Attr.on_click(_ =>
-                    globals.inject_global(Set(ExplainThis(ToggleShow)))
-                  ),
-                ],
-                [Icons.thin_x],
-              ),
-            ],
+          Widgets.toggle(
+            ~tooltip="Toggle highlighting",
+            "🔆",
+            globals.settings.explainThis.highlight == All,
+            _ =>
+            globals.inject_global(Set(ExplainThis(SetHighlight(Toggle))))
           ),
-        ]
-        @ [
-          section(
-            ~section_clss="syntactic-form",
-            ~title=
-              switch (info) {
-              | None => "Whitespace or Comment"
-              | Some(info) => Info.cls_of(info) |> Cls.show
-              },
-            syn_form @ explanation,
-          ),
-        ]
-        @ (
-          example == []
-            ? []
-            : [section(~section_clss="examples", ~title="Examples", example)]
-        ),
+        ],
       ),
-    ],
+    ]
+    @ [
+      section(
+        ~section_clss="syntactic-form",
+        ~title=
+          switch (info) {
+          | None => "Whitespace or Comment"
+          | Some(info) => Info.cls_of(info) |> Cls.show
+          },
+        syn_form @ explanation,
+      ),
+    ]
+    @ (
+      example == []
+        ? []
+        : [section(~section_clss="examples", ~title="Examples", example)]
+    ),
   );
 };

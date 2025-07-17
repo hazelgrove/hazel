@@ -277,11 +277,3 @@ module FindPiece = {
     };
   };
 };
-
-// let remove_all_projectors = (z: t('p)): t('p) =>
-//   MapPiece.go(
-//     fun
-//     | Projector(pr) => Piece.unparenthesize(pr.syntax)
-//     | x => [x],
-//     z,
-//   );

@@ -18,11 +18,12 @@ let consume_deferred_linebreaks = (): int => {
 let of_delim' =
   Core.Memo.general(
     ~cache_size_bound=10000,
-    ((label, sort, is_consistent, is_complete, indent, i)) => {
+    ((label, sort, is_consistent, is_in_buffer, is_complete, indent, i)) => {
       let cls =
         switch (label) {
         | _ when !is_consistent => "sort-inconsistent"
         | _ when !is_complete => "incomplete"
+        | [s] when Form.is_llm_hole(s) => "llm-waiting"
         | [s] when s == Form.explicit_hole => "explicit-hole"
         | [s] when Form.is_string(s) => "string-lit"
         | _ => Sort.to_string(sort)
@@ -34,21 +35,23 @@ let of_delim' =
       let token =
         num_lb == 0
           ? token : token ++ StringUtil.repeat(indent, Unicode.nbsp);
+      let in_buffer = is_in_buffer ? ["in-parsed-buffer"] : [];
       [
         span(
-          ~attrs=[Attr.classes(["token", cls, plurality])],
+          ~attrs=[Attr.classes(["token", cls, plurality] @ in_buffer)],
           [Node.text(token)],
         ),
       ];
     },
   );
 let of_delim =
-    (type p, is_consistent, indent, t: Haz3lcorep.Piece.tile(p), i: int)
+    (type p, is_consistent, is_in_buffer, indent, t: Piece.tile, i: int)
     : list(Node.t) =>
   of_delim'((
     t.label,
     t.mold.out,
     is_consistent,
+    is_in_buffer,
     Tile.is_complete(t),
     indent,
     i,
@@ -79,7 +82,9 @@ let of_secondary =
       secondary_text("whitespace", secondary_icons ? "·" : space),
     ]
   | Whitespace(_) => failwith("Code: Unrecognized Secondary")
-  | Comment(str) when is_in_buffer => [secondary_text("in-buffer", str)]
+  | Comment(str) when is_in_buffer => [
+      secondary_text("in-unparsed-buffer", str),
+    ]
   | Comment(str) => [secondary_text("comment", str)]
   };
 
@@ -96,7 +101,7 @@ let of_projector = (expected_sort, indent, shape: ProjectorShape.t) => {
       String.make(consume_deferred_linebreaks(), '\n')
       ++ ProjectorShape.token(shape)
     };
-  of_delim'(([token], expected_sort, true, true, indent, 0));
+  of_delim'(([token], expected_sort, true, false, true, indent, 0));
 };
 
 module Text =
@@ -159,10 +164,24 @@ module Text =
           (child, l + 1 == r ? List.nth(t.mold.in_, i) : Sort.Any),
         Aba.aba_triples(Aba.mk(t.shards, t.children)),
       );
-    let is_consistent = Sort.consistent(t.mold.out, expected_sort);
+    let consistent = (s: Sort.t, s': Sort.t) =>
+      switch (s, s') {
+      | (Any, _)
+      | (_, Any) => true
+      | (Rul, Exp) => true
+      | (Exp, Rul) => true
+      | _ => s == s'
+      };
+    let is_consistent = consistent(t.mold.out, expected_sort);
     Aba.mk(t.shards, children_and_sorts)
     |> Aba.join(
-         of_delim(is_consistent, m(Tile(t)).origin.col, t), ((seg, sort)) =>
+         of_delim(
+           is_consistent,
+           List.mem(t.id, buffer_ids),
+           m(Tile(t)).origin.col,
+           t,
+         ),
+         ((seg, sort)) =>
          of_segment(buffer_ids, false, sort, seg)
        )
     |> List.concat;

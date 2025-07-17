@@ -101,13 +101,21 @@ module Update = {
     };
   };
 
-  let update = (~globals: Globals.t, ~schedule_action, action, model: Model.t) => {
+  let update =
+      (
+        ~globals: Globals.t,
+        ~schedule_action: t => unit,
+        ~send_assistant_insertion_info: CodeEditable.Model.t => unit,
+        action: t,
+        model: Model.t,
+      ) => {
     switch (action, model) {
     | (Scratch(action), Scratch(m)) =>
       let* scratch =
         ScratchMode.Update.update(
           ~globals,
           ~schedule_action=a => schedule_action(Scratch(a)),
+          ~send_assistant_insertion_info,
           ~is_documentation=false,
           action,
           m,
@@ -118,6 +126,7 @@ module Update = {
         ScratchMode.Update.update(
           ~globals,
           ~schedule_action=a => schedule_action(Scratch(a)),
+          ~send_assistant_insertion_info,
           ~is_documentation=true,
           action,
           m,
@@ -247,9 +256,10 @@ module Selection = {
 
   let default_selection =
     fun
-    | Model.Scratch(_) => Scratch(MainEditor(Haz3lcore.Editor.Focus.here()))
+    | Model.Scratch(_) =>
+      Scratch(Cell(MainEditor(Haz3lcore.Editor.Focus.here())))
     | Model.Documentation(_) =>
-      Scratch(MainEditor(Haz3lcore.Editor.Focus.here()))
+      Scratch(Cell(MainEditor(Haz3lcore.Editor.Focus.here())))
     | Model.Exercises(_) =>
       Exercises(
         Cell(Exercise.Prelude, MainEditor(Haz3lcore.Editor.Focus.here())),
@@ -269,6 +279,7 @@ module View = {
         ~selection: option(Selection.t),
         ~signal,
         ~inject,
+        ~inject_explainthis: ExplainThisUpdate.update => 'b,
         editors: Model.t,
       ) =>
     switch (editors) {
@@ -312,6 +323,7 @@ module View = {
           | _ => None
           },
         ~inject=a => Update.Exercises(a) |> inject,
+        ~inject_explainthis: ExplainThisUpdate.update => 'b,
         m,
       )
     };

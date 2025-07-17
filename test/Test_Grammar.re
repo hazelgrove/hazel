@@ -35,7 +35,6 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | EmptyHole => empty_hole()
       | MultiHole => multi_hole([Exp(empty_hole()), Exp(empty_hole())])
       | DynamicErrorHole => dynamic_error_hole(empty_hole(), DivideByZero)
-      | FailedCast => failed_cast(empty_hole(), Typ.int(), Typ.string())
       | Deferral => deferral(InAp)
       | Undefined => undefined()
       | Atom(Bool) => bool(true)
@@ -70,6 +69,7 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | If => if_(empty_hole(), empty_hole(), empty_hole())
       | Seq => seq(empty_hole(), empty_hole())
       | Test => test(empty_hole())
+      | HintedTest => hinted_test(empty_hole(), empty_hole())
       | Filter =>
         filter(StepperFilter.residue(0, (Step, One)), empty_hole())
       | Closure =>
@@ -88,7 +88,7 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | BinOp(op) => bin_op(op, empty_hole(), empty_hole())
       | BuiltinFun => builtin_fun("string_compare")
       | Match => match(empty_hole(), [])
-      | Cast => cast(empty_hole(), Typ.int(), Typ.string())
+      | Asc => asc(empty_hole(), Typ.string())
       | ListConcat => list_concat(empty_hole(), empty_hole())
       }
     )
@@ -118,7 +118,7 @@ let sample_pattern = (cls_pat: Pat.cls): Grammar.UnitGrammar.pat => {
       | Parens => parens(empty_hole())
       | Probe => probe(empty_hole(), Probe.empty)
       | Ap => ap(empty_hole(), empty_hole())
-      | Cast => cast(empty_hole(), Typ.int(), Typ.string())
+      | Asc => asc(empty_hole(), Typ.string())
       | Wild => wild()
       }
     )

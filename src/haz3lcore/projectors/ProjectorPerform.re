@@ -198,5 +198,37 @@ let go =
       Ok(jump_to_side_of_id(Left, z, target_id))
     | _ => Ok(z)
     }
+  // | Focus(id, kind, d) =>
+  //   switch (d) {
+  //   | None =>
+  //     /* Focus by mouse click */
+  //     let (module P) = ProjectorInit.to_module(kind);
+  //     switch (P.focusable.pointer) {
+  //     | Some(focus) => focus(id)
+  //     | None => ()
+  //     };
+  //     Ok(Option.value(~default=z, jump_to_id_indicated(z, id)));
+  //   | Some(Right) =>
+  //     /* Focus by arrow key hand-off */
+  //     let (module P) = ProjectorInit.to_module(kind);
+  //     switch (P.focusable.keyboard) {
+  //     | Some(focus) => focus(id, Right)
+  //     | None => ()
+  //     };
+  //     Ok(z);
+  //   | Some(Left) =>
+  //     /* Focus by arrow key hand-off */
+  //     let (module P) = ProjectorInit.to_module(kind);
+  //     switch (P.focusable.keyboard) {
+  //     | Some(focus) => focus(id, Left)
+  //     | None => ()
+  //     };
+  //     Ok(z);
+  //   }
+  // | Escape(id, d) =>
+  //   switch (jump_to_side_of_id(d, z, id)) {
+  //   | Some(z) => Ok(z)
+  //   | None => Error(Cant_project)
+  //     }
   };
 };

@@ -29,6 +29,23 @@ module Model = {
 
   let get_dynamics = (model: t) => model.dynamics;
 
+  // let get_cursor_info = (model: t): Cursor.cursor(Action.t) => {
+  //   info: Indicated.ci_of(model.editor.state.zipper, model.statics.info_map),
+  //   indicated_piece:
+  //     Indicated.piece''(model.editor.state.zipper)
+  //     |> Option.map(((p, _, _)) => p),
+  //   selected_text:
+  //     Some(
+  //       () => Printer.of_segment(model.editor.state.zipper.selection.content),
+  //     ),
+  //   selection: Some(model.editor.state.zipper.selection.content),
+  //   editor: Some(model.editor),
+  //   editor_read_only: true,
+  //   editor_action: x => Some(x),
+  //   undo_action: None,
+  //   redo_action: None,
+  // };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = PersistentZipper.t;
   let persist = (model: t) =>

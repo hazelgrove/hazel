@@ -10,7 +10,12 @@ let exp_typ =
     Language.Exp.fast_equal,
   );
 
-let parse_exp = Parse.parse_exp;
+let parse_exp = (s: string) => {
+  switch (Haz3lcore.Parser.to_term(s)) {
+  | Some(e) => e
+  | None => Alcotest.fail("Failed to parse expression: " ++ s)
+  };
+};
 let exp_check = (expected, actual) =>
   check(exp_typ, actual, expected, Parse.parse_exp(actual));
 
@@ -68,10 +73,9 @@ let tests =
       test_case("Singleton Labled Tuple ascription in let", `Quick, () =>
         exp_check(
           let_(
-            Pat.cast(
+            Pat.asc(
               Pat.var("x"),
               Typ.(parens(prod([tup_label(label("l"), string())]))),
-              Typ.unknown(Internal),
             ),
             parens(string("a")),
             var("x"),
@@ -86,10 +90,9 @@ let tests =
             parens(tuple([tup_label(label("l"), int(32))])),
             let_(
               Pat.(
-                cast(
+                asc(
                   var("y"),
                   Typ.(parens(prod([tup_label(label("l"), int())]))),
-                  Typ.unknown(Internal),
                 )
               ),
               var("x"),
@@ -115,7 +118,7 @@ let tests =
         exp_check(
           let_(
             Pat.(
-              cast(
+              asc(
                 var("x"),
                 Typ.(
                   parens(
@@ -125,7 +128,6 @@ let tests =
                     ]),
                   )
                 ),
-                Typ.unknown(Internal),
               )
             ),
             parens(

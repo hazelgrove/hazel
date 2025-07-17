@@ -10,7 +10,7 @@ let rec binds_var = (x: Var.t, dp: DHPat.t): bool =>
   | Atom(_)
   | Label(_)
   | Constructor(_) => false
-  | Cast(y, _, _)
+  | Asc(y, _)
   | Parens(y)
   | Probe(y, _) => binds_var(x, y)
   | Var(y) => Var.equal(x, y)
@@ -81,6 +81,7 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
     Ap(dir, d3, d4) |> rewrap;
   | BuiltinFun(_) => d2
   | Test(d3) => Test(subst_var(d1, x, d3)) |> rewrap
+  | HintedTest(d3, h) => HintedTest(subst_var(d1, x, d3), h) |> rewrap
   | Atom(_)
   | Label(_)
   | LivelitName(_)
@@ -123,12 +124,9 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
   | EmptyHole => EmptyHole |> rewrap
   // TODO: handle multihole
   | MultiHole(_d2) => d2 //MultiHole(List.map(subst_var(m, d1, x), ds)) |> rewrap
-  | Cast(d, ty1, ty2) =>
+  | Asc(d, ty) =>
     let d' = subst_var(d1, x, d);
-    Cast(d', ty1, ty2) |> rewrap;
-  | FailedCast(d, ty1, ty2) =>
-    let d' = subst_var(d1, x, d);
-    FailedCast(d', ty1, ty2) |> rewrap;
+    Asc(d', ty) |> rewrap;
   | DynamicErrorHole(d, err) =>
     let d' = subst_var(d1, x, d);
     DynamicErrorHole(d', err) |> rewrap;

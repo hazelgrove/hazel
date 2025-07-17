@@ -316,6 +316,124 @@ module Window = {
   };
 };
 
+let is_value = (exp: Exp.t) =>
+  ValueChecker.check_value((), ClosureEnvironment.empty, exp) == Value;
+
+module ClosureLength = {
+  let lengths: Hashtbl.t(int, int) = Hashtbl.create(100);
+
+  let reset = () => {
+    Hashtbl.clear(lengths);
+  };
+
+  let get = (closure: closure): int =>
+    Hashtbl.find_opt(lengths, closure.closure_id)
+    |> Option.value(
+         ~default=
+           !is_value(closure.value)
+             ? 5 : Window.get_mode() == Single ? 36 : 12,
+       );
+
+  let set = (id: int, length: int): unit => Hashtbl.add(lengths, id, length);
+};
+
+/* Remove opaque values like function literals */
+let rm_opaques:
+  list(Dynamics.Probe.Env.entry) => list(Dynamics.Probe.Env.entry) =
+  List.filter_map((en: Dynamics.Probe.Env.entry) =>
+    switch (en.value) {
+    | Opaque => None
+    | Val(_) => Some(en)
+    }
+  );
+
+/* Don't redundantly show an env for variable references, patterns */
+let hide_env = (info: info): bool =>
+  switch (info.statics) {
+  | Some(
+      InfoExp({term: {term: Var(_) | Probe({term: Var(_), _}, _), _}, _}),
+    ) =>
+    true
+  | Some(InfoPat(_)) => true
+  | _ => false
+  };
+
+// module Closures = {
+//   let filter_frames_by_pin =
+//       (info: info, frames: list(closure)): list(closure) =>
+//     switch (DynCursor.s.pinned_call) {
+//     | Some(pinned_ap) =>
+//       List.filter(
+//         (closure: closure) =>
+//           ListUtil.hd_opt(pinned_ap) == cur_ap(info)
+//           || ListUtil.is_suffix_of(pinned_ap, closure.call_stack),
+//         frames,
+//       )
+//     | None => frames
+//     };
+
+//   let total = (info: info): int =>
+//     switch (info.dynamics) {
+//     | Some(closures) => List.length(filter_frames_by_pin(info, closures))
+//     | None => 0
+//     };
+
+//   let select_frames = (info: info, closures: list(closure)): list(closure) => {
+//     let closures = filter_frames_by_pin(info, closures);
+//     let cursor_idx =
+//       switch (DynCursor.first_index_of_interest(info, closures)) {
+//       | Some(idx) => idx
+//       | None => 0
+//       };
+//     let all_closures = List.length(closures);
+//     let (l, r) = Window.reform(info.id, all_closures, cursor_idx);
+//     ListUtil.slice(l, r, closures);
+//   };
+
+//   let group_by_predicate =
+//       /* Precondition: Items to be grouped are contigious in list */
+//       (should_group: ('a, 'a) => bool, xs: list('a)): list(list('a)) => {
+//     List.fold_left(
+//       (acc: list(list('a)), item: 'a) => {
+//         switch (acc) {
+//         | [] => [[item]]
+//         | [[rep, ..._] as first, ...init] when should_group(rep, item) => [
+//             first @ [item],
+//             ...init,
+//           ]
+//         | _ => [[item]] @ acc
+//         }
+//       },
+//       [],
+//       xs,
+//     );
+//   };
+
+//   let is_same_call = ((_, c1: closure), (_, c2: closure)): bool => {
+//     switch (List.rev(c2.call_stack), List.rev(c1.call_stack)) {
+//     | ([], _)
+//     | (_, []) => false
+//     | ([f1, ..._], [f2, ..._]) => f1 == f2
+//     };
+//   };
+
+//   let group =
+//       (closures: list((int, closure))): list(list((int, closure))) => {
+//     let grouped =
+//       closures |> group_by_predicate(is_same_call) |> List.map(List.rev);
+//     /* Flatten if all groups are singletons */
+//     List.for_all(group => List.length(group) == 1, grouped)
+//       ? [List.concat(grouped)] : grouped;
+//   };
+
+//   let collate =
+//       (closures: list(closure)): (int, list(list((int, closure)))) => {
+//     let numbered_closures =
+//       List.mapi((i, c) => (List.length(closures) - i - 1, c), closures);
+//     (List.length(closures), group(numbered_closures));
+//   };
+// };
+
 module ValueState = {
   let mousedown: ref(option(Js.t(Dom_html.element))) = ref(Option.None);
   let click_coords: ref(option(Point.t)) = ref(Option.None);
@@ -350,52 +468,6 @@ module M =
       exp |> DHExp.strip_casts |> Abbreviate.abbreviate_exp(~available);
     abbr_exp;
   };
-
-  let is_value = (exp: Exp.t) =>
-    ValueChecker.check_value((), ClosureEnvironment.empty, exp) == Value;
-
-  module ClosureLength = {
-    let lengths: Hashtbl.t(int, int) = Hashtbl.create(100);
-
-    let reset = () => {
-      Hashtbl.clear(lengths);
-    };
-
-    let get = (closure: closure): int =>
-      Hashtbl.find_opt(lengths, closure.closure_id)
-      |> Option.value(
-           ~default=
-             !is_value(closure.value)
-               ? 5 : Window.get_mode() == Single ? 36 : 12,
-         );
-
-    let set = (id: int, length: int): unit =>
-      Hashtbl.add(lengths, id, length);
-  };
-
-  /* Remove opaque values like function literals */
-  let rm_opaques:
-    list(Dynamics.Probe.Env.entry) => list(Dynamics.Probe.Env.entry) =
-    List.filter_map((en: Dynamics.Probe.Env.entry) =>
-      switch (en.value) {
-      | Opaque => None
-      | Val(_) => Some(en)
-      }
-    );
-
-  /* Don't redundantly show an env for variable references, patterns */
-  let hide_env = (statics: option(Info.t)): bool =>
-    switch (statics) {
-    | Some(
-        InfoExp({
-          term: {term: Var(_) | Probe({term: Var(_), _}, _), _},
-          _,
-        }),
-      ) =>
-      true
-    | Some(InfoPat(_)) => true
-    | _ => false
-    };
 
   module Closures = {
     let filter_frames_by_pin =
@@ -814,6 +886,7 @@ module M =
     );
   };
 
+<<<<<<< HEAD
   let pin_view = statics =>
     DynCursor.show_pin(statics)
       ? [div(~attrs=[Attr.classes(["pin"])], [])] : [];
@@ -888,6 +961,22 @@ module M =
       | _ => None
       }
     );
+=======
+let round_up = (utility: utility, closure): unit => {
+  let (_, cur) =
+    abbreviated_seg_of(utility, ClosureLength.get(closure), closure.value);
+  let goal = cur + 1;
+  let (_, max_len) =
+    seg_of_exp(utility, DHExp.strip_ascriptions(closure.value));
+  let rec find_target = (target: int): int => {
+    let attempt_len =
+      abbreviated_seg_of(utility, target, closure.value) |> snd;
+    if (attempt_len < goal && target <= max_len) {
+      find_target(target + 1);
+    } else {
+      target;
+    };
+>>>>>>> 2b4a189132e4a0d653035d25ccba80643d53cb1a
   };
 
   let dynamics = true;

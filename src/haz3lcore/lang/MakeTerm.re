@@ -143,6 +143,7 @@ let mk_bad = (ctr, ids, value) => {
   };
 };
 
+<<<<<<< HEAD
 module Go = (P: {
                type p;
              }) => {
@@ -178,11 +179,37 @@ module Go = (P: {
           } else {
             go_s(~of_projector, ~log_projector, t.mold.out, skel, seg);
           }
+=======
+let is_hole_label = (t: string) =>
+  t == " " || Form.is_explicit_hole(t) || Form.is_llm_hole(t);
+
+let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
+  switch (s) {
+  | Pat => Pat(pat(unsorted(skel, seg)))
+  | TPat => TPat(tpat(unsorted(skel, seg)))
+  | Typ => Typ(typ(unsorted(skel, seg)))
+  | Exp => Exp(exp(unsorted(skel, seg)))
+  | Rul => Rul(rul(unsorted(skel, seg)))
+  | Any =>
+    let tm = unsorted(skel, seg);
+    let ids = ids(tm);
+    switch (ListUtil.hd_opt(ids)) {
+    | None => Exp(exp(unsorted(skel, seg)))
+    | Some(id) =>
+      switch (TileMap.find_opt(id, TileMap.mk(seg))) {
+      | None => Exp(exp(unsorted(skel, seg)))
+      | Some(t) =>
+        if (t.mold.out == Any) {
+          Exp(exp(unsorted(skel, seg)));
+        } else {
+          go_s(t.mold.out, skel, seg);
+>>>>>>> 2b4a189132e4a0d653035d25ccba80643d53cb1a
         }
       };
     };
   }
 
+<<<<<<< HEAD
   and exp = unsorted => {
     let (term, inner_ids) = exp_term(unsorted);
     let ids = ids(unsorted) @ inner_ids;
@@ -191,6 +218,154 @@ module Go = (P: {
         e => Exp(e),
         ids,
         {
+=======
+and exp = unsorted => {
+  let (term, inner_ids) = exp_term(unsorted);
+  let ids = ids(unsorted) @ inner_ids;
+  let e: TermBase.exp_t =
+    return(
+      e => Exp(e),
+      ids,
+      {
+        annotation: {
+          ids: ids,
+        },
+        term,
+      },
+    );
+  switch (term) {
+  | TupLabel(_) =>
+    // The tile id is the id of the tuple not the tuplabel
+    let (e_term, rewrap) = IdTagged.unwrap(e);
+    rewrap(Tuple([e_term |> Exp.fresh]): Exp.term);
+  | _ => e
+  };
+}
+and exp_term: unsorted => (Exp.term, list(Id.t)) = {
+  let ret = (tm: Exp.term) => (tm, []);
+  let hole = unsorted => Exp.hole(kids_of_unsorted(unsorted));
+  fun
+  | Op(tiles) as tm =>
+    switch (tiles) {
+    // single-tile case
+    | ([(id, t)], []) =>
+      switch (t) {
+      | ([t], []) when Form.is_empty_tuple(t) => ret(Tuple([]))
+      | ([t], []) when Form.is_wild(t) => ret(Deferral(OutsideAp))
+      | ([t], []) when Form.is_empty_list(t) => ret(ListLit([]))
+      | ([t], []) when Form.is_bool(t) =>
+        ret(Atom(Bool(bool_of_string(t))))
+      | ([t], []) when Form.is_undefined(t) => ret(Undefined)
+      | ([t], []) when Form.is_int(t) =>
+        ret(Atom(Int(Bigint.of_string(t))))
+      | ([t], []) when Form.is_string(t) =>
+        ret(Atom(String(Form.strip_quotes(t))))
+      | ([t], []) when Form.is_float(t) =>
+        ret(Atom(Float(float_of_string(t))))
+      | ([t], []) when Form.is_livelit(t) =>
+        ret(LivelitName(Form.parse_livelit(t)))
+      | ([t], []) when Form.is_var(t) => ret(Var(t))
+      | ([t], []) when Form.is_ctr(t) => ret(Constructor(t, None))
+      | (["(", ")"], [Exp(body)]) => ret(Parens(body))
+      | (label, [Exp(body)]) when is_probe_wrap(label) =>
+        // Temporary wrapping form to persist projector probes
+        ret(should_instrument(id) ? Probe(body, Probe.empty) : body.term)
+      | (["[", "]"], [Exp(body)]) =>
+        switch (body) {
+        | {annotation: {ids}, term: Tuple(es)} => (ListLit(es), ids)
+        | term => ret(ListLit([term]))
+        }
+      | (["test", "end"], [Exp(test)]) => ret(Test(test))
+      | (["hint", "test", "end"], [Exp(hint), Exp(test)]) =>
+        ret(HintedTest(test, hint))
+      | (["case", "end"], [Rul({term, annotation: {ids, _}})]) =>
+        switch (term) {
+        | Rules(scrut, rules) => (Match(scrut, rules), ids)
+        // If the rule parser is correct, below should be impossible
+        | MultiHole(anys) => (MultiHole(anys), ids)
+        | Invalid(string) => (Invalid(string), ids)
+        }
+      | ([t], []) when is_hole_label(t) => ret(hole(tm))
+      | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
+        ret(Invalid(t))
+      | _ => ret(hole(tm))
+      }
+    | _ => ret(hole(tm))
+    }
+  | Pre(tiles, Exp(r)) as tm =>
+    switch (tiles) {
+    | ([(_id, t)], []) =>
+      ret(
+        switch (t) {
+        | (["$"], []) => UnOp(Meta(Unquote), r)
+        | (["-"], []) => UnOp(Int(Minus), r)
+        | (["!"], []) => UnOp(Bool(Not), r)
+        | (["fun", "->"], [Pat(pat)]) => Fun(pat, r, None, None)
+        | (["fix", "->"], [Pat(pat)]) => FixF(pat, r, None)
+        | (["typfun", "->"], [TPat(tpat)]) => TypFun(tpat, r, None)
+        | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
+        | (["hide", "in"], [Exp(filter)]) =>
+          Filter(
+            Filter({
+              act: (Eval, One),
+              pat: filter,
+            }),
+            r,
+          )
+        | (["eval", "in"], [Exp(filter)]) =>
+          Filter(
+            Filter({
+              act: (Eval, All),
+              pat: filter,
+            }),
+            r,
+          )
+        | (["pause", "in"], [Exp(filter)]) =>
+          Filter(
+            Filter({
+              act: (Step, One),
+              pat: filter,
+            }),
+            r,
+          )
+        | (["debug", "in"], [Exp(filter)]) =>
+          Filter(
+            Filter({
+              act: (Step, All),
+              pat: filter,
+            }),
+            r,
+          )
+        | (["use", "in"], [Typ(ty)]) => Use(ty, r)
+        | (["type", "=", "in"], [TPat(tpat), Typ(def)]) =>
+          TyAlias(tpat, def, r)
+        | (["if", "then", "else"], [Exp(cond), Exp(conseq)]) =>
+          If(cond, conseq, r)
+        | _ => hole(tm)
+        },
+      )
+    | _ => ret(hole(tm))
+    }
+  | Post(Exp(l), tiles) as tm =>
+    switch (tiles) {
+    | ([(_id, t)], []) =>
+      switch (t) {
+      | (["()"], []) =>
+        ret(
+          Ap(
+            Forward,
+            l,
+            {
+              annotation: {
+                ids: [Id.nullary_ap_flag],
+              },
+              term: Tuple([]),
+            },
+          ),
+        )
+      | (["(", ")"], [Exp(arg)]) =>
+        let use_deferral = (arg: Exp.t): Exp.t => {
+>>>>>>> 2b4a189132e4a0d653035d25ccba80643d53cb1a
           annotation: {
             ids: ids,
           },
@@ -253,7 +428,36 @@ module Go = (P: {
         }
       | _ => ret(hole(tm))
       }
+<<<<<<< HEAD
     | Pre(tiles, Exp(r)) as tm =>
+=======
+    | _ => ret(hole(tm))
+    }
+  | Bin(Exp(l), tiles, Typ(r)) as tm =>
+    switch (tiles) {
+    | ([(_id, ([":"], []))], []) => ret(Asc(l, r))
+    | _ => ret(hole(tm))
+    }
+  | Bin(Exp(l), tiles, Exp(r)) as tm =>
+    switch (is_tuple_exp(tiles)) {
+    | Some(between_kids) =>
+      let tuple_children: list(Exp.t) =
+        [l]
+        @ between_kids
+        @ [r]
+        |> List.map((child: Exp.t) => {
+             switch (child) {
+             | {term: Tuple([{term: TupLabel(_) as tl, _}]), _} as tup =>
+               // We use the Id for the tuple as the ids for the tuplabels
+               let (_, rewrap) = IdTagged.unwrap(tup);
+               rewrap(tl);
+             | _ => child
+             }
+           });
+
+      ret(Tuple(tuple_children));
+    | None =>
+>>>>>>> 2b4a189132e4a0d653035d25ccba80643d53cb1a
       switch (tiles) {
       | ([(_id, t)], []) =>
         ret(
@@ -622,6 +826,7 @@ module Go = (P: {
         )
       | _ => ret(hole(tm))
       }
+<<<<<<< HEAD
     | Post(Typ(t), tiles) as tm =>
       switch (tiles) {
       | ([(_, (["(", ")"], [Typ(typ)]))], []) => ret(Ap(t, typ))
@@ -690,6 +895,119 @@ module Go = (P: {
           | _ => ret(TupLabel(l, r))
           }
         | _ => ret(hole(tm))
+=======
+    }
+  | tm => ret(hole(tm));
+}
+and pat = unsorted => {
+  let (term, inner_ids) = pat_term(unsorted);
+  let ids = ids(unsorted) @ inner_ids;
+  let p =
+    return(
+      p => Pat(p),
+      ids,
+      {
+        annotation: {
+          ids: ids,
+        },
+        term,
+      },
+    );
+  switch (term) {
+  | TupLabel(_) => Tuple([p]) |> Pat.fresh
+  | _ => p
+  };
+}
+and pat_term: unsorted => (Pat.term, list(Id.t)) = {
+  let ret = (term: Pat.term) => (term, []);
+  let hole = unsorted => Pat.hole(kids_of_unsorted(unsorted));
+  fun
+  | Op(tiles) as tm =>
+    switch (tiles) {
+    | ([(id, tile)], []) =>
+      ret(
+        switch (tile) {
+        | ([t], []) when Form.is_empty_tuple(t) => Tuple([])
+        | ([t], []) when Form.is_empty_list(t) => ListLit([])
+        | ([t], []) when Form.is_bool(t) => Atom(Bool(bool_of_string(t)))
+        | ([t], []) when Form.is_float(t) =>
+          Atom(Float(float_of_string(t)))
+        | ([t], []) when Form.is_int(t) => Atom(Int(Bigint.of_string(t)))
+        | ([t], []) when Form.is_string(t) =>
+          Atom(String(Form.strip_quotes(t)))
+        | ([t], []) when Form.is_var(t) => Var(t)
+        | ([t], []) when Form.is_wild(t) => Wild
+        | ([t], []) when Form.is_ctr(t) => Constructor(t, None)
+        | (["(", ")"], [Pat(body)]) => Parens(body)
+        | (label, [Pat(body)]) when is_probe_wrap(label) =>
+          should_instrument(id) ? Probe(body, Probe.empty) : body.term
+        | (["[", "]"], [Pat(body)]) =>
+          switch (body) {
+          | {term: Tuple(ps), _} => ListLit(ps)
+          | term => ListLit([term])
+          }
+        | ([t], []) when is_hole_label(t) => hole(tm)
+        | ([t], []) => Invalid(t)
+        | _ => hole(tm)
+        },
+      )
+    | _ => ret(hole(tm))
+    }
+  | Post(Pat(l), tiles) as tm =>
+    switch (tiles) {
+    | ([(_id, t)], []) =>
+      ret(
+        switch (t) {
+        | (["(", ")"], [Pat(arg)]) => Ap(l, arg)
+        | _ => hole(tm)
+        },
+      )
+    | _ => ret(hole(tm))
+    }
+  | Pre(_) as tm => ret(hole(tm))
+  | Bin(Pat(p), tiles, Typ(ty)) as tm =>
+    switch (tiles) {
+    | ([(_id, ([":"], []))], []) => ret(Asc(p, ty))
+    | _ => ret(hole(tm))
+    }
+  | Bin(Pat(l), tiles, Pat(r)) as tm =>
+    switch (is_tuple_pat(tiles)) {
+    | Some(between_kids) =>
+      let tuple_children =
+        [l]
+        @ between_kids
+        @ [r]
+        |> List.map((child: Pat.t) => {
+             switch (child) {
+             | {term: Tuple([{term: TupLabel(_), _} as tl]), _} => tl
+             | _ => child
+             }
+           });
+      ret(Tuple(tuple_children));
+    | None =>
+      switch (tiles) {
+      | ([(_id, (["="], []))], []) =>
+        switch (l.term) {
+        | Var(name) =>
+          ret(
+            TupLabel(
+              {
+                annotation: l.annotation,
+                term: Label(name),
+              },
+              r,
+            ),
+          )
+        | EmptyHole => ret(TupLabel(l, r))
+        | _ =>
+          let (e_term, rewrap) = IdTagged.unwrap(l);
+          ret(
+            TupLabel(
+              rewrap(MultiHole([Pat(e_term |> Pat.fresh)]): Pat.term),
+              r,
+            ),
+          );
+>>>>>>> 2b4a189132e4a0d653035d25ccba80643d53cb1a
         }
       }
     | tm => ret(hole(tm));
@@ -707,12 +1025,98 @@ module Go = (P: {
         },
       },
     );
+<<<<<<< HEAD
   }
   and tpat_term: unsorted => TPat.term = {
     let ret = (term: TPat.term) => term;
     let hole = unsorted => TPat.hole(kids_of_unsorted(unsorted));
     fun
     | Op(tiles) as tm =>
+=======
+  switch (term) {
+  | TupLabel(_) => Prod([t]) |> Typ.fresh
+  | _ => t
+  };
+}
+and typ_term: unsorted => (Typ.term, list(Id.t)) = {
+  let ret = (term: Typ.term) => (term, []);
+  let hole = unsorted => Typ.hole(kids_of_unsorted(unsorted));
+  fun
+  | Op(tiles) as tm =>
+    switch (tiles) {
+    | ([(_id, tile)], []) =>
+      ret(
+        switch (tile) {
+        | ([t], []) when Form.is_empty_tuple(t) => Prod([])
+        | (["Bool"], []) => Atom(Bool)
+        | (["Int"], []) => Atom(Int)
+        | (["SInt"], []) => Atom(SInt)
+        | (["Float"], []) => Atom(Float)
+        | (["String"], []) => Atom(String)
+        | (["Nat"], []) => Atom(Nat)
+        | ([t], []) when Form.is_typ_var(t) => Var(t)
+        | (["(", ")"], [Typ(body)]) => Parens(body)
+        | (label, [Typ(body)]) when is_probe_wrap(label) => body.term
+        | (["[", "]"], [Typ(body)]) => List(body)
+        | ([t], []) when is_hole_label(t) => hole(tm)
+        | ([t], []) => Unknown(Hole(Invalid(t)))
+        | _ => hole(tm)
+        },
+      )
+    | _ => ret(hole(tm))
+    }
+  | Post(Typ(t), tiles) as tm =>
+    switch (tiles) {
+    | ([(_, (["(", ")"], [Typ(typ)]))], []) => ret(Ap(t, typ))
+    | _ => ret(hole(tm))
+    }
+  /* forall and rec have to be before sum so that they bind tighter.
+   * Thus `rec A -> Left(A) + Right(B)` get parsed as `rec A -> (Left(A) + Right(B))`
+   * If this is below the case for sum, then it gets parsed as an invalid form. */
+  | Pre(([(_id, (["forall", "->"], [TPat(tpat)]))], []), Typ(t)) =>
+    ret(Forall(tpat, t))
+  | Pre(([(_id, (["rec", "->"], [TPat(tpat)]))], []), Typ(t)) =>
+    ret(Rec(tpat, t))
+  | Pre(tiles, Typ({term: Sum(t0), annotation: {ids, _}})) as tm =>
+    /* Case for leading prefix + preceeding a sum */
+    switch (tiles) {
+    | ([(_, (["+"], []))], []) => (Sum(t0), ids)
+    | _ => ret(hole(tm))
+    }
+  | Pre(tiles, Typ(t)) as tm =>
+    switch (tiles) {
+    | ([(_, (["+"], []))], []) =>
+      ret(Sum([parse_sum_term(t)] |> ConstructorMap.mk(~mk_bad)))
+    | _ => ret(hole(tm))
+    }
+  | Bin(Typ(t1), tiles, Typ(t2)) as tm when is_typ_bsum(tiles) != None =>
+    switch (is_typ_bsum(tiles)) {
+    | Some(between_kids) =>
+      ret(
+        Sum(
+          List.map(parse_sum_term, [t1] @ between_kids @ [t2])
+          |> ConstructorMap.mk(~mk_bad),
+        ),
+      )
+    | None => ret(hole(tm))
+    }
+  | Bin(Typ(l), tiles, Typ(r)) as tm =>
+    switch (is_tuple_typ(tiles)) {
+    | Some(between_kids) =>
+      let tuple_children: list(Typ.t) =
+        [l]
+        @ between_kids
+        @ [r]
+        |> List.map((child: Typ.t) => {
+             switch (child) {
+             | {term: Prod([{term: TupLabel(_), _} as tl]), _} => tl
+             | _ => child
+             }
+           });
+
+      ret(Prod(tuple_children));
+    | None =>
+>>>>>>> 2b4a189132e4a0d653035d25ccba80643d53cb1a
       switch (tiles) {
       | ([(_id, tile)], []) =>
         ret(
@@ -726,6 +1130,7 @@ module Go = (P: {
         )
       | _ => ret(hole(tm))
       }
+<<<<<<< HEAD
     | (Pre(_) | Post(_)) as tm => ret(hole(tm))
     | tm => ret(hole(tm));
   }
@@ -774,6 +1179,73 @@ module Go = (P: {
       }
     };
   }
+=======
+    }
+  | tm => ret(hole(tm));
+}
+and tpat = unsorted => {
+  let term = tpat_term(unsorted);
+  let ids = ids(unsorted);
+  return(
+    ty => TPat(ty),
+    ids,
+    {
+      term,
+      annotation: {
+        ids: ids,
+      },
+    },
+  );
+}
+and tpat_term: unsorted => TPat.term = {
+  let ret = (term: TPat.term) => term;
+  let hole = unsorted => TPat.hole(kids_of_unsorted(unsorted));
+  fun
+  | Op(tiles) as tm =>
+    switch (tiles) {
+    | ([(_id, tile)], []) =>
+      ret(
+        switch (tile) {
+        | ([t], []) when Form.is_typ_var(t) => Var(t)
+        | ([t], []) when is_hole_label(t) => hole(tm)
+        | ([t], []) => Invalid(t)
+        | (label, [TPat(body)]) when is_probe_wrap(label) => body.term
+        | _ => hole(tm)
+        },
+      )
+    | _ => ret(hole(tm))
+    }
+  | (Pre(_) | Post(_)) as tm => ret(hole(tm))
+  | tm => ret(hole(tm));
+}
+
+and rul = (unsorted): Rul.t => {
+  let e = exp(unsorted);
+  let mk_rules = (scrut: Exp.t, rules, ids): Rul.t => {
+    term: Rules(scrut, rules),
+    annotation: {
+      ids: ids,
+    },
+  };
+  switch (e) {
+  | {term: MultiHole(_), _} =>
+    switch (unsorted) {
+    | Bin(Exp(scrut), tiles, Exp(last_clause)) =>
+      switch (is_rules(tiles)) {
+      | Some((ps, leading_clauses)) =>
+        mk_rules(
+          scrut,
+          List.combine(ps, leading_clauses @ [last_clause]),
+          ids(unsorted),
+        )
+      | None => mk_rules(e, [], [])
+      }
+    | _ => mk_rules(e, [], [])
+    }
+  | _ => mk_rules(e, [], [])
+  };
+}
+>>>>>>> 2b4a189132e4a0d653035d25ccba80643d53cb1a
 
   and any = (unsorted, sort: Sort.t): Any.t => {
     switch (sort) {

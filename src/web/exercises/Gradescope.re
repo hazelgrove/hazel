@@ -46,9 +46,7 @@ module Main = {
     |> ExercisesMode.Store.exercise_export_of_sexp;
   };
   let gen_grading_report = (exercise): report => {
-    let zipper_pp = zipper => {
-      Printer.pretty_print(zipper);
-    };
+    let zipper_pp = Printer.of_zipper;
     let terms =
       stitch_term(exercise.eds)
       |> map_stitched((_, {term, _}: TermItem.t) => term);

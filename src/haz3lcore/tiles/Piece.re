@@ -215,6 +215,7 @@ let is_term = (p: t('p)) =>
   | _ => false
   };
 
+//TODO(andrew): rm if unused
 /* If the piece is parentheses, return the child. Otherwise,
  * return a singleton segment consisting of the piece */
 let unparenthesize = (piece: t('p)): list(t('p)) =>

@@ -150,20 +150,16 @@ let rec matches_exp =
     | (_, EmptyHole)
     | (_, Constructor("$e", _)) => true
 
-    | (Cast(d, dty1, dty2), Cast(f, fty1, fty2)) =>
-      matches_exp(d, f)
-      && matches_typ(dty1, fty1)
-      && matches_typ(dty2, fty2)
-    | (Cast(_), _) => false
+    | (Asc(d, dty1), Asc(f, fty1)) =>
+      matches_exp(d, f) && matches_typ(dty1, fty1)
+    | (Asc(_), _) => false
     | (Closure(denv, d), Closure(fenv, f)) =>
       matches_exp(~denv, d, ~fenv, f)
 
     | (_, Closure(fenv, f)) => matches_exp(~fenv, d, f)
-    | (_, Cast(f, _, _)) => matches_exp(d, f)
-    | (_, FailedCast(f, _, _)) => matches_exp(d, f)
+    | (_, Asc(f, _)) => matches_exp(d, f)
 
     | (Closure(denv, d), _) => matches_exp(~denv, d, f)
-    | (FailedCast(d, _, _), _) => matches_exp(d, f)
     | (Filter(Residue(_), d), _) => matches_exp(d, f)
 
     | (Var(dx), Var(fx)) =>
@@ -284,6 +280,10 @@ let rec matches_exp =
 
     | (Test(d2), Test(f2)) => matches_exp(d2, f2)
     | (Test(_), _) => false
+
+    | (HintedTest(d2, _hint1), HintedTest(f2, _hint2)) =>
+      matches_exp(d2, f2)
+    | (HintedTest(_), _) => false
 
     | (Cons(d1, d2), Cons(f1, f2)) =>
       matches_exp(d1, f1) && matches_exp(d2, f2)

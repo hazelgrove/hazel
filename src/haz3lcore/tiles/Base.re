@@ -39,3 +39,36 @@ let mk_projector = (~sort: Sort.t, ~model) => {
   mold: Mold.mk_op(sort, []), /* Projectors currently are all convex */
   model,
 };
+
+/* If the piece is parentheses, return the child. Otherwise,
+ * return a singleton segment consisting of the piece */
+let unparenthesize = (piece: piece('p)): segment('p) =>
+  switch (piece) {
+  | Tile({
+      label: ["(", ")"],
+      mold: {nibs: ({shape: Convex, _}, {shape: Convex, _}), _},
+      children: [seg],
+      _,
+    }) => seg
+  | _ => [piece]
+  };
+
+let rec segment_to_string =
+        (~holes=" ", ~concave_holes=" ", seg: segment('p)): string =>
+  seg
+  |> List.map(piece_to_string(~holes, ~concave_holes))
+  |> String.concat("")
+and piece_to_string =
+    (~holes: string, ~concave_holes: string, p: piece('p)): string =>
+  switch (p) {
+  | Tile(t) => tile_to_string(~holes, ~concave_holes, t)
+  | Grout({shape: Concave, _}) => concave_holes
+  | Grout({shape: Convex, _}) => holes
+  | Secondary(w) => Secondary.get_string(w.content)
+  | Projector(p) => "🎦" // TODO: print projectors
+  }
+and tile_to_string =
+    (~holes: string, ~concave_holes: string, t: tile('p)): string =>
+  Aba.mk(t.shards, t.children)
+  |> Aba.join(List.nth(t.label), segment_to_string(~holes, ~concave_holes))
+  |> String.concat("");

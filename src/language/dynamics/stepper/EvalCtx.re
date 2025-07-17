@@ -26,6 +26,7 @@ type term =
   | Dot1(t, DHExp.t)
   | Dot2(DHExp.t, t)
   | Test(t)
+  | HintedTest(t, DHExp.t)
   | Parens(t)
   | Probe(t, Probe.t)
   | ListLit(t, (list(DHExp.t), list(DHExp.t)))
@@ -34,8 +35,7 @@ type term =
   | Cons2(DHExp.t, t)
   | ListConcat1(t, DHExp.t)
   | ListConcat2(DHExp.t, t)
-  | Cast(t, Typ.t, Typ.t)
-  | FailedCast(t, Typ.t, Typ.t)
+  | Asc(t, Typ.t)
   | DynamicErrorHole(t, InvalidOperationError.t)
   | MatchScrut(t, list((Pat.t, DHExp.t)))
   | MatchRule(
@@ -93,6 +93,9 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
     | Test(ctx) =>
       let d1 = compose(ctx, d);
       Test(d1) |> wrap;
+    | HintedTest(ctx, h) =>
+      let d1 = compose(ctx, d);
+      HintedTest(d1, h) |> wrap;
     | Parens(ctx) =>
       let d1 = compose(ctx, d);
       Parens(d1) |> wrap;
@@ -150,12 +153,9 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
     | FixF(v, ctx, env) =>
       let d = compose(ctx, d);
       FixF(v, d, env) |> wrap;
-    | Cast(ctx, ty1, ty2) =>
+    | Asc(ctx, ty1) =>
       let d = compose(ctx, d);
-      Cast(d, ty1, ty2) |> wrap;
-    | FailedCast(ctx, ty1, ty2) =>
-      let d = compose(ctx, d);
-      FailedCast(d, ty1, ty2) |> wrap;
+      Asc(d, ty1) |> wrap;
     | DynamicErrorHole(ctx, err) =>
       let d = compose(ctx, d);
       DynamicErrorHole(d, err) |> wrap;

@@ -28,6 +28,9 @@
   border-radius: 0.4em;
   width: fit-content;
   min-width: 100%;
+  display: flex;
+  flex-direction: column;
+  flex-grow: 1;
 }
 
 .cell > * {

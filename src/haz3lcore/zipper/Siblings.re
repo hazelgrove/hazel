@@ -79,7 +79,13 @@ let left_neighbor: t('p) => option(Piece.t('p)) =
 let right_neighbor: t('p) => option(Piece.t('p)) =
   ((_, r)) => ListUtil.hd_opt(r);
 
-let neighbors: t('p) => (option(Piece.t('p)), option(Piece.t('p))) =
+let neighbor = (d: Direction.t, (l, r): t('p)): option(Piece.t('p)) =>
+  switch (d) {
+  | Left => left_neighbor((l, r))
+  | Right => right_neighbor((l, r))
+  };
+
+let neighbors: t => (option(Piece.t('p)), option(Piece.t('p))) =
   n => (left_neighbor(n), right_neighbor(n));
 
 let trim_secondary = ((l_sibs, r_sibs): t('p)) => (

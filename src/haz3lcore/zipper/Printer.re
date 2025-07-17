@@ -1,118 +1,72 @@
 open Util;
-open Util.OptUtil.Syntax;
 
-let seg_of_zip = Zipper.seg_without_buffer;
+let remove_projector: Piece.t => Segment.t =
+  fun
+  | Projector(pr) => Piece.unparenthesize(pr.syntax)
+  | x => [x];
 
-let rec of_segment = (~holes, seg: Segment.t('p)): string =>
-  seg |> List.map(of_piece(~holes)) |> String.concat("")
-and of_piece = (~holes, p: Piece.t('p)): string =>
-  switch (p) {
-  | Tile(t) => of_tile(~holes, t)
-  | Grout({shape: Concave, _}) => " "
-  | Grout({shape: Convex, _}) when holes != None => Option.get(holes)
-  | Grout({shape: Convex, _}) => " "
-  | Secondary(w) =>
-    Secondary.is_linebreak(w) ? "\n" : Secondary.get_string(w.content)
-  | Projector(_) => "🎦" // TODO: print projectors
-  }
-and of_tile = (~holes, t: Tile.t('p)): string =>
-  Aba.mk(t.shards, t.children)
-  |> Aba.join(of_delim(t), of_segment(~holes))
-  |> String.concat("")
-and of_delim = (t: Piece.tile('p), i: int): string => List.nth(t.label, i);
+let measured_no_projectors = (segment: Segment.t) =>
+  segment
+  |> ZipperBase.MapPiece.of_segment(remove_projector)
+  |> Measured.of_segment(_, ProjectorCore.Shape.Map.empty);
 
-let to_string_basic = (z: Zipper.t('p)): string => {
-  z |> seg_of_zip |> of_segment(~holes=None);
-};
-
-let lines_to_list = String.split_on_char('\n');
-
-let caret_str = "░";
-
-let to_rows =
-    (
-      ~holes: option(string),
-      ~measured: Measured.t,
-      ~caret: option(Point.t),
-      ~indent: string,
-      ~segment: Segment.t('p),
-    )
-    : list(string) => {
-  let indent_of = i => Measured.Rows.find(i, measured.rows).indent;
-  let mk_indent = (i, r) => StringUtil.repeat(indent_of(i), indent) ++ r;
-  let rows =
-    segment |> of_segment(~holes) |> lines_to_list |> List.mapi(mk_indent);
+let add_caret =
+    (caret: option((string, Point.t)), rows: list(string)): list(string) =>
   switch (caret) {
-  | Some({row, col}) =>
+  | Some((caret_str, {row, col})) =>
     switch (ListUtil.split_nth_opt(row, rows)) {
     | Some((pre, caret_row, suf)) when col < String.length(caret_row) =>
       pre @ [StringUtil.insert_nth(col, caret_str, caret_row)] @ suf
     | Some((pre, caret_row, suf)) => pre @ [caret_row ++ caret_str] @ suf
-    | _ => rows
+    | None => rows
     }
   | None => rows
   };
-};
 
-let measured = z =>
-  z
-  |> Zipper.seg_without_buffer
-  |> Measured.of_segment(_, ProjectorShape.Map.empty); // No projectors
+let add_indent = (measured: Measured.t, indent: string, i: int, r: string) =>
+  StringUtil.repeat(Measured.Rows.find(i, measured.rows).indent, indent) ++ r;
 
-let pretty_print =
-    (~holes: option(string)=Some(""), z: Zipper.t('p)): string =>
-  to_rows(
-    ~holes,
-    ~measured=measured(z),
-    ~caret=None,
-    ~indent=" ",
-    ~segment=seg_of_zip(z),
-  )
-  |> String.concat("\n");
-
-let zipper_to_string =
-    (~holes: option(string)=Some(""), z: Zipper.t('p)): string =>
-  to_rows(
-    ~holes,
-    ~measured=measured(z),
-    ~caret=None,
-    ~indent="",
-    ~segment=seg_of_zip(z),
-  )
-  |> String.concat("\n");
-
-let to_string_selection = (zipper: Zipper.t('p)): string => {
-  to_rows(
-    ~measured=measured(zipper),
-    ~caret=None,
-    ~indent=" ",
-    ~holes=None,
-    ~segment=zipper.selection.content,
-  )
-  |> String.concat("\n");
-};
-
-let zipper_of_string =
-    (~zipper_init=Zipper.init(), str: string): option(Zipper.t('p)) => {
-  let insert = (z: option(Zipper.t('p)), c: string): option(Zipper.t('p)) => {
-    let* z = z;
-    try(c == "\r" ? Some(z) : Insert.go(c, z)) {
-    | exn =>
-      print_endline("WARN: zipper_of_string: " ++ Printexc.to_string(exn));
-      None;
-    };
+let add_indents = (segment, measured, indent: string, rows: list(string)) =>
+  if (indent == "") {
+    /* If no indentation is needed, we don't need to bother calculating measured */
+    rows;
+  } else {
+    let measured =
+      switch (measured) {
+      | Some(m) => m
+      | None => measured_no_projectors(segment)
+      };
+    List.mapi(add_indent(measured, indent), rows);
   };
-  str |> Util.StringUtil.to_list |> List.fold_left(insert, Some(zipper_init));
-};
 
-/* This serializes the current editor to text, resets the current
-   editor, and then deserializes. It is intended as a (tactical)
-   nuclear option for weird backpack states */
-let reparse = z =>
-  zipper_of_string(~zipper_init=Zipper.init(), zipper_to_string(z));
+/* Use this to pretty-print segments. Note that printing holes with
+ * a space may result in extraneous whitespace, but printing without
+ * a space may result in tokens getting glued together. You can't win */
+let of_segment =
+    (
+      ~holes=" ",
+      ~concave_holes=" ",
+      ~indent=" ",
+      ~caret: option((string, Point.t))=None,
+      ~measured=?,
+      segment: Segment.t,
+    )
+    : string =>
+  segment
+  |> Segment.to_string(~holes, ~concave_holes)
+  |> String.split_on_char('\n')
+  |> add_indents(segment, measured, indent)
+  |> add_caret(caret)
+  |> String.concat("\n");
 
-let parse_exp = (~of_projector, s: string) => {
-  open OptUtil.Syntax;
-  let+ zip = zipper_of_string(s);
-  MakeTerm.from_zip_for_sem(~of_projector, zip).term;
+/* Use this to pretty-print zippers. See above comments on holes */
+let of_zipper =
+    (~holes=?, ~concave_holes=?, ~indent=?, ~caret=?, z: Zipper.t): string => {
+  let segment = Zipper.seg_without_buffer(z);
+  /* Note that we can't just pass in the measured from editor as
+   * we must recalculate the measured after removing projectors */
+  let measured = measured_no_projectors(segment);
+  let caret =
+    Option.map(char => (char, Zipper.caret_point(measured, z)), caret);
+  of_segment(~holes?, ~concave_holes?, ~indent?, ~caret, ~measured, segment);
 };
