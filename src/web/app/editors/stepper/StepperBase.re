@@ -46,6 +46,7 @@ module Model = {
     at_id: Id.t,
     at_exp: Exp.t,
     with_exp: Exp.t,
+    name: string,
     // Calculated
     next_exp: Calc.saved(Exp.t),
   }
@@ -192,6 +193,17 @@ module Model = {
       // TODO(nishant): unpack the axiom correctly
       let evalTactic =
         switch (step_kind) {
+        | AxiomStep(axiom) =>
+          switch (axiom.name) {
+          // Unpack the axiom names from Axioms.re and map to Coq tactics
+          | "Iden(+)L" => "rewrite Qplus_0_l"
+          | "Zero(*)" => "rewrite Qmult_0_r"
+          | "Comm(+)" => "rewrite Qplus_comm"
+          | "Assoc(+)" => "rewrite Qplus_assoc"
+          | "Comm(*)" => "rewrite Qmult_comm"
+          | "Assoc(*)" => "rewrite Qmult_assoc"
+          | _ => "cbv"
+          }
         //   switch (step.name) {
         //   | IdPlusL => "rewrite Qplus_0_l"
         //   | CommPlus => "rewrite Qplus_comm"
@@ -390,7 +402,7 @@ module Update = {
     | StepForward(int)
     | AddInduction(option(Exp.t))
     | AddForall
-    | AddAxiomStep(Exp.t, Exp.t)
+    | AddAxiomStep(Exp.t, Exp.t, string)
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   and single_step = unit
@@ -525,7 +537,7 @@ module Update = {
     //   // model is actually model.step here
     //   Model.exportCoq(model);
     //   model |> return_quiet;
-    | (AddAxiomStep(at_exp, with_exp), MissingStep(_), _) =>
+    | (AddAxiomStep(at_exp, with_exp, axiom_name), MissingStep(_), _) =>
       let at_id = Exp.rep_id(at_exp);
       {
         ...model,
@@ -534,11 +546,12 @@ module Update = {
             at_id,
             at_exp,
             with_exp,
+            name: axiom_name,
             next_exp: Calc.Pending,
           }),
       }
       |> return;
-    | (AddAxiomStep(_, _), _, _) => model |> return_quiet
+    | (AddAxiomStep(_, _, _), _, _) => model |> return_quiet
     };
   }
 
@@ -654,7 +667,7 @@ module Update = {
     | StepForward(_) => true
     | AddInduction(_) => true
     | AddForall => true
-    | AddAxiomStep(_, _) => true
+    | AddAxiomStep(_, _, _) => true
     };
   }
 
@@ -1142,7 +1155,7 @@ module Update = {
 
   and calculate_axiom_step = (~settings, exp, ctx, state, m, hidden, editor) =>
     {
-      let {at_id, at_exp, with_exp, next_exp}: Model.axiom_step = m;
+      let {at_id, at_exp, with_exp, name, next_exp}: Model.axiom_step = m;
       open OptUtil.Syntax;
       let+ next_exp =
         next_exp
@@ -1158,6 +1171,7 @@ module Update = {
           at_id,
           at_exp,
           with_exp,
+          name,
           next_exp: next_exp |> Calc.save,
         }),
         hidden |> Calc.set(false),
@@ -1470,7 +1484,8 @@ module View = {
                     | AddForall => inject(AddForall)
                     | AddInduction(exp) => inject(AddInduction(exp))
                     | CoqExport => root_inject(CoqExport)
-                    | AddAxiomStep(e1, e2) => inject(AddAxiomStep(e1, e2)),
+                    | AddAxiomStep(e1, e2, axiom_name) =>
+                      inject(AddAxiomStep(e1, e2, axiom_name)),
                   ~editor=model.editor |> Calc.get_saved_exc(~print="Editor"),
                   m,
                 )
@@ -1581,7 +1596,8 @@ module View = {
             | AddForall => inject(AddForall)
             | AddInduction(exp) => inject(AddInduction(exp))
             | CoqExport => root_inject(CoqExport)
-            | AddAxiomStep(e1, e2) => inject(AddAxiomStep(e1, e2)),
+            | AddAxiomStep(e1, e2, axiom_name) =>
+              inject(AddAxiomStep(e1, e2, axiom_name)),
           ~undo,
           ms,
         )

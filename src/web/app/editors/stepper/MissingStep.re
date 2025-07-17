@@ -16,7 +16,7 @@ module Model = {
     | NoneOpen;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type rewrites = {rewrites: list(Exp.t)};
+  type rewrites = {rewrites: list((string, Exp.t))};
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -169,7 +169,9 @@ module Update = {
         let.calc exp = selected_exp;
         open OptUtil.Syntax;
         let* exp' = exp;
-        Some(Model.{rewrites: ProofCtx.get_rewrites(Axioms.v, exp')});
+        Some(
+          Model.{rewrites: ProofCtx.get_rewrites_with_names(Axioms.v, exp')},
+        );
       };
     let open_box =
       switch (open_box) {
@@ -252,7 +254,7 @@ module View = {
     | AddForall
     | CoqExport
     | HideStepper
-    | AddAxiomStep(Exp.t, Exp.t)
+    | AddAxiomStep(Exp.t, Exp.t, string)
     | MakeActive(Selection.t);
 
   let get_segment_bounds = (~measured: Measured.t, segment: Segment.t) => {
@@ -307,13 +309,19 @@ module View = {
     )
     @ (
       List.map(
-        (exp: Exp.t) =>
+        ((axiom_name, exp): (string, Exp.t)) =>
           [
             WebUtil.div_c(
               "axiom-row",
               [
                 Widgets.button(Icons.star, _ =>
-                  signal(AddAxiomStep(Model.get_selected_exp(model), exp))
+                  signal(
+                    AddAxiomStep(
+                      Model.get_selected_exp(model),
+                      exp,
+                      axiom_name,
+                    ),
+                  )
                 ),
                 exp
                 |> Haz3lcore.ExpToSegment.(
@@ -516,6 +524,7 @@ module View = {
                                 AddAxiomStep(
                                   unboxed_selected_exp,
                                   unboxed_cached_exp,
+                                  "UserRewrite",
                                 ),
                               )
                             ),

@@ -1,7 +1,6 @@
 /*
  Coq export for Hazel arithmetic expressions
  */
-open Haz3lcore;
 open Util;
 
 let rec unique_vars_in_ast_helper =

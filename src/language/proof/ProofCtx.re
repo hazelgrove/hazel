@@ -51,3 +51,32 @@ let rec get_rewrites = (ctx: t, exp: Exp.t) =>
     };
   | [_, ...rs] => get_rewrites(rs, exp)
   };
+
+let rec get_rewrites_with_names = (ctx: t, exp: Exp.t) =>
+  switch (ctx) {
+  | [] => []
+  | [
+      {
+        name,
+        exp: _,
+        rule: {bindings, assumptions: _, conclusion: Equality(a, b)},
+      },
+      ...rs,
+    ] =>
+    let bindings = get_empty_bindings(bindings);
+    switch (MatchExp.match_exp([], bindings, a, exp)) {
+    | Some(m) => [
+        (name, b |> MatchExp.substitute_exp(m)),
+        ...get_rewrites_with_names(rs, exp),
+      ]
+    | None =>
+      switch (MatchExp.match_exp([], bindings, b, exp)) {
+      | Some(m) => [
+          (name, a |> MatchExp.substitute_exp(m)),
+          ...get_rewrites_with_names(rs, exp),
+        ]
+      | None => get_rewrites_with_names(rs, exp)
+      }
+    };
+  | [_, ...rs] => get_rewrites_with_names(rs, exp)
+  };
