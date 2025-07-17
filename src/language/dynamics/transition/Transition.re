@@ -872,27 +872,52 @@ module Transition = (EV: EV_MODE) => {
         is_value: true,
       });
     | Module(entries) =>
-      //   let. _ = otherwise(env, d => Module(d) |> rewrap);
-      let val_bindings =
-        List.fold_left(
-          (acc: requirements(unit, DHExp.t), entry: TermBase.module_entry_t) => {
-            let d' =
-              switch (entry.term) {
-              | ValBinding(v, d) =>
-                let. _ = acc
-                and. d' =
-                  req_final(
-                    req(state, env),
-                    d => ValBinding(v, d, ([], [])) |> wrap_ctx,
-                    d,
-                  );
-                Constructor;
-              | _ => assert(false)
-              };
-            acc;
-          },
-          otherwise(env, entries),
-          entries,
+      let rec replace_exps_in_entries =
+              (entries: list(ModuleEntry.t), exps: list(Exp.t)) =>
+        switch (entries, exps) {
+        | ([], _) => []
+        | (vs, []) => vs
+        | ([{term: ValBinding(p, _), annotation}, ...vs], [e, ...es]) => [
+            {
+              term: ValBinding(p, e),
+              annotation,
+            },
+            ...replace_exps_in_entries(vs, es),
+          ]
+        | ([{term: TypeDef(p, t), annotation}, ...vs], es) => [
+            {
+              term: TypeDef(p, t),
+              annotation,
+            },
+            ...replace_exps_in_entries(vs, es),
+          ]
+        | _ => failwith("Unsupported module entry in replace_exps_in_entries")
+        };
+
+      let. _ =
+        otherwise(env, d =>
+          Module(replace_exps_in_entries(entries, d)) |> rewrap
+        )
+      and. d' =
+        req_all_cuml(
+          (vs, d) => req(state, env, d),
+          (eval_ctx, (prev, future)) =>
+            ValBinding(
+              List.nth(entries, List.length(prev))
+              |> (
+                fun
+                | {term: ValBinding(p, _), _} => p
+                | _ => failwith("Expected ValBinding in module entries")
+              ),
+              eval_ctx,
+              (prev, future),
+            )
+            |> wrap_ctx,
+          entries
+          |> List.map(
+               fun
+               | {term: ValBinding(_, e), _} => e,
+             ),
         );
 
       /*
@@ -939,7 +964,7 @@ module Transition = (EV: EV_MODE) => {
       // {val x = 5;; val y = 5 + x}
 
       // req_final_all(val_bindings, evaluated_ds => List.map(, entries))
-      let. _ = otherwise(env, Module(entries) |> rewrap);
+      //   let. _ = otherwise(env, Module(entries) |> rewrap);
 
       Constructor;
     };
