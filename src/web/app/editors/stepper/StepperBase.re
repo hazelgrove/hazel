@@ -196,12 +196,16 @@ module Model = {
         | AxiomStep(axiom) =>
           switch (axiom.name) {
           // Unpack the axiom names from Axioms.re and map to Coq tactics
-          | "Iden(+)L" => "rewrite Qplus_0_l"
-          | "Zero(*)" => "rewrite Qmult_0_r"
-          | "Comm(+)" => "rewrite Qplus_comm"
-          | "Assoc(+)" => "rewrite Qplus_assoc"
-          | "Comm(*)" => "rewrite Qmult_comm"
-          | "Assoc(*)" => "rewrite Qmult_assoc"
+          | "Iden(+)L" => "rewrite Z.add_0_l"
+          | "Iden(+)R" => "rewrite Z.add_0_r"
+          | "Iden(*)L" => "rewrite Z.mul_1_l"
+          | "Iden(*)R" => "rewrite Z.mul_1_r"
+          | "Zero(*)L" => "rewrite Z.mul_0_l"
+          | "Zero(*)R" => "rewrite Z.mul_0_r"
+          | "Comm(+)" => "rewrite Z.add_comm"
+          | "Assoc(+)" => "rewrite Z.add_assoc"
+          | "Comm(*)" => "rewrite Z.mul_comm"
+          | "Assoc(*)" => "rewrite Z.mul_assoc"
           | _ => "cbv"
           }
         //   switch (step.name) {
@@ -297,7 +301,7 @@ module Model = {
       | Some(next) =>
         let finalExpr = CoqExport.string_of_d(Calc.get_saved_exc(next.expr));
         Printf.sprintf(
-          "From Stdlib Require QArith.\n%s\nTheorem equiv_exp:%s%s=%s.\nProof.\nintros.\n%s\nreflexivity. Qed.",
+          "Require Import ZArith.\nOpen Scope Z_scope.\n%s\nTheorem equiv_exp:%s%s=%s.\nProof.\nintros.\n%s\nreflexivity. Qed.",
           String.concat("\n", lemmas),
           forall_str,
           finalExpr,
