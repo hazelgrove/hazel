@@ -303,11 +303,15 @@ svg:has(.child-line) {
 
 /* BACKPACK DECO */
 
+.backpack {
+  z-index: 32;
+}
+
 .backpack .code-text {
   position: relative;
 }
 
-.backpack.cant-put-down {
+.backpack.cant-put-down > * {
   opacity: 40%;
 }
 
