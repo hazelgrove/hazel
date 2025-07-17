@@ -61,6 +61,9 @@ let pop = (from: Direction.t, (pre, suf): t): option((Piece.t, t)) =>
 
 let incomplete_tiles = TupleUtil.map2(Segment.incomplete_tiles);
 
+let incomplete_tiles_deep = (~depth_min=0, seg) =>
+  TupleUtil.map2(Segment.incomplete_tiles_deep(~depth_min), seg);
+
 let split_by_matching = id => TupleUtil.map2(Segment.split_by_matching(id));
 
 let reassemble = TupleUtil.map2(Segment.reassemble);
