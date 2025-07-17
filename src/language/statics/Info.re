@@ -731,19 +731,7 @@ let is_error = (ci: t): bool => {
   };
 };
 
-let is_warning = (ci: t): bool => {
-  switch (ci) {
-  | InfoExp({warning, _})
-  | InfoPat({warning, _})
-  | InfoTyp({warning, _})
-  | InfoTPat({warning, _}) =>
-    switch (warning) {
-    | None => false
-    | _ => true
-    }
-  | Secondary(_) => false
-  };
-};
+let is_warning = (ci: t): bool => warning_of(ci) != None;
 
 /* Determined the type of an expression or pattern 'after hole fixing';
    that is, some ill-typed terms are considered to be 'wrapped in
@@ -822,7 +810,6 @@ let derived_exp =
       ~ancestors,
       ~self,
       ~co_ctx,
-      ~warning: Warning.t,
       ~label_inference: option(label_inference(exp)),
       ~inferred_label: option(LabeledTuple.label),
       ~label_sort,
@@ -831,6 +818,7 @@ let derived_exp =
   let cls = Cls.Exp(Exp.cls_of_term(uexp.term));
   let status = status_exp(ctx, ana, self);
   let ty = fixed_typ_exp(ctx, ana, self);
+  let warning: Warning.t = None;
   {
     cls,
     self,
@@ -862,12 +850,17 @@ let derived_pat =
       ~label_inference,
       ~inferred_label,
       ~label_sort,
-      ~warning: Warning.t,
     )
     : pat => {
   let cls = Cls.Pat(Pat.cls_of_term(upat.term));
   let status = status_pat(ctx, ana, self);
   let ty = fixed_typ_pat(ctx, ana, self);
+  let warning: Warning.t =
+    switch (upat.term) {
+    | Var(name) => Warning.var_is_unused(co_ctx, name)
+    | _ => None
+    };
+
   {
     cls,
     self,
@@ -888,8 +881,7 @@ let derived_pat =
 };
 
 /* Add derivable attributes for types */
-let derived_typ =
-    (~utyp: Typ.t, ~ctx, ~ancestors, ~expects, ~warning: Warning.t): typ => {
+let derived_typ = (~utyp: Typ.t, ~ctx, ~ancestors, ~expects): typ => {
   let cls: Cls.t =
     /* Hack to improve CI display */
     switch (expects, Typ.cls_of_term(utyp.term)) {
@@ -898,22 +890,23 @@ let derived_typ =
     | (_, cls) => Cls.Typ(cls)
     };
   let status = status_typ(ctx, expects, utyp);
+  let warning: Warning.t = None;
   {
     cls,
     ctx,
     ancestors,
     status,
-    warning,
     expects,
+    warning,
     term: utyp,
   };
 };
 
 /* Add derivable attributes for type patterns */
-let derived_tpat =
-    (~utpat: TPat.t, ~ctx, ~ancestors, ~warning: Warning.t): tpat => {
+let derived_tpat = (~utpat: TPat.t, ~ctx, ~ancestors): tpat => {
   let cls = Cls.TPat(TPat.cls_of_term(utpat.term));
   let status = status_tpat(ctx, utpat);
+  let warning: Warning.t = None;
   {
     cls,
     ancestors,

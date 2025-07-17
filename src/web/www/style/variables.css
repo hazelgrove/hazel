@@ -33,8 +33,6 @@
   --Y3: oklch(71% 0.2 95); /* incomplete shards */
 
   /* WARNING HOLE DECO */
-  --warning-hole-stroke: oklch(0.6 0.1258 78.35);
-  --warning-hole-fill: oklch(0.9097 0.144 95.11);
 
   /* MAGMA - opportunities */
   --R0: oklch(85% 0.1 30); /* broken shard fill */
@@ -129,6 +127,10 @@
 
   --error-hole-fill: var(--ERRHOLE);
 
+  /* WARNING HOLE DECO */
+  --warning-hole-stroke: orange;
+  --warning-hole-fill: oklch(from var(--warning-hole-stroke) 105% c h / 0.3);
+
   /* BACKPACK DECO */
 
   --backpack-selection: var(--shard-selected);
@@ -204,9 +206,9 @@
   /* BELOW CODE LEVEL */
   --err-hole-arms-z: 1;
   --tile-z: 2;
-  --err-hole-z: 4;
+  --err-hole-z: 3;
   --warn-hole-z: 3;
-  --select-z: 5;
+  --select-z: 4;
   --projector-underlay-z: 9;
 
   /* AT CODE LEVEL */
@@ -230,4 +232,8 @@
   /* HACKS */
   --modal-back-z: 100;
   --modal-z: 101;
+
+
 }
+
+

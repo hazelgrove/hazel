@@ -80,4 +80,4 @@ let join: (Ctx.t, list(entry)) => Typ.t =
   };
 
 let contains_hole = (co_ctx: t): bool =>
-  VarMap.lookup(co_ctx, "__hole__") !== None;
+  VarMap.lookup(co_ctx, "$hole") !== None;

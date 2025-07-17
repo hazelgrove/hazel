@@ -210,7 +210,7 @@ and uexp_to_info_map =
       m: Map.t,
     )
     : (Info.exp, Map.t) => {
-  let add' = (~label_inference=?, ~self, ~co_ctx, ~warning: Warning.t=None, m) => {
+  let add' = (~label_inference=?, ~self, ~co_ctx, m) => {
     let info =
       Info.derived_exp(
         ~uexp,
@@ -219,7 +219,6 @@ and uexp_to_info_map =
         ~ancestors,
         ~self=Option.value(~default=self, override_self),
         ~co_ctx,
-        ~warning,
         ~label_inference,
         ~inferred_label,
         ~label_sort,
@@ -227,8 +226,8 @@ and uexp_to_info_map =
 
     (info, add_info(ids, InfoExp(info), m));
   };
-  let add = (~self, ~co_ctx, ~warning: Warning.t=None, m) => {
-    add'(~self=Common(self), ~co_ctx, ~warning, m);
+  let add = (~self, ~co_ctx, m) => {
+    add'(~self=Common(self), ~co_ctx, m);
   };
   let ancestors = [Exp.rep_id(uexp)] @ ancestors;
   let uexp_to_info_map =
@@ -325,13 +324,15 @@ and uexp_to_info_map =
 
     (info, add_info(IdTagged.ids(elaborated_exp), InfoExp(info), m));
   };
+  // Adds a dummy "$hole" entry to the co-context if term is any form of Hole,
+  // so that anything that uses the co-context knows its scope contains a hole
   let hole_co_ctx =
     switch (term) {
     | MultiHole(_)
     | EmptyHole
     | Invalid(_) =>
       CoCtx.singleton(
-        "__hole__",
+        "$hole",
         Exp.rep_id(uexp),
         Unknown(Internal) |> Typ.temp,
       )
@@ -1040,7 +1041,7 @@ and uexp_to_info_map =
         List.combine(p_ctxs, List.map(_ps => ctx, ps));
       let e_co_ctxs =
         List.map2(
-          ((p_ctx, ctx)) => CoCtx.mk(p_ctx, ctx),
+          ((p_ctx, _ctx)) => CoCtx.mk(p_ctx, p_ctx),
           p_ctxs_and_ctx_zip,
           List.map(Info.exp_co_ctx, es),
         );
@@ -1078,7 +1079,6 @@ and uexp_to_info_map =
                   ~upat=info.term,
                   ~ctx=info.ctx,
                   ~co_ctx=info.co_ctx,
-                  ~warning=None,
                   ~prev_synswitch=info.prev_synswitch,
                   ~ana=info.ana,
                   ~ancestors=info.ancestors,
@@ -1223,15 +1223,7 @@ and upat_to_info_map =
       m: Map.t,
     )
     : (Info.pat, Map.t) => {
-  let add =
-      (
-        ~self,
-        ~ctx,
-        ~constraint_,
-        ~label_inference=?,
-        ~warning: Warning.t=None,
-        m,
-      ) => {
+  let add = (~self, ~ctx, ~constraint_, ~label_inference=?, m) => {
     let prev_synswitch =
       switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
       | Some(Info.InfoPat({ana, ty, _})) when Typ.is_syn_plus(ana) =>
@@ -1246,7 +1238,6 @@ and upat_to_info_map =
         ~upat,
         ~ctx,
         ~co_ctx,
-        ~warning,
         ~ana,
         ~ancestors,
         ~self=Common(Option.value(~default=self, override_self)),
@@ -1456,12 +1447,10 @@ and upat_to_info_map =
           id: Pat.rep_id(upat),
           typ: ctx_typ,
         });
-      let warning: Warning.t = Warning.var_is_unused(co_ctx, name);
       add(
         ~self=Just(unknown),
         ~ctx=Ctx.extend(ctx, entry),
         ~constraint_=Coverage.Constraint.Truth,
-        ~warning,
         m,
       );
     | TupLabel(label, p) =>
@@ -1687,7 +1676,6 @@ and upat_to_info_map =
               ~upat=fn'.term,
               ~ctx=fn'.ctx,
               ~co_ctx=fn'.co_ctx,
-              ~warning=None,
               ~prev_synswitch=fn'.prev_synswitch,
               ~ana=fn'.ana,
               ~ancestors=fn'.ancestors,
@@ -1742,12 +1730,11 @@ and utyp_to_info_map =
       m: Map.t,
     )
     : (Info.typ, Map.t) => {
-  let add' = (~expects=expects, ~utyp=utyp, ~warning: Warning.t=None, m) => {
-    let info = Info.derived_typ(~utyp, ~ctx, ~ancestors, ~expects, ~warning);
+  let add' = (~expects=expects, ~utyp=utyp, m) => {
+    let info = Info.derived_typ(~utyp, ~ctx, ~ancestors, ~expects);
     (info, add_info(ids, InfoTyp(info), m));
   };
-  let add = (~utyp=utyp, ~warning: Warning.t=None, m) =>
-    add'(~utyp, ~warning, m);
+  let add = (~utyp=utyp, m) => add'(~utyp, m);
   let ancestors = [Typ.rep_id(utyp)] @ ancestors;
   let go' = utyp_to_info_map(~ctx, ~ancestors);
   let go = go'(~expects=TypeExpected);
@@ -1778,8 +1765,7 @@ and utyp_to_info_map =
             m,
           )
           |> snd;
-    let info =
-      Info.derived_typ(~utyp, ~ctx, ~ancestors, ~expects, ~warning=None);
+    let info = Info.derived_typ(~utyp, ~ctx, ~ancestors, ~expects);
     (info, add_info(ids, InfoTyp(info), m));
   | TupLabel(label, t) =>
     let expects_label =
@@ -1878,7 +1864,7 @@ and utpat_to_info_map =
     )
     : (Info.tpat, Map.t) => {
   let add = m => {
-    let info = Info.derived_tpat(~utpat, ~ctx, ~ancestors, ~warning=None);
+    let info = Info.derived_tpat(~utpat, ~ctx, ~ancestors);
     (info, add_info(ids, InfoTPat(info), m));
   };
   let ancestors = [TPat.rep_id(utpat)] @ ancestors;

@@ -208,7 +208,11 @@ let common_warn_view = (warning: Warning.t) => {
   switch (warning) {
   | WarningPat(w) =>
     switch (w) {
-    | UnusedVar(name) => [text("Warning: Unused variable "), code(name)]
+    | UnusedVar(name) => [
+        text("Warning: Variable"),
+        code(name),
+        text("is unused."),
+      ]
     | _ => [text("Warning: " ++ Warning.show(warning))]
     }
   | WarningExp(_)
