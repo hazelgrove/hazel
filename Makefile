@@ -50,8 +50,17 @@ release-student: setup-student
 echo-html-dir:
 	@echo $(HTML_DIR)
 
-serve:
-	cd $(HTML_DIR); python3 -m http.server 8000 --bind 0.0.0.0
+unserve:
+	@pids=$$(lsof -t -i:8000 -sTCP:LISTEN); \
+	if [ $$(echo $$pids | wc -w) -eq 1 ]; then \
+		echo "Killing process on port 8000 with PID $$pids"; \
+		kill -9 $$pids; \
+	else \
+		echo "Not killing: found $$(echo $$pids | wc -w) processes on port 8000"; \
+	fi
+
+serve:  unserve
+	cd $(HTML_DIR); python3 -m http.server 8000 --bind 0.0.0.0 &
 
 hot:
 	npx vite
