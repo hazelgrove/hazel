@@ -152,13 +152,6 @@
   stroke-width: 1.2px;
 }
 
-.DHCode svg.warning {
-  fill: var(--warning-hole-fill);
-  stroke-dasharray: 1, 1;
-  stroke: var(--warning-hole-stroke);
-  stroke-width: 1.2px;
-}
-
 .DHCode .InVarHole {
   color: var(--R1);
 }
