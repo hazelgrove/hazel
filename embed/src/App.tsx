@@ -1,7 +1,9 @@
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useRef } from "react";
 import HazelEmbed from "./components/HazelEmbed";
 import MessageDisplay from "./components/MessageDisplay";
 import DeltaTree from "./components/DeltaTree";
+import TilesViewer from "./components/TilesViewer";
+import type { TilesViewerRef } from "./components/TilesViewer";
 import type {
   HazelToParent,
   ParentToHazel,
@@ -18,6 +20,7 @@ interface MessageWithMetadata {
 
 function App() {
   const [messages, setMessages] = useState<MessageWithMetadata[]>([]);
+  const tilesViewerRef = useRef<TilesViewerRef>(null);
 
   // References to Hazel instances for sending messages back
   const hazelRefs = {
@@ -39,41 +42,49 @@ function App() {
       instanceId: sourceInstanceId,
       timestamp: new Date().toLocaleTimeString(),
     };
-
     setMessages((prevMessages) => [...prevMessages, newMessage]);
-    console.log(`Received message from instance ${sourceInstanceId}:`, message);
 
-    // If we receive a ping, automatically respond with a pong
-    if (message.t === "ping") {
-      console.log(
-        `Received ping from instance ${sourceInstanceId}, responding with pong`,
-      );
+    switch (message.t) {
+        case "delta": {
+            console.log(`Received delta from instance ${sourceInstanceId}:`, message);
+            
+            // Process each operation in the delta through the TilesViewer component
+            message.delta.forEach((op) => {
+                tilesViewerRef.current?.processOp(op);
+            });
+            
+            break;
+        }
+        case "ping": {
+            const pongMessage: Pong = {
+                t: "pong",
+                message: `Pong response to ${sourceInstanceId}!`,
+            };
 
-      // Create a pong response
-      const pongMessage: Pong = {
-        t: "pong",
-        message: `Pong response to ${sourceInstanceId}!`,
-      };
-
-      // Send the pong message back to the same instance that sent the ping
-      const hazelRef = hazelRefs[sourceInstanceId as keyof typeof hazelRefs];
-      if (hazelRef?.current) {
-        hazelRef.current.sendMessage(pongMessage);
-      }
-    }
-  };
-
-  // Get the latest delta message if there is one
-  const latestDelta =
-    messages.length > 0
-      ? (messages.filter((item) => item.message.t === "delta").pop() as
-          | {
-              message: EditorDelta;
-              instanceId: string;
-              timestamp: string;
+            // Send the pong message back to the same instance that sent the ping
+            const hazelRef = hazelRefs[sourceInstanceId as keyof typeof hazelRefs];
+            if (hazelRef?.current) {
+              hazelRef.current.sendMessage(pongMessage);
+            } else {
+                console.error(`Cannot send pong: instance ${sourceInstanceId} not found`);
             }
-          | undefined)
-      : undefined;
+            break;
+        }
+        case "pong": {
+          break;
+        }
+        case "init": {
+            console.log(`Received init from instance ${sourceInstanceId}:`, message);
+            break;
+        }
+        default: {
+          const exhaustiveCheck: never = message;
+          console.warn(`Unknown message type: ${(message as any).t}`);
+          return;
+        }
+    }
+
+  };
 
   // Function to send a ping message to a Hazel instance
   const sendPing = useCallback((instanceId: string) => {
@@ -110,14 +121,9 @@ function App() {
         <div className="message-section">
           <MessageDisplay messages={messages} />
         </div>
-        {latestDelta && (
-          <div className="delta-section">
-            <div className="delta-tree-container">
-              <h3>Syntax Tree</h3>
-              <DeltaTree delta={latestDelta.message.delta} />
-            </div>
-          </div>
-        )}
+        <div className="delta-section">
+            <TilesViewer ref={tilesViewerRef} />
+        </div>
       </div>
     </div>
   );
