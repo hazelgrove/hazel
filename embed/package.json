@@ -27,7 +27,7 @@
     }
   },
   "files": [
-    "dist"
+    "**/*"
   ],
   "scripts": {
     "dev": "vite",
