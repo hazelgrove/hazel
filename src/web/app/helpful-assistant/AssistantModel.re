@@ -156,7 +156,7 @@ let mk_mode_prompt = (~mode: AssistantSettings.mode): OpenRouter.message => {
     switch (mode) {
     | HazelTutor => InitPrompts.mk_tutor()
     | CodeSuggestion =>
-      AssistantMode.Completion.mk_const_prompt(
+      AssistantModes.Completion.mk_const_prompt(
         ChatLSP.Options.init,
         "code_suggestion",
         false,

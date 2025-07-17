@@ -11,6 +11,8 @@ At the end of your summary, leave a note for future inputs of the LLM to read, i
 this message is a summary of the conversation, and it should not directly refer to it and ask the user
 for clarification on it; rather, it should continue it's role as a task completion agent.
 You should use third person when summarizing the conversation, and not refer to yourself as the assistant or address the
-user in your summary (no first or second person pronouns). ";
+user in your summary (no first or second person pronouns).
+Your summary shouldn't really be made for the user to read, but rather for future LLMs to read and
+use as a sort of historical context and memory.";
 
 let self = [prelude];

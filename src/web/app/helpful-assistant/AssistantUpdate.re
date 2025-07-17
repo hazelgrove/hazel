@@ -565,7 +565,7 @@ let parse_and_apply_structure_edit =
       ~apply_edit_action:
          (
            ~ed: CodeEditable.Model.t,
-           ~edit_action: AssistantMode.Composition.edit_action,
+           ~edit_action: AssistantModes.Composition.edit_action,
            ~variable_name: option(string),
            ~variable_id: option(string)
          ) =>
@@ -607,7 +607,7 @@ let parse_and_apply_structure_edit =
           | _ => invalid_args_failure(tool_call.name)
           };
         (
-          AssistantMode.Composition.UpdatePattern(new_pattern),
+          AssistantModes.Composition.UpdatePattern(new_pattern),
           variable_name,
           variable_id,
         );
@@ -632,7 +632,7 @@ let parse_and_apply_structure_edit =
           | _ => invalid_args_failure(tool_call.name)
           };
         (
-          AssistantMode.Composition.UpdateDefinition(new_definition),
+          AssistantModes.Composition.UpdateDefinition(new_definition),
           variable_name,
           variable_id,
         );
@@ -650,7 +650,11 @@ let parse_and_apply_structure_edit =
             )
           | _ => invalid_args_failure(tool_call.name)
           };
-        (AssistantMode.Composition.DeleteBinding, variable_name, variable_id);
+        (
+          AssistantModes.Composition.DeleteBinding,
+          variable_name,
+          variable_id,
+        );
       /* --------- [End] DeleteBinding [End] --------- */
       /* --------- [Begin] UpdateBinding [Begin] --------- */
       | OpenRouter.UpdateBinding =>
@@ -672,7 +676,7 @@ let parse_and_apply_structure_edit =
           | _ => invalid_args_failure(tool_call.name)
           };
         (
-          AssistantMode.Composition.UpdateBinding(new_binding),
+          AssistantModes.Composition.UpdateBinding(new_binding),
           variable_name,
           variable_id,
         );
@@ -697,7 +701,7 @@ let parse_and_apply_structure_edit =
           | _ => invalid_args_failure(tool_call.name)
           };
         (
-          AssistantMode.Composition.UpdateBody(new_body),
+          AssistantModes.Composition.UpdateBody(new_body),
           variable_name,
           variable_id,
         );
@@ -715,7 +719,7 @@ let parse_and_apply_structure_edit =
             )
           | _ => (None, None)
           };
-        (AssistantMode.Composition.DeleteBody, variable_name, variable_id);
+        (AssistantModes.Composition.DeleteBody, variable_name, variable_id);
       /* --------- [End] DeleteBody [End] --------- */
       /* --------- [Begin] AddBefore [Begin] --------- */
       | OpenRouter.AddBefore =>
@@ -738,7 +742,7 @@ let parse_and_apply_structure_edit =
           | _ => invalid_args_failure(tool_call.name)
           };
         (
-          AssistantMode.Composition.Add(Before, code),
+          AssistantModes.Composition.Add(Before, code),
           variable_name,
           variable_id,
         );
@@ -764,7 +768,7 @@ let parse_and_apply_structure_edit =
           | _ => invalid_args_failure(tool_call.name)
           };
         (
-          AssistantMode.Composition.Add(After, code),
+          AssistantModes.Composition.Add(After, code),
           variable_name,
           variable_id,
         );
@@ -982,7 +986,7 @@ let update =
             HandleResponse(
               CompositionLoopRound(
                 editor,
-                AssistantMode.Composition.max_tool_calls,
+                AssistantModes.Composition.max_tool_calls,
               ),
               response,
               chat_id,
@@ -1003,7 +1007,7 @@ let update =
           //    an end output to the user (implying no more looping) or a new tool call.
 
           let ctx =
-            AssistantMode.Composition.mk_ctx_prompt(
+            AssistantModes.Composition.mk_ctx_prompt(
               ChatLSP.Options.init,
               editor,
             );
@@ -1076,7 +1080,7 @@ let update =
                 );
               let* index = Indicated.index(editor.editor.state.zipper);
               let+ ci = Id.Map.find_opt(index, editor.statics.info_map);
-              AssistantMode.Completion.mk_ctx_prompt(
+              AssistantModes.Completion.mk_ctx_prompt(
                 ChatLSP.Options.init,
                 ci,
                 sketch_seg,
@@ -1309,7 +1313,7 @@ let update =
         schedule_action(
           InternalError(
             "By default, we stop the agent after "
-            ++ string_of_int(AssistantMode.Composition.max_tool_calls)
+            ++ string_of_int(AssistantModes.Composition.max_tool_calls)
             ++ " tool calls.",
             mode,
             chat_id,
@@ -1337,7 +1341,7 @@ let update =
             chat_id,
           );
         let apply_edit_action =
-          AssistantMode.Composition.apply_edit_action(
+          AssistantModes.Composition.apply_edit_action(
             ~schedule_action=schedule_editor_action,
           );
         parse_and_apply_structure_edit(
@@ -1369,7 +1373,11 @@ let update =
         };
 
       switch (
-        AssistantMode.Completion.ErrorRound.mk_reply(ci, sketch_z, completion)
+        AssistantModes.Completion.ErrorRound.mk_reply(
+          ci,
+          sketch_z,
+          completion,
+        )
       ) {
       | None =>
         print_endline("ERROR ROUNDS (Non-error Response): " ++ completion);
@@ -1394,7 +1402,7 @@ let update =
     update_model_chat_history(~model, ~mode, ~updated_chat) |> Updated.return;
   | EmployLLMAction(action) =>
     let add_suggestion =
-      AssistantMode.Completion.add_suggestion(
+      AssistantModes.Completion.add_suggestion(
         ~schedule_action=schedule_editor_action,
       );
     switch (action) {
