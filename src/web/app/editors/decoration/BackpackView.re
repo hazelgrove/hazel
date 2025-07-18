@@ -76,7 +76,7 @@ let view =
     (~font_metrics: FontMetrics.t, ~origin: Point.t, z: Zipper.t): Node.t => {
   // This function is a mess
   let backpack =
-    Zipper.local_wanted_shards'(z)
+    Zipper.mk_local_backpack(z)
     @ Relatives.non_local_missing_shards(z.relatives)
     |> List.map(t => Selection.mk(~focus=Right, [Tile(t)]));
   let height_head =
@@ -84,12 +84,7 @@ let view =
     | [] => 0
     | [hd, ..._] => segment_height(hd.content)
     };
-  let can_put_down =
-    //TODO(andrew): update with new logic
-    switch (Zipper.local_wanted_shards'(z)) {
-    | [] => false
-    | _ => z.caret == Outer
-    };
+  let can_put_down = Zipper.can_put_down(z);
   let ind_p_d =
     switch (Indicated.piece(z)) {
     | Some((_, d, _)) => Some(d)
