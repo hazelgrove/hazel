@@ -1265,14 +1265,11 @@ let update =
         float_of_int(model.external_api_info.set_model_info.context_length)
         *. Model.context_threshold_ratio,
       );
-    print_endline("threshold: " ++ string_of_int(threshold));
-    print_endline(
-      "response.usage.total_tokens: "
-      ++ string_of_int(response.usage.total_tokens),
-    );
-    if (response.usage.total_tokens > threshold) {
-      summarize_chat(model, curr_chat, mode, schedule_action);
-    };
+    // Thin wrapper to avoid need of passing response.usage.total_tokens
+    let summarize_chat = () =>
+      if (response.usage.total_tokens > threshold) {
+        summarize_chat(model, curr_chat, mode, schedule_action);
+      };
 
     let content = response.content;
     let tool_call = response.tool_call;
@@ -1327,14 +1324,14 @@ let update =
     };
 
     switch (response_kind) {
-    | Tutor => ()
+    | Tutor => summarize_chat()
     | CompositionLoopRound(_, fuel) =>
       // This is step (3) from the directed graph above --
       switch (tool_call, fuel) {
       | (None, _) =>
         // The agent did not make a tool call, thus there is nothing to handle on the backend,
         // we can proceed as if there were a normal LLM chat interaction.
-        ()
+        summarize_chat()
       | (_, 0) =>
         // The agent ran out of fuel. We should experiment with this in the future.
         schedule_action(
@@ -1346,7 +1343,7 @@ let update =
             chat_id,
           ),
         );
-        ();
+        summarize_chat();
       | (Some(tool_call), _) =>
         // We don't summarize while the agent loops on tool calls.
 

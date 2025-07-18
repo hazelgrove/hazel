@@ -137,7 +137,7 @@ let sorted_chats = (chat_map: Id.Map.t(chat)): list(chat) => {
 // --- Constant Magic Ints ---
 let max_collapsed_length: int = 500;
 
-let context_threshold_ratio: float = 0.9;
+let context_threshold_ratio: float = 0.3;
 // --- End Constant Magic Ints ---
 
 // --- Helper Functions ---
