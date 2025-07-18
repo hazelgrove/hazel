@@ -14,6 +14,7 @@ open AST
 %token REC
 %token UNDEF
 %token <string> SEXP_STRING
+%token <string> PROJECTOR_INVOKE
 %token DOLLAR_SIGN
 %token TYP
 %token TYP_FUN
@@ -224,6 +225,7 @@ typ:
     | c = CONSTRUCTOR_IDENT { TypVar(c) }
     | c = IDENT { TypVar(c) }
     | T_TYP; s = STRING { InvalidTyp(s) }
+    | p = PROJECTOR_INVOKE { InvalidTyp(p) }
     | INT_TYPE { IntType }
     | FLOAT_TYPE { FloatType }
     | BOOL_TYPE { BoolType }
@@ -251,6 +253,7 @@ nonAscriptingPat:
     | OPEN_PAREN; label = IDENT; SINGLE_EQUAL; p = pat; CLOSE_PAREN { TuplePat([TupLabelPat(LabelPat(label), p)]) }
     | OPEN_PAREN; p = tupPatEntry; COMMA; pats = separated_list(COMMA, tupPatEntry); CLOSE_PAREN { TuplePat(p :: pats) }
     |  P_PAT; s = STRING { InvalidPat(s) }
+    | p = PROJECTOR_INVOKE { InvalidPat(p) }
     | WILD { WildPat }
     | QUESTION { EmptyHolePat }
     | OPEN_SQUARE_BRACKET; l = separated_list(COMMA, pat); CLOSE_SQUARE_BRACKET; { ListPat(l) }
@@ -298,6 +301,7 @@ filterAction:
 
 tpat:
     | TP_TPAT; s = STRING {InvalidTPat(s)}
+    | p = PROJECTOR_INVOKE {InvalidTPat(p)}
     | QUESTION {EmptyHoleTPat}
     | v = IDENT {VarTPat v}
     | v = CONSTRUCTOR_IDENT {VarTPat v}
@@ -320,6 +324,7 @@ exp:
     | c = CONSTRUCTOR_IDENT; SLASH_TILDE; { Constructor(c, Some(None)) } 
     | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { Constructor(c, Some(Some(t))) }
     | e = exp; COLON; t = typ { Asc(e, t) }
+    | p = PROJECTOR_INVOKE { InvalidExp(p) }
     | s = STRING { Atom (String s)}
     | OPEN_TRIPLE_CURLY; e = exp; CLOSE_TRIPLE_CURLY { IndicationExp(e) }
     | OPEN_PAREN; e = exp; CLOSE_PAREN { e } 
