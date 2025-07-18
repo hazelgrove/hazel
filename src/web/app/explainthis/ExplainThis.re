@@ -2402,10 +2402,9 @@ let get_doc =
     }
   | Some(InfoTyp({term, _} as typ_info)) =>
     switch (bypass_parens_typ(term).term) {
-    | Unknown(SynSwitch)
-    | Unknown(Internal)
-    | Unknown(Hole(EmptyHole)) => get_message(HoleTyp.empty_hole)
+    | Unknown(Hole(Invalid(_))) => simple("Not a type or type operator")
     | Unknown(Hole(MultiHole(_))) => get_message(HoleTyp.multi_hole)
+    | Unknown(_) => get_message(HoleTyp.empty_hole)
     | Atom(Int) => get_message(TerminalTyp.int)
     | Atom(SInt) => get_message(TerminalTyp.sint)
     | Atom(Float) => get_message(TerminalTyp.float)
@@ -2616,7 +2615,6 @@ let get_doc =
     | Sum(_) => get_message(SumTyp.labelled_sum_typs)
     | Ap({term: Var(c), _}, _) =>
       get_message(SumTyp.sum_typ_unary_constructor_defs(c))
-    | Unknown(Hole(Invalid(_))) => simple("Not a type or type operator")
     | Ap(_)
     | Parens(_) => default // Shouldn't be hit?
     }

@@ -451,11 +451,12 @@ let string_fns: list(BuiltinsUtil.fn) = [
   },
 ];
 
+// Note: With asymmetric unknown types this form of polymorphism is disallowed, these funs shoulder
 let pair_fns: list(BuiltinsUtil.fn) = [
   {
     name: "fst",
-    arg: Prod([unknown(Internal), unknown(Internal)]),
-    ret: Unknown(Internal),
+    arg: Prod([unknown(Ana), unknown(Ana)]),
+    ret: Unknown(Ana),
     imp: d => {
       let-unbox t = (Tuple(2), d);
       switch (t) {
@@ -466,8 +467,8 @@ let pair_fns: list(BuiltinsUtil.fn) = [
   },
   {
     name: "snd",
-    arg: Prod([unknown(Internal), unknown(Internal)]),
-    ret: Unknown(Internal),
+    arg: Prod([unknown(Ana), unknown(Ana)]),
+    ret: Unknown(Ana),
     imp: d => {
       let-unbox t = (Tuple(2), d);
       switch (t) {

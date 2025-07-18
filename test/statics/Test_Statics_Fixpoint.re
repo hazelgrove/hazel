@@ -17,7 +17,7 @@ let tests = [
                         Inconsistent(
                           Expectation({
                             ana: prod([]),
-                            syn: list(unknown(Internal)),
+                            syn: list(unknown(Ana)),
                           }),
                         )
                       ),

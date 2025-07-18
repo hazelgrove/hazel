@@ -465,12 +465,12 @@ let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
     )
   | (Duplicate(lab, Just(ty)), _) => InHole(DuplicateLabel(lab, ty))
   | (Duplicate(lab, _), _) =>
-    InHole(DuplicateLabel(lab, Unknown(Internal) |> Typ.temp))
-  | (IsMulti, _) => NotInHole(Syn(Unknown(Internal) |> Typ.temp))
+    InHole(DuplicateLabel(lab, Unknown(Ana) |> Typ.temp))
+  | (IsMulti, _) => NotInHole(Syn(Unknown(SynSwitch) |> Typ.temp))
   | (NoJoin(_, tys), {term: Unknown(SynSwitch), _}) =>
     InHole(Inconsistent(Internal(Typ.of_source(tys))))
   | (NoJoin(wrap, tys), ana) =>
-    let syn: Typ.t = Self.join_of(wrap, Unknown(Internal) |> Typ.temp);
+    let syn: Typ.t = Self.join_of(wrap, Unknown(SynSwitch) |> Typ.temp);
     switch (Typ.join(ctx, ana, syn)) {
     | None =>
       switch (ana.term, syn.term) {
@@ -594,7 +594,7 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
     switch (ll) {
     | None => InHole(UnboundLivelit(name))
     | Some(_livelit) =>
-      NotInHole(Common(Syn(Unknown(Internal) |> Typ.temp)))
+      NotInHole(Common(Syn(Unknown(SynSwitch) |> Typ.temp)))
     };
   | BadTrivAp(ty) => InHole(BadTrivAp(ty))
   | BadOperator(op) => InHole(BadOperator(op))
@@ -761,17 +761,20 @@ let fixed_typ_err_common: error_common => Typ.t =
   | NoType(FreeConstructor(c)) =>
     Sum([
       ConstructorMap.Variant(c, [Id.invalid], None),
-      ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
+      ConstructorMap.BadEntry(Unknown(SynSwitch) |> Typ.temp),
     ])
     |> Typ.temp
   | NoType(BadToken(_) | BadLabel(_) | InvalidLabel(_))
-  | AsymmetricUnknown(_) => Unknown(Internal) |> Typ.temp
+  | AsymmetricUnknown(_) => Unknown(SynSwitch) |> Typ.temp
   | TupleLabelError({typ, _})
   | DuplicateLabel(_, typ) => typ
   | Inconsistent(Expectation({ana, _})) => ana
-  | Inconsistent(Internal(_)) => Unknown(Internal) |> Typ.temp // Should this be some sort of meet?
+  | Inconsistent(Internal(_)) => Unknown(SynSwitch) |> Typ.temp // Should this be some sort of meet?
   | Inconsistent(WithArrow(_)) =>
-    Arrow(Unknown(Internal) |> Typ.temp, Unknown(Internal) |> Typ.temp)
+    Arrow(
+      Unknown(ArrowL(SynSwitch)) |> Typ.temp,
+      Unknown(ArrowR(SynSwitch)) |> Typ.temp,
+    )
     |> Typ.temp;
 
 let fixed_typ_err: error_exp => Typ.t =
@@ -784,7 +787,7 @@ let fixed_typ_err: error_exp => Typ.t =
   | WantTuple
   | BadOperator(_)
   | LabelNotFound(_, _)
-  | BadTrivAp(_) => Unknown(Internal) |> Typ.temp
+  | BadTrivAp(_) => Unknown(SynSwitch) |> Typ.temp
   | Common(err) => fixed_typ_err_common(err)
   | InvalidUseMode({inner_typ, _}) => inner_typ
   | BadLivelitModel(ana) => ana;
@@ -792,7 +795,7 @@ let fixed_typ_err: error_exp => Typ.t =
 let fixed_typ_err_pat: error_pat => Typ.t =
   fun
   | ExpectedConstructor
-  | Redundant(_) => Unknown(Internal) |> Typ.temp
+  | Redundant(_) => Unknown(SynSwitch) |> Typ.temp
   | Common(err) => fixed_typ_err_common(err);
 
 let fixed_typ_pat = (ctx, ty_ana: Typ.t, self: Self.pat): Typ.t => {

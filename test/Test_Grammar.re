@@ -148,7 +148,7 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
       | Forall => forall(TPat.var("x"), unknown(Hole(EmptyHole)))
       | EmptyHole => unknown(Hole(EmptyHole))
       | SynSwitch => unknown(SynSwitch)
-      | Internal => unknown(Internal)
+      | Internal => unknown(Ana)
       | Label => label("label")
       | MultiHole => unknown(Hole(MultiHole([])))
       | Sum => sum([])

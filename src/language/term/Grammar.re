@@ -150,10 +150,22 @@ and type_hole('a) =
   | Invalid(string)
   | EmptyHole
   | MultiHole(list(any_t('a)))
+// TODO: Refactor type provenances to always include hole/error ID. Separate Syn/Ana from provenance
 and type_provenance('a) =
   | SynSwitch
   | Hole(type_hole('a))
-  | Internal
+  /* Internal Type Provenances */
+  | Ana
+  | ArrowL(type_provenance('a))
+  | ArrowR(type_provenance('a))
+  | List(type_provenance('a))
+  | Sum(type_provenance('a))
+  | Ctr(Constructor.t, type_provenance('a))
+  | Prod(int, type_provenance('a))
+  | Label(type_provenance('a))
+  | TupLabel(type_provenance('a))
+  | Forall(type_provenance('a))
+  | Arg(int, type_provenance('a))
 and filter('a) = {
   pat: exp_t('a),
   act: FilterAction.t,
@@ -415,7 +427,17 @@ and map_type_provenance_annotation:
     switch (e) {
     | SynSwitch => SynSwitch
     | Hole(h) => Hole(map_type_hole_annotation(f, h))
-    | Internal => Internal
+    | Ana => Ana
+    | ArrowL(p) => ArrowL(map_type_provenance_annotation(f, p))
+    | ArrowR(p) => ArrowR(map_type_provenance_annotation(f, p))
+    | List(p) => List(map_type_provenance_annotation(f, p))
+    | Prod(i, p) => Prod(i, map_type_provenance_annotation(f, p))
+    | Forall(p) => Forall(map_type_provenance_annotation(f, p))
+    | Arg(i, p) => Arg(i, map_type_provenance_annotation(f, p))
+    | Label(p) => Label(map_type_provenance_annotation(f, p))
+    | TupLabel(p) => TupLabel(map_type_provenance_annotation(f, p))
+    | Sum(p) => Sum(map_type_provenance_annotation(f, p))
+    | Ctr(name, p) => Ctr(name, map_type_provenance_annotation(f, p))
     };
   }
 and map_type_hole_annotation:
@@ -882,8 +904,8 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     let hole = (h): type_provenance(DefaultAnnotation.t) => {
       Hole(h);
     };
-    let internal = (): type_provenance(DefaultAnnotation.t) => {
-      Internal;
+    let ana = (): type_provenance(DefaultAnnotation.t) => {
+      Ana;
     };
   };
 };

@@ -582,41 +582,39 @@ and Typ: {
       Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let tpat_map_term =
       TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
-    let rec_call = ({term, _} as exp: t) => {
-      ...exp,
-      term:
-        switch (term) {
-        | Unknown(Hole(EmptyHole))
-        | Unknown(Hole(Invalid(_)))
-        | Unknown(SynSwitch)
-        | Unknown(Internal)
-        | Atom(_)
-        | Label(_)
-        | Var(_) => term
-        | List(t) => List(typ_map_term(t))
-        | Unknown(Hole(MultiHole(things))) =>
-          Unknown(Hole(MultiHole(List.map(any_map_term, things))))
-        | Ap(e1, e2) => Ap(typ_map_term(e1), typ_map_term(e2))
-        | Prod(xs) => Prod(List.map(typ_map_term, xs))
-        | TupLabel(label, e) =>
-          TupLabel(typ_map_term(label), typ_map_term(e))
-        | Parens(e) => Parens(typ_map_term(e))
-        | Arrow(t1, t2) => Arrow(typ_map_term(t1), typ_map_term(t2))
-        | Sum(variants) =>
-          Sum(
-            List.map(
-              fun
-              | ConstructorMap.Variant(c, ids, t) =>
-                ConstructorMap.Variant(c, ids, Option.map(typ_map_term, t))
-              | ConstructorMap.BadEntry(t) =>
-                ConstructorMap.BadEntry(typ_map_term(t)),
-              variants,
-            ),
-          )
-        | Rec(tp, t) => Rec(tpat_map_term(tp), typ_map_term(t))
-        | Forall(tp, t) => Forall(tpat_map_term(tp), typ_map_term(t))
-        },
-    };
+    let rec_call: t => t =
+      ({term, _} as exp: t) => {
+        ...exp,
+        term:
+          switch (term) {
+          | Unknown(Hole(MultiHole(things))) =>
+            Unknown(Hole(MultiHole(List.map(any_map_term, things))))
+          | Unknown(_)
+          | Atom(_)
+          | Label(_)
+          | Var(_) => term
+          | List(t) => List(typ_map_term(t))
+          | Ap(e1, e2) => Ap(typ_map_term(e1), typ_map_term(e2))
+          | Prod(xs) => Prod(List.map(typ_map_term, xs))
+          | TupLabel(label, e) =>
+            TupLabel(typ_map_term(label), typ_map_term(e))
+          | Parens(e) => Parens(typ_map_term(e))
+          | Arrow(t1, t2) => Arrow(typ_map_term(t1), typ_map_term(t2))
+          | Sum(variants) =>
+            Sum(
+              List.map(
+                fun
+                | ConstructorMap.Variant(c, ids, t) =>
+                  ConstructorMap.Variant(c, ids, Option.map(typ_map_term, t))
+                | ConstructorMap.BadEntry(t) =>
+                  ConstructorMap.BadEntry(typ_map_term(t)),
+                variants,
+              ),
+            )
+          | Rec(tp, t) => Rec(tpat_map_term(tp), typ_map_term(t))
+          | Forall(tp, t) => Forall(tpat_map_term(tp), typ_map_term(t))
+          },
+      };
     x |> f_typ(rec_call);
   };
 
@@ -626,7 +624,7 @@ and Typ: {
       let (term, rewrap) = Grammar.Annotated.unwrap(ty);
       switch (term) {
       | Atom(_) => ty
-      | Label(name) => Grammar.Label(name) |> rewrap
+      | Label(name) => (Grammar.Label(name): typ_term) |> rewrap
       | Unknown(prov) => Unknown(prov) |> rewrap
       | Arrow(ty1, ty2) =>
         Arrow(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap

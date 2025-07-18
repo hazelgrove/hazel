@@ -593,9 +593,7 @@ module PlainTests = {
             fn(
               Pat.(tuple([tup_label(label("a"), var("x"))])),
               var("x"),
-              Some(
-                Typ.(prod([tup_label(label("a"), unknown(Internal))])),
-              ),
+              Some(Typ.(prod([tup_label(label("a"), unknown(Ana))]))),
               None,
             ),
             tuple([tup_label(label("a"), int(1))]),

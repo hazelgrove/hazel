@@ -648,7 +648,7 @@ let wrap_filter =
           term:
             Constructor(
               "$e",
-              Some(Some(Unknown(Internal) |> Language.Typ.fresh)),
+              Some(Some(Unknown(SynSwitch) |> Language.Typ.fresh)),
             ),
           annotation: {
             ids: [Id.mk()],

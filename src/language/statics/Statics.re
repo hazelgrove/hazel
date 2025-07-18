@@ -338,7 +338,7 @@ and uexp_to_info_map =
       let (e, m) = go'(~ana=t.term, ~ctx=t.ctx, e, m);
       add(~self=Just(t.term), ~co_ctx=e.co_ctx, m);
     | Invalid(token) => atomic(BadToken(token))
-    | EmptyHole => atomic(Just(Unknown(Internal) |> Typ.temp))
+    | EmptyHole => atomic(Just(Unknown(SynSwitch) |> Typ.temp))
     | Deferral(position) =>
       add'(~self=IsDeferral(position), ~co_ctx=CoCtx.empty, m)
     | Undefined => atomic(Just(Unknown(Hole(EmptyHole)) |> Typ.temp))
@@ -366,7 +366,7 @@ and uexp_to_info_map =
       let tys = List.map(Info.exp_ty, es);
       add(
         ~self=
-          Self.listlit(~empty=Unknown(Internal) |> Typ.temp, ctx, tys, ids),
+          Self.listlit(~empty=Unknown(SynSwitch) |> Typ.temp, ctx, tys, ids),
         ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es)),
         m,
       );
@@ -408,14 +408,14 @@ and uexp_to_info_map =
         term:
           switch (e.term) {
           | Var("e") =>
-            Constructor("$e", Some(Some(Unknown(Internal) |> Typ.fresh)))
+            Constructor("$e", Some(Some(Unknown(SynSwitch) |> Typ.fresh)))
           | Var("v") =>
-            Constructor("$v", Some(Some(Unknown(Internal) |> Typ.fresh)))
+            Constructor("$v", Some(Some(Unknown(SynSwitch) |> Typ.fresh)))
           | _ => e.term
           },
       };
       let ty_in = Var("$Meta") |> Typ.temp;
-      let ty_out = Unknown(Internal) |> Typ.temp;
+      let ty_out = Unknown(SynSwitch) |> Typ.temp;
       let (e, m) = go(~ana=ty_in, e, m);
       add(~self=Just(ty_out), ~co_ctx=e.co_ctx, m);
     | UnOp(Meta(Unquote), e) =>
@@ -586,7 +586,7 @@ and uexp_to_info_map =
         | _ =>
           let (lab, m) =
             go(
-              ~ana=Unknown(Internal) |> Typ.temp,
+              ~ana=Unknown(Ana) |> Typ.temp,
               ~override_self=?
                 switch (label.term, expected_labels) {
                 | (Label(name), Some(expected_labels))
@@ -603,7 +603,7 @@ and uexp_to_info_map =
             );
 
           let (e, m) =
-            go(~ana=Unknown(Internal) |> Typ.temp, ~inferred_label?, e, m);
+            go(~ana=Unknown(Ana) |> Typ.temp, ~inferred_label?, e, m);
           (lab, e, m);
         };
 
@@ -634,7 +634,9 @@ and uexp_to_info_map =
             malformed_labels: [Exp(label)],
             duplicate_labels: [],
             invalid_labels: [],
-            typ: TupLabel(Unknown(Internal) |> Typ.temp, e.ty) |> Typ.temp,
+            typ:
+              TupLabel(Unknown(Label(SynSwitch)) |> Typ.temp, e.ty)
+              |> Typ.temp,
           })
         };
       add(~self, ~co_ctx=CoCtx.union([lab.co_ctx, e.co_ctx]), m);
@@ -655,12 +657,12 @@ and uexp_to_info_map =
       let (ty, m) = {
         switch (info_e1.ty.term, info_e2.ty.term) {
         | (Unknown(_), Label(name)) =>
-          // This is so that the statics will result in Unknown(Internal)
+          // This is so that the statics will result in Unknown(Syn)
           let ty =
             Prod([
               TupLabel(
                 Label(name) |> Typ.temp,
-                Unknown(Internal) |> Typ.temp,
+                Unknown(SynSwitch) |> Typ.temp,
               )
               |> Typ.temp,
             ])
@@ -692,7 +694,7 @@ and uexp_to_info_map =
           };
         | EmptyHole =>
           add(
-            ~self=Just(Unknown(Internal) |> Typ.temp),
+            ~self=Just(Unknown(SynSwitch) |> Typ.temp),
             ~co_ctx=info_e2.co_ctx,
             m,
           )
@@ -759,10 +761,10 @@ and uexp_to_info_map =
           };
 
         | None =>
-          let (fn, m) = go(~ana=Unknown(Internal) |> Typ.temp, fn, m);
-          let (arg, m) = go(~ana=Unknown(Internal) |> Typ.temp, arg, m);
+          let (fn, m) = go(~ana=Unknown(SynSwitch) |> Typ.temp, fn, m);
+          let (arg, m) = go(~ana=Unknown(SynSwitch) |> Typ.temp, arg, m);
           add(
-            ~self=Just(Unknown(Internal) |> Typ.temp),
+            ~self=Just(Unknown(SynSwitch) |> Typ.temp),
             ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
             m,
           );
@@ -847,7 +849,7 @@ and uexp_to_info_map =
           m,
         );
       | R(expected) =>
-        let ty_ins = List.init(num_args, _ => Unknown(Internal) |> Typ.temp);
+        let ty_ins = List.init(num_args, _ => Unknown(SynSwitch) |> Typ.temp);
         let (args, m) = map_m_go(m, ty_ins, args);
         let arg_co_ctx = CoCtx.union(List.map(Info.exp_co_ctx, args));
         add'(
@@ -1156,8 +1158,7 @@ and uexp_to_info_map =
       let self: Self.exp =
         switch (use_mode) {
         | Some(_) => Common(Just(body.ty))
-        | None when Typ.fast_equal(Unknown(Internal) |> Typ.temp, typ.term) =>
-          Common(Just(body.ty))
+        | None when Typ.is_unknown(typ.term) => Common(Just(body.ty))
         | None =>
           InvalidUseMode({
             bad_typ: typ.term,
@@ -1192,7 +1193,7 @@ and upat_to_info_map =
       ~ancestors: Info.ancestors,
       ~duplicates: list(string),
       ~expected_labels=?,
-      ~ana: Typ.t=Unknown(Internal) |> Typ.temp,
+      ~ana: Typ.t=Unknown(Ana) |> Typ.temp,
       ~under_ascription: bool=false,
       ~override_self: option(Self.t)=?,
       ~inferred_label=?,
@@ -1262,7 +1263,7 @@ and upat_to_info_map =
   let ancestors = [Pat.rep_id(upat)] @ ancestors;
   let go = (~under_ascription=false) =>
     upat_to_info_map(~under_ascription, ~is_synswitch, ~ancestors, ~co_ctx);
-  let unknown = Unknown(is_synswitch ? SynSwitch : Internal) |> Typ.temp;
+  let unknown = Unknown(SynSwitch) |> Typ.temp;
   let ctx_fold = (ctx: Ctx.t, m, ~duplicates=[]) =>
     List.fold_left2(
       ((ctx, tys, cons, m, info_all), e, ana) =>
@@ -1417,7 +1418,7 @@ and upat_to_info_map =
         Info.fixed_typ_pat(
           ctx,
           ana,
-          Common(Just(Unknown(Internal) |> Typ.temp)),
+          Common(Just(Unknown(SynSwitch) |> Typ.temp)),
         );
       let entry =
         Ctx.VarEntry({
@@ -1458,7 +1459,7 @@ and upat_to_info_map =
           let (lab, m) =
             go(
               ~ctx,
-              ~ana=Unknown(Internal) |> Typ.temp,
+              ~ana=Unknown(Ana) |> Typ.temp,
               ~label_sort=true,
               ~override_self=?
                 switch (label.term, expected_labels) {
@@ -1475,13 +1476,7 @@ and upat_to_info_map =
             );
 
           let (p, m) =
-            go(
-              ~ctx,
-              ~ana=Unknown(Internal) |> Typ.temp,
-              ~inferred_label?,
-              p,
-              m,
-            );
+            go(~ctx, ~ana=Unknown(Ana) |> Typ.temp, ~inferred_label?, p, m);
           (lab, p, m);
         };
 
@@ -1512,7 +1507,9 @@ and upat_to_info_map =
             malformed_labels: [Pat(label)],
             duplicate_labels: [],
             invalid_labels: [],
-            typ: TupLabel(Unknown(Internal) |> Typ.temp, p.ty) |> Typ.temp,
+            typ:
+              TupLabel(Unknown(Label(SynSwitch)) |> Typ.temp, p.ty)
+              |> Typ.temp,
           })
         };
       add(
@@ -1763,7 +1760,7 @@ and utyp_to_info_map =
       | _ =>
         ConstructorExpected(
           Unique,
-          Arrow(t2, Unknown(Internal) |> Typ.temp) |> Typ.temp,
+          Arrow(t2, Unknown(ArrowR(SynSwitch)) |> Typ.temp) |> Typ.temp,
         )
       };
     let m = go'(~expects=t1_mode, t1, m) |> snd;

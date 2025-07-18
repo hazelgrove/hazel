@@ -406,7 +406,7 @@ and Typ: {
     | NatType => nat()
     | UnknownType(p) =>
       switch (p) {
-      | Internal => unknown(Internal)
+      | Internal => unknown(Ana)
       | EmptyHole => unknown(Hole(EmptyHole))
       }
     | TypVar(s) => var(s)
@@ -445,9 +445,9 @@ and Typ: {
   let of_core_type_provenance =
       (p: IndicatedG.typ_provenance): AST.typ_provenance => {
     switch (p) {
-    | Internal => Internal
     | Hole(EmptyHole) => EmptyHole
-    | _ => raise(Failure("Unknown type_provenance"))
+    | SynSwitch => raise(Failure("Unknown type_provenance"))
+    | _ => Internal
     };
   };
   let rec of_core = (typ: IndicatedG.typ): AST.typ => {

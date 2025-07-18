@@ -71,7 +71,7 @@ let tests = (
                 Some(
                   Typ.sum([
                     Variant("T", [], None),
-                    BadEntry(Typ.unknown(Internal)),
+                    BadEntry(Typ.unknown(SynSwitch)),
                   ]),
                 ),
               ),

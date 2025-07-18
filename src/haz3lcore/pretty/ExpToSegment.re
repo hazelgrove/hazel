@@ -127,11 +127,11 @@ let external_precedence_pat = (dp: Pat.t) =>
 
 let external_precedence_typ = (tp: Typ.t) =>
   switch (Typ.term_of(tp)) {
+  // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
+  | Unknown(Hole(MultiHole(_))) => Precedence.min
+
   // Indivisible forms never need parentheses around them
-  | Unknown(Hole(Invalid(_)))
-  | Unknown(Internal)
-  | Unknown(SynSwitch)
-  | Unknown(Hole(EmptyHole))
+  | Unknown(_)
   | Var(_)
   | Atom(_)
   | Label(_)
@@ -148,9 +148,6 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Sum(_) => Precedence.type_plus
   | Rec(_, _) => Precedence.let_
   | Forall(_, _) => Precedence.let_
-
-  // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
-  | Unknown(Hole(MultiHole(_))) => Precedence.min
   };
 
 let paren_at = (internal_precedence: Precedence.t, exp: Exp.t): Exp.t =>
@@ -463,15 +460,12 @@ and parenthesize_typ =
   let parenthesize_typ = parenthesize_typ(~show_filters);
   let (term, rewrap) = Typ.unwrap(typ);
   switch (term) {
-  // Indivisible forms dont' change
-  | Var(_)
-  | Unknown(Hole(Invalid(_)))
-  | Unknown(Internal)
-  | Unknown(SynSwitch)
-  | Unknown(Hole(EmptyHole))
-  | Atom(_) => typ
-
   // Other forms
+  | Unknown(Hole(MultiHole(xs))) =>
+    Unknown(
+      Hole(MultiHole(List.map(parenthesize_any(~show_filters), xs))),
+    )
+    |> rewrap
   | Parens(t) =>
     Parens(
       parenthesize_typ(~already_paren=true, t)
@@ -529,11 +523,10 @@ and parenthesize_typ =
       ),
     )
     |> rewrap
-  | Unknown(Hole(MultiHole(xs))) =>
-    Unknown(
-      Hole(MultiHole(List.map(parenthesize_any(~show_filters), xs))),
-    )
-    |> rewrap
+  // Indivisible forms dont' change
+  | Var(_)
+  | Unknown(_)
+  | Atom(_) => typ
   };
 }
 
@@ -1238,9 +1231,17 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
   switch (typ |> Typ.term_of) {
   | Unknown(Hole(Invalid(s))) =>
     text_to_pretty(typ |> Typ.rep_id, Sort.Typ, s)
-  | Unknown(Internal)
-  | Unknown(SynSwitch)
-  | Unknown(Hole(EmptyHole)) =>
+  | Unknown(Hole(MultiHole(es))) =>
+    let id = typ |> Typ.rep_id;
+    let+ es = es |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
+    ListUtil.flat_intersperse(
+      Grout({
+        id,
+        shape: Concave,
+      }),
+      es,
+    );
+  | Unknown(_) =>
     if (settings.show_unknown_as_hole) {
       let id = typ |> Typ.rep_id;
       p_just([
@@ -1252,16 +1253,6 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     } else {
       text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "?");
     }
-  | Unknown(Hole(MultiHole(es))) =>
-    let id = typ |> Typ.rep_id;
-    let+ es = es |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
-    ListUtil.flat_intersperse(
-      Grout({
-        id,
-        shape: Concave,
-      }),
-      es,
-    );
 
   | Var(v) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, v)
   | Atom(Int) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "Int")

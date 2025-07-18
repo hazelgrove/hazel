@@ -23,11 +23,12 @@ module Ord = {
   let gt_pat = Pat.constructor("Gt", Some(Some(t)));
 };
 
+// This form of polymorphism is not allowed under asymmetric unknown types, these should error!
 module Either = {
   let t: Typ.t =
     sum_type([
-      ("Left", Some(Unknown(Internal) |> Typ.fresh)),
-      ("Right", Some(Unknown(Internal) |> Typ.fresh)),
+      ("Left", Some(Unknown(Ana) |> Typ.fresh)),
+      ("Right", Some(Unknown(Ana) |> Typ.fresh)),
     ]);
 
   open IdTagged.FreshGrammar;
@@ -44,10 +45,7 @@ module Either = {
 
 module Option = {
   let t: Typ.t =
-    sum_type([
-      ("None", None),
-      ("Some", Some(Unknown(Internal) |> Typ.fresh)),
-    ]);
+    sum_type([("None", None), ("Some", Some(Unknown(Ana) |> Typ.fresh))]);
 
   open IdTagged.FreshGrammar;
 
@@ -69,8 +67,8 @@ module Option = {
                | Some(x) => Some(f(x))
              end|},
       name: "option_map",
-      arg: Prod([t, arrow(unknown(Internal), unknown(Internal))]),
-      ret: Unknown(Internal),
+      arg: Prod([t, arrow(unknown(Ana), unknown(Ana))]),
+      ret: Unknown(Ana),
       imp: {
         Fresh.(
           Exp.(
@@ -99,8 +97,8 @@ module Option = {
                | Some x => f(x)
              end|},
       name: "option_bind",
-      arg: Prod([t, arrow(unknown(Internal), unknown(Internal))]),
-      ret: Unknown(Internal),
+      arg: Prod([t, arrow(unknown(Ana), unknown(Ana))]),
+      ret: Unknown(Ana),
       imp: {
         Fresh.(
           Exp.(
@@ -126,7 +124,7 @@ module Option = {
     {
       name: "option_to_list",
       arg: t.term,
-      ret: List(unknown(Internal)),
+      ret: List(unknown(Ana)),
       str: {|fun opt -> case opt
                | None => []
                | Some x => [x]

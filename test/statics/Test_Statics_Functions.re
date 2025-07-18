@@ -6,7 +6,7 @@ let tests = [
   fully_consistent_typecheck(
     "Function with unknown param",
     "fun x -> 4 + 5",
-    Some(Typ.(arrow(unknown(Internal), int()))),
+    Some(Typ.(arrow(unknown(Ana), int()))),
   ),
   fully_consistent_typecheck(
     "Function with known param",
@@ -16,7 +16,7 @@ let tests = [
   fully_consistent_typecheck(
     "Function with labeled param",
     "fun (a=x) -> 4",
-    Some(arrow(prod([tup_label(label("a"), unknown(Internal))]), int())),
+    Some(arrow(prod([tup_label(label("a"), unknown(Ana))]), int())),
   ),
   fully_consistent_typecheck(
     "bifunction",

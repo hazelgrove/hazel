@@ -80,7 +80,7 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | Unknown(Hole(EmptyHole)) => EmptyHole
   | Unknown(Hole(MultiHole(_))) => MultiHole
   | Unknown(SynSwitch) => SynSwitch
-  | Unknown(Internal) => Internal
+  | Unknown(_) => Internal // Note: might need classes for provenances
   | Atom(c) => Atom(c)
   | List(_) => List
   | Arrow(_) => Arrow
@@ -186,15 +186,12 @@ type source = {
 /* Strip location information from a list of sources */
 let of_source = List.map((source: source) => source.ty);
 
-/* Internal > Hole(_) > SynSwitch  and  Invalid > MultiHole > EmptyHole
+/* Internal type provenances > Hole(_) > SynSwitch  and  Invalid > MultiHole > EmptyHole
    Note: Important for asymmetric unknown type checking that Internal > SynSwitch */
 let join_type_provenance =
     (p1: TermBase.type_provenance, p2: TermBase.type_provenance)
     : TermBase.type_provenance =>
   switch (p1, p2) {
-  /* Internal > x */
-  | (Internal, Internal | SynSwitch | Hole(_))
-  | (SynSwitch | Hole(_), Internal) => Internal
   /* Invalid > x */
   | (Hole(Invalid(s)), Hole(_))
   | (Hole(_), Hole(Invalid(s))) => Hole(Invalid(s))
@@ -206,6 +203,11 @@ let join_type_provenance =
   | (Hole(h), SynSwitch)
   | (SynSwitch, Hole(h)) => Hole(h)
   | (SynSwitch, SynSwitch) => SynSwitch
+  /* Internal > x */
+  | (p, SynSwitch | Hole(_))
+  | (SynSwitch | Hole(_), p) => p // Should joining Internal with Hole even make sense?
+  | (p1, p2) when p1 == p2 => p1
+  | (_p1, _p2) => Ana // TODO: THink about this case
   };
 
 let rec match_tup_label = ty =>
@@ -272,7 +274,7 @@ let rec aliases_deep = (ctx: Ctx.t, ty: t): list((string, t)) => {
       var =>
         switch (Ctx.lookup_alias(ctx, var)) {
         | Some(ty) => [(var, ty)]
-        | None => [(var, fresh(Unknown(Internal)))]
+        | None => [(var, fresh(Unknown(Ana)))]
         },
       vars(ty),
     )
@@ -590,28 +592,31 @@ let rec matched_arrow_strict = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
   | Parens(ty) => matched_arrow_strict(ctx, ty)
   | Arrow(ty_in, ty_out) => Some((ty_in, ty_out))
-  | Unknown(SynSwitch) =>
-    Some((Unknown(SynSwitch) |> temp, Unknown(SynSwitch) |> temp))
+  | Unknown(p) =>
+    Some((Unknown(ArrowL(p)) |> temp, Unknown(ArrowR(p)) |> temp))
   | _ => None
   };
 
 let matched_arrow = (ctx, ty) =>
   matched_arrow_strict(ctx, ty)
   |> Option.value(
-       ~default=(Unknown(Internal) |> temp, Unknown(Internal) |> temp),
+       ~default=(
+         Unknown(ArrowL(Ana)) |> temp,
+         Unknown(ArrowR(Ana)) |> temp,
+       ),
      );
 
 let rec matched_forall_strict = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
   | Parens(ty) => matched_forall_strict(ctx, ty)
   | Forall(t, ty) => Some((Some(t), ty))
-  | Unknown(SynSwitch) => Some((None, Unknown(SynSwitch) |> temp))
+  | Unknown(p) => Some((None, Unknown(Forall(p)) |> temp))
   | _ => None
   };
 
 let matched_forall = (ctx, ty) =>
   matched_forall_strict(ctx, ty)
-  |> Option.value(~default=(None, Unknown(Internal) |> temp));
+  |> Option.value(~default=(None, Unknown(Ana) |> temp));
 
 let rec get_labels = (ctx, ty): list(option(string)) => {
   let ty = weak_head_normalize(ctx, ty);
@@ -645,9 +650,9 @@ let rec matched_prod_strict:
           Some(tys),
         );
       }
-    | Unknown(SynSwitch) => (
+    | Unknown(p) => (
         es,
-        Some(List.init(List.length(es), _ => Unknown(SynSwitch) |> temp)),
+        Some(List.init(List.length(es), i => Unknown(Prod(i, p)) |> temp)),
       )
     | _ => (es, None)
     };
@@ -660,7 +665,8 @@ let matched_prod = (ctx, es, get_label_es, ty, constructor) => {
     es,
     tys_opt
     |> Option.value(
-         ~default=List.init(List.length(es), _ => Unknown(Internal) |> temp),
+         ~default=
+           List.init(List.length(es), i => Unknown(Prod(i, Ana)) |> temp),
        ),
   );
 };
@@ -669,13 +675,13 @@ let rec matched_list_strict = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
   | Parens(ty) => matched_list_strict(ctx, ty)
   | List(ty) => Some(ty)
-  | Unknown(SynSwitch) => Some(Unknown(SynSwitch) |> temp)
+  | Unknown(p) => Some(Unknown(List(p)) |> temp)
   | _ => None
   };
 
 let matched_list = (ctx, ty) =>
   matched_list_strict(ctx, ty)
-  |> Option.value(~default=Unknown(Internal) |> temp);
+  |> Option.value(~default=Unknown(List(Ana)) |> temp);
 
 let rec matched_args_strict = (ctx, ty, arity): Either.t('a, int) => {
   switch (term_of(weak_head_normalize(ctx, ty))) {
@@ -683,8 +689,7 @@ let rec matched_args_strict = (ctx, ty, arity): Either.t('a, int) => {
   | Prod(tys) when List.length(tys) == arity => L(tys)
   | Prod(tys) => R(List.length(tys))
   | _ when arity == 1 => L([ty])
-  | Unknown((SynSwitch | Internal) as p) =>
-    L(List.init(arity, _ => Unknown(p) |> temp))
+  | Unknown(p) => L(List.init(arity, i => Unknown(Arg(i, p)) |> temp))
   | _ => R(1)
   };
 };
@@ -692,14 +697,14 @@ let rec matched_args_strict = (ctx, ty, arity): Either.t('a, int) => {
 let matched_args = (ctx, ty, arity) =>
   switch (matched_args_strict(ctx, ty, arity)) {
   | L(tys) => tys
-  | R(_) => List.init(arity, _ => Unknown(Internal) |> temp)
+  | R(_) => List.init(arity, i => Unknown(Arg(i, Ana)) |> temp)
   };
 
 let matched_label = (ctx, ty): option((t, t)) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
   | TupLabel({term: Label(ml), _}, ty) => Some((Label(ml) |> temp, ty))
-  | Unknown(SynSwitch) =>
-    Some((Unknown(SynSwitch) |> temp, Unknown(SynSwitch) |> temp))
+  | Unknown(p) =>
+    Some((Unknown(Label(p)) |> temp, Unknown(TupLabel(p)) |> temp))
   | _ => None
   };
 
@@ -744,12 +749,27 @@ let rec is_unknown = (ty: t): bool =>
   | _ => false
   };
 
+let rec is_syn_prov: Grammar.type_provenance('a) => bool =
+  fun
+  | SynSwitch => true
+  | Hole(_)
+  | Ana => false
+  | ArrowL(p)
+  | ArrowR(p)
+  | List(p)
+  | Prod(_, p)
+  | Arg(_, p)
+  | Label(p)
+  | TupLabel(p)
+  | Forall(p)
+  | Sum(p)
+  | Ctr(_, p) => is_syn_prov(p);
+
 let rec is_syn = (ty: t): bool =>
   switch (ty |> term_of) {
   | TupLabel(_, x)
   | Parens(x) => is_syn(x)
-  | Unknown(SynSwitch) => true
-  | Unknown(_)
+  | Unknown(p) => is_syn_prov(p)
   | Atom(_)
   | Label(_)
   | Var(_)
@@ -800,10 +820,9 @@ let rec is_syn_plus = (ty: t): bool =>
   switch (ty |> term_of) {
   | TupLabel(_, x)
   | Parens(x) => is_syn_plus(x)
-  | Unknown(SynSwitch) => true
+  | Unknown(p) => is_syn_prov(p)
   | Arrow(t1, t2) => is_syn(t1) && is_syn_plus(t2)
   | Forall(_, t) => is_syn(t)
-  | Unknown(_)
   | Atom(_)
   | Label(_)
   | Var(_)
@@ -922,7 +941,8 @@ let remove_duplicate_labels =
             [l] @ seen_duplicates,
             deduplicated_types
             @ [
-              TupLabel(Label(l) |> temp, Unknown(Internal) |> temp) |> temp,
+              TupLabel(Label(l) |> temp, Unknown(TupLabel(Ana)) |> temp)
+              |> temp,
             ],
           )
         | Some(_) => (seen_duplicates, deduplicated_types @ [ty])

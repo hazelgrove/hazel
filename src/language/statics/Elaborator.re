@@ -16,7 +16,7 @@ module ElaborationResult = {
 let fresh_ascription = (d: Exp.t, t: Typ.t, t': option(Typ.t)) => {
   IdTagged.FreshGrammar.Exp.(
     switch (t') {
-    | Some({term: Unknown(Internal), _}) => d
+    | Some({term: Unknown(Ana), _}) => d
     | Some(ty) when !Typ.fast_equal(ty, t) => asc(d, ty)
     | _ => d
     }
@@ -220,7 +220,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
     | ListLit(es) =>
       let (ds, tys) = List.map(elaborate(m), es) |> ListUtil.unzip;
       let joined_ty =
-        Typ.join_all(~empty=Unknown(Internal) |> Typ.temp, ctx, tys);
+        Typ.join_all(~empty=Unknown(SynSwitch) |> Typ.temp, ctx, tys);
 
       let ds' =
         List.map2((d, t) => fresh_ascription(d, t, joined_ty), ds, tys);
@@ -400,10 +400,10 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       switch (e.term) {
       // TODO: confirm whether these types are correct
       | Var("e") =>
-        Constructor("$e", Some(Some(Unknown(Internal) |> Typ.fresh)))
+        Constructor("$e", Some(Some(Unknown(SynSwitch) |> Typ.fresh)))
         |> rewrap
       | Var("v") =>
-        Constructor("$v", Some(Some(Unknown(Internal) |> Typ.fresh)))
+        Constructor("$v", Some(Some(Unknown(SynSwitch) |> Typ.fresh)))
         |> rewrap
       | _ => EmptyHole |> rewrap
       }
