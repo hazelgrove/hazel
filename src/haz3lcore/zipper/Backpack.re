@@ -1,5 +1,7 @@
 open Util;
 
+//TODO(andrew): rm module
+
 module ShardInfo = {
   module Order = {
     type key = (Id.t, int);

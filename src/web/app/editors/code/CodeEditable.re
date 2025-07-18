@@ -55,9 +55,7 @@ module Update = {
              | Select(Resize(_) | Term(_) | Smart(_) | Tile(_))
              | Destruct(_)
              | Insert(_)
-             | Pick_up
              | Put_down
-             | RotateBackpack
              | MoveToBackpackTarget(_)
              | Buffer(Set(_) | Accept | Clear)
              | Paste(_)

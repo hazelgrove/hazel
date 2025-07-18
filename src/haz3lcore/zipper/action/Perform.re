@@ -25,7 +25,7 @@ let set_llm_buffer = (z: t, response: string): t =>
       open OptUtil.Syntax;
       //TODO: Error feedback on below
       let* content = Parser.to_zipper(response);
-      let+ _ = [] == Zipper.local_wanted_shards'(content) ? Some() : None;
+      let+ _ = [] == Zipper.mk_local_backpack(content) ? Some() : None;
       Zipper.set_buffer(z, ~content=Zipper.zip(content), ~mode=Parsed);
     }
   ) {
@@ -111,9 +111,6 @@ let go_z =
     | _ => None
     };
   };
-  let (l, r) = Zipper.local_wanted_shards(z);
-  print_endline("shards L: " ++ String.concat(", ", l));
-  print_endline("shards R: " ++ String.concat(", ", r));
 
   switch (a) {
   | Paste(String(clipboard)) =>
@@ -249,7 +246,6 @@ let go_z =
     |> Insert.go(~structmode=settings.structural, char, ~ctx)
     /* note: remolding here is done case-by-case */
     |> Result.of_option(~error=Action.Failure.Cant_insert);
-  | Pick_up => Ok(remold_regrout(Left, Zipper.pick_up(z)))
   | Put_down =>
     let z =
       /* Alternatively, putting down inside token could eiter merge-in or split */
@@ -258,13 +254,8 @@ let go_z =
       | Outer => Zipper.put_down_regrout_remold(Left, z)
       };
     z |> Result.of_option(~error=Action.Failure.Cant_put_down);
-  | RotateBackpack =>
-    // let z = {
-    //   ...z,
-    //   backpack: Util.ListUtil.rotate(z.backpack),
-    // };
-    Ok(z)
   | MoveToBackpackTarget((Left(_) | Right(_)) as _d) =>
+    //TODO(andrew): reininstate?
     // if (Backpack.restricted(z.backpack)) {
     //   Move.to_backpack_target(d, z)
     //   |> Result.of_option(~error=Action.Failure.Cant_move);
@@ -274,6 +265,7 @@ let go_z =
     // }
     Error(Action.Failure.Cant_move)
   | MoveToBackpackTarget((Up | Down) as _d) =>
+    //TODO(andrew): reininstate?
     // Move.to_backpack_target(d, z)
     // |> Result.of_option(~error=Action.Failure.Cant_move)
     Error(Action.Failure.Cant_move)

@@ -7,7 +7,7 @@ let barf = (d: Direction.t, tok: Token.t, z: t): option(t) => {
      precondition: the d-neighbor should be a monotile
      string-matching the dropping shard */
   let* z = delete(d, z);
-  let+ z = put_down2(d, tok, z);
+  let+ z = put_down_tok(d, tok, z);
   z;
 };
 
@@ -51,7 +51,7 @@ let expand_or_barf_left_neighbor = (~settings, z as s: t): option(t) =>
   /* If left neighbor is a monotile (a) string-matching the shard at the
      top of the backpack, barf it, or (b) an expansing keyword, expand it. */
   switch (left_neighbor_monotile(z.relatives.siblings)) {
-  | Some(t) when Zipper.will_barf2(t, z) => barf(Left, t, s)
+  | Some(t) when Zipper.will_barf(t, z) => barf(Left, t, s)
   | Some(t) when Molds.is_delayed(t) => delayed_expand(~settings, t, Left, s)
   | _ => Some(s)
   };
@@ -60,7 +60,7 @@ let expand_or_barf_right_neighbor = (~settings, z as s: t): option(t) =>
   /* If right neighbor is a monotile (a) string-matching the shard at the
      top of the backpack, barf it, or (b) an expansing keyword, expand it. */
   switch (right_neighbor_monotile(z.relatives.siblings)) {
-  | Some(t) when Zipper.will_barf2(t, z) => barf(Right, t, s)
+  | Some(t) when Zipper.will_barf(t, z) => barf(Right, t, s)
   | Some(t) when Molds.is_delayed(t) =>
     delayed_expand(~settings, t, Right, s)
   | _ => Some(s)
@@ -95,12 +95,12 @@ let make_new_tile = (~structmode, t: Token.t, caret: Direction.t, z: t): t =>
   /* Adds a new tile at the caret. If the new token matches the top
      of the backpack, the backpack shard is dropped. Otherwise, we
      construct a new tile, which may immediately expand. */
-  Zipper.will_barf2(t, z)
+  Zipper.will_barf(t, z)
     ? switch (neighbor_can_duomerge(t, z.relatives.siblings)) {
       | Some((lbl, d)) =>
         Zipper.replace(~caret=d, ~backpack=d, lbl, z) |> Option.get
 
-      | None => put_down2(caret, t, z) |> Option.get
+      | None => put_down_regrout_remold_tok(caret, t, z) |> Option.get
       }
     : {
       let (lbl, backpack) = Molds.instant_expansion(t);
@@ -195,7 +195,7 @@ let insert_duo = (lbl: Label.t, z: option(t)): option(t) =>
        //NOTE: regrout to put e.g. ap(1|) back together
        z
        |> remold_regrout(Left)
-       |> Zipper.put_down2(Left, List.nth(lbl, 1))
+       |> Zipper.put_down_tok(Left, List.nth(lbl, 1))
        |> OptUtil.and_then(Zipper.move(Left))
      });
 
