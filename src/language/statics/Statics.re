@@ -116,42 +116,6 @@ let is_recursive = (ctx, p, def, syn: Typ.t) => {
   };
 };
 
-
-let rec synth_kind = (~ctx: Ctx.t, t: Typ.t): Ctx.kind =>
-  switch (t.term) {
-  | Var(name) =>
-    switch (Ctx.lookup_tvar(ctx, name)) {
-    | Some(k) => k
-    | None => Ctx.Abstract
-    }
-  | Arrow(t1, t2) =>
-    let k1 = synth_kind(~ctx, t1);
-    let k2 = synth_kind(~ctx, t2);
-    Ctx.Arr(k1, k2)
-  | Prod(ts) =>
-    List.fold_right(
-      (t, acc) => {
-        let k = synth_kind(~ctx, t);
-        Ctx.Prod(k, acc);
-      },
-      ts,
-      Ctx.Abstract,
-    )
-  | Ap(t1, t2) =>
-    switch (synth_kind(~ctx, t1)) {
-    | Ctx.Arr(k_arg, k_res) =>
-      let k2 = synth_kind(~ctx, t2);
-      if (k_arg == k2) {
-        k_res
-      } else {
-        Ctx.Abstract // Mismatched context
-      }
-    | _ => Ctx.Abstract
-    }
-   // FIXME: implement more cases later
-  | _ => Ctx.Abstract
-  };
-
 let syn = Unknown(SynSwitch) |> Typ.temp;
 
 let rec any_to_info_map =
@@ -370,13 +334,24 @@ and uexp_to_info_map =
       add(~self=IsMulti, ~co_ctx=CoCtx.union(co_ctxs), m);
     | Asc(e, t2) =>
       let (t, m) = go_typ(t2, ~expects=Info.TypeExpected, m);
+      let k = Kind.synth_kind(t.ctx, t.term);
+      let t =
+        if (k != Ctx.Abstract) {
+          let updated = {
+            ...t,
+            term: Unknown(Internal) |> Typ.temp,
+          };
+          IdTagged.fresh(updated);
+        } else {
+          t.term |> Typ.temp;
+        };
       let (e, m) = go'(~ana=t.term, ~ctx=t.ctx, e, m);
       add(~self=Just(t.term), ~co_ctx=e.co_ctx, m);
     | Invalid(token) => atomic(BadToken(token))
     | EmptyHole => atomic(Just(Unknown(Internal) |> Typ.temp))
     | Deferral(position) =>
       add'(~self=IsDeferral(position), ~co_ctx=CoCtx.empty, m)
-    | Undefined => atomic(Just(Unknown(Hole(EmptyHole)) |> Typ.temp))
+    | Undefined => atomic(Just(Unknown(Internal)) |> Typ.temp)
     | Atom(c) =>
       let c =
         Operators.replace_literal(c, Typ.is_ana_atom(ana), ctx.use_mode); // Replace literal if necessary due to `use`
@@ -833,6 +808,7 @@ and uexp_to_info_map =
         Forall(EmptyHole |> TPat.fresh, Unknown(SynSwitch) |> Typ.temp)
         |> Typ.temp;
       let (fn, m) = go(~ana=typfn_ana, fn, m);
+
       let (_, m) = utyp_to_info_map(~ctx, ~ancestors, utyp, m);
       let (option_name, ty_body) = Typ.matched_forall(ctx, fn.ty);
       switch (option_name) {
@@ -1129,14 +1105,46 @@ and uexp_to_info_map =
                use a different name than the alias for the recursive parameter */
             //let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
             let ty_rec = Rec(Var(name) |> TPat.fresh, utyp) |> Typ.temp;
+            let k = Kind.synth_kind(ctx, ty_rec);
+            let ty_rec =
+              if (k != Ctx.Abstract) {
+                IdTagged.fresh({
+                  ...ty_rec,
+                  term: (Unknown(Internal): TermBase.typ_term),
+                });
+              } else {
+                ty_rec;
+              };
+            let kind = {
+              let rec make_kind = n =>
+                n == 0
+                  ? Ctx.Abstract : Ctx.Arr(Ctx.Abstract, make_kind(n - 1)); /* Curry rec */
+              make_kind(param_count);
+            };
             let ctx_def =
-              Ctx.extend_alias(ctx, name, TPat.rep_id(typat), ty_rec);
+              param_count > 0
+                ? Ctx.extend_tctor(ctx, name, TPat.rep_id(typat), kind)
+                : Ctx.extend_alias(ctx, name, TPat.rep_id(typat), ty_rec);
             (ty_rec, ctx_def, ctx_def);
-          | _ => (
+          | _ =>
+            let k = Kind.synth_kind(ctx, utyp);
+            let utyp =
+              if (k != Ctx.Abstract) {
+                let updated_utyp: TermBase.typ_term = {
+                  ...utyp,
+                  term: Unknown(Internal),
+                };
+                IdTagged.fresh(updated_utyp);
+              } else {
+                utyp;
+              };
+            (
               utyp,
               ctx,
-              Ctx.extend_alias(ctx, name, TPat.rep_id(typat), utyp),
-            )
+              param_count > 0
+                ? Ctx.extend_tctor(ctx, name, TPat.rep_id(typat), kind)
+                : Ctx.extend_alias(ctx, name, TPat.rep_id(typat), utyp),
+            );
           /* NOTE(yuchen): Below is an alternative implementation that attempts to
              add a rec whenever type alias is present. It may cause trouble to the
              runtime, so precede with caution. */
@@ -1711,6 +1719,16 @@ and upat_to_info_map =
       add(~self=Just(ty_out), ~ctx=arg.ctx, ~constraint_, m);
     | Asc(p, ann) =>
       let (ann, m) = utyp_to_info_map(~ctx, ~ancestors, ann, m);
+      let k = Kind.synth_kind(ctx, ann.term);
+      let ann =
+        if (k != Ctx.Abstract) {
+          IdTagged.fresh({
+            ...ann,
+            term: (Unknown(Internal): TermBase.typ_term),
+          });
+        } else {
+          ann;
+        };
       let (p, m) = go(~ctx, ~under_ascription=true, ~ana=ann.term, p, m);
       add(~self=Just(ann.term), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
     };
@@ -1791,17 +1809,15 @@ and utyp_to_info_map =
     add'(~expects=TypeExpected, m);
   | Label(_) => add(m)
   | Ap(t1, t2) =>
-  // Flag, Insert checking application here
-
     let t1_mode: Info.typ_expects =
       switch (expects) {
       | VariantExpected(m, sum_ty) =>
-          ConstructorExpected(m, Arrow(t2, sum_ty) |> Typ.temp)
+        ConstructorExpected(m, Arrow(t2, sum_ty) |> Typ.temp)
       | _ =>
-          ConstructorExpected(
-            Unique,
-            Arrow(t2, Unknown(Internal) |> Typ.temp) |> Typ.temp,
-          )
+        ConstructorExpected(
+          Unique,
+          Arrow(t2, Unknown(Internal) |> Typ.temp) |> Typ.temp,
+        )
       };
     let m = go'(~expects=t1_mode, t1, m) |> snd;
     let m = go'(~expects=TypeExpected, t2, m) |> snd;
