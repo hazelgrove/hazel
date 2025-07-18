@@ -101,51 +101,6 @@ module Pat = {
     };
   };
 
-  let rec is_fun_var = (pat: t) => {
-    switch (pat.term) {
-    | Parens(pat)
-    | Probe(pat, _)
-    | TupLabel(_, pat) => is_fun_var(pat)
-    | Asc(pat, typ) =>
-      is_var(pat) && (Typ.is_arrow(typ) || Typ.is_forall(typ))
-    | Invalid(_)
-    | EmptyHole
-    | MultiHole(_)
-    | Wild
-    | Atom(_)
-    | ListLit(_)
-    | Cons(_, _)
-    | Var(_)
-    | Label(_)
-    | Tuple(_)
-    | Constructor(_)
-    | Ap(_) => false
-    };
-  };
-
-  let rec is_tuple_of_arrows = (pat: t) =>
-    is_fun_var(pat)
-    || (
-      switch (pat.term) {
-      | Parens(pat)
-      | Probe(pat, _)
-      | TupLabel(_, pat) => is_tuple_of_arrows(pat)
-      | Tuple(pats) => pats |> List.for_all(is_fun_var)
-      | Label(_)
-      | Invalid(_)
-      | EmptyHole
-      | MultiHole(_)
-      | Wild
-      | Atom(_)
-      | ListLit(_)
-      | Cons(_, _)
-      | Var(_)
-      | Asc(_)
-      | Constructor(_)
-      | Ap(_) => false
-      }
-    );
-
   let rec is_tuple_of_vars = (pat: t) =>
     is_var(pat)
     || (
