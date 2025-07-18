@@ -20,7 +20,7 @@ let self_ty = (info: option(Info.t)): option(Typ.t) =>
 let totalize_ty = (expected_ty: option(Typ.t)): Typ.t =>
   switch (expected_ty) {
   | Some(expected_ty) => expected_ty
-  | None => Typ.fresh(Unknown(Ana))
+  | None => Typ.fresh(Unknown(Syn, Hole.temp(EmptyHole), Atom))
   };
 
 module M: Projector = {
@@ -47,7 +47,7 @@ module M: Projector = {
 
   let display_ty = (model, statics): option(Typ.t) =>
     switch (model) {
-    | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn =>
+    | _ when expected_ty(statics) |> totalize_ty |> Typ.is_synswitch =>
       statics |> self_ty
     | Self => statics |> self_ty
     | Expected => statics |> expected_ty
@@ -56,7 +56,7 @@ module M: Projector = {
   let display_mode = (model: model, statics: option(Language.Info.t)): string =>
     switch (model) {
     | _ when self_ty(statics) == expected_ty(statics) => "⇔"
-    | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn => "⇒"
+    | _ when expected_ty(statics) |> totalize_ty |> Typ.is_synswitch => "⇒"
     | Self => "⇒"
     | Expected => "⇐"
     };

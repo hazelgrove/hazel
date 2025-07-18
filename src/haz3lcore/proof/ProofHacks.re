@@ -134,8 +134,16 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
       }
     | Tuple(l1) =>
       let (l1, ts) =
-        Typ.matched_prod(ctx, l1, Pat.match_tup_label, ty, (name, b) =>
-          TupLabel(Label(name) |> Pat.fresh, b) |> Pat.fresh
+        Typ.matched_prod(
+          ctx,
+          l1,
+          Pat.match_tup_label,
+          ty,
+          (name, b) => TupLabel(Label(name) |> Pat.fresh, b) |> Pat.fresh,
+          {
+            term: ErrorHole,
+            annotation: ty.annotation,
+          },
         );
       let* l =
         List.map2((dhp, typ) => {dhpat_var_entry(dhp, typ)}, l1, ts)

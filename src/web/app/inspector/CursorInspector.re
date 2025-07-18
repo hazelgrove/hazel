@@ -22,7 +22,7 @@ let cls_view = (ci: Info.t): Node.t => {
     [
       text(
         switch (cls) {
-        | Typ(EmptyHole)
+        | Typ(UnkEmptyHoleAna | UnkEmptyHoleSyn)
         | Exp(EmptyHole)
         | Pat(EmptyHole) =>
           Info.is_label(ci) ? "Empty Label" : Cls.show(cls)
@@ -184,8 +184,12 @@ let common_err_view =
         text(elements_noun(cls) ++ " have inconsistent types:"),
         ...ListUtil.join(text(","), List.map(view_type, tys)),
       ]
-    | AsymmetricUnknown(ty, _) => [
-        text(": Unfilled type hole should have type: "),
+    | AsymmetricUnknown(ty, h, p) => [
+        text(": Unfilled type hole (id: "),
+        text(h |> Hole.rep_id |> Id.to_string),
+        text(" should be (partially annotated) in location "),
+        text(Typ.show_provenance(p)),
+        text("with type: "),
         view_type(ty),
       ]
     }
@@ -323,7 +327,9 @@ let typ_ok_view = (~globals, cls: Cls.t, ok: Info.ok_typ) => {
   let view_type = view_type(~globals);
   switch (ok) {
   | EmptyLabel => []
-  | Type(_) when cls == Typ(EmptyHole) => [text("Fillable by any type")]
+  | Type(_) when cls == Typ(UnkEmptyHoleAna) || cls == Typ(UnkEmptyHoleSyn) => [
+      text("Fillable by any type"),
+    ]
   | Type(ty) =>
     [view_type(ty)]
     @ (

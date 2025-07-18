@@ -61,8 +61,10 @@ let filter_ctx = (ctx: Ctx.t, ty_expect: Typ.t): list(filtered_entry) =>
 
 let primary_goal = (ctx: Ctx.t, ana: Typ.t): Typ.t =>
   switch (ana) {
-  | {term: Var(name), _} when Ctx.lookup_alias(ctx, name) != None =>
-    let ty_expanded = Ctx.lookup_alias(ctx, name) |> Option.get;
+  | {term: Var(name), _}
+      when Ctx.lookup_alias(ctx, name, {ids: [Typ.rep_id(ana)]}) != None =>
+    let ty_expanded =
+      Ctx.lookup_alias(ctx, name, {ids: [Typ.rep_id(ana)]}) |> Option.get;
     ty_expanded |> Typ.normalize(ctx);
   | _ => ana |> Typ.normalize(ctx)
   };

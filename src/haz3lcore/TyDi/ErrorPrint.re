@@ -37,6 +37,7 @@ module Print = {
   };
 
   let typ = (ty: Typ.t): string => term(Typ(ty));
+  let prov = (prov: Typ.provenance): string => Typ.show_provenance(prov); // TODO: Pretty
 };
 
 let prn = Printf.sprintf;
@@ -62,8 +63,13 @@ let common_error: Info.error_common => string =
       Print.typ(ana),
       Print.typ(syn),
     )
-  | AsymmetricUnknown(ty, _) =>
-    prn("Unfilled type hole. Fill with %s", Print.typ(ty));
+  | AsymmetricUnknown(ty, h, p) =>
+    prn(
+      "Unfilled type hole (id: %s) in sub-part %s. Fill with %s",
+      Hole.rep_id(h) |> Uuidm.to_string,
+      Print.prov(p),
+      Print.typ(ty),
+    );
 
 let exp_error: Info.error_exp => string =
   fun

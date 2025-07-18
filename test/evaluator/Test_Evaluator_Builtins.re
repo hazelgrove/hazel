@@ -23,7 +23,12 @@ let tests = (
           builtin_fun("string_compare"),
           asc(
             tuple([string("Hello"), string("World")]),
-            Typ.(prod([Typ.unknown(Ana), Typ.unknown(Ana)])),
+            Typ.(
+              prod([
+                Typ.unknown(Syn, Language.Hole.temp(EmptyHole), Atom),
+                Typ.unknown(Syn, Language.Hole.temp(EmptyHole), Atom),
+              ])
+            ),
           ),
         ),
       )
@@ -43,10 +48,21 @@ let tests = (
           builtin_fun("string_compare"),
           asc(
             tuple([
-              asc(string("Hello"), Typ.unknown(Ana)),
-              asc(string("World"), Typ.unknown(Ana)),
+              asc(
+                string("Hello"),
+                Typ.unknown(Syn, Language.Hole.temp(EmptyHole), Atom),
+              ),
+              asc(
+                string("World"),
+                Typ.unknown(Syn, Language.Hole.temp(EmptyHole), Atom),
+              ),
             ]),
-            Typ.(prod([Typ.unknown(Ana), Typ.unknown(Ana)])),
+            Typ.(
+              prod([
+                Typ.unknown(Syn, Language.Hole.temp(EmptyHole), Atom),
+                Typ.unknown(Syn, Language.Hole.temp(EmptyHole), Atom),
+              ])
+            ),
           ),
         ),
       )

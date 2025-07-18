@@ -868,7 +868,11 @@ module Update = {
           and.calc ctx = ctx;
           switch (exp |> Exp.term_of) {
           | Fun(p, d1, t, _) =>
-            let t = OptUtil.get(() => Typ.fresh(Unknown(SynSwitch)), t);
+            let t =
+              OptUtil.get(
+                () => Typ.fresh(Unknown(Syn, Hole.temp(EmptyHole), Atom)),
+                t,
+              );
             let* bindings = ProofHacks.dhpat_extend_ctx(p, t, ctx);
             Some((bindings, d1));
           | _ => None
@@ -890,7 +894,7 @@ module Update = {
               Fun(
                 Pat.fresh(EmptyHole),
                 last,
-                Some(Typ.fresh(Unknown(SynSwitch))),
+                Some(Typ.fresh(Unknown(Syn, Hole.temp(EmptyHole), Atom))),
                 None,
               ),
             )

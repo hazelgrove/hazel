@@ -1,13 +1,14 @@
 open Util;
 
 module IdTag = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t = {
     [@show.opaque]
     ids: list(Id.t),
   };
 
   let fresh = (): t => {ids: [Id.mk()]};
+  let of_id = (id): t => {ids: [id]};
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -64,6 +65,11 @@ let replace_temp = ({term, annotation: {ids}}: t('a)): t('a) => {
   annotation: {
     ids: ids == [Id.invalid] ? [Id.mk()] : ids,
   },
+};
+
+let tag = (ids, term): Grammar.Annotated.t('a, IdTag.t) => {
+  term,
+  annotation: ids,
 };
 
 module FreshGrammar =

@@ -77,7 +77,7 @@ module PlainTests = {
       fn(
         Pat.var("x"),
         bin_op(Int(Plus), int(4), int(5)),
-        Some(Typ.unknown(Hole(EmptyHole))),
+        Some(Typ.var("Hole TODO")),
         None,
       )
     );
@@ -593,7 +593,9 @@ module PlainTests = {
             fn(
               Pat.(tuple([tup_label(label("a"), var("x"))])),
               var("x"),
-              Some(Typ.(prod([tup_label(label("a"), unknown(Ana))]))),
+              Some(
+                Typ.(prod([tup_label(label("a"), Typ.var("Hole TODO"))])),
+              ),
               None,
             ),
             tuple([tup_label(label("a"), int(1))]),

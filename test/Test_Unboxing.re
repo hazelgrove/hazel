@@ -82,7 +82,7 @@ let tests = (
         "Ascribed Hole to ListLit",
         list(dhexp_typ),
         ListLit,
-        asc(empty_hole(), Typ.(list(empty_hole()))),
+        asc(empty_hole(), Typ.(list(empty_hole_syn()))),
       ),
       // ListLitn requests
       test_matches(
@@ -115,7 +115,7 @@ let tests = (
         "Ascribed Hole to ListLitn",
         list(dhexp_typ),
         ListLitn(0),
-        asc(empty_hole(), Typ.(list(empty_hole()))),
+        asc(empty_hole(), Typ.(list(empty_hole_syn()))),
       ),
       // Cons requests
       test_matches(
@@ -149,7 +149,7 @@ let tests = (
         "Ascribed Hole to Cons",
         pair(dhexp_typ, dhexp_typ),
         Cons,
-        asc(empty_hole(), Typ.(list(empty_hole()))),
+        asc(empty_hole(), Typ.(list(empty_hole_syn()))),
       ),
     ]
   ),

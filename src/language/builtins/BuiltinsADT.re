@@ -23,29 +23,53 @@ module Ord = {
   let gt_pat = Pat.constructor("Gt", Some(Some(t)));
 };
 
-// This form of polymorphism is not allowed under asymmetric unknown types, these should error!
+// This form of polymorphism is not allowed under asymmetric unknown types, these would error!
 module Either = {
   let t: Typ.t =
     sum_type([
-      ("Left", Some(Unknown(Ana) |> Typ.fresh)),
-      ("Right", Some(Unknown(Ana) |> Typ.fresh)),
+      (
+        "Left",
+        Some(Unknown(Syn, Hole.fresh(EmptyHole), Atom) |> Typ.fresh),
+      ),
+      (
+        "Right",
+        Some(Unknown(Syn, Hole.fresh(EmptyHole), Atom) |> Typ.fresh),
+      ),
     ]);
 
   open IdTagged.FreshGrammar;
   let left =
-    Exp.constructor("Left", Some(Some(arrow(unknown(SynSwitch), t))));
+    Exp.constructor(
+      "Left",
+      Some(Some(arrow(unknown(Syn, Hole.fresh(EmptyHole), Atom), t))),
+    );
   let right =
-    Exp.constructor("Right", Some(Some(arrow(unknown(SynSwitch), t))));
+    Exp.constructor(
+      "Right",
+      Some(Some(arrow(unknown(Syn, Hole.fresh(EmptyHole), Atom), t))),
+    );
 
   let pat_left =
-    Pat.constructor("Left", Some(Some(arrow(unknown(SynSwitch), t))));
+    Pat.constructor(
+      "Left",
+      Some(Some(arrow(unknown(Syn, Hole.fresh(EmptyHole), Atom), t))),
+    );
   let pat_right =
-    Pat.constructor("Right", Some(Some(arrow(unknown(SynSwitch), t))));
+    Pat.constructor(
+      "Right",
+      Some(Some(arrow(unknown(Syn, Hole.fresh(EmptyHole), Atom), t))),
+    );
 };
 
 module Option = {
   let t: Typ.t =
-    sum_type([("None", None), ("Some", Some(Unknown(Ana) |> Typ.fresh))]);
+    sum_type([
+      ("None", None),
+      (
+        "Some",
+        Some(Unknown(Syn, Hole.fresh(EmptyHole), Atom) |> Typ.fresh),
+      ),
+    ]);
 
   open IdTagged.FreshGrammar;
 
@@ -53,12 +77,18 @@ module Option = {
   let none = Exp.constructor("None", Some(Some(t)));
 
   let some =
-    Exp.constructor("Some", Some(Some(arrow(unknown(SynSwitch), t))));
+    Exp.constructor(
+      "Some",
+      Some(Some(arrow(unknown(Syn, Hole.fresh(EmptyHole), Atom), t))),
+    );
 
   let pat_none = Pat.constructor("None", Some(Some(t)));
 
   let pat_some =
-    Pat.constructor("Some", Some(Some(arrow(unknown(SynSwitch), t))));
+    Pat.constructor(
+      "Some",
+      Some(Some(arrow(unknown(Syn, Hole.fresh(EmptyHole), Atom), t))),
+    );
 
   let builtins: list(hazel_fn) = [
     {
@@ -67,8 +97,15 @@ module Option = {
                | Some(x) => Some(f(x))
              end|},
       name: "option_map",
-      arg: Prod([t, arrow(unknown(Ana), unknown(Ana))]),
-      ret: Unknown(Ana),
+      arg:
+        Prod([
+          t,
+          arrow(
+            unknown(Syn, Hole.fresh(EmptyHole), Atom),
+            unknown(Syn, Hole.fresh(EmptyHole), Atom),
+          ),
+        ]),
+      ret: Unknown(Syn, Hole.fresh(EmptyHole), Atom),
       imp: {
         Fresh.(
           Exp.(
@@ -97,8 +134,15 @@ module Option = {
                | Some x => f(x)
              end|},
       name: "option_bind",
-      arg: Prod([t, arrow(unknown(Ana), unknown(Ana))]),
-      ret: Unknown(Ana),
+      arg:
+        Prod([
+          t,
+          arrow(
+            unknown(Syn, Hole.fresh(EmptyHole), Atom),
+            unknown(Syn, Hole.fresh(EmptyHole), Atom),
+          ),
+        ]),
+      ret: Unknown(Syn, Hole.fresh(EmptyHole), Atom),
       imp: {
         Fresh.(
           Exp.(
@@ -124,7 +168,7 @@ module Option = {
     {
       name: "option_to_list",
       arg: t.term,
-      ret: List(unknown(Ana)),
+      ret: List(unknown(Syn, Hole.fresh(EmptyHole), Atom)),
       str: {|fun opt -> case opt
                | None => []
                | Some x => [x]

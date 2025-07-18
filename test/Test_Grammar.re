@@ -57,14 +57,10 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | Let => let_(Pat.empty_hole(), empty_hole(), empty_hole())
       | FixF => fix_f(Pat.empty_hole(), empty_hole(), None)
       | TyAlias =>
-        ty_alias(
-          TPat.empty_hole(),
-          Typ.unknown(Hole(EmptyHole)),
-          empty_hole(),
-        )
-      | Use => use(Typ.unknown(Hole(EmptyHole)), empty_hole())
+        ty_alias(TPat.empty_hole(), Typ.var("Hole TODO"), empty_hole())
+      | Use => use(Typ.var("Hole TODO"), empty_hole())
       | Ap => ap(Forward, empty_hole(), empty_hole())
-      | TypAp => typ_ap(empty_hole(), Typ.unknown(Hole(EmptyHole)))
+      | TypAp => typ_ap(empty_hole(), Typ.var("Hole TODO"))
       | DeferredAp => deferred_ap(empty_hole(), [empty_hole()])
       | If => if_(empty_hole(), empty_hole(), empty_hole())
       | Seq => seq(empty_hole(), empty_hole())
@@ -129,28 +125,28 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
   Grammar.UnitGrammar.(
     Typ.(
       switch (cls_typ) {
-      | Invalid => unknown(Hole(Invalid("invalid")))
+      | UnkInvalidAna
+      | UnkInvalidSyn => Typ.var("Hole TODO")
       | Atom(Bool) => bool()
       | Atom(Int) => int()
       | Atom(SInt) => sint()
       | Atom(Float) => float()
       | Atom(String) => string()
       | Atom(Nat) => nat()
-      | List => list(unknown(Hole(EmptyHole)))
-      | Arrow => arrow(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
+      | List => list(Typ.var("Hole TODO"))
+      | Arrow => arrow(Typ.var("Hole TODO"), Typ.var("Hole TODO"))
       | Var => var("x")
       | Prod => prod([])
-      | TupLabel =>
-        tup_label(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
-      | Parens => parens(unknown(Hole(EmptyHole)))
-      | Ap => ap(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
-      | Rec => rec_(TPat.var("x"), unknown(Hole(EmptyHole)))
-      | Forall => forall(TPat.var("x"), unknown(Hole(EmptyHole)))
-      | EmptyHole => unknown(Hole(EmptyHole))
-      | SynSwitch => unknown(SynSwitch)
-      | Internal => unknown(Ana)
+      | TupLabel => tup_label(Typ.var("Hole TODO"), Typ.var("Hole TODO"))
+      | Parens => parens(Typ.var("Hole TODO"))
+      | Ap => ap(Typ.var("Hole TODO"), Typ.var("Hole TODO"))
+      | Rec => rec_(TPat.var("x"), Typ.var("Hole TODO"))
+      | Forall => forall(TPat.var("x"), Typ.var("Hole TODO"))
+      | UnkEmptyHoleAna
+      | UnkEmptyHoleSyn => Typ.var("Hole TODO")
       | Label => label("label")
-      | MultiHole => unknown(Hole(MultiHole([])))
+      | UnkMultiHoleAna
+      | UnkMultiHoleSyn => Typ.var("Hole TODO")
       | Sum => sum([])
       | Constructor => assert(false) // Excluded because there is no Typ constructor
       }

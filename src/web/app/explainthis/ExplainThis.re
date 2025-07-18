@@ -2402,8 +2402,10 @@ let get_doc =
     }
   | Some(InfoTyp({term, _} as typ_info)) =>
     switch (bypass_parens_typ(term).term) {
-    | Unknown(Hole(Invalid(_))) => simple("Not a type or type operator")
-    | Unknown(Hole(MultiHole(_))) => get_message(HoleTyp.multi_hole)
+    | Unknown(_, {term: Invalid(_), _}, _) =>
+      simple("Not a type or type operator")
+    | Unknown(_, {term: MultiHole(_), _}, _) =>
+      get_message(HoleTyp.multi_hole)
     | Unknown(_) => get_message(HoleTyp.empty_hole)
     | Atom(Int) => get_message(TerminalTyp.int)
     | Atom(SInt) => get_message(TerminalTyp.sint)

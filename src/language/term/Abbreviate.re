@@ -44,7 +44,7 @@ let abbreviate_str = (min_len: int, s: string): string => {
 };
 
 let indet_term: Exp.term = Invalid("?");
-let indet_term_typ: Typ.term = Unknown(Ana);
+let indet_term_typ: Typ.term = Unknown(Syn, Hole.fresh(EmptyHole), Atom);
 let indet_term_pat: Pat.term = Invalid("?");
 let indet_term_rul: Rul.term = Invalid("?");
 let indet_term_tpat: TPat.term = Invalid("?");
@@ -774,7 +774,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
 
   let term: Typ.term =
     switch (typ |> Typ.term_of) {
-    | Unknown(prov) => Unknown(prov)
+    | Unknown(m, h, p) => Unknown(m, h, p)
     | Atom(Int) =>
       if (available^ < 3) {
         indet_term_typ;

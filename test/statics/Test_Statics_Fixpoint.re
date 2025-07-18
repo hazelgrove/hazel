@@ -17,7 +17,14 @@ let tests = [
                         Inconsistent(
                           Expectation({
                             ana: prod([]),
-                            syn: list(unknown(Ana)),
+                            syn:
+                              list(
+                                unknown(
+                                  Syn,
+                                  Language.Hole.temp(EmptyHole),
+                                  Atom,
+                                ),
+                              ),
                           }),
                         )
                       ),

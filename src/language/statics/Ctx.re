@@ -134,13 +134,20 @@ let is_abstract = (ctx: t, name: string): bool =>
   | None => false
   };
 
-let lookup_alias = (ctx: t, name: string): option(TermBase.Typ.t) =>
+let lookup_alias = (ctx: t, name: string, var_ids): option(TermBase.Typ.t) =>
   switch (lookup_tvar(ctx, name)) {
   | Some(Singleton(ty)) => Some(ty)
   | Some(Abstract) => None
   | None =>
     Some(
-      (Unknown(Hole(Invalid(name))): TermBase.Typ.term) |> IdTagged.fresh,
+      (
+        Unknown(
+          Syn,
+          (Invalid(name): TermBase.Hole.term) |> IdTagged.tag(var_ids),
+          Atom,
+        ): TermBase.Typ.term
+      )
+      |> IdTagged.fresh,
     )
   };
 

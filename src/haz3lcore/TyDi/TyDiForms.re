@@ -10,7 +10,7 @@ let leading_expander = " ";
  * running Statics, but for now, new forms e.g. operators must be added
  * below manually.  */
 module Typ = {
-  let unk: Typ.t = Unknown(Ana) |> Typ.fresh;
+  let unk: Typ.t = Unknown(Syn, Hole.temp(EmptyHole), Atom) |> Typ.fresh;
 
   let of_const_mono_delim: list((Token.t, Typ.t)) = [
     ("true", Atom(Bool) |> Typ.fresh),
@@ -33,10 +33,10 @@ module Typ = {
 
   let of_infix_delim: list((Token.t, Typ.term)) = [
     //("|>", Unknown(Internal)), /* annoying during case rules */
-    (",", Prod([Typ.fresh(Unknown(Ana)), Typ.fresh(Unknown(Ana))])), /* NOTE: Current approach doesn't work for this, but irrelevant as 1-char */
+    (",", Prod([unk, unk])), /* NOTE: Current approach doesn't work for this, but irrelevant as 1-char */
     //("::", List(unk)), /* annoying in patterns. TODO: add codepath to show only if Ana(List(_)) */
-    ("@", List(Typ.fresh(Unknown(Ana)))),
-    (";", Unknown(Ana)),
+    ("@", List(unk)),
+    (";", unk.term),
     ("&&", Atom(Bool)),
     ("\\/", Atom(Bool)),
     //("||", Atom(Bool)),
@@ -71,7 +71,7 @@ module Typ = {
     fun
     | InfoExp({ana, _})
     | InfoPat({ana, _}) => ana
-    | _ => Unknown(Ana) |> Typ.fresh;
+    | _ => unk;
 
   let filter_by =
       (

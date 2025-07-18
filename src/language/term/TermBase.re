@@ -69,9 +69,13 @@ type closure_environment_t = Grammar.closure_environment_t(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type stepper_filter_kind_t = Grammar.stepper_filter_kind_t(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
-type type_hole = Grammar.type_hole(IdTagged.IdTag.t);
+type hole_term = Grammar.hole_term(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
-type type_provenance = Grammar.type_provenance(IdTagged.IdTag.t);
+type hole_t = Grammar.hole_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type type_provenance = Grammar.type_provenance;
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type unknown_mode = Grammar.unknown_mode;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type filter = Grammar.filter(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -88,6 +92,7 @@ module rec Any: {
       ~f_exp: (Exp.t => Exp.t, Exp.t) => Exp.t=?,
       ~f_pat: (Pat.t => Pat.t, Pat.t) => Pat.t=?,
       ~f_typ: (Typ.t => Typ.t, Typ.t) => Typ.t=?,
+      ~f_hole: (Hole.t => Hole.t, Hole.t) => Hole.t=?,
       ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
       ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
       ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
@@ -116,6 +121,7 @@ module rec Any: {
         ~f_exp=continue,
         ~f_pat=continue,
         ~f_typ=continue,
+        ~f_hole=continue,
         ~f_tpat=continue,
         ~f_rul=continue,
         ~f_any=continue,
@@ -124,17 +130,70 @@ module rec Any: {
     let rec_call = (y: any_t): any_t =>
       switch (y) {
       | Exp(x) =>
-        Exp(Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, x))
+        Exp(
+          Exp.map_term(
+            ~f_exp,
+            ~f_pat,
+            ~f_typ,
+            ~f_hole,
+            ~f_tpat,
+            ~f_rul,
+            ~f_any,
+            x,
+          ),
+        )
       | Pat(x) =>
-        Pat(Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, x))
+        Pat(
+          Pat.map_term(
+            ~f_exp,
+            ~f_pat,
+            ~f_typ,
+            ~f_hole,
+            ~f_tpat,
+            ~f_rul,
+            ~f_any,
+            x,
+          ),
+        )
       | Typ(x) =>
-        Typ(Typ.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, x))
+        Typ(
+          Typ.map_term(
+            ~f_exp,
+            ~f_pat,
+            ~f_typ,
+            ~f_hole,
+            ~f_tpat,
+            ~f_rul,
+            ~f_any,
+            x,
+          ),
+        )
       | TPat(x) =>
         TPat(
-          TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, x),
+          TPat.map_term(
+            ~f_exp,
+            ~f_pat,
+            ~f_typ,
+            ~f_hole,
+            ~f_tpat,
+            ~f_rul,
+            ~f_any,
+            x,
+          ),
         )
       | Rul(x) =>
-        Rul(Rul.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any, x))
+        Rul(
+          Rul.map_term(
+            ~f_exp,
+            ~f_pat,
+            ~f_typ,
+            ~f_hole,
+            ~f_tpat,
+            ~f_rul,
+            ~f_any,
+            x,
+          ),
+        )
       | Any () => Any()
       };
     x |> f_any(rec_call);
@@ -170,6 +229,7 @@ and Exp: {
       ~f_exp: (Exp.t => Exp.t, Exp.t) => Exp.t=?,
       ~f_pat: (Pat.t => Pat.t, Pat.t) => Pat.t=?,
       ~f_typ: (Typ.t => Typ.t, Typ.t) => Typ.t=?,
+      ~f_hole: (Hole.t => Hole.t, Hole.t) => Hole.t=?,
       ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
       ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
       ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
@@ -192,21 +252,22 @@ and Exp: {
         ~f_exp=continue,
         ~f_pat=continue,
         ~f_typ=continue,
+        ~f_hole=continue,
         ~f_tpat=continue,
         ~f_rul=continue,
         ~f_any=continue,
         x,
       ) => {
     let exp_map_term =
-      Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+      Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_hole, ~f_tpat, ~f_rul, ~f_any);
     let pat_map_term =
-      Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+      Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_hole, ~f_tpat, ~f_rul, ~f_any);
     let typ_map_term =
-      Typ.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+      Typ.map_term(~f_exp, ~f_pat, ~f_typ, ~f_hole, ~f_tpat, ~f_rul, ~f_any);
     let tpat_map_term =
-      TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+      TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_hole, ~f_tpat, ~f_rul, ~f_any);
     let any_map_term =
-      Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+      Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_hole, ~f_tpat, ~f_rul, ~f_any);
     let flt_map_term =
       StepperFilterKind.map_term(
         ~f_exp,
@@ -428,6 +489,7 @@ and Pat: {
       ~f_exp: (Exp.t => Exp.t, Exp.t) => Exp.t=?,
       ~f_pat: (Pat.t => Pat.t, Pat.t) => Pat.t=?,
       ~f_typ: (Typ.t => Typ.t, Typ.t) => Typ.t=?,
+      ~f_hole: (Hole.t => Hole.t, Hole.t) => Hole.t=?,
       ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
       ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
       ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
@@ -448,17 +510,18 @@ and Pat: {
         ~f_exp=continue,
         ~f_pat=continue,
         ~f_typ=continue,
+        ~f_hole=continue,
         ~f_tpat=continue,
         ~f_rul=continue,
         ~f_any=continue,
         x,
       ) => {
     let pat_map_term =
-      Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+      Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_hole, ~f_tpat, ~f_rul, ~f_any);
     let typ_map_term =
-      Typ.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+      Typ.map_term(~f_exp, ~f_pat, ~f_typ, ~f_hole, ~f_tpat, ~f_rul, ~f_any);
     let any_map_term =
-      Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+      Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_hole, ~f_tpat, ~f_rul, ~f_any);
     let rec_call = ({term, _} as exp: t) => {
       ...exp,
       term:
@@ -540,6 +603,11 @@ and Typ: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = typ_t;
 
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type provenance = type_provenance;
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type mode = unknown_mode;
+
   type sum_map = ConstructorMap.t(t);
 
   let map_term:
@@ -547,6 +615,7 @@ and Typ: {
       ~f_exp: (Exp.t => Exp.t, Exp.t) => Exp.t=?,
       ~f_pat: (Pat.t => Pat.t, Pat.t) => Pat.t=?,
       ~f_typ: (Typ.t => Typ.t, Typ.t) => Typ.t=?,
+      ~f_hole: (Hole.t => Hole.t, Hole.t) => Hole.t=?,
       ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
       ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
       ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
@@ -564,6 +633,11 @@ and Typ: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = typ_t;
 
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type provenance = type_provenance;
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type mode = unknown_mode;
+
   type sum_map = ConstructorMap.t(t);
 
   let map_term =
@@ -571,25 +645,24 @@ and Typ: {
         ~f_exp=continue,
         ~f_pat=continue,
         ~f_typ=continue,
+        ~f_hole=continue,
         ~f_tpat=continue,
         ~f_rul=continue,
         ~f_any=continue,
         x,
       ) => {
     let typ_map_term =
-      Typ.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
-    let any_map_term =
-      Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+      Typ.map_term(~f_exp, ~f_pat, ~f_typ, ~f_hole, ~f_tpat, ~f_rul, ~f_any);
+    let hole_map_term =
+      Hole.map_term(~f_exp, ~f_pat, ~f_typ, ~f_hole, ~f_tpat, ~f_rul, ~f_any);
     let tpat_map_term =
-      TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+      TPat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_hole, ~f_tpat, ~f_rul, ~f_any);
     let rec_call: t => t =
       ({term, _} as exp: t) => {
         ...exp,
         term:
           switch (term) {
-          | Unknown(Hole(MultiHole(things))) =>
-            Unknown(Hole(MultiHole(List.map(any_map_term, things))))
-          | Unknown(_)
+          | Unknown(m, h, p) => Unknown(m, hole_map_term(h), p)
           | Atom(_)
           | Label(_)
           | Var(_) => term
@@ -623,11 +696,11 @@ and Typ: {
     | Some(str) =>
       let (term, rewrap) = Grammar.Annotated.unwrap(ty);
       switch (term) {
-      | Atom(_) => ty
-      | Label(name) => (Grammar.Label(name): typ_term) |> rewrap
-      | Unknown(prov) => Unknown(prov) |> rewrap
+      | Atom(_)
+      | Label(_)
+      | Unknown(_) => ty
       | Arrow(ty1, ty2) =>
-        Arrow(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
+        (Arrow(subst(s, x, ty1), subst(s, x, ty2)): term) |> rewrap
       | Prod(tys) => Prod(List.map(subst(s, x), tys)) |> rewrap
       | TupLabel(label, ty) => TupLabel(label, subst(s, x, ty)) |> rewrap
       | Sum(sm) =>
@@ -725,6 +798,7 @@ and TPat: {
       ~f_exp: (Exp.t => Exp.t, Exp.t) => Exp.t=?,
       ~f_pat: (Pat.t => Pat.t, Pat.t) => Pat.t=?,
       ~f_typ: (Typ.t => Typ.t, Typ.t) => Typ.t=?,
+      ~f_hole: (Hole.t => Hole.t, Hole.t) => Hole.t=?,
       ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
       ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
       ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
@@ -747,13 +821,14 @@ and TPat: {
         ~f_exp=continue,
         ~f_pat=continue,
         ~f_typ=continue,
+        ~f_hole=continue,
         ~f_tpat=continue,
         ~f_rul=continue,
         ~f_any=continue,
         x,
       ) => {
     let any_map_term =
-      Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+      Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_hole, ~f_tpat, ~f_rul, ~f_any);
     let rec_call = ({term, _} as exp: t) => {
       ...exp,
       term:
@@ -791,6 +866,77 @@ and TPat: {
     };
   let equal = fast_equal;
 }
+and Hole: {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type term = hole_term;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = hole_t;
+
+  let map_term:
+    (
+      ~f_exp: (Exp.t => Exp.t, Exp.t) => Exp.t=?,
+      ~f_pat: (Pat.t => Pat.t, Pat.t) => Pat.t=?,
+      ~f_typ: (Typ.t => Typ.t, Typ.t) => Typ.t=?,
+      ~f_hole: (Hole.t => Hole.t, Hole.t) => Hole.t=?,
+      ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
+      ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
+      ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
+      t
+    ) =>
+    t;
+
+  let fast_equal: (t, t) => bool;
+  let equal: (t, t) => bool;
+} = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type term = hole_term;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = hole_t;
+
+  let map_term =
+      (
+        ~f_exp=continue,
+        ~f_pat=continue,
+        ~f_typ=continue,
+        ~f_hole=continue,
+        ~f_tpat=continue,
+        ~f_rul=continue,
+        ~f_any=continue,
+        x,
+      ) => {
+    let any_map_term =
+      Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+    let rec_call = ({term, _} as exp: t) => {
+      ...exp,
+      term:
+        switch (term) {
+        | EmptyHole
+        | ErrorHole
+        | Invalid(_) => term
+        | MultiHole(things) => MultiHole(List.map(any_map_term, things))
+        },
+    };
+    x |> f_hole(rec_call);
+  };
+
+  let fast_equal = (tp1: t, tp2: t) =>
+    switch (
+      tp1 |> Grammar.Annotated.term_of,
+      tp2 |> Grammar.Annotated.term_of,
+    ) {
+    | (EmptyHole, EmptyHole) => true
+    | (ErrorHole, ErrorHole) => true
+    | (Invalid(s1), Invalid(s2)) => s1 == s2
+    | (MultiHole(xs), MultiHole(ys)) =>
+      List.length(xs) == List.length(ys)
+      && List.equal(Any.fast_equal, xs, ys)
+    | (EmptyHole, _)
+    | (ErrorHole, _)
+    | (Invalid(_), _)
+    | (MultiHole(_), _) => false
+    };
+  let equal = fast_equal;
+}
 and Rul: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = rul_term;
@@ -802,6 +948,7 @@ and Rul: {
       ~f_exp: (Exp.t => Exp.t, Exp.t) => Exp.t=?,
       ~f_pat: (Pat.t => Pat.t, Pat.t) => Pat.t=?,
       ~f_typ: (Typ.t => Typ.t, Typ.t) => Typ.t=?,
+      ~f_hole: (Hole.t => Hole.t, Hole.t) => Hole.t=?,
       ~f_tpat: (TPat.t => TPat.t, TPat.t) => TPat.t=?,
       ~f_rul: (Rul.t => Rul.t, Rul.t) => Rul.t=?,
       ~f_any: (Any.t => Any.t, Any.t) => Any.t=?,
@@ -822,15 +969,16 @@ and Rul: {
         ~f_exp=continue,
         ~f_pat=continue,
         ~f_typ=continue,
+        ~f_hole=continue,
         ~f_tpat=continue,
         ~f_rul=continue,
         ~f_any=continue,
         x,
       ) => {
     let exp_map_term =
-      Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+      Exp.map_term(~f_exp, ~f_pat, ~f_typ, ~f_hole, ~f_tpat, ~f_rul, ~f_any);
     let pat_map_term =
-      Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
+      Pat.map_term(~f_exp, ~f_pat, ~f_typ, ~f_hole, ~f_tpat, ~f_rul, ~f_any);
     let any_map_term =
       Any.map_term(~f_exp, ~f_pat, ~f_typ, ~f_tpat, ~f_rul, ~f_any);
     let rec_call = ({term, _} as exp: t) => {

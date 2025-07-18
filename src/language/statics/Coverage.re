@@ -83,12 +83,21 @@ module Ctr = {
 
   let arity_of = (ctr, all_ctrs: all_ctrs): arity =>
     switch (all_ctrs) {
-    | Unknown => List.init(ctr.num_args, _ => Unknown(Ana) |> Typ.temp) // TODO: Provenances here
-    | Infinite => List.init(ctr.num_args, _ => Unknown(Ana) |> Typ.temp)
+    | Unknown =>
+      List.init(ctr.num_args, _ =>
+        Unknown(Ana, Hole.temp(EmptyHole), Atom) |> Typ.temp
+      ) // TODO: Check Ana works here
+    | Infinite =>
+      List.init(ctr.num_args, _ =>
+        Unknown(Ana, Hole.temp(EmptyHole), Atom) |> Typ.temp
+      )
     | Finite(all_ctrs) =>
       switch (Map.find_opt(ctr, all_ctrs)) {
       | Some(arity) => arity
-      | None => List.init(ctr.num_args, _ => Unknown(Ana) |> Typ.temp)
+      | None =>
+        List.init(ctr.num_args, _ =>
+          Unknown(Ana, Hole.temp(EmptyHole), Atom) |> Typ.temp
+        )
       }
     };
 

@@ -63,7 +63,7 @@ type error_common =
   /* Overdetermined: Conflicting type expectations */
   | Inconsistent(error_inconsistent)
   /* Syn is more specific than analysed unknown: Type hole of given id should be filled */
-  | AsymmetricUnknown(Typ.t, Id.t)
+  | AsymmetricUnknown(Typ.t, Hole.t, Typ.provenance)
   /* The error on a specific duplicate label */
   | DuplicateLabel(LabeledTuple.label, Typ.t)
   /* Tuple/TupLabel contains malformed labels, duplicate labels, and/or invalid labels */
@@ -381,10 +381,10 @@ let error_ids_of: t => list(Id.t) =
     @ (
       switch (error_of(i)) {
       | Some(
-          Exp(Common(AsymmetricUnknown(_, hole_id))) |
-          Pat(Common(AsymmetricUnknown(_, hole_id))),
+          Exp(Common(AsymmetricUnknown(_, hole, _))) |
+          Pat(Common(AsymmetricUnknown(_, hole, _))),
         ) => [
-          hole_id,
+          Hole.rep_id(hole),
         ]
       | _ => []
       }
@@ -397,11 +397,13 @@ let pat_ty: pat => Typ.t = ({ty, _}) => ty;
 let pat_constraint: pat => Coverage.Constraint.t =
   ({constraint_, _}) => constraint_;
 
-let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
+let status_common =
+    (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t, ids: list(Id.t)): status_common =>
   switch (self, ty_ana) {
-  | (Just(ty), {term: Unknown(SynSwitch), _}) => NotInHole(Syn(ty))
-  | (Just(ty), ana) when !Typ.is_unknown(ty) && Typ.is_unknown(ana) =>
-    InHole(AsymmetricUnknown(ty, Typ.rep_id(ana))) /* Disallow analysing against ? except for terms synthesising ? */
+  | (Just(ty), {term: Unknown(Syn | SynSwitch, _, _), _}) =>
+    NotInHole(Syn(ty))
+  | (Just(ty), {term: Unknown(Ana, h, p), _}) when !Typ.is_unknown_syn(ty) =>
+    InHole(AsymmetricUnknown(ty, h, p)) /* Disallow analysing against ? except for terms synthesising ? */
   | (Just(syn), ana) =>
     switch (
       Typ.join(
@@ -465,12 +467,46 @@ let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
     )
   | (Duplicate(lab, Just(ty)), _) => InHole(DuplicateLabel(lab, ty))
   | (Duplicate(lab, _), _) =>
-    InHole(DuplicateLabel(lab, Unknown(Ana) |> Typ.temp))
-  | (IsMulti, _) => NotInHole(Syn(Unknown(SynSwitch) |> Typ.temp))
-  | (NoJoin(_, tys), {term: Unknown(SynSwitch), _}) =>
+    InHole(
+      DuplicateLabel(
+        lab,
+        Unknown(
+          Syn,
+          {
+            term: ErrorHole,
+            annotation: {
+              ids: ids,
+            },
+          },
+          Atom,
+        )
+        |> Typ.temp,
+      ),
+    )
+  | (IsMulti, _) =>
+    NotInHole(
+      Syn(
+        Unknown(
+          Syn,
+          {
+            term: MultiHole([]),
+            annotation: {
+              ids: ids,
+            },
+          },
+          Atom,
+        )
+        |> Typ.temp,
+      ),
+    ) // TODO: track multihole, or just remove arg entirely
+  | (NoJoin(_, tys), {term: Unknown(SynSwitch, _, _), _}) =>
     InHole(Inconsistent(Internal(Typ.of_source(tys))))
   | (NoJoin(wrap, tys), ana) =>
-    let syn: Typ.t = Self.join_of(wrap, Unknown(SynSwitch) |> Typ.temp);
+    let syn: Typ.t =
+      Self.join_of(
+        wrap,
+        Unknown(Syn, Hole.temp(EmptyHole), Atom) |> Typ.temp,
+      );
     switch (Typ.join(ctx, ana, syn)) {
     | None =>
       switch (ana.term, syn.term) {
@@ -506,11 +542,12 @@ let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
     };
   };
 
-let rec status_pat = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.pat): status_pat =>
+let rec status_pat =
+        (ctx: Ctx.t, ty_ana: Typ.t, self: Self.pat, ids): status_pat =>
   switch (self) {
   | Redundant(self) =>
     let additional_err =
-      switch (status_pat(ctx, ty_ana, self)) {
+      switch (status_pat(ctx, ty_ana, self, ids)) {
       | InHole(
           Common(
             Inconsistent(Internal(_) | Expectation(_)) | NoType(_) |
@@ -535,7 +572,7 @@ let rec status_pat = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.pat): status_pat =>
     InHole(Common(NoType(FreeConstructor(name))))
   | ExpectedConstructor(_) => InHole(ExpectedConstructor)
   | Common(self_pat) =>
-    switch (status_common(ctx, ty_ana, self_pat)) {
+    switch (status_common(ctx, ty_ana, self_pat, ids)) {
     | NotInHole(ok_pat) => NotInHole(ok_pat)
     | InHole(err_pat) => InHole(Common(err_pat))
     }
@@ -545,12 +582,12 @@ let rec status_pat = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.pat): status_pat =>
    depending on the mode, which represents the expectations of the
    surrounding syntactic context, and the self which represents the
    makeup of the expression / pattern itself. */
-let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
+let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp, ids): status_exp =>
   switch (self) {
   | Free(name) => InHole(FreeVariable(name))
   | InexhaustiveMatch(self) =>
     let additional_err =
-      switch (status_exp(ctx, ty_ana, self)) {
+      switch (status_exp(ctx, ty_ana, self, ids)) {
       | InHole(Common(Inconsistent(Internal(_)) as inconsistent_err)) =>
         Some(inconsistent_err)
       | NotInHole(_)
@@ -577,7 +614,8 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
         failwith("InHole(InexhaustiveMatch(impossible_err))")
       };
     InHole(InexhaustiveMatch(additional_err));
-  | IsDeferral(_) when Typ.is_syn_plus(ty_ana) => InHole(UnusedDeferral)
+  | IsDeferral(_) when Typ.is_synswitch_plus(ty_ana) =>
+    InHole(UnusedDeferral)
   | IsDeferral(InAp) => NotInHole(AnaDeferralConsistent(ty_ana))
   | IsDeferral(_) => InHole(UnusedDeferral)
   | IsBadPartialAp(_ as info) => InHole(BadPartialAp(info))
@@ -594,14 +632,16 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
     switch (ll) {
     | None => InHole(UnboundLivelit(name))
     | Some(_livelit) =>
-      NotInHole(Common(Syn(Unknown(SynSwitch) |> Typ.temp)))
+      NotInHole(
+        Common(Syn(Unknown(Syn, Hole.fresh(EmptyHole), Atom) |> Typ.temp)),
+      )
     };
   | BadTrivAp(ty) => InHole(BadTrivAp(ty))
   | BadOperator(op) => InHole(BadOperator(op))
   | LabelNotFound(label, labels) => InHole(LabelNotFound(label, labels))
   | BadLivelitModel(typ) => InHole(BadLivelitModel(typ))
   | Common(self_exp) =>
-    switch (status_common(ctx, ty_ana, self_exp)) {
+    switch (status_common(ctx, ty_ana, self_exp, ids)) {
     | NotInHole(ok_exp) => NotInHole(Common(ok_exp))
     | InHole(err_exp) => InHole(Common(err_exp))
     }
@@ -616,8 +656,8 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
    free, and whether a ctr name is a dupe. */
 let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
   switch (ty.term) {
-  | Unknown(Hole(Invalid(token))) => InHole(BadToken(token))
-  | Unknown(Hole(EmptyHole)) =>
+  | Unknown(_, {term: Invalid(token), _}, _) => InHole(BadToken(token))
+  | Unknown(_, {term: EmptyHole, _}, _) =>
     switch (expects) {
     | LabelExpected(_) => NotInHole(EmptyLabel)
     | _ => NotInHole(Type(ty))
@@ -631,13 +671,17 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
     | ConstructorExpected(Duplicate, _) =>
       InHole(DuplicateConstructor(name))
     | TupleExpected =>
-      switch (Ctx.lookup_alias(ctx, name)) {
+      switch (
+        Ctx.lookup_alias(ctx, name, IdTagged.IdTag.of_id(Typ.rep_id(ty)))
+      ) {
       | Some({term: Prod(_), _}) =>
         NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
       | _ => InHole(WantTuple)
       }
     | LabelExpected(_) =>
-      switch (Ctx.lookup_alias(ctx, name)) {
+      switch (
+        Ctx.lookup_alias(ctx, name, IdTagged.IdTag.of_id(Typ.rep_id(ty)))
+      ) {
       | Some({term: Label(_), _}) =>
         NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
       | _ => InHole(WantLabel)
@@ -756,29 +800,84 @@ let fixed_typ_ok: ok_pat => Typ.t =
   | Ana(Consistent({join, _})) => join
   | Ana(InternallyInconsistent({ana, _})) => ana;
 
-let fixed_typ_err_common: error_common => Typ.t =
-  fun
+let fixed_typ_err_common = (error_common, ids) =>
+  switch (error_common) {
   | NoType(FreeConstructor(c)) =>
     Sum([
       ConstructorMap.Variant(c, [Id.invalid], None),
-      ConstructorMap.BadEntry(Unknown(SynSwitch) |> Typ.temp),
+      ConstructorMap.BadEntry(
+        Unknown(
+          Syn,
+          {
+            term: ErrorHole,
+            annotation: {
+              ids: ids,
+            },
+          },
+          Sum(Ctr(c, Atom)),
+        )
+        |> Typ.temp,
+      ),
     ])
     |> Typ.temp
-  | NoType(BadToken(_) | BadLabel(_) | InvalidLabel(_))
-  | AsymmetricUnknown(_) => Unknown(SynSwitch) |> Typ.temp
+  | NoType(BadToken(_) | BadLabel(_) | InvalidLabel(_)) =>
+    Unknown(
+      Syn,
+      {
+        term: ErrorHole,
+        annotation: {
+          ids: ids,
+        },
+      },
+      Atom,
+    )
+    |> Typ.temp
+  | AsymmetricUnknown(_, h, p) => Unknown(Syn, h, p) |> Typ.temp
   | TupleLabelError({typ, _})
   | DuplicateLabel(_, typ) => typ
   | Inconsistent(Expectation({ana, _})) => ana
-  | Inconsistent(Internal(_)) => Unknown(SynSwitch) |> Typ.temp // Should this be some sort of meet?
+  | Inconsistent(Internal(_)) =>
+    Unknown(
+      Syn,
+      {
+        term: ErrorHole,
+        annotation: {
+          ids: ids,
+        },
+      },
+      Atom,
+    )
+    |> Typ.temp // Should this be some sort of meet?
   | Inconsistent(WithArrow(_)) =>
     Arrow(
-      Unknown(ArrowL(SynSwitch)) |> Typ.temp,
-      Unknown(ArrowR(SynSwitch)) |> Typ.temp,
+      Unknown(
+        Syn,
+        {
+          term: ErrorHole,
+          annotation: {
+            ids: ids,
+          },
+        },
+        ArrowL(Atom),
+      )
+      |> Typ.temp,
+      Unknown(
+        Syn,
+        {
+          term: ErrorHole,
+          annotation: {
+            ids: ids,
+          },
+        },
+        ArrowR(Atom),
+      )
+      |> Typ.temp,
     )
-    |> Typ.temp;
+    |> Typ.temp
+  };
 
-let fixed_typ_err: error_exp => Typ.t =
-  fun
+let fixed_typ_err = (error_typ, ids) =>
+  switch (error_typ) {
   | UnboundLivelit(_)
   | FreeVariable(_)
   | UnusedDeferral
@@ -787,33 +886,57 @@ let fixed_typ_err: error_exp => Typ.t =
   | WantTuple
   | BadOperator(_)
   | LabelNotFound(_, _)
-  | BadTrivAp(_) => Unknown(SynSwitch) |> Typ.temp
-  | Common(err) => fixed_typ_err_common(err)
+  | BadTrivAp(_) =>
+    Unknown(
+      Syn,
+      {
+        term: ErrorHole,
+        annotation: {
+          ids: ids,
+        },
+      },
+      Atom,
+    )
+    |> Typ.temp
+  | Common(err) => fixed_typ_err_common(err, ids)
   | InvalidUseMode({inner_typ, _}) => inner_typ
-  | BadLivelitModel(ana) => ana;
+  | BadLivelitModel(ana) => ana
+  };
 
-let fixed_typ_err_pat: error_pat => Typ.t =
-  fun
+let fixed_typ_err_pat = (error_pat, ids) =>
+  switch (error_pat) {
   | ExpectedConstructor
-  | Redundant(_) => Unknown(SynSwitch) |> Typ.temp
-  | Common(err) => fixed_typ_err_common(err);
+  | Redundant(_) =>
+    Unknown(
+      Syn,
+      {
+        term: ErrorHole,
+        annotation: {
+          ids: ids,
+        },
+      },
+      Atom,
+    )
+    |> Typ.temp
+  | Common(err) => fixed_typ_err_common(err, ids)
+  };
 
-let fixed_typ_pat = (ctx, ty_ana: Typ.t, self: Self.pat): Typ.t => {
+let fixed_typ_pat = (ctx, ty_ana: Typ.t, self: Self.pat, ids): Typ.t => {
   // TODO: get rid of unwrapping (probably by changing the implementation of error_exp.Redundant)
   let self =
     switch (self) {
     | Redundant(self) => self
     | _ => self
     };
-  switch (status_pat(ctx, ty_ana, self)) {
-  | InHole(err) => fixed_typ_err_pat(err)
+  switch (status_pat(ctx, ty_ana, self, ids)) {
+  | InHole(err) => fixed_typ_err_pat(err, ids)
   | NotInHole(ok) => fixed_typ_ok(ok)
   };
 };
 
-let fixed_typ_exp = (ctx, ty_ana: Typ.t, self: Self.exp): Typ.t =>
-  switch (status_exp(ctx, ty_ana, self)) {
-  | InHole(err) => fixed_typ_err(err)
+let fixed_typ_exp = (ctx, ty_ana: Typ.t, self: Self.exp, ids): Typ.t =>
+  switch (status_exp(ctx, ty_ana, self, ids)) {
+  | InHole(err) => fixed_typ_err(err, ids)
   | NotInHole(AnaDeferralConsistent(ana)) => ana
   | NotInHole(Common(ok)) => fixed_typ_ok(ok)
   };
@@ -833,8 +956,8 @@ let derived_exp =
     )
     : exp => {
   let cls = Cls.Exp(Exp.cls_of_term(uexp.term));
-  let status = status_exp(ctx, ana, self);
-  let ty = fixed_typ_exp(ctx, ana, self);
+  let status = status_exp(ctx, ana, self, uexp.annotation.ids);
+  let ty = fixed_typ_exp(ctx, ana, self, uexp.annotation.ids);
   {
     cls,
     self,
@@ -868,8 +991,8 @@ let derived_pat =
     )
     : pat => {
   let cls = Cls.Pat(Pat.cls_of_term(upat.term));
-  let status = status_pat(ctx, ana, self);
-  let ty = fixed_typ_pat(ctx, ana, self);
+  let status = status_pat(ctx, ana, self, upat.annotation.ids);
+  let ty = fixed_typ_pat(ctx, ana, self, upat.annotation.ids);
   {
     cls,
     self,

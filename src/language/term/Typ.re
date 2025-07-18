@@ -4,11 +4,12 @@ open OptUtil.Syntax;
 [@deriving (show({with_path: false}), sexp, yojson, enumerate, eq)]
 type cls =
   | Atom(Atom.cls)
-  | Invalid
-  | EmptyHole
-  | MultiHole
-  | SynSwitch
-  | Internal
+  | UnkInvalidSyn
+  | UnkInvalidAna
+  | UnkEmptyHoleSyn
+  | UnkEmptyHoleAna
+  | UnkMultiHoleSyn
+  | UnkMultiHoleAna
   | Arrow
   | Prod
   | TupLabel
@@ -68,19 +69,27 @@ let (replace_temp, replace_temp_exp) = {
   );
 };
 
-let hole = (tms: list(TermBase.Any.t)): TermBase.Typ.term =>
+let hole_syn = (tms: list(TermBase.Any.t)): TermBase.Typ.term =>
   switch (tms) {
-  | [] => Unknown(Hole(EmptyHole))
-  | [_, ..._] => Unknown(Hole(MultiHole(tms)))
+  | [] => Unknown(Syn, Hole.fresh(EmptyHole), Atom)
+  | [_, ..._] => Unknown(Syn, Hole.fresh(MultiHole(tms)), Atom)
+  };
+
+let hole_ana = (tms: list(TermBase.Any.t)): TermBase.Typ.term =>
+  switch (tms) {
+  | [] => Unknown(Ana, Hole.fresh(EmptyHole), Atom)
+  | [_, ..._] => Unknown(Ana, Hole.fresh(MultiHole(tms)), Atom)
   };
 
 let cls_of_term: Grammar.typ_term('a) => cls =
   fun
-  | Unknown(Hole(Invalid(_))) => Invalid
-  | Unknown(Hole(EmptyHole)) => EmptyHole
-  | Unknown(Hole(MultiHole(_))) => MultiHole
-  | Unknown(SynSwitch) => SynSwitch
-  | Unknown(_) => Internal // Note: might need classes for provenances
+  | Unknown(Syn | SynSwitch, {term: Invalid(_), _}, _) => UnkInvalidSyn
+  | Unknown(Ana, {term: Invalid(_), _}, _) => UnkInvalidAna
+  | Unknown(Syn | SynSwitch, {term: EmptyHole, _}, _) => UnkEmptyHoleSyn
+  | Unknown(Ana, {term: EmptyHole, _}, _) => UnkEmptyHoleAna
+  | Unknown(Syn | SynSwitch, {term: MultiHole(_) | ErrorHole, _}, _) =>
+    UnkMultiHoleSyn
+  | Unknown(Ana, {term: MultiHole(_) | ErrorHole, _}, _) => UnkMultiHoleAna
   | Atom(c) => Atom(c)
   | List(_) => List
   | Arrow(_) => Arrow
@@ -96,11 +105,12 @@ let cls_of_term: Grammar.typ_term('a) => cls =
 
 let show_cls: cls => string =
   fun
-  | Invalid => "Invalid type"
-  | MultiHole => "Broken type"
-  | EmptyHole => "Empty type hole"
-  | SynSwitch => "Synthetic type"
-  | Internal => "Internal type"
+  | UnkInvalidSyn
+  | UnkInvalidAna => "Invalid type"
+  | UnkMultiHoleSyn
+  | UnkMultiHoleAna => "Broken type"
+  | UnkEmptyHoleSyn => "Synthesising unknown type (from expression hole or partially annotated variable)"
+  | UnkEmptyHoleAna => "Analysing unknown type (from partial annotation)"
   | Atom(_) => "Base type"
   | Var => "Type variable"
   | Constructor => "Sum constructor"
@@ -186,29 +196,29 @@ type source = {
 /* Strip location information from a list of sources */
 let of_source = List.map((source: source) => source.ty);
 
-/* Internal type provenances > Hole(_) > SynSwitch  and  Invalid > MultiHole > EmptyHole
-   Note: Important for asymmetric unknown type checking that Internal > SynSwitch */
-let join_type_provenance =
-    (p1: TermBase.type_provenance, p2: TermBase.type_provenance)
-    : TermBase.type_provenance =>
-  switch (p1, p2) {
-  /* Invalid > x */
-  | (Hole(Invalid(s)), Hole(_))
-  | (Hole(_), Hole(Invalid(s))) => Hole(Invalid(s))
-  /* MultiHole > EmptyHole */
-  | (Hole(MultiHole(e)), Hole(_))
-  | (Hole(_), Hole(MultiHole(e))) => Hole(MultiHole(e))
-  | (Hole(EmptyHole), Hole(EmptyHole)) => Hole(EmptyHole)
-  /* Hole(_) > SynSwitch */
-  | (Hole(h), SynSwitch)
-  | (SynSwitch, Hole(h)) => Hole(h)
-  | (SynSwitch, SynSwitch) => SynSwitch
-  /* Internal > x */
-  | (p, SynSwitch | Hole(_))
-  | (SynSwitch | Hole(_), p) => p // Should joining Internal with Hole even make sense?
-  | (p1, p2) when p1 == p2 => p1
-  | (_p1, _p2) => Ana // TODO: THink about this case
-  };
+/* Ana > SynSwitch > Syn */
+let join_unknown_mode: ((mode, mode)) => mode =
+  fun
+  | (Ana, _)
+  | (_, Ana) => Ana
+  | (SynSwitch, _)
+  | (_, SynSwitch) => SynSwitch
+  | (Syn, Syn) => Syn;
+
+/* TODO: Think about joining provenances. (may not be required) */
+let join_type_provenance = ((p1, _p2)) => p1;
+
+/* TODO: Think about joining holes.
+   Currently: Invalid > ErrorHole > MultiHole > Hole*/
+let join_hole: ((Hole.t, Hole.t)) => Hole.t =
+  fun
+  | ({term: Invalid(_), _} as h, _)
+  | (_, {term: Invalid(_), _} as h)
+  | ({term: ErrorHole, _} as h, _)
+  | (_, {term: ErrorHole, _} as h)
+  | ({term: MultiHole(_), _} as h, _)
+  | (_, {term: MultiHole(_), _} as h)
+  | ({term: EmptyHole, _} as h, _) => h;
 
 let rec match_tup_label = ty =>
   switch (term_of(ty)) {
@@ -272,9 +282,16 @@ let rec aliases_deep = (ctx: Ctx.t, ty: t): list((string, t)) => {
   let defs =
     ListUtil.flat_map(
       var =>
-        switch (Ctx.lookup_alias(ctx, var)) {
+        switch (
+          Ctx.lookup_alias(ctx, var, IdTagged.IdTag.of_id(rep_id(ty)))
+        ) {
         | Some(ty) => [(var, ty)]
-        | None => [(var, fresh(Unknown(Ana)))]
+        | None => [
+            (
+              var,
+              fresh(Unknown(Syn, Hole.fresh(Invalid("Abstract")), Atom)),
+            ),
+          ] // TODO: Handle hole provenances of abstract ctx lookups correctly
         },
       vars(ty),
     )
@@ -389,25 +406,36 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
   switch (term_of(ty1), term_of(ty2)) {
   | (_, Parens(ty2)) => join'(ty1, ty2)
   | (Parens(ty1), _) => join'(ty1, ty2)
-  | (Unknown(p1), Unknown(p2)) =>
-    Some(Unknown(join_type_provenance(p1, p2)) |> temp)
+  | (Unknown(m1, h1, p1), Unknown(m2, h2, p2)) =>
+    Some(
+      Unknown(
+        join_unknown_mode((m1, m2)),
+        join_hole((h1, h2)),
+        join_type_provenance((p1, p2)),
+      )
+      |> temp,
+    )
   | (Unknown(_), _) => Some(ty2)
   | (_, Unknown(_)) => Some(ty1)
   | (Var(n1), Var(n2)) =>
     if (n1 == n2) {
       Some(ty1);
     } else {
-      let* ty1 = Ctx.lookup_alias(ctx, n1);
-      let* ty2 = Ctx.lookup_alias(ctx, n2);
+      let* ty1 =
+        Ctx.lookup_alias(ctx, n1, IdTagged.IdTag.of_id(rep_id(ty1)));
+      let* ty2 =
+        Ctx.lookup_alias(ctx, n2, IdTagged.IdTag.of_id(rep_id(ty2)));
       let+ ty_join = join'(ty1, ty2);
       !resolve && equal(ty1, ty_join) ? ty1 : ty_join;
     }
   | (Var(name), _) =>
-    let* ty_name = Ctx.lookup_alias(ctx, name);
+    let* ty_name =
+      Ctx.lookup_alias(ctx, name, IdTagged.IdTag.of_id(rep_id(ty1)));
     let+ ty_join = join'(ty_name, ty2);
     !resolve && equal(ty_name, ty_join) ? ty1 : ty_join;
   | (_, Var(name)) =>
-    let* ty_name = Ctx.lookup_alias(ctx, name);
+    let* ty_name =
+      Ctx.lookup_alias(ctx, name, IdTagged.IdTag.of_id(rep_id(ty2)));
     let+ ty_join = join'(ty_name, ty1);
     !resolve && equal(ty_name, ty_join) ? ty2 : ty_join;
   /* Note: Ordering of Unknown, Var, and Rec above is load-bearing! */
@@ -482,7 +510,7 @@ let rec match_synswitch = (t1: t, t2: t) => {
   let (term1, rewrap1) = unwrap(t1);
   switch (term1, term_of(t2)) {
   | (Parens(t1), _) => Parens(match_synswitch(t1, t2)) |> rewrap1
-  | (Unknown(SynSwitch), _) => t2
+  | (Unknown(SynSwitch, _, _), _) => t2
   // These cases can't have a synswitch inside
   | (Unknown(_), _)
   | (Atom(_), _)
@@ -545,7 +573,7 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   switch (term_of(ty)) {
   | Parens(t) => weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t)
   | Var(x) =>
-    switch (Ctx.lookup_alias(ctx, x)) {
+    switch (Ctx.lookup_alias(ctx, x, IdTagged.IdTag.of_id(rep_id(ty)))) {
     | Some(ty) => weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)
     | None => ty
     }
@@ -561,7 +589,7 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   let (term, rewrap) = unwrap(ty);
   switch (term) {
   | Var(x) =>
-    switch (Ctx.lookup_alias(ctx, x)) {
+    switch (Ctx.lookup_alias(ctx, x, IdTagged.IdTag.of_id(rep_id(ty)))) {
     | Some(ty) => normalize(ctx, ty)
     | None => ty
     }
@@ -592,17 +620,20 @@ let rec matched_arrow_strict = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
   | Parens(ty) => matched_arrow_strict(ctx, ty)
   | Arrow(ty_in, ty_out) => Some((ty_in, ty_out))
-  | Unknown(p) =>
-    Some((Unknown(ArrowL(p)) |> temp, Unknown(ArrowR(p)) |> temp))
+  | Unknown(m, h, p) =>
+    Some((
+      Unknown(m, h, ArrowL(p)) |> temp,
+      Unknown(m, h, ArrowR(p)) |> temp,
+    ))
   | _ => None
   };
 
-let matched_arrow = (ctx, ty) =>
+let matched_arrow = (ctx, ty, error) =>
   matched_arrow_strict(ctx, ty)
   |> Option.value(
        ~default=(
-         Unknown(ArrowL(Ana)) |> temp,
-         Unknown(ArrowR(Ana)) |> temp,
+         Unknown(Syn, error, ArrowL(Atom)) |> temp,
+         Unknown(Syn, error, ArrowR(Atom)) |> temp,
        ),
      );
 
@@ -610,13 +641,15 @@ let rec matched_forall_strict = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
   | Parens(ty) => matched_forall_strict(ctx, ty)
   | Forall(t, ty) => Some((Some(t), ty))
-  | Unknown(p) => Some((None, Unknown(Forall(p)) |> temp))
+  | Unknown(m, h, p) => Some((None, Unknown(m, h, Forall(p)) |> temp))
   | _ => None
   };
 
-let matched_forall = (ctx, ty) =>
+let matched_forall = (ctx, ty, error) =>
   matched_forall_strict(ctx, ty)
-  |> Option.value(~default=(None, Unknown(Ana) |> temp));
+  |> Option.value(
+       ~default=(None, Unknown(Syn, error, Forall(Atom)) |> temp),
+     );
 
 let rec get_labels = (ctx, ty): list(option(string)) => {
   let ty = weak_head_normalize(ctx, ty);
@@ -650,15 +683,19 @@ let rec matched_prod_strict:
           Some(tys),
         );
       }
-    | Unknown(p) => (
+    | Unknown(m, h, p) => (
         es,
-        Some(List.init(List.length(es), i => Unknown(Prod(i, p)) |> temp)),
+        Some(
+          List.init(List.length(es), i =>
+            Unknown(m, h, Prod(i, p)) |> temp
+          ),
+        ),
       )
     | _ => (es, None)
     };
   };
 
-let matched_prod = (ctx, es, get_label_es, ty, constructor) => {
+let matched_prod = (ctx, es, get_label_es, ty, constructor, error) => {
   let (es, tys_opt) =
     matched_prod_strict(ctx, es, get_label_es, ty, constructor);
   (
@@ -666,7 +703,9 @@ let matched_prod = (ctx, es, get_label_es, ty, constructor) => {
     tys_opt
     |> Option.value(
          ~default=
-           List.init(List.length(es), i => Unknown(Prod(i, Ana)) |> temp),
+           List.init(List.length(es), i =>
+             Unknown(Syn, error, Prod(i, Atom)) |> temp
+           ),
        ),
   );
 };
@@ -675,13 +714,13 @@ let rec matched_list_strict = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
   | Parens(ty) => matched_list_strict(ctx, ty)
   | List(ty) => Some(ty)
-  | Unknown(p) => Some(Unknown(List(p)) |> temp)
+  | Unknown(m, h, p) => Some(Unknown(m, h, List(p)) |> temp)
   | _ => None
   };
 
-let matched_list = (ctx, ty) =>
+let matched_list = (ctx, ty, error) =>
   matched_list_strict(ctx, ty)
-  |> Option.value(~default=Unknown(List(Ana)) |> temp);
+  |> Option.value(~default=Unknown(Syn, error, List(Atom)) |> temp);
 
 let rec matched_args_strict = (ctx, ty, arity): Either.t('a, int) => {
   switch (term_of(weak_head_normalize(ctx, ty))) {
@@ -689,22 +728,26 @@ let rec matched_args_strict = (ctx, ty, arity): Either.t('a, int) => {
   | Prod(tys) when List.length(tys) == arity => L(tys)
   | Prod(tys) => R(List.length(tys))
   | _ when arity == 1 => L([ty])
-  | Unknown(p) => L(List.init(arity, i => Unknown(Arg(i, p)) |> temp))
+  | Unknown(m, h, p) =>
+    L(List.init(arity, i => Unknown(m, h, Arg(i, p)) |> temp))
   | _ => R(1)
   };
 };
 
-let matched_args = (ctx, ty, arity) =>
+let matched_args = (ctx, ty, arity, error) =>
   switch (matched_args_strict(ctx, ty, arity)) {
   | L(tys) => tys
-  | R(_) => List.init(arity, i => Unknown(Arg(i, Ana)) |> temp)
+  | R(_) => List.init(arity, i => Unknown(Syn, error, Arg(i, Atom)) |> temp)
   };
 
 let matched_label = (ctx, ty): option((t, t)) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
   | TupLabel({term: Label(ml), _}, ty) => Some((Label(ml) |> temp, ty))
-  | Unknown(p) =>
-    Some((Unknown(Label(p)) |> temp, Unknown(TupLabel(p)) |> temp))
+  | Unknown(m, h, p) =>
+    Some((
+      Unknown(m, h, Label(p)) |> temp,
+      Unknown(m, h, TupLabel(p)) |> temp,
+    ))
   | _ => None
   };
 
@@ -726,11 +769,7 @@ let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
        the below code will be incorrect! */
     let ty =
       switch (ty |> term_of) {
-      | Rec({term: Var(x), _}, _ty_body) =>
-        switch (Ctx.lookup_alias(ctx, x)) {
-        | None => unroll(ty)
-        | Some(_) => unroll(ty)
-        }
+      | Rec({term: Var(_), _}, _ty_body) => unroll(ty)
       | _ => ty
       };
     switch (ty |> term_of) {
@@ -749,27 +788,28 @@ let rec is_unknown = (ty: t): bool =>
   | _ => false
   };
 
-let rec is_syn_prov: Grammar.type_provenance('a) => bool =
-  fun
-  | SynSwitch => true
-  | Hole(_)
-  | Ana => false
-  | ArrowL(p)
-  | ArrowR(p)
-  | List(p)
-  | Prod(_, p)
-  | Arg(_, p)
-  | Label(p)
-  | TupLabel(p)
-  | Forall(p)
-  | Sum(p)
-  | Ctr(_, p) => is_syn_prov(p);
-
-let rec is_syn = (ty: t): bool =>
+let rec is_unknown_syn = (ty: t): bool =>
   switch (ty |> term_of) {
   | TupLabel(_, x)
-  | Parens(x) => is_syn(x)
-  | Unknown(p) => is_syn_prov(p)
+  | Parens(x) => is_unknown_syn(x)
+  | Unknown(Syn, _, _) => true
+  | _ => false
+  };
+
+let rec is_unknown_ana = (ty: t): bool =>
+  switch (ty |> term_of) {
+  | TupLabel(_, x)
+  | Parens(x) => is_unknown_ana(x)
+  | Unknown(Ana, _, _) => true
+  | _ => false
+  };
+
+let rec is_synswitch = (ty: t): bool =>
+  switch (ty |> term_of) {
+  | TupLabel(_, x)
+  | Parens(x) => is_synswitch(x)
+  | Unknown(SynSwitch, _, _) => true
+  | Unknown(_)
   | Atom(_)
   | Label(_)
   | Var(_)
@@ -799,11 +839,11 @@ let rec is_ana_atom = (ty: t) =>
   | Sum(_) => None
   };
 
-let rec is_syn_fun = (ty: t): bool =>
+let rec is_synswitch_fun = (ty: t): bool =>
   switch (ty |> term_of) {
   | TupLabel(_, x)
-  | Parens(x) => is_syn_fun(x)
-  | Arrow(t1, t2) => is_syn(t1) && is_syn_fun(t2)
+  | Parens(x) => is_synswitch_fun(x)
+  | Arrow(t1, t2) => is_synswitch(t1) && is_synswitch_fun(t2)
   | Unknown(_)
   | Atom(_)
   | Label(_)
@@ -816,13 +856,14 @@ let rec is_syn_fun = (ty: t): bool =>
   | Sum(_) => false
   };
 
-let rec is_syn_plus = (ty: t): bool =>
+let rec is_synswitch_plus = (ty: t): bool =>
   switch (ty |> term_of) {
   | TupLabel(_, x)
-  | Parens(x) => is_syn_plus(x)
-  | Unknown(p) => is_syn_prov(p)
-  | Arrow(t1, t2) => is_syn(t1) && is_syn_plus(t2)
-  | Forall(_, t) => is_syn(t)
+  | Parens(x) => is_synswitch_plus(x)
+  | Unknown(SynSwitch | Syn, _, _) => true
+  | Arrow(t1, t2) => is_synswitch(t1) && is_synswitch_plus(t2)
+  | Forall(_, t) => is_synswitch(t)
+  | Unknown(_)
   | Atom(_)
   | Label(_)
   | Var(_)
@@ -941,7 +982,11 @@ let remove_duplicate_labels =
             [l] @ seen_duplicates,
             deduplicated_types
             @ [
-              TupLabel(Label(l) |> temp, Unknown(TupLabel(Ana)) |> temp)
+              TupLabel(
+                Label(l) |> temp,
+                Unknown(Syn, Hole.fresh(Invalid("Duplicate Label")), Atom)
+                |> temp,
+              )  // TODO: Correctly track ids for duplicate labels
               |> temp,
             ],
           )

@@ -397,7 +397,15 @@ and Typ: {
   open IndicatedG.Typ;
   let rec of_menhir_ast = (typ: AST.typ): IndicatedG.typ => {
     switch (typ) {
-    | InvalidTyp(s) => unknown(Hole(Invalid(s)))
+    | InvalidTyp(s) =>
+      unknown(
+        Syn,
+        {
+          term: Invalid(s),
+          annotation: true,
+        },
+        Atom,
+      )
     | IntType => int()
     | SIntType => sint()
     | FloatType => float()
@@ -406,8 +414,24 @@ and Typ: {
     | NatType => nat()
     | UnknownType(p) =>
       switch (p) {
-      | Internal => unknown(Ana)
-      | EmptyHole => unknown(Hole(EmptyHole))
+      | Internal =>
+        unknown(
+          Syn,
+          {
+            term: EmptyHole,
+            annotation: true,
+          },
+          Atom,
+        )
+      | EmptyHole =>
+        unknown(
+          Syn,
+          {
+            term: EmptyHole,
+            annotation: true,
+          },
+          Atom,
+        )
       }
     | TypVar(s) => var(s)
     | TupleType([t]) => parens(of_menhir_ast(t))
@@ -442,11 +466,9 @@ and Typ: {
     };
   };
 
-  let of_core_type_provenance =
-      (p: IndicatedG.typ_provenance): AST.typ_provenance => {
-    switch (p) {
-    | Hole(EmptyHole) => EmptyHole
-    | SynSwitch => raise(Failure("Unknown type_provenance"))
+  let of_core_type_provenance = (h: IndicatedG.hole): AST.typ_provenance => {
+    switch (h.term) {
+    | EmptyHole => EmptyHole
     | _ => Internal
     };
   };
@@ -462,7 +484,7 @@ and Typ: {
     | Prod(ts) => TupleType(List.map(of_core, ts))
     | List(t) => ArrayType(of_core(t))
     | Arrow(t1, t2) => ArrowType(of_core(t1), of_core(t2))
-    | Unknown(p) => UnknownType(of_core_type_provenance(p))
+    | Unknown(_, h, _) => UnknownType(of_core_type_provenance(h)) // TODO: Asymmetric unknown type provenances
     | Forall(tp, t) => ForallType(TPat.of_core(tp), of_core(t))
     | Rec(tp, t) => RecType(TPat.of_core(tp), of_core(t))
     | Parens(t) => of_core(t)

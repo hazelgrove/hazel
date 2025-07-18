@@ -96,7 +96,10 @@ let typ_of: t => option(Typ.t) =
     Some(
       Sum([
         ConstructorMap.Variant(name, [Id.invalid], None),
-        ConstructorMap.BadEntry(Unknown(Sum(Ana)) |> Typ.temp),
+        ConstructorMap.BadEntry(
+          Unknown(Syn, Hole.fresh(Invalid("Free Constructor")), Atom)
+          |> Typ.temp,
+        ) // TODO: Correctly track IDs/provenances for free constructor
       ])
       |> Typ.temp,
     )
@@ -226,8 +229,10 @@ let add_source =
     }
   );
 
-let match = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
-  switch (Typ.join_all(~empty=Unknown(SynSwitch) |> Typ.fresh, ctx, tys)) {
+let match = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t), error): t =>
+  switch (
+    Typ.join_all(~empty=Unknown(Syn, error, Atom) |> Typ.fresh, ctx, tys)
+  ) {
   | None => NoJoin(Id, add_source(ids, tys))
   | Some(ty) => Just(ty)
   };
@@ -239,7 +244,13 @@ let listlit = (~empty, ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
   };
 
 let list_concat = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
-  switch (Typ.join_all(~empty=Unknown(SynSwitch) |> Typ.fresh, ctx, tys)) {
+  switch (
+    Typ.join_all(
+      ~empty=Unknown(Syn, Hole.temp(EmptyHole), Atom) |> Typ.fresh,
+      ctx,
+      tys,
+    )
+  ) {
   | None => NoJoin(List, add_source(ids, tys))
   | Some(ty) => Just(ty)
   };

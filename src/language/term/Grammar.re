@@ -112,7 +112,9 @@ and pat_term('a) =
   | Asc(pat_t('a), typ_t('a))
 and pat_t('a) = Annotated.t(pat_term('a), 'a)
 and typ_term('a) =
-  | Unknown(type_provenance('a))
+  // Asymmetric Unknown type of Mode: Syn/Ana. Pointing to a hole of some sort. With a type provenance to track matching function usage.
+  // The hole pointed to _should_ be a type or exp hole for Syn mode. But can only be a type hole for Ana mode.
+  | Unknown(unknown_mode, hole_t('a), type_provenance)
   | Atom(Atom.cls)
   | Var(string)
   | List(typ_t('a))
@@ -146,26 +148,30 @@ and closure_environment_t('a) = {
 and stepper_filter_kind_t('a) =
   | Filter(filter('a))
   | Residue(int, FilterAction.t)
-and type_hole('a) =
+and unknown_mode =
+  // Note: Ideally SynSwitch should be removed somehow. Analysing against Syn-Unknown could represent synthesis
+  | SynSwitch
+  | Syn
+  | Ana
+and hole_term('a) =
   | Invalid(string)
+  | ErrorHole
   | EmptyHole
   | MultiHole(list(any_t('a)))
+and hole_t('a) = Annotated.t(hole_term('a), 'a)
 // TODO: Refactor type provenances to always include hole/error ID. Separate Syn/Ana from provenance
-and type_provenance('a) =
-  | SynSwitch
-  | Hole(type_hole('a))
-  /* Internal Type Provenances */
-  | Ana
-  | ArrowL(type_provenance('a))
-  | ArrowR(type_provenance('a))
-  | List(type_provenance('a))
-  | Sum(type_provenance('a))
-  | Ctr(Constructor.t, type_provenance('a))
-  | Prod(int, type_provenance('a))
-  | Label(type_provenance('a))
-  | TupLabel(type_provenance('a))
-  | Forall(type_provenance('a))
-  | Arg(int, type_provenance('a))
+and type_provenance =
+  | Atom
+  | ArrowL(type_provenance)
+  | ArrowR(type_provenance)
+  | List(type_provenance)
+  | Sum(type_provenance)
+  | Ctr(Constructor.t, type_provenance)
+  | Prod(int, type_provenance)
+  | Label(type_provenance)
+  | TupLabel(type_provenance)
+  | Forall(type_provenance)
+  | Arg(int, type_provenance)
 and filter('a) = {
   pat: exp_t('a),
   act: FilterAction.t,
@@ -335,7 +341,7 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
     {
       term:
         switch (term) {
-        | Unknown(p) => Unknown(map_type_provenance_annotation(f, p))
+        | Unknown(m, h, p) => Unknown(m, map_type_hole_annotation(f, h), p)
         | Atom(c) => Atom(c)
         | Var(s) => Var(s)
         | List(t) => List(map_typ_annotation(f, t))
@@ -419,36 +425,20 @@ and map_closure_environment_annotation:
     call_stack,
   }
 
-and map_type_provenance_annotation:
-  'a 'b.
-  ('a => 'b, type_provenance('a)) => type_provenance('b)
- =
+and map_type_hole_annotation: 'a 'b. ('a => 'b, hole_t('a)) => hole_t('b) =
   (f, e) => {
-    switch (e) {
-    | SynSwitch => SynSwitch
-    | Hole(h) => Hole(map_type_hole_annotation(f, h))
-    | Ana => Ana
-    | ArrowL(p) => ArrowL(map_type_provenance_annotation(f, p))
-    | ArrowR(p) => ArrowR(map_type_provenance_annotation(f, p))
-    | List(p) => List(map_type_provenance_annotation(f, p))
-    | Prod(i, p) => Prod(i, map_type_provenance_annotation(f, p))
-    | Forall(p) => Forall(map_type_provenance_annotation(f, p))
-    | Arg(i, p) => Arg(i, map_type_provenance_annotation(f, p))
-    | Label(p) => Label(map_type_provenance_annotation(f, p))
-    | TupLabel(p) => TupLabel(map_type_provenance_annotation(f, p))
-    | Sum(p) => Sum(map_type_provenance_annotation(f, p))
-    | Ctr(name, p) => Ctr(name, map_type_provenance_annotation(f, p))
-    };
-  }
-and map_type_hole_annotation:
-  'a 'b.
-  ('a => 'b, type_hole('a)) => type_hole('b)
- =
-  (f, e) => {
-    switch (e) {
-    | Invalid(s) => Invalid(s)
-    | EmptyHole => EmptyHole
-    | MultiHole(l) => MultiHole(List.map(x => map_any_annotation(f, x), l))
+    let (term, annotation) = (e.term, e.annotation);
+    let new_annotation = f(annotation);
+    {
+      term:
+        switch (term) {
+        | Invalid(s) => Invalid(s)
+        | EmptyHole => EmptyHole
+        | ErrorHole => ErrorHole
+        | MultiHole(l) =>
+          MultiHole(List.map(x => map_any_annotation(f, x), l))
+        },
+      annotation: new_annotation,
     };
   };
 
@@ -462,7 +452,7 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
   type pat = pat_t(DefaultAnnotation.t);
   type typ = typ_t(DefaultAnnotation.t);
   type tpat = tpat_t(DefaultAnnotation.t);
-  type typ_provenance = type_provenance(DefaultAnnotation.t);
+  type hole = hole_t(DefaultAnnotation.t);
 
   let default_annotation = ann =>
     Option.value(~default=DefaultAnnotation.default_value(), ann);
@@ -749,9 +739,39 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
   };
 
+  module TypeHole = {
+    let invalid = (~ann=?, s): hole_t(DefaultAnnotation.t) => {
+      {
+        term: Invalid(s),
+        annotation: default_annotation(ann),
+      };
+    };
+    let empty_hole = (~ann=?, ()): hole_t(DefaultAnnotation.t) => {
+      {
+        term: EmptyHole,
+        annotation: default_annotation(ann),
+      };
+    };
+    let multi_hole = (~ann=?, l): hole_t(DefaultAnnotation.t) => {
+      {
+        term: MultiHole(l),
+        annotation: default_annotation(ann),
+      };
+    };
+  };
+
+  module UnknownMode = {
+    let syn = (): unknown_mode => {
+      Syn;
+    };
+    let ana = (): unknown_mode => {
+      Ana;
+    };
+  };
+
   module Typ = {
-    let unknown = (~ann=?, p): typ_t(DefaultAnnotation.t) => {
-      term: Unknown(p),
+    let unknown = (~ann=?, m, h, p): typ_t(DefaultAnnotation.t) => {
+      term: Unknown(m, h, p),
       annotation: default_annotation(ann),
     };
     let int = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
@@ -822,8 +842,12 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Forall(tp, t),
       annotation: default_annotation(ann),
     };
-    let empty_hole = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
-      term: Unknown(Hole(EmptyHole)),
+    let empty_hole_syn = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
+      term: Unknown(Syn, TypeHole.empty_hole(~ann?, ()), Atom),
+      annotation: default_annotation(ann),
+    };
+    let empty_hole_ana = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
+      term: Unknown(Ana, TypeHole.empty_hole(~ann?, ()), Atom),
       annotation: default_annotation(ann),
     };
   };
@@ -882,30 +906,6 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let residue = (i, act): stepper_filter_kind_t(DefaultAnnotation.t) => {
       Residue(i, act);
-    };
-  };
-
-  module TypeHole = {
-    let invalid = (s): type_hole(DefaultAnnotation.t) => {
-      Invalid(s);
-    };
-    let empty_hole = (): type_hole(DefaultAnnotation.t) => {
-      EmptyHole;
-    };
-    let multi_hole = (l): type_hole(DefaultAnnotation.t) => {
-      MultiHole(l);
-    };
-  };
-
-  module TypeProvenance = {
-    let syn_switch = (): type_provenance(DefaultAnnotation.t) => {
-      SynSwitch;
-    };
-    let hole = (h): type_provenance(DefaultAnnotation.t) => {
-      Hole(h);
-    };
-    let ana = (): type_provenance(DefaultAnnotation.t) => {
-      Ana;
     };
   };
 };

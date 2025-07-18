@@ -183,12 +183,19 @@ let tests = [
   fully_consistent_typecheck(
     "Reconstructed labeled tuple without values",
     {|let x : (l=|},
-    Some(unknown(Ana)),
+    Some(unknown(Syn, Language.Hole.temp(EmptyHole), Atom)),
   ),
   fully_consistent_typecheck(
     "Singleton labeled argument let with unknown type",
     {|let x : (a=?) = (a=1) in x|},
-    Some(prod([tup_label(label("a"), unknown(Hole(EmptyHole)))])),
+    Some(
+      prod([
+        tup_label(
+          label("a"),
+          unknown(Syn, Language.Hole.temp(EmptyHole), Atom),
+        ),
+      ]),
+    ),
   ),
   fully_consistent_typecheck(
     "nested different singleton labeled arguments",
@@ -209,7 +216,12 @@ let tests = [
           prod([
             tup_label(
               label("b"),
-              prod([tup_label(label("c"), unknown(Hole(EmptyHole)))]),
+              prod([
+                tup_label(
+                  label("c"),
+                  unknown(Syn, Language.Hole.temp(EmptyHole), Atom),
+                ),
+              ]),
             ),
           ]),
         ),
@@ -219,12 +231,12 @@ let tests = [
   fully_consistent_typecheck(
     "Singleton labeled argument function application with unknown type",
     {|(fun a=x->x)(a=1)|},
-    Some(unknown(Ana)),
+    Some(unknown(Syn, Language.Hole.temp(EmptyHole), Atom)),
   ),
   fully_consistent_typecheck(
     "Singleton labeled argument function application with no labeled param",
     {|(fun a=x->x)(1)|},
-    Some(unknown(Ana)),
+    Some(unknown(Syn, Language.Hole.temp(EmptyHole), Atom)),
   ),
   fully_consistent_typecheck(
     "Singleton labeled argument not labeled in pattern",
@@ -342,7 +354,17 @@ let tests = [
                           malformed_labels: [],
                           duplicate_labels: ["a", "a"],
                           invalid_labels: [],
-                          typ: prod([tup_label(label("a"), unknown(Ana))]),
+                          typ:
+                            prod([
+                              tup_label(
+                                label("a"),
+                                unknown(
+                                  Syn,
+                                  Language.Hole.temp(EmptyHole),
+                                  Atom,
+                                ),
+                              ),
+                            ]),
                         }),
                       ),
                     )
@@ -454,7 +476,18 @@ let tests = [
                           duplicate_labels: [],
                           invalid_labels: [],
                           typ:
-                            Typ.(prod([tup_label(unknown(Ana), string())])),
+                            Typ.(
+                              prod([
+                                tup_label(
+                                  unknown(
+                                    Syn,
+                                    Language.Hole.temp(EmptyHole),
+                                    Atom,
+                                  ),
+                                  string(),
+                                ),
+                              ])
+                            ),
                         }),
                       ),
                     )
@@ -473,7 +506,17 @@ let tests = [
                               ],
                               duplicate_labels: [],
                               invalid_labels: [],
-                              typ: Typ.(tup_label(unknown(Ana), string())),
+                              typ:
+                                Typ.(
+                                  tup_label(
+                                    unknown(
+                                      Syn,
+                                      Language.Hole.temp(EmptyHole),
+                                      Atom,
+                                    ),
+                                    string(),
+                                  )
+                                ),
                             }),
                           ),
                         )
@@ -526,7 +569,14 @@ let tests = [
                           typ:
                             Typ.(
                               prod([
-                                tup_label(unknown(Ana), string()),
+                                tup_label(
+                                  unknown(
+                                    Syn,
+                                    Language.Hole.temp(EmptyHole),
+                                    Atom,
+                                  ),
+                                  string(),
+                                ),
                                 tup_label(label("a"), int()),
                               ])
                             ),
@@ -548,7 +598,17 @@ let tests = [
                               ],
                               duplicate_labels: [],
                               invalid_labels: [],
-                              typ: Typ.(tup_label(unknown(Ana), string())),
+                              typ:
+                                Typ.(
+                                  tup_label(
+                                    unknown(
+                                      Syn,
+                                      Language.Hole.temp(EmptyHole),
+                                      Atom,
+                                    ),
+                                    string(),
+                                  )
+                                ),
                             }),
                           ),
                         )

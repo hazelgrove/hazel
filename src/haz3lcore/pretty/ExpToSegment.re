@@ -128,7 +128,7 @@ let external_precedence_pat = (dp: Pat.t) =>
 let external_precedence_typ = (tp: Typ.t) =>
   switch (Typ.term_of(tp)) {
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
-  | Unknown(Hole(MultiHole(_))) => Precedence.min
+  | Unknown(_, {term: MultiHole(_), _}, _) => Precedence.min
 
   // Indivisible forms never need parentheses around them
   | Unknown(_)
@@ -461,9 +461,14 @@ and parenthesize_typ =
   let (term, rewrap) = Typ.unwrap(typ);
   switch (term) {
   // Other forms
-  | Unknown(Hole(MultiHole(xs))) =>
+  | Unknown(m, {term: MultiHole(xs), annotation}, p) =>
     Unknown(
-      Hole(MultiHole(List.map(parenthesize_any(~show_filters), xs))),
+      m,
+      {
+        term: MultiHole(List.map(parenthesize_any(~show_filters), xs)),
+        annotation,
+      },
+      p,
     )
     |> rewrap
   | Parens(t) =>
@@ -1229,9 +1234,9 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
       }
     | BadEntry(x) => go(x);
   switch (typ |> Typ.term_of) {
-  | Unknown(Hole(Invalid(s))) =>
+  | Unknown(_, {term: Invalid(s), _}, _) =>
     text_to_pretty(typ |> Typ.rep_id, Sort.Typ, s)
-  | Unknown(Hole(MultiHole(es))) =>
+  | Unknown(_, {term: MultiHole(es), _}, _) =>
     let id = typ |> Typ.rep_id;
     let+ es = es |> List.map(any_to_pretty(~settings: Settings.t)) |> all;
     ListUtil.flat_intersperse(

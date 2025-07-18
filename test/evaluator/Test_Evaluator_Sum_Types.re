@@ -71,7 +71,9 @@ let tests = (
                 Some(
                   Typ.sum([
                     Variant("T", [], None),
-                    BadEntry(Typ.unknown(SynSwitch)),
+                    BadEntry(
+                      Typ.unknown(Syn, Language.Hole.temp(EmptyHole), Atom),
+                    ),
                   ]),
                 ),
               ),
@@ -100,12 +102,18 @@ let tests = (
                     Some(
                       Typ.(
                         arrow(
-                          unknown(Hole(EmptyHole)),
+                          unknown(Syn, Language.Hole.temp(EmptyHole), Atom),
                           sum([
                             Variant(
                               "B",
                               [],
-                              Some(unknown(Hole(EmptyHole))),
+                              Some(
+                                unknown(
+                                  Syn,
+                                  Language.Hole.temp(EmptyHole),
+                                  Atom,
+                                ),
+                              ),
                             ),
                           ]),
                         )
@@ -114,7 +122,15 @@ let tests = (
                   ),
                 ),
                 Typ.(
-                  sum([Variant("B", [], Some(unknown(Hole(EmptyHole))))])
+                  sum([
+                    Variant(
+                      "B",
+                      [],
+                      Some(
+                        unknown(Syn, Language.Hole.temp(EmptyHole), Atom),
+                      ),
+                    ),
+                  ])
                 ),
               )
             ),
@@ -127,7 +143,16 @@ let tests = (
           "Indet when unboxing constructor as list",
           let_(
             Pat.list_lit([]),
-            constructor("On", Some(Some(Typ.(list(unknown(SynSwitch)))))), // This type on the constructor can't be right
+            constructor(
+              "On",
+              Some(
+                Some(
+                  Typ.(
+                    list(unknown(Syn, Language.Hole.temp(EmptyHole), Atom))
+                  ),
+                ),
+              ),
+            ), // This type on the constructor can't be right
             empty_hole(),
           ),
           elaborate(parse_exp("type g = + On in let [] = On in")),
@@ -136,7 +161,16 @@ let tests = (
           "Indet when unboxing constructor as cons",
           let_(
             Pat.(cons(wild(), list_lit([]))),
-            constructor("B", Some(Some(Typ.(list(unknown(SynSwitch)))))), // This type on the constructor can't be right
+            constructor(
+              "B",
+              Some(
+                Some(
+                  Typ.(
+                    list(unknown(Syn, Language.Hole.temp(EmptyHole), Atom))
+                  ),
+                ),
+              ),
+            ), // This type on the constructor can't be right
             empty_hole(),
           ),
           elaborate(parse_exp("let (_:: []) = type y = + B in B in ?")),
@@ -167,10 +201,17 @@ let tests = (
             constructor(
               "B",
               Some(
-                Some(Typ.(forall(TPat.empty_hole(), unknown(SynSwitch)))),
+                Some(
+                  Typ.(
+                    forall(
+                      TPat.empty_hole(),
+                      unknown(Syn, Language.Hole.temp(EmptyHole), Atom),
+                    )
+                  ),
+                ),
               ),
             ),
-            Typ.unknown(Hole(EmptyHole)),
+            Typ.unknown(Syn, Language.Hole.temp(EmptyHole), Atom),
           ),
           elaborate(
             parse_exp("type y = + B in case true | a => B end @<?>"),
