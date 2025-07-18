@@ -75,7 +75,8 @@ type step_kind =
   | Ascription
   | RemoveTypeAlias
   | RemoveUse
-  | RemoveParens;
+  | RemoveParens
+  | ModuleNextEntry;
 let evaluate_extend_env = ClosureEnvironment.extend_eval;
 
 type rule =
@@ -871,102 +872,90 @@ module Transition = (EV: EV_MODE) => {
         kind: CompleteFilter,
         is_value: true,
       });
-    | Module(entries) =>
-      let rec replace_exps_in_entries =
-              (entries: list(ModuleEntry.t), exps: list(Exp.t)) =>
-        switch (entries, exps) {
-        | ([], _) => []
-        | (vs, []) => vs
-        | ([{term: ValBinding(p, _), annotation}, ...vs], [e, ...es]) => [
-            {
-              term: ValBinding(p, e),
-              annotation,
-            },
-            ...replace_exps_in_entries(vs, es),
-          ]
-        | ([{term: TypeDef(p, t), annotation}, ...vs], es) => [
-            {
-              term: TypeDef(p, t),
-              annotation,
-            },
-            ...replace_exps_in_entries(vs, es),
-          ]
-        | _ => failwith("Unsupported module entry in replace_exps_in_entries")
-        };
-
+    | Module({final: _, todo: []}) =>
+      let. _ = otherwise(env, d);
+      Constructor;
+    | Module({
+        final,
+        todo: [{term: ValBinding(p, e), annotation}, ...todo],
+      }) =>
+      let entries_to_env = {
+        List.fold_left((env: ClosureEnvironment.t, entry: ModuleEntry.t) => {
+          switch (entry.term) {
+          | ValBinding(p, d) =>
+            switch (matches(p, d).matches) {
+            | IndetMatch
+            | DoesNotMatch => env
+            | Matches(env') =>
+              ClosureEnvironment.extend_eval(
+                ~call_stack=env.call_stack,
+                env',
+                env,
+              )
+            }
+          | TypeDef(_)
+          | Hole(_)
+          | MultipleEntries(_) => env
+          }
+        });
+      };
       let. _ =
         otherwise(env, d =>
-          Module(replace_exps_in_entries(entries, d)) |> rewrap
+          Module({
+            final,
+            todo: [
+              {
+                term: ValBinding(p, d),
+                annotation,
+              },
+              ...todo,
+            ],
+          })
+          |> rewrap
         )
       and. d' =
-        req_all_cuml(
-          (vs, d) => req(state, env, d),
-          (eval_ctx, (prev, future)) =>
-            ValBinding(
-              List.nth(entries, List.length(prev))
-              |> (
-                fun
-                | {term: ValBinding(p, _), _} => p
-                | _ => failwith("Expected ValBinding in module entries")
-              ),
-              eval_ctx,
-              (prev, future),
-            )
-            |> wrap_ctx,
-          entries
-          |> List.map(
-               fun
-               | {term: ValBinding(_, e), _} => e,
-             ),
+        req_final(
+          req(state, entries_to_env(env, List.rev(todo))),
+          d => ValBinding(p, d, (final, todo)) |> wrap_ctx,
+          e,
         );
-
-      /*
-         fold_left(
-           acc => {
-
-             and. d' = req_final(d);
-
-             ValBinding(v, d')
-           }
-
-
-           otherwise(env, entries)
-         )
-       */
-
-      //   // For each entry in entries req_final the entry then rebuild the module
-      //   let val_bindings =
-      //     List.fold_left(
-      //       (
-      //         (acc, env: TermBase.closure_environment_t),
-      //         entry: TermBase.module_entry_t,
-      //       ) => {
-      //         switch (entry.term) {
-      //         | ValBinding(v, d) =>
-      //           let. fst =
-      //             req_final(req(state, env), d => ValBinding(v, d), d);
-      //           fst;
-      //           let _ = (acc @ [(v, d)], env');
-      //           let _: (
-      //             list(TermBase.module_entry_t),
-      //             TermBase.closure_environment_t,
-      //           ) =
-      //             assert(false);
-      //           assert(false);
-      //         | _ => assert(false)
-      //         }
-      //       },
-      //       ([], env),
-      //       entries,
-      //     );
-
-      // {val x = 2 + 3;; val y = 5 + x}
-      // {val x = 5;; val y = 5 + x}
-
-      // req_final_all(val_bindings, evaluated_ds => List.map(, entries))
-      //   let. _ = otherwise(env, Module(entries) |> rewrap);
-
-      Constructor;
+      Step({
+        expr:
+          Module({
+            final: [
+              {
+                term: ValBinding(p, d'),
+                annotation,
+              },
+              ...final,
+            ],
+            todo,
+          })
+          |> rewrap,
+        state_update,
+        kind: ModuleNextEntry,
+        is_value: List.is_empty(todo),
+      });
+    | Module({
+        final,
+        todo:
+          [
+            {term: TypeDef(_) | Hole(_) | MultipleEntries(_), _} as b,
+            ...todo,
+          ],
+      }) =>
+      let. _ = otherwise(env, d);
+      Step({
+        expr:
+          Module({
+            final: [b, ...final],
+            todo,
+          })
+          |> rewrap,
+        state_update,
+        kind: ModuleNextEntry,
+        is_value: List.is_empty(todo),
+      });
     };
   };
 };
@@ -1001,6 +990,7 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | BuiltinWrap
   | WrapClosure
   | FixClosure
+  | ModuleNextEntry
   | RemoveParens => true;
 
 let stepper_justification: step_kind => string =
@@ -1053,4 +1043,5 @@ let stepper_justification: step_kind => string =
   | RemoveUse => "set use type"
   | RemoveParens => "remove parentheses"
   | Dot => "Labeled tuple access"
+  | ModuleNextEntry => "next module entry"
   | UnOp(Meta(Unquote)) => failwith("INVALID STEP");

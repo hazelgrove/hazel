@@ -11,13 +11,13 @@
   "homepage": "https://hazel.org",
   "dependencies": {
     "@esbuild-plugins/node-resolve": "^0.2.2",
+    "algebrite": "^1.4.0",
     "hotkeys-js": "^3.8.7",
-    "ninja-keys": "^1.2.2",
-    "algebrite": "^1.4.0"
+    "ninja-keys": "^1.2.2"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
-    "esbuild": "^0.25.1",
+    "esbuild": "^0.25.6",
     "vite": "^6.3.4",
     "vite-plugin-static-copy": "^2.3.0"
   }

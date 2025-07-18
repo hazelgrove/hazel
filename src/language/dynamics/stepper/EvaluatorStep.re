@@ -183,6 +183,9 @@ let rec matches =
       | MatchRule(scr, p, ctx, rs) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         MatchRule(scr, p, ctx, rs) |> rewrap;
+      | ValBinding(p, ctx, (entries, entries')) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        ValBinding(p, ctx, (entries, entries')) |> rewrap;
       };
     };
   switch (ctx) {

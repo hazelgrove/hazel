@@ -913,12 +913,14 @@ and uexp_to_info_map =
         m,
       );
     | Let(p, def, body) =>
+      // synthesizing type info for the pattern
       let (p_syn, _) =
         go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
       let (def, p_ana_ctx, m, ty_p_ana) =
         if (!is_recursive(ctx, p, def, p_syn.ty)) {
           let (def, m) = go(~ana=p_syn.ty, def, m);
           let ty_p_ana = def.ty;
+          // Analyze pattern to push type info into ctx of p_ana'
           let (p_ana', _) =
             go_pat(
               ~is_synswitch=false,
@@ -1166,7 +1168,8 @@ and uexp_to_info_map =
           })
         };
       add'(~self, ~co_ctx=body.co_ctx, m);
-    | Module(entries) =>
+    | Module({final, todo}) =>
+      let entries = Util.ListUtil.rev_concat(final, todo);
       let go_entry =
           (~ctx, entry: TermBase.module_entry_t, m: Map.t)
           : (Map.t, Ctx.t, TermBase.module_signature_entry_t) => {
@@ -1176,7 +1179,7 @@ and uexp_to_info_map =
             go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
           let (def, m) = go'(~ctx, ~ana=p_syn.ty, e, m);
           let ty_p_ana = def.ty;
-          let (_p_ana', _) =
+          let (_p_ana', m) =
             go_pat(
               ~is_synswitch=false,
               ~co_ctx=CoCtx.empty,

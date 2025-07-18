@@ -855,7 +855,8 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     [mk_form(ParensExp, exp |> Exp.rep_id, [fun_form])]
     |> fold_fun_if(settings.fold_fn_bodies, name);
   | LivelitName(s) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "^" ++ s)
-  | Module(_) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "module") // TODO
+  | Module({todo: _todo, final: _final}) =>
+    text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "module") // TODO
   | Fun(p, e, t, _) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;

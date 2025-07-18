@@ -262,7 +262,13 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
     | ([(id, t)], []) =>
       switch (t) {
       | ([t], []) when Form.is_empty_tuple(t) => ret(Tuple([]))
-      | ([t], []) when Form.is_empty_module(t) => ret(Module([]))
+      | ([t], []) when Form.is_empty_module(t) =>
+        ret(
+          Module({
+            final: [],
+            todo: [],
+          }),
+        )
       | ([t], []) when Form.is_wild(t) => ret(Deferral(OutsideAp))
       | ([t], []) when Form.is_empty_list(t) => ret(ListLit([]))
       | ([t], []) when Form.is_bool(t) =>
@@ -289,8 +295,20 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         }
       | (["{", "}"], [ModuleEntry(a)]) =>
         switch (a.term) {
-        | MultipleEntries(entries) => ret(Module(entries))
-        | _ => ret(Module([a]))
+        | MultipleEntries(entries) =>
+          ret(
+            Module({
+              final: [],
+              todo: entries,
+            }),
+          )
+        | _ =>
+          ret(
+            Module({
+              final: [],
+              todo: [a],
+            }),
+          )
         }
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
       | (["hint", "test", "end"], [Exp(hint), Exp(test)]) =>
