@@ -307,10 +307,6 @@ svg:has(.child-line) {
   z-index: 32;
 }
 
-.backpack .code-text {
-  position: relative;
-}
-
 .backpack.cant-put-down > * {
   opacity: 40%;
 }
@@ -328,20 +324,12 @@ svg:has(.child-line) {
   width: fit-content;
   background-color: var(--backpack-selection);
   outline: 1px solid var(--backpack-selection-outline);
+  font-weight: bold;
+  color: var(--token-incomplete) !important;
 }
 
 .backpack-genie {
   stroke-width: 0;
   fill: var(--backpack-genie);
   vector-effect: non-scaling-stroke;
-}
-
-/* BACKPACK TARGETS DECO */
-
-.backpack-target {
-  z-index: var(--backpack-targets-z);
-}
-
-.caret-position-path {
-  fill: var(--backback-targets);
 }

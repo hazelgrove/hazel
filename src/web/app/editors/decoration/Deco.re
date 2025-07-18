@@ -347,78 +347,28 @@ module Deco =
     };
   };
 
-  // let rec targets = (~container_shards=?, bp: Backpack.t, seg: Segment.t) => {
-  //   let with_container_shards = ((pre, suf) as sibs) =>
-  //     switch (container_shards) {
-  //     | None => sibs
-  //     | Some((l, r)) => ([l, ...pre], suf @ [r])
-  //     };
-  //   let root_targets =
-  //     ListUtil.splits(seg)
-  //     |> List.concat_map(((l, r)) => {
-  //          let sibs =
-  //            Segment.(incomplete_tiles(l), incomplete_tiles(r))
-  //            |> with_container_shards;
-  //          switch (Backpack.pop(sibs, bp)) {
-  //          | None
-  //          | Some((true, _, _)) => []
-  //          | Some(_) =>
-  //            let measurement =
-  //              switch (Siblings.neighbors((l, r))) {
-  //              | (None, None) => failwith("impossible")
-  //              | (_, Some(p)) =>
-  //                let m = Measured.find_p(~msg="Deco.targets", p, measured);
-  //                Measured.{
-  //                  origin: m.origin,
-  //                  last: m.origin,
-  //                };
-  //              | (Some(p), _) =>
-  //                let m = Measured.find_p(~msg="Deco.targets", p, measured);
-  //                Measured.{
-  //                  origin: m.last,
-  //                  last: m.last,
-  //                };
-  //              };
-  //            let profile =
-  //              CaretPosDec.Profile.{
-  //                style: `Sibling,
-  //                measurement,
-  //              };
-  //            [CaretPosDec.view(~font_metrics, profile)];
-  //          };
-  //        });
-  //   switch (root_targets) {
-  //   | [_, ..._] => root_targets
-  //   | [] =>
-  //     seg
-  //     |> List.filter_map(
-  //          fun
-  //          | Piece.Tile(t) => Some(t)
-  //          | _ => None,
-  //        )
-  //     |> List.concat_map((t: Tile.t) => {
-  //          // TODO(d): unify with Relatives.local_incomplete_tiles
-  //          Tile.contained_children(t)
-  //          |> List.concat_map(((l, seg, r)) =>
-  //               targets(~container_shards=(l, r), bp, seg)
-  //             )
-  //        })
-  //   };
-  // };
-
-  let backpack = (z: Zipper.t): Node.t =>
+  let backpack = (z: Zipper.t): Node.t => {
+    let can_put_down = Zipper.can_put_down(z);
+    let ind_d =
+      switch (Indicated.piece(z)) {
+      | Some((_, d, _)) => Some(d)
+      | None => None
+      };
+    let caret_d = Zipper.caret_direction(z);
+    let contents =
+      Zipper.mk_local_backpack(z)
+      @ Relatives.non_local_missing_shards(z.relatives)
+      |> List.map(Tile.effective_label)
+      |> List.map(List.hd);
     BackpackView.view(
+      ~can_put_down,
+      ~caret_d,
+      ~ind_d,
       ~font_metrics,
       ~origin=Zipper.caret_point(measured, z),
-      z,
+      contents,
     );
-
-  // let backpack_targets = (backpack, seg) =>
-  //   div_c(
-  //     "backpack-targets",
-  //     show_backpack_targets && Backpack.restricted(backpack)
-  //       ? targets(backpack, seg) : [],
-  //   );
+  };
 
   let term_decoration =
       (~id: Id.t, deco: ((Point.t, Point.t, SvgUtil.Path.t)) => Node.t) => {
