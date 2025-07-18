@@ -173,18 +173,33 @@ let replace_id = (id: Id.t, p: t): t =>
     })
   };
 
-let mk_tile: (Form.t, list(list(t))) => t =
-  (form, children) =>
+let mk_secondary = content =>
+  Secondary({
+    id: Id.mk(),
+    content,
+  });
+
+let mk_grout = shape =>
+  Grout({
+    id: Id.mk(),
+    shape,
+  });
+
+let mk_tile: (Label.t, Mold.t, list(list(t))) => t =
+  (label, mold, children) =>
     Tile({
       id: Id.mk(),
-      label: form.label,
-      mold: form.mold,
-      shards: List.mapi((i, _) => i, form.label),
+      label,
+      mold,
+      shards: List.mapi((i, _) => i, label),
       children,
     });
 
+let mk_tile_from_form: (Form.t, list(list(t))) => t =
+  (form, children) => mk_tile(form.label, form.mold, children);
+
 let mk_mono = (sort: Sort.t, string: string): t =>
-  string |> Form.mk_atomic(sort) |> mk_tile(_, []);
+  string |> Form.mk_atomic(sort) |> mk_tile_from_form(_, []);
 
 let of_mono = (syntax: t): option(string) =>
   switch (syntax) {

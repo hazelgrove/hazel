@@ -23,6 +23,7 @@ module Model = {
       elaborate: false,
       assist: true,
       dynamics: true,
+      structural: false,
       flip_animations: true,
       evaluation: {
         show_case_clauses: true,
@@ -106,6 +107,7 @@ module Update = {
     | Dynamics
     | Assist
     | Elaborate
+    | Structural
     | Benchmark
     | ContextInspector
     | InstructorMode
@@ -156,6 +158,13 @@ module Update = {
             ...settings.core,
             statics: !settings.core.assist || settings.core.statics,
             assist: !settings.core.assist,
+          },
+        }
+      | Structural => {
+          ...settings,
+          core: {
+            ...settings.core,
+            structural: !settings.core.structural,
           },
         }
       | FlipAnimations => {

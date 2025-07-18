@@ -398,7 +398,10 @@ module Make = (M: S) => {
 
   let move_dispatch = (d: Action.move, z: Zipper.t): option(Zipper.t) =>
     switch (d) {
-    | Goal(Piece(p, d)) => do_until_wrap(Action.of_piece_goal(p), d, z)
+    | Goal(Piece(Grout, d)) =>
+      let* z = primary(ByToken, Right, z);
+      let* z = do_until_wrap(Action.of_piece_goal(Grout), d, z);
+      primary(ByToken, Left, z);
     | Goal(Point(goal)) =>
       switch (do_towards(primary(ByChar), goal, z)) {
       | None => Some(z)

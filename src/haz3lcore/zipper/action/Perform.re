@@ -40,8 +40,8 @@ let paste = (z: Zipper.t, str: string): option(Zipper.t) => {
      with the fact that pasting something like "let a = b in"
      won't trigger the barfing of the "in"; to trigger this,
      we insert a space, and then we immediately delete it */
-  let* z = Insert.go(" ", z);
-  let+ z = Destruct.go(Left, z);
+  let* z = Insert.go(~structmode=false, " ", z);
+  let+ z = Destruct.go(~structmode=false, Left, z);
   remold_regrout(Left, z);
 };
 
@@ -59,7 +59,7 @@ let paste_segment = (z: Zipper.t, segment: Segment.t): Zipper.t => {
 
 let go_z =
     (
-      ~settings as _: Language.CoreSettings.t,
+      ~settings: Language.CoreSettings.t,
       statics: CachedStatics.t,
       a: Action.t,
       module M: Move.S,
@@ -125,7 +125,7 @@ let go_z =
   | Paste(Segment(segment)) => Ok(paste_segment(z, segment))
   | Cut =>
     /* System clipboard handling is done in Page.view handlers */
-    switch (Destruct.go(Left, z)) {
+    switch (Destruct.go(~structmode=false, Left, z)) {
     | None => Error(Cant_destruct)
     | Some(z) => Ok(z)
     }
@@ -227,7 +227,7 @@ let go_z =
     }
   | Destruct(d) =>
     z
-    |> Destruct.go(d)
+    |> Destruct.go(~structmode=settings.structural, d)
     |> Result.of_option(~error=Action.Failure.Cant_destruct)
   | Insert(char) =>
     let id =
@@ -243,7 +243,7 @@ let go_z =
       };
 
     z
-    |> Insert.go(char, ~ctx)
+    |> Insert.go(~structmode=settings.structural, char, ~ctx)
     /* note: remolding here is done case-by-case */
     |> Result.of_option(~error=Action.Failure.Cant_insert);
   | Pick_up => Ok(remold_regrout(Left, Zipper.pick_up(z)))
