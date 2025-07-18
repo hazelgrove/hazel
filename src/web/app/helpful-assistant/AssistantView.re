@@ -1207,16 +1207,29 @@ let message_display =
         curr_messages,
       ),
     );
-  // Autoscroll to the last message after render
+  // Autoscroll to loading dots if they exist
   JsUtil.delay(0.0, () => {
     Js.Opt.iter(
-      Dom_html.document##getElementById(Js.string("last-message")), el => {
+      Dom_html.document##getElementById(Js.string("loading-dots-anchor")), el => {
       Js.Unsafe.coerce(el)##scrollIntoView()
     })
   });
   div(
     ~attrs=[clss(["message-display-container"])],
-    message_nodes @ [initial_display(~model, ~settings)],
+    message_nodes
+    @ [initial_display(~model, ~settings)]
+    @ [
+      curr_chat.awaiting_response
+        ? div(
+            ~attrs=[clss(["loading-dots"]), Attr.id("loading-dots-anchor")],
+            [
+              div(~attrs=[clss(["dot", "dot1"])], []),
+              div(~attrs=[clss(["dot", "dot2"])], []),
+              div(~attrs=[clss(["dot", "dot3"])], []),
+            ],
+          )
+        : None,
+    ],
   );
 };
 

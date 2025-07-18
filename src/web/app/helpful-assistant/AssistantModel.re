@@ -60,13 +60,14 @@ type message = {
 };
 
 // A chat is a collection of messages, attached to an ID
-// We also include a timestamp and a descriptor for stylistic purposes.
+// We also include a timestamp, a descriptor, and a loading dots flag for stylistic purposes.
 [@deriving (show({with_path: false}), sexp, yojson)]
 type chat = {
   messages: list(message),
   id: Id.t,
   descriptor: string,
   timestamp: float,
+  awaiting_response: bool,
 };
 
 // We save the history of past chats as a hash map with chat IDs as keys.
@@ -211,7 +212,7 @@ let mk_message_display = (~content: string): display => {
     displayable_content:
       String.length(content) <= max_collapsed_length
         ? parse_blocks(content) : [Text(content)],
-    collapsed: String.length(content) > max_collapsed_length,
+    collapsed: true,
   };
 };
 
@@ -229,6 +230,7 @@ let init_chat = (mode: AssistantSettings.mode): chat => {
     id: Id.mk(),
     descriptor: "",
     timestamp: JsUtil.timestamp(),
+    awaiting_response: false,
   };
 };
 
@@ -245,6 +247,7 @@ let new_chat = (model: t, mode: AssistantSettings.mode): chat => {
     id: Id.mk(),
     descriptor: "",
     timestamp: JsUtil.timestamp(),
+    awaiting_response: false,
   };
 };
 
@@ -301,6 +304,7 @@ let null_model = (): t => {
     id: Id.invalid,
     descriptor: "Please set an API key",
     timestamp: JsUtil.timestamp(),
+    awaiting_response: false,
   };
   {
     init_prompt_data: {

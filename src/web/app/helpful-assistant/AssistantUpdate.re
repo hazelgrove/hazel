@@ -177,8 +177,13 @@ let update_model_chat_history =
       ~model: Model.t,
       ~mode: AssistantSettings.mode,
       ~updated_chat: Model.chat,
+      ~awaiting_response: bool,
     )
     : Model.t => {
+  let updated_chat = {
+    ...updated_chat,
+    awaiting_response,
+  };
   let new_chat =
     switch (mode) {
     | HazelTutor =>
@@ -897,7 +902,12 @@ let update =
           HandleResponse(Tutor, response, chat_id)
         );
 
-        update_model_chat_history(~model, ~mode, ~updated_chat)
+        update_model_chat_history(
+          ~model,
+          ~mode,
+          ~updated_chat,
+          ~awaiting_response=true,
+        )
         |> Updated.return;
 
       | Composition(kind) =>
@@ -969,7 +979,12 @@ let update =
             )
           );
 
-          update_model_chat_history(~model, ~mode, ~updated_chat)
+          update_model_chat_history(
+            ~model,
+            ~mode,
+            ~updated_chat,
+            ~awaiting_response=true,
+          )
           |> Updated.return;
 
         | Loop(fuel, tool_contents, status) =>
@@ -1021,7 +1036,12 @@ let update =
             )
           );
 
-          update_model_chat_history(~model, ~mode, ~updated_chat)
+          update_model_chat_history(
+            ~model,
+            ~mode,
+            ~updated_chat,
+            ~awaiting_response=true,
+          )
           |> Updated.return;
         };
 
@@ -1095,6 +1115,7 @@ let update =
               ~model=model_with_new_chat,
               ~mode=settings.assistant.mode,
               ~updated_chat,
+              ~awaiting_response=true,
             )
             |> Updated.return;
           };
@@ -1125,7 +1146,12 @@ let update =
             HandleResponse(CompletionQueryResponse, response, chat_id)
           );
 
-          update_model_chat_history(~model, ~mode, ~updated_chat)
+          update_model_chat_history(
+            ~model,
+            ~mode,
+            ~updated_chat,
+            ~awaiting_response=true,
+          )
           |> Updated.return;
 
         | Loop(error, tile_id, fuel) =>
@@ -1166,7 +1192,12 @@ let update =
               )
             );
           };
-          update_model_chat_history(~model, ~mode, ~updated_chat)
+          update_model_chat_history(
+            ~model,
+            ~mode,
+            ~updated_chat,
+            ~awaiting_response=true,
+          )
           |> Updated.return;
         };
       };
@@ -1199,7 +1230,13 @@ let update =
       ...curr_chat,
       messages: curr_chat.messages @ [system_message],
     };
-    update_model_chat_history(~model, ~mode, ~updated_chat) |> Updated.return;
+    update_model_chat_history(
+      ~model,
+      ~mode,
+      ~updated_chat,
+      ~awaiting_response=false,
+    )
+    |> Updated.return;
 
   | HandleResponse(response_kind, response, chat_id) =>
     let (curr_chat, mode) =
@@ -1389,7 +1426,13 @@ let update =
       };
     | CompletionQueryResponse => ()
     };
-    update_model_chat_history(~model, ~mode, ~updated_chat) |> Updated.return;
+    update_model_chat_history(
+      ~model,
+      ~mode,
+      ~updated_chat,
+      ~awaiting_response=false,
+    )
+    |> Updated.return;
   | EmployLLMAction(action) =>
     let add_suggestion =
       AssistantModes.Completion.add_suggestion(
@@ -1445,7 +1488,12 @@ let update =
           truncated_chat,
           [summarization_message, summarized_chat_message],
         );
-      update_model_chat_history(~model, ~mode, ~updated_chat)
+      update_model_chat_history(
+        ~model,
+        ~mode,
+        ~updated_chat,
+        ~awaiting_response=false,
+      )
       |> Updated.return;
 
     | RemoveAndSuggest(response, tileId) =>
@@ -1658,7 +1706,12 @@ let update =
         ...curr_chat,
         messages: updated_messages,
       };
-      update_model_chat_history(~model, ~mode, ~updated_chat)
+      update_model_chat_history(
+        ~model,
+        ~mode,
+        ~updated_chat,
+        ~awaiting_response=false,
+      )
       |> Updated.return;
     }
   | ExternalAPIAction(external_api_action) =>
