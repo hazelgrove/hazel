@@ -179,7 +179,8 @@ type error_typ =
   | WantTuple
   | WantLabel
   | WantConstructorFoundType(Typ.t)
-  | WantConstructorFoundAp;
+  | WantConstructorFoundAp
+  | KindMismatch(Typ.t);
 
 /* Type ok statuses for cursor inspector */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -617,9 +618,15 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
     | TypeExpected =>
       switch (Ctx.is_alias(ctx, name)) {
       | false =>
-        switch (Ctx.is_abstract(ctx, name)) {
-        | false => InHole(FreeTypeVariable(name))
-        | true => NotInHole(Type(Var(name) |> Typ.temp))
+        switch (Ctx.lookup_tvar(ctx, name)) {
+        | None => InHole(FreeTypeVariable(name))
+        | Some(kind) =>
+          switch (kind) {
+          | Ctx.Arr(_, _)
+          | Ctx.Prod(_, _) => InHole(KindMismatch(Var(name) |> Typ.temp))
+          | Ctx.Abstract => NotInHole(Type(Var(name) |> Typ.temp))
+          | Ctx.Singleton(_) => NotInHole(Type(Var(name) |> Typ.temp))
+          }
         }
       | true => NotInHole(TypeAlias(name, Typ.weak_head_normalize(ctx, ty)))
       }
@@ -636,7 +643,24 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
     | ConstructorExpected(_) => InHole(WantConstructorFoundAp)
     | TupleExpected => InHole(WantTuple)
     | LabelExpected(_) => InHole(WantLabel)
-    | TypeExpected => InHole(WantTypeFoundAp)
+    | TypeExpected =>
+      switch (t1.term) {
+      | Var(base_name) =>
+        switch (Ctx.lookup_tvar(ctx, base_name)) {
+        | Some(Ctx.Arr(dom_k, res_k)) =>
+          let k_arg = Kind.synth_kind(ctx, ty_in);
+          if (dom_k == k_arg && res_k == Ctx.Abstract) {
+            NotInHole(Type(ty));
+          } else {
+            InHole(KindMismatch(ty));
+          };
+        | Some(Ctx.Abstract)
+        | Some(Ctx.Prod(_, _))
+        | Some(Ctx.Singleton(_)) => InHole(KindMismatch(ty))
+        | None => InHole(KindMismatch(ty))
+        }
+      | _ => InHole(KindMismatch(ty))
+      }
     }
   | Label(name) =>
     switch (expects) {
