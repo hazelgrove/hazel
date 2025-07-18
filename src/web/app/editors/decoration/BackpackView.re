@@ -52,14 +52,6 @@ let view =
   let caret_adj_px = (-1.) +. caret_adj;
   let max_disp = 4; /* Maximum vertical backpack displacement */
   let vertical_disp = origin.row <= max_disp ? origin.row : max_disp;
-  print_endline(
-    Printf.sprintf(
-      "vertical_disp: %d, origin.row: %d, max_disp: %d",
-      vertical_disp,
-      origin.row,
-      max_disp,
-    ),
-  );
   let selections_style =
     Printf.sprintf(
       "position: absolute; left: %fpx; top: %fpx;",
@@ -67,7 +59,6 @@ let view =
       Float.of_int(origin.row - vertical_disp - 1 + (origin.row == 0 ? 0 : 1))
       *. font_metrics.row_height,
     );
-  print_endline(selections_style);
   let scale_fn = idx => float_of_int(100 - 12 * idx) /. 100.;
   let x_fn = idx => float_of_int(12 * idx);
   let init_opacity = 100.;
