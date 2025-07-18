@@ -5,26 +5,18 @@ open OptUtil.Syntax;
 let destruct =
     (
       d: Direction.t,
-      ~structmode: bool,
       {caret, relatives: {siblings: (l_sibs, r_sibs), _}, _} as z: t,
     )
     : option(t) => {
-  let outer_delete = structmode ? Zipper.structural_delete : Zipper.delete;
   /* Could add checks on valid tokens (all of these hold assuming substring) */
   let last_inner_pos = t => Token.length(t) - 2;
   let delete_right = z =>
     z |> Zipper.set_caret(Outer) |> Zipper.delete(Right);
   let delete_left = Zipper.delete(Left);
   let construct_right = (l, s) =>
-    Option.map(
-      Zipper.construct(~settings=false, ~caret=Right, ~backpack=Right, l),
-      s,
-    );
+    Option.map(Zipper.construct(~caret=Right, ~backpack=Right, l), s);
   let construct_left = (l, s) =>
-    Option.map(
-      Zipper.construct(~settings=false, ~caret=Left, ~backpack=Left, l),
-      s,
-    );
+    Option.map(Zipper.construct(~caret=Left, ~backpack=Left, l), s);
   switch (d, caret, neighbor_monotiles((l_sibs, r_sibs))) {
   /* When there's a selection, defer to Outer */
   | _ when z.selection.content != [] => z |> Zipper.destruct |> Option.some
@@ -71,7 +63,7 @@ let destruct =
   | (Left, Inner(_), (_, None))
   | (Right, Inner(_), (_, None)) =>
     /* Note: Counterintuitve, but yes, these cases are identically handled */
-    z |> Zipper.set_caret(Outer) |> outer_delete(Right)
+    z |> Zipper.set_caret(Outer) |> Zipper.delete(Right)
 
   //| (_, Inner(_), (_, None)) => None
   | (Left, Outer, (Some(t), _)) when Token.length(t) > 1 =>
@@ -79,7 +71,7 @@ let destruct =
   | (Right, Outer, (_, Some(t))) when Token.length(t) > 1 =>
     Zipper.replace_mono(Right, Token.rm_first(t), z)
   | (_, Outer, (Some(_), _)) /* t.length == 1 */
-  | (_, Outer, (None, _)) => z |> outer_delete(d)
+  | (_, Outer, (None, _)) => z |> Zipper.delete(d)
   };
 };
 
@@ -97,7 +89,7 @@ let parent_merge = (lbl: Label.t, z: t): t => {
   z
   |> Zipper.delete_parent
   |> Zipper.set_caret(Inner(0, 0))  /* Note 2-token assumption */
-  |> Zipper.construct(~settings=false, ~caret=Right, ~backpack=Left, lbl)
+  |> Zipper.construct(~caret=Right, ~backpack=Left, lbl)
   /* Below regrouting important for parens/ap positioning */
   |> remold_regrout(Right);
 };
@@ -109,8 +101,8 @@ let parent_duomerges = (z: Zipper.t) => {
   Form.duomerges(lbl);
 };
 
-let go = (~structmode, d: Direction.t, z: t): option(t) => {
-  let* z = destruct(~structmode, d, z);
+let go = (d: Direction.t, z: t): option(t) => {
+  let* z = destruct(d, z);
   switch (
     parent_duomerges(z),
     z.caret,

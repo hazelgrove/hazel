@@ -292,54 +292,13 @@ let put_down_regrout_remold_tok =
   put_down_regrout_target(d, target, z);
 };
 
-let structural_construct = (label: Label.t, z: t): t => {
-  let z = destruct(z);
-  let molds = Molds.get(label);
-  assert(molds != []);
-  let mold = List.hd(molds);
-  let mk_space = () => Piece.mk_secondary(Whitespace(Form.space));
-  let should_pad = Molds.is_delayed(List.hd(label));
-  let children =
-    List.init(List.length(label) - 1, i =>
-      (i == 0 ? [] : [mk_space()])
-      @ (should_pad ? [Piece.mk_grout(Convex), mk_space()] : [])
-    );
-  let piece = Piece.mk_tile(label, mold, children);
-  let shape_right = mold.nibs |> snd |> Nib.shape;
-  let z = unselect(z);
-  let z = regrout(Left, z);
-  let z = {
-    ...z,
-    selection:
-      Selection.mk(
-        [piece]
-        @ (shape_right != Convex && label != ["|", "=>"] ? [mk_space()] : []),
-      ),
-  };
-  //print_endline("z after: " ++ show(z));
-  z;
-};
-
 let rec construct =
-        (
-          ~settings,
-          ~caret: Direction.t,
-          ~backpack: Direction.t,
-          label: Label.t,
-          z: t,
-        )
-        : t => {
+        (~caret: Direction.t, ~backpack: Direction.t, label: Label.t, z: t): t => {
   switch (label) {
   | [t] when Form.is_string_delim(t) =>
     /* Special case for constructing string literals.
        See Insert.move_into_if_stringlit for more special-casing. */
-    construct(
-      ~settings,
-      ~caret,
-      ~backpack,
-      [Form.string_delim ++ Form.string_delim],
-      z,
-    )
+    construct(~caret, ~backpack, [Form.string_delim ++ Form.string_delim], z)
   | [content] when Form.is_comment(content) =>
     /* Special case for comments, can't rely on the last branch to construct */
     let content = Secondary.construct_comment(content);
@@ -362,10 +321,6 @@ let rec construct =
            r,
          )
        );
-  | _ when List.length(label) > 1 && settings =>
-    //TODO(andrew): this shouldn't catch splitting () (parens or ap) and [] cases
-    //those cause exns rn
-    structural_construct(label, z)
   | _ =>
     let z = destruct(z);
     let molds = Molds.get(label);
@@ -384,7 +339,7 @@ let rec construct =
 };
 
 let construct_mono = (d: Direction.t, t: Token.t, z: t): t =>
-  construct(~settings=false, ~caret=d, ~backpack=Left, [t], z);
+  construct(~caret=d, ~backpack=Left, [t], z);
 
 let rec get_leaf_pieces =
         (syntaxNode: Piece.t, ~ignored_labels: list(list(string)))
@@ -433,40 +388,11 @@ let delete = (d: Direction.t, z: t): option(t) => {
   };
 };
 
-let containing_tile_is_empty = z =>
-  switch (Ancestors.parent(z.relatives.ancestors)) {
-  | Some({children: (l, r), _}) =>
-    List.for_all(Segment.all_filler, l)
-    && List.for_all(Segment.all_filler, r)
-    && List.for_all(Segment.all_filler, [fst(z.relatives.siblings)])
-    && List.for_all(Segment.all_filler, [snd(z.relatives.siblings)])
-  | _ => false
-  };
-
-let structural_delete = (d: Direction.t, z: t): option(t) =>
-  switch (select(d, z)) {
-  | Some(
-      {selection: {content: [Tile({shards: [0], _} as t)], _}, _} as new_z,
-    )
-      when containing_tile_is_empty(z) =>
-    /* Shards [0] means this applies to only leading delimiter */
-    /* Removes any shards matching tile t from local segment and backpack */
-    let rm = Segment.remove_matching_empty(t);
-    {
-      ...update_siblings(((l, r)) => (rm(l), rm(r)), new_z),
-      selection: Selection.empty,
-    }
-    |> Option.some;
-  | _ => delete(d, z)
-  };
-
 let replace =
     (~caret: Direction.t, ~backpack: Direction.t, l: Label.t, z: t)
     : option(t) =>
   /* i.e. select and construct, overwriting the selection */
-  z
-  |> delete(caret)
-  |> Option.map(construct(~settings=false, ~caret, ~backpack, l));
+  z |> delete(caret) |> Option.map(construct(~caret, ~backpack, l));
 
 let replace_mono = (d: Direction.t, t: Token.t, z: t): option(t) =>
   replace(~caret=d, ~backpack=Left, [t], z);

@@ -27,8 +27,7 @@ let inside_case = (z: t): bool =>
   | _ => false
   };
 
-let delayed_expand =
-    (~settings, t: Token.t, caret: Direction.t, z: t): option(t) => {
+let delayed_expand = (t: Token.t, caret: Direction.t, z: t): option(t) => {
   /* Removes the d-neighboring tile and reconstructs it, triggering
      keyword-expansion; precondition: the d-neighbor should be a monotile
      string-matching a keyword of an expanding form */
@@ -44,25 +43,24 @@ let delayed_expand =
     | _ => (new_label, backpack)
     };
   let+ z = delete(caret, z);
-  construct(~settings, ~backpack, ~caret, new_label, z);
+  construct(~backpack, ~caret, new_label, z);
 };
 
-let expand_or_barf_left_neighbor = (~settings, z as s: t): option(t) =>
+let expand_or_barf_left_neighbor = (z as s: t): option(t) =>
   /* If left neighbor is a monotile (a) string-matching the shard at the
      top of the backpack, barf it, or (b) an expansing keyword, expand it. */
   switch (left_neighbor_monotile(z.relatives.siblings)) {
   | Some(t) when Zipper.will_barf(t, z) => barf(Left, t, s)
-  | Some(t) when Molds.is_delayed(t) => delayed_expand(~settings, t, Left, s)
+  | Some(t) when Molds.is_delayed(t) => delayed_expand(t, Left, s)
   | _ => Some(s)
   };
 
-let expand_or_barf_right_neighbor = (~settings, z as s: t): option(t) =>
+let expand_or_barf_right_neighbor = (z as s: t): option(t) =>
   /* If right neighbor is a monotile (a) string-matching the shard at the
      top of the backpack, barf it, or (b) an expansing keyword, expand it. */
   switch (right_neighbor_monotile(z.relatives.siblings)) {
   | Some(t) when Zipper.will_barf(t, z) => barf(Right, t, s)
-  | Some(t) when Molds.is_delayed(t) =>
-    delayed_expand(~settings, t, Right, s)
+  | Some(t) when Molds.is_delayed(t) => delayed_expand(t, Right, s)
   | _ => Some(s)
   };
 
@@ -91,7 +89,7 @@ let neighbor_can_duomerge =
   | _ => None
   };
 
-let make_new_tile = (~structmode, t: Token.t, caret: Direction.t, z: t): t =>
+let make_new_tile = (t: Token.t, caret: Direction.t, z: t): t =>
   /* Adds a new tile at the caret. If the new token matches the top
      of the backpack, the backpack shard is dropped. Otherwise, we
      construct a new tile, which may immediately expand. */
@@ -104,32 +102,10 @@ let make_new_tile = (~structmode, t: Token.t, caret: Direction.t, z: t): t =>
       }
     : {
       let (lbl, backpack) = Molds.instant_expansion(t);
-      //TODO(andrew): document this
-      // let (lbl, backpack) =
-      //   /* Instant expanding always inside case is overly aggressive
-      //      and prevents entering || operator in branches... could maybe
-      //      do it immediately after linebreaks... */
-      //   switch () {
-      //   | _ when (before_case_shard(z) || inside_case(z)) && t == "|" => (
-      //       ["|", "=>"],
-      //       Direction.Left,
-      //     )
-      //   | _ => (lbl, backpack)
-      //   };
-      //TODO(andrew): document this
-      let settings =
-        structmode
-        && (
-          switch (lbl) {
-          | [hd, _] => t == hd
-          | _ => false
-          }
-        );
-      construct(~settings, ~caret, ~backpack, lbl, z);
+      construct(~caret, ~backpack, lbl, z);
     };
 
-let expand_neighbors_and_make_new_tile =
-    (~structmode, char: Token.t, state: t): option(t) => {
+let expand_neighbors_and_make_new_tile = (char: Token.t, state: t): option(t) => {
   /* Trigger a token boundary event and create a new tile.
      This process potentially involves both neighboring tiles,
      potentially triggering up to 3 expansions or backpack barfs.
@@ -142,17 +118,17 @@ let expand_neighbors_and_make_new_tile =
      barf the "then", before it is buried by the ")" added to the BP.
      The order here could be revisited if barfing was more sophisticated.
      */
-  let* z = expand_or_barf_left_neighbor(~settings=structmode, state);
-  let+ z = expand_or_barf_right_neighbor(~settings=false, z);
+  let* z = expand_or_barf_left_neighbor(state);
+  let+ z = expand_or_barf_right_neighbor(z);
   let z = remold_regrout_prev(z);
-  let z = make_new_tile(~structmode, char, Left, z);
+  let z = make_new_tile(char, Left, z);
   let z = remold_regrout_prev(z);
   z;
 };
 
-let replace_tile = (~structmode, t: Token.t, d: Direction.t, z: t): option(t) => {
+let replace_tile = (t: Token.t, d: Direction.t, z: t): option(t) => {
   let+ z = delete(d, z);
-  make_new_tile(~structmode, t, d, z);
+  make_new_tile(t, d, z);
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -171,26 +147,16 @@ let sibling_appendability: (string, Siblings.t) => appendability =
     | _ => MakeNew
     };
 
-let insert_outer = (~structmode, char: string, z as state: t): option(t) =>
+let insert_outer = (char: string, z as state: t): option(t) =>
   switch (sibling_appendability(char, z.relatives.siblings)) {
-  | MakeNew => expand_neighbors_and_make_new_tile(~structmode, char, state)
-  | AppendLeft(t) => replace_tile(~structmode, t, Left, state)
-  | AppendRight(t) => replace_tile(~structmode, t, Right, state)
+  | MakeNew => expand_neighbors_and_make_new_tile(char, state)
+  | AppendLeft(t) => replace_tile(t, Left, state)
+  | AppendRight(t) => replace_tile(t, Right, state)
   };
 
 let insert_duo = (lbl: Label.t, z: option(t)): option(t) =>
   z
-  |> Option.map(z
-       // TODO(andrew): false below to avoid structural construct case
-       =>
-         Zipper.construct(
-           ~settings=false,
-           ~caret=Left,
-           ~backpack=Left,
-           lbl,
-           z,
-         )
-       )
+  |> Option.map(z => Zipper.construct(~caret=Left, ~backpack=Left, lbl, z))
   |> OptUtil.and_then(z => {
        //NOTE: regrout to put e.g. ap(1|) back together
        z
@@ -245,7 +211,7 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
     /* If we're inserting a space, don't bother to insert it;
      * we'll get a convex grout anyway from regrouting */
 
-    (Form.space != char ? make_new_tile(~structmode=false, char, Left, z) : z)
+    (Form.space != char ? make_new_tile(char, Left, z) : z)
     |> remold_regrout(Right)
     |> move_into_if_stringlit_or_comment(char);
 
@@ -259,8 +225,8 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
      * `if|if` (no grout needed by caret, and later)
      * `case|end` */
     let* z = insert_monos(l, r, z);
-    let* z = expand_or_barf_left_neighbor(~settings=false, z);
-    let+ z = expand_or_barf_right_neighbor(~settings=false, z);
+    let* z = expand_or_barf_left_neighbor(z);
+    let+ z = expand_or_barf_right_neighbor(z);
     if (Form.space == char && should_supress_space(z)) {
       /* This is a finnicky case. remold_regrout_prev regrouts
        * the parent segment if we're at the beginning of the current
@@ -274,10 +240,7 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
       };
     } else {
       let z = remold(z);
-      let z =
-        z
-        |> remold_regrout_prev
-        |> make_new_tile(~structmode=false, char, Left);
+      let z = z |> remold_regrout_prev |> make_new_tile(char, Left);
       let z = z |> remold_regrout(Right);
       let z = z |> move_into_if_stringlit_or_comment(char);
       z;
@@ -294,7 +257,6 @@ let closing_stringlit_or_comment = (char, t) =>
 let rec go =
         (
           ~ctx: option(Language.Ctx.t)=?,
-          ~structmode,
           char: string,
           {caret, relatives: {siblings, _}, _} as z: t,
         )
@@ -311,7 +273,7 @@ let rec go =
   | (Outer, (Some(t), _)) when closing_stringlit_or_comment(char, t) =>
     Some(z)
   | (Outer, (Some(t), _)) when Form.is_livelit(t) && char == " " =>
-    let insert = (z, c) => Option.bind(z, go(~structmode, c));
+    let insert = (z, c) => Option.bind(z, go(c));
     switch (ctx) {
     | Some(ctx) =>
       let name = Form.parse_livelit(t);
@@ -364,7 +326,7 @@ let rec go =
         );
 
       // No matching livelit found, insert space
-      | None => insert_outer(~structmode=false, char, z)
+      | None => insert_outer(char, z)
       };
     | None => insert(Some(z), char)
     };
@@ -398,13 +360,13 @@ let rec go =
       | AppendLeft(_) => Outer
       };
     z
-    |> insert_outer(~structmode, char)
+    |> insert_outer(char)
     |> Option.map(Zipper.set_caret(caret))
     |> Option.map(remold_regrout(Left))
     |> Option.map(move_into_if_stringlit_or_comment(char));
   | (Outer, (_, None)) =>
     z
-    |> insert_outer(~structmode, char)
+    |> insert_outer(char)
     |> Option.map(remold_regrout(Left))
     |> Option.map(move_into_if_stringlit_or_comment(char))
   };

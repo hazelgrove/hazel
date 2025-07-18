@@ -390,8 +390,8 @@ module ErrorRound = {
         let segment = Zipper.zip(completion_z);
         switch (
           {
-            let* sketch_z = Destruct.go(~structmode=false, Left, sketch_z);
-            let+ sketch_z = Destruct.go(~structmode=false, Left, sketch_z);
+            let* sketch_z = Destruct.go(Left, sketch_z);
+            let+ sketch_z = Destruct.go(Left, sketch_z);
             Perform.paste_segment(sketch_z, segment);
           }
         ) {
