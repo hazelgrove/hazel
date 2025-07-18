@@ -171,12 +171,10 @@ let rec compose = (ctx: t, d: DHExp.t): DHExp.t => {
       TypAp(d, ty) |> wrap;
     | ValBinding(p, ctx, (entries, entries')) =>
       let d = compose(ctx, d);
-      Module(
-        ListUtil.rev_concat(
-          entries,
-          [ValBinding(p, d) |> ModuleEntry.temp, ...entries'],
-        ),
-      )
+      Module({
+        final: entries,
+        todo: [ValBinding(p, d) |> ModuleEntry.temp, ...entries'],
+      })
       |> wrap;
     };
   };

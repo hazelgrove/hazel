@@ -1166,7 +1166,8 @@ and uexp_to_info_map =
           })
         };
       add'(~self, ~co_ctx=body.co_ctx, m);
-    | Module(entries) =>
+    | Module({final, todo}) =>
+      let entries = Util.ListUtil.rev_concat(final, todo);
       let go_entry =
           (~ctx, entry: TermBase.module_entry_t, m: Map.t)
           : (Map.t, Ctx.t, TermBase.module_signature_entry_t) => {

@@ -93,7 +93,10 @@ and exp_term('a) =
   | BuiltinFun(string)
   | Match(exp_t('a), list((pat_t('a), exp_t('a))))
   | Asc(exp_t('a), typ_t('a))
-  | Module(list(module_entry_t('a)))
+  | Module({
+      final: list(module_entry_t('a)), // HACK[Matt]: this list is used in the evaluator to track which expressions do not need to be retraversed.
+      todo: list(module_entry_t('a)),
+    }) // In unevaluated modules, all entries should be in this list.
 and exp_t('a) = Annotated.t(exp_term('a), 'a)
 and pat_term('a) =
   | Invalid(string)
@@ -267,8 +270,11 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | UnOp(op, e) => UnOp(op, map_exp_annotation(f, e))
         | BinOp(op, e1, e2) =>
           BinOp(op, map_exp_annotation(f, e1), map_exp_annotation(f, e2))
-        | Module(entries) =>
-          Module(List.map(x => map_module_entry_annotation(f, x), entries))
+        | Module({final, todo}) =>
+          Module({
+            final: List.map(x => map_module_entry_annotation(f, x), final),
+            todo: List.map(x => map_module_entry_annotation(f, x), todo),
+          })
         | BuiltinFun(s) => BuiltinFun(s)
         | Match(e, l) =>
           Match(
@@ -708,7 +714,11 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       annotation: default_annotation(ann),
     };
     let module_ = (~ann=?, bindings): exp_t(DefaultAnnotation.t) => {
-      term: Module(bindings),
+      term:
+        Module({
+          final: [],
+          todo: bindings,
+        }),
       annotation: default_annotation(ann),
     };
   };

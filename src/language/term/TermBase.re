@@ -311,22 +311,37 @@ and Exp: {
         | BinOp(op, e1, e2) =>
           BinOp(op, exp_map_term(e1), exp_map_term(e2))
         | BuiltinFun(str) => BuiltinFun(str)
-        | Module(bs) =>
-          Module(
-            List.map(
-              entry =>
-                ModuleEntry.map_term(
-                  ~f_exp,
-                  ~f_pat,
-                  ~f_typ,
-                  ~f_tpat,
-                  ~f_rul,
-                  ~f_any,
-                  entry,
-                ),
-              bs,
-            ),
-          )
+        | Module({final, todo}) =>
+          Module({
+            final:
+              List.map(
+                entry =>
+                  ModuleEntry.map_term(
+                    ~f_exp,
+                    ~f_pat,
+                    ~f_typ,
+                    ~f_tpat,
+                    ~f_rul,
+                    ~f_any,
+                    entry,
+                  ),
+                final,
+              ),
+            todo:
+              List.map(
+                entry =>
+                  ModuleEntry.map_term(
+                    ~f_exp,
+                    ~f_pat,
+                    ~f_typ,
+                    ~f_tpat,
+                    ~f_rul,
+                    ~f_any,
+                    entry,
+                  ),
+                todo,
+              ),
+          })
         | Match(e, rls) =>
           Match(
             exp_map_term(e),
@@ -344,9 +359,11 @@ and Exp: {
   let rec fast_equal = (~ignore_constructor_types: bool=false, e1: t, e2: t) => {
     let fast_equal = fast_equal(~ignore_constructor_types);
     switch (e1 |> Grammar.Annotated.term_of, e2 |> Grammar.Annotated.term_of) {
-    | (Module(bs), Module(bs')) =>
-      List.length(bs) == List.length(bs')
-      && List.equal(ModuleEntry.fast_equal, bs, bs') // TODO Do actual equality on module entries
+    | (Module({final, todo}), Module({final: final', todo: todo'})) =>
+      List.length(final) == List.length(final')
+      && List.length(todo) == List.length(todo')
+      && List.equal(ModuleEntry.fast_equal, final, final')
+      && List.equal(ModuleEntry.fast_equal, todo, todo')
     | (DynamicErrorHole(x, _), _)
     | (Parens(x), _) => fast_equal(x, e2)
     | (_, DynamicErrorHole(x, _))
