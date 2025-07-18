@@ -42,7 +42,7 @@ let buffer_cls: t('p) => string =
   | {mode: Buffer(Parsed), _} => "buffer-parsed"
   | _ => "not-buffer";
 
-let selection_ids = (sel: t): list(Id.t) => Segment.ids(sel.content);
+let selection_ids = (sel: t('p)): list(Id.t) => Segment.ids(sel.content);
 
 let empty = mk(Segment.empty);
 

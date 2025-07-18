@@ -220,6 +220,9 @@ module Update = {
         type p,
         type p_k,
         type p_a,
+        ~common: Common.t,
+        ~shape_of_projector,
+        ~projector_to_term,
         ~settings: Language.CoreSettings.t,
         ~projector_init,
         ~seg_of_projector,
@@ -232,7 +235,7 @@ module Update = {
       : Action.Result.t(Model.t(p_k, p, p_a)) => {
     let seg_to_ed = seg => Zipper.unzip(seg) |> Model.mk |> Option.some;
     open Result.Syntax;
-    let old_zipper = state.zipper;
+    let old_zipper = Model.get_z(model);
     /* 1. Clear the autocomplete buffer if relevant. We clear the TyDi
      * (unparsed) buffer on every action except accept; for the LLM
      * (parsed) buffer, we accept resize actions to permit incremental
@@ -240,7 +243,7 @@ module Update = {
     let clear_condition =
       (settings.assist && settings.statics && a != Buffer(Accept))
       && !(
-           Selection.non_empty_parsed_buffer(state.zipper.selection)
+           Selection.non_empty_parsed_buffer(old_zipper.selection)
            && (
              switch (a) {
              | Select(Resize(Local(_))) => true
@@ -249,35 +252,28 @@ module Update = {
            )
          );
 
-    let state =
+    let zipper =
       clear_condition
-        ? {
-          ...state,
-          zipper:
-            Perform.go_z(
-              ~settings,
-              ~seg_to_ed,
-              ~projector_init,
-              ~seg_of_projector,
-              ~update_projector,
-              ~livelit_projectors,
-              old_statics,
-              Buffer(Clear),
-              Model.to_move_s({
-                state,
-                syntax,
-              }),
-              state.zipper,
-            )
-            |> Action.Result.ok
-            |> Option.value(~default=state.zipper),
-        }
-        : state;
-    let syntax =
+        ? Perform.go_z(
+            ~settings,
+            ~seg_to_ed,
+            ~projector_init,
+            ~seg_of_projector,
+            ~update_projector,
+            ~livelit_projectors,
+            old_statics,
+            Buffer(Clear),
+            Model.to_move_s(model),
+            old_zipper,
+          )
+          |> Action.Result.ok
+          |> Option.value(~default=old_zipper)
+        : old_zipper;
+    let zipper =
       if (clear_condition) {
-        CachedSyntax.mark_old(syntax);
+        Calc.NewValue(zipper);
       } else {
-        Calc.OldValue(zipper);
+        Calc.OldValue(old_zipper);
       };
     /* TODO(andrew): Apologize to matt for below.
        If a buffer clear happens above then we must recalculate the
@@ -287,14 +283,17 @@ module Update = {
     let syntax =
       if (clear_condition
           && Selection.non_empty_parsed_buffer(old_zipper.selection)) {
-        CachedSyntax.calculate(
-          state.zipper,
-          old_statics.info_map,
-          Id.Map.empty, //TODO
-          syntax,
+        Calc.Calculated(
+          CachedSyntax.init(
+            ~common,
+            ~projector_to_term,
+            ~shape_of_projector,
+            ~sort=Calc.get_saved_exc(model.term) |> Language.Any.sort,
+            old_zipper,
+          ),
         );
       } else {
-        syntax;
+        model.syntax;
       };
 
     // 2. Record target column if moving up/down
@@ -307,7 +306,7 @@ module Update = {
         | None =>
           Some(
             Zipper.caret_point(
-              Calc.get_saved_exc(model.syntax).measured,
+              Calc.get_saved_exc(syntax).measured,
               Calc.get_value(zipper),
             ).
               col,
@@ -317,6 +316,8 @@ module Update = {
       };
     let model = {
       ...model,
+      zipper,
+      syntax,
       col_target,
     };
 
@@ -331,11 +332,8 @@ module Update = {
         ~livelit_projectors,
         old_statics,
         a,
-        Model.to_move_s({
-          state,
-          syntax,
-        }),
-        state.zipper,
+        Model.to_move_s(model),
+        Model.get_z(model),
       );
     let zipper =
       Action.is_edit(a) || Calc.is_new(model.zipper)

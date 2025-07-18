@@ -6,9 +6,10 @@ type t = {
   backup_text: string,
 };
 
-let to_string = Printer.of_zipper(~holes="", ~indent="");
+let to_string = (~concave_holes=?, ~caret=?, z) =>
+  Printer.of_zipper(~holes="", ~indent="", ~concave_holes?, ~caret?, z);
 
-let persist = (f, zipper: Zipper.t) => {
+let persist = (f, zipper: Zipper.t('p)) => {
   {
     zipper: Zipper.sexp_of_t(f, zipper) |> Sexplib.Sexp.to_string,
     backup_text: to_string(zipper),

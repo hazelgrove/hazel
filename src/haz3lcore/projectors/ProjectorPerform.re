@@ -190,12 +190,19 @@ let go =
         z,
       ): ZipperBase.t(p),
     )
-  | Escape(id, d) => Ok(jump_to_side_of_id(d, z, id))
+  | Escape(id, d) =>
+    switch (jump_to_side_of_id(d, z, id)) {
+    | Some(z) => Ok(z)
+    | None => Error(Cant_project)
+    }
   | MoveCaretTo(target_id) =>
     switch (Indicated.index(z)) {
     | Some(indicated_id) when indicated_id != target_id =>
       /* May as well not flop sides willy nilly if already there */
-      Ok(jump_to_side_of_id(Left, z, target_id))
+      switch (jump_to_side_of_id(Left, z, target_id)) {
+      | Some(z) => Ok(z)
+      | None => Error(Cant_project)
+      }
     | _ => Ok(z)
     }
   // | Focus(id, kind, d) =>

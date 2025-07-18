@@ -8,7 +8,7 @@ let get_sketch_and_error_ctx =
     Zipper.smart_seg(
       ~dump_backpack=true,
       ~erase_buffer=true,
-      editor.editor.state.zipper,
+      editor.editor |> Editor.get_z,
     );
   let errors = ErrorPrint.all(editor.statics.info_map);
   let static_error_arr =
@@ -26,6 +26,21 @@ let get_sketch_and_error_ctx =
     @ static_error_arr;
   ctx;
 };
+
+let make_term = (seg): Language.Term.Exp.t =>
+  switch (
+    MakeTerm.go(
+      Exp,
+      ~of_projector=
+        (~sort as _, ~id as _, _) =>
+          failwith("ChatLSP.make_term: Projectors unimplemented"),
+      seg,
+    ).
+      term
+  ) {
+  | Exp(term) => term
+  | _ => failwith("ChatLSP.make_term: Not expression")
+  };
 
 module Options = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -153,9 +168,9 @@ module Completion = {
         ~tile: Id.t,
         ~schedule_action: Editors.Update.t => unit,
       ) => {
-    let actions = [
-      Action.Select(Tile(Id(tile, Direction.Left))),
-      Action.Buffer(Set(LLM(response))),
+    let actions: list(Action.t) = [
+      Select(Tile(Id(tile, Direction.Left))),
+      Buffer(Set(LLM(response))),
     ];
     // Apply each action in sequence
     List.iter(
@@ -178,7 +193,7 @@ module Composition = {
     Statics.uexp_to_info_map(
       ~ctx=init_ctx,
       ~ancestors=[],
-      MakeTerm.go(sketch).term,
+      make_term(sketch),
       Id.Map.empty,
       ~duplicates=[],
       ~expected_labels=None,
@@ -200,7 +215,7 @@ module Composition = {
             String.length(
               ErrorPrint.Print.seg(
                 ~holes="?",
-                editor.editor.state.zipper.selection.content,
+                Editor.get_z(editor.editor).selection.content,
               ),
             )
             == 0
@@ -208,7 +223,7 @@ module Composition = {
               : "```"
                 ++ ErrorPrint.Print.seg(
                      ~holes="?",
-                     editor.editor.state.zipper.selection.content,
+                     Editor.get_z(editor.editor).selection.content,
                    )
                 ++ "```"
           ),
@@ -281,25 +296,24 @@ module Composition = {
         None,
       );
     // Return appropriate action based on whether we found a match
-    let actions =
+    let actions: list(Action.t) =
       switch (matching_id) {
       | Some(id) => [
-          Action.Jump(TileId(id)),
+          Jump(TileId(id)),
           // Moving left by token is essentially a hacky method to get
           // off of a variable name (term), and triple/quad click on let binding
           // itself (this properly highlights full variable name and
           // definition when type annotation exists)
-          Action.Move(Local(Left(ByToken))),
+          Move(Local(Left(ByToken))),
           switch (loc) {
           // TODO: Implement structure-based navigation actions
-          | Definition =>
-            Action.Select(Term(Id(Id.invalid, Direction.Left)))
-          | Body => Action.Select(Term(Id(Id.invalid, Direction.Left)))
-          | All => Action.Select(Term(Id(Id.invalid, Direction.Left)))
+          | Definition => Select(Term(Id(Id.invalid, Direction.Left)))
+          | Body => Select(Term(Id(Id.invalid, Direction.Left)))
+          | All => Select(Term(Id(Id.invalid, Direction.Left)))
           },
-          Action.Copy,
+          Copy,
         ]
-      | None => [Action.Select(Term(Id(Id.invalid, Direction.Left)))]
+      | None => [Select(Term(Id(Id.invalid, Direction.Left)))]
       };
 
     List.iter(
@@ -322,32 +336,32 @@ module Composition = {
       : unit => {
     // TODO: Might be helpful to paste a segment instead of a string
     // This may allow for better error handling.
-    let actions =
+    let actions: list(Action.t) =
       switch (loc) {
       | Before => [
           // Unselect current definition
-          Action.Unselect(Some(Left)),
+          Unselect(Some(Left)),
           // Paste new code
-          Action.Paste(String(code ++ "\n")),
+          Paste(String(code ++ "\n")),
         ]
       | After => [
           // Unselect current definition
-          Action.Unselect(Some(Direction.Right)),
+          Unselect(Some(Direction.Right)),
           // Paste new code
-          Action.Paste(String("\n" ++ code)),
+          Paste(String("\n" ++ code)),
         ]
       | Current =>
         String.length(code) == 0
           ? [
             // This implies the calling of the ```delete``` tool
             // Replace current definition
-            Action.Paste(String(code)),
+            Paste(String(code)),
             // Destruct left
-            Action.Destruct(Left),
+            Destruct(Left),
           ]
           : [
             // Replace current definition
-            Action.Paste(String(code)),
+            Paste(String(code)),
           ]
       // We paste the code edit, then reselect the definition, and copy
       // to clipboard shim to give context to assistant.
@@ -379,7 +393,8 @@ module ErrorRound = {
       | [_, ..._] as orphans =>
         let orphans =
           List.map(
-            (s: Selection.t) => Printer.of_segment(~holes="", s.content),
+            (s: Selection.t('p)) =>
+              Printer.of_segment(~holes="", s.content),
             orphans,
           );
         Error(
@@ -406,7 +421,9 @@ module ErrorRound = {
     Statics.uexp_to_info_map(
       ~ctx=init_ctx,
       ~ancestors=[],
-      MakeTerm.from_zip_for_sem(z).term,
+      make_term(
+        Zipper.smart_seg(~dump_backpack=true, ~erase_buffer=true, z),
+      ),
       Id.Map.empty,
       ~duplicates=[],
       ~expected_labels=None,

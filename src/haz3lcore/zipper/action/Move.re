@@ -10,7 +10,7 @@ type indexed = option((int, Label.t));
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type token_info = option((int, int));
 
-let piece_neighbor = (d: Direction.t, p: Piece.t): indexed =>
+let piece_neighbor = (d: Direction.t, p: Piece.t('p)): indexed =>
   switch (p) {
   | Tile(t) => Some((Tile.shard_on_side(Direction.toggle(d), t), t.label))
   | Secondary(w) => Some((0, [Secondary.get_string(w.content)]))
@@ -18,7 +18,7 @@ let piece_neighbor = (d: Direction.t, p: Piece.t): indexed =>
   | Projector(_) => None
   };
 
-let ancestor_neighbor = (d: Direction.t, ancestors: Ancestors.t): indexed => {
+let ancestor_neighbor = (d: Direction.t, ancestors: Ancestors.t('p)): indexed => {
   let+ {shards: (l, r), label, _} = Ancestors.parent(ancestors);
   switch (d) {
   | Left => (ListUtil.last(l), label)
@@ -32,13 +32,13 @@ let indexes = ((delim_idx: int, label: Label.t)): token_info => {
   char_max < 0 ? None : Some((delim_idx, char_max));
 };
 
-let nhbr = (d: Direction.t, r: Relatives.t): indexed =>
+let nhbr = (d: Direction.t, r: Relatives.t('p)): indexed =>
   switch (Siblings.neighbor(d, r.siblings)) {
   | Some(p) => piece_neighbor(d, p)
   | None => ancestor_neighbor(d, r.ancestors)
   };
 
-let move_by_char_left = (z: t): option(t) =>
+let move_by_char_left = (z: t('p)): option(t('p)) =>
   switch (z.caret, Option.bind(nhbr(Left, z.relatives), indexes)) {
   | (Outer, None) => z |> move(Left)
   | (Outer, Some((delim_init, char_max))) =>
@@ -49,7 +49,7 @@ let move_by_char_left = (z: t): option(t) =>
     z |> set_caret(Inner(delim, char - 1)) |> Option.some
   };
 
-let move_by_char_right = (z: t): option(t) =>
+let move_by_char_right = (z: t('p)): option(t('p)) =>
   switch (z.caret, Option.bind(nhbr(Right, z.relatives), indexes)) {
   | (Outer, None) => z |> move(Right)
   | (Outer, Some((delim_init, _))) =>
@@ -60,13 +60,13 @@ let move_by_char_right = (z: t): option(t) =>
     z |> set_caret(Inner(delim, char + 1)) |> Option.some
   };
 
-let move_by_char = (d: Direction.t, z: t): option(t) =>
+let move_by_char = (d: Direction.t, z: t('p)): option(t('p)) =>
   switch (d) {
   | Left => move_by_char_left(z)
   | Right => move_by_char_right(z)
   };
 
-let move_by_token = (d: Direction.t, z: t): option(t) =>
+let move_by_token = (d: Direction.t, z: t('p)): option(t('p)) =>
   switch (z.caret) {
   | Outer => move(d, z)
   | Inner(_) =>
@@ -77,7 +77,8 @@ let move_by_token = (d: Direction.t, z: t): option(t) =>
     };
   };
 
-let primary = (chunkiness: chunkiness, d: Direction.t, z: t('p)): option(t) => {
+let primary =
+    (chunkiness: chunkiness, d: Direction.t, z: t('p)): option(t('p)) => {
   let z = unselect(z);
   switch (chunkiness) {
   | ByToken => move_by_token(d, z)
@@ -274,8 +275,9 @@ module Make = (M: S) => {
    * few cases including for example `true && !|flag`,
    * where the caret (|) is at the leftmost edge of
    * `flag`, but the not operator ("!") is indicated */
-  let jump_to_side_of_id = (d: Direction.t, z, id): option(t('p)) => {
-    let jump_to_left_of_id = (z: t, id: Id.t): option(t) => {
+  let jump_to_side_of_id =
+      (d: Direction.t, z: t('p), id: Id.t): option(t('p)) => {
+    let jump_to_left_of_id = (z: t('p), id: Id.t): option(t('p)) => {
       let* {origin, _} = Measured.find_by_id(id, M.measured);
       let z =
         switch (to_start(z)) {

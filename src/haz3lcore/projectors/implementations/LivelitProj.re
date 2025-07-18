@@ -11,17 +11,17 @@ type model('ed) = {
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action('ed_a) = LivelitCtx.action_exp;
-let get_model = (info: info) =>
-  switch (info.statics) {
-  | Some(
-      InfoExp({
-        term: {term: Ap(_dir, {term: LivelitName(llname), _}, model), _},
-        _,
-      }),
-    ) =>
-    Some((llname, model))
-  | _ => None
-  };
+// let get_model = (info: info) =>
+//   switch (info.statics) {
+//   | Some(
+//       InfoExp({
+//         term: {term: Ap(_dir, {term: LivelitName(llname), _}, model), _},
+//         _,
+//       }),
+//     ) =>
+//     Some((llname, model))
+//   | _ => None
+//   };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type focus('ed_f) = unit;

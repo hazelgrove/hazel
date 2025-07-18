@@ -164,8 +164,8 @@ let contextual_actions = (~inject: Action.t => Ui_effect.t(unit)) => [
   ContextualAction.mk(
     ~section="Settings",
     ~mdIcon="tune",
-    "Toggle Show Cast Steps",
-    inject(Set(Evaluation(ShowCastSteps))),
+    "Toggle Show Ascription Steps",
+    inject(Set(Evaluation(ShowAscriptionSteps))),
   ),
   ContextualAction.mk(
     ~section="Settings",
@@ -188,8 +188,8 @@ let contextual_actions = (~inject: Action.t => Ui_effect.t(unit)) => [
   ContextualAction.mk(
     ~section="Settings",
     ~mdIcon="tune",
-    "Toggle Show Docs Sidebar",
-    inject(Set(ExplainThis(ToggleShow))),
+    "Toggle Sidebar",
+    inject(Set(Sidebar(ToggleShow))),
   ),
   ContextualAction.mk(
     ~section="Settings",

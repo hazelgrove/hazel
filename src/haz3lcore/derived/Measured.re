@@ -231,7 +231,7 @@ let of_segment =
     (
       ~indent_level=Id.Map.empty,
       seg: Segment.t('p),
-      shape_map: Id.Map.t(ProjectorCore.Shape.t),
+      shape_map: Id.Map.t(ProjectorShape.t),
     )
     : t => {
   let indent_level =
@@ -246,7 +246,7 @@ let of_segment =
             ~prev_indent: int,
             ~top_level,
             ~origin: Point.t,
-            seg: Segment.t,
+            seg: Segment.t('p),
           )
           : (int, Point.t, t) =>
     switch (seg) {
@@ -326,7 +326,7 @@ let of_segment =
             | Some(indent) => indent
             | None => 0
             };
-          let shape = ProjectorCore.Shape.Map.lookup(p.id, shape_map);
+          let shape = ProjectorShape.Map.lookup(p.id, shape_map);
           let num_extra_rows =
             switch (shape.vertical) {
             | Inline

@@ -348,8 +348,8 @@ let rm_opaques:
   );
 
 /* Don't redundantly show an env for variable references, patterns */
-let hide_env = (info: info): bool =>
-  switch (info.statics) {
+let hide_env = (statics: option(Info.t)): bool =>
+  switch (statics) {
   | Some(
       InfoExp({term: {term: Var(_) | Probe({term: Var(_), _}, _), _}, _}),
     ) =>
@@ -465,7 +465,7 @@ module M =
   let abbreviated_exp = (available: int, exp: Exp.t): Exp.t => {
     //TODO(andrew): cleanup
     let (abbr_exp, _length) =
-      exp |> DHExp.strip_casts |> Abbreviate.abbreviate_exp(~available);
+      exp |> DHExp.strip_ascriptions |> Abbreviate.abbreviate_exp(~available);
     abbr_exp;
   };
 
@@ -586,7 +586,14 @@ module M =
     };
 
   let value_view =
-      (~common, ~take_focus, ~statics, local, closure: closure, index: int) => {
+      (
+        ~common,
+        ~take_focus as _,
+        ~statics,
+        local,
+        closure: closure,
+        index: int,
+      ) => {
     let val_pointerdown = (e: Js.t(Dom_html.pointerEvent)) => {
       if (Js.to_bool(e##.shiftKey)) {
         let target =
@@ -756,7 +763,7 @@ module M =
         abbreviated_exp(ClosureLength.get(closure), closure.value),
       );
     let goal = cur + 1;
-    let max_len = len_of_exp(DHExp.strip_casts(closure.value));
+    let max_len = len_of_exp(DHExp.strip_ascriptions(closure.value));
     let rec find_target = (target: int): int => {
       let attempt_len = len_of_exp(abbreviated_exp(target, closure.value));
       if (attempt_len < goal && target <= max_len) {
@@ -785,7 +792,7 @@ module M =
     ClosureLength.set(closure.closure_id, find_target(goal));
   };
 
-  let key_handler = (len_of_exp, local, id, statics, dynamics, escape, evt) => {
+  let key_handler = (len_of_exp, local, _id, statics, dynamics, escape, evt) => {
     open Effect;
     /* PLAN: inter-probe navigation
         ultimately need to be able to issue a parent action to move to and focus on
@@ -886,7 +893,6 @@ module M =
     );
   };
 
-<<<<<<< HEAD
   let pin_view = statics =>
     DynCursor.show_pin(statics)
       ? [div(~attrs=[Attr.classes(["pin"])], [])] : [];
@@ -961,23 +967,24 @@ module M =
       | _ => None
       }
     );
-=======
-let round_up = (utility: utility, closure): unit => {
-  let (_, cur) =
-    abbreviated_seg_of(utility, ClosureLength.get(closure), closure.value);
-  let goal = cur + 1;
-  let (_, max_len) =
-    seg_of_exp(utility, DHExp.strip_ascriptions(closure.value));
-  let rec find_target = (target: int): int => {
-    let attempt_len =
-      abbreviated_seg_of(utility, target, closure.value) |> snd;
-    if (attempt_len < goal && target <= max_len) {
-      find_target(target + 1);
-    } else {
-      target;
-    };
->>>>>>> 2b4a189132e4a0d653035d25ccba80643d53cb1a
   };
+  // let round_up = (utility: utility, closure): unit => {
+  //   let (_, cur) =
+  //     abbreviated_seg_of(utility, ClosureLength.get(closure), closure.value);
+  //   let goal = cur + 1;
+  //   let (_, max_len) =
+  //     seg_of_exp(utility, DHExp.strip_ascriptions(closure.value));
+  //   let rec find_target = (target: int): int => {
+  //     let attempt_len =
+  //       abbreviated_seg_of(utility, target, closure.value) |> snd;
+  //     if (attempt_len < goal && target <= max_len) {
+  //       find_target(target + 1);
+  //     } else {
+  //       target;
+  //     };
+  //   };
+  //   ();
+  // };
 
   let dynamics = true;
 

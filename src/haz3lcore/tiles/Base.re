@@ -65,7 +65,7 @@ and piece_to_string =
   | Grout({shape: Concave, _}) => concave_holes
   | Grout({shape: Convex, _}) => holes
   | Secondary(w) => Secondary.get_string(w.content)
-  | Projector(p) => "🎦" // TODO: print projectors
+  | Projector(_p) => "🎦" // TODO(andrew): print projectors
   }
 and tile_to_string =
     (~holes: string, ~concave_holes: string, t: tile('p)): string =>

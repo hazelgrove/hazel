@@ -258,6 +258,10 @@ and Editor: {
     let update = (~common: Common.t, action: t, editor: Model.t) => {
       switch (
         Haz3lcorep.Editor.Update.update(
+          ~common,
+          ~shape_of_projector=Projector.View.get_placeholder,
+          ~projector_to_term=
+            (~sort as _, ~id as _, m) => Projector.Model.get_cached_term(m),
           ~settings=common.settings,
           ~projector_init=Projector.Model.mk,
           ~update_projector=Projector.Update.update(~common),
@@ -369,7 +373,7 @@ and Editor: {
       ed
       |> Haz3lcorep.Editor.Model.get_z
       |> Zipper.zip
-      |> Printer.of_segment(~holes=Some("?"))
+      |> Printer.of_segment(~holes="?")
       |> Re.Str.global_replace(Re.Str.regexp("\n"), " ")
       |> (
         str =>

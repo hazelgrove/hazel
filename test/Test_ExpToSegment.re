@@ -3,7 +3,7 @@ open Haz3lcore;
 open Language;
 open Base;
 
-let print_seg = Printer.of_segment(~holes="?");
+let print_seg = seg => Printer.of_segment(~holes="?", seg);
 
 // Id ignoring equality for tiles
 let rec equal_segment = (a: segment, b: segment) => {
@@ -41,7 +41,7 @@ let equivalent_to_make_term = (serialized: string) => {
   switch (Parser.to_term(serialized)) {
   | None => Alcotest.fail("Failed to parse term")
   | Some(zb) =>
-    let exp = MakeTerm.from_zip_for_sem(zb).term |> Any.is_exp |> Option.get;
+    let exp = Exp(zb) |> Any.is_exp |> Option.get;
     let seg =
       ExpToSegment.exp_to_segment(~settings=exp_to_segment_settings, exp);
     check(

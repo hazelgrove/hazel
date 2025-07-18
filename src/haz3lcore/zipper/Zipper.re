@@ -70,7 +70,7 @@ let unzip = (seg: Segment.t('p)): t('p) => {
 let pop_backpack = (z: t('p)) =>
   Backpack.pop(Relatives.local_incomplete_tiles(z.relatives), z.backpack);
 
-let will_barf = (t: Token.t, z: t): bool =>
+let will_barf = (t: Token.t, z: t('p)): bool =>
   switch (pop_backpack(z)) {
   | Some((_, {content: [p], _}, _)) =>
     switch (p) {
@@ -211,7 +211,7 @@ let directional_unselect = (d: Direction.t, z: t('p)): t('p) => {
   });
 };
 
-let unselect = (z: t): t =>
+let unselect = (z: t('p)): t('p) =>
   z.selection.content == [] ? z : directional_unselect(z.selection.focus, z);
 
 let move = (d: Direction.t, z: t('p)): option(t('p)) =>
@@ -294,7 +294,7 @@ let put_down = (d: Direction.t, z: t('p)): option(t('p)) => {
   };
 };
 
-let remold_regrout_prev = (z: t): t =>
+let remold_regrout_prev = (z: t('p)): t('p) =>
   switch (move(Left, z)) {
   | None => z
   | Some(z_left) =>
@@ -305,7 +305,7 @@ let remold_regrout_prev = (z: t): t =>
     };
   };
 
-let put_down_regrout_remold = (d: Direction.t, z: t): option(t) => {
+let put_down_regrout_remold = (d: Direction.t, z: t('p)): option(t('p)) => {
   let z = destruct(z);
   let* (_, popped, backpack) = pop_backpack(z);
   let z =
@@ -577,7 +577,7 @@ let try_to_dump_backpack = (zipper: t('p)) => {
       } else {
         z;
       };
-    let rec go = (z: t('p)): t => {
+    let rec go = (z: t('p)): t('p) => {
       let z_can = can_put_down(z) ? z : move_until_can_put_down(z);
       let z_cant = move_until_cant_put_down(z_can, z_can);
       switch (put_down_regrout_remold(Right, z_cant)) {

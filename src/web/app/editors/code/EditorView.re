@@ -584,7 +584,9 @@ let view_code_editable =
           Effect.of_sync_fun(
             () => {
               let text =
-                Printer.to_string_selection(model |> Editor.Model.get_z);
+                Printer.of_segment(
+                  model |> Editor.Model.get_z |> Zipper.seg_without_buffer,
+                );
               evt##.clipboardData##setData(
                 Js.string("text/plain"),
                 Js.string(text),
@@ -601,7 +603,9 @@ let view_code_editable =
           Effect.of_sync_fun(
             () => {
               let text =
-                Printer.to_string_selection(model |> Editor.Model.get_z);
+                Printer.of_segment(
+                  model |> Editor.Model.get_z |> Zipper.seg_without_buffer,
+                );
               evt##.clipboardData##setData(
                 Js.string("text/plain"),
                 Js.string(text),

@@ -18,7 +18,7 @@ let l_shard = t =>
 let r_shard = t =>
   OptUtil.get_or_raise(Empty_tile, ListUtil.last_opt(t.shards));
 
-let shard_on_side = (d: Direction.t, t: t) =>
+let shard_on_side = (d: Direction.t, t: t('p)) =>
   switch (d) {
   | Left => l_shard(t)
   | Right => r_shard(t)

@@ -1,14 +1,20 @@
 open Util;
 
-let remove_projector: Piece.t => Segment.t =
+//TODO(andrew): may be unnecessary now
+let remove_projector: Piece.t('p) => Segment.t('p) =
   fun
-  | Projector(pr) => Piece.unparenthesize(pr.syntax)
+  | Projector(_pr) => [
+      Grout({
+        shape: Convex,
+        id: Id.mk(),
+      }),
+    ]
   | x => [x];
 
-let measured_no_projectors = (segment: Segment.t) =>
+let measured_no_projectors = (segment: Segment.t('p)) =>
   segment
   |> ZipperBase.MapPiece.of_segment(remove_projector)
-  |> Measured.of_segment(_, ProjectorCore.Shape.Map.empty);
+  |> Measured.of_segment(_, ProjectorShape.Map.empty);
 
 let add_caret =
     (caret: option((string, Point.t)), rows: list(string)): list(string) =>
@@ -49,7 +55,7 @@ let of_segment =
       ~indent=" ",
       ~caret: option((string, Point.t))=None,
       ~measured=?,
-      segment: Segment.t,
+      segment: Segment.t('p),
     )
     : string =>
   segment
@@ -61,7 +67,8 @@ let of_segment =
 
 /* Use this to pretty-print zippers. See above comments on holes */
 let of_zipper =
-    (~holes=?, ~concave_holes=?, ~indent=?, ~caret=?, z: Zipper.t): string => {
+    (~holes=?, ~concave_holes=?, ~indent=?, ~caret=?, z: Zipper.t('p))
+    : string => {
   let segment = Zipper.seg_without_buffer(z);
   /* Note that we can't just pass in the measured from editor as
    * we must recalculate the measured after removing projectors */

@@ -19,7 +19,7 @@ let set_tydi_buffer = (info_map: Language.Statics.Map.t, z: t('p)): t('p) =>
   | Some(z) => z
   };
 
-let set_llm_buffer = (z: t, response: string): t =>
+let set_llm_buffer = (z: t('p), response: string): t('p) =>
   switch (
     {
       open OptUtil.Syntax;
@@ -33,7 +33,7 @@ let set_llm_buffer = (z: t, response: string): t =>
   | Some(z) => z
   };
 
-let paste = (z: Zipper.t(p'), str: string): option(Zipper.t(p')) => {
+let paste = (z: Zipper.t('p), str: string): option(Zipper.t('p)) => {
   open Util.OptUtil.Syntax;
   let* z = Parser.to_zipper(~zipper_init=z, str);
   /* HACK(andrew): Insert/Destruct below is a hack to deal
@@ -45,8 +45,8 @@ let paste = (z: Zipper.t(p'), str: string): option(Zipper.t(p')) => {
   remold_regrout(Left, z);
 };
 
-let paste_segment = (z: Zipper.t(p'), segment: Segment.t(p')): Zipper.t(p') => {
-  let replace_selection = (z, focus, segment): Zipper.t(p') =>
+let paste_segment = (z: Zipper.t('p), segment: Segment.t('p)): Zipper.t('p) => {
+  let replace_selection = (z, focus, segment): Zipper.t('p) =>
     {
       ...z,
       selection: Selection.mk(~focus, segment),
@@ -105,7 +105,7 @@ let go_z =
       }
     };
 
-  let smart_select = (n, z: t): option(Zipper.t(p')) => {
+  let smart_select = (type p, n, z: t(p)): option(t(p)) => {
     switch (n) {
     | 2 => Select.indicated_token(z)
     | 3 =>

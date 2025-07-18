@@ -45,7 +45,7 @@ let of_delim' =
     },
   );
 let of_delim =
-    (type p, is_consistent, is_in_buffer, indent, t: Piece.tile, i: int)
+    (type p, is_consistent, is_in_buffer, indent, t: Piece.tile(p), i: int)
     : list(Node.t) =>
   of_delim'((
     t.label,

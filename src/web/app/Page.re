@@ -201,29 +201,6 @@ module Update = {
           "let out : string * Haz3lcore.PersistentZipper.t = " ++ content,
       );
       model |> return_quiet;
-    | ActiveEditor(action) =>
-      let cursor_info =
-        Editors.Selection.get_cursor_info(
-          ~selection=model.selection,
-          model.editors,
-        );
-      switch (cursor_info.editor_action(action)) {
-      | None => model |> return_quiet
-      | Some(action) =>
-        let* editors =
-          Editors.Update.update(
-            ~globals=model.globals,
-            ~schedule_action=a => schedule_action(Editors(a)),
-            ~send_assistant_insertion_info=
-              assistant_callback(~schedule_action, model),
-            action,
-            model.editors,
-          );
-        {
-          ...model,
-          editors,
-        };
-      };
     | Undo
     | Redo => failwith("Undo/Redo are handled in the history module")
     };
@@ -503,7 +480,7 @@ module View = {
   let main_view =
       (
         ~get_log_and: (string => unit) => unit,
-        ~globals,
+        ~globals: Globals.t,
         ~inject: Update.t => Ui_effect.t(unit),
         ~cursor,
         {
@@ -584,7 +561,8 @@ module View = {
     );
     div(
       ~attrs=[Attr.id("page"), ...handlers(~inject)],
-      [FontSpecimen.view] @ main_view(~globals, ~cursor, ~inject, model),
+      [FontSpecimen.view]
+      @ main_view(~get_log_and, ~globals, ~cursor, ~inject, model),
     );
   };
 };

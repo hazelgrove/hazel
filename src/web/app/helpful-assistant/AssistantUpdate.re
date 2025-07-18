@@ -340,7 +340,7 @@ let check_req =
       ~chat_id: Id.t,
     )
     : unit => {
-  let z = editor.editor.state.zipper;
+  let z = editor.editor |> Editor.get_z;
   let caret = z.caret;
   let siblings = z.relatives.siblings;
   let send_message = (tile_id, advanced_reasoning) => {
@@ -614,14 +614,14 @@ let update =
           switch (
             {
               let* sketch_z_with_tag =
-                Perform.paste(editor.editor.state.zipper, tag);
+                Perform.paste(editor.editor |> Editor.get_z, tag);
               let sketch_seg =
                 Zipper.smart_seg(
                   ~dump_backpack=true,
                   ~erase_buffer=true,
                   sketch_z_with_tag,
                 );
-              let* index = Indicated.index(editor.editor.state.zipper);
+              let* index = Indicated.index(editor.editor |> Editor.get_z);
               let+ ci = Id.Map.find_opt(index, editor.statics.info_map);
               ChatLSP.Completion.mk_ctx_prompt(
                 ChatLSP.Options.init,
@@ -1039,9 +1039,9 @@ let update =
         Str.regexp(
           "\\(\\(.\\|\n\\)*\\)```[ \n]*\\([^`]+\\)[ \n]*```\\(\\(.\\|\n\\)*\\)",
         );
-      let index = Option.get(Indicated.index(editor.editor.state.zipper));
+      let index = Option.get(Indicated.index(editor.editor |> Editor.get_z));
       let ci = Option.get(Id.Map.find_opt(index, editor.statics.info_map));
-      let sketch_z = editor.editor.state.zipper;
+      let sketch_z = editor.editor |> Editor.get_z;
 
       let (_, completion) =
         if (Str.string_match(code_pattern, content, 0)) {

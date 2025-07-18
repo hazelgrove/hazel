@@ -85,7 +85,7 @@ let neighbor = (d: Direction.t, (l, r): t('p)): option(Piece.t('p)) =>
   | Right => right_neighbor((l, r))
   };
 
-let neighbors: t => (option(Piece.t('p)), option(Piece.t('p))) =
+let neighbors: t('p) => (option(Piece.t('p)), option(Piece.t('p))) =
   n => (left_neighbor(n), right_neighbor(n));
 
 let trim_secondary = ((l_sibs, r_sibs): t('p)) => (

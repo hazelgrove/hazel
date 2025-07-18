@@ -9,8 +9,8 @@ module Update = AssistantUpdate;
 
 module Model = AssistantModel;
 
-type selection =
-  | MakeActive(Selection.t);
+type selection('p) =
+  | MakeActive(Selection.t('p));
 
 type event =
   | MakeActive(ScratchMode.Selection.t);
@@ -684,16 +684,20 @@ let code_block =
         ~locked=true,
         message.role == Assistant
           ? {
-            sketch |> Zipper.unzip |> Editor.Model.mk |> CellEditor.Model.mk;
+            sketch
+            |> ChatLSP.make_term
+            |> ((x) => (Exp(x): Language.Grammar.any_t('a)))
+            |> Editor.Model.mk
+            |> CellEditor.Model.mk;
           }
           : {
             sketch
-            |> Zipper.unzip
+            |> ChatLSP.make_term
+            |> ((x) => (Exp(x): Language.Grammar.any_t('a)))
             |> Editor.Model.mk
             |> CellEditor.Model.mk
             |> CellEditor.Update.calculate(
-                 ~settings=globals.settings.core,
-                 ~is_edited=true,
+                 ~globals,
                  ~stitch=x => x,
                  ~queue_worker=None,
                );

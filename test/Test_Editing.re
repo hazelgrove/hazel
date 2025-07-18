@@ -17,7 +17,7 @@ let caret_char = "¦"; /* Note this is two bytes */
 let convex_char = "?";
 let concave_char = "~";
 
-let printer = (z: Zipper.t): string =>
+let printer = (z: Zipper.t('p)): string =>
   Printer.of_zipper(
     ~holes=convex_char,
     ~concave_holes=concave_char,
@@ -25,61 +25,94 @@ let printer = (z: Zipper.t): string =>
     z,
   );
 
-let perform = (zip: Zipper.t, actions: list(Action.t)): Zipper.t => {
+let perform =
+    (
+      zip: Zipper.t(unit),
+      actions: list(Action.t(ProjectorKind.t, unit, unit)),
+    )
+    : Zipper.t(unit) => {
   /* This is a simplified testing harness for zipper actions.
    * It does not apply any semantics-based behaviors. */
-  let mk_syntax: Zipper.t => Editor.CachedSyntax.t =
-    Editor.CachedSyntax.init(
-      ~info_map=Language.Statics.Map.empty,
-      ~dyn_map=Language.Dynamics.Map.empty,
+  //TODO(andrew): get matt to check if setting this up correctly
+  let settings = Language.CoreSettings.off;
+  let statics = CachedStatics.empty;
+  let common =
+    Common.t_of_global(
+      ~statics,
+      ~dynamics=Language.Dynamics.Map.empty,
+      {
+        settings,
+        font_metrics: FontMetrics.init,
+        secondary_icons: false,
+        show_backpack_targets: false,
+        color_highlights: None,
+      },
     );
-  let mk_state: Zipper.t => Editor.State.t =
-    z => {
-      zipper: z,
-      col_target: None,
-    };
-  let mk_move = (z: Zipper.t): (module Move.S) =>
-    Editor.Model.to_move_s({
-      state: mk_state(z),
-      syntax: mk_syntax(z),
-    });
-  let perform = (a: Action.t, z: Zipper.t) =>
+  let projector_init = (_, _, _) => None;
+  let seg_of_projector = _ => [];
+  let update_projector = (~sort as _, ~id as _, _, p) => p;
+  let livelit_projectors = [];
+  let projector_to_term = (~sort as _, ~id as _, _) => Language.Grammar.Any();
+  let shape_of_projector = (~common as _, _) => ProjectorShape.default;
+  let calculate_projector = (~common as _, _) => ();
+  let seg_to_ed = _ => None;
+  let model = Editor.Model.mk(zip);
+  let model =
+    Editor.Update.calculate(
+      ~projector_init,
+      ~seg_of_projector,
+      ~update_projector,
+      ~livelit_projectors,
+      ~projector_to_term,
+      ~shape_of_projector,
+      ~calculate_projector,
+      ~common,
+      model,
+    );
+  let perform =
+      (a: Action.t(_), z: Zipper.t(_)): Action.Result.t(Zipper.t(_)) =>
     Perform.go_z(
-      ~settings=Language.CoreSettings.off,
-      CachedStatics.empty,
+      ~settings,
+      ~seg_to_ed,
+      ~projector_init,
+      ~seg_of_projector,
+      ~update_projector,
+      ~livelit_projectors,
+      statics,
       a,
-      mk_move(z),
+      Editor.Model.to_move_s(model),
       z,
     );
   List.fold_left(
-    (z: Zipper.t, a: Action.t) =>
+    (z: Zipper.t(_), a: Action.t(_)) =>
       switch (perform(a, z)) {
       | Ok(z) => z
       | Error(err) =>
-        print_endline("Zipper: " ++ Zipper.show(z));
-        Alcotest.fail("Failed on action: " ++ Action.Failure.show(err));
+        //TODO(andrew): reinstate printability
+        //print_endline("Zipper: " ++ Zipper.show(z));
+        Alcotest.fail("Failed on action: " ++ Action.Failure.show(err))
       },
     zip,
     actions,
   );
 };
 
-let string_to_ltr_actions = (s: string): list(Action.t) =>
+let string_to_ltr_actions = (s: string): list(Action.t(_)) =>
   s |> Util.StringUtil.to_list |> List.map(c => Action.Insert(c));
 
-let mv_l = (n: int): list(Action.t) =>
+let mv_l = (n: int): list(Action.t(_)) =>
   List.init(n, _ => Action.Move(Local(Left(ByChar))));
 
-let mv_r = (n: int): list(Action.t) =>
+let mv_r = (n: int): list(Action.t(_)) =>
   List.init(n, _ => Action.Move(Local(Right(ByChar))));
 
-let mv_l_token = (n: int): list(Action.t) =>
+let mv_l_token = (n: int): list(Action.t(_)) =>
   List.init(n, _ => Action.Move(Local(Left(ByToken))));
 
-let mv_r_token = (n: int): list(Action.t) =>
+let mv_r_token = (n: int): list(Action.t(_)) =>
   List.init(n, _ => Action.Move(Local(Right(ByToken))));
 
-let mk = (init: string): list(Action.t) => {
+let mk = (init: string): list(Action.t(_)) => {
   /* This harness uses a  to represent caret position.
    * This assumes there are no literal instances of the caret
    * char proceeding the caret ¦ in the syntax. This creates

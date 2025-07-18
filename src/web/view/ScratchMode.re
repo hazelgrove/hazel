@@ -143,7 +143,14 @@ module Update = {
         |> Option.get
       };
     model.scratchpads
-    @ [(new_key, CellEditor.Model.mk(Editor.Model.mk(Zipper.init())))];
+    @ [
+      (
+        new_key,
+        CellEditor.Model.mk(
+          Editor.Model.mk(Exp(Language.Exp.fresh(EmptyHole))),
+        ),
+      ),
+    ];
   };
 
   let update =
@@ -151,7 +158,6 @@ module Update = {
         ~schedule_action,
         ~globals: Globals.t,
         ~send_assistant_insertion_info: CodeEditable.Model.t => unit,
-        ~settings: Settings.t,
         ~is_documentation: bool,
         action,
         model: Model.t,
@@ -180,39 +186,6 @@ module Update = {
         current,
       };
     | AddSlide =>
-      let new_key =
-        switch (is_documentation) {
-        | false =>
-      //     let used_scratchpads =
-      //       model.scratchpads
-      //       |> List.filter_map(scratchpad => {
-      //            switch (String.split_on_char(' ', fst(scratchpad))) {
-      //            | ["Scratchpad", num] => int_of_string_opt(num)
-      //            | _ => None
-      //            }
-      //          });
-      //     let unused_ids =
-      //       Seq.filter(i => !List.mem(i, used_scratchpads), Seq.ints(1));
-      //     let new_number =
-      //       Seq.uncons(unused_ids)
-      //       |> Option.get  // This is safe because unused_ids is infinite
-      //       |> fst;
-
-      //     "Scratchpad " ++ string_of_int(new_number);
-      //   | true =>
-      //     JsUtil.prompt("Enter new buffer name:", "New Buffer Name")
-      //     |> Option.get
-      //   };
-      // let new_sp: list((string, CellEditor.Model.t)) =
-      //   model.scratchpads
-      //   @ [
-      //     (
-      //       new_key,
-      //       CellEditor.Model.mk(
-      //         Editor.Model.mk(Exp(Language.Exp.fresh(EmptyHole))),
-      //       ),
-      //     ),
-      //   ];
       let new_sp = mk_new_scratchpad(model, is_documentation);
       Updated.return(
         {
@@ -377,37 +350,34 @@ module Selection = {
 
   let get_cursor_info =
       (~globals, ~inject, ~selection, model: Model.t): Cursor.t =>
-      switch (selection) {
+    switch (selection) {
     | Cell(selection) =>
-    let+ a =
-    CellEditor.Selection.get_cursor_info(
-      ~globals,
-      ~inject=a => inject(Update.CellAction(a)),
-      ~selection,
-      List.nth(model.scratchpads, model.current) |> snd,
-    );
-    Update.CellAction(a);
-    | TextBox => empty
-    };
-  
+      CellEditor.Selection.get_cursor_info(
+        ~globals,
+        ~inject=a => inject(Update.CellAction(a)),
+        ~selection,
+        List.nth(model.scratchpads, model.current) |> snd,
+      )
 
-  let handle_key_event = (~inject, ~event: Key.t) =>
-  switch (selection) {
-    | Cell(selection) =>
-    switch (event) {
-    | {key: D(key), sys: Mac | PC, shift: Up, meta: Down, ctrl: Up, alt: Up}
-        when Keyboard.is_digit(key) =>
-      inject(Update.SwitchSlide(int_of_string(key)))
-      // | _ =>
-      //   CellEditor.Selection.handle_key_event(
-      //     ~selection,
-      //     ~event,
-      //     List.nth(model.scratchpads, model.current) |> snd,
-      //   )
-      //   |> Option.map(x => Update.CellAction(x))
-    | _ => Ui_effect.Ignore
-    }
-    | TextBox => None
+    | TextBox => Cursor.empty
+    };
+
+  let handle_key_event = (~inject, ~selection, ~event: Key.t, _model: Model.t) =>
+    switch (selection) {
+    | Cell(_selection) =>
+      switch (event) {
+      | {key: D(key), sys: Mac | PC, shift: Up, meta: Down, ctrl: Up, alt: Up}
+          when Keyboard.is_digit(key) =>
+        inject(Update.SwitchSlide(int_of_string(key)))
+      // CellEditor.Selection.handle_key_event(
+      //   ~selection,
+      //   ~event,
+      //   List.nth(model.scratchpads, model.current) |> snd,
+      // )
+      // |> Option.map(x => Update.CellAction(x))
+      | _ => Ui_effect.Ignore
+      }
+    | TextBox => Ui_effect.Ignore
     };
 
   let jump_to_tile = (tile, model: Model.t): option((Update.t, t)) =>

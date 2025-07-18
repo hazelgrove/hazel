@@ -53,8 +53,8 @@ module M =
 
   let self_ty = (info: option(Info.t)): option(Typ.t) =>
     switch (info) {
-    | Some(InfoExp({self, ctx, _})) => Self.typ_of_exp(ctx, self)
-    | Some(InfoPat({self, ctx, _})) => Self.typ_of_pat(ctx, self)
+    | Some(InfoExp({self, _})) => Self.typ_of_exp(self)
+    | Some(InfoPat({self, _})) => Self.typ_of_pat(self)
     | _ => None
     };
 
