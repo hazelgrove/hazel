@@ -231,6 +231,53 @@ let closing_stringlit_or_comment = (char, t) =>
   || Form.is_comment(t)
   && Form.is_comment_delim(char);
 
+let invoked_projector = (name: string, syntax: Segment.t): option(Piece.t) => {
+  let* name = Form.of_projector_invoke(name);
+  let kind = ProjectorCore.Kind.of_name(name);
+  ProjectorPerform.init(kind, syntax);
+};
+
+let is_projector_invoke = (z: t): option(t) => {
+  switch (z.relatives.siblings |> fst |> List.rev) {
+  | [
+      Tile({label: ["(", ")"], children: [syntax], _}),
+      Tile({label: [name], _}),
+      ...rest,
+    ]
+      when Form.is_projector_invoke(name) =>
+    /* Trim only need because of grout/whitespace transmutation when syntax is hole */
+    let syntax =
+      syntax |> Segment.trim_secondary(Right) |> Segment.trim_secondary(Left);
+    let+ piece = invoked_projector(name, syntax);
+    Zipper.update_siblings(
+      ((_, r)) => ([piece, ...rest] |> List.rev, r),
+      z,
+    );
+  /* Special case for reparsing of projectors placed on holes */
+  | [Tile({label: ["()"], _}), Tile({label: [name], _}), ...rest]
+      when Form.is_projector_invoke(name) =>
+    let+ piece = invoked_projector(name, [Piece.mk_grout(Convex)]);
+    Zipper.update_siblings(
+      ((_, r)) => ([piece, ...rest] |> List.rev, r),
+      z,
+    );
+  | _ => None
+  };
+};
+
+let projector_to_invoke: Base.projector => Segment.t =
+  pr => [
+    Piece.mk_tile(
+      Form.mk(
+        Form.ss,
+        [Form.mk_projector_invoke(pr.kind)],
+        Mold.(mk_op(Exp, [])),
+      ),
+      [],
+    ),
+    Piece.mk_tile(Form.get(ApExp), [Piece.unparenthesize(pr.syntax)]),
+  ];
+
 let rec go =
         (
           ~ctx: option(Language.Ctx.t)=?,
@@ -273,7 +320,9 @@ let rec go =
 
         let model_zipper =
           model_segment
-          |> Segment.to_string
+          |> Segment.to_string(~projector_to_segment=(p: Base.projector) =>
+               Base.unparenthesize(p.syntax)
+             )
           |> StringUtil.to_list
           |> List.fold_left(insert, Some(z));
 
@@ -346,5 +395,17 @@ let rec go =
     |> insert_outer(char)
     |> Option.map(remold_regrout(Left))
     |> Option.map(move_into_if_stringlit_or_comment(char))
+  };
+};
+
+let go = (~ctx: option(Language.Ctx.t)=?, char: string, z: t): option(t) => {
+  /* This is a wrapper intended to effectuate after-insertion conditional
+   * operations. This is done here as opposed to in perform in order to
+   * reflect operations we want performed by the parser, which uses
+   * Insert.go as its primary driver */
+  let+ z = go(~ctx?, char, z);
+  switch (is_projector_invoke(z)) {
+  | Some(z) => z
+  | None => z
   };
 };
