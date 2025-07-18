@@ -1,58 +1,9 @@
 open Virtual_dom.Vdom;
 open Node;
-open Haz3lcore;
 open Util;
 
-let shape_map = ProjectorCore.Shape.Map.empty; /* Assume this doesn't contain projectors */
-
-let measured_of = seg => Measured.of_segment(seg, shape_map); /* Assume this doesn't contain projectors */
-
-let text_view = (font_metrics, seg: Segment.t): list(Node.t) => {
-  module Text =
-    Code.Text({
-      let map = measured_of(seg);
-      let settings = Settings.Model.init;
-      let shape_map = shape_map;
-      let font_metrics = font_metrics;
-    });
-  Text.of_segment([], true, Any, seg);
-};
-
-let segment_origin = (seg: Segment.t): option(Point.t) =>
-  Option.map(
-    first => Measured.find_p(first, measured_of(seg)).origin,
-    ListUtil.hd_opt(seg),
-  );
-
-let segment_last = (seg: Segment.t): option(Point.t) =>
-  Option.map(
-    last => Measured.find_p(last, measured_of(seg)).last,
-    ListUtil.last_opt(seg),
-  );
-
-let segment_height = (seg: Segment.t) =>
-  switch (segment_last(seg), segment_origin(seg)) {
-  | (Some(last), Some(first)) => 1 + last.row - first.row
-  | _ => 0
-  };
-
-let segment_width = (seg: Segment.t): int =>
-  IntMap.fold(
-    (_, {max_col, _}: Measured.Rows.shape, acc) => max(max_col, acc),
-    measured_of(seg).rows,
-    0,
-  );
-
-let backpack_sel_view =
-    (
-      x_off: float,
-      y_off: float,
-      scale: float,
-      opacity: float,
-      font_metrics,
-      {focus: _, content, _}: Selection.t,
-    ) => {
-  // Maybe use init sort at caret to prime this
+let backpack_shard_view =
+    (x_off: float, y_off: float, scale: float, opacity: float, s: string) =>
   div(
     ~attrs=[
       Attr.classes(["code-text", "code", "backpack-selection"]),
@@ -67,41 +18,31 @@ let backpack_sel_view =
         ),
       ),
     ],
-    // zwsp necessary for containing box to stretch to contain trailing newline
-    text_view(font_metrics, content) @ [text(Unicode.zwsp)],
+    [text(s)],
   );
-};
 
 let view =
-    (~font_metrics: FontMetrics.t, ~origin: Point.t, z: Zipper.t): Node.t => {
+    (
+      ~font_metrics: FontMetrics.t,
+      ~can_put_down,
+      ~caret_d: option(Direction.t),
+      ~ind_d: option(Direction.t),
+      ~origin: Point.t,
+      contents: list(string),
+    )
+    : Node.t => {
   // This function is a mess
-  let backpack =
-    Zipper.mk_local_backpack(z)
-    @ Relatives.non_local_missing_shards(z.relatives)
-    |> List.map(t => Selection.mk(~focus=Right, [Tile(t)]));
-  let height_head =
-    switch (backpack) {
-    | [] => 0
-    | [hd, ..._] => segment_height(hd.content)
-    };
-  let can_put_down = Zipper.can_put_down(z);
-  let ind_p_d =
-    switch (Indicated.piece(z)) {
-    | Some((_, d, _)) => Some(d)
-    | None => None
-    };
-  let caret_d = Zipper.caret_direction(z);
   let caret_adj = {
     switch (caret_d) {
     | None => 0.
     | Some(Left) =>
-      switch (ind_p_d) {
+      switch (ind_d) {
       | Some(Left) => ShardDec.shape_adjust(Left, Some(Left)) +. 3.0
       | Some(Right) => ShardDec.shape_adjust(Right, Some(Left)) +. 2.0
       | _ => 2.5
       }
     | Some(Right) =>
-      switch (ind_p_d) {
+      switch (ind_d) {
       | Some(Left) => ShardDec.shape_adjust(Left, Some(Right)) -. 2.0
       | Some(Right) => ShardDec.shape_adjust(Right, Some(Right)) -. 3.0
       | _ => (-2.0)
@@ -123,9 +64,7 @@ let view =
     Printf.sprintf(
       "position: absolute; left: %fpx; top: %fpx;",
       Float.of_int(origin.col) *. font_metrics.col_width +. caret_adj_px,
-      Float.of_int(
-        origin.row - vertical_disp - height_head + (origin.row == 0 ? 0 : 1),
-      )
+      Float.of_int(origin.row - vertical_disp - 1 + (origin.row == 0 ? 0 : 1))
       *. font_metrics.row_height,
     );
   print_endline(selections_style);
@@ -134,35 +73,23 @@ let view =
   let init_opacity = 100.;
   let opacity_reduction = 20.; // reduction per line
   let init_idx = 0;
-  let dy_fn = (idx, base_height) =>
-    font_metrics.row_height
-    *. float_of_int(base_height)
-    *. scale_fn(idx)
-    -. 4.;
-  let init_y_offset = dy_fn(init_idx, height_head);
+  let dy_fn = idx => font_metrics.row_height *. scale_fn(idx) -. 4.;
+  let init_y_offset = dy_fn(init_idx);
   let (_, _, _, selections) =
     List.fold_left(
-      ((idx, y_offset, opacity, vs), s: Selection.t) => {
-        let base_height = segment_height(s.content);
+      ((idx, y_offset, opacity, vs), s: string) => {
         let scale = scale_fn(idx);
         let x_offset = x_fn(idx);
-        let new_y_offset = y_offset -. dy_fn(idx, base_height);
+        let new_y_offset = y_offset -. dy_fn(idx);
         let v =
-          backpack_sel_view(
-            x_offset,
-            new_y_offset,
-            scale,
-            opacity,
-            font_metrics,
-            s,
-          );
+          backpack_shard_view(x_offset, new_y_offset, scale, opacity, s);
         let new_idx = idx + 1;
         let new_opacity = opacity -. opacity_reduction;
         // Am i making this difficult by going backwards?
         (new_idx, new_y_offset, new_opacity, List.cons(v, vs));
       },
       (init_idx, init_y_offset, init_opacity, []),
-      backpack,
+      contents,
     );
   let selections_view =
     div(
@@ -173,9 +100,9 @@ let view =
       selections,
     );
   let length =
-    switch (backpack) {
+    switch (contents) {
     | [] => 0
-    | [hd, ..._] => segment_width(hd.content)
+    | [hd, ..._] => String.length(hd)
     };
 
   let joiner_style =
@@ -245,6 +172,6 @@ let view =
       selections_view,
       div(~attrs=[Attr.create("style", genie_style)], [genie_view]),
     ]
-    @ (backpack != [] ? [joiner] : []),
+    @ (contents != [] ? [joiner] : []),
   );
 };

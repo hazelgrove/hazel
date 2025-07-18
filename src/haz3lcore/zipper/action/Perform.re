@@ -255,19 +255,10 @@ let go_z =
       };
     z |> Result.of_option(~error=Action.Failure.Cant_put_down);
   | MoveToBackpackTarget((Left(_) | Right(_)) as _d) =>
-    //TODO(andrew): reininstate?
-    // if (Backpack.restricted(z.backpack)) {
-    //   Move.to_backpack_target(d, z)
-    //   |> Result.of_option(~error=Action.Failure.Cant_move);
-    // } else {
-    //   Move.go(Local(d), z)
-    //   |> Result.of_option(~error=Action.Failure.Cant_move);
-    // }
-    Error(Action.Failure.Cant_move)
+    //TODO(andrew): reinstate or rm
+    Error(Cant_move)
   | MoveToBackpackTarget((Up | Down) as _d) =>
-    //TODO(andrew): reininstate?
-    // Move.to_backpack_target(d, z)
-    // |> Result.of_option(~error=Action.Failure.Cant_move)
-    Error(Action.Failure.Cant_move)
+    //TODO(andrew): reinstate or rm
+    Error(Cant_move)
   };
 };
