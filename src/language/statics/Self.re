@@ -166,10 +166,18 @@ let of_exp_livelit_name = (ctx: Ctx.t, name: string): exp => {
   switch (res) {
   | None => Free(name)
   | Some(livelit) =>
-    IsLivelitName({
-      name: livelit.name,
-      exp_t: livelit.expansion_t,
-    })
+    let k = Kind.synth_kind(ctx, livelit.expansion_t);
+    if (k == Ctx.Abstract) {
+      IsLivelitName({
+        name: livelit.name,
+        exp_t: livelit.expansion_t,
+      });
+    } else {
+      IsLivelitName({
+        name: livelit.name,
+        exp_t: Typ.temp(Unknown(Internal)),
+      });
+    };
   };
 };
 
