@@ -70,13 +70,6 @@ let uniquify =
   // Group variables by name and assign unique suffixes
   let (bindings, references) = collect_vars_from_statics();
   let _ = bindings @ references;
-  print_endline(
-    "Found "
-    ++ string_of_int(List.length(bindings))
-    ++ " bindings and "
-    ++ string_of_int(List.length(references))
-    ++ " references",
-  );
 
   // Group bindings by name and assign unique suffixes
   let binding_groups =
@@ -94,20 +87,6 @@ let uniquify =
       [],
       bindings,
     );
-
-  // Debug: print binding groups
-  List.iter(
-    ((name, ids)) => {
-      print_endline(
-        "Binding group: "
-        ++ name
-        ++ " -> ["
-        ++ String.concat(", ", List.map(Id.show, ids))
-        ++ "]",
-      )
-    },
-    binding_groups,
-  );
 
   // Create mapping from binding ID to uniquified name
   let binding_id_to_uniquified =
@@ -136,15 +115,6 @@ let uniquify =
         List.fold_left(
           (acc, (index, id)) => {
             let uniquified_name = uniquify_var_name(name, index);
-            print_endline(
-              "Uniquifying: "
-              ++ name
-              ++ " -> "
-              ++ uniquified_name
-              ++ " (ID: "
-              ++ Id.show(id)
-              ++ ")",
-            );
             [(uniquified_name, id), ...acc];
           },
           acc,
@@ -169,26 +139,9 @@ let uniquify =
       let new_label =
         if (is_var_tile) {
           let var_name = List.hd(tile.label);
-          print_endline(
-            "Processing tile with var_name: "
-            ++ var_name
-            ++ ", tile.id: "
-            ++ Id.show(tile.id),
-          );
 
           // Look up the term ID for this tile using the TermMap
           let term_id_opt = Id.Map.find_opt(tile.id, terms);
-          print_endline(
-            "TermMap lookup for tile.id: "
-            ++ Id.show(tile.id)
-            ++ " -> "
-            ++ (
-              switch (term_id_opt) {
-              | Some(term) => "Some(" ++ Id.show(Any.rep_id(term)) ++ ")"
-              | None => "None"
-              }
-            ),
-          );
 
           // Look up the uniquified name using the term ID
           let uniquified_name =
@@ -199,14 +152,7 @@ let uniquify =
               let binding_result =
                 List.assoc_opt(term_id, binding_id_to_uniquified);
               switch (binding_result) {
-              | Some(name) =>
-                print_endline(
-                  "Found binding for term.id: "
-                  ++ Id.show(term_id)
-                  ++ " -> "
-                  ++ name,
-                );
-                Some(name);
+              | Some(name) => Some(name)
               | None =>
                 // This is a reference - find which binding it refers to
                 let statics = CodeWithStatics.Model.get_statics(editor);
@@ -216,84 +162,26 @@ let uniquify =
                   | Some(entry) =>
                     let ref_result =
                       List.assoc_opt(entry.id, binding_id_to_uniquified);
-                    print_endline(
-                      "Reference for var '"
-                      ++ var_name
-                      ++ "' at term.id: "
-                      ++ Id.show(term_id)
-                      ++ " refers to binding id: "
-                      ++ Id.show(entry.id)
-                      ++ " -> "
-                      ++ (
-                        switch (ref_result) {
-                        | Some(n) => n
-                        | None => "None"
-                        }
-                      ),
-                    );
                     ref_result;
-                  | None =>
-                    print_endline(
-                      "Reference for var '"
-                      ++ var_name
-                      ++ "' at term.id: "
-                      ++ Id.show(term_id)
-                      ++ " could not resolve binding, using original name.",
-                    );
-                    Some(var_name);
+                  | None => Some(var_name)
                   }
                 | Some(Info.InfoTyp({ctx, _})) =>
                   switch (Ctx.lookup_tvar_id(ctx, var_name)) {
                   | Some(id) =>
                     let ref_result =
                       List.assoc_opt(id, binding_id_to_uniquified);
-                    print_endline(
-                      "Reference for type var '"
-                      ++ var_name
-                      ++ "' at term.id: "
-                      ++ Id.show(term_id)
-                      ++ " refers to binding id: "
-                      ++ Id.show(id)
-                      ++ " -> "
-                      ++ (
-                        switch (ref_result) {
-                        | Some(n) => n
-                        | None => "None"
-                        }
-                      ),
-                    );
                     ref_result;
-                  | None =>
-                    print_endline(
-                      "Reference for type var '"
-                      ++ var_name
-                      ++ "' at term.id: "
-                      ++ Id.show(term_id)
-                      ++ " could not resolve binding, using original name.",
-                    );
-                    Some(var_name);
+                  | None => Some(var_name)
                   }
-                | _ =>
-                  print_endline(
-                    "Reference for var '"
-                    ++ var_name
-                    ++ "' at term.id: "
-                    ++ Id.show(term_id)
-                    ++ " has no static info, using original name.",
-                  );
-                  Some(var_name);
+                | _ => Some(var_name)
                 };
               };
             | None => None
             };
 
           switch (uniquified_name) {
-          | Some(name) =>
-            print_endline("Replacing " ++ var_name ++ " with " ++ name);
-            [name];
-          | None =>
-            print_endline("Keeping original: " ++ var_name);
-            [var_name];
+          | Some(name) => [name]
+          | None => [var_name]
           };
         } else {
           tile.label;
@@ -318,20 +206,6 @@ let uniquify =
   };
 
   let uniquified_sketch = replace_vars(sketch);
-
-  // Debug: print the universal context
-  print_endline("=== UNIVERSAL CONTEXT ===");
-  List.iter(
-    ((uniquified_name, id)) => {
-      print_endline("  " ++ uniquified_name ++ " -> " ++ Id.show(id))
-    },
-    universal_ctx,
-  );
-
-  // Debug: print the uniquified sketch
-  print_endline("=== UNIQUIFIED SKETCH ===");
-  print_endline(ErrorPrint.Print.seg(~holes="?", uniquified_sketch));
-  print_endline("=========================");
 
   (uniquified_sketch, universal_ctx);
 };
