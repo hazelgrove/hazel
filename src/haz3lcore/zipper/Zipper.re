@@ -394,6 +394,16 @@ let replace =
   /* i.e. select and construct, overwriting the selection */
   z |> delete(caret) |> Option.map(construct(~caret, ~backpack, l));
 
+let match_prev = (z: t) =>
+  switch (neighbor_monotiles(z.relatives.siblings)) {
+  | (Some(t), _) when will_barf(t, z) =>
+    switch (delete(Left, z)) {
+    | Some(z) => put_down_regrout_remold_tok(Left, t, z)
+    | None => Some(z)
+    }
+  | _ => None
+  };
+
 let replace_mono = (d: Direction.t, t: Token.t, z: t): option(t) =>
   replace(~caret=d, ~backpack=Left, [t], z);
 
@@ -509,43 +519,41 @@ let is_linebreak_to_right_of_caret =
  * try to look at live evaluation while typing inside a string lit with
  * stuff left to drop in backpack with below set: Outer disabled. */
 let try_to_dump_backpack = (zipper: t) => {
-  //TODO(andrew)
-  // switch (zipper.backpack) {
-  // | [] => zipper
-  // | _ =>
-  //   let zipper = {
-  //     ...zipper,
-  //     caret: Outer,
-  //   };
-  //   let rec move_until_cant_put_down = (z_last, z: t) =>
-  //     if (can_put_down(z) && !is_linebreak_to_right_of_caret(z)) {
-  //       switch (move(Right, z)) {
-  //       | None => z
-  //       | Some(z_new) => move_until_cant_put_down(z, z_new)
-  //       };
-  //     } else {
-  //       z_last;
-  //     };
-  //   let rec move_until_can_put_down = (z: t) =>
-  //     if (!can_put_down(z)) {
-  //       switch (move(Right, z)) {
-  //       | None => z
-  //       | Some(z_new) => move_until_can_put_down(z_new)
-  //       };
-  //     } else {
-  //       z;
-  //     };
-  //   let rec go = (z: t): t => {
-  //     let z_can = can_put_down(z) ? z : move_until_can_put_down(z);
-  //     let z_cant = move_until_cant_put_down(z_can, z_can);
-  //     switch (put_down_regrout_remold(Right, z_cant)) {
-  //     | None => z_cant
-  //     | Some(z) => go(z)
-  //     };
-  //   };
-  //   go(zipper);
-  // };
-  zipper;
+  switch (mk_local_backpack(zipper)) {
+  | [] => zipper
+  | _ =>
+    let zipper = {
+      ...zipper,
+      caret: Outer,
+    };
+    let rec move_until_cant_put_down = (z_last, z: t) =>
+      if (can_put_down(z) && !is_linebreak_to_right_of_caret(z)) {
+        switch (move(Right, z)) {
+        | None => z
+        | Some(z_new) => move_until_cant_put_down(z, z_new)
+        };
+      } else {
+        z_last;
+      };
+    let rec move_until_can_put_down = (z: t) =>
+      if (!can_put_down(z)) {
+        switch (move(Right, z)) {
+        | None => z
+        | Some(z_new) => move_until_can_put_down(z_new)
+        };
+      } else {
+        z;
+      };
+    let rec go = (z: t): t => {
+      let z_can = can_put_down(z) ? z : move_until_can_put_down(z);
+      let z_cant = move_until_cant_put_down(z_can, z_can);
+      switch (put_down_regrout_remold(Right, z_cant)) {
+      | None => z_cant
+      | Some(z) => go(z)
+      };
+    };
+    go(zipper);
+  };
 };
 
 let smart_seg = (~dump_backpack: bool, ~erase_buffer: bool, z: t) => {
