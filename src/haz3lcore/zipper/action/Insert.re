@@ -93,17 +93,26 @@ let make_new_tile = (t: Token.t, caret: Direction.t, z: t): t =>
   /* Adds a new tile at the caret. If the new token matches the top
      of the backpack, the backpack shard is dropped. Otherwise, we
      construct a new tile, which may immediately expand. */
-  Zipper.will_barf(t, z)
-    ? switch (neighbor_can_duomerge(t, z.relatives.siblings)) {
-      | Some((lbl, d)) =>
-        Zipper.replace(~caret=d, ~backpack=d, lbl, z) |> Option.get
-
-      | None => put_down_regrout_remold_tok(caret, t, z) |> Option.get
-      }
-    : {
-      let (lbl, backpack) = Molds.instant_expansion(t);
-      construct(~caret, ~backpack, lbl, z);
-    };
+  // Zipper.will_barf(t, z)
+  //   ? switch (neighbor_can_duomerge(t, z.relatives.siblings)) {
+  //     | Some((lbl, d)) =>
+  //       Zipper.replace(~caret=d, ~backpack=d, lbl, z) |> Option.get
+  //     | None =>
+  //       print_endline("putting down " ++ t);
+  //       put_down_regrout_remold_tok(caret, t, z) |> Option.get;
+  //     }
+  //   : {
+  //     let (lbl, backpack) = Molds.instant_expansion(t);
+  //     construct(~caret, ~backpack, lbl, z);
+  //   };
+  switch (neighbor_can_duomerge(t, z.relatives.siblings)) {
+  | Some((lbl, d)) =>
+    Zipper.replace(~caret=d, ~backpack=d, lbl, z) |> Option.get
+  | None =>
+    //print_endline("NOTputting down " ++ t);
+    let (lbl, backpack) = Molds.instant_expansion(t);
+    construct(~caret, ~backpack, lbl, z);
+  };
 
 let expand_neighbors_and_make_new_tile = (char: Token.t, state: t): option(t) => {
   /* Trigger a token boundary event and create a new tile.
