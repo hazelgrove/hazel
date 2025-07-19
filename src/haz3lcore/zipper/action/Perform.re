@@ -112,6 +112,46 @@ let go_z =
     };
   };
 
+  let z =
+    /* Expand keywords when we start doing some different */
+    //TODO(andrew): needs measured recalc
+    switch (a) {
+    //| Jump(_) //measured caching problem
+    // | Select(_)
+    // | Unselect(_)
+    //| Paste(_)
+    // | Move(_) =>
+    //   switch (neighbor_monotiles(z.relatives.siblings)) {
+    //   | (Some(t), _) when Zipper.will_barf(t, z) =>
+    //     print_endline("will barf left" ++ t);
+    //     switch (z.caret) {
+    //     | Inner(_) => z
+    //     | Outer =>
+    //       print_endline("outer left");
+    //       switch (delete(Left, z)) {
+    //       | Some(z) =>
+    //         print_endline("replaced left");
+    //         put_down_regrout_remold_tok(Left, t, z) |> Option.get;
+    //       //remold_regrout(Left, z);
+    //       | None => z
+    //       };
+    //     };
+
+    //   | (_, Some(t)) when Zipper.will_barf(t, z) =>
+    //     print_endline("wull varf right:" ++ t);
+    //     switch (z.caret) {
+    //     | Inner(_) => z
+    //     | Outer =>
+    //       switch (Insert.replace_tile(t, Right, z)) {
+    //       | Some(z) => remold_regrout(Right, z)
+    //       | None => z
+    //       }
+    //     };
+    //   | _ => z
+    //   }
+    | _ => z
+    };
+
   switch (a) {
   | Paste(String(clipboard)) =>
     switch (paste(z, clipboard)) {
@@ -251,7 +291,11 @@ let go_z =
       /* Alternatively, putting down inside token could eiter merge-in or split */
       switch (z.caret) {
       | Inner(_) => None
-      | Outer => Zipper.put_down_regrout_remold(Left, z)
+      | Outer =>
+        switch (Zipper.match_prev(z)) {
+        | Some(z) => Some(z)
+        | _ => Zipper.put_down_regrout_remold(Left, z)
+        }
       };
     z |> Result.of_option(~error=Action.Failure.Cant_put_down);
   | MoveToBackpackTarget((Left(_) | Right(_)) as _d) =>
