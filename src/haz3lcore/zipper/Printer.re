@@ -1,52 +1,55 @@
 open Util;
 
-let remove_all_projectors: Segment.t => Segment.t =
-  ZipperBase.MapPiece.of_segment(
-    fun
-    | Projector(pr) => Piece.unparenthesize(pr.syntax)
-    | x => [x],
-  );
+let remove_projector: Piece.t => Segment.t =
+  fun
+  | Projector(pr) => Piece.unparenthesize(pr.syntax)
+  | x => [x];
 
 let measured_no_projectors = (segment: Segment.t) =>
   segment
-  |> remove_all_projectors
+  |> ZipperBase.MapPiece.of_segment(remove_projector)
   |> Measured.of_segment(_, ProjectorCore.Shape.Map.empty);
 
-/* This is a low-level function; use below entry point */
-let rec of_segment = (~holes, ~concave_holes, seg: Segment.t): string =>
-  seg |> List.map(of_piece(~holes, ~concave_holes)) |> String.concat("")
-and of_piece = (~holes, ~concave_holes, p: Piece.t): string =>
-  switch (p) {
-  | Tile(t) => of_tile(~holes, ~concave_holes, t)
-  | Grout({shape: Concave, _}) => concave_holes
-  | Grout({shape: Convex, _}) => holes
-  | Secondary(w) =>
-    Secondary.is_linebreak(w) ? "\n" : Secondary.get_string(w.content)
-  | Projector(p) =>
-    of_segment(~holes, ~concave_holes, Piece.unparenthesize(p.syntax))
-  }
-and of_tile = (~holes, ~concave_holes, t: Tile.t): string =>
-  Aba.mk(t.shards, t.children)
-  |> Aba.join(of_delim(t), of_segment(~holes, ~concave_holes))
-  |> String.concat("")
-and of_delim = (t: Piece.tile, i: int): string => List.nth(t.label, i);
-
-let add_caret =
-    (caret: option((string, Point.t)), rows: list(string)): list(string) =>
-  switch (caret) {
-  | Some((caret_str, {row, col})) =>
-    switch (ListUtil.split_nth_opt(row, rows)) {
-    | Some((pre, caret_row, suf)) when col < String.length(caret_row) =>
-      pre @ [StringUtil.insert_nth(col, caret_str, caret_row)] @ suf
-    | Some((pre, caret_row, suf)) => pre @ [caret_row ++ caret_str] @ suf
-    | None => rows
-    }
+let insert_string = (s: string, point: Point.t, rows: list(string)) => {
+  switch (ListUtil.split_nth_opt(point.row, rows)) {
+  | Some((pre, caret_row, suf)) when point.col < String.length(caret_row) =>
+    pre @ [StringUtil.insert_nth(point.col, s, caret_row)] @ suf
+  | Some((pre, caret_row, suf)) => pre @ [caret_row ++ s] @ suf
   | None => rows
   };
+};
 
-let mk_indent = (segment, measured, indent: string, rows: list(string)) =>
+let add_caret =
+    (
+      ~caret: option((string, Point.t)),
+      ~selection_anchor: option((string, Point.t)),
+      rows: list(string),
+    )
+    : list(string) => {
+  switch (caret, selection_anchor) {
+  | (Some((caret_str, caret_point)), Some((anchor_str, anchor_point))) =>
+    // Insert in reverse order to prevent offsetting the insertion position in the string
+    if (Point.compare(caret_point, anchor_point) < 0) {
+      insert_string(anchor_str, anchor_point, rows)
+      |> insert_string(caret_str, caret_point);
+    } else {
+      insert_string(caret_str, caret_point, rows)
+      |> insert_string(anchor_str, anchor_point);
+    }
+  | (Some((caret_str, caret_point)), None) =>
+    insert_string(caret_str, caret_point, rows)
+  | (None, Some((anchor_str, anchor_point))) =>
+    insert_string(anchor_str, anchor_point, rows)
+  | (None, None) => rows
+  };
+};
+
+let add_indent = (measured: Measured.t, indent: string, i: int, r: string) =>
+  StringUtil.repeat(Measured.Rows.find(i, measured.rows).indent, indent) ++ r;
+
+let add_indents = (segment, measured, indent: string, rows: list(string)) =>
   if (indent == "") {
-    /* If no indentation is needed, we don't need to bother calculating measures */
+    /* If no indentation is needed, we don't need to bother calculating measured */
     rows;
   } else {
     let measured =
@@ -54,15 +57,7 @@ let mk_indent = (segment, measured, indent: string, rows: list(string)) =>
       | Some(m) => m
       | None => measured_no_projectors(segment)
       };
-    List.mapi(
-      (i, r) =>
-        StringUtil.repeat(
-          Measured.Rows.find(i, measured.rows).indent,
-          indent,
-        )
-        ++ r,
-      rows,
-    );
+    List.mapi(add_indent(measured, indent), rows);
   };
 
 /* Use this to pretty-print segments. Note that printing holes with
@@ -74,30 +69,48 @@ let of_segment =
       ~concave_holes=" ",
       ~indent=" ",
       ~caret: option((string, Point.t))=None,
+      ~selection_anchor: option((string, Point.t))=None,
       ~measured=?,
       segment: Segment.t,
     )
     : string =>
   segment
-  |> of_segment(~holes, ~concave_holes)
+  |> Segment.to_string(~holes, ~concave_holes)
   |> String.split_on_char('\n')
-  |> mk_indent(segment, measured, indent)
-  |> add_caret(caret)
+  |> add_indents(segment, measured, indent)
+  |> add_caret(~caret, ~selection_anchor)
   |> String.concat("\n");
 
 /* Use this to pretty-print zippers. See above comments on holes */
 let of_zipper =
-    (~holes=?, ~concave_holes=?, ~indent=?, ~caret=?, z: Zipper.t): string => {
+    (
+      ~holes=?,
+      ~concave_holes=?,
+      ~indent=?,
+      ~caret=?,
+      ~selection_anchor=?,
+      z: Zipper.t,
+    )
+    : string => {
   let segment = Zipper.seg_without_buffer(z);
   /* Note that we can't just pass in the measured from editor as
    * we must recalculate the measured after removing projectors */
   let measured = measured_no_projectors(segment);
   let caret =
-    switch (caret) {
-    | None => None
-    | Some(char) =>
-      let caret_pos = Zipper.caret_point(measured, z);
-      Some((char, caret_pos));
-    };
-  of_segment(~holes?, ~concave_holes?, ~indent?, ~caret, ~measured, segment);
+    Option.map(char => (char, Zipper.caret_point(measured, z)), caret);
+  let selection_anchor =
+    Option.bind(selection_anchor, char =>
+      Zipper.selection_anchor_point(measured, z)
+      |> Option.map(pt => (char, pt))
+    );
+
+  of_segment(
+    ~holes?,
+    ~concave_holes?,
+    ~indent?,
+    ~caret,
+    ~selection_anchor,
+    ~measured,
+    segment,
+  );
 };

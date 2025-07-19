@@ -4,18 +4,58 @@ open Language;
 
 let buffer_clear = (z: t): t =>
   switch (z.selection.mode) {
-  | Buffer(_) => {
+  | Buffer(Unparsed) => {
       ...z,
       selection: Selection.mk([]),
     }
-  | _ => z
+
+  | Buffer(Parsed) => z |> Zipper.destruct |> Zipper.regrout(Left)
+  | Normal => z
   };
 
-let set_buffer = (info_map: Language.Statics.Map.t, z: t): t =>
+let set_tydi_buffer = (info_map: Language.Statics.Map.t, z: t): t =>
   switch (TyDi.set_buffer(~info_map, z)) {
   | None => z
   | Some(z) => z
   };
+
+let set_llm_buffer = (z: t, response: string): t =>
+  switch (
+    {
+      open OptUtil.Syntax;
+      //TODO: Error feedback on below
+      let* content = Parser.to_zipper(response);
+      let+ _ = [] == content.backpack ? Some() : None;
+      Zipper.set_buffer(z, ~content=Zipper.zip(content), ~mode=Parsed);
+    }
+  ) {
+  | None => z
+  | Some(z) => z
+  };
+
+let paste = (z: Zipper.t, str: string): option(Zipper.t) => {
+  open Util.OptUtil.Syntax;
+  let* z = Parser.to_zipper(~zipper_init=z, str);
+  /* HACK(andrew): Insert/Destruct below is a hack to deal
+     with the fact that pasting something like "let a = b in"
+     won't trigger the barfing of the "in"; to trigger this,
+     we insert a space, and then we immediately delete it */
+  let* z = Insert.go(" ", z);
+  let+ z = Destruct.go(Left, z);
+  remold_regrout(Left, z);
+};
+
+let paste_segment = (z: Zipper.t, segment: Segment.t): Zipper.t => {
+  let replace_selection = (z, focus, segment): Zipper.t =>
+    {
+      ...z,
+      selection: Selection.mk(~focus, segment),
+    }
+    |> Zipper.unselect
+    |> Zipper.remold_regrout(Util.Direction.Right)
+    |> Zipper.remold_regrout(Util.Direction.Left);
+  replace_selection(z, z.selection.focus, segment);
+};
 
 let go_z =
     (
@@ -29,35 +69,14 @@ let go_z =
   module Move = Move.Make(M);
   module Select = Select.Make(M);
 
-  let paste = (z: Zipper.t, str: string): option(Zipper.t) => {
-    open Util.OptUtil.Syntax;
-    let* z = Parser.to_zipper(~zipper_init=z, str);
-    /* HACK(andrew): Insert/Destruct below is a hack to deal
-       with the fact that pasting something like "let a = b in"
-       won't trigger the barfing of the "in"; to trigger this,
-       we insert a space, and then we immediately delete it */
-    let* z = Insert.go(" ", z);
-    let+ z = Destruct.go(Left, z);
-    remold_regrout(Left, z);
-  };
-
-  let paste_segment = (z: Zipper.t, segment: Segment.t): Zipper.t => {
-    let replace_selection = (z, focus, segment): Zipper.t =>
-      {
-        ...z,
-        selection: Selection.mk(~focus, segment),
-      }
-      |> Zipper.unselect
-      |> Zipper.remold_regrout(Util.Direction.Right)
-      |> Zipper.remold_regrout(Util.Direction.Left);
-    replace_selection(z, z.selection.focus, segment);
-  };
-
   let buffer_accept = (z): option(Zipper.t) =>
     switch (z.selection.mode) {
     | Normal => None
+    | Buffer(Parsed) =>
+      let z = Zipper.directional_unselect(Right, z);
+      Some(z);
     | Buffer(Unparsed) =>
-      switch (TyDi.get_buffer(z)) {
+      switch (TyDi.get_unparsed_buffer(z)) {
       | None => None
       | Some(completion)
           when StringUtil.match(StringUtil.regexp(".*\\)::$"), completion) =>
@@ -78,7 +97,7 @@ let go_z =
       }
     };
 
-  let smart_select = (n, z): option(Zipper.t) => {
+  let smart_select = (n, z: t): option(Zipper.t) => {
     switch (n) {
     | 2 => Select.indicated_token(z)
     | 3 =>
@@ -127,7 +146,8 @@ let go_z =
     | None => Error(CantReparse)
     | Some(z) => Ok(z)
     };
-  | Buffer(Set(TyDi)) => Ok(set_buffer(statics.info_map, z))
+  | Buffer(Set(TyDi)) => Ok(set_tydi_buffer(statics.info_map, z))
+  | Buffer(Set(LLM(response))) => Ok(set_llm_buffer(z, response))
   | Buffer(Accept) =>
     switch (buffer_accept(z)) {
     | None => Error(CantAccept)
@@ -152,15 +172,13 @@ let go_z =
         let* idx = Indicated.index(z);
         let* ci = Id.Map.find_opt(idx, statics.info_map);
         let* binding_id = Language.Info.get_binding_site(ci);
-        Move.jump_to_id(z, binding_id);
-      | TileId(id) => Move.jump_to_id(z, id)
+        Move.jump_to_id_indicated(z, binding_id);
+      | TileId(id) => Move.jump_to_id_indicated(z, id)
       }
     )
     |> Result.of_option(~error=Action.Failure.Cant_move)
   | Unselect(Some(d)) => Ok(Zipper.directional_unselect(d, z))
-  | Unselect(None) =>
-    let z = Zipper.directional_unselect(z.selection.focus, z);
-    Ok(z);
+  | Unselect(None) => Ok(Zipper.unselect(z))
   | Select(All) =>
     let z =
       switch (Move.do_extreme(Move.primary(ByToken), Up, z)) {
@@ -204,13 +222,12 @@ let go_z =
     }
   | Select(Resize(d)) =>
     switch (Select.go(d, z)) {
-    | Some(z) => Ok(z)
     | None => Ok(z)
+    | Some(z) => Ok(z)
     }
   | Destruct(d) =>
     z
     |> Destruct.go(d)
-    |> Option.map(remold_regrout(d))
     |> Result.of_option(~error=Action.Failure.Cant_destruct)
   | Insert(char) =>
     let id =
