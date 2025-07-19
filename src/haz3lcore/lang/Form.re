@@ -57,7 +57,6 @@ let mk = (expansion, label, mold) => {
 /* Abbreviations for expansion behaviors */
 let ss: expansion = (Static, Static);
 let ii: expansion = (Instant, Instant);
-let is: expansion = (Instant, Static);
 let ds: expansion = (Delayed, Static);
 
 let mk_infix = (t: Token.t, sort: Sort.t, prec) =>
@@ -435,6 +434,8 @@ let infix_delimiter_ops_prefixes: list(string) =
   |> List.filter_map(f => {
        let form = get(fst(f));
        switch ((form.mold.nibs |> snd).shape) {
+       //TODO(andrew): decide how picky to be
+       | _ when List.length(form.label) >= 2 => Some(form.label)
        | Convex when List.length(form.label) >= 3 =>
          Some(form.label |> ListUtil.split_last |> fst |> List.tl)
        | Concave(_) when List.length(form.label) >= 2 =>
@@ -445,7 +446,7 @@ let infix_delimiter_ops_prefixes: list(string) =
   |> List.concat
   |> List.filter(is_potential_operand)
   |> List.sort_uniq(compare)
-  |> List.map(StringUtil.proper_prefixes)
+  |> List.map(StringUtil.prefixes)
   |> List.concat;
 
 let is_infix_delimiter_op_prefix = t =>
