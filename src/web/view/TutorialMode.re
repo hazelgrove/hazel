@@ -318,18 +318,39 @@ module Update = {
 module Selection = {
   open Cursor;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = (Tutorial.pos, CellEditor.Selection.t);
+  type t =
+    | Cell(Tutorial.pos, CellEditor.Selection.t)
+    | TextBox;
   let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
-    let (pos, s) = selection;
-    let cell_editor = Tutorial.get_stitched(pos, model.cells);
-    let+ a = CellEditor.Selection.get_cursor_info(~selection=s, cell_editor);
-    Update.Editor(pos, a);
+    switch (selection) {
+    | Cell(pos, s) =>
+      switch (Tutorial.get_stitched(pos, model.cells)) {
+      | cell_editor =>
+        let+ a =
+          CellEditor.Selection.get_cursor_info(~selection=s, cell_editor);
+        Update.Editor(pos, a);
+      | exception (Failure(_)) => empty
+      }
+    | TextBox => empty
+    };
   };
-  let handle_key_event = (~selection, ~event, model: Model.t) => {
-    let (pos, s) = selection;
-    let cell_editor = Tutorial.get_stitched(pos, model.cells);
-    CellEditor.Selection.handle_key_event(~selection=s, ~event, cell_editor)
-    |> Option.map(a => Update.Editor(pos, a));
+
+  let handle_key_event =
+      (~selection: t, ~event, model: Model.t): option(Update.t) => {
+    switch (selection) {
+    | Cell(pos, s) =>
+      switch (Tutorial.get_stitched(pos, model.cells)) {
+      | cell_editor =>
+        CellEditor.Selection.handle_key_event(
+          ~selection=s,
+          ~event,
+          cell_editor,
+        )
+        |> Option.map(a => Update.Editor(pos, a))
+      | exception (Failure(_)) => None
+      }
+    | TextBox => None
+    };
   };
   let jump_to_tile =
       (~settings: Settings.t, tile, model: Model.t): option((Update.t, t)) => {
@@ -341,7 +362,7 @@ module Selection = {
     |> Option.map(((pos, _)) =>
          (
            Update.Editor(pos, MainEditor(Perform(Jump(TileId(tile))))),
-           (pos, CellEditor.Selection.MainEditor),
+           Cell(pos, CellEditor.Selection.MainEditor),
          )
        );
   };
@@ -403,10 +424,10 @@ module View = {
         ~globals,
         ~signal=
           fun
-          | MakeActive(a) => signal(MakeActive((this_pos, a))),
+          | MakeActive(a) => signal(MakeActive(Cell(this_pos, a))),
         ~selected=
           switch (selection) {
-          | Some((pos, s)) when pos == this_pos => Some(s)
+          | Some(Cell(pos, s)) when pos == this_pos => Some(s)
           | _ => None
           },
         ~inject=a => inject(Editor(this_pos, a)),
