@@ -87,14 +87,16 @@ let semi = 38 |> right_associative;
 
 let lab = 39;
 
-let let_ = 40;
-// let x = 3 in _____
-let rule_arr = 41;
-let rule_pre = 42;
-let rule_sep = 43;
-let case_ = 44;
+let case_ = 42;
 
-let comma = 47;
+let comma = 44;
+
+/* Let looser than commas so can do `let x = 1 in x, x */
+let let_ = 45;
+// let x = 3 in _____
+
+/* Rules looser than commas so can do `case a,b | _ => ... */
+let rule_sep = 46;
 
 let min = 48;
 
