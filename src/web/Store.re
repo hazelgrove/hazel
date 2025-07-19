@@ -5,6 +5,7 @@ open Util;
 type key =
   | Settings
   | ExplainThis
+  | Assistant
   | Mode
   | Scratch
   | Documentation
@@ -17,6 +18,7 @@ let key_to_string =
   fun
   | Settings => "SETTINGS"
   | ExplainThis => "ExplainThisModel"
+  | Assistant => "AssistantModel"
   | Mode => "MODE"
   | Scratch => "SAVE_SCRATCH"
   | Documentation => "SAVE_DOCUMENTATION"

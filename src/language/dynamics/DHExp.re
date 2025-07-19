@@ -87,6 +87,7 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | TypAp(_)
           | ListLit(_)
           | Test(_)
+          | HintedTest(_)
           | Closure(_)
           | Seq(_)
           | Let(_)

@@ -113,12 +113,20 @@ module Update = {
     };
   };
 
-  let update = (~globals: Globals.t, ~schedule_action, action, model: Model.t) => {
+  let update =
+      (
+        ~globals: Globals.t,
+        ~schedule_action: t => unit,
+        ~send_assistant_insertion_info: CodeEditable.Model.t => unit,
+        action: t,
+        model: Model.t,
+      ) => {
     switch (action, model) {
     | (Scratch(action), Scratch(m)) =>
       let* scratch =
         ScratchMode.Update.update(
           ~schedule_action=a => schedule_action(Scratch(a)),
+          ~send_assistant_insertion_info,
           ~is_documentation=false,
           ~settings=globals.settings,
           action,
@@ -130,6 +138,7 @@ module Update = {
         ScratchMode.Update.update(
           ~settings=globals.settings,
           ~schedule_action=a => schedule_action(Scratch(a)),
+          ~send_assistant_insertion_info,
           ~is_documentation=true,
           action,
           m,
@@ -324,9 +333,9 @@ module Selection = {
 
   let default_selection =
     fun
-    | Model.Scratch(_) => Scratch(MainEditor)
-    | Model.Documentation(_) => Scratch(MainEditor)
-    | Model.Tutorial(_) => Tutorial((Tutorial.YourImpl, MainEditor))
+    | Model.Scratch(_) => Scratch(Cell(MainEditor))
+    | Model.Documentation(_) => Scratch(Cell(MainEditor))
+    | Model.Tutorial(_) => Tutorial(Cell(Tutorial.YourImpl, MainEditor))
     | Model.Exercises(_) => Exercises(Cell(Exercise.Prelude, MainEditor));
 };
 

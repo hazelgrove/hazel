@@ -42,6 +42,12 @@ let tests = (
         ),
       )
     ),
+    test_case("Deferral applied to unknown type", `Quick, () =>
+      parse_and_evaluate_test(
+        {|"llo"|},
+        {|(string_sub : ?)(_, 2, 3)("hello")|},
+      )
+    ),
     test_case("Variable capture", `Quick, () =>
       evaluation_test(
         {|let u = 5 in let f = fun () -> u in let u = 3 in f()|},
