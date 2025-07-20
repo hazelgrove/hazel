@@ -139,3 +139,10 @@ published papers):
 
   dev
   livelits
+
+## Developer Documentation
+There is some developer documentation available in the `docs` directory, though it is far from complete and comprehensive. 
+
+If you are planning to work extensively on Hazel, we recommend getting in touch with Cyrus Omar (comar@umich.edu) and joining the Slack channel, where you can ask questions.
+
+We welcome pull requests that improve the documentation!
