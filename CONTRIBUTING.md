@@ -115,11 +115,7 @@ If Hazel is hanging on load or when you perform certain actions, you can load in
 If you want to do a fully clean reset and debug mode isn't working, you need to manually clear local storage by going into your browser development tools. In Chrome devtools, you do so via Application > Storage > Local Storage. You may also want to clear the IndexedDB, which logs edit actions.
 
 ## Testing
-You can run all of the unit tests located in `test` by running `make test`.
-
-Unit tests are written using the [Alcotest framework](https://github.com/mirage/alcotest).
-
-See more documentation in the [test README](test/README.md)
+You can run all of the unit tests located in `test` by running `make test`. Unit tests are written using the [Alcotest framework](https://github.com/mirage/alcotest). See more documentation in the [test README](test/README.md).
 
 ### Test Coverage
 Code coverage is provided by [bisect_ppx](https://github.com/aantron/bisect_ppx). To collect coverage statistics from tests run `make coverage`. After coverage statistics are generated, running `make generate-coverage-html` will generate a local webpage at `_coverage/index.html` that can be viewed to see line coverage per module.

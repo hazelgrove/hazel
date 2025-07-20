@@ -127,20 +127,13 @@ If you are working on multiple OCaml projects, it may be helpful to set up a loc
 
 - Clone a copy of the source code.
 
-  **Recommended**: You should first make sure you have [GitHub SSH keys setup](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account). Then you can run the following command to clone Hazel:
+  You should first make sure you have [GitHub SSH keys setup](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/adding-a-new-ssh-key-to-your-github-account). Then you can run the following command to clone Hazel:
 
   ```
   git clone git@github.com:hazelgrove/hazel.git
   ```
 
-  **Quick and Dirty**: You can alternatively run the following command even if you have not set up GitHub SSH. However, this requires setting up a personal access token if you want to push to the repository at any point (in which case the ssh approach is recommended):
-
-  ```
-  git clone https://github.com/hazelgrove/hazel.git
-  ```
-
-  This will put create a `hazel` directory containing the Hazel source code
-  inside the current directory.
+  NOTE: We do not recommend cloning using https, because this will not allow you to contribute back to Hazel without going through some even more awkward hoops. If you want to quickly get Hazel cloned without setting up SSH keys, we recommend using the [GitHub Desktop application](https://github.com/apps/desktop) or the Visual Studio Code command "Git Clone", which will set things up for you in the background.
 
 ## Install Library Dependencies
 
@@ -152,25 +145,13 @@ If you are working on multiple OCaml projects, it may be helpful to set up a loc
   cd hazel
   ```
 
-- If you run `ls`, you should see some files like the following:
-
-  ```sh
-  dune-project
-  LICENSE
-  Makefile
-  README.md
-  src
-  ...
-  ```
-
-  If you do not see these files, use `cd` to change to the directory containing
-  the Hazel source code.
-
 - Run the following to install the necessary OCaml library dependencies:
 
   ```sh
   make deps
   ```
+
+  It is a good idea to run `make deps` whenever you pull new versions of the code from GitHub so you can be sure that you have the latest dependencies installed.
 
 ## Build and Run Hazel
 
