@@ -37,13 +37,13 @@ module Make = (M: Move.S) => {
     };
 
   let range = (l: Id.t, r: Id.t, z: Zipper.t): option(Zipper.t) => {
-    let* z = Move.jump_to_id(z, l);
+    let* z = Move.jump_to_side_of_id(Left, z, l);
     let* Measured.{last, _} = Measured.find_by_id(r, M.measured);
     Move.do_towards(Zipper.select, last, z);
   };
 
   let tile = (id: Id.t, z: Zipper.t): option(Zipper.t) => {
-    let* z = Move.jump_to_id(z, id);
+    let* z = Move.jump_to_side_of_id(Left, z, id);
     let* Measured.{last, _} = Measured.find_by_id(id, M.measured);
     Move.do_towards(primary, last, z);
   };
