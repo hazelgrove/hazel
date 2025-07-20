@@ -153,11 +153,59 @@ module Option = {
   ];
 };
 
+module HTML = {
+  let t: Typ.t =
+    sum_type([
+      ("Text", Some(string())),
+      ("Bool", Some(bool())),
+      ("Int", Some(int())),
+      ("Float", Some(float())),
+      ("Div", Some(prod([list(var("Attr")), list(var("HTML"))]))),
+      ("Span", Some(prod([list(var("Attr")), list(var("HTML"))]))),
+      ("Button", Some(list(var("Attr")))),
+      ("Checkbox", Some(list(var("Attr")))),
+      // ("ColorInput", Some(list(var("Attr")))),
+      // ("DateInput", Some(list(var("Attr")))),
+      // ("EmailInput", Some(list(var("Attr")))),
+      // ("FileInput", Some(list(var("Attr")))),
+      // ("HiddenInput", Some(list(var("Attr")))),
+      // ("ImageInput", Some(list(var("Attr")))),
+      // ("NumberInput", Some(list(var("Attr")))),
+      // ("PasswordInput", Some(list(var("Attr")))),
+      ("Radio", Some(list(var("Attr")))),
+      ("Range", Some(list(var("Attr")))),
+      // ("ResetInput", Some(list(var("Attr")))),
+      // ("SearchInput", Some(list(var("Attr")))),
+      // ("SubmitInput", Some(list(var("Attr")))),
+      // ("TelInput", Some(list(var("Attr")))),
+      // ("TextInput", Some(list(var("Attr")))),
+      // ("TimeInput", Some(list(var("Attr")))),
+      // ("UrlInput", Some(list(var("Attr")))),
+      // ("WeekInput", Some(list(var("Attr")))),
+    ]);
+  let attr =
+    sum_type([
+      ("Create", Some(prod([string(), string()]))),
+      ("Style", Some(list(var("StyleAttr")))),
+      ("OnClick", Some(unknown(Internal))),
+      ("OnMousedown", Some(unknown(Internal))),
+      ("OnInput", Some(unknown(Internal))),
+    ]);
+};
+
 // List of type aliases to add to the context
 let type_aliases: list((string, Typ.t)) = [
   ("Ord", Ord.t),
   ("Option", Option.t),
   ("Either", Either.t),
+  (
+    "HTML",
+    IdTagged.FreshGrammar.Typ.rec_(
+      IdTagged.FreshGrammar.TPat.var("HTML"),
+      HTML.t,
+    ),
+  ),
+  ("Attr", HTML.attr),
   ("$Meta", meta_type),
 ];
 
@@ -179,7 +227,8 @@ let constructors: Ctx.t = {
       let cons_map =
         switch (Typ.term_of(typ)) {
         | Sum(cons_map) => cons_map
-        | _ => failwith("Type alias must be a sum type")
+        | Rec(_, {term: Sum(cons_map), _}) => cons_map
+        | _ => failwith("Type alias must be a sum or recursive sum type")
         };
       Ctx.add_ctrs(ctx, name, Id.invalid, cons_map);
     },
