@@ -162,7 +162,12 @@ let check_annotated_function_helper = (pat: Pat.t): option((Pat.t, Pat.t)) => {
       // let (new_arg, in_type, _) = caf_input_type(args);
       //print_endline("STA CAF new_type = " ++ UTyp.show(in_type));
       // let func_type = UTyp.Arrow(in_type, ret_type) |> pat_rule;
-      Some((func_name, args))
+      let args =
+        switch (args.term) {
+        | Tuple([]) => Tuple([]) |> Pat.fresh
+        | _ => args
+        };
+      Some((func_name, args));
     | _ => None
     }
   | _ => None
