@@ -913,7 +913,7 @@ and uexp_to_info_map =
         m,
       );
     | Let(p, def, body) =>
-      // synthesizing type info for the pattern
+      // synthesize type info for the pattern
       let (p_syn, _) =
         go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
       let (def, p_ana_ctx, m, ty_p_ana) =
@@ -1192,7 +1192,7 @@ and uexp_to_info_map =
               ValType(p, ty_p_ana): TermBase.module_signature_entry_term,
             );
 
-          (m, p_syn.ctx, signature_entry); // Verify ctx
+          (m, p_syn.ctx, signature_entry);
         | TypeDef(typat, utyp) =>
           // TODO This is mostly copied from the TypeAlias case we should deduplicate/clean up
           let m = utpat_to_info_map(~ctx, ~ancestors, typat, m) |> snd;

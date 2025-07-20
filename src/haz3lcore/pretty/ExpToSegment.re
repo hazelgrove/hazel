@@ -714,25 +714,40 @@ let fold_fun_if = (condition, f_name: string, pieces) =>
     pieces;
   };
 
-// TODO
-let module_entry_to_pretty =
-    (~_settings: Settings.t, m: ModuleEntry.t): pretty => {
-  text_to_pretty(m |> ModuleEntry.rep_id, Sort.Exp, m |> ModuleEntry.show);
-};
-
-let module_signature_entry_to_pretty =
-    (~_settings: Settings.t, ms: ModuleSignatureEntry.t): pretty => {
-  text_to_pretty(
-    ms |> ModuleSignatureEntry.rep_id,
-    Sort.Exp,
-    ms |> ModuleSignatureEntry.show,
-  );
-};
-
+let rec module_entry_to_pretty =
+        (~settings: Settings.t, m: ModuleEntry.t): pretty => {
+  switch (m |> ModuleEntry.term_of) {
+  | ValBinding(pat, exp) =>
+    (pat |> pat_to_pretty(~settings)) @ (exp |> exp_to_pretty(~settings))
+  | TypeDef(tpat, typ) =>
+    (tpat |> tpat_to_pretty(~settings)) @ (typ |> typ_to_pretty(~settings))
+  | Hole(_) => []
+  | MultipleEntries(_) =>
+    print_endline(
+      "MultipleEntries in module_entry_to_pretty, this should not happen",
+    );
+    [];
+  };
+}
+and module_signature_entry_to_pretty =
+    (~settings: Settings.t, ms: ModuleSignatureEntry.t): pretty => {
+  switch (ms |> ModuleSignatureEntry.term_of) {
+  | ValType(pat, typ) =>
+    (pat |> pat_to_pretty(~settings)) @ (typ |> typ_to_pretty(~settings))
+  | TypeDef(tpat, typ) =>
+    (tpat |> tpat_to_pretty(~settings)) @ (typ |> typ_to_pretty(~settings))
+  | Hole(_) => []
+  | MultipleEntries(_) =>
+    print_endline(
+      "MultipleEntries in module_signature_entry_to_pretty, this should not happen",
+    );
+    [];
+  };
+}
 /* We assume that parentheses have already been added as necessary, and
       that the expression has no Closures or DynamicErrorHoles
    */
-let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
+and exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   let go = (~inline=settings.inline) =>
     exp_to_pretty(
       ~settings={
@@ -855,8 +870,17 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     [mk_form(ParensExp, exp |> Exp.rep_id, [fun_form])]
     |> fold_fun_if(settings.fold_fn_bodies, name);
   | LivelitName(s) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "^" ++ s)
-  | Module({todo: _todo, final: _final}) =>
-    text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "module") // TODO
+  | Module({todo, final}) =>
+    text_to_pretty(
+      exp |> Exp.rep_id,
+      Sort.Exp,
+      List.rev_append(todo, final)
+      |> List.map(m =>
+           module_entry_to_pretty(~settings: Settings.t, m)
+           |> Segment.to_string
+         )
+      |> String.concat(" "),
+    )
   | Fun(p, e, t, _) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
@@ -1330,8 +1354,17 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
         t;
       },
     ]);
-  | ModuleSignature(_) =>
-    text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "module") // TODO
+  | ModuleSignature(entries) =>
+    text_to_pretty(
+      typ |> Typ.rep_id,
+      Sort.Typ,
+      entries
+      |> List.map(m =>
+           module_signature_entry_to_pretty(~settings: Settings.t, m)
+           |> Segment.to_string
+         )
+      |> String.concat(" "),
+    )
   | Parens(t) =>
     let id = typ |> Typ.rep_id;
     let+ t = go(t);
@@ -1404,14 +1437,9 @@ and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
   | Pat(p) => pat_to_pretty(~settings: Settings.t, p)
   | Typ(t) => typ_to_pretty(~settings: Settings.t, t)
   | TPat(tp) => tpat_to_pretty(~settings: Settings.t, tp)
-  | ModuleEntry(m) =>
-    text_to_pretty(m |> ModuleEntry.rep_id, Sort.Exp, m |> ModuleEntry.show)
+  | ModuleEntry(m) => module_entry_to_pretty(~settings: Settings.t, m)
   | ModuleSignatureEntry(ms) =>
-    text_to_pretty(
-      ms |> ModuleSignatureEntry.rep_id,
-      Sort.Exp,
-      ms |> ModuleSignatureEntry.show,
-    )
+    module_signature_entry_to_pretty(~settings: Settings.t, ms)
   | Any(_)
   | Rul(_) =>
     //TODO: print out invalid rules properly

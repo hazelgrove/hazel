@@ -915,7 +915,7 @@ module Transition = (EV: EV_MODE) => {
         )
       and. d' =
         req_final(
-          req(state, entries_to_env(env, List.rev(todo))),
+          req(state, entries_to_env(env, todo)),
           d => ValBinding(p, d, (final, todo)) |> wrap_ctx,
           e,
         );
