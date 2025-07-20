@@ -64,5 +64,13 @@ can also be accessed at the following URL (once the GitHub action is finished bu
 
   `https://hazel.org/build/<branch_name>`
 
+### Hazel CLI
+Although Hazel is primarily designed as an integrated development environment, we do have a Hazel CLI executable called `hazel` available for basic tasks at the terminal. Further information is available in the [CLI README](src/CLI/README.md).
+
+## Running Tests
+You can run Hazel's unit tests with `make test`. Further details on testing are in the [test README](test/README.md).
+
+
+
 ## Contributing to Hazel
-We welcome open source contributions to Hazel! If you are planning to contribute, please review the information in [CONTRIBUTING.md](CONTRIBUTING.md). You may also want to contact Cyrus Omar (comar@umich.edu) about your plans. We have a team Slack that might be helpful for you to join if you are planning to make non-trivial contributions and are happy to invite (and assist) external contributors!
+We welcome open source contributions to Hazel! If you are planning to contribute, please review the information in [CONTRIBUTING.md](CONTRIBUTING.md), which details how to run tests. You may also want to contact Cyrus Omar (comar@umich.edu) about your plans. We have a team Slack that might be helpful for you to join if you are planning to make non-trivial contributions and are happy to invite (and assist) external contributors!
