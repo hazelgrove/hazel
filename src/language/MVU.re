@@ -10,55 +10,67 @@ type t = {
   //font_metrics: FontMetrics.t,
 };
 
-let default: t = {
-  settings: CoreSettings.on,
-  name: "",
-  model: IdTagged.FreshGrammar.Exp.tuple([]),
-  update: IdTagged.FreshGrammar.Exp.tuple([]),
-  //inject,
-  //font_metrics,
-};
+/*
 
-let dhexp_view = (~font_metrics as _, _d) => Node.div([Node.text("TODO")]);
-// DHCode.view(
-//   ~settings=Settings.Evaluation.init,
-//   ~selected_hole_instance=None,
-//   ~font_metrics,
-//   ~width=80,
-//   d,
-// );
+ TODO: Event types to support:
 
-let camel_case_to_kebab_case = (s: string): string =>
-  if (String.length(s) == 0) {
-    "";
-  } else {
-    let chars = StringUtil.to_list(s);
-    let result =
-      List.mapi(
-        (i: int, char_str: string) => {
-          let c = char_str.[0];
-          if (c >= 'A' && c <= 'Z') {
-            if (i == 0) {
-              String.make(1, Char.lowercase_ascii(c));
-            } else {
-              "-" ++ String.make(1, Char.lowercase_ascii(c));
-            };
-          } else {
-            char_str;
-          };
-        },
-        chars,
-      );
-    String.concat("", result);
-  };
+ Dom_html.mouseEvent
+ detail: int
+ method clientX : int
+ method clientY : int
+ method ctrlKey : bool
+ method shiftKey : bool
+ method altKey : bool
+ method metaKey : bool
 
-open IdTagged.FreshGrammar.Typ;
-let attrs: list((string, Typ.t)) = [
-  ("Create", prod([string(), string()])), //TODO: style attr type
-  ("Style", list(string())),
-  ("OnClick", unknown(Internal)), //TODO
-  ("OnMousedown", unknown(Internal)),
-  ("OnInput", unknown(Internal)),
+ Dom_html.keyboardEvent
+ key: string
+ method ctrlKey : bool
+ method shiftKey : bool
+ method altKey : bool
+ method metaKey : bool
+
+ Effects to support:
+
+ Stop_propagaton
+ Prevent_default
+ */
+
+/* TODO: Handlers to implement:
+
+   on_dblclick
+   on_mousedown
+   on_mouseup
+   on_mousemove
+
+   on_keydown
+   on_keyup
+   on_keypress
+    */
+
+let input_type_mappings: list((string, string)) = [
+  ("Button", "button"),
+  ("Checkbox", "checkbox"),
+  ("ColorInput", "color"),
+  ("DateInput", "date"),
+  ("DateTimeLocal", "datetime-local"),
+  ("EmailInput", "email"),
+  ("FileInput", "file"),
+  ("HiddenInput", "hidden"),
+  ("ImageInput", "image"),
+  ("MonthInput", "month"),
+  ("NumberInput", "number"),
+  ("PasswordInput", "password"),
+  ("Radio", "radio"),
+  ("Range", "range"),
+  ("ResetInput", "reset"),
+  ("SearchInput", "search"),
+  ("SubmitInput", "submit"),
+  ("TelInput", "tel"),
+  ("TextInput", "text"),
+  ("TimeInput", "time"),
+  ("UrlInput", "url"),
+  ("WeekInput", "week"),
 ];
 
 let _style_attrs: list(string) = [
@@ -176,11 +188,11 @@ let _style_attrs: list(string) = [
   "PaddingLeft",
   "PaddingRight",
   "PaddingTop",
-  "PageBreakAfter",
-  "PageBreakBefore",
-  "PageBreakInside",
+  // "PageBreakAfter",
+  // "PageBreakBefore",
+  // "PageBreakInside",
   "Position",
-  "Quotes",
+  // "Quotes",
   "Right",
   "TableLayout",
   "TextAlign",
@@ -188,7 +200,7 @@ let _style_attrs: list(string) = [
   "TextIndent",
   "TextTransform",
   "Top",
-  "UnicodeBidi",
+  // "UnicodeBidi",
   "VerticalAlign",
   "Visibility",
   "WhiteSpace",
@@ -197,6 +209,30 @@ let _style_attrs: list(string) = [
   "WordSpacing",
   "ZIndex",
 ];
+
+let camel_case_to_kebab_case = (s: string): string =>
+  if (String.length(s) == 0) {
+    "";
+  } else {
+    let chars = StringUtil.to_list(s);
+    let result =
+      List.mapi(
+        (i: int, char_str: string) => {
+          let c = char_str.[0];
+          if (c >= 'A' && c <= 'Z') {
+            if (i == 0) {
+              String.make(1, Char.lowercase_ascii(c));
+            } else {
+              "-" ++ String.make(1, Char.lowercase_ascii(c));
+            };
+          } else {
+            char_str;
+          };
+        },
+        chars,
+      );
+    String.concat("", result);
+  };
 
 let render_style_attr = (d: DHExp.t): string =>
   switch (d) {
@@ -212,44 +248,6 @@ let render_style_attr = (d: DHExp.t): string =>
     camel_case_to_kebab_case(constructor_name) ++ ": " ++ s
   | _ => ""
   };
-
-/*
-
- TODO: Event types to support:
-
- Dom_html.mouseEvent
- detail: int
- method clientX : int
- method clientY : int
- method ctrlKey : bool
- method shiftKey : bool
- method altKey : bool
- method metaKey : bool
-
- Dom_html.keyboardEvent
- key: string
- method ctrlKey : bool
- method shiftKey : bool
- method altKey : bool
- method metaKey : bool
-
- Effects to support:
-
- Stop_propagaton
- Prevent_default
- */
-
-/* TODO: Handlers to implement:
-
-   on_dblclick
-   on_mousedown
-   on_mouseup
-   on_mousemove
-
-   on_keydown
-   on_keyup
-   on_keypress
-    */
 
 let render_styles = styles =>
   styles
@@ -328,24 +326,30 @@ let pre_process_attr = (d: DHExp.t): option((string, DHExp.term)) =>
 let render_attr = (mvu: t, d: DHExp.t): Attr.t => {
   IdTagged.FreshGrammar.Exp.(
     switch (pre_process_attr(d)) {
-    | Some((
-        "Create",
-        Tuple([
-          {term: Atom(String(name)), _},
-          {term: Atom(String(value)), _},
-        ]),
-      )) =>
-      Attr.create(name, value)
-    | Some(("Style", ListLit(styles))) => render_styles(styles)
-    | Some(("OnClick", handler)) =>
-      Attr.on_click(on_(mvu, handler, tuple([])))
-    | Some(("OnMousedown", handler)) =>
-      Attr.on_mousedown(on_(mvu, handler, tuple([])))
-    | Some(("OnInput", handler)) =>
-      Attr.on_input((evt, input_str) =>
-        on_(mvu, handler, string(input_str), evt)
-      )
-    | _ =>
+    | Some(x) =>
+      switch (x) {
+      | (
+          "Create",
+          Tuple([
+            {term: Atom(String(name)), _},
+            {term: Atom(String(value)), _},
+          ]),
+        ) =>
+        Attr.create(name, value)
+      | ("Style", ListLit(styles)) => render_styles(styles)
+      | ("OnClick", handler) => Attr.on_click(on_(mvu, handler, tuple([])))
+      | ("OnMousedown", handler) =>
+        Attr.on_mousedown(on_(mvu, handler, tuple([])))
+      | ("OnInput", handler) =>
+        Attr.on_input((evt, input_str) =>
+          on_(mvu, handler, string(input_str), evt)
+        )
+      | _ =>
+        print_endline("FALLTHROUGH: render_attr: " ++ DHExp.show(d));
+        //print_endline("ERROR: render_attr: " ++ DHExp.show(d));
+        Attr.create("error", "error");
+      }
+    | None =>
       print_endline("FALLTHROUGH: render_attr: " ++ DHExp.show(d));
       //print_endline("ERROR: render_attr: " ++ DHExp.show(d));
       Attr.create("error", "error");
@@ -353,78 +357,57 @@ let render_attr = (mvu: t, d: DHExp.t): Attr.t => {
   );
 };
 
-let rec render_div =
-        (~elide_errors as _=false, context: t, d: DHExp.t): Node.t =>
+let pre_process_elem = (d: DHExp.t): option((string, DHExp.t)) =>
   switch (d.term) {
-  | Ap(_, {term: Constructor("Text", _), _}, {term: Atom(String(str)), _}) =>
-    Node.text(str)
-  | Ap(_, {term: Constructor("Bool", _), _}, {term: Atom(Bool(b)), _}) =>
-    Node.text(string_of_bool(b))
-  | Ap(_, {term: Constructor("Int", _), _}, {term: Atom(Int(n)), _}) =>
-    switch (Bigint.to_int(n)) {
-    | Some(n) => Node.text(string_of_int(n))
-    | None => Node.text("666") //TODO(andrew): error
+  | Ap(_, {term: Constructor(name, _), _}, body) => Some((name, body))
+  | _ => None
+  };
+
+let dhexp_view = (~font_metrics as _, _d) => Node.div([Node.text("TODO")]);
+// DHCode.view(
+//   ~settings=Settings.Evaluation.init,
+//   ~selected_hole_instance=None,
+//   ~font_metrics,
+//   ~width=80,
+//   d,
+// );
+
+let rec render_elem =
+        (~elide_errors as _=false, context: t, d: DHExp.t): Node.t =>
+  switch (pre_process_elem(d)) {
+  | Some(x) =>
+    switch (x) {
+    | ("Text", {term: Atom(String(str)), _}) => Node.text(str)
+    | ("Bool", {term: Atom(Bool(b)), _}) => Node.text(string_of_bool(b))
+    | ("Int", {term: Atom(Int(n)), _}) =>
+      switch (Bigint.to_int(n)) {
+      | Some(n) => Node.text(string_of_int(n))
+      | None => Node.div([Node.text("TODO")])
+      }
+    | ("Float", {term: Atom(Float(f)), _}) =>
+      Node.text(string_of_float(f))
+    | ("Div", body) =>
+      let (attrs, divs) = attrs_and_elems(context, body);
+      Node.div(~attrs, divs);
+    | ("Span", body) =>
+      let (attrs, divs) = attrs_and_elems(context, body);
+      Node.span(~attrs, divs);
+    | (constructor_name, body) =>
+      switch (List.assoc_opt(constructor_name, input_type_mappings)) {
+      | Some(input_type) => input_of(input_type, context, body)
+      | None =>
+        print_endline("ERROR: render_elem: " ++ DHExp.show(d));
+        Node.div([Node.text("TODO")]);
+      }
     }
-  | Ap(_, {term: Constructor("Float", _), _}, {term: Atom(Float(f)), _}) =>
-    Node.text(string_of_float(f))
-  | Ap(_, {term: Constructor("Div", _), _}, body) =>
-    let (attrs, divs) = attrs_and_divs(context, body);
-    Node.div(~attrs, divs);
-  | Ap(_, {term: Constructor("Span", _), _}, body) =>
-    let (attrs, divs) = attrs_and_divs(context, body);
-    Node.span(~attrs, divs);
-  | Ap(_, {term: Constructor("Button", _), _}, body) =>
-    input_of("button", context, body)
-  | Ap(_, {term: Constructor("Checkbox", _), _}, body) =>
-    input_of("checkbox", context, body)
-  | Ap(_, {term: Constructor("ColorInput", _), _}, body) =>
-    input_of("color", context, body)
-  | Ap(_, {term: Constructor("DateInput", _), _}, body) =>
-    input_of("date", context, body)
-  | Ap(_, {term: Constructor("DateTimeLocal", _), _}, body) =>
-    input_of("datetime-local", context, body)
-  | Ap(_, {term: Constructor("EmailInput", _), _}, body) =>
-    input_of("email", context, body)
-  | Ap(_, {term: Constructor("FileInput", _), _}, body) =>
-    input_of("file", context, body)
-  | Ap(_, {term: Constructor("HiddenInput", _), _}, body) =>
-    input_of("hidden", context, body)
-  | Ap(_, {term: Constructor("ImageInput", _), _}, body) =>
-    input_of("image", context, body)
-  | Ap(_, {term: Constructor("MonthInput", _), _}, body) =>
-    input_of("month", context, body)
-  | Ap(_, {term: Constructor("NumberInput", _), _}, body) =>
-    input_of("number", context, body)
-  | Ap(_, {term: Constructor("PasswordInput", _), _}, body) =>
-    input_of("password", context, body)
-  | Ap(_, {term: Constructor("Radio", _), _}, body) =>
-    input_of("radio", context, body)
-  | Ap(_, {term: Constructor("Range", _), _}, body) =>
-    input_of("range", context, body)
-  | Ap(_, {term: Constructor("ResetInput", _), _}, body) =>
-    input_of("reset", context, body)
-  | Ap(_, {term: Constructor("SearchInput", _), _}, body) =>
-    input_of("search", context, body)
-  | Ap(_, {term: Constructor("SubmitInput", _), _}, body) =>
-    input_of("submit", context, body)
-  | Ap(_, {term: Constructor("TelInput", _), _}, body) =>
-    input_of("tel", context, body)
-  | Ap(_, {term: Constructor("TextInput", _), _}, body) =>
-    input_of("text", context, body)
-  | Ap(_, {term: Constructor("TimeInput", _), _}, body) =>
-    input_of("time", context, body)
-  | Ap(_, {term: Constructor("UrlInput", _), _}, body) =>
-    input_of("url", context, body)
-  | Ap(_, {term: Constructor("WeekInput", _), _}, body) =>
-    input_of("week", context, body)
   | _ =>
-    //print_endline("ERROR: render_div: " ++ DHExp.show(d));
+    //print_endline("ERROR: render_elem: " ++ DHExp.show(d));
     //let d = !elide_errors ? d : IdTagged.FreshGrammar.Exp.empty_hole();
     //dhexp_view(~font_metrics=context.font_metrics, d);
     Node.div([Node.text("TODO")])
   }
 and input_of = (input_type: string, mvu: t, body: DHExp.t) => {
-  let (attrs, _divs) = attrs_and_divs(mvu, body);
+  let (attrs, _divs) = attrs_and_elems(mvu, body);
   //TODO(andrew): Do I actually need to do this on_focus for every subcomponent?
   Node.input(
     ~attrs=
@@ -441,15 +424,15 @@ and input_of = (input_type: string, mvu: t, body: DHExp.t) => {
     (),
   );
 }
-and attrs_and_divs = (mvu: t, body: DHExp.t): (list(Attr.t), list(Node.t)) => {
+and attrs_and_elems = (mvu: t, body: DHExp.t): (list(Attr.t), list(Node.t)) => {
   //TODO(andrew): not sure why other strip casts is necessary here?
   switch (DHExp.strip_ascriptions(body).term) {
   | Tuple([{term: ListLit(attrs), _}, {term: ListLit(divs), _}]) => (
       List.map(render_attr(mvu), attrs),
-      List.map(render_div(mvu), divs),
+      List.map(render_elem(mvu), divs),
     )
   | _ =>
-    print_endline("ERROR: attrs_and_divs");
+    print_endline("ERROR: attrs_and_elems");
     print_endline(DHExp.show(body));
     //([], [dhexp_view(~font_metrics=mvu.font_metrics, body)]);
     ([], [Node.div([Node.text("TODO")])]);
@@ -524,12 +507,12 @@ let go =
         ]);
       }),*/
   ];
-  [Node.div(~attrs, [render_div(mvu, result)])];
+  [Node.div(~attrs, [render_elem(mvu, result)])];
 };
 
-let go2 = (~settings /*~inject, ~font_metrics,*/, ~node) => {
+let go2 = /*~settings, ~inject, ~font_metrics,*/ (d: DHExp.t) => {
   let mvu = {
-    settings,
+    settings: CoreSettings.on,
     name: "",
     model: IdTagged.FreshGrammar.Exp.tuple([]),
     update: IdTagged.FreshGrammar.Exp.tuple([]),
@@ -560,7 +543,7 @@ let go2 = (~settings /*~inject, ~font_metrics,*/, ~node) => {
         ]);
       }),*/
   ];
-  [Node.div(~attrs, [render_div(mvu, node)])];
+  Node.div(~attrs, [render_elem(mvu, d)]);
 };
 
 //TODO(andrew): cleanup, document

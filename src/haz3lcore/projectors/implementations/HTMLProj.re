@@ -29,5 +29,5 @@ module M: Projector = {
         ~parent as _: external_action => Ui_effect.t(unit),
         ~view_seg as _,
       ) =>
-    View.mk(Language.MVU.render_div(Language.MVU.default, model));
+    View.mk(Language.MVU.go2(model));
 };
