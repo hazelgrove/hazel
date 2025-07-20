@@ -1,5 +1,4 @@
 open Util;
-//open Virtual_dom.Vdom;
 open ProjectorBase;
 
 module M: Projector = {
@@ -10,7 +9,7 @@ module M: Projector = {
 
   let init = (any: Language.Any.t) =>
     switch (any) {
-    //TODO(andrew): be more and less pickier
+    //TODO: Be more (and less) picky
     | Exp({term: Ap(_, {term: Constructor("Div", _), _}, _), _} as exp) =>
       Some(exp)
     | _ => None
@@ -23,11 +22,28 @@ module M: Projector = {
 
   let view =
       (
-        model,
-        _info,
+        model: model,
+        info,
         ~local as _,
-        ~parent as _: external_action => Ui_effect.t(unit),
-        ~view_seg as _,
-      ) =>
-    View.mk(Language.MVU.go2(model));
+        ~parent: external_action => Ui_effect.t(unit),
+        ~view_seg: View.seg,
+      ) => {
+    let seed: HazelDOM.t = {
+      model:
+        switch (info.syntax |> info.utility.seg_to_term) {
+        | Some(Exp(term)) => term
+        | _ => model
+        },
+      inject: (new_model: model) =>
+        /* Allow HTMLements to replace themselves wholesale. Note that
+           this will fail if anything other than a builtin is used in
+           a handler */
+        parent(SetSyntax(Exp(new_model) |> info.utility.term_to_seg)),
+      view_term: term =>
+        Exp(term)
+        |> info.utility.term_to_seg
+        |> view_seg(~background=false, Exp),
+    };
+    View.mk(HazelDOM.go(seed));
+  };
 };
