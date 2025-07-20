@@ -27,35 +27,6 @@ let show_linked = ((spec, syntax): specced): string =>
 [@deriving (show({with_path: false}), sexp, yojson)]
 type map = [@opaque] Map.t(specced);
 
-module RuleFormula = {
-  include RuleFormula;
-  // let rec show_linked = (p, map: map, op) =>
-  //   switch (op) {
-  //   | Get(s) =>
-  //     switch (RuleSpec.Map.find_opt(s, map)) {
-  //     | Some(specced) => RuleSpec.show_linked(specced)
-  //     | None => s
-  //     }
-  //   | _ =>
-  //     op
-  //     |> repr(p)
-  //     |> Aba.join(Fun.id, show_linked(precedence(op), map))
-  //     |> String.concat("")
-  //   };
-  // let show_linked = (map: map, test: t) =>
-  //   test
-  //   |> repr
-  //   |> (
-  //     ((labels, ops) as aba) =>
-  //       switch (test, ops) {
-  //       | (Eq(Get(_), _), [a, b]) => (labels, [a, b])
-  //       | _ => aba
-  //       }
-  //   )
-  //   |> Aba.join(Fun.id, Operation.show_linked(map))
-  //   |> String.concat("");
-};
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type failure =
   | Mismatch(int, int) // expected, actual
@@ -371,93 +342,6 @@ let go_test = (map: map, test: test): option(failure) => {
   };
 };
 
-//   let repr = (~sp: string=" ", p: int, operation: t): Aba.t(string, t) => {
-//     let p' = precedence(operation);
-//     let tight_start = s =>
-//       s == ""
-//       || List.exists(
-//            String.ends_with(s, ~suffix=_),
-//            ["/", "「", "」", "("],
-//          );
-//     let tight_end = s =>
-//       s == ""
-//       || List.exists(
-//            String.starts_with(s, ~prefix=_),
-//            ["/", "」", ",", ")"],
-//          );
-//     let mk_parens = labels =>
-//       labels
-//       |> ListUtil.map_first(s => p < p' ? "(" ++ s : s)
-//       |> ListUtil.map_last(s => p < p' ? s ++ ")" : s);
-//     let op = labels =>
-//       labels
-//       |> List.map(s =>
-//            (tight_end(s) ? "" : sp) ++ s ++ (tight_start(s) ? "" : sp)
-//          )
-//       |> ListUtil.map_first(s =>
-//            String.trim(s) ++ (tight_start(s) ? "" : sp)
-//          )
-//       |> ListUtil.map_last(s => (tight_end(s) ? "" : sp) ++ String.trim(s))
-//       |> mk_parens;
-//     let bin = (labels: list(string)) => op([""] @ labels @ [""]);
-//     let pre = (labels: list(string)) => op(labels @ [""]);
-//     let post = (labels: list(string)) => op([""] @ labels);
-//     let op_sg = (label: string) => [label];
-//     let bin_sg = (label: string) => bin([label]);
-//     let pre_sg = (label: string) => pre([label]);
-//     let post_sg = (label: string) => post([label]);
-//     switch (operation) {
-//     | Get(s) => (s |> op_sg, [])
-//     | VarOfPat(p) => ([] |> bin, [p])
-//     | TVarOfTPat(t) => ([] |> bin, [t])
-//     | HasType(x, t) => (":" |> bin_sg, [x, t])
-//     | Type(a) => ("type" |> post_sg, [a])
-//     | Fix(p, e) => (["fix", "→"] |> pre, [p, e])
-//     | Rec(t, a) => (["rec", "is"] |> pre, [t, a])
-//     | Glb(a, b) => (["glb(", ",", ")"] |> op, [a, b])
-//     | Subst((v, x), e) => (["「", "/", "」"] |> pre, [v, x, e])
-//     | SubstTy((t, a), e) => (["「", "/", "」"] |> pre, [t, a, e])
-//     | Cons(e, l) => ("," |> bin_sg, [l, e])
-//     | Neg(n) => ("-" |> pre_sg, [n])
-//     | Plus(n1, n2) => ("+" |> bin_sg, [n1, n2])
-//     | Minus(n1, n2) => ("-" |> bin_sg, [n1, n2])
-//     | Times(n1, n2) => ("×" |> bin_sg, [n1, n2])
-//     };
-//   };
-
-//   let rec show = (p, syntax) =>
-//     syntax
-//     |> repr(p)
-//     |> Aba.join(Fun.id, show(precedence(syntax)))
-//     |> String.concat("");
-
-//   let show = show(Precedence.min);
-
-//   let show_linked = show_linked(Precedence.min);
-
-// let repr = (~sp: string=" ", test: t): Aba.t(string, Operation.t) => {
-//   let op = labels =>
-//     labels
-//     |> List.map(s => sp ++ s ++ sp)
-//     |> ListUtil.map_first(s => String.trim(s))
-//     |> ListUtil.map_last(s => String.trim(s));
-//   let bin = (labels: list(string)) => op([""] @ labels @ [""]);
-//   let bin_sg = (label: string) => bin([label]);
-//   switch (test) {
-//   | Eq(a, b) => ("=" |> bin_sg, [a, b])
-//   | NotEq(a, b) => ("≠" |> bin_sg, [a, b])
-//   | Lt(a, b) => ("<" |> bin_sg, [a, b])
-//   | NotLt(a, b) => ("≥" |> bin_sg, [a, b])
-//   | Gt(a, b) => (">" |> bin_sg, [a, b])
-//   | NotGt(a, b) => ("≤" |> bin_sg, [a, b])
-//   | Mem(p, ctx) => ("∈" |> bin_sg, [p, ctx])
-//   | Subset(a, b) => ("⊆" |> bin_sg, [a, b])
-//   };
-// };
-
-// let show = syntax =>
-//   syntax |> repr |> Aba.join(Fun.id, Operation.show) |> String.concat("");
-
 type res = list(failure);
 
 let is_partial_correct: failure => option(specced) =
@@ -516,7 +400,7 @@ let __print_all_specs_and_tests = () => {
        let Spec.{concl, prems, tests} = of_spec(rule);
        List.iter(prem => print_endline("  " ++ Drv.Exp.show(prem)), prems);
        List.iter(
-         test => print_endline("  {Test} " ++ show_test(test)),
+         _test => print_endline("  {Test} "), // TODO(zhiyao): Enable printing of tests
          tests,
        );
        print_endline(

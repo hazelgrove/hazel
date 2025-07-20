@@ -64,14 +64,29 @@ module M =
     | Mem(t(exp_t, 'b), t(ctx_t, 'b)): term(bool, 'b)
     | Subset(t(ctx_t, 'b), t(ctx_t, 'b)): term(bool, 'b)
   and t('a, 'b) = W.t(term('a, 'b), 'b);
+
+  let show = (_, _, _) => failwith("not implemented");
+  let t_of_sexp = (_, _, _) => failwith("not implemented");
+  let sexp_of_t = (_, _, _) => failwith("not implemented");
+  let t_of_yojson = (_, _, _) => failwith("not implemented");
+  let yojson_of_t = (_, _, _) => failwith("not implemented");
+  let pp = (_, _, _, _) => failwith("not implemented");
+
+  let show_term = (_, _, _) => failwith("not implemented");
+  let term_of_sexp = (_, _, _) => failwith("not implemented");
+  let sexp_of_term = (_, _, _) => failwith("not implemented");
+  let term_of_yojson = (_, _, _) => failwith("not implemented");
+  let yojson_of_term = (_, _, _) => failwith("not implemented");
+  let pp_term = (_, _, _, _) => failwith("not implemented");
 };
 
 module M_Annotated = M(Annotated);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t('a) =  M_Annotated.t('a, IdTagged.IdTag.t);
+type t('a) = M_Annotated.t('a, IdTagged.IdTag.t);
+
 [@deriving (show({with_path: false}), sexp, yojson)]
-type term('a) =  M_Annotated.term('a, IdTagged.IdTag.t);
+type term('a) = M_Annotated.term('a, IdTagged.IdTag.t);
 
 
 let rec get_symbols: type a. t(a) => list(string) = {

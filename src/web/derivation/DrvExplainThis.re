@@ -10,7 +10,7 @@ let highlight = (msg: list(Node.t), id: Id.t, mapping: ColorSteps.t): Node.t => 
   Node.span(~attrs, msg);
 };
 
-let show =
+let exp_show =
     (syntax: Drv.Exp.t, ~color_map: ColorSteps.t, ~globals: Globals.t): Node.t => {
   let editor =
     Editor.Model.mk(
@@ -56,17 +56,44 @@ let show =
   );
 };
 
-let show_without_statics = (pretty: Segment.t, ~globals: Globals.t): Node.t => {
-  let editor = Editor.Model.mk(pretty |> Zipper.unzip, ~root=Drv(Jdmt));
-  CodeWithStatics.View.view(
-    ~globals,
-    ~sort=Drv(Jdmt),
-    {
-      editor,
-      statics: CachedStatics.empty,
-      dynamics: Dynamics.Map.empty,
-    },
-  );
+let test_show =
+    (
+      test: RuleFormula.t(bool),
+      ~color_map: ColorSteps.t,
+      ~globals: Globals.t,
+    )
+    : Node.t => {
+  switch (test.term) {
+  | Ignore(_) => Node.none
+  | _ =>
+    let editor =
+      Editor.Model.mk(
+        test |> ExpToSegment.drv_formula_to_pretty(_, Jdmt) |> Zipper.unzip,
+        ~root=Drv(Jdmt),
+      );
+    let highlight_deco = {
+      module Deco =
+        Deco.Deco({
+          let editor = editor;
+          let globals = {
+            ...globals,
+            color_highlights: Some(fst(color_map)),
+          };
+          let statics = CachedStatics.empty;
+        });
+      [Deco.color_highlights()];
+    };
+    CodeWithStatics.View.view(
+      ~globals,
+      ~overlays=highlight_deco,
+      ~sort=Drv(Jdmt),
+      {
+        editor,
+        statics: CachedStatics.empty,
+        dynamics: Dynamics.Map.empty,
+      },
+    );
+  };
 };
 
 let copy_color_map =
@@ -108,7 +135,7 @@ let conclusion_view =
     (~spec: Drv.Exp.t, ~color_map: ColorSteps.t, ~globals: Globals.t) =>
   Node.div(
     ~attrs=[Attr.class_("deduction-concl"), Attr.class_("drv-explainthis")],
-    [show(spec, ~color_map, ~globals)],
+    [exp_show(spec, ~color_map, ~globals)],
   );
 
 let rule_to_label =
@@ -139,7 +166,7 @@ let premises_view =
           spec =>
             Node.div(
               ~attrs=[Attr.class_("drv-explainthis")],
-              [show(spec, ~color_map, ~globals)],
+              [exp_show(spec, ~color_map, ~globals)],
             ),
           prems,
         )
@@ -147,18 +174,13 @@ let premises_view =
           Node.div(
             ~attrs=[Attr.class_("deduction-test")],
             List.map(
-              test =>
-                switch (test) {
-                | RuleSpec.Formula.Ignore(_) => Node.none
+              (test: RuleSpec.test) =>
+                switch (test.term) {
+                | Ignore(_) => Node.none
                 | _ =>
                   Node.div(
                     ~attrs=[Attr.class_("drv-explainthis")],
-                    [
-                      show_without_statics(
-                        ExpToSegment.drv_formula_to_pretty(test, Jdmt),
-                        ~globals,
-                      ),
-                    ],
+                    [test_show(test, ~color_map, ~globals)],
                   )
                 },
               tests,

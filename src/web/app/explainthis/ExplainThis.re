@@ -520,46 +520,72 @@ let get_doc_deduction =
     )
   | Some({res: Incorrect(failure), _}) =>
     fake_get_message(
-      if (globals.settings.explainThis.highlight == All) {
-        (
-          switch (failure) {
-          | Mismatch(expected, actual) =>
-            Printf.sprintf(
-              "Expected %d premises, but found %d",
-              expected,
-              actual,
-            )
-          | FailMatch((spec, _) as specced) =>
-            Printf.sprintf(
-              "Could not match the term %s against expected form %s",
-              RuleVerify.show_linked(specced),
-              spec |> Drv.Any.cls_of |> Drv.Any.show_cls,
-            )
-          | NotEqual(specced1, specced2) =>
-            Printf.sprintf(
-              "Matched terms %s and %s that should be equal were different",
-              RuleVerify.show_linked(specced1),
-              RuleVerify.show_linked(specced2),
-            )
-          | FailUnbox(specced, cls) =>
-            Printf.sprintf(
-              "Could not extract a %s from %s",
-              cls |> Drv.Any.show_cls,
-              RuleVerify.show_linked(specced),
-            )
-          | FailTest(_, test) =>
-            Printf.sprintf(
-              "Matched terms failed the test (hidden premise): %s",
-              test
-              |> ExpToSegment.drv_formula_to_pretty(_, DrvSort.Jdmt)
-              |> Printer.seg_to_string,
-            )
-          }
-        )
-        |> Printf.sprintf("❌ %s");
-      } else {
-        RuleVerify.failure_msg_vague(failure);
-      },
+      (
+        switch (failure) {
+        | Mismatch(expected, actual) =>
+          Printf.sprintf(
+            "Expected %d premises, but found %d",
+            expected,
+            actual,
+          )
+        | FailMatch((spec, _) as specced) =>
+          Printf.sprintf(
+            "Could not match the term %s against expected form %s",
+            RuleVerify.show_linked(specced),
+            spec |> Drv.Any.cls_of |> Drv.Any.show_cls,
+          )
+        | NotEqual(specced1, specced2) =>
+          Printf.sprintf(
+            "Matched terms %s and %s that should be equal were different",
+            RuleVerify.show_linked(specced1),
+            RuleVerify.show_linked(specced2),
+          )
+        | FailUnbox(specced, cls) =>
+          Printf.sprintf(
+            "Could not extract a %s from %s",
+            cls |> Drv.Any.show_cls,
+            RuleVerify.show_linked(specced),
+          )
+        | FailTest(map, test) =>
+          Printf.sprintf(
+            "Matched terms failed the test (hidden premise): %s",
+            test
+            |> ExpToSegment.drv_formula_to_pretty(_, DrvSort.Jdmt)
+            |> List.map(
+                 Base.map_piece(~f_piece=(cont, piece) => {
+                   switch (piece) {
+                   | Tile(
+                       {
+                         children: [],
+                         mold:
+                           {
+                             nibs: ({shape: Convex, _}, {shape: Convex, _}),
+                             _,
+                           },
+                         _,
+                       } as t,
+                     ) =>
+                     let label = t.label |> List.hd;
+                     let (_, syntax) = RuleVerify.Map.find(label, map);
+                     Tile({
+                       ...t,
+                       label: [
+                         Printf.sprintf(
+                           "[*%s*](%s)",
+                           label,
+                           syntax |> Drv.Any.rep_id |> Id.to_string,
+                         ),
+                       ],
+                     });
+                   | _ => cont(piece)
+                   }
+                 }),
+               )
+            |> Printer.seg_to_string,
+          )
+        }
+      )
+      |> Printf.sprintf("❌ %s"),
     )
   };
 };

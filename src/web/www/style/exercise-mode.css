@@ -583,6 +583,11 @@
   background: var(--BR1);
 }
 
+.version-select option {
+  color: var(--ui-text);
+  background: var(--BR1);
+}
+
 .version-select:hover {
   background: var(--BR2);
 }
