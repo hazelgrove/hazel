@@ -301,7 +301,7 @@ module Model = {
       | Some(next) =>
         let finalExpr = CoqExport.string_of_d(Calc.get_saved_exc(next.expr));
         Printf.sprintf(
-          "Require Import ZArith.\nOpen Scope Z_scope.\n%s\nTheorem equiv_exp:%s%s=%s.\nProof.\nintros.\n%s\nreflexivity. Qed.",
+          "From Stdlib Require Import ZArith.\nOpen Scope Z_scope.\n%s\nTheorem equiv_exp:%s%s=%s.\nProof.\nintros.\n%s\nreflexivity. Qed.",
           String.concat("\n", lemmas),
           forall_str,
           finalExpr,
