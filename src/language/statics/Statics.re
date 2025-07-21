@@ -1085,7 +1085,7 @@ and uexp_to_info_map =
           let ana_ty_fn = ((ty_fn1, ty_fn2), ty_p) => {
             Typ.make_ana(
               ty_p |> Typ.is_synswitch && !Typ.equal(ty_fn1, ty_fn2)
-                ? ty_fn1 : ty_p // TODO: Check make_ana makes sense in both situations here
+                ? ty_fn1 : ty_p,
             );
           };
           let ana =
@@ -1333,7 +1333,7 @@ and upat_to_info_map =
       ~ancestors: Info.ancestors,
       ~duplicates: list(string),
       ~expected_labels=?,
-      ~ana: Typ.t=Unknown(SynSwitch, Hole.temp(EmptyHole), Atom) |> Typ.temp,
+      ~ana: Typ.t=Unknown(Ana, Hole.temp(EmptyHole), Atom) |> Typ.temp,
       ~under_ascription: bool=false,
       ~override_self: option(Self.t)=?,
       ~inferred_label=?,
@@ -1867,7 +1867,8 @@ and upat_to_info_map =
       let (ann, m) = utyp_to_info_map(~ctx, ~ancestors, ann, m);
       let (p, m) =
         go(~ctx, ~under_ascription=true, ~ana=Typ.make_ana(ann.term), p, m);
-      add(~self=Just(ann.term), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
+      add(~self=Just(Typ.make_ana(ann.term)),
+       ~ctx=p.ctx, ~constraint_=p.constraint_, m);
     };
 
   // This is to allow lifting single values into a singleton labeled tuple when the label is not present

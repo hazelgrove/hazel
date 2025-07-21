@@ -209,10 +209,10 @@ let of_source = List.map((source: source) => source.ty);
          match_synswitch where required */
 let join_unknown_mode: ((mode, mode)) => mode =
   fun
-  | (Ana, _)
-  | (_, Ana) => Ana
   | (Syn, _)
   | (_, Syn) => Syn
+  | (Ana, _)
+  | (_, Ana) => Ana
   | (SynSwitch, SynSwitch) => SynSwitch;
 
 /* TODO: Think about joining provenances. (may not be required) */
