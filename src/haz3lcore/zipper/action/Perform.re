@@ -272,5 +272,6 @@ let go_z =
   | MoveToBackpackTarget((Up | Down) as d) =>
     Move.to_backpack_target(d, z)
     |> Result.of_option(~error=Action.Failure.Cant_move)
+  | TempReplace(segment) => Ok(Zipper.unzip(segment))
   };
 };

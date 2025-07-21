@@ -79,6 +79,7 @@ type paste =
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =
+  | TempReplace(Segment.t)
   | Reparse
   | Buffer(buffer)
   | Paste(paste)
@@ -123,6 +124,7 @@ module Result = {
 
 let is_edit: t => bool =
   fun
+  | TempReplace(_)
   | Paste(_)
   | Cut
   | Reparse
@@ -159,6 +161,7 @@ let is_historic: t => bool =
   | Unselect(_)
   | RotateBackpack
   | MoveToBackpackTarget(_) => false
+  | TempReplace(_)
   | Cut
   | Buffer(Accept | Clear | Set(_))
   | Paste(_)
@@ -185,6 +188,7 @@ let prevent_in_read_only_editor = (a: t) => {
   | Unselect(_)
   | Jump(_)
   | Select(_) => false
+  | TempReplace(_)
   | Buffer(Set(_) | Accept | Clear)
   | Cut
   | Paste(_)
@@ -222,6 +226,7 @@ let should_animate: t => bool =
     | Tile(_)
     | Term(_) => true
     }
+  | TempReplace(_)
   | Unselect(_)
   | Paste(_)
   | Cut

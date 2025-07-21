@@ -1,12 +1,6 @@
 open Util;
 include ZipperBase;
 
-[@deriving (show({with_path: false}), sexp, yojson, eq, ord)]
-type id = {
-  uuid: Id.t,
-  index: int,
-};
-
 module Flat = {
   type tile = {
     id: Id.t,
@@ -28,9 +22,9 @@ module Doc = {
   };
 };
 
-let root_form = Form.get(ParensExp);
-// let root_tile = Piece.mk_tile(Form.get(ParensExp), []);
 let seg_to_doc = (seg: Segment.t): Doc.t => {
+  let root_form = Form.get(ParensExp);
+
   let rec go_seg = (seg: Segment.t): Doc.t => {
     seg |> List.map(go_piece) |> Doc.union_all;
   }
@@ -40,19 +34,19 @@ let seg_to_doc = (seg: Segment.t): Doc.t => {
     | Secondary(secondary) =>
       Doc.singleton(secondary.id, Flat.Secondary(secondary))
     | Grout(grout) => Doc.singleton(grout.id, Flat.Grout(grout))
-    | Tile(tile) =>
+    | Tile({id, label, mold, shards, children}) =>
       let flat_tile =
         Flat.{
-          id: tile.id,
-          label: tile.label,
-          mold: tile.mold,
-          shards: tile.shards,
-          children: tile.children |> List.map(List.map(Piece.id)),
+          id,
+          label,
+          mold,
+          shards,
+          children: children |> List.map(List.map(Piece.id)),
         };
-      tile.children
+      children
       |> List.map(go_seg)
       |> Doc.union_all
-      |> Doc.add(tile.id, Flat.Tile(flat_tile));
+      |> Doc.add(id, Flat.Tile(flat_tile));
     };
   };
 
@@ -96,6 +90,12 @@ let doc_to_seg = (doc: Doc.t): Segment.t => {
 
   go_seg(root_seg_ids);
 };
+
+// [@deriving (show({with_path: false}), sexp, yojson, eq, ord)]
+// type id = {
+//   uuid: Id.t,
+//   index: int,
+// };
 
 // module IdMap =
 //   MapUtil.Make({

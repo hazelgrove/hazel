@@ -81,9 +81,16 @@ let listen = (): unit => {
 //   send_to_parent(message);
 // };
 
-let send_state = (state: HazelDoc.t): unit => {
+let send_state = (map: AutoSeg.Doc.t): unit => {
+  let hd =
+    Delta.HazelDoc.AnonymousInterface0.create(
+      ~title="",
+      ~tiles=map,
+      ~root=Delta.TileId.t_to_js(Id.invalid),
+      (),
+    );
   let message =
-    EditorState.t_to_js(EditorState.create(~t=`L_s3_state, ~state, ()));
+    EditorState.t_to_js(EditorState.create(~t=`L_s3_state, ~state=hd, ()));
   send_to_parent(message);
 };
 
