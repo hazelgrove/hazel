@@ -1,4 +1,4 @@
-import type { EditScript } from "./delta";
+import type { HazelDoc } from "./delta";
 
 export interface Init {
   t: "init";
@@ -15,10 +15,10 @@ export interface Pong {
   message: string;
 }
 
-export interface EditorDelta {
-  t: "delta";
-  delta: EditScript;
+export interface EditorState {
+  t: "state";
+  state: HazelDoc;
 }
 
-export type HazelToParent = Init | Ping | Pong | EditorDelta;
-export type ParentToHazel = Init | Ping | Pong | EditorDelta;
+export type HazelToParent = Init | Ping | Pong | EditorState;
+export type ParentToHazel = Init | Ping | Pong | EditorState;

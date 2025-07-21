@@ -7,13 +7,6 @@ type id = {
   index: int,
 };
 
-// module IdMap =
-//   MapUtil.Make({
-//     [@deriving (show({with_path: false}), sexp, yojson, eq, ord)]
-//     type t = id;
-//     let compare = compare;
-//   });
-
 module Flat = {
   type tile = {
     id: Id.t,
@@ -31,6 +24,41 @@ module Doc = {
   include Id.Map;
   type nonrec t = t(Flat.piece);
 };
+
+let doc_to_seg = (doc: Doc.t): Segment.t => {
+  let root_seg_ids =
+    switch (Doc.find_opt(Id.invalid, doc)) {
+    | Some(Tile({children: [children], _})) => children
+    | _ => failwith("Root not found")
+    };
+  let rec go_seg = (seg_ids: list(Id.t)): Segment.t => {
+    List.map(go_piece, seg_ids);
+  }
+  and go_piece = (piece_id: Id.t): Base.piece => {
+    switch (Doc.find_opt(piece_id, doc)) {
+    | Some(Tile({id, label, mold, shards, children})) =>
+      Tile({
+        id,
+        label,
+        mold,
+        shards,
+        children: List.map(go_seg, children),
+      })
+    | Some(Grout(grout)) => Grout(grout)
+    | Some(Secondary(secondary)) => Secondary(secondary)
+    | None => failwith("Piece not found: " ++ Id.show(piece_id))
+    };
+  };
+
+  go_seg(root_seg_ids);
+};
+
+// module IdMap =
+//   MapUtil.Make({
+//     [@deriving (show({with_path: false}), sexp, yojson, eq, ord)]
+//     type t = id;
+//     let compare = compare;
+//   });
 
 // [@deriving (show({with_path: false}), sexp, yojson, eq)]
 // type segment = list(piece)

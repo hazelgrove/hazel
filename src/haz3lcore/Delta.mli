@@ -4,8 +4,18 @@
 open Ts2ocaml
 open Ts2ocaml.Dom
 
+module UUID : sig
+  type t = string
+  type t_0 = t
+
+  val t_to_js : t -> Ojs.t
+  val t_of_js : Ojs.t -> t
+  val t_0_to_js : t_0 -> Ojs.t
+  val t_0_of_js : Ojs.t -> t_0
+end
+
 module Sort : sig
-  type t = ([ `L_s3_Exp [@js "Exp"] ][@js.enum])
+  type t = ([ `L_s2_Exp [@js "Exp"] ][@js.enum])
   type t_0 = t
 
   val t_to_js : t -> Ojs.t
@@ -88,16 +98,6 @@ module Mold : sig
   val cast_from : 'tags this -> t [@@js.custom let cast_from = Obj.magic]
 end
 
-module UUID : sig
-  type t = string
-  type t_0 = t
-
-  val t_to_js : t -> Ojs.t
-  val t_of_js : Ojs.t -> t
-  val t_0_to_js : t_0 -> Ojs.t
-  val t_0_of_js : Ojs.t -> t_0
-end
-
 module Tile : sig
   type t = [ `Tile ] intf [@@js.custom { of_js = Obj.magic; to_js = Obj.magic }]
   type t_0 = t
@@ -120,7 +120,7 @@ module Tile : sig
   val t_0_to_js : t_0 -> Ojs.t
   val t_0_of_js : Ojs.t -> t_0
 
-  val get_t : 'tags this -> ([ `L_s8_Tile [@js "Tile"] ][@js.enum])
+  val get_t : 'tags this -> ([ `L_s5_Tile [@js "Tile"] ][@js.enum])
   [@@js.get "t"]
 
   val get_id : 'tags this -> UUID.t [@@js.get "id"]
@@ -130,55 +130,12 @@ module Tile : sig
   val get_children : 'tags this -> t list [@@js.get "children"]
 
   val create :
-    t:([ `L_s8_Tile [@js "Tile"] ][@js.enum]) ->
+    t:([ `L_s5_Tile [@js "Tile"] ][@js.enum]) ->
     id:UUID.t ->
     label:string list ->
     mold:Mold.t ->
     shards:float list ->
     children:t list ->
-    unit ->
-    t
-  [@@js.builder]
-
-  val cast_from : 'tags this -> t [@@js.custom let cast_from = Obj.magic]
-end
-
-module InsertOp : sig
-  type t = [ `InsertOp ] intf
-  [@@js.custom { of_js = Obj.magic; to_js = Obj.magic }]
-
-  type t_0 = t
-
-  [@@@js.stop]
-
-  type tags = [ `InsertOp ]
-  type tags_0 = tags
-
-  [@@@js.start]
-
-  [@@@js.implem
-  type tags = [ `InsertOp ]
-  type tags_0 = tags]
-
-  type 'tags this = 'tags intf constraint 'tags = [> `InsertOp ]
-
-  val t_to_js : t -> Ojs.t
-  val t_of_js : Ojs.t -> t
-  val t_0_to_js : t_0 -> Ojs.t
-  val t_0_of_js : Ojs.t -> t_0
-
-  val get_t : 'tags this -> ([ `L_s5_Insert [@js "Insert"] ][@js.enum])
-  [@@js.get "t"]
-
-  val get_uuid : 'tags this -> UUID.t [@@js.get "uuid"]
-  val get_index : 'tags this -> float [@@js.get "index"]
-  val get_tiles : 'tags this -> Tile.t list [@@js.get "tiles"]
-
-  val create :
-    t:([ `L_s5_Insert [@js "Insert"] ][@js.enum]) ->
-    uuid:UUID.t ->
-    index:float ->
-    tiles:Tile.t list ->
     unit ->
     t
   [@@js.builder]
@@ -212,7 +169,7 @@ module SecondaryContent : sig
 
   val get_t :
     'tags this ->
-    ([ `L_s0_Comment [@js "Comment"] | `L_s9_Whitespace [@js "Whitespace"] ]
+    ([ `L_s0_Comment [@js "Comment"] | `L_s6_Whitespace [@js "Whitespace"] ]
     [@js.enum])
   [@@js.get "t"]
 
@@ -220,7 +177,7 @@ module SecondaryContent : sig
 
   val create :
     t:
-      ([ `L_s0_Comment [@js "Comment"] | `L_s9_Whitespace [@js "Whitespace"] ]
+      ([ `L_s0_Comment [@js "Comment"] | `L_s6_Whitespace [@js "Whitespace"] ]
       [@js.enum]) ->
     content:string ->
     unit ->
@@ -254,14 +211,14 @@ module Secondary : sig
   val t_0_to_js : t_0 -> Ojs.t
   val t_0_of_js : Ojs.t -> t_0
 
-  val get_t : 'tags this -> ([ `L_s7_Secondary [@js "Secondary"] ][@js.enum])
+  val get_t : 'tags this -> ([ `L_s4_Secondary [@js "Secondary"] ][@js.enum])
   [@@js.get "t"]
 
   val get_id : 'tags this -> UUID.t [@@js.get "id"]
   val get_content : 'tags this -> SecondaryContent.t [@@js.get "content"]
 
   val create :
-    t:([ `L_s7_Secondary [@js "Secondary"] ][@js.enum]) ->
+    t:([ `L_s4_Secondary [@js "Secondary"] ][@js.enum]) ->
     id:UUID.t ->
     content:SecondaryContent.t ->
     unit ->
@@ -295,14 +252,14 @@ module Grout : sig
   val t_0_to_js : t_0 -> Ojs.t
   val t_0_of_js : Ojs.t -> t_0
 
-  val get_t : 'tags this -> ([ `L_s4_Grout [@js "Grout"] ][@js.enum])
+  val get_t : 'tags this -> ([ `L_s3_Grout [@js "Grout"] ][@js.enum])
   [@@js.get "t"]
 
   val get_id : 'tags this -> UUID.t [@@js.get "id"]
   val get_shape : 'tags this -> Shape.t [@@js.get "shape"]
 
   val create :
-    t:([ `L_s4_Grout [@js "Grout"] ][@js.enum]) ->
+    t:([ `L_s3_Grout [@js "Grout"] ][@js.enum]) ->
     id:UUID.t ->
     shape:Shape.t ->
     unit ->
@@ -346,7 +303,7 @@ module FlatTile : sig
   val t_0_to_js : t_0 -> Ojs.t
   val t_0_of_js : Ojs.t -> t_0
 
-  val get_t : 'tags this -> ([ `L_s8_Tile [@js "Tile"] ][@js.enum])
+  val get_t : 'tags this -> ([ `L_s5_Tile [@js "Tile"] ][@js.enum])
   [@@js.get "t"]
 
   val get_id : 'tags this -> TileId.t [@@js.get "id"]
@@ -356,7 +313,7 @@ module FlatTile : sig
   val get_children : 'tags this -> TileId.t list list [@@js.get "children"]
 
   val create :
-    t:([ `L_s8_Tile [@js "Tile"] ][@js.enum]) ->
+    t:([ `L_s5_Tile [@js "Tile"] ][@js.enum]) ->
     id:TileId.t ->
     label:string list ->
     mold:Mold.t ->
@@ -371,9 +328,9 @@ end
 
 module FlatPiece : sig
   type t =
-    ([ `U_s4_Grout of Grout.t [@js "Grout"]
-     | `U_s7_Secondary of Secondary.t [@js "Secondary"]
-     | `U_s8_Tile of FlatTile.t [@js "Tile"] ]
+    ([ `U_s3_Grout of Grout.t [@js "Grout"]
+     | `U_s4_Secondary of Secondary.t [@js "Secondary"]
+     | `U_s5_Tile of FlatTile.t [@js "Tile"] ]
     [@js.union on_field "t"])
 
   type t_0 = t
@@ -418,106 +375,6 @@ module HazelDoc : sig
   val t_0_of_js : Ojs.t -> t_0
 end
 
-module ReplaceOp : sig
-  type t = [ `ReplaceOp ] intf
-  [@@js.custom { of_js = Obj.magic; to_js = Obj.magic }]
-
-  type t_0 = t
-
-  [@@@js.stop]
-
-  type tags = [ `ReplaceOp ]
-  type tags_0 = tags
-
-  [@@@js.start]
-
-  [@@@js.implem
-  type tags = [ `ReplaceOp ]
-  type tags_0 = tags]
-
-  type 'tags this = 'tags intf constraint 'tags = [> `ReplaceOp ]
-
-  val t_to_js : t -> Ojs.t
-  val t_of_js : Ojs.t -> t
-  val t_0_to_js : t_0 -> Ojs.t
-  val t_0_of_js : Ojs.t -> t_0
-
-  val get_t : 'tags this -> ([ `L_s6_Replace [@js "Replace"] ][@js.enum])
-  [@@js.get "t"]
-
-  val get_content : 'tags this -> HazelDoc.t [@@js.get "content"]
-
-  val create :
-    t:([ `L_s6_Replace [@js "Replace"] ][@js.enum]) ->
-    content:HazelDoc.t ->
-    unit ->
-    t
-  [@@js.builder]
-
-  val cast_from : 'tags this -> t [@@js.custom let cast_from = Obj.magic]
-end
-
-module EditOp : sig
-  type t = ReplaceOp.t
-  type t_0 = t
-
-  val t_to_js : t -> Ojs.t
-  val t_of_js : Ojs.t -> t
-  val t_0_to_js : t_0 -> Ojs.t
-  val t_0_of_js : Ojs.t -> t_0
-end
-
-module EditScript : sig
-  type t = EditOp.t list
-  type t_0 = t
-
-  val t_to_js : t -> Ojs.t
-  val t_of_js : Ojs.t -> t
-  val t_0_to_js : t_0 -> Ojs.t
-  val t_0_of_js : Ojs.t -> t_0
-end
-
-module DeleteOp : sig
-  type t = [ `DeleteOp ] intf
-  [@@js.custom { of_js = Obj.magic; to_js = Obj.magic }]
-
-  type t_0 = t
-
-  [@@@js.stop]
-
-  type tags = [ `DeleteOp ]
-  type tags_0 = tags
-
-  [@@@js.start]
-
-  [@@@js.implem
-  type tags = [ `DeleteOp ]
-  type tags_0 = tags]
-
-  type 'tags this = 'tags intf constraint 'tags = [> `DeleteOp ]
-
-  val t_to_js : t -> Ojs.t
-  val t_of_js : Ojs.t -> t
-  val t_0_to_js : t_0 -> Ojs.t
-  val t_0_of_js : Ojs.t -> t_0
-
-  val get_t : 'tags this -> ([ `L_s2_Delete [@js "Delete"] ][@js.enum])
-  [@@js.get "t"]
-
-  val get_uuid : 'tags this -> UUID.t [@@js.get "uuid"]
-  val get_index : 'tags this -> float [@@js.get "index"]
-
-  val create :
-    t:([ `L_s2_Delete [@js "Delete"] ][@js.enum]) ->
-    uuid:UUID.t ->
-    index:float ->
-    unit ->
-    t
-  [@@js.builder]
-
-  val cast_from : 'tags this -> t [@@js.custom let cast_from = Obj.magic]
-end
-
 module Export : sig
   (* export type TileId *)
   [@@@js.stop]
@@ -550,12 +407,4 @@ module Export : sig
 
   [@@@js.start]
   [@@@js.implem module HazelDoc = HazelDoc]
-
-  (* export type EditScript *)
-  [@@@js.stop]
-
-  module EditScript = EditScript
-
-  [@@@js.start]
-  [@@@js.implem module EditScript = EditScript]
 end

@@ -56,24 +56,23 @@ export type HazelDoc = {
     root: TileId;
 }
 
-interface DeleteOp {
-  readonly t: "Delete";
-  readonly uuid: UUID;
-  readonly index: number;
-}
+// interface DeleteOp {
+//   readonly t: "Delete";
+//   readonly uuid: UUID;
+//   readonly index: number;
+// }
 
-interface InsertOp {
-  readonly t: "Insert";
-  readonly uuid: UUID;
-  readonly index: number;
-  readonly tiles: Tile[];
-}
+// interface InsertOp {
+//   readonly t: "Insert";
+//   readonly uuid: UUID;
+//   readonly index: number;
+//   readonly tiles: Tile[];
+// }
+// interface ReplaceOp extends EditOp {
+//   readonly t: "Replace";
+//   readonly content: HazelDoc;
+// }
 
-interface ReplaceOp {
-  readonly t: "Replace";
-  readonly content: HazelDoc;
-}
+// type EditOp = DeleteOp | InsertOp | ReplaceOp;
 
-// type EditOp = DeleteOp | InsertOp;
-type EditOp = ReplaceOp;
-export type EditScript = EditOp[];
+// export type EditScript = EditOp[];
