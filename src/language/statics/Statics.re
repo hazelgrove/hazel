@@ -1581,7 +1581,7 @@ and upat_to_info_map =
     | Var(name) =>
       /* NOTE: The self type assigned to pattern variables (Unknown)
          may be SynSwitch, but SynSwitch is never added to the context;
-         Unknown(Syn, ...) is used in this case */
+         Unknown(Expr, ...) is used in this case */
       let ctx_typ =
         Info.fixed_typ_pat(
           ctx,

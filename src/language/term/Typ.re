@@ -199,12 +199,12 @@ type source = {
 /* Strip location information from a list of sources */
 let of_source = List.map((source: source) => source.ty);
 
-/* Expr > Type > SynSwitch
+/* Type > Expr > SynSwitch
 
    Note: Joining SynSwitches does NOT make semantic sense, we do not yet know if such a join is possible,
          it is dependent on how the SynSwitches are matched.
 
-         SynSwitch > Expr > Type makes more intuitive sense as it _might_ contain more type info when synswitch
+         SynSwitch > Type > Expr makes more intuitive sense as it _might_ contain more type info when synswitch
          is matched.
 
          But, the current logic uses join to match SynSwitches during Info.status_common.
@@ -212,10 +212,10 @@ let of_source = List.map((source: source) => source.ty);
          match_synswitch where required */
 let join_unknown_mode: ((mode, mode)) => mode =
   fun
-  | (Expr, _)
-  | (_, Expr) => Expr
   | (Type, _)
   | (_, Type) => Type
+  | (Expr, _)
+  | (_, Expr) => Expr
   | (SynSwitch, SynSwitch) => SynSwitch;
 
 /* TODO: Think about joining provenances. (may not be required) */

@@ -394,7 +394,9 @@ let status_common =
   switch (self, ty_ana) {
   | (Just(ty), {term: Unknown(SynSwitch, _, _), _}) => NotInHole(Syn(ty))
   | (Just(ty), {term: Unknown(Type, h, p), _}) when !Typ.is_unknown(ty) =>
-    InHole(AsymmetricUnknown(ty, h, p)) /* Disallow analysing against ?_t except for terms synthesising ? */
+    InHole(AsymmetricUnknown(ty, h, p)) /* Disallow analysing ty against ?_t except for ty = ? */
+  | (Just({term: Unknown(Type, h, p), _}), ty) when !Typ.is_unknown(ty) =>
+    InHole(AsymmetricUnknown(ty, h, p)) /* Disallow analysing ?_t against ty except for ty = ? */
   | (Just(syn), ana) =>
     switch (
       Typ.join(
