@@ -112,15 +112,7 @@ type ok_ana =
       ana: Typ.t,
       syn: Typ.t,
       join: Typ.t,
-    })
-  /* A match expression or list literal which, in synthetic position,
-     would be marked as internally inconsistent, but is considered
-     fine as the expected type provides a consistent lower bound
-     (often Unknown) for the types of the branches/elements */
-  | InternallyInconsistent({
-      ana: Typ.t,
-      nojoin: list(Typ.t),
-    }); // TODO: remove
+    });
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type ok_common =
@@ -501,41 +493,29 @@ let status_common =
     ) // TODO: track multihole, or just remove arg entirely
   | (NoJoin(_, tys), {term: Unknown(SynSwitch, _, _), _}) =>
     InHole(Inconsistent(Internal(Typ.of_source(tys))))
-  | (NoJoin(wrap, tys), ana) =>
+  | (NoJoin(wrap, _), ana) =>
     let syn: Typ.t =
       Self.join_of(
         wrap,
         Unknown(Syn, Hole.temp(EmptyHole), Atom) |> Typ.temp,
       );
-    switch (Typ.join(ctx, ana, syn)) {
-    | None =>
-      switch (ana.term, syn.term) {
-      | (Label(_), Label(_)) =>
-        InHole(
-          Inconsistent(
-            Expectation({
-              ana,
-              syn,
-            }),
-          ),
-        )
-      | (Label(_), _) => InHole(NoType(BadLabel(Typ(syn))))
-      | _ =>
-        InHole(
-          Inconsistent(
-            Expectation({
-              ana,
-              syn,
-            }),
-          ),
-        )
-      }
-    | Some(_) =>
-      NotInHole(
-        Ana(
-          InternallyInconsistent({
+    switch (ana.term, syn.term) {
+    | (Label(_), Label(_)) =>
+      InHole(
+        Inconsistent(
+          Expectation({
             ana,
-            nojoin: Typ.of_source(tys),
+            syn,
+          }),
+        ),
+      )
+    | (Label(_), _) => InHole(NoType(BadLabel(Typ(syn))))
+    | _ =>
+      InHole(
+        Inconsistent(
+          Expectation({
+            ana,
+            syn,
           }),
         ),
       )
@@ -797,8 +777,7 @@ let is_error = (ci: t): bool => {
 let fixed_typ_ok: ok_pat => Typ.t =
   fun
   | Syn(syn) => syn
-  | Ana(Consistent({join, _})) => join
-  | Ana(InternallyInconsistent({ana, _})) => ana;
+  | Ana(Consistent({join, _})) => join;
 
 let fixed_typ_err_common = (error_common, ids) =>
   switch (error_common) {
