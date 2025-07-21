@@ -582,7 +582,7 @@ module View = {
         Icons.export,
         signal(CoqExport),
         ~disabled=false,
-        ~tooltip="Prove a forall",
+        ~tooltip="Export steps as Coq proof",
       );
     let button_hide_stepper =
       Widgets.toggle(~tooltip="Show Stepper", "s", true, _ =>
