@@ -16,3 +16,13 @@ let temp: term => t =
       ids: [Id.invalid],
     },
   };
+
+let env_to_entries = (env: Environment.t): list(t) =>
+  Environment.to_listo(env)
+  |> List.map(((s, entry)) => {
+       Grammar.ValBinding(
+         (Grammar.Var(s): Grammar.pat_term('a)) |> IdTagged.fresh,
+         entry,
+       )
+       |> IdTagged.fresh
+     });

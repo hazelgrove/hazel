@@ -314,17 +314,8 @@ and Exp: {
         | Module({final, todo}) =>
           Module({
             final:
-              List.map(
-                entry =>
-                  ModuleEntry.map_term(
-                    ~f_exp,
-                    ~f_pat,
-                    ~f_typ,
-                    ~f_tpat,
-                    ~f_rul,
-                    ~f_any,
-                    entry,
-                  ),
+              VarBstMap.Ordered.mapo(
+                ((_, entry)) => exp_map_term(entry),
                 final,
               ),
             todo:
@@ -360,9 +351,13 @@ and Exp: {
     let fast_equal = fast_equal(~ignore_constructor_types);
     switch (e1 |> Grammar.Annotated.term_of, e2 |> Grammar.Annotated.term_of) {
     | (Module({final, todo}), Module({final: final', todo: todo'})) =>
-      List.length(final) == List.length(final')
+      Environment.length(final) == Environment.length(final')
       && List.length(todo) == List.length(todo')
-      && List.equal(ModuleEntry.fast_equal, final, final')
+      && List.equal(
+           ((s1, e1), (s2, e2)) => s1 == s2 && fast_equal(e1, e2),
+           Environment.to_listo(final),
+           Environment.to_listo(final'),
+         )
       && List.equal(ModuleEntry.fast_equal, todo, todo')
     | (DynamicErrorHole(x, _), _)
     | (Parens(x), _) => fast_equal(x, e2)
