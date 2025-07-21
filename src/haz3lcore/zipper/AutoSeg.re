@@ -30,6 +30,50 @@ module Flat = {
 module Doc = {
   include Id.Map;
   type nonrec t = t(Flat.piece);
+  let union_all = (docs: list(t)): t => {
+    List.fold_left(union((_, _, a) => Some(a)), empty, docs);
+  };
+};
+
+let root_form = Form.get(ParensExp);
+// let root_tile = Piece.mk_tile(Form.get(ParensExp), []);
+let seg_to_doc = (seg: Segment.t): Doc.t => {
+  let rec go_seg = (seg: Segment.t): Doc.t => {
+    seg |> List.map(go_piece) |> Doc.union_all;
+  }
+  and go_piece = (piece: Piece.t): Doc.t => {
+    switch (piece) {
+    | Projector(_) => Doc.empty
+    | Secondary(secondary) =>
+      Doc.singleton(secondary.id, Flat.Secondary(secondary))
+    | Grout(grout) => Doc.singleton(grout.id, Flat.Grout(grout))
+    | Tile(tile) =>
+      let flat_tile =
+        Flat.{
+          id: tile.id,
+          label: tile.label,
+          mold: tile.mold,
+          shards: tile.shards,
+          children: tile.children |> List.map(List.map(Piece.id)),
+        };
+      tile.children
+      |> List.map(go_seg)
+      |> Doc.union_all
+      |> Doc.add(tile.id, Flat.Tile(flat_tile));
+    };
+  };
+
+  go_seg(seg)
+  |> Doc.add(
+       Id.invalid,
+       Flat.Tile({
+         id: Id.invalid,
+         label: root_form.label,
+         mold: root_form.mold,
+         shards: [0, 1],
+         children: [List.map(Piece.id, seg)],
+       }),
+     );
 };
 
 // [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -105,30 +149,6 @@ module Doc = {
 // let root = {
 //   uuid: Id.invalid,
 //   index: 0,
-// };
-
-let seg_to_auto_seg = (~id=?, seg: Segment.t): Doc.t => failwith("todo");
-// let seg_to_auto_seg = (~id=root, seg: Segment.t): IdMap.t(segment) => {
-//   let rec go =
-//           (id: id, acc: IdMap.t(segment), seg: Segment.t): IdMap.t(segment) => {
-//     let auto_seg = List.map(piece_to_auto_piece, seg);
-//     let acc = IdMap.add(id, auto_seg, acc);
-
-//     // Recursively process child segments from tiles
-//     List.fold_left(
-//       (acc, (index, piece)) => {
-//         switch (piece) {
-//         | Base.Tile(tile) =>
-//           List.fold_left(go(mk_id(index, tile.id)), acc, tile.children)
-//         | _ => acc
-//         }
-//       },
-//       acc,
-//       List.mapi((i, p) => (i, p), seg),
-//     );
-//   };
-
-//   go(id, IdMap.empty, seg);
 // };
 
 // let rec auto_piece_to_piece = (auto_seg: t, piece: piece): Base.piece => {
