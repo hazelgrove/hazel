@@ -53,7 +53,7 @@ export type FlatPiece = FlatTile | Grout | Secondary;
 export type HazelDoc = {
     title: string;
     tiles: Map<TileId, FlatPiece>;
-    root: TileId;
+    //root: TileId;
 }
 
 // interface DeleteOp {

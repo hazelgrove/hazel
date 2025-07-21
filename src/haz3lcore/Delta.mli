@@ -354,15 +354,8 @@ module HazelDoc : sig
     val set_tiles : t -> (TileId.t, FlatPiece.t) Map.t_2 -> unit
     [@@js.set "tiles"]
 
-    val get_root : t -> TileId.t [@@js.get "root"]
-    val set_root : t -> TileId.t -> unit [@@js.set "root"]
-
     val create :
-      title:string ->
-      tiles:(TileId.t, FlatPiece.t) Map.t_2 ->
-      root:TileId.t ->
-      unit ->
-      t
+      title:string -> tiles:(TileId.t, FlatPiece.t) Map.t_2 -> unit -> t
     [@@js.builder]
   end
 
