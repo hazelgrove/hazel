@@ -229,6 +229,31 @@ module F = (Stepper: STEPPER) => {
             WebUtil.Node.text(" : "),
           ],
         ),
+        WebUtil.div_c(
+          "induction-case-hypotheses",
+          List.flatten(
+            List.map(
+              x =>
+                [
+                  CodeViewable.view_segment(
+                    ~globals,
+                    ~sort=Exp,
+                    ~shape_map=ProjectorCore.Shape.Map.empty,
+                    ExpToSegment.exp_to_segment(
+                      ~settings=
+                        ExpToSegment.Settings.of_core(
+                          ~inline=true,
+                          globals.settings.core,
+                        ),
+                      x,
+                    ),
+                  ),
+                  WebUtil.Node.text(", "),
+                ],
+              model.hypo_points |> Calc.get_saved_exc,
+            ),
+          ),
+        ),
       ]
       @ stepper_view,
     );
