@@ -436,10 +436,10 @@ let infix_delimiter_ops_prefixes: list(string) =
        switch ((form.mold.nibs |> snd).shape) {
        //TODO(andrew): decide how picky to be
        | _ when List.length(form.label) >= 2 => Some(form.label)
-       | Convex when List.length(form.label) >= 3 =>
-         Some(form.label |> ListUtil.split_last |> fst |> List.tl)
-       | Concave(_) when List.length(form.label) >= 2 =>
-         Some(List.tl(form.label))
+       //  | Convex when List.length(form.label) >= 3 =>
+       //    Some(form.label |> ListUtil.split_last |> fst |> List.tl)
+       //  | Concave(_) when List.length(form.label) >= 2 =>
+       //    Some(List.tl(form.label))
        | _ => None
        };
      })
@@ -451,6 +451,40 @@ let infix_delimiter_ops_prefixes: list(string) =
 
 let is_infix_delimiter_op_prefix = t =>
   List.mem(t, infix_delimiter_ops_prefixes);
+
+/* Find tokens that appear both as single-token labels and in other forms' labels */
+let amiguous_polymorphs: list(string) = {
+  /* Extract all single-token labels */
+  let single_token_labels =
+    forms
+    |> List.filter_map(((_, {label, _})) =>
+         switch (label) {
+         | [token] => Some(token)
+         | _ => None
+         }
+       )
+    |> List.sort_uniq(String.compare);
+
+  /* Check if a token appears in any form other than its single-token form */
+  let appears_in_other_forms = (target_token: string): bool => {
+    forms
+    |> List.exists(((_, {label, _})) =>
+         switch (label) {
+         | [token] when token == target_token => false /* Skip the single-token form */
+         | label => List.mem(target_token, label) /* Check if token appears elsewhere */
+         }
+       );
+  };
+
+  single_token_labels |> List.filter(appears_in_other_forms);
+};
+//TODO(andrew): cleanup
+print_endline("amiguous_polymorphs:");
+print_endline(
+  amiguous_polymorphs
+  |> List.map(s => Printf.sprintf("\"%s\"", s))
+  |> String.concat(", "),
+);
 
 let delims: list(Token.t) =
   forms
