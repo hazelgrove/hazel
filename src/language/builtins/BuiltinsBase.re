@@ -452,6 +452,17 @@ let string_fns: list(BuiltinsUtil.fn) = [
         );
       }),
   },
+  {
+    name: "regex_match",
+    arg: Prod([string(), string()]),
+    ret: Atom(Bool),
+    imp:
+      binary((d1, d2) => {
+        let-unbox regexp = (Atom(RegExp), d1);
+        let-unbox str = (Atom(String), d2);
+        Some(Exp.bool(StringUtil.match(regexp, str)));
+      }),
+  },
 ];
 
 let pair_fns: list(BuiltinsUtil.fn) = [

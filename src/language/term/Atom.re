@@ -9,7 +9,8 @@ type cls =
   | Nat
   | Float
   | Bool
-  | String;
+  | String
+  | RegExp;
 
 /* This type is like cls, but each variant is associated with a type, allowing
    us to use the ocaml type checker to check we're using payloads correctly */
@@ -19,7 +20,8 @@ type kind('a) =
   | Nat: kind(Bigint.t)
   | Float: kind(float)
   | Bool: kind(bool)
-  | String: kind(string);
+  | String: kind(string)
+  | RegExp: kind(StringUtil.regexp);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =
@@ -32,7 +34,8 @@ type t =
         [@equal (a, b) => Printf.(sprintf("%f", a) == sprintf("%f", b))] float,
       )
   | Bool(bool)
-  | String(string);
+  | String(string)
+  | RegExp(StringUtil.regexp);
 
 let cls_of_kind = (type a, kind: kind(a)): cls =>
   switch (kind) {
@@ -42,6 +45,7 @@ let cls_of_kind = (type a, kind: kind(a)): cls =>
   | Float => Float
   | Bool => Bool
   | String => String
+  | RegExp => RegExp
   };
 
 let cls_of_t: t => cls =
@@ -51,7 +55,8 @@ let cls_of_t: t => cls =
   | Nat(_) => Nat
   | Float(_) => Float
   | Bool(_) => Bool
-  | String(_) => String;
+  | String(_) => String
+  | RegExp(_) => RegExp;
 
 let cls_string_lower: cls => string =
   fun
@@ -60,7 +65,8 @@ let cls_string_lower: cls => string =
   | Nat => "nat"
   | Float => "float"
   | Bool => "bool"
-  | String => "string";
+  | String => "string"
+  | RegExp => "regexp";
 
 /* ========== MATCHING ========== */
 
@@ -78,6 +84,8 @@ let unbox = (type a, request: kind(a), e: t): option(a) =>
   | (Bool, _) => None
   | (String, String(s)) => Some(s)
   | (String, _) => None
+  | (RegExp, RegExp(r)) => Some(r)
+  | (RegExp, _) => None
   };
 
 // Note[Matt]: return wrapper needed for polymorphic types
@@ -92,6 +100,7 @@ let unpack = (e: t): wrapper =>
   | Float(f) => V(f, Float)
   | Bool(b) => V(b, Bool)
   | String(s) => V(s, String)
+  | RegExp(r) => V(r, RegExp)
   };
 
 let repack = (type a, kind: kind(a), x: a): t =>
@@ -102,6 +111,7 @@ let repack = (type a, kind: kind(a), x: a): t =>
   | Float => Float(x)
   | Bool => Bool(x)
   | String => String(x)
+  | RegExp => RegExp(x)
   };
 
 // Mpte[Matt]: return wrapper needed for polymorphic types
@@ -197,6 +207,8 @@ let convert =
     | Some(b) => L(b)
     | None => R(InvalidOperationError.InvalidOfString)
     }
+  | (String, RegExp) => L(StringUtil.of_string(v))
+  | (RegExp, String) => L(StringUtil.to_string(v))
   };
 };
 
@@ -208,6 +220,7 @@ let to_literal = (e: t): string =>
   | Float(f) => Printf.sprintf("%f", f)
   | Bool(b) => b |> string_of_bool
   | String(s) => "\"" ++ s ++ "\""
+  | RegExp(r) => StringUtil.to_string(r);
   };
 
 /* ========== BUILTINS ========== */

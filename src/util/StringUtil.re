@@ -27,6 +27,9 @@ let abbreviate = (max_len, s) =>
 
 type regexp = Js_of_ocaml.Regexp.regexp;
 
+let of_string: string => regexp = Js_of_ocaml.RegExp.regexp;
+let to_string: regexp => string = Js_of_ocaml.RegExp.string_of_regexp;
+
 let regexp: string => regexp = Js_of_ocaml.Regexp.regexp;
 
 let match = (r: regexp, s: string): bool =>

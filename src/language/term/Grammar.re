@@ -496,6 +496,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Atom(String(s)),
       annotation: default_annotation(ann),
     };
+    let regexp = (~ann=?, r): exp_t(DefaultAnnotation.t) => {
+      term: Atom(RegExp(r)),
+      annotation: default_annotation(ann),
+    };
     let nat = (~ann=?, i): exp_t(DefaultAnnotation.t) => {
       term: Atom(Nat(i)),
       annotation: default_annotation(ann),
@@ -676,6 +680,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Atom(String(s)),
       annotation: default_annotation(ann),
     };
+    let regexp = (~ann=?, r): pat_t(DefaultAnnotation.t) => {
+      term: Atom(RegExp(r)),
+      annotation: default_annotation(ann),
+    };
     let nat = (~ann=?, i): pat_t(DefaultAnnotation.t) => {
       term: Atom(Nat(i)),
       annotation: default_annotation(ann),
@@ -750,6 +758,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let string = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
       term: Atom(String),
+      annotation: default_annotation(ann),
+    };
+    let regexp = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
+      term: Atom(RegExp),
       annotation: default_annotation(ann),
     };
     let nat = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
