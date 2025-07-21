@@ -120,7 +120,7 @@ type ok_ana =
   | InternallyInconsistent({
       ana: Typ.t,
       nojoin: list(Typ.t),
-    });
+    }); // TODO: remove
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type ok_common =

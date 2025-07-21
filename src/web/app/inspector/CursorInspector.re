@@ -189,7 +189,7 @@ let common_err_view =
         text(h |> Hole.rep_id |> Id.to_string),
         text(" should be (partially annotated) in location "),
         text(Typ.show_provenance(p)),
-        text("with type: "),
+        text(" with type: "),
         view_type(ty),
       ]
     }

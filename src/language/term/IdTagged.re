@@ -3,7 +3,7 @@ open Util;
 module IdTag = {
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t = {
-    [@show.opaque]
+    //[@show.opaque]
     ids: list(Id.t),
   };
 

@@ -342,7 +342,7 @@ and uexp_to_info_map =
       add(~self=IsMulti, ~co_ctx=CoCtx.union(co_ctxs), m);
     | Asc(e, t2) =>
       let (t, m) = go_typ(t2, ~expects=Info.TypeExpected, m);
-      let (e, m) = go'(~ana=t.term, ~ctx=t.ctx, e, m);
+      let (e, m) = go'(~ana=Typ.make_ana(t.term), ~ctx=t.ctx, e, m);
       add(~self=Just(t.term), ~co_ctx=e.co_ctx, m);
     | Invalid(token) => atomic(BadToken(token))
     | EmptyHole =>
@@ -641,7 +641,7 @@ and uexp_to_info_map =
         | _ =>
           let (lab, m) =
             go(
-              ~ana=Unknown(Ana, Hole.temp(EmptyHole), Atom) |> Typ.temp, // TODO: Replace with synswitch?
+              ~ana=Unknown(Ana, Hole.temp(EmptyHole), Atom) |> Typ.temp, // TODO: use SynSwitch here if it doesn't break anything. (To avoid unfilled temporary holes)
               ~override_self=?
                 switch (label.term, expected_labels) {
                 | (Label(name), Some(expected_labels))
@@ -663,7 +663,7 @@ and uexp_to_info_map =
               ~inferred_label?,
               e,
               m,
-            ); // TODO: Replace with synswitch?
+            );
           (lab, e, m);
         };
 
@@ -822,7 +822,7 @@ and uexp_to_info_map =
         switch (Ctx.lookup_livelit(ctx, s)) {
         | Some({expansion_t, model_t, expand, _}) =>
           let (fn, m) = go(~ana=expansion_t, fn, m);
-          let (arg, m) = go(~ana=model_t, arg, m);
+          let (arg, m) = go(~ana=Typ.make_ana(model_t), arg, m);
 
           // try to expand
           switch (expand(arg.term)) {
@@ -842,7 +842,7 @@ and uexp_to_info_map =
           };
 
         | None =>
-          // TODO: Hole provenances
+          // TODO: Hole provenances?
           let (fn, m) =
             go(
               ~ana=Unknown(Ana, Hole.temp(EmptyHole), Atom) |> Typ.temp,
@@ -899,7 +899,7 @@ and uexp_to_info_map =
             },
           );
 
-        let (arg, m) = go(~ana=ty_in, arg, m);
+        let (arg, m) = go(~ana=Typ.make_ana(ty_in), arg, m);
         let self: Self.exp =
           Id.is_nullary_ap_flag(IdTagged.ids(arg.term))
           && !Typ.is_consistent(ctx, ty_in, Prod([]) |> Typ.temp)
@@ -1055,7 +1055,7 @@ and uexp_to_info_map =
         go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~ana=synswitch, p, m);
       let (def, p_ana_ctx, m, ty_p_ana) =
         if (!is_recursive(ctx, p, def, p_syn.ty)) {
-          let (def, m) = go(~ana=p_syn.ty, def, m);
+          let (def, m) = go(~ana=Typ.make_ana(p_syn.ty), def, m);
           let ty_p_ana = def.ty;
           let (p_ana', _) =
             go_pat(
@@ -1067,7 +1067,8 @@ and uexp_to_info_map =
             );
           (def, p_ana'.ctx, m, ty_p_ana);
         } else {
-          let (def_base, _) = go'(~ctx=p_syn.ctx, ~ana=p_syn.ty, def, m);
+          let (def_base, _) =
+            go'(~ctx=p_syn.ctx, ~ana=Typ.make_ana(p_syn.ty), def, m);
           let ty_p_ana = def_base.ty;
           /* Analyze pattern to incorporate def type into ctx */
           let (p_ana', _) =
@@ -1079,10 +1080,13 @@ and uexp_to_info_map =
               m,
             );
           let def_ctx = p_ana'.ctx;
-          let (def_base2, _) = go'(~ctx=def_ctx, ~ana=p_syn.ty, def, m);
+          let (def_base2, _) =
+            go'(~ctx=def_ctx, ~ana=Typ.make_ana(p_syn.ty), def, m);
           let ana_ty_fn = ((ty_fn1, ty_fn2), ty_p) => {
-            ty_p |> Typ.is_synswitch && !Typ.equal(ty_fn1, ty_fn2)
-              ? ty_fn1 : ty_p;
+            Typ.make_ana(
+              ty_p |> Typ.is_synswitch && !Typ.equal(ty_fn1, ty_fn2)
+                ? ty_fn1 : ty_p // TODO: Check make_ana makes sense in both situations here
+            );
           };
           let ana =
             switch (
@@ -1329,7 +1333,7 @@ and upat_to_info_map =
       ~ancestors: Info.ancestors,
       ~duplicates: list(string),
       ~expected_labels=?,
-      ~ana: Typ.t=Unknown(Ana, Hole.temp(EmptyHole), Atom) |> Typ.temp, // TODO: Switch to synswitch?
+      ~ana: Typ.t=Unknown(SynSwitch, Hole.temp(EmptyHole), Atom) |> Typ.temp,
       ~under_ascription: bool=false,
       ~override_self: option(Self.t)=?,
       ~inferred_label=?,
@@ -1405,6 +1409,9 @@ and upat_to_info_map =
   let ancestors = [Pat.rep_id(upat)] @ ancestors;
   let go = (~under_ascription=false) =>
     upat_to_info_map(~under_ascription, ~is_synswitch, ~ancestors, ~co_ctx);
+  let unknown =
+    Unknown(is_synswitch ? SynSwitch : Syn, Hole.temp(EmptyHole), Atom)
+    |> Typ.temp;
   let ctx_fold = (ctx: Ctx.t, m, ~duplicates=[]) =>
     List.fold_left2(
       ((ctx, tys, cons, m, info_all), e, ana) =>
@@ -1549,13 +1556,7 @@ and upat_to_info_map =
         | [hd, ...tl] => Coverage.Constraint.cons(hd, cons_fold_list(tl))
         };
       add(
-        ~self=
-          Self.listlit(
-            ~empty=Unknown(Syn, Hole.temp(EmptyHole), Atom) |> Typ.temp,
-            ctx,
-            tys,
-            ids,
-          ),
+        ~self=Self.listlit(~empty=unknown, ctx, tys, ids),
         ~ctx,
         ~constraint_=cons_fold_list(cons),
         m,
@@ -1571,15 +1572,11 @@ and upat_to_info_map =
         ~constraint_=Coverage.Constraint.cons(hd.constraint_, tl.constraint_),
         m,
       );
-    | Wild =>
-      atomic(
-        Just(Unknown(Syn, Hole.temp(EmptyHole), Atom) |> Typ.temp),
-        Coverage.Constraint.Truth,
-      )
+    | Wild => atomic(Just(unknown), Coverage.Constraint.Truth)
     | Var(name) =>
       /* NOTE: The self type assigned to pattern variables (Unknown)
          may be SynSwitch, but SynSwitch is never added to the context;
-         Unknown(Internal) is used in this case */
+         Unknown(Syn, ...) is used in this case */
       let ctx_typ =
         Info.fixed_typ_pat(
           ctx,
@@ -1596,7 +1593,7 @@ and upat_to_info_map =
           typ: ctx_typ,
         });
       add(
-        ~self=Just(Unknown(Syn, Hole.temp(EmptyHole), Atom) |> Typ.temp),
+        ~self=Just(unknown),
         ~ctx=Ctx.extend(ctx, entry),
         ~constraint_=Coverage.Constraint.Truth,
         m,
@@ -1859,7 +1856,7 @@ and upat_to_info_map =
             annotation: fn'.term.annotation,
           },
         );
-      let (arg, m) = go(~ctx, ~ana=ty_in, arg, m);
+      let (arg, m) = go(~ctx, ~ana=Typ.make_ana(ty_in), arg, m);
       let constraint_ =
         switch (ctr) {
         | Some(ctr) => Coverage.Constraint.Ap(ctr, Some(arg.constraint_))
@@ -1868,7 +1865,8 @@ and upat_to_info_map =
       add(~self=Just(ty_out), ~ctx=arg.ctx, ~constraint_, m);
     | Asc(p, ann) =>
       let (ann, m) = utyp_to_info_map(~ctx, ~ancestors, ann, m);
-      let (p, m) = go(~ctx, ~under_ascription=true, ~ana=ann.term, p, m);
+      let (p, m) =
+        go(~ctx, ~under_ascription=true, ~ana=Typ.make_ana(ann.term), p, m);
       add(~self=Just(ann.term), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
     };
 

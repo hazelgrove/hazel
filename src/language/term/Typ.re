@@ -196,14 +196,24 @@ type source = {
 /* Strip location information from a list of sources */
 let of_source = List.map((source: source) => source.ty);
 
-/* Ana > SynSwitch > Syn */
+/* Ana > Syn > SynSwitch
+
+   Note: Joining SynSwitches does NOT make semantic sense, we do not yet know if such a join is possible,
+         it is dependent on how the SynSwitches are matched.
+
+         SynSwitch > Syn makes more intuitive sense as it _might_ contain more type info when synswitch
+         is matched.
+
+         But, the current logic uses join to match SynSwitches during Info.status_common.
+         Consider refactoring this to disallow joins with SynSwitch and explicitly use
+         match_synswitch where required */
 let join_unknown_mode: ((mode, mode)) => mode =
   fun
   | (Ana, _)
   | (_, Ana) => Ana
-  | (SynSwitch, _)
-  | (_, SynSwitch) => SynSwitch
-  | (Syn, Syn) => Syn;
+  | (Syn, _)
+  | (_, Syn) => Syn
+  | (SynSwitch, SynSwitch) => SynSwitch;
 
 /* TODO: Think about joining provenances. (may not be required) */
 let join_type_provenance = ((p1, _p2)) => p1;
@@ -821,6 +831,20 @@ let rec is_synswitch = (ty: t): bool =>
   | Prod(_)
   | Sum(_) => false
   };
+
+// Note: Does not remove synswitch
+let make_ana =
+  map_term(~f_typ=(cont, ty: t) => {
+    let (term, rewrap) = IdTagged.unwrap(ty);
+    (
+      switch (term) {
+      | Unknown(Syn, h, p) => (Unknown(Ana, h, p): term)
+      | x => x
+      }
+    )
+    |> rewrap
+    |> cont;
+  });
 
 let rec is_ana_atom = (ty: t) =>
   switch (ty |> term_of) {
