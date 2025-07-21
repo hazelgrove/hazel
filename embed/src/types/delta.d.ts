@@ -14,6 +14,21 @@ interface Mold {
   nibs: [Nib, Nib];
 }
 
+interface Grout {
+  readonly t: "Grout";
+  readonly id: UUID;
+  readonly shape: Shape;
+}
+
+interface SecondaryContent {
+  readonly t: "Whitespace" | "Comment";
+  readonly content: string;
+}
+interface Secondary {
+  readonly t: "Secondary";
+  readonly id: UUID;
+  readonly content: SecondaryContent;
+}
 interface Tile {
   readonly t: "Tile";
   readonly id: UUID;
@@ -30,11 +45,14 @@ export interface FlatTile {
   readonly label: string[];
   readonly mold: Mold;
   readonly shards: number[];
-  readonly children: TileId[];
+  readonly children: TileId[][];
 }
+
+export type FlatPiece = FlatTile | Grout | Secondary;
+
 export type HazelDoc = {
     title: string;
-    tiles: FlatTile[];
+    tiles: Map<TileId, FlatPiece>;
     root: TileId;
 }
 
@@ -51,5 +69,11 @@ interface InsertOp {
   readonly tiles: Tile[];
 }
 
-type EditOp = DeleteOp | InsertOp;
+interface ReplaceOp {
+  readonly t: "Replace";
+  readonly content: HazelDoc;
+}
+
+// type EditOp = DeleteOp | InsertOp;
+type EditOp = ReplaceOp;
 export type EditScript = EditOp[];

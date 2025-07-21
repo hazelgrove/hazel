@@ -222,7 +222,7 @@ module Update = {
 
     // print_endline("yo");
 
-    let auto_seg = AutoSeg.seg_to_auto_seg(state.zipper |> Zipper.zip);
+    // let auto_seg = AutoSeg.seg_to_auto_seg(state.zipper |> Zipper.zip);
     // print_endline(AutoSeg.show(auto_seg));
 
     // 4. Update the zipper
@@ -238,12 +238,12 @@ module Update = {
         state.zipper,
       );
 
-    let auto_seg_2 = AutoSeg.seg_to_auto_seg(zipper |> Zipper.zip);
-    let diff = AutoSeg.mk_diff(auto_seg, auto_seg_2);
-    switch (List.length(diff)) {
-    | 0 => ()
-    | _ => Iframe.send_delta(AutoSeg.diff_to_ts(diff))
-    };
+    // let auto_seg_2 = AutoSeg.seg_to_auto_seg(zipper |> Zipper.zip);
+    // let diff = AutoSeg.mk_diff(auto_seg, auto_seg_2);
+    // switch (List.length(diff)) {
+    // | 0 => ()
+    // | _ => Iframe.send_delta(AutoSeg.diff_to_ts(diff))
+    // };
 
     // Recombine
     Model.{
