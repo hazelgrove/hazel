@@ -183,7 +183,7 @@ let tests = [
   fully_consistent_typecheck(
     "Reconstructed labeled tuple without values",
     {|let x : (l=|},
-    Some(unknown(Syn, Language.Hole.temp(EmptyHole), Atom)),
+    Some(unknown(Type, Language.Hole.temp(EmptyHole), Atom)),
   ),
   fully_consistent_typecheck(
     "Singleton labeled argument let with unknown type",
@@ -192,7 +192,7 @@ let tests = [
       prod([
         tup_label(
           label("a"),
-          unknown(Syn, Language.Hole.temp(EmptyHole), Atom),
+          unknown(Type, Language.Hole.temp(EmptyHole), Atom),
         ),
       ]),
     ),
@@ -219,7 +219,7 @@ let tests = [
               prod([
                 tup_label(
                   label("c"),
-                  unknown(Syn, Language.Hole.temp(EmptyHole), Atom),
+                  unknown(Type, Language.Hole.temp(EmptyHole), Atom),
                 ),
               ]),
             ),
@@ -231,12 +231,12 @@ let tests = [
   fully_consistent_typecheck(
     "Singleton labeled argument function application with unknown type",
     {|(fun a=x->x)(a=1)|},
-    Some(unknown(Syn, Language.Hole.temp(EmptyHole), Atom)),
+    Some(unknown(Type, Language.Hole.temp(EmptyHole), Atom)),
   ),
   fully_consistent_typecheck(
     "Singleton labeled argument function application with no labeled param",
     {|(fun a=x->x)(1)|},
-    Some(unknown(Syn, Language.Hole.temp(EmptyHole), Atom)),
+    Some(unknown(Type, Language.Hole.temp(EmptyHole), Atom)),
   ),
   fully_consistent_typecheck(
     "Singleton labeled argument not labeled in pattern",
@@ -359,7 +359,7 @@ let tests = [
                               tup_label(
                                 label("a"),
                                 unknown(
-                                  Syn,
+                                  Type,
                                   Language.Hole.temp(EmptyHole),
                                   Atom,
                                 ),
@@ -480,7 +480,7 @@ let tests = [
                               prod([
                                 tup_label(
                                   unknown(
-                                    Syn,
+                                    Type,
                                     Language.Hole.temp(EmptyHole),
                                     Atom,
                                   ),
@@ -510,7 +510,7 @@ let tests = [
                                 Typ.(
                                   tup_label(
                                     unknown(
-                                      Syn,
+                                      Type,
                                       Language.Hole.temp(EmptyHole),
                                       Atom,
                                     ),
@@ -571,7 +571,7 @@ let tests = [
                               prod([
                                 tup_label(
                                   unknown(
-                                    Syn,
+                                    Type,
                                     Language.Hole.temp(EmptyHole),
                                     Atom,
                                   ),
@@ -602,7 +602,7 @@ let tests = [
                                 Typ.(
                                   tup_label(
                                     unknown(
-                                      Syn,
+                                      Type,
                                       Language.Hole.temp(EmptyHole),
                                       Atom,
                                     ),

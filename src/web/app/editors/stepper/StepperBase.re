@@ -870,7 +870,7 @@ module Update = {
           | Fun(p, d1, t, _) =>
             let t =
               OptUtil.get(
-                () => Typ.fresh(Unknown(Syn, Hole.temp(EmptyHole), Atom)),
+                () => Typ.fresh(Unknown(Type, Hole.temp(EmptyHole), Atom)),
                 t,
               );
             let* bindings = ProofHacks.dhpat_extend_ctx(p, t, ctx);
@@ -894,7 +894,7 @@ module Update = {
               Fun(
                 Pat.fresh(EmptyHole),
                 last,
-                Some(Typ.fresh(Unknown(Syn, Hole.temp(EmptyHole), Atom))),
+                Some(Typ.fresh(Unknown(Type, Hole.temp(EmptyHole), Atom))),
                 None,
               ),
             )

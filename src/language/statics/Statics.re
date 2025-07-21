@@ -342,14 +342,14 @@ and uexp_to_info_map =
       add(~self=IsMulti, ~co_ctx=CoCtx.union(co_ctxs), m);
     | Asc(e, t2) =>
       let (t, m) = go_typ(t2, ~expects=Info.TypeExpected, m);
-      let (e, m) = go'(~ana=Typ.make_ana(t.term), ~ctx=t.ctx, e, m);
+      let (e, m) = go'(~ana=t.term, ~ctx=t.ctx, e, m);
       add(~self=Just(t.term), ~co_ctx=e.co_ctx, m);
     | Invalid(token) => atomic(BadToken(token))
     | EmptyHole =>
       atomic(
         Just(
           Unknown(
-            Syn,
+            Expr,
             {
               term: EmptyHole,
               annotation: {
@@ -367,7 +367,7 @@ and uexp_to_info_map =
       atomic(
         Just(
           Unknown(
-            Syn,
+            Expr,
             {
               term: EmptyHole,
               annotation: {
@@ -397,14 +397,14 @@ and uexp_to_info_map =
       )
     | ListLit(es) =>
       let ids = List.map(Exp.rep_id, es);
-      let inner_ana_ty = Typ.matched_list(ctx, ana, errorhole);
+      let inner_ana_ty = Typ.matched_list(ctx, ana, errorhole, Expr);
       let anas = List.init(List.length(es), _ => inner_ana_ty);
       let (es, m) = map_m_go(m, anas, es);
       let tys = List.map(Info.exp_ty, es);
       add(
         ~self=
           Self.listlit(
-            ~empty=Unknown(Syn, Hole.temp(EmptyHole), Atom) |> Typ.temp,
+            ~empty=Unknown(Expr, Hole.temp(EmptyHole), Atom) |> Typ.temp,
             ctx,
             tys,
             ids,
@@ -413,7 +413,7 @@ and uexp_to_info_map =
         m,
       );
     | Cons(hd, tl) =>
-      let inner_ana_ty = Typ.matched_list(ctx, ana, errorhole);
+      let inner_ana_ty = Typ.matched_list(ctx, ana, errorhole, Expr);
       let (hd, m) = go(~ana=inner_ana_ty, hd, m);
       let (tl, m) = go(~ana=List(inner_ana_ty) |> Typ.temp, tl, m);
       add(
@@ -423,7 +423,7 @@ and uexp_to_info_map =
       );
     | ListConcat(e1, e2) =>
       let inner_ana_ty =
-        List(Typ.matched_list(ctx, ana, errorhole)) |> Typ.temp;
+        List(Typ.matched_list(ctx, ana, errorhole, Expr)) |> Typ.temp;
       let ids = List.map(Exp.rep_id, [e1, e2]);
       let (e1, m) = go(~ana=inner_ana_ty, e1, m);
       let (e2, m) = go(~ana=inner_ana_ty, e2, m);
@@ -455,21 +455,25 @@ and uexp_to_info_map =
             Constructor(
               "$e",
               Some(
-                Some(Unknown(Syn, Hole.temp(EmptyHole), Atom) |> Typ.fresh),
+                Some(
+                  Unknown(Expr, Hole.temp(EmptyHole), Atom) |> Typ.fresh,
+                ),
               ),
             )
           | Var("v") =>
             Constructor(
               "$v",
               Some(
-                Some(Unknown(Syn, Hole.temp(EmptyHole), Atom) |> Typ.fresh),
+                Some(
+                  Unknown(Expr, Hole.temp(EmptyHole), Atom) |> Typ.fresh,
+                ),
               ),
             )
           | _ => e.term
           },
       };
       let ty_in = Var("$Meta") |> Typ.temp;
-      let ty_out = Unknown(Syn, Hole.temp(EmptyHole), Atom) |> Typ.temp;
+      let ty_out = Unknown(Expr, Hole.temp(EmptyHole), Atom) |> Typ.temp;
       let (e, m) = go(~ana=ty_in, e, m);
       add(~self=Just(ty_out), ~co_ctx=e.co_ctx, m);
     | UnOp(Meta(Unquote), e) =>
@@ -540,7 +544,8 @@ and uexp_to_info_map =
               Some(name),
               TupLabel(Label(name) |> Exp.fresh, e) |> Exp.fresh,
             ),
-          errorhole // TODO: Check
+          errorhole,
+          Expr,
         );
       let es = List.map(snd, inferred_es);
       let inferred = List.map(fst, inferred_es);
@@ -641,7 +646,7 @@ and uexp_to_info_map =
         | _ =>
           let (lab, m) =
             go(
-              ~ana=Unknown(Ana, Hole.temp(EmptyHole), Atom) |> Typ.temp, // TODO: use SynSwitch here if it doesn't break anything. (To avoid unfilled temporary holes)
+              ~ana=Unknown(Type, Hole.temp(EmptyHole), Atom) |> Typ.temp, // TODO: use SynSwitch here if it doesn't break anything. (To avoid unfilled temporary holes)
               ~override_self=?
                 switch (label.term, expected_labels) {
                 | (Label(name), Some(expected_labels))
@@ -659,7 +664,7 @@ and uexp_to_info_map =
 
           let (e, m) =
             go(
-              ~ana=Unknown(Ana, Hole.temp(EmptyHole), Atom) |> Typ.temp,
+              ~ana=Unknown(Type, Hole.temp(EmptyHole), Atom) |> Typ.temp,
               ~inferred_label?,
               e,
               m,
@@ -697,7 +702,7 @@ and uexp_to_info_map =
             typ:
               TupLabel(
                 Unknown(
-                  Syn,
+                  Expr,
                   {
                     term: ErrorHole,
                     annotation: lab.term.annotation,
@@ -733,7 +738,7 @@ and uexp_to_info_map =
             Prod([
               TupLabel(
                 Label(name) |> Typ.temp,
-                Unknown(Syn, errorhole, Atom) |> Typ.temp // TODO: Check
+                Unknown(Expr, errorhole, Atom) |> Typ.temp,
               )
               |> Typ.temp,
             ])
@@ -768,7 +773,7 @@ and uexp_to_info_map =
             ~self=
               Just(
                 Unknown(
-                  Syn,
+                  Expr,
                   {
                     term: EmptyHole,
                     annotation: e2.annotation,
@@ -822,7 +827,7 @@ and uexp_to_info_map =
         switch (Ctx.lookup_livelit(ctx, s)) {
         | Some({expansion_t, model_t, expand, _}) =>
           let (fn, m) = go(~ana=expansion_t, fn, m);
-          let (arg, m) = go(~ana=Typ.make_ana(model_t), arg, m);
+          let (arg, m) = go(~ana=model_t, arg, m);
 
           // try to expand
           switch (expand(arg.term)) {
@@ -845,13 +850,13 @@ and uexp_to_info_map =
           // TODO: Hole provenances?
           let (fn, m) =
             go(
-              ~ana=Unknown(Ana, Hole.temp(EmptyHole), Atom) |> Typ.temp,
+              ~ana=Unknown(Type, Hole.temp(EmptyHole), Atom) |> Typ.temp,
               fn,
               m,
             );
           let (arg, m) =
             go(
-              ~ana=Unknown(Ana, Hole.temp(EmptyHole), Atom) |> Typ.temp,
+              ~ana=Unknown(Type, Hole.temp(EmptyHole), Atom) |> Typ.temp,
               arg,
               m,
             );
@@ -859,7 +864,7 @@ and uexp_to_info_map =
             ~self=
               Just(
                 Unknown(
-                  Syn,
+                  Expr,
                   {
                     term: ErrorHole,
                     annotation: fn.term.annotation,
@@ -897,9 +902,10 @@ and uexp_to_info_map =
               term: ErrorHole,
               annotation: fn.ty.annotation,
             },
+            Expr,
           );
 
-        let (arg, m) = go(~ana=Typ.make_ana(ty_in), arg, m);
+        let (arg, m) = go(~ana=ty_in, arg, m);
         let self: Self.exp =
           Id.is_nullary_ap_flag(IdTagged.ids(arg.term))
           && !Typ.is_consistent(ctx, ty_in, Prod([]) |> Typ.temp)
@@ -918,6 +924,7 @@ and uexp_to_info_map =
             term: ErrorHole,
             annotation: fn.ty.annotation,
           },
+          Expr,
         );
       switch (option_name) {
       | Some(name) =>
@@ -953,6 +960,7 @@ and uexp_to_info_map =
             term: ErrorHole,
             annotation: fn.ty.annotation,
           },
+          Expr,
         );
       let num_args = List.length(args);
       switch (Typ.matched_args_strict(ctx, ty_in, num_args)) {
@@ -977,7 +985,7 @@ and uexp_to_info_map =
         let ty_ins =
           List.init(num_args, i =>
             Unknown(
-              Ana,
+              Expr,
               {
                 term: ErrorHole,
                 annotation: fn.term.annotation,
@@ -1001,7 +1009,8 @@ and uexp_to_info_map =
         );
       };
     | Fun(p, e, typ, _) =>
-      let (mode_pat, mode_body) = Typ.matched_arrow(ctx, ana, errorhole);
+      let (mode_pat, mode_body) =
+        Typ.matched_arrow(ctx, ana, errorhole, Expr);
       let mode_pat = Option.value(~default=mode_pat, typ);
       let (p', _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=mode_pat, p, m);
@@ -1019,7 +1028,7 @@ and uexp_to_info_map =
       add'(~self, ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx), m);
     | TypFun(utpat, body, _) =>
       let (name_expected_opt, item) =
-        Typ.matched_forall(ctx, ana, errorhole);
+        Typ.matched_forall(ctx, ana, errorhole, Expr);
       let (mode_body, ctx_body) =
         switch (TPat.tyvar_of_utpat(utpat)) {
         | Some(name) when !Ctx.shadows_typ(ctx, name) =>
@@ -1055,7 +1064,7 @@ and uexp_to_info_map =
         go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~ana=synswitch, p, m);
       let (def, p_ana_ctx, m, ty_p_ana) =
         if (!is_recursive(ctx, p, def, p_syn.ty)) {
-          let (def, m) = go(~ana=Typ.make_ana(p_syn.ty), def, m);
+          let (def, m) = go(~ana=p_syn.ty, def, m);
           let ty_p_ana = def.ty;
           let (p_ana', _) =
             go_pat(
@@ -1067,8 +1076,7 @@ and uexp_to_info_map =
             );
           (def, p_ana'.ctx, m, ty_p_ana);
         } else {
-          let (def_base, _) =
-            go'(~ctx=p_syn.ctx, ~ana=Typ.make_ana(p_syn.ty), def, m);
+          let (def_base, _) = go'(~ctx=p_syn.ctx, ~ana=p_syn.ty, def, m);
           let ty_p_ana = def_base.ty;
           /* Analyze pattern to incorporate def type into ctx */
           let (p_ana', _) =
@@ -1080,13 +1088,10 @@ and uexp_to_info_map =
               m,
             );
           let def_ctx = p_ana'.ctx;
-          let (def_base2, _) =
-            go'(~ctx=def_ctx, ~ana=Typ.make_ana(p_syn.ty), def, m);
+          let (def_base2, _) = go'(~ctx=def_ctx, ~ana=p_syn.ty, def, m);
           let ana_ty_fn = ((ty_fn1, ty_fn2), ty_p) => {
-            Typ.make_ana(
-              ty_p |> Typ.is_synswitch && !Typ.equal(ty_fn1, ty_fn2)
-                ? ty_fn1 : ty_p,
-            );
+            ty_p |> Typ.is_synswitch && !Typ.equal(ty_fn1, ty_fn2)
+              ? ty_fn1 : ty_p;
           };
           let ana =
             switch (
@@ -1333,7 +1338,7 @@ and upat_to_info_map =
       ~ancestors: Info.ancestors,
       ~duplicates: list(string),
       ~expected_labels=?,
-      ~ana: Typ.t=Unknown(Ana, Hole.temp(EmptyHole), Atom) |> Typ.temp,
+      ~ana: Typ.t=Unknown(Type, Hole.temp(EmptyHole), Atom) |> Typ.temp,
       ~under_ascription: bool=false,
       ~override_self: option(Self.t)=?,
       ~inferred_label=?,
@@ -1410,7 +1415,7 @@ and upat_to_info_map =
   let go = (~under_ascription=false) =>
     upat_to_info_map(~under_ascription, ~is_synswitch, ~ancestors, ~co_ctx);
   let unknown =
-    Unknown(is_synswitch ? SynSwitch : Syn, Hole.temp(EmptyHole), Atom)
+    Unknown(is_synswitch ? SynSwitch : Type, Hole.temp(EmptyHole), Atom)
     |> Typ.temp;
   let ctx_fold = (ctx: Ctx.t, m, ~duplicates=[]) =>
     List.fold_left2(
@@ -1500,7 +1505,7 @@ and upat_to_info_map =
       hole(
         Just(
           Unknown(
-            Syn,
+            Expr,
             {
               term: EmptyHole,
               annotation: {
@@ -1547,7 +1552,7 @@ and upat_to_info_map =
       };
     | ListLit(ps) =>
       let ids = List.map(Pat.rep_id, ps);
-      let mode = Typ.matched_list(ctx, ana, errorhole);
+      let mode = Typ.matched_list(ctx, ana, errorhole, Expr);
       let modes = List.init(List.length(ps), _ => mode);
       let (ctx, tys, cons, m, _) = ctx_fold(ctx, m, ps, modes);
       let rec cons_fold_list = cs =>
@@ -1562,7 +1567,7 @@ and upat_to_info_map =
         m,
       );
     | Cons(hd, tl) =>
-      let inner_ty = Typ.matched_list(ctx, ana, errorhole);
+      let inner_ty = Typ.matched_list(ctx, ana, errorhole, Expr);
       let (hd, m) = go(~ctx, ~ana=inner_ty, hd, m);
       let (tl, m) =
         go(~ctx=hd.ctx, ~ana=List(inner_ty) |> Typ.fresh, tl, m);
@@ -1582,7 +1587,7 @@ and upat_to_info_map =
           ctx,
           ana,
           Common(
-            Just(Unknown(Syn, Hole.temp(EmptyHole), Atom) |> Typ.temp),
+            Just(Unknown(Expr, Hole.temp(EmptyHole), Atom) |> Typ.temp),
           ),
           ids,
         );
@@ -1625,7 +1630,7 @@ and upat_to_info_map =
           let (lab, m) =
             go(
               ~ctx,
-              ~ana=Unknown(Ana, Hole.temp(EmptyHole), Atom) |> Typ.temp,
+              ~ana=Unknown(Expr, Hole.temp(EmptyHole), Atom) |> Typ.temp,
               ~label_sort=true,
               ~override_self=?
                 switch (label.term, expected_labels) {
@@ -1644,7 +1649,7 @@ and upat_to_info_map =
           let (p, m) =
             go(
               ~ctx,
-              ~ana=Unknown(Ana, Hole.temp(EmptyHole), Atom) |> Typ.temp,
+              ~ana=Unknown(Expr, Hole.temp(EmptyHole), Atom) |> Typ.temp,
               ~inferred_label?,
               p,
               m,
@@ -1682,7 +1687,7 @@ and upat_to_info_map =
             typ:
               TupLabel(
                 Unknown(
-                  Syn,
+                  Expr,
                   {
                     term: ErrorHole,
                     annotation: lab.term.annotation,
@@ -1732,6 +1737,7 @@ and upat_to_info_map =
               TupLabel(Label(name) |> Pat.fresh, p) |> Pat.fresh,
             ),
           errorhole,
+          Expr,
         );
       let ps = List.map(snd, inferred_ps);
       let inferred = List.map(fst, inferred_ps);
@@ -1855,8 +1861,9 @@ and upat_to_info_map =
             term: ErrorHole,
             annotation: fn'.term.annotation,
           },
+          Expr,
         );
-      let (arg, m) = go(~ctx, ~ana=Typ.make_ana(ty_in), arg, m);
+      let (arg, m) = go(~ctx, ~ana=ty_in, arg, m);
       let constraint_ =
         switch (ctr) {
         | Some(ctr) => Coverage.Constraint.Ap(ctr, Some(arg.constraint_))
@@ -1865,10 +1872,8 @@ and upat_to_info_map =
       add(~self=Just(ty_out), ~ctx=arg.ctx, ~constraint_, m);
     | Asc(p, ann) =>
       let (ann, m) = utyp_to_info_map(~ctx, ~ancestors, ann, m);
-      let (p, m) =
-        go(~ctx, ~under_ascription=true, ~ana=Typ.make_ana(ann.term), p, m);
-      add(~self=Just(Typ.make_ana(ann.term)),
-       ~ctx=p.ctx, ~constraint_=p.constraint_, m);
+      let (p, m) = go(~ctx, ~under_ascription=true, ~ana=ann.term, p, m);
+      add(~self=Just(ann.term), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
     };
 
   // This is to allow lifting single values into a singleton labeled tuple when the label is not present
@@ -1956,7 +1961,7 @@ and utyp_to_info_map =
           Unique,
           Arrow(
             t2,
-            Unknown(Syn, Hole.temp(EmptyHole), ArrowR(Atom)) |> Typ.temp,
+            Unknown(Type, Hole.temp(EmptyHole), ArrowR(Atom)) |> Typ.temp,
           )
           |> Typ.temp,
         )

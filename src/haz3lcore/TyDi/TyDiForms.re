@@ -10,7 +10,7 @@ let leading_expander = " ";
  * running Statics, but for now, new forms e.g. operators must be added
  * below manually.  */
 module Typ = {
-  let unk: Typ.t = Unknown(Syn, Hole.temp(EmptyHole), Atom) |> Typ.fresh;
+  let unk: Typ.t = Unknown(Type, Hole.temp(EmptyHole), Atom) |> Typ.fresh;
 
   let of_const_mono_delim: list((Token.t, Typ.t)) = [
     ("true", Atom(Bool) |> Typ.fresh),

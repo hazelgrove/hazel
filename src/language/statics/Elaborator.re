@@ -16,7 +16,7 @@ module ElaborationResult = {
 let fresh_ascription = (d: Exp.t, t: Typ.t, t': option(Typ.t)) => {
   IdTagged.FreshGrammar.Exp.(
     switch (t') {
-    | Some({term: Unknown(Ana, _, _), _}) => d
+    | Some({term: Unknown(Expr | Type, _, _), _}) => d
     | Some(ty) when !Typ.fast_equal(ty, t) => asc(d, ty)
     | _ => d
     }
@@ -221,7 +221,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let (ds, tys) = List.map(elaborate(m), es) |> ListUtil.unzip;
       let joined_ty =
         Typ.join_all(
-          ~empty=Unknown(Syn, Hole.temp(EmptyHole), Atom) |> Typ.temp,
+          ~empty=Unknown(Expr, Hole.temp(EmptyHole), Atom) |> Typ.temp,
           ctx,
           tys,
         );
@@ -406,13 +406,17 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       | Var("e") =>
         Constructor(
           "$e",
-          Some(Some(Unknown(Syn, Hole.temp(EmptyHole), Atom) |> Typ.temp)),
+          Some(
+            Some(Unknown(Expr, Hole.temp(EmptyHole), Atom) |> Typ.temp),
+          ),
         )
         |> rewrap
       | Var("v") =>
         Constructor(
           "$v",
-          Some(Some(Unknown(Syn, Hole.temp(EmptyHole), Atom) |> Typ.temp)),
+          Some(
+            Some(Unknown(Expr, Hole.temp(EmptyHole), Atom) |> Typ.temp),
+          ),
         )
         |> rewrap
       | _ => EmptyHole |> rewrap

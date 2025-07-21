@@ -3,7 +3,7 @@ open Fresh.Typ;
 open BuiltinsUtil;
 open BuiltinsADT;
 
-let unk = unknown(Syn, Hole.fresh(EmptyHole), Atom);
+let unk = unknown(Type, Hole.temp(EmptyHole), Atom);
 let builtins = [
   {
     str: {|fix length -> fun xs -> case xs
@@ -705,7 +705,7 @@ let builtins = [
            end|},
     name: "hd",
     arg: List(unk),
-    ret: Unknown(Syn, Hole.fresh(EmptyHole), Atom),
+    ret: Unknown(Type, Hole.temp(EmptyHole), Atom),
     imp: {
       Fresh.(
         Exp.(
@@ -798,7 +798,7 @@ let builtins = [
            end|},
     name: "nth",
     arg: Prod([list(unk), int()]),
-    ret: Unknown(Syn, Hole.fresh(EmptyHole), Atom),
+    ret: Unknown(Type, Hole.temp(EmptyHole), Atom),
     imp: {
       Fresh.(
         Exp.(
@@ -843,7 +843,7 @@ let builtins = [
            end|},
     name: "fold_right",
     arg: Prod([list(unk), arrow(prod([unk, unk]), unk), unk]),
-    ret: Unknown(Syn, Hole.fresh(EmptyHole), Atom),
+    ret: Unknown(Type, Hole.temp(EmptyHole), Atom),
     imp: {
       Fresh.(
         Exp.(
@@ -1213,7 +1213,7 @@ let builtins = [
         arrow(prod([unk, unk, unk]), unk),
         unk,
       ]),
-    ret: Unknown(Syn, Hole.fresh(EmptyHole), Atom),
+    ret: Unknown(Type, Hole.temp(EmptyHole), Atom),
     imp: {
       Fresh.(
         Exp.(
@@ -1276,7 +1276,7 @@ let builtins = [
         arrow(prod([unk, unk, unk]), unk),
         unk,
       ]),
-    ret: Unknown(Syn, Hole.fresh(EmptyHole), Atom),
+    ret: Unknown(Type, Hole.temp(EmptyHole), Atom),
     imp: {
       Fresh.(
         Exp.(
@@ -1487,7 +1487,7 @@ let builtins = [
            end|},
     name: "find",
     arg: Prod([list(unk), arrow(unk, bool())]),
-    ret: Unknown(Syn, Hole.fresh(EmptyHole), Atom),
+    ret: Unknown(Type, Hole.temp(EmptyHole), Atom),
     imp: {
       Fresh.(
         Exp.(
@@ -1676,7 +1676,7 @@ let builtins = [
            end|},
     name: "nth_opt",
     arg: Prod([list(unk), int()]),
-    ret: Unknown(Syn, Hole.fresh(EmptyHole), Atom),
+    ret: Unknown(Type, Hole.temp(EmptyHole), Atom),
     imp: {
       Fresh.(
         Exp.(
@@ -1721,7 +1721,7 @@ let builtins = [
            end|},
     name: "find_opt",
     arg: Prod([list(unk), arrow(unk, bool())]),
-    ret: Unknown(Syn, Hole.fresh(EmptyHole), Atom),
+    ret: Unknown(Type, Hole.temp(EmptyHole), Atom),
     imp: {
       Fresh.(
         Exp.(
@@ -1764,7 +1764,7 @@ let builtins = [
            end|},
     name: "find_index",
     arg: Prod([list(unk), arrow(unk, bool())]),
-    ret: Unknown(Syn, Hole.fresh(EmptyHole), Atom),
+    ret: Unknown(Type, Hole.temp(EmptyHole), Atom),
     imp: {
       Fresh.(
         Exp.(
@@ -1830,7 +1830,7 @@ let builtins = [
            end|},
     name: "find_map",
     arg: Prod([list(unk), arrow(unk, unk)]),
-    ret: Unknown(Syn, Hole.fresh(EmptyHole), Atom),
+    ret: Unknown(Type, Hole.temp(EmptyHole), Atom),
     imp: {
       Fresh.(
         Exp.(
@@ -1884,7 +1884,7 @@ let builtins = [
            end|},
     name: "find_mapi",
     arg: Prod([list(unk), arrow(prod([int(), unk]), unk)]),
-    ret: Unknown(Syn, Hole.fresh(EmptyHole), Atom),
+    ret: Unknown(Type, Hole.temp(EmptyHole), Atom),
     imp: {
       Fresh.(
         Exp.(
@@ -2007,7 +2007,7 @@ let builtins = [
            end|},
     name: "assoc",
     arg: Prod([list(prod([unk, unk])), unk]),
-    ret: Unknown(Syn, Hole.fresh(EmptyHole), Atom),
+    ret: Unknown(Type, Hole.temp(EmptyHole), Atom),
     imp: {
       Fresh.(
         Exp.(
@@ -2052,7 +2052,7 @@ let builtins = [
            end|},
     name: "assoc_opt",
     arg: Prod([list(prod([unk, unk])), unk]),
-    ret: Unknown(Syn, Hole.fresh(EmptyHole), Atom),
+    ret: Unknown(Type, Hole.temp(EmptyHole), Atom),
     imp: {
       Fresh.(
         Exp.(
@@ -2534,7 +2534,7 @@ let go: ([?], [?], [?]) -> [?] =
            end|},
     name: "hd_opt",
     arg: List(unk),
-    ret: Unknown(Syn, Hole.fresh(EmptyHole), Atom),
+    ret: Unknown(Type, Hole.temp(EmptyHole), Atom),
     imp: {
       Fresh.(
         Exp.(
@@ -2568,7 +2568,7 @@ let go: ([?], [?], [?]) -> [?] =
            end|},
     name: "tl_opt",
     arg: List(unk),
-    ret: Unknown(Syn, Hole.fresh(EmptyHole), Atom),
+    ret: Unknown(Type, Hole.temp(EmptyHole), Atom),
     imp: {
       Fresh.(
         Exp.(

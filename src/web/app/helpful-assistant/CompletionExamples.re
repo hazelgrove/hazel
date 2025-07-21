@@ -94,7 +94,7 @@ fun c ->
     ),
     (
       "let f = " ++ hole_label ++ " in f(5)",
-      expected_type(Unknown(Syn, Hole.temp(EmptyHole), Atom)),
+      expected_type(Unknown(Type, Hole.temp(EmptyHole), Atom)),
       advanced_reasoning
         ? {|
 Discussion:
@@ -133,7 +133,7 @@ x
       "let num_or_zero = fun maybe_num ->\n case maybe_num\n | Some(num) => "
       ++ hole_label
       ++ " \n| None => 0 end in",
-      expected_type(Unknown(Syn, Hole.temp(EmptyHole), Atom)),
+      expected_type(Unknown(Type, Hole.temp(EmptyHole), Atom)),
       advanced_reasoning
         ? {|
 Discussion:
@@ -213,7 +213,7 @@ in
 test 2 == List.nth(List.sort(fun a, b -> a<b, [4,1,3,2]), 1) end
     |},
       expected_type(
-        List(Typ.fresh(Unknown(Syn, Hole.temp(EmptyHole), Atom))),
+        List(Typ.fresh(Unknown(Type, Hole.temp(EmptyHole), Atom))),
       ),
       advanced_reasoning
         ? {|

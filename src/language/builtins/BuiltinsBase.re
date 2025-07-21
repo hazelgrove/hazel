@@ -455,8 +455,8 @@ let string_fns: list(BuiltinsUtil.fn) = [
 let pair_fns: list(BuiltinsUtil.fn) = [
   {
     name: "fst",
-    arg: Prod([empty_hole_ana(), empty_hole_ana()]),
-    ret: empty_hole_ana().term,
+    arg: Prod([empty_hole_typ(), empty_hole_typ()]),
+    ret: empty_hole_typ().term,
     imp: d => {
       let-unbox t = (Tuple(2), d);
       switch (t) {
@@ -467,8 +467,8 @@ let pair_fns: list(BuiltinsUtil.fn) = [
   },
   {
     name: "snd",
-    arg: Prod([empty_hole_ana(), empty_hole_ana()]),
-    ret: empty_hole_ana().term,
+    arg: Prod([empty_hole_typ(), empty_hole_typ()]),
+    ret: empty_hole_typ().term,
     imp: d => {
       let-unbox t = (Tuple(2), d);
       switch (t) {

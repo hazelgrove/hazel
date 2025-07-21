@@ -73,12 +73,12 @@ let join: (Ctx.t, list(entry)) => Typ.t =
     let expected_tys = List.map(entry => entry.expected_ty, entries);
     switch (
       Typ.join_all(
-        ~empty=Unknown(Syn, Hole.temp(EmptyHole), Atom) |> Typ.fresh,
+        ~empty=Unknown(Type, Hole.temp(EmptyHole), Atom) |> Typ.fresh,
         ctx,
         expected_tys // Note, no need for hole provenances as this is only used in TyDi
       )
     ) {
-    | None => Unknown(Syn, Hole.temp(EmptyHole), Atom) |> Typ.fresh
+    | None => Unknown(Type, Hole.temp(EmptyHole), Atom) |> Typ.fresh
     | Some(ty) => ty
     };
   };

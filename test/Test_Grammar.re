@@ -125,8 +125,7 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
   Grammar.UnitGrammar.(
     Typ.(
       switch (cls_typ) {
-      | UnkInvalidAna
-      | UnkInvalidSyn => Typ.var("Hole TODO")
+      | Unknown(_) => Typ.var("Hole TODO")
       | Atom(Bool) => bool()
       | Atom(Int) => int()
       | Atom(SInt) => sint()
@@ -142,11 +141,7 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
       | Ap => ap(Typ.var("Hole TODO"), Typ.var("Hole TODO"))
       | Rec => rec_(TPat.var("x"), Typ.var("Hole TODO"))
       | Forall => forall(TPat.var("x"), Typ.var("Hole TODO"))
-      | UnkEmptyHoleAna
-      | UnkEmptyHoleSyn => Typ.var("Hole TODO")
       | Label => label("label")
-      | UnkMultiHoleAna
-      | UnkMultiHoleSyn => Typ.var("Hole TODO")
       | Sum => sum([])
       | Constructor => assert(false) // Excluded because there is no Typ constructor
       }

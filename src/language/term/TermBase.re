@@ -74,7 +74,7 @@ type hole_term = Grammar.hole_term(IdTagged.IdTag.t);
 type hole_t = Grammar.hole_t(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type type_provenance = Grammar.type_provenance;
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
+[@deriving (show({with_path: false}), sexp, yojson, enumerate, eq)]
 type unknown_mode = Grammar.unknown_mode;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type filter = Grammar.filter(IdTagged.IdTag.t);
@@ -912,7 +912,8 @@ and Hole: {
         switch (term) {
         | EmptyHole
         | ErrorHole
-        | Invalid(_) => term
+        | Invalid(_)
+        | List => term
         | MultiHole(things) => MultiHole(List.map(any_map_term, things))
         },
     };
@@ -926,6 +927,7 @@ and Hole: {
     ) {
     | (EmptyHole, EmptyHole) => true
     | (ErrorHole, ErrorHole) => true
+    | (List, List) => true
     | (Invalid(s1), Invalid(s2)) => s1 == s2
     | (MultiHole(xs), MultiHole(ys)) =>
       List.length(xs) == List.length(ys)
@@ -933,7 +935,8 @@ and Hole: {
     | (EmptyHole, _)
     | (ErrorHole, _)
     | (Invalid(_), _)
-    | (MultiHole(_), _) => false
+    | (MultiHole(_), _)
+    | (List, _) => false
     };
   let equal = fast_equal;
 }

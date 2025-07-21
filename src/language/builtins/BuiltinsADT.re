@@ -29,11 +29,11 @@ module Either = {
     sum_type([
       (
         "Left",
-        Some(Unknown(Syn, Hole.fresh(EmptyHole), Atom) |> Typ.fresh),
+        Some(Unknown(Type, Hole.temp(EmptyHole), Atom) |> Typ.fresh),
       ),
       (
         "Right",
-        Some(Unknown(Syn, Hole.fresh(EmptyHole), Atom) |> Typ.fresh),
+        Some(Unknown(Type, Hole.temp(EmptyHole), Atom) |> Typ.fresh),
       ),
     ]);
 
@@ -41,23 +41,23 @@ module Either = {
   let left =
     Exp.constructor(
       "Left",
-      Some(Some(arrow(unknown(Syn, Hole.fresh(EmptyHole), Atom), t))),
+      Some(Some(arrow(unknown(Type, Hole.temp(EmptyHole), Atom), t))),
     );
   let right =
     Exp.constructor(
       "Right",
-      Some(Some(arrow(unknown(Syn, Hole.fresh(EmptyHole), Atom), t))),
+      Some(Some(arrow(unknown(Type, Hole.temp(EmptyHole), Atom), t))),
     );
 
   let pat_left =
     Pat.constructor(
       "Left",
-      Some(Some(arrow(unknown(Syn, Hole.fresh(EmptyHole), Atom), t))),
+      Some(Some(arrow(unknown(Type, Hole.temp(EmptyHole), Atom), t))),
     );
   let pat_right =
     Pat.constructor(
       "Right",
-      Some(Some(arrow(unknown(Syn, Hole.fresh(EmptyHole), Atom), t))),
+      Some(Some(arrow(unknown(Type, Hole.temp(EmptyHole), Atom), t))),
     );
 };
 
@@ -67,7 +67,7 @@ module Option = {
       ("None", None),
       (
         "Some",
-        Some(Unknown(Syn, Hole.fresh(EmptyHole), Atom) |> Typ.fresh),
+        Some(Unknown(Type, Hole.temp(EmptyHole), Atom) |> Typ.fresh),
       ),
     ]);
 
@@ -79,7 +79,7 @@ module Option = {
   let some =
     Exp.constructor(
       "Some",
-      Some(Some(arrow(unknown(Syn, Hole.fresh(EmptyHole), Atom), t))),
+      Some(Some(arrow(unknown(Type, Hole.temp(EmptyHole), Atom), t))),
     );
 
   let pat_none = Pat.constructor("None", Some(Some(t)));
@@ -87,7 +87,7 @@ module Option = {
   let pat_some =
     Pat.constructor(
       "Some",
-      Some(Some(arrow(unknown(Syn, Hole.fresh(EmptyHole), Atom), t))),
+      Some(Some(arrow(unknown(Type, Hole.temp(EmptyHole), Atom), t))),
     );
 
   let builtins: list(hazel_fn) = [
@@ -101,11 +101,11 @@ module Option = {
         Prod([
           t,
           arrow(
-            unknown(Syn, Hole.fresh(EmptyHole), Atom),
-            unknown(Syn, Hole.fresh(EmptyHole), Atom),
+            unknown(Type, Hole.temp(EmptyHole), Atom),
+            unknown(Type, Hole.temp(EmptyHole), Atom),
           ),
         ]),
-      ret: Unknown(Syn, Hole.fresh(EmptyHole), Atom),
+      ret: Unknown(Type, Hole.temp(EmptyHole), Atom),
       imp: {
         Fresh.(
           Exp.(
@@ -138,11 +138,11 @@ module Option = {
         Prod([
           t,
           arrow(
-            unknown(Syn, Hole.fresh(EmptyHole), Atom),
-            unknown(Syn, Hole.fresh(EmptyHole), Atom),
+            unknown(Type, Hole.temp(EmptyHole), Atom),
+            unknown(Type, Hole.temp(EmptyHole), Atom),
           ),
         ]),
-      ret: Unknown(Syn, Hole.fresh(EmptyHole), Atom),
+      ret: Unknown(Type, Hole.temp(EmptyHole), Atom),
       imp: {
         Fresh.(
           Exp.(
@@ -168,7 +168,7 @@ module Option = {
     {
       name: "option_to_list",
       arg: t.term,
-      ret: List(unknown(Syn, Hole.fresh(EmptyHole), Atom)),
+      ret: List(unknown(Type, Hole.temp(EmptyHole), Atom)),
       str: {|fun opt -> case opt
                | None => []
                | Some x => [x]

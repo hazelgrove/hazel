@@ -7,7 +7,9 @@ let tests = [
     "Function with unknown param",
     "fun x -> 4 + 5",
     Some(
-      Typ.(arrow(unknown(Syn, Language.Hole.temp(EmptyHole), Atom), int())),
+      Typ.(
+        arrow(unknown(Type, Language.Hole.temp(EmptyHole), Atom), int())
+      ),
     ),
   ),
   fully_consistent_typecheck(
@@ -23,7 +25,7 @@ let tests = [
         prod([
           tup_label(
             label("a"),
-            unknown(Syn, Language.Hole.temp(EmptyHole), Atom),
+            unknown(Type, Language.Hole.temp(EmptyHole), Atom),
           ),
         ]),
         int(),

@@ -392,10 +392,9 @@ let pat_constraint: pat => Coverage.Constraint.t =
 let status_common =
     (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t, ids: list(Id.t)): status_common =>
   switch (self, ty_ana) {
-  | (Just(ty), {term: Unknown(Syn | SynSwitch, _, _), _}) =>
-    NotInHole(Syn(ty))
-  | (Just(ty), {term: Unknown(Ana, h, p), _}) when !Typ.is_unknown_syn(ty) =>
-    InHole(AsymmetricUnknown(ty, h, p)) /* Disallow analysing against ? except for terms synthesising ? */
+  | (Just(ty), {term: Unknown(SynSwitch, _, _), _}) => NotInHole(Syn(ty))
+  | (Just(ty), {term: Unknown(Type, h, p), _}) when !Typ.is_unknown(ty) =>
+    InHole(AsymmetricUnknown(ty, h, p)) /* Disallow analysing against ?_t except for terms synthesising ? */
   | (Just(syn), ana) =>
     switch (
       Typ.join(
@@ -463,7 +462,7 @@ let status_common =
       DuplicateLabel(
         lab,
         Unknown(
-          Syn,
+          Expr,
           {
             term: ErrorHole,
             annotation: {
@@ -479,7 +478,7 @@ let status_common =
     NotInHole(
       Syn(
         Unknown(
-          Syn,
+          Expr,
           {
             term: MultiHole([]),
             annotation: {
@@ -497,7 +496,7 @@ let status_common =
     let syn: Typ.t =
       Self.join_of(
         wrap,
-        Unknown(Syn, Hole.temp(EmptyHole), Atom) |> Typ.temp,
+        Unknown(Expr, Hole.temp(EmptyHole), Atom) |> Typ.temp,
       );
     switch (ana.term, syn.term) {
     | (Label(_), Label(_)) =>
@@ -613,7 +612,9 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp, ids): status_exp =>
     | None => InHole(UnboundLivelit(name))
     | Some(_livelit) =>
       NotInHole(
-        Common(Syn(Unknown(Syn, Hole.fresh(EmptyHole), Atom) |> Typ.temp)),
+        Common(
+          Syn(Unknown(Expr, Hole.fresh(EmptyHole), Atom) |> Typ.temp),
+        ),
       )
     };
   | BadTrivAp(ty) => InHole(BadTrivAp(ty))
@@ -786,7 +787,7 @@ let fixed_typ_err_common = (error_common, ids) =>
       ConstructorMap.Variant(c, [Id.invalid], None),
       ConstructorMap.BadEntry(
         Unknown(
-          Syn,
+          Expr,
           {
             term: ErrorHole,
             annotation: {
@@ -801,7 +802,7 @@ let fixed_typ_err_common = (error_common, ids) =>
     |> Typ.temp
   | NoType(BadToken(_) | BadLabel(_) | InvalidLabel(_)) =>
     Unknown(
-      Syn,
+      Expr,
       {
         term: ErrorHole,
         annotation: {
@@ -811,13 +812,13 @@ let fixed_typ_err_common = (error_common, ids) =>
       Atom,
     )
     |> Typ.temp
-  | AsymmetricUnknown(_, h, p) => Unknown(Syn, h, p) |> Typ.temp
+  | AsymmetricUnknown(_, h, p) => Unknown(Expr, h, p) |> Typ.temp
   | TupleLabelError({typ, _})
   | DuplicateLabel(_, typ) => typ
   | Inconsistent(Expectation({ana, _})) => ana
   | Inconsistent(Internal(_)) =>
     Unknown(
-      Syn,
+      Expr,
       {
         term: ErrorHole,
         annotation: {
@@ -830,7 +831,7 @@ let fixed_typ_err_common = (error_common, ids) =>
   | Inconsistent(WithArrow(_)) =>
     Arrow(
       Unknown(
-        Syn,
+        Expr,
         {
           term: ErrorHole,
           annotation: {
@@ -841,7 +842,7 @@ let fixed_typ_err_common = (error_common, ids) =>
       )
       |> Typ.temp,
       Unknown(
-        Syn,
+        Expr,
         {
           term: ErrorHole,
           annotation: {
@@ -867,7 +868,7 @@ let fixed_typ_err = (error_typ, ids) =>
   | LabelNotFound(_, _)
   | BadTrivAp(_) =>
     Unknown(
-      Syn,
+      Expr,
       {
         term: ErrorHole,
         annotation: {
@@ -887,7 +888,7 @@ let fixed_typ_err_pat = (error_pat, ids) =>
   | ExpectedConstructor
   | Redundant(_) =>
     Unknown(
-      Syn,
+      Expr,
       {
         term: ErrorHole,
         annotation: {

@@ -40,6 +40,15 @@ type deferral_position_t =
   | InAp
   | OutsideAp;
 
+// Class of unknown type, derived from expression hole or type hole.
+// Use "Type" when in doubt
+[@deriving (show({with_path: false}), sexp, yojson, enumerate, eq)]
+type unknown_mode =
+  // Note: Ideally SynSwitch should be factored out of Unknown (does not point to a hole)
+  | SynSwitch
+  | Type
+  | Expr; // (Also includes pattern holes)
+
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type any_t('a) =
   | Exp(exp_t('a))
@@ -112,8 +121,9 @@ and pat_term('a) =
   | Asc(pat_t('a), typ_t('a))
 and pat_t('a) = Annotated.t(pat_term('a), 'a)
 and typ_term('a) =
-  // Asymmetric Unknown type of Mode: Syn/Ana. Pointing to a hole of some sort. With a type provenance to track matching function usage.
-  // The hole pointed to _should_ be a type or exp hole for Syn mode. But can only be a type hole for Ana mode.
+  // Asymmetric Unknown type of pointing to a type or expression hole of some sort. With a type provenance to track matching function usage.
+  // Invariant: In Analysis mode, the hole pointed to must be a type hole (except for those arising from matching functions).
+  //            Use "Type" mode and a dummy temp empty hole when in doubt to preserve this invariant
   | Unknown(unknown_mode, hole_t('a), type_provenance)
   | Atom(Atom.cls)
   | Var(string)
@@ -148,12 +158,8 @@ and closure_environment_t('a) = {
 and stepper_filter_kind_t('a) =
   | Filter(filter('a))
   | Residue(int, FilterAction.t)
-and unknown_mode =
-  // Note: Ideally SynSwitch should be removed somehow. Analysing against Syn-Unknown could represent synthesis
-  | SynSwitch
-  | Syn
-  | Ana
 and hole_term('a) =
+  | List // Hack: Allow polymorphic empty list [] : [?]
   | Invalid(string)
   | ErrorHole
   | EmptyHole
@@ -434,6 +440,7 @@ and map_type_hole_annotation: 'a 'b. ('a => 'b, hole_t('a)) => hole_t('b) =
         switch (term) {
         | Invalid(s) => Invalid(s)
         | EmptyHole => EmptyHole
+        | List => List
         | ErrorHole => ErrorHole
         | MultiHole(l) =>
           MultiHole(List.map(x => map_any_annotation(f, x), l))
@@ -761,11 +768,11 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
   };
 
   module UnknownMode = {
-    let syn = (): unknown_mode => {
-      Syn;
+    let typ = (): unknown_mode => {
+      Type;
     };
-    let ana = (): unknown_mode => {
-      Ana;
+    let exp = (): unknown_mode => {
+      Expr;
     };
   };
 
@@ -842,12 +849,12 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Forall(tp, t),
       annotation: default_annotation(ann),
     };
-    let empty_hole_syn = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
-      term: Unknown(Syn, TypeHole.empty_hole(~ann?, ()), Atom),
+    let empty_hole_typ = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
+      term: Unknown(Type, TypeHole.empty_hole(~ann?, ()), Atom),
       annotation: default_annotation(ann),
     };
-    let empty_hole_ana = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
-      term: Unknown(Ana, TypeHole.empty_hole(~ann?, ()), Atom),
+    let empty_hole_expr = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
+      term: Unknown(Expr, TypeHole.empty_hole(~ann?, ()), Atom),
       annotation: default_annotation(ann),
     };
   };

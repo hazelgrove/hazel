@@ -87,7 +87,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         switch (TPat.tyvar_of_utpat(tp)) {
         | Some(tyvar) => Var(tyvar) |> Typ.temp
         | None =>
-          Unknown(Syn, Hole.fresh(Invalid("Invalid tyvar")), Atom)
+          Unknown(Expr, Hole.fresh(Invalid("Invalid tyvar")), Atom)
           |> Typ.temp // TODO: Provenances for dynamic errors?
         };
       Some(

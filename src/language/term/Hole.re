@@ -1,5 +1,6 @@
 [@deriving (show({with_path: false}), sexp, yojson, enumerate, eq)]
 type cls =
+  | List
   | Invalid
   | EmptyHole
   | MultiHole;
@@ -18,6 +19,7 @@ let hole = (tms: list(TermBase.Any.t)): TermBase.Hole.term =>
 
 let cls_of_term: Grammar.hole_term('a) => cls =
   fun
+  | List => List
   | Invalid(_) => Invalid
   | EmptyHole => EmptyHole
   | ErrorHole
@@ -25,6 +27,7 @@ let cls_of_term: Grammar.hole_term('a) => cls =
 
 let show_cls: cls => string =
   fun
+  | List => "List"
   | Invalid => "Invalid term"
   | MultiHole => "Error term"
   | EmptyHole => "Empty hole";

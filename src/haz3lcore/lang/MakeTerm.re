@@ -602,7 +602,7 @@ and typ = unsorted => {
 }
 and typ_term: unsorted => (Typ.term, list(Id.t)) = {
   let ret = (term: Typ.term) => (term, []);
-  let hole = unsorted => Typ.hole_syn(kids_of_unsorted(unsorted));
+  let hole = unsorted => Typ.hole_typ(kids_of_unsorted(unsorted));
   fun
   | Op(tiles) as tm =>
     switch (tiles) {
@@ -623,7 +623,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | ([t], []) when is_hole_label(t) => hole(tm)
         | ([t], []) =>
           Unknown(
-            Syn,
+            Type,
             {
               term: Invalid(t),
               annotation: {

@@ -22,7 +22,7 @@ let cls_view = (ci: Info.t): Node.t => {
     [
       text(
         switch (cls) {
-        | Typ(UnkEmptyHoleAna | UnkEmptyHoleSyn)
+        | Typ(Unknown(_, EmptyHole))
         | Exp(EmptyHole)
         | Pat(EmptyHole) =>
           Info.is_label(ci) ? "Empty Label" : Cls.show(cls)
@@ -321,7 +321,10 @@ let typ_ok_view = (~globals, cls: Cls.t, ok: Info.ok_typ) => {
   let view_type = view_type(~globals);
   switch (ok) {
   | EmptyLabel => []
-  | Type(_) when cls == Typ(UnkEmptyHoleAna) || cls == Typ(UnkEmptyHoleSyn) => [
+  | Type(_)
+      when
+        cls == Typ(Unknown(Expr, EmptyHole))
+        || cls == Typ(Unknown(Type, EmptyHole)) => [
       text("Fillable by any type"),
     ]
   | Type(ty) =>

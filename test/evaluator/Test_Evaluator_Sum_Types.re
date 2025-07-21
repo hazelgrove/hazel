@@ -72,7 +72,7 @@ let tests = (
                   Typ.sum([
                     Variant("T", [], None),
                     BadEntry(
-                      Typ.unknown(Syn, Language.Hole.temp(EmptyHole), Atom),
+                      Typ.unknown(Type, Language.Hole.temp(EmptyHole), Atom),
                     ),
                   ]),
                 ),
@@ -102,14 +102,14 @@ let tests = (
                     Some(
                       Typ.(
                         arrow(
-                          unknown(Syn, Language.Hole.temp(EmptyHole), Atom),
+                          unknown(Type, Language.Hole.temp(EmptyHole), Atom),
                           sum([
                             Variant(
                               "B",
                               [],
                               Some(
                                 unknown(
-                                  Syn,
+                                  Type,
                                   Language.Hole.temp(EmptyHole),
                                   Atom,
                                 ),
@@ -127,7 +127,7 @@ let tests = (
                       "B",
                       [],
                       Some(
-                        unknown(Syn, Language.Hole.temp(EmptyHole), Atom),
+                        unknown(Type, Language.Hole.temp(EmptyHole), Atom),
                       ),
                     ),
                   ])
@@ -148,7 +148,7 @@ let tests = (
               Some(
                 Some(
                   Typ.(
-                    list(unknown(Syn, Language.Hole.temp(EmptyHole), Atom))
+                    list(unknown(Type, Language.Hole.temp(EmptyHole), Atom))
                   ),
                 ),
               ),
@@ -166,7 +166,7 @@ let tests = (
               Some(
                 Some(
                   Typ.(
-                    list(unknown(Syn, Language.Hole.temp(EmptyHole), Atom))
+                    list(unknown(Type, Language.Hole.temp(EmptyHole), Atom))
                   ),
                 ),
               ),
@@ -205,13 +205,13 @@ let tests = (
                   Typ.(
                     forall(
                       TPat.empty_hole(),
-                      unknown(Syn, Language.Hole.temp(EmptyHole), Atom),
+                      unknown(Type, Language.Hole.temp(EmptyHole), Atom),
                     )
                   ),
                 ),
               ),
             ),
-            Typ.unknown(Syn, Language.Hole.temp(EmptyHole), Atom),
+            Typ.unknown(Type, Language.Hole.temp(EmptyHole), Atom),
           ),
           elaborate(
             parse_exp("type y = + B in case true | a => B end @<?>"),

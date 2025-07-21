@@ -20,7 +20,7 @@ let tests = [
                             syn:
                               list(
                                 unknown(
-                                  Syn,
+                                  Type,
                                   Language.Hole.temp(EmptyHole),
                                   Atom,
                                 ),

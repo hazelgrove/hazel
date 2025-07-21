@@ -142,7 +142,7 @@ let lookup_alias = (ctx: t, name: string, var_ids): option(TermBase.Typ.t) =>
     Some(
       (
         Unknown(
-          Syn,
+          Expr,
           (Invalid(name): TermBase.Hole.term) |> IdTagged.tag(var_ids),
           Atom,
         ): TermBase.Typ.term

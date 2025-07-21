@@ -367,8 +367,8 @@ let tests =
             Typ.(
               parens(
                 arrow(
-                  unknown(Syn, Language.Hole.temp(EmptyHole), Atom),
-                  unknown(Syn, Language.Hole.temp(EmptyHole), Atom),
+                  unknown(Type, Language.Hole.temp(EmptyHole), Atom),
+                  unknown(Type, Language.Hole.temp(EmptyHole), Atom),
                 ),
               )
             ),

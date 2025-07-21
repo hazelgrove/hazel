@@ -2,14 +2,20 @@ open Util;
 open OptUtil.Syntax;
 
 [@deriving (show({with_path: false}), sexp, yojson, enumerate, eq)]
+type unknown_cls =
+  | List
+  | Invalid
+  | EmptyHole
+  | MultiHole;
+
+include TermBase.Typ;
+[@deriving (show({with_path: false}), sexp, yojson, enumerate, eq)]
+type mode = TermBase.unknown_mode; // WHY can't I put ppx_enumerate in TermBase.Typ >:(
+
+[@deriving (show({with_path: false}), sexp, yojson, enumerate, eq)]
 type cls =
   | Atom(Atom.cls)
-  | UnkInvalidSyn
-  | UnkInvalidAna
-  | UnkEmptyHoleSyn
-  | UnkEmptyHoleAna
-  | UnkMultiHoleSyn
-  | UnkMultiHoleAna
+  | Unknown(mode, unknown_cls)
   | Arrow
   | Prod
   | TupLabel
@@ -22,8 +28,6 @@ type cls =
   | Ap
   | Rec
   | Forall;
-
-include TermBase.Typ;
 
 let term_of: t => term = IdTagged.term_of;
 let unwrap: t => (term, term => t) = IdTagged.unwrap;
@@ -69,27 +73,26 @@ let (replace_temp, replace_temp_exp) = {
   );
 };
 
-let hole_syn = (tms: list(TermBase.Any.t)): TermBase.Typ.term =>
+// TODO: IDs?
+let hole_typ = (tms: list(TermBase.Any.t)): TermBase.Typ.term =>
   switch (tms) {
-  | [] => Unknown(Syn, Hole.fresh(EmptyHole), Atom)
-  | [_, ..._] => Unknown(Syn, Hole.fresh(MultiHole(tms)), Atom)
+  | [] => Unknown(Type, Hole.fresh(EmptyHole), Atom)
+  | [_, ..._] => Unknown(Type, Hole.fresh(MultiHole(tms)), Atom)
   };
 
 let hole_ana = (tms: list(TermBase.Any.t)): TermBase.Typ.term =>
   switch (tms) {
-  | [] => Unknown(Ana, Hole.fresh(EmptyHole), Atom)
-  | [_, ..._] => Unknown(Ana, Hole.fresh(MultiHole(tms)), Atom)
+  | [] => Unknown(Expr, Hole.fresh(EmptyHole), Atom)
+  | [_, ..._] => Unknown(Expr, Hole.fresh(MultiHole(tms)), Atom)
   };
 
 let cls_of_term: Grammar.typ_term('a) => cls =
   fun
-  | Unknown(Syn | SynSwitch, {term: Invalid(_), _}, _) => UnkInvalidSyn
-  | Unknown(Ana, {term: Invalid(_), _}, _) => UnkInvalidAna
-  | Unknown(Syn | SynSwitch, {term: EmptyHole, _}, _) => UnkEmptyHoleSyn
-  | Unknown(Ana, {term: EmptyHole, _}, _) => UnkEmptyHoleAna
-  | Unknown(Syn | SynSwitch, {term: MultiHole(_) | ErrorHole, _}, _) =>
-    UnkMultiHoleSyn
-  | Unknown(Ana, {term: MultiHole(_) | ErrorHole, _}, _) => UnkMultiHoleAna
+  | Unknown(m, {term: Invalid(_), _}, _) => Unknown(m, Invalid)
+  | Unknown(m, {term: EmptyHole, _}, _) => Unknown(m, EmptyHole)
+  | Unknown(m, {term: MultiHole(_) | ErrorHole, _}, _) =>
+    Unknown(m, MultiHole)
+  | Unknown(m, {term: List, _}, _) => Unknown(m, List)
   | Atom(c) => Atom(c)
   | List(_) => List
   | Arrow(_) => Arrow
@@ -105,12 +108,12 @@ let cls_of_term: Grammar.typ_term('a) => cls =
 
 let show_cls: cls => string =
   fun
-  | UnkInvalidSyn
-  | UnkInvalidAna => "Invalid type"
-  | UnkMultiHoleSyn
-  | UnkMultiHoleAna => "Broken type"
-  | UnkEmptyHoleSyn => "Synthesising unknown type (from expression hole or partially annotated variable)"
-  | UnkEmptyHoleAna => "Analysing unknown type (from partial annotation)"
+  | Unknown(SynSwitch, _) => "SynSwitch"
+  | Unknown(_, Invalid) => "Invalid type"
+  | Unknown(_, MultiHole) => "Broken type"
+  | Unknown(_, List) => "Unknown type (from list)"
+  | Unknown(Expr, EmptyHole) => "Unknown type (from expression hole)"
+  | Unknown(Type, EmptyHole) => "Unknown type (from partial annotation)"
   | Atom(_) => "Base type"
   | Var => "Type variable"
   | Constructor => "Sum constructor"
@@ -196,12 +199,12 @@ type source = {
 /* Strip location information from a list of sources */
 let of_source = List.map((source: source) => source.ty);
 
-/* Ana > Syn > SynSwitch
+/* Expr > Type > SynSwitch
 
    Note: Joining SynSwitches does NOT make semantic sense, we do not yet know if such a join is possible,
          it is dependent on how the SynSwitches are matched.
 
-         SynSwitch > Syn makes more intuitive sense as it _might_ contain more type info when synswitch
+         SynSwitch > Expr > Type makes more intuitive sense as it _might_ contain more type info when synswitch
          is matched.
 
          But, the current logic uses join to match SynSwitches during Info.status_common.
@@ -209,17 +212,17 @@ let of_source = List.map((source: source) => source.ty);
          match_synswitch where required */
 let join_unknown_mode: ((mode, mode)) => mode =
   fun
-  | (Syn, _)
-  | (_, Syn) => Syn
-  | (Ana, _)
-  | (_, Ana) => Ana
+  | (Expr, _)
+  | (_, Expr) => Expr
+  | (Type, _)
+  | (_, Type) => Type
   | (SynSwitch, SynSwitch) => SynSwitch;
 
 /* TODO: Think about joining provenances. (may not be required) */
 let join_type_provenance = ((p1, _p2)) => p1;
 
 /* TODO: Think about joining holes.
-   Currently: Invalid > ErrorHole > MultiHole > Hole*/
+   Currently: Invalid > ErrorHole > MultiHole > Hole > List*/
 let join_hole: ((Hole.t, Hole.t)) => Hole.t =
   fun
   | ({term: Invalid(_), _} as h, _)
@@ -228,7 +231,9 @@ let join_hole: ((Hole.t, Hole.t)) => Hole.t =
   | (_, {term: ErrorHole, _} as h)
   | ({term: MultiHole(_), _} as h, _)
   | (_, {term: MultiHole(_), _} as h)
-  | ({term: EmptyHole, _} as h, _) => h;
+  | ({term: EmptyHole, _} as h, _)
+  | (_, {term: EmptyHole, _} as h)
+  | ({term: List, _} as h, _) => h;
 
 let rec match_tup_label = ty =>
   switch (term_of(ty)) {
@@ -299,9 +304,9 @@ let rec aliases_deep = (ctx: Ctx.t, ty: t): list((string, t)) => {
         | None => [
             (
               var,
-              fresh(Unknown(Syn, Hole.fresh(Invalid("Abstract")), Atom)),
+              fresh(Unknown(Type, Hole.fresh(Invalid("Abstract")), Atom)),
             ),
-          ] // TODO: Handle hole provenances of abstract ctx lookups correctly
+          ]
         },
       vars(ty),
     )
@@ -638,12 +643,12 @@ let rec matched_arrow_strict = (ctx, ty) =>
   | _ => None
   };
 
-let matched_arrow = (ctx, ty, error) =>
+let matched_arrow = (ctx, ty, error, mode) =>
   matched_arrow_strict(ctx, ty)
   |> Option.value(
        ~default=(
-         Unknown(Syn, error, ArrowL(Atom)) |> temp,
-         Unknown(Syn, error, ArrowR(Atom)) |> temp,
+         Unknown(mode, error, ArrowL(Atom)) |> temp,
+         Unknown(mode, error, ArrowR(Atom)) |> temp,
        ),
      );
 
@@ -655,10 +660,10 @@ let rec matched_forall_strict = (ctx, ty) =>
   | _ => None
   };
 
-let matched_forall = (ctx, ty, error) =>
+let matched_forall = (ctx, ty, error, mode) =>
   matched_forall_strict(ctx, ty)
   |> Option.value(
-       ~default=(None, Unknown(Syn, error, Forall(Atom)) |> temp),
+       ~default=(None, Unknown(mode, error, Forall(Atom)) |> temp),
      );
 
 let rec get_labels = (ctx, ty): list(option(string)) => {
@@ -705,7 +710,7 @@ let rec matched_prod_strict:
     };
   };
 
-let matched_prod = (ctx, es, get_label_es, ty, constructor, error) => {
+let matched_prod = (ctx, es, get_label_es, ty, constructor, error, mode) => {
   let (es, tys_opt) =
     matched_prod_strict(ctx, es, get_label_es, ty, constructor);
   (
@@ -714,7 +719,7 @@ let matched_prod = (ctx, es, get_label_es, ty, constructor, error) => {
     |> Option.value(
          ~default=
            List.init(List.length(es), i =>
-             Unknown(Syn, error, Prod(i, Atom)) |> temp
+             Unknown(mode, error, Prod(i, Atom)) |> temp
            ),
        ),
   );
@@ -728,9 +733,9 @@ let rec matched_list_strict = (ctx, ty) =>
   | _ => None
   };
 
-let matched_list = (ctx, ty, error) =>
+let matched_list = (ctx, ty, error, mode) =>
   matched_list_strict(ctx, ty)
-  |> Option.value(~default=Unknown(Syn, error, List(Atom)) |> temp);
+  |> Option.value(~default=Unknown(mode, error, List(Atom)) |> temp);
 
 let rec matched_args_strict = (ctx, ty, arity): Either.t('a, int) => {
   switch (term_of(weak_head_normalize(ctx, ty))) {
@@ -744,10 +749,10 @@ let rec matched_args_strict = (ctx, ty, arity): Either.t('a, int) => {
   };
 };
 
-let matched_args = (ctx, ty, arity, error) =>
+let matched_args = (ctx, ty, arity, error, mode) =>
   switch (matched_args_strict(ctx, ty, arity)) {
   | L(tys) => tys
-  | R(_) => List.init(arity, i => Unknown(Syn, error, Arg(i, Atom)) |> temp)
+  | R(_) => List.init(arity, i => Unknown(mode, error, Arg(i, Atom)) |> temp)
   };
 
 let matched_label = (ctx, ty): option((t, t)) =>
@@ -798,19 +803,19 @@ let rec is_unknown = (ty: t): bool =>
   | _ => false
   };
 
-let rec is_unknown_syn = (ty: t): bool =>
+let rec is_unknown_expr = (ty: t): bool =>
   switch (ty |> term_of) {
   | TupLabel(_, x)
-  | Parens(x) => is_unknown_syn(x)
-  | Unknown(Syn, _, _) => true
+  | Parens(x) => is_unknown_expr(x)
+  | Unknown(Expr, _, _) => true
   | _ => false
   };
 
-let rec is_unknown_ana = (ty: t): bool =>
+let rec is_unknown_type = (ty: t): bool =>
   switch (ty |> term_of) {
   | TupLabel(_, x)
-  | Parens(x) => is_unknown_ana(x)
-  | Unknown(Ana, _, _) => true
+  | Parens(x) => is_unknown_type(x)
+  | Unknown(Type, _, _) => true
   | _ => false
   };
 
@@ -831,20 +836,6 @@ let rec is_synswitch = (ty: t): bool =>
   | Prod(_)
   | Sum(_) => false
   };
-
-// Note: Does not remove synswitch
-let make_ana =
-  map_term(~f_typ=(cont, ty: t) => {
-    let (term, rewrap) = IdTagged.unwrap(ty);
-    (
-      switch (term) {
-      | Unknown(Syn, h, p) => (Unknown(Ana, h, p): term)
-      | x => x
-      }
-    )
-    |> rewrap
-    |> cont;
-  });
 
 let rec is_ana_atom = (ty: t) =>
   switch (ty |> term_of) {
@@ -884,7 +875,7 @@ let rec is_synswitch_plus = (ty: t): bool =>
   switch (ty |> term_of) {
   | TupLabel(_, x)
   | Parens(x) => is_synswitch_plus(x)
-  | Unknown(SynSwitch | Syn, _, _) => true
+  | Unknown(SynSwitch, _, _) => true
   | Arrow(t1, t2) => is_synswitch(t1) && is_synswitch_plus(t2)
   | Forall(_, t) => is_synswitch(t)
   | Unknown(_)
@@ -1008,7 +999,7 @@ let remove_duplicate_labels =
             @ [
               TupLabel(
                 Label(l) |> temp,
-                Unknown(Syn, Hole.fresh(Invalid("Duplicate Label")), Atom)
+                Unknown(Expr, Hole.fresh(Invalid("Duplicate Label")), Atom)
                 |> temp,
               )  // TODO: Correctly track ids for duplicate labels
               |> temp,

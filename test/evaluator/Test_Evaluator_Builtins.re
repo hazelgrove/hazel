@@ -25,8 +25,8 @@ let tests = (
             tuple([string("Hello"), string("World")]),
             Typ.(
               prod([
-                Typ.unknown(Syn, Language.Hole.temp(EmptyHole), Atom),
-                Typ.unknown(Syn, Language.Hole.temp(EmptyHole), Atom),
+                Typ.unknown(Type, Language.Hole.temp(EmptyHole), Atom),
+                Typ.unknown(Type, Language.Hole.temp(EmptyHole), Atom),
               ])
             ),
           ),
@@ -50,17 +50,17 @@ let tests = (
             tuple([
               asc(
                 string("Hello"),
-                Typ.unknown(Syn, Language.Hole.temp(EmptyHole), Atom),
+                Typ.unknown(Type, Language.Hole.temp(EmptyHole), Atom),
               ),
               asc(
                 string("World"),
-                Typ.unknown(Syn, Language.Hole.temp(EmptyHole), Atom),
+                Typ.unknown(Type, Language.Hole.temp(EmptyHole), Atom),
               ),
             ]),
             Typ.(
               prod([
-                Typ.unknown(Syn, Language.Hole.temp(EmptyHole), Atom),
-                Typ.unknown(Syn, Language.Hole.temp(EmptyHole), Atom),
+                Typ.unknown(Type, Language.Hole.temp(EmptyHole), Atom),
+                Typ.unknown(Type, Language.Hole.temp(EmptyHole), Atom),
               ])
             ),
           ),

@@ -399,7 +399,7 @@ and Typ: {
     switch (typ) {
     | InvalidTyp(s) =>
       unknown(
-        Syn,
+        Type,
         {
           term: Invalid(s),
           annotation: true,
@@ -416,7 +416,7 @@ and Typ: {
       switch (p) {
       | Internal =>
         unknown(
-          Syn,
+          Type,
           {
             term: EmptyHole,
             annotation: true,
@@ -425,7 +425,7 @@ and Typ: {
         )
       | EmptyHole =>
         unknown(
-          Syn,
+          Type,
           {
             term: EmptyHole,
             annotation: true,

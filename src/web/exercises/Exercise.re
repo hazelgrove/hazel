@@ -650,7 +650,7 @@ let wrap_filter =
               "$e",
               Some(
                 Some(
-                  Unknown(Syn, Language.Hole.temp(EmptyHole), Atom)
+                  Unknown(Type, Language.Hole.temp(EmptyHole), Atom)
                   |> Language.Typ.fresh,
                 ),
               ),
