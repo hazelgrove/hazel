@@ -237,10 +237,16 @@ let backpack_hd = (z: t): option(Tile.t) =>
   z |> mk_local_backpack |> ListUtil.hd_opt;
 
 let backpack_find = (tok: Token.t, z: t): option(Tile.t) =>
-  List.find_map(
-    t => Tile.effective_label(t) == [tok] ? Some(t) : None,
-    mk_local_backpack(z),
-  );
+  if (List.mem(tok, Form.amiguous_polymorphs)) {
+    //TODO(andrew): document
+    backpack_hd(z) |> Option.map(Tile.effective_label) == Some([tok])
+      ? backpack_hd(z) : None;
+  } else {
+    List.find_map(
+      t => Tile.effective_label(t) == [tok] ? Some(t) : None,
+      mk_local_backpack(z),
+    );
+  };
 
 let put_down_tok = (d: Direction.t, tok: Token.t, z: t): option(t) => {
   /* Does not regrout/remold on its own. */

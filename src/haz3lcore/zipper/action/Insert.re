@@ -109,9 +109,15 @@ let make_new_tile = (t: Token.t, caret: Direction.t, z: t): t =>
   | Some((lbl, d)) =>
     Zipper.replace(~caret=d, ~backpack=d, lbl, z) |> Option.get
   | None =>
-    //print_endline("NOTputting down " ++ t);
-    let (lbl, backpack) = Molds.instant_expansion(t);
-    construct(~caret, ~backpack, lbl, z);
+    //TODO(andrew): better avoid instant expansion for trailing kws while maintaining for trailing )] etc
+    Zipper.will_barf(t, z) && List.mem(t, [")", "]"])
+      ? {
+        put_down_regrout_remold_tok(caret, t, z) |> Option.get;
+      }  //print_endline("NOTputting down " ++ t);
+      : {
+        let (lbl, backpack) = Molds.instant_expansion(t);
+        construct(~caret, ~backpack, lbl, z);
+      }
   };
 
 let expand_neighbors_and_make_new_tile = (char: Token.t, state: t): option(t) => {
