@@ -898,3 +898,19 @@ let remove_duplicate_labels =
     ),
   );
 };
+
+/* Replaces rec types with a variable with the same name as
+ * their rec parameter. Intended mostly for printing */
+let abstract_rec_types =
+  map_term(
+    ~f_typ=
+      (continue, t) =>
+        switch (t.term) {
+        | Rec({term: Var(name), _}, _) => {
+            ...t,
+            term: Var(name),
+          }
+        | _ => continue(t)
+        },
+    _,
+  );
