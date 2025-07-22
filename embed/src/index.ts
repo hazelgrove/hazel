@@ -1,4 +1,5 @@
 export { default as HazelEmbed } from './components/HazelEmbed';
 export { default as DocGraph } from './components/DocGraph';
 
-export type * from './types/interface';
+export type * from './types/delta';
+export type * from './types/messages';

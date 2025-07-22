@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { type HazelDoc } from "../types/interface";
 import "./DocComponents.css";
+import type { HazelDoc } from "../types/delta";
 
 interface DocStateManagerProps {
   currentState: HazelDoc | null;

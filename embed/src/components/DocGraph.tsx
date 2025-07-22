@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from "react";
 import Tree from "react-d3-tree";
-
-import { type HazelDoc } from "../types/interface";
+import type { HazelDoc } from "../types/delta";
 
 interface DocGraphProps {
   docState: HazelDoc | null;
@@ -20,12 +19,12 @@ const convertDocToTree = (doc: HazelDoc | null) => {
 
 // Find the root node of the document (one that is not referenced by any other node)
 const findRootNode = (doc: HazelDoc): string | null => {
-  if (!doc.pieceMap.size) return null;
+  if (!doc.tiles.length) return null;
   
   // Collect all referenced IDs
   const referencedIds = new Set<string>();
   
-  for (const [_, piece] of doc.pieceMap.entries()) {
+  for (const [_, piece] of doc.tiles.entries()) {
     if (piece.t === "Tile") {
       piece.children.forEach(childArray => {
         childArray.forEach(childId => {
@@ -36,19 +35,19 @@ const findRootNode = (doc: HazelDoc): string | null => {
   }
   
   // Find a node that is not referenced (potential root)
-  for (const [id, _] of doc.pieceMap.entries()) {
-    if (!referencedIds.has(id)) {
-      return id;
+  for (const [_, piece] of doc.tiles.entries()) {
+    if (!referencedIds.has(piece.id)) {
+      return piece.id;
     }
   }
   
   // If no clear root, just return the first key
-  return Array.from(doc.pieceMap.keys())[0];
+  return doc.tiles[0]?.id || null;
 };
 
 // Build a tree node recursively
 const buildTreeNode = (id: string, doc: HazelDoc): any => {
-  const piece = doc.pieceMap.get(id);
+  const piece = doc.tiles.find(p => p.id === id);
   
   if (!piece) {
     return { name: `Unknown (${id.substring(0, 6)}...)` };

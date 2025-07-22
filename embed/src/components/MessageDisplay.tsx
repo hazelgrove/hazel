@@ -1,19 +1,12 @@
 import React from "react";
-import type { Ping, Pong } from "../types/messages";
-import type { HazelDoc } from "../types/interface";
+import type { HazelToParent, Ping, Pong } from "../types/messages";
+import type { HazelDoc } from "../types/delta";
+
 import "./DocComponents.css";
-
-// Define parent-facing message types to match HazelEmbed
-type ParentFacingState = {
-  t: "state";
-  state: HazelDoc;
-};
-
-type ParentFacingMessage = Ping | Pong | { t: "init"; message: string } | ParentFacingState;
 
 interface MessageDisplayProps {
   messages: Array<{
-    message: ParentFacingMessage;
+    message: HazelToParent;
     instanceId: string;
     timestamp: string;
   }>;
@@ -21,7 +14,7 @@ interface MessageDisplayProps {
 
 const MessageDisplay: React.FC<MessageDisplayProps> = ({ messages }) => {
   // Helper function to format message content for display
-  const formatMessageContent = (message: ParentFacingMessage): string => {
+  const formatMessageContent = (message: HazelToParent): string => {
     switch (message.t) {
       case "init":
         return `Init: ${message.message}`;
@@ -30,7 +23,7 @@ const MessageDisplay: React.FC<MessageDisplayProps> = ({ messages }) => {
       case "pong":
         return `Pong: ${message.message}`;
       case "state":
-        return `State update: ${message.state.title || "Untitled"} (${message.state.pieceMap.size} pieces)`;
+        return `State update: ${message.state.title || "Untitled"} (${message.state.tiles.length} pieces)`;
       default:
         return `Unknown message type: ${(message as any).t}`;
     }

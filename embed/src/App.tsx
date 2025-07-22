@@ -8,8 +8,7 @@ import type {
   Ping,
 } from "./types/messages";
 import "./components/DocComponents.css";
-
-import { type HazelDoc } from "./types/interface";
+import type { HazelDoc } from "./types/delta";
 
 // Import the parent-facing message types from HazelEmbed
 type ParentFacingState = {

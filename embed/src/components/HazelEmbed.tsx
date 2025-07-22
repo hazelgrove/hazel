@@ -2,11 +2,10 @@ import React, { useEffect, useRef, useCallback } from "react";
 import type {
   Init,
   Ping,
-  HazelToParent as __HazelToParent,
-  ParentToHazel as __ParentToHazel,
+  HazelToParent,
+  ParentToHazel,
   EditorState,
 } from "../types/messages";
-import { generateHazelDoc, exportHazelDoc, type HazelDoc } from "../types/interface";
 
 /**
  * Retrieves a query parameter from the URL
@@ -21,16 +20,6 @@ export function getQueryParam(name: string, defaultValue: string = ""): string {
   const params = new URLSearchParams(window.location.search);
   return params.get(name) ?? defaultValue;
 }
-
-// Define parent-facing message types with converted doc format
-type ParentFacingState = {
-  t: "state";
-  state: HazelDoc;
-};
-
-// Export the parent-facing message types with clean API names
-export type HazelToParent = Exclude<__HazelToParent, EditorState> | ParentFacingState;
-export type ParentToHazel = Exclude<__ParentToHazel, EditorState> | ParentFacingState;
 
 /**
  * Props for the HazelEmbed component
@@ -68,7 +57,7 @@ interface HazelEmbedProps {
  * @param hazel - Reference to the iframe element
  * @param message - Message to send to Hazel (internal iframe format)
  */
-const sendToHazel = (hazel: HTMLIFrameElement, message: __ParentToHazel) => {
+const sendToHazel = (hazel: HTMLIFrameElement, message: ParentToHazel) => {
   if (hazel.contentWindow) {
     hazel.contentWindow.postMessage(message, "*");
   }
@@ -105,26 +94,8 @@ const HazelEmbed: React.FC<HazelEmbedProps> = ({
       if (event.data?.source?.includes("react")) return;
 
       // Extract the message from the event data (using internal types from iframe)
-      const hazelMessage = event.data as __HazelToParent;
-
-      if (hazelMessage && hazelMessage.t) {
-        switch (hazelMessage.t) {
-            case "state":
-              // Convert HazelDoc to ParentFacingState format
-              const convertedMessage: ParentFacingState = {
-                t: "state",
-                state: generateHazelDoc(hazelMessage.state),
-              };
-              onMessage(convertedMessage, instanceId);
-              break;
-            default:
-              // Pass through other message types unchanged
-              onMessage(hazelMessage as HazelToParent, instanceId);
-              break;
-        }
-      } else {
-        console.error("Invalid message format from Hazel:", event.data);
-      }
+      const hazelMessage = event.data as HazelToParent;
+      onMessage(hazelMessage, instanceId);
     };
 
     window.addEventListener("message", handleMessage);
@@ -141,7 +112,7 @@ const HazelEmbed: React.FC<HazelEmbedProps> = ({
         if (message.t === "state") {
           const convertedMessage: EditorState = {
             t: "state",
-            state: exportHazelDoc(message.state),
+            state: message.state,
           };
           sendToHazel(hazelRef.current, convertedMessage);
         } else {
