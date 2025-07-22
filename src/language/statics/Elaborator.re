@@ -444,8 +444,9 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
 let fix_typ_ids =
   Exp.map_term(~f_typ=(cont, e) => e |> IdTagged.new_ids |> cont);
 
-let uexp_elab = (m: Statics.Map.t, uexp: Exp.t): ElaborationResult.t =>
+let uexp_elab = (m: Statics.Map.t, uexp: Exp.t): ElaborationResult.t => {
   switch (elaborate(m, uexp)) {
   | exception MissingTypeInfo => DoesNotElaborate
   | (d, ty) => Elaborates(d |> fix_typ_ids, ty)
   };
+};

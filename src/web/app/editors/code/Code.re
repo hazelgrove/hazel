@@ -164,7 +164,15 @@ module Text =
           (child, l + 1 == r ? List.nth(t.mold.in_, i) : Sort.Any),
         Aba.aba_triples(Aba.mk(t.shards, t.children)),
       );
-    let is_consistent = Sort.consistent(t.mold.out, expected_sort);
+    let consistent = (s: Sort.t, s': Sort.t) =>
+      switch (s, s') {
+      | (Any, _)
+      | (_, Any) => true
+      | (Rul, Exp) => true
+      | (Exp, Rul) => true
+      | _ => s == s'
+      };
+    let is_consistent = consistent(t.mold.out, expected_sort);
     Aba.mk(t.shards, children_and_sorts)
     |> Aba.join(
          of_delim(

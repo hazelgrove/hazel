@@ -34,9 +34,6 @@
 
 /* TOKEN COLORS */
 
-.code .token.Nul {
-  color: var(--token-nul);
-}
 .code .token.Any {
   color: var(--token-any);
 }
@@ -143,9 +140,6 @@ svg.shard {
   --blur: 0;
 }
 
-svg.shard.indicated.Nul {
-  filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--shadow-nul));
-}
 svg.shard.indicated.Any {
   filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--shadow-any));
 }
@@ -169,9 +163,6 @@ svg.shard.indicated.TPat {
   filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--token-tpat));
 }
 
-svg.shard.indicated.Nul > path {
-  fill: var(--shard-nul);
-}
 svg.shard.indicated.Any > path {
   fill: var(--shard-any);
 }
@@ -206,7 +197,7 @@ svg.shard.indicated.caret.Typ > path {
 
 svg.shard.selected {
   z-index: var(--select-z);
-  filter: drop-shadow(1px 1px 0 var(--shadow-nul));
+  filter: drop-shadow(1px 1px 0 var(--shadow-selected));
 }
 svg.shard.indicated {
   z-index: var(--tile-z);
@@ -291,9 +282,6 @@ svg:has(.child-line) {
   z-index: var(--err-hole-arms-z);
 }
 
-.child-line.Nul {
-  stroke: var(--shadow-nul);
-}
 .child-line.Any {
   stroke: var(--shadow-any);
 }

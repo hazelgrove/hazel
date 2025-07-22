@@ -1,5 +1,3 @@
-open Language;
-
 let v: ProofCtx.t =
   []
   |> ProofCtx.add_entry(
@@ -8,7 +6,7 @@ let v: ProofCtx.t =
        Fun(
          Var("x") |> Pat.fresh,
          BinOp(
-           Int(Equals),
+           Poly(Equals),
            BinOp(
              Int(Plus),
              Var("x") |> Exp.fresh,
@@ -28,7 +26,7 @@ let v: ProofCtx.t =
        Fun(
          Var("x") |> Pat.fresh,
          BinOp(
-           Int(Equals),
+           Poly(Equals),
            BinOp(
              Int(Times),
              Var("x") |> Exp.fresh,
@@ -50,7 +48,7 @@ let v: ProofCtx.t =
          Fun(
            Var("y") |> Pat.fresh,
            BinOp(
-             Int(Equals),
+             Poly(Equals),
              BinOp(Int(Plus), Var("x") |> Exp.fresh, Var("y") |> Exp.fresh)
              |> Exp.fresh,
              BinOp(Int(Plus), Var("y") |> Exp.fresh, Var("x") |> Exp.fresh)
@@ -75,7 +73,7 @@ let v: ProofCtx.t =
            Fun(
              Var("z") |> Pat.fresh,
              BinOp(
-               Int(Equals),
+               Poly(Equals),
                BinOp(
                  Int(Plus),
                  Var("x") |> Exp.fresh,
@@ -120,7 +118,7 @@ let v: ProofCtx.t =
          Fun(
            Var("y") |> Pat.fresh,
            BinOp(
-             Int(Equals),
+             Poly(Equals),
              BinOp(
                Int(Times),
                Var("x") |> Exp.fresh,
@@ -153,7 +151,7 @@ let v: ProofCtx.t =
            Fun(
              Var("z") |> Pat.fresh,
              BinOp(
-               Int(Equals),
+               Poly(Equals),
                BinOp(
                  Int(Times),
                  Var("x") |> Exp.fresh,

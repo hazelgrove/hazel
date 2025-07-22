@@ -248,15 +248,16 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
       | (["hint", "test", "end"], [Exp(hint), Exp(test)]) =>
         ret(HintedTest(test, hint))
-      | (
-          ["case", "end"],
-          [Rul({term: Rules(scrut, rules), annotation: {ids, _}})],
-        ) => (
-          Match(scrut, rules),
-          ids,
-        )
+      | (["case", "end"], [Rul({term, annotation: {ids, _}})]) =>
+        switch (term) {
+        | Rules(scrut, rules) => (Match(scrut, rules), ids)
+        // If the rule parser is correct, below should be impossible
+        | MultiHole(anys) => (MultiHole(anys), ids)
+        | Invalid(string) => (Invalid(string), ids)
+        }
       | ([t], []) when is_hole_label(t) => ret(hole(tm))
-      | ([t], []) => ret(Invalid(t))
+      | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
+        ret(Invalid(t))
       | _ => ret(hole(tm))
       }
     | _ => ret(hole(tm))
@@ -398,8 +399,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           | ([">"], []) => BinOp(Int(GreaterThan), l, r)
           | (["<="], []) => BinOp(Int(LessThanOrEqual), l, r)
           | ([">="], []) => BinOp(Int(GreaterThanOrEqual), l, r)
-          | (["=="], []) => BinOp(Int(Equals), l, r)
-          | (["!="], []) => BinOp(Int(NotEquals), l, r)
+          | (["=="], []) => BinOp(Poly(Equals), l, r)
+          | (["!="], []) => BinOp(Poly(NotEquals), l, r)
           | (["+."], []) => BinOp(Float(Plus), l, r)
           | (["-."], []) => BinOp(Float(Minus), l, r)
           | (["*."], []) => BinOp(Float(Times), l, r)
@@ -733,40 +734,31 @@ and tpat_term: unsorted => TPat.term = {
   | (Pre(_) | Post(_)) as tm => ret(hole(tm))
   | tm => ret(hole(tm));
 }
+
 and rul = (unsorted): Rul.t => {
-  let hole: Rul.term = Hole(kids_of_unsorted(unsorted));
-  switch (exp(unsorted)) {
+  let e = exp(unsorted);
+  let mk_rules = (scrut: Exp.t, rules, ids): Rul.t => {
+    term: Rules(scrut, rules),
+    annotation: {
+      ids: ids,
+    },
+  };
+  switch (e) {
   | {term: MultiHole(_), _} =>
     switch (unsorted) {
     | Bin(Exp(scrut), tiles, Exp(last_clause)) =>
       switch (is_rules(tiles)) {
-      | Some((ps, leading_clauses)) => {
-          annotation: {
-            ids: ids(unsorted),
-          },
-          term:
-            Rules(scrut, List.combine(ps, leading_clauses @ [last_clause])),
-        }
-      | None => {
-          term: hole,
-          annotation: {
-            ids: ids(unsorted),
-          },
-        }
+      | Some((ps, leading_clauses)) =>
+        mk_rules(
+          scrut,
+          List.combine(ps, leading_clauses @ [last_clause]),
+          ids(unsorted),
+        )
+      | None => mk_rules(e, [], [])
       }
-    | _ => {
-        term: hole,
-        annotation: {
-          ids: ids(unsorted),
-        },
-      }
+    | _ => mk_rules(e, [], [])
     }
-  | e => {
-      term: Rules(e, []),
-      annotation: {
-        ids: [],
-      },
-    }
+  | _ => mk_rules(e, [], [])
   };
 }
 

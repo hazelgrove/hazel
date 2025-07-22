@@ -831,7 +831,7 @@ let builtins = [
                   (
                     Pat.cons(Pat.var("x"), Pat.var("xs")),
                     if_(
-                      bin_op(Int(Equals), var("n"), int(0)),
+                      bin_op(Poly(Equals), var("n"), int(0)),
                       var("x"),
                       ap(
                         Forward,
@@ -1129,7 +1129,7 @@ let builtins = [
                 var("xs"),
                 fn(
                   Pat.var("t"),
-                  bin_op(Int(Equals), var("x"), var("t")),
+                  bin_op(Poly(Equals), var("x"), var("t")),
                   None,
                   None,
                 ),
@@ -1757,7 +1757,7 @@ let builtins = [
                   (
                     Pat.cons(Pat.var("x"), Pat.var("xs")),
                     if_(
-                      bin_op(Int(Equals), var("n"), int(0)),
+                      bin_op(Poly(Equals), var("n"), int(0)),
                       ap(Forward, Option.some, var("x")),
                       ap(
                         Forward,
@@ -2105,7 +2105,7 @@ let builtins = [
                       Pat.var("xs"),
                     ),
                     if_(
-                      bin_op(Int(Equals), var("k"), var("key")),
+                      bin_op(Poly(Equals), var("k"), var("key")),
                       var("v"),
                       ap(
                         Forward,
@@ -2154,7 +2154,7 @@ let builtins = [
                       Pat.var("xs"),
                     ),
                     if_(
-                      bin_op(Int(Equals), var("k"), var("key")),
+                      bin_op(Poly(Equals), var("k"), var("key")),
                       ap(Forward, Option.some, var("v")),
                       ap(
                         Forward,
@@ -2203,7 +2203,7 @@ let builtins = [
                       Pat.var("xs"),
                     ),
                     if_(
-                      bin_op(Int(Equals), var("k"), var("key")),
+                      bin_op(Poly(Equals), var("k"), var("key")),
                       bool(true),
                       ap(
                         Forward,
@@ -2252,7 +2252,7 @@ let builtins = [
                       Pat.var("xs"),
                     ),
                     if_(
-                      bin_op(Int(Equals), var("k"), var("key")),
+                      bin_op(Poly(Equals), var("k"), var("key")),
                       ap(
                         Forward,
                         var("remove_assoc"),
@@ -2384,7 +2384,7 @@ let go: ([?], [?], [?]) -> [?] =
     name: "sort",
     arg:
       Prod([
-        arrow(prod([unknown(Internal), unknown(Internal)]), int()),
+        arrow(prod([unknown(Internal), unknown(Internal)]), Ord.t),
         list(unknown(Internal)),
       ]),
     ret: List(unknown(Internal)),

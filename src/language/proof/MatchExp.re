@@ -1,6 +1,5 @@
 open Util;
 open OptUtil.Syntax;
-open Language;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type match_ctx = list((string, option(Exp.t)));

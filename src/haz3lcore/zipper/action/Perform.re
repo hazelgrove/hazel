@@ -214,15 +214,13 @@ let go_z =
         let* idx = Indicated.index(z);
         let* ci = Id.Map.find_opt(idx, statics.info_map);
         let* binding_id = Language.Info.get_binding_site(ci);
-        Move.jump_to_id(z, binding_id);
-      | TileId(id) => Move.jump_to_id(z, id)
+        Move.jump_to_id_indicated(z, binding_id);
+      | TileId(id) => Move.jump_to_id_indicated(z, id)
       }
     )
     |> Result.of_option(~error=Action.Failure.Cant_move)
   | Unselect(Some(d)) => Ok(Zipper.directional_unselect(d, z))
-  | Unselect(None) =>
-    let z = Zipper.directional_unselect(z.selection.focus, z);
-    Ok(z);
+  | Unselect(None) => Ok(Zipper.unselect(z))
   | Select(All) =>
     let z =
       switch (Move.do_extreme(Move.primary(ByToken), Up, z)) {
@@ -297,7 +295,6 @@ let go_z =
   | Destruct(d) =>
     z
     |> Destruct.go(d)
-    |> Option.map(remold_regrout(d))
     |> Result.of_option(~error=Action.Failure.Cant_destruct)
   | Insert(char) =>
     let id =

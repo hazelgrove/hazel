@@ -17,7 +17,7 @@ let tests = (
     test_case("Multi-arg builtin with ascription", `Quick, () =>
       evaluation_test(
         {|string_compare(("Hello", "World"):(?, ?))|},
-        int(-1),
+        BuiltinsADT.Ord.lt,
         ap(
           Forward,
           builtin_fun("string_compare"),
@@ -37,7 +37,7 @@ let tests = (
     test_case("Multi arg builtin ascription", `Quick, () =>
       evaluation_test(
         {|string_compare(("Hello": ?, "World": ?):(?, ?))|},
-        int(-1),
+        BuiltinsADT.Ord.lt,
         ap(
           Forward,
           builtin_fun("string_compare"),
@@ -90,23 +90,23 @@ let tests = (
     ),
     test_case("string_replace", `Quick, () =>
       evaluation_test(
-        {|string_replace(("hazel", "hazel hazel", "world"))|},
-        string("world world"),
+        {|string_replace(("ha+zel", "haazelhzel", "world"))|},
+        string("worldworld"),
         ap(
           Forward,
           builtin_fun("string_replace"),
-          tuple([string("hazel"), string("hazel hazel"), string("world")]),
+          tuple([string("ha*zel"), string("hazelhzel"), string("world")]),
         ),
       )
     ),
     test_case("string_search found", `Quick, () =>
       evaluation_test(
-        {|string_search(("haz", "hazel", 0))|},
+        {|string_search(("h.+z", "hazel", 0))|},
         int(0),
         ap(
           Forward,
           builtin_fun("string_search"),
-          tuple([string("haz"), string("hazel"), int(0)]),
+          tuple([string("h.+z"), string("hazel"), int(0)]),
         ),
       )
     ),
