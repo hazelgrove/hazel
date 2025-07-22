@@ -70,7 +70,7 @@ let tests =
           "type x = Int in 1",
         )
       ),
-      test_case("Singleton Labled Tuple ascription in let", `Quick, () =>
+      test_case("Singleton Labeled Tuple ascription in let", `Quick, () =>
         exp_check(
           let_(
             Pat.asc(
