@@ -3,7 +3,7 @@ open Language;
 open Test_Evaluator_Prelude;
 
 let tests = (
-  "Evaluator.DataFrames",
+  "Evaluator.Tables",
   [
     test_case("Projection from list of labeled tuples", `Quick, () =>
       check(
