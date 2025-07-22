@@ -55,6 +55,7 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | LivelitAp => livelit_ap(Forward, livelit_name("^slider"), int(1))
       | Var => var("x")
       | Let => let_(Pat.empty_hole(), empty_hole(), empty_hole())
+      | Theorem => theorem(Pat.empty_hole(), empty_hole())
       | FixF => fix_f(Pat.empty_hole(), empty_hole(), None)
       | TyAlias =>
         ty_alias(
@@ -146,6 +147,8 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
       | Ap => ap(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
       | Rec => rec_(TPat.var("x"), unknown(Hole(EmptyHole)))
       | Poly => poly(TPat.var("x"), unknown(Hole(EmptyHole)))
+      | Forall => forall(Pat.var("x"), unknown(Hole(EmptyHole)))
+      | Yes => yes(Exp.var("x"))
       | EmptyHole => unknown(Hole(EmptyHole))
       | SynSwitch => unknown(SynSwitch)
       | Internal => unknown(Internal)

@@ -171,6 +171,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         Invalid(_) | Undefined | EmptyHole | MultiHole(_) | DynamicErrorHole(_) |
         Var(_) |
         Let(_) |
+        Theorem(_) |
         Fun(_, _, _, _) |
         TypAp(_) |
         FixF(_) |

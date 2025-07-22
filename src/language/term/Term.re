@@ -312,6 +312,7 @@ module Exp = {
     | Dot
     | Var
     | Let
+    | Theorem
     | FixF
     | TyAlias
     | Use
@@ -376,6 +377,7 @@ module Exp = {
     | Dot(_) => Dot
     | Var(_) => Var
     | Let(_) => Let
+    | Theorem(_) => Theorem
     | FixF(_) => FixF
     | TyAlias(_) => TyAlias
     | Use(_) => Use
@@ -427,6 +429,7 @@ module Exp = {
     | Dot => "Dot operator"
     | Var => "Variable reference"
     | Let => "Let expression"
+    | Theorem => "Theorem expression"
     | FixF => "Fixpoint operator"
     | TyAlias => "Type Alias definition"
     | Use => "Specify number format to use"
@@ -509,6 +512,7 @@ module Exp = {
     | Tuple(_)
     | Var(_)
     | Let(_)
+    | Theorem(_)
     | FixF(_)
     | TyAlias(_)
     | Use(_)
@@ -572,6 +576,7 @@ module Exp = {
       | BuiltinFun(_)
       | Var(_)
       | Let(_)
+      | Theorem(_)
       | FixF(_)
       | TyAlias(_)
       | Use(_)
@@ -633,6 +638,7 @@ module Exp = {
       | TypFun(_)
       | Var(_)
       | Let(_)
+      | Theorem(_)
       | Filter(_)
       | TyAlias(_)
       | Use(_)
@@ -780,6 +786,7 @@ module Exp = {
             )
             |> rewrap;
           // Other cases: recurse
+          | Theorem(_)
           | Invalid(_)
           | EmptyHole
           | MultiHole(_)

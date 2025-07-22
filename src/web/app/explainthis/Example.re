@@ -145,6 +145,9 @@ let mk_eval = mk_tile(Form.get(FilterEval));
 let mk_pause = mk_tile(Form.get(FilterPause));
 let mk_debug = mk_tile(Form.get(FilterDebug));
 let mk_unquote = mk_tile(Form.get(Unquote));
+let mk_theorem = mk_tile(Form.get(Theorem));
+let mk_forall = mk_tile(Form.get(Forall));
+let mk_yes = mk_tile(Form.get(Yes));
 let linebreak = () => mk_secondary(Form.linebreak);
 let space = () => mk_secondary(Form.space);
 

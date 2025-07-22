@@ -274,6 +274,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | (["fix", "->"], [Pat(pat)]) => FixF(pat, r, None)
         | (["typfun", "->"], [TPat(tpat)]) => TypFun(tpat, r, None)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
+        | (["theorem", "in"], [Pat(pat)]) => Theorem(pat, r)
         | (["hide", "in"], [Exp(filter)]) =>
           Filter(
             Filter({
@@ -616,6 +617,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | (["Float"], []) => Atom(Float)
         | (["String"], []) => Atom(String)
         | (["Nat"], []) => Atom(Nat)
+        | (["yes", "indeed"], [Exp(exp)]) => Yes(exp)
         | ([t], []) when Form.is_typ_var(t) => Var(t)
         | (["(", ")"], [Typ(body)]) => Parens(body)
         | (label, [Typ(body)]) when is_probe_wrap(label) => body.term
@@ -639,6 +641,8 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     ret(Poly(tpat, t))
   | Pre(([(_id, (["rec", "->"], [TPat(tpat)]))], []), Typ(t)) =>
     ret(Rec(tpat, t))
+  | Pre(([(_id, (["forall", "->"], [Pat(pat)]))], []), Typ(t)) =>
+    ret(Forall(pat, t))
   | Pre(tiles, Typ({term: Sum(t0), annotation: {ids, _}})) as tm =>
     /* Case for leading prefix + preceeding a sum */
     switch (tiles) {

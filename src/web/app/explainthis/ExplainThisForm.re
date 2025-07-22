@@ -98,6 +98,9 @@ type example_id =
   | TupleLabeled2
   | TupleLabeled3
   | Let(let_examples)
+  | Theorem
+  | Forall
+  | Yes
   | UseExp1
   | TypFunAp
   | FunAp
@@ -200,6 +203,7 @@ type form_id =
   | Tuple3Exp
   | LetExp(pat_sub_form_id)
   | FixExp(pat_sub_form_id)
+  | TheoremExp
   | TypFunApExp
   | FunApExp
   | ConApExp
@@ -256,6 +260,8 @@ type form_id =
   | Tuple3Typ
   | DotTyp
   | Label
+  | ForallTyp
+  | YesTyp
   | LabelledSumTyp
   | SumTypUnaryConstructorDef
   | SumTypNullaryConstructorDef
@@ -308,6 +314,7 @@ type group_id =
   | Tuple2Exp
   | Tuple3Exp
   | LetExp(pat_sub_form_id)
+  | TheoremExp
   | TypFunApExp
   | FixExp(pat_sub_form_id)
   | FunApExp
@@ -357,6 +364,8 @@ type group_id =
   | ListTyp
   | PolyTyp
   | RecTyp
+  | ForallTyp
+  | YesTyp
   | ArrowTyp
   | Arrow3Typ
   | LabeledTyp

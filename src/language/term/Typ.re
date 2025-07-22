@@ -20,7 +20,9 @@ type cls =
   | Parens
   | Ap
   | Rec
-  | Poly;
+  | Poly
+  | Forall
+  | Yes;
 
 include TermBase.Typ;
 
@@ -92,7 +94,9 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | Ap(_) => Ap
   | Sum(_) => Sum
   | Rec(_) => Rec
-  | Poly(_) => Poly;
+  | Poly(_) => Poly
+  | Forall(_) => Forall
+  | Yes(_) => Yes;
 
 let show_cls: cls => string =
   fun
@@ -113,7 +117,9 @@ let show_cls: cls => string =
   | Parens => "Parenthesized type"
   | Ap => "Constructor application"
   | Rec => "Recursive type"
-  | Poly => "Type quantifier";
+  | Poly => "Type quantifier"
+  | Forall => "Forall type"
+  | Yes => "Yes type";
 
 let rec is_arrow = (typ: t) => {
   switch (typ.term) {
@@ -129,6 +135,8 @@ let rec is_arrow = (typ: t) => {
   | Ap(_)
   | Sum(_)
   | Poly(_)
+  | Forall(_)
+  | Yes(_)
   | Rec(_) => false
   };
 };
@@ -136,6 +144,8 @@ let rec is_arrow = (typ: t) => {
 let is_atom = (ty: t): bool =>
   switch (ty.term) {
   | Atom(_) => true
+  | Forall(_)
+  | Yes(_)
   | Parens(_)
   | TupLabel(_)
   | Arrow(_)
@@ -155,7 +165,9 @@ let rec has_fun = (typ: t) =>
   | Parens(typ) => has_fun(typ)
   | TupLabel(_, typ) => has_fun(typ)
   | Arrow(_)
-  | Poly(_) => true
+  | Poly(_)
+  | Forall(_)
+  | Yes(_) => true
   | Unknown(_)
   | Atom(_)
   | Label(_)
@@ -178,6 +190,8 @@ let rec is_poly = (typ: t) => {
   | Parens(typ)
   | TupLabel(_, typ) => is_poly(typ)
   | Poly(_) => true
+  | Forall(_)
+  | Yes(_)
   | Unknown(_)
   | Atom(_)
   | Arrow(_)
@@ -254,6 +268,8 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   | Rec(x, ty)
   | Poly(x, ty) =>
     free_vars(~bound=(x |> TPat.tyvar_of_utpat |> Option.to_list) @ bound, ty)
+  | Forall(_, ty) => free_vars(~bound, ty)
+  | Yes(_) => []
   };
 
 let rec vars = (ty: t): list(Var.t) =>
@@ -280,6 +296,8 @@ let rec vars = (ty: t): list(Var.t) =>
   | Poly({term: Var(x), _}, ty) =>
     vars(ty) |> List.filter((x': string) => x' != x)
   | Poly(_, ty) => vars(ty)
+  | Forall(_, ty) => vars(ty)
+  | Yes(_) => []
   | Ap(ty1, ty2) => vars(ty1) @ vars(ty2)
   | Label(_) => []
   | TupLabel(_, ty) => vars(ty)
@@ -324,6 +342,8 @@ let rec vars = (ty: t): list(Var.t) =>
   | Parens(ty) => vars(ty)
   | Poly({term: Var(x), _}, ty) =>
     vars(ty) |> List.filter((x': string) => x' != x)
+  | Forall(_, ty) => vars(ty)
+  | Yes(_) => []
   | Poly(_, ty) => vars(ty)
   | Ap(ty1, ty2) => vars(ty1) @ vars(ty2)
   | Label(_) => []
@@ -366,6 +386,8 @@ let rec num_nodes = (ty: t): int => {
   | Ap(ty1, ty2) => 1 + num_nodes(ty1) + num_nodes(ty2)
   | Label(_) => 1
   | TupLabel(_, ty) => 1 + num_nodes(ty)
+  | Yes(_) => 10 // TODO[Matt]: this is a hack to make sure that Yes types are not counted as small
+  | Forall(_, ty) => 1 + num_nodes(ty)
   };
 };
 
@@ -393,6 +415,8 @@ let rec count_unknowns = (ty: t): int =>
   | List(ty) => count_unknowns(ty)
   | Parens(ty) => count_unknowns(ty)
   | Poly(_, ty) => count_unknowns(ty)
+  | Yes(_) => 0
+  | Forall(_, ty) => count_unknowns(ty)
   | Ap(ty1, ty2) => count_unknowns(ty1) + count_unknowns(ty2)
   | Label(_) => 0
   | TupLabel(_, ty) => count_unknowns(ty)
@@ -410,6 +434,8 @@ let rec contains_sum_or_var = (ty: t): bool =>
   | List(ty) => contains_sum_or_var(ty)
   | Parens(ty) => contains_sum_or_var(ty)
   | Poly(_, ty) => contains_sum_or_var(ty)
+  | Forall(_, ty) => contains_sum_or_var(ty)
+  | Yes(_) => false
   | Ap(ty1, ty2) => contains_sum_or_var(ty1) || contains_sum_or_var(ty2)
   | Label(_) => false
   | TupLabel(_, ty) => contains_sum_or_var(ty)
@@ -519,6 +545,13 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
     List(ty) |> temp;
   | (List(_), _) => None
   | (Ap(_), _) => failwith("Type join of ap")
+  | (Forall(x, ty1), Forall(y, ty2)) when TermBase.Pat.fast_equal(x, y) =>
+    // TODO[Matt]: better logic for joining forall & yes types.
+    let+ ty_body = join(~resolve, ctx, ty1, ty2);
+    Forall(x, ty_body) |> temp;
+  | (Forall(_, _), _) => None
+  | (Yes(e1), Yes(e2)) => TermBase.Exp.fast_equal(e1, e2) ? Some(ty1) : None
+  | (Yes(_), _) => None
   };
 };
 
@@ -535,7 +568,9 @@ let rec match_synswitch = (t1: t, t2: t) => {
   | (Label(_), _)
   | (Var(_), _)
   | (Ap(_), _)
-  | (Rec(_), _) => t1
+  | (Rec(_), _)
+  | (Forall(_), _)
+  | (Yes(_), _) => t1
   // These might
   | (List(ty1), List(ty2)) => List(match_synswitch(ty1, ty2)) |> rewrap1
   | (List(_), _) => t1
@@ -631,6 +666,8 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
     Rec(tpat, normalize(Ctx.extend_dummy_tvar(ctx, tpat), ty)) |> rewrap
   | Poly(name, ty) =>
     Poly(name, normalize(Ctx.extend_dummy_tvar(ctx, name), ty)) |> rewrap
+  | Forall(name, ty) => Forall(name, normalize(ctx, ty)) |> rewrap
+  | Yes(_) => ty // TODO[Matt]: we might want to elaborate this?
   };
 };
 
@@ -789,6 +826,8 @@ let rec is_syn = (ty: t): bool =>
   | Ap(_)
   | Rec(_)
   | Poly(_)
+  | Forall(_)
+  | Yes(_)
   | List(_)
   | Arrow(_)
   | Prod(_)
@@ -806,6 +845,8 @@ let rec is_ana_atom = (ty: t) =>
   | Ap(_)
   | Rec(_)
   | Poly(_)
+  | Forall(_)
+  | Yes(_)
   | List(_)
   | Arrow(_)
   | Prod(_)
@@ -819,6 +860,8 @@ let rec is_syn_plus = (ty: t): bool =>
   | Unknown(SynSwitch) => true
   | Arrow(t1, t2) => is_syn(t1) && is_syn_plus(t2)
   | Poly(_, t) => is_syn(t)
+  | Forall(_)
+  | Yes(_)
   | Unknown(_)
   | Atom(_)
   | Label(_)
@@ -840,9 +883,11 @@ let rec needs_parens = (ty: t): bool =>
   | Label(_)
   | TupLabel(_, _)
   | List(_) /* is already wrapped in [] */
+  | Yes(_)
   | Var(_) => false
   | Rec(_, _)
   | Poly(_, _)
+  | Forall(_, _)
   | Arrow(_, _)
   | Prod(_)
   | Sum(_) => true /* disambiguate between (A + B) -> C and A + (B -> C) */
@@ -897,6 +942,8 @@ let rec pretty_print = (ty: t): string =>
     "rec " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
   | Poly(tv, t) =>
     "poly " ++ pretty_print_tvar(tv) ++ " -> " ++ pretty_print(t)
+  | Forall(_p, t) => "forall <p> -> " ++ pretty_print(t)
+  | Yes(_e) => "yes <e> indeed"
   }
 and ctr_pretty_print =
   fun

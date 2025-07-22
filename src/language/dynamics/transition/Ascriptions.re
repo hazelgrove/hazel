@@ -156,6 +156,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Probe(_, _), _)
     // We _could_ do this, but it would be a bit weird
     | (Let(_), _)
+    | (Theorem(_), _)
     | (Use(_), _)
     | (BinOp(_), _)
     | (UnOp(_), _)

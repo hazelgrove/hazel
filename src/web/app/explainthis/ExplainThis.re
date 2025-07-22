@@ -1744,6 +1744,21 @@ let get_doc =
         | Probe(_) => default // Shouldn't get hit?
         | Asc(_) => default // Shouldn't get hit?
         };
+      | Theorem(pat, body) =>
+        let pat_id = List.nth(IdTagged.ids(pat), 0);
+        let body_id = List.nth(IdTagged.ids(body), 0);
+        get_message(
+          ~colorings=TheoremExp.test_exp_coloring_ids(~body_id, ~pat_id),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s"),
+                  Id.to_string(body_id),
+                ),
+            ),
+          TheoremExp.tests,
+        );
       | FixF(pat, body, _) =>
         message_single(
           FixFExp.single(
@@ -2453,6 +2468,36 @@ let get_doc =
               ),
           ),
         RecTyp.rec_,
+      );
+    | Forall(pat, typ) =>
+      let pat_id = List.nth(IdTagged.ids(pat), 0);
+      let body_id = List.nth(IdTagged.ids(typ), 0);
+      get_message(
+        ~colorings=ForallTyp.forall_typ_coloring_ids(~pat_id, ~body_id),
+        ~format=
+          Some(
+            msg =>
+              Printf.sprintf(
+                Scanf.format_from_string(msg, "%s%s"),
+                Id.to_string(pat_id),
+                Id.to_string(body_id),
+              ),
+          ),
+        ForallTyp.forall,
+      );
+    | Yes(exp) =>
+      let body_id = List.nth(IdTagged.ids(exp), 0);
+      get_message(
+        ~colorings=YesTyp.yes_typ_coloring_ids(~body_id),
+        ~format=
+          Some(
+            msg =>
+              Printf.sprintf(
+                Scanf.format_from_string(msg, "%s"),
+                Id.to_string(body_id),
+              ),
+          ),
+        YesTyp.yes,
       );
     | Arrow(arg, result) =>
       let arg_id = List.nth(IdTagged.ids(arg), 0);

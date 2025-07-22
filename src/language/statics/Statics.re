@@ -993,6 +993,18 @@ and uexp_to_info_map =
           CoCtx.union([def.co_ctx, CoCtx.mk(ctx, p_ana.ctx, body.co_ctx)]),
         m,
       );
+    | Theorem(p, e) =>
+      let (p', _) =
+        go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
+      let (e, m) = go'(~ctx=p'.ctx, ~ana, e, m);
+      /* add co_ctx to pattern */
+      let (p, m) =
+        go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~ana=syn, p, m);
+      add(
+        ~self=Just(e.ty),
+        ~co_ctx=CoCtx.union([p'.co_ctx, CoCtx.mk(ctx, p.ctx, e.co_ctx)]),
+        m,
+      );
     | FixF(p, e, _) =>
       let (p', _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana, p, m);
@@ -1817,6 +1829,35 @@ and utyp_to_info_map =
       |> snd;
     let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
     add(m); // TODO: check with andrew
+  | Forall(p', t') =>
+    let (p', m) =
+      upat_to_info_map(
+        ~is_synswitch=false,
+        ~ctx,
+        ~co_ctx=CoCtx.empty,
+        ~ancestors,
+        ~ana=syn,
+        ~duplicates=[],
+        p',
+        m,
+      );
+    let (_, m) =
+      utyp_to_info_map(t', ~ctx=p'.ctx, ~ancestors, ~expects=TypeExpected, m);
+
+    add(m);
+  | Yes(e) =>
+    let (_, m) =
+      uexp_to_info_map(
+        ~ctx,
+        ~ancestors,
+        ~ana=Atom(Bool) |> Typ.temp,
+        ~duplicates=[],
+        ~expected_labels=None,
+        ~label_sort=false,
+        e,
+        m,
+      );
+    add(m);
   | Rec({term: Var(name), _} as utpat, tbody) =>
     let body_ctx =
       Ctx.extend_tvar(

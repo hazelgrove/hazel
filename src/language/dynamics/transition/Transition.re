@@ -51,6 +51,7 @@ type step_kind =
   | VarLookup
   | Seq
   | LetBind
+  | TheoremBind
   | WrapClosure
   | FixUnwrap
   | FixClosure
@@ -256,6 +257,22 @@ module Transition = (EV: EV_MODE) => {
         expr: subst_env(env', d2),
         state_update: capture_closures(env, state, closures),
         kind: LetBind,
+        is_value: false,
+      });
+    | Theorem(dp, d1) =>
+      let. _ = otherwise(env, d1 => Theorem(dp, d1) |> rewrap)
+      and. d1' =
+        req_final(req(state, env), d1 => Theorem(dp, d1) |> wrap_ctx, d1);
+      let vars = Pat.bound_vars(dp);
+      let env' =
+        vars
+        |> List.map(v => (v, EmptyHole |> fresh))
+        |> Environment.of_list
+        |> evaluate_extend_env(~call_stack=env.call_stack, _, env);
+      Step({
+        expr: subst_env(env', d1'),
+        state_update,
+        kind: TheoremBind,
         is_value: false,
       });
     | TypFun(_)
@@ -885,6 +902,7 @@ module Transition = (EV: EV_MODE) => {
 let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   fun
   | LetBind
+  | TheoremBind
   | Seq
   | UpdateTest
   | TypFunAp
@@ -917,6 +935,7 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
 let stepper_justification: step_kind => string =
   fun
   | LetBind => "substitution"
+  | TheoremBind => "theorem substitution"
   | Seq => "sequence"
   | FixUnwrap => "unroll fixpoint"
   | UpdateTest => "update test"

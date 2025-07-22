@@ -735,6 +735,14 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
         ids: Language.IdTagged.ids(e1),
       },
     };
+  | Theorem(p, ebody) =>
+    let ebody' = append_exp(ebody, e2);
+    {
+      term: Theorem(p, ebody'),
+      annotation: {
+        ids: Language.IdTagged.ids(e1),
+      },
+    };
   | TyAlias(tp, tdef, ebody) =>
     let ebody' = append_exp(ebody, e2);
     {

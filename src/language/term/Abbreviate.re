@@ -396,6 +396,36 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         };
       }
 
+    | Theorem(p, e) =>
+      if (available^ < 7) {
+        indet_term;
+      } else if (available^ <= 7) {
+        Invalid("theorem");
+      } else if (available^ <= 8) {
+        Invalid("theorem…");
+      } else if (available^ <= 10) {
+        Invalid("theorem…in");
+      } else if (available^ <= 11) {
+        Invalid("theorem…in…");
+      } else {
+        available := available^ - 11;
+        let p' = abbreviate_pat(p);
+        if (available^ > 4) {
+          // " in "
+          available := available^ - 4;
+          let e' = abbreviate_exp(e);
+          Theorem(p', e');
+        } else {
+          Theorem(
+            p',
+            {
+              ...e,
+              term: indet_term,
+            },
+          );
+        };
+      }
+
     | Use(t1, e1) =>
       if (available^ < 3) {
         indet_term;
@@ -772,6 +802,15 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
     };
   };
 
+  let handle_unary =
+      (~cost: int, ~make_term: Exp.t => Typ.term, t: Exp.t): Typ.term =>
+    if (available^ <= cost) {
+      indet_term_typ;
+    } else {
+      available := available^ - cost;
+      make_term(abbreviate_exp(t));
+    };
+
   let term: Typ.term =
     switch (typ |> Typ.term_of) {
     | Unknown(prov) => Unknown(prov)
@@ -931,6 +970,32 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
           );
         };
       }
+    | Forall(p, t) =>
+      if (available^ <= 6) {
+        indet_term_typ;
+      } else {
+        available := available^ - 6; // "forall"
+        let p' = abbreviate_pat(p);
+        if (available^ > 2) {
+          available := available^ - 2; // "->"
+          let t' = abbreviate_typ(t);
+          Forall(p', t');
+        } else {
+          Forall(
+            p',
+            {
+              ...t,
+              term: indet_term_typ,
+            },
+          );
+        };
+      }
+    | Yes(e) =>
+      handle_unary(
+        ~cost=11, // "yes " + " indeed"
+        ~make_term=e' => Yes(e'),
+        e,
+      )
     };
   rewrap(term);
 }

@@ -320,6 +320,10 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
           |> IdTagged.fresh_deterministic(DHExp.rep_id(uexp));
         Let(p, fixf, body) |> rewrap;
       };
+    | Theorem(p, e) =>
+      let (p', _) = elaborate_pattern(m, p, false);
+      let (e', _) = elaborate(m, e);
+      Theorem(p', e') |> rewrap;
     | FixF(p, e, env) =>
       let (p', pty) = elaborate_pattern(m, p, false);
       let (e', _) = elaborate(m, e);

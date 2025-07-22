@@ -357,11 +357,13 @@ type compound_form =
   | AtSign
   | Case
   | Test
+  | Yes
   | HintedTest
   | Fun
   | Fix
   | TypFun
   | Poly
+  | Forall
   | Rec
   | Rule
   | Pipeline
@@ -370,6 +372,7 @@ type compound_form =
   | FilterEval
   | FilterPause
   | FilterDebug
+  | Theorem
   | Use
   // TRIPLE DELIMITERS
   | Let
@@ -449,6 +452,8 @@ let get: compound_form => t =
   | Fix => mk(ds, ["fix", "->"], mk_pre(P.fun_, Exp, [Pat]))
   | TypFun => mk(ds, ["typfun", "->"], mk_pre(P.fun_, Exp, [TPat]))
   | Poly => mk(ds, ["poly", "->"], mk_pre(P.fun_, Typ, [TPat]))
+  | Forall => mk(ds, ["forall", "->"], mk_pre(P.fun_, Typ, [Pat]))
+  | Yes => mk(ds, ["yes", "indeed"], mk_op(Exp, [Exp]))
   | Rec => mk(ds, ["rec", "->"], mk_pre(P.fun_, Typ, [TPat]))
   | Rule => mk(ds, ["|", "=>"], mk_bin'(P.rule_sep, Rul, Exp, [Pat], Exp))
   | Pipeline => mk_infix("|>", Exp, P.eqs) // in OCaml, pipeline precedence is in same class as '=', '<', etc.
@@ -458,6 +463,7 @@ let get: compound_form => t =
   | FilterPause => mk(ds, ["pause", "in"], mk_pre(P.let_, Exp, [Exp]))
   | FilterDebug => mk(ds, ["debug", "in"], mk_pre(P.let_, Exp, [Exp]))
   | Use => mk(ds, ["use", "in"], mk_pre(P.let_, Exp, [Typ]))
+  | Theorem => mk(ds, ["theorem", "in"], mk_pre(P.let_, Exp, [Pat]))
   // TRIPLE DELIMITERS
   | Let => mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))
   | TypeAlias =>

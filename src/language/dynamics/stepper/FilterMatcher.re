@@ -250,6 +250,13 @@ let rec matches_exp =
       }
     | (Let(_), _) => false
 
+    | (Theorem(dp, d1), Theorem(fp, f1)) =>
+      switch (tangle(dp, denv, fp, fenv)) {
+      | None => false
+      | Some((denv, fenv)) => matches_exp(~denv, d1, ~fenv, f1)
+      }
+    | (Theorem(_), _) => false
+
     | (TypAp(d1, t1), TypAp(d2, t2)) =>
       matches_exp(d1, d2) && matches_typ(t1, t2)
     | (TypAp(_), _) => false
