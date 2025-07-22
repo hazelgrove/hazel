@@ -24,6 +24,7 @@ let (suite, _) =
       (
         "Statics",
         Test_Statics_Functions.tests
+        @ Test_Statics_Lists.tests
         @ Test_Statics_Labeled_Tuple.tests
         @ Test_Statics_Polymorphism.tests
         @ Test_Statics_Sums.tests
