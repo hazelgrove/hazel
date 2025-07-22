@@ -272,6 +272,37 @@ let go_z =
   | MoveToBackpackTarget((Up | Down) as d) =>
     Move.to_backpack_target(d, z)
     |> Result.of_option(~error=Action.Failure.Cant_move)
-  | TempReplace(segment) => Ok(Zipper.unzip(segment))
+  | TempReplace(segment) =>
+    let id_init = Indicated.index(z);
+    let caret_init = z.caret;
+    let z = Zipper.unzip(segment);
+    let rec move_to_start = (z: t): t => {
+      switch (Move.primary(ByToken, Left, z)) {
+      | Some(z) => move_to_start(z)
+      | None => z
+      };
+    };
+    let move_to_id = (z: t, id: Id.t): option(t) => {
+      let z = z |> move_to_start;
+      let rec go = (z: t): option(t) =>
+        switch (Move.primary(ByToken, Right, z)) {
+        | Some(z) => Indicated.index(z) == Some(id) ? Some(z) : go(z)
+        | None => None
+        };
+      go(z);
+    };
+    let z =
+      switch (id_init) {
+      | Some(id) =>
+        switch (move_to_id(z, id)) {
+        | Some(z) => {
+            ...z,
+            caret: caret_init,
+          }
+        | None => z
+        }
+      | None => z
+      };
+    Ok(z);
   };
 };
