@@ -1,16 +1,18 @@
 import React, { useState, useCallback, useRef } from "react";
 import HazelEmbed from "./components/HazelEmbed";
 import MessageDisplay from "./components/MessageDisplay";
-import DeltaTree from "./components/DeltaTree";
-import TilesViewer from "./components/TilesViewer";
-import type { TilesViewerRef } from "./components/TilesViewer";
+import DocGraph from "./components/DocGraph";
+import DocStateManager from "./components/DocStateManager";
 import type {
   HazelToParent,
   ParentToHazel,
   Pong,
-  EditorDelta,
   Ping,
+  EditorState,
 } from "./types/messages";
+import "./components/DocComponents.css";
+
+import { exportHazelDoc, generateHazelDoc, type HazelDoc } from "./types/interface";
 
 interface MessageWithMetadata {
   message: HazelToParent;
@@ -20,7 +22,7 @@ interface MessageWithMetadata {
 
 function App() {
   const [messages, setMessages] = useState<MessageWithMetadata[]>([]);
-  const tilesViewerRef = useRef<TilesViewerRef>(null);
+  const [hazelState, setHazelState] = useState<HazelDoc | null>(null);
 
   // References to Hazel instances for sending messages back
   const hazelRefs = {
@@ -45,16 +47,6 @@ function App() {
     setMessages((prevMessages) => [...prevMessages, newMessage]);
 
     switch (message.t) {
-        case "delta": {
-            console.log(`Received delta from instance ${sourceInstanceId}:`, message);
-            
-            // Process each operation in the delta through the TilesViewer component
-            message.delta.forEach((op) => {
-                tilesViewerRef.current?.processOp(op);
-            });
-            
-            break;
-        }
         case "ping": {
             const pongMessage: Pong = {
                 t: "pong",
@@ -77,13 +69,19 @@ function App() {
             console.log(`Received init from instance ${sourceInstanceId}:`, message);
             break;
         }
+        case "state": {
+          console.log(`Received state from instance ${sourceInstanceId}:`, message);
+          const doc = generateHazelDoc(message.state);
+          // Process the state and update hazelState
+          setHazelState(doc);
+          break;
+        }
         default: {
-          const exhaustiveCheck: never = message;
+          const _exhaustiveCheck: never = message;
           console.warn(`Unknown message type: ${(message as any).t}`);
           return;
         }
     }
-
   };
 
   // Function to send a ping message to a Hazel instance
@@ -98,6 +96,23 @@ function App() {
       hazelRef.current.sendMessage(pingMessage);
     } else {
       console.error(`Cannot send ping: instance ${instanceId} not found`);
+    }
+  }, []);
+
+  // Function to load a saved state and send it back to Hazel
+  const handleLoadState = useCallback((state: HazelDoc) => {
+    const instanceId = "hazel-1"; // We're using a single instance
+    const editorStateMessage: EditorState = {
+      t: "state",
+      state: exportHazelDoc(state),
+    };
+    
+    const hazelRef = hazelRefs[instanceId as keyof typeof hazelRefs];
+    if (hazelRef?.current) {
+      hazelRef.current.sendMessage(editorStateMessage);
+      console.log("Sent state back to Hazel:", state);
+    } else {
+      console.error(`Cannot send state: instance ${instanceId} not found`);
     }
   }, []);
 
@@ -117,12 +132,20 @@ function App() {
           />
         </div>
       </div>
-      <div className="message-column">
-        <div className="message-section">
-          <MessageDisplay messages={messages} />
+      <div className="right-column">
+        <div className="graph-section">
+          <h3>Document Structure Graph</h3>
+          <DocGraph docState={hazelState} />
         </div>
-        <div className="delta-section">
-            <TilesViewer ref={tilesViewerRef} />
+        <div className="state-manager-section">
+          <DocStateManager 
+            currentState={hazelState} 
+            onLoadState={handleLoadState} 
+          />
+        </div>
+        <div className="message-section">
+          <h3>Message Log</h3>
+          <MessageDisplay messages={messages} />
         </div>
       </div>
     </div>

@@ -45,11 +45,11 @@ module NibShape : sig
     val set_t : t -> ([ `L_s2_Concave [@js "Concave"] ][@js.enum]) -> unit
     [@@js.set "t"]
 
-    val get_n : t -> float [@@js.get "n"]
-    val set_n : t -> float -> unit [@@js.set "n"]
+    val get_n : t -> int [@@js.get "n"]
+    val set_n : t -> int -> unit [@@js.set "n"]
 
     val create :
-      t:([ `L_s2_Concave [@js "Concave"] ][@js.enum]) -> n:float -> unit -> t
+      t:([ `L_s2_Concave [@js "Concave"] ][@js.enum]) -> n:int -> unit -> t
     [@@js.builder]
   end
 
@@ -172,7 +172,7 @@ module Tile : sig
   val get_id : 'tags this -> UUID.t [@@js.get "id"]
   val get_label : 'tags this -> string list [@@js.get "label"]
   val get_mold : 'tags this -> Mold.t [@@js.get "mold"]
-  val get_shards : 'tags this -> float list [@@js.get "shards"]
+  val get_shards : 'tags this -> int list [@@js.get "shards"]
   val get_children : 'tags this -> t list [@@js.get "children"]
 
   val create :
@@ -180,7 +180,7 @@ module Tile : sig
     id:UUID.t ->
     label:string list ->
     mold:Mold.t ->
-    shards:float list ->
+    shards:int list ->
     children:t list ->
     unit ->
     t
@@ -357,7 +357,7 @@ module FlatTile : sig
   val get_id : 'tags this -> UUID.t [@@js.get "id"]
   val get_label : 'tags this -> string list [@@js.get "label"]
   val get_mold : 'tags this -> Mold.t [@@js.get "mold"]
-  val get_shards : 'tags this -> float list [@@js.get "shards"]
+  val get_shards : 'tags this -> int list [@@js.get "shards"]
   val get_children : 'tags this -> UUID.t list list [@@js.get "children"]
 
   val create :
@@ -365,7 +365,7 @@ module FlatTile : sig
     id:UUID.t ->
     label:string list ->
     mold:Mold.t ->
-    shards:float list ->
+    shards:int list ->
     children:UUID.t list list ->
     unit ->
     t
@@ -397,10 +397,10 @@ module HazelDoc : sig
     val t_of_js : Ojs.t -> t
     val get_title : t -> string [@@js.get "title"]
     val set_title : t -> string -> unit [@@js.set "title"]
-    val get_map : t -> (UUID.t, FlatPiece.t) Map.t_2 [@@js.get "map"]
-    val set_map : t -> (UUID.t, FlatPiece.t) Map.t_2 -> unit [@@js.set "map"]
+    val get_tiles : t -> FlatPiece.t list [@@js.get "tiles"]
+    val set_tiles : t -> FlatPiece.t list -> unit [@@js.set "tiles"]
 
-    val create : title:string -> map:(UUID.t, FlatPiece.t) Map.t_2 -> unit -> t
+    val create : title:string -> tiles:FlatPiece.t list -> unit -> t
     [@@js.builder]
   end
 

@@ -1,86 +1,6 @@
 open Js_of_ocaml;
 open MessageTypes;
 
-let send_to_parent = (message: Ojs.t) => {
-  Js.Unsafe.fun_call(
-    Js.Unsafe.js_expr("window.parent.postMessage"),
-    [|Js.Unsafe.inject(message), Js.Unsafe.inject(Js.string("*"))|],
-  );
-};
-
-let parse_incoming = (dataJs: Ojs.t): option(ParentToHazel.t) =>
-  try(Some(ParentToHazel.t_of_js(dataJs))) {
-  | _ => None
-  };
-
-let listen = (): unit => {
-  let onMessage = (ev: Js.t(#Dom_html.event)) => {
-    /* coerce raw JS `data` into our union type */
-    let dataJs: Ojs.t = Js.Unsafe.get(ev, "data");
-
-    let msg: ParentToHazel.t = ParentToHazel.t_of_js(dataJs);
-
-    // switch (msg) {
-    // | `U_s1_init(init) =>
-    //   let text: string = Init.get_message(init);
-    //   Firebug.console##log(Js.string("iframe got init: " ++ text));
-    // | `U_s2_ping(ping) =>
-    //   let text: string = Ping.get_message(ping);
-    //   Firebug.console##log(Js.string("iframe got ping: " ++ text));
-    //   /* reply with Pong */
-    //   let pongJs: Ojs.t =
-    //     Pong.t_to_js(
-    //       Pong.create(~t=`L_s3_pong, ~message="pong from iframe", ()),
-    //     );
-    //   send_to_parent(pongJs);
-    // | `U_s3_pong(pong) =>
-    //   let text: string = Pong.get_message(pong);
-    //   Firebug.console##log(Js.string("iframe got pong: " ++ text));
-    // };
-
-    //     ([ `U_s0_init of Init.t [@js "init"]
-    //  | `U_s1_ping of Ping.t [@js "ping"]
-    //  | `U_s2_pong of Pong.t [@js "pong"]
-    //  | `U_s3_state of EditorState.t [@js "state"] ]
-
-    switch (msg) {
-    | `U_s0_init(init) =>
-      let text: string = Init.get_message(init);
-      Firebug.console##log(Js.string("iframe got init: " ++ text));
-    | `U_s1_ping(ping) =>
-      let text: string = Ping.get_message(ping);
-      Firebug.console##log(Js.string("iframe got ping: " ++ text));
-    | `U_s2_pong(pong) =>
-      let text: string = Pong.get_message(pong);
-      Firebug.console##log(Js.string("iframe got pong: " ++ text));
-    | `U_s3_state(state) =>
-      let state = EditorState.get_state(state);
-      Firebug.console##log(
-        "my name is iframe and I'm here to say you gave me this state",
-      );
-      Firebug.console##log(state);
-    };
-    Js._false;
-  };
-
-  Js.Unsafe.fun_call(
-    Js.Unsafe.js_expr("window.addEventListener"),
-    [|
-      Js.Unsafe.inject(Js.string("message")),
-      Js.Unsafe.inject(onMessage),
-      Js.Unsafe.inject(Js._false),
-    |],
-  );
-};
-
-// let send_delta = (delta: Delta.EditScript.t): unit => {
-//   // to test, firebug console log
-//   Firebug.console##log(Delta.EditScript.t_to_js(delta));
-//   let message =
-//     EditorDelta.t_to_js(EditorDelta.create(~t=`L_s0_delta, ~delta, ()));
-//   send_to_parent(message);
-// };
-
 module RedundantCoverterIGuess = {
   let of_shape: Grout.shape => Delta.Shape.t =
     fun
@@ -131,7 +51,7 @@ module RedundantCoverterIGuess = {
       `U_s2_Concave(
         Delta.NibShape.AnonymousInterface0.create(
           ~t=`L_s2_Concave,
-          ~n=float_of_int(n), //wtf
+          ~n, //wtf
           (),
         ),
       );
@@ -159,7 +79,7 @@ module RedundantCoverterIGuess = {
       ~id=Id.to_string(tile.id),
       ~label=tile.label,
       ~mold=tile.mold |> of_mold,
-      ~shards=tile.shards |> List.map(float_of_int), //floats?? FLOATS????????????
+      ~shards=tile.shards,
       ~children=tile.children |> List.map(List.map(Id.to_string)),
       (),
     );
@@ -172,20 +92,158 @@ module RedundantCoverterIGuess = {
     };
   };
 
-  let go = (map: AutoSeg.Doc.t): Ojs.t => {
-    let entries =
-      map
-      |> Id.Map.to_list
-      |> List.map(((x, y)) => (Id.to_string(x), of_flat_piece(y)));
-    let map = Ts2ocaml.Map.create'''(~entries=Some(entries), ());
+  let rec to_string: Delta.Shape.t => string =
+    fun
+    | `L_s3_Convex => "Convex"
+    | `L_s2_Concave => "Concave"
+  and to_shape: Delta.Shape.t => Grout.shape =
+    fun
+    | `L_s3_Convex => Convex
+    | `L_s2_Concave => Concave
+  and to_sort: Delta.Sort.t => Sort.t =
+    fun
+    | `L_s4_Exp => Exp
+    | `L_s6_Pat => Pat
+    | `L_s11_Typ => Typ
+    | `L_s9_TPat => TPat
+    | `L_s7_Rul => Rul
+    | `L_s0_Any => Any
+  and to_nib_shape: Delta.NibShape.t => Nib.Shape.t =
+    fun
+    | `U_s3_Convex(_) => Convex
+    | `U_s2_Concave(concave) => {
+        let n = Delta.NibShape.AnonymousInterface0.get_n(concave);
+        Concave(n);
+      }
+  and to_nib: Delta.Nib.t => Nib.t =
+    nib => {
+      shape: to_nib_shape(Delta.Nib.get_shape(nib)),
+      sort: to_sort(Delta.Nib.get_sort(nib)),
+    }
+  and to_nibs: ((Delta.Nib.t, Delta.Nib.t)) => (Nib.t, Nib.t) =
+    fun
+    | (nib1, nib2) => (to_nib(nib1), to_nib(nib2))
+  and to_mold: Delta.Mold.t => Mold.t =
+    mold => {
+      out: to_sort(Delta.Mold.get_out(mold)),
+      in_: Delta.Mold.get_in(mold) |> List.map(to_sort),
+      nibs: to_nibs(Delta.Mold.get_nibs(mold)),
+    }
+  and to_tile: Delta.FlatTile.t => AutoSeg.Flat.tile =
+    tile => {
+      id: Id.of_string(Delta.FlatTile.get_id(tile)) |> Option.get,
+      label: Delta.FlatTile.get_label(tile),
+      mold: to_mold(Delta.FlatTile.get_mold(tile)),
+      shards: Delta.FlatTile.get_shards(tile),
+      children:
+        Delta.FlatTile.get_children(tile)
+        |> List.map(List.map(id => Id.of_string(id) |> Option.get)),
+    }
+  and to_secondary: Delta.Secondary.t => Secondary.t =
+    secondary => {
+      id: Id.of_string(Delta.Secondary.get_id(secondary)) |> Option.get,
+      content: to_secondary_content(Delta.Secondary.get_content(secondary)),
+    }
+  and to_secondary_content:
+    Delta.SecondaryContent.t => Secondary.secondary_content =
+    x => {
+      switch (Delta.SecondaryContent.get_t(x)) {
+      | `L_s12_Whitespace =>
+        Whitespace(Delta.SecondaryContent.get_content(x))
+      | `L_s1_Comment => Comment(Delta.SecondaryContent.get_content(x))
+      };
+    }
+  and to_grout = (grout: Delta.Grout.t): Grout.t => {
+    {
+      id: Id.of_string(Delta.Grout.get_id(grout)) |> Option.get,
+      shape: to_shape(Delta.Grout.get_shape(grout)),
+    };
+  }
+  and to_flat_piece: Delta.FlatPiece.t => AutoSeg.Flat.piece =
+    fun
+    | `U_s5_Grout(grout) => Grout(to_grout(grout))
+    | `U_s8_Secondary(secondary) => Secondary(to_secondary(secondary))
+    | `U_s10_Tile(tile) => Tile(to_tile(tile));
+
+  let id_from_piece = (piece: AutoSeg.Flat.piece): Id.t => {
+    switch (piece) {
+    | Tile(tile) => tile.id
+    | Grout(grout) => grout.id
+    | Secondary(secondary) => secondary.id
+    };
+  };
+
+  let js_of_autoseg = (map: AutoSeg.Doc.t): Ojs.t => {
+    let tiles =
+      map |> Id.Map.to_list |> List.map(((_x, y)) => of_flat_piece(y));
     let state =
-      Delta.HazelDoc.AnonymousInterface2.create(~title="", ~map, ());
+      Delta.HazelDoc.AnonymousInterface2.create(~title="", ~tiles, ());
     EditorState.t_to_js(EditorState.create(~t=`L_s3_state, ~state, ()));
+  };
+
+  let autoseg_of_hazeldoc = (doc: HazelDoc.t_0): AutoSeg.Doc.t => {
+    let tiles = doc |> Delta.HazelDoc.AnonymousInterface2.get_tiles;
+
+    let pieces = tiles |> List.map(to_flat_piece);
+
+    Id.Map.of_list(
+      pieces |> List.map(piece => (id_from_piece(piece), piece)),
+    );
   };
 };
 
+let send_to_parent = (message: Ojs.t) => {
+  Js.Unsafe.fun_call(
+    Js.Unsafe.js_expr("window.parent.postMessage"),
+    [|Js.Unsafe.inject(message), Js.Unsafe.inject(Js.string("*"))|],
+  );
+};
+
+let listen = (): unit => {
+  let onMessage = (ev: Js.t(#Dom_html.event)) => {
+    let dataJs: Ojs.t = Js.Unsafe.get(ev, "data");
+
+    let msg: ParentToHazel.t = ParentToHazel.t_of_js(dataJs);
+
+    switch (msg) {
+    | `U_s0_init(init) =>
+      let text: string = Init.get_message(init);
+      Firebug.console##log(Js.string("iframe got init: " ++ text));
+    | `U_s1_ping(ping) =>
+      let text: string = Ping.get_message(ping);
+      // send back pong
+      let pongJs: Ojs.t =
+        Pong.t_to_js(
+          Pong.create(~t=`L_s2_pong, ~message="pong from iframe", ()),
+        );
+      Firebug.console##log(Js.string("iframe got ping: " ++ text));
+      send_to_parent(pongJs);
+    | `U_s2_pong(pong) =>
+      let text: string = Pong.get_message(pong);
+      Firebug.console##log(Js.string("iframe got pong: " ++ text));
+    | `U_s3_state(state) =>
+      let js_state = EditorState.get_state(state);
+      let state = RedundantCoverterIGuess.autoseg_of_hazeldoc(js_state); // @andrew make it work
+      Firebug.console##log(
+        "my name is iframe and I'm here to say you gave me this state",
+      );
+      Firebug.console##log(state);
+    };
+    Js._false;
+  };
+
+  Js.Unsafe.fun_call(
+    Js.Unsafe.js_expr("window.addEventListener"),
+    [|
+      Js.Unsafe.inject(Js.string("message")),
+      Js.Unsafe.inject(onMessage),
+      Js.Unsafe.inject(Js._false),
+    |],
+  );
+};
+
 let send_state = (map: AutoSeg.Doc.t): unit =>
-  map |> RedundantCoverterIGuess.go |> send_to_parent;
+  map |> RedundantCoverterIGuess.js_of_autoseg |> send_to_parent;
 
 let init_iframe = () => {
   print_endline("Initializing iframe stufffff...");

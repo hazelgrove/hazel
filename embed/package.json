@@ -33,8 +33,8 @@
     "preview": "vite preview",
     "prepublishOnly": "npm run build",
     "type:messages:fix": "sed 's/Index/Delta/g' src/types/messages.mli > src/types/messages.tmp && mv src/types/messages.tmp src/types/messages.mli",
-    "type:messages": "tsx node_modules/@ocsigen/ts2ocaml/dist/ts2ocaml.js jsoo --preset full --output-dir src/types src/types/messages.d.ts && pnpm type:messages:fix && cp src/types/messages.mli ../src/haz3lcore/MessageTypes.mli",
-    "type:delta": "tsx node_modules/@ocsigen/ts2ocaml/dist/ts2ocaml.js jsoo --preset full --output-dir src/types src/types/delta.d.ts && cp src/types/delta.mli ../src/haz3lcore/Delta.mli",
+    "type:messages": "tsx node_modules/@ocsigen/ts2ocaml/dist/ts2ocaml.js jsoo --number-as-int --readable-names --preset full --output-dir src/types src/types/messages.d.ts && pnpm type:messages:fix && cp src/types/messages.mli ../src/haz3lcore/MessageTypes.mli",
+    "type:delta": "tsx node_modules/@ocsigen/ts2ocaml/dist/ts2ocaml.js jsoo --number-as-int --readable-names --preset full --output-dir src/types src/types/delta.d.ts && cp src/types/delta.mli ../src/haz3lcore/Delta.mli",
     "type": "npm run type:messages && npm run type:delta",
     "style": "prettier --write ."
   },
