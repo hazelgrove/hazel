@@ -123,6 +123,10 @@ select {
   outline: 0.6px solid var(--BR2);
 }
 
+#top-bar:hover {
+  z-index: var(--top-bar-hover-z);
+}
+
 #bottom-bar {
   z-index: var(--bottom-bar-z);
   grid-row: 3 / span 1;
