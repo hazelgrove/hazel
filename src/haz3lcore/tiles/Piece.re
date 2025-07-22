@@ -224,3 +224,10 @@ let is_term = (p: t) =>
   | Secondary(_) => false // debatable
   | _ => false
   };
+
+let is_infix_delimiter_op_prefix = (p: t) =>
+  switch (p) {
+  | Tile({label: [t], mold, _}) =>
+    Mold.is_infix_op(mold) && Form.is_infix_delimiter_op_prefix(t)
+  | _ => false
+  };

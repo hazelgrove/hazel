@@ -333,6 +333,7 @@ module Deco =
         };
       switch (range) {
       | None => []
+      | _ when Piece.is_infix_delimiter_op_prefix(p) => []
       | Some(range) =>
         let tiles = all_tiles(p);
         IndicationDec.term(
