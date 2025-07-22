@@ -145,7 +145,7 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
       | Parens => parens(unknown(Hole(EmptyHole)))
       | Ap => ap(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
       | Rec => rec_(TPat.var("x"), unknown(Hole(EmptyHole)))
-      | Forall => forall(TPat.var("x"), unknown(Hole(EmptyHole)))
+      | Poly => poly(TPat.var("x"), unknown(Hole(EmptyHole)))
       | EmptyHole => unknown(Hole(EmptyHole))
       | SynSwitch => unknown(SynSwitch)
       | Internal => unknown(Internal)

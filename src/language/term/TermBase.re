@@ -614,7 +614,7 @@ and Typ: {
             ),
           )
         | Rec(tp, t) => Rec(tpat_map_term(tp), typ_map_term(t))
-        | Forall(tp, t) => Forall(tpat_map_term(tp), typ_map_term(t))
+        | Poly(tp, t) => Poly(tpat_map_term(tp), typ_map_term(t))
         },
     };
     x |> f_typ(rec_call);
@@ -634,10 +634,10 @@ and Typ: {
       | TupLabel(label, ty) => TupLabel(label, subst(s, x, ty)) |> rewrap
       | Sum(sm) =>
         Sum(ConstructorMap.map(Option.map(subst(s, x)), sm)) |> rewrap
-      | Forall(tp2, ty)
+      | Poly(tp2, ty)
           when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
-        Forall(tp2, ty) |> rewrap
-      | Forall(tp2, ty) => Forall(tp2, subst(s, x, ty)) |> rewrap
+        Poly(tp2, ty) |> rewrap
+      | Poly(tp2, ty) => Poly(tp2, subst(s, x, ty)) |> rewrap
       | Rec(tp2, ty) when TPat.tyvar_of_utpat(x) == TPat.tyvar_of_utpat(tp2) =>
         Rec(tp2, ty) |> rewrap
       | Rec(tp2, ty) => Rec(tp2, subst(s, x, ty)) |> rewrap
@@ -662,7 +662,7 @@ and Typ: {
       && eq_internal(~alpha_equivalence, n, t1', t2')
     | (TupLabel(_), _) => false
     | (Rec(x1, t1), Rec(x2, t2))
-    | (Forall(x1, t1), Forall(x2, t2)) =>
+    | (Poly(x1, t1), Poly(x2, t2)) =>
       if (alpha_equivalence) {
         let alpha_subst =
           subst({
@@ -682,7 +682,7 @@ and Typ: {
         && eq_internal(~alpha_equivalence, n + 1, t1, t2);
       }
     | (Rec(_), _) => false
-    | (Forall(_), _) => false
+    | (Poly(_), _) => false
     | (Atom(name1), Atom(name2)) => name1 == name2
     | (Atom(_), _) => false
     | (Label(name1), Label(name2)) =>

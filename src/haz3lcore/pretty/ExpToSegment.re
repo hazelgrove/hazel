@@ -147,7 +147,7 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Arrow(_, _) => Precedence.type_arrow
   | Sum(_) => Precedence.type_plus
   | Rec(_, _) => Precedence.let_
-  | Forall(_, _) => Precedence.let_
+  | Poly(_, _) => Precedence.let_
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
   | Unknown(Hole(MultiHole(_))) => Precedence.min
@@ -506,8 +506,8 @@ and parenthesize_typ =
       parenthesize_typ(t) |> paren_typ_assoc_at(Precedence.type_binder),
     )
     |> rewrap
-  | Forall(tp, t) =>
-    Forall(
+  | Poly(tp, t) =>
+    Poly(
       tp,
       parenthesize_typ(t) |> paren_typ_assoc_at(Precedence.type_binder),
     )
@@ -1322,11 +1322,11 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let+ tp = tpat_to_pretty(~settings: Settings.t, tp)
     and+ t = go(t);
     [mk_form(Rec, id, [tp])] @ t;
-  | Forall(tp, t) =>
+  | Poly(tp, t) =>
     let id = typ |> Typ.rep_id;
     let+ tp = tpat_to_pretty(~settings: Settings.t, tp)
     and+ t = go(t);
-    [mk_form(Forall, id, [tp])] @ t;
+    [mk_form(Poly, id, [tp])] @ t;
   | Arrow(t1, t2) =>
     let id = typ |> Typ.rep_id;
     let+ t1 = go(t1)

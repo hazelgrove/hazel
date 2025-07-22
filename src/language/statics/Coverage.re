@@ -131,7 +131,7 @@ module Ctr = {
     | Atom(Nat)
     | Atom(String)
     | Arrow(_)
-    | Forall(_)
+    | Poly(_)
     | Var(_) => Infinite
     | Parens(_)
     | Ap(_)

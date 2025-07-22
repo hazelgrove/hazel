@@ -141,7 +141,7 @@ module IntroduceExp: Introducable with type t = Exp.t = {
               )
             ),
           )
-        | Forall(_, _) =>
+        | Poly(_, _) =>
           Some(
             TPat.empty_hole()
             |> (

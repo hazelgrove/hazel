@@ -911,18 +911,18 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
           );
         };
       }
-    | Forall(tp, t) =>
+    | Poly(tp, t) =>
       if (available^ <= 6) {
         indet_term_typ;
       } else {
-        available := available^ - 6; // "forall"
+        available := available^ - 3; // "poly"
         let tp' = abbreviate_tpat(tp);
         if (available^ > 2) {
           available := available^ - 2; // "->"
           let t' = abbreviate_typ(t);
-          Forall(tp', t');
+          Poly(tp', t');
         } else {
-          Forall(
+          Poly(
             tp',
             {
               ...t,

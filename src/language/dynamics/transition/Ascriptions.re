@@ -82,7 +82,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         )
         |> DHExp.fresh,
       )
-    | (TypFun(tp, e, v), Forall(tp', t')) =>
+    | (TypFun(tp, e, v), Poly(tp', t')) =>
       let new_ty: Typ.t =
         switch (TPat.tyvar_of_utpat(tp)) {
         | Some(tyvar) => Var(tyvar) |> Typ.temp

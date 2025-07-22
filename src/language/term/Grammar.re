@@ -124,7 +124,7 @@ and typ_term('a) =
   | Parens(typ_t('a))
   | Ap(typ_t('a), typ_t('a))
   | Rec(tpat_t('a), typ_t('a))
-  | Forall(tpat_t('a), typ_t('a))
+  | Poly(tpat_t('a), typ_t('a))
 and typ_t('a) = Annotated.t(typ_term('a), 'a)
 and tpat_term('a) =
   | Invalid(string)
@@ -334,8 +334,8 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
           Ap(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
         | Rec(tp, t) =>
           Rec(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
-        | Forall(tp, t) =>
-          Forall(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
+        | Poly(tp, t) =>
+          Poly(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
         | Prod(l) => Prod(List.map(x => map_typ_annotation(f, x), l))
         | Label(l) => Label(l)
         | TupLabel(t1, t2) =>
@@ -796,8 +796,8 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Rec(tp, t),
       annotation: default_annotation(ann),
     };
-    let forall = (~ann=?, tp, t): typ_t(DefaultAnnotation.t) => {
-      term: Forall(tp, t),
+    let poly = (~ann=?, tp, t): typ_t(DefaultAnnotation.t) => {
+      term: Poly(tp, t),
       annotation: default_annotation(ann),
     };
     let empty_hole = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {

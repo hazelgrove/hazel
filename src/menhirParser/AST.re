@@ -100,7 +100,7 @@ type typ =
   | ArrowType(typ, typ)
   | TypVar(string)
   | InvalidTyp(string)
-  | ForallType(tpat, typ)
+  | PolyType(tpat, typ)
   | RecType(tpat, typ)
   | LabelType(string)
   | TupLabelType(typ, typ)
@@ -525,7 +525,7 @@ and gen_typ_sized: (~minimal_idents: bool, int) => QCheck.Gen.t(typ) =
               {
                 let* gen_tpat = gen_tpat;
                 let+ t = self(n - 1);
-                ForallType(gen_tpat, t);
+                PolyType(gen_tpat, t);
               },
               {
                 let* gen_tpat = gen_tpat;
@@ -1109,9 +1109,9 @@ and shrink_typ: QCheck.Shrink.t(typ) =
             return(ArrowType(t1, shrunk2));
           }
         | TypVar(x) => Shrink.string(x) >|= ((x: string) => TypVar(x))
-        | ForallType(tpat, t) =>
+        | PolyType(tpat, t) =>
           let* shrunk = shrink_typ(t);
-          return(ForallType(tpat, shrunk));
+          return(PolyType(tpat, shrunk));
         | RecType(tpat, t) =>
           let* shrunk = shrink_typ(t);
           return(RecType(tpat, shrunk));

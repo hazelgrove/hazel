@@ -166,9 +166,7 @@ let tests = (
           typ_ap(
             constructor(
               "B",
-              Some(
-                Some(Typ.(forall(TPat.empty_hole(), unknown(SynSwitch)))),
-              ),
+              Some(Some(Typ.(poly(TPat.empty_hole(), unknown(SynSwitch))))),
             ),
             Typ.unknown(Hole(EmptyHole)),
           ),

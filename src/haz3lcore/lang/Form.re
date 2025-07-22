@@ -361,7 +361,7 @@ type compound_form =
   | Fun
   | Fix
   | TypFun
-  | Forall
+  | Poly
   | Rec
   | Rule
   | Pipeline
@@ -448,7 +448,7 @@ let get: compound_form => t =
   | Fun => mk(ds, ["fun", "->"], mk_pre(P.fun_, Exp, [Pat]))
   | Fix => mk(ds, ["fix", "->"], mk_pre(P.fun_, Exp, [Pat]))
   | TypFun => mk(ds, ["typfun", "->"], mk_pre(P.fun_, Exp, [TPat]))
-  | Forall => mk(ds, ["forall", "->"], mk_pre(P.fun_, Typ, [TPat]))
+  | Poly => mk(ds, ["poly", "->"], mk_pre(P.fun_, Typ, [TPat]))
   | Rec => mk(ds, ["rec", "->"], mk_pre(P.fun_, Typ, [TPat]))
   | Rule => mk(ds, ["|", "=>"], mk_bin'(P.rule_sep, Rul, Exp, [Pat], Exp))
   | Pipeline => mk_infix("|>", Exp, P.eqs) // in OCaml, pipeline precedence is in same class as '=', '<', etc.

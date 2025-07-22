@@ -690,7 +690,7 @@ end|},
 let type_function_scrutinee =
   has_errors(
     "Function Scrutinee",
-    {|let f: forall a -> a -> a = typfun a -> fun x -> x in
+    {|let f: poly a -> a -> a = typfun a -> fun x -> x in
 case f
 | g => g
 | {{{h}}} => h

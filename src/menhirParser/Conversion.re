@@ -442,8 +442,8 @@ and Typ: {
           sumterms,
         );
       parens(sum(converted_terms));
-    | ForallType(tp, t) =>
-      parens(forall(TPat.of_menhir_ast(tp), of_menhir_ast(t)))
+    | PolyType(tp, t) =>
+      parens(poly(TPat.of_menhir_ast(tp), of_menhir_ast(t)))
     | RecType(tp, t) =>
       parens(rec_(TPat.of_menhir_ast(tp), of_menhir_ast(t)))
     | IndicationTyp(t) => {
@@ -475,7 +475,7 @@ and Typ: {
     | List(t) => ArrayType(of_core(t))
     | Arrow(t1, t2) => ArrowType(of_core(t1), of_core(t2))
     | Unknown(p) => UnknownType(of_core_type_provenance(p))
-    | Forall(tp, t) => ForallType(TPat.of_core(tp), of_core(t))
+    | Poly(tp, t) => PolyType(TPat.of_core(tp), of_core(t))
     | Rec(tp, t) => RecType(TPat.of_core(tp), of_core(t))
     | Parens(t) => of_core(t)
     | Label(s) => LabelType(s)

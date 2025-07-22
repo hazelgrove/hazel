@@ -35,12 +35,12 @@ let tests = [
   }),
   fully_consistent_typecheck(
     "Forall alpha equivalent in ascription",
-    {|let x : forall a -> a = in (x : forall b -> b)|},
-    FTemp.Typ.(Some(forall(TPat.var("b"), var("b")))),
+    {|let x : poly a -> a = in (x : poly b -> b)|},
+    FTemp.Typ.(Some(poly(TPat.var("b"), var("b")))),
   ),
   fully_consistent_typecheck(
     "Forall alpha equivalent in let",
-    {|let x : forall a -> a = in let y : forall b -> b = x in 1|},
+    {|let x : poly a -> a = in let y : poly b -> b = x in 1|},
     Some(int()),
   ),
   inconsistent_typecheck(
