@@ -356,6 +356,13 @@ end
     case (1,(2,3),4) | (x=1, (x,y), z) => 0 end
     |} |> parse_exp,
   ),
+  inconsistent_typecheck(
+    "duplicate variables in patterns with let expressions",
+    // #err: type incons#
+    {|
+    let (x,x) = 1,2 in ?
+    |} |> parse_exp,
+  ),
   // ======================== KNOWN BUGS ==============================
   skip_known_bug(
     // inconsistent_typecheck(
