@@ -2,7 +2,10 @@ open Util;
 
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type state = Page.Model.t;
+  type state = {
+    action: Page.Update.t,
+    model: Page.Model.t,
+  };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -14,7 +17,10 @@ module Model = {
   let equal = (===);
 
   let init = () => {
-    current: Page.Store.load(),
+    current: {
+      action: Page.Update.Start,
+      model: Page.Store.load(),
+    },
     undo_stack: [],
     redo_stack: [],
   };
@@ -50,7 +56,10 @@ module Update = {
             redo_stack: [
               {
                 ...x,
-                model: model.current,
+                model: {
+                  action,
+                  model: model.current.model,
+                },
               },
               ...model.redo_stack,
             ],
@@ -69,7 +78,10 @@ module Update = {
             undo_stack: [
               {
                 ...x,
-                model: model.current,
+                model: {
+                  action,
+                  model: model.current.model,
+                },
               },
               ...model.undo_stack,
             ],
@@ -84,13 +96,16 @@ module Update = {
           ~get_log_and,
           ~schedule_action,
           action,
-          model.current,
+          model.current.model,
         );
       if (Page.Update.can_undo(action)) {
         {
           ...current,
           model: {
-            current: current.model,
+            current: {
+              action,
+              model: current.model,
+            },
             undo_stack: [
               {
                 ...current,
@@ -105,7 +120,10 @@ module Update = {
         {
           ...current,
           model: {
-            current: current.model,
+            current: {
+              action,
+              model: current.model,
+            },
             undo_stack: model.undo_stack,
             redo_stack: model.redo_stack,
           },
@@ -115,8 +133,12 @@ module Update = {
 
   let calculate =
       (~schedule_action: t => unit, ~is_edited: bool, model: Model.t): Model.t => {
-    current:
-      model.current |> Page.Update.calculate(~schedule_action, ~is_edited),
+    current: {
+      action: Page.Update.Start, // TODO what action should actually be here if any?
+      model:
+        model.current.model
+        |> Page.Update.calculate(~schedule_action, ~is_edited),
+    },
     undo_stack: model.undo_stack,
     redo_stack: model.redo_stack,
   };
@@ -126,15 +148,20 @@ module Selection = {
   type t = Page.selection;
 
   let handle_key_event = (model: Model.t) =>
-    Page.Selection.handle_key_event(model.current);
+    Page.Selection.handle_key_event(model.current.model);
 
   let get_cursor_info = (model: Model.t) =>
-    Page.Selection.get_cursor_info(model.current);
+    Page.Selection.get_cursor_info(model.current.model);
 };
 
 module View = {
   let view =
       (~get_log_and, ~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
-    Page.View.view(~get_log_and, ~inject, model.current);
+    Page.View.view(
+      ~get_log_and,
+      ~inject,
+      model.current.model,
+      model.current.action,
+    );
   };
 };

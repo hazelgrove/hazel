@@ -54,6 +54,26 @@ let assistant_tab = (~globals: Globals.t): Node.t => {
   );
 };
 
+let edit_history_tab = (~globals: Globals.t): Node.t => {
+  let switch_history = _ =>
+    Effect.Many([
+      globals.inject_global(Set(Sidebar(SwitchPanel(EditHistory)))),
+      Effect.Stop_propagation,
+    ]);
+  div(
+    ~attrs=[clss(["history-button"])],
+    [
+      tab(
+        Icons.history,
+        ~tooltip="Switch to Edit History",
+        switch_history,
+        globals.settings.sidebar.panel == EditHistory
+        && globals.settings.sidebar.show,
+      ),
+    ],
+  );
+};
+
 let collapse_tab = (~globals: Globals.t): Node.t => {
   let tooltip =
     globals.settings.sidebar.show ? "Collapse Sidebar" : "Expand Sidebar";
@@ -75,7 +95,11 @@ let persistent_view = (~globals: Globals.t) =>
     [
       div(
         ~attrs=[clss(["tabs"])],
-        [explain_this_tab(~globals), assistant_tab(~globals)],
+        [
+          explain_this_tab(~globals),
+          assistant_tab(~globals),
+          edit_history_tab(~globals),
+        ],
       ),
     ],
   );
@@ -175,6 +199,7 @@ let view =
       ~explainThisModel: ExplainThisModel.t,
       ~assistantModel: AssistantModel.t,
       ~editor,
+      ~historyModel,
       info: option(Language.Info.t),
     ) => {
   let sub =
@@ -199,6 +224,7 @@ let view =
                 ~model=assistantModel,
                 ~editor,
               )
+            | EditHistory => EditHistory.View.history_view(historyModel)
             },
           ],
         )

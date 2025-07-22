@@ -599,6 +599,7 @@ module View = {
           assistant: assistantModel,
           selection,
         } as model: Model.t,
+        historyModel: Update.t,
       ) => {
     let globals = {
       ...globals,
@@ -623,6 +624,7 @@ module View = {
         ~explainThisModel,
         ~assistantModel,
         ~editor=Update.get_editor(model),
+        ~historyModel,
         cursor.info,
       );
 
@@ -653,12 +655,17 @@ module View = {
   };
 
   let view =
-      (~get_log_and, ~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
+      (
+        ~get_log_and,
+        ~inject: Update.t => Ui_effect.t(unit),
+        model: Model.t,
+        history: Page.Update.t,
+      ) => {
     let cursor = Selection.get_cursor_info(~selection=model.selection, model);
     div(
       ~attrs=[Attr.id("page"), ...handlers(~cursor, ~inject, model)],
       [FontSpecimen.view, JsUtil.clipboard_shim]
-      @ main_view(~get_log_and, ~cursor, ~inject, model),
+      @ main_view(~get_log_and, ~cursor, ~inject, model, history),
     );
   };
 };
