@@ -2,9 +2,11 @@ import React, { useEffect, useRef, useCallback } from "react";
 import type {
   Init,
   Ping,
-  HazelToParent,
-  ParentToHazel,
+  HazelToParent as __HazelToParent,
+  ParentToHazel as __ParentToHazel,
+  EditorState,
 } from "../types/messages";
+import { generateHazelDoc, exportHazelDoc, type HazelDoc } from "../types/interface";
 
 /**
  * Retrieves a query parameter from the URL
@@ -20,6 +22,16 @@ export function getQueryParam(name: string, defaultValue: string = ""): string {
   return params.get(name) ?? defaultValue;
 }
 
+// Define parent-facing message types with converted doc format
+type ParentFacingState = {
+  t: "state";
+  state: HazelDoc;
+};
+
+// Export the parent-facing message types with clean API names
+export type HazelToParent = Exclude<__HazelToParent, EditorState> | ParentFacingState;
+export type ParentToHazel = Exclude<__ParentToHazel, EditorState> | ParentFacingState;
+
 /**
  * Props for the HazelEmbed component
  */
@@ -31,14 +43,14 @@ interface HazelEmbedProps {
   
   /**
    * Callback function that receives messages from the Hazel iframe
-   * @param message - The message sent from Hazel
+   * @param message - The message sent from Hazel (with state converted to HazelDoc format)
    * @param sourceInstanceId - The instance ID that sent the message
    */
   onMessage: (message: HazelToParent, sourceInstanceId: string) => void;
   
   /**
    * Function to register the sendMessage function for communicating with Hazel
-   * @param sendMessageFn - Function that allows sending messages to Hazel
+   * @param sendMessageFn - Function that allows sending messages to Hazel (accepts HazelDoc format for state)
    */
   registerSendMessage: (
     sendMessageFn: (message: ParentToHazel) => void,
@@ -54,9 +66,9 @@ interface HazelEmbedProps {
 /**
  * Helper function to send a message to the Hazel iframe
  * @param hazel - Reference to the iframe element
- * @param message - Message to send to Hazel
+ * @param message - Message to send to Hazel (internal iframe format)
  */
-const sendToHazel = (hazel: HTMLIFrameElement, message: ParentToHazel) => {
+const sendToHazel = (hazel: HTMLIFrameElement, message: __ParentToHazel) => {
   if (hazel.contentWindow) {
     hazel.contentWindow.postMessage(message, "*");
   }
@@ -92,12 +104,24 @@ const HazelEmbed: React.FC<HazelEmbedProps> = ({
     const handleMessage = (event: MessageEvent) => {
       if (event.data?.source?.includes("react")) return;
 
-      // Extract the message from the event data
-      const hazelMessage = event.data as HazelToParent;
+      // Extract the message from the event data (using internal types from iframe)
+      const hazelMessage = event.data as __HazelToParent;
 
       if (hazelMessage && hazelMessage.t) {
-        // Forward the message to the parent component along with the instance ID
-        onMessage(hazelMessage, instanceId);
+        switch (hazelMessage.t) {
+            case "state":
+              // Convert HazelDoc to ParentFacingState format
+              const convertedMessage: ParentFacingState = {
+                t: "state",
+                state: generateHazelDoc(hazelMessage.state),
+              };
+              onMessage(convertedMessage, instanceId);
+              break;
+            default:
+              // Pass through other message types unchanged
+              onMessage(hazelMessage as HazelToParent, instanceId);
+              break;
+        }
       } else {
         console.error("Invalid message format from Hazel:", event.data);
       }
@@ -113,7 +137,17 @@ const HazelEmbed: React.FC<HazelEmbedProps> = ({
   const sendMessage = useCallback(
     (message: ParentToHazel) => {
       if (hazelRef.current) {
-        sendToHazel(hazelRef.current, message);
+        // Convert state messages from HazelDoc to InternalHazelDoc format
+        if (message.t === "state") {
+          const convertedMessage: EditorState = {
+            t: "state",
+            state: exportHazelDoc(message.state),
+          };
+          sendToHazel(hazelRef.current, convertedMessage);
+        } else {
+          // Pass through other message types unchanged
+          sendToHazel(hazelRef.current, message);
+        }
       } else {
         console.error("Hazel iframe is not available.");
       }

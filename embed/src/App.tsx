@@ -4,18 +4,24 @@ import MessageDisplay from "./components/MessageDisplay";
 import DocGraph from "./components/DocGraph";
 import DocStateManager from "./components/DocStateManager";
 import type {
-  HazelToParent,
-  ParentToHazel,
   Pong,
   Ping,
-  EditorState,
 } from "./types/messages";
 import "./components/DocComponents.css";
 
-import { exportHazelDoc, generateHazelDoc, type HazelDoc } from "./types/interface";
+import { type HazelDoc } from "./types/interface";
+
+// Import the parent-facing message types from HazelEmbed
+type ParentFacingState = {
+  t: "state";
+  state: HazelDoc;
+};
+
+type ParentFacingMessage = Ping | Pong | { t: "init"; message: string } | ParentFacingState;
+type ParentMessage = Ping | Pong | { t: "init"; message: string } | ParentFacingState;
 
 interface MessageWithMetadata {
-  message: HazelToParent;
+  message: ParentFacingMessage;
   instanceId: string;
   timestamp: string;
 }
@@ -27,18 +33,18 @@ function App() {
   // References to Hazel instances for sending messages back
   const hazelRefs = {
     "hazel-1": React.useRef<{
-      sendMessage: (message: ParentToHazel) => void;
+      sendMessage: (message: ParentMessage) => void;
     }>(null),
-    // "hazel-2": React.useRef<{ sendMessage: (message: ParentToHazel) => void }>(null),
+    // "hazel-2": React.useRef<{ sendMessage: (message: ParentMessage) => void }>(null),
   };
 
   const registerSendMessage = (
-    sendMessageFn: (message: ParentToHazel) => void,
+    sendMessageFn: (message: ParentMessage) => void,
   ) => {
     hazelRefs["hazel-1"].current = { sendMessage: sendMessageFn };
   };
 
-  const handleMessage = (message: HazelToParent, sourceInstanceId: string) => {
+  const handleMessage = (message: ParentFacingMessage, sourceInstanceId: string) => {
     const newMessage: MessageWithMetadata = {
       message,
       instanceId: sourceInstanceId,
@@ -71,9 +77,8 @@ function App() {
         }
         case "state": {
           console.log(`Received state from instance ${sourceInstanceId}:`, message);
-          const doc = generateHazelDoc(message.state);
-          // Process the state and update hazelState
-          setHazelState(doc);
+          // HazelEmbed has already converted to HazelDoc format
+          setHazelState(message.state);
           break;
         }
         default: {
@@ -102,9 +107,9 @@ function App() {
   // Function to load a saved state and send it back to Hazel
   const handleLoadState = useCallback((state: HazelDoc) => {
     const instanceId = "hazel-1"; // We're using a single instance
-    const editorStateMessage: EditorState = {
+    const editorStateMessage: ParentFacingState = {
       t: "state",
-      state: exportHazelDoc(state),
+      state: state,
     };
     
     const hazelRef = hazelRefs[instanceId as keyof typeof hazelRefs];
