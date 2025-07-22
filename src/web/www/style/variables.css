@@ -37,7 +37,8 @@
   /* MAGMA - opportunities */
   --R0: oklch(85% 0.1 30); /* broken shard fill */
   --R1: oklch(60% 0.3 30); /* caret, error stroke */
-  --R2: oklch(40% 0.3 30); /* error text, broken shard text
+  --R2: oklch(40% 0.3 30); /* error text, broken shard text */
+  --O1: oklch(60% 0.3 90); /* warning stroke */
 
   /* GLASS - sorts */
   --TYP: oklch(60% 0.2 300);
@@ -64,6 +65,7 @@
   --textarea-h-strip-selected: oklch(68% 0.14 76 / 30%);
   --SHADOW: oklch(50% 0.1 90 / 33%);
   --ERRHOLE: oklch(96% 0.02 47); /* temporary due to child arms */
+  --WARNHOLE: oklch(0.97 0.04 78.17);
   --CREASE: oklch(0% 0 0 / 40%);
 
   /* CODE BACKGROUND */
@@ -128,8 +130,8 @@
   --error-hole-fill: var(--ERRHOLE);
 
   /* WARNING HOLE DECO */
-  --warning-hole-stroke: orange;
-  --warning-hole-fill: oklch(from var(--warning-hole-stroke) 105% c h / 0.3);
+  --warning-hole-stroke: var(--O1);
+  --warning-hole-fill: var(--WARNHOLE);
 
   /* BACKPACK DECO */
 
@@ -232,8 +234,4 @@
   /* HACKS */
   --modal-back-z: 100;
   --modal-z: 101;
-
-
 }
-
-
