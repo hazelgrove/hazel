@@ -220,7 +220,7 @@ let tests =
       )
     }),
     fully_consistent_typecheck(
-      "Singleton Labled Tuple with specified label",
+      "Singleton Labeled Tuple with specified label",
       "let x : (l=String) = (l=\"a\") in x",
       Some(prod([tup_label(label("l"), string())])),
     ),
