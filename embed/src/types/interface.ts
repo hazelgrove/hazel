@@ -1,6 +1,6 @@
-import type { HazelDoc as InternalHazelDoc, FlatPiece } from "./delta";
+import type { HazelDoc as __HazelDoc, FlatPiece } from "./delta";
 
-export function generateHazelDoc(doc: InternalHazelDoc): HazelDoc {
+export function generateHazelDoc(doc: __HazelDoc): HazelDoc {
   const pieceMap = new Map<string, FlatPiece>();
   doc.tiles.forEach((piece) => {
     pieceMap.set(piece.id, piece);
@@ -12,7 +12,7 @@ export function generateHazelDoc(doc: InternalHazelDoc): HazelDoc {
   };
 }
 
-export function exportHazelDoc(doc: HazelDoc): InternalHazelDoc {
+export function exportHazelDoc(doc: HazelDoc): __HazelDoc {
   const tiles: FlatPiece[] = Array.from(doc.pieceMap.values());
   return {
     title: doc.title,
@@ -24,3 +24,5 @@ export type HazelDoc = {
     title: string;
     pieceMap: Map<string, FlatPiece>;
 }
+
+export type { HazelToParent, ParentToHazel } from "../components/HazelEmbed";
