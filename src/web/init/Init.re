@@ -26,6 +26,7 @@ let startup: PersistentData.t = {
       B2T2TableAPISubtable2.out,
       B2T2TableAPIOrdering.out,
       B2T2TableAPIAggregate.out,
+      B2T2TableAPIMissingValues.out,
       GUIDEExpressiveProgramming.out,
       GUIDEComposingExpressions.out,
       GUIDEComputingEquationally.out,
