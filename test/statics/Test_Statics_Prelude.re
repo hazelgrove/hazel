@@ -75,8 +75,6 @@ let annotated_tree_test = (name, expected_type, expected_error_tree) => {
   let annotated: Grammar.exp_t(option(Info.error)) =
     annotate_static_errors(term, s);
   let typ = type_of(~static_map=s, term);
-  print_endline("Exp: " ++ Exp.show(term));
-  print_endline("Typ: " ++ [%derive.show: option(Typ.t)](typ));
   Alcotest.check(annotated_exp, name, expected_error_tree, annotated);
   Alcotest.check(
     testable_typ,
@@ -110,13 +108,9 @@ let fully_consistent_typecheck = (name, serialized, expected) => {
     `Quick,
     () => {
       let exp = parse_exp(serialized);
-      print_endline("Exp: " ++ Exp.show(exp));
       let s = statics(exp);
       let errors = List.map(snd, Statics.Map.errors(s));
       let actual_type = type_of(~static_map=s, exp);
-      print_endline(
-        "Actual Type: " ++ [%derive.show: option(Typ.t)](actual_type),
-      );
       Alcotest.check(list(testable_error), "Static Errors", [], errors);
       Alcotest.check(
         Alcotest.option(testable_typ),
