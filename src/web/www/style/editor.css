@@ -206,7 +206,7 @@ svg.shard.error {
   z-index: var(--err-hole-z);
 }
 
-svg.shard.warning {
+.warnings svg.shard.error {
   z-index: var(--warn-hole-z);
 }
 
@@ -226,14 +226,14 @@ svg.shard.error > path {
   fill: var(--error-hole-fill);
 }
 
-svg.shard.warning > path,
-.warnings .warnings-piece svg .child-line {
+.warnings svg.shard.error > path,
+.warnings .errors-piece svg .child-line {
   stroke: var(--warning-hole-stroke);
   stroke-width: 0.75px;
   stroke-dasharray: 1, 1;
   stroke-linecap: butt;
 }
-svg.shard.warning > path {
+.warnings svg.shard.error > path {
   fill: var(--warning-hole-fill);
 }
 
