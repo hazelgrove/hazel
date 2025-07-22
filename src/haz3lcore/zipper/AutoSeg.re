@@ -91,18 +91,6 @@ let doc_to_seg = (doc: Doc.t): Segment.t => {
   go_seg(root_seg_ids);
 };
 
-module StringMap = Map.Make(String);
-
-let doc_to_string_map = (doc: Doc.t): StringMap.t(Flat.piece) => {
-  Doc.fold(
-    (id: Id.t, piece: Flat.piece, acc: StringMap.t(Flat.piece)) => {
-      StringMap.add(Id.show(id), piece, acc)
-    },
-    doc,
-    StringMap.empty,
-  );
-};
-
 // [@deriving (show({with_path: false}), sexp, yojson, eq, ord)]
 // type id = {
 //   uuid: Id.t,

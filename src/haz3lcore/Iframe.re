@@ -81,14 +81,111 @@ let listen = (): unit => {
 //   send_to_parent(message);
 // };
 
-let send_state = (map: AutoSeg.Doc.t): unit => {
-  let tiles =
-    Ts2ocaml.Map.create'''(~entries=Some(Id.Map.to_list(map)), ());
-  let hd = Delta.HazelDoc.AnonymousInterface0.create(~title="", ~tiles, ());
-  let message =
-    EditorState.t_to_js(EditorState.create(~t=`L_s3_state, ~state=hd, ()));
-  send_to_parent(message);
+module RedundantCoverterIGuess = {
+  let of_shape: Grout.shape => Delta.Shape.t =
+    fun
+    | Convex => `L_s3_Convex
+    | Concave => `L_s2_Concave;
+
+  let of_secondary_content:
+    Secondary.secondary_content => Delta.SecondaryContent.t =
+    fun
+    | Whitespace(s) =>
+      Delta.SecondaryContent.create(~t=`L_s12_Whitespace, ~content=s, ())
+    | Comment(s) =>
+      Delta.SecondaryContent.create(~t=`L_s1_Comment, ~content=s, ());
+
+  let of_grout = (grout: Grout.t): Delta.Grout.t =>
+    Delta.Grout.create(
+      ~t=`L_s5_Grout,
+      ~id=Id.to_string(grout.id),
+      ~shape=of_shape(grout.shape),
+      (),
+    );
+
+  let of_secondary = (secondary: Secondary.t): Delta.Secondary.t => {
+    Delta.Secondary.create(
+      ~t=`L_s8_Secondary,
+      ~id=Id.to_string(secondary.id),
+      ~content=of_secondary_content(secondary.content),
+      (),
+    );
+  };
+
+  let of_sort: Sort.t => Delta.Sort.t =
+    fun
+    | Exp => `L_s4_Exp
+    | Pat => `L_s6_Pat
+    | Typ => `L_s11_Typ
+    | TPat => `L_s9_TPat
+    | Rul => `L_s7_Rul
+    | Any => `L_s0_Any;
+
+  let of_nib_shape: Nib.Shape.t => Delta.NibShape.t =
+    fun
+    | Convex =>
+      `U_s3_Convex(
+        Delta.NibShape.AnonymousInterface1.create(~t=`L_s3_Convex, ()),
+      )
+    | Concave(n) =>
+      `U_s2_Concave(
+        Delta.NibShape.AnonymousInterface0.create(
+          ~t=`L_s2_Concave,
+          ~n=float_of_int(n), //wtf
+          (),
+        ),
+      );
+
+  let of_nib: Nib.t => Delta.Nib.t =
+    fun
+    | {shape, sort} =>
+      Delta.Nib.create(~shape=of_nib_shape(shape), ~sort=of_sort(sort), ());
+
+  let of_nibs: ((Nib.t, Nib.t)) => (Delta.Nib.t, Delta.Nib.t) =
+    fun
+    | (nib1, nib2) => (of_nib(nib1), of_nib(nib2));
+
+  let of_mold = (mold: Mold.t): Delta.Mold.t =>
+    Delta.Mold.create(
+      ~out=of_sort(mold.out),
+      ~in_=mold.in_ |> List.map(of_sort),
+      ~nibs=mold.nibs |> of_nibs,
+      (),
+    );
+
+  let of_tile = (tile: AutoSeg.Flat.tile): Delta.FlatTile.t =>
+    Delta.FlatTile.create(
+      ~t=`L_s10_Tile,
+      ~id=Id.to_string(tile.id),
+      ~label=tile.label,
+      ~mold=tile.mold |> of_mold,
+      ~shards=tile.shards |> List.map(float_of_int), //floats?? FLOATS????????????
+      ~children=tile.children |> List.map(List.map(Id.to_string)),
+      (),
+    );
+
+  let of_flat_piece = (x: AutoSeg.Flat.piece): Delta.FlatPiece.t => {
+    switch (x) {
+    | Grout(grout) => `U_s5_Grout(of_grout(grout))
+    | Secondary(secondary) => `U_s8_Secondary(of_secondary(secondary))
+    | Tile(tile) => `U_s10_Tile(of_tile(tile))
+    };
+  };
+
+  let go = (map: AutoSeg.Doc.t): Ojs.t => {
+    let entries =
+      map
+      |> Id.Map.to_list
+      |> List.map(((x, y)) => (Id.to_string(x), of_flat_piece(y)));
+    let map = Ts2ocaml.Map.create'''(~entries=Some(entries), ());
+    let state =
+      Delta.HazelDoc.AnonymousInterface2.create(~title="", ~map, ());
+    EditorState.t_to_js(EditorState.create(~t=`L_s3_state, ~state, ()));
+  };
 };
+
+let send_state = (map: AutoSeg.Doc.t): unit =>
+  map |> RedundantCoverterIGuess.go |> send_to_parent;
 
 let init_iframe = () => {
   print_endline("Initializing iframe stufffff...");

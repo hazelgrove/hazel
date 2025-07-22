@@ -1,10 +1,11 @@
 type UUID = string;
 
-type Sort = "Exp";
-type Shape = "Convex";
+type Sort = "Exp" | "Pat" | "Typ" | "TPat" | "Rul" | "Any";
+type Shape = "Convex" | "Concave";
+type NibShape = {t:"Convex"} | {t:"Concave", n:number};
 
 interface Nib {
-  shape: Shape;
+  shape: NibShape;
   sort: Sort;
 }
 
@@ -38,22 +39,20 @@ interface Tile {
   readonly children: Tile[];
 }
 
-export type TileId = `TILE:${UUID}`;
 export interface FlatTile {
   readonly t: "Tile";
-  readonly id: TileId;
+  readonly id: UUID;
   readonly label: string[];
   readonly mold: Mold;
   readonly shards: number[];
-  readonly children: TileId[][];
+  readonly children: UUID[][];
 }
 
 export type FlatPiece = FlatTile | Grout | Secondary;
 
 export type HazelDoc = {
     title: string;
-    tiles: Map<TileId, FlatPiece>;
-    //root: TileId;
+    map: Map<UUID, FlatPiece>;
 }
 
 // interface DeleteOp {
