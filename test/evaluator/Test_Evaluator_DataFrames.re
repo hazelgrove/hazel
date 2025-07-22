@@ -85,8 +85,6 @@ let tests = (
       `Quick,
       () => {
         let program = {|let (var=a, val=b) = (var="get_acne", val=true) : ? in b|};
-        let elaborated = elaborate(parse_exp(program));
-        print_endline("Elaborated: " ++ DHExp.show(elaborated));
 
         check(
           dhexp_typ,
