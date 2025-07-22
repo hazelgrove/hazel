@@ -322,29 +322,3 @@ let error_term =
   @ uni_lines(~font_metrics, ~rows, range, tiles, ~line_clss=[])
   @ bi_lines(~font_metrics, ~rows, tiles, ~line_clss=[]);
 };
-
-let warning_term =
-    (
-      ~font_metrics,
-      ~rows: Measured.Rows.t,
-      range: (Measured.Point.t, Measured.Point.t),
-      tiles: list((Id.t, Mold.t, Measured.Shards.t)),
-    ) => {
-  let shard_of = (mold, (index, measurement)) =>
-    ShardDec.simple(
-      {
-        font_metrics,
-        measurement,
-        tips: ShardDec.tips_of_shapes(Mold.nib_shapes(~index, mold)),
-      },
-      ["warning"],
-    );
-  let shard_decos =
-    List.concat_map(
-      ((_, mold, shards)) => List.map(shard_of(mold), shards),
-      tiles,
-    );
-  shard_decos
-  @ uni_lines(~font_metrics, ~rows, range, tiles, ~line_clss=[])
-  @ bi_lines(~font_metrics, ~rows, tiles, ~line_clss=[]);
-};

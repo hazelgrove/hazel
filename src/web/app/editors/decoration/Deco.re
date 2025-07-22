@@ -531,48 +531,7 @@ module Deco =
     };
 
   let errors = () => div_c("errors", List.map(error_view, error_ids));
-
-  let warning_view = (id: Id.t) =>
-    try(
-      switch (Id.Map.find_opt(id, projectors)) {
-      | Some(p) =>
-        let shapes = ProjectorCore.shapes(p);
-        let measurement = Id.Map.find(id, measured.projectors);
-        div_c(
-          "warnings-piece",
-          [
-            ShardDec.simple(
-              {
-                font_metrics,
-                tips: ShardDec.tips_of_shapes(shapes),
-                measurement,
-              },
-              ["warning"],
-            ),
-          ],
-        );
-      | None =>
-        let p = Piece.Tile(tile(id));
-        switch (term_range(p)) {
-        | Some(range) =>
-          let tiles = all_tiles(p);
-          div_c(
-            "warnings-piece",
-            IndicationDec.warning_term(~font_metrics, ~rows, range, tiles),
-          );
-        | None => div_c("warnings-piece", [])
-        };
-      }
-    ) {
-    | Not_found =>
-      /* This is caused by the statics overloading for exercise mode. The overriding
-       * Exercise mode statics maps are calculated based on splicing together multiple
-       * editors, but error_ids are extracted generically from the statics map, so
-       * there may be error holes that don't occur in the editor being rendered */
-      Node.div([])
-    };
-  let warnings = () =>
-    div_c("warnings", List.map(warning_view, warning_ids));
+  let warnings = () => div_c("warnings", List.map(error_view, warning_ids));
   let indication = (z: Zipper.t) =>
     div_c("indication", indicated_piece_deco(z));
 
