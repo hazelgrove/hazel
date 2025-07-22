@@ -1393,13 +1393,13 @@ and upat_to_info_map =
           id: Pat.rep_id(upat),
           typ: ctx_typ,
         });
-      let self = Self.Just(Label(name) |> Typ.temp);
+      //let self = Self.Just(Var(name) |> Typ.temp);
 
       List.exists(l => name == l, duplicates)
         ? add(
-            ~self=DuplicateVar(name, self),
+            ~self=DuplicateVar(name, Just(unknown)),
             ~ctx=Ctx.extend(ctx, entry),
-            ~constraint_=Coverage.Constraint.Truth,
+            ~constraint_=Coverage.Constraint.Hole,
             m,
           )
         : add(
