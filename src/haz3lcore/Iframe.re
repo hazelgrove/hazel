@@ -199,7 +199,7 @@ let send_to_parent = (message: Ojs.t) => {
   );
 };
 
-let listen = (): unit => {
+let listen = (schedule_action: Action.t => unit): unit => {
   let onMessage = (ev: Js.t(#Dom_html.event)) => {
     let dataJs: Ojs.t = Js.Unsafe.get(ev, "data");
 
@@ -224,6 +224,8 @@ let listen = (): unit => {
     | `U_s3_state(state) =>
       let js_state = EditorState.get_state(state);
       let state = RedundantCoverterIGuess.autoseg_of_hazeldoc(js_state); // @andrew make it work
+      let seg = AutoSeg.doc_to_seg(state);
+      schedule_action(TempReplace(seg));
       Firebug.console##log(
         "my name is iframe and I'm here to say you gave me this state",
       );
@@ -245,7 +247,7 @@ let listen = (): unit => {
 let send_state = (map: AutoSeg.Doc.t): unit =>
   map |> RedundantCoverterIGuess.js_of_autoseg |> send_to_parent;
 
-let init_iframe = () => {
+let init_iframe = schedule_action => {
   print_endline("Initializing iframe stufffff...");
   let init_message =
     Init.t_to_js(
@@ -257,6 +259,6 @@ let init_iframe = () => {
     );
 
   let _ = send_to_parent(init_message);
-  let _ = listen();
+  let _ = listen(schedule_action);
   ();
 };

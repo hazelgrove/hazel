@@ -147,6 +147,11 @@ let start = {
       )
       >= 0;
     NinjaKeys.initialize(Shortcut.options(schedule_action));
+    Haz3lcore.Iframe.init_iframe(a =>
+      schedule_action(
+        Editors(Scratch(CellAction(MainEditor(Perform(a))))),
+      )
+    );
     JsUtil.focus_clipboard_shim();
     schedule_action(
       Assistant(AssistantUpdate.ChatAction(FilterLoadingMessages)),
@@ -185,8 +190,6 @@ let start = {
     );
   };
   let%sub () = Bonsai.Edge.after_display(after_display);
-
-  Haz3lcore.Iframe.init_iframe();
 
   // View function
   let%arr app_model = app_model

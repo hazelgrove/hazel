@@ -30,7 +30,7 @@ devDependencies:
     version: 19.1.6(@types/react@19.1.8)
   '@vitejs/plugin-react':
     specifier: ^4.6.0
-    version: 4.7.0(vite@7.0.5)
+    version: 4.7.0(vite@6.3.5)
   globals:
     specifier: ^16.3.0
     version: 16.3.0
@@ -44,11 +44,11 @@ devDependencies:
     specifier: ~5.8.3
     version: 5.8.3
   vite:
-    specifier: ^7.0.4
-    version: 7.0.5(tsx@4.20.3)
+    specifier: ^6.3.5
+    version: 6.3.5(tsx@4.20.3)
   vite-plugin-dts:
     specifier: ^4.5.4
-    version: 4.5.4(typescript@5.8.3)(vite@7.0.5)
+    version: 4.5.4(typescript@5.8.3)(vite@6.3.5)
 
 packages:
 
@@ -848,7 +848,7 @@ packages:
       csstype: 3.1.3
     dev: true
 
-  /@vitejs/plugin-react@4.7.0(vite@7.0.5):
+  /@vitejs/plugin-react@4.7.0(vite@6.3.5):
     resolution: {integrity: sha512-gUu9hwfWvvEDBBmgtAowQCojwZmJ5mcLn3aufeCsitijs3+f2NsrPtlAWIR6OPiqljl96GVCUbLe0HyqIpVaoA==}
     engines: {node: ^14.18.0 || >=16.0.0}
     peerDependencies:
@@ -860,7 +860,7 @@ packages:
       '@rolldown/pluginutils': 1.0.0-beta.27
       '@types/babel__core': 7.20.5
       react-refresh: 0.17.0
-      vite: 7.0.5(tsx@4.20.3)
+      vite: 6.3.5(tsx@4.20.3)
     transitivePeerDependencies:
       - supports-color
     dev: true
@@ -1781,7 +1781,7 @@ packages:
     hasBin: true
     dev: false
 
-  /vite-plugin-dts@4.5.4(typescript@5.8.3)(vite@7.0.5):
+  /vite-plugin-dts@4.5.4(typescript@5.8.3)(vite@6.3.5):
     resolution: {integrity: sha512-d4sOM8M/8z7vRXHHq/ebbblfaxENjogAAekcfcDCCwAyvGqnPrc7f4NZbvItS+g4WTgerW0xDwSz5qz11JT3vg==}
     peerDependencies:
       typescript: '*'
@@ -1800,26 +1800,26 @@ packages:
       local-pkg: 1.1.1
       magic-string: 0.30.17
       typescript: 5.8.3
-      vite: 7.0.5(tsx@4.20.3)
+      vite: 6.3.5(tsx@4.20.3)
     transitivePeerDependencies:
       - '@types/node'
       - rollup
       - supports-color
     dev: true
 
-  /vite@7.0.5(tsx@4.20.3):
-    resolution: {integrity: sha512-1mncVwJxy2C9ThLwz0+2GKZyEXuC3MyWtAAlNftlZZXZDP3AJt5FmwcMit/IGGaNZ8ZOB2BNO/HFUB+CpN0NQw==}
-    engines: {node: ^20.19.0 || >=22.12.0}
+  /vite@6.3.5(tsx@4.20.3):
+    resolution: {integrity: sha512-cZn6NDFE7wdTpINgs++ZJ4N49W2vRp8LCKrn3Ob1kYNtOo21vfDoaV5GzBfLU4MovSAB8uNRm4jgzVQZ+mBzPQ==}
+    engines: {node: ^18.0.0 || ^20.0.0 || >=22.0.0}
     hasBin: true
     peerDependencies:
-      '@types/node': ^20.19.0 || >=22.12.0
+      '@types/node': ^18.0.0 || ^20.0.0 || >=22.0.0
       jiti: '>=1.21.0'
-      less: ^4.0.0
+      less: '*'
       lightningcss: ^1.21.0
-      sass: ^1.70.0
-      sass-embedded: ^1.70.0
-      stylus: '>=0.54.8'
-      sugarss: ^5.0.0
+      sass: '*'
+      sass-embedded: '*'
+      stylus: '*'
+      sugarss: '*'
       terser: ^5.16.0
       tsx: ^4.8.1
       yaml: ^2.4.2
