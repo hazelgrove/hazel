@@ -731,17 +731,10 @@ let rec matched_args_strict = (ctx, ty, arity): Either.t('a, int) => {
   | Prod(tys) when List.length(tys) == arity => L(tys)
   | Prod(tys) => R(List.length(tys))
   | _ when arity == 1 => L([ty])
-  | Unknown((SynSwitch | Internal) as p) =>
-    L(List.init(arity, _ => Unknown(p) |> temp))
+  | Unknown(_) => L(List.init(arity, _ => Unknown(Internal) |> temp))
   | _ => R(1)
   };
 };
-
-let matched_args = (ctx, ty, arity) =>
-  switch (matched_args_strict(ctx, ty, arity)) {
-  | L(tys) => tys
-  | R(_) => List.init(arity, _ => Unknown(Internal) |> temp)
-  };
 
 let matched_label = (ctx, ty): option((t, t)) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
@@ -784,14 +777,6 @@ let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
   };
 };
 
-let rec is_unknown = (ty: t): bool =>
-  switch (ty |> term_of) {
-  | TupLabel(_, x)
-  | Parens(x) => is_unknown(x)
-  | Unknown(_) => true
-  | _ => false
-  };
-
 let rec is_syn = (ty: t): bool =>
   switch (ty |> term_of) {
   | TupLabel(_, x)
@@ -825,23 +810,6 @@ let rec is_ana_atom = (ty: t) =>
   | Arrow(_)
   | Prod(_)
   | Sum(_) => None
-  };
-
-let rec is_syn_fun = (ty: t): bool =>
-  switch (ty |> term_of) {
-  | TupLabel(_, x)
-  | Parens(x) => is_syn_fun(x)
-  | Arrow(t1, t2) => is_syn(t1) && is_syn_fun(t2)
-  | Unknown(_)
-  | Atom(_)
-  | Label(_)
-  | Var(_)
-  | Ap(_)
-  | Rec(_)
-  | Forall(_)
-  | List(_)
-  | Prod(_)
-  | Sum(_) => false
   };
 
 let rec is_syn_plus = (ty: t): bool =>

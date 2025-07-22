@@ -2384,7 +2384,7 @@ let go: ([?], [?], [?]) -> [?] =
     name: "sort",
     arg:
       Prod([
-        arrow(prod([unknown(Internal), unknown(Internal)]), int()),
+        arrow(prod([unknown(Internal), unknown(Internal)]), Ord.t),
         list(unknown(Internal)),
       ]),
     ret: List(unknown(Internal)),
