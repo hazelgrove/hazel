@@ -226,7 +226,7 @@ let backpack_hd = (z: t): option(Tile.t) =>
   z |> local_backpack |> ListUtil.hd_opt;
 
 let backpack_find = (tok: Token.t, z: t): option(Tile.t) =>
-  if (List.mem(tok, Form.amiguous_polymorphs)) {
+  if (Form.is_ambiguous_polymorph(tok)) {
     /* Special case for ambiguous polymorphs. These tokens
        occur both on their own as infix ops and as delimiters of
        multi-delimiter forms. To give the singleton form a chance, we
