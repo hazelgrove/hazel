@@ -461,6 +461,20 @@ and uexp_to_info_map =
         let (_, m) = go(~ana=syn, e1, m);
         let (_, m) = go(~ana=syn, e2, m);
         add'(~self=BadOperator(msg), ~co_ctx=CoCtx.empty, m);
+      | DefinedPoly(_) =>
+        let ids = List.map(Exp.rep_id, [e1, e2]);
+        let (es, m) =
+          map_m_go(
+            m,
+            [Unknown(Internal) |> Typ.temp, Unknown(Internal) |> Typ.temp],
+            [e1, e2],
+          );
+        let tys = List.map(Info.exp_ty, es);
+        add(
+          ~self=Self.poly_eq(ctx, tys, ids),
+          ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es)),
+          m,
+        );
       | Defined(ty1, ty2, ty_out, _) =>
         let ty1 = Atom(Atom.cls_of_kind(ty1)) |> Typ.temp;
         let ty2 = Atom(Atom.cls_of_kind(ty2)) |> Typ.temp;
