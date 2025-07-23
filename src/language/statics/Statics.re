@@ -324,8 +324,11 @@ and uexp_to_info_map =
 
     (info, add_info(IdTagged.ids(elaborated_exp), InfoExp(info), m));
   };
-  // Adds a dummy "$hole" entry to the co-context if term is any form of Hole,
-  // so that anything that uses the co-context knows its scope contains a hole
+  // HACK: This "$hole" entry is used to signal that a hole exists in a term's scope,
+  // which prevents false unused variable warnings. Since we don't currently mark
+  // holes in the info term or co-context properly, this workaround adds "$hole"
+  // to the co-context during hole construction. The warning logic then checks for
+  // this key.
   let hole_co_ctx =
     switch (term) {
     | MultiHole(_)
