@@ -196,6 +196,17 @@ let toggle_focus = (z: t): t => {
   selection: Selection.toggle_focus(z.selection),
 };
 
+let set_focus = (z: t, d: Direction.t): t => {
+  let selection = {
+    ...z.selection,
+    focus: d,
+  };
+  {
+    ...z,
+    selection,
+  };
+};
+
 let directional_unselect = (d: Direction.t, z: t): t => {
   let selection = {
     ...z.selection,

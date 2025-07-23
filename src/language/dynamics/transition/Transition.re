@@ -604,6 +604,21 @@ module Transition = (EV: EV_MODE) => {
       // Operator semantics are defined in Operators.re
       switch (Operators.semantics_of_bin_op(op)) {
       | Undefined(_) => Indet
+      | DefinedPoly(poly_op) =>
+        let expr: t =
+          if (!DHExp.ty_comparable(d1, d2)) {
+            DynamicErrorHole(BinOp(op, d1, d2) |> rewrap, Incomparable)
+            |> fresh;
+          } else {
+            let res = DHExp.poly_equal(d1, d2);
+            Atom(Bool(poly_op == Equals ? res : !res)) |> fresh;
+          };
+        Step({
+          expr,
+          state_update,
+          kind: BinOp(op),
+          is_value: false,
+        });
       | Defined(in_ty1, in_ty2, out_ty, f) =>
         let-unbox n1 = (Atom(in_ty1), d1);
         let-unbox n2 = (Atom(in_ty2), d2);
@@ -923,11 +938,9 @@ let stepper_justification: step_kind => string =
   | BinOp(
       Float(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual),
     ) => "comparison"
-  | BinOp(SInt(Equals | NotEquals))
-  | BinOp(Nat(Equals | NotEquals))
-  | BinOp(Int(Equals | NotEquals))
+  | BinOp(String(Equals))
   | BinOp(Float(Equals | NotEquals))
-  | BinOp(String(Equals)) => "check equality"
+  | BinOp(Poly(Equals | NotEquals)) => "check equality"
   | BinOp(String(Concat)) => "string manipulation"
   | UnOp(Bool(Not))
   | BinOp(Bool(_)) => "boolean logic"
