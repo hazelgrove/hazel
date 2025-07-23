@@ -523,7 +523,12 @@ let get_atomic_form: atomic_form => (string => bool, list(Mold.t)) =
     /* See comment on infix_delimiter_ops_prefixes */
     (
       is_infix_delimiter_op_prefix,
-      [mk_bin(Precedence.max, Exp, []), mk_bin(Precedence.max, Pat, [])],
+      [
+        mk_bin(Precedence.max, Exp, []),
+        mk_bin(Precedence.max, Pat, []),
+        mk_bin(Precedence.max, Typ, []),
+        mk_bin(Precedence.max, TPat, []),
+      ],
     )
   | ExplicitHole => (
       is_explicit_hole,

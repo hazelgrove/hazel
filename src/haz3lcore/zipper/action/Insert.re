@@ -110,7 +110,9 @@ let make_new_tile = (t: Token.t, caret: Direction.t, z: t): t =>
     Zipper.replace(~caret=d, ~backpack=d, lbl, z) |> Option.get
   | None =>
     //TODO(andrew): better avoid instant expansion for trailing kws while maintaining for trailing )] etc
-    Zipper.will_barf(t, z) && List.mem(t, [")", "]"])
+    //add regression test for > example from polymorphism slide
+    Zipper.will_barf(t, z)
+    && (List.mem(t, [")", "]", ">"]) || Zipper.move(Right, z) == None)
       ? {
         put_down_regrout_remold_tok(caret, t, z) |> Option.get;
       }  //print_endline("NOTputting down " ++ t);
