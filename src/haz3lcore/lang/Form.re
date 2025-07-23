@@ -478,13 +478,6 @@ let amiguous_polymorphs: list(string) = {
 
   single_token_labels |> List.filter(appears_in_other_forms);
 };
-//TODO(andrew): cleanup
-print_endline("amiguous_polymorphs:");
-print_endline(
-  amiguous_polymorphs
-  |> List.map(s => Printf.sprintf("\"%s\"", s))
-  |> String.concat(", "),
-);
 
 let delims: list(Token.t) =
   forms
