@@ -78,7 +78,8 @@ let build_AST = (editor: CodeWithStatics.Model.t): unit => {
       | MultiHole(_) => "{multi type pattern hole}"
       };
     };
-    let handle_let = (name: string, def: TermBase.exp_t, body: TermBase.exp_t) => {
+    let handle_let_exp =
+        (name: string, def: TermBase.exp_t, body: TermBase.exp_t) => {
       let def_id = Exp.rep_id(def);
       let body_id = Exp.rep_id(body);
       let def_term = Option.get(Id.Map.find_opt(def_id, info_map));
@@ -112,7 +113,7 @@ let build_AST = (editor: CodeWithStatics.Model.t): unit => {
       // Recurse on the body
       build(ast''', level, parent_id, body_term);
     };
-    let handle_tyalias = (name: string, body: TermBase.exp_t) => {
+    let handle_body_only_exp = (name: string, body: TermBase.exp_t) => {
       let body_id = Exp.rep_id(body);
       let body_term = Option.get(Id.Map.find_opt(body_id, info_map));
       let new_node = {
@@ -145,10 +146,13 @@ let build_AST = (editor: CodeWithStatics.Model.t): unit => {
     switch (curr_term) {
     | InfoExp({term, _}) =>
       switch (Exp.term_of(term)) {
-      | Let(pat, def, body) => handle_let(mk_name_from_pat(pat), def, body)
+      | Let(pat, def, body) =>
+        handle_let_exp(mk_name_from_pat(pat), def, body)
       // It is also useful to add type defintions to the def-structured AST
       | TyAlias(tpat, _, body) =>
-        handle_tyalias("[TYPE DEF] " ++ mk_name_from_tpat(tpat), body)
+        handle_body_only_exp("[TYPE DEF] " ++ mk_name_from_tpat(tpat), body)
+      | Fun(pat, body, _, _) =>
+        handle_body_only_exp(mk_name_from_pat(pat), body)
       // As for the rest of the expression cases, we can just recurse on their child
       // expressions, passing the current parent/level as the arguments. (This
       // maintains the idea of an AST structured into levels based on definitions)
@@ -162,7 +166,6 @@ let build_AST = (editor: CodeWithStatics.Model.t): unit => {
         let e_id = Exp.rep_id(e);
         let e_term = Option.get(Id.Map.find_opt(e_id, info_map));
         build(ast, level, parent_id, e_term);
-      | Fun(_, e, _, _)
       | FixF(_, e, _)
       | Use(_, e)
       | TypAp(e, _)
