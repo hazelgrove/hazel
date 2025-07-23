@@ -96,13 +96,8 @@ let qcheck_menhir_maketerm_equivalent_test =
     QCheck_Util.arb_exp(~minimal_idents=false, 7),
     core_exp => {
       let segment =
-        Haz3lcore.ExpToSegment.exp_to_segment(
-          ~settings=
-            Haz3lcore.ExpToSegment.Settings.of_core(
-              ~inline=true,
-              Language.CoreSettings.off,
-            ),
-          core_exp,
+        Haz3lcore.ExpToSegment.(
+          exp_to_segment(~settings=Settings.editable(~inline=true), core_exp)
         );
 
       let serialized = Haz3lcore.Printer.of_segment(~holes="?", segment);
