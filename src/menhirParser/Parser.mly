@@ -50,13 +50,15 @@ open AST
 %token SINGLE_EQUAL
 %token TURNSTILE
 
+(* Poly ops *)
+%token DOUBLE_EQUAL
+%token NOT_EQUAL
+
 (* String ops *)
 %token STRING_CONCAT
 %token STRING_EQUAL
 
 (* Int ops *)
-%token DOUBLE_EQUAL
-%token NOT_EQUAL
 %token PLUS
 %token MINUS
 %token POWER
@@ -157,14 +159,16 @@ open AST
 program:
     | e = exp; EOF {e}
 
+%inline polyOp:
+    | DOUBLE_EQUAL { PolyOp(Equals) }
+    | NOT_EQUAL { PolyOp(NotEquals) }
+
 %inline intOp:
     | MINUS { IntOp(Minus) }
     | PLUS { IntOp(Plus) }
     | TIMES { IntOp(Times) }
     | POWER { IntOp(Power) }
     | DIVIDE { IntOp(Divide) }
-    | DOUBLE_EQUAL { IntOp(Equals) }
-    | NOT_EQUAL { IntOp(NotEquals) }
     | LESS_THAN { IntOp(LessThan) }
     | LESS_THAN_EQUAL { IntOp(LessThanOrEqual) }
     | GREATER_THAN { IntOp(GreaterThan) }
@@ -177,12 +181,12 @@ program:
     | TIMES_FLOAT { FloatOp(Times) }
     | POWER_FLOAT { FloatOp(Power) }
     | DIVIDE_FLOAT { FloatOp(Divide) }
-    | DOUBLE_EQUAL_FLOAT { FloatOp(Equals) }
-    | NOT_EQUAL_FLOAT { FloatOp(NotEquals) }
     | LESS_THAN_FLOAT { FloatOp(LessThan) }
     | LESS_THAN_EQUAL_FLOAT { FloatOp(LessThanOrEqual) }
     | GREATER_THAN_FLOAT { FloatOp(GreaterThan) }
     | GREATER_THAN_EQUAL_FLOAT { FloatOp(GreaterThanOrEqual) }
+    | DOUBLE_EQUAL_FLOAT { FloatOp(Equals) }
+    | NOT_EQUAL_FLOAT { FloatOp(NotEquals) }
 
 %inline boolOp:
     | L_AND { BoolOp(And) }
@@ -193,6 +197,7 @@ program:
     | STRING_EQUAL { StringOp(Equals) }
 
 %inline binOp:
+    | p = polyOp { p }
     | i = intOp { i }
     | f = floatOp { f }
     | b = boolOp { b }
