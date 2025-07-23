@@ -216,6 +216,7 @@ module Composition = {
       (options: ChatLSP.Options.t, editor: CodeWithStatics.Model.t)
       : OpenRouter.message => {
     let _ = options; // TODO: Either remove params or update function to use params AnCRask
+
     OpenRouter.mk_user_msg(
       String.concat(
         "\n",
@@ -268,6 +269,8 @@ module Composition = {
     | DeleteBody
     | Add(loc_of_add, code);
 
+  type t = edit_action;
+
   let get_static_context = (relevant_ctx: bool, ci: Info.t): list(string) =>
     switch (ci) {
     | InfoExp({ana, ctx, _})
@@ -284,7 +287,7 @@ module Composition = {
   let apply_edit_action =
       (
         ~ed: CodeWithStatics.Model.t,
-        ~edit_action: edit_action,
+        ~edit_action: t,
         ~variable_name: option(string),
         ~variable_id: option(string),
         ~schedule_action: Editors.Update.t => unit,
