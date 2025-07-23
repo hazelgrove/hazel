@@ -32,7 +32,7 @@ let delayed_expand = (t: Token.t, caret: Direction.t, z: t): option(t) => {
      keyword-expansion; precondition: the d-neighbor should be a monotile
      string-matching a keyword of an expanding form */
   let (new_label, backpack) = Molds.delayed_expansion(t);
-  //TODO(andrew): document
+  /* Only expand case rules when inside a case */
   let (new_label, backpack) =
     switch () {
     | () when (before_case_shard(z) || inside_case(z)) && t == "|" => (
@@ -115,7 +115,7 @@ let make_new_tile = (t: Token.t, caret: Direction.t, z: t): t =>
     && (List.mem(t, [")", "]", ">"]) || Zipper.move(Right, z) == None)
       ? {
         put_down_regrout_remold_tok(caret, t, z) |> Option.get;
-      }  //print_endline("NOTputting down " ++ t);
+      }
       : {
         let (lbl, backpack) = Molds.instant_expansion(t);
         construct(~caret, ~backpack, lbl, z);
