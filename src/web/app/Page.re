@@ -112,15 +112,6 @@ module Update = {
         },
       }
       |> Updated.return_quiet
-    | SetShowBackpackTargets(show) =>
-      {
-        ...model,
-        globals: {
-          ...model.globals,
-          show_backpack_targets: show,
-        },
-      }
-      |> Updated.return_quiet
     | SetFontMetrics(fm) =>
       {
         ...model,
@@ -352,10 +343,6 @@ module Selection = {
   let handle_key_event =
       (~selection, ~event: Key.t, model: Model.t): option(Update.t) => {
     switch (event) {
-    | {key: D("Alt"), sys: Mac | PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
-      Some(Update.Globals(SetShowBackpackTargets(true)))
-    | {key: U("Alt"), _} =>
-      Some(Update.Globals(SetShowBackpackTargets(false)))
     | {key: D("F7"), sys: Mac | PC, shift: Down, meta: Up, ctrl: Up, alt: Up} =>
       Some(Update.Benchmark(Start))
     | {
