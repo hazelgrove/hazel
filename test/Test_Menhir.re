@@ -349,6 +349,15 @@ let tests =
         ),
         "let x : +A +B +C(Int) = C(7) in x",
       ),
+      menhir_maketerm_equivalent_test("Fold Projector Exp", "^^fold(1)"),
+      menhir_maketerm_equivalent_test(
+        "Fold Projector Typ",
+        "type foo = ^^fold(Int) in 3",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Fold Projector Pat",
+        "let ^^fold(x) = 3 in x",
+      ),
       menhir_maketerm_equivalent_test("Empty Type Hole", "let g: ? = 7 in g"),
       menhir_maketerm_equivalent_test(
         "Pattern with type ascription",
