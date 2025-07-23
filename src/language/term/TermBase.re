@@ -247,6 +247,7 @@ and Exp: {
         | Let(p, e1, e2) =>
           Let(pat_map_term(p), exp_map_term(e1), exp_map_term(e2))
         | Theorem(p, e) => Theorem(pat_map_term(p), exp_map_term(e))
+        | ProofOf(t) => ProofOf(typ_map_term(t))
         | FixF(p, e, env) => FixF(pat_map_term(p), exp_map_term(e), env)
         | TyAlias(tp, t, e) =>
           TyAlias(tpat_map_term(tp), typ_map_term(t), exp_map_term(e))
@@ -327,6 +328,7 @@ and Exp: {
       Pat.fast_equal(p1, p2) && fast_equal(e1, e3) && fast_equal(e2, e4)
     | (Theorem(p1, e1), Theorem(p2, e2)) =>
       Pat.fast_equal(p1, p2) && fast_equal(e1, e2)
+    | (ProofOf(t1), ProofOf(t2)) => Typ.fast_equal(t1, t2)
     | (FixF(p1, e1, c1), FixF(p2, e2, c2)) =>
       Pat.fast_equal(p1, p2)
       && fast_equal(e1, e2)
@@ -395,6 +397,7 @@ and Exp: {
     | (Var(_), _)
     | (Let(_), _)
     | (Theorem(_), _)
+    | (ProofOf(_), _)
     | (FixF(_), _)
     | (TyAlias(_), _)
     | (Use(_), _)

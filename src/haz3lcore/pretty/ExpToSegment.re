@@ -65,6 +65,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | ListLit(_)
   | Test(_)
   | HintedTest(_)
+  | ProofOf(_)
   | Match(_) => Precedence.max
 
   // Other forms
@@ -264,6 +265,8 @@ let rec parenthesize =
       parenthesize(e) |> paren_assoc_at(Precedence.let_),
     )
     |> rewrap
+  | ProofOf(t) =>
+    ProofOf(parenthesize_typ(t) |> paren_typ_at(Precedence.min)) |> rewrap
   | FixF(p, e, c) =>
     FixF(
       parenthesize_pat(p) |> paren_pat_at(Precedence.min),
@@ -942,6 +945,10 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let+ p = pat_to_pretty(~settings: Settings.t, p)
     and+ e = go(e);
     [mk_form(Theorem, id, [p])] @ e;
+  | ProofOf(t) =>
+    let id = exp |> Exp.rep_id;
+    let+ t = typ_to_pretty(~settings: Settings.t, t);
+    [mk_form(ProofOf, id, [t])];
   | FixF(p, e, _) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;

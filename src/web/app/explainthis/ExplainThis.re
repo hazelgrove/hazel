@@ -1759,6 +1759,20 @@ let get_doc =
             ),
           TheoremExp.tests,
         );
+      | ProofOf(typ) =>
+        let typ_id = List.nth(IdTagged.ids(typ), 0);
+        get_message(
+          ~colorings=ProofOfExp.proof_of_exp_coloring_ids(~typ_id),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s"),
+                  Id.to_string(typ_id),
+                ),
+            ),
+          ProofOfExp.proof_of_exps,
+        );
       | FixF(pat, body, _) =>
         message_single(
           FixFExp.single(

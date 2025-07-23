@@ -147,6 +147,7 @@ and exp =
   | UnOp(op_un, exp)
   | Let(pat, exp, exp)
   | Theorem(pat, exp)
+  | ProofOf(typ)
   | Fun(pat, exp, option(string))
   | CaseExp(exp, list((pat, exp)))
   | Label(string)
@@ -736,6 +737,9 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
             let* shrunk = shrink_pat(p);
             return(Theorem(shrunk, e));
           }
+        | ProofOf(t) =>
+          let* shrunk = shrink_typ(t);
+          return(ProofOf(shrunk));
         | Fun(p, e, name) =>
           return(e)
           <+> {

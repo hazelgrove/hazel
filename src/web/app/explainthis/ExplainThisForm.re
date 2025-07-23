@@ -99,6 +99,7 @@ type example_id =
   | TupleLabeled3
   | Let(let_examples)
   | Theorem
+  | ProofOf
   | Forall
   | Yes
   | UseExp1
@@ -204,6 +205,7 @@ type form_id =
   | LetExp(pat_sub_form_id)
   | FixExp(pat_sub_form_id)
   | TheoremExp
+  | ProofOfExp
   | TypFunApExp
   | FunApExp
   | ConApExp
@@ -315,6 +317,7 @@ type group_id =
   | Tuple3Exp
   | LetExp(pat_sub_form_id)
   | TheoremExp
+  | ProofOfExp
   | TypFunApExp
   | FixExp(pat_sub_form_id)
   | FunApExp

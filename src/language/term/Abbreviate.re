@@ -426,6 +426,21 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         };
       }
 
+    | ProofOf(t) =>
+      if (available^ < 8) {
+        indet_term;
+      } else if (available^ <= 8) {
+        Invalid("proof_of");
+      } else if (available^ <= 9) {
+        Invalid("proof_of…");
+      } else if (available^ <= 14) {
+        Invalid("proof_of…end");
+      } else {
+        available := available^ - 12;
+        let t' = abbreviate_typ(t);
+        ProofOf(t');
+      }
+
     | Use(t1, e1) =>
       if (available^ < 3) {
         indet_term;

@@ -56,6 +56,7 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | Var => var("x")
       | Let => let_(Pat.empty_hole(), empty_hole(), empty_hole())
       | Theorem => theorem(Pat.empty_hole(), empty_hole())
+      | ProofOf => proof_of(Typ.empty_hole())
       | FixF => fix_f(Pat.empty_hole(), empty_hole(), None)
       | TyAlias =>
         ty_alias(

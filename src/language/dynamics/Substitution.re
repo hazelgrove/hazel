@@ -60,6 +60,7 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
         subst_var(d1, x, d3);
       };
     Theorem(dp, d3) |> rewrap;
+  | ProofOf(typ) => ProofOf(typ) |> rewrap // TODO[Matt]: we should probably substitute into types now
   | FixF(y, d3, env) =>
     let env' = Option.map(subst_var_env(d1, x), env);
     let d3 =

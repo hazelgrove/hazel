@@ -260,9 +260,7 @@ module Transition = (EV: EV_MODE) => {
         is_value: false,
       });
     | Theorem(dp, d1) =>
-      let. _ = otherwise(env, d1 => Theorem(dp, d1) |> rewrap)
-      and. d1' =
-        req_final(req(state, env), d1 => Theorem(dp, d1) |> wrap_ctx, d1);
+      let. _ = otherwise(env, d);
       let vars = Pat.bound_vars(dp);
       let env' =
         vars
@@ -270,11 +268,14 @@ module Transition = (EV: EV_MODE) => {
         |> Environment.of_list
         |> evaluate_extend_env(~call_stack=env.call_stack, _, env);
       Step({
-        expr: subst_env(env', d1'),
+        expr: subst_env(env', d1),
         state_update,
         kind: TheoremBind,
         is_value: false,
       });
+    | ProofOf(_) =>
+      let. _ = otherwise(env, d);
+      Value;
     | TypFun(_)
     | Fun(_, _, _, _) =>
       let. _ = otherwise(env, d);

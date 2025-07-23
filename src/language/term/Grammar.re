@@ -72,6 +72,7 @@ and exp_term('a) =
   | Var(Var.t)
   | Let(pat_t('a), exp_t('a), exp_t('a))
   | Theorem(pat_t('a), exp_t('a))
+  | ProofOf(typ_t('a))
   | FixF(pat_t('a), exp_t('a), option(closure_environment_t('a)))
   | TyAlias(tpat_t('a), typ_t('a), exp_t('a))
   | Use(typ_t('a), exp_t('a))
@@ -207,6 +208,7 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
           )
         | Theorem(p, e) =>
           Theorem(map_pat_annotation(f, p), map_exp_annotation(f, e))
+        | ProofOf(t) => ProofOf(map_typ_annotation(f, t))
         | FixF(p, e, _) =>
           FixF(map_pat_annotation(f, p), map_exp_annotation(f, e), None)
         | TyAlias(p, t, e) =>
@@ -558,6 +560,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let theorem = (~ann=?, p, e): exp_t(DefaultAnnotation.t) => {
       term: Theorem(p, e),
+      annotation: default_annotation(ann),
+    };
+    let proof_of = (~ann=?, t): exp_t(DefaultAnnotation.t) => {
+      term: ProofOf(t),
       annotation: default_annotation(ann),
     };
     let fix_f = (~ann=?, p, e, env): exp_t(DefaultAnnotation.t) => {

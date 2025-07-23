@@ -139,6 +139,11 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Constructor(_, Some(Some(t))), t')
         when Typ.is_consistent(Ctx.empty, Typ.unroll(t), t' |> Typ.temp) =>
       Some(e)
+    | (ProofOf(t), t') =>
+      switch (Typ.join(Ctx.empty, Typ.unroll(t), t' |> Typ.temp)) {
+      | Some(t) => Some(ProofOf(t) |> DHExp.fresh)
+      | None => None
+      }
     | (Test(_), Prod([])) => Some(e)
     // These are non-value cases we don't want to handle
     | (EmptyHole, _)

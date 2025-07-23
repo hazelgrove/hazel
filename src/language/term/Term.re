@@ -313,6 +313,7 @@ module Exp = {
     | Var
     | Let
     | Theorem
+    | ProofOf
     | FixF
     | TyAlias
     | Use
@@ -378,6 +379,7 @@ module Exp = {
     | Var(_) => Var
     | Let(_) => Let
     | Theorem(_) => Theorem
+    | ProofOf(_) => ProofOf
     | FixF(_) => FixF
     | TyAlias(_) => TyAlias
     | Use(_) => Use
@@ -430,6 +432,7 @@ module Exp = {
     | Var => "Variable reference"
     | Let => "Let expression"
     | Theorem => "Theorem expression"
+    | ProofOf => "Proof placeholder"
     | FixF => "Fixpoint operator"
     | TyAlias => "Type Alias definition"
     | Use => "Specify number format to use"
@@ -513,6 +516,7 @@ module Exp = {
     | Var(_)
     | Let(_)
     | Theorem(_)
+    | ProofOf(_)
     | FixF(_)
     | TyAlias(_)
     | Use(_)
@@ -577,6 +581,7 @@ module Exp = {
       | Var(_)
       | Let(_)
       | Theorem(_)
+      | ProofOf(_)
       | FixF(_)
       | TyAlias(_)
       | Use(_)
@@ -639,6 +644,7 @@ module Exp = {
       | Var(_)
       | Let(_)
       | Theorem(_)
+      | ProofOf(_)
       | Filter(_)
       | TyAlias(_)
       | Use(_)
@@ -787,6 +793,7 @@ module Exp = {
             |> rewrap;
           // Other cases: recurse
           | Theorem(_)
+          | ProofOf(_)
           | Invalid(_)
           | EmptyHole
           | MultiHole(_)

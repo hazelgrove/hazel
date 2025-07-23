@@ -1005,6 +1005,9 @@ and uexp_to_info_map =
         ~co_ctx=CoCtx.union([p'.co_ctx, CoCtx.mk(ctx, p.ctx, e.co_ctx)]),
         m,
       );
+    | ProofOf(t) =>
+      let (t, m) = go_typ(t, ~expects=Info.TypeExpected, m);
+      add(~self=Just(t.term), ~co_ctx=CoCtx.empty, m); // TODO[Matt]: do types need coctxs now?
     | FixF(p, e, _) =>
       let (p', _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana, p, m);

@@ -257,6 +257,9 @@ let rec matches_exp =
       }
     | (Theorem(_), _) => false
 
+    | (ProofOf(t1), ProofOf(t2)) => Typ.fast_equal(t1, t2)
+    | (ProofOf(_), _) => false
+
     | (TypAp(d1, t1), TypAp(d2, t2)) =>
       matches_exp(d1, d2) && matches_typ(t1, t2)
     | (TypAp(_), _) => false

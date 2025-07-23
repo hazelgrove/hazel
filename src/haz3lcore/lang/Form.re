@@ -373,6 +373,7 @@ type compound_form =
   | FilterPause
   | FilterDebug
   | Theorem
+  | ProofOf
   | Use
   // TRIPLE DELIMITERS
   | Let
@@ -464,6 +465,7 @@ let get: compound_form => t =
   | FilterDebug => mk(ds, ["debug", "in"], mk_pre(P.let_, Exp, [Exp]))
   | Use => mk(ds, ["use", "in"], mk_pre(P.let_, Exp, [Typ]))
   | Theorem => mk(ds, ["theorem", "in"], mk_pre(P.let_, Exp, [Pat]))
+  | ProofOf => mk(ds, ["proof_of", "end"], mk_op(Exp, [Typ]))
   // TRIPLE DELIMITERS
   | Let => mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))
   | TypeAlias =>
