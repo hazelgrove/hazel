@@ -58,6 +58,13 @@ let pop = (from: Direction.t, (pre, suf): t): option((Piece.t, t)) =>
 
 let incomplete_tiles = TupleUtil.map2(Segment.incomplete_tiles);
 
+let local_missing_shards = (sibs: t): list(Tile.t) => {
+  let (l, r) = incomplete_tiles(sibs);
+  /* Reversing is important here as want to match the lexically closest */
+  (l |> List.map(Tile.right_missing_shards) |> List.rev |> List.concat)
+  @ (r |> List.map(Tile.left_missing_shards) |> List.concat);
+};
+
 let global_missing_shards = ((l, r): t) =>
   Segment.global_missing_shards(l @ r);
 

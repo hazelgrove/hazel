@@ -25,7 +25,7 @@ let set_llm_buffer = (z: t, response: string): t =>
       open OptUtil.Syntax;
       //TODO: Error feedback on below
       let* content = Parser.to_zipper(response);
-      let+ _ = [] == Zipper.mk_local_backpack(content) ? Some() : None;
+      let+ _ = [] == Zipper.local_backpack(content) ? Some() : None;
       Zipper.set_buffer(z, ~content=Zipper.zip(content), ~mode=Parsed);
     }
   ) {

@@ -38,6 +38,12 @@ let regrout = (ancs: t) =>
     empty,
   );
 
+let local_missing_shards = (ancs: t): list(Tile.t) =>
+  switch (ancs) {
+  | [] => []
+  | [(a, _), ..._] => Ancestor.missing_middle_shards(a)
+  };
+
 let global_missing_shards_generation =
     ((a, (l, r)): generation): list(Tile.t) =>
   Ancestor.global_missing_shards(a)

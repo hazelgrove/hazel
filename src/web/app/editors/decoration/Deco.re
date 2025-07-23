@@ -353,13 +353,13 @@ module Deco =
      * possible here, I've opted for the simpler option of supressing
      * backpack display during selection */
     let contents =
-      !Selection.is_empty(z.selection)
-        ? []
-        : Zipper.mk_local_backpack(z)
-          @ Relatives.global_missing_shards(z.relatives)
+      Selection.is_empty(z.selection) || Selection.is_buffer(z.selection)
+        ? Zipper.local_backpack(z)
+          @ Zipper.global_backpack(z)
           |> ListUtil.dedup
           |> List.map(Tile.effective_label)
-          |> List.map(List.hd);
+          |> List.map(List.hd)
+        : [];
     Backpack.view(
       ~font_metrics,
       ~can_put_down=Zipper.can_put_down(z),

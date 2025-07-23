@@ -55,15 +55,9 @@ let pop = (d: Direction.t, rs: t): option((Piece.t, t)) =>
 let zip = (~sel=Segment.empty, {siblings, ancestors}: t) =>
   Ancestors.zip(Siblings.zip(~sel, siblings), ancestors);
 
-let local_incomplete_tiles = ({siblings: (pre, suf), ancestors}: t) => {
-  let sibs =
-    switch (ancestors) {
-    | [] => (pre, suf)
-    | [(a, _), ..._] =>
-      let (l, r) = Ancestor.container_shards(a);
-      ([l, ...pre], suf @ [r]);
-    };
-  Siblings.incomplete_tiles(sibs);
+let local_missing_shards = ({siblings, ancestors}: t): list(Tile.t) => {
+  Ancestors.local_missing_shards(ancestors)
+  @ Siblings.local_missing_shards(siblings);
 };
 
 let global_missing_shards = ({siblings, ancestors}: t): list(Tile.t) =>

@@ -375,7 +375,7 @@ module ErrorRound = {
     switch (Perform.paste(Zipper.init(), completion)) {
     | None => Error("Undocumented parse error, no feedback available")
     | Some(completion_z) =>
-      switch (Zipper.mk_local_backpack(completion_z)) {
+      switch (Zipper.local_backpack(completion_z)) {
       | [_, ..._] as orphans =>
         let orphans =
           List.map(

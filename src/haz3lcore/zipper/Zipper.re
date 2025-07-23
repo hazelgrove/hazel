@@ -219,21 +219,14 @@ let put_down_core = (seg: Segment.t, z: t): t =>
 let put_down_seg = (d: Direction.t, seg: Segment.t, z: t): t =>
   z |> put_down_core(seg) |> adj_pos(d);
 
-let mk_local_backpack = (z: t): list(Tile.t) => {
-  let (l, r) = Siblings.incomplete_tiles(z.relatives.siblings);
-  let middle =
-    switch (z.relatives.ancestors) {
-    | [] => []
-    | [(a, _), ..._] => Ancestor.missing_middle_shards(a)
-    };
-  /* Reversing is important here as want to match the lexically closest */
-  (l |> List.map(Tile.right_missing_shards) |> List.rev |> List.concat)
-  @ middle
-  @ (r |> List.map(Tile.left_missing_shards) |> List.concat);
-};
+let local_backpack = (z: t): list(Tile.t) =>
+  Relatives.local_missing_shards(z.relatives);
+
+let global_backpack = (z: t): list(Tile.t) =>
+  Relatives.global_missing_shards(z.relatives);
 
 let backpack_hd = (z: t): option(Tile.t) =>
-  z |> mk_local_backpack |> ListUtil.hd_opt;
+  z |> local_backpack |> ListUtil.hd_opt;
 
 let backpack_find = (tok: Token.t, z: t): option(Tile.t) =>
   if (List.mem(tok, Form.amiguous_polymorphs)) {
@@ -247,7 +240,7 @@ let backpack_find = (tok: Token.t, z: t): option(Tile.t) =>
   } else {
     List.find_map(
       t => Tile.effective_label(t) == [tok] ? Some(t) : None,
-      mk_local_backpack(z),
+      local_backpack(z),
     );
   };
 
@@ -267,7 +260,7 @@ let will_barf = (tok: Token.t, z: t): bool =>
   put_down_tok(Right, tok, z) != None;
 
 let can_put_down = z =>
-  switch (mk_local_backpack(z)) {
+  switch (local_backpack(z)) {
   | [] => false
   | _ => z.caret == Outer
   };
@@ -526,7 +519,7 @@ let is_linebreak_to_right_of_caret =
  * try to look at live evaluation while typing inside a string lit with
  * stuff left to drop in backpack with below set: Outer disabled. */
 let try_to_dump_backpack = (zipper: t) => {
-  switch (mk_local_backpack(zipper)) {
+  switch (local_backpack(zipper)) {
   | [] => zipper
   | _ =>
     let zipper = {
