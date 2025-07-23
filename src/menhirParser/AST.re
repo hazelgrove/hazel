@@ -36,9 +36,7 @@ type op_bin_int =
   | LessThan
   | LessThanOrEqual
   | GreaterThan
-  | GreaterThanOrEqual
-  | Equals
-  | NotEquals;
+  | GreaterThanOrEqual;
 
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type op_bin_string =
@@ -46,11 +44,17 @@ type op_bin_string =
   | Equals;
 
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
+type op_bin_poly =
+  | Equals
+  | NotEquals;
+
+[@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type bin_op =
   | IntOp(op_bin_int)
   | FloatOp(op_bin_float)
   | StringOp(op_bin_string)
-  | BoolOp(op_bin_bool);
+  | BoolOp(op_bin_bool)
+  | PolyOp(op_bin_poly);
 
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type op_un_meta =
