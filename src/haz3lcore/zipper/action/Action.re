@@ -41,7 +41,9 @@ type select =
   | Resize(move)
   | Smart(int)
   | Tile(rel)
-  | Term(rel);
+  | Term(rel)
+  | ToggleFocus
+  | SetFocus(Direction.t);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type chooser =
@@ -220,7 +222,9 @@ let should_animate: t => bool =
     | All
     | Smart(_)
     | Tile(_)
-    | Term(_) => true
+    | Term(_)
+    | ToggleFocus
+    | SetFocus(_) => true
     }
   | Unselect(_)
   | Paste(_)
