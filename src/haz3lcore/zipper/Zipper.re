@@ -225,7 +225,7 @@ let mk_local_backpack = (z: t): list(Tile.t) => {
   let middle =
     switch (z.relatives.ancestors) {
     | [] => []
-    | [(a, _), ..._] => Ancestor.container_shards_missing_middle(a)
+    | [(a, _), ..._] => Ancestor.missing_middle_shards(a)
     };
   /* Reversing is important here as want to match the lexically closest */
   (l |> List.map(Tile.right_missing_shards) |> List.rev |> List.concat)

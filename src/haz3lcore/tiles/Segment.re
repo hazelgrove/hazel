@@ -20,27 +20,22 @@ let incomplete_tiles =
     | _ => None,
   );
 
-let rec incomplete_tiles_deep = (~depth_min=0, seg: t) =>
+let rec incomplete_tiles_deep = (seg: t) =>
   List.map(
     fun
     | Piece.Tile(t) =>
-      (!Tile.is_complete(t) && depth_min <= 0 ? [t] : [])
-      @ (
-        List.map(incomplete_tiles_deep(~depth_min=depth_min - 1), t.children)
-        |> List.concat
-      )
+      (!Tile.is_complete(t) ? [t] : [])
+      @ List.concat_map(incomplete_tiles_deep, t.children)
     | _ => [],
     seg,
   )
   |> List.concat;
 
 let incomplete_tiles_to_missing_shards = seg =>
-  seg
-  |> List.map(incomplete =>
-       Tile.right_missing_shards(incomplete)
-       @ Tile.left_missing_shards(incomplete)
-     )
-  |> List.concat;
+  seg |> List.map(Tile.missing_shards) |> List.concat;
+
+let global_missing_shards = (seg: t) =>
+  seg |> incomplete_tiles_deep |> incomplete_tiles_to_missing_shards;
 
 let tiles =
   List.filter_map(

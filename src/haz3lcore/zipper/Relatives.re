@@ -66,17 +66,9 @@ let local_incomplete_tiles = ({siblings: (pre, suf), ancestors}: t) => {
   Siblings.incomplete_tiles(sibs);
 };
 
-let non_local_missing_shards = ({siblings, ancestors}: t): list(Tile.t) => {
-  let (l, r) = Siblings.incomplete_tiles(siblings);
-  let (ld, rd) = Siblings.incomplete_tiles_deep(siblings, ~depth_min=1);
-  let deep_sibs = Segment.incomplete_tiles_to_missing_shards(ld @ rd);
-  let ll = Ancestors.non_local_missing_shards(ancestors);
-  // rev as want to match with lexically closest one
-  (List.map(Tile.left_missing_shards, l) |> List.rev |> List.concat)
-  @ ll
-  @ deep_sibs
-  @ (List.map(Tile.right_missing_shards, r) |> List.concat);
-};
+let global_missing_shards = ({siblings, ancestors}: t): list(Tile.t) =>
+  Siblings.global_missing_shards(siblings)
+  @ Ancestors.global_missing_shards(ancestors);
 
 let parent =
     (~sel=Segment.empty, {siblings: (l_sibs, r_sibs), ancestors}: t)
