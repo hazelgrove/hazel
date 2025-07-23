@@ -602,16 +602,10 @@ module View = {
       );
     Node.div(
       ~attrs=[Attr.classes(["stepper-controls"])],
-      [button_back]
+      [button_back, button_prover_export]
       @ (
         is_toplevel
-          ? [
-            button_prover_export,
-            eval_settings,
-            toggle_show_history,
-            button_hide_stepper,
-          ]
-          : []
+          ? [eval_settings, toggle_show_history, button_hide_stepper] : []
       ),
     );
   };

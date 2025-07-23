@@ -260,14 +260,25 @@ module Model = {
   };
 
   // Takes a list of steps and generates the Coq proof of equivalence between the first and last steps
-  let exportCoq = model => {
+  let exportCoq = first_step => {
     let rec all_steps_of_step = step => {
       switch (step.next_step) {
       | None => []
-      | Some(next_step) => [step] @ all_steps_of_step(next_step)
+      | Some(next_step) =>
+        switch (Calc.get_saved_exc(step.expr) |> Language.Exp.term_of) {
+        | Fun(_, _, _, _) =>
+          // Skip this step if it's a function literal
+          print_endline(
+            "Skipping function literal step: "
+            ++ Exp.show(step.expr |> Calc.get_saved_exc),
+          );
+          all_steps_of_step(next_step);
+        | _ => [step] @ all_steps_of_step(next_step)
+        }
       };
     };
-    let steps = all_steps_of_step(model.root);
+    let steps = all_steps_of_step(first_step);
+    print_endline("number of steps: " ++ string_of_int(List.length(steps)));
 
     if (List.length(steps) == 0) {
       "Not exporting proof with no steps";
@@ -427,7 +438,7 @@ module Update = {
           : Updated.t(Model.stepper) => {
     switch (action) {
     | CoqExport =>
-      let coq_data = Model.exportCoq(stepper);
+      let coq_data = Model.exportCoq(stepper.root);
       // Output to a file
       JsUtil.download_string_file(
         ~filename="stepper_coq_export.v",
@@ -536,11 +547,6 @@ module Update = {
       }
       |> return
     | (AddForall, _, _) => model |> return_quiet
-    // | (CoqExport, MissingStep(_), _) =>
-    //   print_endline("Called CoqExport at update step handler");
-    //   // model is actually model.step here
-    //   Model.exportCoq(model);
-    //   model |> return_quiet;
     | (AddAxiomStep(at_exp, with_exp, axiom_name), MissingStep(_), _) =>
       let at_id = Exp.rep_id(at_exp);
       {

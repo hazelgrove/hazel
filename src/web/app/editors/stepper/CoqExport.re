@@ -76,7 +76,14 @@ let rec string_of_d = (d: Language.DHExp.t) => {
     | Atom(Int(n))
     | Atom(Nat(n)) => Bigint.to_string(n)
     | Var(x) => x
-    | _ => "ERROR"
+    | _ =>
+      print_endline(
+        "unknown term: "
+        ++ Language.Exp.show_cls(
+             Language.Exp.cls_of_term(Language.Exp.term_of(d)),
+           ),
+      );
+      "ERROR";
     }
   )
   ++ ")" /*   }*/;
