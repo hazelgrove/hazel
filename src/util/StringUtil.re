@@ -129,21 +129,6 @@ let trim_trailing_whitespace = (str: string): string => {
   String.concat("\n", trimmed_lines);
 };
 
-let proper_prefixes = (s: string): list(string) => {
-  let len = String.length(s);
-  let rec aux = (i: int) =>
-    if (i >= len) {
-      [];
-    } else {
-      [String.sub(s, 0, i)] @ aux(i + 1);
-    };
-  if (len <= 1) {
-    [];
-  } else {
-    aux(1);
-  };
-};
-
 let prefixes = (s: string): list(string) => {
   let len = String.length(s);
   let rec aux = (i: int) =>

@@ -400,7 +400,6 @@ let get: compound_form => t =
   | AtSign => mk_nul_infix("@", P.eqs) // HACK: SUBSTRING REQ
   | Case => mk(ds, ["case", "end"], mk_op(Exp, [Rul]))
   | Test => mk(ds, ["test", "end"], mk_op(Exp, [Exp]))
-  | HintedTest => mk(ds, ["hint", "test", "end"], mk_op(Exp, [Exp, Exp]))
   | Fun => mk(ds, ["fun", "->"], mk_pre(P.fun_, Exp, [Pat]))
   | Fix => mk(ds, ["fix", "->"], mk_pre(P.fun_, Exp, [Pat]))
   | TypFun => mk(ds, ["typfun", "->"], mk_pre(P.fun_, Exp, [TPat]))
@@ -418,7 +417,8 @@ let get: compound_form => t =
   | Let => mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))
   | TypeAlias =>
     mk(ds, ["type", "=", "in"], mk_pre(P.let_, Exp, [TPat, Typ]))
-  | If => mk(ds, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]));
+  | If => mk(ds, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]))
+  | HintedTest => mk(ds, ["hint", "test", "end"], mk_op(Exp, [Exp, Exp]));
 
 let forms: list((compound_form, t)) =
   List.map(f => (f, get(f)), all_of_compound_form);
@@ -434,12 +434,8 @@ let infix_delimiter_ops_prefixes: list(string) =
   |> List.filter_map(f => {
        let form = get(fst(f));
        switch ((form.mold.nibs |> snd).shape) {
-       //TODO(andrew): decide how picky to be
+       /* Could be pickier here, e.g. just trailing delimiters */
        | _ when List.length(form.label) >= 2 => Some(form.label)
-       //  | Convex when List.length(form.label) >= 3 =>
-       //    Some(form.label |> ListUtil.split_last |> fst |> List.tl)
-       //  | Concave(_) when List.length(form.label) >= 2 =>
-       //    Some(List.tl(form.label))
        | _ => None
        };
      })
@@ -449,12 +445,31 @@ let infix_delimiter_ops_prefixes: list(string) =
   |> List.map(StringUtil.prefixes)
   |> List.concat;
 
-let is_infix_delimiter_op_prefix = t =>
-  List.mem(t, infix_delimiter_ops_prefixes);
+let is_infix_delimiter_op_prefix = List.mem(_, infix_delimiter_ops_prefixes);
 
-/* Find tokens that appear both as single-token labels and in other forms' labels */
+/* This classification is a work in progress. Now that most trailing
+ * delimiters are delayed-putdown, we need to classify those that aren't.
+ * These should likely include ")", "]", ">"  or risk causing parsing
+ * issues; right now I'm saying all non-alphanumeric trailing delimiters
+ * are instant, but we might want to re-evaluate this in the future.*/
+let instant_putdowns: list(string) =
+  forms
+  |> List.filter_map(((_, f)) =>
+       switch (f.label) {
+       | [_, ...trailing] =>
+         Some(List.filter(s => !match(var_regexp, s), trailing))
+       | _ => None
+       }
+     )
+  |> List.concat
+  |> List.sort_uniq(String.compare);
+
+let is_instant_putdown = List.mem(_, instant_putdowns);
+
+/* Tokens that appear both as single-token labels and in other forms labels.
+ * These have special put-down behavior to make sure we can actually enter
+ * the single-delimiter variant during left-to-right entry */
 let amiguous_polymorphs: list(string) = {
-  /* Extract all single-token labels */
   let single_token_labels =
     forms
     |> List.filter_map(((_, {label, _})) =>
@@ -464,20 +479,19 @@ let amiguous_polymorphs: list(string) = {
          }
        )
     |> List.sort_uniq(String.compare);
-
-  /* Check if a token appears in any form other than its single-token form */
   let appears_in_other_forms = (target_token: string): bool => {
     forms
     |> List.exists(((_, {label, _})) =>
          switch (label) {
-         | [token] when token == target_token => false /* Skip the single-token form */
-         | label => List.mem(target_token, label) /* Check if token appears elsewhere */
+         | [token] when token == target_token => false
+         | label => List.mem(target_token, label)
          }
        );
   };
-
   single_token_labels |> List.filter(appears_in_other_forms);
 };
+
+let is_ambiguous_polymorph = List.mem(_, amiguous_polymorphs);
 
 let delims: list(Token.t) =
   forms

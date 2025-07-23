@@ -238,17 +238,17 @@ let go_z =
     /* note: remolding here is done case-by-case */
     |> Result.of_option(~error=Action.Failure.Cant_insert);
   | Put_down =>
-    let z =
-      /* Alternatively, putting down inside token could eiter merge-in or split */
+    (
       switch (z.caret) {
       | Inner(_) => None
       | Outer =>
         switch (Zipper.match_prev(z)) {
         | Some(z) => Some(z)
-        | _ => Zipper.put_down_regrout_remold(Left, z)
+        | None => Zipper.put_down_regrout_remold(Left, z)
         }
-      };
-    z |> Result.of_option(~error=Action.Failure.Cant_put_down);
+      }
+    )
+    |> Result.of_option(~error=Action.Failure.Cant_put_down)
   | MoveToBackpackTarget(_) => Error(Cant_move)
   };
 };

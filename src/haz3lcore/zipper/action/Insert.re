@@ -93,29 +93,13 @@ let make_new_tile = (t: Token.t, caret: Direction.t, z: t): t =>
   /* Adds a new tile at the caret. If the new token matches the top
      of the backpack, the backpack shard is dropped. Otherwise, we
      construct a new tile, which may immediately expand. */
-  // Zipper.will_barf(t, z)
-  //   ? switch (neighbor_can_duomerge(t, z.relatives.siblings)) {
-  //     | Some((lbl, d)) =>
-  //       Zipper.replace(~caret=d, ~backpack=d, lbl, z) |> Option.get
-  //     | None =>
-  //       print_endline("putting down " ++ t);
-  //       put_down_regrout_remold_tok(caret, t, z) |> Option.get;
-  //     }
-  //   : {
-  //     let (lbl, backpack) = Molds.instant_expansion(t);
-  //     construct(~caret, ~backpack, lbl, z);
-  //   };
   switch (neighbor_can_duomerge(t, z.relatives.siblings)) {
   | Some((lbl, d)) =>
     Zipper.replace(~caret=d, ~backpack=d, lbl, z) |> Option.get
   | None =>
-    //TODO(andrew): better avoid instant expansion for trailing kws while maintaining for trailing )] etc
-    //add regression test for > example from polymorphism slide
-    Zipper.will_barf(t, z)
-    && (List.mem(t, [")", "]", ">"]) || Zipper.move(Right, z) == None)
-      ? {
-        put_down_regrout_remold_tok(caret, t, z) |> Option.get;
-      }
+    /* e.g. closing parens are put down without further ceremony */
+    Zipper.will_barf(t, z) && Form.is_instant_putdown(t)
+      ? put_down_regrout_remold_tok(caret, t, z) |> Option.get
       : {
         let (lbl, backpack) = Molds.instant_expansion(t);
         construct(~caret, ~backpack, lbl, z);
