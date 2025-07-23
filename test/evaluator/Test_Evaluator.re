@@ -12,6 +12,7 @@ let tests = [
   Test_Evaluator_Atom.tests,
   Test_Evaluator_Let.tests,
   Test_Evaluator_Operators.tests,
+  Test_Evaluator_Poly_Equal.tests,
   Test_Evaluator_Sum_Types.tests,
   Test_Evaluator_TypAp.tests,
   Test_Stepper.tests,
