@@ -98,7 +98,7 @@ let show_cls: cls => string =
   fun
   | Invalid => "Invalid type"
   | MultiHole => "Broken type"
-  | EmptyHole => "Empty type hole"
+  | EmptyHole => "Type hole"
   | SynSwitch => "Synthetic type"
   | Internal => "Internal type"
   | Atom(_) => "Base type"
