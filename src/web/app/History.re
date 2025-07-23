@@ -98,7 +98,9 @@ module Update = {
           action,
           model.current.model,
         );
+      print_endline(Page.Update.sexp_of_t(action) |> Sexplib.Sexp.to_string);
       if (Page.Update.can_undo(action)) {
+        print_endline("Undoable action");
         {
           ...current,
           model: {
@@ -132,9 +134,15 @@ module Update = {
     };
 
   let calculate =
-      (~schedule_action: t => unit, ~is_edited: bool, model: Model.t): Model.t => {
+      (
+        ~schedule_action: t => unit,
+        ~is_edited: bool,
+        action: Page.Update.t,
+        model: Model.t,
+      )
+      : Model.t => {
     current: {
-      action: Page.Update.Start, // TODO what action should actually be here if any?
+      action, // TODO what action should actually be here if any?
       model:
         model.current.model
         |> Page.Update.calculate(~schedule_action, ~is_edited),
@@ -157,11 +165,12 @@ module Selection = {
 module View = {
   let view =
       (~get_log_and, ~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
-    Page.View.view(
-      ~get_log_and,
-      ~inject,
-      model.current.model,
-      model.current.action,
-    );
+    let history =
+      //[model.current.action]
+      List.map(
+        (s: Updated.t(Model.state)) => s.model.action,
+        model.undo_stack,
+      );
+    Page.View.view(~get_log_and, ~inject, model.current.model, history);
   };
 };

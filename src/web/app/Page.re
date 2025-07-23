@@ -599,7 +599,7 @@ module View = {
           assistant: assistantModel,
           selection,
         } as model: Model.t,
-        historyModel: Update.t,
+        historyModel: list(Update.t),
       ) => {
     let globals = {
       ...globals,
@@ -624,7 +624,11 @@ module View = {
         ~explainThisModel,
         ~assistantModel,
         ~editor=Update.get_editor(model),
-        ~historyModel,
+        ~historyModel=
+          List.map(
+            item => Update.sexp_of_t(item) |> Sexplib.Sexp.to_string,
+            historyModel,
+          ),
         cursor.info,
       );
 
@@ -659,7 +663,7 @@ module View = {
         ~get_log_and,
         ~inject: Update.t => Ui_effect.t(unit),
         model: Model.t,
-        history: Page.Update.t,
+        history: list(Update.t),
       ) => {
     let cursor = Selection.get_cursor_info(~selection=model.selection, model);
     div(

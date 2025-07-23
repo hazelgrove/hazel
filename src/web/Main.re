@@ -61,6 +61,7 @@ let apply =
         |> History.Update.calculate(
              ~schedule_action,
              ~is_edited=updated.is_edit,
+             action,
            )
       : updated.model;
 

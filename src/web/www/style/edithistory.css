@@ -1,0 +1,9 @@
+#edit-history {
+  display: flex;
+  flex: 1;
+  padding: 1em;
+  flex-direction: column;
+  overflow-y: auto;
+  gap: 1em;
+  overflow-x: hidden; /* Prevent outer scroll */
+}
