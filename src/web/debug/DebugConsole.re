@@ -1,8 +1,6 @@
 open Language;
-open Id;
 open Language.Statics;
 open Language.Exp;
-open Util;
 open Haz3lcore;
 
 type node = {
@@ -335,27 +333,6 @@ let show_ctx = (editor: CodeWithStatics.Model.t): unit => {
   );
 };
 
-let show_parent = (editor: CodeWithStatics.Model.t): unit => {
-  let zipper = editor.editor.state.zipper;
-  let info_map = editor.statics.info_map;
-  let curr_id: option(Id.t) = Indicated.index(zipper);
-
-  switch (curr_id) {
-  | Some(id) =>
-    switch (Id.Map.find_opt(id, info_map)) {
-    | None => ()
-    | Some(ci) =>
-      let ancestors = Info.ancestors_of(ci);
-      // We want to find the parent enclosing let binding
-      // This is tricky, as we want to find the parent let binding where the current term
-      // is in its definition, not in its body.contents
-
-      ();
-    }
-  | None => ()
-  };
-};
-
 let print =
     (~settings: Settings.t, editor: CodeWithStatics.Model.t, key: string)
     : unit => {
@@ -387,7 +364,6 @@ let print =
       };
     | None => print("DEBUG: No indicated index")
     };
-  | "F8" => show_parent(editor)
   | "F9" => show_ctx(editor)
   | "F10" => build_AST(editor)
   | _ => print("DEBUG: No action for key: " ++ key)
