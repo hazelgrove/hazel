@@ -28,7 +28,7 @@ let show_cls: cls => string =
   fun
   | Invalid => "Invalid type alias"
   | MultiHole => "Broken type alias"
-  | EmptyHole => "Empty type alias hole"
+  | EmptyHole => "Type alias hole"
   | Var => "Type alias";
 
 let temp: term => t =
