@@ -65,9 +65,6 @@ let local_missing_shards = (sibs: t): list(Tile.t) => {
   @ (r |> List.map(Tile.left_missing_shards) |> List.concat);
 };
 
-let global_missing_shards = ((l, r): t) =>
-  Segment.global_missing_shards(l @ r);
-
 let split_by_matching = id => TupleUtil.map2(Segment.split_by_matching(id));
 
 let reassemble = TupleUtil.map2(Segment.reassemble);

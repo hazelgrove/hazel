@@ -43,12 +43,3 @@ let local_missing_shards = (ancs: t): list(Tile.t) =>
   | [] => []
   | [(a, _), ..._] => Ancestor.missing_middle_shards(a)
   };
-
-let global_missing_shards_generation =
-    ((a, (l, r)): generation): list(Tile.t) =>
-  Ancestor.global_missing_shards(a)
-  @ Segment.global_missing_shards(l)
-  @ Segment.global_missing_shards(r);
-
-let global_missing_shards: t => list(Tile.t) =
-  List.concat_map(global_missing_shards_generation);
