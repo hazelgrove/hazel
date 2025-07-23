@@ -25,7 +25,19 @@ module type EDITOR = {
      * does not run `make_term` or `calculate`, so the
      * editor will not have any cached term or statics
      * and cannot be rendered until those functions are called. */
-    let mk: (~inline: bool=?, Language.Any.t) => t;
+    let mk_uncalculated: (~inline: bool=?, Language.Any.t) => t;
+
+    /* Makes a new editor for the given term. This function
+     * will run `make_term` and `calculate` so the editor
+     * will have a cached term and statics and can be rendered
+     * immediately. */
+    let init: (~common: Common.t, ~inline: bool=?, Language.Any.t) => t;
+
+    // /* Makes a new editor for the given term.
+    //  * This function will run `make_term` and `calculate`
+    //  * so the editor will have a cached term and statics
+    //  * and can be rendered immediately. */
+    // let mk: (~inline: bool=?, Language.Any.t) => t;
 
     /* Must be called after `make_term`. Throws an
      * exception if no cached term is available. */

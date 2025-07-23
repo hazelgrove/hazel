@@ -22,7 +22,7 @@ module Model = {
   };
 
   let mk_from_exp = (~inline=false, term: Language.Exp.t) => {
-    Editor.Model.mk(~inline, Exp(term)) |> mk;
+    Editor.Model.mk_uncalculated(~inline, Exp(term)) |> mk;
   };
 
   let get_statics = (model: t) => model.statics;

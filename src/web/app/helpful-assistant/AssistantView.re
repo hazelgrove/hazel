@@ -687,14 +687,14 @@ let code_block =
             sketch
             |> ChatLSP.make_term
             |> ((x) => (Exp(x): Language.Grammar.any_t('a)))
-            |> Editor.Model.mk
+            |> Editor.Model.mk_uncalculated
             |> CellEditor.Model.mk;
           }
           : {
             sketch
             |> ChatLSP.make_term
             |> ((x) => (Exp(x): Language.Grammar.any_t('a)))
-            |> Editor.Model.mk
+            |> Editor.Model.mk_uncalculated
             |> CellEditor.Model.mk
             |> CellEditor.Update.calculate(
                  ~globals,

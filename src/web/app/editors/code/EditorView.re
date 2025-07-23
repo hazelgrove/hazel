@@ -147,7 +147,7 @@ module Focus = {
          * on the editor */
         let+ _ =
           mk_projector(kind, candidate_term, () =>
-            Some(Editor.Model.mk(Zipper.init()))
+            Some(Editor.Model.mk_uncalculated(Zipper.init()))
           );
         kind
       );

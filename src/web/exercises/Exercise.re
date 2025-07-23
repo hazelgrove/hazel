@@ -356,7 +356,7 @@ let eds_of_spec =
       },
       ~settings as _: Language.CoreSettings.t,
     ) => {
-  let editor_of_serialization = Editor.Model.mk;
+  let editor_of_serialization = Editor.Model.mk_uncalculated;
   let prelude = editor_of_serialization(prelude);
   let correct_impl = editor_of_serialization(correct_impl);
   let your_tests = {
@@ -422,7 +422,7 @@ let update_exercise_title = ({eds, _}: state, new_title: string) => {
 
 let add_buggy_impl = (state: state) => {
   let new_buggy_impl = {
-    impl: Editor.Model.mk(Exp(Language.Exp.fresh(EmptyHole))),
+    impl: Editor.Model.mk_uncalculated(Exp(Language.Exp.fresh(EmptyHole))),
     hint: "No Hint Available",
   };
   {

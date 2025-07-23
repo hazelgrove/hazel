@@ -147,7 +147,7 @@ module Update = {
       (
         new_key,
         CellEditor.Model.mk(
-          Editor.Model.mk(Exp(Language.Exp.fresh(EmptyHole))),
+          Editor.Model.mk_uncalculated(Exp(Language.Exp.fresh(EmptyHole))),
         ),
       ),
     ];

@@ -48,27 +48,12 @@ let perform =
         color_highlights: None,
       },
     );
-  let projector_init = (_, _, _) => None;
   let seg_of_projector = _ => [];
   let update_projector = (~sort as _, ~id as _, _, p) => p;
   let livelit_projectors = [];
-  let projector_to_term = (~sort as _, ~id as _, _) => Language.Grammar.Any();
-  let shape_of_projector = (~common as _, _) => ProjectorShape.default;
-  let calculate_projector = (~common as _, _) => ();
   let seg_to_ed = _ => None;
-  let model = Editor.Model.mk(zip);
-  let model =
-    Editor.Update.calculate(
-      ~projector_init,
-      ~seg_of_projector,
-      ~update_projector,
-      ~livelit_projectors,
-      ~projector_to_term,
-      ~shape_of_projector,
-      ~calculate_projector,
-      ~common,
-      model,
-    );
+  let model = Editor.Model.init(~common, zip);
+  let _ = print_endline("Finished calculating");
   let perform =
       (a: Action.t(_), z: Zipper.t(_)): Action.Result.t(Zipper.t(_)) =>
     Perform.go_z(

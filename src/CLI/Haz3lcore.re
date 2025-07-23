@@ -18,8 +18,8 @@ module Editor = {
   type t = Editor.t(ProjectorKind.t, unit, unit);
   module Model = {
     include Model;
-    let mk: ZipperBase.t(unit) => t(ProjectorKind.t, unit, unit) =
-      Editor.Model.mk(_);
+    let mk_uncalculated: ZipperBase.t(unit) => t(ProjectorKind.t, unit, unit) =
+      Editor.Model.mk_uncalculated(_);
     let to_move_s: t(ProjectorKind.t, unit, unit) => 'a = to_move_s;
   };
 };

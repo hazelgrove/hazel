@@ -14,7 +14,7 @@ module M = (Editor: EditorInterface.EDITOR) => {
 
     let mk = (~inline: option(bool)=?, term: Language.Any.t): t => {
       {
-        editor: Editor.Model.mk(~inline?, term),
+        editor: Editor.Model.mk_uncalculated(~inline?, term),
         statics: Calc.Pending,
       };
     };

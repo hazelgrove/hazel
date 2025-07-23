@@ -233,13 +233,38 @@ and Editor: {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = model;
 
-    let mk = (~inline=false, term: Language.Any.t): t => {
+    let mk_uncalculated = (~inline=false, term: Language.Any.t): t => {
       ExpToSegment.any_to_segment(
         term,
         ~settings=ExpToSegment.Settings.editable(~inline),
       )
       |> Haz3lcorep.Zipper.unzip
-      |> Haz3lcorep.Editor.Model.mk;
+      |> Haz3lcorep.Editor.Model.mk_uncalculated;
+    };
+
+    let init = (~common, ~inline=false, term: Language.Any.t): t => {
+      mk_uncalculated(~inline, term)
+      |> Haz3lcorep.Editor.Update.make_term(
+           ~make_term_prj=Projector.Update.make_term,
+           ~sort=Language.Any.sort(term),
+         )
+      |> fst
+      |> Haz3lcorep.Editor.Update.calculate(
+           ~common,
+           ~projector_init=Projector.Model.mk,
+           ~projector_to_term=
+             (~sort as _, ~id as _, m) => Projector.Model.get_cached_term(m),
+           ~shape_of_projector=Projector.View.get_placeholder,
+           ~seg_of_projector=
+             p =>
+               Projector.Model.get_cached_term(p)
+               |> ExpToSegment.any_to_segment(
+                    ~settings=ExpToSegment.Settings.on,
+                  ),
+           ~livelit_projectors=ProjectorKind.livelit_projectors,
+           ~update_projector=Projector.Update.update(~common),
+           ~calculate_projector=Projector.Update.calculate,
+         );
     };
 
     let split = Haz3lcorep.Editor.Model.split;
@@ -384,7 +409,7 @@ and Editor: {
       let sort = Language.Any.sort(term);
       let ed =
         term
-        |> Editor.Model.mk
+        |> Editor.Model.mk_uncalculated
         |> Editor.Update.make_term(~sort)
         |> fst
         |> Editor.Update.calculate(~common);
@@ -399,7 +424,7 @@ and Editor: {
   };
 
   let get_z = Model.get_z;
-  let of_zipper = Haz3lcorep.Editor.Model.mk;
+  let of_zipper = Haz3lcorep.Editor.Model.mk_uncalculated;
 
   let get_trailing_hole_ctx = Haz3lcorep.Editor.Model.trailing_hole_ctx;
 };

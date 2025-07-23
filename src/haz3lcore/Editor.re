@@ -91,7 +91,7 @@ module Model = {
     selection_ids: Calc.saved(list(Id.t)),
   };
 
-  let mk = (type a, zipper: Zipper.t(a)) => {
+  let mk_uncalculated = (type a, zipper: Zipper.t(a)) => {
     id: Id.mk(),
     zipper: NewValue(zipper),
     selection: NewValue(),
@@ -132,7 +132,8 @@ module Model = {
   type persistent = PersistentZipper.t;
   let persist = (f: 'p => 'q, model: t('p_k, 'p, 'p_a)) =>
     model |> get_z |> PersistentZipper.persist(f);
-  let unpersist = (f, p) => p |> PersistentZipper.unpersist(f) |> mk;
+  let unpersist = (f, p) =>
+    p |> PersistentZipper.unpersist(f) |> mk_uncalculated;
 
   let sexp_of_t = (_, f, _, model: t('p_k, 'p, 'p_a)) =>
     model |> persist(f) |> PersistentZipper.sexp_of_t;
@@ -141,7 +142,11 @@ module Model = {
 
   let to_move_s =
       (type p', model: t('p_k, p', 'p_a)): (module Move.S with type p = p') => {
-    let syntax = Calc.get_saved_exc(model.syntax);
+    let syntax =
+      Calc.get_saved_exc(
+        ~print="to_move_s called before calculate",
+        model.syntax,
+      );
     module M: Move.S with type p = p' = {
       type p = p';
       let measured = syntax.measured;
@@ -187,15 +192,29 @@ module Model = {
     };
   };
 
-  let get_cached_term = editor => Calc.get_saved_exc(editor.term);
+  let get_cached_term = editor =>
+    Calc.get_saved_exc(
+      ~print="get_cached_term called before make_term",
+      editor.term,
+    );
 
   let get_web_id = (type p_k, type p, type p_a, model: t(p_k, p, p_a)) => {
     "editor_" ++ Id.str8(model.id);
   };
 
   let get_dimensions = (ed: t('p_k, 'p, 'p_a)) => {
-    let measured = Calc.get_saved_exc(ed.syntax).measured;
-    let segment = Calc.get_saved_exc(ed.syntax).segment;
+    let measured =
+      Calc.get_saved_exc(
+        ~print="get_dimensions called before calculate",
+        ed.syntax,
+      ).
+        measured;
+    let segment =
+      Calc.get_saved_exc(
+        ~print="get_dimensions called before calculate",
+        ed.syntax,
+      ).
+        segment;
     Point.{
       row: Measured.width(segment, measured),
       col: Measured.height(segment, measured),
@@ -207,7 +226,7 @@ module Model = {
       : Id.Map.t(t(p_k, p, p_a)) => {
     let segment = Zipper.unselect_and_zip(ed |> get_z);
     let seg_map = TermRanges.split(ids, segment);
-    Id.Map.map(seg => seg |> Zipper.unzip |> mk, seg_map);
+    Id.Map.map(seg => seg |> Zipper.unzip |> mk_uncalculated, seg_map);
   };
 };
 
@@ -233,7 +252,8 @@ module Update = {
         model: Model.t(p_k, p, p_a),
       )
       : Action.Result.t(Model.t(p_k, p, p_a)) => {
-    let seg_to_ed = seg => Zipper.unzip(seg) |> Model.mk |> Option.some;
+    let seg_to_ed = seg =>
+      Zipper.unzip(seg) |> Model.mk_uncalculated |> Option.some;
     open Result.Syntax;
     let old_zipper = Model.get_z(model);
     /* 1. Clear the autocomplete buffer if relevant. We clear the TyDi
@@ -288,7 +308,12 @@ module Update = {
             ~common,
             ~projector_to_term,
             ~shape_of_projector,
-            ~sort=Calc.get_saved_exc(model.term) |> Language.Any.sort,
+            ~sort=
+              Calc.get_saved_exc(
+                ~print="update called before make_term",
+                model.term,
+              )
+              |> Language.Any.sort,
             old_zipper,
           ),
         );
@@ -306,7 +331,11 @@ module Update = {
         | None =>
           Some(
             Zipper.caret_point(
-              Calc.get_saved_exc(syntax).measured,
+              Calc.get_saved_exc(
+                ~print="update called before calculate",
+                syntax,
+              ).
+                measured,
               Calc.get_value(zipper),
             ).
               col,
@@ -422,7 +451,8 @@ module Update = {
         ~calculate_projector,
         model: Model.t('p_k, p, 'p_a),
       ) => {
-    let seg_to_ed = seg => Zipper.unzip(seg) |> Model.mk |> Option.some;
+    let seg_to_ed = seg =>
+      Zipper.unzip(seg) |> Model.mk_uncalculated |> Option.some;
 
     // 1. Recalculate the autocomplete buffer if necessary
     let zipper =
@@ -499,7 +529,12 @@ module Update = {
           ~common,
           ~projector_to_term,
           ~shape_of_projector,
-          ~sort=Calc.get_saved_exc(model.term) |> Language.Any.sort,
+          ~sort=
+            Calc.get_saved_exc(
+              ~print="make term not called before calculate",
+              model.term,
+            )
+            |> Language.Any.sort,
           z,
         );
       };

@@ -1,6 +1,18 @@
 include Haz3lcorep;
 open Util;
+module Fresh = Language.IdTagged.FreshGrammar;
 
+let projector_init = (_, _, _) => None;
+let seg_of_projector = _ => [];
+let update_projector = (~sort as _, ~id as _, _, p) => p;
+let livelit_projectors = [];
+let projector_to_term = (~sort as _, ~id as _, _) => Language.Grammar.Any();
+let make_term_prj = (~sort as _, p) => (
+  p,
+  Calc.OldValue(Language.Grammar.Exp(Fresh.Exp.empty_hole())),
+);
+let shape_of_projector = (~common as _, _) => ProjectorShape.default;
+let calculate_projector = (~common as _, _) => ();
 let of_projector = (~sort as _, ~id as _, _) => Language.Grammar.Any();
 
 module Base = {
@@ -14,24 +26,59 @@ module Base = {
 };
 
 module Editor = {
-  include Editor;
+  open Editor;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Editor.t(ProjectorKind.t, unit, unit);
   module Model = {
-    include Model;
-    let mk: ZipperBase.t(unit) => t(ProjectorKind.t, unit, unit) =
-      Editor.Model.mk(_);
+    open Model;
+    let mk_uncalculated: ZipperBase.t(unit) => t(ProjectorKind.t, unit, unit) =
+      Editor.Model.mk_uncalculated(_);
+    let init = (~common, z: ZipperBase.t(unit)) =>
+      mk_uncalculated(z)
+      |> Editor.Update.make_term(~sort=Exp, ~make_term_prj)
+      |> fst
+      |> Editor.Update.calculate(
+           ~common,
+           ~projector_init,
+           ~seg_of_projector,
+           ~update_projector,
+           ~livelit_projectors,
+           ~projector_to_term,
+           ~shape_of_projector,
+           ~calculate_projector,
+         );
+
     let to_move_s: t(ProjectorKind.t, unit, unit) => 'a = to_move_s;
+  };
+
+  module Update = {
+    open Update;
+    let calculate = (~common, ed) =>
+      calculate(
+        ~common,
+        ~projector_init,
+        ~seg_of_projector,
+        ~update_projector,
+        ~livelit_projectors,
+        ~projector_to_term,
+        ~shape_of_projector,
+        ~calculate_projector,
+        ed,
+      );
+
+    let make_term = (~sort, ed) => make_term(~make_term_prj, ~sort, ed);
   };
 };
 
 module MakeTerm = {
-  include MakeTerm;
+  open MakeTerm;
   let from_zip_for_sem = from_zip_for_sem(~of_projector);
 };
 
 module Segment = {
-  include Segment;
+  open Segment;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Segment.t(unit);
+
+  let equal = equal;
 };

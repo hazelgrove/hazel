@@ -460,7 +460,10 @@ module M =
 
   let len_of_exp = (exp: Exp.t): int =>
     //TODO(andrew): get this more performantly
-    Exp(exp) |> Editor.Model.mk |> Editor.View.print_string |> String.length;
+    Exp(exp)
+    |> Editor.Model.mk_uncalculated
+    |> Editor.View.print_string
+    |> String.length;
 
   let abbreviated_exp = (available: int, exp: Exp.t): Exp.t => {
     //TODO(andrew): cleanup

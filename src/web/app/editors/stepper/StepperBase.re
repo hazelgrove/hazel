@@ -121,7 +121,7 @@ module Model = {
         )
       | None =>
         CodeEditable.Model.mk(
-          Editor.Model.mk(Exp(Language.Exp.fresh(EmptyHole))),
+          Editor.Model.mk_uncalculated(Exp(Language.Exp.fresh(EmptyHole))),
         )
       };
     {
@@ -384,7 +384,9 @@ module Update = {
         Model.{
           pattern:
             CodeEditable.Model.mk(
-              Editor.Model.mk(Exp(Language.Exp.fresh(EmptyHole))),
+              Editor.Model.mk_uncalculated(
+                Exp(Language.Exp.fresh(EmptyHole)),
+              ),
             ),
           elab_pattern: Calc.Pending,
           inner_exp: Calc.Pending,

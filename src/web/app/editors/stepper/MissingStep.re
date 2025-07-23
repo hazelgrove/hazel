@@ -73,7 +73,7 @@ module Update = {
           Model.RewritesOpen({
             editor:
               CodeEditable.Model.mk(
-                Editor.Model.mk(Exp(Exp.fresh(EmptyHole))),
+                Editor.Model.mk_uncalculated(Exp(Exp.fresh(EmptyHole))),
               ),
             cached_exp: Calc.Pending,
             cached_result: None,

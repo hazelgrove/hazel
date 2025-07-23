@@ -170,16 +170,7 @@ module M =
     let statics = Statics.Map.lookup(id, common.statics.info_map);
     let view_any = x =>
       x
-      |> Editor.Model.mk
-      |> Editor.Update.make_term(~sort=Any.sort(x))
-      |> fst
-      |> Editor.Update.calculate(
-           ~common={
-                     ...common,
-                     statics: CachedStatics.empty,
-                     dynamics: Dynamics.Map.empty,
-                   }: Common.t,
-         )
+      |> Editor.Model.init(~common)
       |> Editor.View.view(~common, ~mode=ReadOnly, ~sort=Any.sort(x));
 
     View.{
