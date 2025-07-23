@@ -5,7 +5,7 @@ open Language;
 /* Suggest the token at the top of the backpack, if we can put it down */
 let suggest_backpack = (z: Zipper.t): list(t) => {
   /* Note: Sort check unnecessary here as wouldn't be able to put down */
-  switch (Zipper.mk_local_backpack(z)) {
+  switch (Zipper.local_backpack(z)) {
   | [] => []
   | [t, ..._] =>
     switch (t) {
