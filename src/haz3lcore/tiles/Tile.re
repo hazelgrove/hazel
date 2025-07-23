@@ -81,10 +81,19 @@ let split_shards = (id, label, mold, shards) =>
      );
 
 let left_missing_shards = (t: t): list(t) =>
-  List.init(l_shard(t), i => i) |> split_shards(t.id, t.label, t.mold);
+  List.init(l_shard(t), Fun.id) |> split_shards(t.id, t.label, t.mold);
 
 let right_missing_shards = (t: t): list(t) =>
   List.init(List.length(t.label) - r_shard(t) - 1, i => r_shard(t) + i + 1)
+  |> split_shards(t.id, t.label, t.mold);
+
+/* t.shards is list of indexes into t.label. want all indexes into t.label that don't
+   occur in shards  */
+let missing_shards = (t: t): list(t) =>
+  List.filter(
+    i => !List.mem(i, t.shards),
+    List.init(List.length(t.label), Fun.id),
+  )
   |> split_shards(t.id, t.label, t.mold);
 
 let effective_label = (t: t): list(string) =>

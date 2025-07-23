@@ -78,7 +78,7 @@ let disassemble =
   (flatten(shards_l, kids_l), flatten(shards_r, kids_r));
 };
 
-let container_shards_missing_middle = (a: t): list(Tile.t) => {
+let missing_middle_shards = (a: t): list(Tile.t) => {
   let (shards_l, shards_r) = a.shards;
   let last_l =
     ListUtil.last_opt(shards_l) |> OptUtil.get_or_raise(Empty_shard_affix);
@@ -86,6 +86,22 @@ let container_shards_missing_middle = (a: t): list(Tile.t) => {
     ListUtil.hd_opt(shards_r) |> OptUtil.get_or_raise(Empty_shard_affix);
   let ls = List.init(first_r - last_l - 1, i => last_l + i + 1);
   Tile.split_shards(a.id, a.label, a.mold, ls);
+};
+
+let missing_shards = (a: t): list(Tile.t) => {
+  let (shards_l, shards_r) = a.shards;
+  let shards = shards_l @ shards_r;
+  let missing =
+    List.filter(
+      i => !List.mem(i, shards),
+      List.init(List.length(a.label), Fun.id),
+    );
+  Tile.split_shards(a.id, a.label, a.mold, missing);
+};
+
+let global_missing_shards = (a: t): list(Tile.t) => {
+  let anc_children = fst(a.children) @ snd(a.children) |> List.concat;
+  missing_shards(a) @ Segment.global_missing_shards(anc_children);
 };
 
 let container_shards = (a: t): (Piece.t, Piece.t) => {

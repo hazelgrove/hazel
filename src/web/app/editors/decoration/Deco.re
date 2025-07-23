@@ -225,7 +225,6 @@ module Deco =
        ) => {
   let font_metrics = M.globals.font_metrics;
   let map = M.editor.syntax.measured;
-  let show_backpack_targets = M.globals.show_backpack_targets;
   let terms = M.editor.syntax.terms;
   let term_ranges = M.editor.syntax.term_ranges;
   let tiles = M.editor.syntax.tiles;
@@ -349,23 +348,27 @@ module Deco =
   };
 
   let backpack = (z: Zipper.t): Node.t => {
-    let can_put_down = Zipper.can_put_down(z);
-    let ind_d =
-      switch (Indicated.piece(z)) {
-      | Some((_, d, _)) => Some(d)
-      | None => None
-      };
-    let caret_d = Zipper.caret_direction(z);
+    /* If there is a selection, any tiles bisected by the selection
+     * will show as incomplete. While a more intelligent approach is
+     * possible here, I've opted for the simpler option of supressing
+     * backpack display during selection */
     let contents =
-      Zipper.mk_local_backpack(z)
-      @ Relatives.non_local_missing_shards(z.relatives)
-      |> List.map(Tile.effective_label)
-      |> List.map(List.hd);
-    BackpackView.view(
-      ~can_put_down,
-      ~caret_d,
-      ~ind_d,
+      !Selection.is_empty(z.selection)
+        ? []
+        : Zipper.mk_local_backpack(z)
+          @ Relatives.global_missing_shards(z.relatives)
+          |> ListUtil.dedup
+          |> List.map(Tile.effective_label)
+          |> List.map(List.hd);
+    Backpack.view(
       ~font_metrics,
+      ~can_put_down=Zipper.can_put_down(z),
+      ~caret_d=Zipper.caret_direction(z),
+      ~ind_d=
+        switch (Indicated.piece(z)) {
+        | Some((_, d, _)) => Some(d)
+        | None => None
+        },
       ~origin=Zipper.caret_point(measured, z),
       contents,
     );
@@ -581,7 +584,6 @@ module Deco =
         indication(z),
         selection(z),
         backpack(z),
-        //backpack_targets(z.backpack, segment),
         color_highlights(),
       ]
       : [];
