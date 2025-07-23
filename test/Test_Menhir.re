@@ -256,7 +256,7 @@ let tests =
       ),
       full_parser_test(
         "Test",
-        test(bin_op(Int(Equals), int(3), int(3))),
+        test(bin_op(Poly(Equals), int(3), int(3))),
         "test 3 == 3 end",
       ),
       full_parser_test(
