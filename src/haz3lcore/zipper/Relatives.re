@@ -60,10 +60,6 @@ let local_missing_shards = ({siblings, ancestors}: t): list(Tile.t) => {
   @ Siblings.local_missing_shards(siblings);
 };
 
-let global_missing_shards = ({siblings, ancestors}: t): list(Tile.t) =>
-  Siblings.global_missing_shards(siblings)
-  @ Ancestors.global_missing_shards(ancestors);
-
 let parent =
     (~sel=Segment.empty, {siblings: (l_sibs, r_sibs), ancestors}: t)
     : option(Piece.t) =>

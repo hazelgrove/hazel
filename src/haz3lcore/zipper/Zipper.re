@@ -222,9 +222,6 @@ let put_down_seg = (d: Direction.t, seg: Segment.t, z: t): t =>
 let local_backpack = (z: t): list(Tile.t) =>
   Relatives.local_missing_shards(z.relatives);
 
-let global_backpack = (z: t): list(Tile.t) =>
-  Relatives.global_missing_shards(z.relatives);
-
 let backpack_hd = (z: t): option(Tile.t) =>
   z |> local_backpack |> ListUtil.hd_opt;
 

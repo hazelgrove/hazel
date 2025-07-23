@@ -99,11 +99,6 @@ let missing_shards = (a: t): list(Tile.t) => {
   Tile.split_shards(a.id, a.label, a.mold, missing);
 };
 
-let global_missing_shards = (a: t): list(Tile.t) => {
-  let anc_children = fst(a.children) @ snd(a.children) |> List.concat;
-  missing_shards(a) @ Segment.global_missing_shards(anc_children);
-};
-
 let container_shards = (a: t): (Piece.t, Piece.t) => {
   let (shards_l, shards_r) =
     a.shards
