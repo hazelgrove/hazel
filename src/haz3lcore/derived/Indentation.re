@@ -156,9 +156,8 @@ let rec go' = ((not_top, base: int, seg: Segment.t)) => {
             | (None, _) when not_top => level + 2
             | (_, Some(next)) when is_case_rule(next) => base
             | (_, None) => base
-            | (_, Some(Piece.Tile({label: [s], mold, _})))
-                when Form.is_var(s) && Mold.is_infix_op(mold) =>
-              /* TODO(andrew): document */
+            | (_, Some(p)) when Piece.is_infix_delimiter_op_prefix(p) =>
+              /* Special case fof kw prefixes */
               base
             | (_, Some(_)) => level
             };

@@ -214,8 +214,7 @@ let adj_pos = (d: Direction.t, z: t): t =>
   };
 
 let put_down_core = (seg: Segment.t, z: t): t =>
-  /* TODO(andrew): not sure why second unselect is needed but it do... */
-  z |> destruct |> replace_selection(Right, seg) /*|> unselect*/ |> unselect;
+  z |> destruct |> replace_selection(Right, seg) |> unselect;
 
 let put_down_seg = (d: Direction.t, seg: Segment.t, z: t): t =>
   z |> put_down_core(seg) |> adj_pos(d);
@@ -238,7 +237,11 @@ let backpack_hd = (z: t): option(Tile.t) =>
 
 let backpack_find = (tok: Token.t, z: t): option(Tile.t) =>
   if (List.mem(tok, Form.amiguous_polymorphs)) {
-    //TODO(andrew): document
+    /* Special case for ambiguous polymorphs. These tokens
+       occur both on their own as infix ops and as delimiters of
+       multi-delimiter forms. To give the singleton form a chance, we
+       only match these to incomplete tiles to form their multi forms
+       when they're on the top of the stack */
     backpack_hd(z) |> Option.map(Tile.effective_label) == Some([tok])
       ? backpack_hd(z) : None;
   } else {
@@ -337,9 +340,7 @@ let rec construct =
     let selections =
       Tile.split_shards(id, label, mold, List.mapi((i, _) => i, label))
       |> List.map(Segment.of_tile)
-      //|> List.map(Selection.mk)
       |> ListUtil.rev_if(backpack == Right);
-    //TODO(andrew): cleanup
     put_down_seg(caret, List.hd(selections), z);
   };
 };
