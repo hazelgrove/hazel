@@ -37,7 +37,6 @@ type t = {
   assist: bool,
   dynamics: bool,
   flip_animations: bool,
-  display_warnings: bool,
   evaluation: Evaluation.t,
 };
 
@@ -47,7 +46,6 @@ let off: t = {
   assist: false,
   dynamics: false,
   flip_animations: false,
-  display_warnings: false,
   evaluation: Evaluation.init,
 };
 
@@ -57,6 +55,5 @@ let on: t = {
   assist: true,
   dynamics: true,
   flip_animations: true,
-  display_warnings: true,
   evaluation: Evaluation.init,
 };
