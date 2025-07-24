@@ -36,17 +36,14 @@ let module_signature_to_string_map =
     List.map(
       entry =>
         switch (entry |> ModuleSignatureEntry.term_of) {
-        | ValType(p, _) =>
-          print_endline(
-            "Entry: "
-            ++ [%derive.show: TermBase.module_signature_entry_t](entry),
-          );
-          print_endline("Pat: " ++ [%derive.show: TermBase.pat_t](p));
-          (
+        | ValType(p, _) => (
             p |> Pat.get_var |> Option.value(~default="NOCONSTRUCTORNAME"),
             entry,
-          );
-        | TypeDef(tp, _) => (tp |> TPat.show, entry)
+          )
+        | TypeDef(tp, _) => (
+            tp |> TPat.get_var |> Option.value(~default="NOCONSTRUCTORNAME"),
+            entry,
+          )
         | Hole(_) => ("", entry)
         | MultipleEntries(_) => ("", entry)
         },

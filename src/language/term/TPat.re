@@ -38,3 +38,12 @@ let temp: term => t =
       ids: [Id.invalid],
     },
   };
+
+let rec get_var = (tpat: t) => {
+  switch (tpat.term) {
+  | Var(x) => Some(x)
+  | Invalid(_)
+  | EmptyHole
+  | MultiHole(_) => None
+  };
+};
