@@ -32,13 +32,10 @@
   --Y2: oklch(88% 0.2 95); /* explicit hole */
   --Y3: oklch(71% 0.2 95); /* incomplete shards */
 
-  /* WARNING HOLE DECO */
-
   /* MAGMA - opportunities */
   --R0: oklch(85% 0.1 30); /* broken shard fill */
   --R1: oklch(60% 0.3 30); /* caret, error stroke */
-  --R2: oklch(40% 0.3 30); /* error text, broken shard text */
-  --O1: oklch(60% 0.3 90); /* warning stroke */
+  --R2: oklch(40% 0.3 30); /* error text, broken shard text
 
   /* GLASS - sorts */
   --TYP: oklch(60% 0.2 300);
@@ -65,7 +62,6 @@
   --textarea-h-strip-selected: oklch(68% 0.14 76 / 30%);
   --SHADOW: oklch(50% 0.1 90 / 33%);
   --ERRHOLE: oklch(96% 0.02 47); /* temporary due to child arms */
-  --WARNHOLE: oklch(0.97 0.04 78.17);
   --CREASE: oklch(0% 0 0 / 40%);
 
   /* CODE BACKGROUND */
@@ -129,10 +125,6 @@
 
   --error-hole-fill: var(--ERRHOLE);
 
-  /* WARNING HOLE DECO */
-  --warning-hole-stroke: var(--O1);
-  --warning-hole-fill: var(--WARNHOLE);
-
   /* BACKPACK DECO */
 
   --backpack-selection: var(--shard-selected);
@@ -181,8 +173,6 @@
   --ci-status-text: var(--BR4);
   --ci-status-error-text: var(--R2);
   --ci-status-error-bkg: var(--test-fail-active);
-  --ci-status-warning-text: var(--warning-hole-stroke);
-  --ci-status-warning-bkg: var(--warning-hole-fill);
   --context-inspector-colon: var(--BR2);
 
   --ui-header-text: var(--BR3);
@@ -209,7 +199,6 @@
   --err-hole-arms-z: 1;
   --tile-z: 2;
   --err-hole-z: 3;
-  --warn-hole-z: 3;
   --select-z: 4;
   --stepper-interactive-z: 5;
   --projector-underlay-z: 9;

@@ -40,20 +40,14 @@ module Map = {
   let empty = Id.Map.empty;
   let lookup = Id.Map.find_opt;
 
-  // single pass to return two lists: one of the error ids and one of the warning ids
-  let error_and_warning_ids = (info_map: t): (list(Id.t), list(Id.t)) =>
+  let error_ids = (info_map: t): list(Id.t) =>
     Id.Map.fold(
-      (id, info, acc) => {
-        let (errors, warnings) = acc;
+      (id, info, acc) =>
         /* Second clause is to eliminate non-representative ids,
          * which will not be found in the measurements map */
-        Info.is_error(info) && id == Info.id_of(info)
-          ? ([id, ...errors], warnings)
-          : Info.is_warning(info) && id == Info.id_of(info)
-              ? (errors, [id, ...warnings]) : (errors, warnings);
-      },
+        Info.is_error(info) && id == Info.id_of(info) ? [id, ...acc] : acc,
       info_map,
-      ([], []),
+      [],
     );
 
   let errors = (map: t): list((Id.t, Info.error)) =>
@@ -324,27 +318,10 @@ and uexp_to_info_map =
 
     (info, add_info(IdTagged.ids(elaborated_exp), InfoExp(info), m));
   };
-  // HACK: This "$hole" entry is used to signal that a hole exists in a term's scope,
-  // which prevents false unused variable warnings. Since we don't currently mark
-  // holes in the info term or co-context properly, this workaround adds "$hole"
-  // to the co-context during hole construction. The warning logic then checks for
-  // this key.
-  let hole_co_ctx =
-    switch (term) {
-    | MultiHole(_)
-    | EmptyHole
-    | Invalid(_) =>
-      CoCtx.singleton(
-        "$hole",
-        Exp.rep_id(uexp),
-        Unknown(Internal) |> Typ.temp,
-      )
-    | _ => CoCtx.empty
-    };
-
   let atomic = self => {
-    add(~self, ~co_ctx=hole_co_ctx, m);
+    add(~self, ~co_ctx=CoCtx.empty, m);
   };
+
   // This is the case where we aren't a singleton labeled tuple
   let default_case = () => {
     switch (term) {
@@ -412,8 +389,11 @@ and uexp_to_info_map =
         m,
       );
     | Var(name) =>
-      let co_ctx = CoCtx.singleton(name, Exp.rep_id(uexp), ana);
-      add'(~self=Self.of_exp_var(ctx, name), ~co_ctx, m);
+      add'(
+        ~self=Self.of_exp_var(ctx, name),
+        ~co_ctx=CoCtx.singleton(name, Exp.rep_id(uexp), ana),
+        m,
+      )
     | DynamicErrorHole(e, _)
     | Parens(e)
     | Probe(e, _) =>
@@ -1054,14 +1034,8 @@ and uexp_to_info_map =
           p_ctxs,
         );
       let e_tys = List.map(Info.exp_ty, es);
-      let p_ctxs_and_ctx_zip =
-        List.combine(p_ctxs, List.map(_ps => ctx, ps));
       let e_co_ctxs =
-        List.map2(
-          ((p_ctx, _ctx)) => CoCtx.mk(p_ctx, p_ctx),
-          p_ctxs_and_ctx_zip,
-          List.map(Info.exp_co_ctx, es),
-        );
+        List.map2(CoCtx.mk(ctx), p_ctxs, List.map(Info.exp_co_ctx, es));
       let unwrapped_self: Self.exp =
         Common(Self.match(ctx, e_tys, branch_ids));
       let (constraints, m) =
@@ -1769,7 +1743,7 @@ and utyp_to_info_map =
   | Arrow(t1, t2) =>
     let m = go(t1, m) |> snd;
     let m = go(t2, m) |> snd;
-    add'(~expects=TypeExpected, m);
+    add(m);
   | Prod(ts) =>
     let duplicate_labels =
       LabeledTuple.get_duplicate_labels(Typ.match_tup_label, ts);
