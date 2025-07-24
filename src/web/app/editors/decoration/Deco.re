@@ -89,12 +89,12 @@ module HighlightSegment =
           )),
         ]
       };
-    let start_shape =
+    let next_start_shape =
       switch (Piece.nibs(p)) {
       | None => start_shape
-      | Some((_, {shape, _})) => Some(Nib.Shape.flip(shape))
+      | Some((_, {shape, _})) => Some(shape)
       };
-    (start_shape, shard_data);
+    (next_start_shape, shard_data);
   }
   and of_tile = (~start_shape, t: Tile.t): list(option(_)) => {
     let tile_shards =
