@@ -15,7 +15,8 @@ module Pat = {
     | Tuple
     | Parens
     | Probe
-    | Ap
+    | ApFunc
+    | ApCons
     | Asc;
 
   include TermBase.Pat;
@@ -53,7 +54,8 @@ module Pat = {
     | Tuple(_) => Tuple
     | Parens(_) => Parens
     | Probe(_) => Probe
-    | Ap(_) => Ap
+    | Ap({term: Constructor(_), _}, _) => ApCons
+    | Ap(_) => ApFunc
     | Asc(_) => Asc;
 
   let show_cls: cls => string =
@@ -77,7 +79,8 @@ module Pat = {
     | Tuple => "Tuple"
     | Parens => "Parenthesized pattern"
     | Probe => "Probe"
-    | Ap => "Application" // Previously "Constructor application"
+    | ApCons => "Constructor application"
+    | ApFunc => "Function definition"
     | Asc => "Annotation";
 
   let rec is_var = (pat: t) => {
