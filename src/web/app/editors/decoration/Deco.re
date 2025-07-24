@@ -352,26 +352,30 @@ module Deco =
      * will show as incomplete. While a more intelligent approach is
      * possible here, I've opted for the simpler option of supressing
      * backpack display during selection */
-    let contents =
-      Selection.is_empty(z.selection) || Selection.is_buffer(z.selection)
-        ? Zipper.local_backpack(z)
+    Selection.is_empty(z.selection) || Selection.is_buffer(z.selection)
+      ? {
+        let contents =
+          Zipper.local_backpack(z)
           @ M.editor.syntax.cached_backpack
           |> ListUtil.dedup
           |> List.map(Tile.effective_label)
-          |> List.map(List.hd)
-        : [];
-    Backpack.view(
-      ~font_metrics,
-      ~can_put_down=Zipper.can_put_down(z),
-      ~caret_d=Zipper.caret_direction(z),
-      ~ind_d=
-        switch (Indicated.piece(z)) {
-        | Some((_, d, _)) => Some(d)
-        | None => None
-        },
-      ~origin=Zipper.caret_point(measured, z),
-      contents,
-    );
+          |> List.map(List.hd);
+        contents == []
+          ? Node.div([])
+          : Backpack.view(
+              ~font_metrics,
+              ~can_put_down=Zipper.can_put_down(z),
+              ~caret_d=Zipper.caret_direction(z),
+              ~ind_d=
+                switch (Indicated.piece(z)) {
+                | Some((_, d, _)) => Some(d)
+                | None => None
+                },
+              ~origin=Zipper.caret_point(measured, z),
+              contents,
+            );
+      }
+      : Node.div([]);
   };
 
   let term_decoration =

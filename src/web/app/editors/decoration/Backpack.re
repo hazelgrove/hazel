@@ -169,6 +169,6 @@ let view =
       flag(~font_metrics, ~left, ~contents, ~flag_top),
       genie(~font_metrics, ~left, ~genie_top, ~genie_height, ~genie_width),
     ]
-    @ (contents != [] ? [pole(~left, ~pole_top, ~pole_height)] : []),
+    @ [pole(~left, ~pole_top, ~pole_height)],
   );
 };
