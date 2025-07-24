@@ -5,11 +5,9 @@ open Util;
 open Language;
 
 let errc = "error";
-let warnc = "warning";
 let okc = "ok";
 let div_err = div(~attrs=[clss(["status", errc])]);
 let div_ok = div(~attrs=[clss(["status", okc])]);
-let div_warn = div(~attrs=[clss(["status", warnc])]);
 let code_box_container = x =>
   div(~attrs=[clss(["code-box-container"])], [x]);
 
@@ -51,15 +49,7 @@ let term_view = (~globals: Globals.t, ci) => {
 
   div(
     ~attrs=[
-      clss(
-        ["ci-header", sort]
-        @ (
-          Info.is_error(ci)
-            ? [errc]
-            : Info.is_warning(ci) && globals.settings.core.display_warnings
-                ? [warnc] : [okc]
-        ),
-      ),
+      clss(["ci-header", sort] @ (Info.is_error(ci) ? [errc] : [okc])),
     ],
     [
       ctx_toggle(~globals),
@@ -208,23 +198,6 @@ let common_err_view =
   );
 };
 
-let common_warn_view = (warning: Warning.t) => {
-  switch (warning) {
-  | WarningPat(w) =>
-    switch (w) {
-    | UnusedVar(name) => [
-        text("Warning: Variable"),
-        code(name),
-        text("is unused."),
-      ]
-    | _ => [text("Warning: " ++ Warning.show(warning))]
-    }
-  | WarningExp(_)
-  | WarningTyp(_)
-  | WarningTPat(_) => [text("Warning: " ++ Warning.show(warning))]
-  | None => []
-  };
-};
 let common_ok_view =
     (
       ~globals,
@@ -571,7 +544,7 @@ let rec pat_view =
       ),
     )
   | NotInHole(ok) =>
-    let ok_view =
+    div_ok(
       common_ok_view(
         ~globals,
         ~lifted_ty,
@@ -585,19 +558,8 @@ let rec pat_view =
         ~label_sort=info.label_sort,
         cls,
         ok,
-      );
-    switch (info.warning) {
-    | WarningPat(_)
-    | WarningExp(_)
-    | WarningTyp(_)
-    | WarningTPat(_) =>
-      if (globals.settings.core.display_warnings) {
-        div_warn(common_warn_view(info.warning));
-      } else {
-        div_ok(ok_view);
-      }
-    | _ => div_ok(ok_view)
-    };
+      ),
+    )
   };
 };
 
@@ -648,16 +610,11 @@ let view_of_info = (~globals, ci): list(Node.t) => {
   };
 };
 
-let inspector_view = (~globals: Globals.t, ci): Node.t =>
+let inspector_view = (~globals, ci): Node.t =>
   div(
     ~attrs=[
       Attr.id("cursor-inspector"),
-      clss([
-        Info.is_error(ci)
-          ? errc
-          : Info.is_warning(ci) && globals.settings.core.display_warnings
-              ? warnc : okc,
-      ]),
+      clss([Info.is_error(ci) ? errc : okc]),
     ],
     view_of_info(~globals, ci),
   );

@@ -118,12 +118,6 @@ let dev_group = (~globals) => {
         globals.settings.core.flip_animations,
         FlipAnimations,
       ),
-      (
-        "w",
-        "Warnings",
-        globals.settings.core.display_warnings,
-        DisplayWarnings,
-      ),
     ],
   );
 };
