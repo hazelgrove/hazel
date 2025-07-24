@@ -432,7 +432,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         );
       Match(e', List.combine(ps', es')) |> rewrap;
 
-    | Module({final, todo}) =>
+    | Module({final, todo, env}) =>
       let entries = Util.ListUtil.rev_concat(final, todo);
       let entries' =
         entries
@@ -464,6 +464,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       Module({
         final: [],
         todo: entries',
+        env,
       })
       |> rewrap;
     };

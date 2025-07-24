@@ -872,33 +872,16 @@ module Transition = (EV: EV_MODE) => {
         kind: CompleteFilter,
         is_value: true,
       });
-    | Module({final: _, todo: []}) =>
+    // We're done evaluating the module, so we can return the constructor
+    | Module({final: _, todo: [], env: _}) =>
       let. _ = otherwise(env, d);
       Constructor;
+    // We have more entries to evaluate in the module, next up is a ValBinding
     | Module({
         final,
         todo: [{term: ValBinding(p, e), annotation}, ...todo],
+        env: m_env,
       }) =>
-      let entries_to_env = {
-        List.fold_left((env: ClosureEnvironment.t, entry: ModuleEntry.t) => {
-          switch (entry.term) {
-          | ValBinding(p, d) =>
-            switch (matches(p, d).matches) {
-            | IndetMatch
-            | DoesNotMatch => env
-            | Matches(env') =>
-              ClosureEnvironment.extend_eval(
-                ~call_stack=env.call_stack,
-                env',
-                env,
-              )
-            }
-          | TypeDef(_)
-          | Hole(_)
-          | MultipleEntries(_) => env
-          }
-        });
-      };
       let. _ =
         otherwise(env, d =>
           Module({
@@ -910,15 +893,33 @@ module Transition = (EV: EV_MODE) => {
               },
               ...todo,
             ],
+            env: m_env,
           })
           |> rewrap
         )
+      // this "call-stack" situation seems suspicious...
       and. d' =
         req_final(
-          req(state, entries_to_env(env, todo)),
-          d => ValBinding(p, d, (final, todo)) |> wrap_ctx,
+          req(
+            state,
+            ClosureEnvironment.extend_eval(
+              ~call_stack=env.call_stack,
+              m_env,
+              env,
+            ),
+          ),
+          d => ValBinding(p, d, (final, todo, m_env)) |> wrap_ctx,
           e,
         );
+
+      let entry_env =
+        switch (matches(p, d').matches) {
+        | IndetMatch
+        | DoesNotMatch => ClosureEnvironment.to_environment(env)
+        | Matches(env') => env'
+        };
+      let m_env_with_entry = Environment.union(m_env, entry_env);
+
       Step({
         expr:
           Module({
@@ -930,12 +931,14 @@ module Transition = (EV: EV_MODE) => {
               ...final,
             ],
             todo,
+            env: m_env_with_entry,
           })
           |> rewrap,
         state_update,
         kind: ModuleNextEntry,
         is_value: List.is_empty(todo),
       });
+    // We have more entries to evaluate in the module, next up is a TypeDef, Hole, or MultipleEntries
     | Module({
         final,
         todo:
@@ -943,6 +946,7 @@ module Transition = (EV: EV_MODE) => {
             {term: TypeDef(_) | Hole(_) | MultipleEntries(_), _} as b,
             ...todo,
           ],
+        env: m_env,
       }) =>
       let. _ = otherwise(env, d);
       Step({
@@ -950,6 +954,7 @@ module Transition = (EV: EV_MODE) => {
           Module({
             final: [b, ...final],
             todo,
+            env: m_env,
           })
           |> rewrap,
         state_update,

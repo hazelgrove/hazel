@@ -267,6 +267,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           Module({
             final: [],
             todo: [],
+            env: Environment.empty,
           }),
         )
       | ([t], []) when Form.is_wild(t) => ret(Deferral(OutsideAp))
@@ -300,6 +301,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
             Module({
               final: [],
               todo: entries,
+              env: Environment.empty,
             }),
           )
         | _ =>
@@ -307,6 +309,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
             Module({
               final: [],
               todo: [a],
+              env: Environment.empty,
             }),
           )
         }

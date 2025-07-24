@@ -718,7 +718,9 @@ let rec module_entry_to_pretty =
         (~settings: Settings.t, m: ModuleEntry.t): pretty => {
   switch (m |> ModuleEntry.term_of) {
   | ValBinding(pat, exp) =>
-    (pat |> pat_to_pretty(~settings)) @ (exp |> exp_to_pretty(~settings))
+    (pat |> pat_to_pretty(~settings))
+    @ [Secondary(mk_space(Id.mk()))]
+    @ (exp |> exp_to_pretty(~settings))
   | TypeDef(tpat, typ) =>
     (tpat |> tpat_to_pretty(~settings)) @ (typ |> typ_to_pretty(~settings))
   | Hole(_) => []
@@ -870,7 +872,7 @@ and exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     [mk_form(ParensExp, exp |> Exp.rep_id, [fun_form])]
     |> fold_fun_if(settings.fold_fn_bodies, name);
   | LivelitName(s) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "^" ++ s)
-  | Module({todo, final}) =>
+  | Module({todo, final, env: _env}) =>
     text_to_pretty(
       exp |> Exp.rep_id,
       Sort.Exp,
@@ -879,7 +881,7 @@ and exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
            module_entry_to_pretty(~settings: Settings.t, m)
            |> Segment.to_string
          )
-      |> String.concat(" "),
+      |> String.concat(";\n"),
     )
   | Fun(p, e, t, _) =>
     // TODO: Add optional newlines

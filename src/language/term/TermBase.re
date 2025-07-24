@@ -311,11 +311,20 @@ and Exp: {
         | BinOp(op, e1, e2) =>
           BinOp(op, exp_map_term(e1), exp_map_term(e2))
         | BuiltinFun(str) => BuiltinFun(str)
-        | Module({final, todo}) =>
+        | Module({final, todo, env}) =>
           Module({
             final:
-              VarBstMap.Ordered.mapo(
-                ((_, entry)) => exp_map_term(entry),
+              List.map(
+                entry =>
+                  ModuleEntry.map_term(
+                    ~f_exp,
+                    ~f_pat,
+                    ~f_typ,
+                    ~f_tpat,
+                    ~f_rul,
+                    ~f_any,
+                    entry,
+                  ),
                 final,
               ),
             todo:
@@ -331,6 +340,11 @@ and Exp: {
                     entry,
                   ),
                 todo,
+              ),
+            env:
+              VarBstMap.Ordered.mapo(
+                ((_, entry)) => exp_map_term(entry),
+                env,
               ),
           })
         | Match(e, rls) =>
@@ -350,15 +364,19 @@ and Exp: {
   let rec fast_equal = (~ignore_constructor_types: bool=false, e1: t, e2: t) => {
     let fast_equal = fast_equal(~ignore_constructor_types);
     switch (e1 |> Grammar.Annotated.term_of, e2 |> Grammar.Annotated.term_of) {
-    | (Module({final, todo}), Module({final: final', todo: todo'})) =>
-      Environment.length(final) == Environment.length(final')
+    | (
+        Module({final, todo, env}),
+        Module({final: final', todo: todo', env: env'}),
+      ) =>
+      List.length(final) == List.length(final')
       && List.length(todo) == List.length(todo')
       && List.equal(
            ((s1, e1), (s2, e2)) => s1 == s2 && fast_equal(e1, e2),
-           Environment.to_listo(final),
-           Environment.to_listo(final'),
+           Environment.to_listo(env),
+           Environment.to_listo(env'),
          )
       && List.equal(ModuleEntry.fast_equal, todo, todo')
+      && List.equal(ModuleEntry.fast_equal, final, final')
     | (DynamicErrorHole(x, _), _)
     | (Parens(x), _) => fast_equal(x, e2)
     | (_, DynamicErrorHole(x, _))
@@ -992,6 +1010,7 @@ and ClosureEnvironment: {
   let empty: t;
 
   let of_environment: Environment.t => t;
+  let to_environment: t => Environment.t;
 
   let map_of: t => Environment.t;
   let call_stack_of: t => Probe.call_stack;
@@ -1040,6 +1059,7 @@ and ClosureEnvironment: {
   let to_list = env => env |> map_of |> Environment.to_listo;
 
   let of_environment = env => wrap(Id.mk(), env, []);
+  let to_environment = env => env |> map_of;
 
   /* Equals only needs to check environment id's (faster than structural equality
    * checking.) */
