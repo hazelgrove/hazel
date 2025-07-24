@@ -650,6 +650,17 @@ module Transition = (EV: EV_MODE) => {
           })
         | _ => Indet
         }
+      | (Module({env: m_env, _}), Label(name)) =>
+        switch (Environment.lookup(m_env, name)) {
+        | Some(d) =>
+          Step({
+            expr: d,
+            state_update,
+            kind: ModuleNextEntry,
+            is_value: false,
+          })
+        | None => Indet
+        }
       | (TupLabel(_, d), Label(name)) =>
         LabeledTuple.has_same_labels(
           Exp.match_tup_label(d1'),
@@ -1047,6 +1058,6 @@ let stepper_justification: step_kind => string =
   | RemoveTypeAlias => "define type"
   | RemoveUse => "set use type"
   | RemoveParens => "remove parentheses"
-  | Dot => "Labeled tuple access"
+  | Dot => "Labeled tuple and module access"
   | ModuleNextEntry => "next module entry"
   | UnOp(Meta(Unquote)) => failwith("INVALID STEP");

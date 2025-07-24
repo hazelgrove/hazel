@@ -539,23 +539,18 @@ and module_entry_term: unsorted => (TermBase.module_entry_term, list(Id.t)) =
     let ret = (term: TermBase.module_entry_term) => (term, []);
     let hole = (unsorted: unsorted): TermBase.module_entry_term =>
       Hole(kids_of_unsorted(unsorted));
-    print_endline(
-      "Unsorted module entry: " ++ [%derive.show: unsorted](unsorted),
-    );
     switch (unsorted) {
-    | Bin(ModuleEntry(l), ([(_id, ([";;"], []))], []), ModuleEntry(r)) as tm =>
-      print_endline("bin: " ++ [%derive.show: unsorted](tm));
+    | Bin(ModuleEntry(l), ([(_id, ([";;"], []))], []), ModuleEntry(r)) =>
       switch (l.term, r.term) {
       | (MultipleEntries(ls), MultipleEntries(rs)) =>
         ret(MultipleEntries(ls @ rs))
       | (MultipleEntries(ls), _) => ret(MultipleEntries(ls @ [r]))
       | (_, MultipleEntries(rs)) => ret(MultipleEntries([l] @ rs))
       | (_, _) => ret(MultipleEntries([l, r]))
-      };
+      }
     | Pre(tiles, Exp(last_exp)) as tm =>
       switch (tiles) {
       | ([(_id, t)], []) =>
-        // print_endline("t: " ++ [%derive.show: Aba.t(string, Any.t)](t));
         switch (t) {
         | (["val", "="], [Pat(p)]) => ret(ValBinding(p, last_exp))
         | _ => ret(hole(tm))
@@ -565,22 +560,17 @@ and module_entry_term: unsorted => (TermBase.module_entry_term, list(Id.t)) =
     | Pre(tiles, Typ(last_pat)) as tm =>
       switch (tiles) {
       | ([(_id, t)], []) =>
-        print_endline("t: " ++ [%derive.show: Aba.t(string, Any.t)](t));
         switch (t) {
         | (["typedef", "="], [TPat(p)]) => ret(TypeDef(p, last_pat))
         | _ => ret(hole(tm))
-        };
+        }
       | _ => ret(hole(tm))
       }
     | Op(_) as tm => ret(Hole([Exp(exp(tm))]))
-    | tm =>
-      print_endline("Current failure: " ++ [%derive.show: unsorted](tm));
-      ret(hole(unsorted));
+    | _ => ret(hole(unsorted))
     };
   }
 and module_entry = (skel, segment) => {
-  print_endline("Skel: " ++ [%derive.show: Skel.t](skel) ++ "\n");
-  print_endline("Segment: " ++ [%derive.show: Segment.t](segment) ++ "\n");
   let unsorted = unsorted(skel, segment);
   let (term, inner_ids) = module_entry_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
@@ -605,9 +595,6 @@ and module_signature_entry_term:
     let ret = (term: TermBase.module_signature_entry_term) => (term, []);
     let hole = (unsorted: unsorted): TermBase.module_signature_entry_term =>
       Hole(kids_of_unsorted(unsorted));
-    print_endline(
-      "Unsorted module entry: " ++ [%derive.show: unsorted](unsorted),
-    );
     switch (unsorted) {
     | Bin(
         ModuleSignatureEntry(l),
@@ -634,14 +621,10 @@ and module_signature_entry_term:
       | _ => assert(false)
       }
     | Op(_) as tm => ret(Hole([Exp(exp(tm))]))
-    | tm =>
-      print_endline("Current failure: " ++ [%derive.show: unsorted](tm));
-      ret(hole(unsorted));
+    | _ => ret(hole(unsorted))
     };
   }
 and module_signature_entry = (skel, segment) => {
-  print_endline("Skel: " ++ [%derive.show: Skel.t](skel) ++ "\n");
-  print_endline("Segment: " ++ [%derive.show: Segment.t](segment) ++ "\n");
   let unsorted = unsorted(skel, segment);
   let (term, inner_ids) = module_signature_entry_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;

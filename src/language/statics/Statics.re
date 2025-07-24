@@ -30,6 +30,36 @@
 
 module Info = Info;
 
+let module_signature_to_string_map =
+    (signature: list(TermBase.module_signature_entry_t)) =>
+  VarBstMap.Ordered.of_list(
+    List.map(
+      entry =>
+        switch (entry |> ModuleSignatureEntry.term_of) {
+        | ValType(p, _) =>
+          print_endline(
+            "Entry: "
+            ++ [%derive.show: TermBase.module_signature_entry_t](entry),
+          );
+          print_endline("Pat: " ++ [%derive.show: TermBase.pat_t](p));
+          (
+            p |> Pat.get_var |> Option.value(~default="NOCONSTRUCTORNAME"),
+            entry,
+          );
+        | TypeDef(tp, _) => (tp |> TPat.show, entry)
+        | Hole(_) => ("", entry)
+        | MultipleEntries(_) => ("", entry)
+        },
+      signature,
+    ),
+  );
+
+let find_module_signature_entry =
+    (key: string, signature: list(TermBase.module_signature_entry_t)) => {
+  let signature_map = module_signature_to_string_map(signature);
+  VarBstMap.Ordered.lookup(signature_map, key);
+};
+
 module Map = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Id.Map.t(Info.t);
@@ -699,6 +729,44 @@ and uexp_to_info_map =
           )
         | _ => add(~self=BadLabel(Exp(e2)), ~co_ctx=info_e2.co_ctx, m)
         };
+      | ModuleSignature(entries) =>
+        switch (e2.term) {
+        | Label(name) =>
+          switch (find_module_signature_entry(name, entries)) {
+          | Some(entry) =>
+            switch (entry |> ModuleSignatureEntry.term_of) {
+            | ValType(_, ty) =>
+              add(~self=Just(ty), ~co_ctx=info_e2.co_ctx, m)
+            | TypeDef(_, tty) =>
+              add(~self=Just(tty), ~co_ctx=info_e2.co_ctx, m)
+            | Hole(_) =>
+              add(
+                ~self=Just(Unknown(Internal) |> Typ.temp),
+                ~co_ctx=info_e2.co_ctx,
+                m,
+              )
+            | MultipleEntries(_) =>
+              add(
+                ~self=Just(Unknown(Internal) |> Typ.temp),
+                ~co_ctx=info_e2.co_ctx,
+                m,
+              )
+            }
+          | None =>
+            add'(
+              ~self=
+                LabelNotFound(
+                  name,
+                  module_signature_to_string_map(entries)
+                  |> VarBstMap.Ordered.to_listk
+                  |> List.map(fst),
+                ),
+              ~co_ctx=info_e2.co_ctx,
+              m,
+            )
+          }
+        | _ => add(~self=BadLabel(Exp(e2)), ~co_ctx=info_e2.co_ctx, m)
+        }
       | _ => add'(~self=WantTuple, ~co_ctx=info_e2.co_ctx, m)
       };
     | Test(e) =>
