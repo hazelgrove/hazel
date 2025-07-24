@@ -355,7 +355,7 @@ module Deco =
     let contents =
       Selection.is_empty(z.selection) || Selection.is_buffer(z.selection)
         ? Zipper.local_backpack(z)
-          @ Segment.global_missing_shards(segment)
+          @ M.editor.syntax.cached_backpack
           |> ListUtil.dedup
           |> List.map(Tile.effective_label)
           |> List.map(List.hd)

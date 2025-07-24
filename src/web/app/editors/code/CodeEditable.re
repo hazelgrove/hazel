@@ -59,7 +59,6 @@ module Update = {
              | Destruct(_)
              | Insert(_)
              | Put_down
-             | MoveToBackpackTarget(_)
              | Buffer(Set(_) | Accept | Clear)
              | Paste(_)
              | Copy

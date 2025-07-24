@@ -24,9 +24,12 @@ let set_llm_buffer = (z: t, response: string): t =>
     {
       open OptUtil.Syntax;
       //TODO: Error feedback on below
-      let* content = Parser.to_zipper(response);
-      let+ _ = [] == Zipper.local_backpack(content) ? Some() : None;
-      Zipper.set_buffer(z, ~content=Zipper.zip(content), ~mode=Parsed);
+      let* rz = Parser.to_zipper(response);
+      switch (Zipper.local_backpack(rz)) {
+      | [] =>
+        Some(Zipper.set_buffer(z, ~content=Zipper.zip(rz), ~mode=Parsed))
+      | _ => None
+      };
     }
   ) {
   | None => z
@@ -251,6 +254,5 @@ let go_z =
       }
     )
     |> Result.of_option(~error=Action.Failure.Cant_put_down)
-  | MoveToBackpackTarget(_) => Error(Cant_move)
   };
 };
