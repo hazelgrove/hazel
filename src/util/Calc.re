@@ -62,6 +62,12 @@ let get_saved = (default, x: saved('a)): 'a =>
   | Calculated(x) => x
   };
 
+let get_saved_opt = (x: saved('a)): option('a) =>
+  switch (x) {
+  | Pending => None
+  | Calculated(x) => Some(x)
+  };
+
 exception PendingValue;
 
 let get_saved_exc = (~print=?, x: saved('a)): 'a =>
@@ -94,6 +100,18 @@ let update = (x: t('a), f: 'a => 'b, y: saved('b)): t('b) =>
   | (Calculated(y), OldValue(_)) => OldValue(y)
   };
 
+let update' = (x: t('a), f: 'a => 'b, y: t('b)): t('b) =>
+  switch (x) {
+  | OldValue(_) => y
+  | NewValue(x) => NewValue(f(x))
+  };
+
+let update'' = (x: t('a), f: 'a => 'b, y: 'b): t('b) =>
+  switch (x) {
+  | OldValue(_) => OldValue(y)
+  | NewValue(x) => NewValue(f(x))
+  };
+
 /* Using set, we can compare some value to the previously saved value, and create
    a new t('a) that indicates whether the value has changed. */
 let set = (~eq: ('a, 'a) => bool=(==), x: 'a, y: saved('a)) =>
@@ -118,11 +136,7 @@ let save = (x: t('a)): saved('a) =>
   | NewValue(x) => Calculated(x)
   };
 
-let saved_to_option = (x: saved('a)): option('a) =>
-  switch (x) {
-  | Pending => None
-  | Calculated(x) => Some(x)
-  };
+let saved_to_option = get_saved_opt;
 
 // ================================================================================
 // Helper functions:
@@ -152,5 +166,6 @@ let pair_saved = (x: saved('a), y: saved('b)): saved(('a, 'b)) =>
 
 module Syntax = {
   let (let.calc) = update;
+  let (let.calc_t) = update';
   let (and.calc) = combine;
 };

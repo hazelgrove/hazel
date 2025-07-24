@@ -23,9 +23,6 @@ let mk_results = (~descriptions=[], test_map: TestMap.t): t => {
   unfinished: TestMap.count_status(Indet, test_map),
 };
 
-let of_state = (state: EvaluatorState.t): t =>
-  state |> EvaluatorState.get_tests |> mk_results;
-
 let result_summary_str =
     (~n, ~p, ~q, ~n_str, ~ns_str, ~p_str, ~q_str, ~r_str): string => {
   let one_p = "one is " ++ p_str ++ " ";
