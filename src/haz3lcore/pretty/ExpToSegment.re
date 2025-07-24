@@ -872,17 +872,10 @@ and exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     [mk_form(ParensExp, exp |> Exp.rep_id, [fun_form])]
     |> fold_fun_if(settings.fold_fn_bodies, name);
   | LivelitName(s) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "^" ++ s)
-  | Module({todo, final, env: _env}) =>
-    text_to_pretty(
-      exp |> Exp.rep_id,
-      Sort.Exp,
-      List.rev_append(todo, final)
-      |> List.map(m =>
-           module_entry_to_pretty(~settings: Settings.t, m)
-           |> Segment.to_string
-         )
-      |> String.concat(";\n"),
-    )
+  | Module({todo: _todo, final, env: _env}) =>
+    final
+    |> List.map(m => module_entry_to_pretty(~settings: Settings.t, m))
+    |> List.flatten
   | Fun(p, e, t, _) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
@@ -1357,15 +1350,11 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
       },
     ]);
   | ModuleSignature(entries) =>
-    text_to_pretty(
-      typ |> Typ.rep_id,
-      Sort.Typ,
+    List.flatten(
       entries
       |> List.map(m =>
            module_signature_entry_to_pretty(~settings: Settings.t, m)
-           |> Segment.to_string
-         )
-      |> String.concat(" "),
+         ),
     )
   | Parens(t) =>
     let id = typ |> Typ.rep_id;
