@@ -173,6 +173,12 @@ let replace_id = (id: Id.t, p: t): t =>
     })
   };
 
+let mk_grout = (~id=Id.mk(), shape: Grout.shape): t =>
+  grout({
+    id,
+    shape,
+  });
+
 let mk_tile: (Form.t, list(list(t))) => t =
   (form, children) =>
     Tile({
