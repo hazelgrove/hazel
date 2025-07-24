@@ -52,6 +52,7 @@ type step_kind =
   | Seq
   | LetBind(string)
   | TheoremBind
+  | RecordTheorem
   | WrapClosure
   | FixUnwrap
   | FixClosure
@@ -124,6 +125,8 @@ module type EV_MODE = {
   let update_test: (state, Id.t, TestMap.instance_report) => unit;
 
   let update_probe: (state, Dynamics.Probe.Closure.t) => unit;
+
+  let record_theorem: (state, Id.t, Environment.t, Typ.t) => unit;
 };
 
 module Transition = (EV: EV_MODE) => {
@@ -285,9 +288,24 @@ module Transition = (EV: EV_MODE) => {
         kind: TheoremBind,
         is_value: false,
       });
-    | ProofOf(_) =>
+    | ProofOf(t) =>
       let. _ = otherwise(env, d);
-      Value;
+      switch (mode) {
+      | `Substitution => Value
+      | `Environment =>
+        Step({
+          expr: d,
+          state_update: () =>
+            record_theorem(
+              state,
+              DHExp.rep_id(d),
+              env |> ClosureEnvironment.map_of,
+              t,
+            ),
+          kind: RecordTheorem,
+          is_value: true,
+        })
+      };
     | TypFun(_)
     | Fun(_, _, _, _) =>
       let. _ = otherwise(env, d);
@@ -950,12 +968,14 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | WrapClosure
   | FixClosure
   | MarkIncomparable
+  | RecordTheorem
   | RemoveParens => true;
 
 let stepper_justification: step_kind => string =
   fun
   | LetBind(s) => String.cat("substitution for ", s)
   | TheoremBind => "theorem substitution"
+  | RecordTheorem => "record theorem"
   | Seq => "sequence"
   | FixUnwrap => "unroll fixpoint"
   | UpdateTest => "update test"

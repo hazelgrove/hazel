@@ -48,6 +48,7 @@ module ValueCheckerEVMode: {
 
   let update_test = (_, _, _) => ();
   let update_probe = (_, _) => ();
+  let record_theorem = (_, _, _, _) => ();
 };
 
 module CV = Transition(ValueCheckerEVMode);

@@ -23,3 +23,7 @@ let get_tests: t => TestMap.t;
 let add_closure: (t, Dynamics.Probe.Closure.t) => t;
 
 let get_probes: t => Dynamics.Probe.Map.t;
+
+let add_theorem: (t, Id.t, Environment.t, Typ.t) => t;
+
+let get_theorems: t => list((Id.t, Environment.t, Typ.t));

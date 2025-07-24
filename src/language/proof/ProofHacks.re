@@ -268,6 +268,12 @@ let rec replace_exp = (replace, replace_coctx, with_exp, with_coctx, in_exp) => 
             ),
           )
           |> rewrap
+        | Theorem(p, e) =>
+          if (is_bound(p)) {
+            exp;
+          } else {
+            Theorem(p, replace_exp(e)) |> rewrap;
+          }
         /* Forms without binders: continue */
         | EmptyHole
         | Undefined
@@ -303,6 +309,7 @@ let rec replace_exp = (replace, replace_coctx, with_exp, with_coctx, in_exp) => 
         | UnOp(_, _)
         | BinOp(_, _, _)
         | BuiltinFun(_)
+        | ProofOf(_)
         | Asc(_, _) => continue(exp)
         };
       },

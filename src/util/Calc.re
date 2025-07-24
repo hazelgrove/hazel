@@ -67,12 +67,6 @@ let get_saved_opt = (x: saved('a)): option('a) =>
   | Calculated(x) => Some(x)
   };
 
-let get_saved_opt = (x: saved('a)): option('a) =>
-  switch (x) {
-  | Pending => None
-  | Calculated(x) => Some(x)
-  };
-
 exception PendingValue;
 
 let get_saved_exc = (~print=?, x: saved('a)): 'a =>

@@ -92,6 +92,9 @@ module EvaluatorEVMode: {
   let update_probe = (state, closure: Dynamics.Probe.Closure.t) =>
     state := EvaluatorState.add_closure(state^, closure);
 
+  let record_theorem = (state, id, d, env) =>
+    state := EvaluatorState.add_theorem(state^, id, d, env);
+
   let req_final = (f, _, x) => {
     let.trampoline x' = Next(() => f(x));
     Trampoline.return(x' |> snd);
