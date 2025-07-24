@@ -468,6 +468,13 @@ let get: compound_form => t =
 let forms: list((compound_form, t)) =
   List.map(f => (f, get(f)), all_of_compound_form);
 
+/* These are tokens that have proven annoying as TyDi suggestions.
+ * This category is doubly nominative in that it has proven hard
+ * to derive automatically; typically these are annoying bacause
+ * they have a prefix that occurs more commonly */
+let annoying_delims = ["|>", "||", "::", "!=", "!=.", "**."];
+let is_annoying_delim = List.mem(_, annoying_delims);
+
 /* Returns a list of all strings which are proper prefixes of
  * a non-leading alphanumeric concave delimiter of a compount form.
  * These are assigned a special backup infix-op mode, so that

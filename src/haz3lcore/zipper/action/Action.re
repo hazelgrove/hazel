@@ -93,7 +93,6 @@ type t =
   | Unselect(option(Direction.t))
   | Destruct(Direction.t)
   | Insert(string)
-  | MoveToBackpackTarget(planar)
   | Put_down
   | Introduce;
 
@@ -135,8 +134,7 @@ let is_edit: t => bool =
   | Move(_)
   | Jump(_)
   | Select(_)
-  | Unselect(_)
-  | MoveToBackpackTarget(_) => false
+  | Unselect(_) => false
   | Project(p) =>
     switch (p) {
     | SetSyntax(_)
@@ -154,8 +152,7 @@ let is_historic: t => bool =
   | Move(_)
   | Jump(_)
   | Select(_)
-  | Unselect(_)
-  | MoveToBackpackTarget(_) => false
+  | Unselect(_) => false
   | Cut
   | Buffer(Accept | Clear | Set(_))
   | Paste(_)
@@ -188,7 +185,6 @@ let prevent_in_read_only_editor = (a: t) => {
   | Destruct(_)
   | Insert(_)
   | Put_down
-  | MoveToBackpackTarget(_)
   | Introduce => true
   | Project(p) =>
     switch (p) {
@@ -230,5 +226,4 @@ let should_animate: t => bool =
   | Copy
   | Move(_)
   | Jump(_)
-  | MoveToBackpackTarget(_)
   | Project(_) => true;
