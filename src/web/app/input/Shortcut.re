@@ -83,12 +83,6 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       Globals(ActiveEditor(Select(Term(Current)))),
     ),
     mk_shortcut(
-      ~hotkey=Keyboard.meta(sys) ++ "+p",
-      ~mdIcon="backpack",
-      "Pick up selected term",
-      Globals(ActiveEditor(Pick_up)),
-    ),
-    mk_shortcut(
       ~mdIcon="select_all",
       ~hotkey=Keyboard.meta(sys) ++ "+a",
       ~section="Selection",
