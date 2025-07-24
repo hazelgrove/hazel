@@ -169,6 +169,25 @@ let parse_livelit = (str): string =>
     "invalid form";
   };
 
+let projector_invoke_prefix = "^^";
+
+let of_projector_invoke = (input: string): option(string) =>
+  if (String.starts_with(~prefix=projector_invoke_prefix, input)
+      && String.length(input) > 2) {
+    Some(String.sub(input, 2, String.length(input) - 2));
+  } else {
+    None;
+  };
+
+let is_projector_invoke = (str: string): bool =>
+  switch (of_projector_invoke(str)) {
+  | Some(name) => ProjectorCore.Kind.is_name(name)
+  | None => false
+  };
+
+let mk_projector_invoke = (kind: ProjectorCore.Kind.t): string =>
+  projector_invoke_prefix ++ ProjectorCore.Kind.name(kind);
+
 let var_regexp =
   regexp(
     {|(^[a-z_][A-Za-z0-9_']*$)|(^[A-Z][A-Za-z0-9_']*\.[a-z][A-Za-z0-9_']*$)|},
@@ -237,6 +256,32 @@ let bad_token_cls: string => bad_token_cls =
     };
 
 let mk_parens = (sort: Sort.t) => mk(ii, tuple_lbl, mk_op(sort, [sort]));
+
+/* B. Operands:
+   Order in this type determines relative remolding
+   priority for forms with overlapping regexps */
+
+[@deriving enumerate]
+type atomic_form =
+  | Var
+  | ExplicitHole
+  | LLMHole
+  | Wild
+  | String
+  | IntLit
+  | FloatLit
+  | BoolLit
+  | LivelitName
+  | ProjectorInvoke
+  | UndefinedLit
+  | EmptyList
+  | EmptyTuple
+  | Deferral
+  | TyVar
+  | TyVarP
+  | Ctr
+  | Type
+  | InfixDelimiterPrefix;
 
 /* C. Compound Forms:
    Order in this type determines relative remolding
@@ -498,37 +543,10 @@ let delims: list(Token.t) =
   |> List.fold_left((acc, (_, {label, _}: t)) => {label @ acc}, [])
   |> List.sort_uniq(compare);
 
-/* B. Operands:
-   Order in this type determines relative remolding
-   priority for forms with overlapping regexps */
-
-[@deriving enumerate]
-type atomic_form =
-  | Var
-  | ExplicitHole
-  | LLMHole
-  | Wild
-  | String
-  | IntLit
-  | FloatLit
-  | BoolLit
-  | LivelitName
-  | UndefinedLit
-  | EmptyList
-  | EmptyTuple
-  | Deferral
-  | TyVar
-  | TyVarP
-  | Ctr
-  | Type
-  | InfixDelimiterPrefix;
-
 let get_atomic_form: atomic_form => (string => bool, list(Mold.t)) =
   fun
   | Var => (is_var, [mk_op(Exp, []), mk_op(Pat, [])])
-  | InfixDelimiterPrefix =>
-    /* See comment on infix_delimiter_ops_prefixes */
-    (
+  | InfixDelimiterPrefix => (
       is_infix_delimiter_op_prefix,
       [
         mk_bin(Precedence.max, Exp, []),
@@ -550,6 +568,10 @@ let get_atomic_form: atomic_form => (string => bool, list(Mold.t)) =
   | IntLit => (is_int, [mk_op(Exp, []), mk_op(Pat, [])])
   | FloatLit => (is_float, [mk_op(Exp, []), mk_op(Pat, [])])
   | LivelitName => (is_livelit, [mk_op(Exp, []), mk_op(Pat, [])])
+  | ProjectorInvoke => (
+      is_projector_invoke,
+      [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, []), mk_op(TPat, [])],
+    )
   | BoolLit => (is_bool, [mk_op(Exp, []), mk_op(Pat, [])])
   | UndefinedLit => (is_undefined, [mk_op(Exp, []), mk_op(Pat, [])])
   | EmptyList => (is_empty_list, [mk_op(Exp, []), mk_op(Pat, [])])

@@ -379,7 +379,11 @@ module ErrorRound = {
       | [_, ..._] as orphans =>
         let orphans =
           List.map(
-            Base.tile_to_string(~holes="", ~concave_holes=" "),
+            Base.tile_to_string(
+              ~holes="",
+              ~concave_holes=" ",
+              ~projector_to_segment=Insert.projector_to_invoke,
+            ),
             orphans,
           );
         Error(
