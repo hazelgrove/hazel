@@ -390,8 +390,7 @@ module TakeStep = {
 
 let take_step = TakeStep.take_step;
 
-let decompose = (d: DHExp.t, es: EvaluatorState.t) => {
-  let env = ClosureEnvironment.of_environment(Builtins.env_init);
+let decompose = (d: DHExp.t, env: ClosureEnvironment.t, es: EvaluatorState.t) => {
   let rs = Decompose.decompose(ref(es), env, d);
   Decompose.Result.unbox(rs);
 };
@@ -407,9 +406,9 @@ type status =
   | AutoStep(step)
   | AvailableSteps(list(step));
 
-let get_status = (~settings: CoreSettings.t, exp, state) => {
+let get_status = (~settings: CoreSettings.t, exp, env, state) => {
   let eos =
-    decompose(exp, state)
+    decompose(exp, env, state)
     |> List.map(should_hide_eval_obj(~settings=settings.evaluation)); // NOTE: should_hide_eval_obj actually changes the eval obj to do filter bookkeeping!!!
   switch (List.find_opt(((x, _)) => x == FilterAction.Eval, eos)) {
   | Some((_, x)) => AutoStep(x)
@@ -440,11 +439,12 @@ let refresh_step =
     (
       ~settings: CoreSettings.t,
       exp: Exp.t,
+      env: ClosureEnvironment.t,
       state: EvaluatorState.t,
       step: step,
     ) => {
   let eos =
-    decompose(exp, state)
+    decompose(exp, env, state)
     |> List.map(should_hide_eval_obj(~settings=settings.evaluation)); // NOTE: should_hide_eval_obj actually changes the eval obj to do filter bookkeeping!!!
   let* (h, x) =
     List.find_opt(

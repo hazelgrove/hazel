@@ -59,6 +59,7 @@ module F =
         ~hidden: Calc.saved(bool),
         ~exp: Calc.t(Exp.t),
         ~ctx as _: Calc.t(Ctx.t),
+        ~env as _: Calc.t(ClosureEnvironment.t),
         ~state: Calc.t(EvaluatorState.t),
         ~editor as _: Calc.t(CodeSelectable.Model.t),
         model: model,

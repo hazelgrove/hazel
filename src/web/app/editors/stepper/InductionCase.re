@@ -73,8 +73,9 @@ module F = (Stepper: STEPPER) => {
         ~elab_scrut: Calc.t(Exp.t),
         ~scrut_ty: Calc.t(Typ.t),
         ~scrut_co_ctx: Calc.t(CoCtx.t),
-        ~ctx: Calc.t(Ctx.t),
         ~exp: Calc.t(Exp.t),
+        ~ctx: Calc.t(Ctx.t),
+        ~env: Calc.t(ClosureEnvironment.t),
         ~state: Calc.t(EvaluatorState.t),
         model: model,
       ) => {
@@ -144,6 +145,7 @@ module F = (Stepper: STEPPER) => {
         ~settings, // TODO: this is a little ugly
         ~ctx=inner_ctx,
         ~exp=inner_exp,
+        ~env,
         ~state,
         model.step,
       );

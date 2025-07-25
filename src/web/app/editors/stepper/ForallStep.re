@@ -76,6 +76,7 @@ module F =
         ~hidden: Calc.saved(bool),
         ~exp: Calc.t(Exp.t),
         ~ctx: Calc.t(Ctx.t),
+        ~env: Calc.t(ClosureEnvironment.t),
         ~state: Calc.t(EvaluatorState.t),
         ~editor as _: Calc.t(CodeSelectable.Model.t),
         model: model,
@@ -102,6 +103,7 @@ module F =
       Stepper.calculate(
         ~settings,
         ~ctx=bindings,
+        ~env,
         ~exp=inner_exp,
         ~state,
         inner_stepper,

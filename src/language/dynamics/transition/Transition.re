@@ -126,7 +126,7 @@ module type EV_MODE = {
 
   let update_probe: (state, Dynamics.Probe.Closure.t) => unit;
 
-  let record_theorem: (state, Id.t, Environment.t, Typ.t) => unit;
+  let record_theorem: (state, Id.t, ClosureEnvironment.t, Typ.t) => unit;
 };
 
 module Transition = (EV: EV_MODE) => {
@@ -215,31 +215,31 @@ module Transition = (EV: EV_MODE) => {
     // Transition rules
     switch (term) {
     | Var(x) =>
-      switch (mode) {
-      | `Environment =>
-        let. _ = otherwise(env, Var(x) |> rewrap);
-        switch (ClosureEnvironment.lookup(env, x)) {
-        | Some(d) =>
-          let is_value =
-            switch (d |> Exp.term_of) {
-            | FixF(_, _, _) => false // fixpoints aren't final
-            | Let(_, _, _) => false // could be mutually-recursive fixpoint
-            | _ => true // all other closure entries should be final
-            };
-          Step({
-            expr: d |> fast_copy(Id.mk()),
-            state_update,
-            kind: VarLookup,
-            is_value,
-          });
-        | None =>
-          let.wrap_closure _ = env;
-          Indet;
-        };
-      | `Substitution =>
-        let. _ = otherwise(env, d);
+      // switch (mode) {
+      // | `Environment =>
+      let. _ = otherwise(env, Var(x) |> rewrap);
+      switch (ClosureEnvironment.lookup(env, x)) {
+      | Some(d) =>
+        let is_value =
+          switch (d |> Exp.term_of) {
+          | FixF(_, _, _) => false // fixpoints aren't final
+          | Let(_, _, _) => false // could be mutually-recursive fixpoint
+          | _ => true // all other closure entries should be final
+          };
+        Step({
+          expr: d |> fast_copy(Id.mk()),
+          state_update,
+          kind: VarLookup,
+          is_value,
+        });
+      | None =>
+        let.wrap_closure _ = env;
         Indet;
-      }
+      };
+    // | `Substitution =>
+    //   let. _ = otherwise(env, d);
+    //   Indet;
+    // }
     | Seq(d1, d2) =>
       let. _ = otherwise(env, d1 => Seq(d1, d2) |> rewrap)
       and. _ =
@@ -295,13 +295,7 @@ module Transition = (EV: EV_MODE) => {
       | `Environment =>
         Step({
           expr: d,
-          state_update: () =>
-            record_theorem(
-              state,
-              DHExp.rep_id(d),
-              env |> ClosureEnvironment.map_of,
-              t,
-            ),
+          state_update: () => record_theorem(state, DHExp.rep_id(d), env, t),
           kind: RecordTheorem,
           is_value: true,
         })
@@ -956,8 +950,8 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | Conditional(_)
   | RemoveTypeAlias
   | RemoveUse
-  | InvalidStep => false
-  | VarLookup => !settings.show_lookup_steps
+  | InvalidStep
+  | VarLookup => false
   | AscriptionTypAp
   | AscriptionAp
   | Ascription => !settings.show_ascription_steps

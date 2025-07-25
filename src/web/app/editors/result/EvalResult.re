@@ -226,6 +226,7 @@ module Update = {
           StepperView.Update.calculate(
             ~settings,
             ~ctx=OldValue(Ctx.empty),
+            ~env=OldValue(ClosureEnvironment.empty),
             elab,
             stepper,
           ),

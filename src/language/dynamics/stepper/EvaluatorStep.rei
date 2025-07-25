@@ -12,10 +12,18 @@ type status =
 
 //[Matt] Long-term we probably don't need state in the stepper.
 
-let get_status: (~settings: CoreSettings.t, Exp.t, EvaluatorState.t) => status; //[Matt] This should probably take an env argument eventually
+let get_status:
+  (~settings: CoreSettings.t, Exp.t, ClosureEnvironment.t, EvaluatorState.t) =>
+  status; //[Matt] This should probably take an env argument eventually
 
 let refresh_step:
-  (~settings: CoreSettings.t, Exp.t, EvaluatorState.t, step) =>
+  (
+    ~settings: CoreSettings.t,
+    Exp.t,
+    ClosureEnvironment.t,
+    EvaluatorState.t,
+    step
+  ) =>
   option((FilterAction.action, step));
 
 // INVARIANT: this take_step function should never return an expression with closures.

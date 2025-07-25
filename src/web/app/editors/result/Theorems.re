@@ -6,13 +6,14 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type theorem = {
     ctx: Calc.saved(Ctx.t),
-    // env: Environment.t,
+    env: Calc.saved(ClosureEnvironment.t),
     goal_exp: Calc.saved(Exp.t),
     stepper_view: StepperView.Model.t,
   };
 
   let theorem_init = {
     ctx: Calc.Pending,
+    env: Calc.Pending,
     goal_exp: Calc.Pending,
     stepper_view: StepperView.Model.init,
   };
@@ -97,11 +98,11 @@ module Update = {
         | Some(x) => x.theorems
       )
       |> List.fold_left(
-           (acc, (id, _, goal_typ)) =>
+           (acc, (id, env', goal_typ)) =>
              Id.Map.update(
                id,
                (opt: option(Model.theorem)) => {
-                 let Model.{ctx, goal_exp, stepper_view} =
+                 let Model.{ctx, env, goal_exp, stepper_view} =
                    Option.value(~default=Model.theorem_init, opt);
 
                  let goal_exp =
@@ -126,16 +127,21 @@ module Update = {
                      |> Option.value(~default=Ctx.empty);
                    };
 
+                 let env =
+                   Calc.set(~eq=ClosureEnvironment.id_equal, env', env);
+
                  let stepper_view =
                    StepperView.Update.calculate(
                      ~settings,
                      ~ctx,
+                     ~env,
                      goal_exp,
                      stepper_view,
                    );
 
                  Some({
                    ctx: ctx |> Calc.save,
+                   env: env |> Calc.save,
                    goal_exp: goal_exp |> Calc.save,
                    stepper_view,
                  });

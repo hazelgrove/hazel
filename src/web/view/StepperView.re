@@ -35,6 +35,7 @@ module Update = {
       (
         ~settings: Calc.t(CoreSettings.t),
         ~ctx: Calc.t(Ctx.t),
+        ~env: Calc.t(ClosureEnvironment.t),
         elab: Calc.t(Exp.t),
         {cached_elab_subst, root}: Model.t,
       )
@@ -52,6 +53,7 @@ module Update = {
         ~settings,
         ~ctx,
         ~exp=elab_subst,
+        ~env,
         ~state,
         root,
       )

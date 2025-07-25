@@ -144,6 +144,7 @@ module rec StepKind: {
             ~hidden: Calc.saved(bool),
             ~exp: Calc.t(Exp.t),
             ~ctx: Calc.t(Ctx.t),
+            ~env: Calc.t(ClosureEnvironment.t),
             ~state: Calc.t(EvaluatorState.t),
             ~editor: Calc.t(CodeSelectable.Model.t),
             model: model,
@@ -156,6 +157,7 @@ module rec StepKind: {
           ~hidden,
           ~exp,
           ~ctx,
+          ~env,
           ~state,
           ~editor,
           m,
@@ -168,6 +170,7 @@ module rec StepKind: {
           ~hidden,
           ~exp,
           ~ctx,
+          ~env,
           ~state,
           ~editor,
           m,
@@ -180,6 +183,7 @@ module rec StepKind: {
           ~hidden,
           ~exp,
           ~ctx,
+          ~env,
           ~state,
           ~editor,
           m,
@@ -191,8 +195,9 @@ module rec StepKind: {
         |> {
           let.calc settings = settings
           and.calc exp = exp
+          and.calc env = env
           and.calc state = state;
-          EvaluatorStep.get_status(~settings, exp, state);
+          EvaluatorStep.get_status(~settings, exp, env, state);
         };
       let next_step_to_take =
         Calc.Calculated(None)
@@ -210,6 +215,7 @@ module rec StepKind: {
           ~settings,
           ~exp=exp |> Calc.make_new,
           ~ctx=ctx |> Calc.make_new,
+          ~env=env |> Calc.make_new,
           ~state=state |> Calc.make_new,
           SingleStep({
             evalobj,
@@ -243,6 +249,7 @@ module rec StepKind: {
           ~hidden,
           ~exp,
           ~ctx,
+          ~env,
           ~state,
           ~editor,
           m,
@@ -594,8 +601,9 @@ and Stepper: {
   let rec calculate =
           (
             ~settings: Calc.t(CoreSettings.t),
-            ~ctx: Calc.t(Ctx.t),
             ~exp as expr: Calc.t(Exp.t),
+            ~ctx: Calc.t(Ctx.t),
+            ~env: Calc.t(ClosureEnvironment.t),
             ~state: Calc.t(EvaluatorState.t),
             {expr: _, state: _, editor, step_kind, next_step, hidden}: step_model,
           )
@@ -623,6 +631,7 @@ and Stepper: {
         ~settings,
         ~ctx,
         ~exp=expr,
+        ~env,
         ~state,
         ~hidden,
         ~editor,
@@ -633,6 +642,7 @@ and Stepper: {
            |> StepKind.calculate(
                 ~settings,
                 ~ctx,
+                ~env,
                 ~exp=expr,
                 ~state,
                 ~hidden,
@@ -647,8 +657,9 @@ and Stepper: {
         let (next_step, last_expr) =
           calculate(
             ~settings,
-            ~ctx,
             ~exp=next_expr,
+            ~ctx,
+            ~env,
             ~state=next_state,
             next_step,
           );

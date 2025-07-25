@@ -2,7 +2,7 @@ open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
-  theorems: list((Id.t, TermBase.environment_t, Typ.t)),
+  theorems: list((Id.t, TermBase.closure_environment_t, Typ.t)),
   tests: TestMap.t,
   probes: Dynamics.Probe.Map.t,
 };

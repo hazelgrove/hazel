@@ -73,6 +73,7 @@ let single_step = (exp: Exp.t) => {
     EvaluatorStep.get_status(
       ~settings=CoreSettings.on,
       exp,
+      ClosureEnvironment.empty,
       EvaluatorState.init,
     );
   switch (step) {
