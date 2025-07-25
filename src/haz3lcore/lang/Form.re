@@ -497,7 +497,6 @@ let get: compound_form => t =
   | Let => mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))
   | ModuleExp => mk(ii, ["{", "}"], mk_op(Exp, [ModuleEntry]))
   | ModuleSignature => {
-      print_endline("Parsing ModuleSignature");
       mk(ii, ["{", "}"], mk_op(Typ, [ModuleSignatureEntry]));
     }
   | TypeAlias =>
