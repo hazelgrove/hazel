@@ -378,6 +378,9 @@ module Selection = {
     | {key: D("Z" | "z"), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
     | {key: D("Z" | "z"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
       Some(Update.Globals(Undo))
+    | {key: D("K" | "k"), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
+    | {key: D("K" | "k"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
+      Some(Update.Globals(Set(Zen)))
     | _ =>
       Editors.Selection.handle_key_event(~selection, ~event, model.editors)
       |> Option.map(x => Update.Editors(x))
@@ -642,7 +645,10 @@ module View = {
       div(
         ~attrs=[
           Attr.id("main"),
-          Attr.class_(Editors.Model.mode_string(editors)),
+          Attr.classes(
+            [Editors.Model.mode_string(editors)]
+            @ (globals.settings.zen ? ["zen"] : []),
+          ),
         ],
         editors_view,
       ),
