@@ -96,7 +96,7 @@ let rec is_arrow_like = (t: Typ.t) => {
   switch (t |> Typ.term_of) {
   | Unknown(_) => true
   | Arrow(_) => true
-  | Forall(_, t) => is_arrow_like(t)
+  | Poly(_, t) => is_arrow_like(t)
   | _ => false
   };
 };
@@ -808,11 +808,11 @@ and uexp_to_info_map =
       }
     | TypAp(fn, utyp) =>
       let typfn_ana =
-        Forall(EmptyHole |> TPat.fresh, Unknown(SynSwitch) |> Typ.temp)
+        Poly(EmptyHole |> TPat.fresh, Unknown(SynSwitch) |> Typ.temp)
         |> Typ.temp;
       let (fn, m) = go(~ana=typfn_ana, fn, m);
       let (_, m) = utyp_to_info_map(~ctx, ~ancestors, utyp, m);
-      let (option_name, ty_body) = Typ.matched_forall(ctx, fn.ty);
+      let (option_name, ty_body) = Typ.matched_poly(ctx, fn.ty);
       switch (option_name) {
       | Some(name) =>
         add(
@@ -893,7 +893,7 @@ and uexp_to_info_map =
         is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
       add'(~self, ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx), m);
     | TypFun(utpat, body, _) =>
-      let (name_expected_opt, item) = Typ.matched_forall(ctx, ana);
+      let (name_expected_opt, item) = Typ.matched_poly(ctx, ana);
       let (mode_body, ctx_body) =
         switch (TPat.tyvar_of_utpat(utpat)) {
         | Some(name) when !Ctx.shadows_typ(ctx, name) =>
@@ -920,7 +920,7 @@ and uexp_to_info_map =
       let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
       let (body, m) = go'(~ctx=ctx_body, ~ana=mode_body, body, m);
       add(
-        ~self=Just(Forall(utpat, body.ty) |> Typ.temp),
+        ~self=Just(Poly(utpat, body.ty) |> Typ.temp),
         ~co_ctx=body.co_ctx,
         m,
       );
@@ -993,6 +993,21 @@ and uexp_to_info_map =
           CoCtx.union([def.co_ctx, CoCtx.mk(ctx, p_ana.ctx, body.co_ctx)]),
         m,
       );
+    | Theorem(p, e) =>
+      let (p', _) =
+        go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
+      let (e, m) = go'(~ctx=p'.ctx, ~ana, e, m);
+      /* add co_ctx to pattern */
+      let (p, m) =
+        go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~ana=syn, p, m);
+      add(
+        ~self=Just(e.ty),
+        ~co_ctx=CoCtx.union([p'.co_ctx, CoCtx.mk(ctx, p.ctx, e.co_ctx)]),
+        m,
+      );
+    | ProofOf(t) =>
+      let (t, m) = go_typ(t, ~expects=Info.TypeExpected, m);
+      add(~self=Just(t.term), ~co_ctx=CoCtx.empty, m); // TODO[Matt]: do types need coctxs now?
     | FixF(p, e, _) =>
       let (p', _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana, p, m);
@@ -1790,7 +1805,7 @@ and utyp_to_info_map =
         variants,
       );
     add(m);
-  | Forall({term: Var(name), _} as utpat, tbody) =>
+  | Poly({term: Var(name), _} as utpat, tbody) =>
     let body_ctx =
       Ctx.extend_tvar(
         ctx,
@@ -1811,12 +1826,41 @@ and utyp_to_info_map =
       |> snd;
     let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
     add(m); // TODO: check with andrew
-  | Forall(utpat, tbody) =>
+  | Poly(utpat, tbody) =>
     let m =
       utyp_to_info_map(tbody, ~ctx, ~ancestors, ~expects=TypeExpected, m)
       |> snd;
     let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
     add(m); // TODO: check with andrew
+  | Forall(p', t') =>
+    let (p', m) =
+      upat_to_info_map(
+        ~is_synswitch=false,
+        ~ctx,
+        ~co_ctx=CoCtx.empty,
+        ~ancestors,
+        ~ana=syn,
+        ~duplicates=[],
+        p',
+        m,
+      );
+    let (_, m) =
+      utyp_to_info_map(t', ~ctx=p'.ctx, ~ancestors, ~expects=TypeExpected, m);
+
+    add(m);
+  | Yes(e) =>
+    let (_, m) =
+      uexp_to_info_map(
+        ~ctx,
+        ~ancestors,
+        ~ana=Atom(Bool) |> Typ.temp,
+        ~duplicates=[],
+        ~expected_labels=None,
+        ~label_sort=false,
+        e,
+        m,
+      );
+    add(m);
   | Rec({term: Var(name), _} as utpat, tbody) =>
     let body_ctx =
       Ctx.extend_tvar(

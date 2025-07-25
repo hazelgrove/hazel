@@ -151,7 +151,7 @@ module Pat = {
     | Probe(pat, _)
     | TupLabel(_, pat) => get_fun_var(pat)
     | Asc(pat, t1) =>
-      if (Typ.is_arrow(t1) || Typ.is_forall(t1)) {
+      if (Typ.is_arrow(t1) || Typ.is_poly(t1)) {
         get_var(pat) |> Option.map(var => var);
       } else {
         None;
@@ -312,6 +312,8 @@ module Exp = {
     | Dot
     | Var
     | Let
+    | Theorem
+    | ProofOf
     | FixF
     | TyAlias
     | Use
@@ -376,6 +378,8 @@ module Exp = {
     | Dot(_) => Dot
     | Var(_) => Var
     | Let(_) => Let
+    | Theorem(_) => Theorem
+    | ProofOf(_) => ProofOf
     | FixF(_) => FixF
     | TyAlias(_) => TyAlias
     | Use(_) => Use
@@ -427,6 +431,8 @@ module Exp = {
     | Dot => "Dot operator"
     | Var => "Variable reference"
     | Let => "Let expression"
+    | Theorem => "Theorem expression"
+    | ProofOf => "Proof placeholder"
     | FixF => "Fixpoint operator"
     | TyAlias => "Type Alias definition"
     | Use => "Specify number format to use"
@@ -509,6 +515,8 @@ module Exp = {
     | Tuple(_)
     | Var(_)
     | Let(_)
+    | Theorem(_)
+    | ProofOf(_)
     | FixF(_)
     | TyAlias(_)
     | Use(_)
@@ -572,6 +580,8 @@ module Exp = {
       | BuiltinFun(_)
       | Var(_)
       | Let(_)
+      | Theorem(_)
+      | ProofOf(_)
       | FixF(_)
       | TyAlias(_)
       | Use(_)
@@ -633,6 +643,8 @@ module Exp = {
       | TypFun(_)
       | Var(_)
       | Let(_)
+      | Theorem(_)
+      | ProofOf(_)
       | Filter(_)
       | TyAlias(_)
       | Use(_)
@@ -780,6 +792,8 @@ module Exp = {
             )
             |> rewrap;
           // Other cases: recurse
+          | Theorem(_)
+          | ProofOf(_)
           | Invalid(_)
           | EmptyHole
           | MultiHole(_)

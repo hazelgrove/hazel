@@ -246,6 +246,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | term => ret(ListLit([term]))
         }
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
+      | (["proof_of", "end"], [Typ(proof)]) => ret(ProofOf(proof))
       | (["hint", "test", "end"], [Exp(hint), Exp(test)]) =>
         ret(HintedTest(test, hint))
       | (["case", "end"], [Rul({term, annotation: {ids, _}})]) =>
@@ -274,6 +275,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | (["fix", "->"], [Pat(pat)]) => FixF(pat, r, None)
         | (["typfun", "->"], [TPat(tpat)]) => TypFun(tpat, r, None)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
+        | (["theorem", "in"], [Pat(pat)]) => Theorem(pat, r)
         | (["hide", "in"], [Exp(filter)]) =>
           Filter(
             Filter({
@@ -616,6 +618,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | (["Float"], []) => Atom(Float)
         | (["String"], []) => Atom(String)
         | (["Nat"], []) => Atom(Nat)
+        | (["yes", "indeed"], [Exp(exp)]) => Yes(exp)
         | ([t], []) when Form.is_typ_var(t) => Var(t)
         | (["(", ")"], [Typ(body)]) => Parens(body)
         | (label, [Typ(body)]) when is_probe_wrap(label) => body.term
@@ -632,13 +635,15 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     | ([(_, (["(", ")"], [Typ(typ)]))], []) => ret(Ap(t, typ))
     | _ => ret(hole(tm))
     }
-  /* forall and rec have to be before sum so that they bind tighter.
+  /* poly and rec have to be before sum so that they bind tighter.
    * Thus `rec A -> Left(A) + Right(B)` get parsed as `rec A -> (Left(A) + Right(B))`
    * If this is below the case for sum, then it gets parsed as an invalid form. */
-  | Pre(([(_id, (["forall", "->"], [TPat(tpat)]))], []), Typ(t)) =>
-    ret(Forall(tpat, t))
+  | Pre(([(_id, (["poly", "->"], [TPat(tpat)]))], []), Typ(t)) =>
+    ret(Poly(tpat, t))
   | Pre(([(_id, (["rec", "->"], [TPat(tpat)]))], []), Typ(t)) =>
     ret(Rec(tpat, t))
+  | Pre(([(_id, (["forall", "->"], [Pat(pat)]))], []), Typ(t)) =>
+    ret(Forall(pat, t))
   | Pre(tiles, Typ({term: Sum(t0), annotation: {ids, _}})) as tm =>
     /* Case for leading prefix + preceeding a sum */
     switch (tiles) {

@@ -705,6 +705,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | BinOp(_)
   | BuiltinFun(_)
   | Asc(_)
+  | ProofOf(_)
   | Match(_) => {
       term: Seq(e1, e2),
       annotation: {
@@ -731,6 +732,14 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
     let ebody' = append_exp(ebody, e2);
     {
       term: Let(p, edef, ebody'),
+      annotation: {
+        ids: Language.IdTagged.ids(e1),
+      },
+    };
+  | Theorem(p, ebody) =>
+    let ebody' = append_exp(ebody, e2);
+    {
+      term: Theorem(p, ebody'),
       annotation: {
         ids: Language.IdTagged.ids(e1),
       },

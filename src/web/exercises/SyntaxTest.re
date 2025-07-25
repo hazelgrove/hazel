@@ -85,6 +85,7 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
   switch (uexp.term) {
   | Let(up, def, body) =>
     l |> find_in_let(name, up, def) |> find_fn(name, body)
+  | Theorem(_, body) => l |> find_fn(name, body)
   | ListLit(ul)
   | Tuple(ul) =>
     List.fold_left((acc, u1) => {find_fn(name, u1, acc)}, l, ul)
@@ -121,6 +122,7 @@ let rec find_fn = (name: string, uexp: Exp.t, l: list(Exp.t)): list(Exp.t) => {
       l |> find_fn(name, u1),
       ul,
     )
+  | ProofOf(_)
   | EmptyHole
   | Deferral(_)
   | Invalid(_)
@@ -190,6 +192,9 @@ let rec var_mention = (name: string, uexp: Exp.t): bool => {
   | Let(p, def, body) =>
     var_mention_upat(name, p)
       ? false : var_mention(name, def) || var_mention(name, body)
+  | Theorem(p, body) =>
+    var_mention_upat(name, p) ? false : var_mention(name, body)
+  | ProofOf(_) => false // TODO[Matt]: should we search in the type?
   | TypFun(_, u, _)
   | TypAp(u, _)
   | Test(u)
@@ -255,6 +260,9 @@ let rec var_applied = (name: string, uexp: Exp.t): bool => {
   | Let(p, def, body) =>
     var_mention_upat(name, p)
       ? false : var_applied(name, def) || var_applied(name, body)
+  | Theorem(p, body) =>
+    var_mention_upat(name, p) ? false : var_applied(name, body)
+  | ProofOf(_) => false // TODO[Matt]: should we search in the type?
   | TypFun(_, u, _)
   | Test(u)
   | HintedTest(u, _)
@@ -346,6 +354,9 @@ let rec tail_check = (name: string, uexp: Exp.t): bool => {
   | Let(p, def, body) =>
     var_mention_upat(name, p) || var_mention(name, def)
       ? false : tail_check(name, body)
+  | Theorem(p, body) =>
+    var_mention_upat(name, p) ? false : tail_check(name, body)
+  | ProofOf(_) => true
   | ListLit(l)
   | Tuple(l) =>
     //If l has no recursive calls then true

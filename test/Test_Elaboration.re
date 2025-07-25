@@ -660,7 +660,7 @@ in 1|},
     ),
     skip_known_bug(
       "Type join of ap", // TODO https://github.com/hazelgrove/hazel/issues/1625
-      "type x = + B((forall x -> ?)(?)) in case a | B => 0| B => 0 end",
+      "type x = + B((poly x -> ?)(?)) in case a | B => 0| B => 0 end",
     ),
     QCheck_alcotest.to_alcotest(
       QCheck.Test.make(

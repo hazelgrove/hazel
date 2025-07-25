@@ -82,7 +82,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         )
         |> DHExp.fresh,
       )
-    | (TypFun(tp, e, v), Forall(tp', t')) =>
+    | (TypFun(tp, e, v), Poly(tp', t')) =>
       let new_ty: Typ.t =
         switch (TPat.tyvar_of_utpat(tp)) {
         | Some(tyvar) => Var(tyvar) |> Typ.temp
@@ -139,6 +139,11 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Constructor(_, Some(Some(t))), t')
         when Typ.is_consistent(Ctx.empty, Typ.unroll(t), t' |> Typ.temp) =>
       Some(e)
+    | (ProofOf(t), t') =>
+      switch (Typ.join(Ctx.empty, Typ.unroll(t), t' |> Typ.temp)) {
+      | Some(t) => Some(ProofOf(t) |> DHExp.fresh)
+      | None => None
+      }
     | (Test(_), Prod([])) => Some(e)
     // These are non-value cases we don't want to handle
     | (EmptyHole, _)
@@ -156,6 +161,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Probe(_, _), _)
     // We _could_ do this, but it would be a bit weird
     | (Let(_), _)
+    | (Theorem(_), _)
     | (Use(_), _)
     | (BinOp(_), _)
     | (UnOp(_), _)

@@ -2106,7 +2106,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Pat)(in_())(nibs(((shape(Concave 24))(sort Pat))((shape(Concave \
          24))(sort Typ))))))(shards(0))(children())))(Secondary((id \
          0391f843-de3f-4299-bf2c-e46407ae2398)(content(Whitespace\" \
-         \"))))(Tile((id c4bbca9c-bb26-4a00-80ad-65cb4d44424b)(label(forall \
+         \"))))(Tile((id c4bbca9c-bb26-4a00-80ad-65cb4d44424b)(label(poly \
          ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
          Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -2183,7 +2183,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Pat)(in_())(nibs(((shape(Concave 24))(sort Pat))((shape(Concave \
          24))(sort Typ))))))(shards(0))(children())))(Secondary((id \
          9b916326-428c-4d4e-bc6f-67b8cca5e9a8)(content(Whitespace\"\\n\"))))(Tile((id \
-         76037378-04ab-4405-8c93-0ad0f0e21628)(label(forall ->))(mold((out \
+         76037378-04ab-4405-8c93-0ad0f0e21628)(label(poly ->))(mold((out \
          Typ)(in_(TPat))(nibs(((shape Convex)(sort Typ))((shape(Concave \
          36))(sort Typ))))))(shards(0 1))(children(((Secondary((id \
          97668121-c2ed-4420-9529-3fe1631618cc)(content(Whitespace\" \
@@ -2194,7 +2194,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          01423312-04db-40c6-8f7e-5023828eeee1)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          0c714a86-2d15-4234-ab3c-c04dd44b8760)(content(Whitespace\" \
-         \"))))(Tile((id b81ffa7a-352f-40e9-b31c-e8fe8ca4d96d)(label(forall \
+         \"))))(Tile((id b81ffa7a-352f-40e9-b31c-e8fe8ca4d96d)(label(poly \
          ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
          Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -2210,7 +2210,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          00c19222-b408-4261-a2bb-9d816f01438f)(label(\"(\"\")\"))(mold((out \
          Typ)(in_(Typ))(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0 1))(children(((Tile((id \
-         ba5f46c7-5387-4e97-83da-a55228b95a84)(label(forall ->))(mold((out \
+         ba5f46c7-5387-4e97-83da-a55228b95a84)(label(poly ->))(mold((out \
          Typ)(in_(TPat))(nibs(((shape Convex)(sort Typ))((shape(Concave \
          36))(sort Typ))))))(shards(0 1))(children(((Secondary((id \
          f38c59c3-ca32-4bf5-911d-e31ddf3b9236)(content(Whitespace\" \
@@ -2317,7 +2317,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Pat)(in_())(nibs(((shape(Concave 24))(sort Pat))((shape(Concave \
          24))(sort Typ))))))(shards(0))(children())))(Secondary((id \
          84f9f2b5-4402-48ef-ab4a-d2fc1250b548)(content(Whitespace\" \
-         \"))))(Tile((id c07914c6-61d9-49ce-a0b5-6cb44a7039db)(label(forall \
+         \"))))(Tile((id c07914c6-61d9-49ce-a0b5-6cb44a7039db)(label(poly \
          ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
          Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -2443,7 +2443,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Pat)(in_())(nibs(((shape(Concave 24))(sort Pat))((shape(Concave \
          24))(sort Typ))))))(shards(0))(children())))(Secondary((id \
          1d77c471-bb54-4081-bf63-274d77ef6b6f)(content(Whitespace\" \
-         \"))))(Tile((id f56b0097-dec7-40cc-99b7-50460a5347fd)(label(forall \
+         \"))))(Tile((id f56b0097-dec7-40cc-99b7-50460a5347fd)(label(poly \
          ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
          Typ))((shape(Concave 36))(sort Typ))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -2802,18 +2802,18 @@ let out : string * Haz3lcore.PersistentZipper.t =
          end\n\
          in\n\n\
          # Polymorphic Functions #\n\
-         let poly_id: forall a -> a -> a =\n\
+         let poly_id: poly a -> a -> a =\n\
          typfun a -> fun x: a -> x\n\
          in\n\
          let\n\
          apply_both:\n\
-         forall a -> forall b -> (forall c -> c -> c) -> ((a, b) -> (a, b))\n\
+         poly a -> poly b -> (poly c -> c -> c) -> ((a, b) -> (a, b))\n\
          =\n\
          typfun a -> typfun b ->\n\
-         fun f: forall c -> (c -> c) ->\n\
+         fun f: poly c -> (c -> c) ->\n\
          fun (x, y): (a, b) -> (f@<a>(x), f@<b>(y))\n\
          in\n\
-         let list_length: forall a -> [a] -> Int =\n\
+         let list_length: poly a -> [a] -> Int =\n\
          typfun a -> fun l : [a] ->\n\
          case l\n\
          | [] => 0\n\

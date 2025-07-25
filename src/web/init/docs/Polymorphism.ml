@@ -106,7 +106,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          777d62f8-331f-4d1e-8a5a-1a09a9f89ec3)(content(Whitespace\"\\n\"))))(Secondary((id \
          90e879b8-483e-4c4c-b233-2b31b7c2dfb7)(content(Whitespace\"\\n\")))))((Secondary((id \
          491a90e6-ead6-42a9-8284-279180c8c580)(content(Comment\"# We can \
-         annotate the type of a type function with a forall. \
+         annotate the type of a type function with a poly. \
          #\"))))(Secondary((id \
          c624f13c-9188-4c91-ace5-e7224e6a6dbc)(content(Whitespace\"\\n\"))))(Tile((id \
          1af4a4d0-b52a-4ec9-979a-9ae451f1f848)(label(let = in))(mold((out \
@@ -123,7 +123,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Pat)(in_())(nibs(((shape(Concave 12))(sort Pat))((shape(Concave \
          12))(sort Typ))))))(shards(0))(children())))(Secondary((id \
          7b7acab2-079f-41d6-a0e4-baaa4d119467)(content(Whitespace\" \
-         \"))))(Tile((id 0980446a-d625-4b8f-990a-e68e1654e767)(label(forall \
+         \"))))(Tile((id 0980446a-d625-4b8f-990a-e68e1654e767)(label(poly \
          ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
          Typ))((shape(Concave 14))(sort Typ))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -135,7 +135,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          9afdb2cc-c50c-438d-b204-af497695d4c6)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          86b64f50-4921-4a9b-8724-dbf6044084fc)(content(Whitespace\" \
-         \"))))(Tile((id f22c1d66-073c-41f8-8af0-aa16e606fa9f)(label(forall \
+         \"))))(Tile((id f22c1d66-073c-41f8-8af0-aa16e606fa9f)(label(poly \
          ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
          Typ))((shape(Concave 14))(sort Typ))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -295,7 +295,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Pat)(in_())(nibs(((shape(Concave 12))(sort Pat))((shape(Concave \
          12))(sort Typ))))))(shards(0))(children())))(Secondary((id \
          b523b63a-21ad-4097-86fa-01e02f6f2a25)(content(Whitespace\" \
-         \"))))(Tile((id a848e5a4-4c65-402a-8343-90394464cae6)(label(forall \
+         \"))))(Tile((id a848e5a4-4c65-402a-8343-90394464cae6)(label(poly \
          ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
          Typ))((shape(Concave 14))(sort Typ))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -307,7 +307,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          03198080-2201-464f-bc0c-000e1792807c)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          45919e57-7c8b-400f-8dca-e663677cc170)(content(Whitespace\" \
-         \"))))(Tile((id 588b01fa-731b-4f1a-860e-0acd7e743c69)(label(forall \
+         \"))))(Tile((id 588b01fa-731b-4f1a-860e-0acd7e743c69)(label(poly \
          ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
          Typ))((shape(Concave 14))(sort Typ))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -323,7 +323,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          0c3e5b3e-fe7d-400d-b362-a86a1e3930f2)(label(\"(\"\")\"))(mold((out \
          Typ)(in_(Typ))(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0 1))(children(((Tile((id \
-         b8bfdb8d-395b-4dda-b95f-f59d5713d282)(label(forall ->))(mold((out \
+         b8bfdb8d-395b-4dda-b95f-f59d5713d282)(label(poly ->))(mold((out \
          Typ)(in_(TPat))(nibs(((shape Convex)(sort Typ))((shape(Concave \
          14))(sort Typ))))))(shards(0 1))(children(((Secondary((id \
          9fff6852-4fc9-45f3-b152-b92118560cac)(content(Whitespace\" \
@@ -577,7 +577,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Pat)(in_())(nibs(((shape(Concave 12))(sort Pat))((shape(Concave \
          12))(sort Typ))))))(shards(0))(children())))(Secondary((id \
          fa0fe8d5-10cc-434f-abf5-0b17fd54c6a9)(content(Whitespace\" \
-         \"))))(Tile((id 80182513-dc22-4780-bc8b-e20aac6b8720)(label(forall \
+         \"))))(Tile((id 80182513-dc22-4780-bc8b-e20aac6b8720)(label(poly \
          ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
          Typ))((shape(Concave 14))(sort Typ))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -635,7 +635,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Pat)(in_())(nibs(((shape(Concave 12))(sort Pat))((shape(Concave \
          12))(sort Typ))))))(shards(0))(children())))(Secondary((id \
          51b7bf81-8c96-4951-b9c7-3b1a5f78c227)(content(Whitespace\" \
-         \"))))(Tile((id ef122e48-5039-4710-ab57-637a803eaf65)(label(forall \
+         \"))))(Tile((id ef122e48-5039-4710-ab57-637a803eaf65)(label(poly \
          ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
          Typ))((shape(Concave 14))(sort Typ))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -647,7 +647,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          00dcf751-b0bd-4d11-8f85-44704156970d)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          d8afdcbf-1ff8-462e-9207-cde50bbf928c)(content(Whitespace\" \
-         \"))))(Tile((id 6268905f-a4eb-4089-891e-9715976d05f1)(label(forall \
+         \"))))(Tile((id 6268905f-a4eb-4089-891e-9715976d05f1)(label(poly \
          ->))(mold((out Typ)(in_(TPat))(nibs(((shape Convex)(sort \
          Typ))((shape(Concave 14))(sort Typ))))))(shards(0 \
          1))(children(((Secondary((id \
@@ -1450,22 +1450,22 @@ let out : string * Haz3lcore.PersistentZipper.t =
          let id = typfun A -> fun x : A -> x in\n\n\
          # Such functions are applied like so: #\n\
          let ex1 = id@<Int>(1) in # 1 #\n\n\
-         # We can annotate the type of a type function with a forall. #\n\
-         let const : forall A -> forall B -> A -> B -> A = \n\
+         # We can annotate the type of a type function with a poly. #\n\
+         let const : poly A -> poly B -> A -> B -> A = \n\
          typfun A -> typfun B -> fun x -> fun y -> x in\n\
          let ex2 = const@<Int>@<String>(2)(\"Hello World\") in # 2 #\n\n\
          # We can go beyond rank 1 polymorphism: #\n\
-         let apply_both : forall A -> forall B -> (forall D -> D -> D) -> (A , \
-         B) -> (A , B) =\n\
+         let apply_both : poly A -> poly B -> (poly D -> D -> D) -> (A , B) -> \
+         (A , B) =\n\
          typfun A -> typfun B -> fun f -> fun (x, y) -> (f@<A>(x), f@<B>(y)) \
          in  \n\
          let ex3 = apply_both@<Int>@<String>(id)(3, \"Hello World\") in # (3, \
          \"Hello World\") # \n\n\
          # Finally, here is a more in-depth, yet applicable example: \
          polymorphic map #\n\
-         let emptylist : forall A -> [A] = typfun A -> [] in # polymorphic \
+         let emptylist : poly A -> [A] = typfun A -> [] in # polymorphic \
          constant #\n\
-         let map : forall A -> forall B -> (A -> B) -> ([A] -> [B]) = \n\
+         let map : poly A -> poly B -> (A -> B) -> ([A] -> [B]) = \n\
          typfun A -> typfun B -> fun f : (A -> B) -> fun l : [A] -> \n\
          case l\n\
          | h :: t => f(h) :: map@<A>@<B>(f)(t)\n\
