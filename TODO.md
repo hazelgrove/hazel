@@ -7,9 +7,8 @@ As compared to `witnesses` branch:
 - [x] Impement in direct correspondance to Slice.re
 - [x] Implement as a SUM TYPE. With empty slices being exactly as Typ.
 - [x] Therefore: we can combine slices and types in the same tree to get partially computed slices.
-- [ ] Add syntactic destructuring functions (see in Unboxing.re) to TypSlice.re
+- [x] Add syntactic destructuring functions (see in Unboxing.re) to TypSlice.re
 - [ ] Simplify and remove redundancy from join_using
-- [ ] Remove slc_incr
 - [ ] Preserve global slices on variables during substitution
 
 ## Use of Typ:
@@ -20,15 +19,14 @@ As compared to `witnesses` branch:
 - [x] Term id logic for synthesis slices
 - [x] Ctx slice logic for synthesis slices
 - [x] Display ctx slices.
-- [ ] Don't highlight let bindings when var left unused.
+- [x] Don't highlight let bindings when var left unused.
 
 ## Mode.re:
 - [x] Term id logic for analysis slices _(bugchecking todo)_
 - [x] Ctx slice logic for analysis slices
 
 ## Info.re:
-- [ ] Add slice-related functions. i.e. getting synthesis slice, analysis slice (from mode and self respectively) and fixed slice (real `Info.ty`).
-- [ ] Also add slice with no syn switches??
+- [x] Add slice-related functions. i.e. getting synthesis slice, analysis slice (from mode and self respectively) and fixed slice (real `Info.ty`).
 - [ ] Calculate ctx_used in typslices from Co_ctx and Ctx?
 
 ## Statics.re & Elaboration.re:
@@ -38,58 +36,26 @@ As compared to `witnesses` branch:
 ## Parsing
 - [ ] Make decision on full use of TypSlice or use of Typ for this stage
 - [x] Attach slices correctly to types/casts in this stage if using TypSlice.
-- [ ] Type aliases should be slices. Currently converted in Statics.re.
+- [x] Type aliases should be slices. Currently converted in Statics.re.
 
 ## Other
 - [ ] Remove redundancy in uinfo_of_typ and also consider using Typ.t for Info.typ
 - [ ] More ergonomic use of TypSlice (better versions of map & apply)
-- [ ] Improve performance: Likely issues due to overuse of TypSlice.typ_of? Hopefully not due to TypSlice.wrap_global or wrap_incr.....
 
 # Slicing
 - [X] Add slices to inserted casts to least specific compound types, i.e. [ ]
-- [ ] HIGH PRIORITY: UI for synthesis slices AND analysis slices AND their joins.
-- [ ] HIGH PRIORITY: Allow turning slicing off.
-- [ ] MIDDLE PRIORITY: Fix slice performance when scrolling.
+- [x] HIGH PRIORITY: UI for synthesis slices AND analysis slices AND their joins.
+- [ ] Allow turning slicing off.
 
-# SEARCH PROC/INDET EVAL:
-- [ ] Catch only cast errors in direct evaluation line - i.e. having been established by hole instantiation (which also only are instantiated in direct evaluation line)
-- [ ] Cast Transitions for terms like 0 : Int -> ? -> Int, (or otherwise 0 : ? -> Int)
-- [ ] Insert the correct casts when instantiating terms like an (Int, Int) to (?, ?), i.e. a cast from (?, ?) -> ? -> (Int, Int). Also make sure cast transitions work for these
-- [ ] Deal with holes with no immediate cast. These seem to appear during pattern matching expressions i.e. in the unnanotated map function, casts are instead placed on the branches (it might be equivalent placing on scrutinant)
-- [ ] Implement Sum type instantiation
-- [X] Check that closure substitution during instantiation doesn't replace hole ids
-- [X] Check that function application etc. doesn't replace hole ids
-- [X] Check that instantiations work with pattern matches (i.e. let x::y = ? in x)
-- [ ] Analyse how hole substitute could explode the stack when closures are deeply nested (i.e. in FixF terms)
-- [ ] Add depth limits to search (i.e. iterative deepening)
-- [ ] Implement Type Function instantiation
-- [ ] Tag futures with previous instantiation info
-
-# Indet Stepper:
-- [ ] User instantiations
-- [ ] 
 
 ## Bugs
 ### High Priority
 - [X] Types in stepper share ids which messes with selecting them/cursor movement
-- [X] Multiple holes not instantiated, i.e. ? + ?
-- [X] Instantiating products crashes: `let x = ? in let y = ? in (x, y)`
-- [ ] Products not being instantiated to inner types, i.e. ? : (Int, Int) is instantiated to (?, ?) : (Int, Int) but then no transition is taken to (? : Int, ? : Int). This is an issue with the Transition rules!!
-- [ ] Cons not instantiating tail, i.e. in `?::?` -> `?::[]` / `?::[?]` / `?::[?, ?]` ....
-- [X] Multiple hole instantiations not trying all possibilities, i.e. when a second hold could be instantiated but the only the first seems to be instantiated (might be weirdness from interleaving sequences).
-- [X] Holes being instantiated multiple times in same way redundantly (when multiple holes involved, i.e. (? : Int,? : Int))
 - [ ] Cast slicing in stepper does not highlight in editor
-- [ ] FAILURE: Not a product in `let (x, y) = ? in x`
-- [ ] Unboxing bug when annotating with explicit dynamic type ?, i.e. in: 
-```let x : ? = [1] in
-case x
-  |[] => true
-  | _ => false
-end```
+- [x] FAILURE: Not a product in `let (x, y) = ? in x`
 
 ## Middle Priority
-- [ ] Constructor names not highlighted in slices
-- [ ] Unbound vars not instantiated in IndetEvaluator
+- [x] Constructor names not highlighted in slices
 
 ## Low Priority
 - [X] Deferrals: See failed test
