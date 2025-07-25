@@ -32,20 +32,20 @@ module Typ = {
   ];
 
   let of_infix_delim: list((Token.t, Typ.term)) = [
-    //("|>", Unknown(Internal)), /* annoying during case rules */
-    (",", Prod([unk, unk])), /* NOTE: Current approach doesn't work for this, but irrelevant as 1-char */
-    //("::", List(unk)), /* annoying in patterns. TODO: add codepath to show only if Ana(List(_)) */
+    ("|>", Unknown(Internal)),
+    (",", Prod([unk, unk])),
+    ("::", List(unk)),
     ("@", List(unk)),
     (";", Unknown(Internal)),
     ("&&", Atom(Bool)),
     ("\\/", Atom(Bool)),
-    //("||", Atom(Bool)),
+    ("||", Atom(Bool)),
     ("$==", Atom(Bool)),
     ("==.", Atom(Bool)),
     ("==", Atom(Bool)),
     ("!", Atom(Bool)),
-    //("!=", Atom(Bool)), /* annoying as != is more common */
-    //("!=.", Atom(Bool)), /* annoying as != is more common */
+    ("!=", Atom(Bool)),
+    ("!=.", Atom(Bool)),
     ("<", Atom(Bool)),
     (">", Atom(Bool)),
     ("<=", Atom(Bool)),
@@ -63,7 +63,7 @@ module Typ = {
     ("-.", Atom(Float)),
     ("*.", Atom(Float)),
     ("/.", Atom(Float)),
-    //("**.", Atom(Float)), /* annoying as *. is more common */
+    ("**.", Atom(Float)),
     ("++", Atom(String)),
   ];
 
@@ -84,6 +84,7 @@ module Typ = {
     List.filter_map(
       delim =>
         switch (List.assoc_opt(delim, self_tys)) {
+        | _ when Form.is_annoying_delim(delim) => None
         | None => Some((delim, unk))
         | Some(self_ty) when Typ.is_consistent(ctx, expected_ty, self_ty) =>
           Some((delim, self_ty))

@@ -407,7 +407,7 @@ module Exp = {
     fun
     | Invalid => "Invalid expression"
     | MultiHole => "Broken expression"
-    | EmptyHole => "Empty expression hole"
+    | EmptyHole => "Expression hole"
     | DynamicErrorHole => "Dynamic error hole"
     | Deferral => "Deferral"
     | Undefined => "Undefined expression"
