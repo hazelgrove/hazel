@@ -184,13 +184,9 @@ module Model = {
     | Some(next) =>
       let newFragmentString =
         CoqExport.string_of_d(next.expr |> Calc.get_saved_exc);
-      //Printf.printf("Step: %s -> %s\n", oldFragmentString, newFragmentString);
       let oldExprString = CoqExport.string_of_d(expr |> Calc.get_saved_exc);
       let newExprString =
         CoqExport.string_of_d(next.expr |> Calc.get_saved_exc);
-      //Printf.printf("old: %s\n", oldExprString);
-      //Printf.printf("new: %s\n", newExprString);
-      // TODO(nishant): unpack the axiom correctly
       let evalTactic =
         switch (step_kind) {
         | AxiomStep(axiom) =>
@@ -208,15 +204,7 @@ module Model = {
           | "Assoc(*)" => "rewrite Z.mul_assoc"
           | _ => "cbv"
           }
-        //   switch (step.name) {
-        //   | IdPlusL => "rewrite Qplus_0_l"
-        //   | CommPlus => "rewrite Qplus_comm"
-        // | AssocPlusL => "rewrite Qplus_assoc"
-        // | AssocPlusR => "rewrite Qplus_assoc"
         // | IdTimesL => "rewrite Qmult_1_r"
-        // | CommTimes => "rewrite Qmult_comm"
-        // | AssocTimesL => "rewrite Qmult_assoc"
-        // | AssocTimesR => "rewrite Qmult_assoc"
         // | DistPlusTimesL => "rewrite Qmult_plus_distr_l"
         // | DistPlusTimesR => "rewrite Qmult_plus_distr_l"
         // | DistPlusTimesLC => "rewrite Qmult_plus_distr_r"
@@ -323,76 +311,6 @@ module Model = {
       };
     };
   };
-  // let single_step_export = (ind: int, ctx, step, forall_str: string) => {
-  //   let {expr, next_step, state, editor, step_kind, hidden} = step;
-  //   let oldFragmentString = CoqExport.string_of_d(expr |> Calc.get_saved_exc);
-  //   let newFragmentString =
-  //     switch (next_step) {
-  //     | None => "No next step"
-  //     | Some(next) => CoqExport.string_of_d(next.expr |> Calc.get_saved_exc)
-  //     };
-  //   //Printf.printf("Step: %s -> %s\n", oldFragmentString, newFragmentString);
-  //   let oldExprString =
-  //     CoqExport.string_of_d(
-  //       EvalCtx.compose(ctx, expr |> Calc.get_saved_exc),
-  //     );
-  //   let newExprString =
-  //     switch (next_step) {
-  //     | None => "nil"
-  //     | Some(next) =>
-  //       CoqExport.string_of_d(
-  //         EvalCtx.compose(ctx, next.expr |> Calc.get_saved_exc),
-  //       )
-  //     };
-  //   ();
-  //   //Printf.printf("old: %s\n", oldExprString);
-  //   //Printf.printf("new: %s\n", newExprString);
-  //   // TODO(nishant): unpack the axiom correctly
-  // };
-  // let get_evalctx_from_stepper = model => {
-  //   let step_kind = model.root.step_kind;
-  //   switch (step_kind) {
-  //   | SingleStep(single) => Some(single.evalobj.ctx)
-  //   | _ => None
-  //   };
-  // };
-  // let exportCoq = model => {
-  //   let rec all_steps_of_step = step => {
-  //     switch (step.next_step) {
-  //     | None => [step]
-  //     | Some(next_step) => [step] @ all_steps_of_step(next_step)
-  //     };
-  //   };
-  //   print_endline("Inside exportCoq function");
-  //   let steps = all_steps_of_step(model.root);
-  //   let steps_info =
-  //     switch (steps) {
-  //     | [] => "No steps available"
-  //     | [first, ..._] =>
-  //       // Extract information from first step
-  //       let step_expr = Calc.get_saved_exc(~print="step_expr", first.expr);
-  //       get_tactic_for_step(first);
-  //       let step_kind_str =
-  //         switch (first.step_kind) {
-  //         | SingleStep(_) => "SingleStep"
-  //         | InductionStep(_) => "InductionStep"
-  //         | ForallStep(_) => "ForallStep"
-  //         | MissingStep(_) => "MissingStep"
-  //         | AxiomStep(_) => "AxiomStep"
-  //         };
-  //       let evalctx = model |> get_evalctx_from_stepper;
-  //       switch (evalctx) {
-  //       | None => ()
-  //       | Some(ctx) =>
-  //         single_step_export(0, model |> get_evalctx_from_stepper, first, "")
-  //       };
-  //       "First step: "
-  //       ++ step_kind_str
-  //       ++ " with expression: "
-  //       ++ Exp.show(step_expr);
-  //     };
-  //   print_endline(steps_info);
-  // };
 };
 
 module Update = {
@@ -1641,6 +1559,7 @@ module View = {
         m,
       )
     | ForallStep(fs) =>
+      // Intercept root_inject so CoqExport only exports the inner_stepper, not the root
       view_step(
         ~globals,
         ~signal=
@@ -1648,7 +1567,20 @@ module View = {
           | MakeActive(s) => signal(MakeActive(ForallStep(InnerExp(s))))
           | HideStepper => signal(HideStepper),
         ~inject=x => inject(ForallStep(InnerExp(x))),
-        ~root_inject,
+        ~root_inject=
+          action => {
+            switch (action) {
+            | Update.CoqExport =>
+              let coq_data = Model.exportCoq(fs.inner_stepper);
+              JsUtil.download_string_file(
+                ~filename="stepper_coq_export.v",
+                ~content_type="text/plain",
+                ~contents=coq_data,
+              );
+              Ui_effect.Ignore;
+            | _ => root_inject(action)
+            }
+          },
         ~selected=
           switch (selected) {
           | Some(ForallStep(InnerExp(s))) => Some(s)
