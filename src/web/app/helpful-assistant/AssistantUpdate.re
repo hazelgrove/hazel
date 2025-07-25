@@ -491,7 +491,6 @@ let mk_structure_edit_msg =
     : string =>
   try({
     let _enclose_in_backticks = (str: string) => "```" ++ str ++ "```";
-    let args = Option.get(args);
     switch (OpenRouter.structure_action_of_string(tool_call)) {
     | OpenRouter.GoToParent =>
       let parent = Id.Map.find(curr_node.parent, ast);
@@ -501,7 +500,7 @@ let mk_structure_edit_msg =
       ++ parent.name
       ++ "\"";
     | OpenRouter.GoToChild =>
-      let index = StringMap.find("index", args);
+      let index = StringMap.find("index", Option.get(args));
       let child_id = List.nth(curr_node.children, int_of_string(index));
       let child = Id.Map.find(child_id, ast);
       "Agent moved from \""
