@@ -171,3 +171,46 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
   let+ l = dhpat_var_entry(dhpat, ty);
   List.fold_left((ctx, entry) => Ctx.extend(ctx, entry), ctx, l);
 };
+
+let rec get_inductive_hypotheses = (m: Statics.Map.t, t: Typ.t, p: Pat.t) => {
+  switch (p |> Pat.term_of) {
+  | Invalid(_) => []
+  | EmptyHole => []
+  | MultiHole(_) => []
+  | Wild => []
+  | Atom(_) => []
+  | ListLit(xs) =>
+    List.concat(List.map(get_inductive_hypotheses(m, t, _), xs))
+  | Constructor(_) => []
+  | Cons(e1, e2) =>
+    get_inductive_hypotheses(m, t, e1) @ get_inductive_hypotheses(m, t, e2)
+  | Var(x) =>
+    Util.OptUtil.Syntax.(
+      {
+        let* info = Id.Map.find_opt(Pat.rep_id(p), m);
+        let* info =
+          switch (info) {
+          | Info.InfoPat(pinfo) => Some(pinfo)
+          | _ => None
+          };
+        let t' = info.ty;
+        if (Typ.fast_equal(t, t')) {
+          Some([x]);
+        } else {
+          None;
+        };
+      }
+      |> Option.value(~default=[])
+    )
+  | Tuple(xs) =>
+    List.concat(List.map(get_inductive_hypotheses(m, t, _), xs))
+  | Parens(e) => get_inductive_hypotheses(m, t, e)
+  | Ap(e1, e2) =>
+    get_inductive_hypotheses(m, t, e1) @ get_inductive_hypotheses(m, t, e2)
+  | Asc(e, _) => get_inductive_hypotheses(m, t, e)
+  | Label(_) => []
+  | TupLabel(l, e) =>
+    get_inductive_hypotheses(m, t, l) @ get_inductive_hypotheses(m, t, e)
+  | Probe(e, _) => get_inductive_hypotheses(m, t, e)
+  };
+};
