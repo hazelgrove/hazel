@@ -896,9 +896,10 @@ and exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       IdTagged.ids(exp) |> List.tl |> pad_ids(List.length(entry_segments)),
     );
     let newlined =
-      List.map2(
-        (id, seg) => seg @ [Secondary(mk_newline(id))],
-        ids,
+      ListUtil.intersperse(
+        settings.inline
+          ? [Secondary(mk_space(Id.mk()))]
+          : [Secondary(mk_newline(Id.mk()))],
         entry_segments,
       );
 
