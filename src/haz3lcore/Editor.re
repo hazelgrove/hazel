@@ -239,7 +239,10 @@ module Update = {
       );
 
     let auto_seg = AutoSeg.seg_to_doc(zipper |> Zipper.zip);
-    Iframe.send_state(auto_seg);
+    switch (a) {
+    | TempReplace(_) => ()
+    | _ => Iframe.send_state(auto_seg)
+    };
     // let diff = AutoSeg.mk_diff(auto_seg, auto_seg_2);
     // switch (List.length(diff)) {
     // | 0 => ()
