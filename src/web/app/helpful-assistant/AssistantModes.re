@@ -236,6 +236,8 @@ module Composition = {
            ),
          )
       ++ "]";
+    let curr_depth_str =
+      "Current depth in AST: " ++ string_of_int(curr_node.level);
 
     let static_errors = ErrorPrint.all(editor.statics.info_map);
     let static_errors_str =
@@ -251,6 +253,7 @@ module Composition = {
           curr_node_str,
           parent_node_str,
           children_nodes_str,
+          curr_depth_str,
           static_errors_str,
         ],
       ),
