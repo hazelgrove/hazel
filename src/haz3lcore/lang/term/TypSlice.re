@@ -373,14 +373,20 @@ let cls_of_term = (s): cls => (cls_slc_of_term(s), cls_typ_of_term(s));
 let show_cls = ((cls_slc, cls_typ): cls) =>
   show_cls_slc(cls_slc) ++ "(" ++ show_cls_typ(cls_typ) ++ ")";
 
+let union_slice = (s1, s2) => (
+  union_slice_global(fst(s1), fst(s2)),
+  union_slice_global(snd(s1), snd(s2)),
+);
+
 //TODO: remove duplicates
-let rec full_slice: term => slc_global =
+// Returns: (incr slices, global slices)
+let rec full_slice: term => (slc_global, slc_global) =
   fun
-  | `Typ(_) => empty_slice_global
-  | `SliceIncr(Typ(_), slice_incr) => slice_incr
+  | `Typ(_) => (empty_slice_global, empty_slice_global)
+  | `SliceIncr(Typ(_), slice_incr) => (slice_incr, empty_slice_global)
   | `SliceIncr(Slice(s), slice_incr) =>
-    union_slice_global(
-      slice_incr,
+    union_slice(
+      (slice_incr, empty_slice_global),
       switch (s) {
       | List(s)
       | Parens(s)
@@ -389,26 +395,26 @@ let rec full_slice: term => slc_global =
       | Arrow(s1, s2)
       | Ap(s1, s2)
       | TupLabel(s1, s2) =>
-        union_slice_global(
-          full_slice(s1 |> term_of),
-          full_slice(s2 |> term_of),
-        )
+        union_slice(full_slice(s1 |> term_of), full_slice(s2 |> term_of))
       | Prod(ss) =>
         List.fold_left(
-          (acc, s) => union_slice_global(full_slice(s |> term_of), acc),
-          empty_slice_global,
+          (acc, s) => union_slice(full_slice(s |> term_of), acc),
+          (empty_slice_incr, empty_slice_global),
           ss,
         )
       | Sum(m) =>
         ConstructorMap.fold_vals(
-          (acc, s) => union_slice_global(full_slice(s |> term_of), acc),
-          empty_slice_global,
+          (acc, s) => union_slice(full_slice(s |> term_of), acc),
+          (empty_slice_incr, empty_slice_global),
           m,
         )
       },
     )
   | `SliceGlobal(s, slice_global) =>
-    union_slice_global(slice_global, full_slice((s :> term)));
+    union_slice((empty_slice_incr, slice_global), full_slice((s :> term)));
+
+let full_slice_both = s =>
+  full_slice(s) |> (((s1, s2)) => union_slice_global(s1, s2));
 
 // These pattern matching functions can be optimised by direct pattern matching vs use of typ_of
 let is_unknown = (~ignore_parens=?, s: t) =>
