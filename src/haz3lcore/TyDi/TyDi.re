@@ -5,11 +5,11 @@ open Language;
 /* Suggest the token at the top of the backpack, if we can put it down */
 let suggest_backpack = (z: Zipper.t('p)): list(TyDiSuggestion.t) => {
   /* Note: Sort check unnecessary here as wouldn't be able to put down */
-  switch (z.backpack) {
+  switch (Zipper.local_backpack(z)) {
   | [] => []
-  | [{content, _}, ..._] =>
-    switch (content) {
-    | [Tile({label, shards: [idx], _})] when Zipper.can_put_down(z) => [
+  | [t, ..._] =>
+    switch (t) {
+    | {label, shards: [idx], _} when Zipper.can_put_down(z) => [
         {
           content: List.nth(label, idx),
           strategy: Any(FromBackpack),

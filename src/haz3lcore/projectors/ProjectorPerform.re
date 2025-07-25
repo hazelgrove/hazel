@@ -108,13 +108,13 @@ let remove_indicated =
     (
       type p,
       ~select_term: Zipper.t(p) => option(Zipper.t(p)),
-      ~seg_of_pr: p => Base.segment(p),
+      ~seg_of_projector: p => Base.segment(p),
       z: Zipper.t(p),
     )
     : option(Zipper.t(p)) => {
   let* (focus, z) = setup_selection(~select_term, z);
   switch (z.selection.content) {
-  | [Projector(pr)] => Some(remove(seg_of_pr(pr.model), focus, z))
+  | [Projector(pr)] => Some(remove(seg_of_projector(pr.model), focus, z))
   | _ => None
   };
 };
@@ -123,7 +123,7 @@ let set_indicated =
     (
       type p,
       ~select_term: Zipper.t(p) => option(Zipper.t(p)),
-      ~seg_of_pr: p => Base.segment(p),
+      ~seg_of_projector: p => Base.segment(p),
       ~projector_init,
       ~seg_to_ed,
       z: Zipper.t(p),
@@ -134,7 +134,7 @@ let set_indicated =
   // TODO [Matt]: Make this check the kind again
   let* (focus, z) = setup_selection(~select_term, z);
   switch (z.selection.content) {
-  | [Projector(pr)] => Some(remove(seg_of_pr(pr.model), focus, z))
+  | [Projector(pr)] => Some(remove(seg_of_projector(pr.model), focus, z))
   // | [Projector(pr)] =>
   //   let+ piece =
   //     init(~projector_init, kind, Piece.unparenthesize(pr.syntax));
@@ -151,17 +151,22 @@ let go =
       ~seg_to_ed,
       ~projector_init,
       ~update_projector,
-      ~seg_of_pr: p => Base.segment(p),
+      ~seg_of_projector: p => Base.segment(p),
       ~livelit_projectors,
       ~jump_to_side_of_id,
       ~select_term: Zipper.t(p) => option(Zipper.t(p)),
-      a: Action.project('kind, p, 'p_a),
+      a: Action.project('p_kind, p, 'p_a),
       z: Zipper.t(p),
     )
     : result(ZipperBase.t(p), Action.Failure.t) => {
   let set_indicated =
-    set_indicated(~select_term, ~seg_of_pr, ~projector_init, ~seg_to_ed);
-  let remove_indicated = remove_indicated(~select_term, ~seg_of_pr);
+    set_indicated(
+      ~select_term,
+      ~seg_of_projector,
+      ~projector_init,
+      ~seg_to_ed,
+    );
+  let remove_indicated = remove_indicated(~select_term, ~seg_of_projector);
   switch (a) {
   | SetIndicated(Specific(kind)) =>
     switch (set_indicated(z, kind)) {

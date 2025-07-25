@@ -66,6 +66,12 @@ let local_incomplete_tiles = ({siblings: (pre, suf), ancestors}: t('p)) => {
   Siblings.incomplete_tiles(sibs);
 };
 
+let local_missing_shards =
+    ({siblings, ancestors}: t('p)): list(Tile.t('p)) => {
+  Ancestors.local_missing_shards(ancestors)
+  @ Siblings.local_missing_shards(siblings);
+};
+
 let parent =
     (~sel=Segment.empty, {siblings: (l_sibs, r_sibs), ancestors}: t('p))
     : option(Piece.t('p)) =>
@@ -128,10 +134,10 @@ let regrout = (d: Direction.t, {siblings, ancestors}: t('p)): t('p) => {
           : (
             switch (d) {
             | Left =>
-              let trim = add_grout(~d=Right, s_r, trim_r);
+              let trim = add_grout(s_r, trim_r);
               (seg_l, to_seg(trim));
             | Right =>
-              let trim = add_grout(~d=Left, s_l, trim_l);
+              let trim = add_grout(s_l, trim_l);
               (to_seg(trim), seg_r);
             }
           )

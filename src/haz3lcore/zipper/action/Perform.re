@@ -19,31 +19,26 @@ let set_tydi_buffer = (info_map: Language.Statics.Map.t, z: t('p)): t('p) =>
   | Some(z) => z
   };
 
-let set_llm_buffer = (z: t('p), response: string): t('p) =>
+let set_llm_buffer = (~projector_init, z: t('p), response: string): t('p) =>
   switch (
     {
       open OptUtil.Syntax;
       //TODO: Error feedback on below
-      let* content = Parser.to_zipper(response);
-      let+ _ = [] == content.backpack ? Some() : None;
-      Zipper.set_buffer(z, ~content=Zipper.zip(content), ~mode=Parsed);
+      let* rz = Parser.to_zipper(~projector_init, response);
+      switch (Zipper.local_backpack(rz)) {
+      | [] =>
+        Some(Zipper.set_buffer(z, ~content=Zipper.zip(rz), ~mode=Parsed))
+      | _ => None
+      };
     }
   ) {
   | None => z
   | Some(z) => z
   };
 
-let paste = (z: Zipper.t('p), str: string): option(Zipper.t('p)) => {
-  open Util.OptUtil.Syntax;
-  let* z = Parser.to_zipper(~zipper_init=z, str);
-  /* HACK(andrew): Insert/Destruct below is a hack to deal
-     with the fact that pasting something like "let a = b in"
-     won't trigger the barfing of the "in"; to trigger this,
-     we insert a space, and then we immediately delete it */
-  let* z = Insert.go(" ", z);
-  let+ z = Destruct.go(Left, z);
-  remold_regrout(Left, z);
-};
+let paste =
+    (~projector_init, z: Zipper.t('p), str: string): option(Zipper.t('p)) =>
+  Parser.to_zipper(~projector_init, ~zipper_init=z, str);
 
 let paste_segment = (z: Zipper.t('p), segment: Segment.t('p)): Zipper.t('p) => {
   let replace_selection = (z, focus, segment): Zipper.t('p) =>
@@ -57,25 +52,47 @@ let paste_segment = (z: Zipper.t('p), segment: Segment.t('p)): Zipper.t('p) => {
   replace_selection(z, z.selection.focus, segment);
 };
 
+let projector_to_invoke =
+    (
+      ~get_kind: 'p => ProjectorKind.t,
+      ~seg_of_projector: 'p => Segment.t('p),
+      pr: Base.projector('p),
+    )
+    : Segment.t('p) => [
+  Piece.mk_tile(
+    Form.mk(
+      Form.ss,
+      [Form.mk_projector_invoke(get_kind(pr.model))],
+      Mold.(mk_op(Exp, [])),
+    ),
+    [],
+  ),
+  Piece.mk_tile(Form.get(ApExp), [seg_of_projector(pr.model)]),
+];
+
 let go_z =
     (
       type p',
-      type p_kind,
       type p_a,
       ~settings as _: Language.CoreSettings.t,
       ~seg_to_ed,
-      ~projector_init,
-      ~seg_of_projector as seg_of_pr,
+      ~projector_init as pi,
+      ~seg_of_projector: p' => Segment.t(p'),
       ~update_projector,
       ~livelit_projectors,
+      ~get_kind: p' => ProjectorKind.t,
       statics: CachedStatics.t,
-      a: Action.t(p_kind, p', p_a),
+      a: Action.t('p_kind, p', p_a),
       module M: Move.S with type p = p',
       z: Zipper.t(p'),
     )
     : Action.Result.t(Zipper.t(p')) => {
   module Move = Move.Make(M);
   module Select = Select.Make(M);
+
+  let projector_to_segment =
+    projector_to_invoke(~get_kind, ~seg_of_projector);
+  let projector_init = ProjectorPerform.init(~seg_to_ed, ~projector_init=pi);
 
   let buffer_accept = (z): option(Zipper.t(p')) =>
     switch (z.selection.mode) {
@@ -96,12 +113,12 @@ let go_z =
          * left to the previous hole. */
         let z = {
           open OptUtil.Syntax;
-          let* z = paste(z, completion);
+          let* z = paste(~projector_init, z, completion);
           let* z = Move.go(Goal(Piece(Grout, Left)), z);
           Move.go(Local(Left(ByToken)), z);
         };
         z;
-      | Some(completion) => paste(z, completion)
+      | Some(completion) => paste(~projector_init, z, completion)
       }
     };
 
@@ -122,7 +139,7 @@ let go_z =
 
   switch (a) {
   | Paste(String(clipboard)) =>
-    switch (paste(z, clipboard)) {
+    switch (paste(~projector_init, z, clipboard)) {
     | None => Error(CantPaste)
     | Some(z) => Ok(z)
     }
@@ -148,14 +165,16 @@ let go_z =
     let reparse = z =>
       Parser.to_zipper(
         ~zipper_init=Zipper.init(),
-        Printer.of_zipper(~holes="", ~indent="", z),
+        Printer.of_zipper(~projector_to_segment, ~holes="", ~indent="", z),
+        ~projector_init,
       );
     switch (reparse(z)) {
     | None => Error(CantReparse)
     | Some(z) => Ok(z)
     };
   | Buffer(Set(TyDi)) => Ok(set_tydi_buffer(statics.info_map, z))
-  | Buffer(Set(LLM(response))) => Ok(set_llm_buffer(z, response))
+  | Buffer(Set(LLM(response))) =>
+    Ok(set_llm_buffer(~projector_init, z, response))
   | Buffer(Accept) =>
     switch (buffer_accept(z)) {
     | None => Error(CantAccept)
@@ -165,8 +184,8 @@ let go_z =
   | Project(a) =>
     ProjectorPerform.go(
       ~seg_to_ed,
-      ~projector_init,
-      ~seg_of_pr,
+      ~projector_init=pi,
+      ~seg_of_projector,
       ~update_projector,
       ~livelit_projectors,
       ~jump_to_side_of_id=Move.jump_to_side_of_id,
@@ -178,33 +197,6 @@ let go_z =
   | Move(d) =>
     Move.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_move)
   | Jump(jump_target) =>
-    //TODO(andrew): cleanup debugging code below
-    // let segment =
-    //   Zipper.smart_seg(~dump_backpack=true, ~erase_buffer=true, z);
-    // let id = Indicated.index(z);
-    // print_endline("LOOKING FORID");
-    // switch (id) {
-    // | Some(id) => print_endline(Id.to_string(id))
-    // | None => print_endline("NONE")
-    // };
-    // print_endline("INITIAL SEGMENT:");
-    // Segment.show((_, _) => (), segment) |> print_endline;
-    // switch (id) {
-    // | Some(id) =>
-    //   let segs = TermRanges.split([id], segment);
-    //   let _ =
-    //     switch (Id.Map.find_opt(id, segs)) {
-    //     | Some(seg) =>
-    //       print_endline("FOUND SEGMENT:");
-    //       Segment.show((_, _) => (), seg) |> print_endline;
-    //       ();
-    //     | None =>
-    //       print_endline("NO SEGMENT FOUND");
-    //       ();
-    //     };
-    //   ();
-    // | None => ()
-    // };
     (
       switch (jump_target) {
       | BindingSiteOfIndicatedVar =>
@@ -265,6 +257,8 @@ let go_z =
     | None => Ok(z)
     | Some(z) => Ok(z)
     }
+  | Select(ToggleFocus) => Ok(Zipper.toggle_focus(z))
+  | Select(SetFocus(d)) => Ok(Zipper.set_focus(z, d))
   | Destruct(d) =>
     z
     |> Destruct.go(d)
@@ -283,34 +277,20 @@ let go_z =
       };
 
     z
-    |> Insert.go(char, ~ctx)
+    |> Insert.go(~projector_init, char, ~ctx)
     /* note: remolding here is done case-by-case */
     |> Result.of_option(~error=Action.Failure.Cant_insert);
-  | Pick_up => Ok(remold_regrout(Left, Zipper.pick_up(z)))
   | Put_down =>
-    let z =
-      /* Alternatively, putting down inside token could eiter merge-in or split */
+    (
       switch (z.caret) {
       | Inner(_) => None
-      | Outer => Zipper.put_down_regrout_remold(Left, z)
-      };
-    z |> Result.of_option(~error=Action.Failure.Cant_put_down);
-  | RotateBackpack =>
-    let z = {
-      ...z,
-      backpack: Util.ListUtil.rotate(z.backpack),
-    };
-    Ok(z);
-  | MoveToBackpackTarget((Left(_) | Right(_)) as d) =>
-    if (Backpack.restricted(z.backpack)) {
-      Move.to_backpack_target(d, z)
-      |> Result.of_option(~error=Action.Failure.Cant_move);
-    } else {
-      Move.go(Local(d), z)
-      |> Result.of_option(~error=Action.Failure.Cant_move);
-    }
-  | MoveToBackpackTarget((Up | Down) as d) =>
-    Move.to_backpack_target(d, z)
-    |> Result.of_option(~error=Action.Failure.Cant_move)
+      | Outer =>
+        switch (Zipper.match_prev(z)) {
+        | Some(z) => Some(z)
+        | None => Zipper.put_down_regrout_remold(Left, z)
+        }
+      }
+    )
+    |> Result.of_option(~error=Action.Failure.Cant_put_down)
   };
 };

@@ -54,21 +54,51 @@ let unparenthesize = (piece: piece('p)): segment('p) =>
   };
 
 let rec segment_to_string =
-        (~holes=" ", ~concave_holes=" ", seg: segment('p)): string =>
+        (
+          ~holes=" ",
+          ~concave_holes=" ",
+          ~projector_to_segment,
+          seg: segment('p),
+        )
+        : string =>
   seg
-  |> List.map(piece_to_string(~holes, ~concave_holes))
+  |> List.map(
+       piece_to_string(~holes, ~concave_holes, ~projector_to_segment),
+     )
   |> String.concat("")
 and piece_to_string =
-    (~holes: string, ~concave_holes: string, p: piece('p)): string =>
+    (
+      ~holes: string,
+      ~concave_holes: string,
+      ~projector_to_segment,
+      p: piece('p),
+    )
+    : string =>
   switch (p) {
-  | Tile(t) => tile_to_string(~holes, ~concave_holes, t)
+  | Tile(t) =>
+    tile_to_string(~holes, ~concave_holes, ~projector_to_segment, t)
   | Grout({shape: Concave, _}) => concave_holes
   | Grout({shape: Convex, _}) => holes
   | Secondary(w) => Secondary.get_string(w.content)
-  | Projector(_p) => "🎦" // TODO(andrew): print projectors
+  | Projector(p) =>
+    segment_to_string(
+      ~holes,
+      ~concave_holes,
+      ~projector_to_segment,
+      projector_to_segment(p),
+    )
   }
 and tile_to_string =
-    (~holes: string, ~concave_holes: string, t: tile('p)): string =>
+    (
+      ~holes: string,
+      ~concave_holes: string,
+      ~projector_to_segment,
+      t: tile('p),
+    )
+    : string =>
   Aba.mk(t.shards, t.children)
-  |> Aba.join(List.nth(t.label), segment_to_string(~holes, ~concave_holes))
+  |> Aba.join(
+       List.nth(t.label),
+       segment_to_string(~holes, ~concave_holes, ~projector_to_segment),
+     )
   |> String.concat("");

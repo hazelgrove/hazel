@@ -173,6 +173,12 @@ let mk_tile: (Form.t, list(list(t('p)))) => t('p) =
       children,
     });
 
+let mk_grout = (~id=Id.mk(), shape: Grout.shape): t('p) =>
+  grout({
+    id,
+    shape,
+  });
+
 let mk_mono = (sort: Sort.t, string: string): t('p) =>
   string |> Form.mk_atomic(sort) |> mk_tile(_, []);
 
@@ -227,4 +233,11 @@ let unparenthesize = (piece: t('p)): list(t('p)) =>
       _,
     }) => seg
   | _ => [piece]
+  };
+
+let is_infix_delimiter_op_prefix = (p: t('p)) =>
+  switch (p) {
+  | Tile({label: [t], mold, _}) =>
+    Mold.is_infix_op(mold) && Form.is_infix_delimiter_op_prefix(t)
+  | _ => false
   };

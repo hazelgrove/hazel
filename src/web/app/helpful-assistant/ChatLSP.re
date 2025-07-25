@@ -389,12 +389,15 @@ module ErrorRound = {
     switch (Perform.paste(Zipper.init(), completion)) {
     | None => Error("Undocumented parse error, no feedback available")
     | Some(completion_z) =>
-      switch (completion_z.backpack) {
+      switch (Zipper.local_backpack(completion_z)) {
       | [_, ..._] as orphans =>
         let orphans =
           List.map(
-            (s: Selection.t('p)) =>
-              Printer.of_segment(~holes="", s.content),
+            Base.tile_to_string(
+              ~holes="",
+              ~concave_holes=" ",
+              ~projector_to_segment=Insert.projector_to_invoke,
+            ),
             orphans,
           );
         Error(

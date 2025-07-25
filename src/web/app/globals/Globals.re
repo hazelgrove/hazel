@@ -7,8 +7,6 @@ open Util;
 module Action = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | SetMousedown(bool)
-    | SetShowBackpackTargets(bool)
     | SetFontMetrics(Haz3lcorep.FontMetrics.t)
     | Set(Settings.Update.t)
     | JumpToTile(Haz3lcore.Id.t) // Perform(Select(Term(Id(id, Left))))
@@ -26,8 +24,6 @@ module Model = {
     settings: Settings.t,
     // State:
     font_metrics: Haz3lcorep.FontMetrics.t,
-    show_backpack_targets: bool,
-    mousedown: bool,
     // Calculated:
     color_highlights: option(Haz3lcorep.ColorSteps.colorMap),
     // Other:
@@ -50,8 +46,6 @@ module Model = {
     let settings = Settings.Store.load();
     {
       font_metrics: Haz3lcorep.FontMetrics.init,
-      show_backpack_targets: false,
-      mousedown: false,
       settings,
       color_highlights: None,
       inject_global: _ =>
@@ -90,8 +84,6 @@ module Update = {
 
   let can_undo = (action: t) => {
     switch (action) {
-    | SetMousedown(_) => false
-    | SetShowBackpackTargets(_) => false
     | SetFontMetrics(_) => false
     | Set(action) => Settings.Update.can_undo(action)
     | JumpToTile(_) => false

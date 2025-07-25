@@ -102,24 +102,6 @@ module Update = {
         model: Model.t,
       ) => {
     switch (action) {
-    | SetMousedown(mousedown) =>
-      {
-        ...model,
-        globals: {
-          ...model.globals,
-          mousedown,
-        },
-      }
-      |> Updated.return_quiet
-    | SetShowBackpackTargets(show) =>
-      {
-        ...model,
-        globals: {
-          ...model.globals,
-          show_backpack_targets: show,
-        },
-      }
-      |> Updated.return_quiet
     | SetFontMetrics(fm) =>
       {
         ...model,
@@ -326,10 +308,6 @@ module Focus = {
 
   let handle_key_event = (event: Key.t, ~inject): Ui_effect.t(unit) => {
     switch (event) {
-    | {key: D("Alt"), sys: Mac | PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
-      inject(Update.Globals(SetShowBackpackTargets(true)))
-    | {key: U("Alt"), _} =>
-      inject(Update.Globals(SetShowBackpackTargets(false)))
     | {key: D("F7"), sys: Mac | PC, shift: Down, meta: Up, ctrl: Up, alt: Up} =>
       inject(Update.Benchmark(Start))
     | {

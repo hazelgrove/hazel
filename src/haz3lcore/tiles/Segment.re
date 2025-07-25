@@ -20,6 +20,24 @@ let incomplete_tiles =
     | _ => None,
     _,
   );
+
+let rec incomplete_tiles_deep = (seg: t('p)) =>
+  List.map(
+    fun
+    | Piece.Tile(t) =>
+      (!Tile.is_complete(t) ? [t] : [])
+      @ List.concat_map(incomplete_tiles_deep, t.children)
+    | _ => [],
+    seg,
+  )
+  |> List.concat;
+
+let incomplete_tiles_to_missing_shards = seg =>
+  seg |> List.map(Tile.missing_shards) |> List.concat;
+
+let global_missing_shards = (seg: t('p)) =>
+  seg |> incomplete_tiles_deep |> incomplete_tiles_to_missing_shards;
+
 let tiles =
   List.filter_map(
     fun
@@ -482,66 +500,17 @@ module Trim = {
     | [ws, ...wss] => List.cons(ws, rm_up_to_one_space(wss))
     };
 
-  let add_grout = (~d: Direction.t, shape: Nib.Shape.t, (wss, gs): t): t => {
-    let g = Grout.mk_fits_shape(shape);
-    /* When adding a concave grout to the left, consume a space.
-       Note changes made to the logic here should also take into
-       account the other direction in 'regrout' below */
-    let wss' =
-      switch (g.shape, d) {
-      /* Left Concave e.g. Insert "i" `let a = 1 i|` => `let a = 1><i|` (Consume) */
-      | (Concave, Left) => rm_up_to_one_space(wss)
-      /* Right Convex e.g. Backspace `1| + 2` => `|<> + 2` (Don't consume) */
-      /* Right Concave e.g. Backspace `1 +| 1` => `1 |>< 1` (Don't consume) */
-      | _ => wss
-      };
-    cons_g(g, (wss', gs));
-  };
+  let add_grout = (shape: Nib.Shape.t, (wss, gs): t): t =>
+    cons_g(Grout.mk_fits_shape(shape), (wss, gs));
 
   // assumes grout in trim fit r but may not fit l
-  let regrout = (d: Direction.t, (l, r): Nibs.shapes, trim: t): t =>
+  let regrout = ((l, r): Nibs.shapes, trim: t): t =>
     if (Nib.Shape.fits(l, r)) {
-      let (wss, gs) = trim;
-      let new_spaces =
-        List.filter_map(
-          (g: Grout.t) => {
-            switch (g.shape, d) {
-            /* Left Concave e.g. `let a = 1><in|` => `let a = 1 in |` (Add) */
-            /* NOTE(andrew): Not sure why d here seems reversed. */
-            | (Concave, Right) => Some(Secondary.mk_space(g.id))
-            | _ => None
-            }
-          },
-          gs,
-        );
-      /* When removing a grout to the Left, add a space. Note
-         changes made to the logic here should also take into
-         account the other direction in 'add_grout' above.
-
-         Note below that it is important that we add the new spaces
-         before the existing wss, as doing otherwise may result
-         in the new spaces ending up leading a line. This approach is
-         somewhat hacky; we may just want to remove all the spaces
-         whenever there is a linebreak; not making this chance now
-         as I'm worried about it introducing subtle jank.
-
-         David PR comment:
-         All these changes assume the trim is ordered left-to-right,
-         but this may not be true when Trim.regrout is called by
-         regrout_affix(Left, ...) below, which reverses the affix before
-         processing. (This didn't pose an issue before with trim because
-         the secondary and grout are symmetric and the existing code
-         didn't affect order.)
-         Proper fix would require threading through directional parameter
-         from regrout_affix into Trim.regrout and appending to correct side.
-         Similar threading for add_grout. That said, I couldn't trigger any
-         undesirable behavior with these changes and am fine with going ahead
-         with this for now. */
-      Aba.mk([new_spaces @ List.concat(wss)], []);
+      Aba.mk([List.concat(trim |> fst)], []);
     } else {
       let (_, gs) as merged = merge(trim);
       switch (gs) {
-      | [] => add_grout(~d, l, merged)
+      | [] => add_grout(l, merged)
       | [_, ..._] => merged
       };
     };
@@ -554,7 +523,7 @@ module Trim = {
 
 let rec regrout = ((l, r), seg) => {
   let (trim, r, tl) = regrout_affix(Direction.Right, seg, r);
-  let trim = Trim.regrout(Direction.Right, (l, r), trim);
+  let trim = Trim.regrout((l, r), trim);
   Trim.to_seg(trim) @ tl;
 }
 and regrout_affix =
@@ -570,7 +539,7 @@ and regrout_affix =
           let p = Piece.Projector(pr);
           let (l', r') =
             pr.mold |> Mold.shapes |> (d == Left ? TupleUtil.swap : Fun.id);
-          let trim = Trim.regrout(d, (r', r), trim);
+          let trim = Trim.regrout((r', r), trim);
           (Trim.empty, l', [p, ...Trim.to_seg(trim)] @ tl);
         | Tile(t) =>
           let children =
@@ -590,7 +559,7 @@ and regrout_affix =
             });
           let (l', r') =
             Tile.shapes(t) |> (d == Left ? TupleUtil.swap : Fun.id);
-          let trim = Trim.regrout(d, (r', r), trim);
+          let trim = Trim.regrout((r', r), trim);
           (Trim.empty, l', [p, ...Trim.to_seg(trim)] @ tl);
         }
       },

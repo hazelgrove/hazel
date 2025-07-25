@@ -62,6 +62,13 @@ let pop =
 
 let incomplete_tiles = TupleUtil.map2(Segment.incomplete_tiles, _);
 
+let local_missing_shards = (sibs: t('p)): list(Tile.t('p)) => {
+  let (l, r) = incomplete_tiles(sibs);
+  /* Reversing is important here as want to match the lexically closest */
+  (l |> List.map(Tile.right_missing_shards) |> List.rev |> List.concat)
+  @ (r |> List.map(Tile.left_missing_shards) |> List.concat);
+};
+
 let split_by_matching = id => TupleUtil.map2(Segment.split_by_matching(id));
 
 let reassemble = TupleUtil.map2(Segment.reassemble, _);

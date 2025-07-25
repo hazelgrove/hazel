@@ -16,6 +16,7 @@ module Print = {
       ~measured=Measured.of_segment(segment, Id.Map.empty),
       ~caret=None,
       ~indent=" ",
+      ~projector_to_segment=Printer.default_projector_to_segment,
       segment,
     );
   };

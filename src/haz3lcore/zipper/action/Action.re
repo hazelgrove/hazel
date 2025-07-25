@@ -41,7 +41,9 @@ type select =
   | Resize(move)
   | Smart(int)
   | Tile(rel)
-  | Term(rel);
+  | Term(rel)
+  | ToggleFocus
+  | SetFocus(Direction.t);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type chooser('p_kind) =
@@ -90,9 +92,6 @@ type t('p_kind, 'p, 'p_a) =
   | Unselect(option(Direction.t))
   | Destruct(Direction.t)
   | Insert(string)
-  | RotateBackpack
-  | MoveToBackpackTarget(planar)
-  | Pick_up
   | Put_down
   | Introduce;
 
@@ -110,7 +109,6 @@ let is_edit: t('k, 'p, 'a) => bool =
   | Reparse
   | Insert(_)
   | Destruct(_)
-  | Pick_up
   | Put_down
   | Introduce
   | Buffer(Accept | Clear | Set(_)) => true
@@ -118,9 +116,7 @@ let is_edit: t('k, 'p, 'a) => bool =
   | Move(_)
   | Jump(_)
   | Select(_)
-  | Unselect(_)
-  | RotateBackpack
-  | MoveToBackpackTarget(_) => false
+  | Unselect(_) => false
   | Project(p) =>
     switch (p) {
     | Perform(_)
@@ -137,16 +133,13 @@ let is_historic: t('k, 'p, 'a) => bool =
   | Move(_)
   | Jump(_)
   | Select(_)
-  | Unselect(_)
-  | RotateBackpack
-  | MoveToBackpackTarget(_) => false
+  | Unselect(_) => false
   | Cut
   | Buffer(Accept | Clear | Set(_))
   | Paste(_)
   | Reparse
   | Insert(_)
   | Destruct(_)
-  | Pick_up
   | Put_down
   | Introduce => true
   | Project(p) =>
@@ -171,10 +164,7 @@ let prevent_in_read_only_editor = (a: t('k, 'p, 'a)) => {
   | Reparse
   | Destruct(_)
   | Insert(_)
-  | Pick_up
   | Put_down
-  | RotateBackpack
-  | MoveToBackpackTarget(_)
   | Introduce => true
   | Project(p) =>
     switch (p) {
@@ -199,7 +189,9 @@ let should_animate: t('k, 'p, 'a) => bool =
     | All
     | Smart(_)
     | Tile(_)
-    | Term(_) => true
+    | Term(_)
+    | ToggleFocus
+    | SetFocus(_) => true
     }
   | Unselect(_)
   | Paste(_)
@@ -208,27 +200,23 @@ let should_animate: t('k, 'p, 'a) => bool =
   | Insert(_)
   | Introduce
   | Destruct(_)
-  | Pick_up
   | Put_down
   | Buffer(Accept | Clear | Set(_))
   | Copy
   | Move(_)
   | Jump(_)
-  | RotateBackpack
-  | MoveToBackpackTarget(_)
   | Project(_) => true;
 
 let should_scroll_active: t('k, 'p, 'a) => bool =
   fun
   | Move(_)
   | Jump(_)
-  | Select(Resize(_) | Term(_) | Smart(_) | Tile(_))
+  | Select(
+      Resize(_) | Term(_) | Smart(_) | Tile(_) | ToggleFocus | SetFocus(_),
+    )
   | Destruct(_)
   | Insert(_)
-  | Pick_up
   | Put_down
-  | RotateBackpack
-  | MoveToBackpackTarget(_)
   | Buffer(Set(_) | Accept | Clear)
   | Paste(_)
   | Copy

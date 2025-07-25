@@ -29,11 +29,11 @@ module Kind = ProjectorKind;
 
 /* This module is called Private because it should only be used in this file */
 module GADTPrivate = {
-  /* The gadt type is on the surface, exactly the same as the ProjectorCore.Kind.t type,
+  /* The gadt type is on the surface, exactly the same as the ProjectorKind.t type,
    * but it allows us to associate the projector's model, action, and focus types
    * with the projector kind, so that we can type check them usefully.
    *
-   * It should have one constructor for each projector in ProjectorCore.Kind.t.*/
+   * It should have one constructor for each projector in ProjectorKind.t.*/
   type gadt('model, 'action, 'focus, 'ed, 'ed_a, 'ed_f) =
     | Fold: gadt(
               FoldProj.model('ed),

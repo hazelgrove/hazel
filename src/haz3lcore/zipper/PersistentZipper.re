@@ -9,20 +9,20 @@ type t = {
 let to_string = (~concave_holes=?, ~caret=?, z) =>
   Printer.of_zipper(~holes="", ~indent="", ~concave_holes?, ~caret?, z);
 
-let persist = (f, zipper: Zipper.t('p)) => {
+let persist = (~projector_to_segment, f, zipper: Zipper.t('p)) => {
   {
     zipper: Zipper.sexp_of_t(f, zipper) |> Sexplib.Sexp.to_string,
-    backup_text: to_string(zipper),
+    backup_text: to_string(~projector_to_segment, zipper),
   };
 };
 
-let unpersist = (f, persisted: t) =>
+let unpersist = (~projector_init, f, persisted: t) =>
   try(Sexplib.Sexp.of_string(persisted.zipper) |> Zipper.t_of_sexp(f)) {
   | _ =>
     print_endline(
       "Warning: using backup text! Serialization may be for an older version of Hazel.",
     );
-    switch (Parser.to_zipper(persisted.backup_text)) {
+    switch (Parser.to_zipper(~projector_init, persisted.backup_text)) {
     | None => Zipper.init()
     | Some(z) => z
     };

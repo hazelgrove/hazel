@@ -22,7 +22,6 @@ module Caret = {
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t('p) = {
   selection: Selection.t('p),
-  backpack: Backpack.t('p),
   relatives: Relatives.t('p),
   caret: Caret.t,
 };

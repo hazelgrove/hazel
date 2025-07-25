@@ -2,14 +2,30 @@ open Zipper;
 open Util;
 open OptUtil.Syntax;
 
-let barf = (d: Direction.t, z: t('p)): option(t('p)) => {
+let barf = (d: Direction.t, tok: Token.t, z: t('p)): option(t('p)) => {
   /* Removes the d-neighboring tile and drops from backpack;
      precondition: the d-neighbor should be a monotile
      string-matching the dropping shard */
   let* z = delete(d, z);
-  let+ z = put_down(d, z);
+  let+ z = put_down_tok(d, tok, z);
   z;
 };
+
+let before_case_shard = (z: t('p)): bool =>
+  List.exists(
+    (p: Piece.t('p)) =>
+      switch (p) {
+      | Tile({label: ["case", "end"], shards: [0], _}) => true
+      | _ => false
+      },
+    z.relatives.siblings |> fst,
+  );
+
+let inside_case = (z: t('p)): bool =>
+  switch (Ancestors.parent(z.relatives.ancestors)) {
+  | Some({label: ["case", "end"], _}) => true
+  | _ => false
+  };
 
 let delayed_expand =
     (t: Token.t, caret: Direction.t, z: t('p)): option(t('p)) => {
@@ -17,6 +33,16 @@ let delayed_expand =
      keyword-expansion; precondition: the d-neighbor should be a monotile
      string-matching a keyword of an expanding form */
   let (new_label, backpack) = Molds.delayed_expansion(t);
+  /* Only expand case rules when inside a case */
+  let (new_label, backpack) =
+    switch () {
+    | () when (before_case_shard(z) || inside_case(z)) && t == "|" => (
+        ["|", "=>"],
+        Direction.Left,
+      )
+    | _ when t == "|" => ([t], Direction.Left)
+    | _ => (new_label, backpack)
+    };
   let+ z = delete(caret, z);
   construct(~backpack, ~caret, new_label, z);
 };
@@ -25,7 +51,7 @@ let expand_or_barf_left_neighbor = (z as s: t('p)): option(t('p)) =>
   /* If left neighbor is a monotile (a) string-matching the shard at the
      top of the backpack, barf it, or (b) an expansing keyword, expand it. */
   switch (left_neighbor_monotile(z.relatives.siblings)) {
-  | Some(t) when Zipper.will_barf(t, z) => barf(Left, s)
+  | Some(t) when Zipper.will_barf(t, z) => barf(Left, t, s)
   | Some(t) when Molds.is_delayed(t) => delayed_expand(t, Left, s)
   | _ => Some(s)
   };
@@ -34,7 +60,7 @@ let expand_or_barf_right_neighbor = (z as s: t('p)): option(t('p)) =>
   /* If right neighbor is a monotile (a) string-matching the shard at the
      top of the backpack, barf it, or (b) an expansing keyword, expand it. */
   switch (right_neighbor_monotile(z.relatives.siblings)) {
-  | Some(t) when Zipper.will_barf(t, z) => barf(Right, s)
+  | Some(t) when Zipper.will_barf(t, z) => barf(Right, t, s)
   | Some(t) when Molds.is_delayed(t) => delayed_expand(t, Right, s)
   | _ => Some(s)
   };
@@ -68,20 +94,18 @@ let make_new_tile = (t: Token.t, caret: Direction.t, z: t('p)): t('p) =>
   /* Adds a new tile at the caret. If the new token matches the top
      of the backpack, the backpack shard is dropped. Otherwise, we
      construct a new tile, which may immediately expand. */
-  Zipper.will_barf(t, z)
-    ? switch (neighbor_can_duomerge(t, z.relatives.siblings)) {
-      | Some((lbl, d)) =>
-        let z = Zipper.replace(~caret=d, ~backpack=d, lbl, z) |> Option.get;
-        z;
-      | None =>
-        let z = put_down(caret, z) |> Option.get;
-        z;
+  switch (neighbor_can_duomerge(t, z.relatives.siblings)) {
+  | Some((lbl, d)) =>
+    Zipper.replace(~caret=d, ~backpack=d, lbl, z) |> Option.get
+  | None =>
+    /* e.g. closing parens are put down without further ceremony */
+    Zipper.will_barf(t, z) && Form.is_instant_putdown(t)
+      ? put_down_regrout_remold_tok(caret, t, z) |> Option.get
+      : {
+        let (lbl, backpack) = Molds.instant_expansion(t);
+        construct(~caret, ~backpack, lbl, z);
       }
-    : {
-      let (lbl, backpack) = Molds.instant_expansion(t);
-      let z = construct(~caret, ~backpack, lbl, z);
-      z;
-    };
+  };
 
 let expand_neighbors_and_make_new_tile =
     (char: Token.t, state: t('p)): option(t('p)) => {
@@ -140,7 +164,7 @@ let insert_duo = (lbl: Label.t, z: option(t('p))): option(t('p)) =>
        //NOTE: regrout to put e.g. ap(1|) back together
        z
        |> remold_regrout(Left)
-       |> Zipper.put_down(Left)
+       |> Zipper.put_down_tok(Left, List.nth(lbl, 1))
        |> OptUtil.and_then(Zipper.move(Left))
      });
 
@@ -234,6 +258,41 @@ let closing_stringlit_or_comment = (char, t) =>
   || Form.is_comment(t)
   && Form.is_comment_delim(char);
 
+let projector_invoke = (~projector_init, invocation, syntax) => {
+  let* name = Form.of_projector_invoke(invocation);
+  let kind = ProjectorKind.of_name(name);
+  projector_init(kind, syntax);
+};
+
+let is_projector_invoke = (~projector_init, z: t('p)): option(t('p)) => {
+  switch (z.relatives.siblings |> fst |> List.rev) {
+  | [
+      Tile({label: ["(", ")"], children: [syntax], _}),
+      Tile({label: [invocation], _}),
+      ...rest,
+    ]
+      when Form.is_projector_invoke(invocation) =>
+    /* Trim only need because of grout/whitespace transmutation when syntax is hole */
+    let syntax =
+      syntax |> Segment.trim_secondary(Right) |> Segment.trim_secondary(Left);
+    let+ piece = projector_invoke(~projector_init, invocation, syntax);
+    Zipper.update_siblings(
+      ((_, r)) => ([piece, ...rest] |> List.rev, r),
+      z,
+    );
+  /* Special case for reparsing of projectors placed on holes */
+  | [Tile({label: ["()"], _}), Tile({label: [name], _}), ...rest]
+      when Form.is_projector_invoke(name) =>
+    let+ piece =
+      projector_invoke(~projector_init, name, [Piece.mk_grout(Convex)]);
+    Zipper.update_siblings(
+      ((_, r)) => ([piece, ...rest] |> List.rev, r),
+      z,
+    );
+  | _ => None
+  };
+};
+
 let rec go =
         (
           ~ctx: option(Language.Ctx.t)=?,
@@ -277,7 +336,9 @@ let rec go =
 
         // let model_zipper =
         //   model_segment
-        //   |> Segment.to_string
+        //   |> Segment.to_string(~projector_to_segment=(p: Base.projector) =>
+        //        Base.unparenthesize(p.syntax)
+        //      )
         //   |> StringUtil.to_list
         //   |> List.fold_left(insert, Some(z));
 
@@ -352,5 +413,24 @@ let rec go =
     |> insert_outer(char)
     |> Option.map(remold_regrout(Left))
     |> Option.map(move_into_if_stringlit_or_comment(char))
+  };
+};
+
+let go =
+    (
+      ~projector_init,
+      ~ctx: option(Language.Ctx.t)=?,
+      char: string,
+      z: t('p),
+    )
+    : option(t('p)) => {
+  /* This is a wrapper intended to effectuate after-insertion conditional
+   * operations. This is done here as opposed to in perform in order to
+   * reflect operations we want performed by the parser, which uses
+   * Insert.go as its primary driver */
+  let+ z = go(~ctx?, char, z);
+  switch (is_projector_invoke(~projector_init, z)) {
+  | Some(z) => z
+  | None => z
   };
 };

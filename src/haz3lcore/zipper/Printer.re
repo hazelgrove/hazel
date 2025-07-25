@@ -1,19 +1,14 @@
 open Util;
 
-//TODO(andrew): may be unnecessary now
-let remove_projector: Piece.t('p) => Segment.t('p) =
-  fun
-  | Projector(_pr) => [
-      Grout({
-        shape: Convex,
-        id: Id.mk(),
-      }),
-    ]
-  | x => [x];
+let default_projector_to_segment = _ => [Piece.mk_grout(Convex)];
 
-let measured_no_projectors = (segment: Segment.t('p)) =>
+let measured_no_projectors = (~projector_to_segment, segment: Segment.t('p)) =>
   segment
-  |> ZipperBase.MapPiece.of_segment(remove_projector)
+  |> ZipperBase.MapPiece.of_segment(
+       fun
+       | Projector(pr) => projector_to_segment(pr)
+       | x => [x],
+     )
   |> Measured.of_segment(_, ProjectorShape.Map.empty);
 
 let insert_string = (s: string, point: Point.t, rows: list(string)) => {
@@ -53,7 +48,14 @@ let add_caret =
 let add_indent = (measured: Measured.t, indent: string, i: int, r: string) =>
   StringUtil.repeat(Measured.Rows.find(i, measured.rows).indent, indent) ++ r;
 
-let add_indents = (segment, measured, indent: string, rows: list(string)) =>
+let add_indents =
+    (
+      ~projector_to_segment,
+      segment,
+      measured,
+      indent: string,
+      rows: list(string),
+    ) =>
   if (indent == "") {
     /* If no indentation is needed, we don't need to bother calculating measured */
     rows;
@@ -61,7 +63,7 @@ let add_indents = (segment, measured, indent: string, rows: list(string)) =>
     let measured =
       switch (measured) {
       | Some(m) => m
-      | None => measured_no_projectors(segment)
+      | None => measured_no_projectors(~projector_to_segment, segment)
       };
     List.mapi(add_indent(measured, indent), rows);
   };
@@ -77,13 +79,14 @@ let of_segment =
       ~caret: option((string, Point.t))=None,
       ~selection_anchor: option((string, Point.t))=None,
       ~measured=?,
+      ~projector_to_segment,
       segment: Segment.t('p),
     )
     : string =>
   segment
-  |> Segment.to_string(~holes, ~concave_holes)
+  |> Segment.to_string(~holes, ~concave_holes, ~projector_to_segment)
   |> String.split_on_char('\n')
-  |> add_indents(segment, measured, indent)
+  |> add_indents(~projector_to_segment, segment, measured, indent)
   |> add_caret(~caret, ~selection_anchor)
   |> String.concat("\n");
 
@@ -95,13 +98,14 @@ let of_zipper =
       ~indent=?,
       ~caret=?,
       ~selection_anchor=?,
+      ~projector_to_segment,
       z: Zipper.t('p),
     )
     : string => {
   let segment = Zipper.seg_without_buffer(z);
   /* Note that we can't just pass in the measured from editor as
    * we must recalculate the measured after removing projectors */
-  let measured = measured_no_projectors(segment);
+  let measured = measured_no_projectors(~projector_to_segment, segment);
   let caret =
     Option.map(char => (char, Zipper.caret_point(measured, z)), caret);
   let selection_anchor =
@@ -117,6 +121,7 @@ let of_zipper =
     ~caret,
     ~selection_anchor,
     ~measured,
+    ~projector_to_segment,
     segment,
   );
 };

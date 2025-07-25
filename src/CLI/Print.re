@@ -12,4 +12,9 @@ let exp_to_segment_settings: ExpToSegment.Settings.t = {
 let segmentize =
   ExpToSegment.exp_to_segment(~settings=exp_to_segment_settings, _);
 
-let print = exp => Printer.of_segment(~holes="?", segmentize(exp));
+let print = exp =>
+  Printer.of_segment(
+    ~projector_to_segment=Printer.default_projector_to_segment,
+    ~holes="?",
+    segmentize(exp),
+  );

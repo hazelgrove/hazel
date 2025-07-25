@@ -27,6 +27,7 @@ module CachedSyntax = {
      * underlying editor. In principle calculating this can involve
      * both static and dynamic information, so we cache this for perf */
     shape_map: ProjectorShape.Map.t,
+    cached_backpack: list(Tile.t('p)),
   };
 
   // should not be serializing
@@ -68,6 +69,7 @@ module CachedSyntax = {
       terms,
       projectors,
       shape_map: projector_shapes,
+      cached_backpack: Segment.global_missing_shards(segment),
     };
   };
 };
@@ -130,7 +132,7 @@ module Model = {
   };
 
   type persistent = PersistentZipper.t;
-  let persist = (f: 'p => 'q, model: t('p_k, 'p, 'p_a)) =>
+  let persist = (f, model: t('p_k, 'p, 'p_a)) =>
     model |> get_z |> PersistentZipper.persist(f);
   let unpersist = (f, p) =>
     p |> PersistentZipper.unpersist(f) |> mk_uncalculated;
@@ -237,7 +239,6 @@ module Update = {
   let update =
       (
         type p,
-        type p_k,
         type p_a,
         ~common: Common.t,
         ~shape_of_projector,
@@ -247,11 +248,12 @@ module Update = {
         ~seg_of_projector,
         ~update_projector,
         ~livelit_projectors,
-        a: Action.t(p_k, p, p_a),
+        ~get_kind,
+        a: Action.t('p_k, p, p_a),
         old_statics,
-        model: Model.t(p_k, p, p_a),
+        model: Model.t('p_k, p, p_a),
       )
-      : Action.Result.t(Model.t(p_k, p, p_a)) => {
+      : Action.Result.t(Model.t('p_k, p, p_a)) => {
     let seg_to_ed = seg =>
       Zipper.unzip(seg) |> Model.mk_uncalculated |> Option.some;
     open Result.Syntax;
@@ -281,6 +283,7 @@ module Update = {
             ~seg_of_projector,
             ~update_projector,
             ~livelit_projectors,
+            ~get_kind,
             old_statics,
             Buffer(Clear),
             Model.to_move_s(model),
@@ -359,6 +362,7 @@ module Update = {
         ~seg_to_ed,
         ~update_projector,
         ~livelit_projectors,
+        ~get_kind,
         old_statics,
         a,
         Model.to_move_s(model),
@@ -449,6 +453,7 @@ module Update = {
         ~livelit_projectors,
         ~update_projector,
         ~calculate_projector,
+        ~get_kind,
         model: Model.t('p_k, p, 'p_a),
       ) => {
     let seg_to_ed = seg =>
@@ -467,6 +472,7 @@ module Update = {
               ~seg_of_projector,
               ~update_projector,
               ~livelit_projectors,
+              ~get_kind,
               common.statics,
               Buffer(Set(TyDi)),
               Model.to_move_s(model),
