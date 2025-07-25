@@ -650,6 +650,10 @@ let mk_form = (form_name: Form.compound_form, id, children): Piece.t => {
   print_endline(
     "  Actual children: " ++ string_of_int(List.length(children)),
   );
+  print_endline(
+    "   Children list: "
+    ++ (children |> List.map(Segment.first_string) |> String.concat(", ")),
+  );
 
   assert(List.length(children) == List.length(form.mold.in_));
   // Add whitespaces
@@ -882,6 +886,8 @@ and exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     [mk_form(ParensExp, exp |> Exp.rep_id, [fun_form])]
     |> fold_fun_if(settings.fold_fn_bodies, name);
   | LivelitName(s) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "^" ++ s)
+  | Module({todo: _todo, final: [], env: _env}) =>
+    text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "{}")
   | Module({todo: _todo, final, env: _env}) =>
     let+ entry_segments =
       final |> List.map(m => module_entry_to_pretty(~settings: Settings.t, m));
@@ -889,8 +895,14 @@ and exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       IdTagged.ids(exp) |> List.hd,
       IdTagged.ids(exp) |> List.tl |> pad_ids(List.length(entry_segments)),
     );
+    let newlined =
+      List.map2(
+        (id, seg) => seg @ [Secondary(mk_newline(id))],
+        ids,
+        entry_segments,
+      );
 
-    [mk_form(ModuleExp, id, entry_segments |> all)];
+    [mk_form(ModuleExp, id, [newlined |> List.flatten])];
 
   | Fun(p, e, t, _) =>
     // TODO: Add optional newlines
