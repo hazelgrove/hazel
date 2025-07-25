@@ -26,6 +26,7 @@ module Model = {
     result: Calc.t(ProgramResult.t(ProgramResult.inner)),
     dynamics: Calc.saved(option(Dynamics.t)),
     display,
+    theorems: Theorems.Model.t,
   };
 
   let init = {
@@ -34,6 +35,7 @@ module Model = {
     result: Calc.NewValue(ProgramResult.ResultPending),
     dynamics: Calc.Pending,
     display: Evaluation(Calc.Pending),
+    theorems: Theorems.Model.init,
   };
 
   let probe_results = (model: t): option(Dynamics.Probe.Map.t) =>
@@ -64,7 +66,8 @@ module Update = {
     | ToggleStepper
     | StepperAction(StepperView.Update.t)
     | EvalEditorAction(CodeSelectable.Update.t)
-    | UpdateResult(ProgramResult.t(ProgramResult.inner));
+    | UpdateResult(ProgramResult.t(ProgramResult.inner))
+    | TheoremsAction(Theorems.Update.t);
 
   let can_undo = (action: t) => {
     switch (action) {
@@ -72,6 +75,7 @@ module Update = {
     | StepperAction(action) => StepperView.Update.can_undo(action)
     | EvalEditorAction(action) => CodeSelectable.Update.can_undo(action)
     | UpdateResult(_) => false
+    | TheoremsAction(action) => Theorems.Update.can_undo(action)
     };
   };
 
@@ -107,6 +111,13 @@ module Update = {
         display: Evaluation(Calculated(Some((exp, editor)))),
       };
     | (EvalEditorAction(_), _) => model |> Updated.return_quiet
+    | (TheoremsAction(action), _) =>
+      let* theorems =
+        Theorems.Update.update(~settings, action, model.theorems);
+      {
+        ...model,
+        theorems,
+      };
     | (UpdateResult(result), _) =>
       {
         ...model,
@@ -121,7 +132,7 @@ module Update = {
         ~queue_worker: option(Exp.t => unit),
         ~is_edited: bool,
         statics: Haz3lcore.CachedStatics.t,
-        {cached_settings, elab, result, dynamics, display}: Model.t,
+        {cached_settings, elab, result, dynamics, display, theorems}: Model.t,
       ) => {
     // Check whether settings / elab have changed
     let settings =
@@ -171,6 +182,7 @@ module Update = {
               probe_map: state |> EvaluatorState.get_probes,
               test_results:
                 state |> EvaluatorState.get_tests |> TestResults.mk_results,
+              theorems: state |> EvaluatorState.get_theorems,
             },
           )
         };
@@ -213,6 +225,9 @@ module Update = {
         Model.Stepper(StepperView.Update.calculate(~settings, elab, stepper))
       };
 
+    let theorems =
+      theorems |> Theorems.Update.calculate(~settings, ~dynamics);
+
     (
       {
         cached_settings: settings |> Calc.save,
@@ -220,6 +235,7 @@ module Update = {
         result: result |> Calc.make_old,
         dynamics: dynamics |> Calc.save,
         display,
+        theorems,
       }: Model.t
     );
   };
@@ -230,7 +246,8 @@ module Selection = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Evaluation(CodeSelectable.Selection.t)
-    | Stepper(StepperView.Focus.t);
+    | Stepper(StepperView.Focus.t)
+    | Theorems(Theorems.Focus.t);
 
   let get_cursor_info = (~selection: t, mr: Model.t): cursor(Update.t) =>
     switch (selection, mr.display) {
@@ -444,7 +461,19 @@ module View = {
           ]
         | None => []
         };
-      (result, test_overlay);
+      let theorems =
+        Theorems.View.view(
+          ~globals,
+          ~take_focus=f => signal(MakeActive(Theorems(f))),
+          ~inject=a => inject(TheoremsAction(a)),
+          ~selected=
+            switch (selected) {
+            | Some(Theorems(f)) => Some(f)
+            | _ => None
+            },
+          model.theorems,
+        );
+      (result @ theorems, test_overlay);
 
     // Just showing elaboration because evaluation is off:
     | `EvalResults when globals.settings.core.elaborate =>

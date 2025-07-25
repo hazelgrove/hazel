@@ -48,6 +48,12 @@ let is_new = (x: t('a)): bool =>
   | NewValue(_) => true
   };
 
+let old_if_same = (~eq: ('a, 'a) => bool=(==), x: 'a, y: t('a)): t('a) =>
+  switch (y) {
+  | NewValue(y) when eq(x, y) => OldValue(x)
+  | _ => NewValue(x)
+  };
+
 // ================================================================================
 // saved('a) is used to store a value that has been calculated in the model
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -133,6 +139,14 @@ let saved_to_option = get_saved_opt;
 
 // ================================================================================
 // Helper functions:
+
+let old_if_same' =
+    (~eq: ('a, 'a) => bool=(==), x: saved('a), y: t('a)): t('a) =>
+  switch (y, x) {
+  | (NewValue(y), Calculated(x)) when eq(y, x) => OldValue(y)
+  | (NewValue(y), _) => NewValue(y)
+  | (OldValue(y), _) => OldValue(y)
+  };
 
 let to_option = (x: t(option('a))): option(t('a)) => {
   switch (x) {
