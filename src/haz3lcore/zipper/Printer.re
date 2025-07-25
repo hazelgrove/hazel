@@ -67,6 +67,7 @@ let of_segment =
     (
       ~holes=" ",
       ~concave_holes=" ",
+      ~special_folds=false,
       ~indent=" ",
       ~caret: option((string, Point.t))=None,
       ~selection_anchor: option((string, Point.t))=None,
@@ -75,7 +76,7 @@ let of_segment =
     )
     : string =>
   segment
-  |> Segment.to_string(~holes, ~concave_holes)
+  |> Segment.to_string(~holes, ~concave_holes, ~special_folds)
   |> String.split_on_char('\n')
   |> add_indents(segment, measured, indent)
   |> add_caret(~caret, ~selection_anchor)

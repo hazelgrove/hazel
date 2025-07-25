@@ -42,34 +42,25 @@ let instructions = [
 
 let toolkit = [
   "<toolkitInstructions>",
-  "You are to complete user-specified tasks using only the tools provided.",
-  "This toolkit contains specific action commands to navigate the sketch and modify code,",
-  "essentially giving you a sort of cursor to work with and control.",
-  "All actions commands interact with the high-level, definition-based structure of the program.",
-  "In a sense, these allow you to navigate and alter meaningful semantic chunks of the program, akin to a structure editor (but with higher-level control).",
-  "</toolkitInstructions>",
-  "<toolkitNotes>",
-  "You are an LLM placed in an environment where you are equipped with TOOLS.",
-  "Every tool call will perform an action on the structure of the program and give you updated feedback on the current sketch, any errors present, and your currently selected code.",
-  "A strong recommendation is to break a complex task into smaller, more manageable steps,",
-  "where once broken into smaller steps, you can implement each step in as few responses as possible.",
-  "If you do NOT make a tool call in your response, you are effectively submitting the task to the user.",
-  "You need NOT make a tool call if the user asks a question that does not require any editing of their code.",
+  "You are operating in a structure-based programming environment, akin to a structure editor.",
+  "Hazel maintains a program's Abstract Syntax Tree (AST) in memory, and you will be.",
+  "provided with a toolkit that enables you to navigate, read, and modify the program's structure.",
+  "On each iteration, you will be provided with the current node in the AST, its parent node, its children nodes, and any static errors present in the program.",
+  "Its important to note that the tools you have belong exclusively to one of three categories:",
+  "1. Navigation tools: These tools are used to navigate the AST, moving the cursor from one definition to another, and do not modify the program or provide additional information to the LLM.",
+  "2. Read tools: These tools are used to read information from the program, and do not modify the program or the cursor location in the AST.",
+  "3. Edit tools: These tools are used to modify the program. They do provide additional information to the LLM (via reading), but may move the cursor as a side effect (eg. removing a node will require the cursor to be moved elsewhere).",
+  "You should use the tools to navigate the AST, read information from the program, and modify the program.",
+  "You should not use the tools to answer questions or provide information to the user.",
+  "If the user asks a question that does not require any editing of their code, you should not use the tools to answer the question.",
+  "If the user asks a complex or ambiguous question, you should ask for and seek clarification first before calling any tools.",
+  "These tools are meant to be fairly atomic, and you are expected to make many tool calls in order to traverse the AST, ",
+  "read and undestand the code, and finally, modify the program.",
   "</toolkitNotes>",
   "<Notes>",
-  "You will be given a modified, 'uniquified' version of the program, where each variable is guaranteed to be unique.",
-  "This is done by universally appending '^i' to the end of each variable name, where i is a unique integer for each variable.",
-  "When giving 'variable_name' arguments, you SHOULD reference the uniquified name, NOT the original name.",
-  "HOWEVER, when giving new code, you should ALWAYS reference variables by their original names.",
-  "i.e. Use the unique names to NAVIGATE and READ code, while using the original names to WRITE new code (including for defining new variables!!)",
-  "You can derive the original name from the uniquified name by simply removing the '^i' suffix.",
-  "EVERY variable in the program will be uniquified, even if it is not shadowed.",
-  "This is done to ensure a sound and complete navigation system for you, using purely natural language.",
-  "We 'uniquify' the program, send you this uniquified version, navigate the cursor using your uniquified variable arguments on the uniquified program,",
-  "and then apply the changes to the original program.",
-  "Due to this pipeline process, after each edit you make, the uniquified IDs for a given variable are susceptible to change!!",
-  "If you EVER talk to the user or plan using chain of thought reasoning, do NOT refer to a variable by its uniquified name.",
-  "To summarize, uniquified names are SOLELY for navigating throughout the program, and should almost be thought of as something separate from the variable itself.",
+  "You might see ⋱ after some definitions. This is a special character that indicates a \"fold\" in the program.",
+  "In this agentic setting, we abstract away child let bindings' definitions behind these folds, thus replacing them with ⋱.",
+  "You should recognize that these are not actual characters within the program, but rather \"folds\" which hide away the details of child defintions.",
   "</Notes>",
 ];
 
@@ -89,7 +80,7 @@ let toolkit = [
 let get_few_shot_comp_examples = () => {
   "<fewShotExamples>The following are GOLDEN EXAMPLES from agents who successfully implemented user-requested features."
   ++ "Oh how you ASPIRE to be as elegant and efficient as they are! "
-  ++ "In fact, YOU CAN BE! As long as you study what they've done oh-so-well!\n"
+  ++ "In fact, you CAN be! As long as you study what they've done oh-so-well!\n"
   ++ Ex_Simple_1.self
   ++ Ex_Simple_2.self
   ++ Ex_Tally.self

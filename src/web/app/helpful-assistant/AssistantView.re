@@ -16,6 +16,12 @@ type selection =
 type event =
   | MakeActive(ScratchMode.Selection.t);
 
+type unwrapped_message = {
+  display: Model.display,
+  role: Model.role,
+  sketch_snapshot: Model.sketch_snapshot,
+};
+
 let resume_chat_button =
     (~inject_global: Globals.Action.t => Ui_effect.t(unit)): Node.t => {
   let tooltip = "Confirm and Chat";
@@ -588,7 +594,11 @@ let message_input =
       ) {
       // todo: change, maybe to allowing for stop button to cancel request
       | Some(
-          {displayable_content: [Text("...")], collapsed: false}: Model.display,
+          {
+            displayable_content: [Text("...")],
+            raw_content: "...",
+            collapsed: false,
+          }: Model.display,
         ) =>
         div(
           ~attrs=[
@@ -627,7 +637,7 @@ let message_input =
 
 let form_collapse_toggle =
     (
-      ~message: Model.message,
+      ~message: unwrapped_message,
       ~toggle_collapse,
       ~index: int,
       ~is_first: bool,
@@ -639,20 +649,22 @@ let form_collapse_toggle =
       ~attrs=[
         clss(["collapse-indicator"]),
         Attr.on_click(_ => toggle_collapse(index)),
-        String.length(message.content.content) >= Model.max_collapsed_length
+        String.length(message.display.raw_content)
+        >= Model.max_collapsed_length
           ? Attr.empty : Attr.hidden,
       ],
       [text("▼ Show more")],
     );
   } else if (!message.display.collapsed
-             && String.length(message.content.content)
+             && String.length(message.display.raw_content)
              >= Model.max_collapsed_length
              && is_last) {
     div(
       ~attrs=[
         clss(["collapse-indicator"]),
         Attr.on_click(_ => toggle_collapse(index)),
-        String.length(message.content.content) >= Model.max_collapsed_length
+        String.length(message.display.raw_content)
+        >= Model.max_collapsed_length
           ? Attr.empty : Attr.hidden,
       ],
       [text("▲ Show less")],
@@ -803,7 +815,7 @@ let mk_translation = (~text: string): list(Node.t) => {
 
 let text_block =
     (
-      ~message: Model.message,
+      ~message: unwrapped_message,
       ~content: string,
       ~toggle_collapse,
       ~index: int,
@@ -886,7 +898,7 @@ let text_block =
       {
         let content =
           message.display.collapsed
-          && String.length(message.content.content)
+          && String.length(message.display.raw_content)
           >= Model.max_collapsed_length
             ? String.concat(
                 "",
@@ -916,7 +928,7 @@ let text_block =
 
 let code_block =
     (
-      ~message: Model.message,
+      ~message: unwrapped_message,
       ~sketch: Segment.t,
       ~toggle_collapse,
       ~index: int,
@@ -994,7 +1006,7 @@ let code_block =
 
 let form_block =
     (
-      ~message: Model.message,
+      ~message: unwrapped_message,
       ~block: Model.block_kind,
       ~toggle_collapse,
       ~index: int,
@@ -1098,10 +1110,25 @@ let message_display =
   };
   let (past_chats, curr_chat) = Update.get_mode_info(settings.mode, model);
   let curr_messages = Id.Map.find(curr_chat.id, past_chats).messages;
+  let curr_messages: list(unwrapped_message) =
+    List.filter_map(
+      (message: Model.message) => {
+        switch (message.display) {
+        | Some(display) =>
+          Some({
+            display,
+            role: message.role,
+            sketch_snapshot: message.sketch_snapshot,
+          })
+        | None => None
+        }
+      },
+      curr_messages,
+    );
   let message_nodes =
     List.flatten(
       List.mapi(
-        (index: int, message: Model.message) => {
+        (index: int, message: unwrapped_message) => {
           let is_last_message = index == List.length(curr_messages) - 1;
           [
             div(
@@ -1266,9 +1293,23 @@ let prompt_display =
     : Node.t => {
   let (past_chats, curr_chat) = Update.get_mode_info(settings.mode, model);
   let curr_messages = Id.Map.find(curr_chat.id, past_chats).messages;
+  let curr_messages: list(unwrapped_message) =
+    List.filter_map(
+      (message: Model.message) =>
+        switch (message.display) {
+        | Some(display) =>
+          Some({
+            display,
+            role: message.role,
+            sketch_snapshot: message.sketch_snapshot,
+          })
+        | None => None
+        },
+      curr_messages,
+    );
   let display =
     List.find_mapi(
-      (index: int, message: Model.message) => {
+      (index: int, message: unwrapped_message) => {
         message.role == System(AssistantPrompt) && !message.display.collapsed
           ? Some(
               div(

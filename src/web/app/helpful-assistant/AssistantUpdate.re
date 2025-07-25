@@ -15,7 +15,7 @@ type completion =
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type status =
-  | Success
+  | Success(string)
   | Failure(string);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -281,15 +281,21 @@ let create_chat_descriptor =
   let combined_messages =
     String.concat(
       "\n",
-      List.map(
+      List.filter_map(
         (message: Model.message) => {
-          "<"
-          ++ Model.string_of_role(message.role)
-          ++ ">"
-          ++ message.content.content
-          ++ "</"
-          ++ Model.string_of_role(message.role)
-          ++ ">"
+          switch (message.content) {
+          | Some(content) =>
+            Some(
+              "<"
+              ++ Model.string_of_role(message.role)
+              ++ ">"
+              ++ content.content
+              ++ "</"
+              ++ Model.string_of_role(message.role)
+              ++ ">",
+            )
+          | None => None
+          }
         },
         filtered_messages,
       ),
@@ -401,22 +407,17 @@ let mk_llm_call =
     let tools =
       if (mode == TaskCompletion) {
         [
-          CompositionTools.update_pattern,
-          CompositionTools.update_definition,
-          CompositionTools.update_body,
-          CompositionTools.delete_body,
-          CompositionTools.update_binding,
-          CompositionTools.delete_binding,
-          CompositionTools.add_before,
-          CompositionTools.add_after,
-          // CompositionPrompt.goto_definition,
-          // CompositionPrompt.goto_body,
-          // //CompositionPrompt.goto_type_definition,
-          // //CompositionPrompt.goto_type_body,
-          // CompositionPrompt.select_all,
-          // CompositionPrompt.paste,
-          // CompositionPrompt.delete,
-          //CompositionPrompt.submit,
+          CompositionTools.go_to_parent,
+          CompositionTools.go_to_child,
+          CompositionTools.view_definition,
+          // CompositionTools.update_pattern,
+          // CompositionTools.update_definition,
+          // CompositionTools.update_body,
+          // CompositionTools.delete_body,
+          // CompositionTools.update_binding,
+          // CompositionTools.delete_binding,
+          // CompositionTools.add_before,
+          // CompositionTools.add_after,
         ];
       } else {
         [];
@@ -473,84 +474,44 @@ let mk_user_content_message =
     : Model.message => {
   let _ = editor;
   {
-    content: OpenRouter.mk_user_msg(content),
-    display: Model.mk_message_display(~content),
+    content: Some(OpenRouter.mk_user_msg(content)),
+    display: Some(Model.mk_message_display(~content)),
     role,
     sketch_snapshot: None // Some(editor), todo: figure out how to serialize editor
   };
 };
 
 let mk_structure_edit_msg =
-    (~tool_call: string, ~args: option(StringMap.t(string))) =>
+    (
+      ~tool_call: string,
+      ~args: option(StringMap.t(string)),
+      ~ast: ChatLSP.ast,
+      ~curr_node: ChatLSP.node,
+    )
+    : string =>
   try({
-    let enclose_in_backticks = (str: string) => "```" ++ str ++ "```";
+    let _enclose_in_backticks = (str: string) => "```" ++ str ++ "```";
     let args = Option.get(args);
     switch (OpenRouter.structure_action_of_string(tool_call)) {
-    | OpenRouter.UpdatePattern =>
-      let variable_name = StringMap.find("variable_name", args);
-      let new_pattern = StringMap.find("new_pattern", args);
-      "Agent updated the pattern of the variable "
-      ++ variable_name
-      ++ " to: "
-      ++ enclose_in_backticks(new_pattern);
-
-    | OpenRouter.UpdateDefinition =>
-      let variable_name = StringMap.find("variable_name", args);
-      let new_definition = StringMap.find("new_definition", args);
-      "Agent updated the definition of the variable "
-      ++ variable_name
-      ++ " to: "
-      ++ enclose_in_backticks(new_definition);
-    | OpenRouter.UpdateBinding =>
-      let variable_name = StringMap.find("variable_name", args);
-      let new_binding = StringMap.find("new_binding", args);
-      "Agent updated the entire binding of the variable "
-      ++ variable_name
-      ++ " to: "
-      ++ enclose_in_backticks(new_binding);
-    | OpenRouter.UpdateBody =>
-      let variable_name = StringMap.find("variable_name", args);
-      let new_body = StringMap.find("new_body", args);
-      "Agent updated the body of the variable "
-      ++ variable_name
-      ++ " to: "
-      ++ enclose_in_backticks(new_body);
-    | OpenRouter.DeleteBinding =>
-      let variable_name = StringMap.find("variable_name", args);
-      "Agent deleted the variable " ++ variable_name;
-    | OpenRouter.DeleteBody =>
-      switch (StringMap.find_opt("variable_name", args)) {
-      | Some(variable_name) =>
-        "Agent deleted the body of the variable " ++ variable_name
-      | None => "Agent deleted the entire sketch"
-      }
-    | OpenRouter.AddBefore =>
-      let code = StringMap.find("code", args);
-      switch (StringMap.find_opt("variable_name", args)) {
-      | Some(variable_name) =>
-        "Agent added code before the variable "
-        ++ variable_name
-        ++ ": "
-        ++ enclose_in_backticks(code)
-      | None =>
-        "Agent added code at the beginning of the sketch "
-        ++ enclose_in_backticks(code)
-      };
-
-    | OpenRouter.AddAfter =>
-      let code = StringMap.find("code", args);
-      switch (StringMap.find_opt("variable_name", args)) {
-      | Some(variable_name) =>
-        "Agent added code after the variable "
-        ++ variable_name
-        ++ ": "
-        ++ enclose_in_backticks(code)
-      | None =>
-        "Agent added code at the end of the sketch "
-        ++ enclose_in_backticks(code)
-      };
+    | OpenRouter.GoToParent =>
+      let parent = Id.Map.find(curr_node.parent, ast);
+      "Agent moved from \""
+      ++ curr_node.name
+      ++ "\" to its parent \""
+      ++ parent.name
+      ++ "\"";
+    | OpenRouter.GoToChild =>
+      let index = StringMap.find("index", args);
+      let child_id = List.nth(curr_node.children, int_of_string(index));
+      let child = Id.Map.find(child_id, ast);
+      "Agent moved from \""
+      ++ curr_node.name
+      ++ "\" to its child \""
+      ++ child.name
+      ++ "\"";
+    | OpenRouter.ViewDefinition => "Agent viewed the definition of the current node"
     | OpenRouter.InvalidStructureAction =>
-      raise(Failure("Unknown structure action: " ++ tool_call))
+      raise(Failure("Agent called an invalid tool: " ++ tool_call))
     };
   }) {
   | Not_found => "Agent called " ++ tool_call ++ " with invalid arguments"
@@ -561,16 +522,8 @@ let mk_structure_edit_msg =
 
 let parse_and_apply_structure_edit =
     (
-      ~editor: CodeEditable.Model.t,
       ~tool_call: OpenRouter.tool_call,
-      ~apply_edit_action:
-         (
-           ~ed: CodeEditable.Model.t,
-           ~edit_action: AssistantModes.Composition.edit_action,
-           ~variable_name: option(string),
-           ~variable_id: option(string)
-         ) =>
-         unit,
+      ~apply_action: (~action: AssistantModes.Composition.action) => string,
       ~schedule_action: t => unit,
       ~loop_message,
     )
@@ -586,213 +539,31 @@ let parse_and_apply_structure_edit =
   // Extract the variable name and id from the tool call,
   // matching on the edit action itself (tool call name)
   try({
-    let (edit_action, variable_name, variable_id) =
+    let action =
       switch (tool_call.name) {
       /* --------- [Begin] UpdatePattern [Begin] --------- */
-      | OpenRouter.UpdatePattern =>
-        let (variable_name, variable_id, new_pattern) =
-          switch (
-            Json.dot("variable_name", tool_call.args),
-            Json.dot("variable_id", tool_call.args),
-            Json.dot("new_pattern", tool_call.args),
-          ) {
-          | (
-              Some(`String(variable_name)),
-              Some(`String(variable_id)),
-              Some(`String(new_pattern)),
-            ) => (
-              Some(variable_name),
-              Some(variable_id),
-              new_pattern,
-            )
+      | OpenRouter.GoToParent => AssistantModes.Composition.Nav(GoToParent)
+      | OpenRouter.GoToChild =>
+        let index =
+          switch (Json.dot("index", tool_call.args)) {
+          | Some(`Int(index)) => index
           | _ => invalid_args_failure(tool_call.name)
           };
-        (
-          AssistantModes.Composition.UpdatePattern(new_pattern),
-          variable_name,
-          variable_id,
-        );
+        AssistantModes.Composition.Nav(GoToChild(index));
+      | OpenRouter.ViewDefinition =>
+        AssistantModes.Composition.Read(ViewDefinition)
+      | _ => invalid_args_failure(tool_call.name)
       /* --------- [End] UpdatePattern [End] --------- */
-      /* --------- [Begin] UpdateDefinition [Begin] --------- */
-      | OpenRouter.UpdateDefinition =>
-        let (variable_name, variable_id, new_definition) =
-          switch (
-            Json.dot("variable_name", tool_call.args),
-            Json.dot("variable_id", tool_call.args),
-            Json.dot("new_definition", tool_call.args),
-          ) {
-          | (
-              Some(`String(variable_name)),
-              Some(`String(variable_id)),
-              Some(`String(new_definition)),
-            ) => (
-              Some(variable_name),
-              Some(variable_id),
-              new_definition,
-            )
-          | _ => invalid_args_failure(tool_call.name)
-          };
-        (
-          AssistantModes.Composition.UpdateDefinition(new_definition),
-          variable_name,
-          variable_id,
-        );
-      /* --------- [End] UpdateDefinition [End] --------- */
-      /* --------- [Begin] DeleteBinding [Begin] --------- */
-      | OpenRouter.DeleteBinding =>
-        let (variable_name, variable_id) =
-          switch (
-            Json.dot("variable_name", tool_call.args),
-            Json.dot("variable_id", tool_call.args),
-          ) {
-          | (Some(`String(variable_name)), Some(`String(variable_id))) => (
-              Some(variable_name),
-              Some(variable_id),
-            )
-          | _ => invalid_args_failure(tool_call.name)
-          };
-        (
-          AssistantModes.Composition.DeleteBinding,
-          variable_name,
-          variable_id,
-        );
-      /* --------- [End] DeleteBinding [End] --------- */
-      /* --------- [Begin] UpdateBinding [Begin] --------- */
-      | OpenRouter.UpdateBinding =>
-        let (variable_name, variable_id, new_binding) =
-          switch (
-            Json.dot("variable_name", tool_call.args),
-            Json.dot("variable_id", tool_call.args),
-            Json.dot("new_binding", tool_call.args),
-          ) {
-          | (
-              Some(`String(variable_name)),
-              Some(`String(variable_id)),
-              Some(`String(new_binding)),
-            ) => (
-              Some(variable_name),
-              Some(variable_id),
-              new_binding,
-            )
-          | _ => invalid_args_failure(tool_call.name)
-          };
-        (
-          AssistantModes.Composition.UpdateBinding(new_binding),
-          variable_name,
-          variable_id,
-        );
-      /* --------- [End] UpdateBinding [End] --------- */
-      /* --------- [Begin] UpdateBody [Begin] --------- */
-      | OpenRouter.UpdateBody =>
-        let (variable_name, variable_id, new_body) =
-          switch (
-            Json.dot("variable_name", tool_call.args),
-            Json.dot("variable_id", tool_call.args),
-            Json.dot("new_body", tool_call.args),
-          ) {
-          | (
-              Some(`String(variable_name)),
-              Some(`String(variable_id)),
-              Some(`String(new_body)),
-            ) => (
-              Some(variable_name),
-              Some(variable_id),
-              new_body,
-            )
-          | _ => invalid_args_failure(tool_call.name)
-          };
-        (
-          AssistantModes.Composition.UpdateBody(new_body),
-          variable_name,
-          variable_id,
-        );
-      /* --------- [End] UpdateBody [End] --------- */
-      /* --------- [Begin] DeleteBody [Begin] --------- */
-      | OpenRouter.DeleteBody =>
-        let (variable_name, variable_id) =
-          switch (
-            Json.dot("variable_name", tool_call.args),
-            Json.dot("variable_id", tool_call.args),
-          ) {
-          | (Some(`String(variable_name)), Some(`String(variable_id))) => (
-              Some(variable_name),
-              Some(variable_id),
-            )
-          | _ => (None, None)
-          };
-        (AssistantModes.Composition.DeleteBody, variable_name, variable_id);
-      /* --------- [End] DeleteBody [End] --------- */
-      /* --------- [Begin] AddBefore [Begin] --------- */
-      | OpenRouter.AddBefore =>
-        let (variable_name, variable_id, code) =
-          switch (
-            Json.dot("variable_name", tool_call.args),
-            Json.dot("variable_id", tool_call.args),
-            Json.dot("code", tool_call.args),
-          ) {
-          | (
-              Some(`String(variable_name)),
-              Some(`String(variable_id)),
-              Some(`String(code)),
-            ) => (
-              Some(variable_name),
-              Some(variable_id),
-              code,
-            )
-          | (_, _, Some(`String(code))) => (None, None, code)
-          | _ => invalid_args_failure(tool_call.name)
-          };
-        (
-          AssistantModes.Composition.Add(Before, code),
-          variable_name,
-          variable_id,
-        );
-      /* --------- [End] AddBefore [End] --------- */
-      /* --------- [Begin] AddAfter [Begin] --------- */
-      | OpenRouter.AddAfter =>
-        let (variable_name, variable_id, code) =
-          switch (
-            Json.dot("variable_name", tool_call.args),
-            Json.dot("variable_id", tool_call.args),
-            Json.dot("code", tool_call.args),
-          ) {
-          | (
-              Some(`String(variable_name)),
-              Some(`String(variable_id)),
-              Some(`String(code)),
-            ) => (
-              Some(variable_name),
-              Some(variable_id),
-              code,
-            )
-          | (_, _, Some(`String(code))) => (None, None, code)
-          | _ => invalid_args_failure(tool_call.name)
-          };
-        (
-          AssistantModes.Composition.Add(After, code),
-          variable_name,
-          variable_id,
-        );
-      /* --------- [End] AddAfter [End] --------- */
-      /* --------- [Begin] InvalidStructureAction [Begin] --------- */
-      | OpenRouter.InvalidStructureAction =>
-        raise(
-          Failure(
-            "Unknown tool call: "
-            ++ OpenRouter.string_of_structure_action(tool_call.name),
-          ),
-        )
-      /* --------- [End] InvalidStructureAction [End] --------- */
       };
     // Apply the edit action to the editor
-    apply_edit_action(~ed=editor, ~edit_action, ~variable_name, ~variable_id);
-    schedule_action(loop_message(Success));
+    let tool_response = apply_action(~action);
+    schedule_action(loop_message(Success(tool_response)));
   }) {
   | Failure(err) => schedule_action(loop_message(Failure(err)))
   };
 };
 
-let udpate_chat = (chat: Model.chat, messages: list(Model.message)) => {
+let update_chat = (chat: Model.chat, messages: list(Model.message)) => {
   {
     ...chat,
     messages: chat.messages @ messages,
@@ -809,11 +580,18 @@ let summarize_chat =
     : unit => {
   // Filter our initial prompt
   let outgoing_messages: list(OpenRouter.message) =
-    List.filter(
-      (message: Model.message) => message.content.role != System,
+    List.filter_map(
+      (message: Model.message) =>
+        switch (message.content) {
+        | Some(content) =>
+          switch (content.role) {
+          | System => None
+          | _ => Some(content)
+          }
+        | None => None
+        },
       chat.messages,
-    )
-    |> List.map((message: Model.message) => message.content);
+    );
   let summarize_message: OpenRouter.message =
     OpenRouter.mk_user_msg(SummarizePrompt.prelude);
   let outgoing_messages = outgoing_messages @ [summarize_message];
@@ -875,23 +653,30 @@ let update =
           mk_user_content_message(~content, ~role=User, ~editor);
         let ctx_message: Model.message = {
           content:
-            OpenRouter.mk_user_msg(
-              String.concat("\n", ChatLSP.get_sketch_and_error_ctx(editor)),
-            ),
-          display:
-            Model.mk_message_display(
-              ~content=
+            Some(
+              OpenRouter.mk_user_msg(
                 String.concat(
                   "\n",
                   ChatLSP.get_sketch_and_error_ctx(editor),
                 ),
+              ),
+            ),
+          display:
+            Some(
+              Model.mk_message_display(
+                ~content=
+                  String.concat(
+                    "\n",
+                    ChatLSP.get_sketch_and_error_ctx(editor),
+                  ),
+              ),
             ),
           role: System(AssistantPrompt),
           sketch_snapshot: None,
         };
 
         let updated_chat =
-          udpate_chat(curr_chat, [content_message, ctx_message]);
+          update_chat(curr_chat, [content_message, ctx_message]);
 
         mk_llm_call(
           ~mode,
@@ -933,35 +718,20 @@ let update =
           schedule_action(EmployLLMAction(SetLoop(false)));
           let content_message: Model.message =
             mk_user_content_message(~content, ~role=User, ~editor);
+          let ctx =
+            AssistantModes.Composition.mk_ctx_prompt(
+              ChatLSP.Options.init,
+              editor,
+            );
           let ctx_message: Model.message = {
-            content:
-              OpenRouter.mk_user_msg(
-                String.concat(
-                  "\n",
-                  ChatLSP.get_sketch_and_error_ctx(editor),
-                ),
-              ),
-            display:
-              Model.mk_message_display(
-                ~content=
-                  String.concat(
-                    "\n",
-                    ChatLSP.get_sketch_and_error_ctx(editor),
-                  ),
-              ),
+            content: Some(ctx),
+            display: Some(Model.mk_message_display(~content=ctx.content)),
             role: System(AssistantPrompt),
             sketch_snapshot: None,
           };
 
-          // print all current messages
-          print_endline("current messages: ");
-          List.iter(
-            (msg: Model.message) => print_endline(msg.content.content),
-            curr_chat.messages,
-          );
-
           let updated_chat =
-            udpate_chat(curr_chat, [content_message, ctx_message]);
+            update_chat(curr_chat, [content_message, ctx_message]);
 
           mk_llm_call(
             ~mode,
@@ -1003,24 +773,30 @@ let update =
               editor,
             );
 
-          let ctx_message: Model.message = {
-            content: OpenRouter.mk_tool_msg(ctx.content, tool_contents),
-            display: Model.mk_message_display(~content=ctx.content),
-            role: System(AssistantPrompt),
-            sketch_snapshot: None,
-          };
+          let ctx = "\n\nThe new AST context is:\n" ++ ctx.content;
 
           let updated_chat =
             switch (status) {
-            | Success => udpate_chat(curr_chat, [ctx_message])
+            | Success(response) =>
+              let response_message: Model.message = {
+                content:
+                  Some(
+                    OpenRouter.mk_tool_msg(response ++ ctx, tool_contents),
+                  ),
+                display:
+                  Some(Model.mk_message_display(~content=response ++ ctx)),
+                role: System(AssistantPrompt),
+                sketch_snapshot: None,
+              };
+              update_chat(curr_chat, [response_message]);
             | Failure(err) =>
               let err_message: Model.message = {
-                content: OpenRouter.mk_tool_msg(err, tool_contents),
-                display: Model.mk_message_display(~content=err),
+                content: Some(OpenRouter.mk_tool_msg(err, tool_contents)),
+                display: Some(Model.mk_message_display(~content=err)),
                 role: System(InternalError),
                 sketch_snapshot: None,
               };
-              udpate_chat(curr_chat, [err_message]);
+              update_chat(curr_chat, [err_message]);
             };
 
           mk_llm_call(
@@ -1089,12 +865,13 @@ let update =
             model_with_new_chat |> Updated.return;
           | Some(ctx_prompt) =>
             let ctx_message: Model.message = {
-              content: ctx_prompt,
-              display: Model.mk_message_display(~content=ctx_prompt.content),
+              content: Some(ctx_prompt),
+              display:
+                Some(Model.mk_message_display(~content=ctx_prompt.content)),
               role: System(AssistantPrompt),
               sketch_snapshot: None,
             };
-            let updated_chat = udpate_chat(new_chat, [ctx_message]);
+            let updated_chat = update_chat(new_chat, [ctx_message]);
             mk_llm_call(
               ~mode,
               ~model,
@@ -1127,15 +904,15 @@ let update =
               String.concat("\n", ChatLSP.get_sketch_and_error_ctx(editor)),
             );
           let ctx_message: Model.message = {
-            content: ctx,
-            display: Model.mk_message_display(~content=ctx.content),
+            content: Some(ctx),
+            display: Some(Model.mk_message_display(~content=ctx.content)),
             role: System(AssistantPrompt),
             sketch_snapshot: None,
           };
           let content_message =
             mk_user_content_message(~content, ~role=User, ~editor);
           let updated_chat =
-            udpate_chat(curr_chat, [ctx_message, content_message]);
+            update_chat(curr_chat, [ctx_message, content_message]);
 
           mk_llm_call(
             ~mode,
@@ -1163,12 +940,13 @@ let update =
               ++ error,
             );
           let error_message: Model.message = {
-            content: error_message,
-            display: Model.mk_message_display(~content=error_message.content),
+            content: Some(error_message),
+            display:
+              Some(Model.mk_message_display(~content=error_message.content)),
             role: System(AssistantPrompt),
             sketch_snapshot: None,
           };
-          let updated_chat = udpate_chat(curr_chat, [error_message]);
+          let updated_chat = update_chat(curr_chat, [error_message]);
 
           // check that fuel is not 0
           if (fuel < 0) {
@@ -1216,8 +994,8 @@ let update =
     // todo: Should this be a user, assistant, or system message?
     //       We could make it assistant and put it in the first-person.
     let system_message: Model.message = {
-      content: OpenRouter.mk_user_msg(content),
-      display: Model.mk_message_display(~content),
+      content: Some(OpenRouter.mk_user_msg(content)),
+      display: Some(Model.mk_message_display(~content)),
       role: System(InternalError),
       sketch_snapshot: None,
     };
@@ -1238,7 +1016,7 @@ let update =
     )
     |> Updated.return;
 
-  | HandleResponse(response_kind, response, chat_id) =>
+  | HandleResponse(response_kind, reply, chat_id) =>
     let (curr_chat, mode) =
       switch (response_kind) {
       | Tutor => (
@@ -1267,71 +1045,69 @@ let update =
       );
     // Thin wrapper to avoid need of passing response.usage.total_tokens
     let summarize_chat = () =>
-      if (response.usage.total_tokens > threshold) {
+      if (reply.usage.total_tokens > threshold) {
         summarize_chat(model, curr_chat, mode, schedule_action);
       };
 
-    let content = response.content;
-    let tool_call = response.tool_call;
+    let content = reply.content;
+    print_endline("content: " ++ content);
+    // Todo: Allow for multiple tool calls
+    let tool_call = ListUtil.hd_opt(reply.tool_calls);
     let assistant_message: Model.message = {
-      content: OpenRouter.mk_assistant_msg(content),
-      display: Model.mk_message_display(~content),
+      content:
+        Some(OpenRouter.mk_assistant_msg(content, reply.tool_calls_json)),
+      display:
+        switch (content) {
+        | "" => None
+        | _ => Some(Model.mk_message_display(~content))
+        },
       role: Assistant,
       sketch_snapshot: None,
     };
 
     // This commented out code below is for streaming, if we ever choose to add
     // If streaming, update the last message display
-    let updated_chat = {
-      /* let last_display = ListUtil.last(curr_chat.message_displays);
-         if (last_display.role == Assistant) {
-           let updated_content = last_display.original_content ++ content;
-           (
-             ListUtil.leading(curr_chat.messages)
-             @ [OpenRouter.mk_assistant_msg(updated_content)],
-             ListUtil.leading(curr_chat.messages)
-             @ [
-               Model.mk_message_display(
-                 ~content=updated_content,
-                 ~role=Assistant,
-               ),
-             ],
-           );
-         } else */
-      switch (tool_call) {
-      | Some(tool_call) =>
-        let structure_edit_message: Model.message = {
-          content: OpenRouter.mk_user_msg(""),
-          display:
-            Model.mk_message_display(
-              ~content=
-                mk_structure_edit_msg(
-                  ~tool_call=
-                    OpenRouter.string_of_structure_action(tool_call.name),
-                  ~args=Json.get_string_kvs(tool_call.args),
-                ),
-            ),
-          role: Tool,
-          sketch_snapshot: None,
-        };
-        switch (content) {
-        | "" => udpate_chat(curr_chat, [structure_edit_message])
-        | _ =>
-          udpate_chat(curr_chat, [assistant_message, structure_edit_message])
-        };
-      | None => udpate_chat(curr_chat, [assistant_message])
-      };
-    };
+    let updated_chat = update_chat(curr_chat, [assistant_message]);
+    /* let last_display = ListUtil.last(curr_chat.message_displays);
+       if (last_display.role == Assistant) {
+         let updated_content = last_display.original_content ++ content;
+         (
+           ListUtil.leading(curr_chat.messages)
+           @ [OpenRouter.mk_assistant_msg(updated_content)],
+           ListUtil.leading(curr_chat.messages)
+           @ [
+             Model.mk_message_display(
+               ~content=updated_content,
+               ~role=Assistant,
+             ),
+           ],
+         );
+       } else */
 
     switch (response_kind) {
-    | Tutor => summarize_chat()
+    | Tutor =>
+      summarize_chat();
+      update_model_chat_history(
+        ~model,
+        ~mode,
+        ~updated_chat,
+        ~awaiting_response=false,
+      )
+      |> Updated.return;
     | CompositionLoopRound(_, fuel) =>
       // This is step (3) from the directed graph above --
       switch (tool_call, fuel) {
       | (None, _) =>
         // The agent did not make a tool call, thus there is nothing to handle on the backend,
         // we can proceed as if there were a normal LLM chat interaction.
-        summarize_chat()
+        summarize_chat();
+        update_model_chat_history(
+          ~model,
+          ~mode,
+          ~updated_chat,
+          ~awaiting_response=false,
+        )
+        |> Updated.return;
       | (_, 0) =>
         // The agent ran out of fuel. We should experiment with this in the future.
         schedule_action(
@@ -1344,7 +1120,41 @@ let update =
           ),
         );
         summarize_chat();
+        update_model_chat_history(
+          ~model,
+          ~mode,
+          ~updated_chat,
+          ~awaiting_response=false,
+        )
+        |> Updated.return;
       | (Some(tool_call), _) =>
+        let ast = ChatLSP.build_AST(editor);
+        let curr_node = ChatLSP.get_curr_node(editor, ast);
+
+        let updated_chat = {
+          let structure_edit_message: Model.message = {
+            content: None,
+            display:
+              Some(
+                Model.mk_message_display(
+                  ~content=
+                    mk_structure_edit_msg(
+                      ~tool_call=
+                        OpenRouter.string_of_structure_action(tool_call.name),
+                      ~args=Json.get_string_kvs(tool_call.args),
+                      ~ast,
+                      ~curr_node=Option.get(curr_node),
+                    ),
+                ),
+              ),
+            role: Tool,
+            sketch_snapshot: None,
+          };
+          update_chat(
+            curr_chat,
+            [assistant_message, structure_edit_message],
+          );
+        };
         // We don't summarize while the agent loops on tool calls.
 
         // The agent made a tool call, we need to handle it and then perform a loop
@@ -1364,17 +1174,27 @@ let update =
             None,
             chat_id,
           );
-        let apply_edit_action =
-          AssistantModes.Composition.apply_edit_action(
+
+        let apply_action =
+          AssistantModes.Composition.apply_action(
             ~schedule_action=schedule_editor_action,
+            ~editor,
+            ~ast,
+            ~curr_node,
           );
         parse_and_apply_structure_edit(
-          ~editor,
           ~tool_call,
-          ~apply_edit_action,
-          ~loop_message,
+          ~apply_action,
           ~schedule_action,
+          ~loop_message,
         );
+        update_model_chat_history(
+          ~model,
+          ~mode,
+          ~updated_chat,
+          ~awaiting_response=false,
+        )
+        |> Updated.return;
       }
     | CompletionErrorRound(editor, fuel, tileId) =>
       // Split response into discussion and completion
@@ -1421,15 +1241,22 @@ let update =
           ),
         );
       };
-    | CompletionQueryResponse => ()
+      update_model_chat_history(
+        ~model,
+        ~mode,
+        ~updated_chat,
+        ~awaiting_response=false,
+      )
+      |> Updated.return;
+    | CompletionQueryResponse =>
+      update_model_chat_history(
+        ~model,
+        ~mode,
+        ~updated_chat,
+        ~awaiting_response=false,
+      )
+      |> Updated.return
     };
-    update_model_chat_history(
-      ~model,
-      ~mode,
-      ~updated_chat,
-      ~awaiting_response=false,
-    )
-    |> Updated.return;
   | EmployLLMAction(action) =>
     let add_suggestion =
       AssistantModes.Completion.add_suggestion(
@@ -1442,18 +1269,24 @@ let update =
       // Only keep the prompt
       // Decide what else to keep here (last few code contexts?)
       let truncated_messages: list(Model.message) =
-        List.map(
+        List.filter_map(
           (message: Model.message) => {
-            switch (message.content.role) {
-            | Assistant => {
-                ...message,
-                content: OpenRouter.mk_assistant_msg(""),
+            switch (message.content) {
+            | Some(content) =>
+              switch (content.role) {
+              | Assistant =>
+                Some({
+                  ...message,
+                  content: None,
+                })
+              | User =>
+                Some({
+                  ...message,
+                  content: None,
+                })
+              | _ => Some(message)
               }
-            | User => {
-                ...message,
-                content: OpenRouter.mk_user_msg(""),
-              }
-            | _ => message
+            | None => None
             }
           },
           curr_chat.messages,
@@ -1464,24 +1297,26 @@ let update =
       };
       let summarization_message_content = "Approaching Context Limit: A summary of the chat has been generated...";
       let summarization_message: Model.message = {
-        content: OpenRouter.mk_user_msg(summarization_message_content),
+        content: Some(OpenRouter.mk_user_msg(summarization_message_content)),
         display:
-          Model.mk_message_display(~content=summarization_message_content),
+          Some(
+            Model.mk_message_display(~content=summarization_message_content),
+          ),
         role: Tool,
         sketch_snapshot: None,
       };
       let summarized_chat_message: Model.message = {
         // note: making this an outgoing assistant message, but displaying as system message,
-        // as it might make more sense for assistant to see that it or someone else made a summary,
+        // as it might make more sense for assistant to see that it or some other LLM made a summary,
         // and it might be more intuitive for user to see the summary as a collapsable system prompt,
         // (akin to init prompt/sketch contexts)
-        content: OpenRouter.mk_assistant_msg(content),
-        display: Model.mk_message_display(~content),
+        content: Some(OpenRouter.mk_assistant_msg(content, [])),
+        display: Some(Model.mk_message_display(~content)),
         role: System(AssistantPrompt),
         sketch_snapshot: None,
       };
       let updated_chat =
-        udpate_chat(
+        update_chat(
           truncated_chat,
           [summarization_message, summarized_chat_message],
         );
@@ -1599,19 +1434,29 @@ let update =
             if (i == index) {
               {
                 ...msg,
-                display: {
-                  ...msg.display,
-                  collapsed: !msg.display.collapsed,
-                },
+                display:
+                  switch (msg.display) {
+                  | Some(display) =>
+                    Some({
+                      ...display,
+                      collapsed: !display.collapsed,
+                    })
+                  | None => None
+                  },
               };
             } else if (msg.role == System(AssistantPrompt)
                        && is_prompt_display) {
               {
                 ...msg,
-                display: {
-                  ...msg.display,
-                  collapsed: true,
-                },
+                display:
+                  switch (msg.display) {
+                  | Some(display) =>
+                    Some({
+                      ...display,
+                      collapsed: true,
+                    })
+                  | None => None
+                  },
               };
             } else {
               msg;

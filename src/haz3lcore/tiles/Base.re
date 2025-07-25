@@ -44,21 +44,44 @@ let unparenthesize = (piece: piece): segment =>
   };
 
 let rec segment_to_string =
-        (~holes=" ", ~concave_holes=" ", seg: segment): string =>
+        (~holes=" ", ~concave_holes=" ", ~special_folds=false, seg: segment)
+        : string =>
   seg
-  |> List.map(piece_to_string(~holes, ~concave_holes))
+  |> List.map(piece_to_string(~holes, ~concave_holes, ~special_folds))
   |> String.concat("")
 and piece_to_string =
-    (~holes: string, ~concave_holes: string, p: piece): string =>
+    (~holes: string, ~concave_holes: string, p: piece, ~special_folds): string =>
   switch (p) {
-  | Tile(t) => tile_to_string(~holes, ~concave_holes, t)
+  | Tile(t) => tile_to_string(~holes, ~concave_holes, t, ~special_folds)
   | Grout({shape: Concave, _}) => concave_holes
   | Grout({shape: Convex, _}) => holes
   | Secondary(w) => Secondary.get_string(w.content)
   | Projector(p) =>
-    segment_to_string(~holes, ~concave_holes, unparenthesize(p.syntax))
+    if (special_folds) {
+      switch (p.kind) {
+      | ProjectorCore.Kind.Fold => "⋱"
+      | _ =>
+        segment_to_string(
+          ~holes,
+          ~concave_holes,
+          unparenthesize(p.syntax),
+          ~special_folds,
+        )
+      };
+    } else {
+      segment_to_string(
+        ~holes,
+        ~concave_holes,
+        unparenthesize(p.syntax),
+        ~special_folds,
+      );
+    }
   }
-and tile_to_string = (~holes: string, ~concave_holes: string, t: tile): string =>
+and tile_to_string =
+    (~holes: string, ~concave_holes: string, t: tile, ~special_folds): string =>
   Aba.mk(t.shards, t.children)
-  |> Aba.join(List.nth(t.label), segment_to_string(~holes, ~concave_holes))
+  |> Aba.join(
+       List.nth(t.label),
+       segment_to_string(~holes, ~concave_holes, ~special_folds),
+     )
   |> String.concat("");

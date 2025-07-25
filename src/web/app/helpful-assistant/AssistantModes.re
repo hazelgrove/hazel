@@ -199,77 +199,119 @@ module Completion = {
 module Composition = {
   let max_tool_calls = 10;
 
-  let statics_of_exp_seg =
-      (init_ctx: Ctx.t, sketch: Segment.t): (Info.exp, Statics.Map.t) =>
-    Statics.uexp_to_info_map(
-      ~ctx=init_ctx,
-      ~ancestors=[],
-      MakeTerm.go(sketch).term,
-      Id.Map.empty,
-      ~duplicates=[],
-      ~expected_labels=None,
-      ~label_sort=false,
-    );
-
-  // Prompt with appropriate context for each message
+  // Prompt with appropriate AST context for each message.
+  // The default information as of now is as follows:
+  //
+  // Current node: <name>
+  // Parent node: <name>
+  // Children nodes: [<name>, <name>, ...]
+  // Static errors: <errors>
   let mk_ctx_prompt =
-      (options: ChatLSP.Options.t, editor: CodeWithStatics.Model.t)
+      (_: ChatLSP.Options.t, editor: CodeWithStatics.Model.t)
       : OpenRouter.message => {
-    let _ = options; // TODO: Either remove params or update function to use params AnCRask
+    let ast = ChatLSP.build_AST(editor);
+    let curr_node = Option.get(ChatLSP.get_curr_node(editor, ast));
+
+    let parent_node = Id.Map.find_opt(curr_node.parent, ast);
+    let children_nodes =
+      List.map(Id.Map.find_opt(_, ast), curr_node.children);
+
+    let curr_node_str = "Current node: " ++ curr_node.name;
+    let parent_node_str =
+      switch (parent_node) {
+      | Some(node) => "Parent node: " ++ node.name
+      | None => "No parent node, you are at the root of the program's AST."
+      };
+    let children_nodes_str =
+      "Children nodes: ["
+      ++ String.concat(
+           ", ",
+           List.mapi(
+             (index, node: option(ChatLSP.node)) =>
+               Option.get(node).name
+               ++ " (index: "
+               ++ string_of_int(index)
+               ++ ")",
+             children_nodes,
+           ),
+         )
+      ++ "]";
+
+    let static_errors = ErrorPrint.all(editor.statics.info_map);
+    let static_errors_str =
+      switch (static_errors) {
+      | [] => "No static errors found in the program."
+      | _ => "Static errors: " ++ String.concat(", ", static_errors)
+      };
 
     OpenRouter.mk_user_msg(
       String.concat(
         "\n",
-        ChatLSP.get_sketch_and_error_ctx(editor)
-        @ [
-          "SELECTED CODE: "
-          ++ (
-            String.length(
-              ErrorPrint.Print.seg(
-                ~holes="?",
-                editor.editor.state.zipper.selection.content,
-              ),
-            )
-            == 0
-              ? "None. Use a goto_* command to select a code segment."
-              : "```"
-                ++ ErrorPrint.Print.seg(
-                     ~holes="?",
-                     editor.editor.state.zipper.selection.content,
-                   )
-                ++ "```"
-          ),
+        [
+          curr_node_str,
+          parent_node_str,
+          children_nodes_str,
+          static_errors_str,
         ],
       ),
     );
   };
 
-  type loc_of_edit =
-    | Before
-    | After
-    | Current;
-
-  type loc_of_goto =
-    | Body
-    | Definition
-    | All;
+  /*
+   * ------------------------------
+   *  Structure-Based Action Language
+   * ------------------------------
+   */
 
   type code = string;
+  type variable = string;
 
-  type loc_of_add =
-    | Before
-    | After;
+  // --- Navigation Actions ---
+  // These actions are used to navigate the AST, and do not modify the program
+  // or provide additional information to the LLM. They strictly move the cursor
+  // through the AST.
+
+  type nav_action =
+    // Goes to the parent node of the current node in the AST
+    | GoToParent
+    // Goes to the child node of the current node in the AST
+    | GoToChild(int)
+    // Jumps to the root node of the AST
+    | JumpToRoot;
+
+  // --- File-Read Actions ---
+  // These actions are used purely to read information from the program,
+  // and do not modify the program or the cursor location in the AST.
+
+  type read_action =
+    // Displays the definition of the current node in the AST
+    | ViewDefinition
+    // Peeks at the definition of the specified variable
+    | PeekDefinition(variable)
+    // Shows the path from the root node to the current node in the AST
+    | ShowPath
+    // Shows the siblings of the current node in the AST
+    | ShowSiblings;
+
+  // --- Edit Actions ---
+  // These actions are used to modify the program. They do provide additional
+  // information to the LLM (via reading), but may move the cursor (eg. removing
+  // a node will require the cursor to be moved elsewhere).
 
   type edit_action =
-    | UpdatePattern(code)
-    | UpdateDefinition(code)
-    | UpdateBody(code)
-    | UpdateBinding(code)
-    | DeleteBinding
-    | DeleteBody
-    | Add(loc_of_add, code);
+    // Updates the definition of the current node in the AST
+    | Update(code)
+    // Removes the current node from the AST
+    | Remove
+    // Inserts a new node in the AST
+    | Insert(code);
 
-  type t = edit_action;
+  type action =
+    | Nav(nav_action)
+    | Read(read_action)
+    | Edit(edit_action);
+
+  type result = string;
 
   let get_static_context = (relevant_ctx: bool, ci: Info.t): list(string) =>
     switch (ci) {
@@ -282,193 +324,9 @@ module Composition = {
     | Secondary(_) => []
     };
 
-  // Finds the first matching variable as 'name' in the context
-  // highlights the variable and definition (excluding the body)
-  let apply_edit_action =
-      (
-        ~ed: CodeWithStatics.Model.t,
-        ~edit_action: t,
-        ~variable_name: option(string),
-        ~variable_id: option(string),
-        ~schedule_action: Editors.Update.t => unit,
-      )
-      : unit => {
-    let actions =
-      switch (variable_name, variable_id) {
-      | (Some(variable_name), Some(variable_id)) =>
-        let variable = variable_name ++ "^" ++ variable_id;
-        let statics = CodeWithStatics.Model.get_statics(ed);
-        // Find the first matching variable in the context using fold
-        // TODO: Handle shadowed variables
-        let cursor_info =
-          Indicated.ci_of(ed.editor.state.zipper, statics.info_map);
-        let (_, universal_ctx) = ChatLSP.uniquify(ed);
-        let cursor_ctx =
-          switch (cursor_info) {
-          | Some(info) => Info.ctx_of(info)
-          | None => Ctx.empty
-          };
-        let matching_id =
-          // First try to find the variable in the universal context (uniquified names)
-          switch (VarMap.lookup(universal_ctx, variable)) {
-          | Some(id) =>
-            print_endline(
-              "Found variable '"
-              ++ variable
-              ++ "' in universal context with ID: "
-              ++ Id.show(id),
-            );
-            Some(id);
-          | None =>
-            print_endline(
-              "Variable '"
-              ++ variable
-              ++ "' not found in universal context, falling back to cursor context",
-            );
-            // Fall back to the original context lookup
-            switch (Ctx.lookup_var(cursor_ctx, variable)) {
-            | Some(entry) => Some(entry.id)
-            | None =>
-              switch (Ctx.lookup_tvar_id(cursor_ctx, variable)) {
-              | Some(id) => Some(id)
-              | None => None
-              }
-            };
-          };
-
-        print_endline("here #1");
-        let var_info =
-          switch (matching_id) {
-          | Some(id) => Id.Map.find_opt(id, statics.info_map)
-          | None => raise(Failure("Variable not found in context"))
-          };
-        print_endline("here #2");
-
-        let rec lowest_enclosing_id = (ancestors: list(Id.t)) => {
-          switch (ancestors) {
-          | [] => (Id.invalid, Id.invalid, Id.invalid)
-          | [hd_anc, ...rem_ancs] =>
-            switch (Id.Map.find_opt(hd_anc, statics.info_map)) {
-            | Some(hd_anc_term) =>
-              print_endline("hd_anc: " ++ Id.show(hd_anc));
-              switch (Info.any_of(hd_anc_term)) {
-              | Some(Exp(exp)) =>
-                switch (Exp.term_of(exp)) {
-                | TyAlias(var, def, body) => (
-                    TPat.rep_id(var),
-                    Typ.rep_id(def),
-                    Exp.rep_id(body),
-                  )
-                | Let(var, def, body) => (
-                    Pat.rep_id(var),
-                    Exp.rep_id(def),
-                    Exp.rep_id(body),
-                  )
-                /* todo: figure out how to find hinted test from up above matching_id
-                   | HintedTest(_, _) => lowest_enclosing_id(rem_ancs)
-                   | Seq(e1, e2) => (
-                       Exp.rep_id(e1),
-                       Id.invalid,
-                       Exp.rep_id(e2),
-                     )
-                   */
-                // Not a definition binding, recurse
-                | _ => lowest_enclosing_id(rem_ancs)
-                }
-              | Some(Typ(typ)) =>
-                switch (Typ.term_of(typ)) {
-                | Forall(tvar, body) => (
-                    TPat.rep_id(tvar),
-                    Id.invalid,
-                    Typ.rep_id(body),
-                  )
-                | Rec(tvar, body) => (
-                    TPat.rep_id(tvar),
-                    Id.invalid,
-                    Typ.rep_id(body),
-                  )
-                // Not a type variable binding, recurse
-                | _ => lowest_enclosing_id(rem_ancs)
-                }
-              | _ => lowest_enclosing_id(rem_ancs)
-              };
-            | _ => lowest_enclosing_id(rem_ancs)
-            }
-          };
-        };
-
-        let (var, def, body) =
-          switch (var_info) {
-          | Some(info) =>
-            let ancestors = Info.ancestors_of(info);
-            print_endline("Here #4");
-            lowest_enclosing_id(ancestors);
-          | None =>
-            print_endline("No var info found");
-            (Id.invalid, Id.invalid, Id.invalid);
-          };
-
-        switch (edit_action) {
-        | UpdatePattern(new_pattern) => [
-            Action.Select(Assistant(Pattern(var))),
-            Action.Paste(Assistant(new_pattern)),
-          ]
-        | UpdateDefinition(new_definition) => [
-            Action.Select(Assistant(Definition(def))),
-            Action.Paste(Assistant(new_definition)),
-          ]
-        | UpdateBody(new_body) => [
-            Action.Select(Assistant(Body(body))),
-            Action.Paste(Assistant(new_body)),
-          ]
-        | UpdateBinding(new_binding) => [
-            Action.Select(Assistant(EntireBinding(var))),
-            Action.Paste(Assistant(new_binding)),
-          ]
-        | DeleteBinding => [
-            Action.Select(Assistant(EntireBinding(var))),
-            Action.Paste(Assistant("")),
-          ]
-        | DeleteBody => [
-            Action.Select(Assistant(Body(body))),
-            Action.Paste(Assistant("")),
-          ]
-        | Add(loc, code) =>
-          switch (loc) {
-          | Before => [
-              Action.Select(Assistant(EntireBinding(var))),
-              Action.Unselect(Some(Left)),
-              Action.Paste(Assistant(code)),
-            ]
-          | After => [
-              Action.Select(Assistant(EntireBinding(var))),
-              Action.Unselect(Some(Right)),
-              Action.Paste(Assistant(code)),
-            ]
-          }
-        };
-      | (_, _) =>
-        switch (edit_action) {
-        | Add(loc, code) =>
-          switch (loc) {
-          | Before => [
-              Action.Move(Extreme(Up)),
-              Action.Paste(Assistant(code)),
-            ]
-          | After => [
-              Action.Move(Extreme(Down)),
-              Action.Paste(Assistant(code)),
-            ]
-          }
-        | DeleteBody => [Action.Select(All), Action.Paste(Assistant(""))]
-        | _ =>
-          print_endline(
-            "Error applying assistant edit action: No variable name provided",
-          );
-          [];
-        }
-      };
-
+  // Helper function for applying a list of editor-perform actions to the editor
+  let schedule_actions =
+      (~actions: list(Action.t), ~schedule_action: Editors.Update.t => unit) => {
     List.iter(
       action => {
         let perform_action = CodeEditable.Update.Perform(action);
@@ -479,11 +337,129 @@ module Composition = {
       actions,
     );
   };
+
+  let get_definition =
+      (
+        editor: CodeWithStatics.Model.t,
+        ast: ChatLSP.ast,
+        curr_node: ChatLSP.node,
+      ) => {
+    let rec replace_term_with_ellipsis = (z: Zipper.t, ids: list(Id.t)) => {
+      switch (ids) {
+      | [] => z
+      | [id, ...rest] =>
+        let z' =
+          ChatLSP.perform(Action.Select(Term(Id(id, Direction.Right))), z);
+        switch (z') {
+        | Ok(z') =>
+          let z'' =
+            ChatLSP.perform(
+              Action.Project(SetIndicated(Specific(Fold))),
+              z',
+            );
+          switch (z'') {
+          | Ok(z'') => replace_term_with_ellipsis(z'', rest)
+          | _ => replace_term_with_ellipsis(z', rest)
+          };
+        | _ => replace_term_with_ellipsis(z, rest)
+        };
+      };
+    };
+    let get_def_id_of_let = (term: Info.t): Id.t => {
+      switch (term) {
+      | InfoExp({term, _}) =>
+        switch (Exp.term_of(term)) {
+        | Let(_, def, _) => Exp.rep_id(def)
+        | _ => Id.invalid
+        }
+      | _ => Id.invalid
+      };
+    };
+    let z = editor.editor.state.zipper;
+
+    let children_ids = curr_node.children;
+    let children = List.map(Id.Map.find(_, ast), children_ids);
+    let children_def_ids =
+      List.map((c: ChatLSP.node) => get_def_id_of_let(c.self), children);
+    let z = replace_term_with_ellipsis(z, children_def_ids);
+    let z' =
+      switch (
+        ChatLSP.perform(
+          Action.Select(
+            Tile(Id(ChatLSP.id_of(curr_node), Direction.Right)),
+          ),
+          z,
+        )
+      ) {
+      | Ok(z') => z'
+      | _ => z
+      };
+    let seg = z'.selection.content;
+    Printer.of_segment(~holes="?", ~special_folds=true, seg);
+  };
+
+  let apply_action =
+      (
+        ~editor: CodeWithStatics.Model.t,
+        ~action: action,
+        ~schedule_action: Editors.Update.t => unit,
+        ~ast: ChatLSP.ast,
+        ~curr_node: option(ChatLSP.node),
+      )
+      : result => {
+    let schedule_actions = (actions: list(Action.t)) =>
+      schedule_actions(~actions, ~schedule_action);
+
+    switch (curr_node) {
+    | None => raise(Failure("No current node found"))
+    | Some(curr_node) =>
+      switch (action) {
+      // Navigate to the parent node of the current node
+      | Nav(nav_action) =>
+        switch (nav_action) {
+        | GoToParent =>
+          let actions = [
+            Action.Select(Tile(Id(curr_node.parent, Direction.Right))),
+          ];
+          schedule_actions(actions);
+          let parent_node = Id.Map.find(curr_node.parent, ast);
+          "Cursor moved from \""
+          ++ curr_node.name
+          ++ "\" to \""
+          ++ parent_node.name
+          ++ "\"";
+        | GoToChild(which) =>
+          let child = List.nth(curr_node.children, which);
+          schedule_actions([
+            Action.Select(Tile(Id(child, Direction.Right))),
+          ]);
+          let child_node = Id.Map.find(child, ast);
+          "Cursor moved from \""
+          ++ curr_node.name
+          ++ "\" to \""
+          ++ child_node.name
+          ++ "\"";
+        | _ => raise(Failure("Unhandled nav action"))
+        }
+      | Read(read_action) =>
+        switch (read_action) {
+        | ViewDefinition =>
+          "Definition of \""
+          ++ curr_node.name
+          ++ "\" (with child definitions collapsed with '...') is:\n```"
+          ++ get_definition(editor, ast, curr_node)
+          ++ "```"
+        | _ => raise(Failure("Unhandled read action"))
+        }
+      | Edit(_) => raise(Failure("Unhandled edit action"))
+      }
+    };
+  };
 };
 
 // --- Tutor Mode ---
 module Tutor = {
   // Empty module for now
-  // Tutor mode is pretty simple, and basically just an LLM chat bot,
+  // Tutor mode is pretty simple, and basically just an LLM chat
   // prompted with hazel-specific information.
 };

@@ -44,6 +44,7 @@ type block_kind =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type display = {
   displayable_content: list(block_kind),
+  raw_content: string,
   collapsed: bool,
 };
 
@@ -53,8 +54,8 @@ type sketch_snapshot = option(CodeEditable.Model.t);
 // A coupling of a message sent to the LLM and the displayable content of the message.
 [@deriving (show({with_path: false}), sexp, yojson)]
 type message = {
-  content: OpenRouter.message,
-  display,
+  content: option(OpenRouter.message),
+  display: option(display),
   role,
   sketch_snapshot,
 };
@@ -144,11 +145,11 @@ let context_threshold_ratio: float = 0.3;
 
 let get_messages_content =
     (messages: list(message)): list(OpenRouter.message) => {
-  List.map(message => message.content, messages);
+  List.filter_map(message => message.content, messages);
 };
 
 let get_messages_display = (messages: list(message)): list(display) => {
-  List.map(message => message.display, messages);
+  List.filter_map(message => message.display, messages);
 };
 
 let mk_mode_prompt = (~mode: AssistantSettings.mode): OpenRouter.message => {
@@ -212,6 +213,7 @@ let mk_message_display = (~content: string): display => {
     displayable_content:
       String.length(content) <= max_collapsed_length
         ? parse_blocks(content) : [Text(content)],
+    raw_content: content,
     collapsed: true,
   };
 };
@@ -221,8 +223,8 @@ let init_chat = (mode: AssistantSettings.mode): chat => {
   {
     messages: [
       {
-        content: init_message,
-        display: mk_message_display(~content=init_message.content),
+        content: Some(init_message),
+        display: Some(mk_message_display(~content=init_message.content)),
         role: System(AssistantPrompt),
         sketch_snapshot: None,
       },

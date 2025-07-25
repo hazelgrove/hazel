@@ -18,9 +18,25 @@ type role =
   | Tool(tool_contents);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+// Tool Calls
+type structure_action =
+  | GoToParent
+  | GoToChild
+  | ViewDefinition
+  | InvalidStructureAction;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type tool_call = {
+  id: string,
+  name: structure_action,
+  args: Json.t,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type message = {
   role,
   content: string,
+  tool_calls_json: list(Json.t),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -53,55 +69,26 @@ type usage = {
   total_tokens: int,
 };
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-// Tool Calls
-type structure_action =
-  | UpdatePattern
-  | UpdateDefinition
-  | UpdateBody
-  | UpdateBinding
-  | DeleteBinding
-  | DeleteBody
-  | AddBefore
-  | AddAfter
-  | InvalidStructureAction;
-
 let string_of_structure_action =
   fun
-  | UpdatePattern => "update_pattern"
-  | UpdateDefinition => "update_definition"
-  | UpdateBody => "update_body"
-  | UpdateBinding => "update_binding"
-  | DeleteBinding => "delete_binding"
-  | DeleteBody => "delete_body"
-  | AddBefore => "add_before"
-  | AddAfter => "add_after"
+  | GoToParent => "go_to_parent"
+  | GoToChild => "go_to_child"
+  | ViewDefinition => "view_definition"
   | InvalidStructureAction => "invalid_structure_action";
 
 let structure_action_of_string = (structure_action: string) =>
   switch (structure_action) {
-  | "update_pattern" => UpdatePattern
-  | "update_definition" => UpdateDefinition
-  | "update_body" => UpdateBody
-  | "update_binding" => UpdateBinding
-  | "delete_binding" => DeleteBinding
-  | "delete_body" => DeleteBody
-  | "add_before" => AddBefore
-  | "add_after" => AddAfter
+  | "go_to_parent" => GoToParent
+  | "go_to_child" => GoToChild
+  | "view_definition" => ViewDefinition
   | _ => InvalidStructureAction
   };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type tool_call = {
-  id: string,
-  name: structure_action,
-  args: Json.t,
-};
-
-[@deriving (show({with_path: false}), sexp, yojson)]
 type reply = {
   content: string,
-  tool_call: option(tool_call),
+  tool_calls: list(tool_call),
+  tool_calls_json: list(Json.t),
   usage,
 };
 
@@ -146,21 +133,26 @@ let set_to_default_params = (model_id: string): params => {
   };
 };
 
-let mk_message = ({role, content}) =>
-  switch (role) {
-  | Tool(tool_contents) =>
-    `Assoc([
-      ("role", `String(string_of_role(role))),
-      ("content", `String(content)),
-      ("tool_call_id", `String(tool_contents.tool_call_id)),
-      ("name", `String(tool_contents.name)),
-    ])
-  | _ =>
-    `Assoc([
-      ("role", `String(string_of_role(role))),
-      ("content", `String(content)),
-    ])
-  };
+let mk_message = ({role, content, tool_calls_json}) => {
+  let base = [
+    ("role", `String(string_of_role(role))),
+    ("content", `String(content)),
+  ];
+
+  let with_tool_calls =
+    switch (role) {
+    | Tool({name, tool_call_id}) =>
+      [("tool_call_id", `String(tool_call_id)), ("name", `String(name))]
+      @ base
+    | _ =>
+      switch (tool_calls_json) {
+      | [] => base
+      | calls => [("tool_calls", `List(calls))] @ base
+      }
+    };
+
+  `Assoc(with_tool_calls);
+};
 
 let mk_reasoning = (reasoning: reasoning) =>
   switch (reasoning) {
@@ -171,15 +163,18 @@ let mk_reasoning = (reasoning: reasoning) =>
   };
 
 let body = (~params: params, messages: list(message)): Json.t => {
-  `Assoc([
-    ("model", `String(params.model_id)),
-    ("reasoning", mk_reasoning(params.reasoning)),
-    ("temperature", `Float(params.temperature)),
-    ("top_p", `Float(params.top_p)),
-    ("messages", `List(List.map(mk_message, messages))),
-    ("tools", params.tools == [] ? `Null : `List(params.tools)),
-    ("stream", `Bool(params.stream)),
-  ]);
+  let body =
+    `Assoc([
+      ("model", `String(params.model_id)),
+      ("reasoning", mk_reasoning(params.reasoning)),
+      ("temperature", `Float(params.temperature)),
+      ("top_p", `Float(params.top_p)),
+      ("messages", `List(List.map(mk_message, messages))),
+      ("tools", params.tools == [] ? `Null : `List(params.tools)),
+      ("stream", `Bool(params.stream)),
+    ]);
+  print_endline("Outgoing body: " ++ Json.to_string(body));
+  body;
 };
 
 let chat = (~key, ~body, ~handler): unit => {
@@ -237,32 +232,40 @@ let parse_tool_args = (args: Json.t): Json.t => {
   };
 };
 
-let first_message_tool_call = (choices: Json.t): option(tool_call) => {
-  let* choices = Json.list(choices);
-  let* hd = ListUtil.hd_opt(choices);
-  let* message = Json.dot("message", hd);
-
-  let* tool_calls = Json.dot("tool_calls", message);
-  let* tool_calls = Json.list(tool_calls);
-  let* tool_call = ListUtil.hd_opt(tool_calls);
-
-  let* id = Json.dot("id", tool_call);
-  let* id = Json.str(id);
-
-  let* tool_call = Json.dot("function", tool_call);
-
-  let* name = Json.dot("name", tool_call);
-  let* name = Json.str(name);
-  let* args = Json.dot("arguments", tool_call);
-
-  let parsed_args = parse_tool_args(args);
-
-  let tool_call: tool_call = {
-    id,
-    name: structure_action_of_string(name),
-    args: parsed_args,
+let first_message_tool_call =
+    (choices: Json.t): (list(tool_call), list(Json.t)) => {
+  let get_tool_calls = (choices: Json.t): option(list(Json.t)) => {
+    let* choices = Json.list(choices);
+    let* hd = ListUtil.hd_opt(choices);
+    let* message = Json.dot("message", hd);
+    let* tool_calls = Json.dot("tool_calls", message);
+    let* tool_calls_json = Json.list(tool_calls);
+    Some(tool_calls_json);
   };
-  Some(tool_call);
+  switch (get_tool_calls(choices)) {
+  | Some(tool_calls_json) =>
+    let tool_calls: list(tool_call) =
+      List.filter_map(
+        (tool_call: Json.t) => {
+          let* id = Json.dot("id", tool_call);
+          let* id = Json.str(id);
+          let* tool_call = Json.dot("function", tool_call);
+          let* name = Json.dot("name", tool_call);
+          let* name = Json.str(name);
+          let* args = Json.dot("arguments", tool_call);
+          let parsed_args = parse_tool_args(args);
+          let tool_call: tool_call = {
+            id,
+            name: structure_action_of_string(name),
+            args: parsed_args,
+          };
+          Some(tool_call);
+        },
+        tool_calls_json,
+      );
+    (tool_calls, tool_calls_json);
+  | None => ([], [])
+  };
 };
 
 let parse_errs = (json: Json.t): option(error) => {
@@ -288,11 +291,12 @@ let handle_chat = (~db=ignore, response: option(Json.t)): option(result) => {
     let* choices = Json.dot("choices", json);
     let* usage = Json.dot("usage", json);
     let* content = first_message_content(choices);
-    let tool_call = first_message_tool_call(choices);
+    let (tool_calls, tool_calls_json) = first_message_tool_call(choices);
     let+ usage = of_usage(usage);
     Reply({
       content,
-      tool_call,
+      tool_calls,
+      tool_calls_json,
       usage,
     });
   };
@@ -301,21 +305,26 @@ let handle_chat = (~db=ignore, response: option(Json.t)): option(result) => {
 let mk_system_msg = (content: string): message => {
   role: System,
   content,
+  tool_calls_json: [],
 };
 
 let mk_user_msg = (content: string): message => {
   role: User,
   content,
+  tool_calls_json: [],
 };
 
-let mk_assistant_msg = (content: string): message => {
+let mk_assistant_msg =
+    (content: string, tool_calls_json: list(Json.t)): message => {
   role: Assistant,
   content,
+  tool_calls_json,
 };
 
 let mk_tool_msg = (content: string, tool_contents: tool_contents): message => {
   role: Tool(tool_contents),
   content,
+  tool_calls_json: [],
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]

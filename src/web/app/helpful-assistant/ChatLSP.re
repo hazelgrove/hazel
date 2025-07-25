@@ -3,23 +3,94 @@ open Haz3lcore;
 open Language;
 open Language.Statics;
 
+let mk_syntax: Zipper.t => Editor.CachedSyntax.t =
+  Editor.CachedSyntax.init(
+    ~info_map=Language.Statics.Map.empty,
+    ~dyn_map=Language.Dynamics.Map.empty,
+  );
+let mk_state: Zipper.t => Editor.State.t =
+  z => {
+    zipper: z,
+    col_target: None,
+  };
+let mk_move = (z: Zipper.t): (module Move.S) =>
+  Editor.Model.to_move_s({
+    state: mk_state(z),
+    syntax: mk_syntax(z),
+  });
+let perform = (a: Action.t, z: Zipper.t) =>
+  Perform.go_z(
+    ~settings=Language.CoreSettings.off,
+    CachedStatics.empty,
+    a,
+    mk_move(z),
+    z,
+  );
+
 type node = {
+  // The term associated with this node
   self: Info.t,
+  // The incoming parent node in the AST
   parent: Id.t,
+  // The outgoing children nodes in the AST
   children: list(Id.t),
+  // The depth of this node in the AST
   level: int,
+  // The name of this node. Constructed through recursively
+  // unwrapping the pattern(s) associated with the node
   name: string,
 };
 
-let build_AST = (editor: CodeWithStatics.Model.t): unit => {
+type ast = Id.Map.t(node);
+
+// Helper function to get the id of a node, which is
+// just its Info.id, as we reuse them
+let id_of = (node: node) => Info.id_of(node.self);
+
+// Helper function for getting the current node in the AST
+let get_curr_node = (editor: CodeWithStatics.Model.t, ast: ast): option(node) => {
+  let info_map = editor.statics.info_map;
+  switch (Indicated.index(editor.editor.state.zipper)) {
+  | Some(id) =>
+    switch (Id.Map.find_opt(id, ast)) {
+    // If the id is a node in the AST, return it as the current node
+    | Some(node) => Some(node)
+    // Otherwise, recursively bubble up through the ancestors of the current term
+    // until we reach a node in the AST
+    | None =>
+      switch (Id.Map.find_opt(id, info_map)) {
+      | Some(term) =>
+        let ancestors = Info.ancestors_of(term);
+        let rec get_nearest_ancestor_node = (ancestors: list(Id.t)) => {
+          switch (ancestors) {
+          // No ancestors were found in the AST
+          | [] => None
+          | [ancestor, ...rest] =>
+            switch (Id.Map.find_opt(ancestor, ast)) {
+            // This ancestor is in the AST, return it
+            | Some(node) => Some(node)
+            // Otherwise, continue bubbling up
+            | None => get_nearest_ancestor_node(rest)
+            }
+          };
+        };
+        get_nearest_ancestor_node(ancestors);
+      | None => None
+      }
+    }
+  | None => None
+  };
+};
+
+let build_AST = (editor: CodeWithStatics.Model.t): ast => {
   let zipper = editor.editor.state.zipper;
   // The current datastructure with AST information
   let info_map = editor.statics.info_map;
 
   // The term the cursor is currently at
   // This actually is not needed for building the AST, and was used
-  // as an ad-hoc path to get the "root" term (as opposed to what we'll later
-  // call root in our AST) from the InfoMap.
+  // as an ad-hoc path to get the root term of the InfoMap
+  // Todo: find simpler, sensible way to get the root term
   let curr_id: option(Id.t) = Indicated.index(zipper);
   let curr_term =
     switch (curr_id) {
@@ -27,20 +98,10 @@ let build_AST = (editor: CodeWithStatics.Model.t): unit => {
     | None => raise(Failure("No current term"))
     };
 
-  // Helper function to get the id of a node, which is
-  // just its Info.id, as we reuse them
-  let id_of = (node: node) => Info.id_of(node.self);
-
   // The recursive AST builder function.
   // We begin from a root node, visiting all children and possible subtrees from that root.
   let rec build =
-          (
-            ast: Id.Map.t(node),
-            level: int,
-            parent_id: Id.t,
-            curr_term: Info.t,
-          )
-          : Id.Map.t(node) => {
+          (ast: ast, level: int, parent_id: Id.t, curr_term: Info.t): ast => {
     let rec mk_name_from_pat = (pat: TermBase.pat_t) => {
       switch (pat.term) {
       | Var(name)
@@ -100,12 +161,6 @@ let build_AST = (editor: CodeWithStatics.Model.t): unit => {
         children: parent.children @ [id_of(new_node)],
       };
       let ast' = Id.Map.add(parent_id, updated_parent, ast);
-      let parent = Option.get(Id.Map.find_opt(parent_id, ast'));
-      print_endline("Parent is now " ++ parent.name);
-      print_endline(
-        "Children of parent are "
-        ++ String.concat(", ", List.map(Id.to_string, parent.children)),
-      );
       // Add this node to the AST
       let ast'' = Id.Map.add(id_of(new_node), new_node, ast');
       // Recurse on the definition
@@ -133,16 +188,12 @@ let build_AST = (editor: CodeWithStatics.Model.t): unit => {
       };
       let ast' = Id.Map.add(parent_id, updated_parent, ast);
       let parent = Option.get(Id.Map.find_opt(parent_id, ast'));
-      print_endline("Parent is now " ++ parent.name);
-      print_endline(
-        "Children of parent are "
-        ++ String.concat(", ", List.map(Id.to_string, parent.children)),
-      );
       // Add this node to the AST
       let ast'' = Id.Map.add(id_of(new_node), new_node, ast');
       // Recurse on the body
       build(ast'', level, parent_id, body_term);
     };
+
     switch (curr_term) {
     | InfoExp({term, _}) =>
       switch (Exp.term_of(term)) {
@@ -279,9 +330,6 @@ let build_AST = (editor: CodeWithStatics.Model.t): unit => {
       );
     print_endline("AST built successfully");
 
-    print_endline(
-      "Num nodes in AST: " ++ string_of_int(Id.Map.cardinal(ast)),
-    );
     let root_node = Option.get(Id.Map.find_opt(id_of(root_node), ast));
     let rec print_AST = (node: node) => {
       print_endline(String.make(node.level, '.') ++ node.name);
@@ -293,10 +341,15 @@ let build_AST = (editor: CodeWithStatics.Model.t): unit => {
         node.children,
       );
     };
-    print_AST(root_node);
+    //print_AST(root_node);
+    ast;
   }) {
-  | Failure(msg) => print_endline("Error building AST: " ++ msg)
-  | _ => print_endline("Error building AST")
+  | Failure(msg) =>
+    print_endline("Error building AST: " ++ msg);
+    Id.Map.empty;
+  | _ =>
+    print_endline("Error building AST");
+    Id.Map.empty;
   };
 };
 

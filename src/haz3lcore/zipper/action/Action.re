@@ -37,10 +37,7 @@ type rel =
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type structure =
-  | Pattern(Id.t)
-  | Definition(Id.t)
-  | EntireBinding(Id.t)
-  | Body(Id.t);
+  | Node(Id.t);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type select =
@@ -48,8 +45,7 @@ type select =
   | Resize(move)
   | Smart(int)
   | Tile(rel)
-  | Term(rel)
-  | Assistant(structure);
+  | Term(rel);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type chooser =
@@ -233,8 +229,7 @@ let should_animate: t => bool =
     | All
     | Smart(_)
     | Tile(_)
-    | Term(_)
-    | Assistant(_) => true
+    | Term(_) => true
     }
   | Unselect(_)
   | Paste(_)

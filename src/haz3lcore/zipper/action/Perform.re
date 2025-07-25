@@ -97,41 +97,6 @@ let go_z =
       }
     };
 
-  let rec find_parent_with_label =
-          (z: ZipperBase.t, target_label: Label.t): option(Piece.t) => {
-    switch (ZipperBase.parent(z)) {
-    | None => None
-    | Some(p) =>
-      print_endline("Parent is " ++ Piece.show(p));
-      switch (p) {
-      | Tile(t) when t.label == target_label => Some(p)
-      | _ =>
-        // Create a new zipper with this parent as the current position
-        let new_z = {
-          ...z,
-          relatives: {
-            ancestors: List.tl(z.relatives.ancestors),
-            siblings: ([], []),
-          },
-        };
-        find_parent_with_label(new_z, target_label);
-      };
-    };
-  };
-
-  let select_definition = (z: t): option(Zipper.t) => {
-    open OptUtil.Syntax;
-    let* parent =
-      switch (find_parent_with_label(z, ["let", "=", "in"])) {
-      | Some(p) => Some(p)
-      | None => find_parent_with_label(z, ["type", "=", "in"])
-      };
-    switch (parent) {
-    | Tile(t) => Select.tile(t.id, z)
-    | _ => None
-    };
-  };
-
   let smart_select = (n, z: t): option(Zipper.t) => {
     switch (n) {
     | 2 => Select.indicated_token(z)
@@ -266,30 +231,6 @@ let go_z =
     switch (Select.go(d, z)) {
     | None => Ok(z)
     | Some(z) => Ok(z)
-    }
-  | Select(Assistant(Pattern(id))) =>
-    switch (Select.term(id, z)) {
-    | Some(z) => Ok(z)
-    | None => Error(Action.Failure.Cant_select)
-    }
-  | Select(Assistant(Definition(id))) =>
-    switch (Select.term(id, z)) {
-    | Some(z) => Ok(z)
-    | None => Error(Action.Failure.Cant_select)
-    }
-  | Select(Assistant(EntireBinding(id))) =>
-    switch (Move.jump_to_id_indicated(z, id)) {
-    | Some(z) =>
-      switch (select_definition(z)) {
-      | Some(z) => Ok(z)
-      | None => Error(Action.Failure.Cant_select)
-      }
-    | None => Error(Action.Failure.Cant_move)
-    }
-  | Select(Assistant(Body(id))) =>
-    switch (Select.term(id, z)) {
-    | Some(z) => Ok(z)
-    | None => Error(Action.Failure.Cant_select)
     }
   | Restore(sketch) => Ok(sketch)
   | Destruct(d) =>
