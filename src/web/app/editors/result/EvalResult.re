@@ -222,11 +222,25 @@ module Update = {
         |> Calc.save
         |> (x => Model.Evaluation(x))
       | Stepper(stepper) =>
-        Model.Stepper(StepperView.Update.calculate(~settings, elab, stepper))
+        Model.Stepper(
+          StepperView.Update.calculate(
+            ~settings,
+            ~ctx=OldValue(Ctx.empty),
+            elab,
+            stepper,
+          ),
+        )
+      };
+
+    // HACK[Matt]: say that statics is updated iff dynamics is updated
+    let statics: Calc.t('a) =
+      switch (dynamics) {
+      | NewValue(_) => NewValue(statics)
+      | OldValue(_) => OldValue(statics)
       };
 
     let theorems =
-      theorems |> Theorems.Update.calculate(~settings, ~dynamics);
+      theorems |> Theorems.Update.calculate(~settings, ~statics, ~dynamics);
 
     (
       {

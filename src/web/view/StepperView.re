@@ -7,13 +7,11 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     cached_elab_subst: Calc.saved(Exp.t),
-    ctx: Calc.saved(Ctx.t),
     root: StepperBase.step_model,
   };
 
   let init = {
     cached_elab_subst: Calc.Pending,
-    ctx: Calc.Pending,
     root: StepperBase.init_step,
   };
 
@@ -36,11 +34,11 @@ module Update = {
   let calculate =
       (
         ~settings: Calc.t(CoreSettings.t),
+        ~ctx: Calc.t(Ctx.t),
         elab: Calc.t(Exp.t),
-        {ctx, cached_elab_subst, root}: Model.t,
+        {cached_elab_subst, root}: Model.t,
       )
       : Model.t => {
-    let ctx = ctx |> Calc.const(() => Builtins.ctx_init(None));
     let elab_subst =
       cached_elab_subst
       |> {
@@ -60,7 +58,6 @@ module Update = {
       |> fst;
     {
       cached_elab_subst: elab_subst |> Calc.save,
-      ctx: ctx |> Calc.save,
       root,
     };
   };

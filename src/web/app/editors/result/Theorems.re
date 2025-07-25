@@ -5,13 +5,14 @@ open Language;
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type theorem = {
-    // ctx: Ctx.t,
+    ctx: Calc.saved(Ctx.t),
     // env: Environment.t,
     goal_exp: Calc.saved(Exp.t),
     stepper_view: StepperView.Model.t,
   };
 
   let theorem_init = {
+    ctx: Calc.Pending,
     goal_exp: Calc.Pending,
     stepper_view: StepperView.Model.init,
   };
@@ -69,6 +70,7 @@ module Update = {
   let calculate =
       (
         ~settings: Calc.t(CoreSettings.t),
+        ~statics: Calc.t(Haz3lcore.CachedStatics.t),
         ~dynamics: Calc.t(option(Dynamics.t)),
         {thm_map, thms}: Model.t,
       ) => {
@@ -99,7 +101,7 @@ module Update = {
              Id.Map.update(
                id,
                (opt: option(Model.theorem)) => {
-                 let Model.{goal_exp, stepper_view} =
+                 let Model.{ctx, goal_exp, stepper_view} =
                    Option.value(~default=Model.theorem_init, opt);
 
                  let goal_exp =
@@ -109,14 +111,31 @@ module Update = {
                      goal_exp,
                    );
 
+                 let ctx =
+                   ctx
+                   |> {
+                     let.calc statics = statics;
+                     statics.info_map
+                     |> Statics.Map.lookup(id)
+                     |> Option.bind(
+                          _,
+                          fun
+                          | Info.InfoExp({ctx, _}) => Some(ctx)
+                          | _ => None,
+                        )
+                     |> Option.value(~default=Ctx.empty);
+                   };
+
                  let stepper_view =
                    StepperView.Update.calculate(
                      ~settings,
+                     ~ctx,
                      goal_exp,
                      stepper_view,
                    );
 
                  Some({
+                   ctx: ctx |> Calc.save,
                    goal_exp: goal_exp |> Calc.save,
                    stepper_view,
                  });
