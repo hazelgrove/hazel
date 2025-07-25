@@ -30,7 +30,7 @@ let tests = (
       `Quick,
       () => {
         let xs = [1, 2, 3, 2];
-        check(list(int), "Unique list", [1, 3, 2], ListUtil.dedup(xs)); // TODO: Interesting the order here is messed up because of fold_right
+        check(list(int), "Unique list", [1, 2, 3], ListUtil.dedup(xs));
       },
     ),
     test_case(
@@ -41,9 +41,9 @@ let tests = (
         check(
           list(int),
           "Unique list",
-          [1, 3, 2],
+          [1, 2, 3],
           ListUtil.dedup_f((==), xs),
-        ); // TODO: Interesting the order here is messed up because of fold_right
+        );
       },
     ),
     test_case(

@@ -24,26 +24,20 @@ let set_llm_buffer = (z: t, response: string): t =>
     {
       open OptUtil.Syntax;
       //TODO: Error feedback on below
-      let* content = Parser.to_zipper(response);
-      let+ _ = [] == content.backpack ? Some() : None;
-      Zipper.set_buffer(z, ~content=Zipper.zip(content), ~mode=Parsed);
+      let* rz = Parser.to_zipper(response);
+      switch (Zipper.local_backpack(rz)) {
+      | [] =>
+        Some(Zipper.set_buffer(z, ~content=Zipper.zip(rz), ~mode=Parsed))
+      | _ => None
+      };
     }
   ) {
   | None => z
   | Some(z) => z
   };
 
-let paste = (z: Zipper.t, str: string): option(Zipper.t) => {
-  open Util.OptUtil.Syntax;
-  let* z = Parser.to_zipper(~zipper_init=z, str);
-  /* HACK(andrew): Insert/Destruct below is a hack to deal
-     with the fact that pasting something like "let a = b in"
-     won't trigger the barfing of the "in"; to trigger this,
-     we insert a space, and then we immediately delete it */
-  let* z = Insert.go(" ", z);
-  let+ z = Destruct.go(Left, z);
-  remold_regrout(Left, z);
-};
+let paste = (z: Zipper.t, str: string): option(Zipper.t) =>
+  Parser.to_zipper(~zipper_init=z, str);
 
 let paste_segment = (z: Zipper.t, segment: Segment.t): Zipper.t => {
   let replace_selection = (z, focus, segment): Zipper.t =>
@@ -225,6 +219,8 @@ let go_z =
     | None => Ok(z)
     | Some(z) => Ok(z)
     }
+  | Select(ToggleFocus) => Ok(Zipper.toggle_focus(z))
+  | Select(SetFocus(d)) => Ok(Zipper.set_focus(z, d))
   | Destruct(d) =>
     z
     |> Destruct.go(d)
@@ -246,31 +242,17 @@ let go_z =
     |> Insert.go(char, ~ctx)
     /* note: remolding here is done case-by-case */
     |> Result.of_option(~error=Action.Failure.Cant_insert);
-  | Pick_up => Ok(remold_regrout(Left, Zipper.pick_up(z)))
   | Put_down =>
-    let z =
-      /* Alternatively, putting down inside token could eiter merge-in or split */
+    (
       switch (z.caret) {
       | Inner(_) => None
-      | Outer => Zipper.put_down_regrout_remold(Left, z)
-      };
-    z |> Result.of_option(~error=Action.Failure.Cant_put_down);
-  | RotateBackpack =>
-    let z = {
-      ...z,
-      backpack: Util.ListUtil.rotate(z.backpack),
-    };
-    Ok(z);
-  | MoveToBackpackTarget((Left(_) | Right(_)) as d) =>
-    if (Backpack.restricted(z.backpack)) {
-      Move.to_backpack_target(d, z)
-      |> Result.of_option(~error=Action.Failure.Cant_move);
-    } else {
-      Move.go(Local(d), z)
-      |> Result.of_option(~error=Action.Failure.Cant_move);
-    }
-  | MoveToBackpackTarget((Up | Down) as d) =>
-    Move.to_backpack_target(d, z)
-    |> Result.of_option(~error=Action.Failure.Cant_move)
+      | Outer =>
+        switch (Zipper.match_prev(z)) {
+        | Some(z) => Some(z)
+        | None => Zipper.put_down_regrout_remold(Left, z)
+        }
+      }
+    )
+    |> Result.of_option(~error=Action.Failure.Cant_put_down)
   };
 };

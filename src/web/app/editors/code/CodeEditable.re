@@ -52,13 +52,13 @@ module Update = {
              switch (action) {
              | Move(_)
              | Jump(_)
-             | Select(Resize(_) | Term(_) | Smart(_) | Tile(_))
+             | Select(
+                 Resize(_) | Term(_) | Smart(_) | Tile(_) | ToggleFocus |
+                 SetFocus(_),
+               )
              | Destruct(_)
              | Insert(_)
-             | Pick_up
              | Put_down
-             | RotateBackpack
-             | MoveToBackpackTarget(_)
              | Buffer(Set(_) | Accept | Clear)
              | Paste(_)
              | Copy
