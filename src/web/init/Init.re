@@ -28,6 +28,8 @@ let startup: PersistentData.t = {
       B2T2TableAPIAggregate.out,
       B2T2TableAPIMissingValues.out,
       B2T2TableAPIDataCleaning.out,
+      B2T2TableAPIUtilities.out,
+      B2T2TableAPIUtilities2.out,
       GUIDEExpressiveProgramming.out,
       GUIDEComposingExpressions.out,
       GUIDEComputingEquationally.out,
