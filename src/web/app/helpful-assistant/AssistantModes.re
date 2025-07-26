@@ -264,17 +264,23 @@ module Composition = {
       String.concat(
         "\n",
         [
-          "AST information:",
+          "<AST information>",
           curr_node_str,
           parent_node_str,
           siblings_nodes_str,
+          "</AST information>",
         ],
       );
 
     let sketch_info_str =
       String.concat(
         "\n",
-        ["Sketch information:", definition_str, static_errors_str],
+        [
+          "<Sketch information>",
+          definition_str,
+          static_errors_str,
+          "</Sketch information>",
+        ],
       );
 
     OpenRouter.mk_user_msg(
