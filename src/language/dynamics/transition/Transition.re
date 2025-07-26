@@ -50,7 +50,7 @@ type step_kind =
   | InvalidStep
   | VarLookup
   | Seq
-  | LetBind
+  | LetBind(string)
   | WrapClosure
   | FixUnwrap
   | FixClosure
@@ -251,11 +251,22 @@ module Transition = (EV: EV_MODE) => {
         req_final(req(state, env), d1 => Let1(dp, d1, d2) |> wrap_ctx, d1);
       let.wrap_closure _ = env;
       let {matches, closures} = matches(dp, d1');
+      let matches_str = {
+        switch (matches) {
+        | IndetMatch
+        | DoesNotMatch => ""
+        | Matches(env) =>
+          VarBstMap.Ordered.to_listo(env)
+          |> List.rev
+          |> List.map(((s, _)) => s)
+          |> String.concat(", ")
+        };
+      };
       let.match env' = (env, matches, env.call_stack);
       Step({
         expr: subst_env(env', d2),
         state_update: capture_closures(env, state, closures),
-        kind: LetBind,
+        kind: LetBind(matches_str),
         is_value: false,
       });
     | TypFun(_)
@@ -884,7 +895,7 @@ module Transition = (EV: EV_MODE) => {
 
 let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   fun
-  | LetBind
+  | LetBind(_)
   | Seq
   | UpdateTest
   | TypFunAp
@@ -916,7 +927,7 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
 
 let stepper_justification: step_kind => string =
   fun
-  | LetBind => "substitution"
+  | LetBind(s) => String.cat("substitution for ", s)
   | Seq => "sequence"
   | FixUnwrap => "unroll fixpoint"
   | UpdateTest => "update test"
