@@ -406,19 +406,7 @@ let mk_llm_call =
   | (key, model_id) =>
     let tools =
       if (mode == TaskCompletion) {
-        [
-          CompositionTools.go_to_parent,
-          CompositionTools.go_to_child,
-          CompositionTools.view_definition,
-          // CompositionTools.update_pattern,
-          // CompositionTools.update_definition,
-          // CompositionTools.update_body,
-          // CompositionTools.delete_body,
-          // CompositionTools.update_binding,
-          // CompositionTools.delete_binding,
-          // CompositionTools.add_before,
-          // CompositionTools.add_after,
-        ];
+        CompositionTools.tools;
       } else {
         [];
       };
@@ -485,28 +473,36 @@ let mk_structure_edit_msg =
     (
       ~tool_call: string,
       ~args: option(StringMap.t(string)),
-      ~ast: ChatLSP.ast,
-      ~curr_node: ChatLSP.node,
+      ~curr_node_info: TreeHelper.node,
     )
     : string =>
+  // AddToolLabel_4
   try({
     let _enclose_in_backticks = (str: string) => "```" ++ str ++ "```";
     switch (OpenRouter.structure_action_of_string(tool_call)) {
     | OpenRouter.GoToParent =>
-      let parent = Id.Map.find(curr_node.parent, ast);
-      "Agent moved from \""
-      ++ curr_node.name
-      ++ "\" to its parent \""
-      ++ parent.name
-      ++ "\"";
+      switch (curr_node_info.parent) {
+      | None => raise(Failure("This node does not have a parent"))
+      | Some(parent) =>
+        "Agent moved from \""
+        ++ curr_node_info.name
+        ++ "\" to its parent \""
+        ++ parent.name
+        ++ "\""
+      }
     | OpenRouter.GoToChild =>
-      let index = StringMap.find("index", Option.get(args));
-      let child_id = List.nth(curr_node.children, int_of_string(index));
-      let child = Id.Map.find(child_id, ast);
+      let name = StringMap.find("name", Option.get(args));
       "Agent moved from \""
-      ++ curr_node.name
+      ++ curr_node_info.name
       ++ "\" to its child \""
-      ++ child.name
+      ++ name
+      ++ "\"";
+    | OpenRouter.GoToSibling =>
+      let name = StringMap.find("name", Option.get(args));
+      "Agent moved from \""
+      ++ curr_node_info.name
+      ++ "\" to its sibling \""
+      ++ name
       ++ "\"";
     | OpenRouter.ViewDefinition => "Agent viewed the definition of the current node"
     | OpenRouter.InvalidStructureAction =>
@@ -540,23 +536,45 @@ let parse_and_apply_structure_edit =
   try({
     let action =
       switch (tool_call.name) {
-      /* --------- [Begin] UpdatePattern [Begin] --------- */
+      /* --------- [Begin] Handle Tool Calls [Begin] --------- */
+      // AddToolLabel_3
       | OpenRouter.GoToParent => AssistantModes.Composition.Nav(GoToParent)
       | OpenRouter.GoToChild =>
-        let index =
-          switch (Json.dot("index", tool_call.args)) {
-          | Some(`Int(index)) => index
+        let (name, index) =
+          switch (
+            Json.dot("name", tool_call.args),
+            Json.dot("index", tool_call.args),
+          ) {
+          | (Some(`String(name)), Some(`Int(index))) => (
+              name,
+              Some(index),
+            )
+          | (Some(`String(name)), None) => (name, None)
           | _ => invalid_args_failure(tool_call.name)
           };
-        AssistantModes.Composition.Nav(GoToChild(index));
+        AssistantModes.Composition.Nav(GoToChild(name, index));
+      | OpenRouter.GoToSibling =>
+        let (name, index) =
+          switch (
+            Json.dot("name", tool_call.args),
+            Json.dot("index", tool_call.args),
+          ) {
+          | (Some(`String(name)), Some(`Int(index))) => (
+              name,
+              Some(index),
+            )
+          | (Some(`String(name)), None) => (name, None)
+          | _ => invalid_args_failure(tool_call.name)
+          };
+        AssistantModes.Composition.Nav(GoToSibling(name, index));
       | OpenRouter.ViewDefinition =>
         AssistantModes.Composition.Read(ViewDefinition)
       | _ => invalid_args_failure(tool_call.name)
-      /* --------- [End] UpdatePattern [End] --------- */
+      /* --------- [End] Handle Tool Calls [End] --------- */
       };
     // Apply the edit action to the editor
-    let tool_response = apply_action(~action);
-    schedule_action(loop_message(Success(tool_response)));
+    let tool_result = apply_action(~action);
+    schedule_action(loop_message(Success(tool_result)));
   }) {
   | Failure(err) => schedule_action(loop_message(Failure(err)))
   };
@@ -1127,8 +1145,7 @@ let update =
         )
         |> Updated.return;
       | (Some(tool_call), _) =>
-        let ast = ChatLSP.build_AST(editor);
-        let curr_node = ChatLSP.get_curr_node(editor, ast);
+        let curr_node_info = TreeHelper.build_sub_AST(editor);
 
         let updated_chat = {
           let structure_edit_message: Model.message = {
@@ -1141,8 +1158,7 @@ let update =
                       ~tool_call=
                         OpenRouter.string_of_structure_action(tool_call.name),
                       ~args=Json.get_string_kvs(tool_call.args),
-                      ~ast,
-                      ~curr_node=Option.get(curr_node),
+                      ~curr_node_info,
                     ),
                 ),
               ),
@@ -1173,13 +1189,11 @@ let update =
             None,
             chat_id,
           );
-
         let apply_action =
           AssistantModes.Composition.apply_action(
             ~schedule_action=schedule_editor_action,
             ~editor,
-            ~ast,
-            ~curr_node,
+            ~curr_node_info,
           );
         parse_and_apply_structure_edit(
           ~tool_call,

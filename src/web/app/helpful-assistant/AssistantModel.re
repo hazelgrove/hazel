@@ -54,7 +54,11 @@ type sketch_snapshot = option(CodeEditable.Model.t);
 // A coupling of a message sent to the LLM and the displayable content of the message.
 [@deriving (show({with_path: false}), sexp, yojson)]
 type message = {
+  // It may be the case we don't want to send a message to the LLM
+  // E.g. Tool descriptions (user-facing, describing what the agent did)
   content: option(OpenRouter.message),
+  // It may be the case we don't want to display a message to the user
+  // E.g. Empty LLM responses/responses that only contain tool calls
   display: option(display),
   role,
   sketch_snapshot,

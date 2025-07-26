@@ -1110,126 +1110,121 @@ let message_display =
   };
   let (past_chats, curr_chat) = Update.get_mode_info(settings.mode, model);
   let curr_messages = Id.Map.find(curr_chat.id, past_chats).messages;
-  let curr_messages: list(unwrapped_message) =
-    List.filter_map(
-      (message: Model.message) => {
-        switch (message.display) {
-        | Some(display) =>
-          Some({
-            display,
-            role: message.role,
-            sketch_snapshot: message.sketch_snapshot,
-          })
-        | None => None
-        }
-      },
-      curr_messages,
-    );
   let message_nodes =
     List.flatten(
       List.mapi(
-        (index: int, message: unwrapped_message) => {
-          let is_last_message = index == List.length(curr_messages) - 1;
-          [
-            div(
-              ~attrs=[
-                clss([
-                  "message-container",
-                  switch (message.role) {
-                  | User => "user"
-                  | Assistant => "llm"
-                  | System(AssistantPrompt) => "system-prompt"
-                  | System(InternalError) => "system-error"
-                  | Tool => "tool"
-                  },
-                ]),
-                is_last_message ? Attr.id("last-message") : Attr.empty,
-              ],
-              [
-                div(
-                  ~attrs=[clss(["message-identifier-row"])],
-                  [
-                    div(
-                      ~attrs=[clss(["message-identifier"])],
-                      [
-                        switch (message.role) {
-                        | User => text("User")
-                        | Assistant =>
-                          switch (settings.mode) {
-                          | CodeSuggestion =>
-                            div(
-                              ~attrs=[clss(["llm-identifier"])],
-                              [Icons.hazelnut_agent, text("Assistant")],
-                            )
-                          | TaskCompletion =>
-                            div(
-                              ~attrs=[clss(["llm-identifier"])],
-                              [Icons.hazelnut_agent, text("Agent")],
-                            )
-                          | HazelTutor =>
-                            div(
-                              ~attrs=[clss(["llm-identifier"])],
-                              [Icons.hazelnut_agent, text("Tutor")],
-                            )
-                          }
+        (index: int, message: Model.message) => {
+          switch (message.display) {
+          | None => []
+          | Some(display) =>
+            let message = {
+              display,
+              role: message.role,
+              sketch_snapshot: message.sketch_snapshot,
+            };
+            let is_last_message = index == List.length(curr_messages) - 1;
+            [
+              div(
+                ~attrs=[
+                  clss([
+                    "message-container",
+                    switch (message.role) {
+                    | User => "user"
+                    | Assistant => "llm"
+                    | System(AssistantPrompt) => "system-prompt"
+                    | System(InternalError) => "system-error"
+                    | Tool => "tool"
+                    },
+                  ]),
+                  is_last_message ? Attr.id("last-message") : Attr.empty,
+                ],
+                [
+                  div(
+                    ~attrs=[clss(["message-identifier-row"])],
+                    [
+                      div(
+                        ~attrs=[clss(["message-identifier"])],
+                        [
+                          switch (message.role) {
+                          | User => text("User")
+                          | Assistant =>
+                            switch (settings.mode) {
+                            | CodeSuggestion =>
+                              div(
+                                ~attrs=[clss(["llm-identifier"])],
+                                [Icons.hazelnut_agent, text("Assistant")],
+                              )
+                            | TaskCompletion =>
+                              div(
+                                ~attrs=[clss(["llm-identifier"])],
+                                [Icons.hazelnut_agent, text("Agent")],
+                              )
+                            | HazelTutor =>
+                              div(
+                                ~attrs=[clss(["llm-identifier"])],
+                                [Icons.hazelnut_agent, text("Tutor")],
+                              )
+                            }
 
-                        | System(AssistantPrompt) =>
-                          div(
-                            ~attrs=[clss(["system-prompt-identifier"])],
-                            [text("System")],
+                          | System(AssistantPrompt) =>
+                            div(
+                              ~attrs=[clss(["system-prompt-identifier"])],
+                              [text("System")],
+                            )
+                          | System(InternalError) =>
+                            div(
+                              ~attrs=[clss(["system-error-identifier"])],
+                              [text("System")],
+                            )
+                          | Tool =>
+                            div(
+                              ~attrs=[clss(["tool-identifier"])],
+                              [text("Tool")],
+                            )
+                          },
+                        ],
+                      ),
+                      message.role == System(AssistantPrompt)
+                        ? div(
+                            ~attrs=[clss(["show-prompt-button"])],
+                            [
+                              Widgets.button(
+                                ~tooltip="Show Prompt", Icons.doc, _ =>
+                                toggle_collapse(true, index)
+                              ),
+                            ],
                           )
-                        | System(InternalError) =>
-                          div(
-                            ~attrs=[clss(["system-error-identifier"])],
-                            [text("System")],
-                          )
-                        | Tool =>
-                          div(
-                            ~attrs=[clss(["tool-identifier"])],
-                            [text("Tool")],
-                          )
-                        },
-                      ],
-                    ),
-                    message.role == System(AssistantPrompt)
-                      ? div(
-                          ~attrs=[clss(["show-prompt-button"])],
-                          [
-                            Widgets.button(~tooltip="Show Prompt", Icons.doc, _ =>
-                              toggle_collapse(true, index)
-                            ),
-                          ],
-                        )
-                      : None,
-                  ],
-                ),
-              ]
-              @ {
-                message.role == System(AssistantPrompt)
-                  ? [None]
-                  : {
-                    let parsed_blocks = message.display.displayable_content;
-                    List.mapi(
-                      (idx, block: Model.block_kind) =>
-                        form_block(
-                          ~message,
-                          ~block,
-                          ~toggle_collapse=toggle_collapse(false),
-                          ~index,
-                          ~is_first=idx == 0,
-                          ~is_last=idx == List.length(parsed_blocks) - 1,
-                          ~globals,
-                          ~settings,
-                          ~signal,
-                          ~model,
-                          ~inject,
-                        ),
-                      parsed_blocks,
-                    );
-                  };
-              },
-            ),
-          ];
+                        : None,
+                    ],
+                  ),
+                ]
+                @ {
+                  message.role == System(AssistantPrompt)
+                    ? [None]
+                    : {
+                      let parsed_blocks = message.display.displayable_content;
+                      List.mapi(
+                        (idx, block: Model.block_kind) =>
+                          form_block(
+                            ~message,
+                            ~block,
+                            ~toggle_collapse=toggle_collapse(false),
+                            ~index,
+                            ~is_first=idx == 0,
+                            ~is_last=idx == List.length(parsed_blocks) - 1,
+                            ~globals,
+                            ~settings,
+                            ~signal,
+                            ~model,
+                            ~inject,
+                          ),
+                        parsed_blocks,
+                      );
+                    };
+                },
+              ),
+            ];
+          }
         },
         curr_messages,
       ),

@@ -209,35 +209,49 @@ module Composition = {
   let mk_ctx_prompt =
       (_: ChatLSP.Options.t, editor: CodeWithStatics.Model.t)
       : OpenRouter.message => {
-    let ast = ChatLSP.build_AST(editor);
-    let curr_node = Option.get(ChatLSP.get_curr_node(editor, ast));
+    let curr_node_info = TreeHelper.build_sub_AST(editor);
 
-    let parent_node = Id.Map.find_opt(curr_node.parent, ast);
-    let children_nodes =
-      List.map(Id.Map.find_opt(_, ast), curr_node.children);
-
-    let curr_node_str = "Current node: " ++ curr_node.name;
+    let curr_node_str = "Current node: " ++ curr_node_info.name;
     let parent_node_str =
-      switch (parent_node) {
-      | Some(node) => "Parent node: " ++ node.name
+      switch (curr_node_info.parent) {
+      | Some(parent) => "Parent node: " ++ parent.name
       | None => "No parent node, you are at the root of the program's AST."
       };
-    let children_nodes_str =
-      "Children nodes: ["
+    let siblings_nodes_str =
+      "Sibling nodes: ["
       ++ String.concat(
            ", ",
            List.mapi(
-             (index, node: option(ChatLSP.node)) =>
-               Option.get(node).name
-               ++ " (index: "
-               ++ string_of_int(index)
-               ++ ")",
-             children_nodes,
+             (index, node: TreeHelper.node) =>
+               node.name ++ " (index: " ++ string_of_int(index) ++ ")",
+             curr_node_info.siblings,
            ),
          )
       ++ "]";
-    let curr_depth_str =
-      "Current depth in AST: " ++ string_of_int(curr_node.level);
+    // let children_nodes_str =
+    //   "Child nodes: ["
+    //   ++ String.concat(
+    //        ", ",
+    //        List.mapi(
+    //          (index, node: option(TreeHelper.node)) =>
+    //            Option.get(node).name
+    //            ++ " (index: "
+    //            ++ string_of_int(index)
+    //            ++ ")",
+    //          children_nodes,
+    //        ),
+    //      )
+    //   ++ "]";
+
+    let definition_str =
+      "Definition of \""
+      ++ curr_node_info.name
+      ++ "\":\n```"
+      ++ TreeHelper.View.definition(
+           editor.editor.state.zipper,
+           curr_node_info,
+         )
+      ++ "```";
 
     let static_errors = ErrorPrint.all(editor.statics.info_map);
     let static_errors_str =
@@ -246,17 +260,25 @@ module Composition = {
       | _ => "Static errors: " ++ String.concat(", ", static_errors)
       };
 
-    OpenRouter.mk_user_msg(
+    let ast_info_str =
       String.concat(
         "\n",
         [
+          "AST information:",
           curr_node_str,
           parent_node_str,
-          children_nodes_str,
-          curr_depth_str,
-          static_errors_str,
+          siblings_nodes_str,
         ],
-      ),
+      );
+
+    let sketch_info_str =
+      String.concat(
+        "\n",
+        ["Sketch information:", definition_str, static_errors_str],
+      );
+
+    OpenRouter.mk_user_msg(
+      String.concat("\n", [ast_info_str, sketch_info_str]),
     );
   };
 
@@ -278,9 +300,14 @@ module Composition = {
     // Goes to the parent node of the current node in the AST
     | GoToParent
     // Goes to the child node of the current node in the AST
-    | GoToChild(int)
+    | GoToChild(string, option(int))
     // Jumps to the root node of the AST
-    | JumpToRoot;
+    | GoToSibling(string, option(int));
+  // todo (above): using indices for children/siblings navigation
+  // seems a little arbitrary, and should probably default to using
+  // the names themselces
+  // idea: still display indices to LLM, ask for string variable names,
+  // but allow for optional integer index argument to handle cases of shadowing
 
   // --- File-Read Actions ---
   // These actions are used purely to read information from the program,
@@ -341,121 +368,145 @@ module Composition = {
     );
   };
 
-  let get_definition =
-      (
-        editor: CodeWithStatics.Model.t,
-        ast: ChatLSP.ast,
-        curr_node: ChatLSP.node,
-      ) => {
-    let rec replace_term_with_ellipsis = (z: Zipper.t, ids: list(Id.t)) => {
-      switch (ids) {
-      | [] => z
-      | [id, ...rest] =>
-        let z' =
-          ChatLSP.perform(Action.Select(Term(Id(id, Direction.Right))), z);
-        switch (z') {
-        | Ok(z') =>
-          let z'' =
-            ChatLSP.perform(
-              Action.Project(SetIndicated(Specific(Fold))),
-              z',
-            );
-          switch (z'') {
-          | Ok(z'') => replace_term_with_ellipsis(z'', rest)
-          | _ => replace_term_with_ellipsis(z', rest)
-          };
-        | _ => replace_term_with_ellipsis(z, rest)
-        };
-      };
-    };
-    let get_def_id_of_let = (term: Info.t): Id.t => {
-      switch (term) {
-      | InfoExp({term, _}) =>
-        switch (Exp.term_of(term)) {
-        | Let(_, def, _) => Exp.rep_id(def)
-        | _ => Id.invalid
-        }
-      | _ => Id.invalid
-      };
-    };
-    let z = editor.editor.state.zipper;
-
-    let children_ids = curr_node.children;
-    let children = List.map(Id.Map.find(_, ast), children_ids);
-    let children_def_ids =
-      List.map((c: ChatLSP.node) => get_def_id_of_let(c.self), children);
-    let z = replace_term_with_ellipsis(z, children_def_ids);
-    let z' =
-      switch (
-        ChatLSP.perform(
-          Action.Select(
-            Tile(Id(ChatLSP.id_of(curr_node), Direction.Right)),
-          ),
-          z,
-        )
-      ) {
-      | Ok(z') => z'
-      | _ => z
-      };
-    let seg = z'.selection.content;
-    Printer.of_segment(~holes="?", ~special_folds=true, seg);
-  };
-
+  // AddToolLabel_2
   let apply_action =
       (
         ~editor: CodeWithStatics.Model.t,
         ~action: action,
         ~schedule_action: Editors.Update.t => unit,
-        ~ast: ChatLSP.ast,
-        ~curr_node: option(ChatLSP.node),
+        ~curr_node_info: TreeHelper.node,
       )
       : result => {
     let schedule_actions = (actions: list(Action.t)) =>
       schedule_actions(~actions, ~schedule_action);
 
-    switch (curr_node) {
-    | None => raise(Failure("No current node found"))
-    | Some(curr_node) =>
-      switch (action) {
-      // Navigate to the parent node of the current node
-      | Nav(nav_action) =>
-        switch (nav_action) {
-        | GoToParent =>
+    switch (action) {
+    // Navigate to the parent node of the current node
+    | Nav(nav_action) =>
+      switch (nav_action) {
+      | GoToParent =>
+        switch (curr_node_info.parent) {
+        | None => raise(Failure("This node does not have a parent"))
+        | Some(parent) =>
           let actions = [
-            Action.Select(Tile(Id(curr_node.parent, Direction.Right))),
+            Action.Select(
+              Tile(Id(Info.id_of(parent.info), Direction.Right)),
+            ),
           ];
           schedule_actions(actions);
-          let parent_node = Id.Map.find(curr_node.parent, ast);
           "Cursor moved from \""
-          ++ curr_node.name
-          ++ "\" to \""
-          ++ parent_node.name
+          ++ curr_node_info.name
+          ++ "\" to its parent \""
+          ++ parent.name
           ++ "\"";
-        | GoToChild(which) =>
-          let child = List.nth(curr_node.children, which);
-          schedule_actions([
-            Action.Select(Tile(Id(child, Direction.Right))),
-          ]);
-          let child_node = Id.Map.find(child, ast);
-          "Cursor moved from \""
-          ++ curr_node.name
-          ++ "\" to \""
-          ++ child_node.name
-          ++ "\"";
-        | _ => raise(Failure("Unhandled nav action"))
         }
-      | Read(read_action) =>
-        switch (read_action) {
-        | ViewDefinition =>
-          "Definition of \""
-          ++ curr_node.name
-          ++ "\" (with child definitions collapsed with '...') is:\n```"
-          ++ get_definition(editor, ast, curr_node)
-          ++ "```"
-        | _ => raise(Failure("Unhandled read action"))
-        }
-      | Edit(_) => raise(Failure("Unhandled edit action"))
+      | GoToChild(who, where) =>
+        // todo/idea: move candidates out here, maybe change indexing method?
+        // to assert referencing by both name and index...
+        let child =
+          switch (where) {
+          | None =>
+            let candidates =
+              List.filter(
+                (child: TreeHelper.node) => child.name == who,
+                curr_node_info.children,
+              );
+            if (List.length(candidates) > 1) {
+              raise(
+                Failure(
+                  "Multiple children found, not sure how to resolve ambiguity. Please specify which child to reference via using the index associated with that child.",
+                ),
+              );
+            };
+            switch (ListUtil.hd_opt(candidates)) {
+            | None =>
+              raise(
+                Failure(
+                  "Child not found. Make sure the current node has children, and that the child you're referencing exists.",
+                ),
+              )
+            | Some(child) => child
+            };
+          | Some(here) =>
+            switch (List.nth_opt(curr_node_info.children, here)) {
+            | None =>
+              raise(
+                Failure(
+                  "Child index out of bounds. Make sure the current node has children, and that your given index is within bounds.",
+                ),
+              )
+            | Some(child) => child
+            }
+          };
+        schedule_actions([
+          Action.Select(Tile(Id(Info.id_of(child.info), Direction.Right))),
+        ]);
+        "Cursor moved from \""
+        ++ curr_node_info.name
+        ++ "\" to its child \""
+        ++ child.name
+        ++ "\"";
+      | GoToSibling(who, where) =>
+        let sibling =
+          switch (where) {
+          | None =>
+            let candidates =
+              List.filter(
+                (sibling: TreeHelper.node) => sibling.name == who,
+                curr_node_info.siblings,
+              );
+            if (List.length(candidates) > 1) {
+              raise(
+                Failure(
+                  "Multiple siblings found, not sure how to resolve ambiguity. Please specify which sibling to reference via using the index associated with that sibling.",
+                ),
+              );
+            };
+            switch (ListUtil.hd_opt(candidates)) {
+            | None =>
+              raise(
+                Failure(
+                  "Sibling not found. Make sure the current node has siblings, and that the sibling you're referencing exists.",
+                ),
+              )
+            | Some(sibling) => sibling
+            };
+          | Some(here) =>
+            switch (List.nth_opt(curr_node_info.siblings, here)) {
+            | None =>
+              raise(
+                Failure(
+                  "Sibling index out of bounds. Make sure the current node has siblings, and that your given index is within bounds.",
+                ),
+              )
+            | Some(sibling) => sibling
+            }
+          };
+        schedule_actions([
+          Action.Select(
+            Tile(Id(Info.id_of(sibling.info), Direction.Right)),
+          ),
+        ]);
+        "Cursor moved from \""
+        ++ curr_node_info.name
+        ++ "\" to its sibling \""
+        ++ sibling.name
+        ++ "\"";
       }
+    | Read(read_action) =>
+      switch (read_action) {
+      | ViewDefinition =>
+        "Definition of \""
+        ++ curr_node_info.name
+        ++ "\":\n```"
+        ++ TreeHelper.View.definition(
+             editor.editor.state.zipper,
+             curr_node_info,
+           )
+        ++ "```"
+      | _ => raise(Failure("Unhandled read action"))
+      }
+    | Edit(_) => raise(Failure("Unhandled edit action"))
     };
   };
 };

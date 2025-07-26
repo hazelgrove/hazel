@@ -17,13 +17,32 @@ type role =
   | Assistant
   | Tool(tool_contents);
 
+// AddToolLabel_1
 [@deriving (show({with_path: false}), sexp, yojson)]
 // Tool Calls
 type structure_action =
   | GoToParent
   | GoToChild
+  | GoToSibling
   | ViewDefinition
   | InvalidStructureAction;
+
+let string_of_structure_action =
+  fun
+  | GoToParent => "go_to_parent"
+  | GoToChild => "go_to_child"
+  | GoToSibling => "go_to_sibling"
+  | ViewDefinition => "view_definition"
+  | InvalidStructureAction => "invalid_structure_action";
+
+let structure_action_of_string = (structure_action: string) =>
+  switch (structure_action) {
+  | "go_to_parent" => GoToParent
+  | "go_to_child" => GoToChild
+  | "go_to_sibling" => GoToSibling
+  | "view_definition" => ViewDefinition
+  | _ => InvalidStructureAction
+  };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type tool_call = {
@@ -68,21 +87,6 @@ type usage = {
   completion_tokens: int,
   total_tokens: int,
 };
-
-let string_of_structure_action =
-  fun
-  | GoToParent => "go_to_parent"
-  | GoToChild => "go_to_child"
-  | ViewDefinition => "view_definition"
-  | InvalidStructureAction => "invalid_structure_action";
-
-let structure_action_of_string = (structure_action: string) =>
-  switch (structure_action) {
-  | "go_to_parent" => GoToParent
-  | "go_to_child" => GoToChild
-  | "view_definition" => ViewDefinition
-  | _ => InvalidStructureAction
-  };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type reply = {
