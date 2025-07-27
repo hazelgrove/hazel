@@ -233,6 +233,8 @@ module Deco =
   let rows = measured.rows;
   let projectors = M.editor.syntax.projectors;
   let error_ids = M.statics.error_ids;
+  let warning_ids =
+    M.globals.settings.core.display_warnings ? M.statics.warning_ids : [];
   let color_highlights = M.globals.color_highlights;
   let segment = M.editor.syntax.segment;
 
@@ -529,13 +531,13 @@ module Deco =
     };
 
   let errors = () => div_c("errors", List.map(error_view, error_ids));
-
+  let warnings = () => div_c("warnings", List.map(error_view, warning_ids));
   let indication = (z: Zipper.t) =>
     div_c("indication", indicated_piece_deco(z));
 
   let selection = (z: Zipper.t) => div_c("selects", segment_selected(z));
 
-  let always = () => [errors()];
+  let always = () => [errors(), warnings()];
 
   let next_steps = (next_steps, ~inject) => {
     let tiles = List.filter_map(TileMap.find_opt(_, tiles), next_steps);
@@ -621,7 +623,7 @@ module Deco =
     |> List.flatten;
   };
 
-  let statics = () => [errors()];
+  let statics = () => [errors(), warnings()];
 
   let editor = (z, selected: bool) =>
     selected

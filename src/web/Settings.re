@@ -24,6 +24,7 @@ module Model = {
       assist: true,
       dynamics: true,
       flip_animations: true,
+      display_warnings: false,
       evaluation: {
         show_case_clauses: true,
         show_fn_bodies: false,
@@ -112,6 +113,7 @@ module Update = {
     | Evaluation(evaluation)
     | Sidebar(SidebarModel.Settings.action)
     | ExplainThis(ExplainThisModel.Settings.action)
+    | DisplayWarnings
     | Assistant(AssistantSettings.action)
     | FlipAnimations;
 
@@ -163,6 +165,13 @@ module Update = {
           core: {
             ...settings.core,
             flip_animations: !settings.core.flip_animations,
+          },
+        }
+      | DisplayWarnings => {
+          ...settings,
+          core: {
+            ...settings.core,
+            display_warnings: !settings.core.display_warnings,
           },
         }
       | Evaluation(u) =>

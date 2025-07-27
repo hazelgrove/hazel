@@ -99,7 +99,7 @@
   background-color: var(--eval-exception);
 }
 
-.cell-item.cell-result .error-msg {
+.cell-item.cell-result .error-msg .warning-msg {
   padding: 0.25em;
   color: var(--BLACK);
 }
