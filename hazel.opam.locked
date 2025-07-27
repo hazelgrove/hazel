@@ -220,7 +220,7 @@ depends: [
   "tilde_f" {= "v0.16.0"}
   "time_now" {= "v0.16.0"}
   "timezone" {= "v0.16.0"}
-  "topkg" {= "1.0.8"}
+  "topkg" {= "1.1.0"}
   "typerep" {= "v0.16.0"}
   "tyxml" {= "4.6.0"}
   "uchar" {= "0.0.2"}
