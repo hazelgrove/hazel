@@ -215,7 +215,7 @@ module Composition = {
     let parent_node_str =
       switch (curr_node_info.parent) {
       | Some(parent) => "Parent node: " ++ parent.name
-      | None => "No parent node, you are at the root of the program's AST."
+      | None => "No parent node, you are at the top level of the program's AST."
       };
     let siblings_nodes_str =
       "Sibling nodes: ["

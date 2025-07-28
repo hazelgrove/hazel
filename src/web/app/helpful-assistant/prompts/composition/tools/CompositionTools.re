@@ -1,8 +1,3 @@
-open Util;
-open NavTools;
-open ViewTools;
-open EditTools;
-
 // instructions: to add a tool, you will need to update all AddToolLabel
 // locations
 // AddToolLabel_0

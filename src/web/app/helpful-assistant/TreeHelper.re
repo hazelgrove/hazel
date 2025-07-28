@@ -379,8 +379,9 @@ module View = {
       mk_move(z),
       z,
     );
+
   let definition = (z: Zipper.t, curr_node: node) => {
-    let rec replace_term_with_ellipsis = (z: Zipper.t, ids: list(Id.t)) => {
+    let rec fold_term = (z: Zipper.t, ids: list(Id.t)) => {
       switch (ids) {
       | [] => z
       | [id, ...rest] =>
@@ -390,10 +391,10 @@ module View = {
           let z'' =
             perform(Action.Project(SetIndicated(Specific(Fold))), z');
           switch (z'') {
-          | Ok(z'') => replace_term_with_ellipsis(z'', rest)
-          | _ => replace_term_with_ellipsis(z', rest)
+          | Ok(z'') => fold_term(z'', rest)
+          | _ => fold_term(z', rest)
           };
-        | _ => replace_term_with_ellipsis(z, rest)
+        | _ => fold_term(z, rest)
         };
       };
     };
@@ -407,21 +408,34 @@ module View = {
       | _ => Id.invalid
       };
     };
-    let children = curr_node.children;
     let children_def_ids =
-      List.map((c: node) => get_def_id_of_let(c.info), children);
-    let z = replace_term_with_ellipsis(z, children_def_ids);
-    let z' =
-      switch (
-        perform(
-          Action.Select(Tile(Id(id_of(curr_node), Direction.Right))),
-          z,
-        )
-      ) {
-      | Ok(z') => z'
-      | _ => z
+      List.map((c: node) => get_def_id_of_let(c.info), curr_node.children);
+    let siblings_def_ids =
+      List.map((c: node) => get_def_id_of_let(c.info), curr_node.siblings);
+
+    let z = fold_term(z, children_def_ids);
+    let z' = fold_term(z, siblings_def_ids);
+
+    let z'' =
+      switch (curr_node.parent) {
+      | Some(parent) =>
+        switch (
+          perform(
+            Action.Select(Tile(Id(id_of(parent), Direction.Right))),
+            z',
+          )
+        ) {
+        | Ok(z'') => z''
+        | _ => z
+        }
+      | None =>
+        switch (perform(Action.Select(All), z')) {
+        | Ok(z'') => z''
+        | _ => z
+        }
       };
-    let seg = z'.selection.content;
+
+    let seg = z''.selection.content;
     Printer.of_segment(~holes="?", ~special_folds=true, seg);
   };
 };
