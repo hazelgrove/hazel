@@ -178,8 +178,33 @@ module Update = {
 };
 
 module Focus = {
+  open Cursor;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = (Id.t, StepperView.Focus.t);
+
+  let get_cursor_info = (~focus: t, model: Model.t) =>
+    switch (Id.Map.find_opt(focus |> fst, model.thm_map)) {
+    | Some(thm) =>
+      let+ c =
+        StepperView.Focus.get_cursor_info(
+          ~focus=snd(focus),
+          thm.stepper_view,
+        );
+      Update.TheoremUpdate(focus |> fst, c);
+    | None => Cursor.empty
+    };
+
+  let handle_key_event = (~focus: t, ~event: Key.t, model: Model.t) =>
+    switch (Id.Map.find_opt(focus |> fst, model.thm_map)) {
+    | Some(thm) =>
+      StepperView.Focus.handle_key_event(
+        ~focus=snd(focus),
+        ~event,
+        thm.stepper_view,
+      )
+      |> Option.map((x): Update.t => Update.TheoremUpdate(fst(focus), x))
+    | None => None
+    };
 };
 
 module View = {

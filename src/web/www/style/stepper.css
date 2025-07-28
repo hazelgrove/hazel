@@ -116,7 +116,7 @@
   position: absolute;
   top: calc(100% + 0.5em);
   left: 2em;
-  z-index: var(--stepper-interactive-z);
+  z-index: var(--context-inspector-z);
   display: flex;
   flex-direction: column;
   gap: 0.5em;

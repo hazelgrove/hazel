@@ -272,8 +272,11 @@ module Selection = {
     | (Stepper(focus), Stepper(s)) =>
       let+ ci = StepperView.Focus.get_cursor_info(~focus, s);
       Update.StepperAction(ci);
-    | (_, Evaluation(_)) => empty
-    | (_, Stepper(_)) => empty
+    | (Evaluation(_), _) => Cursor.empty
+    | (Stepper(_), _) => Cursor.empty
+    | (Theorems(focus), _) =>
+      let+ ci = Theorems.Focus.get_cursor_info(~focus, mr.theorems);
+      Update.TheoremsAction(ci);
     };
 
   let handle_key_event =
@@ -285,8 +288,11 @@ module Selection = {
     | (Stepper(focus), Stepper(s)) =>
       StepperView.Focus.handle_key_event(~focus, s, ~event)
       |> Option.map(x => Update.StepperAction(x))
-    | (_, Evaluation(_)) => None
-    | (_, Stepper(_)) => None
+    | (Evaluation(_), _) => None
+    | (Stepper(_), _) => None
+    | (Theorems(focus), _) =>
+      Theorems.Focus.handle_key_event(~focus, ~event, mr.theorems)
+      |> Option.map(x => Update.TheoremsAction(x))
     };
 };
 
