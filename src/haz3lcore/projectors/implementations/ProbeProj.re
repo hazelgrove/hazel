@@ -21,12 +21,12 @@ module Window = {
     | Single
     | Many;
 
-  let mode = ref(Many);
+  let mode = ref(Single);
   let offset = Hashtbl.create(100);
 
   let reset = () => {
     Hashtbl.clear(offset);
-    mode := Many;
+    mode := Single;
   };
 
   let max_closures = () =>
