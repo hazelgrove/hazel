@@ -3,7 +3,12 @@ open Haz3lcore;
 open Language;
 open Base;
 
-let print_seg = seg => Printer.of_segment(~holes="?", seg);
+let print_seg = seg =>
+  Printer.of_segment(
+    ~holes="?",
+    ~projector_to_segment=Printer.default_projector_to_segment,
+    seg,
+  );
 
 // Id ignoring equality for tiles
 let rec equal_segment = (a: segment, b: segment) => {
@@ -38,7 +43,9 @@ let exp_to_segment_settings: ExpToSegment.Settings.t = {
   show_unknown_as_hole: true,
 };
 let equivalent_to_make_term = (serialized: string) => {
-  switch (Parser.to_term(serialized)) {
+  switch (
+    Parser.to_term(~projector_init=Parser.default_projector_init, serialized)
+  ) {
   | None => Alcotest.fail("Failed to parse term")
   | Some(zb) =>
     let exp = Exp(zb) |> Any.is_exp |> Option.get;
@@ -161,7 +168,10 @@ let tests = (
         check(
           option(segment),
           "2-ary",
-          Parser.to_segment("(1, 2)"),
+          Parser.to_segment(
+            ~projector_init=Parser.default_projector_init,
+            "(1, 2)",
+          ),
           Some(exp_to_segment(tuple([int(1), int(2)]))),
         );
       },
@@ -175,7 +185,10 @@ let tests = (
         check(
           option(segment),
           "Singleton Labeled",
-          Parser.to_segment("(x=1)"),
+          Parser.to_segment(
+            ~projector_init=Parser.default_projector_init,
+            "(x=1)",
+          ),
           Some(exp_to_segment(tuple([tup_label(label("x"), int(1))]))),
         );
         equivalent_to_make_term({|(x=1, y=2)|});

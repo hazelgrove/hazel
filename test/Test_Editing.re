@@ -25,6 +25,7 @@ let printer = (z: Zipper.t('p)): string => {
     ~concave_holes=concave_char,
     ~caret=caret_char,
     ~selection_anchor=selection_char,
+    ~projector_to_segment=Printer.default_projector_to_segment,
     z,
   );
 };
@@ -48,7 +49,6 @@ let perform =
         settings,
         font_metrics: FontMetrics.init,
         secondary_icons: false,
-        show_backpack_targets: false,
         color_highlights: None,
       },
     );
@@ -56,7 +56,8 @@ let perform =
   let update_projector = (~sort as _, ~id as _, _, p) => p;
   let livelit_projectors = [];
   let seg_to_ed = _ => None;
-  let model = Editor.Model.init(~common, zip);
+  let get_kind = _ => ProjectorKind.Fold;
+  let model = Editor.Model.init(~common, ~get_kind, zip);
   let perform =
       (a: Action.t(_), z: Zipper.t(_)): Action.Result.t(Zipper.t(_)) =>
     Perform.go_z(
@@ -66,6 +67,7 @@ let perform =
       ~seg_of_projector,
       ~update_projector,
       ~livelit_projectors,
+      ~get_kind,
       statics,
       a,
       Editor.Model.to_move_s(model),

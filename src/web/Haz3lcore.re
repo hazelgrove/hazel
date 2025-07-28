@@ -215,6 +215,7 @@ and Editor: {
   let of_zipper: Zipper.t(Projector.Model.t) => Model.t; // TODO: Replace with persistence logic
   let get_trailing_hole_ctx:
     (Model.t, Language.Statics.Map.t) => option(Language.Ctx.t);
+  let to_string: Model.t => string;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model =
@@ -251,6 +252,7 @@ and Editor: {
       |> fst
       |> Haz3lcorep.Editor.Update.calculate(
            ~common,
+           ~get_kind=Projector.Model.get_kind,
            ~projector_init=Projector.Model.mk,
            ~projector_to_term=
              (~sort as _, ~id as _, m) => Projector.Model.get_cached_term(m),
@@ -284,10 +286,11 @@ and Editor: {
       switch (
         Haz3lcorep.Editor.Update.update(
           ~common,
+          ~settings=common.settings,
           ~shape_of_projector=Projector.View.get_placeholder,
+          ~get_kind=Projector.Model.get_kind,
           ~projector_to_term=
             (~sort as _, ~id as _, m) => Projector.Model.get_cached_term(m),
-          ~settings=common.settings,
           ~projector_init=Projector.Model.mk,
           ~update_projector=Projector.Update.update(~common),
           ~seg_of_projector=
@@ -296,7 +299,7 @@ and Editor: {
               |> ExpToSegment.any_to_segment(
                    ~settings=ExpToSegment.Settings.on,
                  ),
-          ~livelit_projectors=ProjectorKind.livelit_projectors,
+          ~livelit_projectors=ProjectorKind.livelit_projectors, //TODO(andrew): wtf why is this a param its a global
           action,
           common.statics,
           editor,
@@ -322,6 +325,7 @@ and Editor: {
         ~projector_to_term=
           (~sort as _, ~id as _, m) => Projector.Model.get_cached_term(m),
         ~shape_of_projector=Projector.View.get_placeholder,
+        ~get_kind=Projector.Model.get_kind,
         ~seg_of_projector=
           p =>
             Projector.Model.get_cached_term(p)
@@ -383,10 +387,18 @@ and Editor: {
     };
   };
 
+  let projector_to_segment =
+    Perform.projector_to_invoke(
+      ~get_kind=Projector.Model.get_kind, ~seg_of_projector=p =>
+      Projector.Model.get_cached_term(p)
+      |> ExpToSegment.any_to_segment(~settings=ExpToSegment.Settings.on)
+    );
+
   module View = {
     // TODO[Matt]: This should be the only function in view.
     let view =
       EditorView.view(
+        ~projector_to_segment,
         ~view_projector=Projector.View.view,
         ~mk_status=Projector.View.mk_status,
       );
@@ -398,7 +410,7 @@ and Editor: {
       ed
       |> Haz3lcorep.Editor.Model.get_z
       |> Zipper.zip
-      |> Printer.of_segment(~holes="?")
+      |> Printer.of_segment(~projector_to_segment, ~holes="?")
       |> Re.Str.global_replace(Re.Str.regexp("\n"), " ")
       |> (
         str =>
@@ -427,13 +439,36 @@ and Editor: {
   let of_zipper = Haz3lcorep.Editor.Model.mk_uncalculated;
 
   let get_trailing_hole_ctx = Haz3lcorep.Editor.Model.trailing_hole_ctx;
+
+  let to_string = (ed: Model.t) =>
+    ed
+    |> Haz3lcorep.Editor.Model.get_z
+    |> PersistentZipper.to_string(~projector_to_segment);
 };
 
 module PersistentZipper = {
+  let projector_to_segment =
+    Perform.projector_to_invoke(
+      ~get_kind=Projector.Model.get_kind, ~seg_of_projector=p =>
+      Projector.Model.get_cached_term(p)
+      |> ExpToSegment.any_to_segment(~settings=ExpToSegment.Settings.on)
+    );
   include PersistentZipper;
   // TODO: move these into Editor
-  let persist = persist(Projector.Model.sexp_of_t);
-  let unpersist = unpersist(Projector.Model.t_of_sexp);
+  let persist = persist(~projector_to_segment, Projector.Model.sexp_of_t);
+  let unpersist =
+    unpersist(
+      ~projector_init=
+        ProjectorPerform.init(
+          ~seg_to_ed=
+            seg =>
+              Zipper.unzip(seg)
+              |> Haz3lcorep.Editor.Model.mk_uncalculated
+              |> Option.some,
+          ~projector_init=Projector.Model.mk,
+        ),
+      Projector.Model.t_of_sexp,
+    );
 };
 
 /* Just types */
@@ -457,12 +492,6 @@ module Ancestors = {
   include Ancestors;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = Ancestors.t(Projector.Model.t);
-};
-
-module Backpack = {
-  include Backpack;
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Backpack.t(Projector.Model.t);
 };
 
 module Piece = {

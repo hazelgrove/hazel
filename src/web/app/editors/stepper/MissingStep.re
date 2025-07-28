@@ -492,8 +492,6 @@ module View = {
                                 font_metrics: globals.font_metrics,
                                 secondary_icons:
                                   globals.settings.secondary_icons,
-                                show_backpack_targets:
-                                  globals.show_backpack_targets,
                                 color_highlights: globals.color_highlights,
                                 statics: CachedStatics.empty,
                                 dynamics: Id.Map.empty,

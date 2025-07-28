@@ -35,7 +35,12 @@ let strip_wrap =
 let make_term_parse = (s: string) =>
   strip_wrap(
     Haz3lcore.MakeTerm.from_zip_for_sem(
-      Option.get(Haz3lcore.Parser.to_zipper(s)),
+      Option.get(
+        Haz3lcore.Parser.to_zipper(
+          ~projector_init=Haz3lcore.Parser.default_projector_init,
+          s,
+        ),
+      ),
     ).
       term
     |> Any.is_exp
@@ -102,7 +107,12 @@ let qcheck_menhir_maketerm_equivalent_test =
           exp_to_segment(~settings=Settings.editable(~inline=true), core_exp)
         );
 
-      let serialized = Haz3lcore.Printer.of_segment(~holes="?", segment);
+      let serialized =
+        Haz3lcore.Printer.of_segment(
+          ~holes="?",
+          ~projector_to_segment=Haz3lcore.Printer.default_projector_to_segment,
+          segment,
+        );
       let make_term_parsed = make_term_parse(serialized);
       let menhir_parsed = Interface.parse_program(serialized);
       let menhir_parsed_converted =
@@ -160,7 +170,12 @@ let qcheck_menhir_serialized_equivalent_test =
           },
           core_exp,
         );
-      let serialized = Haz3lcore.Printer.of_segment(~holes="?", segment);
+      let serialized =
+        Haz3lcore.Printer.of_segment(
+          ~holes="?",
+          ~projector_to_segment=Haz3lcore.Printer.default_projector_to_segment,
+          segment,
+        );
       let menhir_parsed = Interface.parse_program(serialized);
       AST.equal_exp(menhir_parsed, exp);
     },

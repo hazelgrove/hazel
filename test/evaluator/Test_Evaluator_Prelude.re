@@ -27,7 +27,12 @@ let evaluate_probes = unevaluated =>
   |> EvaluatorState.get_probes;
 
 let parse_exp = (s: string) => {
-  switch (Haz3lcore.Parser.to_term(s)) {
+  switch (
+    Haz3lcore.Parser.to_term(
+      ~projector_init=Haz3lcore.Parser.default_projector_init,
+      s,
+    )
+  ) {
   | Some(e) => e
   | None => Alcotest.fail("Failed to parse expression: " ++ s)
   };

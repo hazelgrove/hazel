@@ -375,8 +375,6 @@ module View = {
 
   let handlers = (~inject: Update.t => Ui_effect.t(unit)) => [
     Key.handler(~f=Focus.handle_key_event(~inject)),
-    /* safety handler in case mousedown overlay doesn't catch it */
-    Attr.on_mouseup(_ => inject(Globals(SetMousedown(false)))),
   ];
   let nut_menu =
       (

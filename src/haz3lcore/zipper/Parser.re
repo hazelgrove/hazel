@@ -1,5 +1,7 @@
 open Util.OptUtil.Syntax;
 
+let default_projector_init = (_, _) => Some(Piece.mk_grout(Grout.Convex));
+
 let to_zipper =
     (~projector_init, ~zipper_init=Zipper.init(), str: string)
     : option(Zipper.t('p)) => {

@@ -32,7 +32,8 @@ let introduction_test = (before: string, expected: string) => {
 
   let serialized = {
     open Haz3lcore;
-    let* zip = Parser.to_zipper(before);
+    let* zip =
+      Parser.to_zipper(~projector_init=Parser.default_projector_init, before);
     let exp = MakeTerm.from_zip_for_sem(zip).term;
     let* hole_id = find_hole_id(exp);
     let settings = Language.CoreSettings.off;
@@ -45,11 +46,14 @@ let introduction_test = (before: string, expected: string) => {
           settings,
           font_metrics: FontMetrics.init,
           secondary_icons: false,
-          show_backpack_targets: false,
           color_highlights: None,
         },
       );
-    module S = (val Editor.Model.to_move_s(Editor.Model.init(~common, zip)));
+    module S = (
+      val Editor.Model.to_move_s(
+            Editor.Model.init(~common, ~get_kind=_ => Fold, zip),
+          )
+    );
     module Move = Move.Make(S);
     module Select = Select.Make(S);
     let* zip = Move.jump_to_side_of_id(Left, zip, hole_id);
@@ -64,7 +68,11 @@ let introduction_test = (before: string, expected: string) => {
         exp,
       );
     let+ zip = Introduce.introduce(statics, zip);
-    Printer.of_zipper(~holes="?", zip);
+    Printer.of_zipper(
+      ~holes="?",
+      ~projector_to_segment=Printer.default_projector_to_segment,
+      zip,
+    );
   };
 
   check(option(string), "Introduce", Some(expected), serialized);

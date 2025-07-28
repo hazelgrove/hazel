@@ -226,7 +226,6 @@ module Deco =
   let font_metrics = M.globals.font_metrics;
   let syntax = Calc.get_saved_exc(M.editor.syntax);
   let map = syntax.measured;
-  let show_backpack_targets = M.globals.show_backpack_targets;
   let terms = syntax.terms;
   let term_ranges = syntax.term_ranges;
   let tiles = syntax.tiles;
@@ -357,7 +356,7 @@ module Deco =
     };
   };
 
-  let backpack = (z: Zipper.t): Node.t => {
+  let backpack = (z: Zipper.t('p)): Node.t => {
     /* If there is a selection, any tiles bisected by the selection
      * will show as incomplete. While a more intelligent approach is
      * possible here, I've opted for the simpler option of supressing
@@ -366,7 +365,7 @@ module Deco =
       ? {
         let contents =
           Zipper.local_backpack(z)
-          @ M.editor.syntax.cached_backpack
+          @ syntax.cached_backpack
           |> ListUtil.dedup
           |> List.map(Tile.effective_label)
           |> List.map(List.hd);

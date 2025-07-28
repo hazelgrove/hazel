@@ -614,7 +614,11 @@ let update =
           switch (
             {
               let* sketch_z_with_tag =
-                Perform.paste(editor.editor |> Editor.get_z, tag);
+                Perform.paste(
+                  ~projector_init=Parser.default_projector_init,
+                  editor.editor |> Editor.get_z,
+                  tag,
+                );
               let sketch_seg =
                 Zipper.smart_seg(
                   ~dump_backpack=true,

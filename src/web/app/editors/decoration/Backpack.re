@@ -70,7 +70,8 @@ let pole = (~left, ~pole_top, ~pole_height) =>
     [],
   );
 
-let flag = (~font_metrics: FontMetrics.t, ~contents, ~left, ~flag_top) => {
+let flag =
+    (~font_metrics: Haz3lcorep.FontMetrics.t, ~contents, ~left, ~flag_top) => {
   let scale_fn = idx => float_of_int(100 - 12 * idx) /. 100.;
   let x_fn = idx => float_of_int(12 * idx);
   let init_opacity = 100.;
@@ -125,7 +126,7 @@ let complete_bullshit =
 
 let view =
     (
-      ~font_metrics: FontMetrics.t,
+      ~font_metrics: Haz3lcorep.FontMetrics.t,
       ~can_put_down,
       ~caret_d: option(Direction.t),
       ~ind_d: option(Direction.t),

@@ -205,6 +205,5 @@ let to_common_global = (model: t): Haz3lcore.Common.global => {
     font_metrics: model.font_metrics,
     color_highlights: model.color_highlights,
     secondary_icons: model.settings.secondary_icons,
-    show_backpack_targets: model.show_backpack_targets,
   };
 };

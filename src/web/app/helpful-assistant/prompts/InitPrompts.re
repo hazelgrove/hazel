@@ -10,10 +10,7 @@ let get_documentation_as_text = () => {
              ~settings=Language.CoreSettings.off,
              persistent,
            );
-         let text =
-           Haz3lcore.Printer.of_zipper(
-             cell_model.editor.editor |> Haz3lcore.Editor.get_z,
-           );
+         let text = CellEditor.Model.to_string(cell_model);
          "<slide_name>"
          ++ name
          ++ "</slide_name>\n"

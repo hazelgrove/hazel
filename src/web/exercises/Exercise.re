@@ -265,7 +265,10 @@ let pos_of_idx = (p: p('code), idx: int) =>
   };
 
 let zipper_of_code = code => {
-  switch (Parser.to_zipper(code)) {
+  /* Note: currently doesn't suppport projectors */
+  switch (
+    Parser.to_zipper(~projector_init=Parser.default_projector_init, code)
+  ) {
   | None => failwith("Transition failed.")
   | Some(zipper) => zipper
   };
@@ -838,7 +841,12 @@ let pos_of_key = (key: string): pos =>
 // // Module Export
 
 let editor_pp = (fmt, editor: Editor.Model.t) => {
-  let serialization = Editor.get_z(editor) |> PersistentZipper.to_string;
+  /* Note: currently doesn't support projectors */
+  let serialization =
+    Editor.get_z(editor)
+    |> PersistentZipper.to_string(
+         ~projector_to_segment=Printer.default_projector_to_segment,
+       );
   // let string_literal = "\"" ++ String.escaped(serialization) ++ "\"";
   Format.pp_print_string(fmt, serialization);
 };
@@ -851,7 +859,11 @@ let export_module = ({eds, _}: state) => {
 };
 
 let transitionary_editor_pp = (fmt, editor: Editor.Model.t) => {
-  let serialization = Editor.get_z(editor) |> PersistentZipper.to_string;
+  let serialization =
+    Editor.get_z(editor)
+    |> PersistentZipper.to_string(
+         ~projector_to_segment=Printer.default_projector_to_segment,
+       );
 
   Format.pp_print_string(fmt, "\"" ++ String.escaped(serialization) ++ "\"");
 };

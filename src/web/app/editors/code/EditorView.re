@@ -266,12 +266,6 @@ module Focus = {
 
     let editor_actions = [
       ContextualAction.mk(
-        ~hotkey=Keyboard.meta(sys) ++ "+p",
-        ~mdIcon="backpack",
-        "Pick up selected term",
-        inject(Pick_up),
-      ),
-      ContextualAction.mk(
         ~hotkey=Keyboard.meta(sys) ++ "+/",
         ~mdIcon="assistant",
         "TyDi Assistant",
@@ -436,6 +430,7 @@ let view_code_editable =
       type p_f,
       ~common: Common.t,
       ~view_projector,
+      ~projector_to_segment,
       ~mk_status,
       // ~put_clipboard_cache: (string, Segment.t(p_m)) => unit,
       // ~get_clipboard_cache: string => option(Segment.t(p_m)),
@@ -586,6 +581,7 @@ let view_code_editable =
               let text =
                 Printer.of_segment(
                   model |> Editor.Model.get_z |> Zipper.seg_without_buffer,
+                  ~projector_to_segment,
                 );
               evt##.clipboardData##setData(
                 Js.string("text/plain"),
@@ -605,6 +601,7 @@ let view_code_editable =
               let text =
                 Printer.of_segment(
                   model |> Editor.Model.get_z |> Zipper.seg_without_buffer,
+                  ~projector_to_segment,
                 );
               evt##.clipboardData##setData(
                 Js.string("text/plain"),
@@ -636,6 +633,7 @@ let view_code_editable =
 let view =
     (
       ~view_projector,
+      ~projector_to_segment,
       ~mk_status,
       ~common: Common.t,
       ~mode: EditorInterface.edit_mode('ed_a, 'ed_f),
@@ -651,6 +649,7 @@ let view =
     view_code_editable(
       ~common,
       ~view_projector,
+      ~projector_to_segment,
       ~mk_status,
       ~inject,
       ~focus=take_focus,

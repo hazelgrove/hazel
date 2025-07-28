@@ -386,7 +386,13 @@ module ErrorRound = {
       (sketch_z: Zipper.t, completion: string): Result.t(Zipper.t, string) =>
     //NOTE: This function is pretty basic; reporting approach could be improved
     /* For now we required that the completion be complete in-itself: */
-    switch (Perform.paste(Zipper.init(), completion)) {
+    switch (
+      Perform.paste(
+        ~projector_init=Parser.default_projector_init,
+        Zipper.init(),
+        completion,
+      )
+    ) {
     | None => Error("Undocumented parse error, no feedback available")
     | Some(completion_z) =>
       switch (Zipper.local_backpack(completion_z)) {
@@ -396,7 +402,7 @@ module ErrorRound = {
             Base.tile_to_string(
               ~holes="",
               ~concave_holes=" ",
-              ~projector_to_segment=Insert.projector_to_invoke,
+              ~projector_to_segment=Printer.default_projector_to_segment,
             ),
             orphans,
           );

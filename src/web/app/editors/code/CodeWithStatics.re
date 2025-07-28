@@ -50,8 +50,7 @@ module Model = {
   type persistent = PersistentZipper.t;
   let persist = (model: t) =>
     model.editor |> Editor.get_z |> PersistentZipper.persist;
-  let to_string = (model: t) =>
-    model.editor |> Editor.get_z |> PersistentZipper.to_string;
+  let to_string = (model: t) => model.editor |> Editor.to_string;
   let unpersist = p =>
     p |> PersistentZipper.unpersist |> Editor.of_zipper |> mk;
 };
@@ -90,7 +89,6 @@ module Update = {
             settings: globals.settings.core,
             font_metrics: globals.font_metrics,
             secondary_icons: globals.settings.secondary_icons,
-            show_backpack_targets: globals.show_backpack_targets,
             color_highlights: globals.color_highlights,
             statics,
             dynamics,

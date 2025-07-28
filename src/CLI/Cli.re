@@ -11,7 +11,13 @@ let read_input = path => {
 };
 
 let parse_program = (s: string) =>
-  switch (Haz3lcore.Parser.to_term(s)) {
+  switch (
+    Haz3lcore.Parser.to_term(
+      /* Can't make projectors */
+      ~projector_init=Haz3lcore.Parser.default_projector_init,
+      s,
+    )
+  ) {
   | Some(e) => e
   | None => failwith("Failed to parse expression: " ++ s)
   };

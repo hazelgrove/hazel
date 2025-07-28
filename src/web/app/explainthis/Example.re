@@ -149,7 +149,10 @@ let linebreak = () => mk_secondary(Form.linebreak);
 let space = () => mk_secondary(Form.space);
 
 let mk_example = str => {
-  switch (Parser.to_segment(str)) {
+  /* Note this currently can't create projectors; would need to route projector_init  */
+  switch (
+    Parser.to_segment(~projector_init=Parser.default_projector_init, str)
+  ) {
   | None => []
   | Some(seg) => seg
   };

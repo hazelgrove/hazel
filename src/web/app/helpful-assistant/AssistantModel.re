@@ -126,7 +126,8 @@ let parse_blocks = (response: string): list(block_kind) => {
     | pos =>
       let acc = ListUtil.leading(acc);
       let code = Str.matched_group(1, str);
-      let zipper_of_code = Parser.to_zipper(code);
+      let zipper_of_code =
+        Parser.to_zipper(~projector_init=Parser.default_projector_init, code);
       let sketch =
         switch (zipper_of_code) {
         | Some(z) =>
