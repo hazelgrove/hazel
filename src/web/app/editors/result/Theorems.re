@@ -97,8 +97,13 @@ module Update = {
         | None => []
         | Some(x) => x.theorems
       )
+      |> List.filter_map(((a, b, c)) => {
+           open OptUtil.Syntax;
+           let* c' = ProofRule.typ_to_rule(c);
+           Some((a, b, c'));
+         })
       |> List.fold_left(
-           (acc, (id, env', goal_typ)) =>
+           (acc, (id, env', rule: ProofRule.t)) =>
              Id.Map.update(
                id,
                (opt: option(Model.theorem)) => {
@@ -108,7 +113,7 @@ module Update = {
                  let goal_exp =
                    Calc.set(
                      ~eq=Exp.fast_equal,
-                     ProofHacks.goal_of_typ(goal_typ),
+                     rule |> ProofRule.conclusion_exp,
                      goal_exp,
                    );
 
@@ -124,7 +129,12 @@ module Update = {
                           | Info.InfoExp({ctx, _}) => Some(ctx)
                           | _ => None,
                         )
-                     |> Option.value(~default=Ctx.empty);
+                     |> Option.value(~default=Ctx.empty)
+                     |> List.fold_left(
+                          Ctx.extend,
+                          _,
+                          rule.bindings |> List.rev,
+                        );
                    };
 
                  let env =
