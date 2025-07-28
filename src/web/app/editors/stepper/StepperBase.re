@@ -11,7 +11,7 @@ open OptUtil.Syntax;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type step_kind_model =
   | SingleStep(SingleStep.model'(step_model))
-  | InductionStep(InductionStep.model'(step_model))
+  | CasesStep(CasesStep.model'(step_model))
   | ForallStep(ForallStep.model'(step_model))
   | MissingStep(MissingStep.Model.t)
   | AxiomStep(AxiomStep.model'(step_model))
@@ -40,7 +40,7 @@ let init_step = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type step_kind_action =
   | SingleStep(SingleStep.action'(step_action))
-  | InductionStep(InductionStep.action'(step_action))
+  | CasesStep(CasesStep.action'(step_action))
   | ForallStep(ForallStep.action'(step_action))
   | MissingStep(MissingStep.Update.t)
   | AxiomStep(AxiomStep.action'(step_action))
@@ -58,7 +58,7 @@ and step_action =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type step_kind_focus =
   | SingleStep(SingleStep.focus'(step_focus))
-  | InductionStep(InductionStep.focus'(step_focus))
+  | CasesStep(CasesStep.focus'(step_focus))
   | ForallStep(ForallStep.focus'(step_focus))
   | MissingStep(MissingStep.Selection.t)
   | AxiomStep(AxiomStep.focus'(step_focus))
@@ -81,7 +81,7 @@ module rec StepKind: {
      individual step modules. */
 
   module SingleStep = SingleStep.F(Stepper);
-  module InductionStep = InductionStep.F(Stepper);
+  module CasesStep = CasesStep.F(Stepper);
   module ForallStep = ForallStep.F(Stepper);
   module MissingStep = MissingStep; // This could be functorized too.
   module AxiomStep = AxiomStep.F(Stepper);
@@ -106,9 +106,9 @@ module rec StepKind: {
       | (SingleStep(a), SingleStep(m)) =>
         let* s = SingleStep.update(~settings, a, m);
         (SingleStep(s): model);
-      | (InductionStep(a), InductionStep(m)) =>
-        let* s = InductionStep.update(~settings, a, m);
-        (InductionStep(s): model);
+      | (CasesStep(a), CasesStep(m)) =>
+        let* s = CasesStep.update(~settings, a, m);
+        (CasesStep(s): model);
       | (ForallStep(a), ForallStep(m)) =>
         let* s = ForallStep.update(~settings, a, m);
         (ForallStep(s): model);
@@ -119,7 +119,7 @@ module rec StepKind: {
         let* s = AxiomStep.update(~settings, a, m);
         (AxiomStep(s): model);
       | (
-          SingleStep(_) | InductionStep(_) | ForallStep(_) | MissingStep(_) |
+          SingleStep(_) | CasesStep(_) | ForallStep(_) | MissingStep(_) |
           AxiomStep(_),
           _,
         ) =>
@@ -131,7 +131,7 @@ module rec StepKind: {
   let can_undo = (a: action): bool => {
     switch (a) {
     | SingleStep(action) => SingleStep.can_undo(action)
-    | InductionStep(action) => InductionStep.can_undo(action)
+    | CasesStep(action) => CasesStep.can_undo(action)
     | ForallStep(action) => ForallStep.can_undo(action)
     | MissingStep(action) => MissingStep.Update.can_undo(action)
     | AxiomStep(action) => AxiomStep.can_undo(action)
@@ -163,9 +163,9 @@ module rec StepKind: {
           m,
         );
       (SingleStep(m): model, h, e);
-    | InductionStep(m) =>
+    | CasesStep(m) =>
       let+ (m, h, e) =
-        InductionStep.calculate(
+        CasesStep.calculate(
           ~settings,
           ~hidden,
           ~exp,
@@ -175,7 +175,7 @@ module rec StepKind: {
           ~editor,
           m,
         );
-      (InductionStep(m): model, h, e);
+      (CasesStep(m): model, h, e);
     | ForallStep(m) =>
       let+ (m, h, e) =
         ForallStep.calculate(
@@ -263,9 +263,9 @@ module rec StepKind: {
       | (SingleStep(focus), SingleStep(model)) =>
         let+ focus_info = SingleStep.get_cursor_info(~focus, model);
         (SingleStep(focus_info): action);
-      | (InductionStep(focus), InductionStep(model)) =>
-        let+ focus_info = InductionStep.get_cursor_info(~focus, model);
-        (InductionStep(focus_info): action);
+      | (CasesStep(focus), CasesStep(model)) =>
+        let+ focus_info = CasesStep.get_cursor_info(~focus, model);
+        (CasesStep(focus_info): action);
       | (ForallStep(focus), ForallStep(model)) =>
         let+ focus_info = ForallStep.get_cursor_info(~focus, model);
         (ForallStep(focus_info): action);
@@ -277,7 +277,7 @@ module rec StepKind: {
         let+ focus_info = AxiomStep.get_cursor_info(~focus, model);
         (AxiomStep(focus_info): action);
       | (
-          SingleStep(_) | InductionStep(_) | ForallStep(_) | MissingStep(_) |
+          SingleStep(_) | CasesStep(_) | ForallStep(_) | MissingStep(_) |
           AxiomStep(_),
           _,
         ) => Cursor.empty
@@ -290,9 +290,9 @@ module rec StepKind: {
     | (SingleStep(focus), SingleStep(model)) =>
       SingleStep.handle_key_event(~focus, ~event, model)
       |> Option.map((x): action => SingleStep(x))
-    | (InductionStep(focus), InductionStep(model)) =>
-      InductionStep.handle_key_event(~focus, ~event, model)
-      |> Option.map((x): action => InductionStep(x))
+    | (CasesStep(focus), CasesStep(model)) =>
+      CasesStep.handle_key_event(~focus, ~event, model)
+      |> Option.map((x): action => CasesStep(x))
     | (ForallStep(focus), ForallStep(model)) =>
       ForallStep.handle_key_event(~focus, ~event, model)
       |> Option.map((x): action => ForallStep(x))
@@ -303,7 +303,7 @@ module rec StepKind: {
       AxiomStep.handle_key_event(~focus, ~event, model)
       |> Option.map((x): action => AxiomStep(x))
     | (
-        SingleStep(_) | InductionStep(_) | ForallStep(_) | MissingStep(_) |
+        SingleStep(_) | CasesStep(_) | ForallStep(_) | MissingStep(_) |
         AxiomStep(_),
         _,
       ) =>
@@ -334,15 +334,15 @@ module rec StepKind: {
           ~take_focus=x => take_focus(SingleStep(x)),
           m,
         )
-      | InductionStep(m) =>
-        InductionStep.view_content(
+      | CasesStep(m) =>
+        CasesStep.view_content(
           ~focus=
             switch (focus) {
-            | Some(InductionStep(f)) => Some(f)
+            | Some(CasesStep(f)) => Some(f)
             | _ => None
             },
-          ~inject=x => inject(InductionStep(x)),
-          ~take_focus=x => take_focus(InductionStep(x)),
+          ~inject=x => inject(CasesStep(x)),
+          ~take_focus=x => take_focus(CasesStep(x)),
           m,
         )
       | ForallStep(m) =>
@@ -402,17 +402,17 @@ module rec StepKind: {
         ~is_toplevel,
         m,
       )
-    | InductionStep(m) =>
-      InductionStep.view_justification(
+    | CasesStep(m) =>
+      CasesStep.view_justification(
         ~globals,
         ~focus=
           switch (focus) {
-          | Some(InductionStep(f)) => Some(f)
+          | Some(CasesStep(f)) => Some(f)
           | Some(_)
           | None => None
           },
-        ~inject=x => inject(InductionStep(x)),
-        ~take_focus=x => take_focus(InductionStep(x)),
+        ~inject=x => inject(CasesStep(x)),
+        ~take_focus=x => take_focus(CasesStep(x)),
         ~hide_stepper,
         ~undo,
         ~is_toplevel,
@@ -548,7 +548,7 @@ and Stepper: {
       | (AddInduction(exp), MissingStep(_), _) =>
         {
           ...model,
-          step_kind: InductionStep(InductionStep.init(~exp?, ())),
+          step_kind: CasesStep(CasesStep.init(~exp?, ())),
         }
         |> return
       | (AddInduction(_), _, _) => model |> return_quiet

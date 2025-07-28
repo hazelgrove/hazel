@@ -10,7 +10,7 @@ open StepInterface;
 type model'('stepper) = {
   // Updated
   scrut: CodeEditable.Model.t,
-  cases: list(InductionCase.model'('stepper)),
+  cases: list(CasesCase.model'('stepper)),
   // Calculated
   elab_scrut: Calc.saved(Exp.t),
   scrut_ty: Calc.saved(Typ.t),
@@ -23,14 +23,14 @@ type model'('stepper) = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action'('step) =
   | ScrutUpdate(CodeEditable.Update.t)
-  | CaseUpdate(int, InductionCase.action'('step))
+  | CaseUpdate(int, CasesCase.action'('step))
   | AddCase
   | RemoveCase(int);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type focus'('step) =
   | Scrut(CodeEditable.Selection.t)
-  | Case(int, InductionCase.focus'('step));
+  | Case(int, CasesCase.focus'('step));
 
 let init = (~exp: option(Exp.t)=?, ()) => {
   let scrut =
@@ -74,7 +74,7 @@ module F =
              type action = action'(Stepper.action) and
              type focus = focus'(Stepper.focus)
        ) => {
-  module InductionCase = InductionCase.F(Stepper);
+  module InductionCase = CasesCase.F(Stepper);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = model'(Stepper.model);
