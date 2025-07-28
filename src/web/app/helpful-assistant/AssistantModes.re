@@ -228,24 +228,28 @@ module Composition = {
            ),
          )
       ++ "]";
-    // let children_nodes_str =
-    //   "Child nodes: ["
-    //   ++ String.concat(
-    //        ", ",
-    //        List.mapi(
-    //          (index, node: option(TreeHelper.node)) =>
-    //            Option.get(node).name
-    //            ++ " (index: "
-    //            ++ string_of_int(index)
-    //            ++ ")",
-    //          children_nodes,
-    //        ),
-    //      )
-    //   ++ "]";
+    let children_nodes_str =
+      "Child nodes: ["
+      ++ String.concat(
+           ", ",
+           List.mapi(
+             (index, node: TreeHelper.node) =>
+               node.name ++ " (index: " ++ string_of_int(index) ++ ")",
+             curr_node_info.children,
+           ),
+         )
+      ++ "]";
 
     let definition_str =
       "Definition of \""
       ++ curr_node_info.name
+      ++ "\"'s parent "
+      ++ (
+        switch (curr_node_info.parent) {
+        | Some(parent) => "\"" ++ parent.name ++ "\""
+        | None => "(no parent, displaying entire top level of the program)"
+        }
+      )
       ++ "\":\n```"
       ++ TreeHelper.View.definition(
            editor.editor.state.zipper,
@@ -268,6 +272,7 @@ module Composition = {
           curr_node_str,
           parent_node_str,
           siblings_nodes_str,
+          children_nodes_str,
           "</AST information>",
         ],
       );
