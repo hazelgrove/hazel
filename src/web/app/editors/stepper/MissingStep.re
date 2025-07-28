@@ -578,10 +578,9 @@ module View = {
         ~tooltip="Step Backwards",
       );
     let button_prover_export =
-      Widgets.button_d(
+      Widgets.button(
         Icons.export,
-        signal(CoqExport),
-        ~disabled=false,
+        _ => signal(CoqExport),
         ~tooltip="Export steps as Coq proof",
       );
     let button_hide_stepper =
