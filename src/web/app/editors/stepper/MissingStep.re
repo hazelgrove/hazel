@@ -169,10 +169,21 @@ module Update = {
     let rewrites =
       rewrites
       |> {
-        let.calc exp = selected_exp;
+        let.calc exp = selected_exp
+        and.calc ctx = ctx;
         open OptUtil.Syntax;
         let* exp' = exp;
-        Some(Model.{rewrites: ProofCtx.get_rewrites(Axioms.v, exp')});
+        let proof_ctx =
+          ctx
+          |> Ctx.get_var_entries
+          |> List.filter_map(({name: _, id: _, typ}: Ctx.var_entry) =>
+               ProofRule.typ_to_rule(typ)
+             )
+          |> List.fold_left(
+               (acc, rule) => ProofCtx.add_rule(rule, acc),
+               Axioms.v,
+             );
+        Some(Model.{rewrites: ProofCtx.get_rewrites(proof_ctx, exp')});
       };
     let refls =
       refls

@@ -84,6 +84,15 @@ module Update = {
           | None => []
           | Some(d) => d.theorems
           };
+        let theorems =
+          List.filter_map(
+            ((a, b, c)) => {
+              open OptUtil.Syntax;
+              let* c' = ProofRule.typ_to_rule(c);
+              Some((a, b, c'));
+            },
+            theorems,
+          );
         List.map(((id, _, _)) => id, theorems) |> List.rev;
       }
       |> Calc.old_if_same'(thms);

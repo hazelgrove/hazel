@@ -48,7 +48,7 @@ let rec match_exp =
     switch (List.assoc(x, ctx)) {
     | None =>
       Some(List.map(((n, e)) => n == x ? (n, Some(exp)) : (n, e), ctx))
-    | Some(e) => match_exp(alphas, ctx, e, exp)
+    | Some(e) => match_exp(alphas, [], e, exp)
     }
   | (Var(x), Var(y)) when are_alpha_equiv(alphas, x, y) => Some(ctx)
   | (Var(_), _) => None

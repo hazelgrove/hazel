@@ -188,4 +188,24 @@ let v: ProofCtx.t =
          None,
        )
        |> Exp.fresh,
+     )
+  |> ProofCtx.add_entry(
+       "Reflexive(==)",
+       Fun(
+         Var("x") |> Pat.fresh,
+         BinOp(
+           Poly(Equals),
+           BinOp(
+             Poly(Equals),
+             Var("x") |> Exp.fresh,
+             Var("x") |> Exp.fresh,
+           )
+           |> Exp.fresh,
+           Atom(Bool(true)) |> Exp.fresh,
+         )
+         |> Exp.fresh,
+         Some(Atom(Bool) |> Typ.fresh),
+         None,
+       )
+       |> Exp.fresh,
      );

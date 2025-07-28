@@ -1,23 +1,16 @@
-type entry = {
-  name: string,
-  exp: Exp.t,
-  rule: ProofRule.t,
-};
+type entry = {rule: ProofRule.t};
 
 type t = list(entry);
 
 let empty = [];
 
-let add_entry = (name: string, exp: Exp.t, ctx: t) => {
+let add_rule = (rule: ProofRule.t, ctx: t): t => {
+  [{rule: rule}, ...ctx];
+};
+
+let add_entry = (_name: string, exp: Exp.t, ctx: t) => {
   let rule = ProofRule.exp_to_rule(exp);
-  [
-    {
-      name,
-      exp,
-      rule,
-    },
-    ...ctx,
-  ];
+  [{rule: rule}, ...ctx];
 };
 
 let rec get_empty_bindings = (ctx: list(Ctx.entry)) =>
