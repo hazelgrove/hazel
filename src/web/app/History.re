@@ -98,6 +98,18 @@ module Update = {
           action,
           model.current.model,
         );
+      let history =
+        List.map(
+          (s: Updated.t(Model.state)) => s.model.action,
+          model.undo_stack,
+        );
+      print_endline("---------------- UPDATE CALL ---------------");
+      print_endline("---HISTORY---");
+      List.iter(
+        item => sexp_of_t(item) |> Sexplib.Sexp.to_string |> print_endline,
+        history,
+      );
+      print_endline("---CURRENT ACTION---");
       print_endline(Page.Update.sexp_of_t(action) |> Sexplib.Sexp.to_string);
       if (Page.Update.can_undo(action)) {
         print_endline("Undoable action");
@@ -111,7 +123,10 @@ module Update = {
             undo_stack: [
               {
                 ...current,
-                model: model.current,
+                model: {
+                  action,
+                  model: model.current.model,
+                },
               },
               ...model.undo_stack,
             ],
