@@ -3,7 +3,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
     {
       zipper =
         "((selection((focus Left)(content())(mode \
-         Normal)))(backpack())(relatives((siblings(((Secondary((id \
+         Normal)))(relatives((siblings(((Secondary((id \
          724cdd15-8d43-420d-a6f0-b1714673c967)(content(Whitespace\"\\n\"))))(Tile((id \
          2661fdbc-3e5f-4ca3-abf0-348514e15b59)(label(\"\\\"This only works if \
          every column in the dataset was optional otherwise it will get stuck \
