@@ -55,15 +55,9 @@ let pop = (d: Direction.t, rs: t): option((Piece.t, t)) =>
 let zip = (~sel=Segment.empty, {siblings, ancestors}: t) =>
   Ancestors.zip(Siblings.zip(~sel, siblings), ancestors);
 
-let local_incomplete_tiles = ({siblings: (pre, suf), ancestors}: t) => {
-  let sibs =
-    switch (ancestors) {
-    | [] => (pre, suf)
-    | [(a, _), ..._] =>
-      let (l, r) = Ancestor.container_shards(a);
-      ([l, ...pre], suf @ [r]);
-    };
-  Siblings.incomplete_tiles(sibs);
+let local_missing_shards = ({siblings, ancestors}: t): list(Tile.t) => {
+  Ancestors.local_missing_shards(ancestors)
+  @ Siblings.local_missing_shards(siblings);
 };
 
 let parent =
@@ -128,10 +122,10 @@ let regrout = (d: Direction.t, {siblings, ancestors}: t): t => {
           : (
             switch (d) {
             | Left =>
-              let trim = add_grout(~d=Right, s_r, trim_r);
+              let trim = add_grout(s_r, trim_r);
               (seg_l, to_seg(trim));
             | Right =>
-              let trim = add_grout(~d=Left, s_l, trim_l);
+              let trim = add_grout(s_l, trim_l);
               (to_seg(trim), seg_r);
             }
           )
