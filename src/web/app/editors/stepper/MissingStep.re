@@ -552,7 +552,7 @@ module View = {
   let view_justification =
       (
         ~globals: Globals.t,
-        ~signal,
+        ~hide_stepper: Ui_effect.t(unit),
         ~undo: option(Ui_effect.t(unit)),
         ~is_toplevel: bool,
         _model: Model.t,
@@ -568,9 +568,7 @@ module View = {
         ~tooltip="Step Backwards",
       );
     let button_hide_stepper =
-      Widgets.toggle(~tooltip="Show Stepper", "s", true, _ =>
-        signal(HideStepper)
-      );
+      Widgets.toggle(~tooltip="Show Stepper", "s", true, _ => hide_stepper);
     let toggle_show_history =
       Widgets.toggle(
         ~tooltip="Show History",

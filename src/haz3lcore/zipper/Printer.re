@@ -2,7 +2,7 @@ open Util;
 
 let remove_projector: Piece.t => Segment.t =
   fun
-  | Projector(pr) => Piece.unparenthesize(pr.syntax)
+  | Projector(pr) => Insert.projector_to_invoke(pr)
   | x => [x];
 
 let measured_no_projectors = (segment: Segment.t) =>
@@ -75,7 +75,11 @@ let of_segment =
     )
     : string =>
   segment
-  |> Segment.to_string(~holes, ~concave_holes)
+  |> Segment.to_string(
+       ~holes,
+       ~concave_holes,
+       ~projector_to_segment=Insert.projector_to_invoke,
+     )
   |> String.split_on_char('\n')
   |> add_indents(segment, measured, indent)
   |> add_caret(~caret, ~selection_anchor)

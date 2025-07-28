@@ -69,7 +69,6 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
   | {key: D(key), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up} =>
     switch (key) {
     | "d" => now(Select(Term(Current)))
-    | "p" => now(Pick_up)
     | "a" => now(Select(All))
     | "/" => Some(Buffer(Set(TyDi)))
     | "ArrowLeft" => now(Move(Extreme(Left(ByToken))))
@@ -81,7 +80,6 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
   | {key: D(key), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
     switch (key) {
     | "d" => now(Select(Term(Current)))
-    | "p" => now(Pick_up)
     | "a" => now(Select(All))
     | "/" => Some(Buffer(Set(TyDi)))
     | "ArrowLeft" => now(Move(Local(Left(ByToken))))
@@ -118,10 +116,8 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     Some(Project(SetIndicated(ChooseLivelit)))
   | {key: D(key), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     switch (key) {
-    | "ArrowLeft" => now(MoveToBackpackTarget(Left(ByToken)))
-    | "ArrowRight" => now(MoveToBackpackTarget(Right(ByToken)))
-    | "ArrowUp" => now(MoveToBackpackTarget(Up))
-    | "ArrowDown" => now(MoveToBackpackTarget(Down))
+    | "ArrowLeft" => now(Move(Local(Left(ByToken))))
+    | "ArrowRight" => now(Move(Local(Right(ByToken))))
     | _ => None
     }
   | _ => None

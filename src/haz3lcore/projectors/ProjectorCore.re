@@ -16,7 +16,7 @@ module Kind = {
   /* The different kinds of projector. New projector
    * types need to be registered here in order to be
    * able to create and update their instances */
-  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
   type t =
     | Fold
     | Info
@@ -71,6 +71,8 @@ module Kind = {
     | "card" => Card
     | _ => failwith("Unknown projector kind")
     };
+
+  let is_name = str => List.mem(str, List.map(name, all));
 };
 
 /* Projectors in syntax */
