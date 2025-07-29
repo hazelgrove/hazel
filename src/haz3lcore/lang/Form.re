@@ -80,9 +80,8 @@ let is_secondary = t =>
 
 /* is_string: last clause is a somewhat hacky way of making sure
    there are at most two quotes, in order to prevent merges */
-let string_regexp = regexp("^\"[^\n]*\"$"); /* Multiline strings not supported */
-let is_string = t =>
-  match(string_regexp, t) && List.length(String.split_on_char('"', t)) < 4;
+let string_regexp = regexp({|^\"[^\n"]*\"$|}); /* Multiline strings not supported */
+let is_string = t => match(string_regexp, t);
 let string_delim = "\"";
 let single_quote_label_regexp = regexp("^\'[^\'\n]*\'$");
 let is_single_quote_label = t => match(single_quote_label_regexp, t);
