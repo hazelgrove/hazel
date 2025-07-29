@@ -905,7 +905,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     @ List.flatten(
         List.map2((id, x) => [mk_form(CommaExp, id, [])] @ x, ids, xs),
       );
-  | Label(l) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, l)
+  | Label(l) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "'" ++ l ++ "'")
   | TupLabel(l, e) =>
     let* l = go(l)
     and* e = go(e);
@@ -1200,7 +1200,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
         p;
       },
     ]);
-  | Label(l) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, l)
+  | Label(l) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, "'" ++ l ++ "'")
   | Parens(p) =>
     let id = pat |> Pat.rep_id;
     let+ p = go(p);
@@ -1309,7 +1309,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
           ts,
         ),
       );
-  | Label(l) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, l)
+  | Label(l) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, l) // TODO: add quotes
   | TupLabel(l, t) =>
     let+ l = go(l)
     and+ t = go(t);
