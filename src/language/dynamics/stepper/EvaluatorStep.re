@@ -265,7 +265,7 @@ module Decompose = {
     let req_final = (cont, wr, d) => {
       (
         switch (cont(d)) {
-        | Result.Indet => Result.BoxedValue
+        | Result.Indet => Result.Indet
         | Result.BoxedValue => Result.BoxedValue
         | Result.Step(objs) =>
           Result.Step(List.map(EvalObj.wrap(wr), objs))
@@ -288,20 +288,20 @@ module Decompose = {
     };
 
     let (let.): (requirements('a, DHExp.t), 'a => rule) => result =
-      (rq, rl) =>
+      (rq, rl) => 
         switch (rq) {
-        | (_, Result.Indet, _, _) => Result.Indet
-        | (undo, Result.BoxedValue, env, v) =>
+        | (_, Result.Step(_) as r, _, _) => r
+        | (undo, r, env, v) =>
           switch (rl(v)) {
-          | Constructor => Result.BoxedValue
+          | Constructor => r
           | Value => Result.BoxedValue
           | Indet => Result.Indet
           | Step(s) => Result.Step([EvalObj.mk(Mark, env, undo, s.kind)])
           // TODO: Actually show these exceptions to the user!
           | exception (EvaluatorError.Exception(_)) => Result.Indet
           }
-        | (_, Result.Step(_) as r, _, _) => r
-        };
+        ;
+      };
 
     let (and.):
       (requirements('a, 'c => 'b), requirement('c)) =>
