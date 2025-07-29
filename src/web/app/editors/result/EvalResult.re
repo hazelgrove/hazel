@@ -323,7 +323,7 @@ module Selection = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Evaluation(CodeSelectable.Selection.t)
-    | Stepper(StepperView.Selection.t);
+    | Stepper(StepperView.Focus.t);
 
   let get_cursor_info = (~selection: t, mr: Model.t): cursor(Update.t) =>
     switch (selection, mr.result) {
@@ -332,8 +332,8 @@ module Selection = {
       let+ ci =
         CodeSelectable.Selection.get_cursor_info(~selection, editor |> snd);
       Update.EvalEditorAction(ci);
-    | (Stepper(selection), Stepper(s)) =>
-      let+ ci = StepperView.Selection.get_cursor_info(~selection, s);
+    | (Stepper(focus), Stepper(s)) =>
+      let+ ci = StepperView.Focus.get_cursor_info(~focus, s);
       Update.StepperAction(ci);
     | (_, Evaluation(_)) => empty
     | (_, Stepper(_)) => empty
@@ -350,8 +350,8 @@ module Selection = {
         event,
       )
       |> Option.map(x => Update.EvalEditorAction(x))
-    | (Stepper(selection), Stepper(s)) =>
-      StepperView.Selection.handle_key_event(~selection, s, ~event)
+    | (Stepper(focus), Stepper(s)) =>
+      StepperView.Focus.handle_key_event(~focus, s, ~event)
       |> Option.map(x => Update.StepperAction(x))
     | (_, Evaluation(_)) => None
     | (_, Stepper(_)) => None

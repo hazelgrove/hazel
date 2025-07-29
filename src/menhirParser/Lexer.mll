@@ -34,6 +34,7 @@ let identifier = ['a'-'z' '_'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
 let constructor_ident = ['A'-'Z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
 let sexp_string = '`' [^'`']* '`'
 let ints = ['0'-'9']+
+let projector_invoke = "^^" ['a'-'z' 'A'-'Z' '0'-'9' '_']+
 
 rule token = 
     parse 
@@ -45,6 +46,7 @@ rule token =
     | string as s { STRING (String.sub s 1 (String.length s - 2)) }
     | quoted_label as l { QUOTED_LABEL (String.sub l 1 (String.length l - 2)) }
     | sexp_string as s { SEXP_STRING (String.sub s 1 (String.length s - 2)) }
+    | projector_invoke as p { PROJECTOR_INVOKE p }
     | "true" { TRUE }
     | "false" { FALSE }
     | "let" { LET }

@@ -3,7 +3,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
     {
       zipper =
         "((selection((focus Left)(content())(mode \
-         Normal)))(backpack())(relatives((siblings(((Secondary((id \
+         Normal)))(relatives((siblings(((Secondary((id \
          379304e9-af35-4344-863b-e7daf3b2ba24)(content(Whitespace\"\\n\"))))(Tile((id \
          01e2eedd-d9e5-4b56-87e3-0e5a7e363e2b)(label(\"\\\"This is just the \
          projection operator `.` If you use it directly you get the non-length \

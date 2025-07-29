@@ -57,7 +57,6 @@ let mk = (expansion, label, mold) => {
 /* Abbreviations for expansion behaviors */
 let ss: expansion = (Static, Static);
 let ii: expansion = (Instant, Instant);
-let is: expansion = (Instant, Static);
 let ds: expansion = (Delayed, Static);
 
 let mk_infix = (t: Token.t, sort: Sort.t, prec) =>
@@ -84,10 +83,9 @@ let is_secondary = t =>
 let string_regexp = regexp("^\"[^\n]*\"$"); /* Multiline strings not supported */
 let is_string = t =>
   match(string_regexp, t) && List.length(String.split_on_char('"', t)) < 4;
-
+let string_delim = "\"";
 let single_quote_label_regexp = regexp("^\'[^\'\n]*\'$");
 let is_single_quote_label = t => match(single_quote_label_regexp, t);
-let string_delim = "\"";
 let empty_string = string_delim ++ string_delim;
 let is_string_delim = (==)(string_delim);
 let strip_quotes = s =>
@@ -174,6 +172,25 @@ let parse_livelit = (str): string =>
     "invalid form";
   };
 
+let projector_invoke_prefix = "^^";
+
+let of_projector_invoke = (input: string): option(string) =>
+  if (String.starts_with(~prefix=projector_invoke_prefix, input)
+      && String.length(input) > 2) {
+    Some(String.sub(input, 2, String.length(input) - 2));
+  } else {
+    None;
+  };
+
+let is_projector_invoke = (str: string): bool =>
+  switch (of_projector_invoke(str)) {
+  | Some(name) => ProjectorCore.Kind.is_name(name)
+  | None => false
+  };
+
+let mk_projector_invoke = (kind: ProjectorCore.Kind.t): string =>
+  projector_invoke_prefix ++ ProjectorCore.Kind.name(kind);
+
 let var_regexp =
   regexp(
     {|(^[a-z_][A-Za-z0-9_']*$)|(^[A-Z][A-Za-z0-9_']*\.[a-z][A-Za-z0-9_']*$)|},
@@ -259,6 +276,7 @@ type atomic_form =
   | FloatLit
   | BoolLit
   | LivelitName
+  | ProjectorInvoke
   | UndefinedLit
   | EmptyList
   | EmptyTuple
@@ -266,43 +284,8 @@ type atomic_form =
   | TyVar
   | TyVarP
   | Ctr
-  | Type;
-
-let get_atomic_form: atomic_form => (string => bool, list(Mold.t)) =
-  fun
-  | Var => (is_var, [mk_op(Exp, []), mk_op(Pat, [])])
-  | ExplicitHole => (
-      is_explicit_hole,
-      [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, []), mk_op(TPat, [])],
-    )
-  | LLMHole => (
-      is_llm_hole,
-      [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, []), mk_op(TPat, [])],
-    )
-  | Wild => (is_wild, [mk_op(Pat, [])])
-  | String => (is_string, [mk_op(Exp, []), mk_op(Pat, [])])
-  | SingleQuoteLabel => (
-      is_single_quote_label,
-      [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, [])],
-    )
-  | IntLit => (is_int, [mk_op(Exp, []), mk_op(Pat, [])])
-  | FloatLit => (is_float, [mk_op(Exp, []), mk_op(Pat, [])])
-  | LivelitName => (is_livelit, [mk_op(Exp, []), mk_op(Pat, [])])
-  | BoolLit => (is_bool, [mk_op(Exp, []), mk_op(Pat, [])])
-  | UndefinedLit => (is_undefined, [mk_op(Exp, []), mk_op(Pat, [])])
-  | EmptyList => (is_empty_list, [mk_op(Exp, []), mk_op(Pat, [])])
-  | EmptyTuple => (
-      is_empty_tuple,
-      [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, [])],
-    )
-  | Deferral => (is_wild, [mk_op(Exp, [])])
-  | TyVar => (is_typ_var, [mk_op(Typ, [])])
-  | TyVarP => (is_typ_var, [mk_op(TPat, [])])
-  | Ctr => (is_ctr, [mk_op(Exp, []), mk_op(Pat, [])])
-  | Type => (is_base_typ, [mk_op(Typ, [])]);
-
-let atomic_forms: list((atomic_form, (string => bool, list(Mold.t)))) =
-  List.map(f => (f, get_atomic_form(f)), all_of_atomic_form);
+  | Type
+  | InfixDelimiterPrefix;
 
 /* C. Compound Forms:
    Order in this type determines relative remolding
@@ -468,7 +451,6 @@ let get: compound_form => t =
   | AtSign => mk_nul_infix("@", P.eqs) // HACK: SUBSTRING REQ
   | Case => mk(ds, ["case", "end"], mk_op(Exp, [Rul]))
   | Test => mk(ds, ["test", "end"], mk_op(Exp, [Exp]))
-  | HintedTest => mk(ds, ["hint", "test", "end"], mk_op(Exp, [Exp, Exp]))
   | Fun => mk(ds, ["fun", "->"], mk_pre(P.fun_, Exp, [Pat]))
   | Fix => mk(ds, ["fix", "->"], mk_pre(P.fun_, Exp, [Pat]))
   | TypFun => mk(ds, ["typfun", "->"], mk_pre(P.fun_, Exp, [TPat]))
@@ -486,15 +468,142 @@ let get: compound_form => t =
   | Let => mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))
   | TypeAlias =>
     mk(ds, ["type", "=", "in"], mk_pre(P.let_, Exp, [TPat, Typ]))
-  | If => mk(ds, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]));
+  | If => mk(ds, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]))
+  | HintedTest => mk(ds, ["hint", "test", "end"], mk_op(Exp, [Exp, Exp]));
 
 let forms: list((compound_form, t)) =
   List.map(f => (f, get(f)), all_of_compound_form);
+
+/* These are tokens that have proven annoying as TyDi suggestions.
+ * This category is doubly nominative in that it has proven hard
+ * to derive automatically; typically these are annoying bacause
+ * they have a prefix that occurs more commonly */
+let annoying_delims = ["|>", "||", "::", "!=", "!=.", "**."];
+let is_annoying_delim = List.mem(_, annoying_delims);
+
+/* Returns a list of all strings which are proper prefixes of
+ * a non-leading alphanumeric concave delimiter of a compount form.
+ * These are assigned a special backup infix-op mode, so that
+ * when you're entering e.g. the `in` in a let, you don't get
+ * disruptive switching between a convex variable and concaved
+ * delimiter */
+let infix_delimiter_ops_prefixes: list(string) =
+  forms
+  |> List.filter_map(f => {
+       let form = get(fst(f));
+       switch ((form.mold.nibs |> snd).shape) {
+       /* Could be pickier here, e.g. just trailing delimiters */
+       | _ when List.length(form.label) >= 2 => Some(form.label)
+       | _ => None
+       };
+     })
+  |> List.concat
+  |> List.filter(is_potential_operand)
+  |> List.sort_uniq(compare)
+  |> List.map(StringUtil.prefixes)
+  |> List.concat;
+
+let is_infix_delimiter_op_prefix = List.mem(_, infix_delimiter_ops_prefixes);
+
+/* This classification is a work in progress. Now that most trailing
+ * delimiters are delayed-putdown, we need to classify those that aren't.
+ * These should likely include ")", "]", ">"  or risk causing parsing
+ * issues; right now I'm saying all non-alphanumeric trailing delimiters
+ * are instant, but we might want to re-evaluate this in the future.*/
+let instant_putdowns: list(string) =
+  forms
+  |> List.filter_map(((_, f)) =>
+       switch (f.label) {
+       | [_, ...trailing] =>
+         Some(List.filter(s => !match(var_regexp, s), trailing))
+       | _ => None
+       }
+     )
+  |> List.concat
+  |> List.sort_uniq(String.compare);
+
+let is_instant_putdown = List.mem(_, instant_putdowns);
+
+/* Tokens that appear both as single-token labels and in other forms labels.
+ * These have special put-down behavior to make sure we can actually enter
+ * the single-delimiter variant during left-to-right entry */
+let amiguous_polymorphs: list(string) = {
+  let single_token_labels =
+    forms
+    |> List.filter_map(((_, {label, _})) =>
+         switch (label) {
+         | [token] => Some(token)
+         | _ => None
+         }
+       )
+    |> List.sort_uniq(String.compare);
+  let appears_in_other_forms = (target_token: string): bool => {
+    forms
+    |> List.exists(((_, {label, _})) =>
+         switch (label) {
+         | [token] when token == target_token => false
+         | label => List.mem(target_token, label)
+         }
+       );
+  };
+  single_token_labels |> List.filter(appears_in_other_forms);
+};
+
+let is_ambiguous_polymorph = List.mem(_, amiguous_polymorphs);
 
 let delims: list(Token.t) =
   forms
   |> List.fold_left((acc, (_, {label, _}: t)) => {label @ acc}, [])
   |> List.sort_uniq(compare);
+
+let get_atomic_form: atomic_form => (string => bool, list(Mold.t)) =
+  fun
+  | Var => (is_var, [mk_op(Exp, []), mk_op(Pat, [])])
+  | InfixDelimiterPrefix => (
+      is_infix_delimiter_op_prefix,
+      [
+        mk_bin(Precedence.max, Exp, []),
+        mk_bin(Precedence.max, Pat, []),
+        mk_bin(Precedence.max, Typ, []),
+        mk_bin(Precedence.max, TPat, []),
+      ],
+    )
+  | ExplicitHole => (
+      is_explicit_hole,
+      [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, []), mk_op(TPat, [])],
+    )
+  | LLMHole => (
+      is_llm_hole,
+      [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, []), mk_op(TPat, [])],
+    )
+  | Wild => (is_wild, [mk_op(Pat, [])])
+  | String => (is_string, [mk_op(Exp, []), mk_op(Pat, [])])
+  | SingleQuoteLabel => (
+      is_single_quote_label,
+      [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, [])],
+    )
+  | IntLit => (is_int, [mk_op(Exp, []), mk_op(Pat, [])])
+  | FloatLit => (is_float, [mk_op(Exp, []), mk_op(Pat, [])])
+  | LivelitName => (is_livelit, [mk_op(Exp, []), mk_op(Pat, [])])
+  | ProjectorInvoke => (
+      is_projector_invoke,
+      [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, []), mk_op(TPat, [])],
+    )
+  | BoolLit => (is_bool, [mk_op(Exp, []), mk_op(Pat, [])])
+  | UndefinedLit => (is_undefined, [mk_op(Exp, []), mk_op(Pat, [])])
+  | EmptyList => (is_empty_list, [mk_op(Exp, []), mk_op(Pat, [])])
+  | EmptyTuple => (
+      is_empty_tuple,
+      [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, [])],
+    )
+  | Deferral => (is_wild, [mk_op(Exp, [])])
+  | TyVar => (is_typ_var, [mk_op(Typ, [])])
+  | TyVarP => (is_typ_var, [mk_op(TPat, [])])
+  | Ctr => (is_ctr, [mk_op(Exp, []), mk_op(Pat, [])])
+  | Type => (is_base_typ, [mk_op(Typ, [])]);
+
+let atomic_forms: list((atomic_form, (string => bool, list(Mold.t)))) =
+  List.map(f => (f, get_atomic_form(f)), all_of_atomic_form);
 
 let atomic_molds: Token.t => list(Mold.t) =
   s => {
