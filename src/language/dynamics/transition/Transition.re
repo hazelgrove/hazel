@@ -664,7 +664,7 @@ module Transition = (EV: EV_MODE) => {
           switch (DHExp.term_of(d1''), DHExp.term_of(d2')) {
           | (Tuple(ds), Label(name)) =>
             let projected =
-              List.find_map(
+              List.filter_map(
                 d => {
                   switch (Exp.match_tup_label(d)) {
                   | Some((s, e)) when name == s => Some(e)
@@ -675,7 +675,7 @@ module Transition = (EV: EV_MODE) => {
               );
 
             switch (projected) {
-            | Some(exp) =>
+            | [exp] =>
               Step({
                 expr: exp,
                 state_update,

@@ -75,6 +75,11 @@ in fn("hello")|},
       () => {
         parse_and_evaluate_test("(true) . a", "(true) . a");
         parse_and_evaluate_test("((true) . a): Int", "((true) . a): Int");
+        parse_and_evaluate_test(
+          ~msg="Duplicate labels projected are indet",
+          "(a=1, a=2).a",
+          {|(a=1, a=2).a|},
+        );
       },
     ),
     test_case(
