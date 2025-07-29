@@ -4,11 +4,11 @@ let out : string * Haz3lcore.PersistentZipper.t =
       zipper =
         "((selection((focus Left)(content())(mode \
          Normal)))(relatives((siblings(()((Projector((id \
-         df5837a7-633c-4511-b32d-d6d3306a8417)(kind TextArea)(syntax(Tile((id \
-         e49dd965-756e-4612-a2fa-2fdcbb3ef62d)(label(\"(\"\")\"))(mold((out \
+         ef53e5e1-af08-417d-9a78-51d91d95c3cf)(kind TextArea)(syntax(Tile((id \
+         2f1b25fd-2cf1-4e85-8f05-ccad01262e3e)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Tile((id \
-         e8933865-7742-4360-92f1-09c5538c7ef4)(label(\"\\\"## \
+         3ce0ea00-f178-4ccc-aec6-6597a4809970)(label(\"\\\"## \
          Reference\\\\n\\\\n> Q. Where can we learn about the programming \
          medium covered by this datasheet?\\\\n> (Feel free to link to \
          multiple kinds of artifacts: repositories, papers, videos, etc.\\\\n> \
@@ -112,9 +112,8 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Q. For each error situation that is at least partially expressible, \
          what is the quality of feedback to the programmer?\\\\n\\\\n\\\\n> Q. \
          For each error situation that is prevented from being constructed, \
-         what is the quality of feedback to the \
-         programmer?\\\\n\\\\n\\\"\"))(mold((out Exp)(in_())(nibs(((shape \
-         Convex)(sort Exp))((shape Convex)(sort \
+         what is the quality of feedback to the programmer?\\\"\"))(mold((out \
+         Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))))))))(model\"()\"))))))(ancestors())))(caret \
          Outer))";
       backup_text =
@@ -217,5 +216,5 @@ let out : string * Haz3lcore.PersistentZipper.t =
          expressible, what is the quality of feedback to the \
          programmer?\\n\\n\\n> Q. For each error situation that is prevented \
          from being constructed, what is the quality of feedback to the \
-         programmer?\\n\\n\")";
+         programmer?\")";
     } )
