@@ -283,7 +283,7 @@ let get_atomic_form: atomic_form => (string => bool, list(Mold.t)) =
   | String => (is_string, [mk_op(Exp, []), mk_op(Pat, [])])
   | SingleQuoteLabel => (
       is_single_quote_label,
-      [mk_op(Exp, []), mk_op(Pat, [])],
+      [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, [])],
     )
   | IntLit => (is_int, [mk_op(Exp, []), mk_op(Pat, [])])
   | FloatLit => (is_float, [mk_op(Exp, []), mk_op(Pat, [])])

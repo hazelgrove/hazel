@@ -1309,7 +1309,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
           ts,
         ),
       );
-  | Label(l) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, l) // TODO: add quotes
+  | Label(l) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, "'" ++ l ++ "'")
   | TupLabel(l, t) =>
     let+ l = go(l)
     and+ t = go(t);
