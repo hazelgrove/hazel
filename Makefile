@@ -7,6 +7,7 @@ SERVER="http://0.0.0.0:8000/"
 all: dev
 
 deps:
+	opam repo add archive git+https://github.com/ocaml/opam-repository-archive
 	opam update
 	opam install ./hazel.opam.locked --deps-only --with-test --with-doc
 	npm install
