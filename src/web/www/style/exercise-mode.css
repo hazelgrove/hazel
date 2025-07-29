@@ -4,14 +4,12 @@
 
 #main.Exercises {
   padding: 1em;
+  padding-top: 3em;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   gap: 1.2em;
   background-color: var(--ui-bkg);
-}
-
-#main.Exercises {
   scrollbar-color: var(--main-scroll-thumb) var(--NONE);
 }
 

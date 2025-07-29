@@ -3,7 +3,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
     {
       zipper =
         "((selection((focus Left)(content())(mode \
-         Normal)))(backpack())(relatives((siblings(((Secondary((id \
+         Normal)))(relatives((siblings(((Secondary((id \
          adbb13f2-dda5-4827-856d-d683ed77d43d)(content(Whitespace\" \
          \")))))((Projector((id 091a3fca-9d05-46e9-bc8f-c8e895357a1b)(kind \
          Livelit)(syntax(Tile((id \
