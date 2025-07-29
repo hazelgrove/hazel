@@ -587,6 +587,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
               r,
             ),
           )
+        | Label(_) => ret(TupLabel(l, r))
         | EmptyHole => ret(TupLabel(l, r))
         | _ =>
           let (e_term, rewrap) = IdTagged.unwrap(l);
@@ -639,6 +640,8 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | (["String"], []) => Atom(String)
         | (["Nat"], []) => Atom(Nat)
         | ([t], []) when Form.is_typ_var(t) => Var(t)
+        | ([t], []) when Form.is_single_quote_label(t) =>
+          Label(String.sub(t, 1, String.length(t) - 2))
         | (["(", ")"], [Typ(body)]) => Parens(body)
         | (label, [Typ(body)]) when is_probe_wrap(label) => body.term
         | (["[", "]"], [Typ(body)]) => List(body)

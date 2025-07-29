@@ -156,6 +156,30 @@ let tests =
       test_case("Single quoted label in tuple", `Quick, () =>
         exp_check(tuple([tup_label(label("a"), int(3))]), "('a'=3)")
       ),
+      test_case("Single quoted label in projection", `Quick, () =>
+        exp_check(dot(empty_hole(), label("a")), "?.'a'")
+      ),
+      test_case("Single quoted label in pattern", `Quick, () =>
+        exp_check(
+          fn(
+            Pat.(tuple([tup_label(label("a"), empty_hole())])),
+            empty_hole(),
+            None,
+            None,
+          ),
+          {|fun ('a'=?) -> ?|},
+        )
+      ),
+      test_case("Single quoted label in type", `Quick, () =>
+        exp_check(
+          ty_alias(
+            TPat.var("t"),
+            Typ.(prod([tup_label(label("a"), Typ.int())])),
+            empty_hole(),
+          ),
+          {|type t = ('a'=Int) in ?|},
+        )
+      ),
       test_case("Dot projection with single quoted label", `Quick, () =>
         exp_check(dot(empty_hole(), label("a")), "? . 'a'")
       ),
