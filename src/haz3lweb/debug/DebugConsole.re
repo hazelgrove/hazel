@@ -4,15 +4,6 @@ open Haz3lcore;
    It was originally directly in Keyboard, but that added a handler
    dependency on the model, which is technically against architecture */
 
-module BDFS =
-  Nondeterminism.Bounded(
-    (val Nondeterminism.const_incr_config(~init=5, ~inc=5)),
-  );
-module BFS = Nondeterminism.BFS;
-module DFS = Nondeterminism.DFS;
-module SearchBDFS = IndetEvaluator.Make(BDFS);
-module SearchBFS = IndetEvaluator.Make(Nondeterminism.BFS);
-module SearchDFS = IndetEvaluator.Make(Nondeterminism.DFS);
 let print =
     (~settings: Settings.t, editor: CodeWithStatics.Model.t, key: string)
     : unit => {
@@ -45,68 +36,6 @@ let print =
     | None => print("DEBUG: No indicated index")
     };
   | "F8" => statics.elaborated |> Exp.show |> print
-  | "F9" =>
-    let results =
-      statics.elaborated
-      |> SearchBDFS.values(
-           ~env=Builtins.env_init,
-           ~state=IndetEvaluatorState.init,
-         );
-    let _ =
-      results
-      |> BDFS.run_n(~solutions=60)
-      |> List.mapi((i, (state, d)) =>
-           print(
-             "---Result: "
-             ++ Int.to_string(i)
-             ++ "\nIS ERROR: "
-             ++ (
-               (
-                 try(CastErrorChecker.contains_error(d)) {
-                 | _ => false
-                 }
-               )
-               |> Bool.to_string
-             )
-             ++ "\nIS VALUE: "
-             ++ (
-               OneStepEvaluator.take_step(
-                 IndetEvaluatorState.init,
-                 Builtins.env_init,
-                 d,
-               )
-               |> (
-                 fun
-                 | (BoxedValue, _) => "VALUE"
-                 | (Indet, _) => "INDET"
-                 | (Step(_), _) => "EXPR"
-               )
-             )
-             ++ "\n# of Instantiations: "
-             ++ Int.to_string(IndetEvaluatorState.get_instantiations(state))
-             ++ "\nTrace Length: "
-             ++ Int.to_string(IndetEvaluatorState.get_trace_length(state))
-             ++ "\n"
-             ++ Exp.show(d)
-             ++ "\n",
-           )
-         );
-    ();
-  | "F12" =>
-    let inst =
-      statics.elaborated
-      |> Evaluator.evaluate'(~env=Builtins.env_init)
-      |> fst
-      |> RedexHoleType.find(Builtins.env_init);
-    (
-      switch (inst) {
-      | None => "No Hole"
-      | Hole(_) => "Hole with no cast"
-      | HoleCast(_) => "Cast Hole"
-      | Match(_) => "Match Hole"
-      }
-    )
-    |> print;
   | _ => print("DEBUG: No action for key: " ++ key)
   };
 };

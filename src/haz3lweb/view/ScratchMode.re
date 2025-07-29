@@ -163,20 +163,7 @@ module Update = {
     let (key, ed) = List.nth(model.scratchpads, model.current);
     let worker_request = ref([]);
     let queue_worker =
-      Some(
-        expr => {
-          worker_request :=
-            worker_request^
-            @ [
-              (
-                "",
-                expr,
-                settings.evaluation.search,
-                settings.evaluation.indet_step,
-              ),
-            ]
-        },
-      );
+      Some(expr => {worker_request := worker_request^ @ [("", expr)]});
     let new_ed =
       CellEditor.Update.calculate(
         ~settings,

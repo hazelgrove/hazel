@@ -18,8 +18,6 @@ type t =
   | InvalidBoxedSumConstructor(DHExp.t)
   | InvalidBoxedTupLabel(DHExp.t)
   | InvalidBoxedTuple(DHExp.t)
-  | InvalidBuiltin(string)
-  | UnableToInstantiateIndet(DHExp.t)
-  | NoMoreInstantiations(DHExp.t);
+  | InvalidBuiltin(string);
 
 exception Exception(t);

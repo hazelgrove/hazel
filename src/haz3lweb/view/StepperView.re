@@ -19,7 +19,7 @@ module Model = {
   type a' = {
     // Constants:
     expr: Exp.t,
-    state: IndetEvaluatorState.t,
+    state: EvaluatorState.t,
     next_steps: list(b),
     // Updated & Calculated:
     editor: Calc.t(CodeSelectable.Model.t),
@@ -54,13 +54,13 @@ module Model = {
       | Pending => []
     );
 
-  let get_state = (model: Aba.t(a, b)): IndetEvaluatorState.t =>
+  let get_state = (model: Aba.t(a, b)): EvaluatorState.t =>
     model
     |> Aba.hd
     |> (
       fun
       | Calculated({state, _}) => state
-      | Pending => IndetEvaluatorState.init
+      | Pending => EvaluatorState.init
     );
 
   let get_elaboration = (model: t): option(Exp.t) =>
@@ -308,7 +308,7 @@ module Update = {
                 EvaluatorStep.get_status(
                   ~settings,
                   elab,
-                  IndetEvaluatorState.init,
+                  EvaluatorState.init,
                 );
               let next_steps =
                 switch (next_status) {
@@ -333,7 +333,7 @@ module Update = {
                 };
               Model.{
                 expr: elab,
-                state: IndetEvaluatorState.init,
+                state: EvaluatorState.init,
                 editor: Calc.NewValue(editor),
                 next_steps,
               };

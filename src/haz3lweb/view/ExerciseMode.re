@@ -153,15 +153,7 @@ module Update = {
     let worker_request = ref([]);
     let queue_worker = (pos, expr) => {
       worker_request :=
-        worker_request^
-        @ [
-          (
-            pos |> Exercise.key_for_statics,
-            expr,
-            settings.evaluation.search,
-            settings.evaluation.indet_step,
-          ),
-        ];
+        worker_request^ @ [(pos |> Exercise.key_for_statics, expr)];
     };
     let cells =
       Exercise.map2_stitched(

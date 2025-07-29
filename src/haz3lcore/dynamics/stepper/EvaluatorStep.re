@@ -20,9 +20,9 @@ module Decompose = {
   module DecomposeEVMode: {
     include
       EV_MODE with
-        type result = Result.t and type state = ref(IndetEvaluatorState.t);
+        type result = Result.t and type state = ref(EvaluatorState.t);
   } = {
-    type state = ref(IndetEvaluatorState.t);
+    type state = ref(EvaluatorState.t);
     type requirement('a) = (Result.t, 'a);
     type requirements('a, 'b) = ('b, Result.t, ClosureEnvironment.t, 'a);
     type result = Result.t;
@@ -87,9 +87,9 @@ module Decompose = {
 
     let otherwise = (env, o) => (o, Result.BoxedValue, env, ());
     let update_test = (state, id, v) =>
-      state := IndetEvaluatorState.add_test(state^, id, v);
+      state := EvaluatorState.add_test(state^, id, v);
     let update_probe = (state, closure: Dynamics.Probe.Closure.t) =>
-      state := IndetEvaluatorState.add_closure(state^, closure);
+      state := EvaluatorState.add_closure(state^, closure);
   };
 
   module Decomp = Transition(DecomposeEVMode);
@@ -112,10 +112,9 @@ module TakeStep = {
   module TakeStepEVMode: {
     include
       EV_MODE with
-        type result = option(DHExp.t) and
-        type state = ref(IndetEvaluatorState.t);
+        type result = option(DHExp.t) and type state = ref(EvaluatorState.t);
   } = {
-    type state = ref(IndetEvaluatorState.t);
+    type state = ref(EvaluatorState.t);
     type requirement('a) = 'a;
     type requirements('a, 'b) = 'a;
     type result = option(DHExp.t);
@@ -139,10 +138,10 @@ module TakeStep = {
     let otherwise = (_, _) => ();
 
     let update_test = (state, id, v) =>
-      state := IndetEvaluatorState.add_test(state^, id, v);
+      state := EvaluatorState.add_test(state^, id, v);
 
     let update_probe = (state, closure: Dynamics.Probe.Closure.t) =>
-      state := IndetEvaluatorState.add_closure(state^, closure);
+      state := EvaluatorState.add_closure(state^, closure);
   };
 
   module TakeStepEV = Transition(TakeStepEVMode);
@@ -161,7 +160,7 @@ module TakeStep = {
 
 let take_step = TakeStep.take_step;
 
-let decompose = (d: DHExp.t, es: IndetEvaluatorState.t) => {
+let decompose = (d: DHExp.t, es: EvaluatorState.t) => {
   let env = ClosureEnvironment.of_environment(Builtins.env_init);
   let rs = Decompose.decompose(ref(es), env, d);
   Decompose.Result.unbox(rs);
@@ -194,7 +193,7 @@ let get_step_id = (step: step): Id.t => step.d_loc |> DHExp.rep_id;
 let get_step_kind = (step: step): step_kind => step.knd;
 
 let take_step = (step: EvalObj.t) => {
-  let state = ref(IndetEvaluatorState.init); // HACK: state isn't actually carried through the stepper...
+  let state = ref(EvaluatorState.init); // HACK: state isn't actually carried through the stepper...
   let+ next_expr = take_step(state, step.env, step.d_loc);
   let next_expr = {
     ...next_expr,
@@ -210,7 +209,7 @@ let refresh_step =
     (
       ~settings: CoreSettings.t,
       exp: Exp.t,
-      state: IndetEvaluatorState.t,
+      state: EvaluatorState.t,
       step: step,
     ) => {
   let eos =

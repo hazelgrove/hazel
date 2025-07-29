@@ -38,30 +38,6 @@ let settings_group = (~globals: Globals.t, name: string, ts) => {
   );
 };
 
-let indet_eval_buttons = (~globals: Globals.t) => {
-  div_c(
-    "group",
-    [
-      div_c(
-        "name",
-        [
-          text(
-            "Indet Eval"
-            ++ (globals.settings.core.evaluation.indet_step |> Int.to_string),
-          ),
-        ],
-      ),
-      div_c(
-        "contents",
-        [
-          button(Icons.back, _ => globals.inject_global(Set(PrevIndet))),
-          button(Icons.forward, _ => globals.inject_global(Set(NextIndet))),
-        ],
-      ),
-    ],
-  );
-};
-
 let semantics_group = (~globals) => {
   settings_group(
     ~globals,
@@ -70,7 +46,6 @@ let semantics_group = (~globals) => {
       ("τ", "Types", globals.settings.core.statics, Statics),
       ("⇲", "Completion", globals.settings.core.assist, Assist),
       ("𝛿", "Evaluation", globals.settings.core.dynamics, Dynamics),
-      ("S", "Error Search", globals.settings.core.evaluation.search, Search),
       (
         "?",
         "Docs",
@@ -148,6 +123,5 @@ let settings_menu = (~globals) => {
     values_group(~globals),
     stepper_group(~globals),
     dev_group(~globals),
-    indet_eval_buttons(~globals),
   ];
 };
