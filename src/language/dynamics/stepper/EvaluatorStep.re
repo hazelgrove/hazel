@@ -288,7 +288,7 @@ module Decompose = {
     };
 
     let (let.): (requirements('a, DHExp.t), 'a => rule) => result =
-      (rq, rl) => 
+      (rq, rl) =>
         switch (rq) {
         | (_, Result.Step(_) as r, _, _) => r
         | (undo, r, env, v) =>
@@ -300,8 +300,7 @@ module Decompose = {
           // TODO: Actually show these exceptions to the user!
           | exception (EvaluatorError.Exception(_)) => Result.Indet
           }
-        ;
-      };
+        };
 
     let (and.):
       (requirements('a, 'c => 'b), requirement('c)) =>
