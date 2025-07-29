@@ -85,7 +85,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | FixF(_) => Precedence.fun_
   | Tuple(_) => Precedence.prod
   | Seq(_) => Precedence.semi
-  | TupleExtension(_, _) => Precedence.dot
+  | TupleExtension(_, _) => Precedence.plus
   | Dot(_) => Precedence.dot
 
   // Top-level things

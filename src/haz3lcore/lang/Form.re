@@ -422,7 +422,7 @@ let get: compound_form => t =
   | TupleLabeledTyp => mk_infix("=", Typ, P.lab)
   | DotExp => mk_infix(".", Exp, P.dot)
   | DotTyp => mk_infix(".", Typ, P.dot)
-  | TupleExtension => mk_infix("...", Exp, P.dot)
+  | TupleExtension => mk_infix("...", Exp, P.plus)
   | TypeAsc => mk(ss, [":"], mk_bin'(P.asc, Exp, Exp, [], Typ))
   | TypPlus => mk_infix("+", Typ, P.type_plus)
   // UNARY PREFIX OPERATORS

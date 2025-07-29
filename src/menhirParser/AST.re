@@ -374,6 +374,11 @@ let rec gen_exp_sized = (~minimal_idents: bool, n: int): QCheck.Gen.t(exp) => {
             BinExp(e1, op, e2);
           },
           {
+            let* e1 = self((n - 1) / 2);
+            let+ e2 = self((n - 1) / 2);
+            TupleExtension(e1, e2);
+          },
+          {
             let* op = gen_op_un;
             let+ e = self(n - 1);
             UnOp(op, e);
