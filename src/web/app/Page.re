@@ -77,7 +77,7 @@ module Update = {
       (
         ~schedule_action: t => unit,
         model: Model.t,
-        editor: CodeEditable.Model.t,
+        editor: Haz3lcore.EditorManager.Model.t,
       ) =>
     AssistantUpdate.check_req(
       ~schedule_action=a => schedule_action(Assistant(a)),
@@ -86,7 +86,7 @@ module Update = {
       ~editor,
     );
 
-  let get_editor = (model: Model.t): CodeEditable.Model.t =>
+  let get_editor = (model: Model.t): Haz3lcore.EditorManager.Model.t =>
     switch (model.editors) {
     | Scratch(m) => (List.nth(m.scratchpads, m.current) |> snd).editor
     | Documentation(m) => (List.nth(m.scratchpads, m.current) |> snd).editor

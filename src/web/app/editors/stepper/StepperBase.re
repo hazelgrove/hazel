@@ -56,7 +56,7 @@ module Model = {
 
   and case = {
     // Updated
-    pattern: CodeEditable.Model.t,
+    pattern: EditorManager.Model.t,
     // Calculated
     elab_pattern: Calc.saved(Pat.t),
     inner_exp: Calc.saved(Exp.t),
@@ -67,7 +67,7 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   and induction_step = {
     // Updated
-    scrut: CodeEditable.Model.t,
+    scrut: EditorManager.Model.t,
     cases: list(case),
     // Calculated
     elab_scrut: Calc.saved(Exp.t),
@@ -108,20 +108,10 @@ module Model = {
   let init_induction_step = (~exp: option(Exp.t)=?, ()) => {
     let scrut =
       switch (exp) {
-      | Some(e) =>
-        CodeEditable.Model.mk(
-          Editor.of_zipper(
-            Zipper.unzip(
-              ExpToSegment.exp_to_segment(
-                ~settings=ExpToSegment.Settings.editable(~inline=true),
-                e,
-              ),
-            ),
-          ),
-        )
+      | Some(e) => EditorManager.Model.mk_uncalculated(Exp(e))
       | None =>
-        CodeEditable.Model.mk(
-          Editor.Model.mk_uncalculated(Exp(Language.Exp.fresh(EmptyHole))),
+        EditorManager.Model.mk_uncalculated(
+          Exp(Language.Exp.fresh(EmptyHole)),
         )
       };
     {
@@ -194,8 +184,8 @@ module Update = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   and induction_step =
-    | ScrutUpdate(CodeEditable.Update.t)
-    | CasePatternUpdate(int, CodeEditable.Update.t)
+    | ScrutUpdate(EditorManager.Update.t)
+    | CasePatternUpdate(int, EditorManager.Update.t)
     | CaseStepperUpdate(int, step)
     | AddCase
     | RemoveCase(int)
@@ -223,7 +213,13 @@ module Update = {
       switch (model.editor) {
       | Calc.Pending => model |> return_quiet
       | Calc.Calculated(editor) =>
-        let* new_editor = CodeSelectable.Update.update(~globals, ea, editor);
+        let* new_editor =
+          CodeSelectable.Update.update(
+            ~globals,
+            ~dynamics=Dynamics.Map.empty,
+            ea,
+            editor,
+          );
         {
           ...model,
           editor: Calc.Calculated(new_editor),
@@ -337,7 +333,13 @@ module Update = {
       : Updated.t(Model.step_kind) => {
     switch (action) {
     | ScrutUpdate(a) =>
-      let* new_scrut = CodeEditable.Update.update(~globals, a, model.scrut);
+      let* new_scrut =
+        EditorManager.Update.update(
+          ~common=Globals.to_common_global(globals),
+          ~dynamics=Language.Dynamics.Map.empty,
+          a,
+          model.scrut,
+        );
       Model.InductionStep({
         ...model,
         scrut: new_scrut,
@@ -346,7 +348,12 @@ module Update = {
       switch (List.nth_opt(model.cases, i)) {
       | Some(case) =>
         let* new_pattern =
-          CodeEditable.Update.update(~globals, a, case.pattern);
+          EditorManager.Update.update(
+            ~common=Globals.to_common_global(globals),
+            ~dynamics=Language.Dynamics.Map.empty,
+            a,
+            case.pattern,
+          );
         Model.InductionStep({
           ...model,
           cases:
@@ -383,10 +390,8 @@ module Update = {
       let new_case =
         Model.{
           pattern:
-            CodeEditable.Model.mk(
-              Editor.Model.mk_uncalculated(
-                Exp(Language.Exp.fresh(EmptyHole)),
-              ),
+            EditorManager.Model.mk_uncalculated(
+              Exp(Language.Exp.fresh(EmptyHole)),
             ),
           elab_pattern: Calc.Pending,
           inner_exp: Calc.Pending,
@@ -447,8 +452,8 @@ module Update = {
 
   and can_undo_induction_step = (a: induction_step): bool => {
     switch (a) {
-    | ScrutUpdate(action) => CodeEditable.Update.can_undo(action)
-    | CasePatternUpdate(_, action) => CodeEditable.Update.can_undo(action)
+    | ScrutUpdate(action) => EditorManager.Update.can_undo(action)
+    | CasePatternUpdate(_, action) => EditorManager.Update.can_undo(action)
     | CaseStepperUpdate(_, step) => can_undo_step(step)
     | AddCase => true
     | RemoveCase(_) => true
@@ -524,16 +529,14 @@ module Update = {
         let.calc _ = settings
         and.calc expr = expr
         and.calc ctx = ctx;
-        expr
-        |> CodeWithStatics.Model.mk_from_exp(~inline=false)
-        |> CodeSelectable.Update.calculate(
-             ~is_dynamic_term=true,
-             ~globals,
-             ~ctx,
-             ~dynamics=Dynamics.Map.empty,
-             ~stitch=_ =>
-             expr
-           );
+        EditorManager.Update.init(
+          ~common=Globals.to_common_global(globals),
+          ~stitch=_ => expr,
+          ~is_dynamic_term=true,
+          ~inline=false,
+          ~ctx,
+          Exp(expr),
+        );
       };
     let (step_kind, hidden, next_expr_state) =
       calculate_step_kind(
@@ -792,9 +795,9 @@ module Update = {
       join_exp,
     }: Model.induction_step = m;
     let scrut =
-      CodeEditable.Update.calculate(
+      EditorManager.Update.calculate(
         ~is_dynamic_term=true,
-        ~globals,
+        ~common=Globals.to_common_global(globals),
         ~ctx=Calc.get_value(ctx),
         ~dynamics=Dynamics.Map.empty,
         ~stitch=x => x,
@@ -803,15 +806,15 @@ module Update = {
     let elab_scrut =
       Calc.set(
         ~eq=Exp.fast_equal,
-        CodeEditable.Model.get_statics(scrut).elaborated,
+        EditorManager.Model.get_statics(scrut).elaborated,
         elab_scrut,
       );
     let scrut_ty = {
       let self_ty =
         switch (
           Id.Map.find_opt(
-            Exp.rep_id(CodeEditable.Model.get_statics(scrut).elaborated),
-            CodeEditable.Model.get_statics(scrut).info_map,
+            Exp.rep_id(EditorManager.Model.get_statics(scrut).elaborated),
+            EditorManager.Model.get_statics(scrut).info_map,
           )
         ) {
         | Some(Info.InfoExp({ty, _})) => ty
@@ -825,9 +828,9 @@ module Update = {
           Model.{pattern, elab_pattern, inner_exp, step: stepper, last_exp: _},
         ) => {
           let pattern =
-            CodeEditable.Update.calculate(
+            EditorManager.Update.calculate(
               ~is_dynamic_term=true,
-              ~globals,
+              ~common=Globals.to_common_global(globals),
               ~dynamics=Dynamics.Map.empty,
               // This editor technically edits Exps, but we want a Pat, so we put it in a function to emulate that.
               ~stitch=
@@ -842,7 +845,7 @@ module Update = {
           let elab_pattern =
             Calc.set(
               ~eq=Pat.fast_equal,
-              CodeEditable.Model.get_statics(pattern).elaborated
+              EditorManager.Model.get_statics(pattern).elaborated
               |> ProofHacks.remove_wrapping_function,
               elab_pattern,
             );
@@ -1058,7 +1061,7 @@ module Selection = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   and induction_step =
-    | Scrut(CodeEditable.Focus.t)
+    | Scrut(EditorManager.Focus.t)
     | CasePattern(int, CodeSelectable.Selection.t)
     | CaseStepper(int, step)
 
@@ -1081,8 +1084,9 @@ module Selection = {
     switch (selection, model.step_kind, model.next_step) {
     | (Here(a), _, _) =>
       StepperEditor.Selection.get_cursor_info(
-        ~globals,
+        ~common=Globals.to_common_global(globals),
         ~inject=x => inject(Update.EditorAction(x)),
+        ~dynamics=Dynamics.Map.empty,
         model.editor |> Calc.get_saved_exc(~print="Step editor selection"),
         a,
       )
@@ -1123,8 +1127,9 @@ module Selection = {
       ) =>
     switch (selection) {
     | Scrut(a) =>
-      CodeEditable.Focus.get_cursor_info(
-        ~globals,
+      EditorManager.Focus.get_cursor_info(
+        ~common=Globals.to_common_global(globals),
+        ~dynamics=Dynamics.Map.empty,
         ~inject=x => inject(Update.InductionStep(Update.ScrutUpdate(x))),
         ~read_only=false,
         model.scrut,
@@ -1133,8 +1138,9 @@ module Selection = {
     | CasePattern(i, a) =>
       switch (List.nth_opt(model.cases, i)) {
       | Some(case) =>
-        CodeEditable.Focus.get_cursor_info(
-          ~globals,
+        EditorManager.Focus.get_cursor_info(
+          ~common=Globals.to_common_global(globals),
+          ~dynamics=Dynamics.Map.empty,
           ~inject=
             x =>
               inject(Update.InductionStep(Update.CasePatternUpdate(i, x))),
@@ -1490,7 +1496,7 @@ module View = {
         ~mode=
           Editable({
             inject: x =>
-              inject(Update.InductionStep(Update.ScrutUpdate(Perform(x)))),
+              inject(Update.InductionStep(Update.ScrutUpdate(x))),
             escape: _ => Ui_effect.Ignore,
             take_focus: f => signal(MakeActive(InductionStep(Scrut(f)))),
             focus:
@@ -1536,11 +1542,7 @@ module View = {
               ~mode=
                 Editable({
                   inject: x =>
-                    inject(
-                      InductionStep(
-                        Update.CasePatternUpdate(i, Perform(x)),
-                      ),
-                    ),
+                    inject(InductionStep(Update.CasePatternUpdate(i, x))),
                   escape: _ => Ui_effect.Ignore,
                   take_focus: f =>
                     signal(MakeActive(InductionStep(CasePattern(i, f)))),

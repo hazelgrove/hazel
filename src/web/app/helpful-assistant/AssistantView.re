@@ -426,7 +426,7 @@ let message_input =
       ~inject,
       ~model: Model.t,
       ~settings: AssistantSettings.t,
-      ~editor: CodeEditable.Model.t,
+      ~editor: EditorManager.Model.t,
     )
     : Node.t => {
   let mode = settings.mode;
@@ -1131,7 +1131,7 @@ let view =
       ~signal,
       ~inject: Update.t => Ui_effect.t(unit),
       ~model: Model.t,
-      ~editor: CodeEditable.Model.t,
+      ~editor: EditorManager.Model.t,
     ) => {
   let settings = globals.settings;
   let inject_global = globals.inject_global;

@@ -5,9 +5,9 @@ open Haz3lcore;
    dependency on the model, which is technically against architecture */
 
 let print =
-    (~settings: Settings.t, editor: CodeWithStatics.Model.t, key: string)
-    : unit => {
-  let {editor, statics, _}: CodeWithStatics.Model.t = editor;
+    (~settings: Settings.t, editor: EditorManager.Model.t, key: string): unit => {
+  let statics = EditorManager.Model.get_statics(editor);
+  let {editor, _}: EditorManager.Model.t = editor;
   let term = statics.term;
   let map = statics.info_map;
   let print = print_endline;

@@ -157,7 +157,7 @@ module Update = {
       (
         ~schedule_action,
         ~globals: Globals.t,
-        ~send_assistant_insertion_info: CodeEditable.Model.t => unit,
+        ~send_assistant_insertion_info: EditorManager.Model.t => unit,
         ~is_documentation: bool,
         action,
         model: Model.t,
@@ -174,8 +174,7 @@ module Update = {
       };
       switch (a) {
       // Check for assistant hole completion triggers
-      | MainEditor(Perform(Insert(_))) =>
-        send_assistant_insertion_info(new_ed.editor)
+      | MainEditor(Insert(_)) => send_assistant_insertion_info(new_ed.editor)
       | _ => ()
       };
       new_model;

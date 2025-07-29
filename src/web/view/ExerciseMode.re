@@ -291,8 +291,12 @@ module Update = {
       let* new_editor =
         // Hack[Matt]: put Editor.t into a CodeEditor.t to use its update function
         editor
-        |> CodeEditable.Model.mk
-        |> CodeEditable.Update.update(~globals, action);
+        |> EditorManager.Model.of_editor
+        |> EditorManager.Update.update(
+             ~common=Globals.to_common_global(globals),
+             ~dynamics=Language.Dynamics.Map.empty, // TODO[Matt]: this probably shouldn't be empty?
+             action,
+           );
       {
         ...model,
         editors:
@@ -310,8 +314,12 @@ module Update = {
         let* new_editor =
           // Hack[Matt]: put Editor.t into a CodeSelectable.t to use its update function
           editor
-          |> CodeSelectable.Model.mk
-          |> CodeSelectable.Update.update(~globals, action);
+          |> CodeSelectable.Model.of_editor
+          |> CodeSelectable.Update.update(
+               ~globals,
+               ~dynamics=Language.Dynamics.Map.empty, // TODO[Matt]: this probably shouldn't be empty?
+               action,
+             );
         {
           ...model,
           editors:
@@ -385,7 +393,7 @@ module Update = {
             editor: {
               editor,
               statics: cell.editor.statics,
-              dynamics: EvalResult.Model.dynamics(cell.result),
+              cached_settings: Calc.Pending,
             },
             result: cell.result,
           }
@@ -455,21 +463,21 @@ module Update = {
         point_distribution: model.editors.point_distribution,
         prelude:
           calculate(
-            cells.prelude.editor.statics,
-            cells.prelude.editor.dynamics,
+            cells.prelude.editor |> EditorManager.Model.get_statics,
+            cells.prelude.result |> EvalResult.Model.dynamics,
             model.editors.prelude,
           ),
         correct_impl:
           calculate(
-            cells.test_validation.editor.statics,
-            cells.test_validation.editor.dynamics,
+            cells.test_validation.editor |> EditorManager.Model.get_statics,
+            cells.test_validation.result |> EvalResult.Model.dynamics,
             model.editors.correct_impl,
           ),
         your_tests: {
           tests:
             calculate(
-              cells.user_tests.editor.statics,
-              cells.user_tests.editor.dynamics,
+              cells.user_tests.editor |> EditorManager.Model.get_statics,
+              cells.user_tests.result |> EvalResult.Model.dynamics,
               model.editors.your_tests.tests,
             ),
           required: model.editors.your_tests.required,
@@ -477,8 +485,8 @@ module Update = {
         },
         your_impl:
           calculate(
-            cells.user_impl.editor.statics,
-            cells.user_impl.editor.dynamics,
+            cells.user_impl.editor |> EditorManager.Model.get_statics,
+            cells.user_impl.result |> EvalResult.Model.dynamics,
             model.editors.your_impl,
           ),
         hidden_bugs:
@@ -488,8 +496,8 @@ module Update = {
               {
                 impl:
                   calculate(
-                    cell.editor.statics,
-                    cell.editor.dynamics,
+                    cell.editor |> EditorManager.Model.get_statics,
+                    cell.result |> EvalResult.Model.dynamics,
                     editor.impl,
                   ),
                 hint: editor.hint,
@@ -500,8 +508,8 @@ module Update = {
         hidden_tests: {
           tests:
             calculate(
-              cells.hidden_tests.editor.statics,
-              cells.hidden_tests.editor.dynamics,
+              cells.hidden_tests.editor |> EditorManager.Model.get_statics,
+              cells.hidden_tests.result |> EvalResult.Model.dynamics,
               model.editors.hidden_tests.tests,
             ),
           hints: model.editors.hidden_tests.hints,
@@ -556,7 +564,7 @@ module Selection = {
        )
     |> Option.map(((pos, _)) =>
          (
-           Update.Editor(pos, MainEditor(Perform(Jump(TileId(tile))))),
+           Update.Editor(pos, MainEditor(Jump(TileId(tile)))),
            Cell(pos, CellEditor.Selection.MainEditor(Editor.Focus.here())),
          )
        );
@@ -921,12 +929,12 @@ module View = {
             let correct_impl_trailing_hole_ctx =
               Haz3lcore.Editor.get_trailing_hole_ctx(
                 eds.correct_impl,
-                instructor.editor.statics.info_map,
+                EditorManager.Model.get_statics(instructor.editor).info_map,
               );
             let prelude_trailing_hole_ctx =
               Haz3lcore.Editor.get_trailing_hole_ctx(
                 eds.prelude,
-                prelude.editor.statics.info_map,
+                EditorManager.Model.get_statics(prelude.editor).info_map,
               );
             switch (correct_impl_trailing_hole_ctx, prelude_trailing_hole_ctx) {
             | (None, _) => Node.div([text("No context available (1)")])
@@ -963,7 +971,7 @@ module View = {
       editor: {
         editor: editor.editor.editor,
         statics: editor.editor.statics,
-        dynamics: Language.Dynamics.Map.empty,
+        cached_settings: editor.editor.cached_settings,
       },
       result: editor.result,
     };
@@ -989,7 +997,7 @@ module View = {
                     inject(
                       Editor(
                         YourTestsValidation,
-                        MainEditor(Perform(Jump(TileId(id)))),
+                        MainEditor(Jump(TileId(id))),
                       ),
                     ),
                 ~signal_editing_test_val_rep=
@@ -1119,10 +1127,7 @@ module View = {
           ~signal_jump=
             id =>
               inject(
-                Editor(
-                  YourTestsTesting,
-                  MainEditor(Perform(Jump(TileId(id)))),
-                ),
+                Editor(YourTestsTesting, MainEditor(Jump(TileId(id)))),
               ),
           ~inject_set_editing_impl_grd_rep=
             inject(Instructor(EditingImplGrdRep)),

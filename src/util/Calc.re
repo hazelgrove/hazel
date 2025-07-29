@@ -37,6 +37,12 @@ let get_value = (x: t('a)): 'a =>
   | NewValue(x) => x
   };
 
+let map_t = (f: 'a => 'b, x: t('a)): t('b) =>
+  switch (x) {
+  | OldValue(x) => OldValue(f(x))
+  | NewValue(x) => NewValue(f(x))
+  };
+
 let map_if_new = (f: 'a => 'a, x: t('a)): t('a) =>
   switch (x) {
   | OldValue(x) => OldValue(x)
@@ -133,6 +139,14 @@ let to_option = (x: t(option('a))): option(t('a)) => {
   | NewValue(Some(x)) => Some(NewValue(x))
   | OldValue(None) => None
   | NewValue(None) => None
+  };
+};
+
+let of_option = (x: option(t('a))): t(option('a)) => {
+  switch (x) {
+  | None => OldValue(None)
+  | Some(OldValue(x)) => OldValue(Some(x))
+  | Some(NewValue(x)) => NewValue(Some(x))
   };
 };
 

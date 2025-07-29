@@ -2,15 +2,15 @@ open Util;
 open Haz3lcore;
 open Language;
 
-let get_sketch_and_error_ctx =
-    (editor: CodeWithStatics.Model.t): list(string) => {
+let get_sketch_and_error_ctx = (editor: EditorManager.Model.t): list(string) => {
   let sketch_seg =
     Zipper.smart_seg(
       ~dump_backpack=true,
       ~erase_buffer=true,
       editor.editor |> Editor.get_z,
     );
-  let errors = ErrorPrint.all(editor.statics.info_map);
+  let errors =
+    ErrorPrint.all(EditorManager.Model.get_statics(editor).info_map);
   let static_error_arr =
     switch (errors) {
     | [] => ["No static errors found"]
@@ -175,7 +175,7 @@ module Completion = {
     // Apply each action in sequence
     List.iter(
       action => {
-        let perform_action = CodeEditable.Update.Perform(action);
+        let perform_action = action;
         let cell_action = CellEditor.Update.MainEditor(perform_action);
         let scratch_action = Editors.Update.Scratch(CellAction(cell_action));
         schedule_action(scratch_action);
@@ -202,8 +202,7 @@ module Composition = {
 
   // Prompt with appropriate context for each message
   let mk_ctx_prompt =
-      (options: Options.t, editor: CodeWithStatics.Model.t)
-      : OpenRouter.message => {
+      (options: Options.t, editor: EditorManager.Model.t): OpenRouter.message => {
     let _ = options; // TODO: Either remove params or update function to use params AnCRask
     OpenRouter.mk_user_msg(
       String.concat(
@@ -261,14 +260,14 @@ module Composition = {
   // highlights the variable and definition (excluding the body)
   let goto =
       (
-        ~ed: CodeWithStatics.Model.t,
+        ~ed: EditorManager.Model.t,
         ~loc: loc_of_goto,
         ~goto_var_of_kind: goto_var,
         ~name: string,
         ~schedule_action: Editors.Update.t => unit,
       )
       : unit => {
-    let statics = CodeWithStatics.Model.get_statics(ed);
+    let statics = EditorManager.Model.get_statics(ed);
     // Find the first matching variable in the context using fold
     // TODO: Handle shadowed variables
     let matching_id =
@@ -318,7 +317,7 @@ module Composition = {
 
     List.iter(
       action => {
-        let perform_action = CodeEditable.Update.Perform(action);
+        let perform_action = action;
         let cell_action = CellEditor.Update.MainEditor(perform_action);
         let scratch_action = Editors.Update.Scratch(CellAction(cell_action));
         schedule_action(scratch_action);
@@ -368,7 +367,7 @@ module Composition = {
       };
     List.iter(
       action => {
-        let perform_action = CodeEditable.Update.Perform(action);
+        let perform_action = action;
         let cell_action = CellEditor.Update.MainEditor(perform_action);
         let scratch_action = Editors.Update.Scratch(CellAction(cell_action));
         schedule_action(scratch_action);

@@ -1,3 +1,4 @@
+open Util;
 open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
@@ -8,23 +9,24 @@ open Node;
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
-    editor: CodeEditable.Model.t,
+    editor: EditorManager.Model.t,
     result: EvalResult.Model.t,
   };
 
   let mk = editor => {
     editor: {
       editor,
-      statics: CachedStatics.empty,
-      dynamics: Language.Dynamics.Map.empty,
+      statics: Calc.Pending,
+      cached_settings: Calc.Pending,
     },
     result: EvalResult.Model.init,
   };
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = CodeEditable.Model.persistent;
+  type persistent = EditorManager.Model.persistent;
 
-  let persist = model => model.editor |> CodeEditable.Model.persist;
-  let to_string = model => model.editor |> CodeEditable.Model.to_string;
+  let persist = model =>
+    model.editor.editor |> Editor.get_z |> PersistentZipper.persist;
+  let to_string = model => model.editor.editor |> Editor.to_string;
   let unpersist = (~settings as _, pz) =>
     pz |> PersistentZipper.unpersist |> Editor.of_zipper |> mk;
 };
@@ -34,12 +36,12 @@ module Update = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | MainEditor(CodeEditable.Update.t)
+    | MainEditor(EditorManager.Update.t)
     | ResultAction(EvalResult.Update.t);
 
   let can_undo = (action: t) => {
     switch (action) {
-    | MainEditor(action) => CodeEditable.Update.can_undo(action)
+    | MainEditor(action) => EditorManager.Update.can_undo(action)
     | ResultAction(action) => EvalResult.Update.can_undo(action)
     };
   };
@@ -48,7 +50,12 @@ module Update = {
     switch (action) {
     | MainEditor(action) =>
       let* editor =
-        CodeEditable.Update.update(~globals, action, model.editor);
+        EditorManager.Update.update(
+          ~common=Globals.to_common_global(globals),
+          ~dynamics=EvalResult.Model.dynamics(model.result),
+          action,
+          model.editor,
+        );
       {
         ...model,
         editor,
@@ -79,8 +86,8 @@ module Update = {
   let calculate =
       (~globals, ~queue_worker, ~stitch, {editor, result}: Model.t): Model.t => {
     let editor =
-      CodeEditable.Update.calculate(
-        ~globals,
+      EditorManager.Update.calculate(
+        ~common=Globals.to_common_global(globals),
         ~stitch,
         ~dynamics=EvalResult.Model.dynamics(result),
         ~is_dynamic_term=false,
@@ -103,7 +110,7 @@ module Update = {
           assist: false,
         },
         ~queue_worker,
-        editor |> CodeEditable.Model.get_statics,
+        editor |> EditorManager.Model.get_statics,
         result,
       );
     {
@@ -123,8 +130,9 @@ module Selection = {
       (~globals, ~inject, ~selection, model: Model.t): Cursor.t => {
     switch (selection) {
     | MainEditor(f) =>
-      CodeEditable.Focus.get_cursor_info(
-        ~globals,
+      EditorManager.Focus.get_cursor_info(
+        ~common=Globals.to_common_global(globals),
+        ~dynamics=EvalResult.Model.dynamics(model.result),
         ~read_only=false,
         ~inject=x => inject(Update.MainEditor(x)),
         model.editor,
@@ -141,7 +149,7 @@ module Selection = {
   };
 
   let jump_to_tile = (tile, model: Model.t): option((Update.t, t)) => {
-    CodeEditable.Focus.jump_to_tile(tile, model.editor)
+    EditorManager.Update.jump_to_tile_action(tile, model.editor)
     |> Option.map(x =>
          (Update.MainEditor(x), MainEditor(Editor.Focus.here()))
        );
@@ -182,7 +190,7 @@ module View = {
           | JumpTo(id) =>
             Effect.Many([
               signal(MakeActive(MainEditor(Editor.Focus.here()))),
-              inject(MainEditor(Perform(Jump(TileId(id))))),
+              inject(MainEditor(Jump(TileId(id)))),
             ]),
         ~inject=a => inject(ResultAction(a)),
         ~selected={
@@ -205,15 +213,14 @@ module View = {
             font_metrics: globals.font_metrics,
             secondary_icons: globals.settings.secondary_icons,
             color_highlights: globals.color_highlights,
-            statics: model.editor.statics,
-            dynamics: model.editor.dynamics,
+            statics: model.editor |> EditorManager.Model.get_statics,
+            dynamics: EvalResult.Model.dynamics(model.result),
           },
           ~mode=
             Editable({
               inject:
                 locked
-                  ? _ => Ui_effect.Ignore
-                  : (a => inject(MainEditor(Perform(a)))),
+                  ? _ => Ui_effect.Ignore : (a => inject(MainEditor(a))),
               take_focus:
                 locked
                   ? _ => Ui_effect.Ignore

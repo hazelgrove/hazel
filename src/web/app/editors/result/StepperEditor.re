@@ -22,7 +22,12 @@ module Update = {
 
   let update = (~globals, action, model: Model.t): Updated.t(Model.t) => {
     let* editor =
-      CodeSelectable.Update.update(~globals, action, model.editor);
+      CodeSelectable.Update.update(
+        ~globals,
+        ~dynamics=Language.Dynamics.Map.empty,
+        action,
+        model.editor,
+      );
     Model.{
       editor,
       taken_steps: model.taken_steps,
@@ -34,7 +39,7 @@ module Update = {
 
   let calculate =
       (
-        ~globals,
+        ~globals: Globals.t,
         ~stitch,
         ~dynamics: Language.Dynamics.Map.t,
         {editor, taken_steps, next_steps}: Model.t,
@@ -42,7 +47,13 @@ module Update = {
       : Model.t => {
     let editor =
       CodeSelectable.Update.calculate(
-        ~globals,
+        ~common=
+          Common.{
+            settings: globals.settings.core,
+            font_metrics: globals.font_metrics,
+            secondary_icons: globals.settings.secondary_icons,
+            color_highlights: globals.color_highlights,
+          },
         ~stitch,
         ~dynamics,
         ~is_dynamic_term=true,
@@ -89,8 +100,8 @@ module View = {
               font_metrics: globals.font_metrics,
               secondary_icons: globals.settings.secondary_icons,
               color_highlights: globals.color_highlights,
-              statics: model.editor.statics,
-              dynamics: model.editor.dynamics,
+              statics: model.editor |> EditorManager.Model.get_statics,
+              dynamics: Language.Dynamics.Map.empty,
             };
         });
       overlays
@@ -105,8 +116,8 @@ module View = {
         font_metrics: globals.font_metrics,
         secondary_icons: globals.settings.secondary_icons,
         color_highlights: globals.color_highlights,
-        statics: model.editor.statics,
-        dynamics: model.editor.dynamics,
+        statics: model.editor |> EditorManager.Model.get_statics,
+        dynamics: Language.Dynamics.Map.empty,
       },
       ~overlays,
       model.editor.editor,

@@ -3,7 +3,7 @@ open Util;
 open Util.OptUtil.Syntax;
 open API;
 
-module CodeModel = CodeEditable.Model;
+module CodeModel = EditorManager.Model;
 module Model = AssistantModel;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -336,7 +336,7 @@ let check_req =
     (
       ~schedule_action: t => unit,
       ~schedule_setting: AssistantSettings.action => unit,
-      ~editor: CodeEditable.Model.t,
+      ~editor: EditorManager.Model.t,
       ~chat_id: Id.t,
     )
     : unit => {
@@ -626,7 +626,11 @@ let update =
                   sketch_z_with_tag,
                 );
               let* index = Indicated.index(editor.editor |> Editor.get_z);
-              let+ ci = Id.Map.find_opt(index, editor.statics.info_map);
+              let+ ci =
+                Id.Map.find_opt(
+                  index,
+                  EditorManager.Model.get_statics(editor).info_map,
+                );
               ChatLSP.Completion.mk_ctx_prompt(
                 ChatLSP.Options.init,
                 ci,
@@ -1044,7 +1048,13 @@ let update =
           "\\(\\(.\\|\n\\)*\\)```[ \n]*\\([^`]+\\)[ \n]*```\\(\\(.\\|\n\\)*\\)",
         );
       let index = Option.get(Indicated.index(editor.editor |> Editor.get_z));
-      let ci = Option.get(Id.Map.find_opt(index, editor.statics.info_map));
+      let ci =
+        Option.get(
+          Id.Map.find_opt(
+            index,
+            EditorManager.Model.get_statics(editor).info_map,
+          ),
+        );
       let sketch_z = editor.editor |> Editor.get_z;
 
       let (_, completion) =

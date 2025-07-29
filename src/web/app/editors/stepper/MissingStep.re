@@ -9,7 +9,7 @@ module Model = {
   type open_box =
     | AxiomsOpen
     | RewritesOpen({
-        editor: CodeEditable.Model.t,
+        editor: EditorManager.Model.t,
         cached_exp: Calc.saved(Exp.t),
         cached_result: option(bool),
       })
@@ -49,9 +49,10 @@ module Update = {
     | ToggleAxioms
     | ProposeRewrite
     | UpdateResult(bool)
-    | RewriteEditorAction(CodeEditable.Update.t);
+    | RewriteEditorAction(EditorManager.Update.t);
 
-  let update = (~globals, action, model: Model.t): Updated.t(Model.t) => {
+  let update =
+      (~globals: Globals.t, action, model: Model.t): Updated.t(Model.t) => {
     switch (action, model.open_box) {
     | (ToggleAxioms, _) =>
       let open_box =
@@ -72,8 +73,8 @@ module Update = {
         | AxiomsOpen =>
           Model.RewritesOpen({
             editor:
-              CodeEditable.Model.mk(
-                Editor.Model.mk_uncalculated(Exp(Exp.fresh(EmptyHole))),
+              EditorManager.Model.mk_uncalculated(
+                Exp(Exp.fresh(EmptyHole)),
               ),
             cached_exp: Calc.Pending,
             cached_result: None,
@@ -87,7 +88,19 @@ module Update = {
       |> Updated.return_quiet(~recalculate=true);
     | (RewriteEditorAction(action), RewritesOpen({editor, _} as r)) =>
       open Updated;
-      let* new_editor = CodeEditable.Update.update(~globals, action, editor);
+      let* new_editor =
+        EditorManager.Update.update(
+          ~common=
+            Common.{
+              settings: globals.settings.core,
+              font_metrics: globals.font_metrics,
+              secondary_icons: globals.settings.secondary_icons,
+              color_highlights: globals.color_highlights,
+            },
+          ~dynamics=Language.Dynamics.Map.empty,
+          action,
+          editor,
+        );
       Model.{
         ...model,
         open_box:
@@ -122,7 +135,7 @@ module Update = {
 
   let calculate =
       (
-        ~globals,
+        ~globals: Globals.t,
         exp,
         ctx: Calc.t(Ctx.t),
         _state,
@@ -179,8 +192,14 @@ module Update = {
       | RewritesOpen({editor, cached_exp, cached_result}) =>
         // Calculate syntax, holes, types, etc for the editor
         let editor =
-          CodeEditable.Update.calculate(
-            ~globals,
+          EditorManager.Update.calculate(
+            ~common=
+              Common.{
+                settings: globals.settings.core,
+                font_metrics: globals.font_metrics,
+                secondary_icons: globals.settings.secondary_icons,
+                color_highlights: globals.color_highlights,
+              },
             ~is_dynamic_term=true,
             ~dynamics=Dynamics.Map.empty,
             ~stitch=x => x,
@@ -191,7 +210,7 @@ module Update = {
         let cached_exp =
           Calc.set(
             ~eq=Exp.fast_equal,
-            CodeEditable.Model.get_statics(editor).elaborated,
+            EditorManager.Model.get_statics(editor).elaborated,
             cached_exp,
           );
         // Reset result if editor changes
@@ -223,15 +242,22 @@ module Update = {
 module Selection = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | RewriteEditor(CodeEditable.Focus.t);
+    | RewriteEditor(EditorManager.Focus.t);
 
-  let get_cursor_info = (~globals, ~inject, focus, model: Model.t): Cursor.t => {
+  let get_cursor_info =
+      (~globals: Globals.t, ~inject, focus, model: Model.t): Cursor.t => {
     switch (focus, model.open_box) {
     | (RewriteEditor(focus), RewritesOpen({editor, _})) =>
-      CodeEditable.Focus.get_cursor_info(
-        ~globals,
+      EditorManager.Focus.get_cursor_info(
+        ~common={
+          settings: globals.settings.core,
+          font_metrics: globals.font_metrics,
+          secondary_icons: globals.settings.secondary_icons,
+          color_highlights: globals.color_highlights,
+        },
         ~inject=x => inject(Update.RewriteEditorAction(x)),
         ~read_only=false,
+        ~dynamics=Language.Dynamics.Map.empty,
         editor,
         focus,
       )
@@ -499,7 +525,7 @@ module View = {
                               ~mode=
                                 Editable({
                                   inject: x =>
-                                    inject(RewriteEditorAction(Perform(x))),
+                                    inject(RewriteEditorAction(x)),
                                   take_focus: f =>
                                     signal(MakeActive(RewriteEditor(f))),
                                   escape: _ => Ui_effect.Ignore,

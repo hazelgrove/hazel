@@ -105,7 +105,7 @@ module Update = {
       (
         ~globals: Globals.t,
         ~schedule_action: t => unit,
-        ~send_assistant_insertion_info: CodeEditable.Model.t => unit,
+        ~send_assistant_insertion_info: EditorManager.Model.t => unit,
         action: t,
         model: Model.t,
       ) => {

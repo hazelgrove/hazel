@@ -527,3 +527,4 @@ module Indicated = {
 };
 
 module EditorManager = EditorManager.M(Editor);
+module OutputEditorManager = OutputEditorManager.M(Editor);

@@ -143,7 +143,13 @@ module Update = {
           _,
         },
       ) =>
-      let* editor = CodeSelectable.Update.update(~globals, a, editor);
+      let* editor =
+        CodeSelectable.Update.update(
+          ~dynamics=Dynamics.Map.empty,
+          ~globals,
+          a,
+          editor,
+        );
       {
         ...model,
         result:
@@ -280,8 +286,8 @@ module Update = {
           and.calc result = result;
           switch (result) {
           | ResultOk((exp, _state)) =>
-            exp
-            |> CodeSelectable.Model.mk_from_exp(~inline=false)
+            Exp(exp)
+            |> CodeSelectable.Model.mk_uncalculated(~inline=false)
             |> (x => Calc.Calculated((exp, x)))
           | ResultFail(_) => Pending
           | ResultPending => Pending
@@ -293,7 +299,7 @@ module Update = {
         |> Calc.get_value
         |> Calc.map_saved(((exp, editor)) =>
              CodeSelectable.Update.calculate(
-               ~globals,
+               ~common=Globals.to_common_global(globals),
                ~is_dynamic_term=true,
                ~stitch=_ => exp,
                ~dynamics=Model.dynamics(model),
@@ -329,8 +335,9 @@ module Selection = {
     | (_, NoElab) => Haz3lcore.Cursor.empty
     | (Evaluation(selection), Evaluation({editor: Calculated(editor), _})) =>
       CodeSelectable.Selection.get_cursor_info(
-        ~globals,
+        ~common=Globals.to_common_global(globals),
         ~inject=x => inject(Update.EvalEditorAction(x)),
+        ~dynamics=Dynamics.Map.empty,
         editor |> snd,
         selection,
       )
@@ -383,10 +390,10 @@ module View = {
       switch (editor) {
       | Calculated(editor) => editor |> snd
       | _ =>
-        elab
-        |> CodeSelectable.Model.mk_from_exp(~inline=false)
+        Exp(elab)
+        |> CodeSelectable.Model.mk_uncalculated(~inline=false)
         |> CodeSelectable.Update.calculate(
-             ~globals,
+             ~common=Globals.to_common_global(globals),
              ~is_dynamic_term=true,
              ~stitch=_ => elab,
              ~dynamics=Dynamics.Map.empty,
@@ -402,8 +409,8 @@ module View = {
           font_metrics: globals.font_metrics,
           secondary_icons: globals.settings.secondary_icons,
           color_highlights: globals.color_highlights,
-          statics: editor.statics,
-          dynamics: editor.dynamics,
+          statics: editor |> Haz3lcore.EditorManager.Model.get_statics,
+          dynamics: Dynamics.Map.empty,
         },
         ~focus=selected,
         ~sort=Haz3lcore.Sort.root,
