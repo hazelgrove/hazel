@@ -584,31 +584,31 @@ let out : string * Haz3lcore.PersistentZipper.t =
          #    it with `...` until it is expanded again.       #\n\
          #    Terms can be projected using alt/option-f.      #\n\
          #    Hovering over a folded term shows the term.     #\n\n\
-         let fold = (((((((((((()))))))))))) in\n\n\
+         let fold = ^^fold((((((((((((())))))))))))) in\n\n\
          # 2. A type probe shows a term's type to the side.   #\n\
          #    Type probes can be applied using alt/option-t.  #\n\
          #    Doubleclick toggles inferred/synthesized types. #\n\n\
-         let typ: (Int -> Bool) =     in\n\n\
+         let typ: (Int -> Bool) = ^^type()   in\n\n\
          # 3. A live probe shows a term's value(s).           #\n\
          #    See the Probes slide for more information.      #\n\n\
-         let val: Int =  (1 + 1)   in\n\n\
+         let val: Int =  ^^probe((1 + 1))   in\n\n\
          # 4. Projectors on literal data are called livelits. #\n\
          #    These can be applied using alt/option-l.        #\n\
          #    Three base types literals use inline views:     #\n\n\
-         let guard: Bool = true in\n\
-         let phase: Int = 44 in\n\
-         let float: Float = 79.00 in\n\n\
+         let guard: Bool = ^^check(true) in\n\
+         let phase: Int = ^^slider(44) in\n\
+         let float: Float = ^^sliderf(79.00) in\n\n\
          # Inline error decorations (same as for tokens) #\n\n\
-         let (a:Int, f: Float) = true, 28 in\n\n\
+         let (a:Int, f: Float) = ^^check(true), ^^slider(28) in\n\n\
          # The String base type get a multiline view: #\n\n\
-         let _ = \"\" in\n\
-         let __ = \"\\n\" in\n\
-         let ___ = \"a\" in\n\
-         let ____ =\"shift\\n\"in\n\
-         let _____ =\"\\nmalicious\" in\n\
-         let ______ = \"a\\n shift\\n   malicious\"in\n\n\
+         let _ = ^^text(\"\") in\n\
+         let __ = ^^text(\"\\n\") in\n\
+         let ___ = ^^text(\"a\") in\n\
+         let ____ =^^text(\"shift\\n\")in\n\
+         let _____ =^^text(\"\\nmalicious\") in\n\
+         let ______ = ^^text(\"a\\n shift\\n   malicious\")in\n\n\
          # Multiline error decorations #\n\n\
-         let box: Int = \"\\nmalicious\" in\n\n\
+         let box: Int = ^^text(\"\\nmalicious\") in\n\n\
          # ERRATA:                                            #\n\
          # The bottom toggle can also be used to remove       #\n\
          # projectors. Projectors are preserved on in-editor  #\n\
