@@ -461,7 +461,6 @@ module Transition = (EV: EV_MODE) => {
         };
       | FunNoEnv(_) => Indet
       | BuiltinFun(ident) =>
-        // print_endline("BuiltinFun");
         let builtin =
           VarMap.lookup(Builtins.forms_init, ident)
           |> OptUtil.get(() => {
