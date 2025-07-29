@@ -159,6 +159,16 @@ let tests =
       test_case("Single quoted label in projection", `Quick, () =>
         exp_check(dot(empty_hole(), label("a")), "?.'a'")
       ),
+      test_case(
+        "Tuple extension and function application precedence", `Quick, () =>
+        exp_check(
+          tuple_extension(
+            tuple([]),
+            ap(Forward, var("from_entries"), list_lit([])),
+          ),
+          {|() ... from_entries([])|},
+        )
+      ),
       test_case("Single quoted label in pattern", `Quick, () =>
         exp_check(
           fn(

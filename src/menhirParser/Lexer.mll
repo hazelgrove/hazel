@@ -66,6 +66,7 @@ rule token =
     | "->" { DASH_ARROW }
     | "=>" { EQUAL_ARROW }
     | "=" { SINGLE_EQUAL }
+    | "..." { TUPLE_EXTENSION }
     (* Poly ops*)
     | "==" { DOUBLE_EQUAL }
     | "!=" { NOT_EQUAL }

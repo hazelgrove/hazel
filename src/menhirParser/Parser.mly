@@ -50,6 +50,7 @@ open AST
 %token EQUAL_ARROW
 %token SINGLE_EQUAL
 %token TURNSTILE
+%token TUPLE_EXTENSION
 
 (* Poly ops *)
 %token DOUBLE_EQUAL
@@ -130,7 +131,7 @@ open AST
 %right STRING_CONCAT AT_SYMBOL
 %right  CONS
 
-%left  PLUS MINUS PLUS_FLOAT MINUS_FLOAT
+%left PLUS MINUS PLUS_FLOAT MINUS_FLOAT TUPLE_EXTENSION
 %left DIVIDE TIMES TIMES_FLOAT DIVIDE_FLOAT L_NOT
 
 %right POWER POWER_FLOAT
@@ -365,3 +366,4 @@ exp:
     | LESS_THAN; LESS_THAN; e = exp; QUESTION; s = SEXP_STRING; GREATER_THAN; GREATER_THAN {DynamicErrorHole(e, s)}
     | UNDEF; {Undefined}
     | u = unExp { u }
+    | e1 = exp; TUPLE_EXTENSION; e2 = exp { TupleExtension(e1, e2) }
