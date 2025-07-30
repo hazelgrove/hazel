@@ -73,6 +73,14 @@ let rec curr_node_of =
           children: [],
           name: mk_name_from_pat(pat),
         })
+      | TyAlias(tpat, _, _) =>
+        Some({
+          info: candidate,
+          parent: None,
+          siblings: [],
+          children: [],
+          name: mk_name_from_tpat(tpat),
+        })
       | _ =>
         switch (Info.ancestors_of(candidate)) {
         | [ancestor, ..._] =>
