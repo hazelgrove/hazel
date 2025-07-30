@@ -61,7 +61,6 @@ let apply =
         |> History.Update.calculate(
              ~schedule_action,
              ~is_edited=updated.is_edit,
-             action,
            )
       : updated.model;
 
@@ -180,8 +179,7 @@ let start = {
         } else {
           ();
         };
-        model.current.model.globals.settings.core.statics
-          ? Animation.go() : ();
+        model.current.globals.settings.core.statics ? Animation.go() : ();
       },
       (),
     );

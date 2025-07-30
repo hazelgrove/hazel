@@ -2,25 +2,25 @@ open Util;
 
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type state = {
+  type current_state = Page.Model.t;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type history_state = {
     action: Page.Update.t,
-    model: Page.Model.t,
+    page: Page.Model.t,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
-    current: state,
-    undo_stack: list(Updated.t(state)),
-    redo_stack: list(Updated.t(state)),
+    current: current_state,
+    undo_stack: list(Updated.t(history_state)),
+    redo_stack: list(Updated.t(history_state)),
   };
 
   let equal = (===);
 
   let init = () => {
-    current: {
-      action: Page.Update.Start,
-      model: Page.Store.load(),
-    },
+    current: Page.Store.load(),
     undo_stack: [],
     redo_stack: [],
   };
@@ -51,14 +51,14 @@ module Update = {
       | [x, ...rest] => {
           ...x,
           model: {
-            current: x.model,
+            current: x.model.page,
             undo_stack: rest,
             redo_stack: [
               {
                 ...x,
                 model: {
                   action,
-                  model: model.current.model,
+                  page: model.current,
                 },
               },
               ...model.redo_stack,
@@ -74,13 +74,13 @@ module Update = {
       | [x, ...rest] => {
           ...x,
           model: {
-            current: x.model,
+            current: x.model.page,
             undo_stack: [
               {
                 ...x,
                 model: {
                   action,
-                  model: model.current.model,
+                  page: model.current,
                 },
               },
               ...model.undo_stack,
@@ -96,36 +96,33 @@ module Update = {
           ~get_log_and,
           ~schedule_action,
           action,
-          model.current.model,
+          model.current,
         );
-      let history =
-        List.map(
-          (s: Updated.t(Model.state)) => s.model.action,
-          model.undo_stack,
-        );
-      print_endline("---------------- UPDATE CALL ---------------");
-      print_endline("---HISTORY---");
-      List.iter(
-        item => sexp_of_t(item) |> Sexplib.Sexp.to_string |> print_endline,
-        history,
-      );
-      print_endline("---CURRENT ACTION---");
-      print_endline(Page.Update.sexp_of_t(action) |> Sexplib.Sexp.to_string);
+      //let history =
+       // List.map(
+        //  (s: Updated.t(Model.history_state)) => s.model.action,
+       //   model.undo_stack,
+      //  );
+      //print_endline("---------------- UPDATE CALL ---------------");
+      // print_endline("---HISTORY---");
+      //List.iter(
+      //  item => sexp_of_t(item) |> Sexplib.Sexp.to_string |> print_endline,
+      //  history,
+      //);
+      //print_endline("---CURRENT ACTION---");
+      //print_endline(Page.Update.sexp_of_t(action) |> Sexplib.Sexp.to_string);
       if (Page.Update.can_undo(action)) {
         print_endline("Undoable action");
         {
           ...current,
           model: {
-            current: {
-              action,
-              model: current.model,
-            },
+            current: current.model,
             undo_stack: [
               {
                 ...current,
                 model: {
                   action,
-                  model: model.current.model,
+                  page: model.current,
                 },
               },
               ...model.undo_stack,
@@ -137,10 +134,7 @@ module Update = {
         {
           ...current,
           model: {
-            current: {
-              action,
-              model: current.model,
-            },
+            current: current.model,
             undo_stack: model.undo_stack,
             redo_stack: model.redo_stack,
           },
@@ -149,19 +143,9 @@ module Update = {
     };
 
   let calculate =
-      (
-        ~schedule_action: t => unit,
-        ~is_edited: bool,
-        action: Page.Update.t,
-        model: Model.t,
-      )
-      : Model.t => {
-    current: {
-      action, // TODO what action should actually be here if any?
-      model:
-        model.current.model
-        |> Page.Update.calculate(~schedule_action, ~is_edited),
-    },
+      (~schedule_action: t => unit, ~is_edited: bool, model: Model.t): Model.t => {
+    current:
+      model.current |> Page.Update.calculate(~schedule_action, ~is_edited),
     undo_stack: model.undo_stack,
     redo_stack: model.redo_stack,
   };
@@ -171,10 +155,10 @@ module Selection = {
   type t = Page.selection;
 
   let handle_key_event = (model: Model.t) =>
-    Page.Selection.handle_key_event(model.current.model);
+    Page.Selection.handle_key_event(model.current);
 
   let get_cursor_info = (model: Model.t) =>
-    Page.Selection.get_cursor_info(model.current.model);
+    Page.Selection.get_cursor_info(model.current);
 };
 
 module View = {
@@ -183,9 +167,9 @@ module View = {
     let history =
       //[model.current.action]
       List.map(
-        (s: Updated.t(Model.state)) => s.model.action,
+        (s: Updated.t(Model.history_state)) => s.model.action,
         model.undo_stack,
       );
-    Page.View.view(~get_log_and, ~inject, model.current.model, history);
+    Page.View.view(~get_log_and, ~inject, model.current, history);
   };
 };
