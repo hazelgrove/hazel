@@ -243,7 +243,7 @@ type label_inference('a) =
 type exp = {
   term: Exp.t, /* The term under consideration */
   ancestors, /* Ascending list of containing term ids */
-  ctx: [@show.opaque] Ctx.t, /* Typing context for the term */
+  ctx: Ctx.t, /* Typing context for the term */
   ana: Typ.t, /* Parental type expectations  */
   self: Self.exp, /* Expectation-independent type info */
   co_ctx: CoCtx.t, /* Locally free variables */
