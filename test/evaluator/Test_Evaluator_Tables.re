@@ -206,5 +206,44 @@ filter@<(label=String, value=Bool)>(fun a,b ->b, melted).label|};
         );
       },
     ),
+    test_case(
+      "Project labels to singleton",
+      `Quick,
+      () => {
+        let program = {|project_labels((a=1, b=2), `a`)|};
+        check(
+          dhexp_typ,
+          program,
+          parse_exp({|1|}),
+          parse_and_evaluate(program),
+        );
+      },
+    ),
+    test_case(
+      "Omit labels to unlabeled singleton",
+      `Quick,
+      () => {
+        let program = {|omit_labels((a=1, 2), `a`)|};
+        check(
+          dhexp_typ,
+          program,
+          parse_exp({|2|}),
+          parse_and_evaluate(program),
+        );
+      },
+    ),
+    test_case(
+      "Drop labels to singleton",
+      `Quick,
+      () => {
+        let program = {|drop_labels((a=1))|};
+        check(
+          dhexp_typ,
+          program,
+          parse_exp({|1|}),
+          parse_and_evaluate(program),
+        );
+      },
+    ),
   ],
 );
