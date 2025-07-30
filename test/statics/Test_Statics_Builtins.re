@@ -185,6 +185,11 @@ module ProjectLabels = {
       {|project_labels((a=1, b=true, c=3), `a`)|},
       Some(int()),
     ),
+    fully_consistent_typecheck(
+      "project_labels to singleton",
+      {|project_labels((a=1, b=true), `a`)|},
+      Some(int()),
+    ),
     test_case("project_labels with non-label", `Quick, () =>
       annotated_tree_test(
         {|project_labels((a=1, b=true, c=3), `a`, 3, `c`)|},
@@ -1152,6 +1157,11 @@ module OmitLabels = {
         ),
       )
     ),
+    fully_consistent_typecheck(
+      "omit_labels to singleton unlabeled",
+      {|omit_labels((a=1, 2), `a`)|},
+      Some(int()),
+    ),
   ];
 };
 
@@ -1161,6 +1171,11 @@ module DropLabels = {
       "Drop labels with some labels",
       {|drop_labels((a=1, b=2.0, true, d=""))|},
       Some(prod([int(), float(), bool(), string()])),
+    ),
+    fully_consistent_typecheck(
+      "drop_labels to singleton",
+      {|drop_labels((a=1))|},
+      Some(int()),
     ),
     fully_consistent_typecheck(
       "Drop labels with type alias and autolabels",
