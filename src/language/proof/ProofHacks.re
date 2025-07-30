@@ -26,7 +26,7 @@ let replace_exp_id = (id: Id.t, exp: Exp.t, new_exp: Exp.t) =>
     ~f_exp=
       (cont, exp) =>
         if (Exp.rep_id(exp) == id) {
-          new_exp;
+          new_exp |> Exp.replace_all_ids;
         } else {
           cont(exp);
         },
