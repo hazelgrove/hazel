@@ -366,54 +366,46 @@ module ProjectLabels = {
       )
     }),
     test_case("project_labels with deferral as first arg", `Quick, () => {
-      [@warning "-21"]
-      {
-        Alcotest.skip();
-        annotated_tree_test(
-          {|project_labels(_, `a`, `b`)|},
-          unknown(Internal),
-          FIError.Exp.(
-            deferred_ap(
-              var("project_labels"),
-              [deferral(InAp), label("a"), label("b")],
-            )
-          ),
-        );
-      }
+      annotated_tree_test(
+        {|project_labels(_, `a`, `b`)|},
+        arrow(unknown(Internal), unknown(Internal)),
+        FIError.Exp.(
+          deferred_ap(
+            var("project_labels"),
+            [deferral(InAp), label("a"), label("b")],
+          )
+        ),
+      )
     }),
     test_case("project_labels with deferral in subsequent args", `Quick, () => {
-      [@warning "-21"]
-      {
-        Alcotest.skip();
-        annotated_tree_test(
-          {|project_labels((a=1, b=true, c=3), `a`, _, `c`)|},
-          prod([int(), unknown(Internal), int()]),
-          FIError.Exp.(
-            ap(
-              Forward,
-              var("project_labels"),
+      annotated_tree_test(
+        {|project_labels((a=1, b=true, c=3), `a`, _, `c`)|},
+        prod([int(), unknown(Internal), int()]),
+        FIError.Exp.(
+          ap(
+            Forward,
+            var("project_labels"),
+            tuple([
               tuple([
-                tuple([
-                  tup_label(label("a"), int(1)),
-                  tup_label(label("b"), bool(true)),
-                  tup_label(label("c"), int(3)),
-                ]),
-                label("a"),
-                deferral(
-                  ~ann=
-                    Some(
-                      Exp(
-                        Common(NoType(BadLabel(Exp(Exp.deferral(InAp))))),
-                      ),
-                    ),
-                  InAp,
-                ),
-                label("c"),
+                tup_label(label("a"), int(1)),
+                tup_label(label("b"), bool(true)),
+                tup_label(label("c"), int(3)),
               ]),
-            )
-          ),
-        );
-      }
+              label("a"),
+              deferral(
+                ~ann=
+                  Some(
+                    Exp(
+                      Common(NoType(BadLabel(Exp(Exp.deferral(InAp))))),
+                    ),
+                  ),
+                InAp,
+              ),
+              label("c"),
+            ]),
+          )
+        ),
+      )
     }),
   ];
 };
@@ -645,54 +637,50 @@ module SelectLabels = {
       )
     ),
     test_case("select_labels with deferral as first arg", `Quick, () => {
-      [@warning "-21"]
-      {
-        Alcotest.skip();
-        annotated_tree_test(
-          {|select_labels(_, `a`, `b`)|},
-          unknown(Internal),
-          FIError.Exp.(
-            deferred_ap(
-              var("select_labels"),
-              [deferral(InAp), label("a"), label("b")],
-            )
-          ),
-        );
-      }
+      annotated_tree_test(
+        {|select_labels(_, `a`, `b`)|},
+        arrow(unknown(Internal), unknown(Internal)),
+        FIError.Exp.(
+          deferred_ap(
+            var("select_labels"),
+            [deferral(InAp), label("a"), label("b")],
+          )
+        ),
+      )
     }),
     test_case("select_labels with deferral in subsequent args", `Quick, () => {
-      [@warning "-21"]
-      {
-        Alcotest.skip();
-        annotated_tree_test(
-          {|select_labels((a=1, b=true, c=3), `a`, _, `c`)|},
-          prod([int(), unknown(Internal), int()]),
-          FIError.Exp.(
-            ap(
-              Forward,
-              var("select_labels"),
+      annotated_tree_test(
+        {|select_labels((a=1, b=true, c=3), `a`, _, `c`)|},
+        prod([
+          tup_label(label("a"), int()),
+          unknown(Internal),
+          tup_label(label("c"), int()),
+        ]),
+        FIError.Exp.(
+          ap(
+            Forward,
+            var("select_labels"),
+            tuple([
               tuple([
-                tuple([
-                  tup_label(label("a"), int(1)),
-                  tup_label(label("b"), bool(true)),
-                  tup_label(label("c"), int(3)),
-                ]),
-                label("a"),
-                deferral(
-                  ~ann=
-                    Some(
-                      Exp(
-                        Common(NoType(BadLabel(Exp(Exp.deferral(InAp))))),
-                      ),
-                    ),
-                  InAp,
-                ),
-                label("c"),
+                tup_label(label("a"), int(1)),
+                tup_label(label("b"), bool(true)),
+                tup_label(label("c"), int(3)),
               ]),
-            )
-          ),
-        );
-      }
+              label("a"),
+              deferral(
+                ~ann=
+                  Some(
+                    Exp(
+                      Common(NoType(BadLabel(Exp(Exp.deferral(InAp))))),
+                    ),
+                  ),
+                InAp,
+              ),
+              label("c"),
+            ]),
+          )
+        ),
+      )
     }),
   ];
 };
@@ -1162,6 +1150,48 @@ module OmitLabels = {
       {|omit_labels((a=1, 2), `a`)|},
       Some(int()),
     ),
+    test_case("omit_labels with deferral as first arg", `Quick, () => {
+      annotated_tree_test(
+        {|omit_labels(_, `a`, `b`)|},
+        arrow(unknown(Internal), unknown(Internal)),
+        FIError.Exp.(
+          deferred_ap(
+            var("omit_labels"),
+            [deferral(InAp), label("a"), label("b")],
+          )
+        ),
+      )
+    }),
+    test_case("omit_labels with deferral in subsequent args", `Quick, () => {
+      annotated_tree_test(
+        {|omit_labels((a=1, b=true, c=3), `a`, _, `c`)|},
+        prod([tup_label(label("b"), bool())]),
+        FIError.Exp.(
+          ap(
+            Forward,
+            var("omit_labels"),
+            tuple([
+              tuple([
+                tup_label(label("a"), int(1)),
+                tup_label(label("b"), bool(true)),
+                tup_label(label("c"), int(3)),
+              ]),
+              label("a"),
+              deferral(
+                ~ann=
+                  Some(
+                    Exp(
+                      Common(NoType(BadLabel(Exp(Exp.deferral(InAp))))),
+                    ),
+                  ),
+                InAp,
+              ),
+              label("c"),
+            ]),
+          )
+        ),
+      )
+    }),
   ];
 };
 

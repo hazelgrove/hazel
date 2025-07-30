@@ -582,6 +582,136 @@ let drop_labels_statics =
   );
 };
 
+let validate_label_arguments =
+    (
+      module S: ExpressionStatics,
+      ~ctx as _: Ctx.t,
+      expected_labels: option(list(string)),
+      args: list(Exp.t),
+      m: Map.t,
+    )
+    : (list(option(string)), Map.t) => {
+  List.fold_left(
+    ((labels: list(option(string)), m: Map.t), arg) => {
+      let (label, _, m) =
+        S.label_to_info_map(
+          expected_labels,
+          Unknown(SynSwitch) |> Typ.temp,
+          arg,
+          m,
+        );
+
+      (labels @ [label], m);
+    },
+    ([], m),
+    args,
+  );
+};
+
+let custom_statics_deferred_ap =
+    (
+      ~inferred_label as _,
+      ~label_sort as _,
+      ~ctx: Ctx.t,
+      ~ancestors as _,
+      ~fn_info: Info.exp,
+      kind: Ctx.custom_statics,
+      module S: ExpressionStatics,
+      m: Map.t,
+      args: list(Exp.t),
+    ) => {
+  S.(
+    switch (kind, args) {
+    | (ProjectLabels | SelectLabels | OmitLabels, [tup, ...labels])
+        when List.length(labels) > 0 =>
+      // For these operations, first arg can be deferred, but label args cannot
+      let (tup_info, m) =
+        uexp_to_info_map(~ctx, ~ana=Unknown(SynSwitch) |> Typ.temp, tup, m);
+
+      // Validate that label arguments are not deferrals and are valid labels
+      let (_, m) =
+        validate_label_arguments((module S), ~ctx, None, labels, m);
+
+      // For deferred applications, we return a function type
+      add'(
+        ~self=
+          Common(
+            Just(
+              Arrow(
+                Unknown(Internal) |> Typ.temp,
+                Unknown(Internal) |> Typ.temp,
+              )
+              |> Typ.temp,
+            ),
+          ),
+        ~co_ctx=CoCtx.union([fn_info.co_ctx, tup_info.co_ctx]),
+        m,
+      );
+
+    | (PrimitivePivot, [table, pivot_label]) =>
+      // For primitive_pivot, first arg can be deferred, but pivot label cannot
+      let (table_info, m) =
+        uexp_to_info_map(
+          ~ctx,
+          ~ana=Unknown(SynSwitch) |> Typ.temp,
+          table,
+          m,
+        );
+
+      // Validate that the pivot label is not a deferral
+      let (_, m) =
+        validate_label_arguments((module S), ~ctx, None, [pivot_label], m);
+
+      add'(
+        ~self=Common(Just(Unknown(Internal) |> Typ.temp)),
+        ~co_ctx=CoCtx.union([fn_info.co_ctx, table_info.co_ctx]),
+        m,
+      );
+
+    | (Melt | DropLabels, [arg]) =>
+      // These operations take a single argument that can be deferred
+      let (arg_info, m) =
+        uexp_to_info_map(~ctx, ~ana=Unknown(SynSwitch) |> Typ.temp, arg, m);
+
+      add'(
+        ~self=Common(Just(Unknown(Internal) |> Typ.temp)),
+        ~co_ctx=CoCtx.union([fn_info.co_ctx, arg_info.co_ctx]),
+        m,
+      );
+
+    | _ =>
+      // Fallback for invalid argument patterns - return unknown type
+      let (args_info, m) =
+        List.fold_left(
+          ((acc_info, acc_m), arg) => {
+            let (info, new_m) =
+              S.uexp_to_info_map(
+                ~ctx,
+                ~ana=Unknown(SynSwitch) |> Typ.temp,
+                arg,
+                acc_m,
+              );
+            (acc_info @ [info], new_m);
+          },
+          ([], m),
+          args,
+        );
+      let combined_co_ctx =
+        List.fold_left(
+          (acc, info) => CoCtx.union([acc, Info.exp_co_ctx(info)]),
+          fn_info.co_ctx,
+          args_info,
+        );
+
+      add'(
+        ~self=Common(Just(Unknown(Internal) |> Typ.temp)),
+        ~co_ctx=combined_co_ctx,
+        m,
+      );
+    }
+  );
+};
+
 let custom_statics_ap = (kind: Ctx.custom_statics) => {
   switch (kind) {
   | ProjectLabels => project_labels_statics
