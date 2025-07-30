@@ -784,26 +784,33 @@ let update =
           //    We then send off this message to the LLM and await a response, either
           //    an end output to the user (implying no more looping) or a new tool call.
 
-          let (local_code_map_str, _) =
+          let (local_code_map_str, display) =
             AssistantModes.Composition.mk_local_code_map_prompt(
               ChatLSP.Options.init,
               editor,
             );
 
-          let ctx =
+          let local_code_map_str =
             "\n\nThe new AST context is:\n" ++ local_code_map_str.content;
 
           let updated_chat =
             switch (status) {
             | Success(response) =>
+              let display = {
+                ...display,
+                displayable_content: [
+                  Text(response),
+                  ...display.displayable_content,
+                ],
+                raw_content: response ++ display.raw_content,
+              };
               let response_message: Model.message = {
                 content:
                   Some(
-                    OpenRouter.mk_tool_msg(response ++ ctx, tool_contents),
+                    OpenRouter.mk_tool_msg(response ++ local_code_map_str, tool_contents),
                   ),
                 display:
-                  // TODO: update to use new message display architecture
-                  Some(Model.mk_message_display(~content=response ++ ctx)),
+                  Some(display),
                 role: System(AssistantPrompt),
                 sketch_snapshot: None,
               };
