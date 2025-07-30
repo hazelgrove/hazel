@@ -4,11 +4,11 @@ let out : string * Haz3lcore.PersistentZipper.t =
       zipper =
         "((selection((focus Left)(content())(mode \
          Normal)))(relatives((siblings(()((Projector((id \
-         ef53e5e1-af08-417d-9a78-51d91d95c3cf)(kind TextArea)(syntax(Tile((id \
-         2f1b25fd-2cf1-4e85-8f05-ccad01262e3e)(label(\"(\"\")\"))(mold((out \
+         70cee78d-4ca4-4daa-96c8-466981cb678a)(kind TextArea)(syntax(Tile((id \
+         252d964f-f625-4b2f-a47d-af320defe831)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Tile((id \
-         3ce0ea00-f178-4ccc-aec6-6597a4809970)(label(\"\\\"## \
+         5cb58844-0117-4d29-b4a5-b42af929a4ec)(label(\"\\\"## \
          Reference\\\\n\\\\n> Q. Where can we learn about the programming \
          medium covered by this datasheet?\\\\n> (Feel free to link to \
          multiple kinds of artifacts: repositories, papers, videos, etc.\\\\n> \
@@ -80,7 +80,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          be expressed in a more typesafe manner if a projection function was \
          passed instead of a column name.\\\\n  - e.g. `selectColumn(table, \
          fun e -> e.name)` as opposed to `selectColumn(table, \
-         'name')`\\\\n\\\\n## Example Programs\\\\n\\\\n> Q. Which examples \
+         `name`)`\\\\n\\\\n## Example Programs\\\\n\\\\n> Q. Which examples \
          are inexpressible? Why?\\\\n- sampleRows is inexpressible as Hazel is \
          pure\\\\n\\\\n\\\\n> Q. Which examples\\226\\128\\153 expressibility \
          is unknown? Why?\\\\nN/A\\\\n\\\\n> Q. Which examples, or aspects \
@@ -184,7 +184,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          benchmark? How?\\n- Several operations could be expressed in a more \
          typesafe manner if a projection function was passed instead of a \
          column name.\\n  - e.g. `selectColumn(table, fun e -> e.name)` as \
-         opposed to `selectColumn(table, 'name')`\\n\\n## Example \
+         opposed to `selectColumn(table, `name`)`\\n\\n## Example \
          Programs\\n\\n> Q. Which examples are inexpressible? Why?\\n- \
          sampleRows is inexpressible as Hazel is pure\\n\\n\\n> Q. Which \
          examples\226\128\153 expressibility is unknown? Why?\\nN/A\\n\\n> Q. \

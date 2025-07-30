@@ -24,7 +24,7 @@ let float = ['0'-'9']* '.' ['0'-'9']*
 let int = ['0'-'9'] ['0'-'9']*
 
 let string = '"' ([^ '"' '\\'] | '\\' ['"' '\\'])* '"'
-let quoted_label = '\'' ([^ ''' '\\'] | '\\' [''' '\\'])* '\''
+let quoted_label = '`' ([^ '`' '\\'] | '\\' [''' '\\'])* '`'
 
 let newline = '\r' | '\n' | "\r\n"
 
@@ -45,7 +45,6 @@ rule token =
     | float as f { FLOAT (parse_float_string f )}
     | string as s { STRING (String.sub s 1 (String.length s - 2)) }
     | quoted_label as l { QUOTED_LABEL (String.sub l 1 (String.length l - 2)) }
-    | sexp_string as s { SEXP_STRING (String.sub s 1 (String.length s - 2)) }
     | projector_invoke as p { PROJECTOR_INVOKE p }
     | "true" { TRUE }
     | "false" { FALSE }

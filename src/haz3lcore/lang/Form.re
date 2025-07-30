@@ -83,15 +83,17 @@ let is_secondary = t =>
 let string_regexp = regexp({|^\"[^\n"]*\"$|}); /* Multiline strings not supported */
 let is_string = t => match(string_regexp, t);
 let string_delim = "\"";
-let single_quote_label_regexp = regexp("^\'[^\'\n]*\'$");
+let single_quote_label_regexp = regexp("^`[^`\n]*`$");
 let is_single_quote_label = t => match(single_quote_label_regexp, t);
+let label_delim = "`";
+let is_single_quote_label_delim = (==)(label_delim);
 let empty_string = string_delim ++ string_delim;
 let is_string_delim = (==)(string_delim);
-let strip_quotes = s =>
+let strip_quotes = (~quote="\"", s) =>
   if (String.length(s) < 2) {
     s;
-  } else if (String.sub(s, 0, 1) != "\""
-             || String.sub(s, String.length(s) - 1, 1) != "\"") {
+  } else if (String.sub(s, 0, 1) != quote
+             || String.sub(s, String.length(s) - 1, 1) != quote) {
     s;
   } else {
     String.sub(s, 1, String.length(s) - 2);
@@ -124,7 +126,7 @@ let is_potential_operand =
  *  delimiters, string delimiters, or the instant expanding paired
  *  delimiters: ()[]| */
 let potential_operator_regexp =
-  regexp("^[^a-zA-Z0-9_'?\\^\"#\n\\s\\[\\]\\(\\)]+$"); /* Multiline operators not supported */
+  regexp("^[^a-zA-Z0-9_'?\\^\"`#\n\\s\\[\\]\\(\\)]+$"); /* Multiline operators not supported */
 let is_potential_operator = match(potential_operator_regexp);
 let begins_with_potential_operator =
   match(regexp("^[^a-zA-Z0-9_'?\"#\n\\s\\[\\]\\(\\)]+"));
