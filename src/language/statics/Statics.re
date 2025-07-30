@@ -356,7 +356,13 @@ and uexp_to_info_map =
     | Cons(hd, tl) =>
       let inner_ana_ty = Typ.matched_list(ctx, ana);
       let (hd, m) = go(~ana=inner_ana_ty, hd, m);
-      let (tl, m) = go(~ana=List(inner_ana_ty) |> Typ.temp, tl, m);
+      let (tl, m) =
+        go(
+          ~ana=
+            List(Typ.is_syn(inner_ana_ty) ? hd.ty : inner_ana_ty) |> Typ.temp,
+          tl,
+          m,
+        );
       add(
         ~self=Just(List(hd.ty) |> Typ.temp),
         ~co_ctx=CoCtx.union([hd.co_ctx, tl.co_ctx]),
