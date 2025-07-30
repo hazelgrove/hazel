@@ -465,7 +465,13 @@ and uexp_to_info_map =
     | Cons(hd, tl) =>
       let inner_ana_ty = Typ.matched_list(ctx, ana);
       let (hd, m) = go(~ana=inner_ana_ty, hd, m);
-      let (tl, m) = go(~ana=List(inner_ana_ty) |> Typ.temp, tl, m);
+      let (tl, m) =
+        go(
+          ~ana=
+            List(Typ.is_syn(inner_ana_ty) ? hd.ty : inner_ana_ty) |> Typ.temp,
+          tl,
+          m,
+        );
       add(
         ~self=Just(List(hd.ty) |> Typ.temp),
         ~co_ctx=CoCtx.union([hd.co_ctx, tl.co_ctx]),
@@ -534,6 +540,20 @@ and uexp_to_info_map =
         let (_, m) = go(~ana=syn, e1, m);
         let (_, m) = go(~ana=syn, e2, m);
         add'(~self=BadOperator(msg), ~co_ctx=CoCtx.empty, m);
+      | DefinedPoly(_) =>
+        let ids = List.map(Exp.rep_id, [e1, e2]);
+        let (es, m) =
+          map_m_go(
+            m,
+            [Unknown(Internal) |> Typ.temp, Unknown(Internal) |> Typ.temp],
+            [e1, e2],
+          );
+        let tys = List.map(Info.exp_ty, es);
+        add(
+          ~self=Self.poly_eq(ctx, tys, ids),
+          ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es)),
+          m,
+        );
       | Defined(ty1, ty2, ty_out, _) =>
         let ty1 = Atom(Atom.cls_of_kind(ty1)) |> Typ.temp;
         let ty2 = Atom(Atom.cls_of_kind(ty2)) |> Typ.temp;

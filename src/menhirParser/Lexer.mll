@@ -33,6 +33,7 @@ let identifier = ['a'-'z' '_'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
 let constructor_ident = ['A'-'Z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
 let sexp_string = '`' [^'`']* '`'
 let ints = ['0'-'9']+
+let projector_invoke = "^^" ['a'-'z' 'A'-'Z' '0'-'9' '_']+
 
 rule token = 
     parse 
@@ -43,6 +44,7 @@ rule token =
     | float as f { FLOAT (parse_float_string f )}
     | string as s { STRING (String.sub s 1 (String.length s - 2)) }
     | sexp_string as s { SEXP_STRING (String.sub s 1 (String.length s - 2)) }
+    | projector_invoke as p { PROJECTOR_INVOKE p }
     | "true" { TRUE }
     | "false" { FALSE }
     | "let" { LET }
@@ -62,14 +64,15 @@ rule token =
     | "->" { DASH_ARROW }
     | "=>" { EQUAL_ARROW }
     | "=" { SINGLE_EQUAL }
+    (* Poly ops*)
+    | "==" { DOUBLE_EQUAL }
+    | "!=" { NOT_EQUAL }
     (* Int ops*)
     | "+" { PLUS }
     | "-" { MINUS }
     | "*" { TIMES }
     | "/" { DIVIDE }
     | "**" {POWER}
-    | "==" { DOUBLE_EQUAL }
-    | "!=" { NOT_EQUAL }
     | "<" { LESS_THAN}
     | "<=" { LESS_THAN_EQUAL }
     | ">" { GREATER_THAN }
@@ -80,12 +83,12 @@ rule token =
     | "*." { TIMES_FLOAT }
     | "/." { DIVIDE_FLOAT }
     | "**." {POWER_FLOAT}
-    | "==." { DOUBLE_EQUAL_FLOAT }
-    | "!=." { NOT_EQUAL_FLOAT }
     | "<." { LESS_THAN_FLOAT}
     | "<=." { LESS_THAN_EQUAL_FLOAT }
     | ">." { GREATER_THAN_FLOAT }
     | ">=." { GREATER_THAN_EQUAL_FLOAT }
+    | "==." { DOUBLE_EQUAL_FLOAT }
+    | "!=." { NOT_EQUAL_FLOAT }
     (* String Ops *)
     | "++" { STRING_CONCAT }
     | "$==" { STRING_EQUAL }

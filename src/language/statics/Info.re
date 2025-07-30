@@ -41,6 +41,8 @@ type error_inconsistent =
     })
   /* Inconsistent match or listlit */
   | Internal(list(Typ.t))
+  /* Bad type equality due to function inside */
+  | CompareFun(Typ.t)
   /* Bad function position */
   | WithArrow(Typ.t);
 
@@ -423,6 +425,7 @@ let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
         ),
       )
     }
+  | (CompareFun(ty), _) => InHole(Inconsistent(CompareFun(ty)))
   | (FreeConstructor(name), _) => InHole(NoType(FreeConstructor(name)))
   | (BadToken(name), _) => InHole(NoType(BadToken(name)))
   | (BadLabel(label), _) => InHole(NoType(BadLabel(label)))
@@ -448,6 +451,7 @@ let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
   | (Duplicate(lab, _), _) =>
     InHole(DuplicateLabel(lab, Unknown(Internal) |> Typ.temp))
   | (IsMulti, _) => NotInHole(Syn(Unknown(Internal) |> Typ.temp))
+  | (NoJoin(PolyEq, tys), _)
   | (NoJoin(_, tys), {term: Unknown(SynSwitch), _}) =>
     InHole(Inconsistent(Internal(Typ.of_source(tys))))
   | (NoJoin(wrap, tys), ana) =>
@@ -493,7 +497,10 @@ let rec status_pat = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.pat): status_pat =>
     let additional_err =
       switch (status_pat(ctx, ty_ana, self)) {
       | InHole(
-          Common(Inconsistent(Internal(_) | Expectation(_)) | NoType(_)) as err,
+          Common(
+            Inconsistent(Internal(_) | Expectation(_) | CompareFun(_)) |
+            NoType(_),
+          ) as err,
         ) =>
         Some(err)
       | NotInHole(_) => None
@@ -532,7 +539,12 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
       | InHole(Common(Inconsistent(Internal(_)) as inconsistent_err)) =>
         Some(inconsistent_err)
       | NotInHole(_)
-      | InHole(Common(Inconsistent(Expectation(_) | WithArrow(_)))) => None /* Type checking should fail and these errors would be nullified */
+      | InHole(
+          Common(
+            Inconsistent(Expectation(_) | WithArrow(_) | CompareFun(_)),
+          ),
+        ) =>
+        None /* Type checking should fail and these errors would be nullified */
       | InHole(
           Common(NoType(_) | TupleLabelError(_) | DuplicateLabel(_)) |
           FreeVariable(_) |
@@ -742,6 +754,7 @@ let fixed_typ_err_common: error_common => Typ.t =
   | DuplicateLabel(_, typ) => typ
   | Inconsistent(Expectation({ana, _})) => ana
   | Inconsistent(Internal(_)) => Unknown(Internal) |> Typ.temp // Should this be some sort of meet?
+  | Inconsistent(CompareFun(_)) => Atom(Bool) |> Typ.temp
   | Inconsistent(WithArrow(_)) =>
     Arrow(Unknown(Internal) |> Typ.temp, Unknown(Internal) |> Typ.temp)
     |> Typ.temp;

@@ -2079,12 +2079,6 @@ let get_doc =
               int_greater_than_equal,
               int_gte_exp_coloring_ids,
             )
-          | Nat(Equals)
-          | SInt(Equals)
-          | Int(Equals) => (int_equal, int_eq_exp_coloring_ids)
-          | Nat(NotEquals)
-          | SInt(NotEquals)
-          | Int(NotEquals) => (int_not_equal, int_neq_exp_coloring_ids)
           | Float(Plus) => (float_plus, float_plus_exp_coloring_ids)
           | Float(Minus) => (float_minus, float_minus_exp_coloring_ids)
           | Float(Times) => (float_times, float_times_exp_coloring_ids)
@@ -2109,6 +2103,8 @@ let get_doc =
           | Bool(Or) => (bool_or, bool_or_exp_coloring_ids)
           | String(Equals) => (string_equal, str_eq_exp_coloring_ids)
           | String(Concat) => (string_concat, str_concat_exp_coloring_ids)
+          | Poly(Equals) => (poly_equal, poly_eq_exp_coloring_ids)
+          | Poly(NotEquals) => (poly_not_equal, poly_neq_exp_coloring_ids)
           };
         let left_id = List.nth(IdTagged.ids(left), 0);
         let right_id = List.nth(IdTagged.ids(right), 0);

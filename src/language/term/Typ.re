@@ -98,7 +98,7 @@ let show_cls: cls => string =
   fun
   | Invalid => "Invalid type"
   | MultiHole => "Broken type"
-  | EmptyHole => "Empty type hole"
+  | EmptyHole => "Type hole"
   | SynSwitch => "Synthetic type"
   | Internal => "Internal type"
   | Atom(_) => "Base type"
@@ -148,6 +148,29 @@ let is_atom = (ty: t): bool =>
   | Sum(_)
   | Forall(_)
   | Rec(_) => false
+  };
+
+let rec has_fun = (typ: t) =>
+  switch (typ.term) {
+  | Parens(typ) => has_fun(typ)
+  | TupLabel(_, typ) => has_fun(typ)
+  | Arrow(_)
+  | Forall(_) => true
+  | Unknown(_)
+  | Atom(_)
+  | Label(_)
+  | Var(_) => false
+  | List(t) => has_fun(t)
+  | Rec(_, t) => has_fun(t)
+  | Sum(sm) =>
+    List.exists(
+      fun
+      | ConstructorMap.Variant(_, _, Some(t)) => has_fun(t)
+      | _ => false,
+      sm,
+    )
+  | Ap(t1, t2) => has_fun(t1) || has_fun(t2)
+  | Prod(tys) => List.exists(has_fun, tys)
   };
 
 let rec is_forall = (typ: t) => {
@@ -277,6 +300,35 @@ let rec aliases_deep = (ctx: Ctx.t, ty: t): list((string, t)) => {
     ListUtil.flat_map(((_, ty')) => aliases_deep(ctx, ty'), defs);
   rec_calls @ defs;
 };
+
+let rec vars = (ty: t): list(Var.t) =>
+  switch (ty.term) {
+  | Atom(_)
+  | Unknown(_) => []
+  | Var(x) => [x]
+  | Arrow(ty1, ty2) => vars(ty1) @ vars(ty2)
+  | Prod(tys) => ListUtil.flat_map(vars, tys)
+  | Sum(sm) =>
+    List.concat_map(
+      fun
+      | ConstructorMap.BadEntry(_) => []
+      | Variant(_, _, None) => []
+      | Variant(_, _, Some(typ)) => vars(typ),
+      sm,
+    )
+  | Rec({term: Var(x), _}, ty) =>
+    /* Remove recursive type references */
+    vars(ty) |> List.filter((x': string) => x' != x)
+  | Rec(_, ty) => vars(ty)
+  | List(ty) => vars(ty)
+  | Parens(ty) => vars(ty)
+  | Forall({term: Var(x), _}, ty) =>
+    vars(ty) |> List.filter((x': string) => x' != x)
+  | Forall(_, ty) => vars(ty)
+  | Ap(ty1, ty2) => vars(ty1) @ vars(ty2)
+  | Label(_) => []
+  | TupLabel(_, ty) => vars(ty)
+  };
 
 let var_count = ref(0);
 let fresh_var = (var_name: string) => {
