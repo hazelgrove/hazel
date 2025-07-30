@@ -37,6 +37,7 @@ let of_delim' =
         | [s] when Form.is_llm_hole(s) => "llm-waiting"
         | [s] when s == Form.explicit_hole => "explicit-hole"
         | [s] when Form.is_string(s) => "string-lit"
+        | [s] when Form.is_single_quote_label(s) => "label"
         | _ when is_infix_var => "Any" /* Budget error deco */
         | _ => Sort.to_string(sort)
         };

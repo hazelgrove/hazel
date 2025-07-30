@@ -189,7 +189,9 @@ let move_into_if_stringlit_or_comment = (char, z) =>
      and ideally this logic would be located there as well, but both regrouting and
      subsequent caret position logic at this function's callsites dicate that this
      be done after. Not too happy about this tbh. */
-  Form.is_string_delim(char) || Form.is_comment_delim(char)
+  Form.is_string_delim(char)
+  || Form.is_comment_delim(char)
+  || Form.is_single_quote_label_delim(char)
     ? switch (move(Left, z)) {
       | None => z
       | Some(z) => z |> set_caret(Inner(0, 0))
@@ -253,7 +255,9 @@ let closing_stringlit_or_comment = (char, t) =>
   Form.is_string(t)
   && Form.is_string_delim(char)
   || Form.is_comment(t)
-  && Form.is_comment_delim(char);
+  && Form.is_comment_delim(char)
+  || Form.is_single_quote_label(t)
+  && Form.is_single_quote_label_delim(char);
 
 let invoked_projector = (name: string, syntax: Segment.t): option(Piece.t) => {
   let* name = Form.of_projector_invoke(name);

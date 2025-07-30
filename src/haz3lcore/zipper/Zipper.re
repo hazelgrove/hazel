@@ -305,10 +305,10 @@ let put_down_regrout_remold_tok =
 let rec construct =
         (~caret: Direction.t, ~backpack: Direction.t, label: Label.t, z: t): t => {
   switch (label) {
-  | [t] when Form.is_string_delim(t) =>
-    /* Special case for constructing string literals.
+  | [t] when Form.is_string_delim(t) || Form.is_single_quote_label_delim(t) =>
+    /* Special case for constructing string/label literals.
        See Insert.move_into_if_stringlit for more special-casing. */
-    construct(~caret, ~backpack, [Form.string_delim ++ Form.string_delim], z)
+    construct(~caret, ~backpack, [t ++ t], z)
   | [content] when Form.is_comment(content) =>
     /* Special case for comments, can't rely on the last branch to construct */
     let content = Secondary.construct_comment(content);

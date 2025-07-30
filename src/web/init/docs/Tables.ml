@@ -669,8 +669,8 @@ let out : string * Haz3lcore.PersistentZipper.t =
          1b8d972b-82f8-4cb1-88af-416bce1420c8)(content(Comment\"# Wildlife \
          Tracking: Grid of Species Sightings #\"))))(Secondary((id \
          78c27182-8119-4ccd-9e9a-7fb7ec1ad756)(content(Whitespace\"\\n\"))))(Projector((id \
-         5c9f560e-966d-4fb4-8f92-0677db91ba35)(kind Fold)(syntax(Tile((id \
-         f5495c97-59e7-4806-92ff-3b4a60d6e51e)(label(\"(\"\")\"))(mold((out \
+         2d0d9751-8e74-4a3d-8e1e-48b7a38ce651)(kind Fold)(syntax(Tile((id \
+         1af015b1-dcb3-4cd2-9869-3711c6905df8)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Tile((id \
          446f03e8-15e5-4ca1-b560-7374df2019df)(label(\"(\"\")\"))(mold((out \
@@ -2011,7 +2011,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          47))(sort Exp))))))(shards(0))(children())))(Secondary((id \
          54afd117-e680-4b0a-8b59-d5d94751e91b)(content(Whitespace\" \
          \"))))(Tile((id \
-         390e51c7-2195-485a-8e90-18d375326ea2)(label('day'))(mold((out \
+         44f5efcd-65ed-43b8-8ff7-58a1916f31b2)(label(`day`))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))))))))))))(Secondary((id \
          8e2a29f8-6afa-4d58-8d76-bc3d97ff6546)(content(Whitespace\" \
@@ -2549,8 +2549,8 @@ let out : string * Haz3lcore.PersistentZipper.t =
          92dc94a9-4259-4f60-9881-abd487be859b)(content(Comment\"# Example: \
          Game leaderboard entries grouped by level #\"))))(Secondary((id \
          9afda690-c610-4c8e-a83d-30b2399c3fc9)(content(Whitespace\"\\n\"))))(Projector((id \
-         5ab21833-8331-40bf-818b-d092462f79ae)(kind Fold)(syntax(Tile((id \
-         03e30510-5c47-4317-ad56-ce0363ceede1)(label(\"(\"\")\"))(mold((out \
+         5d9ebb47-3b22-4bf9-965e-23f13910691b)(kind Fold)(syntax(Tile((id \
+         245dca11-f2fb-4b51-8580-e441f38c72aa)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Tile((id \
          5d927026-13cd-463f-ad8f-984604badca4)(label(\"(\"\")\"))(mold((out \
@@ -2819,7 +2819,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          47))(sort Exp))))))(shards(0))(children())))(Secondary((id \
          1a0338ee-fe26-40e9-aaf9-9a30b9ec3020)(content(Whitespace\" \
          \"))))(Tile((id \
-         9c14103e-d4dd-400f-baa0-0a04fa8d706d)(label('level'))(mold((out \
+         7c3c1240-4f32-41c3-adc6-be7136c6fab1)(label(`level`))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Secondary((id \
          d72c03de-92ab-495d-a3ff-5e49b1eaae49)(content(Whitespace\" \
@@ -2938,7 +2938,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          let melted : [(label=String, value=Bool)] = flat_map(sightings, fun \
          sighting:^^fold((day=Int, fox=Bool, deer=Bool, rabbit=Bool, \
          bear=Bool, owl=Bool, raccoon=Bool, wolf=Bool, moose=Bool)) -> \
-         melt(omit_labels(sighting, 'day'))) in\n\
+         melt(omit_labels(sighting, `day`))) in\n\
          let counts : [String] -> [(String, Int)] = ^^fold(fun elems -> case \
          elems\n\
          | [] => []\n\
@@ -2971,7 +2971,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          (level=\"cave\", player=\"Dana\", score=700),\n\
          (level=\"desert\", player=\"Eli\", score=1300)\n\
          ] in\n\n\
-         let by_level = primitive_pivot(leaderboard, 'level') in\n\
+         let by_level = primitive_pivot(leaderboard, `level`) in\n\
          ^^probe(by_level.forest);\n\
          ^^probe(by_level.cave);\n\
          ^^probe(by_level.desert.score)\n\
