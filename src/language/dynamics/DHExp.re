@@ -305,7 +305,7 @@ let replace_exp = (replace, with_exp, in_exp) => {
     ~f_exp=
       (continue, exp) =>
         if (fast_equal(exp, replace)) {
-          with_exp;
+          with_exp |> replace_all_ids;
         } else {
           continue(exp);
         },
