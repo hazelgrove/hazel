@@ -18,8 +18,24 @@ let mk_composition = (): OpenRouter.message => {
   );
 };
 
-let mk_suggestion = (): OpenRouter.message => {
-  OpenRouter.mk_system_msg(
-    "You are a helpful assistant that helps the user complete requested completions of holes in the Hazel programming language.",
-  );
+let mk_suggestion =
+    (options: ChatLSP.Options.t, hole_label: string, advanced_reasoning: bool)
+    : OpenRouter.message => {
+  let prompt =
+    String.concat(
+      "\n",
+      [
+        ChatLSP.SystemPrompt.mk_suggestion_prompt(
+          options,
+          hole_label,
+          advanced_reasoning,
+        ),
+      ]
+      @ CompletionExamples.get(
+          options.num_examples,
+          hole_label,
+          advanced_reasoning,
+        ),
+    );
+  OpenRouter.mk_system_msg(prompt);
 };

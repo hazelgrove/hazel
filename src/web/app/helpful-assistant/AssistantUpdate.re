@@ -735,14 +735,14 @@ let update =
           schedule_action(EmployLLMAction(SetLoop(false)));
           let content_message: Model.message =
             mk_user_content_message(~content, ~role=User, ~editor);
-          let ctx =
-            AssistantModes.Composition.mk_ctx_prompt(
+          let (local_code_map_str, display) =
+            AssistantModes.Composition.mk_local_code_map_prompt(
               ChatLSP.Options.init,
               editor,
             );
           let ctx_message: Model.message = {
-            content: Some(ctx),
-            display: Some(Model.mk_message_display(~content=ctx.content)),
+            content: Some(local_code_map_str),
+            display: Some(display),
             role: System(AssistantPrompt),
             sketch_snapshot: None,
           };
@@ -784,13 +784,14 @@ let update =
           //    We then send off this message to the LLM and await a response, either
           //    an end output to the user (implying no more looping) or a new tool call.
 
-          let ctx =
-            AssistantModes.Composition.mk_ctx_prompt(
+          let (local_code_map_str, _) =
+            AssistantModes.Composition.mk_local_code_map_prompt(
               ChatLSP.Options.init,
               editor,
             );
 
-          let ctx = "\n\nThe new AST context is:\n" ++ ctx.content;
+          let ctx =
+            "\n\nThe new AST context is:\n" ++ local_code_map_str.content;
 
           let updated_chat =
             switch (status) {
@@ -801,6 +802,7 @@ let update =
                     OpenRouter.mk_tool_msg(response ++ ctx, tool_contents),
                   ),
                 display:
+                  // TODO: update to use new message display architecture
                   Some(Model.mk_message_display(~content=response ++ ctx)),
                 role: System(AssistantPrompt),
                 sketch_snapshot: None,

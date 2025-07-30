@@ -444,6 +444,6 @@ module View = {
       };
 
     let seg = z''.selection.content;
-    Printer.of_segment(~holes="?", ~special_folds=true, seg);
+    seg;
   };
 };

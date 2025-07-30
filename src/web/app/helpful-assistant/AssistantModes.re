@@ -26,32 +26,6 @@ module Completion = {
     | Secondary(_) => []
     };
 
-  let mk_const_prompt =
-      (
-        options: ChatLSP.Options.t,
-        hole_label: string,
-        advanced_reasoning: bool,
-      )
-      : OpenRouter.message => {
-    let prompt =
-      String.concat(
-        "\n",
-        [
-          ChatLSP.SystemPrompt.mk_suggestion_prompt(
-            options,
-            hole_label,
-            advanced_reasoning,
-          ),
-        ]
-        @ CompletionExamples.get(
-            options.num_examples,
-            hole_label,
-            advanced_reasoning,
-          ),
-      );
-    OpenRouter.mk_system_msg(prompt);
-  };
-
   let mk_ctx_prompt =
       (
         options: ChatLSP.Options.t,
@@ -206,9 +180,9 @@ module Composition = {
   // Parent node: <name>
   // Children nodes: [<name>, <name>, ...]
   // Static errors: <errors>
-  let mk_ctx_prompt =
+  let mk_local_code_map_prompt =
       (_: ChatLSP.Options.t, editor: CodeWithStatics.Model.t)
-      : OpenRouter.message => {
+      : (OpenRouter.message, AssistantModel.display) => {
     let curr_node_info = TreeHelper.build_sub_AST(editor);
 
     let curr_node_str = "Current node: " ++ curr_node_info.name;
@@ -240,7 +214,10 @@ module Composition = {
          )
       ++ "]";
 
-    let definition_str =
+    let sketch_seg =
+      TreeHelper.View.definition(editor.editor.state.zipper, curr_node_info);
+
+    let sketch_seg_hd_str =
       "Definition of \""
       ++ curr_node_info.name
       ++ "\"'s parent "
@@ -250,12 +227,15 @@ module Composition = {
         | None => "(no parent, displaying entire top level of the program)"
         }
       )
-      ++ "\":\n```"
-      ++ TreeHelper.View.definition(
-           editor.editor.state.zipper,
-           curr_node_info,
-         )
-      ++ "```";
+      ++ "\":\n```";
+    let sketch_seg_str =
+      Printer.of_segment(~holes="?", ~special_folds=true, sketch_seg);
+    let sketch_seg_tl_str = "```";
+    let def_str =
+      String.concat(
+        "\n",
+        [sketch_seg_hd_str, sketch_seg_str, sketch_seg_tl_str],
+      );
 
     let static_errors = ErrorPrint.all(editor.statics.info_map);
     let static_errors_str =
@@ -282,14 +262,26 @@ module Composition = {
         "\n",
         [
           "<Sketch information>",
-          definition_str,
+          def_str,
           static_errors_str,
           "</Sketch information>",
         ],
       );
 
-    OpenRouter.mk_user_msg(
-      String.concat("\n", [ast_info_str, sketch_info_str]),
+    let local_code_map_str =
+      String.concat("\n", [ast_info_str, sketch_info_str]);
+
+    (
+      OpenRouter.mk_user_msg(local_code_map_str),
+      {
+        displayable_content: [
+          Text(ast_info_str ++ sketch_seg_hd_str),
+          Code(sketch_seg),
+          Text(sketch_seg_tl_str ++ static_errors_str),
+        ],
+        raw_content: local_code_map_str,
+        collapsed: false,
+      },
     );
   };
 
@@ -510,9 +502,13 @@ module Composition = {
         "Definition of \""
         ++ curr_node_info.name
         ++ "\":\n```"
-        ++ TreeHelper.View.definition(
-             editor.editor.state.zipper,
-             curr_node_info,
+        ++ Printer.of_segment(
+             ~holes="?",
+             ~special_folds=true,
+             TreeHelper.View.definition(
+               editor.editor.state.zipper,
+               curr_node_info,
+             ),
            )
         ++ "```"
       | _ => raise(Failure("Unhandled read action"))

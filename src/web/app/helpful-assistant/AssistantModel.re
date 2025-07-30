@@ -161,7 +161,7 @@ let mk_mode_prompt = (~mode: AssistantSettings.mode): OpenRouter.message => {
     switch (mode) {
     | HazelTutor => InitPrompts.mk_tutor()
     | CodeSuggestion =>
-      AssistantModes.Completion.mk_const_prompt(
+      InitPrompts.mk_suggestion(
         ChatLSP.Options.init,
         "code_suggestion",
         false,
@@ -214,9 +214,9 @@ let parse_blocks = (response: string): list(block_kind) => {
 
 let mk_message_display = (~content: string): display => {
   {
-    displayable_content:
-      String.length(content) <= max_collapsed_length
-        ? parse_blocks(content) : [Text(content)],
+    displayable_content: parse_blocks(content),
+    // String.length(content) <= max_collapsed_length
+    //   ? parse_blocks(content) : [Text(content)],
     raw_content: content,
     collapsed: true,
   };

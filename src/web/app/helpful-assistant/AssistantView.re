@@ -912,7 +912,9 @@ let text_block =
                 ],
               )
             : content;
-        mk_translation(~text=content)
+        [text(content)]
+        // TODO: fix markdown rendering. for now, just displaying raw content.
+        //mk_translation(~text=content)
         @ [
           form_collapse_toggle(
             ~message,
