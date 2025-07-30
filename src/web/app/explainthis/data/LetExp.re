@@ -91,7 +91,7 @@ let let_conap_ex = {
 let let_funap_ex = {
   sub_id: Let(Ap),
   term: mk_example("let f(x) = x*2\nin f(3)"),
-  message: "The variable x is bound to a function transforming x to x * 2, so the expression evaluates to 3 * 2 = 6.",
+  message: "The variable f is bound to a function transforming x to x * 2, so the expression evaluates to 3 * 2 = 6.",
 };
 let _pat_def_body_let_exp_coloring_ids =
     (

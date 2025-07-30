@@ -28,7 +28,7 @@ let funapp_pat_coloring_ids =
   (Piece.id(_pat_arg), arg_id),
 ];
 let funapp_pat: form = {
-  let explanation = "Only expressions that match the [*function*](%s) with an *argument* matching the [*argument pattern*](%s) match this *function application pattern*.";
+  let explanation = "Defines a function [*function*](%s) with [*arguments*](%s) through this *function application pattern*.";
   {
     id: ApConsPat,
     syntactic_form: [_pat_fun, mk_ap_pat([[_pat_arg]])],
