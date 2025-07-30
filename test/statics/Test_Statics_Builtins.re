@@ -407,6 +407,19 @@ module ProjectLabels = {
         ),
       )
     }),
+    test_case("project_labels with single deferral - arity error", `Quick, () => {
+      annotated_tree_test(
+        {|project_labels(_)|},
+        unknown(Internal),
+        FIError.Exp.(
+          deferred_ap(
+            ~ann=Some(Exp(BuiltinError(AtLeast2Arguments))),
+            var("project_labels"),
+            [deferral(InAp)],
+          )
+        ),
+      )
+    }),
   ];
 };
 
@@ -682,6 +695,19 @@ module SelectLabels = {
         ),
       )
     }),
+    test_case("select_labels with single deferral - arity error", `Quick, () => {
+      annotated_tree_test(
+        {|select_labels(_)|},
+        unknown(Internal),
+        FIError.Exp.(
+          deferred_ap(
+            ~ann=Some(Exp(BuiltinError(AtLeast2Arguments))),
+            var("select_labels"),
+            [deferral(InAp)],
+          )
+        ),
+      )
+    }),
   ];
 };
 
@@ -936,6 +962,32 @@ module PrimitivePivot = {
         ),
       )
     ),
+    test_case("primitive_pivot with single deferral - arity error", `Quick, () => {
+      annotated_tree_test(
+        {|primitive_pivot(_)|},
+        unknown(Internal),
+        FIError.Exp.(
+          deferred_ap(
+            ~ann=Some(Exp(BuiltinError(Exactly2Arguments))),
+            var("primitive_pivot"),
+            [deferral(InAp)],
+          )
+        ),
+      )
+    }),
+    test_case("primitive_pivot with three deferrals - arity error", `Quick, () => {
+      annotated_tree_test(
+        {|primitive_pivot(_, _, _)|},
+        unknown(Internal),
+        FIError.Exp.(
+          deferred_ap(
+            ~ann=Some(Exp(BuiltinError(Exactly2Arguments))),
+            var("primitive_pivot"),
+            [deferral(InAp), deferral(InAp), deferral(InAp)],
+          )
+        ),
+      )
+    }),
   ];
 };
 
@@ -1188,6 +1240,33 @@ module OmitLabels = {
               ),
               label("c"),
             ]),
+          )
+        ),
+      )
+    }),
+    test_case("omit_labels with single deferral - arity error", `Quick, () => {
+      annotated_tree_test(
+        {|omit_labels(_)|},
+        unknown(Internal),
+        FIError.Exp.(
+          deferred_ap(
+            ~ann=Some(Exp(BuiltinError(AtLeast2Arguments))),
+            var("omit_labels"),
+            [deferral(InAp)],
+          )
+        ),
+      )
+    }),
+    test_case("omit_labels with no args - arity error", `Quick, () => {
+      annotated_tree_test(
+        {|omit_labels()|},
+        unknown(Internal),
+        FIError.Exp.(
+          ap(
+            ~ann=Some(Exp(BuiltinError(AtLeast2Arguments))),
+            Forward,
+            var("omit_labels"),
+            tuple([]),
           )
         ),
       )

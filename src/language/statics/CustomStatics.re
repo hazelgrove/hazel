@@ -595,6 +595,59 @@ let custom_statics_deferred_ap =
         m,
       );
 
+    // Arity error cases
+    | (ProjectLabels | SelectLabels | OmitLabels, [])
+    | (ProjectLabels | SelectLabels | OmitLabels, [_]) =>
+      let (args_info, m) =
+        List.fold_left(
+          ((acc_info, acc_m), arg) => {
+            let (info, new_m) =
+              S.uexp_to_info_map(~ctx, ~ana=syn, arg, acc_m);
+            (acc_info @ [info], new_m);
+          },
+          ([], m),
+          args,
+        );
+      let combined_co_ctx =
+        List.fold_left(
+          (acc, info) => CoCtx.union([acc, Info.exp_co_ctx(info)]),
+          fn_info.co_ctx,
+          args_info,
+        );
+
+      add'(
+        ~self=BuiltinError(AtLeast2Arguments),
+        ~co_ctx=combined_co_ctx,
+        m,
+      );
+
+    | (PrimitivePivot, [])
+    | (PrimitivePivot, [_])
+    | (PrimitivePivot, [_, _, ..._]) =>
+      let (args_info, m) =
+        List.fold_left(
+          ((acc_info, acc_m), arg) => {
+            let (info, new_m) =
+              S.uexp_to_info_map(~ctx, ~ana=syn, arg, acc_m);
+            (acc_info @ [info], new_m);
+          },
+          ([], m),
+          args,
+        );
+      let combined_co_ctx =
+        List.fold_left(
+          (acc, info) => CoCtx.union([acc, Info.exp_co_ctx(info)]),
+          fn_info.co_ctx,
+          args_info,
+        );
+
+      add'(
+        ~self=BuiltinError(Exactly2Arguments),
+        ~co_ctx=combined_co_ctx,
+        m,
+      );
+
+    // Fallback for other cases (including melt/drop_labels with wrong arity)
     | _ =>
       let (args_info, m) =
         List.fold_left(
