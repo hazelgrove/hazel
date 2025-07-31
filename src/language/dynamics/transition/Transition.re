@@ -712,7 +712,6 @@ module Transition = (EV: EV_MODE) => {
 
       | _ => Indet
       };
-
     | TupLabel(label, d1) =>
       let. _ = otherwise(env, d1 => TupLabel(label, d1) |> rewrap)
       and. _ =
