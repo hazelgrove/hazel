@@ -13,7 +13,6 @@ open AST
 %token FORALL
 %token REC
 %token UNDEF
-%token <string> SEXP_STRING
 %token <string> PROJECTOR_INVOKE
 %token DOLLAR_SIGN
 %token TYP
