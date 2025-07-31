@@ -4,7 +4,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
       zipper =
         "((selection((focus Left)(content())(mode \
          Normal)))(relatives((siblings(()((Grout((id \
-         fa020b7e-8025-47eb-b6ce-5b5797358e67)(shape \
+         378afc20-9cbe-44e6-8e14-3667a3dda294)(shape \
          Convex))))))(ancestors())))(caret Outer))";
-      backup_text = " ";
+      backup_text = "";
     } )
