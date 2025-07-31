@@ -378,44 +378,40 @@ module Update = {
         model.cells,
       );
 
-    if (List.length(worker_request^) > 0) {
-      WorkerClient.request(
-        worker_request^,
-        ~handler=
-          List.iter(((pos, result)) => {
-            let pos' = Exercise.pos_of_key(pos);
-            let result':
-              Language.ProgramResult.t(Language.ProgramResult.inner) =
-              switch (result) {
-              | Ok((r, s)) =>
-                ResultOk({
-                  result: r,
-                  state: s,
-                })
-              | Error(e) => ResultFail(e)
-              };
-            schedule_action(
-              Editor(pos', ResultAction(UpdateResult(result'))),
-            );
-          }),
-        ~timeout=_ => {
-          let _ =
-            Exercise.map_stitched(
-              (pos, _) =>
-                schedule_action(
-                  Editor(
-                    pos,
-                    ResultAction(UpdateResult(ResultFail(Timeout))),
-                  ),
+    WorkerClient.request(
+      worker_request^,
+      ~handler=
+        List.iter(((pos, result)) => {
+          let pos' = Exercise.pos_of_key(pos);
+          let result': Language.ProgramResult.t(Language.ProgramResult.inner) =
+            switch (result) {
+            | Ok((r, s)) =>
+              ResultOk({
+                result: r,
+                state: s,
+              })
+            | Error(e) => ResultFail(e)
+            };
+          schedule_action(
+            Editor(pos', ResultAction(UpdateResult(result'))),
+          );
+        }),
+      ~timeout=_ => {
+        let _ =
+          Exercise.map_stitched(
+            (pos, _) =>
+              schedule_action(
+                Editor(
+                  pos,
+                  ResultAction(UpdateResult(ResultFail(Timeout))),
                 ),
-              model.cells,
-            );
-          ();
-        },
-      );
-    } else {
-      ();
-    };
+              ),
+            model.cells,
+          );
+        ();
+      },
+    );
+
     /* The following section pulls statics back from cells into the editors
        There are many ad-hoc things about this code, including the fact that
        one of the editors is shown in two cells, so we arbitrarily choose which
