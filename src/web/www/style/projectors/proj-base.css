@@ -21,6 +21,11 @@
   z-index: var(--projector-z);
 }
 
+.refractors .projector {
+  /* TODO(andrew) */
+  z-index: 9 !important;
+}
+
 .projector > svg {
   z-index: var(--projector-underlay-z);
 }

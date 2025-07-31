@@ -40,7 +40,10 @@ module CachedSyntax = {
 
   let init = (~info_map, ~dyn_map, z): t => {
     let segment = Zipper.unselect_and_zip(z);
-    let MakeTerm.{term: _, terms, projectors} = MakeTerm.go(segment);
+    //TODO(andrew): maybe need extra_probes here for real?
+    let extra_probes = [];
+    let MakeTerm.{term: _, terms, projectors} =
+      MakeTerm.go(extra_probes, segment);
     let projector_shapes =
       ProjectorInfo.ShapeMapSemantics.mk(projectors, info_map, dyn_map);
     {
@@ -77,6 +80,14 @@ module State = {
   type t = {
     zipper: Zipper.t,
     col_target: option(int),
+    /* Like projectors but not replacing syntax */
+    refractors: Id.Map.t(Base.projector),
+  };
+
+  let mk = zipper => {
+    zipper,
+    col_target: None,
+    refractors: Id.Map.empty,
   };
 };
 
@@ -91,10 +102,7 @@ module Model = {
   };
 
   let mk = zipper => {
-    state: {
-      zipper,
-      col_target: None,
-    },
+    state: State.mk(zipper),
     syntax:
       CachedSyntax.init(
         zipper,
@@ -131,6 +139,23 @@ module Model = {
       | _ => None
       };
     };
+  };
+};
+
+let ids_of_refractors = (refractors: Id.Map.t(Base.projector)): list(Id.t) =>
+  refractors |> Id.Map.to_list |> List.map(((id, _p)) => id);
+
+let mk_refractor_probe = (id: Id.t): option(Base.projector) => {
+  open OptUtil.Syntax;
+  let kind = ProjectorCore.Kind.Probe;
+  let (module P) = ProjectorInit.to_module(kind);
+  let seg: Segment.t = [Piece.mk_grout(Convex)];
+  let piece: Base.piece = Segment.parenthesize(seg);
+  let* any = MakeTerm.for_projection(seg);
+  let+ model = P.init(any);
+  {
+    ...ProjectorCore.mk(kind, piece, model),
+    id //TODO(andrew): betterify
   };
 };
 
@@ -222,6 +247,35 @@ module Update = {
       col_target,
     };
 
+    //3.5 apply refractor
+    let state =
+      switch (a) {
+      | Refractor(SetRefProbe) =>
+        switch (Indicated.index(state.zipper)) {
+        | None => state
+        | Some(id) =>
+          switch (Id.Map.find_opt(id, state.refractors)) {
+          | Some(_) =>
+            print_endline("removing refractor probe, id: " ++ Id.str8(id));
+            {
+              ...state,
+              refractors: Id.Map.remove(id, state.refractors),
+            };
+          | None =>
+            switch (mk_refractor_probe(id)) {
+            | None => state
+            | Some(p) =>
+              print_endline("set refractor probe, id: " ++ Id.str8(id));
+              {
+                ...state,
+                refractors: Id.Map.add(id, p, state.refractors),
+              };
+            }
+          }
+        }
+      | _ => state
+      };
+
     // 4. Update the zipper
     let+ zipper =
       Perform.go_z(
@@ -240,6 +294,7 @@ module Update = {
       state: {
         zipper,
         col_target,
+        refractors: state.refractors,
       },
       syntax,
     };

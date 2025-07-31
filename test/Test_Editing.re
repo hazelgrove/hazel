@@ -37,14 +37,9 @@ let perform = (zip: Zipper.t, actions: list(Action.t)): Zipper.t => {
       ~info_map=Language.Statics.Map.empty,
       ~dyn_map=Language.Dynamics.Map.empty,
     );
-  let mk_state: Zipper.t => Editor.State.t =
-    z => {
-      zipper: z,
-      col_target: None,
-    };
   let mk_move = (z: Zipper.t): (module Move.S) =>
     Editor.Model.to_move_s({
-      state: mk_state(z),
+      state: Editor.State.mk(z),
       syntax: mk_syntax(z),
     });
   let perform = (a: Action.t, z: Zipper.t) =>

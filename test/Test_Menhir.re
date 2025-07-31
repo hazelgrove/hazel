@@ -36,6 +36,7 @@ let make_term_parse = (s: string) =>
   strip_wrap(
     Haz3lcore.MakeTerm.from_zip_for_sem(
       Option.get(Haz3lcore.Parser.to_zipper(s)),
+      [],
     ).
       term,
   );

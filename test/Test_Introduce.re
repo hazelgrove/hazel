@@ -33,7 +33,7 @@ let introduction_test = (before: string, expected: string) => {
   let serialized = {
     open Haz3lcore;
     let* zip = Parser.to_zipper(before);
-    let exp = MakeTerm.from_zip_for_sem(zip).term;
+    let exp = MakeTerm.from_zip_for_sem(zip, []).term;
     let* hole_id = find_hole_id(exp);
     module S = (val Editor.Model.to_move_s(Editor.Model.mk(zip)));
     module Move = Move.Make(S);

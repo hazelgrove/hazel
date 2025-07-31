@@ -80,6 +80,10 @@ type paste =
   | Segment(Segment.t);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
+type refractor =
+  | SetRefProbe;
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =
   | Reparse
   | Buffer(buffer)
@@ -94,7 +98,8 @@ type t =
   | Destruct(Direction.t)
   | Insert(string)
   | Put_down
-  | Introduce;
+  | Introduce
+  | Refractor(refractor);
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -143,7 +148,8 @@ let is_edit: t => bool =
     | RemoveIndicated => true
     | Focus(_)
     | Escape(_) => false
-    };
+    }
+  | Refractor(SetRefProbe) => true;
 
 /* Determines whether undo/redo skips action */
 let is_historic: t => bool =
@@ -169,9 +175,10 @@ let is_historic: t => bool =
     | RemoveIndicated => true
     | Focus(_)
     | Escape(_) => false
-    };
+    }
+  | Refractor(SetRefProbe) => true;
 
-let prevent_in_read_only_editor = (a: t) => {
+let prevent_in_read_only_editor = (a: t) =>
   switch (a) {
   | Copy
   | Move(_)
@@ -195,8 +202,8 @@ let prevent_in_read_only_editor = (a: t) => {
     | Focus(_)
     | Escape(_) => false
     }
+  | Refractor(SetRefProbe) => false
   };
-};
 
 /* Currently animations are disabled during drag selection
  * to paper over a weird interaction with scroll-to-caret.
@@ -226,4 +233,5 @@ let should_animate: t => bool =
   | Copy
   | Move(_)
   | Jump(_)
-  | Project(_) => true;
+  | Project(_)
+  | Refractor(_) => true;

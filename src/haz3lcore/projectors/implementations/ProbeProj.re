@@ -17,6 +17,7 @@ type action =
   | PinAp;
 
 module Window = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type mode =
     | Single
     | Many;
@@ -150,9 +151,10 @@ module DynCursor = {
     s.pinned_call = None;
   };
 
-  let capture_cursor = (closure: closure): unit => {
-    s.call_cursor = closure.call_stack;
-  };
+  let capture_cursor = (closure: closure): unit =>
+    if (!ListUtil.is_suffix_of(closure.call_stack, s.call_cursor)) {
+      s.call_cursor = closure.call_stack;
+    };
 
   let capture_ap = (info: info): unit => {
     s.indicated_call = cur_ap(info);
@@ -196,7 +198,8 @@ module DynCursor = {
   type relative_level =
     | Above(int)
     | Below(int)
-    | Same;
+    | Same
+    | Unrelated;
 
   /* How is the current closure related to the closure cursor? */
   type relation = {
@@ -207,6 +210,7 @@ module DynCursor = {
     is_call_above_call_cursor: option(int),
     /* Is the current closure below the call cursor, and if so, by how much? */
     is_below_indicated_call: option(int),
+    /* Is the current closure a call directly below the call cursor, and if so, by how much? */
   };
 
   let is_below = ListUtil.suffix_at_depth;
@@ -216,7 +220,7 @@ module DynCursor = {
     | (Some(0), Some(0)) => Same
     | (Some(n), None) => Below(n)
     | (None, Some(n)) => Above(n)
-    | (_, _) => Same
+    | (_, _) => Unrelated
     };
 
   let cur_call = (info: info, closure: closure) => {
@@ -265,6 +269,7 @@ module DynCursor = {
       | Same => ["level0"]
       | Below(n) => ["below", "L" ++ string_of_int(n)]
       | Above(n) => ["above", "L" ++ string_of_int(n)]
+      | Unrelated => ["incomparable"]
       }
     );
   };
@@ -280,7 +285,17 @@ module DynCursor = {
     | None =>
       switch (find(relation => relation.is_below_indicated_call == Some(0))) {
       | Some(idx) => Some(idx)
-      | None => find(relation => relation.is_below_indicated_call != None)
+      | None =>
+        let a = find(relation => relation.is_below_indicated_call != None);
+        a == None
+          ? find(relation =>
+              switch (relation.relative_level_to_cursor) {
+              | Above(_)
+              | Below(_) => true
+              | _ => false
+              }
+            )
+          : a;
       }
     };
   };
@@ -541,7 +556,7 @@ let value_view =
 
   div(
     ~attrs=[
-      //Attr.title(DynCursor.Debug.str(info, closure)),
+      // Attr.title(DynCursor.Debug.str(info, closure)),
       Attr.classes(
         ["value", length_cls(length)]
         @ DynCursor.clss(info, closure)
@@ -650,7 +665,9 @@ let offside_view =
       utility: utility,
     ) =>
   Node.div(
-    ~attrs=[Attr.classes(["live-offside"])],
+    ~attrs=[
+      Attr.classes(["live-offside", Window.get_mode() |> Window.show_mode]),
+    ],
     switch (info.dynamics) {
     | Some(closures) =>
       let num_total = Closures.total(info);
@@ -843,7 +860,7 @@ let view = (local, parent, info: info): Node.t =>
         local(NoOp);
       }),
     ],
-    [text(syntax_str(info.utility, info.syntax)), icon],
+    [text(syntax_str(info.utility, info.syntax)) /*, icon*/],
   );
 
 let overlay_view = (info: info): Node.t =>
@@ -886,7 +903,7 @@ module M: Projector = {
 
   let placeholder = (_, info: info) =>
     ProjectorCore.Shape.inline(
-      2 + String.length(syntax_str(info.utility, info.syntax)),
+      /*2 +*/ String.length(syntax_str(info.utility, info.syntax)),
     );
 
   let update = update;

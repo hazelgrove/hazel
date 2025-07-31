@@ -254,5 +254,8 @@ let go_z =
       }
     )
     |> Result.of_option(~error=Action.Failure.Cant_put_down)
+  | Refractor(_) =>
+    /* Handled at Editor level */
+    Ok(z)
   };
 };

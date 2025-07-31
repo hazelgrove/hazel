@@ -91,6 +91,7 @@ module Update = {
             ~stitch,
             ~ctx?,
             ~is_dynamic_term,
+            ~extra_probes=Editor.ids_of_refractors(editor.state.refractors),
             editor.state.zipper,
           )
         : statics;

@@ -1,12 +1,13 @@
 open Haz3lcore;
 open Virtual_dom.Vdom;
-open Node;
+// open Node;
 open ProjectorBase;
 open Util;
 open Util.OptUtil.Syntax;
 open Util.WebUtil;
 
 module Model = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type status = {
     kind: ProjectorCore.Kind.t,
     sort: Sort.t,
@@ -15,6 +16,7 @@ module Model = {
     error: bool,
   };
 
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type projector_data = {
     p: Piece.projector,
     info: ProjectorBase.info,
@@ -23,6 +25,7 @@ module Model = {
     status,
   };
 
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = list(projector_data);
 
   /* Is projector indicated and if so what side is the caret on? */
@@ -72,8 +75,17 @@ module Model = {
       ) => {
     List.filter_map(
       ((id, _)) => {
+        print_endline("id: " ++ Id.str8(id));
         let* p = Id.Map.find_opt(id, projectors);
-        let+ measurement = Measured.find_pr_opt(p, measured);
+        print_endline("p: " ++ ProjectorCore.Kind.name(p.kind));
+        let+ measurement =
+          switch (Measured.find_pr_opt(p, measured)) {
+          | None =>
+            //TODO(andrew): document
+            Measured.find_by_id(id, measured)
+          | Some(m) => Some(m)
+          };
+        print_endline("measurement found");
         let info = ProjectorInfo.mk_info(p, ~statics, ~dynamics);
         {
           p,
@@ -95,6 +107,8 @@ module Model = {
     );
   };
 };
+
+open Node;
 
 /* Projectors get a default backing decoration similar
  * to token decorations. This can be made transparent
@@ -224,6 +238,7 @@ let split_views =
       inject: Action.t => Ui_effect.t(unit),
       make_active,
       font_metrics: FontMetrics.t,
+      ~skip_inline: bool,
       {p, offside_base, measurement, status, _} as projector_data: Model.projector_data,
     )
     : (Node.t, option(Node.t)) => {
@@ -244,7 +259,7 @@ let split_views =
       |> Option.map(offside_wrapper(font_metrics, offside_base))
       |> Option.to_list;
     wrapper(
-      [views.inline]
+      (skip_inline ? [] : [views.inline])
       @ [backing_deco(~font_metrics, ~measurement, p)]
       @ offside_view,
     );
@@ -281,12 +296,37 @@ let all =
   let (base_views, overlay_views) =
     projector_data
     |> List.sort(by_measurement)
-    |> List.map(split_views(inject, make_active, font_metrics))
+    |> List.map(
+         split_views(~skip_inline=false, inject, make_active, font_metrics),
+       )
     |> List.split;
   let overlay_views = List.filter_map(Fun.id, overlay_views);
   [
     div_c(
       "projectors",
+      [div_c("base", base_views), div_c("overlays", overlay_views)],
+    ),
+  ];
+};
+
+let all_refractors =
+    (
+      inject: Action.t => Ui_effect.t(unit),
+      make_active,
+      font_metrics: FontMetrics.t,
+      refactor_data: list(Model.projector_data),
+    ) => {
+  let (base_views, overlay_views) =
+    refactor_data
+    |> List.sort(by_measurement)
+    |> List.map(
+         split_views(~skip_inline=true, inject, make_active, font_metrics),
+       )
+    |> List.split;
+  let overlay_views = List.filter_map(Fun.id, overlay_views);
+  [
+    div_c(
+      "refractors",
       [div_c("base", base_views), div_c("overlays", overlay_views)],
     ),
   ];

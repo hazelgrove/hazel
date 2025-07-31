@@ -59,6 +59,8 @@
 .projector.probe .main {
   font-family: var(--code-font);
   font-size: var(--base-font-size);
+  line-height: var(--line-height);
+  white-space: pre;
   color: var(--code-text);
   display: flex;
   flex-direction: row;
@@ -71,9 +73,9 @@
 .cell-item:not(.selected):not(.error) .projector.probe.indicated .main {
   color: white;
 }
-.projector.probe .main:focus {
+/* .projector.probe .main:focus {
   outline: none;
-}
+} */
 
 @keyframes rotate {
   to {
@@ -127,6 +129,7 @@
 }
 .overlays .projector.probe.Exp .num-closures {
   --original-bg: var(--exp-base);
+  color: var(--exp-shadow);
 }
 .overlays .projector.probe.Pat .num-closures {
   --original-bg: var(--pat-base);
@@ -298,6 +301,7 @@
     box-shadow 0.1s ease-in-out, top 0.1s ease-in-out;
   background-color: var(--bkg);
   border-bottom-color: var(--bottom-border-clr);
+  padding: 0 0.1em;
 }
 .projector.probe .closure {
   --bottom-border-clr: oklch(0.8 0.06 145.88); /*var(--exp-shadow);*/
@@ -331,7 +335,14 @@
   outline-color: var(--caller-accent);
 }
 .projector.probe
-  .live-offside:has(
+  .live-offside.Many:has(
+    .value.cursor-unrelated:not(.below):not(.above):not(:hover)
+  ),
+.projector.probe .live-offside:has(.value.cursor-callee.indirect) {
+  /* filter: contrast(0.32) brightness(1.51); */
+}
+.projector.probe
+  .live-offside.Single:has(
     .value.cursor-unrelated:not(.below):not(.above):not(:hover)
   ),
 .projector.probe .live-offside:has(.value.cursor-callee.indirect) {
@@ -456,7 +467,7 @@
 }
 
 /* TOKEN BKG INDICATED + HOVER */
-.projector.probe.indicated .closure:has(.value.cursor-unrelated) {
+.projector.probe.indicated .Many.closure:has(.value.cursor-unrelated) {
   filter: contrast(0.5) brightness(1.32) saturate(0.7);
 }
 .projector.probe.indicated .closure:has(.value.cursor) {
@@ -470,8 +481,11 @@
 .projector.probe.indicated .closure:has(.value.cursor) {
   outline-color: var(--exp-indicated);
 }
-.projector.probe.indicated:has(*:focus) .closure:has(.value.cursor) {
-  outline-color: var(--R1);
+.projector.probe.indicated .closure:has(.value.cursor),
+/* TODO(andrew): below is hack */
+.projector.probe.indicated .closure:has(.value.above),
+.projector.probe.indicated .closure:has(.value.below) {
+  outline: 1.5px solid var(--R1);
 }
 /* .projector.probe.indicated.Pat .closure:has(.value.cursor),
 .projector.probe.Pat .closure:hover {
@@ -557,7 +571,8 @@
 .projector.probe .value.cursor-unrelated .code-text .token,
 .projector.probe .value.cursor-caller .code-text .token {
   /* filter: invert(1) brightness(10); */
-  color: white;
+  /* color: white; */
+  color: var(--exp-indicated);
 }
 .projector.probe .value.cursor-callee.indirect .code-text .token {
   color: white;
