@@ -2,7 +2,6 @@ open Test_Statics_Prelude;
 open Alcotest;
 open FTemp;
 open Typ;
-// TODO do versions with variables where appropriate and do reverse partial application
 
 module MeltOperation = {
   let tests = [
@@ -1043,7 +1042,7 @@ module OmitLabels = {
     test_case("omit_labels with holes for labels to omit", `Quick, () =>
       annotated_tree_test(
         {|omit_labels((a=1, b="", c=true), `a`, ?, `c`)|},
-        prod([tup_label(label("b"), string())]), // I don't know what we want here. We could just return unknown
+        prod([tup_label(label("b"), string())]),
         FIError.Exp.(
           ap(
             Forward,
