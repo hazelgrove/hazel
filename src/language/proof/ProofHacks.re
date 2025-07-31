@@ -307,3 +307,21 @@ let rec replace_exp = (replace, replace_coctx, with_exp, with_coctx, in_exp) => 
     in_exp,
   );
 };
+
+let find_refls = e => {
+  let refls = ref([]);
+  let _ =
+    Exp.map_term(
+      ~f_exp=
+        (cont, exp) => {
+          switch (exp |> Exp.term_of) {
+          | BinOp(Poly(Equals), e1, e2) when Exp.fast_equal(e1, e2) =>
+            refls := [exp, ...refls^];
+            cont(exp);
+          | _ => cont(exp)
+          }
+        },
+      e,
+    );
+  refls^;
+};

@@ -753,13 +753,37 @@ and Stepper: {
             |> List.map(step => step |> EvaluatorStep.get_step_id)
           | _ => []
           };
+        let refls =
+          switch (model.step_kind) {
+          | MissingStep(m) =>
+            m.refls
+            |> Calc.get_saved_exc(~print="refls")
+            |> List.map(Exp.rep_id)
+          | _ => []
+          };
         let editor =
           StepperEditor.View.view(
             ~globals,
             ~signal=
               fun
               | MakeActive => take_focus(Here())
-              | TakeStep(int) => inject(StepForward(int)),
+              | TakeStep(int) => inject(StepForward(int))
+              | Refl(int) =>
+                inject(
+                  AddAxiomStep(
+                    {
+                      let _ = print_endline("XYZ");
+                      let refl_exps =
+                        switch (model.step_kind) {
+                        | MissingStep(m) =>
+                          m.refls |> Calc.get_saved_exc(~print="refls")
+                        | _ => []
+                        };
+                      List.nth(refl_exps, int);
+                    },
+                    Exp.fresh(Atom(Bool(true))),
+                  ),
+                ),
             ~inject=x => inject(EditorAction(x)),
             ~selected=
               switch (focus) {
@@ -795,6 +819,7 @@ and Stepper: {
               editor: model.editor |> Calc.get_saved_exc(~print="Editor"),
               taken_steps,
               next_steps,
+              refls,
             },
           );
         let justification =
