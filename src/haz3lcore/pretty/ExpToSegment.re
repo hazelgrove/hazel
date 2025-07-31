@@ -906,13 +906,24 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
         List.map2((id, x) => [mk_form(CommaExp, id, [])] @ x, ids, xs),
       );
   | Label(l) =>
-    text_to_pretty(
-      exp |> Exp.rep_id,
+    label_to_pretty(
+      ~label_only_position=false,
       Sort.Exp,
-      Form.label_delim ++ l ++ Form.label_delim,
+      Form.label_quote(l),
+      exp |> Exp.rep_id,
     )
   | TupLabel(l, e) =>
-    let* l = go(l)
+    let* l =
+      switch (l.term) {
+      | Label(l) =>
+        label_to_pretty(
+          ~label_only_position=true,
+          Sort.Exp,
+          l,
+          exp |> Exp.rep_id,
+        )
+      | _ => go(l)
+      }
     and* e = go(e);
 
     List.flatten([
@@ -934,7 +945,17 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     ]);
   | Dot(e, l) =>
     let* e = go(e)
-    and* l = go(l);
+    and* l =
+      switch (l.term) {
+      | Label(l) =>
+        label_to_pretty(
+          ~label_only_position=true,
+          Sort.Exp,
+          l,
+          exp |> Exp.rep_id,
+        )
+      | _ => go(l)
+      };
     List.flatten([e, [mk_form(DotExp, exp |> Exp.rep_id, [])], l]);
   | Let(p, e1, e2) =>
     // TODO: Add optional newlines
@@ -1186,7 +1207,17 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
         List.map2((id, x) => [mk_form(CommaPat, id, [])] @ x, ids, xs),
       );
   | TupLabel(l, p) =>
-    let* l = go(l)
+    let* l =
+      switch (l.term) {
+      | Label(l) =>
+        label_to_pretty(
+          ~label_only_position=true,
+          Sort.Pat,
+          l,
+          p |> Pat.rep_id,
+        )
+      | _ => go(l)
+      }
     and* p = go(p);
     List.flatten([
       l,
@@ -1206,11 +1237,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
       },
     ]);
   | Label(l) =>
-    text_to_pretty(
-      pat |> Pat.rep_id,
-      Sort.Pat,
-      Form.label_delim ++ l ++ Form.label_delim,
-    )
+    text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Form.label_quote(l))
   | Parens(p) =>
     let id = pat |> Pat.rep_id;
     let+ p = go(p);
@@ -1320,13 +1347,19 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
         ),
       );
   | Label(l) =>
-    text_to_pretty(
-      typ |> Typ.rep_id,
-      Sort.Typ,
-      Form.label_delim ++ l ++ Form.label_delim,
-    )
+    text_to_pretty(typ |> Typ.rep_id, Sort.Typ, Form.label_quote(l))
   | TupLabel(l, t) =>
-    let+ l = go(l)
+    let+ l =
+      switch (l.term) {
+      | Label(l) =>
+        label_to_pretty(
+          ~label_only_position=true,
+          Sort.Typ,
+          l,
+          t |> Typ.rep_id,
+        )
+      | _ => go(l)
+      }
     and+ t = go(t);
 
     List.flatten([
@@ -1429,6 +1462,18 @@ and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
       }),
     ]);
   };
+}
+and label_to_pretty =
+    (~label_only_position, sort: Sort.t, label: string, id: Uuidm.t): pretty => {
+  text_to_pretty(
+    id,
+    sort,
+    if (label_only_position) {
+      Form.quote_label_when_necessary(label);
+    } else {
+      label;
+    },
+  );
 };
 
 let exp_to_segment =

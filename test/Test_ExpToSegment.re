@@ -172,21 +172,24 @@ let tests = (
         check(
           option(segment),
           "Singleton Labeled",
-          Parser.to_segment("(`x`=1)"),
+          Parser.to_segment("(x=1)"),
           Some(exp_to_segment(tuple([tup_label(label("x"), int(1))]))),
         );
-        equivalent_to_make_term({|(`x`=1, `y`=2)|});
+        equivalent_to_make_term({|(x=1, y=2)|});
       },
     ),
     test_case("Labels in types with single quotes", `Quick, () => {
-      equivalent_to_make_term({|type t = (``=Int, `ab`=String) in 7|})
+      equivalent_to_make_term({|type t = (``=Int, ab=String) in 7|})
     }),
     test_case("Labels in  patterns with single quotes", `Quick, () => {
-      equivalent_to_make_term({|fun (``=a, `ab`=_) -> 3|})
+      equivalent_to_make_term({|fun (``=a, ab=_) -> 3|})
+    }),
+    test_case("Function call with label arguments", `Quick, () => {
+      equivalent_to_make_term({|omit_labels((a=1), `a`)|})
     }),
     test_case("Doc page labeled tuple example", `Quick, () => {
       equivalent_to_make_term(
-        {|let labeled_tuple = (`a`=1, `b`=2.000000, `c`=true) in let prj_a = labeled_tuple.`a` in prj_a|},
+        {|let labeled_tuple = (a=1, b=2.000000, c=true) in let prj_a = labeled_tuple.a in prj_a|},
       )
     }),
     test_case(
