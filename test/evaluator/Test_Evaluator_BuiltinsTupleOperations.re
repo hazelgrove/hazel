@@ -3,7 +3,7 @@ open Language;
 open Test_Evaluator_Prelude;
 
 let tests = (
-  "Evaluator.Tables",
+  "Evaluator.BuiltinsTupleOperations",
   [
     test_case("Projection from list of labeled tuples", `Quick, () =>
       check(
