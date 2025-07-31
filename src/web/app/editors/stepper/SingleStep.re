@@ -118,9 +118,13 @@ module F =
         ~hide_stepper as _: Ui_effect.t(unit),
         ~undo as _: option(Ui_effect.t(unit)),
         ~is_toplevel as _: bool,
-        _: model,
+        m: model,
       ) =>
-    WebUtil.Node.text("Single Step");
+    WebUtil.Node.text(
+      m.evalobj
+      |> EvaluatorStep.get_step_kind
+      |> Transition.stepper_justification,
+    );
 
   let view_content =
       (
