@@ -13,6 +13,7 @@ type model'('stepper) = {
   step: 'stepper,
   last_exp: Calc.saved(Exp.t),
   hypo_points: Calc.saved(list(Exp.t)),
+  inner_ctx: Calc.saved(Ctx.t),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -37,6 +38,7 @@ module F = (Stepper: STEPPER) => {
     step: Stepper.init,
     last_exp: Calc.Pending,
     hypo_points: Calc.Pending,
+    inner_ctx: Calc.Pending,
   };
 
   let update = (~settings: Settings.t, action: action, model: model) => {
@@ -123,10 +125,20 @@ module F = (Stepper: STEPPER) => {
         )
         |> List.map(v => Exp.fresh(Var(v)));
       };
+    let inner_ctx =
+      model.inner_ctx
+      |> {
+        open Calc.Syntax;
+        let.calc elab_pattern = elab_pattern
+        and.calc scrut_ty = scrut_ty
+        and.calc ctx = ctx;
+        ProofHacks.dhpat_extend_ctx(elab_pattern, scrut_ty, ctx)
+        |> Option.value(~default=ctx);
+      };
     let (stepper, last_exp) =
       Stepper.calculate(
         ~settings, // TODO: this is a little ugly
-        ~ctx,
+        ~ctx=inner_ctx,
         ~exp=inner_exp,
         ~state,
         model.step,
@@ -138,6 +150,7 @@ module F = (Stepper: STEPPER) => {
       hypo_points: hypo_points |> Calc.save,
       step: stepper,
       last_exp: last_exp |> Calc.save,
+      inner_ctx: inner_ctx |> Calc.save,
     };
   };
 
