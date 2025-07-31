@@ -657,11 +657,11 @@ module Transition = (EV: EV_MODE) => {
       and. d2' =
         req_final(req(state, env), d2 => Dot2(d1, d2) |> wrap_ctx, d2);
       switch (DHExp.term_of(d2')) {
-      | Label(name) =>
+      | Label(name) as lab =>
         switch (Unboxing.unbox(LabeledTupleProjection(name), d1')) {
         | Matches(d1'') =>
-          switch (DHExp.term_of(d1''), DHExp.term_of(d2')) {
-          | (Tuple(ds), Label(name)) =>
+          switch (DHExp.term_of(d1'')) {
+          | Tuple(ds) =>
             let projected =
               List.filter_map(
                 d => {
@@ -683,7 +683,7 @@ module Transition = (EV: EV_MODE) => {
               })
             | _ => Indet
             };
-          | (TupLabel(_, d), Label(name)) =>
+          | TupLabel(_, d) =>
             LabeledTuple.has_same_labels(
               Exp.match_tup_label(d1'),
               Some((name, d)),
@@ -695,7 +695,7 @@ module Transition = (EV: EV_MODE) => {
                   is_value: false,
                 })
               : Indet
-          | (ListLit(ds), Label(_) as lab) =>
+          | ListLit(ds) =>
             let mapped =
               List.map(d => Dot(d, lab |> Exp.fresh) |> Exp.fresh, ds);
             let ls = ListLit(mapped) |> Exp.fresh;

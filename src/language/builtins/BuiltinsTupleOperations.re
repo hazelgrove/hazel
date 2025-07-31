@@ -130,7 +130,7 @@ let builtins: list(BuiltinsUtil.fn) = [
     imp: d => {
       let-unbox args = (LabeledTupleEntries, d);
       switch (args) {
-      | [] => None // No argument indet
+      | [] // No argument indet
       | [_] => None // Singleton labeled tuple indet
       | [(Some(_), _), ..._] => None // First element is labeled
       | [(None, tup), ...labels] =>
@@ -168,7 +168,7 @@ let builtins: list(BuiltinsUtil.fn) = [
     imp: d => {
       let-unbox args = (LabeledTupleEntries, d);
       switch (args) {
-      | [] => None // No argument indet
+      | [] // No argument indet
       | [_] => None // Singleton labeled tuple indet
       | [(Some(_), _), ..._] => None // First element is labeled
       | [(None, tup), ...labels] =>
@@ -209,7 +209,7 @@ let builtins: list(BuiltinsUtil.fn) = [
     imp: d => {
       let-unbox args = (LabeledTupleEntries, d);
       switch (args) {
-      | [] => None // No argument indet
+      | [] // No argument indet
       | [_] => None // Singleton labeled tuple indet
       | [(Some(_), _), ..._] => None // First element is labeled
       | [(None, tup), ...labels] =>
@@ -260,16 +260,7 @@ let builtins: list(BuiltinsUtil.fn) = [
     ret: Unknown(Internal),
     imp: d => {
       let-unbox entries = (LabeledTupleEntries, d);
-      let entries =
-        List.filter_map(
-          ((l, e)) => {
-            switch (l) {
-            | Some(_) => Some(e)
-            | None => Some(e)
-            }
-          },
-          entries,
-        );
+      let entries = List.filter_map(((_, e)) => Some(e), entries);
       Some(Exp.to_tuple(entries));
     },
     custom_statics: Some(DropLabels),

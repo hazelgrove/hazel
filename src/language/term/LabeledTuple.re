@@ -212,6 +212,18 @@ let find_label: ('a => option((label, 'a)), list('a), label) => option('a) =
     );
   };
 
+/**
+ * Merges two lists of labeled entries (`e1_entries` and `e2_entries`) into a single list.
+ *
+ * - Maintains the order of labels from `e1_entries`.
+ * - Uses the values from `e2_entries` if a matching label is found.
+ * - Includes any new labels from `e2_entries` that are not present in `e1_entries`.
+ * - Handles `None` labels by preserving their order and values.
+ *
+ * @param e1_entries A list of entries with optional labels and associated values.
+ * @param e2_entries A list of entries with optional labels and associated values.
+ * @return A merged list of entries, combining values from both input lists.
+ */
 let extension =
     (
       e1_entries: list((option(label), 'a)),
