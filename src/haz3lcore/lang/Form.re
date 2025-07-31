@@ -100,6 +100,7 @@ let strip_quotes = (~quote="\"", s) =>
   };
 
 let string_quote = s => "\"" ++ s ++ "\"";
+let label_quote = s => label_delim ++ s ++ label_delim;
 
 let keywords = [
   "fun",
@@ -202,6 +203,10 @@ let is_var = str =>
   && !is_livelit(str)
   && str != "_"
   && match(var_regexp, str);
+
+let quote_label_when_necessary = (l: string): string =>
+  is_var(l) ? l : label_quote(l);
+
 let capitalized_name_regexp = regexp("^[A-Z][A-Za-z0-9_]*$");
 let is_ctr = match(capitalized_name_regexp);
 let base_typs = ["String", "Int", "Float", "Bool"];
