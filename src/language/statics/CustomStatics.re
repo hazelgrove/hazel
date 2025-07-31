@@ -666,7 +666,16 @@ let custom_statics_deferred_ap =
           args_info,
         );
 
-      add'(~self=Common(Just(unknown)), ~co_ctx=combined_co_ctx, m);
+      let ty_in' =
+        List.filter(e => Exp.is_deferral(e), args)
+        |> List.map(_ => unknown)
+        |> Typ.to_product;
+
+      add'(
+        ~self=Common(Just(Arrow(ty_in', unknown) |> Typ.temp)),
+        ~co_ctx=combined_co_ctx,
+        m,
+      );
     }
   );
 };

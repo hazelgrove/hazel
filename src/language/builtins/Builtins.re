@@ -12,7 +12,7 @@ let builtins =
   @ List.map(hazel_fn_builtin, BuiltinsADT.builtins)
   @ List.map(fn_builtin, BuiltinsBase.numeric_fns)
   @ List.map(const_builtin, BuiltinsBase.numeric_constants)
-  @ List.map(fn_builtin, BuiltinsTableOperations.builtins);
+  @ List.map(fn_builtin, BuiltinsTupleOperations.builtins);
 
 let builtins =
   List.sort(
