@@ -29,6 +29,7 @@ module CachedSyntax = {
      * underlying editor. In principle calculating this can involve
      * both static and dynamic information, so we cache this for perf */
     shape_map: ProjectorCore.Shape.Map.t,
+    cached_backpack: list(Tile.t),
   };
 
   // should not be serializing
@@ -52,6 +53,7 @@ module CachedSyntax = {
       terms,
       projectors,
       shape_map: projector_shapes,
+      cached_backpack: Segment.global_missing_shards(segment),
     };
   };
 
