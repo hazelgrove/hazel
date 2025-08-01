@@ -66,6 +66,8 @@ module Update = {
              | Reparse
              | Introduce => true
              | Project(_)
+             | Reformat
+             | IntroduceLabels
              | Unselect(_)
              | Select(All) => false
              };

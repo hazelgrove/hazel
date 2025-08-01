@@ -116,6 +116,13 @@ let go_z =
     Select.current_term(~defs_exclude_bodies=false, ~case_rules=false, z)
     |> Option.bind(_, Introduce.introduce(statics.info_map, _))
     |> Result.of_option(~error=Action.Failure.CantIntroduce)
+  | Reformat =>
+    Reformat.reformat(statics.info_map, z)
+    |> Result.of_option(~error=Action.Failure.CantIntroduce)
+  | IntroduceLabels =>
+    Select.current_term(~defs_exclude_bodies=false, ~case_rules=false, z)
+    |> Option.bind(_, IntroduceLabels.introduce_labels(statics.info_map, _))
+    |> Result.of_option(~error=Action.Failure.CantIntroduce)
   | Paste(Segment(segment)) => Ok(paste_segment(z, segment))
   | Cut =>
     /* System clipboard handling is done in Page.view handlers */

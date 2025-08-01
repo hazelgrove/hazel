@@ -273,6 +273,18 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       Globals(ActiveEditor(Introduce)),
     ),
     mk_shortcut(
+      ~mdIcon="format_align_left",
+      ~section="Refactoring",
+      ~hotkey=Keyboard.meta(sys) ++ "+shift+f",
+      "Reformat",
+      Globals(ActiveEditor(Reformat)),
+    ),
+    mk_shortcut(
+      ~section="Refactoring",
+      "Introduce Labels",
+      Globals(ActiveEditor(IntroduceLabels)),
+    ),
+    mk_shortcut(
       "Add New Buffer",
       ~mdIcon="add",
       ~section="Buffers",
