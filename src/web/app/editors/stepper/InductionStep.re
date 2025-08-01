@@ -14,6 +14,7 @@ type model'('stepper) = {
   // Calculated
   elab_scrut: Calc.saved(Exp.t),
   scrut_ty: Calc.saved(Typ.t),
+  scrut_co_ctx: Calc.saved(CoCtx.t),
   result: Calc.saved(Exp.t),
   result_state: Calc.saved(EvaluatorState.t),
   join_exp: Calc.saved(Exp.t),
@@ -52,6 +53,7 @@ let init = (~exp: option(Exp.t)=?, ()) => {
     cases: [],
     elab_scrut: Calc.Pending,
     scrut_ty: Calc.Pending,
+    scrut_co_ctx: Calc.Pending,
     result: Calc.Pending,
     result_state: Calc.Pending,
     join_exp: Calc.Pending,
@@ -145,6 +147,7 @@ module F =
       cases,
       elab_scrut,
       scrut_ty,
+      scrut_co_ctx,
       result: _,
       result_state: _,
       join_exp,
@@ -178,12 +181,26 @@ module F =
         };
       Calc.set(~eq=Typ.fast_equal, self_ty, scrut_ty);
     };
+    let scrut_co_ctx = {
+      let self_co_ctx =
+        switch (
+          Id.Map.find_opt(
+            Exp.rep_id(CodeEditable.Model.get_statics(scrut).elaborated),
+            CodeEditable.Model.get_statics(scrut).info_map,
+          )
+        ) {
+        | Some(Info.InfoExp({co_ctx, _})) => co_ctx
+        | _ => CoCtx.empty
+        };
+      Calc.set(self_co_ctx, scrut_co_ctx);
+    };
     let cases =
       List.map(
         InductionCase.calculate(
           ~settings,
           ~scrut_ty,
           ~elab_scrut,
+          ~scrut_co_ctx,
           ~ctx,
           ~exp,
           ~state,
@@ -222,6 +239,7 @@ module F =
         cases,
         elab_scrut: elab_scrut |> Calc.save,
         scrut_ty: scrut_ty |> Calc.save,
+        scrut_co_ctx: scrut_co_ctx |> Calc.save,
         result,
         result_state,
         join_exp: join_exp |> Calc.save,
