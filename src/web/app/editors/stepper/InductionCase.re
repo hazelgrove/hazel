@@ -72,6 +72,7 @@ module F = (Stepper: STEPPER) => {
         ~settings: Calc.t(CoreSettings.t),
         ~elab_scrut: Calc.t(Exp.t),
         ~scrut_ty: Calc.t(Typ.t),
+        ~scrut_co_ctx: Calc.t(CoCtx.t),
         ~ctx: Calc.t(Ctx.t),
         ~exp: Calc.t(Exp.t),
         ~state: Calc.t(EvaluatorState.t),
@@ -105,10 +106,13 @@ module F = (Stepper: STEPPER) => {
         open Calc.Syntax;
         let.calc elab_pattern = elab_pattern
         and.calc elab_scrut = elab_scrut
+        and.calc scrut_co_ctx = scrut_co_ctx
         and.calc exp = exp;
-        DHExp.replace_exp(
+        ProofHacks.replace_exp(
           elab_scrut,
+          scrut_co_ctx,
           elab_pattern |> ProofHacks.pat_to_exp,
+          elab_pattern |> Pat.bindings |> CoCtx.of_bindings,
           exp,
         );
       };
