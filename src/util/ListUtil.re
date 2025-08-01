@@ -1,10 +1,10 @@
 let rev_if = (b: bool) => b ? List.rev : Fun.id;
 
 let dedup_f = (f, xs) =>
-  List.fold_right(
-    (x, deduped) => List.exists(f(x), deduped) ? deduped : [x, ...deduped],
-    xs,
+  List.fold_left(
+    (deduped, x) => List.exists(f(x), deduped) ? deduped : deduped @ [x],
     [],
+    xs,
   );
 
 let dedup = xs => dedup_f((==), xs);
