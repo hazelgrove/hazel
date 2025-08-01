@@ -5,9 +5,6 @@ open SvgUtil;
 open Measured;
 open SvgUtil.Path;
 
-let hook_dx = ShardDec.tip_width /. 2.;
-let hook_dy = ShardDec.tip_height /. 4.;
-
 let shadowfudge = Path.cmdfudge(~y=ShardDec.shadow_dy /. 2.);
 
 let shards_of_tiles = tiles =>
@@ -126,17 +123,18 @@ let inner_lines =
      );
 };
 
-let l_horizontal_hooked = (~first: Measured.Point.t, ~last: Measured.Point.t) => [
+let l_horizontal_hooked =
+    (~offset, ~first: Measured.Point.t, ~last: Measured.Point.t) => [
   shadowfudge(m(~x=0, ~y=1)),
   h(~x=first.col - last.col),
   L_({
-    dx: -. hook_dx,
-    dy: -. hook_dy,
+    dx: -. abs_float(offset),
+    dy: -. abs_float(offset) /. 2.,
   }),
 ];
 
 let r_horizontal_hooked =
-    (~m_last: Measured.measurement, ~last: Measured.Point.t) => [
+    (~offset, ~m_last: Measured.measurement, ~last: Measured.Point.t) => [
   m(
     ~x=m_last.last.col - m_last.origin.col,
     ~y=m_last.last.row - m_last.origin.row + 1,
@@ -144,28 +142,42 @@ let r_horizontal_hooked =
   |> shadowfudge,
   h(~x=last.col - m_last.origin.col),
   L_({
-    dx: hook_dx,
-    dy: -. hook_dy,
+    dx: abs_float(offset),
+    dy: -. abs_float(offset) /. 2.,
   }),
 ];
 
 let l_uni_path =
     (
-      ~offset as _: float,
+      ~offset: float,
       ~indent: int,
       ~first: Measured.Point.t,
       ~last: Measured.Point.t,
     )
-    : list(Path.cmd) => [
-  m(~x=0, ~y=last.col == indent ? 0 : 1) |> shadowfudge,
-  H_({dx: float_of_int(indent - last.col) /*+. offset*/}),
-  v(~y=first.row - last.row + 1) |> shadowfudge,
-  H_({dx: float_of_int(first.col - indent)}),
-  L_({
-    dx: hook_dx,
-    dy: -. hook_dy,
-  }),
-];
+    : list(Path.cmd) => {
+  let hx = abs_float(offset);
+  let hy = hx /. 2.;
+  last.row - first.row <= 1
+    ? []
+    : [
+      m(~x=0, ~y=last.col == indent ? 0 : 1) |> shadowfudge,
+      H_({dx: float_of_int(indent - last.col) +. hx}),
+      L_({
+        dx: -. hx,
+        dy: -. hy,
+      }),
+      V({y: float_of_int(first.row - last.row + 1)}),
+      L_({
+        dx: hx,
+        dy: -. hy,
+      }),
+      H_({dx: float_of_int(first.col - indent)}),
+      L_({
+        dx: hx,
+        dy: -. hy,
+      }),
+    ];
+};
 
 let r_uni_path =
     (
@@ -195,8 +207,8 @@ let r_uni_path =
     }),
     H({x: float_of_int(last.col - first.origin.col)}),
     L_({
-      dx: hook_dx,
-      dy: -. hook_dy,
+      dx: hx,
+      dy: -. hy,
     }),
   ];
 };
@@ -215,7 +227,7 @@ let l_line =
       (
         last,
         first.row == last.row
-          ? l_horizontal_hooked(~first, ~last)
+          ? l_horizontal_hooked(~offset, ~first, ~last)
           : l_uni_path(~offset, ~indent, ~first, ~last),
       ),
     ];
@@ -253,7 +265,7 @@ let r_line =
     : list((Measured.Point.t, list(Path.cmd))) => {
   let shard_rows = Measured.Shards.split_by_row(shards);
   if (last.row == m_last.last.row && last.col > m_last.last.col) {
-    [(m_last.origin, r_horizontal_hooked(~m_last, ~last))];
+    [(m_last.origin, r_horizontal_hooked(~offset, ~m_last, ~last))];
   } else if (last.row > m_last.last.row) {
     let min_col = min_col(~m_last, ~last, ~rows);
     let first_of_last_row = first_of_last_row(shard_rows);
