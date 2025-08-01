@@ -117,7 +117,7 @@ let sample_pattern = (cls_pat: Pat.cls): Grammar.UnitGrammar.pat => {
       | TupLabel => tup_label(label("label"), empty_hole())
       | Parens => parens(empty_hole())
       | Probe => probe(empty_hole(), Probe.empty)
-      | ApCons
+      | ApCons => ap(constructor("A", None), empty_hole())
       | ApFunc => ap(empty_hole(), empty_hole())
       | Asc => asc(empty_hole(), Typ.string())
       | Wild => wild()
