@@ -195,7 +195,6 @@ and exp = unsorted => {
   let (term, inner_ids) = exp_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
   //TODO(andrew): exn reporting, id duplication?
-  //TODO(andrew): Pat case
   let term: TermBase.exp_term =
     List.mem(List.hd(ids), extra_probe_ids^)
       ? {
@@ -488,6 +487,22 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
 and pat = unsorted => {
   let (term, inner_ids) = pat_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
+  //TODO(andrew): exn reporting, id duplication?
+  let term: TermBase.pat_term =
+    List.mem(List.hd(ids), extra_probe_ids^)
+      ? {
+        print_endline("adding probe to id: " ++ Id.str8(List.hd(ids)));
+        Probe(
+          {
+            annotation: {
+              ids: [Id.invalid],
+            }, //TODO(andrew): fix this
+            term,
+          },
+          Probe.empty,
+        );
+      }
+      : term;
   let p =
     return(
       p => Pat(p),

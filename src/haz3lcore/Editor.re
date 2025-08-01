@@ -155,7 +155,7 @@ let mk_refractor_probe = (id: Id.t): option(Base.projector) => {
   let+ model = P.init(any);
   {
     ...ProjectorCore.mk(kind, piece, model),
-    id //TODO(andrew): betterify
+    id //TODO(andrew): maybe shouldn't share id? dunno
   };
 };
 

@@ -142,8 +142,8 @@ let is_edit: t => bool =
   | Unselect(_) => false
   | Project(p) =>
     switch (p) {
+    | SetModel(_) => false /* TODO(andrew): make sure this doesnt fuck stuff up */
     | SetSyntax(_)
-    | SetModel(_)
     | SetIndicated(_)
     | RemoveIndicated => true
     | Focus(_)

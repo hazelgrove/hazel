@@ -53,6 +53,12 @@
 .projector.probe:has(.ap.pinned) > svg {
   /* fill: var(--exp-ap-indicated); */
 }
+.refractors .projector.probe.indicated.Exp > svg {
+  fill: var(--exp-base);
+}
+.refractors .projector.probe.indicated.Pat > svg {
+  fill: var(--pat-base);
+}
 
 /* INLINE VIEW */
 
@@ -73,9 +79,9 @@
 .cell-item:not(.selected):not(.error) .projector.probe.indicated .main {
   color: white;
 }
-/* .projector.probe .main:focus {
+.projector.probe .live-offside:focus {
   outline: none;
-} */
+}
 
 @keyframes rotate {
   to {
@@ -481,12 +487,14 @@
 .projector.probe.indicated .closure:has(.value.cursor) {
   outline-color: var(--exp-indicated);
 }
-.projector.probe.indicated .closure:has(.value.cursor),
-/* TODO(andrew): below is hack */
-.projector.probe.indicated .closure:has(.value.above),
-.projector.probe.indicated .closure:has(.value.below) {
+.projector.probe.indicated .closure:has(.value.cursor) {
   outline: 1.5px solid var(--R1);
 }
+.projector.probe.indicated .closure:has(.value.above),
+.projector.probe.indicated .closure:has(.value.below) {
+  outline: 1.5px solid oklch(0.41 0.19 28.96); /* TODO(andrew*/
+}
+
 /* .projector.probe.indicated.Pat .closure:has(.value.cursor),
 .projector.probe.Pat .closure:hover {
   outline-color: var(--pat-indicated);

@@ -325,11 +325,6 @@ module Deco =
         | Some(nib) => Nib.Shape.relative(nib, side)
         };
       let range = term_range(p);
-      let index =
-        switch (Indicated.shard_index(z)) {
-        | None => (-1)
-        | Some(i) => i
-        };
       switch (range) {
       | None => []
       | _ when Piece.is_infix_delimiter_op_prefix(p) => []
@@ -339,7 +334,6 @@ module Deco =
           ~line_clss=[],
           ~font_metrics,
           ~rows,
-          ~caret=(Piece.id(p), index),
           ~tiles,
           range,
         );
@@ -520,7 +514,6 @@ module Deco =
               ~attr=[Virtual_dom.Vdom.Attr.on_mousedown(_ => {inject(i)})],
               ~line_clss=["next-step-line"],
               ~font_metrics,
-              ~caret=(Id.invalid, 0),
               ~rows=measured.rows,
               ~tiles=[(id, mold, shards)],
               x,
@@ -530,7 +523,6 @@ module Deco =
                 ~attr=[Virtual_dom.Vdom.Attr.on_mousedown(_ => {inject(i)})],
                 ~line_clss=["next-step-line"],
                 ~font_metrics,
-                ~caret=(Id.invalid, 0),
                 ~rows=measured.rows,
                 ~tiles=[(id, mold, shards)],
                 x,
@@ -567,7 +559,6 @@ module Deco =
           ~base_clss="tile-taken-step",
           ~line_clss=["taken-step-line"],
           ~font_metrics,
-          ~caret=(Id.invalid, 0),
           ~rows=measured.rows,
           ~tiles=[(id, mold, shards)],
         )

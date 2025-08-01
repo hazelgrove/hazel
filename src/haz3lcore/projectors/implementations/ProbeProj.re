@@ -657,31 +657,6 @@ let nav_bar_view = (num_total: int, local) => {
 let equals_view =
   div(~attrs=[Attr.classes(["live-equals"])], [text("≡")]);
 
-let offside_view =
-    (
-      info: info,
-      local,
-      view_seg: (~background: bool=?, Sort.t, list(syntax)) => Node.t,
-      utility: utility,
-    ) =>
-  Node.div(
-    ~attrs=[
-      Attr.classes(["live-offside", Window.get_mode() |> Window.show_mode]),
-    ],
-    switch (info.dynamics) {
-    | Some(closures) =>
-      let num_total = Closures.total(info);
-      let closures = Closures.select_frames(info, closures);
-      let (num_shown, groups) = Closures.collate(closures);
-      let is_cut_off = num_shown != num_total && num_shown > 0;
-      let extras = [nav_bar_view(num_total, local), ellipsis_view(local)];
-      (num_shown > 0 ? [equals_view] : [])
-      @ closure_group_view(info, utility, view_seg, local, groups)
-      @ (is_cut_off ? extras : []);
-    | _ => []
-    },
-  );
-
 let num_closures_view = (info: info) => {
   let num_closures = Closures.total(info);
   let description = num_closures < 1000 ? string_of_int(num_closures) : "1k+";
@@ -703,7 +678,7 @@ let syntax_str = (utility: utility) =>
     let max_len = 30;
     let seg = Segment.unparenthesize(seg);
     let str = utility.seg_to_string(seg);
-    let str = Re.Str.global_replace(Re.Str.regexp("\n"), " ", str);
+    //let str = Re.Str.global_replace(Re.Str.regexp("\n"), " ", str);
     String.length(str) > max_len
       ? String.sub(str, 0, max_len) ++ "..." : str;
   });
@@ -820,22 +795,50 @@ let key_handler = (local, info: info, _, evt) => {
   };
 };
 
-let update = ((), info: info, a: action) => {
+let offside_view =
+    (
+      info: info,
+      local,
+      parent,
+      view_seg: (~background: bool=?, Sort.t, list(syntax)) => Node.t,
+      utility: utility,
+    ) =>
+  Node.div(
+    ~attrs=[
+      Attr.tabindex(0),
+      Attr.on_keydown(key_handler(local, info, parent)),
+      Attr.classes(["live-offside", Window.get_mode() |> Window.show_mode]),
+    ],
+    switch (info.dynamics) {
+    | Some(closures) =>
+      let num_total = Closures.total(info);
+      let closures = Closures.select_frames(info, closures);
+      let (num_shown, groups) = Closures.collate(closures);
+      let is_cut_off = num_shown != num_total && num_shown > 0;
+      let extras = [nav_bar_view(num_total, local), ellipsis_view(local)];
+      (num_shown > 0 ? [equals_view] : [])
+      @ closure_group_view(info, utility, view_seg, local, groups)
+      @ (is_cut_off ? extras : []);
+    | _ => []
+    },
+  );
+
+let update = (() as m, info: info, a: action) => {
   switch (a) {
   | ChangeLength(id, len) => ClosureLength.set(id, len)
   | ToggleShowAllVals(_) => Window.toggle_mode()
   | MoveCursor(offset) => move_cursor(info, offset)
   | PinAp => DynCursor.toggle_pinned_call(info)
-  | NoOp => ()
+  | NoOp => m
   };
 };
 
-let view = (local, parent, info: info): Node.t =>
+let view = (local, _parent, info: info): Node.t =>
   div(
     ~attrs=[
       Attr.id(Id.cls(info.id)),
-      Attr.tabindex(0),
-      Attr.on_keydown(key_handler(local, info, parent)),
+      // Attr.tabindex(0),
+      // Attr.on_keydown(key_handler(local, info, parent)),
       Attr.classes(
         ["main"]
         @ (Option.is_some(cur_ap(info)) ? ["ap"] : [])
@@ -908,10 +911,13 @@ module M: Projector = {
 
   let update = update;
 
-  let view = (_model, info, ~local, ~parent, ~view_seg) =>
+  let view = (_model, info, ~local, ~parent, ~view_seg) => {
+    DynCursor.s.call_cursor == [] ? DynCursor.probe_default(info) : (); /*TODO(andrew): document */
     View.{
       inline: view(local, parent, info),
       overlay: Some(overlay_view(info)),
-      offside: Some(offside_view(info, local, view_seg, info.utility)),
+      offside:
+        Some(offside_view(info, local, parent, view_seg, info.utility)),
     };
+  };
 };

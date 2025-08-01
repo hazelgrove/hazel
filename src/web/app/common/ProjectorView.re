@@ -75,9 +75,10 @@ module Model = {
       ) => {
     List.filter_map(
       ((id, _)) => {
-        print_endline("id: " ++ Id.str8(id));
+        //TODO(andrew): cleanup
+        // print_endline("id: " ++ Id.str8(id));
         let* p = Id.Map.find_opt(id, projectors);
-        print_endline("p: " ++ ProjectorCore.Kind.name(p.kind));
+        // print_endline("p: " ++ ProjectorCore.Kind.name(p.kind));
         let+ measurement =
           switch (Measured.find_pr_opt(p, measured)) {
           | None =>
@@ -85,7 +86,7 @@ module Model = {
             Measured.find_by_id(id, measured)
           | Some(m) => Some(m)
           };
-        print_endline("measurement found");
+        // print_endline("measurement found");
         let info = ProjectorInfo.mk_info(p, ~statics, ~dynamics);
         {
           p,
