@@ -64,6 +64,7 @@ let eq_ignoring_stepper_modals = (a: t, b: t) =>
     evaluation: {
       ...a.evaluation,
       stepper_history: false,
+      show_settings: false,
     },
   }
   == {
@@ -71,5 +72,6 @@ let eq_ignoring_stepper_modals = (a: t, b: t) =>
        evaluation: {
          ...b.evaluation,
          stepper_history: false,
+         show_settings: false,
        },
      };

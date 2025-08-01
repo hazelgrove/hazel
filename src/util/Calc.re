@@ -1,7 +1,6 @@
 /*
-     A helper module for making things that look incremental (but aren't
-     because we haven't integrated incrementality yet). Eventually this module
-     will hopefully be made redundant by the Bonsai tree.
+     A helper module for making things calculate incrementally. Eventually
+     this module will hopefully be made redundant by the Bonsai tree.
  */
 
 // ================================================================================
@@ -68,6 +67,12 @@ let get_saved_opt = (x: saved('a)): option('a) =>
   | Calculated(x) => Some(x)
   };
 
+let get_saved_opt = (x: saved('a)): option('a) =>
+  switch (x) {
+  | Pending => None
+  | Calculated(x) => Some(x)
+  };
+
 exception PendingValue;
 
 let get_saved_exc = (~print=?, x: saved('a)): 'a =>
@@ -103,12 +108,6 @@ let update = (x: t('a), f: 'a => 'b, y: saved('b)): t('b) =>
 let update' = (x: t('a), f: 'a => 'b, y: t('b)): t('b) =>
   switch (x) {
   | OldValue(_) => y
-  | NewValue(x) => NewValue(f(x))
-  };
-
-let update'' = (x: t('a), f: 'a => 'b, y: 'b): t('b) =>
-  switch (x) {
-  | OldValue(_) => OldValue(y)
   | NewValue(x) => NewValue(f(x))
   };
 
