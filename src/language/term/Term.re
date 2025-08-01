@@ -933,3 +933,34 @@ module Any = {
     | ModuleSignatureEntry(tm) => ModuleSignatureEntry.rep_id(tm)
     | Any () => raise(Invalid_argument("Term.rep_id"));
 };
+
+let ctx_entry_of_module_signature_entry =
+    (entry: ModuleSignatureEntry.t): option(Ctx.entry) => {
+  switch (entry.term) {
+  | ValType(pat, typ) =>
+    Some(
+      VarEntry({
+        name: pat |> Pat.get_var |> Option.value(~default="NOCONAME"),
+        id: entry |> IdTagged.rep_id,
+        typ,
+      }),
+    )
+  | TypeDef(tpat, typ) =>
+    Some(
+      TVarEntry({
+        name: tpat |> TPat.get_var |> Option.value(~default="NOCONAME"),
+        id: entry |> IdTagged.rep_id,
+        kind: Ctx.Singleton(typ),
+      }),
+    )
+  | Hole(_)
+  | MultipleEntries(_) => None
+  };
+};
+
+let ctx_of_module_signature = (signature: list(ModuleSignatureEntry.t)) => {
+  let entries =
+    signature |> List.filter_map(ctx_entry_of_module_signature_entry);
+  let ctx = Ctx.empty;
+  List.fold_left((ctx, entry) => Ctx.extend(ctx, entry), ctx, entries);
+};
