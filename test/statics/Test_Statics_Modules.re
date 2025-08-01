@@ -22,21 +22,75 @@ let tests = [
     {| { val x = 3 }.x |},
     Some(Typ.int()),
   ),
-  //   fully_consistent_typecheck(
-  //     "Invalid value dot operator on module with single value",
-  //     {| { val x = 3 }.y |},
-  //     None,
-  //   ),
-  //   fully_consistent_typecheck(
-  //     "Valid type dot operator on module with single value",
-  //     {| x : { typedef T = Int }.T = 3 |},
-  //     Some(Typ.int()),
-  //   ),
-  //   fully_consistent_typecheck(
-  //     "Invalid type dot operator on module with single value",
-  //     {| x : { typedef T = Int }.U = 3 |},
-  //     None,
-  //   ),
+  test_case(
+    "Invalid value dot operator on module with single value", `Quick, () => {
+    annotated_tree_test(
+      {| { val x = 3 }.y |},
+      FIError.(
+        Exp.(
+          dot(
+            module_([ModuleEntry.val_binding(Pat.var("x"), int(3))]),
+            label("y"),
+            ~ann=
+              Some(
+                Exp(
+                  /* TODO @Gregory we need to decide what the error should be here.
+                     I'm just using the same one as for labeled tuples.
+                     Either way we need to fix the cursor inspector message.
+                     */
+                  LabelNotFound("y", ["x"]),
+                ),
+              ),
+          )
+        )
+      ),
+    )
+  }),
+  test_case("Qualified type access on module with single type", `Quick, () => {
+    [@warning "-21"]
+    {
+      Alcotest.skip(); // TODO: Fix this test
+      assert_consistent_typecheck(
+        {| x : { typedef T = Int }.T = 3 |},
+        Some(Typ.int()),
+      );
+    }
+  }),
+  test_case(
+    "Qualified type access on module with incorrect type variable", `Quick, () => {
+    Alcotest.skip// Commented out since we don't have dot on types yet
+                 // annotated_tree_test(
+                 //   {| let x : { typedef T = Int }.U = 3 |},
+                 //   FIError.(
+                 //     Exp.(
+                 //       let_(
+                 //         Pat.asc(
+                 //           Pat.var("x"),
+                 //           Typ.dot(
+                 //             ~ann=
+                 //               Some(
+                 //                 Typ(
+                 //                   /* TODO @Gregory we need to decide what the error should be here.
+                 //                      I'm just using the same one as for labeled tuples.
+                 //                      Either way we need to fix the cursor inspector message.
+                 //                      */
+                 //                   LabelNotFound("y", ["x"]), // Also we need this as a type error
+                 //                 ),
+                 //               ),
+                 //             Typ.module_signature([
+                 //               ModuleSignatureEntry.type_def(TPat.var("T"), Typ.int()),
+                 //             ]),
+                 //             Typ.label("U"),
+                 //           ),
+                 //         ),
+                 //         int(3),
+                 //         var("x"),
+                 //       )
+                 //     )
+                 //   ),
+                 () // TODO: Fix this test
+                 // );
+  }),
   fully_consistent_typecheck(
     "Module with value and type definition",
     {| { val x = 3 ;; typedef T = Int } |},

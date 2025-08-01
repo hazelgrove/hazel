@@ -85,22 +85,24 @@ let inconsistent_typecheck = (name, exp) => {
     },
   );
 };
+
+let assert_consistent_typecheck = (serialized, expected) => {
+  let exp = parse_exp(serialized);
+  print_endline(Exp.show(exp));
+  let s = statics(exp);
+  let errors = List.map(snd, Statics.Map.errors(s));
+  Alcotest.check(list(testable_error), "Static Errors", [], errors);
+  Alcotest.check(
+    Alcotest.option(testable_typ),
+    serialized,
+    expected,
+    type_of(exp),
+  );
+};
+
 let fully_consistent_typecheck = (name, serialized, expected) => {
-  test_case(
-    name,
-    `Quick,
-    () => {
-      let exp = parse_exp(serialized);
-      let s = statics(exp);
-      let errors = List.map(snd, Statics.Map.errors(s));
-      Alcotest.check(list(testable_error), "Static Errors", [], errors);
-      Alcotest.check(
-        Alcotest.option(testable_typ),
-        serialized,
-        expected,
-        type_of(exp),
-      );
-    },
+  test_case(name, `Quick, () =>
+    assert_consistent_typecheck(serialized, expected)
   );
 };
 
