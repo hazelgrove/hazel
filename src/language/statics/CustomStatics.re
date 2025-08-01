@@ -5,78 +5,15 @@ type tuple_entry =
   | Labeled(option(string), Typ.t);
 type tuple_type = list(tuple_entry);
 
-let analyze_tuple_argument = (module S: ExpressionStatics, ~ctx, m, tup) => {
-  open S;
+// Constants and helper functions
+let unknown = Unknown(Internal) |> Typ.temp;
+let syn = Unknown(SynSwitch) |> Typ.temp;
 
-  let (tup_info, m) =
-    uexp_to_info_map(~ctx, ~ana=Unknown(SynSwitch) |> Typ.temp, tup, m);
-
-  switch (Typ.normalize(ctx, tup_info.ty).term) {
-  | Prod(entries) => (
-      Some(
-        List.map(
-          (entry: Typ.t) => {
-            switch (entry.term) {
-            | TupLabel({term: Label(l), _}, typ) => Labeled(Some(l), typ)
-            | TupLabel(_, typ) => Labeled(None, typ)
-            | _ => Unlabeled(entry)
-            }
-          },
-          entries,
-        ),
-      ),
-      tup_info,
-      m,
-    )
-  | Unknown(_) => (None, tup_info, m)
-  | _ =>
-    let (_, m) =
-      uexp_to_info_map(
-        ~ctx,
-        ~ana=Unknown(SynSwitch) |> Typ.temp,
-        ~override_self=BuiltinError(ArgumentMustBeTuple),
-        tup,
-        m,
-      );
-    (None, tup_info, m);
-  };
-};
-
-let analyze_table_argument = (module S: ExpressionStatics, ~ctx, m, table) => {
-  open S;
-
-  let (table_info, m) =
-    uexp_to_info_map(~ctx, ~ana=Unknown(SynSwitch) |> Typ.temp, table, m);
-
-  switch (Typ.normalize(ctx, table_info.ty).term) {
-  | List({term: Prod(entries), _}) => (
-      Some(
-        List.map(
-          (entry: Typ.t) => {
-            switch (entry.term) {
-            | TupLabel({term: Label(l), _}, typ) => Labeled(Some(l), typ)
-            | TupLabel(_, typ) => Labeled(None, typ)
-            | _ => Unlabeled(entry)
-            }
-          },
-          entries,
-        ),
-      ),
-      table_info,
-      m,
-    )
-  | List({term: Unknown(_), _})
-  | Unknown(_) => (None, table_info, m)
-  | _ =>
-    let (_, m) =
-      uexp_to_info_map(
-        ~ctx,
-        ~ana=Unknown(SynSwitch) |> Typ.temp,
-        ~override_self=BuiltinError(ArgumentMustBeListOfTuples),
-        table,
-        m,
-      );
-    (None, table_info, m);
+let typ_entry_to_tuple_entry = (entry: Typ.t) => {
+  switch (entry.term) {
+  | TupLabel({term: Label(l), _}, typ) => Labeled(Some(l), typ)
+  | TupLabel(_, typ) => Labeled(None, typ)
+  | _ => Unlabeled(entry)
   };
 };
 
@@ -85,13 +22,91 @@ let extract_label = (entry: tuple_entry): option(string) =>
   | Labeled(Some(label), _) => Some(label)
   | _ => None
   };
+
 let extract_type = (entry: tuple_entry): Typ.t =>
   switch (entry) {
   | Unlabeled(typ) => typ
   | Labeled(_, typ) => typ
   };
+
 let extract_labels = (entries: tuple_type) =>
   List.filter_map((entry: tuple_entry) => extract_label(entry), entries);
+
+let get_tuple_label = (tuple: tuple_type, label: string): Typ.t => {
+  switch (
+    List.find_opt(entry => extract_label(entry) == Some(label), tuple)
+  ) {
+  | Some(entry) => extract_type(entry)
+  | None => unknown
+  };
+};
+
+type extract_result =
+  | Success(list(Typ.t))
+  | Unknown // Type is unknown
+  | Failure; // Type is wrong
+
+// Generic argument analysis
+let analyze_argument =
+    (
+      module S: ExpressionStatics,
+      ~ctx,
+      ~error_override,
+      ~extract_entries,
+      m,
+      arg,
+    ) => {
+  open S;
+  let (arg_info, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
+
+  switch (extract_entries(Typ.normalize(ctx, arg_info.ty))) {
+  | Success(entries) => (
+      Some(List.map(typ_entry_to_tuple_entry, entries)),
+      arg_info,
+      m,
+    )
+  | Unknown => (None, arg_info, m)
+  | Failure =>
+    let (_, m) =
+      uexp_to_info_map(~ctx, ~ana=syn, ~override_self=error_override, arg, m);
+    (None, arg_info, m);
+  };
+};
+
+let analyze_tuple_argument = (module S: ExpressionStatics, ~ctx, m, tup) => {
+  analyze_argument(
+    (module S),
+    ~ctx,
+    ~error_override=BuiltinError(ArgumentMustBeTuple),
+    ~extract_entries=
+      typ =>
+        switch (typ.term) {
+        | Prod(entries) => Success(entries)
+        | Unknown(_) => Unknown
+        | _ => Failure
+        },
+    m,
+    tup,
+  );
+};
+
+let analyze_table_argument = (module S: ExpressionStatics, ~ctx, m, table) => {
+  analyze_argument(
+    (module S),
+    ~ctx,
+    ~error_override=BuiltinError(ArgumentMustBeListOfTuples),
+    ~extract_entries=
+      typ =>
+        switch (typ.term) {
+        | List({term: Prod(entries), _}) => Success(entries)
+        | List({term: Unknown(_), _}) => Unknown
+        | Unknown(_) => Unknown
+        | _ => Failure
+        },
+    m,
+    table,
+  );
+};
 
 let labels_to_info_map =
     (
@@ -104,12 +119,7 @@ let labels_to_info_map =
   List.fold_left(
     ((labels: list(option(string)), m: Map.t), label) => {
       let (label, _, m) =
-        S.label_to_info_map(
-          expected_labels,
-          Unknown(SynSwitch) |> Typ.temp,
-          label,
-          m,
-        );
+        S.label_to_info_map(expected_labels, syn, label, m);
       (labels @ [label], m);
     },
     ([], m),
@@ -117,13 +127,79 @@ let labels_to_info_map =
   );
 };
 
-let get_tuple_label = (tuple: tuple_type, label: string): Typ.t => {
-  switch (
-    List.find_opt(entry => extract_label(entry) == Some(label), tuple)
-  ) {
-  | Some(entry) => extract_type(entry)
-  | None => Unknown(Internal) |> Typ.temp
-  };
+// Common fallback for invalid arguments
+let invalid_args_fallback =
+    (module S: ExpressionStatics, ~ctx, ~fn_info: Info.exp, ~error, m, arg) => {
+  S.(
+    let (arg_info, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
+    add'(
+      ~self=error,
+      ~co_ctx=CoCtx.union([fn_info.co_ctx, arg_info.co_ctx]),
+      m,
+    );
+  );
+};
+
+// Generic tuple operation handler
+let handle_tuple_operation =
+    (
+      module S: ExpressionStatics,
+      ~fn_info: Info.exp,
+      ~ancestors: list(Id.t),
+      ~ctx: Ctx.t,
+      ~compute_result_type,
+      m: Map.t,
+      arg: Exp.t,
+    ) => {
+  S.(
+    switch (arg.term) {
+    | Tuple([tup, ...labs]) when List.length(labs) > 0 =>
+      let (labeled_tup_info: option(tuple_type), tup_info, m: Map.t) =
+        analyze_tuple_argument((module S), ~ctx, m, tup);
+
+      let expected_labels = Option.map(extract_labels, labeled_tup_info);
+      let (labels, m) =
+        labels_to_info_map((module S), expected_labels, labs, m);
+
+      let args_typ =
+        Typ.to_product([tup_info.ty] @ List.map(__ => unknown, labs));
+
+      let m =
+        add_info(
+          arg.annotation.ids,
+          InfoExp(
+            Info.derived_exp(
+              ~uexp=arg,
+              ~ctx,
+              ~ana=syn,
+              ~ancestors,
+              ~self=Common(Just(args_typ)),
+              ~co_ctx=CoCtx.empty,
+              ~label_inference=None,
+              ~inferred_label=None,
+              ~label_sort=false,
+            ),
+          ),
+          m,
+        );
+
+      let result_type = compute_result_type(labeled_tup_info, labels);
+      add'(
+        ~self=Common(Just(result_type)),
+        ~co_ctx=CoCtx.union([fn_info.co_ctx, tup_info.co_ctx]),
+        m,
+      );
+    | _ =>
+      invalid_args_fallback(
+        (module S),
+        ~ctx,
+        ~fn_info,
+        ~error=BuiltinError(AtLeast2Arguments),
+        m,
+        arg,
+      )
+    }
+  );
 };
 
 let project_labels_statics =
@@ -137,72 +213,123 @@ let project_labels_statics =
       m: Map.t,
       arg: Exp.t,
     ) => {
-  S.(
-    switch (arg.term) {
-    | Tuple([tup, ...labs]) when List.length(labs) > 0 =>
-      let (labeled_tup_info: option(tuple_type), tup_info, m: Map.t) =
-        analyze_tuple_argument((module S), ~ctx, m, tup);
+  handle_tuple_operation(
+    (module S),
+    ~fn_info,
+    ~ancestors,
+    ~ctx,
+    ~compute_result_type=
+      (labeled_tup_info, labels) => {
+        let val_types =
+          List.map(
+            (optional_lab: option(string)) => {
+              Util.OptUtil.map2(
+                get_tuple_label,
+                labeled_tup_info,
+                optional_lab,
+              )
+              |> Option.value(~default=unknown)
+            },
+            labels,
+          );
+        Typ.to_product(val_types);
+      },
+    m,
+    arg,
+  );
+};
 
-      let expected_labels = Option.map(extract_labels, labeled_tup_info);
+let select_labels_statics =
+    (
+      module S: ExpressionStatics,
+      ~inferred_label as _,
+      ~label_sort as _,
+      ~fn_info: Info.exp,
+      ~ancestors: list(Id.t),
+      ~ctx: Ctx.t,
+      m: Map.t,
+      arg: Exp.t,
+    ) => {
+  handle_tuple_operation(
+    (module S),
+    ~fn_info,
+    ~ancestors,
+    ~ctx,
+    ~compute_result_type=
+      (labeled_tup_info, labels) => {
+        let val_types =
+          List.map(
+            (optional_lab: option(string)) => {
+              Util.OptUtil.map2(
+                (a, b) =>
+                  TupLabel(Label(b) |> Typ.temp, get_tuple_label(a, b))
+                  |> Typ.temp,
+                labeled_tup_info,
+                optional_lab,
+              )
+              |> Option.value(~default=unknown)
+            },
+            labels,
+          );
+        Typ.to_product(val_types);
+      },
+    m,
+    arg,
+  );
+};
 
-      let (labels, m) =
-        labels_to_info_map((module S), expected_labels, labs, m);
-      let args_typ =
-        Typ.to_product(
-          [tup_info.ty]
-          @ List.map(__ => Unknown(Internal) |> Typ.temp, labs),
-        );
-
-      let m =
-        add_info(
-          arg.annotation.ids,
-          InfoExp(
-            Info.derived_exp(
-              ~uexp=arg,
-              ~ctx,
-              ~ana=Unknown(SynSwitch) |> Typ.temp,
-              ~ancestors,
-              ~self=Common(Just(args_typ)),
-              ~co_ctx=CoCtx.empty,
-              ~label_inference=None,
-              ~inferred_label=None,
-              ~label_sort=false,
-            ),
-          ),
-          m,
-        );
-
-      let val_types =
-        List.map(
-          (optional_lab: option(string)) => {
-            Util.OptUtil.map2(get_tuple_label, labeled_tup_info, optional_lab)
-            |> Option.value(~default=Unknown(Internal) |> Typ.temp)
-          },
-          labels,
-        );
-
-      add'(
-        ~self=Common(Just(Typ.to_product(val_types))),
-        ~co_ctx=CoCtx.union([fn_info.co_ctx, tup_info.co_ctx]),
-        m,
-      );
-    | _ =>
-      let (arg_info, m) =
-        uexp_to_info_map(~ctx, ~ana=Unknown(SynSwitch) |> Typ.temp, arg, m);
-      add'(
-        ~self=BuiltinError(AtLeast2Arguments),
-        ~co_ctx=CoCtx.union([fn_info.co_ctx, arg_info.co_ctx]),
-        m,
-      );
-    }
+let omit_labels_statics =
+    (
+      module S: ExpressionStatics,
+      ~inferred_label as _,
+      ~label_sort as _,
+      ~fn_info: Info.exp,
+      ~ancestors: list(Id.t),
+      ~ctx: Ctx.t,
+      m: Map.t,
+      arg: Exp.t,
+    ) => {
+  handle_tuple_operation(
+    (module S),
+    ~fn_info,
+    ~ancestors,
+    ~ctx,
+    ~compute_result_type=
+      (labeled_tup_info, labels) => {
+        let labels_to_drop = List.filter_map(Fun.id, labels);
+        switch (labeled_tup_info) {
+        | None => unknown
+        | Some(labeled_tup_info) =>
+          let tys =
+            List.filter_map(
+              entry => {
+                switch (entry) {
+                | Unlabeled(typ) => Some(typ)
+                | Labeled(None, typ) =>
+                  Some(TupLabel(unknown, typ) |> Typ.temp)
+                | Labeled(Some(lab), typ) =>
+                  if (List.mem(lab, labels_to_drop)) {
+                    None;
+                  } else {
+                    Some(TupLabel(Label(lab) |> Typ.temp, typ) |> Typ.temp);
+                  }
+                }
+              },
+              labeled_tup_info,
+            );
+          Typ.to_product(tys);
+        };
+      },
+    m,
+    arg,
   );
 };
 
 let primitive_pivot_statics =
     (
       module S: ExpressionStatics,
-      ~inferred_label,
-      ~label_sort,
+      ~inferred_label as _,
+      ~label_sort as _,
       ~fn_info: Info.exp,
       ~ancestors: list(Id.t),
       ~ctx: Ctx.t,
@@ -217,12 +344,7 @@ let primitive_pivot_statics =
 
       let expected_labels = Option.map(extract_labels, row_info);
       let (label, _, m) =
-        label_to_info_map(
-          expected_labels,
-          Unknown(SynSwitch) |> Typ.temp,
-          pivot_label,
-          m,
-        );
+        label_to_info_map(expected_labels, syn, pivot_label, m);
 
       let m =
         add_info(
@@ -231,23 +353,19 @@ let primitive_pivot_statics =
             Info.derived_exp(
               ~uexp=arg,
               ~ctx,
-              ~ana=Unknown(SynSwitch) |> Typ.temp,
+              ~ana=syn,
+              ~co_ctx=CoCtx.empty,
               ~ancestors,
               ~self=
-                Common(
-                  Just(
-                    Prod([table_info.ty, Unknown(Internal) |> Typ.temp])
-                    |> Typ.temp,
-                  ),
-                ),
-              ~co_ctx=CoCtx.empty,
+                Common(Just(Prod([table_info.ty, unknown]) |> Typ.temp)),
               ~label_inference=None,
-              ~inferred_label,
-              ~label_sort,
+              ~inferred_label=None,
+              ~label_sort=false,
             ),
           ),
           m,
         );
+
       let pivot_type =
         Util.OptUtil.map2(
           (entries: list(tuple_entry), label: string) => {
@@ -278,17 +396,19 @@ let primitive_pivot_statics =
         };
 
       add'(
-        ~self=Common(Just(Unknown(Internal) |> Typ.temp)),
+        ~self=Common(Just(unknown)),
         ~co_ctx=CoCtx.union([fn_info.co_ctx, table_info.co_ctx]),
         m,
       );
     | _ =>
-      let (arg_info, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
-      add'(
-        ~self=BuiltinError(Exactly2Arguments),
-        ~co_ctx=CoCtx.union([fn_info.co_ctx, arg_info.co_ctx]),
+      invalid_args_fallback(
+        (module S),
+        ~ctx,
+        ~fn_info,
+        ~error=BuiltinError(Exactly2Arguments),
         m,
-      );
+        arg,
+      )
     }
   );
 };
@@ -306,14 +426,12 @@ let melt_statics =
     ) => {
   open S;
   let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn_info.ty);
-
   let (arg, m) = uexp_to_info_map(~ctx, ~ana=ty_in, arg, m);
 
   switch (Typ.normalize(ctx, arg.ty).term) {
   | Prod(entries) =>
     let entries =
       Util.OptUtil.traverse(Typ.match_tup_optional_label, entries);
-
     switch (entries) {
     | Some(entries) =>
       let val_typs = List.map(snd, entries);
@@ -321,9 +439,9 @@ let melt_statics =
         Util.OptUtil.fold_left_opt(
           (acc, t) => Typ.join(ctx, acc, t),
           val_typs,
-          Unknown(Internal) |> Typ.temp,
+          unknown,
         )
-        |> Option.value(~default=Unknown(Internal) |> Typ.temp);
+        |> Option.value(~default=unknown);
 
       add'(
         ~self=
@@ -364,175 +482,6 @@ let melt_statics =
   };
 };
 
-let select_labels_statics =
-    (
-      module S: ExpressionStatics,
-      ~inferred_label as _,
-      ~label_sort as _,
-      ~fn_info: Info.exp,
-      ~ancestors: list(Id.t),
-      ~ctx: Ctx.t,
-      m: Map.t,
-      arg: Exp.t,
-    ) => {
-  S.(
-    switch (arg.term) {
-    | Tuple([tup, ...labs]) when List.length(labs) > 0 =>
-      let (labeled_tup_info: option(tuple_type), tup_info, m: Map.t) =
-        analyze_tuple_argument((module S), ~ctx, m, tup);
-
-      let expected_labels = Option.map(extract_labels, labeled_tup_info);
-
-      let (labels, m) =
-        labels_to_info_map((module S), expected_labels, labs, m);
-      let args_typ =
-        Typ.to_product(
-          [tup_info.ty]
-          @ List.map(__ => Unknown(Internal) |> Typ.temp, labs),
-        );
-
-      let m =
-        add_info(
-          arg.annotation.ids,
-          InfoExp(
-            Info.derived_exp(
-              ~uexp=arg,
-              ~ctx,
-              ~ana=Unknown(SynSwitch) |> Typ.temp,
-              ~ancestors,
-              ~self=Common(Just(args_typ)),
-              ~co_ctx=CoCtx.empty,
-              ~label_inference=None,
-              ~inferred_label=None,
-              ~label_sort=false,
-            ),
-          ),
-          m,
-        );
-
-      let val_types =
-        List.map(
-          (optional_lab: option(string)) => {
-            Util.OptUtil.map2(
-              (a, b) =>
-                TupLabel(Label(b) |> Typ.temp, get_tuple_label(a, b))
-                |> Typ.temp,
-              labeled_tup_info,
-              optional_lab,
-            )
-            |> Option.value(~default=Unknown(Internal) |> Typ.temp)
-          },
-          labels,
-        );
-
-      add'(
-        ~self=Common(Just(Typ.to_product(val_types))),
-        ~co_ctx=CoCtx.union([fn_info.co_ctx, tup_info.co_ctx]),
-        m,
-      );
-    | _ =>
-      let (arg_info, m) =
-        uexp_to_info_map(~ctx, ~ana=Unknown(SynSwitch) |> Typ.temp, arg, m);
-      add'(
-        ~self=BuiltinError(AtLeast2Arguments),
-        ~co_ctx=CoCtx.union([fn_info.co_ctx, arg_info.co_ctx]),
-        m,
-      );
-    }
-  );
-};
-
-let omit_labels_statics =
-    (
-      module S: ExpressionStatics,
-      ~inferred_label as _,
-      ~label_sort as _,
-      ~fn_info: Info.exp,
-      ~ancestors: list(Id.t),
-      ~ctx: Ctx.t,
-      m: Map.t,
-      arg: Exp.t,
-    ) => {
-  S.(
-    switch (arg.term) {
-    | Tuple([tup, ...labs]) when List.length(labs) > 0 =>
-      let (labeled_tup_info: option(tuple_type), tup_info, m: Map.t) =
-        analyze_tuple_argument((module S), ~ctx, m, tup);
-
-      let expected_labels = Option.map(extract_labels, labeled_tup_info);
-
-      let (labels_to_drop, m) =
-        labels_to_info_map((module S), expected_labels, labs, m);
-      let labels_to_drop = List.filter_map(Fun.id, labels_to_drop);
-      let args_typ =
-        Typ.to_product(
-          [tup_info.ty]
-          @ List.map(__ => Unknown(Internal) |> Typ.temp, labs),
-        );
-
-      let m =
-        add_info(
-          arg.annotation.ids,
-          InfoExp(
-            Info.derived_exp(
-              ~uexp=arg,
-              ~ctx,
-              ~ana=Unknown(SynSwitch) |> Typ.temp,
-              ~ancestors,
-              ~self=Common(Just(args_typ)),
-              ~co_ctx=CoCtx.empty,
-              ~label_inference=None,
-              ~inferred_label=None,
-              ~label_sort=false,
-            ),
-          ),
-          m,
-        );
-
-      let ty =
-        switch (labeled_tup_info) {
-        | None => Unknown(Internal) |> Typ.temp
-        | Some(labeled_tup_info) =>
-          let tys =
-            List.filter_map(
-              entry => {
-                switch (entry) {
-                | Unlabeled(typ) => Some(typ)
-                | Labeled(None, typ) =>
-                  Some(
-                    TupLabel(Unknown(Internal) |> Typ.temp, typ) |> Typ.temp,
-                  )
-                | Labeled(Some(lab), typ) =>
-                  if (List.mem(lab, labels_to_drop)) {
-                    None;
-                  } else {
-                    Some(TupLabel(Label(lab) |> Typ.temp, typ) |> Typ.temp);
-                  }
-                }
-              },
-              labeled_tup_info,
-            );
-
-          Typ.to_product(tys);
-        };
-
-      add'(
-        ~self=Common(Just(ty)),
-        ~co_ctx=CoCtx.union([fn_info.co_ctx, tup_info.co_ctx]),
-        m,
-      );
-    | _ =>
-      let (arg_info, m) =
-        uexp_to_info_map(~ctx, ~ana=Unknown(SynSwitch) |> Typ.temp, arg, m);
-      add'(
-        ~self=BuiltinError(AtLeast2Arguments),
-        ~co_ctx=CoCtx.union([fn_info.co_ctx, arg_info.co_ctx]),
-        m,
-      );
-    }
-  );
-};
-
 let drop_labels_statics =
     (
       module S: ExpressionStatics,
@@ -546,7 +495,6 @@ let drop_labels_statics =
     ) => {
   S.(
     let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn_info.ty);
-
     let (arg, m) = uexp_to_info_map(~ctx, ~ana=ty_in, arg, m);
 
     switch (Typ.normalize(ctx, arg.ty).term) {
@@ -562,7 +510,7 @@ let drop_labels_statics =
         );
 
       add'(
-        ~self=Common(Just(IdTagged.FreshGrammar.Typ.(prod(entries)))),
+        ~self=Common(Just(Typ.to_product(entries))),
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
         m,
       );
@@ -579,6 +527,156 @@ let drop_labels_statics =
         m,
       )
     };
+  );
+};
+
+let validate_label_arguments =
+    (
+      module S: ExpressionStatics,
+      ~ctx as _: Ctx.t,
+      expected_labels: option(list(string)),
+      args: list(Exp.t),
+      m: Map.t,
+    )
+    : (list(option(string)), Map.t) => {
+  List.fold_left(
+    ((labels: list(option(string)), m: Map.t), arg) => {
+      let (label, _, m) = S.label_to_info_map(expected_labels, syn, arg, m);
+      (labels @ [label], m);
+    },
+    ([], m),
+    args,
+  );
+};
+
+let custom_statics_deferred_ap =
+    (
+      ~inferred_label as _,
+      ~label_sort as _,
+      ~ctx: Ctx.t,
+      ~ancestors as _,
+      ~fn_info: Info.exp,
+      kind: Ctx.custom_statics,
+      module S: ExpressionStatics,
+      m: Map.t,
+      args: list(Exp.t),
+    ) => {
+  S.(
+    switch (kind, args) {
+    | (ProjectLabels | SelectLabels | OmitLabels, [tup, ...labels])
+        when List.length(labels) > 0 =>
+      let (tup_info, m) = uexp_to_info_map(~ctx, ~ana=syn, tup, m);
+      let (_, m) =
+        validate_label_arguments((module S), ~ctx, None, labels, m);
+
+      add'(
+        ~self=Common(Just(Arrow(unknown, unknown) |> Typ.temp)),
+        ~co_ctx=CoCtx.union([fn_info.co_ctx, tup_info.co_ctx]),
+        m,
+      );
+
+    | (PrimitivePivot, [table, pivot_label]) =>
+      let (table_info, m) = uexp_to_info_map(~ctx, ~ana=syn, table, m);
+      let (_, m) =
+        validate_label_arguments((module S), ~ctx, None, [pivot_label], m);
+
+      add'(
+        ~self=Common(Just(unknown)),
+        ~co_ctx=CoCtx.union([fn_info.co_ctx, table_info.co_ctx]),
+        m,
+      );
+
+    | (Melt | DropLabels, [arg]) =>
+      let (arg_info, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
+
+      add'(
+        ~self=Common(Just(unknown)),
+        ~co_ctx=CoCtx.union([fn_info.co_ctx, arg_info.co_ctx]),
+        m,
+      );
+
+    // Arity error cases
+    | (ProjectLabels | SelectLabels | OmitLabels, [])
+    | (ProjectLabels | SelectLabels | OmitLabels, [_]) =>
+      let (args_info, m) =
+        List.fold_left(
+          ((acc_info, acc_m), arg) => {
+            let (info, new_m) =
+              S.uexp_to_info_map(~ctx, ~ana=syn, arg, acc_m);
+            (acc_info @ [info], new_m);
+          },
+          ([], m),
+          args,
+        );
+      let combined_co_ctx =
+        List.fold_left(
+          (acc, info) => CoCtx.union([acc, Info.exp_co_ctx(info)]),
+          fn_info.co_ctx,
+          args_info,
+        );
+
+      add'(
+        ~self=BuiltinError(AtLeast2Arguments),
+        ~co_ctx=combined_co_ctx,
+        m,
+      );
+
+    | (PrimitivePivot, [])
+    | (PrimitivePivot, [_])
+    | (PrimitivePivot, [_, _, ..._]) =>
+      let (args_info, m) =
+        List.fold_left(
+          ((acc_info, acc_m), arg) => {
+            let (info, new_m) =
+              S.uexp_to_info_map(~ctx, ~ana=syn, arg, acc_m);
+            (acc_info @ [info], new_m);
+          },
+          ([], m),
+          args,
+        );
+      let combined_co_ctx =
+        List.fold_left(
+          (acc, info) => CoCtx.union([acc, Info.exp_co_ctx(info)]),
+          fn_info.co_ctx,
+          args_info,
+        );
+
+      add'(
+        ~self=BuiltinError(Exactly2Arguments),
+        ~co_ctx=combined_co_ctx,
+        m,
+      );
+
+    // Fallback for other cases (including melt/drop_labels with wrong arity)
+    | _ =>
+      let (args_info, m) =
+        List.fold_left(
+          ((acc_info, acc_m), arg) => {
+            let (info, new_m) =
+              S.uexp_to_info_map(~ctx, ~ana=syn, arg, acc_m);
+            (acc_info @ [info], new_m);
+          },
+          ([], m),
+          args,
+        );
+      let combined_co_ctx =
+        List.fold_left(
+          (acc, info) => CoCtx.union([acc, Info.exp_co_ctx(info)]),
+          fn_info.co_ctx,
+          args_info,
+        );
+
+      let ty_in' =
+        List.filter(e => Exp.is_deferral(e), args)
+        |> List.map(_ => unknown)
+        |> Typ.to_product;
+
+      add'(
+        ~self=Common(Just(Arrow(ty_in', unknown) |> Typ.temp)),
+        ~co_ctx=combined_co_ctx,
+        m,
+      );
+    }
   );
 };
 

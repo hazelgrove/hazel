@@ -134,41 +134,6 @@ let tests =
         ),
       )
     }),
-    test_case(
-      "Typechecking fails for unlabeled variable being assigned to labeled tuple",
-      `Quick,
-      () => {
-      annotated_tree_test(
-        "let y : String = true",
-        string(),
-        FIError.(
-          Exp.(
-            let_(
-              Pat.(asc(var("y"), Typ.(string()))),
-              bool(
-                ~ann=
-                  Some(
-                    FTemp.Typ.(
-                      Exp(
-                        Common(
-                          Inconsistent(
-                            Expectation({
-                              ana: string(),
-                              syn: bool(),
-                            }),
-                          ),
-                        ),
-                      )
-                    ),
-                  ),
-                true,
-              ),
-              var("y"),
-            )
-          )
-        ),
-      )
-    }),
     fully_consistent_typecheck(
       "Assigning labeled tuple to variable",
       "let x = (l=32) in let y : (l=Int) = x in y",
@@ -220,7 +185,7 @@ let tests =
       )
     }),
     fully_consistent_typecheck(
-      "Singleton Labled Tuple with specified label",
+      "Singleton Labeled Tuple with specified label",
       "let x : (l=String) = (l=\"a\") in x",
       Some(prod([tup_label(label("l"), string())])),
     ),

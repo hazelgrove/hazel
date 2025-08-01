@@ -31,7 +31,7 @@ let builtins: list(BuiltinsUtil.fn) = [
             ),
             unboxed,
           )
-          |> Option.map(Fresh.Exp.tuple);
+          |> Option.map(Exp.to_tuple);
 
         | _ => None
         }
@@ -119,7 +119,7 @@ let builtins: list(BuiltinsUtil.fn) = [
           tuple_entries,
         );
 
-      Some(IdTagged.FreshGrammar.Exp.tuple(tuple_entries));
+      Some(Exp.to_tuple(tuple_entries));
     },
     custom_statics: None,
   },
@@ -130,7 +130,7 @@ let builtins: list(BuiltinsUtil.fn) = [
     imp: d => {
       let-unbox args = (LabeledTupleEntries, d);
       switch (args) {
-      | [] => None // No argument indet
+      | [] // No argument indet
       | [_] => None // Singleton labeled tuple indet
       | [(Some(_), _), ..._] => None // First element is labeled
       | [(None, tup), ...labels] =>
@@ -154,7 +154,7 @@ let builtins: list(BuiltinsUtil.fn) = [
               (l: string) => IdTagged.FreshGrammar.Exp.(dot(tup, label(l))),
               labels,
             );
-          Some(IdTagged.FreshGrammar.Exp.tuple(entries));
+          Some(Exp.to_tuple(entries));
         | None => None
         };
       };
@@ -168,7 +168,7 @@ let builtins: list(BuiltinsUtil.fn) = [
     imp: d => {
       let-unbox args = (LabeledTupleEntries, d);
       switch (args) {
-      | [] => None // No argument indet
+      | [] // No argument indet
       | [_] => None // Singleton labeled tuple indet
       | [(Some(_), _), ..._] => None // First element is labeled
       | [(None, tup), ...labels] =>
@@ -195,7 +195,7 @@ let builtins: list(BuiltinsUtil.fn) = [
                 ),
               labels,
             );
-          Some(IdTagged.FreshGrammar.Exp.tuple(entries));
+          Some(Exp.to_tuple(entries));
         | None => None
         };
       };
@@ -209,7 +209,7 @@ let builtins: list(BuiltinsUtil.fn) = [
     imp: d => {
       let-unbox args = (LabeledTupleEntries, d);
       switch (args) {
-      | [] => None // No argument indet
+      | [] // No argument indet
       | [_] => None // Singleton labeled tuple indet
       | [(Some(_), _), ..._] => None // First element is labeled
       | [(None, tup), ...labels] =>
@@ -247,7 +247,7 @@ let builtins: list(BuiltinsUtil.fn) = [
               },
               entries,
             );
-          Some(IdTagged.FreshGrammar.Exp.tuple(entries));
+          Some(Exp.to_tuple(entries));
         | None => None
         };
       };
@@ -260,17 +260,8 @@ let builtins: list(BuiltinsUtil.fn) = [
     ret: Unknown(Internal),
     imp: d => {
       let-unbox entries = (LabeledTupleEntries, d);
-      let entries =
-        List.filter_map(
-          ((l, e)) => {
-            switch (l) {
-            | Some(_) => Some(e)
-            | None => Some(e)
-            }
-          },
-          entries,
-        );
-      Some(IdTagged.FreshGrammar.Exp.tuple(entries));
+      let entries = List.filter_map(((_, e)) => Some(e), entries);
+      Some(Exp.to_tuple(entries));
     },
     custom_statics: Some(DropLabels),
   },

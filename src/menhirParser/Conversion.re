@@ -71,8 +71,6 @@ module Operators = {
         | LessThanOrEqual => LessThanOrEqual
         | GreaterThan => GreaterThan
         | GreaterThanOrEqual => GreaterThanOrEqual
-        | Equals => Equals
-        | NotEquals => NotEquals
         },
       )
     | Float(op_float) =>
@@ -105,6 +103,13 @@ module Operators = {
         | Equals => Equals
         },
       )
+    | Poly(op_poly) =>
+      PolyOp(
+        switch (op_poly) {
+        | Equals => Equals
+        | NotEquals => NotEquals
+        },
+      )
     };
   };
 
@@ -135,7 +140,7 @@ module Operators = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  let float_op_of_menhir_ast = (op: AST.op_bin_float): op_bin_num => {
+  let float_op_of_menhir_ast = (op: AST.op_bin_float): op_bin_float => {
     switch (op) {
     | Plus => Plus
     | Minus => Minus
@@ -160,6 +165,14 @@ module Operators = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  let poly_op_of_menhir_ast = (op: AST.op_bin_poly): op_bin_poly => {
+    switch (op) {
+    | Equals => Equals
+    | NotEquals => NotEquals
+    };
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   let bool_op_of_menhir_ast = (op: AST.op_bin_bool): op_bin_bool => {
     switch (op) {
     | And => And
@@ -179,8 +192,6 @@ module Operators = {
     | LessThanOrEqual => LessThanOrEqual
     | GreaterThan => GreaterThan
     | GreaterThanOrEqual => GreaterThanOrEqual
-    | Equals => Equals
-    | NotEquals => NotEquals
     };
   };
 
@@ -191,6 +202,7 @@ module Operators = {
     | FloatOp(op_float) => Float(float_op_of_menhir_ast(op_float))
     | BoolOp(op_bool) => Bool(bool_op_of_menhir_ast(op_bool))
     | StringOp(op_string) => String(string_op_of_menhir_ast(op_string))
+    | PolyOp(op_poly) => Poly(poly_op_of_menhir_ast(op_poly))
     };
   };
 };

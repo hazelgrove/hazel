@@ -231,7 +231,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
       | ([t], []) when Form.is_string(t) =>
         ret(Atom(String(Form.strip_quotes(t))))
       | ([t], []) when Form.is_single_quote_label(t) =>
-        ret(Label(String.sub(t, 1, String.length(t) - 2)))
+        ret(Label(Form.strip_quotes(~quote=Form.label_delim, t)))
       | ([t], []) when Form.is_float(t) =>
         ret(Atom(Float(float_of_string(t))))
       | ([t], []) when Form.is_livelit(t) =>
@@ -244,7 +244,9 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         ret(should_instrument(id) ? Probe(body, Probe.empty) : body.term)
       | (["[", "]"], [Exp(body)]) =>
         switch (body) {
-        | {annotation: {ids}, term: Tuple(es)} => (
+        | {annotation: {ids}, term: Tuple(es)} =>
+          // Addresses tup_labels in lists like: [l=32, 1]
+          (
             ListLit(
               List.map(
                 (list_item: Grammar.exp_t(IdTagged.IdTag.t)) => {
@@ -416,8 +418,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           | ([">"], []) => BinOp(Int(GreaterThan), l, r)
           | (["<="], []) => BinOp(Int(LessThanOrEqual), l, r)
           | ([">="], []) => BinOp(Int(GreaterThanOrEqual), l, r)
-          | (["=="], []) => BinOp(Int(Equals), l, r)
-          | (["!="], []) => BinOp(Int(NotEquals), l, r)
+          | (["=="], []) => BinOp(Poly(Equals), l, r)
+          | (["!="], []) => BinOp(Poly(NotEquals), l, r)
           | (["+."], []) => BinOp(Float(Plus), l, r)
           | (["-."], []) => BinOp(Float(Minus), l, r)
           | (["*."], []) => BinOp(Float(Times), l, r)
@@ -523,7 +525,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
         | ([t], []) when Form.is_string(t) =>
           Atom(String(Form.strip_quotes(t)))
         | ([t], []) when Form.is_single_quote_label(t) =>
-          Label(String.sub(t, 1, String.length(t) - 2))
+          Label(Form.strip_quotes(~quote=Form.label_delim, t))
         | ([t], []) when Form.is_var(t) => Var(t)
         | ([t], []) when Form.is_wild(t) => Wild
         | ([t], []) when Form.is_ctr(t) => Constructor(t, None)
@@ -587,6 +589,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
               r,
             ),
           )
+        | Label(_) => ret(TupLabel(l, r))
         | EmptyHole => ret(TupLabel(l, r))
         | _ =>
           let (e_term, rewrap) = IdTagged.unwrap(l);
@@ -639,6 +642,8 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | (["String"], []) => Atom(String)
         | (["Nat"], []) => Atom(Nat)
         | ([t], []) when Form.is_typ_var(t) => Var(t)
+        | ([t], []) when Form.is_single_quote_label(t) =>
+          Label(String.sub(t, 1, String.length(t) - 2))
         | (["(", ")"], [Typ(body)]) => Parens(body)
         | (label, [Typ(body)]) when is_probe_wrap(label) => body.term
         | (["[", "]"], [Typ(body)]) => List(body)

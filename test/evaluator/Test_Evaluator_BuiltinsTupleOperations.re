@@ -3,7 +3,7 @@ open Language;
 open Test_Evaluator_Prelude;
 
 let tests = (
-  "Evaluator.DataFrames",
+  "Evaluator.BuiltinsTupleOperations",
   [
     test_case("Projection from list of labeled tuples", `Quick, () =>
       check(
@@ -16,20 +16,20 @@ let tests = (
     test_case("Primitive pivot of list of labeled tuple", `Quick, () =>
       check(
         dhexp_typ,
-        {|primitive_pivot([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], 'l')|},
+        {|primitive_pivot([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], `l`)|},
         parse_exp({|a=[(j=1, 3)], b=[(j=2, 9)], c=[(j=3, 9)]|}),
         parse_and_evaluate(
-          {|primitive_pivot([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], 'l')|},
+          {|primitive_pivot([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], `l`)|},
         ),
       )
     ),
     test_case("Projection of pivoted list of labeled tuples", `Quick, () =>
       check(
         dhexp_typ,
-        {|primitive_pivot([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], 'l').a|},
+        {|primitive_pivot([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], `l`).a|},
         parse_exp({|[(j=1, 3)]|}),
         parse_and_evaluate(
-          {|primitive_pivot([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], 'l').a|},
+          {|primitive_pivot([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], `l`).a|},
         ),
       )
     ),
@@ -37,20 +37,20 @@ let tests = (
       "Nested projection of pivoted list of labeled tuples", `Quick, () =>
       check(
         dhexp_typ,
-        {|primitive_pivot([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], 'l')|},
+        {|primitive_pivot([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], `l`)|},
         parse_exp({|[1]|}),
         parse_and_evaluate(
-          {|primitive_pivot([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], 'l').a.j|},
+          {|primitive_pivot([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], `l`).a.j|},
         ),
       )
     ),
     test_case("Pivoting list bound to variable", `Quick, () =>
       check(
         dhexp_typ,
-        {|let i = [(l="a", j=1, 3)] in primitive_pivot(i, 'l').a|},
+        {|let i = [(l="a", j=1, 3)] in primitive_pivot(i, `l`).a|},
         parse_exp({|[(j=1, 3)]|}),
         parse_and_evaluate(
-          {|let i = [(l="a", j=1, 3)] in primitive_pivot(i, 'l').a|},
+          {|let i = [(l="a", j=1, 3)] in primitive_pivot(i, `l`).a|},
         ),
       )
     ),
@@ -58,12 +58,12 @@ let tests = (
       "pivoted list of labeled tuples with multiple entries", `Quick, () =>
       check(
         dhexp_typ,
-        {|primitive_pivot([(l="a", 1, true), (l="b", 2, true), (l="c", 3, true), (l="a", 4, true)], 'l')|},
+        {|primitive_pivot([(l="a", 1, true), (l="b", 2, true), (l="c", 3, true), (l="a", 4, true)], `l`)|},
         parse_exp(
           {|(a=[(1, true), (4, true)], b=[(2, true)], c=[(3, true)])|},
         ),
         parse_and_evaluate(
-          {|primitive_pivot([(l="a", 1, true), (l="b", 2, true), (l="c", 3, true), (l="a", 4, true)], 'l')|},
+          {|primitive_pivot([(l="a", 1, true), (l="b", 2, true), (l="c", 3, true), (l="a", 4, true)], `l`)|},
         ),
       )
     ),
@@ -85,8 +85,6 @@ let tests = (
       `Quick,
       () => {
         let program = {|let (var=a, val=b) = (var="get_acne", val=true) : ? in b|};
-        let elaborated = elaborate(parse_exp(program));
-        print_endline("Elaborated: " ++ DHExp.show(elaborated));
 
         check(
           dhexp_typ,
@@ -204,6 +202,45 @@ filter@<(label=String, value=Bool)>(fun a,b ->b, melted).label|};
           dhexp_typ,
           program,
           parse_exp({|(col1=3, col2=true, ?=5)|}),
+          parse_and_evaluate(program),
+        );
+      },
+    ),
+    test_case(
+      "Project labels to singleton",
+      `Quick,
+      () => {
+        let program = {|project_labels((a=1, b=2), `a`)|};
+        check(
+          dhexp_typ,
+          program,
+          parse_exp({|1|}),
+          parse_and_evaluate(program),
+        );
+      },
+    ),
+    test_case(
+      "Omit labels to unlabeled singleton",
+      `Quick,
+      () => {
+        let program = {|omit_labels((a=1, 2), `a`)|};
+        check(
+          dhexp_typ,
+          program,
+          parse_exp({|2|}),
+          parse_and_evaluate(program),
+        );
+      },
+    ),
+    test_case(
+      "Drop labels to singleton",
+      `Quick,
+      () => {
+        let program = {|drop_labels((a=1))|};
+        check(
+          dhexp_typ,
+          program,
+          parse_exp({|1|}),
           parse_and_evaluate(program),
         );
       },

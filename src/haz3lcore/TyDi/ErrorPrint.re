@@ -51,6 +51,8 @@ let common_error: Info.error_common => string =
   | NoType(BadToken(token)) => prn("\"%s\" isn't a valid token", token)
   | Inconsistent(WithArrow(ty)) =>
     prn("type %s is not consistent with arrow type", Print.typ(ty))
+  | Inconsistent(CompareFun(ty)) =>
+    prn("values of type %s cannot be compared", Print.typ(ty))
   | NoType(FreeConstructor(_name)) => prn("Constructor is not defined")
   | Inconsistent(Internal(tys)) =>
     prn(

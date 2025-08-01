@@ -356,7 +356,13 @@ and uexp_to_info_map =
     | Cons(hd, tl) =>
       let inner_ana_ty = Typ.matched_list(ctx, ana);
       let (hd, m) = go(~ana=inner_ana_ty, hd, m);
-      let (tl, m) = go(~ana=List(inner_ana_ty) |> Typ.temp, tl, m);
+      let (tl, m) =
+        go(
+          ~ana=
+            List(Typ.is_syn(inner_ana_ty) ? hd.ty : inner_ana_ty) |> Typ.temp,
+          tl,
+          m,
+        );
       add(
         ~self=Just(List(hd.ty) |> Typ.temp),
         ~co_ctx=CoCtx.union([hd.co_ctx, tl.co_ctx]),
@@ -425,6 +431,20 @@ and uexp_to_info_map =
         let (_, m) = go(~ana=syn, e1, m);
         let (_, m) = go(~ana=syn, e2, m);
         add'(~self=BadOperator(msg), ~co_ctx=CoCtx.empty, m);
+      | DefinedPoly(_) =>
+        let ids = List.map(Exp.rep_id, [e1, e2]);
+        let (es, m) =
+          map_m_go(
+            m,
+            [Unknown(Internal) |> Typ.temp, Unknown(Internal) |> Typ.temp],
+            [e1, e2],
+          );
+        let tys = List.map(Info.exp_ty, es);
+        add(
+          ~self=Self.poly_eq(ctx, tys, ids),
+          ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es)),
+          m,
+        );
       | Defined(ty1, ty2, ty_out, _) =>
         let ty1 = Atom(Atom.cls_of_kind(ty1)) |> Typ.temp;
         let ty2 = Atom(Atom.cls_of_kind(ty2)) |> Typ.temp;
@@ -905,6 +925,15 @@ and uexp_to_info_map =
       | None => add(~self=Just(ty_body), ~co_ctx=fn.co_ctx, m) /* invalid name matches with no free type variables. */
       };
     | DeferredAp(fn, args) =>
+      /* If this is a builtin with custom statics */
+      let custom_statics =
+        switch (fn.term) {
+        | Var(v) =>
+          Ctx.lookup_var(ctx, v)
+          |> Option.bind(_, (e: Ctx.var_entry) => e.custom_statics)
+        | _ => None
+        };
+
       /* This logic lets us treat constructors differently to functions in
          terms of error localization */
       let fn_ana =
@@ -921,41 +950,64 @@ and uexp_to_info_map =
         | None => Arrow(syn, syn) |> Typ.temp
         };
       let (fn, m) = go(~ana=fn_ana, fn, m);
-      let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
-      let num_args = List.length(args);
-      switch (Typ.matched_args_strict(ctx, ty_in, num_args)) {
-      | L(ty_ins) =>
-        let (args_infos, m) = map_m_go(m, ty_ins, args);
-        let arg_co_ctx = CoCtx.union(List.map(Info.exp_co_ctx, args_infos));
-        let ty_in' =
-          List.combine(ty_ins, args)
-          |> List.filter(((_, e)) => Exp.is_deferral(e))
-          |> List.map(fst)
-          |> (
-            fun
-            | [x] => x
-            | xs => Prod(xs) |> Typ.temp
+
+      switch (custom_statics) {
+      | Some(kind) =>
+        CustomStatics.custom_statics_deferred_ap(
+          ~inferred_label,
+          ~label_sort,
+          ~ctx,
+          ~ancestors,
+          ~fn_info=fn,
+          kind,
+          (module
+           {
+             let uexp_to_info_map = uexp_to_info_map;
+             let label_to_info_map = label_to_info_map;
+             let add' = add';
+           }),
+          m,
+          args,
+        )
+      | None =>
+        let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
+        let num_args = List.length(args);
+        switch (Typ.matched_args_strict(ctx, ty_in, num_args)) {
+        | L(ty_ins) =>
+          let (args_infos, m) = map_m_go(m, ty_ins, args);
+          let arg_co_ctx =
+            CoCtx.union(List.map(Info.exp_co_ctx, args_infos));
+          let ty_in' =
+            List.combine(ty_ins, args)
+            |> List.filter(((_, e)) => Exp.is_deferral(e))
+            |> List.map(fst)
+            |> (
+              fun
+              | [x] => x
+              | xs => Prod(xs) |> Typ.temp
+            );
+          add(
+            ~self=Just(Arrow(ty_in', ty_out) |> Typ.temp),
+            ~co_ctx=CoCtx.union([fn.co_ctx, arg_co_ctx]),
+            m,
           );
-        add(
-          ~self=Just(Arrow(ty_in', ty_out) |> Typ.temp),
-          ~co_ctx=CoCtx.union([fn.co_ctx, arg_co_ctx]),
-          m,
-        );
-      | R(expected) =>
-        let ty_ins = List.init(num_args, _ => Unknown(Internal) |> Typ.temp);
-        let (args, m) = map_m_go(m, ty_ins, args);
-        let arg_co_ctx = CoCtx.union(List.map(Info.exp_co_ctx, args));
-        add'(
-          ~self=
-            IsBadPartialAp(
-              ArityMismatch({
-                expected,
-                actual: num_args,
-              }),
-            ),
-          ~co_ctx=CoCtx.union([fn.co_ctx, arg_co_ctx]),
-          m,
-        );
+        | R(expected) =>
+          let ty_ins =
+            List.init(num_args, _ => Unknown(Internal) |> Typ.temp);
+          let (args, m) = map_m_go(m, ty_ins, args);
+          let arg_co_ctx = CoCtx.union(List.map(Info.exp_co_ctx, args));
+          add'(
+            ~self=
+              IsBadPartialAp(
+                ArityMismatch({
+                  expected,
+                  actual: num_args,
+                }),
+              ),
+            ~co_ctx=CoCtx.union([fn.co_ctx, arg_co_ctx]),
+            m,
+          );
+        };
       };
     | Fun(p, e, typ, _) =>
       let (mode_pat, mode_body) = Typ.matched_arrow(ctx, ana);

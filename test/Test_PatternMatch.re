@@ -44,7 +44,6 @@ let tests = (
           );
         let matches: PatternMatch.match_result =
           PatternMatch.matches(pat, expression).matches;
-        print_endline([%derive.show: PatternMatch.match_result](matches));
 
         check(
           testable(

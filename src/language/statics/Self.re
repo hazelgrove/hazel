@@ -23,13 +23,15 @@ open Util;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type join_type =
   | Id
-  | List;
+  | List
+  | PolyEq;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t =
   | Just(Typ.t) /* Just a regular type */
   | NoJoin(join_type, list(Typ.source)) /* Inconsistent types for e.g match, listlits */
   | Duplicate(LabeledTuple.label, t) /* Duplicate label, marked as duplicate */
+  | CompareFun(Typ.t) /* Type equality failed because of arrow type inside */
   | BadToken(string) /* Invalid expression token, continues with undefined behavior */
   | BadLabel(Any.t) /* TupLabel label component is not a valid Label*/
   | InvalidLabel(LabeledTuple.label, list(LabeledTuple.label)) /* Invalid label in a labeled tuple where these labels are expected */
@@ -94,6 +96,7 @@ type pat =
 let join_of = (j: join_type, ty: Typ.t): Typ.t =>
   switch (j) {
   | Id => ty
+  | PolyEq => ty
   | List => List(ty) |> Typ.fresh
   };
 
@@ -105,6 +108,7 @@ let typ_of: t => option(Typ.t) =
   | Just(typ)
   | Duplicate(_, Just(typ))
   | TupleLabelError({typ, _}) => Some(typ)
+  | CompareFun(_) => Some(Atom(Bool) |> Typ.fresh)
   | FreeConstructor(name) =>
     Some(
       Sum([
@@ -265,4 +269,11 @@ let list_concat = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
   switch (Typ.join_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, tys)) {
   | None => NoJoin(List, add_source(ids, tys))
   | Some(ty) => Just(ty)
+  };
+
+let poly_eq = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
+  switch (Typ.join_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, tys)) {
+  | None => NoJoin(PolyEq, add_source(ids, tys))
+  | Some(ty) when ty |> Typ.normalize(ctx) |> Typ.has_fun => CompareFun(ty)
+  | Some(_) => Just(Atom(Bool) |> Typ.fresh)
   };

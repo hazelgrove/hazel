@@ -114,10 +114,9 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         ListUtil.find_with_rest(
           exp => {
             switch (Exp.match_tup_label(DHExp.strip_ascriptions(exp))) {
-            // TODO: I need a better plan than stripping casts
             | Some((name, {term: Atom(String(e)), _})) when name == l =>
               Some(e)
-            | (_d: option((string, TermBase.exp_t))) => None
+            | _ => None
             }
           },
           ds,

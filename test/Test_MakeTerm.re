@@ -70,7 +70,7 @@ let tests =
           "type x = Int in 1",
         )
       ),
-      test_case("Singleton Labled Tuple ascription in let", `Quick, () =>
+      test_case("Singleton Labeled Tuple ascription in let", `Quick, () =>
         exp_check(
           let_(
             Pat.asc(
@@ -154,10 +154,62 @@ let tests =
         )
       ),
       test_case("Single quoted label in tuple", `Quick, () =>
-        exp_check(tuple([tup_label(label("a"), int(3))]), "('a'=3)")
+        exp_check(tuple([tup_label(label("a"), int(3))]), "(`a`=3)")
+      ),
+      test_case("Single quoted label in projection", `Quick, () =>
+        exp_check(dot(empty_hole(), label("a")), "?.`a`")
+      ),
+      test_case(
+        "Single quoted label with non-alpha characters",
+        `Quick,
+        () => {
+          exp_check(dot(empty_hole(), label("a-b_c")), "?.`a-b_c`");
+          exp_check(
+            tuple([
+              tup_label(label(" "), int(1)),
+              tup_label(label(""), int(2)),
+            ]),
+            "(` `=1, ``=2)",
+          );
+          exp_check(
+            tuple([tup_label(label("multi word label"), int(1))]),
+            "(`multi word label`=1)",
+          );
+        },
+      ),
+      test_case(
+        "Tuple extension and function application precedence", `Quick, () =>
+        exp_check(
+          tuple_extension(
+            tuple([]),
+            ap(Forward, var("from_entries"), list_lit([])),
+          ),
+          {|() ... from_entries([])|},
+        )
+      ),
+      test_case("Single quoted label in pattern", `Quick, () =>
+        exp_check(
+          fn(
+            Pat.(tuple([tup_label(label("a"), empty_hole())])),
+            empty_hole(),
+            None,
+            None,
+          ),
+          {|fun (`a`=?) -> ?|},
+        )
+      ),
+      test_case("Single quoted label in type", `Quick, () =>
+        exp_check(
+          ty_alias(
+            TPat.var("t"),
+            Typ.(prod([tup_label(label("a"), Typ.int())])),
+            empty_hole(),
+          ),
+          {|type t = (`a`=Int) in ?|},
+        )
       ),
       test_case("Dot projection with single quoted label", `Quick, () =>
-        exp_check(dot(empty_hole(), label("a")), "? . 'a'")
+        exp_check(dot(empty_hole(), label("a")), "? . `a`")
       ),
       test_case("Scientific notation floating point", `Quick, () =>
         exp_check(float(1.2e30), "1.2e30")
@@ -169,7 +221,7 @@ let tests =
             var("primitive_pivot"),
             tuple([label("l"), list_lit([])]),
           ),
-          {|primitive_pivot('l',  [])|},
+          {|primitive_pivot(`l`,  [])|},
         )
       }),
       test_case("Livelit name parsing", `Quick, () =>

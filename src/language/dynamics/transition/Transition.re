@@ -50,7 +50,7 @@ type step_kind =
   | InvalidStep
   | VarLookup
   | Seq
-  | LetBind
+  | LetBind(string)
   | WrapClosure
   | FixUnwrap
   | FixClosure
@@ -252,11 +252,22 @@ module Transition = (EV: EV_MODE) => {
         req_final(req(state, env), d1 => Let1(dp, d1, d2) |> wrap_ctx, d1);
       let.wrap_closure _ = env;
       let {matches, closures} = matches(dp, d1');
+      let matches_str = {
+        switch (matches) {
+        | IndetMatch
+        | DoesNotMatch => ""
+        | Matches(env) =>
+          VarBstMap.Ordered.to_listo(env)
+          |> List.rev
+          |> List.map(((s, _)) => s)
+          |> String.concat(", ")
+        };
+      };
       let.match env' = (env, matches, env.call_stack);
       Step({
         expr: subst_env(env', d2),
         state_update: capture_closures(env, state, closures),
-        kind: LetBind,
+        kind: LetBind(matches_str),
         is_value: false,
       });
     | TypFun(_)
@@ -450,7 +461,6 @@ module Transition = (EV: EV_MODE) => {
         };
       | FunNoEnv(_) => Indet
       | BuiltinFun(ident) =>
-        // print_endline("BuiltinFun");
         let builtin =
           VarMap.lookup(Builtins.forms_init, ident)
           |> OptUtil.get(() => {
@@ -606,6 +616,21 @@ module Transition = (EV: EV_MODE) => {
       // Operator semantics are defined in Operators.re
       switch (Operators.semantics_of_bin_op(op)) {
       | Undefined(_) => Indet
+      | DefinedPoly(poly_op) =>
+        let expr: t =
+          if (!DHExp.ty_comparable(d1, d2)) {
+            DynamicErrorHole(BinOp(op, d1, d2) |> rewrap, Incomparable)
+            |> fresh;
+          } else {
+            let res = DHExp.poly_equal(d1, d2);
+            Atom(Bool(poly_op == Equals ? res : !res)) |> fresh;
+          };
+        Step({
+          expr,
+          state_update,
+          kind: BinOp(op),
+          is_value: false,
+        });
       | Defined(in_ty1, in_ty2, out_ty, f) =>
         let-unbox n1 = (Atom(in_ty1), d1);
         let-unbox n2 = (Atom(in_ty2), d2);
@@ -632,13 +657,13 @@ module Transition = (EV: EV_MODE) => {
       and. d2' =
         req_final(req(state, env), d2 => Dot2(d1, d2) |> wrap_ctx, d2);
       switch (DHExp.term_of(d2')) {
-      | Label(name) =>
+      | Label(name) as lab =>
         switch (Unboxing.unbox(LabeledTupleProjection(name), d1')) {
         | Matches(d1'') =>
-          switch (DHExp.term_of(d1''), DHExp.term_of(d2')) {
-          | (Tuple(ds), Label(name)) =>
+          switch (DHExp.term_of(d1'')) {
+          | Tuple(ds) =>
             let projected =
-              List.find_map(
+              List.filter_map(
                 d => {
                   switch (Exp.match_tup_label(d)) {
                   | Some((s, e)) when name == s => Some(e)
@@ -649,7 +674,7 @@ module Transition = (EV: EV_MODE) => {
               );
 
             switch (projected) {
-            | Some(exp) =>
+            | [exp] =>
               Step({
                 expr: exp,
                 state_update,
@@ -658,7 +683,7 @@ module Transition = (EV: EV_MODE) => {
               })
             | _ => Indet
             };
-          | (TupLabel(_, d), Label(name)) =>
+          | TupLabel(_, d) =>
             LabeledTuple.has_same_labels(
               Exp.match_tup_label(d1'),
               Some((name, d)),
@@ -670,7 +695,7 @@ module Transition = (EV: EV_MODE) => {
                   is_value: false,
                 })
               : Indet
-          | (ListLit(ds), Label(_) as lab) =>
+          | ListLit(ds) =>
             let mapped =
               List.map(d => Dot(d, lab |> Exp.fresh) |> Exp.fresh, ds);
             let ls = ListLit(mapped) |> Exp.fresh;
@@ -687,7 +712,6 @@ module Transition = (EV: EV_MODE) => {
 
       | _ => Indet
       };
-
     | TupLabel(label, d1) =>
       let. _ = otherwise(env, d1 => TupLabel(label, d1) |> rewrap)
       and. _ =
@@ -937,7 +961,7 @@ module Transition = (EV: EV_MODE) => {
 
 let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   fun
-  | LetBind
+  | LetBind(_)
   | Seq
   | UpdateTest
   | TypFunAp
@@ -970,7 +994,7 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
 
 let stepper_justification: step_kind => string =
   fun
-  | LetBind => "substitution"
+  | LetBind(s) => String.cat("substitution for ", s)
   | Seq => "sequence"
   | FixUnwrap => "unroll fixpoint"
   | UpdateTest => "update test"
@@ -992,11 +1016,9 @@ let stepper_justification: step_kind => string =
   | BinOp(
       Float(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual),
     ) => "comparison"
-  | BinOp(SInt(Equals | NotEquals))
-  | BinOp(Nat(Equals | NotEquals))
-  | BinOp(Int(Equals | NotEquals))
+  | BinOp(String(Equals))
   | BinOp(Float(Equals | NotEquals))
-  | BinOp(String(Equals)) => "check equality"
+  | BinOp(Poly(Equals | NotEquals)) => "check equality"
   | BinOp(String(Concat)) => "string manipulation"
   | UnOp(Bool(Not))
   | BinOp(Bool(_)) => "boolean logic"

@@ -2,7 +2,6 @@ open Test_Statics_Prelude;
 open Alcotest;
 open FTemp;
 open Typ;
-// TODO do versions with variables where appropriate and do reverse partial application
 
 module MeltOperation = {
   let tests = [
@@ -160,7 +159,7 @@ module ProjectLabels = {
   let tests = [
     test_case("project_labels with appropriate labels", `Quick, () =>
       annotated_tree_test(
-        {|project_labels((a=1,b=true,c=3.0), 'c', 'a', 'c')|},
+        {|project_labels((a=1,b=true,c=3.0), `c`, `a`, `c`)|},
         prod([float(), int(), float()]),
         FIError.Exp.(
           ap(
@@ -182,12 +181,17 @@ module ProjectLabels = {
     ),
     fully_consistent_typecheck(
       "project_labels with single appropriate labels",
-      {|project_labels((a=1, b=true, c=3), 'a')|},
+      {|project_labels((a=1, b=true, c=3), `a`)|},
+      Some(int()),
+    ),
+    fully_consistent_typecheck(
+      "project_labels to singleton",
+      {|project_labels((a=1, b=true), `a`)|},
       Some(int()),
     ),
     test_case("project_labels with non-label", `Quick, () =>
       annotated_tree_test(
-        {|project_labels((a=1, b=true, c=3), 'a', 3, 'c')|},
+        {|project_labels((a=1, b=true, c=3), `a`, 3, `c`)|},
         prod([int(), unknown(Internal), int()]),
         FIError.Exp.(
           ap(
@@ -213,12 +217,12 @@ module ProjectLabels = {
     ),
     fully_consistent_typecheck(
       "project_labels with holes for labels",
-      {|project_labels((a=1, b="", c=true), 'a', ?, 'c')|},
+      {|project_labels((a=1, b="", c=true), `a`, ?, `c`)|},
       Some(prod([int(), unknown(Internal), bool()])),
     ),
     test_case("project_labels with label not in tuple", `Quick, () =>
       annotated_tree_test(
-        {|project_labels((a=1, b=true, c=3), 'd')|},
+        {|project_labels((a=1, b=true, c=3), `d`)|},
         unknown(Internal),
         FIError.Exp.(
           ap(
@@ -314,7 +318,7 @@ module ProjectLabels = {
     ),
     test_case("project_labels with first arg unknown type", `Quick, () =>
       annotated_tree_test(
-        {|project_labels(?, 'a')|},
+        {|project_labels(?, `a`)|},
         unknown(Internal),
         FIError.Exp.(
           ap(
@@ -327,7 +331,7 @@ module ProjectLabels = {
     ),
     test_case("project_labels with hole in tuple label position", `Quick, () =>
       annotated_tree_test(
-        {|project_labels((?=1, b=true, c=3), 'b', 'c')|},
+        {|project_labels((?=1, b=true, c=3), `b`, `c`)|},
         prod([bool(), int()]),
         FIError.Exp.(
           ap(
@@ -361,54 +365,59 @@ module ProjectLabels = {
       )
     }),
     test_case("project_labels with deferral as first arg", `Quick, () => {
-      [@warning "-21"]
-      {
-        Alcotest.skip();
-        annotated_tree_test(
-          {|project_labels(_, 'a', 'b')|},
-          unknown(Internal),
-          FIError.Exp.(
-            deferred_ap(
-              var("project_labels"),
-              [deferral(InAp), label("a"), label("b")],
-            )
-          ),
-        );
-      }
+      annotated_tree_test(
+        {|project_labels(_, `a`, `b`)|},
+        arrow(unknown(Internal), unknown(Internal)),
+        FIError.Exp.(
+          deferred_ap(
+            var("project_labels"),
+            [deferral(InAp), label("a"), label("b")],
+          )
+        ),
+      )
     }),
     test_case("project_labels with deferral in subsequent args", `Quick, () => {
-      [@warning "-21"]
-      {
-        Alcotest.skip();
-        annotated_tree_test(
-          {|project_labels((a=1, b=true, c=3), 'a', _, 'c')|},
-          prod([int(), unknown(Internal), int()]),
-          FIError.Exp.(
-            ap(
-              Forward,
-              var("project_labels"),
+      annotated_tree_test(
+        {|project_labels((a=1, b=true, c=3), `a`, _, `c`)|},
+        prod([int(), unknown(Internal), int()]),
+        FIError.Exp.(
+          ap(
+            Forward,
+            var("project_labels"),
+            tuple([
               tuple([
-                tuple([
-                  tup_label(label("a"), int(1)),
-                  tup_label(label("b"), bool(true)),
-                  tup_label(label("c"), int(3)),
-                ]),
-                label("a"),
-                deferral(
-                  ~ann=
-                    Some(
-                      Exp(
-                        Common(NoType(BadLabel(Exp(Exp.deferral(InAp))))),
-                      ),
-                    ),
-                  InAp,
-                ),
-                label("c"),
+                tup_label(label("a"), int(1)),
+                tup_label(label("b"), bool(true)),
+                tup_label(label("c"), int(3)),
               ]),
-            )
-          ),
-        );
-      }
+              label("a"),
+              deferral(
+                ~ann=
+                  Some(
+                    Exp(
+                      Common(NoType(BadLabel(Exp(Exp.deferral(InAp))))),
+                    ),
+                  ),
+                InAp,
+              ),
+              label("c"),
+            ]),
+          )
+        ),
+      )
+    }),
+    test_case("project_labels with single deferral - arity error", `Quick, () => {
+      annotated_tree_test(
+        {|project_labels(_)|},
+        unknown(Internal),
+        FIError.Exp.(
+          deferred_ap(
+            ~ann=Some(Exp(BuiltinError(AtLeast2Arguments))),
+            var("project_labels"),
+            [deferral(InAp)],
+          )
+        ),
+      )
     }),
   ];
 };
@@ -417,7 +426,7 @@ module SelectLabels = {
   let tests = [
     test_case("select_labels with appropriate labels", `Quick, () =>
       annotated_tree_test(
-        {|select_labels((a=1, b=true, c=3), 'a', 'b')|},
+        {|select_labels((a=1, b=true, c=3), `a`, `b`)|},
         prod([
           tup_label(label("a"), int()),
           tup_label(label("b"), bool()),
@@ -441,7 +450,7 @@ module SelectLabels = {
     ),
     test_case("select_labels with more appropriate labels", `Quick, () =>
       annotated_tree_test(
-        {|select_labels((a=1,b=2,c=3), 'c', 'a', 'c')|},
+        {|select_labels((a=1,b=2,c=3), `c`, `a`, `c`)|},
         prod([
           tup_label(label("c"), int()),
           tup_label(label("a"), int()),
@@ -467,7 +476,7 @@ module SelectLabels = {
     ),
     test_case("select_labels with non-label", `Quick, () =>
       annotated_tree_test(
-        {|select_labels((a=1, b=true, c=3), 'a', 3, 'c')|},
+        {|select_labels((a=1, b=true, c=3), `a`, 3, `c`)|},
         prod([
           tup_label(label("a"), int()),
           unknown(Internal),
@@ -497,7 +506,7 @@ module SelectLabels = {
     ),
     test_case("select_labels with holes for labels", `Quick, () =>
       annotated_tree_test(
-        {|select_labels((a=1, b="", c=true), 'a', ?, 'c')|},
+        {|select_labels((a=1, b="", c=true), `a`, ?, `c`)|},
         prod([
           tup_label(label("a"), int()),
           unknown(Internal),
@@ -523,7 +532,7 @@ module SelectLabels = {
     ),
     test_case("select_labels with label not in tuple", `Quick, () =>
       annotated_tree_test(
-        {|select_labels((a=1, b=true, c=3), 'd')|},
+        {|select_labels((a=1, b=true, c=3), `d`)|},
         unknown(Internal),
         FIError.Exp.(
           ap(
@@ -604,7 +613,7 @@ module SelectLabels = {
     ),
     test_case("select_labels with first arg unknown type", `Quick, () =>
       annotated_tree_test(
-        {|select_labels(?, 'a')|},
+        {|select_labels(?, `a`)|},
         unknown(Internal),
         FIError.Exp.(
           ap(
@@ -617,7 +626,7 @@ module SelectLabels = {
     ),
     test_case("select_labels with hole in tuple label position", `Quick, () =>
       annotated_tree_test(
-        {|select_labels((?=1, b=true, c=3), 'b', 'c')|},
+        {|select_labels((?=1, b=true, c=3), `b`, `c`)|},
         prod([
           tup_label(label("b"), bool()),
           tup_label(label("c"), int()),
@@ -640,54 +649,63 @@ module SelectLabels = {
       )
     ),
     test_case("select_labels with deferral as first arg", `Quick, () => {
-      [@warning "-21"]
-      {
-        Alcotest.skip();
-        annotated_tree_test(
-          {|select_labels(_, 'a', 'b')|},
-          unknown(Internal),
-          FIError.Exp.(
-            deferred_ap(
-              var("select_labels"),
-              [deferral(InAp), label("a"), label("b")],
-            )
-          ),
-        );
-      }
+      annotated_tree_test(
+        {|select_labels(_, `a`, `b`)|},
+        arrow(unknown(Internal), unknown(Internal)),
+        FIError.Exp.(
+          deferred_ap(
+            var("select_labels"),
+            [deferral(InAp), label("a"), label("b")],
+          )
+        ),
+      )
     }),
     test_case("select_labels with deferral in subsequent args", `Quick, () => {
-      [@warning "-21"]
-      {
-        Alcotest.skip();
-        annotated_tree_test(
-          {|select_labels((a=1, b=true, c=3), 'a', _, 'c')|},
-          prod([int(), unknown(Internal), int()]),
-          FIError.Exp.(
-            ap(
-              Forward,
-              var("select_labels"),
+      annotated_tree_test(
+        {|select_labels((a=1, b=true, c=3), `a`, _, `c`)|},
+        prod([
+          tup_label(label("a"), int()),
+          unknown(Internal),
+          tup_label(label("c"), int()),
+        ]),
+        FIError.Exp.(
+          ap(
+            Forward,
+            var("select_labels"),
+            tuple([
               tuple([
-                tuple([
-                  tup_label(label("a"), int(1)),
-                  tup_label(label("b"), bool(true)),
-                  tup_label(label("c"), int(3)),
-                ]),
-                label("a"),
-                deferral(
-                  ~ann=
-                    Some(
-                      Exp(
-                        Common(NoType(BadLabel(Exp(Exp.deferral(InAp))))),
-                      ),
-                    ),
-                  InAp,
-                ),
-                label("c"),
+                tup_label(label("a"), int(1)),
+                tup_label(label("b"), bool(true)),
+                tup_label(label("c"), int(3)),
               ]),
-            )
-          ),
-        );
-      }
+              label("a"),
+              deferral(
+                ~ann=
+                  Some(
+                    Exp(
+                      Common(NoType(BadLabel(Exp(Exp.deferral(InAp))))),
+                    ),
+                  ),
+                InAp,
+              ),
+              label("c"),
+            ]),
+          )
+        ),
+      )
+    }),
+    test_case("select_labels with single deferral - arity error", `Quick, () => {
+      annotated_tree_test(
+        {|select_labels(_)|},
+        unknown(Internal),
+        FIError.Exp.(
+          deferred_ap(
+            ~ann=Some(Exp(BuiltinError(AtLeast2Arguments))),
+            var("select_labels"),
+            [deferral(InAp)],
+          )
+        ),
+      )
     }),
   ];
 };
@@ -696,17 +714,17 @@ module PrimitivePivot = {
   let tests = [
     fully_consistent_typecheck(
       "primitive_pivot with single tuple",
-      {|primitive_pivot([(a="hello", b=3, c=4)], 'a')|},
+      {|primitive_pivot([(a="hello", b=3, c=4)], `a`)|},
       Some(unknown(Internal)),
     ),
     fully_consistent_typecheck(
       "primitive_pivot with multiple tuples",
-      {|primitive_pivot([(a="hello", b=3, c=4), (a="World", b=2, c=2)], 'a')|},
+      {|primitive_pivot([(a="hello", b=3, c=4), (a="World", b=2, c=2)], `a`)|},
       Some(unknown(Internal)),
     ),
     test_case("primitive_pivot with missing label", `Quick, () =>
       annotated_tree_test(
-        {|primitive_pivot([(a="hello", b=3)], 'c')|},
+        {|primitive_pivot([(a="hello", b=3)], `c`)|},
         unknown(Internal),
         FIError.Exp.(
           ap(
@@ -733,7 +751,7 @@ module PrimitivePivot = {
     ),
     test_case("primitive_pivot with non-string pivot field", `Quick, () =>
       annotated_tree_test(
-        {|primitive_pivot([(a=1, b=3)], 'a')|},
+        {|primitive_pivot([(a=1, b=3)], `a`)|},
         unknown(Internal),
         FIError.Exp.(
           ap(
@@ -785,7 +803,7 @@ module PrimitivePivot = {
     ),
     test_case("primitive_pivot with non-list first argument", `Quick, () =>
       annotated_tree_test(
-        {|primitive_pivot(5, 'a')|},
+        {|primitive_pivot(5, `a`)|},
         unknown(Internal),
         FIError.Exp.(
           ap(
@@ -804,7 +822,7 @@ module PrimitivePivot = {
     ),
     test_case("primitive_pivot with extra arguments", `Quick, () =>
       annotated_tree_test(
-        {|primitive_pivot([(a="hello", b=3)], 'a', 'b')|},
+        {|primitive_pivot([(a="hello", b=3)], `a`, `b`)|},
         unknown(Internal),
         FIError.Exp.(
           ap(
@@ -833,7 +851,7 @@ module PrimitivePivot = {
     ),
     test_case("primitive_pivot with hole in tuple label position", `Quick, () =>
       annotated_tree_test(
-        {|primitive_pivot([(a="hello", ?=3, c=4)], 'a')|},
+        {|primitive_pivot([(a="hello", ?=3, c=4)], `a`)|},
         unknown(Internal),
         FIError.Exp.(
           ap(
@@ -855,7 +873,7 @@ module PrimitivePivot = {
     ),
     test_case("primitive pivot with unknown type in first arg", `Quick, () =>
       annotated_tree_test(
-        {|primitive_pivot(?, 'a')|},
+        {|primitive_pivot(?, `a`)|},
         unknown(Internal),
         FIError.Exp.(
           ap(
@@ -868,7 +886,7 @@ module PrimitivePivot = {
     ),
     test_case("primitive pivot with unknown type inside list", `Quick, () =>
       annotated_tree_test(
-        {|primitive_pivot([(a="hello", b=3):?], 'b')|},
+        {|primitive_pivot([(a="hello", b=3):?], `b`)|},
         unknown(Internal),
         FIError.(
           Exp.(
@@ -897,7 +915,7 @@ module PrimitivePivot = {
       `Quick,
       () =>
       annotated_tree_test(
-        {|primitive_pivot([(a="hello", b=3)], 'a' : ?)|},
+        {|primitive_pivot([(a="hello", b=3)], `a` : ?)|},
         unknown(Internal),
         FIError.(
           Exp.(
@@ -943,6 +961,32 @@ module PrimitivePivot = {
         ),
       )
     ),
+    test_case("primitive_pivot with single deferral - arity error", `Quick, () => {
+      annotated_tree_test(
+        {|primitive_pivot(_)|},
+        unknown(Internal),
+        FIError.Exp.(
+          deferred_ap(
+            ~ann=Some(Exp(BuiltinError(Exactly2Arguments))),
+            var("primitive_pivot"),
+            [deferral(InAp)],
+          )
+        ),
+      )
+    }),
+    test_case("primitive_pivot with three deferrals - arity error", `Quick, () => {
+      annotated_tree_test(
+        {|primitive_pivot(_, _, _)|},
+        unknown(Internal),
+        FIError.Exp.(
+          deferred_ap(
+            ~ann=Some(Exp(BuiltinError(Exactly2Arguments))),
+            var("primitive_pivot"),
+            [deferral(InAp), deferral(InAp), deferral(InAp)],
+          )
+        ),
+      )
+    }),
   ];
 };
 
@@ -950,7 +994,7 @@ module OmitLabels = {
   let tests = [
     test_case("omit_labels with appropriate labels", `Quick, () =>
       annotated_tree_test(
-        {|omit_labels((a=1, b=true, c=3), 'a', 'b')|},
+        {|omit_labels((a=1, b=true, c=3), `a`, `b`)|},
         prod([tup_label(label("c"), int())]),
         FIError.Exp.(
           ap(
@@ -971,7 +1015,7 @@ module OmitLabels = {
     ),
     test_case("omit_labels with non-label", `Quick, () =>
       annotated_tree_test(
-        {|omit_labels((a=1, b=true, c=3), 'a', 3, 'c')|},
+        {|omit_labels((a=1, b=true, c=3), `a`, 3, `c`)|},
         prod([tup_label(label("b"), bool())]),
         FIError.Exp.(
           ap(
@@ -997,8 +1041,8 @@ module OmitLabels = {
     ),
     test_case("omit_labels with holes for labels to omit", `Quick, () =>
       annotated_tree_test(
-        {|omit_labels((a=1, b="", c=true), 'a', ?, 'c')|},
-        prod([tup_label(label("b"), string())]), // I don't know what we want here. We could just return unknown
+        {|omit_labels((a=1, b="", c=true), `a`, ?, `c`)|},
+        prod([tup_label(label("b"), string())]),
         FIError.Exp.(
           ap(
             Forward,
@@ -1019,7 +1063,7 @@ module OmitLabels = {
     ),
     test_case("omit_labels with label not in tuple", `Quick, () =>
       annotated_tree_test(
-        {|omit_labels((a=1, b=true, c=3), 'd')|},
+        {|omit_labels((a=1, b=true, c=3), `d`)|},
         prod([
           tup_label(label("a"), int()),
           tup_label(label("b"), bool()),
@@ -1051,7 +1095,7 @@ module OmitLabels = {
     ),
     test_case("omit_labels with hole in tuple label position", `Quick, () =>
       annotated_tree_test(
-        {|omit_labels((?=1, b=true, c=3), 'b', 'c')|},
+        {|omit_labels((?=1, b=true, c=3), `b`, `c`)|},
         prod([tup_label(empty_hole(), int())]),
         FIError.Exp.(
           ap(
@@ -1125,7 +1169,7 @@ module OmitLabels = {
     ),
     test_case("omit_labels with first arg unknown type", `Quick, () =>
       annotated_tree_test(
-        {|omit_labels(?, 'a')|},
+        {|omit_labels(?, `a`)|},
         unknown(Internal),
         FIError.Exp.(
           ap(
@@ -1138,7 +1182,7 @@ module OmitLabels = {
     ),
     test_case("Omit labels with non-labeled elements", `Quick, () =>
       annotated_tree_test(
-        {|omit_labels((1, 2, a=3), 'a')|},
+        {|omit_labels((1, 2, a=3), `a`)|},
         prod([int(), int()]),
         FIError.Exp.(
           ap(
@@ -1152,6 +1196,80 @@ module OmitLabels = {
         ),
       )
     ),
+    fully_consistent_typecheck(
+      "omit_labels to singleton unlabeled",
+      {|omit_labels((a=1, 2), `a`)|},
+      Some(int()),
+    ),
+    test_case("omit_labels with deferral as first arg", `Quick, () => {
+      annotated_tree_test(
+        {|omit_labels(_, `a`, `b`)|},
+        arrow(unknown(Internal), unknown(Internal)),
+        FIError.Exp.(
+          deferred_ap(
+            var("omit_labels"),
+            [deferral(InAp), label("a"), label("b")],
+          )
+        ),
+      )
+    }),
+    test_case("omit_labels with deferral in subsequent args", `Quick, () => {
+      annotated_tree_test(
+        {|omit_labels((a=1, b=true, c=3), `a`, _, `c`)|},
+        prod([tup_label(label("b"), bool())]),
+        FIError.Exp.(
+          ap(
+            Forward,
+            var("omit_labels"),
+            tuple([
+              tuple([
+                tup_label(label("a"), int(1)),
+                tup_label(label("b"), bool(true)),
+                tup_label(label("c"), int(3)),
+              ]),
+              label("a"),
+              deferral(
+                ~ann=
+                  Some(
+                    Exp(
+                      Common(NoType(BadLabel(Exp(Exp.deferral(InAp))))),
+                    ),
+                  ),
+                InAp,
+              ),
+              label("c"),
+            ]),
+          )
+        ),
+      )
+    }),
+    test_case("omit_labels with single deferral - arity error", `Quick, () => {
+      annotated_tree_test(
+        {|omit_labels(_)|},
+        unknown(Internal),
+        FIError.Exp.(
+          deferred_ap(
+            ~ann=Some(Exp(BuiltinError(AtLeast2Arguments))),
+            var("omit_labels"),
+            [deferral(InAp)],
+          )
+        ),
+      )
+    }),
+    test_case("omit_labels with no args - arity error", `Quick, () => {
+      annotated_tree_test(
+        {|omit_labels()|},
+        unknown(Internal),
+        FIError.Exp.(
+          ap(
+            ~ann=Some(Exp(BuiltinError(AtLeast2Arguments))),
+            Forward,
+            var("omit_labels"),
+            tuple([]),
+          )
+        ),
+      )
+    }),
   ];
 };
 
@@ -1161,6 +1279,11 @@ module DropLabels = {
       "Drop labels with some labels",
       {|drop_labels((a=1, b=2.0, true, d=""))|},
       Some(prod([int(), float(), bool(), string()])),
+    ),
+    fully_consistent_typecheck(
+      "drop_labels to singleton",
+      {|drop_labels((a=1))|},
+      Some(int()),
     ),
     fully_consistent_typecheck(
       "Drop labels with type alias and autolabels",
