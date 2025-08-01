@@ -3,7 +3,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
     {
       zipper =
         "((selection((focus Left)(content())(mode \
-         Normal)))(relatives((siblings(((Tile((id \
+         Normal)))(relatives((siblings(()((Tile((id \
          f616f3cf-0d0c-4e38-8138-8ff367bbce74)(label(let = in))(mold((out \
          Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          40))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
@@ -1802,7 +1802,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \"))))(Tile((id \
          a1c1094b-f50d-4f9a-a3f4-16a9ff645dbf)(label(\"\\\"name\\\"\"))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))))))))()))(ancestors())))(caret \
+         Exp))))))(shards(0))(children())))))))))))(ancestors())))(caret \
          Outer))";
       backup_text =
         "let get_value =\n\

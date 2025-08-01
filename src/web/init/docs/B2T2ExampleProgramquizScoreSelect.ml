@@ -3,7 +3,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
     {
       zipper =
         "((selection((focus Left)(content())(mode \
-         Normal)))(relatives((siblings(((Tile((id \
+         Normal)))(relatives((siblings(()((Tile((id \
          56bf4708-0ccf-4985-addf-722bb80687b8)(label(let = in))(mold((out \
          Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          40))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
@@ -680,7 +680,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          6d1e7b5f-b6c1-4237-8bdd-be993dcf0f5d)(label(scores))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))))))))))))(Secondary((id \
-         29063523-c587-4c7b-bf98-4e7a452600c0)(content(Whitespace\"\\n\"))))))))))()))(ancestors())))(caret \
+         29063523-c587-4c7b-bf98-4e7a452600c0)(content(Whitespace\"\\n\"))))))))))))(ancestors())))(caret \
          Outer))";
       backup_text =
         "let gradebook : [(name=String, age=Int, quiz1=Int, quiz2=Int, \

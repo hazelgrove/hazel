@@ -3,7 +3,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
     {
       zipper =
         "((selection((focus Left)(content())(mode \
-         Normal)))(relatives((siblings(((Tile((id \
+         Normal)))(relatives((siblings(()((Tile((id \
          0e01b310-8f44-4737-9115-0083907ceb9d)(label(type = in))(mold((out \
          Exp)(in_(TPat Typ))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          40))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
@@ -2472,7 +2472,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          41857889-384e-4a65-9c4a-6d81ef6732d7)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          46c1e600-139b-431f-86af-1bcfc0adf001)(content(Whitespace\" \
-         \")))))((Grout((id a4741c95-0a82-4311-93a5-d5056413b618)(shape \
+         \"))))(Grout((id a4741c95-0a82-4311-93a5-d5056413b618)(shape \
          Convex))))))(ancestors())))(caret Outer))";
       backup_text =
         "type Operation = (name=String, requires=[(enforced=Bool, String)], \
