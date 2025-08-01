@@ -24,6 +24,9 @@ let module_tests =
     "MakeTerm.Modules",
     Exp.[
       test_case("Empty Module", `Quick, () => exp_check(module_([]), "{}")),
+      test_case("Empty Module with empty space", `Quick, () =>
+        exp_check(module_([]), "{ }")
+      ),
       test_case("Module with one definition", `Quick, () =>
         exp_check(
           module_([ModuleEntry.val_binding(Pat.var("x"), int(1))]),

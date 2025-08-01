@@ -304,6 +304,14 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
               env: Environment.empty,
             }),
           )
+        | Hole(_) =>
+          ret(
+            Module({
+              final: [],
+              todo: [],
+              env: Environment.empty,
+            }),
+          )
         | _ =>
           ret(
             Module({
@@ -801,6 +809,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | (["{", "}"], [ModuleSignatureEntry(a)]) =>
           switch (a.term) {
           | MultipleEntries(entries) => ModuleSignature(entries)
+          | Hole(_) => ModuleSignature([])
           | _ => ModuleSignature([a])
           }
         | (["[", "]"], [Typ(body)]) => List(body)
