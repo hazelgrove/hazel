@@ -3,7 +3,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
     {
       zipper =
         "((selection((focus Left)(content())(mode \
-         Normal)))(relatives((siblings(((Tile((id \
+         Normal)))(relatives((siblings(()((Tile((id \
          1479cea1-9070-4218-886c-d68f36cbcc07)(label(let = in))(mold((out \
          Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
          40))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
@@ -2552,7 +2552,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \"))))(Tile((id \
          d24592fb-1022-43e9-bd13-d11664e99859)(label(`name`))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children())))))))))))))))))))()))(ancestors())))(caret \
+         Exp))))))(shards(0))(children())))))))))))))))))))))(ancestors())))(caret \
          Outer))";
       backup_text =
         "let fisherTest =\n\
