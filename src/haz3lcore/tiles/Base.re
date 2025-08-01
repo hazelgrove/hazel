@@ -5,7 +5,7 @@ type segment = list(piece)
 and piece =
   | Tile(tile)
   | Grout(Grout.t)
-  | Secondary([@show.opaque] Secondary.t)
+  | Secondary(Secondary.t)
   | Projector(projector)
 and tile = {
   // invariants:

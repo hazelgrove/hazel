@@ -495,12 +495,22 @@ and remold_module_signature_entry = (shape, seg: t): t =>
   };
 
 let skel =
-  Core.Memo.general(~cache_size_bound=10000, seg => {
-    seg
-    |> List.mapi((i, p) => (i, p))
-    |> List.filter(((_, p)) => !Piece.is_secondary(p))
-    |> Skel.mk
-  });
+  Core.Memo.general(
+    ~cache_size_bound=10000,
+    seg => {
+      let filtered =
+        seg
+        |> List.mapi((i, p) => (i, p))
+        |> List.filter(((_, p)) => !Piece.is_secondary(p));
+
+      switch (Skel.mk(filtered)) {
+      | exception Skel.Nonconvex_segment =>
+        print_endline(seg |> List.map(Piece.show) |> String.concat("\n"));
+        failwith("Nonconvex segment");
+      | skel => skel
+      };
+    },
+  );
 
 let sorted_children = List.concat_map(Piece.sorted_children);
 let children = seg => List.map(snd, sorted_children(seg));

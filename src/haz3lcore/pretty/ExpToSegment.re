@@ -641,20 +641,6 @@ let text_to_pretty = (id, sort, str): pretty => {
 
 let mk_form = (form_name: Form.compound_form, id, children): Piece.t => {
   let form: Form.t = Form.get(form_name);
-  print_endline("Creating form:");
-  print_endline("  Name: " ++ (form |> Form.show));
-  print_endline("  Label: " ++ String.concat(", ", form.label));
-  print_endline(
-    "  Expected children: " ++ string_of_int(List.length(form.mold.in_)),
-  );
-  print_endline(
-    "  Actual children: " ++ string_of_int(List.length(children)),
-  );
-  print_endline(
-    "   Children list: "
-    ++ (children |> List.map(Segment.first_string) |> String.concat(", ")),
-  );
-
   assert(List.length(children) == List.length(form.mold.in_));
   // Add whitespaces
   let children =
@@ -887,11 +873,13 @@ and exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     |> fold_fun_if(settings.fold_fn_bodies, name);
   | LivelitName(s) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "^" ++ s)
   | Module({todo: _todo, final: [], env: _env}) =>
-    text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "{}")
+    print_endline("empty module exp_to_pretty");
+    text_to_pretty(exp |> Exp.rep_id, Sort.Exp, "{}");
   | Module({todo: _todo, final, env: _env}) =>
+    print_endline("non-empty module exp_to_pretty");
     let+ entry_segments =
       final |> List.map(m => module_entry_to_pretty(~settings: Settings.t, m));
-    let (id, ids) = (
+    let (id, _ids) = (
       IdTagged.ids(exp) |> List.hd,
       IdTagged.ids(exp) |> List.tl |> pad_ids(List.length(entry_segments)),
     );
@@ -1378,13 +1366,16 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
         t;
       },
     ]);
+  | ModuleSignature([]) => text_to_pretty(typ |> Typ.rep_id, Sort.Exp, "{}")
   | ModuleSignature(entries) =>
-    List.flatten(
+    let id = typ |> Typ.rep_id;
+    let+ entries =
       entries
       |> List.map(m =>
            module_signature_entry_to_pretty(~settings: Settings.t, m)
-         ),
-    )
+         )
+      |> all;
+    [mk_form(ModuleSignature, id, [entries |> List.flatten])];
   | Parens(t) =>
     let id = typ |> Typ.rep_id;
     let+ t = go(t);
