@@ -242,7 +242,7 @@ let rec replace_exp = (replace, replace_coctx, with_exp, with_coctx, in_exp) => 
           }
         | Let(p, e1, e2) =>
           if (is_bound(p)) {
-            Let(p, e1, replace_exp(e2)) |> rewrap;
+            Let(p, replace_exp(e1), e2) |> rewrap;
           } else {
             continue(exp);
           }
