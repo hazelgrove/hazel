@@ -82,15 +82,25 @@ let int_gte3_ex = {
   term: mk_example("5 >= 5"),
   message: "5 is equal to 5, so the expression evaluates to true.",
 };
-let int_eq1_ex = {
-  sub_id: Int(EqualFalse),
-  term: mk_example("1 == 2"),
-  message: "1 does not equal 2, so the expression evaluates to false.",
+let poly_eq1_ex = {
+  sub_id: PolyEqualFalse,
+  term: mk_example("1.0 == 2.0"),
+  message: "1.0 does not equal 2.0, so the expression evaluates to false.",
 };
-let int_eq2_ex = {
-  sub_id: Int(EqualTrue),
-  term: mk_example("3 == 3"),
-  message: "3 is equal to 3, so the expression evaluates to true.",
+let poly_eq2_ex = {
+  sub_id: PolyEqualTrue,
+  term: mk_example("(true, \"str\") == (true, \"str\")"),
+  message: "(true, \"str\") is equal to (true, \"str\"), so the expression evaluates to true.",
+};
+let poly_neq1_ex = {
+  sub_id: PolyNotEqualTrue,
+  term: mk_example("[1, 2] != [1, 2, 3]"),
+  message: "[1, 2] is not equal to [1, 2, 3], so the expression evaluates to true.",
+};
+let poly_neq2_ex = {
+  sub_id: PolyNotEqualFalse,
+  term: mk_example("true != true"),
+  message: "true is equal to true, so the expression evaluates to false.",
 };
 let float_plus_ex = {
   sub_id: Float(Plus),
@@ -168,12 +178,12 @@ let float_gte3_ex = {
   message: "5.5 is equal to 5.5, so the expression evaluates to true.",
 };
 let float_eq1_ex = {
-  sub_id: Float(EqualFalse),
+  sub_id: FloatEqualFalse,
   term: mk_example("1. ==. 2."),
   message: "1. does not equal 2., so the expression evaluates to false.",
 };
 let float_eq2_ex = {
-  sub_id: Float(EqualTrue),
+  sub_id: FloatEqualTrue,
   term: mk_example("3.1 ==. 3.1"),
   message: "3.1 is equal to 3.1, so the expression evaluates to true.",
 };
@@ -422,7 +432,7 @@ let int_gte_exp: form = {
 };
 let _exp1 = exp("e1");
 let _exp2 = exp("e2");
-let int_eq_exp_coloring_ids =
+let poly_eq_exp_coloring_ids =
     (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
   _binop_exp_coloring_ids(
     Piece.id(_exp1),
@@ -430,19 +440,19 @@ let int_eq_exp_coloring_ids =
     ~left_id,
     ~right_id,
   );
-let int_eq_exp: form = {
-  let explanation = "If the [*left operand*](%s) is equal to the [*right operand*](%s), evaluates to `true`. Otherwise, evaluates to `false`.";
+let poly_eq_exp: form = {
+  let explanation = "Performs a structural comparison. If the [*left operand*](%s) is equal to the [*right operand*](%s), evaluates to `true`. Otherwise, evaluates to `false`.";
   {
-    id: BinOpExp(Int(Equals)),
+    id: BinOpExp(Poly(Equals)),
     syntactic_form: [_exp1, space(), equals(), space(), _exp2],
     expandable_id: None,
     explanation,
-    examples: [int_eq1_ex, int_eq2_ex],
+    examples: [poly_eq1_ex, poly_eq2_ex],
   };
 };
 let _exp1 = exp("e1");
 let _exp2 = exp("e2");
-let int_neq_exp_coloring_ids =
+let poly_neq_exp_coloring_ids =
     (~left_id: Id.t, ~right_id: Id.t): list((Id.t, Id.t)) =>
   _binop_exp_coloring_ids(
     Piece.id(_exp1),
@@ -450,14 +460,14 @@ let int_neq_exp_coloring_ids =
     ~left_id,
     ~right_id,
   );
-let int_neq_exp: form = {
-  let explanation = "If the [*left operand*](%s) is not equal to the [*right operand*](%s), evaluates to `true`. Otherwise, evaluates to `false`.";
+let poly_neq_exp: form = {
+  let explanation = "Performs a structural comparison. If the [*left operand*](%s) is not equal to the [*right operand*](%s), evaluates to `true`. Otherwise, evaluates to `false`.";
   {
-    id: BinOpExp(Int(NotEquals)),
+    id: BinOpExp(Poly(NotEquals)),
     syntactic_form: [_exp1, space(), not_equals(), space(), _exp2],
     expandable_id: None,
     explanation,
-    examples: [],
+    examples: [poly_neq1_ex, poly_neq2_ex],
   };
 };
 let _exp1 = exp("e1");
@@ -815,16 +825,6 @@ let int_greater_than_equal: group = {
   forms: [int_gte_exp],
 };
 
-let int_equal: group = {
-  id: BinOpExp(Int(Equals)),
-  forms: [int_eq_exp],
-};
-
-let int_not_equal: group = {
-  id: BinOpExp(Int(NotEquals)),
-  forms: [int_neq_exp],
-};
-
 let float_plus: group = {
   id: BinOpExp(Float(Plus)),
   forms: [float_plus_exp],
@@ -898,4 +898,14 @@ let string_equal: group = {
 let string_concat: group = {
   id: BinOpExp(String(Concat)),
   forms: [str_concat_exp],
+};
+
+let poly_equal: group = {
+  id: BinOpExp(Poly(Equals)),
+  forms: [poly_eq_exp],
+};
+
+let poly_not_equal: group = {
+  id: BinOpExp(Poly(NotEquals)),
+  forms: [poly_neq_exp],
 };

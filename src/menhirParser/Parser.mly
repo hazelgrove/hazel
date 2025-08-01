@@ -14,6 +14,7 @@ open AST
 %token REC
 %token UNDEF
 %token <string> SEXP_STRING
+%token <string> PROJECTOR_INVOKE
 %token DOLLAR_SIGN
 %token TYP
 %token TYP_FUN
@@ -49,13 +50,15 @@ open AST
 %token SINGLE_EQUAL
 %token TURNSTILE
 
+(* Poly ops *)
+%token DOUBLE_EQUAL
+%token NOT_EQUAL
+
 (* String ops *)
 %token STRING_CONCAT
 %token STRING_EQUAL
 
 (* Int ops *)
-%token DOUBLE_EQUAL
-%token NOT_EQUAL
 %token PLUS
 %token MINUS
 %token POWER
@@ -156,14 +159,16 @@ open AST
 program:
     | e = exp; EOF {e}
 
+%inline polyOp:
+    | DOUBLE_EQUAL { PolyOp(Equals) }
+    | NOT_EQUAL { PolyOp(NotEquals) }
+
 %inline intOp:
     | MINUS { IntOp(Minus) }
     | PLUS { IntOp(Plus) }
     | TIMES { IntOp(Times) }
     | POWER { IntOp(Power) }
     | DIVIDE { IntOp(Divide) }
-    | DOUBLE_EQUAL { IntOp(Equals) }
-    | NOT_EQUAL { IntOp(NotEquals) }
     | LESS_THAN { IntOp(LessThan) }
     | LESS_THAN_EQUAL { IntOp(LessThanOrEqual) }
     | GREATER_THAN { IntOp(GreaterThan) }
@@ -176,12 +181,12 @@ program:
     | TIMES_FLOAT { FloatOp(Times) }
     | POWER_FLOAT { FloatOp(Power) }
     | DIVIDE_FLOAT { FloatOp(Divide) }
-    | DOUBLE_EQUAL_FLOAT { FloatOp(Equals) }
-    | NOT_EQUAL_FLOAT { FloatOp(NotEquals) }
     | LESS_THAN_FLOAT { FloatOp(LessThan) }
     | LESS_THAN_EQUAL_FLOAT { FloatOp(LessThanOrEqual) }
     | GREATER_THAN_FLOAT { FloatOp(GreaterThan) }
     | GREATER_THAN_EQUAL_FLOAT { FloatOp(GreaterThanOrEqual) }
+    | DOUBLE_EQUAL_FLOAT { FloatOp(Equals) }
+    | NOT_EQUAL_FLOAT { FloatOp(NotEquals) }
 
 %inline boolOp:
     | L_AND { BoolOp(And) }
@@ -192,6 +197,7 @@ program:
     | STRING_EQUAL { StringOp(Equals) }
 
 %inline binOp:
+    | p = polyOp { p }
     | i = intOp { i }
     | f = floatOp { f }
     | b = boolOp { b }
@@ -224,6 +230,7 @@ typ:
     | c = CONSTRUCTOR_IDENT { TypVar(c) }
     | c = IDENT { TypVar(c) }
     | T_TYP; s = STRING { InvalidTyp(s) }
+    | PROJECTOR_INVOKE; OPEN_PAREN; t = typ; CLOSE_PAREN; { t }
     | INT_TYPE { IntType }
     | FLOAT_TYPE { FloatType }
     | BOOL_TYPE { BoolType }
@@ -274,6 +281,7 @@ pat:
     | p1 = pat; CONS; p2 = pat { ConsPat(p1, p2) } 
     | UNIT { TuplePat([]) }
     | p = nonAscriptingPat; { p }
+    | PROJECTOR_INVOKE; OPEN_PAREN; p = pat; CLOSE_PAREN; { p }
 
 
 rul:
@@ -298,6 +306,7 @@ filterAction:
 
 tpat:
     | TP_TPAT; s = STRING {InvalidTPat(s)}
+    | p = PROJECTOR_INVOKE {InvalidTPat(p)}
     | QUESTION {EmptyHoleTPat}
     | v = IDENT {VarTPat v}
     | v = CONSTRUCTOR_IDENT {VarTPat v}
@@ -320,6 +329,7 @@ exp:
     | c = CONSTRUCTOR_IDENT; SLASH_TILDE; { Constructor(c, Some(None)) } 
     | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { Constructor(c, Some(Some(t))) }
     | e = exp; COLON; t = typ { Asc(e, t) }
+    | PROJECTOR_INVOKE; OPEN_PAREN; e = exp; CLOSE_PAREN; { e }
     | s = STRING { Atom (String s)}
     | OPEN_TRIPLE_CURLY; e = exp; CLOSE_TRIPLE_CURLY { IndicationExp(e) }
     | OPEN_PAREN; e = exp; CLOSE_PAREN { e } 
