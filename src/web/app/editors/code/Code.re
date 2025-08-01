@@ -18,7 +18,18 @@ let consume_deferred_linebreaks = (): int => {
 let of_delim' =
   Core.Memo.general(
     ~cache_size_bound=10000,
-    ((label, sort, is_consistent, is_in_buffer, is_complete, indent, i)) => {
+    (
+      (
+        label,
+        sort,
+        is_consistent,
+        is_in_buffer,
+        is_complete,
+        is_infix_var,
+        indent,
+        i,
+      ),
+    ) => {
       let cls =
         switch (label) {
         | _ when !is_consistent => "sort-inconsistent"
@@ -26,6 +37,7 @@ let of_delim' =
         | [s] when Form.is_llm_hole(s) => "llm-waiting"
         | [s] when s == Form.explicit_hole => "explicit-hole"
         | [s] when Form.is_string(s) => "string-lit"
+        | _ when is_infix_var => "Any" /* Budget error deco */
         | _ => Sort.to_string(sort)
         };
       let plurality = List.length(label) == 1 ? "mono" : "poly";
@@ -53,6 +65,8 @@ let of_delim =
     is_consistent,
     is_in_buffer,
     Tile.is_complete(t),
+    Mold.is_infix_op(t.mold)
+    && Form.is_infix_delimiter_op_prefix(List.nth(t.label, i)),
     indent,
     i,
   ));
@@ -101,7 +115,7 @@ let of_projector = (expected_sort, indent, shape: ProjectorCore.Shape.t) => {
       String.make(consume_deferred_linebreaks(), '\n')
       ++ ProjectorCore.Shape.token(shape)
     };
-  of_delim'(([token], expected_sort, true, false, true, indent, 0));
+  of_delim'(([token], expected_sort, true, false, true, false, indent, 0));
 };
 
 module Text =

@@ -24,8 +24,7 @@ let cls_view = (ci: Info.t): Node.t => {
         switch (cls) {
         | Typ(EmptyHole)
         | Exp(EmptyHole)
-        | Pat(EmptyHole) =>
-          Info.is_label(ci) ? "Empty Label" : Cls.show(cls)
+        | Pat(EmptyHole) => Info.is_label(ci) ? "Label Hole" : Cls.show(cls)
         | cls => cls |> Cls.show
         },
       ),
@@ -66,7 +65,8 @@ let elements_noun: Cls.t => string =
   | Exp(Match | If) => "Branches"
   | Exp(ListLit)
   | Pat(ListLit) => "Elements"
-  | Exp(ListConcat) => "Operands"
+  | Exp(ListConcat)
+  | Exp(BinOp(Poly(Equals))) => "Operands"
   | cls =>
     failwith("elements_noun: " ++ Cls.show(cls) ++ " cls has no elements");
 
@@ -141,6 +141,10 @@ let common_err_view =
           : [text("Invalid labels: "), ...List.map(code, invalid_labels)]
       )
     | DuplicateLabel(name, _) => [text("Duplicate Label:"), code(name)]
+    | Inconsistent(CompareFun(ty)) => [
+        text("values cannot be compared:"),
+        view_type(ty),
+      ]
     | Inconsistent(WithArrow(typ)) => [
         text(":"),
         view_type(typ) |> code_box_container,
