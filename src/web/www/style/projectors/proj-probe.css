@@ -322,7 +322,7 @@
   --below-shadow: var(--R2);
   --bottom-border-clr: var(--R2);
   --inner-shadow: #f59393 !important; */
-  background-color: oklch(0.87 0 0) !important;
+  background-color: var(--T3) !important;
   --below-shadow: oklch(0.46 0 0);
   --bottom-border-clr: oklch(0.4 0 0);
   --inner-shadow: #a2a2a2 !important;
