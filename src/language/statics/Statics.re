@@ -350,6 +350,92 @@ and uexp_to_info_map =
   let atomic = self => {
     add(~self, ~co_ctx=CoCtx.empty, m);
   };
+  let bind_def_to_pat = (ctx, p, def, m) => {
+    // synthesize type info for the pattern
+    let (p_syn, _) =
+      go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
+
+    if (!is_recursive(ctx, p, def, p_syn.ty)) {
+      let (def, m) = go(~ana=p_syn.ty, def, m);
+      let ty_p_ana = def.ty;
+      // Analyze pattern to push type info into ctx
+      let (p_ana', _) =
+        go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=ty_p_ana, p, m);
+      (def, p_ana'.ctx, m, ty_p_ana);
+    } else {
+      // Recursive case
+      let (def_base, _) = go'(~ctx=p_syn.ctx, ~ana=p_syn.ty, def, m);
+      let ty_p_ana = def_base.ty;
+      /* Analyze pattern to incorporate def type into ctx */
+      let (p_ana', _) =
+        go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=ty_p_ana, p, m);
+      let def_ctx = p_ana'.ctx;
+      let (def_base2, _) = go'(~ctx=def_ctx, ~ana=p_syn.ty, def, m);
+      let ana_ty_fn = ((ty_fn1, ty_fn2), ty_p) => {
+        Typ.term_of(ty_p) == Unknown(SynSwitch)
+        && !Typ.equal(ty_fn1, ty_fn2)
+          ? ty_fn1 : ty_p;
+      };
+      let ana =
+        switch (
+          (def_base.ty |> Typ.term_of, def_base2.ty |> Typ.term_of),
+          p_syn.ty |> Typ.term_of,
+        ) {
+        | ((Prod(ty_fns1), Prod(ty_fns2)), Prod(ty_ps)) =>
+          let tys =
+            List.map2(ana_ty_fn, List.combine(ty_fns1, ty_fns2), ty_ps);
+          Prod(tys) |> Typ.temp;
+        | ((_, _), _) => ana_ty_fn((def_base.ty, def_base2.ty), p_syn.ty)
+        };
+      let (def, m) = go'(~ctx=def_ctx, ~ana, def, m);
+      (def, def_ctx, m, ty_p_ana);
+    };
+  };
+
+  let process_type_def =
+      (~ctx, ~ancestors, typat: TPat.t, utyp: Typ.t, m: Map.t) => {
+    let m = utpat_to_info_map(~ctx, ~ancestors, typat, m) |> snd;
+    switch (typat.term) {
+    | Var(name) when !Ctx.shadows_typ(ctx, name) =>
+      /* Currently we disallow all type shadowing */
+      /* NOTE(andrew): Currently, Typ.to_typ returns Unknown(TypeHole)
+         for any type variable reference not in its ctx. So any free variables
+         in the definition would be obliterated. But we need to check for free
+         variables to decide whether to make a recursive type or not. So we
+         tentatively add an abtract type to the ctx, representing the
+         speculative rec parameter. */
+      let (ty_def, ctx_def, ctx_body) = {
+        switch (utyp.term) {
+        | Sum(_) when List.mem(name, Typ.free_vars(utyp)) =>
+          /* NOTE: When debugging type system issues it may be beneficial to
+             use a different name than the alias for the recursive parameter */
+          //let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
+          let ty_rec = Rec(Var(name) |> TPat.fresh, utyp) |> Typ.temp;
+          let ctx_def =
+            Ctx.extend_alias(ctx, name, TPat.rep_id(typat), ty_rec);
+          (ty_rec, ctx_def, ctx_def);
+        | _ => (
+            utyp,
+            ctx,
+            Ctx.extend_alias(ctx, name, TPat.rep_id(typat), utyp),
+          )
+        };
+      };
+      let ctx_body =
+        switch (Typ.get_sum_constructors(ctx, ty_def)) {
+        | Some(sm) => Ctx.add_ctrs(ctx_body, name, Typ.rep_id(utyp), sm)
+        | None => ctx_body
+        };
+      let m = utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp, m) |> snd;
+      (ty_def, ctx_body, m);
+    | Var(_)
+    | Invalid(_)
+    | EmptyHole
+    | MultiHole(_) =>
+      let m = utyp_to_info_map(~ctx, ~ancestors, utyp, m) |> snd;
+      (utyp, ctx, m);
+    };
+  };
 
   // This is the case where we aren't a singleton labeled tuple
   let default_case = () => {
@@ -978,62 +1064,11 @@ and uexp_to_info_map =
         m,
       );
     | Let(p, def, body) =>
-      // synthesize type info for the pattern
-      let (p_syn, _) =
-        go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
-      let (def, p_ana_ctx, m, ty_p_ana) =
-        if (!is_recursive(ctx, p, def, p_syn.ty)) {
-          let (def, m) = go(~ana=p_syn.ty, def, m);
-          let ty_p_ana = def.ty;
-          // Analyze pattern to push type info into ctx of p_ana'
-          let (p_ana', _) =
-            go_pat(
-              ~is_synswitch=false,
-              ~co_ctx=CoCtx.empty,
-              ~ana=ty_p_ana,
-              p,
-              m,
-            );
-          (def, p_ana'.ctx, m, ty_p_ana);
-        } else {
-          let (def_base, _) = go'(~ctx=p_syn.ctx, ~ana=p_syn.ty, def, m);
-          let ty_p_ana = def_base.ty;
-          /* Analyze pattern to incorporate def type into ctx */
-          let (p_ana', _) =
-            go_pat(
-              ~is_synswitch=false,
-              ~co_ctx=CoCtx.empty,
-              ~ana=ty_p_ana,
-              p,
-              m,
-            );
-          let def_ctx = p_ana'.ctx;
-          let (def_base2, _) = go'(~ctx=def_ctx, ~ana=p_syn.ty, def, m);
-          let ana_ty_fn = ((ty_fn1, ty_fn2), ty_p) => {
-            Typ.term_of(ty_p) == Unknown(SynSwitch)
-            && !Typ.equal(ty_fn1, ty_fn2)
-              ? ty_fn1 : ty_p;
-          };
-          let ana =
-            switch (
-              (def_base.ty |> Typ.term_of, def_base2.ty |> Typ.term_of),
-              p_syn.ty |> Typ.term_of,
-            ) {
-            | ((Prod(ty_fns1), Prod(ty_fns2)), Prod(ty_ps)) =>
-              let tys =
-                List.map2(ana_ty_fn, List.combine(ty_fns1, ty_fns2), ty_ps);
-              Prod(tys) |> Typ.temp;
-            | ((_, _), _) =>
-              ana_ty_fn((def_base.ty, def_base2.ty), p_syn.ty)
-            };
-          let (def, m) = go'(~ctx=def_ctx, ~ana, def, m);
-          (def, def_ctx, m, ty_p_ana);
-        };
+      let (def, p_ana_ctx, m, ty_p_ana) = bind_def_to_pat(ctx, p, def, m);
       let (body, m) = go'(~ctx=p_ana_ctx, ~ana, body, m);
       /* add co_ctx to pattern */
       let (p_ana, m) =
         go_pat(~is_synswitch=false, ~co_ctx=body.co_ctx, ~ana=ty_p_ana, p, m);
-      // TODO: factor out code
       let unwrapped_self: Self.exp = Common(Just(body.ty));
       let Coverage.{is_exhaustive, _} =
         Coverage.check(
@@ -1145,66 +1180,17 @@ and uexp_to_info_map =
       let m = add_redundancy(ps, redundant_rows, m);
       add'(~self, ~co_ctx=CoCtx.union([scrut.co_ctx] @ e_co_ctxs), m);
     | TyAlias(typat, utyp, body) =>
-      let m = utpat_to_info_map(~ctx, ~ancestors, typat, m) |> snd;
-      switch (typat.term) {
-      | Var(name) when !Ctx.shadows_typ(ctx, name) =>
-        /* Currently we disallow all type shadowing */
-        /* NOTE(andrew): Currently, Typ.to_typ returns Unknown(TypeHole)
-           for any type variable reference not in its ctx. So any free variables
-           in the definition would be obliterated. But we need to check for free
-           variables to decide whether to make a recursive type or not. So we
-           tentatively add an abtract type to the ctx, representing the
-           speculative rec parameter. */
-        let (ty_def, ctx_def, ctx_body) = {
-          switch (utyp.term) {
-          | Sum(_) when List.mem(name, Typ.free_vars(utyp)) =>
-            /* NOTE: When debugging type system issues it may be beneficial to
-               use a different name than the alias for the recursive parameter */
-            //let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
-            let ty_rec = Rec(Var(name) |> TPat.fresh, utyp) |> Typ.temp;
-            let ctx_def =
-              Ctx.extend_alias(ctx, name, TPat.rep_id(typat), ty_rec);
-            (ty_rec, ctx_def, ctx_def);
-          | _ => (
-              utyp,
-              ctx,
-              Ctx.extend_alias(ctx, name, TPat.rep_id(typat), utyp),
-            )
-          /* NOTE(yuchen): Below is an alternative implementation that attempts to
-             add a rec whenever type alias is present. It may cause trouble to the
-             runtime, so precede with caution. */
-          // Typ.lookup_surface(ty_pre)
-          //   ? {
-          //     let ty_rec = Typ.Rec({item: ty_pre, name});
-          //     let ctx_def = Ctx.add_alias(ctx, name, utpat_id(typat), ty_rec);
-          //     (ty_rec, ctx_def, ctx_def);
-          //   }
-          //   : {
-          //     let ty = Term.Typ.to_typ(ctx, utyp);
-          //     (ty, ctx, Ctx.add_alias(ctx, name, utpat_id(typat), ty));
-          //   };
-          };
+      let (ty_def, ctx_body, m) =
+        process_type_def(~ctx, ~ancestors, typat, utyp, m);
+      let ({co_ctx, ty: ty_body, _}: Info.exp, m) =
+        go'(~ctx=ctx_body, ~ana, body, m);
+      /* Make sure types don't escape their scope */
+      let ty_escape =
+        switch (typat.term) {
+        | Var(_) => Typ.subst(ty_def, typat, ty_body)
+        | _ => ty_body
         };
-        let ctx_body =
-          switch (Typ.get_sum_constructors(ctx, ty_def)) {
-          | Some(sm) => Ctx.add_ctrs(ctx_body, name, Typ.rep_id(utyp), sm)
-          | None => ctx_body
-          };
-        let ({co_ctx, ty: ty_body, _}: Info.exp, m) =
-          go'(~ctx=ctx_body, ~ana, body, m);
-        /* Make sure types don't escape their scope */
-        let ty_escape = Typ.subst(ty_def, typat, ty_body);
-        let m = utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp, m) |> snd;
-        add(~self=Just(ty_escape), ~co_ctx, m);
-      | Var(_)
-      | Invalid(_)
-      | EmptyHole
-      | MultiHole(_) =>
-        let ({co_ctx, ty: ty_body, _}: Info.exp, m) =
-          go'(~ctx, ~ana, body, m);
-        let m = utyp_to_info_map(~ctx, ~ancestors, utyp, m) |> snd;
-        add(~self=Just(ty_body), ~co_ctx, m);
-      };
+      add(~self=Just(ty_escape), ~co_ctx, m);
     | Use(typ, body) =>
       let (typ, m) = utyp_to_info_map(~ctx, ~ancestors, typ, m);
       let use_mode: option(Operators.mode) =
@@ -1239,95 +1225,50 @@ and uexp_to_info_map =
           (~ctx, entry: TermBase.module_entry_t, m: Map.t)
           : (Map.t, Ctx.t, TermBase.module_signature_entry_t) => {
         switch (entry.term) {
-        | ValBinding(p, e) =>
+        | ValBinding(pat, exp) =>
           let (p_syn, _) =
-            go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
-          let (def, m) = go'(~ctx, ~ana=p_syn.ty, e, m);
+            go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~ana=syn, pat, m);
+          let (def, m) = go'(~ctx, ~ana=p_syn.ty, exp, m);
           let ty_p_ana = def.ty;
           let (_p_ana', m) =
             go_pat(
               ~is_synswitch=false,
               ~co_ctx=CoCtx.empty,
               ~ana=ty_p_ana,
-              p,
+              pat,
               m,
             );
           let signature_entry: TermBase.module_signature_entry_t =
             IdTagged.fresh(
-              ValType(p, ty_p_ana): TermBase.module_signature_entry_term,
+              ValType(pat, ty_p_ana): TermBase.module_signature_entry_term,
             );
+
+          // weird bug -- above and below should be equivalent -- above, statics within module break, below, elaboration breaks
+
+          //   let (_def, p_ctx, m, ty_p_ana) = bind_def_to_pat(ctx, pat, exp, m);
+          //   let signature_entry: TermBase.module_signature_entry_t =
+          //     IdTagged.fresh(
+          //       ValType(pat, ty_p_ana): TermBase.module_signature_entry_term,
+          //     );
 
           (m, p_syn.ctx, signature_entry);
         | TypeDef(typat, utyp) =>
-          // TODO This is mostly copied from the TypeAlias case we should deduplicate/clean up
-          let m = utpat_to_info_map(~ctx, ~ancestors, typat, m) |> snd;
-          switch (typat.term) {
-          | Var(name) =>
-            /* Currently we disallow all type shadowing */
-            /* NOTE(andrew): Currently, Typ.to_typ returns Unknown(TypeHole)
-               for any type variable reference not in its ctx. So any free variables
-               in the definition would be obliterated. But we need to check for free
-               variables to decide whether to make a recursive type or not. So we
-               tentatively add an abtract type to the ctx, representing the
-               speculative rec parameter. */
-            let (ty_def, ctx_def, ctx_body) = {
-              switch (utyp.term) {
-              | Sum(_) when List.mem(name, Typ.free_vars(utyp)) =>
-                /* NOTE: When debugging type system issues it may be beneficial to
-                   use a different name than the alias for the recursive parameter */
-                //let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
-                let ty_rec = Rec(Var(name) |> TPat.fresh, utyp) |> Typ.temp;
-                let ctx_def =
-                  Ctx.extend_alias(ctx, name, TPat.rep_id(typat), ty_rec);
-                (ty_rec, ctx_def, ctx_def);
-              | _ => (
-                  utyp,
-                  ctx,
-                  Ctx.extend_alias(ctx, name, TPat.rep_id(typat), utyp),
-                )
-              /* NOTE(yuchen): Below is an alternative implementation that attempts to
-                 add a rec whenever type alias is present. It may cause trouble to the
-                 runtime, so precede with caution. */
-              // Typ.lookup_surface(ty_pre)
-              //   ? {
-              //     let ty_rec = Typ.Rec({item: ty_pre, name});
-              //     let ctx_def = Ctx.add_alias(ctx, name, utpat_id(typat), ty_rec);
-              //     (ty_rec, ctx_def, ctx_def);
-              //   }
-              //   : {
-              //     let ty = Term.Typ.to_typ(ctx, utyp);
-              //     (ty, ctx, Ctx.add_alias(ctx, name, utpat_id(typat), ty));
-              //   };
-              };
-            };
-            let ctx_body =
-              switch (Typ.get_sum_constructors(ctx, ty_def)) {
-              | Some(sm) =>
-                Ctx.add_ctrs(ctx_body, name, Typ.rep_id(utyp), sm)
-              | None => ctx_body
-              };
-            /* Make sure types don't escape their scope */
-            let m =
-              utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp, m) |> snd;
-            (
-              m,
-              ctx_body,
+          let (_ty_def, ctx_body, m) =
+            process_type_def(~ctx, ~ancestors, typat, utyp, m);
+          let signature_entry =
+            switch (typat.term) {
+            | Var(_) =>
               IdTagged.fresh(
                 TypeDef(typat, utyp): TermBase.module_signature_entry_term,
-              ),
-            );
-          | Invalid(_)
-          | EmptyHole
-          | MultiHole(_) =>
-            let m = utyp_to_info_map(~ctx, ~ancestors, utyp, m) |> snd;
-            (
-              m,
-              ctx,
+              )
+            | Invalid(_)
+            | EmptyHole
+            | MultiHole(_) =>
               IdTagged.fresh(
                 TypeDef(typat, IdTagged.FreshGrammar.Typ.unknown(Internal)): TermBase.module_signature_entry_term,
-              ),
-            );
-          };
+              )
+            };
+          (m, ctx_body, signature_entry);
         | Hole(typ) => (
             m,
             ctx,
