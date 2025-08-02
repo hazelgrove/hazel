@@ -76,10 +76,15 @@ let destruct =
 };
 
 let merge = ((l, r): (Token.t, Token.t), z: t): option(t) => {
+  let left_monotile_id =
+    switch (Zipper.adjacent_monotile_id(Left, z)) {
+    | Some(id) => id
+    | None => Id.mk()
+    };
   let z = Zipper.set_caret(Inner(0, Token.length(l) - 1), z); /* Note monotile assumption */
   let* z = Zipper.delete(Left, z);
   let* z = Zipper.delete(Right, z);
-  let z = Zipper.construct_mono(Right, l ++ r, z);
+  let z = Zipper.construct_mono(~id=left_monotile_id, Right, l ++ r, z);
   /* Regrouting direction needed to merge prefixs into infix eg ! */
   let z = remold_regrout(Right, z);
   Some(z);

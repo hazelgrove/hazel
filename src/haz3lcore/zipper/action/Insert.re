@@ -42,8 +42,14 @@ let delayed_expand = (t: Token.t, caret: Direction.t, z: t): option(t) => {
     | _ when t == "|" => ([t], Direction.Left)
     | _ => (new_label, backpack)
     };
+  /* Retain monotile id for new polytile (Just for fun) */
+  let id =
+    switch (adjacent_monotile_id(caret, z)) {
+    | Some(id) => id
+    | None => Id.mk()
+    };
   let+ z = delete(caret, z);
-  construct(~backpack, ~caret, new_label, z);
+  construct(~id, ~backpack, ~caret, new_label, z);
 };
 
 let expand_or_barf_left_neighbor = (z as s: t): option(t) =>
@@ -72,7 +78,7 @@ let get_duo_shard = ({label, shards, _}: Tile.t) =>
   };
 
 let neighbor_can_duomerge =
-    (t: Token.t, s: Siblings.t): option((Label.t, Direction.t)) =>
+    (t: Token.t, s: Siblings.t): option((Label.t, Direction.t, Id.t)) =>
   /* Checks if a neighbor, preferentially the left neighbor, is
      a shard of a duotile which can be merged to form a monotile.
      It returns the resulting (mono)label, and the direction of
@@ -81,28 +87,28 @@ let neighbor_can_duomerge =
   | (Some(Tile(tile)), _) =>
     let* start = get_duo_shard(tile);
     let+ mono_lbl = Form.duomerges([start, t]);
-    (mono_lbl, Direction.Left);
+    (mono_lbl, Direction.Left, tile.id);
   | (_, Some(Tile(tile))) =>
     let* last = get_duo_shard(tile);
     let+ mono_lbl = Form.duomerges([t, last]);
-    (mono_lbl, Direction.Right);
+    (mono_lbl, Direction.Right, tile.id);
   | _ => None
   };
 
-let make_new_tile = (t: Token.t, caret: Direction.t, z: t): t =>
+let make_new_tile = (~id, t: Token.t, caret: Direction.t, z: t): t =>
   /* Adds a new tile at the caret. If the new token matches the top
      of the backpack, the backpack shard is dropped. Otherwise, we
      construct a new tile, which may immediately expand. */
   switch (neighbor_can_duomerge(t, z.relatives.siblings)) {
-  | Some((lbl, d)) =>
-    Zipper.replace(~caret=d, ~backpack=d, lbl, z) |> Option.get
+  | Some((lbl, d, id)) =>
+    Zipper.replace(~id, ~caret=d, ~backpack=d, lbl, z) |> Option.get
   | None =>
     /* e.g. closing parens are put down without further ceremony */
     Zipper.will_barf(t, z) && Form.is_instant_putdown(t)
       ? put_down_regrout_remold_tok(caret, t, z) |> Option.get
       : {
         let (lbl, backpack) = Molds.instant_expansion(t);
-        construct(~caret, ~backpack, lbl, z);
+        construct(~id, ~caret, ~backpack, lbl, z);
       }
   };
 
@@ -122,14 +128,19 @@ let expand_neighbors_and_make_new_tile = (char: Token.t, state: t): option(t) =>
   let* z = expand_or_barf_left_neighbor(state);
   let+ z = expand_or_barf_right_neighbor(z);
   let z = remold_regrout_prev(z);
-  let z = make_new_tile(char, Left, z);
+  let z = make_new_tile(~id=Id.mk(), char, Left, z);
   let z = remold_regrout_prev(z);
   z;
 };
 
 let replace_tile = (t: Token.t, d: Direction.t, z: t): option(t) => {
+  let id =
+    switch (adjacent_monotile_id(d, z)) {
+    | Some(id) => id
+    | None => Id.mk()
+    };
   let+ z = delete(d, z);
-  make_new_tile(t, d, z);
+  make_new_tile(~id, t, d, z);
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -166,10 +177,10 @@ let insert_duo = (lbl: Label.t, z: option(t)): option(t) =>
        |> OptUtil.and_then(Zipper.move(Left))
      });
 
-let insert_monos = (l: Token.t, r: Token.t, z: option(t)): option(t) =>
+let insert_monos = (~id, l: Token.t, r: Token.t, z: option(t)): option(t) =>
   z
-  |> Option.map(Zipper.construct_mono(Right, r))
-  |> Option.map(Zipper.construct_mono(Left, l));
+  |> Option.map(Zipper.construct_mono(~id=Id.mk(), Right, r))
+  |> Option.map(Zipper.construct_mono(~id, Left, l));
 
 let should_supress_space = (z: t): bool => {
   /* Figure out if we should avoid inserting a space because a grout
@@ -204,6 +215,11 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
    * to append the new char to the left half, and then the right half,
    * and only if those fail creating a new center token. */
   let (l, r) = Token.split_nth(idx, t);
+  let right_monotile_id =
+    switch (adjacent_monotile_id(Right, z)) {
+    | Some(id) => id
+    | None => Id.mk()
+    };
   /* overwrite selection */
   let z = z |> Zipper.set_caret(Outer) |> Zipper.select(Right);
   switch (Form.duomerges([l, r])) {
@@ -212,7 +228,7 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
     /* If we're inserting a space, don't bother to insert it;
      * we'll get a convex grout anyway from regrouting */
 
-    (Form.space != char ? make_new_tile(char, Left, z) : z)
+    (Form.space != char ? make_new_tile(~id=Id.mk(), char, Left, z) : z)
     |> remold_regrout(Right)
     |> move_into_if_stringlit_or_comment(char);
 
@@ -225,7 +241,7 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
      * `1|1` (needs concave grout by caret in current seg)
      * `if|if` (no grout needed by caret, and later)
      * `case|end` */
-    let* z = insert_monos(l, r, z);
+    let* z = insert_monos(~id=right_monotile_id, l, r, z);
     let* z = expand_or_barf_left_neighbor(z);
     let+ z = expand_or_barf_right_neighbor(z);
     if (Form.space == char && should_supress_space(z)) {
@@ -241,7 +257,8 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
       };
     } else {
       let z = remold(z);
-      let z = z |> remold_regrout_prev |> make_new_tile(char, Left);
+      let z =
+        z |> remold_regrout_prev |> make_new_tile(~id=Id.mk(), char, Left);
       let z = z |> remold_regrout(Right);
       let z = z |> move_into_if_stringlit_or_comment(char);
       z;
