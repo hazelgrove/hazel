@@ -38,6 +38,20 @@ let rep_tips = (tiles: tile_data) => {
   );
 };
 
+let min_col = (~first: Point.t, ~last: Point.t, ~rows: Rows.t): int =>
+  min(
+    first.col,
+    Rows.min_col(ListUtil.range(~lo=first.row, last.row + 1), rows),
+  );
+
+let first_of_last_row = (shards: Shards.t): measurement => {
+  let shard_rows = Shards.split_by_row(shards);
+  assert(shard_rows != []);
+  let row = ListUtil.last(shard_rows);
+  assert(row != []);
+  snd(List.hd(row));
+};
+
 let horizontal_path = (l: measurement, r: measurement, offset: float): path => [
   M({
     x: offset,
@@ -48,7 +62,7 @@ let horizontal_path = (l: measurement, r: measurement, offset: float): path => [
 ];
 
 let horizontal_line =
-    (offset, ((_, l: measurement), (_, r: measurement))): positioned_path => (
+    (~offset, ((_, l: measurement), (_, r: measurement))): positioned_path => (
   l.origin,
   SvgUtil.Path.[
     shadowfudge(
@@ -61,6 +75,12 @@ let horizontal_line =
   ],
 );
 
+let hook = (hx, x, y) =>
+  L_({
+    dx: float_of_int(x) *. hx,
+    dy: float_of_int(y) *. hx /. 2.,
+  });
+
 let vertical_path = (l: Point.t, r: Point.t, indent: int, offset: float): path => {
   let v_delta = r.col == indent ? (-1) : 0;
   let hx = abs_float(offset);
@@ -68,29 +88,21 @@ let vertical_path = (l: Point.t, r: Point.t, indent: int, offset: float): path =
   r.row - l.row <= 1
     ? []
     : [
-      shadowfudge(
-        M({
-          x: hx +. float_of_int(indent - l.col),
-          y: 1.0,
-        }),
-      ),
-      L_({
-        dx: -. hx,
-        dy: hy,
-      }),
-      shadowfudge(
-        V_({dy: float_of_int(r.row - l.row + v_delta) -. 2. *. hy}),
-      ),
-      L_({
-        dx: hx,
-        dy: hy,
-      }),
+      M({
+        x: hx +. float_of_int(indent - l.col),
+        y: 1.0,
+      })
+      |> shadowfudge,
+      hook(hx, -1, 1),
+      V_({dy: float_of_int(r.row - l.row + v_delta) -. 2. *. hy})
+      |> shadowfudge,
+      hook(hx, 1, 1),
       H_({dx: float_of_int(r.col - indent)}),
     ];
 };
 
 let vertical_line =
-    (rows: Rows.t, offset, (l: Shards.t, r: Shards.t)): positioned_path => {
+    (~rows: Rows.t, ~offset, (l: Shards.t, r: Shards.t)): positioned_path => {
   assert(l != []);
   assert(r != []);
   let origin_l = snd(List.hd(l)).origin;
@@ -100,79 +112,56 @@ let vertical_line =
 };
 
 let inner_lines =
-    (
-      ~font_metrics: FontMetrics.t,
-      ~path_cls: list(string),
-      ~rows: Rows.t,
-      ~offset: float,
-      ~shards: Shards.t,
-    )
-    : list(Node.t) => {
+    (~rows: Rows.t, ~offset: float, ~shards: Shards.t): list(positioned_path) => {
   let shard_rows = Shards.split_by_row(shards);
   let horizontals =
     shard_rows
     |> List.map(ListUtil.neighbors)
-    |> List.concat_map(List.map(horizontal_line(offset)));
+    |> List.concat_map(List.map(horizontal_line(~offset)));
   let verticals =
-    shard_rows |> ListUtil.neighbors |> List.map(vertical_line(rows, offset));
-  List.concat([horizontals, verticals])
-  |> List.map(svg(~font_metrics, ~path_cls));
+    shard_rows
+    |> ListUtil.neighbors
+    |> List.map(vertical_line(~rows, ~offset));
+  horizontals @ verticals;
 };
 
 let l_horizontal_hooked =
     (~offset: float, ~first: Point.t, ~last: Point.t): path => [
   shadowfudge(m(~x=0, ~y=1)),
   h(~x=first.col - last.col),
-  L_({
-    dx: -. abs_float(offset),
-    dy: -. abs_float(offset) /. 2.,
-  }),
+  hook(abs_float(offset), -1, -1),
 ];
 
 let r_horizontal_hooked =
-    (~offset: float, ~m_last: measurement, ~last: Point.t): path => [
+    (~offset: float, ~first: measurement, ~last: Point.t): path => [
   m(
-    ~x=m_last.last.col - m_last.origin.col,
-    ~y=m_last.last.row - m_last.origin.row + 1,
+    ~x=first.last.col - first.origin.col,
+    ~y=first.last.row - first.origin.row + 1,
   )
   |> shadowfudge,
-  h(~x=last.col - m_last.origin.col),
-  L_({
-    dx: abs_float(offset),
-    dy: -. abs_float(offset) /. 2.,
-  }),
+  h(~x=last.col - first.origin.col),
+  hook(abs_float(offset), 1, -1),
 ];
 
 let l_uni_path =
     (~offset: float, ~indent: int, ~first: Point.t, ~last: Point.t): path => {
   let hx = abs_float(offset);
-  let hy = hx /. 2.;
   last.row - first.row <= 1
     ? []
     : [
       m(~x=0, ~y=last.col == indent ? 0 : 1) |> shadowfudge,
       H_({dx: float_of_int(indent - last.col) +. hx}),
-      L_({
-        dx: -. hx,
-        dy: -. hy,
-      }),
+      hook(hx, -1, -1),
       V({y: float_of_int(first.row - last.row + 1)}),
-      L_({
-        dx: hx,
-        dy: -. hy,
-      }),
+      hook(hx, 1, -1),
       H_({dx: float_of_int(first.col - indent)}),
-      L_({
-        dx: hx,
-        dy: -. hy,
-      }),
+      hook(hx, 1, 1),
     ];
 };
 
 let r_uni_path =
     (~offset: float, ~min_col: int, ~first: measurement, ~last: Point.t): path => {
   let hx = abs_float(offset);
-  let hy = hx /. 2.;
   [
     M({
       x: hx,
@@ -180,20 +169,11 @@ let r_uni_path =
     })
     |> shadowfudge,
     H({x: float_of_int(min_col - first.origin.col) +. hx}),
-    L_({
-      dx: -. hx,
-      dy: +. hy,
-    }),
+    hook(hx, -1, 1),
     V({y: float_of_int(last.row - first.origin.row + 1)}),
-    L_({
-      dx: +. hx,
-      dy: +. hy,
-    }),
+    hook(hx, 1, 1),
     H({x: float_of_int(last.col - first.origin.col)}),
-    L_({
-      dx: hx,
-      dy: -. hy,
-    }),
+    hook(hx, 1, -1),
   ];
 };
 
@@ -214,52 +194,33 @@ let l_line =
     [];
   };
 
-let min_col = (~m_last: measurement, ~last: Point.t, ~rows: Rows.t): int =>
-  Rows.min_col(ListUtil.range(~lo=m_last.last.row, last.row + 1), rows)
-  |> min(m_last.last.col);
-
-let first_of_last_row = (shard_rows: list(list(Shards.shard))): measurement => {
-  let row = ListUtil.last(shard_rows);
-  assert(row != []);
-  snd(List.hd(row));
-};
-
 let r_line =
     (
       ~rows: Rows.t,
-      ~last: Point.t,
-      ~offset: float,
       ~shards: Shards.t,
-      ~m_last: measurement,
+      ~offset: float,
+      ~first: measurement,
+      ~last: Point.t,
     )
-    : list(positioned_path) => {
-  let shard_rows = Shards.split_by_row(shards);
-  if (last.row == m_last.last.row && last.col > m_last.last.col) {
-    [(m_last.origin, r_horizontal_hooked(~offset, ~m_last, ~last))];
-  } else if (last.row > m_last.last.row) {
-    let min_col = min_col(~m_last, ~last, ~rows);
-    let first_of_last_row = first_of_last_row(shard_rows);
-    [
-      (
-        first_of_last_row.origin,
-        r_uni_path(~first=first_of_last_row, ~last, ~offset, ~min_col),
-      ),
-    ];
+    : list(positioned_path) =>
+  if (last.row == first.last.row && last.col > first.last.col) {
+    [(first.origin, r_horizontal_hooked(~offset, ~first, ~last))];
+  } else if (last.row > first.last.row) {
+    let min_col = min_col(~first=first.last, ~last, ~rows);
+    let first = first_of_last_row(shards);
+    [(first.origin, r_uni_path(~first, ~last, ~offset, ~min_col))];
   } else {
     [];
   };
-};
 
 let outer_lines =
     (
-      ~font_metrics: FontMetrics.t,
       ~rows: Rows.t,
-      ~path_cls: list(string),
+      ~shards: Shards.t,
       ~offset: float,
       (first: Point.t, last: Point.t),
-      shards: Shards.t,
     )
-    : list(Node.t) => {
+    : list(positioned_path) => {
   assert(shards != []);
   let l_line =
     l_line(~rows, ~offset, ~first, ~last=snd(List.hd(shards)).origin);
@@ -269,9 +230,9 @@ let outer_lines =
       ~offset,
       ~last,
       ~shards,
-      ~m_last=snd(ListUtil.last(shards)),
+      ~first=snd(ListUtil.last(shards)),
     );
-  List.concat([l_line, r_line]) |> List.map(svg(~font_metrics, ~path_cls));
+  l_line @ r_line;
 };
 
 let lines =
@@ -289,8 +250,11 @@ let lines =
     let path_cls = ["child-line", Sort.to_string(sort)] @ line_clss;
     let offset = -. ShardDec.offset_of(fst(rep_tips(tiles)));
     let shards = shards_of_tiles(tiles);
-    outer_lines(~path_cls, ~font_metrics, ~rows, ~offset, range, shards)
-    @ inner_lines(~path_cls, ~font_metrics, ~rows, ~offset, ~shards);
+    List.concat([
+      outer_lines(~rows, ~offset, ~shards, range),
+      inner_lines(~rows, ~offset, ~shards),
+    ])
+    |> List.map(svg(~font_metrics, ~path_cls));
   };
 
 let shards =
