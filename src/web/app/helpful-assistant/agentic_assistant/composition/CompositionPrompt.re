@@ -58,9 +58,11 @@ let toolkit = [
   "read and undestand the code, and finally, modify the program.",
   "</toolkitNotes>",
   "<Notes>",
-  "You might see ⋱ after some definitions. This is a special character that indicates a \"fold\" in the program.",
+  "- You might see ⋱ after some definitions. This is a special character that indicates a \"fold\" in the program.",
   "In this agentic setting, we abstract away child let bindings' definitions behind these folds, thus replacing them with ⋱.",
   "You should recognize that these are not actual characters within the program, but rather \"folds\" which hide away the details of child defintions.",
+  "- It is likely you'll need to udnerstand the code in order to answer a user's question or to make an edit.",
+  "In any case, you should use navigation tools and read tools to view the relevant parts and defintions (let expressions) of the program as necessary.",
   "</Notes>",
 ];
 

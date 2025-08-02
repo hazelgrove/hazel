@@ -1,7 +1,7 @@
 open Util;
-open Haz3lcore;
 open Language;
 open Language.Statics;
+open OptUtil.Syntax;
 
 type node = {
   // The term associated with this node
@@ -12,9 +12,29 @@ type node = {
   children: list(node),
   // The sibling nodes in the AST, aka the nodes that share the same parent
   siblings: list(node),
+  // The index this node is at in the list of siblings
+  sibling_idx: int,
   // The name of this node. Constructed through recursively
   // unwrapping the pattern(s) associated with the node
   name: string,
+};
+
+let is_on_whitespace = (z: Zipper.t): bool => {
+  // Use for_index which only ignores secondary pieces, not grout pieces
+  switch (Indicated.for_index(z)) {
+  | Some((piece, _, _)) =>
+    Piece.is_secondary(piece)
+    || Piece.is_grout(piece)
+    || Piece.is_convex(piece)
+  | None => false
+  };
+};
+
+let rec move_to_non_whitespace = (z: Zipper.t): Zipper.t => {
+  switch (Move.primary(ByChar, Left, z)) {
+  | Some(z') => is_on_whitespace(z') ? move_to_non_whitespace(z') : z'
+  | None => raise(Failure("Couldn't move to non-whitespace"))
+  };
 };
 
 // Helper function to get the id of a node, which is
@@ -71,6 +91,7 @@ let rec curr_node_of =
           parent: None,
           siblings: [],
           children: [],
+          sibling_idx: 0,
           name: mk_name_from_pat(pat),
         })
       | TyAlias(tpat, _, _) =>
@@ -79,6 +100,7 @@ let rec curr_node_of =
           parent: None,
           siblings: [],
           children: [],
+          sibling_idx: 0,
           name: mk_name_from_tpat(tpat),
         })
       | _ =>
@@ -111,7 +133,7 @@ let rec curr_node_of =
 //     and m is the number of child terms of the parent node.
 // Compare this to the O(p) complexity of the full AST, where p is the number of
 // terms in the entire program.
-let build_sub_AST = (editor: CodeWithStatics.Model.t): node => {
+let build_sub_AST = (zipper: Zipper.t, info_map: Id.Map.t(Info.t)): node => {
   // 1. Bubble up from the current term to the lowest enclosing
   //    let binding. This is the current node.
   // 2. Bubble up from here, to the parent node. This is the root node.
@@ -121,19 +143,22 @@ let build_sub_AST = (editor: CodeWithStatics.Model.t): node => {
   // but we don't know whether the lowest ancestor has the current term in its
   // body or definiton. If it is the former, then that node is just a sibling,
   // it is the former that we want.
-  let zipper = editor.editor.state.zipper;
-  // The current datastructure with AST information
-  let info_map = editor.statics.info_map;
 
   // The term the cursor is currently at
   // This actually is not needed for building the AST, and was used
   // as an ad-hoc path to get the root term of the InfoMap
   // Todo: find simpler, sensible way to get the root term
-  let curr_id: option(Id.t) = Indicated.index(zipper);
-  let curr_term =
-    switch (curr_id) {
-    | Some(id) => Id.Map.find_opt(id, info_map)
-    | None => raise(Failure("No current term"))
+  let zipper = move_to_non_whitespace(zipper);
+  let curr_term = Indicated.ci_of(zipper, info_map);
+  switch (curr_term) {
+  | Some(_) => print_endline("okay term")
+  // todo: debug
+  | None => raise(Failure("No current term found"))
+  };
+  let curr_node =
+    switch (curr_node_of(curr_term, info_map)) {
+    | Some(node) => node
+    | None => raise(Failure("No current node found in the info map"))
     };
 
   // Requires: The list of ancestor terms must come from the info of the current node.
@@ -153,6 +178,7 @@ let build_sub_AST = (editor: CodeWithStatics.Model.t): node => {
               parent: None,
               siblings: [],
               children: [],
+              sibling_idx: 0,
               name: mk_name_from_pat(pat),
             });
           } else {
@@ -175,12 +201,13 @@ let build_sub_AST = (editor: CodeWithStatics.Model.t): node => {
   let child_nodes_of =
       (curr_node: option(node), initial_candidate: option(Info.t))
       : list(node) => {
-    let mk_child_node = (name: string, child: Info.t): node => {
+    let mk_child_node = (name: string, child: Info.t, idx: int): node => {
       {
         info: child,
         parent: curr_node,
         siblings: [],
         children: [],
+        sibling_idx: idx,
         name,
       };
     };
@@ -189,17 +216,27 @@ let build_sub_AST = (editor: CodeWithStatics.Model.t): node => {
       Id.Map.find(e, info_map);
     };
     let rec find_children =
-            (candidate: Info.t, children: list(node)): list(node) => {
+            (candidate: Info.t, children: list(node), count: int)
+            : list(node) => {
       switch (candidate) {
       | InfoExp({term, _}) =>
         switch (Exp.term_of(term)) {
         | Let(pat, _, body) =>
-          let node = mk_child_node(mk_name_from_pat(pat), candidate);
-          find_children(convert_for_recursion(body), children @ [node]);
+          let node = mk_child_node(mk_name_from_pat(pat), candidate, count);
+          find_children(
+            convert_for_recursion(body),
+            children @ [node],
+            count + 1,
+          );
         // It is also useful to add type defintions to the def-structured AST
         | TyAlias(tpat, _, body) =>
-          let node = mk_child_node(mk_name_from_tpat(tpat), candidate);
-          find_children(convert_for_recursion(body), children @ [node]);
+          let node =
+            mk_child_node(mk_name_from_tpat(tpat), candidate, count);
+          find_children(
+            convert_for_recursion(body),
+            children @ [node],
+            count + 1,
+          );
         | Fun(_, e, _, _)
         // As for the rest of the expression cases, we can just recurse on their child
         // expressions, passing the current parent/level as the arguments. (This
@@ -217,34 +254,37 @@ let build_sub_AST = (editor: CodeWithStatics.Model.t): node => {
         | DeferredAp(e, _)
         | Seq(e, _)
         | HintedTest(e, _) =>
-          find_children(convert_for_recursion(e), children)
+          find_children(convert_for_recursion(e), children, count)
         | Ap(_, e1, e2)
         | Dot(e1, e2)
         | TupLabel(e1, e2)
         | Cons(e1, e2)
         | ListConcat(e1, e2)
         | BinOp(_, e1, e2) =>
-          let children' = find_children(convert_for_recursion(e1), children);
-          find_children(convert_for_recursion(e2), children');
+          let children' =
+            find_children(convert_for_recursion(e1), children, count);
+          find_children(convert_for_recursion(e2), children', count);
         | Tuple(es)
         | ListLit(es) =>
           List.fold_left(
             (children, e) => {
-              find_children(convert_for_recursion(e), children)
+              find_children(convert_for_recursion(e), children, count)
             },
             children,
             es,
           )
         | If(e1, e2, e3) =>
-          let children' = find_children(convert_for_recursion(e1), children);
+          let children' =
+            find_children(convert_for_recursion(e1), children, count);
           let children'' =
-            find_children(convert_for_recursion(e2), children');
-          find_children(convert_for_recursion(e3), children'');
+            find_children(convert_for_recursion(e2), children', count);
+          find_children(convert_for_recursion(e3), children'', count);
         | Match(e, branches) =>
-          let children' = find_children(convert_for_recursion(e), children);
+          let children' =
+            find_children(convert_for_recursion(e), children, count);
           List.fold_left(
             (children, (_pat, branch_e)) => {
-              find_children(convert_for_recursion(branch_e), children)
+              find_children(convert_for_recursion(branch_e), children, count)
             },
             children',
             branches,
@@ -282,11 +322,11 @@ let build_sub_AST = (editor: CodeWithStatics.Model.t): node => {
           | _ => None
           };
         switch (initial_candidate) {
-        | Some(initial_candidate) => find_children(initial_candidate, [])
+        | Some(initial_candidate) => find_children(initial_candidate, [], 0)
         | None => []
         };
       }
-    | Some(initial_candidate) => find_children(initial_candidate, [])
+    | Some(initial_candidate) => find_children(initial_candidate, [], 0)
     };
   };
 
@@ -319,7 +359,6 @@ let build_sub_AST = (editor: CodeWithStatics.Model.t): node => {
     };
   };
 
-  let curr_node = Option.get(curr_node_of(curr_term, info_map));
   let curr_node = {
     ...curr_node,
     parent:
@@ -357,93 +396,83 @@ let build_sub_AST = (editor: CodeWithStatics.Model.t): node => {
 
 // TODO: Build a function to get the path to the current node.
 
-module View = {
-  // The following functions are to help with viewing the AST
-  // as a modified version of the editor.
-  // This allows use to modify the term-base of the editor itself,
-  // covering up inner child definitions with folds,
-  // and any other modifications we might want to make to the editor
-  // before displaying to the LLM.
-  let mk_syntax: Zipper.t => Editor.CachedSyntax.t =
-    Editor.CachedSyntax.init(
-      ~info_map=Language.Statics.Map.empty,
-      ~dyn_map=Language.Dynamics.Map.empty,
-    );
-  let mk_state: Zipper.t => Editor.State.t =
-    z => {
-      zipper: z,
-      col_target: None,
-    };
-  let mk_move = (z: Zipper.t): (module Move.S) =>
-    Editor.Model.to_move_s({
-      state: mk_state(z),
-      syntax: mk_syntax(z),
-    });
-  let perform = (a: Action.t, z: Zipper.t) =>
-    Perform.go_z(
-      ~settings=Language.CoreSettings.off,
-      CachedStatics.empty,
-      a,
-      mk_move(z),
-      z,
-    );
+// TODO: safe_move should work in most edit cases, EXCEPT for insert
+//       before/after, because the zipper/info map are outdated
+//       and I cannot figure out how to update them to successfully do this.
+let safe_move =
+    (z: Zipper.t, info_map: Statics.Map.t, module M: Move.S)
+    : option(Zipper.t) => {
+  // Try moving to the first parent first, otherwise, move to the first sibling
+  // otherwise, move to the top level of the program
+  // TODO: make this even safer. also make more clear to llm how we moved after a deletion.
+  // also handle the case of an empty program.
 
-  let definition = (z: Zipper.t, curr_node: node) => {
-    let rec fold_term = (z: Zipper.t, ids: list(Id.t)) => {
-      switch (ids) {
-      | [] => z
-      | [id, ...rest] =>
-        let z' = perform(Action.Select(Term(Id(id, Direction.Right))), z);
-        switch (z') {
-        | Ok(z') =>
-          let z'' =
-            perform(Action.Project(SetIndicated(Specific(Fold))), z');
-          switch (z'') {
-          | Ok(z'') => fold_term(z'', rest)
-          | _ => fold_term(z', rest)
-          };
-        | _ => fold_term(z, rest)
-        };
-      };
-    };
-    let get_def_id_of_let = (term: Info.t): Id.t => {
-      switch (term) {
-      | InfoExp({term, _}) =>
-        switch (Exp.term_of(term)) {
-        | Let(_, def, _) => Exp.rep_id(def)
-        | _ => Id.invalid
+  module Select = Select.Make(M);
+  module Move = Move.Make(M);
+
+  print_endline("here #8.0 safe_move");
+
+  let curr_node_info = build_sub_AST(z, info_map);
+
+  print_endline("here #8.1 safe_move (after building sub AST)");
+
+  switch (Select.tile(Info.id_of(curr_node_info.info), z)) {
+  | Some(z) =>
+    print_endline("here #8.2 safe_move (after selecting current term)");
+    Some(z);
+  // Otherwise, try moving to the parent
+  | None =>
+    print_endline("here #8.2.1 safe_move (trying to select parent instead)");
+    switch (
+      {
+        let* parent = curr_node_info.parent;
+        print_endline(
+          "here #8.2.1.1 safe_move (trying to select parent term)",
+        );
+        let+ z' = Select.tile(Info.id_of(parent.info), z);
+        print_endline(
+          "here #8.2.1.2 safe_move (after selecting parent term)",
+        );
+        z';
+      }
+    ) {
+    | Some(z) =>
+      print_endline("here #8.3 safe_move (after selecting parent)");
+      Some(z);
+    | None =>
+      print_endline(
+        "here #8.2.2 safe_move (trying to select preceding sibling instead)",
+      );
+      switch (
+        {
+          let* prec_sibling =
+            ListUtil.nth_opt(
+              curr_node_info.sibling_idx - 1,
+              curr_node_info.siblings,
+            );
+          Select.tile(Info.id_of(prec_sibling.info), z);
         }
-      | _ => Id.invalid
-      };
-    };
-    let children_def_ids =
-      List.map((c: node) => get_def_id_of_let(c.info), curr_node.children);
-    let siblings_def_ids =
-      List.map((c: node) => get_def_id_of_let(c.info), curr_node.siblings);
-
-    let z = fold_term(z, children_def_ids);
-    let z' = fold_term(z, siblings_def_ids);
-
-    let z'' =
-      switch (curr_node.parent) {
-      | Some(parent) =>
-        switch (
-          perform(
-            Action.Select(Tile(Id(id_of(parent), Direction.Right))),
-            z',
-          )
-        ) {
-        | Ok(z'') => z''
-        | _ => z
-        }
+      ) {
+      | Some(z) =>
+        print_endline(
+          "here #8.4 safe_move (after selecting preceding sibling)",
+        );
+        Some(z);
       | None =>
-        switch (perform(Action.Select(All), z')) {
-        | Ok(z'') => z''
-        | _ => z
-        }
+        print_endline("here #8.2.3 safe_move (no preceding sibling found)");
+        print_endline(
+          "here #8.5 safe_move (after selecting preceding sibling)",
+        );
+        print_endline("no siblings still exist in info map");
+        // TODO: this is a bad case. it means the program is empty :(
+        // or has no let/type expressions. or something else very bad.
+        let z' =
+          switch (Move.do_extreme(Move.primary(ByToken), Up, z)) {
+          | Some(z') => z'
+          | None => z
+          };
+        Select.go(Extreme(Down), z');
       };
-
-    let seg = z''.selection.content;
-    seg;
+    };
   };
 };

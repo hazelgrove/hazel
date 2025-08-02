@@ -72,22 +72,26 @@ module Json = {
     | `Assoc(pairs) => Some(pairs)
     | _ => None
     };
-  let get_string_kvs = (json: t): option(Maps.StringMap.t(string)) => {
-    let* pairs = get_kvs(json);
-    let string_pairs =
-      List.filter_map(
-        ((key, value)) => {
-          switch (value) {
-          | `String(str) => Some((key, str))
-          | `Int(n) => Some((key, string_of_int(n)))
-          | `Float(f) => Some((key, string_of_float(f)))
-          | `Bool(b) => Some((key, string_of_bool(b)))
-          | _ => None // Skip non-primitive values
-          }
-        },
-        pairs,
-      );
-    Some(Maps.StringMap.of_list(string_pairs));
+  let get_string_kvs = (json: t): Maps.StringMap.t(string) => {
+    let pairs = get_kvs(json);
+    switch (pairs) {
+    | None => Maps.StringMap.empty // TODO: raise an error?
+    | Some(pairs) =>
+      let string_pairs =
+        List.filter_map(
+          ((key, value)) => {
+            switch (value) {
+            | `String(str) => Some((key, str))
+            | `Int(n) => Some((key, string_of_int(n)))
+            | `Float(f) => Some((key, string_of_float(f)))
+            | `Bool(b) => Some((key, string_of_bool(b)))
+            | _ => None // Skip non-primitive values
+            }
+          },
+          pairs,
+        );
+      Maps.StringMap.of_list(string_pairs);
+    };
   };
   let dot = (key: string, json: t): option(t) => {
     let* pairs = get_kvs(json);

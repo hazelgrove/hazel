@@ -171,6 +171,7 @@ module Completion = {
 // LLM-based agentic code sysnthesis. Differs from code completion in that it can
 // navigate the program structure, and perform more complex, multi-step edits.
 module Composition = {
+  open Util.CompositionTools;
   let max_tool_calls = 10;
 
   // Prompt with appropriate AST context for each message.
@@ -183,7 +184,17 @@ module Composition = {
   let mk_local_code_map_prompt =
       (_: ChatLSP.Options.t, editor: CodeWithStatics.Model.t)
       : (OpenRouter.message, AssistantModel.display) => {
-    let curr_node_info = TreeHelper.build_sub_AST(editor);
+    print_endline(
+      "here #a before building sub AST in mk_local_code_map_prompt",
+    );
+    let curr_node_info =
+      AssistantTreeHelper.build_sub_AST(
+        editor.editor.state.zipper,
+        editor.statics.info_map,
+      );
+    print_endline(
+      "here #b after building sub AST in mk_local_code_map_prompt",
+    );
 
     let curr_node_str = "Current node: " ++ curr_node_info.name;
     let parent_node_str =
@@ -196,7 +207,7 @@ module Composition = {
       ++ String.concat(
            ", ",
            List.mapi(
-             (index, node: TreeHelper.node) =>
+             (index, node: AssistantTreeHelper.node) =>
                node.name ++ " (index: " ++ string_of_int(index) ++ ")",
              curr_node_info.siblings,
            ),
@@ -207,7 +218,7 @@ module Composition = {
       ++ String.concat(
            ", ",
            List.mapi(
-             (index, node: TreeHelper.node) =>
+             (index, node: AssistantTreeHelper.node) =>
                node.name ++ " (index: " ++ string_of_int(index) ++ ")",
              curr_node_info.children,
            ),
@@ -215,7 +226,7 @@ module Composition = {
       ++ "]";
 
     let sketch_seg =
-      TreeHelper.View.definition(editor.editor.state.zipper, curr_node_info);
+      ChatLSP.View.definition(editor.editor.state.zipper, curr_node_info);
 
     let sketch_seg_hd_str =
       "Definition of \""
@@ -240,8 +251,8 @@ module Composition = {
     let static_errors = ErrorPrint.all(editor.statics.info_map);
     let static_errors_str =
       switch (static_errors) {
-      | [] => "No static errors found in the program."
-      | _ => "Static errors: " ++ String.concat(", ", static_errors)
+      | [] => "\nNo static errors found in the program."
+      | _ => "\nStatic errors: " ++ String.concat(", ", static_errors)
       };
 
     let ast_info_str =
@@ -280,69 +291,10 @@ module Composition = {
           Text(sketch_seg_tl_str ++ static_errors_str),
         ],
         raw_content: local_code_map_str,
-        collapsed: false,
+        collapsed: true,
       },
     );
   };
-
-  /*
-   * ------------------------------
-   *  Structure-Based Action Language
-   * ------------------------------
-   */
-
-  type code = string;
-  type variable = string;
-
-  // --- Navigation Actions ---
-  // These actions are used to navigate the AST, and do not modify the program
-  // or provide additional information to the LLM. They strictly move the cursor
-  // through the AST.
-
-  type nav_action =
-    // Goes to the parent node of the current node in the AST
-    | GoToParent
-    // Goes to the child node of the current node in the AST
-    | GoToChild(string, option(int))
-    // Jumps to the root node of the AST
-    | GoToSibling(string, option(int));
-  // todo (above): using indices for children/siblings navigation
-  // seems a little arbitrary, and should probably default to using
-  // the names themselces
-  // idea: still display indices to LLM, ask for string variable names,
-  // but allow for optional integer index argument to handle cases of shadowing
-
-  // --- File-Read Actions ---
-  // These actions are used purely to read information from the program,
-  // and do not modify the program or the cursor location in the AST.
-
-  type read_action =
-    // Displays the definition of the current node in the AST
-    | ViewDefinition
-    // Peeks at the definition of the specified variable
-    | PeekDefinition(variable)
-    // Shows the path from the root node to the current node in the AST
-    | ShowPath
-    // Shows the siblings of the current node in the AST
-    | ShowSiblings;
-
-  // --- Edit Actions ---
-  // These actions are used to modify the program. They do provide additional
-  // information to the LLM (via reading), but may move the cursor (eg. removing
-  // a node will require the cursor to be moved elsewhere).
-
-  type edit_action =
-    // Updates the definition of the current node in the AST
-    | Update(code)
-    // Removes the current node from the AST
-    | Remove
-    // Inserts a new node in the AST
-    | Insert(code);
-
-  type action =
-    | Nav(nav_action)
-    | Read(read_action)
-    | Edit(edit_action);
 
   type result = string;
 
@@ -371,17 +323,54 @@ module Composition = {
     );
   };
 
-  // AddToolLabel_2
+  type inner_term =
+    | Pat
+    | Def
+    | Body;
+
+  let get_inner_term_id =
+      (curr_node_info: AssistantTreeHelper.node, inner_term: inner_term): Id.t => {
+    switch (curr_node_info.info) {
+    | InfoExp({term, _}) =>
+      switch (Exp.term_of(term)) {
+      | Let(pat, def, body) =>
+        switch (inner_term) {
+        | Pat => Pat.rep_id(pat)
+        | Def => Exp.rep_id(def)
+        | Body => Exp.rep_id(body)
+        }
+      | TyAlias(tpat, tdef, body) =>
+        switch (inner_term) {
+        | Pat => TPat.rep_id(tpat)
+        | Def => Typ.rep_id(tdef)
+        | Body => Exp.rep_id(body)
+        }
+      | _ =>
+        raise(Failure("Current node is not a let or type alias expression"))
+      }
+    | _ =>
+      raise(
+        Failure(
+          "Current node is not a let or type alias expression, so no pattern to update",
+        ),
+      )
+    };
+  };
+
+  // AddToolLabel_2.2: handle the effects of the action on the editor itself
   let apply_action =
       (
         ~editor: CodeWithStatics.Model.t,
-        ~action: action,
+        ~action: CompositionTools.action,
         ~schedule_action: Editors.Update.t => unit,
-        ~curr_node_info: TreeHelper.node,
+        ~curr_node_info: AssistantTreeHelper.node,
       )
       : result => {
     let schedule_actions = (actions: list(Action.t)) =>
       schedule_actions(~actions, ~schedule_action);
+    let _ = editor.statics.info_map;
+
+    print_endline("here #1 applying action");
 
     switch (action) {
     // Navigate to the parent node of the current node
@@ -391,11 +380,7 @@ module Composition = {
         switch (curr_node_info.parent) {
         | None => raise(Failure("This node does not have a parent"))
         | Some(parent) =>
-          let actions = [
-            Action.Select(
-              Tile(Id(Info.id_of(parent.info), Direction.Right)),
-            ),
-          ];
+          let actions = [Action.Assistant(GoTo(Info.id_of(parent.info)))];
           schedule_actions(actions);
           "Cursor moved from \""
           ++ curr_node_info.name
@@ -411,7 +396,7 @@ module Composition = {
           | None =>
             let candidates =
               List.filter(
-                (child: TreeHelper.node) => child.name == who,
+                (child: AssistantTreeHelper.node) => child.name == who,
                 curr_node_info.children,
               );
             if (List.length(candidates) > 1) {
@@ -441,9 +426,7 @@ module Composition = {
             | Some(child) => child
             }
           };
-        schedule_actions([
-          Action.Select(Tile(Id(Info.id_of(child.info), Direction.Right))),
-        ]);
+        schedule_actions([Action.Assistant(GoTo(Info.id_of(child.info)))]);
         "Cursor moved from \""
         ++ curr_node_info.name
         ++ "\" to its child \""
@@ -455,7 +438,7 @@ module Composition = {
           | None =>
             let candidates =
               List.filter(
-                (sibling: TreeHelper.node) => sibling.name == who,
+                (sibling: AssistantTreeHelper.node) => sibling.name == who,
                 curr_node_info.siblings,
               );
             if (List.length(candidates) > 1) {
@@ -486,9 +469,7 @@ module Composition = {
             }
           };
         schedule_actions([
-          Action.Select(
-            Tile(Id(Info.id_of(sibling.info), Direction.Right)),
-          ),
+          Action.Assistant(GoTo(Info.id_of(sibling.info))),
         ]);
         "Cursor moved from \""
         ++ curr_node_info.name
@@ -505,15 +486,39 @@ module Composition = {
         ++ Printer.of_segment(
              ~holes="?",
              ~special_folds=true,
-             TreeHelper.View.definition(
+             ChatLSP.View.definition(
                editor.editor.state.zipper,
                curr_node_info,
              ),
            )
         ++ "```"
-      | _ => raise(Failure("Unhandled read action"))
       }
-    | Edit(_) => raise(Failure("Unhandled edit action"))
+    | Edit(action) =>
+      switch (action) {
+      | UpdateDefinition(code) =>
+        let target_id = get_inner_term_id(curr_node_info, Def);
+        schedule_actions([Action.Assistant(Edit(Some(target_id), code))]);
+      | UpdateBody(code) =>
+        let target_id = get_inner_term_id(curr_node_info, Body);
+        schedule_actions([Action.Assistant(Edit(Some(target_id), code))]);
+      | UpdatePattern(code) =>
+        let target_id = get_inner_term_id(curr_node_info, Pat);
+        schedule_actions([Action.Assistant(Edit(Some(target_id), code))]);
+      | UpdateExpression(code) =>
+        schedule_actions([Action.Assistant(Edit(None, code))])
+      | Delete => schedule_actions([Action.Assistant(Edit(None, ""))])
+      | InsertBefore(code) =>
+        schedule_actions([
+          Action.Move(Extreme(Left(ByToken))),
+          Action.Assistant(Edit(None, code)),
+        ])
+      | InsertAfter(code) =>
+        schedule_actions([
+          Action.Move(Extreme(Right(ByToken))),
+          Action.Assistant(Edit(None, code)),
+        ])
+      };
+      "Your edits have been applied to the sketch.";
     };
   };
 };

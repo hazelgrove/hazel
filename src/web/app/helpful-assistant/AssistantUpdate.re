@@ -21,6 +21,9 @@ type status =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type composition =
   | Request(string) // User-submitted task, question, etc
+  // TODO: maybe remove in the future, this is a hack for selecting the current code the
+  //       agent is at, a useful UI feature
+  | Intermediate
   | Loop(int, OpenRouter.tool_contents, status); // Iterative tool completion loop
 
 // Actions to send various kinds of messages to the LLM
@@ -81,7 +84,7 @@ type t =
 
 let can_undo = (action: t) => {
   // TODO: Implement the handling of actions that should be undoable
-  // I'm thinking none of these actions should be undoable...
+  // Thinking none of these actions should be undoable...
   // Maybe set API key?
   // That could be a good starter project to navigate this assistant part of the codebase.
   switch (action) {
@@ -471,16 +474,22 @@ let mk_user_content_message =
 
 let mk_structure_edit_msg =
     (
-      ~tool_call: string,
-      ~args: option(StringMap.t(string)),
-      ~curr_node_info: TreeHelper.node,
+      ~tool_call: OpenRouter.tool_call,
+      ~curr_node_info: AssistantTreeHelper.node,
     )
     : string =>
   // AddToolLabel_4
   try({
+    let tool_name = tool_call.tool_name;
+    let args = tool_call.args;
+    let action =
+      CompositionTools.action_of(
+        ~tool_name,
+        ~args=Json.get_string_kvs(args),
+      );
     let _enclose_in_backticks = (str: string) => "```" ++ str ++ "```";
-    switch (OpenRouter.structure_action_of_string(tool_call)) {
-    | OpenRouter.GoToParent =>
+    switch (action) {
+    | Nav(GoToParent) =>
       switch (curr_node_info.parent) {
       | None => raise(Failure("This node does not have a parent"))
       | Some(parent) =>
@@ -490,95 +499,68 @@ let mk_structure_edit_msg =
         ++ parent.name
         ++ "\""
       }
-    | OpenRouter.GoToChild =>
-      let name = StringMap.find("name", Option.get(args));
+    | Nav(GoToChild(name, _)) =>
       "Agent moved from \""
       ++ curr_node_info.name
       ++ "\" to its child \""
       ++ name
-      ++ "\"";
-    | OpenRouter.GoToSibling =>
-      let name = StringMap.find("name", Option.get(args));
+      ++ "\""
+    | Nav(GoToSibling(name, _)) =>
       "Agent moved from \""
       ++ curr_node_info.name
       ++ "\" to its sibling \""
       ++ name
-      ++ "\"";
-    | OpenRouter.ViewDefinition => "Agent viewed the definition of the current node"
-    | OpenRouter.InvalidStructureAction =>
-      raise(Failure("Agent called an invalid tool: " ++ tool_call))
+      ++ "\""
+    | Read(ViewDefinition) => "Agent viewed the definition of the current node"
+    | Edit(UpdateDefinition(code)) =>
+      "Agent updated the definition of the current node to " ++ code
+    | Edit(UpdateBody(code)) =>
+      "Agent updated the body of the current node to " ++ code
+    | Edit(UpdatePattern(code)) =>
+      "Agent updated the pattern of the current node to " ++ code
+    | Edit(UpdateExpression(code)) =>
+      "Agent updated the expression of the current node to " ++ code
+    | Edit(Delete) => "Agent deleted the current node"
+    | Edit(InsertAfter(code)) =>
+      "Agent inserted after the current node to " ++ code
+    | Edit(InsertBefore(code)) =>
+      "Agent inserted before the current node to " ++ code
     };
   }) {
-  | Not_found => "Agent called " ++ tool_call ++ " with invalid arguments"
+  | Failure(err) =>
+    "The agent may have called tools with invalid arguments: " ++ err
   | Invalid_argument(e) =>
-    "Not sure what the agent did here, but the argument map creation failed: "
+    "The argument map creation may have failed, or some other fatal issue occurred: "
     ++ e
   };
 
-let parse_and_apply_structure_edit =
+let apply_structure_action =
     (
       ~tool_call: OpenRouter.tool_call,
-      ~apply_action: (~action: AssistantModes.Composition.action) => string,
+      ~apply_action: (~action: CompositionTools.action) => string,
       ~schedule_action: t => unit,
       ~loop_message,
     )
-    : unit => {
-  let invalid_args_failure = (tool_call: OpenRouter.structure_action) => {
-    raise(
-      Failure(
-        "Invalid arguments for "
-        ++ OpenRouter.string_of_structure_action(tool_call),
-      ),
-    );
-  };
-  // Extract the variable name and id from the tool call,
-  // matching on the edit action itself (tool call name)
+    : unit =>
+  // This try block is important, it allows us to handle exceptions and relay them to the agent
   try({
     let action =
-      switch (tool_call.name) {
-      /* --------- [Begin] Handle Tool Calls [Begin] --------- */
-      // AddToolLabel_3
-      | OpenRouter.GoToParent => AssistantModes.Composition.Nav(GoToParent)
-      | OpenRouter.GoToChild =>
-        let (name, index) =
-          switch (
-            Json.dot("name", tool_call.args),
-            Json.dot("index", tool_call.args),
-          ) {
-          | (Some(`String(name)), Some(`Int(index))) => (
-              name,
-              Some(index),
-            )
-          | (Some(`String(name)), None) => (name, None)
-          | _ => invalid_args_failure(tool_call.name)
-          };
-        AssistantModes.Composition.Nav(GoToChild(name, index));
-      | OpenRouter.GoToSibling =>
-        let (name, index) =
-          switch (
-            Json.dot("name", tool_call.args),
-            Json.dot("index", tool_call.args),
-          ) {
-          | (Some(`String(name)), Some(`Int(index))) => (
-              name,
-              Some(index),
-            )
-          | (Some(`String(name)), None) => (name, None)
-          | _ => invalid_args_failure(tool_call.name)
-          };
-        AssistantModes.Composition.Nav(GoToSibling(name, index));
-      | OpenRouter.ViewDefinition =>
-        AssistantModes.Composition.Read(ViewDefinition)
-      | _ => invalid_args_failure(tool_call.name)
-      /* --------- [End] Handle Tool Calls [End] --------- */
-      };
-    // Apply the edit action to the editor
+      CompositionTools.action_of(
+        ~tool_name=tool_call.tool_name,
+        ~args=Json.get_string_kvs(tool_call.args),
+      );
     let tool_result = apply_action(~action);
+    schedule_action(
+      SendMessage(Composition(Intermediate), None, Id.invalid),
+    );
     schedule_action(loop_message(Success(tool_result)));
   }) {
-  | Failure(err) => schedule_action(loop_message(Failure(err)))
+  | Failure(err) =>
+    schedule_action(
+      SendMessage(Composition(Intermediate), None, Id.invalid),
+    );
+    schedule_action(loop_message(Failure(err)));
   };
-};
 
 let update_chat = (chat: Model.chat, messages: list(Model.message)) => {
   {
@@ -717,6 +699,29 @@ let update =
         let curr_chat =
           Id.Map.find(chat_id, model.chat_history.past_composition_chats);
         switch (kind) {
+        | Intermediate =>
+          let curr_node_info =
+            AssistantTreeHelper.build_sub_AST(
+              editor.editor.state.zipper,
+              editor.statics.info_map,
+            );
+          let perform_action =
+            CodeEditable.Update.Perform(
+              Action.Select(
+                Tile(
+                  Id(
+                    AssistantTreeHelper.id_of(curr_node_info),
+                    Direction.Right,
+                  ),
+                ),
+              ),
+            );
+          let cell_action = CellEditor.Update.MainEditor(perform_action);
+          let scratch_action =
+            Editors.Update.Scratch(CellAction(cell_action));
+          schedule_editor_action(scratch_action);
+          model |> Updated.return;
+
         // The initial message sent to the LLM via the User --
         // We can think of the agentic looping as a directed graph:
         // 1. The user sends a message to the LLM, appending with info from (2)
@@ -740,6 +745,9 @@ let update =
               ChatLSP.Options.init,
               editor,
             );
+          print_endline(
+            "here #c after building sub AST in mk_local_code_map_prompt",
+          );
           let ctx_message: Model.message = {
             content: Some(local_code_map_str),
             display: Some(display),
@@ -765,6 +773,8 @@ let update =
               chat_id,
             )
           );
+
+          print_endline("here #d after mk_llm_call");
 
           update_model_chat_history(
             ~model,
@@ -806,11 +816,19 @@ let update =
               };
               let response_message: Model.message = {
                 content:
+                  // TODO: fix this logic, because it is messy and redundant.
+                  // We should maybe have mk_local_code_map_prompt always
+                  // return an openrouter tool message, and deliberately inject
+                  // an assistant tool call and tool response initially...
+                  // or, if that is not feasible, then we should make the logic flow
+                  // simpler to track overall
                   Some(
-                    OpenRouter.mk_tool_msg(response ++ local_code_map_str, tool_contents),
+                    OpenRouter.mk_tool_msg(
+                      response ++ local_code_map_str,
+                      tool_contents,
+                    ),
                   ),
-                display:
-                  Some(display),
+                display: Some(display),
                 role: System(AssistantPrompt),
                 sketch_snapshot: None,
               };
@@ -1154,7 +1172,13 @@ let update =
         )
         |> Updated.return;
       | (Some(tool_call), _) =>
-        let curr_node_info = TreeHelper.build_sub_AST(editor);
+        print_endline("here #a composition loop round");
+        let curr_node_info =
+          AssistantTreeHelper.build_sub_AST(
+            editor.editor.state.zipper,
+            editor.statics.info_map,
+          );
+        print_endline("here #b after building sub AST");
 
         let updated_chat = {
           let structure_edit_message: Model.message = {
@@ -1162,13 +1186,7 @@ let update =
             display:
               Some(
                 Model.mk_message_display(
-                  ~content=
-                    mk_structure_edit_msg(
-                      ~tool_call=
-                        OpenRouter.string_of_structure_action(tool_call.name),
-                      ~args=Json.get_string_kvs(tool_call.args),
-                      ~curr_node_info,
-                    ),
+                  ~content=mk_structure_edit_msg(~tool_call, ~curr_node_info),
                 ),
               ),
             role: Tool,
@@ -1190,7 +1208,7 @@ let update =
                 fuel - 1,
                 {
                   tool_call_id: tool_call.id,
-                  name: OpenRouter.string_of_structure_action(tool_call.name),
+                  name: tool_call.tool_name,
                 },
                 status,
               ),
@@ -1204,7 +1222,7 @@ let update =
             ~editor,
             ~curr_node_info,
           );
-        parse_and_apply_structure_edit(
+        apply_structure_action(
           ~tool_call,
           ~apply_action,
           ~schedule_action,

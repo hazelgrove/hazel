@@ -17,38 +17,11 @@ type role =
   | Assistant
   | Tool(tool_contents);
 
-// AddToolLabel_1
-[@deriving (show({with_path: false}), sexp, yojson)]
-// Tool Calls
-type structure_action =
-  | GoToParent
-  | GoToChild
-  | GoToSibling
-  | ViewDefinition
-  | InvalidStructureAction;
-
-let string_of_structure_action =
-  fun
-  | GoToParent => "go_to_parent"
-  | GoToChild => "go_to_child"
-  | GoToSibling => "go_to_sibling"
-  | ViewDefinition => "view_definition"
-  | InvalidStructureAction => "invalid_structure_action";
-
-let structure_action_of_string = (structure_action: string) =>
-  switch (structure_action) {
-  | "go_to_parent" => GoToParent
-  | "go_to_child" => GoToChild
-  | "go_to_sibling" => GoToSibling
-  | "view_definition" => ViewDefinition
-  | _ => InvalidStructureAction
-  };
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type tool_call = {
-  id: string,
-  name: structure_action,
+  tool_name: string,
   args: Json.t,
+  id: string,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -260,7 +233,7 @@ let first_message_tool_call =
           let parsed_args = parse_tool_args(args);
           let tool_call: tool_call = {
             id,
-            name: structure_action_of_string(name),
+            tool_name: name,
             args: parsed_args,
           };
           Some(tool_call);

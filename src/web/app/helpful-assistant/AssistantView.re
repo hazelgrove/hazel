@@ -451,6 +451,7 @@ let mk_input_handlers =
       model: Model.t,
       index: option(int),
       inject: Update.t => Ui_effect.t(unit),
+      signal: event => Ui_effect.t(unit),
       which_input: string,
     ) => {
   let mode = settings.mode;
@@ -485,6 +486,10 @@ let mk_input_handlers =
       | Some(index) => inject(Update.ChatAction(Lop(index)))
       | _ => Virtual_dom.Vdom.Effect.Ignore
       },
+      signal(MakeActive(ScratchMode.Selection.Cell(MainEditor))),
+      inject(
+        Update.SendMessage(Composition(Intermediate), None, Id.invalid),
+      ),
       switch (mode) {
       | HazelTutor =>
         inject(
@@ -560,7 +565,7 @@ let message_input =
     (~signal, ~inject, ~model: Model.t, ~settings: AssistantSettings.t)
     : Node.t => {
   let (send_message, handle_keydown) =
-    mk_input_handlers(settings, model, None, inject, "message-input");
+    mk_input_handlers(settings, model, None, inject, signal, "message-input");
   div(
     ~attrs=[clss(["input-container"])],
     [
@@ -830,7 +835,14 @@ let text_block =
   if (message.role == User) {
     let unique_id = "user-message-input-" ++ string_of_int(index);
     let (send_message, handle_keydown) =
-      mk_input_handlers(settings, model, Some(index), inject, unique_id);
+      mk_input_handlers(
+        settings,
+        model,
+        Some(index),
+        inject,
+        signal,
+        unique_id,
+      );
 
     // Auto-resize textarea when first rendered with content
     JsUtil.delay(0.0, () => JsUtil.autosize_textarea(unique_id));
