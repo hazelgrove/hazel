@@ -284,7 +284,7 @@ module Deco =
     };
   };
 
-  let all_tiles = (p: Piece.t): list((Uuidm.t, Mold.t, Measured.Shards.t)) =>
+  let all_tiles = (p: Piece.t): IndicationDec.tile_data =>
     Id.Map.find(Piece.id(p), terms)
     |> Language.Any.ids
     |> List.map(id => {
