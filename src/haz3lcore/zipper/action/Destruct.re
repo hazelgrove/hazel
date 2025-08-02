@@ -90,11 +90,11 @@ let merge = ((l, r): (Token.t, Token.t), z: t): option(t) => {
   Some(z);
 };
 
-let parent_merge = (lbl: Label.t, z: t): t => {
+let parent_merge = (~id: Id.t, lbl: Label.t, z: t): t => {
   z
   |> Zipper.delete_parent
   |> Zipper.set_caret(Inner(0, 0))  /* Note 2-token assumption */
-  |> Zipper.construct(~caret=Right, ~backpack=Left, lbl)
+  |> Zipper.construct(~id, ~caret=Right, ~backpack=Left, lbl)
   /* Below regrouting important for parens/ap positioning */
   |> remold_regrout(Right);
 };
@@ -103,7 +103,8 @@ let parent_merge = (lbl: Label.t, z: t): t => {
 let parent_duomerges = (z: Zipper.t) => {
   let* parent = Relatives.parent(z.relatives);
   let* lbl = Piece.label(parent);
-  Form.duomerges(lbl);
+  let+ res = Form.duomerges(lbl);
+  (res, Piece.id(parent));
 };
 
 let go = (d: Direction.t, z: t): option(t) => {
@@ -113,12 +114,12 @@ let go = (d: Direction.t, z: t): option(t) => {
     z.caret,
     neighbor_monotiles(z.relatives.siblings),
   ) {
-  | (Some(lbl), Outer, (None, None))
+  | (Some((lbl, id)), Outer, (None, None))
       when Siblings.no_siblings(z.relatives.siblings) =>
     /* Note: we must do the no_siblings check, it does not suffice
        to check no monotile neighbors as there could be other neighbors
        for example edge case: "((|))" */
-    z |> parent_merge(lbl) |> Option.some
+    z |> parent_merge(~id, lbl) |> Option.some
   | (_, Outer, (Some(l), Some(r))) when Molds.allow_merge(l, r) =>
     z |> merge((l, r))
   | _ => Some(z) |> Option.map(remold_regrout(d))
