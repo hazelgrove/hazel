@@ -166,9 +166,11 @@ let insert_outer = (char: string, z as state: t): option(t) =>
   | AppendRight(t) => replace_tile(t, Right, state)
   };
 
-let insert_duo = (lbl: Label.t, z: option(t)): option(t) =>
+let insert_duo = (~id, lbl: Label.t, z: option(t)): option(t) =>
   z
-  |> Option.map(z => Zipper.construct(~caret=Left, ~backpack=Left, lbl, z))
+  |> Option.map(z =>
+       Zipper.construct(~id, ~caret=Left, ~backpack=Left, lbl, z)
+     )
   |> OptUtil.and_then(z => {
        //NOTE: regrout to put e.g. ap(1|) back together
        z
@@ -224,7 +226,7 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
   let z = z |> Zipper.set_caret(Outer) |> Zipper.select(Right);
   switch (Form.duomerges([l, r])) {
   | Some(_) =>
-    let+ z = insert_duo([l, r], z);
+    let+ z = insert_duo(~id=right_monotile_id, [l, r], z);
     /* If we're inserting a space, don't bother to insert it;
      * we'll get a convex grout anyway from regrouting */
 
