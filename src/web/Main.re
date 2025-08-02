@@ -156,7 +156,7 @@ let start = {
     NinjaKeys.initialize(Shortcut.options(schedule_action));
     JsUtil.focus_clipboard_shim();
     schedule_action(
-      Assistant(AssistantUpdate.ChatAction(FilterLoadingMessages)),
+      Assistant(AssistantUpdateUtil.ChatAction(FilterLoadingMessages)),
     );
   };
   let%sub () =

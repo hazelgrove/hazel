@@ -66,7 +66,7 @@ module Update = {
     | Globals(Globals.Update.t)
     | Editors(Editors.Update.t)
     | ExplainThis(ExplainThisUpdate.update)
-    | Assistant(AssistantUpdate.t)
+    | Assistant(AssistantUpdateUtil.t)
     | MakeActive(selection)
     | Benchmark(benchmark_action)
     | Start
@@ -80,7 +80,7 @@ module Update = {
         model: Model.t,
         editor: CodeEditable.Model.t,
       ) =>
-    AssistantUpdate.check_req(
+    AssistantUpdateSuggestion.check_req(
       ~schedule_action=a => schedule_action(Assistant(a)),
       ~schedule_setting=a => schedule_action(Globals(Set(Assistant(a)))),
       ~chat_id=model.assistant.current_chats.curr_suggestion_chat,
