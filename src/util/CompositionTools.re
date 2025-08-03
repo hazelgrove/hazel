@@ -61,7 +61,7 @@ type edit_action =
   | InsertAfter(string)
   | InsertBefore(string);
 
-// AddToolLabel_2.1: Make the action types (above)
+// AddToolLabel_1.0: Make the action types (above) and add their cases to the funs (below)
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action =
   | Nav(nav_action)
@@ -70,6 +70,8 @@ type action =
 
 let action_of = (~tool_name: string, ~args: Maps.StringMap.t(string)): action => {
   /* Possible arguments */
+  /* Parsing here to avoid redundancy */
+  /* Argument(s) may or may not be provided depending on the tool called */
   let name = Maps.StringMap.find_opt("name", args);
   let index =
     Option.map(int_of_string, Maps.StringMap.find_opt("index", args));
@@ -166,18 +168,38 @@ let action_of = (~tool_name: string, ~args: Maps.StringMap.t(string)): action =>
   };
 };
 
-let string_of_action = (action: action) => {
+let string_of = (action: action) => {
   switch (action) {
   | Nav(GoToParent) => "go_to_parent"
-  | Nav(GoToChild(_, _)) => "go_to_child"
-  | Nav(GoToSibling(_, _)) => "go_to_sibling"
+  | Nav(GoToChild(name, index)) =>
+    "go_to_child(\""
+    ++ name
+    ++ "\""
+    ++ (
+      switch (index) {
+      | Some(index) => ", " ++ string_of_int(index)
+      | None => ""
+      }
+    )
+    ++ ")"
+  | Nav(GoToSibling(name, index)) =>
+    "go_to_sibling(\""
+    ++ name
+    ++ "\""
+    ++ (
+      switch (index) {
+      | Some(index) => ", " ++ string_of_int(index)
+      | None => ""
+      }
+    )
+    ++ ")"
   | Read(ViewDefinition) => "view_definition"
-  | Edit(UpdateDefinition(_)) => "update_definition"
-  | Edit(UpdateBody(_)) => "update_body"
-  | Edit(UpdatePattern(_)) => "update_pattern"
-  | Edit(UpdateExpression(_)) => "update_expression"
+  | Edit(UpdateDefinition(code)) => "update_definition(\"" ++ code ++ "\")"
+  | Edit(UpdateBody(code)) => "update_body(\"" ++ code ++ "\")"
+  | Edit(UpdatePattern(code)) => "update_pattern(\"" ++ code ++ "\")"
+  | Edit(UpdateExpression(code)) => "update_expression(\"" ++ code ++ "\")"
   | Edit(Delete) => "delete"
-  | Edit(InsertAfter(_)) => "insert_after"
-  | Edit(InsertBefore(_)) => "insert_before"
+  | Edit(InsertAfter(code)) => "insert_after(\"" ++ code ++ "\")"
+  | Edit(InsertBefore(code)) => "insert_before(\"" ++ code ++ "\")"
   };
 };

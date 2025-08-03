@@ -10,10 +10,11 @@ open AssistantUpdateUtil;
 let mk_structure_edit_msg =
     (
       ~tool_call: OpenRouter.tool_call,
-      ~curr_node_info: AssistantTreeHelper.node,
+      ~curr_node_info as _: AssistantTreeHelper.node,
     )
     : string =>
-  // AddToolLabel_4
+  // AddToolLabel_3.0: what should the text content of this tool call to the user be?
+  //                   (not to the llm, that is the string returned in AssistantModes.Composition.apply_action)
   try({
     let tool_name = tool_call.tool_name;
     let args = tool_call.args;
@@ -23,44 +24,7 @@ let mk_structure_edit_msg =
         ~args=Json.get_string_kvs(args),
       );
     let _enclose_in_backticks = (str: string) => "```" ++ str ++ "```";
-    switch (action) {
-    | Nav(GoToParent) =>
-      switch (curr_node_info.parent) {
-      | None => raise(Failure("This node does not have a parent"))
-      | Some(parent) =>
-        "Agent moved from \""
-        ++ curr_node_info.name
-        ++ "\" to its parent \""
-        ++ parent.name
-        ++ "\""
-      }
-    | Nav(GoToChild(name, _)) =>
-      "Agent moved from \""
-      ++ curr_node_info.name
-      ++ "\" to its child \""
-      ++ name
-      ++ "\""
-    | Nav(GoToSibling(name, _)) =>
-      "Agent moved from \""
-      ++ curr_node_info.name
-      ++ "\" to its sibling \""
-      ++ name
-      ++ "\""
-    | Read(ViewDefinition) => "Agent viewed the definition of the current node"
-    | Edit(UpdateDefinition(code)) =>
-      "Agent updated the definition of the current node to " ++ code
-    | Edit(UpdateBody(code)) =>
-      "Agent updated the body of the current node to " ++ code
-    | Edit(UpdatePattern(code)) =>
-      "Agent updated the pattern of the current node to " ++ code
-    | Edit(UpdateExpression(code)) =>
-      "Agent updated the expression of the current node to " ++ code
-    | Edit(Delete) => "Agent deleted the current node"
-    | Edit(InsertAfter(code)) =>
-      "Agent inserted code after the current node: " ++ code
-    | Edit(InsertBefore(code)) =>
-      "Agent inserted code before the current node: " ++ code
-    };
+    "Agent called tool: " ++ CompositionTools.string_of(action);
   }) {
   | Failure(err) =>
     "The agent may have called tools with invalid arguments: " ++ err
@@ -84,6 +48,9 @@ let apply_structure_action =
         ~tool_name=tool_call.tool_name,
         ~args=Json.get_string_kvs(tool_call.args),
       );
+    // tool_result will be a string returned from apply_action, detailing the effects of
+    // the action on the editor so that we can provide the agent with a meaningful "tool response".
+    // This follows standard tool calling protocol.
     let tool_result = apply_action(~action);
     schedule_action(
       SendMessage(Composition(Intermediate), None, Id.invalid),

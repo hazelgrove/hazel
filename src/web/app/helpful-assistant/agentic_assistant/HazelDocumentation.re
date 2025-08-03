@@ -18,7 +18,7 @@ let get_documentation_as_text = () => {
          ++ "</slide_text>";
        })
     |> String.concat("\n\n");
-  "<hazelDocumentation>" ++ documentation ++ "</hazelDocumentation>";
+  ["<hazelDocumentation>" ++ documentation ++ "</hazelDocumentation>"];
 };
 
 let summarized_docs = [
@@ -108,5 +108,5 @@ let summarized_docs = [
 ];
 
 let self = (~summarized: bool) => {
-  summarized ? summarized_docs : [get_documentation_as_text()];
+  summarized ? summarized_docs : get_documentation_as_text();
 };

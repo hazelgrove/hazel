@@ -357,7 +357,7 @@ module Composition = {
     };
   };
 
-  // AddToolLabel_2.2: handle the effects of the action on the editor itself
+  // AddToolLabel_2.0: handle the effects of the action on the editor itself
   let apply_action =
       (
         ~editor: CodeWithStatics.Model.t,

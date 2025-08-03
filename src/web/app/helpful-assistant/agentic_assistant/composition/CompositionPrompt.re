@@ -79,21 +79,19 @@ let toolkit = [
 // IDEA: Allow for a paramter that allows the agent to uniquify the program, and then send it to the user.
 // this way it can control to uniquify the program only if it ABSOLUTELY needs to, such as shadowing and failure modes.
 
-let get_few_shot_comp_examples = () => {
-  "<fewShotExamples>The following are GOLDEN EXAMPLES from agents who successfully implemented user-requested features."
-  ++ "Oh how you ASPIRE to be as elegant and efficient as they are! "
-  ++ "In fact, you CAN be! As long as you study what they've done oh-so-well!\n"
-  ++ Ex_Simple_1.self
-  ++ Ex_Simple_2.self
-  ++ Ex_Tally.self
-  ++ Ex_Comparator.self
-  ++ Ex_Comparator_2.self
-  ++ "</fewShotExamples>";
+let few_shot_comp_examples = {
+  [
+    "<fewShotExamples>The following are GOLDEN EXAMPLES from agents who successfully implemented user-requested features."
+    ++ "Oh how you ASPIRE to be as elegant and efficient as they are! "
+    ++ "In fact, you CAN be! As long as you study what they've done oh-so-well!\n"
+    ++ Ex_RecFib.self
+    ++ "</fewShotExamples>",
+  ];
 };
 
 let self =
   instructions
   @ toolkit
   @ hazel_syntax_notes
-  @ hazel_documentation(~summarized=false);
-// @ [get_few_shot_comp_examples()];
+  @ hazel_documentation(~summarized=false)
+  @ few_shot_comp_examples;
