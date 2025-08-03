@@ -31,13 +31,7 @@ let apply =
      The intention is that eventually, the calculate phase will be
      done automatically by incremental calculation. */
   // ---------- UPDATE PHASE ----------
-  let model =
-    switch (action) {
-    // hack. big hack. for some reason this works.
-    | Assistant(_) =>
-      model |> History.Update.calculate(~schedule_action, ~is_edited=true)
-    | _ => model
-    };
+
   let updated: Updated.t(History.Model.t) =
     try(
       History.Update.update(

@@ -58,8 +58,7 @@ module Update = {
         Buffer(_) |
         Project(_) |
         Introduce |
-        Restore(_) |
-        Assistant(_),
+        Restore(_),
       )
     | DebugConsole(_)
     | TAB => None;

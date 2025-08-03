@@ -64,7 +64,6 @@ module Update = {
              | Copy
              | Cut
              | Reparse
-             | Assistant(_)
              | Introduce => true
              | Project(_)
              | Unselect(_)

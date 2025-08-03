@@ -123,6 +123,13 @@ let go_z =
     |> Option.bind(_, Introduce.introduce(statics.info_map, _))
     |> Result.of_option(~error=Action.Failure.CantIntroduce)
   | Paste(Segment(segment)) => Ok(paste_segment(z, segment))
+  | Paste(Assistant(code)) =>
+    // trim leading whitespace in assistant code
+    let code' = code |> StringUtil.trim_leading;
+    switch (paste(z, code')) {
+    | None => Error(CantPaste)
+    | Some(z') => Ok(Zipper.try_to_dump_backpack(z'))
+    };
   | Cut =>
     /* System clipboard handling is done in Page.view handlers */
     switch (Destruct.go(Left, z)) {
@@ -273,36 +280,5 @@ let go_z =
   | MoveToBackpackTarget((Up | Down) as d) =>
     Move.to_backpack_target(d, z)
     |> Result.of_option(~error=Action.Failure.Cant_move)
-  | Assistant(a) =>
-    switch (a) {
-    | GoTo(id) =>
-      // Just a basic tile select, selecting the pattern & def (excluding the body)
-      switch (Select.tile(id, z)) {
-      | Some(z) => Ok(z)
-      | None => Error(Action.Failure.Cant_select)
-      }
-    | Edit(target_id, code) =>
-      let code =
-        code |> StringUtil.trim_trailing_whitespace |> StringUtil.trim_leading;
-      print_endline("here #2 performing edit action");
-      // Optionally move
-      let z' =
-        switch (target_id) {
-        | Some(id) =>
-          switch (Select.term(id, z)) {
-          | Some(z') => z'
-          | None => raise(Failure("Failed to select target term"))
-          }
-        | None => z
-        };
-      print_endline(
-        "here #3 performing edit action (after selecting target term)",
-      );
-      // Paste the code
-      switch (paste(z', code)) {
-      | Some(z'') => Ok(z'')
-      | None => Error(Action.Failure.CantPaste)
-      };
-    }
   };
 };

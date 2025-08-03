@@ -79,22 +79,8 @@ type buffer =
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type paste =
   | String(string)
-  | Segment(Segment.t);
-
-// Note: Defining assistant actions as their own thing for now,
-// since it will allow us to apply an edit to the editor and then move the cursor
-// all within a single action.
-// The issue with doing this all in AssistantModes.Composition is that when we
-// send a list of editor perform actions to be executed, we don't have access to the
-// intermediate states of the editor/zipper, which are critical in some cases (e.g.
-// when inserting before or after, we might want to place the cursor on the new definition,
-// which we can only find in the post-insert-applied state of the editor.)
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
-type assistant =
-  // Simply move to (select) let/type term
-  | GoTo(Id.t)
-  // Optionally move to a specific part of a let/type term, then paste the code
-  | Edit(option(Id.t), string);
+  | Segment(Segment.t)
+  | Assistant(string);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =
@@ -115,8 +101,7 @@ type t =
   | Pick_up
   | Put_down
   | Introduce
-  | Restore(Zipper.t)
-  | Assistant(assistant);
+  | Restore(Zipper.t);
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -160,7 +145,6 @@ let is_edit: t => bool =
   | Unselect(_)
   | RotateBackpack
   | Restore(_)
-  | Assistant(_)
   | MoveToBackpackTarget(_) => false
   | Project(p) =>
     switch (p) {
@@ -191,8 +175,7 @@ let is_historic: t => bool =
   | Destruct(_)
   | Pick_up
   | Put_down
-  | Introduce
-  | Assistant(_) => true
+  | Introduce => true
   | Project(p) =>
     switch (p) {
     | SetSyntax(_)
@@ -221,7 +204,6 @@ let prevent_in_read_only_editor = (a: t) => {
   | RotateBackpack
   | Restore(_)
   | MoveToBackpackTarget(_)
-  | Assistant(_)
   | Introduce => true
   | Project(p) =>
     switch (p) {
@@ -265,5 +247,4 @@ let should_animate: t => bool =
   | RotateBackpack
   | Restore(_)
   | MoveToBackpackTarget(_)
-  | Assistant(_)
   | Project(_) => true;

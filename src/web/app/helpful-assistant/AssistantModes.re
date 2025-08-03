@@ -380,7 +380,11 @@ module Composition = {
         switch (curr_node_info.parent) {
         | None => raise(Failure("This node does not have a parent"))
         | Some(parent) =>
-          let actions = [Action.Assistant(GoTo(Info.id_of(parent.info)))];
+          let actions = [
+            Action.Select(
+              Tile(Id(Info.id_of(parent.info), Direction.Right)),
+            ),
+          ];
           schedule_actions(actions);
           "Cursor moved from \""
           ++ curr_node_info.name
@@ -391,9 +395,15 @@ module Composition = {
       | GoToChild(who, where) =>
         // todo/idea: move candidates out here, maybe change indexing method?
         // to assert referencing by both name and index...
+        // note: llms tend to be poor at logical/mathematical reasoning, and working with
+        //       numbers in general. Unfortunately, the very nature of the indexing fallback
+        //       method requires each variable to be unique, thus, I'd surmise that this pitfall
+        //       is unavoidable, nevertheless mitigatable via making the fallback method optional
+        // * applies to GoToSibling as well
         let child =
           switch (where) {
           | None =>
+            // the llm provided no index, thus, use the name
             let candidates =
               List.filter(
                 (child: AssistantTreeHelper.node) => child.name == who,
@@ -416,6 +426,9 @@ module Composition = {
             | Some(child) => child
             };
           | Some(here) =>
+            // this means the llm provided an index to move to, in which case
+            // we default on using that as opposed to the name
+
             switch (List.nth_opt(curr_node_info.children, here)) {
             | None =>
               raise(
@@ -426,7 +439,9 @@ module Composition = {
             | Some(child) => child
             }
           };
-        schedule_actions([Action.Assistant(GoTo(Info.id_of(child.info)))]);
+        schedule_actions([
+          Action.Select(Tile(Id(Info.id_of(child.info), Direction.Right))),
+        ]);
         "Cursor moved from \""
         ++ curr_node_info.name
         ++ "\" to its child \""
@@ -469,7 +484,9 @@ module Composition = {
             }
           };
         schedule_actions([
-          Action.Assistant(GoTo(Info.id_of(sibling.info))),
+          Action.Select(
+            Tile(Id(Info.id_of(sibling.info), Direction.Right)),
+          ),
         ]);
         "Cursor moved from \""
         ++ curr_node_info.name
@@ -497,25 +514,45 @@ module Composition = {
       switch (action) {
       | UpdateDefinition(code) =>
         let target_id = get_inner_term_id(curr_node_info, Def);
-        schedule_actions([Action.Assistant(Edit(Some(target_id), code))]);
+        schedule_actions([
+          Action.Select(Tile(Id(target_id, Direction.Right))),
+          Action.Paste(Assistant(code)),
+        ]);
       | UpdateBody(code) =>
         let target_id = get_inner_term_id(curr_node_info, Body);
-        schedule_actions([Action.Assistant(Edit(Some(target_id), code))]);
+        schedule_actions([
+          Action.Select(Tile(Id(target_id, Direction.Right))),
+          Action.Paste(Assistant(code)),
+        ]);
       | UpdatePattern(code) =>
         let target_id = get_inner_term_id(curr_node_info, Pat);
-        schedule_actions([Action.Assistant(Edit(Some(target_id), code))]);
+        schedule_actions([
+          Action.Select(Tile(Id(target_id, Direction.Right))),
+          Action.Paste(Assistant(code)),
+        ]);
       | UpdateExpression(code) =>
-        schedule_actions([Action.Assistant(Edit(None, code))])
-      | Delete => schedule_actions([Action.Assistant(Edit(None, ""))])
+        schedule_actions([
+          Action.Select(
+            Tile(Id(Info.id_of(curr_node_info.info), Direction.Right)),
+          ),
+          Action.Paste(Assistant(code)),
+        ])
+      | Delete =>
+        schedule_actions([
+          Action.Select(
+            Tile(Id(Info.id_of(curr_node_info.info), Direction.Right)),
+          ),
+          Action.Paste(Assistant("")),
+        ])
       | InsertBefore(code) =>
         schedule_actions([
           Action.Move(Extreme(Left(ByToken))),
-          Action.Assistant(Edit(None, code)),
+          Action.Paste(Assistant(code)),
         ])
       | InsertAfter(code) =>
         schedule_actions([
           Action.Move(Extreme(Right(ByToken))),
-          Action.Assistant(Edit(None, code)),
+          Action.Paste(Assistant(code)),
         ])
       };
       "Your edits have been applied to the sketch.";

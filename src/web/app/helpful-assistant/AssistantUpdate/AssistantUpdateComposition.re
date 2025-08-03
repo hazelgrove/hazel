@@ -57,9 +57,9 @@ let mk_structure_edit_msg =
       "Agent updated the expression of the current node to " ++ code
     | Edit(Delete) => "Agent deleted the current node"
     | Edit(InsertAfter(code)) =>
-      "Agent inserted after the current node to " ++ code
+      "Agent inserted code after the current node: " ++ code
     | Edit(InsertBefore(code)) =>
-      "Agent inserted before the current node to " ++ code
+      "Agent inserted code before the current node: " ++ code
     };
   }) {
   | Failure(err) =>
