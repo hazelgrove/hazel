@@ -20,6 +20,7 @@ module Kind = {
   type t =
     | Fold
     | Info
+    | DynType
     | Probe
     | Checkbox
     | Slider
@@ -37,7 +38,8 @@ module Kind = {
     Livelit,
   ];
 
-  let projectors: list(t) = livelit_projectors @ [Fold, Info, Probe];
+  let projectors: list(t) =
+    livelit_projectors @ [Fold, Info, DynType, Probe];
 
   /* A friendly name for each projector. This is used
    * both for identifying a projector in the CSS and for
@@ -46,6 +48,7 @@ module Kind = {
     switch (p) {
     | Fold => "fold"
     | Info => "type"
+    | DynType => "dyntype"
     | Probe => "probe"
     | Checkbox => "check"
     | Slider => "slider"
@@ -59,9 +62,11 @@ module Kind = {
    * name function in order to be able to select the
    * projector in the projector panel menu */
   let of_name = (p: string): t =>
+    // TODO Use a map built from above
     switch (p) {
     | "fold" => Fold
     | "type" => Info
+    | "dyntype" => DynType
     | "probe" => Probe
     | "check" => Checkbox
     | "slider" => Slider

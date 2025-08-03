@@ -8,6 +8,7 @@ let to_module = (kind: ProjectorCore.Kind.t): (module Cooked) =>
   switch (kind) {
   | Fold => (module Cook(FoldProj.M))
   | Info => (module Cook(TypeProj.M))
+  | DynType => (module Cook(DynTypeProj.M))
   | Probe => (module Cook(ProbeProj.M))
   | Slider => (module Cook(SliderProj.M))
   | SliderF => (module Cook(SliderFProj.M))

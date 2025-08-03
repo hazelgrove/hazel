@@ -1,0 +1,97 @@
+/* PROJECTOR: INFO */
+
+:root {}
+
+/* BACKING */
+
+.projector.dyntype>svg {
+  filter: drop-shadow(0.7px 0.7px 0px var(--BR3));
+}
+
+.projector.dyntype.indicated>svg {
+  fill: var(--main-indicated);
+  filter: drop-shadow(0.7px 0.7px 0px var(--main-shadow));
+}
+
+.projector.dyntype.selected>svg {
+  filter: none;
+}
+
+/* INLINE VIEW */
+
+.projector.dyntype:hover {
+  color: var(--BLACK);
+}
+
+.projector.dyntype .main {
+  font-family: var(--code-font);
+  font-size: var(--base-font-size);
+  color: var(--code-text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+}
+
+.projector.dyntype.indicated:not(.selected):not(.error) .main {
+  color: white;
+}
+
+.projector.dyntype .icon {
+  width: 16px;
+  height: 16px;
+  background-image: url(../../img/noun-microscope-7023456.svg);
+  background-size: cover;
+  filter: invert(1) brightness(0.4) sepia(1) saturate(1.8) hue-rotate(245deg);
+}
+
+.projector.dyntype.indicated:not(.selected):not(.error) .main .icon {
+  filter: invert(1);
+}
+
+/* OFFSIDE VIEW */
+
+.projector.dyntype .offside {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.6em;
+}
+
+.projector.dyntype .offside .mode {
+  font-weight: 800;
+  color: var(--main-base);
+  filter: brightness(0.9);
+}
+
+.projector.dyntype.indicated .offside .mode {
+  opacity: 100%;
+  color: var(--main-indicated);
+}
+
+.projector.dyntype .offside .dyntype-cell {
+  border-radius: 0.05em 0.05em 0.05em 0.2em;
+  background-color: var(--main-base);
+  border-bottom: 1px solid var(--main-indicated);
+}
+
+.projector.dyntype.indicated .offside .dyntype-cell {
+  outline-width: 1px;
+  outline-style: solid;
+  outline-color: var(--main-indicated);
+  border-color: var(--main-indicated);
+}
+
+.projector.dyntype .offside .code {
+  position: relative;
+  line-height: initial;
+  color: var(--exp-indicated);
+}
+
+
+.projector.dyntype .code .token.mono {
+  color: var(--exp-indicated);
+}
+.projector.dyntype .code .token.poly {
+  color: var(--exp-indicated);
+}
