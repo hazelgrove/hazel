@@ -915,12 +915,12 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   | TupLabel(l, e) =>
     let* l =
       switch (l.term) {
-      | Label(l) =>
+      | Label(l') =>
         label_to_pretty(
           ~label_only_position=true,
           Sort.Exp,
-          l,
-          exp |> Exp.rep_id,
+          l',
+          l |> Exp.rep_id,
         )
       | _ => go(l)
       }
@@ -947,12 +947,12 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let* e = go(e)
     and* l =
       switch (l.term) {
-      | Label(l) =>
+      | Label(l') =>
         label_to_pretty(
           ~label_only_position=true,
           Sort.Exp,
-          l,
-          exp |> Exp.rep_id,
+          l',
+          l |> Exp.rep_id,
         )
       | _ => go(l)
       };
@@ -1209,12 +1209,12 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
   | TupLabel(l, p) =>
     let* l =
       switch (l.term) {
-      | Label(l) =>
+      | Label(l') =>
         label_to_pretty(
           ~label_only_position=true,
           Sort.Pat,
-          l,
-          p |> Pat.rep_id,
+          l',
+          l |> Pat.rep_id,
         )
       | _ => go(l)
       }
@@ -1351,12 +1351,12 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
   | TupLabel(l, t) =>
     let+ l =
       switch (l.term) {
-      | Label(l) =>
+      | Label(l') =>
         label_to_pretty(
           ~label_only_position=true,
           Sort.Typ,
-          l,
-          t |> Typ.rep_id,
+          l',
+          l |> Typ.rep_id,
         )
       | _ => go(l)
       }

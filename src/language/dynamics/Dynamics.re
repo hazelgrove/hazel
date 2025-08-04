@@ -142,3 +142,9 @@ module Map = {
   let mk: t => t = Fun.id;
   let lookup = Probe.Map.lookup;
 };
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type t = {
+  probe_map: Probe.Map.t,
+  test_results: TestResults.t,
+};
