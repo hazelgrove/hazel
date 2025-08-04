@@ -57,3 +57,19 @@ let on: t = {
   flip_animations: true,
   evaluation: Evaluation.init,
 };
+
+let eq_ignoring_stepper_modals = (a: t, b: t) =>
+  {
+    ...a,
+    evaluation: {
+      ...a.evaluation,
+      stepper_history: false,
+    },
+  }
+  == {
+       ...b,
+       evaluation: {
+         ...b.evaluation,
+         stepper_history: false,
+       },
+     };
