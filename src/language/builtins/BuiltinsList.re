@@ -36,7 +36,7 @@ let builtins = [
                 ],
               ),
               None,
-              None,
+              Some("length+"),
             ),
             None,
           )
@@ -86,7 +86,7 @@ let builtins = [
                 ],
               ),
               None,
-              None,
+              Some("map+"),
             ),
             None,
           )
@@ -136,7 +136,7 @@ let builtins = [
                 ],
               ),
               None,
-              None,
+              Some("filter+"),
             ),
             None,
           )
@@ -190,7 +190,7 @@ let builtins = [
                 ],
               ),
               None,
-              None,
+              Some("fold_left+"),
             ),
             None,
           )
@@ -232,7 +232,7 @@ let builtins = [
                 ]),
               ),
               None,
-              None,
+              Some("flat_map+"),
             ),
             None,
           )
@@ -281,7 +281,7 @@ let builtins = [
                 ],
               ),
               None,
-              None,
+              Some("zip+"),
             ),
             None,
           )
@@ -325,7 +325,7 @@ let builtins = [
                 ],
               ),
               None,
-              None,
+              Some("unzip+"),
             ),
             None,
           )
@@ -363,7 +363,7 @@ let builtins = [
                 ],
               ),
               None,
-              None,
+              Some("reverse+"),
             ),
             None,
           )
@@ -413,7 +413,7 @@ let builtins = [
                 ),
               ),
               None,
-              None,
+              Some("take+"),
             ),
             None,
           )
@@ -459,7 +459,7 @@ let builtins = [
                 ),
               ),
               None,
-              None,
+              Some("drop+"),
             ),
             None,
           )
@@ -495,7 +495,7 @@ let builtins = [
                 ),
               ),
               None,
-              None,
+              Some("range+"),
             ),
             None,
           )
@@ -554,7 +554,7 @@ let builtins = [
                 tuple([var("xs"), int(0)]),
               ),
               None,
-              None,
+              Some("enumerate+"),
             ),
             None,
           )
@@ -597,7 +597,7 @@ let builtins = [
                 ],
               ),
               None,
-              None,
+              Some("any+"),
             ),
             None,
           )
@@ -640,7 +640,7 @@ let builtins = [
                 ],
               ),
               None,
-              None,
+              Some("all+"),
             ),
             None,
           )
@@ -686,7 +686,7 @@ let builtins = [
                 ],
               ),
               None,
-              None,
+              Some("intersperse+"),
             ),
             None,
           )
@@ -708,7 +708,7 @@ let builtins = [
               Pat.tuple([Pat.var("x"), Pat.var("xs")]),
               cons(var("x"), var("xs")),
               None,
-              None,
+              Some("cons+"),
             ),
             None,
           )
@@ -739,7 +739,7 @@ let builtins = [
                 ],
               ),
               None,
-              None,
+              Some("hd+"),
             ),
             None,
           )
@@ -770,7 +770,7 @@ let builtins = [
                 ],
               ),
               None,
-              None,
+              Some("tl+"),
             ),
             None,
           )
@@ -801,7 +801,7 @@ let builtins = [
                 ],
               ),
               None,
-              None,
+              Some("is_empty+"),
             ),
             None,
           )
@@ -846,7 +846,7 @@ let builtins = [
                 ],
               ),
               None,
-              None,
+              Some("nth+"),
             ),
             None,
           )
@@ -899,7 +899,7 @@ let builtins = [
                 ],
               ),
               None,
-              None,
+              Some("fold_right+"),
             ),
             None,
           )
@@ -921,7 +921,7 @@ let builtins = [
               Pat.tuple([Pat.var("xs"), Pat.var("ys")]),
               list_concat(var("xs"), var("ys")),
               None,
-              None,
+              Some("append+"),
             ),
             None,
           )
@@ -958,7 +958,7 @@ let builtins = [
                 ],
               ),
               None,
-              None,
+              Some("concat+"),
             ),
             None,
           )
@@ -1025,7 +1025,7 @@ let builtins = [
                 tuple([var("xs"), var("f"), int(0)]),
               ),
               None,
-              None,
+              Some("mapi+"),
             ),
             None,
           )
@@ -1097,14 +1097,14 @@ let builtins = [
                       ],
                     ),
                     None,
-                    None,
+                    Some("filteri_helper+"),
                   ),
                   None,
                 ),
                 tuple([var("xs"), var("f"), int(0)]),
               ),
               None,
-              None,
+              Some("filteri+"),
             ),
             None,
           )
@@ -1136,7 +1136,7 @@ let builtins = [
               ]),
             ),
             None,
-            None,
+            Some("mem+"),
           )
         )
       );
@@ -1188,7 +1188,7 @@ let builtins = [
                 ],
               ),
               None,
-              None,
+              Some("partition+"),
             ),
             None,
           )
@@ -1226,7 +1226,7 @@ let builtins = [
                 ],
               ),
               None,
-              None,
+              Some("rev_append+"),
             ),
             None,
           )
@@ -1292,7 +1292,7 @@ let builtins = [
                 ],
               ),
               None,
-              None,
+              Some("fold_left2+"),
             ),
             None,
           )
@@ -1362,7 +1362,7 @@ let builtins = [
                 ],
               ),
               None,
-              None,
+              Some("fold_right2+"),
             ),
             None,
           )
@@ -1419,7 +1419,7 @@ let builtins = [
                 ],
               ),
               None,
-              None,
+              Some("map2+"),
             ),
             None,
           )
@@ -1475,7 +1475,7 @@ let builtins = [
                 ],
               ),
               None,
-              None,
+              Some("all2+"),
             ),
             None,
           )
@@ -1531,7 +1531,7 @@ let builtins = [
                 ],
               ),
               None,
-              None,
+              Some("any2+"),
             ),
             None,
           )
@@ -1574,7 +1574,7 @@ let builtins = [
                 ],
               ),
               None,
-              None,
+              Some("find+"),
             ),
             None,
           )
@@ -1620,7 +1620,7 @@ let builtins = [
                 ],
               ),
               None,
-              None,
+              Some("take_while+"),
             ),
             None,
           )
@@ -1663,7 +1663,7 @@ let builtins = [
                 ],
               ),
               None,
-              None,
+              Some("drop_while+"),
             ),
             None,
           )
@@ -1727,7 +1727,7 @@ let builtins = [
                 ],
               ),
               None,
-              None,
+              Some("filter_map+"),
             ),
             None,
           )
@@ -1772,7 +1772,7 @@ let builtins = [
                 ],
               ),
               None,
-              None,
+              Some("nth_opt+"),
             ),
             None,
           )
@@ -1815,7 +1815,7 @@ let builtins = [
                 ],
               ),
               None,
-              None,
+              Some("find_opt+"),
             ),
             None,
           )
@@ -1873,14 +1873,14 @@ let builtins = [
                       ],
                     ),
                     None,
-                    None,
+                    Some("find_index_helper+"),
                   ),
                   None,
                 ),
                 tuple([var("xs"), var("pred"), int(0)]),
               ),
               None,
-              None,
+              Some("find_index+"),
             ),
             None,
           )
@@ -1937,7 +1937,7 @@ let builtins = [
                 ],
               ),
               None,
-              None,
+              Some("find_map+"),
             ),
             None,
           )
@@ -2009,14 +2009,14 @@ let builtins = [
                       ],
                     ),
                     None,
-                    None,
+                    Some("find_mapi_helper+"),
                   ),
                   None,
                 ),
                 tuple([var("xs"), var("f"), int(0)]),
               ),
               None,
-              None,
+              Some("find_mapi+"),
             ),
             None,
           )
@@ -2061,14 +2061,14 @@ let builtins = [
                       ),
                     ),
                     None,
-                    None,
+                    Some("init_helper+"),
                   ),
                   None,
                 ),
                 tuple([var("n"), var("f"), int(0)]),
               ),
               None,
-              None,
+              Some("init+"),
             ),
             None,
           )
@@ -2117,7 +2117,7 @@ let builtins = [
                 ],
               ),
               None,
-              None,
+              Some("assoc+"),
             ),
             None,
           )
@@ -2166,7 +2166,7 @@ let builtins = [
                 ],
               ),
               None,
-              None,
+              Some("assoc_opt+"),
             ),
             None,
           )
@@ -2215,7 +2215,7 @@ let builtins = [
                 ],
               ),
               None,
-              None,
+              Some("mem_assoc+"),
             ),
             None,
           )
@@ -2271,7 +2271,7 @@ let builtins = [
                 ],
               ),
               None,
-              None,
+              Some("remove_assoc+"),
             ),
             None,
           )
@@ -2339,7 +2339,7 @@ let builtins = [
                 ],
               ),
               None,
-              None,
+              Some("partition_map+"),
             ),
             None,
           )
@@ -2484,7 +2484,7 @@ let go: ([?], [?], [?]) -> [?] =
                         ],
                       ),
                       None,
-                      None,
+                      Some("go+"),
                     ),
                     None,
                   ),
@@ -2495,7 +2495,7 @@ let go: ([?], [?], [?]) -> [?] =
                   ),
                 ),
                 None,
-                None,
+                Some("merge+"),
               ),
               let_(
                 Pat.var("split"),
@@ -2531,7 +2531,7 @@ let go: ([?], [?], [?]) -> [?] =
                       ],
                     ),
                     None,
-                    None,
+                    Some("split+"),
                   ),
                   None,
                 ),
@@ -2579,7 +2579,7 @@ let go: ([?], [?], [?]) -> [?] =
                         ],
                       ),
                       None,
-                      None,
+                      Some("merge_sort+"),
                     ),
                     None,
                   ),
@@ -2588,7 +2588,7 @@ let go: ([?], [?], [?]) -> [?] =
               ),
             ),
             None,
-            None,
+            Some("sort+"),
           )
         )
       );
@@ -2619,7 +2619,7 @@ let go: ([?], [?], [?]) -> [?] =
                 ]),
               ),
               None,
-              None,
+              Some("slice+"),
             ),
             None,
           )
@@ -2653,7 +2653,7 @@ let go: ([?], [?], [?]) -> [?] =
                 ],
               ),
               None,
-              None,
+              Some("hd_opt+"),
             ),
             None,
           )
@@ -2687,7 +2687,7 @@ let go: ([?], [?], [?]) -> [?] =
                 ],
               ),
               None,
-              None,
+              Some("tl_opt+"),
             ),
             None,
           )

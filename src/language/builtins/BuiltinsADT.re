@@ -87,7 +87,7 @@ module Option = {
                 ],
               ),
               None,
-              None,
+              Some("option_map+"),
             )
           )
         );
@@ -117,7 +117,7 @@ module Option = {
                 ],
               ),
               None,
-              None,
+              Some("option_bind+"),
             )
           )
         );
@@ -144,7 +144,7 @@ module Option = {
                 ],
               ),
               None,
-              None,
+              Some("option_to_list+"),
             )
           )
         );

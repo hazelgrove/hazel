@@ -75,8 +75,8 @@ let form_of_builtin:
 let imp_of_builtin: builtin => (string, TermBase.exp_t) =
   fun
   | Const({name, imp, _}) => (name, imp)
-  | Fn({name, _})
-  | HazelFn({name, _}) => (name, Fresh.Exp.builtin_fun(name));
+  | HazelFn({name, imp, _}) => (name, imp)
+  | Fn({name, _}) => (name, Fresh.Exp.builtin_fun(name));
 
 let name_of_builtin: builtin => string =
   fun
