@@ -323,3 +323,11 @@ svg.tile-taken-step {
   transform: scale(100%);
   cursor: not-allowed;
 }
+
+.assumption-box {
+  display: flex;
+  flex-direction: row;
+  gap : 1em;
+  align-items: center;
+  margin-left: 2em;
+}

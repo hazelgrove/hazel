@@ -1,10 +1,12 @@
 open Util;
 open OptUtil.Syntax;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 type conclusion =
   | Equality(Exp.t, Exp.t)
   | Other(Exp.t);
 
+[@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   bindings: list(Ctx.entry),
   assumptions: list(Exp.t),
@@ -66,3 +68,29 @@ let conclusion_exp = (rule: t): Exp.t =>
   | Equality(e1, e2) => Exp.fresh(BinOp(Poly(Equals), e1, e2))
   | Other(e) => e
   };
+
+let rec get_empty_bindings = (ctx: list(Ctx.entry)) =>
+  switch (ctx) {
+  | [] => []
+  | [VarEntry(var_entry), ...rs] => [
+      (var_entry.name, None),
+      ...get_empty_bindings(rs),
+    ]
+  | [_, ...rs] => get_empty_bindings(rs)
+  };
+
+let can_eq =
+    (~interfering_bindings as _: list(Var.t)=[], rule: t, exp: Exp.t)
+    : (option(Exp.t), option(Exp.t)) => {
+  switch (rule.conclusion) {
+  | Equality(a, b) =>
+    let bindings = get_empty_bindings(rule.bindings);
+    (
+      MatchExp.match_exp([], bindings, a, exp)
+      |> Option.map(MatchExp.substitute_exp(_, b)),
+      MatchExp.match_exp([], bindings, b, exp)
+      |> Option.map(MatchExp.substitute_exp(_, a)),
+    );
+  | Other(_) => (None, None)
+  };
+};

@@ -13,6 +13,7 @@ type model'('stepper) = {
   step: 'stepper,
   last_exp: Calc.saved(Exp.t),
   hypo_points: Calc.saved(list(Pat.t)),
+  added_ctx: Calc.saved(list(Ctx.entry)),
   inner_ctx: Calc.saved(Ctx.t),
 };
 
@@ -38,6 +39,7 @@ module F = (Stepper: STEPPER) => {
     step: Stepper.init,
     last_exp: Calc.Pending,
     hypo_points: Calc.Pending,
+    added_ctx: Calc.Pending,
     inner_ctx: Calc.Pending,
   };
 
@@ -130,9 +132,8 @@ module F = (Stepper: STEPPER) => {
         )
         |> List.map(v => Pat.fresh(Var(v)));
       };
-
-    let inner_ctx =
-      model.inner_ctx
+    let added_ctx =
+      model.added_ctx
       |> {
         open Calc.Syntax;
         let.calc hypo_points = hypo_points
@@ -141,66 +142,72 @@ module F = (Stepper: STEPPER) => {
         and.calc scrut_co_ctx = scrut_co_ctx
         and.calc exp = exp
         and.calc elab_pattern = elab_pattern;
-        hypo_points
-        |> List.map(h =>
-             ProofHacks.replace_exp(
-               elab_scrut,
-               scrut_co_ctx,
-               h |> ProofHacks.pat_to_exp,
-               h |> Pat.bindings |> CoCtx.of_bindings,
-               exp,
-             )
-           )
-        |> List.map(e => Typ.fresh(Yes(e)))
-        |> List.fold_left(
-             (ctx, ty) =>
-               Ctx.extend(
-                 ctx,
-                 VarEntry({
-                   name:
-                     Var.free_name(
-                       "h",
-                       List.map(
-                         (e: Ctx.var_entry) => e.name,
-                         Ctx.get_var_entries(ctx),
-                       ),
-                     ),
-                   id: Id.mk(),
-                   typ: ty,
-                 }),
-               ),
-             Ctx.extend(
-               ProofHacks.dhpat_extend_ctx(
-                 elab_pattern,
-                 scrut_ty |> Calc.get_value,
-                 ctx,
+
+        let case_eq: Ctx.entry =
+          VarEntry({
+            name:
+              Var.free_name(
+                "case_eq",
+                List.map(
+                  (e: Ctx.var_entry) => e.name,
+                  Ctx.get_var_entries(ctx),
+                ),
+              ),
+            id: Id.mk(),
+            typ:
+              Typ.fresh(
+                Yes(
+                  Exp.fresh(
+                    BinOp(
+                      Poly(Equals),
+                      elab_scrut,
+                      elab_pattern |> ProofHacks.pat_to_exp,
+                    ),
+                  ),
+                ),
+              ),
+          });
+
+        let hypo_entries: list(Ctx.entry) =
+          hypo_points
+          |> List.map(h =>
+               ProofHacks.replace_exp(
+                 elab_scrut,
+                 scrut_co_ctx,
+                 h |> ProofHacks.pat_to_exp,
+                 h |> Pat.bindings |> CoCtx.of_bindings,
+                 exp,
                )
-               |> Option.value(~default=ctx),
-               VarEntry({
+             )
+          |> List.map(e => Typ.fresh(Yes(e)))
+          |> List.map(ty =>
+               Ctx.VarEntry({
                  name:
                    Var.free_name(
-                     "case_eq",
+                     "ih",
                      List.map(
                        (e: Ctx.var_entry) => e.name,
                        Ctx.get_var_entries(ctx),
                      ),
                    ),
                  id: Id.mk(),
-                 typ:
-                   Typ.fresh(
-                     Yes(
-                       Exp.fresh(
-                         BinOp(
-                           Poly(Equals),
-                           elab_scrut,
-                           elab_pattern |> ProofHacks.pat_to_exp,
-                         ),
-                       ),
-                     ),
-                   ),
-               }),
-             ),
-           );
+                 typ: ty,
+               })
+             );
+        [case_eq] @ hypo_entries;
+      };
+    let inner_ctx =
+      model.inner_ctx
+      |> {
+        open Calc.Syntax;
+        let.calc ctx = ctx
+        and.calc elab_pattern = elab_pattern
+        and.calc scrut_ty = scrut_ty
+        and.calc added_ctx = added_ctx;
+        let ctx =
+          ProofHacks.dhpat_extend_ctx(elab_pattern, scrut_ty, ctx)
+          |> Option.value(~default=ctx);
+        List.fold_left(Ctx.extend, ctx, added_ctx |> List.rev);
       };
 
     let (stepper, last_exp) =
@@ -219,6 +226,7 @@ module F = (Stepper: STEPPER) => {
       hypo_points: hypo_points |> Calc.save,
       step: stepper,
       last_exp: last_exp |> Calc.save,
+      added_ctx: added_ctx |> Calc.save,
       inner_ctx: inner_ctx |> Calc.save,
     };
   };
@@ -313,29 +321,25 @@ module F = (Stepper: STEPPER) => {
         ),
         WebUtil.div_c(
           "induction-case-hypotheses",
-          List.flatten(
-            List.map(
-              x =>
-                [
-                  CodeViewable.view_segment(
-                    ~globals,
-                    ~sort=Exp,
-                    ~shape_map=ProjectorCore.Shape.Map.empty,
-                    ExpToSegment.exp_to_segment(
-                      ~settings=
-                        ExpToSegment.Settings.of_core(
-                          ~inline=true,
-                          globals.settings.core,
-                        ),
-                      x,
-                    ),
-                  ),
-                  WebUtil.Node.text(", "),
-                ],
-              model.hypo_points
-              |> Calc.get_saved_exc
-              |> List.map(ProofHacks.pat_to_exp),
-            ),
+          List.filter_map(
+            fun
+            | Ctx.VarEntry({name, id: _, typ}) => {
+                ProofRule.typ_to_rule(typ)
+                |> Option.map(rule =>
+                     AssumptionBox.View.view(
+                       ~globals,
+                       ~active_selection=None,
+                       AssumptionBox.Model.{
+                         name,
+                         typ,
+                         rule,
+                       },
+                     )
+                   );
+              }
+            | _ => None,
+            model.added_ctx
+            |> Calc.get_saved_exc(~print="InductionCase not calculated"),
           ),
         ),
       ]
