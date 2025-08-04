@@ -7,7 +7,6 @@ let builtins = [
   {
     str: {|fix length -> fun xs -> case xs
                | [] => 0
-               | [x] => 1
                | x :: xs => 1 + length(xs)
              end|},
     name: "length",
@@ -24,7 +23,6 @@ let builtins = [
                 var("xs"),
                 [
                   (Pat.list_lit([]), int(0)),
-                  (Pat.list_lit([Pat.wild()]), int(1)),
                   (
                     Pat.cons(Pat.wild(), Pat.var("xs")),
                     bin_op(
@@ -47,7 +45,6 @@ let builtins = [
   {
     str: {|fix map -> fun xs f -> case xs
                | [] => []
-               | [x] => [f(x)]
                | x :: xs => f(x) :: map(f, xs)
              end|},
     name: "map",
@@ -68,10 +65,6 @@ let builtins = [
                 var("xs"),
                 [
                   (Pat.list_lit([]), list_lit([])),
-                  (
-                    Pat.list_lit([Pat.var("x")]),
-                    list_lit([ap(Forward, var("f"), var("x"))]),
-                  ),
                   (
                     Pat.cons(Pat.var("x"), Pat.var("xs")),
                     cons(
