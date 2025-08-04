@@ -363,9 +363,6 @@ module Selection = {
     switch (selection) {
     | Cell(selection) =>
       switch (event) {
-      | {key: D(key), sys: Mac | PC, shift: Up, meta: Down, ctrl: Up, alt: Up}
-          when Keyboard.is_digit(key) =>
-        Some(Update.SwitchSlide(int_of_string(key)))
       | _ =>
         CellEditor.Selection.handle_key_event(
           ~selection,
