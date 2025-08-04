@@ -92,7 +92,7 @@ module ClosureLength = {
     |> Option.value(
          ~default=
            !is_value(closure.value)
-             ? 5 : Window.get_mode() == Single ? 36 : 12,
+             ? 5 : Window.get_mode() == Single ? 50 : 12,
        );
 
   let set = (id: int, length: int): unit => Hashtbl.add(lengths, id, length);
