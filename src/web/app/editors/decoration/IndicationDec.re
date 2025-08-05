@@ -5,6 +5,9 @@ open SvgUtil;
 open Measured;
 open SvgUtil.Path;
 
+/* This module is responsible for drawing the term indication decorations,
+ * consisting of hexagonal delimiter decorations and the paths between them */
+
 type path = list(Path.cmd);
 type positioned_path = (Point.t, path);
 type tile_data = list((Id.t, Mold.t, Shards.t));
@@ -20,12 +23,10 @@ let svg =
     : Node.t =>
   DecUtil.code_svg(~font_metrics, ~origin, ~path_cls, path);
 
-let shards_of_tiles = tiles =>
+let shards_of_tiles = (tiles: tile_data) =>
   tiles
   |> List.concat_map(((_, _, shards)) => shards)
-  |> List.sort(((_, m1: measurement), (_, m2: measurement)) =>
-       Point.compare(m1.origin, m2.origin)
-     );
+  |> List.sort((m1, m2) => Point.compare(snd(m1).origin, snd(m2).origin));
 
 let rep_tips = (tiles: tile_data) => {
   assert(tiles != []);
@@ -44,15 +45,7 @@ let min_col = (~first: Point.t, ~last: Point.t, ~rows: Rows.t): int =>
     Rows.min_col(ListUtil.range(~lo=first.row, last.row + 1), rows),
   );
 
-let first_of_last_row = (shards: Shards.t): measurement => {
-  let shard_rows = Shards.split_by_row(shards);
-  assert(shard_rows != []);
-  let row = ListUtil.last(shard_rows);
-  assert(row != []);
-  snd(List.hd(row));
-};
-
-let l_horizontal = (~hx, ~first: Point.t, ~last: Point.t): path => [
+let m_horizontal = (~hx, ~first: Point.t, ~last: Point.t): path => [
   m(~x=0, ~y=1) |> cmdfudge(~x=hx) |> shadowfudge,
   h(~x=last.col - first.col),
 ];
@@ -63,19 +56,25 @@ let hook = (hx, x, y) =>
     dy: float_of_int(y) *. hx /. 2.,
   });
 
-let l_horizontal_hooked = (~hx: float, ~first: Point.t, ~last: Point.t): path => [
+let l_horizontal = (~hx: float, ~first: Point.t, ~last: Point.t): path => [
   m(~x=0, ~y=1) |> cmdfudge(~x=-. hx, ~y=-. hx /. 2.) |> shadowfudge,
   hook(hx, 1, 1),
   h(~x=last.col - first.col),
 ];
 
-let r_horizontal_hooked = (~hx: float, ~first: Point.t, ~last: Point.t): path => [
+let r_horizontal = (~hx: float, ~first: Point.t, ~last: Point.t): path => [
   m(~x=0, ~y=1) |> shadowfudge,
   h(~x=last.col - first.col),
   hook(hx, 1, -1),
 ];
 
-let core_path =
+/* This draws a C-shaped path with chamfered corners opening to the right.
+ * The corners have radius `hx`, and the C is intended to be drawn starting
+ * at the point `first`, with the initial (top) stroke of the the C going
+ * towards the left, then down, then right. If the C would have no bottom
+ * edge, that is, when the last point aligns with min_col, the C ends one
+ * line early. */
+let base_path =
     (~hx: float, ~min_col: int, ~first: Point.t, ~last: Point.t): path => {
   let v_delta = last.col == min_col ? 0 : 1;
   [
@@ -89,64 +88,59 @@ let core_path =
   ];
 };
 
-let m_path =
+/* This draws a C-shaped path without edge hooks */
+let m_vertical =
     (~hx: float, ~min_col: int, ~first: Point.t, ~last: Point.t): path => [
   m(~x=0, ~y=1) |> cmdfudge(~x=hx) |> shadowfudge,
-  ...core_path(~hx, ~min_col, ~first, ~last),
+  ...base_path(~hx, ~min_col, ~first, ~last),
 ];
 
-let r_uni_path =
+/* This draws a C-shaped path with a hook on the right */
+let r_vertical =
     (~hx: float, ~min_col: int, ~first: Point.t, ~last: Point.t): path =>
   [
     m(~x=0, ~y=1) |> cmdfudge(~x=hx) |> shadowfudge,
-    ...core_path(~hx, ~min_col, ~first, ~last),
+    ...base_path(~hx, ~min_col, ~first, ~last),
   ]
   @ [hook(hx, 1, -1)];
 
-let l_uni_path =
+/* This draws a C-shaped path with a hook on the left */
+let l_vertical =
     (~hx: float, ~min_col: int, ~first: Point.t, ~last: Point.t): path => {
   let vf_delta = first.col == min_col ? 0 : 1;
-  let cond =
+  let edge_case =
     last.row - first.row == 1 && last.col == min_col && first.col != min_col;
   [
     m(~x=0, ~y=vf_delta)
     |> cmdfudge(~y=float_of_int(vf_delta) *. (-. hx) /. 2.)
     |> shadowfudge,
-    hook(hx, - vf_delta, vf_delta) /* hacky; don't draw if v_delta==0 */
+    hook(hx, - vf_delta, vf_delta) /* hacky; don't draw if vf_delta==0 */
   ]
   @ (
-    cond
+    edge_case
       ? [h(~x=min_col - first.col)]
-      : core_path(~hx, ~min_col, ~first, ~last)
+      : base_path(~hx, ~min_col, ~first, ~last)
   );
 };
 
-let m_h_line = (~hx, ~first, ~last): positioned_path => (
-  first,
-  l_horizontal(~hx, ~first, ~last),
-);
-
-let m_v_line =
-    (~min_col: int, ~hx, ~first: Point.t, ~last: Point.t)
-    : option(positioned_path) =>
-  if (last.row - first.row == 1 && last.col == first.col) {
-    None;
-  } else if (last.row - first.row == 0) {
-    None;
-  } else {
-    Some((first, m_path(~first, ~last, ~min_col, ~hx)));
-  };
-
+/* This draws the inner lines between shards; that is, lines other than
+ * those that have one end not touching a shard. These are drawn by considering
+ * the shards divided into lists representing rows. Pairs of shards in the same list,
+ * and hence onthe same row, get a horizontal line between them (`m_horizontal`).
+ * Pairs of shards that span two lists, and hence rows, get C-shaped vertical paths
+ * between them (`m_vertical`))  */
 let inner_lines =
-    (~rows: Rows.t, ~hx: float, ~shards: Shards.t): list(positioned_path) => {
-  let shard_rows = Shards.split_by_row(shards);
+    (~shard_rows: list(Shards.t), ~hx: float, ~min_col: int)
+    : list(positioned_path) => {
   let horizontals =
     shard_rows
     |> List.map(ListUtil.neighbors)
     |> List.concat_map(
-         List.map((((_, l: measurement), (_, r: measurement))) =>
-           m_h_line(~hx, ~first=l.origin, ~last=r.origin)
-         ),
+         List.map(((l, r)) => {
+           let first = snd(l).origin;
+           let last = snd(r).origin;
+           (first, m_horizontal(~hx, ~first, ~last));
+         }),
        );
   let verticals =
     shard_rows
@@ -156,72 +150,74 @@ let inner_lines =
          assert(r != []);
          let first = snd(List.hd(l)).origin;
          let last = snd(List.hd(r)).origin;
-         m_v_line(
-           ~min_col=min_col(~first, ~last, ~rows),
-           ~hx,
-           ~first,
-           ~last,
-         );
+         if (last.row > first.row) {
+           Some((first, m_vertical(~first, ~last, ~min_col, ~hx)));
+         } else {
+           None;
+         };
        });
   horizontals @ verticals;
 };
 
-let outer_lines =
-    (
-      ~rows: Rows.t,
-      ~shards: Shards.t,
-      ~hx: float,
-      (first: Point.t, last: Point.t),
-    )
-    : list(positioned_path) => {
-  assert(shards != []);
-  let min_col = min_col(~first, ~last, ~rows);
-  let l_line = {
-    let last = snd(List.hd(shards)).origin;
-    if (last.row == first.row && last.col > first.col) {
-      [(first, l_horizontal_hooked(~hx, ~first, ~last))];
-    } else if (Point.compare(last, first) > 0) {
-      [(first, l_uni_path(~hx, ~min_col, ~first, ~last))];
-    } else {
-      [];
-    };
+/* Draws a path between the leftwards edge of the term and the tile's
+ * first shard. If these are on the same line, this is just a horizontal
+ * line with a hook on the left side ('l_horizontal`); otherwise, it's a
+ * C-shaped path between the points, extending leftward to the minimum
+ * enclosed leftward column containing program text. */
+let l_path =
+    (~min_col: int, ~last: Point.t, ~hx: float, ~first: Point.t)
+    : list(positioned_path) =>
+  if (last.row > first.row) {
+    [(first, l_vertical(~hx, ~first, ~last, ~min_col))];
+  } else if (Point.compare(last, first) > 0) {
+    [(first, l_horizontal(~hx, ~first, ~last))];
+  } else {
+    [];
   };
-  let r_line = {
-    let first = snd(ListUtil.last(shards)).last;
-    if (last.row == first.row && last.col > first.col) {
-      [(first, r_horizontal_hooked(~hx, ~first, ~last))];
-    } else if (last.row > first.row) {
-      let first = first_of_last_row(shards).origin;
-      [(first, r_uni_path(~first, ~last, ~hx, ~min_col))];
-    } else {
-      [];
-    };
-  };
-  l_line @ r_line;
-};
 
-let lines =
+/* See l-path */
+let r_path =
+    (~min_col: int, ~first: Point.t, ~hx: float, ~last: Point.t)
+    : list(positioned_path) =>
+  if (last.row > first.row) {
+    [(first, r_vertical(~hx, ~first, ~last, ~min_col))];
+  } else if (Point.compare(last, first) > 0) {
+    [(first, r_horizontal(~hx, ~first, ~last))];
+  } else {
+    [];
+  };
+
+/* This draws the paths which connect the leftwards edge of the term to
+ * the term's leftwardsmost shard, pairs of shards, and the rightwardsmost
+ * shard to the rightwards edge of the term */
+let paths =
     (
       tiles: tile_data,
       line_clss: list(string),
       font_metrics: FontMetrics.t,
       rows: Rows.t,
-      range: (Point.t, Point.t),
+      (first, last): (Point.t, Point.t),
     )
     : list(Node.t) =>
   switch (tiles) {
   | [] => []
   | [(_, {out: sort, _}, _), ..._] =>
+    let shards = shards_of_tiles(tiles);
+    assert(shards != []);
     let path_cls = ["child-line", Sort.to_string(sort)] @ line_clss;
     let hx = abs_float(ShardDec.offset_of(fst(rep_tips(tiles))));
-    let shards = shards_of_tiles(tiles);
+    let min_col = min_col(~first, ~last, ~rows);
+    let shard_rows = Shards.split_by_row(shards);
     List.concat([
-      outer_lines(~rows, ~hx, ~shards, range),
-      inner_lines(~rows, ~hx, ~shards),
+      l_path(~hx, ~min_col, ~first, ~last=snd(List.hd(shards)).origin),
+      r_path(~hx, ~min_col, ~first=snd(ListUtil.last(shards)).last, ~last),
+      inner_lines(~hx, ~min_col, ~shard_rows),
     ])
     |> List.map(svg(~font_metrics, ~path_cls));
   };
 
+/* This draws the shards backing decorations,
+ * i.e. the hexagons under the term's delimiters */
 let shards =
     (
       ~attr: option(list(Attr.t))=?,
@@ -249,6 +245,8 @@ let shards =
     tiles,
   );
 
+/* This draws the indication decoration for a term, comprising shard
+ * decorations and paths between the shards and the edges of the term */
 let term =
     (
       ~attr: option(list(Attr.t))=?,
@@ -261,7 +259,7 @@ let term =
     )
     : list(Node.t) =>
   shards(~attr?, ~font_metrics, ~base_clss, tiles)
-  @ lines(tiles, line_clss, font_metrics, rows, range);
+  @ paths(tiles, line_clss, font_metrics, rows, range);
 
 let error_term =
     (
@@ -284,5 +282,5 @@ let error_term =
       ((_, mold, shards)) => List.map(shard_of(mold), shards),
       tiles,
     );
-  shard_decos @ lines(tiles, [], font_metrics, rows, range);
+  shard_decos @ paths(tiles, [], font_metrics, rows, range);
 };
