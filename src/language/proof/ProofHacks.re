@@ -315,7 +315,8 @@ let find_refls = e => {
       ~f_exp=
         (cont, exp) => {
           switch (exp |> Exp.term_of) {
-          | BinOp(Poly(Equals), e1, e2) when Exp.fast_equal(e1, e2) =>
+          | BinOp(Poly(Equals), e1, e2)
+              when MatchExp.match_exp([], [], e1, e2) |> Option.is_some =>
             refls := [exp, ...refls^];
             cont(exp);
           | _ => cont(exp)
