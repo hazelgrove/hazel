@@ -182,7 +182,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
   // We store this syntax with the same ID as the original expression and store it on the Info.exp in the Statics.map
   // We are then pulling this out and using it in place of the actual expression.
   let et = elaborated_type;
-  let (elaborated_type, ana, ctx, co_ctx, statics_pseudo_elaborated, self) =
+  let (elaborated_type, ana, ctx, co_ctx, statics_pseudo_elaborated, _) =
     elaborated_type(m, uexp);
   let (_, rewrap) = Exp.unwrap(uexp);
   let uexp = rewrap(statics_pseudo_elaborated.term);
@@ -208,7 +208,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let (e', _) = elaborate(m, e);
       DynamicErrorHole(e', err) |> rewrap;
     | Asc(e, t) =>
-      let (e', t') = elaborate(m, e);
+      let (e', _) = elaborate(m, e);
       let (_, _, _, _, _, self) = et(m, e);
       if (Typ.is_more_precise(ctx, self, t)) {
         e';
