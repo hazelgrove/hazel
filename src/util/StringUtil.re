@@ -143,3 +143,12 @@ let prefixes = (s: string): list(string) => {
     aux(1);
   };
 };
+
+// Removes double quotes from string and escapes newlines
+let sanitize_for_string_expression = (s: string): string => {
+  s |> replace(regexp("\""), _, "") |> replace(regexp("\n"), _, "\\n"); // Escape newlines
+};
+
+let sanitize_for_label = (s: string): string => {
+  s |> replace(regexp("`"), _, "");
+};
