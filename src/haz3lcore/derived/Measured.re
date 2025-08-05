@@ -321,11 +321,6 @@ let of_segment =
             );
           (prev_indent, last, map);
         | Projector(p) =>
-          let indent =
-            switch (Id.Map.find_opt(p.id, indent_level)) {
-            | Some(indent) => indent
-            | None => 0
-            };
           let shape = ProjectorCore.Shape.Map.lookup(p.id, shape_map);
           let num_extra_rows =
             switch (shape.vertical) {
@@ -348,7 +343,7 @@ let of_segment =
           };
           let map =
             map
-            |> add_n_rows(origin, indent, num_extra_rows)
+            |> add_n_rows(origin, prev_indent, num_extra_rows)
             |> add_pr(
                  p,
                  {
@@ -356,7 +351,7 @@ let of_segment =
                    last,
                  },
                );
-          (indent, last, map);
+          (prev_indent, last, map);
         | Tile(t) =>
           let last_of_token = (token: string, origin: Point.t): Point.t => {
             col: origin.col + StringUtil.max_line_width(token),
