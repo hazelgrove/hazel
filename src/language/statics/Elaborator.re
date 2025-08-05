@@ -204,7 +204,11 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let (e', _) = elaborate(m, e);
       DynamicErrorHole(e', err) |> rewrap;
     | Asc(e, t) =>
-      Asc(elaborate(m, e) |> fst, Typ.normalize(ctx, t)) |> rewrap
+      if (Typ.is_more_precise(ctx, elaborated_type, t)) {
+        elaborate(m, e) |> fst;
+      } else {
+        Asc(elaborate(m, e) |> fst, Typ.normalize(ctx, t)) |> rewrap;
+      }
     | Parens(e) =>
       let (e', _) = elaborate(m, e);
       e';
