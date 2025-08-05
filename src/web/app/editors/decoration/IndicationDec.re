@@ -178,7 +178,7 @@ let outer_lines =
   let min_col = min_col(~first, ~last, ~rows);
   let l_line = {
     let last = snd(List.hd(shards)).origin;
-    if (first.row == last.row && last.col > first.col) {
+    if (last.row == first.row && last.col > first.col) {
       [(first, l_horizontal_hooked(~hx, ~first, ~last))];
     } else if (Point.compare(last, first) > 0) {
       [(first, l_uni_path(~hx, ~min_col, ~first, ~last))];
