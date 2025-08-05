@@ -21,9 +21,9 @@
 }
 
 .step-display {
-  display:flex;
+  display: flex;
   flex-direction: row;
-  gap: 0.5em
+  gap: 0.5em;
 }
 
 .step-output {
@@ -31,7 +31,7 @@
 }
 
 .stepper-controls {
-  display:flex;
+  display: flex;
   flex-direction: row;
   gap: 0.5em;
 }
@@ -94,15 +94,21 @@
   opacity: 1;
 }
 
-*:hover>.subtle-button {
+*:hover > .subtle-button {
   opacity: 1;
 }
-
 
 .inline-editor-wrapper {
   background-color: var(--light-page-color);
   padding: 0.2em 0.5em 0.2em 0.5em;
-  clip-path: polygon(0.5em 0%, calc(100% - 0.5em) 0%, 100% 50%, calc(100% - 0.5em) 100%, 0.5em 100%, 0% 50%);
+  clip-path: polygon(
+    0.5em 0%,
+    calc(100% - 0.5em) 0%,
+    100% 50%,
+    calc(100% - 0.5em) 100%,
+    0.5em 100%,
+    0% 50%
+  );
   border: 1px dotted var(--cell-result-border);
 }
 
@@ -167,7 +173,6 @@
   gap: 5px;
 }
 
-
 /* STEPPER (OLD) */
 
 .stepper-justification {
@@ -197,18 +202,17 @@
   color: var(--STONE);
 }
 
-
 /* TILES */
 
 .tile-next-step path,
-.tile-next-step path *:not(.DHCode .EmptyHole *, .DHCode .EmptyHole) {
+.tile-next-step path *:not(.EmptyHole *, .EmptyHole) {
   border: 1px var(--G1) !important;
   fill: var(--G1) !important;
   cursor: pointer;
 }
 
 .tile-taken-step path,
-.tile-taken-step path *:not(.DHCode .EmptyHole *, .DHCode .EmptyHole) {
+.tile-taken-step path *:not(.EmptyHole *, .EmptyHole) {
   border: 1px var(--BR1);
   fill: var(--BR1);
 }
@@ -255,7 +259,6 @@ svg.tile-taken-step {
 .cell-result .code {
   pointer-events: none;
 }
-
 
 /* STEPPER SETTINGS */
 

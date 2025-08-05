@@ -330,13 +330,7 @@ module Deco =
       | _ when Piece.is_infix_delimiter_op_prefix(p) => []
       | Some(range) =>
         let tiles = all_tiles(p);
-        IndicationDec.term(
-          ~line_clss=[],
-          ~font_metrics,
-          ~rows,
-          ~tiles,
-          range,
-        );
+        IndicationDec.term(~font_metrics, ~rows, ~tiles, range);
       };
     };
   };
@@ -466,7 +460,7 @@ module Deco =
           let tiles = all_tiles(p);
           div_c(
             "errors-piece",
-            IndicationDec.error_term(~font_metrics, ~rows, range, tiles),
+            IndicationDec.term(~font_metrics, ~rows, ~tiles, range),
           );
         | None => div_c("errors-piece", [])
         };

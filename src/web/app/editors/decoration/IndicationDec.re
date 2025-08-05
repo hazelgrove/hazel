@@ -12,8 +12,6 @@ type path = list(Path.cmd);
 type positioned_path = (Point.t, path);
 type tile_data = list((Id.t, Mold.t, Shards.t));
 
-let shadowfudge = Path.cmdfudge(~y=ShardDec.shadow_dy /. 2.);
-
 let svg =
     (
       ~font_metrics: FontMetrics.t,
@@ -46,7 +44,7 @@ let min_col = (~first: Point.t, ~last: Point.t, ~rows: Rows.t): int =>
   );
 
 let m_horizontal = (~hx, ~first: Point.t, ~last: Point.t): path => [
-  m(~x=0, ~y=1) |> cmdfudge(~x=hx) |> shadowfudge,
+  m(~x=0, ~y=1) |> cmdfudge(~x=hx),
   h(~x=last.col - first.col),
 ];
 
@@ -57,13 +55,13 @@ let hook = (hx, x, y) =>
   });
 
 let l_horizontal = (~hx: float, ~first: Point.t, ~last: Point.t): path => [
-  m(~x=0, ~y=1) |> cmdfudge(~x=-. hx, ~y=-. hx /. 2.) |> shadowfudge,
+  m(~x=0, ~y=1) |> cmdfudge(~x=-. hx, ~y=-. hx /. 2.),
   hook(hx, 1, 1),
   h(~x=last.col - first.col),
 ];
 
 let r_horizontal = (~hx: float, ~first: Point.t, ~last: Point.t): path => [
-  m(~x=0, ~y=1) |> shadowfudge,
+  m(~x=0, ~y=1),
   h(~x=last.col - first.col),
   hook(hx, 1, -1),
 ];
@@ -80,9 +78,7 @@ let base_path =
   [
     h(~x=min_col - first.col),
     hook(hx, -1, 1),
-    v(~y=last.row - first.row + v_delta)
-    |> cmdfudge(~y=-. hx /. 2.)
-    |> shadowfudge,
+    v(~y=last.row - first.row + v_delta) |> cmdfudge(~y=-. hx /. 2.),
     hook(hx, 1, 1),
     h(~x=last.col - first.col),
   ];
@@ -91,7 +87,7 @@ let base_path =
 /* This draws a C-shaped path without edge hooks */
 let m_vertical =
     (~hx: float, ~min_col: int, ~first: Point.t, ~last: Point.t): path => [
-  m(~x=0, ~y=1) |> cmdfudge(~x=hx) |> shadowfudge,
+  m(~x=0, ~y=1) |> cmdfudge(~x=hx),
   ...base_path(~hx, ~min_col, ~first, ~last),
 ];
 
@@ -99,7 +95,7 @@ let m_vertical =
 let r_vertical =
     (~hx: float, ~min_col: int, ~first: Point.t, ~last: Point.t): path =>
   [
-    m(~x=0, ~y=1) |> cmdfudge(~x=hx) |> shadowfudge,
+    m(~x=0, ~y=1) |> cmdfudge(~x=hx),
     ...base_path(~hx, ~min_col, ~first, ~last),
   ]
   @ [hook(hx, 1, -1)];
@@ -112,8 +108,7 @@ let l_vertical =
     last.row - first.row == 1 && last.col == min_col && first.col != min_col;
   [
     m(~x=0, ~y=vf_delta)
-    |> cmdfudge(~y=float_of_int(vf_delta) *. (-. hx) /. 2.)
-    |> shadowfudge,
+    |> cmdfudge(~y=float_of_int(vf_delta) *. (-. hx) /. 2.),
     hook(hx, - vf_delta, vf_delta) /* hacky; don't draw if vf_delta==0 */
   ]
   @ (
@@ -253,34 +248,10 @@ let term =
       ~font_metrics: FontMetrics.t,
       ~rows: Rows.t,
       ~tiles: tile_data,
-      ~line_clss: list(string),
+      ~line_clss: list(string)=[],
       ~base_clss: option(string)=?,
       range: (Point.t, Point.t),
     )
     : list(Node.t) =>
   shards(~attr?, ~font_metrics, ~base_clss, tiles)
   @ paths(tiles, line_clss, font_metrics, rows, range);
-
-let error_term =
-    (
-      ~font_metrics: FontMetrics.t,
-      ~rows: Rows.t,
-      range: (Point.t, Point.t),
-      tiles: tile_data,
-    ) => {
-  let shard_of = (mold, (index, measurement)) =>
-    ShardDec.simple(
-      {
-        font_metrics,
-        measurement,
-        tips: ShardDec.tips_of_shapes(Mold.nib_shapes(~index, mold)),
-      },
-      ["error"],
-    );
-  let shard_decos =
-    List.concat_map(
-      ((_, mold, shards)) => List.map(shard_of(mold), shards),
-      tiles,
-    );
-  shard_decos @ paths(tiles, [], font_metrics, rows, range);
-};
