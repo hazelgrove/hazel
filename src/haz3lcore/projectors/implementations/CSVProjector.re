@@ -70,35 +70,31 @@ module M: Projector = {
   let file_select_button =
       (
         ~tooltip="",
-        id,
+        _,
         icon,
         on_input:
           option(Js_of_ocaml.Js.t(Js_of_ocaml.File.file)) =>
           Ui_effect.t(unit),
       ) => {
     Node.(
-      Node.(
-        Util.WebUtil.(
-          /* https://stackoverflow.com/questions/572768/styling-an-input-type-file-button */
-          label(
-            ~attrs=[Attr.for_(id)],
-            [
-              File_select.single(
-                ~extra_attrs=[
-                  Attr.class_("file-select-button"),
-                  Attr.id(id),
-                ],
-                ~accept=[`Extension("csv")],
-                ~on_input,
-                (),
-              ),
-              div(
-                ~attrs=[clss(["icon"]), Attr.title(tooltip)],
-                [text(icon)],
-              ),
+      Util.WebUtil.(
+        /* https://stackoverflow.com/questions/572768/styling-an-input-type-file-button */
+        label([
+          // ~attrs=[Attr.for_(id)],
+          File_select.single(
+            ~extra_attrs=[
+              Attr.class_("file-select-button"),
+              // Attr.id(id),
             ],
-          )
-        )
+            ~accept=[`Extension("csv")],
+            ~on_input,
+            (),
+          ),
+          div(
+            ~attrs=[clss(["icon"]), Attr.title(tooltip)],
+            [text(icon)],
+          ),
+        ])
       )
     );
   };
@@ -117,7 +113,6 @@ module M: Projector = {
         "import-csv",
         model |> Option.value(~default="Upload CSV"),
         (file: option(Js_of_ocaml.Js.t(Js_of_ocaml.File.file))) => {
-        // TODO Add a new id for each one
         switch (file) {
         | Some(file) =>
           JsUtil.read_file(
