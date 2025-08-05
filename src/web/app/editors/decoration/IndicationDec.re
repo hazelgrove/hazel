@@ -52,8 +52,8 @@ let first_of_last_row = (shards: Shards.t): measurement => {
   snd(List.hd(row));
 };
 
-let l_horizontal = (~offset, ~first: Point.t, ~last: Point.t): path => [
-  m(~x=0, ~y=1) |> cmdfudge(~x=abs_float(offset)) |> shadowfudge,
+let l_horizontal = (~hx, ~first: Point.t, ~last: Point.t): path => [
+  m(~x=0, ~y=1) |> cmdfudge(~x=hx) |> shadowfudge,
   h(~x=last.col - first.col),
 ];
 
@@ -63,33 +63,21 @@ let hook = (hx, x, y) =>
     dy: float_of_int(y) *. hx /. 2.,
   });
 
-let l_horizontal_hooked =
-    (~offset: float, ~first: Point.t, ~last: Point.t): path => {
-  let hx = abs_float(offset);
-  [
-    m(~x=0, ~y=1)
-    |> cmdfudge(~y=-. hx /. 2.)
-    |> cmdfudge(~x=-. hx)
-    |> shadowfudge,
-    hook(hx, 1, 1),
-    h(~x=last.col - first.col),
-  ];
-};
+let l_horizontal_hooked = (~hx: float, ~first: Point.t, ~last: Point.t): path => [
+  m(~x=0, ~y=1) |> cmdfudge(~x=-. hx, ~y=-. hx /. 2.) |> shadowfudge,
+  hook(hx, 1, 1),
+  h(~x=last.col - first.col),
+];
 
-let r_horizontal_hooked =
-    (~offset: float, ~first: Point.t, ~last: Point.t): path => {
-  let hx = abs_float(offset);
-  [
-    m(~x=0, ~y=1) |> shadowfudge,
-    h(~x=last.col - first.col),
-    hook(hx, 1, -1),
-  ];
-};
+let r_horizontal_hooked = (~hx: float, ~first: Point.t, ~last: Point.t): path => [
+  m(~x=0, ~y=1) |> shadowfudge,
+  h(~x=last.col - first.col),
+  hook(hx, 1, -1),
+];
 
 let core_path =
-    (~v_delta, ~offset: float, ~min_col: int, ~first: Point.t, ~last: Point.t)
-    : path => {
-  let hx = abs_float(offset);
+    (~hx: float, ~min_col: int, ~first: Point.t, ~last: Point.t): path => {
+  let v_delta = last.col == min_col ? 0 : 1;
   [
     h(~x=min_col - first.col),
     hook(hx, -1, 1),
@@ -102,97 +90,62 @@ let core_path =
 };
 
 let m_path =
-    (~offset: float, ~min_col: int, ~first: Point.t, ~last: Point.t): path => {
-  let v_delta = last.col == min_col ? 0 : 1;
-  let hx = abs_float(offset);
-  [
-    m(~x=0, ~y=1) |> cmdfudge(~x=hx) |> shadowfudge,
-    ...core_path(~v_delta, ~offset, ~min_col, ~first, ~last),
-  ];
-};
+    (~hx: float, ~min_col: int, ~first: Point.t, ~last: Point.t): path => [
+  m(~x=0, ~y=1) |> cmdfudge(~x=hx) |> shadowfudge,
+  ...core_path(~hx, ~min_col, ~first, ~last),
+];
 
 let r_uni_path =
-    (~offset: float, ~min_col: int, ~first: Point.t, ~last: Point.t): path => {
-  let v_delta = last.col == min_col ? 0 : 1;
-  let hx = abs_float(offset);
+    (~hx: float, ~min_col: int, ~first: Point.t, ~last: Point.t): path =>
   [
     m(~x=0, ~y=1) |> cmdfudge(~x=hx) |> shadowfudge,
-    ...core_path(~v_delta, ~offset, ~min_col, ~first, ~last),
+    ...core_path(~hx, ~min_col, ~first, ~last),
   ]
-  @ [hook(abs_float(offset), 1, -1)];
-};
+  @ [hook(hx, 1, -1)];
 
 let l_uni_path =
-    (~offset: float, ~min_col: int, ~first: Point.t, ~last: Point.t): path => {
-  let v_delta = first.col == min_col ? 0 : 1;
-  let hx = abs_float(offset);
+    (~hx: float, ~min_col: int, ~first: Point.t, ~last: Point.t): path => {
+  let vf_delta = first.col == min_col ? 0 : 1;
+  let cond =
+    last.row - first.row == 1 && last.col == min_col && first.col != min_col;
   [
-    m(~x=0, ~y=v_delta) |> cmdfudge(~y=hx /. 2.) |> shadowfudge,
-    hook(hx, - v_delta, - v_delta), /* hacky; don't draw if v_delta==0 */
-    ...core_path(~v_delta, ~offset, ~min_col, ~first, ~last),
-  ];
+    m(~x=0, ~y=vf_delta)
+    |> cmdfudge(~y=float_of_int(vf_delta) *. (-. hx) /. 2.)
+    |> shadowfudge,
+    hook(hx, - vf_delta, vf_delta) /* hacky; don't draw if v_delta==0 */
+  ]
+  @ (
+    cond
+      ? [h(~x=min_col - first.col)]
+      : core_path(~hx, ~min_col, ~first, ~last)
+  );
 };
 
-let m_h_line = (~offset, ~first, ~last): positioned_path => (
+let m_h_line = (~hx, ~first, ~last): positioned_path => (
   first,
-  l_horizontal(~offset, ~first, ~last),
+  l_horizontal(~hx, ~first, ~last),
 );
 
 let m_v_line =
-    (~rows: Rows.t, ~offset, ~first: Point.t, ~last: Point.t)
+    (~min_col: int, ~hx, ~first: Point.t, ~last: Point.t)
     : option(positioned_path) =>
   if (last.row - first.row == 1 && last.col == first.col) {
     None;
   } else if (last.row - first.row == 0) {
     None;
   } else {
-    let min_col = min_col(~first, ~last, ~rows);
-    Some((first, m_path(~first, ~last, ~min_col, ~offset)));
-  };
-
-let l_line =
-    (~rows: Rows.t, ~offset: float, ~first: Point.t, ~last: Point.t)
-    : option(positioned_path) =>
-  if (Point.compare(last, first) > 0 && first.row == last.row) {
-    Some((first, l_horizontal_hooked(~offset, ~first, ~last)));
-  } else if (Point.compare(last, first) > 0) {
-    let min_col = min_col(~first, ~last, ~rows);
-    Some((first, l_uni_path(~offset, ~min_col, ~first, ~last)));
-  } else {
-    None;
-  };
-
-let r_line =
-    (
-      ~rows: Rows.t,
-      ~shards: Shards.t,
-      ~offset: float,
-      ~first: measurement,
-      ~last: Point.t,
-    )
-    : option(positioned_path) =>
-  if (last.row == first.last.row && last.col > first.last.col) {
-    Some((
-      first.last,
-      r_horizontal_hooked(~offset, ~first=first.last, ~last),
-    ));
-  } else if (last.row > first.last.row) {
-    let first = first_of_last_row(shards).origin;
-    let min_col = min_col(~first, ~last, ~rows);
-    Some((first, r_uni_path(~first, ~last, ~offset, ~min_col)));
-  } else {
-    None;
+    Some((first, m_path(~first, ~last, ~min_col, ~hx)));
   };
 
 let inner_lines =
-    (~rows: Rows.t, ~offset: float, ~shards: Shards.t): list(positioned_path) => {
+    (~rows: Rows.t, ~hx: float, ~shards: Shards.t): list(positioned_path) => {
   let shard_rows = Shards.split_by_row(shards);
   let horizontals =
     shard_rows
     |> List.map(ListUtil.neighbors)
     |> List.concat_map(
          List.map((((_, l: measurement), (_, r: measurement))) =>
-           m_h_line(~offset, ~first=l.origin, ~last=r.origin)
+           m_h_line(~hx, ~first=l.origin, ~last=r.origin)
          ),
        );
   let verticals =
@@ -201,11 +154,13 @@ let inner_lines =
     |> List.filter_map(((l, r)) => {
          assert(l != []);
          assert(r != []);
+         let first = snd(List.hd(l)).origin;
+         let last = snd(List.hd(r)).origin;
          m_v_line(
-           ~rows,
-           ~offset,
-           ~first=snd(List.hd(l)).origin,
-           ~last=snd(List.hd(r)).origin,
+           ~min_col=min_col(~first, ~last, ~rows),
+           ~hx,
+           ~first,
+           ~last,
          );
        });
   horizontals @ verticals;
@@ -215,23 +170,33 @@ let outer_lines =
     (
       ~rows: Rows.t,
       ~shards: Shards.t,
-      ~offset: float,
+      ~hx: float,
       (first: Point.t, last: Point.t),
     )
     : list(positioned_path) => {
   assert(shards != []);
-  let l_line =
-    l_line(~rows, ~offset, ~first, ~last=snd(List.hd(shards)).origin)
-    |> Option.to_list;
-  let r_line =
-    r_line(
-      ~rows,
-      ~offset,
-      ~last,
-      ~shards,
-      ~first=snd(ListUtil.last(shards)),
-    )
-    |> Option.to_list;
+  let min_col = min_col(~first, ~last, ~rows);
+  let l_line = {
+    let last = snd(List.hd(shards)).origin;
+    if (first.row == last.row && last.col > first.col) {
+      [(first, l_horizontal_hooked(~hx, ~first, ~last))];
+    } else if (Point.compare(last, first) > 0) {
+      [(first, l_uni_path(~hx, ~min_col, ~first, ~last))];
+    } else {
+      [];
+    };
+  };
+  let r_line = {
+    let first = snd(ListUtil.last(shards)).last;
+    if (last.row == first.row && last.col > first.col) {
+      [(first, r_horizontal_hooked(~hx, ~first, ~last))];
+    } else if (last.row > first.row) {
+      let first = first_of_last_row(shards).origin;
+      [(first, r_uni_path(~first, ~last, ~hx, ~min_col))];
+    } else {
+      [];
+    };
+  };
   l_line @ r_line;
 };
 
@@ -248,11 +213,11 @@ let lines =
   | [] => []
   | [(_, {out: sort, _}, _), ..._] =>
     let path_cls = ["child-line", Sort.to_string(sort)] @ line_clss;
-    let offset = -. ShardDec.offset_of(fst(rep_tips(tiles)));
+    let hx = abs_float(ShardDec.offset_of(fst(rep_tips(tiles))));
     let shards = shards_of_tiles(tiles);
     List.concat([
-      outer_lines(~rows, ~offset, ~shards, range),
-      inner_lines(~rows, ~offset, ~shards),
+      outer_lines(~rows, ~hx, ~shards, range),
+      inner_lines(~rows, ~hx, ~shards),
     ])
     |> List.map(svg(~font_metrics, ~path_cls));
   };
