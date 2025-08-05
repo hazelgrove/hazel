@@ -13,7 +13,8 @@ let tools = [
   EditTools.update_body,
   EditTools.update_pattern,
   EditTools.update_expression,
-  EditTools.delete,
+  EditTools.delete_expression,
+  EditTools.delete_body,
   EditTools.insert_after,
   EditTools.insert_before,
   //ViewTools.view_definition,
@@ -57,7 +58,8 @@ type edit_action =
   | UpdateBody(string)
   | UpdatePattern(string)
   | UpdateExpression(string)
-  | Delete
+  | DeleteExpression
+  | DeleteBody
   | InsertAfter(string)
   | InsertBefore(string);
 
@@ -163,7 +165,8 @@ let action_of = (~tool_name: string, ~args: Maps.StringMap.t(string)): action =>
         )
       };
     Edit(InsertBefore(code));
-  | "delete" => Edit(Delete)
+  | "delete_expression" => Edit(DeleteExpression)
+  | "delete_body" => Edit(DeleteBody)
   | _ => Nav(GoToParent) // default fallback
   };
 };
@@ -198,7 +201,8 @@ let string_of = (action: action) => {
   | Edit(UpdateBody(code)) => "update_body(\"" ++ code ++ "\")"
   | Edit(UpdatePattern(code)) => "update_pattern(\"" ++ code ++ "\")"
   | Edit(UpdateExpression(code)) => "update_expression(\"" ++ code ++ "\")"
-  | Edit(Delete) => "delete"
+  | Edit(DeleteExpression) => "delete_expression"
+  | Edit(DeleteBody) => "delete_body"
   | Edit(InsertAfter(code)) => "insert_after(\"" ++ code ++ "\")"
   | Edit(InsertBefore(code)) => "insert_before(\"" ++ code ++ "\")"
   };

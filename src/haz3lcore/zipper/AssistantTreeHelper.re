@@ -148,6 +148,7 @@ let build_sub_AST = (zipper: Zipper.t, info_map: Id.Map.t(Info.t)): node => {
   // This actually is not needed for building the AST, and was used
   // as an ad-hoc path to get the root term of the InfoMap
   // Todo: find simpler, sensible way to get the root term
+
   let zipper = move_to_non_whitespace(zipper);
   let curr_term = Indicated.ci_of(zipper, info_map);
   switch (curr_term) {

@@ -52,14 +52,28 @@ let apply_structure_action =
     // the action on the editor so that we can provide the agent with a meaningful "tool response".
     // This follows standard tool calling protocol.
     let tool_result = apply_action(~action);
-    schedule_action(
-      SendMessage(Composition(Intermediate), None, Id.invalid),
-    );
     schedule_action(loop_message(Success(tool_result)));
   }) {
-  | Failure(err) =>
-    schedule_action(
-      SendMessage(Composition(Intermediate), None, Id.invalid),
-    );
-    schedule_action(loop_message(Failure(err)));
+  | Failure(err) => schedule_action(loop_message(Failure(err)))
   };
+
+let intermediate_select_curr_node =
+    (~editor: CodeModel.t, ~schedule_editor_action: Editors.Update.t => unit)
+    : unit => {
+  let curr_node_info =
+    AssistantTreeHelper.build_sub_AST(
+      editor.editor.state.zipper,
+      editor.statics.info_map,
+    );
+  let perform_action =
+    CodeEditable.Update.Perform(
+      Action.Select(
+        Tile(
+          Id(AssistantTreeHelper.id_of(curr_node_info), Direction.Right),
+        ),
+      ),
+    );
+  let cell_action = CellEditor.Update.MainEditor(perform_action);
+  let scratch_action = Editors.Update.Scratch(CellAction(cell_action));
+  schedule_editor_action(scratch_action);
+};

@@ -58,11 +58,16 @@ let toolkit = [
   "read and undestand the code, and finally, modify the program.",
   "</toolkitNotes>",
   "<Notes>",
-  "- You might see ⋱ after some definitions. This is a special character that indicates a \"fold\" in the program.",
+  "* You might see ⋱ after some definitions. This is a special character that indicates a \"fold\" in the program.",
   "In this agentic setting, we abstract away child let bindings' definitions behind these folds, thus replacing them with ⋱.",
   "You should recognize that these are not actual characters within the program, but rather \"folds\" which hide away the details of child defintions.",
-  "- It is likely you'll need to udnerstand the code in order to answer a user's question or to make an edit.",
+  "* It is likely you'll need to udnerstand the code in order to answer a user's question or to make an edit.",
   "In any case, you should use navigation tools and read tools to view the relevant parts and defintions (let expressions) of the program as necessary.",
+  "Definitions of Terminology Used in this Toolkit:",
+  "* \"pattern\" - the tiles between the \"let\" and \"=\" delimiters, or the \"type\" and \"=\" delimiters, exclusive",
+  "* \"definition\" - the tiles between the \"=\" and \"in\" delimiters, exclusive",
+  "* \"body\" - the tiles after the \"in\" delimiter, exclusive",
+  "* \"expression\" - the tiles between the \"let\" and \"in\" delimiters, or the \"type\" and \"in\" delimiters, inclusive",
   "</Notes>",
 ];
 
@@ -93,5 +98,5 @@ let self =
   instructions
   @ toolkit
   @ hazel_syntax_notes
-  @ hazel_documentation(~summarized=false)
-  @ few_shot_comp_examples;
+  @ hazel_documentation(~summarized=false);
+//@ few_shot_comp_examples;

@@ -487,9 +487,6 @@ let mk_input_handlers =
       | _ => Virtual_dom.Vdom.Effect.Ignore
       },
       signal(MakeActive(ScratchMode.Selection.Cell(MainEditor))),
-      inject(
-        Update.SendMessage(Composition(Intermediate), None, Id.invalid),
-      ),
       switch (mode) {
       | HazelTutor =>
         inject(

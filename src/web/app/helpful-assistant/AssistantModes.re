@@ -537,13 +537,19 @@ module Composition = {
           ),
           Action.Paste(Assistant(code)),
         ])
-      | Delete =>
+      | DeleteExpression =>
         schedule_actions([
           Action.Select(
             Tile(Id(Info.id_of(curr_node_info.info), Direction.Right)),
           ),
-          Action.Paste(Assistant("")),
+          Action.Destruct(Left),
         ])
+      | DeleteBody =>
+        let target_id = get_inner_term_id(curr_node_info, Body);
+        schedule_actions([
+          Action.Select(Tile(Id(target_id, Direction.Right))),
+          Action.Destruct(Left),
+        ]);
       | InsertBefore(code) =>
         schedule_actions([
           Action.Move(Extreme(Left(ByToken))),

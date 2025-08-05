@@ -102,26 +102,7 @@ let update =
           Id.Map.find(chat_id, model.chat_history.past_composition_chats);
         switch (kind) {
         | Intermediate =>
-          let curr_node_info =
-            AssistantTreeHelper.build_sub_AST(
-              editor.editor.state.zipper,
-              editor.statics.info_map,
-            );
-          let perform_action =
-            CodeEditable.Update.Perform(
-              Action.Select(
-                Tile(
-                  Id(
-                    AssistantTreeHelper.id_of(curr_node_info),
-                    Direction.Right,
-                  ),
-                ),
-              ),
-            );
-          let cell_action = CellEditor.Update.MainEditor(perform_action);
-          let scratch_action =
-            Editors.Update.Scratch(CellAction(cell_action));
-          schedule_editor_action(scratch_action);
+          intermediate_select_curr_node(~editor, ~schedule_editor_action);
           model |> Updated.return;
 
         // The initial message sent to the LLM via the User --
@@ -147,9 +128,6 @@ let update =
               ChatLSP.Options.init,
               editor,
             );
-          print_endline(
-            "here #c after building sub AST in mk_local_code_map_prompt",
-          );
           let ctx_message: Model.message = {
             content: Some(local_code_map_str),
             display: Some(display),
@@ -175,9 +153,9 @@ let update =
               chat_id,
             )
           );
-
-          print_endline("here #d after mk_llm_call");
-
+          schedule_action(
+            SendMessage(Composition(Intermediate), None, chat_id),
+          );
           update_model_chat_history(
             ~model,
             ~mode,
@@ -195,7 +173,9 @@ let update =
           //    which takes the tool call and the tool call results (which we send as the context).
           //    We then send off this message to the LLM and await a response, either
           //    an end output to the user (implying no more looping) or a new tool call.
-
+          schedule_action(
+            SendMessage(Composition(Intermediate), None, chat_id),
+          );
           let (local_code_map_str, display) =
             AssistantModes.Composition.mk_local_code_map_prompt(
               ChatLSP.Options.init,
