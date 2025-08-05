@@ -53,7 +53,7 @@ and step_action =
   | StepForward(int)
   | AddInduction(option(Exp.t))
   | AddForall
-  | AddAxiomStep(Exp.t, Exp.t);
+  | AddAxiomStep(string, Exp.t, Exp.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type step_kind_focus =
@@ -552,12 +552,13 @@ and Stepper: {
         }
         |> return
       | (AddForall, _, _) => model |> return_quiet
-      | (AddAxiomStep(at_exp, with_exp), MissingStep(_), _) =>
+      | (AddAxiomStep(name, at_exp, with_exp), MissingStep(_), _) =>
         let at_id = Exp.rep_id(at_exp);
         {
           ...model,
           step_kind:
             AxiomStep({
+              name,
               at_id,
               at_exp,
               with_exp,
@@ -565,7 +566,7 @@ and Stepper: {
             }),
         }
         |> return;
-      | (AddAxiomStep(_, _), _, _) => model |> return_quiet
+      | (AddAxiomStep(_, _, _), _, _) => model |> return_quiet
       | (StepKindAction(sk_action), _, _) =>
         let* new_step_kind =
           StepKind.update(~settings, sk_action, model.step_kind);
@@ -585,7 +586,7 @@ and Stepper: {
     | StepForward(_) => true
     | AddInduction(_) => true
     | AddForall => true
-    | AddAxiomStep(_, _) => true
+    | AddAxiomStep(_, _, _) => true
     | StepKindAction(action) => StepKind.can_undo(action)
     };
   };
@@ -738,6 +739,7 @@ and Stepper: {
         let taken_steps =
           switch (model.step_kind) {
           | SingleStep(m) => [m.evalobj |> EvaluatorStep.get_step_id]
+          | AxiomStep(m) => [m.at_id]
           | _ => []
           };
         let next_steps =
@@ -755,7 +757,7 @@ and Stepper: {
           };
         let refls =
           switch (model.step_kind) {
-          | MissingStep(m) =>
+          | MissingStep(m) when globals.settings.core.evaluation.enable_proof =>
             m.refls
             |> Calc.get_saved_exc(~print="refls")
             |> List.map(Exp.rep_id)
@@ -771,6 +773,7 @@ and Stepper: {
               | Refl(int) =>
                 inject(
                   AddAxiomStep(
+                    "self-equality",
                     {
                       let _ = print_endline("XYZ");
                       let refl_exps =
@@ -809,7 +812,8 @@ and Stepper: {
                       take_focus(StepKindFocus(MissingStep(s)))
                     | AddForall => inject(AddForall)
                     | AddInduction(exp) => inject(AddInduction(exp))
-                    | AddAxiomStep(e1, e2) => inject(AddAxiomStep(e1, e2)),
+                    | AddAxiomStep(name, e1, e2) =>
+                      inject(AddAxiomStep(name, e1, e2)),
                   ~editor=model.editor |> Calc.get_saved_exc(~print="Editor"),
                   m,
                 )

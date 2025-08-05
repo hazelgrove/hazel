@@ -261,7 +261,7 @@ module View = {
     | AddInduction(option(Exp.t))
     | AddForall
     | HideStepper
-    | AddAxiomStep(Exp.t, Exp.t)
+    | AddAxiomStep(string, Exp.t, Exp.t)
     | MakeActive(Selection.t);
 
   let get_segment_bounds = (~measured: Measured.t, segment: Segment.t) => {
@@ -322,7 +322,13 @@ module View = {
               "axiom-row",
               [
                 Widgets.button(Icons.star, _ =>
-                  signal(AddAxiomStep(Model.get_selected_exp(model), exp))
+                  signal(
+                    AddAxiomStep(
+                      "axiom step",
+                      Model.get_selected_exp(model),
+                      exp,
+                    ),
+                  )
                 ),
                 exp
                 |> Haz3lcore.ExpToSegment.(
@@ -523,6 +529,7 @@ module View = {
                               _ =>
                               signal(
                                 AddAxiomStep(
+                                  "rewrite",
                                   unboxed_selected_exp,
                                   unboxed_cached_exp,
                                 ),
