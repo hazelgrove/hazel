@@ -1,0 +1,53 @@
+/* PROJECTOR: Tables */
+
+/* Dataframes */
+.dataframe {
+    border-collapse: collapse;
+    font-size: 0.875rem;
+    width: 100%;
+    table-layout: auto;
+    text-align: center;
+    background-color: var(--df-bg);
+}
+.dataframe th {
+  position: sticky;
+  top: 0;
+  z-index: calc(var(--projector-z) + 1);
+  opacity: 1;
+}
+.dataframe th,
+.dataframe td {
+    border: 1px solid #ddd;
+    vertical-align: top;
+}
+
+.dataframe th {
+    background-color: var(--df-header-bg);
+    font-weight: 600;
+}
+
+.dataframe tr:nth-child(even) {
+    background-color: var(--df-zebra-bg);
+}
+
+.dataframe tr:hover {
+    background-color: var(--df-hover-bg);
+}
+
+
+.projector.dataframe {
+    height: 100%;
+    width: 100%;
+    overflow: auto;
+    box-sizing: content-box;
+
+    display: flex;
+    flex-direction: initial;
+    justify-content: initial;
+    align-items: initial;
+    gap: initial;
+}
+
+.projector.dataframe>.code {
+    overflow-y: scroll;
+}

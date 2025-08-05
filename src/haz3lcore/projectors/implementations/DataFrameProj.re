@@ -229,7 +229,7 @@ module M: Projector = {
     let num_rows = List.length(rows);
     let num_cols = List.length(header);
     ProjectorCore.Shape.{
-      vertical: Block(num_rows * 2 + 1), // +1 for header row
+      vertical: Block(min(num_rows + 1, 10)), // +1 for header row
       /* +2 for left and right padding */
       horizontal: 4 + max_length * 1 + num_cols * 2 // +2 for left and right padding
     };
@@ -237,15 +237,5 @@ module M: Projector = {
   let update = (model, _, _) => model;
 
   let view = (_, info, ~local as _, ~parent, ~view_seg: View.seg) =>
-    View.mk(
-      Node.div(
-        ~attrs=[Attr.classes(["wrapper"])],
-        [
-          Node.div(
-            ~attrs=[Attr.classes(["cols", "code"])],
-            [table(info, ~view_seg, ~parent, info |> get)],
-          ),
-        ],
-      ),
-    );
+    View.mk(table(info, ~view_seg, ~parent, info |> get));
 };
