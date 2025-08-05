@@ -23,15 +23,17 @@ let fresh_ascription = (d: Exp.t, t: Typ.t, t': option(Typ.t)) => {
   );
 };
 let elaborated_type =
-    (m: Statics.Map.t, uexp: Exp.t): (Typ.t, Typ.t, Ctx.t, CoCtx.t, Exp.t) => {
-  let (ana_ty, self_ty, ctx, co_ctx, term) =
+    (m: Statics.Map.t, uexp: Exp.t)
+    : (Typ.t, Typ.t, Ctx.t, CoCtx.t, Exp.t, Typ.t) => {
+  let (ana_ty, self_ty, ctx, co_ctx, term, self) =
     switch (Id.Map.find_opt(Exp.rep_id(uexp), m)) {
-    | Some(Info.InfoExp({ana, ty, ctx, co_ctx, term: new_term, _})) => (
+    | Some(Info.InfoExp({ana, ty, ctx, co_ctx, term: new_term, self, _})) => (
         ana,
         ty,
         ctx,
         co_ctx,
         new_term,
+        self,
       )
     | _ => raise(MissingTypeInfo)
     };
@@ -42,6 +44,8 @@ let elaborated_type =
     ctx,
     co_ctx,
     term,
+    Self.typ_of_exp(self)
+    |> Option.value(~default=Unknown(Internal) |> Typ.temp),
   );
 };
 
@@ -177,8 +181,8 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
   // In the case of singleton labeled tuples we update the syntax in Statics.
   // We store this syntax with the same ID as the original expression and store it on the Info.exp in the Statics.map
   // We are then pulling this out and using it in place of the actual expression.
-
-  let (elaborated_type, ana, ctx, co_ctx, statics_pseudo_elaborated) =
+  let et = elaborated_type;
+  let (elaborated_type, ana, ctx, co_ctx, statics_pseudo_elaborated, self) =
     elaborated_type(m, uexp);
   let (_, rewrap) = Exp.unwrap(uexp);
   let uexp = rewrap(statics_pseudo_elaborated.term);
@@ -204,11 +208,13 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let (e', _) = elaborate(m, e);
       DynamicErrorHole(e', err) |> rewrap;
     | Asc(e, t) =>
-      if (Typ.is_more_precise(ctx, elaborated_type, t)) {
-        elaborate(m, e) |> fst;
+      let (e', t') = elaborate(m, e);
+      let (_, _, _, _, _, self) = et(m, e);
+      if (Typ.is_more_precise(ctx, self, t)) {
+        e';
       } else {
         Asc(elaborate(m, e) |> fst, Typ.normalize(ctx, t)) |> rewrap;
-      }
+      };
     | Parens(e) =>
       let (e', _) = elaborate(m, e);
       e';
