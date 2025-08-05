@@ -64,7 +64,7 @@ module Option = {
 
   let builtins: list(hazel_fn) = [
     {
-      str: {|fun (opt, f) -> case opt
+      str: {|fix option_map -> fun (opt, f) -> case opt
                | None => None
                | Some(x) => Some(f(x))
              end|},
@@ -74,27 +74,31 @@ module Option = {
       imp: {
         Fresh.(
           Exp.(
-            fn(
-              Pat.tuple([Pat.var("opt"), Pat.var("f")]),
-              match(
-                var("opt"),
-                [
-                  (pat_none, none),
-                  (
-                    Pat.ap(pat_some, Pat.var("x")),
-                    ap(Forward, some, ap(Forward, var("f"), var("x"))),
-                  ),
-                ],
+            fix_f(
+              Pat.var("option_map"),
+              fn(
+                Pat.tuple([Pat.var("opt"), Pat.var("f")]),
+                match(
+                  var("opt"),
+                  [
+                    (pat_none, none),
+                    (
+                      Pat.ap(pat_some, Pat.var("x")),
+                      ap(Forward, some, ap(Forward, var("f"), var("x"))),
+                    ),
+                  ],
+                ),
+                None,
+                Some("option_map+"),
               ),
               None,
-              Some("option_map+"),
             )
           )
         );
       },
     },
     {
-      str: {|fun (opt, f) -> case opt
+      str: {|fix option_bind -> fun (opt, f) -> case opt
                | None => None
                | Some x => f(x)
              end|},
@@ -104,20 +108,24 @@ module Option = {
       imp: {
         Fresh.(
           Exp.(
-            fn(
-              Pat.tuple([Pat.var("opt"), Pat.var("f")]),
-              match(
-                var("opt"),
-                [
-                  (pat_none, none),
-                  (
-                    Pat.ap(pat_some, Pat.var("x")),
-                    ap(Forward, var("f"), var("x")),
-                  ),
-                ],
+            fix_f(
+              Pat.var("option_bind"),
+              fn(
+                Pat.tuple([Pat.var("opt"), Pat.var("f")]),
+                match(
+                  var("opt"),
+                  [
+                    (pat_none, none),
+                    (
+                      Pat.ap(pat_some, Pat.var("x")),
+                      ap(Forward, var("f"), var("x")),
+                    ),
+                  ],
+                ),
+                None,
+                Some("option_bind+"),
               ),
               None,
-              Some("option_bind+"),
             )
           )
         );
@@ -127,24 +135,31 @@ module Option = {
       name: "option_to_list",
       arg: t.term,
       ret: List(unknown(Internal)),
-      str: {|fun opt -> case opt
+      str: {|fix option_to_list -> fun opt -> case opt
                | None => []
                | Some x => [x]
              end|},
       imp: {
         Fresh.(
           Exp.(
-            fn(
-              Pat.var("opt"),
-              match(
-                var("opt"),
-                [
-                  (pat_none, list_lit([])),
-                  (Pat.ap(pat_some, Pat.var("x")), list_lit([var("x")])),
-                ],
+            fix_f(
+              Pat.var("option_to_list"),
+              fn(
+                Pat.var("opt"),
+                match(
+                  var("opt"),
+                  [
+                    (pat_none, list_lit([])),
+                    (
+                      Pat.ap(pat_some, Pat.var("x")),
+                      list_lit([var("x")]),
+                    ),
+                  ],
+                ),
+                None,
+                Some("option_to_list+"),
               ),
               None,
-              Some("option_to_list+"),
             )
           )
         );
