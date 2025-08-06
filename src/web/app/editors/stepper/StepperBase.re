@@ -773,7 +773,7 @@ and Stepper: {
               | Refl(int) =>
                 inject(
                   AddAxiomStep(
-                    "self-equality",
+                    "reflexivity",
                     {
                       let _ = print_endline("XYZ");
                       let refl_exps =
