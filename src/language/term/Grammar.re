@@ -158,6 +158,8 @@ and type_provenance('a) =
 and matched_type_provenance('a) =
   | LArrow(type_provenance('a))
   | RArrow(type_provenance('a))
+  | NProduct(int, type_provenance('a))
+  | MList(type_provenance('a))
 and type_provenance_t('a) = Annotated.t(type_provenance('a), 'a)
 and filter('a) = {
   pat: exp_t('a),
@@ -426,6 +428,9 @@ and map_type_provenance_annotation:
         switch (matched) {
         | LArrow(p) => LArrow(map_type_provenance_annotation(f, p))
         | RArrow(p) => RArrow(map_type_provenance_annotation(f, p))
+        | NProduct(n, p) =>
+          NProduct(n, map_type_provenance_annotation(f, p))
+        | MList(p) => MList(map_type_provenance_annotation(f, p))
         },
       )
     };
