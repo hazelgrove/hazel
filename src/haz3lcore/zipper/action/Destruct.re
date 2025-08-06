@@ -36,32 +36,22 @@ let destruct =
      remove an outer quote, we instead remove the whole string */
   | (Left, Outer, (Some(t), _))
       when
-        Form.is_string(t)
-        || Form.is_comment(t)
-        || Form.is_single_quote_label(t) =>
+        Form.is_string(t) || Form.is_comment(t) || Form.is_quoted_label(t) =>
     delete_left(z)
   | (Right, Outer, (_, Some(t)))
       when
-        Form.is_string(t)
-        || Form.is_comment(t)
-        || Form.is_single_quote_label(t) =>
+        Form.is_string(t) || Form.is_comment(t) || Form.is_quoted_label(t) =>
     delete_right(z)
   | (Left, Inner(_, 0), (_, Some(t)))
-      when Form.is_string(t) || Form.is_single_quote_label(t) =>
+      when Form.is_string(t) || Form.is_quoted_label(t) =>
     delete_right(z)
   | (Left, Inner(_, 0), (_, Some(t)))
       when
-        Form.is_string(t)
-        || Form.is_comment(t)
-        || Form.is_single_quote_label(t) =>
+        Form.is_string(t) || Form.is_comment(t) || Form.is_quoted_label(t) =>
     delete_right(z)
   | (Right, Inner(_, n), (_, Some(t)))
       when
-        (
-          Form.is_string(t)
-          || Form.is_comment(t)
-          || Form.is_single_quote_label(t)
-        )
+        (Form.is_string(t) || Form.is_comment(t) || Form.is_quoted_label(t))
         && n == last_inner_pos(t) =>
     delete_right(z) /* Remove inner character */
   | (Left, Inner(_, c_idx), (_, Some(t))) =>

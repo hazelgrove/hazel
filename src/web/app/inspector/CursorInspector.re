@@ -14,6 +14,12 @@ let code_box_container = x =>
 let code = (code: string): Node.t =>
   div(~attrs=[clss(["code"])], [text(code)]);
 
+let label_view = (label: string): Node.t =>
+  div(
+    ~attrs=[clss(["code"])],
+    [text(Haz3lcore.Form.quote_label_when_necessary(label))],
+  );
+
 let cls_view = (ci: Info.t): Node.t => {
   let cls = ci |> Info.cls_of;
 
@@ -121,19 +127,19 @@ let common_err_view =
       switch (expected_labels) {
       | [] => [
           text("Invalid label: "),
-          code(name),
+          label_view(name),
           text(". No labels were expected."),
         ]
       | _ => [
           text("Invalid label: "),
-          code(name),
+          label_view(name),
           text(" is not part of the expected labels: "),
           ...List.map(code, expected_labels),
         ]
       }
     | NoType(UnexpectedLabelSort(name)) => [
         text("Label "),
-        code(name),
+        label_view(name),
         text(" is here, but another sort is expected."),
       ]
 
@@ -159,7 +165,10 @@ let common_err_view =
           ? []
           : [text("Invalid labels: "), ...List.map(code, invalid_labels)]
       )
-    | DuplicateLabel(name, _) => [text("Duplicate Label:"), code(name)]
+    | DuplicateLabel(name, _) => [
+        text("Duplicate Label:"),
+        label_view(name),
+      ]
     | Inconsistent(CompareFun(ty)) => [
         text("values cannot be compared:"),
         view_type(ty),
@@ -212,7 +221,7 @@ let common_err_view =
   @ (
     switch (inferred_label) {
     | None => []
-    | Some(l) => [text(" for label "), code(l)]
+    | Some(l) => [text(" for label "), label_view(l)]
     }
   );
 };
@@ -248,7 +257,7 @@ let common_ok_view =
       ]
     | (_, Syn(syn)) =>
       switch (syn.term) {
-      | Label(l) => [code(l)]
+      | Label(l) => [label_view(l)]
       | _ => [text(":"), view_type(syn)]
       }
     | (Pat(Var) | Pat(Wild), Ana(Consistent({ana, _}))) => [
@@ -258,7 +267,7 @@ let common_ok_view =
     | (_, Ana(Consistent({ana, syn, _})))
         when Typ.fast_equal(~alpha_equivalence=false, ana, syn) =>
       switch (syn.term) {
-      | Label(l) => [code(l), text(" is a valid label")]
+      | Label(l) => [label_view(l), text(" is a valid label")]
       | _ =>
         [text(":"), view_type(syn)]
         @ [text("equals expected type")]
@@ -271,12 +280,12 @@ let common_ok_view =
         @ (
           switch (introduced_labels) {
           | [] => []
-          | [a] => [text("by automatically adding label "), code(a)]
+          | [a] => [text("by automatically adding label "), label_view(a)]
           | _ => [
               text("by automatically adding labels "),
               ...ListUtil.join(
                    text(","),
-                   List.map(code, introduced_labels),
+                   List.map(label_view, introduced_labels),
                  ),
             ]
           }
@@ -309,10 +318,13 @@ let common_ok_view =
       @ (
         switch (introduced_labels) {
         | [] => []
-        | [a] => [text("by automatically adding label "), code(a)]
+        | [a] => [text("by automatically adding label "), label_view(a)]
         | _ => [
             text("by automatically adding labels "),
-            ...ListUtil.join(text(","), List.map(code, introduced_labels)),
+            ...ListUtil.join(
+                 text(","),
+                 List.map(label_view, introduced_labels),
+               ),
           ]
         }
       )
@@ -333,7 +345,7 @@ let common_ok_view =
   @ (
     switch (inferred_label) {
     | None => []
-    | Some(l) => [text(" for label "), code(l)]
+    | Some(l) => [text(" for label "), label_view(l)]
     }
   );
 };
@@ -383,9 +395,9 @@ let typ_err_view = (~globals, ok: Info.error_typ) => {
   | WantLabel => [text("Expect a valid label")]
   | DuplicateLabels(labels, _) => [
       text("Duplicate labels within tuple: "),
-      ...List.map(code, labels),
+      ...List.map(label_view, labels),
     ]
-  | Duplicate(name, _) => [text("Duplicate Label: "), code(name)]
+  | Duplicate(name, _) => [text("Duplicate Label: "), label_view(name)]
   | DuplicateConstructor(name) => [
       view_type(Var(name) |> Typ.fresh),
       text("already used in this sum"),
@@ -467,7 +479,7 @@ let rec exp_view =
     | MissingLabels(labels) =>
       div_err([
         text("Labels not present in tuple: "),
-        ...List.map(code, labels),
+        ...List.map(label_view, labels),
       ])
     | MeltMissingLabelsOnTuple(_) =>
       div_err([
@@ -478,7 +490,7 @@ let rec exp_view =
     | ProjectLabelsMissingLabels(labels) =>
       div_err([
         text("Projected tuple does not have the following labels: "),
-        ...List.map(code, labels),
+        ...List.map(label_view, labels),
       ])
     | ArgumentMustBeTuple => div_err([text("Argument must be a tuple")])
     | AtLeast2Arguments =>
@@ -532,9 +544,9 @@ let rec exp_view =
   | InHole(LabelNotFound(name, labels)) =>
     div_err([
       text("Label "),
-      code(name),
+      label_view(name),
       text(" not found in tuple's labels: "),
-      ...List.map(code, labels),
+      ...List.map(label_view, labels),
     ])
   | InHole(BadLivelitModel(_)) =>
     div_err([text("Bad internal livelit model")])
