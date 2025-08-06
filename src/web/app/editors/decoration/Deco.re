@@ -461,7 +461,7 @@ module Deco =
   let taken_steps = taken_steps =>
     taken_steps
     |> List.filter_map(TermData.root_tile_opt(_, term_data))
-    |> List.mapi((_, t: Tile.t) => div_c("step-taken", tile_term_deco(t)));
+    |> List.map(t => div_c("step-taken", tile_term_deco(t)));
 
   let statics = () => [errors()];
 
