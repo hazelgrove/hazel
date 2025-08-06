@@ -254,6 +254,7 @@ module rec StepKind: {
             MissingStep.Update.calculate(
               ~settings=settings |> Calc.get_value,
               exp,
+              env,
               ctx,
               state,
               next_steps,

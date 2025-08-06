@@ -103,26 +103,22 @@ let rec get_empty_bindings = (ctx: list(Ctx.entry)) =>
   | [_, ...rs] => get_empty_bindings(rs)
   };
 
-let can_eq =
-    (~interfering_bindings as _: list(Var.t)=[], rule: t, exp: Exp.t)
-    : (option(Exp.t), option(Exp.t)) => {
+let can_eq = (~env, rule: t, exp: Exp.t): (option(Exp.t), option(Exp.t)) => {
   switch (rule.conclusion) {
   | Equality(a, b) =>
     let bindings = get_empty_bindings(rule.bindings);
     (
-      MatchExp.match_exp([], bindings, a, exp)
+      MatchExp.match_exp(~exp_env=env, ~exp_r_ctx=bindings, a, exp)
       |> Option.map(MatchExp.substitute_exp(_, b)),
-      MatchExp.match_exp([], bindings, b, exp)
+      MatchExp.match_exp(~exp_env=env, ~exp_r_ctx=bindings, b, exp)
       |> Option.map(MatchExp.substitute_exp(_, a)),
     );
   | Other(_) => (None, None)
   };
 };
 
-let is_active =
-    (~interfering_bindings: option(list(Var.t))=?, rule: t, exp: Exp.t)
-    : bool =>
-  switch (can_eq(~interfering_bindings?, rule, exp)) {
+let is_active = (~env, rule: t, exp: Exp.t): bool =>
+  switch (can_eq(~env, rule, exp)) {
   | (Some(_), _)
   | (_, Some(_)) => true
   | _ => false

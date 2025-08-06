@@ -34,6 +34,7 @@ module Update = {
 
   let calculate =
       (
+        ~env: Calc.t(ClosureEnvironment.t),
         ~ctx: Calc.t(Ctx.t),
         ~selected_exp: Calc.t(option(Exp.t)),
         model: Model.t,
@@ -43,6 +44,7 @@ module Update = {
       model.filtered_rewrites
       |> {
         let.calc ctx = ctx
+        and.calc env = env
         and.calc filter = model.filter
         and.calc selected_exp = selected_exp;
 
@@ -69,6 +71,7 @@ module Update = {
             filter == ""
               ? List.filter((ab: AssumptionBox.Model.t) =>
                   ProofRule.is_active(
+                    ~env,
                     ab.ctx_entry.rule,
                     selected_exp
                     |> Option.value(~default=EmptyHole |> Exp.fresh),
@@ -107,6 +110,7 @@ module View = {
   let view =
       (
         ~globals,
+        ~env,
         ~selected_exp,
         ~inject: Update.t => Ui_effect.t(unit),
         ~take_focus: Selection.t => Ui_effect.t(unit),
@@ -131,6 +135,7 @@ module View = {
         (am: AssumptionBox.Model.t) =>
           AssumptionBox.View.view(
             ~globals,
+            ~env,
             ~active_selection=
               Some((
                 selected_exp,

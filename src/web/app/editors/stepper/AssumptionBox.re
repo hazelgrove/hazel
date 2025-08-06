@@ -15,6 +15,7 @@ module View = {
   let view =
       (
         ~globals: Globals.t,
+        ~env: ClosureEnvironment.t,
         ~active_selection:
            option((Exp.t, list(Var.t), proof_event => Ui_effect.t(unit))),
         model: Model.t,
@@ -25,7 +26,7 @@ module View = {
         let (l, r) =
           switch (active_selection) {
           | Some((exp, _vars, signal)) =>
-            let (l, r) = ProofRule.can_eq(model.ctx_entry.rule, exp);
+            let (l, r) = ProofRule.can_eq(~env, model.ctx_entry.rule, exp);
             (
               Option.map(e => signal(EqualityLeft(e)), l),
               Option.map(e => signal(EqualityRight(e)), r),

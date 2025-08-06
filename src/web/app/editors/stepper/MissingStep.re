@@ -27,6 +27,7 @@ module Model = {
     full_exp: Calc.saved(Exp.t),
     assumptions: Calc.saved(option(assumptions)),
     open_box,
+    cached_env: Calc.saved(ClosureEnvironment.t) // TODO[Matt]: remove this later, just to get env into view for now.
   };
 
   let init = {
@@ -37,6 +38,7 @@ module Model = {
     full_exp: Calc.Pending,
     assumptions: Calc.Pending,
     open_box: NoneOpen,
+    cached_env: Calc.Pending,
   };
   let get_selected_exp = (m: t): Exp.t =>
     m.selected_exp
@@ -133,6 +135,7 @@ module Update = {
       (
         ~settings,
         exp,
+        env: Calc.t(ClosureEnvironment.t),
         ctx: Calc.t(Ctx.t),
         _state,
         new_next_steps,
@@ -144,6 +147,7 @@ module Update = {
           full_exp: _,
           selected_id,
           open_box,
+          cached_env,
         }: Model.t,
         editor,
       )
@@ -197,6 +201,7 @@ module Update = {
       refls
       |> {
         let.calc exp = exp
+        and.calc env = env
         and.calc new_next_steps = new_next_steps;
         let next_steps =
           new_next_steps
@@ -205,7 +210,7 @@ module Update = {
             | EvaluatorStep.AutoStep(_) => []
             | EvaluatorStep.AvailableSteps(steps) => steps
           );
-        ProofHacks.find_refls(exp)
+        ProofHacks.find_refls(~env, exp)
         |> List.filter(e =>
              !
                List.exists(
@@ -248,8 +253,14 @@ module Update = {
           cached_result: cached_result |> Calc.get_value,
         });
       | AxiomsOpen(m) =>
-        AxiomsOpen(AxiomsBox.Update.calculate(~ctx, ~selected_exp, m))
+        AxiomsOpen(AxiomsBox.Update.calculate(~env, ~ctx, ~selected_exp, m))
       | NoneOpen => NoneOpen
+      };
+    let cached_env =
+      cached_env
+      |> {
+        let.calc e = env;
+        e;
       };
     {
       next_steps: new_next_steps |> Calc.save,
@@ -258,6 +269,7 @@ module Update = {
       full_exp: exp |> Calc.save,
       selected_exp: selected_exp |> Calc.save,
       selected_id: selected_id |> Calc.save,
+      cached_env: cached_env |> Calc.save,
       open_box,
     };
   };
@@ -347,52 +359,6 @@ module View = {
       };
     let right = get_right(end_x, start_y, end_y);
     Some((left, right, start_y, end_y + 1));
-  };
-
-  let view_assumptions = (~globals, ~signal, model: Model.t) => {
-    let unpacked_rewrites =
-      model.assumptions
-      |> Calc.get_saved_exc(~print="view_step_rewrites")
-      |> Option.value(~default=[]);
-    (
-      unpacked_rewrites |> List.is_empty
-        ? [] : [WebUtil.Node.text("Rewrites:")]
-    )
-    @ List.map(
-        (am: AssumptionBox.Model.t) =>
-          AssumptionBox.View.view(
-            ~globals,
-            ~active_selection=
-              Option.map(
-                se =>
-                  (
-                    se,
-                    [],
-                    fun
-                    | AssumptionBox.EqualityLeft(e) =>
-                      signal(
-                        AddAxiomStep(
-                          am.ctx_entry.name,
-                          Model.get_selected_exp(model),
-                          e,
-                        ),
-                      )
-                    | AssumptionBox.EqualityRight(e) =>
-                      signal(
-                        AddAxiomStep(
-                          am.ctx_entry.name,
-                          Model.get_selected_exp(model),
-                          e,
-                        ),
-                      ),
-                  ),
-                model.selected_exp
-                |> Calc.get_saved_exc(~print="MissingStep not calculated"),
-              ),
-            am,
-          ),
-        unpacked_rewrites,
-      );
   };
 
   let view_overlay =
@@ -517,6 +483,9 @@ module View = {
                       "axiom-box",
                       AxiomsBox.View.view(
                         ~globals,
+                        ~env=
+                          model.cached_env
+                          |> Calc.get_saved_exc(~print="env not cached"),
                         ~inject=
                           (a: AxiomsBox.Update.t) =>
                             inject(AxiomBoxAction(a)),

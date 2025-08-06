@@ -336,6 +336,7 @@ module F = (Stepper: STEPPER) => {
                 ProofRule.typ_to_rule(typ)
                 |> Option.map(rule =>
                      AssumptionBox.View.view(
+                       ~env=ClosureEnvironment.empty, // TODO[Matt]: pass real env
                        ~globals,
                        ~active_selection=None,
                        AssumptionBox.Model.{
