@@ -48,6 +48,7 @@ type unsorted =
 type t = {
   term: Exp.t,
   terms: TermMap.t,
+  term_data: TermData.t,
   projectors: Id.Map.t(Piece.projector),
 };
 
@@ -118,6 +119,16 @@ let return = (wrap, ids, tm) => {
   map := TermMap.add_all(ids, wrap(tm), map^);
   tm;
 };
+
+let term_data: ref(TermData.t) = ref(Id.Map.empty);
+let record_term_data = (seg: Segment.t, skel: Skel.t): unit =>
+  term_data :=
+    Aba.get_as(Aba.map_a(List.nth(seg), Skel.root(skel)))
+    |> List.fold_left(
+         (map, p) =>
+           Id.Map.add(Piece.id(p), (Skel.range(skel), seg), map),
+         term_data^,
+       );
 
 /* Map to collect projector ids */
 let projectors: ref(Id.Map.t(Piece.projector)) = ref(Id.Map.empty);
@@ -816,6 +827,9 @@ and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
          })
     };
 
+  /* Capture term ranges */
+  record_term_data(seg, skel);
+
   let root: Aba.t(Piece.t, Skel.t) =
     Skel.root(skel) |> Aba.map_a(List.nth(seg));
 
@@ -855,11 +869,13 @@ let go =
     ~cache_size_bound=1000,
     (extra_probes, seg) => {
       map := TermMap.empty;
+      term_data := Id.Map.empty;
       projectors := Id.Map.empty;
       extra_probe_ids := extra_probes;
       let term = exp(unsorted(Segment.skel(seg), seg));
       {
         term,
+        term_data: term_data^,
         terms: map^,
         projectors: projectors^,
       };

@@ -225,7 +225,7 @@ module Deco =
        ) => {
   let font_metrics = M.globals.font_metrics;
 
-  let term_ranges = M.editor.syntax.term_ranges;
+  let term_data = M.editor.syntax.term_data;
   let tiles = M.editor.syntax.tiles;
   let measured = M.editor.syntax.measured;
   let projectors = M.editor.syntax.projectors;
@@ -234,7 +234,7 @@ module Deco =
 
   let tile_term_deco =
     IndicationDec.term(
-      ~term_ranges,
+      ~term_data,
       ~terms=M.editor.syntax.terms,
       ~tiles,
       ~measured,
@@ -342,7 +342,7 @@ module Deco =
 
   let term_decoration =
       (~id: Id.t, deco: ((Point.t, Point.t, SvgUtil.Path.t)) => Node.t) => {
-    let (p_l, p_r) = TermRanges.find(id, term_ranges);
+    let (p_l, p_r) = TermData.extremes(id, term_data);
     let l = Measured.find_p(~msg="Deco.term", p_l, measured).origin;
     let r = Measured.find_p(~msg="Deco.term", p_r, measured).last;
     open SvgUtil.Path;

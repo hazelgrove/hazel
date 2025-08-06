@@ -20,7 +20,8 @@ module CachedSyntax = {
      * some other comments at some of the weakest joints; the biggest
      * issue is that dropping the backpack can add/remove grout, causing
      * certain ids to be present/non-present unexpectedly. */
-    term_ranges: TermRanges.t,
+    //term_ranges: TermRanges.t,
+    term_data: TermData.t,
     terms: TermMap.t,
     /* Since the introduction of shape_map below, caching projectors
      * here is almost vesigial (currently used only for error deco) */
@@ -42,20 +43,21 @@ module CachedSyntax = {
     let segment = Zipper.unselect_and_zip(z);
     //TODO(andrew): maybe need extra_probes here for real?
     let extra_probes = [];
-    let MakeTerm.{term: _, terms, projectors} =
+    let MakeTerm.{term: _, terms, projectors, term_data} =
       MakeTerm.go(extra_probes, segment);
     let projector_shapes =
       ProjectorInfo.ShapeMapSemantics.mk(projectors, info_map, dyn_map);
     {
       old: false,
       segment,
-      term_ranges: TermRanges.mk(segment),
-      tiles: TileMap.mk(segment),
-      measured: Measured.of_segment(segment, projector_shapes),
-      selection_ids: Selection.selection_ids(z.selection),
+      term_data,
       terms,
       projectors,
+      //term_ranges: TermRanges.mk(segment),
+      tiles: TileMap.mk(segment),
       shape_map: projector_shapes,
+      measured: Measured.of_segment(segment, projector_shapes),
+      selection_ids: Selection.selection_ids(z.selection),
       cached_backpack: Segment.global_missing_shards(segment),
     };
   };
@@ -118,7 +120,7 @@ module Model = {
   let to_move_s = (model: t): (module Move.S) => {
     module M: Move.S = {
       let measured = model.syntax.measured;
-      let term_ranges = model.syntax.term_ranges;
+      let term_data = model.syntax.term_data;
       let col_target = model.state.col_target |> Option.value(~default=0);
     };
     (module M);

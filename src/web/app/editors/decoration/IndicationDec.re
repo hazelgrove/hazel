@@ -258,7 +258,7 @@ let term =
 
 let term =
     (
-      ~term_ranges: TermRanges.t,
+      ~term_data: TermData.t,
       ~terms: TermMap.t,
       ~tiles: TileMap.t,
       ~measured: Measured.t,
@@ -269,24 +269,14 @@ let term =
     : list(Node.t) => {
   let msg = "IndicationDec.term";
   let id = tile.id; //Language.Any.rep_id(Id.Map.find(tile.id, terms));
-  let term_range = {
-    switch (TermRanges.find_opt(id, term_ranges)) {
-    | None => None
-    | Some((p_l, p_r)) =>
-      let l = Measured.find_p(~msg, p_l, measured).origin;
-      let r = Measured.find_p(~msg, p_r, measured).last;
-      Some((l, r));
-    };
+  let (p_l, p_r) = TermData.extremes(id, term_data);
+  let l = Measured.find_p(~msg, p_l, measured).origin;
+  let r = Measured.find_p(~msg, p_r, measured).last;
+  let of_tile = (id: Id.t) => {
+    let tile: Tile.t = Id.Map.find(id, tiles);
+    (id, tile.mold, Measured.find_shards(~msg, tile, measured));
   };
-  switch (term_range) {
-  | None => []
-  | Some(range) =>
-    let of_tile = (id: Id.t) => {
-      let tile: Tile.t = Id.Map.find(id, tiles);
-      (id, tile.mold, Measured.find_shards(~msg, tile, measured));
-    };
-    let tiles =
-      Id.Map.find(id, terms) |> Language.Any.ids |> List.map(of_tile);
-    term(~font_metrics, ~rows=measured.rows, ~tiles, range, ~attr?);
-  };
+  let tiles =
+    Id.Map.find(id, terms) |> Language.Any.ids |> List.map(of_tile);
+  term(~font_metrics, ~rows=measured.rows, ~tiles, (l, r), ~attr?);
 };

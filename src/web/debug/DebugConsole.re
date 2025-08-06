@@ -37,12 +37,13 @@ let print =
     };
   // | "F8" =>
   //   let seg = zipper |> Zipper.unselect_and_zip;
-  //   let term_ranges = TermRanges.mk2'(seg);
+  //   let term_ranges = TermRanges.term_segs(seg);
   //   Id.Map.iter(
   //     (id, range) =>
   //       print(
-  //         Id.to_string(id)
-  //         ++ " -> "
+  //         "term "
+  //         ++ Id.str8(id)
+  //         ++ " = "
   //         ++ Segment.to_string(~projector_to_segment=_ => [], range),
   //       ),
   //     term_ranges,
