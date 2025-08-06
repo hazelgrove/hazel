@@ -122,11 +122,11 @@ module Update = {
           settings,
         },
       };
-    | JumpToTile(tile) =>
+    | JumpToTile(id) =>
       let jump =
         Editors.Selection.jump_to_tile(
           ~settings=model.globals.settings,
-          tile,
+          id,
           model.editors,
         );
       switch (jump) {

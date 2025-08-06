@@ -260,7 +260,7 @@ let term =
     (
       ~term_data: TermData.t,
       ~terms: TermMap.t,
-      ~tiles: TileMap.t,
+      //~tiles: TileMap.t,
       ~measured: Measured.t,
       ~font_metrics: FontMetrics.t,
       ~attr: option(list(Attr.t))=?,
@@ -273,7 +273,7 @@ let term =
   let l = Measured.find_p(~msg, p_l, measured).origin;
   let r = Measured.find_p(~msg, p_r, measured).last;
   let of_tile = (id: Id.t) => {
-    let tile: Tile.t = Id.Map.find(id, tiles);
+    let tile: Tile.t = TermData.root_tile(id, term_data);
     (id, tile.mold, Measured.find_shards(~msg, tile, measured));
   };
   let tiles =

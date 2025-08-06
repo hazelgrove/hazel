@@ -21,7 +21,7 @@ let view =
       let shape_map = shape_map;
       let font_metrics = globals.font_metrics;
     });
-  let code = Text.of_segment(buffer_ids, false, sort, segment);
+  let code = Text.of_segment(buffer_ids, sort, segment);
   div_c("code", [span_c("code-text", code)]);
 };
 

@@ -224,9 +224,7 @@ module Deco =
          },
        ) => {
   let font_metrics = M.globals.font_metrics;
-
   let term_data = M.editor.syntax.term_data;
-  let tiles = M.editor.syntax.tiles;
   let measured = M.editor.syntax.measured;
   let projectors = M.editor.syntax.projectors;
   let error_ids = M.statics.error_ids;
@@ -236,7 +234,6 @@ module Deco =
     IndicationDec.term(
       ~term_data,
       ~terms=M.editor.syntax.terms,
-      ~tiles,
       ~measured,
       ~font_metrics,
     );
@@ -432,7 +429,7 @@ module Deco =
           []
         }
       | None =>
-        switch (Id.Map.find_opt(id, tiles)) {
+        switch (TermData.root_tile_opt(id, term_data)) {
         | Some(t) => tile_term_deco(t)
         | None => []
         }
@@ -450,7 +447,7 @@ module Deco =
 
   let next_steps = (next_steps, ~inject) =>
     next_steps
-    |> List.filter_map(TileMap.find_opt(_, tiles))
+    |> List.filter_map(TermData.root_tile_opt(_, term_data))
     |> List.mapi((i, t: Tile.t) =>
          div_c(
            "step-next",
@@ -463,7 +460,7 @@ module Deco =
 
   let taken_steps = taken_steps =>
     taken_steps
-    |> List.filter_map(TileMap.find_opt(_, tiles))
+    |> List.filter_map(TermData.root_tile_opt(_, term_data))
     |> List.mapi((_, t: Tile.t) => div_c("step-taken", tile_term_deco(t)));
 
   let statics = () => [errors()];

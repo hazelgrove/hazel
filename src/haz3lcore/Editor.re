@@ -5,7 +5,7 @@ module CachedSyntax = {
     old: bool,
     segment: Segment.t,
     measured: Measured.t,
-    tiles: TileMap.t,
+    //tiles: TileMap.t,
     selection_ids: list(Id.t),
     /* The term-derived data structured below, may differ
      * from the term used for semantics. These terms are identical when
@@ -54,7 +54,7 @@ module CachedSyntax = {
       terms,
       projectors,
       //term_ranges: TermRanges.mk(segment),
-      tiles: TileMap.mk(segment),
+      //tiles: TileMap.mk(segment),
       shape_map: projector_shapes,
       measured: Measured.of_segment(segment, projector_shapes),
       selection_ids: Selection.selection_ids(z.selection),

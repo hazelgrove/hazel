@@ -130,14 +130,8 @@ module Text =
   deferred_linebreaks := 0;
 
   let m = p => Measured.find_p(~msg="Text", p, M.map);
-  let rec of_segment =
-          (buffer_ids, no_sorts, sort, seg: Segment.t): list(Node.t) => {
-    /* note: no_sorts flag is used for backpack view;
-       otherwise Segment.expected_sorts call crashes for some reason */
-    let expected_sorts =
-      no_sorts
-        ? List.init(List.length(seg), i => (i, Sort.Any))
-        : Segment.expected_sorts(sort, seg);
+  let rec of_segment = (buffer_ids, sort, seg: Segment.t): list(Node.t) => {
+    let expected_sorts = Segment.expected_sorts(sort, seg);
     let sort_of_p_idx = idx =>
       switch (List.assoc_opt(idx, expected_sorts)) {
       | None => Sort.Any
@@ -196,7 +190,7 @@ module Text =
            t,
          ),
          ((seg, sort)) =>
-         of_segment(buffer_ids, false, sort, seg)
+         of_segment(buffer_ids, sort, seg)
        )
     |> List.concat;
   };

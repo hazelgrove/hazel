@@ -126,7 +126,7 @@ let record_term_data = (seg: Segment.t, skel: Skel.t): unit =>
     Aba.get_as(Aba.map_a(List.nth(seg), Skel.root(skel)))
     |> List.fold_left(
          (map, p) =>
-           Id.Map.add(Piece.id(p), (Skel.range(skel), seg), map),
+           Id.Map.add(Piece.id(p), TermData.mk(p, skel, seg), map),
          term_data^,
        );
 
@@ -185,20 +185,11 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
   | Exp => Exp(exp(unsorted(skel, seg)))
   | Rul => Rul(rul(unsorted(skel, seg)))
   | Any =>
-    let tm = unsorted(skel, seg);
-    let ids = ids(tm);
-    switch (ListUtil.hd_opt(ids)) {
-    | None => Exp(exp(unsorted(skel, seg)))
-    | Some(id) =>
-      switch (TileMap.find_opt(id, TileMap.mk(seg))) {
-      | None => Exp(exp(unsorted(skel, seg)))
-      | Some(t) =>
-        if (t.mold.out == Any) {
-          Exp(exp(unsorted(skel, seg)));
-        } else {
-          go_s(t.mold.out, skel, seg);
-        }
-      }
+    let sort = Segment.sort_of(skel, seg);
+    if (sort == Any) {
+      Exp(exp(unsorted(skel, seg)));
+    } else {
+      go_s(sort, skel, seg);
     };
   }
 
