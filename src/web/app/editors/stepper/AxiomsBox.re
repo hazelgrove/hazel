@@ -11,7 +11,7 @@ module Model = {
   };
 
   let init = {
-    filter: Calc.NewValue("FILTER"),
+    filter: Calc.NewValue(""),
     filtered_rewrites: Calc.Pending,
   };
 };
@@ -120,6 +120,7 @@ module View = {
       Node.input(
         ~attrs=[
           Attr.value(model.filter |> Calc.get_value),
+          Attr.placeholder("search axioms..."),
           Attr.on_focus(_ => take_focus()),
           Attr.on_input((_, s) => inject(SetFilter(s))),
         ],

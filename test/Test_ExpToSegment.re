@@ -12,7 +12,7 @@ let exp_to_segment =
 let exp_to_segment_settings: ExpToSegment.Settings.t = {
   inline: true,
   fold_case_clauses: false,
-  fold_fn_bodies: false,
+  fold_fn_bodies: `NoFold,
   hide_fixpoints: false,
   show_filters: true,
   show_unknown_as_hole: true,
@@ -326,7 +326,7 @@ let tests = (
             ~settings={
               inline: true,
               fold_case_clauses: false,
-              fold_fn_bodies: false,
+              fold_fn_bodies: `NoFold,
               hide_fixpoints: false,
               show_filters: true,
               show_unknown_as_hole: true,

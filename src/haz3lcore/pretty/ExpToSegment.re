@@ -9,16 +9,24 @@ module Settings = {
   type t = {
     inline: bool,
     fold_case_clauses: bool,
-    fold_fn_bodies: bool,
+    fold_fn_bodies: [
+      | `Fold
+      | `Text
+      | `NoFold
+    ],
     hide_fixpoints: bool,
     show_filters: bool,
     show_unknown_as_hole: bool,
   };
 
-  let of_core = (~inline, settings: CoreSettings.t) => {
+  let of_core = (~inline, ~fold_fn_bodies=?, settings: CoreSettings.t) => {
     inline,
     fold_case_clauses: !settings.evaluation.show_case_clauses,
-    fold_fn_bodies: !settings.evaluation.show_fn_bodies,
+    fold_fn_bodies:
+      fold_fn_bodies
+      |> Option.value(
+           ~default=settings.evaluation.show_fn_bodies ? `NoFold : `Fold,
+         ),
     hide_fixpoints: !settings.evaluation.show_fixpoints,
     show_filters: settings.evaluation.show_stepper_filters,
     show_unknown_as_hole: true,
@@ -28,7 +36,7 @@ module Settings = {
     {
       inline,
       fold_case_clauses: false,
-      fold_fn_bodies: false,
+      fold_fn_bodies: `NoFold,
       hide_fixpoints: false,
       show_filters: true,
       show_unknown_as_hole: true,
@@ -717,7 +725,8 @@ let fold_if = (condition, pieces) =>
   };
 
 let fold_fun_if = (condition, f_name: string, pieces) =>
-  if (condition) {
+  switch (condition) {
+  | `Fold =>
     let syntax = mk_form(ParensExp, Id.mk(), [pieces]);
     let str = FoldProj.sexp_of_t({text: f_name}) |> Sexplib.Sexp.to_string;
     switch (MakeTerm.for_projection([syntax])) {
@@ -726,8 +735,8 @@ let fold_fun_if = (condition, f_name: string, pieces) =>
         ProjectorInit.init_or_noop_from_str(Fold, syntax, any, str),
       ]
     };
-  } else {
-    pieces;
+  | `Text => text_to_pretty(Id.mk(), Sort.Exp, f_name)
+  | `NoFold => pieces
   };
 
 /* We assume that parentheses have already been added as necessary, and

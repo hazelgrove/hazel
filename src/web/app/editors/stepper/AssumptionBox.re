@@ -50,20 +50,20 @@ module View = {
       };
     div_c(
       "assumption-box",
-      [
-        Node.text(model.ctx_entry.name),
-        Node.text(" : "),
+      equality_buttons
+      @ [
+        Node.text(model.ctx_entry.name ++ ": "),
         CodeViewable.view_typ(
           ~globals,
           ~settings=
             Haz3lcore.ExpToSegment.Settings.of_core(
               ~inline=true,
+              ~fold_fn_bodies=`Text,
               globals.settings.core,
             ),
           model.ctx_entry.typ,
         ),
-      ]
-      @ equality_buttons,
+      ],
     );
   };
 };
