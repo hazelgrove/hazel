@@ -1,20 +1,24 @@
 open Util;
+open Virtual_dom.Vdom;
+open Node;
+open Haz3lcore;
 
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type current_state = Page.Model.t;
+  type state = Page.Model.t;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type history_state = {
+  type edit_history_state = {
     action: Page.Update.t,
     page: Page.Model.t,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
-    current: current_state,
-    undo_stack: list(Updated.t(history_state)),
-    redo_stack: list(Updated.t(history_state)),
+    current: state,
+    undo_stack: list(Updated.t(state)),
+    redo_stack: list(Updated.t(state)),
+    history_log: list(Updated.t(edit_history_state)),
   };
 
   let equal = (===);
@@ -23,6 +27,7 @@ module Model = {
     current: Page.Store.load(),
     undo_stack: [],
     redo_stack: [],
+    history_log: [],
   };
 };
 
@@ -51,18 +56,16 @@ module Update = {
       | [x, ...rest] => {
           ...x,
           model: {
-            current: x.model.page,
+            current: x.model,
             undo_stack: rest,
             redo_stack: [
               {
                 ...x,
-                model: {
-                  action,
-                  page: model.current,
-                },
+                model: model.current,
               },
               ...model.redo_stack,
             ],
+            history_log: model.history_log,
           },
         }
       }
@@ -74,18 +77,16 @@ module Update = {
       | [x, ...rest] => {
           ...x,
           model: {
-            current: x.model.page,
+            current: x.model,
             undo_stack: [
               {
                 ...x,
-                model: {
-                  action,
-                  page: model.current,
-                },
+                model: model.current,
               },
               ...model.undo_stack,
             ],
             redo_stack: rest,
+            history_log: model.history_log,
           },
         }
       }
@@ -98,21 +99,7 @@ module Update = {
           action,
           model.current,
         );
-      //let history =
-       // List.map(
-        //  (s: Updated.t(Model.history_state)) => s.model.action,
-       //   model.undo_stack,
-      //  );
-      //print_endline("---------------- UPDATE CALL ---------------");
-      // print_endline("---HISTORY---");
-      //List.iter(
-      //  item => sexp_of_t(item) |> Sexplib.Sexp.to_string |> print_endline,
-      //  history,
-      //);
-      //print_endline("---CURRENT ACTION---");
-      //print_endline(Page.Update.sexp_of_t(action) |> Sexplib.Sexp.to_string);
       if (Page.Update.can_undo(action)) {
-        print_endline("Undoable action");
         {
           ...current,
           model: {
@@ -120,14 +107,21 @@ module Update = {
             undo_stack: [
               {
                 ...current,
+                model: model.current,
+              },
+              ...model.undo_stack,
+            ],
+            redo_stack: [],
+            history_log: [
+              {
+                ...current,
                 model: {
                   action,
                   page: model.current,
                 },
               },
-              ...model.undo_stack,
+              ...model.history_log,
             ],
-            redo_stack: [],
           },
         };
       } else {
@@ -137,6 +131,7 @@ module Update = {
             current: current.model,
             undo_stack: model.undo_stack,
             redo_stack: model.redo_stack,
+            history_log: model.history_log,
           },
         };
       };
@@ -148,6 +143,7 @@ module Update = {
       model.current |> Page.Update.calculate(~schedule_action, ~is_edited),
     undo_stack: model.undo_stack,
     redo_stack: model.redo_stack,
+    history_log: model.history_log,
   };
 };
 
@@ -162,14 +158,80 @@ module Selection = {
 };
 
 module View = {
+  let history_view = history_log => {
+    let grouped: list(list(Page.Update.t)) =
+      List.fold_left(
+        // Lists are in reverse order during accumulation
+        (
+          acc: list(list(Page.Update.t)),
+          s: Updated.t(Model.edit_history_state),
+        ) =>
+          switch (acc) {
+          | [] =>
+            print_endline("Starting the first group");
+            [[s.model.action]];
+          | [current_group, ...rest_group] =>
+            switch (current_group) {
+            | [] => [[]] // This shouldn't be able to happen
+            | [entry, ...rest] =>
+              switch (entry, s.model.action) {
+              | (
+                  Editors(
+                    Scratch(CellAction(MainEditor(Perform(Insert(_))))),
+                  ),
+                  Editors(
+                    Scratch(CellAction(MainEditor(Perform(Insert(_))))),
+                  ),
+                )
+              | (
+                  Editors(
+                    Scratch(CellAction(MainEditor(Perform(Destruct(_))))),
+                  ),
+                  Editors(
+                    Scratch(CellAction(MainEditor(Perform(Destruct(_))))),
+                  ),
+                ) => [
+                  [s.model.action, ...current_group],
+                  ...rest_group,
+                ]
+              | _ => [[s.model.action], ...acc]
+              }
+            }
+          },
+        [],
+        history_log,
+      );
+    let grouped' = List.rev_map(List.rev, grouped);
+    let action_string = (item: Page.Update.t) => {
+      switch (item) {
+      | Editors(Scratch(CellAction(MainEditor(Perform(action))))) =>
+        Action.sexp_of_t(action) |> Sexplib.Sexp.to_string
+      | _ => Page.Update.sexp_of_t(item) |> Sexplib.Sexp.to_string
+      };
+    };
+    div(
+      ~attrs=[Attr.id("edit-history")],
+      List.mapi(
+        (i, group) =>
+          div(
+            [text("Group " ++ string_of_int(i))]
+            @ List.map(
+                (item: Page.Update.t) => div([text(action_string(item))]),
+                group,
+              ),
+          ),
+        grouped',
+      ),
+    );
+  };
+
   let view =
       (~get_log_and, ~inject: Update.t => Ui_effect.t(unit), model: Model.t) => {
-    let history =
-      //[model.current.action]
-      List.map(
-        (s: Updated.t(Model.history_state)) => s.model.action,
-        model.undo_stack,
-      );
-    Page.View.view(~get_log_and, ~inject, model.current, history);
+    Page.View.view(
+      ~get_log_and,
+      ~inject,
+      model.current,
+      history_view(model.history_log),
+    );
   };
 };
