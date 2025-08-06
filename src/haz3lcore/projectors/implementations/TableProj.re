@@ -5,7 +5,7 @@ open Language;
 
 let max_column_length = 12;
 
-let dataframe_of =
+let table_of =
     (any: Any.t): option((list(LabeledTuple.label), list(list(Exp.t)))) =>
   switch (any) {
   | Exp({term: ListLit(es), _}) =>
@@ -63,11 +63,11 @@ let dataframe_of =
 let get = (info: info): (list(LabeledTuple.label), list(list(Exp.t))) =>
   switch (info.syntax |> info.utility.seg_to_term) {
   | Some(s) =>
-    switch (dataframe_of(s)) {
+    switch (table_of(s)) {
     | Some(s) => s
-    | None => failwith("TextArea: get: Not a dataframe")
+    | None => failwith("TextArea: get: Not a table")
     }
-  | None => failwith("TextArea: get: Not a dataframe")
+  | None => failwith("TextArea: get: Not a table")
   };
 
 let key_handler = (id, ~parent, evt) => {
@@ -158,7 +158,7 @@ let table =
       ~view_seg: (Sort.t, Segment.t) => Node.t,
     ) =>
   Node.table(
-    ~attrs=[Attr.classes(["dataframe"])],
+    ~attrs=[Attr.classes(["table"])],
     [
       Node.thead([
         Node.tr(List.map(h => Node.th([Node.text(h)]), headers)),
@@ -185,7 +185,7 @@ module M: Projector = {
   type action = unit;
 
   let init = (any: Term.Any.t) =>
-    switch (dataframe_of(any)) {
+    switch (table_of(any)) {
     | Some(_) => Some()
     | None => None
     };

@@ -226,7 +226,7 @@
   --modal-back-z: 100;
   --modal-z: 101;
 
-  /* DATAFRAME TABLES */
+  /* TABLE TABLES */
   --df-bg: var(--T3);
   --df-header-bg: oklch(from var(--df-bg) 85% calc(c * 0.7) h);
   --df-zebra-bg: oklch(from var(--df-bg) 88% c h);

@@ -27,7 +27,7 @@ module Kind = {
     | Card
     | Livelit
     | TextArea
-    | DataFrame;
+    | Table;
 
   let livelit_projectors: list(t) = [
     Checkbox,
@@ -36,7 +36,7 @@ module Kind = {
     TextArea,
     Card,
     Livelit,
-    DataFrame,
+    Table,
   ];
 
   let projectors: list(t) = livelit_projectors @ [Fold, Info, Probe];
@@ -55,7 +55,7 @@ module Kind = {
     | Card => "card"
     | Livelit => "livelit"
     | TextArea => "text"
-    | DataFrame => "dataframe"
+    | Table => "table"
     };
 
   /* This must be updated and kept 1-to-1 with the above
@@ -72,7 +72,7 @@ module Kind = {
     | "text" => TextArea
     | "livelit" => Livelit
     | "card" => Card
-    | "dataframe" => DataFrame
+    | "table" => Table
     | _ => failwith("Unknown projector kind")
     };
 

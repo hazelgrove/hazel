@@ -1,7 +1,7 @@
 /* PROJECTOR: Tables */
 
-/* Dataframes */
-.dataframe {
+/* Tables */
+.table {
     border-collapse: collapse;
     font-size: 0.875rem;
     width: 100%;
@@ -9,33 +9,33 @@
     text-align: center;
     background-color: var(--df-bg);
 }
-.dataframe th {
+.table th {
   position: sticky;
   top: 0;
   z-index: calc(var(--projector-z) + 1);
   opacity: 1;
 }
-.dataframe th,
-.dataframe td {
+.table th,
+.table td {
     border: 1px solid #ddd;
     vertical-align: top;
 }
 
-.dataframe th {
+.table th {
     background-color: var(--df-header-bg);
     font-weight: 600;
 }
 
-.dataframe tr:nth-child(even) {
+.table tr:nth-child(even) {
     background-color: var(--df-zebra-bg);
 }
 
-.dataframe tr:hover {
+.table tr:hover {
     background-color: var(--df-hover-bg);
 }
 
 
-.projector.dataframe {
+.projector.table {
     height: 100%;
     width: 100%;
     overflow: auto;
@@ -48,6 +48,6 @@
     gap: initial;
 }
 
-.projector.dataframe>.code {
+.projector.table>.code {
     overflow-y: scroll;
 }
