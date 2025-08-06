@@ -230,6 +230,8 @@ let rec replace_exp = (replace, replace_coctx, with_exp, with_coctx, in_exp) => 
       (continue, exp) => {
         let (term, rewrap) = Exp.unwrap(exp);
         switch (term) {
+        /* Note[Matt]: We are not currently checking alpha-equivalence here because it's unlikely
+           to come up, but we could. */
         | _ when Exp.fast_equal(exp, replace) =>
           with_exp |> Exp.replace_all_ids
         /* Forms with binders: check if any bound variables are in the coctx,
