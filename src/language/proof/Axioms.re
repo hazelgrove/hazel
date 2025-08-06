@@ -1,6 +1,6 @@
 let v: ProofCtx.t =
   []
-  |> ProofCtx.add_entry(
+  |> ProofCtx.add_exp(
        "Iden(+)L",
        // Fun is being used as a stand-in for Forall
        Fun(
@@ -21,7 +21,7 @@ let v: ProofCtx.t =
        )
        |> Exp.fresh,
      )
-  |> ProofCtx.add_entry(
+  |> ProofCtx.add_exp(
        "Zero(*)",
        Fun(
          Var("x") |> Pat.fresh,
@@ -41,7 +41,7 @@ let v: ProofCtx.t =
        )
        |> Exp.fresh,
      )
-  |> ProofCtx.add_entry(
+  |> ProofCtx.add_exp(
        "Comm(+)",
        Fun(
          Var("x") |> Pat.fresh,
@@ -64,7 +64,7 @@ let v: ProofCtx.t =
        )
        |> Exp.fresh,
      )
-  |> ProofCtx.add_entry(
+  |> ProofCtx.add_exp(
        "Assoc(+)",
        Fun(
          Var("x") |> Pat.fresh,
@@ -111,7 +111,7 @@ let v: ProofCtx.t =
        )
        |> Exp.fresh,
      )
-  |> ProofCtx.add_entry(
+  |> ProofCtx.add_exp(
        "Comm(*)",
        Fun(
          Var("x") |> Pat.fresh,
@@ -142,7 +142,7 @@ let v: ProofCtx.t =
        )
        |> Exp.fresh,
      )
-  |> ProofCtx.add_entry(
+  |> ProofCtx.add_exp(
        "Assoc(*)",
        Fun(
          Var("x") |> Pat.fresh,
@@ -189,7 +189,7 @@ let v: ProofCtx.t =
        )
        |> Exp.fresh,
      )
-  |> ProofCtx.add_entry(
+  |> ProofCtx.add_exp(
        "Reflexive(==)",
        Fun(
          Var("x") |> Pat.fresh,

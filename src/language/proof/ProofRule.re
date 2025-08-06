@@ -63,6 +63,30 @@ let rec typ_to_rule = (typ: Typ.t): option(t) =>
   | _ => None
   };
 
+let rule_to_typ = (rule: t): Typ.t => {
+  let rec wrap_foralls = (bindings: list(Ctx.entry), body: Typ.t): Typ.t =>
+    switch (bindings) {
+    | [] => body
+    | [VarEntry({name, typ, _}), ...rs] =>
+      wrap_foralls(
+        rs,
+        Typ.fresh(
+          Forall(Pat.fresh(Asc(Pat.fresh(Var(name)), typ)), body),
+        ),
+      )
+    // TODO: refactor to make this not need to handle constructors
+    | [ConstructorEntry(_) | TVarEntry(_) | LivelitEntry(_), ...rs] =>
+      wrap_foralls(rs, body)
+    };
+  let body =
+    switch (rule.conclusion) {
+    | Equality(e1, e2) =>
+      Typ.fresh(Yes(Exp.fresh(BinOp(Poly(Equals), e1, e2))))
+    | Other(e) => Typ.fresh(Yes(e))
+    };
+  wrap_foralls(rule.bindings, body);
+};
+
 let conclusion_exp = (rule: t): Exp.t =>
   switch (rule.conclusion) {
   | Equality(e1, e2) => Exp.fresh(BinOp(Poly(Equals), e1, e2))

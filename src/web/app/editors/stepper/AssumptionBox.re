@@ -3,16 +3,12 @@ open Language;
 open WebUtil;
 
 type proof_event =
-  | EqualityLeft(string)
-  | EqualityRight(string);
+  | EqualityLeft(Exp.t)
+  | EqualityRight(Exp.t);
 
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = {
-    name: string,
-    typ: Typ.t,
-    rule: ProofRule.t,
-  };
+  type t = {ctx_entry: ProofCtx.entry};
 };
 
 module View = {
@@ -24,15 +20,15 @@ module View = {
         model: Model.t,
       ) => {
     let equality_buttons =
-      switch (model.rule.conclusion) {
+      switch (model.ctx_entry.rule.conclusion) {
       | Equality(_) =>
         let (l, r) =
           switch (active_selection) {
           | Some((exp, _vars, signal)) =>
-            let (l, r) = ProofRule.can_eq(model.rule, exp);
+            let (l, r) = ProofRule.can_eq(model.ctx_entry.rule, exp);
             (
-              Option.map(_ => signal(EqualityLeft(model.name)), l),
-              Option.map(_ => signal(EqualityRight(model.name)), r),
+              Option.map(e => signal(EqualityLeft(e)), l),
+              Option.map(e => signal(EqualityRight(e)), r),
             );
           | None => (None, None)
           };
@@ -55,7 +51,7 @@ module View = {
     div_c(
       "assumption-box",
       [
-        Node.text(model.name),
+        Node.text(model.ctx_entry.name),
         Node.text(" : "),
         CodeViewable.view_typ(
           ~globals,
@@ -64,7 +60,7 @@ module View = {
               ~inline=true,
               globals.settings.core,
             ),
-          model.typ,
+          model.ctx_entry.typ,
         ),
       ]
       @ equality_buttons,

@@ -1,25 +1,50 @@
 open Util;
+open OptUtil.Syntax;
 
-type entry = {rule: ProofRule.t};
+[@deriving (show({with_path: false}), sexp, yojson)]
+type entry = {
+  name: string,
+  rule: ProofRule.t,
+  typ: Typ.t,
+};
 
 type t = list(entry);
 
 let empty = [];
 
-let add_rule = (rule: ProofRule.t, ctx: t): t => {
-  [{rule: rule}, ...ctx];
-};
-
-let add_entry = (_name: string, exp: Exp.t, ctx: t) => {
-  let rule = ProofRule.exp_to_rule(exp);
-  [{rule: rule}, ...ctx];
-};
-
-let rec get_rewrites = (ctx: t, exp: Exp.t) =>
-  ListUtil.flat_map(
-    (entry: entry) => {
-      let (l, r) = ProofRule.can_eq(entry.rule, exp);
-      Option.to_list(l) @ Option.to_list(r);
+let add_rule = (name: string, rule: ProofRule.t, ctx: t): t => {
+  let typ = ProofRule.rule_to_typ(rule);
+  [
+    {
+      name,
+      rule,
+      typ,
     },
-    ctx,
-  );
+    ...ctx,
+  ];
+};
+
+let add_typ = (name: string, typ: Typ.t, ctx: t): option(t) => {
+  let* rule = ProofRule.typ_to_rule(typ);
+  Some([
+    {
+      name,
+      typ,
+      rule,
+    },
+    ...ctx,
+  ]);
+};
+
+let add_exp = (name: string, exp: Exp.t, ctx: t) => {
+  let rule = ProofRule.exp_to_rule(exp);
+  let typ = ProofRule.rule_to_typ(rule);
+  [
+    {
+      name,
+      rule,
+      typ,
+    },
+    ...ctx,
+  ];
+};

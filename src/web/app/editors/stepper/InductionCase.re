@@ -330,9 +330,11 @@ module F = (Stepper: STEPPER) => {
                        ~globals,
                        ~active_selection=None,
                        AssumptionBox.Model.{
-                         name,
-                         typ,
-                         rule,
+                         ctx_entry: {
+                           name,
+                           typ,
+                           rule,
+                         },
                        },
                      )
                    );

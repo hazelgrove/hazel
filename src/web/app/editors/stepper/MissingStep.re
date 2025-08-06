@@ -16,7 +16,7 @@ module Model = {
     | NoneOpen;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type rewrites = {rewrites: list(Exp.t)};
+  type assumptions = list(AssumptionBox.Model.t);
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
@@ -25,7 +25,7 @@ module Model = {
     selected_id: Calc.saved(option(Id.t)),
     selected_exp: Calc.saved(option(Exp.t)),
     full_exp: Calc.saved(Exp.t),
-    rewrites: Calc.saved(option(rewrites)),
+    assumptions: Calc.saved(option(assumptions)),
     open_box,
   };
 
@@ -35,7 +35,7 @@ module Model = {
     selected_id: Calc.Pending,
     selected_exp: Calc.Pending,
     full_exp: Calc.Pending,
-    rewrites: Calc.Pending,
+    assumptions: Calc.Pending,
     open_box: NoneOpen,
   };
   let get_selected_exp = (m: t): Exp.t =>
@@ -129,7 +129,7 @@ module Update = {
         {
           next_steps: _,
           refls,
-          rewrites,
+          assumptions,
           selected_exp,
           full_exp: _,
           selected_id,
@@ -166,8 +166,8 @@ module Update = {
         let* exp' = ProofHacks.find_exp_id(id, exp);
         Some(exp');
       };
-    let rewrites =
-      rewrites
+    let assumptions =
+      assumptions
       |> {
         let.calc exp = selected_exp
         and.calc ctx = ctx;
@@ -176,14 +176,14 @@ module Update = {
         let proof_ctx =
           ctx
           |> Ctx.get_var_entries
-          |> List.filter_map(({name: _, id: _, typ}: Ctx.var_entry) =>
-               ProofRule.typ_to_rule(typ)
-             )
           |> List.fold_left(
-               (acc, rule) => ProofCtx.add_rule(rule, acc),
+               (acc, {name, id: _, typ}: Ctx.var_entry) =>
+                 ProofCtx.add_typ(name, typ, acc)
+                 |> Option.value(~default=acc),
                Axioms.v,
-             );
-        Some(Model.{rewrites: ProofCtx.get_rewrites(proof_ctx, exp')});
+             )
+          |> List.map(ctx_entry => AssumptionBox.Model.{ctx_entry: ctx_entry});
+        Some(proof_ctx);
       };
     let refls =
       refls
@@ -245,7 +245,7 @@ module Update = {
     {
       next_steps: new_next_steps |> Calc.save,
       refls: refls |> Calc.save,
-      rewrites: rewrites |> Calc.save,
+      assumptions: assumptions |> Calc.save,
       full_exp: exp |> Calc.save,
       selected_exp: selected_exp |> Calc.save,
       selected_id: selected_id |> Calc.save,
@@ -331,54 +331,50 @@ module View = {
     Some((left, right, start_y, end_y + 1));
   };
 
-  let view_rewrites = (~globals, ~signal, model: Model.t) => {
+  let view_assumptions = (~globals, ~signal, model: Model.t) => {
     let unpacked_rewrites =
-      model.rewrites
+      model.assumptions
       |> Calc.get_saved_exc(~print="view_step_rewrites")
-      |> Option.value(~default=Model.{rewrites: []})
-      |> (r => r.rewrites);
+      |> Option.value(~default=[]);
     (
       unpacked_rewrites |> List.is_empty
         ? [] : [WebUtil.Node.text("Rewrites:")]
     )
-    @ (
-      List.map(
-        (exp: Exp.t) =>
-          [
-            WebUtil.div_c(
-              "axiom-row",
-              [
-                Widgets.button(Icons.star, _ =>
-                  signal(
-                    AddAxiomStep(
-                      "axiom step",
-                      Model.get_selected_exp(model),
-                      exp,
-                    ),
-                  )
-                ),
-                exp
-                |> Haz3lcore.ExpToSegment.(
-                     exp_to_segment(
-                       ~settings=
-                         Settings.of_core(
-                           ~inline=false,
-                           globals.settings.core,
-                         ),
-                     )
-                   )
-                |> CodeViewable.view_segment(
-                     ~globals,
-                     ~sort=Exp,
-                     ~shape_map=Haz3lcore.Id.Map.empty,
-                   ),
-              ],
-            ),
-          ],
+    @ List.map(
+        (am: AssumptionBox.Model.t) =>
+          AssumptionBox.View.view(
+            ~globals,
+            ~active_selection=
+              Option.map(
+                se =>
+                  (
+                    se,
+                    [],
+                    fun
+                    | AssumptionBox.EqualityLeft(e) =>
+                      signal(
+                        AddAxiomStep(
+                          am.ctx_entry.name,
+                          Model.get_selected_exp(model),
+                          e,
+                        ),
+                      )
+                    | AssumptionBox.EqualityRight(e) =>
+                      signal(
+                        AddAxiomStep(
+                          am.ctx_entry.name,
+                          Model.get_selected_exp(model),
+                          e,
+                        ),
+                      ),
+                  ),
+                model.selected_exp
+                |> Calc.get_saved_exc(~print="MissingStep not calculated"),
+              ),
+            am,
+          ),
         unpacked_rewrites,
-      )
-      |> List.flatten
-    );
+      );
   };
 
   let view_overlay =
@@ -501,7 +497,7 @@ module View = {
                 | AxiomsOpen => [
                     div_c(
                       "axiom-box",
-                      view_rewrites(~globals, ~signal, model),
+                      view_assumptions(~globals, ~signal, model),
                     ),
                   ]
                 | RewritesOpen({editor, cached_exp, cached_result}) =>
