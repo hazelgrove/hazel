@@ -230,7 +230,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         ret(Atom(Int(Bigint.of_string(t))))
       | ([t], []) when Form.is_string(t) =>
         ret(Atom(String(Form.strip_quotes(t))))
-      | ([t], []) when Form.is_single_quote_label(t) =>
+      | ([t], []) when Form.is_quoted_label(t) =>
         ret(Label(Form.strip_quotes(~quote=Form.label_delim, t)))
       | ([t], []) when Form.is_float(t) =>
         ret(Atom(Float(float_of_string(t))))
@@ -524,7 +524,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
         | ([t], []) when Form.is_int(t) => Atom(Int(Bigint.of_string(t)))
         | ([t], []) when Form.is_string(t) =>
           Atom(String(Form.strip_quotes(t)))
-        | ([t], []) when Form.is_single_quote_label(t) =>
+        | ([t], []) when Form.is_quoted_label(t) =>
           Label(Form.strip_quotes(~quote=Form.label_delim, t))
         | ([t], []) when Form.is_var(t) => Var(t)
         | ([t], []) when Form.is_wild(t) => Wild
@@ -642,7 +642,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | (["String"], []) => Atom(String)
         | (["Nat"], []) => Atom(Nat)
         | ([t], []) when Form.is_typ_var(t) => Var(t)
-        | ([t], []) when Form.is_single_quote_label(t) =>
+        | ([t], []) when Form.is_quoted_label(t) =>
           Label(String.sub(t, 1, String.length(t) - 2))
         | (["(", ")"], [Typ(body)]) => Parens(body)
         | (label, [Typ(body)]) when is_probe_wrap(label) => body.term

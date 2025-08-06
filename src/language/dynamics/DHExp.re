@@ -296,16 +296,3 @@ let rec poly_equal = (d1, d2): bool => {
   | (Ap(_), _) => false
   };
 };
-
-let replace_exp = (replace, with_exp, in_exp) => {
-  map_term(
-    ~f_exp=
-      (continue, exp) =>
-        if (fast_equal(exp, replace)) {
-          with_exp;
-        } else {
-          continue(exp);
-        },
-    in_exp,
-  );
-};
