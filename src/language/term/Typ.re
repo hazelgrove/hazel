@@ -9,6 +9,8 @@ type cls =
   | MultiHole
   | SynSwitch
   | Internal
+  | LArrow
+  | RArrow
   | Arrow
   | Prod
   | TupLabel
@@ -70,17 +72,20 @@ let (replace_temp, replace_temp_exp) = {
 
 let hole = (tms: list(TermBase.Any.t)): TermBase.Typ.term =>
   switch (tms) {
-  | [] => Unknown(Hole(EmptyHole))
-  | [_, ..._] => Unknown(Hole(MultiHole(tms)))
+  | [] => Unknown((Hole(EmptyHole): TermBase.Prov.term) |> IdTagged.fresh)
+  | [_, ..._] =>
+    Unknown((Hole(MultiHole(tms)): TermBase.Prov.term) |> IdTagged.fresh)
   };
 
 let cls_of_term: Grammar.typ_term('a) => cls =
   fun
-  | Unknown(Hole(Invalid(_))) => Invalid
-  | Unknown(Hole(EmptyHole)) => EmptyHole
-  | Unknown(Hole(MultiHole(_))) => MultiHole
-  | Unknown(SynSwitch) => SynSwitch
-  | Unknown(Internal) => Internal
+  | Unknown({term: Hole(Invalid(_)), _}) => Invalid
+  | Unknown({term: Hole(EmptyHole), _}) => EmptyHole
+  | Unknown({term: Hole(MultiHole(_)), _}) => MultiHole
+  | Unknown({term: SynSwitch, _}) => SynSwitch
+  | Unknown({term: Internal, _}) => Internal
+  | Unknown({term: Matched(LArrow(_)), _}) => LArrow
+  | Unknown({term: Matched(RArrow(_)), _}) => RArrow
   | Atom(c) => Atom(c)
   | List(_) => List
   | Arrow(_) => Arrow
@@ -101,6 +106,8 @@ let show_cls: cls => string =
   | EmptyHole => "Type hole"
   | SynSwitch => "Synthetic type"
   | Internal => "Internal type"
+  | LArrow => "Left arrow type"
+  | RArrow => "Right arrow type"
   | Atom(_) => "Base type"
   | Var => "Type variable"
   | Constructor => "Sum constructor"
@@ -217,13 +224,14 @@ let join_type_provenance =
     (p1: TermBase.type_provenance, p2: TermBase.type_provenance)
     : TermBase.type_provenance =>
   switch (p1, p2) {
-  | (Hole(h1), Hole(h2)) when h1 == h2 => Hole(h1)
-  | (Hole(EmptyHole), Hole(EmptyHole) | SynSwitch)
-  | (SynSwitch, Hole(EmptyHole)) => Hole(EmptyHole)
-  | (SynSwitch, Internal)
-  | (Internal, SynSwitch) => SynSwitch
-  | (Internal | Hole(_), _)
-  | (_, Hole(_)) => Internal
+  | (Hole(h1, p), Hole(h2, _)) when h1 == h2 => Hole(h1, p)
+  | (Hole(EmptyHole, p), Hole(EmptyHole, _) | SynSwitch(_))
+  | (SynSwitch(_), Hole(EmptyHole, p)) => Hole(EmptyHole, p)
+  | (SynSwitch(p), Internal(_))
+  | (SynSwitch(p), Matched(_))
+  | (Internal(_), SynSwitch(p)) => SynSwitch(p)
+  | (Internal(p) | Hole(_), _)
+  | (_, Hole(_)) => Internal(p)
   | (SynSwitch, SynSwitch) => SynSwitch
   };
 
@@ -291,7 +299,14 @@ let rec aliases_deep = (ctx: Ctx.t, ty: t): list((string, t)) => {
       var =>
         switch (Ctx.lookup_alias(ctx, var)) {
         | Some(ty) => [(var, ty)]
-        | None => [(var, fresh(Unknown(Internal)))]
+        | None => [
+            (
+              var,
+              fresh(
+                Unknown((Internal: TermBase.Prov.term) |> IdTagged.fresh),
+              ),
+            ),
+          ]
         },
       vars(ty),
     )
@@ -528,7 +543,7 @@ let rec match_synswitch = (t1: t, t2: t) => {
   let (term1, rewrap1) = unwrap(t1);
   switch (term1, term_of(t2)) {
   | (Parens(t1), _) => Parens(match_synswitch(t1, t2)) |> rewrap1
-  | (Unknown(SynSwitch), _) => t2
+  | (Unknown({term: SynSwitch, _}), _) => t2
   // These cases can't have a synswitch inside
   | (Unknown(_), _)
   | (Atom(_), _)
@@ -637,29 +652,93 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
 let rec matched_arrow_strict = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
   | Parens(ty) => matched_arrow_strict(ctx, ty)
-  | Arrow(ty_in, ty_out) => Some((ty_in, ty_out))
-  | Unknown(SynSwitch) =>
-    Some((Unknown(SynSwitch) |> temp, Unknown(SynSwitch) |> temp))
+  | Arrow(ty_in, ty_out) => Some((ty_in, ty_out, []))
+  | Unknown({term: SynSwitch, annotation}) =>
+    let left_arr =
+      Unknown({
+        term: Matched(LArrow(SynSwitch)),
+        annotation,
+      })
+      |> temp;
+    let right_arr =
+      Unknown({
+        term: Matched(RArrow(SynSwitch)),
+        annotation,
+      })
+      |> temp;
+    Some((
+      left_arr,
+      right_arr,
+      [Con(ty, Arrow(left_arr, right_arr) |> temp)],
+    ));
   | _ => None
   };
 
-let matched_arrow = (ctx, ty) =>
-  matched_arrow_strict(ctx, ty)
-  |> Option.value(
-       ~default=(Unknown(Internal) |> temp, Unknown(Internal) |> temp),
-     );
+let matched_arrow = (ctx, ty) => {
+  switch (matched_arrow_strict(ctx, ty)) {
+  | Some(v) => v
+  | None =>
+    switch (term_of(weak_head_normalize(ctx, ty))) {
+    | Unknown({term: t, annotation}) =>
+      let left_arr =
+        Unknown({
+          term: Matched(LArrow(t)),
+          annotation,
+        })
+        |> temp;
+      let right_arr =
+        Unknown({
+          term: Matched(RArrow(t)),
+          annotation,
+        })
+        |> temp;
+      (left_arr, right_arr, [Con(ty, Arrow(left_arr, right_arr) |> temp)]);
+    | _ =>
+      let prov =
+        (Internal: TermBase.Prov.term) |> IdTagged.fresh;
+      let left_arr =
+        Unknown({
+          term: prov.term,
+          annotation: prov.annotation,
+        })
+        |> temp;
+      let right_arr =
+        Unknown({
+          term: prov.term,
+          annotation: prov.annotation,
+        })
+        |> temp;
+      (left_arr, right_arr, [Con(ty, Arrow(left_arr, right_arr) |> temp)]);
+    }
+  };
+  // |> Option.value(
+  //      ~default=     );
+};
 
 let rec matched_forall_strict = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
   | Parens(ty) => matched_forall_strict(ctx, ty)
   | Forall(t, ty) => Some((Some(t), ty))
-  | Unknown(SynSwitch) => Some((None, Unknown(SynSwitch) |> temp))
+  | Unknown({term: SynSwitch, annotation}) =>
+    Some((
+      None,
+      Unknown({
+        term: SynSwitch,
+        annotation,
+      })
+      |> temp,
+    ))
   | _ => None
   };
 
 let matched_forall = (ctx, ty) =>
   matched_forall_strict(ctx, ty)
-  |> Option.value(~default=(None, Unknown(Internal) |> temp));
+  |> Option.value(
+       ~default=(
+         None,
+         Unknown((Internal: TermBase.Prov.term) |> IdTagged.fresh) |> temp,
+       ),
+     );
 
 let rec get_labels = (ctx, ty): list(option(string)) => {
   let ty = weak_head_normalize(ctx, ty);
@@ -781,7 +860,7 @@ let rec is_syn = (ty: t): bool =>
   switch (ty |> term_of) {
   | TupLabel(_, x)
   | Parens(x) => is_syn(x)
-  | Unknown(SynSwitch) => true
+  | Unknown({ term: SynSwitch, _ }) => true
   | Unknown(_)
   | Atom(_)
   | Label(_)
@@ -816,7 +895,7 @@ let rec is_syn_plus = (ty: t): bool =>
   switch (ty |> term_of) {
   | TupLabel(_, x)
   | Parens(x) => is_syn_plus(x)
-  | Unknown(SynSwitch) => true
+  | Unknown({ term: SynSwitch, _ }) => true
   | Arrow(t1, t2) => is_syn(t1) && is_syn_plus(t2)
   | Forall(_, t) => is_syn(t)
   | Unknown(_)

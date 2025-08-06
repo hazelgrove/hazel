@@ -204,7 +204,7 @@ and uexp_to_info_map =
       m: Map.t,
     )
     : (Info.exp, Map.t) => {
-  let add' = (~label_inference=?, ~self, ~co_ctx, m) => {
+  let add' = (~label_inference=?, ~self, ~co_ctx, ~constraints, m) => {
     let info =
       Info.derived_exp(
         ~uexp,
@@ -216,6 +216,7 @@ and uexp_to_info_map =
         ~label_inference,
         ~inferred_label,
         ~label_sort,
+        ~constraints,
       );
 
     (info, add_info(ids, InfoExp(info), m));
@@ -319,11 +320,11 @@ and uexp_to_info_map =
     (info, add_info(IdTagged.ids(elaborated_exp), InfoExp(info), m));
   };
   let atomic = self => {
-    add(~self, ~co_ctx=CoCtx.empty, m);
+    add(~self, ~co_ctx=CoCtx.empty, ~constraints=[], m);
   };
 
   // This is the case where we aren't a singleton labeled tuple
-  let default_case = () => {
+  let default_case = (): (Info.exp, Map.t) => {
     switch (term) {
     | Closure(_, e) =>
       // TODO: implement closure type checking properly - see how dynamic type assignment does it
@@ -1018,6 +1019,11 @@ and uexp_to_info_map =
       add(
         ~self=Self.match(ctx, [cons.ty, alt.ty], branch_ids),
         ~co_ctx=CoCtx.union([cond.co_ctx, cons.co_ctx, alt.co_ctx]),
+        ~constraints=
+          cond.constraints
+          @ cons.constraints
+          @ alt.constraints
+          @ [(cons.ty, alt.ty)],
         m,
       );
     | Match(scrut, rules) =>

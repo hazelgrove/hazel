@@ -112,7 +112,7 @@ and pat_term('a) =
   | Asc(pat_t('a), typ_t('a))
 and pat_t('a) = Annotated.t(pat_term('a), 'a)
 and typ_term('a) =
-  | Unknown(type_provenance('a))
+  | Unknown(type_provenance_t('a))
   | Atom(Atom.cls)
   | Var(string)
   | List(typ_t('a))
@@ -154,6 +154,11 @@ and type_provenance('a) =
   | SynSwitch
   | Hole(type_hole('a))
   | Internal
+  | Matched(matched_type_provenance('a))
+and matched_type_provenance('a) =
+  | LArrow(type_provenance('a))
+  | RArrow(type_provenance('a))
+and type_provenance_t('a) = Annotated.t(type_provenance('a), 'a)
 and filter('a) = {
   pat: exp_t('a),
   act: FilterAction.t,
@@ -323,7 +328,7 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
     {
       term:
         switch (term) {
-        | Unknown(p) => Unknown(map_type_provenance_annotation(f, p))
+        | Unknown(p) => Unknown(map_type_provenance_t_annotation(f, p))
         | Atom(c) => Atom(c)
         | Var(s) => Var(s)
         | List(t) => List(map_typ_annotation(f, t))
@@ -416,6 +421,25 @@ and map_type_provenance_annotation:
     | SynSwitch => SynSwitch
     | Hole(h) => Hole(map_type_hole_annotation(f, h))
     | Internal => Internal
+    | Matched(matched) =>
+      Matched(
+        switch (matched) {
+        | LArrow(p) => LArrow(map_type_provenance_annotation(f, p))
+        | RArrow(p) => RArrow(map_type_provenance_annotation(f, p))
+        },
+      )
+    };
+  }
+and map_type_provenance_t_annotation:
+  'a 'b.
+  ('a => 'b, type_provenance_t('a)) => type_provenance_t('b)
+ =
+  (f, e) => {
+    let (term, annotation) = (e.term, e.annotation);
+    let new_annotation = f(annotation);
+    {
+      term: map_type_provenance_annotation(f, term),
+      annotation: new_annotation,
     };
   }
 and map_type_hole_annotation:
@@ -800,8 +824,13 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Forall(tp, t),
       annotation: default_annotation(ann),
     };
+    // TODO: might need a separate annotation for the prov
     let empty_hole = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
-      term: Unknown(Hole(EmptyHole)),
+      term:
+        Unknown({
+          term: Hole(EmptyHole),
+          annotation: default_annotation(ann),
+        }),
       annotation: default_annotation(ann),
     };
   };
@@ -876,14 +905,23 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
   };
 
   module TypeProvenance = {
-    let syn_switch = (): type_provenance(DefaultAnnotation.t) => {
-      SynSwitch;
+    let syn_switch = (~ann): type_provenance_t(DefaultAnnotation.t) => {
+      {
+        term: SynSwitch,
+        annotation: default_annotation(ann),
+      };
     };
-    let hole = (h): type_provenance(DefaultAnnotation.t) => {
-      Hole(h);
+    let hole = (~ann, h): type_provenance_t(DefaultAnnotation.t) => {
+      {
+        term: Hole(h),
+        annotation: default_annotation(ann),
+      };
     };
-    let internal = (): type_provenance(DefaultAnnotation.t) => {
-      Internal;
+    let internal = (~ann): type_provenance_t(DefaultAnnotation.t) => {
+      {
+        term: Internal,
+        annotation: default_annotation(ann),
+      };
     };
   };
 };

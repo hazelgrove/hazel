@@ -248,6 +248,7 @@ type exp = {
   cls: Cls.t, /* DERIVED: Syntax class (i.e. form name) */
   status: status_exp, /* DERIVED: Ok/Error statuses for display */
   ty: Typ.t, /* DERIVED: Type after nonempty hole fixing */
+  constraints: list(Typ.equivalence),
   label_inference: option(label_inference(exp)), /* Label inference information for the tuple */
   inferred_label: option(LabeledTuple.label), /* Inferred label for an expression within the tuple */
   label_sort: bool /* When in the position of a label */
@@ -811,6 +812,7 @@ let derived_exp =
       ~label_inference: option(label_inference(exp)),
       ~inferred_label: option(LabeledTuple.label),
       ~label_sort,
+      ~constraints: list(Typ.equivalence),
     )
     : exp => {
   let cls = Cls.Exp(Exp.cls_of_term(uexp.term));
@@ -826,6 +828,7 @@ let derived_exp =
     co_ctx,
     ancestors,
     term: uexp,
+    constraints,
     label_inference,
     inferred_label,
     label_sort,

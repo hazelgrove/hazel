@@ -140,7 +140,10 @@ let lookup_alias = (ctx: t, name: string): option(TermBase.Typ.t) =>
   | Some(Abstract) => None
   | None =>
     Some(
-      (Unknown(Hole(Invalid(name))): TermBase.Typ.term) |> IdTagged.fresh,
+      (
+        Unknown((Hole(Invalid(name)): TermBase.Prov.term) |> IdTagged.fresh): TermBase.Typ.term
+      )
+      |> IdTagged.fresh,
     )
   };
 

@@ -71,6 +71,8 @@ type stepper_filter_kind_t = Grammar.stepper_filter_kind_t(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type type_hole = Grammar.type_hole(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
+type type_provenance_t = Grammar.type_provenance_t(IdTagged.IdTag.t);
+[@deriving (show({with_path: false}), sexp, yojson)]
 type type_provenance = Grammar.type_provenance(IdTagged.IdTag.t);
 [@deriving (show({with_path: false}), sexp, yojson)]
 type filter = Grammar.filter(IdTagged.IdTag.t);
@@ -539,6 +541,9 @@ and Typ: {
   type term = typ_term;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = typ_t;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type equivalence =
+    | Con(t, t);
 
   type sum_map = ConstructorMap.t(t);
 
@@ -563,6 +568,9 @@ and Typ: {
   type term = typ_term;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = typ_t;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type equivalence =
+    | Con(t, t);
 
   type sum_map = ConstructorMap.t(t);
 
@@ -586,16 +594,20 @@ and Typ: {
       ...exp,
       term:
         switch (term) {
-        | Unknown(Hole(EmptyHole))
-        | Unknown(Hole(Invalid(_)))
-        | Unknown(SynSwitch)
-        | Unknown(Internal)
+        | Unknown({term: Hole(EmptyHole), _})
+        | Unknown({term: Hole(Invalid(_)), _})
+        | Unknown({term: SynSwitch, _})
+        | Unknown({term: Internal, _})
+        | Unknown({term: Matched(_), _})
         | Atom(_)
         | Label(_)
         | Var(_) => term
         | List(t) => List(typ_map_term(t))
-        | Unknown(Hole(MultiHole(things))) =>
-          Unknown(Hole(MultiHole(List.map(any_map_term, things))))
+        | Unknown({term: Hole(MultiHole(things)), annotation}) =>
+          Unknown({
+            term: Hole(MultiHole(List.map(any_map_term, things))),
+            annotation,
+          })
         | Ap(e1, e2) => Ap(typ_map_term(e1), typ_map_term(e2))
         | Prod(xs) => Prod(List.map(typ_map_term, xs))
         | TupLabel(label, e) =>
@@ -1044,4 +1056,15 @@ and StepperFilterKind: {
     | (Filter(_), _)
     | (Residue(_), _) => false
     };
+}
+and Prov: {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type term = type_provenance;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = type_provenance_t;
+} = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type term = type_provenance;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = type_provenance_t;
 };
