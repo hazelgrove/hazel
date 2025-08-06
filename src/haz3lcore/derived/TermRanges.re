@@ -67,3 +67,47 @@ and mk = seg =>
     Hashtbl.add(range_hash, seg, res);
     res;
   };
+
+// let rec mk2' = (seg: Segment.t): Id.Map.t(Segment.t) => {
+//   let union:
+//     (Id.Map.t(Segment.t), Id.Map.t(Segment.t)) => Id.Map.t(Segment.t) =
+//     Id.Map.union((_, seg, _) => Some(seg));
+//   let rec go = (skel: Skel.t): (Segment.t, Id.Map.t(Segment.t)) => {
+//     let root = Skel.root(skel) |> Aba.map_a(List.nth(seg));
+//     let roof_of = root => root |> Aba.map_a(List.nth(seg));
+//     let root_l = Aba.first_a(root);
+//     let root_r = Aba.last_a(root);
+//     let (range: Segment.t, unichild_map) =
+//       switch (skel) {
+//       | Op(_) => ([root_l], empty)
+//       | Pre(_, r) =>
+//         let (seg_r, map) = go(r);
+//         ([root_l] @ seg_r, map);
+//       | Post(l, _) =>
+//         let (seg_l, map) = go(l);
+//         (seg_l @ [root_r], map);
+//       | Bin(l, xx, r) =>
+//         let (seg_l, map_l) = go(l);
+//         let (seg_r, map_r) = go(r);
+//         (seg_l @ [Aba.first_a(roof_of(xx))] @ seg_r, union(map_l, map_r));
+//       };
+//     let between_child_map =
+//       Aba.get_bs(root)
+//       |> List.map(go)
+//       |> List.map(snd)
+//       |> List.fold_left(union, empty);
+//     let map =
+//       Aba.get_as(root)
+//       |> List.map(Piece.id)
+//       |> List.fold_left(
+//            (map, id) => Id.Map.add(id, range, map),
+//            union(between_child_map, unichild_map),
+//          );
+//     (range, map);
+//   };
+//   Segment.children(seg)
+//   |> List.fold_left(
+//        (map, kid) => union(map, mk2'(kid)),
+//        union(empty, snd(go(Segment.skel(seg)))),
+//      );
+// };

@@ -204,55 +204,39 @@
 
 /* TILES */
 
-.tile-next-step path,
-.tile-next-step path *:not(.EmptyHole *, .EmptyHole) {
-  border: 1px var(--G1) !important;
+.overlays .child-line {
+  /* To make it align to shard shadows */
+  translate: 0 0.02px;
+}
+
+.step-next > svg.shard > path,
+.step-next > svg.shard > path *:not(.EmptyHole *, .EmptyHole) {
   fill: var(--G1) !important;
   cursor: pointer;
 }
 
-.tile-taken-step path,
-.tile-taken-step path *:not(.EmptyHole *, .EmptyHole) {
+.step-taken > svg.shard > path,
+.step-taken > svg.shard > path *:not(.EmptyHole *, .EmptyHole) {
   border: 1px var(--BR1);
   fill: var(--BR1);
 }
 
-.child-line.Exp.next-step-line {
+.step-next > svg > path.child-line {
   stroke: var(--G2);
 }
 
-.child-line.Exp.taken-step-line {
+.step-taken > svg > path.child-line {
   stroke: var(--BR1);
 }
 
-.taken-step-line {
-  stroke: var(--BR1);
-}
-
-.tile-next-step .tile-path.Exp.indicated {
-  fill: var(--G1);
-}
-
-.tile-taken-step .tile-path.Exp.indicated {
-  fill: var(--BR1);
-}
-
-svg.tile-next-step {
+.step-next > svg.shard {
   pointer-events: all;
   cursor: pointer;
   z-index: var(--stepper-interactive-z) !important;
   filter: drop-shadow(1px 1px var(--G2)) !important;
 }
 
-svg.tile-next-step-top {
-  pointer-events: all;
-  cursor: pointer;
-  visibility: hidden;
-  z-index: var(--stepper-interactive-z) !important;
-  filter: drop-shadow(1px 1px var(--G2)) !important;
-}
-
-svg.tile-taken-step {
+.step-taken > svg.shard {
   filter: drop-shadow(1px 1px var(--BR1)) !important;
 }
 

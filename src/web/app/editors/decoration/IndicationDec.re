@@ -255,3 +255,38 @@ let term =
     : list(Node.t) =>
   shards(~attr?, ~font_metrics, ~base_clss, tiles)
   @ paths(tiles, line_clss, font_metrics, rows, range);
+
+let term =
+    (
+      ~term_ranges: TermRanges.t,
+      ~terms: TermMap.t,
+      ~tiles: TileMap.t,
+      ~measured: Measured.t,
+      ~font_metrics: FontMetrics.t,
+      ~attr: option(list(Attr.t))=?,
+      tile: Tile.t,
+    )
+    : list(Node.t) => {
+  let msg = "IndicationDec.term";
+  let id = tile.id; //Language.Any.rep_id(Id.Map.find(tile.id, terms));
+  let term_range = {
+    switch (TermRanges.find_opt(id, term_ranges)) {
+    | None => None
+    | Some((p_l, p_r)) =>
+      let l = Measured.find_p(~msg, p_l, measured).origin;
+      let r = Measured.find_p(~msg, p_r, measured).last;
+      Some((l, r));
+    };
+  };
+  switch (term_range) {
+  | None => []
+  | Some(range) =>
+    let of_tile = (id: Id.t) => {
+      let tile: Tile.t = Id.Map.find(id, tiles);
+      (id, tile.mold, Measured.find_shards(~msg, tile, measured));
+    };
+    let tiles =
+      Id.Map.find(id, terms) |> Language.Any.ids |> List.map(of_tile);
+    term(~font_metrics, ~rows=measured.rows, ~tiles, range, ~attr?);
+  };
+};
