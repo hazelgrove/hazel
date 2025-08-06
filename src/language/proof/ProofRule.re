@@ -118,3 +118,12 @@ let can_eq =
   | Other(_) => (None, None)
   };
 };
+
+let is_active =
+    (~interfering_bindings: option(list(Var.t))=?, rule: t, exp: Exp.t)
+    : bool =>
+  switch (can_eq(~interfering_bindings?, rule, exp)) {
+  | (Some(_), _)
+  | (_, Some(_)) => true
+  | _ => false
+  };

@@ -7,7 +7,7 @@ open Haz3lcore;
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type open_box =
-    | AxiomsOpen
+    | AxiomsOpen(AxiomsBox.Model.t)
     | RewritesOpen({
         editor: CodeEditable.Model.t,
         cached_exp: Calc.saved(Exp.t),
@@ -46,12 +46,15 @@ module Model = {
 };
 
 module Update = {
+  open Updated;
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | ToggleAxioms
     | ProposeRewrite
     | UpdateResult(bool)
-    | RewriteEditorAction(CodeEditable.Update.t);
+    | RewriteEditorAction(CodeEditable.Update.t)
+    | AxiomBoxAction(AxiomsBox.Update.t);
 
   let update = (~settings, action, model: Model.t): Updated.t(Model.t) => {
     switch (action, model.open_box) {
@@ -59,8 +62,8 @@ module Update = {
       let open_box =
         switch (model.open_box) {
         | NoneOpen
-        | RewritesOpen(_) => Model.AxiomsOpen
-        | AxiomsOpen => Model.NoneOpen
+        | RewritesOpen(_) => Model.AxiomsOpen(AxiomsBox.Model.init)
+        | AxiomsOpen(_) => Model.NoneOpen
         };
       Model.{
         ...model,
@@ -71,7 +74,7 @@ module Update = {
       let open_box =
         switch (model.open_box) {
         | NoneOpen
-        | AxiomsOpen =>
+        | AxiomsOpen(_) =>
           Model.RewritesOpen({
             editor: CodeEditable.Model.mk(Editor.Model.mk(Zipper.init())),
             cached_exp: Calc.Pending,
@@ -85,7 +88,6 @@ module Update = {
       }
       |> Updated.return_quiet(~recalculate=true);
     | (RewriteEditorAction(action), RewritesOpen({editor, _} as r)) =>
-      open Updated;
       let* new_editor = CodeEditable.Update.update(~settings, action, editor);
       Model.{
         ...model,
@@ -107,6 +109,13 @@ module Update = {
       }
       |> Updated.return_quiet
     | (UpdateResult(_), _) => model |> Updated.return_quiet
+    | (AxiomBoxAction(action), AxiomsOpen(m)) =>
+      let* updated = AxiomsBox.Update.update(~settings, action, m);
+      Model.{
+        ...model,
+        open_box: Model.AxiomsOpen(updated),
+      };
+    | (AxiomBoxAction(_), _) => model |> Updated.return_quiet
     };
   };
 
@@ -115,7 +124,8 @@ module Update = {
     | ToggleAxioms
     | ProposeRewrite
     | UpdateResult(_)
-    | RewriteEditorAction(_) => false
+    | RewriteEditorAction(_)
+    | AxiomBoxAction(_) => false
     };
   };
 
@@ -169,10 +179,8 @@ module Update = {
     let assumptions =
       assumptions
       |> {
-        let.calc exp = selected_exp
+        let.calc _exp = selected_exp
         and.calc ctx = ctx;
-        open OptUtil.Syntax;
-        let* exp' = exp;
         let proof_ctx =
           ctx
           |> Ctx.get_var_entries
@@ -239,7 +247,8 @@ module Update = {
           cached_exp: cached_exp |> Calc.save,
           cached_result: cached_result |> Calc.get_value,
         });
-      | AxiomsOpen => AxiomsOpen
+      | AxiomsOpen(m) =>
+        AxiomsOpen(AxiomsBox.Update.calculate(~ctx, ~selected_exp, m))
       | NoneOpen => NoneOpen
       };
     {
@@ -260,7 +269,8 @@ module Selection = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
-    | RewriteEditor(CodeEditable.Selection.t);
+    | RewriteEditor(CodeEditable.Selection.t)
+    | AxiomBoxSelection(AxiomsBox.Selection.t);
 
   let get_cursor_info = (~selection: t, model: Model.t): cursor(Update.t) => {
     switch (selection, model.open_box) {
@@ -268,6 +278,10 @@ module Selection = {
       let+ ci = CodeEditable.Selection.get_cursor_info(~selection, editor);
       Update.RewriteEditorAction(ci);
     | (RewriteEditor(_), _) => empty
+    | (AxiomBoxSelection(selection), AxiomsOpen(m)) =>
+      let+ ci = AxiomsBox.Selection.get_cursor_info(~selection, m);
+      Update.AxiomBoxAction(ci);
+    | (AxiomBoxSelection(_), _) => empty
     };
   };
 
@@ -277,6 +291,10 @@ module Selection = {
       CodeEditable.Selection.handle_key_event(~selection, editor, event)
       |> Option.map(x => Update.RewriteEditorAction(x))
     | (RewriteEditor(_), _) => None
+    | (AxiomBoxSelection(selection), AxiomsOpen(m)) =>
+      AxiomsBox.Selection.handle_key_event(~selection, m, event)
+      |> Option.map(x => Update.AxiomBoxAction(x))
+    | (AxiomBoxSelection(_), _) => None
     };
   };
 };
@@ -494,10 +512,25 @@ module View = {
               @ {
                 switch (model.open_box) {
                 | NoneOpen => []
-                | AxiomsOpen => [
+                | AxiomsOpen(m) => [
                     div_c(
                       "axiom-box",
-                      view_assumptions(~globals, ~signal, model),
+                      AxiomsBox.View.view(
+                        ~globals,
+                        ~inject=
+                          (a: AxiomsBox.Update.t) =>
+                            inject(AxiomBoxAction(a)),
+                        ~take_focus=
+                          (s: AxiomsBox.Selection.t) =>
+                            signal(MakeActive(AxiomBoxSelection(s))),
+                        ~add_axiom_step=
+                          (a, b, c) => signal(AddAxiomStep(a, b, c)),
+                        ~selected_exp=
+                          model.selected_exp
+                          |> Calc.get_saved_exc(~print="Selected Exp")
+                          |> Option.value(~default=EmptyHole |> Exp.fresh, _),
+                        m,
+                      ),
                     ),
                   ]
                 | RewritesOpen({editor, cached_exp, cached_result}) =>
