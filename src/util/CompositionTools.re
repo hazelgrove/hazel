@@ -128,7 +128,18 @@ let action_of = (~tool_name: string, ~args: Maps.StringMap.t(string)): action =>
         )
       };
     Edit(UpdateBody(code));
-  | "update_pattern" => Edit(UpdatePattern("code"))
+  | "update_pattern" =>
+    let code =
+      switch (code) {
+      | Some(code) => code
+      | None =>
+        raise(
+          Failure(
+            "You must specify a code for the pattern you wish to update",
+          ),
+        )
+      };
+    Edit(UpdatePattern(code));
   | "update_expression" =>
     let code =
       switch (code) {

@@ -7,12 +7,7 @@ module Model = AssistantModel;
 
 open AssistantUpdateUtil;
 
-let mk_structure_edit_msg =
-    (
-      ~tool_call: OpenRouter.tool_call,
-      ~curr_node_info as _: AssistantTreeHelper.node,
-    )
-    : string =>
+let mk_structure_edit_msg = (~tool_call: OpenRouter.tool_call): string =>
   // AddToolLabel_3.0: what should the text content of this tool call to the user be?
   //                   (not to the llm, that is the string returned in AssistantModes.Composition.apply_action)
   try({
@@ -65,15 +60,25 @@ let intermediate_select_curr_node =
       editor.editor.state.zipper,
       editor.statics.info_map,
     );
-  let perform_action =
-    CodeEditable.Update.Perform(
-      Action.Select(
-        Tile(
-          Id(AssistantTreeHelper.id_of(curr_node_info), Direction.Right),
+  switch (curr_node_info) {
+  | Some(curr_node_info) =>
+    let perform_action =
+      CodeEditable.Update.Perform(
+        Action.Select(
+          Tile(
+            Id(AssistantTreeHelper.id_of(curr_node_info), Direction.Right),
+          ),
         ),
-      ),
-    );
-  let cell_action = CellEditor.Update.MainEditor(perform_action);
-  let scratch_action = Editors.Update.Scratch(CellAction(cell_action));
-  schedule_editor_action(scratch_action);
+      );
+    let cell_action = CellEditor.Update.MainEditor(perform_action);
+    let scratch_action = Editors.Update.Scratch(CellAction(cell_action));
+    schedule_editor_action(scratch_action);
+  | None =>
+    let perform_action = CodeEditable.Update.Perform(Action.Select(All));
+    let cell_action = CellEditor.Update.MainEditor(perform_action);
+    let scratch_action = Editors.Update.Scratch(CellAction(cell_action));
+    schedule_editor_action(scratch_action);
+  // Special case: No let or type alias expressions in the program.
+  // Just dump selection. It is assumed that the entire sketch is selected in this case.
+  };
 };

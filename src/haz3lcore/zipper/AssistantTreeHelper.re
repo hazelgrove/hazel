@@ -77,9 +77,7 @@ let mk_name_from_tpat = (tpat: TermBase.tpat_t) => {
 };
 
 // Finds the least upper binding node of the current term
-let rec curr_node_of =
-        (candidate: option(Info.t), info_map: Id.Map.t(Info.t))
-        : option(node) => {
+let is_node = (candidate: option(Info.t)): option(node) => {
   switch (candidate) {
   | Some(candidate) =>
     switch (candidate) {
@@ -103,19 +101,9 @@ let rec curr_node_of =
           sibling_idx: 0,
           name: mk_name_from_tpat(tpat),
         })
-      | _ =>
-        switch (Info.ancestors_of(candidate)) {
-        | [ancestor, ..._] =>
-          curr_node_of(Id.Map.find_opt(ancestor, info_map), info_map)
-        | _ => None
-        }
-      }
-    | _ =>
-      switch (Info.ancestors_of(candidate)) {
-      | [ancestor, ..._] =>
-        curr_node_of(Id.Map.find_opt(ancestor, info_map), info_map)
       | _ => None
       }
+    | _ => None
     }
   | None => None
   };
@@ -133,7 +121,8 @@ let rec curr_node_of =
 //     and m is the number of child terms of the parent node.
 // Compare this to the O(p) complexity of the full AST, where p is the number of
 // terms in the entire program.
-let build_sub_AST = (zipper: Zipper.t, info_map: Id.Map.t(Info.t)): node => {
+let build_sub_AST =
+    (zipper: Zipper.t, info_map: Id.Map.t(Info.t)): option(node) =>
   // 1. Bubble up from the current term to the lowest enclosing
   //    let binding. This is the current node.
   // 2. Bubble up from here, to the parent node. This is the root node.
@@ -143,67 +132,67 @@ let build_sub_AST = (zipper: Zipper.t, info_map: Id.Map.t(Info.t)): node => {
   // but we don't know whether the lowest ancestor has the current term in its
   // body or definiton. If it is the former, then that node is just a sibling,
   // it is the former that we want.
-
   // The term the cursor is currently at
   // This actually is not needed for building the AST, and was used
   // as an ad-hoc path to get the root term of the InfoMap
   // Todo: find simpler, sensible way to get the root term
-
-  let zipper = move_to_non_whitespace(zipper);
-  let curr_term = Indicated.ci_of(zipper, info_map);
-  switch (curr_term) {
-  | Some(_) => print_endline("okay term")
-  // todo: debug
-  | None => raise(Failure("No current term found"))
-  };
-  let curr_node =
-    switch (curr_node_of(curr_term, info_map)) {
-    | Some(node) => node
-    | None => raise(Failure("No current node found in the info map"))
-    };
-
-  // Requires: The list of ancestor terms must come from the info of the current node.
-  let rec parent_node_of =
-          (ancestors: list(Id.t), departure_point: Info.t): option(node) => {
-    switch (ancestors) {
-    | [candidate, ...rest] =>
-      let candidate = Id.Map.find(candidate, info_map);
-      switch (candidate) {
-      | InfoExp({term, _}) =>
-        switch (Exp.term_of(term)) {
-        | Let(pat, def, _) =>
-          let def_if = Exp.rep_id(def);
-          if (Id.equal(def_if, Info.id_of(departure_point))) {
-            Some({
-              info: candidate,
-              parent: None,
-              siblings: [],
-              children: [],
-              sibling_idx: 0,
-              name: mk_name_from_pat(pat),
-            });
-          } else {
-            parent_node_of(rest, candidate);
-          };
-        | _ => parent_node_of(rest, candidate)
+  try({
+    let zipper = move_to_non_whitespace(zipper);
+    let curr_term = Indicated.ci_of(zipper, info_map);
+    let curr_node =
+      switch (
+        {
+          let* term = curr_term;
+          List.find_map(
+            ancestor => is_node(Id.Map.find_opt(ancestor, info_map)),
+            [Info.id_of(term), ...Info.ancestors_of(term)],
+          );
         }
+      ) {
+      | Some(node) => node
+      | None => raise(Failure("No current node found in the info map"))
+      };
+
+    // Requires: The list of ancestor terms must come from the info of the current node.
+    let rec parent_node_of =
+            (ancestors: list(Id.t), departure_point: Info.t): option(node) =>
+      switch (ancestors) {
+      | [candidate, ...rest] =>
+        let candidate = Id.Map.find(candidate, info_map);
+        switch (candidate) {
+        | InfoExp({term, _}) =>
+          switch (Exp.term_of(term)) {
+          | Let(pat, def, _) =>
+            let def_if = Exp.rep_id(def);
+            if (Id.equal(def_if, Info.id_of(departure_point))) {
+              Some({
+                info: candidate,
+                parent: None,
+                siblings: [],
+                children: [],
+                sibling_idx: 0,
+                name: mk_name_from_pat(pat),
+              });
+            } else {
+              parent_node_of(rest, candidate);
+            };
+          | _ => parent_node_of(rest, candidate)
+          }
+        | _ => None
+        };
       | _ => None
       };
-    | _ => None
-    };
-  };
 
-  // Finding the children of a node is just
-  // recursively accumulating let bindings in in the definion of the current node
-  // The base case being once we reach atomic terms in the body.
-  // Note: We never recurse on the definition of am inner (child) let binding,
-  // as this would imply going on a level deeper in the AST
-  // Requires: The initial term must be the info of the current node.
-  let child_nodes_of =
-      (curr_node: option(node), initial_candidate: option(Info.t))
-      : list(node) => {
-    let mk_child_node = (name: string, child: Info.t, idx: int): node => {
-      {
+    // Finding the children of a node is just
+    // recursively accumulating let bindings in in the definion of the current node
+    // The base case being once we reach atomic terms in the body.
+    // Note: We never recurse on the definition of am inner (child) let binding,
+    // as this would imply going on a level deeper in the AST
+    // Requires: The initial term must be the info of the current node.
+    let child_nodes_of =
+        (curr_node: option(node), initial_candidate: option(Info.t))
+        : list(node) => {
+      let mk_child_node = (name: string, child: Info.t, idx: int): node => {
         info: child,
         parent: curr_node,
         siblings: [],
@@ -211,188 +200,203 @@ let build_sub_AST = (zipper: Zipper.t, info_map: Id.Map.t(Info.t)): node => {
         sibling_idx: idx,
         name,
       };
-    };
-    let convert_for_recursion = (term: Exp.t): Info.t => {
-      let e = Exp.rep_id(term);
-      Id.Map.find(e, info_map);
-    };
-    let rec find_children =
-            (candidate: Info.t, children: list(node), count: int)
-            : list(node) => {
-      switch (candidate) {
-      | InfoExp({term, _}) =>
-        switch (Exp.term_of(term)) {
-        | Let(pat, _, body) =>
-          let node = mk_child_node(mk_name_from_pat(pat), candidate, count);
-          find_children(
-            convert_for_recursion(body),
-            children @ [node],
-            count + 1,
-          );
-        // It is also useful to add type defintions to the def-structured AST
-        | TyAlias(tpat, _, body) =>
-          let node =
-            mk_child_node(mk_name_from_tpat(tpat), candidate, count);
-          find_children(
-            convert_for_recursion(body),
-            children @ [node],
-            count + 1,
-          );
-        | Fun(_, e, _, _)
-        // As for the rest of the expression cases, we can just recurse on their child
-        // expressions, passing the current parent/level as the arguments. (This
-        // maintains the idea of an AST structured into levels based on definitions)
-        | UnOp(_, e)
-        | Test(e)
-        | Parens(e)
-        | Filter(_, e)
-        | Closure(_, e)
-        | Probe(e, _)
-        | Asc(e, _)
-        | FixF(_, e, _)
-        | Use(_, e)
-        | TypAp(e, _)
-        | DeferredAp(e, _)
-        | Seq(e, _)
-        | HintedTest(e, _) =>
-          find_children(convert_for_recursion(e), children, count)
-        | Ap(_, e1, e2)
-        | Dot(e1, e2)
-        | TupLabel(e1, e2)
-        | Cons(e1, e2)
-        | ListConcat(e1, e2)
-        | BinOp(_, e1, e2) =>
-          let children' =
-            find_children(convert_for_recursion(e1), children, count);
-          find_children(convert_for_recursion(e2), children', count);
-        | Tuple(es)
-        | ListLit(es) =>
-          List.fold_left(
-            (children, e) => {
-              find_children(convert_for_recursion(e), children, count)
-            },
-            children,
-            es,
-          )
-        | If(e1, e2, e3) =>
-          let children' =
-            find_children(convert_for_recursion(e1), children, count);
-          let children'' =
+      let convert_for_recursion = (term: Exp.t): Info.t => {
+        let e = Exp.rep_id(term);
+        Id.Map.find(e, info_map);
+      };
+      let rec find_children =
+              (candidate: Info.t, children: list(node), count: int)
+              : list(node) =>
+        switch (candidate) {
+        | InfoExp({term, _}) =>
+          switch (Exp.term_of(term)) {
+          | Let(pat, _, body) =>
+            let node =
+              mk_child_node(mk_name_from_pat(pat), candidate, count);
+            find_children(
+              convert_for_recursion(body),
+              children @ [node],
+              count + 1,
+            );
+          // It is also useful to add type defintions to the def-structured AST
+          | TyAlias(tpat, _, body) =>
+            let node =
+              mk_child_node(mk_name_from_tpat(tpat), candidate, count);
+            find_children(
+              convert_for_recursion(body),
+              children @ [node],
+              count + 1,
+            );
+          | Fun(_, e, _, _)
+          // As for the rest of the expression cases, we can just recurse on their child
+          // expressions, passing the current parent/level as the arguments. (This
+          // maintains the idea of an AST structured into levels based on definitions)
+          | UnOp(_, e)
+          | Test(e)
+          | Parens(e)
+          | Filter(_, e)
+          | Closure(_, e)
+          | Probe(e, _)
+          | Asc(e, _)
+          | FixF(_, e, _)
+          | Use(_, e)
+          | TypAp(e, _)
+          | DeferredAp(e, _)
+          | Seq(e, _)
+          | HintedTest(e, _) =>
+            find_children(convert_for_recursion(e), children, count)
+          | Ap(_, e1, e2)
+          | Dot(e1, e2)
+          | TupLabel(e1, e2)
+          | Cons(e1, e2)
+          | ListConcat(e1, e2)
+          | BinOp(_, e1, e2) =>
+            let children' =
+              find_children(convert_for_recursion(e1), children, count);
             find_children(convert_for_recursion(e2), children', count);
-          find_children(convert_for_recursion(e3), children'', count);
-        | Match(e, branches) =>
-          let children' =
-            find_children(convert_for_recursion(e), children, count);
-          List.fold_left(
-            (children, (_pat, branch_e)) => {
-              find_children(convert_for_recursion(branch_e), children, count)
-            },
-            children',
-            branches,
-          );
-        | BuiltinFun(_)
-        | Label(_)
-        | EmptyHole
-        | Undefined
-        | Invalid(_)
-        | MultiHole(_)
-        | DynamicErrorHole(_, _)
-        | Deferral(_)
-        | Atom(_)
-        | Constructor(_, _)
-        | TypFun(_, _, _)
-        | LivelitName(_)
-        | Var(_) => children
+          | Tuple(es)
+          | ListLit(es) =>
+            List.fold_left(
+              (children, e) => {
+                find_children(convert_for_recursion(e), children, count)
+              },
+              children,
+              es,
+            )
+          | If(e1, e2, e3) =>
+            let children' =
+              find_children(convert_for_recursion(e1), children, count);
+            let children'' =
+              find_children(convert_for_recursion(e2), children', count);
+            find_children(convert_for_recursion(e3), children'', count);
+          | Match(e, branches) =>
+            let children' =
+              find_children(convert_for_recursion(e), children, count);
+            List.fold_left(
+              (children, (_pat, branch_e)) => {
+                find_children(
+                  convert_for_recursion(branch_e),
+                  children,
+                  count,
+                )
+              },
+              children',
+              branches,
+            );
+          | BuiltinFun(_)
+          | Label(_)
+          | EmptyHole
+          | Undefined
+          | Invalid(_)
+          | MultiHole(_)
+          | DynamicErrorHole(_, _)
+          | Deferral(_)
+          | Atom(_)
+          | Constructor(_, _)
+          | TypFun(_, _, _)
+          | LivelitName(_)
+          | Var(_) => children
+          }
+        | _ => children
+        };
+      switch (initial_candidate) {
+      | None =>
+        switch (curr_node) {
+        | None => []
+        | Some(node) =>
+          let initial_candidate =
+            switch (node.info) {
+            | InfoExp({term, _}) =>
+              switch (Exp.term_of(term)) {
+              | Let(_, def, _) =>
+                Some(Id.Map.find(Exp.rep_id(def), info_map))
+              | _ => None
+              }
+            | _ => None
+            };
+          switch (initial_candidate) {
+          | Some(initial_candidate) =>
+            find_children(initial_candidate, [], 0)
+          | None => []
+          };
         }
-      | _ => children
+      | Some(initial_candidate) => find_children(initial_candidate, [], 0)
       };
     };
-    switch (initial_candidate) {
-    | None =>
-      switch (curr_node) {
-      | None => []
-      | Some(node) =>
-        let initial_candidate =
-          switch (node.info) {
-          | InfoExp({term, _}) =>
-            switch (Exp.term_of(term)) {
-            | Let(_, def, _) =>
-              Some(Id.Map.find(Exp.rep_id(def), info_map))
-            | _ => None
-            }
-          | _ => None
+
+    // Requires: The curr node must have already had its parent attempted to be found.
+    let get_siblings_of = (node: node): list(node) =>
+      switch (node.parent) {
+      | Some(parent) =>
+        // don't include the current node in the siblings
+        List.filter(
+          n => n.name !== node.name,
+          child_nodes_of(Some(parent), None),
+        )
+      | None =>
+        // This is a special case.
+        // Type/let expression at the top level of the program don't have an explicit "parent",
+        // however, they can still be thought of as all being siblings of each other.
+        // This becomes more clear if we wrap them all in a singular "root"/"global" program binding.info
+        // Nevertheless, we handle the special case here.
+        let oldest_ancestor_id =
+          ListUtil.hd_opt(List.rev(Info.ancestors_of(node.info)));
+        let oldest_ancestor =
+          switch (oldest_ancestor_id) {
+          | Some(id) => Id.Map.find(id, info_map)
+          | None => node.info
           };
-        switch (initial_candidate) {
-        | Some(initial_candidate) => find_children(initial_candidate, [], 0)
-        | None => []
-        };
-      }
-    | Some(initial_candidate) => find_children(initial_candidate, [], 0)
+        List.filter(
+          n => n.name !== node.name,
+          child_nodes_of(None, Some(oldest_ancestor)),
+        );
+      };
+
+    let curr_node = {
+      ...curr_node,
+      parent:
+        parent_node_of(Info.ancestors_of(curr_node.info), curr_node.info),
     };
+    let curr_node = {
+      ...curr_node,
+      children: child_nodes_of(Some(curr_node), None),
+      siblings: get_siblings_of(curr_node),
+    };
+    // print the current node, parent, children, siblings, and their naems
+    print_endline("curr node: " ++ curr_node.name);
+    print_endline(
+      "parent: "
+      ++ (
+        switch (curr_node.parent) {
+        | Some(parent) => parent.name
+        | None => "None"
+        }
+      ),
+    );
+    print_endline(
+      "children: "
+      ++ String.concat(
+           ", ",
+           List.map(child => child.name, curr_node.children),
+         ),
+    );
+    print_endline(
+      "siblings: "
+      ++ String.concat(
+           ", ",
+           List.map(sibling => sibling.name, curr_node.siblings),
+         ),
+    );
+    Some(curr_node);
+  }) {
+  | _ => None
   };
 
-  // Requires: The curr node must have already had its parent attempted to be found.
-  let get_siblings_of = (node: node): list(node) => {
-    switch (node.parent) {
-    | Some(parent) =>
-      // don't include the current node in the siblings
-      List.filter(
-        n => n.name !== node.name,
-        child_nodes_of(Some(parent), None),
-      )
-    | None =>
-      // This is a special case.
-      // Type/let expression at the top level of the program don't have an explicit "parent",
-      // however, they can still be thought of as all being siblings of each other.
-      // This becomes more clear if we wrap them all in a singular "root"/"global" program binding.info
-      // Nevertheless, we handle the special case here.
-      let oldest_ancestor_id =
-        ListUtil.hd_opt(List.rev(Info.ancestors_of(node.info)));
-      let oldest_ancestor =
-        switch (oldest_ancestor_id) {
-        | Some(id) => Id.Map.find(id, info_map)
-        | None => node.info
-        };
-      List.filter(
-        n => n.name !== node.name,
-        child_nodes_of(None, Some(oldest_ancestor)),
-      );
-    };
+let get_node = (curr_node_info: option(node)) => {
+  switch (curr_node_info) {
+  | Some(curr_node_info) => curr_node_info
+  | None => raise(Failure("No current node found in the info map"))
   };
-
-  let curr_node = {
-    ...curr_node,
-    parent:
-      parent_node_of(Info.ancestors_of(curr_node.info), curr_node.info),
-  };
-  let curr_node = {
-    ...curr_node,
-    children: child_nodes_of(Some(curr_node), None),
-    siblings: get_siblings_of(curr_node),
-  };
-  // print the current node, parent, children, siblings, and their naems
-  print_endline("curr node: " ++ curr_node.name);
-  print_endline(
-    "parent: "
-    ++ (
-      switch (curr_node.parent) {
-      | Some(parent) => parent.name
-      | None => "None"
-      }
-    ),
-  );
-  print_endline(
-    "children: "
-    ++ String.concat(", ", List.map(child => child.name, curr_node.children)),
-  );
-  print_endline(
-    "siblings: "
-    ++ String.concat(
-         ", ",
-         List.map(sibling => sibling.name, curr_node.siblings),
-       ),
-  );
-  curr_node;
 };
 
 // TODO: Build a function to get the path to the current node.
@@ -413,7 +417,8 @@ let safe_move =
 
   print_endline("here #8.0 safe_move");
 
-  let curr_node_info = build_sub_AST(z, info_map);
+  // If we are moving, then it should be the case that we are at an existing node.
+  let curr_node_info = get_node(build_sub_AST(z, info_map));
 
   print_endline("here #8.1 safe_move (after building sub AST)");
 

@@ -108,17 +108,30 @@ let print =
     };
     print(
       context(
-        build_sub_AST(editor.editor.state.zipper, editor.statics.info_map),
+        get_node(
+          build_sub_AST(editor.editor.state.zipper, editor.statics.info_map),
+        ),
       ),
     );
   | "F11" =>
     //simple curr node id print
     let curr_node =
-      AssistantTreeHelper.build_sub_AST(
-        editor.editor.state.zipper,
-        editor.statics.info_map,
+      get_node(
+        AssistantTreeHelper.build_sub_AST(
+          editor.editor.state.zipper,
+          editor.statics.info_map,
+        ),
       );
     print("curr node id: " ++ Id.to_string(Info.id_of(curr_node.info)));
+  | "F12" =>
+    let curr_node =
+      get_node(
+        AssistantTreeHelper.build_sub_AST(
+          editor.editor.state.zipper,
+          editor.statics.info_map,
+        ),
+      );
+    ();
   | _ => print("DEBUG: No action for key: " ++ key)
   };
 };

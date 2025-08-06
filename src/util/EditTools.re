@@ -209,6 +209,7 @@ let c : Int = ⋱ in
 ?
 ```
 (Note how the cursor/node position has also changed, and is now at the latest newly defined expression "d")
+(Note that this is the only tool that can be called in the special case where there are no let or type alias expressions in the program, in which case, calling this tool will overwrite the entire program with the argument passed into 'code'.)
 |};
 
 let update_expression: API.Json.t =

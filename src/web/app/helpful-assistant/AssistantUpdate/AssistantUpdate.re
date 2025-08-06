@@ -568,7 +568,7 @@ let update =
             display:
               Some(
                 Model.mk_message_display(
-                  ~content=mk_structure_edit_msg(~tool_call, ~curr_node_info),
+                  ~content=mk_structure_edit_msg(~tool_call),
                 ),
               ),
             role: Tool,

@@ -214,7 +214,7 @@ let parse_blocks = (response: string): list(block_kind) => {
 
 let mk_message_display = (~content: string): display => {
   {
-    displayable_content: parse_blocks(content),
+    displayable_content: [Text(content)], //parse_blocks(content),
     // String.length(content) <= max_collapsed_length
     //   ? parse_blocks(content) : [Text(content)],
     raw_content: content,

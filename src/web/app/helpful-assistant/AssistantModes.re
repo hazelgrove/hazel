@@ -196,104 +196,151 @@ module Composition = {
       "here #b after building sub AST in mk_local_code_map_prompt",
     );
 
-    let curr_node_str = "Current node: " ++ curr_node_info.name;
-    let parent_node_str =
-      switch (curr_node_info.parent) {
-      | Some(parent) => "Parent node: " ++ parent.name
-      | None => "No parent node, you are at the top level of the program's AST."
-      };
-    let siblings_nodes_str =
-      "Sibling nodes: ["
-      ++ String.concat(
-           ", ",
-           List.mapi(
-             (index, node: AssistantTreeHelper.node) =>
-               node.name ++ " (index: " ++ string_of_int(index) ++ ")",
-             curr_node_info.siblings,
-           ),
-         )
-      ++ "]";
-    let children_nodes_str =
-      "Child nodes: ["
-      ++ String.concat(
-           ", ",
-           List.mapi(
-             (index, node: AssistantTreeHelper.node) =>
-               node.name ++ " (index: " ++ string_of_int(index) ++ ")",
-             curr_node_info.children,
-           ),
-         )
-      ++ "]";
+    switch (curr_node_info) {
+    | None =>
+      // Special case: No let or type alias expressions in the program.
+      // Just dump selection. It is assumed that the entire sketch is selected in this case.
+      let sketch_seg = editor.editor.state.zipper.selection.content;
+      let sketch_seg_str = Printer.of_segment(~holes="?", sketch_seg);
+      let sketch_seg_hd_str = "No let or type alias expressions found in the program, unable to derive any meaningful AST information. Selecting the entire program:\n```";
+      let sketch_seg_tl_str = "```";
+      let sketch_str =
+        String.concat(
+          "\n",
+          [sketch_seg_hd_str, sketch_seg_str, sketch_seg_tl_str],
+        );
 
-    let sketch_seg =
-      ChatLSP.View.definition(editor.editor.state.zipper, curr_node_info);
+      let static_errors = ErrorPrint.all(editor.statics.info_map);
+      let static_errors_str =
+        switch (static_errors) {
+        | [] => "\nNo static errors found in the program."
+        | _ => "\nStatic errors: " ++ String.concat(", ", static_errors)
+        };
 
-    let sketch_seg_hd_str =
-      "Definition of \""
-      ++ curr_node_info.name
-      ++ "\"'s parent "
-      ++ (
+      let sketch_info_str =
+        String.concat(
+          "\n",
+          [
+            "<Sketch information>",
+            sketch_str,
+            static_errors_str,
+            "</Sketch information>",
+          ],
+        );
+      let local_code_map_str = sketch_info_str;
+
+      (
+        OpenRouter.mk_user_msg(local_code_map_str),
+        {
+          displayable_content: [
+            Text(sketch_seg_hd_str),
+            //Code(sketch_seg), // todo: there's a skel failure happening here
+            Text(sketch_seg_tl_str ++ static_errors_str),
+          ],
+          raw_content: local_code_map_str,
+          collapsed: true,
+        },
+      );
+    | Some(curr_node_info) =>
+      let curr_node_str = "Current node: " ++ curr_node_info.name;
+      let parent_node_str =
         switch (curr_node_info.parent) {
-        | Some(parent) => "\"" ++ parent.name ++ "\""
-        | None => "(no parent, displaying entire top level of the program)"
-        }
-      )
-      ++ "\":\n```";
-    let sketch_seg_str =
-      Printer.of_segment(~holes="?", ~special_folds=true, sketch_seg);
-    let sketch_seg_tl_str = "```";
-    let def_str =
-      String.concat(
-        "\n",
-        [sketch_seg_hd_str, sketch_seg_str, sketch_seg_tl_str],
+        | Some(parent) => "Parent node: " ++ parent.name
+        | None => "No parent node, you are at the top level of the program's AST."
+        };
+      let siblings_nodes_str =
+        "Sibling nodes: ["
+        ++ String.concat(
+             ", ",
+             List.mapi(
+               (index, node: AssistantTreeHelper.node) =>
+                 node.name ++ " (index: " ++ string_of_int(index) ++ ")",
+               curr_node_info.siblings,
+             ),
+           )
+        ++ "]";
+      let children_nodes_str =
+        "Child nodes: ["
+        ++ String.concat(
+             ", ",
+             List.mapi(
+               (index, node: AssistantTreeHelper.node) =>
+                 node.name ++ " (index: " ++ string_of_int(index) ++ ")",
+               curr_node_info.children,
+             ),
+           )
+        ++ "]";
+
+      let sketch_seg =
+        ChatLSP.View.definition(editor.editor.state.zipper, curr_node_info);
+
+      let sketch_seg_hd_str =
+        "Definition of \""
+        ++ curr_node_info.name
+        ++ "\"'s parent "
+        ++ (
+          switch (curr_node_info.parent) {
+          | Some(parent) => "\"" ++ parent.name ++ "\""
+          | None => "(no parent, displaying entire top level of the program)"
+          }
+        )
+        ++ "\":\n```";
+      let sketch_seg_str =
+        Printer.of_segment(~holes="?", ~special_folds=true, sketch_seg);
+      let sketch_seg_tl_str = "```";
+      let def_str =
+        String.concat(
+          "\n",
+          [sketch_seg_hd_str, sketch_seg_str, sketch_seg_tl_str],
+        );
+
+      let static_errors = ErrorPrint.all(editor.statics.info_map);
+      let static_errors_str =
+        switch (static_errors) {
+        | [] => "\nNo static errors found in the program."
+        | _ => "\nStatic errors: " ++ String.concat(", ", static_errors)
+        };
+
+      let ast_info_str =
+        String.concat(
+          "\n",
+          [
+            "<AST information>",
+            curr_node_str,
+            parent_node_str,
+            siblings_nodes_str,
+            children_nodes_str,
+            "</AST information>",
+          ],
+        );
+
+      let sketch_info_str =
+        String.concat(
+          "\n",
+          [
+            "<Sketch information>",
+            def_str,
+            static_errors_str,
+            "</Sketch information>",
+          ],
+        );
+
+      let local_code_map_str =
+        String.concat("\n", [ast_info_str, sketch_info_str]);
+
+      (
+        OpenRouter.mk_user_msg(local_code_map_str),
+        {
+          displayable_content: [
+            Text(ast_info_str ++ sketch_seg_hd_str),
+            //Code(sketch_seg), //todo: avoid skel failures
+            Text(sketch_seg_tl_str ++ static_errors_str),
+          ],
+          raw_content: local_code_map_str,
+          collapsed: true,
+        },
       );
-
-    let static_errors = ErrorPrint.all(editor.statics.info_map);
-    let static_errors_str =
-      switch (static_errors) {
-      | [] => "\nNo static errors found in the program."
-      | _ => "\nStatic errors: " ++ String.concat(", ", static_errors)
-      };
-
-    let ast_info_str =
-      String.concat(
-        "\n",
-        [
-          "<AST information>",
-          curr_node_str,
-          parent_node_str,
-          siblings_nodes_str,
-          children_nodes_str,
-          "</AST information>",
-        ],
-      );
-
-    let sketch_info_str =
-      String.concat(
-        "\n",
-        [
-          "<Sketch information>",
-          def_str,
-          static_errors_str,
-          "</Sketch information>",
-        ],
-      );
-
-    let local_code_map_str =
-      String.concat("\n", [ast_info_str, sketch_info_str]);
-
-    (
-      OpenRouter.mk_user_msg(local_code_map_str),
-      {
-        displayable_content: [
-          Text(ast_info_str ++ sketch_seg_hd_str),
-          Code(sketch_seg),
-          Text(sketch_seg_tl_str ++ static_errors_str),
-        ],
-        raw_content: local_code_map_str,
-        collapsed: true,
-      },
-    );
+    };
   };
 
   type result = string;
@@ -363,7 +410,7 @@ module Composition = {
         ~editor: CodeWithStatics.Model.t,
         ~action: CompositionTools.action,
         ~schedule_action: Editors.Update.t => unit,
-        ~curr_node_info: AssistantTreeHelper.node,
+        ~curr_node_info: option(AssistantTreeHelper.node),
       )
       : result => {
     let schedule_actions = (actions: list(Action.t)) =>
@@ -372,196 +419,216 @@ module Composition = {
 
     print_endline("here #1 applying action");
 
-    switch (action) {
-    // Navigate to the parent node of the current node
-    | Nav(nav_action) =>
-      switch (nav_action) {
-      | GoToParent =>
-        switch (curr_node_info.parent) {
-        | None => raise(Failure("This node does not have a parent"))
-        | Some(parent) =>
-          let actions = [
+    switch (curr_node_info) {
+    | None =>
+      switch (action) {
+      | Edit(UpdateExpression(code)) =>
+        schedule_actions([
+          Action.Select(All),
+          Action.Paste(Assistant(code)),
+        ]);
+        "Your edits have been applied to the sketch.";
+      | _ =>
+        raise(
+          Failure(
+            "No let or type alias expressions found in the program, unable to derive any meaningful AST information. Please call update_expression to initialize the program or convert it to a meaningful state. Unable to apply any other actions.",
+          ),
+        )
+      }
+    | Some(curr_node_info) =>
+      switch (action) {
+      // Navigate to the parent node of the current node
+      | Nav(nav_action) =>
+        switch (nav_action) {
+        | GoToParent =>
+          switch (curr_node_info.parent) {
+          | None => raise(Failure("This node does not have a parent"))
+          | Some(parent) =>
+            let actions = [
+              Action.Select(
+                Tile(Id(Info.id_of(parent.info), Direction.Right)),
+              ),
+            ];
+            schedule_actions(actions);
+            "Cursor moved from \""
+            ++ curr_node_info.name
+            ++ "\" to its parent \""
+            ++ parent.name
+            ++ "\"";
+          }
+        | GoToChild(who, where) =>
+          // todo/idea: move candidates out here, maybe change indexing method?
+          // to assert referencing by both name and index...
+          // note: llms tend to be poor at logical/mathematical reasoning, and working with
+          //       numbers in general. Unfortunately, the very nature of the indexing fallback
+          //       method requires each variable to be unique, thus, I'd surmise that this pitfall
+          //       is unavoidable, nevertheless mitigatable via making the fallback method optional
+          // * applies to GoToSibling as well
+          let child =
+            switch (where) {
+            | None =>
+              // the llm provided no index, thus, use the name
+              let candidates =
+                List.filter(
+                  (child: AssistantTreeHelper.node) => child.name == who,
+                  curr_node_info.children,
+                );
+              if (List.length(candidates) > 1) {
+                raise(
+                  Failure(
+                    "Multiple children found, not sure how to resolve ambiguity. Please specify which child to reference via using the index associated with that child.",
+                  ),
+                );
+              };
+              switch (ListUtil.hd_opt(candidates)) {
+              | None =>
+                raise(
+                  Failure(
+                    "Child not found. Make sure the current node has children, and that the child you're referencing exists.",
+                  ),
+                )
+              | Some(child) => child
+              };
+            | Some(here) =>
+              // this means the llm provided an index to move to, in which case
+              // we default on using that as opposed to the name
+
+              switch (List.nth_opt(curr_node_info.children, here)) {
+              | None =>
+                raise(
+                  Failure(
+                    "Child index out of bounds. Make sure the current node has children, and that your given index is within bounds.",
+                  ),
+                )
+              | Some(child) => child
+              }
+            };
+          schedule_actions([
             Action.Select(
-              Tile(Id(Info.id_of(parent.info), Direction.Right)),
+              Tile(Id(Info.id_of(child.info), Direction.Right)),
             ),
-          ];
-          schedule_actions(actions);
+          ]);
           "Cursor moved from \""
           ++ curr_node_info.name
-          ++ "\" to its parent \""
-          ++ parent.name
+          ++ "\" to its child \""
+          ++ child.name
+          ++ "\"";
+        | GoToSibling(who, where) =>
+          let sibling =
+            switch (where) {
+            | None =>
+              let candidates =
+                List.filter(
+                  (sibling: AssistantTreeHelper.node) => sibling.name == who,
+                  curr_node_info.siblings,
+                );
+              if (List.length(candidates) > 1) {
+                raise(
+                  Failure(
+                    "Multiple siblings found, not sure how to resolve ambiguity. Please specify which sibling to reference via using the index associated with that sibling.",
+                  ),
+                );
+              };
+              switch (ListUtil.hd_opt(candidates)) {
+              | None =>
+                raise(
+                  Failure(
+                    "Sibling not found. Make sure the current node has siblings, and that the sibling you're referencing exists.",
+                  ),
+                )
+              | Some(sibling) => sibling
+              };
+            | Some(here) =>
+              switch (List.nth_opt(curr_node_info.siblings, here)) {
+              | None =>
+                raise(
+                  Failure(
+                    "Sibling index out of bounds. Make sure the current node has siblings, and that your given index is within bounds.",
+                  ),
+                )
+              | Some(sibling) => sibling
+              }
+            };
+          schedule_actions([
+            Action.Select(
+              Tile(Id(Info.id_of(sibling.info), Direction.Right)),
+            ),
+          ]);
+          "Cursor moved from \""
+          ++ curr_node_info.name
+          ++ "\" to its sibling \""
+          ++ sibling.name
           ++ "\"";
         }
-      | GoToChild(who, where) =>
-        // todo/idea: move candidates out here, maybe change indexing method?
-        // to assert referencing by both name and index...
-        // note: llms tend to be poor at logical/mathematical reasoning, and working with
-        //       numbers in general. Unfortunately, the very nature of the indexing fallback
-        //       method requires each variable to be unique, thus, I'd surmise that this pitfall
-        //       is unavoidable, nevertheless mitigatable via making the fallback method optional
-        // * applies to GoToSibling as well
-        let child =
-          switch (where) {
-          | None =>
-            // the llm provided no index, thus, use the name
-            let candidates =
-              List.filter(
-                (child: AssistantTreeHelper.node) => child.name == who,
-                curr_node_info.children,
-              );
-            if (List.length(candidates) > 1) {
-              raise(
-                Failure(
-                  "Multiple children found, not sure how to resolve ambiguity. Please specify which child to reference via using the index associated with that child.",
-                ),
-              );
-            };
-            switch (ListUtil.hd_opt(candidates)) {
-            | None =>
-              raise(
-                Failure(
-                  "Child not found. Make sure the current node has children, and that the child you're referencing exists.",
-                ),
-              )
-            | Some(child) => child
-            };
-          | Some(here) =>
-            // this means the llm provided an index to move to, in which case
-            // we default on using that as opposed to the name
-
-            switch (List.nth_opt(curr_node_info.children, here)) {
-            | None =>
-              raise(
-                Failure(
-                  "Child index out of bounds. Make sure the current node has children, and that your given index is within bounds.",
-                ),
-              )
-            | Some(child) => child
-            }
-          };
-        schedule_actions([
-          Action.Select(Tile(Id(Info.id_of(child.info), Direction.Right))),
-        ]);
-        "Cursor moved from \""
-        ++ curr_node_info.name
-        ++ "\" to its child \""
-        ++ child.name
-        ++ "\"";
-      | GoToSibling(who, where) =>
-        let sibling =
-          switch (where) {
-          | None =>
-            let candidates =
-              List.filter(
-                (sibling: AssistantTreeHelper.node) => sibling.name == who,
-                curr_node_info.siblings,
-              );
-            if (List.length(candidates) > 1) {
-              raise(
-                Failure(
-                  "Multiple siblings found, not sure how to resolve ambiguity. Please specify which sibling to reference via using the index associated with that sibling.",
-                ),
-              );
-            };
-            switch (ListUtil.hd_opt(candidates)) {
-            | None =>
-              raise(
-                Failure(
-                  "Sibling not found. Make sure the current node has siblings, and that the sibling you're referencing exists.",
-                ),
-              )
-            | Some(sibling) => sibling
-            };
-          | Some(here) =>
-            switch (List.nth_opt(curr_node_info.siblings, here)) {
-            | None =>
-              raise(
-                Failure(
-                  "Sibling index out of bounds. Make sure the current node has siblings, and that your given index is within bounds.",
-                ),
-              )
-            | Some(sibling) => sibling
-            }
-          };
-        schedule_actions([
-          Action.Select(
-            Tile(Id(Info.id_of(sibling.info), Direction.Right)),
-          ),
-        ]);
-        "Cursor moved from \""
-        ++ curr_node_info.name
-        ++ "\" to its sibling \""
-        ++ sibling.name
-        ++ "\"";
+      | Read(read_action) =>
+        switch (read_action) {
+        | ViewDefinition =>
+          "Definition of \""
+          ++ curr_node_info.name
+          ++ "\":\n```"
+          ++ Printer.of_segment(
+               ~holes="?",
+               ~special_folds=true,
+               ChatLSP.View.definition(
+                 editor.editor.state.zipper,
+                 curr_node_info,
+               ),
+             )
+          ++ "```"
+        }
+      | Edit(action) =>
+        switch (action) {
+        | UpdateDefinition(code) =>
+          let target_id = get_inner_term_id(curr_node_info, Def);
+          schedule_actions([
+            Action.Select(Tile(Id(target_id, Direction.Right))),
+            Action.Paste(Assistant(code)),
+          ]);
+        | UpdateBody(code) =>
+          let target_id = get_inner_term_id(curr_node_info, Body);
+          schedule_actions([
+            Action.Select(Tile(Id(target_id, Direction.Right))),
+            Action.Paste(Assistant(code)),
+          ]);
+        | UpdatePattern(code) =>
+          let target_id = get_inner_term_id(curr_node_info, Pat);
+          schedule_actions([
+            Action.Select(Tile(Id(target_id, Direction.Right))),
+            Action.Paste(Assistant(code)),
+          ]);
+        | UpdateExpression(code) =>
+          schedule_actions([
+            Action.Select(
+              Tile(Id(Info.id_of(curr_node_info.info), Direction.Right)),
+            ),
+            Action.Paste(Assistant(code)),
+          ])
+        | DeleteExpression =>
+          schedule_actions([
+            Action.Select(
+              Tile(Id(Info.id_of(curr_node_info.info), Direction.Right)),
+            ),
+            Action.Destruct(Left),
+          ])
+        | DeleteBody =>
+          let target_id = get_inner_term_id(curr_node_info, Body);
+          schedule_actions([
+            Action.Select(Tile(Id(target_id, Direction.Right))),
+            Action.Destruct(Left),
+          ]);
+        | InsertBefore(code) =>
+          schedule_actions([
+            Action.Move(Extreme(Left(ByToken))),
+            Action.Paste(Assistant(code)),
+          ])
+        | InsertAfter(code) =>
+          schedule_actions([
+            Action.Move(Extreme(Right(ByToken))),
+            Action.Paste(Assistant(code)),
+          ])
+        };
+        "Your edits have been applied to the sketch.";
       }
-    | Read(read_action) =>
-      switch (read_action) {
-      | ViewDefinition =>
-        "Definition of \""
-        ++ curr_node_info.name
-        ++ "\":\n```"
-        ++ Printer.of_segment(
-             ~holes="?",
-             ~special_folds=true,
-             ChatLSP.View.definition(
-               editor.editor.state.zipper,
-               curr_node_info,
-             ),
-           )
-        ++ "```"
-      }
-    | Edit(action) =>
-      switch (action) {
-      | UpdateDefinition(code) =>
-        let target_id = get_inner_term_id(curr_node_info, Def);
-        schedule_actions([
-          Action.Select(Tile(Id(target_id, Direction.Right))),
-          Action.Paste(Assistant(code)),
-        ]);
-      | UpdateBody(code) =>
-        let target_id = get_inner_term_id(curr_node_info, Body);
-        schedule_actions([
-          Action.Select(Tile(Id(target_id, Direction.Right))),
-          Action.Paste(Assistant(code)),
-        ]);
-      | UpdatePattern(code) =>
-        let target_id = get_inner_term_id(curr_node_info, Pat);
-        schedule_actions([
-          Action.Select(Tile(Id(target_id, Direction.Right))),
-          Action.Paste(Assistant(code)),
-        ]);
-      | UpdateExpression(code) =>
-        schedule_actions([
-          Action.Select(
-            Tile(Id(Info.id_of(curr_node_info.info), Direction.Right)),
-          ),
-          Action.Paste(Assistant(code)),
-        ])
-      | DeleteExpression =>
-        schedule_actions([
-          Action.Select(
-            Tile(Id(Info.id_of(curr_node_info.info), Direction.Right)),
-          ),
-          Action.Destruct(Left),
-        ])
-      | DeleteBody =>
-        let target_id = get_inner_term_id(curr_node_info, Body);
-        schedule_actions([
-          Action.Select(Tile(Id(target_id, Direction.Right))),
-          Action.Destruct(Left),
-        ]);
-      | InsertBefore(code) =>
-        schedule_actions([
-          Action.Move(Extreme(Left(ByToken))),
-          Action.Paste(Assistant(code)),
-        ])
-      | InsertAfter(code) =>
-        schedule_actions([
-          Action.Move(Extreme(Right(ByToken))),
-          Action.Paste(Assistant(code)),
-        ])
-      };
-      "Your edits have been applied to the sketch.";
     };
   };
 };
