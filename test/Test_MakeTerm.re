@@ -153,14 +153,14 @@ let tests =
           "(1=3)",
         )
       ),
-      test_case("Single quoted label in tuple", `Quick, () =>
+      test_case("Quoted label in tuple", `Quick, () =>
         exp_check(tuple([tup_label(label("a"), int(3))]), "(`a`=3)")
       ),
-      test_case("Single quoted label in projection", `Quick, () =>
+      test_case("Quoted label in projection", `Quick, () =>
         exp_check(dot(empty_hole(), label("a")), "?.`a`")
       ),
       test_case(
-        "Single quoted label with non-alpha characters",
+        "Quoted label with non-alpha characters",
         `Quick,
         () => {
           exp_check(dot(empty_hole(), label("a-b_c")), "?.`a-b_c`");
@@ -187,7 +187,7 @@ let tests =
           {|() ... from_entries([])|},
         )
       ),
-      test_case("Single quoted label in pattern", `Quick, () =>
+      test_case("Quoted label in pattern", `Quick, () =>
         exp_check(
           fn(
             Pat.(tuple([tup_label(label("a"), empty_hole())])),
@@ -198,7 +198,7 @@ let tests =
           {|fun (`a`=?) -> ?|},
         )
       ),
-      test_case("Single quoted label in type", `Quick, () =>
+      test_case("Quoted label in type", `Quick, () =>
         exp_check(
           ty_alias(
             TPat.var("t"),
@@ -208,7 +208,7 @@ let tests =
           {|type t = (`a`=Int) in ?|},
         )
       ),
-      test_case("Dot projection with single quoted label", `Quick, () =>
+      test_case("Dot projection with Quoted label", `Quick, () =>
         exp_check(dot(empty_hole(), label("a")), "? . `a`")
       ),
       test_case("Scientific notation floating point", `Quick, () =>
