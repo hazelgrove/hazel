@@ -177,8 +177,23 @@ module Update = {
     let refls =
       refls
       |> {
-        let.calc exp = exp;
-        ProofHacks.find_refls(exp);
+        let.calc exp = exp
+        and.calc new_next_steps = new_next_steps;
+        let next_steps =
+          new_next_steps
+          |> (
+            fun
+            | EvaluatorStep.AutoStep(_) => []
+            | EvaluatorStep.AvailableSteps(steps) => steps
+          );
+        ProofHacks.find_refls(exp)
+        |> List.filter(e =>
+             !
+               List.exists(
+                 s => e |> Exp.rep_id == EvaluatorStep.get_step_id(s),
+                 next_steps,
+               )
+           );
       };
     let open_box =
       switch (open_box) {
