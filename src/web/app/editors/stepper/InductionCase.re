@@ -141,6 +141,7 @@ module F = (Stepper: STEPPER) => {
         and.calc elab_scrut = elab_scrut
         and.calc scrut_co_ctx = scrut_co_ctx
         and.calc exp = exp
+        and.calc env = env
         and.calc elab_pattern = elab_pattern;
 
         let case_eq: Ctx.entry =
@@ -163,7 +164,8 @@ module F = (Stepper: STEPPER) => {
                       elab_scrut,
                       elab_pattern |> ProofHacks.pat_to_exp,
                     ),
-                  ),
+                  )
+                  |> Exp.substitute_closures(ClosureEnvironment.map_of(env)),
                 ),
               ),
           });
@@ -179,7 +181,14 @@ module F = (Stepper: STEPPER) => {
                  exp,
                )
              )
-          |> List.map(e => Typ.fresh(Yes(e)))
+          |> List.map(e =>
+               Typ.fresh(
+                 Yes(
+                   e
+                   |> Exp.substitute_closures(ClosureEnvironment.map_of(env)),
+                 ),
+               )
+             )
           |> List.map(ty =>
                Ctx.VarEntry({
                  name:
