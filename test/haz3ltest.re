@@ -30,7 +30,7 @@ let (suite, _) =
         @ Test_Statics_Sums.tests
         @ Test_Statics_Types.tests
         @ Test_Statics_Fixpoint.tests
-        @ Test_Statics_Property_DoesNotCrash.tests,
+        @ Test_Statics_Properties.tests,
       ),
     ]
     @ Test_Elaboration.tests

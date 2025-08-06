@@ -1,5 +1,5 @@
 open Test_Statics_Prelude;
-
+open Language;
 let qcheck_statics_does_not_crash =
   QCheck.Test.make(
     ~name="Statics does not crash",
@@ -27,4 +27,30 @@ let qcheck_statics_does_not_crash =
     }
   });
 
-let tests = [QCheck_alcotest.to_alcotest(qcheck_statics_does_not_crash)];
+let qcheck_ancestors_does_not_contain_own_id =
+  QCheck.Test.make(
+    ~name="Ancestors does not contain own id",
+    ~count=1000,
+    QCheck_Util.arb_exp(~minimal_idents=true, 50),
+    exp => {
+    switch (statics(exp)) {
+    | m =>
+      Id.Map.for_all(
+        (_, info) => {
+          let ancestors = Info.ancestors_of(info);
+          let id = Info.id_of(info);
+          let passed = !List.exists(ancestor => {ancestor == id}, ancestors);
+          passed;
+        },
+        m,
+      )
+    | exception e =>
+      print_endline("Ignored exception: " ++ Printexc.to_string(e));
+      true;
+    }
+  });
+
+let tests = [
+  QCheck_alcotest.to_alcotest(qcheck_statics_does_not_crash),
+  QCheck_alcotest.to_alcotest(qcheck_ancestors_does_not_contain_own_id),
+];
