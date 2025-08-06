@@ -229,6 +229,7 @@ let of_source = List.map((source: source) => source.ty);
 let join_type_provenance =
     (_: TermBase.type_provenance_t, _: TermBase.type_provenance_t)
     : TermBase.type_provenance_t =>
+  // TODO: (THI) implmement this
   failwith("Unimplemented join_type_provenance");
 // switch (p1, p2) {
 // | ({term: Hole(_), annotation: p_id1}, {term: Hole(_), annotation: p_id2})
@@ -682,7 +683,7 @@ let rec matched_arrow_strict = (ctx, ty) =>
   | _ => None
   };
 
-// TODO: abstract out /clean up provenance stuff
+// TODO THI: abstract out /clean up provenance stuff
 let matched_arrow = (ctx, ty) => {
   switch (matched_arrow_strict(ctx, ty)) {
   | Some(v) => v
@@ -721,7 +722,7 @@ let matched_arrow = (ctx, ty) => {
   };
 };
 
-// TODO: does this need constraints and special provenances?
+// TODO: (THI) does this need constraints and special provenances?
 let rec matched_forall_strict = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
   | Parens(ty) => matched_forall_strict(ctx, ty)
@@ -738,7 +739,7 @@ let rec matched_forall_strict = (ctx, ty) =>
   | _ => None
   };
 
-// TODO: does this need constraints and special provenances?
+// TODO: (THI) does this need constraints and special provenances?
 let matched_forall = (ctx, ty) =>
   matched_forall_strict(ctx, ty)
   |> Option.value(
@@ -758,7 +759,7 @@ let rec get_labels = (ctx, ty): list(option(string)) => {
   };
 };
 
-// TODO: document
+// TODO: (THI) document
 let matched_prod_of_prov =
     ({term, annotation}: TermBase.type_provenance_t, es, ty) => {
   let prod_provs =
@@ -836,7 +837,7 @@ let matched_prod = (ctx, es, get_label_es, ty, constructor) => {
   (es, a, constraints');
 };
 
-// TODO: document
+// TODO: (THI) document
 let matched_list_hole_of_prov =
     ({term, annotation}: TermBase.type_provenance_t, ty) => {
   let list_ty =
@@ -876,7 +877,7 @@ let matched_list = (ctx, ty) => {
   // |> Option.value(~default=Unknown(Internal) |> temp);
 };
 
-// TODO: does this need constraints and special provenances?
+// TODO: (THI) does this need constraints and special provenances?
 let rec matched_args_strict = (ctx, ty, arity): Either.t('a, int) => {
   switch (term_of(weak_head_normalize(ctx, ty))) {
   | Parens(ty) => matched_args_strict(ctx, ty, arity)
@@ -894,7 +895,7 @@ let rec matched_args_strict = (ctx, ty, arity): Either.t('a, int) => {
   };
 };
 
-// TODO: does this need constraints and special provenances?
+// TODO: (THI) does this need constraints and special provenances?
 let matched_label = (ctx, ty): option((t, t)) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
   | TupLabel({term: Label(ml), _}, ty) => Some((Label(ml) |> temp, ty))
