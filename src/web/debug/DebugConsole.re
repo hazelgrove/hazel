@@ -1,4 +1,5 @@
 open Haz3lcore;
+open Language;
 
 /* This is a place to add ad-hoc debugging print actions.
    It was originally directly in Keyboard, but that added a handler
@@ -34,6 +35,22 @@ let print =
       | None => print("DEBUG: No CI found for index")
       };
     | None => print("DEBUG: No indicated index")
+    };
+  | "F8" =>
+    let info_map = editor.statics.info_map;
+    let zipper = editor.editor.state.zipper;
+    let cursor = Indicated.ci_of(zipper, info_map);
+    switch (cursor) {
+    | Some(ci) =>
+      print_endline("Curr ID: " ++ Id.to_string(Info.id_of(ci)) ++ "\n");
+      let ancestors = Info.ancestors_of(ci);
+      List.iter(
+        (ancestor: Uuidm.t) => {
+          print_endline("Ancestor ID: " ++ Uuidm.to_string(ancestor))
+        },
+        ancestors,
+      );
+    | None => print("DEBUG: No cursor found")
     };
   | _ => print("DEBUG: No action for key: " ++ key)
   };
