@@ -632,7 +632,7 @@ and uexp_to_info_map =
         | _ =>
           let (lab, m) =
             go(
-              ~ana=Unknown(Internal) |> Typ.temp,
+              ~ana=temp_internal,
               ~override_self=?
                 switch (label.term, expected_labels) {
                 | (Label(name), Some(expected_labels))
@@ -649,7 +649,7 @@ and uexp_to_info_map =
             );
 
           let (e, m) =
-            go(~ana=Unknown(Internal) |> Typ.temp, ~inferred_label?, e, m);
+            go(~ana=temp_internal, ~inferred_label?, e, m);
           (lab, e, m);
         };
 
@@ -680,10 +680,10 @@ and uexp_to_info_map =
             malformed_labels: [Exp(label)],
             duplicate_labels: [],
             invalid_labels: [],
-            typ: TupLabel(Unknown(Internal) |> Typ.temp, e.ty) |> Typ.temp,
+            typ: TupLabel(temp_internal, e.ty) |> Typ.temp,
           })
         };
-      add(~self, ~co_ctx=CoCtx.union([lab.co_ctx, e.co_ctx]), m);
+      add(~self, ~co_ctx=CoCtx.union([lab.co_ctx, e.co_ctx]), ~constraints=e.constraints, m);
     | Label(name) =>
       let self = Self.Just(Label(name) |> Typ.temp);
       List.exists(l => name == l, duplicates)
@@ -692,11 +692,12 @@ and uexp_to_info_map =
       add'(
         ~self=Self.of_exp_var(Builtins.ctx_init(None), string),
         ~co_ctx=CoCtx.empty,
+        ~constraints=[],
         m,
       )
 
     | Dot(e1, e2) =>
-      let (info_e1, m) = go(~ana=Unknown(SynSwitch) |> Typ.temp, e1, m);
+      let (info_e1, m) = go(~ana=Unknown((SynSwitch: TermBase.type_provenance) |> IdTagged.fresh) |> Typ.temp, e1, m);
       let (info_e2, m) = go(~ana=Label("") |> Typ.temp, e2, m);
       let (ty, m) = {
         switch (info_e1.ty.term, info_e2.ty.term) {
@@ -706,7 +707,7 @@ and uexp_to_info_map =
             Prod([
               TupLabel(
                 Label(name) |> Typ.temp,
-                Unknown(Internal) |> Typ.temp,
+                temp_internal,
               )
               |> Typ.temp,
             ])
@@ -1000,7 +1001,11 @@ and uexp_to_info_map =
           let def_ctx = p_ana'.ctx;
           let (def_base2, _) = go'(~ctx=def_ctx, ~ana=p_syn.ty, def, m);
           let ana_ty_fn = ((ty_fn1, ty_fn2), ty_p) => {
-            Typ.term_of(ty_p) == Unknown(SynSwitch)
+            let is_ty_p_unk_synswitch = switch(Typ.term_of(ty_p)) {
+            | Unknown({ term: SynSwitch, _ }) => true
+            | _ => false
+            };
+            is_ty_p_unk_synswitch
             && !Typ.equal(ty_fn1, ty_fn2)
               ? ty_fn1 : ty_p;
           };
@@ -1032,10 +1037,15 @@ and uexp_to_info_map =
         );
       let self =
         is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
+      // TODO: (THI) do we need p_ana' constraints?
       add'(
         ~self,
         ~co_ctx=
           CoCtx.union([def.co_ctx, CoCtx.mk(ctx, p_ana.ctx, body.co_ctx)]),
+        ~constraints=p_ana.typ_constraints
+          @ p_syn.typ_constraints
+          @ def.constraints
+          @ body.constraints,
         m,
       );
     | FixF(p, e, _) =>
@@ -1044,9 +1054,12 @@ and uexp_to_info_map =
       let (e', m) = go'(~ctx=p'.ctx, ~ana=p'.ty, e, m);
       let (p'', m) =
         go_pat(~is_synswitch=false, ~co_ctx=e'.co_ctx, ~ana, p, m);
+      // TODO: (THI) are p' cons necessary?
       add(
         ~self=Just(p'.ty),
         ~co_ctx=CoCtx.union([CoCtx.mk(ctx, p''.ctx, e'.co_ctx)]),
+        ~constraints=
+          p''.typ_constraints @ p'.typ_constraints @ e'.constraints,
         m,
       );
     | If(e0, e1, e2) =>
@@ -1061,7 +1074,7 @@ and uexp_to_info_map =
           cond.constraints
           @ cons.constraints
           @ alt.constraints
-          @ [(cons.ty, alt.ty)],
+          @ [Con(cons.ty, alt.ty)],
         m,
       );
     | Match(scrut, rules) =>
