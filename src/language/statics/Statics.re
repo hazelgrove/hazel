@@ -119,10 +119,10 @@ let is_recursive = (ctx, p, def, syn: Typ.t) => {
 let syn = Unknown(SynSwitch) |> Typ.temp;
 
 let rec any_to_info_map =
-        (~ctx: Ctx.t, ~ancestors, any: Any.t, m: Map.t): (CoCtx.t, Map.t) =>
+        (~ctx: Ctx.t, ~ancestors, any: Any.t, m: Map.t): (CoCtx.t, list(Typ.equivalence), Map.t) =>
   switch (any) {
   | Exp(e) =>
-    let ({co_ctx, _}: Info.exp, m) =
+    let ({co_ctx, constraints, _}: Info.exp, m) =
       uexp_to_info_map(
         ~ctx,
         ~ancestors,
@@ -132,9 +132,9 @@ let rec any_to_info_map =
         e,
         m,
       );
-    (co_ctx, m);
+    (co_ctx, constraints, m);
   | Pat(p) =>
-    let m =
+    let (info, m) =
       upat_to_info_map(
         ~is_synswitch=false,
         ~co_ctx=CoCtx.empty,
@@ -143,15 +143,16 @@ let rec any_to_info_map =
         ~ctx,
         p,
         m,
-      )
-      |> snd;
-    (CoCtx.empty, m);
+      );
+    (CoCtx.empty, info.typ_constraints, m);
   | TPat(tp) => (
       CoCtx.empty,
+      [],
       utpat_to_info_map(~ctx, ~ancestors, tp, m) |> snd,
     )
   | Typ(ty) => (
       CoCtx.empty,
+      [],
       utyp_to_info_map(~ctx, ~ancestors, ty, m) |> snd,
     )
   | Rul(r) =>
@@ -174,19 +175,19 @@ let rec any_to_info_map =
         m,
       );
     | MultiHole(tms) =>
-      let (co_ctxs, m) = multi(~ctx, ~ancestors, m, tms);
-      (CoCtx.union(co_ctxs), m);
-    | Invalid(_) => (CoCtx.empty, m)
+      let (co_ctxs, constraints, m) = multi(~ctx, ~ancestors, m, tms);
+      (CoCtx.union(co_ctxs), constraints, m);
+    | Invalid(_) => (CoCtx.empty, [], m)
     }
-  | Any () => (CoCtx.empty, m)
+  | Any () => (CoCtx.empty, [], m)
   }
-and multi = (~ctx, ~ancestors, m, tms): (list(CoCtx.t), Map.t) =>
+and multi = (~ctx, ~ancestors, m, tms): (list(CoCtx.t), list(Typ.equivalence), Map.t) =>
   List.fold_left(
-    ((co_ctxs, m), any) => {
-      let (co_ctx, m) = any_to_info_map(~ctx, ~ancestors, any, m);
-      (co_ctxs @ [co_ctx], m);
+    ((co_ctxs, acc_constraints, m), any) => {
+      let (co_ctx, constraints, m) = any_to_info_map(~ctx, ~ancestors, any, m);
+      (co_ctxs @ [co_ctx], acc_constraints @ constraints, m);
     },
-    ([], m),
+    ([], [], m),
     tms,
   )
 and uexp_to_info_map =
@@ -329,19 +330,21 @@ and uexp_to_info_map =
     | Closure(_, e) =>
       // TODO: implement closure type checking properly - see how dynamic type assignment does it
       let (e, m) = go(~ana, e, m);
-      add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);
+      add(~self=Just(e.ty), ~co_ctx=e.co_ctx, ~constraints=e.constraints, m);
     | MultiHole(tms) =>
-      let (co_ctxs, m) = multi(~ctx, ~ancestors, m, tms);
-      add(~self=IsMulti, ~co_ctx=CoCtx.union(co_ctxs), m);
+      let (co_ctxs, constraints, m) = multi(~ctx, ~ancestors, m, tms);
+      add(~self=IsMulti, ~co_ctx=CoCtx.union(co_ctxs), ~constraints, m);
     | Asc(e, t2) =>
+      // TODO: (THI) do acriptions need to have another constraint generated?
       let (t, m) = go_typ(t2, ~expects=Info.TypeExpected, m);
       let (e, m) = go'(~ana=t.term, ~ctx=t.ctx, e, m);
-      add(~self=Just(t.term), ~co_ctx=e.co_ctx, m);
+      add(~self=Just(t.term), ~co_ctx=e.co_ctx, ~constraints=e.constraints, m);
     | Invalid(token) => atomic(BadToken(token))
-    | EmptyHole => atomic(Just(Unknown(Internal) |> Typ.temp))
+    | EmptyHole => atomic(Just(Unknown((Internal: TermBase.type_provenance) |> IdTagged.fresh) |> Typ.temp))
     | Deferral(position) =>
-      add'(~self=IsDeferral(position), ~co_ctx=CoCtx.empty, m)
-    | Undefined => atomic(Just(Unknown(Hole(EmptyHole)) |> Typ.temp))
+      // TODO: (THI) do we need to generate constraints for deferrals?
+      add'(~self=IsDeferral(position), ~co_ctx=CoCtx.empty, ~constraints=[], m)
+    | Undefined => atomic(Just(Unknown((Hole(EmptyHole): TermBase.type_provenance) |> IdTagged.fresh) |> Typ.temp))
     | Atom(c) =>
       let c =
         Operators.replace_literal(c, Typ.is_ana_atom(ana), ctx.use_mode); // Replace literal if necessary due to `use`
