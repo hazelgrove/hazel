@@ -116,7 +116,9 @@ let is_recursive = (ctx, p, def, syn: Typ.t) => {
   };
 };
 
-let syn = Unknown(SynSwitch) |> Typ.temp;
+let syn = Unknown((SynSwitch: TermBase.type_provenance) |> IdTagged.fresh) |> Typ.temp;
+let fresh_internal = Unknown((Internal: TermBase.type_provenance) |> IdTagged.fresh) |> Typ.fresh;
+let temp_internal = Unknown((Internal: TermBase.type_provenance) |> IdTagged.fresh) |> Typ.temp;
 
 let rec any_to_info_map =
         (~ctx: Ctx.t, ~ancestors, any: Any.t, m: Map.t): (CoCtx.t, list(Typ.equivalence), Map.t) =>
@@ -193,7 +195,7 @@ and multi = (~ctx, ~ancestors, m, tms): (list(CoCtx.t), list(Typ.equivalence), M
 and uexp_to_info_map =
     (
       ~ctx: Ctx.t,
-      ~ana=Unknown(SynSwitch) |> Typ.temp,
+      ~ana=syn,
       ~is_in_filter=false,
       ~ancestors,
       ~duplicates: list(string),
@@ -229,7 +231,7 @@ and uexp_to_info_map =
   let uexp_to_info_map =
       (
         ~ctx,
-        ~ana=Unknown(SynSwitch) |> Typ.temp,
+        ~ana=syn,
         ~is_in_filter=is_in_filter,
         ~ancestors=ancestors,
         ~duplicates=[],
@@ -433,31 +435,31 @@ and uexp_to_info_map =
         term:
           switch (e.term) {
           | Var("e") =>
-            Constructor("$e", Some(Some(Unknown(Internal) |> Typ.fresh)))
+            Constructor("$e", Some(Some(fresh_internal)))
           | Var("v") =>
-            Constructor("$v", Some(Some(Unknown(Internal) |> Typ.fresh)))
+            Constructor("$v", Some(Some(fresh_internal)))
           | _ => e.term
           },
       };
       let ty_in = Var("$Meta") |> Typ.temp;
-      let ty_out = Unknown(Internal) |> Typ.temp;
+      let ty_out = temp_internal;
       let (e, m) = go(~ana=ty_in, e, m);
-      add(~self=Just(ty_out), ~co_ctx=e.co_ctx, m);
+      add(~self=Just(ty_out), ~co_ctx=e.co_ctx, ~constraints=e.constraints, m);
     | UnOp(Meta(Unquote), e) =>
       let (e, m) = go(~ana=syn, e, m);
-      add'(~self=BadOperator("Unquote not in filter"), ~co_ctx=e.co_ctx, m);
+      add'(~self=BadOperator("Unquote not in filter"), ~co_ctx=e.co_ctx, ~constraints=e.constraints, m);
     | UnOp(op, e) =>
       let op = Operators.replace_un_op(op, ctx.use_mode); // Replace op if necessary due to `use`
       let op_semantics = Operators.semantics_of_un_op(op);
       switch (op_semantics) {
       | Undefined(msg) =>
         let (_, m) = go(~ana=syn, e, m);
-        add'(~self=BadOperator(msg), ~co_ctx=CoCtx.empty, m);
+        add'(~self=BadOperator(msg), ~co_ctx=CoCtx.empty, ~constraints=[], m);
       | Defined(ty_in, ty_out, _) =>
         let ty_in = Atom(Atom.cls_of_kind(ty_in)) |> Typ.temp;
         let ty_out = Atom(Atom.cls_of_kind(ty_out)) |> Typ.temp;
         let (e, m) = go(~ana=ty_in, e, m);
-        add(~self=Just(ty_out), ~co_ctx=e.co_ctx, m);
+        add(~self=Just(ty_out), ~co_ctx=e.co_ctx, ~constraints=e.constraints, m);
       };
     | BinOp(op, e1, e2) =>
       let op = Operators.replace_bin_op(op, ctx.use_mode); // Replace op if necessary due to `use`
@@ -466,19 +468,20 @@ and uexp_to_info_map =
       | Undefined(msg) =>
         let (_, m) = go(~ana=syn, e1, m);
         let (_, m) = go(~ana=syn, e2, m);
-        add'(~self=BadOperator(msg), ~co_ctx=CoCtx.empty, m);
+        add'(~self=BadOperator(msg), ~co_ctx=CoCtx.empty, ~constraints=[], m);
       | DefinedPoly(_) =>
         let ids = List.map(Exp.rep_id, [e1, e2]);
         let (es, m) =
           map_m_go(
             m,
-            [Unknown(Internal) |> Typ.temp, Unknown(Internal) |> Typ.temp],
+            [temp_internal, temp_internal],
             [e1, e2],
           );
         let tys = List.map(Info.exp_ty, es);
         add(
           ~self=Self.poly_eq(ctx, tys, ids),
           ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es)),
+          ~constraints=List.flatten(List.map(Info.exp_constraints, es)),
           m,
         );
       | Defined(ty1, ty2, ty_out, _) =>
@@ -490,6 +493,7 @@ and uexp_to_info_map =
         add(
           ~self=Just(ty_out),
           ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
+          ~constraints=e1.constraints @ e2.constraints,
           m,
         );
       };

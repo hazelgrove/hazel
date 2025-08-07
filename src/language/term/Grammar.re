@@ -830,11 +830,11 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       annotation: default_annotation(ann),
     };
     // TODO: might need a separate annotation for the prov
-    let empty_hole = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
+    let empty_hole = (~ann=?, prov_ann, ()): typ_t(DefaultAnnotation.t) => {
       term:
         Unknown({
           term: Hole(EmptyHole),
-          annotation: default_annotation(ann),
+          annotation: default_annotation(prov_ann),
         }),
       annotation: default_annotation(ann),
     };
