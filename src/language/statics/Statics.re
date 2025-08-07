@@ -490,7 +490,7 @@ and uexp_to_info_map =
       let original_labels =
         List.map(e => Exp.match_tup_label(e) |> Option.map(fst), es);
 
-      let (inferred_es, ana_tys) =
+      let (inferred_es, ana_tys, constraints) =
         Typ.matched_prod(
           ctx,
           List.map(e => (None: option(string), e), es),
@@ -534,6 +534,7 @@ and uexp_to_info_map =
           List.combine(inferred, es),
         );
       let ty_list = List.map(Info.exp_ty, es');
+      let es_constraints = List.map((e: Info.exp) => e.constraints, es') |> List.flatten;
 
       let (malformed_labels, duplicate_labels, invalid_labels) =
         List.fold_left(
@@ -579,6 +580,7 @@ and uexp_to_info_map =
         ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es')),
         ~label_inference=
           Info.derive_label_inference_info(original_labels, new_labels),
+        ~constraints=constraints @ es_constraints,
         m,
       );
     | TupLabel(label, e) =>
