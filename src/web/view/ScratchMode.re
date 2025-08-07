@@ -179,6 +179,7 @@ module Update = {
         current,
       };
     | AddSlide =>
+      print_endline("Here #1 : Adding Slide");
       let new_sp = mk_new_scratchpad(model, is_documentation);
       Updated.return(
         {

@@ -114,10 +114,11 @@ let go_z =
 
   switch (a) {
   | Paste(String(clipboard)) =>
+    print_endline("Here #3 : Pasting Sketch");
     switch (paste(z, clipboard)) {
     | None => Error(CantPaste)
     | Some(z) => Ok(z)
-    }
+    };
   | Introduce =>
     Select.current_term(~defs_exclude_bodies=false, ~case_rules=false, z)
     |> Option.bind(_, Introduce.introduce(statics.info_map, _))

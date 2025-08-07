@@ -124,14 +124,59 @@ let print =
       );
     print("curr node id: " ++ Id.to_string(Info.id_of(curr_node.info)));
   | "F12" =>
-    let curr_node =
-      get_node(
-        AssistantTreeHelper.build_sub_AST(
-          editor.editor.state.zipper,
-          editor.statics.info_map,
-        ),
-      );
-    ();
+    let rec curr_node_of =
+            (candidate: option(Info.t), info_map: Id.Map.t(Info.t))
+            : option(node) => {
+      switch (candidate) {
+      | Some(candidate) =>
+        switch (candidate) {
+        | InfoExp({term, _}) =>
+          switch (Exp.term_of(term)) {
+          | Let(pat, _, _) =>
+            Some({
+              info: candidate,
+              parent: None,
+              siblings: [],
+              children: [],
+              sibling_idx: 0,
+              name: mk_name_from_pat(pat),
+            })
+          | TyAlias(tpat, _, _) =>
+            Some({
+              info: candidate,
+              parent: None,
+              siblings: [],
+              children: [],
+              sibling_idx: 0,
+              name: mk_name_from_tpat(tpat),
+            })
+          | _ =>
+            switch (Info.ancestors_of(candidate)) {
+            | [ancestor, ..._] =>
+              curr_node_of(Id.Map.find_opt(ancestor, info_map), info_map)
+            | _ => None
+            }
+          }
+        | _ =>
+          switch (Info.ancestors_of(candidate)) {
+          | [ancestor, ..._] =>
+            curr_node_of(Id.Map.find_opt(ancestor, info_map), info_map)
+          | _ => None
+          }
+        }
+      | None => None
+      };
+    };
+    let info_map = editor.statics.info_map;
+    let zipper = move_to_non_whitespace(zipper);
+    let curr_term = Indicated.ci_of(zipper, info_map);
+    // Test the curr_node_of function
+    print_endline("Testing curr_node_of function:");
+    switch (curr_node_of(curr_term, info_map)) {
+    | Some(node) => print_endline("Found node: " ++ node.name)
+    | None => print_endline("No node found")
+    };
+
   | _ => print("DEBUG: No action for key: " ++ key)
   };
 };

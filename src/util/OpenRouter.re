@@ -99,7 +99,7 @@ let default_params = {
   temperature: 0.9,
   top_p: 1.0,
   tools: [],
-  stream: false,
+  stream: false, // Default to streaming
   messages: [],
 };
 

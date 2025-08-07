@@ -288,7 +288,7 @@ let create_chat_descriptor =
         let params: OpenRouter.params = {
           ...OpenRouter.default_params,
           model_id,
-          stream: false,
+          stream: false // No streaming for descriptor
         };
         OpenRouter.start_chat(
           ~params,
@@ -443,7 +443,7 @@ let summarize_chat =
     let params: OpenRouter.params = {
       ...OpenRouter.default_params,
       model_id,
-      stream: false,
+      stream: false // No streaming for summarization
     };
     OpenRouter.start_chat(~params, ~key, ~outgoing_messages, req =>
       switch (OpenRouter.handle_chat(req)) {

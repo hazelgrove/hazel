@@ -31,7 +31,6 @@ let apply =
      The intention is that eventually, the calculate phase will be
      done automatically by incremental calculation. */
   // ---------- UPDATE PHASE ----------
-
   let updated: Updated.t(History.Model.t) =
     try(
       History.Update.update(

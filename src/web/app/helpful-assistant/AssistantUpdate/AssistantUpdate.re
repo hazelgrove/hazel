@@ -32,6 +32,7 @@ let update =
       // todo: Find a way to track unqique editor between concurrent actions
       ~editor: CodeModel.t,
       ~schedule_action: t => unit,
+      ~schedule_eval_action: AssistantEval.Update.t => unit,
       ~schedule_editor_action: Editors.Update.t => unit,
     )
     : Updated.t(Model.t) => {
@@ -115,12 +116,12 @@ let update =
         //            (this cyclic edge is what makes enables the "agentic" nature)
         //        if no tool call, output final result to the user
         | Request(content) =>
+          print_endline("Here #5 : Sending Composition Request");
           // This is step (1) of the directed graph example above.
           // The user sends a message to the LLM, appending with info from (2)
           // Note: (2) is done here, jointly with (1) and done in Loop(_, _) below,
           //       after a tool call has been handled.
           print_endline("handling composition request");
-          schedule_action(EmployLLMAction(SetLoop(false)));
           let content_message: Model.message =
             mk_user_content_message(~content, ~role=User, ~editor);
           let (local_code_map_str, display) =
@@ -380,7 +381,7 @@ let update =
               "By default we stop the assistant after "
               ++ string_of_int(ChatLSP.Options.init.error_rounds_max)
               ++ " error rounds.";
-            schedule_action(EmployLLMAction(SetLoop(false)));
+            schedule_eval_action(Collect);
             schedule_action(InternalError(content, mode, updated_chat.id));
           } else {
             mk_llm_call(
@@ -463,7 +464,8 @@ let update =
         )
       };
 
-    create_chat_descriptor(~model, ~schedule_action, ~mode, ~chat_id);
+    // todo: turning off for now to save credits
+    //create_chat_descriptor(~model, ~schedule_action, ~mode, ~chat_id);
     let threshold =
       int_of_float(
         float_of_int(model.external_api_info.set_model_info.context_length)
@@ -527,6 +529,7 @@ let update =
         // The agent did not make a tool call, thus there is nothing to handle on the backend,
         // we can proceed as if there were a normal LLM chat interaction.
         summarize_chat();
+        schedule_eval_action(Collect);
         update_model_chat_history(
           ~model,
           ~mode,
@@ -536,6 +539,7 @@ let update =
         |> Updated.return;
       | (_, 0) =>
         // The agent ran out of fuel. We should experiment with this in the future.
+        schedule_eval_action(Collect);
         schedule_action(
           InternalError(
             "By default, we stop the agent after "
@@ -794,6 +798,7 @@ let update =
   | ChatAction(action) =>
     switch (action) {
     | NewChat =>
+      print_endline("Here #2 : Adding Chat");
       let mode = settings.assistant.mode;
       let (past_chats, _) = get_mode_info(mode, model);
       let new_chat: Model.chat = Model.new_chat(model, mode);

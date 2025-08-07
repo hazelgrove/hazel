@@ -2,6 +2,7 @@ open Js_of_ocaml;
 open Virtual_dom.Vdom;
 open Node;
 open Util;
+open Haz3lcore;
 
 /* The top-level UI component of Hazel */
 
@@ -17,6 +18,7 @@ module Model = {
     editors: Editors.Model.t,
     explain_this: ExplainThisModel.t,
     assistant: AssistantModel.t,
+    assistant_eval: AssistantEval.Model.t,
     selection,
   };
 
@@ -38,6 +40,7 @@ module Store = {
       globals,
       explain_this,
       assistant,
+      assistant_eval: AssistantEval.Model.init(),
       selection: Editors.Selection.default_selection(editors),
     };
   };
@@ -67,6 +70,7 @@ module Update = {
     | Editors(Editors.Update.t)
     | ExplainThis(ExplainThisUpdate.update)
     | Assistant(AssistantUpdateUtil.t)
+    | AssistantEval(AssistantEval.Update.t)
     | MakeActive(selection)
     | Benchmark(benchmark_action)
     | Start
@@ -243,6 +247,22 @@ module Update = {
       export_all: Export.export_all,
       get_log_and,
     };
+    let zipper = get_editor(model).editor.state.zipper;
+    let info_map = get_editor(model).statics.info_map;
+    let curr_term = Indicated.ci_of(zipper, info_map);
+    switch (curr_term) {
+    | Some(term) =>
+      let ancestors = Language.Statics.Info.ancestors_of(term);
+      print_endline(
+        "Ancestors: "
+        ++ (
+          ancestors
+          |> List.map(x => Uuidm.to_string(x))
+          |> String.concat(", ")
+        ),
+      );
+    | None => print_endline("No node found")
+    };
     switch (action) {
     | Globals(action) =>
       update_global(~globals, ~import_log, ~schedule_action, action, model)
@@ -275,11 +295,26 @@ module Update = {
           ~model=model.assistant,
           ~editor=get_editor(model),
           ~schedule_action=a => schedule_action(Assistant(a)),
+          ~schedule_eval_action=a => schedule_action(AssistantEval(a)),
           ~schedule_editor_action=a => schedule_action(Editors(a)),
         );
       {
         ...model,
         assistant,
+      };
+    | AssistantEval(action) =>
+      let* assistant_eval =
+        AssistantEval.Update.update(
+          ~action,
+          ~model=model.assistant_eval,
+          ~assistant_model=model.assistant,
+          ~schedule_editor_action=a => schedule_action(Editors(a)),
+          ~schedule_action=a => schedule_action(AssistantEval(a)),
+          ~schedule_assistant_action=a => schedule_action(Assistant(a)),
+        );
+      {
+        ...model,
+        assistant_eval,
       };
     | MakeActive(selection) =>
       {
@@ -309,6 +344,7 @@ module Update = {
     | Editors(action) => Editors.Update.can_undo(action)
     | ExplainThis(action) => ExplainThisUpdate.can_undo(action)
     | Assistant(action) => AssistantUpdate.can_undo(action)
+    | AssistantEval(action) => AssistantEval.Update.can_undo(action)
     | MakeActive(_)
     | Benchmark(_) => false
     | Start => false
@@ -521,6 +557,7 @@ module View = {
       (
         ~globals: Globals.t,
         ~inject: Editors.Update.t => 'a,
+        ~inject_assistant_eval: AssistantEval.Update.t => 'a,
         ~editors: Editors.Model.t,
       ) => {
     NutMenu.(
@@ -549,6 +586,11 @@ module View = {
                 ++ Keyboard.meta(Os.is_mac^ ? Mac : PC)
                 ++ " + k)",
             ),
+            button(
+              Icons.assistant,
+              _ => inject_assistant_eval(AssistantEval.Update.Init),
+              ~tooltip="Run Assistant Eval",
+            ),
             link(
               Icons.github,
               "https://github.com/hazelgrove/hazel",
@@ -569,7 +611,12 @@ module View = {
           ~attrs=[Attr.class_("wrap")],
           [a(~attrs=[Attr.class_("nut-icon")], [Icons.hazelnut])],
         ),
-        nut_menu(~globals, ~inject=a => inject(Editors(a)), ~editors),
+        nut_menu(
+          ~globals,
+          ~inject=a => inject(Editors(a)),
+          ~inject_assistant_eval=a => inject(AssistantEval(a)),
+          ~editors,
+        ),
         div(
           ~attrs=[Attr.class_("wrap")],
           [div(~attrs=[Attr.id("title")], [text("hazel")])],
@@ -597,9 +644,11 @@ module View = {
           editors,
           explain_this: explainThisModel,
           assistant: assistantModel,
+          assistant_eval: assistantEvalModel,
           selection,
         } as model: Model.t,
       ) => {
+    let _ = assistantEvalModel;
     let globals = {
       ...globals,
       inject_global: x => inject(Globals(x)),
