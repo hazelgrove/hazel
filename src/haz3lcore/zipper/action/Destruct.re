@@ -108,15 +108,12 @@ let parent_duomerges = (z: Zipper.t) => {
 
 let go = (d: Direction.t, z: t): option(t) => {
   let* z = destruct(d, z);
-  switch (parent_duomerges(z), z.caret, Zipper.neighbor_shards(z)) {
-  | (Some((lbl, id)), Outer, (None, None))
-      when Siblings.no_siblings(z.relatives.siblings) =>
-    /* Note: we must do the no_siblings check, it does not suffice
-       to check no monotile neighbors as there could be other neighbors
-       for example edge case: "((|))" */
-    z |> parent_merge(~id, lbl) |> Option.some
-  | (_, Outer, (Some(l), Some(r))) when Molds.allow_merge(l, r) =>
+  switch (parent_duomerges(z), Zipper.neighbor_shards(z)) {
+  | (Some((lbl, id)), _) when Siblings.no_siblings(z.relatives.siblings) =>
+    /* Merge only when containing segment is totally empty after delete */
+    Some(parent_merge(~id, lbl, z))
+  | (_, (Some(l), Some(r))) when Molds.allow_merge(l, r) && z.caret == Outer =>
     z |> merge((l, r))
-  | _ => Some(z) |> Option.map(remold_regrout(d))
+  | _ => z |> remold_regrout(d) |> Option.some
   };
 };
