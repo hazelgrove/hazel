@@ -381,7 +381,6 @@ let update =
               "By default we stop the assistant after "
               ++ string_of_int(ChatLSP.Options.init.error_rounds_max)
               ++ " error rounds.";
-            schedule_eval_action(Collect);
             schedule_action(InternalError(content, mode, updated_chat.id));
           } else {
             mk_llm_call(
@@ -529,7 +528,7 @@ let update =
         // The agent did not make a tool call, thus there is nothing to handle on the backend,
         // we can proceed as if there were a normal LLM chat interaction.
         summarize_chat();
-        schedule_eval_action(Collect);
+        schedule_eval_action(CollectResults);
         update_model_chat_history(
           ~model,
           ~mode,
@@ -539,7 +538,7 @@ let update =
         |> Updated.return;
       | (_, 0) =>
         // The agent ran out of fuel. We should experiment with this in the future.
-        schedule_eval_action(Collect);
+        schedule_eval_action(CollectResults);
         schedule_action(
           InternalError(
             "By default, we stop the agent after "

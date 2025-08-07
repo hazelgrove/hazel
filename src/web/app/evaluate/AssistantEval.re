@@ -22,8 +22,9 @@ module Model = {
     curr_case: option(case),
   };
 
+  // (Re)initializes the model with all the cases to evaluate
   let init = (): t => {
-    // todo: have an intializer that reads from data and takes a cartesian prod
+    // todo: have an intializer that takes all parameter sets and takes a cartesian product
     //       between all our prompts, initial sketches, etc etc... i.e. sets of params
     let case1 = {
       scenario: SketchPrompt.combo_1,
@@ -44,15 +45,24 @@ module Model = {
 module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
+    // Called externally (currently from octopus button in nut-menu dropdown), (re)initializes this evaluation model
     | Init
-    | Run
-    | Collect;
+    /* ------ Evaluation Loop - Iteratively evaluates each case --------- */
+    // Prepares a fresh sketch and chat
+    | PrepTest
+    // Sends the prompt to the assistant
+    | SendRequest
+    // Called externally when the assistant is done,
+    // collects metrics, pops the curr_case off cases, and begins evaluating the next case
+    | CollectResults;
+  /* -------------------------------------------------------------------- */
 
   let can_undo = (action: t) => {
     switch (action) {
     | Init
-    | Run
-    | Collect => true
+    | PrepTest
+    | SendRequest
+    | CollectResults => true // setting these to true is kinda helpful for debugging
     };
   };
 
@@ -71,24 +81,32 @@ module Update = {
     let prompt = curr_case.scenario.prompt;
     switch (action) {
     | Init =>
+      // todo: (re)initialize the model
+      schedule_action(PrepTest);
+      Model.init() |> Updated.return;
+
+    | PrepTest =>
       print_endline("Here #0 : Init");
       // Create a new chat
       schedule_assistant_action(AssistantUpdateUtil.ChatAction(NewChat));
       // Create a new scratchpad
       schedule_editor_action(Editors.Update.Scratch(AddSlide));
       // Paste the initial sketch
-      let a = Action.Paste(String(sketch));
-      let perform_action = CodeEditable.Update.Perform(a);
-      let cell_action = CellEditor.Update.MainEditor(perform_action);
-      let scratch_action = Editors.Update.Scratch(CellAction(cell_action));
-      schedule_editor_action(scratch_action);
+      schedule_editor_action(
+        Editors.Update.Scratch(
+          CellAction(
+            CellEditor.Update.MainEditor(
+              CodeEditable.Update.Perform(Action.Paste(String(sketch))),
+            ),
+          ),
+        ),
+      );
       // Run the editor
-      // This is an intermediate step so that the assistant model propogates and we are on new chat
-      // This is mainly because we have assistant_model as an input parameter
-      schedule_action(Run);
+      // This is an intermediate step so that the assistant model updates and we are on the new chat
+      schedule_action(SendRequest);
       model |> Updated.return;
 
-    | Run =>
+    | SendRequest =>
       // Send the prompt to the assistant
       schedule_assistant_action(
         AssistantUpdateUtil.SendMessage(
@@ -101,7 +119,7 @@ module Update = {
 
     // Await for assistant to complete the task completion
     // todo: can set tool call/token limit constraints, but this must be done in AssistantUpdate.re
-    | Collect =>
+    | CollectResults =>
       // -----------------------------------------------------------------------
       // todo: Decide what results to collect. We may be able to just store them
       //       in a case itself, and export them later to a json file.
@@ -114,7 +132,7 @@ module Update = {
       };
       if (List.length(new_cases) > 0) {
         // Evaluate the next case
-        schedule_action(Init);
+        schedule_action(PrepTest);
         new_model |> Updated.return;
       } else {
         // Done!
