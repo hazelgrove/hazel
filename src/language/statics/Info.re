@@ -739,7 +739,6 @@ let fixed_typ_ok: ok_pat => Typ.t =
   | Ana(Consistent({join, _})) => join
   | Ana(InternallyInconsistent({ana, _})) => ana;
 
-
 let fixed_typ_err_common: (error_common, Typ.t) => Typ.t =
   (err, ana) =>
     switch (err) {
@@ -753,17 +752,17 @@ let fixed_typ_err_common: (error_common, Typ.t) => Typ.t =
       } else {
         ana;
       }
-  | NoType(BadToken(_) | BadLabel(_) | InvalidLabel(_)) =>
-    Unknown(Internal) |> Typ.temp
-  | TupleLabelError({typ, _})
-  | DuplicateLabel(_, typ) => typ
-  | Inconsistent(Expectation({ana, _})) => ana
-  | Inconsistent(Internal(_)) => Unknown(Internal) |> Typ.temp // Should this be some sort of meet?
-  | Inconsistent(CompareFun(_)) => Atom(Bool) |> Typ.temp
-  | Inconsistent(WithArrow(_)) =>
-    Arrow(Unknown(Internal) |> Typ.temp, Unknown(Internal) |> Typ.temp)
-    |> Typ.temp;
-};
+    | NoType(BadToken(_) | BadLabel(_) | InvalidLabel(_)) =>
+      Unknown(Internal) |> Typ.temp
+    | TupleLabelError({typ, _})
+    | DuplicateLabel(_, typ) => typ
+    | Inconsistent(Expectation({ana, _})) => ana
+    | Inconsistent(Internal(_)) => Unknown(Internal) |> Typ.temp // Should this be some sort of meet?
+    | Inconsistent(CompareFun(_)) => Atom(Bool) |> Typ.temp
+    | Inconsistent(WithArrow(_)) =>
+      Arrow(Unknown(Internal) |> Typ.temp, Unknown(Internal) |> Typ.temp)
+      |> Typ.temp
+    };
 
 let fixed_typ_err: (error_exp, Typ.t) => Typ.t =
   (err, ana) =>
