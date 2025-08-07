@@ -360,18 +360,27 @@ and uexp_to_info_map =
       )
     | ListLit(es) =>
       let ids = List.map(Exp.rep_id, es);
-      let inner_ana_ty = Typ.matched_list(ctx, ana);
+      let (inner_ana_ty, list_constraints) = Typ.matched_list(ctx, ana);
       let anas = List.init(List.length(es), _ => inner_ana_ty);
       let (es, m) = map_m_go(m, anas, es);
       let tys = List.map(Info.exp_ty, es);
+      let es_constraints = List.flatten(List.map(Info.exp_constraints, es));
       add(
         ~self=
-          Self.listlit(~empty=Unknown(Internal) |> Typ.temp, ctx, tys, ids),
+          Self.listlit(
+            ~empty=
+              Unknown((Internal: TermBase.type_provenance) |> IdTagged.fresh)
+              |> Typ.temp,
+            ctx,
+            tys,
+            ids,
+          ),
         ~co_ctx=CoCtx.union(List.map(Info.exp_co_ctx, es)),
+        ~constraints=es_constraints @ list_constraints,
         m,
       );
     | Cons(hd, tl) =>
-      let inner_ana_ty = Typ.matched_list(ctx, ana);
+      let (inner_ana_ty, list_constraints) = Typ.matched_list(ctx, ana);
       let (hd, m) = go(~ana=inner_ana_ty, hd, m);
       let (tl, m) =
         go(
@@ -383,16 +392,19 @@ and uexp_to_info_map =
       add(
         ~self=Just(List(hd.ty) |> Typ.temp),
         ~co_ctx=CoCtx.union([hd.co_ctx, tl.co_ctx]),
+        ~constraints=hd.constraints @ tl.constraints @ list_constraints,
         m,
       );
     | ListConcat(e1, e2) =>
-      let inner_ana_ty = List(Typ.matched_list(ctx, ana)) |> Typ.temp;
+      // TODO: (THI) do we need the matched constraint?
+      let inner_ana_ty = List(Typ.matched_list(ctx, ana) |> fst) |> Typ.temp;
       let ids = List.map(Exp.rep_id, [e1, e2]);
       let (e1, m) = go(~ana=inner_ana_ty, e1, m);
       let (e2, m) = go(~ana=inner_ana_ty, e2, m);
       add(
         ~self=Self.list_concat(ctx, [e1.ty, e2.ty], ids),
         ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
+        ~constraints=e1.constraints @ e2.constraints,
         m,
       );
     | Var(name) =>
@@ -1241,7 +1253,8 @@ and upat_to_info_map =
       m: Map.t,
     )
     : (Info.pat, Map.t) => {
-  let add = (~self, ~ctx, ~typ_constraints, ~constraint_, ~label_inference=?, m) => {
+  let add =
+      (~self, ~ctx, ~typ_constraints, ~constraint_, ~label_inference=?, m) => {
     let prev_synswitch =
       switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
       | Some(Info.InfoPat({ana, ty, _})) when Typ.is_syn_plus(ana) =>

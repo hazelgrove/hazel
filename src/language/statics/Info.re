@@ -378,6 +378,8 @@ let error_of: t => option(error) =
 
 let exp_co_ctx: exp => CoCtx.t = ({co_ctx, _}) => co_ctx;
 let exp_ty: exp => Typ.t = ({ty, _}) => ty;
+let exp_constraints: exp => list(Typ.equivalence) =
+  ({constraints, _}) => constraints;
 let pat_ctx: pat => Ctx.t = ({ctx, _}) => ctx;
 let pat_ty: pat => Typ.t = ({ty, _}) => ty;
 let pat_constraint: pat => Coverage.Constraint.t =
