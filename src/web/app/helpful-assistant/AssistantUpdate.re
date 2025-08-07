@@ -342,7 +342,6 @@ let check_req =
     : unit => {
   let z = editor.editor.state.zipper;
   let caret = z.caret;
-  let siblings = z.relatives.siblings;
   let send_message = (tile_id, advanced_reasoning) => {
     schedule_setting(AssistantSettings.SwitchMode(CodeSuggestion));
     schedule_action(
@@ -355,7 +354,7 @@ let check_req =
   };
 
   // Check if user just typed ??
-  switch (caret, Zipper.neighbor_monotiles(siblings)) {
+  switch (caret, Zipper.neighbor_shards(z)) {
   | (Outer, (_, Some("??")))
   | (Outer, (Some("??"), _)) =>
     let tileId = Option.get(Indicated.index(z));
