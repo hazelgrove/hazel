@@ -29,7 +29,7 @@ let tests = [
       ),
     )
   }),
-    inconsistent_typecheck(
+  inconsistent_typecheck(
     "list cons inconsistent tail",
     {|1::["str"]|} |> parse_exp,
   ),
