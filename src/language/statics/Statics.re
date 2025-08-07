@@ -1035,7 +1035,7 @@ and uexp_to_info_map =
       }
     | TypAp(fn, utyp) =>
       let typfn_ana =
-        Forall(EmptyHole |> TPat.fresh, Unknown(SynSwitch) |> Typ.temp)
+        Forall(EmptyHole |> TPat.fresh, Unknown((SynSwitch: TermBase.type_provenance) |> IdTagged.fresh) |> Typ.temp)
         |> Typ.temp;
       let (fn, m) = go(~ana=typfn_ana, fn, m);
       let (_, m) = utyp_to_info_map(~ctx, ~ancestors, utyp, m);
@@ -1045,9 +1045,10 @@ and uexp_to_info_map =
         add(
           ~self=Just(Typ.subst(utyp, name, ty_body)),
           ~co_ctx=fn.co_ctx,
+          ~constraints=fn.constraints,
           m,
         )
-      | None => add(~self=Just(ty_body), ~co_ctx=fn.co_ctx, m) /* invalid name matches with no free type variables. */
+      | None => add(~self=Just(ty_body), ~co_ctx=fn.co_ctx, ~constraints=fn.constraints, m) /* invalid name matches with no free type variables. */
       };
     | DeferredAp(fn, args) =>
       /* This logic lets us treat constructors differently to functions in
@@ -1058,7 +1059,7 @@ and uexp_to_info_map =
           switch (Self.ctr_ana_typ(ctx, ana, name)) {
           | Some(ty_ana) =>
             switch (Typ.matched_arrow_strict(ctx, ty_ana)) {
-            | Some((ty1, ty2)) => Arrow(ty1, ty2) |> Typ.temp
+            | Some((ty1, ty2, _)) => Arrow(ty1, ty2) |> Typ.temp
             | None => Arrow(syn, syn) |> Typ.temp
             }
           | None => Arrow(syn, syn) |> Typ.temp
@@ -1066,7 +1067,7 @@ and uexp_to_info_map =
         | None => Arrow(syn, syn) |> Typ.temp
         };
       let (fn, m) = go(~ana=fn_ana, fn, m);
-      let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
+      let (ty_in, ty_out, arr_constraints) = Typ.matched_arrow(ctx, fn.ty);
       let num_args = List.length(args);
       switch (Typ.matched_args_strict(ctx, ty_in, num_args)) {
       | L(ty_ins) =>
@@ -1081,24 +1082,35 @@ and uexp_to_info_map =
             | [x] => x
             | xs => Prod(xs) |> Typ.temp
           );
+        let self: Self.t = Just(Arrow(ty_in', ty_out) |> Typ.temp);
         add(
-          ~self=Just(Arrow(ty_in', ty_out) |> Typ.temp),
+          ~self,
           ~co_ctx=CoCtx.union([fn.co_ctx, arg_co_ctx]),
+          ~constraints=
+            arr_constraints
+            @ fn.constraints
+            @ List.flatten(List.map(Info.exp_constraints, args_infos))
+            @ subsumption_constraints_t(self),
           m,
         );
       | R(expected) =>
-        let ty_ins = List.init(num_args, _ => Unknown(Internal) |> Typ.temp);
+        let ty_ins = List.init(num_args, _ => temp_internal);
         let (args, m) = map_m_go(m, ty_ins, args);
         let arg_co_ctx = CoCtx.union(List.map(Info.exp_co_ctx, args));
-        add'(
-          ~self=
+        let self: Self.exp = 
             IsBadPartialAp(
               ArityMismatch({
                 expected,
                 actual: num_args,
               }),
-            ),
+            );
+        add'(
+          ~self,
           ~co_ctx=CoCtx.union([fn.co_ctx, arg_co_ctx]),
+          ~constraints=
+            fn.constraints
+            @ List.flatten(List.map(Info.exp_constraints, args))
+            @ subsumption_constraints_exp(self),
           m,
         );
       };
