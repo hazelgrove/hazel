@@ -55,18 +55,16 @@ let get = (label: Label.t): list(Mold.t) => {
   };
 };
 
-let delayed_expansions: expansions =
+let expansions: expansions =
   List.filter_map(
     ((_, {expansion, label, _}: Form.t)) =>
       switch (expansion, label) {
-      | ((Delayed, Delayed), [hd, ..._]) =>
+      | (II, [hd, ..._]) =>
         Some([
           (hd, (label, Direction.Left)),
           (ListUtil.last(label), (label, Right)),
         ])
-      | ((Delayed, _), [hd, ..._]) => Some([(hd, (label, Left))])
-      | ((_, Delayed), [_, ..._]) =>
-        Some([(ListUtil.last(label), (label, Right))])
+      | (IS, [hd, ..._]) => Some([(hd, (label, Left))])
       | _ => None
       },
     Form.forms,
@@ -74,42 +72,14 @@ let delayed_expansions: expansions =
   |> List.flatten
   |> List.sort_uniq(compare);
 
-let instant_expansions: expansions =
-  List.filter_map(
-    ((_, {expansion, label, _}: Form.t)) =>
-      switch (expansion, label) {
-      | ((Instant, Instant), [hd, ..._]) =>
-        Some([
-          (hd, (label, Direction.Left)),
-          (ListUtil.last(label), (label, Right)),
-        ])
-      | ((Instant, _), [hd, ..._]) => Some([(hd, (label, Left))])
-      | ((_, Instant), [_, ..._]) =>
-        Some([(ListUtil.last(label), (label, Right))])
-      | _ => None
-      },
-    Form.forms,
-  )
-  |> List.flatten
-  |> List.sort_uniq(compare);
-
-let delayed_expansion: Token.t => (list(Token.t), Direction.t) =
+let expansion: Token.t => (list(Token.t), Direction.t) =
   s =>
-    /* Completions which must be defered as they are ambiguous prefixes */
-    switch (List.assoc_opt(s, delayed_expansions)) {
+    switch (List.assoc_opt(s, expansions)) {
     | Some(expansion) => expansion
     | None => ([s], Right)
     };
 
-let instant_expansion: Token.t => (list(Token.t), Direction.t) =
-  s =>
-    /* Completions which can or must be executed immediately */
-    switch (List.assoc_opt(s, instant_expansions)) {
-    | Some(expansion) => expansion
-    | None => ([s], Right)
-    };
-
-let is_delayed = kw => List.length(delayed_expansion(kw) |> fst) > 1;
+let is_expanding = kw => List.length(expansion(kw) |> fst) > 1;
 
 let allow_merge = (l: Token.t, r: Token.t): bool =>
   Form.is_potential_token(l ++ r);

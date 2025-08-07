@@ -27,11 +27,11 @@ let inside_case = (z: t): bool =>
   | _ => false
   };
 
-let delayed_expand = (t: Token.t, caret: Direction.t, z: t): option(t) => {
+let expand = (t: Token.t, caret: Direction.t, z: t): option(t) => {
   /* Removes the d-neighboring tile and reconstructs it, triggering
      keyword-expansion; precondition: the d-neighbor should be a monotile
      string-matching a keyword of an expanding form */
-  let (new_label, backpack) = Molds.delayed_expansion(t);
+  let (new_label, backpack) = Molds.expansion(t);
   /* Only expand case rules when inside a case */
   let (new_label, backpack) =
     switch () {
@@ -61,10 +61,10 @@ let expand_or_barf_left_neighbor = (z: t): t =>
     | Some(z) => z
     | None => z
     }
-  | Some(t) when Molds.is_delayed(t) =>
+  | Some(t) when Molds.is_expanding(t) =>
     switch (Siblings.left_neighbor(z.relatives.siblings)) {
     | Some(p) when Piece.monotile(p) != None =>
-      switch (delayed_expand(t, Left, z)) {
+      switch (expand(t, Left, z)) {
       | Some(z) => z
       | None => z
       }
@@ -82,10 +82,10 @@ let expand_or_barf_right_neighbor = (z: t): t =>
     | Some(z) => z
     | None => z
     }
-  | Some(t) when Molds.is_delayed(t) =>
+  | Some(t) when Molds.is_expanding(t) =>
     switch (Siblings.right_neighbor(z.relatives.siblings)) {
     | Some(p) when Piece.monotile(p) != None =>
-      switch (delayed_expand(t, Right, z)) {
+      switch (expand(t, Right, z)) {
       | Some(z) => z
       | None => z
       }
@@ -139,13 +139,12 @@ let make_new_tile = (~id, t: Token.t, caret: Direction.t, z: t): t =>
       /*&& Form.is_instant_putdown(t)*/
       ? put_down_regrout_remold_tok(caret, t, z) |> Option.get
       : {
-        let (lbl, backpack) = Molds.instant_expansion(t);
+        let (lbl, backpack) = Molds.expansion(t);
         //TODO(andrew): fix hack
         let (lbl, backpack) =
           if (List.length(lbl) == 1) {
-            let (lbl, backpack) = Molds.delayed_expansion(t);
             let (new_label, backpack) =
-              //copy-pasted from delayed_expand
+              //copy-pasted from `expand`
               //TODO(andrew): copy over other stuff from above like id retention?
               switch () {
               | () when (before_case_shard(z) || inside_case(z)) && t == "|" => (
@@ -168,8 +167,8 @@ let expand_neighbors_and_make_new_tile = (char: Token.t, z: t): t => {
      This process potentially involves both neighboring tiles,
      potentially triggering up to 3 expansions or backpack barfs.
      In particular, both left and right neighboring monotiles may
-     undergo delayed (aka keyword) expansion, and the newly-created
-     single-character token may undergo instant expansion. Currently
+     undergo expansion, and the newly-created
+     single-character token may undergo expansion. Currently
      made the decision to expand or barf the neighbors before making
      the new tile because barfing is limited to the top of the backpack,
      and I wanted things like "if|then", when you enter a "(", to
@@ -362,7 +361,7 @@ let projector_to_invoke: Base.projector => Segment.t =
   pr => [
     Piece.mk_tile(
       Form.mk(
-        Form.ss,
+        SS,
         [Form.mk_projector_invoke(pr.kind)],
         Mold.(mk_op(Exp, [])),
       ),

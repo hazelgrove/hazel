@@ -97,10 +97,10 @@ module Typ = {
 /* Automatically collates most delimiters from Forms, notably all
  * mono delimiters, all infix operators, and all leading delimiters */
 module Delims = {
-  let delayed_leading = (sort: Sort.t): list(Token.t) =>
+  let leading = (sort: Sort.t): list(Token.t) =>
     Form.delims
     |> List.map(token => {
-         let (lbl, _) = Molds.delayed_expansion(token);
+         let (lbl, _) = Molds.expansion(token);
          List.filter_map(
            (m: Mold.t) =>
              List.length(lbl) > 1 && token == List.hd(lbl) && m.out == sort
@@ -111,15 +111,15 @@ module Delims = {
     |> List.flatten
     |> List.sort_uniq(compare);
 
-  let delated_leading_exp = delayed_leading(Exp);
-  let delated_leading_pat = delayed_leading(Pat);
-  let delated_leading_typ = delayed_leading(Typ);
+  let leading_exp = leading(Exp);
+  let leading_pat = leading(Pat);
+  let leading_typ = leading(Typ);
 
-  let delayed_leading = (sort: Sort.t): list(string) =>
+  let leading = (sort: Sort.t): list(string) =>
     switch (sort) {
-    | Exp => delated_leading_exp
-    | Pat => delated_leading_pat
-    | Typ => delated_leading_typ
+    | Exp => leading_exp
+    | Pat => leading_pat
+    | Typ => leading_typ
     | _ => []
     };
 
@@ -229,4 +229,4 @@ let suggest_operand: Info.t => list(TyDiSuggestion.t) =
   suggest_form(Typ.of_const_mono_delim, Delims.const_mono);
 
 let suggest_leading: Info.t => list(TyDiSuggestion.t) =
-  suggest_form(Typ.of_leading_delim, Delims.delayed_leading);
+  suggest_form(Typ.of_leading_delim, Delims.leading);
