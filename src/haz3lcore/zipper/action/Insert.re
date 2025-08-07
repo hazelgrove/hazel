@@ -163,6 +163,7 @@ let expand_neighbors_and_make_new_tile = (char: Token.t, z: t): option(t) => {
 };
 
 let replace_shard = (d: Direction.t, t: Token.t, z: t): option(t) => {
+  print_endline("replace_shard: " ++ t);
   let id =
     switch (adjacent_monotile_id(d, z)) {
     | Some(id) => id
@@ -423,6 +424,9 @@ let rec go = (~ctx: option(Language.Ctx.t)=?, char: string, z: t): option(t) => 
     | None => insert(Some(z), char)
     };
   | (Inner(d_idx, n), (_, Some(t))) =>
+    print_endline(
+      "Inner(d_idx, n): " ++ string_of_int(d_idx) ++ " " ++ string_of_int(n),
+    );
     let idx = n + 1;
     let new_t = Token.insert_nth(idx, char, t);
     /* If inserting wouldn't produce a valid token, split. This is
@@ -433,11 +437,43 @@ let rec go = (~ctx: option(Language.Ctx.t)=?, char: string, z: t): option(t) => 
      * splits (as opposed to 2-way). This is currently the only
      * kind of splitting supported; this should be revisited if
      * we move to more subtle token division logic */
+    let right_nhbr_is_monotile = z =>
+      switch (Siblings.right_neighbor(z.relatives.siblings)) {
+      | Some(p) =>
+        switch (Piece.label(p)) {
+        | Some([hd, ..._]) => print_endline("hd: " ++ hd)
+        | _ => ()
+        };
+
+        Piece.monotile(p) != None;
+      | None => false
+      };
     Molds.allow_insertion(char, t, new_t)
-      ? z
-        |> Zipper.set_caret(Inner(d_idx, idx))
-        |> replace_shard(Right, new_t)
-        |> Option.map(remold_regrout(Left))
+      ? {
+        let z = z |> replace_shard(Right, new_t);
+        let z =
+          z
+          |> Option.map(z =>
+               Zipper.set_caret(
+                 Inner(
+                   right_nhbr_is_monotile(z)
+                     ? {
+                       print_endline("right_nhbr_is_monotile");
+                       0;
+                     }
+                     : d_idx,
+                   idx,
+                 ),
+                 z,
+               )
+             )
+          |> Option.map(remold_regrout(Left));
+        switch (z) {
+        | Some(z) => print_endline("z caret after: " ++ Caret.show(z.caret))
+        | None => ()
+        };
+        z;
+      }
       : split(z, char, idx, t);
   /* Can't insert inside delimiter */
   | (Inner(_, _), (_, None)) => None

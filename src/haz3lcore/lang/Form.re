@@ -128,10 +128,15 @@ let is_potential_operator = match(potential_operator_regexp);
 let begins_with_potential_operator =
   match(regexp("^[^a-zA-Z0-9_'?\"#\n\\s\\[\\]\\(\\)]+"));
 let is_potential_token = t =>
-  is_potential_operand(t)
-  || is_potential_operator(t)
-  || is_string(t)
-  || is_comment(t);
+  if (match(regexp("@"), t) && !(t == "@" || t == "@<")) {
+    false; /* the expression `map@<a>@<a>` has an ambiguous lex otherwise*/
+         //TODO(andrew): document
+  } else {
+    is_potential_operand(t)
+    || is_potential_operator(t)
+    || is_string(t)
+    || is_comment(t);
+  };
 
 let int_regexp = regexp("^-?\\d+[0-9_]*$");
 let is_float = match(regexp("^-?[0-9]*\\.?[0-9]*((e|E)-?[0-9]*)?$"));

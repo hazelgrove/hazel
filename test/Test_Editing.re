@@ -328,7 +328,7 @@ let insertion_tests = [
     ~name="Insert between non-leading delims when leading in backpack",
     ~acts=
       mk({|if¦ 1 then 2 else 3|})
-      @ [Destruct(Left)]
+      @ [Destruct(Left), Destruct(Left)]
       @ mv_r(8)
       @ [Insert(" ")],
     ~goal={| 1 then  ¦2 else 3|},
@@ -387,7 +387,7 @@ let destruct_tests = [
   ),
   test(
     ~name="Destruct leading delim in prefix 3-form",
-    ~acts=mk({|if¦ 1 then 2 else 3|}) @ [Destruct(Left)],
+    ~acts=mk({|if¦ 1 then 2 else 3|}) @ [Destruct(Left), Destruct(Left)],
     ~goal={|¦ 1 then 2 else 3|},
   ),
   /* DESTRUCTION: AMPHIBIOUS PREFIX/INFIX OP */
@@ -607,13 +607,18 @@ let move_tests = [
   ),
   test(
     ~name="Caret movement takes into account which shards are down - Right",
-    ~acts=mk({|if¦ 1 then 2 else 3|}) @ [Destruct(Left), ...mv_r(4)],
+    ~acts=
+      mk({|if¦ 1 then 2 else 3|})
+      @ [Destruct(Left), Destruct(Left), ...mv_r(4)],
     ~goal={| 1 t¦hen 2 else 3|},
   ),
   test(
     ~name="Caret movement takes into account which shards are down - Left",
     ~acts=
-      mk({|if¦ 1 then 2 else 3|}) @ [Destruct(Left)] @ mv_r(7) @ mv_l(1),
+      mk({|if¦ 1 then 2 else 3|})
+      @ [Destruct(Left), Destruct(Left)]
+      @ mv_r(7)
+      @ mv_l(1),
     ~goal={| 1 the¦n 2 else 3|},
   ),
 ];
