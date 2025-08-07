@@ -22,9 +22,9 @@ let mk_ancestor: (Form.t, (list(Segment.t), list(Segment.t))) => Ancestor.t =
   };
 
 let mk_monotile = form => mk_tile(form, []); //TODO: asserts
-let int = n => mk_monotile(Form.mk_atomic(Exp, n));
-let exp = v => mk_monotile(Form.mk_atomic(Exp, v));
-let pat = v => mk_monotile(Form.mk_atomic(Pat, v));
+let int = n => mk_monotile(Form.mk_atom_op(Exp, n));
+let exp = v => mk_monotile(Form.mk_atom_op(Exp, v));
+let pat = v => mk_monotile(Form.mk_atom_op(Pat, v));
 let mk_parens_exp = mk_tile(Form.get(ParensExp));
 let mk_fun = mk_tile(Form.get(Fun));
 let mk_fun_ancestor = mk_ancestor(Form.get(Fun));
@@ -71,11 +71,10 @@ let cons_exp = () => mk_monotile(Form.get(ConsExp));
 let list_concat_exp = () => mk_monotile(Form.get(ListConcat));
 let cons_pat = () => mk_monotile(Form.get(ConsPat));
 let seq = () => mk_monotile(Form.get(CellJoin));
-let exp = v => mk_monotile(Form.mk(Form.ss, [v], Mold.(mk_op(Exp, []))));
-let pat = v => mk_monotile(Form.mk(Form.ss, [v], Mold.(mk_op(Pat, []))));
-let typ = t => mk_monotile(Form.mk(Form.ss, [t], Mold.(mk_op(Typ, []))));
-let tpat = v => mk_monotile(Form.mk(Form.ss, [v], Mold.(mk_op(TPat, []))));
-let typ_pat_var = t => mk_monotile(Form.mk_atomic(TPat, t));
+let exp = v => mk_monotile(Form.mk_atom_op(Exp, v));
+let pat = v => mk_monotile(Form.mk_atom_op(Pat, v));
+let typ = t => mk_monotile(Form.mk_atom_op(Typ, t));
+let tpat = v => mk_monotile(Form.mk_atom_op(TPat, v));
 let mk_parens_exp = mk_tile(Form.get(ParensExp));
 let mk_parens_pat = mk_tile(Form.get(ParensPat));
 let mk_parens_typ = mk_tile(Form.get(ParensTyp));
