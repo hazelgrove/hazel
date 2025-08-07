@@ -1406,20 +1406,22 @@ and uexp_to_info_map =
           | Some(sm) => Ctx.add_ctrs(ctx_body, name, Typ.rep_id(utyp), sm)
           | None => ctx_body
           };
-        let ({co_ctx, ty: ty_body, _}: Info.exp, m) =
+        let ({co_ctx, ty: ty_body, constraints: body_constraints, _}: Info.exp, m) =
           go'(~ctx=ctx_body, ~ana, body, m);
         /* Make sure types don't escape their scope */
         let ty_escape = Typ.subst(ty_def, typat, ty_body);
         let m = utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp, m) |> snd;
-        add(~self=Just(ty_escape), ~co_ctx, m);
+        let self: Self.t = Just(ty_escape);
+        add(~self, ~co_ctx, ~constraints=body_constraints @ subsumption_constraints_t(self), m);
       | Var(_)
       | Invalid(_)
       | EmptyHole
       | MultiHole(_) =>
-        let ({co_ctx, ty: ty_body, _}: Info.exp, m) =
+        let ({co_ctx, ty: ty_body, constraints, _}: Info.exp, m) =
           go'(~ctx, ~ana, body, m);
         let m = utyp_to_info_map(~ctx, ~ancestors, utyp, m) |> snd;
-        add(~self=Just(ty_body), ~co_ctx, m);
+        let self: Self.t = Just(ty_body);
+        add(~self, ~co_ctx, ~constraints=constraints @ subsumption_constraints_t(self), m);
       };
     | Use(typ, body) =>
       let (typ, m) = utyp_to_info_map(~ctx, ~ancestors, typ, m);
@@ -1440,7 +1442,7 @@ and uexp_to_info_map =
       let self: Self.exp =
         switch (use_mode) {
         | Some(_) => Common(Just(body.ty))
-        | None when Typ.fast_equal(Unknown(Internal) |> Typ.temp, typ.term) =>
+        | None when Typ.fast_equal(temp_internal, typ.term) =>
           Common(Just(body.ty))
         | None =>
           InvalidUseMode({
@@ -1448,7 +1450,7 @@ and uexp_to_info_map =
             inner_typ: body.ty,
           })
         };
-      add'(~self, ~co_ctx=body.co_ctx, m);
+      add'(~self, ~co_ctx=body.co_ctx, ~constraints=body.constraints @ subsumption_constraints_exp(self), m);
     };
   };
 
@@ -1476,7 +1478,7 @@ and upat_to_info_map =
       ~ancestors: Info.ancestors,
       ~duplicates: list(string),
       ~expected_labels=?,
-      ~ana: Typ.t=Unknown(Internal) |> Typ.temp,
+      ~ana: Typ.t=temp_internal,
       ~under_ascription: bool=false,
       ~override_self: option(Self.t)=?,
       ~inferred_label=?,
