@@ -13,7 +13,6 @@ let exercise : Exercise.spec =
     prelude =
       {
         selection = { focus = Left; content = []; mode = Normal };
-        backpack = [];
         relatives =
           {
             siblings =
@@ -256,7 +255,6 @@ let exercise : Exercise.spec =
     correct_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };
-        backpack = [];
         relatives =
           {
             siblings =
@@ -786,7 +784,6 @@ let exercise : Exercise.spec =
         tests =
           {
             selection = { focus = Right; content = []; mode = Normal };
-            backpack = [];
             relatives =
               {
                 siblings =
@@ -1038,7 +1035,6 @@ let exercise : Exercise.spec =
     your_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };
-        backpack = [];
         relatives =
           {
             siblings =
@@ -1216,7 +1212,6 @@ let exercise : Exercise.spec =
           impl =
             {
               selection = { focus = Left; content = []; mode = Normal };
-              backpack = [];
               relatives =
                 {
                   siblings =
@@ -1416,7 +1411,6 @@ let exercise : Exercise.spec =
           impl =
             {
               selection = { focus = Left; content = []; mode = Normal };
-              backpack = [];
               relatives =
                 {
                   siblings =
@@ -1616,7 +1610,6 @@ let exercise : Exercise.spec =
           impl =
             {
               selection = { focus = Left; content = []; mode = Normal };
-              backpack = [];
               relatives =
                 {
                   siblings =
@@ -2408,7 +2401,6 @@ let exercise : Exercise.spec =
         tests =
           {
             selection = { focus = Left; content = []; mode = Normal };
-            backpack = [];
             relatives =
               {
                 siblings =
