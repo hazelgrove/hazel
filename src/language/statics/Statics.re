@@ -1035,7 +1035,11 @@ and uexp_to_info_map =
       }
     | TypAp(fn, utyp) =>
       let typfn_ana =
-        Forall(EmptyHole |> TPat.fresh, Unknown((SynSwitch: TermBase.type_provenance) |> IdTagged.fresh) |> Typ.temp)
+        Forall(
+          EmptyHole |> TPat.fresh,
+          Unknown((SynSwitch: TermBase.type_provenance) |> IdTagged.fresh)
+          |> Typ.temp,
+        )
         |> Typ.temp;
       let (fn, m) = go(~ana=typfn_ana, fn, m);
       let (_, m) = utyp_to_info_map(~ctx, ~ancestors, utyp, m);
@@ -1048,7 +1052,13 @@ and uexp_to_info_map =
           ~constraints=fn.constraints,
           m,
         )
-      | None => add(~self=Just(ty_body), ~co_ctx=fn.co_ctx, ~constraints=fn.constraints, m) /* invalid name matches with no free type variables. */
+      | None =>
+        add(
+          ~self=Just(ty_body),
+          ~co_ctx=fn.co_ctx,
+          ~constraints=fn.constraints,
+          m,
+        ) /* invalid name matches with no free type variables. */
       };
     | DeferredAp(fn, args) =>
       /* This logic lets us treat constructors differently to functions in
@@ -1097,13 +1107,13 @@ and uexp_to_info_map =
         let ty_ins = List.init(num_args, _ => temp_internal);
         let (args, m) = map_m_go(m, ty_ins, args);
         let arg_co_ctx = CoCtx.union(List.map(Info.exp_co_ctx, args));
-        let self: Self.exp = 
-            IsBadPartialAp(
-              ArityMismatch({
-                expected,
-                actual: num_args,
-              }),
-            );
+        let self: Self.exp =
+          IsBadPartialAp(
+            ArityMismatch({
+              expected,
+              actual: num_args,
+            }),
+          );
         add'(
           ~self,
           ~co_ctx=CoCtx.union([fn.co_ctx, arg_co_ctx]),
@@ -1138,6 +1148,7 @@ and uexp_to_info_map =
         m,
       );
     | TypFun(utpat, body, _) =>
+      // TODO: (THI) constraints for matched forall?
       let (name_expected_opt, item) = Typ.matched_forall(ctx, ana);
       let (mode_body, ctx_body) =
         switch (TPat.tyvar_of_utpat(utpat)) {
@@ -1164,9 +1175,11 @@ and uexp_to_info_map =
         };
       let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
       let (body, m) = go'(~ctx=ctx_body, ~ana=mode_body, body, m);
+      // TODO: (THI) is subsumable?
       add(
         ~self=Just(Forall(utpat, body.ty) |> Typ.temp),
         ~co_ctx=body.co_ctx,
+        ~constraints=body.constraints,
         m,
       );
     | Let(p, def, body) =>
@@ -1406,13 +1419,21 @@ and uexp_to_info_map =
           | Some(sm) => Ctx.add_ctrs(ctx_body, name, Typ.rep_id(utyp), sm)
           | None => ctx_body
           };
-        let ({co_ctx, ty: ty_body, constraints: body_constraints, _}: Info.exp, m) =
+        let (
+          {co_ctx, ty: ty_body, constraints: body_constraints, _}: Info.exp,
+          m,
+        ) =
           go'(~ctx=ctx_body, ~ana, body, m);
         /* Make sure types don't escape their scope */
         let ty_escape = Typ.subst(ty_def, typat, ty_body);
         let m = utyp_to_info_map(~ctx=ctx_def, ~ancestors, utyp, m) |> snd;
         let self: Self.t = Just(ty_escape);
-        add(~self, ~co_ctx, ~constraints=body_constraints @ subsumption_constraints_t(self), m);
+        add(
+          ~self,
+          ~co_ctx,
+          ~constraints=body_constraints @ subsumption_constraints_t(self),
+          m,
+        );
       | Var(_)
       | Invalid(_)
       | EmptyHole
@@ -1421,7 +1442,12 @@ and uexp_to_info_map =
           go'(~ctx, ~ana, body, m);
         let m = utyp_to_info_map(~ctx, ~ancestors, utyp, m) |> snd;
         let self: Self.t = Just(ty_body);
-        add(~self, ~co_ctx, ~constraints=constraints @ subsumption_constraints_t(self), m);
+        add(
+          ~self,
+          ~co_ctx,
+          ~constraints=constraints @ subsumption_constraints_t(self),
+          m,
+        );
       };
     | Use(typ, body) =>
       let (typ, m) = utyp_to_info_map(~ctx, ~ancestors, typ, m);
@@ -1450,7 +1476,12 @@ and uexp_to_info_map =
             inner_typ: body.ty,
           })
         };
-      add'(~self, ~co_ctx=body.co_ctx, ~constraints=body.constraints @ subsumption_constraints_exp(self), m);
+      add'(
+        ~self,
+        ~co_ctx=body.co_ctx,
+        ~constraints=body.constraints @ subsumption_constraints_exp(self),
+        m,
+      );
     };
   };
 

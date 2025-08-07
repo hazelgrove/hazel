@@ -739,7 +739,7 @@ let matched_forall = (ctx, ty) =>
   |> Option.value(
        ~default=(
          None,
-         Unknown((Internal: TermBase.type_provenance) |> IdTagged.fresh)
+         Unknown((Internal: TermBase.type_provenance) |> IdTagged.temp)
          |> temp,
        ),
      );
