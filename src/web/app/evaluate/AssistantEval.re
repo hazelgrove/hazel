@@ -1,6 +1,8 @@
 open Haz3lcore;
 open Util;
 
+open AssistantEvalParams;
+
 module Model = {
   // An evaluation suite
   // The idea is, we have a series of tests to run
@@ -10,10 +12,8 @@ module Model = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type case = {
-    prompt: string,
-    initial_sketch: string,
-    final_sketch: option(string),
-    // todo: add more params: tool calls, model, etc.
+    scenario: SketchPrompt.t,
+    tool_kit: CompositionTools.t,
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -26,14 +26,12 @@ module Model = {
     // todo: have an intializer that reads from data and takes a cartesian prod
     //       between all our prompts, initial sketches, etc etc... i.e. sets of params
     let case1 = {
-      prompt: "Replace the 'x' with 'y'",
-      initial_sketch: "let x = 5 in x",
-      final_sketch: None,
+      scenario: SketchPrompt.combo_1,
+      tool_kit: ToolKit.all_tools,
     };
     let case2 = {
-      prompt: "Replace the 'c' with 'a'",
-      initial_sketch: "let c = 1 in c + c",
-      final_sketch: None,
+      scenario: SketchPrompt.combo_2,
+      tool_kit: ToolKit.all_tools,
     };
     let cases = [case1, case2];
     {
@@ -69,6 +67,8 @@ module Update = {
       )
       : Updated.t(Model.t) => {
     let curr_case = Option.get(model.curr_case);
+    let sketch = curr_case.scenario.sketch;
+    let prompt = curr_case.scenario.prompt;
     switch (action) {
     | Init =>
       print_endline("Here #0 : Init");
@@ -77,7 +77,7 @@ module Update = {
       // Create a new scratchpad
       schedule_editor_action(Editors.Update.Scratch(AddSlide));
       // Paste the initial sketch
-      let a = Action.Paste(String(curr_case.initial_sketch));
+      let a = Action.Paste(String(sketch));
       let perform_action = CodeEditable.Update.Perform(a);
       let cell_action = CellEditor.Update.MainEditor(perform_action);
       let scratch_action = Editors.Update.Scratch(CellAction(cell_action));
@@ -92,7 +92,7 @@ module Update = {
       // Send the prompt to the assistant
       schedule_assistant_action(
         AssistantUpdateUtil.SendMessage(
-          Composition(Request(curr_case.prompt)),
+          Composition(Request(prompt)),
           None,
           assistant_model.current_chats.curr_composition_chat,
         ),

@@ -1,0 +1,88 @@
+let self = {|
+# EMOJIPAINT MVU #
+type Emoji = String in
+type Canvas = [[Emoji]] in
+type Row = Int in
+type Col = Int in
+type Model = (
+  canvas = Canvas,    # The 2D grid of emojis #
+  brush = Emoji,      # The currently selected emoji #
+  palette = [Emoji]   # The list of available emojis #
+) in
+type Action =
+  + SetBrush(Int)         # Set the brush using a palette index #
+  + PaintCell(Row, Col)   # Stamp the current emoji at the specified position #
+  + ClearCell(Row, Col)   # Clear the emoji at the specified position #
+  + ClearCanvas           # Clear the entire grid #
+  + PaintRow(Row)         # Fill the specified row with the current emoji #
+in
+let init: Model = (
+  # The canvas starts empty #
+  canvas = [
+    ["","",""],
+    ["","",""],
+    ["","",""]
+  ],
+  # Initial emoji brush #
+  brush = "😄",
+  # Emoji palette #
+  palette = ["😄", "😅", "😆", "😉", "😊"]
+) in
+let setCell: (Canvas, Row, Col, Emoji) -> Canvas =
+  fun (canvas, row, col, emoji) -> mapi(
+    canvas,
+    fun (i, r) ->
+      if i == row
+      then mapi(
+        r,
+        fun (j, c) ->
+          if j == col
+          then emoji
+          else c)
+      else r)
+in
+let setRow: (Canvas, Row, Emoji) -> Canvas =
+  fun (canvas, targetRow, emoji) ->
+    mapi(
+      canvas,
+      fun (i, row) ->
+        if i == targetRow
+        then map(row, fun  -> emoji)
+        else row)
+in
+let setAll: (Canvas, Emoji) -> Canvas =
+  fun (canvas, emoji) ->
+    map(canvas, fun r -> map(r, fun  -> emoji))
+in
+let updateGrid: (Model, Canvas -> Canvas) -> Model =
+  fun (m, f) ->
+    (f(m.canvas), m.brush, m.palette)
+in
+# Update the EmojiPaint app model based on an action #
+let update: (Model, Action) -> Model =
+  fun (m, action) ->
+    case action
+    | SetBrush(emoji) =>
+      (m.canvas, nth(m.palette, emoji), m.palette)
+    | PaintCell(row, col) =>
+      updateGrid(m, fun c -> setCell(c, row, col, m.brush))
+    | ClearCell(row, col) =>
+      updateGrid(m, fun c -> setCell(c, row, col, ""))
+    | ClearCanvas =>
+      updateGrid(m, fun c -> setAll(c, ""))
+    | PaintRow(row) =>
+      updateGrid(m, fun c -> setRow(c, row, m.brush))
+    end
+in
+let do = fun (init: Model, actions: [Action]) ->
+  fold_left(actions, update, init)
+in
+let actions = [
+  ClearCanvas,
+  SetBrush(1),
+  PaintCell(1, 1),
+  SetBrush(3),
+  PaintRow(0)
+] in
+do(init, actions)
+|};

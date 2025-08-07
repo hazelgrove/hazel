@@ -1,9 +1,8 @@
 open Sexplib.Std;
 open Ppx_yojson_conv_lib.Yojson_conv;
 
-// instructions: to add a tool, you will need to update all AddToolLabel
-// locations
-// AddToolLabel_0
+[@deriving (show({with_path: false}), sexp, yojson)]
+type t = list(API.Json.t);
 
 let tools = [
   NavTools.go_to_parent,

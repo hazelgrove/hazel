@@ -21,6 +21,7 @@ let (suite, _) =
       Test_Menhir.tests,
       Test_StringUtil.tests,
       Test_Typ.tests,
+      //Test_CompositionTools.tests,
       (
         "Statics",
         Test_Statics_Functions.tests
