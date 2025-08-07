@@ -62,3 +62,9 @@ let request =
       ),
     );
 };
+
+let request = (req, ~handler, ~timeout) =>
+  switch (req) {
+  | [] => ()
+  | _ => request(req, ~handler, ~timeout)
+  };
