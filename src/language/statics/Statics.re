@@ -534,7 +534,8 @@ and uexp_to_info_map =
           List.combine(inferred, es),
         );
       let ty_list = List.map(Info.exp_ty, es');
-      let es_constraints = List.map((e: Info.exp) => e.constraints, es') |> List.flatten;
+      let es_constraints =
+        List.map((e: Info.exp) => e.constraints, es') |> List.flatten;
 
       let (malformed_labels, duplicate_labels, invalid_labels) =
         List.fold_left(
@@ -724,7 +725,12 @@ and uexp_to_info_map =
       };
     | Test(e) =>
       let (e, m) = go(~ana=Atom(Bool) |> Typ.temp, e, m);
-      add(~self=Just(Prod([]) |> Typ.temp), ~co_ctx=e.co_ctx, ~constraints=e.constraints, m);
+      add(
+        ~self=Just(Prod([]) |> Typ.temp),
+        ~co_ctx=e.co_ctx,
+        ~constraints=e.constraints,
+        m,
+      );
     | HintedTest(e, hint) =>
       let (e, m) = go(~ana=Atom(Bool) |> Typ.temp, e, m);
       let (hint, m) = go(~ana=Atom(String) |> Typ.temp, hint, m);
@@ -886,7 +892,8 @@ and uexp_to_info_map =
         );
       };
     | Fun(p, e, typ, _) =>
-      let (mode_pat, mode_body, arrow_cons) = Typ.matched_arrow(ctx, ana);
+      let (mode_pat, mode_body, arr_constraint) =
+        Typ.matched_arrow(ctx, ana);
       let mode_pat = Option.value(~default=mode_pat, typ);
       let (p', _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=mode_pat, p, m);
@@ -901,7 +908,12 @@ and uexp_to_info_map =
         Coverage.check([Info.pat_constraint(p)], Typ.normalize(ctx, p.ty));
       let self =
         is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
-      add'(~self, ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx), m);
+      add'(
+        ~self,
+        ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx),
+        ~constraints=arr_constraint @ e.constraints @ p.typ_constraints,
+        m,
+      );
     | TypFun(utpat, body, _) =>
       let (name_expected_opt, item) = Typ.matched_forall(ctx, ana);
       let (mode_body, ctx_body) =
@@ -1229,7 +1241,7 @@ and upat_to_info_map =
       m: Map.t,
     )
     : (Info.pat, Map.t) => {
-  let add = (~self, ~ctx, ~constraint_, ~label_inference=?, m) => {
+  let add = (~self, ~ctx, ~typ_constraints, ~constraint_, ~label_inference=?, m) => {
     let prev_synswitch =
       switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
       | Some(Info.InfoPat({ana, ty, _})) when Typ.is_syn_plus(ana) =>
@@ -1247,6 +1259,7 @@ and upat_to_info_map =
         ~ana,
         ~ancestors,
         ~self=Common(Option.value(~default=self, override_self)),
+        ~typ_constraints,
         ~constraint_,
         ~label_inference,
         ~inferred_label,
