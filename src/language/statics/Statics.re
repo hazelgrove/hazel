@@ -724,13 +724,14 @@ and uexp_to_info_map =
       };
     | Test(e) =>
       let (e, m) = go(~ana=Atom(Bool) |> Typ.temp, e, m);
-      add(~self=Just(Prod([]) |> Typ.temp), ~co_ctx=e.co_ctx, m);
+      add(~self=Just(Prod([]) |> Typ.temp), ~co_ctx=e.co_ctx, ~constraints=e.constraints, m);
     | HintedTest(e, hint) =>
       let (e, m) = go(~ana=Atom(Bool) |> Typ.temp, e, m);
       let (hint, m) = go(~ana=Atom(String) |> Typ.temp, hint, m);
       add(
         ~self=Just(Prod([]) |> Typ.temp),
         ~co_ctx=CoCtx.union([e.co_ctx, hint.co_ctx]),
+        ~constraints=e.constraints @ hint.constraints, // TODO: (THI) are hint constraints really necessary?
         m,
       );
     | Filter(Filter({pat: cond, _}), body) =>
