@@ -4,6 +4,7 @@ open OptUtil.Syntax;
 
 exception Found(Exp.t);
 
+// Find a subexpression by id
 let find_exp_id = (id: Id.t, exp: Exp.t) =>
   switch (
     Exp.map_term(
@@ -20,6 +21,55 @@ let find_exp_id = (id: Id.t, exp: Exp.t) =>
   | exception (Found(x)) => Some(x)
   | _ => None
   };
+
+// Given an expression e1 that appears in e2, count how many
+// times e1 appears with a different id before e1 in e2.
+let exp_idx = (e1: Exp.t, e2: Exp.t) => {
+  let n = ref(0);
+  switch (
+    Exp.map_term(
+      ~f_exp=
+        (cont, exp) =>
+          if (Exp.rep_id(exp) == Exp.rep_id(e1)) {
+            raise(Found(exp));
+          } else if (DHExp.fast_equal(exp, e1)) {
+            n := n^ + 1;
+            exp;
+          } else {
+            cont(exp);
+          },
+      e2,
+    )
+  ) {
+  | exception (Found(_)) => n^
+  | _ => failwith("exp_idx: e1 not found in e2")
+  };
+};
+
+// Find the (n+1)th occurence of e1 in e2
+let nth_exp = (e1: Exp.t, n: int, e2: Exp.t) => {
+  let count = ref(0);
+  switch (
+    Exp.map_term(
+      ~f_exp=
+        (cont, exp) =>
+          if (DHExp.fast_equal(exp, e1)) {
+            if (count^ == n) {
+              raise(Found(exp));
+            } else {
+              count := count^ + 1;
+              exp;
+            };
+          } else {
+            cont(exp);
+          },
+      e2,
+    )
+  ) {
+  | exception (Found(x)) => Some(x)
+  | _ => None
+  };
+};
 
 let replace_exp_id = (id: Id.t, exp: Exp.t, new_exp: Exp.t) =>
   Exp.map_term(
