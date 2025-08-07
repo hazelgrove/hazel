@@ -24,6 +24,14 @@ let fresh = (term: 'a): Grammar.Annotated.t('a, IdTag.t) => {
     annotation: IdTag.fresh(),
   };
 };
+let temp = (term: 'a): Grammar.Annotated.t('a, IdTag.t) => {
+  {
+    term,
+    annotation: {
+      ids: [Id.invalid],
+    },
+  };
+};
 let fresh_deterministic = (prev_id, term): t('a) => {
   {
     term,

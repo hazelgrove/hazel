@@ -36,13 +36,7 @@ let fresh: term => t = IdTagged.fresh;
 /* fresh assigns a random id, whereas temp assigns Id.invalid, which
    is a lot faster, and since we so often make types and throw them away
    shortly after, it makes sense to use it. */
-let temp: term => t =
-  term => {
-    term,
-    annotation: {
-      ids: [Id.invalid],
-    },
-  };
+let temp: term => t = IdTagged.temp;
 
 let all_ids_temp = {
   let f:
@@ -704,7 +698,7 @@ let matched_arrow = (ctx, ty) => {
         |> temp;
       (left_arr, right_arr, [Con(ty, Arrow(left_arr, right_arr) |> temp)]);
     | _ =>
-      let prov = (Internal: TermBase.Prov.term) |> IdTagged.fresh;
+      let prov = (Internal: TermBase.Prov.term) |> IdTagged.temp;
       let left_arr =
         Unknown({
           term: prov.term,
