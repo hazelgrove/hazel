@@ -353,9 +353,11 @@ and uexp_to_info_map =
       };
 
     | LivelitName(name) =>
+      // TOOD: (THI) do we need to generate constraints?
       add'(
         ~self=Self.of_exp_livelit_name(ctx, name),
         ~co_ctx=CoCtx.singleton(name, Exp.rep_id(uexp), ana),
+        ~constraints=[],
         m,
       )
     | ListLit(es) =>
@@ -408,16 +410,18 @@ and uexp_to_info_map =
         m,
       );
     | Var(name) =>
+      // TOOD: (THI) do we need to generate constraints for variables?
       add'(
         ~self=Self.of_exp_var(ctx, name),
         ~co_ctx=CoCtx.singleton(name, Exp.rep_id(uexp), ana),
+        ~constraints=[],
         m,
       )
     | DynamicErrorHole(e, _)
     | Parens(e)
     | Probe(e, _) =>
       let (e, m) = go(~ana, e, m);
-      add(~self=Just(e.ty), ~co_ctx=e.co_ctx, m);
+      add(~self=Just(e.ty), ~co_ctx=e.co_ctx, ~constraints=e.constraints, m);
     | UnOp(Meta(Unquote), e) when is_in_filter =>
       let e: Exp.t = {
         annotation: {
