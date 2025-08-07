@@ -63,6 +63,8 @@ module type PROJECTOR = {
   /* Used for type checker bookkeeping - should always be Editor.model */
   type editor_model;
 
+  let kind: ProjectorKind.t;
+
   /* Mk should return None if the projector doesn't want
    * to handle the provided term. Otherwise, it should
    * return the desired initial state of the model

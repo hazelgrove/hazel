@@ -46,7 +46,7 @@ module Model = {
         type ed,
         type ed_a,
         type ed_f,
-        p: Base.projector(Projector.model(ed, ed_a, ed_f)),
+        p: Base.projector(Projector.model),
         ~common: Common.t,
         ~editor_active: bool,
         ~indicated: option((Id.t, Direction.t)),
@@ -70,7 +70,7 @@ module Model = {
       )
       |> Option.value(~default=false),
     kind: Projector.kind_of_model(p.model),
-    term: Projector.get_cached_term(p.model),
+    term: Projector.term_of_model(p.model),
     indication: editor_active ? indication(indicated, id) : None,
     selected: editor_active ? List.mem(id, selection_ids) : false,
   };

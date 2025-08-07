@@ -626,6 +626,7 @@ module M =
              type focus' = focus(Editor.focus) and
              type editor_model = Editor.model
        ) => {
+  let kind = ProjectorKind.Card;
   type editor_model = Editor.model;
 
   [@deriving (show({with_path: false}), sexp, yojson)]

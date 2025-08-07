@@ -71,20 +71,13 @@ module rec Projector: {
   };
 } = {
   module Model = {
-    type t =
-      Haz3lcorep.Projector.model(
-        Editor.Model.t,
-        Editor.Update.t,
-        Editor.Focus.t,
-      );
+    type t = Haz3lcorep.Projector.model;
     let pp = Haz3lcorep.Projector.pp_model;
     let show = Format.asprintf("%a", pp);
     let t_of_sexp =
       Haz3lcorep.Projector.model_of_sexp(~editor_module=(module Editor));
-    let sexp_of_t =
-      Haz3lcorep.Projector.sexp_of_model(~editor_module=(module Editor));
-    let yojson_of_t =
-      Haz3lcorep.Projector.yojson_of_model(~editor_module=(module Editor));
+    let sexp_of_t = Haz3lcorep.Projector.sexp_of_model;
+    let yojson_of_t = Haz3lcorep.Projector.yojson_of_model;
     let t_of_yojson =
       Haz3lcorep.Projector.model_of_yojson(~editor_module=(module Editor));
 
@@ -92,60 +85,25 @@ module rec Projector: {
 
     let mk = Haz3lcorep.Projector.init(~editor_module=(module Editor));
 
-    let get_cached_term = (Haz3lcorep.Projector.V(_, _, exp_cache)) =>
-      Calc.get_saved_exc(exp_cache);
+    let get_cached_term = Haz3lcorep.Projector.term_of_model;
   };
 
   module Update = {
-    type t =
-      Haz3lcorep.Projector.action(
-        Editor.Model.t,
-        Editor.Update.t,
-        Editor.Focus.t,
-      );
-    let pp = Haz3lcorep.Projector.pp_action;
-    let show = Format.asprintf("%a", pp);
-    let t_of_sexp =
-      Haz3lcorep.Projector.action_of_sexp(~editor_module=(module Editor));
-    let sexp_of_t =
-      Haz3lcorep.Projector.sexp_of_action(~editor_module=(module Editor));
-    let yojson_of_t =
-      Haz3lcorep.Projector.yojson_of_action(~editor_module=(module Editor));
-    let t_of_yojson =
-      Haz3lcorep.Projector.action_of_yojson(~editor_module=(module Editor));
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t = Haz3lcorep.Projector.action;
 
-    let update = (~common) =>
-      Haz3lcorep.Projector.update(~editor_module=(module Editor), ~common);
+    let update = (~common) => Haz3lcorep.Projector.update(~common);
 
     let make_term =
         (~sort, model: Model.t): (Model.t, Calc.t(Language.Any.t)) =>
-      Haz3lcorep.Projector.make_term(
-        ~editor_module=(module Editor),
-        ~sort,
-        model,
-      );
+      Haz3lcorep.Projector.make_term(~sort, model);
 
-    let calculate = (~common) =>
-      Haz3lcorep.Projector.calculate(~editor_module=(module Editor), ~common);
+    let calculate = (~common) => Haz3lcorep.Projector.calculate(~common);
   };
 
   module Focus = {
-    type t =
-      Haz3lcorep.Projector.focus(
-        Editor.Model.t,
-        Editor.Update.t,
-        Editor.Focus.t,
-      );
-    let pp = Haz3lcorep.Projector.pp_focus;
-    let show = Format.asprintf("%a", pp);
-    let t_of_sexp =
-      Haz3lcorep.Projector.focus_of_sexp(~editor_module=(module Editor));
-    let sexp_of_t =
-      Haz3lcorep.Projector.sexp_of_focus(~editor_module=(module Editor));
-    let yojson_of_t =
-      Haz3lcorep.Projector.yojson_of_focus(~editor_module=(module Editor));
-    let t_of_yojson =
-      Haz3lcorep.Projector.focus_of_yojson(~editor_module=(module Editor));
+    [@deriving (show({with_path: false}), sexp, yojson)]
+    type t = Haz3lcorep.Projector.focus;
 
     let get_cursor_info =
         (
@@ -157,7 +115,6 @@ module rec Projector: {
         )
         : Cursor.t =>
       Haz3lcorep.Projector.get_cursor_info(
-        ~editor_module=(module Editor),
         ~common,
         ~inject,
         ~read_only,
@@ -168,8 +125,7 @@ module rec Projector: {
 
   module View = {
     [@deriving (show({with_path: false}), sexp, yojson)]
-    let get_placeholder =
-      Haz3lcorep.Projector.placeholder(~editor_module=(module Editor));
+    let get_placeholder = Haz3lcorep.Projector.placeholder;
 
     let mk_status = ProjectorView.Model.mk_status;
 
@@ -184,7 +140,6 @@ module rec Projector: {
           m: Model.t,
         ) =>
       Haz3lcorep.Projector.view(
-        ~editor_module=(module Editor),
         ~common,
         ~inject,
         ~escape,

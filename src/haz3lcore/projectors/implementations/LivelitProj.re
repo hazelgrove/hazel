@@ -36,6 +36,7 @@ module M =
              type focus' = focus(Editor.focus) and
              type editor_model = Editor.model
        ) => {
+  let kind = ProjectorKind.Livelit;
   type editor_model = Editor.model;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
