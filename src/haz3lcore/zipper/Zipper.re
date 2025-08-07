@@ -225,38 +225,39 @@ let select = (d: Direction.t, z: t): option(t) =>
 //   token: Token.t,
 // };
 
+let singleton_shard = (t: Tile.t) =>
+  switch (Tile.effective_label(t)) {
+  | [tok] => Some(tok)
+  | _ => None
+  };
+let singleton_shard_selection = (seg: Segment.t) =>
+  switch (seg) {
+  | [Tile(t)] => singleton_shard(t)
+  | _ => None
+  };
+
 let left_neighbor_shard = (z: t): option(Token.t) =>
   switch (Siblings.left_neighbor(z.relatives.siblings)) {
-  | Some(Tile({label: [tok], _})) => Some(tok)
-  | Some(Secondary(w)) when Secondary.is_comment(w) =>
-    Some(Secondary.get_string(w.content))
+  | Some(p) when Piece.monotile(p) != None =>
+    Piece.monotile(p) |> Option.get |> Option.some
+  // | Some(Tile({label: [tok], _})) => Some(tok)
+  // | Some(Secondary(w)) when Secondary.is_comment(w) =>
+  //   Some(Secondary.get_string(w.content))
   | _ =>
     let* z = select(Left, z);
-    switch (z.selection.content) {
-    | [Tile(t)] =>
-      switch (Tile.effective_label(t)) {
-      | [tok] => Some(tok)
-      | _ => None
-      }
-    | _ => None
-    };
+    singleton_shard_selection(z.selection.content);
   };
 
 let right_neighbor_shard = (z: t): option(Token.t) =>
   switch (Siblings.right_neighbor(z.relatives.siblings)) {
-  | Some(Tile({label: [tok], _})) => Some(tok)
-  | Some(Secondary(w)) when Secondary.is_comment(w) =>
-    Some(Secondary.get_string(w.content))
+  | Some(p) when Piece.monotile(p) != None =>
+    Piece.monotile(p) |> Option.get |> Option.some
+  // | Some(Tile({label: [tok], _})) => Some(tok)
+  // | Some(Secondary(w)) when Secondary.is_comment(w) =>
+  //   Some(Secondary.get_string(w.content))
   | _ =>
     let* z = select(Right, z);
-    switch (z.selection.content) {
-    | [Tile(t)] =>
-      switch (Tile.effective_label(t)) {
-      | [tok] => Some(tok)
-      | _ => None
-      }
-    | _ => None
-    };
+    singleton_shard_selection(z.selection.content);
   };
 
 let neighbor_shards = (z: t): (option(Token.t), option(Token.t)) => (

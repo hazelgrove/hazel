@@ -114,6 +114,7 @@ let go = (d: Direction.t, z: t): option(t) => {
     Some(parent_merge(~id, lbl, z))
   | (_, (Some(l), Some(r))) when Molds.allow_merge(l, r) && z.caret == Outer =>
     z |> merge((l, r))
-  | _ => z |> remold_regrout(d) |> Option.some
+  | _ =>
+    z |> Insert.expand_or_barf_neighbors |> remold_regrout(d) |> Option.some
   };
 };

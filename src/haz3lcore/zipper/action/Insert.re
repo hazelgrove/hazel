@@ -52,31 +52,53 @@ let delayed_expand = (t: Token.t, caret: Direction.t, z: t): option(t) => {
   construct(~id, ~backpack, ~caret, new_label, z);
 };
 
-let expand_or_barf_left_neighbor = (z: t): option(t) =>
+let expand_or_barf_left_neighbor = (z: t): t =>
   /* If left neighbor is a monotile (a) string-matching the shard at the
      top of the backpack, barf it, or (b) an expansing keyword, expand it. */
   switch (Zipper.left_neighbor_shard(z)) {
-  | Some(t) when Zipper.will_barf(t, z) => barf(Left, t, z)
+  | Some(t) when Zipper.will_barf(t, z) =>
+    switch (barf(Left, t, z)) {
+    | Some(z) => z
+    | None => z
+    }
   | Some(t) when Molds.is_delayed(t) =>
     switch (Siblings.left_neighbor(z.relatives.siblings)) {
-    | Some(p) when Piece.monotile(p) != None => delayed_expand(t, Left, z)
-    | _ => Some(z)
+    | Some(p) when Piece.monotile(p) != None =>
+      switch (delayed_expand(t, Left, z)) {
+      | Some(z) => z
+      | None => z
+      }
+    | _ => z
     }
-  | _ => Some(z)
+  | _ => z
   };
 
-let expand_or_barf_right_neighbor = (z: t): option(t) =>
+let expand_or_barf_right_neighbor = (z: t): t =>
   /* If right neighbor is a monotile (a) string-matching the shard at the
      top of the backpack, barf it, or (b) an expansing keyword, expand it. */
   switch (Zipper.right_neighbor_shard(z)) {
-  | Some(t) when Zipper.will_barf(t, z) => barf(Right, t, z)
+  | Some(t) when Zipper.will_barf(t, z) =>
+    switch (barf(Right, t, z)) {
+    | Some(z) => z
+    | None => z
+    }
   | Some(t) when Molds.is_delayed(t) =>
     switch (Siblings.right_neighbor(z.relatives.siblings)) {
-    | Some(p) when Piece.monotile(p) != None => delayed_expand(t, Right, z)
-    | _ => Some(z)
+    | Some(p) when Piece.monotile(p) != None =>
+      switch (delayed_expand(t, Right, z)) {
+      | Some(z) => z
+      | None => z
+      }
+    | _ => z
     }
-  | _ => Some(z)
+  | _ => z
   };
+
+let expand_or_barf_neighbors = (z: t): t => {
+  let z = expand_or_barf_left_neighbor(z);
+  let z = expand_or_barf_right_neighbor(z);
+  z;
+};
 
 let get_duo_shard = ({label, shards, _}: Tile.t) =>
   if (List.length(label) == 2 && List.length(shards) == 1) {
@@ -141,7 +163,7 @@ let make_new_tile = (~id, t: Token.t, caret: Direction.t, z: t): t =>
       }
   };
 
-let expand_neighbors_and_make_new_tile = (char: Token.t, z: t): option(t) => {
+let expand_neighbors_and_make_new_tile = (char: Token.t, z: t): t => {
   /* Trigger a token boundary event and create a new tile.
      This process potentially involves both neighboring tiles,
      potentially triggering up to 3 expansions or backpack barfs.
@@ -154,8 +176,7 @@ let expand_neighbors_and_make_new_tile = (char: Token.t, z: t): option(t) => {
      barf the "then", before it is buried by the ")" added to the BP.
      The order here could be revisited if barfing was more sophisticated.
      */
-  let* z = expand_or_barf_left_neighbor(z);
-  let+ z = expand_or_barf_right_neighbor(z);
+  let z = expand_or_barf_neighbors(z);
   let z = remold_regrout_prev(z);
   let z = make_new_tile(~id=Id.mk(), char, Left, z);
   let z = remold_regrout_prev(z);
@@ -191,7 +212,7 @@ let sibling_appendability: (string, t) => appendability =
 
 let insert_outer = (char: string, z: t): option(t) =>
   switch (sibling_appendability(char, z)) {
-  | MakeNew => expand_neighbors_and_make_new_tile(char, z)
+  | MakeNew => Some(expand_neighbors_and_make_new_tile(char, z))
   | AppendLeft(t) => replace_shard(Left, t, z)
   | AppendRight(t) => replace_shard(Right, t, z)
   };
@@ -273,9 +294,8 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
      * `1|1` (needs concave grout by caret in current seg)
      * `if|if` (no grout needed by caret, and later)
      * `case|end` */
-    let* z = insert_monos(~id=right_monotile_id, l, r, z);
-    let* z = expand_or_barf_left_neighbor(z);
-    let+ z = expand_or_barf_right_neighbor(z);
+    let+ z = insert_monos(~id=right_monotile_id, l, r, z);
+    let z = expand_or_barf_neighbors(z);
     if (Form.space == char && should_supress_space(z)) {
       /* This is a finnicky case. remold_regrout_prev regrouts
        * the parent segment if we're at the beginning of the current
@@ -467,7 +487,7 @@ let rec go = (~ctx: option(Language.Ctx.t)=?, char: string, z: t): option(t) => 
                  z,
                )
              )
-          |> Option.map(remold_regrout(Left));
+          |> Option.map(remold_regrout(Right));
         switch (z) {
         | Some(z) => print_endline("z caret after: " ++ Caret.show(z.caret))
         | None => ()
