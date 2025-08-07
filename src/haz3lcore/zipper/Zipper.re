@@ -64,14 +64,15 @@ let unzip = (seg: Segment.t): t => {
   caret: Outer,
 };
 
-let left_neighbor_monotile: Siblings.t => option(Token.t) =
-  s => s |> Siblings.left_neighbor |> OptUtil.and_then(Piece.monotile);
+//TODO(andrew): cleanup
+// let left_neighbor_monotile: Siblings.t => option(Token.t) =
+//   s => s |> Siblings.left_neighbor |> OptUtil.and_then(Piece.monotile);
 
-let right_neighbor_monotile: Siblings.t => option(Token.t) =
-  s => s |> Siblings.right_neighbor |> OptUtil.and_then(Piece.monotile);
+// let right_neighbor_monotile: Siblings.t => option(Token.t) =
+//   s => s |> Siblings.right_neighbor |> OptUtil.and_then(Piece.monotile);
 
-let neighbor_monotiles: Siblings.t => (option(Token.t), option(Token.t)) =
-  s => (left_neighbor_monotile(s), right_neighbor_monotile(s));
+// let neighbor_monotiles: Siblings.t => (option(Token.t), option(Token.t)) =
+//   s => (left_neighbor_monotile(s), right_neighbor_monotile(s));
 
 let regrout = (d: Direction.t, z: t): t => {
   assert(Selection.is_empty(z.selection));
@@ -211,6 +212,57 @@ let move = (d: Direction.t, z: t): option(t) =>
 
 let select = (d: Direction.t, z: t): option(t) =>
   d == z.selection.focus ? grow_selection(z) : shrink_selection(z);
+
+// [@deriving (show({with_path: false}), sexp, yojson)]
+// type nshard =
+//   | Mono(Tile.t)
+//   | Poly(Tile.t)
+//   | Comment;
+
+// [@deriving (show({with_path: false}), sexp, yojson)]
+// type nhbr_shard = {
+//   shard: nshard,
+//   token: Token.t,
+// };
+
+let left_neighbor_shard = (z: t): option(Token.t) =>
+  switch (Siblings.left_neighbor(z.relatives.siblings)) {
+  | Some(Tile({label: [tok], _})) => Some(tok)
+  | Some(Secondary(w)) when Secondary.is_comment(w) =>
+    Some(Secondary.get_string(w.content))
+  | _ =>
+    let* z = select(Left, z);
+    switch (z.selection.content) {
+    | [Tile(t)] =>
+      switch (Tile.effective_label(t)) {
+      | [tok] => Some(tok)
+      | _ => None
+      }
+    | _ => None
+    };
+  };
+
+let right_neighbor_shard = (z: t): option(Token.t) =>
+  switch (Siblings.right_neighbor(z.relatives.siblings)) {
+  | Some(Tile({label: [tok], _})) => Some(tok)
+  | Some(Secondary(w)) when Secondary.is_comment(w) =>
+    Some(Secondary.get_string(w.content))
+  | _ =>
+    let* z = select(Right, z);
+    switch (z.selection.content) {
+    | [Tile(t)] =>
+      switch (Tile.effective_label(t)) {
+      | [tok] => Some(tok)
+      | _ => None
+      }
+    | _ => None
+    };
+  };
+
+let neighbor_shards = (z: t): (option(Token.t), option(Token.t)) => (
+  left_neighbor_shard(z),
+  right_neighbor_shard(z),
+);
 
 let destruct: t => t = update_selection_and_unselect(Selection.empty);
 
@@ -408,8 +460,8 @@ let replace =
 };
 
 let match_prev = (z: t) =>
-  switch (neighbor_monotiles(z.relatives.siblings)) {
-  | (Some(t), _) when will_barf(t, z) =>
+  switch (left_neighbor_shard(z)) {
+  | Some(t) when will_barf(t, z) =>
     switch (delete(Left, z)) {
     | Some(z) => put_down_regrout_remold_tok(Left, t, z)
     | None => Some(z)
@@ -424,7 +476,7 @@ let adjacent_monotile_id = (d: Direction.t, z: t): option(Id.t) =>
   | _ => None
   };
 
-let replace_mono = (d: Direction.t, t: Token.t, z: t): option(t) => {
+let replace_shard = (d: Direction.t, t: Token.t, z: t): option(t) => {
   /* Re-use existing monotile id where appropriate */
   let id =
     switch (adjacent_monotile_id(d, z)) {

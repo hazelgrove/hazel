@@ -2,12 +2,7 @@ open Zipper;
 open Util;
 open OptUtil.Syntax;
 
-let destruct =
-    (
-      d: Direction.t,
-      {caret, relatives: {siblings: (l_sibs, r_sibs), _}, _} as z: t,
-    )
-    : option(t) => {
+let destruct = (d: Direction.t, z: t): option(t) => {
   /* Could add checks on valid tokens (all of these hold assuming substring) */
   let last_inner_pos = t => Token.length(t) - 2;
   let delete_right = z =>
@@ -17,7 +12,7 @@ let destruct =
     Option.map(Zipper.construct(~caret=Right, ~backpack=Right, l), s);
   let construct_left = (l, s) =>
     Option.map(Zipper.construct(~caret=Left, ~backpack=Left, l), s);
-  switch (d, caret, neighbor_monotiles((l_sibs, r_sibs))) {
+  switch (d, z.caret, Zipper.neighbor_shards(z)) {
   /* When there's a selection, defer to Outer */
   | _ when z.selection.content != [] => z |> Zipper.destruct |> Option.some
   /* Special cases for mono forms which can split into duo forms,
@@ -51,14 +46,14 @@ let destruct =
     delete_right(z) /* Remove inner character */
   | (Left, Inner(_, c_idx), (_, Some(t))) =>
     let z = Zipper.update_caret(Zipper.Caret.decrement, z);
-    Zipper.replace_mono(Right, Token.rm_nth(c_idx, t), z);
+    Insert.replace_shard(Right, Token.rm_nth(c_idx, t), z);
   | (Right, Inner(_, c_idx), (_, Some(t))) when c_idx == last_inner_pos(t) =>
-    Zipper.replace_mono(Right, Token.rm_nth(c_idx + 1, t), z)
+    Insert.replace_shard(Right, Token.rm_nth(c_idx + 1, t), z)
     |> OptUtil.and_then(z =>
          z |> Zipper.set_caret(Outer) |> Zipper.move(Right)
        ) /* If not on last inner position */
   | (Right, Inner(_, c_idx), (_, Some(t))) =>
-    Zipper.replace_mono(Right, Token.rm_nth(c_idx + 1, t), z)
+    Insert.replace_shard(Right, Token.rm_nth(c_idx + 1, t), z)
   /* Can't subdestruct in delimiter, so just destruct on whole delimiter */
   | (Left, Inner(_), (_, None))
   | (Right, Inner(_), (_, None)) =>
@@ -67,24 +62,28 @@ let destruct =
 
   //| (_, Inner(_), (_, None)) => None
   | (Left, Outer, (Some(t), _)) when Token.length(t) > 1 =>
-    Zipper.replace_mono(Left, Token.rm_last(t), z)
+    Insert.replace_shard(Left, Token.rm_last(t), z)
   | (Right, Outer, (_, Some(t))) when Token.length(t) > 1 =>
-    Zipper.replace_mono(Right, Token.rm_first(t), z)
+    Insert.replace_shard(Right, Token.rm_first(t), z)
   | (_, Outer, (Some(_), _)) /* t.length == 1 */
   | (_, Outer, (None, _)) => z |> Zipper.delete(d)
   };
 };
 
 let merge = ((l, r): (Token.t, Token.t), z: t): option(t) => {
-  let left_monotile_id =
-    switch (Zipper.adjacent_monotile_id(Left, z)) {
-    | Some(id) => id
-    | None => Id.mk()
-    };
+  //TODO(andrew):cleanup
+  //TODO(andrew): possibly reinstate left as opposed to right id retension
+  // let left_monotile_id =
+  //   switch (Zipper.adjacent_monotile_id(Left, z)) {
+  //   | Some(id) => id
+  //   | None => Id.mk()
+  //   };
   let z = Zipper.set_caret(Inner(0, Token.length(l) - 1), z); /* Note monotile assumption */
   let* z = Zipper.delete(Left, z);
-  let* z = Zipper.delete(Right, z);
-  let z = Zipper.construct_mono(~id=left_monotile_id, Right, l ++ r, z);
+  //TODO(andrew):cleanup
+  //let* z = Zipper.delete(Right, z);
+  //let z = Zipper.construct_mono(~id=left_monotile_id, Right, l ++ r, z);
+  let* z = Insert.replace_shard(Right, l ++ r, z);
   /* Regrouting direction needed to merge prefixs into infix eg ! */
   let z = remold_regrout(Right, z);
   Some(z);
@@ -109,11 +108,7 @@ let parent_duomerges = (z: Zipper.t) => {
 
 let go = (d: Direction.t, z: t): option(t) => {
   let* z = destruct(d, z);
-  switch (
-    parent_duomerges(z),
-    z.caret,
-    neighbor_monotiles(z.relatives.siblings),
-  ) {
+  switch (parent_duomerges(z), z.caret, Zipper.neighbor_shards(z)) {
   | (Some((lbl, id)), Outer, (None, None))
       when Siblings.no_siblings(z.relatives.siblings) =>
     /* Note: we must do the no_siblings check, it does not suffice

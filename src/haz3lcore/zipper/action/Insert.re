@@ -52,22 +52,30 @@ let delayed_expand = (t: Token.t, caret: Direction.t, z: t): option(t) => {
   construct(~id, ~backpack, ~caret, new_label, z);
 };
 
-let expand_or_barf_left_neighbor = (z as s: t): option(t) =>
+let expand_or_barf_left_neighbor = (z: t): option(t) =>
   /* If left neighbor is a monotile (a) string-matching the shard at the
      top of the backpack, barf it, or (b) an expansing keyword, expand it. */
-  switch (left_neighbor_monotile(z.relatives.siblings)) {
-  | Some(t) when Zipper.will_barf(t, z) => barf(Left, t, s)
-  | Some(t) when Molds.is_delayed(t) => delayed_expand(t, Left, s)
-  | _ => Some(s)
+  switch (Zipper.left_neighbor_shard(z)) {
+  | Some(t) when Zipper.will_barf(t, z) => barf(Left, t, z)
+  | Some(t) when Molds.is_delayed(t) =>
+    switch (Siblings.left_neighbor(z.relatives.siblings)) {
+    | Some(p) when Piece.monotile(p) != None => delayed_expand(t, Left, z)
+    | _ => Some(z)
+    }
+  | _ => Some(z)
   };
 
-let expand_or_barf_right_neighbor = (z as s: t): option(t) =>
+let expand_or_barf_right_neighbor = (z: t): option(t) =>
   /* If right neighbor is a monotile (a) string-matching the shard at the
      top of the backpack, barf it, or (b) an expansing keyword, expand it. */
-  switch (right_neighbor_monotile(z.relatives.siblings)) {
-  | Some(t) when Zipper.will_barf(t, z) => barf(Right, t, s)
-  | Some(t) when Molds.is_delayed(t) => delayed_expand(t, Right, s)
-  | _ => Some(s)
+  switch (Zipper.right_neighbor_shard(z)) {
+  | Some(t) when Zipper.will_barf(t, z) => barf(Right, t, z)
+  | Some(t) when Molds.is_delayed(t) =>
+    switch (Siblings.right_neighbor(z.relatives.siblings)) {
+    | Some(p) when Piece.monotile(p) != None => delayed_expand(t, Right, z)
+    | _ => Some(z)
+    }
+  | _ => Some(z)
   };
 
 let get_duo_shard = ({label, shards, _}: Tile.t) =>
@@ -104,15 +112,36 @@ let make_new_tile = (~id, t: Token.t, caret: Direction.t, z: t): t =>
     Zipper.replace(~id, ~caret=d, ~backpack=d, lbl, z) |> Option.get
   | None =>
     /* e.g. closing parens are put down without further ceremony */
-    Zipper.will_barf(t, z) && Form.is_instant_putdown(t)
+    //TODO(andrew): rm instant putdown if no longer necessary
+    Zipper.will_barf(t, z)
+      /*&& Form.is_instant_putdown(t)*/
       ? put_down_regrout_remold_tok(caret, t, z) |> Option.get
       : {
         let (lbl, backpack) = Molds.instant_expansion(t);
+        //TODO(andrew): fix hack
+        let (lbl, backpack) =
+          if (List.length(lbl) == 1) {
+            let (lbl, backpack) = Molds.delayed_expansion(t);
+            let (new_label, backpack) =
+              //copy-pasted from delayed_expand
+              //TODO(andrew): copy over other stuff from above like id retention?
+              switch () {
+              | () when (before_case_shard(z) || inside_case(z)) && t == "|" => (
+                  ["|", "=>"],
+                  Direction.Left,
+                )
+              | _ when t == "|" => ([t], Direction.Left)
+              | _ => (lbl, backpack)
+              };
+            (new_label, backpack);
+          } else {
+            (lbl, backpack);
+          };
         construct(~id, ~caret, ~backpack, lbl, z);
       }
   };
 
-let expand_neighbors_and_make_new_tile = (char: Token.t, state: t): option(t) => {
+let expand_neighbors_and_make_new_tile = (char: Token.t, z: t): option(t) => {
   /* Trigger a token boundary event and create a new tile.
      This process potentially involves both neighboring tiles,
      potentially triggering up to 3 expansions or backpack barfs.
@@ -125,7 +154,7 @@ let expand_neighbors_and_make_new_tile = (char: Token.t, state: t): option(t) =>
      barf the "then", before it is buried by the ")" added to the BP.
      The order here could be revisited if barfing was more sophisticated.
      */
-  let* z = expand_or_barf_left_neighbor(state);
+  let* z = expand_or_barf_left_neighbor(z);
   let+ z = expand_or_barf_right_neighbor(z);
   let z = remold_regrout_prev(z);
   let z = make_new_tile(~id=Id.mk(), char, Left, z);
@@ -133,7 +162,7 @@ let expand_neighbors_and_make_new_tile = (char: Token.t, state: t): option(t) =>
   z;
 };
 
-let replace_tile = (t: Token.t, d: Direction.t, z: t): option(t) => {
+let replace_shard = (d: Direction.t, t: Token.t, z: t): option(t) => {
   let id =
     switch (adjacent_monotile_id(d, z)) {
     | Some(id) => id
@@ -149,9 +178,9 @@ type appendability =
   | AppendRight(Token.t)
   | MakeNew;
 
-let sibling_appendability: (string, Siblings.t) => appendability =
-  (char, siblings) =>
-    switch (neighbor_monotiles(siblings)) {
+let sibling_appendability: (string, t) => appendability =
+  (char, z) =>
+    switch (neighbor_shards(z)) {
     | (Some(t), _) when Molds.allow_append_right(t, char) =>
       AppendLeft(t ++ char)
     | (_, Some(t)) when Molds.allow_append_left(char, t) =>
@@ -159,11 +188,11 @@ let sibling_appendability: (string, Siblings.t) => appendability =
     | _ => MakeNew
     };
 
-let insert_outer = (char: string, z as state: t): option(t) =>
-  switch (sibling_appendability(char, z.relatives.siblings)) {
-  | MakeNew => expand_neighbors_and_make_new_tile(char, state)
-  | AppendLeft(t) => replace_tile(t, Left, state)
-  | AppendRight(t) => replace_tile(t, Right, state)
+let insert_outer = (char: string, z: t): option(t) =>
+  switch (sibling_appendability(char, z)) {
+  | MakeNew => expand_neighbors_and_make_new_tile(char, z)
+  | AppendLeft(t) => replace_shard(Left, t, z)
+  | AppendRight(t) => replace_shard(Right, t, z)
   };
 
 let insert_duo = (~id, lbl: Label.t, z: option(t)): option(t) =>
@@ -321,16 +350,10 @@ let projector_to_invoke: Base.projector => Segment.t =
     Piece.mk_tile(Form.get(ApExp), [Piece.unparenthesize(pr.syntax)]),
   ];
 
-let rec go =
-        (
-          ~ctx: option(Language.Ctx.t)=?,
-          char: string,
-          {caret, relatives: {siblings, _}, _} as z: t,
-        )
-        : option(t) => {
+let rec go = (~ctx: option(Language.Ctx.t)=?, char: string, z: t): option(t) => {
   /* If there's a selection, delete it before proceeding */
   let z = z.selection.content != [] ? Zipper.destruct(z) : z;
-  switch (caret, neighbor_monotiles(siblings)) {
+  switch (z.caret, neighbor_shards(z)) {
   /* If we try to insert a quote inside an existing string, or a #
    * in a comment, we are instead moved to the righthand side of
    * the operand. Note that this behavior is load-bearing for the
@@ -413,24 +436,26 @@ let rec go =
     Molds.allow_insertion(char, t, new_t)
       ? z
         |> Zipper.set_caret(Inner(d_idx, idx))
-        |> Zipper.replace_mono(Right, new_t)
+        |> replace_shard(Right, new_t)
         |> Option.map(remold_regrout(Left))
       : split(z, char, idx, t);
   /* Can't insert inside delimiter */
   | (Inner(_, _), (_, None)) => None
   | (Outer, (_, Some(_))) =>
-    let caret: Zipper.Caret.t =
-      switch (sibling_appendability(char, siblings)) {
+    let caret = (delim_idx: int): Zipper.Caret.t =>
+      switch (sibling_appendability(char, z)) {
       | AppendRight(_) =>
         /* If we're adding to the right, move caret inside right nhbr.
          * Note the assumption that this is a monotile */
-        Inner(0, 0)
+        //TODO(andrew): fix monotile assumption
+        Inner(delim_idx, 0)
       | MakeNew
       | AppendLeft(_) => Outer
       };
-    z
-    |> insert_outer(char)
-    |> Option.map(Zipper.set_caret(caret))
+    let z1 = z |> insert_outer(char);
+    let delim_idx = 0; //TODO(andrew)
+    z1
+    |> Option.map(Zipper.set_caret(caret(delim_idx)))
     |> Option.map(remold_regrout(Left))
     |> Option.map(move_into_if_stringlit_or_comment(char));
   | (Outer, (_, None)) =>
