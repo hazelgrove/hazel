@@ -43,9 +43,6 @@ module Model = {
 
   let mk_status =
       (
-        type ed,
-        type ed_a,
-        type ed_f,
         p: Base.projector(Projector.model),
         ~common: Common.t,
         ~editor_active: bool,
