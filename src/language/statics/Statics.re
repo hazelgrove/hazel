@@ -883,7 +883,7 @@ and uexp_to_info_map =
         );
       };
     | Fun(p, e, typ, _) =>
-      let (mode_pat, mode_body) = Typ.matched_arrow(ctx, ana);
+      let (mode_pat, mode_body, arrow_cons) = Typ.matched_arrow(ctx, ana);
       let mode_pat = Option.value(~default=mode_pat, typ);
       let (p', _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=mode_pat, p, m);

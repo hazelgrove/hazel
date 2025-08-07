@@ -83,12 +83,24 @@ module Ctr = {
 
   let arity_of = (ctr, all_ctrs: all_ctrs): arity =>
     switch (all_ctrs) {
-    | Unknown => List.init(ctr.num_args, _ => Unknown(Internal) |> Typ.temp)
-    | Infinite => List.init(ctr.num_args, _ => Unknown(Internal) |> Typ.temp)
+    | Unknown =>
+      List.init(ctr.num_args, _ =>
+        Unknown((Internal: TermBase.type_provenance) |> IdTagged.fresh)
+        |> Typ.temp
+      )
+    | Infinite =>
+      List.init(ctr.num_args, _ =>
+        Unknown((Internal: TermBase.type_provenance) |> IdTagged.fresh)
+        |> Typ.temp
+      )
     | Finite(all_ctrs) =>
       switch (Map.find_opt(ctr, all_ctrs)) {
       | Some(arity) => arity
-      | None => List.init(ctr.num_args, _ => Unknown(Internal) |> Typ.temp)
+      | None =>
+        List.init(ctr.num_args, _ =>
+          Unknown((Internal: TermBase.type_provenance) |> IdTagged.fresh)
+          |> Typ.temp
+        )
       }
     };
 

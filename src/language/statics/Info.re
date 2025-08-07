@@ -384,7 +384,8 @@ let pat_constraint: pat => Coverage.Constraint.t =
 
 let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
   switch (self, ty_ana) {
-  | (Just(ty), {term: Unknown(SynSwitch), _}) => NotInHole(Syn(ty))
+  | (Just(ty), {term: Unknown({term: SynSwitch, _}), _}) =>
+    NotInHole(Syn(ty))
   | (Just(syn), ana) =>
     switch (
       Typ.join(
@@ -449,13 +450,30 @@ let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
     )
   | (Duplicate(lab, Just(ty)), _) => InHole(DuplicateLabel(lab, ty))
   | (Duplicate(lab, _), _) =>
-    InHole(DuplicateLabel(lab, Unknown(Internal) |> Typ.temp))
-  | (IsMulti, _) => NotInHole(Syn(Unknown(Internal) |> Typ.temp))
+    InHole(
+      DuplicateLabel(
+        lab,
+        Unknown((Internal: TermBase.type_provenance) |> IdTagged.fresh)
+        |> Typ.temp,
+      ),
+    )
+  | (IsMulti, _) =>
+    NotInHole(
+      Syn(
+        Unknown((Internal: TermBase.type_provenance) |> IdTagged.fresh)
+        |> Typ.temp,
+      ),
+    )
   | (NoJoin(PolyEq, tys), _)
-  | (NoJoin(_, tys), {term: Unknown(SynSwitch), _}) =>
+  | (NoJoin(_, tys), {term: Unknown({term: SynSwitch, _}), _}) =>
     InHole(Inconsistent(Internal(Typ.of_source(tys))))
   | (NoJoin(wrap, tys), ana) =>
-    let syn: Typ.t = Self.join_of(wrap, Unknown(Internal) |> Typ.temp);
+    let syn: Typ.t =
+      Self.join_of(
+        wrap,
+        Unknown((Internal: TermBase.type_provenance) |> IdTagged.fresh)
+        |> Typ.temp,
+      );
     switch (Typ.join(ctx, ana, syn)) {
     | None =>
       switch (ana.term, syn.term) {
@@ -578,7 +596,14 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
     switch (ll) {
     | None => InHole(UnboundLivelit(name))
     | Some(_livelit) =>
-      NotInHole(Common(Syn(Unknown(Internal) |> Typ.temp)))
+      NotInHole(
+        Common(
+          Syn(
+            Unknown((Internal: TermBase.type_provenance) |> IdTagged.fresh)
+            |> Typ.temp,
+          ),
+        ),
+      )
     };
   | BadTrivAp(ty) => InHole(BadTrivAp(ty))
   | BadOperator(op) => InHole(BadOperator(op))
@@ -600,8 +625,8 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
    free, and whether a ctr name is a dupe. */
 let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
   switch (ty.term) {
-  | Unknown(Hole(Invalid(token))) => InHole(BadToken(token))
-  | Unknown(Hole(EmptyHole)) =>
+  | Unknown({term: Hole(Invalid(token)), _}) => InHole(BadToken(token))
+  | Unknown({term: Hole(EmptyHole), _}) =>
     switch (expects) {
     | LabelExpected(_) => NotInHole(EmptyLabel)
     | _ => NotInHole(Type(ty))
@@ -745,18 +770,29 @@ let fixed_typ_err_common: error_common => Typ.t =
   | NoType(FreeConstructor(c)) =>
     Sum([
       ConstructorMap.Variant(c, [Id.invalid], None),
-      ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
+      ConstructorMap.BadEntry(
+        Unknown((Internal: TermBase.type_provenance) |> IdTagged.fresh)
+        |> Typ.temp,
+      ),
     ])
     |> Typ.temp
   | NoType(BadToken(_) | BadLabel(_) | InvalidLabel(_)) =>
-    Unknown(Internal) |> Typ.temp
+    Unknown((Internal: TermBase.type_provenance) |> IdTagged.fresh)
+    |> Typ.temp
   | TupleLabelError({typ, _})
   | DuplicateLabel(_, typ) => typ
   | Inconsistent(Expectation({ana, _})) => ana
-  | Inconsistent(Internal(_)) => Unknown(Internal) |> Typ.temp // Should this be some sort of meet?
+  | Inconsistent(Internal(_)) =>
+    Unknown((Internal: TermBase.type_provenance) |> IdTagged.fresh)
+    |> Typ.temp // Should this be some sort of meet?
   | Inconsistent(CompareFun(_)) => Atom(Bool) |> Typ.temp
   | Inconsistent(WithArrow(_)) =>
-    Arrow(Unknown(Internal) |> Typ.temp, Unknown(Internal) |> Typ.temp)
+    Arrow(
+      Unknown((Internal: TermBase.type_provenance) |> IdTagged.fresh)
+      |> Typ.temp,
+      Unknown((Internal: TermBase.type_provenance) |> IdTagged.fresh)
+      |> Typ.temp,
+    )
     |> Typ.temp;
 
 let fixed_typ_err: error_exp => Typ.t =
@@ -769,7 +805,9 @@ let fixed_typ_err: error_exp => Typ.t =
   | WantTuple
   | BadOperator(_)
   | LabelNotFound(_, _)
-  | BadTrivAp(_) => Unknown(Internal) |> Typ.temp
+  | BadTrivAp(_) =>
+    Unknown((Internal: TermBase.type_provenance) |> IdTagged.fresh)
+    |> Typ.temp
   | Common(err) => fixed_typ_err_common(err)
   | InvalidUseMode({inner_typ, _}) => inner_typ
   | BadLivelitModel(ana) => ana;
@@ -777,7 +815,9 @@ let fixed_typ_err: error_exp => Typ.t =
 let fixed_typ_err_pat: error_pat => Typ.t =
   fun
   | ExpectedConstructor
-  | Redundant(_) => Unknown(Internal) |> Typ.temp
+  | Redundant(_) =>
+    Unknown((Internal: TermBase.type_provenance) |> IdTagged.fresh)
+    |> Typ.temp
   | Common(err) => fixed_typ_err_common(err);
 
 let fixed_typ_pat = (ctx, ty_ana: Typ.t, self: Self.pat): Typ.t => {
