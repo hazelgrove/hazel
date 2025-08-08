@@ -108,8 +108,9 @@ let begins_with_potential_operator =
   match(regexp("^[^a-zA-Z0-9_'?\"#\n\\s\\[\\]\\(\\)]+"));
 
 let is_potential_token = t =>
-  if (match(regexp("@"), t) && !(t == "@" || t == "@<")) {
-    false; /* the expression `map@<a>@<a>` has an ambiguous lex otherwise*/
+  if (match(regexp("^>"), t)
+      && !(t == ">" || t == ">=" || t == ">." || t == ">=.")) {
+    false; /* the expression eg `map@<a>@<a>` has an ambiguous lex otherwise*/
          //TODO(andrew): document
   } else {
     is_potential_operand(t)
