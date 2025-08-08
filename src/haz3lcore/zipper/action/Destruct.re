@@ -83,8 +83,8 @@ let merge = ((l, r): (Token.t, Token.t), z: t): option(t) => {
   let* z = Zipper.delete(Left, z);
   //TODO(andrew):cleanup
   //let* z = Zipper.delete(Right, z);
-  //let z = Zipper.construct_mono(~id=left_monotile_id, Right, l ++ r, z);
-  let* z = Insert.replace_shard(Right, l ++ r, z);
+  //let z = Zipper.construct_mono(~id=left_monotile_id, Right, Token.append(l, r), z);
+  let* z = Insert.replace_shard(Right, Token.append(l, r), z);
   /* Regrouting direction needed to merge prefixs into infix eg ! */
   let z = remold_regrout(Right, z);
   Some(z);
@@ -113,7 +113,8 @@ let go = (d: Direction.t, z: t): option(t) => {
   | (Some((lbl, id)), _) when Siblings.no_siblings(z.relatives.siblings) =>
     /* Merge only when containing segment is totally empty after delete */
     Some(parent_merge(~id, lbl, z))
-  | (_, (Some(l), Some(r))) when Token.allow_merge(l, r) && z.caret == Outer =>
+  | (_, (Some(l), Some(r)))
+      when Token.is_potential_token(Token.append(l, r)) && z.caret == Outer =>
     z |> merge((l, r))
   | _ =>
     z |> Insert.expand_or_barf_neighbors |> remold_regrout(d) |> Option.some

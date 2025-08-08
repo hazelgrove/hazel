@@ -396,7 +396,7 @@ let rec construct =
        );
   | _ =>
     let z = destruct(z);
-    let molds = Molds.get(label);
+    let molds = Form.Mold.get(label);
     assert(molds != []);
     // initial mold to typecheck, will be remolded
     let mold = List.hd(molds);

@@ -9,10 +9,7 @@ let to_zipper = (~zipper_init=Zipper.init(), str: string): option(Zipper.t) => {
       None;
     };
   };
-  let* z =
-    str
-    |> Util.StringUtil.to_list
-    |> List.fold_left(insert, Some(zipper_init));
+  let* z = str |> Token.to_list |> List.fold_left(insert, Some(zipper_init));
   /* HACK(andrew): Insert/Destruct below is a hack to deal
      with the fact that pasting something like "let a = b in"
      won't trigger the barfing of the "in"; to trigger this,

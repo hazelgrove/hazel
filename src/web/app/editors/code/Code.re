@@ -35,7 +35,7 @@ let of_delim' =
         | _ when !is_consistent => "sort-inconsistent"
         | _ when !is_complete => "incomplete"
         | [s] when Token.is_llm_hole(s) => "llm-waiting"
-        | [s] when s == Token.explicit_hole => "explicit-hole"
+        | [s] when Token.is_explicit_hole(s) => "explicit-hole"
         | [s] when Token.is_string(s) => "string-lit"
         | _ when is_infix_var => "Any" /* Budget error deco */
         | _ => Sort.to_string(sort)
@@ -43,7 +43,7 @@ let of_delim' =
       let plurality = List.length(label) == 1 ? "mono" : "poly";
       let token = List.nth(label, i);
       /* Add indent to multiline tokens: */
-      let num_lb = StringUtil.num_linebreaks(token);
+      let num_lb = Token.num_linebreaks(token);
       let token =
         num_lb == 0
           ? token : token ++ StringUtil.repeat(indent, Unicode.nbsp);
