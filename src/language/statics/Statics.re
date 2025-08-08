@@ -810,7 +810,7 @@ and uexp_to_info_map =
       add(
         ~self,
         ~co_ctx=CoCtx.union([lab.co_ctx, e.co_ctx]),
-        ~constraints=e.constraints,
+        ~constraints=e.constraints @ lab.constraints,
         m,
       );
     | Label(name) =>
@@ -1042,7 +1042,8 @@ and uexp_to_info_map =
         |> Typ.temp;
       let (fn, m) = go(~ana=typfn_ana, fn, m);
       let (_, m) = utyp_to_info_map(~ctx, ~ancestors, utyp, m);
-      let (option_name, ty_body, forall_constraints) = Typ.matched_forall(ctx, fn.ty);
+      let (option_name, ty_body, forall_constraints) =
+        Typ.matched_forall(ctx, fn.ty);
       switch (option_name) {
       | Some(name) =>
         let self: Self.t = Just(Typ.subst(utyp, name, ty_body));
@@ -1057,7 +1058,10 @@ and uexp_to_info_map =
         add(
           ~self,
           ~co_ctx=fn.co_ctx,
-          ~constraints=fn.constraints @ forall_constraints @ subsumption_constraints_t(self),
+          ~constraints=
+            fn.constraints
+            @ forall_constraints
+            @ subsumption_constraints_t(self),
           m,
         ); /* invalid name matches with no free type variables. */
       };
@@ -1150,7 +1154,8 @@ and uexp_to_info_map =
       );
     | TypFun(utpat, body, _) =>
       // TODO: (THI) constraints for matched forall?
-      let (name_expected_opt, item, forall_constraints) = Typ.matched_forall(ctx, ana);
+      let (name_expected_opt, item, forall_constraints) =
+        Typ.matched_forall(ctx, ana);
       let (mode_body, ctx_body) =
         switch (TPat.tyvar_of_utpat(utpat)) {
         | Some(name) when !Ctx.shadows_typ(ctx, name) =>
@@ -1577,7 +1582,8 @@ and upat_to_info_map =
       m: Map.t,
     );
   };
-  let atomic = (self, constraint_) => add(~self, ~ctx, ~constraint_, m);
+  let atomic = (self, constraint_) =>
+    add(~self, ~ctx, ~typ_constraints=[], ~constraint_, m);
   let ancestors = [Pat.rep_id(upat)] @ ancestors;
   let go = (~under_ascription=false) =>
     upat_to_info_map(~under_ascription, ~is_synswitch, ~ancestors, ~co_ctx);
@@ -1603,6 +1609,7 @@ and upat_to_info_map =
       (ctx, [], [], m, []),
     );
   let hole = self => atomic(self, Coverage.Constraint.Hole);
+  let subsumption_constraints_t = subsumption_constraints_t(ana, ctx);
 
   let elaborate_singleton_tuple = (upat: Pat.t, inner_ty, l, m) => {
     let (term, rewrap) = Pat.unwrap(upat);
@@ -1665,11 +1672,17 @@ and upat_to_info_map =
     (info, add_info(IdTagged.ids(elaborated_pat), InfoPat(info), m));
   };
 
-  let default_case = () =>
+  let default_case = (): (Info.pat, Map.t) =>
     switch (term) {
     | MultiHole(tms) =>
-      let (_, _, m) = multi(~ctx, ~ancestors, m, tms);
-      add(~self=IsMulti, ~ctx, ~constraint_=Coverage.Constraint.Hole, m);
+      let (_, typ_constraints, m) = multi(~ctx, ~ancestors, m, tms);
+      add(
+        ~self=IsMulti,
+        ~ctx,
+        ~typ_constraints=typ_constraints @ subsumption_constraints_t(IsMulti),
+        ~constraint_=Coverage.Constraint.Hole,
+        m,
+      );
     | Invalid(token) => hole(BadToken(token))
     | EmptyHole => hole(Just(unknown))
     | Atom(c) =>
@@ -1723,13 +1736,15 @@ and upat_to_info_map =
         m,
       );
     | Cons(hd, tl) =>
-      let inner_ty = Typ.matched_list(ctx, ana);
+      let (inner_ty, list_constraints) = Typ.matched_list(ctx, ana);
       let (hd, m) = go(~ctx, ~ana=inner_ty, hd, m);
       let (tl, m) =
         go(~ctx=hd.ctx, ~ana=List(inner_ty) |> Typ.fresh, tl, m);
       add(
         ~self=Just(List(hd.ty) |> Typ.temp),
         ~ctx=tl.ctx,
+        ~typ_constraints=
+          list_constraints @ hd.typ_constraints @ tl.typ_constraints,
         ~constraint_=Coverage.Constraint.cons(hd.constraint_, tl.constraint_),
         m,
       );
@@ -1742,7 +1757,12 @@ and upat_to_info_map =
         Info.fixed_typ_pat(
           ctx,
           ana,
-          Common(Just(Unknown(Internal) |> Typ.temp)),
+          Common(
+            Just(
+              Unknown((Internal: TermBase.type_provenance) |> IdTagged.fresh)
+              |> Typ.temp,
+            ),
+          ),
         );
       let entry =
         Ctx.VarEntry({
@@ -1750,10 +1770,12 @@ and upat_to_info_map =
           id: Pat.rep_id(upat),
           typ: ctx_typ,
         });
+      let self: Self.t = Just(unknown);
       add(
-        ~self=Just(unknown),
+        ~self,
         ~ctx=Ctx.extend(ctx, entry),
         ~constraint_=Coverage.Constraint.Truth,
+        ~typ_constraints=subsumption_constraints_t(self),
         m,
       );
     | TupLabel(label, p) =>
@@ -1783,7 +1805,7 @@ and upat_to_info_map =
           let (lab, m) =
             go(
               ~ctx,
-              ~ana=Unknown(Internal) |> Typ.temp,
+              ~ana=temp_internal,
               ~label_sort=true,
               ~override_self=?
                 switch (label.term, expected_labels) {
@@ -1802,7 +1824,7 @@ and upat_to_info_map =
           let (p, m) =
             go(
               ~ctx,
-              ~ana=Unknown(Internal) |> Typ.temp,
+              ~ana=temp_internal,
               ~inferred_label?,
               p,
               m,
@@ -1837,12 +1859,13 @@ and upat_to_info_map =
             malformed_labels: [Pat(label)],
             duplicate_labels: [],
             invalid_labels: [],
-            typ: TupLabel(Unknown(Internal) |> Typ.temp, p.ty) |> Typ.temp,
+            typ: TupLabel(temp_internal, p.ty) |> Typ.temp,
           })
         };
       add(
         ~self,
         ~ctx=p.ctx,
+        ~typ_constraints=p.typ_constraints @ lab.typ_constraints,
         ~constraint_=Coverage.Constraint.Tuple([p.constraint_]),
         m,
       );
@@ -1862,7 +1885,7 @@ and upat_to_info_map =
       let original_labels =
         List.map(p => Pat.match_tup_label(p) |> Option.map(fst), ps);
 
-      let (inferred_ps, modes) =
+      let (inferred_ps, modes, typ_constraints) =
         Typ.matched_prod(
           ctx,
           List.map(p => (None: option(string), p), ps),
@@ -1949,6 +1972,7 @@ and upat_to_info_map =
       add(
         ~self,
         ~ctx,
+        ~typ_constraints=typ_constraints,
         ~constraint_,
         ~label_inference=
           Info.derive_label_inference_info(original_labels, new_labels),
@@ -1962,13 +1986,13 @@ and upat_to_info_map =
     | Parens(p)
     | Probe(p, _) =>
       let (p, m) = go(~ctx, ~ana, p, m);
-      add(~self=Just(p.ty), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
+      add(~self=Just(p.ty), ~ctx=p.ctx, ~typ_constraints=p.typ_constraints, ~constraint_=p.constraint_, m);
     | Constructor(ctr, ty) =>
       let self = Self.of_ctr(ctx, ctr, ana, ty);
       atomic(self, Coverage.Constraint.Ap(ctr, None));
     | Ap(fn, arg) =>
       let ctr = Pat.ctr_name(fn);
-      let fn_ana = Arrow(Unknown(SynSwitch) |> Typ.temp, ana) |> Typ.temp;
+      let fn_ana = Arrow(Unknown((SynSwitch: TermBase.type_provenance) |> IdTagged.temp) |> Typ.temp, ana) |> Typ.temp;
       let (fn', m) = go(~ctx, ~ana=fn_ana, fn, m);
       let m = {
         switch (fn |> Pat.term_of) {
@@ -1983,6 +2007,7 @@ and upat_to_info_map =
               ~ana=fn'.ana,
               ~ancestors=fn'.ancestors,
               ~self=Self.ExpectedConstructor(fn'.self),
+              ~typ_constraints=fn'.typ_constraints,
               ~constraint_=fn'.constraint_,
               ~label_inference=fn'.label_inference,
               ~inferred_label=fn'.inferred_label,
@@ -1991,18 +2016,18 @@ and upat_to_info_map =
           add_info(IdTagged.ids(fn), InfoPat(info), m);
         };
       };
-      let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn'.ty);
+      let (ty_in, ty_out, arr_constraints) = Typ.matched_arrow(ctx, fn'.ty);
       let (arg, m) = go(~ctx, ~ana=ty_in, arg, m);
       let constraint_ =
         switch (ctr) {
         | Some(ctr) => Coverage.Constraint.Ap(ctr, Some(arg.constraint_))
         | None => Coverage.Constraint.Hole
         };
-      add(~self=Just(ty_out), ~ctx=arg.ctx, ~constraint_, m);
+      add(~self=Just(ty_out), ~ctx=arg.ctx, ~typ_constraints=fn'.typ_constraints @ arg.typ_constraints @ arr_constraints, ~constraint_, m);
     | Asc(p, ann) =>
       let (ann, m) = utyp_to_info_map(~ctx, ~ancestors, ann, m);
       let (p, m) = go(~ctx, ~under_ascription=true, ~ana=ann.term, p, m);
-      add(~self=Just(ann.term), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
+      add(~self=Just(ann.term), ~ctx=p.ctx, ~typ_constraints=p.typ_constraints, ~constraint_=p.constraint_, m);
     };
 
   // This is to allow lifting single values into a singleton labeled tuple when the label is not present
@@ -2042,8 +2067,8 @@ and utyp_to_info_map =
   let go' = utyp_to_info_map(~ctx, ~ancestors);
   let go = go'(~expects=TypeExpected);
   switch (term) {
-  | Unknown(Hole(MultiHole(tms))) =>
-    let (_, m) = multi(~ctx, ~ancestors, m, tms);
+  | Unknown({ term: Hole(MultiHole(tms)), _ }) =>
+    let (_, _, m) = multi(~ctx, ~ancestors, m, tms);
     add(m);
   | Unknown(_)
   | Atom(_) => add(m)
@@ -2088,7 +2113,7 @@ and utyp_to_info_map =
       | _ =>
         ConstructorExpected(
           Unique,
-          Arrow(t2, Unknown(Internal) |> Typ.temp) |> Typ.temp,
+          Arrow(t2, temp_internal) |> Typ.temp,
         )
       };
     let m = go'(~expects=t1_mode, t1, m) |> snd;
@@ -2173,7 +2198,7 @@ and utpat_to_info_map =
   let ancestors = [TPat.rep_id(utpat)] @ ancestors;
   switch (term) {
   | MultiHole(tms) =>
-    let (_, m) = multi(~ctx, ~ancestors, m, tms);
+    let (_, _, m) = multi(~ctx, ~ancestors, m, tms);
     add(m);
   | Invalid(_)
   | EmptyHole
