@@ -274,20 +274,21 @@ module Transition = (EV: EV_MODE) => {
         kind: LetBind(matches_str),
         is_value: false,
       });
-    | Theorem(dp, d1) =>
+    | Theorem({term: Asc({term: Var(n), _}, t), _}, d1) =>
       let. _ = otherwise(env, d);
-      let vars = Pat.bound_vars(dp);
       let env' =
-        vars
-        |> List.map(v => (v, EmptyHole |> fresh))
+        [(n, ProofOf(t) |> Exp.fresh)]
         |> Environment.of_list
         |> evaluate_extend_env(~call_stack=env.call_stack, _, env);
       Step({
         expr: subst_env(env', d1),
-        state_update,
+        state_update: () => record_theorem(state, DHExp.rep_id(d), env, t),
         kind: TheoremBind,
         is_value: false,
       });
+    | Theorem(_) =>
+      let. _ = otherwise(env, d);
+      Indet;
     | ProofOf(t) =>
       let. _ = otherwise(env, d);
       switch (mode) {

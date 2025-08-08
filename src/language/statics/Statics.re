@@ -1007,7 +1007,7 @@ and uexp_to_info_map =
           CoCtx.union([def.co_ctx, CoCtx.mk(ctx, p_ana.ctx, body.co_ctx)]),
         m,
       );
-    | Theorem(p, e) =>
+    | Theorem({term: Asc({term: Var(_), _}, _), _} as p, e) =>
       let (p', _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
       let (e, m) = go'(~ctx=p'.ctx, ~ana, e, m);
@@ -1016,6 +1016,18 @@ and uexp_to_info_map =
         go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~ana=syn, p, m);
       add(
         ~self=Just(e.ty),
+        ~co_ctx=CoCtx.union([p'.co_ctx, CoCtx.mk(ctx, p.ctx, e.co_ctx)]),
+        m,
+      );
+    | Theorem(p, e) =>
+      let (p', _) =
+        go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
+      let (e, m) = go'(~ctx=p'.ctx, ~ana, e, m);
+      /* add co_ctx to pattern */
+      let (p, m) =
+        go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~ana=syn, p, m);
+      add'(
+        ~self=BadTheorem(e.ty),
         ~co_ctx=CoCtx.union([p'.co_ctx, CoCtx.mk(ctx, p.ctx, e.co_ctx)]),
         m,
       );
