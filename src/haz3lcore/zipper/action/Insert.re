@@ -487,21 +487,21 @@ let rec go = (~ctx: option(Language.Ctx.t)=?, char: string, z: t): option(t) => 
   /* Can't insert inside delimiter */
   | (Inner(_, _), (_, None)) => None
   | (Outer, (_, Some(_))) =>
-    let caret = (delim_idx: int): Zipper.Caret.t =>
+    let delim_idx = 0; //TODO(andrew)
+    let (ddd, caret): (Direction.t, Zipper.Caret.t) =
       switch (sibling_appendability(char, z)) {
       | AppendRight(_) =>
         /* If we're adding to the right, move caret inside right nhbr.
          * Note the assumption that this is a monotile */
         //TODO(andrew): fix monotile assumption
-        Inner(delim_idx, 0)
+        (Right, Inner(delim_idx, 0))
       | MakeNew
-      | AppendLeft(_) => Outer
+      | AppendLeft(_) => (Left, Outer)
       };
     let z1 = z |> insert_outer(char);
-    let delim_idx = 0; //TODO(andrew)
     z1
-    |> Option.map(Zipper.set_caret(caret(delim_idx)))
-    |> Option.map(remold_regrout(Left))
+    |> Option.map(Zipper.set_caret(caret))
+    |> Option.map(remold_regrout(ddd))
     |> Option.map(move_into_if_stringlit_or_comment(char));
   | (Outer, (_, None)) =>
     z
