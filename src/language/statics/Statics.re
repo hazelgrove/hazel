@@ -613,13 +613,12 @@ and uexp_to_info_map =
         let ty_out = Atom(Atom.cls_of_kind(ty_out)) |> Typ.temp;
         let (e1, m) = go(~ana=ty1, e1, m);
         let (e2, m) = go(~ana=ty2, e2, m);
+        let self: Self.t = Just(ty_out);
         add(
-          ~self=Just(ty_out),
+          ~self,
           ~co_ctx=CoCtx.union([e1.co_ctx, e2.co_ctx]),
           ~constraints=
-            e1.constraints
-            @ e2.constraints
-            @ subsumption_constraints_t(Just(ty_out)),
+            e1.constraints @ e2.constraints @ subsumption_constraints_t(self),
           m,
         );
       };
@@ -1043,22 +1042,24 @@ and uexp_to_info_map =
         |> Typ.temp;
       let (fn, m) = go(~ana=typfn_ana, fn, m);
       let (_, m) = utyp_to_info_map(~ctx, ~ancestors, utyp, m);
-      let (option_name, ty_body) = Typ.matched_forall(ctx, fn.ty);
+      let (option_name, ty_body, forall_constraints) = Typ.matched_forall(ctx, fn.ty);
       switch (option_name) {
       | Some(name) =>
+        let self: Self.t = Just(Typ.subst(utyp, name, ty_body));
         add(
-          ~self=Just(Typ.subst(utyp, name, ty_body)),
+          ~self,
           ~co_ctx=fn.co_ctx,
-          ~constraints=fn.constraints,
+          ~constraints=fn.constraints @ subsumption_constraints_t(self),
           m,
-        )
+        );
       | None =>
+        let self: Self.t = Just(ty_body);
         add(
-          ~self=Just(ty_body),
+          ~self,
           ~co_ctx=fn.co_ctx,
-          ~constraints=fn.constraints,
+          ~constraints=fn.constraints @ forall_constraints @ subsumption_constraints_t(self),
           m,
-        ) /* invalid name matches with no free type variables. */
+        ); /* invalid name matches with no free type variables. */
       };
     | DeferredAp(fn, args) =>
       /* This logic lets us treat constructors differently to functions in
@@ -1149,7 +1150,7 @@ and uexp_to_info_map =
       );
     | TypFun(utpat, body, _) =>
       // TODO: (THI) constraints for matched forall?
-      let (name_expected_opt, item) = Typ.matched_forall(ctx, ana);
+      let (name_expected_opt, item, forall_constraints) = Typ.matched_forall(ctx, ana);
       let (mode_body, ctx_body) =
         switch (TPat.tyvar_of_utpat(utpat)) {
         | Some(name) when !Ctx.shadows_typ(ctx, name) =>
@@ -1175,11 +1176,10 @@ and uexp_to_info_map =
         };
       let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
       let (body, m) = go'(~ctx=ctx_body, ~ana=mode_body, body, m);
-      // TODO: (THI) is subsumable?
       add(
         ~self=Just(Forall(utpat, body.ty) |> Typ.temp),
         ~co_ctx=body.co_ctx,
-        ~constraints=body.constraints,
+        ~constraints=body.constraints @ forall_constraints,
         m,
       );
     | Let(p, def, body) =>
@@ -1581,7 +1581,12 @@ and upat_to_info_map =
   let ancestors = [Pat.rep_id(upat)] @ ancestors;
   let go = (~under_ascription=false) =>
     upat_to_info_map(~under_ascription, ~is_synswitch, ~ancestors, ~co_ctx);
-  let unknown = Unknown(is_synswitch ? SynSwitch : Internal) |> Typ.temp;
+  let unknown =
+    Unknown(
+      (is_synswitch ? SynSwitch : Internal: TermBase.type_provenance)
+      |> IdTagged.fresh,
+    )
+    |> Typ.temp;
   let ctx_fold = (ctx: Ctx.t, m, ~duplicates=[]) =>
     List.fold_left2(
       ((ctx, tys, cons, m, info_all), e, ana) =>
@@ -1663,7 +1668,7 @@ and upat_to_info_map =
   let default_case = () =>
     switch (term) {
     | MultiHole(tms) =>
-      let (_, m) = multi(~ctx, ~ancestors, m, tms);
+      let (_, _, m) = multi(~ctx, ~ancestors, m, tms);
       add(~self=IsMulti, ~ctx, ~constraint_=Coverage.Constraint.Hole, m);
     | Invalid(token) => hole(BadToken(token))
     | EmptyHole => hole(Just(unknown))
@@ -1702,7 +1707,7 @@ and upat_to_info_map =
       };
     | ListLit(ps) =>
       let ids = List.map(Pat.rep_id, ps);
-      let mode = Typ.matched_list(ctx, ana);
+      let (mode, constraints) = Typ.matched_list(ctx, ana);
       let modes = List.init(List.length(ps), _ => mode);
       let (ctx, tys, cons, m, _) = ctx_fold(ctx, m, ps, modes);
       let rec cons_fold_list = cs =>
@@ -1713,6 +1718,7 @@ and upat_to_info_map =
       add(
         ~self=Self.listlit(~empty=unknown, ctx, tys, ids),
         ~ctx,
+        ~typ_constraints=constraints,
         ~constraint_=cons_fold_list(cons),
         m,
       );

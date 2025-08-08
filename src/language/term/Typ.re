@@ -13,6 +13,7 @@ type cls =
   | RArrow
   | NProduct
   | MList
+  | RForall
   | Arrow
   | Prod
   | TupLabel
@@ -84,6 +85,7 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | Unknown({term: Matched(RArrow(_)), _}) => RArrow
   | Unknown({term: Matched(NProduct(_)), _}) => NProduct
   | Unknown({term: Matched(MList(_)), _}) => MList
+  | Unknown({term: Matched(RForall(_)), _}) => MList
   | Atom(c) => Atom(c)
   | List(_) => List
   | Arrow(_) => Arrow
@@ -108,6 +110,7 @@ let show_cls: cls => string =
   | RArrow => "Right arrow prov type"
   | NProduct => "Tuple prov type"
   | MList => "List prov type"
+  | RForall => "Right Forall prov type"
   | Atom(_) => "Base type"
   | Var => "Type variable"
   | Constructor => "Sum constructor"
@@ -716,33 +719,49 @@ let matched_arrow = (ctx, ty) => {
   };
 };
 
-// TODO: (THI) does this need constraints and special provenances?
+let matched_forall_of_prov = (prov, ty) => {
+  (
+    None,
+    ty,
+    [
+      Con(
+        ty,
+        Forall(EmptyHole |> TPat.fresh, Unknown(prov) |> temp) |> temp,
+      ),
+    ],
+  );
+};
+
 let rec matched_forall_strict = (ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
   | Parens(ty) => matched_forall_strict(ctx, ty)
-  | Forall(t, ty) => Some((Some(t), ty))
+  | Forall(t, ty) => Some((Some(t), ty, []))
   | Unknown({term: SynSwitch, annotation}) =>
-    Some((
-      None,
-      Unknown({
-        term: SynSwitch,
-        annotation,
-      })
-      |> temp,
-    ))
+    Some(
+      matched_forall_of_prov(
+        {
+          term: Matched(RForall(SynSwitch)),
+          annotation,
+        },
+        ty,
+      ),
+    )
   | _ => None
   };
 
 // TODO: (THI) does this need constraints and special provenances?
 let matched_forall = (ctx, ty) =>
-  matched_forall_strict(ctx, ty)
-  |> Option.value(
-       ~default=(
-         None,
-         Unknown((Internal: TermBase.type_provenance) |> IdTagged.temp)
-         |> temp,
-       ),
-     );
+  // TODO: want to optimize repeated term_of/normalize calls
+  switch (matched_forall_strict(ctx, ty)) {
+  | Some(r) => r
+  | None =>
+    let prov =
+      switch (term_of(weak_head_normalize(ctx, ty))) {
+      | Unknown(prov) => prov
+      | _ => (Internal: TermBase.type_provenance) |> IdTagged.temp
+      };
+    matched_forall_of_prov(prov, ty);
+  };
 
 let rec get_labels = (ctx, ty): list(option(string)) => {
   let ty = weak_head_normalize(ctx, ty);
