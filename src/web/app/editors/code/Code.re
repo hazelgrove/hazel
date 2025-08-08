@@ -34,9 +34,9 @@ let of_delim' =
         switch (label) {
         | _ when !is_consistent => "sort-inconsistent"
         | _ when !is_complete => "incomplete"
-        | [s] when Form.is_llm_hole(s) => "llm-waiting"
-        | [s] when s == Form.explicit_hole => "explicit-hole"
-        | [s] when Form.is_string(s) => "string-lit"
+        | [s] when Token.is_llm_hole(s) => "llm-waiting"
+        | [s] when s == Token.explicit_hole => "explicit-hole"
+        | [s] when Token.is_string(s) => "string-lit"
         | _ when is_infix_var => "Any" /* Budget error deco */
         | _ => Sort.to_string(sort)
         };
@@ -88,11 +88,11 @@ let of_secondary =
       ),
     ) =>
   switch (content) {
-  | Whitespace(str) when str == Form.linebreak =>
+  | Whitespace(str) when str == Token.linebreak =>
     [secondary_text("linebreak", secondary_icons ? ">" : "")]
     @ List.init(1 + consume_deferred_linebreaks(), _ => Node.text("\n"))
     @ [Node.text(StringUtil.repeat(indent, space))]
-  | Whitespace(str) when str == Form.space => [
+  | Whitespace(str) when str == Token.space => [
       secondary_text("whitespace", secondary_icons ? "·" : space),
     ]
   | Whitespace(_) => failwith("Code: Unrecognized Secondary")

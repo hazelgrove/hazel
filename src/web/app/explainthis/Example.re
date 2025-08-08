@@ -144,8 +144,8 @@ let mk_eval = mk_tile(Form.get(FilterEval));
 let mk_pause = mk_tile(Form.get(FilterPause));
 let mk_debug = mk_tile(Form.get(FilterDebug));
 let mk_unquote = mk_tile(Form.get(Unquote));
-let linebreak = () => mk_secondary(Form.linebreak);
-let space = () => mk_secondary(Form.space);
+let linebreak = () => mk_secondary(Token.linebreak);
+let space = () => mk_secondary(Token.space);
 
 let mk_example = str => {
   switch (Parser.to_segment(str)) {

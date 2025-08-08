@@ -107,7 +107,7 @@ let common_err_view =
   (
     switch (err) {
     | NoType(BadToken(token)) =>
-      switch (Haz3lcore.Form.bad_token_cls(token)) {
+      switch (Haz3lcore.Token.bad_token_cls(token)) {
       | BadInt => [text("Integer is too large or too small")]
       | Other => [text(Printf.sprintf("\"%s\" isn't a valid token", token))]
       }

@@ -100,7 +100,7 @@ module Delims = {
   let leading = (sort: Sort.t): list(Token.t) =>
     Form.delims
     |> List.map(token => {
-         let (lbl, _) = Molds.expansion(token);
+         let (lbl, _) = Form.expansion(token);
          List.filter_map(
            (m: Mold.t) =>
              List.length(lbl) > 1 && token == List.hd(lbl) && m.out == sort
@@ -146,11 +146,11 @@ module Delims = {
     };
 
   let const_mono = (sort: Sort.t): list(Token.t) =>
-    Form.const_mono_delims
+    Token.const_mono_delims
     |> List.map(token => {
          List.filter_map(
            (m: Mold.t) =>
-             m.out == sort && List.mem(token, Form.const_mono_delims)
+             m.out == sort && List.mem(token, Token.const_mono_delims)
                ? Some(token) : None,
            Molds.get([token]),
          )
