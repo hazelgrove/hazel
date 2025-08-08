@@ -73,7 +73,7 @@ let go_z =
       switch (TyDi.get_unparsed_buffer(z)) {
       | None => None
       | Some(completion)
-          when StringUtil.match(StringUtil.regexp(".*\\)::$"), completion) =>
+          when Token.match(Token.regexp(".*\\)::$"), completion) =>
         /* Slightly hacky. There's currently only one genre of completion
          * that creates more than one hole on intial expansion: when on eg
          * 1 :: a|, we suggest "abs( )::" via lookahead. In such a case we

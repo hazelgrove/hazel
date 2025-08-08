@@ -1,17 +1,13 @@
 open Util;
-open StringUtil;
 open Sort;
 module P = Precedence;
 
-/* FORM
-   This module determines the syntactic extent of the language; the
-   entire Syntax module is driven by the below definitions. Adding
-   a new syntactic form is simply a matter of adding a new line to either
-   the 'convex_monos' table, for single-token forms, or the 'forms'
-   table, for compound forms.
-   The wrapping functions seen in both of those tables determine the
-   shape, precedence, and expansion behavior of the form.
-   */
+/* This module determines the syntactic extent of the language; the
+ * entire Syntax module is driven by the below definitions. To add
+ * a new syntactic form add a case to either the atomic_form or
+ * compound_form types and follow the errors. The cases in their
+ * corresponding `get` functions determine the shape, precedence,
+ * and expansion behavior of the form.*/
 
 /* When you complete a token corresponding to a delimiter of a
  * compound form, that token might be 'expanded', which is to say,
@@ -33,14 +29,14 @@ type expansion =
   | LT; /* Leading and trailing: Used for parethesis-like things */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type expansions = list((Token.t, (list(Token.t), Direction.t)));
+type expansions = list((Token.t, (Label.t, Direction.t)));
 
 /* A label, a mold, and expansion behavior together determine a form. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   label: Label.t,
-  expansion,
   mold: Mold.t,
+  expansion,
 };
 
 let mk = (expansion, label, mold) => {
@@ -52,6 +48,8 @@ let mk = (expansion, label, mold) => {
 let op = Mold.mk_op(_, []);
 
 let mk_atom = (t: Token.t, mold_of) => mk(Non, [t], mold_of([]));
+
+let mk_atom_op = (sort: Sort.t, t: Token.t) => mk_atom(t, Mold.mk_op(sort));
 
 let mk_infix = (t: Token.t, sort: Sort.t, ~l=?, ~r=?, prec) =>
   mk_atom(t, Mold.mk_bin(prec, sort, ~l?, ~r?));
@@ -281,6 +279,9 @@ let get: compound_form => t =
 let forms: list((compound_form, t)) =
   List.map(f => (f, get(f)), all_of_compound_form);
 
+let delims: list(Token.t) =
+  forms |> List.concat_map(((_, t)) => t.label) |> List.sort_uniq(compare);
+
 /* These are tokens that have proven annoying as TyDi suggestions.
  * This category is doubly nominative in that it has proven hard
  * to derive automatically; typically these are annoying bacause
@@ -294,10 +295,10 @@ let is_annoying_delim = List.mem(_, annoying_delims);
  * when you're entering e.g. the `in` in a let, you don't get
  * disruptive switching between a convex variable and concaved
  * delimiter */
-let infix_delimiter_ops_prefixes: list(string) =
+let infix_delimiter_ops_prefixes: list(Token.t) =
   forms
-  |> List.filter_map(f => {
-       let form = get(fst(f));
+  |> List.filter_map(((form: compound_form, _)) => {
+       let form = get(form);
        switch ((form.mold.nibs |> snd).shape) {
        /* Could be pickier here, e.g. just trailing delimiters */
        | _ when List.length(form.label) >= 2 => Some(form.label)
@@ -307,7 +308,7 @@ let infix_delimiter_ops_prefixes: list(string) =
   |> List.concat
   |> List.filter(Token.is_potential_operand)
   |> List.sort_uniq(compare)
-  |> List.map(StringUtil.prefixes)
+  |> List.map(Token.prefixes)
   |> List.concat;
 
 let is_infix_delimiter_op_prefix = List.mem(_, infix_delimiter_ops_prefixes);
@@ -317,24 +318,24 @@ let is_infix_delimiter_op_prefix = List.mem(_, infix_delimiter_ops_prefixes);
  * These should likely include ")", "]", ">"  or risk causing parsing
  * issues; right now I'm saying all non-alphanumeric trailing delimiters
  * are instant, but we might want to re-evaluate this in the future.*/
-let instant_putdowns: list(string) =
+let instant_putdowns: list(Token.t) =
   forms
-  |> List.filter_map(((_, f)) =>
+  |> List.filter_map(((_, f: t)) =>
        switch (f.label) {
        | [_, ...trailing] =>
-         Some(List.filter(s => !match(Token.var_regexp, s), trailing))
+         Some(List.filter(t => !Token.is_var(t), trailing))
        | _ => None
        }
      )
   |> List.concat
-  |> List.sort_uniq(String.compare);
+  |> Token.sort_uniq;
 
 let is_instant_putdown = List.mem(_, instant_putdowns);
 
 /* Tokens that appear both as single-token labels and in other forms labels.
  * These have special put-down behavior to make sure we can actually enter
  * the single-delimiter variant during left-to-right entry */
-let amiguous_polymorphs: list(string) = {
+let amiguous_polymorphs: list(Token.t) = {
   let single_token_labels =
     forms
     |> List.filter_map(((_, {label, _})) =>
@@ -343,8 +344,8 @@ let amiguous_polymorphs: list(string) = {
          | _ => None
          }
        )
-    |> List.sort_uniq(String.compare);
-  let appears_in_other_forms = (target_token: string): bool => {
+    |> Token.sort_uniq;
+  let appears_in_other_forms = (target_token: Token.t): bool => {
     forms
     |> List.exists(((_, {label, _})) =>
          switch (label) {
@@ -358,34 +359,7 @@ let amiguous_polymorphs: list(string) = {
 
 let is_ambiguous_polymorph = List.mem(_, amiguous_polymorphs);
 
-let delims: list(Token.t) =
-  forms
-  |> List.fold_left((acc, (_, {label, _}: t)) => {label @ acc}, [])
-  |> List.sort_uniq(compare);
-
-let expanding_of = ({expansion, label, _}: t): option(expansions) =>
-  switch (expansion, label) {
-  | (L, [hd, ..._]) => Some([(hd, (label, Direction.Left))])
-  | (LT, [hd, ..._]) =>
-    Some([(hd, (label, Left)), (ListUtil.last(label), (label, Right))])
-  | _ => None
-  };
-
-let expansions: expansions =
-  List.filter_map(((_, form)) => expanding_of(form), forms)
-  |> List.flatten
-  |> List.sort_uniq(compare);
-
-let expansion: Token.t => (list(Token.t), Direction.t) =
-  s =>
-    switch (List.assoc_opt(s, expansions)) {
-    | Some(expansion) => expansion
-    | None => ([s], Right)
-    };
-
-let is_expanding = kw => List.length(expansion(kw) |> fst) > 1;
-
-let get_atomic_form: atomic_form => (string => bool, list(Mold.t)) =
+let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
   fun
   | Var => (Token.is_var, [op(Exp), op(Pat)])
   | InfixDelimiterPrefix => (
@@ -421,19 +395,72 @@ let get_atomic_form: atomic_form => (string => bool, list(Mold.t)) =
   | Ctr => (Token.is_ctr, [op(Exp), op(Pat)])
   | Type => (Token.is_base_typ, [op(Typ)]);
 
-let atomic_forms: list((atomic_form, (string => bool, list(Mold.t)))) =
-  List.map(f => (f, get_atomic_form(f)), all_of_atomic_form);
+module Mold = {
+  let atomic_molds: list((Token.t => bool, list(Mold.t))) =
+    List.map(get_atomic_form, all_of_atomic_form);
 
-let atomic_molds: Token.t => list(Mold.t) =
-  s => {
-    List.fold_left(
-      (acc, (_, (test, molds))) => test(s) ? molds @ acc : acc,
-      [],
-      atomic_forms,
-    );
+  let compound_molds: list((Label.t, list(Mold.t))) =
+    forms
+    |> List.fold_left(
+         (acc, (_, {label, mold, _}: t)) => {
+           let molds =
+             switch (List.assoc_opt(label, acc)) {
+             | Some(old_molds) => old_molds @ [mold]
+             | None => [mold]
+             };
+           List.cons((label, molds), List.remove_assoc(label, acc));
+         },
+         [],
+       );
+
+  let atomic_mold: Token.t => list(Mold.t) =
+    (t: Token.t) =>
+      List.concat_map(((p, molds)) => p(t) ? molds : [], atomic_molds);
+
+  let compound_mold = (label: Label.t): option(list(Mold.t)) =>
+    List.assoc_opt(label, compound_molds);
+
+  let get = (label: Label.t): list(Mold.t) => {
+    switch (label, compound_mold(label)) {
+    | ([t], Some(molds)) when atomic_mold(t) != [] =>
+      atomic_mold(t) @ molds
+    | ([t], None) when atomic_mold(t) != [] => atomic_mold(t)
+    | (_, Some(molds)) => molds
+    /* For tokens which are not assigned molds by the language definition,
+       we assign a default 'Any' mold, which is either convex or concave.
+       This is half-ass at the moment as we don't have a rigorous lexing
+       policy, but is somewhat load-bearing in that remolding as one is
+       typing in a multi-character operator can cause jank, which is
+       alleviated if we correctly guess that it will become an operator. */
+    | ([t], None)
+        when Token.is_potential_operator(t) && !Token.is_potential_operand(t) => [
+        Mold.mk_bin(Precedence.max, Any, []),
+      ]
+    | (_, None) => [Mold.mk_op(Any, [])]
+    };
   };
+};
 
-let mk_atom_op = (sort: Sort.t, t: Token.t) => {
-  assert(atomic_molds(t) != []);
-  mk_atom(t, Mold.mk_op(sort));
+module Expansion = {
+  let expanding_of = ({expansion, label, _}: t): option(expansions) =>
+    switch (expansion, label) {
+    | (L, [hd, ..._]) => Some([(hd, (label, Direction.Left))])
+    | (LT, [hd, ..._]) =>
+      Some([(hd, (label, Left)), (ListUtil.last(label), (label, Right))])
+    | _ => None
+    };
+
+  let expansions: expansions =
+    List.filter_map(((_, form: t)) => expanding_of(form), forms)
+    |> List.flatten
+    |> List.sort_uniq(compare);
+
+  let get: Token.t => (Label.t, Direction.t) =
+    s =>
+      switch (List.assoc_opt(s, expansions)) {
+      | Some(expansion) => expansion
+      | None => ([s], Right)
+      };
+
+  let will = kw => List.length(get(kw) |> fst) > 1;
 };

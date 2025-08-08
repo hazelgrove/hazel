@@ -31,7 +31,7 @@ let expand = (t: Token.t, caret: Direction.t, z: t): option(t) => {
   /* Removes the d-neighboring tile and reconstructs it, triggering
      keyword-expansion; precondition: the d-neighbor should be a monotile
      string-matching a keyword of an expanding form */
-  let (new_label, backpack) = Form.expansion(t);
+  let (new_label, backpack) = Form.Expansion.get(t);
   /* Only expand case rules when inside a case */
   let (new_label, backpack) =
     switch () {
@@ -61,7 +61,7 @@ let expand_or_barf_left_neighbor = (z: t): t =>
     | Some(z) => z
     | None => z
     }
-  | Some(t) when Form.is_expanding(t) =>
+  | Some(t) when Form.Expansion.will(t) =>
     switch (Siblings.left_neighbor(z.relatives.siblings)) {
     | Some(p) when Piece.monotile(p) != None =>
       switch (expand(t, Left, z)) {
@@ -82,7 +82,7 @@ let expand_or_barf_right_neighbor = (z: t): t =>
     | Some(z) => z
     | None => z
     }
-  | Some(t) when Form.is_expanding(t) =>
+  | Some(t) when Form.Expansion.will(t) =>
     switch (Siblings.right_neighbor(z.relatives.siblings)) {
     | Some(p) when Piece.monotile(p) != None =>
       switch (expand(t, Right, z)) {
@@ -139,7 +139,7 @@ let make_new_tile = (~id, t: Token.t, caret: Direction.t, z: t): t =>
       /*&& Form.is_instant_putdown(t)*/
       ? put_down_regrout_remold_tok(caret, t, z) |> Option.get
       : {
-        let (lbl, backpack) = Form.expansion(t);
+        let (lbl, backpack) = Form.Expansion.get(t);
         //TODO(andrew): fix hack
         let (lbl, backpack) =
           if (List.length(lbl) == 1) {
@@ -183,7 +183,6 @@ let expand_neighbors_and_make_new_tile = (char: Token.t, z: t): t => {
 };
 
 let replace_shard = (d: Direction.t, t: Token.t, z: t): option(t) => {
-  print_endline("replace_shard: " ++ t);
   let id =
     switch (adjacent_monotile_id(d, z)) {
     | Some(id) => id
@@ -202,10 +201,10 @@ type appendability =
 let sibling_appendability: (string, t) => appendability =
   (char, z) =>
     switch (neighbor_shards(z)) {
-    | (Some(t), _) when Token.allow_append_right(t, char) =>
-      AppendLeft(t ++ char)
-    | (_, Some(t)) when Token.allow_append_left(char, t) =>
-      AppendRight(char ++ t)
+    | (Some(t), _) when Token.is_potential_token(Token.append(t, char)) =>
+      AppendLeft(Token.append(t, char))
+    | (_, Some(t)) when Token.is_potential_token(Token.append(char, t)) =>
+      AppendRight(Token.append(char, t))
     | _ => MakeNew
     };
 
@@ -399,7 +398,7 @@ let rec go = (~ctx: option(Language.Ctx.t)=?, char: string, z: t): option(t) => 
           |> Segment.to_string(~projector_to_segment=(p: Base.projector) =>
                Base.unparenthesize(p.syntax)
              )
-          |> StringUtil.to_list
+          |> Token.to_list
           |> List.fold_left(insert, Some(z));
 
         let args_and_name =
@@ -433,6 +432,7 @@ let rec go = (~ctx: option(Language.Ctx.t)=?, char: string, z: t): option(t) => 
     | None => insert(Some(z), char)
     };
   | (Inner(d_idx, n), (_, Some(t))) =>
+    //TODO(andrew): cleanyp
     print_endline(
       "Inner(d_idx, n): " ++ string_of_int(d_idx) ++ " " ++ string_of_int(n),
     );
@@ -457,7 +457,7 @@ let rec go = (~ctx: option(Language.Ctx.t)=?, char: string, z: t): option(t) => 
         Piece.monotile(p) != None;
       | None => false
       };
-    Token.allow_insertion(char, t, new_t)
+    Token.is_potential_token(new_t)
       ? {
         let z = z |> replace_shard(Right, new_t);
         let z =
