@@ -496,6 +496,12 @@ let destruct_tests = [
     /* Ideally this would have a hole but okay-ish */
     ~goal={|type T = + A + ¦ + C|},
   ),
+  /* Regressions */
+  test(
+    ~name="Regrouting edge case",
+    ~acts=mk({|if 1then else¦|}) @ mv_l(9) @ [Insert(" ")],
+    ~goal={|if 1 ¦then? else?|},
+  ),
   /* DELETING WITHIN/ADJACENT TO POLYTILE DELIMITERS */
   /* Some of the below grout placements feel inconsistent...
    * it's okay if they change */
