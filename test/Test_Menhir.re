@@ -3,7 +3,16 @@ open Alcotest;
 open Language;
 module Fresh = IdTagged.FreshGrammar;
 let alco_check =
-  (testable(Fmt.using(Exp.show, Fmt.string)))(DHExp.fast_equal)
+  (testable(Fmt.using(Exp.show, Fmt.string)))(
+    // This is syntactic with ignore_wrappers=true
+    Equality.(
+      equality({
+        ...syntactic_settings,
+        ignore_parens: true,
+      })
+    ).
+      exp,
+  )
   |> Alcotest.check;
 
 let strip_wrap =
@@ -107,7 +116,13 @@ let qcheck_menhir_maketerm_equivalent_test =
         Conversion.Exp.of_menhir_ast(menhir_parsed);
 
       switch (
-        DHExp.fast_equal(
+        Equality.(
+          equality({
+            ...syntactic_settings,
+            ignore_parens: true,
+          })
+        ).
+          exp(
           make_term_parsed,
           Grammar.map_exp_annotation(
             _ => IdTagged.IdTag.fresh(),
