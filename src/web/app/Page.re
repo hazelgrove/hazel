@@ -6,9 +6,13 @@ open Util;
 /* The top-level UI component of Hazel */
 
 /* This file follows conventions in [docs/ui-architecture.md] */
+module Model = {
+  include EditHistory.Model;
+  let equal = (===);
+};
 
 module Store = {
-  let load = (): PageModel.t => {
+  let load = (): Model.t => {
     let globals = Globals.Model.load();
     let editors =
       Editors.Store.load(
@@ -26,7 +30,7 @@ module Store = {
     };
   };
 
-  let save = (m: PageModel.t): unit => {
+  let save = (m: Model.t): unit => {
     Editors.Store.save(
       ~instructor_mode=m.globals.settings.instructor_mode,
       m.editors,
@@ -39,11 +43,14 @@ module Store = {
 
 module Update = {
   open Updated;
+  include EditHistory.Update;
+
+  let equal = (===);
 
   let assistant_callback =
       (
         ~schedule_action: t => unit,
-        model: PageModel.t,
+        model: Model.t,
         editor: CodeEditable.Model.t,
       ) =>
     AssistantUpdate.check_req(
@@ -53,7 +60,7 @@ module Update = {
       ~editor,
     );
 
-  let get_editor = (model: PageModel.t): CodeEditable.Model.t =>
+  let get_editor = (model: Model.t): CodeEditable.Model.t =>
     switch (model.editors) {
     | Scratch(m) => (List.nth(m.scratchpads, m.current) |> snd).editor
     | Documentation(m) => (List.nth(m.scratchpads, m.current) |> snd).editor
@@ -66,7 +73,7 @@ module Update = {
         ~schedule_action,
         ~globals: Globals.Model.t,
         action: Globals.Update.t,
-        model: PageModel.t,
+        model: Model.t,
       ) => {
     switch (action) {
     | SetMousedown(mousedown) =>
@@ -202,7 +209,7 @@ module Update = {
         ~get_log_and,
         ~schedule_action: t => unit,
         action: t,
-        model: PageModel.t,
+        model: Model.t,
       ) => {
     let globals = {
       ...model.globals,
@@ -282,7 +289,7 @@ module Update = {
     };
   };
 
-  let calculate = (~schedule_action, ~is_edited, model: PageModel.t) => {
+  let calculate = (~schedule_action, ~is_edited, model: Model.t) => {
     let editors =
       Editors.Update.calculate(
         ~settings=model.globals.settings.core,
@@ -313,10 +320,10 @@ module Update = {
 module Selection = {
   open Cursor;
 
-  type t = PageModel.selection;
+  type t = Editors.Selection.t;
 
   let handle_key_event =
-      (~selection, ~event: Key.t, model: PageModel.t): option(Update.t) => {
+      (~selection, ~event: Key.t, model: Model.t): option(Update.t) => {
     switch (event) {
     | {key: D("Alt"), sys: Mac | PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
       Some(Update.Globals(SetShowBackpackTargets(true)))
@@ -351,7 +358,7 @@ module Selection = {
   };
 
   let get_cursor_info =
-      (~selection: t, model: PageModel.t): cursor(Editors.Update.t) => {
+      (~selection: t, model: Model.t): cursor(Editors.Update.t) => {
     Editors.Selection.get_cursor_info(~selection, model.editors);
   };
 };
@@ -376,7 +383,7 @@ module View = {
       (
         ~inject: Update.t => Ui_effect.t(unit),
         ~cursor: Cursor.cursor(Editors.Update.t),
-        model: PageModel.t,
+        model: Model.t,
       ) => {
     let key_handler =
         (~inject, ~dir: Key.dir, evt: Js.t(Dom_html.keyboardEvent))
@@ -564,7 +571,7 @@ module View = {
           explain_this: explainThisModel,
           assistant: assistantModel,
           selection,
-        } as model: PageModel.t,
+        } as model: Model.t,
         historyModel,
       ) => {
     let globals = {
@@ -624,7 +631,7 @@ module View = {
       (
         ~get_log_and,
         ~inject: Update.t => Ui_effect.t(unit),
-        model: PageModel.t,
+        model: Model.t,
         history,
       ) => {
     let cursor = Selection.get_cursor_info(~selection=model.selection, model);

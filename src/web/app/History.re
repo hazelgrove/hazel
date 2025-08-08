@@ -1,24 +1,15 @@
 open Util;
-open Virtual_dom.Vdom;
-open Node;
-open Haz3lcore;
 
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type state = PageModel.t;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type edit_history_state = {
-    action: PageUpdate.t,
-    page: PageModel.t,
-  };
+  type state = Page.Model.t;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     current: state,
     undo_stack: list(Updated.t(state)),
     redo_stack: list(Updated.t(state)),
-    history_log: list(Updated.t(edit_history_state)),
+    history_log: list(Updated.t(EditHistory.state)),
   };
 
   let equal = (===);
@@ -35,7 +26,7 @@ module Update = {
   open Updated;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = PageUpdate.t;
+  type t = EditHistory.Update.t;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   let update =
@@ -148,7 +139,7 @@ module Update = {
 };
 
 module Selection = {
-  type t = PageModel.selection;
+  type t = Editors.Selection.t;
 
   let handle_key_event = (model: Model.t) =>
     Page.Selection.handle_key_event(model.current);

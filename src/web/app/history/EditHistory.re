@@ -1,15 +1,41 @@
 open Virtual_dom.Vdom;
 open Node;
+module Update = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t =
+    | Globals(Globals.Update.t)
+    | Editors(Editors.Update.t)
+    | ExplainThis(ExplainThisUpdate.update)
+    | Assistant(AssistantUpdate.t)
+    | MakeActive(Editors.Selection.t)
+    | Benchmark(Benchmark.action)
+    | Start
+    | Save;
+};
+
+module Model = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = {
+    globals: Globals.Model.t,
+    editors: Editors.Model.t,
+    explain_this: ExplainThisModel.t,
+    assistant: AssistantModel.t,
+    selection: Editors.Selection.t,
+  };
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type state = {
+  action: Update.t,
+  page: Model.t,
+};
 
 module View = {
   let history_view = history_log => {
-    let grouped: list(list(Page.Update.t)) =
+    let grouped: list(list(Update.t)) =
       List.fold_left(
         // Lists are in reverse order during accumulation
-        (
-          acc: list(list(Page.Update.t)),
-          s: Updated.t(Model.edit_history_state),
-        ) =>
+        (acc: list(list(Update.t)), s: Updated.t(state)) =>
           switch (acc) {
           | [] => [[s.model.action]]
           | [current_group, ...rest_group] =>
@@ -44,14 +70,14 @@ module View = {
         history_log,
       );
     let grouped' = List.rev_map(List.rev, grouped);
-    let action_string = (item: Page.Update.t) => {
+    let action_string = (item: Update.t) => {
       switch (item) {
       | Editors(Scratch(CellAction(MainEditor(Perform(action))))) =>
-        Action.sexp_of_t(action) |> Sexplib.Sexp.to_string
-      | _ => Page.Update.sexp_of_t(item) |> Sexplib.Sexp.to_string
+        Haz3lcore.Action.sexp_of_t(action) |> Sexplib.Sexp.to_string
+      | _ => Update.sexp_of_t(item) |> Sexplib.Sexp.to_string
       };
     };
-    let group_view = (group: list(Page.Update.t)) => {
+    let group_view = (group: list(Update.t)) => {
       switch (group) {
       | [] => div([]) // Shouldn't happen
       | [
@@ -60,7 +86,7 @@ module View = {
         ] =>
         let str =
           List.fold_left(
-            (acc, action: Page.Update.t) =>
+            (acc, action: Update.t) =>
               switch (action) {
               | Editors(
                   Scratch(CellAction(MainEditor(Perform(Insert(s))))),
@@ -82,7 +108,7 @@ module View = {
           div(
             [text("Group " ++ string_of_int(i)), group_view(group)]
             @ List.map(
-                (item: Page.Update.t) => div([text(action_string(item))]),
+                (item: Update.t) => div([text(action_string(item))]),
                 group,
               ),
           ),

@@ -1,5 +1,10 @@
 open Util;
 
+[@deriving (show({with_path: false}), sexp, yojson)]
+type action =
+  | Start
+  | Finish;
+
 let sample_1 = {|# Hazel Language Quick Reference #
 
 # Recursive Functions (arrow type annotation required) #
