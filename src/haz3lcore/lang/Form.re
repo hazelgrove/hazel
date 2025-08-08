@@ -13,36 +13,35 @@ module P = Precedence;
    shape, precedence, and expansion behavior of the form.
    */
 
-/* A label is the textual expression of a form's delimiters */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type label = list(Token.t);
-
-/* The construction of a compound forms can be triggered by inserting
-   one of its delimiters through a process called expansion. We don't
-   necessarily want to trigger this with all delimiters of a form
-   though, as for example some are ambiguous. But sometimes we do
-   want to expand on trailing delimiters, e.g. `)`. So we classify
-   delimiters as either Static (not expanding) or Instant (expanding)
-   on a per-form basis. In principle we could probably derived this
-   from the grammar. */
+/* When you complete a token corresponding to a delimiter of a
+ * compound form, that token might be 'expanded', which is to say,
+ * converted from a monotile to a incomplete polytile aka shard
+ * representing a part of specific form. All leading delimiters
+ * of all forms trigger expansion, but not all trailing
+ * delimiters, for example ambiguous trailing delimiters like
+ * `in` or `>`. Thus we designate certain delimiters as expanding
+ * on a per-form basis. Expanding delimiters should be globally
+ * unique, and indeed it would probably be better if we dispensed
+ * with this explicit classification and instead derived this
+ * information from the grammar. Currently all forms fall into two
+ * classes: Either only the leading delimiter triggers expansion,
+ * or the leading and trailing delimiters trigger expansion */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type expansion =
-  | SS
-  | II
-  | IS;
+  | Non /* Non-expandind: Placeholder for atomic forms */
+  | L /* Leading-only: All keyword forms and some special cases */
+  | LT; /* Leading and trailing: Used for parethesis-like things */
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type expansions = list((Token.t, (list(Token.t), Direction.t)));
 
 /* A label, a mold, and expansion behavior together determine a form. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
-  label,
+  label: Label.t,
   expansion,
   mold: Mold.t,
 };
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type bad_token_cls =
-  | Other
-  | BadInt;
 
 let mk = (expansion, label, mold) => {
   label,
@@ -52,7 +51,7 @@ let mk = (expansion, label, mold) => {
 
 let op = Mold.mk_op(_, []);
 
-let mk_atom = (t: Token.t, mold_of) => mk(SS, [t], mold_of([]));
+let mk_atom = (t: Token.t, mold_of) => mk(Non, [t], mold_of([]));
 
 let mk_infix = (t: Token.t, sort: Sort.t, ~l=?, ~r=?, prec) =>
   mk_atom(t, Mold.mk_bin(prec, sort, ~l?, ~r?));
@@ -71,202 +70,8 @@ let mk_post_c =
     (exp, label: Label.t, prec, sort: Sort.t, child_sorts: list(Sort.t)) =>
   mk(exp, label, Mold.mk_post(prec, sort, child_sorts));
 
-/* Token Recognition Predicates */
-
-/* A. Secondary Notation (Comments, Whitespace, etc.)  */
-let space = " ";
-let linebreak = "\n";
-let comment_regexp = regexp("^#[^#\n]*#$"); /* Multiline comments not supported */
-let is_comment = t => match(comment_regexp, t) || t == "#";
-let is_comment_delim = t => t == "#";
-let is_secondary = t =>
-  List.mem(t, [space, linebreak]) || match(comment_regexp, t);
-
-/* STRINGS: special-case syntax */
-
-/* is_string: last clause is a somewhat hacky way of making sure
-   there are at most two quotes, in order to prevent merges */
-let string_regexp = regexp("^\"[^\n]*\"$"); /* Multiline strings not supported */
-let is_string = t =>
-  match(string_regexp, t) && List.length(String.split_on_char('"', t)) < 4;
-let string_delim = "\"";
-let empty_string = string_delim ++ string_delim;
-let is_string_delim = (==)(string_delim);
-let strip_quotes = s =>
-  if (String.length(s) < 2) {
-    s;
-  } else if (String.sub(s, 0, 1) != "\""
-             || String.sub(s, String.length(s) - 1, 1) != "\"") {
-    s;
-  } else {
-    String.sub(s, 1, String.length(s) - 2);
-  };
-
-let string_quote = s => "\"" ++ s ++ "\"";
-
-let keywords = [
-  "fun",
-  "let",
-  "in",
-  "type",
-  "case",
-  "test",
-  "if",
-  "then",
-  "else",
-  "hint",
-];
-let reserved_keywords = ["of", "when", "with", "switch", "match"];
-let keyword_regexp = regexp("^(" ++ String.concat("|", keywords) ++ ")$");
-let is_keyword = match(keyword_regexp);
-
-/* Potential tokens: These are fallthrough classes which determine
- * the behavior when inserting a character in contact with a token */
-let is_potential_operand =
-  match(regexp("^([a-zA-Z0-9_'?\\^]+)$|^([0-9_]+\\.[a-zA-Z0-9_'\\.?]*)$"));
-/* Anything else is considered a potential operator, as long
- *  as it does not contain any whitespace, linebreaks, comment
- *  delimiters, string delimiters, or the instant expanding paired
- *  delimiters: ()[]| */
-let potential_operator_regexp =
-  regexp("^[^a-zA-Z0-9_'?\\^\"#\n\\s\\[\\]\\(\\)]+$"); /* Multiline operators not supported */
-let is_potential_operator = match(potential_operator_regexp);
-let begins_with_potential_operator =
-  match(regexp("^[^a-zA-Z0-9_'?\"#\n\\s\\[\\]\\(\\)]+"));
-let is_potential_token = t =>
-  if (match(regexp("@"), t) && !(t == "@" || t == "@<")) {
-    false; /* the expression `map@<a>@<a>` has an ambiguous lex otherwise*/
-         //TODO(andrew): document
-  } else {
-    is_potential_operand(t)
-    || is_potential_operator(t)
-    || is_string(t)
-    || is_comment(t);
-  };
-
-let int_regexp = regexp("^-?\\d+[0-9_]*$");
-let is_float = match(regexp("^-?[0-9]*\\.?[0-9]*((e|E)-?[0-9]*)?$"));
-let is_arbitary_float = x => x != "." && x != "-" && is_float(x);
-let is_int = str =>
-  match(int_regexp, str) && Bigint.of_string_opt(str) != None;
-/* NOTE: The is_arbitary_int check is necessary to prevent
-   minuses from being parsed as part of the int token. */
-
-let is_bad_int = str => match(int_regexp, str) && !is_int(str);
-
-/* NOTE: As well as making is_float  disjoint from is_int,
-   the is_arbitary_int  also prevents ints over int_max from being
-   cast as floats. The is_arbitary_float check is necessary to prevent
-   minuses from being parsed as part of the float token. */
-let is_float = str =>
-  !match(int_regexp, str)
-  && is_arbitary_float(str)
-  && float_of_string_opt(str) != None;
-let is_bad_float = str => is_arbitary_float(str) && !is_float(str);
-let bools = ["true", "false"];
-let is_bool = match(regexp("^(" ++ String.concat("|", bools) ++ ")$"));
-let undefined = "undefined";
-let is_undefined = match(regexp("^" ++ undefined ++ "$"));
-
-let is_livelit = str => {
-  let re = regexp("^(\\^)([a-z][A-Za-z0-9_]*)$");
-  let result = match(re, str);
-  result;
-};
-let parse_livelit = (str): string =>
-  if (String.length(str) > 1 && String.sub(str, 0, 1) == "^") {
-    String.sub(str, 1, String.length(str) - 1);
-  } else {
-    "invalid form";
-  };
-
-let projector_invoke_prefix = "^^";
-
-let of_projector_invoke = (input: string): option(string) =>
-  if (String.starts_with(~prefix=projector_invoke_prefix, input)
-      && String.length(input) > 2) {
-    Some(String.sub(input, 2, String.length(input) - 2));
-  } else {
-    None;
-  };
-
-let is_projector_invoke = (str: string): bool =>
-  switch (of_projector_invoke(str)) {
-  | Some(name) => ProjectorCore.Kind.is_name(name)
-  | None => false
-  };
-
-let mk_projector_invoke = (kind: ProjectorCore.Kind.t): string =>
-  projector_invoke_prefix ++ ProjectorCore.Kind.name(kind);
-
-let var_regexp =
-  regexp(
-    {|(^[a-z_][A-Za-z0-9_']*$)|(^[A-Z][A-Za-z0-9_']*\.[a-z][A-Za-z0-9_']*$)|},
-  );
-let is_var = str =>
-  !is_bool(str)
-  && !is_undefined(str)
-  && !is_livelit(str)
-  && str != "_"
-  && match(var_regexp, str);
-let capitalized_name_regexp = regexp("^[A-Z][A-Za-z0-9_]*$");
-let is_ctr = match(capitalized_name_regexp);
-let base_typs = ["String", "Int", "Float", "Bool"];
-let is_base_typ =
-  match(regexp("^(" ++ String.concat("|", base_typs) ++ ")$"));
-let is_typ_var = str => is_var(str) || match(capitalized_name_regexp, str);
-let wild = "_";
-let is_wild = match(regexp("^" ++ wild ++ "$"));
-
-/* List literals */
-let list_start = "[";
-let list_end = "]";
-let listlit_lbl = [list_start, list_end];
-let empty_list = list_start ++ list_end;
-let is_empty_list = (==)(empty_list);
-
-/* Tuples */
-let tuple_start = "(";
-let tuple_end = ")";
-let tuple_lbl = [tuple_start, tuple_end];
-let empty_tuple = tuple_start ++ tuple_end;
-let is_empty_tuple = (==)(empty_tuple);
-
-/* These functions determine which forms can switch back and forth between
-   mono and duotile forms, like list literals and tuples switching to/from
-   the empty list and empty tuple. Technically this should be derivable from
-   the language data; leaving that for a future refactor. */
-let duosplits = (t: Token.t): Label.t =>
-  switch () {
-  | _ when is_empty_list(t) => listlit_lbl
-  | _ when is_empty_tuple(t) => tuple_lbl
-  | _ => []
-  };
-
-let duomerges = (lbl: Label.t): option(Label.t) =>
-  switch () {
-  | _ when lbl == listlit_lbl => Some([empty_list])
-  | _ when lbl == tuple_lbl => Some([empty_tuple])
-  | _ => None
-  };
-
-let const_mono_delims =
-  base_typs @ bools @ [undefined, wild, empty_list, empty_tuple, empty_string];
-
-let explicit_hole = "?";
-let llm_hole = "??";
-let llm_advanced_reasoning_hole = "?a";
-let is_explicit_hole = t => t == explicit_hole;
-let is_llm_hole = t => t == llm_hole || t == llm_advanced_reasoning_hole;
-
-let bad_token_cls: string => bad_token_cls =
-  t =>
-    switch () {
-    | _ when is_bad_int(t) => BadInt
-    | _ => Other
-    };
-
-let mk_parens = (sort: Sort.t) => mk_op_c(II, tuple_lbl, sort, [sort]);
+let mk_parens = (sort: Sort.t) =>
+  mk_op_c(LT, Token.tuple_lbl, sort, [sort]);
 
 /* B. Operands:
    Order in this type determines relative remolding
@@ -439,39 +244,39 @@ let get: compound_form => t =
   | CommaPat => mk_infix(",", Pat, P.comma)
   | CommaTyp => mk_infix(",", Typ, P.comma)
   // PAIRED DELIMITERS:
-  | ListLitExp => mk_op_c(II, ["[", "]"], Exp, [Exp])
-  | ListLitPat => mk_op_c(II, ["[", "]"], Pat, [Pat])
-  | ListTyp => mk_op_c(II, ["[", "]"], Typ, [Typ])
+  | ListLitExp => mk_op_c(LT, ["[", "]"], Exp, [Exp])
+  | ListLitPat => mk_op_c(LT, ["[", "]"], Pat, [Pat])
+  | ListTyp => mk_op_c(LT, ["[", "]"], Typ, [Typ])
   //NOTE(andrew): parens being below aps is load-bearing, unfortunately
   | ParensExp => mk_parens(Exp)
   | ParensPat => mk_parens(Pat)
   | ParensTyp => mk_parens(Typ)
-  | ApExpEmpty => mk_post_c(II, ["()"], P.ap, Exp, [])
-  | ApExp => mk_post_c(II, ["(", ")"], P.ap, Exp, [Exp])
-  | ApPat => mk_post_c(II, ["(", ")"], P.ap, Pat, [Pat])
-  | ApTyp => mk_post_c(II, ["(", ")"], P.type_sum_ap, Typ, [Typ])
-  | ApExpTyp => mk_post_c(IS, ["@<", ">"], P.ap, Exp, [Typ])
-  | Case => mk_op_c(IS, ["case", "end"], Exp, [Rul])
-  | Test => mk_op_c(IS, ["test", "end"], Exp, [Exp])
-  | Fun => mk_pre_c(IS, ["fun", "->"], P.fun_, Exp, [Pat])
-  | Fix => mk_pre_c(IS, ["fix", "->"], P.fun_, Exp, [Pat])
-  | TypFun => mk_pre_c(IS, ["typfun", "->"], P.fun_, Exp, [TPat])
-  | Forall => mk_pre_c(IS, ["forall", "->"], P.fun_, Typ, [TPat])
-  | Rec => mk_pre_c(IS, ["rec", "->"], P.fun_, Typ, [TPat])
+  | ApExpEmpty => mk_post_c(LT, ["()"], P.ap, Exp, [])
+  | ApExp => mk_post_c(LT, ["(", ")"], P.ap, Exp, [Exp])
+  | ApPat => mk_post_c(LT, ["(", ")"], P.ap, Pat, [Pat])
+  | ApTyp => mk_post_c(LT, ["(", ")"], P.type_sum_ap, Typ, [Typ])
+  | ApExpTyp => mk_post_c(L, ["@<", ">"], P.ap, Exp, [Typ])
+  | Case => mk_op_c(L, ["case", "end"], Exp, [Rul])
+  | Test => mk_op_c(L, ["test", "end"], Exp, [Exp])
+  | Fun => mk_pre_c(L, ["fun", "->"], P.fun_, Exp, [Pat])
+  | Fix => mk_pre_c(L, ["fix", "->"], P.fun_, Exp, [Pat])
+  | TypFun => mk_pre_c(L, ["typfun", "->"], P.fun_, Exp, [TPat])
+  | Forall => mk_pre_c(L, ["forall", "->"], P.fun_, Typ, [TPat])
+  | Rec => mk_pre_c(L, ["rec", "->"], P.fun_, Typ, [TPat])
   | Rule =>
-    mk(IS, ["|", "=>"], Mold.mk_bin'(P.rule_sep, Rul, Exp, [Pat], Exp))
+    mk(L, ["|", "=>"], Mold.mk_bin'(P.rule_sep, Rul, Exp, [Pat], Exp))
   | Pipeline => mk_infix("|>", Exp, P.eqs) // in OCaml, pipeline precedence is in same class as '=', '<', etc.
   // DOUBLE DELIMITERS
-  | FilterHide => mk_pre_c(IS, ["hide", "in"], P.let_, Exp, [Exp])
-  | FilterEval => mk_pre_c(IS, ["eval", "in"], P.let_, Exp, [Exp])
-  | FilterPause => mk_pre_c(IS, ["pause", "in"], P.let_, Exp, [Exp])
-  | FilterDebug => mk_pre_c(IS, ["debug", "in"], P.let_, Exp, [Exp])
-  | Use => mk_pre_c(IS, ["use", "in"], P.let_, Exp, [Typ])
+  | FilterHide => mk_pre_c(L, ["hide", "in"], P.let_, Exp, [Exp])
+  | FilterEval => mk_pre_c(L, ["eval", "in"], P.let_, Exp, [Exp])
+  | FilterPause => mk_pre_c(L, ["pause", "in"], P.let_, Exp, [Exp])
+  | FilterDebug => mk_pre_c(L, ["debug", "in"], P.let_, Exp, [Exp])
+  | Use => mk_pre_c(L, ["use", "in"], P.let_, Exp, [Typ])
   // TRIPLE DELIMITERS
-  | Let => mk_pre_c(IS, ["let", "=", "in"], P.let_, Exp, [Pat, Exp])
-  | TypeAlias => mk_pre_c(IS, ["type", "=", "in"], P.let_, Exp, [TPat, Typ])
-  | If => mk_pre_c(IS, ["if", "then", "else"], P.if_, Exp, [Exp, Exp])
-  | HintedTest => mk_op_c(IS, ["hint", "test", "end"], Exp, [Exp, Exp]);
+  | Let => mk_pre_c(L, ["let", "=", "in"], P.let_, Exp, [Pat, Exp])
+  | TypeAlias => mk_pre_c(L, ["type", "=", "in"], P.let_, Exp, [TPat, Typ])
+  | If => mk_pre_c(L, ["if", "then", "else"], P.if_, Exp, [Exp, Exp])
+  | HintedTest => mk_op_c(L, ["hint", "test", "end"], Exp, [Exp, Exp]);
 
 let forms: list((compound_form, t)) =
   List.map(f => (f, get(f)), all_of_compound_form);
@@ -500,7 +305,7 @@ let infix_delimiter_ops_prefixes: list(string) =
        };
      })
   |> List.concat
-  |> List.filter(is_potential_operand)
+  |> List.filter(Token.is_potential_operand)
   |> List.sort_uniq(compare)
   |> List.map(StringUtil.prefixes)
   |> List.concat;
@@ -517,7 +322,7 @@ let instant_putdowns: list(string) =
   |> List.filter_map(((_, f)) =>
        switch (f.label) {
        | [_, ...trailing] =>
-         Some(List.filter(s => !match(var_regexp, s), trailing))
+         Some(List.filter(s => !match(Token.var_regexp, s), trailing))
        | _ => None
        }
      )
@@ -558,9 +363,31 @@ let delims: list(Token.t) =
   |> List.fold_left((acc, (_, {label, _}: t)) => {label @ acc}, [])
   |> List.sort_uniq(compare);
 
+let expanding_of = ({expansion, label, _}: t): option(expansions) =>
+  switch (expansion, label) {
+  | (L, [hd, ..._]) => Some([(hd, (label, Direction.Left))])
+  | (LT, [hd, ..._]) =>
+    Some([(hd, (label, Left)), (ListUtil.last(label), (label, Right))])
+  | _ => None
+  };
+
+let expansions: expansions =
+  List.filter_map(((_, form)) => expanding_of(form), forms)
+  |> List.flatten
+  |> List.sort_uniq(compare);
+
+let expansion: Token.t => (list(Token.t), Direction.t) =
+  s =>
+    switch (List.assoc_opt(s, expansions)) {
+    | Some(expansion) => expansion
+    | None => ([s], Right)
+    };
+
+let is_expanding = kw => List.length(expansion(kw) |> fst) > 1;
+
 let get_atomic_form: atomic_form => (string => bool, list(Mold.t)) =
   fun
-  | Var => (is_var, [op(Exp), op(Pat)])
+  | Var => (Token.is_var, [op(Exp), op(Pat)])
   | InfixDelimiterPrefix => (
       is_infix_delimiter_op_prefix,
       [
@@ -571,28 +398,28 @@ let get_atomic_form: atomic_form => (string => bool, list(Mold.t)) =
       ],
     )
   | ExplicitHole => (
-      is_explicit_hole,
+      Token.is_explicit_hole,
       [op(Exp), op(Pat), op(Typ), op(TPat)],
     )
-  | LLMHole => (is_llm_hole, [op(Exp), op(Pat), op(Typ), op(TPat)])
-  | Wild => (is_wild, [op(Pat)])
-  | String => (is_string, [op(Exp), op(Pat)])
-  | IntLit => (is_int, [op(Exp), op(Pat)])
-  | FloatLit => (is_float, [op(Exp), op(Pat)])
-  | LivelitName => (is_livelit, [op(Exp), op(Pat)])
+  | LLMHole => (Token.is_llm_hole, [op(Exp), op(Pat), op(Typ), op(TPat)])
+  | Wild => (Token.is_wild, [op(Pat)])
+  | String => (Token.is_string, [op(Exp), op(Pat)])
+  | IntLit => (Token.is_int, [op(Exp), op(Pat)])
+  | FloatLit => (Token.is_float, [op(Exp), op(Pat)])
+  | LivelitName => (Token.is_livelit, [op(Exp), op(Pat)])
   | ProjectorInvoke => (
-      is_projector_invoke,
+      Token.is_projector_invoke,
       [op(Exp), op(Pat), op(Typ), op(TPat)],
     )
-  | BoolLit => (is_bool, [op(Exp), op(Pat)])
-  | UndefinedLit => (is_undefined, [op(Exp), op(Pat)])
-  | EmptyList => (is_empty_list, [op(Exp), op(Pat)])
-  | EmptyTuple => (is_empty_tuple, [op(Exp), op(Pat), op(Typ)])
-  | Deferral => (is_wild, [op(Exp)])
-  | TyVar => (is_typ_var, [op(Typ)])
-  | TyVarP => (is_typ_var, [op(TPat)])
-  | Ctr => (is_ctr, [op(Exp), op(Pat)])
-  | Type => (is_base_typ, [op(Typ)]);
+  | BoolLit => (Token.is_bool, [op(Exp), op(Pat)])
+  | UndefinedLit => (Token.is_undefined, [op(Exp), op(Pat)])
+  | EmptyList => (Token.is_empty_list, [op(Exp), op(Pat)])
+  | EmptyTuple => (Token.is_empty_tuple, [op(Exp), op(Pat), op(Typ)])
+  | Deferral => (Token.is_wild, [op(Exp)])
+  | TyVar => (Token.is_typ_var, [op(Typ)])
+  | TyVarP => (Token.is_typ_var, [op(TPat)])
+  | Ctr => (Token.is_ctr, [op(Exp), op(Pat)])
+  | Type => (Token.is_base_typ, [op(Typ)]);
 
 let atomic_forms: list((atomic_form, (string => bool, list(Mold.t)))) =
   List.map(f => (f, get_atomic_form(f)), all_of_atomic_form);

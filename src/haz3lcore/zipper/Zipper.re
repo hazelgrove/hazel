@@ -365,16 +365,21 @@ let rec construct =
         )
         : t => {
   switch (label) {
-  | [t] when Form.is_string_delim(t) =>
+  | [t] when Token.is_string_delim(t) =>
     /* Special case for constructing string literals.
        See Insert.move_into_if_stringlit for more special-casing. */
-    construct(~caret, ~backpack, [Form.string_delim ++ Form.string_delim], z)
-  | [content] when Form.is_comment(content) =>
+    construct(
+      ~caret,
+      ~backpack,
+      [Token.string_delim ++ Token.string_delim],
+      z,
+    )
+  | [content] when Token.is_comment(content) =>
     /* Special case for comments, can't rely on the last branch to construct */
     let content = Secondary.construct_comment(content);
     let z = destruct(z);
     put_down_seg(caret, Base.mk_secondary(id, content), z);
-  | [content] when Form.is_secondary(content) =>
+  | [content] when Token.is_secondary(content) =>
     let content = Secondary.Whitespace(content);
     z
     |> update_siblings(((l, r)) =>

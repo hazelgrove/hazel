@@ -18,31 +18,32 @@ let destruct = (d: Direction.t, z: t): option(t) => {
   /* Special cases for mono forms which can split into duo forms,
      e.g. list literals. When deletion would alter the mono form,
      we replace it to the corresponding duo form.  */
-  | (Left, Outer, (Some(t), _)) when Form.duosplits(t) != [] =>
-    z |> delete_left |> construct_left(Form.duosplits(t))
-  | (Right, Outer, (_, Some(t))) when Form.duosplits(t) != [] =>
-    z |> delete_right |> construct_right(Form.duosplits(t))
-  | (Left, Inner(_, 0), (_, Some(t))) when Form.duosplits(t) != [] =>
-    z |> delete_right |> construct_right(Form.duosplits(t))
+  | (Left, Outer, (Some(t), _)) when Token.duosplits(t) != [] =>
+    z |> delete_left |> construct_left(Token.duosplits(t))
+  | (Right, Outer, (_, Some(t))) when Token.duosplits(t) != [] =>
+    z |> delete_right |> construct_right(Token.duosplits(t))
+  | (Left, Inner(_, 0), (_, Some(t))) when Token.duosplits(t) != [] =>
+    z |> delete_right |> construct_right(Token.duosplits(t))
   | (Right, Inner(_, n), (_, Some(t)))
-      when Form.duosplits(t) != [] && n == last_inner_pos(t) =>
-    z |> delete_right |> construct_left(Form.duosplits(t))
+      when Token.duosplits(t) != [] && n == last_inner_pos(t) =>
+    z |> delete_right |> construct_left(Token.duosplits(t))
   /* Special cases for string literals. When deletion would
      remove an outer quote, we instead remove the whole string */
   | (Left, Outer, (Some(t), _))
-      when Form.is_string(t) || Form.is_comment(t) =>
+      when Token.is_string(t) || Token.is_comment(t) =>
     delete_left(z)
   | (Right, Outer, (_, Some(t)))
-      when Form.is_string(t) || Form.is_comment(t) =>
+      when Token.is_string(t) || Token.is_comment(t) =>
     delete_right(z)
-  | (Left, Inner(_, 0), (_, Some(t))) when Form.is_string(t) =>
+  | (Left, Inner(_, 0), (_, Some(t))) when Token.is_string(t) =>
     delete_right(z)
   | (Left, Inner(_, 0), (_, Some(t)))
-      when Form.is_string(t) || Form.is_comment(t) =>
+      when Token.is_string(t) || Token.is_comment(t) =>
     delete_right(z)
   | (Right, Inner(_, n), (_, Some(t)))
       when
-        (Form.is_string(t) || Form.is_comment(t)) && n == last_inner_pos(t) =>
+        (Token.is_string(t) || Token.is_comment(t))
+        && n == last_inner_pos(t) =>
     delete_right(z) /* Remove inner character */
   | (Left, Inner(_, c_idx), (_, Some(t))) =>
     let z = Zipper.update_caret(Zipper.Caret.decrement, z);
@@ -102,7 +103,7 @@ let parent_merge = (~id: Id.t, lbl: Label.t, z: t): t => {
 let parent_duomerges = (z: Zipper.t) => {
   let* parent = Relatives.parent(z.relatives);
   let* lbl = Piece.label(parent);
-  let+ res = Form.duomerges(lbl);
+  let+ res = Token.duomerges(lbl);
   (res, Piece.id(parent));
 };
 
@@ -112,7 +113,7 @@ let go = (d: Direction.t, z: t): option(t) => {
   | (Some((lbl, id)), _) when Siblings.no_siblings(z.relatives.siblings) =>
     /* Merge only when containing segment is totally empty after delete */
     Some(parent_merge(~id, lbl, z))
-  | (_, (Some(l), Some(r))) when Molds.allow_merge(l, r) && z.caret == Outer =>
+  | (_, (Some(l), Some(r))) when Token.allow_merge(l, r) && z.caret == Outer =>
     z |> merge((l, r))
   | _ =>
     z |> Insert.expand_or_barf_neighbors |> remold_regrout(d) |> Option.some

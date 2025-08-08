@@ -612,8 +612,8 @@ let should_add_space = (s1, s2) =>
     false
   | _
       when
-        Form.is_potential_operand(s1)
-        && !Form.is_keyword(s1)
+        Token.is_potential_operand(s1)
+        && !Token.is_keyword(s1)
         && String.starts_with(s2, ~prefix="(") =>
     false
   | _ when String.ends_with(s1, ~suffix="…") =>
@@ -898,7 +898,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
           children: [],
         }),
       ],
-      if (Form.begins_with_potential_operator(Segment.first_string(e))) {
+      if (Token.begins_with_potential_operator(Segment.first_string(e))) {
         [Secondary(mk_space(Id.mk()))] @ e;
       } else {
         e;
@@ -1171,7 +1171,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
           children: [],
         }),
       ],
-      if (Form.begins_with_potential_operator(Segment.first_string(p))) {
+      if (Token.begins_with_potential_operator(Segment.first_string(p))) {
         [Secondary(mk_space(Id.mk()))] @ p;
       } else {
         p;
@@ -1302,7 +1302,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
           children: [],
         }),
       ],
-      if (Form.begins_with_potential_operator(Segment.first_string(t))) {
+      if (Token.begins_with_potential_operator(Segment.first_string(t))) {
         [Secondary(mk_space(Id.mk()))] @ t;
       } else {
         t;

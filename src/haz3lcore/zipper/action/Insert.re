@@ -31,7 +31,7 @@ let expand = (t: Token.t, caret: Direction.t, z: t): option(t) => {
   /* Removes the d-neighboring tile and reconstructs it, triggering
      keyword-expansion; precondition: the d-neighbor should be a monotile
      string-matching a keyword of an expanding form */
-  let (new_label, backpack) = Molds.expansion(t);
+  let (new_label, backpack) = Form.expansion(t);
   /* Only expand case rules when inside a case */
   let (new_label, backpack) =
     switch () {
@@ -61,7 +61,7 @@ let expand_or_barf_left_neighbor = (z: t): t =>
     | Some(z) => z
     | None => z
     }
-  | Some(t) when Molds.is_expanding(t) =>
+  | Some(t) when Form.is_expanding(t) =>
     switch (Siblings.left_neighbor(z.relatives.siblings)) {
     | Some(p) when Piece.monotile(p) != None =>
       switch (expand(t, Left, z)) {
@@ -82,7 +82,7 @@ let expand_or_barf_right_neighbor = (z: t): t =>
     | Some(z) => z
     | None => z
     }
-  | Some(t) when Molds.is_expanding(t) =>
+  | Some(t) when Form.is_expanding(t) =>
     switch (Siblings.right_neighbor(z.relatives.siblings)) {
     | Some(p) when Piece.monotile(p) != None =>
       switch (expand(t, Right, z)) {
@@ -116,11 +116,11 @@ let neighbor_can_duomerge =
   switch (Siblings.neighbors(s)) {
   | (Some(Tile(tile)), _) =>
     let* start = get_duo_shard(tile);
-    let+ mono_lbl = Form.duomerges([start, t]);
+    let+ mono_lbl = Token.duomerges([start, t]);
     (mono_lbl, Direction.Left, tile.id);
   | (_, Some(Tile(tile))) =>
     let* last = get_duo_shard(tile);
-    let+ mono_lbl = Form.duomerges([t, last]);
+    let+ mono_lbl = Token.duomerges([t, last]);
     (mono_lbl, Direction.Right, tile.id);
   | _ => None
   };
@@ -139,7 +139,7 @@ let make_new_tile = (~id, t: Token.t, caret: Direction.t, z: t): t =>
       /*&& Form.is_instant_putdown(t)*/
       ? put_down_regrout_remold_tok(caret, t, z) |> Option.get
       : {
-        let (lbl, backpack) = Molds.expansion(t);
+        let (lbl, backpack) = Form.expansion(t);
         //TODO(andrew): fix hack
         let (lbl, backpack) =
           if (List.length(lbl) == 1) {
@@ -202,9 +202,9 @@ type appendability =
 let sibling_appendability: (string, t) => appendability =
   (char, z) =>
     switch (neighbor_shards(z)) {
-    | (Some(t), _) when Molds.allow_append_right(t, char) =>
+    | (Some(t), _) when Token.allow_append_right(t, char) =>
       AppendLeft(t ++ char)
-    | (_, Some(t)) when Molds.allow_append_left(char, t) =>
+    | (_, Some(t)) when Token.allow_append_left(char, t) =>
       AppendRight(char ++ t)
     | _ => MakeNew
     };
@@ -252,7 +252,7 @@ let move_into_if_stringlit_or_comment = (char, z) =>
      and ideally this logic would be located there as well, but both regrouting and
      subsequent caret position logic at this function's callsites dicate that this
      be done after. Not too happy about this tbh. */
-  Form.is_string_delim(char) || Form.is_comment_delim(char)
+  Token.is_string_delim(char) || Token.is_comment_delim(char)
     ? switch (move(Left, z)) {
       | None => z
       | Some(z) => z |> set_caret(Inner(0, 0))
@@ -274,13 +274,13 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
     };
   /* overwrite selection */
   let z = z |> Zipper.set_caret(Outer) |> Zipper.select(Right);
-  switch (Form.duomerges([l, r])) {
+  switch (Token.duomerges([l, r])) {
   | Some(_) =>
     let+ z = insert_duo(~id=right_monotile_id, [l, r], z);
     /* If we're inserting a space, don't bother to insert it;
      * we'll get a convex grout anyway from regrouting */
 
-    (Form.space != char ? make_new_tile(~id=Id.mk(), char, Left, z) : z)
+    (Token.space != char ? make_new_tile(~id=Id.mk(), char, Left, z) : z)
     |> remold_regrout(Right)
     |> move_into_if_stringlit_or_comment(char);
 
@@ -295,7 +295,7 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
      * `case|end` */
     let+ z = insert_monos(~id=right_monotile_id, l, r, z);
     let z = expand_or_barf_neighbors(z);
-    if (Form.space == char && should_supress_space(z)) {
+    if (Token.space == char && should_supress_space(z)) {
       /* This is a finnicky case. remold_regrout_prev regrouts
        * the parent segment if we're at the beginning of the current
        * segment, but that also causes it to regrout the current
@@ -317,14 +317,8 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
   };
 };
 
-let closing_stringlit_or_comment = (char, t) =>
-  Form.is_string(t)
-  && Form.is_string_delim(char)
-  || Form.is_comment(t)
-  && Form.is_comment_delim(char);
-
 let invoked_projector = (name: string, syntax: Segment.t): option(Piece.t) => {
-  let* name = Form.of_projector_invoke(name);
+  let* name = Token.of_projector_invoke(name);
   let kind = ProjectorCore.Kind.of_name(name);
   ProjectorPerform.init(kind, syntax);
 };
@@ -336,7 +330,7 @@ let is_projector_invoke = (z: t): option(t) => {
       Tile({label: [name], _}),
       ...rest,
     ]
-      when Form.is_projector_invoke(name) =>
+      when Token.is_projector_invoke(name) =>
     /* Trim only need because of grout/whitespace transmutation when syntax is hole */
     let syntax =
       syntax |> Segment.trim_secondary(Right) |> Segment.trim_secondary(Left);
@@ -347,7 +341,7 @@ let is_projector_invoke = (z: t): option(t) => {
     );
   /* Special case for reparsing of projectors placed on holes */
   | [Tile({label: ["()"], _}), Tile({label: [name], _}), ...rest]
-      when Form.is_projector_invoke(name) =>
+      when Token.is_projector_invoke(name) =>
     let+ piece = invoked_projector(name, [Piece.mk_grout(Convex)]);
     Zipper.update_siblings(
       ((_, r)) => ([piece, ...rest] |> List.rev, r),
@@ -360,11 +354,7 @@ let is_projector_invoke = (z: t): option(t) => {
 let projector_to_invoke: Base.projector => Segment.t =
   pr => [
     Piece.mk_tile(
-      Form.mk(
-        SS,
-        [Form.mk_projector_invoke(pr.kind)],
-        Mold.(mk_op(Exp, [])),
-      ),
+      Form.mk_atom_op(Exp, Token.mk_projector_invoke(pr.kind)),
       [],
     ),
     Piece.mk_tile(Form.get(ApExp), [Piece.unparenthesize(pr.syntax)]),
@@ -378,15 +368,15 @@ let rec go = (~ctx: option(Language.Ctx.t)=?, char: string, z: t): option(t) => 
    * in a comment, we are instead moved to the righthand side of
    * the operand. Note that this behavior is load-bearing for the
    * current parsing approach including Paste */
-  | (_, (_, Some(t))) when closing_stringlit_or_comment(char, t) =>
+  | (_, (_, Some(t))) when Token.closing_stringlit_or_comment(char, t) =>
     z |> Zipper.set_caret(Outer) |> Zipper.move(Right)
-  | (Outer, (Some(t), _)) when closing_stringlit_or_comment(char, t) =>
+  | (Outer, (Some(t), _)) when Token.closing_stringlit_or_comment(char, t) =>
     Some(z)
-  | (Outer, (Some(t), _)) when Form.is_livelit(t) && char == " " =>
+  | (Outer, (Some(t), _)) when Token.is_livelit(t) && char == " " =>
     let insert = (z, c) => Option.bind(z, go(c));
     switch (ctx) {
     | Some(ctx) =>
-      let name = Form.parse_livelit(t);
+      let name = Token.parse_livelit(t);
       switch (Language.Ctx.lookup_livelit(ctx, name)) {
       // if we find a matching livelit, insert it, projected
       | Some(ll) =>
@@ -467,7 +457,7 @@ let rec go = (~ctx: option(Language.Ctx.t)=?, char: string, z: t): option(t) => 
         Piece.monotile(p) != None;
       | None => false
       };
-    Molds.allow_insertion(char, t, new_t)
+    Token.allow_insertion(char, t, new_t)
       ? {
         let z = z |> replace_shard(Right, new_t);
         let z =

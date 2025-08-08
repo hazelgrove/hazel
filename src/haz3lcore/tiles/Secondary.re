@@ -22,12 +22,12 @@ let cls_of = (s: t): cls =>
   };
 
 let mk_space = id => {
-  content: Whitespace(Form.space),
+  content: Whitespace(Token.space),
   id,
 };
 
 let mk_newline = id => {
-  content: Whitespace(Form.linebreak),
+  content: Whitespace(Token.linebreak),
   id,
 };
 
@@ -41,14 +41,14 @@ let construct_comment = content =>
 let is_space: t => bool =
   w =>
     switch (w.content) {
-    | Whitespace(s) => s == Form.space
+    | Whitespace(s) => s == Token.space
     | _ => false
     };
 
 let is_linebreak: t => bool =
   w =>
     switch (w.content) {
-    | Whitespace(s) => s == Form.linebreak
+    | Whitespace(s) => s == Token.linebreak
     | _ => false
     };
 
