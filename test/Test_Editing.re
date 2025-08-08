@@ -350,6 +350,54 @@ let insertion_tests = [
       ],
     ~goal={|let x = -¦1|},
   ),
+  /* INSERTING WITHIN/ADJACENT TO POLYTILE DELIMITERS */
+  /* Some of the below grout placements feel inconsistent...
+   * it's okay if they change */
+  test(
+    ~name="Prepending to leading delimiter: if",
+    ~acts=mk({|¦if 1 then 2 else 3|}) @ [Insert("x")],
+    ~goal={|x¦if~ 1 then 2 else 3|},
+  ),
+  test(
+    ~name="Prepending to middle delimiter: if",
+    ~acts=mk({|if 1 ¦then 2 else 3|}) @ [Insert("x")],
+    ~goal={|if 1~ x¦then~ 2 else 3|},
+  ),
+  test(
+    ~name="Prepending to trailing delimiter: if",
+    ~acts=mk({|if 1 then 2 ¦else 3|}) @ [Insert("x")],
+    ~goal={|if 1 then 2~ x¦else~ 3|},
+  ),
+  test(
+    ~name="Within leading delimiter: if",
+    ~acts=mk({|i¦f 1 then 2 else 3|}) @ [Insert("x")],
+    ~goal={|ix¦f~ 1 then 2 else 3|},
+  ),
+  test(
+    ~name="Within middle delimiter: if",
+    ~acts=mk({|if 1 th¦en 2 else 3|}) @ [Insert("x")],
+    ~goal={|if 1~ thx¦en~ 2 else 3|},
+  ),
+  test(
+    ~name="Within trailing delimiter: if",
+    ~acts=mk({|if 1 then 2 e¦lse 3|}) @ [Insert("x")],
+    ~goal={|if 1 then 2~ ex¦lse~ 3|},
+  ),
+  test(
+    ~name="Postpending to leading delimiter: if",
+    ~acts=mk({|if¦ 1 then 2 else 3|}) @ [Insert("x")],
+    ~goal={|ifx¦~ 1 then 2 else 3|},
+  ),
+  test(
+    ~name="Postpending to middle delimiter: if",
+    ~acts=mk({|if 1 then¦ 2 else 3|}) @ [Insert("x")],
+    ~goal={|if 1 ~thenx¦~ 2 else 3|},
+  ),
+  test(
+    ~name="Postpending to trailing delimiter: if",
+    ~acts=mk({|if 1 then 2 else¦ 3|}) @ [Insert("x")],
+    ~goal={|if 1 then 2 ~elsex¦~ 3|},
+  ),
 ];
 
 let destruct_tests = [
@@ -447,6 +495,39 @@ let destruct_tests = [
     ~acts=mk({|type T = + A + B¦ + C|}) @ [Destruct(Left)],
     /* Ideally this would have a hole but okay-ish */
     ~goal={|type T = + A + ¦ + C|},
+  ),
+  /* DELETING WITHIN/ADJACENT TO POLYTILE DELIMITERS */
+  /* Some of the below grout placements feel inconsistent...
+   * it's okay if they change */
+  test(
+    ~name="Within leading delimiter: if",
+    ~acts=mk({|i¦f 1 then 2 else 3|}) @ [Destruct(Left)],
+    ~goal={|¦f~ 1 then 2 else 3|},
+  ),
+  test(
+    ~name="Within middle delimiter: if",
+    ~acts=mk({|if 1 th¦en 2 else 3|}) @ [Destruct(Left)],
+    ~goal={|if 1~ t¦en~ 2 else 3|},
+  ),
+  test(
+    ~name="Within trailing delimiter: if",
+    ~acts=mk({|if 1 then 2 e¦lse 3|}) @ [Destruct(Left)],
+    ~goal={|if 1 then 2~ ¦lse~ 3|},
+  ),
+  test(
+    ~name="At end of leading delimiter: if",
+    ~acts=mk({|if¦ 1 then 2 else 3|}) @ [Destruct(Left)],
+    ~goal={|i¦~ 1 then 2 else 3|},
+  ),
+  test(
+    ~name="At end of middle delimiter: if",
+    ~acts=mk({|if 1 then¦ 2 else 3|}) @ [Destruct(Left)],
+    ~goal={|if 1 ~the¦~ 2 else 3|},
+  ),
+  test(
+    ~name="At end of trailing delimiter: if",
+    ~acts=mk({|if 1 then 2 else¦ 3|}) @ [Destruct(Left)],
+    ~goal={|if 1 then 2 ~els¦~ 3|},
   ),
 ];
 

@@ -108,10 +108,11 @@ let begins_with_potential_operator =
   match(regexp("^[^a-zA-Z0-9_'?\"#\n\\s\\[\\]\\(\\)]+"));
 
 let is_potential_token = t =>
-  if (match(regexp("^>"), t)
-      && !(t == ">" || t == ">=" || t == ">." || t == ">=.")) {
-    false; /* the expression eg `map@<a>@<a>` has an ambiguous lex otherwise*/
-         //TODO(andrew): document
+  if (match(regexp("^>"), t)) {
+    /* This case is necessary due to the ambiguity between operators
+     * beginning with `>` and `>` as closing delimiter for type ap;.
+     * e.g. `map@<a>==1 has an ambiguous lex otherwise*/
+    t == ">" || t == ">=" || t == ">." || t == ">=.";
   } else {
     is_potential_operand(t)
     || is_potential_operator(t)
