@@ -20,6 +20,9 @@ module Pat = {
 
   include TermBase.Pat;
 
+  let fast_equal = Equality.syntactic.pat;
+  let equal = fast_equal;
+
   let rep_id = ({annotation: {ids, _}, _}: t) => {
     assert(ids != []);
     List.hd(ids);
@@ -337,6 +340,9 @@ module Exp = {
     | ListConcat;
 
   include TermBase.Exp;
+
+  let fast_equal = Equality.syntactic.exp;
+  let equal = fast_equal;
 
   let temp: term => t =
     term => {
@@ -875,6 +881,9 @@ module Rul = {
 
 module Any = {
   include TermBase.Any;
+
+  let fast_equal = Equality.syntactic.any;
+  let equal = fast_equal;
 
   let is_exp: t => option(TermBase.Exp.t) =
     fun

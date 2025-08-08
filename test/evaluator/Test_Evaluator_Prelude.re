@@ -3,10 +3,23 @@ open Language;
 
 module UG = Grammar.UnitGrammar;
 
-let testable_exp = (~ignore_constructor_types=?, ()) =>
+let testable_exp = (~ignore_constructor_types=false, ()) =>
   testable(
     Fmt.using(Exp.show, Fmt.string),
-    DHExp.fast_equal(~ignore_constructor_types?),
+    Equality.equality(
+      ~type_alpha=false,
+      ~exp_alpha=false,
+      ~ignore_wrappers=false,
+      ~ignore_casts=false,
+      ~ignore_constructor_types,
+      ~ignore_function_names=false,
+      ~ignore_filters=false,
+      ~ignore_unknown_provenance=false,
+      ~ignore_fixpoints=false,
+      ~closures_by_id=true,
+      (),
+    ).
+      exp,
   );
 
 let dhexp_typ = testable_exp();

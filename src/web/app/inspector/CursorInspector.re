@@ -237,7 +237,7 @@ let common_ok_view =
         view_type(ana),
       ]
     | (_, Ana(Consistent({ana, syn, _})))
-        when Typ.fast_equal(~alpha_equivalence=false, ana, syn) =>
+        when Equality.semantic.typ(ana, syn) =>
       switch (syn.term) {
       | Label(l) => [code(l), text(" is a valid label")]
       | _ =>
