@@ -639,6 +639,36 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         };
       }
 
+    | Forall(p, e) =>
+      if (available^ < 6) {
+        indet_term;
+      } else if (available^ <= 6) {
+        Invalid("forall");
+      } else if (available^ <= 7) {
+        Invalid("forall…");
+      } else if (available^ <= 8) {
+        Invalid("forall…→");
+      } else if (available^ <= 9) {
+        Invalid("forall…→…");
+      } else {
+        available := available^ - 7;
+        let p' = abbreviate_pat(p);
+        if (available^ > 4) {
+          // " -> "
+          available := available^ - 4;
+          let e' = abbreviate_exp(e);
+          Forall(p', e');
+        } else {
+          Forall(
+            p',
+            {
+              ...e,
+              term: indet_term,
+            },
+          );
+        };
+      }
+
     | Closure(env, exp) =>
       handle_unary(
         ~cost=1, // space between terms
@@ -978,26 +1008,6 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
         } else {
           Poly(
             tp',
-            {
-              ...t,
-              term: indet_term_typ,
-            },
-          );
-        };
-      }
-    | Forall(p, t) =>
-      if (available^ <= 6) {
-        indet_term_typ;
-      } else {
-        available := available^ - 6; // "forall"
-        let p' = abbreviate_pat(p);
-        if (available^ > 2) {
-          available := available^ - 2; // "->"
-          let t' = abbreviate_typ(t);
-          Forall(p', t');
-        } else {
-          Forall(
-            p',
             {
               ...t,
               term: indet_term_typ,

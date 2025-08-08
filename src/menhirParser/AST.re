@@ -102,7 +102,6 @@ type typ =
   | InvalidTyp(string)
   | PolyType(tpat, typ)
   | RecType(tpat, typ)
-  | ForallType(pat, typ)
   | YesType(exp)
   | LabelType(string)
   | TupLabelType(typ, typ)
@@ -149,6 +148,7 @@ and exp =
   | Theorem(pat, exp)
   | ProofOf(typ)
   | Fun(pat, exp, option(string))
+  | ForallExp(pat, exp)
   | CaseExp(exp, list((pat, exp)))
   | Label(string)
   | TupLabel(exp, exp)
@@ -740,6 +740,15 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
         | ProofOf(t) =>
           let* shrunk = shrink_typ(t);
           return(ProofOf(shrunk));
+        | ForallExp(pat, e) =>
+          {
+            let* shrunk = shrink_exp(e);
+            return(ForallExp(pat, shrunk));
+          }
+          <+> {
+            let* shrunk = shrink_pat(pat);
+            return(ForallExp(shrunk, e));
+          }
         | Fun(p, e, name) =>
           return(e)
           <+> {
@@ -1128,15 +1137,6 @@ and shrink_typ: QCheck.Shrink.t(typ) =
         | RecType(tpat, t) =>
           let* shrunk = shrink_typ(t);
           return(RecType(tpat, shrunk));
-        | ForallType(pat, t) =>
-          {
-            let* shrunk = shrink_typ(t);
-            return(ForallType(pat, shrunk));
-          }
-          <+> {
-            let* shrunk = shrink_pat(pat);
-            return(ForallType(shrunk, t));
-          }
         | YesType(e) =>
           let* shrunk = shrink_exp(e);
           return(YesType(shrunk));

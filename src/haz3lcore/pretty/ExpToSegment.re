@@ -91,7 +91,8 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | If(_) => Precedence.if_
   | TypFun(_)
   | Fun(_)
-  | FixF(_) => Precedence.fun_
+  | FixF(_)
+  | Forall(_) => Precedence.fun_
   | Tuple(_) => Precedence.prod
   | Seq(_) => Precedence.semi
   | Dot(_) => Precedence.dot
@@ -159,7 +160,6 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Sum(_) => Precedence.type_plus
   | Rec(_, _) => Precedence.let_
   | Poly(_, _) => Precedence.let_
-  | Forall(_, _) => Precedence.let_
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
   | Unknown(Hole(MultiHole(_))) => Precedence.min
@@ -233,6 +233,12 @@ let rec parenthesize =
       parenthesize(e) |> paren_assoc_at(Precedence.fun_),
       typ, // this typ is currently never output
       n,
+    )
+    |> rewrap
+  | Forall(p, e) =>
+    Forall(
+      parenthesize_pat(p) |> paren_pat_at(Precedence.min),
+      parenthesize(e) |> paren_assoc_at(Precedence.fun_),
     )
     |> rewrap
   | TypFun(tp, e, n) =>
@@ -529,12 +535,6 @@ and parenthesize_typ =
   | Poly(tp, t) =>
     Poly(
       tp,
-      parenthesize_typ(t) |> paren_typ_assoc_at(Precedence.type_binder),
-    )
-    |> rewrap
-  | Forall(p, t) =>
-    Forall(
-      parenthesize_pat(~show_filters, p) |> paren_pat_at(Precedence.min),
       parenthesize_typ(t) |> paren_typ_assoc_at(Precedence.type_binder),
     )
     |> rewrap
@@ -889,6 +889,11 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     [mk_form(Fun, id, [p])]
     @ e
     |> fold_fun_if(settings.fold_fn_bodies, name);
+  | Forall(p, e) =>
+    let id = exp |> Exp.rep_id;
+    let+ p = pat_to_pretty(~settings: Settings.t, p)
+    and+ e = go(e);
+    [mk_form(Forall, id, [p])] @ e;
   | TypFun(tp, e, _) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
@@ -1367,11 +1372,6 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     let+ tp = tpat_to_pretty(~settings: Settings.t, tp)
     and+ t = go(t);
     [mk_form(Poly, id, [tp])] @ t;
-  | Forall(p, t) =>
-    let id = typ |> Typ.rep_id;
-    let+ p = pat_to_pretty(~settings, p)
-    and+ t = go(t);
-    [mk_form(Forall, id, [p])] @ t;
   | Yes(e) =>
     let id = typ |> Typ.rep_id;
     let+ e = exp_to_pretty(~settings, e);

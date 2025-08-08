@@ -1,5 +1,4 @@
 open Util;
-open OptUtil.Syntax;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type conclusion =
@@ -15,9 +14,9 @@ type t = {
 
 let rec exp_to_rule = (exp: Exp.t): t =>
   switch (exp |> Exp.term_of) {
-  | Fun(p, e, Some(t), _) =>
+  | Forall(p, e) =>
     let bindings' =
-      ProofHacks.dhpat_extend_ctx(p, t, Ctx.empty)
+      ProofHacks.dhpat_extend_ctx(p, Typ.temp(Unknown(Internal)), Ctx.empty)
       |> Option.map((x: Ctx.t) => x.entries)
       |> OptUtil.get(() => []);
     let {bindings, assumptions, conclusion} = exp_to_rule(e);
@@ -46,45 +45,45 @@ let rec exp_to_rule = (exp: Exp.t): t =>
     }
   };
 
-let rec typ_to_rule = (typ: Typ.t): option(t) =>
+let typ_to_rule = (typ: Typ.t): option(t) =>
   switch (typ |> Typ.term_of) {
-  | Forall(p, t) =>
-    let bindings' =
-      ProofHacks.dhpat_extend_ctx(p, t, Ctx.empty)
-      |> Option.map((x: Ctx.t) => x.entries)
-      |> OptUtil.get(() => []);
-    let* {bindings, assumptions, conclusion} = typ_to_rule(t);
-    Some({
-      bindings: bindings' @ bindings,
-      assumptions,
-      conclusion,
-    });
   | Yes(e) => Some(exp_to_rule(e))
   | _ => None
   };
 
-let rule_to_typ = (rule: t): Typ.t => {
-  let rec wrap_foralls = (bindings: list(Ctx.entry), body: Typ.t): Typ.t =>
+let rule_to_exp = (rule: t): Exp.t => {
+  let rec wrap_assumptions = (assumptions: list(Exp.t), body: Exp.t): Exp.t =>
+    switch (assumptions) {
+    | [] => body
+    | [a, ...rs] =>
+      wrap_assumptions(
+        rs,
+        Exp.fresh(BinOp(Bool(Or), Exp.fresh(UnOp(Bool(Not), a)), body)),
+      )
+    };
+  let rec wrap_foralls = (bindings: list(Ctx.entry), body: Exp.t): Exp.t =>
     switch (bindings) {
     | [] => body
     | [VarEntry({name, typ, _}), ...rs] =>
       wrap_foralls(
         rs,
-        Typ.fresh(
+        Exp.fresh(
           Forall(Pat.fresh(Asc(Pat.fresh(Var(name)), typ)), body),
         ),
       )
-    // TODO: refactor to make this not need to handle constructors
     | [ConstructorEntry(_) | TVarEntry(_) | LivelitEntry(_), ...rs] =>
       wrap_foralls(rs, body)
     };
   let body =
     switch (rule.conclusion) {
-    | Equality(e1, e2) =>
-      Typ.fresh(Yes(Exp.fresh(BinOp(Poly(Equals), e1, e2))))
-    | Other(e) => Typ.fresh(Yes(e))
+    | Equality(e1, e2) => Exp.fresh(BinOp(Poly(Equals), e1, e2))
+    | Other(e) => e
     };
-  wrap_foralls(rule.bindings, body);
+  wrap_foralls(rule.bindings, wrap_assumptions(rule.assumptions, body));
+};
+
+let rule_to_typ = (rule: t): Typ.t => {
+  rule |> rule_to_exp |> (x => Typ.fresh(Yes(x)));
 };
 
 let conclusion_exp = (rule: t): Exp.t =>

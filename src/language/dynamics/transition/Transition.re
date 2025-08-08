@@ -300,6 +300,10 @@ module Transition = (EV: EV_MODE) => {
           is_value: true,
         })
       };
+    // Note[Matt]: we could make this spin, but for now it's indet
+    | Forall(_) =>
+      let. _ = otherwise(env, d);
+      Indet;
     | TypFun(_)
     | Fun(_, _, _, _) =>
       let. _ = otherwise(env, d);

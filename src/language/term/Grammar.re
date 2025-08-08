@@ -73,6 +73,7 @@ and exp_term('a) =
   | Let(pat_t('a), exp_t('a), exp_t('a))
   | Theorem(pat_t('a), exp_t('a))
   | ProofOf(typ_t('a))
+  | Forall(pat_t('a), exp_t('a))
   | FixF(pat_t('a), exp_t('a), option(closure_environment_t('a)))
   | TyAlias(tpat_t('a), typ_t('a), exp_t('a))
   | Use(typ_t('a), exp_t('a))
@@ -127,7 +128,6 @@ and typ_term('a) =
   | Ap(typ_t('a), typ_t('a))
   | Rec(tpat_t('a), typ_t('a))
   | Poly(tpat_t('a), typ_t('a))
-  | Forall(pat_t('a), typ_t('a))
   | Yes(exp_t('a))
 and typ_t('a) = Annotated.t(typ_term('a), 'a)
 and tpat_term('a) =
@@ -209,6 +209,8 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | Theorem(p, e) =>
           Theorem(map_pat_annotation(f, p), map_exp_annotation(f, e))
         | ProofOf(t) => ProofOf(map_typ_annotation(f, t))
+        | Forall(p, e) =>
+          Forall(map_pat_annotation(f, p), map_exp_annotation(f, e))
         | FixF(p, e, _) =>
           FixF(map_pat_annotation(f, p), map_exp_annotation(f, e), None)
         | TyAlias(p, t, e) =>
@@ -343,8 +345,6 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
           Rec(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
         | Poly(tp, t) =>
           Poly(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
-        | Forall(p, t) =>
-          Forall(map_pat_annotation(f, p), map_typ_annotation(f, t))
         | Yes(e) => Yes(map_exp_annotation(f, e))
         | Prod(l) => Prod(List.map(x => map_typ_annotation(f, x), l))
         | Label(l) => Label(l)
@@ -564,6 +564,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let proof_of = (~ann=?, t): exp_t(DefaultAnnotation.t) => {
       term: ProofOf(t),
+      annotation: default_annotation(ann),
+    };
+    let forall = (~ann=?, p, e): exp_t(DefaultAnnotation.t) => {
+      term: Forall(p, e),
       annotation: default_annotation(ann),
     };
     let fix_f = (~ann=?, p, e, env): exp_t(DefaultAnnotation.t) => {
@@ -816,10 +820,6 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let poly = (~ann=?, tp, t): typ_t(DefaultAnnotation.t) => {
       term: Poly(tp, t),
-      annotation: default_annotation(ann),
-    };
-    let forall = (~ann=?, p, t): typ_t(DefaultAnnotation.t) => {
-      term: Forall(p, t),
       annotation: default_annotation(ann),
     };
     let yes = (~ann=?, e): typ_t(DefaultAnnotation.t) => {

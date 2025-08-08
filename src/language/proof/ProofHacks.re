@@ -274,6 +274,12 @@ let rec replace_exp = (replace, replace_coctx, with_exp, with_coctx, in_exp) => 
           } else {
             continue(exp);
           }
+        | Forall(p, e) =>
+          if (is_bound(p)) {
+            exp;
+          } else {
+            Forall(p, replace_exp(e)) |> rewrap;
+          }
         /* Forms without binders: continue */
         | EmptyHole
         | Undefined
@@ -338,9 +344,8 @@ let find_refls = (~env, e) => {
   refls^;
 };
 
-let rec goal_of_typ = (ty: Typ.t): Exp.t => {
+let goal_of_typ = (ty: Typ.t): Exp.t => {
   switch (ty.term) {
-  | Forall(_, t) => goal_of_typ(t)
   | Yes(e) => e
   | _ => Exp.fresh(Invalid("Bad_Goal"))
   };

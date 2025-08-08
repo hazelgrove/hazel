@@ -453,7 +453,7 @@ let get: compound_form => t =
   | Fix => mk(ds, ["fix", "->"], mk_pre(P.fun_, Exp, [Pat]))
   | TypFun => mk(ds, ["typfun", "->"], mk_pre(P.fun_, Exp, [TPat]))
   | Poly => mk(ds, ["poly", "->"], mk_pre(P.fun_, Typ, [TPat]))
-  | Forall => mk(ds, ["forall", "->"], mk_pre(P.fun_, Typ, [Pat]))
+  | Forall => mk(ds, ["forall", "->"], mk_pre(P.fun_, Exp, [Pat]))
   | Yes => mk(ds, ["yes", "indeed"], mk_op(Exp, [Exp]))
   | Rec => mk(ds, ["rec", "->"], mk_pre(P.fun_, Typ, [TPat]))
   | Rule => mk(ds, ["|", "=>"], mk_bin'(P.rule_sep, Rul, Exp, [Pat], Exp))

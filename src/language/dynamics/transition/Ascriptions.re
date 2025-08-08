@@ -140,6 +140,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         when Typ.is_consistent(Ctx.empty, Typ.unroll(t), t' |> Typ.temp) =>
       Some(e)
     | (ProofOf(t), t') =>
+      // TODO[Matt]: make these casts disappear at the right time
       switch (Typ.join(Ctx.empty, Typ.unroll(t), t' |> Typ.temp)) {
       | Some(t) => Some(ProofOf(t) |> DHExp.fresh)
       | None => None
@@ -164,6 +165,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Theorem(_), _)
     | (Use(_), _)
     | (BinOp(_), _)
+    | (Forall(_), _)
     | (UnOp(_), _)
     | (BuiltinFun(_), _)
     | (FixF(_), _)

@@ -314,6 +314,7 @@ module Exp = {
     | Let
     | Theorem
     | ProofOf
+    | Forall
     | FixF
     | TyAlias
     | Use
@@ -380,6 +381,7 @@ module Exp = {
     | Let(_) => Let
     | Theorem(_) => Theorem
     | ProofOf(_) => ProofOf
+    | Forall(_) => Forall
     | FixF(_) => FixF
     | TyAlias(_) => TyAlias
     | Use(_) => Use
@@ -433,6 +435,7 @@ module Exp = {
     | Let => "Let expression"
     | Theorem => "Theorem expression"
     | ProofOf => "Proof placeholder"
+    | Forall => "Forall expression"
     | FixF => "Fixpoint operator"
     | TyAlias => "Type Alias definition"
     | Use => "Specify number format to use"
@@ -517,6 +520,7 @@ module Exp = {
     | Let(_)
     | Theorem(_)
     | ProofOf(_)
+    | Forall(_)
     | FixF(_)
     | TyAlias(_)
     | Use(_)
@@ -582,6 +586,7 @@ module Exp = {
       | Let(_)
       | Theorem(_)
       | ProofOf(_)
+      | Forall(_)
       | FixF(_)
       | TyAlias(_)
       | Use(_)
@@ -645,6 +650,7 @@ module Exp = {
       | Let(_)
       | Theorem(_)
       | ProofOf(_)
+      | Forall(_)
       | Filter(_)
       | TyAlias(_)
       | Use(_)
@@ -789,6 +795,18 @@ module Exp = {
                 e,
               ),
               None,
+            )
+            |> rewrap;
+          | Forall(p, e) =>
+            let pat_bound_vars = Pat.bound_vars(p);
+            Forall(
+              p,
+              substitute_closures(
+                env |> Environment.without_keys(pat_bound_vars),
+                pat_bound_vars @ old_bound_vars,
+                pat_bound_vars @ new_bound_vars,
+                e,
+              ),
             )
             |> rewrap;
           // Other cases: recurse

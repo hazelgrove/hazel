@@ -260,6 +260,13 @@ let rec matches_exp =
     | (ProofOf(t1), ProofOf(t2)) => Typ.fast_equal(t1, t2)
     | (ProofOf(_), _) => false
 
+    | (Forall(dp, d1), Forall(fp, f1)) =>
+      switch (tangle(dp, denv, fp, fenv)) {
+      | None => false
+      | Some((denv, fenv)) => matches_exp(~denv, d1, ~fenv, f1)
+      }
+    | (Forall(_), _) => false
+
     | (TypAp(d1, t1), TypAp(d2, t2)) =>
       matches_exp(d1, d2) && matches_typ(t1, t2)
     | (TypAp(_), _) => false
