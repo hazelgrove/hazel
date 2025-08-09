@@ -2,11 +2,7 @@ open Zipper;
 open Util;
 open OptUtil.Syntax;
 
-/* A label and an index into that label, representing a delimiter */
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
-type indexed = option((int, Label.t));
-
-let piece_neighbor = (d: Direction.t, p: Piece.t): indexed =>
+let piece_neighbor = (d: Direction.t, p: Piece.t): option((int, Label.t)) =>
   switch (p) {
   | Tile(t) => Some((Tile.shard_on_side(Direction.toggle(d), t), t.label))
   | Secondary(w) => Some((0, [Secondary.get_string(w.content)]))
@@ -14,7 +10,8 @@ let piece_neighbor = (d: Direction.t, p: Piece.t): indexed =>
   | Projector(_) => None
   };
 
-let ancestor_neighbor = (d: Direction.t, ancestors: Ancestors.t): indexed => {
+let ancestor_neighbor =
+    (d: Direction.t, ancestors: Ancestors.t): option((int, Label.t)) => {
   let+ {shards: (l, r), label, _} = Ancestors.parent(ancestors);
   switch (d) {
   | Left => (ListUtil.last(l), label)
@@ -28,7 +25,7 @@ let indexes = ((delim_idx: int, label: Label.t)): option(int) => {
   char_max < 0 ? None : Some(char_max);
 };
 
-let nhbr = (d: Direction.t, r: Relatives.t): indexed =>
+let nhbr = (d: Direction.t, r: Relatives.t): option((int, Label.t)) =>
   switch (Siblings.neighbor(d, r.siblings)) {
   | Some(p) => piece_neighbor(d, p)
   | None => ancestor_neighbor(d, r.ancestors)
