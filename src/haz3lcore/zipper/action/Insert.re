@@ -162,26 +162,6 @@ let make_new_tile = (~id, t: Token.t, caret: Direction.t, z: t): t =>
       }
   };
 
-let expand_neighbors_and_make_new_tile = (char: Token.t, z: t): t => {
-  /* Trigger a token boundary event and create a new tile.
-     This process potentially involves both neighboring tiles,
-     potentially triggering up to 3 expansions or backpack barfs.
-     In particular, both left and right neighboring monotiles may
-     undergo expansion, and the newly-created
-     single-character token may undergo expansion. Currently
-     made the decision to expand or barf the neighbors before making
-     the new tile because barfing is limited to the top of the backpack,
-     and I wanted things like "if|then", when you enter a "(", to
-     barf the "then", before it is buried by the ")" added to the BP.
-     The order here could be revisited if barfing was more sophisticated.
-     */
-  let z = expand_or_barf_neighbors(z);
-  let z = remold_regrout_prev(z);
-  let z = make_new_tile(~id=Id.mk(), char, Left, z);
-  let z = remold_regrout_prev(z);
-  z;
-};
-
 let replace_shard = (d: Direction.t, t: Token.t, z: t): option(t) => {
   let id =
     switch (adjacent_monotile_id(d, z)) {
@@ -193,26 +173,39 @@ let replace_shard = (d: Direction.t, t: Token.t, z: t): option(t) => {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type appendability =
-  | AppendLeft(Token.t)
-  | AppendRight(Token.t)
-  | MakeNew;
+type appendability = option((Direction.t, Token.t));
 
 let sibling_appendability: (string, t) => appendability =
   (char, z) =>
     switch (neighbor_shards(z)) {
     | (Some(t), _) when Token.is_potential_token(Token.append(t, char)) =>
-      AppendLeft(Token.append(t, char))
+      Some((Left, Token.append(t, char)))
     | (_, Some(t)) when Token.is_potential_token(Token.append(char, t)) =>
-      AppendRight(Token.append(char, t))
-    | _ => MakeNew
+      Some((Right, Token.append(char, t)))
+    | _ => None
     };
 
 let insert_outer = (char: string, z: t): option(t) =>
   switch (sibling_appendability(char, z)) {
-  | MakeNew => Some(expand_neighbors_and_make_new_tile(char, z))
-  | AppendLeft(t) => replace_shard(Left, t, z)
-  | AppendRight(t) => replace_shard(Right, t, z)
+  | None =>
+    /* Trigger a token boundary event and create a new tile.
+       This process potentially involves both neighboring tiles,
+       potentially triggering up to 3 expansions or backpack barfs.
+       In particular, both left and right neighboring monotiles may
+       undergo expansion, and the newly-created
+       single-character token may undergo expansion. Currently
+       made the decision to expand or barf the neighbors before making
+       the new tile because barfing is limited to the top of the backpack,
+       and I wanted things like "if|then", when you enter a "(", to
+       barf the "then", before it is buried by the ")" added to the BP.
+       The order here could be revisited if barfing was more sophisticated.
+       */
+    z
+    |> expand_or_barf_neighbors
+    |> make_new_tile(~id=Id.mk(), char, Left)
+    |> Option.some
+  | Some((Left, t)) => replace_shard(Left, t, z)
+  | Some((Right, t)) => replace_shard(Right, t, z)
   };
 
 let insert_duo = (~id, lbl: Label.t, z: option(t)): option(t) =>
@@ -233,17 +226,15 @@ let insert_monos = (~id, l: Token.t, r: Token.t, z: option(t)): option(t) =>
   |> Option.map(Zipper.construct_mono(~id=Id.mk(), Right, r))
   |> Option.map(Zipper.construct_mono(~id, Left, l));
 
-let should_supress_space = (z: t): bool => {
+let should_supress_space = (z: t): bool =>
   /* Figure out if we should avoid inserting a space because a grout
    * is due to be inserted instead */
-  let z_cand = z |> remold_regrout(Right);
-  let init_left_nhbr = Siblings.left_neighbor(z.relatives.siblings);
-  let candidate_nhbr = Siblings.left_neighbor(z_cand.relatives.siblings);
-  switch (Siblings.left_neighbor(z_cand.relatives.siblings)) {
+  switch (
+    Siblings.left_neighbor(remold_regrout(Right, z).relatives.siblings)
+  ) {
   | None => false
-  | Some(p) => Piece.is_grout(p) && candidate_nhbr != init_left_nhbr
+  | Some(p) => Piece.is_grout(p)
   };
-};
 
 let move_into_if_stringlit_or_comment = (char, z) =>
   /* This is special-case logic for advancing the caret to position between the quotes
@@ -300,17 +291,17 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
        * segment, but that also causes it to regrout the current
        * segment, which may result in us ending up on the wrong
        * side of the grout */
-      let z = z |> remold_regrout_prev |> remold_regrout(Left);
-      switch (move(Right, z)) {
-      | None => z
-      | Some(z) => z
-      };
+      let z = z /*|> remold_regrout_prev*/ |> remold_regrout(Right);
+      // switch (move(Right, z)) {
+      // | None => z
+      // | Some(z) => z
+      // };
+      z;
     } else {
       let z = remold(z);
-      let z =
-        z |> remold_regrout_prev |> make_new_tile(~id=Id.mk(), char, Left);
-      let z = z |> remold_regrout(Right);
+      let z = z |> make_new_tile(~id=Id.mk(), char, Left);
       let z = z |> move_into_if_stringlit_or_comment(char);
+      let z = z |> remold_regrout(Right);
       z;
     };
   };
@@ -359,6 +350,40 @@ let projector_to_invoke: Base.projector => Segment.t =
     Piece.mk_tile(Form.get(ApExp), [Piece.unparenthesize(pr.syntax)]),
   ];
 
+let expand_livelit = (z: t, insert, ll: Language.LivelitCtx.raw_livelit) => {
+  let seg =
+    ExpToSegment.exp_to_segment(
+      ~settings=
+        ExpToSegment.Settings.of_core(~inline=true, Language.CoreSettings.on),
+      ll.model_default,
+    );
+  let* z =
+    (
+      switch (ll.model_default) {
+      | {term: Tuple(_), _} => seg
+      | _ => [Segment.parenthesize(seg)]
+      }
+    )
+    |> Segment.to_string(~projector_to_segment=p =>
+         Base.unparenthesize(p.syntax)
+       )
+    |> Token.to_list
+    |> List.fold_left(insert, Some(z));
+  let args_and_name =
+    z.relatives.siblings |> fst |> List.rev |> ListUtil.take(2);
+  let+ any = MakeTerm.for_projection(args_and_name);
+  let proj =
+    ProjectorInit.init_or_noop(
+      Livelit,
+      Segment.parenthesize(args_and_name),
+      any,
+    );
+  Zipper.update_siblings(
+    ((l, r)) => (fst(ListUtil.split_last(l)) @ [proj], r),
+    z,
+  );
+};
+
 let rec go = (~ctx: option(Language.Ctx.t)=?, char: string, z: t): option(t) => {
   /* If there's a selection, delete it before proceeding */
   let z = z.selection.content != [] ? Zipper.destruct(z) : z;
@@ -375,69 +400,20 @@ let rec go = (~ctx: option(Language.Ctx.t)=?, char: string, z: t): option(t) => 
     let insert = (z, c) => Option.bind(z, go(c));
     switch (ctx) {
     | Some(ctx) =>
-      let name = Token.parse_livelit(t);
-      switch (Language.Ctx.lookup_livelit(ctx, name)) {
+      switch (Language.Ctx.lookup_livelit(ctx, Token.parse_livelit(t))) {
       // if we find a matching livelit, insert it, projected
-      | Some(ll) =>
-        let exp_to_segment =
-          ExpToSegment.(
-            exp_to_segment(
-              ~settings=
-                Settings.of_core(~inline=true, Language.CoreSettings.on),
-            )
-          );
-
-        let model_segment =
-          switch (ll.model_default) {
-          | {term: Tuple(_), _} => ll.model_default |> exp_to_segment
-          | _ => [Segment.parenthesize(ll.model_default |> exp_to_segment)]
-          };
-
-        let model_zipper =
-          model_segment
-          |> Segment.to_string(~projector_to_segment=(p: Base.projector) =>
-               Base.unparenthesize(p.syntax)
-             )
-          |> Token.to_list
-          |> List.fold_left(insert, Some(z));
-
-        let args_and_name =
-          switch (model_zipper) {
-          | Some(z) =>
-            Some(z.relatives.siblings |> fst |> List.rev |> ListUtil.take(2))
-          | None => None
-          };
-
-        let updated_syntax =
-          ProjectorInit.init_or_noop(
-            Livelit,
-            Segment.parenthesize(Option.get(args_and_name)),
-            MakeTerm.for_projection(Option.get(args_and_name)) |> Option.get,
-          );
-
-        let new_left_siblings =
-          switch (List.rev(fst(z.relatives.siblings))) {
-          | [_hd, ...tl] => List.rev([updated_syntax, ...tl])
-          | [] => []
-          };
-
-        Some(
-          Option.get(model_zipper)
-          |> Zipper.update_siblings(((_, r)) => (new_left_siblings, r)),
-        );
-
+      | Some(ll) => expand_livelit(z, insert, ll)
       // No matching livelit found, insert space
       | None => insert_outer(char, z)
-      };
+      }
     | None => insert(Some(z), char)
     };
-  | (Inner(d_idx, n), (_, Some(t))) =>
-    //TODO(andrew): cleanyp
-    print_endline(
-      "Inner(d_idx, n): " ++ string_of_int(d_idx) ++ " " ++ string_of_int(n),
-    );
+  | (Inner(_, n), (_, Some(t))) =>
     let idx = n + 1;
     let new_t = Token.insert_nth(idx, char, t);
+    /* Even if we weren't on delim 0 before, we will be after as the
+     * insertion will break the polytile, leaving us on a monotile. */
+    let z = Zipper.set_caret(Inner(0, idx), z);
     /* If inserting wouldn't produce a valid token, split. This is
      * mostly targetting the case of inserting an infix operator
      * inside an operand (or more rarely vice-versa). In such cases,
@@ -446,63 +422,33 @@ let rec go = (~ctx: option(Language.Ctx.t)=?, char: string, z: t): option(t) => 
      * splits (as opposed to 2-way). This is currently the only
      * kind of splitting supported; this should be revisited if
      * we move to more subtle token division logic */
-    let right_nhbr_is_monotile = z =>
-      switch (Siblings.right_neighbor(z.relatives.siblings)) {
-      | Some(p) =>
-        switch (Piece.label(p)) {
-        | Some([hd, ..._]) => print_endline("hd: " ++ hd)
-        | _ => ()
-        };
-
-        Piece.monotile(p) != None;
-      | None => false
-      };
     Token.is_potential_token(new_t)
       ? {
-        let z = z |> replace_shard(Right, new_t);
-        let z =
-          z
-          |> Option.map(z =>
-               Zipper.set_caret(
-                 Inner(
-                   right_nhbr_is_monotile(z)
-                     ? {
-                       print_endline("right_nhbr_is_monotile");
-                       0;
-                     }
-                     : d_idx,
-                   idx,
-                 ),
-                 z,
-               )
-             )
-          |> Option.map(remold_regrout(Right));
-        switch (z) {
-        | Some(z) => print_endline("z caret after: " ++ Caret.show(z.caret))
-        | None => ()
-        };
-        z;
+        z
+        |> replace_shard(Right, new_t)
+        |> Option.map(Zipper.set_caret(Inner(0, idx)))  /* Always 0 delim after */
+        |> Option.map(remold_regrout(Right));
       }
       : split(z, char, idx, t);
   /* Can't insert inside delimiter */
   | (Inner(_, _), (_, None)) => None
   | (Outer, (_, Some(_))) =>
-    let delim_idx = 0; //TODO(andrew)
-    let (ddd, caret): (Direction.t, Zipper.Caret.t) =
-      switch (sibling_appendability(char, z)) {
-      | AppendRight(_) =>
-        /* If we're adding to the right, move caret inside right nhbr.
-         * Note the assumption that this is a monotile */
-        //TODO(andrew): fix monotile assumption
-        (Right, Inner(delim_idx, 0))
-      | MakeNew
-      | AppendLeft(_) => (Left, Outer)
-      };
-    let z1 = z |> insert_outer(char);
-    z1
-    |> Option.map(Zipper.set_caret(caret))
-    |> Option.map(remold_regrout(ddd))
-    |> Option.map(move_into_if_stringlit_or_comment(char));
+    z
+    |> insert_outer(char)
+    |> Option.map(
+         Zipper.set_caret(
+           switch (sibling_appendability(char, z)) {
+           | Some((Right, _)) =>
+             /* If we're adding to the right, move caret inside right nhbr.
+              * TODO(andrew): monotile assumption */
+             Inner(0, 0)
+           | None
+           | Some((Left, _)) => Outer
+           },
+         ),
+       )
+    |> Option.map(remold_regrout(Right))
+    |> Option.map(move_into_if_stringlit_or_comment(char))
   | (Outer, (_, None)) =>
     z
     |> insert_outer(char)

@@ -567,6 +567,8 @@ let split_by_matching = (id: Id.t): (t => Aba.t(t, Tile.t)) =>
     | p => L(p),
   );
 
+[@deriving show]
+type qq = Aba.t(Piece.tile, t);
 let rec reassemble = (seg: t): t =>
   switch (incomplete_tiles(seg)) {
   | [] => seg
@@ -574,8 +576,19 @@ let rec reassemble = (seg: t): t =>
     switch (Aba.trim(split_by_matching(t.id, seg))) {
     | None => seg
     | Some((seg_l, match, seg_r)) =>
+      //print_endline("tile:" ++ String.concat(",", t.label));
+      // print_endline("seg_l:" ++ show(seg_l));
+      // print_endline("match: " ++ show_qq(match));
+      // print_endline("seg_r:" ++ show(seg_l));
       let t = Tile.reassemble(match);
       let children = List.map(reassemble, t.children);
+      // print_endline(
+      //   "children b4:" ++ String.concat(",", List.map(show, children)),
+      // );
+      let children = List.map(regrout((Concave(0), Concave(0))), children);
+      // print_endline(
+      //   "children 4t:" ++ String.concat(",", List.map(show, children)),
+      // );
       let p =
         Tile.to_piece({
           ...t,

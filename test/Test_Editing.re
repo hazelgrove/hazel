@@ -250,7 +250,7 @@ let insertion_tests = [
   test(
     ~name="Split 1st and 2nd delims of 3-delim form with instant expander",
     ~acts=mk({|if¦then|}) @ [Insert("(")],
-    ~goal={|if(¦?then?|},
+    ~goal={|if(?¦then?|},
   ),
   /* Spliting tokens when both must expand */
   test(
@@ -311,12 +311,12 @@ let insertion_tests = [
   test(
     ~name="Amphibious Plus - Before - 3 (Prelude)",
     ~acts=mk({|type T = A ¦ B|}),
-    ~goal={|type T = A~ ¦ B|},
+    ~goal={|type T = A  ¦~B|},
   ),
   test(
     ~name="Amphibious Plus - Before - 3",
     ~acts=mk({|type T = A ¦ B|}) @ [Insert("+")],
-    ~goal={|type T = A +¦ B|},
+    ~goal={|type T = A  +¦B|},
   ),
   test(
     ~name="Amphibious Plus - Before - 4",
@@ -502,6 +502,14 @@ let destruct_tests = [
     ~acts=mk({|if 1then else¦|}) @ mv_l(9) @ [Insert(" ")],
     ~goal={|if 1 ¦then? else?|},
   ),
+  /* If the below fails, it's likely zipper.caret isn't being
+   * properly updated during insert/delete actions */
+  test(
+    ~name="Inner Caret position maintenance",
+    ~acts=
+      mk({|if 1 the¦n|}) @ [Insert(" "), Destruct(Left), Destruct(Left)],
+    ~goal={|if 1 ~th¦n|},
+  ),
   /* DELETING WITHIN/ADJACENT TO POLYTILE DELIMITERS */
   /* Some of the below grout placements feel inconsistent...
    * it's okay if they change */
@@ -513,12 +521,12 @@ let destruct_tests = [
   test(
     ~name="Within middle delimiter: if",
     ~acts=mk({|if 1 th¦en 2 else 3|}) @ [Destruct(Left)],
-    ~goal={|if 1~ t¦en~ 2 else 3|},
+    ~goal={|if 1 ~t¦en~ 2 else 3|},
   ),
   test(
     ~name="Within trailing delimiter: if",
     ~acts=mk({|if 1 then 2 e¦lse 3|}) @ [Destruct(Left)],
-    ~goal={|if 1 then 2~ ¦lse~ 3|},
+    ~goal={|if 1 then 2 ¦~lse~ 3|},
   ),
   test(
     ~name="At end of leading delimiter: if",
@@ -528,12 +536,12 @@ let destruct_tests = [
   test(
     ~name="At end of middle delimiter: if",
     ~acts=mk({|if 1 then¦ 2 else 3|}) @ [Destruct(Left)],
-    ~goal={|if 1 ~the¦~ 2 else 3|},
+    ~goal={|if 1 the¦ 2 else 3|} /* No grout bc delim prefix special case */
   ),
   test(
     ~name="At end of trailing delimiter: if",
     ~acts=mk({|if 1 then 2 else¦ 3|}) @ [Destruct(Left)],
-    ~goal={|if 1 then 2 ~els¦~ 3|},
+    ~goal={|if 1 then 2 els¦ 3|},
   ),
 ];
 
