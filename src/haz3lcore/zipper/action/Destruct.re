@@ -53,9 +53,9 @@ let destruct = (d: Direction.t, z: t): option(t) => {
       when
         (Token.is_string(t) || Token.is_comment(t))
         && n == last_inner_pos(t) =>
-    delete_right(z) /* Remove inner character */
-  | (Left, Inner(c_idx), (_, Some(t))) =>
-    let delim = Zipper.delim_idx(z);
+    delete_right(z)
+  /* Unspecial cases */
+  | (Left, Inner(idx), (_, Some(t))) =>
     let z =
       Zipper.update_caret(
         fun
@@ -64,43 +64,37 @@ let destruct = (d: Direction.t, z: t): option(t) => {
         | Inner(c) => Inner(c - 1),
         z,
       );
-    let+ z = Insert.replace_shard(Right, Token.rm_nth(c_idx, t), z);
-    if (delim == 0) {
-      z;
-    } else {
-      /* Edge case */
-      let z = Insert.expand_or_barf_neighbors(z);
-      let init_left_nhbr = Siblings.right_neighbor(z.relatives.siblings);
-      let z = remold_regrout(d, z);
-      let new_nhbr = Siblings.right_neighbor(z.relatives.siblings);
-      switch (new_nhbr, z.caret) {
-      | (Some(p), Inner(_))
-          when Piece.is_grout(p) && new_nhbr != init_left_nhbr =>
-        switch (Zipper.move(Right, z)) {
-        | None => z
-        | Some(z) => z
-        }
-      | _ => z
-      };
+    let+ z = Insert.replace_shard(Right, Token.rm_nth(idx, t), z);
+    /* The rest of this from here on handles a weird edge case where
+       grout gets inserted after the caret. I don't fully understand it;
+       see tests that otherwise fail */
+    let z = Insert.expand_or_barf_neighbors(z);
+    let init_left_nhbr = Siblings.right_neighbor(z.relatives.siblings);
+    let z = remold_regrout(d, z);
+    let new_nhbr = Siblings.right_neighbor(z.relatives.siblings);
+    switch (new_nhbr, z.caret) {
+    | (Some(p), Inner(_))
+        when Piece.is_grout(p) && new_nhbr != init_left_nhbr =>
+      switch (Zipper.move(Right, z)) {
+      | None => z
+      | Some(z) => z
+      }
+    | _ => z
     };
-  | (Right, Inner(c_idx), (_, Some(t))) when c_idx == last_inner_pos(t) =>
-    Insert.replace_shard(Right, Token.rm_nth(c_idx + 1, t), z)
-    |> OptUtil.and_then(z =>
-         z |> Zipper.set_caret(Outer) |> Zipper.move(Right)
-       ) /* If not on last inner position */
-  | (Right, Inner(c_idx), (_, Some(t))) =>
-    Insert.replace_shard(Right, Token.rm_nth(c_idx + 1, t), z)
-  /* Can't subdestruct in delimiter, so just destruct on whole delimiter */
-  | (Left, Inner(_), (_, None))
-  | (Right, Inner(_), (_, None)) =>
+  | (Right, Inner(idx), (_, Some(t))) when idx == last_inner_pos(t) =>
+    let* z = Insert.replace_shard(Right, Token.rm_nth(idx + 1, t), z);
+    z |> Zipper.set_caret(Outer) |> Zipper.move(Right);
+  | (Right, Inner(idx), (_, Some(t))) =>
+    Insert.replace_shard(Right, Token.rm_nth(idx + 1, t), z)
+  | (Left | Right, Inner(_), (_, None)) =>
     /* Note: Counterintuitve, but yes, these cases are identically handled */
     z |> Zipper.set_caret(Outer) |> Zipper.delete(Right)
   | (Left, Outer, (Some(t), _)) when Token.length(t) > 1 =>
     Insert.replace_shard(Left, Token.rm_last(t), z)
   | (Right, Outer, (_, Some(t))) when Token.length(t) > 1 =>
     Insert.replace_shard(Right, Token.rm_first(t), z)
-  | (_, Outer, (Some(_), _)) /* t.length == 1 */
-  | (_, Outer, (None, _)) => z |> Zipper.delete(d)
+  | (Left | Right, Outer, (Some(_), _)) /* t.length == 1 */
+  | (Left | Right, Outer, (None, _)) => z |> Zipper.delete(d)
   };
 };
 

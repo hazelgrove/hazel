@@ -309,19 +309,16 @@ let go =
     | Some(ll) => expand_livelit(z, ll)
     | None => append_or_construct(char, z)
     }
-  | (Inner(n), (_, Some(t))) =>
-    let idx = n + 1;
+  | (Inner(idx), (_, Some(t))) =>
+    let idx = idx + 1;
     let new_token = Token.insert_nth(idx, char, t);
-    /* Even if we weren't on delim 0 before, we will be after as the
-     * insertion will break the polytile, leaving us on a monotile. */
     let z = Zipper.set_caret(Inner(idx), z);
     Token.is_potential_token(new_token)
       ? z
         |> replace_shard(Right, new_token)
         |> Option.map(remold_regrout(Right))
       : split(z, char, idx, t);
-  /* Can't insert inside delimiter */
-  | (Inner(_), (_, None)) => None
+  | (Inner(_), (_, None)) => None /* Impossible? */
   | (Outer, (_, Some(_))) =>
     let+ z = append_or_construct(char, z);
     z
