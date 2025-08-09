@@ -184,7 +184,7 @@ let move_into_string_or_comment = (char: string, z: t): t =>
   Token.is_string_delim(char) || Token.is_comment_delim(char)
     ? switch (move(Left, z)) {
       | None => z
-      | Some(z) => z |> set_caret(Inner(0, 0))
+      | Some(z) => z |> set_caret(Inner(0))
       }
     : z;
 
@@ -309,20 +309,19 @@ let go =
     | Some(ll) => expand_livelit(z, ll)
     | None => append_or_construct(char, z)
     }
-  | (Inner(_, n), (_, Some(t))) =>
+  | (Inner(n), (_, Some(t))) =>
     let idx = n + 1;
     let new_token = Token.insert_nth(idx, char, t);
     /* Even if we weren't on delim 0 before, we will be after as the
      * insertion will break the polytile, leaving us on a monotile. */
-    let z = Zipper.set_caret(Inner(0, idx), z);
+    let z = Zipper.set_caret(Inner(idx), z);
     Token.is_potential_token(new_token)
       ? z
         |> replace_shard(Right, new_token)
-        |> Option.map(Zipper.set_caret(Inner(0, idx)))  /* Always 0 delim after */
         |> Option.map(remold_regrout(Right))
       : split(z, char, idx, t);
   /* Can't insert inside delimiter */
-  | (Inner(_, _), (_, None)) => None
+  | (Inner(_), (_, None)) => None
   | (Outer, (_, Some(_))) =>
     let+ z = append_or_construct(char, z);
     z
@@ -330,9 +329,7 @@ let go =
     |> move_into_string_or_comment(char)
     |> Zipper.set_caret(
          switch (sibling_appendability(char, z)) {
-         | Some((Right, _)) =>
-           /* If we've added to the right, move caret inside right nhbr */
-           Inner(Zipper.delim_idx(z), 0)
+         | Some((Right, _)) => Inner(0)
          | None
          | Some((Left, _)) => Outer
          },

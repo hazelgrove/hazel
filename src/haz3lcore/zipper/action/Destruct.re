@@ -31,9 +31,9 @@ let destruct = (d: Direction.t, z: t): option(t) => {
     z |> Zipper.delete(Left) |> construct_left(left_id, Token.duosplits(t))
   | (Right, Outer, (_, Some(t))) when Token.duosplits(t) != [] =>
     z |> delete_right |> construct_right(right_id, Token.duosplits(t))
-  | (Left, Inner(_, 0), (_, Some(t))) when Token.duosplits(t) != [] =>
+  | (Left, Inner(0), (_, Some(t))) when Token.duosplits(t) != [] =>
     z |> delete_right |> construct_right(right_id, Token.duosplits(t))
-  | (Right, Inner(_, n), (_, Some(t)))
+  | (Right, Inner(n), (_, Some(t)))
       when Token.duosplits(t) != [] && n == last_inner_pos(t) =>
     z |> delete_right |> construct_left(right_id, Token.duosplits(t))
   /* Special cases for string literals. When deletion would
@@ -44,23 +44,24 @@ let destruct = (d: Direction.t, z: t): option(t) => {
   | (Right, Outer, (_, Some(t)))
       when Token.is_string(t) || Token.is_comment(t) =>
     delete_right(z)
-  | (Left, Inner(_, 0), (_, Some(t))) when Token.is_string(t) =>
+  | (Left, Inner(0), (_, Some(t))) when Token.is_string(t) =>
     delete_right(z)
-  | (Left, Inner(_, 0), (_, Some(t)))
+  | (Left, Inner(0), (_, Some(t)))
       when Token.is_string(t) || Token.is_comment(t) =>
     delete_right(z)
-  | (Right, Inner(_, n), (_, Some(t)))
+  | (Right, Inner(n), (_, Some(t)))
       when
         (Token.is_string(t) || Token.is_comment(t))
         && n == last_inner_pos(t) =>
     delete_right(z) /* Remove inner character */
-  | (Left, Inner(delim, c_idx), (_, Some(t))) =>
+  | (Left, Inner(c_idx), (_, Some(t))) =>
+    let delim = Zipper.delim_idx(z);
     let z =
       Zipper.update_caret(
         fun
         | Outer
-        | Inner(_, 0) => Outer
-        | Inner(_d, c) => Inner(0, c - 1),
+        | Inner(0) => Outer
+        | Inner(c) => Inner(c - 1),
         z,
       );
     let+ z = Insert.replace_shard(Right, Token.rm_nth(c_idx, t), z);
@@ -82,12 +83,12 @@ let destruct = (d: Direction.t, z: t): option(t) => {
       | _ => z
       };
     };
-  | (Right, Inner(_, c_idx), (_, Some(t))) when c_idx == last_inner_pos(t) =>
+  | (Right, Inner(c_idx), (_, Some(t))) when c_idx == last_inner_pos(t) =>
     Insert.replace_shard(Right, Token.rm_nth(c_idx + 1, t), z)
     |> OptUtil.and_then(z =>
          z |> Zipper.set_caret(Outer) |> Zipper.move(Right)
        ) /* If not on last inner position */
-  | (Right, Inner(_, c_idx), (_, Some(t))) =>
+  | (Right, Inner(c_idx), (_, Some(t))) =>
     Insert.replace_shard(Right, Token.rm_nth(c_idx + 1, t), z)
   /* Can't subdestruct in delimiter, so just destruct on whole delimiter */
   | (Left, Inner(_), (_, None))
@@ -107,8 +108,7 @@ let merge = ((l, r): (Token.t, Token.t), z: t): option(t) => {
   /* Note: Below order causes it to retain id of right tile */
   let* z = Zipper.delete(Left, z);
   let+ z = Insert.replace_shard(Right, Token.append(l, r), z);
-  let z =
-    Zipper.set_caret(Inner(Zipper.delim_idx(z), Token.length(l) - 1), z);
+  let z = Zipper.set_caret(Inner(Token.length(l) - 1), z);
   /* Regrouting direction needed to merge prefixs into infix eg ! */
   remold_regrout(Right, z);
 };
@@ -116,7 +116,7 @@ let merge = ((l, r): (Token.t, Token.t), z: t): option(t) => {
 let parent_duomerge = (~id: Id.t, lbl: Label.t, z: t): t => {
   z
   |> Zipper.delete_parent
-  |> Zipper.set_caret(Inner(0, 0))  /* Note duotile assumption */
+  |> Zipper.set_caret(Inner(0))
   |> Zipper.construct(~id, ~d=Right, ~backpack=Left, lbl)
   /* Below regrouting important for parens/ap positioning */
   |> remold_regrout(Right);

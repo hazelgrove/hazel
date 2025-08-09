@@ -4,12 +4,12 @@ module Caret = {
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
   type t =
     | Outer
-    | Inner(int, int);
+    | Inner(int);
 
   let offset: t => int =
     fun
     | Outer => 0
-    | Inner(_, c) => c + 1;
+    | Inner(c) => c + 1;
 };
 
 // assuming single backpack, shards may appear in selection, backpack, or siblings
