@@ -6,10 +6,6 @@ open OptUtil.Syntax;
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type indexed = option((int, Label.t));
 
-/* The index of a delimiter and its maximum internal caret position */
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
-type token_info = option((int, int));
-
 let piece_neighbor = (d: Direction.t, p: Piece.t): indexed =>
   switch (p) {
   | Tile(t) => Some((Tile.shard_on_side(Direction.toggle(d), t), t.label))
@@ -26,10 +22,10 @@ let ancestor_neighbor = (d: Direction.t, ancestors: Ancestors.t): indexed => {
   };
 };
 
-let indexes = ((delim_idx: int, label: Label.t)): token_info => {
+let indexes = ((delim_idx: int, label: Label.t)): option(int) => {
   assert(delim_idx < List.length(label));
   let char_max = Token.length(List.nth(label, delim_idx)) - 2;
-  char_max < 0 ? None : Some((delim_idx, char_max));
+  char_max < 0 ? None : Some(char_max);
 };
 
 let nhbr = (d: Direction.t, r: Relatives.t): indexed =>
@@ -41,23 +37,22 @@ let nhbr = (d: Direction.t, r: Relatives.t): indexed =>
 let move_by_char_left = (z: t): option(t) =>
   switch (z.caret, Option.bind(nhbr(Left, z.relatives), indexes)) {
   | (Outer, None) => z |> move(Left)
-  | (Outer, Some((delim_init, char_max))) =>
-    z |> set_caret(Inner(delim_init, char_max)) |> move(Left)
-  | (Inner(_, char), None | Some((_, _))) when char == 0 =>
+  | (Outer, Some(char_max)) =>
+    z |> set_caret(Inner(char_max)) |> move(Left)
+  | (Inner(char), None | Some(_)) when char == 0 =>
     z |> set_caret(Outer) |> Option.some
-  | (Inner(delim, char), None | Some(_)) =>
-    z |> set_caret(Inner(delim, char - 1)) |> Option.some
+  | (Inner(char), None | Some(_)) =>
+    z |> set_caret(Inner(char - 1)) |> Option.some
   };
 
 let move_by_char_right = (z: t): option(t) =>
   switch (z.caret, Option.bind(nhbr(Right, z.relatives), indexes)) {
   | (Outer, None) => z |> move(Right)
-  | (Outer, Some((delim_init, _))) =>
-    z |> set_caret(Inner(delim_init, 0)) |> Option.some
-  | (Inner(_, char), Some((_, char_max))) when char == char_max =>
+  | (Outer, Some(_)) => z |> set_caret(Inner(0)) |> Option.some
+  | (Inner(char), Some(char_max)) when char == char_max =>
     z |> set_caret(Outer) |> move(Right)
-  | (Inner(delim, char), None | Some(_)) =>
-    z |> set_caret(Inner(delim, char + 1)) |> Option.some
+  | (Inner(char), None | Some(_)) =>
+    z |> set_caret(Inner(char + 1)) |> Option.some
   };
 
 let move_by_char = (d: Direction.t, z: t): option(t) =>
