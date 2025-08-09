@@ -398,6 +398,12 @@ let insertion_tests = [
     ~acts=mk({|if 1 then 2 else¦ 3|}) @ [Insert("x")],
     ~goal={|if 1 then 2 ~elsex¦~ 3|},
   ),
+  /* SPLITTING */
+  test(
+    ~name="Split ap (Make sure outside gets remolded)",
+    ~acts=mk({|ap(¦)|}) @ [Insert(" ")],
+    ~goal={|ap(?¦)|},
+  ),
 ];
 
 let destruct_tests = [
@@ -498,9 +504,14 @@ let destruct_tests = [
   ),
   /* Regressions */
   test(
-    ~name="Regrouting edge case",
+    ~name="Regrouting edge case 1",
     ~acts=mk({|if 1then else¦|}) @ mv_l(9) @ [Insert(" ")],
     ~goal={|if 1 ¦then? else?|},
+  ),
+  test(
+    ~name="Regrouting edge case 2",
+    ~acts=mk({|if thena¦ else|}) @ [Destruct(Left)],
+    ~goal={|if? then¦? else?|},
   ),
   /* If the below fails, it's likely zipper.caret isn't being
    * properly updated during insert/delete actions */

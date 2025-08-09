@@ -21,7 +21,7 @@ module M: Projector = {
     | _ => None
     };
 
-  let init = (any: Language.Term.Any.t) =>
+  let init = (any: Language.Term.Any.t) => {
     switch (any) {
     | Exp({term: Ap(_dir, {term: LivelitName(_), _}, _), _})
     | Exp({
@@ -31,6 +31,7 @@ module M: Projector = {
       Some()
     | _ => None
     };
+  };
 
   let placeholder = (_model, info) => {
     switch (get_model(info), info.statics) {
