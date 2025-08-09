@@ -296,7 +296,8 @@ module Deco =
     switch (statics_opt) {
     | Some(InfoExp(exp)) =>
       switch (exp.term.term) {
-      | BinOp(op, left, right) when Language.Operators.is_associative_op(op) =>
+      // | BinOp(op, left, right) when Language.Operators.is_associative_op(op) =>
+      | BinOp(op, left, right) =>
         let left_id = left |> Language.Exp.rep_id;
         let right_id = right |> Language.Exp.rep_id;
         let left_assoc =
@@ -317,7 +318,16 @@ module Deco =
           | Some(InfoExp(left_contents)) =>
             switch (left_contents.term.term) {
             // only grab a child if it's a BinOp, otherwise return the original
-            | BinOp(_, left_left, _) => left_left |> Language.Exp.rep_id
+            | BinOp(_, left_left, _) =>
+              print_endline(
+                "Left child of binOp: "
+                ++ Language.Operators.show_binop(op)
+                ++ " at tile "
+                ++ Zipper.short_id(left_assoc)
+                ++ " is "
+                ++ Zipper.short_id(left_left |> Language.Exp.rep_id),
+              );
+              left_left |> Language.Exp.rep_id;
             | _ => left_assoc
             }
           | _ => left_assoc

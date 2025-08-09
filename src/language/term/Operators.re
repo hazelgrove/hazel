@@ -223,8 +223,10 @@ let is_associative_op = (op: op_bin): bool => {
   switch (op) {
   | Int(Plus)
   | Int(Times)
+  | Int(Power)
   | Float(Plus)
   | Float(Times)
+  | Float(Power)
   | Bool(And)
   | Bool(Or) => true
   | _ => false
