@@ -184,7 +184,7 @@ let move_into_string_or_comment = (char: string, z: t): t =>
   Token.is_string_delim(char) || Token.is_comment_delim(char)
     ? switch (move(Left, z)) {
       | None => z
-      | Some(z) => z |> set_caret(Inner(0))
+      | Some(z) => z |> Caret.set(Inner(0))
       }
     : z;
 
@@ -197,7 +197,7 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
     | Some(id) => id /* Retain original tile id */
     | None => Id.mk()
     };
-  let* z = z |> Zipper.set_caret(Outer) |> Zipper.delete(Right);
+  let* z = z |> Caret.set(Outer) |> Zipper.delete(Right);
   switch (Token.duomerges([l, r])) {
   | Some(_) =>
     let+ z =
@@ -301,7 +301,7 @@ let go =
    * the operand. Note that this behavior is load-bearing for the
    * current parsing approach including Paste */
   | (_, (_, Some(t))) when Token.closing_stringlit_or_comment(char, t) =>
-    z |> Zipper.set_caret(Outer) |> Zipper.move(Right)
+    z |> Caret.set(Outer) |> Zipper.move(Right)
   | (Outer, (Some(t), _)) when Token.closing_stringlit_or_comment(char, t) =>
     Some(z)
   | (Outer, (Some(t), _)) when Token.is_livelit(t) && char == Token.space =>
@@ -312,7 +312,7 @@ let go =
   | (Inner(idx), (_, Some(t))) =>
     let idx = idx + 1;
     let new_token = Token.insert_nth(idx, char, t);
-    let z = Zipper.set_caret(Inner(idx), z);
+    let z = Caret.set(Inner(idx), z);
     Token.is_potential_token(new_token)
       ? z
         |> replace_shard(Right, new_token)
@@ -324,7 +324,7 @@ let go =
     z
     |> remold_regrout(Right)
     |> move_into_string_or_comment(char)
-    |> Zipper.set_caret(
+    |> Caret.set(
          switch (sibling_appendability(char, z)) {
          | Some((Right, _)) => Inner(0)
          | None

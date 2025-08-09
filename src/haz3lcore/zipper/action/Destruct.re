@@ -5,7 +5,7 @@ open OptUtil.Syntax;
 let destruct = (d: Direction.t, z: t): option(t) => {
   let last_inner_pos = t => Token.length(t) - 2;
   let delete_right = z =>
-    z |> Zipper.set_caret(Outer) |> Zipper.delete(Right);
+    z |> Zipper.Caret.set(Outer) |> Zipper.delete(Right);
   let construct_right = (id, l, z: option(t)) =>
     Option.map(Zipper.construct(~id, ~d=Right, ~backpack=Right, l), z);
   let construct_left = (id, l, z) =>
@@ -56,18 +56,10 @@ let destruct = (d: Direction.t, z: t): option(t) => {
     delete_right(z)
   /* Unspecial cases */
   | (Left, Inner(idx), (_, Some(t))) =>
-    let z =
-      Zipper.update_caret(
-        fun
-        | Outer
-        | Inner(0) => Outer
-        | Inner(c) => Inner(c - 1),
-        z,
-      );
+    let z = Zipper.Caret.set(idx == 0 ? Outer : Inner(idx - 1), z);
     let+ z = Insert.replace_shard(Right, Token.rm_nth(idx, t), z);
     /* The rest of this from here on handles a weird edge case where
-       grout gets inserted after the caret. I don't fully understand it;
-       see tests that otherwise fail */
+       we must account for grout getting inserted after the caret */
     let z = Insert.expand_or_barf_neighbors(z);
     let init_left_nhbr = Siblings.right_neighbor(z.relatives.siblings);
     let z = remold_regrout(d, z);
@@ -83,12 +75,12 @@ let destruct = (d: Direction.t, z: t): option(t) => {
     };
   | (Right, Inner(idx), (_, Some(t))) when idx == last_inner_pos(t) =>
     let* z = Insert.replace_shard(Right, Token.rm_nth(idx + 1, t), z);
-    z |> Zipper.set_caret(Outer) |> Zipper.move(Right);
+    z |> Zipper.Caret.set(Outer) |> Zipper.move(Right);
   | (Right, Inner(idx), (_, Some(t))) =>
     Insert.replace_shard(Right, Token.rm_nth(idx + 1, t), z)
   | (Left | Right, Inner(_), (_, None)) =>
     /* Note: Counterintuitve, but yes, these cases are identically handled */
-    z |> Zipper.set_caret(Outer) |> Zipper.delete(Right)
+    z |> Zipper.Caret.set(Outer) |> Zipper.delete(Right)
   | (Left, Outer, (Some(t), _)) when Token.length(t) > 1 =>
     Insert.replace_shard(Left, Token.rm_last(t), z)
   | (Right, Outer, (_, Some(t))) when Token.length(t) > 1 =>
@@ -102,7 +94,7 @@ let merge = ((l, r): (Token.t, Token.t), z: t): option(t) => {
   /* Note: Below order causes it to retain id of right tile */
   let* z = Zipper.delete(Left, z);
   let+ z = Insert.replace_shard(Right, Token.append(l, r), z);
-  let z = Zipper.set_caret(Inner(Token.length(l) - 1), z);
+  let z = Zipper.Caret.set(Inner(Token.length(l) - 1), z);
   /* Regrouting direction needed to merge prefixs into infix eg ! */
   remold_regrout(Right, z);
 };
@@ -110,7 +102,7 @@ let merge = ((l, r): (Token.t, Token.t), z: t): option(t) => {
 let parent_duomerge = (~id: Id.t, lbl: Label.t, z: t): t => {
   z
   |> Zipper.delete_parent
-  |> Zipper.set_caret(Inner(0))
+  |> Zipper.Caret.set(Inner(0))
   |> Zipper.construct(~id, ~d=Right, ~backpack=Left, lbl)
   /* Below regrouting important for parens/ap positioning */
   |> remold_regrout(Right);

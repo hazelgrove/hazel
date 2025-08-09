@@ -213,7 +213,7 @@ module Update = {
       | Select(Resize(Local(Up | Down))) =>
         switch (state.col_target) {
         | Some(col) => Some(col)
-        | None => Some(Zipper.caret_point(syntax.measured, state.zipper).col)
+        | None => Some(Zipper.Caret.point(syntax.measured, state.zipper).col)
         }
       | _ => None
       };

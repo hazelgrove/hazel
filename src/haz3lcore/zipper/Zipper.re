@@ -41,12 +41,6 @@ let from_plane: planar => Direction.t =
   | Up => Left
   | Down => Right;
 
-let update_caret = (f: Caret.t => Caret.t, z: t): t => {
-  ...z,
-  caret: f(z.caret),
-};
-let set_caret = (caret: Caret.t): (t => t) => update_caret(_ => caret);
-
 let delete_parent = (z: t): t => {
   ...z,
   relatives: Relatives.delete_parent(z.relatives),
@@ -204,14 +198,6 @@ let move = (d: Direction.t, z: t): option(t) =>
 
 let select = (d: Direction.t, z: t): option(t) =>
   d == z.selection.focus ? grow_selection(z) : shrink_selection(z);
-
-/* Returns the delimiter index that the caret is adjacent to.
- * For non-tiles and monotiles this is always zero */
-let delim_idx = (z: t) =>
-  switch (snd(z.relatives.siblings), z.relatives.ancestors) {
-  | ([], [({shards: (l, _), _}, _), ..._]) => List.length(l)
-  | _ => 0
-  };
 
 let singleton_shard_selection = (seg: Segment.t): option(Token.t) =>
   switch (seg) {
@@ -455,22 +441,6 @@ let representative_piece = (z: t): option((Piece.t, Direction.t)) => {
   };
 };
 
-let caret_direction = (z: t): option(Direction.t) =>
-  /* Direction the caret is facing in */
-  switch (z.caret) {
-  | Inner(_) => None
-  | Outer =>
-    switch (Siblings.neighbors(sibs_with_sel(z))) {
-    | (Some(l), Some(r))
-        when
-          Piece.is_secondary(l)
-          && Piece.is_secondary(r)
-          && Selection.is_empty(z.selection) =>
-      None
-    | _ => Siblings.direction_between(sibs_with_sel(z))
-    }
-  };
-
 let base_point = (measured: Measured.t, z: t): Point.t => {
   switch (representative_piece(z)) {
   | Some((p, d)) =>
@@ -491,12 +461,64 @@ let base_point = (measured: Measured.t, z: t): Point.t => {
     }
   };
 };
-let caret_point = (measured, z: t): Point.t => {
-  let Point.{row, col} = base_point(measured, z);
-  {
-    row,
-    col: col + Caret.offset(z.caret),
+
+module Caret = {
+  let offset: caret => int =
+    fun
+    | Outer => 0
+    | Inner(idx) => idx + 1;
+
+  let set = (caret: caret, z: t): t => {
+    ...z,
+    caret,
   };
+
+  /* Max internal index of the shard the caret is adjacent to */
+  let nhbr_max_idx = (d: Direction.t, z: t): option(int) => {
+    let* t =
+      switch (d, neighbor_shards(z)) {
+      | (Left, (Some(t), _)) => Some(t)
+      | (Right, (_, Some(t))) => Some(t)
+      | _ => None
+      };
+    let max_idx = Token.length(t) - 2;
+    max_idx < 0 ? None : Some(max_idx);
+  };
+
+  /* Returns the delimiter index that the caret is adjacent to.
+   * For non-tiles and monotiles this is always zero */
+  let delim_idx = (z: t) =>
+    switch (snd(z.relatives.siblings), z.relatives.ancestors) {
+    | ([], [({shards: (l, _), _}, _), ..._]) => List.length(l)
+    | _ => 0
+    };
+
+  /* Direction the caret is facing in */
+  let direction = (z: t): option(Direction.t) =>
+    switch (z.caret) {
+    | Inner(_) => None
+    | Outer =>
+      switch (Siblings.neighbors(sibs_with_sel(z))) {
+      | (Some(l), Some(r))
+          when
+            Piece.is_secondary(l)
+            && Piece.is_secondary(r)
+            && Selection.is_empty(z.selection) =>
+        None
+      | _ => Siblings.direction_between(sibs_with_sel(z))
+      }
+    };
+
+  /* Grid position of the caret */
+  let point = (measured: Measured.t, z: t): Point.t => {
+    let Point.{row, col} = base_point(measured, z);
+    {
+      row,
+      col: col + offset(z.caret),
+    };
+  };
+
+  type t = ZipperBase.caret;
 };
 
 let selection_anchor_point = (measured, z: t): option(Point.t) => {
