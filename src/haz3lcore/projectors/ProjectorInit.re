@@ -30,8 +30,13 @@ let init =
 let init_or_noop =
     (kind: ProjectorCore.Kind.t, syntax: syntax, any: Language.Any.t): syntax =>
   switch (init(kind, syntax, any)) {
-  | Some(pr) => pr
-  | None => syntax
+  | Some(pr) =>
+    print_endline("init_or_noop: init");
+
+    pr;
+  | None =>
+    print_endline("init_or_noop: noop");
+    syntax;
   };
 
 let init_or_noop_from_str =

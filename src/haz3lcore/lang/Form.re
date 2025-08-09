@@ -313,24 +313,25 @@ let infix_delimiter_ops_prefixes: list(Token.t) =
 
 let is_infix_delimiter_op_prefix = List.mem(_, infix_delimiter_ops_prefixes);
 
+//TODO(andrew): cleanup
 /* This classification is a work in progress. Now that most trailing
  * delimiters are delayed-putdown, we need to classify those that aren't.
  * These should likely include ")", "]", ">"  or risk causing parsing
  * issues; right now I'm saying all non-alphanumeric trailing delimiters
  * are instant, but we might want to re-evaluate this in the future.*/
-let instant_putdowns: list(Token.t) =
-  forms
-  |> List.filter_map(((_, f: t)) =>
-       switch (f.label) {
-       | [_, ...trailing] =>
-         Some(List.filter(t => !Token.is_var(t), trailing))
-       | _ => None
-       }
-     )
-  |> List.concat
-  |> Token.sort_uniq;
+// let instant_putdowns: list(Token.t) =
+//   forms
+//   |> List.filter_map(((_, f: t)) =>
+//        switch (f.label) {
+//        | [_, ...trailing] =>
+//          Some(List.filter(t => !Token.is_var(t), trailing))
+//        | _ => None
+//        }
+//      )
+//   |> List.concat
+//   |> Token.sort_uniq;
 
-let is_instant_putdown = List.mem(_, instant_putdowns);
+// let is_instant_putdown = List.mem(_, instant_putdowns);
 
 /* Tokens that appear both as single-token labels and in other forms labels.
  * These have special put-down behavior to make sure we can actually enter
@@ -455,12 +456,11 @@ module Expansion = {
     |> List.flatten
     |> List.sort_uniq(compare);
 
-  let get: Token.t => (Label.t, Direction.t) =
-    s =>
-      switch (List.assoc_opt(s, expansions)) {
-      | Some(expansion) => expansion
-      | None => ([s], Right)
-      };
+  let get = (t: Token.t): (Label.t, Direction.t) =>
+    switch (List.assoc_opt(t, expansions)) {
+    | Some(expansion) => expansion
+    | None => ([t], Right)
+    };
 
   let will = kw => List.length(get(kw) |> fst) > 1;
 };
