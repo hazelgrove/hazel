@@ -1,23 +1,16 @@
 open Util;
 
-module Caret = {
-  [@deriving (show({with_path: false}), sexp, yojson, eq)]
-  type t =
-    | Outer
-    | Inner(int);
-
-  let offset: t => int =
-    fun
-    | Outer => 0
-    | Inner(c) => c + 1;
-};
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type caret =
+  | Outer
+  | Inner(int);
 
 // assuming single backpack, shards may appear in selection, backpack, or siblings
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = {
   selection: Selection.t,
   relatives: Relatives.t,
-  caret: Caret.t,
+  caret,
 };
 
 let update_relatives = (f: Relatives.t => Relatives.t, z: t): t => {
