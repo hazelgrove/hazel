@@ -64,16 +64,6 @@ let unzip = (seg: Segment.t): t => {
   caret: Outer,
 };
 
-//TODO(andrew): cleanup
-// let left_neighbor_monotile: Siblings.t => option(Token.t) =
-//   s => s |> Siblings.left_neighbor |> OptUtil.and_then(Piece.monotile);
-
-// let right_neighbor_monotile: Siblings.t => option(Token.t) =
-//   s => s |> Siblings.right_neighbor |> OptUtil.and_then(Piece.monotile);
-
-// let neighbor_monotiles: Siblings.t => (option(Token.t), option(Token.t)) =
-//   s => (left_neighbor_monotile(s), right_neighbor_monotile(s));
-
 let regrout = (d: Direction.t, z: t): t => {
   assert(Selection.is_empty(z.selection));
   let relatives = Relatives.regrout(d, z.relatives);
@@ -213,26 +203,21 @@ let move = (d: Direction.t, z: t): option(t) =>
 let select = (d: Direction.t, z: t): option(t) =>
   d == z.selection.focus ? grow_selection(z) : shrink_selection(z);
 
-// [@deriving (show({with_path: false}), sexp, yojson)]
-// type nshard =
-//   | Mono(Tile.t)
-//   | Poly(Tile.t)
-//   | Comment;
-
-// [@deriving (show({with_path: false}), sexp, yojson)]
-// type nhbr_shard = {
-//   shard: nshard,
-//   token: Token.t,
-// };
-
-let singleton_shard = (t: Tile.t) =>
-  switch (Tile.effective_label(t)) {
-  | [tok] => Some(tok)
-  | _ => None
+/* Returns the delimiter index that the caret is adjacent to.
+ * For non-tiles and monotiles this is always zero */
+let delim_idx = (z: t) =>
+  switch (snd(z.relatives.siblings), z.relatives.ancestors) {
+  | ([], [({shards: (l, _), _}, _), ..._]) => List.length(l)
+  | _ => 0
   };
-let singleton_shard_selection = (seg: Segment.t) =>
+
+let singleton_shard_selection = (seg: Segment.t): option(Token.t) =>
   switch (seg) {
-  | [Tile(t)] => singleton_shard(t)
+  | [Tile(t)] =>
+    switch (Tile.effective_label(t)) {
+    | [tok] => Some(tok)
+    | _ => None
+    }
   | _ => None
   };
 
@@ -240,9 +225,6 @@ let left_neighbor_shard = (z: t): option(Token.t) =>
   switch (Siblings.left_neighbor(z.relatives.siblings)) {
   | Some(p) when Piece.monotile(p) != None =>
     Piece.monotile(p) |> Option.get |> Option.some
-  // | Some(Tile({label: [tok], _})) => Some(tok)
-  // | Some(Secondary(w)) when Secondary.is_comment(w) =>
-  //   Some(Secondary.get_string(w.content))
   | _ =>
     let* z = select(Left, z);
     singleton_shard_selection(z.selection.content);
@@ -252,9 +234,6 @@ let right_neighbor_shard = (z: t): option(Token.t) =>
   switch (Siblings.right_neighbor(z.relatives.siblings)) {
   | Some(p) when Piece.monotile(p) != None =>
     Piece.monotile(p) |> Option.get |> Option.some
-  // | Some(Tile({label: [tok], _})) => Some(tok)
-  // | Some(Secondary(w)) when Secondary.is_comment(w) =>
-  //   Some(Secondary.get_string(w.content))
   | _ =>
     let* z = select(Right, z);
     singleton_shard_selection(z.selection.content);
@@ -326,21 +305,21 @@ let can_put_down = z =>
   | _ => z.caret == Outer
   };
 
-let remold_regrout_prev = (z: t): t =>
-  switch (move(Left, z)) {
-  | None => z
-  | Some(z_left) =>
-    let z_left = z_left |> remold |> regrout(Right);
-    switch (move(Right, z_left)) {
-    | None => failwith("Zipper.remold_regrout_prev: move fail")
-    | Some(z_right) => z_right
-    };
-  };
+// let remold_regrout_prev = (z: t): t =>
+//   switch (move(Left, z)) {
+//   | None => z
+//   | Some(z_left) =>
+//     let z_left = z_left |> remold |> regrout(Right);
+//     switch (move(Right, z_left)) {
+//     | None => failwith("Zipper.remold_regrout_prev: move fail")
+//     | Some(z_right) => z_right
+//     };
+//   };
 
 let put_down_regrout_target = (d: Direction.t, target: Tile.t, z: t): t => {
   let z = put_down_core([Tile(target)], z);
   let z = z |> regrout(Left) |> remold;
-  let z = remold_regrout_prev(z);
+  //let z = remold_regrout_prev(z);
   adj_pos(d, z);
 };
 

@@ -6,12 +6,6 @@ module Caret = {
     | Outer
     | Inner(int, int);
 
-  let decrement: t => t =
-    fun
-    | Outer
-    | Inner(_, 0) => Outer
-    | Inner(d, c) => Inner(d, c - 1);
-
   let offset: t => int =
     fun
     | Outer => 0

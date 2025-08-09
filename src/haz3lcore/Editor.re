@@ -235,6 +235,19 @@ module Update = {
         state.zipper,
       );
 
+    //TODO(andrew): cleanup
+    /* If right siblings are empty, and there's a parent,
+       then we're on a delimiter of the parent. The index
+       of that delimiter is given by length of the parent's
+       left shards */
+    print_endline(Zipper.Caret.show(zipper.caret));
+    print_endline("sibs:");
+    print_endline(Siblings.show(zipper.relatives.siblings));
+    switch (ListUtil.hd_opt(zipper.relatives.ancestors)) {
+    | None => print_endline("no ancestors")
+    | Some(a) => print_endline(Ancestor.show(a |> fst))
+    };
+
     // Recombine
     Model.{
       state: {
