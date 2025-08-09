@@ -31,7 +31,7 @@ let expansion = (t: Token.t, z: t): (Label.t, Direction.t) => {
 
 let construct_expand = (~id, d: Direction.t, t: Token.t, z: t): t => {
   let (lbl, backpack) = expansion(t, z);
-  construct(~id, ~backpack, ~caret=d, lbl, z);
+  construct(~id, ~backpack, ~d, lbl, z);
 };
 
 let replace_expand = (d: Direction.t, t: Token.t, z: t): option(t) => {
@@ -125,7 +125,7 @@ let make_new_tile = (~id, t: Token.t, caret: Direction.t, z: t): t =>
      construct a new tile, which may immediately expand. */
   switch (neighbor_can_duomerge(t, z.relatives.siblings)) {
   | Some((lbl, d, id)) =>
-    Zipper.replace(~id, ~caret=d, ~backpack=d, lbl, z) |> Option.get
+    Zipper.replace(~id, ~d, ~backpack=d, lbl, z) |> Option.get
   | None =>
     Zipper.will_barf(t, z)
       ? put_down_regrout_remold_tok(caret, t, z) |> Option.get
@@ -202,7 +202,7 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
   | Some(_) =>
     let+ z =
       z
-      |> Zipper.construct(~id, ~caret=Left, ~backpack=Left, [l, r])
+      |> Zipper.construct(~id, ~d=Left, ~backpack=Left, [l, r])
       |> remold_regrout(Left)  /* Must regrout here e.g. try space on ap(|) */
       |> Zipper.put_down_tok(Left, r)
       |> OptUtil.and_then(Zipper.move(Left));
@@ -294,7 +294,7 @@ let expand_livelit = (z: t, ll: Language.LivelitCtx.raw_livelit) => {
 let go =
     (~ctx: Language.Ctx.t=Language.Ctx.empty, char: string, z: t): option(t) => {
   /* If there's a selection, delete it before proceeding */
-  let z = z.selection.content != [] ? Zipper.destruct(z) : z;
+  let z = z.selection.content != [] ? Zipper.destroy_selection(z) : z;
   switch (z.caret, neighbor_shards(z)) {
   /* If we try to insert a quote inside an existing string, or a #
    * in a comment, we are instead moved to the righthand side of
@@ -304,7 +304,7 @@ let go =
     z |> Zipper.set_caret(Outer) |> Zipper.move(Right)
   | (Outer, (Some(t), _)) when Token.closing_stringlit_or_comment(char, t) =>
     Some(z)
-  | (Outer, (Some(t), _)) when Token.is_livelit(t) && char == " " =>
+  | (Outer, (Some(t), _)) when Token.is_livelit(t) && char == Token.space =>
     switch (Language.Ctx.lookup_livelit(ctx, Token.parse_livelit(t))) {
     | Some(ll) => expand_livelit(z, ll)
     | None => append_or_construct(char, z)

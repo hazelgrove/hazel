@@ -105,7 +105,7 @@ module Delims = {
            (m: Mold.t) =>
              List.length(lbl) > 1 && token == List.hd(lbl) && m.out == sort
                ? Some(token ++ leading_expander) : None,
-           Form.Mold.get(lbl),
+           Form.Molds.get(lbl),
          );
        })
     |> List.flatten
@@ -129,7 +129,7 @@ module Delims = {
          List.filter_map(
            (m: Mold.t) =>
              m.out == sort && Mold.is_infix_op(m) ? Some(token) : None,
-           Form.Mold.get([token]),
+           Form.Molds.get([token]),
          )
        })
     |> List.flatten
@@ -152,7 +152,7 @@ module Delims = {
            (m: Mold.t) =>
              m.out == sort && List.mem(token, Token.const_mono_delims)
                ? Some(token) : None,
-           Form.Mold.get([token]),
+           Form.Molds.get([token]),
          )
        })
     |> List.flatten

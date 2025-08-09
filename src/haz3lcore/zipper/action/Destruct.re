@@ -6,25 +6,36 @@ let destruct = (d: Direction.t, z: t): option(t) => {
   let last_inner_pos = t => Token.length(t) - 2;
   let delete_right = z =>
     z |> Zipper.set_caret(Outer) |> Zipper.delete(Right);
-  let construct_right = (l, s) =>
-    Option.map(Zipper.construct(~caret=Right, ~backpack=Right, l), s);
-  let construct_left = (l, s) =>
-    Option.map(Zipper.construct(~caret=Left, ~backpack=Left, l), s);
+  let construct_right = (id, l, z: option(t)) =>
+    Option.map(Zipper.construct(~id, ~d=Right, ~backpack=Right, l), z);
+  let construct_left = (id, l, z) =>
+    Option.map(Zipper.construct(~d=Left, ~id, ~backpack=Left, l), z);
+  let left_id =
+    switch (adjacent_monotile_id(Left, z)) {
+    | Some(id) => id
+    | None => Id.mk()
+    };
+  let right_id =
+    switch (adjacent_monotile_id(Right, z)) {
+    | Some(id) => id
+    | None => Id.mk()
+    };
   switch (d, z.caret, Zipper.neighbor_shards(z)) {
   /* When there's a selection, defer to Outer */
-  | _ when z.selection.content != [] => z |> Zipper.destruct |> Option.some
+  | _ when z.selection.content != [] =>
+    z |> Zipper.destroy_selection |> Option.some
   /* Special cases for mono forms which can split into duo forms,
      e.g. list literals. When deletion would alter the mono form,
      we replace it to the corresponding duo form.  */
   | (Left, Outer, (Some(t), _)) when Token.duosplits(t) != [] =>
-    z |> Zipper.delete(Left) |> construct_left(Token.duosplits(t))
+    z |> Zipper.delete(Left) |> construct_left(left_id, Token.duosplits(t))
   | (Right, Outer, (_, Some(t))) when Token.duosplits(t) != [] =>
-    z |> delete_right |> construct_right(Token.duosplits(t))
+    z |> delete_right |> construct_right(right_id, Token.duosplits(t))
   | (Left, Inner(_, 0), (_, Some(t))) when Token.duosplits(t) != [] =>
-    z |> delete_right |> construct_right(Token.duosplits(t))
+    z |> delete_right |> construct_right(right_id, Token.duosplits(t))
   | (Right, Inner(_, n), (_, Some(t)))
       when Token.duosplits(t) != [] && n == last_inner_pos(t) =>
-    z |> delete_right |> construct_left(Token.duosplits(t))
+    z |> delete_right |> construct_left(right_id, Token.duosplits(t))
   /* Special cases for string literals. When deletion would
      remove an outer quote, we instead remove the whole string */
   | (Left, Outer, (Some(t), _))
@@ -106,7 +117,7 @@ let parent_duomerge = (~id: Id.t, lbl: Label.t, z: t): t => {
   z
   |> Zipper.delete_parent
   |> Zipper.set_caret(Inner(0, 0))  /* Note duotile assumption */
-  |> Zipper.construct(~id, ~caret=Right, ~backpack=Left, lbl)
+  |> Zipper.construct(~id, ~d=Right, ~backpack=Left, lbl)
   /* Below regrouting important for parens/ap positioning */
   |> remold_regrout(Right);
 };

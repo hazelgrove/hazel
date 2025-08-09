@@ -38,8 +38,7 @@ let linebreak = "\n";
 let comment_regexp = regexp("^#[^#\n]*#$"); /* Multiline comments not supported */
 let is_comment = t => match(comment_regexp, t) || t == "#";
 let is_comment_delim = t => t == "#";
-let is_secondary = t =>
-  List.mem(t, [space, linebreak]) || match(comment_regexp, t);
+let is_secondary = t => List.mem(t, [space, linebreak]) || is_comment(t);
 
 /* STRINGS: special-case syntax */
 

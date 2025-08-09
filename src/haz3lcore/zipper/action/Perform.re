@@ -9,7 +9,7 @@ let buffer_clear = (z: t): t =>
       selection: Selection.mk([]),
     }
 
-  | Buffer(Parsed) => z |> Zipper.destruct |> Zipper.regrout(Left)
+  | Buffer(Parsed) => z |> Zipper.destroy_selection |> Zipper.regrout(Left)
   | Normal => z
   };
 
