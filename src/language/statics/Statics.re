@@ -217,6 +217,21 @@ and multi =
     ([], [], m),
     tms,
   )
+// TODO: (THI) optimize
+and constrain_branches = (branch_tys: list(Typ.t)): list(Typ.equivalence) => {
+  let rec constrain_branches' =
+          (branch_tys': list(Typ.t), constraints: list(Typ.equivalence)) => {
+    switch (branch_tys') {
+    | [] => constraints
+    | [hd, ...tl] =>
+      constrain_branches'(
+        tl,
+        constraints @ List.map(ty => Typ.Con(hd, ty), tl),
+      )
+    };
+  };
+  constrain_branches'(branch_tys, []);
+}
 and uexp_to_info_map =
     (
       ~ctx: Ctx.t,
@@ -1291,7 +1306,7 @@ and uexp_to_info_map =
           cond.constraints
           @ cons.constraints
           @ alt.constraints
-          @ [Con(cons.ty, alt.ty)],
+          @ constrain_branches([cons.ty, alt.ty]),
         m,
       );
     | Match(scrut, rules) =>
@@ -1305,6 +1320,7 @@ and uexp_to_info_map =
           m,
         );
       let p_ctxs = List.map(Info.pat_ctx, ps');
+      let p_tys = List.map(Info.pat_ty, ps');
       let (es, m) =
         List.fold_left2(
           ((es, m), e, ctx) =>
@@ -1375,7 +1391,12 @@ and uexp_to_info_map =
       add'(
         ~self,
         ~co_ctx=CoCtx.union([scrut.co_ctx] @ e_co_ctxs),
-        ~constraints=ps_constraints @ es_constraints @ scrut.constraints,
+        ~constraints=
+          ps_constraints
+          @ es_constraints
+          @ scrut.constraints
+          @ constrain_branches(e_tys)
+          @ constrain_branches(p_tys),
         m,
       );
     | TyAlias(typat, utyp, body) =>
@@ -1821,14 +1842,7 @@ and upat_to_info_map =
               m,
             );
 
-          let (p, m) =
-            go(
-              ~ctx,
-              ~ana=temp_internal,
-              ~inferred_label?,
-              p,
-              m,
-            );
+          let (p, m) = go(~ctx, ~ana=temp_internal, ~inferred_label?, p, m);
           (lab, p, m);
         };
 
@@ -1972,7 +1986,7 @@ and upat_to_info_map =
       add(
         ~self,
         ~ctx,
-        ~typ_constraints=typ_constraints,
+        ~typ_constraints,
         ~constraint_,
         ~label_inference=
           Info.derive_label_inference_info(original_labels, new_labels),
@@ -1986,13 +2000,25 @@ and upat_to_info_map =
     | Parens(p)
     | Probe(p, _) =>
       let (p, m) = go(~ctx, ~ana, p, m);
-      add(~self=Just(p.ty), ~ctx=p.ctx, ~typ_constraints=p.typ_constraints, ~constraint_=p.constraint_, m);
+      add(
+        ~self=Just(p.ty),
+        ~ctx=p.ctx,
+        ~typ_constraints=p.typ_constraints,
+        ~constraint_=p.constraint_,
+        m,
+      );
     | Constructor(ctr, ty) =>
       let self = Self.of_ctr(ctx, ctr, ana, ty);
       atomic(self, Coverage.Constraint.Ap(ctr, None));
     | Ap(fn, arg) =>
       let ctr = Pat.ctr_name(fn);
-      let fn_ana = Arrow(Unknown((SynSwitch: TermBase.type_provenance) |> IdTagged.temp) |> Typ.temp, ana) |> Typ.temp;
+      let fn_ana =
+        Arrow(
+          Unknown((SynSwitch: TermBase.type_provenance) |> IdTagged.temp)
+          |> Typ.temp,
+          ana,
+        )
+        |> Typ.temp;
       let (fn', m) = go(~ctx, ~ana=fn_ana, fn, m);
       let m = {
         switch (fn |> Pat.term_of) {
@@ -2023,11 +2049,24 @@ and upat_to_info_map =
         | Some(ctr) => Coverage.Constraint.Ap(ctr, Some(arg.constraint_))
         | None => Coverage.Constraint.Hole
         };
-      add(~self=Just(ty_out), ~ctx=arg.ctx, ~typ_constraints=fn'.typ_constraints @ arg.typ_constraints @ arr_constraints, ~constraint_, m);
+      add(
+        ~self=Just(ty_out),
+        ~ctx=arg.ctx,
+        ~typ_constraints=
+          fn'.typ_constraints @ arg.typ_constraints @ arr_constraints,
+        ~constraint_,
+        m,
+      );
     | Asc(p, ann) =>
       let (ann, m) = utyp_to_info_map(~ctx, ~ancestors, ann, m);
       let (p, m) = go(~ctx, ~under_ascription=true, ~ana=ann.term, p, m);
-      add(~self=Just(ann.term), ~ctx=p.ctx, ~typ_constraints=p.typ_constraints, ~constraint_=p.constraint_, m);
+      add(
+        ~self=Just(ann.term),
+        ~ctx=p.ctx,
+        ~typ_constraints=p.typ_constraints,
+        ~constraint_=p.constraint_,
+        m,
+      );
     };
 
   // This is to allow lifting single values into a singleton labeled tuple when the label is not present
@@ -2067,7 +2106,7 @@ and utyp_to_info_map =
   let go' = utyp_to_info_map(~ctx, ~ancestors);
   let go = go'(~expects=TypeExpected);
   switch (term) {
-  | Unknown({ term: Hole(MultiHole(tms)), _ }) =>
+  | Unknown({term: Hole(MultiHole(tms)), _}) =>
     let (_, _, m) = multi(~ctx, ~ancestors, m, tms);
     add(m);
   | Unknown(_)
@@ -2111,10 +2150,7 @@ and utyp_to_info_map =
       | VariantExpected(m, sum_ty) =>
         ConstructorExpected(m, Arrow(t2, sum_ty) |> Typ.temp)
       | _ =>
-        ConstructorExpected(
-          Unique,
-          Arrow(t2, temp_internal) |> Typ.temp,
-        )
+        ConstructorExpected(Unique, Arrow(t2, temp_internal) |> Typ.temp)
       };
     let m = go'(~expects=t1_mode, t1, m) |> snd;
     let m = go'(~expects=TypeExpected, t2, m) |> snd;
