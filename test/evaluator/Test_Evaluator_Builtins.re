@@ -23,7 +23,12 @@ let tests = (
           builtin_fun("string_compare"),
           asc(
             tuple([string("Hello"), string("World")]),
-            Typ.(prod([Typ.unknown(Internal), Typ.unknown(Internal)])),
+            Typ.(
+              prod([
+                Typ.unknown(TypeProvenance.internal()),
+                Typ.unknown(TypeProvenance.internal()),
+              ])
+            ),
           ),
         ),
       )
@@ -43,10 +48,15 @@ let tests = (
           builtin_fun("string_compare"),
           asc(
             tuple([
-              asc(string("Hello"), Typ.unknown(Internal)),
-              asc(string("World"), Typ.unknown(Internal)),
+              asc(string("Hello"), Typ.unknown(TypeProvenance.internal())),
+              asc(string("World"), Typ.unknown(TypeProvenance.internal())),
             ]),
-            Typ.(prod([Typ.unknown(Internal), Typ.unknown(Internal)])),
+            Typ.(
+              prod([
+                Typ.unknown(TypeProvenance.internal()),
+                Typ.unknown(TypeProvenance.internal()),
+              ])
+            ),
           ),
         ),
       )

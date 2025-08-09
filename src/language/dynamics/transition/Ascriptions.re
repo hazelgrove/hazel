@@ -86,7 +86,9 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       let new_ty: Typ.t =
         switch (TPat.tyvar_of_utpat(tp)) {
         | Some(tyvar) => Var(tyvar) |> Typ.temp
-        | None => Unknown(Internal) |> Typ.temp
+        | None =>
+          Unknown((Internal: TermBase.type_provenance) |> IdTagged.fresh)
+          |> Typ.temp
         };
       Some(
         TypFun(

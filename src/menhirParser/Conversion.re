@@ -407,9 +407,10 @@ and Typ: {
   let of_core: IndicatedG.typ => AST.typ;
 } = {
   open IndicatedG.Typ;
+  open IndicatedG.TypeProvenance;
   let rec of_menhir_ast = (typ: AST.typ): IndicatedG.typ => {
     switch (typ) {
-    | InvalidTyp(s) => unknown(Hole(Invalid(s)))
+    | InvalidTyp(s) => unknown(hole(Invalid(s)))
     | IntType => int()
     | SIntType => sint()
     | FloatType => float()
@@ -418,8 +419,8 @@ and Typ: {
     | NatType => nat()
     | UnknownType(p) =>
       switch (p) {
-      | Internal => unknown(Internal)
-      | EmptyHole => unknown(Hole(EmptyHole))
+      | Internal => unknown(internal())
+      | EmptyHole => unknown(hole(EmptyHole))
       }
     | TypVar(s) => var(s)
     | TupleType([t]) => parens(of_menhir_ast(t))
@@ -457,8 +458,8 @@ and Typ: {
   let of_core_type_provenance =
       (p: IndicatedG.typ_provenance): AST.typ_provenance => {
     switch (p) {
-    | Internal => Internal
-    | Hole(EmptyHole) => EmptyHole
+    | {term: Internal, _} => Internal
+    | {term: Hole(EmptyHole), _} => EmptyHole
     | _ => raise(Failure("Unknown type_provenance"))
     };
   };

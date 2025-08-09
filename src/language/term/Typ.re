@@ -872,6 +872,12 @@ let rec matched_list_strict = (ctx, ty) =>
   | _ => (None, [])
   };
 
+let matched_list_strict_without_constraints = (ctx, ty) =>
+  switch (matched_list_strict(ctx, ty)) {
+  | (Some(ty), _) => Some(ty)
+  | (None, _) => None
+  };
+
 let matched_list = (ctx, ty) => {
   let (list_ty_opt, constraints) = matched_list_strict(ctx, ty);
   let (list_ty, constraints') =

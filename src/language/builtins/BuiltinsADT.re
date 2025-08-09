@@ -26,27 +26,39 @@ module Ord = {
 module Either = {
   let t: Typ.t =
     sum_type([
-      ("Left", Some(Unknown(Internal) |> Typ.fresh)),
-      ("Right", Some(Unknown(Internal) |> Typ.fresh)),
+      ("Left", Some(Unknown(Internal |> Prov.fresh) |> Typ.fresh)),
+      ("Right", Some(Unknown(Internal |> Prov.fresh) |> Typ.fresh)),
     ]);
 
   open IdTagged.FreshGrammar;
   let left =
-    Exp.constructor("Left", Some(Some(arrow(unknown(SynSwitch), t))));
+    Exp.constructor(
+      "Left",
+      Some(Some(arrow(unknown(SynSwitch |> Prov.fresh), t))),
+    );
   let right =
-    Exp.constructor("Right", Some(Some(arrow(unknown(SynSwitch), t))));
+    Exp.constructor(
+      "Right",
+      Some(Some(arrow(unknown(SynSwitch |> Prov.fresh), t))),
+    );
 
   let pat_left =
-    Pat.constructor("Left", Some(Some(arrow(unknown(SynSwitch), t))));
+    Pat.constructor(
+      "Left",
+      Some(Some(arrow(unknown(SynSwitch |> Prov.fresh), t))),
+    );
   let pat_right =
-    Pat.constructor("Right", Some(Some(arrow(unknown(SynSwitch), t))));
+    Pat.constructor(
+      "Right",
+      Some(Some(arrow(unknown(SynSwitch |> Prov.fresh), t))),
+    );
 };
 
 module Option = {
   let t: Typ.t =
     sum_type([
       ("None", None),
-      ("Some", Some(Unknown(Internal) |> Typ.fresh)),
+      ("Some", Some(Unknown(Internal |> Prov.fresh) |> Typ.fresh)),
     ]);
 
   open IdTagged.FreshGrammar;
@@ -55,12 +67,18 @@ module Option = {
   let none = Exp.constructor("None", Some(Some(t)));
 
   let some =
-    Exp.constructor("Some", Some(Some(arrow(unknown(SynSwitch), t))));
+    Exp.constructor(
+      "Some",
+      Some(Some(arrow(unknown(SynSwitch |> Prov.fresh), t))),
+    );
 
   let pat_none = Pat.constructor("None", Some(Some(t)));
 
   let pat_some =
-    Pat.constructor("Some", Some(Some(arrow(unknown(SynSwitch), t))));
+    Pat.constructor(
+      "Some",
+      Some(Some(arrow(unknown(SynSwitch |> Prov.fresh), t))),
+    );
 
   let builtins: list(hazel_fn) = [
     {
@@ -69,8 +87,15 @@ module Option = {
                | Some(x) => Some(f(x))
              end|},
       name: "option_map",
-      arg: Prod([t, arrow(unknown(Internal), unknown(Internal))]),
-      ret: Unknown(Internal),
+      arg:
+        Prod([
+          t,
+          arrow(
+            unknown(Internal |> Prov.fresh),
+            unknown(Internal |> Prov.fresh),
+          ),
+        ]),
+      ret: Unknown(Internal |> Prov.fresh),
       imp: {
         Fresh.(
           Exp.(
@@ -99,8 +124,15 @@ module Option = {
                | Some x => f(x)
              end|},
       name: "option_bind",
-      arg: Prod([t, arrow(unknown(Internal), unknown(Internal))]),
-      ret: Unknown(Internal),
+      arg:
+        Prod([
+          t,
+          arrow(
+            unknown(Internal |> Prov.fresh),
+            unknown(Internal |> Prov.fresh),
+          ),
+        ]),
+      ret: Unknown(Internal |> Prov.fresh),
       imp: {
         Fresh.(
           Exp.(
@@ -126,7 +158,7 @@ module Option = {
     {
       name: "option_to_list",
       arg: t.term,
-      ret: List(unknown(Internal)),
+      ret: List(unknown(Internal |> Prov.fresh)),
       str: {|fun opt -> case opt
                | None => []
                | Some x => [x]

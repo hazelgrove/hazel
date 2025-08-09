@@ -132,7 +132,7 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
       | _ => dhpat_var_entry(dp1, ty)
       }
     | Tuple(l1) =>
-      let (l1, ts) =
+      let (l1, ts, _) =
         Typ.matched_prod(ctx, l1, Pat.match_tup_label, ty, (name, b) =>
           TupLabel(Label(name) |> Pat.fresh, b) |> Pat.fresh
         );
@@ -141,12 +141,12 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
         |> OptUtil.sequence;
       Some(List.concat(l));
     | Cons(dhp1, dhp2) =>
-      let* t = Typ.matched_list_strict(ctx, ty);
+      let* t = Typ.matched_list_strict_without_constraints(ctx, ty);
       let* l1 = dhpat_var_entry(dhp1, t);
       let* l2 = dhpat_var_entry(dhp2, List(t) |> Typ.temp);
       Some(l1 @ l2);
     | ListLit(l) =>
-      let* t = Typ.matched_list_strict(ctx, ty);
+      let* t = Typ.matched_list_strict_without_constraints(ctx, ty);
       let* l =
         List.map(dhp => {dhpat_var_entry(dhp, t)}, l) |> OptUtil.sequence;
       Some(List.concat(l));

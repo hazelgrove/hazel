@@ -59,12 +59,14 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | TyAlias =>
         ty_alias(
           TPat.empty_hole(),
-          Typ.unknown(Hole(EmptyHole)),
+          Typ.unknown(TypeProvenance.hole(EmptyHole)),
           empty_hole(),
         )
-      | Use => use(Typ.unknown(Hole(EmptyHole)), empty_hole())
+      | Use =>
+        use(Typ.unknown(TypeProvenance.hole(EmptyHole)), empty_hole())
       | Ap => ap(Forward, empty_hole(), empty_hole())
-      | TypAp => typ_ap(empty_hole(), Typ.unknown(Hole(EmptyHole)))
+      | TypAp =>
+        typ_ap(empty_hole(), Typ.unknown(TypeProvenance.hole(EmptyHole)))
       | DeferredAp => deferred_ap(empty_hole(), [empty_hole()])
       | If => if_(empty_hole(), empty_hole(), empty_hole())
       | Seq => seq(empty_hole(), empty_hole())
@@ -129,28 +131,45 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
   Grammar.UnitGrammar.(
     Typ.(
       switch (cls_typ) {
-      | Invalid => unknown(Hole(Invalid("invalid")))
+      | Invalid => unknown(TypeProvenance.hole(Invalid("invalid")))
       | Atom(Bool) => bool()
       | Atom(Int) => int()
       | Atom(SInt) => sint()
       | Atom(Float) => float()
       | Atom(String) => string()
       | Atom(Nat) => nat()
-      | List => list(unknown(Hole(EmptyHole)))
-      | Arrow => arrow(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
+      | List => list(unknown(TypeProvenance.hole(EmptyHole)))
+      | Arrow =>
+        arrow(
+          unknown(TypeProvenance.hole(EmptyHole)),
+          unknown(TypeProvenance.hole(EmptyHole)),
+        )
       | Var => var("x")
       | Prod => prod([])
       | TupLabel =>
-        tup_label(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
-      | Parens => parens(unknown(Hole(EmptyHole)))
-      | Ap => ap(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
-      | Rec => rec_(TPat.var("x"), unknown(Hole(EmptyHole)))
-      | Forall => forall(TPat.var("x"), unknown(Hole(EmptyHole)))
-      | EmptyHole => unknown(Hole(EmptyHole))
-      | SynSwitch => unknown(SynSwitch)
-      | Internal => unknown(Internal)
+        tup_label(
+          unknown(TypeProvenance.hole(EmptyHole)),
+          unknown(TypeProvenance.hole(EmptyHole)),
+        )
+      | Parens => parens(unknown(TypeProvenance.hole(EmptyHole)))
+      | Ap =>
+        ap(
+          unknown(TypeProvenance.hole(EmptyHole)),
+          unknown(TypeProvenance.hole(EmptyHole)),
+        )
+      | Rec => rec_(TPat.var("x"), unknown(TypeProvenance.hole(EmptyHole)))
+      | Forall =>
+        forall(TPat.var("x"), unknown(TypeProvenance.hole(EmptyHole)))
+      | EmptyHole => unknown(TypeProvenance.hole(EmptyHole))
+      | SynSwitch => unknown(TypeProvenance.syn_switch())
+      | Internal => unknown(TypeProvenance.internal())
+      | LArrow => failwith("todo")
+      | RArrow => failwith("todo")
+      | NProduct => failwith("todo")
+      | MList => failwith("todo")
+      | RForall => failwith("todo")
       | Label => label("label")
-      | MultiHole => unknown(Hole(MultiHole([])))
+      | MultiHole => unknown(TypeProvenance.hole(MultiHole([])))
       | Sum => sum([])
       | Constructor => assert(false) // Excluded because there is no Typ constructor
       }

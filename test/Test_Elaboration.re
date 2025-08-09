@@ -77,7 +77,7 @@ module PlainTests = {
       fn(
         Pat.var("x"),
         bin_op(Int(Plus), int(4), int(5)),
-        Some(Typ.unknown(Hole(EmptyHole))),
+        Some(Typ.unknown(TypeProvenance.(hole(EmptyHole)))),
         None,
       )
     );
@@ -594,7 +594,14 @@ module PlainTests = {
               Pat.(tuple([tup_label(label("a"), var("x"))])),
               var("x"),
               Some(
-                Typ.(prod([tup_label(label("a"), unknown(Internal))])),
+                Typ.(
+                  prod([
+                    tup_label(
+                      label("a"),
+                      unknown(TypeProvenance.internal()),
+                    ),
+                  ])
+                ),
               ),
               None,
             ),

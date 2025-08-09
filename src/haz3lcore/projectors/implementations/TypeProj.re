@@ -20,7 +20,7 @@ let self_ty = (info: option(Info.t)): option(Typ.t) =>
 let totalize_ty = (expected_ty: option(Typ.t)): Typ.t =>
   switch (expected_ty) {
   | Some(expected_ty) => expected_ty
-  | None => Typ.fresh(Unknown(Internal))
+  | None => Typ.fresh(Unknown(Internal |> Prov.fresh))
   };
 
 module M: Projector = {

@@ -2398,10 +2398,12 @@ let get_doc =
     }
   | Some(InfoTyp({term, _} as typ_info)) =>
     switch (bypass_parens_typ(term).term) {
-    | Unknown(SynSwitch)
-    | Unknown(Internal)
-    | Unknown(Hole(EmptyHole)) => get_message(HoleTyp.empty_hole)
-    | Unknown(Hole(MultiHole(_))) => get_message(HoleTyp.multi_hole)
+    | Unknown({term: SynSwitch, _})
+    | Unknown({term: Internal, _})
+    | Unknown({term: Matched(_), _}) // TODO: (THI) might need to be recursive
+    | Unknown({term: Hole(EmptyHole), _}) => get_message(HoleTyp.empty_hole)
+    | Unknown({term: Hole(MultiHole(_)), _}) =>
+      get_message(HoleTyp.multi_hole)
     | Atom(Int) => get_message(TerminalTyp.int)
     | Atom(SInt) => get_message(TerminalTyp.sint)
     | Atom(Float) => get_message(TerminalTyp.float)
@@ -2612,7 +2614,8 @@ let get_doc =
     | Sum(_) => get_message(SumTyp.labelled_sum_typs)
     | Ap({term: Var(c), _}, _) =>
       get_message(SumTyp.sum_typ_unary_constructor_defs(c))
-    | Unknown(Hole(Invalid(_))) => simple("Not a type or type operator")
+    | Unknown({term: Hole(Invalid(_)), _}) =>
+      simple("Not a type or type operator")
     | Ap(_)
     | Parens(_) => default // Shouldn't be hit?
     }

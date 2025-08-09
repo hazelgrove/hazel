@@ -621,7 +621,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | (label, [Typ(body)]) when is_probe_wrap(label) => body.term
         | (["[", "]"], [Typ(body)]) => List(body)
         | ([t], []) when is_hole_label(t) => hole(tm)
-        | ([t], []) => Unknown(Hole(Invalid(t)))
+        | ([t], []) => Unknown(Hole(Invalid(t)) |> Prov.fresh)
         | _ => hole(tm)
         },
       )

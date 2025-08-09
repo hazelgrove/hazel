@@ -2,12 +2,13 @@ open Alcotest;
 open Test_Statics_Prelude;
 open FTemp;
 open Typ;
+open TypeProvenance;
 
 let tests = [
   fully_consistent_typecheck(
     "Function with unknown param",
     "fun x -> 4 + 5",
-    Some(Typ.(arrow(unknown(Internal), int()))),
+    Some(Typ.(arrow(unknown(internal()), int()))),
   ),
   fully_consistent_typecheck(
     "Function with known param",
@@ -17,7 +18,9 @@ let tests = [
   fully_consistent_typecheck(
     "Function with labeled param",
     "fun (a=x) -> 4",
-    Some(arrow(prod([tup_label(label("a"), unknown(Internal))]), int())),
+    Some(
+      arrow(prod([tup_label(label("a"), unknown(internal()))]), int()),
+    ),
   ),
   fully_consistent_typecheck(
     "bifunction",
@@ -54,8 +57,8 @@ let tests = [
     {|?(1, _, _)|},
     Some(
       arrow(
-        prod([unknown(Internal), unknown(Internal)]),
-        unknown(Internal),
+        prod([unknown(internal()), unknown(internal())]),
+        unknown(internal()),
       ),
     ),
   ),
@@ -90,7 +93,12 @@ let tests = [
             asc(
               empty_hole(),
               Typ.(
-                arrow(unknown(Hole(EmptyHole)), unknown(Hole(EmptyHole)))
+                TypeProvenance.(
+                  arrow(
+                    unknown(hole(EmptyHole)),
+                    unknown(hole(EmptyHole)),
+                  )
+                )
               ),
             ),
             [int(1), deferral(InAp), deferral(InAp)],

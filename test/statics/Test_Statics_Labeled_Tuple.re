@@ -2,6 +2,7 @@ open Alcotest;
 open Test_Statics_Prelude;
 open FTemp;
 open Typ;
+open TypeProvenance;
 
 let tests = [
   test_case(
@@ -183,12 +184,12 @@ let tests = [
   fully_consistent_typecheck(
     "Reconstructed labeled tuple without values",
     {|let x : (l=|},
-    Some(unknown(Internal)),
+    Some(unknown(internal())),
   ),
   fully_consistent_typecheck(
     "Singleton labeled argument let with unknown type",
     {|let x : (a=?) = (a=1) in x|},
-    Some(prod([tup_label(label("a"), unknown(Hole(EmptyHole)))])),
+    Some(prod([tup_label(label("a"), unknown(hole(EmptyHole)))])),
   ),
   fully_consistent_typecheck(
     "nested different singleton labeled arguments",
@@ -209,7 +210,7 @@ let tests = [
           prod([
             tup_label(
               label("b"),
-              prod([tup_label(label("c"), unknown(Hole(EmptyHole)))]),
+              prod([tup_label(label("c"), unknown(hole(EmptyHole)))]),
             ),
           ]),
         ),
@@ -219,12 +220,12 @@ let tests = [
   fully_consistent_typecheck(
     "Singleton labeled argument function application with unknown type",
     {|(fun a=x->x)(a=1)|},
-    Some(unknown(Internal)),
+    Some(unknown(internal())),
   ),
   fully_consistent_typecheck(
     "Singleton labeled argument function application with no labeled param",
     {|(fun a=x->x)(1)|},
-    Some(unknown(Internal)),
+    Some(unknown(internal())),
   ),
   fully_consistent_typecheck(
     "Singleton labeled argument not labeled in pattern",
@@ -344,7 +345,7 @@ let tests = [
                           invalid_labels: [],
                           typ:
                             prod([
-                              tup_label(label("a"), unknown(Internal)),
+                              tup_label(label("a"), unknown(internal())),
                             ]),
                         }),
                       ),
@@ -458,7 +459,9 @@ let tests = [
                           invalid_labels: [],
                           typ:
                             Typ.(
-                              prod([tup_label(unknown(Internal), string())])
+                              prod([
+                                tup_label(unknown(internal()), string()),
+                              ])
                             ),
                         }),
                       ),
@@ -479,7 +482,9 @@ let tests = [
                               duplicate_labels: [],
                               invalid_labels: [],
                               typ:
-                                Typ.(tup_label(unknown(Internal), string())),
+                                Typ.(
+                                  tup_label(unknown(internal()), string())
+                                ),
                             }),
                           ),
                         )
@@ -532,7 +537,7 @@ let tests = [
                           typ:
                             Typ.(
                               prod([
-                                tup_label(unknown(Internal), string()),
+                                tup_label(unknown(internal()), string()),
                                 tup_label(label("a"), int()),
                               ])
                             ),
@@ -555,7 +560,9 @@ let tests = [
                               duplicate_labels: [],
                               invalid_labels: [],
                               typ:
-                                Typ.(tup_label(unknown(Internal), string())),
+                                Typ.(
+                                  tup_label(unknown(internal()), string())
+                                ),
                             }),
                           ),
                         )

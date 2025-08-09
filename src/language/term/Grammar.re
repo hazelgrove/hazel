@@ -471,7 +471,7 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
   type pat = pat_t(DefaultAnnotation.t);
   type typ = typ_t(DefaultAnnotation.t);
   type tpat = tpat_t(DefaultAnnotation.t);
-  type typ_provenance = type_provenance(DefaultAnnotation.t);
+  type typ_provenance = type_provenance_t(DefaultAnnotation.t);
 
   let default_annotation = ann =>
     Option.value(~default=DefaultAnnotation.default_value(), ann);
@@ -832,7 +832,7 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       annotation: default_annotation(ann),
     };
     // TODO: might need a separate annotation for the prov
-    let empty_hole = (~ann=?, prov_ann, ()): typ_t(DefaultAnnotation.t) => {
+    let empty_hole = (~ann=?, ~prov_ann=?, ()): typ_t(DefaultAnnotation.t) => {
       term:
         Unknown({
           term: Hole(EmptyHole),
@@ -912,21 +912,45 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
   };
 
   module TypeProvenance = {
-    let syn_switch = (~ann): type_provenance_t(DefaultAnnotation.t) => {
+    let syn_switch = (~ann=?, ()): type_provenance_t(DefaultAnnotation.t) => {
       {
         term: SynSwitch,
         annotation: default_annotation(ann),
       };
     };
-    let hole = (~ann, h): type_provenance_t(DefaultAnnotation.t) => {
+    let hole = (~ann=?, h): type_provenance_t(DefaultAnnotation.t) => {
       {
         term: Hole(h),
         annotation: default_annotation(ann),
       };
     };
-    let internal = (~ann): type_provenance_t(DefaultAnnotation.t) => {
+    let internal = (~ann=?, ()): type_provenance_t(DefaultAnnotation.t) => {
       {
         term: Internal,
+        annotation: default_annotation(ann),
+      };
+    };
+    let larrow = (~ann=?, p): type_provenance_t(DefaultAnnotation.t) => {
+      {
+        term: Matched(LArrow(p)),
+        annotation: default_annotation(ann),
+      };
+    };
+    let rarrow = (~ann=?, p): type_provenance_t(DefaultAnnotation.t) => {
+      {
+        term: Matched(RArrow(p)),
+        annotation: default_annotation(ann),
+      };
+    };
+    let nproduct = (~ann=?, n, p): type_provenance_t(DefaultAnnotation.t) => {
+      {
+        term: Matched(NProduct(n, p)),
+        annotation: default_annotation(ann),
+      };
+    };
+    let mlist = (~ann=?, p): type_provenance_t(DefaultAnnotation.t) => {
+      {
+        term: Matched(MList(p)),
         annotation: default_annotation(ann),
       };
     };
