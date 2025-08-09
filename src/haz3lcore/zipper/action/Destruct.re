@@ -3,7 +3,9 @@ open Util;
 open OptUtil.Syntax;
 
 let destruct = (d: Direction.t, z: t): option(t) => {
-  let last_inner_pos = t => Token.length(t) - 2;
+  let is_last_inner_pos = (t, idx) => Token.length(t) - 2 == idx;
+  let will_duo_split = t => Token.duosplits(t) != [];
+  let is_string_or_comment = t => Token.is_string(t) || Token.is_comment(t);
   let delete_right = z =>
     z |> Zipper.Caret.set(Outer) |> Zipper.delete(Right);
   let construct_right = (id, l, z: option(t)) =>
@@ -24,69 +26,55 @@ let destruct = (d: Direction.t, z: t): option(t) => {
   /* When there's a selection, defer to Outer */
   | _ when z.selection.content != [] =>
     z |> Zipper.destroy_selection |> Option.some
-  /* Special cases for mono forms which can split into duo forms,
-     e.g. list literals. When deletion would alter the mono form,
-     we replace it to the corresponding duo form.  */
-  | (Left, Outer, (Some(t), _)) when Token.duosplits(t) != [] =>
+  /* Special cases for monotiles which can split into duotiles, e.g. `[]` */
+  | (Left, Outer, (Some(t), _)) when will_duo_split(t) =>
     z |> Zipper.delete(Left) |> construct_left(left_id, Token.duosplits(t))
-  | (Right, Outer, (_, Some(t))) when Token.duosplits(t) != [] =>
+  | (Right, Outer, (_, Some(t))) when will_duo_split(t) =>
     z |> delete_right |> construct_right(right_id, Token.duosplits(t))
-  | (Left, Inner(0), (_, Some(t))) when Token.duosplits(t) != [] =>
+  | (Left, Inner(0), (_, Some(t))) when will_duo_split(t) =>
     z |> delete_right |> construct_right(right_id, Token.duosplits(t))
-  | (Right, Inner(n), (_, Some(t)))
-      when Token.duosplits(t) != [] && n == last_inner_pos(t) =>
+  | (Right, Inner(idx), (_, Some(t)))
+      when will_duo_split(t) && is_last_inner_pos(t, idx) =>
     z |> delete_right |> construct_left(right_id, Token.duosplits(t))
   /* Special cases for string literals. When deletion would
      remove an outer quote, we instead remove the whole string */
-  | (Left, Outer, (Some(t), _))
-      when Token.is_string(t) || Token.is_comment(t) =>
+  | (Left, Outer, (Some(t), _)) when is_string_or_comment(t) =>
     Zipper.delete(Left, z)
-  | (Right, Outer, (_, Some(t)))
-      when Token.is_string(t) || Token.is_comment(t) =>
+  | (Right, Outer, (_, Some(t))) when is_string_or_comment(t) =>
     delete_right(z)
-  | (Left, Inner(0), (_, Some(t))) when Token.is_string(t) =>
+  | (Left, Inner(0), (_, Some(t))) when is_string_or_comment(t) =>
     delete_right(z)
-  | (Left, Inner(0), (_, Some(t)))
-      when Token.is_string(t) || Token.is_comment(t) =>
-    delete_right(z)
-  | (Right, Inner(n), (_, Some(t)))
-      when
-        (Token.is_string(t) || Token.is_comment(t))
-        && n == last_inner_pos(t) =>
+  | (Right, Inner(idx), (_, Some(t)))
+      when is_string_or_comment(t) && is_last_inner_pos(t, idx) =>
     delete_right(z)
   /* Unspecial cases */
   | (Left, Inner(idx), (_, Some(t))) =>
     let z = Zipper.Caret.set(idx == 0 ? Outer : Inner(idx - 1), z);
     let+ z = Insert.replace_shard(Right, Token.rm_nth(idx, t), z);
-    /* The rest of this from here on handles a weird edge case where
-       we must account for grout getting inserted after the caret */
+    /* From here on handles a weird edge case where we must
+       account for grout getting inserted after the caret */
     let z = Insert.expand_or_barf_neighbors(z);
     let init_left_nhbr = Siblings.right_neighbor(z.relatives.siblings);
     let z = remold_regrout(d, z);
     let new_nhbr = Siblings.right_neighbor(z.relatives.siblings);
-    switch (new_nhbr, z.caret) {
-    | (Some(p), Inner(_))
-        when Piece.is_grout(p) && new_nhbr != init_left_nhbr =>
-      switch (Zipper.move(Right, z)) {
-      | None => z
-      | Some(z) => z
-      }
+    switch (new_nhbr, z.caret, Zipper.move(Right, z)) {
+    | (Some(p), Inner(_), Some(z))
+        when Piece.is_grout(p) && new_nhbr != init_left_nhbr => z
     | _ => z
     };
-  | (Right, Inner(idx), (_, Some(t))) when idx == last_inner_pos(t) =>
+  | (Right, Inner(idx), (_, Some(t))) when is_last_inner_pos(t, idx) =>
     let* z = Insert.replace_shard(Right, Token.rm_nth(idx + 1, t), z);
     z |> Zipper.Caret.set(Outer) |> Zipper.move(Right);
   | (Right, Inner(idx), (_, Some(t))) =>
     Insert.replace_shard(Right, Token.rm_nth(idx + 1, t), z)
   | (Left | Right, Inner(_), (_, None)) =>
-    /* Note: Counterintuitve, but yes, these cases are identically handled */
+    /* Counterintuitve, but Left and Right are identically handled */
     z |> Zipper.Caret.set(Outer) |> Zipper.delete(Right)
   | (Left, Outer, (Some(t), _)) when Token.length(t) > 1 =>
     Insert.replace_shard(Left, Token.rm_last(t), z)
   | (Right, Outer, (_, Some(t))) when Token.length(t) > 1 =>
     Insert.replace_shard(Right, Token.rm_first(t), z)
-  | (Left | Right, Outer, (Some(_), _)) /* t.length == 1 */
-  | (Left | Right, Outer, (None, _)) => z |> Zipper.delete(d)
+  | (Left | Right, Outer, (None | Some(_), _)) => z |> Zipper.delete(d) /* t.length == 1 */
   };
 };
 
