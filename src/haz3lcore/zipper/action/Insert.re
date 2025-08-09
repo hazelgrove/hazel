@@ -221,7 +221,7 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
       Some(remold_regrout(Right, z));
     } else {
       z
-      //|> remold  //TODO(andrew): understand this remold
+      //|> remold  //TODO: understand this remold
       |> make_new_tile(~id=Id.mk(), char, Left)
       |> move_into_string_or_comment(char)
       |> remold_regrout(Right)
