@@ -158,11 +158,6 @@ let reassemble_parent = (rs: t): t =>
       | None => (a, fst(rs.siblings))
       | Some((outer_l, match_l, inner_l)) =>
         let (shards_l, kids_l) = flatten_match(match_l);
-        let (children_l, children_r) =
-          a.children
-          |> PairUtil.map_fst(kids =>
-               Segment.inner_regrout(kids @ [outer_l, ...kids_l])
-             );
         let a = {
           ...a,
           shards: a.shards |> PairUtil.map_fst(ss => ss @ shards_l),
