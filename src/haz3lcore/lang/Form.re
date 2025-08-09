@@ -376,7 +376,7 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
   | Ctr => (Token.is_ctr, [op(Exp), op(Pat)])
   | Type => (Token.is_base_typ, [op(Typ)]);
 
-module Mold = {
+module Molds = {
   let atomic_molds: list((Token.t => bool, list(Mold.t))) =
     List.map(get_atomic_form, all_of_atomic_form);
 
@@ -401,7 +401,7 @@ module Mold = {
   let compound_mold = (label: Label.t): option(list(Mold.t)) =>
     List.assoc_opt(label, compound_molds);
 
-  let get = (label: Label.t): list(Mold.t) => {
+  let get = (label: Label.t): list(Mold.t) =>
     switch (label, compound_mold(label)) {
     | ([t], Some(molds)) when atomic_mold(t) != [] =>
       atomic_mold(t) @ molds
@@ -419,7 +419,6 @@ module Mold = {
       ]
     | (_, None) => [Mold.mk_op(Any, [])]
     };
-  };
 };
 
 module Expansion = {

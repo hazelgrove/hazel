@@ -107,7 +107,7 @@ let rec remold = (~shape=Nib.Shape.concave(), seg: t, s: Sort.t) =>
 and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
   open OptUtil.Syntax;
   let+ remolded =
-    Form.Mold.get(t.label)
+    Form.Molds.get(t.label)
     |> List.filter((m: Mold.t) => m.out == s)
     |> List.map(mold =>
          {

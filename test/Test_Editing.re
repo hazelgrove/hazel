@@ -181,6 +181,21 @@ let basic_tests = [
 let insertion_tests = [
   /* INSERTION : BASIC*/
   test(
+    ~name="Insert whitespace",
+    ~acts=mk({|¦|}) @ [Insert(" ")],
+    ~goal={| ¦?|},
+  ),
+  test(
+    ~name="Insert comment",
+    ~acts=mk({|¦|}) @ [Insert("#")],
+    ~goal={|#¦#?|},
+  ),
+  test(
+    ~name="Insert string",
+    ~acts=mk({|¦|}) @ [Insert({|"|})],
+    ~goal={|"¦"|},
+  ),
+  test(
     ~name="Insert char at end of token",
     ~acts=mk({|fo¦|}) @ [Insert("o")],
     ~goal={|foo¦|},
@@ -408,6 +423,16 @@ let insertion_tests = [
 
 let destruct_tests = [
   /* DESTRUCTION: BASIC */
+  test(
+    ~name="Delete comment",
+    ~acts=mk({|#¦#|}) @ [Destruct(Left)],
+    ~goal={|¦?|},
+  ),
+  test(
+    ~name="Delete string",
+    ~acts=mk({|"¦"|}) @ [Destruct(Left)],
+    ~goal={|¦?|},
+  ),
   test(
     ~name="Delete char from token by backspacing",
     ~acts=mk({|f¦oo|}) @ [Destruct(Left)],

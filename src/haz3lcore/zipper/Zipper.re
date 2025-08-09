@@ -109,6 +109,14 @@ let unselect = (~erase_buffer=false, z: t): t => {
     relatives,
   };
 };
+
+let destroy_selection: t => t =
+  z =>
+    unselect({
+      ...z,
+      selection: Selection.empty,
+    });
+
 let unselect_and_zip = (~erase_buffer=false, z: t): Segment.t =>
   z |> unselect(~erase_buffer) |> zip;
 
@@ -116,12 +124,6 @@ let replace_selection = (focus, segment, z: t): t => {
   ...z,
   selection: Selection.mk(~focus, segment),
 };
-
-let update_selection_and_unselect = (selection: Selection.t, z: t): t =>
-  unselect({
-    ...z,
-    selection,
-  });
 
 let grow_selection = (z: t): option(t) => {
   let+ (p, relatives) = Relatives.pop(z.selection.focus, z.relatives);
@@ -244,8 +246,6 @@ let neighbor_shards = (z: t): (option(Token.t), option(Token.t)) => (
   right_neighbor_shard(z),
 );
 
-let destruct: t => t = update_selection_and_unselect(Selection.empty);
-
 let adj_pos = (d: Direction.t, z: t): t =>
   switch (d) {
   | Left => z
@@ -257,7 +257,7 @@ let adj_pos = (d: Direction.t, z: t): t =>
   };
 
 let put_down_core = (seg: Segment.t, z: t): t =>
-  z |> destruct |> replace_selection(Right, seg) |> unselect;
+  z |> replace_selection(Right, seg) |> unselect;
 
 let put_down_seg = (d: Direction.t, seg: Segment.t, z: t): t =>
   z |> put_down_core(seg) |> adj_pos(d);
@@ -305,21 +305,9 @@ let can_put_down = z =>
   | _ => z.caret == Outer
   };
 
-// let remold_regrout_prev = (z: t): t =>
-//   switch (move(Left, z)) {
-//   | None => z
-//   | Some(z_left) =>
-//     let z_left = z_left |> remold |> regrout(Right);
-//     switch (move(Right, z_left)) {
-//     | None => failwith("Zipper.remold_regrout_prev: move fail")
-//     | Some(z_right) => z_right
-//     };
-//   };
-
 let put_down_regrout_target = (d: Direction.t, target: Tile.t, z: t): t => {
   let z = put_down_core([Tile(target)], z);
   let z = z |> regrout(Left) |> remold;
-  //let z = remold_regrout_prev(z);
   adj_pos(d, z);
 };
 
@@ -334,61 +322,48 @@ let put_down_regrout_remold_tok =
   put_down_regrout_target(d, target, z);
 };
 
-let rec construct =
-        (
-          ~id: Id.t=Id.mk(),
-          ~caret: Direction.t,
-          ~backpack: Direction.t,
-          label: Label.t,
-          z: t,
-        )
-        : t => {
+let construct =
+    (
+      ~id: Id.t,
+      ~d: Direction.t, /* Caret-relative direction for insertion of new piece */
+      ~backpack: Direction.t, /* Insert leading or trailing shard of polytile */
+      label: Label.t,
+      z: t,
+    )
+    : t => {
+  let z = destroy_selection(z);
   switch (label) {
-  | [t] when Token.is_string_delim(t) =>
-    /* Special case for constructing string literals.
-       See Insert.move_into_if_stringlit for more special-casing. */
-    construct(
-      ~caret,
-      ~backpack,
-      [Token.string_delim ++ Token.string_delim],
+  | [content] when Token.is_secondary(content) =>
+    put_down_seg(
+      d,
+      Token.is_comment(content)
+        ? Base.mk_secondary(id, Secondary.construct_comment(content))
+        : Base.mk_secondary(id, Whitespace(content)),
       z,
     )
-  | [content] when Token.is_comment(content) =>
-    /* Special case for comments, can't rely on the last branch to construct */
-    let content = Secondary.construct_comment(content);
-    let z = destruct(z);
-    put_down_seg(caret, Base.mk_secondary(id, content), z);
-  | [content] when Token.is_secondary(content) =>
-    let content = Secondary.Whitespace(content);
-    z
-    |> update_siblings(((l, r)) =>
-         (
-           l
-           @ [
-             Secondary({
-               id,
-               content,
-             }),
-           ],
-           r,
-         )
-       );
   | _ =>
-    let z = destruct(z);
-    let molds = Form.Mold.get(label);
+    let label =
+      switch (label) {
+      | [t] when Token.is_string_delim(t) =>
+        /* Special case for constructing string literals. */
+        [Token.string_delim ++ Token.string_delim]
+      | _ => label
+      };
+    let molds = Form.Molds.get(label);
     assert(molds != []);
     // initial mold to typecheck, will be remolded
     let mold = List.hd(molds);
-    let selections =
+    let shard =
       Tile.split_shards(id, label, mold, List.mapi((i, _) => i, label))
       |> List.map(Segment.of_tile)
-      |> ListUtil.rev_if(backpack == Right);
-    put_down_seg(caret, List.hd(selections), z);
+      |> ListUtil.rev_if(backpack == Right)
+      |> List.hd;
+    put_down_seg(d, shard, z);
   };
 };
 
 let construct_mono = (~id, d: Direction.t, t: Token.t, z: t): t =>
-  construct(~id, ~caret=d, ~backpack=Left, [t], z);
+  construct(~id, ~d, ~backpack=Left, [t], z);
 
 let rec get_leaf_pieces =
         (syntaxNode: Piece.t, ~ignored_labels: list(list(string)))
@@ -431,17 +406,17 @@ let delete = (d: Direction.t, z: t): option(t) => {
     switch (p.kind) {
     | Livelit =>
       Some(ZipperBase.MapPiece.fast_local(remove_projector(p.id), p.id, z))
-    | _ => to_delete |> Option.map(destruct)
+    | _ => to_delete |> Option.map(destroy_selection)
     }
-  | _ => to_delete |> Option.map(destruct)
+  | _ => to_delete |> Option.map(destroy_selection)
   };
 };
 
 let replace =
-    (~id: Id.t, ~caret: Direction.t, ~backpack: Direction.t, l: Label.t, z: t)
+    (~id: Id.t, ~d: Direction.t, ~backpack: Direction.t, l: Label.t, z: t)
     : option(t) => {
   /* i.e. select and construct, overwriting the selection */
-  z |> delete(caret) |> Option.map(construct(~id, ~caret, ~backpack, l));
+  z |> delete(d) |> Option.map(construct(~id, ~d, ~backpack, l));
 };
 
 let match_prev = (z: t) =>
@@ -468,7 +443,7 @@ let replace_shard = (d: Direction.t, t: Token.t, z: t): option(t) => {
     | Some(id) => id
     | None => Id.mk()
     };
-  replace(~id, ~caret=d, ~backpack=Left, [t], z);
+  replace(~id, ~d, ~backpack=Left, [t], z);
 };
 
 let representative_piece = (z: t): option((Piece.t, Direction.t)) => {
