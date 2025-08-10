@@ -246,11 +246,13 @@ let tests = [
                         Inconsistent(
                           Expectation({
                             ana:
-                              prod([
-                                tup_label(label("a"), int()),
-                                tup_label(label("b"), float()),
-                                string(),
-                              ]),
+                              parens(
+                                prod([
+                                  tup_label(label("a"), int()),
+                                  tup_label(label("b"), float()),
+                                  string(),
+                                ]),
+                              ),
                             syn:
                               prod([
                                 tup_label(label("a"), int()),

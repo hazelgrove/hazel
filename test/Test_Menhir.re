@@ -3,7 +3,23 @@ open Alcotest;
 open Language;
 module Fresh = IdTagged.FreshGrammar;
 let alco_check =
-  (testable(Fmt.using(Exp.show, Fmt.string)))(DHExp.fast_equal)
+  (testable(Fmt.using(Exp.show, Fmt.string)))(
+    // This is syntactic with ignore_wrappers=true
+    Equality.equality(
+      ~type_alpha=false,
+      ~exp_alpha=false,
+      ~ignore_wrappers=true,
+      ~ignore_casts=false,
+      ~ignore_constructor_types=false,
+      ~ignore_function_names=false,
+      ~ignore_filters=false,
+      ~ignore_unknown_provenance=false,
+      ~ignore_fixpoints=false,
+      ~closures_by_id=true, // Syntactic stuff (user facing) doesn't usually have closures
+      (),
+    ).
+      exp,
+  )
   |> Alcotest.check;
 
 let strip_wrap =

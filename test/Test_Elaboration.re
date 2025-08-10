@@ -3,7 +3,25 @@ open Language;
 
 /*Create a testable type for dhexp which requires
   an equal function (dhexp_eq) and a print function (dhexp_print) */
-let dhexp_typ = testable(Fmt.using(Exp.show, Fmt.string), DHExp.fast_equal);
+let dhexp_typ =
+  testable(
+    Fmt.using(Exp.show, Fmt.string),
+    // This is syntactic with ignore_wrappers=true
+    Equality.equality(
+      ~type_alpha=false,
+      ~exp_alpha=false,
+      ~ignore_wrappers=true,
+      ~ignore_casts=false,
+      ~ignore_constructor_types=false,
+      ~ignore_function_names=false,
+      ~ignore_filters=false,
+      ~ignore_unknown_provenance=true, // Backwards compatibility for tests
+      ~ignore_fixpoints=false,
+      ~closures_by_id=true, // Syntactic stuff (user facing) doesn't usually have closures
+      (),
+    ).
+      exp,
+  );
 
 let mk_map = Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)));
 let dhexp_of_uexp = u =>
