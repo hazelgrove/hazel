@@ -10,6 +10,7 @@ module Settings = {
     inline: bool,
     fold_case_clauses: bool,
     fold_fn_bodies: bool,
+    project_tables: bool,
     hide_fixpoints: bool,
     show_filters: bool,
     show_unknown_as_hole: bool,
@@ -19,6 +20,7 @@ module Settings = {
     inline,
     fold_case_clauses: !settings.evaluation.show_case_clauses,
     fold_fn_bodies: !settings.evaluation.show_fn_bodies,
+    project_tables: settings.evaluation.project_tables,
     hide_fixpoints: !settings.evaluation.show_fixpoints,
     show_filters: settings.evaluation.show_stepper_filters,
     show_unknown_as_hole: true,
@@ -29,6 +31,7 @@ module Settings = {
       inline,
       fold_case_clauses: false,
       fold_fn_bodies: false,
+      project_tables: false,
       hide_fixpoints: false,
       show_filters: true,
       show_unknown_as_hole: true,
@@ -716,6 +719,17 @@ let fold_fun_if = (condition, f_name: string, pieces) =>
     pieces;
   };
 
+let project_table_if = (should_project, pieces) => {
+  print_endline("Projecting table: " ++ string_of_bool(should_project));
+  if (should_project) {
+    switch (MakeTerm.for_projection([pieces])) {
+    | None => failwith("ExpToSegment.fold_if")
+    | Some(any) => [ProjectorInit.init_or_noop(Table, pieces, any)]
+    };
+  } else {
+    [pieces];
+  };
+};
 /* We assume that parentheses have already been added as necessary, and
       that the expression has no Closures or DynamicErrorHoles
    */
@@ -795,7 +809,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
             ),
         ],
       );
-    p_just([form(x, xs)]);
+    p_just(form(x, xs) |> project_table_if(settings.project_tables));
   | Var(v) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, v)
   | BinOp(op, l, r) =>
     // TODO: Add optional newlines

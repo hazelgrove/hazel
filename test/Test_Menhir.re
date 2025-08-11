@@ -152,6 +152,7 @@ let qcheck_menhir_serialized_equivalent_test =
             inline: true,
             fold_case_clauses: false,
             fold_fn_bodies: false,
+            project_tables: false,
             hide_fixpoints: false,
             show_filters: true,
             show_unknown_as_hole: true,

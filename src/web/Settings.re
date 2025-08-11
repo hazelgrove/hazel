@@ -31,6 +31,7 @@ module Model = {
         show_ascription_steps: false,
         show_lookup_steps: false,
         show_stepper_filters: false,
+        project_tables: false,
         stepper_history: false,
         show_settings: false,
         show_hidden_steps: false,
@@ -93,6 +94,7 @@ module Update = {
     | ShowFnBodies
     | ShowAscriptionSteps
     | ShowFixpoints
+    | ProjectTables
     | ShowLookups
     | ShowFilters
     | ShowSettings
@@ -196,6 +198,10 @@ module Update = {
           | ShowFixpoints => {
               ...evaluation,
               show_fixpoints: !evaluation.show_fixpoints,
+            }
+          | ProjectTables => {
+              ...evaluation,
+              project_tables: !evaluation.project_tables,
             }
           | ShowLookups => {
               ...evaluation,

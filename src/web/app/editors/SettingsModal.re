@@ -48,6 +48,12 @@ let view =
         Evaluation(ShowFnBodies),
       ),
       setting(
+        "☰",
+        "project tables",
+        settings.project_tables,
+        Evaluation(ProjectTables),
+      ),
+      setting(
         "x",
         "show fixpoints",
         settings.show_fixpoints,

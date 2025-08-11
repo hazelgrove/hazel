@@ -65,6 +65,7 @@ let values_group = (~globals: Globals.t) => {
       ("λ", "Functions", s.show_fn_bodies, Evaluation(ShowFnBodies)),
       ("|", "Cases", s.show_case_clauses, Evaluation(ShowCaseClauses)),
       ("f", "Fixpoints", s.show_fixpoints, Evaluation(ShowFixpoints)),
+      ("☰", "Tables", s.project_tables, Evaluation(ProjectTables)),
     ],
   );
 };
