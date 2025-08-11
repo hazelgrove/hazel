@@ -123,7 +123,20 @@ let qcheck_menhir_maketerm_equivalent_test =
         Conversion.Exp.of_menhir_ast(menhir_parsed);
 
       switch (
-        DHExp.fast_equal(
+        Equality.equality(
+          ~type_alpha=false,
+          ~exp_alpha=false,
+          ~ignore_wrappers=true,
+          ~ignore_casts=false,
+          ~ignore_constructor_types=false,
+          ~ignore_function_names=false,
+          ~ignore_filters=false,
+          ~ignore_unknown_provenance=false,
+          ~ignore_fixpoints=false,
+          ~closures_by_id=true,
+          (),
+        ).
+          exp(
           make_term_parsed,
           Grammar.map_exp_annotation(
             _ => IdTagged.IdTag.fresh(),
