@@ -53,9 +53,9 @@ let destruct = (d: Direction.t, z: t): option(t) => {
     let+ z = Insert.replace_shard(Right, Token.rm_nth(idx, t), z);
     /* From here on handles a weird edge case where we must
        account for grout getting inserted after the caret */
-    let z = Insert.expand_or_barf_neighbors(z);
-    let init_left_nhbr = Siblings.right_neighbor(z.relatives.siblings);
-    let z = remold_regrout(d, z);
+    let z_init = Insert.expand_or_barf_neighbors(z);
+    let init_left_nhbr = Siblings.right_neighbor(z_init.relatives.siblings);
+    let z = remold_regrout(d, z_init);
     let new_nhbr = Siblings.right_neighbor(z.relatives.siblings);
     switch (new_nhbr, z.caret, Zipper.move(Right, z)) {
     | (Some(p), Inner(_), Some(z))
