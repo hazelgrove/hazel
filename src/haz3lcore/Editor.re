@@ -29,6 +29,7 @@ module CachedSyntax = {
      * underlying editor. In principle calculating this can involve
      * both static and dynamic information, so we cache this for perf */
     shape_map: ProjectorCore.Shape.Map.t,
+    cached_backpack: list(Tile.t),
   };
 
   // should not be serializing
@@ -52,6 +53,7 @@ module CachedSyntax = {
       terms,
       projectors,
       shape_map: projector_shapes,
+      cached_backpack: Segment.global_missing_shards(segment),
     };
   };
 
@@ -240,8 +242,25 @@ module Update = {
 
     let auto_seg = AutoSeg.seg_to_doc(zipper |> Zipper.zip);
     switch (a) {
-    | TempReplace(_) => ()
-    | _ => Iframe.send_state(auto_seg)
+    | TempReplace(_)
+    | Buffer(Clear | Accept)
+    | Copy
+    | Project(
+        SetIndicated(_) | RemoveIndicated | SetModel(_) | Focus(_) | Escape(_),
+      ) //TODO(andrew)
+    | Jump(_)
+    | Select(_)
+    | Unselect(_)
+    | Move(_) => ()
+    | Project(SetSyntax(_))
+    | Reparse
+    | Destruct(_)
+    | Insert(_)
+    | Put_down
+    | Introduce
+    | Paste(_)
+    | Buffer(Set(_))
+    | Cut => Iframe.send_state(auto_seg)
     };
     // let diff = AutoSeg.mk_diff(auto_seg, auto_seg_2);
     // switch (List.length(diff)) {

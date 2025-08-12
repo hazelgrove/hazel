@@ -103,24 +103,6 @@ module Update = {
         model: Model.t,
       ) => {
     switch (action) {
-    | SetMousedown(mousedown) =>
-      {
-        ...model,
-        globals: {
-          ...model.globals,
-          mousedown,
-        },
-      }
-      |> Updated.return_quiet
-    | SetShowBackpackTargets(show) =>
-      {
-        ...model,
-        globals: {
-          ...model.globals,
-          show_backpack_targets: show,
-        },
-      }
-      |> Updated.return_quiet
     | SetFontMetrics(fm) =>
       {
         ...model,
@@ -352,10 +334,6 @@ module Selection = {
   let handle_key_event =
       (~selection, ~event: Key.t, model: Model.t): option(Update.t) => {
     switch (event) {
-    | {key: D("Alt"), sys: Mac | PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
-      Some(Update.Globals(SetShowBackpackTargets(true)))
-    | {key: U("Alt"), _} =>
-      Some(Update.Globals(SetShowBackpackTargets(false)))
     | {key: D("F7"), sys: Mac | PC, shift: Down, meta: Up, ctrl: Up, alt: Up} =>
       Some(Update.Benchmark(Start))
     | {
@@ -434,8 +412,6 @@ module View = {
     [
       Attr.on_keyup(key_handler(~inject, ~dir=KeyUp)),
       Attr.on_keydown(key_handler(~inject, ~dir=KeyDown)),
-      /* safety handler in case mousedown overlay doesn't catch it */
-      Attr.on_mouseup(_ => inject(Globals(SetMousedown(false)))),
       Attr.on_blur(_ => {
         JsUtil.focus_clipboard_shim();
         Effect.Ignore;

@@ -26,7 +26,7 @@ let replace_exp_id = (id: Id.t, exp: Exp.t, new_exp: Exp.t) =>
     ~f_exp=
       (cont, exp) =>
         if (Exp.rep_id(exp) == id) {
-          new_exp;
+          new_exp |> Exp.replace_all_ids;
         } else {
           cont(exp);
         },
@@ -170,4 +170,140 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
   };
   let+ l = dhpat_var_entry(dhpat, ty);
   List.fold_left((ctx, entry) => Ctx.extend(ctx, entry), ctx, l);
+};
+
+let rec get_inductive_hypotheses = (m: Statics.Map.t, t: Typ.t, p: Pat.t) => {
+  switch (p |> Pat.term_of) {
+  | Invalid(_) => []
+  | EmptyHole => []
+  | MultiHole(_) => []
+  | Wild => []
+  | Atom(_) => []
+  | ListLit(xs) =>
+    List.concat(List.map(get_inductive_hypotheses(m, t, _), xs))
+  | Constructor(_) => []
+  | Cons(e1, e2) =>
+    get_inductive_hypotheses(m, t, e1) @ get_inductive_hypotheses(m, t, e2)
+  | Var(x) =>
+    Util.OptUtil.Syntax.(
+      {
+        let* info = Id.Map.find_opt(Pat.rep_id(p), m);
+        let* info =
+          switch (info) {
+          | Info.InfoPat(pinfo) => Some(pinfo)
+          | _ => None
+          };
+        let t' = info.ty;
+        if (Typ.fast_equal(t, t')) {
+          Some([x]);
+        } else {
+          None;
+        };
+      }
+      |> Option.value(~default=[])
+    )
+  | Tuple(xs) =>
+    List.concat(List.map(get_inductive_hypotheses(m, t, _), xs))
+  | Parens(e) => get_inductive_hypotheses(m, t, e)
+  | Ap(e1, e2) =>
+    get_inductive_hypotheses(m, t, e1) @ get_inductive_hypotheses(m, t, e2)
+  | Asc(e, _) => get_inductive_hypotheses(m, t, e)
+  | Label(_) => []
+  | TupLabel(l, e) =>
+    get_inductive_hypotheses(m, t, l) @ get_inductive_hypotheses(m, t, e)
+  | Probe(e, _) => get_inductive_hypotheses(m, t, e)
+  };
+};
+
+/* Replace all occurrences of `replace` in `in_exp` with `with_exp`.
+   The coctx is used to prevent capture inside binders. */
+let rec replace_exp = (replace, replace_coctx, with_exp, with_coctx, in_exp) => {
+  let is_bound = (pat: Pat.t): bool => {
+    let bvn = pat |> Pat.bindings |> Binding.variable_names;
+    CoCtx.has_any(replace_coctx, bvn)
+      ? true : CoCtx.has_any(with_coctx, bvn);
+  };
+  let replace_exp = (in_exp): Exp.t =>
+    replace_exp(replace, replace_coctx, with_exp, with_coctx, in_exp);
+  Exp.map_term(
+    ~f_exp=
+      (continue, exp) => {
+        let (term, rewrap) = Exp.unwrap(exp);
+        switch (term) {
+        | _ when Exp.fast_equal(exp, replace) =>
+          with_exp |> Exp.replace_all_ids
+        /* Forms with binders: check if any bound variables are in the coctx,
+           if so, stop. */
+        | Fun(p, _, _, _) =>
+          if (is_bound(p)) {
+            exp;
+          } else {
+            continue(exp);
+          }
+        | Let(p, e1, e2) =>
+          if (is_bound(p)) {
+            Let(p, replace_exp(e1), e2) |> rewrap;
+          } else {
+            continue(exp);
+          }
+        | FixF(p, e, env) =>
+          if (is_bound(p)) {
+            exp;
+          } else {
+            FixF(p, replace_exp(e), env) |> rewrap;
+          }
+        | Match(e, cases) =>
+          Match(
+            replace_exp(e),
+            List.map(
+              ((p, e)) =>
+                if (is_bound(p)) {
+                  (p, e);
+                } else {
+                  (p, replace_exp(e));
+                },
+              cases,
+            ),
+          )
+          |> rewrap
+        /* Forms without binders: continue */
+        | EmptyHole
+        | Undefined
+        | Invalid(_)
+        | MultiHole(_)
+        | DynamicErrorHole(_, _)
+        | Deferral(_)
+        | Atom(_)
+        | ListLit(_)
+        | Constructor(_)
+        | TypFun(_)
+        | Tuple(_)
+        | Label(_)
+        | TupLabel(_, _)
+        | Dot(_, _)
+        | LivelitName(_)
+        | Var(_)
+        | TyAlias(_)
+        | Use(_, _)
+        | Ap(_, _, _)
+        | TypAp(_, _)
+        | DeferredAp(_, _)
+        | If(_, _, _)
+        | Seq(_, _)
+        | Test(_)
+        | HintedTest(_, _)
+        | Filter(_)
+        | Closure(_)
+        | Parens(_)
+        | Probe(_, _)
+        | Cons(_, _)
+        | ListConcat(_, _)
+        | UnOp(_, _)
+        | BinOp(_, _, _)
+        | BuiltinFun(_)
+        | Asc(_, _) => continue(exp)
+        };
+      },
+    in_exp,
+  );
 };
