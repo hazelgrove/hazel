@@ -203,33 +203,42 @@ let listen = (schedule_action: Action.t => unit): unit => {
   let onMessage = (ev: Js.t(#Dom_html.event)) => {
     let dataJs: Ojs.t = Js.Unsafe.get(ev, "data");
 
-    let msg: ParentToHazel.t = ParentToHazel.t_of_js(dataJs);
+    // check origin
+    let from_self: bool =
+      Js.Unsafe.get(ev, "source") |> Js.equals(Dom_html.window);
+
+    let msg: option(ParentToHazel.t) =
+      from_self ? None : Ojs.option_of_js(ParentToHazel.t_of_js, dataJs);
 
     switch (msg) {
-    | `U_s0_init(init) =>
-      let text: string = Init.get_message(init);
-      Firebug.console##log(Js.string("iframe got init: " ++ text));
-    | `U_s1_ping(ping) =>
-      let text: string = Ping.get_message(ping);
-      // send back pong
-      let pongJs: Ojs.t =
-        Pong.t_to_js(
-          Pong.create(~t=`L_s2_pong, ~message="pong from iframe", ()),
+    | Some(msg) =>
+      switch (msg) {
+      | `U_s0_init(init) =>
+        let text: string = Init.get_message(init);
+        Firebug.console##log(Js.string("iframe got init: " ++ text));
+      | `U_s1_ping(ping) =>
+        let text: string = Ping.get_message(ping);
+        // send back pong
+        let pongJs: Ojs.t =
+          Pong.t_to_js(
+            Pong.create(~t=`L_s2_pong, ~message="pong from iframe", ()),
+          );
+        Firebug.console##log(Js.string("iframe got ping: " ++ text));
+        send_to_parent(pongJs);
+      | `U_s2_pong(pong) =>
+        let text: string = Pong.get_message(pong);
+        Firebug.console##log(Js.string("iframe got pong: " ++ text));
+      | `U_s3_state(state) =>
+        let js_state = EditorState.get_state(state);
+        let state = RedundantCoverterIGuess.autoseg_of_hazeldoc(js_state); // @andrew make it work
+        let seg = AutoSeg.doc_to_seg(state);
+        schedule_action(TempReplace(seg));
+        Firebug.console##log(
+          "my name is iframe and I'm here to say you gave me this state",
         );
-      Firebug.console##log(Js.string("iframe got ping: " ++ text));
-      send_to_parent(pongJs);
-    | `U_s2_pong(pong) =>
-      let text: string = Pong.get_message(pong);
-      Firebug.console##log(Js.string("iframe got pong: " ++ text));
-    | `U_s3_state(state) =>
-      let js_state = EditorState.get_state(state);
-      let state = RedundantCoverterIGuess.autoseg_of_hazeldoc(js_state); // @andrew make it work
-      let seg = AutoSeg.doc_to_seg(state);
-      schedule_action(TempReplace(seg));
-      Firebug.console##log(
-        "my name is iframe and I'm here to say you gave me this state",
-      );
-      Firebug.console##log(state);
+        Firebug.console##log(state);
+      }
+    | None => Firebug.console##log(Js.string("iframe got unknown message"))
     };
     Js._false;
   };
