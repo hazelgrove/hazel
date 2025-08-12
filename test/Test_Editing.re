@@ -376,12 +376,12 @@ let insertion_tests = [
   test(
     ~name="Prepending to middle delimiter: if",
     ~acts=mk({|if 1 ¦then 2 else 3|}) @ [Insert("x")],
-    ~goal={|if 1~ x¦then~ 2 else 3|},
+    ~goal={|if 1 ~x¦then~ 2 else 3|},
   ),
   test(
     ~name="Prepending to trailing delimiter: if",
     ~acts=mk({|if 1 then 2 ¦else 3|}) @ [Insert("x")],
-    ~goal={|if 1 then 2~ x¦else~ 3|},
+    ~goal={|if 1 then 2 ~x¦else~ 3|},
   ),
   test(
     ~name="Within leading delimiter: if",
@@ -412,6 +412,11 @@ let insertion_tests = [
     ~name="Postpending to trailing delimiter: if",
     ~acts=mk({|if 1 then 2 else¦ 3|}) @ [Insert("x")],
     ~goal={|if 1 then 2 ~elsex¦~ 3|},
+  ),
+  test(
+    ~name="Grout inserted on correct side of caret when adding if before",
+    ~acts=mk({|¦[]|}) @ [Insert("i")],
+    ~goal={|i¦~[]|},
   ),
   /* SPLITTING */
   test(
