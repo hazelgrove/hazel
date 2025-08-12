@@ -9,6 +9,7 @@ type cls =
   | MultiHole
   | SynSwitch
   | Internal
+  | Inconsistent
   | Arrow
   | Prod
   | TupLabel
@@ -81,6 +82,7 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | Unknown(Hole(MultiHole(_))) => MultiHole
   | Unknown(SynSwitch) => SynSwitch
   | Unknown(Internal) => Internal
+  | Unknown(Inconsistent) => Inconsistent
   | Atom(c) => Atom(c)
   | List(_) => List
   | Arrow(_) => Arrow
@@ -99,6 +101,7 @@ let show_cls: cls => string =
   | Invalid => "Invalid type"
   | MultiHole => "Broken type"
   | EmptyHole => "Type hole"
+  | Inconsistent => "Join of Inconsistent types"
   | SynSwitch => "Synthetic type"
   | Internal => "Internal type"
   | Atom(_) => "Base type"
@@ -224,6 +227,8 @@ let join_type_provenance =
   | (Internal, SynSwitch) => SynSwitch
   | (Internal | Hole(_), _)
   | (_, Hole(_)) => Internal
+  | (Inconsistent, _)
+  | (_, Inconsistent) => Inconsistent
   | (SynSwitch, SynSwitch) => SynSwitch
   };
 
@@ -430,13 +435,23 @@ let equal = (t1: t, t2: t): bool => fast_equal(t1, t2);
    resolve parameter specifies whether, in the case of a type
    variable and a succesful join, to return the resolved join type,
    or to return the (first) type variable for readability */
-let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
-  let join' = join(~resolve, ctx);
+let rec join =
+        (
+          ~inconsistent: option(t)=?,
+          ~resolve=false,
+          ctx: Ctx.t,
+          ty1: t,
+          ty2: t,
+        )
+        : option(t) => {
+  let join' = join(~inconsistent?, ~resolve, ctx);
   switch (term_of(ty1), term_of(ty2)) {
   | (_, Parens(ty2)) => join'(ty1, ty2)
   | (Parens(ty1), _) => join'(ty1, ty2)
   | (Unknown(p1), Unknown(p2)) =>
     Some(Unknown(join_type_provenance(p1, p2)) |> temp)
+  | (Unknown(Inconsistent), _) => Some(ty1)
+  | (_, Unknown(Inconsistent)) => Some(ty2)
   | (Unknown(_), _) => Some(ty2)
   | (_, Unknown(_)) => Some(ty1)
   | (Var(n1), Var(n2)) =>
@@ -466,7 +481,7 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       };
     let+ ty_body = join(~resolve, ctx, ty1', ty2);
     Rec(tp1, ty_body) |> temp;
-  | (Rec(_), _) => None
+  | (Rec(_), _) => inconsistent
   | (Forall(x1, ty1), Forall(x2, ty2)) =>
     let ty1' =
       switch (TPat.tyvar_of_utpat(x2)) {
@@ -482,25 +497,25 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
      be exposed to the user. We preserve the variable name of the
      second type to preserve synthesized type variable names, which
      come from user annotations. */
-  | (Forall(_), _) => None
+  | (Forall(_), _) => inconsistent
   | (Atom(c1), Atom(c2)) when c1 == c2 => Some(ty1)
-  | (Atom(_), _) => None
+  | (Atom(_), _) => inconsistent
   | (Label(_), Label("")) => Some(ty1)
   | (Label(""), Label(_)) => Some(ty2)
   | (Label(name1), Label(name2))
       when LabeledTuple.match_labels(name1, name2) =>
     Some(ty1)
-  | (Label(_), _) => None
+  | (Label(_), _) => inconsistent
   | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
     let* ty1 = join'(ty1, ty1');
     let+ ty2 = join'(ty2, ty2');
     Arrow(ty1, ty2) |> temp;
-  | (Arrow(_), _) => None
+  | (Arrow(_), _) => inconsistent
   | (TupLabel(lab1, ty1'), TupLabel(lab2, ty2')) =>
     let* lab = join'(lab1, lab2);
     let+ ty = join'(ty1', ty2');
     TupLabel(lab, ty) |> temp;
-  | (TupLabel(_), _) => None
+  | (TupLabel(_), _) => inconsistent
   | (Prod(tys1), Prod(tys2)) =>
     if (List.length(tys1) != List.length(tys2)) {
       None;
@@ -509,15 +524,15 @@ let rec join = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): option(t) => {
       let+ tys = OptUtil.sequence(tys);
       Prod(tys) |> temp;
     }
-  | (Prod(_), _) => None
+  | (Prod(_), _) => inconsistent
   | (Sum(sm1), Sum(sm2)) =>
     let+ sm' = ConstructorMap.join(equal, join(~resolve, ctx), sm1, sm2);
     Sum(sm') |> temp;
-  | (Sum(_), _) => None
+  | (Sum(_), _) => inconsistent
   | (List(ty1), List(ty2)) =>
     let+ ty = join'(ty1, ty2);
     List(ty) |> temp;
-  | (List(_), _) => None
+  | (List(_), _) => inconsistent
   | (Ap(_), _) => failwith("Type join of ap")
   };
 };
@@ -561,15 +576,33 @@ let rec match_synswitch = (t1: t, t2: t) => {
   };
 };
 
-let join_all = (~empty: t, ctx: Ctx.t, ts: list(t)): option(t) =>
+let join_all =
+    (~inconsistent=?, ~empty: t, ctx: Ctx.t, ts: list(t)): option(t) =>
   List.fold_left(
-    (acc, ty) => OptUtil.and_then(join(ctx, ty), acc),
+    (acc, ty) => OptUtil.and_then(join(~inconsistent?, ctx, ty), acc),
     Some(empty),
     ts,
   );
 
 let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
   join(ctx, ty1, ty2) != None;
+
+/*
+    Computes the most precise type that is consistent with all input types.
+    Like a multi-way join, but if any ground types are inconsistent, replaces
+    that position with an "unknown" type rather than failing.
+    This operation is NOT associative — applying it pairwise may yield
+    a different result than applying it to the whole list at once.
+ */
+let consistent_join = (ctx: Ctx.t, tys: list(t)): t => {
+  join_all(
+    ~inconsistent=Unknown(Inconsistent) |> temp,
+    ~empty=Unknown(SynSwitch) |> temp,
+    ctx,
+    tys,
+  )
+  |> Option.value(~default=Unknown(SynSwitch) |> temp);
+};
 
 /**
    * Determines if one type (`ty1`) is more precise than another type (`ty2`) within a given context (`ctx`).

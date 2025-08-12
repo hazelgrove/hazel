@@ -590,6 +590,7 @@ and Typ: {
         | Unknown(Hole(Invalid(_)))
         | Unknown(SynSwitch)
         | Unknown(Internal)
+        | Unknown(Inconsistent)
         | Atom(_)
         | Label(_)
         | Var(_) => term

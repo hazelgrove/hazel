@@ -154,6 +154,7 @@ and type_provenance('a) =
   | SynSwitch
   | Hole(type_hole('a))
   | Internal
+  | Inconsistent
 and filter('a) = {
   pat: exp_t('a),
   act: FilterAction.t,
@@ -416,6 +417,7 @@ and map_type_provenance_annotation:
     | SynSwitch => SynSwitch
     | Hole(h) => Hole(map_type_hole_annotation(f, h))
     | Internal => Internal
+    | Inconsistent => Inconsistent
     };
   }
 and map_type_hole_annotation:

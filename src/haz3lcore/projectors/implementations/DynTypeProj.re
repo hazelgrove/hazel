@@ -3,26 +3,12 @@ open Node;
 open ProjectorBase;
 open Language;
 
-let expected_ty = (info: option(Info.t)): option(Typ.t) =>
-  switch (info) {
-  | Some(InfoExp({ana, _}))
-  | Some(InfoPat({ana, _})) => Some(ana)
-  | _ => None
-  };
-
 let self_ty = (info: option(Info.t)): option(Typ.t) =>
   switch (info) {
   | Some(InfoExp({self, _})) => Self.typ_of_exp(self)
   | Some(InfoPat({self, _})) => Self.typ_of_pat(self)
   | _ => None
   };
-
-let totalize_ty = (expected_ty: option(Typ.t)): Typ.t =>
-  switch (expected_ty) {
-  | Some(expected_ty) => expected_ty
-  | None => Typ.fresh(Unknown(Internal))
-  };
-
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model =
@@ -67,10 +53,7 @@ module M: Projector = {
              };
              let types = List.map(type_of, d) |> Util.OptUtil.sequence;
 
-             Option.bind(
-               types,
-               Typ.join_all(~empty=Typ.fresh(Unknown(Internal)), Ctx.empty),
-             );
+             Option.map(Typ.consistent_join(Ctx.empty), types);
            },
          )
       |> Option.value(~default=Typ.fresh(Unknown(Internal)));
