@@ -258,25 +258,27 @@ let go_z =
     let id_init = Indicated.index(z);
     let caret_init = z.caret;
     let z = Zipper.unzip(segment);
-    let rec move_to_start = (z: t): t => {
-      switch (Move.primary(ByToken, Left, z)) {
-      | Some(z) => move_to_start(z)
-      | None => z
-      };
-    };
-    let move_to_id = (z: t, id: Id.t): option(t) => {
-      let z = z |> move_to_start;
-      let rec go = (z: t): option(t) =>
-        switch (Move.primary(ByToken, Right, z)) {
-        | Some(z) => Indicated.index(z) == Some(id) ? Some(z) : go(z)
-        | None => None
-        };
-      go(z);
-    };
+    // let rec move_to_start = (z: t): t =>
+    //   switch (Move.primary(ByToken, Left, z)) {
+    //   | Some(z) => move_to_start(z)
+    //   | None => z
+    //   };
+    let caret_point = Move.caret_point(z);
+    let move_to_point = z =>
+      Move.do_towards(Move.primary(ByChar), caret_point, z);
+    // let move_to_id = (z: t, id: Id.t): option(t) => {
+    //   let z = z |> move_to_start;
+    //   let rec go = (z: t): option(t) =>
+    //     switch (Move.primary(ByToken, Right, z)) {
+    //     | Some(z) => Indicated.index(z) == Some(id) ? Some(z) : go(z)
+    //     | None => None
+    //     };
+    //   go(z);
+    // };
     let z =
       switch (id_init) {
-      | Some(id) =>
-        switch (move_to_id(z, id)) {
+      | Some(_id) =>
+        switch (move_to_point(z)) {
         | Some(z) => {
             ...z,
             caret: caret_init,
