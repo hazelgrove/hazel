@@ -99,7 +99,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (If(e, e1, e2), t) =>
       Some(
         If(
-          recur(Asc(e, t |> Typ.temp) |> DHExp.fresh),
+          recur(e),
           recur(Asc(e1, t |> Typ.temp) |> DHExp.fresh),
           recur(Asc(e2, t |> Typ.temp) |> DHExp.fresh),
         )
