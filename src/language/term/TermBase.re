@@ -1062,9 +1062,13 @@ and Prov: {
   type term = type_provenance;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = type_provenance_t;
+
+  let to_string: t => string;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type term = type_provenance;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = type_provenance_t;
+
+  let rec to_string: t => string = failwith("Not implemented yet");
 };

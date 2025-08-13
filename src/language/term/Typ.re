@@ -226,11 +226,9 @@ let of_source = List.map((source: source) => source.ty);
 let join_type_provenance =
     (_: TermBase.type_provenance_t, _: TermBase.type_provenance_t)
     : TermBase.type_provenance_t =>
-  // TODO: (THI) implmement this
-  failwith("Unimplemented join_type_provenance");
+  failwith("todo: join prov");
 // switch (p1, p2) {
-// | ({term: Hole(_), annotation: p_id1}, {term: Hole(_), annotation: p_id2})
-//     when p_id1 == p_id2 => p1
+// | ({term: Hole(h1), _}, {term: Hole(h2), _}) when h1 == h2 => p1
 // | (Hole(EmptyHole, p), Hole(EmptyHole, _) | SynSwitch(_))
 // | (SynSwitch(_), Hole(EmptyHole, p)) => Hole(EmptyHole, p)
 // | (SynSwitch(p), Internal(_))
@@ -758,7 +756,7 @@ let matched_forall = (ctx, ty) =>
     let prov =
       switch (term_of(weak_head_normalize(ctx, ty))) {
       | Unknown(prov) => prov
-      | _ => (Internal: TermBase.type_provenance) |> IdTagged.temp
+      | _ => Internal |> Prov.fresh
       };
     matched_forall_of_prov(prov, ty);
   };
@@ -843,7 +841,7 @@ let matched_prod = (ctx, es, get_label_es, ty, constructor) => {
           ty,
         )
       | _ =>
-        let prov = (Internal: TermBase.type_provenance) |> IdTagged.fresh;
+        let prov = Internal |> Prov.fresh;
         matched_prod_of_prov(prov, es, ty);
       }
     };
@@ -887,7 +885,7 @@ let matched_list = (ctx, ty) => {
       switch (term_of(weak_head_normalize(ctx, ty))) {
       | Unknown(prov) => matched_list_hole_of_prov(prov, ty)
       | _ =>
-        let prov = (Internal: TermBase.type_provenance) |> IdTagged.fresh;
+        let prov = Internal |> Prov.fresh;
         matched_list_hole_of_prov(prov, ty);
       }
     };
@@ -904,12 +902,7 @@ let rec matched_args_strict = (ctx, ty, arity): Either.t('a, int) => {
   | Prod(tys) => R(List.length(tys))
   | _ when arity == 1 => L([ty])
   | Unknown(_) =>
-    L(
-      List.init(arity, _ =>
-        Unknown((Internal: TermBase.type_provenance) |> IdTagged.fresh)
-        |> temp
-      ),
-    )
+    L(List.init(arity, _ => Unknown(Internal |> Prov.fresh) |> temp))
   | _ => R(1)
   };
 };
