@@ -290,7 +290,7 @@ let go_z =
     let move_to_point = Move.do_towards(Move.primary(ByChar), caret_point);
     switch (move_to_point(z)) {
     | Some(z) => Ok(z)
-    | None => Error(Action.Failure.Cant_move)
+    | None => Ok(z)
     };
   };
 };
