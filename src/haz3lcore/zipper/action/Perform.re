@@ -255,6 +255,8 @@ let go_z =
     )
     |> Result.of_option(~error=Action.Failure.Cant_put_down)
   | TempReplace(segment) =>
+    let caret_point = Move.caret_point(z);
+    let move_to_point = Move.do_towards(Move.primary(ByChar), caret_point);
     let z = Zipper.unzip(segment);
     // let id_init = Indicated.index(z);
     // let caret_init = z.caret;
@@ -286,11 +288,14 @@ let go_z =
     //   | None => z
     //   };
     // Ok(z);
-    let caret_point = Move.caret_point(z);
-    let move_to_point = Move.do_towards(Move.primary(ByChar), caret_point);
+
     switch (move_to_point(z)) {
-    | Some(z) => Ok(z)
-    | None => Ok(z)
+    | Some(z) =>
+      print_endline("Moved to point");
+      Ok(z);
+    | None =>
+      print_endline("Failed to move to point");
+      Ok(z);
     };
   };
 };
