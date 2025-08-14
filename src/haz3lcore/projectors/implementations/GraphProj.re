@@ -34,7 +34,8 @@ type model = {
   selected_node: option(string),
   dragging: option(string),
   drag_offset: position,
-  creating_edge_from: option(string) // First node selected for edge creation
+  creating_edge_from: option(string), // First node selected for edge creation
+  editing_node: option(string) // Node currently being edited
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -52,7 +53,9 @@ type action =
   | UpdateEdgeLabel(string, string, string)
   | StartEdgeCreation(string) // Start creating edge from this node
   | CancelEdgeCreation
-  | CreateNodeAt(position); // Create new node at position
+  | CreateNodeAt(position) // Create new node at position
+  | StartEditingNode(string) // Start editing node label
+  | FinishEditingNode(string, string); // node_id, new_label
 
 let model_of_sexp = (sexp: Sexplib.Sexp.t): model =>
   switch (model_of_sexp(sexp)) {
@@ -64,6 +67,7 @@ let model_of_sexp = (sexp: Sexplib.Sexp.t): model =>
         y: 0.,
       },
       creating_edge_from: None,
+      editing_node: None,
     }
   | m => m
   };
@@ -257,7 +261,23 @@ module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = a;
 
-  let focusable = Focusable.non;
+  let focus_keyboard = (id: Id.t, d: Direction.t) => {
+    JsUtil.get_elem_by_id(Id.cls(id))##focus;
+    switch (d) {
+    | Left => ()
+    | Right => ()
+    };
+  };
+
+  let focus_pointer = (id: Id.t) => {
+    JsUtil.get_elem_by_id(Id.cls(id))##focus;
+  };
+
+  let focusable =
+    Focusable.{
+      pointer: Some(focus_pointer),
+      keyboard: Some(focus_keyboard),
+    };
   let dynamics = false;
 
   let init = (any: Language.Any.t): option(model) =>
@@ -271,6 +291,7 @@ module M: Projector = {
           y: 0.,
         },
         creating_edge_from: None,
+        editing_node: None,
       })
     | None => None
     };
@@ -285,7 +306,8 @@ module M: Projector = {
     | SelectNode(id) => {
         ...model,
         selected_node: Some(id),
-        creating_edge_from: None // Cancel edge creation when selecting normally
+        creating_edge_from: None, // Cancel edge creation when selecting normally
+        editing_node: None // Cancel editing when selecting another node
       }
     | StartDrag(id, offset) => {
         ...model,
@@ -301,10 +323,20 @@ module M: Projector = {
         ...model,
         creating_edge_from: Some(node_id),
         selected_node: Some(node_id),
+        editing_node: None // Cancel editing when starting edge creation
       }
     | CancelEdgeCreation => {
         ...model,
         creating_edge_from: None,
+      }
+    | StartEditingNode(node_id) => {
+        ...model,
+        editing_node: Some(node_id),
+        creating_edge_from: None // Cancel edge creation when starting edit
+      }
+    | FinishEditingNode(_, _) => {
+        ...model,
+        editing_node: None,
       }
     | MoveNode(_, _) => model // Will be handled by parent via SetSyntax
     | AddNode(_) => model // Will be handled by parent via SetSyntax
@@ -370,6 +402,25 @@ module M: Projector = {
       {
         ...graph,
         nodes: [new_node, ...graph.nodes],
+      };
+    };
+
+    let update_node_label =
+        (graph: graph, node_id: string, new_label: string): graph => {
+      let updated_nodes =
+        List.map(
+          node =>
+            node.id == node_id
+              ? {
+                ...node,
+                label: new_label,
+              }
+              : node,
+          graph.nodes,
+        );
+      {
+        ...graph,
+        nodes: updated_nodes,
       };
     };
 
@@ -456,6 +507,7 @@ module M: Projector = {
       let is_selected = model.selected_node == Some(node.id);
       let is_dragging = model.dragging == Some(node.id);
       let is_edge_source = model.creating_edge_from == Some(node.id);
+      let is_editing = model.editing_node == Some(node.id);
 
       let on_mousedown = evt => {
         let coerced_evt = Js_of_ocaml.Js.Unsafe.coerce(evt);
@@ -476,8 +528,11 @@ module M: Projector = {
         let offset_x = mouse_x -. node.position.x;
         let offset_y = mouse_y -. node.position.y;
 
-        // Check for shift key - if pressed, handle edge creation
-        if (Js_of_ocaml.Js.to_bool(coerced_evt##.shiftKey)) {
+        // Check for double-click to start editing
+        if (coerced_evt##.detail == 2) {
+          local(StartEditingNode(node.id));
+        } else if (Js_of_ocaml.Js.to_bool(coerced_evt##.shiftKey)) {
+          // Check for shift key - if pressed, handle edge creation
           switch (model.creating_edge_from) {
           | Some(from_id) when from_id != node.id =>
             // Complete edge creation
@@ -516,8 +571,10 @@ module M: Projector = {
               Attr.create("r", Int.to_string(node_radius)),
               Attr.create(
                 "fill",
-                is_edge_source
-                  ? "#FFA500" : is_selected ? "#4A90E2" : "#E8E8E8",
+                is_editing
+                  ? "#FFD700"
+                  : is_edge_source
+                      ? "#FFA500" : is_selected ? "#4A90E2" : "#E8E8E8",
               ),
               Attr.create(
                 "stroke",
@@ -532,18 +589,64 @@ module M: Projector = {
             ],
             [],
           ),
-          Node.create_svg(
-            "text",
-            ~attrs=[
-              Attr.create("x", Float.to_string(node.position.x)),
-              Attr.create("y", Float.to_string(node.position.y +. 5.0)),
-              Attr.create("text-anchor", "middle"),
-              Attr.create("font-size", "12"),
-              Attr.create("fill", "#333"),
-              Attr.create("pointer-events", "none") // Don't interfere with circle mouse events
-            ],
-            [Node.text(node.label)],
-          ),
+          is_editing
+            ? Node.create_svg(
+                "foreignObject",
+                ~attrs=[
+                  Attr.create("x", Float.to_string(node.position.x -. 40.0)),
+                  Attr.create("y", Float.to_string(node.position.y -. 10.0)),
+                  Attr.create("width", "80"),
+                  Attr.create("height", "20"),
+                ],
+                [
+                  Node.input(
+                    ~attrs=[
+                      Attr.create("type", "text"),
+                      Attr.create("value", node.label),
+                      Attr.create(
+                        "style",
+                        "width: 100%; text-align: center; font-size: 12px; border: 1px solid #666; border-radius: 3px;",
+                      ),
+                      Attr.on_blur(_ =>
+                        local(FinishEditingNode(node.id, node.label))
+                      ),
+                      Attr.on_keydown(evt => {
+                        let key_evt = Js_of_ocaml.Js.Unsafe.coerce(evt);
+                        if (key_evt##.key == "Enter") {
+                          let target = key_evt##.target;
+                          let new_label =
+                            Js_of_ocaml.Js.to_string(target##.value);
+                          let updated_graph =
+                            update_node_label(graph, node.id, new_label);
+                          switch (SyntaxTerm.put(info, updated_graph)) {
+                          | Some(new_syntax) =>
+                            let _ = parent(SetSyntax(new_syntax));
+                            local(FinishEditingNode(node.id, new_label));
+                          | None => Effect.Ignore
+                          };
+                        } else if (key_evt##.key == "Escape") {
+                          local(FinishEditingNode(node.id, node.label));
+                        } else {
+                          Effect.Ignore;
+                        };
+                      }),
+                    ],
+                    (),
+                  ),
+                ],
+              )
+            : Node.create_svg(
+                "text",
+                ~attrs=[
+                  Attr.create("x", Float.to_string(node.position.x)),
+                  Attr.create("y", Float.to_string(node.position.y +. 5.0)),
+                  Attr.create("text-anchor", "middle"),
+                  Attr.create("font-size", "12"),
+                  Attr.create("fill", "#333"),
+                  Attr.create("pointer-events", "none") // Don't interfere with circle mouse events
+                ],
+                [Node.text(node.label)],
+              ),
         ],
       );
     };
@@ -631,9 +734,38 @@ module M: Projector = {
     let edges = List.map(render_edge, normalized_graph.edges);
     let nodes = List.map(render_node, normalized_graph.nodes);
 
+    // Auto-focus the input when editing starts
+    let () =
+      switch (model.editing_node) {
+      | Some(_) =>
+        // Schedule focus for next frame using setTimeout
+        ignore(
+          Js_of_ocaml.Dom_html.window##setTimeout(
+            Js_of_ocaml.Js.wrap_callback(() => {
+              let input_selector = "input[type='text']";
+              let document = Js_of_ocaml.Dom_html.document;
+              let input_opt =
+                document##querySelector(
+                  Js_of_ocaml.Js.string(input_selector),
+                );
+              Js_of_ocaml.Js.Opt.iter(
+                input_opt,
+                input => {
+                  let _ = Js_of_ocaml.Js.Unsafe.coerce(input)##focus();
+                  Js_of_ocaml.Js.Unsafe.coerce(input)##select();
+                },
+              );
+            }),
+            0.0,
+          ),
+        )
+      | None => ()
+      };
+
     View.mk(
       Node.div(
         ~attrs=[
+          Attr.id(Id.cls(info.id)),
           Attr.classes(["graph-projector"]),
           Attr.create("style", "user-select: none;"),
         ],
