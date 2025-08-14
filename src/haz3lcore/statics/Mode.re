@@ -12,7 +12,7 @@ let of_parens = ids => TypSlice.(wrap_incr(slice_of_ids(ids)));
 
 // ty is Some if the expression is an annotated lambda
 let of_arrow =
-    (ids, ctx: Ctx.t, ana: TypSlice.t, ty: option(TypSlice.t)): (t, t) =>
+    (ids, ctx: Ctx.t, ana: TypSlice.t, ty: option(TypSlice.t)): (TypSlice.t, TypSlice.t) =>
   switch (ty) {
   | None => ana |> TypSlice.matched_arrow(ctx)
   | Some(ty') =>
@@ -112,7 +112,7 @@ let of_deferred_ap_args =
 let of_op = (ids: list(Id.t), ty: Typ.term) =>
   `SliceGlobal((`Typ(ty), TypSlice.slice_of_ids(ids))) |> TypSlice.temp;
 
-let of_ann = (ids: list(Id.t), ty: TypSlice.t): t => {
+let of_ann = (ids: list(Id.t), ty: TypSlice.t): TypSlice.t => {
   ty |> TypSlice.(wrap_global(slice_of_ids(ids)));
 };
 
