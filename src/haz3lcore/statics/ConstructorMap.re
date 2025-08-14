@@ -5,7 +5,6 @@ type variant('a) =
   | Variant(Constructor.t, list(Id.t), option('a))
   | BadEntry('a);
 
-// Invariant: Must not have duplicate constructors
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t('a) = list(variant('a));
 
@@ -104,17 +103,21 @@ let is_ground = (is_hole, sm) =>
 let venn_regions =
     (f: ('a, 'a) => bool, xs: list('a), ys: list('a))
     : (list(('a, 'a)), list('a), list('a)) => {
-  let rec go = (xs, ys, acc, left, right) =>
+  let rec go = (xs, ys, seen_xs, acc, left, right) =>
     switch (xs) {
     | [] => (acc |> List.rev, left |> List.rev, List.rev_append(right, ys))
     | [x, ...xs] =>
       switch (List.partition(f(x, _), ys)) {
-      | ([], _) => go(xs, ys, acc, [x, ...left], right)
-      | ([y], ys') => go(xs, ys', [(x, y), ...acc], left, right)
-      | _ => failwith("Sum type has non-unique constructors")
+      | ([], _) =>
+        switch (List.partition(f(x, _), seen_xs)) {
+        | ([], _) => go(xs, ys, [x, ...seen_xs], acc, [x, ...left], right)
+        | (_, _) => go(xs, ys, seen_xs, acc, left, right)
+        }
+      | ([y, ..._], ys') =>
+        go(xs, ys', [x, ...seen_xs], [(x, y), ...acc], left, right)
       }
     };
-  go(xs, ys, [], [], []);
+  go(xs, ys, [], [], [], []);
 };
 
 open Joins;

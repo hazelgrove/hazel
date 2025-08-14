@@ -295,6 +295,7 @@ module Update = {
         |> Calc.map_saved(((exp, editor)) =>
              CodeSelectable.Update.calculate(
                ~settings,
+               ~is_dynamic_term=true,
                ~stitch=_ => exp,
                ~is_edited,
                ~dynamics=Model.dynamics(model),

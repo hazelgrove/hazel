@@ -556,7 +556,11 @@ let get_doc =
       | DynamicErrorHole(_)
       | FailedCast(_)
       | Closure(_)
-      | Cast(_)
+      | Cast(_) => simple("Internal expression")
+      | Use(t, e) =>
+        message_single(
+          UseExp.single(~typ_id=Typ.rep_id(t), ~body_id=Exp.rep_id(e)),
+        )
       | BuiltinFun(_) => simple("Internal expression")
       | EmptyHole => get_message(HoleExp.empty_hole_exps)
       | MultiHole(_children) => get_message(HoleExp.multi_hole_exps)
@@ -579,10 +583,12 @@ let get_doc =
         );
       | Undefined => get_message(UndefinedExp.undefined_exps)
       | Deferral(_) => get_message(TerminalExp.deferral_exps)
-      | Bool(b) => get_message(TerminalExp.bool_exps(b))
-      | Int(i) => get_message(TerminalExp.int_exps(i))
-      | Float(f) => get_message(TerminalExp.float_exps(f))
-      | String(s) => get_message(TerminalExp.string_exps(s))
+      | Atom(Bool(b)) => get_message(TerminalExp.bool_exps(b))
+      | Atom(Int(i)) => get_message(TerminalExp.int_exps(i))
+      | Atom(SInt(i)) => get_message(TerminalExp.sint_exps(i))
+      | Atom(Float(f)) => get_message(TerminalExp.float_exps(f))
+      | Atom(String(s)) => get_message(TerminalExp.string_exps(s))
+      | Atom(Nat(i)) => get_message(TerminalExp.nat_exps(i))
       | ListLit(terms) =>
         get_message(
           ~format=
@@ -708,7 +714,32 @@ let get_doc =
           } else {
             basic(FunctionExp.functions_wild);
           }
-        | Int(i) =>
+        | Atom(SInt(i)) =>
+          if (FunctionExp.function_sintlit_exp.id
+              == get_specificity_level(FunctionExp.functions_sint)) {
+            get_message(
+              ~colorings=
+                FunctionExp.function_sintlit_exp_coloring_ids(
+                  ~pat_id,
+                  ~body_id,
+                ),
+              ~format=
+                Some(
+                  msg =>
+                    Printf.sprintf(
+                      Scanf.format_from_string(msg, "%s%d%s%s"),
+                      Id.to_string(pat_id),
+                      i,
+                      Id.to_string(pat_id),
+                      Id.to_string(body_id),
+                    ),
+                ),
+              FunctionExp.functions_sint,
+            );
+          } else {
+            basic(FunctionExp.functions_sint);
+          }
+        | Atom(Int(i) | Nat(i)) =>
           if (FunctionExp.function_intlit_exp.id
               == get_specificity_level(FunctionExp.functions_int)) {
             get_message(
@@ -723,7 +754,7 @@ let get_doc =
                     Printf.sprintf(
                       Scanf.format_from_string(msg, "%s%s%s%s"),
                       Id.to_string(pat_id),
-                      string_of_int(i),
+                      Bigint.to_string(i),
                       Id.to_string(pat_id),
                       Id.to_string(body_id),
                     ),
@@ -733,7 +764,7 @@ let get_doc =
           } else {
             basic(FunctionExp.functions_int);
           }
-        | Float(f) =>
+        | Atom(Float(f)) =>
           if (FunctionExp.function_floatlit_exp.id
               == get_specificity_level(FunctionExp.functions_float)) {
             get_message(
@@ -758,7 +789,7 @@ let get_doc =
           } else {
             basic(FunctionExp.functions_float);
           }
-        | Bool(b) =>
+        | Atom(Bool(b)) =>
           if (FunctionExp.function_boollit_exp.id
               == get_specificity_level(FunctionExp.functions_bool)) {
             get_message(
@@ -783,7 +814,7 @@ let get_doc =
           } else {
             basic(FunctionExp.functions_bool);
           }
-        | String(s) =>
+        | Atom(String(s)) =>
           if (FunctionExp.function_strlit_exp.id
               == get_specificity_level(FunctionExp.functions_str)) {
             get_message(
@@ -1306,7 +1337,7 @@ let get_doc =
           } else {
             basic(LetExp.lets_wild);
           }
-        | Int(i) =>
+        | Atom(Int(i) | Nat(i)) =>
           if (LetExp.let_int_exp.id == get_specificity_level(LetExp.lets_int)) {
             get_message(
               ~colorings=
@@ -1318,7 +1349,7 @@ let get_doc =
                       Scanf.format_from_string(msg, "%s%s%s%s%s"),
                       Id.to_string(def_id),
                       Id.to_string(pat_id),
-                      string_of_int(i),
+                      Bigint.to_string(i),
                       Id.to_string(def_id),
                       Id.to_string(body_id),
                     ),
@@ -1331,7 +1362,33 @@ let get_doc =
               LetExp.lets_int,
             );
           }
-        | Float(f) =>
+        | Atom(SInt(i)) =>
+          if (LetExp.let_sint_exp.id
+              == get_specificity_level(LetExp.lets_sint)) {
+            get_message(
+              ~colorings=
+                LetExp.let_sint_exp_coloring_ids(~pat_id, ~def_id, ~body_id),
+              ~format=
+                Some(
+                  msg =>
+                    Printf.sprintf(
+                      Scanf.format_from_string(msg, "%s%s%d%s%s"),
+                      Id.to_string(def_id),
+                      Id.to_string(pat_id),
+                      i,
+                      Id.to_string(def_id),
+                      Id.to_string(body_id),
+                    ),
+                ),
+              LetExp.lets_sint,
+            );
+          } else {
+            /* TODO The coloring for the syntactic form is sometimes wrong here... */
+            basic(
+              LetExp.lets_sint,
+            );
+          }
+        | Atom(Float(f)) =>
           if (LetExp.let_float_exp.id
               == get_specificity_level(LetExp.lets_float)) {
             // TODO Make sure everywhere printing the float literal print it prettier
@@ -1358,7 +1415,7 @@ let get_doc =
               LetExp.lets_float,
             );
           }
-        | Bool(b) =>
+        | Atom(Bool(b)) =>
           if (LetExp.let_bool_exp.id
               == get_specificity_level(LetExp.lets_bool)) {
             get_message(
@@ -1384,7 +1441,7 @@ let get_doc =
               LetExp.lets_bool,
             );
           }
-        | String(s) =>
+        | Atom(String(s)) =>
           if (LetExp.let_str_exp.id == get_specificity_level(LetExp.lets_str)) {
             get_message(
               ~colorings=
@@ -1908,6 +1965,9 @@ let get_doc =
               ),
             OpExp.bool_un_not,
           );
+        | Float(Minus) // TODO[Matt]: finish
+        | SInt(Minus)
+        | Nat(Minus)
         | Int(Minus) =>
           let exp_id = List.nth(IdTagged.ids(exp), 0);
           get_message(
@@ -1929,22 +1989,44 @@ let get_doc =
         open OpExp;
         let (group, coloring_ids) =
           switch (op) {
+          | Nat(Plus)
+          | SInt(Plus)
           | Int(Plus) => (int_plus, int_plus_exp_coloring_ids)
+          | Nat(Minus)
+          | SInt(Minus)
           | Int(Minus) => (int_minus, int_minus_exp_coloring_ids)
+          | Nat(Times)
+          | SInt(Times)
           | Int(Times) => (int_times, int_times_exp_coloring_ids)
+          | Nat(Power)
+          | SInt(Power)
           | Int(Power) => (int_power, int_power_exp_coloring_ids)
+          | Nat(Divide)
+          | SInt(Divide)
           | Int(Divide) => (int_divide, int_divide_exp_coloring_ids)
+          | Nat(LessThan)
+          | SInt(LessThan)
           | Int(LessThan) => (int_less_than, int_lt_exp_coloring_ids)
+          | Nat(LessThanOrEqual)
+          | SInt(LessThanOrEqual)
           | Int(LessThanOrEqual) => (
               int_less_than_equal,
               int_lte_exp_coloring_ids,
             )
+          | Nat(GreaterThan)
+          | SInt(GreaterThan)
           | Int(GreaterThan) => (int_greater_than, int_gt_exp_coloring_ids)
+          | Nat(GreaterThanOrEqual)
+          | SInt(GreaterThanOrEqual)
           | Int(GreaterThanOrEqual) => (
               int_greater_than_equal,
               int_gte_exp_coloring_ids,
             )
+          | Nat(Equals)
+          | SInt(Equals)
           | Int(Equals) => (int_equal, int_eq_exp_coloring_ids)
+          | Nat(NotEquals)
+          | SInt(NotEquals)
           | Int(NotEquals) => (int_not_equal, int_neq_exp_coloring_ids)
           | Float(Plus) => (float_plus, float_plus_exp_coloring_ids)
           | Float(Minus) => (float_minus, float_minus_exp_coloring_ids)
@@ -2015,16 +2097,29 @@ let get_doc =
     | EmptyHole => get_message(HolePat.empty_hole)
     | MultiHole(_) => get_message(HolePat.multi_hole)
     | Wild => get_message(TerminalPat.wild)
-    | Int(i) =>
+    | Atom(Int(i) | Nat(i)) =>
       get_message(
         ~format=
           Some(
             msg =>
-              Printf.sprintf(Scanf.format_from_string(msg, "%i%i"), i, i),
+              Printf.sprintf(
+                Scanf.format_from_string(msg, "%s%s"),
+                i |> Bigint.to_string,
+                i |> Bigint.to_string,
+              ),
           ),
         TerminalPat.intlit(i),
       )
-    | Float(f) =>
+    | Atom(SInt(i)) =>
+      get_message(
+        ~format=
+          Some(
+            msg =>
+              Printf.sprintf(Scanf.format_from_string(msg, "%d%d"), i, i),
+          ),
+        TerminalPat.sintlit(i),
+      )
+    | Atom(Float(f)) =>
       get_message(
         ~format=
           Some(
@@ -2033,7 +2128,7 @@ let get_doc =
           ),
         TerminalPat.floatlit(f),
       )
-    | Bool(b) =>
+    | Atom(Bool(b)) =>
       get_message(
         ~format=
           Some(
@@ -2042,7 +2137,7 @@ let get_doc =
           ),
         TerminalPat.boollit(b),
       )
-    | String(s) =>
+    | Atom(String(s)) =>
       get_message(
         ~format=
           Some(
@@ -2266,10 +2361,12 @@ let get_doc =
     | Unknown(Internal)
     | Unknown(Hole(EmptyHole)) => get_message(HoleTyp.empty_hole)
     | Unknown(Hole(MultiHole(_))) => get_message(HoleTyp.multi_hole)
-    | Int => get_message(TerminalTyp.int)
-    | Float => get_message(TerminalTyp.float)
-    | Bool => get_message(TerminalTyp.bool)
-    | String => get_message(TerminalTyp.str)
+    | Atom(Int) => get_message(TerminalTyp.int)
+    | Atom(SInt) => get_message(TerminalTyp.sint)
+    | Atom(Float) => get_message(TerminalTyp.float)
+    | Atom(Bool) => get_message(TerminalTyp.bool)
+    | Atom(String) => get_message(TerminalTyp.str)
+    | Atom(Nat) => get_message(TerminalTyp.nat)
     | List(elem) =>
       let elem_id = List.nth(IdTagged.ids(elem), 0);
       get_message(

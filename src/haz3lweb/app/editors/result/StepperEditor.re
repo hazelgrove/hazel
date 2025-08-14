@@ -45,6 +45,7 @@ module Update = {
         ~is_edited,
         ~stitch,
         ~dynamics,
+        ~is_dynamic_term=true,
         editor,
       );
     {

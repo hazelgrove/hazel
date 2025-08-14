@@ -45,16 +45,40 @@ let bool_exps = (b: bool): group => {
   forms: [bool_exp(b)],
 };
 
-let int_exp = (n: int): form => {
+let int_exp = (n: Bigint.t): form => {
   id: IntExp,
-  syntactic_form: [n |> string_of_int |> exp],
+  syntactic_form: [n |> Bigint.to_string |> exp],
   expandable_id: None,
-  explanation: "A signed integer literal.",
+  explanation: "A number literal.",
   examples: [],
 };
-let int_exps = (i: int): group => {
+let int_exps = (i: Bigint.t): group => {
   id: IntExp,
   forms: [int_exp(i)],
+};
+
+let sint_exp = (n: int): form => {
+  id: SIntExp,
+  syntactic_form: [n |> string_of_int |> exp],
+  expandable_id: None,
+  explanation: "A system integer literal.",
+  examples: [],
+};
+let sint_exps = (i: int): group => {
+  id: SIntExp,
+  forms: [sint_exp(i)],
+};
+
+let nat_exp = (n: Bigint.t): form => {
+  id: NatExp,
+  syntactic_form: [n |> Bigint.to_string |> exp],
+  expandable_id: None,
+  explanation: "A natural number literal.",
+  examples: [],
+};
+let nat_exps = (i: Bigint.t): group => {
+  id: NatExp,
+  forms: [nat_exp(i)],
 };
 
 let float_exp = (f: float): form => {

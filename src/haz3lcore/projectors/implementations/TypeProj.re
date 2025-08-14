@@ -2,16 +2,10 @@ open Virtual_dom.Vdom;
 open Node;
 open ProjectorBase;
 
-let mode = (info: option(Info.t)): option(Mode.t) =>
-  switch (info) {
-  | Some(InfoExp({mode, _}))
-  | Some(InfoPat({mode, _})) => Some(mode)
-  | _ => None
-  };
-
 let expected_ty = (info: option(Info.t)): option(TypSlice.t) =>
-  switch (mode(info)) {
-  | Some(mode) => Some(Mode.ty_of(mode))
+  switch (info) {
+  | Some(InfoExp({ana, _}))
+  | Some(InfoPat({ana, _})) => Some(ana)
   | _ => None
   };
 
@@ -52,7 +46,8 @@ module M: Projector = {
 
   let display_ty = (model, statics): option(TypSlice.t) =>
     switch (model) {
-    | _ when mode(statics) == Some(Syn) => statics |> self_ty
+    | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn =>
+      statics |> self_ty
     | Self => statics |> self_ty
     | Expected => statics |> expected_ty
     };
@@ -60,7 +55,7 @@ module M: Projector = {
   let display_mode = (model: model, statics: option(Info.t)): string =>
     switch (model) {
     | _ when self_ty(statics) == expected_ty(statics) => "⇔"
-    | _ when mode(statics) == Some(Syn) => "⇒"
+    | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn => "⇒"
     | Self => "⇒"
     | Expected => "⇐"
     };

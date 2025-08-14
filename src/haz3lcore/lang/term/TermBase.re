@@ -372,11 +372,8 @@ and Exp: {
         switch (term) {
         | EmptyHole
         | Invalid(_)
-        | Bool(_)
-        | Int(_)
-        | Float(_)
+        | Atom(_)
         | Constructor(_)
-        | String(_)
         | Label(_)
         | Deferral(_)
         | Var(_)
@@ -407,6 +404,7 @@ and Exp: {
         | FixF(p, e, env) => FixF(pat_map_term(p), exp_map_term(e), env)
         | TyAlias(tp, t, e) =>
           TyAlias(tpat_map_term(tp), typ_map_term(t), exp_map_term(e))
+        | Use(t, e) => Use(typ_map_term(t), exp_map_term(e))
         | Ap(op, e1, e2) => Ap(op, exp_map_term(e1), exp_map_term(e2))
         | TypAp(e, t) => TypAp(exp_map_term(e), typ_map_term(t))
         | DeferredAp(e, es) =>
@@ -466,15 +464,13 @@ and Exp: {
       && TypSlice.fast_equal(s1, s3)
       && TypSlice.fast_equal(s2, s4)
     | (Deferral(d1), Deferral(d2)) => d1 == d2
-    | (Bool(b1), Bool(b2)) => b1 == b2
-    | (Int(i1), Int(i2)) => i1 == i2
-    | (Float(f1), Float(f2)) => f1 == f2
-    | (String(s1), String(s2)) => s1 == s2
-    | (Label(s1), Label(s2)) => s1 == s2
+    | (Atom(c1), Atom(c2)) => c1 == c2
+    | (Label(l1), Label(l2)) => l1 == l2
     | (ListLit(xs), ListLit(ys)) =>
       List.length(xs) == List.length(ys) && List.equal(fast_equal, xs, ys)
-    | (Constructor(c1, Some(ty1)), Constructor(c2, Some(ty2))) =>
+    | (Constructor(c1, Some(Some(ty1))), Constructor(c2, Some(Some(ty2)))) =>
       c1 == c2 && Typ.fast_equal(ty1, ty2)
+    | (Constructor(c1, Some(None)), Constructor(c2, Some(None)))
     | (Constructor(c1, None), Constructor(c2, None)) => c1 == c2
     | (Fun(p1, e1, t1, _), Fun(p2, e2, t2, _)) =>
       Pat.fast_equal(p1, p2)
@@ -495,6 +491,8 @@ and Exp: {
       TPat.fast_equal(tp1, tp2)
       && Typ.fast_equal(t1, t2)
       && fast_equal(e1, e2)
+    | (Use(t1, e1), Use(t2, e2)) =>
+      Typ.fast_equal(t1, t2) && fast_equal(e1, e2)
     | (Ap(d1, e1, e2), Ap(d2, e3, e4)) =>
       d1 == d2 && fast_equal(e1, e3) && fast_equal(e2, e4)
     | (TypAp(e1, t1), TypAp(e2, t2)) =>
@@ -540,10 +538,7 @@ and Exp: {
     | (Invalid(_), _)
     | (FailedCast(_), _)
     | (Deferral(_), _)
-    | (Bool(_), _)
-    | (Int(_), _)
-    | (Float(_), _)
-    | (String(_), _)
+    | (Atom(_), _)
     | (Label(_), _)
     | (ListLit(_), _)
     | (Constructor(_), _)
@@ -556,6 +551,7 @@ and Exp: {
     | (Let(_), _)
     | (FixF(_), _)
     | (TyAlias(_), _)
+    | (Use(_), _)
     | (Ap(_), _)
     | (TypAp(_), _)
     | (DeferredAp(_), _)
@@ -652,11 +648,8 @@ and Pat: {
         | EmptyHole
         | Invalid(_)
         | Wild
-        | Bool(_)
-        | Int(_)
-        | Float(_)
+        | Atom(_)
         | Constructor(_)
-        | String(_)
         | Label(_)
         | Var(_) => term
         | MultiHole(things) => MultiHole(List.map(any_map_term, things))
@@ -693,13 +686,11 @@ and Pat: {
       && List.equal(Any.fast_equal, xs, ys)
     | (Invalid(s1), Invalid(s2)) => s1 == s2
     | (Wild, Wild) => true
-    | (Bool(b1), Bool(b2)) => b1 == b2
-    | (Int(i1), Int(i2)) => i1 == i2
-    | (Float(f1), Float(f2)) => f1 == f2
-    | (String(s1), String(s2)) => s1 == s2
+    | (Atom(c1), Atom(c2)) => c1 == c2
     | (Label(s1), Label(s2)) => s1 == s2
-    | (Constructor(c1, Some(t1)), Constructor(c2, Some(t2))) =>
+    | (Constructor(c1, Some(Some(t1))), Constructor(c2, Some(Some(t2)))) =>
       c1 == c2 && Typ.fast_equal(t1, t2)
+    | (Constructor(c1, Some(None)), Constructor(c2, Some(None)))
     | (Constructor(c1, None), Constructor(c2, None)) => c1 == c2
     | (Var(v1), Var(v2)) => v1 == v2
     | (ListLit(xs), ListLit(ys)) =>
@@ -719,10 +710,7 @@ and Pat: {
     | (MultiHole(_), _)
     | (Invalid(_), _)
     | (Wild, _)
-    | (Bool(_), _)
-    | (Int(_), _)
-    | (Float(_), _)
-    | (String(_), _)
+    | (Atom(_), _)
     | (Label(_), _)
     | (ListLit(_), _)
     | (Constructor(_), _)
@@ -817,10 +805,7 @@ and Typ: {
         | Unknown(Hole(Invalid(_)))
         | Unknown(SynSwitch)
         | Unknown(Internal)
-        | Bool
-        | Int
-        | Float
-        | String
+        | Atom(_)
         | Label(_)
         | Var(_) => term
         | List(t) => List(typ_map_term(t))
@@ -855,11 +840,8 @@ and Typ: {
     | Some(str) =>
       let (term, rewrap) = IdTagged.unwrap(ty);
       switch (term) {
-      | Int => (Int: typ_term) |> rewrap
-      | Float => Float |> rewrap
-      | Bool => Bool |> rewrap
-      | String => String |> rewrap
-      | Label(name) => Label(name) |> rewrap
+      | Atom(_) => ty
+      | Label(name) => Grammar.Label(name) |> rewrap
       | Unknown(prov) => Unknown(prov) |> rewrap
       | Arrow(ty1, ty2) =>
         Arrow(subst(s, x, ty1), subst(s, x, ty2)) |> rewrap
@@ -916,14 +898,8 @@ and Typ: {
       }
     | (Rec(_), _) => false
     | (Forall(_), _) => false
-    | (Int, Int) => true
-    | (Int, _) => false
-    | (Float, Float) => true
-    | (Float, _) => false
-    | (Bool, Bool) => true
-    | (Bool, _) => false
-    | (String, String) => true
-    | (String, _) => false
+    | (Atom(name1), Atom(name2)) => name1 == name2
+    | (Atom(_), _) => false
     | (Label(name1), Label(name2)) =>
       LabeledTuple.match_labels(name1, name2)
     | (Label(_), _) => false

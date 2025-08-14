@@ -6,7 +6,7 @@ let unboxed_testable = (inner_testable: testable('a)) =>
     Fmt.using(Unboxing.show_unboxed(pp(inner_testable)), Fmt.string),
     Unboxing.equal_unboxed(equal(inner_testable)),
   );
-let dhexp_typ = testable(Fmt.using(Exp.show, Fmt.string), DHExp.fast_equal);
+let dhexp_typ = testable(Fmt.using(Exp.show, Fmt.string), Exp.fast_equal);
 
 let test_does_not_match = (name, type_testable, request, term) =>
   test_case(
@@ -53,330 +53,193 @@ let test_matches = (name, type_testable, request, term, unboxed) =>
     },
   );
 
-let int_exp = i => Int(i) |> DHExp.fresh;
-
+open IdTagged.FreshGrammar;
 let tests = (
   "Unboxing",
   Unboxing.(
-    DHExp.[
+    Exp.[
       // ListLit requests
       test_matches(
         "ListLit to ListLit",
         list(dhexp_typ),
         ListLit,
-        ListLit([1, 2, 3] |> List.map(int_exp)) |> fresh,
-        [1, 2, 3] |> List.map(int_exp),
+        list_lit([1, 2, 3] |> List.map(int)),
+        [1, 2, 3] |> List.map(int),
       ),
       test_does_not_match(
         "ListLit to ListLitn, incorrect length",
         list(dhexp_typ),
         ListLitn(2),
-        ListLit([1, 2, 3] |> List.map(int_exp)) |> fresh,
+        list_lit([1, 2, 3] |> List.map(int)),
       ),
       test_indet_match(
         "Cons to ListLit",
         list(dhexp_typ),
         ListLit,
-        Cons(1 |> int_exp, Cons(2 |> int_exp, hole([]) |> fresh) |> fresh)
-        |> fresh,
+        cons(1 |> int, cons(2 |> int, empty_hole())),
       ),
       test_indet_match(
         "CastedHole to ListLit",
         list(dhexp_typ),
         ListLit,
-        Cast(
-          hole([]) |> fresh,
-          TypSlice.(hole([]) |> fresh),
-          TypSlice.(
-            List(hole([]) |> fresh) |> term_of_slc_typ_term |> fresh
-          ),
-        )
-        |> fresh,
+        cast(empty_hole(), Typ.(empty_hole()), Typ.(list(empty_hole()))),
       ),
       test_matches(
         "CastedList to ListLit",
         list(dhexp_typ),
         ListLit,
-        Cast(
-          ListLit([1, 2, 3] |> List.map(int_exp)) |> fresh,
-          TypSlice.(
-            List(hole([]) |> fresh) |> term_of_slc_typ_term |> fresh
-          ),
-          TypSlice.(
-            List(hole([]) |> fresh) |> term_of_slc_typ_term |> fresh
-          ),
-        )
-        |> fresh,
-        [1, 2, 3] |> List.map(int_exp),
+        cast(
+          list_lit([1, 2, 3] |> List.map(int)),
+          Typ.(list(empty_hole())),
+          Typ.(list(empty_hole())),
+        ),
+        [1, 2, 3] |> List.map(int),
       ),
       test_matches(
         "DoubleCastedList to ListLit",
         list(dhexp_typ),
         ListLit,
-        Cast(
-          Cast(
-            ListLit([1, 2, 3] |> List.map(int_exp)) |> fresh,
-            TypSlice.(
-              List(hole([]) |> fresh) |> term_of_slc_typ_term |> fresh
-            ),
-            TypSlice.(
-              List(hole([]) |> fresh) |> term_of_slc_typ_term |> fresh
-            ),
-          )
-          |> fresh,
-          TypSlice.(
-            List(hole([]) |> fresh) |> term_of_slc_typ_term |> fresh
+        cast(
+          cast(
+            list_lit([1, 2, 3] |> List.map(int)),
+            Typ.(list(empty_hole())),
+            Typ.(list(empty_hole())),
           ),
-          TypSlice.(
-            List(`Typ(Int) |> fresh) |> term_of_slc_typ_term |> fresh
-          ),
-        )
-        |> fresh,
+          Typ.(list(empty_hole())),
+          Typ.(list(int())),
+        ),
         [1, 2, 3]
-        |> List.map(i =>
-             Cast(
-               i |> int_exp,
-               TypSlice.(hole([]) |> fresh),
-               TypSlice.(`Typ(Int) |> fresh),
-             )
-             |> fresh
-           ),
+        |> List.map(i => cast(i |> int, Typ.(empty_hole()), Typ.(int()))),
       ),
       // ListLitn requests
       test_matches(
         "ListLit to ListLitn, correct length",
         list(dhexp_typ),
         ListLitn(3),
-        ListLit([1, 2, 3] |> List.map(int_exp)) |> fresh,
-        [1, 2, 3] |> List.map(int_exp),
+        list_lit([1, 2, 3] |> List.map(int)),
+        [1, 2, 3] |> List.map(int),
       ),
       test_indet_match(
         "Cons to ListLitn, length > cons: indet match",
         list(dhexp_typ),
         ListLitn(3),
-        Cons(1 |> int_exp, Cons(2 |> int_exp, hole([]) |> fresh) |> fresh)
-        |> fresh,
+        cons(1 |> int, cons(2 |> int, empty_hole())),
       ),
       test_does_not_match(
         "Cons to ListLitn, length < cons: does not match",
         list(dhexp_typ),
         ListLitn(1),
-        Cons(1 |> int_exp, Cons(2 |> int_exp, hole([]) |> fresh) |> fresh)
-        |> fresh,
+        cons(1 |> int, cons(2 |> int, empty_hole())),
       ),
       test_indet_match(
         "CastedHole to ListLitn",
         list(dhexp_typ),
         ListLitn(0),
-        Cast(
-          hole([]) |> fresh,
-          TypSlice.(hole([]) |> fresh),
-          TypSlice.(
-            List(hole([]) |> fresh) |> term_of_slc_typ_term |> fresh
-          ),
-        )
-        |> fresh,
+        cast(empty_hole(), Typ.(empty_hole()), Typ.(list(empty_hole()))),
       ),
       test_matches(
         "CastedList to ListLitn",
         list(dhexp_typ),
         ListLitn(3),
-        Cast(
-          ListLit([1, 2, 3] |> List.map(int_exp)) |> fresh,
-          TypSlice.(
-            List(hole([]) |> fresh) |> term_of_slc_typ_term |> fresh
-          ),
-          TypSlice.(
-            List(hole([]) |> fresh) |> term_of_slc_typ_term |> fresh
-          ),
-        )
-        |> fresh,
-        [1, 2, 3] |> List.map(int_exp),
+        cast(
+          list_lit([1, 2, 3] |> List.map(int)),
+          Typ.(list(empty_hole())),
+          Typ.(list(empty_hole())),
+        ),
+        [1, 2, 3] |> List.map(int),
       ),
       test_matches(
         "DoubleCastedList to ListLitn",
         list(dhexp_typ),
         ListLitn(3),
-        Cast(
-          Cast(
-            ListLit([1, 2, 3] |> List.map(int_exp)) |> fresh,
-            TypSlice.(
-              List(hole([]) |> fresh) |> term_of_slc_typ_term |> fresh
-            ),
-            TypSlice.(
-              List(hole([]) |> fresh) |> term_of_slc_typ_term |> fresh
-            ),
-          )
-          |> fresh,
-          TypSlice.(
-            List(hole([]) |> fresh) |> term_of_slc_typ_term |> fresh
+        cast(
+          cast(
+            list_lit([1, 2, 3] |> List.map(int)),
+            Typ.(list(empty_hole())),
+            Typ.(list(empty_hole())),
           ),
-          TypSlice.(
-            List(`Typ(Int) |> fresh) |> term_of_slc_typ_term |> fresh
-          ),
-        )
-        |> fresh,
+          Typ.(list(empty_hole())),
+          Typ.(list(int())),
+        ),
         [1, 2, 3]
-        |> List.map(i =>
-             Cast(
-               i |> int_exp,
-               TypSlice.(hole([]) |> fresh),
-               TypSlice.(`Typ(Int) |> fresh),
-             )
-             |> fresh
-           ),
+        |> List.map(i => cast(i |> int, Typ.(empty_hole()), Typ.(int()))),
       ),
       // Cons requests
       test_matches(
         "ListLit to Cons: empty tail",
         pair(dhexp_typ, dhexp_typ),
         Cons,
-        ListLit([1] |> List.map(int_exp)) |> fresh,
-        (1 |> int_exp, ListLit([]) |> fresh),
+        list_lit([1] |> List.map(int)),
+        (1 |> int, list_lit([])),
       ),
       test_matches(
         "ListLit to Cons: non-empty tail",
         pair(dhexp_typ, dhexp_typ),
         Cons,
-        ListLit([1, 2, 3] |> List.map(int_exp)) |> fresh,
-        (1 |> int_exp, ListLit([2, 3] |> List.map(int_exp)) |> fresh),
+        list_lit([1, 2, 3] |> List.map(int)),
+        (1 |> int, list_lit([2, 3] |> List.map(int))),
       ),
       test_does_not_match(
         "EmptyList to Cons",
         pair(dhexp_typ, dhexp_typ),
         Cons,
-        ListLit([]) |> fresh,
+        list_lit([]),
       ),
       test_matches(
         "Cons to Cons",
         pair(dhexp_typ, dhexp_typ),
         Cons,
-        Cons(1 |> int_exp, Cons(2 |> int_exp, hole([]) |> fresh) |> fresh)
-        |> fresh,
-        (1 |> int_exp, Cons(2 |> int_exp, hole([]) |> fresh) |> fresh),
+        cons(1 |> int, cons(2 |> int, empty_hole())),
+        (1 |> int, cons(2 |> int, empty_hole())),
       ),
       test_indet_match(
         "CastedHole to Cons",
         pair(dhexp_typ, dhexp_typ),
         Cons,
-        Cast(
-          hole([]) |> fresh,
-          TypSlice.(hole([]) |> fresh),
-          TypSlice.(
-            List(hole([]) |> fresh) |> term_of_slc_typ_term |> fresh
-          ),
-        )
-        |> fresh,
+        cast(empty_hole(), Typ.(empty_hole()), Typ.(list(empty_hole()))),
       ),
       test_matches(
         "CastedCons to Cons",
         pair(dhexp_typ, dhexp_typ),
         Cons,
-        Cast(
-          Cons(1 |> int_exp, hole([]) |> fresh) |> fresh,
-          TypSlice.(
-            List(hole([]) |> fresh) |> term_of_slc_typ_term |> fresh
-          ),
-          TypSlice.(
-            List(`Typ(Int) |> fresh) |> term_of_slc_typ_term |> fresh
-          ),
-        )
-        |> fresh,
+        cast(
+          cons(1 |> int, empty_hole()),
+          Typ.(list(empty_hole())),
+          Typ.(list(int())),
+        ),
         (
-          Cast(
-            1 |> int_exp,
-            TypSlice.(hole([]) |> fresh),
-            TypSlice.(`Typ(Int) |> fresh),
-          )
-          |> fresh,
-          Cast(
-            hole([]) |> fresh,
-            TypSlice.(
-              List(hole([]) |> fresh) |> term_of_slc_typ_term |> fresh
-            ),
-            TypSlice.(
-              List(`Typ(Int) |> fresh) |> term_of_slc_typ_term |> fresh
-            ),
-          )
-          |> fresh,
+          cast(1 |> int, Typ.(empty_hole()), Typ.(int())),
+          cast(empty_hole(), Typ.(list(empty_hole())), Typ.(list(int()))),
         ),
       ),
       test_matches(
         "DoubleCastedCons to Cons",
         pair(dhexp_typ, dhexp_typ),
         Cons,
-        Cast(
-          Cast(
-            Cons(hole([]) |> fresh, hole([]) |> fresh) |> fresh,
-            TypSlice.(
-              List(hole([]) |> fresh) |> term_of_slc_typ_term |> fresh
-            ),
-            TypSlice.(
-              List(List(hole([]) |> fresh) |> term_of_slc_typ_term |> fresh)
-              |> term_of_slc_typ_term
-              |> fresh
-            ),
-          )
-          |> fresh,
-          TypSlice.(
-            List(List(hole([]) |> fresh) |> term_of_slc_typ_term |> fresh)
-            |> term_of_slc_typ_term
-            |> fresh
+        cast(
+          cast(
+            cons(empty_hole(), empty_hole()),
+            Typ.(list(empty_hole())),
+            Typ.(list(list(empty_hole()))),
           ),
-          TypSlice.(
-            List(List(`Typ(Int) |> fresh) |> term_of_slc_typ_term |> fresh)
-            |> term_of_slc_typ_term
-            |> fresh
-          ),
-        )
-        |> fresh,
+          Typ.(list(list(empty_hole()))),
+          Typ.(list(list(int()))),
+        ),
         (
-          Cast(
-            Cast(
-              hole([]) |> fresh,
-              TypSlice.(hole([]) |> fresh),
-              TypSlice.(
-                List(hole([]) |> fresh) |> term_of_slc_typ_term |> fresh
-              ),
-            )
-            |> fresh,
-            TypSlice.(
-              List(hole([]) |> fresh) |> term_of_slc_typ_term |> fresh
+          cast(
+            cast(empty_hole(), Typ.(empty_hole()), Typ.(list(empty_hole()))),
+            Typ.(list(empty_hole())),
+            Typ.(list(int())),
+          ),
+          cast(
+            cast(
+              empty_hole(),
+              Typ.(list(empty_hole())),
+              Typ.(list(list(empty_hole()))),
             ),
-            TypSlice.(
-              List(`Typ(Int) |> fresh) |> term_of_slc_typ_term |> fresh
-            ),
-          )
-          |> fresh,
-          Cast(
-            Cast(
-              hole([]) |> fresh,
-              TypSlice.(
-                List(hole([]) |> fresh) |> term_of_slc_typ_term |> fresh
-              ),
-              TypSlice.(
-                List(
-                  List(hole([]) |> fresh) |> term_of_slc_typ_term |> fresh,
-                )
-                |> term_of_slc_typ_term
-                |> fresh
-              ),
-            )
-            |> fresh,
-            TypSlice.(
-              List(List(hole([]) |> fresh) |> term_of_slc_typ_term |> fresh)
-              |> term_of_slc_typ_term
-              |> fresh
-            ),
-            TypSlice.(
-              List(
-                List(`Typ(Int) |> fresh) |> term_of_slc_typ_term |> fresh,
-              )
-              |> term_of_slc_typ_term
-              |> fresh
-            ),
-          )
-          |> fresh,
+            Typ.(list(list(empty_hole()))),
+            Typ.(list(list(int()))),
+          ),
         ),
       ),
     ]

@@ -93,10 +93,8 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
     | MultiHole(_) => Some([])
     | Parens(dhp)
     | Probe(dhp, _) => dhpat_var_entry(dhp, ty)
-    | Int(_) => Typ.equal(ty, Int |> Typ.temp) ? Some([]) : None
-    | Float(_) => Typ.equal(ty, Float |> Typ.temp) ? Some([]) : None
-    | Bool(_) => Typ.equal(ty, Bool |> Typ.temp) ? Some([]) : None
-    | String(_) => Typ.equal(ty, String |> Typ.temp) ? Some([]) : None
+    | Atom(c) =>
+      Typ.equal(ty, Atom(Atom.cls_of_t(c)) |> Typ.temp) ? Some([]) : None
     | Constructor(_) => Some([]) // TODO: make this stricter
     | Cast(dhp, ty1, ty2) =>
       Typ.equal(ty, ty2 |> TypSlice.typ_of)
@@ -134,10 +132,7 @@ let rec dhpat_synthesize = (dhpat: DHPat.t, ctx: Ctx.t): option(Typ.t) => {
   | MultiHole(_) => Some(Unknown(Internal) |> Typ.temp)
   | Parens(dhp)
   | Probe(dhp, _) => dhpat_synthesize(dhp, ctx)
-  | Int(_) => Some(Int |> Typ.temp)
-  | Float(_) => Some(Float |> Typ.temp)
-  | Bool(_) => Some(Bool |> Typ.temp)
-  | String(_) => Some(String |> Typ.temp)
+  | Atom(c) => Some(Atom(Atom.cls_of_t(c)) |> Typ.temp)
   | Cast(_, _, ty) => Some(ty |> TypSlice.typ_of)
   };
 };
@@ -233,8 +228,13 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
     let* ty1 = typ_of_dhexp(ctx, m, d1);
     let* tys = List.map(typ_of_dhexp(ctx, m), d2s) |> OptUtil.sequence;
     let* (tyl, tyr) = Typ.matched_arrow_strict(ctx, ty1);
-    // TODO: make strict
-    let tyls = Typ.matched_args(ctx, List.length(tys), tyl);
+    let* tyls =
+      Typ.matched_args_strict(ctx, tyl, List.length(tys))
+      |> (
+        fun
+        | L(x) => Some(x)
+        | R(_) => None
+      );
     let* combined = ListUtil.combine_opt(tyls, d2s);
     let without_deferrals =
       List.filter(((_, d)) => !DHExp.is_deferral(d), combined);
@@ -267,75 +267,32 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
     Some(var.typ |> TypSlice.typ_of);
   | Test(dtest) =>
     let* ty = typ_of_dhexp(ctx, m, dtest);
-    Typ.equal(ty, Bool |> Typ.temp) ? Some(Prod([]) |> Typ.temp) : None;
-  | Bool(_) => Some(Bool |> Typ.temp)
-  | Int(_) => Some(Int |> Typ.temp)
-  | Float(_) => Some(Float |> Typ.temp)
-  | String(_) => Some(String |> Typ.temp)
-  | BinOp(Bool(_), d1, d2) =>
+    Typ.equal(ty, Atom(Bool) |> Typ.temp)
+      ? Some(Prod([]) |> Typ.temp) : None;
+  | Atom(c) => Some(Atom(c |> Atom.cls_of_t) |> Typ.temp)
+  | BinOp(op, d1, d2) =>
     let* ty1 = typ_of_dhexp(ctx, m, d1);
     let* ty2 = typ_of_dhexp(ctx, m, d2);
-    Typ.equal(ty1, Bool |> Typ.temp) && Typ.equal(ty2, Bool |> Typ.temp)
-      ? Some(Bool |> Typ.temp) : None;
-  | BinOp(Int(op), d1, d2) =>
-    let* ty1 = typ_of_dhexp(ctx, m, d1);
-    let* ty2 = typ_of_dhexp(ctx, m, d2);
-    if (Typ.equal(ty1, Int |> Typ.temp) && Typ.equal(ty2, Int |> Typ.temp)) {
-      switch (op) {
-      | Minus
-      | Plus
-      | Times
-      | Power
-      | Divide => Some(Int |> Typ.temp)
-      | LessThan
-      | LessThanOrEqual
-      | GreaterThan
-      | GreaterThanOrEqual
-      | Equals
-      | NotEquals => Some(Bool |> Typ.temp)
-      };
-    } else {
-      None;
+    let semantics = Operators.semantics_of_bin_op(op);
+    switch (semantics) {
+    | Undefined(_) =>
+      Typ.equal(ty1, Unknown(Internal) |> Typ.temp)
+      && Typ.equal(ty2, Unknown(Internal) |> Typ.temp)
+        ? Some(Unknown(Internal) |> Typ.temp) : None
+    | Defined(ty1', ty2', ty_out, _) =>
+      let ty1' = Atom(Atom.cls_of_kind(ty1')) |> Typ.temp;
+      let ty2' = Atom(Atom.cls_of_kind(ty2')) |> Typ.temp;
+      let ty_out = Atom(Atom.cls_of_kind(ty_out)) |> Typ.temp;
+      Typ.equal(ty1, ty1') && Typ.equal(ty2, ty2') ? Some(ty_out) : None;
     };
-  | BinOp(Float(op), d1, d2) =>
-    let* ty1 = typ_of_dhexp(ctx, m, d1);
-    let* ty2 = typ_of_dhexp(ctx, m, d2);
-    if (Typ.equal(ty1, Float |> Typ.temp)
-        && Typ.equal(ty2, Float |> Typ.temp)) {
-      switch (op) {
-      | Minus
-      | Plus
-      | Times
-      | Power
-      | Divide => Some(Float |> Typ.temp)
-      | LessThan
-      | LessThanOrEqual
-      | GreaterThan
-      | GreaterThanOrEqual
-      | Equals
-      | NotEquals => Some(Bool |> Typ.temp)
-      };
-    } else {
-      None;
-    };
-  | BinOp(String(op), d1, d2) =>
-    let* ty1 = typ_of_dhexp(ctx, m, d1);
-    let* ty2 = typ_of_dhexp(ctx, m, d2);
-    if (Typ.equal(ty1, String |> Typ.temp)
-        && Typ.equal(ty2, String |> Typ.temp)) {
-      switch (op) {
-      | Concat => Some(String |> Typ.temp)
-      | Equals => Some(Bool |> Typ.temp)
-      };
-    } else {
-      None;
-    };
-  | UnOp(Int(Minus), d) =>
+  | UnOp(Int(Minus) | Nat(Minus) | Float(Minus) | SInt(Minus), d) =>
     let* ty = typ_of_dhexp(ctx, m, d);
-    Typ.equal(ty, Int |> Typ.temp) ? Some(Int |> Typ.temp) : None;
+    Typ.equal(ty, Atom(Int) |> Typ.temp)
+      ? Some(Atom(Int) |> Typ.temp) : None;
   | UnOp(Bool(Not), d) =>
     let* ty = typ_of_dhexp(ctx, m, d);
-    Typ.equal(ty, Bool |> Typ.temp) ? Some(Bool |> Typ.temp) : None;
+    Typ.equal(ty, Atom(Bool) |> Typ.temp)
+      ? Some(Atom(Bool) |> Typ.temp) : None;
   | UnOp(Meta(Unquote), d) =>
     let* ty = typ_of_dhexp(ctx, m, d);
     Some(ty);
@@ -410,13 +367,14 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
     }
   | If(d_scrut, d1, d2) =>
     let* ty = typ_of_dhexp(ctx, m, d_scrut);
-    if (Typ.equal(ty, Bool |> Typ.temp)) {
+    if (Typ.equal(ty, Atom(Bool) |> Typ.temp)) {
       let* ty1 = typ_of_dhexp(ctx, m, d1);
       let* ty2 = typ_of_dhexp(ctx, m, d2);
       Typ.equal(ty1, ty2) ? Some(ty1) : None;
     } else {
       None;
     };
+  | Use(_, d)
   | TyAlias(_, _, d) => typ_of_dhexp(ctx, m, d)
   | Parens(d)
   | Probe(d, _) => typ_of_dhexp(ctx, m, d)
@@ -424,7 +382,7 @@ and typ_of_dhexp = (ctx: Ctx.t, m: Statics.Map.t, dh: DHExp.t): option(Typ.t) =>
 };
 
 let property_test = (uexp_typ: Typ.t, dhexp: DHExp.t, m: Statics.Map.t): bool => {
-  let dhexp_typ = typ_of_dhexp(Builtins.ctx_init, m, dhexp);
+  let dhexp_typ = typ_of_dhexp(Builtins.ctx_init(None), m, dhexp);
 
   switch (dhexp_typ) {
   | None => false

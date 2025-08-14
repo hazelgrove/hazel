@@ -22,8 +22,30 @@ type t = VarMap.t_(builtin);
 [@deriving (show({with_path: false}), sexp)]
 type forms = VarMap.t_(DHExp.t => option(DHExp.t));
 
+exception BuiltinAlreadyDefined(Var.t);
+
+// Like VarMap.extend but it fails if the name is already bound
+let extend = (builtins: t, (name: Var.t, v: builtin)): t =>
+  if (VarMap.contains(builtins, name)) {
+    raise(BuiltinAlreadyDefined(name));
+  } else {
+    VarMap.extend(builtins, (name, v));
+  };
+
+// Like VarMap.concat but it fails if the name is already bound
+let concat = (builtins: t, new_builtins: t): t => {
+  List.iter(
+    ((new_builtin, _)) =>
+      if (VarMap.contains(builtins, new_builtin)) {
+        raise(BuiltinAlreadyDefined(new_builtin));
+      },
+    new_builtins,
+  );
+  VarMap.concat(builtins, new_builtins);
+};
+
 let const = (name: Var.t, typ: Typ.term, v: DHExp.t, builtins: t): t =>
-  VarMap.extend(builtins, (name, Const(typ |> Typ.fresh, v)));
+  extend(builtins, (name, Const(typ |> Typ.fresh, v)));
 let fn =
     (
       name: Var.t,
@@ -33,10 +55,7 @@ let fn =
       builtins: t,
     )
     : t =>
-  VarMap.extend(
-    builtins,
-    (name, Fn(t1 |> Typ.fresh, t2 |> Typ.fresh, impl)),
-  );
+  extend(builtins, (name, Fn(t1 |> Typ.fresh, t2 |> Typ.fresh, impl)));
 
 let (let-unbox) = ((request, v), f) =>
   switch (Unboxing.unbox(request, v)) {
@@ -54,8 +73,8 @@ module Pervasives = {
     let nan = float(Float.nan);
     let epsilon_float = float(epsilon_float);
     let pi = float(Float.pi);
-    let max_int = int(Int.max_int);
-    let min_int = int(Int.min_int);
+    let max_int = sint(Int.max_int);
+    let min_int = sint(Int.min_int);
 
     [@warning "-8"]
     // let-unbox guarantees that the tuple will have length 2
@@ -65,7 +84,7 @@ module Pervasives = {
     };
 
     [@warning "-8"]
-    // let-unbox guarantees that the tuple will have length 3
+    // let-unbox guarantees that the tuple will have length 3int
     let ternary =
         (f: (DHExp.t, DHExp.t, DHExp.t) => option(DHExp.t), d: DHExp.t) => {
       let-unbox [d1, d2, d3] = (Tuple(3), d);
@@ -73,52 +92,27 @@ module Pervasives = {
     };
 
     let is_finite = d => {
-      let-unbox f = (Float, d);
+      let-unbox f = (Atom(Float), d);
       Some(bool(Float.is_finite(f)));
     };
 
     let is_infinite = d => {
-      let-unbox f = (Float, d);
+      let-unbox f = (Atom(Float), d);
       Some(bool(Float.is_infinite(f)));
     };
 
     let is_nan = d => {
-      let-unbox f = (Float, d);
+      let-unbox f = (Atom(Float), d);
       Some(bool(Float.is_nan(f)));
     };
 
-    let string_of_int = d => {
-      let-unbox n = (Int, d);
-      Some(string(string_of_int(n)));
-    };
-
-    let string_of_float = d => {
-      let-unbox f = (Float, d);
-      Some(string(string_of_float(f)));
-    };
-
-    let string_of_bool = d => {
-      let-unbox b = (Bool, d);
-      Some(string(string_of_bool(b)));
-    };
-
-    let int_of_float = d => {
-      let-unbox f = (Float, d);
-      Some(int(int_of_float(f)));
-    };
-
-    let float_of_int = d => {
-      let-unbox n = (Int, d);
-      Some(float(float_of_int(n)));
-    };
-
     let abs = d => {
-      let-unbox n = (Int, d);
-      Some(int(abs(n)));
+      let-unbox n = (Atom(Int), d);
+      Some(big_int(Bigint.abs(n)));
     };
 
     let float_op = (fn, d) => {
-      let-unbox f = (Float, d);
+      let-unbox f = (Atom(Float), d);
       Some(float(fn(f)));
     };
 
@@ -136,32 +130,26 @@ module Pervasives = {
     let acos = float_op(acos);
     let atan = float_op(atan);
 
-    let of_string =
-        (
-          convert: string => option('a),
-          wrap: 'a => DHExp.t,
-          name: string,
-          d: DHExp.t,
-        ) => {
-      let-unbox s = (String, d);
-      switch (convert(s)) {
-      | Some(n) => Some(wrap(n))
-      | None =>
-        let d' = builtin_fun(name);
-        let d' = ap(Forward, d', d);
-        let d' = dynamic_error_hole(d', InvalidOfString);
-        Some(d');
-      };
-    };
-
-    let int_of_string = of_string(int_of_string_opt, n => int(n));
-    let float_of_string = of_string(float_of_string_opt, f => float(f));
-    let bool_of_string = of_string(bool_of_string_opt, b => bool(b));
-
     let int_mod = name =>
       binary((d1, d2) => {
-        let-unbox m = (Int, d1);
-        let-unbox n = (Int, d2);
+        let-unbox m = (Atom(Int), d1);
+        let-unbox n = (Atom(Int), d2);
+        if (n == Bigint.zero) {
+          Some(
+            dynamic_error_hole(
+              ap(Forward, builtin_fun(name), d1),
+              DivideByZero,
+            ),
+          );
+        } else {
+          Some(big_int(Bigint.(%)(m, n)));
+        };
+      });
+
+    let sint_mod = name =>
+      binary((d1, d2) => {
+        let-unbox m = (Atom(SInt), d1);
+        let-unbox n = (Atom(SInt), d2);
         if (n == 0) {
           Some(
             dynamic_error_hole(
@@ -170,36 +158,79 @@ module Pervasives = {
             ),
           );
         } else {
-          Some(int(m mod n));
+          Some(sint(m mod n));
+        };
+      });
+
+    let nat_mod = name =>
+      binary((d1, d2) => {
+        let-unbox m = (Atom(Nat), d1);
+        let-unbox n = (Atom(Nat), d2);
+        if (n == Bigint.zero) {
+          Some(
+            dynamic_error_hole(
+              ap(Forward, builtin_fun(name), d1),
+              DivideByZero,
+            ),
+          );
+        } else {
+          Some(nat(Bigint.(%)(m, n)));
+        };
+      });
+
+    let float_mod = name =>
+      binary((d1, d2) => {
+        let-unbox m = (Atom(Float), d1);
+        let-unbox n = (Atom(Float), d2);
+        if (n == 0.0) {
+          Some(
+            dynamic_error_hole(
+              ap(Forward, builtin_fun(name), d1),
+              DivideByZero,
+            ),
+          );
+        } else {
+          Some(float((Float.modf(m /. n) |> fst) *. n));
+        };
+      });
+
+    let monus =
+      binary((d1, d2) => {
+        let-unbox m = (Atom(Nat), d1);
+        let-unbox n = (Atom(Nat), d2);
+        if (Bigint.(<=)(m, n)) {
+          Some(nat(Bigint.zero));
+        } else {
+          Some(nat(Bigint.(m - n)));
         };
       });
 
     let string_length = d => {
-      let-unbox s = (String, d);
+      let-unbox s = (Atom(String), d);
       Some(int(String.length(s)));
     };
 
     let string_compare =
       binary((d1, d2) => {
-        let-unbox s1 = (String, d1);
-        let-unbox s2 = (String, d2);
+        let-unbox s1 = (Atom(String), d1);
+        let-unbox s2 = (Atom(String), d2);
         Some(int(String.compare(s1, s2)));
       });
 
     let string_trim = d => {
-      let-unbox s = (String, d);
+      let-unbox s = (Atom(String), d);
       Some(string(String.trim(s)));
     };
 
     let string_of: DHExp.t => option(string) =
       d => {
-        let-unbox s = (String, d);
+        let-unbox s = (Atom(String), d);
         Some(s);
       };
 
-    let string_concat =
+    let string_join =
       binary((d1, d2) => {
-        let-unbox s1 = (String, d1);
+        let-unbox s1 = (Atom(String), d1);
         let-unbox xs = (ListLit, d2);
         let* xs' = List.map(string_of, xs) |> Util.OptUtil.sequence;
         Some(string(String.concat(s1, xs')));
@@ -207,11 +238,21 @@ module Pervasives = {
 
     let string_sub = name =>
       ternary((d1, d2, d3) => {
-        let-unbox s = (String, d1);
-        let-unbox idx = (Int, d2);
-        let-unbox len = (Int, d3);
-        try(Some(string(String.sub(s, idx, len)))) {
-        | _ =>
+        let-unbox s = (Atom(String), d1);
+        let-unbox idx = (Atom(Int), d2);
+        let-unbox len = (Atom(Int), d3);
+        try(
+          Some(
+            string(
+              String.sub(
+                s,
+                idx |> Bigint.to_int |> Option.get,
+                len |> Bigint.to_int |> Option.get,
+              ),
+            ),
+          )
+        ) {
+        | Invalid_argument(_) =>
           let d' = BuiltinFun(name) |> DHExp.fresh;
           let d' = Ap(Forward, d', d1) |> DHExp.fresh;
           let d' = DynamicErrorHole(d', IndexOutOfBounds) |> DHExp.fresh;
@@ -221,8 +262,8 @@ module Pervasives = {
 
     let string_split = _ =>
       binary((d1, d2) => {
-        let-unbox s = (String, d1);
-        let-unbox sep = (String, d2);
+        let-unbox s = (Atom(String), d1);
+        let-unbox sep = (Atom(String), d2);
         let split_str = Util.StringUtil.plain_split(sep, s);
         let split_str' = List.map(s => string(s), split_str);
         Some(list_lit(split_str'));
@@ -232,70 +273,102 @@ module Pervasives = {
   open Impls;
 
   // Update src/haz3lmenhir/Lexer.mll when any new builtin is added
+
+  let of_atom_builtin = (b: Atom.builtin): builtin => {
+    switch (b) {
+    | OneFun(k1, k2, f) =>
+      Fn(
+        Atom(k1 |> Atom.cls_of_kind) |> Typ.fresh,
+        Atom(k2 |> Atom.cls_of_kind) |> Typ.fresh,
+        (d: DHExp.t) => {
+          let-unbox x = (Atom(k1), d);
+          switch (f(x)) {
+          | L(x) => Some(Atom(Atom.repack(k2, x)) |> Exp.fresh)
+          | R(_) => None
+          };
+        },
+      )
+    | TwoFun(k1, k2, k3, f) =>
+      Fn(
+        Prod([
+          Atom(k1 |> Atom.cls_of_kind) |> Typ.fresh,
+          Atom(k2 |> Atom.cls_of_kind) |> Typ.fresh,
+        ])
+        |> Typ.fresh,
+        Atom(k3 |> Atom.cls_of_kind) |> Typ.fresh,
+        [@warning "-8"] (d: DHExp.t) => {
+          let-unbox [x, y] = (Tuple(2), d);
+          let-unbox x = (Atom(k1), x);
+          let-unbox y = (Atom(k2), y);
+          switch (f(x, y)) {
+          | L(x) => Some(Atom(Atom.repack(k3, x)) |> Exp.fresh)
+          | R(_) => None
+          };
+        },
+      )
+    };
+  };
+
   let builtins =
     Fresh.Typ.(
       VarMap.empty
-      |> const("infinity", Float, infinity)
-      |> const("neg_infinity", Float, neg_infinity)
-      |> const("nan", Float, nan)
-      |> const("epsilon_float", Float, epsilon_float)
-      |> const("pi", Float, pi)
-      |> const("max_int", Int, max_int)
-      |> const("min_int", Int, min_int)
-      |> fn("is_finite", Float, Bool, is_finite)
-      |> fn("is_infinite", Float, Bool, is_infinite)
-      |> fn("is_nan", Float, Bool, is_nan)
-      |> fn("int_of_float", Float, Int, int_of_float)
-      |> fn("float_of_int", Int, Float, float_of_int)
-      |> fn("string_of_int", Int, String, string_of_int)
-      |> fn("string_of_float", Float, String, string_of_float)
-      |> fn("string_of_bool", Bool, String, string_of_bool)
-      |> fn("int_of_string", String, Int, int_of_string("int_of_string"))
+      |> const("infinity", Atom(Float), infinity)
+      |> const("neg_infinity", Atom(Float), neg_infinity)
+      |> const("nan", Atom(Float), nan)
+      |> const("epsilon_float", Atom(Float), epsilon_float)
+      |> const("pi", Atom(Float), pi)
+      |> const("max_sint", Atom(SInt), max_int)
+      |> const("min_sint", Atom(SInt), min_int)
+      |> fn("is_finite", Atom(Float), Atom(Bool), is_finite)
+      |> fn("is_infinite", Atom(Float), Atom(Bool), is_infinite)
+      |> fn("is_nan", Atom(Float), Atom(Bool), is_nan)
+      |> fn("abs", Atom(Int), Atom(Int), abs)
+      |> fn("abs_float", Atom(Float), Atom(Float), abs_float)
+      |> fn("ceil", Atom(Float), Atom(Float), ceil)
+      |> fn("floor", Atom(Float), Atom(Float), floor)
+      |> fn("exp", Atom(Float), Atom(Float), exp)
+      |> fn("log", Atom(Float), Atom(Float), log)
+      |> fn("log10", Atom(Float), Atom(Float), log10)
+      |> fn("sqrt", Atom(Float), Atom(Float), sqrt)
+      |> fn("sin", Atom(Float), Atom(Float), sin)
+      |> fn("cos", Atom(Float), Atom(Float), cos)
+      |> fn("tan", Atom(Float), Atom(Float), tan)
+      |> fn("asin", Atom(Float), Atom(Float), asin)
+      |> fn("acos", Atom(Float), Atom(Float), acos)
+      |> fn("atan", Atom(Float), Atom(Float), atan)
+      |> fn("monus", Prod([nat(), nat()]), Atom(Nat), monus)
+      |> fn("int_mod", Prod([int(), int()]), Atom(Int), int_mod("mod"))
       |> fn(
-           "float_of_string",
-           String,
-           Float,
-           float_of_string("float_of_string"),
+           "sint_mod",
+           Prod([sint(), sint()]),
+           Atom(SInt),
+           sint_mod("mod"),
          )
+      |> fn("nat_mod", Prod([nat(), nat()]), Atom(Nat), nat_mod("mod"))
       |> fn(
-           "bool_of_string",
-           String,
-           Bool,
-           bool_of_string("bool_of_string"),
+           "float_mod",
+           Prod([float(), float()]),
+           Atom(Float),
+           float_mod("mod"),
          )
-      |> fn("abs", Int, Int, abs)
-      |> fn("abs_float", Float, Float, abs_float)
-      |> fn("ceil", Float, Float, ceil)
-      |> fn("floor", Float, Float, floor)
-      |> fn("exp", Float, Float, exp)
-      |> fn("log", Float, Float, log)
-      |> fn("log10", Float, Float, log10)
-      |> fn("sqrt", Float, Float, sqrt)
-      |> fn("sin", Float, Float, sin)
-      |> fn("cos", Float, Float, cos)
-      |> fn("tan", Float, Float, tan)
-      |> fn("asin", Float, Float, asin)
-      |> fn("acos", Float, Float, acos)
-      |> fn("atan", Float, Float, atan)
-      |> fn("mod", Prod([int(), int()]), Int, int_mod("mod"))
-      |> fn("string_length", String, Int, string_length)
+      |> fn("string_length", Atom(String), Atom(Int), string_length)
       |> fn(
            "string_compare",
            Prod([string(), string()]),
-           Int,
+           Atom(Int),
            string_compare,
          )
-      |> fn("string_trim", String, String, string_trim)
+      |> fn("string_trim", Atom(String), Atom(String), string_trim)
       |> fn(
-           "string_concat",
+           "string_join",
            Prod([string(), list(string())]),
-           String,
-           string_concat,
+           Atom(String),
+           string_join,
          )
       |> fn(
            "string_sub",
            Prod([string(), int(), int()]),
-           String,
+           Atom(String),
            string_sub("string_sub"),
          )
       |> fn(
@@ -304,20 +377,24 @@ module Pervasives = {
            List(string()),
            string_split("string_split"),
          )
-    );
+    )
+    |> concat(
+         _,
+         List.map(
+           ((n, b)) => (n, of_atom_builtin(b)),
+           Atom.converter_builtins,
+         ),
+       )
+    |> concat(
+         _,
+         List.map(
+           ((n, b)) => (n, of_atom_builtin(b)),
+           Operators.builtins,
+         ),
+       );
 };
 
-let ctx_init: Ctx.t = {
-  let meta_cons_map: ConstructorMap.t(TypSlice.t) = [
-    Variant("$e", [Id.mk()], None),
-    Variant("$v", [Id.mk()], None),
-  ];
-  let meta =
-    Ctx.TVarEntry({
-      name: "$Meta",
-      id: Id.invalid,
-      kind: Ctx.Singleton(Fresh.TypSlice.sum(meta_cons_map)),
-    });
+let entries =
   List.map(
     fun
     | (name, Const(typ, _)) =>
@@ -337,10 +414,27 @@ let ctx_init: Ctx.t = {
         id: Id.invalid,
       }),
     Pervasives.builtins,
-  )
-  |> Ctx.extend(_, meta)
-  |> Ctx.add_ctrs([], _, "$Meta", Id.invalid, meta_cons_map);
-};
+  );
+
+let ctx_init: option(Operators.mode) => Ctx.t =
+  use_mode => {
+    let meta_cons_map: ConstructorMap.t(Typ.t) = [
+      Variant("$e", [Id.mk()], None),
+      Variant("$v", [Id.mk()], None),
+    ];
+    let meta =
+      Ctx.TVarEntry({
+        name: "$Meta",
+        id: Id.invalid,
+        kind: Ctx.Singleton(Fresh.Typ.sum(meta_cons_map)),
+      });
+    Ctx.{
+      use_mode,
+      entries,
+    }
+    |> Ctx.extend(_, meta)
+    |> Ctx.add_ctrs([], _, "$Meta", Id.invalid, meta_cons_map);
+  };
 
 let forms_init: forms =
   List.filter_map(

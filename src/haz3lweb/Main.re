@@ -138,13 +138,13 @@ let start = {
 
   // Other Initialization
   let on_startup = (schedule_action, ()): unit => {
-    NinjaKeys.initialize(Shortcut.options(schedule_action));
-    JsUtil.focus_clipboard_shim();
     Os.is_mac :=
       Dom_html.window##.navigator##.platform##toUpperCase##indexOf(
         Js.string("MAC"),
       )
       >= 0;
+    NinjaKeys.initialize(Shortcut.options(schedule_action));
+    JsUtil.focus_clipboard_shim();
   };
   let%sub () =
     BonsaiUtil.OnStartup.on_startup(

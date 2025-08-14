@@ -130,6 +130,7 @@ let common_err_view =
       | BadInt => [text("Integer is too large or too small")]
       | Other => [text(Printf.sprintf("\"%s\" isn't a valid token", token))]
       }
+    | NoType(BadOperator(msg)) => [text("Invalid operator: "), text(msg)]
     | NoType(BadTrivAp(ty)) => [
         text("Function argument type"),
         view_type(ty),
@@ -214,6 +215,11 @@ let common_err_view =
     | Inconsistent(Internal(tys)) => [
         text(elements_noun(cls) ++ " have inconsistent types:"),
         ...ListUtil.join(text(","), List.map(view_type, tys)),
+      ]
+    | InvalidUseMode({bad_typ, _}) => [
+        text("Cannot use type "),
+        view_type(bad_typ) |> code_box_container,
+        text(" for number operators and literals."),
       ]
     }
   )

@@ -3,7 +3,9 @@ type t =
   | InvalidOfString
   | IndexOutOfBounds
   | DivideByZero
-  | NegativeExponent;
+  | NegativeExponent
+  | NegativeNat
+  | IntegerTooBig;
 
 let err_msg = (err: t): string =>
   switch (err) {
@@ -11,4 +13,6 @@ let err_msg = (err: t): string =>
   | IndexOutOfBounds => "Error: Index Out of Bounds"
   | DivideByZero => "Error: Divide by Zero"
   | NegativeExponent => "Error: Negative Exponent in Integer Exponentiation (Consider using **.)"
+  | NegativeNat => "Error: Cannot convert negative number to Nat"
+  | IntegerTooBig => "Error: Integer too big"
   };

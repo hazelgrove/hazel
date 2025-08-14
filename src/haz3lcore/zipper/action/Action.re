@@ -93,7 +93,8 @@ type t =
   | RotateBackpack
   | MoveToBackpackTarget(planar)
   | Pick_up
-  | Put_down;
+  | Put_down
+  | Introduce;
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -108,7 +109,8 @@ module Failure = {
     | CantReparse
     | CantAccept
     | Cant_undo
-    | Cant_redo;
+    | Cant_redo
+    | CantIntroduce;
 
   exception Exception(t);
 };
@@ -127,6 +129,7 @@ let is_edit: t => bool =
   | Destruct(_)
   | Pick_up
   | Put_down
+  | Introduce
   | Buffer(Accept | Clear | Set(_)) => true
   | Copy
   | Move(_)
@@ -163,7 +166,8 @@ let is_historic: t => bool =
   | Insert(_)
   | Destruct(_)
   | Pick_up
-  | Put_down => true
+  | Put_down
+  | Introduce => true
   | Project(p) =>
     switch (p) {
     | SetSyntax(_)
@@ -190,7 +194,8 @@ let prevent_in_read_only_editor = (a: t) => {
   | Pick_up
   | Put_down
   | RotateBackpack
-  | MoveToBackpackTarget(_) => true
+  | MoveToBackpackTarget(_)
+  | Introduce => true
   | Project(p) =>
     switch (p) {
     | SetSyntax(_) => true
@@ -222,6 +227,7 @@ let should_animate: t => bool =
   | Cut
   | Reparse
   | Insert(_)
+  | Introduce
   | Destruct(_)
   | Pick_up
   | Put_down

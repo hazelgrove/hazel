@@ -55,6 +55,8 @@ module Model = {
   type persistent = PersistentZipper.t;
   let persist = (model: t) =>
     model.editor.state.zipper |> PersistentZipper.persist;
+  let to_string = (model: t) =>
+    model.editor.state.zipper |> PersistentZipper.to_string;
   let unpersist = p =>
     p |> PersistentZipper.unpersist |> Editor.Model.mk |> mk;
 };
@@ -70,12 +72,18 @@ module Update = {
         ~is_edited,
         ~stitch,
         ~dynamics: Dynamics.Map.t,
+        ~is_dynamic_term,
         {editor, statics, dynamics: _}: Model.t,
       )
       : Model.t => {
     let statics =
       is_edited
-        ? CachedStatics.init(~settings, ~stitch, editor.state.zipper)
+        ? CachedStatics.init(
+            ~settings,
+            ~stitch,
+            ~is_dynamic_term,
+            editor.state.zipper,
+          )
         : statics;
     let editor =
       Editor.Update.calculate(

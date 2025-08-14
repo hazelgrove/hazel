@@ -66,10 +66,7 @@ type step_kind =
   | BuiltinWrap
   | BuiltinAp(string)
   | UnOp(Operators.op_un)
-  | BinBoolOp(Operators.op_bin_bool)
-  | BinIntOp(Operators.op_bin_int)
-  | BinFloatOp(Operators.op_bin_float)
-  | BinStringOp(Operators.op_bin_string)
+  | BinOp(Operators.op_bin)
   | Dot
   | Conditional(bool)
   | Projection
@@ -80,6 +77,7 @@ type step_kind =
   | CompleteFilter
   | Cast
   | RemoveTypeAlias
+  | RemoveUse
   | RemoveParens;
 let evaluate_extend_env = ClosureEnvironment.extend_eval;
 
@@ -181,17 +179,17 @@ module Transition = (EV: EV_MODE) => {
             ClosureEnvironment.t,
             DHExp.t
           ) =>
-          'a,
+          EV.result,
         ~mode: [
            | `Substitution
            | `Environment
          ],
-        ~in_closure=?,
-        state,
-        env, // Empty in substitution mode
-        d,
+        ~in_closure: option(unit => unit)=?,
+        state: state,
+        env: TermBase.closure_environment_t, // Empty in substitution mode
+        d: t,
       )
-      : 'a => {
+      : EV.result => {
     // Split DHExp into term and id information
     let (term, rewrap) = DHExp.unwrap(d);
     let wrap_ctx = (term): EvalCtx.t =>
@@ -227,7 +225,7 @@ module Transition = (EV: EV_MODE) => {
             | _ => true // all other closure entries should be final
             };
           Step({
-            expr: d, //|> fast_copy(Id.mk()), NOTE: removed to maintain hole ids
+            expr: d |> fast_copy(Id.mk()),
             state_update,
             kind: VarLookup,
             is_value,
@@ -323,7 +321,7 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d => Test(d) |> rewrap)
       and. d' = req_final(req(state, env), d => Test(d) |> wrap_ctx, d'');
       let result: TestStatus.t =
-        switch (Unboxing.unbox(Bool, d')) {
+        switch (Unboxing.unbox(Atom(Bool), d')) {
         | DoesNotMatch
         | IndetMatch => Indet
         | Matches(b) => b ? Pass : Fail
@@ -438,9 +436,9 @@ module Transition = (EV: EV_MODE) => {
           })
         };
       | FunNoEnv(_) => Indet
-      | FunCast(d3', s1, s2, s1', s2') =>
+      | FunCast(d3', ty1, ty2, ty1', ty2') =>
         Step({
-          expr: cast(ap(dir, d3', cast(d2', s1', s1)), s2, s2'),
+          expr: cast(ap(dir, d3', cast(d2', ty1', ty1)), ty2, ty2'),
 
           state_update,
           kind: CastAp,
@@ -508,10 +506,7 @@ module Transition = (EV: EV_MODE) => {
     | Deferral(_) =>
       let. _ = otherwise(env, d);
       Indet;
-    | Bool(_)
-    | Int(_)
-    | Float(_)
-    | String(_)
+    | Atom(_)
     | Label(_)
     | Constructor(_)
     | BuiltinFun(_) =>
@@ -522,7 +517,7 @@ module Transition = (EV: EV_MODE) => {
       and. c' =
         req_final(req(state, env), c => If1(c, d1, d2) |> wrap_ctx, c);
       let.wrap_closure _ = env;
-      let-unbox b = (Bool, c');
+      let-unbox b = (Atom(Bool), c');
       Step({
         expr: {
           b ? d1 : d2;
@@ -535,36 +530,30 @@ module Transition = (EV: EV_MODE) => {
     | UnOp(Meta(Unquote), _) =>
       let. _ = otherwise(env, d);
       Indet;
-    | UnOp(Int(Minus), d1) =>
-      let. _ = otherwise(env, d1 => UnOp(Int(Minus), d1) |> rewrap)
+    | UnOp(op, d1) =>
+      let. _ = otherwise(env, d1 => UnOp(op, d1) |> rewrap)
       and. d1' =
-        req_final(
-          req(state, env),
-          c => UnOp(Int(Minus), c) |> wrap_ctx,
-          d1,
-        );
-      let-unbox n = (Int, d1');
-      Step({
-        expr: int(- n),
-        state_update,
-        kind: UnOp(Int(Minus)),
-        is_value: true,
-      });
-    | UnOp(Bool(Not), d1) =>
-      let. _ = otherwise(env, d1 => UnOp(Bool(Not), d1) |> rewrap)
-      and. d1' =
-        req_final(
-          req(state, env),
-          c => UnOp(Bool(Not), c) |> wrap_ctx,
-          d1,
-        );
-      let-unbox b = (Bool, d1');
-      Step({
-        expr: bool(!b),
-        state_update,
-        kind: UnOp(Bool(Not)),
-        is_value: true,
-      });
+        req_final(req(state, env), d1 => UnOp(op, d1) |> wrap_ctx, d1);
+      switch (Operators.semantics_of_un_op(op)) {
+      | Undefined(_) => Indet
+      | Defined(in_ty, out_ty, f) =>
+        let-unbox n = (Atom(in_ty), d1');
+        let expr =
+          switch (f(n)) {
+          | Either.L(return_value) =>
+            // operator was successful
+            Atom(Atom.repack(out_ty, return_value)) |> Exp.fresh
+          | Either.R(error) =>
+            // e.g. divide by zero
+            dynamic_error_hole(UnOp(op, d1) |> rewrap, error)
+          };
+        Step({
+          expr,
+          state_update,
+          kind: UnOp(op),
+          is_value: true,
+        });
+      };
     | BinOp(Bool(And), d1, d2) =>
       let. _ = otherwise(env, d1 => BinOp(Bool(And), d1, d2) |> rewrap)
       and. d1' =
@@ -574,11 +563,11 @@ module Transition = (EV: EV_MODE) => {
           d1,
         );
       let.wrap_closure _ = env;
-      let-unbox b1 = (Bool, d1');
+      let-unbox b1 = (Atom(Bool), d1');
       Step({
         expr: b1 ? d2 : bool(false),
         state_update,
-        kind: BinBoolOp(And),
+        kind: BinOp(Bool(And)),
         is_value: false,
       });
     | BinOp(Bool(Or), d1, d2) =>
@@ -590,124 +579,45 @@ module Transition = (EV: EV_MODE) => {
           d1,
         );
       let.wrap_closure _ = env;
-      let-unbox b1 = (Bool, d1');
+      let-unbox b1 = (Atom(Bool), d1');
       Step({
         expr: b1 ? bool(true) : d2,
         state_update,
-        kind: BinBoolOp(Or),
+        kind: BinOp(Bool(Or)),
         is_value: false,
       });
-    | BinOp(Int(op), d1, d2) =>
-      let. _ = otherwise(env, (d1, d2) => BinOp(Int(op), d1, d2) |> rewrap)
-      and. d1' =
+    | BinOp(op, d1, d2) =>
+      let. _ = otherwise(env, (d1, d2) => BinOp(op, d1, d2) |> rewrap)
+      and. d1 =
+        req_final(req(state, env), d1 => BinOp1(op, d1, d2) |> wrap_ctx, d1)
+      and. d2 =
         req_final(
           req(state, env),
-          d1 => BinOp1(Int(op), d1, d2) |> wrap_ctx,
-          d1,
-        )
-      and. d2' =
-        req_final(
-          req(state, env),
-          d2 => BinOp2(Int(op), d1, d2) |> wrap_ctx,
+          d2 => BinOp2(op, d1, d2) |> wrap_ctx,
           d2,
         );
-      let-unbox n1 = (Int, d1');
-      let-unbox n2 = (Int, d2');
-      Step({
-        expr:
-          switch (op) {
-          | Plus => int(n1 + n2)
-          | Minus => int(n1 - n2)
-          | Power when n2 < 0 =>
-            dynamic_error_hole(
-              BinOp(Int(op), d1', d2') |> rewrap,
-              NegativeExponent,
-            )
-          | Power => int(IntUtil.ipow(n1, n2))
-          | Times => int(n1 * n2)
-          | Divide when n2 == 0 =>
-            dynamic_error_hole(
-              BinOp(Int(op), d1', d2') |> rewrap,
-              DivideByZero,
-            )
-          | Divide => int(n1 / n2)
-          | LessThan => bool(n1 < n2)
-          | LessThanOrEqual => bool(n1 <= n2)
-          | GreaterThan => bool(n1 > n2)
-          | GreaterThanOrEqual => bool(n1 >= n2)
-          | Equals => bool(n1 == n2)
-          | NotEquals => bool(n1 != n2)
-          },
-
-        state_update,
-        kind: BinIntOp(op),
-        // False so that InvalidOperations are caught and made indet by the next step
-        is_value: false,
-      });
-    | BinOp(Float(op), d1, d2) =>
-      let. _ =
-        otherwise(env, (d1, d2) => BinOp(Float(op), d1, d2) |> rewrap)
-      and. d1' =
-        req_final(
-          req(state, env),
-          d1 => BinOp1(Float(op), d1, d2) |> wrap_ctx,
-          d1,
-        )
-      and. d2' =
-        req_final(
-          req(state, env),
-          d2 => BinOp2(Float(op), d1, d2) |> wrap_ctx,
-          d2,
-        );
-      let-unbox n1 = (Float, d1');
-      let-unbox n2 = (Float, d2');
-      Step({
-        expr:
-          switch (op) {
-          | Plus => float(n1 +. n2)
-          | Minus => float(n1 -. n2)
-          | Power => float(n1 ** n2)
-          | Times => float(n1 *. n2)
-          | Divide => float(n1 /. n2)
-          | LessThan => bool(n1 < n2)
-          | LessThanOrEqual => bool(n1 <= n2)
-          | GreaterThan => bool(n1 > n2)
-          | GreaterThanOrEqual => bool(n1 >= n2)
-          | Equals => bool(n1 == n2)
-          | NotEquals => bool(n1 != n2)
-          },
-
-        state_update,
-        kind: BinFloatOp(op),
-        is_value: true,
-      });
-    | BinOp(String(op), d1, d2) =>
-      let. _ =
-        otherwise(env, (d1, d2) => BinOp(String(op), d1, d2) |> rewrap)
-      and. d1' =
-        req_final(
-          req(state, env),
-          d1 => BinOp1(String(op), d1, d2) |> wrap_ctx,
-          d1,
-        )
-      and. d2' =
-        req_final(
-          req(state, env),
-          d2 => BinOp2(String(op), d1, d2) |> wrap_ctx,
-          d2,
-        );
-      let-unbox s1 = (String, d1');
-      let-unbox s2 = (String, d2');
-      Step({
-        expr:
-          switch (op) {
-          | Concat => string(s1 ++ s2)
-          | Equals => bool(s1 == s2)
-          },
-        state_update,
-        kind: BinStringOp(op),
-        is_value: true,
-      });
+      // Operator semantics are defined in Operators.re
+      switch (Operators.semantics_of_bin_op(op)) {
+      | Undefined(_) => Indet
+      | Defined(in_ty1, in_ty2, out_ty, f) =>
+        let-unbox n1 = (Atom(in_ty1), d1);
+        let-unbox n2 = (Atom(in_ty2), d2);
+        let expr =
+          switch (f(n1, n2)) {
+          | Either.L(return_value) =>
+            // operator was successful
+            Atom(Atom.repack(out_ty, return_value)) |> Exp.fresh
+          | Either.R(error) =>
+            // e.g. divide by zero
+            dynamic_error_hole(BinOp(op, d1, d2) |> rewrap, error)
+          };
+        Step({
+          expr,
+          state_update,
+          kind: BinOp(op),
+          is_value: true,
+        });
+      };
     | Dot(d1, d2) =>
       let. _ = otherwise(env, (d1, d2) => Dot(d1, d2) |> rewrap)
       and. d1' =
@@ -940,6 +850,14 @@ module Transition = (EV: EV_MODE) => {
         kind: RemoveTypeAlias,
         is_value: false,
       });
+    | Use(_, d) =>
+      let. _ = otherwise(env, d);
+      Step({
+        expr: d,
+        state_update,
+        kind: RemoveUse,
+        is_value: true,
+      });
     | Filter(f1, d1) =>
       let. _ = otherwise(env, d1 => Filter(f1, d1) |> rewrap)
       and. d1 =
@@ -963,10 +881,7 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | FunAp
   | DeferredAp
   | BuiltinAp(_)
-  | BinBoolOp(_)
-  | BinIntOp(_)
-  | BinFloatOp(_)
-  | BinStringOp(_)
+  | BinOp(_)
   | Dot
   | UnOp(_)
   | ListCons
@@ -975,6 +890,7 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | Projection // TODO(Matt): We don't want to show projection to the user
   | Conditional(_)
   | RemoveTypeAlias
+  | RemoveUse
   | InvalidStep => false
   | VarLookup => !settings.show_lookup_steps
   | CastTypAp
@@ -999,17 +915,27 @@ let stepper_justification: step_kind => string =
   | DeferredAp => "deferred application"
   | BuiltinWrap => "wrap builtin"
   | BuiltinAp(s) => "evaluate " ++ s
-  | UnOp(Int(Minus))
-  | BinIntOp(Plus | Minus | Times | Power | Divide)
-  | BinFloatOp(Plus | Minus | Times | Power | Divide) => "arithmetic"
-  | BinIntOp(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual)
-  | BinFloatOp(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual) => "comparison"
-  | BinIntOp(Equals | NotEquals)
-  | BinFloatOp(Equals | NotEquals)
-  | BinStringOp(Equals) => "check equality"
-  | BinStringOp(Concat) => "string manipulation"
+  | UnOp(Int(Minus) | Nat(Minus) | Float(Minus) | SInt(Minus))
+  | BinOp(SInt(Plus | Minus | Times | Power | Divide))
+  | BinOp(Nat(Plus | Minus | Times | Power | Divide))
+  | BinOp(Float(Plus | Minus | Times | Power | Divide))
+  | BinOp(Int(Plus | Minus | Times | Power | Divide)) => "arithmetic"
+  | BinOp(Nat(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual))
+  | BinOp(Int(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual))
+  | BinOp(
+      SInt(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual),
+    )
+  | BinOp(
+      Float(LessThan | LessThanOrEqual | GreaterThan | GreaterThanOrEqual),
+    ) => "comparison"
+  | BinOp(SInt(Equals | NotEquals))
+  | BinOp(Nat(Equals | NotEquals))
+  | BinOp(Int(Equals | NotEquals))
+  | BinOp(Float(Equals | NotEquals))
+  | BinOp(String(Equals)) => "check equality"
+  | BinOp(String(Concat)) => "string manipulation"
   | UnOp(Bool(Not))
-  | BinBoolOp(_) => "boolean logic"
+  | BinOp(Bool(_)) => "boolean logic"
   | Conditional(_) => "conditional"
   | ListCons => "list manipulation"
   | ListConcat => "list manipulation"
@@ -1025,6 +951,7 @@ let stepper_justification: step_kind => string =
   | CompleteClosure => "complete closure"
   | WrapClosure => "wrap closure"
   | RemoveTypeAlias => "define type"
+  | RemoveUse => "set use type"
   | RemoveParens => "remove parentheses"
   | Dot => "Labeled tuple access"
   | UnOp(Meta(Unquote)) => failwith("INVALID STEP");

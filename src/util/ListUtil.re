@@ -689,3 +689,12 @@ let rec is_length = (n: int, xs: list('a)): bool =>
   | [] => false
   | [_, ...xs] => is_length(n - 1, xs)
   };
+
+/* Length of ys but be equal to the number of `None`s in xs */
+let rec fill_nones = (xs: list(option('a)), ys: list('a)): list('a) =>
+  switch (xs, ys) {
+  | ([], []) => []
+  | ([None, ...xs], [y, ...ys]) => [y, ...fill_nones(xs, ys)]
+  | ([Some(x), ...xs], ys) => [x, ...fill_nones(xs, ys)]
+  | _ => failwith("ListUtil.fill_nones: lengths do not match")
+  };

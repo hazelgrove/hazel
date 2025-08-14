@@ -59,6 +59,35 @@ let neighbor_movability =
   (l, r);
 };
 
+let pop_out = z => Some(z |> Zipper.set_caret(Outer));
+let pop_move = (d, z) => z |> Zipper.set_caret(Outer) |> Zipper.move(d);
+let inner_incr = (delim, c, z) =>
+  Some(Zipper.set_caret(Inner(delim, c + 1), z));
+let inner_decr = z => Some(Zipper.update_caret(Zipper.Caret.decrement, z));
+let inner_start = (d_init, z) =>
+  Some(Zipper.set_caret(Inner(d_init, 0), z));
+let inner_end = (d, d_init, c_max, z) =>
+  z |> Zipper.set_caret(Inner(d_init, c_max)) |> Zipper.move(d);
+
+let primary = (chunkiness: chunkiness, d: Direction.t, z: t): option(t) => {
+  switch (d, z.caret, neighbor_movability(chunkiness, z)) {
+  /* this case maybe shouldn't be necessary but currently covers an edge
+     (select an open parens to left of a multichar token and press left) */
+  | _ when z.selection.content != [] => pop_move(d, z)
+  | (Left, Outer, (CanEnter(dlm, c_max), _)) => inner_end(d, dlm, c_max, z)
+  | (Left, Outer, _) => Zipper.move(d, z)
+  | (Left, Inner(_), _) when chunkiness == ByToken => pop_out(z)
+  | (Left, Inner(_), _) =>
+    Some(Zipper.update_caret(Zipper.Caret.decrement, z))
+  | (Right, Outer, (_, CanEnter(d_init, _))) => inner_start(d_init, z)
+  | (Right, Outer, _) => Zipper.move(d, z)
+  | (Right, Inner(_, c), (_, CanEnter(_, c_max))) when c == c_max =>
+    pop_move(d, z)
+  | (Right, Inner(_), _) when chunkiness == ByToken => pop_move(d, z)
+  | (Right, Inner(delim, c), _) => inner_incr(delim, c, z)
+  };
+};
+
 module type S = {
   let measured: Measured.t;
   let term_ranges: TermRanges.t;
@@ -67,37 +96,7 @@ module type S = {
 
 module Make = (M: S) => {
   let caret_point = Zipper.caret_point(M.measured);
-
-  let pop_out = z => Some(z |> Zipper.set_caret(Outer));
-  let pop_move = (d, z) => z |> Zipper.set_caret(Outer) |> Zipper.move(d);
-  let inner_incr = (delim, c, z) =>
-    Some(Zipper.set_caret(Inner(delim, c + 1), z));
-  let inner_decr = z => Some(Zipper.update_caret(Zipper.Caret.decrement, z));
-  let inner_start = (d_init, z) =>
-    Some(Zipper.set_caret(Inner(d_init, 0), z));
-  let inner_end = (d, d_init, c_max, z) =>
-    z |> Zipper.set_caret(Inner(d_init, c_max)) |> Zipper.move(d);
-
-  let primary = (chunkiness: chunkiness, d: Direction.t, z: t): option(t) => {
-    switch (d, z.caret, neighbor_movability(chunkiness, z)) {
-    /* this case maybe shouldn't be necessary but currently covers an edge
-       (select an open parens to left of a multichar token and press left) */
-    | _ when z.selection.content != [] => pop_move(d, z)
-    | (Left, Outer, (CanEnter(dlm, c_max), _)) =>
-      inner_end(d, dlm, c_max, z)
-    | (Left, Outer, _) => Zipper.move(d, z)
-    | (Left, Inner(_), _) when chunkiness == ByToken => pop_out(z)
-    | (Left, Inner(_), _) =>
-      Some(Zipper.update_caret(Zipper.Caret.decrement, z))
-    | (Right, Outer, (_, CanEnter(d_init, _))) => inner_start(d_init, z)
-    | (Right, Outer, _) => Zipper.move(d, z)
-    | (Right, Inner(_, c), (_, CanEnter(_, c_max))) when c == c_max =>
-      pop_move(d, z)
-    | (Right, Inner(_), _) when chunkiness == ByToken => pop_move(d, z)
-    | (Right, Inner(delim, c), _) => inner_incr(delim, c, z)
-    };
-  };
-
+  let primary = primary;
   let is_at_side_of_row = (d: Direction.t, z: Zipper.t) => {
     let Point.{row, col} = caret_point(z);
     switch (Zipper.move(d, z)) {

@@ -35,7 +35,7 @@ module Operators = {
     };
   };
 
-  let op_un_int_of_menhir_ast = (op: AST.op_un_int): op_un_int => {
+  let op_un_int_of_menhir_ast = (op: AST.op_un_int): op_un_num => {
     switch (op) {
     | Minus => Minus
     };
@@ -57,6 +57,8 @@ module Operators = {
 
   let of_core_op_bin = (op: op_bin): AST.bin_op => {
     switch (op) {
+    | Nat(op_int)
+    | SInt(op_int)
     | Int(op_int) =>
       IntOp(
         switch (op_int) {
@@ -114,6 +116,9 @@ module Operators = {
         | Unquote => Unquote
         },
       )
+    | Nat(i)
+    | Float(i)
+    | SInt(i)
     | Int(i) =>
       Int(
         switch (i) {
@@ -130,7 +135,7 @@ module Operators = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  let float_op_of_menhir_ast = (op: AST.op_bin_float): op_bin_float => {
+  let float_op_of_menhir_ast = (op: AST.op_bin_float): op_bin_num => {
     switch (op) {
     | Plus => Plus
     | Minus => Minus
@@ -163,7 +168,7 @@ module Operators = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  let int_op_of_menhir_ast = (op: AST.op_bin_int): op_bin_int => {
+  let int_op_of_menhir_ast = (op: AST.op_bin_int): op_bin_num => {
     switch (op) {
     | Plus => Plus
     | Minus => Minus
@@ -200,13 +205,10 @@ module rec Exp: {
   let rec of_menhir_ast = (exp: AST.exp): IndicatedG.exp => {
     switch (exp) {
     | InvalidExp(s) => invalid(s)
-    | Int(i) => int(i)
-    | Float(f) => float(f)
-    | String(s) => string(s)
-    | Bool(b) => bool(b)
+    | Atom(c) => basic(c)
     | Var(x) => var(x)
     | Constructor(x, ty) =>
-      constructor(x, Option.map(Typ.of_menhir_ast, ty))
+      constructor(x, Option.map(Option.map(Typ.of_menhir_ast), ty))
     | Deferral => deferral(InAp)
     | ListExp(l) => list_lit(List.map(of_menhir_ast, l))
     | TupleExp([TupLabel(_) as tl]) => parens(tuple([of_menhir_ast(tl)]))
@@ -229,6 +231,7 @@ module rec Exp: {
         | _ => ty
         };
       ty_alias(TPat.of_menhir_ast(tp), ty, of_menhir_ast(e));
+    | Use(t, e) => use(Typ.of_menhir_ast(t), of_menhir_ast(e))
     | BuiltinFun(s) => builtin_fun(s)
     | Fun(p, e, name_opt) =>
       switch (name_opt) {
@@ -319,10 +322,7 @@ module rec Exp: {
   let rec of_core = (exp: IndicatedG.exp): AST.exp => {
     switch (exp.term) {
     | Invalid(_) => InvalidExp("Invalid")
-    | Int(i) => Int(i)
-    | Float(f) => Float(f)
-    | String(s) => String(s)
-    | Bool(b) => Bool(b)
+    | Atom(c) => Atom(c)
     | Var(x) => Var(x)
     | Deferral(InAp) => Deferral
     | ListLit(l) => ListExp(List.map(of_core, l))
@@ -333,6 +333,7 @@ module rec Exp: {
     | Undefined => Undefined
     | TyAlias(tp, ty, e) =>
       TyAlias(TPat.of_core(tp), Typ.of_core(ty), of_core(e))
+    | Use(ty, e) => Use(Typ.of_core(ty), of_core(e))
     | BuiltinFun(s) => BuiltinFun(s)
     | Ap(Forward, e1, e2) => ApExp(of_core(e1), TupleExp([of_core(e2)]))
     | BinOp(op, e1, e2) =>
@@ -375,7 +376,8 @@ module rec Exp: {
     | Closure(_) => raise(Failure("Closure not supported"))
     | Parens(e) => of_core(e)
     | Probe(e, _) => of_core(e)
-    | Constructor(s, typ) => Constructor(s, Option.map(Typ.of_core, typ))
+    | Constructor(s, typ) =>
+      Constructor(s, Option.map(Option.map(Typ.of_core), typ))
     | DeferredAp(e, es) =>
       ApExp(of_core(e), TupleExp(List.map(of_core, es)))
     | Fun(p, e, _, name_opt) => Fun(Pat.of_core(p), of_core(e), name_opt)
@@ -416,9 +418,11 @@ and Typ: {
     switch (typ) {
     | InvalidTyp(s) => unknown(Hole(Invalid(s)))
     | IntType => int()
+    | SIntType => sint()
     | FloatType => float()
     | BoolType => bool()
     | StringType => string()
+    | NatType => nat()
     | UnknownType(p) =>
       switch (p) {
       | Internal => unknown(Internal)
@@ -453,6 +457,7 @@ and Typ: {
         annotation: true,
         term: of_menhir_ast(t).term,
       }
+    | ApTyp(t1, t2) => ap(of_menhir_ast(t1), of_menhir_ast(t2))
     };
   };
 
@@ -466,10 +471,12 @@ and Typ: {
   };
   let rec of_core = (typ: IndicatedG.typ): AST.typ => {
     switch (typ.term) {
-    | Int => IntType
-    | Float => FloatType
-    | String => StringType
-    | Bool => BoolType
+    | Atom(Int) => IntType
+    | Atom(SInt) => SIntType
+    | Atom(Float) => FloatType
+    | Atom(String) => StringType
+    | Atom(Bool) => BoolType
+    | Atom(Nat) => NatType
     | Var(x) => TypVar(x)
     | Prod(ts) => TupleType(List.map(of_core, ts))
     | List(t) => ArrayType(of_core(t))
@@ -480,7 +487,7 @@ and Typ: {
     | Parens(t) => of_core(t)
     | Label(s) => LabelType(s)
     | TupLabel(t1, t2) => TupLabelType(of_core(t1), of_core(t2))
-    | Ap(_) => raise(Failure("Ap not supported"))
+    | Ap(t1, t2) => ApTyp(of_core(t1), of_core(t2))
     | Sum(constructors) =>
       let sumterms =
         List.map(
@@ -527,8 +534,7 @@ and Pat: {
   let rec of_menhir_ast = (pat: AST.pat): IndicatedG.pat => {
     switch (pat) {
     | InvalidPat(s) => invalid(s)
-    | IntPat(i) => int(i)
-    | FloatPat(f) => float(f)
+    | AtomPat(c) => basic(c)
     | CastPat(p, t1, t2) =>
       parens(
         cast(
@@ -539,13 +545,11 @@ and Pat: {
       )
     | VarPat(x) => var(x)
     | ConstructorPat(x, ty) =>
-      constructor(x, Option.map(Typ.of_menhir_ast, ty))
-    | StringPat(s) => string(s)
+      constructor(x, Option.map(Option.map(Typ.of_menhir_ast), ty))
     | TuplePat(pats) => parens(tuple(List.map(of_menhir_ast, pats)))
     | ApPat(pat1, pat2) => ap(of_menhir_ast(pat1), of_menhir_ast(pat2))
     | ConsPat(p1, p2) =>
       parens(cons(of_menhir_ast(p1), of_menhir_ast(p2)))
-    | BoolPat(b) => bool(b)
     | EmptyHolePat => empty_hole()
     | WildPat => wild()
     | LabelPat(s) => label(s)
@@ -561,13 +565,11 @@ and Pat: {
   let rec of_core = (pat: IndicatedG.pat): AST.pat => {
     switch (pat.term) {
     | Invalid(_) => InvalidPat("Invalid")
-    | Int(i) => IntPat(i)
-    | Float(f) => FloatPat(f)
+    | Atom(c) => AtomPat(c)
     | Var(x) => VarPat(x)
-    | Constructor(x, ty) => ConstructorPat(x, Option.map(Typ.of_core, ty))
-    | String(s) => StringPat(s)
+    | Constructor(x, ty) =>
+      ConstructorPat(x, Option.map(Option.map(Typ.of_core), ty))
     | Tuple(l) => TuplePat(List.map(of_core, l))
-    | Bool(b) => BoolPat(b)
     | Cons(p1, p2) => ConsPat(of_core(p1), of_core(p2))
     | ListLit(l) => ListPat(List.map(of_core, l))
     | Ap(p1, p2) => ApPat(of_core(p1), of_core(p2))

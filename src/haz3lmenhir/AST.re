@@ -84,9 +84,11 @@ type tpat =
 [@deriving (show({with_path: false}), sexp, eq)]
 type typ =
   | IntType
+  | SIntType
   | StringType
   | FloatType
   | BoolType
+  | NatType
   | SumTyp(sumtype)
   | UnknownType(typ_provenance)
   | TupleType(list(typ))
@@ -99,6 +101,7 @@ type typ =
   | LabelType(string)
   | TupLabelType(typ, typ)
   | IndicationTyp(typ)
+  | ApTyp(typ, typ)
 and sumterm =
   | Variant(string, option(typ))
   | BadEntry(typ)
@@ -109,15 +112,10 @@ type pat =
   | CastPat(pat, typ, typ)
   | EmptyHolePat
   | WildPat
-  | IntPat(int)
-  | FloatPat(
-      [@equal (a, b) => Printf.(sprintf("%f", a) == sprintf("%f", b))] float,
-    )
+  | AtomPat(Haz3lcore.Atom.t)
   | VarPat(string)
-  | ConstructorPat(string, option(typ))
-  | StringPat(string)
+  | ConstructorPat(string, option(option(typ)))
   | TuplePat(list(pat))
-  | BoolPat(bool)
   | ConsPat(pat, pat)
   | ListPat(list(pat))
   | ApPat(pat, pat)
@@ -138,15 +136,9 @@ type deferral_pos =
 
 [@deriving (show({with_path: false}), sexp, eq)]
 type exp =
-  | Int(int)
-  | Float
-      // This equality condition is used to say that two floats are equal if they are equal in the ExpToSegment serialization
-      (
-        [@equal (a, b) => Printf.(sprintf("%f", a) == sprintf("%f", b))] float,
-      )
+  | Atom(Haz3lcore.Atom.t)
   | Var(string)
-  | Constructor(string, option(typ))
-  | String(string)
+  | Constructor(string, option(option(typ)))
   | ListExp(list(exp))
   | TupleExp(list(exp))
   | BinExp(exp, bin_op, exp)
@@ -159,7 +151,6 @@ type exp =
   | Dot(exp, exp)
   | ApExp(exp, exp)
   | FixF(pat, exp)
-  | Bool(bool)
   | Cast(exp, typ, typ)
   | FailedCast(exp, typ, typ)
   | EmptyHole
@@ -177,6 +168,7 @@ type exp =
   | TypAp(exp, typ)
   | DynamicErrorHole(exp, string)
   | TyAlias(tpat, typ, exp)
+  | Use(typ, exp)
   | IndicationExp(exp);
 
 /**
@@ -186,18 +178,23 @@ type exp =
  *
  * ['A'-'Z'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
  */
-let gen_constructor_ident: QCheck.Gen.t(string) =
-  // TODO handle full constructor ident including nums
-  QCheck.Gen.(
-    let* leading = char_range('A', 'Z');
-    let+ tail = string_size(~gen=char_range('a', 'z'), int_range(1, 4));
-    let ident = String.make(1, leading) ++ tail;
-    if (List.exists(a => a == ident, Haz3lcore.Form.base_typs)) {
-      "Keyword";
-    } else {
-      ident;
-    }
-  );
+// TODO handle full constructor ident including nums and '
+let gen_constructor_ident: (~minimal_idents: bool) => QCheck.Gen.t(string) =
+  (~minimal_idents) =>
+    QCheck.Gen.(
+      if (minimal_idents) {
+        oneof([pure("A"), pure("B")]);
+      } else {
+        let* leading = char_range('A', 'Z');
+        let+ tail = string_size(~gen=char_range('a', 'z'), int_range(1, 4));
+        let ident = String.make(1, leading) ++ tail;
+        if (List.exists(a => a == ident, Haz3lcore.Form.base_typs)) {
+          "Keyword";
+        } else {
+          ident;
+        };
+      }
+    );
 
 /**
  * Generates a random IDENT string. Used for IDENT in the lexer.
@@ -206,11 +203,18 @@ let gen_constructor_ident: QCheck.Gen.t(string) =
  *
  * ['a'-'z' '_'] ['a'-'z' 'A'-'Z' '0'-'9' '_']*
  */
-let gen_ident: QCheck.Gen.t(string) =
-  // Currently there is an issue if the keyword is a prefix of another word.
-  // `let ? = ina in ?`
-  // Temporarily doing single char identifiers as a fix
-  QCheck.Gen.(string_size(~gen=char_range('a', 'z'), int_range(1, 1)));
+let gen_ident: (~minimal_idents: bool) => QCheck.Gen.t(string) =
+  (~minimal_idents) =>
+    // Currently there is an issue if the keyword is a prefix of another word.
+    // `let ? = ina in ?`
+    // Temporarily doing single char identifiers as a fix
+    QCheck.Gen.(
+      if (minimal_idents) {
+        oneof([pure("x"), pure("y")]);
+      } else {
+        string_size(~gen=char_range('a', 'z'), int_range(1, 1));
+      }
+    );
 
 /**
  * Generates an array of natural numbers of a given size.
@@ -274,13 +278,15 @@ let gen_non_empty_array = (n: int): QCheck.Gen.t(array(int)) =>
  *
  * @return A generator for `tpat` values.
  */
-let gen_tpat: QCheck.Gen.t(tpat) =
-  QCheck.Gen.(
-    let gen_var = map(x => VarTPat(x), gen_ident);
-    let gen_empty = pure(EmptyHoleTPat);
-    // let gen_invalid = map(x => InvalidTPat(x), gen_ident); // Menhir parser doesn't actually support invalid tpat
-    oneof([gen_var, gen_empty])
-  );
+let gen_tpat: (~minimal_idents: bool) => QCheck.Gen.t(tpat) =
+  (~minimal_idents) =>
+    QCheck.Gen.(
+      let gen_ident = gen_ident(~minimal_idents);
+      let gen_var = map(x => VarTPat(x), gen_ident);
+      let gen_empty = pure(EmptyHoleTPat);
+      // let gen_invalid = map(x => InvalidTPat(x), gen_ident); // Menhir parser doesn't actually support invalid tpat
+      oneof([gen_var, gen_empty])
+    );
 
 /**
  * Generates a string literal for use in the program.
@@ -290,7 +296,7 @@ let gen_string_literal: QCheck.Gen.t(string) =
   // TODO This should be anything printable other than `"`
   QCheck.Gen.(string_small_of(char_range('a', 'z')));
 
-let gen_label: QCheck.Gen.t(string) = gen_ident;
+let gen_label: QCheck.Gen.t(string) = gen_ident(~minimal_idents=false);
 
 /**
  * Generates an expression of a given size.
@@ -301,155 +307,154 @@ let gen_label: QCheck.Gen.t(string) = gen_ident;
  * This function is currently used for property tests between MakeTerm and the Menhir parser,
  * so it's not currently set up to generate every possible expression.
  */
-let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
-  QCheck.Gen.(
-    let leaf =
-      oneof([
-        map(x => Int(x), small_int),
-        map(x => String(x), gen_string_literal),
-        map(x => Float(x), QCheck.pos_float.gen), // Floats are positive because we use UnOp minus
-        map(x => Var(x), gen_ident),
-        map(x => Bool(x), bool),
-        pure(EmptyHole),
-        pure(TupleExp([])),
-        pure(ListExp([])),
-      ]);
-    fix(
-      (self: int => t(exp), n) => {
-        switch (n) {
-        | n when n <= 1 => leaf
-        | _ =>
-          oneof([
-            leaf,
-            {
-              let* sizes = gen_sized_array(n);
-              let+ exps =
-                flatten_a(Array.map((size: int) => self(size), sizes));
-              ListExp(Array.to_list(exps));
-            },
-            {
-              let* sizes = gen_non_singleton_array(n);
-              let+ exps =
-                flatten_a(
-                  Array.map(
-                    (size: int) =>
-                      oneof([
-                        {
-                          let* l = gen_label;
-                          let+ e = self(n - 1);
-                          TupLabel(Label(l), e);
-                        },
-                        self(size),
-                      ]),
-                    sizes,
-                  ),
-                );
-              TupleExp(Array.to_list(exps));
-            },
-            {
-              let+ inner = self(n - 1);
-              Test(inner);
-            },
-            {
-              let+ name = gen_constructor_ident;
-              Constructor(name, None);
-            },
-            {
-              let* op = gen_bin_op;
-              let* e1 = self((n - 1) / 2);
-              let+ e2 = self((n - 1) / 2);
-              BinExp(e1, op, e2);
-            },
-            {
-              let* op = gen_op_un;
-              let+ e = self((n - 1) / 2);
-              UnOp(op, e);
-            },
-            {
-              let* e1 = self((n - 1) / 3);
-              let* e2 = self((n - 1) / 3);
-              let+ e3 = self((n - 1) / 3);
-              If(e1, e2, e3);
-            },
-            {
-              let* p = gen_pat_sized((n - 1) / 3);
-              let* e1 = self((n - 1) / 3);
-              let+ e2 = self((n - 1) / 3);
-              Let(p, e1, e2);
-            },
-            {
-              let* p = gen_pat_sized((n - 1) / 2);
-              let+ e = self((n - 1) / 2);
-              Fun(p, e, None);
-            },
-            {
-              let case = n => {
-                let p = gen_pat_sized(n / 2);
-                let e = self(n / 2);
-                tup2(p, e);
-              };
-              let* e = self(n - 1 / 2);
-              let* sizes = gen_sized_array(n - 1 / 2);
-              let+ cases = flatten_a(Array.map(case, sizes));
-              CaseExp(e, Array.to_list(cases));
-            },
-            {
-              let* e1 = self((n - 1) / 2);
-              let+ e2 =
-                frequency([
-                  (5, self((n - 1) / 2)),
-                  (1, return(Deferral)),
-                ]);
-              ApExp(e1, e2);
-            },
-            {
-              let* p = gen_pat_sized((n - 1) / 2);
-              let+ e = self((n - 1) / 2);
-              FixF(p, e);
-            },
-            {
-              let* fa = gen_filter_action;
-              let* e1 = self(n - 1);
-              let+ e2 = self(n - 1);
-              Filter(fa, e1, e2);
-            },
-            {
-              let* e1 = self((n - 1) / 2);
-              let+ e2 = self((n - 1) / 2);
-              Seq(e1, e2);
-            },
-            {
-              let* e1 = self((n - 1) / 2);
-              let+ e2 = self((n - 1) / 2);
-              Cons(e1, e2);
-            },
-            {
-              let* e1 = self((n - 1) / 2);
-              let+ e2 = self((n - 1) / 2);
-              ListConcat(e1, e2);
-            },
-            {
-              let* tp = gen_tpat;
-              let+ e = self(n - 1);
-              TypFun(tp, e);
-            },
-            {
-              let* t = gen_typ_sized((n - 1) / 2);
-              let+ e = self((n - 1) / 2);
-              TypAp(e, t);
-            },
-            {
-              let* tp = gen_tpat;
-              let* t = gen_typ_sized((n - 1) / 2);
-              let+ e = self((n - 1) / 2);
-              TyAlias(tp, t, e);
-            },
-          ])
-        }
-      },
-      n,
-    )
-  )
+let rec gen_exp_sized = (~minimal_idents: bool, n: int): QCheck.Gen.t(exp) => {
+  open QCheck.Gen;
+  let gen_constructor_ident = gen_constructor_ident(~minimal_idents);
+  let gen_ident = gen_ident(~minimal_idents);
+
+  let gen_pat_sized = n => gen_pat_sized(~minimal_idents, n);
+  let gen_typ_sized = n => gen_typ_sized(~minimal_idents, n);
+  let gen_tpat = gen_tpat(~minimal_idents);
+  let leaf =
+    oneof([
+      map(x => Atom(Int(x |> Bigint.of_int)), small_int),
+      map(x => Atom(String(x)), gen_string_literal),
+      map(x => Atom(Float(x)), QCheck.pos_float.gen), // Floats are positive because we use UnOp minus
+      map(x => Var(x), gen_ident),
+      map(x => Atom(Bool(x)), bool),
+      pure(EmptyHole),
+      pure(TupleExp([])),
+      pure(ListExp([])),
+      map(x => Constructor(x, None), gen_constructor_ident),
+    ]);
+  fix(
+    (self: int => t(exp), n) => {
+      switch (n) {
+      | n when n <= 1 => leaf
+      | _ =>
+        oneof([
+          leaf,
+          {
+            let* sizes = gen_sized_array(n);
+            let+ exps = flatten_a(Array.map((n: int) => self(n), sizes));
+            ListExp(Array.to_list(exps));
+          },
+          {
+            let* sizes = gen_non_singleton_array(n);
+            let+ exps =
+              flatten_a(
+                Array.map(
+                  (n: int) =>
+                    oneof([
+                      {
+                        let* l = gen_label;
+                        let+ e = self(n - 1);
+                        TupLabel(Label(l), e);
+                      },
+                      self(n),
+                    ]),
+                  sizes,
+                ),
+              );
+            TupleExp(Array.to_list(exps));
+          },
+          {
+            let+ inner = self(n - 1);
+            Test(inner);
+          },
+          {
+            let* op = gen_bin_op;
+            let* e1 = self((n - 1) / 2);
+            let+ e2 = self((n - 1) / 2);
+            BinExp(e1, op, e2);
+          },
+          {
+            let* op = gen_op_un;
+            let+ e = self(n - 1);
+            UnOp(op, e);
+          },
+          {
+            let* e1 = self((n - 1) / 3);
+            let* e2 = self((n - 1) / 3);
+            let+ e3 = self((n - 1) / 3);
+            If(e1, e2, e3);
+          },
+          {
+            let* p = gen_pat_sized((n - 1) / 3);
+            let* e1 = self((n - 1) / 3);
+            let+ e2 = self((n - 1) / 3);
+            Let(p, e1, e2);
+          },
+          {
+            let* p = gen_pat_sized((n - 1) / 2);
+            let+ e = self((n - 1) / 2);
+            Fun(p, e, None);
+          },
+          {
+            let case = n => {
+              let p = gen_pat_sized((n - 1) / 2);
+              let e = self((n - 1) / 2);
+              tup2(p, e);
+            };
+            let* e = self((n - 1) / 2);
+            let* sizes = gen_sized_array((n - 1) / 2);
+            let+ cases = flatten_a(Array.map(case, sizes));
+            CaseExp(e, Array.to_list(cases));
+          },
+          {
+            let* e1 = self((n - 1) / 2);
+            let+ e2 =
+              frequency([(5, self((n - 1) / 2)), (1, return(Deferral))]);
+            ApExp(e1, e2);
+          },
+          {
+            let* p = gen_pat_sized((n - 1) / 2);
+            let+ e = self((n - 1) / 2);
+            FixF(p, e);
+          },
+          {
+            let* fa = gen_filter_action;
+            let* e1 = self((n - 1) / 2);
+            let+ e2 = self((n - 1) / 2);
+            Filter(fa, e1, e2);
+          },
+          {
+            let* e1 = self((n - 1) / 2);
+            let+ e2 = self((n - 1) / 2);
+            Seq(e1, e2);
+          },
+          {
+            let* e1 = self((n - 1) / 2);
+            let+ e2 = self((n - 1) / 2);
+            Cons(e1, e2);
+          },
+          {
+            let* e1 = self((n - 1) / 2);
+            let+ e2 = self((n - 1) / 2);
+            ListConcat(e1, e2);
+          },
+          {
+            let* tp = gen_tpat;
+            let+ e = self(n - 1);
+            TypFun(tp, e);
+          },
+          {
+            let* t = gen_typ_sized((n - 1) / 2);
+            let+ e = self((n - 1) / 2);
+            TypAp(e, t);
+          },
+          {
+            let* tp = gen_tpat;
+            let* t = gen_typ_sized((n - 1) / 2);
+            let+ e = self((n - 1) / 2);
+            TyAlias(tp, t, e);
+          },
+        ])
+      }
+    },
+    n,
+  );
+}
 /**
  * Generates a type of a given size.
  *
@@ -459,9 +464,12 @@ let rec gen_exp_sized = (n: int): QCheck.Gen.t(exp) =>
  * This function is currently used for property tests between MakeTerm and the Menhir parser,
  * so it's not currently set up to generate every possible type.
  */
-and gen_typ_sized: int => QCheck.Gen.t(typ) =
-  n =>
+and gen_typ_sized: (~minimal_idents: bool, int) => QCheck.Gen.t(typ) =
+  (~minimal_idents, n) =>
     QCheck.Gen.(
+      let gen_ident = gen_ident(~minimal_idents);
+      let gen_constructor_ident = gen_constructor_ident(~minimal_idents);
+      let gen_tpat = gen_tpat(~minimal_idents);
       let leaf_nodes =
         oneof([
           return(StringType),
@@ -479,7 +487,7 @@ and gen_typ_sized: int => QCheck.Gen.t(typ) =
             oneof([
               leaf_nodes,
               {
-                let* sizes = gen_non_singleton_array(n);
+                let* sizes = gen_non_singleton_array(n - 1);
                 let+ typs =
                   flatten_a(
                     Array.map(
@@ -488,7 +496,7 @@ and gen_typ_sized: int => QCheck.Gen.t(typ) =
                           self(size),
                           {
                             let* l = gen_label;
-                            let+ t = self(size - 1);
+                            let+ t = self(size);
                             TupLabelType(LabelType(l), t);
                           },
                         ]),
@@ -521,17 +529,22 @@ and gen_typ_sized: int => QCheck.Gen.t(typ) =
                 RecType(gen_tpat, t);
               },
               {
+                let* t1 = self((n - 1) / 2);
+                let+ t2 = self((n - 1) / 2);
+                ApTyp(t1, t2);
+              },
+              {
                 let* sizes = gen_non_empty_array(n - 1);
                 let+ sumterms =
                   flatten_a(
                     Array.map(
-                      (size: int) => {
+                      (n: int) => {
                         frequency([
                           (1, return(BadEntry(UnknownType(EmptyHole)))),
                           (
                             5,
                             {
-                              let* optional_typ = option(self(size));
+                              let* optional_typ = option(self(n - 1));
                               let+ constructor = gen_constructor_ident;
                               Variant(constructor, optional_typ);
                             },
@@ -559,20 +572,23 @@ and gen_typ_sized: int => QCheck.Gen.t(typ) =
  * This function is currently used for property tests between MakeTerm and the Menhir parser,
  * so it's not currently set up to generate every possible pattern.
  */
-and gen_pat_sized: int => QCheck.Gen.t(pat) =
-  n =>
+and gen_pat_sized: (~minimal_idents: bool, int) => QCheck.Gen.t(pat) =
+  (~minimal_idents, n) =>
     QCheck.Gen.(
+      let gen_ident = gen_ident(~minimal_idents);
+      let gen_constructor_ident = gen_constructor_ident(~minimal_idents);
+      let gen_typ_sized = n => gen_typ_sized(~minimal_idents, n);
       fix(
         (self, n) => {
           let leaf_nodes =
             oneof([
               return(WildPat),
               return(EmptyHolePat),
-              map(x => IntPat(x), small_int),
-              map(x => FloatPat(x), QCheck.pos_float.gen),
+              map(x => AtomPat(Int(x |> Bigint.of_int)), small_int),
+              map(x => AtomPat(Float(x)), QCheck.pos_float.gen),
               map(x => VarPat(x), gen_ident),
-              map(x => StringPat(x), gen_string_literal),
-              map(x => BoolPat(x), bool),
+              map(x => AtomPat(String(x)), gen_string_literal),
+              map(x => AtomPat(Bool(x)), bool),
               map(x => ConstructorPat(x, None), gen_constructor_ident),
               return(TuplePat([])),
               return(ListPat([])),
@@ -593,9 +609,9 @@ and gen_pat_sized: int => QCheck.Gen.t(pat) =
                 let+ pats =
                   flatten_a(
                     Array.map(
-                      (size: int) =>
+                      (n: int) =>
                         oneof([
-                          self(size),
+                          self(n),
                           {
                             let* l = gen_label;
                             let+ p = self(n - 1);
@@ -629,4 +645,520 @@ and gen_pat_sized: int => QCheck.Gen.t(pat) =
         n,
       )
     );
-// TODO Printers, shrinkers stuff
+
+let shrink_non_empty_string: QCheck.Shrink.t(string) =
+  x => QCheck.Shrink.(filter(x => String.length(x) != 0, string, x));
+
+let rec shrink_exp: QCheck.Shrink.t(exp) =
+  QCheck.(
+    (exp: exp) =>
+      Iter.(
+        switch (exp) {
+        | Atom(a) =>
+          switch (a) {
+          | Int(i) =>
+            switch (Bigint.to_int(i)) {
+            | Some(i) =>
+              Shrink.int(i) >|= ((i: int) => Atom(Int(Bigint.of_int(i))))
+            | None => Iter.empty
+            }
+          | String(s) =>
+            Shrink.string(s) >|= ((s: string) => Atom(String(s)))
+          | Bool(b) => Shrink.bool(b) >|= ((b: bool) => Atom(Bool(b)))
+          | Nat(n) =>
+            if (Bigint.(<)(n, Bigint.of_int(2))) {
+              Iter.empty;
+            } else {
+              return(Atom(Nat(Bigint.(/)(n, Bigint.of_int(2)))));
+            }
+          | SInt(i) => Shrink.int(i) >|= ((i: int) => Atom(SInt(i)))
+          | _ => Iter.empty
+          }
+        | Var(x) => shrink_non_empty_string(x) >|= ((x: string) => Var(x)) // TODO This isn't great for vars
+        | Constructor(_, _) => Iter.empty // TODO Constructors. Shrinking needs to preserve constructor ident format
+        | ListExp(l) =>
+          let* shrunk = Shrink.list(l, ~shrink=shrink_exp);
+          switch (shrunk) {
+          | [x] => return(ListExp(shrunk)) <+> Iter.return(x)
+          | _ => return(ListExp(shrunk))
+          };
+        | TupleExp(l) =>
+          if (List.length(l) <= 1) {
+            Iter.empty;
+          } else {
+            let* shrunk = Shrink.list(l, ~shrink=shrink_exp);
+            switch (shrunk) {
+            | [] => Iter.return(TupleExp([]))
+            | [x] => Iter.return(x)
+            | _ => return(TupleExp(shrunk))
+            };
+          }
+        | BinExp(e1, op, e2) =>
+          {
+            of_list([e1, e2]);
+          }
+          <+> {
+            shrink_exp(e1) >|= (e1 => BinExp(e1, op, e2));
+          }
+          <+> {
+            shrink_exp(e2) >|= (e2 => BinExp(e1, op, e2));
+          }
+        | UnOp(op, e) =>
+          return(e)
+          <+> {
+            let* shrunk = shrink_exp(e);
+            return(UnOp(op, shrunk));
+          }
+        | Let(p, e1, e2) =>
+          of_list([e1, e2])
+          <+> {
+            let* shrunk = shrink_exp(e1);
+            return(Let(p, shrunk, e2));
+          }
+          <+> {
+            let* shrunk = shrink_exp(e2);
+            return(Let(p, e1, shrunk));
+          }
+          <+> {
+            let* shrunk = shrink_pat(p);
+            return(Let(shrunk, e1, e2));
+          }
+        | Fun(p, e, name) =>
+          return(e)
+          <+> {
+            let* shrunk = shrink_exp(e);
+            return(Fun(p, shrunk, name): exp);
+          }
+          <+> {
+            let* shrunk = shrink_pat(p);
+            return(Fun(shrunk, e, name): exp);
+          }
+        | CaseExp(e, cases) =>
+          {
+            return(e);
+          }
+          <+> {
+            let* shrunk = shrink_exp(e);
+            return(CaseExp(shrunk, cases));
+          }
+          <+> {
+            let shrink_case: QCheck.Shrink.t((pat, exp)) =
+              QCheck.(
+                (
+                  ((pat, exp)) =>
+                    Iter.(
+                      {
+                        let* pat = shrink_pat(pat);
+                        return((pat, exp));
+                      }
+                      <+> {
+                        let* exp = shrink_exp(exp);
+                        return((pat, exp));
+                      }
+                    )
+                )
+              );
+            let* shrunk = Shrink.list(cases, ~shrink=shrink_case);
+            return(CaseExp(e, shrunk));
+          }
+        | Label(l) =>
+          shrink_non_empty_string(l) >|= ((l: string) => Label(l))
+        | TupLabel(e1, e2) =>
+          {
+            return(
+              e2 // e1 is a label
+            );
+          }
+          <+> {
+            let* shrunk = shrink_exp(e1);
+            return(TupLabel(shrunk, e2));
+          }
+          <+> {
+            let* shrunk = shrink_exp(e2);
+            return(TupLabel(e1, shrunk));
+          }
+        | Dot(e1, e2) =>
+          {
+            return(
+              e1 // e2 is a label
+            );
+          }
+          <+> {
+            let* shrunk = shrink_exp(e1);
+            return(Dot(shrunk, e2));
+          }
+          <+> {
+            let* shrunk = shrink_exp(e2);
+            return(Dot(e1, shrunk));
+          }
+        | ApExp(e1, e2) =>
+          {
+            of_list([e1, e2]);
+          }
+          <+> {
+            let* shrunk = shrink_exp(e1);
+            return(ApExp(shrunk, e2));
+          }
+          <+> {
+            let* shrunk = shrink_exp(e2);
+            return(ApExp(e1, shrunk));
+          }
+        | TypAp(e, t) =>
+          {
+            return(e);
+          }
+          <+> {
+            let* shrunk = shrink_exp(e);
+            return(TypAp(shrunk, t));
+          }
+          <+> {
+            let* shrunk = shrink_typ(t);
+            return(TypAp(e, shrunk));
+          }
+        | FixF(p, e) =>
+          return(e)
+          <+> {
+            let* shrunk = shrink_exp(e);
+            return(FixF(p, shrunk));
+          }
+          <+> {
+            let* shrunk = shrink_pat(p);
+            return(FixF(shrunk, e));
+          }
+        | Cast(e, t1, t2) =>
+          return(e)
+          <+> {
+            let* shrunk = shrink_exp(e);
+            return(Cast(shrunk, t1, t2));
+          }
+          <+> {
+            let* shrunk = shrink_typ(t1);
+            return(Cast(e, shrunk, t2));
+          }
+          <+> {
+            let* shrunk = shrink_typ(t2);
+            return(Cast(e, t1, shrunk));
+          }
+        | FailedCast(e, t1, t2) =>
+          return(e)
+          <+> {
+            let* shrunk = shrink_exp(e);
+            return(FailedCast(shrunk, t1, t2));
+          }
+          <+> {
+            let* shrunk = shrink_typ(t1);
+            return(FailedCast(e, shrunk, t2));
+          }
+          <+> {
+            let* shrunk = shrink_typ(t2);
+            return(FailedCast(e, t1, shrunk));
+          }
+        | Filter(fa, e1, e2) =>
+          {
+            of_list([e1, e2]);
+          }
+          <+> {
+            let* shrunk = shrink_exp(e1);
+            return(Filter(fa, shrunk, e2));
+          }
+          <+> {
+            let* shrunk = shrink_exp(e2);
+            return(Filter(fa, e1, shrunk));
+          }
+        | Seq(e1, e2) =>
+          {
+            of_list([e1, e2]);
+          }
+          <+> {
+            let* shrunk = shrink_exp(e1);
+            return(Seq(shrunk, e2));
+          }
+          <+> {
+            let* shrunk = shrink_exp(e2);
+            return(Seq(e1, shrunk));
+          }
+        | Test(e) =>
+          return(e)
+          <+> {
+            let* shrunk = shrink_exp(e);
+            return(Test(shrunk));
+          }
+        | Deferral => Iter.empty
+        | TypFun(tpat, e) =>
+          return(e)
+          <+> {
+            let* shrunk = shrink_exp(e);
+            return(TypFun(tpat, shrunk)); // Not worth shrinking tpat
+          }
+        | Cons(e1, e2) =>
+          {
+            of_list([e1, e2]);
+          }
+          <+> {
+            let* shrunk = shrink_exp(e1);
+            return(Cons(shrunk, e2));
+          }
+          <+> {
+            let* shrunk = shrink_exp(e2);
+            return(Cons(e1, shrunk));
+          }
+        | ListConcat(e1, e2) =>
+          {
+            of_list([e1, e2]);
+          }
+          <+> {
+            let* shrunk = shrink_exp(e1);
+            return(ListConcat(shrunk, e2));
+          }
+          <+> {
+            let* shrunk = shrink_exp(e2);
+            return(ListConcat(e1, shrunk));
+          }
+        | DynamicErrorHole(e, s) =>
+          return(e)
+          <+> {
+            let* shrunk = shrink_exp(e);
+            return(DynamicErrorHole(shrunk, s));
+          }
+        | TyAlias(tpat, t, e) =>
+          return(e)
+          <+> {
+            let* shrunk = shrink_exp(e);
+            return(TyAlias(tpat, t, shrunk));
+          }
+          <+> {
+            let* shrunk = shrink_typ(t);
+            return(TyAlias(tpat, shrunk, e));
+          }
+        | Use(t, e) =>
+          return(e)
+          <+> {
+            let* shrunk = shrink_exp(e);
+            return(Use(t, shrunk));
+          }
+          <+> {
+            let* shrunk = shrink_typ(t);
+            return(Use(shrunk, e));
+          }
+        | If(e1, e2, e3) =>
+          {
+            of_list([e1, e2, e3]);
+          }
+          <+> {
+            let* shrunk = shrink_exp(e1);
+            return(If(shrunk, e2, e3));
+          }
+          <+> {
+            let* shrunk = shrink_exp(e2);
+            return(If(e1, shrunk, e3));
+          }
+          <+> {
+            let* shrunk = shrink_exp(e3);
+            return(If(e1, e2, shrunk));
+          }
+        | IndicationExp(_)
+        | EmptyHole
+        | BuiltinFun(_)
+        | Undefined
+        | InvalidExp(_) => Iter.empty
+        }
+      )
+  )
+and shrink_pat: QCheck.Shrink.t(pat) =
+  QCheck.(
+    (pat: pat) =>
+      Iter.(
+        switch (pat) {
+        | AtomPat(a) =>
+          switch (a) {
+          | Int(i) =>
+            switch (Bigint.to_int(i)) {
+            | Some(i) =>
+              Shrink.int(i)
+              >|= ((i: int) => AtomPat(Int(Bigint.of_int(i))))
+            | None => Iter.empty
+            }
+          | String(s) =>
+            Shrink.string(s) >|= ((s: string) => AtomPat(String(s)))
+          | Bool(b) => Shrink.bool(b) >|= ((b: bool) => AtomPat(Bool(b)))
+          | Nat(n) =>
+            if (Bigint.(<)(n, Bigint.of_int(2))) {
+              Iter.empty;
+            } else {
+              return(AtomPat(Nat(Bigint.(/)(n, Bigint.of_int(2)))));
+            }
+          | SInt(i) => Shrink.int(i) >|= ((i: int) => AtomPat(SInt(i)))
+          | _ => Iter.empty
+          }
+        | VarPat(x) =>
+          shrink_non_empty_string(x) >|= ((x: string) => VarPat(x))
+        | ConstructorPat(_) => Iter.empty // Needs to preserve constructor ident
+        | ListPat(l) =>
+          let* shrunk = Shrink.list(l, ~shrink=shrink_pat);
+          switch (shrunk) {
+          | [x] => return(ListPat(shrunk)) <+> Iter.return(x)
+          | _ => return(ListPat(shrunk))
+          };
+        | CastPat(p, t1, t2) =>
+          return(p)
+          <+> {
+            let* shrunk = shrink_pat(p);
+            return(CastPat(shrunk, t1, t2));
+          }
+          <+> {
+            let* shrunk = shrink_typ(t1);
+            return(CastPat(p, shrunk, t2));
+          }
+          <+> {
+            let* shrunk = shrink_typ(t2);
+            return(CastPat(p, t1, shrunk));
+          }
+        | ApPat(p1, p2) =>
+          {
+            of_list([p1, p2]);
+          }
+          <+> {
+            let* shrunk = shrink_pat(p1);
+            return(ApPat(shrunk, p2));
+          }
+          <+> {
+            let* shrunk = shrink_pat(p2);
+            return(ApPat(p1, shrunk));
+          }
+        | TuplePat(l) =>
+          let* shrunk = Shrink.list(l, ~shrink=shrink_pat);
+          switch (shrunk) {
+          | [] => Iter.return(TuplePat([]))
+          | [x] => Iter.return(x)
+          | _ => return(TuplePat(shrunk))
+          };
+        | ConsPat(p1, p2) =>
+          {
+            of_list([p1, p2]);
+          }
+          <+> {
+            let* shrunk = shrink_pat(p1);
+            return(ConsPat(shrunk, p2));
+          }
+          <+> {
+            let* shrunk = shrink_pat(p2);
+            return(ConsPat(p1, shrunk));
+          }
+        | TupLabelPat(p1, p2) =>
+          {
+            return(
+              p2 // p1 is a label
+            );
+          }
+          <+> {
+            let* shrunk = shrink_pat(p1);
+            return(TupLabelPat(shrunk, p2));
+          }
+          <+> {
+            let* shrunk = shrink_pat(p2);
+            return(TupLabelPat(p1, shrunk));
+          }
+        | LabelPat(l) =>
+          shrink_non_empty_string(l) >|= ((l: string) => LabelPat(l))
+        | InvalidPat(_)
+        | IndicationPat(_)
+        | WildPat
+        | EmptyHolePat => Iter.empty
+        }
+      )
+  )
+and shrink_typ: QCheck.Shrink.t(typ) =
+  QCheck.(
+    (typ: typ) =>
+      Iter.(
+        switch (typ) {
+        | SumTyp(l) =>
+          let shrink_sumterm: QCheck.Shrink.t(sumterm) =
+            QCheck.(
+              (
+                (sumterm: sumterm) =>
+                  Iter.(
+                    switch (sumterm) {
+                    | Variant(_) => Iter.empty
+                    | BadEntry(t) =>
+                      let* shrunk = shrink_typ(t);
+                      return(BadEntry(shrunk));
+                    }
+                  )
+              )
+            );
+          let* shrunk = Shrink.list(l, ~shrink=shrink_sumterm);
+          switch (shrunk) {
+          | [] => Iter.empty
+          | _ => return(SumTyp(shrunk))
+          };
+        | TupleType(l) =>
+          let* shrunk = Shrink.list(l, ~shrink=shrink_typ);
+          switch (shrunk) {
+          | [x] => Iter.return(x)
+          | _ => return(TupleType(shrunk))
+          };
+        | ArrayType(t) =>
+          return(t)
+          <+> {
+            let* shrunk = shrink_typ(t);
+            return(ArrayType(shrunk));
+          }
+        | ArrowType(t1, t2) =>
+          of_list([t1, t2])
+          <+> {
+            let* shrunk1 = shrink_typ(t1);
+            return(ArrowType(shrunk1, t2));
+          }
+          <+> {
+            let* shrunk2 = shrink_typ(t2);
+            return(ArrowType(t1, shrunk2));
+          }
+        | TypVar(x) => Shrink.string(x) >|= ((x: string) => TypVar(x))
+        | ForallType(tpat, t) =>
+          let* shrunk = shrink_typ(t);
+          return(ForallType(tpat, shrunk));
+        | RecType(tpat, t) =>
+          let* shrunk = shrink_typ(t);
+          return(RecType(tpat, shrunk));
+        | LabelType(x) =>
+          shrink_non_empty_string(x) >|= ((x: string) => LabelType(x))
+        | TupLabelType(t1, t2) =>
+          return(t2)
+          <+> {
+            let* shrunk1 = shrink_typ(t1);
+            return(TupLabelType(shrunk1, t2));
+          }
+          <+> {
+            let* shrunk2 = shrink_typ(t2);
+            return(TupLabelType(t1, shrunk2));
+          }
+        | ApTyp(t1, t2) =>
+          of_list([t1, t2])
+          <+> {
+            let* shrunk1 = shrink_typ(t1);
+            return(ApTyp(shrunk1, t2));
+          }
+          <+> {
+            let* shrunk2 = shrink_typ(t2);
+            return(ApTyp(t1, shrunk2));
+          }
+        | IndicationTyp(_)
+        | IntType
+        | SIntType
+        | StringType
+        | FloatType
+        | BoolType
+        | NatType
+        | UnknownType(_)
+        | InvalidTyp(_) => Iter.empty
+        }
+      )
+  );
+
+let arb_exp = (~minimal_idents=false, size) =>
+  QCheck.make(
+    ~print=show_exp,
+    ~shrink=shrink_exp,
+    gen_exp_sized(~minimal_idents, size),
+  );

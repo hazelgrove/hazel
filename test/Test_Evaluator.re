@@ -23,9 +23,18 @@ let parse_exp = (s: string) => {
   };
 };
 let elaborate = u =>
-  Elaborator.elaborate(Statics.mk(CoreSettings.on, Builtins.ctx_init, u), u)
+  Elaborator.elaborate(
+    Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), u),
+    u,
+  )
   |> fst;
 
+module PGrammar =
+  Grammar.Factory({
+    type t = list(Grammar.exp_t(unit));
+    let default_value = (): list(Grammar.exp_t(unit)) => [];
+  });
+module UG = Grammar.UnitGrammar;
 let probe_test =
     (msg: string, expected: Grammar.exp_t(list(Grammar.exp_t(unit)))) => {
   let fresh: Exp.t =
@@ -85,284 +94,156 @@ let parse_and_evaluate_test =
     parse_exp(expected),
     elaborate(parse_exp(actual)),
   );
-
-let test_int = () =>
-  evaluation_test("8", Int(8) |> Exp.fresh, Int(8) |> Exp.fresh);
+open IdTagged.FreshGrammar;
+open Exp;
+let test_int = () => evaluation_test("8", int(8), int(8));
 
 let test_sum = () =>
-  evaluation_test(
-    "4 + 5",
-    Int(9) |> Exp.fresh,
-    BinOp(Int(Plus), Int(4) |> Exp.fresh, Int(5) |> Exp.fresh) |> Exp.fresh,
-  );
+  evaluation_test("4 + 5", int(9), bin_op(Int(Plus), int(4), int(5)));
 
 let test_labeled_tuple_projection = () =>
   evaluation_test(
     "(a=1, b=2, c=?).a",
-    Int(1) |> Exp.fresh,
-    Dot(
-      Tuple([
-        TupLabel(Label("a") |> Exp.fresh, Int(1) |> Exp.fresh) |> Exp.fresh,
-        TupLabel(Label("b") |> Exp.fresh, Int(2) |> Exp.fresh) |> Exp.fresh,
-        TupLabel(Label("c") |> Exp.fresh, EmptyHole |> Exp.fresh)
-        |> Exp.fresh,
-      ])
-      |> Exp.fresh,
-      Label("a") |> Exp.fresh // This is a var now for parsing reasons
-    )
-    |> Exp.fresh,
+    int(1),
+    dot(
+      tuple([
+        tup_label(label("a"), int(1)),
+        tup_label(label("b"), int(2)),
+        tup_label(label("c"), empty_hole()),
+      ]),
+      label("a") // This is a var now for parsing reasons
+    ),
   );
 
 let test_function_application = () =>
   evaluation_test(
     "float_of_int(1)",
-    Float(1.0) |> Exp.fresh,
-    Ap(Forward, Var("float_of_int") |> Exp.fresh, Int(1) |> Exp.fresh)
-    |> Exp.fresh,
+    float(1.0),
+    ap(Forward, var("float_of_int"), int(1)),
   );
 
 let test_function_deferral = () =>
   evaluation_test(
     "string_sub(\"hello\", 1, _)(2)",
-    String("el") |> Exp.fresh,
-    Ap(
+    string("el"),
+    ap(
       Forward,
-      DeferredAp(
-        Var("string_sub") |> Exp.fresh,
-        [
-          String("hello") |> Exp.fresh,
-          Int(1) |> Exp.fresh,
-          Deferral(InAp) |> Exp.fresh,
-        ],
-      )
-      |> Exp.fresh,
-      Int(2) |> Exp.fresh,
-    )
-    |> Exp.fresh,
+      deferred_ap(
+        var("string_sub"),
+        [string("hello"), int(1), deferral(InAp)],
+      ),
+      int(2),
+    ),
   );
 
 let test_ap_of_hole_deferral = () =>
   evaluation_test(
     "?(_, _, 3)(1., true)",
-    Ap(
+    ap(
       Forward,
-      Cast(
-        EmptyHole |> Exp.fresh,
-        `Typ(Unknown(Internal)) |> TypSlice.fresh,
-        `Typ(
-          Arrow(
-            Unknown(Internal) |> Typ.fresh,
-            Unknown(Internal) |> Typ.fresh,
+      cast(
+        empty_hole(),
+        Typ.unknown(Internal),
+        Typ.(arrow(unknown(Internal), unknown(Internal))),
+      ),
+      cast(
+        tuple([
+          cast(float(1.), Typ.float(), Typ.unknown(Internal)),
+          cast(bool(true), Typ.bool(), Typ.unknown(Internal)),
+          cast(int(3), Typ.int(), Typ.unknown(Internal)),
+        ]),
+        Typ.(
+          prod([unknown(Internal), unknown(Internal), unknown(Internal)])
+        ),
+        Typ.unknown(Internal),
+      ),
+    ),
+    ap(
+      Forward,
+      deferred_ap(
+        cast(
+          cast(
+            empty_hole(),
+            Typ.unknown(Internal),
+            Typ.(arrow(unknown(Internal), unknown(Internal))),
           ),
-        )
-        |> TypSlice.fresh,
-      )
-      |> Exp.fresh,
-      Cast(
-        Tuple([
-          Cast(
-            Float(1.) |> Exp.fresh,
-            `Typ(Float) |> TypSlice.fresh,
-            `Typ(Unknown(Internal)) |> TypSlice.fresh,
-          )
-          |> Exp.fresh,
-          Cast(
-            Bool(true) |> Exp.fresh,
-            `Typ(Bool) |> TypSlice.fresh,
-            `Typ(Unknown(Internal)) |> TypSlice.fresh,
-          )
-          |> Exp.fresh,
-          Cast(
-            Int(3) |> Exp.fresh,
-            `Typ(Int) |> TypSlice.fresh,
-            `Typ(Unknown(Internal)) |> TypSlice.fresh,
-          )
-          |> Exp.fresh,
-        ])
-        |> Exp.fresh,
-        `Typ(
-          Prod([
-            Unknown(Internal) |> Typ.fresh,
-            Unknown(Internal) |> Typ.fresh,
-            Unknown(Internal) |> Typ.fresh,
-          ]),
-        )
-        |> TypSlice.fresh,
-        `Typ(Unknown(Internal)) |> TypSlice.fresh,
-      )
-      |> Exp.fresh,
-    )
-    |> Exp.fresh,
-    Ap(
-      Forward,
-      DeferredAp(
-        Cast(
-          Cast(
-            EmptyHole |> Exp.fresh,
-            `Typ(Unknown(Internal)) |> TypSlice.fresh,
-            `Typ(
-              Arrow(
-                Unknown(Internal) |> Typ.fresh,
-                Unknown(Internal) |> Typ.fresh,
-              ),
+          Typ.(arrow(unknown(Internal), unknown(Internal))),
+          Typ.(
+            arrow(
+              prod([
+                unknown(Internal),
+                unknown(Internal),
+                unknown(Internal),
+              ]),
+              unknown(Internal),
             )
-            |> TypSlice.fresh,
-          )
-          |> Exp.fresh,
-          `Typ(
-            Arrow(
-              Unknown(Internal) |> Typ.fresh,
-              Unknown(Internal) |> Typ.fresh,
-            ),
-          )
-          |> TypSlice.fresh,
-          `Typ(
-            Arrow(
-              Prod([
-                Unknown(Internal) |> Typ.fresh,
-                Unknown(Internal) |> Typ.fresh,
-                Unknown(Internal) |> Typ.fresh,
-              ])
-              |> Typ.fresh,
-              Unknown(Internal) |> Typ.fresh,
-            ),
-          )
-          |> TypSlice.fresh,
-        )
-        |> Exp.fresh,
+          ),
+        ),
         [
-          Deferral(InAp) |> Exp.fresh,
-          Deferral(InAp) |> Exp.fresh,
-          Cast(
-            Int(3) |> Exp.fresh,
-            `Typ(Int) |> TypSlice.fresh,
-            `Typ(Unknown(Internal)) |> TypSlice.fresh,
-          )
-          |> Exp.fresh,
+          deferral(InAp),
+          deferral(InAp),
+          cast(int(3), Typ.int(), Typ.unknown(Internal)),
         ],
-      )
-      |> Exp.fresh,
-      Tuple([
-        Cast(
-          Float(1.) |> Exp.fresh,
-          `Typ(Float) |> TypSlice.fresh,
-          `Typ(Unknown(Internal)) |> TypSlice.fresh,
-        )
-        |> Exp.fresh,
-        Cast(
-          Bool(true) |> Exp.fresh,
-          `Typ(Bool) |> TypSlice.fresh,
-          `Typ(Unknown(Internal)) |> TypSlice.fresh,
-        )
-        |> Exp.fresh,
-      ])
-      |> Exp.fresh,
-    )
-    |> Exp.fresh,
+      ),
+      tuple([
+        cast(float(1.), Typ.float(), Typ.unknown(Internal)),
+        cast(bool(true), Typ.bool(), Typ.unknown(Internal)),
+      ]),
+    ),
   );
 
 let test_multi_arg_builtin_cast = () =>
   evaluation_test(
     "string_compare((\"Hello\", \"World\"):(?, ?))",
-    Int(-1) |> Exp.fresh,
-    Ap(
+    int(-1),
+    ap(
       Forward,
-      BuiltinFun("string_compare") |> Exp.fresh,
-      Cast(
-        Tuple([
-          Cast(
-            String("Hello") |> Exp.fresh,
-            `Typ(String) |> TypSlice.fresh,
-            `Typ(Unknown(Internal)) |> TypSlice.fresh,
-          )
-          |> Exp.fresh,
-          Cast(
-            String("World") |> Exp.fresh,
-            `Typ(String) |> TypSlice.fresh,
-            `Typ(Unknown(Internal)) |> TypSlice.fresh,
-          )
-          |> Exp.fresh,
-        ])
-        |> Exp.fresh,
-        `Typ(
-          Prod([
-            Unknown(Internal) |> Typ.fresh,
-            Unknown(Internal) |> Typ.fresh,
-          ]),
-        )
-        |> TypSlice.fresh,
-        `Typ(Prod([String |> Typ.fresh, String |> Typ.fresh]))
-        |> TypSlice.fresh,
-      )
-      |> Exp.fresh,
-    )
-    |> Exp.fresh,
+      builtin_fun("string_compare"),
+      cast(
+        tuple([
+          cast(string("Hello"), Typ.string(), Typ.unknown(Internal)),
+          cast(string("World"), Typ.string(), Typ.unknown(Internal)),
+        ]),
+        Typ.(prod([Typ.unknown(Internal), Typ.unknown(Internal)])),
+        Typ.(prod([string(), string()])),
+      ),
+    ),
   );
 
 let test_variable_capture = () =>
   evaluation_test(
     {|let u = 5 in let f = fun () -> u in let u = 3 in f()|},
-    Int(5) |> Exp.fresh,
-    Let(
-      Var("u") |> Pat.fresh,
-      Int(5) |> Exp.fresh,
-      Let(
-        Var("f") |> Pat.fresh,
-        Fun(Tuple([]) |> Pat.fresh, Var("u") |> Exp.fresh, None, None)
-        |> Exp.fresh,
-        Let(
-          Var("u") |> Pat.fresh,
-          Int(3) |> Exp.fresh,
-          Ap(Forward, Var("f") |> Exp.fresh, Tuple([]) |> Exp.fresh)
-          |> Exp.fresh,
-        )
-        |> Exp.fresh,
-      )
-      |> Exp.fresh,
-    )
-    |> Exp.fresh,
+    int(5),
+    let_(
+      Pat.(var("u")),
+      int(5),
+      let_(
+        Pat.(var("f")),
+        fn(Pat.(tuple([])), var("u"), None, None),
+        let_(Pat.(var("u")), int(3), ap(Forward, var("f"), tuple([]))),
+      ),
+    ),
   );
 
 let test_unbound_lookup = () =>
   evaluation_test(
     "(fun x -> x)(x)",
-    Var("x") |> Exp.fresh,
-    Ap(
-      Forward,
-      Fun(Var("x") |> Pat.fresh, Var("x") |> Exp.fresh, None, None)
-      |> Exp.fresh,
-      Var("x") |> Exp.fresh,
-    )
-    |> Exp.fresh,
+    var("x"),
+    ap(Forward, fn(Pat.(var("x")), var("x"), None, None), var("x")),
   );
 
 let test_unevaluated_if = () =>
   evaluation_test(
     "let x = 5 in if ? then x else x",
-    If(EmptyHole |> Exp.fresh, Int(5) |> Exp.fresh, Int(5) |> Exp.fresh)
-    |> Exp.fresh,
-    Let(
-      Var("x") |> Pat.fresh,
-      Int(5) |> Exp.fresh,
-      If(
-        EmptyHole |> Exp.fresh,
-        Var("x") |> Exp.fresh,
-        Var("x") |> Exp.fresh,
-      )
-      |> Exp.fresh,
-    )
-    |> Exp.fresh,
+    if_(empty_hole(), int(5), int(5)),
+    let_(Pat.(var("x")), int(5), if_(empty_hole(), var("x"), var("x"))),
   );
 
 let test_invalid_constructor_match = () => {
   let invalid_constructor_match =
-    Let(
-      Constructor("T", Some(Unknown(Internal) |> Typ.fresh)) |> Pat.fresh,
-      Int(1) |> Exp.fresh,
-      EmptyHole |> Exp.fresh,
-    )
-    |> Exp.fresh
-    |> elaborate;
+    elaborate(
+      let_(Pat.(constructor("T", Some(None))), int(1), empty_hole()),
+    );
   evaluation_test(
     "let T = 1 in ?",
     invalid_constructor_match,
@@ -373,24 +254,85 @@ let test_invalid_constructor_match = () => {
 let test_typfun_application = () =>
   evaluation_test(
     "(typfun T -> fun x -> 1)@<Int>(2)",
-    Int(1) |> Exp.fresh,
-    Ap(
+    int(1),
+    ap(
       Forward,
-      TypAp(
-        TypFun(
-          Var("T") |> TPat.fresh,
-          Fun(Var("x") |> Pat.fresh, Int(1) |> Exp.fresh, None, None)
-          |> Exp.fresh,
+      typ_ap(
+        typ_fun(
+          TPat.(var("T")),
+          fn(Pat.(var("x")), int(1), None, None),
           None,
-        )
-        |> Exp.fresh,
-        Int |> Typ.fresh,
-      )
-      |> Exp.fresh,
-      Int(2) |> Exp.fresh,
-    )
-    |> Exp.fresh,
+        ),
+        Typ.int(),
+      ),
+      int(2),
+    ),
   );
+
+let skip_current_unboxing_error = (err: string, expression: string) =>
+  test_case(err ++ " (Unboxing Error)", `Quick, () => {
+    [@warning "-21"]
+    {
+      // Currently fails https://github.com/hazelgrove/hazel/issues/1588
+      Alcotest.skip();
+      let exp = parse_and_evaluate(expression);
+      check(pass, err, exp, exp);
+    }
+  });
+
+let qcheck_evaluator_does_not_crash_test =
+  QCheck.Test.make(
+    ~name="Evaluator does not crash",
+    ~count=10000,
+    QCheck_Util.arb_exp(~minimal_idents=true, 50),
+    exp => {
+    switch (
+      Elaborator.elaborate(
+        Statics.mk(CoreSettings.on, Builtins.ctx_init(Some(Int)), exp),
+        exp,
+      )
+      |> fst
+    ) {
+    | exp =>
+      switch (
+        Evaluator.evaluate_and_limit(
+          ~env=Builtins.env_init,
+          ~step_limit=10000,
+          exp,
+        )
+      ) {
+      | Completed((_, _))
+      | StepLimitExceeded => true
+      | exception e =>
+        switch (e) {
+        | Failure(msg)
+            when
+              List.exists(
+                (==)(msg),
+                ["type application in dynamics"] // "type application in dynamics" https://github.com/hazelgrove/hazel/issues/1625
+              ) =>
+          print_endline("Skipping failure: " ++ msg);
+          true;
+        // https://github.com/hazelgrove/hazel/issues/1588 unboxing errors
+        | EvaluatorError.Exception(InvalidBoxedListLit(_))
+        | EvaluatorError.Exception(InvalidBoxedBoolLit(_))
+        | EvaluatorError.Exception(InvalidBoxedListCons(_))
+        | EvaluatorError.Exception(InvalidBoxedTuple(_))
+        | EvaluatorError.Exception(InvalidBoxedSumConstructor(_))
+        | EvaluatorError.Exception(InvalidBoxedFloatLit(_))
+        | EvaluatorError.Exception(InvalidBoxedIntLit(_))
+        | EvaluatorError.Exception(InvalidBoxedStringLit(_))
+        | EvaluatorError.Exception(InvalidBoxedTypFun(_)) => true
+        | _ => raise(e)
+        }
+      }
+    | exception e =>
+      print_endline(
+        "Skipping statics/elaborate failure: " ++ Printexc.to_string(e),
+      );
+      true;
+    }
+  });
 
 let tests = (
   "Evaluator",
@@ -449,36 +391,32 @@ in fn("hello")|},
     ),
     test_case("Typfun application", `Quick, test_typfun_application),
     test_case("Negative integer literal", `Quick, () =>
-      evaluation_test(
-        "-8",
-        Int(-8) |> Exp.fresh,
-        UnOp(Int(Minus), Int(8) |> Exp.fresh) |> Exp.fresh,
-      )
+      evaluation_test("-8", int(-8), un_op(Int(Minus), int(8)))
     ),
+    test_case("String_concat builtin", `Quick, () => {
+      parse_and_evaluate_test(
+        {|"hazel hello world"|},
+        {|string_join(" ", ["hazel", "hello", "world"])|},
+      )
+    }),
     test_case("Simple probe", `Quick, () => {
-      probe_test(
-        "let x = 1 + 2 in 4",
-        expected_probe(
-          Let(
-            expected_probe_pat(Var("x"), []),
-            expected_probe(
-              Probe(
-                expected_probe(
-                  BinOp(
-                    Int(Plus),
-                    expected_probe(Int(1), []),
-                    expected_probe(Int(2), []),
-                  ),
-                  [],
-                ),
-                {refs: []},
+      PGrammar.(
+        probe_test(
+          "let x = 1 + 2 in 4",
+          Exp.(
+            let_(
+              Pat.(var("x")),
+              Exp.(
+                probe(
+                  ~ann=[probed_value(Atom(Int(Bigint.of_int(3))))],
+                  bin_op(Int(Plus), int(1), int(2)),
+                  {refs: []},
+                )
               ),
-              [probed_value(Int(3))],
-            ),
-            expected_probe(Var("x"), []),
+              var("x"),
+            )
           ),
-          [],
-        ),
+        )
       )
     }),
     test_case(
@@ -486,18 +424,15 @@ in fn("hello")|},
       `Quick,
       () => {
         // TODO Better helpers. We really need a way to build these with a builder for the "free element".
+        open PGrammar;
+        module UE = UG.Exp;
+        module UP = UG.Pat;
         let npp = expected_probe_pat(_, []);
         let np = expected_probe(_, []);
-        let p = (p, es: list(Grammar.exp_term(unit))) =>
-          expected_probe(
-            Probe(np(p), {refs: []}),
-            List.map(Grammar.Annotated.empty, es),
-          );
-        let pp = (p, es: list(Grammar.exp_term(unit))) =>
-          expected_probe_pat(
-            Probe(npp(p), {refs: []}),
-            List.map(Grammar.Annotated.empty, es),
-          );
+        let p = (p, es: list(UG.Exp.t)) =>
+          expected_probe(Probe(p, {refs: []}), es);
+        let pp = (p, es: list(UE.t)) =>
+          expected_probe_pat(Probe(npp(p), {refs: []}), es);
 
         probe_test(
           {|let fact = fun x ->
@@ -507,62 +442,48 @@ in fn("hello")|},
              let r = fact(x-1)
              in x*r
          end in fact(5)|},
-          np(
-            Let(
-              npp(Var("fact")),
-              np(
-                Fun(
-                  pp(
-                    Var("x"),
-                    [Int(5), Int(4), Int(3), Int(2), Int(1)],
+          Exp.(
+            let_(
+              Pat.(var("fact")),
+              fn(
+                pp(
+                  Var("x"),
+                  UE.[int(5), int(4), int(3), int(2), int(1)],
+                ),
+                match(
+                  p(
+                    var("x"),
+                    UE.[int(5), int(4), int(3), int(2), int(1)],
                   ),
-                  np(
-                    Match(
-                      p(
-                        Var("x"),
-                        [Int(5), Int(4), Int(3), Int(2), Int(1)],
-                      ),
-                      [
-                        (npp(Int(1)), p(Int(1), [Int(1)])),
-                        (
-                          npp(Wild),
-                          np(
-                            Let(
-                              npp(Var("r")),
-                              p(
-                                Ap(
-                                  Forward,
-                                  np(Var("fact")),
-                                  np(
-                                    BinOp(
-                                      Int(Minus),
-                                      np(Var("x")),
-                                      np(Int(1)),
-                                    ),
-                                  ),
-                                ),
-                                [Int(1), Int(2), Int(6), Int(24)],
-                              ),
-                              p(
-                                BinOp(
-                                  Int(Times),
-                                  np(Var("x")),
-                                  np(Var("r")),
-                                ),
-                                [Int(2), Int(6), Int(24), Int(120)],
-                              ),
+                  [
+                    (Pat.(int(1)), p(int(1), UE.[int(1)])),
+                    (
+                      Pat.wild(),
+                      np(
+                        Let(
+                          npp(Var("r")),
+                          p(
+                            ap(
+                              Forward,
+                              var("fact"),
+                              bin_op(Int(Minus), var("x"), int(1)),
                             ),
+                            UE.[int(1), int(2), int(6), int(24)],
+                          ),
+                          p(
+                            bin_op(Int(Times), var("x"), var("r")),
+                            UE.[int(2), int(6), int(24), int(120)],
                           ),
                         ),
-                      ],
+                      ),
                     ),
-                  ),
-                  None,
-                  None,
+                  ],
                 ),
+                None,
+                None,
               ),
-              np(Ap(Forward, np(Var("fact")), np(Int(5)))),
-            ),
+              ap(Forward, var("fact"), int(5)),
+            )
           ),
         );
       },
@@ -592,7 +513,9 @@ in fn("hello")|},
                     Parens(
                       npt(
                         Prod([
-                          npt(TupLabel(npt(Label("l")), npt(String))),
+                          npt(
+                            TupLabel(npt(Label("l")), npt(Atom(String))),
+                          ),
                         ]),
                       ),
                     ),
@@ -602,7 +525,7 @@ in fn("hello")|},
                 ),
               ),
               p(
-                String("a"),
+                Atom(String("a")),
                 [
                   Tuple([
                     {
@@ -613,7 +536,7 @@ in fn("hello")|},
                             annotation: (),
                           },
                           {
-                            term: String("a"),
+                            term: Atom(String("a")),
                             annotation: (),
                           },
                         ),
@@ -645,11 +568,13 @@ in fn("hello")|},
         let uexp =
           np(
             Cast(
-              p(String("a"), [String("a")]),
+              p(Atom(String("a")), [Atom(String("a"))]),
               npt(
                 Parens(
                   npt(
-                    Prod([npt(TupLabel(npt(Label("l")), npt(String)))]),
+                    Prod([
+                      npt(TupLabel(npt(Label("l")), npt(Atom(String)))),
+                    ]),
                   ),
                 ),
               )
@@ -693,7 +618,7 @@ in fn("hello")|},
                                 annotation: (),
                               },
                               {
-                                term: String("a"),
+                                term: Atom(String("a")),
                                 annotation: (),
                               },
                             ),
@@ -706,7 +631,9 @@ in fn("hello")|},
                     Parens(
                       npt(
                         Prod([
-                          npt(TupLabel(npt(Label("l")), npt(String))),
+                          npt(
+                            TupLabel(npt(Label("l")), npt(Atom(String))),
+                          ),
                         ]),
                       ),
                     ),
@@ -715,12 +642,46 @@ in fn("hello")|},
                   npt(Unknown(Internal)) |> TypSlice.t_of_typ_t_parametric,
                 ),
               ),
-              np(String("a")),
+              np(Atom(String("a"))),
               np(Var("x")),
             ),
           );
         probe_test({|let PROBE(x) : (a=String) = "a" in x|}, uexp);
       },
     ),
+    skip_current_unboxing_error(
+      "InvalidBoxSumConstructor",
+      "let B : (+B( )) = ? in ?",
+    ),
+    skip_current_unboxing_error(
+      "InvalidBoxedListLit",
+      "type g = + On in let [] = On in",
+    ),
+    skip_current_unboxing_error(
+      "InvalidBoxedListCons",
+      "let (_:: []) = type y = + B in B in ?",
+    ),
+    skip_current_unboxing_error(
+      "InvalidBoxedBoolLit",
+      "type y = + B(Float) in if B then false else A",
+    ),
+    skip_current_unboxing_error(
+      "InvalidBoxedTuple",
+      "let () = type x = + A in A in ?",
+    ),
+    skip_current_unboxing_error(
+      "InvalidBoxedTypfun",
+      "type y = + B in case true  | a => B end @<?> ",
+    ),
+    skip_current_unboxing_error(
+      "InvalidBoxedSumConstructor",
+      "type x = + A(Float) in let A = a in 0",
+    ),
+    skip_current_unboxing_error(
+      "InvalidBoxedStringLit",
+      {|type y = + A in ""++A|},
+    ),
+    skip_current_unboxing_error("InvalidBoxedIntLit", "type y = + A in -A"),
+    QCheck_alcotest.to_alcotest(qcheck_evaluator_does_not_crash_test),
   ],
 );

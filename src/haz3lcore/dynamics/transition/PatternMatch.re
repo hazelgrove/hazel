@@ -18,18 +18,10 @@ let rec matches = (capture, dp: Pat.t, d: DHExp.t): match_result => {
   | EmptyHole
   | MultiHole(_)
   | Wild => Matches(Environment.empty)
-  | Int(n) =>
-    let* n' = Unboxing.unbox(Int, d);
-    n == n' ? Matches(Environment.empty) : DoesNotMatch;
-  | Float(n) =>
-    let* n' = Unboxing.unbox(Float, d);
-    n == n' ? Matches(Environment.empty) : DoesNotMatch;
-  | Bool(b) =>
-    let* b' = Unboxing.unbox(Bool, d);
-    b == b' ? Matches(Environment.empty) : DoesNotMatch;
-  | String(s) =>
-    let* s' = Unboxing.unbox(String, d);
-    s == s' ? Matches(Environment.empty) : DoesNotMatch;
+  | Atom(c) =>
+    let V(value, kind) = Atom.unpack(c);
+    let* d' = Unboxing.unbox(Atom(kind), d);
+    value == d' ? Matches(Environment.empty) : DoesNotMatch;
   | ListLit(xs) =>
     let* s' = Unboxing.unbox(ListLitn(List.length(xs)), d);
     List.map2(matches, xs, s')

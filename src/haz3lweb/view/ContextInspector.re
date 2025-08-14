@@ -60,6 +60,7 @@ let ctx_view = (~globals, ctx: Haz3lcore.Ctx.t): Node.t =>
       ctx
       |> Haz3lcore.Ctx.filter_duplicates
       |> Haz3lcore.Ctx.filter_stepper_filter_variables
+      |> (x => x.entries)
       |> List.rev,
     ),
   );
@@ -68,6 +69,7 @@ let ctx_sorts_view = (~globals, ci: Haz3lcore.Statics.Info.t) =>
   Haz3lcore.Info.ctx_of(ci)
   |> Haz3lcore.Ctx.filter_duplicates
   |> Haz3lcore.Ctx.filter_stepper_filter_variables
+  |> (x => x.entries)
   |> List.rev
   |> List.map(context_entry_view(~globals));
 

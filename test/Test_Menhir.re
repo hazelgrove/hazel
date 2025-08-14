@@ -107,12 +107,8 @@ let qcheck_menhir_maketerm_equivalent_test =
   QCheck.Test.make(
     ~name="Menhir and maketerm are equivalent",
     ~count=100,
-    QCheck.make(~print=AST.show_exp, AST.gen_exp_sized(7)),
-    exp => {
-      let unit_exp = Conversion.Exp.of_menhir_ast(exp);
-      let core_exp =
-        Grammar.map_exp_annotation(_ => IdTagged.IdTag.fresh(), unit_exp);
-
+    QCheck_Util.arb_exp(~minimal_idents=false, 7),
+    core_exp => {
       let segment =
         ExpToSegment.exp_to_segment(
           ~settings=
@@ -161,7 +157,7 @@ let qcheck_menhir_serialized_equivalent_test =
   QCheck.Test.make(
     ~name="Menhir through ExpToSegment and back",
     ~count=1000,
-    QCheck.make(~print=AST.show_exp, AST.gen_exp_sized(7)),
+    AST.arb_exp(7),
     exp => {
       let unit_exp = Conversion.Exp.of_menhir_ast(exp);
       let core_exp =
@@ -255,13 +251,13 @@ let tests =
       ),
       menhir_only_test(
         "Constructor of specific sum type",
-        constructor("A", Some(Typ.int())),
+        constructor("A", Some(Some(Typ.int()))),
         "A ~ Int",
       ),
       // TODO Fix for the tests below
       menhir_only_test(
         "Constructor with Type Variable",
-        constructor("A", Some(Typ.var("T"))),
+        constructor("A", Some(Some(Typ.var("T")))),
         "A ~ T",
       ),
       full_parser_test(

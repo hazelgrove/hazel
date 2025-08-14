@@ -110,6 +110,8 @@ let associativity = (p: t): option(Direction.t) =>
 
 let of_bin_op: Operators.op_bin => t =
   fun
+  | Nat(op)
+  | SInt(op)
   | Int(op) =>
     switch (op) {
     | Plus => plus

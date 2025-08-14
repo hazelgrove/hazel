@@ -24,6 +24,7 @@ module Model = {
   type persistent = CodeEditable.Model.persistent;
 
   let persist = model => model.editor |> CodeEditable.Model.persist;
+  let to_string = model => model.editor |> CodeEditable.Model.to_string;
   let unpersist = (~settings as _, pz) =>
     pz |> PersistentZipper.unpersist |> Editor.Model.mk |> mk;
 };
@@ -80,6 +81,7 @@ module Update = {
         ~is_edited,
         ~stitch,
         ~dynamics=EvalResult.Model.dynamics(result),
+        ~is_dynamic_term=false,
         editor,
       );
     let result =
