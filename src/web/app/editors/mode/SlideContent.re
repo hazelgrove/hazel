@@ -22,7 +22,7 @@ let em = content => span(~attrs=[Attr.class_("em")], [text(content)]);
 
 let get_content =
   fun
-  | "[GUIDE] Expressive Programming" =>
+  | "[GUIDE] / Expressive Programming" =>
     Some(
       slide(
         "Expressive Programming",
@@ -50,7 +50,7 @@ let get_content =
         ],
       ),
     )
-  | "[GUIDE] Composing Expressions" =>
+  | "[GUIDE] / Composing Expressions" =>
     Some(
       slide(
         "Composing Expressions",
@@ -95,7 +95,7 @@ let get_content =
         ],
       ),
     )
-  | "[GUIDE] Computing Equationally" =>
+  | "[GUIDE] / Computing Equationally" =>
     Some(
       slide(
         "Computing Equationally",
@@ -119,7 +119,7 @@ let get_content =
         ],
       ),
     )
-  | "[GUIDE] Variables" =>
+  | "[GUIDE] / Variables" =>
     Some(
       slide(
         "Variables",
@@ -152,7 +152,7 @@ let get_content =
         ],
       ),
     )
-  | "[GUIDE] Compositionality" =>
+  | "[GUIDE] / Compositionality" =>
     Some(
       slide(
         "Compositionality",
@@ -163,7 +163,7 @@ let get_content =
         ],
       ),
     )
-  | "[GUIDE] Scope" =>
+  | "[GUIDE] / Scope" =>
     Some(
       slide(
         "Scope",
@@ -178,7 +178,7 @@ let get_content =
         ],
       ),
     )
-  | "[GUIDE] Shadowing" =>
+  | "[GUIDE] / Shadowing" =>
     Some(
       slide(
         "Shadowing",
@@ -200,7 +200,7 @@ let get_content =
         ],
       ),
     )
-  | "[GUIDE] Bools and Types" =>
+  | "[GUIDE] / Bools and Types" =>
     Some(
       slide(
         "Booleans and Types",
@@ -255,7 +255,7 @@ let get_content =
         ],
       ),
     )
-  | "[GUIDE] Conditionals" =>
+  | "[GUIDE] / Conditionals" =>
     Some(
       slide(
         "Conditional Expressions",
@@ -274,7 +274,7 @@ let get_content =
         ],
       ),
     )
-  | "[GUIDE] Functions" =>
+  | "[GUIDE] / Functions" =>
     Some(
       slide(
         "Functions",
