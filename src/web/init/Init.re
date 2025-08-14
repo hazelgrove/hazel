@@ -17,7 +17,7 @@ let startup: PersistentData.t = {
       Cards.out,
       Probes.out,
       Livelits.out,
-      B2T2Datasheet.out,
+      B2t2.Datasheet.slide,
       B2T2ExampleTables.out,
       B2T2TableAPIConstructors.out,
       B2T2TableAPIProperties.out,

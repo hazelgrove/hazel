@@ -33,6 +33,7 @@
    (>= 3.12.0))
   ppx_yojson_conv_lib
   ppx_yojson_conv
+  ppx_blob
   incr_dom
   bisect_ppx
   (omd
