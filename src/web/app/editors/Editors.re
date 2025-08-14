@@ -365,13 +365,18 @@ module View = {
               ),
             ],
             List.map(
-              EditorModeView.option_view(
-                switch (editors) {
-                | Scratch(_) => "Scratch"
-                | Documentation(_) => "Documentation"
-                | Exercises(_) => "Exercises"
-                },
-              ),
+              s =>
+                EditorModeView.option_view(
+                  (
+                    switch (editors) {
+                    | Scratch(_) => "Scratch"
+                    | Documentation(_) => "Documentation"
+                    | Exercises(_) => "Exercises"
+                    }
+                  )
+                  == s,
+                  s,
+                ),
               ["Scratch", "Documentation", "Exercises"],
             ),
           ),

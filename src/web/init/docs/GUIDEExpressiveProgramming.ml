@@ -1,5 +1,5 @@
 let out : string * Haz3lcore.PersistentZipper.t =
-  ( "[GUIDE] Expressive Programming",
+  ( "[GUIDE] / Expressive Programming",
     {
       zipper =
         "((selection((focus Left)(content())(mode \

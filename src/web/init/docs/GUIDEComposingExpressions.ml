@@ -1,5 +1,5 @@
 let out : string * Haz3lcore.PersistentZipper.t =
-  ( "[GUIDE] Composing Expressions",
+  ( "[GUIDE] / Composing Expressions",
     {
       zipper =
         "((selection((focus Left)(content())(mode \

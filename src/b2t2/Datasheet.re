@@ -17,7 +17,7 @@ let segment =
   )
   |> Option.get;
 let slide = (
-  "[B2T2] Datasheet",
+  "[B2T2] / Datasheet",
   PersistentZipper.persist({
     selection: Selection.mk([]),
     relatives: {
