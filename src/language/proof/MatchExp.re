@@ -97,6 +97,10 @@ let rec match_exp =
       List.combine(xs, ys),
     )
   | (Tuple(_), _) => None
+  | (TupleExtension(xs1, ys1), TupleExtension(xs2, ys2)) =>
+    let* ctx = match_exp(alphas, ctx, xs1, xs2);
+    match_exp(alphas, ctx, ys1, ys2);
+  | (TupleExtension(_, _), _) => None
   | (Let(p1, d1, e1), Let(p2, d2, e2)) =>
     let* alphas' = match_pat(p1, p2);
     let* ctx = match_exp(alphas @ alphas', ctx, d1, d2);

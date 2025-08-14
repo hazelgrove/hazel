@@ -67,15 +67,53 @@ in fn("hello")|},
       )
     ),
     test_case("hole field projection", `Quick, () =>
-      parse_and_evaluate_test("?", "?.a")
-    ), // TODO This should be indet and not a hole
+      parse_and_evaluate_test("?.a", "?.a")
+    ),
     test_case(
       "Indet projection",
       `Quick,
       () => {
         parse_and_evaluate_test("(true) . a", "(true) . a");
         parse_and_evaluate_test("((true) . a): Int", "((true) . a): Int");
+        parse_and_evaluate_test(
+          ~msg="Duplicate labels projected are indet",
+          "(a=1, a=2).a",
+          {|(a=1, a=2).a|},
+        );
       },
+    ),
+    test_case(
+      "Extension",
+      `Quick,
+      () => {
+        parse_and_evaluate_test("(a=1,b=2,c=3)", {|(a=1, b=2) ... (c=3)|});
+        parse_and_evaluate_test("(1,2,3,4)", {|(1, 2) ... (3, 4)|});
+        parse_and_evaluate_test(
+          "(a=1, b=2, 3, c=4)",
+          {|(a=0, b=2) ... (a=1, 3, c=4)|},
+        );
+      },
+    ),
+    test_case("labeled tuple multi-label selection", `Quick, () =>
+      parse_and_evaluate_test(
+        "(a=1, b=2)",
+        {|select_labels((a=1,b=2,c=3), `a`, `b`)|},
+      )
+    ),
+    test_case("labeled tuple multi-label projection", `Quick, () =>
+      parse_and_evaluate_test(
+        "(3, 1, 3)",
+        {|project_labels((a=1,b=2,c=3), `c`, `a`, `c`)|},
+      )
+    ),
+    test_case("Omit labels", `Quick, () =>
+      parse_and_evaluate_test(
+        "(c=3)",
+        {|omit_labels((a=1,b=2,c=3), `a`, `b`)|},
+      )
+    ),
+    test_case("Drop Labels", `Quick, () =>
+      parse_and_evaluate_test("(1,2,3,4)", {|drop_labels((a=1,b=2,3,c=4))|})
     ),
   ],
 );

@@ -115,6 +115,7 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
           name,
           id: Id.invalid,
           typ: ty,
+          custom_statics: None,
         });
       Some([entry]);
     | Label(name) =>
@@ -278,6 +279,7 @@ let rec replace_exp = (replace, replace_coctx, with_exp, with_coctx, in_exp) => 
         | Constructor(_)
         | TypFun(_)
         | Tuple(_)
+        | TupleExtension(_)
         | Label(_)
         | TupLabel(_, _)
         | Dot(_, _)
