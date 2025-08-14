@@ -314,7 +314,7 @@ module M: Projector = {
         dragging: Some(id),
         drag_offset: offset,
       }
-    | UpdateDrag(pos) => model // Will be handled by parent via SetSyntax
+    | UpdateDrag(_pos) => model // Will be handled by parent via SetSyntax
     | EndDrag => {
         ...model,
         dragging: None,
