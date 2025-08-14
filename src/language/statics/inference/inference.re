@@ -1,7 +1,7 @@
 open Ppx_compare_lib.Builtin;
 open Sexplib.Std;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
+// [@deriving (show({with_path: false}), sexp, yojson)]
 type solution =
   | EHole
   | Hole(Prov.t)
@@ -9,21 +9,21 @@ type solution =
   | Bool
   | Arrow(solution, solution)
   | Multi(list(solution)) // Nums before arrows
-  | Cyclic; // TODO: add prov
+  | Cyclic; // TODO: add source prov
 
 module StringProv = {
-  type t = (string, Id.t)
+  type t = (string, Id.t);
   let compare = ((k1, id1), (k2, id2)) => {
     let id_compare = Id.compare(id1, id2);
-    if(id_compare != 0) {
-      id_compare
+    if (id_compare != 0) {
+      id_compare;
     } else {
-      String.compare(k1, k2)
-    }
-  }
+      String.compare(k1, k2);
+    };
+  };
 
   let of_prov = (p: Prov.t): t => (Prov.to_string(p), IdTagged.rep_id(p));
-}
+};
 
 module ProvMap = Map.Make(StringProv);
 module SolutionMap: {
@@ -47,9 +47,9 @@ let rec all_provs_in_sol = (s: solution): list(Prov.t) => {
 };
 
 type canonical_constramnot =
-  | Con(Prov.t, Typ.t);
+  | Con(Prov.t, Typ.term);
 
-let equiv_terms = (equiv: Typ.equivalence) => {
+let terms_of_equiv = (equiv: Typ.equivalence) => {
   let Con(leftType, rightType) = equiv;
   (leftType |> Typ.term_of, rightType |> Typ.term_of);
 };
@@ -58,10 +58,12 @@ let equiv_terms = (equiv: Typ.equivalence) => {
 // postondition: returns an equivalent list of canonical (left side is hole) constriants
 let rec unfold_constramnot =
         (equiv: Typ.equivalence): list(canonical_constramnot) =>
-  switch (equiv_terms(equiv)) {
+  switch (terms_of_equiv(equiv)) {
+  | (Unknown({term: Hole(EmptyHole), _}), _) => []
+  | (_, Unknown({term: Hole(EmptyHole), _})) => []
+  | (Unknown(p), t) => [Con(p, t)]
+  | (t, Unknown(p)) => [Con(p, t)]
   | _ => failwith("todo: unfold_constramnot")
-  //   | (Hole(p), t) => [Con(p, t)]
-  //   | (t, Hole(p)) => [Con(p, t)]
   //   | (EHole, _) => []
   //   | (_, EHole) => []
   //   | (CycleHole(_), _) => []
@@ -82,7 +84,8 @@ let rec unfold_constramnot =
 let unfold_constramnots: list(Typ.equivalence) => list(canonical_constramnot) =
   List.concat_map(unfold_constramnot);
 
-let rec unsolved_provs_in_typ = (t: Typ.t, sm: SolutionMap.t): list(Prov.t) => {
+let rec unsolved_provs_in_typ =
+        (t: Typ.term, sm: SolutionMap.t): list(Prov.t) => {
   failwith(
     "todo: unsolved_provs_in_typ",
     //   switch (t) {
@@ -116,19 +119,33 @@ let rec unsolved_provs_in_typ = (t: Typ.t, sm: SolutionMap.t): list(Prov.t) => {
 //   };
 // };
 
-module PossibleTypeSet = Set.Make(String);
+// TODO: this needs to be a proper set to get rid of duplicate types
+module PossibleTypeSet: {
+  type t = list(Typ.term);
+  let union: (t, t) => t;
+  let empty: t;
+  let singleton: Typ.term => t;
+  let to_list: t => t;
+} = {
+  type t = list(Typ.term);
+
+  let union = List.append;
+  let empty = [];
+  let singleton = (t: Typ.term): t => [t];
+  let to_list = (t: t) => t;
+};
+
 module PossibleProvTypesMap: {
   include (module type of ProvMap);
   type data = (Prov.t, list(Prov.t), PossibleTypeSet.t);
   type data_elem = UnionFind.elem(data);
   type t = ProvMap.t(data_elem);
 
-  let of_constramnots:
-    (list(canonical_constramnot), SolutionMap.t) => t;
-  let find_dominant_provs: (t) => (list(Prov.t), bool);
+  let of_constramnots: (list(canonical_constramnot), SolutionMap.t) => t;
+  let find_dominant_provs: t => (list(Prov.t), bool);
   let lookup: (Prov.t, t) => data_elem;
 } = {
-  include ProvMap
+  include ProvMap;
   type data = (Prov.t, list(Prov.t), PossibleTypeSet.t);
   type data_elem = UnionFind.elem(data);
   type t = ProvMap.t(data_elem);
@@ -146,7 +163,7 @@ module PossibleProvTypesMap: {
     UnionFind.set(elem_p, merge_data(UnionFind.get(elem_p), d));
   };
 
-  let add_if_absent = (p: Prov.t, m: t): t => {
+  let add_if_absent = (p: Prov.t, m: t): t =>
     if (!ProvMap.mem(StringProv.of_prov(p), m)) {
       ProvMap.add(
         StringProv.of_prov(p),
@@ -156,13 +173,16 @@ module PossibleProvTypesMap: {
     } else {
       m;
     };
-  };
 
   let update_prov_map_of_constramnot =
       (c: canonical_constramnot, m: t, sm: SolutionMap.t): t => {
     switch (c) {
-    | Con(p, { term: Unknown(q), _} )
-        when !(SolutionMap.mem(StringProv.of_prov(p), sm) || SolutionMap.mem(StringProv.of_prov(q), sm)) =>
+    | Con(p, Unknown(q))
+        when
+          !(
+            SolutionMap.mem(StringProv.of_prov(p), sm)
+            || SolutionMap.mem(StringProv.of_prov(q), sm)
+          ) =>
       let m = add_if_absent(p, m);
       let m = add_if_absent(q, m);
       let _ = UnionFind.merge(merge_data, lookup(p, m), lookup(q, m));
@@ -184,11 +204,7 @@ module PossibleProvTypesMap: {
       );
       update_data(
         p,
-        (
-          Internal |> Prov.anonymous,
-          [],
-          PossibleTypeSet.singleton(t |> Typ.term_of),
-        ),
+        (Internal |> Prov.anonymous, [], PossibleTypeSet.singleton(t)),
         m,
       );
       m;
@@ -241,7 +257,9 @@ let rec solution_of_typ = (p: Prov.t, t: Typ.term) => {
   // | Bool => Bool
   // | Arrow(t1, t2) => Arrow(solution_of_typ(p, t1), solution_of_typ(p, t2))
   // };
-  failwith("unimplmented: solution_of_typ")
+  failwith(
+    "unimplmented: solution_of_typ",
+  );
 };
 
 let rec refine_solution = (p: Prov.t, s: solution, t: Typ.term): solution => {
@@ -273,11 +291,14 @@ let rec refine_solution = (p: Prov.t, s: solution, t: Typ.term): solution => {
   // // | (Multi(ss), Arrow(t1, t2)) => Multi(todo)
   // | (Cyclic, _) => Multi([Cyclic, solution_of_typ(p, t)])
   // };
-  failwith("unimplmented: refine_solution")
+  failwith(
+    "unimplmented: refine_solution",
+  );
 };
 
 let solve_prov = (p: Prov.t, m: PossibleProvTypesMap.t): solution => {
-  let (_, _, ts) = UnionFind.get(PossibleProvTypesMap.find(StringProv.of_prov(p), m));
+  let (_, _, ts) =
+    UnionFind.get(PossibleProvTypesMap.find(StringProv.of_prov(p), m));
   let ts_list = PossibleTypeSet.to_list(ts);
   // print_endline(
   //   string_of_prov(p)
@@ -288,29 +309,33 @@ let solve_prov = (p: Prov.t, m: PossibleProvTypesMap.t): solution => {
 };
 
 let rec typ_of_solution = (s: solution): Typ.term => {
-  failwith("unimplemented: typ_of_solution")
-  // switch (s) {
-  // | EHole => EHole
-  // | Hole(p) => Hole(p)
-  // | Num => Num
-  // | Bool => Bool
-  // | Arrow(s1, s2) => Arrow(typ_of_solution(s1), typ_of_solution(s2))
-  // | Multi(_) => EHole
-  // | Cyclic => CycleHole(Syn(-1))
-  // };
+  failwith(
+    "unimplemented: typ_of_solution",
+    // switch (s) {
+    // | EHole => EHole
+    // | Hole(p) => Hole(p)
+    // | Num => Num
+    // | Bool => Bool
+    // | Arrow(s1, s2) => Arrow(typ_of_solution(s1), typ_of_solution(s2))
+    // | Multi(_) => EHole
+    // | Cyclic => CycleHole(Syn(-1))
+    // };
+  );
 };
 
-let solution_typ = (s: solution): Typ.term => {
-  failwith("unimplemented: solution_typ")
-  // switch (s) {
-  // | EHole => EHole
-  // | Hole(_) => EHole
-  // | Multi(_) => EHole
-  // | Cyclic => EHole
-  // | Num
-  // | Bool
-  // | Arrow(_) => typ_of_solution(s)
-  // };
+let solution_typ = (s: solution): Typ.t => {
+  failwith(
+    "unimplemented: solution_typ",
+    // switch (s) {
+    // | EHole => EHole
+    // | Hole(_) => EHole
+    // | Multi(_) => EHole
+    // | Cyclic => EHole
+    // | Num
+    // | Bool
+    // | Arrow(_) => typ_of_solution(s)
+    // };
+  );
 };
 
 // let string_of_constramnot = (Con(t1, t2): constramnot): string => {
@@ -358,26 +383,34 @@ let solution_typ = (s: solution): Typ.term => {
 // };
 
 let rec solution_typ_replace_typ =
-        (prov: StringProv.t, typ: Typ.term, sol_typ: Typ.term, m: PossibleProvTypesMap.t): Typ.term => {
-  failwith("unimplemented: solution_typ_replace_typ")
-  // switch (t) {
-  // | Hole(q) when UnionFind.eq(lookup(p, m), lookup(q, m)) => st
-  // | Hole(q) when p == string_of_prov(q) => sol_typ
-  // // | Hole(q) => Hole(q)
-  // | Hole(Surface(u)) => Hole(Surface(u))
-  // | Hole(Syn(u)) => Hole(Syn(u))
-  // | Hole(LArrow(q)) => Hole(LArrow(q))
-  // | Hole(RArrow(q)) => Hole(RArrow(q))
-  // | EHole => EHole
-  // | CycleHole(p) => CycleHole(p)
-  // | Num => Num
-  // | Bool => Bool
-  // | Arrow(t1, t2) =>
-  //   Arrow(
-  //     solution_typ_replace_typ(p, t1, st, m),
-  //     solution_typ_replace_typ(p, t2, st, m),
-  //   )
-  // };
+        (
+          prov: StringProv.t,
+          typ: Typ.term,
+          sol_typ: Typ.term,
+          m: PossibleProvTypesMap.t,
+        )
+        : Typ.term => {
+  failwith(
+    "unimplemented: solution_typ_replace_typ",
+    // switch (t) {
+    // | Hole(q) when UnionFind.eq(lookup(p, m), lookup(q, m)) => st
+    // | Hole(q) when p == string_of_prov(q) => sol_typ
+    // // | Hole(q) => Hole(q)
+    // | Hole(Surface(u)) => Hole(Surface(u))
+    // | Hole(Syn(u)) => Hole(Syn(u))
+    // | Hole(LArrow(q)) => Hole(LArrow(q))
+    // | Hole(RArrow(q)) => Hole(RArrow(q))
+    // | EHole => EHole
+    // | CycleHole(p) => CycleHole(p)
+    // | Num => Num
+    // | Bool => Bool
+    // | Arrow(t1, t2) =>
+    //   Arrow(
+    //     solution_typ_replace_typ(p, t1, st, m),
+    //     solution_typ_replace_typ(p, t2, st, m),
+    //   )
+    // };
+  );
 };
 
 let rec solution_replace_solution =
@@ -405,25 +438,43 @@ let rec solution_replace_solution =
   //   let (s2', changed2) = solution_replace_solution(p, s2, s');
   //   (Arrow(s1', s2'), changed1 || changed2);
   // };
-  failwith("unimplemented: solution replace solution")
+  failwith(
+    "unimplemented: solution replace solution",
+  );
 };
 
 let solution_typ_replace_con =
-    (prov_str: StringProv.t, Con(t1, t2): Typ.equivalence, sol_typ: Typ.term, m: PossibleProvTypesMap.t)
+    (
+      prov_str: StringProv.t,
+      Con(t1, t2): Typ.equivalence,
+      sol_typ: Typ.term,
+      m: PossibleProvTypesMap.t,
+    )
     : Typ.equivalence => {
   Con(
-    solution_typ_replace_typ(prov_str, t1 |> Typ.term_of, sol_typ, m),
-    solution_typ_replace_typ(prov_str, t2 |> Typ.term_of, sol_typ, m),
+    solution_typ_replace_typ(prov_str, t1 |> Typ.term_of, sol_typ, m)
+    |> Typ.temp,
+    solution_typ_replace_typ(prov_str, t2 |> Typ.term_of, sol_typ, m)
+    |> Typ.temp,
   );
 };
 
 let solution_typ_replace_cons =
-    (p: StringProv.t, cs: list(Typ.equivalence), sol_typ: Typ.term, m: PossibleProvTypesMap.t)
+    (
+      p: StringProv.t,
+      cs: list(Typ.equivalence),
+      sol_typ: Typ.term,
+      m: PossibleProvTypesMap.t,
+    )
     : list(Typ.equivalence) =>
   List.map(c => solution_typ_replace_con(p, c, sol_typ, m), cs);
 
 let extend_sol_map =
-    (cs: list(Typ.equivalence), sm: SolutionMap.t, cyclic_provs: list(StringProv.t))
+    (
+      cs: list(Typ.equivalence),
+      sm: SolutionMap.t,
+      cyclic_provs: list(StringProv.t),
+    )
     : option((list(Typ.equivalence), SolutionMap.t, list(StringProv.t))) => {
   // print_endline("Constraints:");
   // print_endline(string_of_constramnots(cs));
@@ -443,7 +494,10 @@ let extend_sol_map =
         let equiv_provs: list(StringProv.t) =
           List.filter_map(
             ((p', _)) =>
-              if (UnionFind.eq(PossibleProvTypesMap.lookup(p, m), PossibleProvTypesMap.find(p', m))) {
+              if (UnionFind.eq(
+                    PossibleProvTypesMap.lookup(p, m),
+                    PossibleProvTypesMap.find(p', m),
+                  )) {
                 Some
                   (p');
                   // let (canonical_p, _, _) = UnionFind.get(p_elem);
@@ -468,7 +522,9 @@ let extend_sol_map =
 
         let cs' =
           List.fold_left(
-            (cs_acc, pss) => {solution_typ_replace_cons(pss, cs_acc, st, m)},
+            (cs_acc, pss) => {
+              solution_typ_replace_cons(pss, cs_acc, st |> Typ.term_of, m)
+            },
             cs,
             equiv_provs,
           ); // replace it with the solution type in constraints
@@ -481,7 +537,8 @@ let extend_sol_map =
             equiv_provs,
           ); // and extend the solution map
 
-        let all_provs_in_sol = List.map(StringProv.of_prov, all_provs_in_sol(s));
+        let all_provs_in_sol =
+          List.map(StringProv.of_prov, all_provs_in_sol(s));
         let sm'' =
           List.fold_left(
             (sm_acc, pss) => {
@@ -510,7 +567,11 @@ let extend_sol_map =
 };
 
 let rec solve_rec =
-        (cs: list(Typ.equivalence), sm: SolutionMap.t, cyclic_provs: list(StringProv.t))
+        (
+          cs: list(Typ.equivalence),
+          sm: SolutionMap.t,
+          cyclic_provs: list(StringProv.t),
+        )
         : SolutionMap.t => {
   switch (extend_sol_map(cs, sm, cyclic_provs)) {
   | None =>
