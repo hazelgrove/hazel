@@ -1,5 +1,5 @@
 let out : string * Haz3lcore.PersistentZipper.t =
-  ( "[TESTS] / Types and Static Errors",
+  ( "Tests / Types and Static Errors",
     {
       zipper =
         "((selection((focus Left)(content())(mode \

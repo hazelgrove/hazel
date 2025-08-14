@@ -1,5 +1,5 @@
 let out : string * Haz3lcore.PersistentZipper.t =
-  ( "[GUIDE] / Scope",
+  ( "Guide / Scope",
     {
       zipper =
         "((selection((focus Left)(content())(mode \

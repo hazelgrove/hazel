@@ -1,5 +1,5 @@
 let out : string * Haz3lcore.PersistentZipper.t =
-  ( "[B2T2] / Example Program / quizScoreFilter",
+  ( "B2T2 / Example Program / quizScoreFilter",
     {
       zipper =
         "((selection((focus Left)(content())(mode \

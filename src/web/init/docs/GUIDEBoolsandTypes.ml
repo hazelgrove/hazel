@@ -1,5 +1,5 @@
 let out : string * Haz3lcore.PersistentZipper.t =
-  ( "[GUIDE] / Bools and Types",
+  ( "Guide / Bools and Types",
     {
       zipper =
         "((selection((focus Left)(content())(mode \

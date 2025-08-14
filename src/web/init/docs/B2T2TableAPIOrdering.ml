@@ -1,5 +1,5 @@
 let out : string * Haz3lcore.PersistentZipper.t =
-  ( "[B2T2] / Table API /  Ordering",
+  ( "B2T2 / Table API /  Ordering",
     {
       zipper =
         "((selection((focus Left)(content())(mode \
