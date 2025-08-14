@@ -46,8 +46,8 @@ type t =
   | WantTuple /* Want a Tuple, found not-tuple */
   | LabelNotFound(LabeledTuple.label, list(LabeledTuple.label))
   | InvalidUseMode({
-      bad_typ: Typ.t,
-      inner_typ: Typ.t,
+      bad_typ: TypSlice.t,
+      inner_typ: TypSlice.t,
     }); /* Currently used by the dot operator for a label not found */
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -92,11 +92,13 @@ let typ_of: (Ctx.t, t) => option(TypSlice.t) =
     | TupleLabelError({typ, _}) => Some(typ)
     | FreeConstructor(name) =>
       Some(
-        Sum([
-          ConstructorMap.Variant(name, [Id.invalid], None),
-          ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
-        ])
-        |> Typ.temp,
+        `Typ(
+          Sum([
+            ConstructorMap.Variant(name, [Id.invalid], None),
+            ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
+          ]),
+        )
+        |> TypSlice.temp,
       )
     | InvalidUseMode({inner_typ, _}) => Some(inner_typ)
     | BadToken(_)
@@ -143,25 +145,37 @@ let of_exp_var = (ids: list(Id.t), ctx: Ctx.t, name: Var.t): exp =>
   };
 
 let ctr_ana_typ =
-    (ctx: Ctx.t, ty_ana: Typ.t, ctr: Constructor.t): option(Typ.t) => {
+    (ctx: Ctx.t, ty_ana: TypSlice.t, ctr: Constructor.t): option(TypSlice.t) => {
+  let slice_global = TypSlice.get_global_slice_or_empty(ty_ana.term);
   /* If a ctr is being analyzed against (an arrow type returning)
      a sum type having that ctr as a variant, we consider the
      ctr's type to be determined by the sum type */
   OptUtil.Syntax.(
-    switch (ty_ana) {
-    | {term: Arrow(_, ty_out), _} =>
-      let* ctrs = Typ.get_sum_constructors(ctx, ty_out);
+    if (TypSlice.is_arrow(ty_ana)) {
+      let (_, ty_out) = TypSlice.unarrow(ty_ana);
+      let* ctrs = TypSlice.get_sum_constructors(ctx, ty_out);
       let* ty_entry = ConstructorMap.get_entry(ctr, ctrs);
       switch (ty_entry) {
       | None => None
-      | Some(ty_in) => Some(Arrow(ty_in, ty_out) |> Typ.temp)
+      | Some(ty_in) =>
+        Some(
+          `SliceIncr((
+            Slice(Arrow(ty_in, ty_out)),
+            TypSlice.empty_slice_incr,
+          ))
+          |> TypSlice.temp
+          |> TypSlice.wrap_global(slice_global),
+        )
       };
-    | _ =>
-      let* ctrs = Typ.get_sum_constructors(ctx, ty_ana);
+    } else {
+      let* ctrs = TypSlice.get_sum_constructors(ctx, ty_ana);
       let+ ty_entry = ConstructorMap.get_entry(ctr, ctrs);
       switch (ty_entry) {
       | None => ty_ana
-      | Some(ty_in) => Arrow(ty_in, ty_ana) |> Typ.temp
+      | Some(ty_in) =>
+        `SliceIncr((Slice(Arrow(ty_in, ty_ana)), TypSlice.empty_slice_incr))
+        |> TypSlice.temp
+        |> TypSlice.wrap_global(slice_global)
       };
     }
   );
