@@ -168,7 +168,13 @@ let ctr_ana_typ =
 };
 
 let of_ctr =
-    (ids, ctx: Ctx.t, name: Constructor.t, ana: TypSlice.t, ty: option(option(TypSlice.t)))
+    (
+      ids,
+      ctx: Ctx.t,
+      name: Constructor.t,
+      ana: TypSlice.t,
+      ty: option(option(TypSlice.t)),
+    )
     : t => {
   // (1) check to see if type already assigned (e.g. if we are doing statics for results)
   switch (ty) {

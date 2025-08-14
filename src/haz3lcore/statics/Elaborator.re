@@ -51,7 +51,8 @@ let fresh_pat_cast = (p: DHPat.t, t1: TypSlice.t, t2: TypSlice.t): DHPat.t => {
 };
 
 let elaborated_type =
-    (m: Statics.Map.t, uexp: Exp.t): (TypSlice.t, Typ.t, Ctx.t, CoCtx.t, Exp.t) => {
+    (m: Statics.Map.t, uexp: Exp.t)
+    : (TypSlice.t, Typ.t, Ctx.t, CoCtx.t, Exp.t) => {
   let (ana_ty, self_ty, ctx, co_ctx, term) =
     switch (Id.Map.find_opt(Exp.rep_id(uexp), m)) {
     | Some(Info.InfoExp({ana, ty, ctx, co_ctx, term: new_term, _})) => (
@@ -98,30 +99,33 @@ let elaborated_pat_type =
     | _ => raise(MissingTypeInfo)
     };
   let elab_ty =
-    
-      switch (prev_synswitch) {
-      | None => Typ.match_synswitch(self_ty, ana_ty)
-      | Some(syn_ty) =>
-        // Autolabelling for singleton labeled tuples
-        switch (label_inference) {
-        // TODO: Does anything need to be sliced here?
-        | Some(SingletonLabelInference({label: l, _})) =>
-          TypSlice.match_synswitch(
-            Prod([
-              TupLabel(Label(l) |> Typ.temp |> TypSlice.t_of_typ_t, syn_ty)
-              |> TypSlice.term_of_slc_typ_term
-              |> TypSlice.temp,
-            ])
+    switch (prev_synswitch) {
+    | None => Typ.match_synswitch(self_ty, ana_ty)
+    | Some(syn_ty) =>
+      // Autolabelling for singleton labeled tuples
+      switch (label_inference) {
+      // TODO: Does anything need to be sliced here?
+      | Some(SingletonLabelInference({label: l, _})) =>
+        TypSlice.match_synswitch(
+          Prod([
+            TupLabel(Label(l) |> Typ.temp |> TypSlice.t_of_typ_t, syn_ty)
             |> TypSlice.term_of_slc_typ_term
             |> TypSlice.temp,
-            ana_ty,
-          )
-        | _ => Typ.match_synswitch(syn_ty, ana_ty)
-        }
-      };  
-  (elab_ty |> TypSlice.normalize(ctx) |> TypSlice.all_ids_temp, ana_ty, ctx, term);
+          ])
+          |> TypSlice.term_of_slc_typ_term
+          |> TypSlice.temp,
+          ana_ty,
+        )
+      | _ => Typ.match_synswitch(syn_ty, ana_ty)
+      }
+    };
+  (
+    elab_ty |> TypSlice.normalize(ctx) |> TypSlice.all_ids_temp,
+    ana_ty,
+    ctx,
+    term,
+  );
 };
-
 
 let rec elaborate_pattern =
         (m: Statics.Map.t, upat: Pat.t, in_container: bool)

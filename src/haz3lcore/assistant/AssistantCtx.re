@@ -111,11 +111,7 @@ let suggest_variable = (ci: Info.t): list(Suggestion.t) => {
   | InfoExp({ana, _}) =>
     bound_variables(ana |> TypSlice.typ_of, ctx)
     @ bound_aps(ana |> TypSlice.typ_of, ctx)
-    @ bound_constructors(
-        x => Exp(Common(x)),
-        ana |> TypSlice.typ_of,
-        ctx,
-      )
+    @ bound_constructors(x => Exp(Common(x)), ana |> TypSlice.typ_of, ctx)
     @ bound_constructor_aps(
         x => Exp(Common(x)),
         ana |> TypSlice.typ_of,
@@ -123,11 +119,7 @@ let suggest_variable = (ci: Info.t): list(Suggestion.t) => {
       )
   | InfoPat({ana, co_ctx, _}) =>
     free_variables(ana |> TypSlice.typ_of, ctx, co_ctx)
-    @ bound_constructors(
-        x => Pat(Common(x)),
-        ana |> TypSlice.typ_of,
-        ctx,
-      )
+    @ bound_constructors(x => Pat(Common(x)), ana |> TypSlice.typ_of, ctx)
     @ bound_constructor_aps(
         x => Pat(Common(x)),
         ana |> TypSlice.typ_of,

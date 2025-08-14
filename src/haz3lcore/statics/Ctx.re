@@ -149,43 +149,43 @@ let add_ctrs =
             typ:
               switch (typ) {
               | None =>
-              (
-                `SliceGlobal((
+                (
+                  `SliceGlobal((
+                    `SliceIncr((
+                      Typ(Var(name)),
+                      {
+                        ctx_used: [],
+                        term_ids: [id, ...ctr_ids],
+                      }: TermBase.slice_incr,
+                    )): TermBase.typslice_incr_term,
+                    {
+                      ctx_used: [],
+                      term_ids: def_ids,
+                    },
+                  )): TermBase.typslice_term
+                )
+                |> IdTagged.fresh
+              | Some(typ) =>
+                (
                   `SliceIncr((
-                    Typ(Var(name)),
+                    Slice(
+                      Arrow(
+                        typ,
+                        `SliceGlobal((
+                          `Typ(Var(name): TermBase.typ_term),
+                          {
+                            ctx_used: [],
+                            term_ids: def_ids,
+                          }: TermBase.slice_global,
+                        ))
+                        |> IdTagged.fresh,
+                      ),
+                    ),
                     {
                       ctx_used: [],
                       term_ids: [id, ...ctr_ids],
-                    }: TermBase.slice_incr,
-                  )): TermBase.typslice_incr_term,
-                  {
-                    ctx_used: [],
-                    term_ids: def_ids,
-                  },
-                )): TermBase.typslice_term
-              )
-              |> IdTagged.fresh
-              | Some(typ) =>
-                (
-                `SliceIncr((
-                  Slice(
-                      Arrow(
-                      typ,
-                      `SliceGlobal((
-                        `Typ(Var(name): TermBase.typ_term),
-                        {
-                          ctx_used: [],
-                          term_ids: def_ids,
-                        }: TermBase.slice_global,
-                      ))
-                      |> IdTagged.fresh,
-                    ),
-                  ),
-                  {
-                    ctx_used: [],
-                    term_ids: [id, ...ctr_ids],
-                  },
-                )): TermBase.typslice_term
+                    },
+                  )): TermBase.typslice_term
                 )
                 |> IdTagged.fresh
               },

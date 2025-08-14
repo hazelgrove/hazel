@@ -438,10 +438,7 @@ and uexp_to_info_map =
       };
     | Tuple(es) =>
       let expected_labels =
-        switch (
-          Typ.weak_head_normalize(ctx, ana |> TypSlice.typ_of).
-            term
-        ) {
+        switch (Typ.weak_head_normalize(ctx, ana |> TypSlice.typ_of).term) {
         | Prod(ts) =>
           Some(
             List.filter_map(
@@ -566,8 +563,7 @@ and uexp_to_info_map =
         | _ =>
           let (lab, m) =
             go(
-              ~ana=
-                (Unknown(Internal) |> Typ.temp |> TypSlice.t_of_typ_t),
+              ~ana=Unknown(Internal) |> Typ.temp |> TypSlice.t_of_typ_t,
               ~override_self=?
                 switch (label.term, expected_labels) {
                 | (Label(name), Some(expected_labels))
@@ -585,8 +581,7 @@ and uexp_to_info_map =
 
           let (e, m) =
             go(
-              ~ana=
-                (Unknown(Internal) |> Typ.temp |> TypSlice.t_of_typ_t),
+              ~ana=Unknown(Internal) |> Typ.temp |> TypSlice.t_of_typ_t,
               ~inferred_label?,
               e,
               m,
@@ -893,10 +888,7 @@ and uexp_to_info_map =
           let (def, m) =
             go(
               ~ana=
-                (
-                  p_syn.ty
-                  |> TypSlice.wrap_global(TypSlice.slice_of_ids(ids)),
-                ),
+                p_syn.ty |> TypSlice.wrap_global(TypSlice.slice_of_ids(ids)),
               def,
               m,
             );
@@ -916,10 +908,7 @@ and uexp_to_info_map =
             go'(
               ~ctx=p_syn.ctx,
               ~ana=
-                (
-                  p_syn.ty
-                  |> TypSlice.wrap_global(TypSlice.slice_of_ids(ids)),
-                ),
+                p_syn.ty |> TypSlice.wrap_global(TypSlice.slice_of_ids(ids)),
               def,
               m,
             );
@@ -1243,7 +1232,7 @@ and upat_to_info_map =
   let add = (~self, ~ctx, ~constraint_, ~label_inference=?, m) => {
     let prev_synswitch =
       switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
-      | Some(Info.InfoPat({ana(_), ty, _})) when Typ.is_syn_plus(ana) =>
+      | Some(Info.InfoPat({ana, ty, _})) when Typ.is_syn_plus(ana) =>
         Some(ty)
       | Some(Info.InfoPat({prev_synswitch, _})) => prev_synswitch
       | Some(_)
@@ -1482,7 +1471,6 @@ and upat_to_info_map =
       );
     | TupLabel(label, p) =>
       let (lab, p, m) =
-        switch (Mode.of_label(ids, mode)) {
         switch (Typ.matched_label(ctx, ana)) {
         | Some((labmode, val_mode)) =>
           let label_self: option(Self.t) =
@@ -1778,51 +1766,46 @@ and upat_to_info_map =
         m,
       );
     };
-
   // This is to allow lifting single values into a singleton labeled tuple when the label is not present
   if (under_ascription) {
     default_case();
   } else {
-    switch (mode) {
-    | Ana(ty) =>
-      switch (TypSlice.weak_head_normalize(ctx, ty)) {
-      | s when TypSlice.is_prod(s, ~ignore_parens=false) =>
-        let ts = TypSlice.unprod(s);
-        switch (ts) {
-        | [s] when TypSlice.is_tuplabel(s, ~ignore_parens=false) =>
-          let (l1, ana_ty) = TypSlice.untuplabel(s);
-          switch (l1) {
-          | l1 when TypSlice.is_label(l1, ~ignore_parens=false) =>
-            let l1 = TypSlice.unlabel(l1);
-            // We can flatten this by pulling it up on the case match but since OCaml is strict it'll be evaluated.
-            // So for performance reasons we'll just do it here.
-            let (e, m) = go(~mode=Mode.Syn, ~ctx, upat, m);
+    switch (TypSlice.weak_head_normalize(ctx, ana_ty)) {
+    | s when TypSlice.is_prod(s, ~ignore_parens=false) =>
+      let ts = TypSlice.unprod(s);
+      switch (ts) {
+      | [s] when TypSlice.is_tuplabel(s, ~ignore_parens=false) =>
+        let (l1, ana_ty) = TypSlice.untuplabel(s);
+        switch (l1) {
+        | l1 when TypSlice.is_label(l1, ~ignore_parens=false) =>
+          let l1 = TypSlice.unlabel(l1);
+          // We can flatten this by pulling it up on the case match but since OCaml is strict it'll be evaluated.
+          // So for performance reasons we'll just do it here.
+          let (e, m) = go(~mode=Mode.Syn, ~ctx, upat, m);
 
-            switch (TypSlice.weak_head_normalize(ctx, e.ty)) {
-            | s when TypSlice.is_prod(s, ~ignore_parens=false) =>
-              let ts = TypSlice.unprod(s);
-              switch (ts) {
-              | [s] when TypSlice.is_tuplabel(s, ~ignore_parens=false) =>
-                let (l2, _) = TypSlice.untuplabel(s);
-                switch (l2) {
-                | l2 when TypSlice.is_label(l2, ~ignore_parens=false) =>
-                  let l2 = TypSlice.unlabel(l2);
-                  l1 == l2
-                    ? default_case()
-                    : elaborate_singleton_tuple(upat, ana_ty, l1, m);
-                // :'(
-                | _ => elaborate_singleton_tuple(upat, ana_ty, l1, m)
-                };
+          switch (TypSlice.weak_head_normalize(ctx, e.ty)) {
+          | s when TypSlice.is_prod(s, ~ignore_parens=false) =>
+            let ts = TypSlice.unprod(s);
+            switch (ts) {
+            | [s] when TypSlice.is_tuplabel(s, ~ignore_parens=false) =>
+              let (l2, _) = TypSlice.untuplabel(s);
+              switch (l2) {
+              | l2 when TypSlice.is_label(l2, ~ignore_parens=false) =>
+                let l2 = TypSlice.unlabel(l2);
+                l1 == l2
+                  ? default_case()
+                  : elaborate_singleton_tuple(upat, ana_ty, l1, m);
+              // :'(
               | _ => elaborate_singleton_tuple(upat, ana_ty, l1, m)
               };
             | _ => elaborate_singleton_tuple(upat, ana_ty, l1, m)
             };
-          | _ => default_case()
+          | _ => elaborate_singleton_tuple(upat, ana_ty, l1, m)
           };
         | _ => default_case()
         };
       | _ => default_case()
-      }
+      };
     | _ => default_case()
     };
   };
