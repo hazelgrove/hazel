@@ -1,5 +1,5 @@
 let out : string * Haz3lcore.PersistentZipper.t =
-  ( "B2T2 / Errors / Using Tables 3",
+  ( "B2T2 / Errors / Using Tables / Part 3",
     {
       zipper =
         "((selection((focus Left)(content())(mode \
