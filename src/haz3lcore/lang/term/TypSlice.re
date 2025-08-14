@@ -1789,7 +1789,23 @@ let is_synswitch = s =>
        | _ => false,
        _ => false);
 
-let rec is_syn_plus = apply_t(Typ.is_syn_plus, _ => false);
+let rec is_syn_plus = s =>
+  s
+  |> apply_t(
+       Typ.is_syn_plus,
+       fun
+       | {term: TupLabel(_, s) | Parens(s), _} => is_syn_plus(s)
+       | _ => false,
+     );
+
+let rec is_ana_atom = s =>
+  s
+  |> apply_t(
+       Typ.is_ana_atom,
+       fun
+       | {term: TupLabel(_, s) | Parens(s), _} => is_ana_atom(s)
+       | _ => None,
+     );
 
 //
 let get_slice: term => (option(slc_global), option(slc_incr)) =

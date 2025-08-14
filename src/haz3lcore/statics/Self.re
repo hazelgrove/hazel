@@ -183,7 +183,7 @@ let ctr_ana_typ =
 
 let of_ctr =
     (
-      ids,
+      _ids, // TODO: Track ids of ctr error
       ctx: Ctx.t,
       name: Constructor.t,
       ana: TypSlice.t,
@@ -322,7 +322,7 @@ let of_filter = of_seq; // TODO: check
 let of_fix = of_seq;
 let of_ap_ok = of_seq;
 
-// Holes should be omitted from slices
+// Holes should be omitted from slices. Note: likely useful in practice to eventually not omit these slices
 let hole = Just(`Typ(Unknown(Internal)) |> TypSlice.temp);
 
 // Where arg has been analysed to check if nullary_args

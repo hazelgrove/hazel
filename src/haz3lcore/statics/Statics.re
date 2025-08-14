@@ -174,7 +174,7 @@ and multi = (~ctx, ~ancestors, m, tms) =>
 and uexp_to_info_map =
     (
       ~ctx: Ctx.t,
-      ~ana=Unknown(SynSwitch) |> Typ.temp,
+      ~ana=`Typ(Unknown(SynSwitch)) |> TypSlice.temp,
       ~is_in_filter=false,
       ~ancestors,
       ~duplicates: list(string),
@@ -209,7 +209,7 @@ and uexp_to_info_map =
   let uexp_to_info_map =
       (
         ~ctx,
-        ~ana=Unknown(SynSwitch) |> Typ.temp,
+        ~ana=`Typ(Unknown(SynSwitch)) |> TypSlice.temp,
         ~is_in_filter=is_in_filter,
         ~ancestors=ancestors,
         ~duplicates=[],
@@ -324,13 +324,17 @@ and uexp_to_info_map =
     | EmptyHole => atomic(Self.hole)
     | Deferral(position) =>
       add'(~self=IsDeferral(position), ~co_ctx=CoCtx.empty, m)
-    | Undefined => atomic(Just(Unknown(Hole(EmptyHole)) |> Typ.temp))
+    | Undefined => atomic(Self.hole)
     | Atom(c) =>
       let c =
-        Operators.replace_literal(c, Typ.is_ana_atom(ana), ctx.use_mode); // Replace literal if necessary due to `use`
+        Operators.replace_literal(
+          c,
+          TypSlice.is_ana_atom(ana),
+          ctx.use_mode,
+        ); // Replace literal if necessary due to `use`
       switch (c) {
       | L(c) =>
-        let ty = Atom(Atom.cls_of_t(c)) |> Typ.temp;
+        let ty = `Typ(Atom(Atom.cls_of_t(c))) |> TypSlice.temp;
         atomic(Just(ty));
       | R(BadInt(str)) => atomic(BadToken(str))
       };
@@ -354,16 +358,33 @@ and uexp_to_info_map =
         m,
       );
     | Cons(hd, tl) =>
-      let inner_ana_ty = Typ.matched_list(ctx, ana);
+      let inner_ana_ty = TypSlice.matched_list(ctx, ana);
       let (hd, m) = go(~ana=inner_ana_ty, hd, m);
-      let (tl, m) = go(~ana=List(inner_ana_ty) |> Typ.temp, tl, m);
+      let (tl, m) =
+        go(
+          ~ana=
+            `SliceIncr((
+              Slice(List(inner_ana_ty)),
+              TypSlice.empty_slice_incr,
+            ))
+            |> TypSlice.temp
+            |> TypSlice.wrap_global(TypSlice.slice_of_ids(ids)),
+          tl,
+          m,
+        );
       add(
         ~self=hd.ty |> Self.of_list_cons(ids),
         ~co_ctx=CoCtx.union([hd.co_ctx, tl.co_ctx]),
         m,
       );
     | ListConcat(e1, e2) =>
-      let inner_ana_ty = List(Typ.matched_list(ctx, ana)) |> Typ.temp;
+      let inner_ana_ty =
+        `SliceIncr((
+          Slice(List(TypSlice.matched_list(ctx, ana))),
+          TypSlice.empty_slice_incr,
+        ))
+        |> TypSlice.temp
+        |> TypSlice.wrap_global(TypSlice.slice_of_ids(ids));
       let ids = List.map(Exp.rep_id, [e1, e2]);
       let (e1, m) = go(~ana=inner_ana_ty, e1, m);
       let (e2, m) = go(~ana=inner_ana_ty, e2, m);
@@ -374,7 +395,7 @@ and uexp_to_info_map =
       );
     | Var(name) =>
       add'(
-        ~self=Self.of_exp_var(ctx, name),
+        ~self=Self.of_exp_var(ids, ctx, name),
         ~co_ctx=CoCtx.singleton(name, Exp.rep_id(uexp), ana),
         m,
       )
