@@ -12,7 +12,8 @@ let of_parens = ids => TypSlice.(wrap_incr(slice_of_ids(ids)));
 
 // ty is Some if the expression is an annotated lambda
 let of_arrow =
-    (ids, ctx: Ctx.t, ana: TypSlice.t, ty: option(TypSlice.t)): (TypSlice.t, TypSlice.t) =>
+    (ids, ctx: Ctx.t, ana: TypSlice.t, ty: option(TypSlice.t))
+    : (TypSlice.t, TypSlice.t) =>
   switch (ty) {
   | None => ana |> TypSlice.matched_arrow(ctx)
   | Some(ty') =>
