@@ -25,7 +25,7 @@ let doc_slide_reparses = ((name, slide: CellEditor.Model.persistent)) => {
 
       check(
         segment,
-        "Reparsing "++ name ++ " backup_text produces equivalent segment",
+        "Reparsing " ++ name ++ " backup_text produces equivalent segment",
         original_segment,
         reparsed_segment,
       );
