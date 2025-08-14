@@ -176,10 +176,7 @@ let rec is_unknown = (~ignore_parens=true, typ: t) => {
   | Parens(typ) => ignore_parens ? false : is_unknown(typ)
   | Unknown(_) => true
   | Arrow(_)
-  | Int
-  | Float
-  | Bool
-  | String
+  | Atom(_)
   | List(_)
   | Prod(_)
   | Label(_)
@@ -241,10 +238,7 @@ let rec is_sum = (~ignore_parens=true, typ: t) => {
   | TupLabel(_, typ) => ignore_parens ? false : is_sum(typ)
   | Sum(_) => true
   | Unknown(_)
-  | Int
-  | Float
-  | Bool
-  | String
+  | Atom(_)
   | Arrow(_)
   | List(_)
   | Prod(_)
@@ -261,10 +255,7 @@ let rec is_tuplabel = (~ignore_parens=true, typ: t) => {
   | Parens(typ) => ignore_parens ? false : is_tuplabel(typ)
   | TupLabel(_) => true
   | Unknown(_)
-  | Int
-  | Float
-  | Bool
-  | String
+  | Atom(_)
   | Arrow(_)
   | List(_)
   | Prod(_)
@@ -282,10 +273,7 @@ let rec is_prod = (~ignore_parens=true, typ: t) => {
   | Parens(typ) => ignore_parens ? false : is_prod(typ)
   | Prod(_) => true
   | Unknown(_)
-  | Int
-  | Float
-  | Bool
-  | String
+  | Atom(_)
   | Arrow(_)
   | List(_)
   | TupLabel(_)
@@ -303,10 +291,7 @@ let rec is_label = (~ignore_parens=true, typ: t) => {
   | Parens(typ) => ignore_parens ? false : is_label(typ)
   | Label(_) => true
   | Unknown(_)
-  | Int
-  | Float
-  | Bool
-  | String
+  | Atom(_)
   | Arrow(_)
   | List(_)
   | TupLabel(_)
@@ -507,14 +492,8 @@ let rec join_using = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): join(t, t) =>
      second type to preserve synthesized type variable names, which
      come from user annotations. */
   | (Forall(_), _) => NoJoin([(ty1, ty2)])
-  | (Int, Int) => Join(ty1, Left)
-  | (Int, _) => NoJoin([(ty1, ty2)])
-  | (Float, Float) => Join(ty1, Left)
-  | (Float, _) => NoJoin([(ty1, ty2)])
-  | (Bool, Bool) => Join(ty1, Left)
-  | (Bool, _) => NoJoin([(ty1, ty2)])
-  | (String, String) => Join(ty1, Left)
-  | (String, _) => NoJoin([(ty1, ty2)])
+  | (Atom(a1), Atom(a2)) when a1 == a2 => Join(ty1, Left)
+  | (Atom(_), _) => NoJoin([(ty1, ty2)])
   | (Label(_), Label("")) => Join(ty1, Left)
   | (Label(""), Label(_)) => Join(ty2, Right)
   | (Label(name1), Label(name2))

@@ -261,10 +261,7 @@ let rec t_of_typ_t_sliced = ({annotation: {ids, _}, _} as ty: Typ.t): t => {
   (
     switch (ty) {
     | Unknown(_) => (`Typ(ty): term) // Don't slice holes
-    | Int => `SliceIncr((Typ(Int), slice_of_ids(ids)))
-    | Bool => `SliceIncr((Typ(Bool), slice_of_ids(ids)))
-    | Float => `SliceIncr((Typ(Float), slice_of_ids(ids)))
-    | String => `SliceIncr((Typ(String), slice_of_ids(ids)))
+    | Atom(a) => `SliceIncr((Typ(Atom(a)), slice_of_ids(ids)))
     | Var(name) => `SliceIncr((Typ(Var(name)), slice_of_ids(ids)))
     | Label(name) => `SliceIncr((Typ(Label(name)), slice_of_ids(ids)))
     // Note: ctx slice not relevant in the above (types used in local scope)
@@ -984,10 +981,7 @@ let rec join_using =
        second type to preserve synthesized type variable names, which
        come from user annotations. */
     | (Forall(_), _) => NoJoin([(s1, s2)])
-    | (Int, _) => NoJoin([(s1, s2)])
-    | (Float, _) => NoJoin([(s1, s2)])
-    | (Bool, _) => NoJoin([(s1, s2)])
-    | (String, _) => NoJoin([(s1, s2)])
+    | (Atom(_), _) => NoJoin([(s1, s2)])
     | (Label(_), _) => NoJoin([(s1, s2)])
     | (Arrow(ty1, ty2), Arrow(s1', s2')) =>
       let+ s1 = join'(ty1 |> t_of_typ_t, s1')

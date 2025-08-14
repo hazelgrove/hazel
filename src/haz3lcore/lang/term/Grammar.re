@@ -991,149 +991,19 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       annotation: default_annotation(ann),
     };
     let int = (~ann=?, ()): typslice_t(DefaultAnnotation.t) => {
-      term: `Typ(Int),
+      term: `Typ(Atom(Int)),
       annotation: default_annotation(ann),
     };
     let float = (~ann=?, ()): typslice_t(DefaultAnnotation.t) => {
-      term: `Typ(Float),
+      term: `Typ(Atom(Int)),
       annotation: default_annotation(ann),
     };
     let bool = (~ann=?, ()): typslice_t(DefaultAnnotation.t) => {
-      term: `Typ(Bool),
+      term: `Typ(Atom(Bool)),
       annotation: default_annotation(ann),
     };
     let string = (~ann=?, ()): typslice_t(DefaultAnnotation.t) => {
-      term: `Typ(String),
-      annotation: default_annotation(ann),
-    };
-    let var = (~ann=?, s): typslice_t(DefaultAnnotation.t) => {
-      term: `Typ(Var(s)),
-      annotation: default_annotation(ann),
-    };
-    let list = (~ann=?, t): typslice_t(DefaultAnnotation.t) => {
-      term:
-        `SliceIncr((
-          Slice(List(t)),
-          {
-            term_ids: [],
-            ctx_used: [],
-          },
-        )),
-      annotation: default_annotation(ann),
-    };
-    let arrow = (~ann=?, t1, t2): typslice_t(DefaultAnnotation.t) => {
-      term:
-        `SliceIncr((
-          Slice(Arrow(t1, t2)),
-          {
-            term_ids: [],
-            ctx_used: [],
-          },
-        )),
-      annotation: default_annotation(ann),
-    };
-    let sum = (~ann=?, m): typslice_t(DefaultAnnotation.t) => {
-      term:
-        `SliceIncr((
-          Slice(Sum(m)),
-          {
-            term_ids: [],
-            ctx_used: [],
-          },
-        )),
-      annotation: default_annotation(ann),
-    };
-    let prod = (~ann=?, l): typslice_t(DefaultAnnotation.t) => {
-      term:
-        `SliceIncr((
-          Slice(Prod(l)),
-          {
-            term_ids: [],
-            ctx_used: [],
-          },
-        )),
-      annotation: default_annotation(ann),
-    };
-    let label = (~ann=?, l): typslice_t(DefaultAnnotation.t) => {
-      term: `Typ(Label(l)),
-      annotation: default_annotation(ann),
-    };
-    let tup_label = (~ann=?, t1, t2): typslice_t(DefaultAnnotation.t) => {
-      term:
-        `SliceIncr((
-          Slice(TupLabel(t1, t2)),
-          {
-            term_ids: [],
-            ctx_used: [],
-          },
-        )),
-      annotation: default_annotation(ann),
-    };
-    let parens = (~ann=?, t): typslice_t(DefaultAnnotation.t) => {
-      term:
-        `SliceIncr((
-          Slice(Parens(t)),
-          {
-            term_ids: [],
-            ctx_used: [],
-          },
-        )),
-      annotation: default_annotation(ann),
-    };
-    let ap = (~ann=?, t1, t2): typslice_t(DefaultAnnotation.t) => {
-      term:
-        `SliceIncr((
-          Slice(Ap(t1, t2)),
-          {
-            term_ids: [],
-            ctx_used: [],
-          },
-        )),
-      annotation: default_annotation(ann),
-    };
-    let rec_ = (~ann=?, tp, t): typslice_t(DefaultAnnotation.t) => {
-      term:
-        `SliceIncr((
-          Slice(Rec(tp, t)),
-          {
-            term_ids: [],
-            ctx_used: [],
-          },
-        )),
-      annotation: default_annotation(ann),
-    };
-    let forall = (~ann=?, tp, t): typslice_t(DefaultAnnotation.t) => {
-      term:
-        `SliceIncr((
-          Slice(Forall(tp, t)),
-          {
-            term_ids: [],
-            ctx_used: [],
-          },
-        )),
-      annotation: default_annotation(ann),
-    };
-  };
-
-  module TypSlice = {
-    let unknown = (~ann=?, p): typslice_t(DefaultAnnotation.t) => {
-      term: `Typ(Unknown(p)),
-      annotation: default_annotation(ann),
-    };
-    let int = (~ann=?, ()): typslice_t(DefaultAnnotation.t) => {
-      term: `Typ(Int),
-      annotation: default_annotation(ann),
-    };
-    let float = (~ann=?, ()): typslice_t(DefaultAnnotation.t) => {
-      term: `Typ(Float),
-      annotation: default_annotation(ann),
-    };
-    let bool = (~ann=?, ()): typslice_t(DefaultAnnotation.t) => {
-      term: `Typ(Bool),
-      annotation: default_annotation(ann),
-    };
-    let string = (~ann=?, ()): typslice_t(DefaultAnnotation.t) => {
-      term: `Typ(String),
+      term: `Typ(Atom(String)),
       annotation: default_annotation(ann),
     };
     let var = (~ann=?, s): typslice_t(DefaultAnnotation.t) => {
