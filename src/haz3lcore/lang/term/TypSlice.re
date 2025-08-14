@@ -1688,31 +1688,39 @@ let matched_list = (ctx, ty) =>
   matched_list_strict(ctx, ty)
   |> Option.value(~default=`Typ(Unknown(Internal)) |> temp);
 
-let rec matched_args = (ctx, default_arity, s) => {
+let rec matched_args_strict = (ctx, s, arity): Either.t('a, int) => {
   let (_, rewrap) = s |> IdTagged.unwrap;
-  let s' = weak_head_normalize(ctx, s);
-  switch (term_of(s')) {
+  let (_, rewrap') = s |> IdTagged.unwrap;
+  switch (term_of(weak_head_normalize(ctx, s))) {
   | `Typ(ty) =>
-    Typ.matched_args(ctx, default_arity, ty |> rewrap)
-    |> List.map(t_of_typ_t)
+    Typ.matched_args_strict(ctx, ty |> rewrap, arity)
+    |> Either.mapL(List.map(t_of_typ_t))
   | `SliceIncr(Typ(ty), slice_incr) =>
-    Typ.matched_args(ctx, default_arity, ty |> rewrap)
-    |> List.map(t_of_typ_t)
-    |> List.map(wrap_incr(slice_incr))
-  | `SliceIncr(Slice(s''), slice_incr) =>
+    Typ.matched_args_strict(ctx, ty |> rewrap, arity)
+    |> Either.mapL(List.map(t_of_typ_t))
+    |> Either.mapL(List.map(wrap_incr(slice_incr)))
+  | `SliceIncr(Slice(s'), slice_incr) =>
     (
-      switch (s'') {
-      | Parens(s) => matched_args(ctx, default_arity, s)
-      | Prod([_, ..._] as tys) => tys
-      | _ => [s']
+      switch (s') {
+      | Parens(s) => matched_args_strict(ctx, s, arity)
+      | Prod(ss) when List.length(ss) == arity => L(ss)
+      | Prod(ss) => R(List.length(ss))
+      | _ when arity == 1 => L([s])
+      | _ => R(1)
       }
     )
-    |> List.map(wrap_incr(slice_incr))
+    |> Either.mapL(List.map(wrap_incr(slice_incr)))
   | `SliceGlobal(s, slice_global) =>
-    matched_args(ctx, default_arity, (s :> term) |> temp)
-    |> List.map(wrap_global(slice_global))
+    matched_args_strict(ctx, (s :> term) |> rewrap', arity)
+    |> Either.mapL(List.map(wrap_global(slice_global)))
   };
 };
+
+let matched_args = (ctx, ty, arity) =>
+  switch (matched_args_strict(ctx, ty, arity)) {
+  | L(tys) => tys
+  | R(_) => List.init(arity, _ => `Typ(Unknown(Internal)) |> temp)
+  };
 
 let rec get_sum_constructors = (ctx: Ctx.t, s: t): option(sum_map) => {
   let rewrap = term' => {

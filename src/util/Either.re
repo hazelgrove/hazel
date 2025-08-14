@@ -20,3 +20,12 @@ let get_R =
   fun
   | R(r) => Some(r)
   | L(_) => None;
+
+let mapL = f =>
+  fun
+  | L(l) => L(f(l))
+  | R(r) => R(r);
+let mapR = f =>
+  fun
+  | L(l) => L(l)
+  | R(r) => R(f(r));
