@@ -80,8 +80,8 @@ type error_common =
       typ: TypSlice.t,
     })
   | InvalidUseMode({
-      bad_typ: Typ.t,
-      inner_typ: Typ.t,
+      bad_typ: TypSlice.t,
+      inner_typ: TypSlice.t,
     });
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -236,7 +236,7 @@ type exp = {
   term: Exp.t, /* The term under consideration */
   ancestors, /* Ascending list of containing term ids */
   ctx: Ctx.t, /* Typing context for the term */
-  ana: Typ.t, /* Parental type expectations  */
+  ana: TypSlice.t, /* Parental type expectations  */
   self: Self.exp, /* Expectation-independent type info */
   co_ctx: CoCtx.t, /* Locally free variables */
   cls: Cls.t, /* DERIVED: Syntax class (i.e. form name) */
@@ -375,9 +375,10 @@ let pat_ty: pat => TypSlice.t = ({ty, _}) => ty;
 let pat_constraint: pat => Coverage.Constraint.t =
   ({constraint_, _}) => constraint_;
 
-let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
+let status_common =
+    (ctx: Ctx.t, ty_ana: TypSlice.t, self: Self.t): status_common =>
   switch (self, ty_ana) {
-  | (Just(ty), {term: Unknown(SynSwitch), _}) => NotInHole(Syn(ty))
+  | (Just(ty), {term: `Typ(Unknown(SynSwitch)), _}) => NotInHole(Syn(ty))
   | (Just(syn), ana) =>
     switch (
       TypSlice.join(
@@ -458,8 +459,8 @@ let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
     )
   | (IsMulti, _) =>
     NotInHole(Syn(`Typ(Unknown(Internal)) |> TypSlice.temp))
-  | (NoJoin(_, tys), {term: Unknown(SynSwitch), _}) =>
-    InHole(Inconsistent(Internal(Typ.of_source(tys))))
+  | (NoJoin(_, tys), {term: `Typ(Unknown(SynSwitch)), _}) =>
+    InHole(Inconsistent(Internal(TypSlice.of_source(tys))))
   | (NoJoin(wrap, tys), ana) =>
     let syn: TypSlice.t =
       Self.join_of(wrap, `Typ(Unknown(Internal)) |> TypSlice.temp);
@@ -501,7 +502,8 @@ let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
     InHole(NoType(LabelNotFound(name, labels)))
   };
 
-let rec status_pat = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.pat): status_pat =>
+let rec status_pat =
+        (ctx: Ctx.t, ty_ana: TypSlice.t, self: Self.pat): status_pat =>
   switch (self) {
   | Redundant(self) =>
     let additional_err =
@@ -520,7 +522,19 @@ let rec status_pat = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.pat): status_pat =>
     InHole(Redundant(additional_err));
   | Common(FreeConstructor(name)) =>
     InHole(Common(NoType(FreeConstructor(name))))
-  | ExpectedConstructor(_) => InHole(ExpectedConstructor)
+  | ExpectedConstructor(Common(Just(ty))) =>
+    InHole(
+      ExpectedConstructor(
+        TypSlice.(
+          union_slice_global(
+            get_global_slice_or_empty(ty.term),
+            get_incr_slice_or_empty(ty.term),
+          )
+        ),
+      ),
+    )
+  | ExpectedConstructor(_) =>
+    InHole(ExpectedConstructor(TypSlice.empty_slice_global)) // TODO: Are there other slicing cases?
   | Common(self_pat) =>
     switch (status_common(ctx, ty_ana, self_pat)) {
     | NotInHole(ok_pat) => NotInHole(ok_pat)
@@ -532,7 +546,8 @@ let rec status_pat = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.pat): status_pat =>
    depending on the mode, which represents the expectations of the
    surrounding syntactic context, and the self which represents the
    makeup of the expression / pattern itself. */
-let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
+let rec status_exp =
+        (ctx: Ctx.t, ty_ana: TypSlice.t, self: Self.exp): status_exp =>
   switch (self) {
   | Free(name) => InHole(FreeVariable(name))
   | InexhaustiveMatch(self) =>
@@ -553,7 +568,7 @@ let rec status_exp = (ctx: Ctx.t, ty_ana, self: Self.exp): status_exp =>
         failwith("InHole(InexhaustiveMatch(impossible_err))")
       };
     InHole(InexhaustiveMatch(additional_err));
-  | IsDeferral(_) when Typ.is_syn_plus(ty_ana) => InHole(UnusedDeferral)
+  | IsDeferral(_) when TypSlice.is_syn_plus(ty_ana) => InHole(UnusedDeferral)
   | IsDeferral(InAp) => NotInHole(AnaDeferralConsistent(ty_ana))
   | IsDeferral(_) => InHole(UnusedDeferral)
   | IsBadPartialAp(_ as info) => InHole(BadPartialAp(info))
@@ -847,7 +862,7 @@ let fixed_typ_err_pat: error_pat => TypSlice.t =
   | Redundant(_) => `Typ(Unknown(Internal)) |> TypSlice.temp
   | Common(err) => fixed_typ_err_common(err);
 
-let fixed_typ_pat = (ctx, ty_ana: Typ.t, self: Self.pat): TypSlice.t => {
+let fixed_typ_pat = (ctx, ty_ana: TypSlice.t, self: Self.pat): TypSlice.t => {
   // TODO: get rid of unwrapping (probably by changing the implementation of error_exp.Redundant)
   let self =
     switch (self) {
@@ -860,7 +875,7 @@ let fixed_typ_pat = (ctx, ty_ana: Typ.t, self: Self.pat): TypSlice.t => {
   };
 };
 
-let fixed_typ_exp = (ctx, ty_ana: Typ.t, self: Self.exp): TypSlice.t =>
+let fixed_typ_exp = (ctx, ty_ana: TypSlice.t, self: Self.exp): TypSlice.t =>
   switch (status_exp(ctx, ty_ana, self)) {
   | InHole(err) => fixed_typ_err(err)
   | NotInHole(AnaDeferralConsistent(ana)) => ana

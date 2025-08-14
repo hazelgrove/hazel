@@ -418,7 +418,7 @@ let entries =
 
 let ctx_init: option(Operators.mode) => Ctx.t =
   use_mode => {
-    let meta_cons_map: ConstructorMap.t(Typ.t) = [
+    let meta_cons_map: ConstructorMap.t(TypSlice.t) = [
       Variant("$e", [Id.mk()], None),
       Variant("$v", [Id.mk()], None),
     ];
@@ -426,7 +426,7 @@ let ctx_init: option(Operators.mode) => Ctx.t =
       Ctx.TVarEntry({
         name: "$Meta",
         id: Id.invalid,
-        kind: Ctx.Singleton(Fresh.Typ.sum(meta_cons_map)),
+        kind: Ctx.Singleton(Fresh.TypSlice.sum(meta_cons_map)),
       });
     Ctx.{
       use_mode,

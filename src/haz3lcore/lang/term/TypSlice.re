@@ -1789,6 +1789,8 @@ let is_synswitch = s =>
        | _ => false,
        _ => false);
 
+let rec is_syn_plus = apply_t(Typ.is_syn_plus, _ => false);
+
 //
 let get_slice: term => (option(slc_global), option(slc_incr)) =
   fun
