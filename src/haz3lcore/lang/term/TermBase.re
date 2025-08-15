@@ -83,26 +83,6 @@ type deferral_position_t = Grammar.deferral_position_t;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type var_cls = Grammar.var_cls;
 
-module CodeSlice: {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = code_slice;
-  let empty: t;
-  let union: (t, t) => t;
-} = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = code_slice;
-  let empty = Grammar.empty_slice;
-  let union =
-      (
-        {term_ids, ctx_used}: t,
-        {term_ids: term_ids', ctx_used: ctx_used'}: t,
-      )
-      : t => {
-    term_ids: term_ids @ term_ids',
-    ctx_used: ctx_used @ ctx_used',
-  };
-};
-
 module rec Any: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = any_t;

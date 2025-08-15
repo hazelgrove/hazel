@@ -124,8 +124,8 @@ let lookup_alias = (ctx: t, name: string): option(TermBase.Typ.t) =>
       (
         {
           typ: Unknown(Hole(Invalid(name))),
-          syn_slice: TermBase.CodeSlice.empty,
-          ana_slice: TermBase.CodeSlice.empty,
+          syn_slice: CodeSlice.empty,
+          ana_slice: CodeSlice.empty,
         }: TermBase.Typ.slice
       )
       |> IdTagged.fresh,
@@ -182,7 +182,7 @@ let add_ctrs =
                               ctx_used: [],
                               term_ids: def_ids,
                             },
-                            syn_slice: TermBase.CodeSlice.empty,
+                            syn_slice: CodeSlice.empty,
                           }: TermBase.Typ.slice
                         )
                         |> IdTagged.fresh,
@@ -191,7 +191,7 @@ let add_ctrs =
                       ctx_used: [],
                       term_ids: [id, ...ctr_ids],
                     },
-                    ana_slice: TermBase.CodeSlice.empty,
+                    ana_slice: CodeSlice.empty,
                   }: TermBase.Typ.slice
                 )
                 |> IdTagged.fresh

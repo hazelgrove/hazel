@@ -24,21 +24,112 @@ type cls =
 
 include TermBase.Typ;
 
-let term_of: t => term = IdTagged.term_of;
-let unwrap: t => (term, term => t) = IdTagged.unwrap;
+let term_of: t => term = ty => IdTagged.term_of(ty).typ;
+let slice_of: t => slice = IdTagged.term_of;
+let unwrap_to_slice: t => (slice, slice => t) = IdTagged.unwrap;
+let unwrap: t => (term, term => t) = Grammar.unwrap_typslice;
+let unwrap_slice: slice => (term, term => slice) = Grammar.unwrap_typslice_term;
 let rep_id: t => Id.t = IdTagged.rep_id;
 
-let fresh: term => t = IdTagged.fresh;
+let fresh: slice => t = IdTagged.fresh;
 /* fresh assigns a random id, whereas temp assigns Id.invalid, which
    is a lot faster, and since we so often make types and throw them away
    shortly after, it makes sense to use it. */
-let temp: term => t =
+let temp: slice => t =
   term => {
     term,
     annotation: {
       ids: [Id.invalid],
     },
   };
+
+// Create an empty type slice from a typ_term
+let empty: term => slice =
+  typ => {
+    typ,
+    syn_slice: CodeSlice.empty,
+    ana_slice: CodeSlice.empty,
+  };
+
+let fresh_empty = Fun.compose(fresh, empty);
+let temp_empty = Fun.compose(fresh, empty);
+
+let from_code_slices: ((CodeSlice.t, CodeSlice.t), term) => slice =
+  ((syn_slice, ana_slice), typ) => {
+    typ,
+    syn_slice,
+    ana_slice,
+  };
+
+let from_syn_slice = code => from_code_slices((code, CodeSlice.empty));
+
+let from_ana_slice = code => from_code_slices((CodeSlice.empty, code));
+
+let wrap_syn_slice: (CodeSlice.t, t) => t =
+  (code, {term: {syn_slice, _} as slice, _} as ty) => {
+    ...ty,
+    term: {
+      ...slice,
+      syn_slice: CodeSlice.union(syn_slice, code),
+    },
+  };
+let wrap_ana_slice: (CodeSlice.t, t) => t =
+  (code, {term: {ana_slice, _} as slice, _} as ty) => {
+    ...ty,
+    term: {
+      ...slice,
+      ana_slice: CodeSlice.union(ana_slice, code),
+    },
+  };
+let wrap_slices = ((c1, c2), ty) =>
+  ty |> wrap_syn_slice(c1) |> wrap_ana_slice(c2);
+
+let code_slices_of: t => (CodeSlice.t, CodeSlice.t) =
+  ty => (slice_of(ty).syn_slice, slice_of(ty).ana_slice);
+let syn_code_slice_of = Fun.compose(fst, code_slices_of);
+let ana_code_slice_of = Fun.compose(fst, code_slices_of);
+
+let rec full_slice = ty =>
+  (
+    switch (term_of(ty)) {
+    | List(ty)
+    | Parens(ty)
+    | Rec(_, ty)
+    | Forall(_, ty) => full_slice(ty)
+    | Arrow(ty1, ty2)
+    | Ap(ty1, ty2)
+    | TupLabel(ty1, ty2) =>
+      TupleUtil.map2_bin(CodeSlice.union, full_slice(ty1), full_slice(ty2))
+    | Prod(tys) =>
+      List.fold_left(
+        (acc, ty) =>
+          TupleUtil.map2_bin(CodeSlice.union, full_slice(ty), acc),
+        (CodeSlice.empty, CodeSlice.empty),
+        tys,
+      )
+    | Sum(m) =>
+      ConstructorMap.fold_vals(
+        (acc, s) => TupleUtil.map2_bin(CodeSlice.union, full_slice(s), acc),
+        (CodeSlice.empty, CodeSlice.empty),
+        m,
+      )
+    | Atom(_)
+    | Label(_)
+    | Unknown(_)
+    | Var(_) => (CodeSlice.empty, CodeSlice.empty)
+    }
+  )
+  |> TupleUtil.(apply(map2(CodeSlice.union, code_slices_of(ty))));
+
+let full_slice_combined =
+  Fun.compose(TupleUtil.uncurry(CodeSlice.union), full_slice);
+
+// Approximate slice size. Used to pick branches with smaller slices
+let slice_size =
+  Fun.compose(
+    Fun.compose(TupleUtil.uncurry((+)), TupleUtil.map2(CodeSlice.size)),
+    full_slice,
+  );
 
 let all_ids_temp = {
   let f:
@@ -134,7 +225,7 @@ let ids_of_var = (name, t) => {
 };
 
 let is_parens = (typ: t) => {
-  switch (typ.term) {
+  switch (term_of(typ)) {
   | Parens(_) => true
   | Arrow(_)
   | Unknown(_)
@@ -153,7 +244,7 @@ let is_parens = (typ: t) => {
 
 // ignore_parens=false can give a syntactic notion (e.g. for use in pattern matching).
 let rec is_arrow = (~ignore_parens=true, typ: t) => {
-  switch (typ.term) {
+  switch (term_of(typ)) {
   | Parens(typ)
   | TupLabel(_, typ) => ignore_parens ? is_arrow(typ) : false
   | Arrow(_) => true
@@ -172,7 +263,7 @@ let rec is_arrow = (~ignore_parens=true, typ: t) => {
 
 [@ocaml.warning "-32"]
 let rec is_unknown = (~ignore_parens=true, typ: t) => {
-  switch (typ.term) {
+  switch (term_of(typ)) {
   | Parens(typ) => ignore_parens ? false : is_unknown(typ)
   | Unknown(_) => true
   | Arrow(_)
@@ -190,7 +281,7 @@ let rec is_unknown = (~ignore_parens=true, typ: t) => {
 };
 
 let rec is_list = (~ignore_parens=true, typ: t) => {
-  switch (typ.term) {
+  switch (term_of(typ)) {
   | Parens(typ) => ignore_parens ? false : is_list(typ)
   | List(_) => true
   | Unknown(_)
@@ -208,7 +299,7 @@ let rec is_list = (~ignore_parens=true, typ: t) => {
 };
 
 let rec is_forall = (~ignore_parens=true, typ: t) => {
-  switch (typ.term) {
+  switch (term_of(typ)) {
   | Parens(typ)
   | TupLabel(_, typ) => ignore_parens ? false : is_forall(typ)
   | Forall(_) => true
@@ -226,14 +317,15 @@ let rec is_forall = (~ignore_parens=true, typ: t) => {
 };
 
 let is_void = (typ: t) =>
-  switch (typ.term) {
+  switch (term_of(typ)) {
   | Sum(ctrs) => ConstructorMap.is_empty(ctrs)
-  | Rec(_, {term: Sum(ctrs), _}) => ConstructorMap.is_empty(ctrs)
+  | Rec(_, {term: {typ: Sum(ctrs), _}, _}) =>
+    ConstructorMap.is_empty(ctrs)
   | _ => false
   };
 
 let rec is_sum = (~ignore_parens=true, typ: t) => {
-  switch (typ.term) {
+  switch (term_of(typ)) {
   | Parens(typ)
   | TupLabel(_, typ) => ignore_parens ? false : is_sum(typ)
   | Sum(_) => true
@@ -251,7 +343,7 @@ let rec is_sum = (~ignore_parens=true, typ: t) => {
 };
 
 let rec is_tuplabel = (~ignore_parens=true, typ: t) => {
-  switch (typ.term) {
+  switch (term_of(typ)) {
   | Parens(typ) => ignore_parens ? false : is_tuplabel(typ)
   | TupLabel(_) => true
   | Unknown(_)
@@ -269,7 +361,7 @@ let rec is_tuplabel = (~ignore_parens=true, typ: t) => {
 };
 
 let rec is_prod = (~ignore_parens=true, typ: t) => {
-  switch (typ.term) {
+  switch (term_of(typ)) {
   | Parens(typ) => ignore_parens ? false : is_prod(typ)
   | Prod(_) => true
   | Unknown(_)
@@ -287,7 +379,7 @@ let rec is_prod = (~ignore_parens=true, typ: t) => {
 };
 
 let rec is_label = (~ignore_parens=true, typ: t) => {
-  switch (typ.term) {
+  switch (term_of(typ)) {
   | Parens(typ) => ignore_parens ? false : is_label(typ)
   | Label(_) => true
   | Unknown(_)
@@ -333,16 +425,19 @@ let join_type_provenance =
   | (SynSwitch, SynSwitch) => SynSwitch
   };
 
-let rec match_tup_label = ty =>
+// TODO: What do do with slices here?
+let rec match_tup_label = ty => {
+  let ana_slice = ana_code_slice_of(ty);
   switch (term_of(ty)) {
   | Parens(ty) => match_tup_label(ty)
   | TupLabel(label, t') =>
     switch (term_of(label)) {
-    | Label(name) => Some((name, t'))
+    | Label(name) => Some((name, t' |> wrap_ana_slice(ana_slice)))
     | _ => None
     }
   | _ => None
   };
+};
 
 let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   switch (term_of(ty)) {
@@ -369,9 +464,11 @@ let fresh_var = (var_name: string) => {
   var_name ++ "_α" ++ string_of_int(x);
 };
 
+// TODO: Slice metatheory
 let unroll = (ty: t): t =>
   switch (term_of(ty)) {
-  | Rec(tp, ty_body) => subst(ty, tp, ty_body)
+  | Rec(tp, ty_body) =>
+    subst(ty, tp, ty_body) |> wrap_slices(code_slices_of(ty))
   | _ => ty
   };
 
@@ -386,28 +483,33 @@ let equal = (t1: t, t2: t): bool => fast_equal(t1, t2);
    or to return the (first) type variable for readability */
 
 // Tracks if atomic type of either branch is used in the join type.
-// strictly picks LEFT side when same leaf used in both branches
-// join used leaves from either: none, left branch, right branch, or both.
-// None here occurs if both branches are Unknown.
-open Joins;
-let rec join_using = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): join(t, t) => {
+// Picks the branch with smallest (approx) slice when same typing info in both branches (and Right if equal)
+// join used leaves from either: none, left branch, right branch, or both
+// None here occurs only if both branches are Unknown.
+// TODO: Have a version which retains slices more completely, producing valid terms (i.e. duplicating type constructor highlighting)
+let rec join_using =
+        (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): Joins.join(t, t) => {
+  open Joins;
+  let smallest_branch = slice_size(ty1) < slice_size(ty2) ? Left : Right;
+  let c1 = code_slices_of(ty1);
+  let c2 = code_slices_of(ty2);
+  let add_slices = branch_used =>
+    from_code_slices(choose_branch(c1, c2, branch_used));
   let join' = join_using(~resolve, ctx);
   switch (term_of(ty1), term_of(ty2)) {
   | (_, Parens(ty2)) => join'(ty1, ty2)
   | (Parens(ty1), _) => join'(ty1, ty2)
   | (Unknown(p1), Unknown(p2)) =>
-    Join(Unknown(join_type_provenance(p1, p2)) |> temp, None)
+    Join(Unknown(join_type_provenance(p1, p2)) |> temp_empty, None) // Don't slice holes. Note: In future do slice these
   | (Unknown(_), _) => Join(ty2, Right)
   | (_, Unknown(_)) => Join(ty1, Left)
   | (Var(n1), Var(n2)) =>
     if (n1 == n2) {
-      Join(ty1, Left);
+      Join(ty1, smallest_branch);
     } else {
       {
-        let* ty1 =
-          Ctx.lookup_alias(ctx, n1) |> Option.map(TermBase.TypSlice.typ_of);
-        let* ty2 =
-          Ctx.lookup_alias(ctx, n2) |> Option.map(TermBase.TypSlice.typ_of);
+        let* ty1 = Ctx.lookup_alias(ctx, n1);
+        let* ty2 = Ctx.lookup_alias(ctx, n2);
         Some(
           switch (join'(ty1, ty2)) {
           | Join(ty_join, branch_used) =>
@@ -426,8 +528,7 @@ let rec join_using = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): join(t, t) =>
     }
   | (Var(name), _) =>
     {
-      let* ty_name =
-        Ctx.lookup_alias(ctx, name) |> Option.map(TermBase.TypSlice.typ_of);
+      let* ty_name = Ctx.lookup_alias(ctx, name);
       Some(
         switch (join'(ty_name, ty2)) {
         | Join(ty_join, branch_used) =>
@@ -445,8 +546,7 @@ let rec join_using = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): join(t, t) =>
     )
   | (_, Var(name)) =>
     {
-      let* ty_name =
-        Ctx.lookup_alias(ctx, name) |> Option.map(TermBase.TypSlice.typ_of);
+      let* ty_name = Ctx.lookup_alias(ctx, name);
       Some(
         switch (join'(ty_name, ty1)) {
         | Join(ty_join, branch_used) =>
@@ -467,24 +567,35 @@ let rec join_using = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): join(t, t) =>
     let ctx = Ctx.extend_dummy_tvar(ctx, tp1);
     let ty1' =
       switch (TPat.tyvar_of_utpat(tp2)) {
-      | Some(x2) => subst(Var(x2) |> temp, tp1, ty1)
+      | Some(x2) =>
+        subst(
+          Var(x2)
+          |> from_ana_slice(CodeSlice.of_ids([TPat.rep_id(tp2)]))
+          |> temp,
+          tp1,
+          ty1,
+        )
       | None => ty1
       };
     let. (ty_body, branch_used) = join_using(~resolve, ctx, ty1', ty2);
-    Join(Rec(tp1, ty_body) |> temp, branch_used);
+    Join(Rec(tp1, ty_body) |> add_slices(branch_used) |> temp, branch_used);
   | (Rec(_), _) => NoJoin([(ty1, ty2)])
-  | (Forall(x1, ty1), Forall(x2, ty2)) =>
+  | (Forall(tp1, ty1), Forall(tp2, ty2)) =>
     let ty1' =
-      switch (TPat.tyvar_of_utpat(x2)) {
-      | Some(x2) => subst(Var(x2) |> temp, x1, ty1)
+      switch (TPat.tyvar_of_utpat(tp2)) {
+      | Some(x2) =>
+        subst(
+          Var(x2)
+          |> from_ana_slice(CodeSlice.of_ids([TPat.rep_id(tp2)]))
+          |> temp,
+          tp1,
+          ty1,
+        )
       | None => ty1
       };
-    let ctx = Ctx.extend_dummy_tvar(ctx, x2);
+    let ctx = Ctx.extend_dummy_tvar(ctx, tp2);
     let+ (ty_body, branch_used) = join_using(~resolve, ctx, ty1', ty2);
-    (
-      Forall(x2, ty_body) |> temp,
-      combine_branches_used(branch_used, Right),
-    );
+    (Forall(tp2, ty_body) |> add_slices(branch_used) |> temp, branch_used);
   /* Note for above: there is no danger of free variable capture as
      subst itself performs capture avoiding substitution. However this
      may generate internal type variable names that in corner cases can
@@ -492,25 +603,25 @@ let rec join_using = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): join(t, t) =>
      second type to preserve synthesized type variable names, which
      come from user annotations. */
   | (Forall(_), _) => NoJoin([(ty1, ty2)])
-  | (Atom(a1), Atom(a2)) when a1 == a2 => Join(ty1, Left)
+  | (Atom(a1), Atom(a2)) when a1 == a2 => Join(ty1, Right)
   | (Atom(_), _) => NoJoin([(ty1, ty2)])
   | (Label(_), Label("")) => Join(ty1, Left)
   | (Label(""), Label(_)) => Join(ty2, Right)
   | (Label(name1), Label(name2))
       when LabeledTuple.match_labels(name1, name2) =>
-    Join(ty1, Left)
+    Join(ty1, Right)
   | (Label(_), _) => NoJoin([(ty1, ty2)])
   | (Arrow(ty1, ty2), Arrow(ty1', ty2')) =>
     let+ ty1 = join'(ty1, ty1')
     and+ ty2 = join'(ty2, ty2')
     and! branch_used = ();
-    (Arrow(ty1, ty2) |> temp, branch_used);
+    (Arrow(ty1, ty2) |> add_slices(branch_used) |> temp, branch_used);
   | (Arrow(_), _) => NoJoin([(ty1, ty2)])
   | (TupLabel(lab1, ty1'), TupLabel(lab2, ty2')) =>
     let+ lab = join'(lab1, lab2)
     and+ ty = join'(ty1', ty2')
     and! branch_used = ();
-    (TupLabel(lab, ty) |> temp, branch_used);
+    (TupLabel(lab, ty) |> add_slices(branch_used) |> temp, branch_used);
   | (TupLabel(_), _) => NoJoin([(ty1, ty2)])
   | (Prod(tys1), Prod(tys2)) =>
     if (List.length(tys1) != List.length(tys2)) {
@@ -533,10 +644,9 @@ let rec join_using = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): join(t, t) =>
         );
       switch (joins) {
       | Ok((tys, branches_used)) =>
-        Join(
-          Prod(tys) |> temp,
-          List.fold_left(combine_branches_used, None, branches_used),
-        )
+        let branch_used =
+          List.fold_left(combine_branches_used, None, branches_used);
+        Join(Prod(tys) |> add_slices(branch_used) |> temp, branch_used);
       | Error(ts) => NoJoin(ts)
       };
     }
@@ -550,16 +660,20 @@ let rec join_using = (~resolve=false, ctx: Ctx.t, ty1: t, ty2: t): join(t, t) =>
         sm2,
       )
     ) {
-    | Join(sm', branch_used) => Join(Sum(sm') |> temp, branch_used)
+    | Join(sm', branch_used) =>
+      Join(Sum(sm') |> add_slices(branch_used) |> temp, branch_used)
     | NoJoin(sms) =>
       NoJoin(
-        List.map(((s1, s2)) => (Sum(s1) |> temp, Sum(s2) |> temp), sms),
+        List.map(
+          ((s1, s2)) => (Sum(s1) |> temp_empty, Sum(s2) |> temp_empty),
+          sms,
+        ) // TODO: Slices here?
       )
     }
   | (Sum(_), _) => NoJoin([(ty1, ty2)])
   | (List(ty1), List(ty2)) =>
     let+ (ty, branch_used) = join'(ty1, ty2);
-    (List(ty) |> temp, branch_used);
+    (List(ty) |> add_slices(branch_used) |> temp, branch_used);
   | (List(_), _) => NoJoin([(ty1, ty2)])
   | (Ap(_), _) => failwith("Type join of ap")
   };
@@ -583,7 +697,8 @@ let join_inconsistency =
   );
 
 /* REQUIRES NORMALIZED TYPES
-   Remove synswitches from t1 by matching against t2 */
+   Remove synswitches from t1 by matching against t2
+   Left slices being used (except for synswitch) */
 let rec match_synswitch = (t1: t, t2: t) => {
   let (term1, rewrap1) = unwrap(t1);
   switch (term1, term_of(t2)) {
@@ -628,6 +743,26 @@ let join_all = (~empty: t, ctx: Ctx.t, ts: list(t)): option(t) =>
     ts,
   );
 
+let join_inconsistency_all = (~empty: t, ctx, ts) =>
+  List.fold_left(
+    fun
+    | Ok(acc) => (
+        t =>
+          switch (join_using(ctx, acc, t)) {
+          | Join(acc', _) => Ok(acc')
+          | NoJoin(ts) => Error(ts)
+          }
+      )
+    | Error(ts) => (_ => Error(ts)),
+    Ok(empty),
+    ts,
+  )
+  |> (
+    fun
+    | Ok(_) => []
+    | Error(ts) => ts
+  );
+
 let is_consistent = (ctx: Ctx.t, ty1: t, ty2: t): bool =>
   join(ctx, ty1, ty2) != None;
 
@@ -638,7 +773,7 @@ let rec weak_head_normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   switch (term_of(ty)) {
   | Parens(t) => weak_head_normalize(~rec_counter=rec_counter + 1, ctx, t)
   | Var(x) =>
-    switch (Ctx.lookup_alias(ctx, x) |> Option.map(TermBase.TypSlice.typ_of)) {
+    switch (Ctx.lookup_alias(ctx, x)) {
     | Some(ty) => weak_head_normalize(~rec_counter=rec_counter + 1, ctx, ty)
     | None => ty
     }
@@ -654,7 +789,7 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   let (term, rewrap) = unwrap(ty);
   switch (term) {
   | Var(x) =>
-    switch (Ctx.lookup_alias(ctx, x) |> Option.map(TermBase.TypSlice.typ_of)) {
+    switch (Ctx.lookup_alias(ctx, x)) {
     | Some(ty) => normalize(ctx, ty)
     | None => ty
     }
@@ -681,32 +816,54 @@ let rec normalize = (~rec_counter=0, ctx: Ctx.t, ty: t): t => {
   };
 };
 
-let rec matched_arrow_strict = (ctx, ty) =>
+// ids are used to assigning part of an ana slice. i.e. moving Mode.re slicing logic into Typ.re
+// Use the ids that 'explain' why an arrow was required
+let rec matched_arrow_strict = (~ids=[], ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
   | Parens(ty) => matched_arrow_strict(ctx, ty)
-  | Arrow(ty_in, ty_out) => Some((ty_in, ty_out))
+  | Arrow(ty_in, ty_out) =>
+    Some((
+      ty_in |> wrap_ana_slice(ana_code_slice_of(ty_in)),
+      ty_out |> wrap_ana_slice(ana_code_slice_of(ty_out)),
+    ))
   | Unknown(SynSwitch) =>
-    Some((Unknown(SynSwitch) |> temp, Unknown(SynSwitch) |> temp))
+    Some((
+      Unknown(SynSwitch) |> from_ana_slice(CodeSlice.of_ids(ids)) |> temp,
+      Unknown(SynSwitch) |> from_ana_slice(CodeSlice.of_ids(ids)) |> temp,
+    ))
   | _ => None
   };
 
-let matched_arrow = (ctx, ty) =>
-  matched_arrow_strict(ctx, ty)
+let matched_arrow = (~ids=[], ctx, ty) =>
+  matched_arrow_strict(~ids, ctx, ty)
   |> Option.value(
-       ~default=(Unknown(Internal) |> temp, Unknown(Internal) |> temp),
+       ~default=(
+         Unknown(Internal) |> from_ana_slice(CodeSlice.of_ids(ids)) |> temp,
+         Unknown(Internal) |> from_ana_slice(CodeSlice.of_ids(ids)) |> temp,
+       ),
      );
 
-let rec matched_forall_strict = (ctx, ty) =>
+let rec matched_forall_strict = (~ids=[], ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
   | Parens(ty) => matched_forall_strict(ctx, ty)
-  | Forall(t, ty) => Some((Some(t), ty))
-  | Unknown(SynSwitch) => Some((None, Unknown(SynSwitch) |> temp))
+  | Forall(t, ty) =>
+    Some((Some(t), ty |> wrap_ana_slice(ana_code_slice_of(ty))))
+  | Unknown(SynSwitch) =>
+    Some((
+      None,
+      Unknown(SynSwitch) |> from_ana_slice(CodeSlice.of_ids(ids)) |> temp,
+    ))
   | _ => None
   };
 
-let matched_forall = (ctx, ty) =>
-  matched_forall_strict(ctx, ty)
-  |> Option.value(~default=(Option.None, Unknown(Internal) |> temp));
+let matched_forall = (~ids=[], ctx, ty) =>
+  matched_forall_strict(~ids, ctx, ty)
+  |> Option.value(
+       ~default=(
+         Option.None,
+         Unknown(Internal) |> from_ana_slice(CodeSlice.of_ids(ids)) |> temp,
+       ),
+     );
 
 let rec get_labels = (ctx, ty): list(option(string)) => {
   let ty = weak_head_normalize(ctx, ty);
@@ -717,87 +874,116 @@ let rec get_labels = (ctx, ty): list(option(string)) => {
   };
 };
 
-let rec matched_prod_strict:
-  type a.
-    (Ctx.t, list(a), a => option((string, a)), t, (string, a) => a) =>
-    (list(a), option(list(t))) =
-  (ctx: Ctx.t, es, get_label_es, ty: t, constructor) => {
-    switch (term_of(weak_head_normalize(ctx, ty))) {
-    | Parens(ty) =>
-      matched_prod_strict(ctx, es, get_label_es, ty, constructor)
-    | Prod(tys: list(t)) =>
-      if (List.length(es) != List.length(tys)) {
-        (es, None);
-      } else {
-        (
-          LabeledTuple.rearrange(
-            match_tup_label,
-            get_label_es,
-            tys,
-            es,
-            constructor,
-          ),
-          Some(tys),
-        );
-      }
-    | Unknown(SynSwitch) => (
-        es,
-        Some(List.init(List.length(es), _ => Unknown(SynSwitch) |> temp)),
-      )
-    | _ => (es, None)
-    };
+let rec matched_prod_strict =
+        (~ids=[], ctx: Ctx.t, es, get_label_es, ty: t, constructor) => {
+  switch (term_of(weak_head_normalize(ctx, ty))) {
+  | Parens(ty) => matched_prod_strict(ctx, es, get_label_es, ty, constructor)
+  | Prod(tys: list(t)) =>
+    if (List.length(es) != List.length(tys)) {
+      (es, None);
+    } else {
+      (
+        LabeledTuple.rearrange(
+          match_tup_label,
+          get_label_es,
+          tys |> List.map(wrap_ana_slice(ana_code_slice_of(ty))),
+          es,
+          constructor,
+        ),
+        Some(tys),
+      );
+    }
+  | Unknown(SynSwitch) => (
+      es,
+      Some(
+        List.init(List.length(es), _ =>
+          Unknown(SynSwitch)
+          |> from_ana_slice(CodeSlice.of_ids(ids))
+          |> temp
+        ),
+      ),
+    )
+  | _ => (es, None)
   };
+};
 
-let matched_prod = (ctx, es, get_label_es, ty, constructor) => {
+let matched_prod = (~ids=[], ctx, es, get_label_es, ty, constructor) => {
   let (es, tys_opt) =
-    matched_prod_strict(ctx, es, get_label_es, ty, constructor);
+    matched_prod_strict(~ids, ctx, es, get_label_es, ty, constructor);
   (
     es,
     tys_opt
     |> Option.value(
-         ~default=List.init(List.length(es), _ => Unknown(Internal) |> temp),
+         ~default=
+           List.init(List.length(es), _ =>
+             Unknown(Internal)
+             |> from_ana_slice(CodeSlice.of_ids(ids))
+             |> temp
+           ),
        ),
   );
 };
 
-let rec matched_list_strict = (ctx, ty) =>
+let rec matched_list_strict = (~ids=[], ctx, ty) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
   | Parens(ty) => matched_list_strict(ctx, ty)
-  | List(ty) => Some(ty)
-  | Unknown(SynSwitch) => Some(Unknown(SynSwitch) |> temp)
+  | List(ty) => Some(ty |> wrap_ana_slice(ana_code_slice_of(ty)))
+  | Unknown(SynSwitch) =>
+    Some(
+      Unknown(SynSwitch) |> from_ana_slice(CodeSlice.of_ids(ids)) |> temp,
+    )
   | _ => None
   };
 
-let matched_list = (ctx, ty) =>
-  matched_list_strict(ctx, ty)
-  |> Option.value(~default=Unknown(Internal) |> temp);
+let matched_list = (~ids=[], ctx, ty) =>
+  matched_list_strict(~ids, ctx, ty)
+  |> Option.value(
+       ~default=
+         Unknown(Internal) |> from_ana_slice(CodeSlice.of_ids(ids)) |> temp,
+     );
 
-let rec matched_args_strict = (ctx, ty, arity): Either.t('a, int) => {
+let rec matched_args_strict = (~ids=[], ctx, ty, arity): Either.t('a, int) => {
   switch (term_of(weak_head_normalize(ctx, ty))) {
   | Parens(ty) => matched_args_strict(ctx, ty, arity)
-  | Prod(tys) when List.length(tys) == arity => L(tys)
+  | Prod(tys) when List.length(tys) == arity =>
+    L(tys |> List.map(wrap_ana_slice(ana_code_slice_of(ty))))
   | Prod(tys) => R(List.length(tys))
   | _ when arity == 1 => L([ty])
   | Unknown((SynSwitch | Internal) as p) =>
-    L(List.init(arity, _ => Unknown(p) |> temp))
+    L(
+      List.init(arity, _ =>
+        Unknown(p) |> from_ana_slice(CodeSlice.of_ids(ids)) |> temp
+      ),
+    )
   | _ => R(1)
   };
 };
 
-let matched_args = (ctx, ty, arity) =>
-  switch (matched_args_strict(ctx, ty, arity)) {
+let matched_args = (~ids=[], ctx, ty, arity) =>
+  switch (matched_args_strict(~ids, ctx, ty, arity)) {
   | L(tys) => tys
-  | R(_) => List.init(arity, _ => Unknown(Internal) |> temp)
+  | R(_) =>
+    List.init(arity, _ =>
+      Unknown(Internal) |> from_ana_slice(CodeSlice.of_ids(ids)) |> temp
+    )
   };
 
-let matched_label = (ctx, ty): option((t, t)) =>
+let matched_label = (~ids=[], ctx, ty): option((t, t)) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
-  | TupLabel({term: Label(ml), _}, ty) => Some((Label(ml) |> temp, ty))
+  | TupLabel({term: {typ: Label(ml), _}, _}, ty') =>
+    Some((
+      Label(ml) |> from_ana_slice(ana_code_slice_of(ty)) |> temp,
+      ty' |> wrap_ana_slice(ana_code_slice_of(ty)),
+    ))
   | Unknown(SynSwitch) =>
-    Some((Unknown(SynSwitch) |> temp, Unknown(SynSwitch) |> temp))
+    Some((
+      Unknown(SynSwitch) |> from_ana_slice(CodeSlice.of_ids(ids)) |> temp,
+      Unknown(SynSwitch) |> from_ana_slice(CodeSlice.of_ids(ids)) |> temp,
+    ))
   | _ => None
   };
 
+// TODO: Slicing here?
 let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
   let ty = weak_head_normalize(ctx, ty);
   switch (term_of(ty)) {
@@ -1017,7 +1203,11 @@ let remove_duplicate_labels =
             [l] @ seen_duplicates,
             deduplicated_types
             @ [
-              TupLabel(Label(l) |> temp, Unknown(Internal) |> temp) |> temp,
+              TupLabel(
+                Label(l) |> temp_empty,
+                Unknown(Internal) |> temp_empty,
+              )
+              |> temp_empty,
             ],
           )
         | Some(_) => (seen_duplicates, deduplicated_types @ [ty])

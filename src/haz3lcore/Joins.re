@@ -17,6 +17,11 @@ let right =
   | Both => true
   | _ => false;
 
+let both =
+  fun
+  | Both => true
+  | _ => false;
+
 let flip =
   fun
   | Left => Right
@@ -35,6 +40,14 @@ let combine_branches_used = (branch_used1, branch_used2) =>
   | (_, Right) => Right
   | (None, None) => None
   };
+
+// Select l/r/~both/~none depending on value of branch. If ~both left empty then select right (r)
+let choose_branch = (l, r, ~both=?, ~none=?) =>
+  fun
+  | Both => Option.value(both, ~default=r)
+  | None => Option.value(none, ~default=r)
+  | Right => r
+  | Left => l;
 
 // Either a successful join, returning slice parts only from the left branch where atomic types meet, i.e. Int, Int
 // Or an unsuccessful join, returning the list of inconsistent atoms
