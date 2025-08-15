@@ -97,7 +97,7 @@ let update =
         )
         |> Updated.return;
 
-      | Composition(kind) =>
+      | Composition(kind, eval_mode) =>
         let mode = AssistantSettings.TaskCompletion;
         let curr_chat =
           Id.Map.find(chat_id, model.chat_history.past_composition_chats);
@@ -149,13 +149,14 @@ let update =
               CompositionLoopRound(
                 editor,
                 AssistantModes.Composition.max_tool_calls,
+                eval_mode,
               ),
               response,
               chat_id,
             )
           );
           schedule_action(
-            SendMessage(Composition(Intermediate), None, chat_id),
+            SendMessage(Composition(Intermediate, eval_mode), None, chat_id),
           );
           update_model_chat_history(
             ~model,
@@ -175,7 +176,7 @@ let update =
           //    We then send off this message to the LLM and await a response, either
           //    an end output to the user (implying no more looping) or a new tool call.
           schedule_action(
-            SendMessage(Composition(Intermediate), None, chat_id),
+            SendMessage(Composition(Intermediate, eval_mode), None, chat_id),
           );
           let (local_code_map_str, display) =
             AssistantModes.Composition.mk_local_code_map_prompt(
@@ -233,7 +234,7 @@ let update =
             ~updated_chat,
             ~response_handler=response =>
             HandleResponse(
-              CompositionLoopRound(editor, fuel),
+              CompositionLoopRound(editor, fuel, eval_mode),
               response,
               chat_id,
             )
@@ -521,14 +522,16 @@ let update =
         ~awaiting_response=false,
       )
       |> Updated.return;
-    | CompositionLoopRound(_, fuel) =>
+    | CompositionLoopRound(_, fuel, eval_mode) =>
       // This is step (3) from the directed graph above --
       switch (tool_call, fuel) {
       | (None, _) =>
         // The agent did not make a tool call, thus there is nothing to handle on the backend,
         // we can proceed as if there were a normal LLM chat interaction.
         summarize_chat();
-        schedule_eval_action(CollectResults);
+        if (eval_mode) {
+          schedule_eval_action(CollectResults);
+        };
         update_model_chat_history(
           ~model,
           ~mode,
@@ -538,7 +541,9 @@ let update =
         |> Updated.return;
       | (_, 0) =>
         // The agent ran out of fuel. We should experiment with this in the future.
-        schedule_eval_action(CollectResults);
+        if (eval_mode) {
+          schedule_eval_action(CollectResults);
+        };
         schedule_action(
           InternalError(
             "By default, we stop the agent after "
@@ -597,6 +602,7 @@ let update =
                 },
                 status,
               ),
+              eval_mode,
             ),
             None,
             chat_id,

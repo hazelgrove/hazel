@@ -31,10 +31,15 @@ let is_on_whitespace = (z: Zipper.t): bool => {
 };
 
 let rec move_to_non_whitespace = (z: Zipper.t): Zipper.t => {
-  switch (Move.primary(ByChar, Left, z)) {
-  | Some(z') => is_on_whitespace(z') ? move_to_non_whitespace(z') : z'
-  | None => raise(Failure("Couldn't move to non-whitespace"))
-  };
+  is_on_whitespace(z)
+    ? {
+      print_endline("here here 0.0 move_to_non_whitespace");
+      switch (Move.primary(ByChar, Left, z)) {
+      | Some(z') => move_to_non_whitespace(z')
+      | None => raise(Failure("Couldn't move to non-whitespace"))
+      };
+    }
+    : z;
 };
 
 // Helper function to get the id of a node, which is
@@ -109,6 +114,70 @@ let is_node = (candidate: option(Info.t)): option(node) => {
   };
 };
 
+// Requires: The list of ancestor terms must come from the info of the current node.
+let rec parent_node_of =
+        (
+          ancestors: list(Id.t),
+          departure_point: Info.t,
+          info_map: Id.Map.t(Info.t),
+        )
+        : option(node) =>
+  switch (ancestors) {
+  | [candidate, ...rest] =>
+    let candidate = Id.Map.find(candidate, info_map);
+    switch (candidate) {
+    | InfoExp({term, _}) =>
+      switch (Exp.term_of(term)) {
+      | Let(pat, def, _) =>
+        let def_if = Exp.rep_id(def);
+        if (Id.equal(def_if, Info.id_of(departure_point))) {
+          Some({
+            info: candidate,
+            parent: None,
+            siblings: [],
+            children: [],
+            sibling_idx: 0,
+            name: mk_name_from_pat(pat),
+          });
+        } else {
+          parent_node_of(rest, candidate, info_map);
+        };
+      | _ => parent_node_of(rest, candidate, info_map)
+      }
+    | _ => None
+    };
+  | _ => None
+  };
+
+let get_path_to_node =
+    (curr_term: Info.t, info_map: Id.Map.t(Info.t)): string => {
+  let rec path_to_node = (node: node, path_so_far: string) => {
+    switch (
+      parent_node_of(Info.ancestors_of(node.info), node.info, info_map)
+    ) {
+    | Some(parent) =>
+      print_endline("Ope! Found node: " ++ parent.name);
+      let path_so_far = parent.name ++ " -> " ++ path_so_far;
+      path_to_node(parent, path_so_far);
+    | None =>
+      print_endline("No parent node found");
+      path_so_far;
+    };
+  };
+  // Find lowest enclosing let/type binding then continue to bubble up to the root
+  switch (
+    {
+      List.find_map(
+        ancestor => is_node(Id.Map.find_opt(ancestor, info_map)),
+        [Info.id_of(curr_term), ...Info.ancestors_of(curr_term)],
+      );
+    }
+  ) {
+  | Some(node) => path_to_node(node, node.name)
+  | None => raise(Failure("No node found"))
+  };
+};
+
 // Builds a localized AST centered around the current node
 // This is likely preferred to building the AST of the entire program.
 // All we ever use and show the LLM per tool call is this localized neighborhood anyways.
@@ -153,36 +222,6 @@ let build_sub_AST =
       | None => raise(Failure("No current node found in the info map"))
       };
 
-    // Requires: The list of ancestor terms must come from the info of the current node.
-    let rec parent_node_of =
-            (ancestors: list(Id.t), departure_point: Info.t): option(node) =>
-      switch (ancestors) {
-      | [candidate, ...rest] =>
-        let candidate = Id.Map.find(candidate, info_map);
-        switch (candidate) {
-        | InfoExp({term, _}) =>
-          switch (Exp.term_of(term)) {
-          | Let(pat, def, _) =>
-            let def_if = Exp.rep_id(def);
-            if (Id.equal(def_if, Info.id_of(departure_point))) {
-              Some({
-                info: candidate,
-                parent: None,
-                siblings: [],
-                children: [],
-                sibling_idx: 0,
-                name: mk_name_from_pat(pat),
-              });
-            } else {
-              parent_node_of(rest, candidate);
-            };
-          | _ => parent_node_of(rest, candidate)
-          }
-        | _ => None
-        };
-      | _ => None
-      };
-
     // Finding the children of a node is just
     // recursively accumulating let bindings in in the definion of the current node
     // The base case being once we reach atomic terms in the body.
@@ -200,7 +239,7 @@ let build_sub_AST =
         sibling_idx: idx,
         name,
       };
-      let convert_for_recursion = (term: Exp.t): Info.t => {
+      let exp_to_info = (term: Exp.t): Info.t => {
         let e = Exp.rep_id(term);
         Id.Map.find(e, info_map);
       };
@@ -213,20 +252,12 @@ let build_sub_AST =
           | Let(pat, _, body) =>
             let node =
               mk_child_node(mk_name_from_pat(pat), candidate, count);
-            find_children(
-              convert_for_recursion(body),
-              children @ [node],
-              count + 1,
-            );
+            find_children(exp_to_info(body), children @ [node], count + 1);
           // It is also useful to add type defintions to the def-structured AST
           | TyAlias(tpat, _, body) =>
             let node =
               mk_child_node(mk_name_from_tpat(tpat), candidate, count);
-            find_children(
-              convert_for_recursion(body),
-              children @ [node],
-              count + 1,
-            );
+            find_children(exp_to_info(body), children @ [node], count + 1);
           | Fun(_, e, _, _)
           // As for the rest of the expression cases, we can just recurse on their child
           // expressions, passing the current parent/level as the arguments. (This
@@ -244,41 +275,34 @@ let build_sub_AST =
           | DeferredAp(e, _)
           | Seq(e, _)
           | HintedTest(e, _) =>
-            find_children(convert_for_recursion(e), children, count)
+            find_children(exp_to_info(e), children, count)
           | Ap(_, e1, e2)
           | Dot(e1, e2)
           | TupLabel(e1, e2)
           | Cons(e1, e2)
           | ListConcat(e1, e2)
           | BinOp(_, e1, e2) =>
-            let children' =
-              find_children(convert_for_recursion(e1), children, count);
-            find_children(convert_for_recursion(e2), children', count);
+            let children' = find_children(exp_to_info(e1), children, count);
+            find_children(exp_to_info(e2), children', count);
           | Tuple(es)
           | ListLit(es) =>
             List.fold_left(
               (children, e) => {
-                find_children(convert_for_recursion(e), children, count)
+                find_children(exp_to_info(e), children, count)
               },
               children,
               es,
             )
           | If(e1, e2, e3) =>
-            let children' =
-              find_children(convert_for_recursion(e1), children, count);
+            let children' = find_children(exp_to_info(e1), children, count);
             let children'' =
-              find_children(convert_for_recursion(e2), children', count);
-            find_children(convert_for_recursion(e3), children'', count);
+              find_children(exp_to_info(e2), children', count);
+            find_children(exp_to_info(e3), children'', count);
           | Match(e, branches) =>
-            let children' =
-              find_children(convert_for_recursion(e), children, count);
+            let children' = find_children(exp_to_info(e), children, count);
             List.fold_left(
               (children, (_pat, branch_e)) => {
-                find_children(
-                  convert_for_recursion(branch_e),
-                  children,
-                  count,
-                )
+                find_children(exp_to_info(branch_e), children, count)
               },
               children',
               branches,
@@ -355,7 +379,11 @@ let build_sub_AST =
     let curr_node = {
       ...curr_node,
       parent:
-        parent_node_of(Info.ancestors_of(curr_node.info), curr_node.info),
+        parent_node_of(
+          Info.ancestors_of(curr_node.info),
+          curr_node.info,
+          info_map,
+        ),
     };
     let curr_node = {
       ...curr_node,

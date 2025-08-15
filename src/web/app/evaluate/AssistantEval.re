@@ -26,15 +26,20 @@ module Model = {
   let init = (): t => {
     // todo: have an intializer that takes all parameter sets and takes a cartesian product
     //       between all our prompts, initial sketches, etc etc... i.e. sets of params
-    let case1 = {
-      scenario: SketchPrompt.combo_1,
-      tool_kit: ToolKit.all_tools,
-    };
-    let case2 = {
-      scenario: SketchPrompt.combo_2,
-      tool_kit: ToolKit.all_tools,
-    };
-    let cases = [case1, case2];
+
+    let cases =
+      SketchPrompt.self
+      |> List.map(scenario =>
+           ToolKit.self
+           |> List.map(tool_kit =>
+                /* Add more mappings here if needed*/ {
+                  scenario,
+                  tool_kit,
+                }
+              )
+         )
+      |> List.flatten;
+
     {
       cases,
       curr_case: ListUtil.hd_opt(cases),
@@ -110,7 +115,7 @@ module Update = {
       // Send the prompt to the assistant
       schedule_assistant_action(
         AssistantUpdateUtil.SendMessage(
-          Composition(Request(prompt)),
+          Composition(Request(prompt), true),
           None,
           assistant_model.current_chats.curr_composition_chat,
         ),

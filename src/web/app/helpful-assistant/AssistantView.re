@@ -507,7 +507,7 @@ let mk_input_handlers =
       | TaskCompletion =>
         inject(
           Update.SendMessage(
-            Composition(Request(content)),
+            Composition(Request(content), false),
             editor_opt,
             model.current_chats.curr_composition_chat,
           ),

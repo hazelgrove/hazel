@@ -28,7 +28,7 @@ type composition =
 type send_message =
   | Tutor(string)
   | Completion(completion)
-  | Composition(composition);
+  | Composition(composition, bool);
 
 // Actions to handle certain kinds of LLM responses
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -36,7 +36,7 @@ type handle_response =
   | Tutor
   | CompletionErrorRound(CodeModel.t, int, Id.t)
   | CompletionQueryResponse
-  | CompositionLoopRound(CodeModel.t, int);
+  | CompositionLoopRound(CodeModel.t, int, bool);
 
 // Actions which actualize actions via LLM responses
 [@deriving (show({with_path: false}), sexp, yojson)]

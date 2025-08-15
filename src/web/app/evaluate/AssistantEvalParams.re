@@ -32,15 +32,22 @@ module SketchPrompt = {
     prompt: string // the task request for the agent to complete
   };
 
-  let combo_1 = {
+  let scenario_1 = {
     sketch: EmojiPaint.self,
     prompt: "think about how to update the program with the following new abilities: the ability to indicate a sub-grid of the canvas and copy that subgrid as a kind of 'stamp' to the palette, and then to stamp that stamp onto the grid by specifying an upper-left coordinate to begin the stamp at. let's proceed in a type-directed-ish way; how should be update the types, and then how should we update the functions, possibly adding new ones? the program is written in hazel, a low-resource language which you probably haven't seen much if any of before, so try to be sparring in any syntax used beyond that represented in the code example.",
   };
 
-  let combo_2 = {
-    sketch: "",
-    prompt: "please write me a simple rock paper scissors game",
+  let scenario_2 = {
+    sketch: ListFuns.self,
+    prompt: "add a function to get the nth element of a list",
   };
+
+  let scenario_3 = {
+    sketch: "",
+    prompt: "write a simple rock paper scissors game",
+  };
+
+  let self = [scenario_1, scenario_2, scenario_3];
 };
 
 module ToolKit = {
@@ -49,11 +56,22 @@ module ToolKit = {
 
   let all_tools = CompositionTools.tools;
 
+  // Create tool set abalations.
+  // Each set of tools within this list will be removed from a tool kit for a given run.
+  let exclude_these = [];
+
+  let ablate = (tools, exclude_these): list(t) => {
+    exclude_these
+    |> List.map(exclude_this => {
+         tools |> List.filter(tool => !List.mem(tool, exclude_this))
+       });
+  };
+
   // We can perform an ablation study on the tool kit
   // What tools are necessary for the agent?
   // What tools significantly improve the agent's performance?
 
-  let self: list(t) = [all_tools];
+  let self: list(t) = [all_tools] @ ablate(all_tools, exclude_these);
 };
 
 module LLM = {

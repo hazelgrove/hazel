@@ -19,6 +19,10 @@ let tools = [
   //ViewTools.view_definition,
 ];
 
+// Extra tools for ablation:
+// - submit
+// -
+
 /*
  * ------------------------------
  *  Structure-Based Action Language

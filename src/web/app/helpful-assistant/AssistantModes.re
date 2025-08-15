@@ -245,7 +245,12 @@ module Composition = {
       let curr_node_str = "Current node: " ++ curr_node_info.name;
       let parent_node_str =
         switch (curr_node_info.parent) {
-        | Some(parent) => "Parent node: " ++ parent.name
+        | Some(parent) =>
+          "Path to node: "
+          ++ AssistantTreeHelper.get_path_to_node(
+               parent.info,
+               editor.statics.info_map,
+             )
         | None => "No parent node, you are at the top level of the program's AST."
         };
       let siblings_nodes_str =

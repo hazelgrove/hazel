@@ -32,6 +32,9 @@ module ProjectorShape = ProjectorShape;
 module API = API;
 module OpenRouter = OpenRouter;
 module CompositionTools = CompositionTools;
+module NavTools = NavTools;
+module EditTools = EditTools;
+module ViewTools = ViewTools;
 
 // Used by [@deriving sexp, yojson)]
 include Sexplib.Std;

@@ -2,7 +2,6 @@ open Js_of_ocaml;
 open Virtual_dom.Vdom;
 open Node;
 open Util;
-open Haz3lcore;
 
 /* The top-level UI component of Hazel */
 
@@ -246,22 +245,6 @@ module Update = {
       ...model.globals,
       export_all: Export.export_all,
       get_log_and,
-    };
-    let zipper = get_editor(model).editor.state.zipper;
-    let info_map = get_editor(model).statics.info_map;
-    let curr_term = Indicated.ci_of(zipper, info_map);
-    switch (curr_term) {
-    | Some(term) =>
-      let ancestors = Language.Statics.Info.ancestors_of(term);
-      print_endline(
-        "Ancestors: "
-        ++ (
-          ancestors
-          |> List.map(x => Uuidm.to_string(x))
-          |> String.concat(", ")
-        ),
-      );
-    | None => print_endline("No node found")
     };
     switch (action) {
     | Globals(action) =>

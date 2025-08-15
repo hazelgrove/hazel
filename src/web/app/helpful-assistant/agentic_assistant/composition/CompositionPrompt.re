@@ -87,9 +87,10 @@ let toolkit = [
 let few_shot_comp_examples = {
   [
     "<fewShotExamples>The following are GOLDEN EXAMPLES from agents who successfully implemented user-requested features."
-    ++ "Oh how you ASPIRE to be as elegant and efficient as they are! "
-    ++ "In fact, you CAN be! As long as you study what they've done oh-so-well!\n"
+    ++ "You ASPIRE to be as elegant and efficient as they are! "
+    ++ "In fact, you CAN be! As long as you study what they've done so well!\n"
     ++ Ex_RecFib.self
+    ++ Ex_RPS.self
     ++ "</fewShotExamples>",
   ];
 };
@@ -98,5 +99,5 @@ let self =
   instructions
   @ toolkit
   @ hazel_syntax_notes
-  @ hazel_documentation(~summarized=false);
-//@ few_shot_comp_examples;
+  @ hazel_documentation(~summarized=false)
+  @ few_shot_comp_examples;
