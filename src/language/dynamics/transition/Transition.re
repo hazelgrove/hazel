@@ -50,13 +50,13 @@ type step_kind =
   | InvalidStep
   | VarLookup
   | Seq
-  | LetBind(string)
+  | LetBind(list(string))
   | WrapClosure
   | FixUnwrap
   | FixClosure
   | UpdateTest
   | TypFunAp
-  | FunAp
+  | FunAp(list(string))
   | DeferredAp
   | AscriptionTypAp
   | AscriptionAp
@@ -69,7 +69,7 @@ type step_kind =
   | Projection
   | ListCons
   | ListConcat
-  | CaseApply
+  | CaseApply(list(string))
   | CompleteClosure
   | CompleteFilter
   | Ascription
@@ -163,6 +163,13 @@ module Transition = (EV: EV_MODE) => {
       r;
     };
 
+  let str_from_matches = (matches: match_result) =>
+    switch (matches) {
+    | IndetMatch
+    | DoesNotMatch => []
+    | Matches(env) =>
+      VarBstMap.Ordered.to_listo(env) |> List.rev |> List.map(((s, _)) => s)
+    };
   /* Note[Matt]: For IDs, I'm currently using a fresh id
      if anything about the current node changes, if only its
      children change, we use rewrap */
@@ -251,22 +258,11 @@ module Transition = (EV: EV_MODE) => {
         req_final(req(state, env), d1 => Let1(dp, d1, d2) |> wrap_ctx, d1);
       let.wrap_closure _ = env;
       let {matches, closures} = matches(dp, d1');
-      let matches_str = {
-        switch (matches) {
-        | IndetMatch
-        | DoesNotMatch => ""
-        | Matches(env) =>
-          VarBstMap.Ordered.to_listo(env)
-          |> List.rev
-          |> List.map(((s, _)) => s)
-          |> String.concat(", ")
-        };
-      };
       let.match env' = (env, matches, env.call_stack);
       Step({
         expr: subst_env(env', d2),
         state_update: capture_closures(env, state, closures),
-        kind: LetBind(matches_str),
+        kind: LetBind(str_from_matches(matches)),
         is_value: false,
       });
     | TypFun(_)
@@ -432,7 +428,7 @@ module Transition = (EV: EV_MODE) => {
           Step({
             expr: subst_env(env'', d3),
             state_update: capture_closures(env'', state, matches.closures),
-            kind: FunAp,
+            kind: FunAp(str_from_matches(matches.matches)),
             is_value: false,
           });
         };
@@ -454,7 +450,7 @@ module Transition = (EV: EV_MODE) => {
                 state,
                 matches.closures,
               ),
-            kind: FunAp,
+            kind: FunAp(str_from_matches(matches.matches)),
             is_value: false,
           })
         };
@@ -777,7 +773,12 @@ module Transition = (EV: EV_MODE) => {
             ),
 
           state_update: capture_closures(env, state, closures),
-          kind: CaseApply,
+          kind:
+            CaseApply(
+              VarBstMap.Ordered.to_listo(env')
+              |> List.rev
+              |> List.map(((s, _)) => s),
+            ),
           is_value: false,
         })
       | None =>
@@ -899,7 +900,7 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | Seq
   | UpdateTest
   | TypFunAp
-  | FunAp
+  | FunAp(_)
   | DeferredAp
   | BuiltinAp(_)
   | BinOp(_)
@@ -907,7 +908,7 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | UnOp(_)
   | ListCons
   | ListConcat
-  | CaseApply
+  | CaseApply(_)
   | Projection // TODO(Matt): We don't want to show projection to the user
   | Conditional(_)
   | RemoveTypeAlias
@@ -924,15 +925,52 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | WrapClosure
   | FixClosure
   | RemoveParens => true;
+// Returns an empty list if stepper should not display a dropdown in justification.
+
+// Meaning if a let bind only binds one variable, this function returns an empty list.
+
+let substitution_vars: step_kind => list(string) =
+  fun
+  | LetBind(matches) => List.length(matches) > 1 ? matches : []
+  | CaseApply(matches)
+  | FunAp(matches) => matches
+  | Seq
+  | UpdateTest
+  | TypFunAp
+  | DeferredAp
+  | BuiltinAp(_)
+  | BinOp(_)
+  | Dot
+  | UnOp(_)
+  | ListCons
+  | ListConcat
+  | Projection
+  | Conditional(_)
+  | RemoveTypeAlias
+  | RemoveUse
+  | InvalidStep
+  | VarLookup
+  | AscriptionTypAp
+  | AscriptionAp
+  | Ascription
+  | FixUnwrap
+  | CompleteClosure
+  | CompleteFilter
+  | BuiltinWrap
+  | WrapClosure
+  | FixClosure
+  | RemoveParens => [];
 
 let stepper_justification: step_kind => string =
   fun
-  | LetBind(s) => String.cat("substitution for ", s)
+  | LetBind(vars) =>
+    List.length(vars) == 1
+      ? "substitution for " ++ List.hd(vars) : "substitution"
   | Seq => "sequence"
   | FixUnwrap => "unroll fixpoint"
   | UpdateTest => "update test"
   | TypFunAp => "apply type function"
-  | FunAp => "apply function"
+  | FunAp(_) => "apply function"
   | DeferredAp => "deferred application"
   | BuiltinWrap => "wrap builtin"
   | BuiltinAp(s) => "evaluate " ++ s
@@ -958,7 +996,7 @@ let stepper_justification: step_kind => string =
   | Conditional(_) => "conditional"
   | ListCons => "list manipulation"
   | ListConcat => "list manipulation"
-  | CaseApply => "case selection"
+  | CaseApply(_) => "case selection"
   | Projection => "projection" // TODO(Matt): We don't want to show projection to the user
   | InvalidStep => "error"
   | VarLookup => "variable lookup"
