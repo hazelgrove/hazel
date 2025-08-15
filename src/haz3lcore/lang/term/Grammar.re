@@ -21,19 +21,6 @@ module Annotated = {
       fmt_a(fmtr, t.term);
     };
 
-  let pp:
-    type a b.
-      (
-        (Format.formatter, a) => unit,
-        (Format.formatter, b) => unit,
-        Format.formatter,
-        t(a, b)
-      ) =>
-      unit =
-    (fmt_a, _, fmtr, t) => {
-      fmt_a(fmtr, t.term);
-    };
-
   let term_of = x => x.term;
   let unwrap = x => (
     x.term,
@@ -154,12 +141,12 @@ and code_slice = {
   [@show.opaque]
   term_ids: list(Id.t),
 }
-and typslc_term('a) = {
+and typslice_term('a) = {
   typ: typ_term('a),
   syn_slice: code_slice,
   ana_slice: code_slice,
 }
-and typ_t('a) = Annotated.t(typslc_term('a), 'a)
+and typ_t('a) = Annotated.t(typslice_term('a), 'a)
 and tpat_term('a) =
   | Invalid(string)
   | EmptyHole
@@ -192,6 +179,20 @@ and filter('a) = {
   pat: exp_t('a),
   act: FilterAction.t,
 };
+
+
+
+  let pp_typslc_term:
+    type a.
+      (
+        (Format.formatter, a) => unit,
+        Format.formatter,
+        typslice_term(a)
+      ) =>
+      unit =
+    (fmt_a, fmtr, t) => {
+      pp_typ_term(fmt_a, fmtr, t.typ);
+    };
 
 let unwrap_typslice_term = ({typ, syn_slice, ana_slice}) => (
   typ,
