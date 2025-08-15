@@ -2,14 +2,14 @@ open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type kind =
-  | Singleton(TermBase.typslice_t)
+  | Singleton(TermBase.typ_t)
   | Abstract;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type var_entry = {
   name: Var.t,
   id: Id.t,
-  typ: TermBase.typslice_t,
+  typ: TermBase.typ_t,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -39,8 +39,7 @@ let extend = (ctx: t, entry): t => {
 let extend_tvar = (ctx: t, tvar_entry: tvar_entry): t =>
   extend(ctx, TVarEntry(tvar_entry));
 
-let extend_alias =
-    (ctx: t, name: string, id: Id.t, ty: TermBase.TypSlice.t): t =>
+let extend_alias = (ctx: t, name: string, id: Id.t, ty: TermBase.Typ.t): t =>
   extend_tvar(
     ctx,
     {
@@ -116,13 +115,19 @@ let is_abstract = (ctx: t, name: string): bool =>
   | None => false
   };
 
-let lookup_alias = (ctx: t, name: string): option(TermBase.TypSlice.t) =>
+let lookup_alias = (ctx: t, name: string): option(TermBase.Typ.t) =>
   switch (lookup_tvar(ctx, name)) {
   | Some(Singleton(ty)) => Some(ty)
   | Some(Abstract) => None
   | None =>
     Some(
-      `Typ(Unknown(Hole(Invalid(name))): TermBase.Typ.term)
+      (
+        {
+          typ: Unknown(Hole(Invalid(name))),
+          syn_slice: TermBase.CodeSlice.empty,
+          ana_slice: TermBase.CodeSlice.empty,
+        }: TermBase.Typ.slice
+      )
       |> IdTagged.fresh,
     )
   };
@@ -134,7 +139,7 @@ let add_ctrs =
       ctx: t,
       name: string,
       id: Id.t,
-      ctrs: TermBase.TypSlice.sum_map,
+      ctrs: TermBase.Typ.sum_map,
     )
     : t => {
   ...ctx,
@@ -150,42 +155,44 @@ let add_ctrs =
               switch (typ) {
               | None =>
                 (
-                  `SliceGlobal((
-                    `SliceIncr((
-                      Typ(Var(name)),
-                      {
-                        ctx_used: [],
-                        term_ids: [id, ...ctr_ids],
-                      }: TermBase.slice_incr,
-                    )): TermBase.typslice_incr_term,
-                    {
-                      ctx_used: [],
-                      term_ids: def_ids,
-                    },
-                  )): TermBase.typslice_term
-                )
-                |> IdTagged.fresh
-              | Some(typ) =>
-                (
-                  `SliceIncr((
-                    Slice(
-                      Arrow(
-                        typ,
-                        `SliceGlobal((
-                          `Typ(Var(name): TermBase.typ_term),
-                          {
-                            ctx_used: [],
-                            term_ids: def_ids,
-                          }: TermBase.slice_global,
-                        ))
-                        |> IdTagged.fresh,
-                      ),
-                    ),
-                    {
+                  {
+                    typ: Var(name),
+                    syn_slice: {
                       ctx_used: [],
                       term_ids: [id, ...ctr_ids],
                     },
-                  )): TermBase.typslice_term
+
+                    ana_slice: {
+                      ctx_used: [],
+                      term_ids: def_ids,
+                    },
+                  }: TermBase.Typ.slice
+                )
+                |> IdTagged.fresh
+              | Some(ty) =>
+                (
+                  {
+                    typ:
+                      Arrow(
+                        ty,
+                        (
+                          {
+                            typ: Var(name),
+                            ana_slice: {
+                              ctx_used: [],
+                              term_ids: def_ids,
+                            },
+                            syn_slice: TermBase.CodeSlice.empty,
+                          }: TermBase.Typ.slice
+                        )
+                        |> IdTagged.fresh,
+                      ),
+                    syn_slice: {
+                      ctx_used: [],
+                      term_ids: [id, ...ctr_ids],
+                    },
+                    ana_slice: TermBase.CodeSlice.empty,
+                  }: TermBase.Typ.slice
                 )
                 |> IdTagged.fresh
               },
