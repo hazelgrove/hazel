@@ -838,7 +838,7 @@ and Stepper: {
                 [
                   div_c("equiv", [Node.text("≡")]),
                   div_c("step-output", [editor]),
-                  justification,
+                  div_c("stepper-justification", [justification]),
                 ],
               ),
             ]

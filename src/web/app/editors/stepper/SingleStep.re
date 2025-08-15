@@ -119,12 +119,32 @@ module F =
         ~undo as _: option(Ui_effect.t(unit)),
         ~is_toplevel as _: bool,
         m: model,
-      ) =>
-    WebUtil.Node.text(
-      m.evalobj
-      |> EvaluatorStep.get_step_kind
-      |> Transition.stepper_justification,
-    );
+      ) => {
+    let step_kind = m.evalobj |> EvaluatorStep.get_step_kind;
+    let justification_text = step_kind |> Transition.stepper_justification;
+    let substitution_vars = Transition.substitution_vars(step_kind);
+    if (!List.is_empty(substitution_vars)) {
+      WebUtil.Node.div(
+        [WebUtil.Node.text(justification_text)]
+        @ [
+          WebUtil.div_c(
+            "stepper-justification-sub-vars",
+            [WebUtil.Node.text("Variables substituted:")],
+          ),
+        ]
+        @ List.map(
+            var =>
+              WebUtil.div_c(
+                "stepper-justification-sub-vars",
+                [WebUtil.Node.text(var)],
+              ),
+            substitution_vars,
+          ),
+      );
+    } else {
+      WebUtil.Node.text(justification_text);
+    };
+  };
 
   let view_content =
       (
