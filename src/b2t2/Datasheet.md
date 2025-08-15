@@ -98,7 +98,7 @@ N/A
 > Q. How direct is the mapping from the pseudocode in the benchmark to representations in your system? How complex is the encoding?
 - The mapping is quite direct as implemented. A less direct mapping could accomplish a more type-safe translation of several of the programs.
 
-## Errors (TODO)
+## Errors
 
 > There are (at least) two parts to errors: representing the source program that causes the error, and generating output that explains it. The term “error situation” refers to a representation of the cause of the error in the program source.
 > 
@@ -116,21 +116,57 @@ N/A
 > - the type system’s reporting of the violation
 
 > Q. Which error situations are known to be inexpressible? Why?
+Many of the programs require explicit parametric polymorphism and the higher-order function versions of the TableAPI operations to get the best feedback. 
+
+* `getOnlyRow` provides no feedback on the error as we do not currently track table size information statically
 
 
 > Q. Which error situations are only partially expressible? Why, and what’s missing?
-
+* Two versions of `brownJellybeans` are implemented with tradeoffs on expressibility:
+  * The first version takes a string column name and uses our more dynamic operations to select the column. This provides no feedback on the error but more closely matches the implementation in the benchmark.
+  * The second version takes a function that selects the column and uses our more type-safe operations to select the column. This correctly localizes the error to the column selection.
 
 > Q. Which error situations’ expressibility is unknown? Why?
-
+None
 
 > Q. Which error situations can be expressed more precisely than in the benchmark? How?
-
+None
 
 > Q. Which error situations are prevented from being constructed? How?
-
+None
 
 > Q. For each error situation that is at least partially expressible, what is the quality of feedback to the programmer?
+* Malformed Tables
+  * For missing schemas, rows, and cells they are represented by syntactic holes in the program. These are easily visible in the editor and can be filled in by the programmer.
+  * For tables where the schema is the incorrect length static errors are added onto each row showing the type inconsistency between the schema type and the row type.
+    * If extraneous columns are present, the error is localized to the column label and an error is placed e.g. `favorite color is not part of expected labels: name, age`.
+    * If there is a cell of the wrong type, the error is localized to the cell and an inconsistent type error is placed e.g. `String inconsistent with expected type Int for label age`
+
+Note that in the following programs the errors are partially localized based off of the chosen explicit type application. Using different type-hole inference or choices for parametric type application would change the error localization and message.
+
+* `midFinal`
+  * Localizes the error to the column selection `mid` in the editor.
+  * Message: `Label mid not found in tuple's labels: name age quiz1 quiz2 midterm quiz3 quiz4 final`
+* `blackAndWhite`
+  * Localizes the error to the column selection `black and white` in the editor.
+  * Message: ```Label `black and white` not found in tuple's labels: get_acne red black white green yellow brown orange pink purple```
+* `pieCount`
+  * Localizes the error to the column selection `true` and `get_count` in the editor.`
+  * The error messages are similar to above
+* `brownAndGetAcne`
+  * Localizes the error to the column selection `brown and get acne` in the editor.
+  * The error messages are similar to above
+* `favoriteColor`
+  * Localizes the error to the column selection `favorite color` in the editor.
+  * The error message: `String is inconsistent with expected type Bool`
+* `brownJellybeans`
+  * The first version provides no feedback on the error as it uses the string column name.
+  * The second version localizes the error to the column selection, `color` with an error message similar to above.
+* `employee_to_department`
+  * Localizes an error to the column selection `last_name` in the editor
+  * Localizes another error to the tuple extension saying the resulting row's type is inconsistent since `last_name` is a `Int` but the expected type is `String`
+  * The error message: `Label department not found in tuple's labels: name age department salary`
 
 
 > Q. For each error situation that is prevented from being constructed, what is the quality of feedback to the programmer?
+N/A
