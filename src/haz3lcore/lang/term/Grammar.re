@@ -66,7 +66,6 @@ type any_t('a) =
   | Exp(exp_t('a))
   | Pat(pat_t('a))
   | Typ(typ_t('a))
-  | TypSlice(typslice_t('a))
   | TPat(tpat_t('a))
   | Rul(rul_t('a))
   | Any(unit)
@@ -75,7 +74,7 @@ and exp_term('a) =
   | EmptyHole
   | MultiHole(list(any_t('a)))
   | DynamicErrorHole(exp_t('a), InvalidOperationError.t)
-  | FailedCast(exp_t('a), typslice_t('a), typslice_t('a))
+  | FailedCast(exp_t('a), typ_t('a), typ_t('a))
   | Deferral(deferral_position_t)
   | Undefined
   | Atom(Atom.t)
@@ -85,7 +84,7 @@ and exp_term('a) =
      that it is a free constructor, while Some(Some(t)) means it has type t. In user expressions
      this field is None.*/
   | Constructor(string, option(option(typ_t('a))))
-  | Fun(pat_t('a), exp_t('a), option(typslice_t('a)), option(Var.t)) // typ_t field is only used to display types in results
+  | Fun(pat_t('a), exp_t('a), option(typ_t('a)), option(Var.t)) // typ_t field is only used to display types in results
   | TypFun(tpat_t('a), exp_t('a), option(Var.t))
   | Tuple(list(exp_t('a)))
   | Label(string)
@@ -115,7 +114,7 @@ and exp_term('a) =
   /* INVARIANT: in dynamic expressions, casts must be between
      two consistent types. Both types should be normalized in
      dynamics for the cast calculus to work right. */
-  | Cast(exp_t('a), typslice_t('a), typslice_t('a))
+  | Cast(exp_t('a), typ_t('a), typ_t('a))
 and exp_t('a) = Annotated.t(exp_term('a), 'a)
 and pat_term('a) =
   | Invalid(string)
@@ -133,7 +132,7 @@ and pat_term('a) =
   | Parens(pat_t('a))
   | Probe(pat_t('a), Probe.t)
   | Ap(pat_t('a), pat_t('a))
-  | Cast(pat_t('a), typslice_t('a), typslice_t('a))
+  | Cast(pat_t('a), typ_t('a), typ_t('a))
 and pat_t('a) = Annotated.t(pat_term('a), 'a)
 and typ_term('a) =
   | Unknown(type_provenance('a))
@@ -149,44 +148,18 @@ and typ_term('a) =
   | Ap(typ_t('a), typ_t('a))
   | Rec(tpat_t('a), typ_t('a))
   | Forall(tpat_t('a), typ_t('a))
-and typ_t('a) = Annotated.t(typ_term('a), 'a) // Applies only to the type constructor
-and slice_incr = {
+and code_slice = {
   [@show.opaque]
-  ctx_used: list(var_cls),
+  ctx_used: list(var_cls), // TODO: make ctx_used a map
   [@show.opaque]
   term_ids: list(Id.t),
 }
-// TODO: make ctx_used a map
-// Applies to all subterms (the entire type)
-and slice_global = slice_incr
-and slice_typ_term('a) =
-  | List(typslice_t('a))
-  | Arrow(typslice_t('a), typslice_t('a))
-  | Sum(ConstructorMap.t(typslice_t('a)))
-  | Prod(list(typslice_t('a)))
-  | Parens(typslice_t('a))
-  | Ap(typslice_t('a), typslice_t('a))
-  | Rec(tpat_t('a), typslice_t('a))
-  | Forall(tpat_t('a), typslice_t('a))
-  | TupLabel(typslice_t('a), typslice_t('a))
-and slice_typ_t('a) = Annotated.t(slice_typ_term('a), 'a)
-and typslice_typ_term('a) =
-  | Typ(typ_term('a))
-  | Slice(slice_typ_term('a))
-and typslice_typ_t('a) = Annotated.t(typslice_typ_term('a), 'a)
-and slice_incr_term('a) = (typslice_typ_term('a), slice_incr)
-and typslice_incr_term('a) = [
-  | `Typ(typ_term('a))
-  | `SliceIncr(slice_incr_term('a))
-] // May be coerced to a typslice_term
-and typslice_incr_t('a) = Annotated.t(typslice_incr_term('a), 'a)
-and slice_global_term('a) = (typslice_incr_term('a), slice_global)
-and typslice_term('a) = [
-  | `Typ(typ_term('a))
-  | `SliceIncr(slice_incr_term('a))
-  | `SliceGlobal(slice_global_term('a))
-]
-and typslice_t('a) = Annotated.t(typslice_term('a), 'a)
+and typslc_term('a) = {
+  typ: typ_term('a),
+  syn_slice: code_slice,
+  ana_slice: code_slice,
+}
+and typ_t('a) = Annotated.t(typslc_term('a), 'a)
 and tpat_term('a) =
   | Invalid(string)
   | EmptyHole
@@ -220,6 +193,32 @@ and filter('a) = {
   act: FilterAction.t,
 };
 
+let unwrap_typslice_term = ({typ, syn_slice, ana_slice}) => (
+  typ,
+  typ => {
+    typ,
+    syn_slice,
+    ana_slice,
+  },
+);
+let unwrap_typslice = ty =>
+  Fun.compose(
+    ((term, rewrap_t)) =>
+      Fun.compose(
+        ((unwrapped, rewrap_term)) =>
+          (unwrapped, Fun.compose(rewrap_t, rewrap_term)),
+        unwrap_typslice_term,
+        term,
+      ),
+    Annotated.unwrap,
+    ty,
+  );
+
+let empty_slice = {
+  ctx_used: [],
+  term_ids: [],
+};
+
 
 let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
   (f, e) => (
@@ -237,8 +236,8 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | FailedCast(e: exp_t(a), t1, t2) =>
           FailedCast(
             map_exp_annotation(f, e),
-            map_typslice_annotation(f, t1),
-            map_typslice_annotation(f, t2),
+            map_typ_annotation(f, t1),
+            map_typ_annotation(f, t2),
           )
         | Deferral(pos) => Deferral(pos)
         | Undefined => Undefined
@@ -250,7 +249,7 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
           Fun(
             map_pat_annotation(f, p),
             map_exp_annotation(f, e),
-            Option.map(x => map_typslice_annotation(f, x), t),
+            Option.map(x => map_typ_annotation(f, x), t),
             Option.map(x => x, v),
           )
         | TypFun(p, e, v) =>
@@ -328,8 +327,8 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | Cast(e, t1, t2) =>
           Cast(
             map_exp_annotation(f, e),
-            map_typslice_annotation(f, t1),
-            map_typslice_annotation(f, t2),
+            map_typ_annotation(f, t1),
+            map_typ_annotation(f, t2),
           )
         };
       {
@@ -346,7 +345,6 @@ and map_any_annotation: 'a 'b. ('a => 'b, any_t('a)) => any_t('b) =
     | Exp(e) => Exp(map_exp_annotation(f, e))
     | Pat(p) => Pat(map_pat_annotation(f, p))
     | Typ(t) => Typ(map_typ_annotation(f, t))
-    | TypSlice(s) => TypSlice(map_typslice_annotation(f, s))
     | TPat(tp) => TPat(map_tpat_annotation(f, tp))
     | Rul(r) => Rul(map_rul_annotation(f, r))
     | Any(_) => Any()
@@ -382,8 +380,8 @@ and map_pat_annotation: 'a 'b. ('a => 'b, pat_t('a)) => pat_t('b) =
         | Cast(p, t1, t2) =>
           Cast(
             map_pat_annotation(f, p),
-            map_typslice_annotation(f, t1),
-            map_typslice_annotation(f, t2),
+            map_typ_annotation(f, t1),
+            map_typ_annotation(f, t2),
           )
         },
       annotation: new_annotation,
@@ -393,145 +391,34 @@ and map_typ_annotation: 'a 'b. ('a => 'b, typ_t('a)) => typ_t('b) =
   (f, e) => {
     let (term, annotation) = (e.term, e.annotation);
     let new_annotation = f(annotation);
+    let (term, rewrap) = unwrap_typslice_term(term);
     {
       term:
-        switch (term) {
-        | Unknown(p) => Unknown(map_type_provenance_annotation(f, p))
-        | Atom(c) => Atom(c)
-        | Var(s) => Var(s)
-        | List(t) => List(map_typ_annotation(f, t))
-        | Arrow(t1, t2) =>
-          Arrow(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
-        | Parens(t) => Parens(map_typ_annotation(f, t))
-        | Ap(t1, t2) =>
-          Ap(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
-        | Rec(tp, t) =>
-          Rec(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
-        | Forall(tp, t) =>
-          Forall(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
-        | Prod(l) => Prod(List.map(x => map_typ_annotation(f, x), l))
-        | Label(l) => Label(l)
-        | TupLabel(t1, t2) =>
-          TupLabel(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
-        | Sum(m) =>
-          Sum(ConstructorMap.map_preserving(map_typ_annotation(f), m))
-        },
+        (
+          switch (term) {
+          | Unknown(p) => Unknown(map_type_provenance_annotation(f, p))
+          | Atom(c) => Atom(c)
+          | Var(s) => Var(s)
+          | List(t) => List(map_typ_annotation(f, t))
+          | Arrow(t1, t2) =>
+            Arrow(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
+          | Parens(t) => Parens(map_typ_annotation(f, t))
+          | Ap(t1, t2) =>
+            Ap(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
+          | Rec(tp, t) =>
+            Rec(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
+          | Forall(tp, t) =>
+            Forall(map_tpat_annotation(f, tp), map_typ_annotation(f, t))
+          | Prod(l) => Prod(List.map(x => map_typ_annotation(f, x), l))
+          | Label(l) => Label(l)
+          | TupLabel(t1, t2) =>
+            TupLabel(map_typ_annotation(f, t1), map_typ_annotation(f, t2))
+          | Sum(m) =>
+            Sum(ConstructorMap.map_preserving(map_typ_annotation(f), m))
+          }
+        )
+        |> rewrap,
       annotation: new_annotation,
-    };
-  }
-and map_typslice_incr_annotation:
-  'a 'b.
-  ('a => 'b, typslice_incr_t('a)) => typslice_incr_t('b)
- =
-  (f, e) => {
-    let (term, annotation) = (e.term, e.annotation);
-    let new_annotation = f(annotation);
-    switch (term) {
-    | `Typ(ty) =>
-      let {term, annotation}: typ_t('b) =
-        map_typ_annotation(
-          f,
-          {
-            term: ty,
-            annotation,
-          },
-        );
-      {
-        term: `Typ(term),
-        annotation,
-      };
-    | `SliceIncr(Typ(ty), slice) =>
-      let {term, annotation}: typ_t('b) =
-        map_typ_annotation(
-          f,
-          {
-            term: ty,
-            annotation,
-          },
-        );
-      {
-        term: `SliceIncr((Typ(term), slice)),
-        annotation,
-      };
-    | `SliceIncr(Slice(s), slice) => {
-        term:
-          `SliceIncr((
-            Slice(
-              switch (s) {
-              | List(t) => List(map_typslice_annotation(f, t))
-              | Arrow(t1, t2) =>
-                Arrow(
-                  map_typslice_annotation(f, t1),
-                  map_typslice_annotation(f, t2),
-                )
-              | Parens(t) => Parens(map_typslice_annotation(f, t))
-              | Ap(t1, t2) =>
-                Ap(
-                  map_typslice_annotation(f, t1),
-                  map_typslice_annotation(f, t2),
-                )
-              | Rec(tp, t) =>
-                Rec(
-                  map_tpat_annotation(f, tp),
-                  map_typslice_annotation(f, t),
-                )
-              | Forall(tp, t) =>
-                Forall(
-                  map_tpat_annotation(f, tp),
-                  map_typslice_annotation(f, t),
-                )
-              | Prod(l) =>
-                Prod(List.map(x => map_typslice_annotation(f, x), l))
-              | TupLabel(t1, t2) =>
-                TupLabel(
-                  map_typslice_annotation(f, t1),
-                  map_typslice_annotation(f, t2),
-                )
-              | Sum(m) =>
-                Sum(
-                  ConstructorMap.map_preserving(
-                    map_typslice_annotation(f),
-                    m,
-                  ),
-                )
-              },
-            ),
-            slice,
-          )),
-        annotation: new_annotation,
-      }
-    };
-  }
-and map_typslice_annotation:
-  'a 'b.
-  ('a => 'b, typslice_t('a)) => typslice_t('b)
- =
-  (f, e) => {
-    let (term, annotation) = (e.term, e.annotation);
-    switch (term) {
-    | `SliceGlobal(s, slice) =>
-      let {term, annotation}: typslice_incr_t('b) =
-        map_typslice_incr_annotation(
-          f,
-          {
-            term: s,
-            annotation,
-          },
-        );
-      {
-        term: `SliceGlobal((term, slice)),
-        annotation,
-      };
-    | (`Typ(_) | `SliceIncr(_)) as s => (
-        map_typslice_incr_annotation(
-          f,
-          {
-            term: s,
-            annotation,
-          },
-        ) :>
-          typslice_t('b)
-      )
     };
   }
 and map_tpat_annotation: 'a 'b. ('a => 'b, tpat_t('a)) => tpat_t('b) =
@@ -626,12 +513,12 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
   type exp = exp_t(DefaultAnnotation.t);
   type pat = pat_t(DefaultAnnotation.t);
   type typ = typ_t(DefaultAnnotation.t);
-  type typslice = typslice_t(DefaultAnnotation.t);
   type tpat = tpat_t(DefaultAnnotation.t);
   type typ_provenance = type_provenance(DefaultAnnotation.t);
 
   let default_annotation = ann =>
     Option.value(~default=DefaultAnnotation.default_value(), ann);
+  let default_slice = Option.value(~default=empty_slice);
   module Exp = {
     type t = exp_t(DefaultAnnotation.t);
     let invalid = (~ann=?, s): exp_t(DefaultAnnotation.t) => {
@@ -907,210 +794,180 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
   };
 
   module Typ = {
-    let unknown = (~ann=?, p): typ_t(DefaultAnnotation.t) => {
-      term: Unknown(p),
+    let unknown =
+        (~ann=?, ~syn_slice=?, ~ana_slice=?, p): typ_t(DefaultAnnotation.t) => {
+      term: {
+        typ: Unknown(p),
+        syn_slice: default_slice(syn_slice),
+        ana_slice: default_slice(ana_slice),
+      },
       annotation: default_annotation(ann),
     };
-    let int = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
-      term: Atom(Int),
+    let int =
+        (~ann=?, ~syn_slice=?, ~ana_slice=?, ()): typ_t(DefaultAnnotation.t) => {
+      term: {
+        typ: Atom(Int),
+        syn_slice: default_slice(syn_slice),
+        ana_slice: default_slice(ana_slice),
+      },
       annotation: default_annotation(ann),
     };
-    let sint = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
-      term: Atom(SInt),
+    let sint =
+        (~ann=?, ~syn_slice=?, ~ana_slice=?, ()): typ_t(DefaultAnnotation.t) => {
+      term: {
+        typ: Atom(SInt),
+        syn_slice: default_slice(syn_slice),
+        ana_slice: default_slice(ana_slice),
+      },
       annotation: default_annotation(ann),
     };
-    let float = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
-      term: Atom(Float),
+    let float =
+        (~ann=?, ~syn_slice=?, ~ana_slice=?, ()): typ_t(DefaultAnnotation.t) => {
+      term: {
+        typ: Atom(Float),
+        syn_slice: default_slice(syn_slice),
+        ana_slice: default_slice(ana_slice),
+      },
       annotation: default_annotation(ann),
     };
-    let bool = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
-      term: Atom(Bool),
+    let bool =
+        (~ann=?, ~syn_slice=?, ~ana_slice=?, ()): typ_t(DefaultAnnotation.t) => {
+      term: {
+        typ: Atom(Bool),
+        syn_slice: default_slice(syn_slice),
+        ana_slice: default_slice(ana_slice),
+      },
       annotation: default_annotation(ann),
     };
-    let string = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
-      term: Atom(String),
+    let string =
+        (~ann=?, ~syn_slice=?, ~ana_slice=?, ()): typ_t(DefaultAnnotation.t) => {
+      term: {
+        typ: Atom(String),
+        syn_slice: default_slice(syn_slice),
+        ana_slice: default_slice(ana_slice),
+      },
       annotation: default_annotation(ann),
     };
-    let nat = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
-      term: Atom(Nat),
+    let nat =
+        (~ann=?, ~syn_slice=?, ~ana_slice=?, ()): typ_t(DefaultAnnotation.t) => {
+      term: {
+        typ: Atom(Nat),
+        syn_slice: default_slice(syn_slice),
+        ana_slice: default_slice(ana_slice),
+      },
       annotation: default_annotation(ann),
     };
-    let var = (~ann=?, s): typ_t(DefaultAnnotation.t) => {
-      term: Var(s),
+    let var =
+        (~ann=?, ~syn_slice=?, ~ana_slice=?, s): typ_t(DefaultAnnotation.t) => {
+      term: {
+        typ: Var(s),
+        syn_slice: default_slice(syn_slice),
+        ana_slice: default_slice(ana_slice),
+      },
       annotation: default_annotation(ann),
     };
-    let list = (~ann=?, t): typ_t(DefaultAnnotation.t) => {
-      term: List(t),
+    let list =
+        (~ann=?, ~syn_slice=?, ~ana_slice=?, t): typ_t(DefaultAnnotation.t) => {
+      term: {
+        typ: List(t),
+        syn_slice: default_slice(syn_slice),
+        ana_slice: default_slice(ana_slice),
+      },
       annotation: default_annotation(ann),
     };
-    let arrow = (~ann=?, t1, t2): typ_t(DefaultAnnotation.t) => {
-      term: Arrow(t1, t2),
+    let arrow =
+        (~ann=?, ~syn_slice=?, ~ana_slice=?, t1, t2)
+        : typ_t(DefaultAnnotation.t) => {
+      term: {
+        typ: Arrow(t1, t2),
+        syn_slice: default_slice(syn_slice),
+        ana_slice: default_slice(ana_slice),
+      },
       annotation: default_annotation(ann),
     };
-    let sum = (~ann=?, m): typ_t(DefaultAnnotation.t) => {
-      term: Sum(m),
+    let sum =
+        (~ann=?, ~syn_slice=?, ~ana_slice=?, m): typ_t(DefaultAnnotation.t) => {
+      term: {
+        typ: Sum(m),
+        syn_slice: default_slice(syn_slice),
+        ana_slice: default_slice(ana_slice),
+      },
       annotation: default_annotation(ann),
     };
-    let prod = (~ann=?, l): typ_t(DefaultAnnotation.t) => {
-      term: Prod(l),
+    let prod =
+        (~ann=?, ~syn_slice=?, ~ana_slice=?, l): typ_t(DefaultAnnotation.t) => {
+      term: {
+        typ: Prod(l),
+        syn_slice: default_slice(syn_slice),
+        ana_slice: default_slice(ana_slice),
+      },
       annotation: default_annotation(ann),
     };
-    let label = (~ann=?, l): typ_t(DefaultAnnotation.t) => {
-      term: Label(l),
+    let label =
+        (~ann=?, ~syn_slice=?, ~ana_slice=?, l): typ_t(DefaultAnnotation.t) => {
+      term: {
+        typ: Label(l),
+        syn_slice: default_slice(syn_slice),
+        ana_slice: default_slice(ana_slice),
+      },
       annotation: default_annotation(ann),
     };
-    let tup_label = (~ann=?, t1, t2): typ_t(DefaultAnnotation.t) => {
-      term: TupLabel(t1, t2),
+    let tup_label =
+        (~ann=?, ~syn_slice=?, ~ana_slice=?, t1, t2)
+        : typ_t(DefaultAnnotation.t) => {
+      term: {
+        typ: TupLabel(t1, t2),
+        syn_slice: default_slice(syn_slice),
+        ana_slice: default_slice(ana_slice),
+      },
       annotation: default_annotation(ann),
     };
-    let parens = (~ann=?, t): typ_t(DefaultAnnotation.t) => {
-      term: Parens(t),
+    let parens =
+        (~ann=?, ~syn_slice=?, ~ana_slice=?, t): typ_t(DefaultAnnotation.t) => {
+      term: {
+        typ: Parens(t),
+        syn_slice: default_slice(syn_slice),
+        ana_slice: default_slice(ana_slice),
+      },
       annotation: default_annotation(ann),
     };
-    let ap = (~ann=?, t1, t2): typ_t(DefaultAnnotation.t) => {
-      term: Ap(t1, t2),
+    let ap =
+        (~ann=?, ~syn_slice=?, ~ana_slice=?, t1, t2)
+        : typ_t(DefaultAnnotation.t) => {
+      term: {
+        typ: Ap(t1, t2),
+        syn_slice: default_slice(syn_slice),
+        ana_slice: default_slice(ana_slice),
+      },
       annotation: default_annotation(ann),
     };
-    let rec_ = (~ann=?, tp, t): typ_t(DefaultAnnotation.t) => {
-      term: Rec(tp, t),
+    let rec_ =
+        (~ann=?, ~syn_slice=?, ~ana_slice=?, tp, t)
+        : typ_t(DefaultAnnotation.t) => {
+      term: {
+        typ: Rec(tp, t),
+        syn_slice: default_slice(syn_slice),
+        ana_slice: default_slice(ana_slice),
+      },
       annotation: default_annotation(ann),
     };
-    let forall = (~ann=?, tp, t): typ_t(DefaultAnnotation.t) => {
-      term: Forall(tp, t),
+    let forall =
+        (~ann=?, ~syn_slice=?, ~ana_slice=?, tp, t)
+        : typ_t(DefaultAnnotation.t) => {
+      term: {
+        typ: Forall(tp, t),
+        syn_slice: default_slice(syn_slice),
+        ana_slice: default_slice(ana_slice),
+      },
       annotation: default_annotation(ann),
     };
-    let empty_hole = (~ann=?, ()): typ_t(DefaultAnnotation.t) => {
-      term: Unknown(Hole(EmptyHole)),
-      annotation: default_annotation(ann),
-    };
-  };
-
-  module TypSlice = {
-    let unknown = (~ann=?, p): typslice_t(DefaultAnnotation.t) => {
-      term: `Typ(Unknown(p)),
-      annotation: default_annotation(ann),
-    };
-    let int = (~ann=?, ()): typslice_t(DefaultAnnotation.t) => {
-      term: `Typ(Atom(Int)),
-      annotation: default_annotation(ann),
-    };
-    let float = (~ann=?, ()): typslice_t(DefaultAnnotation.t) => {
-      term: `Typ(Atom(Int)),
-      annotation: default_annotation(ann),
-    };
-    let bool = (~ann=?, ()): typslice_t(DefaultAnnotation.t) => {
-      term: `Typ(Atom(Bool)),
-      annotation: default_annotation(ann),
-    };
-    let string = (~ann=?, ()): typslice_t(DefaultAnnotation.t) => {
-      term: `Typ(Atom(String)),
-      annotation: default_annotation(ann),
-    };
-    let var = (~ann=?, s): typslice_t(DefaultAnnotation.t) => {
-      term: `Typ(Var(s)),
-      annotation: default_annotation(ann),
-    };
-    let list = (~ann=?, t): typslice_t(DefaultAnnotation.t) => {
-      term:
-        `SliceIncr((
-          Slice(List(t)),
-          {
-            term_ids: [],
-            ctx_used: [],
-          },
-        )),
-      annotation: default_annotation(ann),
-    };
-    let arrow = (~ann=?, t1, t2): typslice_t(DefaultAnnotation.t) => {
-      term:
-        `SliceIncr((
-          Slice(Arrow(t1, t2)),
-          {
-            term_ids: [],
-            ctx_used: [],
-          },
-        )),
-      annotation: default_annotation(ann),
-    };
-    let sum = (~ann=?, m): typslice_t(DefaultAnnotation.t) => {
-      term:
-        `SliceIncr((
-          Slice(Sum(m)),
-          {
-            term_ids: [],
-            ctx_used: [],
-          },
-        )),
-      annotation: default_annotation(ann),
-    };
-    let prod = (~ann=?, l): typslice_t(DefaultAnnotation.t) => {
-      term:
-        `SliceIncr((
-          Slice(Prod(l)),
-          {
-            term_ids: [],
-            ctx_used: [],
-          },
-        )),
-      annotation: default_annotation(ann),
-    };
-    let label = (~ann=?, l): typslice_t(DefaultAnnotation.t) => {
-      term: `Typ(Label(l)),
-      annotation: default_annotation(ann),
-    };
-    let tup_label = (~ann=?, t1, t2): typslice_t(DefaultAnnotation.t) => {
-      term:
-        `SliceIncr((
-          Slice(TupLabel(t1, t2)),
-          {
-            term_ids: [],
-            ctx_used: [],
-          },
-        )),
-      annotation: default_annotation(ann),
-    };
-    let parens = (~ann=?, t): typslice_t(DefaultAnnotation.t) => {
-      term:
-        `SliceIncr((
-          Slice(Parens(t)),
-          {
-            term_ids: [],
-            ctx_used: [],
-          },
-        )),
-      annotation: default_annotation(ann),
-    };
-    let ap = (~ann=?, t1, t2): typslice_t(DefaultAnnotation.t) => {
-      term:
-        `SliceIncr((
-          Slice(Ap(t1, t2)),
-          {
-            term_ids: [],
-            ctx_used: [],
-          },
-        )),
-      annotation: default_annotation(ann),
-    };
-    let rec_ = (~ann=?, tp, t): typslice_t(DefaultAnnotation.t) => {
-      term:
-        `SliceIncr((
-          Slice(Rec(tp, t)),
-          {
-            term_ids: [],
-            ctx_used: [],
-          },
-        )),
-      annotation: default_annotation(ann),
-    };
-    let forall = (~ann=?, tp, t): typslice_t(DefaultAnnotation.t) => {
-      term:
-        `SliceIncr((
-          Slice(Forall(tp, t)),
-          {
-            term_ids: [],
-            ctx_used: [],
-          },
-        )),
+    let empty_hole =
+        (~ann=?, ~syn_slice=?, ~ana_slice=?, ()): typ_t(DefaultAnnotation.t) => {
+      term: {
+        typ: Unknown(Hole(EmptyHole)),
+        syn_slice: default_slice(syn_slice),
+        ana_slice: default_slice(ana_slice),
+      },
       annotation: default_annotation(ann),
     };
   };
