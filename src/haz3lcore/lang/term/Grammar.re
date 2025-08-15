@@ -180,19 +180,13 @@ and filter('a) = {
   act: FilterAction.t,
 };
 
-
-
-  let pp_typslc_term:
-    type a.
-      (
-        (Format.formatter, a) => unit,
-        Format.formatter,
-        typslice_term(a)
-      ) =>
-      unit =
-    (fmt_a, fmtr, t) => {
-      pp_typ_term(fmt_a, fmtr, t.typ);
-    };
+let pp_typslc_term:
+  type a.
+    ((Format.formatter, a) => unit, Format.formatter, typslice_term(a)) =>
+    unit =
+  (fmt_a, fmtr, t) => {
+    pp_typ_term(fmt_a, fmtr, t.typ);
+  };
 
 let unwrap_typslice_term = ({typ, syn_slice, ana_slice}) => (
   typ,
