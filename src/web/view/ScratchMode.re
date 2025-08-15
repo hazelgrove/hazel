@@ -139,8 +139,17 @@ module Update = {
 
         "Scratchpad " ++ string_of_int(new_number);
       | true =>
-        JsUtil.prompt("Enter new buffer name:", "New Buffer Name")
-        |> Option.get
+        let (current, _) = List.nth(model.scratchpads, model.current);
+        let current_dir =
+          switch (String.rindex_opt(current, '/')) {
+          | None => ""
+          | Some(idx) => String.sub(current, 0, idx) ++ "/ "
+          };
+        JsUtil.prompt(
+          "Enter new buffer name:",
+          current_dir ++ "New Slide Name",
+        )
+        |> Option.get;
       };
     model.scratchpads
     @ [(new_key, CellEditor.Model.mk(Editor.Model.mk(Zipper.init())))];
