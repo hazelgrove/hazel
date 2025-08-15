@@ -93,7 +93,7 @@ N/A
 N/A
 
 > Q. Which examples, or aspects thereof, can be expressed especially precisely? How?
-
+The examples are expressed as precisely as the benchmark
 
 > Q. How direct is the mapping from the pseudocode in the benchmark to representations in your system? How complex is the encoding?
 - The mapping is quite direct as implemented. A less direct mapping could accomplish a more type-safe translation of several of the programs.
