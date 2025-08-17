@@ -154,8 +154,6 @@ and type_provenance('a) =
   | SynSwitch
   | Hole(type_hole('a))
   | Internal
-  | Matched(matched_type_provenance('a))
-and matched_type_provenance('a) =
   | LArrow(type_provenance('a))
   | RArrow(type_provenance('a))
   | NProduct(int, type_provenance('a))
@@ -424,17 +422,11 @@ and map_type_provenance_annotation:
     | SynSwitch => SynSwitch
     | Hole(h) => Hole(map_type_hole_annotation(f, h))
     | Internal => Internal
-    | Matched(matched) =>
-      Matched(
-        switch (matched) {
-        | LArrow(p) => LArrow(map_type_provenance_annotation(f, p))
-        | RArrow(p) => RArrow(map_type_provenance_annotation(f, p))
-        | NProduct(n, p) =>
-          NProduct(n, map_type_provenance_annotation(f, p))
-        | MList(p) => MList(map_type_provenance_annotation(f, p))
-        | RForall(p) => RForall(map_type_provenance_annotation(f, p))
-        },
-      )
+    | LArrow(p) => LArrow(map_type_provenance_annotation(f, p))
+    | RArrow(p) => RArrow(map_type_provenance_annotation(f, p))
+    | NProduct(n, p) => NProduct(n, map_type_provenance_annotation(f, p))
+    | MList(p) => MList(map_type_provenance_annotation(f, p))
+    | RForall(p) => RForall(map_type_provenance_annotation(f, p))
     };
   }
 and map_type_provenance_t_annotation:
@@ -932,25 +924,25 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let larrow = (~ann=?, p): type_provenance_t(DefaultAnnotation.t) => {
       {
-        term: Matched(LArrow(p)),
+        term: LArrow(p),
         annotation: default_annotation(ann),
       };
     };
     let rarrow = (~ann=?, p): type_provenance_t(DefaultAnnotation.t) => {
       {
-        term: Matched(RArrow(p)),
+        term: RArrow(p),
         annotation: default_annotation(ann),
       };
     };
     let nproduct = (~ann=?, n, p): type_provenance_t(DefaultAnnotation.t) => {
       {
-        term: Matched(NProduct(n, p)),
+        term: NProduct(n, p),
         annotation: default_annotation(ann),
       };
     };
     let mlist = (~ann=?, p): type_provenance_t(DefaultAnnotation.t) => {
       {
-        term: Matched(MList(p)),
+        term: MList(p),
         annotation: default_annotation(ann),
       };
     };
