@@ -6,7 +6,7 @@ open Util;
 open Js_of_ocaml;
 open Key;
 
-module Update = AssistantUpdateUtil;
+module Update = AssistantUpdateBase;
 
 module Model = AssistantModel;
 

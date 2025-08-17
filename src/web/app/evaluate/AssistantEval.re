@@ -77,7 +77,7 @@ module Update = {
         ~action: t,
         ~assistant_model: AssistantModel.t,
         ~schedule_action: t => unit,
-        ~schedule_assistant_action: AssistantUpdateUtil.t => unit,
+        ~schedule_assistant_action: AssistantUpdateBase.t => unit,
         ~schedule_editor_action: Editors.Update.t => unit,
       )
       : Updated.t(Model.t) => {
@@ -93,7 +93,7 @@ module Update = {
     | PrepTest =>
       print_endline("Here #0 : Init");
       // Create a new chat
-      schedule_assistant_action(AssistantUpdateUtil.ChatAction(NewChat));
+      schedule_assistant_action(AssistantUpdateBase.ChatAction(NewChat));
       // Create a new scratchpad
       schedule_editor_action(Editors.Update.Scratch(AddSlide));
       // Paste the initial sketch
@@ -114,7 +114,7 @@ module Update = {
     | SendRequest =>
       // Send the prompt to the assistant
       schedule_assistant_action(
-        AssistantUpdateUtil.SendMessage(
+        AssistantUpdateBase.SendMessage(
           Composition(Request(prompt), true),
           None,
           assistant_model.current_chats.curr_composition_chat,

@@ -2,7 +2,7 @@ open Haz3lcore;
 open Util;
 open Util.OptUtil.Syntax;
 
-open AssistantUpdateUtil;
+open AssistantUpdateBase;
 open AssistantUpdateComposition;
 
 module CodeModel = CodeEditable.Model;
@@ -98,6 +98,10 @@ let update =
         |> Updated.return;
 
       | Composition(kind, eval_mode) =>
+        print_endline(
+          "Here #6 : Composition Eval mode is set to "
+          ++ string_of_bool(eval_mode),
+        );
         let mode = AssistantSettings.TaskCompletion;
         let curr_chat =
           Id.Map.find(chat_id, model.chat_history.past_composition_chats);
@@ -523,6 +527,10 @@ let update =
       )
       |> Updated.return;
     | CompositionLoopRound(_, fuel, eval_mode) =>
+      print_endline(
+        "Here #7 : Composition Eval mode is set to "
+        ++ string_of_bool(eval_mode),
+      );
       // This is step (3) from the directed graph above --
       switch (tool_call, fuel) {
       | (None, _) =>
@@ -626,7 +634,7 @@ let update =
           ~awaiting_response=false,
         )
         |> Updated.return;
-      }
+      };
     | CompletionErrorRound(editor, fuel, tileId) =>
       // Split response into discussion and completion
       let code_pattern =

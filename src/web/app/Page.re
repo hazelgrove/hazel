@@ -68,7 +68,7 @@ module Update = {
     | Globals(Globals.Update.t)
     | Editors(Editors.Update.t)
     | ExplainThis(ExplainThisUpdate.update)
-    | Assistant(AssistantUpdateUtil.t)
+    | Assistant(AssistantUpdateBase.t)
     | AssistantEval(AssistantEval.Update.t)
     | MakeActive(selection)
     | Benchmark(benchmark_action)

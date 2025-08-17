@@ -4,7 +4,7 @@ open Util;
 module CodeModel = CodeEditable.Model;
 module Model = AssistantModel;
 
-open AssistantUpdateUtil;
+open AssistantUpdateBase;
 
 let check_req =
     (

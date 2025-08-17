@@ -5,7 +5,7 @@ open API;
 module CodeModel = CodeEditable.Model;
 module Model = AssistantModel;
 
-open AssistantUpdateUtil;
+open AssistantUpdateBase;
 
 let mk_structure_edit_msg = (~tool_call: OpenRouter.tool_call): string =>
   // AddToolLabel_3.0: what should the text content of this tool call to the user be?
