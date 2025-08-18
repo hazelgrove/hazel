@@ -36,13 +36,13 @@ type ancestors = list(Id.t);
 type error_inconsistent =
   /* Self type (syn) inconsistent with expected type (ana) */
   | Expectation({
-      ana: TypSlice.t,
-      syn: TypSlice.t,
+      ana: Typ.t,
+      syn: Typ.t,
     })
   /* Inconsistent match or listlit */
-  | Internal(list(TypSlice.t))
+  | Internal(list(Typ.t))
   /* Bad function position: (syn slice of term, ana slice enforcing arrow)  */
-  | WithArrow(TypSlice.t, TypSlice.slc_global);
+  | WithArrow(Typ.t, CodeSlice.t);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_no_type =
@@ -51,7 +51,7 @@ type error_no_type =
   /* Invalid operator for current use mode, treated as hole */
   | BadOperator(string)
   /* Empty application of function with inconsistent type */
-  | BadTrivAp(TypSlice.t)
+  | BadTrivAp(Typ.t)
   /* Sum constructor neither bound nor in ana type */
   | FreeConstructor(Constructor.t)
   /* Dot Operator is ill-formed */
@@ -71,17 +71,17 @@ type error_common =
   /* Overdetermined: Conflicting type expectations */
   | Inconsistent(error_inconsistent)
   /* The error on a specific duplicate label */
-  | DuplicateLabel(LabeledTuple.label, TypSlice.t)
+  | DuplicateLabel(LabeledTuple.label, Typ.t)
   /* Tuple/TupLabel contains malformed labels, duplicate labels, and/or invalid labels */
   | TupleLabelError({
       malformed_labels: list(Any.t),
       duplicate_labels: list(LabeledTuple.label),
       invalid_labels: list(LabeledTuple.label),
-      typ: TypSlice.t,
+      typ: Typ.t,
     })
   | InvalidUseMode({
-      bad_typ: TypSlice.t,
-      inner_typ: TypSlice.t,
+      bad_typ: Typ.t,
+      inner_typ: Typ.t,
     });
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -94,7 +94,7 @@ type error_exp =
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_pat =
-  | ExpectedConstructor(TypSlice.slc_global) /* Only construtors can be applied. Slice explains application */
+  | ExpectedConstructor(CodeSlice.t) /* Only construtors can be applied. Slice explains application */
   | Redundant(option(error_pat))
   | Common(error_common);
 
@@ -103,27 +103,27 @@ type ok_ana =
   /* The expected (ana) type and the self (syn) type are
      consistent, as witnessed by their joint type (join) */
   | Consistent({
-      ana: TypSlice.t,
-      syn: TypSlice.t,
-      join: TypSlice.t,
+      ana: Typ.t,
+      syn: Typ.t,
+      join: Typ.t,
     })
   /* A match expression or list literal which, in synthetic position,
      would be marked as internally inconsistent, but is considered
      fine as the expected type provides a consistent lower bound
      (often Unknown) for the types of the branches/elements */
   | InternallyInconsistent({
-      ana: TypSlice.t,
-      nojoin: list(TypSlice.t),
+      ana: Typ.t,
+      nojoin: list(Typ.t),
     });
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type ok_common =
-  | Syn(TypSlice.t)
+  | Syn(Typ.t)
   | Ana(ok_ana);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type ok_exp =
-  | AnaDeferralConsistent(TypSlice.t)
+  | AnaDeferralConsistent(Typ.t)
   | Common(ok_common);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -157,8 +157,8 @@ type typ_expects =
   | TypeExpected
   | TupleExpected
   | LabelExpected(status_variant, list(LabeledTuple.label)) // list of duplicate labels
-  | ConstructorExpected(status_variant, TypSlice.t)
-  | VariantExpected(status_variant, TypSlice.t);
+  | ConstructorExpected(status_variant, Typ.t)
+  | VariantExpected(status_variant, Typ.t);
 
 /* Type term errors
    TODO: The three additional errors statuses
@@ -174,16 +174,16 @@ type error_typ =
   | WantTypeFoundAp
   | WantTuple
   | WantLabel
-  | WantConstructorFoundType(TypSlice.t)
+  | WantConstructorFoundType(Typ.t)
   | WantConstructorFoundAp;
 
 /* Type ok statuses for cursor inspector */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type ok_typ =
-  | Variant(Constructor.t, TypSlice.t)
-  | VariantIncomplete(TypSlice.t)
-  | TypeAlias(string, TypSlice.t)
-  | Type(TypSlice.t)
+  | Variant(Constructor.t, Typ.t)
+  | VariantIncomplete(Typ.t)
+  | TypeAlias(string, Typ.t)
+  | Type(Typ.t)
   | EmptyLabel;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -236,12 +236,12 @@ type exp = {
   term: Exp.t, /* The term under consideration */
   ancestors, /* Ascending list of containing term ids */
   ctx: Ctx.t, /* Typing context for the term */
-  ana: TypSlice.t, /* Parental type expectations  */
+  ana: Typ.t, /* Parental type expectations  */
   self: Self.exp, /* Expectation-independent type info */
   co_ctx: CoCtx.t, /* Locally free variables */
   cls: Cls.t, /* DERIVED: Syntax class (i.e. form name) */
   status: status_exp, /* DERIVED: Ok/Error statuses for display */
-  ty: TypSlice.t, /* DERIVED: Type after nonempty hole fixing */
+  ty: Typ.t, /* DERIVED: Type after nonempty hole fixing */
   label_inference: option(label_inference(exp)), /* Label inference information for the tuple */
   inferred_label: option(LabeledTuple.label), /* Inferred label for an expression within the tuple */
   label_sort: bool /* When in the position of a label */
@@ -253,12 +253,12 @@ type pat = {
   ancestors,
   ctx: Ctx.t,
   co_ctx: CoCtx.t,
-  prev_synswitch: option(TypSlice.t), // If a pattern is first synthesized, then analysed, the initial syn is stored here.
-  ana: TypSlice.t,
+  prev_synswitch: option(Typ.t), // If a pattern is first synthesized, then analysed, the initial syn is stored here.
+  ana: Typ.t,
   self: Self.pat,
   cls: Cls.t,
   status: status_pat,
-  ty: TypSlice.t,
+  ty: Typ.t,
   constraint_: Coverage.Constraint.t,
   label_inference: option(label_inference(pat)),
   inferred_label: option(LabeledTuple.label),
@@ -267,7 +267,7 @@ type pat = {
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type typ = {
-  term: TypSlice.t,
+  term: Typ.t,
   ancestors,
   ctx: Ctx.t,
   expects: typ_expects,
@@ -328,7 +328,7 @@ let any_of: t => option(Term.Any.t) =
   fun
   | InfoExp({term, _}) => Some(Exp(term))
   | InfoPat({term, _}) => Some(Pat(term))
-  | InfoTyp({term, _}) => Some(TypSlice(term))
+  | InfoTyp({term, _}) => Some(Typ(term))
   | InfoTPat({term, _}) => Some(TPat(term))
   | Secondary(_) => None;
 
@@ -352,7 +352,7 @@ let id_of: t => Id.t =
   fun
   | InfoExp(i) => Exp.rep_id(i.term)
   | InfoPat(i) => Pat.rep_id(i.term)
-  | InfoTyp(i) => TypSlice.rep_id(i.term)
+  | InfoTyp(i) => Typ.rep_id(i.term)
   | InfoTPat(i) => TPat.rep_id(i.term)
   | Secondary(s) => s.id;
 
@@ -369,26 +369,26 @@ let error_of: t => option(error) =
   | Secondary(_) => None;
 
 let exp_co_ctx: exp => CoCtx.t = ({co_ctx, _}) => co_ctx;
-let exp_ty: exp => TypSlice.t = ({ty, _}) => ty;
+let exp_ty: exp => Typ.t = ({ty, _}) => ty;
 let pat_ctx: pat => Ctx.t = ({ctx, _}) => ctx;
-let pat_ty: pat => TypSlice.t = ({ty, _}) => ty;
+let pat_ty: pat => Typ.t = ({ty, _}) => ty;
 let pat_constraint: pat => Coverage.Constraint.t =
   ({constraint_, _}) => constraint_;
 
-let status_common =
-    (ctx: Ctx.t, ty_ana: TypSlice.t, self: Self.t): status_common =>
+let status_common = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.t): status_common =>
   switch (self, ty_ana) {
-  | (Just(ty), {term: `Typ(Unknown(SynSwitch)), _}) => NotInHole(Syn(ty))
+  | (Just(ty), {term: {typ: Unknown(SynSwitch), _}, _}) =>
+    NotInHole(Syn(ty))
   | (Just(syn), ana) =>
     switch (
-      TypSlice.join(
+      Typ.join(
         ctx,
         ana,
         syn /* Note: the ordering of ana, syn matters */
       )
     ) {
     | None =>
-      switch (TypSlice.typ_of(ana).term, syn.term) {
+      switch (Typ.term_of(ana), syn.term) {
       | (Label(_), _) =>
         InHole(
           Inconsistent(
@@ -451,22 +451,15 @@ let status_common =
     )
   | (Duplicate(lab, Just(ty)), _) => InHole(DuplicateLabel(lab, ty))
   | (Duplicate(lab, _), _) =>
-    InHole(
-      DuplicateLabel(
-        lab,
-        Unknown(Internal) |> Typ.temp |> TypSlice.t_of_typ_t,
-      ),
-    )
-  | (IsMulti, _) =>
-    NotInHole(Syn(`Typ(Unknown(Internal)) |> TypSlice.temp))
-  | (NoJoin(_, tys), {term: `Typ(Unknown(SynSwitch)), _}) =>
-    InHole(Inconsistent(Internal(TypSlice.of_source(tys))))
+    InHole(DuplicateLabel(lab, Unknown(Internal) |> Typ.temp_empty))
+  | (IsMulti, _) => NotInHole(Syn(Unknown(Internal) |> Typ.temp_empty))
+  | (NoJoin(_, tys), {term: {typ: Unknown(SynSwitch), _}, _}) =>
+    InHole(Inconsistent(Internal(Typ.of_source(tys))))
   | (NoJoin(wrap, tys), ana) =>
-    let syn: TypSlice.t =
-      Self.join_of(wrap, `Typ(Unknown(Internal)) |> TypSlice.temp);
-    switch (TypSlice.join(ctx, ana, syn)) {
+    let syn: Typ.t = Self.join_of(wrap, Unknown(Internal) |> Typ.temp_empty);
+    switch (Typ.join(ctx, ana, syn)) {
     | None =>
-      switch (TypSlice.typ_of(ana).term, TypSlice.typ_of(ana).term) {
+      switch (Typ.term_of(ana), Typ.term_of(ana)) {
       | (Label(_), Label(_)) =>
         InHole(
           Inconsistent(
@@ -476,7 +469,7 @@ let status_common =
             }),
           ),
         )
-      | (Label(_), _) => InHole(NoType(BadLabel(TypSlice(syn))))
+      | (Label(_), _) => InHole(NoType(BadLabel(Typ(syn))))
       | _ =>
         InHole(
           Inconsistent(
@@ -492,7 +485,7 @@ let status_common =
         Ana(
           InternallyInconsistent({
             ana,
-            nojoin: TypSlice.of_source(tys),
+            nojoin: Typ.of_source(tys),
           }),
         ),
       )
@@ -502,8 +495,7 @@ let status_common =
     InHole(NoType(LabelNotFound(name, labels)))
   };
 
-let rec status_pat =
-        (ctx: Ctx.t, ty_ana: TypSlice.t, self: Self.pat): status_pat =>
+let rec status_pat = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.pat): status_pat =>
   switch (self) {
   | Redundant(self) =>
     let additional_err =
@@ -525,16 +517,10 @@ let rec status_pat =
   | ExpectedConstructor(Common(Just(ty))) =>
     InHole(
       ExpectedConstructor(
-        TypSlice.(
-          union_slice_global(
-            get_global_slice_or_empty(ty.term),
-            get_incr_slice_or_empty(ty.term),
-          )
-        ),
+        Typ.(CodeSlice.union(ana_code_slice_of(ty), syn_code_slice_of(ty))),
       ),
     )
-  | ExpectedConstructor(_) =>
-    InHole(ExpectedConstructor(TypSlice.empty_slice_global)) // TODO: Are there other slicing cases?
+  | ExpectedConstructor(_) => InHole(ExpectedConstructor(CodeSlice.empty)) // TODO: Are there other slicing cases?
   | Common(self_pat) =>
     switch (status_common(ctx, ty_ana, self_pat)) {
     | NotInHole(ok_pat) => NotInHole(ok_pat)
@@ -546,8 +532,7 @@ let rec status_pat =
    depending on the mode, which represents the expectations of the
    surrounding syntactic context, and the self which represents the
    makeup of the expression / pattern itself. */
-let rec status_exp =
-        (ctx: Ctx.t, ty_ana: TypSlice.t, self: Self.exp): status_exp =>
+let rec status_exp = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.exp): status_exp =>
   switch (self) {
   | Free(name) => InHole(FreeVariable(name))
   | InexhaustiveMatch(self) =>
@@ -568,7 +553,7 @@ let rec status_exp =
         failwith("InHole(InexhaustiveMatch(impossible_err))")
       };
     InHole(InexhaustiveMatch(additional_err));
-  | IsDeferral(_) when TypSlice.is_syn_plus(ty_ana) => InHole(UnusedDeferral)
+  | IsDeferral(_) when Typ.is_syn_plus(ty_ana) => InHole(UnusedDeferral)
   | IsDeferral(InAp) => NotInHole(AnaDeferralConsistent(ty_ana))
   | IsDeferral(_) => InHole(UnusedDeferral)
   | IsBadPartialAp(_ as info) => InHole(BadPartialAp(info))
@@ -586,19 +571,15 @@ let rec status_exp =
    separate sort. It also determines semantic properties
    such as whether or not a type variable reference is
    free, and whether a ctr name is a dupe. */
-let status_typ =
-    (ctx: Ctx.t, expects: typ_expects, ty: TypSlice.t): status_typ => {
-  let rewrap = term => {
-    ...ty,
-    term,
-  };
+let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ => {
+  let (_, rewrap) = Typ.unwrap(ty);
   let f_typ = (ty: Typ.term): status_typ =>
     switch (ty) {
     | Unknown(Hole(Invalid(token))) => InHole(BadToken(token))
     | Unknown(Hole(EmptyHole)) =>
       switch (expects) {
       | LabelExpected(_) => NotInHole(EmptyLabel)
-      | _ => NotInHole(Type(`Typ(ty) |> rewrap))
+      | _ => NotInHole(Type(ty |> rewrap))
       }
     | Var(name) =>
       switch (expects) {
@@ -610,25 +591,17 @@ let status_typ =
         InHole(DuplicateConstructor(name))
       | TupleExpected =>
         switch (Ctx.lookup_alias(ctx, name)) {
-        | Some(s) when TypSlice.is_prod(s) =>
+        | Some(s) when Typ.is_prod(s) =>
           NotInHole(
-            TypeAlias(
-              name,
-              Typ.weak_head_normalize(ctx, ty |> rewrap)
-              |> TypSlice.t_of_typ_t,
-            ),
+            TypeAlias(name, Typ.weak_head_normalize(ctx, ty |> rewrap)),
           )
         | _ => InHole(WantTuple)
         }
       | LabelExpected(_) =>
         switch (Ctx.lookup_alias(ctx, name)) {
-        | Some(s) when TypSlice.is_label(s) =>
+        | Some(s) when Typ.is_label(s) =>
           NotInHole(
-            TypeAlias(
-              name,
-              Typ.weak_head_normalize(ctx, ty |> rewrap)
-              |> TypSlice.t_of_typ_t,
-            ),
+            TypeAlias(name, Typ.weak_head_normalize(ctx, ty |> rewrap)),
           )
         | _ => InHole(WantLabel)
         }
@@ -637,15 +610,11 @@ let status_typ =
         | false =>
           switch (Ctx.is_abstract(ctx, name)) {
           | false => InHole(FreeTypeVariable(name))
-          | true => NotInHole(Type(`Typ(Var(name)) |> TypSlice.temp))
+          | true => NotInHole(Type(Var(name) |> Typ.temp_empty))
           }
         | true =>
           NotInHole(
-            TypeAlias(
-              name,
-              Typ.weak_head_normalize(ctx, ty |> rewrap)
-              |> TypSlice.t_of_typ_t,
-            ),
+            TypeAlias(name, Typ.weak_head_normalize(ctx, ty |> rewrap)),
           )
         }
       }
@@ -653,26 +622,13 @@ let status_typ =
       switch (expects) {
       | VariantExpected(status_variant, ty_variant) =>
         switch (status_variant, t1.term) {
-        | (Unique, Var(name)) =>
+        | (Unique, {typ: Var(name), _}) =>
           NotInHole(
-            Variant(
-              name,
-              `SliceIncr((
-                Slice(Arrow(TypSlice.t_of_typ_t(ty_in), ty_variant)),
-                TypSlice.empty_slice_incr,
-              ))
-              |> TypSlice.temp,
-            ),
+            Variant(name, Arrow(ty_in, ty_variant) |> Typ.temp_empty),
           )
         | _ =>
           NotInHole(
-            VariantIncomplete(
-              `SliceIncr((
-                Slice(Arrow(TypSlice.t_of_typ_t(ty_in), ty_variant)),
-                TypSlice.empty_slice_incr,
-              ))
-              |> TypSlice.temp,
-            ),
+            VariantIncomplete(Arrow(ty_in, ty_variant) |> Typ.temp_empty),
           )
         }
       | ConstructorExpected(_) => InHole(WantConstructorFoundAp)
@@ -682,16 +638,14 @@ let status_typ =
       }
     | Label(name) =>
       switch (expects) {
-      | TypeExpected => NotInHole(Type(ty |> rewrap |> TypSlice.t_of_typ_t))
+      | TypeExpected => NotInHole(Type(ty |> rewrap))
       | TupleExpected => InHole(WantTuple)
-      | LabelExpected(Unique, _) =>
-        NotInHole(Type(ty |> rewrap |> TypSlice.t_of_typ_t))
+      | LabelExpected(Unique, _) => NotInHole(Type(ty |> rewrap))
       | LabelExpected(Duplicate, dupes) =>
         List.exists(l => name == l, dupes)
           ? InHole(Duplicate(name, ty |> rewrap)) : InHole(WantLabel)
       | ConstructorExpected(_)
-      | VariantExpected(_) =>
-        InHole(WantConstructorFoundType(ty |> rewrap |> TypSlice.t_of_typ_t))
+      | VariantExpected(_) => InHole(WantConstructorFoundType(ty |> rewrap))
       }
     | Prod(ts) =>
       switch (expects) {
@@ -701,68 +655,24 @@ let status_typ =
           LabeledTuple.get_duplicate_labels(Typ.match_tup_label, ts);
 
         if (duplicate_labels == []) {
-          NotInHole(Type(ty |> rewrap |> TypSlice.t_of_typ_t));
+          NotInHole(Type(ty |> rewrap));
         } else {
           InHole(DuplicateLabels(duplicate_labels, ty |> rewrap));
         };
       | LabelExpected(_) => InHole(WantLabel)
       | ConstructorExpected(_)
-      | VariantExpected(_) =>
-        InHole(WantConstructorFoundType(ty |> rewrap |> TypSlice.t_of_typ_t))
+      | VariantExpected(_) => InHole(WantConstructorFoundType(ty |> rewrap))
       }
     | _ =>
       switch (expects) {
-      | TypeExpected => NotInHole(Type(`Typ(ty) |> rewrap))
+      | TypeExpected => NotInHole(Type(ty |> rewrap))
       | TupleExpected => InHole(WantTuple)
       | LabelExpected(_) => InHole(WantLabel)
       | ConstructorExpected(_)
-      | VariantExpected(_) =>
-        InHole(WantConstructorFoundType(`Typ(ty) |> rewrap))
+      | VariantExpected(_) => InHole(WantConstructorFoundType(ty |> rewrap))
       }
     };
-  let f_slc = (s: TypSlice.slc_typ_term): status_typ =>
-    switch (s) {
-    | Ap(t1, ty_in) =>
-      switch (expects) {
-      | VariantExpected(status_variant, ty_variant) =>
-        switch (status_variant, TypSlice.typ_of(t1).term) {
-        | (Unique, Var(name)) =>
-          NotInHole(
-            Variant(
-              name,
-              `SliceIncr((
-                Slice(Arrow(ty_in, ty_variant)),
-                TypSlice.empty_slice_incr,
-              ))
-              |> TypSlice.temp,
-            ),
-          )
-        | _ =>
-          NotInHole(
-            VariantIncomplete(
-              `SliceIncr((
-                Slice(Arrow(ty_in, ty_variant)),
-                TypSlice.empty_slice_incr,
-              ))
-              |> TypSlice.temp,
-            ),
-          )
-        }
-      | ConstructorExpected(_) => InHole(WantConstructorFoundAp)
-      | TupleExpected => InHole(WantTuple)
-      | LabelExpected(_) => InHole(WantLabel)
-      | TypeExpected => InHole(WantTypeFoundAp)
-      }
-    | _ =>
-      switch (expects) {
-      | TypeExpected => NotInHole(Type(ty))
-      | TupleExpected => InHole(WantTuple)
-      | LabelExpected(_) => InHole(WantLabel)
-      | ConstructorExpected(_)
-      | VariantExpected(_) => InHole(WantConstructorFoundType(ty))
-      }
-    };
-  TypSlice.apply(f_typ, f_slc, TypSlice.term_of(ty));
+  Typ.apply(f_typ, ty);
 };
 
 let status_tpat = (ctx: Ctx.t, utpat: TPat.t): status_tpat =>
@@ -812,57 +722,56 @@ let is_error = (ci: t): bool => {
 /* Determined the type of an expression or pattern 'after hole fixing';
    that is, some ill-typed terms are considered to be 'wrapped in
    non-empty holes', i.e. assigned Unknown type. */
-let fixed_typ_ok: ok_pat => TypSlice.t =
+let fixed_typ_ok: ok_pat => Typ.t =
   fun
   | Syn(syn) => syn
   | Ana(Consistent({join, _})) => join
   | Ana(InternallyInconsistent({ana, _})) => ana;
 
-let fixed_typ_err_common: error_common => TypSlice.t =
+let fixed_typ_err_common: error_common => Typ.t =
   fun
   | NoType(FreeConstructor(c)) =>
     Sum([
       ConstructorMap.Variant(c, [Id.invalid], None),
-      ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
+      ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp_empty),
     ])
-    |> Typ.temp
-    |> TypSlice.t_of_typ_t
+    |> Typ.temp_empty
   | NoType(BadToken(_))
   | NoType(BadOperator(_))
   | NoType(BadTrivAp(_))
   | NoType(WantTuple)
   | NoType(LabelNotFound(_))
   | NoType(BadLabel(_))
-  | NoType(InvalidLabel(_)) =>
-    Unknown(Internal) |> Typ.temp |> TypSlice.t_of_typ_t
+  | NoType(InvalidLabel(_)) => Unknown(Internal) |> Typ.temp_empty
   | InvalidUseMode({inner_typ, _}) => inner_typ
   | TupleLabelError({typ, _})
   | DuplicateLabel(_, typ) => typ
   | Inconsistent(Expectation({ana, _})) => ana
-  | Inconsistent(Internal(_)) => `Typ(Unknown(Internal)) |> TypSlice.temp // Should this be some sort of meet?
+  | Inconsistent(Internal(_)) => Unknown(Internal) |> Typ.temp_empty // Should this be some sort of meet?
   | Inconsistent(WithArrow(_, slc)) =>
-    `Typ(
-      Arrow(Unknown(Internal) |> Typ.temp, Unknown(Internal) |> Typ.temp),
+    Arrow(
+      Unknown(Internal) |> Typ.temp_empty,
+      Unknown(Internal) |> Typ.temp_empty,
     )
-    |> TypSlice.temp
-    |> TypSlice.wrap_global(slc);
+    |> Typ.from_ana_slice(slc)
+    |> Typ.temp;
 
-let fixed_typ_err: error_exp => TypSlice.t =
+let fixed_typ_err: error_exp => Typ.t =
   fun
-  | FreeVariable(_) => `Typ(Unknown(Internal)) |> TypSlice.temp
-  | UnusedDeferral => `Typ(Unknown(Internal)) |> TypSlice.temp
-  | BadPartialAp(_) => `Typ(Unknown(Internal)) |> TypSlice.temp
-  | InexhaustiveMatch(_) => `Typ(Unknown(Internal)) |> TypSlice.temp
+  | FreeVariable(_) => Unknown(Internal) |> Typ.temp_empty
+  | UnusedDeferral => Unknown(Internal) |> Typ.temp_empty
+  | BadPartialAp(_) => Unknown(Internal) |> Typ.temp_empty
+  | InexhaustiveMatch(_) => Unknown(Internal) |> Typ.temp_empty
   | Common(err) => fixed_typ_err_common(err);
 
-let fixed_typ_err_pat: error_pat => TypSlice.t =
+let fixed_typ_err_pat: error_pat => Typ.t =
   fun
   | ExpectedConstructor(slc) =>
-    `Typ(Unknown(Internal)) |> TypSlice.temp |> TypSlice.wrap_global(slc)
-  | Redundant(_) => `Typ(Unknown(Internal)) |> TypSlice.temp
+    Unknown(Internal) |> Typ.from_ana_slice(slc) |> Typ.temp
+  | Redundant(_) => Unknown(Internal) |> Typ.temp_empty
   | Common(err) => fixed_typ_err_common(err);
 
-let fixed_typ_pat = (ctx, ty_ana: TypSlice.t, self: Self.pat): TypSlice.t => {
+let fixed_typ_pat = (ctx, ty_ana: Typ.t, self: Self.pat): Typ.t => {
   // TODO: get rid of unwrapping (probably by changing the implementation of error_exp.Redundant)
   let self =
     switch (self) {
@@ -875,7 +784,7 @@ let fixed_typ_pat = (ctx, ty_ana: TypSlice.t, self: Self.pat): TypSlice.t => {
   };
 };
 
-let fixed_typ_exp = (ctx, ty_ana: TypSlice.t, self: Self.exp): TypSlice.t =>
+let fixed_typ_exp = (ctx, ty_ana: Typ.t, self: Self.exp): Typ.t =>
   switch (status_exp(ctx, ty_ana, self)) {
   | InHole(err) => fixed_typ_err(err)
   | NotInHole(AnaDeferralConsistent(ana)) => ana
@@ -953,13 +862,13 @@ let derived_pat =
 };
 
 /* Add derivable attributes for types */
-let derived_typ = (~utyp: TypSlice.t, ~ctx, ~ancestors, ~expects): typ => {
+let derived_typ = (~utyp: Typ.t, ~ctx, ~ancestors, ~expects): typ => {
   let cls: Cls.t =
     /* Hack to improve CI display */
-    switch (expects, TypSlice.cls_of_term(utyp.term)) {
-    | (VariantExpected(_) | ConstructorExpected(_), (cls_slc, Var)) =>
-      Cls.TypSlice((cls_slc, Constructor))
-    | (_, cls) => Cls.TypSlice(cls)
+    switch (expects, Typ.cls_of_term(Typ.term_of(utyp))) {
+    | (VariantExpected(_) | ConstructorExpected(_), Var) =>
+      Cls.Typ(Constructor)
+    | (_, cls) => Cls.Typ(cls)
     };
   let status = status_typ(ctx, expects, utyp);
   {
@@ -996,14 +905,7 @@ let get_binding_site = (info: t): option(Id.t) => {
   | InfoPat({term: {term: Constructor(name, _), _}, ctx, _}) =>
     let+ entry = Ctx.lookup_ctr(ctx, name);
     entry.id;
-  | InfoTyp({term: {term: `Typ(Var(name)), _}, ctx, _})
-  | InfoTyp({term: {term: `SliceIncr(Typ(Var(name)), _), _}, ctx, _})
-  | InfoTyp({term: {term: `SliceGlobal(`Typ(Var(name)), _), _}, ctx, _})
-  | InfoTyp({
-      term: {term: `SliceGlobal(`SliceIncr(Typ(Var(name)), _), _), _},
-      ctx,
-      _,
-    }) =>
+  | InfoTyp({term: {term: {typ: Var(name), _}, _}, ctx, _}) =>
     Ctx.lookup_tvar_id(ctx, name)
   | _ => None
   };
@@ -1067,6 +969,6 @@ let is_label = (info: t): bool =>
   | InfoPat({term: {term: Label(_), _}, _})
   | InfoPat({label_sort: true, _})
   | InfoExp({label_sort: true, _}) => true
-  | InfoTyp({term: s, _}) when TypSlice.is_label(s) => true
+  | InfoTyp({term: s, _}) when Typ.is_label(s) => true
   | _ => false
   };

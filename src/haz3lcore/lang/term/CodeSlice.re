@@ -1,5 +1,9 @@
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = Grammar.code_slice;
+
+// Structural equality
+let equal = (c1: t, c2: t) => c1 == c2;
+
 let empty = Grammar.empty_slice;
 let union =
     ({term_ids, ctx_used}: t, {term_ids: term_ids', ctx_used: ctx_used'}: t)
