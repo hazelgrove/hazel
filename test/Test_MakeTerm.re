@@ -72,8 +72,8 @@ let tests =
           let_(
             Pat.cast(
               Pat.var("x"),
-              TypSlice.(parens(prod([tup_label(label("l"), string())]))),
-              TypSlice.unknown(Internal),
+              Typ.(parens(prod([tup_label(label("l"), string())]))),
+              Typ.unknown(Internal),
             ),
             parens(string("a")),
             var("x"),
@@ -90,8 +90,8 @@ let tests =
               Pat.(
                 cast(
                   var("y"),
-                  TypSlice.(parens(prod([tup_label(label("l"), int())]))),
-                  TypSlice.unknown(Internal),
+                  Typ.(parens(prod([tup_label(label("l"), int())]))),
+                  Typ.unknown(Internal),
                 )
               ),
               var("x"),
@@ -119,7 +119,7 @@ let tests =
             Pat.(
               cast(
                 var("x"),
-                TypSlice.(
+                Typ.(
                   parens(
                     prod([
                       tup_label(label("l"), int()),
@@ -127,7 +127,7 @@ let tests =
                     ]),
                   )
                 ),
-                TypSlice.unknown(Internal),
+                Typ.unknown(Internal),
               )
             ),
             parens(

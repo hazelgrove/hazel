@@ -37,7 +37,7 @@ let strip_Wrap_and_add_builtins =
         },
     ~f_typ=
       (cont, e) =>
-        switch (e.term) {
+        switch (e.term.typ) {
         | Parens(e) => cont(e)
         | _ => cont(e)
         },
@@ -242,11 +242,7 @@ let tests =
       menhir_only_test("Constructor", constructor("A", None), "A"),
       menhir_only_test(
         "Constructor cast",
-        cast(
-          constructor("A", None),
-          TypSlice.unknown(Internal),
-          TypSlice.int(),
-        ),
+        cast(constructor("A", None), Typ.unknown(Internal), Typ.int()),
         "A : Int",
       ),
       menhir_only_test(
@@ -263,11 +259,7 @@ let tests =
       full_parser_test(
         "Type Variable",
         let_(
-          Pat.cast(
-            Pat.var("x"),
-            TypSlice.var("T"),
-            TypSlice.unknown(Internal),
-          ),
+          Pat.cast(Pat.var("x"), Typ.var("T"), Typ.unknown(Internal)),
           empty_hole(),
           var("x"),
         ),
@@ -350,11 +342,7 @@ let tests =
       full_parser_test(
         "Let binding with type ascription",
         let_(
-          Pat.cast(
-            Pat.var("x"),
-            TypSlice.int(),
-            TypSlice.unknown(Internal),
-          ),
+          Pat.cast(Pat.var("x"), Typ.int(), Typ.unknown(Internal)),
           int(5),
           var("x"),
         ),
@@ -375,12 +363,12 @@ let tests =
         let_(
           Pat.cast(
             Pat.var("x"),
-            TypSlice.sum([
+            Typ.sum([
               Variant("A", [], None),
               Variant("B", [], None),
-              Variant("C", [], Some(TypSlice.int())),
+              Variant("C", [], Some(Typ.int())),
             ]),
-            TypSlice.unknown(Internal),
+            Typ.unknown(Internal),
           ),
           ap(Forward, constructor("C", None), int(7)),
           var("x"),
@@ -397,7 +385,7 @@ let tests =
         fn(
           Pat.cast(
             Pat.var("b"),
-            TypSlice.(
+            Typ.(
               parens(
                 arrow(
                   unknown(TypeProvenance.hole(EmptyHole)),
@@ -405,7 +393,7 @@ let tests =
                 ),
               )
             ),
-            TypSlice.unknown(Internal),
+            Typ.unknown(Internal),
           ),
           empty_hole(),
           None,

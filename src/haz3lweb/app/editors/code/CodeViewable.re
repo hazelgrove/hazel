@@ -37,10 +37,9 @@ let view_segment =
   view(~globals, ~sort, ~measured, ~buffer_ids, ~segment, ~shape_map);
 };
 
-let view_typ = (~globals: Globals.t, ~settings, typ: TypSlice.t) => {
+let view_typ = (~globals: Globals.t, ~settings, typ: Typ.t) => {
   let shape_map = ProjectorCore.Shape.Map.empty; // assume no projectors
   typ
-  |> TypSlice.typ_of
   |> ExpToSegment.typ_to_segment(~settings)
   |> view_segment(~shape_map, ~globals, ~sort=Typ);
 };

@@ -420,7 +420,7 @@ let rec bypass_parens_exp = (exp: Exp.t) => {
 };
 
 let rec bypass_parens_typ = (typ: Typ.t) => {
-  switch (typ.term) {
+  switch (typ.term.typ) {
   | Parens(t) => bypass_parens_typ(t)
   | _ => typ
   };
@@ -2356,7 +2356,7 @@ let get_doc =
       default
     }
   | Some(InfoTyp({term, _} as typ_info)) =>
-    switch (bypass_parens_typ(term |> TypSlice.typ_of).term) {
+    switch (bypass_parens_typ(term).term.typ) {
     | Unknown(SynSwitch)
     | Unknown(Internal)
     | Unknown(Hole(EmptyHole)) => get_message(HoleTyp.empty_hole)
@@ -2430,7 +2430,7 @@ let get_doc =
             ),
           doc,
         );
-      switch (result.term) {
+      switch (result.term.typ) {
       | Arrow(arg2, result2) =>
         if (ArrowTyp.arrow3_typ.id == get_specificity_level(ArrowTyp.arrow3)) {
           let arg2_id = List.nth(IdTagged.ids(arg2), 0);
@@ -2569,7 +2569,7 @@ let get_doc =
         TerminalTyp.var(v),
       )
     | Sum(_) => get_message(SumTyp.labelled_sum_typs)
-    | Ap({term: Var(c), _}, _) =>
+    | Ap({term: {typ: Var(c), _}, _}, _) =>
       get_message(SumTyp.sum_typ_unary_constructor_defs(c))
     | Unknown(Hole(Invalid(_))) => simple("Not a type or type operator")
     | Ap(_)

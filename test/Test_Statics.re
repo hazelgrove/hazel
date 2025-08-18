@@ -2,15 +2,12 @@ open Alcotest;
 open Haz3lcore;
 
 let testable_typ =
-  testable(
-    Fmt.using(t => t |> TypSlice.typ_of |> Typ.show, Fmt.string),
-    TypSlice.fast_equal,
-  );
+  testable(Fmt.using(t => t |> Typ.show, Fmt.string), Typ.fast_equal);
 
 let eq_info_error_exp = (a: Info.error_exp, b: Info.error_exp) => {
   switch (a, b) {
   | (Common(DuplicateLabel(l, ty)), Common(DuplicateLabel(r, ty2))) =>
-    l == r && TypSlice.fast_equal(ty, ty2)
+    l == r && Typ.fast_equal(ty, ty2)
   | (Common(NoType(BadLabel(a))), Common(NoType(BadLabel(b)))) =>
     Any.fast_equal(a, b)
   | (Common(NoType(InvalidLabel(a))), Common(NoType(InvalidLabel(b)))) =>
@@ -19,12 +16,12 @@ let eq_info_error_exp = (a: Info.error_exp, b: Info.error_exp) => {
       Common(Inconsistent(Expectation({ana: a1, syn: a2}))),
       Common(Inconsistent(Expectation({ana: b1, syn: b2}))),
     ) =>
-    TypSlice.fast_equal(a1, b1) && TypSlice.fast_equal(a2, b2)
+    Typ.fast_equal(a1, b1) && Typ.fast_equal(a2, b2)
   | (Common(TupleLabelError(err)), Common(TupleLabelError(err'))) =>
     List.equal(Any.fast_equal, err.malformed_labels, err'.malformed_labels)
     && List.equal(String.equal, err.duplicate_labels, err'.duplicate_labels)
     && List.equal(String.equal, err.invalid_labels, err'.invalid_labels)
-    && TypSlice.fast_equal(err.typ, err'.typ)
+    && Typ.fast_equal(err.typ, err'.typ)
   | _ =>
     Alcotest.fail(
       "Not implemented for "
@@ -199,7 +196,7 @@ let skip_known_bug = (message: string, expression: string) =>
 let tests = (
   "Statics",
   FTemp.(
-    TypSlice.[
+    Typ.[
       fully_consistent_typecheck(
         "Function with unknown param",
         "fun x -> 4 + 5",
@@ -252,7 +249,7 @@ let tests = (
                   Pat.(
                     cast(
                       var("y"),
-                      TypSlice.(
+                      Typ.(
                         parens(
                           prod([
                             tup_label(label("a"), int()),
@@ -260,13 +257,13 @@ let tests = (
                           ]),
                         )
                       ),
-                      TypSlice.unknown(Internal),
+                      Typ.unknown(Internal),
                     )
                   ),
                   var(
                     ~ann=
                       Some(
-                        FTemp.TypSlice.(
+                        FTemp.Typ.(
                           Exp(
                             Common(
                               Inconsistent(
@@ -304,16 +301,12 @@ let tests = (
             Exp.(
               let_(
                 Pat.(
-                  cast(
-                    var("y"),
-                    TypSlice.(string()),
-                    TypSlice.(unknown(Internal)),
-                  )
+                  cast(var("y"), Typ.(string()), Typ.(unknown(Internal)))
                 ),
                 bool(
                   ~ann=
                     Some(
-                      FTemp.TypSlice.(
+                      FTemp.Typ.(
                         Exp(
                           Common(
                             Inconsistent(
@@ -356,16 +349,14 @@ let tests = (
                 Pat.(
                   cast(
                     var("x"),
-                    TypSlice.(
-                      parens(prod([tup_label(label("l"), string())]))
-                    ),
-                    TypSlice.unknown(Internal),
+                    Typ.(parens(prod([tup_label(label("l"), string())]))),
+                    Typ.unknown(Internal),
                   )
                 ),
                 int(
                   ~ann=
                     Some(
-                      FTemp.TypSlice.(
+                      FTemp.Typ.(
                         Exp(
                           Common(
                             Inconsistent(
@@ -486,7 +477,7 @@ let tests = (
                 parens(
                   ~ann=
                     Some(
-                      FTemp.TypSlice.(
+                      FTemp.Typ.(
                         Exp(
                           Common(
                             Inconsistent(
@@ -519,7 +510,7 @@ let tests = (
                               duplicate_labels: [],
                               invalid_labels: ["z"],
                               typ:
-                                FTemp.TypSlice.(
+                                FTemp.Typ.(
                                   prod([
                                     tup_label(label("a"), int()),
                                     tup_label(label("b"), float()),
@@ -536,7 +527,7 @@ let tests = (
                       tup_label(
                         ~ann=
                           Some(
-                            FTemp.TypSlice.(
+                            FTemp.Typ.(
                               Exp(
                                 Common(
                                   TupleLabelError({
@@ -559,8 +550,8 @@ let tests = (
                     ],
                   ),
                 ),
-                TypSlice.unknown(Internal),
-                TypSlice.(
+                Typ.unknown(Internal),
+                Typ.(
                   parens(
                     prod([
                       tup_label(label("a"), int()),
@@ -583,7 +574,7 @@ let tests = (
                 tuple(
                   ~ann=
                     Some(
-                      FTemp.TypSlice.(
+                      FTemp.Typ.(
                         Exp(
                           Common(
                             TupleLabelError({
@@ -603,7 +594,7 @@ let tests = (
                     tup_label(
                       ~ann=
                         Some(
-                          FTemp.TypSlice.(
+                          FTemp.Typ.(
                             Exp(
                               Common(
                                 TupleLabelError({
@@ -619,7 +610,7 @@ let tests = (
                       label(
                         ~ann=
                           Some(
-                            FTemp.TypSlice.(
+                            FTemp.Typ.(
                               Exp(Common(DuplicateLabel("a", label("a"))))
                             ),
                           ),
@@ -630,7 +621,7 @@ let tests = (
                     tup_label(
                       ~ann=
                         Some(
-                          FTemp.TypSlice.(
+                          FTemp.Typ.(
                             Exp(
                               Common(
                                 TupleLabelError({
@@ -646,7 +637,7 @@ let tests = (
                       label(
                         ~ann=
                           Some(
-                            FTemp.TypSlice.(
+                            FTemp.Typ.(
                               Exp(Common(DuplicateLabel("a", label("a"))))
                             ),
                           ),
@@ -705,7 +696,7 @@ let tests = (
                               duplicate_labels: [],
                               invalid_labels: [],
                               typ:
-                                TypSlice.(
+                                Typ.(
                                   prod([
                                     tup_label(unknown(Internal), string()),
                                   ])
@@ -731,7 +722,7 @@ let tests = (
                                   duplicate_labels: [],
                                   invalid_labels: [],
                                   typ:
-                                    TypSlice.(
+                                    Typ.(
                                       tup_label(unknown(Internal), string())
                                     ),
                                 }),
@@ -784,7 +775,7 @@ let tests = (
                               duplicate_labels: [],
                               invalid_labels: [],
                               typ:
-                                TypSlice.(
+                                Typ.(
                                   prod([
                                     tup_label(unknown(Internal), string()),
                                     tup_label(label("a"), int()),
@@ -809,7 +800,7 @@ let tests = (
                                   duplicate_labels: [],
                                   invalid_labels: [],
                                   typ:
-                                    TypSlice.(
+                                    Typ.(
                                       tup_label(unknown(Internal), string())
                                     ),
                                 }),
@@ -853,12 +844,12 @@ let tests = (
                 Pat.(
                   cast(
                     var("extra_label"),
-                    TypSlice.(
+                    Typ.(
                       parens(
                         prod([int(), tup_label(label("a"), string())]),
                       )
                     ),
-                    TypSlice.unknown(Internal),
+                    Typ.unknown(Internal),
                   )
                 ),
                 parens(
@@ -867,7 +858,7 @@ let tests = (
                       Exp(
                         Common(
                           Inconsistent(
-                            FTemp.TypSlice.(
+                            FTemp.Typ.(
                               Expectation({
                                 ana:
                                   parens(
@@ -897,7 +888,7 @@ let tests = (
                               duplicate_labels: [],
                               invalid_labels: ["c"],
                               typ:
-                                FTemp.TypSlice.(
+                                FTemp.Typ.(
                                   prod([
                                     tup_label(label("c"), int()),
                                     tup_label(label("a"), string()),
@@ -919,7 +910,7 @@ let tests = (
                                     duplicate_labels: [],
                                     invalid_labels: ["c"],
                                     typ:
-                                      FTemp.TypSlice.(
+                                      FTemp.Typ.(
                                         tup_label(label("c"), int())
                                       ),
                                   }),
@@ -959,7 +950,7 @@ let tests = (
                         Exp(
                           Common(
                             Inconsistent(
-                              FTemp.TypSlice.(
+                              FTemp.Typ.(
                                 Expectation({
                                   ana: int(),
                                   syn:
@@ -979,8 +970,8 @@ let tests = (
                     ],
                   ),
                 ),
-                TypSlice.unknown(Internal),
-                TypSlice.int(),
+                Typ.unknown(Internal),
+                Typ.int(),
               )
             )
           ),
@@ -996,7 +987,7 @@ let tests = (
               string(
                 ~ann=
                   Some(
-                    FTemp.TypSlice.(
+                    FTemp.Typ.(
                       Exp(
                         Common(
                           Inconsistent(
@@ -1018,7 +1009,7 @@ let tests = (
       fully_consistent_typecheck(
         "Forall alpha equivalent in cast",
         {|let x : forall a -> a = in (x : forall b -> b)|},
-        FTemp.TypSlice.(Some(forall(TPat.var("b"), var("b")))),
+        FTemp.Typ.(Some(forall(TPat.var("b"), var("b")))),
       ),
       fully_consistent_typecheck(
         "Forall alpha equivalent in let",

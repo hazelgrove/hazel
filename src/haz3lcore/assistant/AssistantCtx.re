@@ -8,7 +8,7 @@ let free_variables =
     ((name, entries)) =>
       switch (Ctx.lookup_var(ctx, name)) {
       | None =>
-        let joint_use_typ = CoCtx.join(ctx, entries) |> TypSlice.typ_of;
+        let joint_use_typ = CoCtx.join(ctx, entries);
         if (Typ.is_consistent(ctx, expected_ty, joint_use_typ)) {
           Some({
             content: name,
@@ -28,10 +28,10 @@ let bound_variables = (ty_expect: Typ.t, ctx: Ctx.t): list(Suggestion.t) =>
   List.filter_map(
     fun
     | Ctx.VarEntry({typ, name, _})
-        when Typ.is_consistent(ctx, ty_expect, typ |> TypSlice.typ_of) =>
+        when Typ.is_consistent(ctx, ty_expect, typ) =>
       Some({
         content: name,
-        strategy: Exp(Common(FromCtx(typ |> TypSlice.typ_of))),
+        strategy: Exp(Common(FromCtx(typ))),
       })
     | _ => None,
     ctx.entries,
@@ -44,10 +44,10 @@ let bound_constructors =
   List.filter_map(
     fun
     | Ctx.ConstructorEntry({typ, name, _})
-        when Typ.is_consistent(ctx, ty, typ |> TypSlice.typ_of) =>
+        when Typ.is_consistent(ctx, ty, typ) =>
       Some({
         content: name,
-        strategy: wrap(FromCtx(typ |> TypSlice.typ_of)),
+        strategy: wrap(FromCtx(typ)),
       })
     | _ => None,
     ctx.entries,
@@ -58,11 +58,11 @@ let bound_aps = (ty_expect: Typ.t, ctx: Ctx.t): list(Suggestion.t) =>
   List.filter_map(
     fun
     | Ctx.VarEntry({typ: ty_arr, name, _}) =>
-      switch (ty_arr |> TypSlice.typ_of |> Typ.term_of) {
+      switch (ty_arr |> Typ.term_of) {
       | Arrow(_, ty_out)
           when
             Typ.is_consistent(ctx, ty_expect, ty_out)
-            && !Typ.is_consistent(ctx, ty_expect, ty_arr |> TypSlice.typ_of) =>
+            && !Typ.is_consistent(ctx, ty_expect, ty_arr) =>
         Some({
           content: name ++ "(",
           strategy: Exp(Common(FromCtxAp(ty_out))),
@@ -77,11 +77,11 @@ let bound_constructor_aps = (wrap, ty: Typ.t, ctx: Ctx.t): list(Suggestion.t) =>
   List.filter_map(
     fun
     | Ctx.ConstructorEntry({typ: ty_arr, name, _}) =>
-      switch (ty_arr |> TypSlice.typ_of |> Typ.term_of) {
+      switch (ty_arr |> Typ.term_of) {
       | Arrow(_, ty_out)
           when
             Typ.is_consistent(ctx, ty, ty_out)
-            && !Typ.is_consistent(ctx, ty, ty_arr |> TypSlice.typ_of) =>
+            && !Typ.is_consistent(ctx, ty, ty_arr) =>
         Some({
           content: name ++ "(",
           strategy: wrap(FromCtxAp(ty_out)),
@@ -109,22 +109,14 @@ let suggest_variable = (ci: Info.t): list(Suggestion.t) => {
   let ctx = Info.ctx_of(ci);
   switch (ci) {
   | InfoExp({ana, _}) =>
-    bound_variables(ana |> TypSlice.typ_of, ctx)
-    @ bound_aps(ana |> TypSlice.typ_of, ctx)
-    @ bound_constructors(x => Exp(Common(x)), ana |> TypSlice.typ_of, ctx)
-    @ bound_constructor_aps(
-        x => Exp(Common(x)),
-        ana |> TypSlice.typ_of,
-        ctx,
-      )
+    bound_variables(ana, ctx)
+    @ bound_aps(ana, ctx)
+    @ bound_constructors(x => Exp(Common(x)), ana, ctx)
+    @ bound_constructor_aps(x => Exp(Common(x)), ana, ctx)
   | InfoPat({ana, co_ctx, _}) =>
-    free_variables(ana |> TypSlice.typ_of, ctx, co_ctx)
-    @ bound_constructors(x => Pat(Common(x)), ana |> TypSlice.typ_of, ctx)
-    @ bound_constructor_aps(
-        x => Pat(Common(x)),
-        ana |> TypSlice.typ_of,
-        ctx,
-      )
+    free_variables(ana, ctx, co_ctx)
+    @ bound_constructors(x => Pat(Common(x)), ana, ctx)
+    @ bound_constructor_aps(x => Pat(Common(x)), ana, ctx)
   | InfoTyp(_) => typ_context_entries(ctx)
   | _ => []
   };
@@ -166,7 +158,7 @@ let suggest_lookahead_variable = (ci: Info.t): list(Suggestion.t) => {
     let exp_aps = ty =>
       bound_aps(ty, ctx)
       @ bound_constructor_aps(x => Exp(Common(x)), ty, ctx);
-    switch (ana |> TypSlice.typ_of |> Typ.term_of) {
+    switch (ana |> Typ.term_of) {
     | List(ty) =>
       List.map(restrategize(" )::"), exp_aps(ty))
       @ List.map(restrategize("::"), exp_refs(ty))
@@ -177,12 +169,12 @@ let suggest_lookahead_variable = (ci: Info.t): list(Suggestion.t) => {
       @ List.map(restrategize(commas), exp_refs(ty));
     | Atom(Bool) =>
       /* TODO: Find a UI to make these less confusing */
-      exp_refs(Atom(Int) |> Typ.fresh)
-      @ exp_refs(Atom(Float) |> Typ.fresh)
-      @ exp_refs(Atom(String) |> Typ.fresh)
-      @ exp_aps(Atom(Int) |> Typ.fresh)
-      @ exp_aps(Atom(Float) |> Typ.fresh)
-      @ exp_aps(Atom(String) |> Typ.fresh)
+      exp_refs(Atom(Int) |> Typ.fresh_empty)
+      @ exp_refs(Atom(Float) |> Typ.fresh_empty)
+      @ exp_refs(Atom(String) |> Typ.fresh_empty)
+      @ exp_aps(Atom(Int) |> Typ.fresh_empty)
+      @ exp_aps(Atom(Float) |> Typ.fresh_empty)
+      @ exp_aps(Atom(String) |> Typ.fresh_empty)
     | _ => []
     };
   | InfoPat({ana, co_ctx, _}) =>
@@ -190,7 +182,7 @@ let suggest_lookahead_variable = (ci: Info.t): list(Suggestion.t) => {
       free_variables(ty, ctx, co_ctx)
       @ bound_constructors(x => Pat(Common(x)), ty, ctx);
     let pat_aps = ty => bound_constructor_aps(x => Pat(Common(x)), ty, ctx);
-    switch (ana |> TypSlice.typ_of |> Typ.term_of) {
+    switch (ana |> Typ.term_of) {
     | List(ty) =>
       List.map(restrategize(" )::"), pat_aps(ty))
       @ List.map(restrategize("::"), pat_refs(ty))

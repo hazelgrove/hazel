@@ -303,7 +303,7 @@ module Update = {
                   settings.evaluation.show_casts
                     ? x => x : Haz3lcore.DHExp.strip_casts
                 )
-                |> TypSlice.replace_temp_exp;
+                |> Typ.replace_temp_exp;
               let editor = CodeWithStatics.Model.mk_from_exp(~settings, elab);
               let next_status =
                 EvaluatorStep.get_status(

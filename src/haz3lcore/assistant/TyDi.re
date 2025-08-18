@@ -28,10 +28,10 @@ let suggest = (ci: Info.t, z: Zipper.t): list(Suggestion.t) => {
   switch (ci) {
   | InfoExp({cls: Exp(Label), _})
   | InfoPat({cls: Pat(Label), _})
-  | InfoTyp({cls: TypSlice((_, Label)), _})
+  | InfoTyp({cls: Typ(Label), _})
   | InfoExp({cls: Exp(TupLabel), _})
   | InfoPat({cls: Pat(TupLabel), _})
-  | InfoTyp({cls: TypSlice((_, TupLabel)), _}) => [] // TODO: Autocomplete for labels
+  | InfoTyp({cls: Typ(TupLabel), _}) => [] // TODO: Autocomplete for labels
   | _ =>
     suggest_backpack(z)
     @ (

@@ -11,27 +11,28 @@ let leading_expander = " ";
  * running Statics, but for now, new forms e.g. operators must be added
  * below manually.  */
 module Typ = {
-  let unk: Typ.t = Unknown(Internal) |> Typ.fresh;
+  let fresh_empty = Typ.fresh_empty;
+  let unk: Typ.t = Unknown(Internal) |> Typ.fresh_empty;
 
   let of_const_mono_delim: list((Token.t, Typ.t)) = [
-    ("true", Atom(Bool) |> Typ.fresh),
-    ("false", Atom(Bool) |> Typ.fresh),
+    ("true", Atom(Bool) |> Typ.fresh_empty),
+    ("false", Atom(Bool) |> Typ.fresh_empty),
     //("[]", List(unk)), / *NOTE: would need to refactor buffer for this to show up */
     //("()", Prod([])), /* NOTE: would need to refactor buffer for this to show up */
-    ("\"\"", Atom(String) |> Typ.fresh), /* NOTE: Irrelevent as second quote appears automatically */
+    ("\"\"", Atom(String) |> Typ.fresh_empty), /* NOTE: Irrelevent as second quote appears automatically */
     ("_", unk),
   ];
 
   let of_leading_delim: list((Token.t, Typ.t)) = [
     ("case" ++ leading_expander, unk),
-    ("fun" ++ leading_expander, Arrow(unk, unk) |> Typ.fresh),
+    ("fun" ++ leading_expander, Arrow(unk, unk) |> Typ.fresh_empty),
     (
       "typfun" ++ leading_expander,
-      Forall(Var("") |> TPat.fresh, unk) |> Typ.fresh,
+      Forall(Var("") |> TPat.fresh, unk) |> Typ.fresh_empty,
     ),
     ("if" ++ leading_expander, unk),
     ("let" ++ leading_expander, unk),
-    ("test" ++ leading_expander, Prod([]) |> Typ.fresh),
+    ("test" ++ leading_expander, Prod([]) |> Typ.fresh_empty),
     ("type" ++ leading_expander, unk),
   ];
 
@@ -71,11 +72,11 @@ module Typ = {
     ("++", Atom(String)),
   ];
 
-  let expected: Info.t => TypSlice.t =
+  let expected: Info.t => Typ.t =
     fun
     | InfoExp({ana, _})
     | InfoPat({ana, _}) => ana
-    | _ => `Typ(Unknown(Internal)) |> TypSlice.fresh;
+    | _ => Unknown(Internal) |> Typ.fresh_empty;
 
   let filter_by =
       (
@@ -176,12 +177,7 @@ let suggest_form = (ty_map, delims_of_sort, ci: Info.t): list(Suggestion.t) => {
   let sort = Info.sort_of(ci);
   let delims = delims_of_sort(sort);
   let filtered =
-    Typ.filter_by(
-      Info.ctx_of(ci),
-      Typ.expected(ci) |> TypSlice.typ_of,
-      ty_map,
-      delims,
-    );
+    Typ.filter_by(Info.ctx_of(ci), Typ.expected(ci), ty_map, delims);
   switch (sort) {
   | Exp =>
     List.map(
@@ -223,7 +219,7 @@ let suggest_operator: Info.t => list(Suggestion.t) =
       [] // Stop completing (a= to (a==
     | _ =>
       suggest_form(
-        List.map(((a, b)) => (a, IdTagged.fresh(b)), Typ.of_infix_delim),
+        List.map(((a, b)) => (a, Typ.fresh_empty(b)), Typ.of_infix_delim),
         Delims.infix,
         info,
       )

@@ -11,14 +11,17 @@ let tests = (
         let t =
           Typ.join(
             Builtins.ctx_init(Some(Int)),
-            Forall(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
-            Forall(Var("b") |> TPat.temp, Var("b") |> Typ.temp) |> Typ.temp,
+            Forall(Var("a") |> TPat.temp, Var("a") |> Typ.temp_empty)
+            |> Typ.temp_empty,
+            Forall(Var("b") |> TPat.temp, Var("b") |> Typ.temp_empty)
+            |> Typ.temp_empty,
           );
         check(
           option(testable(Fmt.using(Typ.show, Fmt.string), Typ.fast_equal)),
           "Forall alpha equivalent",
           Some(
-            Forall(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
+            Forall(Var("a") |> TPat.temp, Var("a") |> Typ.temp_empty)
+            |> Typ.temp_empty,
           ),
           t,
         );
@@ -34,8 +37,10 @@ let tests = (
           true,
           Typ.fast_equal(
             ~alpha_equivalence=true,
-            Forall(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
-            Forall(Var("b") |> TPat.temp, Var("b") |> Typ.temp) |> Typ.temp,
+            Forall(Var("a") |> TPat.temp, Var("a") |> Typ.temp_empty)
+            |> Typ.temp_empty,
+            Forall(Var("b") |> TPat.temp, Var("b") |> Typ.temp_empty)
+            |> Typ.temp_empty,
           ),
         );
         check(
@@ -44,8 +49,10 @@ let tests = (
           false,
           Typ.fast_equal(
             ~alpha_equivalence=false,
-            Forall(Var("a") |> TPat.temp, Var("a") |> Typ.temp) |> Typ.temp,
-            Forall(Var("b") |> TPat.temp, Var("b") |> Typ.temp) |> Typ.temp,
+            Forall(Var("a") |> TPat.temp, Var("a") |> Typ.temp_empty)
+            |> Typ.temp_empty,
+            Forall(Var("b") |> TPat.temp, Var("b") |> Typ.temp_empty)
+            |> Typ.temp_empty,
           ),
         );
       },

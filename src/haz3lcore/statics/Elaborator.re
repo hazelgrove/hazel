@@ -9,39 +9,39 @@ exception MissingTypeInfo;
 module ElaborationResult = {
   [@deriving sexp]
   type t =
-    | Elaborates(DHExp.t, TypSlice.t)
+    | Elaborates(DHExp.t, Typ.t)
     | DoesNotElaborate;
 };
 
-let fresh_cast = (d: DHExp.t, t1: TypSlice.t, t2: TypSlice.t): Exp.t => {
+let fresh_cast = (d: DHExp.t, t1: Typ.t, t2: Typ.t): Exp.t => {
   switch (d.term) {
   | Label(_) => d
   | _ =>
-    TypSlice.equal(t1, t2)
+    Typ.equal(t1, t2)
       ? d
       : {
         let d': Exp.t =
-          (Cast(d, t1, TypSlice.temp(`Typ(Unknown(Internal)))): Exp.term)
+          (Cast(d, t1, Typ.temp_empty(Unknown(Internal))): Exp.term)
           |> IdTagged.fresh_deterministic(DHExp.rep_id(d))
           |> Casts.transition_multiple;
-        (Cast(d', TypSlice.temp(`Typ(Unknown(Internal))), t2): Exp.term)
+        (Cast(d', Typ.temp_empty(Unknown(Internal)), t2): Exp.term)
         |> IdTagged.fresh_deterministic(DHExp.rep_id(d'))
         |> Casts.transition_multiple;
       }
   };
 };
 
-let fresh_pat_cast = (p: DHPat.t, t1: TypSlice.t, t2: TypSlice.t): DHPat.t => {
+let fresh_pat_cast = (p: DHPat.t, t1: Typ.t, t2: Typ.t): DHPat.t => {
   switch (p.term) {
   | Label(_) => p
   | _ =>
-    TypSlice.equal(t1, t2)
+    Typ.equal(t1, t2)
       ? p
       : {
         Cast(
-          DHPat.fresh(Cast(p, t1, TypSlice.temp(`Typ(Unknown(Internal)))))
+          DHPat.fresh(Cast(p, t1, Typ.temp_empty(Unknown(Internal))))
           |> Casts.pattern_fixup,
-          TypSlice.temp(`Typ(Unknown(Internal))),
+          Typ.temp_empty(Unknown(Internal)),
           t2,
         )
         |> DHPat.fresh
@@ -51,8 +51,7 @@ let fresh_pat_cast = (p: DHPat.t, t1: TypSlice.t, t2: TypSlice.t): DHPat.t => {
 };
 
 let elaborated_type =
-    (m: Statics.Map.t, uexp: Exp.t)
-    : (TypSlice.t, Typ.t, Ctx.t, CoCtx.t, Exp.t) => {
+    (m: Statics.Map.t, uexp: Exp.t): (Typ.t, Typ.t, Ctx.t, CoCtx.t, Exp.t) => {
   let (ana_ty, self_ty, ctx, co_ctx, term) =
     switch (Id.Map.find_opt(Exp.rep_id(uexp), m)) {
     | Some(Info.InfoExp({ana, ty, ctx, co_ctx, term: new_term, _})) => (
@@ -75,7 +74,7 @@ let elaborated_type =
 };
 
 let elaborated_pat_type =
-    (m: Statics.Map.t, upat: Pat.t): (TypSlice.t, Typ.t, Ctx.t, Pat.t) => {
+    (m: Statics.Map.t, upat: Pat.t): (Typ.t, Typ.t, Ctx.t, Pat.t) => {
   let (ana_ty, self_ty, ctx, prev_synswitch, term, label_inference) =
     switch (Id.Map.find_opt(Pat.rep_id(upat), m)) {
     | Some(
@@ -106,30 +105,21 @@ let elaborated_pat_type =
       switch (label_inference) {
       // TODO: Does anything need to be sliced here?
       | Some(SingletonLabelInference({label: l, _})) =>
-        TypSlice.match_synswitch(
+        Typ.match_synswitch(
           Prod([
-            TupLabel(Label(l) |> Typ.temp |> TypSlice.t_of_typ_t, syn_ty)
-            |> TypSlice.term_of_slc_typ_term
-            |> TypSlice.temp,
+            TupLabel(Label(l) |> Typ.temp_empty, syn_ty) |> Typ.temp_empty,
           ])
-          |> TypSlice.term_of_slc_typ_term
-          |> TypSlice.temp,
+          |> Typ.temp_empty,
           ana_ty,
         )
       | _ => Typ.match_synswitch(syn_ty, ana_ty)
       }
     };
-  (
-    elab_ty |> TypSlice.normalize(ctx) |> TypSlice.all_ids_temp,
-    ana_ty,
-    ctx,
-    term,
-  );
+  (elab_ty |> Typ.normalize(ctx) |> Typ.all_ids_temp, ana_ty, ctx, term);
 };
 
 let rec elaborate_pattern =
-        (m: Statics.Map.t, upat: Pat.t, in_container: bool)
-        : (Pat.t, TypSlice.t) => {
+        (m: Statics.Map.t, upat: Pat.t, in_container: bool): (Pat.t, Typ.t) => {
   // Pulling upat back out of the statics map for statics level singleton tuple autolabeling
   let (elaborated_type, ana, ctx, upat) = elaborated_pat_type(m, upat);
   let elaborate_pattern = (~in_container=false, m, upat) =>
@@ -143,72 +133,52 @@ let rec elaborate_pattern =
         Operators.replace_literal(c, Typ.is_ana_atom(ana), ctx.use_mode);
       switch (c) {
       | L(c) =>
-        Atom(c) |> rewrap |> cast_from(Atom(c |> Atom.cls_of_t) |> Typ.temp)
+        Atom(c)
+        |> rewrap
+        |> cast_from(Atom(c |> Atom.cls_of_t) |> Typ.temp_empty)
       | R(BadInt(s)) =>
-        Invalid(s) |> rewrap |> cast_from(Unknown(Internal) |> Typ.temp)
+        Invalid(s)
+        |> rewrap
+        |> cast_from(Unknown(Internal) |> Typ.temp_empty)
       };
     | ListLit(ps) =>
       let (ps, tys) = List.map(elaborate_pattern(m), ps) |> ListUtil.unzip;
       let inner_type =
         tys
-        |> TypSlice.join_all(
-             ~empty=`Typ(Unknown(Internal)) |> TypSlice.temp,
-             ctx,
-           )
-        |> Option.value(~default=TypSlice.temp(`Typ(Unknown(Internal))));
+        |> Typ.join_all(~empty=Unknown(Internal) |> Typ.temp_empty, ctx)
+        |> Option.value(~default=Typ.temp_empty(Unknown(Internal)));
       ps
       |> List.map2((p, t) => fresh_pat_cast(p, t, inner_type), _, tys)
       |> (
         ps' =>
           ListLit(ps')
           |> rewrap
-          |> cast_from(
-               List(inner_type)
-               |> TypSlice.term_of_slc_typ_term
-               |> TypSlice.temp,
-             )
+          |> cast_from(List(inner_type) |> Typ.temp_empty)
       );
     | Cons(p1, p2) =>
       let (p1', ty1) = elaborate_pattern(m, p1);
       let (p2', ty2) = elaborate_pattern(m, p2);
-      let ty2_inner = TypSlice.matched_list(ctx, ty2);
+      let ty2_inner = Typ.matched_list(ctx, ty2);
       let ty_inner =
-        TypSlice.join(ctx, ty1, ty2_inner)
-        |> Option.value(~default=TypSlice.temp(`Typ(Unknown(Internal))));
+        Typ.join(ctx, ty1, ty2_inner)
+        |> Option.value(~default=Typ.temp_empty(Unknown(Internal)));
       let p1'' = fresh_pat_cast(p1', ty1, ty_inner);
-      let p2'' =
-        fresh_pat_cast(
-          p2',
-          ty2,
-          List(ty_inner) |> TypSlice.term_of_slc_typ_term |> TypSlice.temp,
-        );
+      let p2'' = fresh_pat_cast(p2', ty2, List(ty_inner) |> Typ.temp_empty);
       Cons(p1'', p2'')
       |> rewrap
-      |> cast_from(
-           List(ty_inner) |> TypSlice.term_of_slc_typ_term |> TypSlice.temp,
-         );
+      |> cast_from(List(ty_inner) |> Typ.temp_empty);
     | TupLabel(lab, p) =>
       let (plab, labty) = elaborate_pattern(m, lab);
       let (p', pty) = elaborate_pattern(m, p);
       if (in_container) {
         TupLabel(plab, p')
         |> rewrap
-        |> cast_from(
-             TupLabel(labty, pty)
-             |> TypSlice.term_of_slc_typ_term
-             |> TypSlice.temp,
-           );
+        |> cast_from(TupLabel(labty, pty) |> Typ.temp_empty);
       } else {
         Tuple([TupLabel(plab, p') |> rewrap])
         |> DHPat.fresh
         |> cast_from(
-             Prod([
-               TupLabel(labty, pty)
-               |> TypSlice.term_of_slc_typ_term
-               |> TypSlice.temp,
-             ])
-             |> TypSlice.term_of_slc_typ_term
-             |> TypSlice.temp,
+             Prod([TupLabel(labty, pty) |> Typ.temp_empty]) |> Typ.temp_empty,
            );
       };
     | Tuple(ps) =>
@@ -216,7 +186,7 @@ let rec elaborate_pattern =
         List.map(elaborate_pattern(m, ~in_container=true), ps)
         |> ListUtil.unzip;
       let expected_labels: list(option(string)) =
-        TypSlice.get_labels(ctx, elaborated_type);
+        Typ.get_labels(ctx, elaborated_type);
 
       let ps' =
         LabeledTuple.rearrange(
@@ -230,59 +200,47 @@ let rec elaborate_pattern =
       let tys =
         LabeledTuple.rearrange(
           s => Option.map(x => (x, Some(x)), s),
-          TypSlice.match_tup_label,
+          Typ.match_tup_label,
           expected_labels,
           tys,
           (name, e) => {
-            TupLabel(Label(name) |> Typ.temp |> TypSlice.t_of_typ_t, e)
-            |> TypSlice.term_of_slc_typ_term
-            |> TypSlice.temp
+            TupLabel(Label(name) |> Typ.temp_empty, e) |> Typ.temp_empty
           },
         );
 
-      Tuple(ps')
-      |> rewrap
-      |> cast_from(
-           Prod(tys) |> TypSlice.term_of_slc_typ_term |> TypSlice.temp,
-         );
-    | Label(name) =>
-      upat |> cast_from(Label(name) |> Typ.temp |> TypSlice.t_of_typ_t)
+      Tuple(ps') |> rewrap |> cast_from(Prod(tys) |> Typ.temp_empty);
+    | Label(name) => upat |> cast_from(Label(name) |> Typ.temp_empty)
     | Ap(p1, p2) =>
       let (p1', ty1) = elaborate_pattern(m, p1);
       let (p2', ty2) = elaborate_pattern(m, p2);
-      let (ty1l, ty1r) = TypSlice.matched_arrow(ctx, ty1);
+      let (ty1l, ty1r) = Typ.matched_arrow(ctx, ty1);
       let p1'' =
-        fresh_pat_cast(
-          p1',
-          ty1,
-          Arrow(ty1l, ty1r) |> TypSlice.term_of_slc_typ_term |> TypSlice.temp,
-        );
+        fresh_pat_cast(p1', ty1, Arrow(ty1l, ty1r) |> Typ.temp_empty);
       let p2'' = fresh_pat_cast(p2', ty2, ty1l);
       Ap(p1'', p2'') |> rewrap |> cast_from(ty1r);
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
-    | Wild => upat |> cast_from(TypSlice.temp(`Typ(Unknown(Internal))))
+    | Wild => upat |> cast_from(Typ.temp_empty(Unknown(Internal)))
     | Var(v) =>
       upat
       |> cast_from(
            Ctx.lookup_var(ctx, v)
            |> Option.map((x: Ctx.var_entry) =>
-                x.typ |> TypSlice.normalize(ctx) |> TypSlice.all_ids_temp
+                x.typ |> Typ.normalize(ctx) |> Typ.all_ids_temp
               )
-           |> Option.value(~default=TypSlice.temp(`Typ(Unknown(Internal)))),
+           |> Option.value(~default=Typ.temp_empty(Unknown(Internal))),
          )
     // Type annotations should already appeard
     | Parens(p)
     | Cast(p, _, _) =>
       let (p', ty) = elaborate_pattern(m, p);
-      p' |> cast_from(ty |> TypSlice.normalize(ctx) |> TypSlice.all_ids_temp);
+      p' |> cast_from(ty |> Typ.normalize(ctx) |> Typ.all_ids_temp);
     | Probe(p, probe) =>
       let (e', ty) = elaborate_pattern(m, p);
       let probe = Dynamics.Probe.instrument_pat(m, Pat.rep_id(upat), probe);
       Probe(
-        e'
-        |> cast_from(ty |> TypSlice.normalize(ctx) |> TypSlice.all_ids_temp),
+        e' |> cast_from(ty |> Typ.normalize(ctx) |> Typ.all_ids_temp),
         probe,
       )
       |> rewrap;
@@ -303,9 +261,9 @@ let rec elaborate_pattern =
           () =>
             Sum([
               ConstructorMap.Variant(c, [Id.invalid], None),
-              ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
+              ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp_empty),
             ])
-            |> Typ.temp,
+            |> Typ.temp_empty,
           t,
         );
       Constructor(c, Some(t)) |> rewrap |> cast_from(ty);
@@ -334,7 +292,7 @@ let rec elaborate_pattern =
    want to remove one, I'd ask you instead comment it out and leave
    a comment explaining why it's redundant.  */
 
-let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, TypSlice.t) => {
+let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
   // In the case of singleton labeled tuples we update the syntax in Statics.
   // We store this syntax with the same ID as the original expression and store it on the Info.exp in the Statics.map
   // We are then pulling this out and using it in place of the actual expression.
@@ -350,8 +308,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, TypSlice.t) => {
     switch (term) {
     | Invalid(_)
     | Undefined
-    | EmptyHole =>
-      uexp |> cast_from(TypSlice.temp(`Typ(Unknown(Internal))))
+    | EmptyHole => uexp |> cast_from(Typ.temp_empty(Unknown(Internal)))
     | MultiHole(stuff) =>
       Any.map_term(
         ~f_exp=(_, exp) => {elaborate(m, exp) |> fst},
@@ -363,13 +320,13 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, TypSlice.t) => {
         stuff =>
           MultiHole(stuff)
           |> rewrap
-          |> cast_from(TypSlice.temp(`Typ(Unknown(Internal))))
+          |> cast_from(Typ.temp_empty(Unknown(Internal)))
       )
     | DynamicErrorHole(e, err) =>
       let (e', _) = elaborate(m, e);
       DynamicErrorHole(e', err)
       |> rewrap
-      |> cast_from(TypSlice.temp(`Typ(Unknown(Internal))));
+      |> cast_from(Typ.temp_empty(Unknown(Internal)));
     | Cast(e, _, _) // We remove these casts because they should be re-inserted in the recursive call
     | FailedCast(e, _, _) =>
       let (e', ty) = elaborate(m, e);
@@ -387,25 +344,23 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, TypSlice.t) => {
         Operators.replace_literal(c, Typ.is_ana_atom(ana), ctx.use_mode);
       switch (c) {
       | L(c) =>
-        Atom(c) |> rewrap |> cast_from(Atom(c |> Atom.cls_of_t) |> Typ.temp)
+        Atom(c)
+        |> rewrap
+        |> cast_from(Atom(c |> Atom.cls_of_t) |> Typ.temp_empty)
       | R(BadInt(s)) =>
-        Invalid(s) |> rewrap |> cast_from(Unknown(Internal) |> Typ.temp)
+        Invalid(s)
+        |> rewrap
+        |> cast_from(Unknown(Internal) |> Typ.temp_empty)
       };
     | ListLit(es) =>
       let (ds, tys) = List.map(elaborate(m), es) |> ListUtil.unzip;
       let inner_type =
-        TypSlice.join_all(
-          ~empty=`Typ(Unknown(Internal)) |> TypSlice.temp,
-          ctx,
-          tys,
-        )
-        |> Option.value(~default=TypSlice.temp(`Typ(Unknown(Internal))));
+        Typ.join_all(~empty=Unknown(Internal) |> Typ.temp_empty, ctx, tys)
+        |> Option.value(~default=Typ.temp_empty(Unknown(Internal)));
       let ds' = List.map2((d, t) => fresh_cast(d, t, inner_type), ds, tys);
       ListLit(ds')
       |> rewrap
-      |> cast_from(
-           List(inner_type) |> TypSlice.term_of_slc_typ_term |> TypSlice.temp,
-         );
+      |> cast_from(List(inner_type) |> Typ.temp_empty);
     | Constructor(c, _) =>
       let (self, ty) =
         switch (Id.Map.find_opt(Exp.rep_id(uexp), m)) {
@@ -422,9 +377,9 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, TypSlice.t) => {
           () =>
             Sum([
               ConstructorMap.Variant(c, [Id.invalid], None),
-              ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
+              ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp_empty),
             ])
-            |> Typ.temp,
+            |> Typ.temp_empty,
           t |> Option.join,
         );
       Constructor(c, t) |> rewrap |> cast_from(ty);
@@ -433,21 +388,17 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, TypSlice.t) => {
       let (e', tye) = elaborate(m, e);
       Fun(p', e', Some(typ), n)
       |> rewrap
-      |> cast_from(
-           Arrow(typ, tye) |> TypSlice.term_of_slc_typ_term |> TypSlice.temp,
-         );
+      |> cast_from(Arrow(typ, tye) |> Typ.temp_empty);
     | TypFun(tpat, e, name) =>
       let (e', tye) = elaborate(m, e);
       TypFun(tpat, e', name)
       |> rewrap
-      |> cast_from(
-           Forall(tpat, tye) |> TypSlice.term_of_slc_typ_term |> TypSlice.temp,
-         );
+      |> cast_from(Forall(tpat, tye) |> Typ.temp_empty);
     | Tuple(es) =>
       let (ds, tys) = List.map(elaborate(m), es) |> ListUtil.unzip;
 
       let expected_labels: list(option(string)) =
-        TypSlice.get_labels(ctx, elaborated_type);
+        Typ.get_labels(ctx, elaborated_type);
       let ds =
         LabeledTuple.rearrange(
           s => Option.map(x => (x, Some(x)), s),
@@ -462,58 +413,47 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, TypSlice.t) => {
       let tys =
         LabeledTuple.rearrange(
           s => Option.map(x => (x, Some(x)), s),
-          TypSlice.match_tup_label,
+          Typ.match_tup_label,
           expected_labels,
           tys,
           (name, e) => {
-            TupLabel(Label(name) |> Typ.fresh |> TypSlice.t_of_typ_t, e)
-            |> TypSlice.term_of_slc_typ_term
-            |> TypSlice.temp
+            TupLabel(Label(name) |> Typ.fresh_empty, e) |> Typ.temp_empty
           },
         );
-      Tuple(ds)
-      |> rewrap
-      |> cast_from(
-           Prod(tys) |> TypSlice.term_of_slc_typ_term |> TypSlice.temp,
-         );
+      Tuple(ds) |> rewrap |> cast_from(Prod(tys) |> Typ.temp_empty);
     | TupLabel(label, e) =>
       let (label', labty) = elaborate(m, label);
       let (e', ety) = elaborate(m, e);
       TupLabel(label', e')
       |> rewrap
-      |> cast_from(
-           TupLabel(labty, ety)
-           |> TypSlice.term_of_slc_typ_term
-           |> TypSlice.temp,
-         );
-    | Label(name) =>
-      uexp |> cast_from(Label(name) |> Typ.temp |> TypSlice.t_of_typ_t)
+      |> cast_from(TupLabel(labty, ety) |> Typ.temp_empty);
+    | Label(name) => uexp |> cast_from(Label(name) |> Typ.temp_empty)
     | Dot(e1, e2) =>
       let (e1, ty1) = elaborate(m, e1);
       // Don't elaborate labels
-      let rec elab_dot = (ty1: TypSlice.t, e2: DHExp.t) =>
+      let rec elab_dot = (ty1: Typ.t, e2: DHExp.t) =>
         switch (ty1, e2.term) {
-        | (s1, _) when TypSlice.is_parens(s1) =>
-          let s1 = TypSlice.unparens(s1);
+        | (s1, _) when Typ.is_parens(s1) =>
+          let s1 = Typ.unparens(s1);
           elab_dot(s1, e2);
-        | (s, Label(name)) when TypSlice.is_prod(s, ~ignore_parens=false) =>
-          let tys = TypSlice.unprod(s);
+        | (s, Label(name)) when Typ.is_prod(s, ~ignore_parens=false) =>
+          let tys = Typ.unprod(s);
           let element =
-            LabeledTuple.find_label(TypSlice.match_tup_label, tys, name);
+            LabeledTuple.find_label(Typ.match_tup_label, tys, name);
           switch (element) {
-          | Some(s) when TypSlice.is_tuplabel(s, ~ignore_parens=false) =>
-            TypSlice.untuplabel(s) |> snd
-          | _ => Unknown(Internal) |> Typ.temp |> TypSlice.t_of_typ_t
+          | Some(s) when Typ.is_tuplabel(s, ~ignore_parens=false) =>
+            Typ.untuplabel(s) |> snd
+          | _ => Unknown(Internal) |> Typ.temp_empty
           };
         | (s, Label(name))
             when
-              TypSlice.is_tuplabel(s, ~ignore_parens=false)
+              Typ.is_tuplabel(s, ~ignore_parens=false)
               && LabeledTuple.has_same_labels(
-                   TypSlice.match_tup_label(s),
+                   Typ.match_tup_label(s),
                    Some((name, e2)),
                  ) =>
-          s |> TypSlice.untuplabel |> snd
-        | _ => Unknown(Internal) |> Typ.temp |> TypSlice.t_of_typ_t
+          s |> Typ.untuplabel |> snd
+        | _ => Unknown(Internal) |> Typ.temp_empty
         };
       let ty = elab_dot(ty1, e2);
       Dot(e1, e2) |> rewrap |> cast_from(ty);
@@ -522,9 +462,9 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, TypSlice.t) => {
       |> cast_from(
            Ctx.lookup_var(ctx, v)
            |> Option.map((x: Ctx.var_entry) =>
-                x.typ |> TypSlice.normalize(ctx) |> TypSlice.all_ids_temp
+                x.typ |> Typ.normalize(ctx) |> Typ.all_ids_temp
               )
-           |> Option.value(~default=TypSlice.temp(`Typ(Unknown(Internal)))),
+           |> Option.value(~default=Typ.temp_empty(Unknown(Internal))),
          )
     | Let(p, def, body) =>
       let add_name: (option(string), DHExp.t) => DHExp.t = (
@@ -541,12 +481,12 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, TypSlice.t) => {
       // attach labels if needed for labeled tuples
       let (def_term, def_rewrap) = DHExp.unwrap(def);
       let def =
-        switch (def_term, TypSlice.normalize(ctx, ty1)) {
-        | (Tuple(ds), s) when TypSlice.is_prod(s) =>
-          let tys = TypSlice.unprod(s);
+        switch (def_term, Typ.normalize(ctx, ty1)) {
+        | (Tuple(ds), s) when Typ.is_prod(s) =>
+          let tys = Typ.unprod(s);
           Tuple(
             LabeledTuple.rearrange(
-              TypSlice.match_tup_label, DHExp.match_tup_label, tys, ds, (t, b) =>
+              Typ.match_tup_label, DHExp.match_tup_label, tys, ds, (t, b) =>
               TupLabel(Label(t) |> Exp.fresh, b) |> Exp.fresh
             ),
           )
@@ -585,19 +525,14 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, TypSlice.t) => {
     | Ap(dir, f, a) =>
       let (f', tyf) = elaborate(m, f);
       let (a', tya) = elaborate(m, a);
-      let (tyf1, tyf2) = TypSlice.matched_arrow(ctx, tyf);
-      let f'' =
-        fresh_cast(
-          f',
-          tyf,
-          Arrow(tyf1, tyf2) |> TypSlice.term_of_slc_typ_term |> TypSlice.temp,
-        );
+      let (tyf1, tyf2) = Typ.matched_arrow(ctx, tyf);
+      let f'' = fresh_cast(f', tyf, Arrow(tyf1, tyf2) |> Typ.temp_empty);
       let a'' = fresh_cast(a', tya, tyf1);
       Ap(dir, f'', a'') |> rewrap |> cast_from(tyf2);
     | DeferredAp(f, args) =>
       let (f', tyf) = elaborate(m, f);
       let (args', tys) = List.map(elaborate(m), args) |> ListUtil.unzip;
-      let (tyf1, tyf2) = TypSlice.matched_arrow(ctx, tyf);
+      let (tyf1, tyf2) = Typ.matched_arrow(ctx, tyf);
       let (args, ty_fargs) =
         if (List.length(args) > 1) {
           Typ.matched_prod(ctx, args, Exp.match_tup_label, tyf1, (name, b) =>
@@ -609,17 +544,10 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, TypSlice.t) => {
       let prod_args =
         switch (ty_fargs) {
         | [ty] => ty
-        | _ =>
-          Prod(ty_fargs) |> TypSlice.term_of_slc_typ_term |> TypSlice.temp
+        | _ => Prod(ty_fargs) |> Typ.temp_empty
         };
       let f'' =
-        fresh_cast(
-          f',
-          tyf,
-          Arrow(prod_args, tyf2)
-          |> TypSlice.term_of_slc_typ_term
-          |> TypSlice.temp,
-        );
+        fresh_cast(f', tyf, Arrow(prod_args, tyf2) |> Typ.temp_empty);
       let args'' = ListUtil.map3(fresh_cast, args', tys, ty_fargs);
       let remaining_args =
         List.filter(
@@ -629,22 +557,16 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, TypSlice.t) => {
       let remaining_arg_ty =
         List.length(remaining_args) == 1
           ? snd(List.hd(remaining_args))
-          : Prod(List.map(snd, remaining_args))
-            |> TypSlice.term_of_slc_typ_term
-            |> TypSlice.temp;
+          : Prod(List.map(snd, remaining_args)) |> Typ.temp_empty;
       DeferredAp(f'', args'')
       |> rewrap
-      |> cast_from(
-           Arrow(remaining_arg_ty, tyf2)
-           |> TypSlice.term_of_slc_typ_term
-           |> TypSlice.temp,
-         );
+      |> cast_from(Arrow(remaining_arg_ty, tyf2) |> Typ.temp_empty);
     | TypAp(e, ut) =>
       let (e', tye) = elaborate(m, e);
-      let (tpat, tye') = TypSlice.matched_forall(ctx, tye);
-      let ut' = TypSlice.normalize(ctx, ut |> TypSlice.t_of_typ_t);
+      let (tpat, tye') = Typ.matched_forall(ctx, tye);
+      let ut' = Typ.normalize(ctx, ut);
       let tye'' =
-        TypSlice.subst(
+        Typ.subst(
           ut',
           tpat |> Option.value(~default=TPat.fresh(EmptyHole)),
           tye',
@@ -655,9 +577,9 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, TypSlice.t) => {
       let (t', tyt) = elaborate(m, t);
       let (f', tyf) = elaborate(m, f);
       let ty =
-        TypSlice.join(ctx, tyt, tyf)
-        |> Option.value(~default=TypSlice.temp(`Typ(Unknown(Internal))));
-      let c'' = fresh_cast(c', tyc, Atom(`Typ(Bool)) |> TypSlice.temp);
+        Typ.join(ctx, tyt, tyf)
+        |> Option.value(~default=Typ.temp_empty(Unknown(Internal)));
+      let c'' = fresh_cast(c', tyc, Atom(Bool) |> Typ.temp_empty);
       let t'' = fresh_cast(t', tyt, ty);
       let f'' = fresh_cast(f', tyf, ty);
       If(c'', t'', f'') |> rewrap |> cast_from(ty);
@@ -667,9 +589,9 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, TypSlice.t) => {
       Seq(e1', e2') |> rewrap |> cast_from(ty2);
     | Test(e) =>
       let (e', t) = elaborate(m, e);
-      Test(fresh_cast(e', t, Atom(`Typ(Bool)) |> TypSlice.temp))
+      Test(fresh_cast(e', t, Atom(Bool) |> Typ.temp_empty))
       |> rewrap
-      |> cast_from(`Typ(Prod([])) |> TypSlice.temp);
+      |> cast_from(Prod([]) |> Typ.temp_empty);
     | Filter(kind, e) =>
       let (e', t) = elaborate(m, e);
       let kind' =
@@ -689,60 +611,39 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, TypSlice.t) => {
     | Cons(e1, e2) =>
       let (e1', ty1) = elaborate(m, e1);
       let (e2', ty2) = elaborate(m, e2);
-      let ty2_inner = TypSlice.matched_list(ctx, ty2);
+      let ty2_inner = Typ.matched_list(ctx, ty2);
       let ty_inner =
-        TypSlice.join(ctx, ty1, ty2_inner)
-        |> Option.value(~default=TypSlice.temp(`Typ(Unknown(Internal))));
+        Typ.join(ctx, ty1, ty2_inner)
+        |> Option.value(~default=Typ.temp_empty(Unknown(Internal)));
       let e1'' = fresh_cast(e1', ty1, ty_inner);
-      let e2'' =
-        fresh_cast(
-          e2',
-          ty2,
-          List(ty_inner) |> TypSlice.term_of_slc_typ_term |> TypSlice.temp,
-        );
+      let e2'' = fresh_cast(e2', ty2, List(ty_inner) |> Typ.temp_empty);
       Cons(e1'', e2'')
       |> rewrap
-      |> cast_from(
-           List(ty_inner) |> TypSlice.term_of_slc_typ_term |> TypSlice.temp,
-         );
+      |> cast_from(List(ty_inner) |> Typ.temp_empty);
     | ListConcat(e1, e2) =>
       let (e1', ty1) = elaborate(m, e1);
       let (e2', ty2) = elaborate(m, e2);
-      let ty_inner1 = TypSlice.matched_list(ctx, ty1);
-      let ty_inner2 = TypSlice.matched_list(ctx, ty2);
+      let ty_inner1 = Typ.matched_list(ctx, ty1);
+      let ty_inner2 = Typ.matched_list(ctx, ty2);
       let ty_inner =
-        TypSlice.join(ctx, ty_inner1, ty_inner2)
-        |> Option.value(~default=TypSlice.temp(`Typ(Unknown(Internal))));
-      let e1'' =
-        fresh_cast(
-          e1',
-          ty1,
-          List(ty_inner) |> TypSlice.term_of_slc_typ_term |> TypSlice.temp,
-        );
-      let e2'' =
-        fresh_cast(
-          e2',
-          ty2,
-          List(ty_inner) |> TypSlice.term_of_slc_typ_term |> TypSlice.temp,
-        );
+        Typ.join(ctx, ty_inner1, ty_inner2)
+        |> Option.value(~default=Typ.temp_empty(Unknown(Internal)));
+      let e1'' = fresh_cast(e1', ty1, List(ty_inner) |> Typ.temp_empty);
+      let e2'' = fresh_cast(e2', ty2, List(ty_inner) |> Typ.temp_empty);
       ListConcat(e1'', e2'')
       |> rewrap
-      |> cast_from(
-           List(ty_inner) |> TypSlice.term_of_slc_typ_term |> TypSlice.temp,
-         );
+      |> cast_from(List(ty_inner) |> Typ.temp_empty);
     | UnOp(Meta(Unquote), e) =>
       switch (e.term) {
       // TODO: confirm whether these types are correct
       | Var("e") =>
-        Constructor("$e", Some(Some(Unknown(Internal) |> Typ.fresh)))
+        Constructor("$e", Some(Some(Unknown(Internal) |> Typ.fresh_empty)))
         |> rewrap
       | Var("v") =>
-        Constructor("$v", Some(Some(Unknown(Internal) |> Typ.fresh)))
+        Constructor("$v", Some(Some(Unknown(Internal) |> Typ.fresh_empty)))
         |> rewrap
       | _ =>
-        EmptyHole
-        |> rewrap
-        |> cast_from(TypSlice.temp(`Typ(Unknown(Internal))))
+        EmptyHole |> rewrap |> cast_from(Typ.temp_empty(Unknown(Internal)))
       }
     | UnOp(op, e) =>
       let op = Operators.replace_un_op(op, ctx.use_mode);
@@ -750,12 +651,12 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, TypSlice.t) => {
       let semantics = Operators.semantics_of_un_op(op);
       switch (semantics) {
       | Undefined(_) =>
-        UnOp(op, fresh_cast(e', t, Unknown(Internal) |> Typ.temp))
+        UnOp(op, fresh_cast(e', t, Unknown(Internal) |> Typ.temp_empty))
         |> rewrap
-        |> cast_from(Unknown(Internal) |> Typ.temp)
+        |> cast_from(Unknown(Internal) |> Typ.temp_empty)
       | Defined(t1, t2, _) =>
-        let t1 = Atom(Atom.cls_of_kind(t1)) |> Typ.temp;
-        let t2 = Atom(Atom.cls_of_kind(t2)) |> Typ.temp;
+        let t1 = Atom(Atom.cls_of_kind(t1)) |> Typ.temp_empty;
+        let t2 = Atom(Atom.cls_of_kind(t2)) |> Typ.temp_empty;
         UnOp(op, fresh_cast(e', t, t1)) |> rewrap |> cast_from(t2);
       };
     | BinOp(op, e1, e2) =>
@@ -767,15 +668,15 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, TypSlice.t) => {
       | Undefined(_) =>
         BinOp(
           op,
-          fresh_cast(e1', t1, Unknown(Internal) |> Typ.temp),
-          fresh_cast(e2', t2, Unknown(Internal) |> Typ.temp),
+          fresh_cast(e1', t1, Unknown(Internal) |> Typ.temp_empty),
+          fresh_cast(e2', t2, Unknown(Internal) |> Typ.temp_empty),
         )
         |> rewrap
-        |> cast_from(Unknown(Internal) |> Typ.temp)
+        |> cast_from(Unknown(Internal) |> Typ.temp_empty)
       | Defined(t1', t2', t3', _) =>
-        let t1' = Atom(Atom.cls_of_kind(t1')) |> Typ.temp;
-        let t2' = Atom(Atom.cls_of_kind(t2')) |> Typ.temp;
-        let t3' = Atom(Atom.cls_of_kind(t3')) |> Typ.temp;
+        let t1' = Atom(Atom.cls_of_kind(t1')) |> Typ.temp_empty;
+        let t2' = Atom(Atom.cls_of_kind(t2')) |> Typ.temp_empty;
+        let t3' = Atom(Atom.cls_of_kind(t3')) |> Typ.temp_empty;
         BinOp(op, fresh_cast(e1', t1, t1'), fresh_cast(e2', t2, t2'))
         |> rewrap
         |> cast_from(t3');
@@ -785,7 +686,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, TypSlice.t) => {
       |> cast_from(
            Ctx.lookup_var(Builtins.ctx_init(None), fn)
            |> Option.map((x: Ctx.var_entry) => x.typ)
-           |> Option.value(~default=TypSlice.temp(`Typ(Unknown(Internal)))),
+           |> Option.value(~default=Typ.temp_empty(Unknown(Internal))),
          )
     | Match(e, cases) =>
       let (e', t) = elaborate(m, e);
@@ -793,23 +694,15 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, TypSlice.t) => {
       let (ps', ptys) =
         List.map(p => elaborate_pattern(m, p, false), ps) |> ListUtil.unzip;
       let joined_pty =
-        TypSlice.join_all(
-          ~empty=`Typ(Unknown(Internal)) |> TypSlice.temp,
-          ctx,
-          ptys,
-        )
-        |> Option.value(~default=TypSlice.temp(`Typ(Unknown(Internal))));
+        Typ.join_all(~empty=Unknown(Internal) |> Typ.temp_empty, ctx, ptys)
+        |> Option.value(~default=Typ.temp_empty(Unknown(Internal)));
       let ps'' =
         List.map2((p, t) => fresh_pat_cast(p, t, joined_pty), ps', ptys);
       let e'' = fresh_cast(e', t, joined_pty);
       let (es', etys) = List.map(elaborate(m), es) |> ListUtil.unzip;
       let joined_ety =
-        TypSlice.join_all(
-          ~empty=`Typ(Unknown(Internal)) |> TypSlice.temp,
-          ctx,
-          etys,
-        )
-        |> Option.value(~default=TypSlice.temp(`Typ(Unknown(Internal))));
+        Typ.join_all(~empty=Unknown(Internal) |> Typ.temp_empty, ctx, etys)
+        |> Option.value(~default=Typ.temp_empty(Unknown(Internal)));
       let es'' =
         List.map2((e, t) => fresh_cast(e, t, joined_ety), es', etys);
       Match(e'', List.combine(ps'', es''))
@@ -826,10 +719,7 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, TypSlice.t) => {
    all the invalid ids we added to prevent generating
    too many new ids */
 let fix_typ_ids =
-  Exp.map_term(
-    ~f_typslice=(cont, e) => e |> IdTagged.new_ids |> cont,
-    ~f_typ=(cont, e) => e |> IdTagged.new_ids |> cont,
-  );
+  Exp.map_term(~f_typ=(cont, e) => e |> IdTagged.new_ids |> cont);
 
 let uexp_elab = (m: Statics.Map.t, uexp: Exp.t): ElaborationResult.t =>
   switch (elaborate(m, uexp)) {

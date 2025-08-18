@@ -681,7 +681,7 @@ module Deco =
     let ctx_used = (info, ctx_used) =>
       ctx_used
       |> List.fold_left(
-           (acc: list(Id.t)): (TypSlice.ctx_var => list(Id.t)) =>
+           (acc: list(Id.t)): (Grammar.var_cls => list(Id.t)) =>
              fun
              | Var(name) =>
                (
@@ -709,10 +709,10 @@ module Deco =
           {ctx_used: ctx_used_inc, term_ids: term_ids_inc},
           {ctx_used: ctx_used_glb, term_ids: term_ids_glb},
         ): (
-          TypSlice.slc_incr,
-          TypSlice.slc_global,
+          CodeSlice.t,
+          CodeSlice.t,
         ) =
-          TypSlice.full_slice(typ.term |> TypSlice.term_of);
+          Typ.full_slice(typ.term);
         let (ctx_used_ids_inc, ctx_used_ids_glb) = (
           ctx_used(info, ctx_used_inc),
           ctx_used(info, ctx_used_glb),
@@ -727,10 +727,10 @@ module Deco =
           {ctx_used: ctx_used_inc, term_ids: term_ids_inc},
           {ctx_used: ctx_used_glb, term_ids: term_ids_glb},
         ): (
-          TypSlice.slc_incr,
-          TypSlice.slc_global,
+          CodeSlice.t,
+          CodeSlice.t,
         ) =
-          TypSlice.full_slice(exp.ty |> TypSlice.term_of);
+          Typ.full_slice(exp.ty);
         let (ctx_used_ids_inc, ctx_used_ids_glb) = (
           ctx_used(info, ctx_used_inc),
           ctx_used(info, ctx_used_glb),
@@ -745,10 +745,10 @@ module Deco =
           {ctx_used: ctx_used_inc, term_ids: term_ids_inc},
           {ctx_used: ctx_used_glb, term_ids: term_ids_glb},
         ): (
-          TypSlice.slc_incr,
-          TypSlice.slc_global,
+          CodeSlice.t,
+          CodeSlice.t,
         ) =
-          TypSlice.full_slice(pat.ty |> TypSlice.term_of);
+          Typ.full_slice(pat.ty);
         let (ctx_used_ids_inc, ctx_used_ids_glb) = (
           ctx_used(info, ctx_used_inc),
           ctx_used(info, ctx_used_glb),
@@ -768,10 +768,10 @@ module Deco =
           {ctx_used: ctx_used_inc, term_ids: term_ids_inc},
           {ctx_used: ctx_used_glb, term_ids: term_ids_glb},
         ): (
-          TypSlice.slc_incr,
-          TypSlice.slc_global,
+          CodeSlice.t,
+          CodeSlice.t,
         ) =
-          TypSlice.full_slice(t |> TypSlice.term_of);
+          Typ.full_slice(t);
         let (ctx_used_ids_inc, ctx_used_ids_glb) = (
           ctx_used(info, ctx_used_inc),
           ctx_used(info, ctx_used_glb),
@@ -783,9 +783,9 @@ module Deco =
         );
       | Some(Exp(Common(Inconsistent(WithArrow(t, slc)))))
       | Some(Pat(Common(Inconsistent(WithArrow(t, slc))))) =>
-        let {ctx_used: ctx_used_syn, term_ids: term_ids_syn}: TypSlice.slc_incr =
-          TypSlice.full_slice_both(t |> TypSlice.term_of);
-        let {ctx_used: ctx_used_ana, term_ids: term_ids_ana}: TypSlice.slc_global = slc;
+        let {ctx_used: ctx_used_syn, term_ids: term_ids_syn}: CodeSlice.t =
+          Typ.full_slice(t) |> TupleUtil.uncurry(CodeSlice.union);
+        let {ctx_used: ctx_used_ana, term_ids: term_ids_ana}: CodeSlice.t = slc;
         let ctx_used_ids_syn = ctx_used(info, ctx_used_syn);
         let ctx_used_ids_ana = ctx_used(info, ctx_used_ana);
         div_c(
@@ -799,33 +799,28 @@ module Deco =
           {ctx_used: ctx_used_syn, term_ids: term_ids_syn},
           {ctx_used: ctx_used_ana, term_ids: term_ids_ana},
         ): (
-          TypSlice.slc_incr,
-          TypSlice.slc_incr,
+          CodeSlice.t,
+          CodeSlice.t,
         ) =
-          TypSlice.join_inconsistency_all(
-            ~empty=TypSlice.fresh(`Typ(Unknown(Internal))),
+          Typ.join_inconsistency_all(
+            ~empty=Typ.fresh_empty(Unknown(Internal)),
             Info.ctx_of(info),
             ts,
           )
           |> List.map(((t1, t2)) =>
                (
-                 TypSlice.union_slice_incr(
-                   TypSlice.get_global_slice_or_empty(TypSlice.term_of(t1)),
-                   TypSlice.get_incr_slice_or_empty(TypSlice.term_of(t1)),
+                 CodeSlice.union(
+                   Typ.ana_code_slice_of(t1),
+                   Typ.syn_code_slice_of(t1),
                  ),
-                 TypSlice.union_slice_incr(
-                   TypSlice.get_global_slice_or_empty(TypSlice.term_of(t2)),
-                   TypSlice.get_incr_slice_or_empty(TypSlice.term_of(t2)),
+                 CodeSlice.union(
+                   Typ.ana_code_slice_of(t2),
+                   Typ.syn_code_slice_of(t2),
                  ),
                )
              )
           |> Util.ListUtil.unzip
-          |> TupleUtil.map2(
-               List.fold_left(
-                 TypSlice.union_slice_incr,
-                 TypSlice.empty_slice_incr,
-               ),
-             );
+          |> TupleUtil.map2(List.fold_left(CodeSlice.union, CodeSlice.empty));
         let ctx_used_ids_syn = ctx_used(info, ctx_used_syn);
         let ctx_used_ids_ana = ctx_used(info, ctx_used_ana);
         div_c(
@@ -839,29 +834,24 @@ module Deco =
           {ctx_used: ctx_used_syn, term_ids: term_ids_syn},
           {ctx_used: ctx_used_ana, term_ids: term_ids_ana},
         ): (
-          TypSlice.slc_incr,
-          TypSlice.slc_incr,
+          CodeSlice.t,
+          CodeSlice.t,
         ) =
-          TypSlice.join_inconsistency(Info.ctx_of(info), syn, ana)
+          Typ.join_inconsistency(Info.ctx_of(info), syn, ana)
           |> List.map(((t1, t2)) =>
                (
-                 TypSlice.union_slice_incr(
-                   TypSlice.get_global_slice_or_empty(TypSlice.term_of(t1)),
-                   TypSlice.get_incr_slice_or_empty(TypSlice.term_of(t1)),
+                 CodeSlice.union(
+                   Typ.ana_code_slice_of(t1),
+                   Typ.syn_code_slice_of(t1),
                  ),
-                 TypSlice.union_slice_incr(
-                   TypSlice.get_global_slice_or_empty(TypSlice.term_of(t2)),
-                   TypSlice.get_incr_slice_or_empty(TypSlice.term_of(t2)),
+                 CodeSlice.union(
+                   Typ.ana_code_slice_of(t2),
+                   Typ.syn_code_slice_of(t2),
                  ),
                )
              )
           |> Util.ListUtil.unzip
-          |> TupleUtil.map2(
-               List.fold_left(
-                 TypSlice.union_slice_incr,
-                 TypSlice.empty_slice_incr,
-               ),
-             );
+          |> TupleUtil.map2(List.fold_left(CodeSlice.union, CodeSlice.empty));
         let ctx_used_ids_syn = ctx_used(info, ctx_used_syn);
         let ctx_used_ids_ana = ctx_used(info, ctx_used_ana);
         div_c(

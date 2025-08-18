@@ -227,7 +227,7 @@ module rec Exp: {
       let ty = Typ.of_menhir_ast(ty);
       let ty =
         switch (ty) {
-        | {term: Parens(ty), _} => ty
+        | {term: {typ: Parens(ty), _}, _} => ty
         | _ => ty
         };
       ty_alias(TPat.of_menhir_ast(tp), ty, of_menhir_ast(e));
@@ -276,16 +276,12 @@ module rec Exp: {
         );
       match(d_scrut, d_rules);
     | Cast(e, t1, t2) =>
-      cast(
-        of_menhir_ast(e),
-        Typ.of_menhir_ast(t1) |> Haz3lcore.TypSlice.t_of_typ_t_parametric,
-        Typ.of_menhir_ast(t2) |> Haz3lcore.TypSlice.t_of_typ_t_parametric,
-      )
+      cast(of_menhir_ast(e), Typ.of_menhir_ast(t1), Typ.of_menhir_ast(t2))
     | FailedCast(e, t1, t2) =>
       failed_cast(
         of_menhir_ast(e),
-        Typ.of_menhir_ast(t1) |> Haz3lcore.TypSlice.t_of_typ_t_parametric,
-        Typ.of_menhir_ast(t2) |> Haz3lcore.TypSlice.t_of_typ_t_parametric,
+        Typ.of_menhir_ast(t1),
+        Typ.of_menhir_ast(t2),
       )
     | EmptyHole => empty_hole()
     | Seq(e1, e2) => seq(of_menhir_ast(e1), of_menhir_ast(e2))
@@ -345,17 +341,9 @@ module rec Exp: {
         List.map(((p, e)) => (Pat.of_core(p), of_core(e)), l),
       )
     | Cast(e, t1, t2) =>
-      Cast(
-        of_core(e),
-        Typ.of_core(t1 |> Haz3lcore.TypSlice.typ_of),
-        Typ.of_core(t2 |> Haz3lcore.TypSlice.typ_of),
-      )
+      Cast(of_core(e), Typ.of_core(t1), Typ.of_core(t2))
     | FailedCast(e, t1, t2) =>
-      FailedCast(
-        of_core(e),
-        Typ.of_core(t1 |> Haz3lcore.TypSlice.typ_of),
-        Typ.of_core(t2 |> Haz3lcore.TypSlice.typ_of),
-      )
+      FailedCast(of_core(e), Typ.of_core(t1), Typ.of_core(t2))
     | EmptyHole => EmptyHole
     | Seq(e1, e2) => Seq(of_core(e1), of_core(e2))
     | Test(e) => Test(of_core(e))
@@ -470,7 +458,7 @@ and Typ: {
     };
   };
   let rec of_core = (typ: IndicatedG.typ): AST.typ => {
-    switch (typ.term) {
+    switch (typ.term.typ) {
     | Atom(Int) => IntType
     | Atom(SInt) => SIntType
     | Atom(Float) => FloatType
@@ -539,8 +527,8 @@ and Pat: {
       parens(
         cast(
           of_menhir_ast(p),
-          Typ.of_menhir_ast(t1) |> Haz3lcore.TypSlice.t_of_typ_t_parametric,
-          Typ.of_menhir_ast(t2) |> Haz3lcore.TypSlice.t_of_typ_t_parametric,
+          Typ.of_menhir_ast(t1),
+          Typ.of_menhir_ast(t2),
         ),
       )
     | VarPat(x) => var(x)
@@ -577,11 +565,7 @@ and Pat: {
     | Wild => WildPat
     | MultiHole(_) => raise(Failure("MultiHole not supported"))
     | Cast(p, t1, t2) =>
-      CastPat(
-        of_core(p),
-        Typ.of_core(t1 |> Haz3lcore.TypSlice.typ_of),
-        Typ.of_core(t2 |> Haz3lcore.TypSlice.typ_of),
-      )
+      CastPat(of_core(p), Typ.of_core(t1), Typ.of_core(t2))
     | Parens(p) => of_core(p)
     | Probe(p, _) => of_core(p)
     | Label(s) => LabelPat(s)

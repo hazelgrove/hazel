@@ -42,7 +42,7 @@ let cls_view = (ci: Info.t): Node.t => {
     [
       text(
         switch (cls) {
-        | TypSlice((_, EmptyHole))
+        | Typ(EmptyHole)
         | Exp(EmptyHole)
         | Pat(EmptyHole) =>
           Info.is_label(ci) ? "Empty Label" : Cls.show(cls)
@@ -107,7 +107,7 @@ let view_any = (~globals, any: Term.Any.t) =>
      )
   |> code_box_container;
 
-let view_type = (~globals, typ: TypSlice.t) =>
+let view_type = (~globals, typ: Typ.t) =>
   typ
   |> CodeViewable.view_typ(~globals, ~settings=code_view_settings)
   |> code_box_container;
@@ -116,7 +116,7 @@ let common_err_view =
     (
       ~globals,
       ~introduced_labels: list(LabeledTuple.label),
-      ~lifted_ty: option(TypSlice.t),
+      ~lifted_ty: option(Typ.t),
       ~inferred_label: option(LabeledTuple.label),
       cls: Cls.t,
       err: Info.error_common,
@@ -135,7 +135,7 @@ let common_err_view =
         text("Function argument type"),
         view_type(ty),
         text("inconsistent with"),
-        view_type(`Typ(Prod([])) |> TypSlice.fresh),
+        view_type(Prod([]) |> Typ.fresh_empty),
       ]
     | NoType(BadLabel(label)) => [
         text("Malformed Label: "),
@@ -179,7 +179,7 @@ let common_err_view =
         text("inconsistent with arrow type"),
       ]
     | Inconsistent(Expectation({ana, syn})) =>
-      switch (syn |> TypSlice.typ_term_of, ana |> TypSlice.typ_term_of) {
+      switch (syn |> Typ.term_of, ana |> Typ.term_of) {
       | (Label(syn_l), Label(ana_l)) => [
           code(syn_l),
           text("but expected label"),
@@ -236,7 +236,7 @@ let common_ok_view =
       ~globals,
       ~reordered: bool,
       ~introduced_labels: list(LabeledTuple.label),
-      ~lifted_ty: option(TypSlice.t),
+      ~lifted_ty: option(Typ.t),
       ~inferred_label: option(LabeledTuple.label),
       ~label_sort: bool,
       cls: Cls.t,
@@ -261,7 +261,7 @@ let common_ok_view =
         view_type(ana),
       ]
     | (_, Syn(syn)) =>
-      switch (syn |> TypSlice.typ_term_of) {
+      switch (syn |> Typ.term_of) {
       | Label(l) => [code(l)]
       | _ => [text(":"), view_type(syn)]
       }
@@ -270,8 +270,8 @@ let common_ok_view =
         view_type(ana),
       ]
     | (_, Ana(Consistent({ana, syn, _})))
-        when TypSlice.fast_equal(~alpha_equivalence=false, ana, syn) =>
-      switch (syn |> TypSlice.typ_term_of) {
+        when Typ.fast_equal(~alpha_equivalence=false, ana, syn) =>
+      switch (syn |> Typ.term_of) {
       | Label(l) => [code(l), text(" is a valid label")]
       | _ =>
         [text(":"), view_type(syn)]
@@ -304,7 +304,7 @@ let common_ok_view =
       }
     | (_, Ana(Consistent({ana, syn, _}))) =>
       (
-        switch (syn |> TypSlice.typ_term_of) {
+        switch (syn |> Typ.term_of) {
         | Label(l) => [code(l), text(" is a valid label")]
         | _ => [
             text(":"),
@@ -356,23 +356,23 @@ let typ_ok_view = (~globals, cls: Cls.t, ok: Info.ok_typ) => {
   let view_type = view_type(~globals);
   switch (ok, cls) {
   | (EmptyLabel, _) => []
-  | (Type(_), TypSlice((_, EmptyHole))) => [text("Fillable by any type")]
+  | (Type(_), Typ(EmptyHole)) => [text("Fillable by any type")]
   | (Type(ty), _) =>
     [view_type(ty)]
     @ (
       switch (cls) {
-      | TypSlice((_, Label)) => []
+      | Typ(Label) => []
       | _ => [text("is a type")]
       }
     )
 
   | (TypeAlias(name, ty_lookup), _) => [
-      view_type(`Typ(Var(name)) |> TypSlice.fresh),
+      view_type(Var(name) |> Typ.fresh_empty),
       text("is an alias for"),
       view_type(ty_lookup),
     ]
   | (Variant(name, sum_ty), _) => [
-      view_type(`Typ(Var(name)) |> TypSlice.fresh),
+      view_type(Var(name) |> Typ.fresh_empty),
       text("is a sum type constuctor of type"),
       view_type(sum_ty),
     ]
@@ -387,7 +387,7 @@ let typ_err_view = (~globals, ok: Info.error_typ) => {
   let view_type = view_type(~globals);
   switch (ok) {
   | FreeTypeVariable(name) => [
-      view_type(`Typ(Var(name)) |> TypSlice.fresh),
+      view_type(Var(name) |> Typ.fresh_empty),
       text("not found"),
     ]
   | BadToken(token) => [code(token), text("not a type or type operator")]
@@ -402,7 +402,7 @@ let typ_err_view = (~globals, ok: Info.error_typ) => {
     ]
   | Duplicate(name, _) => [text("Duplicate Label: "), code(name)]
   | DuplicateConstructor(name) => [
-      view_type(`Typ(Var(name)) |> TypSlice.fresh),
+      view_type(Var(name) |> Typ.fresh_empty),
       text("already used in this sum"),
     ]
   };
@@ -582,17 +582,17 @@ let tpat_view = (~globals, _: Cls.t, status: Info.status_tpat) => {
   | InHole(ShadowsType(name, BaseTyp)) =>
     div_err([
       text("Can't shadow base type"),
-      view_type(`Typ(Var(name)) |> TypSlice.fresh),
+      view_type(Var(name) |> Typ.fresh_empty),
     ])
   | InHole(ShadowsType(name, TyAlias)) =>
     div_err([
       text("Can't shadow existing alias"),
-      view_type(`Typ(Var(name)) |> TypSlice.fresh),
+      view_type(Var(name) |> Typ.fresh_empty),
     ])
   | InHole(ShadowsType(name, TyVar)) =>
     div_err([
       text("Can't shadow existing type variable"),
-      view_type(`Typ(Var(name)) |> TypSlice.fresh),
+      view_type(Var(name) |> Typ.fresh_empty),
     ])
   };
 };
