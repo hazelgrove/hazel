@@ -4,68 +4,16 @@ open Haz3lcore;
 open StepInterface;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type model'('stepper) = {
-  // Updated
-  pattern: CodeEditable.Model.t,
-  // Calculated
-  elab_pattern: Calc.saved(Pat.t),
-  inner_exp: Calc.saved(Exp.t),
-  step: 'stepper,
-  last_exp: Calc.saved(Exp.t),
-  hypo_points: Calc.saved(list(Exp.t)),
-  inner_ctx: Calc.saved(Ctx.t),
-};
+type model'('stepper) = InductionCase.model'('stepper);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type action'('stepper) =
-  | PatternUpdate(CodeEditable.Update.t)
-  | StepUpdate('stepper);
+type action'('stepper) = InductionCase.action'('stepper);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type focus'('stepper) =
-  | Pattern(CodeSelectable.Selection.t)
-  | Stepper('stepper);
+type focus'('stepper) = InductionCase.focus'('stepper);
 
 module F = (Stepper: STEPPER) => {
-  type model = model'(Stepper.model);
-  type action = action'(Stepper.action);
-  type focus = focus'(Stepper.focus);
-
-  let init = {
-    pattern: CodeEditable.Model.mk(Editor.Model.mk(Zipper.init())),
-    elab_pattern: Calc.Pending,
-    inner_exp: Calc.Pending,
-    step: Stepper.init,
-    last_exp: Calc.Pending,
-    hypo_points: Calc.Pending,
-    inner_ctx: Calc.Pending,
-  };
-
-  let update = (~settings: Settings.t, action: action, model: model) => {
-    Updated.(
-      switch (action) {
-      | PatternUpdate(a) =>
-        let* new_pattern =
-          CodeEditable.Update.update(~settings, a, model.pattern);
-        {
-          ...model,
-          pattern: new_pattern,
-        };
-      | StepUpdate(a) =>
-        let* new_step = Stepper.update(~settings, a, model.step);
-        {
-          ...model,
-          step: new_step,
-        };
-      }
-    );
-  };
-
-  let can_undo = a =>
-    switch (a) {
-    | PatternUpdate(action) => CodeEditable.Update.can_undo(action)
-    | StepUpdate(action) => Stepper.can_undo(action)
-    };
+  include InductionCase.F(Stepper);
 
   let calculate =
       (
@@ -128,7 +76,7 @@ module F = (Stepper: STEPPER) => {
           scrut_ty,
           elab_pattern,
         )
-        |> List.map(v => Exp.fresh(Var(v)));
+        |> List.map(v => Pat.fresh(Var(v)));
       };
     let inner_ctx =
       model.inner_ctx
@@ -149,44 +97,20 @@ module F = (Stepper: STEPPER) => {
         ~state,
         model.step,
       );
-    {
-      pattern,
-      elab_pattern: elab_pattern |> Calc.save,
-      inner_exp: inner_exp |> Calc.save,
-      hypo_points: hypo_points |> Calc.save,
-      step: stepper,
-      last_exp: last_exp |> Calc.save,
-      inner_ctx: inner_ctx |> Calc.save,
-    };
-  };
-
-  let get_cursor_info = (~focus: focus, model: model) => {
-    Cursor.(
-      switch (focus) {
-      | Pattern(a) =>
-        let+ ci =
-          CodeEditable.Selection.get_cursor_info(~selection=a, model.pattern);
-        PatternUpdate(ci);
-      | Stepper(a) =>
-        let+ ci = Stepper.get_cursor_info(~focus=a, model.step);
-        StepUpdate(ci);
-      }
+    (
+      InductionCase.{
+        pattern,
+        elab_pattern: elab_pattern |> Calc.save,
+        inner_exp: inner_exp |> Calc.save,
+        hypo_points: hypo_points |> Calc.save,
+        step: stepper,
+        last_exp: last_exp |> Calc.save,
+        added_ctx: Calc.Pending,
+        inner_ctx: inner_ctx |> Calc.save,
+        constraint_: Calc.Pending,
+      },
+      elab_pattern,
     );
-  };
-
-  let handle_key_event = (~focus: focus, ~event: Key.t, model: model) => {
-    switch (focus, model) {
-    | (Pattern(a), _) =>
-      CodeEditable.Selection.handle_key_event(
-        ~selection=a,
-        model.pattern,
-        event,
-      )
-      |> Option.map(x => PatternUpdate(x))
-    | (Stepper(a), _) =>
-      Stepper.handle_key_event(~focus=a, ~event, model.step)
-      |> Option.map(x => StepUpdate(x))
-    };
   };
 
   let view =

@@ -15,6 +15,7 @@ type model'('stepper) = {
   hypo_points: Calc.saved(list(Pat.t)),
   added_ctx: Calc.saved(list(Ctx.entry)),
   inner_ctx: Calc.saved(Ctx.t),
+  constraint_: Calc.saved(option(Coverage.Constraint.t)),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -41,6 +42,7 @@ module F = (Stepper: STEPPER) => {
     hypo_points: Calc.Pending,
     added_ctx: Calc.Pending,
     inner_ctx: Calc.Pending,
+    constraint_: Calc.Pending,
   };
 
   let update = (~settings: Settings.t, action: action, model: model) => {
@@ -228,16 +230,39 @@ module F = (Stepper: STEPPER) => {
         ~state,
         model.step,
       );
-    {
-      pattern,
-      elab_pattern: elab_pattern |> Calc.save,
-      inner_exp: inner_exp |> Calc.save,
-      hypo_points: hypo_points |> Calc.save,
-      step: stepper,
-      last_exp: last_exp |> Calc.save,
-      added_ctx: added_ctx |> Calc.save,
-      inner_ctx: inner_ctx |> Calc.save,
-    };
+
+    let constraint_ =
+      {
+        open OptUtil.Syntax;
+        let statics = CodeWithStatics.Model.get_statics(pattern);
+        let* info =
+          Statics.Map.lookup(
+            elab_pattern |> Calc.get_value |> Pat.rep_id,
+            statics.info_map,
+          );
+        let* info_pat =
+          switch (info) {
+          | InfoPat(info_pat) => Some(info_pat)
+          | _ => None
+          };
+        Some(Info.pat_constraint(info_pat));
+      }
+      |> Calc.set(_, model.constraint_);
+
+    (
+      {
+        pattern,
+        elab_pattern: elab_pattern |> Calc.save,
+        inner_exp: inner_exp |> Calc.save,
+        hypo_points: hypo_points |> Calc.save,
+        step: stepper,
+        last_exp: last_exp |> Calc.save,
+        added_ctx: added_ctx |> Calc.save,
+        inner_ctx: inner_ctx |> Calc.save,
+        constraint_: constraint_ |> Calc.save,
+      },
+      constraint_,
+    );
   };
 
   let get_cursor_info = (~focus: focus, model: model) => {

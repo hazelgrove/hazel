@@ -7,58 +7,15 @@ open StepInterface;
    easier to use them in other files. */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type model'('stepper) = {
-  // Updated
-  scrut: CodeEditable.Model.t,
-  cases: list(CasesCase.model'('stepper)),
-  // Calculated
-  elab_scrut: Calc.saved(Exp.t),
-  scrut_ty: Calc.saved(Typ.t),
-  scrut_co_ctx: Calc.saved(CoCtx.t),
-  result: Calc.saved(Exp.t),
-  result_state: Calc.saved(EvaluatorState.t),
-  join_exp: Calc.saved(Exp.t),
-};
+type model'('stepper) = InductionStep.model'('stepper);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type action'('step) =
-  | ScrutUpdate(CodeEditable.Update.t)
-  | CaseUpdate(int, CasesCase.action'('step))
-  | AddCase
-  | RemoveCase(int);
+type action'('step) = InductionStep.action'('step);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type focus'('step) =
-  | Scrut(CodeEditable.Selection.t)
-  | Case(int, CasesCase.focus'('step));
+type focus'('step) = InductionStep.focus'('step);
 
-let init = (~exp: option(Exp.t)=?, ()) => {
-  let scrut =
-    switch (exp) {
-    | Some(e) =>
-      CodeEditable.Model.mk(
-        Editor.Model.mk(
-          Zipper.unzip(
-            ExpToSegment.exp_to_segment(
-              ~settings=ExpToSegment.Settings.editable(~inline=true),
-              e,
-            ),
-          ),
-        ),
-      )
-    | None => CodeEditable.Model.mk(Editor.Model.mk(Zipper.init()))
-    };
-  {
-    scrut,
-    cases: [],
-    elab_scrut: Calc.Pending,
-    scrut_ty: Calc.Pending,
-    scrut_co_ctx: Calc.Pending,
-    result: Calc.Pending,
-    result_state: Calc.Pending,
-    join_exp: Calc.Pending,
-  };
-};
+let init = InductionStep.init;
 
 /* The methods in this file, like the other step files, are
    parameterized by a Stepper module that implements the
@@ -75,62 +32,7 @@ module F =
              type focus = focus'(Stepper.focus)
        ) => {
   module InductionCase = CasesCase.F(Stepper);
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type model = model'(Stepper.model);
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type action = action'(Stepper.action);
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type focus = focus'(Stepper.focus);
-
-  let update = (~settings: Settings.t, action: action, model: model) => {
-    Updated.(
-      switch (action) {
-      | ScrutUpdate(a) =>
-        let* new_scrut =
-          CodeEditable.Update.update(~settings, a, model.scrut);
-        {
-          ...model,
-          scrut: new_scrut,
-        };
-      | CaseUpdate(i, a) =>
-        switch (List.nth_opt(model.cases, i)) {
-        | Some(case) =>
-          let* new_case = InductionCase.update(~settings, a, case);
-          {
-            ...model,
-            cases: ListUtil.put_nth(i, new_case, model.cases),
-          };
-        | None => model |> return_quiet
-        }
-      | AddCase =>
-        let new_case = InductionCase.init;
-        {
-          ...model,
-          cases: model.cases @ [new_case],
-        }
-        |> return;
-      | RemoveCase(i) =>
-        switch (ListUtil.remove_nth(i, model.cases)) {
-        | Some(new_cases) =>
-          {
-            ...model,
-            cases: new_cases,
-          }
-          |> return
-        | None => model |> return_quiet
-        }
-      }
-    );
-  };
-
-  let can_undo = a =>
-    switch (a) {
-    | ScrutUpdate(action) => CodeEditable.Update.can_undo(action)
-    | CaseUpdate(_, action) => InductionCase.can_undo(action)
-    | AddCase => true
-    | RemoveCase(_) => true
-    };
+  include InductionStep.F(Stepper);
 
   let calculate =
       (
@@ -152,6 +54,7 @@ module F =
       result: _,
       result_state: _,
       join_exp,
+      is_exhaustive: _,
     }: model = model;
     let scrut =
       CodeEditable.Update.calculate(
@@ -195,7 +98,7 @@ module F =
         };
       Calc.set(self_co_ctx, scrut_co_ctx);
     };
-    let cases =
+    let (cases, patterns) =
       List.map(
         InductionCase.calculate(
           ~settings,
@@ -208,7 +111,8 @@ module F =
           ~state,
         ),
         cases,
-      );
+      )
+      |> ListUtil.unzip;
 
     let new_join_exp =
       List.fold_left(
@@ -236,7 +140,7 @@ module F =
     let result_state = state |> Calc.save;
 
     Some((
-      {
+      InductionStep.{
         scrut,
         cases,
         elab_scrut: elab_scrut |> Calc.save,
@@ -245,43 +149,12 @@ module F =
         result,
         result_state,
         join_exp: join_exp |> Calc.save,
+        is_exhaustive: Calc.Calculated(false),
       },
       hidden |> Calc.set(false),
       Some((join_exp, state)),
     ));
   };
-
-  let get_cursor_info = (~focus: focus, model: model) =>
-    Cursor.(
-      switch (focus) {
-      | Scrut(a) =>
-        let+ ci =
-          CodeEditable.Selection.get_cursor_info(~selection=a, model.scrut);
-        ScrutUpdate(ci);
-      | Case(i, a) =>
-        switch (List.nth_opt(model.cases, i)) {
-        | Some(case) =>
-          let+ ci = InductionCase.get_cursor_info(~focus=a, case);
-          CaseUpdate(i, ci);
-        | None => Cursor.empty
-        }
-      }
-    );
-
-  let handle_key_event = (~focus: focus, ~event: Key.t, model: model) =>
-    switch (focus) {
-    | Scrut(a) =>
-      let editor = model.scrut;
-      CodeEditable.Selection.handle_key_event(~selection=a, editor, event)
-      |> Option.map(x => ScrutUpdate(x));
-    | Case(i, a) =>
-      switch (List.nth_opt(model.cases, i)) {
-      | Some(case) =>
-        InductionCase.handle_key_event(~focus=a, ~event, case)
-        |> Option.map(x => CaseUpdate(i, x))
-      | None => None
-      }
-    };
 
   let view_justification =
       (

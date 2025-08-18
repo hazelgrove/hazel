@@ -2,6 +2,7 @@ open Util;
 open Language;
 open Haz3lcore;
 open StepInterface;
+open Calc.Syntax;
 
 /* Types are defined outside the functor to make it
    easier to use them in other files. */
@@ -18,6 +19,7 @@ type model'('stepper) = {
   result: Calc.saved(Exp.t),
   result_state: Calc.saved(EvaluatorState.t),
   join_exp: Calc.saved(Exp.t),
+  is_exhaustive: Calc.saved(bool),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -57,6 +59,7 @@ let init = (~exp: option(Exp.t)=?, ()) => {
     result: Calc.Pending,
     result_state: Calc.Pending,
     join_exp: Calc.Pending,
+    is_exhaustive: Calc.Pending,
   };
 };
 
@@ -152,6 +155,7 @@ module F =
       result: _,
       result_state: _,
       join_exp,
+      is_exhaustive,
     }: model = model;
     let scrut =
       CodeEditable.Update.calculate(
@@ -195,7 +199,7 @@ module F =
         };
       Calc.set(self_co_ctx, scrut_co_ctx);
     };
-    let cases =
+    let (cases, constraints) =
       List.map(
         InductionCase.calculate(
           ~settings,
@@ -208,7 +212,8 @@ module F =
           ~state,
         ),
         cases,
-      );
+      )
+      |> ListUtil.unzip;
 
     let new_join_exp =
       List.fold_left(
@@ -232,6 +237,17 @@ module F =
         join_exp,
       );
 
+    let is_exhaustive =
+      is_exhaustive
+      |> {
+        let.calc constraints = Calc.combine_list(constraints)
+        and.calc ctx = ctx
+        and.calc scrut_ty = scrut_ty;
+        let constraints = List.filter_map(Fun.id, constraints);
+        Coverage.check(constraints, Typ.normalize(ctx, scrut_ty)).
+          is_exhaustive;
+      };
+
     let result = exp |> Calc.save;
     let result_state = state |> Calc.save;
 
@@ -245,6 +261,7 @@ module F =
         result,
         result_state,
         join_exp: join_exp |> Calc.save,
+        is_exhaustive: is_exhaustive |> Calc.save,
       },
       hidden |> Calc.set(false),
       Some((join_exp, state)),
@@ -362,6 +379,10 @@ module F =
       ),
     ]
     @ cases
-    @ [add_case_button];
+    @ [add_case_button]
+    @ [
+      model.is_exhaustive |> Calc.get_saved_exc(~print="exhaustive")
+        ? WebUtil.Node.text("exhaustive") : WebUtil.Node.text("inexhaustive"),
+    ];
   };
 };

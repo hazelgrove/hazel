@@ -18,6 +18,18 @@ let combine = (x: t('a), y: t('b)): t(('a, 'b)) =>
     NewValue((x, y))
   };
 
+let combine_list = (xs: list(t('a))): t(list('a)) =>
+  List.fold_left(
+    (acc, x) =>
+      switch (acc, x) {
+      | (OldValue(acc), OldValue(x)) => OldValue([x, ...acc])
+      | (OldValue(acc) | NewValue(acc), OldValue(x) | NewValue(x)) =>
+        NewValue([x, ...acc])
+      },
+    OldValue([]),
+    xs |> List.rev,
+  );
+
 let make_old = (x: t('a)): t('a) =>
   switch (x) {
   | OldValue(x)
