@@ -100,7 +100,7 @@ module F =
       }
       |> Calc.to_option
       |> Option.map(Calc.to_pair);
-    let (inner_stepper, last) =
+    let (inner_stepper, last, validity) =
       Stepper.calculate(
         ~settings,
         ~ctx=bindings,
@@ -137,6 +137,7 @@ module F =
       },
       hidden |> Calc.set(false),
       Some((result_function, state)),
+      validity,
     );
   };
 

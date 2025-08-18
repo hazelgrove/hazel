@@ -27,6 +27,7 @@ and step_model = {
   next_step: option(step_model),
   // Calculated
   hidden: Calc.saved(bool),
+  proof_validity: Calc.saved(option(bool)),
 };
 
 let init_step = {
@@ -36,6 +37,7 @@ let init_step = {
   step_kind: MissingStep(MissingStep.Model.init),
   next_step: None,
   hidden: Calc.Pending,
+  proof_validity: Calc.Pending,
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -162,7 +164,7 @@ module rec StepKind: {
           ) =>
     switch (model) {
     | SingleStep(m) =>
-      let+ (m, h, e) =
+      let+ (m, h, e, v) =
         SingleStep.calculate(
           ~settings,
           ~hidden,
@@ -174,9 +176,9 @@ module rec StepKind: {
           ~ana,
           m,
         );
-      (SingleStep(m): model, h, e);
+      (SingleStep(m): model, h, e, v);
     | CasesStep(m) =>
-      let+ (m, h, e) =
+      let+ (m, h, e, v) =
         CasesStep.calculate(
           ~settings,
           ~hidden,
@@ -188,9 +190,9 @@ module rec StepKind: {
           ~ana,
           m,
         );
-      (CasesStep(m): model, h, e);
+      (CasesStep(m): model, h, e, v);
     | InductionStep(m) =>
-      let+ (m, h, e) =
+      let+ (m, h, e, v) =
         InductionStep.calculate(
           ~settings,
           ~hidden,
@@ -202,9 +204,9 @@ module rec StepKind: {
           ~ana,
           m,
         );
-      (InductionStep(m): model, h, e);
+      (InductionStep(m): model, h, e, v);
     | ForallStep(m) =>
-      let+ (m, h, e) =
+      let+ (m, h, e, v) =
         ForallStep.calculate(
           ~settings,
           ~hidden,
@@ -216,7 +218,7 @@ module rec StepKind: {
           ~ana,
           m,
         );
-      (ForallStep(m): model, h, e);
+      (ForallStep(m): model, h, e, v);
     | MissingStep(missing_step) =>
       let next_steps =
         missing_step.next_steps
@@ -270,10 +272,23 @@ module rec StepKind: {
           ),
           Calc.set(false, hidden),
           None,
+          Calc.NewValue(
+            // TODO: Incremental validity check
+            DHExp.fast_equal(
+              exp |> Calc.get_value,
+              Exp.temp(Atom(Bool(true))),
+            )
+              ? Some(true)
+              : DHExp.fast_equal(
+                  exp |> Calc.get_value,
+                  Exp.temp(Atom(Bool(false))),
+                )
+                  ? Some(false) : None,
+          ),
         ))
       };
     | AxiomStep(m) =>
-      let+ (m, h, e) =
+      let+ (m, h, e, v) =
         AxiomStep.calculate(
           ~settings,
           ~hidden,
@@ -285,7 +300,7 @@ module rec StepKind: {
           ~ana,
           m,
         );
-      (AxiomStep(m): model, h, e);
+      (AxiomStep(m): model, h, e, v);
     };
 
   let get_cursor_info = (~focus: focus, model: model) =>
@@ -535,6 +550,7 @@ and Stepper: {
       type focus = step_focus;
 
   let get_state: step_model => EvaluatorState.t;
+  let get_validity: step_model => option(bool);
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = step_model;
@@ -550,7 +566,14 @@ and Stepper: {
     step_kind: MissingStep(MissingStep.Model.init),
     next_step: None,
     hidden: Calc.Pending,
+    proof_validity: Calc.Pending,
   };
+
+  let get_validity = (model: model) =>
+    model.proof_validity
+    |> Calc.get_saved_exc(
+         ~print="get_validity called before calculate on stepper",
+       );
 
   let rec get_state = (model: model) =>
     switch (model.next_step) {
@@ -680,9 +703,17 @@ and Stepper: {
             ~env: Calc.t(ClosureEnvironment.t),
             ~state: Calc.t(EvaluatorState.t),
             ~ana: Calc.t(Typ.t),
-            {expr: _, state: _, editor, step_kind, next_step, hidden}: step_model,
+            {
+              expr: _,
+              state: _,
+              editor,
+              step_kind,
+              next_step,
+              hidden,
+              proof_validity,
+            }: step_model,
           )
-          : (step_model, Calc.t(Exp.t)) => {
+          : (step_model, Calc.t(Exp.t), Calc.t(option(bool))) => {
     let editor =
       editor
       |> {
@@ -703,7 +734,7 @@ and Stepper: {
              expr
            );
       };
-    let (step_kind, hidden, next_expr_state) =
+    let (step_kind, hidden, next_expr_state, inner_validity) =
       StepKind.calculate(
         ~settings,
         ~ctx,
@@ -729,11 +760,11 @@ and Stepper: {
               )
            |> Option.get
          );
-    let (next_step, last_expr) =
+    let (next_step, last_expr, next_validity) =
       switch (next_expr_state) {
       | Some((next_expr, next_state)) =>
         let next_step = Option.value(~default=init, next_step);
-        let (next_step, last_expr) =
+        let (next_step, last_expr, next_validity) =
           calculate(
             ~settings,
             ~exp=next_expr,
@@ -743,9 +774,22 @@ and Stepper: {
             ~ana,
             next_step,
           );
-        (Some(next_step), last_expr);
-      | None => (None, expr)
+        (Some(next_step), last_expr, next_validity);
+      | None => (None, expr, inner_validity)
       };
+
+    let proof_validity =
+      proof_validity
+      |> {
+        let.calc next_validity = next_validity
+        and.calc inner_validity = inner_validity;
+        switch (next_validity, inner_validity) {
+        | (Some(true), Some(true)) => Some(true)
+        | (Some(false), Some(false)) => Some(false)
+        | _ => None
+        };
+      };
+
     (
       {
         expr: expr |> Calc.save,
@@ -754,8 +798,10 @@ and Stepper: {
         step_kind,
         next_step,
         hidden: hidden |> Calc.save,
+        proof_validity: proof_validity |> Calc.save,
       },
       last_expr,
+      proof_validity,
     );
   };
 

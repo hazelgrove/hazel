@@ -85,6 +85,7 @@ module F =
       },
       hidden |> Calc.set(false),
       Some((next_exp, state)),
+      Calc.OldValue(Some(true)),
     );
   };
 

@@ -536,8 +536,18 @@ let rec unzip = (lst: list(('a, 'b))): (list('a), list('b)) => {
   switch (lst) {
   | [] => ([], [])
   | [(a, b), ...tail] =>
-    let (_as, bs) = unzip(tail);
-    ([a, ..._as], [b, ...bs]);
+    let (as_, bs) = unzip(tail);
+    ([a, ...as_], [b, ...bs]);
+  };
+};
+
+let rec unzip3 =
+        (lst: list(('a, 'b, 'c))): (list('a), list('b), list('c)) => {
+  switch (lst) {
+  | [] => ([], [], [])
+  | [(a, b, c), ...tail] =>
+    let (as_, bs, cs) = unzip3(tail);
+    ([a, ...as_], [b, ...bs], [c, ...cs]);
   };
 };
 

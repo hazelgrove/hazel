@@ -222,7 +222,7 @@ module F = (Stepper: STEPPER) => {
         List.fold_left(Ctx.extend, ctx, added_ctx |> List.rev);
       };
 
-    let (stepper, last_exp) =
+    let (stepper, last_exp, validity) =
       Stepper.calculate(
         ~settings, // TODO: this is a little ugly
         ~ctx=inner_ctx,
@@ -264,6 +264,7 @@ module F = (Stepper: STEPPER) => {
         constraint_: constraint_ |> Calc.save,
       },
       constraint_,
+      validity,
     );
   };
 

@@ -16,6 +16,8 @@ module Model = {
   };
 
   let get_state = (m: t) => StepperBase.Stepper.get_state(m.root);
+
+  let get_validity = (m: t) => StepperBase.Stepper.get_validity(m.root);
 };
 
 module Update = {
@@ -49,7 +51,7 @@ module Update = {
         Substitution.subst(Builtins.env_init, elab);
       };
     let state = Calc.OldValue(EvaluatorState.init);
-    let root =
+    let (root, _, _) =
       StepperBase.Stepper.calculate(
         ~settings,
         ~ctx,
@@ -58,8 +60,7 @@ module Update = {
         ~state,
         ~ana,
         root,
-      )
-      |> fst;
+      );
     {
       cached_elab_subst: elab_subst |> Calc.save,
       root,

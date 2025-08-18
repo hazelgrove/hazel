@@ -99,6 +99,7 @@ module F =
       },
       hidden,
       Some((next_exp, next_state)),
+      Calc.OldValue(Some(true)),
     );
   };
 

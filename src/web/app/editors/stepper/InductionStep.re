@@ -20,6 +20,7 @@ type model'('stepper) = {
   result_state: Calc.saved(EvaluatorState.t),
   join_exp: Calc.saved(Exp.t),
   is_exhaustive: Calc.saved(bool),
+  validity: Calc.saved(option(bool)),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -60,6 +61,7 @@ let init = (~exp: option(Exp.t)=?, ()) => {
     result_state: Calc.Pending,
     join_exp: Calc.Pending,
     is_exhaustive: Calc.Pending,
+    validity: Calc.Pending,
   };
 };
 
@@ -157,6 +159,7 @@ module F =
       result_state: _,
       join_exp,
       is_exhaustive,
+      validity,
     }: model = model;
     let scrut =
       CodeEditable.Update.calculate(
@@ -200,7 +203,7 @@ module F =
         };
       Calc.set(self_co_ctx, scrut_co_ctx);
     };
-    let (cases, constraints) =
+    let (cases, constraints, validities) =
       List.map(
         InductionCase.calculate(
           ~settings,
@@ -215,7 +218,7 @@ module F =
         ),
         cases,
       )
-      |> ListUtil.unzip;
+      |> ListUtil.unzip3;
 
     let new_join_exp =
       List.fold_left(
@@ -250,6 +253,23 @@ module F =
           is_exhaustive;
       };
 
+    let validity =
+      validity
+      |> {
+        let.calc validities = Calc.combine_list(validities)
+        and.calc is_exhaustive = is_exhaustive;
+        List.fold_left(
+          (v1, v2) =>
+            switch (v1, v2) {
+            | (Some(true), Some(true)) => Some(true)
+            | (Some(false), Some(false)) => Some(false)
+            | (_, _) => None
+            },
+          is_exhaustive ? Some(true) : None,
+          validities,
+        );
+      };
+
     let result = exp |> Calc.save;
     let result_state = state |> Calc.save;
 
@@ -264,9 +284,11 @@ module F =
         result_state,
         join_exp: join_exp |> Calc.save,
         is_exhaustive: is_exhaustive |> Calc.save,
+        validity: validity |> Calc.save,
       },
       hidden |> Calc.set(false),
       Some((join_exp, state)),
+      validity,
     ));
   };
 

@@ -88,7 +88,7 @@ module F = (Stepper: STEPPER) => {
         ProofHacks.dhpat_extend_ctx(elab_pattern, scrut_ty, ctx)
         |> Option.value(~default=ctx);
       };
-    let (stepper, last_exp) =
+    let (stepper, last_exp, validity) =
       Stepper.calculate(
         ~settings, // TODO: this is a little ugly
         ~ctx=inner_ctx,
@@ -98,6 +98,25 @@ module F = (Stepper: STEPPER) => {
         ~ana,
         model.step,
       );
+
+    let constraint_ =
+      {
+        open OptUtil.Syntax;
+        let statics = CodeWithStatics.Model.get_statics(pattern);
+        let* info =
+          Statics.Map.lookup(
+            elab_pattern |> Calc.get_value |> Pat.rep_id,
+            statics.info_map,
+          );
+        let* info_pat =
+          switch (info) {
+          | InfoPat(info_pat) => Some(info_pat)
+          | _ => None
+          };
+        Some(Info.pat_constraint(info_pat));
+      }
+      |> Calc.set(_, model.constraint_);
+
     (
       InductionCase.{
         pattern,
@@ -110,7 +129,8 @@ module F = (Stepper: STEPPER) => {
         inner_ctx: inner_ctx |> Calc.save,
         constraint_: Calc.Pending,
       },
-      elab_pattern,
+      constraint_,
+      validity,
     );
   };
 

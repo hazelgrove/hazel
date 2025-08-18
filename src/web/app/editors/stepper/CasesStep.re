@@ -2,6 +2,7 @@ open Util;
 open Language;
 open Haz3lcore;
 open StepInterface;
+open Calc.Syntax;
 
 /* Types are defined outside the functor to make it
    easier to use them in other files. */
@@ -55,7 +56,8 @@ module F =
       result: _,
       result_state: _,
       join_exp,
-      is_exhaustive: _,
+      is_exhaustive,
+      validity,
     }: model = model;
     let scrut =
       CodeEditable.Update.calculate(
@@ -99,7 +101,7 @@ module F =
         };
       Calc.set(self_co_ctx, scrut_co_ctx);
     };
-    let (cases, patterns) =
+    let (cases, constraints, validities) =
       List.map(
         InductionCase.calculate(
           ~settings,
@@ -114,7 +116,7 @@ module F =
         ),
         cases,
       )
-      |> ListUtil.unzip;
+      |> ListUtil.unzip3;
 
     let new_join_exp =
       List.fold_left(
@@ -138,6 +140,34 @@ module F =
         join_exp,
       );
 
+    let is_exhaustive =
+      is_exhaustive
+      |> {
+        let.calc constraints = Calc.combine_list(constraints)
+        and.calc ctx = ctx
+        and.calc scrut_ty = scrut_ty;
+        let constraints = List.filter_map(Fun.id, constraints);
+        Coverage.check(constraints, Typ.normalize(ctx, scrut_ty)).
+          is_exhaustive;
+      };
+
+    let validity =
+      validity
+      |> {
+        let.calc validities = Calc.combine_list(validities)
+        and.calc is_exhaustive = is_exhaustive;
+        List.fold_left(
+          (v1, v2) =>
+            switch (v1, v2) {
+            | (Some(true), Some(true)) => Some(true)
+            | (Some(false), Some(false)) => Some(false)
+            | (_, _) => None
+            },
+          is_exhaustive ? Option.join(ListUtil.hd_opt(validities)) : None,
+          validities,
+        );
+      };
+
     let result = exp |> Calc.save;
     let result_state = state |> Calc.save;
 
@@ -151,10 +181,12 @@ module F =
         result,
         result_state,
         join_exp: join_exp |> Calc.save,
-        is_exhaustive: Calc.Calculated(false),
+        is_exhaustive: is_exhaustive |> Calc.save,
+        validity: validity |> Calc.save,
       },
       hidden |> Calc.set(false),
       Some((join_exp, state)),
+      validity,
     ));
   };
 

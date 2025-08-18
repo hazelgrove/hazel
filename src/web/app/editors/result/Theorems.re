@@ -238,7 +238,14 @@ module View = {
               | _ => None
               },
             stepper_view,
-          );
+          )
+          @ [
+            switch (StepperView.Model.get_validity(stepper_view)) {
+            | Some(true) => WebUtil.Node.text("✓")
+            | Some(false) => WebUtil.Node.text("✗")
+            | None => WebUtil.Node.text("?")
+            },
+          ];
         },
         xs,
       )
