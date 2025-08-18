@@ -140,12 +140,8 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Unknown(Hole(MultiHole(_))) => Precedence.min
   };
 
-let external_precedence_typslice = (s: TypSlice.t) => {
-  TypSlice.typ_of(s) |> external_precedence_typ;
-};
-
-let external_precedence_typslice = (s: TypSlice.t) => {
-  TypSlice.typ_of(s) |> external_precedence_typ;
+let external_precedence_Typ = (s: Typ.t) => {
+  s |> external_precedence_typ;
 };
 
 let paren_at = (internal_precedence: Precedence.t, exp: Exp.t): Exp.t =>
@@ -167,35 +163,27 @@ let paren_pat_assoc_at =
 
 let paren_typ_at = (internal_precedence: Precedence.t, typ: Typ.t): Typ.t =>
   external_precedence_typ(typ) >= internal_precedence
-    ? Typ.fresh(Parens(typ)) : typ;
+    ? Typ.fresh_empty(Parens(typ)) : typ;
 
 let paren_typ_assoc_at =
     (internal_precedence: Precedence.t, typ: Typ.t): Typ.t =>
   external_precedence_typ(typ) > internal_precedence
-    ? Typ.fresh(Parens(typ)) : typ;
+    ? Typ.fresh_empty(Parens(typ)) : typ;
 
-let paren_typslice_at =
-    (internal_precedence: Precedence.t, typ: TypSlice.t): TypSlice.t =>
-  external_precedence_typslice(typ) >= internal_precedence
-    ? TypSlice.fresh(
-        `SliceIncr((Slice(Parens(typ)), TypSlice.empty_slice_incr)),
-      )
-    : typ;
+let paren_Typ_at = (internal_precedence: Precedence.t, typ: Typ.t): Typ.t =>
+  external_precedence_Typ(typ) >= internal_precedence
+    ? Typ.fresh_empty(Parens(typ)) : typ;
 
-let paren_typslice_assoc_at =
-    (internal_precedence: Precedence.t, typ: TypSlice.t): TypSlice.t =>
-  external_precedence_typslice(typ) > internal_precedence
-    ? TypSlice.fresh(
-        `SliceIncr((Slice(Parens(typ)), TypSlice.empty_slice_incr)),
-      )
-    : typ;
+let paren_Typ_assoc_at =
+    (internal_precedence: Precedence.t, typ: Typ.t): Typ.t =>
+  external_precedence_Typ(typ) > internal_precedence
+    ? Typ.fresh_empty(Parens(typ)) : typ;
 
 let rec parenthesize =
         (~show_filters: bool, ~already_paren=false, exp: Exp.t): Exp.t => {
   let parenthesize = parenthesize(~show_filters);
   let parenthesize_pat = parenthesize_pat(~show_filters);
   let parenthesize_typ = parenthesize_typ(~show_filters);
-  let parenthesize_typslice = parenthesize_typslice(~show_filters);
   let (term, rewrap) = Exp.unwrap(exp);
   switch (term) {
   // Indivisible forms dont' change
@@ -331,15 +319,15 @@ let rec parenthesize =
   | Cast(e, t1, t2) =>
     Cast(
       parenthesize(e) |> paren_assoc_at(Precedence.cast),
-      parenthesize_typslice(t1) |> paren_typslice_at(Precedence.cast),
-      parenthesize_typslice(t2) |> paren_typslice_at(Precedence.cast),
+      parenthesize_typ(t1) |> paren_Typ_at(Precedence.cast),
+      parenthesize_typ(t2) |> paren_Typ_at(Precedence.cast),
     )
     |> rewrap
   | FailedCast(e, t1, t2) =>
     FailedCast(
       parenthesize(e) |> paren_at(Precedence.cast),
-      parenthesize_typslice(t1) |> paren_typslice_at(Precedence.cast),
-      parenthesize_typslice(t2) |> paren_typslice_at(Precedence.cast),
+      parenthesize_typ(t1) |> paren_Typ_at(Precedence.cast),
+      parenthesize_typ(t2) |> paren_Typ_at(Precedence.cast),
     )
     |> rewrap
   | Test(e) => Test(parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
@@ -409,7 +397,7 @@ let rec parenthesize =
 and parenthesize_pat =
     (~show_filters: bool, ~already_paren=false, pat: Pat.t): Pat.t => {
   let parenthesize_pat = parenthesize_pat(~show_filters);
-  let parenthesize_typslice = parenthesize_typslice(~show_filters);
+  let parenthesize_Typ = parenthesize_typ(~show_filters);
   let (term, rewrap) = Pat.unwrap(pat);
   switch (term) {
   // Indivisible forms dont' change
@@ -472,8 +460,8 @@ and parenthesize_pat =
   | Cast(p, t1, t2) =>
     Cast(
       parenthesize_pat(p) |> paren_pat_assoc_at(Precedence.cast),
-      parenthesize_typslice(t1) |> paren_typslice_at(Precedence.max), // Hack[Matt]: always add parens to get the arrows right
-      parenthesize_typslice(t2) |> paren_typslice_at(Precedence.max),
+      parenthesize_Typ(t1) |> paren_Typ_at(Precedence.max), // Hack[Matt]: always add parens to get the arrows right
+      parenthesize_Typ(t2) |> paren_Typ_at(Precedence.max),
     )
     |> rewrap
   };
@@ -481,7 +469,7 @@ and parenthesize_pat =
 
 and parenthesize_typ =
     (~show_filters: bool, ~already_paren=false): (Typ.t => Typ.t) => {
-  IdTagged.apply(parenthesize_typ_term(~show_filters, ~already_paren));
+  Typ.map(parenthesize_typ_term(~show_filters, ~already_paren));
 }
 and parenthesize_typ_term =
     (~show_filters: bool, ~already_paren=false, typ: Typ.term): Typ.term => {
@@ -511,7 +499,7 @@ and parenthesize_typ_term =
         |> List.map(parenthesize_typ)
         |> List.map(paren_typ_at(Precedence.comma)),
       );
-    already_paren ? inner : Parens(inner |> Typ.fresh);
+    already_paren ? inner : Parens(inner |> Typ.fresh_empty);
   | Label(_) => typ
   | TupLabel(l, t) =>
     TupLabel(l, parenthesize_typ(t) |> paren_typ_at(Precedence.min))
@@ -548,77 +536,6 @@ and parenthesize_typ_term =
   | Unknown(Hole(MultiHole(xs))) =>
     Unknown(
       Hole(MultiHole(List.map(parenthesize_any(~show_filters), xs))),
-    )
-  };
-}
-and parenthesize_typslice =
-    (~show_filters: bool, ~already_paren=false): (TypSlice.t => TypSlice.t) => {
-  IdTagged.apply(parenthesize_typslice_term(~show_filters, ~already_paren));
-}
-and parenthesize_typslice_term =
-    (~show_filters: bool, ~already_paren=false)
-    : (TypSlice.term => TypSlice.term) => {
-  TypSlice.map(
-    parenthesize_typ_term(~show_filters, ~already_paren),
-    parenthesize_slice_term(~show_filters, ~already_paren),
-  );
-}
-and parenthesize_slice_term =
-    (~show_filters: bool, ~already_paren=false, slc: TypSlice.slc_typ_term)
-    : TypSlice.slc_typ_term => {
-  let parenthesize_typslice = parenthesize_typslice(~show_filters);
-  switch (slc) {
-  | Parens(t) =>
-    Parens(parenthesize_typslice(t) |> paren_typslice_at(Precedence.min))
-  | List(t) =>
-    List(parenthesize_typslice(t) |> paren_typslice_at(Precedence.min))
-  | Prod(ts) =>
-    let inner: TypSlice.slc_typ_term =
-      Prod(
-        ts
-        |> List.map(parenthesize_typslice)
-        |> List.map(paren_typslice_at(Precedence.comma)),
-      );
-    already_paren
-      ? inner : Parens(inner |> IdTagged.fresh |> TypSlice.t_of_slc_typ_t);
-  | TupLabel(l, t) =>
-    TupLabel(
-      l,
-      parenthesize_typslice(t) |> paren_typslice_at(Precedence.min),
-    )
-  | Ap(t1, t2) =>
-    Ap(
-      parenthesize_typslice(t1)
-      |> paren_typslice_assoc_at(Precedence.type_sum_ap),
-      parenthesize_typslice(t2) |> paren_typslice_at(Precedence.min),
-    )
-  | Rec(tp, t) =>
-    Rec(
-      tp,
-      parenthesize_typslice(t)
-      |> paren_typslice_assoc_at(Precedence.type_binder),
-    )
-  | Forall(tp, t) =>
-    Forall(
-      tp,
-      parenthesize_typslice(t)
-      |> paren_typslice_assoc_at(Precedence.type_binder),
-    )
-  | Arrow(t1, t2) =>
-    Arrow(
-      parenthesize_typslice(t1) |> paren_typslice_at(Precedence.type_arrow),
-      parenthesize_typslice(t2)
-      |> paren_typslice_assoc_at(Precedence.type_arrow),
-    )
-  | Sum(ts) =>
-    Sum(
-      ConstructorMap.map(
-        ts =>
-          ts
-          |> Option.map(parenthesize_typslice)
-          |> Option.map(paren_typslice_at(Precedence.type_plus)),
-        ts,
-      ),
     )
   };
 }
@@ -668,7 +585,6 @@ and parenthesize_any =
   | Exp(e) => Exp(parenthesize(~already_paren, ~show_filters, e))
   | Pat(p) => Pat(parenthesize_pat(~already_paren, ~show_filters, p))
   | Typ(t) => Typ(parenthesize_typ(~already_paren, ~show_filters, t))
-  | TypSlice(t) => TypSlice(parenthesize_typslice(~show_filters, t))
   | TPat(tp) => TPat(parenthesize_tpat(~show_filters, tp))
   | Rul(r) => Rul(parenthesize_rul(~show_filters, r))
   | Any(_) => any
@@ -930,7 +846,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       switch (t) {
       | None => p
       | Some(t) =>
-        let t = t |> TypSlice.replace_temp;
+        let t = t |> Typ.replace_temp;
         Pat.fresh(Cast(p, t, t))
         |> parenthesize_pat(~show_filters=settings.show_filters);
       };
@@ -1145,7 +1061,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   | Cast(e, _, t) =>
     let id = exp |> Exp.rep_id;
     let+ e = go(e)
-    and+ t = typslice_to_pretty(~settings: Settings.t, t);
+    and+ t = typ_to_pretty(~settings: Settings.t, t);
     e @ [mk_form(TypeAsc, id, [])] @ t;
   | Match(e, rs) =>
     // TODO: Add newlines
@@ -1292,7 +1208,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
   | Cast(p, t, _) =>
     let id = pat |> Pat.rep_id;
     let+ p = go(p)
-    and+ t = typslice_to_pretty(~settings: Settings.t, t);
+    and+ t = typ_to_pretty(~settings: Settings.t, t);
     p @ [mk_form(Typeann, id, [])] @ t;
   };
 }
@@ -1439,117 +1355,6 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
       );
   };
 }
-and slice_to_pretty = (~settings: Settings.t, typ: TypSlice.slc_typ_t): pretty => {
-  let go = typslice_to_pretty(~settings: Settings.t);
-  let go_constructor: ConstructorMap.variant(TypSlice.t) => pretty =
-    fun
-    | Variant(c, ids, None) => {
-        text_to_pretty(
-          Option.value(~default=Id.invalid, ListUtil.hd_opt(ids)),
-          Sort.Typ,
-          c,
-        );
-      }
-    | Variant(c, ids, Some(x)) => {
-        let+ constructor =
-          text_to_pretty(
-            Option.value(~default=Id.invalid, ListUtil.nth_opt(1, ids)),
-            Sort.Typ,
-            c,
-          );
-        constructor
-        @ [
-          mk_form(
-            ApTyp,
-            Option.value(~default=Id.invalid, ListUtil.hd_opt(ids)),
-            [go(x)],
-          ),
-        ];
-      }
-    | BadEntry(x) => go(x);
-  switch (typ |> IdTagged.term_of) {
-  | List(t) =>
-    let id = typ |> IdTagged.rep_id;
-    let+ t = go(t);
-    [mk_form(ListTyp, id, [t])];
-  | Prod([]) => text_to_pretty(typ |> IdTagged.rep_id, Sort.Typ, "()")
-  | Prod([_]) => text_to_pretty(typ |> IdTagged.rep_id, Sort.Typ, "()")
-  | Prod([t, ...ts]) =>
-    let+ t = go(t)
-    and+ ts = ts |> List.map(go) |> all;
-    t
-    @ List.flatten(
-        List.map2(
-          (id, t) => [mk_form(CommaTyp, id, [])] @ t,
-          IdTagged.ids(typ) |> pad_ids(ts |> List.length),
-          ts,
-        ),
-      );
-  | TupLabel(l, t) =>
-    let+ l = go(l)
-    and+ t = go(t);
-
-    List.flatten([
-      l,
-      [
-        Tile({
-          id: typ |> IdTagged.rep_id,
-          label: ["="],
-          mold: Mold.mk_bin(Precedence.lab, Sort.Typ, []),
-          shards: [0],
-          children: [],
-        }),
-      ],
-      if (Form.begins_with_potential_operator(Segment.first_string(t))) {
-        [Secondary(Secondary.mk_space(Id.mk()))] @ t;
-      } else {
-        t;
-      },
-    ]);
-  | Parens(t) =>
-    let id = typ |> IdTagged.rep_id;
-    let+ t = go(t);
-    [mk_form(ParensTyp, id, [t])];
-  | Ap(t1, t2) =>
-    let id = typ |> IdTagged.rep_id;
-    let+ t1 = go(t1)
-    and+ t2 = go(t2);
-    t1 @ [mk_form(ApTyp, id, [t2])];
-  | Rec(tp, t) =>
-    let id = typ |> IdTagged.rep_id;
-    let+ tp = tpat_to_pretty(~settings: Settings.t, tp)
-    and+ t = go(t);
-    [mk_form(Rec, id, [tp])] @ t;
-  | Forall(tp, t) =>
-    let id = typ |> IdTagged.rep_id;
-    let+ tp = tpat_to_pretty(~settings: Settings.t, tp)
-    and+ t = go(t);
-    [mk_form(Forall, id, [tp])] @ t;
-  | Arrow(t1, t2) =>
-    let id = typ |> IdTagged.rep_id;
-    let+ t1 = go(t1)
-    and+ t2 = go(t2);
-    t1 @ [mk_form(TypeArrow, id, [])] @ t2;
-  | Sum([]) => failwith("Empty Sums are not allowed")
-  | Sum([t]) =>
-    let id = typ |> IdTagged.rep_id;
-    let+ t = go_constructor(t);
-    [mk_form(TypSumSingle, id, [])] @ t;
-  | Sum([t, ...ts]) =>
-    let ids = IdTagged.ids(typ) |> pad_ids(List.length(ts) + 1);
-    let id = List.hd(ids);
-    let ids = List.tl(ids);
-    let+ t = go_constructor(t)
-    and+ ts = ts |> List.map(go_constructor) |> all;
-    [mk_form(TypSumSingle, id, [])]
-    @ t
-    @ List.flatten(
-        List.map2((id, t) => [mk_form(TypPlus, id, [])] @ t, ids, ts),
-      );
-  };
-}
-and typslice_to_pretty = (~settings) =>
-  TypSlice.apply_t(typ_to_pretty(~settings), slice_to_pretty(~settings))
 and tpat_to_pretty = (~settings: Settings.t, tpat: TPat.t): pretty => {
   switch (tpat |> IdTagged.term_of) {
   | Invalid(t) => text_to_pretty(tpat |> TPat.rep_id, Sort.TPat, t)
@@ -1579,7 +1384,6 @@ and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
   | Exp(e) => exp_to_pretty(~settings: Settings.t, e)
   | Pat(p) => pat_to_pretty(~settings: Settings.t, p)
   | Typ(t) => typ_to_pretty(~settings: Settings.t, t)
-  | TypSlice(t) => typslice_to_pretty(~settings: Settings.t, t)
   | TPat(tp) => tpat_to_pretty(~settings: Settings.t, tp)
   | Any(_)
   | Rul(_) =>

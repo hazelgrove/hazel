@@ -2,14 +2,14 @@ open Virtual_dom.Vdom;
 open Node;
 open ProjectorBase;
 
-let expected_ty = (info: option(Info.t)): option(TypSlice.t) =>
+let expected_ty = (info: option(Info.t)): option(Typ.t) =>
   switch (info) {
   | Some(InfoExp({ana, _}))
   | Some(InfoPat({ana, _})) => Some(ana)
   | _ => None
   };
 
-let self_ty = (info: option(Info.t)): option(TypSlice.t) =>
+let self_ty = (info: option(Info.t)): option(Typ.t) =>
   switch (info) {
   | Some(InfoExp({self, ctx, _})) => Self.typ_of_exp(ctx, self)
   | Some(InfoPat({self, ctx, _})) => Self.typ_of_pat(ctx, self)
@@ -19,7 +19,7 @@ let self_ty = (info: option(Info.t)): option(TypSlice.t) =>
 let totalize_ty = (expected_ty: option(Typ.t)): Typ.t =>
   switch (expected_ty) {
   | Some(expected_ty) => expected_ty
-  | None => Typ.fresh(Unknown(Internal))
+  | None => Typ.fresh_empty(Unknown(Internal))
   };
 
 module M: Projector = {
@@ -44,7 +44,7 @@ module M: Projector = {
   let dynamics = false;
   let focusable = Focusable.non;
 
-  let display_ty = (model, statics): option(TypSlice.t) =>
+  let display_ty = (model, statics): option(Typ.t) =>
     switch (model) {
     | _ when expected_ty(statics) |> totalize_ty |> Typ.is_syn =>
       statics |> self_ty
@@ -67,10 +67,7 @@ module M: Projector = {
     );
 
   let typ_view = (model, info: info, utility, view_seg: View.seg) => {
-    let typ =
-      display_ty(model, info.statics)
-      |> Option.map(TypSlice.typ_of)
-      |> totalize_ty;
+    let typ = display_ty(model, info.statics) |> totalize_ty;
     div(
       ~attrs=[Attr.classes(["type-cell"])],
       [Typ(typ) |> utility.term_to_seg |> view_seg(Sort.Typ)],

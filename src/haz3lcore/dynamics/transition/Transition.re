@@ -361,8 +361,8 @@ module Transition = (EV: EV_MODE) => {
           expr:
             cast(
               typ_ap(d'', tau),
-              TypSlice.subst(tau |> TypSlice.t_of_typ_t, tp1, s1),
-              TypSlice.subst(tau |> TypSlice.t_of_typ_t, tp2, s2),
+              Typ.subst(tau, tp1, s1),
+              Typ.subst(tau, tp2, s2),
             ),
           state_update,
           kind: CastTypAp,

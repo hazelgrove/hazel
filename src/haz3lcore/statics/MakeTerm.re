@@ -140,9 +140,18 @@ let should_instrument = (id: Id.t): bool =>
 
 let parse_sum_term: Typ.t => ConstructorMap.variant(Typ.t) =
   fun
-  | {term: Var(ctr), annotation: {ids, _}} => Variant(ctr, ids, None)
+  | {term: {typ: Var(ctr), _}, annotation: {ids, _}} =>
+    Variant(ctr, ids, None)
   | {
-      term: Ap({term: Var(ctr), annotation: {ids: ids_ctr, _}}, u),
+      term:
+        {
+          typ:
+            Ap(
+              {term: {typ: Var(ctr), _}, annotation: {ids: ids_ctr, _}},
+              u,
+            ),
+          _,
+        },
       annotation: {ids: ids_ap, _},
     } =>
     Variant(ctr, ids_ctr @ ids_ap, Some(u))
@@ -153,11 +162,11 @@ let mk_bad = (ctr, ids, value) => {
     annotation: {
       ids: ids,
     },
-    term: Var(ctr),
+    term: Var(ctr) |> Typ.empty,
   };
   switch (value) {
   | None => t
-  | Some(u) => Ap(t, u) |> Typ.fresh
+  | Some(u) => Ap(t, u) |> Typ.fresh_empty
   };
 };
 
@@ -523,8 +532,8 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
       ret(
         Cast(
           p,
-          ty |> TypSlice.t_of_typ_t_sliced,
-          `Typ(Unknown(Internal)) |> TypSlice.fresh // TODO: a slice might be useful here
+          ty,
+          Unknown(Internal) |> Typ.fresh_empty // TODO: a slice might be useful here
         ),
       )
     | _ => ret(hole(tm))
@@ -581,14 +590,14 @@ and typ = (unsorted): Typ.t => {
       ty => Typ(ty),
       ids,
       {
-        term,
+        term: Typ.empty(term),
         annotation: {
           ids: ids,
         },
       },
     );
   switch (term) {
-  | TupLabel(_) => Prod([t]) |> Typ.fresh
+  | TupLabel(_) => Prod([t]) |> Typ.fresh_empty
   | _ => t
   };
 }
@@ -610,7 +619,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | (["Nat"], []) => Atom(Nat)
         | ([t], []) when Form.is_typ_var(t) => Var(t)
         | (["(", ")"], [Typ(body)]) => Parens(body)
-        | (label, [Typ(body)]) when is_probe_wrap(label) => body.term
+        | (label, [Typ(body)]) when is_probe_wrap(label) => body.term.typ
         | (["[", "]"], [Typ(body)]) => List(body)
         | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
           Unknown(Hole(Invalid(t)))
@@ -631,7 +640,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     ret(Forall(tpat, t))
   | Pre(([(_id, (["rec", "->"], [TPat(tpat)]))], []), Typ(t)) =>
     ret(Rec(tpat, t))
-  | Pre(tiles, Typ({term: Sum(t0), annotation: {ids, _}})) as tm =>
+  | Pre(tiles, Typ({term: {typ: Sum(t0), _}, annotation: {ids, _}})) as tm =>
     /* Case for leading prefix + preceeding a sum */
     switch (tiles) {
     | ([(_, (["+"], []))], []) => (Sum(t0), ids)
@@ -648,10 +657,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     | Some(between_kids) =>
       ret(
         Sum(
-          List.map(
-            parse_sum_term,
-            [t1] @ List.map(TypSlice.typ_of, between_kids) @ [t2],
-          )
+          List.map(parse_sum_term, [t1] @ between_kids @ [t2])
           |> ConstructorMap.mk(~mk_bad),
         ),
       )
@@ -662,11 +668,18 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     | Some(between_kids) =>
       let tuple_children: list(Typ.t) =
         [l]
-        @ List.map(TypSlice.typ_of, between_kids)
+        @ between_kids
         @ [r]
         |> List.map((child: Typ.t) => {
              switch (child) {
-             | {term: Prod([{term: TupLabel(_), _} as tl]), _} => tl
+             | {
+                 term:
+                   {
+                     typ: Prod([{term: {typ: TupLabel(_), _}, _} as tl]),
+                     _,
+                   },
+                 _,
+               } => tl
              | _ => child
              }
            });
@@ -676,13 +689,13 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
       switch (tiles) {
       | ([(_id, (["->"], []))], []) => ret(Arrow(l, r))
       | ([(_id, (["="], []))], []) =>
-        switch (l.term) {
+        switch (l.term.typ) {
         | Var(name) =>
           ret(
             TupLabel(
               {
                 annotation: l.annotation,
-                term: Label(name),
+                term: Typ.empty(Label(name)),
               },
               r,
             ),
@@ -874,7 +887,7 @@ let for_projection =
           }
         | Typ =>
           switch (typ(unsorted)) {
-          | {term: Prod(_), _} => None
+          | {term: {typ: Prod(_), _}, _} => None
           | _ => Some(Typ(typ(unsorted)))
           }
         | TPat =>

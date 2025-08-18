@@ -33,7 +33,7 @@ module IntroducePat: Introducable with type t = Pat.t = {
     (
       IdTagged.FreshGrammar.(
         Pat.(
-          switch (ty.term) {
+          switch (ty.term.typ) {
           | Prod([]) =>
             Some(tuple([]) |> (pat => (pat, List.hd(pat.annotation.ids))))
           | Prod([_, ...ts]) =>
@@ -88,7 +88,7 @@ module IntroduceExp: Introducable with type t = Exp.t = {
   let introduce = (ty: Typ.t) =>
     IdTagged.FreshGrammar.(
       Exp.(
-        switch (ty.term) {
+        switch (ty.term.typ) {
         | Arrow(_, _) =>
           let cursor_pat = Pat.empty_hole();
           Some((
@@ -105,7 +105,11 @@ module IntroduceExp: Introducable with type t = Exp.t = {
             let hole = empty_hole();
             (
               switch (t) {
-              | {term: TupLabel({term: Label(l), _}, _), _} =>
+              | {
+                  term:
+                    {typ: TupLabel({term: {typ: Label(l), _}, _}, _), _},
+                  _,
+                } =>
                 tup_label(label(l), hole)
               | _ => hole
               },

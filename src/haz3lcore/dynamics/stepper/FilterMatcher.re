@@ -152,8 +152,8 @@ let rec matches_exp =
 
     | (Cast(d, dty1, dty2), Cast(f, fty1, fty2)) =>
       matches_exp(d, f)
-      && matches_typ(TypSlice.typ_of(dty1), TypSlice.typ_of(fty1))
-      && matches_typ(TypSlice.typ_of(dty2), TypSlice.typ_of(fty2))
+      && matches_typ(dty1, fty1)
+      && matches_typ(dty2, fty2)
     | (Cast(_), _) => false
     | (Closure(denv, d), Closure(fenv, f)) =>
       matches_exp(~denv, d, ~fenv, f)
@@ -227,18 +227,8 @@ let rec matches_exp =
       | (_, EmptyHole) => matches_exp(d, f)
       | _ =>
         let id = alpha_magic ++ Uuidm.to_string(Uuidm.v(`V4));
-        let d' =
-          DHExp.ty_subst(
-            (Var(id): TermBase.Typ.term) |> IdTagged.fresh,
-            dpat,
-            d,
-          );
-        let f' =
-          DHExp.ty_subst(
-            (Var(id): TermBase.Typ.term) |> IdTagged.fresh,
-            fpat,
-            f,
-          );
+        let d' = DHExp.ty_subst(Var(id) |> Typ.fresh_empty, dpat, d);
+        let f' = DHExp.ty_subst(Var(id) |> Typ.fresh_empty, fpat, f);
         matches_exp(d', f');
       }
     | (TypFun(_), _) => false
