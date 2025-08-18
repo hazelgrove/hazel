@@ -303,7 +303,14 @@ let put_down_regrout_remold_tok =
 };
 
 let rec construct =
-        (~caret: Direction.t, ~backpack: Direction.t, label: Label.t, z: t): t => {
+        (
+          ~id: Id.t=Id.mk(),
+          ~caret: Direction.t,
+          ~backpack: Direction.t,
+          label: Label.t,
+          z: t,
+        )
+        : t => {
   switch (label) {
   | [t] when Form.is_string_delim(t) =>
     /* Special case for constructing string literals.
@@ -312,12 +319,10 @@ let rec construct =
   | [content] when Form.is_comment(content) =>
     /* Special case for comments, can't rely on the last branch to construct */
     let content = Secondary.construct_comment(content);
-    let id = Id.mk();
     let z = destruct(z);
     put_down_seg(caret, Base.mk_secondary(id, content), z);
   | [content] when Form.is_secondary(content) =>
     let content = Secondary.Whitespace(content);
-    let id = Id.mk();
     z
     |> update_siblings(((l, r)) =>
          (
@@ -337,7 +342,6 @@ let rec construct =
     assert(molds != []);
     // initial mold to typecheck, will be remolded
     let mold = List.hd(molds);
-    let id = Id.mk();
     let selections =
       Tile.split_shards(id, label, mold, List.mapi((i, _) => i, label))
       |> List.map(Segment.of_tile)
@@ -346,8 +350,8 @@ let rec construct =
   };
 };
 
-let construct_mono = (d: Direction.t, t: Token.t, z: t): t =>
-  construct(~caret=d, ~backpack=Left, [t], z);
+let construct_mono = (~id, d: Direction.t, t: Token.t, z: t): t =>
+  construct(~id, ~caret=d, ~backpack=Left, [t], z);
 
 let rec get_leaf_pieces =
         (syntaxNode: Piece.t, ~ignored_labels: list(list(string)))
@@ -397,10 +401,11 @@ let delete = (d: Direction.t, z: t): option(t) => {
 };
 
 let replace =
-    (~caret: Direction.t, ~backpack: Direction.t, l: Label.t, z: t)
-    : option(t) =>
+    (~id: Id.t, ~caret: Direction.t, ~backpack: Direction.t, l: Label.t, z: t)
+    : option(t) => {
   /* i.e. select and construct, overwriting the selection */
-  z |> delete(caret) |> Option.map(construct(~caret, ~backpack, l));
+  z |> delete(caret) |> Option.map(construct(~id, ~caret, ~backpack, l));
+};
 
 let match_prev = (z: t) =>
   switch (neighbor_monotiles(z.relatives.siblings)) {
@@ -412,8 +417,22 @@ let match_prev = (z: t) =>
   | _ => None
   };
 
-let replace_mono = (d: Direction.t, t: Token.t, z: t): option(t) =>
-  replace(~caret=d, ~backpack=Left, [t], z);
+let adjacent_monotile_id = (d: Direction.t, z: t): option(Id.t) =>
+  switch (Siblings.neighbors(z.relatives.siblings)) {
+  | (Some(Tile({id, label: [_], _})), _) when d == Left => Some(id)
+  | (_, Some(Tile({id, label: [_], _}))) when d == Right => Some(id)
+  | _ => None
+  };
+
+let replace_mono = (d: Direction.t, t: Token.t, z: t): option(t) => {
+  /* Re-use existing monotile id where appropriate */
+  let id =
+    switch (adjacent_monotile_id(d, z)) {
+    | Some(id) => id
+    | None => Id.mk()
+    };
+  replace(~id, ~caret=d, ~backpack=Left, [t], z);
+};
 
 let representative_piece = (z: t): option((Piece.t, Direction.t)) => {
   /* The piece to the left of the caret, or if none exists, the piece to the right */
