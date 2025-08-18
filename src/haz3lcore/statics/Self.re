@@ -274,11 +274,18 @@ let of_prod = (ids: list(Id.t), tys: list(Typ.t)) =>
     Prod(tys) |> Typ.from_syn_slice(ids |> CodeSlice.of_ids) |> Typ.temp,
   );
 
-// Base types slices should all contain the term's ids
-let of_base = (ids: list(Id.t), ty: Typ.term) =>
-  Just(ty |> Typ.from_syn_slice(CodeSlice.of_ids(ids)) |> Typ.temp);
-// Operation slices are similarly determined by their ids
-let of_op = of_base;
+let of_atom = (ids: list(Id.t)) =>
+  Either.(
+    fun
+    | L(c) => {
+        let ty =
+          Atom(Atom.cls_of_t(c))
+          |> Typ.from_syn_slice(CodeSlice.of_ids(ids))
+          |> Typ.temp;
+        Just(ty);
+      }
+    | R(Operators.BadInt(str)) => BadToken(str)
+  );
 
 let of_parens = (ids: list(Id.t), ty: Typ.t) =>
   Just(ty |> Typ.(wrap_syn_slice(CodeSlice.of_ids(ids))));
