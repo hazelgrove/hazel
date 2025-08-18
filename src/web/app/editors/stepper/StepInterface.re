@@ -22,6 +22,7 @@ module type STEP = {
       ~env: Calc.t(ClosureEnvironment.t),
       ~state: Calc.t(EvaluatorState.t),
       ~editor: Calc.t(CodeSelectable.Model.t),
+      ~ana: Calc.t(Typ.t),
       model
     ) =>
     option(
@@ -85,6 +86,7 @@ module type STEPPER = {
       ~ctx: Calc.t(Ctx.t),
       ~env: Calc.t(ClosureEnvironment.t),
       ~state: Calc.t(EvaluatorState.t),
+      ~ana: Calc.t(Typ.t),
       model
     ) =>
     (model, Calc.t(Exp.t));

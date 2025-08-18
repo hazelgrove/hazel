@@ -62,6 +62,7 @@ module F =
         ~env as _: Calc.t(ClosureEnvironment.t),
         ~state: Calc.t(EvaluatorState.t),
         ~editor as _: Calc.t(CodeSelectable.Model.t),
+        ~ana as _,
         model: model,
       ) => {
     let {name, at_id, at_exp, with_exp, next_exp} = model;

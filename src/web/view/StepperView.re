@@ -37,6 +37,7 @@ module Update = {
         ~ctx: Calc.t(Ctx.t),
         ~env: Calc.t(ClosureEnvironment.t),
         elab: Calc.t(Exp.t),
+        ~ana=Calc.OldValue(Typ.fresh(Unknown(SynSwitch))),
         {cached_elab_subst, root}: Model.t,
       )
       : Model.t => {
@@ -55,6 +56,7 @@ module Update = {
         ~exp=elab_subst,
         ~env,
         ~state,
+        ~ana,
         root,
       )
       |> fst;

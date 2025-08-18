@@ -157,6 +157,7 @@ module rec StepKind: {
             ~env: Calc.t(ClosureEnvironment.t),
             ~state: Calc.t(EvaluatorState.t),
             ~editor: Calc.t(CodeSelectable.Model.t),
+            ~ana,
             model: model,
           ) =>
     switch (model) {
@@ -170,6 +171,7 @@ module rec StepKind: {
           ~env,
           ~state,
           ~editor,
+          ~ana,
           m,
         );
       (SingleStep(m): model, h, e);
@@ -183,6 +185,7 @@ module rec StepKind: {
           ~env,
           ~state,
           ~editor,
+          ~ana,
           m,
         );
       (CasesStep(m): model, h, e);
@@ -196,6 +199,7 @@ module rec StepKind: {
           ~env,
           ~state,
           ~editor,
+          ~ana,
           m,
         );
       (InductionStep(m): model, h, e);
@@ -209,6 +213,7 @@ module rec StepKind: {
           ~env,
           ~state,
           ~editor,
+          ~ana,
           m,
         );
       (ForallStep(m): model, h, e);
@@ -247,6 +252,7 @@ module rec StepKind: {
           }): model,
           ~hidden,
           ~editor,
+          ~ana,
         )
       | None =>
         Some((
@@ -276,6 +282,7 @@ module rec StepKind: {
           ~env,
           ~state,
           ~editor,
+          ~ana,
           m,
         );
       (AxiomStep(m): model, h, e);
@@ -672,6 +679,7 @@ and Stepper: {
             ~ctx: Calc.t(Ctx.t),
             ~env: Calc.t(ClosureEnvironment.t),
             ~state: Calc.t(EvaluatorState.t),
+            ~ana: Calc.t(Typ.t),
             {expr: _, state: _, editor, step_kind, next_step, hidden}: step_model,
           )
           : (step_model, Calc.t(Exp.t)) => {
@@ -680,7 +688,8 @@ and Stepper: {
       |> {
         let.calc settings = settings
         and.calc expr = expr
-        and.calc ctx = ctx;
+        and.calc ctx = ctx
+        and.calc ana = ana;
         expr
         |> CodeWithStatics.Model.mk_from_exp(~settings)
         |> CodeSelectable.Update.calculate(
@@ -689,6 +698,7 @@ and Stepper: {
              ~is_edited=true,
              ~ctx,
              ~dynamics=Dynamics.Map.empty,
+             ~ana,
              ~stitch=_ =>
              expr
            );
@@ -702,6 +712,7 @@ and Stepper: {
         ~state,
         ~hidden,
         ~editor,
+        ~ana,
         step_kind,
       )
       |> OptUtil.get(() =>
@@ -714,6 +725,7 @@ and Stepper: {
                 ~state,
                 ~hidden,
                 ~editor,
+                ~ana,
               )
            |> Option.get
          );
@@ -728,6 +740,7 @@ and Stepper: {
             ~ctx,
             ~env,
             ~state=next_state,
+            ~ana,
             next_step,
           );
         (Some(next_step), last_expr);

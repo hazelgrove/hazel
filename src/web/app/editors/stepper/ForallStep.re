@@ -79,6 +79,7 @@ module F =
         ~env: Calc.t(ClosureEnvironment.t),
         ~state: Calc.t(EvaluatorState.t),
         ~editor as _: Calc.t(CodeSelectable.Model.t),
+        ~ana: Calc.t(Typ.t),
         model: model,
       ) => {
     let {inner_exp, bindings, inner_stepper, result_function} = model;
@@ -106,6 +107,7 @@ module F =
         ~env,
         ~exp=inner_exp,
         ~state,
+        ~ana,
         inner_stepper,
       );
     let result_function =

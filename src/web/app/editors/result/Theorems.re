@@ -154,6 +154,7 @@ module Update = {
                      ~settings,
                      ~ctx,
                      ~env,
+                     ~ana=Calc.OldValue(Typ.fresh(Atom(Bool))),
                      goal_exp,
                      stepper_view,
                    );

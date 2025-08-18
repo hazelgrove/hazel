@@ -40,6 +40,7 @@ module Update = {
         ~is_edited,
         ~stitch,
         ~dynamics: Language.Dynamics.Map.t,
+        ~ana,
         {editor, taken_steps, next_steps, refls}: Model.t,
       )
       : Model.t => {
@@ -50,6 +51,7 @@ module Update = {
         ~stitch,
         ~dynamics,
         ~is_dynamic_term=true,
+        ~ana,
         editor,
       );
     {

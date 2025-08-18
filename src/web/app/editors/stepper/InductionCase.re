@@ -81,6 +81,7 @@ module F = (Stepper: STEPPER) => {
         ~ctx: Calc.t(Ctx.t),
         ~env: Calc.t(ClosureEnvironment.t),
         ~state: Calc.t(EvaluatorState.t),
+        ~ana: Calc.t(Typ.t),
         model: model,
       ) => {
     let pattern =
@@ -228,6 +229,7 @@ module F = (Stepper: STEPPER) => {
         ~exp=inner_exp,
         ~env,
         ~state,
+        ~ana,
         model.step,
       );
 

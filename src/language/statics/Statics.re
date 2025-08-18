@@ -1961,8 +1961,9 @@ and variant_to_info_map =
 };
 
 let mk =
-  Core.Memo.general(~cache_size_bound=1000, (ctx, e) => {
+  Core.Memo.general(~cache_size_bound=1000, (ana, ctx, e) => {
     uexp_to_info_map(
+      ~ana,
       ~ctx,
       ~ancestors=[],
       ~duplicates=[],
@@ -1974,8 +1975,8 @@ let mk =
     |> snd
   });
 
-let mk = (core: CoreSettings.t, ctx, exp) =>
-  core.statics ? mk(ctx, exp) : Id.Map.empty;
+let mk = (~ana=Typ.temp(Unknown(SynSwitch)), core: CoreSettings.t, ctx, exp) =>
+  core.statics ? mk(ana, ctx, exp) : Id.Map.empty;
 
 let get_error_at = (info_map: Map.t, id: Id.t) => {
   id

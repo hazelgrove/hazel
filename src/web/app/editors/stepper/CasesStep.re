@@ -43,6 +43,7 @@ module F =
         ~env: Calc.t(ClosureEnvironment.t),
         ~state: Calc.t(EvaluatorState.t),
         ~editor as _,
+        ~ana: Calc.t(Typ.t),
         model: model,
       ) => {
     let {
@@ -109,6 +110,7 @@ module F =
           ~env,
           ~exp,
           ~state,
+          ~ana,
         ),
         cases,
       )
