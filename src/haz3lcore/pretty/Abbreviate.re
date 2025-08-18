@@ -45,6 +45,7 @@ let abbreviate_str = (min_len: int, s: string): string => {
 
 let indet_term: Exp.term = Invalid("?");
 let indet_term_typ: Typ.term = Unknown(Internal);
+let indet_term_typslice: Typ.slice = indet_term_typ |> Typ.empty;
 let indet_term_pat: Pat.term = Invalid("?");
 let indet_term_rul: Rul.term = Invalid("?");
 let indet_term_tpat: TPat.term = Invalid("?");
@@ -464,7 +465,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
             tp',
             {
               ...t,
-              term: indet_term_typ,
+              term: indet_term_typslice,
             },
             {
               ...e,
@@ -557,7 +558,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
             e',
             {
               ...t,
-              term: indet_term_typ,
+              term: indet_term_typslice,
             },
           );
         };
@@ -699,15 +700,15 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
         let p' = abbreviate_pat(p);
         if (available^ > 1) {
           available := available^ - 1;
-          let t' = abbreviate_typ(t2 |> TypSlice.typ_of);
-          Cast(p', t1, t' |> TypSlice.t_of_typ_t);
+          let t' = abbreviate_typ(t2);
+          Cast(p', t1, t');
         } else {
           Cast(
             p',
             t1,
             {
               ...t2,
-              term: `Typ(indet_term_typ),
+              term: indet_term_typslice,
             },
           );
         };
@@ -775,7 +776,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
   let rewrap = (term: Typ.term): Typ.t => {
     {
       ...typ,
-      term,
+      term: term |> Typ.empty,
     };
   };
 
@@ -841,7 +842,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
             t1',
             {
               ...t2,
-              term: indet_term_typ,
+              term: indet_term_typ |> Typ.empty,
             },
           );
         };
@@ -893,7 +894,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
             t1',
             {
               ...t2,
-              term: indet_term_typ,
+              term: indet_term_typslice,
             },
           );
         };
@@ -913,7 +914,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
             tp',
             {
               ...t,
-              term: indet_term_typ,
+              term: indet_term_typslice,
             },
           );
         };
@@ -933,7 +934,7 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
             tp',
             {
               ...t,
-              term: indet_term_typ,
+              term: indet_term_typslice,
             },
           );
         };
@@ -966,7 +967,6 @@ and abbreviate_any = (any: Any.t): Any.t =>
   | Exp(e) => Exp(abbreviate_exp(e))
   | Pat(p) => Pat(abbreviate_pat(p))
   | Typ(t) => Typ(abbreviate_typ(t))
-  | TypSlice(t) => Typ(abbreviate_typ(t |> TypSlice.typ_of))
   | TPat(tp) => TPat(abbreviate_tpat(tp))
   | Rul(_r) => failwith("TODO")
   | Any(_) => any

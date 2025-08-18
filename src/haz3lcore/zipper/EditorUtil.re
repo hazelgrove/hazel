@@ -88,7 +88,10 @@ let wrap_filter = (act: FilterAction.action, term: Exp.t): Exp.t => {
         act: FilterAction.(act, One),
         pat: {
           term:
-            Constructor("$e", Some(Some(Unknown(Internal) |> Typ.fresh))),
+            Constructor(
+              "$e",
+              Some(Some(Unknown(Internal) |> Typ.fresh_empty)),
+            ),
           annotation: {
             ids: [Id.mk()],
           },

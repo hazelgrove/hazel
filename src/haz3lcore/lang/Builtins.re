@@ -45,7 +45,7 @@ let concat = (builtins: t, new_builtins: t): t => {
 };
 
 let const = (name: Var.t, typ: Typ.term, v: DHExp.t, builtins: t): t =>
-  extend(builtins, (name, Const(typ |> Typ.fresh, v)));
+  extend(builtins, (name, Const(typ |> Typ.fresh_empty, v)));
 let fn =
     (
       name: Var.t,
@@ -55,7 +55,10 @@ let fn =
       builtins: t,
     )
     : t =>
-  extend(builtins, (name, Fn(t1 |> Typ.fresh, t2 |> Typ.fresh, impl)));
+  extend(
+    builtins,
+    (name, Fn(t1 |> Typ.fresh_empty, t2 |> Typ.fresh_empty, impl)),
+  );
 
 let (let-unbox) = ((request, v), f) =>
   switch (Unboxing.unbox(request, v)) {
@@ -278,8 +281,8 @@ module Pervasives = {
     switch (b) {
     | OneFun(k1, k2, f) =>
       Fn(
-        Atom(k1 |> Atom.cls_of_kind) |> Typ.fresh,
-        Atom(k2 |> Atom.cls_of_kind) |> Typ.fresh,
+        Atom(k1 |> Atom.cls_of_kind) |> Typ.fresh_empty,
+        Atom(k2 |> Atom.cls_of_kind) |> Typ.fresh_empty,
         (d: DHExp.t) => {
           let-unbox x = (Atom(k1), d);
           switch (f(x)) {
@@ -291,11 +294,11 @@ module Pervasives = {
     | TwoFun(k1, k2, k3, f) =>
       Fn(
         Prod([
-          Atom(k1 |> Atom.cls_of_kind) |> Typ.fresh,
-          Atom(k2 |> Atom.cls_of_kind) |> Typ.fresh,
+          Atom(k1 |> Atom.cls_of_kind) |> Typ.fresh_empty,
+          Atom(k2 |> Atom.cls_of_kind) |> Typ.fresh_empty,
         ])
-        |> Typ.fresh,
-        Atom(k3 |> Atom.cls_of_kind) |> Typ.fresh,
+        |> Typ.fresh_empty,
+        Atom(k3 |> Atom.cls_of_kind) |> Typ.fresh_empty,
         [@warning "-8"] (d: DHExp.t) => {
           let-unbox [x, y] = (Tuple(2), d);
           let-unbox x = (Atom(k1), x);
@@ -400,17 +403,13 @@ let entries =
     | (name, Const(typ, _)) =>
       Ctx.VarEntry({
         name,
-        typ: typ |> TypSlice.t_of_typ_t,
+        typ,
         id: Id.invalid,
       })
     | (name, Fn(t1, t2, _)) =>
       Ctx.VarEntry({
         name,
-        typ:
-          Fresh.TypSlice.arrow(
-            t1 |> TypSlice.t_of_typ_t,
-            t2 |> TypSlice.t_of_typ_t,
-          ),
+        typ: Fresh.Typ.arrow(t1, t2),
         id: Id.invalid,
       }),
     Pervasives.builtins,
@@ -418,7 +417,7 @@ let entries =
 
 let ctx_init: option(Operators.mode) => Ctx.t =
   use_mode => {
-    let meta_cons_map: ConstructorMap.t(TypSlice.t) = [
+    let meta_cons_map: ConstructorMap.t(Typ.t) = [
       Variant("$e", [Id.mk()], None),
       Variant("$v", [Id.mk()], None),
     ];
@@ -426,7 +425,7 @@ let ctx_init: option(Operators.mode) => Ctx.t =
       Ctx.TVarEntry({
         name: "$Meta",
         id: Id.invalid,
-        kind: Ctx.Singleton(Fresh.TypSlice.sum(meta_cons_map)),
+        kind: Ctx.Singleton(Fresh.Typ.sum(meta_cons_map)),
       });
     Ctx.{
       use_mode,

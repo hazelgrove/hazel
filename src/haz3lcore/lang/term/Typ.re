@@ -24,6 +24,7 @@ type cls =
 
 include TermBase.Typ;
 
+// Utilities
 let term_of: t => term = ty => IdTagged.term_of(ty).typ;
 let slice_of: t => slice = IdTagged.term_of;
 let unwrap_to_slice: t => (slice, slice => t) = IdTagged.unwrap;
@@ -130,6 +131,34 @@ let slice_size =
     Fun.compose(TupleUtil.uncurry((+)), TupleUtil.map2(CodeSlice.size)),
     full_slice,
   );
+
+let apply = (f, ty) => f(term_of(ty));
+
+let map = (f, ty) => {
+  let (term, rewrap) = unwrap(ty);
+  term |> f |> rewrap;
+};
+
+// Applies a function to a inner type term and merges the top-level slice with the resulting typ
+// Drops syn slices by default
+let map_merge_t = (~drop_syn=true, f, ty) =>
+  term_of(ty)
+  |> f
+  |> wrap_slices(
+       drop_syn
+         ? (CodeSlice.empty, ana_code_slice_of(ty)) : code_slices_of(ty),
+     );
+// Same, but retains original term id
+let map_merge = (~drop_syn=true, f, ty) => {
+  let (_, rewrap) = unwrap_to_slice(ty);
+  term_of(ty)
+  |> f
+  |> rewrap
+  |> wrap_slices(
+       drop_syn
+         ? (CodeSlice.empty, ana_code_slice_of(ty)) : code_slices_of(ty),
+     );
+};
 
 let all_ids_temp = {
   let f:
@@ -395,6 +424,118 @@ let rec is_label = (~ignore_parens=true, typ: t) => {
   | Rec(_) => false
   };
 };
+
+// Destructuring constructs, retaining only ana slices by default
+// Intended use: | ty when is_parens(ty) => let ty' = unparens(ty) in ...
+let unparens = (~drop_syn=true) =>
+  map_merge_t(
+    ~drop_syn,
+    fun
+    | Parens(ty) => ty
+    | _ => failwith("Not a parens"),
+  );
+
+let unparens = unparens;
+let unlist = (~drop_syn=true) =>
+  map_merge_t(
+    ~drop_syn,
+    fun
+    | List(ty) => ty
+    | _ => failwith("Not a list"),
+  );
+let unprod = (~drop_syn=true, ty: t) => {
+  ty
+  |> apply(
+       fun
+       | Prod(tys) =>
+         tys
+         |> List.map(
+              wrap_slices(
+                drop_syn
+                  ? (CodeSlice.empty, ana_code_slice_of(ty))
+                  : code_slices_of(ty),
+              ),
+            )
+       | _ => failwith("Not a product"),
+     );
+};
+
+let unarrow = (~drop_syn=true, ty: t) => {
+  ty
+  |> apply(
+       fun
+       | Arrow(ty1, ty2) =>
+         (ty1, ty2)
+         |> TupleUtil.map2(
+              wrap_slices(
+                drop_syn
+                  ? (CodeSlice.empty, ana_code_slice_of(ty))
+                  : code_slices_of(ty),
+              ),
+            )
+       | _ => failwith("Not an arrow"),
+     );
+};
+
+// get forall term
+let unforall = (~drop_syn=true, ty: t) => {
+  ty
+  |> apply(
+       fun
+       | Forall(tpat, ty) => (
+           tpat,
+           ty
+           |> wrap_slices(
+                drop_syn
+                  ? (CodeSlice.empty, ana_code_slice_of(ty))
+                  : code_slices_of(ty),
+              ),
+         )
+       | _ => failwith("Not a forall"),
+     );
+};
+
+let unlabel = (ty: t) => {
+  ty
+  |> apply(
+       fun
+       | Label(name) => name
+       | _ => failwith("Not a label"),
+     );
+};
+
+let untuplabel = (~drop_syn=true, ty: t) => {
+  ty
+  |> apply(
+       fun
+       | TupLabel(label, ty) =>
+         (label, ty)
+         |> TupleUtil.map2(
+              wrap_slices(
+                drop_syn
+                  ? (CodeSlice.empty, ana_code_slice_of(ty))
+                  : code_slices_of(ty),
+              ),
+            )
+       | _ => failwith("Not a tuplabel"),
+     );
+};
+
+let get_sum = (~drop_syn=true, ty) =>
+  ty
+  |> apply(
+       fun
+       | Sum(m) =>
+         m
+         |> ConstructorMap.map_preserving(
+              wrap_slices(
+                drop_syn
+                  ? (CodeSlice.empty, ana_code_slice_of(ty))
+                  : code_slices_of(ty),
+              ),
+            )
+       | _ => failwith("Not a sum"),
+     );
 
 /* Functions below this point assume that types have been through the to_typ function above */
 

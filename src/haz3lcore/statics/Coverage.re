@@ -83,12 +83,15 @@ module Ctr = {
 
   let arity_of = (ctr, all_ctrs: all_ctrs): arity =>
     switch (all_ctrs) {
-    | Unknown => List.init(ctr.num_args, _ => Unknown(Internal) |> Typ.temp)
-    | Infinite => List.init(ctr.num_args, _ => Unknown(Internal) |> Typ.temp)
+    | Unknown =>
+      List.init(ctr.num_args, _ => Unknown(Internal) |> Typ.temp_empty)
+    | Infinite =>
+      List.init(ctr.num_args, _ => Unknown(Internal) |> Typ.temp_empty)
     | Finite(all_ctrs) =>
       switch (Map.find_opt(ctr, all_ctrs)) {
       | Some(arity) => arity
-      | None => List.init(ctr.num_args, _ => Unknown(Internal) |> Typ.temp)
+      | None =>
+        List.init(ctr.num_args, _ => Unknown(Internal) |> Typ.temp_empty)
       }
     };
 
@@ -97,7 +100,7 @@ module Ctr = {
       failwith("Recursion limit exceeded in all_ctrs_of_typ");
     };
     let all_ctrs_of_typ = all_ctrs_of_typ(~rec_count=rec_count + 1);
-    switch (ty.term) {
+    switch (Typ.term_of(ty)) {
     | Sum(map) =>
       Finite(
         map
@@ -111,7 +114,8 @@ module Ctr = {
            )
         |> Map.of_list,
       )
-    | Rec({term: Var(w), _}, {term: Var(v), _}) when v == w => Unknown
+    | Rec({term: Var(w), _}, {term: {typ: Var(v), _}, _}) when v == w =>
+      Unknown
     | Rec(_) => all_ctrs_of_typ(Typ.unroll(ty))
     | Prod(elts) =>
       Finite(Map.singleton(tuple_ctr(List.length(elts)), elts))
@@ -120,7 +124,7 @@ module Ctr = {
       Finite(
         Map.of_list([
           (nil_ctr, []),
-          (cons_ctr, [Prod([elt_ty, ty]) |> Typ.temp]),
+          (cons_ctr, [Prod([elt_ty, ty]) |> Typ.temp_empty]),
         ]),
       )
     | Atom(Bool) => Finite(Map.of_list([(true_ctr, []), (false_ctr, [])]))

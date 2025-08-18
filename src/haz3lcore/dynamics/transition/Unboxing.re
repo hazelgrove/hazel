@@ -25,13 +25,13 @@ open Util;
 
 type unboxed_tfun =
   | TypFun(TPat.t, Exp.t, option(string))
-  | TFunCast(DHExp.t, TPat.t, TypSlice.t, TPat.t, TypSlice.t);
+  | TFunCast(DHExp.t, TPat.t, Typ.t, TPat.t, Typ.t);
 
 type unboxed_fun =
   | Constructor(string)
   | FunEnv(Pat.t, Exp.t, ClosureEnvironment.t)
   | FunNoEnv(Pat.t, Exp.t)
-  | FunCast(DHExp.t, TypSlice.t, TypSlice.t, TypSlice.t, TypSlice.t)
+  | FunCast(DHExp.t, Typ.t, Typ.t, Typ.t, Typ.t)
   | BuiltinFun(string)
   | DeferredAp(DHExp.t, list(DHExp.t));
 
@@ -72,10 +72,10 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
   (request, expr) => {
     switch (request, DHExp.term_of(expr)) {
     /* Remove parentheses from casts */
-    | (_, Cast(d, s1, s2)) when TypSlice.is_parens(s1) =>
-      unbox(request, Cast(d, TypSlice.unparens(s1), s2) |> DHExp.fresh)
-    | (_, Cast(d, s1, s2)) when TypSlice.is_parens(s2) =>
-      unbox(request, Cast(d, s1, TypSlice.unparens(s2)) |> DHExp.fresh)
+    | (_, Cast(d, s1, s2)) when Typ.is_parens(s1) =>
+      unbox(request, Cast(d, Typ.unparens(s1), s2) |> DHExp.fresh)
+    | (_, Cast(d, s1, s2)) when Typ.is_parens(s2) =>
+      unbox(request, Cast(d, s1, Typ.unparens(s2)) |> DHExp.fresh)
     /* $e and $v could have any type, but are indet */
 
     | (_, UnOp(Meta(Unquote), _)) => IndetMatch
@@ -95,21 +95,17 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       }
     | (TupLabel(tl), Cast(t, s1, s2))
         when
-          TypSlice.is_tuplabel(s1, ~ignore_parens=false)
-          && TypSlice.is_tuplabel(s2, ~ignore_parens=false) =>
-      let ((_, s1), (_, s2)) = (
-        TypSlice.untuplabel(s1),
-        TypSlice.untuplabel(s2),
-      );
+          Typ.is_tuplabel(s1, ~ignore_parens=false)
+          && Typ.is_tuplabel(s2, ~ignore_parens=false) =>
+      let ((_, s1), (_, s2)) = (Typ.untuplabel(s1), Typ.untuplabel(s2));
       let* t = unbox(TupLabel(tl), t);
       let t = fixup_cast(Cast(t, s1, s2) |> DHExp.fresh);
       Matches(t);
     | (TupLabel(_), _) => Matches(expr)
 
     /* Remove Tuplabels from casts otherwise */
-    | (_, Cast(e, s1, s2))
-        when TypSlice.is_tuplabel(s1, ~ignore_parens=false) =>
-      let (_, s1) = TypSlice.untuplabel(s1);
+    | (_, Cast(e, s1, s2)) when Typ.is_tuplabel(s1, ~ignore_parens=false) =>
+      let (_, s1) = Typ.untuplabel(s1);
       switch (DHExp.term_of(e)) {
       | TupLabel(_, e) => unbox(request, Cast(e, s1, s2) |> DHExp.fresh)
       | _ => unbox(request, Cast(e, s1, s2) |> DHExp.fresh)
@@ -137,40 +133,38 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (Cons, Cons(x, xs)) => Matches((x, xs))
     | (ListLit, Cast(l, s1, s2))
         when
-          TypSlice.is_list(~ignore_parens=false, s1)
-          && TypSlice.is_list(~ignore_parens=false, s2) =>
+          Typ.is_list(~ignore_parens=false, s1)
+          && Typ.is_list(~ignore_parens=false, s2) =>
       // TODO: consider if incremental slices on the list should be retained or not here. (currently not)
       let* l = unbox(ListLit, l);
       let l =
         List.map(
-          d =>
-            Cast(d, TypSlice.unlist(s1), TypSlice.unlist(s2)) |> DHExp.fresh,
+          d => Cast(d, Typ.unlist(s1), Typ.unlist(s2)) |> DHExp.fresh,
           l,
         );
       let l = List.map(fixup_cast, l);
       Matches(l);
     | (ListLitn(n), Cast(l, s1, s2))
         when
-          TypSlice.is_list(s1, ~ignore_parens=false)
-          && TypSlice.is_list(s2, ~ignore_parens=false) =>
+          Typ.is_list(s1, ~ignore_parens=false)
+          && Typ.is_list(s2, ~ignore_parens=false) =>
       let* l = unbox(ListLitn(n), l);
       let l =
         List.map(
-          d =>
-            Cast(d, TypSlice.unlist(s1), TypSlice.unlist(s2)) |> DHExp.fresh,
+          d => Cast(d, Typ.unlist(s1), Typ.unlist(s2)) |> DHExp.fresh,
           l,
         );
       let l = List.map(fixup_cast, l);
       Matches(l);
     | (Cons, Cast(l, s1, s2))
         when
-          TypSlice.is_list(~ignore_parens=false, s1)
-          && TypSlice.is_list(~ignore_parens=false, s2) =>
+          Typ.is_list(~ignore_parens=false, s1)
+          && Typ.is_list(~ignore_parens=false, s2) =>
       let* l = unbox(Cons, l);
       switch (l) {
       | (x, xs) =>
         Matches((
-          Cast(x, TypSlice.unlist(s1), TypSlice.unlist(s2))
+          Cast(x, Typ.unlist(s1), Typ.unlist(s2))
           |> DHExp.fresh
           |> fixup_cast,
           Cast(xs, s1, s2) |> DHExp.fresh,
@@ -182,11 +176,11 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (Tuple(_), Tuple(_)) => DoesNotMatch
     | (Tuple(n), Cast(t, s1, s2))
         when
-          TypSlice.is_prod(s1, ~ignore_parens=false)
-          && TypSlice.is_prod(s2, ~ignore_parens=false)
-          && n == List.length(TypSlice.unprod(s1))
-          && n == List.length(TypSlice.unprod(s2)) =>
-      let (s1s, s2s) = (TypSlice.unprod(s1), TypSlice.unprod(s2));
+          Typ.is_prod(s1, ~ignore_parens=false)
+          && Typ.is_prod(s2, ~ignore_parens=false)
+          && n == List.length(Typ.unprod(s1))
+          && n == List.length(Typ.unprod(s2)) =>
+      let (s1s, s2s) = (Typ.unprod(s1), Typ.unprod(s2));
       let* t = unbox(Tuple(n), t);
       let t =
         ListUtil.map3(
@@ -206,27 +200,24 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (SumNoArg(_), Ap(_, {term: Constructor(_), _}, _)) => DoesNotMatch
     | (SumNoArg(name), Cast(d1, s1, s2))
         when
-          TypSlice.is_sum(~ignore_parens=false, s1)
-          && TypSlice.is_sum(~ignore_parens=false, s2)
+          Typ.is_sum(~ignore_parens=false, s1)
+          && Typ.is_sum(~ignore_parens=false, s2)
           && (
-            ConstructorMap.has_constructor_no_args(
-              name,
-              TypSlice.get_sum(s2.term),
-            )
-            || ConstructorMap.has_bad_entry(TypSlice.get_sum(s2.term))
+            ConstructorMap.has_constructor_no_args(name, Typ.get_sum(s2))
+            || ConstructorMap.has_bad_entry(Typ.get_sum(s2))
           ) =>
       let* d1 = unbox(SumNoArg(name), d1);
       Matches(d1);
     | (SumNoArg(_), Cast(_, s1, s2))
         when
-          TypSlice.is_sum(s1, ~ignore_parens=false)
-          && TypSlice.is_sum(s2, ~ignore_parens=false) =>
+          Typ.is_sum(s1, ~ignore_parens=false)
+          && Typ.is_sum(s2, ~ignore_parens=false) =>
       IndetMatch
     /* Matches curried constructor. Note: does not check type consistency between arrow arg type
        and sum constrctor arg type -- TODO: fix (issue only occurs if two sum types use same ctr name
        and wrong one is passed into match, debatable if we even want to allow any matching at all here) */
     | (SumNoArg(name), Cast(_, _, s))
-        when TypSlice.is_arrow(~ignore_parens=false, s) =>
+        when Typ.is_arrow(~ignore_parens=false, s) =>
       switch (unbox(Fun, expr)) {
       | Matches(Constructor(name')) when name == name' => Matches()
       | Matches(FunCast(d', _, _, _, _)) =>
@@ -242,19 +233,19 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (SumWithArg(_), Ap(_, {term: Constructor(_), _}, _)) => DoesNotMatch
     | (SumWithArg(name), Cast(d1, s1, s2))
         when
-          TypSlice.is_sum(s1, ~ignore_parens=false)
-          && TypSlice.is_sum(s2, ~ignore_parens=false) =>
+          Typ.is_sum(s1, ~ignore_parens=false)
+          && Typ.is_sum(s2, ~ignore_parens=false) =>
       let get_entry_or_bad = s =>
         switch (ConstructorMap.get_entry(name, s)) {
         | Some(Some(x)) => Some(x)
         | Some(None) => None
         | None when ConstructorMap.has_bad_entry(s) =>
-          Some(`Typ(Unknown(Internal)) |> TypSlice.temp)
+          Some(Unknown(Internal) |> Typ.temp_empty)
         | None => None
         };
       switch (
-        get_entry_or_bad(TypSlice.get_sum(s1.term)),
-        get_entry_or_bad(TypSlice.get_sum(s2.term)),
+        get_entry_or_bad(Typ.get_sum(s1)),
+        get_entry_or_bad(Typ.get_sum(s2)),
       ) {
       | (Some(x), Some(y)) =>
         let* d1 = unbox(SumWithArg(name), d1);
@@ -270,12 +261,9 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     | (Fun, Fun(dp, d3, _, _)) => Matches(FunNoEnv(dp, d3))
     | (Fun, Cast(d3', s1, s2))
         when
-          TypSlice.is_arrow(s1, ~ignore_parens=false)
-          && TypSlice.is_arrow(s2, ~ignore_parens=false) =>
-      let ((s1, s2), (s1', s2')) = (
-        TypSlice.unarrow(s1),
-        TypSlice.unarrow(s2),
-      );
+          Typ.is_arrow(s1, ~ignore_parens=false)
+          && Typ.is_arrow(s2, ~ignore_parens=false) =>
+      let ((s1, s2), (s1', s2')) = (Typ.unarrow(s1), Typ.unarrow(s2));
       Matches(FunCast(d3', s1, s2, s1', s2'));
     | (Fun, BuiltinFun(name)) => Matches(BuiltinFun(name))
     | (Fun, DeferredAp(d1, ds)) => Matches(DeferredAp(d1, ds))
@@ -288,16 +276,16 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
     // Note: We might be able to handle this cast like other casts
     | (TypFun, Cast(d'', s1, s2))
         when
-          TypSlice.is_forall(s1, ~ignore_parens=false)
-          && TypSlice.is_forall(s2, ~ignore_parens=false) =>
+          Typ.is_forall(s1, ~ignore_parens=false)
+          && Typ.is_forall(s2, ~ignore_parens=false) =>
       let ((tp1, s1'), (tp2, s2')) = (
-        TypSlice.unforall(s1),
-        TypSlice.unforall(s2),
+        Typ.unforall(s1),
+        Typ.unforall(s2),
       );
       Matches(TFunCast(d'', tp1, s1', tp2, s2'));
 
     /* Any cast from unknown is indet */
-    | (_, Cast(_, s1, _)) when TypSlice.is_unknown(s1) => IndetMatch
+    | (_, Cast(_, s1, _)) when Typ.is_unknown(s1) => IndetMatch
 
     /* Any failed cast does not match. Why was this previously indet? Being indet breaks dynamic pattern matching. */
     | (_, FailedCast(_)) => DoesNotMatch

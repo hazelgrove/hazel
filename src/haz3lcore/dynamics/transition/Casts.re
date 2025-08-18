@@ -27,76 +27,99 @@ type ground_cases =
   | Ground
   | NotGroundOrHole(Typ.t) /* the argument is the corresponding ground type */;
 
-let grounded_Arrow =
+let grounded_Arrow = slices =>
   NotGroundOrHole(
-    Arrow(Unknown(Internal) |> Typ.temp, Unknown(Internal) |> Typ.temp)
+    Arrow(
+      Unknown(Internal) |> Typ.temp_empty,
+      Unknown(Internal) |> Typ.temp_empty,
+    )
+    |> Typ.from_code_slices(slices)
     |> Typ.temp,
   );
-let grounded_Forall =
+let grounded_Forall = slices =>
   NotGroundOrHole(
-    Forall(EmptyHole |> TPat.fresh, Unknown(Internal) |> Typ.temp)
+    Forall(EmptyHole |> TPat.fresh, Unknown(Internal) |> Typ.temp_empty)
+    |> Typ.from_code_slices(slices)
     |> Typ.temp,
   );
-let grounded_Prod = length =>
+let grounded_Prod = (slices, length) =>
   NotGroundOrHole(
-    Prod(ListUtil.replicate(length, Unknown(Internal) |> Typ.temp))
+    Prod(ListUtil.replicate(length, Unknown(Internal) |> Typ.temp_empty))
+    |> Typ.from_code_slices(slices)
     |> Typ.temp,
   );
-let grounded_Sum: Typ.sum_map => Typ.sum_map =
-  m =>
-    ConstructorMap.has_bad_entry(m)
-      ? [BadEntry(Unknown(Internal) |> Typ.temp)]
-      : m
-        |> List.map(
-             fun
-             | ConstructorMap.Variant(ctr, ids, Some(_)) =>
-               ConstructorMap.Variant(
-                 ctr,
-                 ids,
-                 Some(Unknown(Internal) |> Typ.temp),
-               )
-             | v => v,
-           );
-let grounded_List =
-  NotGroundOrHole(List(Unknown(Internal) |> Typ.temp) |> Typ.temp);
+let grounded_Sum: ((CodeSlice.t, CodeSlice.t), Typ.sum_map) => ground_cases =
+  (slices, m) =>
+    NotGroundOrHole(
+      Sum(
+        ConstructorMap.has_bad_entry(m)
+          ? [BadEntry(Unknown(Internal) |> Typ.temp_empty)]
+          : m
+            |> List.map(
+                 fun
+                 | ConstructorMap.Variant(ctr, ids, Some(_)) =>
+                   ConstructorMap.Variant(
+                     ctr,
+                     ids,
+                     Some(Unknown(Internal) |> Typ.temp_empty),
+                   )
+                 | v => v,
+               ),
+      )
+      |> Typ.from_code_slices(slices)
+      |> Typ.temp,
+    );
+let grounded_List = slices =>
+  NotGroundOrHole(
+    List(Unknown(Internal) |> Typ.temp_empty)
+    |> Typ.from_code_slices(slices)
+    |> Typ.temp,
+  );
 
+// Maintain outer constructor slice
 let rec ground_cases_of = (ty: Typ.t): ground_cases => {
   let is_hole: Typ.t => bool =
     fun
-    | {term: Unknown(_), _} => true
+    | {term: {typ: Unknown(_), _}, _} => true
     | _ => false;
+  let slices = Typ.code_slices_of(ty);
   switch (Typ.term_of(ty)) {
   | Unknown(_) => Hole
   | Atom(_)
   | Label(_)
-  | TupLabel(_, {term: Unknown(_), _})
+  | TupLabel(_, {term: {typ: Unknown(_), _}, _})
   | Var(_)
   | Rec(_)
-  | Forall(_, {term: Unknown(_), _})
-  | Arrow({term: Unknown(_), _}, {term: Unknown(_), _})
-  | List({term: Unknown(_), _}) => Ground
+  | Forall(_, {term: {typ: Unknown(_), _}, _})
+  | Arrow(
+      {term: {typ: Unknown(_), _}, _},
+      {term: {typ: Unknown(_), _}, _},
+    )
+  | List({term: {typ: Unknown(_), _}, _}) => Ground
   | Parens(ty) => ground_cases_of(ty)
   | TupLabel(label, _) =>
     NotGroundOrHole(
-      TupLabel(label, Unknown(Internal) |> Typ.temp) |> Typ.temp,
+      TupLabel(label, Unknown(Internal) |> Typ.temp_empty)
+      |> Typ.from_code_slices(slices)
+      |> Typ.temp,
     )
   | Prod(tys) =>
     if (List.for_all(
           fun
-          | ({term: Unknown(_), _}: Typ.t) => true
+          | ({term: {typ: Unknown(_), _}, _}: Typ.t) => true
           | _ => false,
           tys,
         )) {
       Ground;
     } else {
-      tys |> List.length |> grounded_Prod;
+      tys |> List.length |> grounded_Prod(slices);
     }
   | Sum(sm) =>
     sm |> ConstructorMap.is_ground(is_hole)
-      ? Ground : NotGroundOrHole(Sum(grounded_Sum(sm)) |> Typ.temp)
-  | Arrow(_, _) => grounded_Arrow
-  | Forall(_) => grounded_Forall
-  | List(_) => grounded_List
+      ? Ground : grounded_Sum(slices, sm)
+  | Arrow(_, _) => grounded_Arrow(slices)
+  | Forall(_) => grounded_Forall(slices)
+  | List(_) => grounded_List(slices)
   | Ap(_) => failwith("type application in dynamics")
   };
 };
@@ -115,10 +138,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       } else {
         d1;
       };
-    switch (
-      ground_cases_of(t1 |> TypSlice.typ_of),
-      ground_cases_of(t2 |> TypSlice.typ_of),
-    ) {
+    switch (ground_cases_of(t1), ground_cases_of(t2)) {
     | (Hole, Hole)
     | (Ground, Ground) =>
       /* if two types are ground and consistent, then they are eq */
@@ -130,9 +150,9 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
 
     | (Hole, Ground) =>
       switch (DHExp.term_of(d1)) {
-      | Cast(d2, t3, t4) when TypSlice.is_unknown(t4) =>
+      | Cast(d2, t3, t4) when Typ.is_unknown(t4) =>
         /* by canonical forms, d1' must be of the form d<ty'' -> ?> */
-        if (TypSlice.eq(t3, t2)) {
+        if (Typ.equal(t3, t2)) {
           Some
             (d2); // Rule ITCastSucceed
         } else {
@@ -145,17 +165,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Hole, NotGroundOrHole(t2_grounded)) =>
       /* ITExpand rule */
       let inner_cast =
-        Cast(
-          d1,
-          t1,
-          TypSlice.(
-            t2_grounded
-            |> DHExp.replace_all_ids_typ
-            |> t_of_typ_t
-            |> add_slice(get_slice(t2 |> term_of))
-          ) // Maintain outer constructor slice
-        )
-        |> DHExp.fresh;
+        Cast(d1, t1, t2_grounded |> DHExp.replace_all_ids_typ) |> DHExp.fresh;
       // HACK: we need to check the inner cast here
       let inner_cast =
         switch (transition(~recursive, inner_cast)) {
@@ -163,16 +173,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         | None => inner_cast
         };
       Some(
-        Cast(
-          inner_cast,
-          TypSlice.(
-            t2_grounded
-            |> DHExp.replace_all_ids_typ
-            |> t_of_typ_t
-            |> add_slice(get_slice(t2 |> term_of))
-          ), // Maintain outer constructor slice
-          t2,
-        )
+        Cast(inner_cast, t2_grounded |> DHExp.replace_all_ids_typ, t2)
         |> DHExp.fresh,
       );
 
@@ -180,23 +181,9 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       /* ITGround rule */
       Some(
         Cast(
-          Cast(
-            d1,
-            t1,
-            TypSlice.(
-              t1_grounded
-              |> DHExp.replace_all_ids_typ
-              |> t_of_typ_t
-              |> add_slice(get_slice(t1 |> term_of))
-            ) // Maintain outer constructor slice,
-          )
+          Cast(d1, t1, t1_grounded |> DHExp.replace_all_ids_typ)
           |> DHExp.fresh,
-          TypSlice.(
-            t1_grounded
-            |> DHExp.replace_all_ids_typ
-            |> t_of_typ_t
-            |> add_slice(get_slice(t1 |> term_of))
-          ), // Maintain outer constructor slice,
+          t1_grounded |> DHExp.replace_all_ids_typ,
           t2,
         )
         |> DHExp.fresh,
@@ -205,7 +192,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Ground, NotGroundOrHole(_)) =>
       switch (DHExp.term_of(d1)) {
       | Cast(d2, t3, _) =>
-        if (TypSlice.eq(t3, t2)) {
+        if (Typ.equal(t3, t2)) {
           Some(d2);
         } else {
           None;
@@ -218,7 +205,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
 
     | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
       /* they might be eq in this case, so remove cast if so */
-      if (TypSlice.eq(t1, t2)) {
+      if (Typ.equal(t1, t2)) {
         Some
           (d1); // Rule ITCastId
       } else {
@@ -271,9 +258,8 @@ let pattern_fixup = (p: DHPat.t): DHPat.t => {
       {
         term:
           Cast(
-            Cast(p1, t1, TypSlice.fresh(`Typ(Unknown(Internal))))
-            |> DHPat.fresh,
-            TypSlice.fresh(`Typ(Unknown(Internal))),
+            Cast(p1, t1, Typ.fresh_empty(Unknown(Internal))) |> DHPat.fresh,
+            Typ.fresh_empty(Unknown(Internal)),
             t2,
           ),
         annotation: d.annotation,
