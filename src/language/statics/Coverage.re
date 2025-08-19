@@ -85,21 +85,18 @@ module Ctr = {
     switch (all_ctrs) {
     | Unknown =>
       List.init(ctr.num_args, _ =>
-        Unknown((Internal: TermBase.type_provenance) |> IdTagged.fresh)
-        |> Typ.temp
+        Unknown(Internal |> Prov.fresh) |> Typ.temp
       )
     | Infinite =>
       List.init(ctr.num_args, _ =>
-        Unknown((Internal: TermBase.type_provenance) |> IdTagged.fresh)
-        |> Typ.temp
+        Unknown(Internal |> Prov.fresh) |> Typ.temp
       )
     | Finite(all_ctrs) =>
       switch (Map.find_opt(ctr, all_ctrs)) {
       | Some(arity) => arity
       | None =>
         List.init(ctr.num_args, _ =>
-          Unknown((Internal: TermBase.type_provenance) |> IdTagged.fresh)
-          |> Typ.temp
+          Unknown(Internal |> Prov.fresh) |> Typ.temp
         )
       }
     };

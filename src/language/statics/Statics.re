@@ -116,12 +116,10 @@ let is_recursive = (ctx, p, def, syn: Typ.t) => {
   };
 };
 
-let syn =
-  Unknown((SynSwitch: TermBase.type_provenance) |> IdTagged.fresh) |> Typ.temp;
-let fresh_internal =
-  Unknown((Internal: TermBase.type_provenance) |> IdTagged.fresh) |> Typ.fresh;
-let temp_internal =
-  Unknown((Internal: TermBase.type_provenance) |> IdTagged.fresh) |> Typ.temp;
+let anon_syn = Unknown(SynSwitch |> Prov.anonymous) |> Typ.temp;
+let syn = Unknown(SynSwitch |> Prov.fresh) |> Typ.temp;
+let fresh_internal = Unknown(Internal |> Prov.fresh) |> Typ.fresh;
+let temp_internal = Unknown(Internal |> Prov.fresh) |> Typ.temp;
 
 let rec any_to_info_map =
         (~ctx: Ctx.t, ~ancestors, any: Any.t, m: Map.t)
@@ -235,7 +233,7 @@ and constrain_branches = (branch_tys: list(Typ.t)): list(Typ.equivalence) => {
 and uexp_to_info_map =
     (
       ~ctx: Ctx.t,
-      ~ana=syn,
+      ~ana=Unknown(SynSwitch |> Prov.anonymous) |> Typ.temp,
       ~is_in_filter=false,
       ~ancestors,
       ~duplicates: list(string),
@@ -271,7 +269,7 @@ and uexp_to_info_map =
   let uexp_to_info_map =
       (
         ~ctx,
-        ~ana=syn,
+        ~ana=anon_syn,
         ~is_in_filter=is_in_filter,
         ~ancestors=ancestors,
         ~duplicates=[],
@@ -366,7 +364,12 @@ and uexp_to_info_map =
     (info, add_info(IdTagged.ids(elaborated_exp), InfoExp(info), m));
   };
   let atomic = self => {
-    add(~self, ~co_ctx=CoCtx.empty, ~constraints=[], m);
+    add(
+      ~self,
+      ~co_ctx=CoCtx.empty,
+      ~constraints=subsumption_constraints_t(self),
+      m,
+    );
   };
 
   // This is the case where we aren't a singleton labeled tuple
@@ -464,9 +467,7 @@ and uexp_to_info_map =
       add(
         ~self=
           Self.listlit(
-            ~empty=
-              Unknown((Internal: TermBase.type_provenance) |> IdTagged.fresh)
-              |> Typ.temp,
+            ~empty=Unknown(Internal |> Prov.fresh) |> Typ.temp,
             ctx,
             tys,
             ids,
@@ -567,7 +568,7 @@ and uexp_to_info_map =
         m,
       );
     | UnOp(Meta(Unquote), e) =>
-      let (e, m) = go(~ana=syn, e, m);
+      let (e, m) = go(~ana=anon_syn, e, m);
       add'(
         ~self=BadOperator("Unquote not in filter"),
         ~co_ctx=e.co_ctx,
@@ -579,7 +580,7 @@ and uexp_to_info_map =
       let op_semantics = Operators.semantics_of_un_op(op);
       switch (op_semantics) {
       | Undefined(msg) =>
-        let (_, m) = go(~ana=syn, e, m);
+        let (_, m) = go(~ana=anon_syn, e, m);
         add'(
           ~self=BadOperator(msg),
           ~co_ctx=CoCtx.empty,
@@ -603,8 +604,8 @@ and uexp_to_info_map =
       let op_semantics = Operators.semantics_of_bin_op(op);
       switch (op_semantics) {
       | Undefined(msg) =>
-        let (_, m) = go(~ana=syn, e1, m);
-        let (_, m) = go(~ana=syn, e2, m);
+        let (_, m) = go(~ana=anon_syn, e1, m);
+        let (_, m) = go(~ana=anon_syn, e2, m);
         add'(
           ~self=BadOperator(msg),
           ~co_ctx=CoCtx.empty,
@@ -842,13 +843,7 @@ and uexp_to_info_map =
 
     | Dot(e1, e2) =>
       let (info_e1, m) =
-        go(
-          ~ana=
-            Unknown((SynSwitch: TermBase.type_provenance) |> IdTagged.fresh)
-            |> Typ.temp,
-          e1,
-          m,
-        );
+        go(~ana=Unknown(SynSwitch |> Prov.fresh) |> Typ.temp, e1, m);
       let (info_e2, m) = go(~ana=Label("") |> Typ.temp, e2, m);
       let (ty, m) = {
         switch (info_e1.ty.term, info_e2.ty.term) {
@@ -934,9 +929,7 @@ and uexp_to_info_map =
     | Filter(Filter({pat: cond, _}), body) =>
       let (cond, m) =
         go(
-          ~ana=
-            Unknown((SynSwitch: TermBase.type_provenance) |> IdTagged.fresh)
-            |> Typ.temp,
+          ~ana=Unknown(SynSwitch |> Prov.fresh) |> Typ.temp,
           cond,
           m,
           ~is_in_filter=true,
@@ -958,13 +951,7 @@ and uexp_to_info_map =
       );
     | Seq(e1, e2) =>
       let (e1, m) =
-        go(
-          ~ana=
-            Unknown((SynSwitch: TermBase.type_provenance) |> IdTagged.fresh)
-            |> Typ.temp,
-          e1,
-          m,
-        );
+        go(~ana=Unknown(SynSwitch |> Prov.fresh) |> Typ.temp, e1, m);
       let (e2, m) = go(~ana, e2, m);
       add(
         ~self=Just(e2.ty),
@@ -1051,8 +1038,7 @@ and uexp_to_info_map =
       let typfn_ana =
         Forall(
           EmptyHole |> TPat.fresh,
-          Unknown((SynSwitch: TermBase.type_provenance) |> IdTagged.fresh)
-          |> Typ.temp,
+          Unknown(SynSwitch |> Prov.fresh) |> Typ.temp,
         )
         |> Typ.temp;
       let (fn, m) = go(~ana=typfn_ana, fn, m);
@@ -1204,7 +1190,7 @@ and uexp_to_info_map =
       );
     | Let(p, def, body) =>
       let (p_syn, _) =
-        go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
+        go_pat(~is_synswitch=true, ~co_ctx=CoCtx.empty, ~ana=anon_syn, p, m);
       let (def, p_ana_ctx, m, ty_p_ana) =
         if (!is_recursive(ctx, p, def, p_syn.ty)) {
           let (def, m) = go(~ana=p_syn.ty, def, m);
@@ -1256,6 +1242,8 @@ and uexp_to_info_map =
           let (def, m) = go'(~ctx=def_ctx, ~ana, def, m);
           (def, def_ctx, m, ty_p_ana);
         };
+      print_endline("LOL");
+      print_endline(Typ.show(ana));
       let (body, m) = go'(~ctx=p_ana_ctx, ~ana, body, m);
       /* add co_ctx to pattern */
       let (p_ana, m) =
@@ -1310,7 +1298,7 @@ and uexp_to_info_map =
         m,
       );
     | Match(scrut, rules) =>
-      let (scrut, m) = go(~ana=syn, scrut, m);
+      let (scrut, m) = go(~ana=anon_syn, scrut, m);
       let (ps, es) = List.split(rules);
       let branch_ids = List.map(Exp.rep_id, es);
       let (ps', _) =
@@ -1517,7 +1505,7 @@ and uexp_to_info_map =
   | Prod([{term: TupLabel({term: Label(l1), _}, ana_ty), _}]) =>
     // We can flatten this by pulling it up on the case match but since OCaml is strict it'll be evaluated.
     // So for performance reasons we'll just do it here.
-    let (e, m) = go(~ana=syn, uexp, m);
+    let (e, m) = go(~ana=anon_syn, uexp, m);
 
     switch (Typ.weak_head_normalize(ctx, e.ty).term) {
     | Prod([{term: TupLabel({term: Label(l2), _}, _), _}]) when l1 == l2 =>
@@ -1778,12 +1766,7 @@ and upat_to_info_map =
         Info.fixed_typ_pat(
           ctx,
           ana,
-          Common(
-            Just(
-              Unknown((Internal: TermBase.type_provenance) |> IdTagged.fresh)
-              |> Typ.temp,
-            ),
-          ),
+          Common(Just(Unknown(Internal |> Prov.fresh) |> Typ.temp)),
         );
       let entry =
         Ctx.VarEntry({
@@ -2077,7 +2060,7 @@ and upat_to_info_map =
     | Prod([{term: TupLabel({term: Label(l1), _}, ana_ty), _}]) =>
       // We can flatten this by pulling it up on the case match but since OCaml is strict it'll be evaluated.
       // So for performance reasons we'll just do it here.
-      let (e, m) = go(~ana=syn, ~ctx, upat, m);
+      let (e, m) = go(~ana=anon_syn, ~ctx, upat, m);
 
       switch (Typ.weak_head_normalize(ctx, e.ty).term) {
       | Prod([{term: TupLabel({term: Label(l2), _}, _), _}]) when l1 == l2 =>
@@ -2280,18 +2263,36 @@ and variant_to_info_map =
 };
 
 let mk =
-  Core.Memo.general(~cache_size_bound=1000, (ctx, e) => {
-    uexp_to_info_map(
-      ~ctx,
-      ~ancestors=[],
-      ~duplicates=[],
-      ~expected_labels=None,
-      ~label_sort=false,
-      e,
-      Id.Map.empty,
-    )
-    |> snd
-  });
+  Core.Memo.general(
+    ~cache_size_bound=1000,
+    (ctx, e) => {
+      let (info, map) =
+        uexp_to_info_map(
+          ~ctx,
+          ~ancestors=[],
+          ~duplicates=[],
+          ~expected_labels=None,
+          ~label_sort=false,
+          e,
+          Id.Map.empty,
+        );
+      List.iter(
+        (Con(e1, e2) as e: Typ.equivalence) => {
+          print_endline(Typ.show_equivalence(e));
+          switch (e1 |> Typ.term_of) {
+          | Unknown(p) => Id.show(p |> IdTagged.rep_id) |> print_endline
+          | _ => ()
+          };
+          switch (e2 |> Typ.term_of) {
+          | Unknown(p) => Id.show(p |> IdTagged.rep_id) |> print_endline
+          | _ => ()
+          };
+        },
+        info.constraints,
+      );
+      map;
+    },
+  );
 
 let mk = (core: CoreSettings.t, ctx, exp) =>
   core.statics ? mk(ctx, exp) : Id.Map.empty;

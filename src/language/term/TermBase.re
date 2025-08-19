@@ -1123,7 +1123,7 @@ and Prov: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = type_provenance_t;
 
-  let to_string: t => string;
+  let to_string: term => string;
 
   let map_term:
     (
@@ -1143,7 +1143,24 @@ and Prov: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = type_provenance_t;
 
-  let rec to_string: t => string = failwith("Not implemented yet");
+  let rec to_string: term => string =
+    fun
+    | Internal => "<="
+    | SynSwitch => "<>"
+    | Hole(_) => "()"
+    | LArrow(p) => "->L(" ++ to_string(p) ++ ")"
+    | RArrow(p) => "->R(" ++ to_string(p) ++ ")"
+    | MList(p) => "[" ++ to_string(p) ++ "]"
+    | NProduct(n, p) =>
+      "*(" ++ string_of_int(n) ++ "," ++ to_string(p) ++ ")"
+    | RForall(p) => "->RA(" ++ to_string(p) ++ ")"
+    | Join(ps) =>
+      "J("
+      ++ String.concat(
+           ",",
+           List.map(p => {to_string(p |> IdTagged.term_of)}, ps),
+         )
+      ++ ")";
 
   let map_term =
       (
@@ -1184,6 +1201,7 @@ and Prov: {
           | NProduct(n, p) => NProduct(n, prov_map_temp_term(p))
           | MList(p) => MList(prov_map_temp_term(p))
           | RForall(p) => RForall(prov_map_temp_term(p))
+          | Join(ps) => Join(List.map(prov_map_term, ps))
           },
       };
     };

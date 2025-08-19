@@ -132,7 +132,12 @@ let external_precedence_typ = (tp: Typ.t) =>
   | Unknown({term: Internal, _})
   | Unknown({term: SynSwitch, _})
   | Unknown({term: Hole(EmptyHole), _})
-  | Unknown({term: Matched(_), _}) // TODO (THI): this probably needs to be recursive?
+  | Unknown({term: LArrow(_), _}) // TODO (THI): this probably needs to be recursive?
+  | Unknown({term: RArrow(_), _}) // TODO (THI): this probably needs to be recursive?
+  | Unknown({term: NProduct(_), _}) // TODO (THI): this probably needs to be recursive?
+  | Unknown({term: MList(_), _}) // TODO (THI): this probably needs to be recursive?
+  | Unknown({term: RForall(_), _}) // TODO (THI): this probably needs to be recursive?
+  | Unknown({term: Join(_), _}) // TODO (THI): this probably needs to be recursive?
   | Var(_)
   | Atom(_)
   | Label(_)
@@ -470,7 +475,12 @@ and parenthesize_typ =
   | Unknown({term: Internal, _})
   | Unknown({term: SynSwitch, _})
   | Unknown({term: Hole(EmptyHole), _})
-  | Unknown({term: Matched(_), _})
+  | Unknown({term: LArrow(_), _})
+  | Unknown({term: RArrow(_), _})
+  | Unknown({term: NProduct(_), _})
+  | Unknown({term: MList(_), _})
+  | Unknown({term: RForall(_), _})
+  | Unknown({term: Join(_), _})
   | Atom(_) => typ
 
   // Other forms
@@ -1243,7 +1253,12 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
     text_to_pretty(typ |> Typ.rep_id, Sort.Typ, s)
   | Unknown({term: Internal, _})
   | Unknown({term: SynSwitch, _})
-  | Unknown({term: Matched(_), _})
+  | Unknown({term: LArrow(_), _})
+  | Unknown({term: RArrow(_), _})
+  | Unknown({term: MList(_), _})
+  | Unknown({term: NProduct(_), _})
+  | Unknown({term: RForall(_), _})
+  | Unknown({term: Join(_), _})
   | Unknown({term: Hole(EmptyHole), _}) =>
     if (settings.show_unknown_as_hole) {
       let id = typ |> Typ.rep_id;

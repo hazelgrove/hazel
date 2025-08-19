@@ -22,7 +22,10 @@ module StringProv = {
     };
   };
 
-  let of_prov = (p: Prov.t): t => (Prov.to_string(p), IdTagged.rep_id(p));
+  let of_prov = (p: Prov.t): t => (
+    Prov.to_string(Prov.term_of(p)),
+    IdTagged.rep_id(p),
+  );
 };
 
 module ProvMap = Map.Make(StringProv);
@@ -603,12 +606,13 @@ let solve = (cs: list(Typ.equivalence)): SolutionMap.t => {
 };
 
 let go = (cs: list(Typ.equivalence)): SolutionMap.t => {
-  let sm = solve(cs);
-  // print_endline(string_of_sol_map(sm));
-  sm;
-  // let cs = unfold_constramnots(cs);
-  // let m = prov_map_of_constramnots(cs);
-  // print_endline("go2");
-  // print_endline(string_of_int(List.length(StringMap.to_list(m))));
-  // print_endline(string_of_prov_map(m));
+  solve(
+    cs,
+    // print_endline(string_of_sol_map(sm));
+    // let cs = unfold_constramnots(cs);
+    // let m = prov_map_of_constramnots(cs);
+    // print_endline("go2");
+    // print_endline(string_of_int(List.length(StringMap.to_list(m))));
+    // print_endline(string_of_prov_map(m));
+  );
 };

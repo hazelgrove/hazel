@@ -159,6 +159,7 @@ and type_provenance('a) =
   | NProduct(int, type_provenance('a))
   | MList(type_provenance('a))
   | RForall(type_provenance('a))
+  | Join(list(type_provenance_t('a)))
 and type_provenance_t('a) = Annotated.t(type_provenance('a), 'a)
 and filter('a) = {
   pat: exp_t('a),
@@ -427,6 +428,7 @@ and map_type_provenance_annotation:
     | NProduct(n, p) => NProduct(n, map_type_provenance_annotation(f, p))
     | MList(p) => MList(map_type_provenance_annotation(f, p))
     | RForall(p) => RForall(map_type_provenance_annotation(f, p))
+    | Join(ps) => Join(List.map(map_type_provenance_t_annotation(f), ps))
     };
   }
 and map_type_provenance_t_annotation:

@@ -100,10 +100,7 @@ let typ_of: t => option(Typ.t) =
     Some(
       Sum([
         ConstructorMap.Variant(name, [Id.invalid], None),
-        ConstructorMap.BadEntry(
-          Unknown((Internal: TermBase.type_provenance) |> IdTagged.fresh)
-          |> Typ.temp,
-        ),
+        ConstructorMap.BadEntry(Unknown(Internal |> Prov.fresh) |> Typ.temp),
       ])
       |> Typ.temp,
     )
@@ -236,9 +233,7 @@ let add_source =
 let match = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
   switch (
     Typ.join_all(
-      ~empty=
-        Unknown((Internal: TermBase.type_provenance) |> IdTagged.fresh)
-        |> Typ.fresh,
+      ~empty=Unknown(Internal |> Prov.fresh) |> Typ.fresh,
       ctx,
       tys,
     )
@@ -256,9 +251,7 @@ let listlit = (~empty, ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
 let list_concat = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
   switch (
     Typ.join_all(
-      ~empty=
-        Unknown((Internal: TermBase.type_provenance) |> IdTagged.fresh)
-        |> Typ.fresh,
+      ~empty=Unknown(Internal |> Prov.fresh) |> Typ.fresh,
       ctx,
       tys,
     )
@@ -270,9 +263,7 @@ let list_concat = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
 let poly_eq = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
   switch (
     Typ.join_all(
-      ~empty=
-        Unknown((Internal: TermBase.type_provenance) |> IdTagged.fresh)
-        |> Typ.fresh,
+      ~empty=Unknown(Internal |> Prov.fresh) |> Typ.fresh,
       ctx,
       tys,
     )

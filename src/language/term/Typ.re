@@ -14,6 +14,7 @@ type cls =
   | NProduct
   | MList
   | RForall
+  | Join
   | Arrow
   | Prod
   | TupLabel
@@ -81,11 +82,12 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   | Unknown({term: Hole(MultiHole(_)), _}) => MultiHole
   | Unknown({term: SynSwitch, _}) => SynSwitch
   | Unknown({term: Internal, _}) => Internal
-  | Unknown({term: Matched(LArrow(_)), _}) => LArrow
-  | Unknown({term: Matched(RArrow(_)), _}) => RArrow
-  | Unknown({term: Matched(NProduct(_)), _}) => NProduct
-  | Unknown({term: Matched(MList(_)), _}) => MList
-  | Unknown({term: Matched(RForall(_)), _}) => MList
+  | Unknown({term: LArrow(_), _}) => LArrow
+  | Unknown({term: RArrow(_), _}) => RArrow
+  | Unknown({term: NProduct(_), _}) => NProduct
+  | Unknown({term: MList(_), _}) => MList
+  | Unknown({term: RForall(_), _}) => RForall
+  | Unknown({term: Join(_), _}) => Join
   | Atom(c) => Atom(c)
   | List(_) => List
   | Arrow(_) => Arrow
@@ -111,6 +113,7 @@ let show_cls: cls => string =
   | NProduct => "Tuple prov type"
   | MList => "List prov type"
   | RForall => "Right Forall prov type"
+  | Join => "Join prov"
   | Atom(_) => "Base type"
   | Var => "Type variable"
   | Constructor => "Sum constructor"
@@ -224,20 +227,12 @@ let of_source = List.map((source: source) => source.ty);
    but right now TypeHole strictly predominates over Internal
    which strictly predominates over SynSwitch. */
 let join_type_provenance =
-    (_: TermBase.type_provenance_t, _: TermBase.type_provenance_t)
-    : TermBase.type_provenance_t =>
-  failwith("todo: join prov");
-// switch (p1, p2) {
-// | ({term: Hole(h1), _}, {term: Hole(h2), _}) when h1 == h2 => p1
-// | (Hole(EmptyHole, p), Hole(EmptyHole, _) | SynSwitch(_))
-// | (SynSwitch(_), Hole(EmptyHole, p)) => Hole(EmptyHole, p)
-// | (SynSwitch(p), Internal(_))
-// | (SynSwitch(p), Matched(_))
-// | (Internal(_), SynSwitch(p)) => SynSwitch(p)
-// | (Internal(p) | Hole(_), _)
-// | (_, Hole(_)) => Internal(p)
-// | (SynSwitch, SynSwitch) => SynSwitch
-// };
+    (p1: Prov.t, p2: Prov.t): TermBase.type_provenance_t =>
+  if (p1 == p2) {
+    p1;
+  } else {
+    Join([p1, p2]) |> Prov.fresh;
+  };
 
 let rec match_tup_label = ty =>
   switch (term_of(ty)) {
@@ -660,13 +655,13 @@ let rec matched_arrow_strict = (ctx, ty) =>
   | Unknown({term: SynSwitch, annotation}) =>
     let left_arr =
       Unknown({
-        term: Matched(LArrow(SynSwitch)),
+        term: LArrow(SynSwitch),
         annotation,
       })
       |> temp;
     let right_arr =
       Unknown({
-        term: Matched(RArrow(SynSwitch)),
+        term: RArrow(SynSwitch),
         annotation,
       })
       |> temp;
@@ -687,13 +682,13 @@ let matched_arrow = (ctx, ty) => {
     | Unknown({term: t, annotation}) =>
       let left_arr =
         Unknown({
-          term: Matched(LArrow(t)),
+          term: LArrow(t),
           annotation,
         })
         |> temp;
       let right_arr =
         Unknown({
-          term: Matched(RArrow(t)),
+          term: RArrow(t),
           annotation,
         })
         |> temp;
@@ -738,7 +733,7 @@ let rec matched_forall_strict = (ctx, ty) =>
     Some(
       matched_forall_of_prov(
         {
-          term: Matched(RForall(SynSwitch)),
+          term: RForall(SynSwitch),
           annotation,
         },
         ty,
@@ -776,7 +771,7 @@ let matched_prod_of_prov =
   let prod_provs =
     List.init(List.length(es), n =>
       Unknown({
-        term: Matched(NProduct(n, term)),
+        term: NProduct(n, term),
         annotation,
       })
       |> temp
@@ -853,7 +848,7 @@ let matched_list_hole_of_prov =
     ({term, annotation}: TermBase.type_provenance_t, ty) => {
   let list_ty =
     Unknown({
-      term: Matched(MList(term)),
+      term: MList(term),
       annotation,
     })
     |> temp;

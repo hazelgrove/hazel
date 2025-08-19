@@ -2400,7 +2400,12 @@ let get_doc =
     switch (bypass_parens_typ(term).term) {
     | Unknown({term: SynSwitch, _})
     | Unknown({term: Internal, _})
-    | Unknown({term: Matched(_), _}) // TODO: (THI) might need to be recursive
+    | Unknown({term: LArrow(_), _}) // TODO: (THI) might need to be recursive
+    | Unknown({term: RArrow(_), _}) // TODO: (THI) might need to be recursive
+    | Unknown({term: MList(_), _}) // TODO: (THI) might need to be recursive
+    | Unknown({term: NProduct(_), _}) // TODO: (THI) might need to be recursive
+    | Unknown({term: RForall(_), _}) // TODO: (THI) might need to be recursive
+    | Unknown({term: Join(_), _}) // TODO: (THI) might need to be recursive
     | Unknown({term: Hole(EmptyHole), _}) => get_message(HoleTyp.empty_hole)
     | Unknown({term: Hole(MultiHole(_)), _}) =>
       get_message(HoleTyp.multi_hole)

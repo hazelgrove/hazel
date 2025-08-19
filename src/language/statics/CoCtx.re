@@ -73,16 +73,12 @@ let join: (Ctx.t, list(entry)) => Typ.t =
     let expected_tys = List.map(entry => entry.expected_ty, entries);
     switch (
       Typ.join_all(
-        ~empty=
-          Unknown((Internal: TermBase.type_provenance) |> IdTagged.fresh)
-          |> Typ.fresh,
+        ~empty=Unknown(Internal |> Prov.fresh) |> Typ.fresh,
         ctx,
         expected_tys,
       )
     ) {
-    | None =>
-      Unknown((Internal: TermBase.type_provenance) |> IdTagged.fresh)
-      |> Typ.fresh
+    | None => Unknown(Internal |> Prov.fresh) |> Typ.fresh
     | Some(ty) => ty
     };
   };

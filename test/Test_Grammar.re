@@ -163,11 +163,12 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
       | EmptyHole => unknown(TypeProvenance.hole(EmptyHole))
       | SynSwitch => unknown(TypeProvenance.syn_switch())
       | Internal => unknown(TypeProvenance.internal())
-      | LArrow => failwith("todo")
+      | LArrow => failwith("todo") // TODO: (THI) CLS provenances
       | RArrow => failwith("todo")
       | NProduct => failwith("todo")
       | MList => failwith("todo")
       | RForall => failwith("todo")
+      | Join => failwith("todo")
       | Label => label("label")
       | MultiHole => unknown(TypeProvenance.hole(MultiHole([])))
       | Sum => sum([])
