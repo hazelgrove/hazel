@@ -34,13 +34,15 @@ let construct_expand = (~id, d: Direction.t, t: Token.t, z: t): t => {
   construct(~id, ~backpack, ~d, lbl, z);
 };
 
+let adjacent_monotile_or_new_id = (d, z) =>
+  switch (adjacent_monotile_id(d, z)) {
+  | Some(id) => id
+  | None => Id.mk()
+  };
+
 let replace_expand = (d: Direction.t, t: Token.t, z: t): option(t) => {
   /* Retain monotile id for new polytile (Just for fun) */
-  let id =
-    switch (adjacent_monotile_id(d, z)) {
-    | Some(id) => id
-    | None => Id.mk()
-    };
+  let id = adjacent_monotile_or_new_id(d, z);
   let+ z = delete(d, z);
   construct_expand(~id, d, t, z);
 };
@@ -146,11 +148,7 @@ let sibling_appendability: (string, t) => appendability =
     };
 
 let replace_shard = (d: Direction.t, t: Token.t, z: t): option(t) => {
-  let id =
-    switch (adjacent_monotile_id(d, z)) {
-    | Some(id) => id
-    | None => Id.mk()
-    };
+  let id = adjacent_monotile_or_new_id(d, z);
   let+ z = delete(d, z);
   make_new_tile(~id, t, d, z);
 };
@@ -192,11 +190,7 @@ let move_into_string_or_comment = (char: string, z: t): t =>
  * and a new single-character token (or grout) in the middle. */
 let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
   let (l, r) = Token.split_nth(idx, t);
-  let id =
-    switch (adjacent_monotile_id(Right, z)) {
-    | Some(id) => id /* Retain original tile id */
-    | None => Id.mk()
-    };
+  let id = adjacent_monotile_or_new_id(Right, z);
   let* z = z |> Caret.set(Outer) |> Zipper.delete(Right);
   switch (Token.duomerges([l, r])) {
   | Some(_) =>
