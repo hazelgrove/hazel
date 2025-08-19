@@ -44,6 +44,18 @@ module Update = {
   };
 
   let update = (~settings, action, model: Model.t): Updated.t(Model.t) => {
+    let settings =
+      Settings.Model.{
+        ...settings,
+        core: {
+          ...settings.core,
+          evaluation: {
+            ...settings.core.evaluation,
+            enable_proof: true,
+            stepper_history: true,
+          },
+        },
+      };
     switch (action) {
     | TheoremUpdate(id, action) =>
       switch (Id.Map.find_opt(id, model.thm_map)) {
@@ -75,6 +87,19 @@ module Update = {
         ~dynamics: Calc.t(option(Dynamics.t)),
         {thm_map, thms}: Model.t,
       ) => {
+    let settings' = {
+      ...Calc.get_value(settings),
+      evaluation: {
+        ...Calc.get_value(settings).evaluation,
+        enable_proof: true,
+        stepper_history: true,
+      },
+    };
+    let settings =
+      switch (settings) {
+      | OldValue(_) => Calc.OldValue(settings')
+      | NewValue(_) => Calc.NewValue(settings')
+      };
     let thms =
       thms
       |> {
@@ -219,37 +244,69 @@ module View = {
         ~selected: option(Focus.t),
         model: Model.t,
       ) => {
+    let globals = {
+      ...globals,
+      settings: {
+        ...globals.settings,
+        core: {
+          ...globals.settings.core,
+          evaluation: {
+            ...globals.settings.core.evaluation,
+            enable_proof: true,
+            stepper_history: true,
+          },
+        },
+      },
+    };
     switch (model.thms |> Calc.get_saved_exc) {
-    | [] => [Node.text("No theorems found")]
+    | [] => []
     | xs =>
       List.map(
         id => {
           let Model.{stepper_view, _} = Id.Map.find(id, model.thm_map);
-          StepperView.View.view(
-            ~globals,
-            ~signal=
-              fun
-              | MakeActive(f) => take_focus((id, f))
-              | HideStepper => Ui_effect.Ignore,
-            ~inject=a => inject(Update.TheoremUpdate(id, a)),
-            ~selected=
-              switch (selected) {
-              | Some((id', s)) when Id.equal(id, id') => Some(s)
-              | _ => None
-              },
-            stepper_view,
-          )
-          @ [
+          let status =
             switch (StepperView.Model.get_validity(stepper_view)) {
-            | Some(true) => WebUtil.Node.text("✓")
-            | Some(false) => WebUtil.Node.text("✗")
-            | None => WebUtil.Node.text("?")
-            },
-          ];
+            | Some(true) =>
+              Node.div(
+                ~attrs=[Attr.classes(["theorem-status", "true"])],
+                [Node.text("proven true")],
+              )
+            | Some(false)
+            | None =>
+              Node.div(
+                ~attrs=[Attr.classes(["theorem-status", "unknown"])],
+                [Node.text("incomplete")],
+              )
+            };
+          let header =
+            WebUtil.div_c(
+              "theorem-header",
+              [
+                Node.strong([Node.text("Proof of theorem ")]),
+                Node.text(Id.to_string(id)),
+                status,
+              ],
+            );
+          let stepper =
+            StepperView.View.view(
+              ~globals,
+              ~signal=
+                fun
+                | MakeActive(f) => take_focus((id, f))
+                | HideStepper => Ui_effect.Ignore,
+              ~inject=a => inject(Update.TheoremUpdate(id, a)),
+              ~selected=
+                switch (selected) {
+                | Some((id', s)) when Id.equal(id, id') => Some(s)
+                | _ => None
+                },
+              ~is_toplevel=false,
+              stepper_view,
+            );
+          div_c("theorem", [header, ...stepper]);
         },
         xs,
       )
-      |> List.flatten
     };
   };
 };

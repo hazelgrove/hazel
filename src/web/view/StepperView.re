@@ -97,6 +97,7 @@ module View = {
         ~signal: event => Ui_effect.t(unit),
         ~inject: Update.t => Ui_effect.t(unit),
         ~selected: option(Focus.t),
+        ~is_toplevel=true,
         model: Model.t,
       ) => {
     let settings_modal =
@@ -111,7 +112,7 @@ module View = {
       ~take_focus=f => signal(MakeActive(f)),
       ~hide_stepper=signal(HideStepper),
       ~inject=u => inject(u),
-      ~is_toplevel=true,
+      ~is_toplevel,
       ~focus=selected,
       model.root,
     )
