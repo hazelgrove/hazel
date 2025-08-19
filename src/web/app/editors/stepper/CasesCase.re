@@ -65,19 +65,6 @@ module F = (Stepper: STEPPER) => {
           exp,
         );
       };
-    let hypo_points =
-      model.hypo_points
-      |> {
-        open Calc.Syntax;
-        let.calc elab_pattern = elab_pattern
-        and.calc scrut_ty = scrut_ty;
-        ProofHacks.get_inductive_hypotheses(
-          CodeEditable.Model.get_statics(pattern).info_map,
-          scrut_ty,
-          elab_pattern,
-        )
-        |> List.map(v => Pat.fresh(Var(v)));
-      };
     let inner_ctx =
       model.inner_ctx
       |> {
@@ -122,7 +109,7 @@ module F = (Stepper: STEPPER) => {
         pattern,
         elab_pattern: elab_pattern |> Calc.save,
         inner_exp: inner_exp |> Calc.save,
-        hypo_points: hypo_points |> Calc.save,
+        hypo_points: Calc.Pending,
         step: stepper,
         last_exp: last_exp |> Calc.save,
         added_ctx: Calc.Pending,

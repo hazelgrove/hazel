@@ -147,5 +147,5 @@ module Map = {
 type t = {
   probe_map: Probe.Map.t,
   test_results: TestResults.t,
-  theorems: list((Id.t, TermBase.closure_environment_t, Typ.t)),
+  theorems: list((Id.t, string, TermBase.closure_environment_t, Typ.t)),
 };

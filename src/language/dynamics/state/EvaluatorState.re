@@ -2,7 +2,7 @@ open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
-  theorems: list((Id.t, TermBase.closure_environment_t, Typ.t)),
+  theorems: list((Id.t, string, TermBase.closure_environment_t, Typ.t)),
   tests: TestMap.t,
   probes: Dynamics.Probe.Map.t,
 };
@@ -30,10 +30,10 @@ let add_closure = ({probes, _} as es, closure: Dynamics.Probe.Closure.t) => {
 
 let get_probes = ({probes, _}) => probes;
 
-let add_theorem = ({theorems, _} as es, id, env, goal) => {
+let add_theorem = ({theorems, _} as es, id, name, env, goal) => {
   {
     ...es,
-    theorems: theorems |> List.append([(id, env, goal)]),
+    theorems: theorems |> List.append([(id, name, env, goal)]),
   };
 };
 

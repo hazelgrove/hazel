@@ -132,8 +132,7 @@ module F = (Stepper: STEPPER) => {
           CodeEditable.Model.get_statics(pattern).info_map,
           scrut_ty,
           elab_pattern,
-        )
-        |> List.map(v => Pat.fresh(Var(v)));
+        );
       };
     let added_ctx =
       model.added_ctx
@@ -192,20 +191,28 @@ module F = (Stepper: STEPPER) => {
                  ),
                )
              )
-          |> List.map(ty =>
-               Ctx.VarEntry({
-                 name:
+          |> List.fold_left_map(
+               (acc, ty) => {
+                 let name =
                    Var.free_name(
                      "ih",
                      List.map(
                        (e: Ctx.var_entry) => e.name,
-                       Ctx.get_var_entries(ctx),
+                       acc @ Ctx.get_var_entries(ctx),
                      ),
-                   ),
-                 id: Id.mk(),
-                 typ: ty,
-               })
-             );
+                   );
+                 let var_entry =
+                   Ctx.{
+                     name,
+                     id: Id.mk(),
+                     typ: ty,
+                   };
+                 let entry = Ctx.VarEntry(var_entry);
+                 ([var_entry, ...acc], entry);
+               },
+               [],
+             )
+          |> snd;
         [case_eq] @ hypo_entries;
       };
     let inner_ctx =

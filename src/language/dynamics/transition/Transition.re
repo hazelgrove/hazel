@@ -126,7 +126,8 @@ module type EV_MODE = {
 
   let update_probe: (state, Dynamics.Probe.Closure.t) => unit;
 
-  let record_theorem: (state, Id.t, ClosureEnvironment.t, Typ.t) => unit;
+  let record_theorem:
+    (state, Id.t, string, ClosureEnvironment.t, Typ.t) => unit;
 };
 
 module Transition = (EV: EV_MODE) => {
@@ -282,7 +283,8 @@ module Transition = (EV: EV_MODE) => {
         |> evaluate_extend_env(~call_stack=env.call_stack, _, env);
       Step({
         expr: subst_env(env', d1),
-        state_update: () => record_theorem(state, DHExp.rep_id(d), env, t),
+        state_update: () =>
+          record_theorem(state, DHExp.rep_id(d), n, env, t),
         kind: TheoremBind,
         is_value: false,
       });
@@ -296,7 +298,8 @@ module Transition = (EV: EV_MODE) => {
       | `Environment =>
         Step({
           expr: d,
-          state_update: () => record_theorem(state, DHExp.rep_id(d), env, t),
+          state_update: () =>
+            record_theorem(state, DHExp.rep_id(d), "<anon theorem>", env, t),
           kind: RecordTheorem,
           is_value: true,
         })
