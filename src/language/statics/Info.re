@@ -643,24 +643,7 @@ let status_typ = (ctx: Ctx.t, expects: typ_expects, ty: Typ.t): status_typ =>
     | ConstructorExpected(_) => InHole(WantConstructorFoundAp)
     | TupleExpected => InHole(WantTuple)
     | LabelExpected(_) => InHole(WantLabel)
-    | TypeExpected =>
-      switch (t1.term) {
-      | Var(base_name) =>
-        switch (Ctx.lookup_tvar(ctx, base_name)) {
-        | Some(Ctx.Arr(dom_k, res_k)) =>
-          let k_arg = Kind.synth_kind(ctx, ty_in);
-          if (dom_k == k_arg && res_k == Ctx.Abstract) {
-            NotInHole(Type(ty));
-          } else {
-            InHole(KindMismatch(ty));
-          };
-        | Some(Ctx.Abstract)
-        | Some(Ctx.Prod(_, _))
-        | Some(Ctx.Singleton(_)) => InHole(KindMismatch(ty))
-        | None => InHole(KindMismatch(ty))
-        }
-      | _ => InHole(KindMismatch(ty))
-      }
+    | TypeExpected => InHole(WantTypeFoundAp)
     }
   | Label(name) =>
     switch (expects) {

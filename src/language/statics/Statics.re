@@ -116,6 +116,42 @@ let is_recursive = (ctx, p, def, syn: Typ.t) => {
   };
 };
 
+// move error marking into type info map
+let rec synth_kind = (ctx: Ctx.t, typ: Typ.t): Ctx.kind => {
+  switch (typ.term) {
+  | Var(name) =>
+    switch (Ctx.lookup_alias(ctx, name)) {
+    | Some(ty_alias) => synth_kind(ctx, ty_alias)
+    | None =>
+      switch (Ctx.lookup_tvar(ctx, name)) {
+      | None => Ctx.Abstract
+      | Some(kind) => kind
+      }
+    }
+  | Ap(t1, t2) =>
+    let k_fun = synth_kind(ctx, t1);
+    let _ = synth_kind(ctx, t2); // check for well formedness, no live error check
+    switch (k_fun) {
+    | Ctx.Arr(_, cod) => cod
+    | _ => Ctx.Abstract
+    };
+  | Arrow(_, _) => Ctx.Abstract
+  | Prod(_) => Ctx.Abstract
+  | Forall(_, body) =>
+    let _ = synth_kind(ctx, body);
+    Ctx.Abstract;
+  | Rec(_, body) =>
+    let _ = synth_kind(ctx, body);
+    Ctx.Abstract;
+  | Atom(_)
+  | List(_)
+  | Sum(_)
+  | Label(_)
+  | TupLabel(_, _)
+  | Parens(_) => Ctx.Abstract
+  | Unknown(_) => Ctx.Abstract
+  };
+};
 let syn = Unknown(SynSwitch) |> Typ.temp;
 
 let rec any_to_info_map =
@@ -204,6 +240,15 @@ and uexp_to_info_map =
       m: Map.t,
     )
     : (Info.exp, Map.t) => {
+  // Helper for counting params for dfferentiting kind instantiation
+  let rec count_forall_params = (typ: Typ.t): (int, Typ.t) =>
+    switch (typ.term) {
+    | Forall(_, body) =>
+      let (count, final_body) = count_forall_params(body);
+      (count + 1, final_body);
+    | _ => (0, typ)
+    };
+
   let add' = (~label_inference=?, ~self, ~co_ctx, m) => {
     let info =
       Info.derived_exp(
@@ -333,25 +378,23 @@ and uexp_to_info_map =
       let (co_ctxs, m) = multi(~ctx, ~ancestors, m, tms);
       add(~self=IsMulti, ~co_ctx=CoCtx.union(co_ctxs), m);
     | Asc(e, t2) =>
-      let (t, m) = go_typ(t2, ~expects=Info.TypeExpected, m);
-      let k = Kind.synth_kind(t.ctx, t.term);
-      let t =
+      let (t_info, m) = go_typ(t2, ~expects=Info.TypeExpected, m);
+      let k = synth_kind(t_info.ctx, t_info.term);
+      let ana_ty: Typ.t =
         if (k != Ctx.Abstract) {
-          let updated = {
-            ...t,
-            term: Unknown(Internal) |> Typ.temp,
-          };
-          IdTagged.fresh(updated);
+          Typ.temp(
+            Unknown(Internal) // TODO reevaluate this Owen
+          );
         } else {
-          t.term |> Typ.temp;
+          t_info.term;
         };
-      let (e, m) = go'(~ana=t.term, ~ctx=t.ctx, e, m);
-      add(~self=Just(t.term), ~co_ctx=e.co_ctx, m);
+      let (e, m) = go'(~ana=ana_ty, ~ctx=t_info.ctx, e, m);
+      add(~self=Just(t_info.term), ~co_ctx=e.co_ctx, m);
     | Invalid(token) => atomic(BadToken(token))
     | EmptyHole => atomic(Just(Unknown(Internal) |> Typ.temp))
     | Deferral(position) =>
       add'(~self=IsDeferral(position), ~co_ctx=CoCtx.empty, m)
-    | Undefined => atomic(Just(Unknown(Internal)) |> Typ.temp)
+    | Undefined => atomic(Just(Unknown(Internal) |> Typ.temp))
     | Atom(c) =>
       let c =
         Operators.replace_literal(c, Typ.is_ana_atom(ana), ctx.use_mode); // Replace literal if necessary due to `use`
@@ -1098,6 +1141,7 @@ and uexp_to_info_map =
            variables to decide whether to make a recursive type or not. So we
            tentatively add an abtract type to the ctx, representing the
            speculative rec parameter. */
+        let (param_count, _) = count_forall_params(utyp);
         let (ty_def, ctx_def, ctx_body) = {
           switch (utyp.term) {
           | Sum(_) when List.mem(name, Typ.free_vars(utyp)) =>
@@ -1105,20 +1149,17 @@ and uexp_to_info_map =
                use a different name than the alias for the recursive parameter */
             //let ty_rec = Typ.Rec("α", Typ.subst(Var("α"), name, ty_pre));
             let ty_rec = Rec(Var(name) |> TPat.fresh, utyp) |> Typ.temp;
-            let k = Kind.synth_kind(ctx, ty_rec);
             let ty_rec =
-              if (k != Ctx.Abstract) {
-                IdTagged.fresh({
-                  ...ty_rec,
-                  term: (Unknown(Internal): TermBase.typ_term),
-                });
+              if (synth_kind(ctx, ty_rec) != Ctx.Abstract) {
+                Typ.temp(Unknown(Internal));
               } else {
                 ty_rec;
               };
             let kind = {
               let rec make_kind = n =>
+                // Create curried kinds (*->*...->*)
                 n == 0
-                  ? Ctx.Abstract : Ctx.Arr(Ctx.Abstract, make_kind(n - 1)); /* Curry rec */
+                  ? Ctx.Abstract : Ctx.Arr(Ctx.Abstract, make_kind(n - 1));
               make_kind(param_count);
             };
             let ctx_def =
@@ -1127,17 +1168,20 @@ and uexp_to_info_map =
                 : Ctx.extend_alias(ctx, name, TPat.rep_id(typat), ty_rec);
             (ty_rec, ctx_def, ctx_def);
           | _ =>
-            let k = Kind.synth_kind(ctx, utyp);
+            let k = synth_kind(ctx, utyp);
             let utyp =
               if (k != Ctx.Abstract) {
-                let updated_utyp: TermBase.typ_term = {
-                  ...utyp,
-                  term: Unknown(Internal),
-                };
-                IdTagged.fresh(updated_utyp);
+                Typ.temp(Unknown(Internal));
               } else {
                 utyp;
               };
+            let kind = {
+              // FIXME, reiterative use
+              let rec make_kind = n =>
+                n == 0
+                  ? Ctx.Abstract : Ctx.Arr(Ctx.Abstract, make_kind(n - 1));
+              make_kind(param_count);
+            };
             (
               utyp,
               ctx,
@@ -1718,19 +1762,31 @@ and upat_to_info_map =
         };
       add(~self=Just(ty_out), ~ctx=arg.ctx, ~constraint_, m);
     | Asc(p, ann) =>
-      let (ann, m) = utyp_to_info_map(~ctx, ~ancestors, ann, m);
-      let k = Kind.synth_kind(ctx, ann.term);
-      let ann =
+      let (ann_info, m) = utyp_to_info_map(~ctx, ~ancestors, ann, m);
+      let k = synth_kind(ctx, ann_info.term);
+      let ana_for_p =
         if (k != Ctx.Abstract) {
-          IdTagged.fresh({
-            ...ann,
-            term: (Unknown(Internal): TermBase.typ_term),
-          });
+          Typ.temp(Unknown(Internal));
         } else {
-          ann;
+          ann_info.term;
         };
-      let (p, m) = go(~ctx, ~under_ascription=true, ~ana=ann.term, p, m);
-      add(~self=Just(ann.term), ~ctx=p.ctx, ~constraint_=p.constraint_, m);
+      let (p, m) =
+        upat_to_info_map(
+          ~is_synswitch,
+          ~ctx,
+          ~co_ctx,
+          ~ancestors,
+          ~ana=ana_for_p,
+          ~under_ascription=true,
+          p,
+          m,
+        );
+      add(
+        ~self=Just(ann_info.term),
+        ~ctx=p.ctx,
+        ~constraint_=p.constraint_,
+        m,
+      );
     };
 
   // This is to allow lifting single values into a singleton labeled tuple when the label is not present
@@ -1821,7 +1877,34 @@ and utyp_to_info_map =
       };
     let m = go'(~expects=t1_mode, t1, m) |> snd;
     let m = go'(~expects=TypeExpected, t2, m) |> snd;
-    add(m);
+    let k_fun = synth_kind(ctx, t1);
+    let k_arg = synth_kind(ctx, t2);
+    let kind_add = (status, m) => {
+      // Helper for kind expansion info add
+      let info0 = Info.derived_typ(~utyp, ~ctx, ~ancestors, ~expects);
+      let info = {
+        ...info0,
+        status,
+      };
+      (info, add_info(ids, InfoTyp(info), m));
+    };
+    switch (k_fun) {
+    | Ctx.Arr(dom_k, res_k) =>
+      if (dom_k == k_arg && res_k == Ctx.Abstract) {
+        add(
+          m // Abstract (* kind) defaults add(m)
+        );
+      } else {
+        // Not well kinded
+        kind_add(
+          Info.InHole(Info.KindMismatch(utyp)),
+          m,
+        );
+      }
+    | _ =>
+      // Not constructor
+      kind_add(Info.InHole(Info.KindMismatch(utyp)), m)
+    };
   | Sum(variants) =>
     let (m, _) =
       List.fold_left(

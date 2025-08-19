@@ -368,6 +368,11 @@ let typ_err_view = (~globals, ok: Info.error_typ) => {
       view_type(Var(name) |> Typ.fresh),
       text("already used in this sum"),
     ]
+  | KindMismatch(ty) => [
+      text([@reason.preserve_braces] "Type "),
+      view_type(ty),
+      text("is ill-kinded"),
+    ]
   };
 };
 
