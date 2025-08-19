@@ -26,9 +26,9 @@ let inner_left = (idx: int, z: t): option(t) =>
     /* From here on handles a weird edge case where we must
        account for grout getting inserted after the caret */
     let z_init = z;
-    let init_left_nhbr = Siblings.right_neighbor(z_init.relatives.siblings);
+    let init_left_nhbr = Siblings.neighbor(Right, z_init.relatives.siblings);
     let z = remold_regrout(Left, z_init);
-    let new_nhbr = Siblings.right_neighbor(z.relatives.siblings);
+    let new_nhbr = Siblings.neighbor(Right, z.relatives.siblings);
     switch (new_nhbr, z.caret, Zipper.move(Right, z)) {
     | (Some(p), Inner(_), Some(z))
         when Piece.is_grout(p) && new_nhbr != init_left_nhbr => z

@@ -173,6 +173,8 @@ let replace_id = (id: Id.t, p: t): t =>
     })
   };
 
+let mk_secondary = (id, content) => Secondary(Secondary.mk(id, content));
+
 let mk_grout = (~id=Id.mk(), shape: Grout.shape): t =>
   grout({
     id,

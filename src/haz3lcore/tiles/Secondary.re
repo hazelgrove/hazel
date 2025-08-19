@@ -38,6 +38,13 @@ let construct_comment = content =>
     Comment(content);
   };
 
+let mk = (id: Id.t, content: string): t => {
+  id,
+  content:
+    Token.is_comment(content)
+      ? construct_comment(content) : Whitespace(content),
+};
+
 let is_space: t => bool =
   w =>
     switch (w.content) {
