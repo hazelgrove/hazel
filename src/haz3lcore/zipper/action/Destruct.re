@@ -25,7 +25,7 @@ let inner_left = (idx: int, z: t): option(t) =>
     let+ z = rm_nth_right(idx, t, z);
     /* From here on handles a weird edge case where we must
        account for grout getting inserted after the caret */
-    let z_init = z; //Insert.expand_or_barf_neighbors(z);
+    let z_init = z;
     let init_left_nhbr = Siblings.right_neighbor(z_init.relatives.siblings);
     let z = remold_regrout(Left, z_init);
     let new_nhbr = Siblings.right_neighbor(z.relatives.siblings);
@@ -77,9 +77,5 @@ let merge_or_noop = (z: t): t =>
 
 let go = (d: Direction.t, z: t): option(t) => {
   let+ z = destruct(d, z);
-  z
-  |> merge_or_noop
-  //|> Insert.expand_or_barf_neighbors
-  |> remold_regrout(d)
-  |> merge_or_noop; /* If grout disappears we may have another merge opportunity */
+  z |> merge_or_noop |> remold_regrout(d) |> merge_or_noop; /* If grout disappears we may have another merge opportunity */
 };
