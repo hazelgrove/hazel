@@ -27,11 +27,21 @@ let rec print_exp_for_algebrite = (exp: Exp.t): string =>
     "(" ++ "-" ++ print_exp_for_algebrite(exp) ++ ")"
   | Parens(exp) => "(" ++ print_exp_for_algebrite(exp) ++ ")"
   | Var(value) => value
-  // TODO: think harder about weird corner cases where we'd want to ensure the types in Cast are valid
+  // TODO(nishant): think harder about weird corner cases where we'd want to ensure the types in Cast are valid
   | Asc(exp, _) => print_exp_for_algebrite(exp)
+  | Ap(_, outer, inner) =>
+    print_exp_for_algebrite(outer)
+    ++ "("
+    ++ print_exp_for_algebrite(inner)
+    ++ ")"
   // If we don't know how to print the expression, we can use a hash to create a unique string
   // Modulo keeps it short
-  | _ => "unknown_" ++ string_of_int(Hashtbl.hash(exp) mod 100000)
+  | _ =>
+    print_endline(
+      "Algebrite rewrite checker received unknown value of type "
+      ++ Exp.show(exp),
+    );
+    "unknown_" ++ string_of_int(Hashtbl.hash(exp) mod 100000);
   };
 
 let checkEquality = (expr1, expr2): bool => {
