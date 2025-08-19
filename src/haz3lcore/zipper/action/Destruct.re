@@ -14,28 +14,20 @@ let outer = (d: Direction.t, z: t): option(t) =>
 let rm_nth_right = (idx, t, z) =>
   Insert.replace_shard(Right, Token.rm_nth(idx, t), z);
 
-let is_last_inner_pos = (t, idx) => Token.length(t) - 2 == idx;
-
 let inner_left = (idx: int, z: t): option(t) =>
   switch (Zipper.neighbor_shard(Right, z)) {
   | Some(t) when is_string_or_comment(t) && idx == 0 =>
     z |> Caret.set(Outer) |> Zipper.delete(Right)
   | Some(t) =>
     let z = Caret.set(idx == 0 ? Outer : Inner(idx - 1), z);
-    let+ z = rm_nth_right(idx, t, z);
-    /* From here on handles a weird edge case where we must
-       account for grout getting inserted after the caret */
-    let z_init = z;
-    let init_left_nhbr = Siblings.neighbor(Right, z_init.relatives.siblings);
-    let z = remold_regrout(Left, z_init);
-    let new_nhbr = Siblings.neighbor(Right, z.relatives.siblings);
-    switch (new_nhbr, z.caret, Zipper.move(Right, z)) {
-    | (Some(p), Inner(_), Some(z))
-        when Piece.is_grout(p) && new_nhbr != init_left_nhbr => z
-    | _ => z
-    };
+    let+ z_init = rm_nth_right(idx, t, z);
+    let z_final = remold_regrout(Left, z_init);
+    /* Handle an edge case around grout insertion */
+    Insert.grout_edge_case(~z_final, ~z_init);
   | None => z |> Caret.set(Outer) |> Zipper.delete(Right)
   };
+
+let is_last_inner_pos = (t, idx) => Token.length(t) - 2 == idx;
 
 let inner_right = (idx: int, z: t): option(t) =>
   switch (Zipper.neighbor_shard(Right, z)) {

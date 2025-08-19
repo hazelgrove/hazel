@@ -180,6 +180,16 @@ let expand_livelit = (z: t, ll: Language.LivelitCtx.raw_livelit) => {
   Zipper.update_siblings(((_, r)) => (l @ [pr], r), z);
 };
 
+let grout_edge_case = (~z_final: t, ~z_init: t): t => {
+  let init_nhbr = Siblings.neighbor(Right, z_init.relatives.siblings);
+  let final_nhbr = Siblings.neighbor(Right, z_final.relatives.siblings);
+  switch (final_nhbr, z_final.caret, Zipper.move(Right, z_final)) {
+  | (Some(p), Inner(_), Some(z_moved))
+      when Piece.is_grout(p) && final_nhbr != init_nhbr => z_moved
+  | _ => z_final
+  };
+};
+
 let go =
     (~ctx: Language.Ctx.t=Language.Ctx.empty, char: string, z: t): option(t) => {
   /* If there's a selection, delete it before proceeding */
@@ -209,26 +219,20 @@ let go =
       : split(z, char, idx, t);
   | (Inner(_), (_, None)) => None
   | (Outer, (_, Some(_))) =>
-    let+ z_init = append_or_insert(char, z);
-    /* The rest of this handles an edge case around grout insertion */
-    let init_left_nhbr = Siblings.neighbor(Right, z_init.relatives.siblings);
     let z =
-      z_init
-      |> remold_regrout(Left)
-      |> move_into_string_or_comment(char)
-      |> Caret.set(
-           switch (sibling_appendability(char, z_init)) {
-           | Some((Right, _)) => Inner(0)
-           | None
-           | Some((Left, _)) => Outer
-           },
-         );
-    let new_nhbr = Siblings.neighbor(Right, z.relatives.siblings);
-    switch (new_nhbr, z.caret, Zipper.move(Right, z)) {
-    | (Some(p), Inner(_), Some(z))
-        when Piece.is_grout(p) && new_nhbr != init_left_nhbr => z
-    | _ => z
-    };
+      Caret.set(
+        switch (sibling_appendability(char, z)) {
+        | Some((Right, _)) => Inner(0)
+        | None
+        | Some((Left, _)) => Outer
+        },
+        z,
+      );
+    let+ z_init = append_or_insert(char, z);
+    let z_final =
+      z_init |> remold_regrout(Left) |> move_into_string_or_comment(char);
+    /* Handle an edge case around grout insertion */
+    grout_edge_case(~z_final, ~z_init);
   | (Outer, (_, None)) =>
     let+ z = append_or_insert(char, z);
     z |> remold_regrout(Left) |> move_into_string_or_comment(char);
