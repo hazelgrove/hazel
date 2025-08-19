@@ -133,7 +133,13 @@ let merge_or_noop = (z: t): t =>
   | _ => z
   };
 
-let grout_edge_case = (~z_final: t, ~z_init: t): t => {
+/* If a grout is due to be inserted to the right of the caret,
+ * when the caret position is due to end up inside a token, we want
+ * to keep the caret inside the current token, not put it on the
+ * new grout. I hope for a clearer way to handle this case but I
+ * haven't found it; it may just be a necessary consequence of
+ * the way inner caret index is decoupled from the zipper cursor. */
+let adjust_caret_pos = (~z_final: t, ~z_init: t): t => {
   let init_nhbr = Siblings.neighbor(Right, z_init.relatives.siblings);
   let final_nhbr = Siblings.neighbor(Right, z_final.relatives.siblings);
   switch (final_nhbr, z_final.caret, Zipper.move(Right, z_final)) {
@@ -181,8 +187,7 @@ let go = (char: string, z: t): option(t) => {
       |> remold_regrout(Left)
       |> merge_or_noop
       |> move_into_string_or_comment(char);
-    /* Handle grout/caret positioning edge case */
-    grout_edge_case(~z_final, ~z_init);
+    adjust_caret_pos(~z_final, ~z_init);
   | (Outer, (_, None)) =>
     let+ z = append_or_insert(char, z);
     z
