@@ -32,9 +32,11 @@ let expansion = (t: Token.t, z: t): (Label.t, Direction.t) => {
 let insert_secondary = (~id: Id.t, ~d: Direction.t, content: Token.t, z: t): t =>
   Zipper.put_down_seg(
     d,
-    Token.is_comment(content)
-      ? Base.mk_secondary(id, Secondary.construct_comment(content))
-      : Base.mk_secondary(id, Whitespace(content)),
+    Base.mk_secondary(
+      id,
+      Token.is_comment(content)
+        ? Secondary.construct_comment(content) : Whitespace(content),
+    ),
     z,
   );
 
@@ -65,7 +67,7 @@ let insert_tile =
   Zipper.put_down_seg(d, shard, z);
 };
 
-let insert_piece =
+let insert_shard =
     (
       ~id: Id.t,
       ~d: Direction.t, /* Caret-relative direction for insertion of new piece */
@@ -75,16 +77,11 @@ let insert_piece =
     : t => {
   let z = destroy_selection(z);
   Token.is_secondary(t)
-    ? insert_secondary(~id, ~d, t, z) : insert_tile(~id, ~d, t, z);
+    ? insert_secondary(~id, ~d, t, z)
+    : Zipper.will_barf(t, z)
+        ? put_down_regrout_remold_tok(d, t, z) |> Option.get
+        : insert_tile(~id, ~d, t, z);
 };
-
-let insert_shard = (~id: Id.t, ~d: Direction.t, t: Token.t, z: t): t =>
-  /* Adds a new tile at the caret. If the new token matches the top
-     of the backpack, the backpack shard is dropped. Otherwise, we
-     construct a new tile, which may immediately expand. */
-  Zipper.will_barf(t, z)
-    ? put_down_regrout_remold_tok(d, t, z) |> Option.get
-    : insert_piece(~id, ~d, t, z);
 
 let replace_shard = (d: Direction.t, t: Token.t, z: t): option(t) => {
   let id = Zipper.adjacent_monotile_or_new_id(d, z);
