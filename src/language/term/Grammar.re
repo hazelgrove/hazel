@@ -149,6 +149,7 @@ and stepper_filter_kind_t('a) =
 and type_hole('a) =
   | Invalid(string)
   | EmptyHole
+  | CycleHole
   | MultiHole(list(any_t('a)))
 and type_provenance('a) =
   | SynSwitch
@@ -455,6 +456,7 @@ and map_type_hole_annotation:
     switch (e) {
     | Invalid(s) => Invalid(s)
     | EmptyHole => EmptyHole
+    | CycleHole => CycleHole
     | MultiHole(l) => MultiHole(List.map(x => map_any_annotation(f, x), l))
     };
   };

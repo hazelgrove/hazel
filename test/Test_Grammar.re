@@ -161,6 +161,7 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
       | Forall =>
         forall(TPat.var("x"), unknown(TypeProvenance.hole(EmptyHole)))
       | EmptyHole => unknown(TypeProvenance.hole(EmptyHole))
+      | CycleHole => unknown(TypeProvenance.hole(CycleHole))
       | SynSwitch => unknown(TypeProvenance.syn_switch())
       | Internal => unknown(TypeProvenance.internal())
       | LArrow => unknown(TypeProvenance.(larrow(Hole(EmptyHole))))

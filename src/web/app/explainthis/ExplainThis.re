@@ -2406,6 +2406,7 @@ let get_doc =
     | Unknown({term: NProduct(_), _}) // TODO: (THI) might need to be recursive
     | Unknown({term: RForall(_), _}) // TODO: (THI) might need to be recursive
     | Unknown({term: Join(_), _}) // TODO: (THI) might need to be recursive
+    | Unknown({term: Hole(CycleHole), _}) // TODO: (THI) needs a custom message
     | Unknown({term: Hole(EmptyHole), _}) => get_message(HoleTyp.empty_hole)
     | Unknown({term: Hole(MultiHole(_)), _}) =>
       get_message(HoleTyp.multi_hole)

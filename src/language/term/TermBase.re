@@ -1190,6 +1190,7 @@ and Prov: {
         term:
           switch (term) {
           | Hole(EmptyHole)
+          | Hole(CycleHole)
           | Hole(Invalid(_))
           | SynSwitch
           | Internal => term

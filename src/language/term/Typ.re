@@ -6,6 +6,7 @@ type cls =
   | Atom(Atom.cls)
   | Invalid
   | EmptyHole
+  | CycleHole
   | MultiHole
   | SynSwitch
   | Internal
@@ -79,6 +80,7 @@ let cls_of_term: Grammar.typ_term('a) => cls =
   fun
   | Unknown({term: Hole(Invalid(_)), _}) => Invalid
   | Unknown({term: Hole(EmptyHole), _}) => EmptyHole
+  | Unknown({term: Hole(CycleHole), _}) => EmptyHole
   | Unknown({term: Hole(MultiHole(_)), _}) => MultiHole
   | Unknown({term: SynSwitch, _}) => SynSwitch
   | Unknown({term: Internal, _}) => Internal
@@ -106,6 +108,7 @@ let show_cls: cls => string =
   | Invalid => "Invalid type"
   | MultiHole => "Broken type"
   | EmptyHole => "Type hole"
+  | CycleHole => "Cycle type hole"
   | SynSwitch => "Synthetic type"
   | Internal => "Internal type"
   | LArrow => "Left arrow prov type"

@@ -3,13 +3,13 @@ open Sexplib.Std;
 
 // [@deriving (show({with_path: false}), sexp, yojson)]
 type solution =
-  | EHole
-  | Hole(Prov.t)
-  | Num
-  | Bool
-  | Arrow(solution, solution)
-  | Multi(list(solution)) // Nums before arrows
-  | Cyclic; // TODO: add source prov
+  | Typ(Typ.term)
+  | Multi(list(solution));
+
+let cyclic_solution = Typ(Unknown(Hole(CycleHole) |> Prov.anonymous));
+
+type canonical_constramnot =
+  | Con(Prov.t, Typ.term);
 
 module StringProv = {
   type t = (string, Id.t);
@@ -37,20 +37,42 @@ module SolutionMap: {
   type t = ProvMap.t(solution);
 };
 
-let rec all_provs_in_sol = (s: solution): list(Prov.t) => {
-  switch (s) {
-  | Hole(p) => [p]
-  | EHole => []
-  | Num => []
-  | Bool => []
-  | Cyclic => []
-  | Multi(ss) => List.concat_map(all_provs_in_sol, ss)
-  | Arrow(t1, t2) => all_provs_in_sol(t1) @ all_provs_in_sol(t2)
+let rec provs_in_typ = (~include_prov=_ => true, t: Typ.term): list(Prov.t) => {
+  switch (t) {
+  | Unknown(p) when include_prov(p) => [p]
+  | Unknown(_) => []
+  | Atom(_) => []
+  | Arrow(t1, t2) =>
+    provs_in_typ(~include_prov, t1 |> Typ.term_of)
+    @ provs_in_typ(~include_prov, t2 |> Typ.term_of)
+  | Prod(args) =>
+    List.map(t => provs_in_typ(~include_prov, t |> Typ.term_of), args)
+    |> List.flatten
+  | Label(_) => []
+  | TupLabel(_, arg) => provs_in_typ(~include_prov, arg |> Typ.term_of)
+  | List(elt) => provs_in_typ(~include_prov, elt |> Typ.term_of)
+  | Sum(_) => []
+  | Parens(term) => provs_in_typ(~include_prov, term |> Typ.term_of)
+  | Ap(fn, args) =>
+    provs_in_typ(~include_prov, fn |> Typ.term_of)
+    @ provs_in_typ(~include_prov, args |> Typ.term_of)
+  | Rec(_, ty) => provs_in_typ(~include_prov, ty |> Typ.term_of)
+  | Forall(_, ty) => provs_in_typ(~include_prov, ty |> Typ.term_of)
+  | Var(_) => []
   };
 };
 
-type canonical_constramnot =
-  | Con(Prov.t, Typ.term);
+let unsolved_provs_in_typ = (t: Typ.term, sm: SolutionMap.t) => {
+  let filter = (p: Prov.t) => !SolutionMap.mem(StringProv.of_prov(p), sm);
+  provs_in_typ(t, ~include_prov=filter);
+};
+
+let rec all_provs_in_sol = (s: solution): list(Prov.t) => {
+  switch (s) {
+  | Typ(typ) => provs_in_typ(typ)
+  | Multi(ss) => List.concat_map(all_provs_in_sol, ss)
+  };
+};
 
 let terms_of_equiv = (equiv: Typ.equivalence) => {
   let Con(leftType, rightType) = equiv;
@@ -60,49 +82,78 @@ let terms_of_equiv = (equiv: Typ.equivalence) => {
 // precondition: recieves a consistent constramnot
 // postondition: returns an equivalent list of canonical (left side is hole) constriants
 let rec unfold_constramnot =
-        (equiv: Typ.equivalence): list(canonical_constramnot) =>
+        (equiv: Typ.equivalence): list(canonical_constramnot) => {
+  let Con(left_equiv, right_equiv) = equiv;
+
   switch (terms_of_equiv(equiv)) {
-  | (Unknown({term: Hole(EmptyHole), _}), _) => []
-  | (_, Unknown({term: Hole(EmptyHole), _})) => []
+  | (Parens(paren_ty), _) => unfold_constramnot(Con(paren_ty, right_equiv))
+  | (_, Parens(paren_ty)) => unfold_constramnot(Con(left_equiv, paren_ty))
+  // | (Unknown({term: Hole(EmptyHole), _}), _) => []
+  // | (_, Unknown({term: Hole(EmptyHole), _})) => []
+  | (Unknown(p), Unknown({term: Join(j1, j2), _})) => [
+      Con(p, Unknown(j1)),
+      Con(p, Unknown(j2)),
+    ]
+  | (Unknown({term: Join(j1, j2), _}), Unknown(p)) => [
+      Con(p, Unknown(j1)),
+      Con(p, Unknown(j2)),
+    ]
   | (Unknown(p), t) => [Con(p, t)]
   | (t, Unknown(p)) => [Con(p, t)]
-  | _ => failwith("todo: unfold_constramnot")
-  //   | (EHole, _) => []
-  //   | (_, EHole) => []
-  //   | (CycleHole(_), _) => []
-  //   | (_, CycleHole(_)) => []
-  //   | (Num, Num) => []
-  //   | (Bool, Bool) => []
-  //   | (Arrow(t1, t2), Arrow(t3, t4)) =>
-  //     unfold_constramnot(Con(t1, t3): constramnot)
-  //     @ unfold_constramnot(Con(t2, t4))
-  //   | (Num, Bool) => []
-  //   | (Bool, Num) => []
-  //   | (Num, Arrow(_))
-  //   | (Bool, Arrow(_))
-  //   | (Arrow(_), Bool)
-  //   | (Arrow(_), Num) => failwith("impossible")
+  | (Arrow(l1, l2), Arrow(r1, r2)) =>
+    unfold_constramnot(Con(l1, r1)) @ unfold_constramnot(Con(l2, r2))
+  | (Prod(l_args), Prod(r_args)) =>
+    unfold_constramnot_prod(l_args, r_args, [])
+  | (Label(_), Label(_)) => []
+  | (TupLabel(_, l_typ), TupLabel(_, r_typ)) =>
+    unfold_constramnot(Con(l_typ, r_typ)) // TODO: (THI) might we want to constrain labels?
+  | (Ap(l_fun, l_args), Ap(r_fun, r_args)) =>
+    unfold_constramnot(Con(l_fun, r_fun))
+    @ unfold_constramnot(Con(l_args, r_args))
+  | (Atom(_), Atom(_)) => []
+  | (Sum(_), Sum(_)) => []
+  | (List(l), List(r)) => unfold_constramnot(Con(l, r))
+  | (Var(_), Var(_)) => []
+  | (Rec(_, l_ty), Rec(_, r_ty)) => unfold_constramnot(Con(l_ty, r_ty))
+  | (Forall(_, l_ty), Forall(_, r_ty)) =>
+    unfold_constramnot(Con(l_ty, r_ty))
+  | (Atom(_), _)
+  | (_, Atom(_)) => []
+  | (Arrow(_), _)
+  | (_, Arrow(_)) => []
+  | (Var(_), _)
+  | (_, Var(_)) => []
+  | (Prod(_), _)
+  | (_, Prod(_)) => []
+  | (Label(_), _)
+  | (_, Label(_)) => []
+  | (TupLabel(_), _)
+  | (_, TupLabel(_)) => []
+  | (Ap(_), _)
+  | (_, Ap(_)) => []
+  | (Sum(_), _)
+  | (_, Sum(_)) => []
+  | (List(_), _)
+  | (_, List(_)) => []
+  | (Rec(_), _)
+  | (_, Rec(_)) => []
+  // | (Forall(_), _) | (_, Forall(_)) => []
   };
+}
+and unfold_constramnot_prod = (args1, args2, acc) => {
+  switch (args1, args2) {
+  | ([l_hd, ...l_tl], [r_hd, ...r_tl]) =>
+    unfold_constramnot_prod(
+      l_tl,
+      r_tl,
+      List.append(acc, unfold_constramnot(Con(l_hd, r_hd))),
+    )
+  | _ => acc
+  };
+};
 
 let unfold_constramnots: list(Typ.equivalence) => list(canonical_constramnot) =
   List.concat_map(unfold_constramnot);
-
-let rec unsolved_provs_in_typ =
-        (t: Typ.term, sm: SolutionMap.t): list(Prov.t) => {
-  failwith(
-    "todo: unsolved_provs_in_typ",
-    //   switch (t) {
-    //   | Hole(p) when !SolutionMap.mem(p, sm) => [p]
-    //   | Hole(_) => []
-    //   | EHole => []
-    //   | CycleHole(_) => []
-    //   | Num => []
-    //   | Bool => []
-    //   | Arrow(t1, t2) =>
-    //     unsolved_provs_in_typ(t1, sm) @ unsolved_provs_in_typ(t2, sm)
-    //   };
-  );
-};
 
 // let rec provs_in_constramnots: list(canonical_constramnot) => list(Prov.t) =
 //   fun
@@ -316,7 +367,11 @@ let solve_prov = (p: Prov.t, m: PossibleProvTypesMap.t): solution => {
   //   ++ "  constrained to "
   //   ++ String.concat(",", List.map(string_of_htyp, ts_list)),
   // );
-  List.fold_left(refine_solution(p), EHole, ts_list);
+  List.fold_left(
+    refine_solution(p),
+    Typ(Unknown(Hole(EmptyHole) |> Prov.anonymous)),
+    ts_list,
+  );
 };
 
 let rec typ_of_solution = (s: solution): Typ.term => {
@@ -593,7 +648,8 @@ let rec solve_rec =
         (sm, pss) => {
           PossibleProvTypesMap.map(
             sol => {
-              let (sol, _) = solution_replace_solution(pss, sol, Cyclic);
+              let (sol, _) =
+                solution_replace_solution(pss, sol, cyclic_solution);
               sol;
             },
             sm,
