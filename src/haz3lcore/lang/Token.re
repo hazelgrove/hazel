@@ -113,7 +113,9 @@ let is_potential_token = t =>
      * e.g. `map@<a>==1 has an ambiguous lex otherwise*/
     t == ">" || t == ">=" || t == ">." || t == ">=.";
   } else {
-    is_potential_operand(t)
+    t == "()"
+    || t == "[]"
+    || is_potential_operand(t)
     || is_potential_operator(t)
     || is_string(t)
     || is_comment(t);

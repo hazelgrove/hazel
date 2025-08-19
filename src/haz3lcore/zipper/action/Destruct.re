@@ -78,42 +78,24 @@ let destruct = (d: Direction.t, z: t): option(t) => {
   };
 };
 
-let merge = ((l, r): (Token.t, Token.t), z: t): option(t) => {
-  /* Note: Below order causes it to retain id of right tile */
-  let* z = Zipper.delete(Left, z);
-  let+ z = Insert.replace_shard(Right, Token.append(l, r), z);
-  let z = Zipper.Caret.set(Inner(Token.length(l) - 1), z);
-  /* Regrouting direction needed to merge prefixs into infix eg ! */
-  remold_regrout(Right, z);
-};
-
-let parent_duomerge = (~id: Id.t, lbl: Label.t, z: t): t => {
-  z
-  |> Zipper.delete_parent
-  |> Zipper.Caret.set(Inner(0))
-  |> Zipper.construct(~id, ~d=Right, ~backpack=Left, lbl)
-  /* Below regrouting important for parens/ap positioning */
-  |> remold_regrout(Right);
-};
-
-/* Check if containing duo form has a mono equivalent e.g. list literals */
-let parent_duomerges = (z: Zipper.t) => {
-  let* parent = Relatives.parent(z.relatives);
-  let* lbl = Piece.label(parent);
-  let+ res = Token.duomerges(lbl);
-  (res, Piece.id(parent));
-};
+/* Attempt to merge the tokens to the left and right of the caret */
+let merge_or_noop = (z: t): t =>
+  switch (Zipper.neighbor_shards(z)) {
+  | (Some(l), Some(r))
+      when Token.is_potential_token(Token.append(l, r)) && z.caret == Outer =>
+    let z = Zipper.delete(Left, z) |> Option.get;
+    let z = Insert.replace_shard(Right, Token.append(l, r), z) |> Option.get;
+    let z = Zipper.Caret.set(Inner(Token.length(l) - 1), z);
+    /* Regrouting direction needed to merge prefixs into infix eg ! */
+    remold_regrout(Right, z);
+  | _ => z
+  };
 
 let go = (d: Direction.t, z: t): option(t) => {
-  let* z = destruct(d, z);
-  switch (parent_duomerges(z), Zipper.neighbor_shards(z)) {
-  | (Some((lbl, id)), _) when Siblings.no_siblings(z.relatives.siblings) =>
-    /* Merge only when containing segment is totally empty after delete */
-    Some(parent_duomerge(~id, lbl, z))
-  | (_, (Some(l), Some(r)))
-      when Token.is_potential_token(Token.append(l, r)) && z.caret == Outer =>
-    z |> merge((l, r))
-  | _ =>
-    z |> Insert.expand_or_barf_neighbors |> remold_regrout(d) |> Option.some
-  };
+  let+ z = destruct(d, z);
+  z
+  |> merge_or_noop
+  |> Insert.expand_or_barf_neighbors
+  |> remold_regrout(d)
+  |> merge_or_noop; /* If grout disappears we may have another merge opportunity */
 };
