@@ -210,23 +210,11 @@ let singleton_shard_selection = (seg: Segment.t): option(Token.t) =>
   };
 
 let neighbor_shard = (d: Direction.t, z: t): option(Token.t) =>
-  switch (d) {
-  | Left =>
-    switch (Siblings.left_neighbor(z.relatives.siblings)) {
-    | Some(p) when Piece.monotile(p) != None =>
-      Piece.monotile(p) |> Option.get |> Option.some
-    | _ =>
-      let* z = select(Left, z);
-      singleton_shard_selection(z.selection.content);
-    }
-  | Right =>
-    switch (Siblings.right_neighbor(z.relatives.siblings)) {
-    | Some(p) when Piece.monotile(p) != None =>
-      Piece.monotile(p) |> Option.get |> Option.some
-    | _ =>
-      let* z = select(Right, z);
-      singleton_shard_selection(z.selection.content);
-    }
+  switch (Siblings.neighbor(d, z.relatives.siblings)) {
+  | Some(p) when Piece.monotile(p) != None => Piece.monotile(p)
+  | _ =>
+    let* z = select(d, z);
+    singleton_shard_selection(z.selection.content);
   };
 
 let neighbor_shards = (z: t): (option(Token.t), option(Token.t)) => (

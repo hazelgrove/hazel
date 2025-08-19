@@ -124,9 +124,9 @@ module MapPiece = {
     };
   };
 
-  let left_sib_has_id = sib_has_id(Siblings.left_neighbor);
+  let left_sib_has_id = sib_has_id(Siblings.neighbor(Left));
 
-  let right_sib_has_id = sib_has_id(Siblings.right_neighbor);
+  let right_sib_has_id = sib_has_id(Siblings.neighbor(Right));
 
   let update_left_sib = (f: Piece.t => Segment.t, z: t) => {
     let (l, r) = z.relatives.siblings;

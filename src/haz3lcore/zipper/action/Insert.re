@@ -29,17 +29,6 @@ let expansion = (t: Token.t, z: t): (Label.t, Direction.t) => {
   };
 };
 
-let insert_secondary = (~id: Id.t, ~d: Direction.t, content: Token.t, z: t): t =>
-  Zipper.put_down_seg(
-    d,
-    Base.mk_secondary(
-      id,
-      Token.is_comment(content)
-        ? Secondary.construct_comment(content) : Whitespace(content),
-    ),
-    z,
-  );
-
 let insert_tile =
     (
       ~id: Id.t,
@@ -47,40 +36,34 @@ let insert_tile =
       t: Token.t,
       z: t,
     )
-    : t => {
-  let (label, backpack) = expansion(t, z);
-  let label =
-    switch (label) {
-    | [t] when Token.is_string_delim(t) =>
-      /* Special case for constructing string literals. */
-      [Token.string_delim ++ Token.string_delim]
-    | _ => label
-    };
-  let molds = Form.Molds.get(label);
-  assert(molds != []);
-  let mold = List.hd(molds);
-  let shard =
-    Tile.split_shards(id, label, mold, List.mapi((i, _) => i, label))
-    |> List.map(Segment.of_tile)
-    |> ListUtil.rev_if(backpack == Right)
-    |> List.hd;
-  Zipper.put_down_seg(d, shard, z);
-};
+    : t =>
+  if (Zipper.will_barf(t, z)) {
+    Zipper.put_down_regrout_remold_tok(d, t, z) |> Option.get;
+  } else {
+    let (label, delim_d) = expansion(t, z);
+    let label =
+      switch (label) {
+      | [t] when Token.is_string_delim(t) =>
+        /* Special case for constructing string literals. */
+        [Token.string_delim ++ Token.string_delim]
+      | _ => label
+      };
+    let molds = Form.Molds.get(label);
+    assert(molds != []);
+    let mold = List.hd(molds);
+    let shard =
+      Tile.split_shards(id, label, mold, List.mapi((i, _) => i, label))
+      |> (delim_d == Right ? ListUtil.last : List.hd);
+    Zipper.put_down_seg(d, [Tile(shard)], z);
+  };
 
-let insert_shard =
-    (
-      ~id: Id.t,
-      ~d: Direction.t, /* Caret-relative direction for insertion of new piece */
-      t: Token.t,
-      z: t,
-    )
-    : t => {
+let insert_shard = (~id: Id.t, ~d: Direction.t, t: Token.t, z: t): t => {
   let z = destroy_selection(z);
-  Token.is_secondary(t)
-    ? insert_secondary(~id, ~d, t, z)
-    : Zipper.will_barf(t, z)
-        ? put_down_regrout_remold_tok(d, t, z) |> Option.get
-        : insert_tile(~id, ~d, t, z);
+  if (Token.is_secondary(t)) {
+    Zipper.put_down_seg(d, [Piece.mk_secondary(id, t)], z);
+  } else {
+    insert_tile(~id, ~d, t, z);
+  };
 };
 
 let replace_shard = (d: Direction.t, t: Token.t, z: t): option(t) => {
@@ -102,7 +85,7 @@ let sibling_appendability: (string, t) => appendability =
     | _ => None
     };
 
-let append_or_construct = (char: string, z: t): option(t) =>
+let append_or_insert = (char: string, z: t): option(t) =>
   switch (sibling_appendability(char, z)) {
   | None => z |> insert_shard(~id=Id.mk(), ~d=Left, char) |> Option.some
   | Some((d, t)) => replace_shard(d, t, z)
@@ -112,7 +95,7 @@ let append_or_construct = (char: string, z: t): option(t) =>
  * because grout is due to be inserted instead */
 let should_supress_space = (z: t): bool =>
   switch (
-    Siblings.left_neighbor(remold_regrout(Right, z).relatives.siblings)
+    Siblings.neighbor(Left, remold_regrout(Right, z).relatives.siblings)
   ) {
   | None => false
   | Some(p) => Piece.is_grout(p)
@@ -142,7 +125,6 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
     |> insert_shard(~id, ~d=Left, l)
     |> remold_regrout(Left)  /* Required for e.g. splitting ap(|) */
     |> insert_shard(~id=Id.mk(), ~d=Right, r);
-
   let z =
     Token.space == char && should_supress_space(z)
       ? z
@@ -229,7 +211,7 @@ let go =
   | (Outer, (Some(t), _)) when Token.is_livelit(t) && char == Token.space =>
     switch (Language.Ctx.lookup_livelit(ctx, Token.parse_livelit(t))) {
     | Some(ll) => expand_livelit(z, ll)
-    | None => append_or_construct(char, z)
+    | None => append_or_insert(char, z)
     }
   | (Inner(idx), (_, Some(t))) =>
     let idx = idx + 1;
@@ -240,13 +222,14 @@ let go =
         |> replace_shard(Right, new_token)
         |> Option.map(remold_regrout(Right))
       : split(z, char, idx, t);
-  | (Inner(_), (_, None)) => None /* Impossible? */
+  | (Inner(_), (_, None)) => None
   | (Outer, (_, Some(_))) =>
-    let+ z_init = append_or_construct(char, z);
-    let init_left_nhbr = Siblings.right_neighbor(z_init.relatives.siblings);
+    let+ z_init = append_or_insert(char, z);
+    /* The rest of this handles an edge case around grout insertion */
+    let init_left_nhbr = Siblings.neighbor(Right, z_init.relatives.siblings);
     let z =
       z_init
-      |> remold_regrout(Left)  // problematique
+      |> remold_regrout(Left)
       |> move_into_string_or_comment(char)
       |> Caret.set(
            switch (sibling_appendability(char, z_init)) {
@@ -255,16 +238,14 @@ let go =
            | Some((Left, _)) => Outer
            },
          );
-    //let init_left_nhbr = Siblings.right_neighbor(z.relatives.siblings);
-    //let z = remold_regrout(d, z);
-    let new_nhbr = Siblings.right_neighbor(z.relatives.siblings);
+    let new_nhbr = Siblings.neighbor(Right, z.relatives.siblings);
     switch (new_nhbr, z.caret, Zipper.move(Right, z)) {
     | (Some(p), Inner(_), Some(z))
         when Piece.is_grout(p) && new_nhbr != init_left_nhbr => z
     | _ => z
     };
   | (Outer, (_, None)) =>
-    let+ z = append_or_construct(char, z);
+    let+ z = append_or_insert(char, z);
     z |> remold_regrout(Left) |> move_into_string_or_comment(char);
   };
 };
