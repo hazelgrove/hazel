@@ -344,7 +344,7 @@ let delete = (d: Direction.t, z: t): option(t) => {
   };
 };
 
-let match_prev = (z: t) =>
+let glom_prev = (z: t) =>
   switch (neighbor_shard(Left, z)) {
   | Some(t) when will_glom(t, z) =>
     switch (delete(Left, z)) {

@@ -247,7 +247,7 @@ let go_z =
       switch (z.caret) {
       | Inner(_) => None
       | Outer =>
-        switch (Zipper.match_prev(z)) {
+        switch (Zipper.glom_prev(z)) {
         | Some(z) => Some(z)
         | None => Zipper.put_down_regrout_remold(Left, z)
         }
