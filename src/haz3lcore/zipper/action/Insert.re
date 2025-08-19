@@ -96,43 +96,43 @@ let expand_or_barf_right_neighbor = (z: t): t =>
 let expand_or_barf_neighbors = (z: t): t =>
   z |> expand_or_barf_left_neighbor |> expand_or_barf_right_neighbor;
 
-/* Checks if a neighbor, preferentially the left neighbor, is
-   a shard of a duotile which can be merged to form a monotile.
-   It returns the resulting (mono)label, and the direction of
-   the relevant neighbor. */
-let neighbor_can_duomerge =
-    (t: Token.t, s: Siblings.t): option((Label.t, Direction.t, Id.t)) => {
-  let get_duo_shard = ({label, shards, _}: Tile.t) =>
-    if (List.length(label) == 2 && List.length(shards) == 1) {
-      List.nth_opt(label, List.hd(shards));
-    } else {
-      None;
-    };
-  switch (Siblings.neighbors(s)) {
-  | (Some(Tile(tile)), _) =>
-    let* start = get_duo_shard(tile);
-    let+ mono_lbl = Token.duomerges([start, t]);
-    (mono_lbl, Direction.Left, tile.id);
-  | (_, Some(Tile(tile))) =>
-    let* last = get_duo_shard(tile);
-    let+ mono_lbl = Token.duomerges([t, last]);
-    (mono_lbl, Direction.Right, tile.id);
-  | _ => None
-  };
-};
+// /* Checks if a neighbor, preferentially the left neighbor, is
+//    a shard of a duotile which can be merged to form a monotile.
+//    It returns the resulting (mono)label, and the direction of
+//    the relevant neighbor. */
+// let neighbor_can_duomerge =
+//     (t: Token.t, s: Siblings.t): option((Label.t, Direction.t, Id.t)) => {
+//   let get_duo_shard = ({label, shards, _}: Tile.t) =>
+//     if (List.length(label) == 2 && List.length(shards) == 1) {
+//       List.nth_opt(label, List.hd(shards));
+//     } else {
+//       None;
+//     };
+//   switch (Siblings.neighbors(s)) {
+//   | (Some(Tile(tile)), _) =>
+//     let* start = get_duo_shard(tile);
+//     let+ mono_lbl = Token.duomerges([start, t]);
+//     (mono_lbl, Direction.Left, tile.id);
+//   | (_, Some(Tile(tile))) =>
+//     let* last = get_duo_shard(tile);
+//     let+ mono_lbl = Token.duomerges([t, last]);
+//     (mono_lbl, Direction.Right, tile.id);
+//   | _ => None
+//   };
+// };
 
 let make_new_tile = (~id, t: Token.t, caret: Direction.t, z: t): t =>
   /* Adds a new tile at the caret. If the new token matches the top
      of the backpack, the backpack shard is dropped. Otherwise, we
      construct a new tile, which may immediately expand. */
-  switch (neighbor_can_duomerge(t, z.relatives.siblings)) {
-  | Some((lbl, d, id)) =>
-    Zipper.replace(~id, ~d, ~backpack=d, lbl, z) |> Option.get
-  | None =>
-    Zipper.will_barf(t, z)
-      ? put_down_regrout_remold_tok(caret, t, z) |> Option.get
-      : construct_expand(~id, caret, t, z)
-  };
+  // switch (neighbor_can_duomerge(t, z.relatives.siblings)) {
+  // | Some((lbl, d, id)) =>
+  //   Zipper.replace(~id, ~d, ~backpack=d, lbl, z) |> Option.get
+  // | None =>
+  Zipper.will_barf(t, z)
+    ? put_down_regrout_remold_tok(caret, t, z) |> Option.get
+    : construct_expand(~id, caret, t, z);
+// };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type appendability = option((Direction.t, Token.t));
