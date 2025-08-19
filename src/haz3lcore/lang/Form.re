@@ -377,10 +377,10 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
   | Type => (Token.is_base_typ, [op(Typ)]);
 
 module Molds = {
-  let atomic_molds: list((Token.t => bool, list(Mold.t))) =
+  let atomics: list((Token.t => bool, list(Mold.t))) =
     List.map(get_atomic_form, all_of_atomic_form);
 
-  let compound_molds: list((Label.t, list(Mold.t))) =
+  let compounds: list((Label.t, list(Mold.t))) =
     forms
     |> List.fold_left(
          (acc, (_, {label, mold, _}: t)) => {
@@ -394,18 +394,17 @@ module Molds = {
          [],
        );
 
-  let atomic_mold: Token.t => list(Mold.t) =
+  let atomic: Token.t => list(Mold.t) =
     (t: Token.t) =>
-      List.concat_map(((p, molds)) => p(t) ? molds : [], atomic_molds);
+      List.concat_map(((p, molds)) => p(t) ? molds : [], atomics);
 
-  let compound_mold = (label: Label.t): option(list(Mold.t)) =>
-    List.assoc_opt(label, compound_molds);
+  let compound = (label: Label.t): option(list(Mold.t)) =>
+    List.assoc_opt(label, compounds);
 
   let get = (label: Label.t): list(Mold.t) =>
-    switch (label, compound_mold(label)) {
-    | ([t], Some(molds)) when atomic_mold(t) != [] =>
-      atomic_mold(t) @ molds
-    | ([t], None) when atomic_mold(t) != [] => atomic_mold(t)
+    switch (label, compound(label)) {
+    | ([t], Some(molds)) when atomic(t) != [] => atomic(t) @ molds
+    | ([t], None) when atomic(t) != [] => atomic(t)
     | (_, Some(molds)) => molds
     /* For tokens which are not assigned molds by the language definition,
        we assign a default 'Any' mold, which is either convex or concave.
