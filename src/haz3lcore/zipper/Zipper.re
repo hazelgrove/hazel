@@ -209,27 +209,29 @@ let singleton_shard_selection = (seg: Segment.t): option(Token.t) =>
   | _ => None
   };
 
-let left_neighbor_shard = (z: t): option(Token.t) =>
-  switch (Siblings.left_neighbor(z.relatives.siblings)) {
-  | Some(p) when Piece.monotile(p) != None =>
-    Piece.monotile(p) |> Option.get |> Option.some
-  | _ =>
-    let* z = select(Left, z);
-    singleton_shard_selection(z.selection.content);
-  };
-
-let right_neighbor_shard = (z: t): option(Token.t) =>
-  switch (Siblings.right_neighbor(z.relatives.siblings)) {
-  | Some(p) when Piece.monotile(p) != None =>
-    Piece.monotile(p) |> Option.get |> Option.some
-  | _ =>
-    let* z = select(Right, z);
-    singleton_shard_selection(z.selection.content);
+let neighbor_shard = (d: Direction.t, z: t): option(Token.t) =>
+  switch (d) {
+  | Left =>
+    switch (Siblings.left_neighbor(z.relatives.siblings)) {
+    | Some(p) when Piece.monotile(p) != None =>
+      Piece.monotile(p) |> Option.get |> Option.some
+    | _ =>
+      let* z = select(Left, z);
+      singleton_shard_selection(z.selection.content);
+    }
+  | Right =>
+    switch (Siblings.right_neighbor(z.relatives.siblings)) {
+    | Some(p) when Piece.monotile(p) != None =>
+      Piece.monotile(p) |> Option.get |> Option.some
+    | _ =>
+      let* z = select(Right, z);
+      singleton_shard_selection(z.selection.content);
+    }
   };
 
 let neighbor_shards = (z: t): (option(Token.t), option(Token.t)) => (
-  left_neighbor_shard(z),
-  right_neighbor_shard(z),
+  neighbor_shard(Left, z),
+  neighbor_shard(Right, z),
 );
 
 let adj_pos = (d: Direction.t, z: t): t =>
@@ -406,7 +408,7 @@ let replace =
 };
 
 let match_prev = (z: t) =>
-  switch (left_neighbor_shard(z)) {
+  switch (neighbor_shard(Left, z)) {
   | Some(t) when will_barf(t, z) =>
     switch (delete(Left, z)) {
     | Some(z) => put_down_regrout_remold_tok(Left, t, z)

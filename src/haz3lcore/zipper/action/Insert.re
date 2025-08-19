@@ -70,7 +70,7 @@ let expand_or_noop = (d: Direction.t, t: Token.t, z: t): t =>
 /* If left neighbor is a monotile (a) string-matching the shard at the
    top of the backpack, barf it, or (b) an expanding keyword, expand it. */
 let expand_or_barf_left_neighbor = (z: t): t =>
-  switch (Zipper.left_neighbor_shard(z)) {
+  switch (Zipper.neighbor_shard(Left, z)) {
   | Some(t) when Zipper.will_barf(t, z) => barf_or_noop(Left, t, z)
   | Some(t) when Form.Expansion.will(t) =>
     switch (Siblings.left_neighbor(z.relatives.siblings)) {
@@ -83,7 +83,7 @@ let expand_or_barf_left_neighbor = (z: t): t =>
 /* If right neighbor is a monotile (a) string-matching the shard at the
    top of the backpack, barf it, or (b) an expanding delimiter, expand it. */
 let expand_or_barf_right_neighbor = (z: t): t =>
-  switch (Zipper.right_neighbor_shard(z)) {
+  switch (Zipper.neighbor_shard(Right, z)) {
   | Some(t) when Zipper.will_barf(t, z) => barf_or_noop(Right, t, z)
   | Some(t) when Form.Expansion.will(t) =>
     switch (Siblings.right_neighbor(z.relatives.siblings)) {

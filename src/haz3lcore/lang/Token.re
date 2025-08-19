@@ -21,6 +21,11 @@ let sort_uniq = List.sort_uniq(compare);
 let rm_nth = StringUtil.remove_nth;
 let rm_last = StringUtil.remove_last;
 let rm_first = StringUtil.remove_first;
+let rm_edge = (d: Direction.t, t) =>
+  switch (d) {
+  | Left => rm_last(t)
+  | Right => rm_first(t)
+  };
 let split_nth = StringUtil.split_nth;
 let insert_nth = StringUtil.insert_nth;
 let match = StringUtil.match;
