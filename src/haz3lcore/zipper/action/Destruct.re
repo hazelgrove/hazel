@@ -20,8 +20,7 @@ let inner_left = (idx: int, z: t): option(t) =>
     let z = Caret.set(idx == 0 ? Outer : Inner(idx - 1), z);
     let+ z_init = rm_nth_right(idx, t, z);
     let z_final = remold_regrout(Left, z_init);
-    /* Handle grout/caret positioning edge case */
-    Insert.grout_edge_case(~z_final, ~z_init);
+    Insert.adjust_caret_pos(~z_final, ~z_init);
   | None => z |> Caret.set(Outer) |> Zipper.delete(Right)
   };
 
