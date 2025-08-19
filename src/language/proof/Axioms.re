@@ -3,7 +3,7 @@ let v: ProofCtx.t =
   |> ProofCtx.add_exp(
        "Iden(+)L",
        // Fun is being used as a stand-in for Forall
-       Fun(
+       Forall(
          Var("x") |> Pat.fresh,
          BinOp(
            Poly(Equals),
@@ -16,14 +16,12 @@ let v: ProofCtx.t =
            Var("x") |> Exp.fresh,
          )
          |> Exp.fresh,
-         Some(Atom(Int) |> Typ.fresh),
-         None,
        )
        |> Exp.fresh,
      )
   |> ProofCtx.add_exp(
        "Zero(*)",
-       Fun(
+       Forall(
          Var("x") |> Pat.fresh,
          BinOp(
            Poly(Equals),
@@ -36,16 +34,14 @@ let v: ProofCtx.t =
            Atom(Int(Bigint.zero)) |> Exp.fresh,
          )
          |> Exp.fresh,
-         Some(Atom(Int) |> Typ.fresh),
-         None,
        )
        |> Exp.fresh,
      )
   |> ProofCtx.add_exp(
        "Comm(+)",
-       Fun(
+       Forall(
          Var("x") |> Pat.fresh,
-         Fun(
+         Forall(
            Var("y") |> Pat.fresh,
            BinOp(
              Poly(Equals),
@@ -55,22 +51,18 @@ let v: ProofCtx.t =
              |> Exp.fresh,
            )
            |> Exp.fresh,
-           Some(Atom(Int) |> Typ.fresh),
-           None,
          )
          |> Exp.fresh,
-         Some(Atom(Int) |> Typ.fresh),
-         None,
        )
        |> Exp.fresh,
      )
   |> ProofCtx.add_exp(
        "Assoc(+)",
-       Fun(
+       Forall(
          Var("x") |> Pat.fresh,
-         Fun(
+         Forall(
            Var("y") |> Pat.fresh,
-           Fun(
+           Forall(
              Var("z") |> Pat.fresh,
              BinOp(
                Poly(Equals),
@@ -98,24 +90,18 @@ let v: ProofCtx.t =
                |> Exp.fresh,
              )
              |> Exp.fresh,
-             Some(Atom(Int) |> Typ.fresh),
-             None,
            )
            |> Exp.fresh,
-           Some(Atom(Int) |> Typ.fresh),
-           None,
          )
          |> Exp.fresh,
-         Some(Atom(Int) |> Typ.fresh),
-         None,
        )
        |> Exp.fresh,
      )
   |> ProofCtx.add_exp(
        "Comm(*)",
-       Fun(
+       Forall(
          Var("x") |> Pat.fresh,
-         Fun(
+         Forall(
            Var("y") |> Pat.fresh,
            BinOp(
              Poly(Equals),
@@ -133,22 +119,18 @@ let v: ProofCtx.t =
              |> Exp.fresh,
            )
            |> Exp.fresh,
-           Some(Atom(Int) |> Typ.fresh),
-           None,
          )
          |> Exp.fresh,
-         Some(Atom(Int) |> Typ.fresh),
-         None,
        )
        |> Exp.fresh,
      )
   |> ProofCtx.add_exp(
        "Assoc(*)",
-       Fun(
+       Forall(
          Var("x") |> Pat.fresh,
-         Fun(
+         Forall(
            Var("y") |> Pat.fresh,
-           Fun(
+           Forall(
              Var("z") |> Pat.fresh,
              BinOp(
                Poly(Equals),
@@ -176,22 +158,16 @@ let v: ProofCtx.t =
                |> Exp.fresh,
              )
              |> Exp.fresh,
-             Some(Atom(Int) |> Typ.fresh),
-             None,
            )
            |> Exp.fresh,
-           Some(Atom(Int) |> Typ.fresh),
-           None,
          )
          |> Exp.fresh,
-         Some(Atom(Int) |> Typ.fresh),
-         None,
        )
        |> Exp.fresh,
      )
   |> ProofCtx.add_exp(
        "Reflexive(==)",
-       Fun(
+       Forall(
          Var("x") |> Pat.fresh,
          BinOp(
            Poly(Equals),
@@ -204,8 +180,6 @@ let v: ProofCtx.t =
            Atom(Bool(true)) |> Exp.fresh,
          )
          |> Exp.fresh,
-         Some(Atom(Bool) |> Typ.fresh),
-         None,
        )
        |> Exp.fresh,
      );
