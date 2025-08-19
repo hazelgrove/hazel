@@ -237,7 +237,7 @@ let insertion_tests = [
   ),
   /* INSERTION: TOKEN SPLITTING */
   test(
-    ~name="`Split empty list",
+    ~name="Split empty list",
     ~acts=mk({|[¦]|}) @ [Insert(" ")],
     ~goal={|[?¦]|},
   ),
@@ -247,7 +247,7 @@ let insertion_tests = [
     ~goal={|case?¦end|},
   ),
   test(
-    ~name="`Split number literal",
+    ~name="Split number literal",
     ~acts=mk({|1¦1|}) @ [Insert(" ")],
     ~goal={|1~¦1|},
   ),
@@ -258,7 +258,7 @@ let insertion_tests = [
     ~goal={|if?¦then?|},
   ),
   test(
-    ~name="`Split mono child and 2nd delim of 3-delim form",
+    ~name="Split mono child and 2nd delim of 3-delim form",
     ~acts=mk({|if true¦then|}) @ [Insert(" ")],
     ~goal={|if true ¦then?|},
   ),
@@ -423,6 +423,17 @@ let insertion_tests = [
     ~name="Split ap (Make sure outside gets remolded)",
     ~acts=mk({|ap(¦)|}) @ [Insert(" ")],
     ~goal={|ap(?¦)|},
+  ),
+  /* MERGING */
+  test(
+    ~name="Prelude for: Merge across concave grout on insert",
+    ~acts=mk({|if 1 then 2 e¦lse 3|}) @ [Destruct(Left)],
+    ~goal={|if 1 then 2 ¦~lse~ 3|},
+  ),
+  test(
+    ~name="Merge across concave grout on insert",
+    ~acts=mk({|if 1 then 2 e¦lse 3|}) @ [Destruct(Left), Insert("e")],
+    ~goal={|if 1 then 2 e¦lse 3|},
   ),
 ];
 

@@ -72,6 +72,10 @@ let closing_stringlit_or_comment = (char, t: t): bool =>
   || is_comment(t)
   && is_comment_delim(char);
 
+let is_string_or_comment = t => is_string(t) || is_comment(t);
+let is_string_or_comment_delim = t =>
+  is_string_delim(t) || is_comment_delim(t);
+
 let bools = ["true", "false"];
 let is_bool = match(regexp("^(" ++ concat("|", bools) ++ ")$"));
 let undefined = "undefined";
