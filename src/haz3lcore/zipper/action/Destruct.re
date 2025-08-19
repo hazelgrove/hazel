@@ -2,25 +2,11 @@ open Zipper;
 open Util;
 open OptUtil.Syntax;
 
-let will_duo_split = t => Token.duosplits(t) != [];
-
-let construct_duosplit = (d: Direction.t, t, z: t): t =>
-  Zipper.construct(
-    ~d,
-    ~id=Insert.adjacent_monotile_or_new_id(d, z),
-    ~backpack=d,
-    Token.duosplits(t),
-    z,
-  );
-
 let is_string_or_comment = t => Token.is_string(t) || Token.is_comment(t);
 
 let outer_left = (z: t): option(t) =>
   switch (Zipper.left_neighbor_shard(z)) {
   | Some(t) when is_string_or_comment(t) => delete(Left, z)
-  | Some(t) when will_duo_split(t) =>
-    let+ z = delete(Left, z);
-    construct_duosplit(Left, t, z);
   | Some(t) when Token.length(t) > 1 =>
     Insert.replace_shard(Left, Token.rm_last(t), z)
   | _ => delete(Left, z)
@@ -29,9 +15,6 @@ let outer_left = (z: t): option(t) =>
 let outer_right = (z: Zipper.t): option(Zipper.t) =>
   switch (Zipper.right_neighbor_shard(z)) {
   | Some(t) when is_string_or_comment(t) => delete(Right, z)
-  | Some(t) when will_duo_split(t) =>
-    let+ z = delete(Right, z);
-    construct_duosplit(Right, t, z);
   | Some(t) when Token.length(t) > 1 =>
     Insert.replace_shard(Right, Token.rm_first(t), z)
   | _ => delete(Right, z)
@@ -46,10 +29,6 @@ let inner_left = (idx: int, z: t): option(t) =>
   switch (Zipper.right_neighbor_shard(z)) {
   | Some(t) when is_string_or_comment(t) && idx == 0 =>
     z |> Caret.set(Outer) |> Zipper.delete(Right)
-  | Some(t) when will_duo_split(t) && idx == 0 =>
-    let z = Caret.set(Outer, z);
-    let+ z = Zipper.delete(Right, z);
-    construct_duosplit(Right, t, z);
   | Some(t) =>
     let z = Caret.set(idx == 0 ? Outer : Inner(idx - 1), z);
     let+ z = rm_nth_right(idx, t, z);
@@ -71,10 +50,6 @@ let inner_right = (idx: int, z: t): option(t) =>
   switch (Zipper.right_neighbor_shard(z)) {
   | Some(t) when is_string_or_comment(t) && is_last_inner_pos(t, idx) =>
     z |> Caret.set(Outer) |> Zipper.delete(Right)
-  | Some(t) when will_duo_split(t) && is_last_inner_pos(t, idx) =>
-    let z = Caret.set(Outer, z);
-    let+ z = Zipper.delete(Right, z);
-    construct_duosplit(Left, t, z);
   | Some(t) =>
     let* z = rm_nth_right(idx + 1, t, z);
     is_last_inner_pos(t, idx)

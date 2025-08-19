@@ -203,13 +203,6 @@ let is_llm_hole = t => t == llm_hole || t == llm_advanced_reasoning_hole;
    mono and duotile forms, like list literals and tuples switching to/from
    the empty list and empty tuple. Technically this should be derivable from
    the language data; leaving that for a future refactor. */
-let duosplits = (t: t): list(t) =>
-  switch () {
-  | _ when is_empty_list(t) => listlit_lbl
-  | _ when is_empty_tuple(t) => tuple_lbl
-  | _ => []
-  };
-
 let duomerges = (lbl: list(t)): option(list(t)) =>
   switch () {
   | _ when lbl == listlit_lbl => Some([empty_list])
