@@ -169,7 +169,7 @@ let sample_type = (cls_typ: Typ.cls): Grammar.UnitGrammar.typ => {
       | MList => unknown(TypeProvenance.(mlist(Hole(EmptyHole))))
       | RForall => unknown(TypeProvenance.rforall(Hole(EmptyHole)))
       | Join =>
-        unknown(TypeProvenance.(join([hole(EmptyHole), hole(EmptyHole)])))
+        unknown(TypeProvenance.(join(hole(EmptyHole), hole(EmptyHole))))
       | Label => label("label")
       | MultiHole => unknown(TypeProvenance.hole(MultiHole([])))
       | Sum => sum([])

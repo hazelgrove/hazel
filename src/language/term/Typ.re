@@ -231,7 +231,7 @@ let join_type_provenance =
   if (p1 == p2) {
     p1;
   } else {
-    Join([p1, p2]) |> Prov.fresh;
+    Join(p1, p2) |> Prov.fresh;
   };
 
 let rec match_tup_label = ty =>
@@ -948,8 +948,7 @@ let rec is_syn = (ty: t): bool =>
   switch (ty |> term_of) {
   | TupLabel(_, x)
   | Parens(x) => is_syn(x)
-  | Unknown({term: SynSwitch, _}) => true
-  | Unknown(_)
+  | Unknown(p) => is_prov_syn(p |> Prov.term_of)
   | Atom(_)
   | Label(_)
   | Var(_)
@@ -960,7 +959,21 @@ let rec is_syn = (ty: t): bool =>
   | Arrow(_)
   | Prod(_)
   | Sum(_) => false
+  }
+and is_prov_syn = (prov: Prov.term): bool => {
+  switch (prov) {
+  | LArrow(p)
+  | RArrow(p)
+  | NProduct(_, p)
+  | RForall(p)
+  | MList(p) => is_prov_syn(p)
+  | Join(p1, p2) =>
+    is_prov_syn(p1 |> Prov.term_of) || is_prov_syn(p2 |> Prov.term_of)
+  | SynSwitch => true
+  | Internal => false
+  | Hole(_) => false
   };
+};
 
 let rec is_ana_atom = (ty: t) =>
   switch (ty |> term_of) {
@@ -983,10 +996,9 @@ let rec is_syn_plus = (ty: t): bool =>
   switch (ty |> term_of) {
   | TupLabel(_, x)
   | Parens(x) => is_syn_plus(x)
-  | Unknown({term: SynSwitch, _}) => true
+  | Unknown(p) => is_prov_syn(p |> Prov.term_of)
   | Arrow(t1, t2) => is_syn(t1) && is_syn_plus(t2)
   | Forall(_, t) => is_syn(t)
-  | Unknown(_)
   | Atom(_)
   | Label(_)
   | Var(_)

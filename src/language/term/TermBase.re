@@ -1154,12 +1154,11 @@ and Prov: {
     | NProduct(n, p) =>
       "*(" ++ string_of_int(n) ++ "," ++ to_string(p) ++ ")"
     | RForall(p) => "->RA(" ++ to_string(p) ++ ")"
-    | Join(ps) =>
+    | Join(p1, p2) =>
       "J("
-      ++ String.concat(
-           ",",
-           List.map(p => {to_string(p |> IdTagged.term_of)}, ps),
-         )
+      ++ Prov.to_string(IdTagged.term_of(p1))
+      ++ ", "
+      ++ Prov.to_string(IdTagged.term_of(p2))
       ++ ")";
 
   let map_term =
@@ -1201,7 +1200,7 @@ and Prov: {
           | NProduct(n, p) => NProduct(n, prov_map_temp_term(p))
           | MList(p) => MList(prov_map_temp_term(p))
           | RForall(p) => RForall(prov_map_temp_term(p))
-          | Join(ps) => Join(List.map(prov_map_term, ps))
+          | Join(p1, p2) => Join(prov_map_term(p1), prov_map_term(p2))
           },
       };
     };

@@ -159,7 +159,7 @@ and type_provenance('a) =
   | NProduct(int, type_provenance('a))
   | MList(type_provenance('a))
   | RForall(type_provenance('a))
-  | Join(list(type_provenance_t('a)))
+  | Join(type_provenance_t('a), type_provenance_t('a))
 and type_provenance_t('a) = Annotated.t(type_provenance('a), 'a)
 and filter('a) = {
   pat: exp_t('a),
@@ -428,7 +428,11 @@ and map_type_provenance_annotation:
     | NProduct(n, p) => NProduct(n, map_type_provenance_annotation(f, p))
     | MList(p) => MList(map_type_provenance_annotation(f, p))
     | RForall(p) => RForall(map_type_provenance_annotation(f, p))
-    | Join(ps) => Join(List.map(map_type_provenance_t_annotation(f), ps))
+    | Join(p1, p2) =>
+      Join(
+        map_type_provenance_t_annotation(f, p1),
+        map_type_provenance_t_annotation(f, p2),
+      )
     };
   }
 and map_type_provenance_t_annotation:
@@ -954,9 +958,9 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
         annotation: default_annotation(ann),
       };
     };
-    let join = (~ann=?, ps): type_provenance_t(DefaultAnnotation.t) => {
+    let join = (~ann=?, p1, p2): type_provenance_t(DefaultAnnotation.t) => {
       {
-        term: Join(ps),
+        term: Join(p1, p2),
         annotation: default_annotation(ann),
       };
     };
