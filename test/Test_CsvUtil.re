@@ -14,7 +14,7 @@ let tests = (
           list(list(pair(string, string))),
           "Returns value",
           [[("a", "1"), ("b", "2"), ("c", "3")]],
-          CsvUtil.parse_csv(csv_string),
+          CsvUtil.parse_csv_with_headers(csv_string),
         );
       },
     ),
