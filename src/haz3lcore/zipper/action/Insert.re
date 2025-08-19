@@ -33,6 +33,7 @@ let expansion = (t: Token.t, z: t): (Label.t, Direction.t) => {
   };
 };
 
+/* Insert a new shard based on token `t` on the `d`-side of the caret */
 let insert_shard = (~id: Id.t, ~d: Direction.t, t: Token.t, z: t): t => {
   let z = destroy_selection(z);
   if (Token.is_secondary(t)) {
@@ -51,6 +52,7 @@ let insert_shard = (~id: Id.t, ~d: Direction.t, t: Token.t, z: t): t => {
   };
 };
 
+/* Replace `d`-neighbor shard with a new one based on token `t` */
 let replace_shard = (d: Direction.t, t: Token.t, z: t): option(t) => {
   let id = Zipper.adjacent_monotile_or_new_id(d, z);
   let+ z = delete(d, z);
@@ -60,16 +62,19 @@ let replace_shard = (d: Direction.t, t: Token.t, z: t): option(t) => {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type appendability = option((Direction.t, Token.t));
 
-let sibling_appendability: (string, t) => appendability =
-  (char, z) =>
-    switch (neighbor_shards(z)) {
-    | (Some(t), _) when Token.is_potential_token(Token.append(t, char)) =>
-      Some((Left, Token.append(t, char)))
-    | (_, Some(t)) when Token.is_potential_token(Token.append(char, t)) =>
-      Some((Right, Token.append(char, t)))
-    | _ => None
-    };
+/* Decide which if any sibling we can append `char` to.
+ * We bias towards the left sibling */
+let sibling_appendability = (char: string, z: t): appendability =>
+  switch (neighbor_shards(z)) {
+  | (Some(t), _) when Token.is_potential_token(Token.append(t, char)) =>
+    Some((Left, Token.append(t, char)))
+  | (_, Some(t)) when Token.is_potential_token(Token.append(char, t)) =>
+    Some((Right, Token.append(char, t)))
+  | _ => None
+  };
 
+/* If char can be appended to either sibling token, do it,
+ * otherwise insert a new `char` token */
 let append_or_insert = (char: string, z: t): option(t) =>
   switch (sibling_appendability(char, z)) {
   | None => z |> insert_shard(~id=Id.mk(), ~d=Left, char) |> Option.some
@@ -77,7 +82,8 @@ let append_or_insert = (char: string, z: t): option(t) =>
   };
 
 /* Figure out if we should avoid inserting a space
- * because grout is due to be inserted instead */
+ * because grout is due to be inserted instead,
+ *  e.g. when splitting `[|]` or `(|)` */
 let should_supress_space = (z: t): bool =>
   switch (
     Siblings.neighbor(Left, remold_regrout(Right, z).relatives.siblings)
@@ -87,10 +93,8 @@ let should_supress_space = (z: t): bool =>
   };
 
 /* This is special-case logic for advancing the caret to between
- * the quotes in newly-created stringlits. The bulk of the stringlit
- * special-casing is in Zipper.constuct; ideally this logic would be
- * there as well, but both regrouting and subsequent caret logic at
- * this function's callsites require this be done after :( */
+ * the quotes in newly-created stringlits. This should be done
+ * before regrouting to avoid annoying edge cases. */
 let move_into_string_or_comment = (char: string, z: t): t =>
   Token.is_string_or_comment_delim(char)
     ? switch (move(Left, z)) {
@@ -99,7 +103,7 @@ let move_into_string_or_comment = (char: string, z: t): t =>
       }
     : z;
 
-/* This creates three tokens; two from splitting the existing one,
+/* Split creates three tokens; two from splitting the existing one,
  * and a new single-character token (or grout) in the middle. */
 let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
   let (l, r) = Token.split_nth(idx, t);
@@ -119,7 +123,8 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
   remold_regrout(Right, z);
 };
 
-/* If the caret is precisely between two tokens, merge those tokens */
+/* If the caret is precisely between two tokens, which
+ * can become a valid token if merged, merge those tokens */
 let merge_or_noop = (z: t): t =>
   switch (Zipper.neighbor_shards(z)) {
   | (Some(l), Some(r))
@@ -134,7 +139,7 @@ let merge_or_noop = (z: t): t =>
   };
 
 /* If a grout is due to be inserted to the right of the caret,
- * when the caret position is due to end up inside a token, we want
+ * when the caret position will end up inside a token, we want
  * to keep the caret inside the current token, not put it on the
  * new grout. I hope for a clearer way to handle this case but I
  * haven't found it; it may just be a necessary consequence of
@@ -184,23 +189,24 @@ let go = (char: string, z: t): option(t) => {
     let+ z_init = append_or_insert(char, z);
     let z_final =
       z_init
+      |> move_into_string_or_comment(char)
       |> remold_regrout(Left)
-      |> merge_or_noop
-      |> move_into_string_or_comment(char);
+      |> merge_or_noop;
+
     adjust_caret_pos(~z_final, ~z_init);
   | (Outer, (_, None)) =>
     let+ z = append_or_insert(char, z);
     z
+    |> move_into_string_or_comment(char)
     |> remold_regrout(Left)
-    |> merge_or_noop
-    |> move_into_string_or_comment(char);
+    |> merge_or_noop;
   };
 };
 
+/* This is a wrapper intended to effectuate after-insertion conditional
+ * operations. See Triggers.re for more details */
 let go =
     (~ctx: Language.Ctx.t=Language.Ctx.empty, char: string, z: t): option(t) => {
-  /* This is a wrapper intended to effectuate after-insertion conditional
-   * operations. See Triggers.re for more details */
   let+ z = go(char, z);
   Triggers.apply(~ctx, z);
 };
