@@ -310,49 +310,6 @@ let put_down_regrout_remold_tok =
   put_down_regrout_target(d, target, z);
 };
 
-let construct =
-    (
-      ~id: Id.t,
-      ~d: Direction.t, /* Caret-relative direction for insertion of new piece */
-      ~backpack: Direction.t, /* Insert leading or trailing shard of polytile */
-      label: Label.t,
-      z: t,
-    )
-    : t => {
-  let z = destroy_selection(z);
-  switch (label) {
-  | [content] when Token.is_secondary(content) =>
-    put_down_seg(
-      d,
-      Token.is_comment(content)
-        ? Base.mk_secondary(id, Secondary.construct_comment(content))
-        : Base.mk_secondary(id, Whitespace(content)),
-      z,
-    )
-  | _ =>
-    let label =
-      switch (label) {
-      | [t] when Token.is_string_delim(t) =>
-        /* Special case for constructing string literals. */
-        [Token.string_delim ++ Token.string_delim]
-      | _ => label
-      };
-    let molds = Form.Molds.get(label);
-    assert(molds != []);
-    // initial mold to typecheck, will be remolded
-    let mold = List.hd(molds);
-    let shard =
-      Tile.split_shards(id, label, mold, List.mapi((i, _) => i, label))
-      |> List.map(Segment.of_tile)
-      |> ListUtil.rev_if(backpack == Right)
-      |> List.hd;
-    put_down_seg(d, shard, z);
-  };
-};
-
-let construct_mono = (~id, d: Direction.t, t: Token.t, z: t): t =>
-  construct(~id, ~d, ~backpack=Left, [t], z);
-
 let rec get_leaf_pieces =
         (syntaxNode: Piece.t, ~ignored_labels: list(list(string)))
         : list(Piece.t) =>
@@ -400,13 +357,6 @@ let delete = (d: Direction.t, z: t): option(t) => {
   };
 };
 
-let replace =
-    (~id: Id.t, ~d: Direction.t, ~backpack: Direction.t, l: Label.t, z: t)
-    : option(t) => {
-  /* i.e. select and construct, overwriting the selection */
-  z |> delete(d) |> Option.map(construct(~id, ~d, ~backpack, l));
-};
-
 let match_prev = (z: t) =>
   switch (neighbor_shard(Left, z)) {
   | Some(t) when will_barf(t, z) =>
@@ -424,15 +374,11 @@ let adjacent_monotile_id = (d: Direction.t, z: t): option(Id.t) =>
   | _ => None
   };
 
-let replace_shard = (d: Direction.t, t: Token.t, z: t): option(t) => {
-  /* Re-use existing monotile id where appropriate */
-  let id =
-    switch (adjacent_monotile_id(d, z)) {
-    | Some(id) => id
-    | None => Id.mk()
-    };
-  replace(~id, ~d, ~backpack=Left, [t], z);
-};
+let adjacent_monotile_or_new_id = (d, z) =>
+  switch (adjacent_monotile_id(d, z)) {
+  | Some(id) => id
+  | None => Id.mk()
+  };
 
 let representative_piece = (z: t): option((Piece.t, Direction.t)) => {
   /* The piece to the left of the caret, or if none exists, the piece to the right */
