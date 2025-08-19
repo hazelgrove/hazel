@@ -4,20 +4,11 @@ open OptUtil.Syntax;
 
 let is_string_or_comment = t => Token.is_string(t) || Token.is_comment(t);
 
-let outer_left = (z: t): option(t) =>
-  switch (Zipper.left_neighbor_shard(z)) {
-  | Some(t) when is_string_or_comment(t) => delete(Left, z)
-  | Some(t) when Token.length(t) > 1 =>
-    Insert.replace_shard(Left, Token.rm_last(t), z)
-  | _ => delete(Left, z)
-  };
-
-let outer_right = (z: Zipper.t): option(Zipper.t) =>
-  switch (Zipper.right_neighbor_shard(z)) {
-  | Some(t) when is_string_or_comment(t) => delete(Right, z)
-  | Some(t) when Token.length(t) > 1 =>
-    Insert.replace_shard(Right, Token.rm_first(t), z)
-  | _ => delete(Right, z)
+let outer = (d: Direction.t, z: t): option(t) =>
+  switch (Zipper.neighbor_shard(d, z)) {
+  | Some(t) when Token.length(t) > 1 && !is_string_or_comment(t) =>
+    Insert.replace_shard(d, Token.rm_edge(d, t), z)
+  | _ => delete(d, z)
   };
 
 let rm_nth_right = (idx, t, z) =>
@@ -26,7 +17,7 @@ let rm_nth_right = (idx, t, z) =>
 let is_last_inner_pos = (t, idx) => Token.length(t) - 2 == idx;
 
 let inner_left = (idx: int, z: t): option(t) =>
-  switch (Zipper.right_neighbor_shard(z)) {
+  switch (Zipper.neighbor_shard(Right, z)) {
   | Some(t) when is_string_or_comment(t) && idx == 0 =>
     z |> Caret.set(Outer) |> Zipper.delete(Right)
   | Some(t) =>
@@ -47,7 +38,7 @@ let inner_left = (idx: int, z: t): option(t) =>
   };
 
 let inner_right = (idx: int, z: t): option(t) =>
-  switch (Zipper.right_neighbor_shard(z)) {
+  switch (Zipper.neighbor_shard(Right, z)) {
   | Some(t) when is_string_or_comment(t) && is_last_inner_pos(t, idx) =>
     z |> Caret.set(Outer) |> Zipper.delete(Right)
   | Some(t) =>
@@ -63,16 +54,10 @@ let inner = (d: Direction.t, idx: int, z: t): option(t) =>
   | Right => inner_right(idx, z)
   };
 
-let outer = (z: Zipper.t, d: Direction.t): option(Zipper.t) =>
-  switch (d) {
-  | Left => outer_left(z)
-  | Right => outer_right(z)
-  };
-
 let destruct = (d: Direction.t, z: t): option(t) =>
   switch (z.caret) {
   | _ when z.selection.content != [] => Some(Zipper.destroy_selection(z))
-  | Outer => outer(z, d)
+  | Outer => outer(d, z)
   | Inner(idx) => inner(d, idx, z)
   };
 
