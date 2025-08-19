@@ -92,7 +92,7 @@ let should_supress_space = (z: t): bool =>
  * there as well, but both regrouting and subsequent caret logic at
  * this function's callsites require this be done after :( */
 let move_into_string_or_comment = (char: string, z: t): t =>
-  Token.is_string_delim(char) || Token.is_comment_delim(char)
+  Token.is_string_or_comment_delim(char)
     ? switch (move(Left, z)) {
       | None => z
       | Some(z) => z |> Caret.set(Inner(0))
@@ -119,66 +119,19 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
   remold_regrout(Right, z);
 };
 
-let invoked_projector = (name: string, syntax: Segment.t): option(Piece.t) => {
-  let* name = Token.of_projector_invoke(name);
-  let kind = ProjectorCore.Kind.of_name(name);
-  ProjectorPerform.init(kind, syntax);
-};
-
-let is_projector_invoke = (z: t): option(t) => {
-  switch (z.relatives.siblings |> fst |> List.rev) {
-  | [
-      Tile({label: ["(", ")"], children: [syntax], _}),
-      Tile({label: [name], _}),
-      ...rest,
-    ]
-      when Token.is_projector_invoke(name) =>
-    /* Trim only need because of grout/whitespace transmutation when syntax is hole */
-    let syntax =
-      syntax |> Segment.trim_secondary(Right) |> Segment.trim_secondary(Left);
-    let+ piece = invoked_projector(name, syntax);
-    Zipper.update_siblings(
-      ((_, r)) => ([piece, ...rest] |> List.rev, r),
-      z,
-    );
-  /* Special case for reparsing of projectors placed on holes */
-  | [Tile({label: ["()"], _}), Tile({label: [name], _}), ...rest]
-      when Token.is_projector_invoke(name) =>
-    let+ piece = invoked_projector(name, [Piece.mk_grout(Convex)]);
-    Zipper.update_siblings(
-      ((_, r)) => ([piece, ...rest] |> List.rev, r),
-      z,
-    );
-  | _ => None
+/* If the caret is precisely between two tokens, merge those tokens */
+let merge_or_noop = (z: t): t =>
+  switch (Zipper.neighbor_shards(z)) {
+  | (Some(l), Some(r))
+      when Token.is_potential_token(Token.append(l, r)) && z.caret == Outer =>
+    /* We remove the left manually, and then replace the right */
+    let z = Zipper.delete(Left, z) |> Option.get;
+    let z = replace_shard(Right, Token.append(l, r), z) |> Option.get;
+    let z = Caret.set(Inner(Token.length(l) - 1), z);
+    /* Regrouting direction needed to merge prefixs into infix eg ! */
+    remold_regrout(Right, z);
+  | _ => z
   };
-};
-
-let projector_to_invoke: Base.projector => Segment.t =
-  pr => [
-    Piece.mk_tile(
-      Form.mk_atom_op(Exp, Token.mk_projector_invoke(pr.kind)),
-      [],
-    ),
-    Piece.mk_tile(Form.get(ApExp), [Piece.unparenthesize(pr.syntax)]),
-  ];
-
-let expand_livelit = (z: t, ll: Language.LivelitCtx.raw_livelit) => {
-  let seg =
-    ExpToSegment.exp_to_segment(
-      ~settings=
-        ExpToSegment.Settings.of_core(~inline=true, Language.CoreSettings.on),
-      ll.model_default,
-    );
-  let seg =
-    switch (ll.model_default) {
-    | {term: Tuple(_), _} => Segment.unparenthesize(seg)
-    | _ => seg
-    };
-  let (l, name) = ListUtil.split_last(fst(z.relatives.siblings));
-  let seg = [name, Piece.mk_tile(Form.get(ApExp), [seg])];
-  let+ pr = ProjectorPerform.init(Livelit, seg);
-  Zipper.update_siblings(((_, r)) => (l @ [pr], r), z);
-};
 
 let grout_edge_case = (~z_final: t, ~z_init: t): t => {
   let init_nhbr = Siblings.neighbor(Right, z_init.relatives.siblings);
@@ -190,8 +143,7 @@ let grout_edge_case = (~z_final: t, ~z_init: t): t => {
   };
 };
 
-let go =
-    (~ctx: Language.Ctx.t=Language.Ctx.empty, char: string, z: t): option(t) => {
+let go = (char: string, z: t): option(t) => {
   /* If there's a selection, delete it before proceeding */
   let z = z.selection.content != [] ? Zipper.destroy_selection(z) : z;
   switch (z.caret, neighbor_shards(z)) {
@@ -203,11 +155,6 @@ let go =
     z |> Caret.set(Outer) |> Zipper.move(Right)
   | (Outer, (Some(t), _)) when Token.closing_stringlit_or_comment(char, t) =>
     Some(z)
-  | (Outer, (Some(t), _)) when Token.is_livelit(t) && char == Token.space =>
-    switch (Language.Ctx.lookup_livelit(ctx, Token.parse_livelit(t))) {
-    | Some(ll) => expand_livelit(z, ll)
-    | None => append_or_insert(char, z)
-    }
   | (Inner(idx), (_, Some(t))) =>
     let idx = idx + 1;
     let new_token = Token.insert_nth(idx, char, t);
@@ -230,23 +177,25 @@ let go =
       );
     let+ z_init = append_or_insert(char, z);
     let z_final =
-      z_init |> remold_regrout(Left) |> move_into_string_or_comment(char);
-    /* Handle an edge case around grout insertion */
+      z_init
+      |> remold_regrout(Left)
+      |> merge_or_noop
+      |> move_into_string_or_comment(char);
+    /* Handle grout/caret positioning edge case */
     grout_edge_case(~z_final, ~z_init);
   | (Outer, (_, None)) =>
     let+ z = append_or_insert(char, z);
-    z |> remold_regrout(Left) |> move_into_string_or_comment(char);
+    z
+    |> remold_regrout(Left)
+    |> merge_or_noop
+    |> move_into_string_or_comment(char);
   };
 };
 
-let go = (~ctx: option(Language.Ctx.t)=?, char: string, z: t): option(t) => {
+let go =
+    (~ctx: Language.Ctx.t=Language.Ctx.empty, char: string, z: t): option(t) => {
   /* This is a wrapper intended to effectuate after-insertion conditional
-   * operations. This is done here as opposed to in perform in order to
-   * reflect operations we want performed by the parser, which uses
-   * Insert.go as its primary driver */
-  let+ z = go(~ctx?, char, z);
-  switch (is_projector_invoke(z)) {
-  | Some(z) => z
-  | None => z
-  };
+   * operations. See Triggers.re for more details */
+  let+ z = go(char, z);
+  Triggers.apply(~ctx, z);
 };
