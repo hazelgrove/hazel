@@ -9,13 +9,7 @@ let to_zipper = (~zipper_init=Zipper.init(), str: string): option(Zipper.t) => {
       None;
     };
   };
-  let* z = str |> Token.to_list |> List.fold_left(insert, Some(zipper_init));
-  /* HACK(andrew): Insert/Destruct below is a hack to deal
-     with the fact that pasting something like "let a = b in"
-     won't trigger the barfing of the "in"; to trigger this,
-     we insert a linebreak, and then we immediately delete it */
-  let* z = Insert.go("\n", z);
-  let+ z = Destruct.go(Left, z);
+  let+ z = str |> Token.to_list |> List.fold_left(insert, Some(zipper_init));
   Zipper.remold_regrout(Left, z);
 };
 
