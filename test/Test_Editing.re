@@ -138,7 +138,7 @@ let basic_tests = [
     ~goal={|if"foo"¦then?|},
   ),
   test(
-    ~name="Paste string with a backpack barf false friend",
+    ~name="Paste string with a backpack glom false friend",
     ~acts=mk("¦") @ [Paste(String({|([)(|}))],
     ~goal={|([?)(¦?|},
   ),
