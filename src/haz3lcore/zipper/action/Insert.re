@@ -23,31 +23,24 @@ let expansion = (t: Token.t, z: t): (Label.t, Direction.t) => {
     | _ => false
     };
   switch (t) {
-  /* Only expand case rules when inside a case */
-  | "|" when !(before_case_shard(z) || inside_case(z)) => ([t], Left)
+  | _ when Token.is_string_delim(t) =>
+    /* Special case for constructing string literals. */
+    ([Token.string_delim ++ Token.string_delim], Left)
+  | "|" when !(before_case_shard(z) || inside_case(z)) =>
+    /* Only expand case rules when inside a case */
+    ([t], Left)
   | _ => Form.Expansion.get(t)
   };
 };
 
-let insert_tile =
-    (
-      ~id: Id.t,
-      ~d: Direction.t, /* Caret-relative direction for insertion of new piece */
-      t: Token.t,
-      z: t,
-    )
-    : t =>
-  if (Zipper.will_barf(t, z)) {
-    Zipper.put_down_regrout_remold_tok(d, t, z) |> Option.get;
+let insert_shard = (~id: Id.t, ~d: Direction.t, t: Token.t, z: t): t => {
+  let z = destroy_selection(z);
+  if (Token.is_secondary(t)) {
+    Zipper.put_down_seg(d, [Piece.mk_secondary(id, t)], z);
+  } else if (Zipper.will_glom(t, z)) {
+    Zipper.glom(d, t, z) |> Option.get;
   } else {
     let (label, delim_d) = expansion(t, z);
-    let label =
-      switch (label) {
-      | [t] when Token.is_string_delim(t) =>
-        /* Special case for constructing string literals. */
-        [Token.string_delim ++ Token.string_delim]
-      | _ => label
-      };
     let molds = Form.Molds.get(label);
     assert(molds != []);
     let mold = List.hd(molds);
@@ -55,14 +48,6 @@ let insert_tile =
       Tile.split_shards(id, label, mold, List.mapi((i, _) => i, label))
       |> (delim_d == Right ? ListUtil.last : List.hd);
     Zipper.put_down_seg(d, [Tile(shard)], z);
-  };
-
-let insert_shard = (~id: Id.t, ~d: Direction.t, t: Token.t, z: t): t => {
-  let z = destroy_selection(z);
-  if (Token.is_secondary(t)) {
-    Zipper.put_down_seg(d, [Piece.mk_secondary(id, t)], z);
-  } else {
-    insert_tile(~id, ~d, t, z);
   };
 };
 

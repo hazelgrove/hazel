@@ -272,9 +272,6 @@ let put_down = (d: Direction.t, z: t): option(t) => {
   put_down_seg(d, [Tile(target)], z);
 };
 
-let will_barf = (tok: Token.t, z: t): bool =>
-  put_down_tok(Right, tok, z) != None;
-
 let can_put_down = z =>
   switch (local_backpack(z)) {
   | [] => false
@@ -292,8 +289,10 @@ let put_down_regrout_remold = (d: Direction.t, z: t): option(t) => {
   put_down_regrout_target(d, target, z);
 };
 
-let put_down_regrout_remold_tok =
-    (d: Direction.t, tok: Token.t, z: t): option(t) => {
+let will_glom = (tok: Token.t, z: t): bool =>
+  put_down_tok(Right, tok, z) != None;
+
+let glom = (d: Direction.t, tok: Token.t, z: t): option(t) => {
   let+ target = backpack_find(tok, z);
   put_down_regrout_target(d, target, z);
 };
@@ -347,9 +346,9 @@ let delete = (d: Direction.t, z: t): option(t) => {
 
 let match_prev = (z: t) =>
   switch (neighbor_shard(Left, z)) {
-  | Some(t) when will_barf(t, z) =>
+  | Some(t) when will_glom(t, z) =>
     switch (delete(Left, z)) {
-    | Some(z) => put_down_regrout_remold_tok(Left, t, z)
+    | Some(z) => glom(Left, t, z)
     | None => Some(z)
     }
   | _ => None
