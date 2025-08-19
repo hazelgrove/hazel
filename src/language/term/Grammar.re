@@ -948,6 +948,18 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
         annotation: default_annotation(ann),
       };
     };
+    let rforall = (~ann=?, p): type_provenance_t(DefaultAnnotation.t) => {
+      {
+        term: RForall(p),
+        annotation: default_annotation(ann),
+      };
+    };
+    let join = (~ann=?, ps): type_provenance_t(DefaultAnnotation.t) => {
+      {
+        term: Join(ps),
+        annotation: default_annotation(ann),
+      };
+    };
   };
 };
 

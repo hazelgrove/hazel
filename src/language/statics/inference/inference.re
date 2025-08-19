@@ -137,12 +137,10 @@ module PossibleTypeSet: {
   let set_contains = (x: Typ.term, ts: t) =>
     List.exists((y: Typ.term) => Typ.equal(Typ.temp(y), Typ.temp(x)), ts);
 
-  let add = (x: Typ.term, ts: t) =>
-    set_contains(x, ts) ? ts : [x, ...ts];
+  let add = (x: Typ.term, ts: t) => set_contains(x, ts) ? ts : [x, ...ts];
 
   // Fold for dedup
-  let union = (a, b) =>
-    List.fold_left((acc, t) => add(t, acc), a, b);
+  let union = (a, b) => List.fold_left((acc, t) => add(t, acc), a, b);
   let empty = [];
   let singleton = (t: Typ.term): t => [t];
   let to_list = (t: t) => t;
