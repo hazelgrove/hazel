@@ -29,22 +29,65 @@ let expansion = (t: Token.t, z: t): (Label.t, Direction.t) => {
   };
 };
 
-let construct_expand = (~id, d: Direction.t, t: Token.t, z: t): t => {
-  let (lbl, backpack) = expansion(t, z);
-  construct(~id, ~backpack, ~d, lbl, z);
+let insert_token =
+    (
+      ~id: Id.t,
+      ~d: Direction.t, /* Caret-relative direction for insertion of new piece */
+      t: Token.t,
+      z: t,
+    )
+    : t => {
+  let z = destroy_selection(z);
+  let (label, backpack) = expansion(t, z);
+  switch (label) {
+  | [content] when Token.is_secondary(content) =>
+    Zipper.put_down_seg(
+      d,
+      Token.is_comment(content)
+        ? Base.mk_secondary(id, Secondary.construct_comment(content))
+        : Base.mk_secondary(id, Whitespace(content)),
+      z,
+    )
+  | _ =>
+    let label =
+      switch (label) {
+      | [t] when Token.is_string_delim(t) =>
+        /* Special case for constructing string literals. */
+        [Token.string_delim ++ Token.string_delim]
+      | _ => label
+      };
+    let molds = Form.Molds.get(label);
+    assert(molds != []);
+    // initial mold to typecheck, will be remolded
+    let mold = List.hd(molds);
+    let shard =
+      Tile.split_shards(id, label, mold, List.mapi((i, _) => i, label))
+      |> List.map(Segment.of_tile)
+      |> ListUtil.rev_if(backpack == Right)
+      |> List.hd;
+    Zipper.put_down_seg(d, shard, z);
+  };
 };
 
-let adjacent_monotile_or_new_id = (d, z) =>
-  switch (adjacent_monotile_id(d, z)) {
-  | Some(id) => id
-  | None => Id.mk()
-  };
+let new_shard = (~id: Id.t, ~d: Direction.t, t: Token.t, z: t): t =>
+  /* Adds a new tile at the caret. If the new token matches the top
+     of the backpack, the backpack shard is dropped. Otherwise, we
+     construct a new tile, which may immediately expand. */
+  Zipper.will_barf(t, z)
+    ? put_down_regrout_remold_tok(d, t, z) |> Option.get
+    : insert_token(~id, ~d, t, z);
 
 let replace_expand = (d: Direction.t, t: Token.t, z: t): option(t) => {
   /* Retain monotile id for new polytile (Just for fun) */
-  let id = adjacent_monotile_or_new_id(d, z);
+  let id = Zipper.adjacent_monotile_or_new_id(d, z);
   let+ z = delete(d, z);
-  construct_expand(~id, d, t, z);
+  insert_token(~id, ~d, t, z);
+};
+
+let replace_shard = (d: Direction.t, t: Token.t, z: t): option(t) => {
+  let id = Zipper.adjacent_monotile_or_new_id(d, z);
+  let+ z = delete(d, z);
+  new_shard(~id, ~d, t, z);
 };
 
 /* Removes a neighboring shard and drops from backpack;
@@ -96,44 +139,6 @@ let expand_or_barf_right_neighbor = (z: t): t =>
 let expand_or_barf_neighbors = (z: t): t =>
   z |> expand_or_barf_left_neighbor |> expand_or_barf_right_neighbor;
 
-// /* Checks if a neighbor, preferentially the left neighbor, is
-//    a shard of a duotile which can be merged to form a monotile.
-//    It returns the resulting (mono)label, and the direction of
-//    the relevant neighbor. */
-// let neighbor_can_duomerge =
-//     (t: Token.t, s: Siblings.t): option((Label.t, Direction.t, Id.t)) => {
-//   let get_duo_shard = ({label, shards, _}: Tile.t) =>
-//     if (List.length(label) == 2 && List.length(shards) == 1) {
-//       List.nth_opt(label, List.hd(shards));
-//     } else {
-//       None;
-//     };
-//   switch (Siblings.neighbors(s)) {
-//   | (Some(Tile(tile)), _) =>
-//     let* start = get_duo_shard(tile);
-//     let+ mono_lbl = Token.duomerges([start, t]);
-//     (mono_lbl, Direction.Left, tile.id);
-//   | (_, Some(Tile(tile))) =>
-//     let* last = get_duo_shard(tile);
-//     let+ mono_lbl = Token.duomerges([t, last]);
-//     (mono_lbl, Direction.Right, tile.id);
-//   | _ => None
-//   };
-// };
-
-let make_new_tile = (~id, t: Token.t, caret: Direction.t, z: t): t =>
-  /* Adds a new tile at the caret. If the new token matches the top
-     of the backpack, the backpack shard is dropped. Otherwise, we
-     construct a new tile, which may immediately expand. */
-  // switch (neighbor_can_duomerge(t, z.relatives.siblings)) {
-  // | Some((lbl, d, id)) =>
-  //   Zipper.replace(~id, ~d, ~backpack=d, lbl, z) |> Option.get
-  // | None =>
-  Zipper.will_barf(t, z)
-    ? put_down_regrout_remold_tok(caret, t, z) |> Option.get
-    : construct_expand(~id, caret, t, z);
-// };
-
 [@deriving (show({with_path: false}), sexp, yojson)]
 type appendability = option((Direction.t, Token.t));
 
@@ -147,18 +152,12 @@ let sibling_appendability: (string, t) => appendability =
     | _ => None
     };
 
-let replace_shard = (d: Direction.t, t: Token.t, z: t): option(t) => {
-  let id = adjacent_monotile_or_new_id(d, z);
-  let+ z = delete(d, z);
-  make_new_tile(~id, t, d, z);
-};
-
 let append_or_construct = (char: string, z: t): option(t) =>
   switch (sibling_appendability(char, z)) {
   | None =>
     z
     |> expand_or_barf_neighbors
-    |> make_new_tile(~id=Id.mk(), char, Left)
+    |> new_shard(~id=Id.mk(), ~d=Left, char)
     |> Option.some
   | Some((d, t)) => replace_shard(d, t, z)
   };
@@ -190,38 +189,21 @@ let move_into_string_or_comment = (char: string, z: t): t =>
  * and a new single-character token (or grout) in the middle. */
 let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
   let (l, r) = Token.split_nth(idx, t);
-  let id = adjacent_monotile_or_new_id(Right, z);
-  let* z = z |> Caret.set(Outer) |> Zipper.delete(Right);
-  switch (Token.duomerges([l, r])) {
-  | Some(_) =>
-    let+ z =
-      z
-      |> Zipper.construct(~id, ~d=Left, ~backpack=Left, [l, r])
-      |> remold_regrout(Left)  /* Must regrout here e.g. try space on ap(|) */
-      |> Zipper.put_down_tok(Left, r)
-      |> OptUtil.and_then(Zipper.move(Left));
-    /* If we're trying to inserting a space, we skip it
-     * since we'll get a convex grout from regrouting */
-    (Token.space == char ? z : make_new_tile(~id=Id.mk(), char, Left, z))
-    |> move_into_string_or_comment(char)
-    |> remold_regrout(Right);
-  | None =>
-    let z =
-      z
-      |> Zipper.construct_mono(~id=Id.mk(), Right, r)
-      |> Zipper.construct_mono(~id, Left, l)
-      |> expand_or_barf_neighbors;
-    if (Token.space == char && should_supress_space(z)) {
-      Some(remold_regrout(Right, z));
-    } else {
-      z
-      //|> remold  //TODO: understand this remold
-      |> make_new_tile(~id=Id.mk(), char, Left)
-      |> move_into_string_or_comment(char)
-      |> remold_regrout(Right)
-      |> Option.some;
-    };
-  };
+  let id = Zipper.adjacent_monotile_or_new_id(Right, z);
+  let+ z = z |> Caret.set(Outer) |> Zipper.delete(Right);
+  let z =
+    z
+    |> new_shard(~id, ~d=Left, l)
+    |> remold_regrout(Left)  /* Required for e.g. splitting ap(|) */
+    |> new_shard(~id=Id.mk(), ~d=Right, r)
+    |> expand_or_barf_neighbors;
+  let z =
+    Token.space == char && should_supress_space(z)
+      ? z
+      : z
+        |> new_shard(~id=Id.mk(), ~d=Left, char)
+        |> move_into_string_or_comment(char);
+  remold_regrout(Right, z);
 };
 
 let invoked_projector = (name: string, syntax: Segment.t): option(Piece.t) => {
