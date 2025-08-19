@@ -123,16 +123,26 @@ let rec unsolved_provs_in_typ =
 // };
 
 // TODO: this needs to be a proper set to get rid of duplicate types
+// Temp fix just prevent duplicaste insertion
 module PossibleTypeSet: {
   type t = list(Typ.term);
   let union: (t, t) => t;
   let empty: t;
   let singleton: Typ.term => t;
   let to_list: t => t;
+  let add: (Typ.term, t) => t;
 } = {
   type t = list(Typ.term);
 
-  let union = List.append;
+  let set_contains = (x: Typ.term, ts: t) =>
+    List.exists((y: Typ.term) => Typ.equal(Typ.temp(y), Typ.temp(x)), ts);
+
+  let add = (x: Typ.term, ts: t) =>
+    set_contains(x, ts) ? ts : [x, ...ts];
+
+  // Fold for dedup
+  let union = (a, b) =>
+    List.fold_left((acc, t) => add(t, acc), a, b);
   let empty = [];
   let singleton = (t: Typ.term): t => [t];
   let to_list = (t: t) => t;
