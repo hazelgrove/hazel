@@ -29,7 +29,43 @@ let expansion = (t: Token.t, z: t): (Label.t, Direction.t) => {
   };
 };
 
-let insert_token =
+let insert_secondary = (~id: Id.t, ~d: Direction.t, content: Token.t, z: t): t =>
+  Zipper.put_down_seg(
+    d,
+    Token.is_comment(content)
+      ? Base.mk_secondary(id, Secondary.construct_comment(content))
+      : Base.mk_secondary(id, Whitespace(content)),
+    z,
+  );
+
+let insert_tile =
+    (
+      ~id: Id.t,
+      ~d: Direction.t, /* Caret-relative direction for insertion of new piece */
+      t: Token.t,
+      z: t,
+    )
+    : t => {
+  let (label, backpack) = expansion(t, z);
+  let label =
+    switch (label) {
+    | [t] when Token.is_string_delim(t) =>
+      /* Special case for constructing string literals. */
+      [Token.string_delim ++ Token.string_delim]
+    | _ => label
+    };
+  let molds = Form.Molds.get(label);
+  assert(molds != []);
+  let mold = List.hd(molds);
+  let shard =
+    Tile.split_shards(id, label, mold, List.mapi((i, _) => i, label))
+    |> List.map(Segment.of_tile)
+    |> ListUtil.rev_if(backpack == Right)
+    |> List.hd;
+  Zipper.put_down_seg(d, shard, z);
+};
+
+let insert_piece =
     (
       ~id: Id.t,
       ~d: Direction.t, /* Caret-relative direction for insertion of new piece */
@@ -38,106 +74,23 @@ let insert_token =
     )
     : t => {
   let z = destroy_selection(z);
-  let (label, backpack) = expansion(t, z);
-  switch (label) {
-  | [content] when Token.is_secondary(content) =>
-    Zipper.put_down_seg(
-      d,
-      Token.is_comment(content)
-        ? Base.mk_secondary(id, Secondary.construct_comment(content))
-        : Base.mk_secondary(id, Whitespace(content)),
-      z,
-    )
-  | _ =>
-    let label =
-      switch (label) {
-      | [t] when Token.is_string_delim(t) =>
-        /* Special case for constructing string literals. */
-        [Token.string_delim ++ Token.string_delim]
-      | _ => label
-      };
-    let molds = Form.Molds.get(label);
-    assert(molds != []);
-    // initial mold to typecheck, will be remolded
-    let mold = List.hd(molds);
-    let shard =
-      Tile.split_shards(id, label, mold, List.mapi((i, _) => i, label))
-      |> List.map(Segment.of_tile)
-      |> ListUtil.rev_if(backpack == Right)
-      |> List.hd;
-    Zipper.put_down_seg(d, shard, z);
-  };
+  Token.is_secondary(t)
+    ? insert_secondary(~id, ~d, t, z) : insert_tile(~id, ~d, t, z);
 };
 
-let new_shard = (~id: Id.t, ~d: Direction.t, t: Token.t, z: t): t =>
+let insert_shard = (~id: Id.t, ~d: Direction.t, t: Token.t, z: t): t =>
   /* Adds a new tile at the caret. If the new token matches the top
      of the backpack, the backpack shard is dropped. Otherwise, we
      construct a new tile, which may immediately expand. */
   Zipper.will_barf(t, z)
     ? put_down_regrout_remold_tok(d, t, z) |> Option.get
-    : insert_token(~id, ~d, t, z);
-
-let replace_expand = (d: Direction.t, t: Token.t, z: t): option(t) => {
-  /* Retain monotile id for new polytile (Just for fun) */
-  let id = Zipper.adjacent_monotile_or_new_id(d, z);
-  let+ z = delete(d, z);
-  insert_token(~id, ~d, t, z);
-};
+    : insert_piece(~id, ~d, t, z);
 
 let replace_shard = (d: Direction.t, t: Token.t, z: t): option(t) => {
   let id = Zipper.adjacent_monotile_or_new_id(d, z);
   let+ z = delete(d, z);
-  new_shard(~id, ~d, t, z);
+  insert_shard(~id, ~d, t, z);
 };
-
-/* Removes a neighboring shard and drops from backpack;
-   Precondition: the d-neighbor should be a shard
-   string-matching the dropping shard */
-let barf = (d: Direction.t, t: Token.t, z: t): option(t) => {
-  let* z = delete(d, z);
-  put_down_tok(d, t, z);
-};
-
-let barf_or_noop = (d: Direction.t, t: Token.t, z: t): t =>
-  switch (barf(d, t, z)) {
-  | Some(z) => z
-  | None => z
-  };
-
-let expand_or_noop = (d: Direction.t, t: Token.t, z: t): t =>
-  switch (replace_expand(d, t, z)) {
-  | Some(z) => z
-  | None => z
-  };
-
-/* If left neighbor is a monotile (a) string-matching the shard at the
-   top of the backpack, barf it, or (b) an expanding keyword, expand it. */
-let expand_or_barf_left_neighbor = (z: t): t =>
-  switch (Zipper.neighbor_shard(Left, z)) {
-  | Some(t) when Zipper.will_barf(t, z) => barf_or_noop(Left, t, z)
-  | Some(t) when Form.Expansion.will(t) =>
-    switch (Siblings.left_neighbor(z.relatives.siblings)) {
-    | Some(p) when Piece.monotile(p) != None => expand_or_noop(Left, t, z)
-    | _ => z
-    }
-  | _ => z
-  };
-
-/* If right neighbor is a monotile (a) string-matching the shard at the
-   top of the backpack, barf it, or (b) an expanding delimiter, expand it. */
-let expand_or_barf_right_neighbor = (z: t): t =>
-  switch (Zipper.neighbor_shard(Right, z)) {
-  | Some(t) when Zipper.will_barf(t, z) => barf_or_noop(Right, t, z)
-  | Some(t) when Form.Expansion.will(t) =>
-    switch (Siblings.right_neighbor(z.relatives.siblings)) {
-    | Some(p) when Piece.monotile(p) != None => expand_or_noop(Right, t, z)
-    | _ => z
-    }
-  | _ => z
-  };
-
-let expand_or_barf_neighbors = (z: t): t =>
-  z |> expand_or_barf_left_neighbor |> expand_or_barf_right_neighbor;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type appendability = option((Direction.t, Token.t));
@@ -154,11 +107,7 @@ let sibling_appendability: (string, t) => appendability =
 
 let append_or_construct = (char: string, z: t): option(t) =>
   switch (sibling_appendability(char, z)) {
-  | None =>
-    z
-    |> expand_or_barf_neighbors
-    |> new_shard(~id=Id.mk(), ~d=Left, char)
-    |> Option.some
+  | None => z |> insert_shard(~id=Id.mk(), ~d=Left, char) |> Option.some
   | Some((d, t)) => replace_shard(d, t, z)
   };
 
@@ -193,15 +142,15 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
   let+ z = z |> Caret.set(Outer) |> Zipper.delete(Right);
   let z =
     z
-    |> new_shard(~id, ~d=Left, l)
+    |> insert_shard(~id, ~d=Left, l)
     |> remold_regrout(Left)  /* Required for e.g. splitting ap(|) */
-    |> new_shard(~id=Id.mk(), ~d=Right, r)
-    |> expand_or_barf_neighbors;
+    |> insert_shard(~id=Id.mk(), ~d=Right, r);
+
   let z =
     Token.space == char && should_supress_space(z)
       ? z
       : z
-        |> new_shard(~id=Id.mk(), ~d=Left, char)
+        |> insert_shard(~id=Id.mk(), ~d=Left, char)
         |> move_into_string_or_comment(char);
   remold_regrout(Right, z);
 };
