@@ -374,7 +374,6 @@ module View = {
           | Some(Stepper(s)) => Some(s)
           | _ => None
           },
-        ~cursor?,
         ~signal=
           fun
           | HideStepper => inject(ToggleStepper)

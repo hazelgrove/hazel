@@ -286,7 +286,7 @@ module Update = {
 
   let calculate =
       (
-        ~settings: CoreSettings.t,
+        ~settings: Language.CoreSettings.t,
         ~schedule_action,
         ~is_edited,
         model: Model.t,

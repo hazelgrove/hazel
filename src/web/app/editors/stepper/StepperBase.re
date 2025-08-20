@@ -720,7 +720,6 @@ and Stepper: {
             ~focus: option(step_focus),
             ~is_toplevel: bool=false,
             ~undo: option(Ui_effect.t(unit)),
-            ~cursor: option(Cursor.cursor('a))=?,
             model: step_model,
           ) => {
     let is_last_step = StepKind.is_missing_step(model.step_kind);
