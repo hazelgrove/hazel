@@ -80,23 +80,27 @@ let is_secondary = t =>
 
 /* is_string: last clause is a somewhat hacky way of making sure
    there are at most two quotes, in order to prevent merges */
-let string_regexp = regexp("^\"[^\n]*\"$"); /* Multiline strings not supported */
-let is_string = t =>
-  match(string_regexp, t) && List.length(String.split_on_char('"', t)) < 4;
+let string_regexp = regexp({|^\"[^\n"]*\"$|}); /* Multiline strings not supported */
+let is_string = t => match(string_regexp, t);
 let string_delim = "\"";
+let quoted_label_regexp = regexp("^`[^`\n]*`$");
+let is_quoted_label = t => match(quoted_label_regexp, t);
+let label_delim = "`";
+let is_quoted_label_delim = (==)(label_delim);
 let empty_string = string_delim ++ string_delim;
 let is_string_delim = (==)(string_delim);
-let strip_quotes = s =>
+let strip_quotes = (~quote="\"", s) =>
   if (String.length(s) < 2) {
     s;
-  } else if (String.sub(s, 0, 1) != "\""
-             || String.sub(s, String.length(s) - 1, 1) != "\"") {
+  } else if (String.sub(s, 0, 1) != quote
+             || String.sub(s, String.length(s) - 1, 1) != quote) {
     s;
   } else {
     String.sub(s, 1, String.length(s) - 2);
   };
 
 let string_quote = s => "\"" ++ s ++ "\"";
+let label_quote = s => label_delim ++ s ++ label_delim;
 
 let keywords = [
   "fun",
@@ -123,7 +127,7 @@ let is_potential_operand =
  *  delimiters, string delimiters, or the instant expanding paired
  *  delimiters: ()[]| */
 let potential_operator_regexp =
-  regexp("^[^a-zA-Z0-9_'?\\^\"#\n\\s\\[\\]\\(\\)]+$"); /* Multiline operators not supported */
+  regexp("^[^a-zA-Z0-9_'?\\^\"`#\n\\s\\[\\]\\(\\)]+$"); /* Multiline operators not supported */
 let is_potential_operator = match(potential_operator_regexp);
 let begins_with_potential_operator =
   match(regexp("^[^a-zA-Z0-9_'?\"#\n\\s\\[\\]\\(\\)]+"));
@@ -131,7 +135,8 @@ let is_potential_token = t =>
   is_potential_operand(t)
   || is_potential_operator(t)
   || is_string(t)
-  || is_comment(t);
+  || is_comment(t)
+  || is_quoted_label(t);
 
 let int_regexp = regexp("^-?\\d+[0-9_]*$");
 let is_float = match(regexp("^-?[0-9]*\\.?[0-9]*((e|E)-?[0-9]*)?$"));
@@ -198,6 +203,10 @@ let is_var = str =>
   && !is_livelit(str)
   && str != "_"
   && match(var_regexp, str);
+
+let quote_label_when_necessary = (l: string): string =>
+  is_var(l) ? l : label_quote(l);
+
 let capitalized_name_regexp = regexp("^[A-Z][A-Za-z0-9_]*$");
 let is_ctr = match(capitalized_name_regexp);
 let base_typs = ["String", "Int", "Float", "Bool"];
@@ -268,6 +277,7 @@ type atomic_form =
   | LLMHole
   | Wild
   | String
+  | QuotedLabel
   | IntLit
   | FloatLit
   | BoolLit
@@ -329,6 +339,7 @@ type compound_form =
   | TupleLabeledPat
   | TupleLabeledTyp
   | DotExp
+  | TupleExtension
   | DotTyp
   | TypeAsc
   | TypPlus
@@ -417,6 +428,7 @@ let get: compound_form => t =
   | TupleLabeledTyp => mk_infix("=", Typ, P.lab)
   | DotExp => mk_infix(".", Exp, P.dot)
   | DotTyp => mk_infix(".", Typ, P.dot)
+  | TupleExtension => mk_infix("...", Exp, P.plus)
   | TypeAsc => mk(ss, [":"], mk_bin'(P.asc, Exp, Exp, [], Typ))
   | TypPlus => mk_infix("+", Typ, P.type_plus)
   // UNARY PREFIX OPERATORS
@@ -572,6 +584,10 @@ let get_atomic_form: atomic_form => (string => bool, list(Mold.t)) =
     )
   | Wild => (is_wild, [mk_op(Pat, [])])
   | String => (is_string, [mk_op(Exp, []), mk_op(Pat, [])])
+  | QuotedLabel => (
+      is_quoted_label,
+      [mk_op(Exp, []), mk_op(Pat, []), mk_op(Typ, [])],
+    )
   | IntLit => (is_int, [mk_op(Exp, []), mk_op(Pat, [])])
   | FloatLit => (is_float, [mk_op(Exp, []), mk_op(Pat, [])])
   | LivelitName => (is_livelit, [mk_op(Exp, []), mk_op(Pat, [])])
