@@ -482,7 +482,7 @@ let rec exp_view =
         text("Labels not present in tuple: "),
         ...List.map(label_view, labels),
       ])
-    | MeltMissingLabelsOnTuple(_) =>
+    | ToLvsMissingLabelsOnTuple(_) =>
       div_err([
         text(
           "All entries in the argument must have labels, but some were not provided",

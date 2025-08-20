@@ -81,7 +81,7 @@ let exp_error: Info.error_exp => string =
       "Tuple does not have the following labels: %s",
       String.concat(", ", labels),
     )
-  | BuiltinError(MeltMissingLabelsOnTuple(ty)) =>
+  | BuiltinError(ToLvsMissingLabelsOnTuple(ty)) =>
     prn(
       "All entries in the argument must have labels, but some were not provided: %s",
       Print.typ(ty),

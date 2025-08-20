@@ -325,7 +325,7 @@ let omit_labels_statics =
   );
 };
 
-let primitive_pivot_statics =
+let group_by_label_statics =
     (
       module S: ExpressionStatics,
       ~inferred_label as _,
@@ -413,7 +413,7 @@ let primitive_pivot_statics =
   );
 };
 
-let melt_statics =
+let to_lvs_statics =
     (
       module S: ExpressionStatics,
       ~inferred_label as _,
@@ -462,7 +462,7 @@ let melt_statics =
       );
     | _ =>
       add'(
-        ~self=BuiltinError(MeltMissingLabelsOnTuple(ty_out)),
+        ~self=BuiltinError(ToLvsMissingLabelsOnTuple(ty_out)),
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
         m,
       )
@@ -475,14 +475,14 @@ let melt_statics =
     )
   | _ =>
     add'(
-      ~self=BuiltinError(MeltMissingLabelsOnTuple(ty_out)),
+      ~self=BuiltinError(ToLvsMissingLabelsOnTuple(ty_out)),
       ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
       m,
     )
   };
 };
 
-let drop_labels_statics =
+let omit_all_labels_statics =
     (
       module S: ExpressionStatics,
       ~inferred_label as _,
@@ -575,7 +575,7 @@ let custom_statics_deferred_ap =
         m,
       );
 
-    | (PrimitivePivot, [table, pivot_label]) =>
+    | (GroupByLabel, [table, pivot_label]) =>
       let (table_info, m) = uexp_to_info_map(~ctx, ~ana=syn, table, m);
       let (_, m) =
         validate_label_arguments((module S), ~ctx, None, [pivot_label], m);
@@ -586,7 +586,7 @@ let custom_statics_deferred_ap =
         m,
       );
 
-    | (Melt | DropLabels, [arg]) =>
+    | (ToLvs | OmitAllLabels, [arg]) =>
       let (arg_info, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
 
       add'(
@@ -621,9 +621,9 @@ let custom_statics_deferred_ap =
         m,
       );
 
-    | (PrimitivePivot, [])
-    | (PrimitivePivot, [_])
-    | (PrimitivePivot, [_, _, ..._]) =>
+    | (GroupByLabel, [])
+    | (GroupByLabel, [_])
+    | (GroupByLabel, [_, _, ..._]) =>
       let (args_info, m) =
         List.fold_left(
           ((acc_info, acc_m), arg) => {
@@ -647,7 +647,7 @@ let custom_statics_deferred_ap =
         m,
       );
 
-    // Fallback for other cases (including melt/drop_labels with wrong arity)
+    // Fallback for other cases (including to_lvs/omit_all_labels with wrong arity)
     | _ =>
       let (args_info, m) =
         List.fold_left(
@@ -683,10 +683,10 @@ let custom_statics_deferred_ap =
 let custom_statics_ap = (kind: Ctx.custom_statics) => {
   switch (kind) {
   | ProjectLabels => project_labels_statics
-  | PrimitivePivot => primitive_pivot_statics
-  | Melt => melt_statics
+  | GroupByLabel => group_by_label_statics
+  | ToLvs => to_lvs_statics
   | SelectLabels => select_labels_statics
   | OmitLabels => omit_labels_statics
-  | DropLabels => drop_labels_statics
+  | OmitAllLabels => omit_all_labels_statics
   };
 };

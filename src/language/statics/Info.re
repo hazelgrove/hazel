@@ -764,7 +764,7 @@ let fixed_typ_err: error_exp => Typ.t =
       Exactly2Arguments,
     )
   | BadTrivAp(_) => Unknown(Internal) |> Typ.temp
-  | BuiltinError(MeltMissingLabelsOnTuple(ty)) => ty
+  | BuiltinError(ToLvsMissingLabelsOnTuple(ty)) => ty
   | Common(err) => fixed_typ_err_common(err)
   | InvalidUseMode({inner_typ, _}) => inner_typ
   | BadLivelitModel(ana) => ana;

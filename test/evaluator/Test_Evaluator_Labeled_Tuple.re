@@ -112,8 +112,11 @@ in fn("hello")|},
         {|omit_labels((a=1,b=2,c=3), `a`, `b`)|},
       )
     ),
-    test_case("Drop Labels", `Quick, () =>
-      parse_and_evaluate_test("(1,2,3,4)", {|drop_labels((a=1,b=2,3,c=4))|})
+    test_case("Omit all labels", `Quick, () =>
+      parse_and_evaluate_test(
+        "(1,2,3,4)",
+        {|omit_all_labels((a=1,b=2,3,c=4))|},
+      )
     ),
   ],
 );
