@@ -80,7 +80,7 @@ let builtins: list(BuiltinsUtil.fn) = [
     custom_statics: Some(Ctx.ToLvs),
   },
   {
-    name: "from_entries",
+    name: "from_lvs",
     arg:
       List(
         prod([

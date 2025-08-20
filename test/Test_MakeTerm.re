@@ -182,9 +182,9 @@ let tests =
         exp_check(
           tuple_extension(
             tuple([]),
-            ap(Forward, var("from_entries"), list_lit([])),
+            ap(Forward, var("from_lvs"), list_lit([])),
           ),
-          {|() ... from_entries([])|},
+          {|() ... from_lvs([])|},
         )
       ),
       test_case("Quoted label in pattern", `Quick, () =>
