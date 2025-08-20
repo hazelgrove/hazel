@@ -16,20 +16,20 @@ let tests = (
     test_case("Primitive pivot of list of labeled tuple", `Quick, () =>
       check(
         dhexp_typ,
-        {|primitive_pivot([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], `l`)|},
+        {|group_by_label([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], `l`)|},
         parse_exp({|a=[(j=1, 3)], b=[(j=2, 9)], c=[(j=3, 9)]|}),
         parse_and_evaluate(
-          {|primitive_pivot([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], `l`)|},
+          {|group_by_label([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], `l`)|},
         ),
       )
     ),
     test_case("Projection of pivoted list of labeled tuples", `Quick, () =>
       check(
         dhexp_typ,
-        {|primitive_pivot([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], `l`).a|},
+        {|group_by_label([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], `l`).a|},
         parse_exp({|[(j=1, 3)]|}),
         parse_and_evaluate(
-          {|primitive_pivot([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], `l`).a|},
+          {|group_by_label([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], `l`).a|},
         ),
       )
     ),
@@ -37,20 +37,20 @@ let tests = (
       "Nested projection of pivoted list of labeled tuples", `Quick, () =>
       check(
         dhexp_typ,
-        {|primitive_pivot([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], `l`)|},
+        {|group_by_label([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], `l`)|},
         parse_exp({|[1]|}),
         parse_and_evaluate(
-          {|primitive_pivot([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], `l`).a.j|},
+          {|group_by_label([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], `l`).a.j|},
         ),
       )
     ),
     test_case("Pivoting list bound to variable", `Quick, () =>
       check(
         dhexp_typ,
-        {|let i = [(l="a", j=1, 3)] in primitive_pivot(i, `l`).a|},
+        {|let i = [(l="a", j=1, 3)] in group_by_label(i, `l`).a|},
         parse_exp({|[(j=1, 3)]|}),
         parse_and_evaluate(
-          {|let i = [(l="a", j=1, 3)] in primitive_pivot(i, `l`).a|},
+          {|let i = [(l="a", j=1, 3)] in group_by_label(i, `l`).a|},
         ),
       )
     ),
@@ -58,26 +58,26 @@ let tests = (
       "pivoted list of labeled tuples with multiple entries", `Quick, () =>
       check(
         dhexp_typ,
-        {|primitive_pivot([(l="a", 1, true), (l="b", 2, true), (l="c", 3, true), (l="a", 4, true)], `l`)|},
+        {|group_by_label([(l="a", 1, true), (l="b", 2, true), (l="c", 3, true), (l="a", 4, true)], `l`)|},
         parse_exp(
           {|(a=[(1, true), (4, true)], b=[(2, true)], c=[(3, true)])|},
         ),
         parse_and_evaluate(
-          {|primitive_pivot([(l="a", 1, true), (l="b", 2, true), (l="c", 3, true), (l="a", 4, true)], `l`)|},
+          {|group_by_label([(l="a", 1, true), (l="b", 2, true), (l="c", 3, true), (l="a", 4, true)], `l`)|},
         ),
       )
     ),
-    test_case("melted labeled tuple with multiple entries", `Quick, () =>
+    test_case("lvs labeled tuple with multiple entries", `Quick, () =>
       check(
         dhexp_typ,
-        {|melt(quiz1=12, quiz2=8, quiz3=9, quiz4=77)|},
+        {|to_lvs(quiz1=12, quiz2=8, quiz3=9, quiz4=77)|},
         parse_exp(
           {|[(label="quiz1", value=12),
              (label="quiz2", value=8),
              (label="quiz3", value=9),
              (label="quiz4", value=77)]|},
         ),
-        parse_and_evaluate({|melt(quiz1=12, quiz2=8, quiz3=9, quiz4=77)|}),
+        parse_and_evaluate({|to_lvs(quiz1=12, quiz2=8, quiz3=9, quiz4=77)|}),
       )
     ),
     test_case(
@@ -95,10 +95,10 @@ let tests = (
       },
     ),
     test_case(
-      "Minimized melt",
+      "Minimized to_lvs",
       `Quick,
       () => {
-        let program = {|case melt((a=true, b=false))
+        let program = {|case to_lvs((a=true, b=false))
           | (x :: xs) => x
           | [] =>
         end|};
@@ -111,7 +111,7 @@ let tests = (
       },
     ),
     test_case(
-      "Projection of melted data",
+      "Projection of labeled values",
       `Quick,
       () => {
         let program = {|let filter = typfun a -> fun (pred :a -> Bool, xs : [a]) -> case xs
@@ -122,9 +122,9 @@ end in
 let jellyAnon : (get_acne=Bool, red=Bool, green=Bool) =
   (true, false, true) in
 
-let melted : [(label=String, value=Bool)] = melt(jellyAnon) in
+let lvs : [(label=String, value=Bool)] = to_lvs(jellyAnon) in
 
-filter@<(label=String, value=Bool)>(fun a,b ->b, melted).label|};
+filter@<(label=String, value=Bool)>(fun a,b ->b, lvs).label|};
         check(
           dhexp_typ,
           program,
@@ -134,10 +134,10 @@ filter@<(label=String, value=Bool)>(fun a,b ->b, melted).label|};
       },
     ),
     test_case(
-      "From entries with singleton list of tuples",
+      "From labeled values with singleton list of tuples",
       `Quick,
       () => {
-        let program = {|from_entries([(label="col", value=3)])|};
+        let program = {|from_lvs([(label="col", value=3)])|};
         check(
           dhexp_typ,
           program,
@@ -147,10 +147,10 @@ filter@<(label=String, value=Bool)>(fun a,b ->b, melted).label|};
       },
     ),
     test_case(
-      "From entries with multiple entries",
+      "From labeled values with multiple entries",
       `Quick,
       () => {
-        let program = {|from_entries([(label="col1", value=3), (label="col2", value=true)])|};
+        let program = {|from_lvs([(label="col1", value=3), (label="col2", value=true)])|};
         check(
           dhexp_typ,
           program,
@@ -160,10 +160,10 @@ filter@<(label=String, value=Bool)>(fun a,b ->b, melted).label|};
       },
     ),
     test_case(
-      "From entries with empty list",
+      "From labeled values with empty list",
       `Quick,
       () => {
-        let program = {|from_entries([])|};
+        let program = {|from_lvs([])|};
         check(
           dhexp_typ,
           program,
@@ -173,10 +173,10 @@ filter@<(label=String, value=Bool)>(fun a,b ->b, melted).label|};
       },
     ),
     test_case(
-      "From entries with bad data",
+      "From labeled values with bad data",
       `Quick,
       () => {
-        let program = {|from_entries([(x=1)])|};
+        let program = {|from_lvs([(x=1)])|};
         check(
           dhexp_typ,
           program,
@@ -184,7 +184,7 @@ filter@<(label=String, value=Bool)>(fun a,b ->b, melted).label|};
             Exp.(
               ap(
                 Forward,
-                builtin_fun("from_entries"),
+                builtin_fun("from_lvs"),
                 list_lit([tuple([tup_label(label("x"), int(1))])]),
               )
             )
@@ -194,10 +194,10 @@ filter@<(label=String, value=Bool)>(fun a,b ->b, melted).label|};
       },
     ),
     test_case(
-      "From entries with label holes",
+      "From labeled values with label holes",
       `Quick,
       () => {
-        let program = {|from_entries([(label="col1", value=3), (label="col2", value=true), (label=?, value=5)])|};
+        let program = {|from_lvs([(label="col1", value=3), (label="col2", value=true), (label=?, value=5)])|};
         check(
           dhexp_typ,
           program,
@@ -233,10 +233,10 @@ filter@<(label=String, value=Bool)>(fun a,b ->b, melted).label|};
       },
     ),
     test_case(
-      "Drop labels to singleton",
+      "Omit all labels to singleton",
       `Quick,
       () => {
-        let program = {|drop_labels((a=1))|};
+        let program = {|omit_all_labels((a=1))|};
         check(
           dhexp_typ,
           program,

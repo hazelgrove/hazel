@@ -54,7 +54,7 @@ type error_partial_ap =
     });
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type error_builtin =
-  | MeltMissingLabelsOnTuple(Typ.t) /* Melt requires labels for all tuple elements */
+  | ToLvsMissingLabelsOnTuple(Typ.t) /* to_lvs requires labels for all tuple elements */
   | ProjectLabelsMissingLabels(list(string)) /* Attempted to project labels from a tuple that doesn't have them */
   | MissingLabels(list(string)) // Operation with labels that are not present in the tuple
   | PivotLabelIsNotString(Typ.t) /* Pivot column must be a string */
@@ -140,7 +140,7 @@ let typ_of_exp: exp => option(Typ.t) =
   | InvalidUseMode({inner_typ, _}) => Some(inner_typ)
   | IsLivelitName({exp_t, _}) => Some(exp_t)
   | BadLivelitModel(typ) => Some(typ)
-  | BuiltinError(MeltMissingLabelsOnTuple(typ)) => Some(typ)
+  | BuiltinError(ToLvsMissingLabelsOnTuple(typ)) => Some(typ)
   | BuiltinError(ProjectLabelsMissingLabels(_))
   | BuiltinError(MissingLabels(_) | PivotLabelIsNotString(_))
   | BuiltinError(
@@ -218,30 +218,6 @@ let of_ctr =
       | None => FreeConstructor(name)
       }
     }
-  };
-};
-
-let of_deferred_ap = (args, ty_ins: list(Typ.t), ty_out: Typ.t): exp => {
-  let expected = List.length(ty_ins);
-  let actual = List.length(args);
-  if (expected != actual) {
-    IsBadPartialAp(
-      ArityMismatch({
-        expected,
-        actual,
-      }),
-    );
-  } else if (List.for_all(Exp.is_deferral, args)) {
-    IsBadPartialAp(NoDeferredArgs);
-  } else {
-    let ty_ins =
-      List.combine(args, ty_ins)
-      |> List.filter(((arg, _ty)) => Exp.is_deferral(arg))
-      |> List.map(snd);
-    let ty_in =
-      List.length(ty_ins) == 1
-        ? List.hd(ty_ins) : Prod(ty_ins) |> Typ.fresh;
-    Common(Just(Arrow(ty_in, ty_out) |> Typ.fresh));
   };
 };
 

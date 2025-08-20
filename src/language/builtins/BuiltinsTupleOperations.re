@@ -4,7 +4,7 @@ open BuiltinsUtil;
 open Util;
 let builtins: list(BuiltinsUtil.fn) = [
   {
-    name: "primitive_pivot",
+    name: "group_by_label",
     arg: Prod([list(unknown(Internal)), unknown(Internal)]),
     ret: Unknown(Internal),
     imp:
@@ -36,10 +36,10 @@ let builtins: list(BuiltinsUtil.fn) = [
         | _ => None
         }
       }),
-    custom_statics: Some(PrimitivePivot),
+    custom_statics: Some(GroupByLabel),
   },
   {
-    name: "melt",
+    name: "to_lvs",
     arg: Unknown(Internal),
     ret:
       List(
@@ -77,10 +77,10 @@ let builtins: list(BuiltinsUtil.fn) = [
         );
       Some(IdTagged.FreshGrammar.Exp.list_lit(unpivoted_entries));
     },
-    custom_statics: Some(Ctx.Melt),
+    custom_statics: Some(Ctx.ToLvs),
   },
   {
-    name: "from_entries",
+    name: "from_lvs",
     arg:
       List(
         prod([
@@ -255,7 +255,7 @@ let builtins: list(BuiltinsUtil.fn) = [
     custom_statics: Some(OmitLabels),
   },
   {
-    name: "drop_labels",
+    name: "omit_all_labels",
     arg: Unknown(Internal),
     ret: Unknown(Internal),
     imp: d => {
@@ -263,6 +263,6 @@ let builtins: list(BuiltinsUtil.fn) = [
       let entries = List.filter_map(((_, e)) => Some(e), entries);
       Some(Exp.to_tuple(entries));
     },
-    custom_statics: Some(DropLabels),
+    custom_statics: Some(OmitAllLabels),
   },
 ];

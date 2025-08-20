@@ -2,11 +2,11 @@ open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type custom_statics =
-  | Melt
+  | ToLvs
   | ProjectLabels
   | OmitLabels
-  | DropLabels
-  | PrimitivePivot
+  | OmitAllLabels
+  | GroupByLabel
   | SelectLabels;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
