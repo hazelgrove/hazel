@@ -134,10 +134,10 @@ filter@<(label=String, value=Bool)>(fun a,b ->b, lvs).label|};
       },
     ),
     test_case(
-      "From entries with singleton list of tuples",
+      "From labeled values with singleton list of tuples",
       `Quick,
       () => {
-        let program = {|from_entries([(label="col", value=3)])|};
+        let program = {|from_lvs([(label="col", value=3)])|};
         check(
           dhexp_typ,
           program,
@@ -147,10 +147,10 @@ filter@<(label=String, value=Bool)>(fun a,b ->b, lvs).label|};
       },
     ),
     test_case(
-      "From entries with multiple entries",
+      "From labeled values with multiple entries",
       `Quick,
       () => {
-        let program = {|from_entries([(label="col1", value=3), (label="col2", value=true)])|};
+        let program = {|from_lvs([(label="col1", value=3), (label="col2", value=true)])|};
         check(
           dhexp_typ,
           program,
@@ -160,10 +160,10 @@ filter@<(label=String, value=Bool)>(fun a,b ->b, lvs).label|};
       },
     ),
     test_case(
-      "From entries with empty list",
+      "From labeled values with empty list",
       `Quick,
       () => {
-        let program = {|from_entries([])|};
+        let program = {|from_lvs([])|};
         check(
           dhexp_typ,
           program,
@@ -173,10 +173,10 @@ filter@<(label=String, value=Bool)>(fun a,b ->b, lvs).label|};
       },
     ),
     test_case(
-      "From entries with bad data",
+      "From labeled values with bad data",
       `Quick,
       () => {
-        let program = {|from_entries([(x=1)])|};
+        let program = {|from_lvs([(x=1)])|};
         check(
           dhexp_typ,
           program,
@@ -184,7 +184,7 @@ filter@<(label=String, value=Bool)>(fun a,b ->b, lvs).label|};
             Exp.(
               ap(
                 Forward,
-                builtin_fun("from_entries"),
+                builtin_fun("from_lvs"),
                 list_lit([tuple([tup_label(label("x"), int(1))])]),
               )
             )
@@ -194,10 +194,10 @@ filter@<(label=String, value=Bool)>(fun a,b ->b, lvs).label|};
       },
     ),
     test_case(
-      "From entries with label holes",
+      "From labeled values with label holes",
       `Quick,
       () => {
-        let program = {|from_entries([(label="col1", value=3), (label="col2", value=true), (label=?, value=5)])|};
+        let program = {|from_lvs([(label="col1", value=3), (label="col2", value=true), (label=?, value=5)])|};
         check(
           dhexp_typ,
           program,

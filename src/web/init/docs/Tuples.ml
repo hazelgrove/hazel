@@ -1584,9 +1584,9 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \"))))(Secondary((id \
          4ae32e25-4afd-444b-940d-6566e7b7d610)(content(Whitespace\"\\n\"))))(Secondary((id \
          17097149-38ce-4a03-8902-9fec9606f9d3)(content(Whitespace\"\\n\"))))(Secondary((id \
-         2568d75f-4c4c-4380-b72c-0177d695cbe6)(content(Comment\"# \
-         `from_entries`: Convert a list of (label, value) pairs back into a \
-         labeled tuple #\"))))(Secondary((id \
+         2568d75f-4c4c-4380-b72c-0177d695cbe6)(content(Comment\"# `from_lvs`: \
+         Convert a list of (label, value) pairs back into a labeled tuple \
+         #\"))))(Secondary((id \
          12db75df-4530-4634-9934-0796d5f46e05)(content(Whitespace\"\\n\"))))(Secondary((id \
          cc60c95a-fa4e-4381-b6a1-3c1f25736832)(content(Comment\"# This is the \
          inverse of `to_lvs` when applied to labeled-only tuples \
@@ -1708,7 +1708,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \")))))((Secondary((id \
          bab0c95a-33e9-4724-a257-e3e459af7683)(content(Whitespace\" \
          \"))))(Tile((id \
-         8c861d21-b7a8-4fac-9096-928790a91f99)(label(from_entries))(mold((out \
+         8c861d21-b7a8-4fac-9096-928790a91f99)(label(from_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          a04d3d5c-9aba-44a5-9d3c-bf148ea06f95)(label(\"(\"\")\"))(mold((out \
@@ -1732,7 +1732,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          38))(sort Exp))))))(shards(0))(children())))(Secondary((id \
          fd96f471-2fa1-4a89-9224-a13a91f25b5a)(content(Whitespace\"\\n\"))))(Secondary((id \
          78db2ada-60d0-48ae-9ef6-3e5197368434)(content(Comment\"# Edge case: \
-         duplicate labels in from_entries (projection is stuck) \
+         duplicate labels in from_lvs (projection is stuck) \
          #\"))))(Secondary((id \
          dc5d876e-0575-4a57-8863-98b63d337fff)(content(Whitespace\"\\n\"))))(Projector((id \
          9430307f-be2b-4bf4-819f-9966ee9119ba)(kind Fold)(syntax(Tile((id \
@@ -1844,7 +1844,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \")))))((Secondary((id \
          388e4a55-47fb-4619-b9ab-03b921f11df3)(content(Whitespace\" \
          \"))))(Tile((id \
-         7791051a-bf35-408b-ab23-7bb82861f0b2)(label(from_entries))(mold((out \
+         7791051a-bf35-408b-ab23-7bb82861f0b2)(label(from_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          3a4c2e92-d4b3-4a04-aeaf-d2eb27bbb36e)(label(\"(\"\")\"))(mold((out \
@@ -3142,18 +3142,18 @@ let out : string * Haz3lcore.PersistentZipper.t =
          let ^^probe(lvs) =   \n\
          ^^type(to_lvs(attributes)) \n\
          in  \n\n\
-         # `from_entries`: Convert a list of (label, value) pairs back into a \
+         # `from_lvs`: Convert a list of (label, value) pairs back into a \
          labeled tuple #\n\
          # This is the inverse of `to_lvs` when applied to labeled-only tuples #\n\
          let entries : [(label=String, value=Int)] = [(\"strength\", 10), \
          (\"agility\", 8), (\"intelligence\", 7)] in\n\
-         let reconstructed = from_entries(entries) in\n\
+         let reconstructed = from_lvs(entries) in\n\
          ^^probe(reconstructed);\n\
-         # Edge case: duplicate labels in from_entries (projection is stuck) #\n\
+         # Edge case: duplicate labels in from_lvs (projection is stuck) #\n\
          ^^fold((\n\
          let entries_with_dupes : [(label=String, value=Int)] = [(\"x\", 1), \
          (\"x\", 2)] in\n\
-         let ^^probe(duplicate_entries) = from_entries(entries_with_dupes) in\n\
+         let ^^probe(duplicate_entries) = from_lvs(entries_with_dupes) in\n\
          ^^probe(duplicate_entries.x)\n\
          ));\n\
         \                 \n\
