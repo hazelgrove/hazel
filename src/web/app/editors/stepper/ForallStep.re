@@ -16,6 +16,9 @@ type model'('stepper) = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type persistent'('stepper) = {inner_stepper: 'stepper};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type action'('step) =
   | InnerExp('step);
 
@@ -41,15 +44,31 @@ module F =
          : (
            STEP with
              type model = model'(Stepper.model) and
+             type persistent = persistent'(Stepper.persistent) and
              type action = action'(Stepper.action) and
              type focus = focus'(Stepper.focus)
        ) => {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = model'(Stepper.model);
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type persistent = persistent'(Stepper.persistent);
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type action = action'(Stepper.action);
   [@deriving (show({with_path: false}), sexp, yojson)]
   type focus = focus'(Stepper.focus);
+
+  let persist = (model: model) => {
+    {inner_stepper: Stepper.persist(model.inner_stepper)};
+  };
+
+  let unpersist = (p: persistent) => {
+    {
+      inner_exp: Calc.Pending,
+      bindings: Calc.Pending,
+      inner_stepper: Stepper.unpersist(p.inner_stepper),
+      result_function: Calc.Pending,
+    };
+  };
 
   let update = (~settings: Settings.t, action: action, model: model) => {
     Updated.(

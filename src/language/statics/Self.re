@@ -198,30 +198,6 @@ let of_ctr =
   };
 };
 
-let of_deferred_ap = (args, ty_ins: list(Typ.t), ty_out: Typ.t): exp => {
-  let expected = List.length(ty_ins);
-  let actual = List.length(args);
-  if (expected != actual) {
-    IsBadPartialAp(
-      ArityMismatch({
-        expected,
-        actual,
-      }),
-    );
-  } else if (List.for_all(Exp.is_deferral, args)) {
-    IsBadPartialAp(NoDeferredArgs);
-  } else {
-    let ty_ins =
-      List.combine(args, ty_ins)
-      |> List.filter(((arg, _ty)) => Exp.is_deferral(arg))
-      |> List.map(snd);
-    let ty_in =
-      List.length(ty_ins) == 1
-        ? List.hd(ty_ins) : Prod(ty_ins) |> Typ.fresh;
-    Common(Just(Arrow(ty_in, ty_out) |> Typ.fresh));
-  };
-};
-
 let add_source =
   List.map2((id, ty) =>
     Typ.{
