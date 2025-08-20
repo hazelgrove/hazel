@@ -72,14 +72,28 @@ let expand_livelit = (~ctx, z: t): option(t) =>
   | _ => None
   };
 
-let apply = (~ctx: Language.Ctx.t=Language.Ctx.empty, z: t): t => {
-  /* This is a wrapper intended to effectuate after-insertion conditional
-   * operations. This is done here as opposed to in Perform in order to
-   * reflect operations we want performed by the parser, which uses
-   * Insert.go as its primary driver. Triggers should be zipper to zipper
-   * functions which conditionally perform a syntax operation which may
-   * (or may not) take caret position into account. Morally these should
-   * be mutually exclusive; otherwise the order below is load-bearing. */
+/* This is a wrapper intended to effectuate after-insertion conditional
+ * operations. This is done here as opposed to in Perform in order to
+ * reflect operations we want performed by the parser, which uses
+ * Insert.go as its primary driver. Triggers should be zipper to zipper
+ * functions which conditionally perform a syntax operation which may
+ * (or may not) take caret position into account. Morally these should
+ * be mutually exclusive; otherwise the order below is load-bearing. */
+let insert = (~ctx: Language.Ctx.t=Language.Ctx.empty, z: t): t => {
   let triggers = [expand_projector, expand_livelit(~ctx)];
   List.fold_left((z, f) => Option.value(f(z), ~default=z), z, triggers);
 };
+
+/* These are just alternate conditional deletion logic. */
+let destruct = (z: t): option(t) =>
+  switch (z.relatives.siblings |> fst |> ListUtil.last_opt) {
+  | Some(Projector({syntax, kind, _})) =>
+    let (l, _) = ListUtil.split_last(fst(z.relatives.siblings));
+    let last =
+      switch (kind, syntax) {
+      | (Livelit, Tile({children: [[name, ..._]], _})) => [name]
+      | _ => Piece.unparenthesize(syntax)
+      };
+    Some(Zipper.update_siblings(((_, r)) => (l @ last, r), z));
+  | _ => None
+  };

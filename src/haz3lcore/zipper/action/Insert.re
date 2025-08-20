@@ -208,5 +208,5 @@ let go = (char: string, z: t): option(t) => {
 let go =
     (~ctx: Language.Ctx.t=Language.Ctx.empty, char: string, z: t): option(t) => {
   let+ z = go(char, z);
-  Triggers.apply(~ctx, z);
+  Triggers.insert(~ctx, z);
 };

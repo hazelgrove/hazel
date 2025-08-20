@@ -241,8 +241,25 @@ let put_down_seg = (d: Direction.t, seg: Segment.t, z: t): t =>
 let local_backpack = (z: t): list(Tile.t) =>
   Relatives.local_missing_shards(z.relatives);
 
+let can_put_down = z =>
+  switch (local_backpack(z)) {
+  | [] => false
+  | _ => z.caret == Outer
+  };
+
+let put_down_regrout_target = (d: Direction.t, target: Tile.t, z: t): t => {
+  let z = put_down_core([Tile(target)], z);
+  let z = z |> regrout(Left) |> remold;
+  adj_pos(d, z);
+};
+
 let backpack_hd = (z: t): option(Tile.t) =>
   z |> local_backpack |> ListUtil.hd_opt;
+
+let put_down_regrout_remold = (d: Direction.t, z: t): option(t) => {
+  let+ target = backpack_hd(z);
+  put_down_regrout_target(d, target, z);
+};
 
 let backpack_find = (tok: Token.t, z: t): option(Tile.t) =>
   if (Form.is_ambiguous_polymorph(tok)) {
@@ -260,89 +277,15 @@ let backpack_find = (tok: Token.t, z: t): option(Tile.t) =>
     );
   };
 
-let put_down_tok = (d: Direction.t, tok: Token.t, z: t): option(t) => {
-  /* Does not regrout/remold on its own. */
-  let+ target = backpack_find(tok, z);
-  put_down_seg(d, [Tile(target)], z);
-};
-
-let put_down = (d: Direction.t, z: t): option(t) => {
-  /* Does not regrout/remold on its own. */
-  let+ target = backpack_hd(z);
-  put_down_seg(d, [Tile(target)], z);
-};
-
-let can_put_down = z =>
-  switch (local_backpack(z)) {
-  | [] => false
-  | _ => z.caret == Outer
-  };
-
-let put_down_regrout_target = (d: Direction.t, target: Tile.t, z: t): t => {
-  let z = put_down_core([Tile(target)], z);
-  let z = z |> regrout(Left) |> remold;
-  adj_pos(d, z);
-};
-
-let put_down_regrout_remold = (d: Direction.t, z: t): option(t) => {
-  let+ target = backpack_hd(z);
-  put_down_regrout_target(d, target, z);
-};
-
-let will_glom = (tok: Token.t, z: t): bool =>
-  put_down_tok(Right, tok, z) != None;
+let will_glom = (tok: Token.t, z: t): bool => backpack_find(tok, z) != None;
 
 let glom = (d: Direction.t, tok: Token.t, z: t): option(t) => {
   let+ target = backpack_find(tok, z);
   put_down_regrout_target(d, target, z);
 };
 
-let rec get_leaf_pieces =
-        (syntaxNode: Piece.t, ~ignored_labels: list(list(string)))
-        : list(Piece.t) =>
-  switch (syntaxNode) {
-  | Tile(tile) =>
-    /* Check if this tile's label is in the ignored labels */
-    let should_ignore =
-      List.exists(label => label == tile.label, ignored_labels);
-    if (should_ignore) {
-      [];
-        /* Ignore this tile */
-    } else if (tile.children == []) {
-      [
-        /* It's a leaf piece */
-        Tile(tile),
-      ];
-    } else {
-      /* Recurse into the children */
-      tile.children
-      |> List.concat_map(segment =>
-           segment |> List.concat_map(get_leaf_pieces(~ignored_labels))
-         );
-    };
-  | _ => []
-  };
-
-let remove_projector = (id: Id.t, syntax: Piece.t) =>
-  switch (syntax) {
-  | Projector(pr) when pr.id == id =>
-    // just get the label, found as first leaf piece
-    get_leaf_pieces(pr.syntax, ~ignored_labels=[[","]]) |> List.hd
-  | x => x
-  };
-
-let delete = (d: Direction.t, z: t): option(t) => {
-  let to_delete = z |> select(d);
-  switch (to_delete) {
-  | Some({selection: {content: [Projector(p)], _}, _}) =>
-    switch (p.kind) {
-    | Livelit =>
-      Some(ZipperBase.MapPiece.fast_local(remove_projector(p.id), p.id, z))
-    | _ => to_delete |> Option.map(destroy_selection)
-    }
-  | _ => to_delete |> Option.map(destroy_selection)
-  };
-};
+let delete = (d: Direction.t, z: t): option(t) =>
+  z |> select(d) |> Option.map(destroy_selection);
 
 let glom_prev = (z: t) =>
   switch (neighbor_shard(Left, z)) {
