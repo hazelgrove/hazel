@@ -17,6 +17,12 @@ type model'('stepper) = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type persistent'('stepper) = {
+  pattern: CodeEditable.Model.persistent,
+  stepper: 'stepper,
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type action'('stepper) =
   | PatternUpdate(CodeEditable.Update.t)
   | StepUpdate('stepper);
@@ -28,6 +34,7 @@ type focus'('stepper) =
 
 module F = (Stepper: STEPPER) => {
   type model = model'(Stepper.model);
+  type persistent = persistent'(Stepper.persistent);
   type action = action'(Stepper.action);
   type focus = focus'(Stepper.focus);
 
@@ -39,6 +46,25 @@ module F = (Stepper: STEPPER) => {
     last_exp: Calc.Pending,
     hypo_points: Calc.Pending,
     inner_ctx: Calc.Pending,
+  };
+
+  let persist = (model: model) => {
+    {
+      pattern: CodeEditable.Model.persist(model.pattern),
+      stepper: Stepper.persist(model.step),
+    };
+  };
+
+  let unpersist = (p: persistent) => {
+    {
+      pattern: CodeEditable.Model.unpersist(p.pattern),
+      elab_pattern: Calc.Pending,
+      inner_exp: Calc.Pending,
+      step: Stepper.unpersist(p.stepper),
+      last_exp: Calc.Pending,
+      hypo_points: Calc.Pending,
+      inner_ctx: Calc.Pending,
+    };
   };
 
   let update = (~settings: Settings.t, action: action, model: model) => {
