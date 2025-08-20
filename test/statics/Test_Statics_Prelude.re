@@ -22,7 +22,11 @@ let annotate_static_errors = (exp: TermBase.exp_t, info_map: Statics.Map.t) => {
   Grammar.map_exp_annotation(
     ({ids, _}: IdTagged.IdTag.t) => {
       let new_info = Id.Map.find_opt(List.hd(ids), info_map);
-      Option.bind(new_info, Info.error_of);
+      switch (new_info) {
+      | Some(info) => Info.error_of(info)
+      | None =>
+        Alcotest.fail("No info found for the id: " ++ Id.show(List.hd(ids)))
+      };
     },
     exp,
   );
@@ -47,24 +51,37 @@ let fresh = (exp: Grammar.exp_t(unit)): TermBase.exp_t => {
   );
 };
 
-let annotated_tree_test = (name, expected) => {
-  let term = fresh(Grammar.map_exp_annotation(_ => (), expected));
-  let annotated: Grammar.exp_t(option(Info.error)) =
-    annotate_static_errors(term, statics(term));
-
-  Alcotest.check(annotated_exp, name, expected, annotated);
-};
-
 // Get the type from the statics
-let type_of = f => {
+let type_of = (~static_map=?, f) => {
   IdTagged.rep_id(f)
-  |> Id.Map.find_opt(_, statics(f))
+  |> Id.Map.find_opt(
+       _,
+       switch (static_map) {
+       | Some(s) => s
+       | None => statics(f)
+       },
+     )
   |> Option.bind(
        _,
        fun
        | InfoExp(e) => Some(e.ty)
        | _ => None,
      );
+};
+
+let annotated_tree_test = (name, expected_type, expected_error_tree) => {
+  let term = fresh(Grammar.map_exp_annotation(_ => (), expected_error_tree));
+  let s = statics(term);
+  let annotated: Grammar.exp_t(option(Info.error)) =
+    annotate_static_errors(term, s);
+  let typ = type_of(~static_map=s, term);
+  Alcotest.check(annotated_exp, name, expected_error_tree, annotated);
+  Alcotest.check(
+    testable_typ,
+    "Expected Type",
+    expected_type,
+    Option.get(typ),
+  );
 };
 
 let inconsistent_typecheck = (name, exp) => {
@@ -93,12 +110,13 @@ let fully_consistent_typecheck = (name, serialized, expected) => {
       let exp = parse_exp(serialized);
       let s = statics(exp);
       let errors = List.map(snd, Statics.Map.errors(s));
+      let actual_type = type_of(~static_map=s, exp);
       Alcotest.check(list(testable_error), "Static Errors", [], errors);
       Alcotest.check(
         Alcotest.option(testable_typ),
         serialized,
         expected,
-        type_of(exp),
+        actual_type,
       );
     },
   );

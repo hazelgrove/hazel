@@ -72,6 +72,25 @@ let tests = (
         );
       },
     ),
+    test_case(
+      "group_by groups into mod 10 reverses group ordering",
+      `Quick,
+      () => {
+        let xs = [71, 69, 60, 79, 70, 72, 51, 79, 46, 6];
+        check(
+          list(pair(int, list(int))),
+          "odds and evens",
+          [
+            (0, [6]),
+            (4, [46]),
+            (7, [79, 72, 70, 79, 71]),
+            (5, [51]),
+            (6, [60, 69]),
+          ],
+          ListUtil.group_by(x => x / 10, xs),
+        );
+      },
+    ),
     test_case("range generates sequential integers [1,6)", `Quick, () => {
       check(list(int), "1-5", [1, 2, 3, 4, 5], ListUtil.range(~lo=1, 6))
     }),
@@ -603,6 +622,25 @@ let tests = (
             let _ = ListUtil.sublist((6, 7), xs);
             ();
           },
+        );
+      },
+    ),
+    test_case(
+      "find with rest",
+      `Quick,
+      () => {
+        let xs = [1, 2, 3, 4, 5];
+        check(
+          option(pair(string, list(int))),
+          "Found",
+          Some(("found", [1, 2, 4, 5])),
+          ListUtil.find_with_rest(i => i > 2 ? Some("found") : None, xs),
+        );
+        check(
+          option(pair(string, list(int))),
+          "Not found",
+          None,
+          ListUtil.find_with_rest(i => i > 5 ? Some("found") : None, xs),
         );
       },
     ),
