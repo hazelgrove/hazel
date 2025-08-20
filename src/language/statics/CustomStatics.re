@@ -413,7 +413,7 @@ let group_by_label_statics =
   );
 };
 
-let melt_statics =
+let to_lvs_statics =
     (
       module S: ExpressionStatics,
       ~inferred_label as _,
@@ -462,7 +462,7 @@ let melt_statics =
       );
     | _ =>
       add'(
-        ~self=BuiltinError(MeltMissingLabelsOnTuple(ty_out)),
+        ~self=BuiltinError(ToLvsMissingLabelsOnTuple(ty_out)),
         ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
         m,
       )
@@ -475,7 +475,7 @@ let melt_statics =
     )
   | _ =>
     add'(
-      ~self=BuiltinError(MeltMissingLabelsOnTuple(ty_out)),
+      ~self=BuiltinError(ToLvsMissingLabelsOnTuple(ty_out)),
       ~co_ctx=CoCtx.union([fn_info.co_ctx, arg.co_ctx]),
       m,
     )
@@ -586,7 +586,7 @@ let custom_statics_deferred_ap =
         m,
       );
 
-    | (Melt | DropLabels, [arg]) =>
+    | (ToLvs | DropLabels, [arg]) =>
       let (arg_info, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
 
       add'(
@@ -647,7 +647,7 @@ let custom_statics_deferred_ap =
         m,
       );
 
-    // Fallback for other cases (including melt/drop_labels with wrong arity)
+    // Fallback for other cases (including to_lvs/drop_labels with wrong arity)
     | _ =>
       let (args_info, m) =
         List.fold_left(
@@ -684,7 +684,7 @@ let custom_statics_ap = (kind: Ctx.custom_statics) => {
   switch (kind) {
   | ProjectLabels => project_labels_statics
   | GroupByLabel => group_by_label_statics
-  | Melt => melt_statics
+  | ToLvs => to_lvs_statics
   | SelectLabels => select_labels_statics
   | OmitLabels => omit_labels_statics
   | DropLabels => drop_labels_statics

@@ -39,7 +39,7 @@ let builtins: list(BuiltinsUtil.fn) = [
     custom_statics: Some(GroupByLabel),
   },
   {
-    name: "melt",
+    name: "to_lvs",
     arg: Unknown(Internal),
     ret:
       List(
@@ -77,7 +77,7 @@ let builtins: list(BuiltinsUtil.fn) = [
         );
       Some(IdTagged.FreshGrammar.Exp.list_lit(unpivoted_entries));
     },
-    custom_statics: Some(Ctx.Melt),
+    custom_statics: Some(Ctx.ToLvs),
   },
   {
     name: "from_entries",

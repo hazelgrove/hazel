@@ -67,17 +67,17 @@ let tests = (
         ),
       )
     ),
-    test_case("melted labeled tuple with multiple entries", `Quick, () =>
+    test_case("lvs labeled tuple with multiple entries", `Quick, () =>
       check(
         dhexp_typ,
-        {|melt(quiz1=12, quiz2=8, quiz3=9, quiz4=77)|},
+        {|to_lvs(quiz1=12, quiz2=8, quiz3=9, quiz4=77)|},
         parse_exp(
           {|[(label="quiz1", value=12),
              (label="quiz2", value=8),
              (label="quiz3", value=9),
              (label="quiz4", value=77)]|},
         ),
-        parse_and_evaluate({|melt(quiz1=12, quiz2=8, quiz3=9, quiz4=77)|}),
+        parse_and_evaluate({|to_lvs(quiz1=12, quiz2=8, quiz3=9, quiz4=77)|}),
       )
     ),
     test_case(
@@ -95,10 +95,10 @@ let tests = (
       },
     ),
     test_case(
-      "Minimized melt",
+      "Minimized to_lvs",
       `Quick,
       () => {
-        let program = {|case melt((a=true, b=false))
+        let program = {|case to_lvs((a=true, b=false))
           | (x :: xs) => x
           | [] =>
         end|};
@@ -111,7 +111,7 @@ let tests = (
       },
     ),
     test_case(
-      "Projection of melted data",
+      "Projection of labeled values",
       `Quick,
       () => {
         let program = {|let filter = typfun a -> fun (pred :a -> Bool, xs : [a]) -> case xs
@@ -122,9 +122,9 @@ end in
 let jellyAnon : (get_acne=Bool, red=Bool, green=Bool) =
   (true, false, true) in
 
-let melted : [(label=String, value=Bool)] = melt(jellyAnon) in
+let lvs : [(label=String, value=Bool)] = to_lvs(jellyAnon) in
 
-filter@<(label=String, value=Bool)>(fun a,b ->b, melted).label|};
+filter@<(label=String, value=Bool)>(fun a,b ->b, lvs).label|};
         check(
           dhexp_typ,
           program,

@@ -1446,7 +1446,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          38))(sort Exp))))))(shards(0))(children())))(Secondary((id \
          6679f81f-2ef5-46a8-b022-2cca44a8e161)(content(Whitespace\"\\n\"))))(Secondary((id \
          6d8b6871-2f34-472b-a0f1-e059e7abd859)(content(Whitespace\"\\n\"))))(Secondary((id \
-         bce5867d-79f5-4616-9563-6ca51965926e)(content(Comment\"# `melt`: \
+         bce5867d-79f5-4616-9563-6ca51965926e)(content(Comment\"# `to_lvs`: \
          Convert a labeled tuple into a list of (label, value) entries \
          #\"))))(Secondary((id \
          545aabfd-0f41-48ad-8053-4f484ca97ea9)(content(Whitespace\"\\n\"))))(Secondary((id \
@@ -1549,7 +1549,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          2de100ea-9895-474e-b8a0-137ecbff5aea)(label(\"(\"\")\"))(mold((out \
          Pat)(in_(Pat))(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0 1))(children(((Tile((id \
-         2790df99-cfd8-4277-ad11-993063c0d1b8)(label(melted))(mold((out \
+         2790df99-cfd8-4277-ad11-993063c0d1b8)(label(lvs))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))))))))(model\"()\")))(Secondary((id \
          adacf0f7-d279-464a-8ae7-d518f1f796bb)(content(Whitespace\" \
@@ -1565,7 +1565,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          d1c7947e-5015-469e-99dc-49f10f80917f)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Tile((id \
-         84f48aaf-e57f-4ace-a686-25fa9fcb2f25)(label(melt))(mold((out \
+         84f48aaf-e57f-4ace-a686-25fa9fcb2f25)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          30f8316c-c3b9-4ae9-9003-b952b98696c1)(label(\"(\"\")\"))(mold((out \
@@ -1589,7 +1589,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          labeled tuple #\"))))(Secondary((id \
          12db75df-4530-4634-9934-0796d5f46e05)(content(Whitespace\"\\n\"))))(Secondary((id \
          cc60c95a-fa4e-4381-b6a1-3c1f25736832)(content(Comment\"# This is the \
-         inverse of `melt` when applied to labeled-only tuples \
+         inverse of `to_lvs` when applied to labeled-only tuples \
          #\"))))(Secondary((id \
          a365d1be-1410-47fa-951c-2bd522bb0fa2)(content(Whitespace\"\\n\"))))(Tile((id \
          787957ca-c771-4174-9319-767c3d291c48)(label(let = in))(mold((out \
@@ -3134,17 +3134,17 @@ let out : string * Haz3lcore.PersistentZipper.t =
          ] in\n\
          ^^probe(people.age);  \n\
          ^^probe(people.name);\n\n\
-         # `melt`: Convert a labeled tuple into a list of (label, value) \
+         # `to_lvs`: Convert a labeled tuple into a list of (label, value) \
          entries #\n\
          # Example: Character attributes as key-value pairs #\n\
          let ^^type(attributes) = (strength=10, agility=8, intelligence=7, \
          `magic bonus`=2) in       \n\
-         let ^^probe(melted) =   \n\
-         ^^type(melt(attributes)) \n\
+         let ^^probe(lvs) =   \n\
+         ^^type(to_lvs(attributes)) \n\
          in  \n\n\
          # `from_entries`: Convert a list of (label, value) pairs back into a \
          labeled tuple #\n\
-         # This is the inverse of `melt` when applied to labeled-only tuples #\n\
+         # This is the inverse of `to_lvs` when applied to labeled-only tuples #\n\
          let entries : [(label=String, value=Int)] = [(\"strength\", 10), \
          (\"agility\", 8), (\"intelligence\", 7)] in\n\
          let reconstructed = from_entries(entries) in\n\
