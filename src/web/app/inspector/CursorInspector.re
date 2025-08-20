@@ -455,7 +455,7 @@ let rec exp_view =
       text("Function argument type"),
       view_type(ty),
       text("inconsistent with"),
-      view_type(Prod([]) |> Typ.fresh),
+      view_type(Prod([]) |> Typ.fresh_empty),
     ])
   | InHole(WantTuple) =>
     div_err([text("Requires tuple for first argument")])

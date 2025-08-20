@@ -6,7 +6,7 @@ let examples =
     (hole_label: string, advanced_reasoning: bool)
     : list((string, string, string)) => {
   let expected_type = ty =>
-    RelevantTypes.get(Ctx.empty, Typ.fresh(ty), hole_label);
+    RelevantTypes.get(Ctx.empty, Typ.fresh_empty(ty), hole_label);
   [
     (
       {|
@@ -41,7 +41,7 @@ let List.mapi: ((Int, Bool) -> Bool, [Bool]) -> [Bool]=
       ++ {| end in
     go(0, xs) in
 |},
-      expected_type(List(Typ.fresh(Atom(Bool)))),
+      expected_type(List(Typ.fresh_empty(Atom(Bool)))),
       advanced_reasoning
         ? {|
 Discussion:
@@ -69,7 +69,10 @@ let total_capacity: Container -> Int =
 in
 |},
       expected_type(
-        Arrow(Typ.fresh(Var("Container")), Typ.fresh(Atom(Int))),
+        Arrow(
+          Typ.fresh_empty(Var("Container")),
+          Typ.fresh_empty(Atom(Int)),
+        ),
       ),
       advanced_reasoning
         ? {|
@@ -151,8 +154,8 @@ num
       ++ "\nin\nmerge_sort([4,1,3,7,2])",
       expected_type(
         Arrow(
-          Typ.fresh(List(Typ.fresh(Atom(Int)))),
-          Typ.fresh(List(Typ.fresh(Atom(Int)))),
+          Typ.fresh_empty(List(Typ.fresh_empty(Atom(Int)))),
+          Typ.fresh_empty(List(Typ.fresh_empty(Atom(Int)))),
         ),
       ),
       advanced_reasoning
@@ -212,7 +215,7 @@ in merge_sort_helper(list)
 in
 test 2 == List.nth(List.sort(fun a, b -> a<b, [4,1,3,2]), 1) end
     |},
-      expected_type(List(Typ.fresh(Unknown(Internal)))),
+      expected_type(List(Typ.fresh_empty(Unknown(Internal)))),
       advanced_reasoning
         ? {|
 Discussion:

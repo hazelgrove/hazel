@@ -170,7 +170,11 @@ let tests = (
             List.map(Grammar.Annotated.empty, es),
           );
         let npt = (t): Grammar.typ_t(list(Grammar.exp_t(unit))) => {
-          term: t,
+          term: {
+            typ: t,
+            syn_slice: CodeSlice.empty,
+            ana_slice: CodeSlice.empty,
+          },
           annotation: [],
         };
         let uexp =
@@ -230,7 +234,11 @@ let tests = (
             List.map(Grammar.Annotated.empty, es),
           );
         let npt = (t): Grammar.typ_t(list(Grammar.exp_t(unit))) => {
-          term: t,
+          term: {
+            typ: t,
+            syn_slice: CodeSlice.empty,
+            ana_slice: CodeSlice.empty,
+          },
           annotation: [],
         };
         let uexp =
@@ -267,7 +275,11 @@ let tests = (
             List.map(Grammar.Annotated.empty, es),
           );
         let npt = (t): Grammar.typ_t(list(Grammar.exp_t(unit))) => {
-          term: t,
+          term: {
+            typ: t,
+            syn_slice: CodeSlice.empty,
+            ana_slice: CodeSlice.empty,
+          },
           annotation: [],
         };
         let uexp =

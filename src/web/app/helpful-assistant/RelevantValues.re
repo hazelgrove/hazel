@@ -35,7 +35,11 @@ let filter_ctx = (ctx: Ctx.t, ty_expect: Typ.t): list(filtered_entry) =>
         depth: 0,
         matched_type: typ,
       })
-    | Ctx.VarEntry({typ: {term: Arrow(_, return_ty), _} as typ, name, _})
+    | Ctx.VarEntry({
+        typ: {term: {typ: Arrow(_, return_ty), _}, _} as typ,
+        name,
+        _,
+      })
         when Typ.is_consistent(ctx, ty_expect, return_ty) =>
       Some({
         name,
@@ -44,7 +48,15 @@ let filter_ctx = (ctx: Ctx.t, ty_expect: Typ.t): list(filtered_entry) =>
         depth: 1,
       })
     | Ctx.VarEntry({
-        typ: {term: Arrow(_, {term: Arrow(_, return_ty), _}), _} as typ,
+        typ:
+          {
+            term:
+              {
+                typ: Arrow(_, {term: {typ: Arrow(_, return_ty), _}, _}),
+                _,
+              },
+            _,
+          } as typ,
         name,
         _,
       })
@@ -61,17 +73,17 @@ let filter_ctx = (ctx: Ctx.t, ty_expect: Typ.t): list(filtered_entry) =>
 
 let primary_goal = (ctx: Ctx.t, ana: Typ.t): Typ.t =>
   switch (ana) {
-  | {term: Var(name), _} when Ctx.lookup_alias(ctx, name) != None =>
+  | {term: {typ: Var(name), _}, _} when Ctx.lookup_alias(ctx, name) != None =>
     let ty_expanded = Ctx.lookup_alias(ctx, name) |> Option.get;
     ty_expanded |> Typ.normalize(ctx);
   | _ => ana |> Typ.normalize(ctx)
   };
 
 let secondary_targets = (goal: Typ.t): list(Typ.t) =>
-  switch (goal.term) {
+  switch (Typ.term_of(goal)) {
   | Arrow(_source, target) =>
     let elems =
-      switch (target.term) {
+      switch (Typ.term_of(target)) {
       | Prod(ts) => ts
       | _ => []
       };

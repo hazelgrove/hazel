@@ -11,9 +11,9 @@ let format_def = (alias: string, ty: Typ.t): string =>
 
 let subst_if_rec = ((name: string, ty: Typ.t)): (string, Typ.t) => {
   switch (ty) {
-  | {term: Rec(name', ty'), _} => (
+  | {term: {typ: Rec(name', ty'), _}, _} => (
       name,
-      Typ.subst(Typ.fresh(Var(name)), name', ty'),
+      Typ.subst(Typ.fresh_empty(Var(name)), name', ty'),
     )
   | _ => (name, ty)
   };
