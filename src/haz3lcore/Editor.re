@@ -5,7 +5,6 @@ module CachedSyntax = {
     old: bool,
     segment: Segment.t,
     measured: Measured.t,
-    //tiles: TileMap.t,
     selection_ids: list(Id.t),
     /* The term-derived data structured below, may differ
      * from the term used for semantics. These terms are identical when
@@ -20,7 +19,6 @@ module CachedSyntax = {
      * some other comments at some of the weakest joints; the biggest
      * issue is that dropping the backpack can add/remove grout, causing
      * certain ids to be present/non-present unexpectedly. */
-    //term_ranges: TermRanges.t,
     term_data: TermData.t,
     terms: TermMap.t,
     /* Since the introduction of shape_map below, caching projectors
@@ -50,11 +48,9 @@ module CachedSyntax = {
     {
       old: false,
       segment,
-      term_data,
       terms,
       projectors,
-      //term_ranges: TermRanges.mk(segment),
-      //tiles: TileMap.mk(segment),
+      term_data,
       shape_map: projector_shapes,
       measured: Measured.of_segment(segment, projector_shapes),
       selection_ids: Selection.selection_ids(z.selection),
