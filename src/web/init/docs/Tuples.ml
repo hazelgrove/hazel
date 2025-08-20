@@ -1446,7 +1446,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          38))(sort Exp))))))(shards(0))(children())))(Secondary((id \
          6679f81f-2ef5-46a8-b022-2cca44a8e161)(content(Whitespace\"\\n\"))))(Secondary((id \
          6d8b6871-2f34-472b-a0f1-e059e7abd859)(content(Whitespace\"\\n\"))))(Secondary((id \
-         bce5867d-79f5-4616-9563-6ca51965926e)(content(Comment\"# `melt`: \
+         bce5867d-79f5-4616-9563-6ca51965926e)(content(Comment\"# `to_lvs`: \
          Convert a labeled tuple into a list of (label, value) entries \
          #\"))))(Secondary((id \
          545aabfd-0f41-48ad-8053-4f484ca97ea9)(content(Whitespace\"\\n\"))))(Secondary((id \
@@ -1549,7 +1549,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          2de100ea-9895-474e-b8a0-137ecbff5aea)(label(\"(\"\")\"))(mold((out \
          Pat)(in_(Pat))(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0 1))(children(((Tile((id \
-         2790df99-cfd8-4277-ad11-993063c0d1b8)(label(melted))(mold((out \
+         2790df99-cfd8-4277-ad11-993063c0d1b8)(label(lvs))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))))))))(model\"()\")))(Secondary((id \
          adacf0f7-d279-464a-8ae7-d518f1f796bb)(content(Whitespace\" \
@@ -1565,7 +1565,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          d1c7947e-5015-469e-99dc-49f10f80917f)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Tile((id \
-         84f48aaf-e57f-4ace-a686-25fa9fcb2f25)(label(melt))(mold((out \
+         84f48aaf-e57f-4ace-a686-25fa9fcb2f25)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          30f8316c-c3b9-4ae9-9003-b952b98696c1)(label(\"(\"\")\"))(mold((out \
@@ -1584,12 +1584,12 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \"))))(Secondary((id \
          4ae32e25-4afd-444b-940d-6566e7b7d610)(content(Whitespace\"\\n\"))))(Secondary((id \
          17097149-38ce-4a03-8902-9fec9606f9d3)(content(Whitespace\"\\n\"))))(Secondary((id \
-         2568d75f-4c4c-4380-b72c-0177d695cbe6)(content(Comment\"# \
-         `from_entries`: Convert a list of (label, value) pairs back into a \
-         labeled tuple #\"))))(Secondary((id \
+         2568d75f-4c4c-4380-b72c-0177d695cbe6)(content(Comment\"# `from_lvs`: \
+         Convert a list of (label, value) pairs back into a labeled tuple \
+         #\"))))(Secondary((id \
          12db75df-4530-4634-9934-0796d5f46e05)(content(Whitespace\"\\n\"))))(Secondary((id \
          cc60c95a-fa4e-4381-b6a1-3c1f25736832)(content(Comment\"# This is the \
-         inverse of `melt` when applied to labeled-only tuples \
+         inverse of `to_lvs` when applied to labeled-only tuples \
          #\"))))(Secondary((id \
          a365d1be-1410-47fa-951c-2bd522bb0fa2)(content(Whitespace\"\\n\"))))(Tile((id \
          787957ca-c771-4174-9319-767c3d291c48)(label(let = in))(mold((out \
@@ -1708,7 +1708,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \")))))((Secondary((id \
          bab0c95a-33e9-4724-a257-e3e459af7683)(content(Whitespace\" \
          \"))))(Tile((id \
-         8c861d21-b7a8-4fac-9096-928790a91f99)(label(from_entries))(mold((out \
+         8c861d21-b7a8-4fac-9096-928790a91f99)(label(from_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          a04d3d5c-9aba-44a5-9d3c-bf148ea06f95)(label(\"(\"\")\"))(mold((out \
@@ -1732,7 +1732,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          38))(sort Exp))))))(shards(0))(children())))(Secondary((id \
          fd96f471-2fa1-4a89-9224-a13a91f25b5a)(content(Whitespace\"\\n\"))))(Secondary((id \
          78db2ada-60d0-48ae-9ef6-3e5197368434)(content(Comment\"# Edge case: \
-         duplicate labels in from_entries (projection is stuck) \
+         duplicate labels in from_lvs (projection is stuck) \
          #\"))))(Secondary((id \
          dc5d876e-0575-4a57-8863-98b63d337fff)(content(Whitespace\"\\n\"))))(Projector((id \
          9430307f-be2b-4bf4-819f-9966ee9119ba)(kind Fold)(syntax(Tile((id \
@@ -1844,7 +1844,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \")))))((Secondary((id \
          388e4a55-47fb-4619-b9ab-03b921f11df3)(content(Whitespace\" \
          \"))))(Tile((id \
-         7791051a-bf35-408b-ab23-7bb82861f0b2)(label(from_entries))(mold((out \
+         7791051a-bf35-408b-ab23-7bb82861f0b2)(label(from_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          3a4c2e92-d4b3-4a04-aeaf-d2eb27bbb36e)(label(\"(\"\")\"))(mold((out \
@@ -2394,8 +2394,8 @@ let out : string * Haz3lcore.PersistentZipper.t =
          38))(sort Exp))))))(shards(0))(children())))(Secondary((id \
          3993e2e2-4ed2-4350-ad09-2ad2591a4ef2)(content(Whitespace\"\\n\"))))(Secondary((id \
          81c958a6-2d16-4ad7-9120-f1e2e898b377)(content(Whitespace\"\\n\"))))(Secondary((id \
-         29950ead-85e2-485e-8fc2-9d7041902a0a)(content(Comment\"# drop_labels \
-         removes all labels from a tuple #\"))))(Secondary((id \
+         29950ead-85e2-485e-8fc2-9d7041902a0a)(content(Comment\"# \
+         omit_all_labels removes all labels from a tuple #\"))))(Secondary((id \
          d0d2c9ca-5293-4587-bd7a-0830eb04296b)(content(Whitespace\"\\n\"))))(Tile((id \
          90f6750a-f7f4-491d-97b0-cbe1aee2218b)(label(let = in))(mold((out \
          Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
@@ -2414,7 +2414,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \")))))((Secondary((id \
          e1648f0e-f45a-4b4c-abd6-fe6e0c995f8a)(content(Whitespace\" \
          \"))))(Tile((id \
-         2af63790-d8d8-4e3f-81cb-f170b5cd0809)(label(drop_labels))(mold((out \
+         2af63790-d8d8-4e3f-81cb-f170b5cd0809)(label(omit_all_labels))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          58588cc1-8c80-4005-a3a3-769d19816a65)(label(\"(\"\")\"))(mold((out \
@@ -2504,7 +2504,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          ce2a089c-9ec3-4fc4-b5ce-f632e33fbe00)(content(Whitespace\" \
          \"))))(Secondary((id \
          0cd6e3ba-9de2-4cff-a898-3f42b4c24ad6)(content(Whitespace\"\\n\"))))(Tile((id \
-         482577c0-1a68-408c-a713-81424b08f0d3)(label(drop_labels))(mold((out \
+         482577c0-1a68-408c-a713-81424b08f0d3)(label(omit_all_labels))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          1b28c79a-bd92-405d-9cb7-290e00b55482)(label(\"(\"\")\"))(mold((out \
@@ -3065,7 +3065,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Exp)(in_())(nibs(((shape(Concave 38))(sort Exp))((shape(Concave \
          38))(sort Exp))))))(shards(0))(children())))(Secondary((id \
          88ae9515-d7df-423d-b319-812e8845ebeb)(content(Whitespace\"\\n\"))))(Tile((id \
-         44efc31a-ce2f-4672-ac4b-869088a8d91b)(label(drop_labels))(mold((out \
+         44efc31a-ce2f-4672-ac4b-869088a8d91b)(label(omit_all_labels))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          6acdcd2c-2b0b-468f-93ff-959e4584f010)(label(\"(\"\")\"))(mold((out \
@@ -3134,26 +3134,26 @@ let out : string * Haz3lcore.PersistentZipper.t =
          ] in\n\
          ^^probe(people.age);  \n\
          ^^probe(people.name);\n\n\
-         # `melt`: Convert a labeled tuple into a list of (label, value) \
+         # `to_lvs`: Convert a labeled tuple into a list of (label, value) \
          entries #\n\
          # Example: Character attributes as key-value pairs #\n\
          let ^^type(attributes) = (strength=10, agility=8, intelligence=7, \
          `magic bonus`=2) in       \n\
-         let ^^probe(melted) =   \n\
-         ^^type(melt(attributes)) \n\
+         let ^^probe(lvs) =   \n\
+         ^^type(to_lvs(attributes)) \n\
          in  \n\n\
-         # `from_entries`: Convert a list of (label, value) pairs back into a \
+         # `from_lvs`: Convert a list of (label, value) pairs back into a \
          labeled tuple #\n\
-         # This is the inverse of `melt` when applied to labeled-only tuples #\n\
+         # This is the inverse of `to_lvs` when applied to labeled-only tuples #\n\
          let entries : [(label=String, value=Int)] = [(\"strength\", 10), \
          (\"agility\", 8), (\"intelligence\", 7)] in\n\
-         let reconstructed = from_entries(entries) in\n\
+         let reconstructed = from_lvs(entries) in\n\
          ^^probe(reconstructed);\n\
-         # Edge case: duplicate labels in from_entries (projection is stuck) #\n\
+         # Edge case: duplicate labels in from_lvs (projection is stuck) #\n\
          ^^fold((\n\
          let entries_with_dupes : [(label=String, value=Int)] = [(\"x\", 1), \
          (\"x\", 2)] in\n\
-         let ^^probe(duplicate_entries) = from_entries(entries_with_dupes) in\n\
+         let ^^probe(duplicate_entries) = from_lvs(entries_with_dupes) in\n\
          ^^probe(duplicate_entries.x)\n\
          ));\n\
         \                 \n\
@@ -3180,13 +3180,13 @@ let out : string * Haz3lcore.PersistentZipper.t =
          ^^probe(project_labels(tup, `a`));\n\
          ^^probe(omit_labels(tup, `a`, `b`, `c`))\n\
          ));\n\n\
-         # drop_labels removes all labels from a tuple #\n\
-         let ^^type(dropped) = drop_labels(a=1, b=\"str\", true, c=4) in\n\
+         # omit_all_labels removes all labels from a tuple #\n\
+         let ^^type(dropped) = omit_all_labels(a=1, b=\"str\", true, c=4) in\n\
          ^^probe(dropped); \n\n\
          # Edge case: dropping label of singleton labeled tuple collapses to \
          value #\n\
          let ^^type(i) = \n\
-         drop_labels((a=1)) in\n\
+         omit_all_labels((a=1)) in\n\
          ^^probe(i);\n\n\
          # Static Errors #\n\
          ^^fold((\n\
@@ -3205,7 +3205,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          project_labels(1, `a`) in\n\
          let arity_error = \n\
          select_labels((a=1, b=2));\n\
-         drop_labels(3)\n\
+         omit_all_labels(3)\n\
          in  \n\
          ))";
     } )
