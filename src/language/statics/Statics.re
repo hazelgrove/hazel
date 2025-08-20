@@ -28,95 +28,7 @@
 
     */
 
-module Info = Info;
-
-module Map = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Id.Map.t(Info.t);
-
-  [@deriving (show({with_path: false}), sexp, yojson, eq)]
-  type errors = Id.Map.t(Info.error);
-
-  let empty = Id.Map.empty;
-  let lookup = Id.Map.find_opt;
-
-  let error_ids = (info_map: t): list(Id.t) =>
-    Id.Map.fold(
-      (id, info, acc) =>
-        /* Second clause is to eliminate non-representative ids,
-         * which will not be found in the measurements map */
-        Info.is_error(info) && id == Info.id_of(info) ? [id, ...acc] : acc,
-      info_map,
-      [],
-    );
-
-  let errors = (map: t): list((Id.t, Info.error)) =>
-    Id.Map.fold(
-      (id, info: Info.t, acc) =>
-        Option.to_list(Info.error_of(info) |> Option.map(x => (id, x)))
-        @ acc,
-      map,
-      [],
-    );
-
-  let collect_errors = (map: t): errors =>
-    Id.Map.filter_map(
-      (_: Uuidm.t, info: Info.t) => {Info.error_of(info)},
-      map,
-    );
-
-  /* The ids of binding sites for for all references in term with `id` */
-  let refs_in = (m: t, id: Id.t): Binding.s =>
-    switch (lookup(id, m)) {
-    | Some(InfoExp({co_ctx, ctx, _})) =>
-      co_ctx
-      |> Util.VarMap.to_list
-      |> List.map(((n, _)) => Ctx.binding_of(ctx, n))
-    | _ => []
-    };
-
-  let bound_in = (m: t, id: Id.t): Binding.s =>
-    switch (lookup(id, m)) {
-    | Some(InfoPat({term, _})) => Term.Pat.bindings(term)
-    | _ => []
-    };
-};
-
-let map_m = (f, xs, m: Map.t) =>
-  List.fold_left(
-    ((xs, m), x) => f(x, m) |> (((x, m)) => (xs @ [x], m)),
-    ([], m),
-    xs,
-  );
-
-let add_info = (ids: list(Id.t), info: Info.t, m: Map.t): Map.t =>
-  ids |> List.fold_left((m, id) => Id.Map.add(id, info, m), m);
-
-let rec is_arrow_like = (t: Typ.t) => {
-  switch (t |> Typ.term_of) {
-  | Unknown(_) => true
-  | Arrow(_) => true
-  | Forall(_, t) => is_arrow_like(t)
-  | _ => false
-  };
-};
-
-let is_recursive = (ctx, p, def, syn: Typ.t) => {
-  switch (Pat.get_num_of_vars(p), Exp.get_num_of_functions(def)) {
-  | (Some(num_vars), Some(num_fns))
-      when num_vars != 0 && num_vars == num_fns =>
-    let norm = Typ.normalize(ctx, syn);
-    switch (norm |> Typ.term_of) {
-    | Prod(syns) when List.length(syns) == num_vars =>
-      syns |> List.for_all(is_arrow_like)
-    | _ when is_arrow_like(norm) => num_vars == 1
-    | _ => false
-    };
-  | _ => false
-  };
-};
-
-let syn = Unknown(SynSwitch) |> Typ.temp;
+include StaticsBase;
 
 let rec any_to_info_map =
         (~ctx: Ctx.t, ~ancestors, any: Any.t, m: Map.t): (CoCtx.t, Map.t) =>
@@ -204,7 +116,14 @@ and uexp_to_info_map =
       m: Map.t,
     )
     : (Info.exp, Map.t) => {
-  let add' = (~label_inference=?, ~self, ~co_ctx, m) => {
+  let add' =
+      (
+        ~label_inference: option(Info.label_inference(Info.exp))=?,
+        ~self: Self.exp,
+        ~co_ctx: CoCtx.t,
+        m: Map.t,
+      )
+      : (Info.exp, Map.t) => {
     let info =
       Info.derived_exp(
         ~uexp,
@@ -252,8 +171,39 @@ and uexp_to_info_map =
       m,
     );
   };
+  let replace_self = (m: Map.t, original_info: Info.exp, self: Self.exp) => {
+    let new_info =
+      Info.derived_exp(
+        ~uexp=original_info.term,
+        ~ctx=original_info.ctx,
+        ~ana=original_info.ana,
+        ~ancestors=original_info.ancestors,
+        ~self,
+        ~co_ctx=original_info.co_ctx,
+        ~label_inference=original_info.label_inference,
+        ~inferred_label=original_info.inferred_label,
+        ~label_sort=original_info.label_sort,
+      );
+    (
+      new_info,
+      add_info(IdTagged.ids(original_info.term), InfoExp(new_info), m),
+    );
+  };
   let go' = uexp_to_info_map(~ancestors);
-  let go = go'(~ctx);
+  let go:
+    (
+      ~ana: TermBase.typ_t=?,
+      ~is_in_filter: bool=?,
+      ~duplicates: list(string)=?,
+      ~expected_labels: list(string)=?,
+      ~inferred_label: string=?,
+      ~override_self: Self.exp=?,
+      ~label_sort: bool=?,
+      TermBase.exp_t,
+      Map.t
+    ) =>
+    (Info.exp, Map.t) =
+    go'(~ctx);
   let map_m_go = (m, ~duplicates=[]) =>
     List.fold_left2(
       ((es, m), ana, e) =>
@@ -262,7 +212,41 @@ and uexp_to_info_map =
     );
   let go_pat = upat_to_info_map(~ctx, ~ancestors, ~duplicates);
   let go_typ = utyp_to_info_map(~ctx, ~ancestors);
-
+  let label_to_info_map =
+      (expected_labels, labmode, label: Exp.t, m: Map.t)
+      : (option(string), Info.exp, Map.t) => {
+    switch (label.term, expected_labels) {
+    | (Label(name), Some(expected_labels))
+        when !List.mem(name, expected_labels) =>
+      let (i, m) =
+        go(
+          ~ana=labmode,
+          ~override_self=Common(InvalidLabel(name, expected_labels)),
+          ~label_sort=true,
+          ~duplicates,
+          label,
+          m,
+        );
+      (None, i, m);
+    | (Label(lab), _) =>
+      let (i, m) = go(~ana=labmode, ~label_sort=true, ~duplicates, label, m);
+      (Some(lab), i, m);
+    | (EmptyHole, _) =>
+      let (i, m) = go(~ana=labmode, ~label_sort=true, ~duplicates, label, m);
+      (None, i, m);
+    | _ =>
+      let (i, m) =
+        go(
+          ~ana=labmode,
+          ~override_self=Common(BadLabel(Exp(label))),
+          ~label_sort=true,
+          ~duplicates,
+          label,
+          m,
+        );
+      (None, i, m);
+    };
+  };
   // This lifts an expression into a singleton labeled tuple by rewriting the syntax in the Statics Map
   let autolabel_singleton_tuple = (uexp: Exp.t, inner_ty, l, m) => {
     let (term, rewrap) = Exp.unwrap(uexp);
@@ -473,6 +457,73 @@ and uexp_to_info_map =
           m,
         );
       };
+    | TupleExtension(e1, e2) =>
+      let (t1, m) = {
+        let (t1, m) = go(e1, m);
+        switch (Typ.normalize(ctx, t1.ty).term) {
+        | Prod(_)
+        | Unknown(_) => (t1, m)
+        | _ => replace_self(m, t1, TupleExtensionRequiresTuples)
+        };
+      };
+      let (t2, m) = {
+        let (t2, m) = go(e2, m);
+        switch (Typ.normalize(ctx, t2.ty).term) {
+        | Prod(_)
+        | Unknown(_) => (t2, m)
+        | _ => replace_self(m, t2, TupleExtensionRequiresTuples)
+        };
+      };
+
+      switch (
+        Typ.normalize(ctx, t1.ty).term,
+        Typ.normalize(ctx, t2.ty).term,
+      ) {
+      | (Prod(ts1), Prod(ts2)) =>
+        let extract_entry: Typ.t => (option(string), Typ.t) = (
+          t =>
+            switch (Typ.match_tup_label(t)) {
+            | Some((name, t)) => (Some(name), t)
+            | None => (None, t)
+            }
+        );
+        let e1_entries = List.map(extract_entry, ts1);
+        let e2_entries = List.map(extract_entry, ts2);
+
+        let ty: Grammar.typ_t(IdTagged.IdTag.t) =
+          IdTagged.FreshGrammar.Typ.(
+            prod(
+              List.map(
+                ((lab, d)) =>
+                  switch (lab) {
+                  | Some(l) => tup_label(label(l), d)
+                  | None => d
+                  },
+                LabeledTuple.extension(e1_entries, e2_entries),
+              ),
+            )
+          );
+
+        add(
+          ~self=Just(ty), // TODO: fix this
+          ~co_ctx=CoCtx.empty,
+          m,
+        );
+      | (Unknown(_), _)
+      | (_, Unknown(_)) =>
+        add(
+          ~self=Just(IdTagged.FreshGrammar.Typ.unknown(Internal)),
+          ~co_ctx=CoCtx.empty,
+          m,
+        )
+      | _ =>
+        add(
+          ~self=Just(IdTagged.FreshGrammar.Typ.unknown(Internal)),
+          ~co_ctx=CoCtx.empty,
+          m,
+        )
+      };
+
     | Tuple(es) =>
       let expected_labels =
         switch (Typ.weak_head_normalize(ctx, ana).term) {
@@ -584,39 +635,16 @@ and uexp_to_info_map =
       let (lab, e, m) =
         switch (Typ.matched_label(ctx, ana)) {
         | Some((labmode, val_mode)) =>
-          let label_self: option(Self.exp) =
-            switch (label.term) {
-            | Label(_)
-            | EmptyHole => None
-            | _ => Some(Common(BadLabel(Exp(label))))
-            };
+          let (_, lab, m) =
+            label_to_info_map(expected_labels, labmode, label, m);
 
-          let (lab, m) =
-            go(
-              ~ana=labmode,
-              ~override_self=?label_self,
-              ~label_sort=true,
-              ~duplicates,
-              label,
-              m,
-            );
           let (e, m) = go(~ana=val_mode, ~inferred_label?, e, m);
           (lab, e, m);
         | _ =>
-          let (lab, m) =
-            go(
-              ~ana=Unknown(Internal) |> Typ.temp,
-              ~override_self=?
-                switch (label.term, expected_labels) {
-                | (Label(name), Some(expected_labels))
-                    when !List.mem(name, expected_labels) =>
-                  Some(Common(InvalidLabel(name)))
-                | (Label(_), _)
-                | (EmptyHole, _) => None
-                | _ => Some(Common(BadLabel(Exp(label))))
-                },
-              ~duplicates,
-              ~label_sort=true,
+          let (_, lab, m) =
+            label_to_info_map(
+              expected_labels,
+              Unknown(SynSwitch) |> Typ.temp,
               label,
               m,
             );
@@ -634,7 +662,7 @@ and uexp_to_info_map =
               Inconsistent(Expectation({syn: {term: Label(name), _}, _})),
             ),
           )
-        | InHole(Common(NoType(InvalidLabel(name)))) =>
+        | InHole(Common(NoType(InvalidLabel(name, _)))) =>
           Self.TupleLabelError({
             malformed_labels: [],
             duplicate_labels: [],
@@ -657,10 +685,13 @@ and uexp_to_info_map =
           })
         };
       add(~self, ~co_ctx=CoCtx.union([lab.co_ctx, e.co_ctx]), m);
-    | Label(name) =>
+    | Label(name) when label_sort =>
       let self = Self.Just(Label(name) |> Typ.temp);
       List.exists(l => name == l, duplicates)
         ? atomic(Duplicate(name, self)) : atomic(self);
+    | Label(name) =>
+      let self = Self.UnexpectedLabelSort(name);
+      atomic(self);
     | BuiltinFun(string) =>
       add'(
         ~self=Self.of_exp_var(Builtins.ctx_init(None), string),
@@ -670,7 +701,9 @@ and uexp_to_info_map =
 
     | Dot(e1, e2) =>
       let (info_e1, m) = go(~ana=syn, e1, m);
-      let (info_e2, m) = go(~ana=Label("") |> Typ.temp, e2, m);
+      let (info_e2, m) =
+        go(~label_sort=true, ~ana=Label("") |> Typ.temp, e2, m);
+
       let (ty, m) = {
         switch (info_e1.ty.term, info_e2.ty.term) {
         | (Unknown(_), Label(name)) =>
@@ -686,8 +719,7 @@ and uexp_to_info_map =
             |> Typ.temp;
           let (_, m) = go(~ana=ty, e1, m);
           (ty, m);
-        | (Var(_), _) => (Typ.weak_head_normalize(ctx, info_e1.ty), m)
-        | _ => (info_e1.ty, m)
+        | _ => (Typ.normalize(ctx, info_e1.ty), m)
         };
       };
       switch (ty.term) {
@@ -717,7 +749,44 @@ and uexp_to_info_map =
           )
         | _ => add(~self=BadLabel(Exp(e2)), ~co_ctx=info_e2.co_ctx, m)
         };
-      | _ => add'(~self=WantTuple, ~co_ctx=info_e2.co_ctx, m)
+      | List({term: Prod(ts), _}) =>
+        let labels =
+          List.filter_map(Typ.match_tup_label, ts) |> List.map(fst);
+
+        switch (e2.term) {
+        | Label(name) =>
+          let element: option(Typ.t) =
+            LabeledTuple.find_label(Typ.match_tup_label, ts, name);
+          switch (element) {
+          | Some({term: TupLabel(_, typ), _})
+          | Some(typ) =>
+            add(
+              ~self=Just(List(typ) |> Typ.fresh),
+              ~co_ctx=info_e2.co_ctx,
+              m,
+            )
+          | None =>
+            add'(
+              ~self=LabelNotFound(name, labels),
+              ~co_ctx=info_e2.co_ctx,
+              m,
+            )
+          };
+        | EmptyHole =>
+          add(
+            ~self=Just(Unknown(Internal) |> Typ.temp),
+            ~co_ctx=info_e2.co_ctx,
+            m,
+          )
+        | _ => add(~self=BadLabel(Exp(e2)), ~co_ctx=info_e2.co_ctx, m)
+        };
+      | List({term: Unknown(_), _}) =>
+        add(
+          ~self=Just(List(Unknown(Internal) |> Typ.temp) |> Typ.temp),
+          ~co_ctx=info_e2.co_ctx,
+          m,
+        )
+      | _ => add'(~self=DotOperatorRequiresTuple, ~co_ctx=info_e2.co_ctx, m)
       };
     | Test(e) =>
       let (e, m) = go(~ana=Atom(Bool) |> Typ.temp, e, m);
@@ -786,6 +855,15 @@ and uexp_to_info_map =
           );
         }
       | _ =>
+        /* If this is a builtin with custom statics */
+        let custom_statics =
+          switch (fn.term) {
+          | Var(v) =>
+            Ctx.lookup_var(ctx, v)
+            |> Option.bind(_, (e: Ctx.var_entry) => e.custom_statics)
+          | _ => None
+          };
+
         /* This logic lets us treat constructors differently to functions in
            terms of error localization */
         let fn_ana =
@@ -802,14 +880,33 @@ and uexp_to_info_map =
           | None => Arrow(syn, syn) |> Typ.temp
           };
         let (fn, m) = go(~ana=fn_ana, fn, m);
-        let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
-
-        let (arg, m) = go(~ana=ty_in, arg, m);
-        let self: Self.exp =
-          Id.is_nullary_ap_flag(IdTagged.ids(arg.term))
-          && !Typ.is_consistent(ctx, ty_in, Prod([]) |> Typ.temp)
-            ? BadTrivAp(ty_in) : Common(Just(ty_out));
-        add'(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]), m);
+        switch (custom_statics) {
+        | Some(kind) =>
+          CustomStatics.custom_statics_ap(
+            ~inferred_label,
+            ~label_sort,
+            ~ctx,
+            ~ancestors,
+            ~fn_info=fn,
+            kind,
+            (module
+             {
+               let uexp_to_info_map = uexp_to_info_map;
+               let label_to_info_map = label_to_info_map;
+               let add' = add';
+             }),
+            m,
+            arg,
+          )
+        | None =>
+          let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
+          let (arg, m) = go(~ana=ty_in, arg, m);
+          let self: Self.exp =
+            Id.is_nullary_ap_flag(IdTagged.ids(arg.term))
+            && !Typ.is_consistent(ctx, ty_in, Prod([]) |> Typ.temp)
+              ? BadTrivAp(ty_in) : Common(Just(ty_out));
+          add'(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]), m);
+        };
       }
     | TypAp(fn, utyp) =>
       let typfn_ana = Forall(EmptyHole |> TPat.fresh, syn) |> Typ.temp;
@@ -826,6 +923,15 @@ and uexp_to_info_map =
       | None => add(~self=Just(ty_body), ~co_ctx=fn.co_ctx, m) /* invalid name matches with no free type variables. */
       };
     | DeferredAp(fn, args) =>
+      /* If this is a builtin with custom statics */
+      let custom_statics =
+        switch (fn.term) {
+        | Var(v) =>
+          Ctx.lookup_var(ctx, v)
+          |> Option.bind(_, (e: Ctx.var_entry) => e.custom_statics)
+        | _ => None
+        };
+
       /* This logic lets us treat constructors differently to functions in
          terms of error localization */
       let fn_ana =
@@ -842,41 +948,64 @@ and uexp_to_info_map =
         | None => Arrow(syn, syn) |> Typ.temp
         };
       let (fn, m) = go(~ana=fn_ana, fn, m);
-      let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
-      let num_args = List.length(args);
-      switch (Typ.matched_args_strict(ctx, ty_in, num_args)) {
-      | L(ty_ins) =>
-        let (args_infos, m) = map_m_go(m, ty_ins, args);
-        let arg_co_ctx = CoCtx.union(List.map(Info.exp_co_ctx, args_infos));
-        let ty_in' =
-          List.combine(ty_ins, args)
-          |> List.filter(((_, e)) => Exp.is_deferral(e))
-          |> List.map(fst)
-          |> (
-            fun
-            | [x] => x
-            | xs => Prod(xs) |> Typ.temp
+
+      switch (custom_statics) {
+      | Some(kind) =>
+        CustomStatics.custom_statics_deferred_ap(
+          ~inferred_label,
+          ~label_sort,
+          ~ctx,
+          ~ancestors,
+          ~fn_info=fn,
+          kind,
+          (module
+           {
+             let uexp_to_info_map = uexp_to_info_map;
+             let label_to_info_map = label_to_info_map;
+             let add' = add';
+           }),
+          m,
+          args,
+        )
+      | None =>
+        let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
+        let num_args = List.length(args);
+        switch (Typ.matched_args_strict(ctx, ty_in, num_args)) {
+        | L(ty_ins) =>
+          let (args_infos, m) = map_m_go(m, ty_ins, args);
+          let arg_co_ctx =
+            CoCtx.union(List.map(Info.exp_co_ctx, args_infos));
+          let ty_in' =
+            List.combine(ty_ins, args)
+            |> List.filter(((_, e)) => Exp.is_deferral(e))
+            |> List.map(fst)
+            |> (
+              fun
+              | [x] => x
+              | xs => Prod(xs) |> Typ.temp
+            );
+          add(
+            ~self=Just(Arrow(ty_in', ty_out) |> Typ.temp),
+            ~co_ctx=CoCtx.union([fn.co_ctx, arg_co_ctx]),
+            m,
           );
-        add(
-          ~self=Just(Arrow(ty_in', ty_out) |> Typ.temp),
-          ~co_ctx=CoCtx.union([fn.co_ctx, arg_co_ctx]),
-          m,
-        );
-      | R(expected) =>
-        let ty_ins = List.init(num_args, _ => Unknown(Internal) |> Typ.temp);
-        let (args, m) = map_m_go(m, ty_ins, args);
-        let arg_co_ctx = CoCtx.union(List.map(Info.exp_co_ctx, args));
-        add'(
-          ~self=
-            IsBadPartialAp(
-              ArityMismatch({
-                expected,
-                actual: num_args,
-              }),
-            ),
-          ~co_ctx=CoCtx.union([fn.co_ctx, arg_co_ctx]),
-          m,
-        );
+        | R(expected) =>
+          let ty_ins =
+            List.init(num_args, _ => Unknown(Internal) |> Typ.temp);
+          let (args, m) = map_m_go(m, ty_ins, args);
+          let arg_co_ctx = CoCtx.union(List.map(Info.exp_co_ctx, args));
+          add'(
+            ~self=
+              IsBadPartialAp(
+                ArityMismatch({
+                  expected,
+                  actual: num_args,
+                }),
+              ),
+            ~co_ctx=CoCtx.union([fn.co_ctx, arg_co_ctx]),
+            m,
+          );
+        };
       };
     | Fun(p, e, typ, _) =>
       let (mode_pat, mode_body) = Typ.matched_arrow(ctx, ana);
@@ -1195,6 +1324,7 @@ and uexp_to_info_map =
     switch (Typ.weak_head_normalize(ctx, e.ty).term) {
     | Prod([{term: TupLabel({term: Label(l2), _}, _), _}]) when l1 == l2 =>
       default_case()
+    | Unknown(_) => default_case() // TODO I don't know if this is correct
     | _ => autolabel_singleton_tuple(uexp, ana_ty, l1, m)
     };
   | _ => default_case()
@@ -1440,6 +1570,7 @@ and upat_to_info_map =
           name,
           id: Pat.rep_id(upat),
           typ: ctx_typ,
+          custom_statics: None,
         });
       add(
         ~self=Just(unknown),
@@ -1480,7 +1611,7 @@ and upat_to_info_map =
                 switch (label.term, expected_labels) {
                 | (Label(name), Some(expected_labels))
                     when !List.mem(name, expected_labels) =>
-                  Some(InvalidLabel(name))
+                  Some(InvalidLabel(name, expected_labels))
                 | (Label(_), _)
                 | (EmptyHole, _) => None
                 | _ => Some(BadLabel(Pat(label)))
@@ -1509,7 +1640,7 @@ and upat_to_info_map =
               Inconsistent(Expectation({syn: {term: Label(name), _}, _})),
             ),
           )
-        | InHole(Common(NoType(InvalidLabel(name)))) =>
+        | InHole(Common(NoType(InvalidLabel(name, _)))) =>
           Self.TupleLabelError({
             malformed_labels: [],
             duplicate_labels: [],

@@ -89,6 +89,7 @@ type example_id =
   | Label1
   | Label2
   | Dot1
+  | Dot2
   | DotTyp
   | Fix1
   | Fix2
@@ -97,6 +98,9 @@ type example_id =
   | TupleLabeled1
   | TupleLabeled2
   | TupleLabeled3
+  | TupleExtension1
+  | TupleExtension2
+  | TupleExtension3
   | Let(let_examples)
   | UseExp1
   | TypFunAp
@@ -268,7 +272,8 @@ type form_id =
   | FilterDebug
   | FilterHide
   | FilterSelector
-  | AscExp;
+  | AscExp
+  | TupleExtensionExp;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type form = {
@@ -324,6 +329,7 @@ type group_id =
   | CaseExp
   | TyAliasExp
   | PipelineExp
+  | TupleExtensionExp
   | UseExp
   | EmptyHolePat
   | MultiHolePat
