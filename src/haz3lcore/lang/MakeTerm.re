@@ -48,6 +48,7 @@ type unsorted =
 type t = {
   term: Exp.t,
   terms: TermMap.t,
+  term_data: TermData.t,
   projectors: Id.Map.t(Piece.projector),
 };
 
@@ -119,6 +120,16 @@ let return = (wrap, ids, tm) => {
   tm;
 };
 
+let term_data: ref(TermData.t) = ref(Id.Map.empty);
+let record_term_data = (seg: Segment.t, skel: Skel.t): unit =>
+  term_data :=
+    Aba.get_as(Aba.map_a(List.nth(seg), Skel.root(skel)))
+    |> List.fold_left(
+         (map, p) =>
+           Id.Map.add(Piece.id(p), TermData.mk(p, skel, seg), map),
+         term_data^,
+       );
+
 /* Map to collect projector ids */
 let projectors: ref(Id.Map.t(Piece.projector)) = ref(Id.Map.empty);
 
@@ -172,20 +183,11 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
   | Exp => Exp(exp(unsorted(skel, seg)))
   | Rul => Rul(rul(unsorted(skel, seg)))
   | Any =>
-    let tm = unsorted(skel, seg);
-    let ids = ids(tm);
-    switch (ListUtil.hd_opt(ids)) {
-    | None => Exp(exp(unsorted(skel, seg)))
-    | Some(id) =>
-      switch (TileMap.find_opt(id, TileMap.mk(seg))) {
-      | None => Exp(exp(unsorted(skel, seg)))
-      | Some(t) =>
-        if (t.mold.out == Any) {
-          Exp(exp(unsorted(skel, seg)));
-        } else {
-          go_s(t.mold.out, skel, seg);
-        }
-      }
+    let sort = Segment.sort_of(skel, seg);
+    if (sort == Any) {
+      Exp(exp(unsorted(skel, seg)));
+    } else {
+      go_s(sort, skel, seg);
     };
   }
 
@@ -811,6 +813,9 @@ and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
          })
     };
 
+  /* Capture term ranges */
+  record_term_data(seg, skel);
+
   let root: Aba.t(Piece.t, Skel.t) =
     Skel.root(skel) |> Aba.map_a(List.nth(seg));
 
@@ -850,10 +855,12 @@ let go =
     ~cache_size_bound=1000,
     seg => {
       map := TermMap.empty;
+      term_data := Id.Map.empty;
       projectors := Id.Map.empty;
       let term = exp(unsorted(Segment.skel(seg), seg));
       {
         term,
+        term_data: term_data^,
         terms: map^,
         projectors: projectors^,
       };
