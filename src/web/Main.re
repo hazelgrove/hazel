@@ -97,10 +97,7 @@ let start = {
         },
       ~default_model=
         History.Model.init()
-        |> History.Update.calculate(
-             ~schedule_action=_ => (),
-             ~is_edited=false,
-           ),
+        |> History.Update.calculate(~schedule_action=_ => (), ~is_edited=true),
       save_scheduler,
     );
 
