@@ -463,6 +463,19 @@ module Deco =
     |> List.filter_map(TermData.root_tile_opt(_, term_data))
     |> List.map(t => div_c("step-taken", tile_term_deco(t)));
 
+  let refl_steps = (refl_steps, ~inject) =>
+    refl_steps
+    |> List.filter_map(TermData.root_tile_opt(_, term_data))
+    |> List.mapi((i, t: Tile.t) =>
+         div_c(
+           "step-refl",
+           tile_term_deco(
+             ~attr=[Virtual_dom.Vdom.Attr.on_mousedown(_ => inject(i))],
+             t,
+           ),
+         )
+       );
+
   let statics = () => [errors()];
 
   let editor = (z, selected: bool) =>

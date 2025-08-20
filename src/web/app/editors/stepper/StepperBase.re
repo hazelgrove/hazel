@@ -38,6 +38,19 @@ let init_step = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type persistent_step_kind =
+  | SingleStep(SingleStep.persistent'(persistent_step))
+  | InductionStep(InductionStep.persistent'(persistent_step))
+  | ForallStep(ForallStep.persistent'(persistent_step))
+  | MissingStep(MissingStep.Model.persistent)
+  | AxiomStep(AxiomStep.persistent'(persistent_step))
+
+and persistent_step = {
+  step_kind: persistent_step_kind,
+  next_step: option(persistent_step),
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type step_kind_action =
   | SingleStep(SingleStep.action'(step_action))
   | InductionStep(InductionStep.action'(step_action))
@@ -53,7 +66,7 @@ and step_action =
   | StepForward(int)
   | AddInduction(option(Exp.t))
   | AddForall
-  | AddAxiomStep(Exp.t, Exp.t);
+  | AddAxiomStep(string, int, Exp.t, Exp.t);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type step_kind_focus =
@@ -72,6 +85,7 @@ module rec StepKind: {
   include
     STEP with
       type model = step_kind_model and
+      type persistent = persistent_step_kind and
       type action = step_kind_action and
       type focus = step_kind_focus;
 
@@ -89,9 +103,31 @@ module rec StepKind: {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = step_kind_model;
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type persistent = persistent_step_kind;
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type action = step_kind_action;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type focus = step_kind_focus;
+
+  let persist = (model: model): persistent => {
+    switch (model) {
+    | SingleStep(m) => SingleStep(SingleStep.persist(m))
+    | InductionStep(m) => InductionStep(InductionStep.persist(m))
+    | ForallStep(m) => ForallStep(ForallStep.persist(m))
+    | MissingStep(m) => MissingStep(MissingStep.Model.persist(m))
+    | AxiomStep(m) => AxiomStep(AxiomStep.persist(m))
+    };
+  };
+
+  let unpersist = (p: persistent): model => {
+    switch (p) {
+    | SingleStep(m) => SingleStep(SingleStep.unpersist(m))
+    | InductionStep(m) => InductionStep(InductionStep.unpersist(m))
+    | ForallStep(m) => ForallStep(ForallStep.unpersist(m))
+    | MissingStep(m) => MissingStep(MissingStep.Model.unpersist(m))
+    | AxiomStep(m) => AxiomStep(AxiomStep.unpersist(m))
+    };
+  };
 
   let is_missing_step = (sk: step_kind_model): bool => {
     switch (sk) {
@@ -212,7 +248,8 @@ module rec StepKind: {
           ~ctx=ctx |> Calc.make_new,
           ~state=state |> Calc.make_new,
           SingleStep({
-            evalobj,
+            persistent_evalobj: evalobj |> EvaluatorStep.persist,
+            evalobj: Calc.Pending,
             next_exp: Calc.Pending,
             next_state: Calc.Pending,
           }): model,
@@ -458,6 +495,7 @@ and Stepper: {
   include
     STEPPER with
       type model = step_model and
+      type persistent = persistent_step and
       type action = step_action and
       type focus = step_focus;
 
@@ -465,6 +503,8 @@ and Stepper: {
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = step_model;
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type persistent = persistent_step;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type action = step_action;
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -477,6 +517,24 @@ and Stepper: {
     step_kind: MissingStep(MissingStep.Model.init),
     next_step: None,
     hidden: Calc.Pending,
+  };
+
+  let rec persist = (model: model): persistent => {
+    {
+      step_kind: StepKind.persist(model.step_kind),
+      next_step: model.next_step |> Option.map(persist),
+    };
+  };
+
+  let rec unpersist = (p: persistent): model => {
+    {
+      expr: Calc.Pending,
+      state: Calc.Pending,
+      editor: Calc.Pending,
+      step_kind: StepKind.unpersist(p.step_kind),
+      next_step: p.next_step |> Option.map(unpersist),
+      hidden: Calc.Pending,
+    };
   };
 
   let rec get_state = (model: model) =>
@@ -529,7 +587,8 @@ and Stepper: {
             ...model,
             step_kind:
               SingleStep({
-                evalobj,
+                persistent_evalobj: evalobj |> EvaluatorStep.persist,
+                evalobj: Calc.Calculated(evalobj),
                 next_exp: Calc.Pending,
                 next_state: Calc.Pending,
               }),
@@ -552,20 +611,20 @@ and Stepper: {
         }
         |> return
       | (AddForall, _, _) => model |> return_quiet
-      | (AddAxiomStep(at_exp, with_exp), MissingStep(_), _) =>
-        let at_id = Exp.rep_id(at_exp);
+      | (AddAxiomStep(name, at_idx, at_exp, with_exp), MissingStep(_), _) =>
         {
           ...model,
           step_kind:
             AxiomStep({
-              at_id,
+              name,
+              at_idx,
               at_exp,
               with_exp,
               next_exp: Calc.Pending,
             }),
         }
-        |> return;
-      | (AddAxiomStep(_, _), _, _) => model |> return_quiet
+        |> return
+      | (AddAxiomStep(_, _, _, _), _, _) => model |> return_quiet
       | (StepKindAction(sk_action), _, _) =>
         let* new_step_kind =
           StepKind.update(~settings, sk_action, model.step_kind);
@@ -585,7 +644,7 @@ and Stepper: {
     | StepForward(_) => true
     | AddInduction(_) => true
     | AddForall => true
-    | AddAxiomStep(_, _) => true
+    | AddAxiomStep(_) => true
     | StepKindAction(action) => StepKind.can_undo(action)
     };
   };
@@ -737,7 +796,12 @@ and Stepper: {
       } else {
         let taken_steps =
           switch (model.step_kind) {
-          | SingleStep(m) => [m.evalobj |> EvaluatorStep.get_step_id]
+          | SingleStep(m) => [
+              m.evalobj
+              |> Calc.get_saved_exc(~print="SingleStep")
+              |> EvaluatorStep.get_step_id,
+            ]
+          | AxiomStep(m) => [m.at_exp |> Exp.rep_id]
           | _ => []
           };
         let next_steps =
@@ -753,13 +817,41 @@ and Stepper: {
             |> List.map(step => step |> EvaluatorStep.get_step_id)
           | _ => []
           };
+        let refls =
+          switch (model.step_kind) {
+          | MissingStep(m) when globals.settings.core.evaluation.enable_proof =>
+            m.refls
+            |> Calc.get_saved_exc(~print="refls")
+            |> List.map(Exp.rep_id)
+          | _ => []
+          };
         let editor =
           StepperEditor.View.view(
             ~globals,
             ~signal=
               fun
               | MakeActive => take_focus(Here())
-              | TakeStep(int) => inject(StepForward(int)),
+              | TakeStep(int) => inject(StepForward(int))
+              | Refl(int) => {
+                  let refl_exps =
+                    switch (model.step_kind) {
+                    | MissingStep(m) =>
+                      m.refls |> Calc.get_saved_exc(~print="refls")
+                    | _ => []
+                    };
+                  let from_exp = List.nth(refl_exps, int);
+                  inject(
+                    AddAxiomStep(
+                      "reflexivity",
+                      ProofHacks.exp_idx(
+                        from_exp,
+                        model.expr |> Calc.get_saved_exc(~print="expr"),
+                      ),
+                      from_exp,
+                      Exp.fresh(Atom(Bool(true))),
+                    ),
+                  );
+                },
             ~inject=x => inject(EditorAction(x)),
             ~selected=
               switch (focus) {
@@ -785,7 +877,8 @@ and Stepper: {
                       take_focus(StepKindFocus(MissingStep(s)))
                     | AddForall => inject(AddForall)
                     | AddInduction(exp) => inject(AddInduction(exp))
-                    | AddAxiomStep(e1, e2) => inject(AddAxiomStep(e1, e2)),
+                    | AddAxiomStep(name, idx, e1, e2) =>
+                      inject(AddAxiomStep(name, idx, e1, e2)),
                   ~editor=model.editor |> Calc.get_saved_exc(~print="Editor"),
                   m,
                 )
@@ -795,6 +888,7 @@ and Stepper: {
               editor: model.editor |> Calc.get_saved_exc(~print="Editor"),
               taken_steps,
               next_steps,
+              refls,
             },
           );
         let justification =

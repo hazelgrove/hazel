@@ -9,10 +9,6 @@ open Language;
 
 /* This file follows conventions in [docs/ui-architecture.md] */
 
-module type Model = {
-  type t;
-};
-
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type display =
@@ -28,12 +24,36 @@ module Model = {
     display,
   };
 
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type persistent = {stepper: option(StepperView.Model.persistent)};
+
   let init = {
     cached_settings: Calc.Pending,
     elab: Calc.Pending,
     result: Calc.NewValue(ProgramResult.ResultPending),
     dynamics: Calc.Pending,
     display: Evaluation(Calc.Pending),
+  };
+
+  let persist = (model: t): persistent => {
+    stepper:
+      switch (model.display) {
+      | Stepper(stepper) => Some(StepperView.Model.persist(stepper))
+      | _ => None
+      },
+  };
+
+  let unpersist = (p: persistent): t => {
+    switch (p.stepper) {
+    | Some(stepper) => {
+        cached_settings: Calc.Pending,
+        elab: Calc.Pending,
+        result: Calc.NewValue(ProgramResult.ResultPending),
+        dynamics: Calc.Pending,
+        display: Stepper(StepperView.Model.unpersist(stepper)),
+      }
+    | None => init
+    };
   };
 
   let probe_results = (model: t): option(Dynamics.Probe.Map.t) =>

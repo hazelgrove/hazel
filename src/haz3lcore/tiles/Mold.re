@@ -7,11 +7,6 @@ type t = {
   nibs: Nibs.t,
 };
 
-let flip_nibs = m => {
-  ...m,
-  nibs: Nibs.flip(m.nibs),
-};
-
 let mk_op = (out, in_) => {
   let n =
     Nib.{
@@ -74,40 +69,7 @@ let mk_bin = (~l=?, ~r=?, p, out, in_) => {
 };
 
 // forms where tips can be different than out sort
-let mk_pre' = (p, out, sort_l, in_, sort_r) => {
-  let l =
-    Nib.{
-      shape: Convex,
-      sort: sort_l,
-    };
-  let r =
-    Nib.{
-      shape: Concave(p),
-      sort: sort_r,
-    };
-  {
-    out,
-    in_,
-    nibs: (l, r),
-  };
-};
-let mk_post' = (p, out, sort_l, in_, sort_r) => {
-  let l =
-    Nib.{
-      shape: Concave(p),
-      sort: sort_l,
-    };
-  let r =
-    Nib.{
-      shape: Convex,
-      sort: sort_r,
-    };
-  {
-    out,
-    in_,
-    nibs: (l, r),
-  };
-};
+
 let mk_bin' = (p, out, sort_l, in_, sort_r) => {
   let l =
     Nib.{

@@ -214,7 +214,11 @@
   fill: var(--G1) !important;
   cursor: pointer;
 }
-
+.step-refl > svg.shard > path,
+.step-refl > svg.shard > path *:not(.EmptyHole *, .EmptyHole) {
+  fill: var(--exp-ap) !important;
+  cursor: pointer;
+}
 .step-taken > svg.shard > path,
 .step-taken > svg.shard > path *:not(.EmptyHole *, .EmptyHole) {
   border: 1px var(--BR1);
@@ -224,9 +228,11 @@
 .step-next > svg > path.child-line {
   stroke: var(--G2);
 }
-
 .step-taken > svg > path.child-line {
   stroke: var(--BR1);
+}
+.step-refl > svg > path.child-line {
+  stroke: var(--TYP);
 }
 
 .step-next > svg.shard {
@@ -235,7 +241,12 @@
   z-index: var(--stepper-interactive-z) !important;
   filter: drop-shadow(1px 1px var(--G2)) !important;
 }
-
+.step-refl > svg.shard {
+  pointer-events: all;
+  cursor: pointer;
+  z-index: var(--stepper-interactive-z) !important;
+  filter: drop-shadow(1px 1px var(--TYP)) !important;
+}
 .step-taken > svg.shard {
   filter: drop-shadow(1px 1px var(--BR1)) !important;
 }
