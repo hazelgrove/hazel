@@ -4,6 +4,7 @@ let tests = [
   test_case("Fixpoint with no arguments", `Quick, () => {
     annotated_tree_test(
       "fix () -> []",
+      Language.IdTagged.FreshGrammar.Typ.(prod([])),
       FIError.(
         Exp.(
           fix_f(

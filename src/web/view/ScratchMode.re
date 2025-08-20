@@ -61,6 +61,10 @@ module Store = {
         zipper: "invalid",
         backup_text: shared_text,
       };
+      let shared: CellEditor.Model.persistent = {
+        editor: shared,
+        result: EvalResult.Model.init |> EvalResult.Model.persist,
+      };
 
       (List.length(scratchpads), scratchpads @ [(share_name, shared)]);
     };
@@ -236,7 +240,9 @@ module Update = {
       let (key, _) = List.nth(model.scratchpads, model.current);
       let source =
         switch (is_documentation) {
-        | false => Zipper.init() |> PersistentZipper.persist
+        | false =>
+          CellEditor.Model.mk(Editor.Model.mk(Zipper.init()))
+          |> CellEditor.Model.persist
         | true =>
           Init.startup.documentation
           |> snd
@@ -245,9 +251,7 @@ module Update = {
         };
       let* data =
         source
-        |> PersistentZipper.unpersist
-        |> Editor.Model.mk
-        |> CellEditor.Model.mk
+        |> CellEditor.Model.unpersist(~settings=settings.core)
         |> Updated.return;
       {
         ...model,

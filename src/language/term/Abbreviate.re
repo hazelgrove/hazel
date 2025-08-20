@@ -272,6 +272,19 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         };
       };
 
+    | TupleExtension(e1, e2) =>
+      if (available^ <= 3) {
+        indet_term;
+      } else {
+        available := available^ - 3; // "..."
+        let e1' = abbreviate_exp(e1);
+        if (available^ > 0) {
+          let e2' = abbreviate_exp(e2);
+          TupleExtension(e1', e2');
+        } else {
+          e1'.term;
+        };
+      }
     | Ap(Forward, e1, e2) =>
       if (available^ <= 1) {
         indet_term;
