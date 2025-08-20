@@ -192,7 +192,7 @@ and multi = (~ctx, ~ancestors, m, tms): (list(CoCtx.t), Map.t) =>
 and uexp_to_info_map =
     (
       ~ctx: Ctx.t,
-      ~ana=Unknown(SynSwitch) |> Typ.temp,
+      ~ana=syn,
       ~is_in_filter=false,
       ~ancestors,
       ~duplicates: list(string),
@@ -227,7 +227,7 @@ and uexp_to_info_map =
   let uexp_to_info_map =
       (
         ~ctx,
-        ~ana=Unknown(SynSwitch) |> Typ.temp,
+        ~ana=syn,
         ~is_in_filter=is_in_filter,
         ~ancestors=ancestors,
         ~duplicates=[],
@@ -669,7 +669,7 @@ and uexp_to_info_map =
       )
 
     | Dot(e1, e2) =>
-      let (info_e1, m) = go(~ana=Unknown(SynSwitch) |> Typ.temp, e1, m);
+      let (info_e1, m) = go(~ana=syn, e1, m);
       let (info_e2, m) = go(~ana=Label("") |> Typ.temp, e2, m);
       let (ty, m) = {
         switch (info_e1.ty.term, info_e2.ty.term) {
@@ -731,8 +731,7 @@ and uexp_to_info_map =
         m,
       );
     | Filter(Filter({pat: cond, _}), body) =>
-      let (cond, m) =
-        go(~ana=Unknown(SynSwitch) |> Typ.temp, cond, m, ~is_in_filter=true);
+      let (cond, m) = go(~ana=syn, cond, m, ~is_in_filter=true);
       let (body, m) = go(~ana, body, m);
       add(
         ~self=Just(body.ty),
@@ -743,7 +742,7 @@ and uexp_to_info_map =
       let (body, m) = go(~ana, body, m);
       add(~self=Just(body.ty), ~co_ctx=CoCtx.union([body.co_ctx]), m);
     | Seq(e1, e2) =>
-      let (e1, m) = go(~ana=Unknown(SynSwitch) |> Typ.temp, e1, m);
+      let (e1, m) = go(~ana=syn, e1, m);
       let (e2, m) = go(~ana, e2, m);
       add(
         ~self=Just(e2.ty),
@@ -813,9 +812,7 @@ and uexp_to_info_map =
         add'(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]), m);
       }
     | TypAp(fn, utyp) =>
-      let typfn_ana =
-        Forall(EmptyHole |> TPat.fresh, Unknown(SynSwitch) |> Typ.temp)
-        |> Typ.temp;
+      let typfn_ana = Forall(EmptyHole |> TPat.fresh, syn) |> Typ.temp;
       let (fn, m) = go(~ana=typfn_ana, fn, m);
       let (_, m) = utyp_to_info_map(~ctx, ~ancestors, utyp, m);
       let (option_name, ty_body) = Typ.matched_forall(ctx, fn.ty);
@@ -1662,7 +1659,7 @@ and upat_to_info_map =
       atomic(self, Coverage.Constraint.Ap(ctr, None));
     | Ap(fn, arg) =>
       let ctr = Pat.ctr_name(fn);
-      let fn_ana = Arrow(Unknown(SynSwitch) |> Typ.temp, ana) |> Typ.temp;
+      let fn_ana = Arrow(syn, ana) |> Typ.temp;
       let (fn', m) = go(~ctx, ~ana=fn_ana, fn, m);
       let m = {
         switch (fn |> Pat.term_of) {
@@ -1928,37 +1925,3 @@ let mk =
 
 let mk = (core: CoreSettings.t, ctx, exp) =>
   core.statics ? mk(ctx, exp) : Id.Map.empty;
-
-let get_error_at = (info_map: Map.t, id: Id.t) => {
-  id
-  |> Id.Map.find_opt(_, info_map)
-  |> Option.bind(
-       _,
-       fun
-       | InfoExp(e) => Some(e)
-       | _ => None,
-     )
-  |> Option.bind(_, e =>
-       switch (e.status) {
-       | InHole(err_info) => Some(err_info)
-       | NotInHole(_) => None
-       }
-     );
-};
-
-let get_pat_error_at = (info_map: Map.t, id: Id.t) => {
-  id
-  |> Id.Map.find_opt(_, info_map)
-  |> Option.bind(
-       _,
-       fun
-       | InfoPat(e) => Some(e)
-       | _ => None,
-     )
-  |> Option.bind(_, e =>
-       switch (e.status) {
-       | InHole(err_info) => Some(err_info)
-       | NotInHole(_) => None
-       }
-     );
-};
