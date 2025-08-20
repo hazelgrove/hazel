@@ -376,7 +376,8 @@ and uexp_to_info_map =
       let (tl, m) =
         go(
           ~ana=
-            List(Typ.is_syn(inner_ana_ty) ? hd.ty : inner_ana_ty) |> Typ.temp_empty,
+            List(Typ.is_syn(inner_ana_ty) ? hd.ty : inner_ana_ty)
+            |> Typ.temp_empty,
           tl,
           m,
         ); // TODO: slicing
@@ -887,14 +888,14 @@ and uexp_to_info_map =
               | None => Arrow(syn, syn) |> Typ.temp
               }
             | None =>
+              Arrow(syn, syn)
+              |> Typ.from_ana_slice(CodeSlice.of_ids(ids))
+              |> Typ.temp
+            }
+          | None =>
             Arrow(syn, syn)
             |> Typ.from_ana_slice(CodeSlice.of_ids(ids))
             |> Typ.temp
-            }
-          | None =>
-          Arrow(syn, syn)
-          |> Typ.from_ana_slice(CodeSlice.of_ids(ids))
-          |> Typ.temp
           };
         let (fn, m) = go(~ana=fn_ana, fn, m);
         let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);

@@ -79,34 +79,40 @@ module Decompose = {
           }
         };
 
-    let (and.):
-      (requirements('a, 'c => 'b), requirement('c)) =>
-      requirements(('a, 'c), 'b) =
-      ((u, r1, env, v1), (r2, v2)) => (u(v2), r1 && r2, env, (v1, v2));
+        let (and.):
+          (requirements('a, 'c => 'b), requirement('c)) =>
+          requirements(('a, 'c), 'b) =
+          ((u, r1, env, v1), (r2, v2)) => (
+            u(v2),
+            r1 && r2,
+            env,
+            (v1, v2),
+          );
 
-    let otherwise = (env, o) => (o, Result.BoxedValue, env, ());
-    let update_test = (state, id, v) =>
-      state := EvaluatorState.add_test(state^, id, v);
-    let update_probe = (state, closure: Dynamics.Probe.Closure.t) =>
-      state := EvaluatorState.add_closure(state^, closure);
-  };
+        let otherwise = (env, o) => (o, Result.BoxedValue, env, ());
+        let update_test = (state, id, v) =>
+          state := EvaluatorState.add_test(state^, id, v);
+        let update_probe = (state, closure: Dynamics.Probe.Closure.t) =>
+          state := EvaluatorState.add_closure(state^, closure);
+        ();
+      };
 
-  module Decomp = Transition(DecomposeEVMode);
-  let rec decompose = (~in_closure=?, state, env, exp) => {
-    switch (exp) {
-    | _ =>
-      Decomp.transition(
-        decompose,
-        ~mode=`Substitution,
-        ~in_closure?,
-        state,
-        env,
-        exp,
-      )
+    module Decomp = Transition(DecomposeEVMode);
+    let rec decompose = (~in_closure=?, state, env, exp) => {
+      switch (exp) {
+      | _ =>
+        Decomp.transition(
+          decompose,
+          ~mode=`Substitution,
+          ~in_closure?,
+          state,
+          env,
+          exp,
+        )
+      };
     };
   };
 };
-
 module TakeStep = {
   module TakeStepEVMode: {
     include

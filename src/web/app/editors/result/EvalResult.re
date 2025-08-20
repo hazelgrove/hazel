@@ -439,11 +439,11 @@ module View = {
           ~globals,
           ~signal,
           ~inject,
-         
           ~selected,
           ~cursor,
           ~locked,
-        , model);
+          model,
+        );
       let test_overlay = (editor: Haz3lcore.Editor.t) =>
         switch (Model.test_results(model)) {
         | Some(result) => [

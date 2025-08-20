@@ -1373,7 +1373,8 @@ let rec matched_args_strict = (~ids=[], ctx, ty, arity): Either.t('a, int) => {
     L(tys |> List.map(wrap_ana_slice(ana_code_slice_of(ty))))
   | Prod(tys) => R(List.length(tys))
   | _ when arity == 1 => L([ty])
-  | Unknown(_) => L(
+  | Unknown(_) =>
+    L(
       List.init(arity, _ =>
         Unknown(Internal) |> from_ana_slice(CodeSlice.of_ids(ids)) |> temp
       ),
