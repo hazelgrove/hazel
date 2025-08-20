@@ -207,6 +207,13 @@
   cursor: pointer;
 }
 
+.tile-refl-step path,
+.tile-refl-step path *:not(.DHCode .EmptyHole *, .DHCode .EmptyHole) {
+  border: 1px var(--TYP) !important;
+  fill: var(--exp-ap) !important;
+  cursor: pointer;
+}
+
 .tile-taken-step path,
 .tile-taken-step path *:not(.DHCode .EmptyHole *, .DHCode .EmptyHole) {
   border: 1px var(--BR1);
@@ -215,6 +222,10 @@
 
 .child-line.Exp.next-step-line {
   stroke: var(--G2);
+}
+
+.child-line.Exp.refl-step-line {
+  stroke: var(--TYP);
 }
 
 .child-line.Exp.taken-step-line {
@@ -299,6 +310,10 @@
   fill: var(--G1);
 }
 
+.tile-refl-step .tile-path.Exp.indicated {
+  fill: var(--exp-ap);
+}
+
 .tile-taken-step .tile-path.Exp.indicated {
   fill: var(--BR1);
 }
@@ -308,6 +323,13 @@ svg.tile-next-step {
   cursor: pointer;
   z-index: var(--projector-overlay-z);
   filter: drop-shadow(1px 1px var(--G2)) !important;
+}
+
+svg.tile-refl-step {
+  pointer-events: all;
+  cursor: pointer;
+  z-index: var(--projector-overlay-z);
+  filter: drop-shadow(1px 1px var(--TYP)) !important;
 }
 
 svg.tile-next-step-top {
