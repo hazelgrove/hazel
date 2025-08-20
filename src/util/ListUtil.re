@@ -1,10 +1,10 @@
 let rev_if = (b: bool) => b ? List.rev : Fun.id;
 
 let dedup_f = (f, xs) =>
-  List.fold_right(
-    (x, deduped) => List.exists(f(x), deduped) ? deduped : [x, ...deduped],
-    xs,
+  List.fold_left(
+    (deduped, x) => List.exists(f(x), deduped) ? deduped : deduped @ [x],
     [],
+    xs,
   );
 
 let dedup = xs => dedup_f((==), xs);
@@ -449,6 +449,21 @@ let findi_opt: ('x => bool, list('x)) => option((int, 'x)) =
            None;
          }
        );
+  };
+
+let find_with_rest:
+  type a b. (a => option(b), list(a)) => option((b, list(a))) =
+  (f, xs) => {
+    let rec go = (xs, acc) =>
+      switch (xs) {
+      | [] => None
+      | [x, ...xs] =>
+        switch (f(x)) {
+        | None => go(xs, [x, ...acc])
+        | Some(y) => Some((y, List.rev_append(acc, xs)))
+        }
+      };
+    go(xs, []);
   };
 
 let init_fold: (int, 'b, (int, 'b) => ('b, 'a)) => ('b, list('a)) =

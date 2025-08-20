@@ -71,8 +71,6 @@ module Operators = {
         | LessThanOrEqual => LessThanOrEqual
         | GreaterThan => GreaterThan
         | GreaterThanOrEqual => GreaterThanOrEqual
-        | Equals => Equals
-        | NotEquals => NotEquals
         },
       )
     | Float(op_float) =>
@@ -105,6 +103,13 @@ module Operators = {
         | Equals => Equals
         },
       )
+    | Poly(op_poly) =>
+      PolyOp(
+        switch (op_poly) {
+        | Equals => Equals
+        | NotEquals => NotEquals
+        },
+      )
     };
   };
 
@@ -135,7 +140,7 @@ module Operators = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  let float_op_of_menhir_ast = (op: AST.op_bin_float): op_bin_num => {
+  let float_op_of_menhir_ast = (op: AST.op_bin_float): op_bin_float => {
     switch (op) {
     | Plus => Plus
     | Minus => Minus
@@ -160,6 +165,14 @@ module Operators = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  let poly_op_of_menhir_ast = (op: AST.op_bin_poly): op_bin_poly => {
+    switch (op) {
+    | Equals => Equals
+    | NotEquals => NotEquals
+    };
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   let bool_op_of_menhir_ast = (op: AST.op_bin_bool): op_bin_bool => {
     switch (op) {
     | And => And
@@ -179,8 +192,6 @@ module Operators = {
     | LessThanOrEqual => LessThanOrEqual
     | GreaterThan => GreaterThan
     | GreaterThanOrEqual => GreaterThanOrEqual
-    | Equals => Equals
-    | NotEquals => NotEquals
     };
   };
 
@@ -191,6 +202,7 @@ module Operators = {
     | FloatOp(op_float) => Float(float_op_of_menhir_ast(op_float))
     | BoolOp(op_bool) => Bool(bool_op_of_menhir_ast(op_bool))
     | StringOp(op_string) => String(string_op_of_menhir_ast(op_string))
+    | PolyOp(op_poly) => Poly(poly_op_of_menhir_ast(op_poly))
     };
   };
 };
@@ -214,6 +226,8 @@ module rec Exp: {
     | TupleExp([TupLabel(_) as tl]) => parens(tuple([of_menhir_ast(tl)]))
     | TupleExp([e]) => parens(of_menhir_ast(e))
     | TupleExp(e) => parens(tuple(List.map(of_menhir_ast, e)))
+    | TupleExtension(e1, e2) =>
+      tuple_extension(of_menhir_ast(e1), of_menhir_ast(e2))
     | Label(s) => label(s)
     | TupLabel(e1, e2) => tup_label(of_menhir_ast(e1), of_menhir_ast(e2))
     | Dot(e1, e2) => dot(of_menhir_ast(e1), of_menhir_ast(e2))
@@ -319,6 +333,7 @@ module rec Exp: {
     | Deferral(InAp) => Deferral
     | ListLit(l) => ListExp(List.map(of_core, l))
     | Tuple(l) => TupleExp(List.map(of_core, l))
+    | TupleExtension(e1, e2) => TupleExp([of_core(e1), of_core(e2)])
     | Let(p, e1, e2) => Let(Pat.of_core(p), of_core(e1), of_core(e2))
     | FixF(p, e, _) => FixF(Pat.of_core(p), of_core(e))
     | TypFun(tp, e, _) => TypFun(TPat.of_core(tp), of_core(e))

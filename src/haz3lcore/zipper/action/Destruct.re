@@ -35,19 +35,24 @@ let destruct =
   /* Special cases for string literals. When deletion would
      remove an outer quote, we instead remove the whole string */
   | (Left, Outer, (Some(t), _))
-      when Form.is_string(t) || Form.is_comment(t) =>
+      when
+        Form.is_string(t) || Form.is_comment(t) || Form.is_quoted_label(t) =>
     delete_left(z)
   | (Right, Outer, (_, Some(t)))
-      when Form.is_string(t) || Form.is_comment(t) =>
-    delete_right(z)
-  | (Left, Inner(_, 0), (_, Some(t))) when Form.is_string(t) =>
+      when
+        Form.is_string(t) || Form.is_comment(t) || Form.is_quoted_label(t) =>
     delete_right(z)
   | (Left, Inner(_, 0), (_, Some(t)))
-      when Form.is_string(t) || Form.is_comment(t) =>
+      when Form.is_string(t) || Form.is_quoted_label(t) =>
+    delete_right(z)
+  | (Left, Inner(_, 0), (_, Some(t)))
+      when
+        Form.is_string(t) || Form.is_comment(t) || Form.is_quoted_label(t) =>
     delete_right(z)
   | (Right, Inner(_, n), (_, Some(t)))
       when
-        (Form.is_string(t) || Form.is_comment(t)) && n == last_inner_pos(t) =>
+        (Form.is_string(t) || Form.is_comment(t) || Form.is_quoted_label(t))
+        && n == last_inner_pos(t) =>
     delete_right(z) /* Remove inner character */
   | (Left, Inner(_, c_idx), (_, Some(t))) =>
     let z = Zipper.update_caret(Zipper.Caret.decrement, z);
@@ -76,20 +81,25 @@ let destruct =
 };
 
 let merge = ((l, r): (Token.t, Token.t), z: t): option(t) => {
+  let left_monotile_id =
+    switch (Zipper.adjacent_monotile_id(Left, z)) {
+    | Some(id) => id
+    | None => Id.mk()
+    };
   let z = Zipper.set_caret(Inner(0, Token.length(l) - 1), z); /* Note monotile assumption */
   let* z = Zipper.delete(Left, z);
   let* z = Zipper.delete(Right, z);
-  let z = Zipper.construct_mono(Right, l ++ r, z);
+  let z = Zipper.construct_mono(~id=left_monotile_id, Right, l ++ r, z);
   /* Regrouting direction needed to merge prefixs into infix eg ! */
   let z = remold_regrout(Right, z);
   Some(z);
 };
 
-let parent_merge = (lbl: Label.t, z: t): t => {
+let parent_merge = (~id: Id.t, lbl: Label.t, z: t): t => {
   z
   |> Zipper.delete_parent
   |> Zipper.set_caret(Inner(0, 0))  /* Note 2-token assumption */
-  |> Zipper.construct(~caret=Right, ~backpack=Left, lbl)
+  |> Zipper.construct(~id, ~caret=Right, ~backpack=Left, lbl)
   /* Below regrouting important for parens/ap positioning */
   |> remold_regrout(Right);
 };
@@ -98,7 +108,8 @@ let parent_merge = (lbl: Label.t, z: t): t => {
 let parent_duomerges = (z: Zipper.t) => {
   let* parent = Relatives.parent(z.relatives);
   let* lbl = Piece.label(parent);
-  Form.duomerges(lbl);
+  let+ res = Form.duomerges(lbl);
+  (res, Piece.id(parent));
 };
 
 let go = (d: Direction.t, z: t): option(t) => {
@@ -108,12 +119,12 @@ let go = (d: Direction.t, z: t): option(t) => {
     z.caret,
     neighbor_monotiles(z.relatives.siblings),
   ) {
-  | (Some(lbl), Outer, (None, None))
+  | (Some((lbl, id)), Outer, (None, None))
       when Siblings.no_siblings(z.relatives.siblings) =>
     /* Note: we must do the no_siblings check, it does not suffice
        to check no monotile neighbors as there could be other neighbors
        for example edge case: "((|))" */
-    z |> parent_merge(lbl) |> Option.some
+    z |> parent_merge(~id, lbl) |> Option.some
   | (_, Outer, (Some(l), Some(r))) when Molds.allow_merge(l, r) =>
     z |> merge((l, r))
   | _ => Some(z) |> Option.map(remold_regrout(d))

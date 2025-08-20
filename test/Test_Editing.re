@@ -201,21 +201,24 @@ let insertion_tests = [
     ~goal={|"¦"|},
   ),
   /* INSERTION: GROUT/SPACE TRANSMUTATION */
-  /* When you insert an `i` here, it will be treated as a variable
-     reference, not the beginning of the `in` yet. So a concave grout
-     must be inserted; we make this consume the preceeding space if
-     any to avoid jutter */
+  /* Prefixes of trailing delimiters get a special concave
+     mold option to avoid grout insertion jank during entry */
   test(
-    ~name="Grout transmutation 1: Space to Concave Grout",
+    ~name="Delimiter prefix molding 1",
     ~acts=mk({|let a = 1 ¦|}) @ [Insert("i")],
-    ~goal={|let a = 1~i¦|},
+    ~goal={|let a = 1 i¦?|},
   ),
   /* Then, when you drop the n, the concave grout that appears in the
      above case should disappear, leaving a space */
   test(
-    ~name="Grout transmutation 2: Concave Grout to Space",
+    ~name="Delimiter prefix molding 2",
     ~acts=mk({|let a = 1 i¦|}) @ [Insert("n")],
     ~goal={|let a = 1 in¦?|},
+  ),
+  test(
+    ~name="Delimiter prefix molding 3",
+    ~acts=mk({|let a = 1 in¦|}) @ [Insert(" ")],
+    ~goal={|let a = 1 in ¦?|},
   ),
   /* INSERTION: TOKEN SPLITTING */
   test(
@@ -308,12 +311,12 @@ let insertion_tests = [
   test(
     ~name="Amphibious Plus - Before - 3 (Prelude)",
     ~acts=mk({|type T = A ¦ B|}),
-    ~goal={|type T = A~¦ B|},
+    ~goal={|type T = A~ ¦ B|},
   ),
   test(
     ~name="Amphibious Plus - Before - 3",
     ~acts=mk({|type T = A ¦ B|}) @ [Insert("+")],
-    ~goal={|type T = A+¦ B|},
+    ~goal={|type T = A +¦ B|},
   ),
   test(
     ~name="Amphibious Plus - Before - 4",

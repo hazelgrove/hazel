@@ -89,12 +89,12 @@ module HighlightSegment =
           )),
         ]
       };
-    let start_shape =
+    let next_start_shape =
       switch (Piece.nibs(p)) {
       | None => start_shape
-      | Some((_, {shape, _})) => Some(Nib.Shape.flip(shape))
+      | Some((_, {shape, _})) => Some(shape)
       };
-    (start_shape, shard_data);
+    (next_start_shape, shard_data);
   }
   and of_tile = (~start_shape, t: Tile.t): list(option(_)) => {
     let tile_shards =
@@ -225,7 +225,6 @@ module Deco =
        ) => {
   let font_metrics = M.globals.font_metrics;
   let map = M.editor.syntax.measured;
-  let show_backpack_targets = M.globals.show_backpack_targets;
   let terms = M.editor.syntax.terms;
   let term_ranges = M.editor.syntax.term_ranges;
   let tiles = M.editor.syntax.tiles;
@@ -333,6 +332,7 @@ module Deco =
         };
       switch (range) {
       | None => []
+      | _ when Piece.is_infix_delimiter_op_prefix(p) => []
       | Some(range) =>
         let tiles = all_tiles(p);
         IndicationDec.term(
@@ -347,78 +347,36 @@ module Deco =
     };
   };
 
-  let rec targets = (~container_shards=?, bp: Backpack.t, seg: Segment.t) => {
-    let with_container_shards = ((pre, suf) as sibs) =>
-      switch (container_shards) {
-      | None => sibs
-      | Some((l, r)) => ([l, ...pre], suf @ [r])
-      };
-    let root_targets =
-      ListUtil.splits(seg)
-      |> List.concat_map(((l, r)) => {
-           let sibs =
-             Segment.(incomplete_tiles(l), incomplete_tiles(r))
-             |> with_container_shards;
-           switch (Backpack.pop(sibs, bp)) {
-           | None
-           | Some((true, _, _)) => []
-           | Some(_) =>
-             let measurement =
-               switch (Siblings.neighbors((l, r))) {
-               | (None, None) => failwith("impossible")
-               | (_, Some(p)) =>
-                 let m = Measured.find_p(~msg="Deco.targets", p, measured);
-                 Measured.{
-                   origin: m.origin,
-                   last: m.origin,
-                 };
-               | (Some(p), _) =>
-                 let m = Measured.find_p(~msg="Deco.targets", p, measured);
-                 Measured.{
-                   origin: m.last,
-                   last: m.last,
-                 };
-               };
-             let profile =
-               CaretPosDec.Profile.{
-                 style: `Sibling,
-                 measurement,
-               };
-             [CaretPosDec.view(~font_metrics, profile)];
-           };
-         });
-    switch (root_targets) {
-    | [_, ..._] => root_targets
-    | [] =>
-      seg
-      |> List.filter_map(
-           fun
-           | Piece.Tile(t) => Some(t)
-           | _ => None,
-         )
-      |> List.concat_map((t: Tile.t) => {
-           // TODO(d): unify with Relatives.local_incomplete_tiles
-           Tile.contained_children(t)
-           |> List.concat_map(((l, seg, r)) =>
-                targets(~container_shards=(l, r), bp, seg)
-              )
-         })
-    };
+  let backpack = (z: Zipper.t): Node.t => {
+    /* If there is a selection, any tiles bisected by the selection
+     * will show as incomplete. While a more intelligent approach is
+     * possible here, I've opted for the simpler option of supressing
+     * backpack display during selection */
+    Selection.is_empty(z.selection) || Selection.is_buffer(z.selection)
+      ? {
+        let contents =
+          Zipper.local_backpack(z)
+          @ M.editor.syntax.cached_backpack
+          |> ListUtil.dedup
+          |> List.map(Tile.effective_label)
+          |> List.map(List.hd);
+        contents == []
+          ? Node.div([])
+          : Backpack.view(
+              ~font_metrics,
+              ~can_put_down=Zipper.can_put_down(z),
+              ~caret_d=Zipper.caret_direction(z),
+              ~ind_d=
+                switch (Indicated.piece(z)) {
+                | Some((_, d, _)) => Some(d)
+                | None => None
+                },
+              ~origin=Zipper.caret_point(measured, z),
+              contents,
+            );
+      }
+      : Node.div([]);
   };
-
-  let backpack = (z: Zipper.t): Node.t =>
-    BackpackView.view(
-      ~font_metrics,
-      ~origin=Zipper.caret_point(measured, z),
-      z,
-    );
-
-  let backpack_targets = (backpack, seg) =>
-    div_c(
-      "backpack-targets",
-      show_backpack_targets && Backpack.restricted(backpack)
-        ? targets(backpack, seg) : [],
-    );
 
   let term_decoration =
       (~id: Id.t, deco: ((Point.t, Point.t, SvgUtil.Path.t)) => Node.t) => {
@@ -621,6 +579,56 @@ module Deco =
     |> List.flatten;
   };
 
+  let refl_steps = (refl_steps, ~inject) => {
+    let tiles = List.filter_map(TileMap.find_opt(_, tiles), refl_steps);
+    List.mapi(
+      (i, t: Tile.t) => {
+        let id = Tile.id(t);
+        let mold = t.mold;
+        let shards = Measured.find_shards(t, map);
+        let range: option((Measured.Point.t, Measured.Point.t)) = {
+          // if (Piece.has_ends(p)) {
+          let id = Id.Map.find(id, terms) |> Language.Any.rep_id;
+          switch (TermRanges.find_opt(id, term_ranges)) {
+          | None => None
+          | Some((p_l, p_r)) =>
+            let l = Measured.find_p(p_l, map).origin;
+            let r = Measured.find_p(p_r, map).last;
+            Some((l, r));
+          };
+        };
+        Option.map(
+          x => {
+            IndicationDec.term(
+              ~base_clss="tile-refl-step",
+              ~attr=[Virtual_dom.Vdom.Attr.on_mousedown(_ => {inject(i)})],
+              ~line_clss=["refl-step-line"],
+              ~font_metrics,
+              ~caret=(Id.invalid, 0),
+              ~rows=measured.rows,
+              ~tiles=[(id, mold, shards)],
+              x,
+            )
+            @ IndicationDec.term(
+                ~base_clss="tile-next-step-top",
+                ~attr=[Virtual_dom.Vdom.Attr.on_mousedown(_ => {inject(i)})],
+                ~line_clss=["refl-step-line"],
+                ~font_metrics,
+                ~caret=(Id.invalid, 0),
+                ~rows=measured.rows,
+                ~tiles=[(id, mold, shards)],
+                x,
+              )
+          },
+          range,
+        );
+      },
+      tiles,
+    )
+    |> List.filter_map(x => x)
+    |> List.flatten;
+  };
+
   let statics = () => [errors()];
 
   let editor = (z, selected: bool) =>
@@ -630,7 +638,6 @@ module Deco =
         indication(z),
         selection(z),
         backpack(z),
-        backpack_targets(z.backpack, segment),
         color_highlights(),
       ]
       : [];
