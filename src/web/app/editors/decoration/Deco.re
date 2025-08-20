@@ -586,7 +586,7 @@ module Deco =
       switch (Id.Map.find_opt(id, projectors)) {
       | Some(p) =>
         /* Special case for projectors as they are not in tile map */
-        let shapes = ProjectorBase.shapes(p);
+        let shapes = ProjectorCore.shapes(p);
         let measurement = Id.Map.find(id, measured.projectors);
         div_c(
           "slice-piece",
@@ -634,6 +634,7 @@ module Deco =
   // TODO: Slices from cursor inspector view by clicking type.
   // TODO: Only show slices for expressions when cursor is in Edtior: ids and info not preserved in other regions!
   let slice = (c: Cursor.cursor('a)) => {
+    open Language;
     let ctx_used = (info, ctx_used) =>
       ctx_used
       |> List.fold_left(
@@ -718,25 +719,6 @@ module Deco =
       }
     | Some(info) =>
       switch (Info.error_of(info)) {
-      | Some(Exp(Common(NoType(BadTrivAp(t)))))
-      | Some(Pat(Common(NoType(BadTrivAp(t))))) =>
-        let (
-          {ctx_used: ctx_used_inc, term_ids: term_ids_inc},
-          {ctx_used: ctx_used_glb, term_ids: term_ids_glb},
-        ): (
-          CodeSlice.t,
-          CodeSlice.t,
-        ) =
-          Typ.full_slice(t);
-        let (ctx_used_ids_inc, ctx_used_ids_glb) = (
-          ctx_used(info, ctx_used_inc),
-          ctx_used(info, ctx_used_glb),
-        );
-        div_c(
-          "error",
-          List.map(slice_view_1, term_ids_inc @ ctx_used_ids_inc)
-          @ List.map(slice_view_2, term_ids_glb @ ctx_used_ids_glb),
-        );
       | Some(Exp(Common(Inconsistent(WithArrow(t, slc)))))
       | Some(Pat(Common(Inconsistent(WithArrow(t, slc))))) =>
         let {ctx_used: ctx_used_syn, term_ids: term_ids_syn}: CodeSlice.t =

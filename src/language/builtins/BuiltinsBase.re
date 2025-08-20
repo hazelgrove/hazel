@@ -274,7 +274,7 @@ let string_fns: list(BuiltinsUtil.fn) = [
   BuiltinsADT.{
     name: "string_compare",
     arg: Prod([string(), string()]),
-    ret: Ord.t.term,
+    ret: Ord.t.term.typ,
     imp:
       binary((d1, d2) => {
         let-unbox s1 = (Atom(String), d1);

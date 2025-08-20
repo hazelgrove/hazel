@@ -104,7 +104,7 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
           (dhpat: DHPat.t, ty: Typ.t): option(list(Ctx.entry)) => {
     let ty' = ty;
     let ty =
-      switch (ty.term) {
+      switch (Typ.term_of(ty)) {
       | TupLabel(_, ty) => ty
       | _ => ty
       };
@@ -118,9 +118,9 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
         });
       Some([entry]);
     | Label(name) =>
-      Typ.equal(ty, Label(name) |> Typ.temp) ? Some([]) : None
+      Typ.equal(ty, Label(name) |> Typ.temp_empty) ? Some([]) : None
     | TupLabel(_, dp1) =>
-      switch (ty'.term) {
+      switch (Typ.term_of(ty')) {
       | TupLabel(_, ty2)
           when
             LabeledTuple.has_same_labels(
@@ -143,7 +143,7 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
     | Cons(dhp1, dhp2) =>
       let* t = Typ.matched_list_strict(ctx, ty);
       let* l1 = dhpat_var_entry(dhp1, t);
-      let* l2 = dhpat_var_entry(dhp2, List(t) |> Typ.temp);
+      let* l2 = dhpat_var_entry(dhp2, List(t) |> Typ.temp_empty);
       Some(l1 @ l2);
     | ListLit(l) =>
       let* t = Typ.matched_list_strict(ctx, ty);
@@ -163,7 +163,8 @@ let dhpat_extend_ctx = (dhpat: DHPat.t, ty: Typ.t, ctx: Ctx.t): option(Ctx.t) =>
     | Parens(dhp)
     | Probe(dhp, _) => dhpat_var_entry(dhp, ty)
     | Atom(c) =>
-      Typ.equal(ty, Atom(Atom.cls_of_t(c)) |> Typ.temp) ? Some([]) : None
+      Typ.equal(ty, Atom(Atom.cls_of_t(c)) |> Typ.temp_empty)
+        ? Some([]) : None
     | Constructor(_) => Some([]) // TODO: make this stricter
     | Asc(dhp, ty1) => dhpat_var_entry(dhp, ty1)
     };

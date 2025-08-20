@@ -90,7 +90,7 @@ module F =
         and.calc ctx = ctx;
         switch (exp |> Exp.term_of) {
         | Fun(p, d1, t, _) =>
-          let t = OptUtil.get(() => Typ.fresh(Unknown(Internal)), t);
+          let t = OptUtil.get(() => Typ.fresh_empty(Unknown(Internal)), t);
           let* bindings = ProofHacks.dhpat_extend_ctx(p, t, ctx);
           Some((bindings, d1));
         | _ => None
@@ -118,7 +118,7 @@ module F =
             Fun(
               Pat.fresh(EmptyHole),
               last,
-              Some(Typ.fresh(Unknown(Internal))),
+              Some(Typ.fresh_empty(Unknown(Internal))),
               None,
             ),
           )

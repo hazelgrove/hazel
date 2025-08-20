@@ -13,7 +13,7 @@ module Slider: BuiltinLivelit = {
   type action_t =
     | SetModel(model_t);
 
-  let hazel_model_t: TermBase.Typ.t = Typ.temp(Atom(Int));
+  let hazel_model_t: TermBase.Typ.t = Typ.temp_empty(Atom(Int));
   let model_to_hazel: model_t => model_exp =
     (x: model_t) => DHExp.fresh(Atom(Int(x)));
   let model_from_hazel: model_exp => option(model_t) =
@@ -25,7 +25,7 @@ module Slider: BuiltinLivelit = {
     };
   let model_default: model_t = Bigint.of_int(50);
 
-  let hazel_expansion_t: TermBase.Typ.t = Typ.temp(Atom(Int));
+  let hazel_expansion_t: TermBase.Typ.t = Typ.temp_empty(Atom(Int));
   let expand: model_t => expansion_t =
     (x: model_t) =>
       switch (x) {
@@ -44,15 +44,15 @@ module Slider: BuiltinLivelit = {
     };
 
   let hazel_action_t: TermBase.Typ.t =
-    Sum([Variant("SetModel", [], Some(Atom(Int) |> Typ.fresh))])
-    |> Typ.fresh;
+    Sum([Variant("SetModel", [], Some(Atom(Int) |> Typ.fresh_empty))])
+    |> Typ.fresh_empty;
   let action_to_hazel: action_t => action_exp =
     (action: action_t) =>
       switch (action) {
       | SetModel(n) =>
         Ap(
           Forward,
-          Constructor("SetModel", Some(Some(Atom(Int) |> Typ.fresh)))
+          Constructor("SetModel", Some(Some(Atom(Int) |> Typ.fresh_empty)))
           |> DHExp.fresh,
           Atom(Int(n)) |> DHExp.fresh,
         )
@@ -103,7 +103,7 @@ module Emotion: BuiltinLivelit = {
     | SetModel(model_t);
 
   /* Hazel model type is an integer */
-  let hazel_model_t: TermBase.Typ.t = Typ.temp(Atom(Int));
+  let hazel_model_t: TermBase.Typ.t = Typ.temp_empty(Atom(Int));
 
   let model_to_hazel: model_t => model_exp =
     (x: model_t) => DHExp.fresh(Atom(Int(x)));
@@ -119,7 +119,7 @@ module Emotion: BuiltinLivelit = {
   let model_default: model_t = Bigint.of_int(50);
 
   /* Hazel expansion type is a String */
-  let hazel_expansion_t: TermBase.Typ.t = Typ.temp(Atom(String));
+  let hazel_expansion_t: TermBase.Typ.t = Typ.temp_empty(Atom(String));
 
   /* Compute the emotion based on the slider value:
      - less than 40: "sad"
@@ -150,8 +150,8 @@ module Emotion: BuiltinLivelit = {
 
   /* Define the action type for Hazel */
   let hazel_action_t: TermBase.Typ.t =
-    Sum([Variant("SetModel", [], Some(Atom(Int) |> Typ.fresh))])
-    |> Typ.fresh;
+    Sum([Variant("SetModel", [], Some(Atom(Int) |> Typ.fresh_empty))])
+    |> Typ.fresh_empty;
 
   let action_to_hazel: action_t => action_exp =
     (action: action_t) =>
@@ -159,7 +159,7 @@ module Emotion: BuiltinLivelit = {
       | SetModel(n) =>
         Ap(
           Forward,
-          Constructor("SetModel", Some(Some(Atom(Int) |> Typ.fresh)))
+          Constructor("SetModel", Some(Some(Atom(Int) |> Typ.fresh_empty)))
           |> DHExp.fresh,
           Atom(Int(n)) |> DHExp.fresh,
         )
@@ -272,7 +272,8 @@ module Js: BuiltinLivelit = {
 
   /* Model type in Hazel: a 2-tuple of strings. */
   let hazel_model_t: TermBase.Typ.t =
-    Prod([Typ.temp(Atom(String)), Typ.temp(Atom(String))]) |> Typ.fresh;
+    Prod([Typ.temp_empty(Atom(String)), Typ.temp_empty(Atom(String))])
+    |> Typ.fresh_empty;
 
   /* Convert model to a Hazel expression. */
   let model_to_hazel: model_t => model_exp =
@@ -305,7 +306,7 @@ module Js: BuiltinLivelit = {
   };
 
   /* Expansion type in Hazel: a string. */
-  let hazel_expansion_t: TermBase.Typ.t = Typ.temp(Atom(String));
+  let hazel_expansion_t: TermBase.Typ.t = Typ.temp_empty(Atom(String));
 
   /* The expansion is just the current `result`. */
   let expand: model_t => expansion_t = (m: model_t) => m.result;
@@ -327,12 +328,15 @@ module Js: BuiltinLivelit = {
         "SetModel",
         [],
         Some(
-          Prod([Typ.temp(Atom(String)), Typ.temp(Atom(String))])
-          |> Typ.fresh,
+          Prod([
+            Typ.temp_empty(Atom(String)),
+            Typ.temp_empty(Atom(String)),
+          ])
+          |> Typ.fresh_empty,
         ),
       ),
     ])
-    |> Typ.fresh;
+    |> Typ.fresh_empty;
 
   /* Convert action -> Hazel expression. */
   let action_to_hazel: action_t => action_exp =
@@ -349,8 +353,11 @@ module Js: BuiltinLivelit = {
             "SetModel",
             Some(
               Some(
-                Prod([Typ.temp(Atom(String)), Typ.temp(Atom(String))])
-                |> Typ.fresh,
+                Prod([
+                  Typ.temp_empty(Atom(String)),
+                  Typ.temp_empty(Atom(String)),
+                ])
+                |> Typ.fresh_empty,
               ),
             ),
           )

@@ -95,7 +95,7 @@ let of_bindings = (bindings: Binding.s): t =>
         [
           {
             id: b.id,
-            expected_ty: Typ.fresh(Unknown(Internal)),
+            expected_ty: Typ.fresh_empty(Unknown(Internal)),
           },
         ],
       ),

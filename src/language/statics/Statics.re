@@ -467,7 +467,10 @@ and uexp_to_info_map =
         let (es, m) =
           map_m_go(
             m,
-            [Unknown(Internal) |> Typ.temp, Unknown(Internal) |> Typ.temp],
+            [
+              Unknown(Internal) |> Typ.temp_empty,
+              Unknown(Internal) |> Typ.temp_empty,
+            ],
             [e1, e2],
           );
         let tys = List.map(Info.exp_ty, es);
@@ -807,10 +810,31 @@ and uexp_to_info_map =
         m,
       );
     | HintedTest(e, hint) =>
-      let (e, m) = go(~ana=Atom(Bool) |> Typ.temp, e, m);
-      let (hint, m) = go(~ana=Atom(String) |> Typ.temp, hint, m);
+      let (e, m) =
+        go(
+          ~ana=
+            Atom(Bool)
+            |> Typ.from_ana_slice(CodeSlice.of_ids(ids))
+            |> Typ.temp,
+          e,
+          m,
+        );
+      let (hint, m) =
+        go(
+          ~ana=
+            Atom(String)
+            |> Typ.from_ana_slice(CodeSlice.of_ids(ids))
+            |> Typ.temp,
+          hint,
+          m,
+        );
       add(
-        ~self=Just(Prod([]) |> Typ.temp),
+        ~self=
+          Just(
+            Prod([])
+            |> Typ.from_syn_slice(CodeSlice.of_ids(ids))
+            |> Typ.temp,
+          ),
         ~co_ctx=CoCtx.union([e.co_ctx, hint.co_ctx]),
         m,
       );
@@ -867,10 +891,26 @@ and uexp_to_info_map =
           };
 
         | None =>
-          let (fn, m) = go(~ana=Unknown(Internal) |> Typ.temp, fn, m);
-          let (arg, m) = go(~ana=Unknown(Internal) |> Typ.temp, arg, m);
+          let (fn, m) =
+            go(
+              ~ana=
+                Unknown(Internal)
+                |> Typ.from_ana_slice(CodeSlice.of_ids(ids))
+                |> Typ.temp,
+              fn,
+              m,
+            );
+          let (arg, m) =
+            go(
+              ~ana=
+                Unknown(Internal)
+                |> Typ.from_ana_slice(CodeSlice.of_ids(ids))
+                |> Typ.temp,
+              arg,
+              m,
+            );
           add(
-            ~self=Just(Unknown(Internal) |> Typ.temp),
+            ~self=Just(Unknown(Internal) |> Typ.temp_empty),
             ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
             m,
           );
@@ -884,8 +924,14 @@ and uexp_to_info_map =
             switch (Self.ctr_ana_typ(ctx, ana, name)) {
             | Some(ty_ana) =>
               switch (Typ.matched_arrow_strict(ctx, ty_ana)) {
-              | Some((ty1, ty2)) => Arrow(ty1, ty2) |> Typ.temp
-              | None => Arrow(syn, syn) |> Typ.temp
+              | Some((ty1, ty2)) =>
+                Arrow(ty1, ty2)
+                |> Typ.from_ana_slice(CodeSlice.of_ids(ids))
+                |> Typ.temp
+              | None =>
+                Arrow(syn, syn)
+                |> Typ.from_ana_slice(CodeSlice.of_ids(ids))
+                |> Typ.temp
               }
             | None =>
               Arrow(syn, syn)
@@ -933,8 +979,14 @@ and uexp_to_info_map =
           switch (Self.ctr_ana_typ(ctx, ana, name)) {
           | Some(ty_ana) =>
             switch (Typ.matched_arrow_strict(ctx, ty_ana)) {
-            | Some((ty1, ty2)) => Arrow(ty1, ty2) |> Typ.temp
-            | None => Arrow(syn, syn) |> Typ.temp
+            | Some((ty1, ty2)) =>
+              Arrow(ty1, ty2)
+              |> Typ.from_ana_slice(CodeSlice.of_ids(ids))
+              |> Typ.temp
+            | None =>
+              Arrow(syn, syn)
+              |> Typ.from_ana_slice(CodeSlice.of_ids(ids))
+              |> Typ.temp
             }
           | None =>
             Arrow(syn, syn)

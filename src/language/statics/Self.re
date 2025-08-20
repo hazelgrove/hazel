@@ -96,7 +96,7 @@ let typ_of: t => option(Typ.t) =
   | Just(typ)
   | Duplicate(_, Just(typ))
   | TupleLabelError({typ, _}) => Some(typ)
-  | CompareFun(_) => Some(Atom(Bool) |> Typ.fresh)
+  | CompareFun(_) => Some(Atom(Bool) |> Typ.fresh_empty)
   | FreeConstructor(name) =>
     Some(
       Sum([
@@ -317,20 +317,6 @@ let of_ap_ok = of_seq;
 // Holes should be omitted from slices. Note: likely useful in practice to eventually not omit these slices
 let hole = Just(Unknown(Internal) |> Typ.temp_empty);
 
-// Where arg has been analysed to check if nullary_args
-let of_ap =
-    (
-      ids: list(Id.t),
-      ctx: Ctx.t,
-      arg_ids: list(Id.t),
-      ty_in: Typ.t,
-      ty_out: Typ.t,
-    )
-    : t =>
-  Id.is_nullary_ap_flag(arg_ids)
-  && !Typ.is_consistent(ctx, ty_in, Prod([]) |> Typ.temp_empty)
-    ? BadTrivAp(ty_in) : ty_out |> of_ap_ok(ids);
-
 let of_typap = (ids: list(Id.t), ctx: Ctx.t, typ_ap: Typ.t, ty: Typ.t) => {
   let (option_name, ty_body) = Typ.matched_forall(ctx, ty);
   switch (option_name) {
@@ -409,8 +395,10 @@ let of_label = (ids, name, ~duplicates) => {
 };
 
 let poly_eq = (ctx: Ctx.t, tys: list(Typ.t), ids: list(Id.t)): t =>
-  switch (Typ.join_all(~empty=Unknown(Internal) |> Typ.fresh, ctx, tys)) {
+  switch (
+    Typ.join_all(~empty=Unknown(Internal) |> Typ.fresh_empty, ctx, tys)
+  ) {
   | None => NoJoin(PolyEq, add_source(ids, tys))
   | Some(ty) when ty |> Typ.normalize(ctx) |> Typ.has_fun => CompareFun(ty)
-  | Some(_) => Just(Atom(Bool) |> Typ.fresh)
+  | Some(_) => Just(Atom(Bool) |> Typ.fresh_empty)
   };

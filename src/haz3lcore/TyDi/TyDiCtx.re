@@ -186,8 +186,8 @@ let suggest_lookahead_variable = (ci: Info.t): list(TyDiSuggestion.t) => {
     | Atom(Bool) =>
       /* TODO: Find a UI to make these less confusing */
       exp_refs(Atom(Int) |> Typ.fresh_empty)
-      @ exp_refs(Atom(SInt) |> Typ.fresh)
-      @ exp_refs(Atom(Nat) |> Typ.fresh)
+      @ exp_refs(Atom(SInt) |> Typ.fresh_empty)
+      @ exp_refs(Atom(Nat) |> Typ.fresh_empty)
       @ exp_refs(Atom(Float) |> Typ.fresh_empty)
       @ exp_refs(Atom(String) |> Typ.fresh_empty)
       @ exp_aps(Atom(Int) |> Typ.fresh_empty)

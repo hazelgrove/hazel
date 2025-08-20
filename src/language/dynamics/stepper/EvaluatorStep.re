@@ -78,41 +78,37 @@ module Decompose = {
           | exception (EvaluatorError.Exception(_)) => Result.Indet
           }
         };
-
-        let (and.):
-          (requirements('a, 'c => 'b), requirement('c)) =>
-          requirements(('a, 'c), 'b) =
-          ((u, r1, env, v1), (r2, v2)) => (
-            u(v2),
-            r1 && r2,
-            env,
-            (v1, v2),
-          );
-
-        let otherwise = (env, o) => (o, Result.BoxedValue, env, ());
-        let update_test = (state, id, v) =>
-          state := EvaluatorState.add_test(state^, id, v);
-        let update_probe = (state, closure: Dynamics.Probe.Closure.t) =>
-          state := EvaluatorState.add_closure(state^, closure);
-        ();
       };
 
-    module Decomp = Transition(DecomposeEVMode);
-    let rec decompose = (~in_closure=?, state, env, exp) => {
-      switch (exp) {
-      | _ =>
-        Decomp.transition(
-          decompose,
-          ~mode=`Substitution,
-          ~in_closure?,
-          state,
-          env,
-          exp,
-        )
-      };
+    let (and.):
+      (requirements('a, 'c => 'b), requirement('c)) =>
+      requirements(('a, 'c), 'b) =
+      ((u, r1, env, v1), (r2, v2)) => (u(v2), r1 && r2, env, (v1, v2));
+
+    let otherwise = (env, o) => (o, Result.BoxedValue, env, ());
+    let update_test = (state, id, v) =>
+      state := EvaluatorState.add_test(state^, id, v);
+    let update_probe = (state, closure: Dynamics.Probe.Closure.t) =>
+      state := EvaluatorState.add_closure(state^, closure);
+    ();
+  };
+
+  module Decomp = Transition(DecomposeEVMode);
+  let rec decompose = (~in_closure=?, state, env, exp) => {
+    switch (exp) {
+    | _ =>
+      Decomp.transition(
+        decompose,
+        ~mode=`Substitution,
+        ~in_closure?,
+        state,
+        env,
+        exp,
+      )
     };
   };
 };
+
 module TakeStep = {
   module TakeStepEVMode: {
     include
@@ -218,7 +214,7 @@ let refresh_step =
     ) => {
   let eos =
     decompose(exp, state)
-    |> List.map(should_hide_eval_obj(~settings=settings.evaluation)); // NOTE: should_hide_eval_obj actually changes the eval obj to do filter bookkeeping!!!
+    |> List.map(EvalObj.should_hide_eval_obj(~settings=settings.evaluation)); // NOTE: should_hide_eval_obj actually changes the eval obj to do filter bookkeeping!!!
   let* (h, x) =
     List.find_opt(
       ((_, step': step)) =>

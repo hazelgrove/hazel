@@ -584,7 +584,7 @@ let rec status_exp = (ctx: Ctx.t, ty_ana: Typ.t, self: Self.exp): status_exp =>
     switch (ll) {
     | None => InHole(UnboundLivelit(name))
     | Some(_livelit) =>
-      NotInHole(Common(Syn(Unknown(Internal) |> Typ.temp)))
+      NotInHole(Common(Syn(Unknown(Internal) |> Typ.temp_empty)))
     };
   | BadTrivAp(ty) => InHole(BadTrivAp(ty))
   | BadOperator(op) => InHole(BadOperator(op))
@@ -775,7 +775,7 @@ let fixed_typ_err_common: error_common => Typ.t =
   | DuplicateLabel(_, typ) => typ
   | Inconsistent(Expectation({ana, _})) => ana
   | Inconsistent(Internal(_)) => Unknown(Internal) |> Typ.temp_empty // Should this be some sort of meet?
-  | Inconsistent(CompareFun(_)) => Atom(Bool) |> Typ.temp
+  | Inconsistent(CompareFun(_)) => Atom(Bool) |> Typ.temp_empty
   | Inconsistent(WithArrow(_, slc)) =>
     Arrow(
       Unknown(Internal) |> Typ.temp_empty,

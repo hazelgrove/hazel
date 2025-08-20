@@ -16,7 +16,7 @@ let v: ProofCtx.t =
            Var("x") |> Exp.fresh,
          )
          |> Exp.fresh,
-         Some(Atom(Int) |> Typ.fresh),
+         Some(Atom(Int) |> Typ.fresh_empty),
          None,
        )
        |> Exp.fresh,
@@ -36,7 +36,7 @@ let v: ProofCtx.t =
            Atom(Int(Bigint.zero)) |> Exp.fresh,
          )
          |> Exp.fresh,
-         Some(Atom(Int) |> Typ.fresh),
+         Some(Atom(Int) |> Typ.fresh_empty),
          None,
        )
        |> Exp.fresh,
@@ -55,11 +55,11 @@ let v: ProofCtx.t =
              |> Exp.fresh,
            )
            |> Exp.fresh,
-           Some(Atom(Int) |> Typ.fresh),
+           Some(Atom(Int) |> Typ.fresh_empty),
            None,
          )
          |> Exp.fresh,
-         Some(Atom(Int) |> Typ.fresh),
+         Some(Atom(Int) |> Typ.fresh_empty),
          None,
        )
        |> Exp.fresh,
@@ -98,15 +98,15 @@ let v: ProofCtx.t =
                |> Exp.fresh,
              )
              |> Exp.fresh,
-             Some(Atom(Int) |> Typ.fresh),
+             Some(Atom(Int) |> Typ.fresh_empty),
              None,
            )
            |> Exp.fresh,
-           Some(Atom(Int) |> Typ.fresh),
+           Some(Atom(Int) |> Typ.fresh_empty),
            None,
          )
          |> Exp.fresh,
-         Some(Atom(Int) |> Typ.fresh),
+         Some(Atom(Int) |> Typ.fresh_empty),
          None,
        )
        |> Exp.fresh,
@@ -133,11 +133,11 @@ let v: ProofCtx.t =
              |> Exp.fresh,
            )
            |> Exp.fresh,
-           Some(Atom(Int) |> Typ.fresh),
+           Some(Atom(Int) |> Typ.fresh_empty),
            None,
          )
          |> Exp.fresh,
-         Some(Atom(Int) |> Typ.fresh),
+         Some(Atom(Int) |> Typ.fresh_empty),
          None,
        )
        |> Exp.fresh,
@@ -176,15 +176,15 @@ let v: ProofCtx.t =
                |> Exp.fresh,
              )
              |> Exp.fresh,
-             Some(Atom(Int) |> Typ.fresh),
+             Some(Atom(Int) |> Typ.fresh_empty),
              None,
            )
            |> Exp.fresh,
-           Some(Atom(Int) |> Typ.fresh),
+           Some(Atom(Int) |> Typ.fresh_empty),
            None,
          )
          |> Exp.fresh,
-         Some(Atom(Int) |> Typ.fresh),
+         Some(Atom(Int) |> Typ.fresh_empty),
          None,
        )
        |> Exp.fresh,

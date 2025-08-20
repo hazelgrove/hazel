@@ -291,7 +291,7 @@ let rec is_arrow = (~ignore_parens=true, typ: t) => {
 };
 
 let is_atom = (ty: t): bool =>
-  switch (ty.term) {
+  switch (term_of(ty)) {
   | Atom(_) => true
   | Parens(_)
   | TupLabel(_)
@@ -308,7 +308,7 @@ let is_atom = (ty: t): bool =>
   };
 
 let rec has_fun = (typ: t) =>
-  switch (typ.term) {
+  switch (term_of(typ)) {
   | Parens(typ) => has_fun(typ)
   | TupLabel(_, typ) => has_fun(typ)
   | Arrow(_)
@@ -639,7 +639,7 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
   };
 
 let rec vars = (ty: t): list(Var.t) =>
-  switch (ty.term) {
+  switch (term_of(ty)) {
   | Atom(_)
   | Unknown(_) => []
   | Var(x) => [x]
@@ -673,7 +673,7 @@ let rec aliases_deep = (ctx: Ctx.t, ty: t): list((string, t)) => {
       var =>
         switch (Ctx.lookup_alias(ctx, var)) {
         | Some(ty) => [(var, ty)]
-        | None => [(var, fresh(Unknown(Internal)))]
+        | None => [(var, fresh_empty(Unknown(Internal)))]
         },
       vars(ty),
     )
@@ -684,7 +684,7 @@ let rec aliases_deep = (ctx: Ctx.t, ty: t): list((string, t)) => {
 };
 
 let rec vars = (ty: t): list(Var.t) =>
-  switch (ty.term) {
+  switch (term_of(ty)) {
   | Atom(_)
   | Unknown(_) => []
   | Var(x) => [x]
@@ -722,7 +722,7 @@ let fresh_var = (var_name: string) => {
 /* Calculates the total number of nodes (compound
    and leaf) in the type AST. */
 let rec num_nodes = (ty: t): int => {
-  switch (ty.term) {
+  switch (term_of(ty)) {
   | Atom(_)
   | Unknown(_) => 1
   | Var(_) => 1
@@ -753,7 +753,7 @@ let rec num_nodes = (ty: t): int => {
 
 /* Number of Unknown constructors in type AST */
 let rec count_unknowns = (ty: t): int =>
-  switch (ty.term) {
+  switch (term_of(ty)) {
   | Unknown(_) => 1
   | Atom(_)
   | Var(_) => 0
@@ -781,7 +781,7 @@ let rec count_unknowns = (ty: t): int =>
   };
 
 let rec contains_sum_or_var = (ty: t): bool =>
-  switch (ty.term) {
+  switch (term_of(ty)) {
   | Atom(_)
   | Unknown(_) => false
   | Var(_)
@@ -800,7 +800,7 @@ let rec contains_sum_or_var = (ty: t): bool =>
 /* Calculates the total number of nodes (compound
    and leaf) in the type AST. */
 let rec num_nodes = (ty: t): int => {
-  switch (ty.term) {
+  switch (term_of(ty)) {
   | Atom(_)
   | Unknown(_) => 1
   | Var(_) => 1
@@ -831,7 +831,7 @@ let rec num_nodes = (ty: t): int => {
 
 /* Number of Unknown constructors in type AST */
 let rec count_unknowns = (ty: t): int =>
-  switch (ty.term) {
+  switch (term_of(ty)) {
   | Unknown(_) => 1
   | Atom(_)
   | Var(_) => 0
@@ -859,7 +859,7 @@ let rec count_unknowns = (ty: t): int =>
   };
 
 let rec contains_sum_or_var = (ty: t): bool =>
-  switch (ty.term) {
+  switch (term_of(ty)) {
   | Atom(_)
   | Unknown(_) => false
   | Var(_)

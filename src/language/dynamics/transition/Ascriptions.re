@@ -22,11 +22,11 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         when
           Typ.is_consistent(
             Ctx.empty,
-            Typ.unroll(t |> Typ.temp),
+            Typ.unroll(t |> Typ.temp_empty),
             Typ.unroll(t'),
           ) =>
       switch (
-        Typ.join(Ctx.empty, Typ.unroll(t |> Typ.temp), Typ.unroll(t'))
+        Typ.join(Ctx.empty, Typ.unroll(t |> Typ.temp_empty), Typ.unroll(t'))
       ) {
       | Some(t) => Some(recur(Asc(e, t) |> DHExp.fresh))
       | None => None //TODO  This is an impossible case since we checked consistency
@@ -35,7 +35,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       // This is an impossible case since types should be normalized before coming to transitions
       transition(~recursive, Asc(e |> DHExp.fresh, t) |> DHExp.fresh)
     | (Closure(ce, d), t) =>
-      transition(~recursive, Asc(d, t |> Typ.fresh) |> DHExp.fresh)
+      transition(~recursive, Asc(d, t |> Typ.fresh_empty) |> DHExp.fresh)
       |> Option.map(d => Closure(ce, d) |> DHExp.fresh)
     | (Fun(p, e, t, v), Arrow(t1, t2)) =>
       Some(
@@ -85,8 +85,8 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (TypFun(tp, e, v), Forall(tp', t')) =>
       let new_ty: Typ.t =
         switch (TPat.tyvar_of_utpat(tp)) {
-        | Some(tyvar) => Var(tyvar) |> Typ.temp
-        | None => Unknown(Internal) |> Typ.temp
+        | Some(tyvar) => Var(tyvar) |> Typ.temp_empty
+        | None => Unknown(Internal) |> Typ.temp_empty
         };
       Some(
         TypFun(
@@ -99,9 +99,9 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (If(e, e1, e2), t) =>
       Some(
         If(
-          recur(Asc(e, t |> Typ.temp) |> DHExp.fresh),
-          recur(Asc(e1, t |> Typ.temp) |> DHExp.fresh),
-          recur(Asc(e2, t |> Typ.temp) |> DHExp.fresh),
+          recur(Asc(e, t |> Typ.temp_empty) |> DHExp.fresh),
+          recur(Asc(e1, t |> Typ.temp_empty) |> DHExp.fresh),
+          recur(Asc(e2, t |> Typ.temp_empty) |> DHExp.fresh),
         )
         |> DHExp.fresh,
       )
@@ -110,7 +110,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
         Match(
           e,
           List.map(
-            ((p, e)) => (p, Asc(e, t |> Typ.temp) |> DHExp.fresh),
+            ((p, e)) => (p, Asc(e, t |> Typ.temp_empty) |> DHExp.fresh),
             rules,
           ),
         )
@@ -119,13 +119,24 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (
         Ap(
           Forward,
-          {term: Constructor(c, Some(Some({term: Arrow(_, sumt), _}))), _} as con,
+          {
+            term:
+              Constructor(
+                c,
+                Some(Some({term: {typ: Arrow(_, sumt), _}, _})),
+              ),
+            _,
+          } as con,
           payload,
         ),
         Sum(m) as sumt',
       )
         when
-          Typ.is_consistent(Ctx.empty, Typ.unroll(sumt), sumt' |> Typ.temp) =>
+          Typ.is_consistent(
+            Ctx.empty,
+            Typ.unroll(sumt),
+            sumt' |> Typ.temp_empty,
+          ) =>
       let entry = ConstructorMap.get_entry(c, m);
       switch (entry) {
       | Some(Some(t')) =>
@@ -137,7 +148,8 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
       | None => None
       };
     | (Constructor(_, Some(Some(t))), t')
-        when Typ.is_consistent(Ctx.empty, Typ.unroll(t), t' |> Typ.temp) =>
+        when
+          Typ.is_consistent(Ctx.empty, Typ.unroll(t), t' |> Typ.temp_empty) =>
       Some(e)
     | (Test(_), Prod([])) => Some(e)
     // These are non-value cases we don't want to handle

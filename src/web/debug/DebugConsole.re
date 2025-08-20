@@ -35,7 +35,7 @@ let print =
       };
     | None => print("DEBUG: No indicated index")
     };
-  | "F8" => statics.elaborated |> Exp.show |> print
+  | "F8" => statics.elaborated |> Language.Exp.show |> print
   | _ => print("DEBUG: No action for key: " ++ key)
   };
 };

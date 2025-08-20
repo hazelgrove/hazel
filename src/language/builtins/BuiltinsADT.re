@@ -26,8 +26,8 @@ module Ord = {
 module Either = {
   let t: Typ.t =
     sum_type([
-      ("Left", Some(Unknown(Internal) |> Typ.fresh)),
-      ("Right", Some(Unknown(Internal) |> Typ.fresh)),
+      ("Left", Some(Unknown(Internal) |> Typ.fresh_empty)),
+      ("Right", Some(Unknown(Internal) |> Typ.fresh_empty)),
     ]);
 
   open IdTagged.FreshGrammar;
@@ -46,7 +46,7 @@ module Option = {
   let t: Typ.t =
     sum_type([
       ("None", None),
-      ("Some", Some(Unknown(Internal) |> Typ.fresh)),
+      ("Some", Some(Unknown(Internal) |> Typ.fresh_empty)),
     ]);
 
   open IdTagged.FreshGrammar;
@@ -125,7 +125,7 @@ module Option = {
     },
     {
       name: "option_to_list",
-      arg: t.term,
+      arg: t.term.typ,
       ret: List(unknown(Internal)),
       str: {|fun opt -> case opt
                | None => []
@@ -181,7 +181,7 @@ let constructors: Ctx.t = {
         | Sum(cons_map) => cons_map
         | _ => failwith("Type alias must be a sum type")
         };
-      Ctx.add_ctrs(ctx, name, Id.invalid, cons_map);
+      Ctx.add_ctrs([], ctx, name, Id.invalid, cons_map);
     },
     Ctx.empty,
     type_aliases,

@@ -44,14 +44,14 @@ let ctx_entry_of_builtin: builtin => Ctx.entry =
   | Const({name, typ, _}) =>
     Ctx.VarEntry({
       name,
-      typ: typ |> Typ.fresh,
+      typ: typ |> Typ.fresh_empty,
       id: Id.invalid,
     })
   | Fn({name, arg, ret, _})
   | HazelFn({name, arg, ret, _}) =>
     Ctx.VarEntry({
       name,
-      typ: Fresh.Typ.arrow(Typ.fresh(arg), Typ.fresh(ret)),
+      typ: Fresh.Typ.arrow(Typ.fresh_empty(arg), Typ.fresh_empty(ret)),
       id: Id.invalid,
     });
 
@@ -136,8 +136,8 @@ let of_atom_builtin = ((name: string, b: Atom.builtin)): builtin => {
       name,
       arg:
         Prod([
-          Atom(k1 |> Atom.cls_of_kind) |> Typ.fresh,
-          Atom(k2 |> Atom.cls_of_kind) |> Typ.fresh,
+          Atom(k1 |> Atom.cls_of_kind) |> Typ.fresh_empty,
+          Atom(k2 |> Atom.cls_of_kind) |> Typ.fresh_empty,
         ]),
       ret: Atom(k3 |> Atom.cls_of_kind),
       imp:

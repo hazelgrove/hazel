@@ -48,7 +48,7 @@ let common_error: Info.error_common => string =
   | DuplicateLabel(_, _) => "Duplicate label"
   | TupleLabelError(_) => "Invalid tuple label"
   | NoType(BadToken(token)) => prn("\"%s\" isn't a valid token", token)
-  | Inconsistent(WithArrow(ty)) =>
+  | Inconsistent(WithArrow(ty, _slc)) =>
     prn("type %s is not consistent with arrow type", Print.typ(ty))
   | Inconsistent(CompareFun(ty)) =>
     prn("values of type %s cannot be compared", Print.typ(ty))
@@ -87,7 +87,7 @@ let exp_error: Info.error_exp => string =
 
 let pat_error: Info.error_pat => string =
   fun
-  | ExpectedConstructor => "Expected a constructor"
+  | ExpectedConstructor(_slc) => "Expected a constructor"
   | Redundant(_) => "Redundant" //TODO: elaborate
   | Common(error) => common_error(error);
 

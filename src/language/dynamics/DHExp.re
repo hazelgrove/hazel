@@ -199,13 +199,21 @@ let rec ty_comparable = (d1, d2) => {
       Constructor(_, Some(Some(t1))) |
       Ap(
         _,
-        {term: Constructor(_, Some(Some({term: Arrow(_, t1), _}))), _},
+        {
+          term:
+            Constructor(_, Some(Some({term: {typ: Arrow(_, t1), _}, _}))),
+          _,
+        },
         _,
       ),
       Constructor(_, Some(Some(t2))) |
       Ap(
         _,
-        {term: Constructor(_, Some(Some({term: Arrow(_, t2), _}))), _},
+        {
+          term:
+            Constructor(_, Some(Some({term: {typ: Arrow(_, t2), _}, _}))),
+          _,
+        },
         _,
       ),
     ) =>

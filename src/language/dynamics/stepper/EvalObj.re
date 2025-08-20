@@ -171,9 +171,6 @@ let rec matches =
       | Asc(ctx, ty) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Asc(ctx, ty) |> rewrap;
-      | FailedCast(ctx, ty, ty') =>
-        let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        FailedCast(ctx, ty, ty') |> rewrap;
       | DynamicErrorHole(ctx, error) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         DynamicErrorHole(ctx, error) |> rewrap;

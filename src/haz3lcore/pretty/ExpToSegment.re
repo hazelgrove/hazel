@@ -402,7 +402,7 @@ let rec parenthesize =
 and parenthesize_pat =
     (~show_filters: bool, ~already_paren=false, pat: Pat.t): Pat.t => {
   let parenthesize_pat = parenthesize_pat(~show_filters);
-  let parenthesize_Typ = parenthesize_typ(~show_filters);
+  let parenthesize_typ = parenthesize_typ(~show_filters);
   let (term, rewrap) = Pat.unwrap(pat);
   switch (term) {
   // Indivisible forms dont' change
