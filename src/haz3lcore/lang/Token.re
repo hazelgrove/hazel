@@ -55,26 +55,36 @@ let is_string = t =>
 let string_delim = "\"";
 let empty_string = append(string_delim, string_delim);
 let is_string_delim = (==)(string_delim);
-let strip_quotes = s =>
-  if (length(s) < 2) {
+let strip_quotes = (~quote="\"", s) =>
+  if (String.length(s) < 2) {
     s;
-  } else if (sub(s, 0, 1) != "\"" || sub(s, length(s) - 1, 1) != "\"") {
+  } else if (String.sub(s, 0, 1) != quote
+             || String.sub(s, String.length(s) - 1, 1) != quote) {
     s;
   } else {
-    sub(s, 1, length(s) - 2);
+    String.sub(s, 1, String.length(s) - 2);
   };
 
 let string_quote = s => "\"" ++ s ++ "\"";
+
+let quoted_label_regexp = regexp("^`[^`\n]*`$");
+let is_quoted_label = t => match(quoted_label_regexp, t);
+let label_delim = "`";
+let is_quoted_label_delim = (==)(label_delim);
+let label_quote = s => label_delim ++ s ++ label_delim;
 
 let closing_stringlit_or_comment = (char, t: t): bool =>
   is_string(t)
   && is_string_delim(char)
   || is_comment(t)
-  && is_comment_delim(char);
+  && is_comment_delim(char)
+  || is_quoted_label(t)
+  && is_quoted_label_delim(char);
 
-let is_string_or_comment = t => is_string(t) || is_comment(t);
+let is_string_or_comment = t =>
+  is_string(t) || is_comment(t) || is_quoted_label(t);
 let is_string_or_comment_delim = t =>
-  is_string_delim(t) || is_comment_delim(t);
+  is_string_delim(t) || is_comment_delim(t) || is_quoted_label_delim(t);
 
 let bools = ["true", "false"];
 let is_bool = match(regexp("^(" ++ concat("|", bools) ++ ")$"));
@@ -110,10 +120,10 @@ let is_potential_operand =
 
 let is_potential_operator =
   /* Multiline operators not supported */
-  match(regexp("^[^a-zA-Z0-9_'?\\^\"#\n\\s\\[\\]\\(\\)]+$"));
+  match(regexp("^[^a-zA-Z0-9_'?\\^\"`#\n\\s\\[\\]\\(\\)]+$"));
 
 let begins_with_potential_operator =
-  match(regexp("^[^a-zA-Z0-9_'?\"#\n\\s\\[\\]\\(\\)]+"));
+  match(regexp("^[^a-zA-Z0-9_'?\"`#\n\\s\\[\\]\\(\\)]+"));
 
 let is_potential_token = t =>
   if (match(regexp("^>"), t)) {
@@ -127,7 +137,8 @@ let is_potential_token = t =>
     || is_potential_operand(t)
     || is_potential_operator(t)
     || is_string(t)
-    || is_comment(t);
+    || is_comment(t)
+    || is_quoted_label(t);
   };
 
 let int_regexp = regexp("^-?\\d+[0-9_]*$");
@@ -169,6 +180,9 @@ let is_var = str =>
   && !is_livelit(str)
   && !is_wild(str)
   && match(var_regexp, str);
+
+let quote_label_when_necessary = (l: string): string =>
+  is_var(l) ? l : label_quote(l);
 
 let capitalized_name_regexp = regexp("^[A-Z][A-Za-z0-9_]*$");
 let is_ctr = match(capitalized_name_regexp);

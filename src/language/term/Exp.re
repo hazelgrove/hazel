@@ -7,3 +7,11 @@ let temp: term => t =
       ids: [Id.invalid],
     },
   };
+
+let to_tuple = (es: list(t)): t =>
+  switch (es) {
+  | []
+  | [{term: TupLabel(_), _}] => Tuple(es) |> temp
+  | [e] => e
+  | _ => Tuple(es) |> temp
+  };

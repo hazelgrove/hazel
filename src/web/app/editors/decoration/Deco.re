@@ -579,6 +579,56 @@ module Deco =
     |> List.flatten;
   };
 
+  let refl_steps = (refl_steps, ~inject) => {
+    let tiles = List.filter_map(TileMap.find_opt(_, tiles), refl_steps);
+    List.mapi(
+      (i, t: Tile.t) => {
+        let id = Tile.id(t);
+        let mold = t.mold;
+        let shards = Measured.find_shards(t, map);
+        let range: option((Measured.Point.t, Measured.Point.t)) = {
+          // if (Piece.has_ends(p)) {
+          let id = Id.Map.find(id, terms) |> Language.Any.rep_id;
+          switch (TermRanges.find_opt(id, term_ranges)) {
+          | None => None
+          | Some((p_l, p_r)) =>
+            let l = Measured.find_p(p_l, map).origin;
+            let r = Measured.find_p(p_r, map).last;
+            Some((l, r));
+          };
+        };
+        Option.map(
+          x => {
+            IndicationDec.term(
+              ~base_clss="tile-refl-step",
+              ~attr=[Virtual_dom.Vdom.Attr.on_mousedown(_ => {inject(i)})],
+              ~line_clss=["refl-step-line"],
+              ~font_metrics,
+              ~caret=(Id.invalid, 0),
+              ~rows=measured.rows,
+              ~tiles=[(id, mold, shards)],
+              x,
+            )
+            @ IndicationDec.term(
+                ~base_clss="tile-next-step-top",
+                ~attr=[Virtual_dom.Vdom.Attr.on_mousedown(_ => {inject(i)})],
+                ~line_clss=["refl-step-line"],
+                ~font_metrics,
+                ~caret=(Id.invalid, 0),
+                ~rows=measured.rows,
+                ~tiles=[(id, mold, shards)],
+                x,
+              )
+          },
+          range,
+        );
+      },
+      tiles,
+    )
+    |> List.filter_map(x => x)
+    |> List.flatten;
+  };
+
   let statics = () => [errors()];
 
   let editor = (z, selected: bool) =>

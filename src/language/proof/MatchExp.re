@@ -18,6 +18,19 @@ let rec are_alpha_equiv = (alphas: alphas, x: string, y: string): bool =>
   | [_, ...rest] => are_alpha_equiv(rest, x, y)
   };
 
+let is_in_alphas_l = (alphas: alphas, x: string): bool =>
+  List.exists(((x1, _)) => x == x1, alphas);
+
+/* Match exp against another pattern exp_r.
+
+     - alphas: list of alpha equivalences, e.g. [("x", "y")] means x in exp_r
+       is equivalent to y in exp.
+     - ctx: context of matched variables in exp_r. Some if already matched,
+       None if not matched but can be matched.
+     - exp_r: the pattern expression to match against.
+     - exp: the expression to match.
+   */
+
 let rec match_exp =
         (alphas: alphas, ctx: match_ctx, exp_r: Exp.t, exp: Exp.t)
         : option(match_ctx) => {
@@ -27,17 +40,20 @@ let rec match_exp =
   | (_, Parens(e2)) => match_exp(alphas, ctx, exp_r, e2)
   | (Probe(e1, _), _) => match_exp(alphas, ctx, e1, exp)
   | (_, Probe(e2, _)) => match_exp(alphas, ctx, exp_r, e2)
+  // TODO: Better cast logic
+  | (Asc(e1, _), _) => match_exp(alphas, ctx, e1, exp)
+  | (_, Asc(e2, _)) => match_exp(alphas, ctx, exp_r, e2)
   /* Variables */
-  | (Var(x), _) when match_ctx_has(ctx, x) =>
+  | (Var(x), _) when match_ctx_has(ctx, x) && !is_in_alphas_l(alphas, x) =>
     switch (List.assoc(x, ctx)) {
     | None =>
       Some(List.map(((n, e)) => n == x ? (n, Some(exp)) : (n, e), ctx))
     | Some(e) => match_exp(alphas, ctx, e, exp)
     }
-  | (Var(x), Var(y)) when x == y => Some(ctx)
+  | (Var(x), Var(y)) when are_alpha_equiv(alphas, x, y) => Some(ctx)
   | (Var(_), _) => None
   /* Forms with binders */
-  /* Forma without binders */
+  /* Forms without binders */
   | (Invalid(x), Invalid(y)) when x == y => Some(ctx)
   | (Invalid(_), _) => None
   | (EmptyHole, EmptyHole) => Some(ctx)
@@ -55,7 +71,7 @@ let rec match_exp =
       when err1 == err2 =>
     match_exp(alphas, ctx, e1, e2)
   | (DynamicErrorHole(_, _), _) => None
-  | (Deferral(d1), Deferral(d2)) when d1 == d2 => Some(ctx)
+  | (Deferral(_), Deferral(_)) => Some(ctx)
   | (Deferral(_), _) => None
   | (Undefined, Undefined) => Some(ctx)
   | (Undefined, _) => None
@@ -80,13 +96,12 @@ let rec match_exp =
   | (ListLit(_), _) => None
   | (Constructor(c1, _), Constructor(c2, _)) when c1 == c2 => Some(ctx)
   | (Constructor(_, _), _) => None
-  // TODO: Alpha equivalence
   | (Fun(p1, e1, _, _), Fun(p2, e2, _, _)) =>
     let* alphas' = match_pat(p1, p2);
-    let alphas = alphas' @ alphas;
-    match_exp(alphas, ctx, e1, e2);
+    match_exp(alphas' @ alphas, ctx, e1, e2);
   | (Fun(_, _, _, _), _) => None
   | (TypFun(tp1, e1, _), TypFun(tp2, e2, _)) =>
+    // TODO: type alpha equivalence
     let* () = match_tpat(tp1, tp2);
     match_exp(alphas, ctx, e1, e2);
   | (TypFun(_, _, _), _) => None
@@ -97,16 +112,21 @@ let rec match_exp =
       List.combine(xs, ys),
     )
   | (Tuple(_), _) => None
+  | (TupleExtension(xs1, ys1), TupleExtension(xs2, ys2)) =>
+    let* ctx = match_exp(alphas, ctx, xs1, xs2);
+    match_exp(alphas, ctx, ys1, ys2);
+  | (TupleExtension(_, _), _) => None
   | (Let(p1, d1, e1), Let(p2, d2, e2)) =>
     let* alphas' = match_pat(p1, p2);
-    let* ctx = match_exp(alphas @ alphas', ctx, d1, d2);
-    match_exp(alphas, ctx, e1, e2);
+    let* ctx = match_exp(alphas, ctx, d1, d2);
+    match_exp(alphas' @ alphas, ctx, e1, e2);
   | (Let(_, _, _), _) => None
   | (FixF(p1, e1, _), FixF(p2, e2, _)) =>
-    let* alphas = match_pat(p1, p2);
-    match_exp(alphas, ctx, e1, e2);
+    let* alphas' = match_pat(p1, p2);
+    match_exp(alphas' @ alphas, ctx, e1, e2);
   | (FixF(_, _, _), _) => None
   | (TyAlias(tp1, t1, e1), TyAlias(tp2, t2, e2)) =>
+    // TODO: type alpha equivalence
     let* () = match_tpat(tp1, tp2);
     let* () = match_typ(t1, t2);
     match_exp(alphas, ctx, e1, e2);
@@ -119,7 +139,8 @@ let rec match_exp =
     let* () = match_typ(t1, t2);
     match_exp(alphas, ctx, e1, e2);
   | (TypAp(_, _), _) => None
-  | (DeferredAp(e1, es1), DeferredAp(e2, es2)) =>
+  | (DeferredAp(e1, es1), DeferredAp(e2, es2))
+      when List.length(es1) == List.length(es2) =>
     let* ctx = match_exp(alphas, ctx, e1, e2);
     ListUtil.fold_left_opt(
       (ctx, (x, y)) => match_exp(alphas, ctx, x, y),
@@ -145,7 +166,7 @@ let rec match_exp =
   | (Filter(f1, e1), Filter(f2, e2)) when f1 == f2 =>
     match_exp(alphas, ctx, e1, e2)
   | (Filter(_, _), _) => None
-  // TODO: Guarantee that there are no closures
+  // Note: This code should never be called with closures
   | (Closure(_, e1), Closure(_, e2)) => match_exp(alphas, ctx, e1, e2)
   | (Closure(_, _), _) => None
   | (Cons(e1, e2), Cons(e3, e4)) =>
@@ -169,23 +190,16 @@ let rec match_exp =
       when List.length(rs1) == List.length(rs2) =>
     let* ctx = match_exp(alphas, ctx, e1, e2);
     ListUtil.fold_left_opt(
-      (ctx, ((p1, e1), (p2, e2))) => {
+      (ctx, ((p1, body1), (p2, body2))) => {
         let* alphas' = match_pat(p1, p2);
-        match_exp(alphas' @ alphas, ctx, e1, e2);
+        match_exp(alphas' @ alphas, ctx, body1, body2);
       },
       ctx,
       List.combine(rs1, rs2),
     );
   | (Match(_, _), _) => None
-  // TODO: Cast logic
-  | (Asc(e1, t1), Asc(e2, t3)) =>
-    let* ctx = match_exp(alphas, ctx, e1, e2);
-    let* () = match_typ(t1, t3);
-    Some(ctx);
-  | (Asc(_, _), _) => None
   | (Label(l1), Label(l2)) when l1 == l2 => Some(ctx)
   | (Label(_), _) => None
-
   | (TupLabel(l1, e1), TupLabel(l2, e2)) when l1 == l2 =>
     match_exp(alphas, ctx, e1, e2)
   | (TupLabel(_, _), _) => None

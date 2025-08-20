@@ -23,9 +23,9 @@ let expansion = (t: Token.t, z: t): (Label.t, Direction.t) => {
     | _ => false
     };
   switch (t) {
-  | _ when Token.is_string_delim(t) =>
-    /* Special case for constructing string literals. */
-    ([Token.string_delim ++ Token.string_delim], Left)
+  | _ when Token.is_string_delim(t) || Token.is_quoted_label_delim(t) =>
+    /* Special case for constructing string/label literals. */
+    ([t ++ t], Left)
   | "|" when !(before_case_shard(z) || inside_case(z)) =>
     /* Only expand case rules when inside a case */
     ([t], Left)

@@ -230,6 +230,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         ret(Atom(Int(Bigint.of_string(t))))
       | ([t], []) when Token.is_string(t) =>
         ret(Atom(String(Token.strip_quotes(t))))
+      | ([t], []) when Token.is_quoted_label(t) =>
+        ret(Label(Token.strip_quotes(~quote=Token.label_delim, t)))
       | ([t], []) when Token.is_float(t) =>
         ret(Atom(Float(float_of_string(t))))
       | ([t], []) when Token.is_livelit(t) =>
@@ -242,7 +244,24 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         ret(should_instrument(id) ? Probe(body, Probe.empty) : body.term)
       | (["[", "]"], [Exp(body)]) =>
         switch (body) {
-        | {annotation: {ids}, term: Tuple(es)} => (ListLit(es), ids)
+        | {annotation: {ids}, term: Tuple(es)} =>
+          // Addresses tup_labels in lists like: [l=32, 1]
+          (
+            ListLit(
+              List.map(
+                (list_item: Grammar.exp_t(IdTagged.IdTag.t)) => {
+                  let (e, rewrap) = IdTagged.unwrap(list_item);
+                  switch (e) {
+                  | TupLabel(_) =>
+                    rewrap(Tuple([e |> Exp.fresh]): TermBase.exp_term)
+                  | _ => list_item
+                  };
+                },
+                es,
+              ),
+            ),
+            ids,
+          )
         | term => ret(ListLit([term]))
         }
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
@@ -418,6 +437,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           | ([";"], []) => Seq(l, r)
           | (["++"], []) => BinOp(String(Concat), l, r)
           | (["$=="], []) => BinOp(String(Equals), l, r)
+          | (["..."], []) => TupleExtension(l, r)
           | (["="], []) =>
             switch (l.term) {
             | Var(name) =>
@@ -428,6 +448,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
                 },
                 r,
               )
+            | Label(_) => TupLabel(l, r)
             | EmptyHole => TupLabel(l, r)
             | _ =>
               let (e_term, rewrap) = IdTagged.unwrap(l);
@@ -447,6 +468,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
                   term: Label(name),
                 },
               )
+            | Label(_) => Dot(l, r)
             | EmptyHole => Dot(l, r)
             | _ =>
               let (e_term, rewrap) = IdTagged.unwrap(r);
@@ -504,6 +526,8 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
           Atom(Int(Bigint.of_string(t)))
         | ([t], []) when Token.is_string(t) =>
           Atom(String(Token.strip_quotes(t)))
+        | ([t], []) when Token.is_quoted_label(t) =>
+          Label(Token.strip_quotes(~quote=Token.label_delim, t))
         | ([t], []) when Token.is_var(t) => Var(t)
         | ([t], []) when Token.is_wild(t) => Wild
         | ([t], []) when Token.is_ctr(t) => Constructor(t, None)
@@ -567,6 +591,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
               r,
             ),
           )
+        | Label(_) => ret(TupLabel(l, r))
         | EmptyHole => ret(TupLabel(l, r))
         | _ =>
           let (e_term, rewrap) = IdTagged.unwrap(l);
@@ -619,6 +644,8 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | (["String"], []) => Atom(String)
         | (["Nat"], []) => Atom(Nat)
         | ([t], []) when Token.is_typ_var(t) => Var(t)
+        | ([t], []) when Token.is_quoted_label(t) =>
+          Label(Token.sub(t, 1, Token.length(t) - 2))
         | (["(", ")"], [Typ(body)]) => Parens(body)
         | (label, [Typ(body)]) when is_probe_wrap(label) => body.term
         | (["[", "]"], [Typ(body)]) => List(body)
