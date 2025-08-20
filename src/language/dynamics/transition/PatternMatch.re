@@ -1,4 +1,4 @@
-[@deriving show({with_path: false})]
+[@deriving (show({with_path: false}), sexp, yojson)]
 type match_result = Unboxing.unboxed(Environment.t);
 let ( let* ) = Unboxing.( let* );
 
