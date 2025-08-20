@@ -6,6 +6,9 @@
 type step;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type persistent;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type status =
   | AutoStep(step)
   | AvailableSteps(list(step)); // No automatic steps
@@ -15,8 +18,10 @@ type status =
 let get_status: (~settings: CoreSettings.t, Exp.t, EvaluatorState.t) => status; //[Matt] This should probably take an env argument eventually
 
 let refresh_step:
-  (~settings: CoreSettings.t, Exp.t, EvaluatorState.t, step) =>
+  (~settings: CoreSettings.t, Exp.t, EvaluatorState.t, persistent) =>
   option((FilterAction.action, step));
+
+let persist: step => persistent;
 
 // INVARIANT: this take_step function should never return an expression with closures.
 let take_step: step => option((Exp.t, EvaluatorState.t));
