@@ -413,110 +413,122 @@ module Transition = (EV: EV_MODE) => {
         req_final(req(state, env), d1 => Ap1(dir, d1, d2) |> wrap_ctx, d1)
       and. d2' =
         req_final(req(state, env), d2 => Ap2(dir, d1, d2) |> wrap_ctx, d2);
-      let-unbox unboxed_fun = (Fun, d1');
-      switch (unboxed_fun) {
-      | Constructor(_) => Constructor
-      | FunEnv(dp, d3, function_lexical_env) =>
-        let matches = matches(dp, d2');
-        switch (matches.matches) {
-        | IndetMatch
-        | DoesNotMatch => Indet
-        | Matches(function_arg_env) =>
-          let env'' =
-            evaluate_extend_env(
-              ~ap_id=Term.Exp.rep_id(d),
-              ~call_stack=env.call_stack,
-              function_arg_env,
-              function_lexical_env,
+      switch (d1'.term) {
+      | Asc(d1'', {term: Arrow(t1, t2), _}) =>
+        Step({
+          expr:
+            Asc(Ap(Forward, d1'', Asc(d2', t1) |> fresh) |> fresh, t2)
+            |> fresh,
+          state_update,
+          kind: Ascription,
+          is_value: false,
+        })
+      | _ =>
+        let-unbox unboxed_fun = (Fun, d1');
+        switch (unboxed_fun) {
+        | Constructor(_) => Constructor
+        | FunEnv(dp, d3, function_lexical_env) =>
+          let matches = matches(dp, d2');
+          switch (matches.matches) {
+          | IndetMatch
+          | DoesNotMatch => Indet
+          | Matches(function_arg_env) =>
+            let env'' =
+              evaluate_extend_env(
+                ~ap_id=Term.Exp.rep_id(d),
+                ~call_stack=env.call_stack,
+                function_arg_env,
+                function_lexical_env,
+              );
+            Step({
+              expr: subst_env(env'', d3),
+              state_update: capture_closures(env'', state, matches.closures),
+              kind: FunAp,
+              is_value: false,
+            });
+          };
+        | FunNoEnv(dp, d3) when mode == `Substitution =>
+          let matches = matches(dp, d2');
+          switch (matches.matches) {
+          | IndetMatch
+          | DoesNotMatch => Indet
+          | Matches(function_arg_env) =>
+            Step({
+              expr:
+                subst_env(
+                  function_arg_env |> ClosureEnvironment.of_environment,
+                  d3,
+                ),
+              state_update:
+                capture_closures(
+                  function_arg_env |> ClosureEnvironment.of_environment,
+                  state,
+                  matches.closures,
+                ),
+              kind: FunAp,
+              is_value: false,
+            })
+          };
+        | FunNoEnv(_) => Indet
+        | BuiltinFun(ident) =>
+          let builtin =
+            VarMap.lookup(Builtins.forms_init, ident)
+            |> OptUtil.get(() => {
+                 /* This exception should never be raised because there is
+                    no way for the user to create a BuiltinFun. They are all
+                    inserted into the context before evaluation. */
+                 raise(
+                   EvaluatorError.Exception(InvalidBuiltin(ident)),
+                 )
+               });
+          switch (builtin(d2')) {
+          | Some(expr) =>
+            Step({
+              expr,
+              state_update,
+              kind: BuiltinAp(ident),
+              is_value: false,
+            })
+          | None => Indet
+          };
+        | DeferredAp(d3, d4s) =>
+          let n_args =
+            List.length(
+              List.filter(
+                fun
+                | {term: Deferral(_), _} => true
+                | _ => false: Exp.t => bool,
+                d4s,
+              ),
             );
+          let-unbox args =
+            if (n_args == 1) {
+              (
+                Tuple(n_args),
+                tuple([d2]) // TODO Should we not be going to a tuple?
+              );
+            } else {
+              (Tuple(n_args), d2);
+            };
+          let new_args = {
+            let rec go = (deferred, args) =>
+              switch ((deferred: list(Exp.t))) {
+              | [] => []
+              | [{term: Deferral(_), _}, ...deferred] =>
+                /* I can use List.hd and List.tl here because let-unbox ensure that
+                   there are the correct number of args */
+                [List.hd(args), ...go(deferred, List.tl(args))]
+              | [x, ...deferred] => [x, ...go(deferred, args)]
+              };
+            go(d4s, args);
+          };
           Step({
-            expr: subst_env(env'', d3),
-            state_update: capture_closures(env'', state, matches.closures),
-            kind: FunAp,
+            expr: ap(Forward, d3, tuple(new_args)),
+            state_update,
+            kind: DeferredAp,
             is_value: false,
           });
         };
-      | FunNoEnv(dp, d3) when mode == `Substitution =>
-        let matches = matches(dp, d2');
-        switch (matches.matches) {
-        | IndetMatch
-        | DoesNotMatch => Indet
-        | Matches(function_arg_env) =>
-          Step({
-            expr:
-              subst_env(
-                function_arg_env |> ClosureEnvironment.of_environment,
-                d3,
-              ),
-            state_update:
-              capture_closures(
-                function_arg_env |> ClosureEnvironment.of_environment,
-                state,
-                matches.closures,
-              ),
-            kind: FunAp,
-            is_value: false,
-          })
-        };
-      | FunNoEnv(_) => Indet
-      | BuiltinFun(ident) =>
-        let builtin =
-          VarMap.lookup(Builtins.forms_init, ident)
-          |> OptUtil.get(() => {
-               /* This exception should never be raised because there is
-                  no way for the user to create a BuiltinFun. They are all
-                  inserted into the context before evaluation. */
-               raise(
-                 EvaluatorError.Exception(InvalidBuiltin(ident)),
-               )
-             });
-        switch (builtin(d2')) {
-        | Some(expr) =>
-          Step({
-            expr,
-            state_update,
-            kind: BuiltinAp(ident),
-            is_value: false,
-          })
-        | None => Indet
-        };
-      | DeferredAp(d3, d4s) =>
-        let n_args =
-          List.length(
-            List.filter(
-              fun
-              | {term: Deferral(_), _} => true
-              | _ => false: Exp.t => bool,
-              d4s,
-            ),
-          );
-        let-unbox args =
-          if (n_args == 1) {
-            (
-              Tuple(n_args),
-              tuple([d2]) // TODO Should we not be going to a tuple?
-            );
-          } else {
-            (Tuple(n_args), d2);
-          };
-        let new_args = {
-          let rec go = (deferred, args) =>
-            switch ((deferred: list(Exp.t))) {
-            | [] => []
-            | [{term: Deferral(_), _}, ...deferred] =>
-              /* I can use List.hd and List.tl here because let-unbox ensure that
-                 there are the correct number of args */
-              [List.hd(args), ...go(deferred, List.tl(args))]
-            | [x, ...deferred] => [x, ...go(deferred, args)]
-            };
-          go(d4s, args);
-        };
-        Step({
-          expr: ap(Forward, d3, tuple(new_args)),
-          state_update,
-          kind: DeferredAp,
-          is_value: false,
-        });
       };
     | Deferral(_) =>
       let. _ = otherwise(env, d);
