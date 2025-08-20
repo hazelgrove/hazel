@@ -214,8 +214,8 @@ let added_bindings = (ctx_after: t, ctx_before: t): t => {
 
 module VarSet = Set.Make(Var);
 
-// Note: filter out duplicates when rendering
-let filter_duplicates = (ctx: t): t => {
+/* Removes shadowed variables from the context */
+let filter_shadowed = (ctx: t): t => {
   ...ctx,
   entries:
     ctx.entries
