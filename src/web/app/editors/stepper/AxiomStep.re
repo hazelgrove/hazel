@@ -10,6 +10,7 @@ open Calc.Syntax;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type model'('stepper) = {
+  name: string,
   at_id: Id.t,
   at_exp: Exp.t,
   with_exp: Exp.t,
@@ -62,7 +63,7 @@ module F =
         ~editor as _: Calc.t(CodeSelectable.Model.t),
         model: model,
       ) => {
-    let {at_id, at_exp, with_exp, next_exp} = model;
+    let {name, at_id, at_exp, with_exp, next_exp} = model;
     let+ next_exp =
       next_exp
       |> Calc.map_saved(Option.some)
@@ -74,6 +75,7 @@ module F =
       |> Calc.to_option;
     (
       {
+        name,
         at_id,
         at_exp,
         with_exp,
@@ -103,9 +105,9 @@ module F =
         ~hide_stepper as _: Ui_effect.t(unit),
         ~undo as _: option(Ui_effect.t(unit)),
         ~is_toplevel as _: bool,
-        _: model,
+        m: model,
       ) =>
-    WebUtil.Node.text("Axiom Step");
+    WebUtil.Node.text(m.name);
 
   let view_content =
       (

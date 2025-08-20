@@ -64,6 +64,7 @@ type step_kind =
   | BuiltinAp(string)
   | UnOp(Operators.op_un)
   | BinOp(Operators.op_bin)
+  | MarkIncomparable
   | Dot
   | Conditional(bool)
   | Projection
@@ -628,20 +629,26 @@ module Transition = (EV: EV_MODE) => {
       switch (Operators.semantics_of_bin_op(op)) {
       | Undefined(_) => Indet
       | DefinedPoly(poly_op) =>
-        let expr: t =
-          if (!DHExp.ty_comparable(d1, d2)) {
+        if (!DHExp.ty_comparable(d1, d2)) {
+          let expr =
             DynamicErrorHole(BinOp(op, d1, d2) |> rewrap, Incomparable)
             |> fresh;
-          } else {
-            let res = DHExp.poly_equal(d1, d2);
-            Atom(Bool(poly_op == Equals ? res : !res)) |> fresh;
-          };
-        Step({
-          expr,
-          state_update,
-          kind: BinOp(op),
-          is_value: false,
-        });
+          Step({
+            expr,
+            state_update,
+            kind: MarkIncomparable,
+            is_value: false,
+          });
+        } else {
+          let res = DHExp.poly_equal(d1, d2);
+          let expr = Atom(Bool(poly_op == Equals ? res : !res)) |> fresh;
+          Step({
+            expr,
+            state_update,
+            kind: BinOp(op),
+            is_value: false,
+          });
+        }
       | Defined(in_ty1, in_ty2, out_ty, f) =>
         let-unbox n1 = (Atom(in_ty1), d1);
         let-unbox n2 = (Atom(in_ty2), d2);
@@ -935,6 +942,7 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | BuiltinWrap
   | WrapClosure
   | FixClosure
+  | MarkIncomparable
   | RemoveParens => true;
 
 let stepper_justification: step_kind => string =
@@ -985,4 +993,5 @@ let stepper_justification: step_kind => string =
   | RemoveUse => "set use type"
   | RemoveParens => "remove parentheses"
   | Dot => "Labeled tuple access"
+  | MarkIncomparable => "mark equality as incomparable"
   | UnOp(Meta(Unquote)) => failwith("INVALID STEP");
