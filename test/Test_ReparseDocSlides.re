@@ -12,14 +12,14 @@ let doc_slide_reparses = ((name, slide: CellEditor.Model.persistent)) => {
     `Slow,
     () => {
       let reparsed_segment =
-        switch (Parser.to_segment(slide.backup_text)) {
+        switch (Parser.to_segment(slide.editor.backup_text)) {
         | Some(seg) => seg
         | None =>
           Alcotest.fail("Failed to parse segment from slide backup text")
         };
 
       let original_segment =
-        Sexplib.Sexp.of_string(slide.zipper)
+        Sexplib.Sexp.of_string(slide.editor.zipper)
         |> Zipper.t_of_sexp
         |> Zipper.seg_without_buffer;
 
@@ -38,7 +38,7 @@ let caret_is_at_beginning = ((name, slide: CellEditor.Model.persistent)) => {
     name,
     `Slow,
     () => {
-      let z = Sexplib.Sexp.of_string(slide.zipper) |> Zipper.t_of_sexp;
+      let z = Sexplib.Sexp.of_string(slide.editor.zipper) |> Zipper.t_of_sexp;
       let selection = z.selection;
       let (l, _) = z.relatives.siblings;
       check(segment, "Selection content is empty", [], selection.content);
