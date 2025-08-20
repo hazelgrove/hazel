@@ -243,6 +243,8 @@ and Exp: {
         | TupLabel(label, e) =>
           TupLabel(exp_map_term(label), exp_map_term(e))
         | Tuple(xs) => Tuple(List.map(exp_map_term, xs))
+        | TupleExtension(e1, e2) =>
+          TupleExtension(exp_map_term(e1), exp_map_term(e2))
         | Dot(e1, e2) => Dot(exp_map_term(e1), exp_map_term(e2))
         | Let(p, e1, e2) =>
           Let(pat_map_term(p), exp_map_term(e1), exp_map_term(e2))
@@ -377,6 +379,8 @@ and Exp: {
       fast_equal(e1, e3) && fast_equal(e2, e4)
     | (Dot(e1, e2), Dot(e3, e4)) =>
       fast_equal(e1, e3) && fast_equal(e2, e4)
+    | (TupleExtension(e1, e2), TupleExtension(e3, e4)) =>
+      fast_equal(e1, e3) && fast_equal(e2, e4)
     | (Invalid(_), _)
     | (Deferral(_), _)
     | (Atom(_), _)
@@ -388,6 +392,7 @@ and Exp: {
     | (TypFun(_), _)
     | (Tuple(_), _)
     | (TupLabel(_), _)
+    | (TupleExtension(_), _)
     | (Dot(_), _)
     | (Var(_), _)
     | (Let(_), _)
@@ -880,12 +885,12 @@ and Environment: {
   include
      (module type of VarBstMap.Ordered) with
       type t_('a) = VarBstMap.Ordered.t_('a);
-
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = environment_t;
   let pp: (Format.formatter, t) => unit;
 } = {
   include VarBstMap.Ordered;
-
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = environment_t;
 
   [@deriving show({with_path: false})]
