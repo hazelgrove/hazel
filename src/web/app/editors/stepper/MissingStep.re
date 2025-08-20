@@ -43,6 +43,13 @@ module Model = {
     |> Calc.saved_to_option
     |> Option.join
     |> OptUtil.get(() => EmptyHole |> Exp.fresh);
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type persistent = unit;
+
+  let persist = (_: t): persistent => ();
+
+  let unpersist = (_: persistent): t => init;
 };
 
 module Update = {
@@ -276,7 +283,7 @@ module View = {
     | AddInduction(option(Exp.t))
     | AddForall
     | HideStepper
-    | AddAxiomStep(string, Exp.t, Exp.t)
+    | AddAxiomStep(string, int, Exp.t, Exp.t)
     | MakeActive(Selection.t);
 
   let get_segment_bounds = (~measured: Measured.t, segment: Segment.t) => {
@@ -340,6 +347,11 @@ module View = {
                   signal(
                     AddAxiomStep(
                       "axiom step",
+                      ProofHacks.exp_idx(
+                        Model.get_selected_exp(model),
+                        model.full_exp
+                        |> Calc.get_saved_exc(~print="full_exp"),
+                      ),
                       Model.get_selected_exp(model),
                       exp,
                     ),
@@ -545,6 +557,11 @@ module View = {
                               signal(
                                 AddAxiomStep(
                                   "rewrite",
+                                  ProofHacks.exp_idx(
+                                    unboxed_selected_exp,
+                                    model.full_exp
+                                    |> Calc.get_saved_exc(~print="full_exp"),
+                                  ),
                                   unboxed_selected_exp,
                                   unboxed_cached_exp,
                                 ),
