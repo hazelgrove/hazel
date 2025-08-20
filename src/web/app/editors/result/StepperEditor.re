@@ -11,6 +11,7 @@ module Model = {
     // Read-only
     taken_steps: list(Id.t),
     next_steps: list(Id.t),
+    refls: list(Id.t),
   };
 };
 
@@ -27,6 +28,7 @@ module Update = {
       editor,
       taken_steps: model.taken_steps,
       next_steps: model.next_steps,
+      refls: model.refls,
     };
   };
 
@@ -38,7 +40,7 @@ module Update = {
         ~is_edited,
         ~stitch,
         ~dynamics: Language.Dynamics.Map.t,
-        {editor, taken_steps, next_steps}: Model.t,
+        {editor, taken_steps, next_steps, refls}: Model.t,
       )
       : Model.t => {
     let editor =
@@ -54,6 +56,7 @@ module Update = {
       editor,
       taken_steps,
       next_steps,
+      refls,
     };
   };
 };
@@ -70,7 +73,8 @@ module Selection = {
 module View = {
   type event =
     | MakeActive
-    | TakeStep(int);
+    | TakeStep(int)
+    | Refl(int);
 
   let view =
       (
@@ -89,7 +93,8 @@ module View = {
         });
       overlays
       @ Deco.taken_steps(model.taken_steps)
-      @ Deco.next_steps(model.next_steps, ~inject=x => signal(TakeStep(x)));
+      @ Deco.next_steps(model.next_steps, ~inject=x => signal(TakeStep(x)))
+      @ Deco.refl_steps(model.refls, ~inject=x => signal(Refl(x)));
     };
     CodeSelectable.View.view(
       ~signal=
