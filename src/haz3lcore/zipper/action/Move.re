@@ -2,62 +2,24 @@ open Zipper;
 open Util;
 open OptUtil.Syntax;
 
-/* A label and an index into that label, representing a delimiter */
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
-type indexed = option((int, Label.t));
-
-/* The index of a delimiter and its maximum internal caret position */
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
-type token_info = option((int, int));
-
-let piece_neighbor = (d: Direction.t, p: Piece.t): indexed =>
-  switch (p) {
-  | Tile(t) => Some((Tile.shard_on_side(Direction.toggle(d), t), t.label))
-  | Secondary(w) => Some((0, [Secondary.get_string(w.content)]))
-  | Grout(_) => None
-  | Projector(_) => None
-  };
-
-let ancestor_neighbor = (d: Direction.t, ancestors: Ancestors.t): indexed => {
-  let+ {shards: (l, r), label, _} = Ancestors.parent(ancestors);
-  switch (d) {
-  | Left => (ListUtil.last(l), label)
-  | Right => (List.hd(r), label)
-  };
-};
-
-let indexes = ((delim_idx: int, label: Label.t)): token_info => {
-  assert(delim_idx < List.length(label));
-  let char_max = Token.length(List.nth(label, delim_idx)) - 2;
-  char_max < 0 ? None : Some((delim_idx, char_max));
-};
-
-let nhbr = (d: Direction.t, r: Relatives.t): indexed =>
-  switch (Siblings.neighbor(d, r.siblings)) {
-  | Some(p) => piece_neighbor(d, p)
-  | None => ancestor_neighbor(d, r.ancestors)
-  };
-
 let move_by_char_left = (z: t): option(t) =>
-  switch (z.caret, Option.bind(nhbr(Left, z.relatives), indexes)) {
-  | (Outer, None) => z |> move(Left)
-  | (Outer, Some((delim_init, char_max))) =>
-    z |> set_caret(Inner(delim_init, char_max)) |> move(Left)
-  | (Inner(_, char), None | Some((_, _))) when char == 0 =>
-    z |> set_caret(Outer) |> Option.some
-  | (Inner(delim, char), None | Some(_)) =>
-    z |> set_caret(Inner(delim, char - 1)) |> Option.some
+  switch (z.caret, Caret.nhbr_max_idx(Left, z)) {
+  | (Outer, None) => move(Left, z)
+  | (Outer, Some(max_idx)) => z |> Caret.set(Inner(max_idx)) |> move(Left)
+  | (Inner(char), None | Some(_)) when char == 0 =>
+    z |> Caret.set(Outer) |> Option.some
+  | (Inner(char), None | Some(_)) =>
+    z |> Caret.set(Inner(char - 1)) |> Option.some
   };
 
 let move_by_char_right = (z: t): option(t) =>
-  switch (z.caret, Option.bind(nhbr(Right, z.relatives), indexes)) {
-  | (Outer, None) => z |> move(Right)
-  | (Outer, Some((delim_init, _))) =>
-    z |> set_caret(Inner(delim_init, 0)) |> Option.some
-  | (Inner(_, char), Some((_, char_max))) when char == char_max =>
-    z |> set_caret(Outer) |> move(Right)
-  | (Inner(delim, char), None | Some(_)) =>
-    z |> set_caret(Inner(delim, char + 1)) |> Option.some
+  switch (z.caret, Caret.nhbr_max_idx(Right, z)) {
+  | (Outer, None) => move(Right, z)
+  | (Outer, Some(_)) => z |> Caret.set(Inner(0)) |> Option.some
+  | (Inner(char), Some(max_idx)) when char == max_idx =>
+    z |> Caret.set(Outer) |> move(Right)
+  | (Inner(char), None | Some(_)) =>
+    z |> Caret.set(Inner(char + 1)) |> Option.some
   };
 
 let move_by_char = (d: Direction.t, z: t): option(t) =>
@@ -70,7 +32,7 @@ let move_by_token = (d: Direction.t, z: t): option(t) =>
   switch (z.caret) {
   | Outer => move(d, z)
   | Inner(_) =>
-    let z = set_caret(Outer, z);
+    let z = Caret.set(Outer, z);
     switch (d) {
     | Left => Some(z)
     | Right => move(Right, z)
@@ -92,7 +54,7 @@ module type S = {
 };
 
 module Make = (M: S) => {
-  let caret_point = Zipper.caret_point(M.measured);
+  let caret_point = Zipper.Caret.point(M.measured);
   let primary = primary;
   let is_at_side_of_row = (d: Direction.t, z: Zipper.t) => {
     let Point.{row, col} = caret_point(z);

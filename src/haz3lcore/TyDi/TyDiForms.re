@@ -97,29 +97,29 @@ module Typ = {
 /* Automatically collates most delimiters from Forms, notably all
  * mono delimiters, all infix operators, and all leading delimiters */
 module Delims = {
-  let delayed_leading = (sort: Sort.t): list(Token.t) =>
+  let leading = (sort: Sort.t): list(Token.t) =>
     Form.delims
     |> List.map(token => {
-         let (lbl, _) = Molds.delayed_expansion(token);
+         let (lbl, _) = Form.Expansion.get(token);
          List.filter_map(
            (m: Mold.t) =>
              List.length(lbl) > 1 && token == List.hd(lbl) && m.out == sort
                ? Some(token ++ leading_expander) : None,
-           Molds.get(lbl),
+           Form.Molds.get(lbl),
          );
        })
     |> List.flatten
     |> List.sort_uniq(compare);
 
-  let delated_leading_exp = delayed_leading(Exp);
-  let delated_leading_pat = delayed_leading(Pat);
-  let delated_leading_typ = delayed_leading(Typ);
+  let leading_exp = leading(Exp);
+  let leading_pat = leading(Pat);
+  let leading_typ = leading(Typ);
 
-  let delayed_leading = (sort: Sort.t): list(string) =>
+  let leading = (sort: Sort.t): list(string) =>
     switch (sort) {
-    | Exp => delated_leading_exp
-    | Pat => delated_leading_pat
-    | Typ => delated_leading_typ
+    | Exp => leading_exp
+    | Pat => leading_pat
+    | Typ => leading_typ
     | _ => []
     };
 
@@ -129,7 +129,7 @@ module Delims = {
          List.filter_map(
            (m: Mold.t) =>
              m.out == sort && Mold.is_infix_op(m) ? Some(token) : None,
-           switch (List.assoc_opt([token], Molds.forms_assoc)) {
+           switch (Form.Molds.compound([token])) {
            | Some(molds) => molds
            | None => []
            },
@@ -149,13 +149,13 @@ module Delims = {
     };
 
   let const_mono = (sort: Sort.t): list(Token.t) =>
-    Form.const_mono_delims
+    Token.const_mono_delims
     |> List.map(token => {
          List.filter_map(
            (m: Mold.t) =>
-             m.out == sort && List.mem(token, Form.const_mono_delims)
+             m.out == sort && List.mem(token, Token.const_mono_delims)
                ? Some(token) : None,
-           Molds.get([token]),
+           Form.Molds.get([token]),
          )
        })
     |> List.flatten
@@ -220,4 +220,4 @@ let suggest_operand: Info.t => list(TyDiSuggestion.t) =
   suggest_form(Typ.of_const_mono_delim, Delims.const_mono);
 
 let suggest_leading: Info.t => list(TyDiSuggestion.t) =
-  suggest_form(Typ.of_leading_delim, Delims.delayed_leading);
+  suggest_form(Typ.of_leading_delim, Delims.leading);
