@@ -54,7 +54,7 @@ module Make = (M: Move.S) => {
   };
 
   let term = (id: Id.t, z: Zipper.t): option(Zipper.t) => {
-    let* (l, r) = TermRanges.find_opt(id, M.term_ranges);
+    let (l, r) = TermData.extremes(id, M.term_data);
     range(Piece.id(l), Piece.id(r), z);
   };
 
