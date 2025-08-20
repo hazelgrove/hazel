@@ -14,6 +14,12 @@ let code_box_container = x =>
 let code = (code: string): Node.t =>
   div(~attrs=[clss(["code"])], [text(code)]);
 
+let label_view = (label: string): Node.t =>
+  div(
+    ~attrs=[clss(["code"])],
+    [text(Haz3lcore.Form.quote_label_when_necessary(label))],
+  );
+
 let cls_view = (ci: Info.t): Node.t => {
   let cls = ci |> Info.cls_of;
 
@@ -24,8 +30,7 @@ let cls_view = (ci: Info.t): Node.t => {
         switch (cls) {
         | Typ(EmptyHole)
         | Exp(EmptyHole)
-        | Pat(EmptyHole) =>
-          Info.is_label(ci) ? "Empty Label" : Cls.show(cls)
+        | Pat(EmptyHole) => Info.is_label(ci) ? "Label Hole" : Cls.show(cls)
         | cls => cls |> Cls.show
         },
       ),
@@ -66,7 +71,8 @@ let elements_noun: Cls.t => string =
   | Exp(Match | If) => "Branches"
   | Exp(ListLit)
   | Pat(ListLit) => "Elements"
-  | Exp(ListConcat) => "Operands"
+  | Exp(ListConcat)
+  | Exp(BinOp(Poly(Equals))) => "Operands"
   | cls =>
     failwith("elements_noun: " ++ Cls.show(cls) ++ " cls has no elements");
 
@@ -117,7 +123,26 @@ let common_err_view =
       ]
     | NoType(FreeConstructor(name)) => [code(name), text("not found")]
 
-    | NoType(InvalidLabel(name)) => [text("Invalid label:"), code(name)]
+    | NoType(InvalidLabel(name, expected_labels)) =>
+      switch (expected_labels) {
+      | [] => [
+          text("Invalid label: "),
+          label_view(name),
+          text(". No labels were expected."),
+        ]
+      | _ => [
+          text("Invalid label: "),
+          label_view(name),
+          text(" is not part of the expected labels: "),
+          ...List.map(code, expected_labels),
+        ]
+      }
+    | NoType(UnexpectedLabelSort(name)) => [
+        text("Label "),
+        label_view(name),
+        text(" is here, but another sort is expected."),
+      ]
+
     | TupleLabelError({malformed_labels, duplicate_labels, invalid_labels, _}) =>
       (
         List.is_empty(malformed_labels)
@@ -140,7 +165,14 @@ let common_err_view =
           ? []
           : [text("Invalid labels: "), ...List.map(code, invalid_labels)]
       )
-    | DuplicateLabel(name, _) => [text("Duplicate Label:"), code(name)]
+    | DuplicateLabel(name, _) => [
+        text("Duplicate Label:"),
+        label_view(name),
+      ]
+    | Inconsistent(CompareFun(ty)) => [
+        text("values cannot be compared:"),
+        view_type(ty),
+      ]
     | Inconsistent(WithArrow(typ)) => [
         text(":"),
         view_type(typ) |> code_box_container,
@@ -189,7 +221,7 @@ let common_err_view =
   @ (
     switch (inferred_label) {
     | None => []
-    | Some(l) => [text(" for label "), code(l)]
+    | Some(l) => [text(" for label "), label_view(l)]
     }
   );
 };
@@ -225,7 +257,7 @@ let common_ok_view =
       ]
     | (_, Syn(syn)) =>
       switch (syn.term) {
-      | Label(l) => [code(l)]
+      | Label(l) => [label_view(l)]
       | _ => [text(":"), view_type(syn)]
       }
     | (Pat(Var) | Pat(Wild), Ana(Consistent({ana, _}))) => [
@@ -235,7 +267,7 @@ let common_ok_view =
     | (_, Ana(Consistent({ana, syn, _})))
         when Typ.fast_equal(~alpha_equivalence=false, ana, syn) =>
       switch (syn.term) {
-      | Label(l) => [code(l), text(" is a valid label")]
+      | Label(l) => [label_view(l), text(" is a valid label")]
       | _ =>
         [text(":"), view_type(syn)]
         @ [text("equals expected type")]
@@ -248,12 +280,12 @@ let common_ok_view =
         @ (
           switch (introduced_labels) {
           | [] => []
-          | [a] => [text("by automatically adding label "), code(a)]
+          | [a] => [text("by automatically adding label "), label_view(a)]
           | _ => [
               text("by automatically adding labels "),
               ...ListUtil.join(
                    text(","),
-                   List.map(code, introduced_labels),
+                   List.map(label_view, introduced_labels),
                  ),
             ]
           }
@@ -286,10 +318,13 @@ let common_ok_view =
       @ (
         switch (introduced_labels) {
         | [] => []
-        | [a] => [text("by automatically adding label "), code(a)]
+        | [a] => [text("by automatically adding label "), label_view(a)]
         | _ => [
             text("by automatically adding labels "),
-            ...ListUtil.join(text(","), List.map(code, introduced_labels)),
+            ...ListUtil.join(
+                 text(","),
+                 List.map(label_view, introduced_labels),
+               ),
           ]
         }
       )
@@ -310,7 +345,7 @@ let common_ok_view =
   @ (
     switch (inferred_label) {
     | None => []
-    | Some(l) => [text(" for label "), code(l)]
+    | Some(l) => [text(" for label "), label_view(l)]
     }
   );
 };
@@ -357,13 +392,12 @@ let typ_err_view = (~globals, ok: Info.error_typ) => {
   | WantConstructorFoundAp
   | WantConstructorFoundType(_) => [text("Expected a constructor")]
   | WantTypeFoundAp => [text("Must be part of a sum type")]
-  | WantTuple => [text("Expect a valid tuple")]
   | WantLabel => [text("Expect a valid label")]
   | DuplicateLabels(labels, _) => [
       text("Duplicate labels within tuple: "),
-      ...List.map(code, labels),
+      ...List.map(label_view, labels),
     ]
-  | Duplicate(name, _) => [text("Duplicate Label: "), code(name)]
+  | Duplicate(name, _) => [text("Duplicate Label: "), label_view(name)]
   | DuplicateConstructor(name) => [
       view_type(Var(name) |> Typ.fresh),
       text("already used in this sum"),
@@ -440,6 +474,37 @@ let rec exp_view =
         ++ " arguments",
       ),
     ])
+  | InHole(BuiltinError(e)) =>
+    switch (e) {
+    | MissingLabels(labels) =>
+      div_err([
+        text("Labels not present in tuple: "),
+        ...List.map(label_view, labels),
+      ])
+    | ToLvsMissingLabelsOnTuple(_) =>
+      div_err([
+        text(
+          "All entries in the argument must have labels, but some were not provided",
+        ),
+      ])
+    | ProjectLabelsMissingLabels(labels) =>
+      div_err([
+        text("Projected tuple does not have the following labels: "),
+        ...List.map(label_view, labels),
+      ])
+    | ArgumentMustBeTuple => div_err([text("Argument must be a tuple")])
+    | AtLeast2Arguments =>
+      div_err([text("Must have 2 or more direct arguments")])
+    | Exactly2Arguments =>
+      div_err([text("Must have exactly 2 direct arguments")])
+    | ArgumentMustBeListOfTuples =>
+      div_err([text("First argument must be a list of labeled tuples")])
+    | PivotLabelIsNotString(ty) =>
+      div_err([
+        text("Pivot column must be a string, but got: "),
+        view_type(ty),
+      ])
+    }
   | InHole(InvalidUseMode({bad_typ, _})) =>
     div_err([
       text("Cannot use type "),
@@ -453,7 +518,9 @@ let rec exp_view =
       text("inconsistent with"),
       view_type(Prod([]) |> Typ.fresh),
     ])
-  | InHole(WantTuple) =>
+  | InHole(TupleExtensionRequiresTuples) =>
+    div_err([text("Tuple extension requires tuple")])
+  | InHole(DotOperatorRequiresTuple) =>
     div_err([text("Requires tuple for first argument")])
   | InHole(Common(error)) =>
     div_err(
@@ -477,9 +544,9 @@ let rec exp_view =
   | InHole(LabelNotFound(name, labels)) =>
     div_err([
       text("Label "),
-      code(name),
+      label_view(name),
       text(" not found in tuple's labels: "),
-      ...List.map(code, labels),
+      ...List.map(label_view, labels),
     ])
   | InHole(BadLivelitModel(_)) =>
     div_err([text("Bad internal livelit model")])

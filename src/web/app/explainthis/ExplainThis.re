@@ -1978,6 +1978,22 @@ let get_doc =
             ),
           ListExp.listcons,
         );
+      | TupleExtension(x, y) =>
+        let x_id = List.nth(IdTagged.ids(x), 0);
+        let y_id = List.nth(IdTagged.ids(y), 0);
+        get_message(
+          ~colorings=TupleExp.tuple_extension_exp_coloring_ids(~x_id, ~y_id),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s%s"),
+                  Id.to_string(x_id),
+                  Id.to_string(y_id),
+                ),
+            ),
+          TupleExp.tuple_extensions,
+        );
       | ListConcat(xs, ys) =>
         let xs_id = List.nth(IdTagged.ids(xs), 0);
         let ys_id = List.nth(IdTagged.ids(ys), 0);
@@ -2067,12 +2083,6 @@ let get_doc =
               int_greater_than_equal,
               int_gte_exp_coloring_ids,
             )
-          | Nat(Equals)
-          | SInt(Equals)
-          | Int(Equals) => (int_equal, int_eq_exp_coloring_ids)
-          | Nat(NotEquals)
-          | SInt(NotEquals)
-          | Int(NotEquals) => (int_not_equal, int_neq_exp_coloring_ids)
           | Float(Plus) => (float_plus, float_plus_exp_coloring_ids)
           | Float(Minus) => (float_minus, float_minus_exp_coloring_ids)
           | Float(Times) => (float_times, float_times_exp_coloring_ids)
@@ -2097,6 +2107,8 @@ let get_doc =
           | Bool(Or) => (bool_or, bool_or_exp_coloring_ids)
           | String(Equals) => (string_equal, str_eq_exp_coloring_ids)
           | String(Concat) => (string_concat, str_concat_exp_coloring_ids)
+          | Poly(Equals) => (poly_equal, poly_eq_exp_coloring_ids)
+          | Poly(NotEquals) => (poly_not_equal, poly_neq_exp_coloring_ids)
           };
         let left_id = List.nth(IdTagged.ids(left), 0);
         let right_id = List.nth(IdTagged.ids(right), 0);

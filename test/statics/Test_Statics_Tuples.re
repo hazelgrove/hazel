@@ -2,9 +2,78 @@ open Alcotest;
 open Test_Statics_Prelude;
 open FTemp;
 open Typ;
+module TupleExtension = {
+  let tests = [
+    fully_consistent_typecheck(
+      "Tuple extension",
+      {|(a=0, 1, b=2) ... (a=1, 3, c=4)|},
+      Some(
+        prod([
+          tup_label(label("a"), int()),
+          int(),
+          tup_label(label("b"), int()),
+          int(),
+          tup_label(label("c"), int()),
+        ]),
+      ),
+    ),
+    fully_consistent_typecheck(
+      "Tuple extension with type alias",
+      {|type Person = (name=String, age=Int) in
+        type Date = (year=Int, month=Int, day=Int) in
 
+        let p : Person = in
+        let d : Date = in
+        p ... d|},
+      Some(
+        prod([
+          tup_label(label("name"), string()),
+          tup_label(label("age"), int()),
+          tup_label(label("year"), int()),
+          tup_label(label("month"), int()),
+          tup_label(label("day"), int()),
+        ]),
+      ),
+    ),
+    test_case("Tuple extension with non-tuple args", `Quick, () =>
+      annotated_tree_test(
+        "1 ... 2",
+        unknown(Internal),
+        FIError.(
+          Exp.(
+            tuple_extension(
+              int(~ann=Some(Exp(TupleExtensionRequiresTuples)), 1),
+              int(~ann=Some(Exp(TupleExtensionRequiresTuples)), 2),
+            )
+          )
+        ),
+      )
+    ),
+    test_case("Tuple extension with hole", `Quick, () =>
+      annotated_tree_test(
+        "? ... (3, 4)",
+        unknown(Internal),
+        FIError.Exp.(
+          tuple_extension(empty_hole(), tuple([int(3), int(4)]))
+        ),
+      )
+    ),
+    test_case("Tuple extension with hole in label position", `Quick, () =>
+      annotated_tree_test(
+        "(?=1, 2) ... (3, 4)",
+        prod([tup_label(empty_hole(), int()), int(), int(), int()]),
+        FIError.Exp.(
+          tuple_extension(
+            tuple([tup_label(empty_hole(), int(1))]),
+            tuple([int(2), int(3), int(4)]),
+          )
+        ),
+      )
+    ),
+  ];
+};
 let tests = (
-  "Statics.LabeledTuple",
+  "Statics.Tuples",
   [
     test_case(
       "Typechecking fails for unlabeled variable being assigned to labeled tuple",
@@ -66,41 +135,6 @@ let tests = (
         ),
       )
     }),
-    test_case(
-      "Typechecking fails for unlabeled variable being assigned to labeled tuple",
-      `Quick,
-      () => {
-      annotated_tree_test(
-        "let y : String = true",
-        string(),
-        FIError.(
-          Exp.(
-            let_(
-              Pat.(asc(var("y"), Typ.(string()))),
-              bool(
-                ~ann=
-                  Some(
-                    FTemp.Typ.(
-                      Exp(
-                        Common(
-                          Inconsistent(
-                            Expectation({
-                              ana: string(),
-                              syn: bool(),
-                            }),
-                          ),
-                        ),
-                      )
-                    ),
-                  ),
-                true,
-              ),
-              var("y"),
-            )
-          )
-        ),
-      )
-    }),
     fully_consistent_typecheck(
       "Assigning labeled tuple to variable",
       "let x = (l=32) in let y : (l=Int) = x in y",
@@ -152,7 +186,7 @@ let tests = (
       )
     }),
     fully_consistent_typecheck(
-      "Singleton Labled Tuple with specified label",
+      "Singleton Labeled Tuple with specified label",
       "let x : (l=String) = (l=\"a\") in x",
       Some(prod([tup_label(label("l"), string())])),
     ),
@@ -317,7 +351,14 @@ let tests = (
                           ),
                         ),
                       label(
-                        ~ann=Some(Exp(Common(NoType(InvalidLabel("z"))))),
+                        ~ann=
+                          Some(
+                            Exp(
+                              Common(
+                                NoType(InvalidLabel("z", ["a", "b"])),
+                              ),
+                            ),
+                          ),
                         "z",
                       ),
                       string("hello"),
@@ -520,7 +561,19 @@ let tests = (
                             ),
                           ),
                         ),
-                      [Exp(label("1"))],
+                      [
+                        Exp(
+                          label(
+                            ~ann=
+                              Some(
+                                Exp(
+                                  Common(NoType(UnexpectedLabelSort("1"))),
+                                ),
+                              ), // Has UnexpectedLabelSort because the label is wrapped in a multi-hole
+                            "1",
+                          ),
+                        ),
+                      ],
                     ),
                     string("hello"),
                   ),
@@ -694,7 +747,11 @@ let tests = (
                           ),
                         label(
                           ~ann=
-                            Some(Exp(Common(NoType(InvalidLabel("c"))))),
+                            Some(
+                              Exp(
+                                Common(NoType(InvalidLabel("c", ["a"]))),
+                              ),
+                            ),
                           "c",
                         ),
                         int(1),
@@ -750,5 +807,45 @@ let tests = (
         ),
       )
     }),
-  ],
+    fully_consistent_typecheck(
+      "Projection from list of labeled tuples",
+      {|[(a=1, b=false), (a=2, b=true)].a|},
+      Some(list(int())),
+    ),
+    fully_consistent_typecheck(
+      "Projection of labeled tuple with annotation",
+      {|((a=1) : (a=Int)).a|},
+      Some(int()),
+    ),
+    fully_consistent_typecheck(
+      "Projection of labeled tuple list with annotation",
+      {|([(a=1)] : [(a=Int)]).a|},
+      Some(list(int())),
+    ),
+    test_case("Label not in tuple", `Quick, () => {
+      annotated_tree_test(
+        {|'a'|},
+        unknown(Internal),
+        FIError.(
+          Exp.(
+            label(
+              ~ann=Some(Exp(Common(NoType(UnexpectedLabelSort("a"))))),
+              "a",
+            )
+          )
+        ),
+      )
+    }),
+    fully_consistent_typecheck(
+      "Projection of unknown",
+      {|((a=1) : ?) .a|},
+      Some(unknown(Internal)),
+    ),
+    fully_consistent_typecheck(
+      "Projection of list of unknown",
+      {|([(a=1) : ?]).a|},
+      Some(list(unknown(Internal))),
+    ),
+  ]
+  @ TupleExtension.tests,
 );

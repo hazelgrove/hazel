@@ -189,6 +189,9 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
     | Invalid(_)
     | Undefined
     | EmptyHole => uexp
+    | MultiHole([Exp(e1), Exp(e2)]) =>
+      /* Treat two-expression multiholes as seqs */
+      Seq(fst(elaborate(m, e1)), fst(elaborate(m, e2))) |> rewrap
     | MultiHole(stuff) =>
       Any.map_term(
         ~f_exp=(_, exp) => {elaborate(m, exp) |> fst},
@@ -348,7 +351,8 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       DeferredAp(f', args') |> rewrap;
     | TypAp(e, ut) =>
       let (e', _) = elaborate(m, e);
-      TypAp(e', ut) |> rewrap;
+      let ut' = Typ.normalize(ctx, ut);
+      TypAp(e', ut') |> rewrap;
     | If(c, t, f) =>
       let (c', _) = elaborate(m, c);
       let (t', t_ty) = elaborate(m, t);
@@ -416,6 +420,10 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let (e1', _) = elaborate(m, e1);
       let (e2', _) = elaborate(m, e2);
       BinOp(op, e1', e2') |> rewrap;
+    | TupleExtension(e1, e2) =>
+      let (e1', _) = elaborate(m, e1);
+      let (e2', _) = elaborate(m, e2);
+      TupleExtension(e1', e2') |> rewrap;
     | BuiltinFun(_) => uexp
     | Match(e, cases) =>
       let (e', _) = elaborate(m, e);
