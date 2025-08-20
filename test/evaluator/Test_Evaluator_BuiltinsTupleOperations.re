@@ -233,10 +233,10 @@ filter@<(label=String, value=Bool)>(fun a,b ->b, lvs).label|};
       },
     ),
     test_case(
-      "Drop labels to singleton",
+      "Omit all labels to singleton",
       `Quick,
       () => {
-        let program = {|drop_labels((a=1))|};
+        let program = {|omit_all_labels((a=1))|};
         check(
           dhexp_typ,
           program,

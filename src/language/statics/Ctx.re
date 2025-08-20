@@ -5,7 +5,7 @@ type custom_statics =
   | ToLvs
   | ProjectLabels
   | OmitLabels
-  | DropLabels
+  | OmitAllLabels
   | GroupByLabel
   | SelectLabels;
 

@@ -1275,66 +1275,68 @@ module OmitLabels = {
   ];
 };
 
-module DropLabels = {
+module OmitAllLabels = {
   let tests = [
     fully_consistent_typecheck(
-      "Drop labels with some labels",
-      {|drop_labels((a=1, b=2.0, true, d=""))|},
+      "Omit all labels with some labels",
+      {|omit_all_labels((a=1, b=2.0, true, d=""))|},
       Some(prod([int(), float(), bool(), string()])),
     ),
     fully_consistent_typecheck(
-      "drop_labels to singleton",
-      {|drop_labels((a=1))|},
+      "omit_all_labels to singleton",
+      {|omit_all_labels((a=1))|},
       Some(int()),
     ),
     fully_consistent_typecheck(
-      "Drop labels with type alias and autolabels",
+      "Omit all labels with type alias and autolabels",
       {|type Entry =(name=String, age=Int, quiz1=Int, quiz2=Int, midterm=Int, quiz3=Int, quiz4=Int, final=Int) in
-        drop_labels(("bob",   12, 8, 9, 77, 7, 9, 87) : Entry)|},
+        omit_all_labels(("bob",   12, 8, 9, 77, 7, 9, 87) : Entry)|},
       Some(
         prod([string(), int(), int(), int(), int(), int(), int(), int()]),
       ),
     ),
-    test_case("Drop labels operation with no labels", `Quick, () =>
+    test_case("Omit all labels operation with no labels", `Quick, () =>
       annotated_tree_test(
-        "drop_labels(1, 2)",
+        "omit_all_labels(1, 2)",
         prod([int(), int()]),
         FIError.Exp.(
-          ap(Forward, var("drop_labels"), tuple([int(1), int(2)]))
+          ap(Forward, var("omit_all_labels"), tuple([int(1), int(2)]))
         ),
       )
     ),
-    test_case("Drop labels applied to non-tuple", `Quick, () =>
+    test_case("Omit all labels applied to non-tuple", `Quick, () =>
       annotated_tree_test(
-        "drop_labels(1)",
+        "omit_all_labels(1)",
         unknown(Internal),
         FIError.Exp.(
           ap(
             ~ann=Some(Exp(BuiltinError(ArgumentMustBeTuple))),
             Forward,
-            var("drop_labels"),
+            var("omit_all_labels"),
             int(1),
           )
         ),
       )
     ),
     test_case(
-      "Drop labels operation applied to value with unknown type", `Quick, () =>
+      "Omit all labels operation applied to value with unknown type",
+      `Quick,
+      () =>
       annotated_tree_test(
-        "drop_labels(?)",
+        "omit_all_labels(?)",
         unknown(Internal),
-        FIError.Exp.(ap(Forward, var("drop_labels"), empty_hole())),
+        FIError.Exp.(ap(Forward, var("omit_all_labels"), empty_hole())),
       )
     ),
     test_case(
-      "Drop labels operation with hole in tuple label position", `Quick, () =>
+      "Omit all labels operation with hole in tuple label position", `Quick, () =>
       annotated_tree_test(
-        "drop_labels((?=1, b=2, c=3))",
+        "omit_all_labels((?=1, b=2, c=3))",
         prod([int(), int(), int()]),
         FIError.Exp.(
           ap(
             Forward,
-            var("drop_labels"),
+            var("omit_all_labels"),
             tuple([
               tup_label(empty_hole(), int(1)),
               tup_label(label("b"), int(2)),
@@ -1367,5 +1369,5 @@ let tests =
   @ SelectLabels.tests
   @ GroupByLabel.tests
   @ OmitLabels.tests
-  @ DropLabels.tests
+  @ OmitAllLabels.tests
   @ FromLvs.tests;

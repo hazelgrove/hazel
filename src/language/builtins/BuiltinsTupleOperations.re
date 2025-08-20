@@ -255,7 +255,7 @@ let builtins: list(BuiltinsUtil.fn) = [
     custom_statics: Some(OmitLabels),
   },
   {
-    name: "drop_labels",
+    name: "omit_all_labels",
     arg: Unknown(Internal),
     ret: Unknown(Internal),
     imp: d => {
@@ -263,6 +263,6 @@ let builtins: list(BuiltinsUtil.fn) = [
       let entries = List.filter_map(((_, e)) => Some(e), entries);
       Some(Exp.to_tuple(entries));
     },
-    custom_statics: Some(DropLabels),
+    custom_statics: Some(OmitAllLabels),
   },
 ];
