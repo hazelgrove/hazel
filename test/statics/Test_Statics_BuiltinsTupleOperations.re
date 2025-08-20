@@ -3,11 +3,11 @@ open Alcotest;
 open FTemp;
 open Typ;
 
-module MeltOperation = {
+module ToLvsOperation = {
   let tests = [
     fully_consistent_typecheck(
-      "Melt operation with elements of the same type",
-      "melt((a=1, b=2, c=3, d=4))",
+      "to_lvs operation with elements of the same type",
+      "to_lvs((a=1, b=2, c=3, d=4))",
       Some(
         list(
           prod([
@@ -18,9 +18,9 @@ module MeltOperation = {
       ),
     ),
     fully_consistent_typecheck(
-      "Melt operation with type alias and autolabels",
+      "to_lvs operation with type alias and autolabels",
       {|type Entry =(name=String, age=Int, quiz1=Int, quiz2=Int, midterm=Int, quiz3=Int, quiz4=Int, final=Int) in
-        melt(("bob",   12, 8, 9, 77, 7, 9, 87) : Entry)|},
+        to_lvs(("bob",   12, 8, 9, 77, 7, 9, 87) : Entry)|},
       Some(
         list(
           prod([
@@ -30,9 +30,9 @@ module MeltOperation = {
         ),
       ),
     ),
-    test_case("Melt operation with missing labels", `Quick, () =>
+    test_case("to_lvs operation with missing labels", `Quick, () =>
       annotated_tree_test(
-        "melt(1, 2)",
+        "to_lvs(1, 2)",
         list(
           prod([
             tup_label(label("label"), string()),
@@ -45,7 +45,7 @@ module MeltOperation = {
               Some(
                 Exp(
                   BuiltinError(
-                    MeltMissingLabelsOnTuple(
+                    ToLvsMissingLabelsOnTuple(
                       Typ.(
                         list(
                           prod([
@@ -59,15 +59,15 @@ module MeltOperation = {
                 ),
               ),
             Forward,
-            var("melt"),
+            var("to_lvs"),
             tuple([int(1), int(2)]),
           )
         ),
       )
     ),
-    test_case("Melt operation applied to non-tuple", `Quick, () =>
+    test_case("to_lvs operation applied to non-tuple", `Quick, () =>
       annotated_tree_test(
-        "melt(1)",
+        "to_lvs(1)",
         list(
           prod([
             tup_label(label("label"), string()),
@@ -80,7 +80,7 @@ module MeltOperation = {
               Some(
                 Exp(
                   BuiltinError(
-                    MeltMissingLabelsOnTuple(
+                    ToLvsMissingLabelsOnTuple(
                       Typ.(
                         list(
                           prod([
@@ -94,27 +94,29 @@ module MeltOperation = {
                 ),
               ),
             Forward,
-            var("melt"),
+            var("to_lvs"),
             int(1),
           )
         ),
       )
     ),
-    test_case("Melt operation applied to value with unknown type", `Quick, () =>
+    test_case(
+      "to_lvs operation applied to value with unknown type", `Quick, () =>
       annotated_tree_test(
-        "melt(?)",
+        "to_lvs(?)",
         list(
           prod([
             tup_label(label("label"), string()),
             tup_label(label("value"), unknown(Internal)),
           ]),
         ),
-        FIError.Exp.(ap(Forward, var("melt"), empty_hole())),
+        FIError.Exp.(ap(Forward, var("to_lvs"), empty_hole())),
       )
     ),
-    test_case("Melt operation applied to tuple with unknown entry", `Quick, () =>
+    test_case(
+      "to_lvs operation applied to tuple with unknown entry", `Quick, () =>
       annotated_tree_test(
-        "melt((?, b=2))",
+        "to_lvs((?, b=2))",
         list(
           prod([
             tup_label(label("label"), string()),
@@ -124,15 +126,15 @@ module MeltOperation = {
         FIError.Exp.(
           ap(
             Forward,
-            var("melt"),
+            var("to_lvs"),
             tuple([empty_hole(), tup_label(label("b"), int(2))]),
           )
         ),
       )
     ),
-    test_case("Melt operation with hole in tuple label position", `Quick, () =>
+    test_case("to_lvs operation with hole in tuple label position", `Quick, () =>
       annotated_tree_test(
-        "melt((?=1, b=2, c=3))",
+        "to_lvs((?=1, b=2, c=3))",
         list(
           prod([
             tup_label(label("label"), string()),
@@ -142,7 +144,7 @@ module MeltOperation = {
         FIError.Exp.(
           ap(
             Forward,
-            var("melt"),
+            var("to_lvs"),
             tuple([
               tup_label(empty_hole(), int(1)),
               tup_label(label("b"), int(2)),
@@ -1360,7 +1362,7 @@ module FromEntries = {
   ];
 };
 let tests =
-  MeltOperation.tests
+  ToLvsOperation.tests
   @ ProjectLabels.tests
   @ SelectLabels.tests
   @ GroupByLabel.tests

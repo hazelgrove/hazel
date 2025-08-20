@@ -472,7 +472,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          38))(sort Exp))))))(shards(0))(children())))(Secondary((id \
          b7196bab-6879-4607-9c23-dfad033201e0)(content(Whitespace\"\\n\"))))(Secondary((id \
          b7043a43-a650-4964-8fff-91fbf0b5e8ea)(content(Whitespace\"\\n\"))))(Secondary((id \
-         c9bef332-7634-4eec-bbf6-05357802f69d)(content(Comment\"# The melt \
+         c9bef332-7634-4eec-bbf6-05357802f69d)(content(Comment\"# The to_lvs \
          operation on labeled tuples converts them to a list of (label, value) \
          entries. #\"))))(Secondary((id \
          7a6b62c2-419e-48ff-9e4e-b09cd233abc1)(content(Whitespace\"\\n\"))))(Secondary((id \
@@ -662,7 +662,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Exp)(in_())(nibs(((shape(Concave 39))(sort Exp))((shape(Concave \
          39))(sort Exp))))))(shards(0))(children())))(Secondary((id \
          0e9bdc1c-ffe8-485c-b2f9-8f8c3d886d41)(content(Whitespace\"\\n\"))))(Tile((id \
-         1579bb6b-3bce-4f86-9419-2c86c501b9ef)(label(melt))(mold((out \
+         1579bb6b-3bce-4f86-9419-2c86c501b9ef)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          6b8150c9-9cd3-42fd-b0f4-e00ba3e430a3)(label(\"(\"\")\"))(mold((out \
@@ -2322,7 +2322,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          726f9509-78e1-4e54-8717-7f3e3b3a6acd)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          54a378ac-344f-4a71-af5e-e0ee91303bf2)(content(Whitespace\"\\n\"))))(Secondary((id \
-         39a425a1-2ccf-4902-ad8f-6dcfddeea890)(content(Comment\"# Melt the \
+         39a425a1-2ccf-4902-ad8f-6dcfddeea890)(content(Comment\"# to_lvs the \
          grid into a long format table for analysis #\"))))(Secondary((id \
          27597232-2125-45bb-9967-b82f32378083)(content(Whitespace\"\\n\"))))(Tile((id \
          873d02e3-a957-44ae-8c52-f57790384a87)(label(let = in))(mold((out \
@@ -2330,7 +2330,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          40))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
          4bbba14e-3ad8-4f54-8e6e-ce13027ac1af)(content(Whitespace\" \
          \"))))(Tile((id \
-         0e613855-a499-4285-928d-14debb15be8d)(label(melted))(mold((out \
+         0e613855-a499-4285-928d-14debb15be8d)(label(lvs))(mold((out \
          Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
          Pat))))))(shards(0))(children())))(Secondary((id \
          16fd1b9c-4117-4f59-904b-bc30c7d4e7a8)(content(Whitespace\" \
@@ -2529,7 +2529,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \")))))))))(Secondary((id \
          4a9b8b89-074d-497c-924a-f7d2d6a9f653)(content(Whitespace\" \
          \"))))(Tile((id \
-         530ddd01-b50e-413d-90e6-24eadd0a14d6)(label(melt))(mold((out \
+         530ddd01-b50e-413d-90e6-24eadd0a14d6)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          ea752573-124f-4dbb-9417-be95a9925302)(label(\"(\"\")\"))(mold((out \
@@ -2917,7 +2917,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          ed4b1981-1154-4555-818a-73e522837481)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         12dc8bca-8c17-49fe-9403-0b7312cfdf1c)(label(melted))(mold((out \
+         12dc8bca-8c17-49fe-9403-0b7312cfdf1c)(label(lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          3c924b75-1434-4b02-8a7a-e374e8a7bbe5)(label(,))(mold((out \
@@ -3068,7 +3068,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          # Projection over Lists of Labeled Tuples #\n\
          # Pull out all final exam scores using projection over the table #\n\
          ^^probe(gradebook.final);\n\n\
-         # The melt operation on labeled tuples converts them to a list of \
+         # The to_lvs operation on labeled tuples converts them to a list of \
          (label, value) entries. #\n\
          # We can map this over a table to do things like extracting all quiz \
          scores and compute an average. #\n\
@@ -3079,7 +3079,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          fun e: GradebookEntry ->\n\
          let ^^type(with_average) = \n\
          e ... (quiz_average=\n\
-         melt(omit_labels(e, `name`))\n\
+         to_lvs(omit_labels(e, `name`))\n\
          |> filter(_, fun (label, score):^^fold((label=String, value=Int)) -> \
          string_match(\"quiz.*\", label))\n\
          |> map(_, fun e -> e.value)\n\
@@ -3126,11 +3126,11 @@ let out : string * Haz3lcore.PersistentZipper.t =
          (9, ^^check(false), ^^check(true), ^^check(false), ^^check(false), \
          ^^check(true), ^^check(false), ^^check(false), ^^check(false))\n\
          ] in\n\
-         # Melt the grid into a long format table for analysis #\n\
-         let melted : [(label=String, value=Bool)] = flat_map(sightings, fun \
+         # to_lvs the grid into a long format table for analysis #\n\
+         let lvs : [(label=String, value=Bool)] = flat_map(sightings, fun \
          sighting:^^fold((day=Int, fox=Bool, deer=Bool, rabbit=Bool, \
          bear=Bool, owl=Bool, raccoon=Bool, wolf=Bool, moose=Bool)) -> \
-         melt(omit_labels(sighting, `day`))) in\n\
+         to_lvs(omit_labels(sighting, `day`))) in\n\
          let counts : [String] -> [(String, Int)] = ^^fold(fun elems -> case \
          elems\n\
          | [] => []\n\
@@ -3147,7 +3147,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          end) in                  \n\
          # Show counts for each species#\n\
          let sighting_counts =   \n\
-         filter(melted, fun (label=l, value=v) -> v).label\n\
+         filter(lvs, fun (label=l, value=v) -> v).label\n\
          |> sort(fun (a,b) -> string_compare(a,b), _)\n\
          |> counts \n\
          in ^^probe(sighting_counts)";
