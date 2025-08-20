@@ -37,6 +37,13 @@ module Update = {
     | MainEditor(CodeEditable.Update.t)
     | ResultAction(EvalResult.Update.t);
 
+  let can_undo = (action: t) => {
+    switch (action) {
+    | MainEditor(action) => CodeEditable.Update.can_undo(action)
+    | ResultAction(action) => EvalResult.Update.can_undo(action)
+    };
+  };
+
   let update = (~settings, action, model: Model.t) => {
     switch (action) {
     | MainEditor(action) =>

@@ -179,15 +179,15 @@ module Transition = (EV: EV_MODE) => {
             ClosureEnvironment.t,
             DHExp.t
           ) =>
-          EV.result,
+          'a,
         ~mode: [
            | `Substitution
            | `Environment
          ],
-        ~in_closure: option(unit => unit)=?,
-        state: state,
-        env: TermBase.closure_environment_t, // Empty in substitution mode
-        d: t,
+        ~in_closure=?,
+        state,
+        env, // Empty in substitution mode
+        d,
       )
       : EV.result => {
     // Split DHExp into term and id information
@@ -266,7 +266,7 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d);
       let.wrap_closure _ = env;
       Value;
-    | FixF(dp, d1, None) =>
+    | FixF(dp, d1, None) when mode == `Environment =>
       let. _ = otherwise(env, FixF(dp, d1, None) |> rewrap);
       Step({
         expr: FixF(dp, d1, Some(env)) |> rewrap,
@@ -274,16 +274,22 @@ module Transition = (EV: EV_MODE) => {
         kind: FixClosure,
         is_value: false,
       });
-    | FixF(dp, d1, Some(env)) =>
+    | FixF(dp, d1, env) =>
       switch (DHPat.get_var(dp)) {
       // Simple Recursion case
       | Some(f) =>
-        let. _ = otherwise(env, d);
+        let. _ =
+          otherwise(
+            env |> Option.value(~default=ClosureEnvironment.empty),
+            d,
+          );
         let env'' =
           evaluate_extend_env(
-            ~call_stack=env.call_stack,
-            Environment.singleton((f, FixF(dp, d1, Some(env)) |> rewrap)),
-            env,
+            ~call_stack=
+              (env |> Option.value(~default=ClosureEnvironment.empty)).
+                call_stack,
+            Environment.singleton((f, FixF(dp, d1, env) |> rewrap)),
+            env |> Option.value(~default=ClosureEnvironment.empty),
           );
         Step({
           expr: subst_env(env'', d1),
@@ -293,22 +299,28 @@ module Transition = (EV: EV_MODE) => {
         });
       // Mutual Recursion case
       | None =>
-        let. _ = otherwise(env, d);
+        let. _ =
+          otherwise(
+            env |> Option.value(~default=ClosureEnvironment.empty),
+            d,
+          );
         let bindings = DHPat.bound_vars(dp);
         let substitutions =
           List.map(
             binding =>
               (
                 binding,
-                let_(dp, FixF(dp, d1, Some(env)) |> rewrap, var(binding)),
+                let_(dp, FixF(dp, d1, env) |> rewrap, var(binding)),
               ),
             bindings,
           );
         let env'' =
           evaluate_extend_env(
-            ~call_stack=env.call_stack,
+            ~call_stack=
+              (env |> Option.value(~default=ClosureEnvironment.empty)).
+                call_stack,
             Environment.of_list(substitutions),
-            env,
+            env |> Option.value(~default=ClosureEnvironment.empty),
           );
         Step({
           expr: subst_env(env'', d1),
@@ -353,19 +365,6 @@ module Transition = (EV: EV_MODE) => {
             ),
           state_update,
           kind: TypFunAp,
-          is_value: false,
-        })
-      | TFunCast(d'', tp1, s1, tp2, s2) =>
-        /* Rule ITTApCast */
-        Step({
-          expr:
-            cast(
-              typ_ap(d'', tau),
-              Typ.subst(tau, tp1, s1),
-              Typ.subst(tau, tp2, s2),
-            ),
-          state_update,
-          kind: CastTypAp,
           is_value: false,
         })
       };
@@ -436,14 +435,6 @@ module Transition = (EV: EV_MODE) => {
           })
         };
       | FunNoEnv(_) => Indet
-      | FunCast(d3', ty1, ty2, ty1', ty2') =>
-        Step({
-          expr: cast(ap(dir, d3', cast(d2', ty1', ty1)), ty2, ty2'),
-
-          state_update,
-          kind: CastAp,
-          is_value: false,
-        })
       | BuiltinFun(ident) =>
         let builtin =
           VarMap.lookup(Builtins.forms_init, ident)
@@ -507,6 +498,7 @@ module Transition = (EV: EV_MODE) => {
       let. _ = otherwise(env, d);
       Indet;
     | Atom(_)
+    | LivelitName(_)
     | Label(_)
     | Constructor(_)
     | BuiltinFun(_) =>
@@ -740,7 +732,7 @@ module Transition = (EV: EV_MODE) => {
       | Some((env', d2, closures)) =>
         Step({
           expr:
-            closure(
+            subst_env(
               evaluate_extend_env(env', env, ~call_stack=env.call_stack),
               d2,
             ),
@@ -895,7 +887,7 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | VarLookup => !settings.show_lookup_steps
   | CastTypAp
   | CastAp
-  | Cast => !settings.show_casts
+  | Cast => !settings.show_cast_steps
   | FixUnwrap => !settings.show_fixpoints
   | CompleteClosure
   | CompleteFilter

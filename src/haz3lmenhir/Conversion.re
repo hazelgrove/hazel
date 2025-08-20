@@ -320,6 +320,7 @@ module rec Exp: {
     | Invalid(_) => InvalidExp("Invalid")
     | Atom(c) => Atom(c)
     | Var(x) => Var(x)
+    | LivelitName(_) => InvalidExp("Not supported")
     | Deferral(InAp) => Deferral
     | ListLit(l) => ListExp(List.map(of_core, l))
     | Tuple(l) => TupleExp(List.map(of_core, l))

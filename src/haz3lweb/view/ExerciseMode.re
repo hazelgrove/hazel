@@ -1,12 +1,34 @@
 open Haz3lcore;
 open Virtual_dom.Vdom;
 open Node;
+open Util;
 
 /* The exercises mode interface for a single exercise. Composed of multiple editors and results. */
 
 /* This file follows conventions in [docs/ui-architecture.md] */
 
 module Model = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type editing_flags = {
+    editing_title: bool,
+    editing_prompt: bool,
+    editing_test_val_rep: bool,
+    editing_mut_test_rep: bool,
+    editing_impl_grd_rep: bool,
+    editing_module_name: bool,
+    editing_syntax_rep: bool,
+  };
+
+  let editing_flags_false = {
+    editing_title: false,
+    editing_prompt: false,
+    editing_test_val_rep: false,
+    editing_mut_test_rep: false,
+    editing_impl_grd_rep: false,
+    editing_module_name: false,
+    editing_syntax_rep: false,
+  };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     spec: Exercise.spec, // The spec that the model will be reset to on ResetExercise
@@ -16,6 +38,7 @@ module Model = {
           2. The editors need to be `stitched` together before any cell calculations can be done */
     editors: Exercise.p(Editor.t),
     cells: Exercise.stitched(CellEditor.Model.t),
+    editing_flags,
   };
 
   let of_spec = (~settings as _, ~instructor_mode as _: bool, spec) => {
@@ -30,35 +53,218 @@ module Model = {
       spec,
       editors,
       cells,
+      editing_flags: editing_flags_false,
     };
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = Exercise.persistent_exercise_mode;
+  type persistent = Exercise.persistent_state;
 
-  let persist = (exercise: t, ~instructor_mode: bool) => {
-    Exercise.positioned_editors(exercise.editors)
-    |> List.filter(((pos, _)) =>
-         Exercise.visible_in(pos, ~instructor_mode)
-       )
-    |> List.map(((pos, editor: Editor.t)) =>
-         (pos, editor.state.zipper |> PersistentZipper.persist)
-       );
-  };
+  let persist = (exercise: t, ~instructor_mode: bool) =>
+    Exercise.persist({eds: exercise.editors}, ~instructor_mode);
 
-  let unpersist = (~instructor_mode, positioned_zippers, spec) => {
-    let spec = Exercise.unpersist(~instructor_mode, positioned_zippers, spec);
-    of_spec(~instructor_mode, spec);
+  let unpersist = (~instructor_mode, spec, persistent) => {
+    let editors = Exercise.unpersist(~spec, ~instructor_mode, persistent).eds;
+    let term_item_to_cell = (item: Exercise.TermItem.t): CellEditor.Model.t => {
+      CellEditor.Model.mk(item.editor);
+    };
+    let cells =
+      Exercise.stitch_term(editors)
+      |> Exercise.map_stitched(_ => term_item_to_cell);
+    {
+      spec,
+      editors,
+      cells,
+      editing_flags: editing_flags_false,
+    };
   };
 };
 
 module Update = {
   open Updated;
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type instructor =
+    | EditingTitle
+    | EditingPrompt
+    | EditingTestValRep
+    | EditingMutTestRep
+    | EditingImplGrdRep
+    | EditingModuleName
+    | EditingSyntaxRep
+    | UpdateTitle(string)
+    | AddBuggyImplementation
+    | DeleteBuggyImplementation(int)
+    | UpdatePrompt(string)
+    | UpdateTestValRep(int, int)
+    | UpdateMutTestRep(int, list(string))
+    | UpdateImplGrdRep(int, list(string))
+    | UpdateSyntaxRep(list(string))
+    | UpdateModuleName(string);
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Editor(Exercise.pos, CellEditor.Update.t)
     | ResetEditor(Exercise.pos)
-    | ResetExercise;
+    | ResetExercise
+    | Instructor(instructor);
+
+  let instructor_update =
+      (action: instructor, model: Model.t): Updated.t(Model.t) =>
+    switch (action) {
+    // TODO: replace Update.return when appropriate
+    | EditingTitle =>
+      Updated.return_quiet({
+        ...model,
+        editing_flags: {
+          ...model.editing_flags,
+          editing_title: !model.editing_flags.editing_title,
+        },
+      })
+    | EditingPrompt =>
+      Updated.return_quiet({
+        ...model,
+        editing_flags: {
+          ...model.editing_flags,
+          editing_prompt: !model.editing_flags.editing_prompt,
+        },
+      })
+    | EditingTestValRep =>
+      Updated.return_quiet({
+        ...model,
+        editing_flags: {
+          ...model.editing_flags,
+          editing_test_val_rep: !model.editing_flags.editing_test_val_rep,
+        },
+      })
+    | EditingMutTestRep =>
+      Updated.return_quiet({
+        ...model,
+        editing_flags: {
+          ...model.editing_flags,
+          editing_mut_test_rep: !model.editing_flags.editing_mut_test_rep,
+        },
+      })
+    | EditingImplGrdRep =>
+      Updated.return_quiet({
+        ...model,
+        editing_flags: {
+          ...model.editing_flags,
+          editing_impl_grd_rep: !model.editing_flags.editing_impl_grd_rep,
+        },
+      })
+    | EditingModuleName =>
+      Updated.return_quiet({
+        ...model,
+        editing_flags: {
+          ...model.editing_flags,
+          editing_module_name: !model.editing_flags.editing_module_name,
+        },
+      })
+    | EditingSyntaxRep =>
+      Updated.return_quiet({
+        ...model,
+        editing_flags: {
+          ...model.editing_flags,
+          editing_syntax_rep: !model.editing_flags.editing_syntax_rep,
+        },
+      })
+    | UpdateTitle(title) =>
+      Updated.return_quiet(
+        {
+          ...model,
+          editors:
+            Exercise.update_exercise_title({eds: model.editors}, title).eds,
+        },
+        ~is_edit=true,
+      )
+    | AddBuggyImplementation =>
+      Updated.return({
+        ...model,
+        editors: Exercise.add_buggy_impl({eds: model.editors}).eds,
+        cells: {
+          ...model.cells,
+          hidden_bugs:
+            model.cells.hidden_bugs
+            @ [CellEditor.Model.mk(Editor.Model.mk(Zipper.init()))],
+        },
+      })
+    | DeleteBuggyImplementation(i) =>
+      Updated.return({
+        ...model,
+        editors: Exercise.delete_buggy_impl({eds: model.editors}, i).eds,
+        cells: {
+          ...model.cells,
+          hidden_bugs:
+            List.filteri((j, _) => j != i, model.cells.hidden_bugs),
+        },
+      })
+    | UpdatePrompt(prompt) =>
+      Updated.return({
+        ...model,
+        editors:
+          Exercise.update_exercise_prompt({eds: model.editors}, prompt).eds,
+      })
+    | UpdateTestValRep(test_num, dist) =>
+      Updated.return({
+        ...model,
+        editors:
+          Exercise.update_test_val_rep({eds: model.editors}, test_num, dist).
+            eds,
+      })
+    | UpdateMutTestRep(test_num, new_hints) =>
+      Updated.return({
+        ...model,
+        editors:
+          Exercise.update_mut_test_rep(
+            {eds: model.editors},
+            test_num,
+            new_hints,
+          ).
+            eds,
+      })
+    | UpdateSyntaxRep(new_hints) =>
+      Updated.return({
+        ...model,
+        editors:
+          Exercise.update_syntax_rep({eds: model.editors}, new_hints).eds,
+      })
+    | UpdateImplGrdRep(test_num, new_hints) =>
+      Updated.return({
+        ...model,
+        editors:
+          Exercise.update_impl_grd_rep(
+            {eds: model.editors},
+            test_num,
+            new_hints,
+          ).
+            eds,
+      })
+    | UpdateModuleName(module_name) =>
+      Updated.return({
+        ...model,
+        editors:
+          Exercise.update_module_name({eds: model.editors}, module_name).eds,
+      })
+    };
+
+  let instructor_update =
+      (~settings: Settings.t, action: instructor, model: Model.t)
+      : Updated.t(Model.t) =>
+    if (settings.instructor_mode) {
+      instructor_update(action, model);
+    } else {
+      Updated.return_quiet(model);
+    };
+
+  let can_undo = (action: t) => {
+    switch (action) {
+    | Editor(_, action) => CellEditor.Update.can_undo(action)
+    | ResetEditor(_) => true
+    | ResetExercise => true
+    | Instructor(_) => false
+    };
+  };
 
   let update =
       (~settings: Settings.t, ~schedule_action as _, action, model: Model.t)
@@ -138,6 +344,7 @@ module Update = {
         editors: new_editors,
       }
       |> Updated.return;
+    | Instructor(action) => instructor_update(~settings, action, model)
     };
   };
 
@@ -219,8 +426,8 @@ module Update = {
         Editor.Update.calculate(~settings, statics, dynamics, ~is_edited, ed);
 
       {
+        id: model.editors.id,
         title: model.editors.title,
-        version: model.editors.version,
         module_name: model.editors.module_name,
         prompt: model.editors.prompt,
         point_distribution: model.editors.point_distribution,
@@ -284,6 +491,7 @@ module Update = {
       spec: model.spec,
       editors,
       cells,
+      editing_flags: model.editing_flags,
     };
   };
 };
@@ -291,20 +499,40 @@ module Update = {
 module Selection = {
   open Cursor;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = (Exercise.pos, CellEditor.Selection.t);
+  type t =
+    | Cell(Exercise.pos, CellEditor.Selection.t)
+    | TextBox;
 
   let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
-    let (pos, s) = selection;
-    let cell_editor = Exercise.get_stitched(pos, model.cells);
-    let+ a = CellEditor.Selection.get_cursor_info(~selection=s, cell_editor);
-    Update.Editor(pos, a);
+    switch (selection) {
+    | Cell(pos, s) =>
+      switch (Exercise.get_stitched(pos, model.cells)) {
+      | cell_editor =>
+        let+ a =
+          CellEditor.Selection.get_cursor_info(~selection=s, cell_editor);
+        Update.Editor(pos, a);
+      | exception (Failure(_)) => empty
+      }
+    | TextBox => empty
+    };
   };
 
-  let handle_key_event = (~selection, ~event, model: Model.t) => {
-    let (pos, s) = selection;
-    let cell_editor = Exercise.get_stitched(pos, model.cells);
-    CellEditor.Selection.handle_key_event(~selection=s, ~event, cell_editor)
-    |> Option.map(a => Update.Editor(pos, a));
+  let handle_key_event =
+      (~selection: t, ~event, model: Model.t): option(Update.t) => {
+    switch (selection) {
+    | Cell(pos, s) =>
+      switch (Exercise.get_stitched(pos, model.cells)) {
+      | cell_editor =>
+        CellEditor.Selection.handle_key_event(
+          ~selection=s,
+          ~event,
+          cell_editor,
+        )
+        |> Option.map(a => Update.Editor(pos, a))
+      | exception (Failure(_)) => None
+      }
+    | TextBox => None
+    };
   };
 
   let jump_to_tile =
@@ -317,7 +545,7 @@ module Selection = {
     |> Option.map(((pos, _)) =>
          (
            Update.Editor(pos, MainEditor(Perform(Jump(TileId(tile))))),
-           (pos, CellEditor.Selection.MainEditor),
+           Cell(pos, CellEditor.Selection.MainEditor),
          )
        );
   };
@@ -326,6 +554,10 @@ module Selection = {
 module View = {
   type event =
     | MakeActive(Selection.t);
+
+  /* The exercises mode interface for a single exercise. Composed of multiple editors and results. */
+
+  /* This file follows conventions in [docs/ui-architecture.md] */
 
   type vis_marked('a) =
     | InstructorOnly(unit => 'a)
@@ -350,6 +582,8 @@ module View = {
         ~selection: option(Selection.t),
         model: Model.t,
       ) => {
+    let editing_flags = model.editing_flags;
+
     let eds = model.editors;
     let {
       test_validation,
@@ -386,25 +620,260 @@ module View = {
         ~globals,
         ~signal=
           fun
-          | MakeActive(a) => signal(MakeActive((this_pos, a))),
+          | MakeActive(a) => signal(MakeActive(Cell(this_pos, a))),
         ~selected=
           switch (selection) {
-          | Some((pos, s)) when pos == this_pos => Some(s)
+          | Some(Cell(pos, s)) when pos == this_pos => Some(s)
           | _ => None
           },
         ~inject=a => inject(Editor(this_pos, a)),
         ~result_kind,
-        ~caption=CellCommon.caption(caption, ~rest=?subcaption),
+        ~caption=
+          switch (this_pos) {
+          | HiddenBugs(n) =>
+            CellCommon.wrong_impl_caption(
+              ~inject_delete=
+                i => inject(Instructor(DeleteBuggyImplementation(i))),
+              caption,
+              n,
+            )
+          | _ => CellCommon.caption(caption, ~rest=?subcaption)
+          },
         cell,
       );
     };
 
-    let title_view = CellCommon.title_cell(eds.title);
+    let update_title = _ => {
+      let new_title =
+        Obj.magic(
+          Js_of_ocaml.Js.some(JsUtil.get_elem_by_id("title-input-box")),
+        )##.value;
+      let update_events = [
+        inject(Instructor(UpdateTitle(new_title))),
+        inject(Instructor(EditingTitle)),
+      ];
+      Virtual_dom.Vdom.Effect.Many(update_events);
+    };
 
-    let prompt_view =
-      CellCommon.narrative_cell(
-        div(~attrs=[Attr.class_("cell-prompt")], [eds.prompt]),
+    let title_view = {
+      let title_placeholder =
+        eds.title == "" ? "Untitled Exercise" : eds.title;
+      CellCommon.simple_cell_view([
+        div(
+          ~attrs=[Attr.class_("title-cell")],
+          [
+            globals.settings.instructor_mode
+              ? editing_flags.editing_title
+                  ? div(
+                      ~attrs=[Attr.class_("title-edit")],
+                      [
+                        input(
+                          ~attrs=[
+                            Attr.class_("title-text"),
+                            Attr.id("title-input-box"),
+                            Attr.value(eds.title),
+                            Attr.on_focus(_ => signal(MakeActive(TextBox))),
+                          ],
+                          (),
+                        ),
+                        div(
+                          ~attrs=[Attr.class_("edit-icon")],
+                          [Widgets.button(Icons.confirm, update_title)],
+                        ),
+                        div(
+                          ~attrs=[Attr.class_("edit-icon")],
+                          [
+                            Widgets.button(Icons.cancel, _ =>
+                              inject(Instructor(EditingTitle))
+                            ),
+                          ],
+                        ),
+                      ],
+                    )
+                  : div(
+                      ~attrs=[Attr.class_("title-edit")],
+                      [
+                        div(
+                          ~attrs=[
+                            Attr.classes([
+                              "title-text",
+                              eds.title == "" ? "title-placeholder" : "",
+                            ]),
+                          ],
+                          [text(title_placeholder)],
+                        ),
+                        div(
+                          ~attrs=[Attr.class_("edit-icon")],
+                          [
+                            Widgets.button(Icons.pencil, _ =>
+                              inject(Instructor(EditingTitle))
+                            ),
+                          ],
+                        ),
+                      ],
+                    )
+              : div(~attrs=[Attr.class_("title-text")], [text(eds.title)]),
+          ],
+        ),
+      ]);
+    };
+
+    let update_module_name = _ => {
+      let new_module_name =
+        Obj.magic(
+          Js_of_ocaml.Js.some(JsUtil.get_elem_by_id("module-name-input")),
+        )##.value;
+      let update_events = [
+        inject(Instructor(EditingModuleName)),
+        inject(Instructor(UpdateModuleName(new_module_name))),
+      ];
+      Virtual_dom.Vdom.Effect.Many(update_events);
+    };
+
+    let module_name_view = {
+      let module_placeholder =
+        eds.module_name == "" ? "Unnamed Module" : eds.module_name;
+      globals.settings.instructor_mode
+        ? div(
+            ~attrs=[Attr.class_("cell-module-name")],
+            [
+              editing_flags.editing_module_name
+                ? div(
+                    ~attrs=[Attr.class_("module-name-edit")],
+                    [
+                      label([text("Module name:")]),
+                      input(
+                        ~attrs=[
+                          Attr.type_("text"),
+                          Attr.class_("text-input"),
+                          Attr.id("module-name-input"),
+                          Attr.value(eds.module_name),
+                          Attr.on_focus(_ => signal(MakeActive(TextBox))),
+                        ],
+                        (),
+                      ),
+                      div(
+                        ~attrs=[Attr.class_("edit-icon")],
+                        [Widgets.button(Icons.confirm, update_module_name)],
+                      ),
+                      div(
+                        ~attrs=[Attr.class_("edit-icon")],
+                        [
+                          Widgets.button(Icons.cancel, _ =>
+                            inject(Instructor(EditingModuleName))
+                          ),
+                        ],
+                      ),
+                    ],
+                  )
+                : div(
+                    ~attrs=[Attr.class_("module-name-text")],
+                    [
+                      text("Module name: "),
+                      div(
+                        ~attrs=[
+                          Attr.classes([
+                            eds.module_name == "" ? "module-placeholder" : "",
+                          ]),
+                        ],
+                        [text(module_placeholder)],
+                      ),
+                      div(
+                        ~attrs=[Attr.class_("edit-icon")],
+                        [
+                          Widgets.button(Icons.pencil, _ =>
+                            inject(Instructor(EditingModuleName))
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+            ],
+          )
+        : Node.none;
+    };
+
+    let update_prompt = _ => {
+      let new_prompt =
+        Obj.magic(
+          Js_of_ocaml.Js.some(JsUtil.get_elem_by_id("prompt-input-box")),
+        )##.value;
+      let update_events = [
+        inject(Instructor(EditingPrompt)),
+        inject(Instructor(UpdatePrompt(new_prompt))),
+      ];
+      Virtual_dom.Vdom.Effect.Many(update_events);
+    };
+
+    let prompt_view = {
+      let prompt_placeholder = eds.prompt == "" ? "Empty Prompt" : eds.prompt;
+      let (msg, _) =
+        ExplainThis.mk_translation(~globals, prompt_placeholder);
+      div(
+        ~attrs=[Attr.class_("cell-prompt")],
+        [
+          globals.settings.instructor_mode
+            ? editing_flags.editing_prompt
+                ? div(
+                    ~attrs=[Attr.class_("prompt-edit")],
+                    [
+                      div(
+                        ~attrs=[Attr.id("prompt-textarea-container")],
+                        [
+                          textarea(
+                            ~attrs=[
+                              Attr.class_("prompt-text"),
+                              Attr.id("prompt-input-box"),
+                              Attr.on_focus(_ =>
+                                signal(MakeActive(TextBox))
+                              ),
+                              Attr.create("rows", "5"),
+                              Attr.create("cols", "30"),
+                            ],
+                            [text(eds.prompt)],
+                          ),
+                        ],
+                      ),
+                      div(
+                        ~attrs=[Attr.class_("edit-icon")],
+                        [Widgets.button(Icons.confirm, update_prompt)],
+                      ),
+                      div(
+                        ~attrs=[Attr.class_("edit-icon")],
+                        [
+                          Widgets.button(Icons.cancel, _ =>
+                            inject(Instructor(EditingPrompt))
+                          ),
+                        ],
+                      ),
+                    ],
+                  )
+                : div(
+                    ~attrs=[Attr.class_("prompt-edit")],
+                    [
+                      div(
+                        ~attrs=[
+                          Attr.classes([
+                            "prompt-content",
+                            eds.prompt == "" ? "prompt-placeholder" : "",
+                          ]),
+                        ],
+                        msg,
+                      ),
+                      div(
+                        ~attrs=[Attr.class_("edit-pencil")],
+                        [
+                          Widgets.button(Icons.pencil, _ =>
+                            inject(Instructor(EditingPrompt))
+                          ),
+                        ],
+                      ),
+                    ],
+                  )
+            : div(~attrs=[Attr.class_("prompt-content")], msg),
+        ],
       );
+    };
 
     let prelude_view =
       Always(
@@ -482,17 +951,22 @@ module View = {
       result: editor.result,
     };
 
-    let your_tests_view =
+    let your_tests_view = {
+      let subcaption =
+        globals.settings.instructor_mode
+          ? ": Student Tests vs. Correct Implementation"
+          : ": Your Tests vs. Correct Implementation";
       Always(
         editor_view(
           YourTestsValidation,
           // Remove probe data from this cell to prevent data leaks from correct implementation
           rm_probe_data(test_validation),
           ~caption="Test Validation",
-          ~subcaption=": Your Tests vs. Correct Implementation",
+          ~subcaption,
           ~result_kind=
             Custom(
               Grading.TestValidationReport.view(
+                ~globals,
                 ~signal_jump=
                   id =>
                     inject(
@@ -501,62 +975,120 @@ module View = {
                         MainEditor(Perform(Jump(TileId(id)))),
                       ),
                     ),
+                ~signal_editing_test_val_rep=
+                  inject(Instructor(EditingTestValRep)),
+                ~signal_update_test_val=
+                  (x, y) => inject(Instructor(UpdateTestValRep(x, y))),
+                ~signal_textbox_active=signal(MakeActive(TextBox)),
+                ~editing_test_val_rep=editing_flags.editing_test_val_rep,
                 grading_report.test_validation_report,
                 grading_report.point_distribution.test_validation,
+                eds.your_tests.required,
               ),
             ),
         ),
       );
+    };
 
     let wrong_impl_views =
       List.mapi(
-        (i, cell) => {
-          InstructorOnly(
-            () =>
-              editor_view(
-                HiddenBugs(i),
-                cell,
-                ~caption="Wrong Implementation " ++ string_of_int(i + 1),
-              ),
+        (i, (_, cell)) => {
+          editor_view(
+            HiddenBugs(i),
+            cell,
+            ~caption="Mutant " ++ string_of_int(i + 1),
           )
         },
-        hidden_bugs,
+        List.combine(eds.hidden_bugs, hidden_bugs),
       );
+
+    let add_wrong_impl_view =
+      CellCommon.simple_cell_view([
+        CellCommon.simple_cell_item([
+          div(
+            ~attrs=[Attr.class_("wrong-impl-cell-caption")],
+            [
+              div(
+                ~attrs=[
+                  Attr.class_("instructor-edit-icon"),
+                  Attr.id("add-icon"),
+                ],
+                [
+                  Widgets.button(
+                    Icons.add,
+                    _ =>
+                      Ui_effect.Many([
+                        inject(Instructor(AddBuggyImplementation)),
+                        signal(
+                          MakeActive(
+                            Cell(
+                              HiddenBugs(List.length(hidden_bugs)),
+                              MainEditor,
+                            ),
+                          ),
+                        ),
+                      ]),
+                    ~tooltip="Add Buggy Implementation",
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ]),
+      ]);
 
     let mutation_testing_view =
       Always(
         Grading.MutationTestingReport.view(
-          ~inject,
+          ~globals,
+          ~editing_mut_test_rep=editing_flags.editing_mut_test_rep,
+          ~inject_editing_mut_test_rep=inject(Instructor(EditingMutTestRep)),
+          ~inject_update_mut_test_rep=
+            (x, y) => inject(Instructor(UpdateMutTestRep(x, y))),
+          ~select_textbox=signal(MakeActive(TextBox)),
           grading_report.mutation_testing_report,
           grading_report.point_distribution.mutation_testing,
         ),
       );
 
     let your_impl_view = {
+      let caption =
+        globals.settings.instructor_mode
+          ? "Student's Implementation" : "Your Implementation";
       Always(
-        editor_view(
-          YourImpl,
-          user_impl,
-          ~caption="Your Implementation",
-          ~result_kind=EvalResults,
-        ),
+        editor_view(YourImpl, user_impl, ~caption, ~result_kind=EvalResults),
       );
     };
 
     let syntax_grading_view =
-      Always(Grading.SyntaxReport.view(grading_report.syntax_report));
+      Always(
+        Grading.SyntaxReport.view(
+          ~globals,
+          ~editing_syntax_rep=editing_flags.editing_syntax_rep,
+          ~inject_set_editing_syntax_rep=
+            inject(Instructor(EditingSyntaxRep)),
+          ~inject_update_syntax_rep=
+            hints => inject(Instructor(UpdateSyntaxRep(hints))),
+          ~select_textbox=signal(MakeActive(TextBox)),
+          grading_report.syntax_report,
+        ),
+      );
 
-    let impl_validation_view =
+    let impl_validation_view = {
+      let subcaption =
+        globals.settings.instructor_mode
+          ? ": Student's Tests vs. Student's Implementation"
+          : ": Your Tests (code synchronized with Test Validation cell above) vs. Your Implementation";
       Always(
         editor_view(
           YourTestsTesting,
           user_tests,
           ~caption="Implementation Validation",
-          ~subcaption=
-            ": Your Tests (code synchronized with Test Validation cell above) vs. Your Implementation",
+          ~subcaption,
           ~result_kind=TestResults,
         ),
       );
+    };
 
     let hidden_tests_view =
       InstructorOnly(
@@ -566,6 +1098,7 @@ module View = {
     let impl_grading_view =
       Always(
         Grading.ImplGradingReport.view(
+          ~globals,
           ~signal_jump=
             id =>
               inject(
@@ -574,13 +1107,31 @@ module View = {
                   MainEditor(Perform(Jump(TileId(id)))),
                 ),
               ),
+          ~inject_set_editing_impl_grd_rep=
+            inject(Instructor(EditingImplGrdRep)),
+          ~inject_update_impl_grd_rep=
+            (x, y) => inject(Instructor(UpdateImplGrdRep(x, y))),
+          ~select_textbox=signal(MakeActive(TextBox)),
+          ~editing_impl_grd_rep=editing_flags.editing_impl_grd_rep,
           ~report=grading_report.impl_grading_report,
           ~syntax_report=grading_report.syntax_report,
           ~max_points=grading_report.point_distribution.impl_grading,
         ),
       );
 
-    [score_view, title_view, prompt_view]
+    let wrong_impl_views =
+      InstructorOnly(
+        () =>
+          CellCommon.simple_cell_view([
+            CellCommon.simple_cell_item(
+              [CellCommon.caption("Mutation Tests")]
+              @ wrong_impl_views
+              @ [add_wrong_impl_view],
+            ),
+          ]),
+      );
+
+    [score_view, title_view, module_name_view, prompt_view]
     @ render_cells(
         globals.settings,
         [
@@ -588,8 +1139,8 @@ module View = {
           correct_impl_view,
           correct_impl_ctx_view,
           your_tests_view,
+          wrong_impl_views,
         ]
-        @ wrong_impl_views
         @ [
           mutation_testing_view,
           your_impl_view,

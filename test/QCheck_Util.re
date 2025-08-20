@@ -31,3 +31,28 @@ let arb_exp = (~minimal_idents: bool, size: int) => {
     );
   set_print(show_core_exp, arb_exp);
 };
+
+let arb_typ = (~minimal_idents: bool, size: int) => {
+  let show_core_typ = typ =>
+    typ
+    |> ExpToSegment.typ_to_segment(
+         ~settings=
+           ExpToSegment.Settings.of_core(~inline=true, CoreSettings.off),
+         _,
+       )
+    |> Printer.of_segment(~holes=Some("?"), _);
+  let arb_typ =
+    map(
+      ~rev=
+        (core_exp: Typ.t) => {
+          core_exp
+          |> Grammar.map_typ_annotation(_ => false)
+          |> Conversion.Typ.of_core
+        },
+      (menhir_typ: AST.typ) =>
+        Conversion.Typ.of_menhir_ast(menhir_typ)
+        |> Grammar.map_typ_annotation(_ => IdTagged.IdTag.fresh()),
+      AST.arb_typ(~minimal_idents, size),
+    );
+  set_print(show_core_typ, arb_typ);
+};

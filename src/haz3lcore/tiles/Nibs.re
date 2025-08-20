@@ -1,4 +1,4 @@
-[@deriving (show({with_path: false}), sexp, yojson)]
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = (Nib.t, Nib.t);
 
 [@deriving show]

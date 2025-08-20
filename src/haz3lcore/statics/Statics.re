@@ -324,6 +324,12 @@ and uexp_to_info_map =
         Operators.replace_literal(c, Typ.is_ana_atom(ana), ctx.use_mode); // Replace literal if necessary due to `use`
       atomic(Self.of_atom(ids, c));
 
+    | LivelitName(name) =>
+      add'(
+        ~self=Self.of_exp_livelit_name(ctx, name),
+        ~co_ctx=CoCtx.singleton(name, Exp.rep_id(uexp), ana),
+        m,
+      )
     | ListLit(es) =>
       let elem_ids = List.map(Exp.rep_id, es);
       let inner_ana_ty = Typ.matched_list(ctx, ana);
@@ -780,32 +786,72 @@ and uexp_to_info_map =
       );
     | Constructor(ctr, ty) => atomic(Self.of_ctr(ids, ctx, ctr, ana, ty))
     | Ap(_, fn, arg) =>
-      /* This logic lets us treat constructors differently to functions in
-         terms of error localization */
-      let fn_ana =
-        switch (Exp.ctr_name(fn)) {
-        | Some(name) =>
-          switch (Self.ctr_ana_typ(ctx, ana, name)) {
-          | Some(ty_ana) => ty_ana
+      switch (fn.term) {
+      | LivelitName(s) =>
+        // refer to livelit context to find types
+        switch (Ctx.lookup_livelit(ctx, s)) {
+        | Some({expansion_t, model_t, expand, _}) =>
+          let (fn, m) = go(~ana=expansion_t, fn, m);
+          let (arg, m) = go(~ana=model_t, arg, m);
+
+          // try to expand
+          switch (expand(arg.term)) {
+          | Some(_) =>
+            add(
+              ~self=Just(expansion_t),
+              ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
+              m,
+            )
           | None =>
+            // if we can't expand, flag as improper model
+            add(
+              ~self=BadLivelitModel(expansion_t),
+              ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
+              m,
+            )
+          };
+
+        | None =>
+          let (fn, m) = go(~ana=Unknown(Internal) |> Typ.temp, fn, m);
+          let (arg, m) = go(~ana=Unknown(Internal) |> Typ.temp, arg, m);
+          add(
+            ~self=Just(Unknown(Internal) |> Typ.temp),
+            ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]),
+            m,
+          );
+        }
+      | _ =>
+        /* This logic lets us treat constructors differently to functions in
+           terms of error localization */
+        let fn_ana =
+          switch (Exp.ctr_name(fn)) {
+          | Some(name) =>
+            switch (Self.ctr_ana_typ(ctx, ana, name)) {
+            | Some(ty_ana) =>
+              switch (Typ.matched_arrow_strict(ctx, ty_ana)) {
+              | Some((ty1, ty2)) => Arrow(ty1, ty2) |> Typ.temp
+              | None => Arrow(syn, syn) |> Typ.temp
+              }
+            | None =>
             Arrow(syn, syn)
             |> Typ.from_ana_slice(CodeSlice.of_ids(ids))
             |> Typ.temp
-          }
-        | None =>
+            }
+          | None =>
           Arrow(syn, syn)
           |> Typ.from_ana_slice(CodeSlice.of_ids(ids))
           |> Typ.temp
-        };
-      let (fn, m) = go(~ana=fn_ana, fn, m);
-      let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
+          };
+        let (fn, m) = go(~ana=fn_ana, fn, m);
+        let (ty_in, ty_out) = Typ.matched_arrow(ctx, fn.ty);
 
-      let (arg, m) = go(~ana=ty_in, arg, m);
-      let self: Self.t =
-        Id.is_nullary_ap_flag(IdTagged.ids(arg.term))
-        && !Typ.is_consistent(ctx, ty_in, Prod([]) |> Typ.temp_empty)
-          ? BadTrivAp(ty_in) : Just(ty_out);
-      add(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]), m);
+        let (arg, m) = go(~ana=ty_in, arg, m);
+        let self: Self.t =
+          Id.is_nullary_ap_flag(IdTagged.ids(arg.term))
+          && !Typ.is_consistent(ctx, ty_in, Prod([]) |> Typ.temp_empty)
+            ? BadTrivAp(ty_in) : Just(ty_out);
+        add(~self, ~co_ctx=CoCtx.union([fn.co_ctx, arg.co_ctx]), m);
+      }
     | TypAp(fn, utyp) =>
       let typfn_ana =
         Forall(EmptyHole |> TPat.fresh, Unknown(SynSwitch) |> Typ.temp_empty)
@@ -830,7 +876,11 @@ and uexp_to_info_map =
         switch (Exp.ctr_name(fn)) {
         | Some(name) =>
           switch (Self.ctr_ana_typ(ctx, ana, name)) {
-          | Some(ty_ana) => ty_ana
+          | Some(ty_ana) =>
+            switch (Typ.matched_arrow_strict(ctx, ty_ana)) {
+            | Some((ty1, ty2)) => Arrow(ty1, ty2) |> Typ.temp
+            | None => Arrow(syn, syn) |> Typ.temp
+            }
           | None =>
             Arrow(syn, syn)
             |> Typ.from_ana_slice(CodeSlice.of_ids(ids))

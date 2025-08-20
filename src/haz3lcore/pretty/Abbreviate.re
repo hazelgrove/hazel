@@ -135,6 +135,7 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
     | Var(v) => Var(abbreviate_str(available^, v))
     | Label(v) => Label(abbreviate_str(available^, v))
     | Constructor(c, t) => Constructor(abbreviate_str(available^, c), t)
+    | LivelitName(v) => LivelitName(abbreviate_str(available^, v))
 
     // Other atomic cases
     | EmptyHole => EmptyHole

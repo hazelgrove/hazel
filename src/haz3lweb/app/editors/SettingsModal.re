@@ -31,6 +31,12 @@ let view =
         Evaluation(ShowRecord),
       ),
       setting(
+        "π",
+        "proof steps (experimental)",
+        settings.enable_proof,
+        Evaluation(EnableProof),
+      ),
+      setting(
         "|",
         "show case clauses",
         settings.show_case_clauses,
@@ -50,9 +56,9 @@ let view =
       ),
       setting(
         Unicode.castArrowSym,
-        "show casts",
-        settings.show_casts,
-        Evaluation(ShowCasts),
+        "show cast steps",
+        settings.show_cast_steps,
+        Evaluation(ShowCastSteps),
       ),
       // Disabled until we have a way to print closures
       // setting(

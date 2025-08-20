@@ -67,6 +67,8 @@ module Update = {
     | Start
     | Save;
 
+  let equal = (===);
+
   let update_global =
       (
         ~import_log,
@@ -145,9 +147,33 @@ module Update = {
     | FinishImportAll(Some(data)) =>
       Export.import_all(~import_log, data, ~specs=ExerciseSettings.exercises);
       Store.load() |> return;
-    | ExportPersistentData =>
-      Store.save(model);
-      Export.export_persistent();
+    | ExportForInit =>
+      let (filename, content) =
+        switch (model.editors) {
+        | Scratch(model)
+        | Documentation(model) =>
+          let current = List.nth(model.scratchpads, model.current);
+          let filename =
+            (current |> fst |> StringUtil.sanitize_filename) ++ ".ml";
+
+          let content =
+            [%derive.show: (string, Haz3lcore.PersistentZipper.t)]((
+              current |> fst,
+              current |> snd |> CellEditor.Model.persist,
+            ));
+          (filename, content);
+        | Exercises(model) =>
+          let current = List.nth(model.exercises, model.current);
+          let filename = current.editors.module_name ++ ".ml";
+          let content = "not supported";
+          (filename, content);
+        };
+      JsUtil.download_string_file(
+        ~filename,
+        ~content_type="text/plain",
+        ~contents=
+          "let out : string * Haz3lcore.PersistentZipper.t = " ++ content,
+      );
       model |> return_quiet;
     | ActiveEditor(action) =>
       let cursor_info =
@@ -170,48 +196,8 @@ module Update = {
           editors,
         };
       };
-    | Undo =>
-      let cursor_info =
-        Editors.Selection.get_cursor_info(
-          ~selection=model.selection,
-          model.editors,
-        );
-      switch (cursor_info.undo_action) {
-      | None => model |> return_quiet
-      | Some(action) =>
-        let* editors =
-          Editors.Update.update(
-            ~globals=model.globals,
-            ~schedule_action=a => schedule_action(Editors(a)),
-            action,
-            model.editors,
-          );
-        {
-          ...model,
-          editors,
-        };
-      };
-    | Redo =>
-      let cursor_info =
-        Editors.Selection.get_cursor_info(
-          ~selection=model.selection,
-          model.editors,
-        );
-      switch (cursor_info.redo_action) {
-      | None => model |> return_quiet
-      | Some(action) =>
-        let* editors =
-          Editors.Update.update(
-            ~globals=model.globals,
-            ~schedule_action=a => schedule_action(Editors(a)),
-            action,
-            model.editors,
-          );
-        {
-          ...model,
-          editors,
-        };
-      };
+    | Undo
+    | Redo => failwith("Undo/Redo are handled in the history module")
     };
   };
 
@@ -272,6 +258,18 @@ module Update = {
     };
   };
 
+  let can_undo = (action: t) => {
+    switch (action) {
+    | Globals(action) => Globals.Update.can_undo(action)
+    | Editors(action) => Editors.Update.can_undo(action)
+    | ExplainThis(action) => ExplainThisUpdate.can_undo(action)
+    | MakeActive(_) => false
+    | Benchmark(_) => false
+    | Start => false
+    | Save => false
+    };
+  };
+
   let calculate = (~schedule_action, ~is_edited, model: Model.t) => {
     let editors =
       Editors.Update.calculate(
@@ -314,6 +312,26 @@ module Selection = {
       Some(Update.Globals(SetShowBackpackTargets(false)))
     | {key: D("F7"), sys: Mac | PC, shift: Down, meta: Up, ctrl: Up, alt: Up} =>
       Some(Update.Benchmark(Start))
+    | {
+        key: D("Z" | "z"),
+        sys: Mac,
+        shift: Down,
+        meta: Down,
+        ctrl: Up,
+        alt: Up,
+      }
+    | {
+        key: D("Z" | "z"),
+        sys: PC,
+        shift: Down,
+        meta: Up,
+        ctrl: Down,
+        alt: Up,
+      } =>
+      Some(Update.Globals(Redo))
+    | {key: D("Z" | "z"), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
+    | {key: D("Z" | "z"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
+      Some(Update.Globals(Undo))
     | _ =>
       Editors.Selection.handle_key_event(~selection, ~event, model.editors)
       |> Option.map(x => Update.Editors(x))
@@ -327,6 +345,21 @@ module Selection = {
 };
 
 module View = {
+  let is_input_field = (elId: option(string)) => {
+    switch (elId) {
+    | Some("title-input-box")
+    | Some("module-name-input")
+    | Some("prompt-input-box")
+    | Some("test-required-input")
+    | Some("point-max-input") => true
+    | Some(id) when String.starts_with(~prefix="hint-input", id) => true
+    | Some(id) when String.starts_with(~prefix="syntax-hint-input", id) =>
+      true
+    | Some(id) when String.starts_with(~prefix="impl-hint-input", id) => true
+    | _ => false
+    };
+  };
+
   let handlers =
       (
         ~inject: Update.t => Ui_effect.t(unit),
@@ -362,47 +395,77 @@ module View = {
         JsUtil.focus_clipboard_shim();
         Effect.Ignore;
       }),
-      Attr.on_copy(_ => {
-        let str = (cursor.selected_text |> Option.value(~default=() => ""))();
-        /* Note that we cannot use the ClipboardCache system here unless
-         * we refine it further to replace unique ids on paste */
-        Haz3lcore.ClipboardCache.set(cursor.selection, str);
-        JsUtil.copy(str);
+      Attr.on_copy(evt => {
+        let target = Js.Opt.to_option(evt##.target);
+        switch (target) {
+        | Some(el) =>
+          let elId = Js.Opt.to_option(Js.Unsafe.coerce(el)##.id);
+          if (is_input_field(elId)) {
+            ();
+          } else {
+            let str =
+              (cursor.selected_text |> Option.value(~default=() => ""))();
+            /* Note that we cannot use the ClipboardCache system here unless
+             * we refine it further to replace unique ids on paste */
+            Haz3lcore.ClipboardCache.set(cursor.selection, str);
+            JsUtil.copy(str);
+          };
+        | None => ()
+        };
         Effect.Ignore;
       }),
-      Attr.on_cut(_ => {
-        let str = (cursor.selected_text |> Option.value(~default=() => ""))();
-        Haz3lcore.ClipboardCache.set(cursor.selection, str);
-        JsUtil.copy(str);
-        Option.map(
-          inject,
-          Selection.handle_key_event(
-            ~selection=Some(model.selection),
-            ~event=
-              Key.{
-                key: D("Delete"),
-                sys: Os.is_mac^ ? Mac : PC,
-                shift: Up,
-                meta: Up,
-                ctrl: Up,
-                alt: Up,
-              },
-            model,
-          ),
-        )
-        |> Option.value(~default=Effect.Ignore);
+      Attr.on_cut(evt => {
+        let target = Js.Opt.to_option(evt##.target);
+        switch (target) {
+        | Some(el) =>
+          let elId = Js.Opt.to_option(Js.Unsafe.coerce(el)##.id);
+          if (is_input_field(elId)) {
+            Effect.Ignore;
+          } else {
+            JsUtil.copy(
+              (cursor.selected_text |> Option.value(~default=() => ""))(),
+            );
+            Option.map(
+              inject,
+              Selection.handle_key_event(
+                ~selection=Some(model.selection),
+                ~event=
+                  Key.{
+                    key: D("Delete"),
+                    sys: Os.is_mac^ ? Mac : PC,
+                    shift: Up,
+                    meta: Up,
+                    ctrl: Up,
+                    alt: Up,
+                  },
+                model,
+              ),
+            )
+            |> Option.value(~default=Effect.Ignore);
+          };
+        | None => Effect.Ignore
+        };
       }),
     ]
     @ [
       Attr.on_paste(evt => {
-        Dom.preventDefault(evt);
-        let action =
-          Js.to_string(evt##.clipboardData##getData(Js.string("text")))
-          |> Haz3lcore.ClipboardCache.get
-          |> cursor.editor_action;
-        switch (action) {
+        let target = Js.Opt.to_option(evt##.target);
+        switch (target) {
+        | Some(el) =>
+          let elId = Js.Opt.to_option(Js.Unsafe.coerce(el)##.id);
+          if (is_input_field(elId)) {
+            Effect.Ignore;
+          } else {
+            let pasted_text =
+              Js.to_string(evt##.clipboardData##getData(Js.string("text")))
+              |> Str.global_replace(Str.regexp("\n[ ]*"), "\n");
+            Dom.preventDefault(evt);
+            switch (cursor.editor_action(Paste(String(pasted_text)))) {
+            | None => Effect.Ignore
+            | Some(action) => inject(Editors(action))
+            };
+          };
         | None => Effect.Ignore
-        | Some(action) => inject(Editors(action))
         };
       }),
     ];

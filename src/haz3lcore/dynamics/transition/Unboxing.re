@@ -24,14 +24,13 @@ open Util;
     */
 
 type unboxed_tfun =
-  | TypFun(TPat.t, Exp.t, option(string))
-  | TFunCast(DHExp.t, TPat.t, Typ.t, TPat.t, Typ.t);
+  | TypFun(TPat.t, Exp.t, option(string));
 
+[@deriving show({with_path: false})]
 type unboxed_fun =
   | Constructor(string)
-  | FunEnv(Pat.t, Exp.t, ClosureEnvironment.t)
+  | FunEnv(Pat.t, Exp.t, [@show.opaque] ClosureEnvironment.t)
   | FunNoEnv(Pat.t, Exp.t)
-  | FunCast(DHExp.t, Typ.t, Typ.t, Typ.t, Typ.t)
   | BuiltinFun(string)
   | DeferredAp(DHExp.t, list(DHExp.t));
 
@@ -71,13 +70,7 @@ let fixup_cast = Casts.transition_multiple;
 let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
   (request, expr) => {
     switch (request, DHExp.term_of(expr)) {
-    /* Remove parentheses from casts */
-    | (_, Cast(d, s1, s2)) when Typ.is_parens(s1) =>
-      unbox(request, Cast(d, Typ.unparens(s1), s2) |> DHExp.fresh)
-    | (_, Cast(d, s1, s2)) when Typ.is_parens(s2) =>
-      unbox(request, Cast(d, s1, Typ.unparens(s2)) |> DHExp.fresh)
     /* $e and $v could have any type, but are indet */
-
     | (_, UnOp(Meta(Unquote), _)) => IndetMatch
     | (_, Constructor(c, _)) when String.starts_with(c, ~prefix="$") =>
       IndetMatch
@@ -93,29 +86,12 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       } else {
         DoesNotMatch;
       }
-    | (TupLabel(tl), Cast(t, s1, s2))
-        when
-          Typ.is_tuplabel(s1, ~ignore_parens=false)
-          && Typ.is_tuplabel(s2, ~ignore_parens=false) =>
-      let ((_, s1), (_, s2)) = (Typ.untuplabel(s1), Typ.untuplabel(s2));
-      let* t = unbox(TupLabel(tl), t);
-      let t = fixup_cast(Cast(t, s1, s2) |> DHExp.fresh);
-      Matches(t);
     | (TupLabel(_), _) => Matches(expr)
-
-    /* Remove Tuplabels from casts otherwise */
-    | (_, Cast(e, s1, s2)) when Typ.is_tuplabel(s1, ~ignore_parens=false) =>
-      let (_, s1) = Typ.untuplabel(s1);
-      switch (DHExp.term_of(e)) {
-      | TupLabel(_, e) => unbox(request, Cast(e, s1, s2) |> DHExp.fresh)
-      | _ => unbox(request, Cast(e, s1, s2) |> DHExp.fresh)
-      };
-
     /* Base types are always already unboxed because of the ITCastID rule*/
     | (Atom(r), Atom(x)) =>
       switch (Atom.unbox(r, x)) {
       | Some(x) => Matches(x)
-      | None => DoesNotMatch
+      | None => IndetMatch
       }
 
     /* Lists can be either lists or cons with indet tail or list casts */
@@ -131,67 +107,9 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       Matches((x, ListLit(xs) |> DHExp.fresh))
     | (Cons, ListLit([])) => DoesNotMatch
     | (Cons, Cons(x, xs)) => Matches((x, xs))
-    | (ListLit, Cast(l, s1, s2))
-        when
-          Typ.is_list(~ignore_parens=false, s1)
-          && Typ.is_list(~ignore_parens=false, s2) =>
-      // TODO: consider if incremental slices on the list should be retained or not here. (currently not)
-      let* l = unbox(ListLit, l);
-      let l =
-        List.map(
-          d => Cast(d, Typ.unlist(s1), Typ.unlist(s2)) |> DHExp.fresh,
-          l,
-        );
-      let l = List.map(fixup_cast, l);
-      Matches(l);
-    | (ListLitn(n), Cast(l, s1, s2))
-        when
-          Typ.is_list(s1, ~ignore_parens=false)
-          && Typ.is_list(s2, ~ignore_parens=false) =>
-      let* l = unbox(ListLitn(n), l);
-      let l =
-        List.map(
-          d => Cast(d, Typ.unlist(s1), Typ.unlist(s2)) |> DHExp.fresh,
-          l,
-        );
-      let l = List.map(fixup_cast, l);
-      Matches(l);
-    | (Cons, Cast(l, s1, s2))
-        when
-          Typ.is_list(~ignore_parens=false, s1)
-          && Typ.is_list(~ignore_parens=false, s2) =>
-      let* l = unbox(Cons, l);
-      switch (l) {
-      | (x, xs) =>
-        Matches((
-          Cast(x, Typ.unlist(s1), Typ.unlist(s2))
-          |> DHExp.fresh
-          |> fixup_cast,
-          Cast(xs, s1, s2) |> DHExp.fresh,
-        ))
-      };
-
     /* Tuples can be either tuples or tuple casts */
     | (Tuple(n), Tuple(t)) when List.length(t) == n => Matches(t)
-    | (Tuple(_), Tuple(_)) => DoesNotMatch
-    | (Tuple(n), Cast(t, s1, s2))
-        when
-          Typ.is_prod(s1, ~ignore_parens=false)
-          && Typ.is_prod(s2, ~ignore_parens=false)
-          && n == List.length(Typ.unprod(s1))
-          && n == List.length(Typ.unprod(s2)) =>
-      let (s1s, s2s) = (Typ.unprod(s1), Typ.unprod(s2));
-      let* t = unbox(Tuple(n), t);
-      let t =
-        ListUtil.map3(
-          (d, s1, s2) => Cast(d, s1, s2) |> DHExp.fresh,
-          t,
-          s1s,
-          s2s,
-        );
-      let t = List.map(fixup_cast, t);
-      Matches(t);
-
+    | (Tuple(_), Tuple(_)) => IndetMatch
     /* Sum constructors can be either sum constructors, sum constructors
        applied to some value or sum casts */
     | (SumNoArg(name1), Constructor(name2, _)) when name1 == name2 =>
@@ -208,63 +126,16 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
           ) =>
       let* d1 = unbox(SumNoArg(name), d1);
       Matches(d1);
-    | (SumNoArg(_), Cast(_, s1, s2))
-        when
-          Typ.is_sum(s1, ~ignore_parens=false)
-          && Typ.is_sum(s2, ~ignore_parens=false) =>
-      IndetMatch
-    /* Matches curried constructor. Note: does not check type consistency between arrow arg type
-       and sum constrctor arg type -- TODO: fix (issue only occurs if two sum types use same ctr name
-       and wrong one is passed into match, debatable if we even want to allow any matching at all here) */
-    | (SumNoArg(name), Cast(_, _, s))
-        when Typ.is_arrow(~ignore_parens=false, s) =>
-      switch (unbox(Fun, expr)) {
-      | Matches(Constructor(name')) when name == name' => Matches()
-      | Matches(FunCast(d', _, _, _, _)) =>
-        let* d' = unbox(SumNoArg(name), d');
-        Matches(d');
-      | _ => DoesNotMatch
-      }
-
     | (SumWithArg(_), Constructor(_)) => DoesNotMatch
     | (SumWithArg(name1), Ap(_, {term: Constructor(name2, _), _}, d3))
         when name1 == name2 =>
       Matches(d3)
     | (SumWithArg(_), Ap(_, {term: Constructor(_), _}, _)) => DoesNotMatch
-    | (SumWithArg(name), Cast(d1, s1, s2))
-        when
-          Typ.is_sum(s1, ~ignore_parens=false)
-          && Typ.is_sum(s2, ~ignore_parens=false) =>
-      let get_entry_or_bad = s =>
-        switch (ConstructorMap.get_entry(name, s)) {
-        | Some(Some(x)) => Some(x)
-        | Some(None) => None
-        | None when ConstructorMap.has_bad_entry(s) =>
-          Some(Unknown(Internal) |> Typ.temp_empty)
-        | None => None
-        };
-      switch (
-        get_entry_or_bad(Typ.get_sum(s1)),
-        get_entry_or_bad(Typ.get_sum(s2)),
-      ) {
-      | (Some(x), Some(y)) =>
-        let* d1 = unbox(SumWithArg(name), d1);
-        Matches(Cast(d1, x, y) |> Exp.fresh |> fixup_cast);
-      | _ => IndetMatch
-      };
-    // There should be some sort of failure here when the cast doesn't go through.
-
     /* Function-like things can look like the following when values */
     | (Fun, Constructor(name, _)) => Matches(Constructor(name)) // Perhaps we should check if the constructor actually is a function?
     | (Fun, Closure(env', {term: Fun(dp, d3, _, _), _})) =>
       Matches(FunEnv(dp, d3, env'))
     | (Fun, Fun(dp, d3, _, _)) => Matches(FunNoEnv(dp, d3))
-    | (Fun, Cast(d3', s1, s2))
-        when
-          Typ.is_arrow(s1, ~ignore_parens=false)
-          && Typ.is_arrow(s2, ~ignore_parens=false) =>
-      let ((s1, s2), (s1', s2')) = (Typ.unarrow(s1), Typ.unarrow(s2));
-      Matches(FunCast(d3', s1, s2, s1', s2'));
     | (Fun, BuiltinFun(name)) => Matches(BuiltinFun(name))
     | (Fun, DeferredAp(d1, ds)) => Matches(DeferredAp(d1, ds))
 
@@ -273,22 +144,8 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
       Matches(TypFun(utpat, Closure(env', tfbody) |> Exp.fresh, name))
     | (TypFun, TypFun(utpat, tfbody, name)) =>
       Matches(TypFun(utpat, tfbody, name))
-    // Note: We might be able to handle this cast like other casts
-    | (TypFun, Cast(d'', s1, s2))
-        when
-          Typ.is_forall(s1, ~ignore_parens=false)
-          && Typ.is_forall(s2, ~ignore_parens=false) =>
-      let ((tp1, s1'), (tp2, s2')) = (
-        Typ.unforall(s1),
-        Typ.unforall(s2),
-      );
-      Matches(TFunCast(d'', tp1, s1', tp2, s2'));
-
-    /* Any cast from unknown is indet */
-    | (_, Cast(_, s1, _)) when Typ.is_unknown(s1) => IndetMatch
-
-    /* Any failed cast does not match. Why was this previously indet? Being indet breaks dynamic pattern matching. */
-    | (_, FailedCast(_)) => DoesNotMatch
+    /* Any failed cast is indet */
+    | (_, FailedCast(_)) => IndetMatch
 
     /* Forms that are the wrong type of value - these cases indicate an error
        in elaboration or in the cast calculus. */
@@ -305,30 +162,22 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         Ap(_, {term: Constructor(_), _}, _),
       ) =>
       switch (request) {
-      | TupLabel(_) =>
-        raise(EvaluatorError.Exception(InvalidBoxedTupLabel(expr)))
-      | Atom(Bool) =>
-        raise(EvaluatorError.Exception(InvalidBoxedBoolLit(expr)))
+      | TupLabel(_)
+      | Atom(Bool)
       | Atom(SInt)
-      | Atom(Int) =>
-        raise(EvaluatorError.Exception(InvalidBoxedIntLit(expr)))
-      | Atom(Float) =>
-        raise(EvaluatorError.Exception(InvalidBoxedFloatLit(expr)))
-      | Atom(String) =>
-        raise(EvaluatorError.Exception(InvalidBoxedStringLit(expr)))
-      | Atom(Nat) =>
-        raise(EvaluatorError.Exception(InvalidBoxedNatLit(expr)))
-      | Label => raise(EvaluatorError.Exception(InvalidBoxedLabel(expr)))
-      | Tuple(_) => raise(EvaluatorError.Exception(InvalidBoxedTuple(expr)))
+      | Atom(Int)
+      | Atom(Float)
+      | Atom(String)
+      | Atom(Nat)
+      | Label
+      | Tuple(_)
       | ListLit
-      | ListLitn(_) =>
-        raise(EvaluatorError.Exception(InvalidBoxedListLit(expr)))
-      | Cons => raise(EvaluatorError.Exception(InvalidBoxedListCons(expr)))
+      | ListLitn(_)
+      | Cons
       | SumNoArg(_)
-      | SumWithArg(_) =>
-        raise(EvaluatorError.Exception(InvalidBoxedSumConstructor(expr)))
-      | Fun => raise(EvaluatorError.Exception(InvalidBoxedFun(expr)))
-      | TypFun => raise(EvaluatorError.Exception(InvalidBoxedTypFun(expr)))
+      | SumWithArg(_)
+      | Fun
+      | TypFun => IndetMatch
       }
 
     /* Forms that are not yet or will never be a value */
@@ -354,6 +203,7 @@ let rec unbox: type a. (unbox_request(a), DHExp.t) => unboxed(a) =
         Dot(_) |
         UnOp(_) |
         BinOp(_) |
+        LivelitName(_) |
         Match(_),
       ) =>
       IndetMatch

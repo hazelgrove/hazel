@@ -7,19 +7,19 @@ module Annotated = {
     term: 'a,
     annotation: 'b,
   };
-
-  let pp:
-    type a b.
-      (
-        (Format.formatter, a) => unit,
-        (Format.formatter, b) => unit,
-        Format.formatter,
-        t(a, b)
-      ) =>
-      unit =
-    (fmt_a, _, fmtr, t) => {
-      fmt_a(fmtr, t.term);
-    };
+  /* uncomment to make terms pp without annotation */
+  //   let pp:
+  //     type a b.
+  //       (
+  //         (Format.formatter, a) => unit,
+  //         (Format.formatter, b) => unit,
+  //         Format.formatter,
+  //         t(a, b)
+  //       ) =>
+  //       unit =
+  //     (fmt_a, _, fmtr, t) => {
+  //       fmt_a(fmtr, t.term);
+  //     };
 
   let term_of = x => x.term;
   let unwrap = x => (
@@ -77,6 +77,7 @@ and exp_term('a) =
   | Label(string)
   | TupLabel(exp_t('a), exp_t('a))
   | Dot(exp_t('a), exp_t('a))
+  | LivelitName(string)
   | Var(Var.t)
   | Let(pat_t('a), exp_t('a), exp_t('a))
   | FixF(pat_t('a), exp_t('a), option(closure_environment_t('a)))
@@ -237,6 +238,7 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | Deferral(pos) => Deferral(pos)
         | Undefined => Undefined
         | Atom(c) => Atom(c)
+        | LivelitName(s) => LivelitName(s)
         | ListLit(l) => ListLit(List.map(x => map_exp_annotation(f, x), l))
         | Constructor(s, t) =>
           Constructor(s, Option.map(Option.map(map_typ_annotation(f)), t))
@@ -610,6 +612,14 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Var(v),
       annotation: default_annotation(ann),
     };
+    let livelit_name = (~ann=?, s): exp_t(DefaultAnnotation.t) => {
+      term: LivelitName(s),
+      annotation: default_annotation(ann),
+    };
+    let livelit_ap = (~ann=?, d, e1, e2): exp_t(DefaultAnnotation.t) => {
+      term: Ap(d, e1, e2),
+      annotation: default_annotation(ann),
+    };
     let let_ = (~ann=?, p, e1, e2): exp_t(DefaultAnnotation.t) => {
       term: Let(p, e1, e2),
       annotation: default_annotation(ann),
@@ -694,6 +704,16 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Cast(e, t1, t2),
       annotation: default_annotation(ann),
     };
+    let asc = (~ann=?, e, t): exp_t(DefaultAnnotation.t) =>
+      cast(
+        ~ann?,
+        e,
+        {
+          term: Unknown(Internal),
+          annotation: default_annotation(ann),
+        },
+        t,
+      );
   };
   module Pat = {
     let invalid = (~ann=?, s): pat_t(DefaultAnnotation.t) => {
@@ -786,6 +806,17 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Cast(p, t1, t2),
       annotation: default_annotation(ann),
     };
+
+    let asc = (~ann=?, p, t): pat_t(DefaultAnnotation.t) =>
+      cast(
+        ~ann?,
+        p,
+        t,
+        {
+          term: Unknown(Internal),
+          annotation: default_annotation(ann),
+        },
+      );
   };
 
   module Typ = {

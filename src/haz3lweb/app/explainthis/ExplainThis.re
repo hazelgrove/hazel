@@ -86,13 +86,7 @@ let code_node = text =>
   Node.span(~attrs=[clss(["code"])], [Node.text(text)]);
 
 let highlight =
-    (
-      ~globals: Globals.t,
-      ~inject as _: ExplainThisUpdate.update => 'a,
-      msg: list(Node.t),
-      id: Id.t,
-      mapping: ColorSteps.t,
-    )
+    (~globals: Globals.t, msg: list(Node.t), id: Id.t, mapping: ColorSteps.t)
     : (Node.t, ColorSteps.t) => {
   let (c, mapping) = ColorSteps.get_color(id, mapping);
   let classes = clss(["highlight-" ++ c, "clickable"]);
@@ -117,13 +111,12 @@ let highlight =
  code: `code`
  italics: *word*
  */
-let mk_translation =
-    (~globals, ~inject, text: string): (list(Node.t), ColorSteps.t) => {
+let mk_translation = (~globals, text: string): (list(Node.t), ColorSteps.t) => {
   let omd = Omd.of_string(text);
   //print_markdown(omd);
 
   let rec translate_inline =
-          (inline: Omd.inline(_), msg, mapping: ColorSteps.t, ~inject)
+          (inline: Omd.inline(_), msg, mapping: ColorSteps.t)
           : (list(Node.t), ColorSteps.t) => {
     switch (inline) {
     | Omd.Concat(_, items) =>
@@ -131,7 +124,7 @@ let mk_translation =
         List.fold_left(
           ((msg, mapping), item) => {
             let (translated_item, mapping) =
-              translate_inline(item, [], mapping, ~inject);
+              translate_inline(item, [], mapping);
             (List.concat([msg, translated_item]), mapping);
           },
           ([], mapping),
@@ -141,17 +134,16 @@ let mk_translation =
     | Omd.Text(_, d) => (List.append(msg, [Node.text(d)]), mapping)
     | Omd.Code(_, d) => (List.append(msg, [code_node(d)]), mapping)
     | Omd.Link(_, {label, destination, _}) =>
-      let (d, mapping) = translate_inline(label, [], mapping, ~inject);
+      let (d, mapping) = translate_inline(label, [], mapping);
       let id =
         switch (Id.of_string(destination)) {
         | Some(id) => id
         | None => Id.invalid
         };
-      let (inner_msg, mapping) =
-        highlight(~globals, ~inject, d, id, mapping);
+      let (inner_msg, mapping) = highlight(~globals, d, id, mapping);
       (List.append(msg, [inner_msg]), mapping);
     | Omd.Emph(_, d) =>
-      let (d, mapping) = translate_inline(d, [], mapping, ~inject);
+      let (d, mapping) = translate_inline(d, [], mapping);
       (
         List.append(
           msg,
@@ -168,6 +160,7 @@ let mk_translation =
         ),
         mapping,
       );
+    | Omd.Soft_break(_) => (List.append(msg, [Node.br()]), mapping)
     | _ => (msg, mapping)
     };
   };
@@ -178,7 +171,9 @@ let mk_translation =
     List.fold_left(
       ((msg, mapping), elem) => {
         switch (elem) {
-        | Omd.Paragraph(_, d) => translate_inline(d, msg, mapping, ~inject)
+        | Omd.Paragraph(_, d) =>
+          let (n, _) = translate_inline(d, [], mapping);
+          (List.append(msg, [Node.p(n)]), mapping);
         | Omd.List(_, _, _, items) =>
           let (bullets, mapping) =
             List.fold_left(
@@ -211,7 +206,7 @@ let mk_explanation =
       model: ExplainThisModel.t,
     )
     : (Node.t, ColorSteps.t) => {
-  let (msg, color_map) = mk_translation(~globals, ~inject, text);
+  let (msg, color_map) = mk_translation(~globals, text);
   let feedback =
     globals.settings.explainThis.show_feedback
       ? [explanation_feedback_view(~inject, group_id, form_id, model)] : [];
@@ -534,8 +529,7 @@ let get_doc =
         );
       ([syntactic_form_view], ([explanation], color_map), example_view);
     | Colorings =>
-      let (_, color_map) =
-        mk_translation(~globals, ~inject=_ => (), explanation_msg);
+      let (_, color_map) = mk_translation(~globals, explanation_msg);
       ([], ([], color_map), []);
     };
   };
@@ -562,6 +556,7 @@ let get_doc =
           UseExp.single(~typ_id=Typ.rep_id(t), ~body_id=Exp.rep_id(e)),
         )
       | BuiltinFun(_) => simple("Internal expression")
+      | LivelitName(n) => get_message(TerminalExp.livelit_name_exps(n))
       | EmptyHole => get_message(HoleExp.empty_hole_exps)
       | MultiHole(_children) => get_message(HoleExp.multi_hole_exps)
       | TyAlias(ty_pat, ty_def, _body) =>
@@ -1784,6 +1779,17 @@ let get_doc =
                 Id.to_string(arg_id),
               ),
             AppExp.conapp_exp_coloring_ids,
+          )
+        | LivelitName(_) =>
+          basic(
+            AppExp.livelitaps,
+            msg =>
+              Printf.sprintf(
+                Scanf.format_from_string(msg, "%s%s"),
+                Id.to_string(x_id),
+                Id.to_string(arg_id),
+              ),
+            AppExp.livelitapp_exp_coloring_ids,
           )
         | _ =>
           basic(

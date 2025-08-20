@@ -26,17 +26,18 @@ module Model = {
         show_case_clauses: true,
         show_fn_bodies: false,
         show_fixpoints: false,
-        show_casts: false,
+        show_cast_steps: false,
         show_lookup_steps: false,
         show_stepper_filters: false,
         stepper_history: false,
         show_settings: false,
         show_hidden_steps: false,
+        enable_proof: false,
       },
     }, // Ideally this should be an option in the EvalResult footer, not globally
     async_evaluation: false,
     context_inspector: false,
-    instructor_mode: true,
+    instructor_mode: false,
     benchmark: false,
     explainThis: {
       show: true,
@@ -74,9 +75,11 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type evaluation =
     | ShowRecord
+    | ForceShowRecord
+    | EnableProof
     | ShowCaseClauses
     | ShowFnBodies
-    | ShowCasts
+    | ShowCastSteps
     | ShowFixpoints
     | ShowLookups
     | ShowFilters
@@ -97,6 +100,13 @@ module Update = {
     | Evaluation(evaluation)
     | ExplainThis(ExplainThisModel.Settings.action)
     | FlipAnimations;
+
+  let can_undo = (action: t) => {
+    switch (action) {
+    | Evaluation(ShowSettings) => false
+    | _ => true
+    };
+  };
 
   let update = (action, settings: Model.t): Updated.t(Model.t) => {
     (
@@ -149,6 +159,14 @@ module Update = {
               ...evaluation,
               stepper_history: !evaluation.stepper_history,
             }
+          | ForceShowRecord => {
+              ...evaluation,
+              stepper_history: true,
+            }
+          | EnableProof => {
+              ...evaluation,
+              enable_proof: !evaluation.enable_proof,
+            }
           | ShowCaseClauses => {
               ...evaluation,
               show_case_clauses: !evaluation.show_case_clauses,
@@ -157,9 +175,9 @@ module Update = {
               ...evaluation,
               show_fn_bodies: !evaluation.show_fn_bodies,
             }
-          | ShowCasts => {
+          | ShowCastSteps => {
               ...evaluation,
-              show_casts: !evaluation.show_casts,
+              show_cast_steps: !evaluation.show_cast_steps,
             }
           | ShowFixpoints => {
               ...evaluation,

@@ -13,12 +13,18 @@ module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
     | Perform(Action.t)
-    | Undo
-    | Redo
     | TAB
     | DebugConsole(string);
 
   exception CantReset;
+
+  let can_undo = (action: t) => {
+    switch (action) {
+    | Perform(action) => Action.is_historic(action)
+    | TAB => true
+    | DebugConsole(_) => false
+    };
+  };
 
   let update =
       (~settings: Settings.t, action: t, model: Model.t): Updated.t(Model.t) => {
@@ -67,26 +73,6 @@ module Update = {
          );
     switch (action) {
     | Perform(action) => perform(action, model)
-    | Undo =>
-      switch (Editor.Update.undo(model.editor)) {
-      | Some(editor) =>
-        Model.{
-          ...model,
-          editor,
-        }
-        |> Updated.return
-      | None => model |> Updated.return_quiet
-      }
-    | Redo =>
-      switch (Editor.Update.redo(model.editor)) {
-      | Some(editor) =>
-        Model.{
-          ...model,
-          editor,
-        }
-        |> Updated.return
-      | None => model |> Updated.return_quiet
-      }
     | DebugConsole(key) =>
       DebugConsole.print(~settings, model, key);
       model |> Updated.return_quiet;
@@ -123,36 +109,14 @@ module Selection = {
         CodeWithStatics.Model.get_cursor_info(model)
         |> map(x => Update.Perform(x)),
       editor_read_only: false,
-      undo_action: Some(Update.Undo),
-      redo_action: Some(Update.Redo),
     };
   };
 
   let handle_key_event =
       (~selection as (), _: Model.t): (Key.t => option(Update.t)) =>
     fun
-    | {
-        key: D("Z" | "z"),
-        sys: Mac,
-        shift: Down,
-        meta: Down,
-        ctrl: Up,
-        alt: Up,
-      }
-    | {
-        key: D("Z" | "z"),
-        sys: PC,
-        shift: Down,
-        meta: Up,
-        ctrl: Down,
-        alt: Up,
-      } =>
-      Some(Update.Redo)
     | {key: D("Tab"), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Up} =>
       Some(Update.TAB)
-    | {key: D("Z" | "z"), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up}
-    | {key: D("Z" | "z"), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
-      Some(Update.Undo)
     | {key: D(key), sys: Mac | PC, shift: Down, meta: Up, ctrl: Up, alt: Up}
         when Keyboard.is_f_key(key) =>
       Some(Update.DebugConsole(key))

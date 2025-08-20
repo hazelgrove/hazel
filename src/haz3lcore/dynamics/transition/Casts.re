@@ -1,217 +1,244 @@
-open Util;
+/* CAST Transitions */
 
-/* The cast calculus is based off the POPL 2019 paper:
-   https://arxiv.org/pdf/1805.00155.pdf */
+/*
+ Handles the transition of casts (type ascriptions).
+ In the case of a stuck cast, it will return None.
 
-/* GROUND TYPES */
-
-/* You can think of a ground type as a typet that tells you what the root of the
-      type expression is, but nothing more. For example: Int, [?], ? -> ?, ... are
-      ground types and [Int], ? -> Float are not.
-
-      The most important property of ground types is:
-          If two types are ground types,
-          and the two types are consistent,
-          then they are equal.
-
-       Make sure this holds for your new feature!!
-
-       e.g. [?] and [?] are equal, but [?] and [Int] are not (because [Int] is not
-       ground, even though [Int] and [?] are consistent).
-
-   */
-
-[@deriving sexp]
-type ground_cases =
-  | Hole
-  | Ground
-  | NotGroundOrHole(Typ.t) /* the argument is the corresponding ground type */;
-
-let grounded_Arrow = slices =>
-  NotGroundOrHole(
-    Arrow(
-      Unknown(Internal) |> Typ.temp_empty,
-      Unknown(Internal) |> Typ.temp_empty,
-    )
-    |> Typ.from_code_slices(slices)
-    |> Typ.temp,
-  );
-let grounded_Forall = slices =>
-  NotGroundOrHole(
-    Forall(EmptyHole |> TPat.fresh, Unknown(Internal) |> Typ.temp_empty)
-    |> Typ.from_code_slices(slices)
-    |> Typ.temp,
-  );
-let grounded_Prod = (slices, length) =>
-  NotGroundOrHole(
-    Prod(ListUtil.replicate(length, Unknown(Internal) |> Typ.temp_empty))
-    |> Typ.from_code_slices(slices)
-    |> Typ.temp,
-  );
-let grounded_Sum: ((CodeSlice.t, CodeSlice.t), Typ.sum_map) => ground_cases =
-  (slices, m) =>
-    NotGroundOrHole(
-      Sum(
-        ConstructorMap.has_bad_entry(m)
-          ? [BadEntry(Unknown(Internal) |> Typ.temp_empty)]
-          : m
-            |> List.map(
-                 fun
-                 | ConstructorMap.Variant(ctr, ids, Some(_)) =>
-                   ConstructorMap.Variant(
-                     ctr,
-                     ids,
-                     Some(Unknown(Internal) |> Typ.temp_empty),
-                   )
-                 | v => v,
-               ),
-      )
-      |> Typ.from_code_slices(slices)
-      |> Typ.temp,
-    );
-let grounded_List = slices =>
-  NotGroundOrHole(
-    List(Unknown(Internal) |> Typ.temp_empty)
-    |> Typ.from_code_slices(slices)
-    |> Typ.temp,
-  );
-
-// Maintain outer constructor slice
-let rec ground_cases_of = (ty: Typ.t): ground_cases => {
-  let is_hole: Typ.t => bool =
-    fun
-    | {term: {typ: Unknown(_), _}, _} => true
-    | _ => false;
-  let slices = Typ.code_slices_of(ty);
-  switch (Typ.term_of(ty)) {
-  | Unknown(_) => Hole
-  | Atom(_)
-  | Label(_)
-  | TupLabel(_, {term: {typ: Unknown(_), _}, _})
-  | Var(_)
-  | Rec(_)
-  | Forall(_, {term: {typ: Unknown(_), _}, _})
-  | Arrow(
-      {term: {typ: Unknown(_), _}, _},
-      {term: {typ: Unknown(_), _}, _},
-    )
-  | List({term: {typ: Unknown(_), _}, _}) => Ground
-  | Parens(ty) => ground_cases_of(ty)
-  | TupLabel(label, _) =>
-    NotGroundOrHole(
-      TupLabel(label, Unknown(Internal) |> Typ.temp_empty)
-      |> Typ.from_code_slices(slices)
-      |> Typ.temp,
-    )
-  | Prod(tys) =>
-    if (List.for_all(
-          fun
-          | ({term: {typ: Unknown(_), _}, _}: Typ.t) => true
-          | _ => false,
-          tys,
-        )) {
-      Ground;
-    } else {
-      tys |> List.length |> grounded_Prod(slices);
-    }
-  | Sum(sm) =>
-    sm |> ConstructorMap.is_ground(is_hole)
-      ? Ground : grounded_Sum(slices, sm)
-  | Arrow(_, _) => grounded_Arrow(slices)
-  | Forall(_) => grounded_Forall(slices)
-  | List(_) => grounded_List(slices)
-  | Ap(_) => failwith("type application in dynamics")
-  };
-};
-
-/* CAST CALCULUS */
-
-/* Rules are taken from figure 12 of https://arxiv.org/pdf/1805.00155.pdf  */
-
-/* gives a transition step that can be taken by the cast calculus here if applicable. */
+ Casts should be propagated inside of expressions when consistent.
+ e.g. [1, 2] : [Int] -> [1 : Int, 2 : Int]
+ */
 let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
+  let recur = (d: DHExp.t): DHExp.t =>
+    if (recursive) {
+      transition(~recursive, d) |> Option.value(~default=d);
+    } else {
+      d;
+    };
   switch (DHExp.term_of(d)) {
-  | Cast(d1, t1, t2) =>
-    let d1 =
-      if (recursive) {
-        d1 |> transition(~recursive) |> Option.value(~default=d1);
-      } else {
-        d1;
-      };
-    switch (ground_cases_of(t1), ground_cases_of(t2)) {
-    | (Hole, Hole)
-    | (Ground, Ground) =>
-      /* if two types are ground and consistent, then they are eq */
-      Some(d1) // Rule ITCastId
-
-    | (Ground, Hole) =>
-      /* can't remove the cast or do anything else here, so we're done */
-      None
-
-    | (Hole, Ground) =>
-      switch (DHExp.term_of(d1)) {
-      | Cast(d2, t3, t4) when Typ.is_unknown(t4) =>
-        /* by canonical forms, d1' must be of the form d<ty'' -> ?> */
-        if (Typ.equal(t3, t2)) {
-          Some
-            (d2); // Rule ITCastSucceed
-        } else {
-          Some
-            (FailedCast(d2, t3, t2) |> DHExp.fresh); // Rule ITCastFail
-        }
-      | _ => None
+  | Cast(e, _, t) =>
+    switch (DHExp.term_of(e), Typ.term_of(Typ.unroll(t))) {
+    | (Cast(e, _, t'), t)
+        // This is only necessary because sometimes we add two casts and aren't marking it as a non-value
+        when
+          Typ.is_consistent(
+            Ctx.empty,
+            Typ.unroll(t |> Typ.temp),
+            Typ.unroll(t'),
+          ) =>
+      switch (
+        Typ.join(Ctx.empty, Typ.unroll(t |> Typ.temp), Typ.unroll(t'))
+      ) {
+      | Some(t) =>
+        Some(
+          recur(Cast(e, Unknown(Internal) |> Typ.temp, t) |> DHExp.fresh),
+        )
+      | None => None //TODO  This is an impossible case since we checked consistency
       }
-
-    | (Hole, NotGroundOrHole(t2_grounded)) =>
-      /* ITExpand rule */
-      let inner_cast =
-        Cast(d1, t1, t2_grounded |> DHExp.replace_all_ids_typ) |> DHExp.fresh;
-      // HACK: we need to check the inner cast here
-      let inner_cast =
-        switch (transition(~recursive, inner_cast)) {
-        | Some(d1) => d1
-        | None => inner_cast
-        };
-      Some(
-        Cast(inner_cast, t2_grounded |> DHExp.replace_all_ids_typ, t2)
+    | (e, Parens(t)) =>
+      // This is an impossible case since types should be normalized before coming to transitions
+      transition(
+        ~recursive,
+        Cast(e |> DHExp.fresh, Unknown(Internal) |> Typ.temp, t)
         |> DHExp.fresh,
-      );
-
-    | (NotGroundOrHole(t1_grounded), Hole) =>
-      /* ITGround rule */
+      )
+    | (Closure(ce, d), t) =>
+      transition(
+        ~recursive,
+        Cast(d, Unknown(Internal) |> Typ.fresh, t |> Typ.fresh)
+        |> DHExp.fresh,
+      )
+      |> Option.map(d => Closure(ce, d) |> DHExp.fresh)
+    | (Fun(p, e, t, v), Arrow(t1, t2)) =>
       Some(
-        Cast(
-          Cast(d1, t1, t1_grounded |> DHExp.replace_all_ids_typ)
-          |> DHExp.fresh,
-          t1_grounded |> DHExp.replace_all_ids_typ,
-          t2,
+        IdTagged.FreshGrammar.(
+          Exp.(fn(Pat.(asc(p, t1)), asc(e, t2), t, v))
+        ),
+      )
+    | (TupLabel(l, e), TupLabel(_l2, t)) =>
+      // TODO Figure out what to do if the labels don't match
+      Some(
+        TupLabel(
+          l,
+          recur(Cast(e, Unknown(Internal) |> Typ.temp, t) |> DHExp.fresh),
         )
         |> DHExp.fresh,
       )
-
-    | (Ground, NotGroundOrHole(_)) =>
-      switch (DHExp.term_of(d1)) {
-      | Cast(d2, t3, _) =>
-        if (Typ.equal(t3, t2)) {
-          Some(d2);
-        } else {
-          None;
-        }
-      | _ => None
+    | (Tuple(es), Prod(tys)) when List.length(es) == List.length(tys) =>
+      Some(
+        Tuple(
+          List.map2(
+            (e, ty) =>
+              recur(
+                Cast(e, Unknown(Internal) |> Typ.temp, ty) |> DHExp.fresh,
+              ),
+            es,
+            tys,
+          ),
+        )
+        |> DHExp.fresh,
+      )
+    | (e, Unknown(_)) => Some(e |> DHExp.fresh)
+    | (Atom(value) as d, Atom(typ)) =>
+      switch (value, typ) {
+      | (Int(_), Int)
+      | (String(_), String)
+      | (Nat(_), Nat)
+      | (Float(_), Float)
+      | (SInt(_), SInt)
+      | (Bool(_), Bool) => Some(d |> Exp.fresh)
+      | (Int(_), _)
+      | (String(_), _)
+      | (Nat(_), _)
+      | (Float(_), _)
+      | (SInt(_), _)
+      | (Bool(_), _) => None
       }
-    | (NotGroundOrHole(_), Ground) =>
-      /* can't do anything when casting between diseq, non-hole types */
-      None
-
-    | (NotGroundOrHole(_), NotGroundOrHole(_)) =>
-      /* they might be eq in this case, so remove cast if so */
-      if (Typ.equal(t1, t2)) {
-        Some
-          (d1); // Rule ITCastId
-      } else {
-        None;
-      }
-    };
+    | (ListLit(ds), List(ty)) =>
+      Some(
+        ListLit(
+          List.map(
+            d =>
+              recur(
+                Cast(d, Unknown(Internal) |> Typ.temp, ty) |> DHExp.fresh,
+              ),
+            ds,
+          ),
+        )
+        |> DHExp.fresh,
+      )
+    | (Cons(d1, d2), List(ty)) =>
+      Some(
+        Cons(
+          recur(Cast(d1, Unknown(Internal) |> Typ.temp, ty) |> DHExp.fresh),
+          recur(Cast(d2, Unknown(Internal) |> Typ.temp, t) |> DHExp.fresh),
+        )
+        |> DHExp.fresh,
+      )
+    | (TypFun(tp, e, v), Forall(tp', t')) =>
+      let new_ty: Typ.t =
+        switch (TPat.tyvar_of_utpat(tp)) {
+        | Some(tyvar) => Var(tyvar) |> Typ.temp
+        | None => Unknown(Internal) |> Typ.temp
+        };
+      Some(
+        TypFun(
+          tp,
+          recur(
+            Cast(
+              e,
+              Unknown(Internal) |> Typ.temp,
+              Typ.subst(new_ty, tp', t'),
+            )
+            |> DHExp.fresh,
+          ),
+          v,
+        )
+        |> DHExp.fresh,
+      );
+    | (If(e, e1, e2), t) =>
+      Some(
+        If(
+          recur(
+            Cast(e, Unknown(Internal) |> Typ.temp, t |> Typ.temp)
+            |> DHExp.fresh,
+          ),
+          recur(
+            Cast(e1, Unknown(Internal) |> Typ.temp, t |> Typ.temp)
+            |> DHExp.fresh,
+          ),
+          recur(
+            Cast(e2, Unknown(Internal) |> Typ.temp, t |> Typ.temp)
+            |> DHExp.fresh,
+          ),
+        )
+        |> DHExp.fresh,
+      )
+    | (Match(e, rules), t) =>
+      Some(
+        Match(
+          e,
+          List.map(
+            ((p, e)) =>
+              (
+                p,
+                Cast(e, Unknown(Internal) |> Typ.temp, t |> Typ.temp)
+                |> DHExp.fresh,
+              ),
+            rules,
+          ),
+        )
+        |> DHExp.fresh,
+      )
+    | (
+        Ap(
+          Forward,
+          {term: Constructor(c, Some(Some({term: Arrow(_, sumt), _}))), _} as con,
+          payload,
+        ),
+        Sum(m) as sumt',
+      )
+        when
+          Typ.is_consistent(Ctx.empty, Typ.unroll(sumt), sumt' |> Typ.temp) =>
+      let entry = ConstructorMap.get_entry(c, m);
+      switch (entry) {
+      | Some(Some(t')) =>
+        Some(
+          Ap(
+            Forward,
+            con,
+            recur(
+              Cast(payload, Unknown(Internal) |> Typ.temp, t') |> DHExp.fresh,
+            ),
+          )
+          |> DHExp.fresh,
+        )
+      | Some(None)
+      | None => None
+      };
+    | (Constructor(_, Some(Some(t))), t')
+        when Typ.is_consistent(Ctx.empty, Typ.unroll(t), t' |> Typ.temp) =>
+      Some(e)
+    | (Test(_), Prod([])) => Some(d)
+    // These are non-value cases we don't want to handle
+    | (EmptyHole, _)
+    | (FailedCast(_), _)
+    | (DynamicErrorHole(_), _)
+    | (Dot(_), _)
+    | (Undefined, _)
+    | (Invalid(_), _)
+    | (MultiHole(_), _)
+    | (Label(_), _)
+    | (Var(_), _)
+    | (Ap(_), _)
+    | (DeferredAp(_), _)
+    | (Deferral(_), _)
+    | (LivelitName(_), _)
+    | (Probe(_, _), _)
+    // We _could_ do this, but it would be a bit weird
+    | (Let(_), _)
+    | (Use(_), _)
+    | (BinOp(_), _)
+    | (UnOp(_), _)
+    | (BuiltinFun(_), _)
+    | (FixF(_), _)
+    | (TypAp(_), _)
+    | (Seq(_), _)
+    | (Filter(_), _)
+    | (Parens(_), _)
+    | (TyAlias(_), _)
+    | (ListConcat(_), _)
+    | (Cast(_), _) => None
+    // These are handled above and must have the wrong type
+    | (Atom(_), _)
+    | (ListLit(_), _)
+    | (TupLabel(_), _)
+    | (Tuple(_), _)
+    | (Fun(_), _)
+    | (TypFun(_), _)
+    | (Test(_), _)
+    | (Cons(_), _)
+    | (Constructor(_), _) => None
+    }
   | _ => None
   };
 };
@@ -221,51 +248,4 @@ let rec transition_multiple = (d: DHExp.t): DHExp.t => {
   | Some(d'') => transition_multiple(d'')
   | None => d
   };
-};
-
-// So that we don't have to regenerate its id
-let hole = EmptyHole |> DHExp.fresh;
-
-// Hacky way to do transition_multiple on patterns by transferring
-// the cast to the expression and then back to the pattern.
-let pattern_fixup = (p: DHPat.t): DHPat.t => {
-  let rec unwrap_casts = (p: DHPat.t): (DHPat.t, DHExp.t) => {
-    switch (DHPat.term_of(p)) {
-    | Cast(p1, t1, t2) =>
-      let (p1, d1) = unwrap_casts(p1);
-      (
-        p1,
-        {
-          term: Cast(d1, t1, t2),
-          annotation: p.annotation,
-        }
-        |> transition_multiple,
-      );
-    | _ => (p, hole)
-    };
-  };
-  let rec rewrap_casts = ((p: DHPat.t, d: DHExp.t)): DHPat.t => {
-    switch (DHExp.term_of(d)) {
-    | EmptyHole => p
-    | Cast(d1, t1, t2) =>
-      let p1 = rewrap_casts((p, d1));
-      {
-        term: Cast(p1, t1, t2),
-        annotation: d.annotation,
-      };
-    | FailedCast(d1, t1, t2) =>
-      let p1 = rewrap_casts((p, d1));
-      {
-        term:
-          Cast(
-            Cast(p1, t1, Typ.fresh_empty(Unknown(Internal))) |> DHPat.fresh,
-            Typ.fresh_empty(Unknown(Internal)),
-            t2,
-          ),
-        annotation: d.annotation,
-      };
-    | _ => failwith("unexpected term in rewrap_casts")
-    };
-  };
-  p |> unwrap_casts |> rewrap_casts;
 };

@@ -89,6 +89,18 @@ module Update = {
     | Export
     | Encode;
 
+  let can_undo = (action: t) => {
+    switch (action) {
+    | CellAction(action) => CellEditor.Update.can_undo(action)
+    | SwitchSlide(_) => false
+    | ResetCurrent => true
+    | InitImportScratchpad(_) => true
+    | FinishImportScratchpad(_) => false
+    | Export => false
+    | Encode => false
+    };
+  };
+
   let export_scratch_slide = (model: Model.t): unit => {
     Store.save(model |> Model.persist);
     let data = Store.export();
@@ -316,6 +328,13 @@ module View = {
         ~tooltip="Export Scratchpad",
       );
 
+    let export_button_for_init =
+      Widgets.button_named(
+        Icons.export,
+        _ => globals.inject_global(ExportForInit),
+        ~tooltip="Export for Init",
+      );
+
     let encode_button =
       Widgets.button_named(
         Icons.export,
@@ -340,7 +359,7 @@ module View = {
       NutMenu.item_group(
         ~inject,
         "File",
-        [export_button, encode_button, import_button],
+        [export_button, export_button_for_init, encode_button, import_button],
       );
 
     let reset_button =
