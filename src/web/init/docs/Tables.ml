@@ -859,7 +859,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          63d8490b-d78a-4b12-bc78-d550ce603d3a)(content(Whitespace\"\\n\"))))(Secondary((id \
          e03b978a-4e3c-4623-ac2e-36e62826d527)(content(Whitespace\"\\n\"))))(Secondary((id \
          56941fca-c67f-4321-8f95-35d25da7a0c3)(content(Comment\"# \
-         `primitive_pivot`: Group records by a label's value and pivot into a \
+         `group_by_label`: Group records by a label's value and pivot into a \
          tuple of lists #\"))))(Secondary((id \
          5b58c585-30e1-4a8b-a39a-fb647ac9b56c)(content(Whitespace\"\\n\"))))(Secondary((id \
          a62596b0-3f94-439b-93ba-e6b57777b180)(content(Comment\"# Example: \
@@ -1117,7 +1117,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \")))))((Secondary((id \
          6fa40989-7289-47fa-82ac-ba995cfac18d)(content(Whitespace\" \
          \"))))(Tile((id \
-         e00bdbe9-10a2-408c-b312-69ef04fdccfc)(label(primitive_pivot))(mold((out \
+         e00bdbe9-10a2-408c-b312-69ef04fdccfc)(label(group_by_label))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          3d83f769-4a65-4579-9be3-58ebb25beded)(label(\"(\"\")\"))(mold((out \
@@ -3087,8 +3087,8 @@ let out : string * Haz3lcore.PersistentZipper.t =
          in ^^probe(with_average))\n\
          in\n\
          ^^probe(gradebook_with_average.quiz_average);\n\n\
-         # `primitive_pivot`: Group records by a label's value and pivot into \
-         a tuple of lists #\n\
+         # `group_by_label`: Group records by a label's value and pivot into a \
+         tuple of lists #\n\
          # Example: Game leaderboard entries grouped by level #\n\
          let leaderboard = [\n\
          (level=\"forest\", player=\"Aria\", score=1200),\n\
@@ -3097,7 +3097,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          (level=\"cave\", player=\"Dana\", score=700),\n\
          (level=\"desert\", player=\"Eli\", score=1300)\n\
          ] in\n\n\
-         let ^^probe(by_level) = primitive_pivot(leaderboard, `level`) in\n\
+         let ^^probe(by_level) = group_by_label(leaderboard, `level`) in\n\
          ^^probe(by_level.forest);\n\
          ^^probe(by_level.cave);\n\
          ^^probe(by_level.desert.score);\n\n\

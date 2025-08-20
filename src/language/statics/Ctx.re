@@ -6,7 +6,7 @@ type custom_statics =
   | ProjectLabels
   | OmitLabels
   | DropLabels
-  | PrimitivePivot
+  | GroupByLabel
   | SelectLabels;
 
 [@deriving (show({with_path: false}), sexp, yojson)]

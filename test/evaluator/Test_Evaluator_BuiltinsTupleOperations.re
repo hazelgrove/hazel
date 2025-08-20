@@ -16,20 +16,20 @@ let tests = (
     test_case("Primitive pivot of list of labeled tuple", `Quick, () =>
       check(
         dhexp_typ,
-        {|primitive_pivot([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], `l`)|},
+        {|group_by_label([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], `l`)|},
         parse_exp({|a=[(j=1, 3)], b=[(j=2, 9)], c=[(j=3, 9)]|}),
         parse_and_evaluate(
-          {|primitive_pivot([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], `l`)|},
+          {|group_by_label([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], `l`)|},
         ),
       )
     ),
     test_case("Projection of pivoted list of labeled tuples", `Quick, () =>
       check(
         dhexp_typ,
-        {|primitive_pivot([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], `l`).a|},
+        {|group_by_label([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], `l`).a|},
         parse_exp({|[(j=1, 3)]|}),
         parse_and_evaluate(
-          {|primitive_pivot([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], `l`).a|},
+          {|group_by_label([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], `l`).a|},
         ),
       )
     ),
@@ -37,20 +37,20 @@ let tests = (
       "Nested projection of pivoted list of labeled tuples", `Quick, () =>
       check(
         dhexp_typ,
-        {|primitive_pivot([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], `l`)|},
+        {|group_by_label([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], `l`)|},
         parse_exp({|[1]|}),
         parse_and_evaluate(
-          {|primitive_pivot([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], `l`).a.j|},
+          {|group_by_label([(l="a", j=1, 3), (l="b", j=2, 9), (l="c", j=3, 9)], `l`).a.j|},
         ),
       )
     ),
     test_case("Pivoting list bound to variable", `Quick, () =>
       check(
         dhexp_typ,
-        {|let i = [(l="a", j=1, 3)] in primitive_pivot(i, `l`).a|},
+        {|let i = [(l="a", j=1, 3)] in group_by_label(i, `l`).a|},
         parse_exp({|[(j=1, 3)]|}),
         parse_and_evaluate(
-          {|let i = [(l="a", j=1, 3)] in primitive_pivot(i, `l`).a|},
+          {|let i = [(l="a", j=1, 3)] in group_by_label(i, `l`).a|},
         ),
       )
     ),
@@ -58,12 +58,12 @@ let tests = (
       "pivoted list of labeled tuples with multiple entries", `Quick, () =>
       check(
         dhexp_typ,
-        {|primitive_pivot([(l="a", 1, true), (l="b", 2, true), (l="c", 3, true), (l="a", 4, true)], `l`)|},
+        {|group_by_label([(l="a", 1, true), (l="b", 2, true), (l="c", 3, true), (l="a", 4, true)], `l`)|},
         parse_exp(
           {|(a=[(1, true), (4, true)], b=[(2, true)], c=[(3, true)])|},
         ),
         parse_and_evaluate(
-          {|primitive_pivot([(l="a", 1, true), (l="b", 2, true), (l="c", 3, true), (l="a", 4, true)], `l`)|},
+          {|group_by_label([(l="a", 1, true), (l="b", 2, true), (l="c", 3, true), (l="a", 4, true)], `l`)|},
         ),
       )
     ),

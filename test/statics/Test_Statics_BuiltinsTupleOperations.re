@@ -710,26 +710,26 @@ module SelectLabels = {
   ];
 };
 
-module PrimitivePivot = {
+module GroupByLabel = {
   let tests = [
     fully_consistent_typecheck(
-      "primitive_pivot with single tuple",
-      {|primitive_pivot([(a="hello", b=3, c=4)], `a`)|},
+      "group_by_label with single tuple",
+      {|group_by_label([(a="hello", b=3, c=4)], `a`)|},
       Some(unknown(Internal)),
     ),
     fully_consistent_typecheck(
-      "primitive_pivot with multiple tuples",
-      {|primitive_pivot([(a="hello", b=3, c=4), (a="World", b=2, c=2)], `a`)|},
+      "group_by_label with multiple tuples",
+      {|group_by_label([(a="hello", b=3, c=4), (a="World", b=2, c=2)], `a`)|},
       Some(unknown(Internal)),
     ),
-    test_case("primitive_pivot with missing label", `Quick, () =>
+    test_case("group_by_label with missing label", `Quick, () =>
       annotated_tree_test(
-        {|primitive_pivot([(a="hello", b=3)], `c`)|},
+        {|group_by_label([(a="hello", b=3)], `c`)|},
         unknown(Internal),
         FIError.Exp.(
           ap(
             Forward,
-            var("primitive_pivot"),
+            var("group_by_label"),
             tuple([
               list_lit([
                 tuple([
@@ -749,14 +749,14 @@ module PrimitivePivot = {
         ),
       )
     ),
-    test_case("primitive_pivot with non-string pivot field", `Quick, () =>
+    test_case("group_by_label with non-string pivot field", `Quick, () =>
       annotated_tree_test(
-        {|primitive_pivot([(a=1, b=3)], `a`)|},
+        {|group_by_label([(a=1, b=3)], `a`)|},
         unknown(Internal),
         FIError.Exp.(
           ap(
             Forward,
-            var("primitive_pivot"),
+            var("group_by_label"),
             tuple([
               list_lit([
                 tuple([
@@ -776,14 +776,14 @@ module PrimitivePivot = {
         ),
       )
     ),
-    test_case("primitive_pivot with non-label second argument", `Quick, () =>
+    test_case("group_by_label with non-label second argument", `Quick, () =>
       annotated_tree_test(
-        {|primitive_pivot([(a="hello", b=3)], 5)|},
+        {|group_by_label([(a="hello", b=3)], 5)|},
         unknown(Internal),
         FIError.Exp.(
           ap(
             Forward,
-            var("primitive_pivot"),
+            var("group_by_label"),
             tuple([
               list_lit([
                 tuple([
@@ -801,14 +801,14 @@ module PrimitivePivot = {
         ),
       )
     ),
-    test_case("primitive_pivot with non-list first argument", `Quick, () =>
+    test_case("group_by_label with non-list first argument", `Quick, () =>
       annotated_tree_test(
-        {|primitive_pivot(5, `a`)|},
+        {|group_by_label(5, `a`)|},
         unknown(Internal),
         FIError.Exp.(
           ap(
             Forward,
-            var("primitive_pivot"),
+            var("group_by_label"),
             tuple([
               int(
                 ~ann=Some(Exp(BuiltinError(ArgumentMustBeListOfTuples))),
@@ -820,15 +820,15 @@ module PrimitivePivot = {
         ),
       )
     ),
-    test_case("primitive_pivot with extra arguments", `Quick, () =>
+    test_case("group_by_label with extra arguments", `Quick, () =>
       annotated_tree_test(
-        {|primitive_pivot([(a="hello", b=3)], `a`, `b`)|},
+        {|group_by_label([(a="hello", b=3)], `a`, `b`)|},
         unknown(Internal),
         FIError.Exp.(
           ap(
             ~ann=Some(Exp(BuiltinError(Exactly2Arguments))),
             Forward,
-            var("primitive_pivot"),
+            var("group_by_label"),
             tuple([
               list_lit([
                 tuple([
@@ -849,14 +849,14 @@ module PrimitivePivot = {
         ),
       )
     ),
-    test_case("primitive_pivot with hole in tuple label position", `Quick, () =>
+    test_case("group_by_label with hole in tuple label position", `Quick, () =>
       annotated_tree_test(
-        {|primitive_pivot([(a="hello", ?=3, c=4)], `a`)|},
+        {|group_by_label([(a="hello", ?=3, c=4)], `a`)|},
         unknown(Internal),
         FIError.Exp.(
           ap(
             Forward,
-            var("primitive_pivot"),
+            var("group_by_label"),
             tuple([
               list_lit([
                 tuple([
@@ -873,12 +873,12 @@ module PrimitivePivot = {
     ),
     test_case("primitive pivot with unknown type in first arg", `Quick, () =>
       annotated_tree_test(
-        {|primitive_pivot(?, `a`)|},
+        {|group_by_label(?, `a`)|},
         unknown(Internal),
         FIError.Exp.(
           ap(
             Forward,
-            var("primitive_pivot"),
+            var("group_by_label"),
             tuple([empty_hole(), label("a")]),
           )
         ),
@@ -886,13 +886,13 @@ module PrimitivePivot = {
     ),
     test_case("primitive pivot with unknown type inside list", `Quick, () =>
       annotated_tree_test(
-        {|primitive_pivot([(a="hello", b=3):?], `b`)|},
+        {|group_by_label([(a="hello", b=3):?], `b`)|},
         unknown(Internal),
         FIError.(
           Exp.(
             ap(
               Forward,
-              var("primitive_pivot"),
+              var("group_by_label"),
               tuple([
                 list_lit([
                   asc(
@@ -915,13 +915,13 @@ module PrimitivePivot = {
       `Quick,
       () =>
       annotated_tree_test(
-        {|primitive_pivot([(a="hello", b=3)], `a` : ?)|},
+        {|group_by_label([(a="hello", b=3)], `a` : ?)|},
         unknown(Internal),
         FIError.(
           Exp.(
             ap(
               Forward,
-              var("primitive_pivot"),
+              var("group_by_label"),
               tuple([
                 list_lit([
                   tuple([
@@ -961,27 +961,27 @@ module PrimitivePivot = {
         ),
       )
     ),
-    test_case("primitive_pivot with single deferral - arity error", `Quick, () => {
+    test_case("group_by_label with single deferral - arity error", `Quick, () => {
       annotated_tree_test(
-        {|primitive_pivot(_)|},
+        {|group_by_label(_)|},
         unknown(Internal),
         FIError.Exp.(
           deferred_ap(
             ~ann=Some(Exp(BuiltinError(Exactly2Arguments))),
-            var("primitive_pivot"),
+            var("group_by_label"),
             [deferral(InAp)],
           )
         ),
       )
     }),
-    test_case("primitive_pivot with three deferrals - arity error", `Quick, () => {
+    test_case("group_by_label with three deferrals - arity error", `Quick, () => {
       annotated_tree_test(
-        {|primitive_pivot(_, _, _)|},
+        {|group_by_label(_, _, _)|},
         unknown(Internal),
         FIError.Exp.(
           deferred_ap(
             ~ann=Some(Exp(BuiltinError(Exactly2Arguments))),
-            var("primitive_pivot"),
+            var("group_by_label"),
             [deferral(InAp), deferral(InAp), deferral(InAp)],
           )
         ),
@@ -1363,7 +1363,7 @@ let tests =
   MeltOperation.tests
   @ ProjectLabels.tests
   @ SelectLabels.tests
-  @ PrimitivePivot.tests
+  @ GroupByLabel.tests
   @ OmitLabels.tests
   @ DropLabels.tests
   @ FromEntries.tests;
