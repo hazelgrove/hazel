@@ -168,35 +168,6 @@
 }
 
 
-/* STEPPER (OLD) */
-/*
-.stepper-justification {
-  width: 260px;
-}*/
-
-.step-expand,
-.step-back {
-  cursor: pointer;
-}
-
-.step-expand:hover span,
-.step-back:hover span {
-  display: none;
-}
-
-.step-expand:hover:before {
-  content: "↕";
-}
-
-.step-back:hover:before {
-  content: "←";
-}
-
-.substituted {
-  text-decoration: line-through;
-  color: var(--STONE);
-}
-
 
 /* TILES */
 

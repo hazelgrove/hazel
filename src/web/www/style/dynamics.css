@@ -180,15 +180,24 @@
 
 .stepper-justification {
     width: fit-content;
+    position:relative
 }
 .stepper-justification-sub-vars {
     display: none;
-    position: relative;
-    filter: drop-shadow(3px 3px 2px #00000010);
+    position: absolute;
+    right: 0;
+    width: max-content;
+    text-align: right;
+    z-index: var(--projector-hover-z);
+}
+.stepper-justification-sub-vars span{
+  display:inline-block;
+  background-color: var(--shard-any);
+  padding: 2px;
+
 }
 .stepper-justification:hover .stepper-justification-sub-vars{
     display: block;
-    background-color: var(--shard-any);
 }
 
 .step-expand,

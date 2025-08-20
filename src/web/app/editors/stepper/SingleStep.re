@@ -129,17 +129,23 @@ module F =
         @ [
           WebUtil.div_c(
             "stepper-justification-sub-vars",
-            [WebUtil.Node.text("Variables substituted:")],
-          ),
-        ]
-        @ List.map(
-            var =>
-              WebUtil.div_c(
-                "stepper-justification-sub-vars",
-                [WebUtil.Node.text(var)],
+            [
+              WebUtil.Node.span([
+                WebUtil.Node.text("Variables substituted:"),
+              ]),
+            ]
+            @ List.flatten(
+                List.map(
+                  var =>
+                    [
+                      WebUtil.Node.br(),
+                      WebUtil.Node.span([WebUtil.Node.text(var)]),
+                    ],
+                  substitution_vars,
+                ),
               ),
-            substitution_vars,
           ),
+        ],
       );
     } else {
       WebUtil.Node.text(justification_text);
