@@ -4,7 +4,7 @@ open BuiltinsUtil;
 open Util;
 let builtins: list(BuiltinsUtil.fn) = [
   {
-    name: "primitive_pivot",
+    name: "group_by_label",
     arg: Prod([list(unknown(Internal)), unknown(Internal)]),
     ret: Unknown(Internal),
     imp:
@@ -36,7 +36,7 @@ let builtins: list(BuiltinsUtil.fn) = [
         | _ => None
         }
       }),
-    custom_statics: Some(PrimitivePivot),
+    custom_statics: Some(GroupByLabel),
   },
   {
     name: "melt",

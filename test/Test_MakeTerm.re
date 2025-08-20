@@ -214,14 +214,14 @@ let tests =
       test_case("Scientific notation floating point", `Quick, () =>
         exp_check(float(1.2e30), "1.2e30")
       ),
-      test_case("primitive_pivot flips variable to label sort", `Quick, () => {
+      test_case("group_by_label flips variable to label sort", `Quick, () => {
         exp_check(
           ap(
             Forward,
-            var("primitive_pivot"),
+            var("group_by_label"),
             tuple([label("l"), list_lit([])]),
           ),
-          {|primitive_pivot(`l`,  [])|},
+          {|group_by_label(`l`,  [])|},
         )
       }),
       test_case("Livelit name parsing", `Quick, () =>

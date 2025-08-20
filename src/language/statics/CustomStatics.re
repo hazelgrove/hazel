@@ -325,7 +325,7 @@ let omit_labels_statics =
   );
 };
 
-let primitive_pivot_statics =
+let group_by_label_statics =
     (
       module S: ExpressionStatics,
       ~inferred_label as _,
@@ -575,7 +575,7 @@ let custom_statics_deferred_ap =
         m,
       );
 
-    | (PrimitivePivot, [table, pivot_label]) =>
+    | (GroupByLabel, [table, pivot_label]) =>
       let (table_info, m) = uexp_to_info_map(~ctx, ~ana=syn, table, m);
       let (_, m) =
         validate_label_arguments((module S), ~ctx, None, [pivot_label], m);
@@ -621,9 +621,9 @@ let custom_statics_deferred_ap =
         m,
       );
 
-    | (PrimitivePivot, [])
-    | (PrimitivePivot, [_])
-    | (PrimitivePivot, [_, _, ..._]) =>
+    | (GroupByLabel, [])
+    | (GroupByLabel, [_])
+    | (GroupByLabel, [_, _, ..._]) =>
       let (args_info, m) =
         List.fold_left(
           ((acc_info, acc_m), arg) => {
@@ -683,7 +683,7 @@ let custom_statics_deferred_ap =
 let custom_statics_ap = (kind: Ctx.custom_statics) => {
   switch (kind) {
   | ProjectLabels => project_labels_statics
-  | PrimitivePivot => primitive_pivot_statics
+  | GroupByLabel => group_by_label_statics
   | Melt => melt_statics
   | SelectLabels => select_labels_statics
   | OmitLabels => omit_labels_statics
