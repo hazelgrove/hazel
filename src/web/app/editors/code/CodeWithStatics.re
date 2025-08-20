@@ -32,6 +32,7 @@ module Model = {
       term,
       ~settings=ExpToSegment.Settings.of_core(~inline, settings),
     )
+    |> PrettySegment.format_segment(~max_width=20)
     |> Zipper.unzip
     |> Editor.Model.mk
     |> mk;
