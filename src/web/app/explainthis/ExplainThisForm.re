@@ -77,9 +77,7 @@ type numeric_bin_op_examples =
   | GreaterThanFalse
   | GreaterThanEqualGreater
   | GreaterThanEqualEqual
-  | GreaterThanEqualFalse
-  | EqualFalse
-  | EqualTrue;
+  | GreaterThanEqualFalse;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type example_id =
@@ -112,9 +110,17 @@ type example_id =
   | SeqTest
   | TestTrue
   | TestFalse
+  | HintedTestTrue
+  | HintedTestFalse
   | IntUnaryMinus
   | Int(numeric_bin_op_examples)
   | Float(numeric_bin_op_examples)
+  | FloatEqualFalse
+  | FloatEqualTrue
+  | PolyEqualFalse
+  | PolyEqualTrue
+  | PolyNotEqualTrue
+  | PolyNotEqualFalse
   | AndFalse
   | AndTrue
   | OrFalse
@@ -132,7 +138,10 @@ type example_id =
   | FilterDebug
   | FilterSelector
   | Undefined1
-  | Undefined2;
+  | Undefined2
+  | Asc1
+  | Asc2
+  | Asc3;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type example = {
@@ -201,6 +210,7 @@ type form_id =
   | SeqExp
   | UseExp
   | TestExp
+  | HintedTestExp
   | UnOpExp(Language.Operators.op_un)
   | BinOpExp(Language.Operators.op_bin)
   | CaseExp
@@ -257,7 +267,8 @@ type form_id =
   | FilterEval
   | FilterDebug
   | FilterHide
-  | FilterSelector;
+  | FilterSelector
+  | AscExp;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type form = {
@@ -289,6 +300,7 @@ type group_id =
   | ConsExp
   | ListConcatExp
   | TypFunctionExp
+  | AscExp
   | FunctionExp(pat_sub_form_id)
   | LabeledExp
   | DotExp
@@ -306,6 +318,7 @@ type group_id =
   | IfExp
   | SeqExp
   | TestExp
+  | HintedTestExp
   | UnOpExp(Language.Operators.op_un)
   | BinOpExp(Language.Operators.op_bin)
   | CaseExp

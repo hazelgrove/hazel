@@ -16,7 +16,7 @@ module Pat = {
     | Parens
     | Probe
     | Ap
-    | Cast;
+    | Asc;
 
   include TermBase.Pat;
 
@@ -54,7 +54,7 @@ module Pat = {
     | Parens(_) => Parens
     | Probe(_) => Probe
     | Ap(_) => Ap
-    | Cast(_) => Cast;
+    | Asc(_) => Asc;
 
   let show_cls: cls => string =
     fun
@@ -78,14 +78,14 @@ module Pat = {
     | Parens => "Parenthesized pattern"
     | Probe => "Probe"
     | Ap => "Constructor application"
-    | Cast => "Annotation";
+    | Asc => "Annotation";
 
   let rec is_var = (pat: t) => {
     switch (pat.term) {
     | Parens(pat)
     | Probe(pat, _)
     | TupLabel(_, pat)
-    | Cast(pat, _, _) => is_var(pat)
+    | Asc(pat, _) => is_var(pat)
     | Var(_) => true
     | Invalid(_)
     | EmptyHole
@@ -101,58 +101,13 @@ module Pat = {
     };
   };
 
-  let rec is_fun_var = (pat: t) => {
-    switch (pat.term) {
-    | Parens(pat)
-    | Probe(pat, _)
-    | TupLabel(_, pat) => is_fun_var(pat)
-    | Cast(pat, typ, _) =>
-      is_var(pat) && (Typ.is_arrow(typ) || Typ.is_forall(typ))
-    | Invalid(_)
-    | EmptyHole
-    | MultiHole(_)
-    | Wild
-    | Atom(_)
-    | ListLit(_)
-    | Cons(_, _)
-    | Var(_)
-    | Label(_)
-    | Tuple(_)
-    | Constructor(_)
-    | Ap(_) => false
-    };
-  };
-
-  let rec is_tuple_of_arrows = (pat: t) =>
-    is_fun_var(pat)
-    || (
-      switch (pat.term) {
-      | Parens(pat)
-      | Probe(pat, _)
-      | TupLabel(_, pat) => is_tuple_of_arrows(pat)
-      | Tuple(pats) => pats |> List.for_all(is_fun_var)
-      | Label(_)
-      | Invalid(_)
-      | EmptyHole
-      | MultiHole(_)
-      | Wild
-      | Atom(_)
-      | ListLit(_)
-      | Cons(_, _)
-      | Var(_)
-      | Cast(_)
-      | Constructor(_)
-      | Ap(_) => false
-      }
-    );
-
   let rec is_tuple_of_vars = (pat: t) =>
     is_var(pat)
     || (
       switch (pat.term) {
       | Parens(pat)
       | Probe(pat, _)
-      | Cast(pat, _, _)
+      | Asc(pat, _)
       | TupLabel(_, pat) => is_tuple_of_vars(pat)
       | Tuple(pats) => pats |> List.for_all(is_var)
       | Label(_)
@@ -175,7 +130,7 @@ module Pat = {
     | Probe(pat, _)
     | TupLabel(_, pat) => get_var(pat)
     | Var(x) => Some(x)
-    | Cast(x, _, _) => get_var(x)
+    | Asc(x, _) => get_var(x)
     | Invalid(_)
     | EmptyHole
     | MultiHole(_)
@@ -195,7 +150,7 @@ module Pat = {
     | Parens(pat)
     | Probe(pat, _)
     | TupLabel(_, pat) => get_fun_var(pat)
-    | Cast(pat, t1, _) =>
+    | Asc(pat, t1) =>
       if (Typ.is_arrow(t1) || Typ.is_forall(t1)) {
         get_var(pat) |> Option.map(var => var);
       } else {
@@ -223,7 +178,7 @@ module Pat = {
       switch (pat.term) {
       | Parens(pat)
       | Probe(pat, _)
-      | Cast(pat, _, _)
+      | Asc(pat, _)
       | TupLabel(_, pat) => get_bindings(pat)
       | Tuple(pats) =>
         let vars = pats |> List.map(get_var);
@@ -253,7 +208,7 @@ module Pat = {
       switch (pat.term) {
       | Parens(pat)
       | Probe(pat, _)
-      | Cast(pat, _, _)
+      | Asc(pat, _)
       | TupLabel(_, pat) => get_num_of_vars(pat)
       | Tuple(pats) =>
         is_tuple_of_vars(pat) ? Some(List.length(pats)) : None
@@ -301,7 +256,7 @@ module Pat = {
     | Atom(_)
     | Label(_)
     | Constructor(_) => []
-    | Cast(y, _, _)
+    | Asc(y, _)
     | Parens(y)
     | TupLabel(_, y)
     | Probe(y, _) => bindings(y)
@@ -344,7 +299,6 @@ module Exp = {
     | EmptyHole
     | MultiHole
     | DynamicErrorHole
-    | FailedCast
     | Deferral
     | Undefined
     | Atom(Atom.cls)
@@ -367,6 +321,7 @@ module Exp = {
     | If
     | Seq
     | Test
+    | HintedTest
     | Filter
     | Closure
     | Parens
@@ -376,7 +331,7 @@ module Exp = {
     | BinOp(Operators.op_bin)
     | BuiltinFun
     | Match
-    | Cast
+    | Asc
     | LivelitName
     | LivelitAp
     | ListConcat;
@@ -408,7 +363,6 @@ module Exp = {
     | EmptyHole => EmptyHole
     | MultiHole(_) => MultiHole
     | DynamicErrorHole(_) => DynamicErrorHole
-    | FailedCast(_) => FailedCast
     | Deferral(_) => Deferral
     | Undefined => Undefined
     | Atom(c) => Atom(Atom.cls_of_t(c))
@@ -435,6 +389,7 @@ module Exp = {
     | If(_) => If
     | Seq(_) => Seq
     | Test(_) => Test
+    | HintedTest(_) => HintedTest
     | Filter(_) => Filter
     | Closure(_) => Closure
     | Parens(_) => Parens
@@ -446,15 +401,14 @@ module Exp = {
     | BuiltinFun(_) => BuiltinFun
     | Match(_) => Match
     | LivelitName(_) => LivelitName
-    | Cast(_) => Cast;
+    | Asc(_) => Asc;
 
   let show_cls: cls => string =
     fun
     | Invalid => "Invalid expression"
     | MultiHole => "Broken expression"
-    | EmptyHole => "Empty expression hole"
+    | EmptyHole => "Expression hole"
     | DynamicErrorHole => "Dynamic error hole"
-    | FailedCast => "Failed cast"
     | Deferral => "Deferral"
     | Undefined => "Undefined expression"
     | Atom(Int) => "Number literal"
@@ -482,6 +436,7 @@ module Exp = {
     | If => "If expression"
     | Seq => "Sequence expression"
     | Test => "Test"
+    | HintedTest => "Hinted Test"
     | Filter => "Filter"
     | Closure => "Closure"
     | Parens => "Parenthesized expression"
@@ -494,7 +449,7 @@ module Exp = {
     | Match => "Case expression"
     | LivelitName => "Livelit name"
     | LivelitAp => "Livelit application"
-    | Cast => "Cast expression";
+    | Asc => "Type ascription expression";
 
   let rec match_tup_label: t => option((LabeledTuple.label, t)) = {
     e => {
@@ -505,7 +460,7 @@ module Exp = {
         | Label(name) => Some((name, e'))
         | _ => None
         }
-      | Cast(e, _, _) => match_tup_label(e)
+      | Asc(e, _) => match_tup_label(e)
       | _ => None
       };
     };
@@ -521,7 +476,7 @@ module Exp = {
     switch (e.term) {
     | Parens(e)
     | Probe(e, _) => is_fun(e)
-    | Cast(e, _, _) => is_fun(e)
+    | Asc(e, _) => is_fun(e)
     | TypFun(_)
     | Fun(_)
     | BuiltinFun(_) => true
@@ -546,7 +501,6 @@ module Exp = {
     | EmptyHole
     | MultiHole(_)
     | DynamicErrorHole(_)
-    | FailedCast(_)
     | Deferral(_)
     | Undefined
     | Atom(_)
@@ -564,6 +518,7 @@ module Exp = {
     | If(_)
     | Seq(_)
     | Test(_)
+    | HintedTest(_)
     | Filter(_)
     | Cons(_)
     | ListConcat(_)
@@ -580,7 +535,7 @@ module Exp = {
     is_fun(e)
     || (
       switch (e.term) {
-      | Cast(e, _, _)
+      | Asc(e, _)
       | Parens(e)
       | Probe(e, _)
       | TupLabel(_, e) => is_tuple_of_functions(e)
@@ -606,7 +561,6 @@ module Exp = {
       | EmptyHole
       | MultiHole(_)
       | DynamicErrorHole(_)
-      | FailedCast(_)
       | Deferral(_)
       | Undefined
       | Atom(_)
@@ -627,6 +581,7 @@ module Exp = {
       | If(_)
       | Seq(_)
       | Test(_)
+      | HintedTest(_)
       | Filter(_)
       | Cons(_)
       | ListConcat(_)
@@ -665,11 +620,10 @@ module Exp = {
       | EmptyHole
       | MultiHole(_)
       | DynamicErrorHole(_)
-      | FailedCast(_)
       | FixF(_)
       | Closure(_)
       | BuiltinFun(_)
-      | Cast(_)
+      | Asc(_)
       | Deferral(_)
       | Undefined
       | Atom(_)
@@ -688,6 +642,7 @@ module Exp = {
       | If(_)
       | Seq(_)
       | Test(_)
+      | HintedTest(_)
       | Cons(_)
       | ListConcat(_)
       | UnOp(_)
@@ -830,7 +785,6 @@ module Exp = {
           | EmptyHole
           | MultiHole(_)
           | DynamicErrorHole(_)
-          | FailedCast(_)
           | Deferral(_)
           | Atom(_)
           | ListLit(_)
@@ -848,6 +802,7 @@ module Exp = {
           | If(_)
           | Seq(_)
           | Test(_)
+          | HintedTest(_)
           | Filter(_)
           | Parens(_)
           | Probe(_)
@@ -856,7 +811,7 @@ module Exp = {
           | UnOp(_)
           | BinOp(_)
           | BuiltinFun(_)
-          | Cast(_)
+          | Asc(_)
           | LivelitName(_)
           | Undefined => cont(e)
           };
@@ -904,7 +859,7 @@ module Rul = {
     | [_, ..._] => ids
     | [] =>
       switch (term) {
-      | Hole([tm, ..._]) => any_ids(tm)
+      | MultiHole([tm, ..._]) => any_ids(tm)
       | Rules({annotation: {ids, _}, _}, []) => ids
       | _ => []
       }
@@ -915,6 +870,8 @@ module Rul = {
     | [] => raise(Invalid_argument("Exp.rep_id"))
     | [id, ..._] => id
     };
+
+  let unwrap: t => (term, term => t) = IdTagged.unwrap;
 };
 
 module Any = {

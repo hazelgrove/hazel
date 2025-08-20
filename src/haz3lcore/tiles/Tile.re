@@ -17,6 +17,12 @@ let l_shard = t =>
 let r_shard = t =>
   OptUtil.get_or_raise(Empty_tile, ListUtil.last_opt(t.shards));
 
+let shard_on_side = (d: Direction.t, t: t) =>
+  switch (d) {
+  | Left => l_shard(t)
+  | Right => r_shard(t)
+  };
+
 let has_end = (d: Direction.t, t) =>
   switch (d) {
   | Left => l_shard(t) == 0
@@ -73,6 +79,23 @@ let split_shards = (id, label, mold, shards) =>
          children: [],
        }
      );
+
+let left_missing_shards = (t: t): list(t) =>
+  List.init(l_shard(t), Fun.id) |> split_shards(t.id, t.label, t.mold);
+
+let right_missing_shards = (t: t): list(t) =>
+  List.init(List.length(t.label) - r_shard(t) - 1, i => r_shard(t) + i + 1)
+  |> split_shards(t.id, t.label, t.mold);
+
+let missing_shards = (t: t): list(t) =>
+  List.filter(
+    i => !List.mem(i, t.shards),
+    List.init(List.length(t.label), Fun.id),
+  )
+  |> split_shards(t.id, t.label, t.mold);
+
+let effective_label = (t: t): list(string) =>
+  List.map(List.nth(t.label), t.shards);
 
 // postcond: output segment is nonempty
 let disassemble = ({id, label, mold, shards, children}: t): segment => {

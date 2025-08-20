@@ -141,6 +141,9 @@ let rec matches =
       | Test(ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Test(ctx) |> rewrap;
+      | HintedTest(ctx, hint) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        HintedTest(ctx, hint) |> rewrap;
       | Parens(ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Parens(ctx) |> rewrap;
@@ -165,9 +168,9 @@ let rec matches =
       | MultiHole(ctx, (dl, dr)) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         MultiHole(ctx, (dl, dr)) |> rewrap;
-      | Cast(ctx, ty, ty') =>
+      | Asc(ctx, ty) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
-        Cast(ctx, ty, ty') |> rewrap;
+        Asc(ctx, ty) |> rewrap;
       | FailedCast(ctx, ty, ty') =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         FailedCast(ctx, ty, ty') |> rewrap;

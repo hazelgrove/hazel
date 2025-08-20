@@ -36,9 +36,7 @@ type op_bin_int =
   | LessThan
   | LessThanOrEqual
   | GreaterThan
-  | GreaterThanOrEqual
-  | Equals
-  | NotEquals;
+  | GreaterThanOrEqual;
 
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type op_bin_string =
@@ -46,11 +44,17 @@ type op_bin_string =
   | Equals;
 
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
+type op_bin_poly =
+  | Equals
+  | NotEquals;
+
+[@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type bin_op =
   | IntOp(op_bin_int)
   | FloatOp(op_bin_float)
   | StringOp(op_bin_string)
-  | BoolOp(op_bin_bool);
+  | BoolOp(op_bin_bool)
+  | PolyOp(op_bin_poly);
 
 [@deriving (show({with_path: false}), sexp, qcheck, eq)]
 type op_un_meta =
@@ -109,7 +113,7 @@ and sumtype = list(sumterm);
 
 [@deriving (show({with_path: false}), sexp, eq)]
 type pat =
-  | CastPat(pat, typ, typ)
+  | AscPat(pat, typ)
   | EmptyHolePat
   | WildPat
   | AtomPat(Language.Atom.t)
@@ -151,14 +155,14 @@ type exp =
   | Dot(exp, exp)
   | ApExp(exp, exp)
   | FixF(pat, exp)
-  | Cast(exp, typ, typ)
-  | FailedCast(exp, typ, typ)
+  | Asc(exp, typ)
   | EmptyHole
   | Filter(filter_action, exp, exp)
   | BuiltinFun(string)
   | Undefined
   | Seq(exp, exp)
   | Test(exp)
+  | HintedTest(exp, exp)
   | Deferral
   | TypFun(tpat, exp)
   | Cons(exp, exp)
@@ -637,8 +641,8 @@ and gen_pat_sized: (~minimal_idents: bool, int) => QCheck.Gen.t(pat) =
               {
                 let* p = self((n - 1) / 2);
                 let+ t1 = gen_typ_sized((n - 1) / 2);
-                CastPat(p, t1, UnknownType(Internal));
-              } // The second cast pat isn't present in syntax
+                AscPat(p, t1);
+              },
             ])
           };
         },
@@ -825,33 +829,15 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
             let* shrunk = shrink_pat(p);
             return(FixF(shrunk, e));
           }
-        | Cast(e, t1, t2) =>
+        | Asc(e, t) =>
           return(e)
           <+> {
             let* shrunk = shrink_exp(e);
-            return(Cast(shrunk, t1, t2));
+            return(Asc(shrunk, t));
           }
           <+> {
-            let* shrunk = shrink_typ(t1);
-            return(Cast(e, shrunk, t2));
-          }
-          <+> {
-            let* shrunk = shrink_typ(t2);
-            return(Cast(e, t1, shrunk));
-          }
-        | FailedCast(e, t1, t2) =>
-          return(e)
-          <+> {
-            let* shrunk = shrink_exp(e);
-            return(FailedCast(shrunk, t1, t2));
-          }
-          <+> {
-            let* shrunk = shrink_typ(t1);
-            return(FailedCast(e, shrunk, t2));
-          }
-          <+> {
-            let* shrunk = shrink_typ(t2);
-            return(FailedCast(e, t1, shrunk));
+            let* shrunk = shrink_typ(t);
+            return(Asc(e, shrunk));
           }
         | Filter(fa, e1, e2) =>
           {
@@ -883,13 +869,25 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
             let* shrunk = shrink_exp(e);
             return(Test(shrunk));
           }
+        | HintedTest(e1, e2) =>
+          {
+            of_list([e1, e2]);
+          }
+          <+> {
+            let* shrunk = shrink_exp(e1);
+            return(HintedTest(shrunk, e2));
+          }
+          <+> {
+            let* shrunk = shrink_exp(e2);
+            return(HintedTest(e1, shrunk));
+          }
         | Deferral => Iter.empty
         | TypFun(tpat, e) =>
           return(e)
           <+> {
             let* shrunk = shrink_exp(e);
-            return(TypFun(tpat, shrunk)); // Not worth shrinking tpat
-          }
+            return(TypFun(tpat, shrunk));
+          } // Not worth shrinking tpat
         | Cons(e1, e2) =>
           {
             of_list([e1, e2]);
@@ -999,19 +997,15 @@ and shrink_pat: QCheck.Shrink.t(pat) =
           | [x] => return(ListPat(shrunk)) <+> Iter.return(x)
           | _ => return(ListPat(shrunk))
           };
-        | CastPat(p, t1, t2) =>
+        | AscPat(p, t) =>
           return(p)
           <+> {
             let* shrunk = shrink_pat(p);
-            return(CastPat(shrunk, t1, t2));
+            return(AscPat(shrunk, t));
           }
           <+> {
-            let* shrunk = shrink_typ(t1);
-            return(CastPat(p, shrunk, t2));
-          }
-          <+> {
-            let* shrunk = shrink_typ(t2);
-            return(CastPat(p, t1, shrunk));
+            let* shrunk = shrink_typ(t);
+            return(AscPat(p, shrunk));
           }
         | ApPat(p1, p2) =>
           {

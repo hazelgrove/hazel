@@ -5,11 +5,11 @@ open Language;
 /* Suggest the token at the top of the backpack, if we can put it down */
 let suggest_backpack = (z: Zipper.t): list(t) => {
   /* Note: Sort check unnecessary here as wouldn't be able to put down */
-  switch (z.backpack) {
+  switch (Zipper.local_backpack(z)) {
   | [] => []
-  | [{content, _}, ..._] =>
-    switch (content) {
-    | [Tile({label, shards: [idx], _})] when Zipper.can_put_down(z) => [
+  | [t, ..._] =>
+    switch (t) {
+    | {label, shards: [idx], _} when Zipper.can_put_down(z) => [
         {
           content: List.nth(label, idx),
           strategy: Any(FromBackpack),
@@ -35,9 +35,9 @@ let suggest = (ci: Info.t, z: Zipper.t): list(t) => {
   | InfoTyp({cls: Typ(TupLabel), _}) => [] // TODO: Autocomplete for labels
   | _ =>
     suggest_backpack(z)
+    @ TyDiForms.suggest_leading(ci)
     @ (
       TyDiForms.suggest_operand(ci)
-      @ TyDiForms.suggest_leading(ci)
       @ TyDiCtx.suggest_variable(ci)
       @ TyDiCtx.suggest_lookahead_variable(ci)
       |> List.sort(TyDiSuggestion.compare)
@@ -84,7 +84,7 @@ let suffix_of = (candidate: Token.t, current: Token.t): option(Token.t) => {
 };
 
 /* Returns the text content of the suggestion buffer */
-let get_buffer = (z: Zipper.t): option(Token.t) =>
+let get_unparsed_buffer = (z: Zipper.t): option(Token.t) =>
   switch (z.selection.mode, z.selection.content) {
   | (Buffer(Unparsed), [Secondary({content: Comment(completion), _})]) =>
     Some(completion)
@@ -97,7 +97,7 @@ let set_buffer = (~info_map: Statics.Map.t, z: Zipper.t): option(Zipper.t) => {
     switch (z.selection.mode) {
     /* Make sure not to populate the completion buffer if there is a non-empty
      * selection, otherwise it will get clobbered by the buffer */
-    | Buffer(Unparsed) => Some()
+    | Buffer(Unparsed | Parsed) => Some()
     | Normal when Selection.is_empty(z.selection) => Some()
     | Normal => None
     };

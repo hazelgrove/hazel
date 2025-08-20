@@ -6,22 +6,13 @@ let alco_check =
   (testable(Fmt.using(Exp.show, Fmt.string)))(DHExp.fast_equal)
   |> Alcotest.check;
 
-let strip_Wrap_and_add_builtins =
+let strip_wrap =
   Exp.map_term(
     ~f_exp=
       (cont: TermBase.exp_t => TermBase.exp_t, e: TermBase.exp_t) =>
         switch (e.term) {
         | Parens(e)
         | Probe(e, _) => cont(e)
-        | Var(x) =>
-          let builtin = Util.VarMap.lookup(Builtins.Pervasives.builtins, x);
-          cont(
-            switch (builtin) {
-            | Some(Fn(_, _, _)) => cont(Fresh.Exp.builtin_fun(x))
-            | Some(Const(_, _))
-            | None => cont(e)
-            },
-          );
         | _ => cont(e)
         },
     ~f_pat=
@@ -42,9 +33,9 @@ let strip_Wrap_and_add_builtins =
 
 // Existing recovering parser
 let make_term_parse = (s: string) =>
-  strip_Wrap_and_add_builtins(
+  strip_wrap(
     Haz3lcore.MakeTerm.from_zip_for_sem(
-      Option.get(Haz3lcore.Printer.zipper_of_string(s)),
+      Option.get(Haz3lcore.Parser.to_zipper(s)),
     ).
       term,
   );
@@ -105,17 +96,11 @@ let qcheck_menhir_maketerm_equivalent_test =
     QCheck_Util.arb_exp(~minimal_idents=false, 7),
     core_exp => {
       let segment =
-        Haz3lcore.ExpToSegment.exp_to_segment(
-          ~settings=
-            Haz3lcore.ExpToSegment.Settings.of_core(
-              ~inline=true,
-              Language.CoreSettings.off,
-            ),
-          core_exp,
+        Haz3lcore.ExpToSegment.(
+          exp_to_segment(~settings=Settings.editable(~inline=true), core_exp)
         );
 
-      let serialized =
-        Haz3lcore.Printer.of_segment(~holes=Some("?"), segment);
+      let serialized = Haz3lcore.Printer.of_segment(~holes="?", segment);
       let make_term_parsed = make_term_parse(serialized);
       let menhir_parsed = Interface.parse_program(serialized);
       let menhir_parsed_converted =
@@ -173,8 +158,7 @@ let qcheck_menhir_serialized_equivalent_test =
           },
           core_exp,
         );
-      let serialized =
-        Haz3lcore.Printer.of_segment(~holes=Some("?"), segment);
+      let serialized = Haz3lcore.Printer.of_segment(~holes="?", segment);
       let menhir_parsed = Interface.parse_program(serialized);
       AST.equal_exp(menhir_parsed, exp);
     },
@@ -240,8 +224,8 @@ let tests =
       menhir_only_test("Unit", tuple([]), "()"),
       menhir_only_test("Constructor", constructor("A", None), "A"),
       menhir_only_test(
-        "Constructor cast",
-        cast(constructor("A", None), Typ.unknown(Internal), Typ.int()),
+        "Constructor ascription",
+        asc(constructor("A", None), Typ.int()),
         "A : Int",
       ),
       menhir_only_test(
@@ -257,11 +241,7 @@ let tests =
       ),
       full_parser_test(
         "Type Variable",
-        let_(
-          Pat.cast(Pat.var("x"), Typ.var("T"), Typ.unknown(Internal)),
-          empty_hole(),
-          var("x"),
-        ),
+        let_(Pat.asc(Pat.var("x"), Typ.var("T")), empty_hole(), var("x")),
         "let x : T = ? in x",
       ),
       full_parser_test(
@@ -271,7 +251,7 @@ let tests =
       ),
       full_parser_test(
         "Test",
-        test(bin_op(Int(Equals), int(3), int(3))),
+        test(bin_op(Poly(Equals), int(3), int(3))),
         "test 3 == 3 end",
       ),
       full_parser_test(
@@ -340,11 +320,7 @@ let tests =
       ),
       full_parser_test(
         "Let binding with type ascription",
-        let_(
-          Pat.cast(Pat.var("x"), Typ.int(), Typ.unknown(Internal)),
-          int(5),
-          var("x"),
-        ),
+        let_(Pat.asc(Pat.var("x"), Typ.int()), int(5), var("x")),
         "let (x: Int) = 5 in x",
       ),
       menhir_only_test(
@@ -360,19 +336,27 @@ let tests =
       full_parser_test(
         "basic sum type",
         let_(
-          Pat.cast(
+          Pat.asc(
             Pat.var("x"),
             Typ.sum([
               Variant("A", [], None),
               Variant("B", [], None),
               Variant("C", [], Some(Typ.int())),
             ]),
-            Typ.unknown(Internal),
           ),
           ap(Forward, constructor("C", None), int(7)),
           var("x"),
         ),
         "let x : +A +B +C(Int) = C(7) in x",
+      ),
+      menhir_maketerm_equivalent_test("Fold Projector Exp", "^^fold(1)"),
+      menhir_maketerm_equivalent_test(
+        "Fold Projector Typ",
+        "type foo = ^^fold(Int) in 3",
+      ),
+      menhir_maketerm_equivalent_test(
+        "Fold Projector Pat",
+        "let ^^fold(x) = 3 in x",
       ),
       menhir_maketerm_equivalent_test("Empty Type Hole", "let g: ? = 7 in g"),
       menhir_maketerm_equivalent_test(
@@ -380,9 +364,9 @@ let tests =
         "fun (b : Bool) -> b",
       ),
       full_parser_test(
-        "Type Hole in arrow cast",
+        "Type Hole in arrow ascription",
         fn(
-          Pat.cast(
+          Pat.asc(
             Pat.var("b"),
             Typ.(
               parens(
@@ -392,7 +376,6 @@ let tests =
                 ),
               )
             ),
-            Typ.unknown(Internal),
           ),
           empty_hole(),
           None,

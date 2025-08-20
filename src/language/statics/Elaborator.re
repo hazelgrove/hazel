@@ -13,6 +13,15 @@ module ElaborationResult = {
     | DoesNotElaborate;
 };
 
+let fresh_ascription = (d: Exp.t, t: Typ.t, t': option(Typ.t)) => {
+  IdTagged.FreshGrammar.Exp.(
+    switch (t') {
+    | Some({term: Unknown(Internal), _}) => d
+    | Some(ty) when !Typ.fast_equal(ty, t) => asc(d, ty)
+    | _ => d
+    }
+  );
+};
 let elaborated_type =
     (m: Statics.Map.t, uexp: Exp.t): (Typ.t, Typ.t, Ctx.t, CoCtx.t, Exp.t) => {
   let (ana_ty, self_ty, ctx, co_ctx, term) =
@@ -143,9 +152,9 @@ let rec elaborate_pattern =
     | Parens(p) =>
       let (p', _) = elaborate_pattern(m, p);
       p';
-    | Cast(p, t1, t2) =>
+    | Asc(p, t) =>
       let (p', _) = elaborate_pattern(m, p);
-      Cast(p', Typ.normalize(ctx, t1), t2) |> rewrap;
+      Asc(p', Typ.normalize(ctx, t)) |> rewrap;
     | Probe(p, probe) =>
       let (e', _) = elaborate_pattern(m, p);
       let probe = Dynamics.Probe.instrument_pat(m, Pat.rep_id(upat), probe);
@@ -167,27 +176,6 @@ let rec elaborate_pattern =
   (dpat, elaborated_type);
 };
 
-/* The primary goal of elaboration is to convert from a type system
-   where we have consistency, to a type system where types are either
-   equal or they're not. Anything that was just consistent needs to
-   become a cast. [The one other thing elaboration does is make
-   recursive let bindings explicit.]
-
-   At the top of this function we work out the "elaborated type" of
-   of the expression. We also return this elaborated type so we can
-   use it in the recursive call. When elaborate returns, you can trust
-   that the returned expression will have the returned type. There is
-   however, no guarantee that the returned type is even consistent with
-   the "elaborated type" at the top, so you should fresh_cast EVERYWHERE
-   just in case.
-
-   Important invariant: any cast in an elaborated expression should have
-   normalized types.
-
-   [Matt] A lot of these fresh_cast calls are redundant, however if you
-   want to remove one, I'd ask you instead comment it out and leave
-   a comment explaining why it's redundant.  */
-
 let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
   // In the case of singleton labeled tuples we update the syntax in Statics.
   // We store this syntax with the same ID as the original expression and store it on the Info.exp in the Statics.map
@@ -204,6 +192,9 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
     | Invalid(_)
     | Undefined
     | EmptyHole => uexp
+    | MultiHole([Exp(e1), Exp(e2)]) =>
+      /* Treat two-expression multiholes as seqs */
+      Seq(fst(elaborate(m, e1)), fst(elaborate(m, e2))) |> rewrap
     | MultiHole(stuff) =>
       Any.map_term(
         ~f_exp=(_, exp) => {elaborate(m, exp) |> fst},
@@ -215,10 +206,8 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
     | DynamicErrorHole(e, err) =>
       let (e', _) = elaborate(m, e);
       DynamicErrorHole(e', err) |> rewrap;
-    | Cast(e, t1, t2) =>
-      Cast(elaborate(m, e) |> fst, t1, Typ.normalize(ctx, t2)) |> rewrap
-    | FailedCast(e, t1, t2) =>
-      FailedCast(elaborate(m, e) |> fst, t1, t2) |> rewrap
+    | Asc(e, t) =>
+      Asc(elaborate(m, e) |> fst, Typ.normalize(ctx, t)) |> rewrap
     | Parens(e) =>
       let (e', _) = elaborate(m, e);
       e';
@@ -236,7 +225,11 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       };
     | ListLit(es) =>
       let (ds, tys) = List.map(elaborate(m), es) |> ListUtil.unzip;
-      let ds' = List.map2((d, _t) => d, ds, tys);
+      let joined_ty =
+        Typ.join_all(~empty=Unknown(Internal) |> Typ.temp, ctx, tys);
+
+      let ds' =
+        List.map2((d, t) => fresh_ascription(d, t, joined_ty), ds, tys);
       ListLit(ds') |> rewrap;
     | LivelitName(_) => uexp
     | Constructor(c, _) =>
@@ -332,9 +325,9 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
         Let(p, fixf, body) |> rewrap;
       };
     | FixF(p, e, env) =>
-      let (p', _) = elaborate_pattern(m, p, false);
+      let (p', pty) = elaborate_pattern(m, p, false);
       let (e', _) = elaborate(m, e);
-      FixF(p', e', env) |> rewrap;
+      FixF(p', Asc(e', pty) |> rewrap, env) |> rewrap; // TODO Consider if there's a better strategy than always ascribing the type
     // These forms are removed in elaboration
     | Use(_, e)
     | TyAlias(_, _, e) =>
@@ -362,12 +355,18 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       DeferredAp(f', args') |> rewrap;
     | TypAp(e, ut) =>
       let (e', _) = elaborate(m, e);
-      TypAp(e', ut) |> rewrap;
+      let ut' = Typ.normalize(ctx, ut);
+      TypAp(e', ut') |> rewrap;
     | If(c, t, f) =>
       let (c', _) = elaborate(m, c);
-      let (t', _) = elaborate(m, t);
-      let (f', _) = elaborate(m, f);
-      If(c', t', f') |> rewrap;
+      let (t', t_ty) = elaborate(m, t);
+      let (f', f_ty) = elaborate(m, f);
+      If(
+        c',
+        fresh_ascription(t', t_ty, Some(elaborated_type)),
+        fresh_ascription(f', f_ty, Some(elaborated_type)),
+      )
+      |> rewrap;
     | Seq(e1, e2) =>
       let (e1', _) = elaborate(m, e1);
       let (e2', _) = elaborate(m, e2);
@@ -375,6 +374,10 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
     | Test(e) =>
       let (e', _) = elaborate(m, e);
       Test(e') |> rewrap;
+    | HintedTest(e1, e2) =>
+      let (e1', _) = elaborate(m, e1);
+      let (e2', _) = elaborate(m, e2);
+      HintedTest(e1', e2') |> rewrap;
     | Filter(kind, e) =>
       let (e', _) = elaborate(m, e);
       let kind' =
@@ -394,7 +397,9 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
     | Cons(e1, e2) =>
       let (e1', _) = elaborate(m, e1);
       let (e2', _) = elaborate(m, e2);
-      Cons(e1', e2') |> rewrap;
+      Cons(e1', e2')
+      |> rewrap
+      |> IdTagged.FreshGrammar.Exp.asc(_, elaborated_type);
     | ListConcat(e1, e2) =>
       let (e1', _) = elaborate(m, e1);
       let (e2', _) = elaborate(m, e2);
@@ -425,7 +430,14 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let (ps, es) = ListUtil.unzip(cases);
       let (ps', _) =
         List.map(p => elaborate_pattern(m, p, false), ps) |> ListUtil.unzip;
-      let (es', _) = List.map(elaborate(m), es) |> ListUtil.unzip;
+      let es' =
+        List.map(
+          e => {
+            let (e', ty) = elaborate(m, e);
+            fresh_ascription(e', ty, Some(elaborated_type));
+          },
+          es,
+        );
       Match(e', List.combine(ps', es')) |> rewrap;
     };
   (dhexp, elaborated_type);
@@ -440,8 +452,9 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
 let fix_typ_ids =
   Exp.map_term(~f_typ=(cont, e) => e |> IdTagged.new_ids |> cont);
 
-let uexp_elab = (m: Statics.Map.t, uexp: Exp.t): ElaborationResult.t =>
+let uexp_elab = (m: Statics.Map.t, uexp: Exp.t): ElaborationResult.t => {
   switch (elaborate(m, uexp)) {
   | exception MissingTypeInfo => DoesNotElaborate
   | (d, ty) => Elaborates(d |> fix_typ_ids, ty)
   };
+};

@@ -64,13 +64,13 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Probe(_)
   | ListLit(_)
   | Test(_)
+  | HintedTest(_)
   | Match(_) => Precedence.max
 
   // Other forms
   | UnOp(Meta(Unquote), _) => Precedence.unquote
 
-  | Cast(_)
-  | FailedCast(_) => Precedence.cast
+  | Asc(_) => Precedence.asc
   | Ap(Forward, _, _)
   | DeferredAp(_)
   | TypAp(_) => Precedence.ap
@@ -118,7 +118,7 @@ let external_precedence_pat = (dp: Pat.t) =>
   // Other forms
   | Cons(_) => Precedence.cons
   | Ap(_) => Precedence.ap
-  | Cast(_) => Precedence.cast
+  | Asc(_) => Precedence.asc
   | Tuple(_) => Precedence.prod
 
   // Matt: I think multiholes are min because we don't know the precedence of the `⟩?⟨`s
@@ -226,10 +226,7 @@ let rec parenthesize =
   | Filter(Residue(_), x) => x |> parenthesize
   // Other forms
   | Constructor(c, t) =>
-    Constructor(
-      c,
-      Option.map(Option.map(paren_typ_at(Precedence.cast)), t),
-    )
+    Constructor(c, Option.map(Option.map(paren_typ_at(Precedence.asc)), t))
     |> rewrap
   | Fun(p, e, typ, n) =>
     Fun(
@@ -330,21 +327,15 @@ let rec parenthesize =
       parenthesize(e2) |> paren_assoc_at(Precedence.semi),
     )
     |> rewrap
-  | Cast(e, t1, t2) =>
-    Cast(
-      parenthesize(e) |> paren_assoc_at(Precedence.cast),
-      parenthesize_typ(t1) |> paren_Typ_at(Precedence.cast),
-      parenthesize_typ(t2) |> paren_Typ_at(Precedence.cast),
-    )
-    |> rewrap
-  | FailedCast(e, t1, t2) =>
-    FailedCast(
-      parenthesize(e) |> paren_at(Precedence.cast),
-      parenthesize_typ(t1) |> paren_Typ_at(Precedence.cast),
-      parenthesize_typ(t2) |> paren_Typ_at(Precedence.cast),
+  | Asc(e, t) =>
+    Asc(
+      parenthesize(e) |> paren_assoc_at(Precedence.asc),
+      parenthesize_typ(t) |> paren_typ_at(Precedence.asc),
     )
     |> rewrap
   | Test(e) => Test(parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
+  | HintedTest(e, hint) =>
+    HintedTest(parenthesize(e) |> paren_at(Precedence.min), hint) |> rewrap
   | Parens(e) =>
     Parens(parenthesize(~already_paren=true, e) |> paren_at(Precedence.min))
     |> rewrap
@@ -471,11 +462,10 @@ and parenthesize_pat =
     |> rewrap
   | MultiHole(xs) =>
     MultiHole(List.map(parenthesize_any(~show_filters), xs)) |> rewrap
-  | Cast(p, t1, t2) =>
-    Cast(
-      parenthesize_pat(p) |> paren_pat_assoc_at(Precedence.cast),
-      parenthesize_Typ(t1) |> paren_Typ_at(Precedence.max), // Hack[Matt]: always add parens to get the arrows right
-      parenthesize_Typ(t2) |> paren_Typ_at(Precedence.max),
+  | Asc(p, t) =>
+    Asc(
+      parenthesize_pat(p) |> paren_pat_assoc_at(Precedence.asc),
+      parenthesize_typ(t) |> paren_typ_at(Precedence.max) // Hack[Matt]: always add parens to get the arrows right
     )
     |> rewrap
   };
@@ -588,8 +578,8 @@ and parenthesize_rul = (~show_filters: bool, rul: Rul.t): Rul.t => {
       ),
     )
     |> rewrap
-  | Hole(xs) =>
-    Hole(List.map(parenthesize_any(~show_filters), xs)) |> rewrap
+  | MultiHole(xs) =>
+    MultiHole(List.map(parenthesize_any(~show_filters), xs)) |> rewrap
   };
 }
 
@@ -727,7 +717,7 @@ let fold_fun_if = (condition, f_name: string, pieces) =>
   };
 
 /* We assume that parentheses have already been added as necessary, and
-      that the expression has no Closures, DynamicErrorHoles, Casts, or FailedCasts
+      that the expression has no Closures or DynamicErrorHoles
    */
 let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
   let go = (~inline=settings.inline) =>
@@ -860,7 +850,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       | None => p
       | Some(t) =>
         let t = t |> Typ.replace_temp;
-        Pat.fresh(Cast(p, t, t))
+        Pat.fresh(Asc(p, t))
         |> parenthesize_pat(~show_filters=settings.show_filters);
       };
     let+ p = pat_to_pretty(~settings: Settings.t, p)
@@ -1035,6 +1025,11 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let id = exp |> Exp.rep_id;
     let+ e = go(e);
     [mk_form(Test, id, [e])];
+  | HintedTest(e, hint) =>
+    let id = exp |> Exp.rep_id;
+    let* hint = go(hint)
+    and* e = go(e);
+    [mk_form(HintedTest, id, [hint, e])];
   | Parens(e) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
@@ -1071,8 +1066,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
      could have been overriden in this scope; worth fixing when we fix
      closures. */
   | BuiltinFun(f) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, f)
-  | FailedCast(e, _, t)
-  | Cast(e, _, t) =>
+  | Asc(e, t) =>
     let id = exp |> Exp.rep_id;
     let+ e = go(e)
     and+ t = typ_to_pretty(~settings: Settings.t, t);
@@ -1213,7 +1207,7 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
     let+ p1 = go(p1)
     and+ p2 = go(p2);
     p1 @ [mk_form(ApPat, id, [p2])];
-  | Cast(p, t, _) =>
+  | Asc(p, t) =>
     let id = pat |> Pat.rep_id;
     let+ p = go(p)
     and+ t = typ_to_pretty(~settings: Settings.t, t);

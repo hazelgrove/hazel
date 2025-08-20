@@ -78,7 +78,6 @@ module Decompose = {
           | exception (EvaluatorError.Exception(_)) => Result.Indet
           }
         };
-      };
 
     let (and.):
       (requirements('a, 'c => 'b), requirement('c)) =>

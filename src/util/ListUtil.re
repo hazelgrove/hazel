@@ -1,10 +1,10 @@
 let rev_if = (b: bool) => b ? List.rev : Fun.id;
 
 let dedup_f = (f, xs) =>
-  List.fold_right(
-    (x, deduped) => List.exists(f(x), deduped) ? deduped : [x, ...deduped],
-    xs,
+  List.fold_left(
+    (deduped, x) => List.exists(f(x), deduped) ? deduped : deduped @ [x],
     [],
+    xs,
   );
 
 let dedup = xs => dedup_f((==), xs);
@@ -677,6 +677,12 @@ let take = (n, xs) => {
     };
   loop(n, xs, []);
 };
+
+let take_up_to_n = (n: int, xs: list('a)): list('a) =>
+  switch (split_n_opt(n, xs)) {
+  | Some((xs, _)) => xs
+  | None => xs
+  };
 
 /* Move the first element equal to x to the front of the list */
 let lift = (x: 'a, xs: list('a)): list('a) =>

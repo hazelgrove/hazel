@@ -22,7 +22,6 @@ module Caret = {
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = {
   selection: Selection.t,
-  backpack: Backpack.t,
   relatives: Relatives.t,
   caret: Caret.t,
 };
@@ -175,11 +174,3 @@ module MapPiece = {
   let fast_local = (f: Piece.t => Piece.t, id: Id.t, z: t): t =>
     fast_local_seg(p => [f(p)], id, z);
 };
-
-let remove_all_projectors = (z: t): t =>
-  MapPiece.go(
-    fun
-    | Projector(pr) => Piece.unparenthesize(pr.syntax)
-    | x => [x],
-    z,
-  );

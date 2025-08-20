@@ -4,8 +4,6 @@ open AST
 
 
 
-%token OPEN_CURLY
-%token CLOSE_CURLY
 %token T_TYP
 %token P_PAT
 %token TP_TPAT
@@ -16,6 +14,7 @@ open AST
 %token REC
 %token UNDEF
 %token <string> SEXP_STRING
+%token <string> PROJECTOR_INVOKE
 %token DOLLAR_SIGN
 %token TYP
 %token TYP_FUN
@@ -33,7 +32,6 @@ open AST
 %token <string> IDENT
 %token <string> CONSTRUCTOR_IDENT
 %token <string> STRING
-%token <string> BUILTIN
 %token TRUE 
 %token FALSE
 %token <int> INT
@@ -52,13 +50,15 @@ open AST
 %token SINGLE_EQUAL
 %token TURNSTILE
 
+(* Poly ops *)
+%token DOUBLE_EQUAL
+%token NOT_EQUAL
+
 (* String ops *)
 %token STRING_CONCAT
 %token STRING_EQUAL
 
 (* Int ops *)
-%token DOUBLE_EQUAL
-%token NOT_EQUAL
 %token PLUS
 %token MINUS
 %token POWER
@@ -136,7 +136,6 @@ open AST
 %nonassoc UMINUS   /* Unary minus (prefix) */
 %left COLON
 
-%left OPEN_CURLY
 
 
 %nonassoc TYP_AP_SYMBOL
@@ -144,7 +143,6 @@ open AST
 %left OPEN_PAREN CLOSE_PAREN
 %left DOLLAR_SIGN
 
-%left QUESTION
 %left TILDE
 %token SLASH_TILDE
 
@@ -161,14 +159,16 @@ open AST
 program:
     | e = exp; EOF {e}
 
+%inline polyOp:
+    | DOUBLE_EQUAL { PolyOp(Equals) }
+    | NOT_EQUAL { PolyOp(NotEquals) }
+
 %inline intOp:
     | MINUS { IntOp(Minus) }
     | PLUS { IntOp(Plus) }
     | TIMES { IntOp(Times) }
     | POWER { IntOp(Power) }
     | DIVIDE { IntOp(Divide) }
-    | DOUBLE_EQUAL { IntOp(Equals) }
-    | NOT_EQUAL { IntOp(NotEquals) }
     | LESS_THAN { IntOp(LessThan) }
     | LESS_THAN_EQUAL { IntOp(LessThanOrEqual) }
     | GREATER_THAN { IntOp(GreaterThan) }
@@ -181,12 +181,12 @@ program:
     | TIMES_FLOAT { FloatOp(Times) }
     | POWER_FLOAT { FloatOp(Power) }
     | DIVIDE_FLOAT { FloatOp(Divide) }
-    | DOUBLE_EQUAL_FLOAT { FloatOp(Equals) }
-    | NOT_EQUAL_FLOAT { FloatOp(NotEquals) }
     | LESS_THAN_FLOAT { FloatOp(LessThan) }
     | LESS_THAN_EQUAL_FLOAT { FloatOp(LessThanOrEqual) }
     | GREATER_THAN_FLOAT { FloatOp(GreaterThan) }
     | GREATER_THAN_EQUAL_FLOAT { FloatOp(GreaterThanOrEqual) }
+    | DOUBLE_EQUAL_FLOAT { FloatOp(Equals) }
+    | NOT_EQUAL_FLOAT { FloatOp(NotEquals) }
 
 %inline boolOp:
     | L_AND { BoolOp(And) }
@@ -197,6 +197,7 @@ program:
     | STRING_EQUAL { StringOp(Equals) }
 
 %inline binOp:
+    | p = polyOp { p }
     | i = intOp { i }
     | f = floatOp { f }
     | b = boolOp { b }
@@ -229,6 +230,7 @@ typ:
     | c = CONSTRUCTOR_IDENT { TypVar(c) }
     | c = IDENT { TypVar(c) }
     | T_TYP; s = STRING { InvalidTyp(s) }
+    | PROJECTOR_INVOKE; OPEN_PAREN; t = typ; CLOSE_PAREN; { t }
     | INT_TYPE { IntType }
     | FLOAT_TYPE { FloatType }
     | BOOL_TYPE { BoolType }
@@ -260,7 +262,7 @@ nonAscriptingPat:
     | QUESTION { EmptyHolePat }
     | OPEN_SQUARE_BRACKET; l = separated_list(COMMA, pat); CLOSE_SQUARE_BRACKET; { ListPat(l) }
     | c = CONSTRUCTOR_IDENT { ConstructorPat(c, None)}
-    | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { CastPat(ConstructorPat(c, None), UnknownType(Internal), t) }
+    | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { AscPat(ConstructorPat(c, None), t) }
     | p = IDENT { VarPat(p) }
     | i = INT { AtomPat (Int (Bigint.of_int i)) }
     | f = FLOAT { AtomPat (Float f) }
@@ -270,15 +272,16 @@ nonAscriptingPat:
     | f = pat; OPEN_PAREN; a = pat; CLOSE_PAREN { ApPat(f, a) }
 
 funPat:
-    | OPEN_PAREN; p1 = pat; COLON; t1 = typ; CLOSE_PAREN;  { CastPat(p1, t1, UnknownType(Internal)) }
+    | OPEN_PAREN; p1 = pat; COLON; t1 = typ; CLOSE_PAREN;  { AscPat(p1, t1) }
     | p = nonAscriptingPat; { p }
 
 pat:
-    | p1 = pat; COLON; t1 = typ;  { CastPat(p1, t1, UnknownType(Internal)) }
+    | p1 = pat; COLON; t1 = typ;  { AscPat(p1, t1) }
     (* | p1 = pat; AS; p2 = pat; { AsPat(p1, p2) } *)
     | p1 = pat; CONS; p2 = pat { ConsPat(p1, p2) } 
     | UNIT { TuplePat([]) }
     | p = nonAscriptingPat; { p }
+    | PROJECTOR_INVOKE; OPEN_PAREN; p = pat; CLOSE_PAREN; { p }
 
 
 rul:
@@ -303,6 +306,7 @@ filterAction:
 
 tpat:
     | TP_TPAT; s = STRING {InvalidTPat(s)}
+    | p = PROJECTOR_INVOKE {InvalidTPat(p)}
     | QUESTION {EmptyHoleTPat}
     | v = IDENT {VarTPat v}
     | v = CONSTRUCTOR_IDENT {VarTPat v}
@@ -324,7 +328,8 @@ exp:
     | c = CONSTRUCTOR_IDENT { Constructor(c, None)}
     | c = CONSTRUCTOR_IDENT; SLASH_TILDE; { Constructor(c, Some(None)) } 
     | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { Constructor(c, Some(Some(t))) }
-    | c = CONSTRUCTOR_IDENT; COLON; t = typ;  { Cast(Constructor(c, None), UnknownType(Internal), t) }
+    | e = exp; COLON; t = typ { Asc(e, t) }
+    | PROJECTOR_INVOKE; OPEN_PAREN; e = exp; CLOSE_PAREN; { e }
     | s = STRING { Atom (String s)}
     | OPEN_TRIPLE_CURLY; e = exp; CLOSE_TRIPLE_CURLY { IndicationExp(e) }
     | OPEN_PAREN; e = exp; CLOSE_PAREN { e } 
@@ -337,8 +342,6 @@ exp:
     | f = exp; OPEN_PAREN; a = exp; COMMA; tl = separated_nonempty_list(COMMA, exp); CLOSE_PAREN { ApExp(f, TupleExp(a :: tl)) } 
     | LET; i = pat; SINGLE_EQUAL; e1 = exp; IN; e2 = exp { Let (i, e1, e2) } %prec LET_EXP
     | i = ifExp { i }
-    | e1 = exp; QUESTION; OPEN_CURLY; t1 = typ; EQUAL_ARROW; t2 = typ; CLOSE_CURLY {FailedCast(e1, t1, t2)}
-    | e1 = exp; OPEN_CURLY; t1 = typ; EQUAL_ARROW; t2 = typ; CLOSE_CURLY { Cast(e1, t1, t2) }
     | TRUE { Atom (Bool true) }
     | f = funExp {f}
     | FALSE { Atom (Bool false) }    
@@ -355,6 +358,5 @@ exp:
     | e = exp; TYP_AP_SYMBOL; ty = typ; GREATER_THAN; {TypAp(e, ty)}
     | TYP; tp = tpat; SINGLE_EQUAL; ty = typ; IN; e = exp {TyAlias(tp, ty, e)} %prec LET_EXP
     | LESS_THAN; LESS_THAN; e = exp; QUESTION; s = SEXP_STRING; GREATER_THAN; GREATER_THAN {DynamicErrorHole(e, s)}
-    | b = BUILTIN; {BuiltinFun(b)}
     | UNDEF; {Undefined}
     | u = unExp { u }

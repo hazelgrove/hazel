@@ -75,18 +75,36 @@ let destruct =
   };
 };
 
-let merge = ((l, r): (Token.t, Token.t), z: t): option(t) =>
+let merge = ((l, r): (Token.t, Token.t), z: t): option(t) => {
+  let left_monotile_id =
+    switch (Zipper.adjacent_monotile_id(Left, z)) {
+    | Some(id) => id
+    | None => Id.mk()
+    };
+  let z = Zipper.set_caret(Inner(0, Token.length(l) - 1), z); /* Note monotile assumption */
+  let* z = Zipper.delete(Left, z);
+  let* z = Zipper.delete(Right, z);
+  let z = Zipper.construct_mono(~id=left_monotile_id, Right, l ++ r, z);
+  /* Regrouting direction needed to merge prefixs into infix eg ! */
+  let z = remold_regrout(Right, z);
+  Some(z);
+};
+
+let parent_merge = (~id: Id.t, lbl: Label.t, z: t): t => {
   z
-  |> Zipper.set_caret(Inner(0, Token.length(l) - 1))  // note monotile assumption
-  |> Zipper.delete(Left)
-  |> OptUtil.and_then(Zipper.delete(Right))
-  |> Option.map(Zipper.construct_mono(Right, l ++ r));
+  |> Zipper.delete_parent
+  |> Zipper.set_caret(Inner(0, 0))  /* Note 2-token assumption */
+  |> Zipper.construct(~id, ~caret=Right, ~backpack=Left, lbl)
+  /* Below regrouting important for parens/ap positioning */
+  |> remold_regrout(Right);
+};
 
 /* Check if containing duo form has a mono equivalent e.g. list literals */
 let parent_duomerges = (z: Zipper.t) => {
   let* parent = Relatives.parent(z.relatives);
   let* lbl = Piece.label(parent);
-  Form.duomerges(lbl);
+  let+ res = Form.duomerges(lbl);
+  (res, Piece.id(parent));
 };
 
 let go = (d: Direction.t, z: t): option(t) => {
@@ -96,20 +114,14 @@ let go = (d: Direction.t, z: t): option(t) => {
     z.caret,
     neighbor_monotiles(z.relatives.siblings),
   ) {
-  | (Some(lbl), Outer, (None, None))
+  | (Some((lbl, id)), Outer, (None, None))
       when Siblings.no_siblings(z.relatives.siblings) =>
     /* Note: we must do the no_siblings check, it does not suffice
        to check no monotile neighbors as there could be other neighbors
        for example edge case: "((|))" */
-    z
-    |> Zipper.delete_parent
-    |> Zipper.set_caret(Inner(0, 0))
-    |> Zipper.construct(~caret=Right, ~backpack=Left, lbl)
-    /* Below regrouting important for parens/ap positioning */
-    |> Zipper.regrout(Right)
-    |> Option.some
+    z |> parent_merge(~id, lbl) |> Option.some
   | (_, Outer, (Some(l), Some(r))) when Molds.allow_merge(l, r) =>
-    merge((l, r), z)
-  | _ => Some(z)
+    z |> merge((l, r))
+  | _ => Some(z) |> Option.map(remold_regrout(d))
   };
 };

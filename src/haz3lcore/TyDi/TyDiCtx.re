@@ -38,6 +38,19 @@ let bound_variables = (ty_expect: Typ.t, ctx: Ctx.t): list(TyDiSuggestion.t) =>
     ctx.entries,
   );
 
+let bound_livelits = (ty_expect: Typ.t, ctx: Ctx.t): list(TyDiSuggestion.t) =>
+  List.filter_map(
+    fun
+    | Ctx.LivelitEntry({expansion_t, name, _})
+        when Typ.is_consistent(ctx, ty_expect, expansion_t) =>
+      Some({
+        content: "^" ++ name,
+        strategy: Exp(Common(FromCtx(expansion_t))),
+      })
+    | _ => None,
+    ctx.entries,
+  );
+
 let bound_constructors =
     (wrap: strategy_common => strategy, ty: Typ.t, ctx: Ctx.t)
     : list(TyDiSuggestion.t) =>
@@ -112,6 +125,7 @@ let suggest_variable = (ci: Info.t): list(TyDiSuggestion.t) => {
   switch (ci) {
   | InfoExp({ana, _}) =>
     bound_variables(ana, ctx)
+    @ bound_livelits(ana, ctx)
     @ bound_aps(ana, ctx)
     @ bound_constructors(x => Exp(Common(x)), ana, ctx)
     @ bound_constructor_aps(x => Exp(Common(x)), ana, ctx)
@@ -172,6 +186,8 @@ let suggest_lookahead_variable = (ci: Info.t): list(TyDiSuggestion.t) => {
     | Atom(Bool) =>
       /* TODO: Find a UI to make these less confusing */
       exp_refs(Atom(Int) |> Typ.fresh_empty)
+      @ exp_refs(Atom(SInt) |> Typ.fresh)
+      @ exp_refs(Atom(Nat) |> Typ.fresh)
       @ exp_refs(Atom(Float) |> Typ.fresh_empty)
       @ exp_refs(Atom(String) |> Typ.fresh_empty)
       @ exp_aps(Atom(Int) |> Typ.fresh_empty)

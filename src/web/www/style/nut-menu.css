@@ -71,7 +71,7 @@
 }
 
 #top-bar .submenu .group .name {
-  padding: 0em 0.5em 0em 0.3em;
+  padding: 0em 0.5em 0em 0.75em;
   color: var(--menu-group-name);
   height: 2em;
   display: flex;
@@ -87,8 +87,14 @@
   padding: 0.05em 0.5em 0.05em 0.7em;
 }
 
+#top-bar .named-menu-item:hover .icon {
+  rotate: -40deg;
+}
+
 #top-bar .submenu .group .contents .named-menu-item .icon {
   height: auto;
+  scale: 0.7;
+  transition: rotate 0.2s ease-in-out;
 }
 
 #top-bar .submenu .group .contents .named-menu-item:hover {
@@ -236,6 +242,40 @@
   color: var(--BR2);
   border-right: 0.6px solid var(--BR2);
   border-bottom: 0.6px solid var(--BR2);
+  position: relative;
+}
+#top-bar #editor-mode #slide-navigation {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  position: relative;
+  transition: padding-right 0.07s ease-in-out;
+  transition-delay: 0.02s;
+}
+
+#top-bar #editor-mode #slide-navigation:hover:has(#edit-buttons) {
+  padding-right: 5.5em; /* Increase padding to make room for the buttons */
+  transition-delay: 0s;
+}
+
+/* Container for the navigation buttons that should be hidden by default */
+#top-bar #editor-mode #edit-buttons {
+  display: flex;
+  align-items: center;
+  gap: 0.5em;
+  opacity: 0;
+  transition: opacity 0.02s ease-in-out;
+  transition-delay: 0s;
+  position: absolute;
+  right: 0em; /* Adjusted to position buttons properly within the expanded area */
+  pointer-events: none;
+}
+
+/* Show navigation buttons on hover */
+#top-bar #editor-mode #slide-navigation:hover > #edit-buttons {
+  opacity: 1;
+  transition-delay: 0.07s;
+  pointer-events: all;
 }
 
 #top-bar #editor-mode .icon {
@@ -243,6 +283,7 @@
   height: 21px;
   display: flex;
   align-items: center;
+  justify-content: center;
 }
 
 #top-bar #editor-mode .icon:hover {
@@ -261,6 +302,7 @@
 
 #top-bar #editor-mode .icon svg {
   height: 15px;
+  width: 15px;
 }
 
 #top-bar #editor-mode .toggle-switch.active .toggle-knob {
@@ -273,4 +315,9 @@
 
 #top-bar #editor-mode select {
   text-transform: lowercase;
+  border-radius: 1em;
+}
+
+#top-bar #editor-mode select:hover {
+  background-color: var(--SAND);
 }

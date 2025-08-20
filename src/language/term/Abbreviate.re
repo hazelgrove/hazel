@@ -191,23 +191,15 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
       available := available^ - 2;
       Parens(abbreviate_exp(e));
 
-    // Casts
+    // Ascriptions
 
-    | Cast(e, t1, t2) =>
+    | Asc(e, t1) =>
       handle_op_indet(
         ~cost=3, // " : "
-        ~make_term=(e', _) => Cast(e', t1, t2),
+        ~make_term=(e', _) => Asc(e', t1),
         e,
-        e // dummy second arg since Cast only has one expression
+        e // dummy second arg since Asc only has one expression
       )
-    | FailedCast(e, t1, t2) =>
-      handle_op_indet(
-        ~cost=3, // " : "
-        ~make_term=(e', _) => FailedCast(e', t1, t2),
-        e,
-        e // dummy second arg
-      )
-
     // Indeterminant forms
 
     // List operations
@@ -315,6 +307,13 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         ~cost=9, // "test " + " end"
         ~make_term=e' => Test(e'),
         e,
+      )
+    | HintedTest(e, hint) =>
+      handle_op_indet(
+        ~cost=15, // "hint " + " test " + " end"
+        ~make_term=(e', hint') => HintedTest(e', hint'),
+        e,
+        hint,
       )
     | Seq(e1, e2) =>
       handle_op_indet(
@@ -691,7 +690,7 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
         };
       }
 
-    | Cast(p, t1, t2) =>
+    | Asc(p, t1) =>
       if (available^ < 3) {
         indet_term_pat;
       } else if (available^ <= 3) {
@@ -701,17 +700,10 @@ and abbreviate_pat = (pat: Pat.t): Pat.t => {
         let p' = abbreviate_pat(p);
         if (available^ > 1) {
           available := available^ - 1;
-          let t' = abbreviate_typ(t2);
-          Cast(p', t1, t');
+          let t' = abbreviate_typ(t1);
+          Asc(p', t');
         } else {
-          Cast(
-            p',
-            t1,
-            {
-              ...t2,
-              term: indet_term_typslice,
-            },
-          );
+          Asc(p', t1);
         };
       }
 

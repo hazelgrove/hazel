@@ -173,6 +173,12 @@ let replace_id = (id: Id.t, p: t): t =>
     })
   };
 
+let mk_grout = (~id=Id.mk(), shape: Grout.shape): t =>
+  grout({
+    id,
+    shape,
+  });
+
 let mk_tile: (Form.t, list(list(t))) => t =
   (form, children) =>
     Tile({
@@ -225,15 +231,9 @@ let is_term = (p: t) =>
   | _ => false
   };
 
-/* If the piece is parentheses, return the child. Otherwise,
- * return a singleton segment consisting of the piece */
-let unparenthesize = (piece: t): list(t) =>
-  switch (piece) {
-  | Tile({
-      label: ["(", ")"],
-      mold: {nibs: ({shape: Convex, _}, {shape: Convex, _}), _},
-      children: [seg],
-      _,
-    }) => seg
-  | _ => [piece]
+let is_infix_delimiter_op_prefix = (p: t) =>
+  switch (p) {
+  | Tile({label: [t], mold, _}) =>
+    Mold.is_infix_op(mold) && Form.is_infix_delimiter_op_prefix(t)
+  | _ => false
   };

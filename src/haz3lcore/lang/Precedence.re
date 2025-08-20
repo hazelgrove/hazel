@@ -47,7 +47,7 @@ let dot = 22;
 let ap = 23;
 // _____(x)
 // 5 : _____
-let cast = 24 |> left_associative;
+let asc = 24 |> left_associative;
 // _____ : T
 // - _____
 let neg = 25;
@@ -123,8 +123,6 @@ let of_bin_op: Language.Operators.op_bin => t =
     | LessThanOrEqual => eqs
     | GreaterThan => eqs
     | GreaterThanOrEqual => eqs
-    | Equals => eqs
-    | NotEquals => eqs
     }
   | Float(op) =>
     switch (op) {
@@ -149,4 +147,9 @@ let of_bin_op: Language.Operators.op_bin => t =
     switch (op) {
     | Concat => concat
     | Equals => eqs
+    }
+  | Poly(op) =>
+    switch (op) {
+    | Equals => eqs
+    | NotEquals => eqs
     };

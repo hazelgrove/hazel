@@ -6,7 +6,7 @@ module Evaluation = {
     show_case_clauses: bool,
     show_fn_bodies: bool,
     show_fixpoints: bool,
-    show_cast_steps: bool,
+    show_ascription_steps: bool,
     show_lookup_steps: bool,
     show_stepper_filters: bool,
     // TODO[Matt]: Move this to somewhere where it is a per-scratch setting
@@ -20,7 +20,7 @@ module Evaluation = {
     show_case_clauses: true,
     show_fn_bodies: false,
     show_fixpoints: false,
-    show_cast_steps: false,
+    show_ascription_steps: false,
     show_lookup_steps: false,
     show_stepper_filters: false,
     stepper_history: false,
@@ -57,3 +57,21 @@ let on: t = {
   flip_animations: true,
   evaluation: Evaluation.init,
 };
+
+let eq_ignoring_stepper_modals = (a: t, b: t) =>
+  {
+    ...a,
+    evaluation: {
+      ...a.evaluation,
+      stepper_history: false,
+      show_settings: false,
+    },
+  }
+  == {
+       ...b,
+       evaluation: {
+         ...b.evaluation,
+         stepper_history: false,
+         show_settings: false,
+       },
+     };

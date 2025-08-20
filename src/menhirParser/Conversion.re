@@ -71,8 +71,6 @@ module Operators = {
         | LessThanOrEqual => LessThanOrEqual
         | GreaterThan => GreaterThan
         | GreaterThanOrEqual => GreaterThanOrEqual
-        | Equals => Equals
-        | NotEquals => NotEquals
         },
       )
     | Float(op_float) =>
@@ -105,6 +103,13 @@ module Operators = {
         | Equals => Equals
         },
       )
+    | Poly(op_poly) =>
+      PolyOp(
+        switch (op_poly) {
+        | Equals => Equals
+        | NotEquals => NotEquals
+        },
+      )
     };
   };
 
@@ -135,7 +140,7 @@ module Operators = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  let float_op_of_menhir_ast = (op: AST.op_bin_float): op_bin_num => {
+  let float_op_of_menhir_ast = (op: AST.op_bin_float): op_bin_float => {
     switch (op) {
     | Plus => Plus
     | Minus => Minus
@@ -160,6 +165,14 @@ module Operators = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
+  let poly_op_of_menhir_ast = (op: AST.op_bin_poly): op_bin_poly => {
+    switch (op) {
+    | Equals => Equals
+    | NotEquals => NotEquals
+    };
+  };
+
+  [@deriving (show({with_path: false}), sexp, yojson)]
   let bool_op_of_menhir_ast = (op: AST.op_bin_bool): op_bin_bool => {
     switch (op) {
     | And => And
@@ -179,8 +192,6 @@ module Operators = {
     | LessThanOrEqual => LessThanOrEqual
     | GreaterThan => GreaterThan
     | GreaterThanOrEqual => GreaterThanOrEqual
-    | Equals => Equals
-    | NotEquals => NotEquals
     };
   };
 
@@ -191,6 +202,7 @@ module Operators = {
     | FloatOp(op_float) => Float(float_op_of_menhir_ast(op_float))
     | BoolOp(op_bool) => Bool(bool_op_of_menhir_ast(op_bool))
     | StringOp(op_string) => String(string_op_of_menhir_ast(op_string))
+    | PolyOp(op_poly) => Poly(poly_op_of_menhir_ast(op_poly))
     };
   };
 };
@@ -275,17 +287,12 @@ module rec Exp: {
           l,
         );
       match(d_scrut, d_rules);
-    | Cast(e, t1, t2) =>
-      cast(of_menhir_ast(e), Typ.of_menhir_ast(t1), Typ.of_menhir_ast(t2))
-    | FailedCast(e, t1, t2) =>
-      failed_cast(
-        of_menhir_ast(e),
-        Typ.of_menhir_ast(t1),
-        Typ.of_menhir_ast(t2),
-      )
+    | Asc(e, t) => asc(of_menhir_ast(e), Typ.of_menhir_ast(t))
     | EmptyHole => empty_hole()
     | Seq(e1, e2) => seq(of_menhir_ast(e1), of_menhir_ast(e2))
     | Test(e) => test(of_menhir_ast(e))
+    | HintedTest(e, hint) =>
+      hinted_test(of_menhir_ast(e), of_menhir_ast(hint))
     | Cons(e1, e2) => cons(of_menhir_ast(e1), of_menhir_ast(e2))
     | ListConcat(e1, e2) =>
       list_concat(of_menhir_ast(e1), of_menhir_ast(e2))
@@ -341,13 +348,11 @@ module rec Exp: {
         of_core(e),
         List.map(((p, e)) => (Pat.of_core(p), of_core(e)), l),
       )
-    | Cast(e, t1, t2) =>
-      Cast(of_core(e), Typ.of_core(t1), Typ.of_core(t2))
-    | FailedCast(e, t1, t2) =>
-      FailedCast(of_core(e), Typ.of_core(t1), Typ.of_core(t2))
+    | Asc(e, t) => Asc(of_core(e), Typ.of_core(t))
     | EmptyHole => EmptyHole
     | Seq(e1, e2) => Seq(of_core(e1), of_core(e2))
     | Test(e) => Test(of_core(e))
+    | HintedTest(e, hint) => HintedTest(of_core(e), of_core(hint))
     | Cons(e1, e2) => Cons(of_core(e1), of_core(e2))
     | ListConcat(e1, e2) => ListConcat(of_core(e1), of_core(e2))
     | Filter(Filter({pat, act}), body) =>
@@ -523,14 +528,7 @@ and Pat: {
     switch (pat) {
     | InvalidPat(s) => invalid(s)
     | AtomPat(c) => basic(c)
-    | CastPat(p, t1, t2) =>
-      parens(
-        cast(
-          of_menhir_ast(p),
-          Typ.of_menhir_ast(t1),
-          Typ.of_menhir_ast(t2),
-        ),
-      )
+    | AscPat(p, t) => parens(asc(of_menhir_ast(p), Typ.of_menhir_ast(t)))
     | VarPat(x) => var(x)
     | ConstructorPat(x, ty) =>
       constructor(x, Option.map(Option.map(Typ.of_menhir_ast), ty))
@@ -564,8 +562,7 @@ and Pat: {
     | EmptyHole => EmptyHolePat
     | Wild => WildPat
     | MultiHole(_) => raise(Failure("MultiHole not supported"))
-    | Cast(p, t1, t2) =>
-      CastPat(of_core(p), Typ.of_core(t1), Typ.of_core(t2))
+    | Asc(p, t) => AscPat(of_core(p), Typ.of_core(t))
     | Parens(p) => of_core(p)
     | Probe(p, _) => of_core(p)
     | Label(s) => LabelPat(s)

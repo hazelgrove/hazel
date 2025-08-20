@@ -29,6 +29,7 @@ module CachedSyntax = {
      * underlying editor. In principle calculating this can involve
      * both static and dynamic information, so we cache this for perf */
     shape_map: ProjectorCore.Shape.Map.t,
+    cached_backpack: list(Tile.t),
   };
 
   // should not be serializing
@@ -52,6 +53,7 @@ module CachedSyntax = {
       terms,
       projectors,
       shape_map: projector_shapes,
+      cached_backpack: Segment.global_missing_shards(segment),
     };
   };
 
@@ -144,9 +146,25 @@ module Update = {
       )
       : Action.Result.t(Model.t) => {
     open Result.Syntax;
-    // 1. Clear the autocomplete buffer if relevant
+    let old_zipper = state.zipper;
+    /* 1. Clear the autocomplete buffer if relevant. We clear the TyDi
+     * (unparsed) buffer on every action except accept; for the LLM
+     * (parsed) buffer, we accept resize actions to permit incremental
+     * accepteance token-by-token or line-by-line */
+    let clear_condition =
+      (settings.assist && settings.statics && a != Buffer(Accept))
+      && !(
+           Selection.non_empty_parsed_buffer(state.zipper.selection)
+           && (
+             switch (a) {
+             | Select(Resize(Local(_))) => true
+             | _ => false
+             }
+           )
+         );
+
     let state =
-      settings.assist && settings.statics && a != Buffer(Accept)
+      clear_condition
         ? {
           ...state,
           zipper:
@@ -156,7 +174,6 @@ module Update = {
               Buffer(Clear),
               Model.to_move_s({
                 state,
-
                 syntax,
               }),
               state.zipper,
@@ -166,8 +183,25 @@ module Update = {
         }
         : state;
     let syntax =
-      if (settings.assist && settings.statics && a != Buffer(Accept)) {
+      if (clear_condition) {
         CachedSyntax.mark_old(syntax);
+      } else {
+        syntax;
+      };
+    /* TODO(andrew): Apologize to matt for below.
+       If a buffer clear happens above then we must recalculate the
+       syntax cache as otherwise the measured, in particular caret_point,
+       will be looking for tiles inside the buffer, for example if we try
+       to click or move down to dismiss a completion.*/
+    let syntax =
+      if (clear_condition
+          && Selection.non_empty_parsed_buffer(old_zipper.selection)) {
+        CachedSyntax.calculate(
+          state.zipper,
+          old_statics.info_map,
+          Id.Map.empty, //TODO
+          syntax,
+        );
       } else {
         syntax;
       };
@@ -196,7 +230,6 @@ module Update = {
         a,
         Model.to_move_s({
           state,
-
           syntax,
         }),
         state.zipper,

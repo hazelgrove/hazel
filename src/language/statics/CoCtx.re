@@ -82,3 +82,22 @@ let join: (Ctx.t, list(entry)) => Typ.t =
     | Some(ty) => ty
     };
   };
+
+let has_any = (co_ctx: t, vs: list(Var.t)): bool => {
+  List.exists(v => VarMap.contains(co_ctx, v), vs);
+};
+
+let of_bindings = (bindings: Binding.s): t =>
+  List.map(
+    (b: Binding.t) =>
+      (
+        b.name,
+        [
+          {
+            id: b.id,
+            expected_ty: Typ.fresh(Unknown(Internal)),
+          },
+        ],
+      ),
+    bindings,
+  );
