@@ -482,7 +482,7 @@ let to_lvs_statics =
   };
 };
 
-let drop_labels_statics =
+let omit_all_labels_statics =
     (
       module S: ExpressionStatics,
       ~inferred_label as _,
@@ -586,7 +586,7 @@ let custom_statics_deferred_ap =
         m,
       );
 
-    | (ToLvs | DropLabels, [arg]) =>
+    | (ToLvs | OmitAllLabels, [arg]) =>
       let (arg_info, m) = uexp_to_info_map(~ctx, ~ana=syn, arg, m);
 
       add'(
@@ -647,7 +647,7 @@ let custom_statics_deferred_ap =
         m,
       );
 
-    // Fallback for other cases (including to_lvs/drop_labels with wrong arity)
+    // Fallback for other cases (including to_lvs/omit_all_labels with wrong arity)
     | _ =>
       let (args_info, m) =
         List.fold_left(
@@ -687,6 +687,6 @@ let custom_statics_ap = (kind: Ctx.custom_statics) => {
   | ToLvs => to_lvs_statics
   | SelectLabels => select_labels_statics
   | OmitLabels => omit_labels_statics
-  | DropLabels => drop_labels_statics
+  | OmitAllLabels => omit_all_labels_statics
   };
 };
