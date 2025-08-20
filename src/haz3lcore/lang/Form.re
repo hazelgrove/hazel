@@ -82,6 +82,7 @@ type atomic_form =
   | LLMHole
   | Wild
   | String
+  | QuotedLabel
   | IntLit
   | FloatLit
   | BoolLit
@@ -143,6 +144,7 @@ type compound_form =
   | TupleLabeledPat
   | TupleLabeledTyp
   | DotExp
+  | TupleExtension
   | DotTyp
   | TypeAsc
   | TypPlus
@@ -231,6 +233,7 @@ let get: compound_form => t =
   | DotExp => mk_infix(".", Exp, P.dot)
   | DotTyp => mk_infix(".", Typ, P.dot)
   | TypeAsc => mk_infix(":", Exp, ~l=Exp, ~r=Typ, P.asc)
+  | TupleExtension => mk_infix("...", Exp, P.plus)
   | TypPlus => mk_infix("+", Typ, P.type_plus)
   // UNARY PREFIX OPERATORS
   | Not => mk_prefix("!", Exp, P.not_)
@@ -359,6 +362,7 @@ let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
   | LLMHole => (Token.is_llm_hole, [op(Exp), op(Pat), op(Typ), op(TPat)])
   | Wild => (Token.is_wild, [op(Pat)])
   | String => (Token.is_string, [op(Exp), op(Pat)])
+  | QuotedLabel => (Token.is_quoted_label, [op(Exp), op(Pat), op(Typ)])
   | IntLit => (Token.is_int, [op(Exp), op(Pat)])
   | FloatLit => (Token.is_float, [op(Exp), op(Pat)])
   | LivelitName => (Token.is_livelit, [op(Exp), op(Pat)])

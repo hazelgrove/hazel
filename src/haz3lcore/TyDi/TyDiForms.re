@@ -129,7 +129,10 @@ module Delims = {
          List.filter_map(
            (m: Mold.t) =>
              m.out == sort && Mold.is_infix_op(m) ? Some(token) : None,
-           Form.Molds.get([token]),
+           switch (Form.Molds.compound([token])) {
+           | Some(molds) => molds
+           | None => []
+           },
          )
        })
     |> List.flatten
@@ -208,22 +211,10 @@ let suggest_form =
 };
 
 let suggest_operator: Info.t => list(TyDiSuggestion.t) =
-  info => {
-    switch (info) {
-    | InfoExp({
-        term:
-          {term: Tuple([{term: TupLabel({term: Label(_), _}, _), _}]), _},
-        _,
-      }) =>
-      [] // Stop completing (a= to (a==
-    | _ =>
-      suggest_form(
-        List.map(((a, b)) => (a, IdTagged.fresh(b)), Typ.of_infix_delim),
-        Delims.infix,
-        info,
-      )
-    };
-  };
+  suggest_form(
+    List.map(((a, b)) => (a, IdTagged.fresh(b)), Typ.of_infix_delim),
+    Delims.infix,
+  );
 
 let suggest_operand: Info.t => list(TyDiSuggestion.t) =
   suggest_form(Typ.of_const_mono_delim, Delims.const_mono);
