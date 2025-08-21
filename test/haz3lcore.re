@@ -15,16 +15,6 @@ let shape_of_projector = (~common as _, _) => ProjectorShape.default;
 let calculate_projector = (~common as _, x) => x;
 let of_projector = (~sort as _, ~id as _, _) => Language.Grammar.Any();
 
-module Base = {
-  include Base;
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type segment = Base.segment;
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type piece = Base.piece;
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type projector = Base.projector;
-};
-
 module Editor = {
   open Editor;
   [@deriving (show({with_path: false}), sexp, yojson)]
