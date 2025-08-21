@@ -61,15 +61,14 @@ module Update = {
     | Copy => Some(Copy)
 
     // These actions are not allowed in a CodeSelectable
-    | Destruct(_)
-    | Insert(_)
-    | Put_down
-    | Paste(_)
-    | Reparse
-    | Cut
-    | Buffer(_)
-    | Project(_)
-    | Introduce => None;
+    | Perform(
+        Destruct(_) | Insert(_) | Put_down | Paste(_) | Reparse | Cut |
+        Buffer(_) |
+        Project(_) |
+        Introduce,
+      )
+    | DebugConsole(_)
+    | TAB => None;
 
   let calculate = EditorManager.Update.calculate;
 };

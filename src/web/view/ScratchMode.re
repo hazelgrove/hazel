@@ -61,6 +61,10 @@ module Store = {
         zipper: "invalid",
         backup_text: shared_text,
       };
+      let shared: CellEditor.Model.persistent = {
+        editor: shared,
+        result: EvalResult.Model.init |> EvalResult.Model.persist,
+      };
 
       (List.length(scratchpads), scratchpads @ [(share_name, shared)]);
     };
@@ -242,7 +246,9 @@ module Update = {
       let (key, _) = List.nth(model.scratchpads, model.current);
       let source =
         switch (is_documentation) {
-        | false => Zipper.init() |> PersistentZipper.persist
+        | false =>
+          CellEditor.Model.mk(Editor.Model.mk(Zipper.init()))
+          |> CellEditor.Model.persist
         | true =>
           Init.startup.documentation
           |> snd
@@ -251,9 +257,13 @@ module Update = {
         };
       let* data =
         source
+<<<<<<< HEAD
         |> PersistentZipper.unpersist
         |> Editor.of_zipper
         |> CellEditor.Model.mk
+=======
+        |> CellEditor.Model.unpersist(~settings=settings.core)
+>>>>>>> defc38690ed8035ae8950d148523ee0b25c22021
         |> Updated.return;
       {
         ...model,
@@ -365,6 +375,7 @@ module Selection = {
     switch (selection) {
     | Cell(_selection) =>
       switch (event) {
+<<<<<<< HEAD
       | {key: D(key), sys: Mac | PC, shift: Up, meta: Down, ctrl: Up, alt: Up}
           when Keyboard.is_digit(key) =>
         inject(Update.SwitchSlide(int_of_string(key)))
@@ -375,6 +386,15 @@ module Selection = {
       // )
       // |> Option.map(x => Update.CellAction(x))
       | _ => Ui_effect.Ignore
+=======
+      | _ =>
+        CellEditor.Selection.handle_key_event(
+          ~selection,
+          ~event,
+          List.nth(model.scratchpads, model.current) |> snd,
+        )
+        |> Option.map(x => Update.CellAction(x))
+>>>>>>> defc38690ed8035ae8950d148523ee0b25c22021
       }
     | TextBox => Ui_effect.Ignore
     };

@@ -23,6 +23,13 @@ module Printer = {
     of_zipper(~projector_to_segment=default_projector_to_segment);
 };
 
+module Parser = {
+  open Parser;
+  let to_term = Parser.to_term(~projector_init=Parser.default_projector_init);
+  let to_segment =
+    Parser.to_segment(~projector_init=Parser.default_projector_init);
+};
+
 module Editor = {
   open Editor;
   [@deriving (show({with_path: false}), sexp, yojson)]

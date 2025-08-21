@@ -55,15 +55,9 @@ let pop = (d: Direction.t, rs: t): option((Piece.t, t)) =>
 let zip = (~sel=Segment.empty, {siblings, ancestors}: t) =>
   Ancestors.zip(Siblings.zip(~sel, siblings), ancestors);
 
-let local_incomplete_tiles = ({siblings: (pre, suf), ancestors}: t) => {
-  let sibs =
-    switch (ancestors) {
-    | [] => (pre, suf)
-    | [(a, _), ..._] =>
-      let (l, r) = Ancestor.container_shards(a);
-      ([l, ...pre], suf @ [r]);
-    };
-  Siblings.incomplete_tiles(sibs);
+let local_missing_shards = ({siblings, ancestors}: t): list(Tile.t) => {
+  Ancestors.local_missing_shards(ancestors)
+  @ Siblings.local_missing_shards(siblings);
 };
 
 let local_missing_shards = ({siblings, ancestors}: t): list(Tile.t) => {
@@ -174,7 +168,9 @@ let reassemble_parent = (rs: t): t =>
           shards: a.shards |> PairUtil.map_fst(ss => ss @ shards_l),
           children:
             a.children
-            |> PairUtil.map_fst(kids => kids @ [outer_l, ...kids_l]),
+            |> PairUtil.map_fst(kids =>
+                 Segment.inner_regrout(kids @ [outer_l, ...kids_l])
+               ),
         };
         (a, inner_l);
       };
@@ -188,7 +184,9 @@ let reassemble_parent = (rs: t): t =>
           shards: a.shards |> PairUtil.map_snd(ss => shards_r @ ss),
           children:
             a.children
-            |> PairUtil.map_snd(kids => [outer_r, ...kids_r] @ kids),
+            |> PairUtil.map_snd(kids =>
+                 Segment.inner_regrout([outer_r, ...kids_r] @ kids)
+               ),
         };
         (a, inner_r);
       };

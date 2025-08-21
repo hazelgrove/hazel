@@ -48,7 +48,7 @@ let sorted_children = (a: t) => {
 };
 
 let remold = (a: t): list(t) =>
-  Molds.get(a.label)
+  Form.Molds.get(a.label)
   |> List.map(mold =>
        {
          ...a,

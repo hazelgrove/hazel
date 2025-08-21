@@ -4,7 +4,7 @@ module CachedSyntax = {
   type t = {
     segment: Segment.t,
     measured: Measured.t,
-    tiles: TileMap.t,
+    selection_ids: list(Id.t),
     /* The term-derived data structured below, may differ
      * from the term used for semantics. These terms are identical when
      * the backpack is empty. If the backpack is non-empty, then when we
@@ -18,7 +18,7 @@ module CachedSyntax = {
      * some other comments at some of the weakest joints; the biggest
      * issue is that dropping the backpack can add/remove grout, causing
      * certain ids to be present/non-present unexpectedly. */
-    term_ranges: TermRanges.t,
+    term_data: TermData.t,
     terms: TermMap.t,
     /* Since the introduction of shape_map below, caching projectors
      * here is almost vesigial (currently used only for error deco) */
@@ -51,14 +51,13 @@ module CachedSyntax = {
       )
       : t => {
     let segment = Zipper.unselect_and_zip(z);
-    let MakeTerm.{term: _, terms, projectors} =
+    let MakeTerm.{term: _, terms, projectors, term_data} =
       MakeTerm.go(sort, segment, ~of_projector=projector_to_term);
     let projector_shapes =
       mk_proj_shape_map(~common, ~shape_of_projector, projectors);
     {
       segment,
-      term_ranges: TermRanges.mk(segment),
-      tiles: TileMap.mk(segment),
+      term_data,
       measured: Measured.of_segment(segment, projector_shapes),
       terms,
       projectors,
@@ -143,7 +142,7 @@ module Model = {
       );
     module M: Move.S = {
       let measured = syntax.measured;
-      let term_ranges = syntax.term_ranges;
+      let term_data = syntax.term_data;
       let col_target = model.col_target |> Option.value(~default=0);
     };
     (module M);
@@ -320,7 +319,7 @@ module Update = {
         | Some(col) => Some(col)
         | None =>
           Some(
-            Zipper.caret_point(
+            Zipper.Caret.caret_point(
               Calc.get_saved_exc(
                 ~print="update called before calculate",
                 syntax,

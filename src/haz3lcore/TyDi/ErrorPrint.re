@@ -38,6 +38,7 @@ let common_error: Info.error_common => string =
   | NoType(InvalidLabel(_)) => "Invalid label"
   | DuplicateLabel(_, _) => "Duplicate label"
   | TupleLabelError(_) => "Invalid tuple label"
+  | NoType(UnexpectedLabelSort(_)) => "Unexpected label sort"
   | NoType(BadToken(token)) => prn("\"%s\" isn't a valid token", token)
   | Inconsistent(WithArrow(ty)) =>
     prn("type %s is not consistent with arrow type", Print.typ(ty))
@@ -58,7 +59,29 @@ let common_error: Info.error_common => string =
 
 let exp_error: Info.error_exp => string =
   fun
-  | WantTuple => "Expected a tuple"
+  | DotOperatorRequiresTuple => "Expected a tuple"
+  | TupleExtensionRequiresTuples => "Expected tuples for both arguments"
+  | BuiltinError(ArgumentMustBeTuple) => "Argument must be a tuple"
+  | BuiltinError(ProjectLabelsMissingLabels(labels)) =>
+    prn(
+      "Projected tuple does not have the following labels: %s",
+      String.concat(", ", labels),
+    )
+  | BuiltinError(MissingLabels(labels)) =>
+    prn(
+      "Tuple does not have the following labels: %s",
+      String.concat(", ", labels),
+    )
+  | BuiltinError(ToLvsMissingLabelsOnTuple(ty)) =>
+    prn(
+      "All entries in the argument must have labels, but some were not provided: %s",
+      Print.typ(ty),
+    )
+  | BuiltinError(AtLeast2Arguments) => "Must have 2 or more direct arguments"
+  | BuiltinError(Exactly2Arguments) => "Must have exactly 2 direct arguments"
+  | BuiltinError(ArgumentMustBeListOfTuples) => "Argument must be a list of labeled tuples"
+  | BuiltinError(PivotLabelIsNotString(ty)) =>
+    prn("Pivot column must be a string, but got: %s", Print.typ(ty))
   | LabelNotFound(_, _) => "Label not found"
   | UnboundLivelit(_) => "Livelit unbound and not found"
   | BadTrivAp(ty) =>
@@ -92,7 +115,6 @@ let typ_error: Info.error_typ => string =
   | WantTypeFoundAp => "Constructor application must be in sum"
   | DuplicateConstructor(name) =>
     prn("Constructor %s already used in this sum", name)
-  | WantTuple => "Expected a tuple"
   | WantLabel => "Expected a label"
   | DuplicateLabels(labels, ty) =>
     prn(

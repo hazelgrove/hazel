@@ -217,22 +217,23 @@ module Deco = (M: {
                }) => {
   let font_metrics = M.globals.font_metrics;
   let syntax = Calc.get_saved_exc(M.editor.syntax);
-  let map = syntax.measured;
-  let terms = syntax.terms;
-  let term_ranges = syntax.term_ranges;
-  let tiles = syntax.tiles;
+  let term_data = syntax.term_data;
   let measured = syntax.measured;
-  let rows = measured.rows;
   let projectors = syntax.projectors;
-  let error_ids = M.globals.statics.error_ids;
+  let error_ids = M.statics.error_ids;
   let color_highlights = M.globals.color_highlights;
-  let segment = syntax.segment;
 
-  let tile = id => Id.Map.find(id, tiles);
+  let tile_term_deco =
+    IndicationDec.term(
+      ~term_data,
+      ~terms=M.editor.syntax.terms,
+      ~measured,
+      ~font_metrics,
+    );
 
   let caret = (z: Zipper.t): Node.t => {
-    let origin = Zipper.caret_point(map, z);
-    let shape = Zipper.caret_direction(z);
+    let origin = Zipper.Caret.point(measured, z);
+    let shape = Zipper.Caret.direction(z);
     let side =
       switch (Indicated.piece(z)) {
       | _
@@ -266,35 +267,11 @@ module Deco = (M: {
       ["selected", Selection.buffer_cls(z.selection)],
     );
 
-  let term_range = (p): option((Point.t, Point.t)) => {
-    let id =
-      switch (Language.Any.rep_id(Id.Map.find(Piece.id(p), terms))) {
-      | x => x
-      | exception Not_found => Piece.id(p)
-      };
-    switch (TermRanges.find_opt(id, term_ranges)) {
-    | None => None
-    | Some((p_l, p_r)) =>
-      let l = Measured.find_p(~msg="Dec.range", p_l, measured).origin;
-      let r = Measured.find_p(~msg="Dec.range", p_r, measured).last;
-      Some((l, r));
-    };
-  };
-
-  let all_tiles = (p: Piece.t): list((Uuidm.t, Mold.t, Measured.Shards.t)) =>
-    Id.Map.find(Piece.id(p), terms)
-    |> Language.Any.ids
-    |> List.map(id => {
-         let t = tile(id);
-         let shards = Measured.find_shards(~msg="all_tiles", t, measured);
-         (id, t.mold, shards);
-       });
-
   let indicated_piece_deco = (z: Zipper.t): list(Node.t) => {
     switch (Indicated.piece(z)) {
     | _ when z.selection.content != [] => []
     | None => []
-    | Some((Grout(_), _, _)) => []
+    | Some((Grout(_) | Secondary(_), _, _)) => []
     | Some((Projector(p), _, _)) =>
       switch (Measured.find_pr_opt(p, syntax.measured)) {
       | Some(measurement) => [
@@ -313,37 +290,12 @@ module Deco = (M: {
         ]
       | None => []
       }
-    | Some((p, side, _)) =>
-      // root_profile calculation assumes p is tile
-      // TODO encode in types
-      let _nib_shape =
-        switch (Zipper.caret_direction(z)) {
-        | None => Nib.Shape.Convex
-        | Some(nib) => Nib.Shape.relative(nib, side)
-        };
-      let range = term_range(p);
-      let index =
-        switch (Indicated.shard_index(z)) {
-        | None => (-1)
-        | Some(i) => i
-        };
-      switch (range) {
-      | None => []
-      | _ when Piece.is_infix_delimiter_op_prefix(p) => []
-      | Some(range) =>
-        switch (all_tiles(p)) {
-        | tiles =>
-          IndicationDec.term(
-            ~line_clss=[],
-            ~font_metrics,
-            ~rows,
-            ~caret=(Piece.id(p), index),
-            ~tiles,
-            range,
-          )
-        | exception Not_found => []
-        }
-      };
+    | Some((Tile(t) as p, _, _)) =>
+      if (Piece.is_infix_delimiter_op_prefix(p)) {
+        [];
+      } else {
+        tile_term_deco(t);
+      }
     };
   };
 
@@ -365,13 +317,13 @@ module Deco = (M: {
           : Backpack.view(
               ~font_metrics,
               ~can_put_down=Zipper.can_put_down(z),
-              ~caret_d=Zipper.caret_direction(z),
+              ~caret_d=Zipper.Caret.direction(z),
               ~ind_d=
                 switch (Indicated.piece(z)) {
                 | Some((_, d, _)) => Some(d)
                 | None => None
                 },
-              ~origin=Zipper.caret_point(measured, z),
+              ~origin=Zipper.Caret.point(measured, z),
               contents,
             );
       }
@@ -380,7 +332,7 @@ module Deco = (M: {
 
   let term_decoration =
       (~id: Id.t, deco: ((Point.t, Point.t, SvgUtil.Path.t)) => Node.t) => {
-    let (p_l, p_r) = TermRanges.find(id, term_ranges);
+    let (p_l, p_r) = TermData.extremes(id, term_data);
     let l = Measured.find_p(~msg="Deco.term", p_l, measured).origin;
     let r = Measured.find_p(~msg="Deco.term", p_r, measured).last;
     open SvgUtil.Path;
@@ -446,45 +398,36 @@ module Deco = (M: {
     );
 
   let error_view = (id: Id.t) =>
-    try(
+    div_c(
+      "errors-piece",
       switch (Id.Map.find_opt(id, projectors)) {
       | Some(p) =>
         /* Special case for projectors as they are not in tile map */
-        let tips = p.mold.nibs |> Nibs.shapes |> ShardDec.tips_of_shapes;
-        let measurement = Id.Map.find(id, measured.projectors);
-        div_c(
-          "errors-piece",
-          [
+        switch (Id.Map.find_opt(id, measured.projectors)) {
+        | Some(measurement) => [
             ShardDec.simple(
               {
                 font_metrics,
-                tips,
+                tips: p.mold.nibs |> Nibs.shapes |> ShardDec.tips_of_shapes,
                 measurement,
               },
               ["error"],
             ),
-          ],
-        );
+          ]
+        | None =>
+          /* This is caused by the statics overloading for exercise mode. The overriding
+           * Exercise mode statics maps are calculated based on splicing together multiple
+           * editors, but error_ids are extracted generically from the statics map, so
+           * there may be error holes that don't occur in the editor being rendered */
+          []
+        }
       | None =>
-        let p = Piece.Tile(tile(id));
-        switch (term_range(p)) {
-        | Some(range) =>
-          let tiles = all_tiles(p);
-          div_c(
-            "errors-piece",
-            IndicationDec.error_term(~font_metrics, ~rows, range, tiles),
-          );
-        | None => div_c("errors-piece", [])
-        };
-      }
-    ) {
-    | Not_found =>
-      /* This is caused by the statics overloading for exercise mode. The overriding
-       * Exercise mode statics maps are calculated based on splicing together multiple
-       * editors, but error_ids are extracted generically from the statics map, so
-       * there may be error holes that don't occur in the editor being rendered */
-      Node.div([])
-    };
+        switch (TermData.root_tile_opt(id, term_data)) {
+        | Some(t) => tile_term_deco(t)
+        | None => []
+        }
+      },
+    );
 
   let errors = () => div_c("errors", List.map(error_view, error_ids));
 
@@ -495,89 +438,36 @@ module Deco = (M: {
 
   let always = () => [errors()];
 
-  let next_steps = (next_steps, ~inject) => {
-    let tiles = List.filter_map(TileMap.find_opt(_, tiles), next_steps);
-    List.mapi(
-      (i, t: Tile.t) => {
-        let id = Tile.id(t);
-        let mold = t.mold;
-        let shards = Measured.find_shards(t, map);
-        let range: option((Measured.Point.t, Measured.Point.t)) = {
-          // if (Piece.has_ends(p)) {
-          let id = Id.Map.find(id, terms) |> Language.Any.rep_id;
-          switch (TermRanges.find_opt(id, term_ranges)) {
-          | None => None
-          | Some((p_l, p_r)) =>
-            let l = Measured.find_p(p_l, map).origin;
-            let r = Measured.find_p(p_r, map).last;
-            Some((l, r));
-          };
-        };
-        Option.map(
-          x => {
-            IndicationDec.term(
-              ~base_clss="tile-next-step",
-              ~attr=[Virtual_dom.Vdom.Attr.on_mousedown(_ => {inject(i)})],
-              ~line_clss=["next-step-line"],
-              ~font_metrics,
-              ~caret=(Id.invalid, 0),
-              ~rows=measured.rows,
-              ~tiles=[(id, mold, shards)],
-              x,
-            )
-            @ IndicationDec.term(
-                ~base_clss="tile-next-step-top",
-                ~attr=[Virtual_dom.Vdom.Attr.on_mousedown(_ => {inject(i)})],
-                ~line_clss=["next-step-line"],
-                ~font_metrics,
-                ~caret=(Id.invalid, 0),
-                ~rows=measured.rows,
-                ~tiles=[(id, mold, shards)],
-                x,
-              )
-          },
-          range,
-        );
-      },
-      tiles,
-    )
-    |> List.filter_map(x => x)
-    |> List.flatten;
-  };
+  let next_steps = (next_steps, ~inject) =>
+    next_steps
+    |> List.filter_map(TermData.root_tile_opt(_, term_data))
+    |> List.mapi((i, t: Tile.t) =>
+         div_c(
+           "step-next",
+           tile_term_deco(
+             ~attr=[Virtual_dom.Vdom.Attr.on_mousedown(_ => inject(i))],
+             t,
+           ),
+         )
+       );
 
-  let taken_steps = taken_steps => {
-    let tiles = List.filter_map(TileMap.find_opt(_, tiles), taken_steps);
-    List.mapi(
-      (_, t: Tile.t) => {
-        let id = Tile.id(t);
-        let mold = t.mold;
-        let shards = Measured.find_shards(t, map);
-        let range: option((Measured.Point.t, Measured.Point.t)) = {
-          // if (Piece.has_ends(p)) {
-          let id = Id.Map.find(id, terms) |> Language.Any.rep_id;
-          switch (TermRanges.find_opt(id, term_ranges)) {
-          | None => None
-          | Some((p_l, p_r)) =>
-            let l = Measured.find_p(p_l, map).origin;
-            let r = Measured.find_p(p_r, map).last;
-            Some((l, r));
-          };
-        };
-        IndicationDec.term(
-          ~base_clss="tile-taken-step",
-          ~line_clss=["taken-step-line"],
-          ~font_metrics,
-          ~caret=(Id.invalid, 0),
-          ~rows=measured.rows,
-          ~tiles=[(id, mold, shards)],
-        )
-        |> Option.map(_, range);
-      },
-      tiles,
-    )
-    |> List.filter_map(x => x)
-    |> List.flatten;
-  };
+  let taken_steps = taken_steps =>
+    taken_steps
+    |> List.filter_map(TermData.root_tile_opt(_, term_data))
+    |> List.map(t => div_c("step-taken", tile_term_deco(t)));
+
+  let refl_steps = (refl_steps, ~inject) =>
+    refl_steps
+    |> List.filter_map(TermData.root_tile_opt(_, term_data))
+    |> List.mapi((i, t: Tile.t) =>
+         div_c(
+           "step-refl",
+           tile_term_deco(
+             ~attr=[Virtual_dom.Vdom.Attr.on_mousedown(_ => inject(i))],
+             t,
+           ),
+         )
+       );
 
   let statics = () => [errors()];
 

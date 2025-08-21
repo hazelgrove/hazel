@@ -55,7 +55,7 @@ module type BuiltinLivelit = {
   let view: (model_t, action_t => Ui_effect.t(unit)) => node_or_list;
 
   // Size specification
-  let size: ProjectorCore.Shape.t;
+  let size: ProjectorShape.t;
 };
 ```
 

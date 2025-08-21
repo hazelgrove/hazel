@@ -121,11 +121,11 @@ module Update = {
           settings,
         },
       };
-    | JumpToTile(tile) =>
+    | JumpToTile(id) =>
       let jump =
         Editors.Selection.jump_to_tile(
           ~settings=model.globals.settings,
-          tile,
+          id,
           model.editors,
         );
       switch (jump) {
@@ -167,7 +167,10 @@ module Update = {
           let content =
             [%derive.show: (string, Haz3lcore.PersistentZipper.t)]((
               current |> fst,
-              current |> snd |> CellEditor.Model.persist,
+              current
+              |> snd
+              |> ((e: CellEditor.Model.t) => e.editor)
+              |> CodeWithStatics.Model.persist,
             ));
           (filename, content);
         | Exercises(model) =>
@@ -376,6 +379,115 @@ module View = {
   let handlers = (~inject: Update.t => Ui_effect.t(unit)) => [
     Key.handler(~f=Focus.handle_key_event(~inject)),
   ];
+  // let handlers =
+  //     (
+  //       ~inject: Update.t => Ui_effect.t(unit),
+  //       ~cursor: Cursor.cursor(Editors.Update.t),
+  //       model: Model.t,
+  //     ) => {
+  //   let key_handler =
+  //       (~inject, ~dir: Key.dir, evt: Js.t(Dom_html.keyboardEvent))
+  //       : Effect.t(unit) =>
+  //     Effect.(
+  //       switch (
+  //         Selection.handle_key_event(
+  //           ~selection=Some(model.selection),
+  //           ~event=Key.mk(dir, evt),
+  //           model,
+  //         )
+  //       ) {
+  //       | None => Ignore
+  //       | Some(action) =>
+  //         Many([Prevent_default, Stop_propagation, inject(action)])
+  //       }
+  //     );
+  //   [
+  //     Attr.on_keyup(key_handler(~inject, ~dir=KeyUp)),
+  //     Attr.on_keydown(key_handler(~inject, ~dir=KeyDown)),
+  //     Attr.on_blur(_ => {
+  //       JsUtil.focus_clipboard_shim();
+  //       Effect.Ignore;
+  //     }),
+  //     Attr.on_focus(_ => {
+  //       JsUtil.focus_clipboard_shim();
+  //       Effect.Ignore;
+  //     }),
+  //     Attr.on_copy(evt => {
+  //       let target = Js.Opt.to_option(evt##.target);
+  //       switch (target) {
+  //       | Some(el) =>
+  //         let elId = Js.Opt.to_option(Js.Unsafe.coerce(el)##.id);
+  //         if (is_input_field(elId)) {
+  //           ();
+  //         } else {
+  //           let str =
+  //             (cursor.selected_text |> Option.value(~default=() => ""))();
+  //           /* Note that we cannot use the ClipboardCache system here unless
+  //            * we refine it further to replace unique ids on paste */
+  //           ClipboardCache.set(cursor.selection, str);
+  //           JsUtil.copy(str);
+  //         };
+  //       | None => ()
+  //       };
+  //       Effect.Ignore;
+  //     }),
+  //     Attr.on_cut(evt => {
+  //       let target = Js.Opt.to_option(evt##.target);
+  //       switch (target) {
+  //       | Some(el) =>
+  //         let elId = Js.Opt.to_option(Js.Unsafe.coerce(el)##.id);
+  //         if (is_input_field(elId)) {
+  //           Effect.Ignore;
+  //         } else {
+  //           JsUtil.copy(
+  //             (cursor.selected_text |> Option.value(~default=() => ""))(),
+  //           );
+  //           Option.map(
+  //             inject,
+  //             Selection.handle_key_event(
+  //               ~selection=Some(model.selection),
+  //               ~event=
+  //                 Key.{
+  //                   key: D("Delete"),
+  //                   sys: Os.is_mac^ ? Mac : PC,
+  //                   shift: Up,
+  //                   meta: Up,
+  //                   ctrl: Up,
+  //                   alt: Up,
+  //                 },
+  //               model,
+  //             ),
+  //           )
+  //           |> Option.value(~default=Effect.Ignore);
+  //         };
+  //       | None => Effect.Ignore
+  //       };
+  //     }),
+  //   ]
+  //   @ [
+  //     Attr.on_paste(evt => {
+  //       let target = Js.Opt.to_option(evt##.target);
+  //       switch (target) {
+  //       | Some(el) =>
+  //         let elId = Js.Opt.to_option(Js.Unsafe.coerce(el)##.id);
+  //         if (is_input_field(elId)) {
+  //           Effect.Ignore;
+  //         } else {
+  //           let pasted_text =
+  //             Js.to_string(evt##.clipboardData##getData(Js.string("text")))
+  //             |> Str.global_replace(Str.regexp("\n[ ]*"), "\n");
+  //           Dom.preventDefault(evt);
+  //           switch (cursor.editor_action(Paste(String(pasted_text)))) {
+  //           | None => Effect.Ignore
+  //           | Some(action) => inject(Editors(action))
+  //           };
+  //         };
+  //       | None => Effect.Ignore
+  //       };
+  //     }),
+  //   ];
+  // };
+
   let nut_menu =
       (
         ~globals: Globals.t,

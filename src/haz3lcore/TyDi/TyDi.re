@@ -35,9 +35,9 @@ let suggest = (ci: Info.t, z: Zipper.t): list(TyDiSuggestion.t) => {
   | InfoTyp({cls: Typ(TupLabel), _}) => [] // TODO: Autocomplete for labels
   | _ =>
     suggest_backpack(z)
-    @ TyDiForms.suggest_leading(ci)
     @ (
-      TyDiForms.suggest_operand(ci)
+      TyDiForms.suggest_leading(ci)
+      @ TyDiForms.suggest_operand(ci)
       @ TyDiCtx.suggest_variable(ci)
       @ TyDiCtx.suggest_lookahead_variable(ci)
       |> List.sort(TyDiSuggestion.compare)

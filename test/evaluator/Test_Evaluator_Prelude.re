@@ -8,7 +8,8 @@ let testable_exp = (~ignore_constructor_types=?, ()) =>
     Fmt.using(Exp.show, Fmt.string),
     DHExp.fast_equal(~ignore_constructor_types?),
   );
-
+let evaluate = unevaluated =>
+  unevaluated |> Evaluator.evaluate(~env=Builtins.env_init) |> fst;
 let dhexp_typ = testable_exp();
 
 let evaluation_test =
@@ -17,7 +18,7 @@ let evaluation_test =
     testable_exp(~ignore_constructor_types?, ()),
     msg,
     expected,
-    unevaluated |> Evaluator.evaluate(~env=Builtins.env_init) |> fst,
+    evaluate(unevaluated),
   );
 
 let evaluate_probes = unevaluated =>
@@ -51,8 +52,7 @@ let elaborate = u =>
   }:
     Grammar.pat_t(list(Grammar.exp_t(unit)))
 );
-let parse_and_evaluate = (s: string) =>
-  fst(Evaluator.evaluate(~env=Builtins.env_init, elaborate(parse_exp(s))));
+let parse_and_evaluate = (s: string) => evaluate(elaborate(parse_exp(s)));
 
 let parse_and_evaluate_test =
     (

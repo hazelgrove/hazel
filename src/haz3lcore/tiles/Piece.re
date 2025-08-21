@@ -163,6 +163,14 @@ let replace_id = (id: Id.t, p: t): t =>
     })
   };
 
+let mk_secondary = (id, content) => Secondary(Secondary.mk(id, content));
+
+let mk_grout = (~id=Id.mk(), shape: Grout.shape): t =>
+  grout({
+    id,
+    shape,
+  });
+
 let mk_tile: (Form.t, list(list(t))) => t =
   (form, children) =>
     Tile({
@@ -180,7 +188,7 @@ let mk_grout = (~id=Id.mk(), shape: Grout.shape): t =>
   });
 
 let mk_mono = (sort: Sort.t, string: string): t =>
-  string |> Form.mk_atomic(sort) |> mk_tile(_, []);
+  string |> Form.mk_atom_op(sort) |> mk_tile(_, []);
 
 let of_mono = (syntax: t): option(string) =>
   switch (syntax) {

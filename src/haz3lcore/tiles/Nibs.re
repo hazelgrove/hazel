@@ -7,3 +7,5 @@ type shapes = (Nib.Shape.t, Nib.Shape.t);
 let flip = ((l, r): t) => (r, l);
 
 let shapes = ((l, r): t) => (l.shape, r.shape);
+
+let of_projector = _: shapes => Nib.Shape.(Convex, Convex);
