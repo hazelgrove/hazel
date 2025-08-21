@@ -41,12 +41,6 @@ let from_plane: planar => Direction.t =
   | Up => Left
   | Down => Right;
 
-let update_caret = (f: Caret.t => Caret.t, z: t): t => {
-  ...z,
-  caret: f(z.caret),
-};
-let set_caret = (caret: Caret.t): (t => t) => update_caret(_ => caret);
-
 let delete_parent = (z: t): t => {
   ...z,
   relatives: Relatives.delete_parent(z.relatives),
@@ -63,15 +57,6 @@ let unzip = (seg: Segment.t): t => {
   },
   caret: Outer,
 };
-
-let left_neighbor_monotile: Siblings.t => option(Token.t) =
-  s => s |> Siblings.left_neighbor |> OptUtil.and_then(Piece.monotile);
-
-let right_neighbor_monotile: Siblings.t => option(Token.t) =
-  s => s |> Siblings.right_neighbor |> OptUtil.and_then(Piece.monotile);
-
-let neighbor_monotiles: Siblings.t => (option(Token.t), option(Token.t)) =
-  s => (left_neighbor_monotile(s), right_neighbor_monotile(s));
 
 let regrout = (d: Direction.t, z: t): t => {
   assert(Selection.is_empty(z.selection));
@@ -118,6 +103,14 @@ let unselect = (~erase_buffer=false, z: t): t => {
     relatives,
   };
 };
+
+let destroy_selection: t => t =
+  z =>
+    unselect({
+      ...z,
+      selection: Selection.empty,
+    });
+
 let unselect_and_zip = (~erase_buffer=false, z: t): Segment.t =>
   z |> unselect(~erase_buffer) |> zip;
 
@@ -125,12 +118,6 @@ let replace_selection = (focus, segment, z: t): t => {
   ...z,
   selection: Selection.mk(~focus, segment),
 };
-
-let update_selection_and_unselect = (selection: Selection.t, z: t): t =>
-  unselect({
-    ...z,
-    selection,
-  });
 
 let grow_selection = (z: t): option(t) => {
   let+ (p, relatives) = Relatives.pop(z.selection.focus, z.relatives);
@@ -212,7 +199,28 @@ let move = (d: Direction.t, z: t): option(t) =>
 let select = (d: Direction.t, z: t): option(t) =>
   d == z.selection.focus ? grow_selection(z) : shrink_selection(z);
 
-let destruct: t => t = update_selection_and_unselect(Selection.empty);
+let singleton_shard_selection = (seg: Segment.t): option(Token.t) =>
+  switch (seg) {
+  | [Tile(t)] =>
+    switch (Tile.effective_label(t)) {
+    | [tok] => Some(tok)
+    | _ => None
+    }
+  | _ => None
+  };
+
+let neighbor_shard = (d: Direction.t, z: t): option(Token.t) =>
+  switch (Siblings.neighbor(d, z.relatives.siblings)) {
+  | Some(p) when Piece.monotile(p) != None => Piece.monotile(p)
+  | _ =>
+    let* z = select(d, z);
+    singleton_shard_selection(z.selection.content);
+  };
+
+let neighbor_shards = (z: t): (option(Token.t), option(Token.t)) => (
+  neighbor_shard(Left, z),
+  neighbor_shard(Right, z),
+);
 
 let adj_pos = (d: Direction.t, z: t): t =>
   switch (d) {
@@ -225,7 +233,7 @@ let adj_pos = (d: Direction.t, z: t): t =>
   };
 
 let put_down_core = (seg: Segment.t, z: t): t =>
-  z |> destruct |> replace_selection(Right, seg) |> unselect;
+  z |> replace_selection(Right, seg) |> unselect;
 
 let put_down_seg = (d: Direction.t, seg: Segment.t, z: t): t =>
   z |> put_down_core(seg) |> adj_pos(d);
@@ -233,8 +241,25 @@ let put_down_seg = (d: Direction.t, seg: Segment.t, z: t): t =>
 let local_backpack = (z: t): list(Tile.t) =>
   Relatives.local_missing_shards(z.relatives);
 
+let can_put_down = z =>
+  switch (local_backpack(z)) {
+  | [] => false
+  | _ => z.caret == Outer
+  };
+
+let put_down_regrout_target = (d: Direction.t, target: Tile.t, z: t): t => {
+  let z = put_down_core([Tile(target)], z);
+  let z = z |> regrout(Left) |> remold;
+  adj_pos(d, z);
+};
+
 let backpack_hd = (z: t): option(Tile.t) =>
   z |> local_backpack |> ListUtil.hd_opt;
+
+let put_down_regrout_remold = (d: Direction.t, z: t): option(t) => {
+  let+ target = backpack_hd(z);
+  put_down_regrout_target(d, target, z);
+};
 
 let backpack_find = (tok: Token.t, z: t): option(Tile.t) =>
   if (Form.is_ambiguous_polymorph(tok)) {
@@ -252,166 +277,21 @@ let backpack_find = (tok: Token.t, z: t): option(Tile.t) =>
     );
   };
 
-let put_down_tok = (d: Direction.t, tok: Token.t, z: t): option(t) => {
-  /* Does not regrout/remold on its own. */
-  let+ target = backpack_find(tok, z);
-  put_down_seg(d, [Tile(target)], z);
-};
+let will_glom = (tok: Token.t, z: t): bool => backpack_find(tok, z) != None;
 
-let put_down = (d: Direction.t, z: t): option(t) => {
-  /* Does not regrout/remold on its own. */
-  let+ target = backpack_hd(z);
-  put_down_seg(d, [Tile(target)], z);
-};
-
-let will_barf = (tok: Token.t, z: t): bool =>
-  put_down_tok(Right, tok, z) != None;
-
-let can_put_down = z =>
-  switch (local_backpack(z)) {
-  | [] => false
-  | _ => z.caret == Outer
-  };
-
-let remold_regrout_prev = (z: t): t =>
-  switch (move(Left, z)) {
-  | None => z
-  | Some(z_left) =>
-    let z_left = z_left |> remold |> regrout(Right);
-    switch (move(Right, z_left)) {
-    | None => failwith("Zipper.remold_regrout_prev: move fail")
-    | Some(z_right) => z_right
-    };
-  };
-
-let put_down_regrout_target = (d: Direction.t, target: Tile.t, z: t): t => {
-  let z = put_down_core([Tile(target)], z);
-  let z = z |> regrout(Left) |> remold;
-  let z = remold_regrout_prev(z);
-  adj_pos(d, z);
-};
-
-let put_down_regrout_remold = (d: Direction.t, z: t): option(t) => {
-  let+ target = backpack_hd(z);
-  put_down_regrout_target(d, target, z);
-};
-
-let put_down_regrout_remold_tok =
-    (d: Direction.t, tok: Token.t, z: t): option(t) => {
+let glom = (d: Direction.t, tok: Token.t, z: t): option(t) => {
   let+ target = backpack_find(tok, z);
   put_down_regrout_target(d, target, z);
 };
 
-let rec construct =
-        (
-          ~id: Id.t=Id.mk(),
-          ~caret: Direction.t,
-          ~backpack: Direction.t,
-          label: Label.t,
-          z: t,
-        )
-        : t => {
-  switch (label) {
-  | [t] when Form.is_string_delim(t) || Form.is_quoted_label_delim(t) =>
-    /* Special case for constructing string/label literals.
-       See Insert.move_into_if_stringlit for more special-casing. */
-    construct(~caret, ~backpack, [t ++ t], z)
-  | [content] when Form.is_comment(content) =>
-    /* Special case for comments, can't rely on the last branch to construct */
-    let content = Secondary.construct_comment(content);
-    let z = destruct(z);
-    put_down_seg(caret, Base.mk_secondary(id, content), z);
-  | [content] when Form.is_secondary(content) =>
-    let content = Secondary.Whitespace(content);
-    z
-    |> update_siblings(((l, r)) =>
-         (
-           l
-           @ [
-             Secondary({
-               id,
-               content,
-             }),
-           ],
-           r,
-         )
-       );
-  | _ =>
-    let z = destruct(z);
-    let molds = Molds.get(label);
-    assert(molds != []);
-    // initial mold to typecheck, will be remolded
-    let mold = List.hd(molds);
-    let selections =
-      Tile.split_shards(id, label, mold, List.mapi((i, _) => i, label))
-      |> List.map(Segment.of_tile)
-      |> ListUtil.rev_if(backpack == Right);
-    put_down_seg(caret, List.hd(selections), z);
-  };
-};
+let delete = (d: Direction.t, z: t): option(t) =>
+  z |> select(d) |> Option.map(destroy_selection);
 
-let construct_mono = (~id, d: Direction.t, t: Token.t, z: t): t =>
-  construct(~id, ~caret=d, ~backpack=Left, [t], z);
-
-let rec get_leaf_pieces =
-        (syntaxNode: Piece.t, ~ignored_labels: list(list(string)))
-        : list(Piece.t) =>
-  switch (syntaxNode) {
-  | Tile(tile) =>
-    /* Check if this tile's label is in the ignored labels */
-    let should_ignore =
-      List.exists(label => label == tile.label, ignored_labels);
-    if (should_ignore) {
-      [];
-        /* Ignore this tile */
-    } else if (tile.children == []) {
-      [
-        /* It's a leaf piece */
-        Tile(tile),
-      ];
-    } else {
-      /* Recurse into the children */
-      tile.children
-      |> List.concat_map(segment =>
-           segment |> List.concat_map(get_leaf_pieces(~ignored_labels))
-         );
-    };
-  | _ => []
-  };
-
-let remove_projector = (id: Id.t, syntax: Piece.t) =>
-  switch (syntax) {
-  | Projector(pr) when pr.id == id =>
-    // just get the label, found as first leaf piece
-    get_leaf_pieces(pr.syntax, ~ignored_labels=[[","]]) |> List.hd
-  | x => x
-  };
-
-let delete = (d: Direction.t, z: t): option(t) => {
-  let to_delete = z |> select(d);
-  switch (to_delete) {
-  | Some({selection: {content: [Projector(p)], _}, _}) =>
-    switch (p.kind) {
-    | Livelit =>
-      Some(ZipperBase.MapPiece.fast_local(remove_projector(p.id), p.id, z))
-    | _ => to_delete |> Option.map(destruct)
-    }
-  | _ => to_delete |> Option.map(destruct)
-  };
-};
-
-let replace =
-    (~id: Id.t, ~caret: Direction.t, ~backpack: Direction.t, l: Label.t, z: t)
-    : option(t) => {
-  /* i.e. select and construct, overwriting the selection */
-  z |> delete(caret) |> Option.map(construct(~id, ~caret, ~backpack, l));
-};
-
-let match_prev = (z: t) =>
-  switch (neighbor_monotiles(z.relatives.siblings)) {
-  | (Some(t), _) when will_barf(t, z) =>
+let glom_prev = (z: t) =>
+  switch (neighbor_shard(Left, z)) {
+  | Some(t) when will_glom(t, z) =>
     switch (delete(Left, z)) {
-    | Some(z) => put_down_regrout_remold_tok(Left, t, z)
+    | Some(z) => glom(Left, t, z)
     | None => Some(z)
     }
   | _ => None
@@ -424,15 +304,11 @@ let adjacent_monotile_id = (d: Direction.t, z: t): option(Id.t) =>
   | _ => None
   };
 
-let replace_mono = (d: Direction.t, t: Token.t, z: t): option(t) => {
-  /* Re-use existing monotile id where appropriate */
-  let id =
-    switch (adjacent_monotile_id(d, z)) {
-    | Some(id) => id
-    | None => Id.mk()
-    };
-  replace(~id, ~caret=d, ~backpack=Left, [t], z);
-};
+let adjacent_monotile_or_new_id = (d, z) =>
+  switch (adjacent_monotile_id(d, z)) {
+  | Some(id) => id
+  | None => Id.mk()
+  };
 
 let representative_piece = (z: t): option((Piece.t, Direction.t)) => {
   /* The piece to the left of the caret, or if none exists, the piece to the right */
@@ -442,22 +318,6 @@ let representative_piece = (z: t): option((Piece.t, Direction.t)) => {
   | _ => None
   };
 };
-
-let caret_direction = (z: t): option(Direction.t) =>
-  /* Direction the caret is facing in */
-  switch (z.caret) {
-  | Inner(_) => None
-  | Outer =>
-    switch (Siblings.neighbors(sibs_with_sel(z))) {
-    | (Some(l), Some(r))
-        when
-          Piece.is_secondary(l)
-          && Piece.is_secondary(r)
-          && Selection.is_empty(z.selection) =>
-      None
-    | _ => Siblings.direction_between(sibs_with_sel(z))
-    }
-  };
 
 let base_point = (measured: Measured.t, z: t): Point.t => {
   switch (representative_piece(z)) {
@@ -479,12 +339,64 @@ let base_point = (measured: Measured.t, z: t): Point.t => {
     }
   };
 };
-let caret_point = (measured, z: t): Point.t => {
-  let Point.{row, col} = base_point(measured, z);
-  {
-    row,
-    col: col + Caret.offset(z.caret),
+
+module Caret = {
+  let offset: caret => int =
+    fun
+    | Outer => 0
+    | Inner(idx) => idx + 1;
+
+  let set = (caret: caret, z: t): t => {
+    ...z,
+    caret,
   };
+
+  /* Max internal index of the shard the caret is adjacent to */
+  let nhbr_max_idx = (d: Direction.t, z: t): option(int) => {
+    let* t =
+      switch (d, neighbor_shards(z)) {
+      | (Left, (Some(t), _)) => Some(t)
+      | (Right, (_, Some(t))) => Some(t)
+      | _ => None
+      };
+    let max_idx = Token.length(t) - 2;
+    max_idx < 0 ? None : Some(max_idx);
+  };
+
+  /* Returns the delimiter index that the caret is adjacent to.
+   * For non-tiles and monotiles this is always zero */
+  let delim_idx = (z: t) =>
+    switch (snd(z.relatives.siblings), z.relatives.ancestors) {
+    | ([], [({shards: (l, _), _}, _), ..._]) => List.length(l)
+    | _ => 0
+    };
+
+  /* Direction the caret is facing in */
+  let direction = (z: t): option(Direction.t) =>
+    switch (z.caret) {
+    | Inner(_) => None
+    | Outer =>
+      switch (Siblings.neighbors(sibs_with_sel(z))) {
+      | (Some(l), Some(r))
+          when
+            Piece.is_secondary(l)
+            && Piece.is_secondary(r)
+            && Selection.is_empty(z.selection) =>
+        None
+      | _ => Siblings.direction_between(sibs_with_sel(z))
+      }
+    };
+
+  /* Grid position of the caret */
+  let point = (measured: Measured.t, z: t): Point.t => {
+    let Point.{row, col} = base_point(measured, z);
+    {
+      row,
+      col: col + offset(z.caret),
+    };
+  };
+
+  type t = ZipperBase.caret;
 };
 
 let selection_anchor_point = (measured, z: t): option(Point.t) => {
