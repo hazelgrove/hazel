@@ -79,6 +79,7 @@ module F =
         ~env: Calc.t(ClosureEnvironment.t),
         ~state: Calc.t(EvaluatorState.t),
         ~editor as _: Calc.t(CodeSelectable.Model.t),
+        ~ana: Calc.t(Typ.t),
         model: model,
       ) => {
     let {inner_exp, bindings, inner_stepper, result_function} = model;
@@ -99,13 +100,14 @@ module F =
       }
       |> Calc.to_option
       |> Option.map(Calc.to_pair);
-    let (inner_stepper, last) =
+    let (inner_stepper, last, validity) =
       Stepper.calculate(
         ~settings,
         ~ctx=bindings,
         ~env,
         ~exp=inner_exp,
         ~state,
+        ~ana,
         inner_stepper,
       );
     let result_function =
@@ -135,6 +137,7 @@ module F =
       },
       hidden |> Calc.set(false),
       Some((result_function, state)),
+      validity,
     );
   };
 

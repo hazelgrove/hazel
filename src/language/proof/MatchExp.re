@@ -100,6 +100,10 @@ let rec match_exp =
     let* alphas' = match_pat(p1, p2);
     match_exp(alphas' @ alphas, ctx, e1, e2);
   | (Fun(_, _, _, _), _) => None
+  | (Forall(p1, e1), Forall(p2, e2)) =>
+    let* alphas' = match_pat(p1, p2);
+    match_exp(alphas' @ alphas, ctx, e1, e2);
+  | (Forall(_, _), _) => None
   | (TypFun(tp1, e1, _), TypFun(tp2, e2, _)) =>
     // TODO: type alpha equivalence
     let* () = match_tpat(tp1, tp2);

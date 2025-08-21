@@ -494,6 +494,9 @@ module View = {
             },
           model.theorems,
         );
+      let theorems =
+        List.length(theorems) == 0
+          ? [] : [WebUtil.div_c("theorems", theorems)];
       (result @ theorems, test_overlay);
 
     // Just showing elaboration because evaluation is off:

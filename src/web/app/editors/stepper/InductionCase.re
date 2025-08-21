@@ -15,6 +15,7 @@ type model'('stepper) = {
   hypo_points: Calc.saved(list(Pat.t)),
   added_ctx: Calc.saved(list(Ctx.entry)),
   inner_ctx: Calc.saved(Ctx.t),
+  constraint_: Calc.saved(option(Coverage.Constraint.t)),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -41,6 +42,7 @@ module F = (Stepper: STEPPER) => {
     hypo_points: Calc.Pending,
     added_ctx: Calc.Pending,
     inner_ctx: Calc.Pending,
+    constraint_: Calc.Pending,
   };
 
   let update = (~settings: Settings.t, action: action, model: model) => {
@@ -79,6 +81,7 @@ module F = (Stepper: STEPPER) => {
         ~ctx: Calc.t(Ctx.t),
         ~env: Calc.t(ClosureEnvironment.t),
         ~state: Calc.t(EvaluatorState.t),
+        ~ana: Calc.t(Typ.t),
         model: model,
       ) => {
     let pattern =
@@ -129,8 +132,7 @@ module F = (Stepper: STEPPER) => {
           CodeEditable.Model.get_statics(pattern).info_map,
           scrut_ty,
           elab_pattern,
-        )
-        |> List.map(v => Pat.fresh(Var(v)));
+        );
       };
     let added_ctx =
       model.added_ctx
@@ -189,20 +191,28 @@ module F = (Stepper: STEPPER) => {
                  ),
                )
              )
-          |> List.map(ty =>
-               Ctx.VarEntry({
-                 name:
+          |> List.fold_left_map(
+               (acc, ty) => {
+                 let name =
                    Var.free_name(
                      "ih",
                      List.map(
                        (e: Ctx.var_entry) => e.name,
-                       Ctx.get_var_entries(ctx),
+                       acc @ Ctx.get_var_entries(ctx),
                      ),
-                   ),
-                 id: Id.mk(),
-                 typ: ty,
-               })
-             );
+                   );
+                 let var_entry =
+                   Ctx.{
+                     name,
+                     id: Id.mk(),
+                     typ: ty,
+                   };
+                 let entry = Ctx.VarEntry(var_entry);
+                 ([var_entry, ...acc], entry);
+               },
+               [],
+             )
+          |> snd;
         [case_eq] @ hypo_entries;
       };
     let inner_ctx =
@@ -219,25 +229,50 @@ module F = (Stepper: STEPPER) => {
         List.fold_left(Ctx.extend, ctx, added_ctx |> List.rev);
       };
 
-    let (stepper, last_exp) =
+    let (stepper, last_exp, validity) =
       Stepper.calculate(
         ~settings, // TODO: this is a little ugly
         ~ctx=inner_ctx,
         ~exp=inner_exp,
         ~env,
         ~state,
+        ~ana,
         model.step,
       );
-    {
-      pattern,
-      elab_pattern: elab_pattern |> Calc.save,
-      inner_exp: inner_exp |> Calc.save,
-      hypo_points: hypo_points |> Calc.save,
-      step: stepper,
-      last_exp: last_exp |> Calc.save,
-      added_ctx: added_ctx |> Calc.save,
-      inner_ctx: inner_ctx |> Calc.save,
-    };
+
+    let constraint_ =
+      {
+        open OptUtil.Syntax;
+        let statics = CodeWithStatics.Model.get_statics(pattern);
+        let* info =
+          Statics.Map.lookup(
+            elab_pattern |> Calc.get_value |> Pat.rep_id,
+            statics.info_map,
+          );
+        let* info_pat =
+          switch (info) {
+          | InfoPat(info_pat) => Some(info_pat)
+          | _ => None
+          };
+        Some(Info.pat_constraint(info_pat));
+      }
+      |> Calc.set(_, model.constraint_);
+
+    (
+      {
+        pattern,
+        elab_pattern: elab_pattern |> Calc.save,
+        inner_exp: inner_exp |> Calc.save,
+        hypo_points: hypo_points |> Calc.save,
+        step: stepper,
+        last_exp: last_exp |> Calc.save,
+        added_ctx: added_ctx |> Calc.save,
+        inner_ctx: inner_ctx |> Calc.save,
+        constraint_: constraint_ |> Calc.save,
+      },
+      constraint_,
+      validity,
+    );
   };
 
   let get_cursor_info = (~focus: focus, model: model) => {
@@ -344,7 +379,8 @@ module F = (Stepper: STEPPER) => {
                            name,
                            typ,
                            rule,
-                         },
+                           is_captured: false,
+                         } // TODO
                        },
                      )
                    );

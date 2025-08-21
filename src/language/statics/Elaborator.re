@@ -245,6 +245,10 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let (p', typ) = elaborate_pattern(m, p, false);
       let (e', _) = elaborate(m, e);
       Fun(p', e', Some(typ), n) |> rewrap;
+    | Forall(p, e) =>
+      let (p', _) = elaborate_pattern(m, p, false);
+      let (e', _) = elaborate(m, e);
+      Forall(p', e') |> rewrap;
     | TypFun(tpat, e, name) =>
       let (e', _) = elaborate(m, e);
       TypFun(tpat, e', name) |> rewrap;

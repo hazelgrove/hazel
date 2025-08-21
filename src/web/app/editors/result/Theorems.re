@@ -5,13 +5,15 @@ open Language;
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type theorem = {
+    name: string,
     ctx: Calc.saved(Ctx.t),
     env: Calc.saved(ClosureEnvironment.t),
     goal_exp: Calc.saved(Exp.t),
     stepper_view: StepperView.Model.t,
   };
 
-  let theorem_init = {
+  let theorem_init = name => {
+    name,
     ctx: Calc.Pending,
     env: Calc.Pending,
     goal_exp: Calc.Pending,
@@ -44,6 +46,18 @@ module Update = {
   };
 
   let update = (~settings, action, model: Model.t): Updated.t(Model.t) => {
+    let settings =
+      Settings.Model.{
+        ...settings,
+        core: {
+          ...settings.core,
+          evaluation: {
+            ...settings.core.evaluation,
+            enable_proof: true,
+            stepper_history: true,
+          },
+        },
+      };
     switch (action) {
     | TheoremUpdate(id, action) =>
       switch (Id.Map.find_opt(id, model.thm_map)) {
@@ -75,6 +89,19 @@ module Update = {
         ~dynamics: Calc.t(option(Dynamics.t)),
         {thm_map, thms}: Model.t,
       ) => {
+    let settings' = {
+      ...Calc.get_value(settings),
+      evaluation: {
+        ...Calc.get_value(settings).evaluation,
+        enable_proof: true,
+        stepper_history: true,
+      },
+    };
+    let settings =
+      switch (settings) {
+      | OldValue(_) => Calc.OldValue(settings')
+      | NewValue(_) => Calc.NewValue(settings')
+      };
     let thms =
       thms
       |> {
@@ -86,14 +113,14 @@ module Update = {
           };
         let theorems =
           List.filter_map(
-            ((a, b, c)) => {
+            ((a, b, c, d)) => {
               open OptUtil.Syntax;
-              let* c' = ProofRule.typ_to_rule(c);
-              Some((a, b, c'));
+              let* d' = ProofRule.typ_to_rule(d);
+              Some((a, b, c, d'));
             },
             theorems,
           );
-        List.map(((id, _, _)) => id, theorems) |> List.rev;
+        List.map(((id, _, _, _)) => id, theorems) |> List.rev;
       }
       |> Calc.old_if_same'(thms);
 
@@ -106,18 +133,18 @@ module Update = {
         | None => []
         | Some(x) => x.theorems
       )
-      |> List.filter_map(((a, b, c)) => {
+      |> List.filter_map(((a, b, c, d)) => {
            open OptUtil.Syntax;
-           let* c' = ProofRule.typ_to_rule(c);
-           Some((a, b, c'));
+           let* d' = ProofRule.typ_to_rule(d);
+           Some((a, b, c, d'));
          })
       |> List.fold_left(
-           (acc, (id, env', rule: ProofRule.t)) =>
+           (acc, (id, name, env', rule: ProofRule.t)) =>
              Id.Map.update(
                id,
                (opt: option(Model.theorem)) => {
-                 let Model.{ctx, env, goal_exp, stepper_view} =
-                   Option.value(~default=Model.theorem_init, opt);
+                 let Model.{name, ctx, env, goal_exp, stepper_view} =
+                   Option.value(~default=Model.theorem_init("?"), opt);
 
                  let goal_exp =
                    Calc.set(
@@ -154,11 +181,13 @@ module Update = {
                      ~settings,
                      ~ctx,
                      ~env,
+                     ~ana=Calc.OldValue(Typ.fresh(Atom(Bool))),
                      goal_exp,
                      stepper_view,
                    );
 
                  Some({
+                   name,
                    ctx: ctx |> Calc.save,
                    env: env |> Calc.save,
                    goal_exp: goal_exp |> Calc.save,
@@ -218,30 +247,69 @@ module View = {
         ~selected: option(Focus.t),
         model: Model.t,
       ) => {
+    let globals = {
+      ...globals,
+      settings: {
+        ...globals.settings,
+        core: {
+          ...globals.settings.core,
+          evaluation: {
+            ...globals.settings.core.evaluation,
+            enable_proof: true,
+            stepper_history: true,
+          },
+        },
+      },
+    };
     switch (model.thms |> Calc.get_saved_exc) {
-    | [] => [Node.text("No theorems found")]
+    | [] => []
     | xs =>
       List.map(
         id => {
-          let Model.{stepper_view, _} = Id.Map.find(id, model.thm_map);
-          StepperView.View.view(
-            ~globals,
-            ~signal=
-              fun
-              | MakeActive(f) => take_focus((id, f))
-              | HideStepper => Ui_effect.Ignore,
-            ~inject=a => inject(Update.TheoremUpdate(id, a)),
-            ~selected=
-              switch (selected) {
-              | Some((id', s)) when Id.equal(id, id') => Some(s)
-              | _ => None
-              },
-            stepper_view,
-          );
+          let Model.{stepper_view, name, _} = Id.Map.find(id, model.thm_map);
+          let status =
+            switch (StepperView.Model.get_validity(stepper_view)) {
+            | Some(true) =>
+              Node.div(
+                ~attrs=[Attr.classes(["theorem-status", "true"])],
+                [Node.text("proven true")],
+              )
+            | Some(false)
+            | None =>
+              Node.div(
+                ~attrs=[Attr.classes(["theorem-status", "unknown"])],
+                [Node.text("incomplete")],
+              )
+            };
+          let header =
+            WebUtil.div_c(
+              "theorem-header",
+              [
+                Node.strong([Node.text("Proof of theorem ")]),
+                Node.text(name),
+                status,
+              ],
+            );
+          let stepper =
+            StepperView.View.view(
+              ~globals,
+              ~signal=
+                fun
+                | MakeActive(f) => take_focus((id, f))
+                | HideStepper => Ui_effect.Ignore,
+              ~inject=a => inject(Update.TheoremUpdate(id, a)),
+              ~selected=
+                switch (selected) {
+                | Some((id', s)) when Id.equal(id, id') => Some(s)
+                | _ => None
+                },
+              ~is_toplevel=false,
+              stepper_view,
+            );
+          div_c("theorem", [header, ...stepper]);
         },
         xs,
       )
-      |> List.flatten
     };
   };
 };

@@ -1,71 +1,18 @@
 open Util;
 open Language;
-open Haz3lcore;
 open StepInterface;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type model'('stepper) = {
-  // Updated
-  pattern: CodeEditable.Model.t,
-  // Calculated
-  elab_pattern: Calc.saved(Pat.t),
-  inner_exp: Calc.saved(Exp.t),
-  step: 'stepper,
-  last_exp: Calc.saved(Exp.t),
-  hypo_points: Calc.saved(list(Exp.t)),
-  inner_ctx: Calc.saved(Ctx.t),
-};
+type model'('stepper) = InductionCase.model'('stepper);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type action'('stepper) =
-  | PatternUpdate(CodeEditable.Update.t)
-  | StepUpdate('stepper);
+type action'('stepper) = InductionCase.action'('stepper);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type focus'('stepper) =
-  | Pattern(CodeSelectable.Selection.t)
-  | Stepper('stepper);
+type focus'('stepper) = InductionCase.focus'('stepper);
 
 module F = (Stepper: STEPPER) => {
-  type model = model'(Stepper.model);
-  type action = action'(Stepper.action);
-  type focus = focus'(Stepper.focus);
-
-  let init = {
-    pattern: CodeEditable.Model.mk(Editor.Model.mk(Zipper.init())),
-    elab_pattern: Calc.Pending,
-    inner_exp: Calc.Pending,
-    step: Stepper.init,
-    last_exp: Calc.Pending,
-    hypo_points: Calc.Pending,
-    inner_ctx: Calc.Pending,
-  };
-
-  let update = (~settings: Settings.t, action: action, model: model) => {
-    Updated.(
-      switch (action) {
-      | PatternUpdate(a) =>
-        let* new_pattern =
-          CodeEditable.Update.update(~settings, a, model.pattern);
-        {
-          ...model,
-          pattern: new_pattern,
-        };
-      | StepUpdate(a) =>
-        let* new_step = Stepper.update(~settings, a, model.step);
-        {
-          ...model,
-          step: new_step,
-        };
-      }
-    );
-  };
-
-  let can_undo = a =>
-    switch (a) {
-    | PatternUpdate(action) => CodeEditable.Update.can_undo(action)
-    | StepUpdate(action) => Stepper.can_undo(action)
-    };
+  include InductionCase.F(Stepper);
 
   let calculate =
       (
@@ -77,6 +24,7 @@ module F = (Stepper: STEPPER) => {
         ~ctx: Calc.t(Ctx.t),
         ~env: Calc.t(ClosureEnvironment.t),
         ~state: Calc.t(EvaluatorState.t),
+        ~ana: Calc.t(Typ.t),
         model: model,
       ) => {
     let pattern =
@@ -117,19 +65,6 @@ module F = (Stepper: STEPPER) => {
           exp,
         );
       };
-    let hypo_points =
-      model.hypo_points
-      |> {
-        open Calc.Syntax;
-        let.calc elab_pattern = elab_pattern
-        and.calc scrut_ty = scrut_ty;
-        ProofHacks.get_inductive_hypotheses(
-          CodeEditable.Model.get_statics(pattern).info_map,
-          scrut_ty,
-          elab_pattern,
-        )
-        |> List.map(v => Exp.fresh(Var(v)));
-      };
     let inner_ctx =
       model.inner_ctx
       |> {
@@ -140,53 +75,50 @@ module F = (Stepper: STEPPER) => {
         ProofHacks.dhpat_extend_ctx(elab_pattern, scrut_ty, ctx)
         |> Option.value(~default=ctx);
       };
-    let (stepper, last_exp) =
+    let (stepper, last_exp, validity) =
       Stepper.calculate(
         ~settings, // TODO: this is a little ugly
         ~ctx=inner_ctx,
         ~exp=inner_exp,
         ~env,
         ~state,
+        ~ana,
         model.step,
       );
-    {
-      pattern,
-      elab_pattern: elab_pattern |> Calc.save,
-      inner_exp: inner_exp |> Calc.save,
-      hypo_points: hypo_points |> Calc.save,
-      step: stepper,
-      last_exp: last_exp |> Calc.save,
-      inner_ctx: inner_ctx |> Calc.save,
-    };
-  };
 
-  let get_cursor_info = (~focus: focus, model: model) => {
-    Cursor.(
-      switch (focus) {
-      | Pattern(a) =>
-        let+ ci =
-          CodeEditable.Selection.get_cursor_info(~selection=a, model.pattern);
-        PatternUpdate(ci);
-      | Stepper(a) =>
-        let+ ci = Stepper.get_cursor_info(~focus=a, model.step);
-        StepUpdate(ci);
+    let constraint_ =
+      {
+        open OptUtil.Syntax;
+        let statics = CodeWithStatics.Model.get_statics(pattern);
+        let* info =
+          Statics.Map.lookup(
+            elab_pattern |> Calc.get_value |> Pat.rep_id,
+            statics.info_map,
+          );
+        let* info_pat =
+          switch (info) {
+          | InfoPat(info_pat) => Some(info_pat)
+          | _ => None
+          };
+        Some(Info.pat_constraint(info_pat));
       }
-    );
-  };
+      |> Calc.set(_, model.constraint_);
 
-  let handle_key_event = (~focus: focus, ~event: Key.t, model: model) => {
-    switch (focus, model) {
-    | (Pattern(a), _) =>
-      CodeEditable.Selection.handle_key_event(
-        ~selection=a,
-        model.pattern,
-        event,
-      )
-      |> Option.map(x => PatternUpdate(x))
-    | (Stepper(a), _) =>
-      Stepper.handle_key_event(~focus=a, ~event, model.step)
-      |> Option.map(x => StepUpdate(x))
-    };
+    (
+      InductionCase.{
+        pattern,
+        elab_pattern: elab_pattern |> Calc.save,
+        inner_exp: inner_exp |> Calc.save,
+        hypo_points: Calc.Pending,
+        step: stepper,
+        last_exp: last_exp |> Calc.save,
+        added_ctx: Calc.Pending,
+        inner_ctx: inner_ctx |> Calc.save,
+        constraint_: Calc.Pending,
+      },
+      constraint_,
+      validity,
+    );
   };
 
   let view =

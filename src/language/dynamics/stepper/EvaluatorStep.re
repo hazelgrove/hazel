@@ -315,8 +315,8 @@ module Decompose = {
       state := EvaluatorState.add_test(state^, id, v);
     let update_probe = (state, closure: Dynamics.Probe.Closure.t) =>
       state := EvaluatorState.add_closure(state^, closure);
-    let record_theorem = (state, id, env, d) =>
-      state := EvaluatorState.add_theorem(state^, id, env, d);
+    let record_theorem = (state, id, name, env, d) =>
+      state := EvaluatorState.add_theorem(state^, id, name, env, d);
   };
 
   module Decomp = Transition(DecomposeEVMode);
@@ -370,8 +370,8 @@ module TakeStep = {
     let update_probe = (state, closure: Dynamics.Probe.Closure.t) =>
       state := EvaluatorState.add_closure(state^, closure);
 
-    let record_theorem = (state, id, env, d) =>
-      state := EvaluatorState.add_theorem(state^, id, env, d);
+    let record_theorem = (state, id, name, env, d) =>
+      state := EvaluatorState.add_theorem(state^, id, name, env, d);
   };
 
   module TakeStepEV = Transition(TakeStepEVMode);

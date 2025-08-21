@@ -59,6 +59,7 @@ module F =
         ~env: Calc.t(ClosureEnvironment.t),
         ~state: Calc.t(EvaluatorState.t),
         ~editor as _: Calc.t(CodeSelectable.Model.t),
+        ~ana as _,
         model: model,
       ) => {
     let {evalobj, next_exp, next_state} = model;
@@ -98,6 +99,7 @@ module F =
       },
       hidden,
       Some((next_exp, next_state)),
+      Calc.OldValue(Some(true)),
     );
   };
 

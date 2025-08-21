@@ -126,7 +126,8 @@ module type EV_MODE = {
 
   let update_probe: (state, Dynamics.Probe.Closure.t) => unit;
 
-  let record_theorem: (state, Id.t, ClosureEnvironment.t, Typ.t) => unit;
+  let record_theorem:
+    (state, Id.t, string, ClosureEnvironment.t, Typ.t) => unit;
 };
 
 module Transition = (EV: EV_MODE) => {
@@ -274,20 +275,22 @@ module Transition = (EV: EV_MODE) => {
         kind: LetBind(matches_str),
         is_value: false,
       });
-    | Theorem(dp, d1) =>
+    | Theorem({term: Asc({term: Var(n), _}, t), _}, d1) =>
       let. _ = otherwise(env, d);
-      let vars = Pat.bound_vars(dp);
       let env' =
-        vars
-        |> List.map(v => (v, EmptyHole |> fresh))
+        [(n, ProofOf(t) |> Exp.fresh)]
         |> Environment.of_list
         |> evaluate_extend_env(~call_stack=env.call_stack, _, env);
       Step({
         expr: subst_env(env', d1),
-        state_update,
+        state_update: () =>
+          record_theorem(state, DHExp.rep_id(d), n, env, t),
         kind: TheoremBind,
         is_value: false,
       });
+    | Theorem(_) =>
+      let. _ = otherwise(env, d);
+      Indet;
     | ProofOf(t) =>
       let. _ = otherwise(env, d);
       switch (mode) {
@@ -295,11 +298,16 @@ module Transition = (EV: EV_MODE) => {
       | `Environment =>
         Step({
           expr: d,
-          state_update: () => record_theorem(state, DHExp.rep_id(d), env, t),
+          state_update: () =>
+            record_theorem(state, DHExp.rep_id(d), "<anon theorem>", env, t),
           kind: RecordTheorem,
           is_value: true,
         })
       };
+    // Note[Matt]: we could make this spin, but for now it's indet
+    | Forall(_) =>
+      let. _ = otherwise(env, d);
+      Indet;
     | TypFun(_)
     | Fun(_, _, _, _) =>
       let. _ = otherwise(env, d);

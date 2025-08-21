@@ -16,6 +16,8 @@ module Model = {
   };
 
   let get_state = (m: t) => StepperBase.Stepper.get_state(m.root);
+
+  let get_validity = (m: t) => StepperBase.Stepper.get_validity(m.root);
 };
 
 module Update = {
@@ -37,6 +39,7 @@ module Update = {
         ~ctx: Calc.t(Ctx.t),
         ~env: Calc.t(ClosureEnvironment.t),
         elab: Calc.t(Exp.t),
+        ~ana=Calc.OldValue(Typ.fresh(Unknown(SynSwitch))),
         {cached_elab_subst, root}: Model.t,
       )
       : Model.t => {
@@ -48,16 +51,16 @@ module Update = {
         Substitution.subst(Builtins.env_init, elab);
       };
     let state = Calc.OldValue(EvaluatorState.init);
-    let root =
+    let (root, _, _) =
       StepperBase.Stepper.calculate(
         ~settings,
         ~ctx,
         ~exp=elab_subst,
         ~env,
         ~state,
+        ~ana,
         root,
-      )
-      |> fst;
+      );
     {
       cached_elab_subst: elab_subst |> Calc.save,
       root,
@@ -94,6 +97,7 @@ module View = {
         ~signal: event => Ui_effect.t(unit),
         ~inject: Update.t => Ui_effect.t(unit),
         ~selected: option(Focus.t),
+        ~is_toplevel=true,
         model: Model.t,
       ) => {
     let settings_modal =
@@ -108,7 +112,7 @@ module View = {
       ~take_focus=f => signal(MakeActive(f)),
       ~hide_stepper=signal(HideStepper),
       ~inject=u => inject(u),
-      ~is_toplevel=true,
+      ~is_toplevel,
       ~focus=selected,
       model.root,
     )

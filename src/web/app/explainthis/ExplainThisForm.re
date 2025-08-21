@@ -262,7 +262,7 @@ type form_id =
   | Tuple3Typ
   | DotTyp
   | Label
-  | ForallTyp
+  | ForallExp
   | YesTyp
   | LabelledSumTyp
   | SumTypUnaryConstructorDef
@@ -367,7 +367,7 @@ type group_id =
   | ListTyp
   | PolyTyp
   | RecTyp
-  | ForallTyp
+  | ForallExp
   | YesTyp
   | ArrowTyp
   | Arrow3Typ

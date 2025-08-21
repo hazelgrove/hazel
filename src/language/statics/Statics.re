@@ -898,6 +898,14 @@ and uexp_to_info_map =
       let self =
         is_exhaustive ? unwrapped_self : InexhaustiveMatch(unwrapped_self);
       add'(~self, ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx), m);
+    | Forall(p, e) =>
+      let (p, m) = go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, p, m);
+      let (e, m) = go'(~ctx=p.ctx, ~ana=Atom(Bool) |> Typ.temp, e, m);
+      add'(
+        ~self=Common(Just(Atom(Bool) |> Typ.temp)),
+        ~co_ctx=CoCtx.mk(ctx, p.ctx, e.co_ctx),
+        m,
+      );
     | TypFun(utpat, body, _) =>
       let (name_expected_opt, item) = Typ.matched_poly(ctx, ana);
       let (mode_body, ctx_body) =
@@ -999,7 +1007,7 @@ and uexp_to_info_map =
           CoCtx.union([def.co_ctx, CoCtx.mk(ctx, p_ana.ctx, body.co_ctx)]),
         m,
       );
-    | Theorem(p, e) =>
+    | Theorem({term: Asc({term: Var(_), _}, _), _} as p, e) =>
       let (p', _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
       let (e, m) = go'(~ctx=p'.ctx, ~ana, e, m);
@@ -1008,6 +1016,18 @@ and uexp_to_info_map =
         go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~ana=syn, p, m);
       add(
         ~self=Just(e.ty),
+        ~co_ctx=CoCtx.union([p'.co_ctx, CoCtx.mk(ctx, p.ctx, e.co_ctx)]),
+        m,
+      );
+    | Theorem(p, e) =>
+      let (p', _) =
+        go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
+      let (e, m) = go'(~ctx=p'.ctx, ~ana, e, m);
+      /* add co_ctx to pattern */
+      let (p, m) =
+        go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~ana=syn, p, m);
+      add'(
+        ~self=BadTheorem(e.ty),
         ~co_ctx=CoCtx.union([p'.co_ctx, CoCtx.mk(ctx, p.ctx, e.co_ctx)]),
         m,
       );
@@ -1838,22 +1858,6 @@ and utyp_to_info_map =
       |> snd;
     let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
     add(m); // TODO: check with andrew
-  | Forall(p', t') =>
-    let (p', m) =
-      upat_to_info_map(
-        ~is_synswitch=false,
-        ~ctx,
-        ~co_ctx=CoCtx.empty,
-        ~ancestors,
-        ~ana=syn,
-        ~duplicates=[],
-        p',
-        m,
-      );
-    let (_, m) =
-      utyp_to_info_map(t', ~ctx=p'.ctx, ~ancestors, ~expects=TypeExpected, m);
-
-    add(m);
   | Yes(e) =>
     let (_, m) =
       uexp_to_info_map(
@@ -1957,8 +1961,9 @@ and variant_to_info_map =
 };
 
 let mk =
-  Core.Memo.general(~cache_size_bound=1000, (ctx, e) => {
+  Core.Memo.general(~cache_size_bound=1000, (ana, ctx, e) => {
     uexp_to_info_map(
+      ~ana,
       ~ctx,
       ~ancestors=[],
       ~duplicates=[],
@@ -1970,8 +1975,8 @@ let mk =
     |> snd
   });
 
-let mk = (core: CoreSettings.t, ctx, exp) =>
-  core.statics ? mk(ctx, exp) : Id.Map.empty;
+let mk = (~ana=Typ.temp(Unknown(SynSwitch)), core: CoreSettings.t, ctx, exp) =>
+  core.statics ? mk(ana, ctx, exp) : Id.Map.empty;
 
 let get_error_at = (info_map: Map.t, id: Id.t) => {
   id
