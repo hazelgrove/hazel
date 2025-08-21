@@ -69,12 +69,8 @@ let projector_to_invoke =
   Piece.mk_tile(Form.get(ApExp), [seg_of_projector(pr.model)]),
 ];
 
-// TODO[Matt]: Delete this definition
-type p' = Projector.model;
-
 let go_z =
     (
-      type p_a,
       ~settings as _: Language.CoreSettings.t,
       ~seg_to_ed,
       ~projector_init as pi,
@@ -83,7 +79,7 @@ let go_z =
       ~livelit_projectors,
       ~get_kind,
       statics: CachedStatics.t,
-      a: Action.t(p_a),
+      a: Action.t,
       module M: Move.S,
       z: Zipper.t,
     )

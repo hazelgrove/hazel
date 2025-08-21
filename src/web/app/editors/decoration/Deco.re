@@ -211,14 +211,10 @@ let quick_select_deco =
   };
 };
 
-module Deco =
-       (
-         M: {
-           type projector_action;
-           let globals: Common.t;
-           let editor: Editor.Model.t(projector_action);
-         },
-       ) => {
+module Deco = (M: {
+                 let globals: Common.t;
+                 let editor: Editor.Model.t;
+               }) => {
   let font_metrics = M.globals.font_metrics;
   let syntax = Calc.get_saved_exc(M.editor.syntax);
   let map = syntax.measured;

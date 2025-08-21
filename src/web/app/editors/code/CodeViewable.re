@@ -6,7 +6,6 @@ open WebUtil;
 
 let view =
     (
-      type p',
       ~background=false,
       ~font_metrics: Haz3lcorep.FontMetrics.t,
       ~secondary_icons,
@@ -19,7 +18,6 @@ let view =
     : Node.t => {
   module Text =
     Code.Text({
-      type p = p';
       let map = measured;
       let shape_map = shape_map;
       let font_metrics = font_metrics;
@@ -38,7 +36,6 @@ let view =
 
 let view_segment =
     (
-      type p,
       ~sort: Language.Sort.t,
       ~shape_map: Util.ProjectorShape.Map.t,
       segment: Haz3lcorep.Segment.t,
@@ -49,12 +46,7 @@ let view_segment =
 };
 
 let view_editor =
-    (
-      type p,
-      ~sort: Language.Sort.t,
-      ~background=false,
-      editor: Haz3lcorep.Editor.t('p_a),
-    ) => {
+    (~sort: Language.Sort.t, ~background=false, editor: Haz3lcorep.Editor.t) => {
   let syntax = Calc.get_saved_exc(editor.syntax);
   let measured = syntax.measured;
   let buffer_ids =

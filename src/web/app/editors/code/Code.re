@@ -121,7 +121,6 @@ let of_projector = (expected_sort, indent, shape: ProjectorShape.t) => {
 module Text =
        (
          M: {
-           type p;
            let map: Measured.t;
            let secondary_icons: bool;
            let shape_map: ProjectorShape.Map.t;

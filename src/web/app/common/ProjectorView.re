@@ -169,7 +169,7 @@ let view_wrapper =
 let handle =
     (
       ~focus: Ui_effect.t(unit),
-      ~inject: Action.project('p_a) => Ui_effect.t(unit),
+      ~inject: Action.project => Ui_effect.t(unit),
       id,
       action: external_action,
     ) =>
@@ -276,7 +276,7 @@ let all =
       type p,
       ~common,
       ~view_projector,
-      ~inject: Action.t('p_a) => Ui_effect.t(unit),
+      ~inject: Action.t => Ui_effect.t(unit),
       ~make_active: (Id.t, 'p_f) => Ui_effect.t(unit),
       ~focus,
       ~focussed: option((Id.t, 'p_f)),

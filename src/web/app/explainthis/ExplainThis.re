@@ -235,7 +235,6 @@ let expander_deco =
     ) => {
   module Deco =
     Deco.Deco({
-      type projector_action = Projector.Update.t;
       let editor = editor;
       let globals =
         Common.{
@@ -527,7 +526,6 @@ let get_doc =
       let highlight_deco = {
         module Deco =
           Deco.Deco({
-            type projector_action = Projector.Update.t;
             let editor = editor;
             let globals =
               Common.{

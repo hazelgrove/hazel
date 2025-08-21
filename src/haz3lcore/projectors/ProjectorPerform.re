@@ -80,7 +80,7 @@ let get_model = (id: Id.t, z: ZipperBase.t): option(_) => {
 };
 
 let setup_selection =
-    (type p, ~select_term: Zipper.t => option(Zipper.t), z: Zipper.t)
+    (~select_term: Zipper.t => option(Zipper.t), z: Zipper.t)
     : option((Direction.t, Zipper.t)) =>
   Selection.is_empty(z.selection)
     ? switch (select_term(z), Indicated.direction(z)) {
@@ -137,7 +137,7 @@ let go =
       ~livelit_projectors,
       ~jump_to_side_of_id,
       ~select_term: Zipper.t => option(Zipper.t),
-      a: Action.project(_),
+      a: Action.project,
       z: Zipper.t,
     )
     : result(Zipper.t, Action.Failure.t) => {

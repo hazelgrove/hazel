@@ -15,12 +15,11 @@ module Base = {
 module Editor = {
   include Editor;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Editor.t(unit);
+  type t = Editor.t;
   module Model = {
     include Model;
-    let mk_uncalculated: ZipperBase.t => t(unit) =
-      Editor.Model.mk_uncalculated(_);
-    let to_move_s: t(unit) => 'a = to_move_s;
+    let mk_uncalculated: ZipperBase.t => t = Editor.Model.mk_uncalculated(_);
+    let to_move_s: t => 'a = to_move_s;
   };
 };
 

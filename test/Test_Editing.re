@@ -30,7 +30,7 @@ let printer = (z: Zipper.t): string => {
   );
 };
 
-let perform = (zip: Zipper.t, actions: list(Action.t(unit))): Zipper.t => {
+let perform = (zip: Zipper.t, actions: list(Action.t)): Zipper.t => {
   /* This is a simplified testing harness for zipper actions.
    * It does not apply any semantics-based behaviors. */
   //TODO(andrew): get matt to check if setting this up correctly
@@ -53,7 +53,7 @@ let perform = (zip: Zipper.t, actions: list(Action.t(unit))): Zipper.t => {
   let seg_to_ed = _ => None;
   let get_kind = _ => ProjectorKind.Fold;
   let model = Editor.Model.init(~common, ~get_kind, zip);
-  let perform = (a: Action.t(_), z: Zipper.t): Action.Result.t(Zipper.t) =>
+  let perform = (a: Action.t, z: Zipper.t): Action.Result.t(Zipper.t) =>
     Perform.go_z(
       ~settings,
       ~seg_to_ed,
@@ -68,7 +68,7 @@ let perform = (zip: Zipper.t, actions: list(Action.t(unit))): Zipper.t => {
       z,
     );
   List.fold_left(
-    (z: Zipper.t, a: Action.t(_)) =>
+    (z: Zipper.t, a: Action.t) =>
       switch (perform(a, z)) {
       | Ok(z) => z
       | Error(err) =>
@@ -81,22 +81,22 @@ let perform = (zip: Zipper.t, actions: list(Action.t(unit))): Zipper.t => {
   );
 };
 
-let string_to_ltr_actions = (s: string): list(Action.t(_)) =>
+let string_to_ltr_actions = (s: string): list(Action.t) =>
   s |> Util.StringUtil.to_list |> List.map(c => Action.Insert(c));
 
-let mv_l = (n: int): list(Action.t(_)) =>
+let mv_l = (n: int): list(Action.t) =>
   List.init(n, _ => Action.Move(Local(Left(ByChar))));
 
-let mv_r = (n: int): list(Action.t(_)) =>
+let mv_r = (n: int): list(Action.t) =>
   List.init(n, _ => Action.Move(Local(Right(ByChar))));
 
-let mv_l_token = (n: int): list(Action.t(_)) =>
+let mv_l_token = (n: int): list(Action.t) =>
   List.init(n, _ => Action.Move(Local(Left(ByToken))));
 
-let mv_r_token = (n: int): list(Action.t(_)) =>
+let mv_r_token = (n: int): list(Action.t) =>
   List.init(n, _ => Action.Move(Local(Right(ByToken))));
 
-let mk = (init: string): list(Action.t(_)) => {
+let mk = (init: string): list(Action.t) => {
   /* This harness uses a  to represent caret position.
    * This assumes there are no literal instances of the caret
    * char proceeding the caret ¦ in the syntax. This creates

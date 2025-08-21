@@ -16,7 +16,7 @@ module rec Projector: {
 
   module Update: {
     [@deriving (show({with_path: false}), sexp, yojson)]
-    type t;
+    type t = Action.projector_action;
 
     let update:
       (~common: Common.t, ~sort: Sort.t, ~id: Id.t, t, Model.t) => Model.t;
@@ -151,8 +151,7 @@ module rec Projector: {
 and Editor: {
   include
     EditorInterface.EDITOR with
-      type model = Haz3lcorep.Editor.t(Projector.Update.t) and
-      type action = Action.t(Projector.Update.t);
+      type model = Haz3lcorep.Editor.t and type action = Action.t;
   // model and action have transparent definitions for handing editor to projectorinit
 
   // TODO: refactor these helper functions away
@@ -165,9 +164,9 @@ and Editor: {
   let to_string: Model.t => string;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type model = Haz3lcorep.Editor.t(Projector.Update.t);
+  type model = Haz3lcorep.Editor.t;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type action = Action.t(Projector.Update.t);
+  type action = Action.t;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type focus = EditorView.Focus.t(Projector.Focus.t);
 
@@ -416,9 +415,9 @@ module PersistentZipper = {
 module Action = {
   include Action;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Action.t(Projector.Update.t);
+  type t = Action.t;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type project = Action.project(Projector.Update.t);
+  type project = Action.project;
 };
 
 module Ancestor = Ancestor;

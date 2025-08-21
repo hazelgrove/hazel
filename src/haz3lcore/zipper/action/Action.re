@@ -58,10 +58,10 @@ type projector_action = Projector.action;
  * which defines the actions available internally to all projectors,
  * and from each projector's own internal action type */
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type project('p_a) =
+type project =
   | SetIndicated(chooser) /* Project syntax at caret */
   | RemoveIndicated /* Remove projector at caret */
-  | Perform(Id.t, 'p_a) /* Set serialized projector model */
+  | Perform(Id.t, projector_action) /* Set serialized projector model */
   | MoveCaretTo(Id.t) /* Move parent splice caret to projector */
   | Escape(Id.t, Direction.t); /* Pass control to parent editor */
 
@@ -82,13 +82,13 @@ type paste =
   | Segment(Segment.t);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type t('p_a) =
+type t =
   | Reparse
   | Buffer(buffer)
   | Paste(paste)
   | Copy
   | Cut
-  | Project(project('p_a))
+  | Project(project)
   | Move(move)
   | Jump(jump_target)
   | Select(select)
@@ -105,7 +105,7 @@ module Result = {
   type t('success) = Result.t('success, Failure.t);
 };
 
-let is_edit: t('a) => bool =
+let is_edit: t => bool =
   fun
   | Paste(_)
   | Cut
@@ -130,7 +130,7 @@ let is_edit: t('a) => bool =
     };
 
 /* Determines whether undo/redo skips action */
-let is_historic: t('a) => bool =
+let is_historic: t => bool =
   fun
   | Copy
   | Move(_)
@@ -154,7 +154,7 @@ let is_historic: t('a) => bool =
     | MoveCaretTo(_) => false
     };
 
-let prevent_in_read_only_editor = (a: t('a)) => {
+let prevent_in_read_only_editor = (a: t) => {
   switch (a) {
   | Copy
   | Move(_)
@@ -184,7 +184,7 @@ let prevent_in_read_only_editor = (a: t('a)) => {
  * to paper over a weird interaction with scroll-to-caret.
  * There is assuredly a better way to handle it but the
  * approaches I tried weren't wholly successful. */
-let should_animate: t('a) => bool =
+let should_animate: t => bool =
   fun
   | Select(s) =>
     switch (s) {
@@ -210,7 +210,7 @@ let should_animate: t('a) => bool =
   | Jump(_)
   | Project(_) => true;
 
-let should_scroll_active: t('a) => bool =
+let should_scroll_active: t => bool =
   fun
   | Move(_)
   | Jump(_)

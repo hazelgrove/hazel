@@ -28,11 +28,10 @@ module Base = {
 module Editor = {
   open Editor;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Editor.t(unit);
+  type t = Editor.t;
   module Model = {
     open Model;
-    let mk_uncalculated: ZipperBase.t => t(unit) =
-      Editor.Model.mk_uncalculated(_);
+    let mk_uncalculated: ZipperBase.t => t = Editor.Model.mk_uncalculated(_);
     let init = (~common, z: ZipperBase.t) =>
       mk_uncalculated(z)
       |> Editor.Update.make_term(~sort=Exp, ~make_term_prj)
@@ -48,7 +47,7 @@ module Editor = {
            ~calculate_projector,
          );
 
-    let to_move_s: t(unit) => 'a = to_move_s;
+    let to_move_s: t => 'a = to_move_s;
   };
 
   module Update = {
