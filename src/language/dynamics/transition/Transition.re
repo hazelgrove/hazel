@@ -68,6 +68,7 @@ type step_kind =
   | Dot
   | Conditional(bool)
   | Projection
+  | TupleExtension
   | ListCons
   | ListConcat
   | CaseApply
@@ -674,30 +675,60 @@ module Transition = (EV: EV_MODE) => {
         req_final(req(state, env), d1 => Dot1(d1, d2) |> wrap_ctx, d1)
       and. d2' =
         req_final(req(state, env), d2 => Dot2(d1, d2) |> wrap_ctx, d2);
-      switch (DHExp.term_of(d1'), DHExp.term_of(d2')) {
-      | (Tuple(ds), Label(name)) =>
-        switch (LabeledTuple.find_label(Exp.match_tup_label, ds, name)) {
-        | Some({term: TupLabel(_, exp), _}) =>
-          Step({
-            expr: exp,
-            state_update,
-            kind: Dot,
-            is_value: false,
-          })
-        | _ => Indet
-        }
-      | (TupLabel(_, d), Label(name)) =>
-        LabeledTuple.has_same_labels(
-          Exp.match_tup_label(d1'),
-          Some((name, d)),
-        )
-          ? Step({
-              expr: d,
+      switch (DHExp.term_of(d2')) {
+      | Label(name) as lab =>
+        switch (Unboxing.unbox(LabeledTupleProjection(name), d1')) {
+        | Matches(d1'') =>
+          switch (DHExp.term_of(d1'')) {
+          | Tuple(ds) =>
+            let projected =
+              List.filter_map(
+                d => {
+                  switch (Exp.match_tup_label(d)) {
+                  | Some((s, e)) when name == s => Some(e)
+                  | _ => None
+                  }
+                },
+                ds,
+              );
+
+            switch (projected) {
+            | [exp] =>
+              Step({
+                expr: exp,
+                state_update,
+                kind: Dot,
+                is_value: false,
+              })
+            | _ => Indet
+            };
+          | TupLabel(_, d) =>
+            LabeledTuple.has_same_labels(
+              Exp.match_tup_label(d1'),
+              Some((name, d)),
+            )
+              ? Step({
+                  expr: d,
+                  state_update,
+                  kind: Dot,
+                  is_value: false,
+                })
+              : Indet
+          | ListLit(ds) =>
+            let mapped =
+              List.map(d => Dot(d, lab |> Exp.fresh) |> Exp.fresh, ds);
+            let ls = ListLit(mapped) |> Exp.fresh;
+            Step({
+              expr: ls,
               state_update,
               kind: Dot,
               is_value: false,
-            })
-          : Indet
+            });
+          | _ => Indet
+          }
+        | _ => Indet
+        }
+
       | _ => Indet
       };
     | TupLabel(label, d1) =>
@@ -718,6 +749,41 @@ module Transition = (EV: EV_MODE) => {
           ds,
         );
       Constructor;
+    | TupleExtension(e1, e2) =>
+      let. _ = otherwise(env, (e1, e2) => TupleExtension(e1, e2) |> rewrap)
+      and. e1' =
+        req_final(
+          req(state, env),
+          e1 => TupleExtension1(e1, e2) |> wrap_ctx,
+          e1,
+        )
+      and. e2' =
+        req_final(
+          req(state, env),
+          e2 => TupleExtension2(e1, e2) |> wrap_ctx,
+          e2,
+        );
+      let-unbox e1_entries = (LabeledTupleEntries, e1');
+      let-unbox e2_entries = (LabeledTupleEntries, e2');
+
+      let tuple: Grammar.exp_t(IdTagged.IdTag.t) =
+        tuple(
+          List.map(
+            ((lab, d)) =>
+              switch (lab) {
+              | Some(l) => tup_label(label(l), d)
+              | None => d
+              },
+            LabeledTuple.extension(e1_entries, e2_entries),
+          ),
+        );
+
+      Step({
+        expr: tuple,
+        state_update,
+        kind: TupleExtension,
+        is_value: true,
+      });
     | Cons(d1, d2) =>
       let. _ = otherwise(env, (d1, d2) => Cons(d1, d2) |> rewrap)
       and. d1' =
@@ -926,6 +992,7 @@ let should_hide_step_kind = (~settings: CoreSettings.Evaluation.t) =>
   | UnOp(_)
   | ListCons
   | ListConcat
+  | TupleExtension
   | CaseApply
   | Projection // TODO(Matt): We don't want to show projection to the user
   | Conditional(_)
@@ -993,5 +1060,6 @@ let stepper_justification: step_kind => string =
   | RemoveUse => "set use type"
   | RemoveParens => "remove parentheses"
   | Dot => "Labeled tuple access"
+  | TupleExtension => "Tuple extension"
   | MarkIncomparable => "mark equality as incomparable"
   | UnOp(Meta(Unquote)) => failwith("INVALID STEP");

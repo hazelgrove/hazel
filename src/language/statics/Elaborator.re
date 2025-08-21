@@ -420,6 +420,10 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
       let (e1', _) = elaborate(m, e1);
       let (e2', _) = elaborate(m, e2);
       BinOp(op, e1', e2') |> rewrap;
+    | TupleExtension(e1, e2) =>
+      let (e1', _) = elaborate(m, e1);
+      let (e2', _) = elaborate(m, e2);
+      TupleExtension(e1', e2') |> rewrap;
     | BuiltinFun(_) => uexp
     | Match(e, cases) =>
       let (e', _) = elaborate(m, e);

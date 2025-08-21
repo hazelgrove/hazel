@@ -62,6 +62,7 @@ let tests = [
   test_case("Wrong number of deferrals", `Quick, () =>
     annotated_tree_test(
       {|string_sub(_, _, 2, 3)|},
+      unknown(Internal),
       FIError.Exp.(
         deferred_ap(
           ~ann=
@@ -84,6 +85,10 @@ let tests = [
   test_case("Unknown arg could be any arity for deferrals", `Quick, () =>
     annotated_tree_test(
       {|(? : (? -> ?))(1, _, _)|},
+      arrow(
+        prod([unknown(Internal), unknown(Internal)]),
+        unknown(Internal),
+      ),
       FIError.(
         Exp.(
           deferred_ap(
@@ -102,6 +107,7 @@ let tests = [
   test_case("Deferral outside of function args", `Quick, () =>
     annotated_tree_test(
       {|1 + _|},
+      int(),
       FIError.Exp.(
         bin_op(
           Int(Plus),

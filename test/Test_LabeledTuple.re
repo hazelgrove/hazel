@@ -84,7 +84,7 @@ let tests = (
       ],
     ),
     test_rearrange(
-      "pair labeled, unlabled",
+      "pair labeled, unlabeled",
       [Some("a"), None],
       [(Some("a"), 1), (None, 2)],
       [(Some("a"), 1), (None, 2)],

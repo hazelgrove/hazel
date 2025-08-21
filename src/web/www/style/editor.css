@@ -244,9 +244,6 @@ svg.shard.selected.buffer-parsed > path {
 
 /* EMPTY HOLE DECO */
 
-.empty-hole {
-}
-
 .empty-hole > path {
   fill: var(--empty-hole-fill);
   stroke: var(--empty-hole-stroke);

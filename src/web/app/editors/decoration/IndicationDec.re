@@ -260,7 +260,6 @@ let term =
     (
       ~term_data: TermData.t,
       ~terms: TermMap.t,
-      //~tiles: TileMap.t,
       ~measured: Measured.t,
       ~font_metrics: FontMetrics.t,
       ~attr: option(list(Attr.t))=?,

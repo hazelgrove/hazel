@@ -382,7 +382,7 @@ module ErrorRound = {
             Base.tile_to_string(
               ~holes="",
               ~concave_holes=" ",
-              ~projector_to_segment=Insert.projector_to_invoke,
+              ~projector_to_segment=Triggers.projector_to_invoke,
             ),
             orphans,
           );

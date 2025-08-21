@@ -48,9 +48,9 @@ module CachedSyntax = {
     {
       old: false,
       segment,
+      term_data,
       terms,
       projectors,
-      term_data,
       shape_map: projector_shapes,
       measured: Measured.of_segment(segment, projector_shapes),
       selection_ids: Selection.selection_ids(z.selection),
@@ -236,7 +236,7 @@ module Update = {
       | Select(Resize(Local(Up | Down))) =>
         switch (state.col_target) {
         | Some(col) => Some(col)
-        | None => Some(Zipper.caret_point(syntax.measured, state.zipper).col)
+        | None => Some(Zipper.Caret.point(syntax.measured, state.zipper).col)
         }
       | _ => None
       };

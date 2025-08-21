@@ -239,8 +239,8 @@ module Deco =
     );
 
   let caret = (z: Zipper.t): Node.t => {
-    let origin = Zipper.caret_point(measured, z);
-    let shape = Zipper.caret_direction(z);
+    let origin = Zipper.Caret.point(measured, z);
+    let shape = Zipper.Caret.direction(z);
     let side =
       switch (Indicated.piece(z)) {
       | _
@@ -324,13 +324,13 @@ module Deco =
           : Backpack.view(
               ~font_metrics,
               ~can_put_down=Zipper.can_put_down(z),
-              ~caret_d=Zipper.caret_direction(z),
+              ~caret_d=Zipper.Caret.direction(z),
               ~ind_d=
                 switch (Indicated.piece(z)) {
                 | Some((_, d, _)) => Some(d)
                 | None => None
                 },
-              ~origin=Zipper.caret_point(measured, z),
+              ~origin=Zipper.Caret.point(measured, z),
               contents,
             );
       }
