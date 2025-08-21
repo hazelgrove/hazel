@@ -203,3 +203,11 @@ let mk = (seg: list(ip)): t => {
     |> Stacks.finish;
   ListUtil.hd_opt(stacks.output) |> OptUtil.get_or_raise(Nonconvex_segment);
 };
+
+let rec range = (skel: t): (int, int) =>
+  switch (skel) {
+  | Op(root) => (Aba.first_a(root), Aba.last_a(root))
+  | Pre(root, skel) => (Aba.first_a(root), snd(range(skel)))
+  | Post(skel, root) => (fst(range(skel)), Aba.last_a(root))
+  | Bin(l, _, r) => (fst(range(l)), snd(range(r)))
+  };
