@@ -34,3 +34,9 @@ let root_tile_opt = (id: Id.t, data: t): option(Tile.t) =>
   | {root_piece: Tile(t), _} => Some(t)
   | _ => None
   };
+
+let segment = (id: Id.t, data: t): option(Segment.t) => {
+  open OptUtil.Syntax;
+  let+ {base_seg, range, _} = Id.Map.find_opt(id, data);
+  ListUtil.sublist(range, base_seg);
+};
