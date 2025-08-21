@@ -2,7 +2,7 @@ open Util;
 open OptUtil.Syntax;
 include ZipperBase;
 
-let init: unit => t('p) =
+let init: unit => t =
   () => {
     selection: Selection.mk([]),
     relatives: {
@@ -41,22 +41,21 @@ let from_plane: planar => Direction.t =
   | Up => Left
   | Down => Right;
 
-let update_caret = (f: Caret.t => Caret.t, z: t('p)): t('p) => {
+let update_caret = (f: Caret.t => Caret.t, z: t): t => {
   ...z,
   caret: f(z.caret),
 };
-let set_caret = (caret: Caret.t): (t('p) => t('p)) =>
-  update_caret(_ => caret);
+let set_caret = (caret: Caret.t): (t => t) => update_caret(_ => caret);
 
-let delete_parent = (z: t('p)): t('p) => {
+let delete_parent = (z: t): t => {
   ...z,
   relatives: Relatives.delete_parent(z.relatives),
 };
 
-let zip = (z: t('p)): Segment.t('p) =>
+let zip = (z: t): Segment.t =>
   Relatives.zip(~sel=z.selection.content, z.relatives);
 
-let unzip = (seg: Segment.t('p)): t('p) => {
+let unzip = (seg: Segment.t): t => {
   selection: Selection.mk([]),
   relatives: {
     siblings: (seg, []),
@@ -65,17 +64,16 @@ let unzip = (seg: Segment.t('p)): t('p) => {
   caret: Outer,
 };
 
-let left_neighbor_monotile: Siblings.t('p) => option(Token.t) =
+let left_neighbor_monotile: Siblings.t => option(Token.t) =
   s => s |> Siblings.left_neighbor |> OptUtil.and_then(Piece.monotile);
 
-let right_neighbor_monotile: Siblings.t('p) => option(Token.t) =
+let right_neighbor_monotile: Siblings.t => option(Token.t) =
   s => s |> Siblings.right_neighbor |> OptUtil.and_then(Piece.monotile);
 
-let neighbor_monotiles:
-  Siblings.t('p) => (option(Token.t), option(Token.t)) =
+let neighbor_monotiles: Siblings.t => (option(Token.t), option(Token.t)) =
   s => (left_neighbor_monotile(s), right_neighbor_monotile(s));
 
-let regrout = (d: Direction.t, z: t('p)): t('p) => {
+let regrout = (d: Direction.t, z: t): t => {
   assert(Selection.is_empty(z.selection));
   let relatives = Relatives.regrout(d, z.relatives);
   {
@@ -84,7 +82,7 @@ let regrout = (d: Direction.t, z: t('p)): t('p) => {
   };
 };
 
-let remold = (z: t('p)): t('p) => {
+let remold = (z: t): t => {
   assert(Selection.is_empty(z.selection));
   {
     ...z,
@@ -92,10 +90,9 @@ let remold = (z: t('p)): t('p) => {
   };
 };
 
-let remold_regrout = (d: Direction.t, z: t('p)): t('p) =>
-  z |> remold |> regrout(d);
+let remold_regrout = (d: Direction.t, z: t): t => z |> remold |> regrout(d);
 
-let clear_unparsed_buffer = (z: t('p)): t('p) =>
+let clear_unparsed_buffer = (z: t): t =>
   switch (z.selection.mode) {
   | Buffer(Unparsed) => {
       ...z,
@@ -104,7 +101,7 @@ let clear_unparsed_buffer = (z: t('p)): t('p) =>
   | _ => z
   };
 
-let unselect = (~erase_buffer=false, z: t('p)): t('p) => {
+let unselect = (~erase_buffer=false, z: t): t => {
   /* NOTE(andrew): Erase buffer flag only applies to unparsed buffer,
    * that is, the buffer style that just contains a single flat token.
    * Erasing a buffer that contains arbitrary tiles would be more complex
@@ -121,22 +118,21 @@ let unselect = (~erase_buffer=false, z: t('p)): t('p) => {
     relatives,
   };
 };
-let unselect_and_zip = (~erase_buffer=false, z: t('p)): Segment.t('p) =>
+let unselect_and_zip = (~erase_buffer=false, z: t): Segment.t =>
   z |> unselect(~erase_buffer) |> zip;
 
-let replace_selection = (focus, segment, z: t('p)): t('p) => {
+let replace_selection = (focus, segment, z: t): t => {
   ...z,
   selection: Selection.mk(~focus, segment),
 };
 
-let update_selection_and_unselect =
-    (selection: Selection.t('p), z: t('p)): t('p) =>
+let update_selection_and_unselect = (selection: Selection.t, z: t): t =>
   unselect({
     ...z,
     selection,
   });
 
-let grow_selection = (z: t('p)): option(t('p)) => {
+let grow_selection = (z: t): option(t) => {
   let+ (p, relatives) = Relatives.pop(z.selection.focus, z.relatives);
   let selection = Selection.push(p, z.selection);
   {
@@ -147,7 +143,7 @@ let grow_selection = (z: t('p)): option(t('p)) => {
 };
 
 // toggles focus and grows if selection is empty
-let shrink_selection = (z: t('p)): option(t('p)) => {
+let shrink_selection = (z: t): option(t) => {
   switch (Selection.pop(z.selection)) {
   | None =>
     let selection = Selection.toggle_focus(z.selection);
@@ -168,12 +164,12 @@ let shrink_selection = (z: t('p)): option(t('p)) => {
   };
 };
 
-let toggle_focus = (z: t('p)): t('p) => {
+let toggle_focus = (z: t): t => {
   ...z,
   selection: Selection.toggle_focus(z.selection),
 };
 
-let set_focus = (z: t('p), d: Direction.t): t('p) => {
+let set_focus = (z: t, d: Direction.t): t => {
   let selection = {
     ...z.selection,
     focus: d,
@@ -184,7 +180,7 @@ let set_focus = (z: t('p), d: Direction.t): t('p) => {
   };
 };
 
-let directional_unselect = (d: Direction.t, z: t('p)): t('p) => {
+let directional_unselect = (d: Direction.t, z: t): t => {
   let selection = {
     ...z.selection,
     focus: Direction.toggle(d),
@@ -195,10 +191,10 @@ let directional_unselect = (d: Direction.t, z: t('p)): t('p) => {
   });
 };
 
-let unselect = (z: t('p)): t('p) =>
+let unselect = (z: t): t =>
   z.selection.content == [] ? z : directional_unselect(z.selection.focus, z);
 
-let move = (d: Direction.t, z: t('p)): option(t('p)) =>
+let move = (d: Direction.t, z: t): option(t) =>
   if (Selection.is_empty(z.selection)) {
     let+ (p, relatives) = Relatives.pop(d, z.relatives);
     let relatives =
@@ -213,13 +209,13 @@ let move = (d: Direction.t, z: t('p)): option(t('p)) =>
     Some(directional_unselect(d, z));
   };
 
-let select = (d: Direction.t, z: t('p)): option(t('p)) =>
+let select = (d: Direction.t, z: t): option(t) =>
   d == z.selection.focus ? grow_selection(z) : shrink_selection(z);
 
-let destruct = (z: t('p)): t('p) =>
+let destruct = (z: t): t =>
   update_selection_and_unselect(Selection.empty, z);
 
-let adj_pos = (d: Direction.t, z: t('p)): t('p) =>
+let adj_pos = (d: Direction.t, z: t): t =>
   switch (d) {
   | Left => z
   | Right =>
@@ -229,19 +225,19 @@ let adj_pos = (d: Direction.t, z: t('p)): t('p) =>
     }
   };
 
-let put_down_core = (seg: Segment.t('p), z: t('p)): t('p) =>
+let put_down_core = (seg: Segment.t, z: t): t =>
   z |> destruct |> replace_selection(Right, seg) |> unselect;
 
-let put_down_seg = (d: Direction.t, seg: Segment.t('p), z: t('p)): t('p) =>
+let put_down_seg = (d: Direction.t, seg: Segment.t, z: t): t =>
   z |> put_down_core(seg) |> adj_pos(d);
 
-let local_backpack = (z: t('p)): list(Tile.t('p)) =>
+let local_backpack = (z: t): list(Tile.t) =>
   Relatives.local_missing_shards(z.relatives);
 
-let backpack_hd = (z: t('p)): option(Tile.t('p)) =>
+let backpack_hd = (z: t): option(Tile.t) =>
   z |> local_backpack |> ListUtil.hd_opt;
 
-let backpack_find = (tok: Token.t, z: t('p)): option(Tile.t('p)) =>
+let backpack_find = (tok: Token.t, z: t): option(Tile.t) =>
   if (Form.is_ambiguous_polymorph(tok)) {
     /* Special case for ambiguous polymorphs. These tokens
        occur both on their own as infix ops and as delimiters of
@@ -257,19 +253,19 @@ let backpack_find = (tok: Token.t, z: t('p)): option(Tile.t('p)) =>
     );
   };
 
-let put_down_tok = (d: Direction.t, tok: Token.t, z: t('p)): option(t('p)) => {
+let put_down_tok = (d: Direction.t, tok: Token.t, z: t): option(t) => {
   /* Does not regrout/remold on its own. */
   let+ target = backpack_find(tok, z);
   put_down_seg(d, [Tile(target)], z);
 };
 
-let put_down = (d: Direction.t, z: t('p)): option(t('p)) => {
+let put_down = (d: Direction.t, z: t): option(t) => {
   /* Does not regrout/remold on its own. */
   let+ target = backpack_hd(z);
   put_down_seg(d, [Tile(target)], z);
 };
 
-let will_barf = (tok: Token.t, z: t('p)): bool =>
+let will_barf = (tok: Token.t, z: t): bool =>
   put_down_tok(Right, tok, z) != None;
 
 let can_put_down = z =>
@@ -278,7 +274,7 @@ let can_put_down = z =>
   | _ => z.caret == Outer
   };
 
-let remold_regrout_prev = (z: t('p)): t('p) =>
+let remold_regrout_prev = (z: t): t =>
   switch (move(Left, z)) {
   | None => z
   | Some(z_left) =>
@@ -289,33 +285,26 @@ let remold_regrout_prev = (z: t('p)): t('p) =>
     };
   };
 
-let put_down_regrout_target =
-    (d: Direction.t, target: Tile.t('p), z: t('p)): t('p) => {
+let put_down_regrout_target = (d: Direction.t, target: Tile.t, z: t): t => {
   let z = put_down_core([Tile(target)], z);
   let z = z |> regrout(Left) |> remold;
   let z = remold_regrout_prev(z);
   adj_pos(d, z);
 };
 
-let put_down_regrout_remold = (d: Direction.t, z: t('p)): option(t('p)) => {
+let put_down_regrout_remold = (d: Direction.t, z: t): option(t) => {
   let+ target = backpack_hd(z);
   put_down_regrout_target(d, target, z);
 };
 
 let put_down_regrout_remold_tok =
-    (d: Direction.t, tok: Token.t, z: t('p)): option(t('p)) => {
+    (d: Direction.t, tok: Token.t, z: t): option(t) => {
   let+ target = backpack_find(tok, z);
   put_down_regrout_target(d, target, z);
 };
 
 let rec construct =
-        (
-          ~caret: Direction.t,
-          ~backpack: Direction.t,
-          label: Label.t,
-          z: t('p),
-        )
-        : t('p) => {
+        (~caret: Direction.t, ~backpack: Direction.t, label: Label.t, z: t): t => {
   switch (label) {
   | [t] when Form.is_string_delim(t) =>
     /* Special case for constructing string literals.
@@ -358,12 +347,12 @@ let rec construct =
   };
 };
 
-let construct_mono = (d: Direction.t, t: Token.t, z: t('p)): t('p) =>
+let construct_mono = (d: Direction.t, t: Token.t, z: t): t =>
   construct(~caret=d, ~backpack=Left, [t], z);
 
 let rec get_leaf_pieces =
-        (syntaxNode: Piece.t('p), ~ignored_labels: list(list(string)))
-        : list(Piece.t('p)) =>
+        (syntaxNode: Piece.t, ~ignored_labels: list(list(string)))
+        : list(Piece.t) =>
   switch (syntaxNode) {
   | Tile(tile) =>
     /* Check if this tile's label is in the ignored labels */
@@ -387,7 +376,7 @@ let rec get_leaf_pieces =
   | _ => []
   };
 
-// let remove_projector = (id: Id.t, syntax: Piece.t('p)) =>
+// let remove_projector = (id: Id.t, syntax: Piece.t) =>
 //   switch (syntax) {
 //   | Projector(pr) when pr.id == id =>
 //     // just get the label, found as first leaf piece
@@ -395,7 +384,7 @@ let rec get_leaf_pieces =
 //   | x => x
 //   };
 
-let delete = (d: Direction.t, z: t('p)): option(t('p)) => {
+let delete = (d: Direction.t, z: t): option(t) => {
   let to_delete = z |> select(d);
   switch (to_delete) {
   | Some({selection: {content: [Projector(_)], _}, _}) =>
@@ -412,12 +401,12 @@ let delete = (d: Direction.t, z: t('p)): option(t('p)) => {
 };
 
 let replace =
-    (~caret: Direction.t, ~backpack: Direction.t, l: Label.t, z: t('p))
-    : option(t('p)) =>
+    (~caret: Direction.t, ~backpack: Direction.t, l: Label.t, z: t)
+    : option(t) =>
   /* i.e. select and construct, overwriting the selection */
   z |> delete(caret) |> Option.map(construct(~caret, ~backpack, l));
 
-let match_prev = (z: t('p)) =>
+let match_prev = (z: t) =>
   switch (neighbor_monotiles(z.relatives.siblings)) {
   | (Some(t), _) when will_barf(t, z) =>
     switch (delete(Left, z)) {
@@ -427,10 +416,10 @@ let match_prev = (z: t('p)) =>
   | _ => None
   };
 
-let replace_mono = (d: Direction.t, t: Token.t, z: t('p)): option(t('p)) =>
+let replace_mono = (d: Direction.t, t: Token.t, z: t): option(t) =>
   replace(~caret=d, ~backpack=Left, [t], z);
 
-let representative_piece = (z: t('p)): option((Piece.t('p), Direction.t)) => {
+let representative_piece = (z: t): option((Piece.t, Direction.t)) => {
   /* The piece to the left of the caret, or if none exists, the piece to the right */
   switch (Siblings.neighbors(sibs_with_sel(z))) {
   | (Some(l), _) => Some((l, Left))
@@ -439,7 +428,7 @@ let representative_piece = (z: t('p)): option((Piece.t('p), Direction.t)) => {
   };
 };
 
-let caret_direction = (z: t('p)): option(Direction.t) =>
+let caret_direction = (z: t): option(Direction.t) =>
   /* Direction the caret is facing in */
   switch (z.caret) {
   | Inner(_) => None
@@ -455,7 +444,7 @@ let caret_direction = (z: t('p)): option(Direction.t) =>
     }
   };
 
-let base_point = (measured: Measured.t, z: t('p)): Point.t => {
+let base_point = (measured: Measured.t, z: t): Point.t => {
   switch (representative_piece(z)) {
   | Some((p, d)) =>
     let seg = Piece.disassemble(p);
@@ -475,7 +464,7 @@ let base_point = (measured: Measured.t, z: t('p)): Point.t => {
     }
   };
 };
-let caret_point = (measured, z: t('p)): Point.t => {
+let caret_point = (measured, z: t): Point.t => {
   let Point.{row, col} = base_point(measured, z);
   {
     row,
@@ -483,7 +472,7 @@ let caret_point = (measured, z: t('p)): Point.t => {
   };
 };
 
-let selection_anchor_point = (measured, z: t('p)): option(Point.t) => {
+let selection_anchor_point = (measured, z: t): option(Point.t) => {
   switch (z.selection) {
   | {content: [], _} => None
   | {content, focus: Right, _} =>
@@ -507,24 +496,23 @@ let selection_anchor_point = (measured, z: t('p)): option(Point.t) => {
   };
 };
 
-let serialize = (f, z: t('p)): string => {
-  sexp_of_t(f, z) |> Sexplib.Sexp.to_string;
+let serialize = (z: t): string => {
+  sexp_of_t(z) |> Sexplib.Sexp.to_string;
 };
 
-let to_sexp = (f, z: t('p)): Sexplib.Sexp.t => sexp_of_t(f, z);
+let to_sexp = sexp_of_t;
 
-let deserialize = (f, data: string): t('p) => {
-  Sexplib.Sexp.of_string(data) |> t_of_sexp(f);
+let deserialize = (data: string): t => {
+  Sexplib.Sexp.of_string(data) |> t_of_sexp;
 };
 
-let set_buffer =
-    (z: t('p), ~mode: Selection.buffer, ~content: Segment.t('p)): t('p) => {
+let set_buffer = (z: t, ~mode: Selection.buffer, ~content: Segment.t): t => {
   ...z,
   selection: Selection.mk_buffer(mode, content),
 };
 
 let is_linebreak_to_right_of_caret =
-    ({relatives: {siblings: (_, r), _}, _}: t('p)): bool => {
+    ({relatives: {siblings: (_, r), _}, _}: t): bool => {
   switch (r) {
   | [Secondary(s), ..._] when Secondary.is_linebreak(s) => true
   | _ => false
@@ -542,7 +530,7 @@ let is_linebreak_to_right_of_caret =
  * for the put_down logic not working right with string lits. To test,
  * try to look at live evaluation while typing inside a string lit with
  * stuff left to drop in backpack with below set: Outer disabled. */
-let try_to_dump_backpack = (zipper: t('p)) => {
+let try_to_dump_backpack = (zipper: t) => {
   switch (local_backpack(zipper)) {
   | [] => zipper
   | _ =>
@@ -550,7 +538,7 @@ let try_to_dump_backpack = (zipper: t('p)) => {
       ...zipper,
       caret: Outer,
     };
-    let rec move_until_cant_put_down = (z_last, z: t('p)) =>
+    let rec move_until_cant_put_down = (z_last, z: t) =>
       if (can_put_down(z) && !is_linebreak_to_right_of_caret(z)) {
         switch (move(Right, z)) {
         | None => z
@@ -559,7 +547,7 @@ let try_to_dump_backpack = (zipper: t('p)) => {
       } else {
         z_last;
       };
-    let rec move_until_can_put_down = (z: t('p)) =>
+    let rec move_until_can_put_down = (z: t) =>
       if (!can_put_down(z)) {
         switch (move(Right, z)) {
         | None => z
@@ -568,7 +556,7 @@ let try_to_dump_backpack = (zipper: t('p)) => {
       } else {
         z;
       };
-    let rec go = (z: t('p)): t('p) => {
+    let rec go = (z: t): t => {
       let z_can = can_put_down(z) ? z : move_until_can_put_down(z);
       let z_cant = move_until_cant_put_down(z_can, z_can);
       switch (put_down_regrout_remold(Right, z_cant)) {
@@ -580,8 +568,7 @@ let try_to_dump_backpack = (zipper: t('p)) => {
   };
 };
 
-let smart_seg =
-    (~dump_backpack: bool, ~erase_buffer: bool, z: t('p)): Segment.t('p) => {
+let smart_seg = (~dump_backpack: bool, ~erase_buffer: bool, z: t): Segment.t => {
   let z = erase_buffer ? clear_unparsed_buffer(z) : z;
   let z = dump_backpack ? try_to_dump_backpack(z) : z;
   unselect_and_zip(~erase_buffer, z);

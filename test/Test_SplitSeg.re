@@ -5,10 +5,7 @@ open Web;
 open Example;
 
 let segment_typ =
-  testable(
-    Fmt.using(Segment.show, Fmt.string),
-    Segment.equal((_, _) => true),
-  );
+  testable(Fmt.using(Segment.show, Fmt.string), Segment.equal);
 
 let id_map_segment_typ =
   testable(
@@ -16,7 +13,7 @@ let id_map_segment_typ =
       s => s |> Id.Map.sexp_of_t(Segment.sexp_of_t) |> Sexplib.Sexp.to_string,
       Fmt.string,
     ),
-    Id.Map.equal(Segment.equal((_, _) => true)),
+    Id.Map.equal(Segment.equal),
   );
 
 let tests = (

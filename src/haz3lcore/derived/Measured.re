@@ -83,7 +83,7 @@ let add_s = (id: Id.t, i: int, m, map) => {
 };
 
 // assumes tile is single shard
-let add_t = (t: Tile.t('p), m, map) => {
+let add_t = (t: Tile.t, m, map) => {
   ...map,
   tiles:
     map.tiles
@@ -102,11 +102,11 @@ let add_w = (w: Secondary.t, m, map) => {
   ...map,
   secondary: map.secondary |> Id.Map.add(w.id, m),
 };
-let add_pr = (p: Base.projector('p), m, map) => {
+let add_pr = (p: Base.projector, m, map) => {
   ...map,
   projectors: map.projectors |> Id.Map.add(p.id, m),
 };
-let add_p = (p: Piece.t('p), m, map) =>
+let add_p = (p: Piece.t, m, map) =>
   p
   |> Piece.get(
        w => add_w(w, m, map),
@@ -135,7 +135,7 @@ let rec add_n_rows = (origin: Point.t, row_indent, n: abs_indent, map: t): t =>
        )
   };
 
-let find_shards = (~msg="", t: Tile.t('p), map) =>
+let find_shards = (~msg="", t: Tile.t, map) =>
   try(Id.Map.find(t.id, map.tiles)) {
   | _ => failwith("find_shards: " ++ msg)
   };
@@ -147,14 +147,14 @@ let find_g = (~msg="", g: Grout.t, map): measurement =>
   try(Id.Map.find(g.id, map.grout)) {
   | _ => failwith("find_g: " ++ msg)
   };
-let find_pr = (~msg="", p: Base.projector('p), map): measurement =>
+let find_pr = (~msg="", p: Base.projector, map): measurement =>
   try(Id.Map.find(p.id, map.projectors)) {
   | _ => failwith("find_g: " ++ msg)
   };
-let find_pr_opt = (p: Base.projector('p), map): option(measurement) =>
+let find_pr_opt = (p: Base.projector, map): option(measurement) =>
   Id.Map.find_opt(p.id, map.projectors);
 // returns the measurement spanning the whole tile
-let find_t = (t: Tile.t('p), map): measurement => {
+let find_t = (t: Tile.t, map): measurement => {
   let shards = find_shards(t, map);
   let (first, last) =
     try({
@@ -169,7 +169,7 @@ let find_t = (t: Tile.t('p), map): measurement => {
     last: last.last,
   };
 };
-let find_p = (~msg="", p: Piece.t('p), map): measurement =>
+let find_p = (~msg="", p: Piece.t, map): measurement =>
   try(
     p
     |> Piece.get(
@@ -230,7 +230,7 @@ let consume_deferred_linebreaks = (): int => {
 let of_segment =
     (
       ~indent_level=Id.Map.empty,
-      seg: Segment.t('p),
+      seg: Segment.t,
       shape_map: Id.Map.t(ProjectorShape.t),
     )
     : t => {
@@ -246,7 +246,7 @@ let of_segment =
             ~prev_indent: int,
             ~top_level,
             ~origin: Point.t,
-            seg: Segment.t('p),
+            seg: Segment.t,
           )
           : (int, Point.t, t) =>
     switch (seg) {
@@ -397,7 +397,7 @@ let of_segment =
 /* Memoized for perf */
 let of_segment = Core.Memo.general(of_segment, _);
 
-let length = (seg: Segment.t('p), map: t): int =>
+let length = (seg: Segment.t, map: t): int =>
   switch (seg) {
   | [] => 0
   | [p] =>
@@ -409,7 +409,7 @@ let length = (seg: Segment.t('p), map: t): int =>
     last.last.col - first.origin.col;
   };
 
-let width = (seg: Segment.t('p), map: t): int => {
+let width = (seg: Segment.t, map: t): int => {
   let first = find_p(List.hd(seg), map);
   let last = find_p(ListUtil.last(seg), map);
   let rows =
@@ -417,7 +417,7 @@ let width = (seg: Segment.t('p), map: t): int => {
   Rows.max_col(rows, map.rows);
 };
 
-let height = (seg: Segment.t('p), map: t): int =>
+let height = (seg: Segment.t, map: t): int =>
   switch (seg) {
   | [] => 0
   | [p] =>

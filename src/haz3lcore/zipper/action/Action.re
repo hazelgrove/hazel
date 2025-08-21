@@ -74,15 +74,15 @@ type buffer =
   | Accept;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type paste('p) =
+type paste =
   | String(string)
-  | Segment(Segment.t('p));
+  | Segment(Segment.t);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t('p_kind, 'p, 'p_a) =
   | Reparse
   | Buffer(buffer)
-  | Paste(paste('p))
+  | Paste(paste)
   | Copy
   | Cut
   | Project(project('p_kind, 'p, 'p_a))

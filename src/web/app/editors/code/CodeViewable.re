@@ -14,7 +14,7 @@ let view =
       ~measured,
       ~buffer_ids,
       ~shape_map,
-      segment: Haz3lcorep.Segment.t(p'),
+      segment: Haz3lcorep.Segment.t,
     )
     : Node.t => {
   module Text =
@@ -41,7 +41,7 @@ let view_segment =
       type p,
       ~sort: Language.Sort.t,
       ~shape_map: Util.ProjectorShape.Map.t,
-      segment: Haz3lcorep.Segment.t(p),
+      segment: Haz3lcorep.Segment.t,
     ) => {
   let measured = Haz3lcorep.Measured.of_segment(segment, shape_map);
   let buffer_ids = [];

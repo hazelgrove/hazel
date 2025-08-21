@@ -5,9 +5,9 @@ open OptUtil.Syntax;
 let destruct =
     (
       d: Direction.t,
-      {caret, relatives: {siblings: (l_sibs, r_sibs), _}, _} as z: t('p),
+      {caret, relatives: {siblings: (l_sibs, r_sibs), _}, _} as z: t,
     )
-    : option(t('p)) => {
+    : option(t) => {
   /* Could add checks on valid tokens (all of these hold assuming substring) */
   let last_inner_pos = t => Token.length(t) - 2;
   let delete_right = z =>
@@ -75,7 +75,7 @@ let destruct =
   };
 };
 
-let merge = ((l, r): (Token.t, Token.t), z: t('p)): option(t('p)) => {
+let merge = ((l, r): (Token.t, Token.t), z: t): option(t) => {
   let z = Zipper.set_caret(Inner(0, Token.length(l) - 1), z); /* Note monotile assumption */
   let* z = Zipper.delete(Left, z);
   let* z = Zipper.delete(Right, z);
@@ -85,7 +85,7 @@ let merge = ((l, r): (Token.t, Token.t), z: t('p)): option(t('p)) => {
   Some(z);
 };
 
-let parent_merge = (lbl: Label.t, z: t('p)): t('p) => {
+let parent_merge = (lbl: Label.t, z: t): t => {
   z
   |> Zipper.delete_parent
   |> Zipper.set_caret(Inner(0, 0))  /* Note 2-token assumption */
@@ -95,13 +95,13 @@ let parent_merge = (lbl: Label.t, z: t('p)): t('p) => {
 };
 
 /* Check if containing duo form has a mono equivalent e.g. list literals */
-let parent_duomerges = (z: Zipper.t('p)) => {
+let parent_duomerges = (z: Zipper.t) => {
   let* parent = Relatives.parent(z.relatives);
   let* lbl = Piece.label(parent);
   Form.duomerges(lbl);
 };
 
-let go = (d: Direction.t, z: t('p)): option(t('p)) => {
+let go = (d: Direction.t, z: t): option(t) => {
   let* z = destruct(d, z);
   switch (
     parent_duomerges(z),

@@ -18,11 +18,11 @@ let of_projector = (~sort as _, ~id as _, _) => Language.Grammar.Any();
 module Base = {
   include Base;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type segment = Base.segment(unit);
+  type segment = Base.segment;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type piece = Base.piece(unit);
+  type piece = Base.piece;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type projector = Base.projector(unit);
+  type projector = Base.projector;
 };
 
 module Editor = {
@@ -31,9 +31,10 @@ module Editor = {
   type t = Editor.t(ProjectorKind.t, Projector.model, unit);
   module Model = {
     open Model;
-    let mk_uncalculated: ZipperBase.t(Projector.model) => t(ProjectorKind.t, Projector.model, unit) =
+    let mk_uncalculated:
+      ZipperBase.t => t(ProjectorKind.t, Projector.model, unit) =
       Editor.Model.mk_uncalculated(_);
-    let init = (~common, z: ZipperBase.t(Projector.model)) =>
+    let init = (~common, z: ZipperBase.t) =>
       mk_uncalculated(z)
       |> Editor.Update.make_term(~sort=Exp, ~make_term_prj)
       |> fst
@@ -78,7 +79,7 @@ module MakeTerm = {
 module Segment = {
   open Segment;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Segment.t(unit);
+  type t = Segment.t;
 
   let equal = equal;
 };

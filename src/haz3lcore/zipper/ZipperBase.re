@@ -20,19 +20,18 @@ module Caret = {
 
 // assuming single backpack, shards may appear in selection, backpack, or siblings
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type t('p) = {
-  selection: Selection.t('p),
-  relatives: Relatives.t('p),
+type t = {
+  selection: Selection.t,
+  relatives: Relatives.t,
   caret: Caret.t,
 };
 
-let update_relatives =
-    (f: Relatives.t('p) => Relatives.t('p), z: t('p)): t('p) => {
+let update_relatives = (f: Relatives.t => Relatives.t, z: t): t => {
   ...z,
   relatives: f(z.relatives),
 };
 
-let update_siblings: (Siblings.t('p) => Siblings.t('p), t('p)) => t('p) =
+let update_siblings: (Siblings.t => Siblings.t, t) => t =
   f =>
     update_relatives(rs =>
       {
@@ -41,10 +40,9 @@ let update_siblings: (Siblings.t('p) => Siblings.t('p), t('p)) => t('p) =
       }
     );
 
-let put_siblings = (siblings, z: t('p)): t('p) =>
-  update_siblings(_ => siblings, z);
+let put_siblings = (siblings, z: t): t => update_siblings(_ => siblings, z);
 
-let put_selection_content = (content: Segment.t('p), z: t('p)): t('p) => {
+let put_selection_content = (content: Segment.t, z: t): t => {
   ...z,
   selection: {
     ...z.selection,
@@ -52,7 +50,7 @@ let put_selection_content = (content: Segment.t('p), z: t('p)): t('p) => {
   },
 };
 
-let parent = (z: t('p)): option(Piece.t('p)) =>
+let parent = (z: t): option(Piece.t) =>
   Relatives.parent(~sel=z.selection.content, z.relatives);
 
 let sibs_with_sel =
@@ -61,22 +59,21 @@ let sibs_with_sel =
         selection: {content, focus, _},
         relatives: {siblings: (l_sibs, r_sibs), _},
         _,
-      }:
-        t('p),
+      }: t,
     )
-    : Siblings.t('p) =>
+    : Siblings.t =>
   switch (focus) {
   | Left => (l_sibs, content @ r_sibs)
   | Right => (l_sibs @ content, r_sibs)
   };
 
 module MapPiece = {
-  type updater('p) = Piece.t('p) => Segment.t('p);
+  type updater = Piece.t => Segment.t;
 
-  let rec of_segment = (f: updater('p), seg: Segment.t('p)): Segment.t('p) => {
+  let rec of_segment = (f: updater, seg: Segment.t): Segment.t => {
     seg |> List.concat_map(p => f(p)) |> List.map(of_piece(f));
   }
-  and of_piece = (f: updater('p), piece: Piece.t('p)): Piece.t('p) => {
+  and of_piece = (f: updater, piece: Piece.t): Piece.t => {
     switch (piece) {
     | Tile(t) => Tile(of_tile(f, t))
     | Grout(_)
@@ -84,20 +81,19 @@ module MapPiece = {
     | Secondary(_) => piece
     };
   }
-  and of_tile = (f: updater('p), t: Tile.t('p)): Tile.t('p) => {
+  and of_tile = (f: updater, t: Tile.t): Tile.t => {
     {
       ...t,
       children: List.map(of_segment(f), t.children),
     };
   };
 
-  let of_siblings = (f: updater('p), sibs: Siblings.t('p)): Siblings.t('p) => (
+  let of_siblings = (f: updater, sibs: Siblings.t): Siblings.t => (
     of_segment(f, fst(sibs)),
     of_segment(f, snd(sibs)),
   );
 
-  let of_ancestor =
-      (f: updater('p), ancestor: Ancestor.t('p)): Ancestor.t('p) => {
+  let of_ancestor = (f: updater, ancestor: Ancestor.t): Ancestor.t => {
     {
       ...ancestor,
       children: (
@@ -108,18 +104,15 @@ module MapPiece = {
   };
 
   let of_generation =
-      (f: updater('p), generation: Ancestors.generation('p))
-      : Ancestors.generation('p) => (
+      (f: updater, generation: Ancestors.generation): Ancestors.generation => (
     of_ancestor(f, fst(generation)),
     of_siblings(f, snd(generation)),
   );
 
-  let of_ancestors =
-      (f: updater('p), ancestors: Ancestors.t('p)): Ancestors.t('p) =>
+  let of_ancestors = (f: updater, ancestors: Ancestors.t): Ancestors.t =>
     List.map(of_generation(f), ancestors);
 
-  let of_selection =
-      (f: updater('p), selection: Selection.t('p)): Selection.t('p) => {
+  let of_selection = (f: updater, selection: Selection.t): Selection.t => {
     {
       ...selection,
       content: of_segment(f, selection.content),
@@ -128,7 +121,7 @@ module MapPiece = {
 
   /* Maps the updater over all pieces in the zipper
    * (that are not currently unzipped) */
-  let go = (f: updater('p), z: t('p)): t('p) => {
+  let go = (f: updater, z: t): t => {
     ...z,
     selection: of_selection(f, z.selection),
     relatives: {
@@ -137,7 +130,7 @@ module MapPiece = {
     },
   };
 
-  let sib_has_id = (get, z: t('p), id: Id.t): bool => {
+  let sib_has_id = (get, z: t, id: Id.t): bool => {
     switch (z.relatives.siblings |> get) {
     | Some(l) => Piece.id(l) == id
     | _ => false
@@ -148,13 +141,13 @@ module MapPiece = {
 
   let right_sib_has_id = sib_has_id(Siblings.right_neighbor, _);
 
-  let update_left_sib = (f: Piece.t('p) => Segment.t('p), z: t('p)) => {
+  let update_left_sib = (f: Piece.t => Segment.t, z: t) => {
     let (l, r) = z.relatives.siblings;
     let sibs = (List.concat_map(f, l), List.concat_map(f, r));
     put_siblings(sibs, z);
   };
 
-  let update_right_sib = (f: Piece.t('p) => Segment.t('p), z: t('p)) => {
+  let update_right_sib = (f: Piece.t => Segment.t, z: t) => {
     let sibs =
       switch (z.relatives.siblings) {
       | (l, [hd, ...tl]) => (l, f(hd) @ tl)
@@ -163,8 +156,7 @@ module MapPiece = {
     put_siblings(sibs, z);
   };
 
-  let fast_local_seg =
-      (f: Piece.t('p) => Segment.t('p), id: Id.t, z: t('p)): t('p) =>
+  let fast_local_seg = (f: Piece.t => Segment.t, id: Id.t, z: t): t =>
     /* This applies the function to the piece in the zipper having id id, and
      * then replaces the id of the resulting piece with the idea of the old
      * piece, ensuring that the root id remains stable. This function assumes
@@ -179,15 +171,12 @@ module MapPiece = {
       go(f, z);
     };
 
-  let fast_local =
-      (f: Piece.t('p) => Piece.t('p), id: Id.t, z: t('p)): t('p) =>
+  let fast_local = (f: Piece.t => Piece.t, id: Id.t, z: t): t =>
     fast_local_seg(p => [f(p)], id, z);
 };
 
 module FindPiece = {
-  let rec in_segment =
-          (f: Piece.t('p) => bool, seg: Segment.t('p))
-          : option(Piece.t('p)) =>
+  let rec in_segment = (f: Piece.t => bool, seg: Segment.t): option(Piece.t) =>
     switch (seg) {
     | [] => None
     | [hd, ...tl] =>
@@ -197,8 +186,7 @@ module FindPiece = {
         in_segment(f, tl);
       }
     }
-  and in_piece =
-      (f: Piece.t('p) => bool, piece: Piece.t('p)): option(Piece.t('p)) =>
+  and in_piece = (f: Piece.t => bool, piece: Piece.t): option(Piece.t) =>
     switch (piece) {
     | Tile(t) => in_tile(f, t)
     | Grout(_)
@@ -211,12 +199,10 @@ module FindPiece = {
       }
     }
 
-  and in_tile =
-      (f: Piece.t('p) => bool, t: Tile.t('p)): option(Piece.t('p)) =>
+  and in_tile = (f: Piece.t => bool, t: Tile.t): option(Piece.t) =>
     List.find_map(in_segment(f), t.children);
 
-  let in_siblings =
-      (f: Piece.t('p) => bool, sibs: Siblings.t('p)): option(Piece.t('p)) =>
+  let in_siblings = (f: Piece.t => bool, sibs: Siblings.t): option(Piece.t) =>
     switch (sibs) {
     | (l, r) =>
       switch (in_segment(f, l)) {
@@ -226,8 +212,7 @@ module FindPiece = {
     };
 
   let in_ancestor =
-      (f: Piece.t('p) => bool, ancestor: Ancestor.t('p))
-      : option(Piece.t('p)) =>
+      (f: Piece.t => bool, ancestor: Ancestor.t): option(Piece.t) =>
     switch (ancestor.children) {
     | (l, r) =>
       switch (List.find_map(in_segment(f), l)) {
@@ -237,8 +222,7 @@ module FindPiece = {
     };
 
   let in_generation =
-      (f: Piece.t('p) => bool, generation: Ancestors.generation('p))
-      : option(Piece.t('p)) =>
+      (f: Piece.t => bool, generation: Ancestors.generation): option(Piece.t) =>
     switch (generation) {
     | (ancestor, siblings) =>
       switch (in_ancestor(f, ancestor)) {
@@ -248,13 +232,11 @@ module FindPiece = {
     };
 
   let in_ancestors =
-      (f: Piece.t('p) => bool, ancestors: Ancestors.t('p))
-      : option(Piece.t('p)) =>
+      (f: Piece.t => bool, ancestors: Ancestors.t): option(Piece.t) =>
     List.find_map(in_generation(f), ancestors);
 
   let in_selection =
-      (f: Piece.t('p) => bool, selection: Selection.t('p))
-      : option(Piece.t('p)) =>
+      (f: Piece.t => bool, selection: Selection.t): option(Piece.t) =>
     switch (selection.content) {
     | [] => None
     | [hd, ...tl] =>
@@ -265,7 +247,7 @@ module FindPiece = {
       }
     };
 
-  let in_zipper = (f: Piece.t('p) => bool, z: t('p)): option(Piece.t('p)) => {
+  let in_zipper = (f: Piece.t => bool, z: t): option(Piece.t) => {
     switch (in_selection(f, z.selection)) {
     | Some(p) => Some(p)
     | None =>

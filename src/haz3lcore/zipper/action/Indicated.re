@@ -6,11 +6,10 @@ type relation =
   | Parent
   | Sibling;
 
-type piece('p) = (Piece.t('p), Direction.t, relation);
+type piece = (Piece.t, Direction.t, relation);
 
 let piece' =
-    (~no_ws: bool, ~ign: Piece.t('p) => bool, z: ZipperBase.t('p))
-    : option(piece('p)) => {
+    (~no_ws: bool, ~ign: Piece.t => bool, z: ZipperBase.t): option(piece) => {
   /* Returns the piece currently indicated (if any) and which side of
      that piece the caret is on. We favor indicating the piece to the
      (R)ight, but may end up indicating the (P)arent or the (L)eft.
@@ -57,7 +56,7 @@ let piece' =
 let piece =
   piece'(~no_ws=true, ~ign=p => Piece.(is_secondary(p) || is_grout(p)), _);
 
-let shard_index = (z: ZipperBase.t('p)): option(int) =>
+let shard_index = (z: ZipperBase.t): option(int) =>
   switch (piece(z)) {
   | None => None
   | Some((p, side, relation)) =>
@@ -88,13 +87,13 @@ let shard_index = (z: ZipperBase.t('p)): option(int) =>
 
 let for_index = piece'(~no_ws=false, ~ign=Piece.is_secondary, _);
 
-let direction = (z: ZipperBase.t('p)): option(Direction.t) =>
+let direction = (z: ZipperBase.t): option(Direction.t) =>
   switch (piece'(~no_ws=false, ~ign=Piece.is_secondary, z)) {
   | None => None
   | Some((_, d, _)) => Some(d)
   };
 
-let index = (z: ZipperBase.t('p)): option(Id.t) =>
+let index = (z: ZipperBase.t): option(Id.t) =>
   switch (for_index(z)) {
   | None => None
   | Some((p, _, _)) => Some(Piece.id(p))
@@ -103,7 +102,7 @@ let index = (z: ZipperBase.t('p)): option(Id.t) =>
 let piece'' = piece'(~no_ws=true, ~ign=Piece.is_secondary, _);
 
 let ci_of =
-    (z: ZipperBase.t('p), info_map: Language.Statics.Map.t)
+    (z: ZipperBase.t, info_map: Language.Statics.Map.t)
     : option(Language.Statics.Info.t) =>
   /* This version takes into accounts Secondary, while accounting for the
    * fact that Secondary is not currently added to the info_map. First we

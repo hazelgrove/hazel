@@ -2,7 +2,7 @@ open Util;
 
 let default_projector_to_segment = _ => [Piece.mk_grout(Convex)];
 
-let measured_no_projectors = (~projector_to_segment, segment: Segment.t('p)) =>
+let measured_no_projectors = (~projector_to_segment, segment: Segment.t) =>
   segment
   |> ZipperBase.MapPiece.of_segment(
        fun
@@ -80,7 +80,7 @@ let of_segment =
       ~selection_anchor: option((string, Point.t))=None,
       ~measured=?,
       ~projector_to_segment,
-      segment: Segment.t('p),
+      segment: Segment.t,
     )
     : string =>
   segment
@@ -99,7 +99,7 @@ let of_zipper =
       ~caret=?,
       ~selection_anchor=?,
       ~projector_to_segment,
-      z: Zipper.t('p),
+      z: Zipper.t,
     )
     : string => {
   let segment = Zipper.seg_without_buffer(z);

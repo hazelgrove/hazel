@@ -44,11 +44,11 @@ module rec Projector: {
 
   module View: {
     let get_placeholder:
-      (~common: Common.t, Base.projector(Model.t)) => ProjectorShape.t;
+      (~common: Common.t, Base.projector) => ProjectorShape.t;
 
     let mk_status:
       (
-        Base.projector(Model.t),
+        Base.projector,
         ~common: Common.t,
         ~editor_active: bool,
         ~indicated: option((Id.t, Direction.t)),
@@ -163,9 +163,9 @@ and Editor: {
 
   // TODO: refactor these helper functions away
   let get_measured: Model.t => Measured.t;
-  let get_tiles: Model.t => TileMap.t(Projector.Model.t);
-  let get_z: Model.t => Haz3lcorep.Zipper.t(Projector.Model.t);
-  let of_zipper: Zipper.t(Projector.Model.t) => Model.t; // TODO: Replace with persistence logic
+  let get_tiles: Model.t => TileMap.t;
+  let get_z: Model.t => Haz3lcorep.Zipper.t;
+  let of_zipper: Zipper.t => Model.t; // TODO: Replace with persistence logic
   let get_trailing_hole_ctx:
     (Model.t, Language.Statics.Map.t) => option(Language.Ctx.t);
   let to_string: Model.t => string;
@@ -408,7 +408,7 @@ module PersistentZipper = {
     );
   include PersistentZipper;
   // TODO: move these into Editor
-  let persist = persist(~projector_to_segment, Projector.Model.sexp_of_t);
+  let persist = persist(~projector_to_segment);
   let unpersist =
     unpersist(
       ~projector_init=
@@ -420,7 +420,6 @@ module PersistentZipper = {
               |> Option.some,
           ~projector_init=Projector.Model.mk,
         ),
-      Projector.Model.t_of_sexp,
     );
 };
 
@@ -438,43 +437,43 @@ module Action = {
 module Ancestor = {
   include Ancestor;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Ancestor.t(Projector.Model.t);
+  type t = Ancestor.t;
 };
 
 module Ancestors = {
   include Ancestors;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Ancestors.t(Projector.Model.t);
+  type t = Ancestors.t;
 };
 
 module Piece = {
   include Piece;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Piece.t(Projector.Model.t);
+  type t = Piece.t;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type tile = Piece.tile(Projector.Model.t);
+  type tile = Piece.tile;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type projector = Piece.projector(Projector.Model.t);
+  type projector = Piece.projector;
 };
 
 module Segment = {
   include Segment;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Segment.t(Projector.Model.t);
+  type t = Segment.t;
 };
 
 module Zipper = {
   include Zipper;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Zipper.t(Projector.Model.t);
+  type t = Zipper.t;
 };
 
 module Indicated = {
   include Indicated;
 
-  type piece = Indicated.piece(Projector.Model.t);
+  type piece = Indicated.piece;
   let ci_of:
     (Zipper.t, Language.Statics.Map.t) => option(Language.Statics.Info.t) = Indicated.ci_of;
 };

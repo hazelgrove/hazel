@@ -3,7 +3,7 @@ open TyDiSuggestion;
 open Language;
 
 /* Suggest the token at the top of the backpack, if we can put it down */
-let suggest_backpack = (z: Zipper.t('p)): list(TyDiSuggestion.t) => {
+let suggest_backpack = (z: Zipper.t): list(TyDiSuggestion.t) => {
   /* Note: Sort check unnecessary here as wouldn't be able to put down */
   switch (Zipper.local_backpack(z)) {
   | [] => []
@@ -20,7 +20,7 @@ let suggest_backpack = (z: Zipper.t('p)): list(TyDiSuggestion.t) => {
   };
 };
 
-let suggest = (ci: Info.t, z: Zipper.t('p)): list(TyDiSuggestion.t) => {
+let suggest = (ci: Info.t, z: Zipper.t): list(TyDiSuggestion.t) => {
   /* NOTE: Sorting ensures that if we have an exact match already,
    * we won't suggest extending it, but straight-up lexical sorting
    * may not be desirable in other ways, for example maybe we want
@@ -48,7 +48,7 @@ let suggest = (ci: Info.t, z: Zipper.t('p)): list(TyDiSuggestion.t) => {
 
 /* If there is a monotile to the left of the caret, return it. We
  * currently only make suggestions in such situations */
-let token_to_left = (z: Zipper.t('p)): option(string) =>
+let token_to_left = (z: Zipper.t): option(string) =>
   switch (
     z.caret,
     z.relatives.siblings |> fst |> List.rev,
@@ -62,7 +62,7 @@ let token_to_left = (z: Zipper.t('p)): option(string) =>
 /* The selection buffer used by TyDi is currently unstructured; it simply
  * holds an unparsed string, which is parsed via the same mechanism as
  * Paste only when a suggestion is accepted. */
-let mk_unparsed_buffer = (t: Token.t): Segment.t('p) => {
+let mk_unparsed_buffer = (t: Token.t): Segment.t => {
   [
     Secondary({
       id: Id.mk(),
@@ -84,7 +84,7 @@ let suffix_of = (candidate: Token.t, current: Token.t): option(Token.t) => {
 };
 
 /* Returns the text content of the suggestion buffer */
-let get_unparsed_buffer = (z: Zipper.t('p)): option(Token.t) =>
+let get_unparsed_buffer = (z: Zipper.t): option(Token.t) =>
   switch (z.selection.mode, z.selection.content) {
   | (Buffer(Unparsed), [Secondary({content: Comment(completion), _})]) =>
     Some(completion)
@@ -92,8 +92,7 @@ let get_unparsed_buffer = (z: Zipper.t('p)): option(Token.t) =>
   };
 
 /* Populates the suggestion buffer with a type-directed suggestion */
-let set_buffer =
-    (~info_map: Statics.Map.t, z: Zipper.t('p)): option(Zipper.t('p)) => {
+let set_buffer = (~info_map: Statics.Map.t, z: Zipper.t): option(Zipper.t) => {
   let* _ =
     switch (z.selection.mode) {
     /* Make sure not to populate the completion buffer if there is a non-empty

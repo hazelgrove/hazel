@@ -1,14 +1,14 @@
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type generation('p) = (Ancestor.t('p), Siblings.t('p));
+type generation = (Ancestor.t, Siblings.t);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type t('p) = list(generation('p));
+type t = list(generation);
 
 let empty = [];
 
-let parent: t('p) => option(Ancestor.t('p)) =
+let parent: t => option(Ancestor.t) =
   fun
   | [] => None
   | [(parent, _), ..._] => Some(parent);
@@ -18,15 +18,13 @@ let sort =
   | [] => Sort.root
   | [(a, _), ..._] => Ancestor.sort(a);
 
-let zip_gen =
-    (seg: Segment.t('p), (a, (pre, suf)): generation('p)): Segment.t('p) =>
+let zip_gen = (seg: Segment.t, (a, (pre, suf)): generation): Segment.t =>
   pre @ [Piece.Tile(Ancestor.zip(seg, a)), ...suf];
-let zip = (seg: Segment.t('p), ancs: t('p)) =>
-  ancs |> List.fold_left(zip_gen, seg);
+let zip = (seg: Segment.t, ancs: t) => ancs |> List.fold_left(zip_gen, seg);
 
-let regrout = (ancs: t('p)) =>
+let regrout = (ancs: t) =>
   List.fold_right(
-    ((a, sibs): generation('p), regrouted) => {
+    ((a, sibs): generation, regrouted) => {
       let regrouted = regrouted;
       let ((pre, l, trim_l), (trim_r, r, suf)) = Siblings.regrout(sibs);
       let (l', r') = TupleUtil.map2(Nib.shape, Ancestor.nibs(a));
@@ -40,7 +38,7 @@ let regrout = (ancs: t('p)) =>
     empty,
   );
 
-let local_missing_shards = (ancs: t('p)): list(Tile.t('p)) =>
+let local_missing_shards = (ancs: t): list(Tile.t) =>
   switch (ancs) {
   | [] => []
   | [(a, _), ..._] => Ancestor.missing_middle_shards(a)

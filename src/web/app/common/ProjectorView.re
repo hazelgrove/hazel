@@ -16,15 +16,15 @@ module Model = {
     error: bool,
   };
 
-  type projector_data('p) = {
-    p: Piece.projector('p),
+  type projector_data = {
+    p: Piece.projector,
     id: Id.t,
     measurement: Measured.measurement,
     offside_base: int,
     status,
   };
 
-  type t('ed) = list(projector_data('ed));
+  type t('ed) = list(projector_data);
 
   /* Is projector indicated and if so what side is the caret on? */
   let indication = (p, id) =>
@@ -43,7 +43,7 @@ module Model = {
 
   let mk_status =
       (
-        p: Base.projector(Projector.model),
+        p: Base.projector,
         ~common: Common.t,
         ~editor_active: bool,
         ~indicated: option((Id.t, Direction.t)),
@@ -74,16 +74,15 @@ module Model = {
 
   let mk =
       (
-        type p,
         ~mk_status,
         ~common,
-        projectors: Id.Map.t(Base.projector(p)),
+        projectors: Id.Map.t(Base.projector),
         measured: Measured.t,
         selection_ids: list(Id.t),
         indicated: option((Id.t, Direction.t)),
         editor_active: bool,
       )
-      : list(projector_data(p)) => {
+      : list(projector_data) => {
     List.filter_map(
       ((id, _)) => {
         let* p = Id.Map.find_opt(id, projectors);
@@ -116,7 +115,7 @@ let backing_deco =
     (
       ~font_metrics: FontMetrics.t,
       ~measurement: Measured.measurement,
-      p: Base.projector('p),
+      p: Base.projector,
     ) =>
   ShardDec.relative({
     font_metrics,
@@ -199,7 +198,6 @@ let offside_wrapper =
  * in order to stratify z-levels across all projectors */
 let split_views =
     (
-      type p_m,
       type p_a,
       type p_f,
       ~view_projector,
@@ -210,8 +208,7 @@ let split_views =
       ~focus: option(p_f),
       ~handoff_map:
          Hashtbl.t(Id.t, (Ui_effect.t(unit), Ui_effect.t(unit))),
-      {p, offside_base, measurement, status, _} as projector_data:
-        Model.projector_data(p_m),
+      {p, offside_base, measurement, status, _} as projector_data: Model.projector_data,
     )
     : (Node.t, option(Node.t)) => {
   let wrapper =
@@ -269,8 +266,7 @@ let indication = (z, id) =>
   | _ => None
   };
 
-let by_measurement =
-    (pd1: Model.projector_data('ed), pd2: Model.projector_data('ed)) =>
+let by_measurement = (pd1: Model.projector_data, pd2: Model.projector_data) =>
   compare(pd1.measurement.origin.row, pd2.measurement.origin.row);
 
 /* Returns a div containing all projector UIs, intended to
@@ -286,7 +282,7 @@ let all =
       ~focussed: option((Id.t, 'p_f)),
       ~handoff_map:
          Hashtbl.t(Id.t, (Ui_effect.t(unit), Ui_effect.t(unit))),
-      projector_data: list(Model.projector_data(p)),
+      projector_data: list(Model.projector_data),
     ) => {
   /* Sorting the projectors by position tends to be a good
    * z-index default; projectors further to the right or
@@ -297,7 +293,7 @@ let all =
   let (base_views, overlay_views) =
     projector_data
     |> List.sort(by_measurement)
-    |> List.map((data: Model.projector_data(p)) =>
+    |> List.map((data: Model.projector_data) =>
          split_views(
            ~view_projector,
            ~common,

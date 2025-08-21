@@ -9,8 +9,8 @@ module Update = AssistantUpdate;
 
 module Model = AssistantModel;
 
-type selection('p) =
-  | MakeActive(Selection.t('p));
+type selection =
+  | MakeActive(Selection.t);
 
 type event =
   | MakeActive(ScratchMode.Selection.t);

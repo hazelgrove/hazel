@@ -25,11 +25,11 @@ open OptUtil.Syntax;
 let init =
     (
       ~projector_init,
-      ~seg_to_ed: Base.segment('p) => option('ed),
+      ~seg_to_ed: Base.segment => option('ed),
       kind: 'p_kind,
-      seg: Base.segment('p),
+      seg: Base.segment,
     )
-    : option(Base.piece('p)) => {
+    : option(Base.piece) => {
   /* Projected syntax always gets parenthesized, but only the contents
    * of those parentheses are passed to the projector implementations  */
   open OptUtil.Syntax;
@@ -45,15 +45,12 @@ let init =
 };
 
 let replace_selection_and_unselect =
-    (piece: Base.piece('p), focus: Direction.t, z: Zipper.t('p))
-    : Zipper.t('p) =>
+    (piece: Base.piece, focus: Direction.t, z: Zipper.t): Zipper.t =>
   z
   |> Zipper.replace_selection(focus, [piece])
   |> Zipper.directional_unselect(focus);
 
-let remove =
-    (seg: Base.segment('p), focus: Direction.t, z: Zipper.t('p))
-    : Zipper.t('p) => {
+let remove = (seg: Base.segment, focus: Direction.t, z: Zipper.t): Zipper.t => {
   /* If it's a convex tile, unselect; otherwise, leave selection to guarantee you can toggle */
   switch (seg) {
   | [piece] => replace_selection_and_unselect(piece, Right, z)
@@ -62,27 +59,19 @@ let remove =
 };
 
 let update_piece =
-    (
-      f: Base.projector('p) => Base.projector('p),
-      id: Id.t,
-      piece: Base.piece('p),
-    )
-    : Base.segment('p) =>
+    (f: Base.projector => Base.projector, id: Id.t, piece: Base.piece)
+    : Base.segment =>
   switch (piece) {
   | Projector(pr) when pr.id == id => [Base.Projector(f(pr))]
   | x => [x]
   };
 
 let update =
-    (
-      f: Base.projector('p) => Base.projector('p),
-      id: Id.t,
-      z: ZipperBase.t('p),
-    )
-    : ZipperBase.t('p) =>
+    (f: Base.projector => Base.projector, id: Id.t, z: ZipperBase.t)
+    : ZipperBase.t =>
   ZipperBase.MapPiece.fast_local_seg(update_piece(f, id), id, z);
 
-let get_model = (id: Id.t, z: ZipperBase.t('p)): option('p) => {
+let get_model = (id: Id.t, z: ZipperBase.t): option(_) => {
   switch (ZipperBase.FindPiece.in_zipper(x => Piece.id(x) == id, z)) {
   | Some(Projector(pr)) => Some(pr.model)
   | Some(_)
@@ -91,12 +80,8 @@ let get_model = (id: Id.t, z: ZipperBase.t('p)): option('p) => {
 };
 
 let setup_selection =
-    (
-      type p,
-      ~select_term: Zipper.t(p) => option(Zipper.t(p)),
-      z: Zipper.t(p),
-    )
-    : option((Direction.t, Zipper.t(p))) =>
+    (type p, ~select_term: Zipper.t => option(Zipper.t), z: Zipper.t)
+    : option((Direction.t, Zipper.t)) =>
   Selection.is_empty(z.selection)
     ? switch (select_term(z), Indicated.direction(z)) {
       | (Some(z), Some(d)) => Some((Direction.toggle(d), z))
@@ -106,12 +91,11 @@ let setup_selection =
 
 let remove_indicated =
     (
-      type p,
-      ~select_term: Zipper.t(p) => option(Zipper.t(p)),
+      ~select_term: Zipper.t => option(Zipper.t),
       ~seg_of_projector,
-      z: Zipper.t(p),
+      z: Zipper.t,
     )
-    : option(Zipper.t(p)) => {
+    : option(Zipper.t) => {
   let* (focus, z) = setup_selection(~select_term, z);
   switch (z.selection.content) {
   | [Projector(pr)] => Some(remove(seg_of_projector(pr.model), focus, z))
@@ -121,15 +105,14 @@ let remove_indicated =
 
 let set_indicated =
     (
-      type p,
-      ~select_term: Zipper.t(p) => option(Zipper.t(p)),
+      ~select_term: Zipper.t => option(Zipper.t),
       ~seg_of_projector,
       ~projector_init,
       ~seg_to_ed,
-      z: Zipper.t(p),
+      z: Zipper.t,
       kind,
     )
-    : option(Zipper.t(p)) => {
+    : option(Zipper.t) => {
   /* If not projected, project. If already same kind, remove. If other kind, change */
   // TODO [Matt]: Make this check the kind again
   let* (focus, z) = setup_selection(~select_term, z);
@@ -154,11 +137,11 @@ let go =
       ~seg_of_projector,
       ~livelit_projectors,
       ~jump_to_side_of_id,
-      ~select_term: Zipper.t(p) => option(Zipper.t(p)),
+      ~select_term: Zipper.t => option(Zipper.t),
       a: Action.project('p_kind, p, 'p_a),
-      z: Zipper.t(p),
+      z: Zipper.t,
     )
-    : result(ZipperBase.t(p), Action.Failure.t) => {
+    : result(Zipper.t, Action.Failure.t) => {
   let set_indicated =
     set_indicated(
       ~select_term,
@@ -193,7 +176,7 @@ let go =
           },
         id,
         z,
-      ): ZipperBase.t(p),
+      ): Zipper.t,
     )
   | Escape(id, d) =>
     switch (jump_to_side_of_id(d, z, id)) {

@@ -57,7 +57,7 @@ let of_delim' =
     },
   );
 let of_delim =
-    (type p, is_consistent, is_in_buffer, indent, t: Piece.tile(p), i: int)
+    (is_consistent, is_in_buffer, indent, t: Piece.tile, i: int)
     : list(Node.t) =>
   of_delim'((
     t.label,
@@ -132,7 +132,7 @@ module Text =
 
   let m = p => Measured.find_p(~msg="Text", p, M.map);
   let rec of_segment =
-          (buffer_ids, no_sorts, sort, seg: Haz3lcorep.Segment.t(M.p))
+          (buffer_ids, no_sorts, sort, seg: Haz3lcorep.Segment.t)
           : list(Node.t) => {
     /* note: no_sorts flag is used for backpack view;
        otherwise Segment.expected_sorts call crashes for some reason */
@@ -152,7 +152,7 @@ module Text =
        );
   }
   and of_piece =
-      (buffer_ids, expected_sort: Sort.t, p: Haz3lcorep.Piece.t(M.p))
+      (buffer_ids, expected_sort: Sort.t, p: Haz3lcorep.Piece.t)
       : list(Node.t) => {
     switch (p) {
     | Tile(t) => of_tile(buffer_ids, expected_sort, t)
@@ -170,8 +170,7 @@ module Text =
     };
   }
   and of_tile =
-      (buffer_ids, expected_sort: Sort.t, t: Haz3lcorep.Tile.t(M.p))
-      : list(Node.t) => {
+      (buffer_ids, expected_sort: Sort.t, t: Haz3lcorep.Tile.t): list(Node.t) => {
     let children_and_sorts =
       List.mapi(
         (i, (l, child, r)) =>

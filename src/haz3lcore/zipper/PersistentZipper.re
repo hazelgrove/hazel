@@ -9,15 +9,15 @@ type t = {
 let to_string = (~concave_holes=?, ~caret=?, z) =>
   Printer.of_zipper(~holes="", ~indent="", ~concave_holes?, ~caret?, z);
 
-let persist = (~projector_to_segment, f, zipper: Zipper.t('p)) => {
+let persist = (~projector_to_segment, zipper: Zipper.t) => {
   {
-    zipper: Zipper.sexp_of_t(f, zipper) |> Sexplib.Sexp.to_string,
+    zipper: Zipper.sexp_of_t(zipper) |> Sexplib.Sexp.to_string,
     backup_text: to_string(~projector_to_segment, zipper),
   };
 };
 
-let unpersist = (~projector_init, f, persisted: t) =>
-  try(Sexplib.Sexp.of_string(persisted.zipper) |> Zipper.t_of_sexp(f)) {
+let unpersist = (~projector_init, persisted: t) =>
+  try(Sexplib.Sexp.of_string(persisted.zipper) |> Zipper.t_of_sexp) {
   | _ =>
     print_endline(
       "Warning: using backup text! Serialization may be for an older version of Hazel.",
@@ -28,7 +28,7 @@ let unpersist = (~projector_init, f, persisted: t) =>
     };
   };
 
-// let serialize = (f, zipper: Zipper.t('p)) => {
+// let serialize = (f, zipper: Zipper.t) => {
 //   persist(f, zipper) |> yojson_of_t |> Yojson.Safe.to_string;
 // };
 

@@ -4,7 +4,7 @@ open OptUtil.Syntax;
 module Make = (M: Move.S) => {
   module Move = Move.Make(M);
 
-  let primary = (d: Direction.t, z: Zipper.t('p)): option(Zipper.t('p)) =>
+  let primary = (d: Direction.t, z: Zipper.t): option(Zipper.t) =>
     if (z.caret == Outer) {
       Zipper.select(d, z);
     } else if (d == Left) {
@@ -16,10 +16,10 @@ module Make = (M: Move.S) => {
       z |> Zipper.set_caret(Outer) |> Zipper.select(d);
     };
 
-  let vertical = (d: Direction.t, ed: Zipper.t('p)): option(Zipper.t('p)) =>
+  let vertical = (d: Direction.t, ed: Zipper.t): option(Zipper.t) =>
     Move.do_vertical(primary, d, ed);
 
-  let go = (d: Action.move, z: Zipper.t('p)): option(Zipper.t('p)) =>
+  let go = (d: Action.move, z: Zipper.t): option(Zipper.t) =>
     switch (d) {
     | Goal(Piece(_)) => failwith("Select.go not implemented for Piece Goal")
     | Goal(Point(goal)) =>
@@ -36,13 +36,13 @@ module Make = (M: Move.S) => {
       }
     };
 
-  let range = (l: Id.t, r: Id.t, z: Zipper.t('p)): option(Zipper.t('p)) => {
+  let range = (l: Id.t, r: Id.t, z: Zipper.t): option(Zipper.t) => {
     let* z = Move.jump_to_side_of_id(Left, z, l);
     let* Measured.{last, _} = Measured.find_by_id(r, M.measured);
     Move.do_towards(Zipper.select, last, z);
   };
 
-  let tile = (id: Id.t, z: Zipper.t('p)): option(Zipper.t('p)) => {
+  let tile = (id: Id.t, z: Zipper.t): option(Zipper.t) => {
     let* z = Move.jump_to_side_of_id(Left, z, id);
     let* Measured.{last, _} = Measured.find_by_id(id, M.measured);
     Move.do_towards(primary, last, z);
@@ -53,12 +53,12 @@ module Make = (M: Move.S) => {
     tile(id, z);
   };
 
-  let term = (id: Id.t, z: Zipper.t('p)): option(Zipper.t('p)) => {
+  let term = (id: Id.t, z: Zipper.t): option(Zipper.t) => {
     let* (l, r) = TermRanges.find_opt(id, M.term_ranges);
     range(Piece.id(l), Piece.id(r), z);
   };
 
-  let current_term_id = (z: Zipper.t('p)): option(Id.t) => {
+  let current_term_id = (z: Zipper.t): option(Id.t) => {
     let* (p, _, rel) = Indicated.piece''(z);
     switch (p) {
     | Secondary(_) => None
@@ -109,7 +109,7 @@ module Make = (M: Move.S) => {
    * definitions to not include their bodies, and we can consider case
    * rules as separate pseudo-terms. */
   let current_term =
-      (~defs_exclude_bodies: bool, ~case_rules: bool, z: Zipper.t('p)) => {
+      (~defs_exclude_bodies: bool, ~case_rules: bool, z: Zipper.t) => {
     let* (p, _, _) = Indicated.piece''(z);
     switch (p) {
     | Tile({label: ["let" | "type", ..._], _}) when defs_exclude_bodies =>
@@ -146,7 +146,7 @@ module Make = (M: Move.S) => {
     go(Local(Left(ByToken)), z); /* above overshoots */
   };
 
-  let indicated_token = (z: Zipper.t('p)) =>
+  let indicated_token = (z: Zipper.t) =>
     switch (Indicated.piece'(~no_ws=false, ~ign=Piece.is_secondary, z)) {
     | Some((Secondary(_), _, _)) =>
       /* If there is secondary on both sides, select the
@@ -161,7 +161,7 @@ module Make = (M: Move.S) => {
     | _ => None
     };
 
-  let is_inside_rule = (z: Zipper.t('p)) => {
+  let is_inside_rule = (z: Zipper.t) => {
     let* z = Move.left_until_case_or_rule(z);
     let* (p, _, _) = Indicated.piece''(z);
     switch (p) {
@@ -170,7 +170,7 @@ module Make = (M: Move.S) => {
     };
   };
 
-  let parent_cls = (z: Zipper.t('p), info_map: Language.Statics.Map.t) => {
+  let parent_cls = (z: Zipper.t, info_map: Language.Statics.Map.t) => {
     let* id = Indicated.index(z);
     let* statics = Language.Statics.Map.lookup(id, info_map);
     let* parent_id =
@@ -180,7 +180,7 @@ module Make = (M: Move.S) => {
   };
 
   let parent_is_rule =
-      (z: Zipper.t('p), info_map: Language.Statics.Map.t): option(Id.t) => {
+      (z: Zipper.t, info_map: Language.Statics.Map.t): option(Id.t) => {
     switch (is_inside_rule(z)) {
     | Some(id) when parent_cls(z, info_map) == Some(Exp(Match)) => Some(id)
     | _ => None
@@ -190,7 +190,7 @@ module Make = (M: Move.S) => {
   /* If the indicated term is the body of a definition
    * (let or type), return the id of the body, otherwise None */
   let def_body_indicated =
-      (z: Zipper.t('p), info_map: Language.Statics.Map.t): option(Id.t) => {
+      (z: Zipper.t, info_map: Language.Statics.Map.t): option(Id.t) => {
     let* id = Indicated.index(z);
     let* statics = Language.Statics.Map.lookup(id, info_map);
     let* parent_id =
@@ -204,7 +204,7 @@ module Make = (M: Move.S) => {
     };
   };
 
-  let parent_id = (z: Zipper.t('p), info_map: Language.Statics.Map.t) => {
+  let parent_id = (z: Zipper.t, info_map: Language.Statics.Map.t) => {
     let* base_id = Indicated.index(z);
     /* Rules aren't counted as terms in the base syntax,
      * but we do want to treat them as possible parents */
@@ -216,8 +216,7 @@ module Make = (M: Move.S) => {
     };
   };
 
-  let parent_of_indicated =
-      (z: Zipper.t('p), info_map: Language.Statics.Map.t) => {
+  let parent_of_indicated = (z: Zipper.t, info_map: Language.Statics.Map.t) => {
     let* id = parent_id(z, info_map);
     let* z' = Move.jump_to_id_indicated(z, id);
     /* Annoying special case here: In general when selecting the parent term

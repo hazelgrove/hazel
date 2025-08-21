@@ -1,8 +1,8 @@
 open Util;
 
 include Id.Map;
-type range('p) = (Piece.t('p), Piece.t('p));
-type nonrec t('p) = t(range('p));
+type range = (Piece.t, Piece.t);
+type nonrec t = t(range);
 
 //TODO(andrew): reinstate memo
 
@@ -21,9 +21,9 @@ type nonrec t('p) = t(range('p));
 // TODO(d) fix or derive from other info
 //
 // tail-recursive in outer recursion
-let rec mk = (seg: Segment.t('p)) => {
+let rec mk = (seg: Segment.t) => {
   assert(seg != []);
-  let rec go = (skel: Skel.t): (range('p), t('p)) => {
+  let rec go = (skel: Skel.t): (range, t) => {
     let root = Skel.root(skel) |> Aba.map_a(List.nth(seg));
     let root_l = Aba.first_a(root);
     let root_r = Aba.last_a(root);
@@ -86,14 +86,12 @@ let rec mk = (seg: Segment.t('p)) => {
 //     res;
 //   };
 
-let subseg =
-    (seg: Segment.t('p), (start_idx: int, end_idx: int)): Segment.t('p) =>
+let subseg = (seg: Segment.t, (start_idx: int, end_idx: int)): Segment.t =>
   ListUtil.sublist((start_idx, end_idx + 1), seg);
 
-let rec split =
-        (ids: list(Id.t), seg: Segment.t('p)): Id.Map.t(Segment.t('p)) => {
+let rec split = (ids: list(Id.t), seg: Segment.t): Id.Map.t(Segment.t) => {
   let union = Id.Map.union((_, s, _) => Some(s));
-  let rec go = (skel: Skel.t): ((int, int), Id.Map.t(Segment.t('p))) => {
+  let rec go = (skel: Skel.t): ((int, int), Id.Map.t(Segment.t)) => {
     let root = Skel.root(skel);
     let root_l = Aba.first_a(root);
     let root_r = Aba.last_a(root); /* always the same as root_l except for bin? */
@@ -131,7 +129,7 @@ let rec split =
   };
   Segment.children(seg)
   |> List.fold_left(
-       (map: Id.Map.t(Segment.t('p)), kid: Segment.t('p)) =>
+       (map: Id.Map.t(Segment.t), kid: Segment.t) =>
          union(map, split(ids, kid)),
        snd(go(Segment.skel(seg))),
      );

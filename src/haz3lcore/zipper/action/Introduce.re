@@ -2,7 +2,7 @@ open Language;
 
 module type Introducable = {
   type t;
-  let parse: Segment.t('p) => t;
+  let parse: Segment.t => t;
   let is_hole: t => bool;
 
   /**
@@ -17,18 +17,13 @@ module type Introducable = {
  *   Returns `None` if the introduction fails, meaning there is no form for that type.
  */
   let introduce: Typ.t => option((t, Id.t, bool));
-  let to_segment:
-    (~settings: ExpToSegment.Settings.t, t, bool) => Segment.t('p);
+  let to_segment: (~settings: ExpToSegment.Settings.t, t, bool) => Segment.t;
 };
 
 module IntroducePat: Introducable with type t = Pat.t = {
   type t = Pat.t;
-  let parse: type p. Segment.t(p) => t =
-    (type p', selection) => {
-      module MakeTerm =
-        MakeTerm.Go({
-          type p = p';
-        });
+  let parse: Segment.t => t =
+    selection => {
       MakeTerm.(
         pat(
           unsorted(
@@ -96,11 +91,7 @@ module IntroducePat: Introducable with type t = Pat.t = {
 
 module IntroduceExp: Introducable with type t = Exp.t = {
   type t = Exp.t;
-  let parse = (type p', selection) => {
-    module MakeTerm =
-      MakeTerm.Go({
-        type p = p';
-      });
+  let parse = selection => {
     MakeTerm.(
       exp(
         unsorted(
@@ -209,10 +200,9 @@ module IntroduceExp: Introducable with type t = Exp.t = {
 module Make =
        (I: Introducable)
        : {
-         let introduce:
-           (Zipper.t('p), Typ.t, Ctx.t) => option(Zipper.t('p));
+         let introduce: (Zipper.t, Typ.t, Ctx.t) => option(Zipper.t);
        } => {
-  let rec move_right_until_id = (id: Id.t, z: Zipper.t('p)): Zipper.t('p) =>
+  let rec move_right_until_id = (id: Id.t, z: Zipper.t): Zipper.t =>
     ZipperBase.MapPiece.left_sib_has_id(z, id)
       ? z
       : (
@@ -222,10 +212,10 @@ module Make =
         }
       );
 
-  let already_parenthesized = (z: Zipper.t('p)) => {
+  let already_parenthesized = (z: Zipper.t) => {
     let sibs = Siblings.trim_secondary(ZipperBase.sibs_with_sel(z));
     let parent = Ancestors.parent(z.relatives.ancestors);
-    Option.map((p: Ancestor.t('p)) => p.label, parent) == Some(["(", ")"])
+    Option.map((p: Ancestor.t) => p.label, parent) == Some(["(", ")"])
     && sibs
     |> (((l, r)) => l @ r)
     |> List.length(_) == 1;
@@ -241,7 +231,7 @@ module Make =
     );
   };
 
-  let introduce = (z: Zipper.t('p), ty: Typ.t, ctx: Ctx.t) => {
+  let introduce = (z: Zipper.t, ty: Typ.t, ctx: Ctx.t) => {
     open Util.OptUtil.Syntax;
     let selection = z.selection.content;
     let selected_term = I.parse(selection);
@@ -270,7 +260,7 @@ module Make =
   };
 };
 
-let introduce = (statics: Statics.Map.t, z: Zipper.t('p)) => {
+let introduce = (statics: Statics.Map.t, z: Zipper.t) => {
   switch (Indicated.ci_of(z, statics)) {
   | None => None
   | Some(

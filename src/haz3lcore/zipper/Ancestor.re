@@ -6,13 +6,13 @@ exception Empty_shard_affix;
 type step = int;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type t('p) = {
+type t = {
   [@equal (_, _) => true]
   id: Id.t,
   label: Label.t,
   mold: Mold.t,
   shards: (list(int), list(int)),
-  children: (list(Segment.t('p)), list(Segment.t('p))),
+  children: (list(Segment.t), list(Segment.t)),
 };
 
 // TODO(d) revisit naming w.r.t. outer vs inner shards
@@ -22,19 +22,17 @@ let r_shard = a =>
   ListUtil.last_opt(snd(a.shards))
   |> OptUtil.get_or_raise(Empty_shard_affix);
 
-let nibs = (a: t('p)) => {
+let nibs = (a: t) => {
   let (l, _) = Mold.nibs(~index=l_shard(a), a.mold);
   let (_, r) = Mold.nibs(~index=r_shard(a), a.mold);
   (l, r);
 };
-let shapes = (a: t('p)) => {
+let shapes = (a: t) => {
   let (l, r) = nibs(a);
   (l.shape, r.shape);
 };
 
-let zip =
-    (child: Segment.t('p), {id, label, mold, shards, children}: t('p))
-    : Tile.t('p) => {
+let zip = (child: Segment.t, {id, label, mold, shards, children}: t): Tile.t => {
   id,
   label,
   mold,
@@ -42,14 +40,14 @@ let zip =
   children: fst(children) @ [child, ...snd(children)],
 };
 
-let sorted_children = (a: t('p)) => {
+let sorted_children = (a: t) => {
   let n = List.length(fst(a.children));
   let t = zip(Segment.empty, a);
   let (l, _, r) = ListUtil.split_nth(n, Tile.sorted_children(t));
   (l, r);
 };
 
-let remold = (a: t('p)): list(t('p)) =>
+let remold = (a: t): list(t) =>
   Molds.get(a.label)
   |> List.map(mold =>
        {
@@ -58,7 +56,7 @@ let remold = (a: t('p)): list(t('p)) =>
        }
      );
 
-let sort = (a: t('p)): Sort.t => {
+let sort = (a: t): Sort.t => {
   let (pre, suf) = a.shards;
   switch (ListUtil.split_last_opt(pre), suf) {
   | (Some((_, i)), [j, ..._]) =>
@@ -70,8 +68,7 @@ let sort = (a: t('p)): Sort.t => {
 };
 
 let disassemble =
-    ({id, label, mold, shards, children: (kids_l, kids_r)}: t('p))
-    : Siblings.t('p) => {
+    ({id, label, mold, shards, children: (kids_l, kids_r)}: t): Siblings.t => {
   let (shards_l, shards_r) =
     shards
     |> TupleUtil.map2(Tile.split_shards(id, label, mold))
@@ -81,7 +78,7 @@ let disassemble =
   (flatten(shards_l, kids_l), flatten(shards_r, kids_r));
 };
 
-let missing_middle_shards = (a: t('p)): list(Tile.t('p)) => {
+let missing_middle_shards = (a: t): list(Tile.t) => {
   let (shards_l, shards_r) = a.shards;
   let last_l =
     ListUtil.last_opt(shards_l) |> OptUtil.get_or_raise(Empty_shard_affix);
@@ -91,7 +88,7 @@ let missing_middle_shards = (a: t('p)): list(Tile.t('p)) => {
   Tile.split_shards(a.id, a.label, a.mold, ls);
 };
 
-let missing_shards = (a: t('p)): list(Tile.t('p)) => {
+let missing_shards = (a: t): list(Tile.t) => {
   let (shards_l, shards_r) = a.shards;
   let shards = shards_l @ shards_r;
   let missing =
@@ -102,7 +99,7 @@ let missing_shards = (a: t('p)): list(Tile.t('p)) => {
   Tile.split_shards(a.id, a.label, a.mold, missing);
 };
 
-let container_shards = (a: t('p)): (Piece.t('p), Piece.t('p)) => {
+let container_shards = (a: t): (Piece.t, Piece.t) => {
   let (shards_l, shards_r) =
     a.shards
     |> TupleUtil.map2(Tile.split_shards(a.id, a.label, a.mold))
@@ -114,8 +111,7 @@ let container_shards = (a: t('p)): (Piece.t('p), Piece.t('p)) => {
   (l, r);
 };
 
-let reassemble =
-    (match_l: Aba.t(Tile.t('p), Segment.t('p)) as 'm, match_r: 'm): t('p) => {
+let reassemble = (match_l: Aba.t(Tile.t, Segment.t) as 'm, match_r: 'm): t => {
   // TODO(d) bit hacky, need to do a flip/orientation pass
   // let match_l = Aba.map_b(Segment.rev, match_l);
   let (t_l, t_r) = Tile.(reassemble(match_l), reassemble(match_r));

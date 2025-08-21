@@ -2,7 +2,7 @@ open Util;
 open Zipper;
 open Language;
 
-let buffer_clear = (z: t('p)): t('p) =>
+let buffer_clear = (z: t): t =>
   switch (z.selection.mode) {
   | Buffer(Unparsed) => {
       ...z,
@@ -13,13 +13,13 @@ let buffer_clear = (z: t('p)): t('p) =>
   | Normal => z
   };
 
-let set_tydi_buffer = (info_map: Language.Statics.Map.t, z: t('p)): t('p) =>
+let set_tydi_buffer = (info_map: Language.Statics.Map.t, z: t): t =>
   switch (TyDi.set_buffer(~info_map, z)) {
   | None => z
   | Some(z) => z
   };
 
-let set_llm_buffer = (~projector_init, z: t('p), response: string): t('p) =>
+let set_llm_buffer = (~projector_init, z: t, response: string): t =>
   switch (
     {
       open OptUtil.Syntax;
@@ -36,12 +36,11 @@ let set_llm_buffer = (~projector_init, z: t('p), response: string): t('p) =>
   | Some(z) => z
   };
 
-let paste =
-    (~projector_init, z: Zipper.t('p), str: string): option(Zipper.t('p)) =>
+let paste = (~projector_init, z: Zipper.t, str: string): option(Zipper.t) =>
   Parser.to_zipper(~projector_init, ~zipper_init=z, str);
 
-let paste_segment = (z: Zipper.t('p), segment: Segment.t('p)): Zipper.t('p) => {
-  let replace_selection = (z, focus, segment): Zipper.t('p) =>
+let paste_segment = (z: Zipper.t, segment: Segment.t): Zipper.t => {
+  let replace_selection = (z, focus, segment): Zipper.t =>
     {
       ...z,
       selection: Selection.mk(~focus, segment),
@@ -55,10 +54,10 @@ let paste_segment = (z: Zipper.t('p), segment: Segment.t('p)): Zipper.t('p) => {
 let projector_to_invoke =
     (
       ~get_kind: 'p => ProjectorKind.t,
-      ~seg_of_projector: 'p => Segment.t('p),
-      pr: Base.projector('p),
+      ~seg_of_projector: 'p => Segment.t,
+      pr: Base.projector,
     )
-    : Segment.t('p) => [
+    : Segment.t => [
   Piece.mk_tile(
     Form.mk(
       Form.ss,
@@ -86,9 +85,9 @@ let go_z =
       statics: CachedStatics.t,
       a: Action.t('p_kind, p', p_a),
       module M: Move.S with type p = p',
-      z: Zipper.t(p'),
+      z: Zipper.t,
     )
-    : Action.Result.t(Zipper.t(p')) => {
+    : Action.Result.t(Zipper.t) => {
   module Move = Move.Make(M);
   module Select = Select.Make(M);
 
@@ -96,7 +95,7 @@ let go_z =
     projector_to_invoke(~get_kind, ~seg_of_projector);
   let projector_init = ProjectorPerform.init(~seg_to_ed, ~projector_init=pi);
 
-  let buffer_accept = (z): option(Zipper.t(p')) =>
+  let buffer_accept = (z): option(Zipper.t) =>
     switch (z.selection.mode) {
     | Normal => None
     | Buffer(Parsed) =>
@@ -124,7 +123,7 @@ let go_z =
       }
     };
 
-  let smart_select = (type p, n, z: t(p)): option(t(p)) => {
+  let smart_select = (type p, n, z: t): option(t) => {
     switch (n) {
     | 2 => Select.indicated_token(z)
     | 3 =>

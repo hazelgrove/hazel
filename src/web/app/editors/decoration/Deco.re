@@ -8,7 +8,7 @@ let sel_shard_svg =
     (
       ~start_shape: ShardDec.tip,
       measurement: Measured.measurement,
-      p: Piece.t('p),
+      p: Piece.t,
     )
     : (Measured.measurement, (ShardDec.tip, ShardDec.tip)) => (
   measurement,
@@ -67,7 +67,7 @@ module HighlightSegment =
   let find_g = Measured.find_g(~msg="Highlight.of_piece", _, M.measured);
   let find_w = Measured.find_w(~msg="Highlight.of_piece", _, M.measured);
   let rec of_piece =
-          (start_shape: ShardDec.tip, p: Piece.t('p))
+          (start_shape: ShardDec.tip, p: Piece.t)
           : (
               ShardDec.tip,
               list(
@@ -96,7 +96,7 @@ module HighlightSegment =
       };
     (next_start_shape, shard_data);
   }
-  and of_tile = (~start_shape, t: Tile.t('p)): list(option(_)) => {
+  and of_tile = (~start_shape, t: Tile.t): list(option(_)) => {
     let tile_shards =
       Measured.find_shards(~msg="sel_of_tile", t, M.measured)
       |> List.filter(((i, _)) => List.mem(i, t.shards))
@@ -115,7 +115,7 @@ module HighlightSegment =
       failwith(
         "Deco.of_tile: shard mismatch:"
         ++ "tile: "
-        ++ Tile.show((_, _) => (), t)
+        ++ Tile.show(t)
         ++ "tile_Shards:"
         ++ string_of_int(List.length(tile_shards))
         ++ ", children_Shards:"
@@ -124,7 +124,7 @@ module HighlightSegment =
     };
     ListUtil.interleave(tile_shards, children_shards) |> List.flatten;
   }
-  and of_projector = (~start_shape, p: Base.projector('p)): list(option(_)) =>
+  and of_projector = (~start_shape, p: Base.projector): list(option(_)) =>
     switch (Measured.find_pr_opt(p, M.measured)) {
     | None => failwith("Deco.of_projector: missing measurement")
     | Some(_m) =>
@@ -160,15 +160,14 @@ module HighlightSegment =
       };
     }
   and of_segment =
-      (start_shape: ShardDec.tip, seg: Segment.t('p)): list(option(_)) => {
+      (start_shape: ShardDec.tip, seg: Segment.t): list(option(_)) => {
     seg
     |> ListUtil.fold_left_map(of_piece, start_shape)
     |> snd
     |> List.flatten;
   }
   and go =
-      (segment: Segment.t('p), shape_init: ShardDec.tip, classes)
-      : list(Node.t) =>
+      (segment: Segment.t, shape_init: ShardDec.tip, classes): list(Node.t) =>
     /* We draw a single deco per row by dividing partionining the shards
      * into linebreak-seperated segments, then combining the measurements
      * and shapes of the first and last shard of each segment. Ideally we
@@ -199,7 +198,7 @@ module HighlightSegment =
 };
 
 let quick_select_deco =
-    (~font_metrics, ~measured, ~shape_map, segment: Segment.t('p)): Node.t => {
+    (~font_metrics, ~measured, ~shape_map, segment: Segment.t): Node.t => {
   module Highlight =
     HighlightSegment({
       let measured = measured;
@@ -238,7 +237,7 @@ module Deco =
 
   let tile = id => Id.Map.find(id, tiles);
 
-  let caret = (z: Zipper.t('p)): Node.t => {
+  let caret = (z: Zipper.t): Node.t => {
     let origin = Zipper.caret_point(map, z);
     let shape = Zipper.caret_direction(z);
     let side =
@@ -267,7 +266,7 @@ module Deco =
       let font_metrics = font_metrics;
     });
 
-  let segment_selected = (z: Zipper.t('p)) =>
+  let segment_selected = (z: Zipper.t) =>
     Highlight.go(
       z.selection.content,
       Some(fst(Siblings.shapes(z.relatives.siblings))),
@@ -289,8 +288,7 @@ module Deco =
     };
   };
 
-  let all_tiles =
-      (p: Piece.t('p)): list((Uuidm.t, Mold.t, Measured.Shards.t)) =>
+  let all_tiles = (p: Piece.t): list((Uuidm.t, Mold.t, Measured.Shards.t)) =>
     Id.Map.find(Piece.id(p), terms)
     |> Language.Any.ids
     |> List.map(id => {
@@ -299,7 +297,7 @@ module Deco =
          (id, t.mold, shards);
        });
 
-  let indicated_piece_deco = (z: Zipper.t('p)): list(Node.t) => {
+  let indicated_piece_deco = (z: Zipper.t): list(Node.t) => {
     switch (Indicated.piece(z)) {
     | _ when z.selection.content != [] => []
     | None => []
@@ -356,7 +354,7 @@ module Deco =
     };
   };
 
-  let backpack = (z: Zipper.t('p)): Node.t => {
+  let backpack = (z: Zipper.t): Node.t => {
     /* If there is a selection, any tiles bisected by the selection
      * will show as incomplete. While a more intelligent approach is
      * possible here, I've opted for the simpler option of supressing
@@ -497,18 +495,17 @@ module Deco =
 
   let errors = () => div_c("errors", List.map(error_view, error_ids));
 
-  let indication = (z: Zipper.t('p)) =>
+  let indication = (z: Zipper.t) =>
     div_c("indication", indicated_piece_deco(z));
 
-  let selection = (z: Zipper.t('p)) =>
-    div_c("selects", segment_selected(z));
+  let selection = (z: Zipper.t) => div_c("selects", segment_selected(z));
 
   let always = () => [errors()];
 
   let next_steps = (next_steps, ~inject) => {
     let tiles = List.filter_map(TileMap.find_opt(_, tiles), next_steps);
     List.mapi(
-      (i, t: Tile.t('p)) => {
+      (i, t: Tile.t) => {
         let id = Tile.id(t);
         let mold = t.mold;
         let shards = Measured.find_shards(t, map);
@@ -558,7 +555,7 @@ module Deco =
   let taken_steps = taken_steps => {
     let tiles = List.filter_map(TileMap.find_opt(_, tiles), taken_steps);
     List.mapi(
-      (_, t: Tile.t('p)) => {
+      (_, t: Tile.t) => {
         let id = Tile.id(t);
         let mold = t.mold;
         let shards = Measured.find_shards(t, map);

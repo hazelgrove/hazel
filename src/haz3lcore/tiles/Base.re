@@ -1,13 +1,13 @@
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type segment('p) = list(piece('p))
-and piece('p) =
-  | Tile(tile('p))
+type segment = list(piece)
+and piece =
+  | Tile(tile)
   | Grout(Grout.t)
   | Secondary(Secondary.t)
   | Projector(Projector.t)
-and tile('p) = {
+and tile = {
   // invariants:
   // - length(mold.in_) + 1 == length(label)
   // - length(shards) <= length(label)
@@ -18,11 +18,11 @@ and tile('p) = {
   label: Label.t,
   mold: Mold.t,
   shards: list(int),
-  children: list(segment('p)),
+  children: list(segment),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type projector('p) = Projector.t;
+type projector = Projector.t;
 
 // This is for comment insertion
 let mk_secondary = (id, content) => [
@@ -41,7 +41,7 @@ let mk_projector = (~sort: Sort.t, ~model) =>
 
 /* If the piece is parentheses, return the child. Otherwise,
  * return a singleton segment consisting of the piece */
-let unparenthesize = (piece: piece('p)): segment('p) =>
+let unparenthesize = (piece: piece): segment =>
   switch (piece) {
   | Tile({
       label: ["(", ")"],
@@ -53,12 +53,7 @@ let unparenthesize = (piece: piece('p)): segment('p) =>
   };
 
 let rec segment_to_string =
-        (
-          ~holes=" ",
-          ~concave_holes=" ",
-          ~projector_to_segment,
-          seg: segment('p),
-        )
+        (~holes=" ", ~concave_holes=" ", ~projector_to_segment, seg: segment)
         : string =>
   seg
   |> List.map(
@@ -66,12 +61,7 @@ let rec segment_to_string =
      )
   |> String.concat("")
 and piece_to_string =
-    (
-      ~holes: string,
-      ~concave_holes: string,
-      ~projector_to_segment,
-      p: piece('p),
-    )
+    (~holes: string, ~concave_holes: string, ~projector_to_segment, p: piece)
     : string =>
   switch (p) {
   | Tile(t) =>
@@ -88,12 +78,7 @@ and piece_to_string =
     )
   }
 and tile_to_string =
-    (
-      ~holes: string,
-      ~concave_holes: string,
-      ~projector_to_segment,
-      t: tile('p),
-    )
+    (~holes: string, ~concave_holes: string, ~projector_to_segment, t: tile)
     : string =>
   Aba.mk(t.shards, t.children)
   |> Aba.join(

@@ -1,5 +1,5 @@
 /* Remove non-contentful items (whitespace and concave grout) */
-let trim_non_content = (seg: Segment.t('p)): Segment.t('p) =>
+let trim_non_content = (seg: Segment.t): Segment.t =>
   List.filter_map(
     fun
     | Piece.Grout({shape: Concave, _}) => None
@@ -8,10 +8,10 @@ let trim_non_content = (seg: Segment.t('p)): Segment.t('p) =>
     seg,
   );
 
-let prev_pieces = (seg: Segment.t('p)): list(option(Piece.t('p))) => {
+let prev_pieces = (seg: Segment.t): list(option(Piece.t)) => {
   let rec go =
-          (xs: list(Piece.t('p)), prev: option(Piece.t('p)))
-          : list(option(Piece.t('p))) =>
+          (xs: list(Piece.t), prev: option(Piece.t))
+          : list(option(Piece.t)) =>
     switch (xs) {
     | [] => []
     | [x, ...xs] => [prev, ...go(xs, Some(x))]
@@ -19,8 +19,8 @@ let prev_pieces = (seg: Segment.t('p)): list(option(Piece.t('p))) => {
   go(seg, None);
 };
 
-let next_pieces = (seg: Segment.t('p)): list(option(Piece.t('p))) => {
-  let rec go = (xs: list(Piece.t('p))): list(option(Piece.t('p))) =>
+let next_pieces = (seg: Segment.t): list(option(Piece.t)) => {
+  let rec go = (xs: list(Piece.t)): list(option(Piece.t)) =>
     switch (xs) {
     | [] => []
     | [_] => [None]
@@ -40,7 +40,7 @@ let union_all =
 
 /* This does not strictly 'complete' a segment but rather does a
  * rough version of it that suffices for indentation calculation */
-let rec shallow_complete_segment = (seg: Segment.t('p)): Segment.t('p) =>
+let rec shallow_complete_segment = (seg: Segment.t): Segment.t =>
   switch (seg) {
   | [] => []
   | [Tile(t), ...rest] when !Tile.is_complete(t) => [
@@ -57,10 +57,10 @@ let rec shallow_complete_segment = (seg: Segment.t('p)): Segment.t('p) =>
 /* Find the shortest prefix of the segment containing all incomplete tiles
  * followed by two consecutive linebreaks (aka a blank line)  */
 let incomplete_subseg_before_blank_line =
-    (seg: Segment.t('p)): option((Segment.t('p), Segment.t('p))) => {
+    (seg: Segment.t): option((Segment.t, Segment.t)) => {
   let rec find_split_point =
-          (seg: Segment.t('p), acc: Segment.t('p), incomplete_before: bool)
-          : option((Segment.t('p), Segment.t('p))) => {
+          (seg: Segment.t, acc: Segment.t, incomplete_before: bool)
+          : option((Segment.t, Segment.t)) => {
     switch (seg) {
     | [] => None
     | [Secondary(w1) as p, Secondary(w2), ...rest]
@@ -103,27 +103,27 @@ let incomplete_subseg_before_blank_line =
  * from the rest of the existing below bidelimited context by an empty line,
  * assuming that the below bidelimited context doesn't contain incomplete
  * tiles at the top level. */
-let complete_segment = (seg: Segment.t('p)): Segment.t('p) => {
+let complete_segment = (seg: Segment.t): Segment.t => {
   switch (incomplete_subseg_before_blank_line(seg)) {
   | None => shallow_complete_segment(seg)
   | Some((before, after)) => shallow_complete_segment(before) @ after
   };
 };
 
-let is_comma = (p: Piece.t('p)): bool =>
+let is_comma = (p: Piece.t): bool =>
   switch (p) {
   | Tile(t) => t.label == [","]
   | _ => false
   };
 
-let is_case_rule = (p: Piece.t('p)): bool =>
+let is_case_rule = (p: Piece.t): bool =>
   switch (p) {
   | Tile({label: ["|"], _}) => true /* hack to reduce case-rule entry jank */
   | Tile({label: ["|", "=>"], _}) => true
   | _ => false
   };
 
-let ends_with_in = (t: Tile.t('p)): bool =>
+let ends_with_in = (t: Tile.t): bool =>
   switch (t.label |> List.rev) {
   | ["in", ..._] => true
   | _ => false
@@ -132,7 +132,7 @@ let ends_with_in = (t: Tile.t('p)): bool =>
 /* Linebreaks following these tiles should increment the indent. Basically
  * any non-infix-operator tiles which are concave on the right, except
  * for definition forms */
-let is_incrementor = (p: Piece.t('p)): bool =>
+let is_incrementor = (p: Piece.t): bool =>
   switch (p) {
   | Tile(t) =>
     switch (Tile.shapes(t)) {
@@ -143,11 +143,11 @@ let is_incrementor = (p: Piece.t('p)): bool =>
   | _ => false
   };
 
-let rec go' = ((not_top, base: int, seg: Segment.t('p))) => {
+let rec go' = ((not_top, base: int, seg: Segment.t)) => {
   let complete_trimmed_seg = complete_segment(trim_non_content(seg));
   let (_, map) =
     List.fold_left2(
-      ((level: int, map: Id.Map.t(int)), p: Piece.t('p), prev_next) => {
+      ((level: int, map: Id.Map.t(int)), p: Piece.t, prev_next) => {
         switch (p) {
         | Secondary(w) when Secondary.is_linebreak(w) =>
           let level =
@@ -185,7 +185,7 @@ let rec go' = ((not_top, base: int, seg: Segment.t('p))) => {
     );
   map;
 }
-and go = (~not_top, base: int, seg: Segment.t('p)) => {
+and go = (~not_top, base: int, seg: Segment.t) => {
   let arg = (not_top, base, seg);
   //TODO(andrew): reinstate memo?
   // try(Hashtbl.find(indent_hash, arg)) {
@@ -197,5 +197,5 @@ and go = (~not_top, base: int, seg: Segment.t('p)) => {
   go'(arg);
 };
 
-let level_map = (seg: Segment.t('p)): Id.Map.t(int) =>
+let level_map = (seg: Segment.t): Id.Map.t(int) =>
   go(~not_top=false, 0, seg);

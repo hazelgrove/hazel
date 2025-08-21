@@ -4,8 +4,8 @@ let default_projector_init = (_, _) => Some(Piece.mk_grout(Grout.Convex));
 
 let to_zipper =
     (~projector_init, ~zipper_init=Zipper.init(), str: string)
-    : option(Zipper.t('p)) => {
-  let insert = (z: option(Zipper.t('p)), c: string): option(Zipper.t('p)) => {
+    : option(Zipper.t) => {
+  let insert = (z: option(Zipper.t), c: string): option(Zipper.t) => {
     let* z = z;
     try(c == "\r" ? Some(z) : Insert.go(~projector_init, c, z)) {
     | exn =>
@@ -26,7 +26,7 @@ let to_zipper =
   Zipper.remold_regrout(Left, z);
 };
 
-let to_segment = (~projector_init, s: string): option(Segment.t('p)) => {
+let to_segment = (~projector_init, s: string): option(Segment.t) => {
   let+ z = to_zipper(~projector_init, s);
   Zipper.seg_without_buffer(z);
 };

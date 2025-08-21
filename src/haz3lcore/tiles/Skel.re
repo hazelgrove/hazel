@@ -20,14 +20,14 @@ exception Input_contains_secondary;
 exception Nonconvex_segment;
 
 [@deriving show({with_path: false})]
-type ip('p) = (int, Piece.t('p));
+type ip = (int, Piece.t);
 
 type rel =
   | Lt
   | Eq
   | Gt;
 
-let rel = (p1: Piece.t('p), p2: Piece.t('p)): option(rel) =>
+let rel = (p1: Piece.t, p2: Piece.t): option(rel) =>
   switch (p1, p2) {
   | (Secondary(_), _)
   | (_, Secondary(_)) => None
@@ -98,9 +98,9 @@ module Stacks = {
   [@deriving show({with_path: false})]
   type skel = t;
   [@deriving show({with_path: false})]
-  type t('p) = {
+  type t = {
     output: list(skel),
-    shunted: list(ip('p)),
+    shunted: list(ip),
   };
 
   let empty = {
@@ -109,8 +109,7 @@ module Stacks = {
   };
 
   let rec pop_chain =
-          (~popped=[], shunted: list(ip('p)))
-          : (list(ip('p)), list(ip('p))) =>
+          (~popped=[], shunted: list(ip)): (list(ip), list(ip)) =>
     switch (shunted) {
     | [] => (popped, shunted)
     | [hd, ...tl] =>
@@ -128,7 +127,7 @@ module Stacks = {
     Piece.shapes(p) |> OptUtil.get_or_raise(Input_contains_secondary);
 
   let shapes_of_chain =
-      (chain: list(ip('p))): option((Nib.Shape.t, Nib.Shape.t)) =>
+      (chain: list(ip)): option((Nib.Shape.t, Nib.Shape.t)) =>
     switch (chain, ListUtil.split_last_opt(chain)) {
     | ([(_, first), ..._], Some((_, (_, last)))) =>
       let (l, _) = shapes(first);
@@ -137,8 +136,7 @@ module Stacks = {
     | _ => None
     };
 
-  let rec push_output =
-          (~prec: option(Precedence.t)=?, stacks: t('p)): t('p) => {
+  let rec push_output = (~prec: option(Precedence.t)=?, stacks: t): t => {
     let (chain, shunted) = pop_chain(stacks.shunted);
     switch (prec, shapes_of_chain(chain)) {
     | (Some(prec), Some((_, Concave(prec'))))
@@ -182,7 +180,7 @@ module Stacks = {
     };
   };
 
-  let push_shunted = ((_, p) as ip: ip('p), stacks: t('p)): t('p) => {
+  let push_shunted = ((_, p) as ip: ip, stacks: t): t => {
     let (l, _) = shapes(p);
     let stacks =
       switch (l) {
@@ -198,7 +196,7 @@ module Stacks = {
   let finish = stacks => push_output(stacks);
 };
 
-let mk = (seg: list(ip('p))): t => {
+let mk = (seg: list(ip)): t => {
   let stacks =
     seg
     |> List.fold_left(Fun.flip(Stacks.push_shunted), Stacks.empty)

@@ -10,7 +10,7 @@ type t =
   | NoErrors;
 
 module Print = {
-  let seg = (~holes, segment: Segment.t('p)): string => {
+  let seg = (~holes, segment: Segment.t): string => {
     Printer.of_segment(
       ~holes,
       ~measured=Measured.of_segment(segment, Id.Map.empty),

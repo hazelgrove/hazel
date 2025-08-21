@@ -11,14 +11,14 @@ type mode =
   | Buffer(buffer);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type t('p) = {
+type t = {
   focus: Direction.t,
-  content: Segment.t('p),
+  content: Segment.t,
   mode,
 };
 
 /* NOTE: backpack no longer uses selection focus */
-let mk = (~mode=Normal, ~focus=Direction.Left, content: Segment.t('p)) => {
+let mk = (~mode=Normal, ~focus=Direction.Left, content: Segment.t) => {
   focus,
   content,
   mode,
@@ -26,23 +26,23 @@ let mk = (~mode=Normal, ~focus=Direction.Left, content: Segment.t('p)) => {
 
 let mk_buffer = buffer => mk(~mode=Buffer(buffer), ~focus=Direction.Left);
 
-let is_buffer: t('p) => bool =
+let is_buffer: t => bool =
   fun
   | {mode: Buffer(_), _} => true
   | _ => false;
 
-let non_empty_parsed_buffer: t('p) => bool =
+let non_empty_parsed_buffer: t => bool =
   fun
   | {mode: Buffer(Parsed), content: [_, ..._], _} => true
   | _ => false;
 
-let buffer_cls: t('p) => string =
+let buffer_cls: t => string =
   fun
   | {mode: Buffer(Unparsed), _} => "buffer-unparsed"
   | {mode: Buffer(Parsed), _} => "buffer-parsed"
   | _ => "not-buffer";
 
-let selection_ids = (sel: t('p)): list(Id.t) => Segment.ids(sel.content);
+let selection_ids = (sel: t): list(Id.t) => Segment.ids(sel.content);
 
 let empty = mk(Segment.empty);
 
@@ -56,9 +56,9 @@ let toggle_focus = selection => {
   focus: Util.Direction.toggle(selection.focus),
 };
 
-let is_empty = (selection: t('p)) => selection.content == Segment.empty;
+let is_empty = (selection: t) => selection.content == Segment.empty;
 
-let push = (p: Piece.t('p), {focus, content, mode}: t('p)): t('p) => {
+let push = (p: Piece.t, {focus, content, mode}: t): t => {
   let content =
     Segment.reassemble(
       switch (focus) {
@@ -73,7 +73,7 @@ let push = (p: Piece.t('p), {focus, content, mode}: t('p)): t('p) => {
   };
 };
 
-let pop = (sel: t('p)): option((Piece.t('p), t('p))) =>
+let pop = (sel: t): option((Piece.t, t)) =>
   switch (sel.focus, sel.content, ListUtil.split_last_opt(sel.content)) {
   | (_, [], _)
   | (_, _, None) => None

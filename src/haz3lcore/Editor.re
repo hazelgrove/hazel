@@ -1,10 +1,10 @@
 open Util;
 
 module CachedSyntax = {
-  type t('p) = {
-    segment: Segment.t('p),
+  type t = {
+    segment: Segment.t,
     measured: Measured.t,
-    tiles: TileMap.t('p),
+    tiles: TileMap.t,
     /* The term-derived data structured below, may differ
      * from the term used for semantics. These terms are identical when
      * the backpack is empty. If the backpack is non-empty, then when we
@@ -18,16 +18,16 @@ module CachedSyntax = {
      * some other comments at some of the weakest joints; the biggest
      * issue is that dropping the backpack can add/remove grout, causing
      * certain ids to be present/non-present unexpectedly. */
-    term_ranges: TermRanges.t('p),
+    term_ranges: TermRanges.t,
     terms: TermMap.t,
     /* Since the introduction of shape_map below, caching projectors
      * here is almost vesigial (currently used only for error deco) */
-    projectors: Id.Map.t(Base.projector('p)),
+    projectors: Id.Map.t(Base.projector),
     /* The shape_map is used to leave space for projectors in the
      * underlying editor. In principle calculating this can involve
      * both static and dynamic information, so we cache this for perf */
     shape_map: ProjectorShape.Map.t,
-    cached_backpack: list(Tile.t('p)),
+    cached_backpack: list(Tile.t),
   };
 
   // should not be serializing
@@ -41,7 +41,7 @@ module CachedSyntax = {
         type p,
         ~common,
         ~shape_of_projector,
-        proj_map: Id.Map.t(Base.projector(p)),
+        proj_map: Id.Map.t(Base.projector),
       )
       : Id.Map.t(Util.ProjectorShape.t) =>
     Id.Map.map(shape_of_projector(~common), proj_map);
@@ -53,9 +53,9 @@ module CachedSyntax = {
         ~shape_of_projector,
         ~projector_to_term,
         ~sort: Sort.t,
-        z: Zipper.t(p),
+        z: Zipper.t,
       )
-      : t(p) => {
+      : t => {
     let segment = Zipper.unselect_and_zip(z);
     let MakeTerm.{term: _, terms, projectors} =
       MakeTerm.go(sort, segment, ~of_projector=projector_to_term);
@@ -81,7 +81,7 @@ module Model = {
     // Constant
     id: Id.t,
     // Updated
-    zipper: Calc.t(Zipper.t('p)),
+    zipper: Calc.t(Zipper.t),
     selection: Calc.t(unit), // separate flag to indicate only selection has changed
     col_target: option(int),
     // MakeTerm
@@ -89,11 +89,11 @@ module Model = {
     sort: Calc.saved(Sort.t),
     // Calculated
     [@opaque]
-    syntax: Calc.saved(CachedSyntax.t('p)),
+    syntax: Calc.saved(CachedSyntax.t),
     selection_ids: Calc.saved(list(Id.t)),
   };
 
-  let mk_uncalculated = (type a, zipper: Zipper.t(a)) => {
+  let mk_uncalculated = (zipper: Zipper.t) => {
     id: Id.mk(),
     zipper: NewValue(zipper),
     selection: NewValue(),
@@ -132,15 +132,15 @@ module Model = {
   };
 
   type persistent = PersistentZipper.t;
-  let persist = (~projector_to_segment, f, model: t('p_k, 'p, 'p_a)) =>
-    model |> get_z |> PersistentZipper.persist(~projector_to_segment, f);
-  let unpersist = (~projector_init, f, p) =>
-    p |> PersistentZipper.unpersist(~projector_init, f) |> mk_uncalculated;
+  //TODO(andrew): extra args in 4 below fns
+  let persist = (~projector_to_segment, _f, model: t('p_k, 'p, 'p_a)) =>
+    model |> get_z |> PersistentZipper.persist(~projector_to_segment);
+  let unpersist = (~projector_init, _f, p) =>
+    p |> PersistentZipper.unpersist(~projector_init) |> mk_uncalculated;
 
-  let sexp_of_t = (_, f, _, model: t('p_k, 'p, 'p_a)) =>
-    model |> get_z |> Zipper.sexp_of_t(f);
-  let t_of_sexp = (_, f, _, s) =>
-    s |> Zipper.t_of_sexp(f) |> mk_uncalculated;
+  let sexp_of_t = (_, _f, _, model: t('p_k, 'p, 'p_a)) =>
+    model |> get_z |> Zipper.sexp_of_t;
+  let t_of_sexp = (_, _f, _, s) => s |> Zipper.t_of_sexp |> mk_uncalculated;
 
   let to_move_s =
       (type p', model: t('p_k, p', 'p_a)): (module Move.S with type p = p') => {
