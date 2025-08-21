@@ -3,12 +3,7 @@ open Haz3lcore;
 open Language;
 open Base;
 
-let print_seg = seg =>
-  Printer.of_segment(
-    ~holes="?",
-    ~projector_to_segment=Printer.default_projector_to_segment,
-    seg,
-  );
+let print_seg = seg => Printer.of_segment(~holes="?", seg);
 
 // Id ignoring equality for tiles
 let rec equal_segment = (a: segment, b: segment) => {

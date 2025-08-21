@@ -22,7 +22,6 @@ let test_indent = (~name, ~init, ~goal): test_case(_) => {
       |> Printer.of_zipper(
            ~holes=convex_char,
            ~concave_holes=concave_char,
-           ~projector_to_segment=Printer.default_projector_to_segment,
            /* No caret for now */
            ~indent=" ",
          ),

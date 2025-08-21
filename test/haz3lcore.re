@@ -15,6 +15,14 @@ let shape_of_projector = (~common as _, _) => ProjectorShape.default;
 let calculate_projector = (~common as _, x) => x;
 let of_projector = (~sort as _, ~id as _, _) => Language.Grammar.Any();
 
+module Printer = {
+  open Printer;
+  let of_segment =
+    of_segment(~projector_to_segment=default_projector_to_segment);
+  let of_zipper =
+    of_zipper(~projector_to_segment=default_projector_to_segment);
+};
+
 module Editor = {
   open Editor;
   [@deriving (show({with_path: false}), sexp, yojson)]
@@ -62,12 +70,4 @@ module Editor = {
 module MakeTerm = {
   open MakeTerm;
   let from_zip_for_sem = from_zip_for_sem(~of_projector);
-};
-
-module Segment = {
-  open Segment;
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Segment.t;
-
-  let equal = equal;
 };

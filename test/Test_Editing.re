@@ -25,7 +25,6 @@ let printer = (z: Zipper.t): string => {
     ~concave_holes=concave_char,
     ~caret=caret_char,
     ~selection_anchor=selection_char,
-    ~projector_to_segment=Printer.default_projector_to_segment,
     z,
   );
 };

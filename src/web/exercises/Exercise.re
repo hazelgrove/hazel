@@ -842,6 +842,7 @@ let pos_of_key = (key: string): pos =>
 
 let editor_pp = (fmt, editor: Editor.Model.t) => {
   /* Note: currently doesn't support projectors */
+  //TODO(andrew): persist projectors here
   let serialization =
     Editor.get_z(editor)
     |> PersistentZipper.to_string(
@@ -859,6 +860,7 @@ let export_module = ({eds, _}: state) => {
 };
 
 let transitionary_editor_pp = (fmt, editor: Editor.Model.t) => {
+  //TODO(andrew): persist projectors here
   let serialization =
     Editor.get_z(editor)
     |> PersistentZipper.to_string(

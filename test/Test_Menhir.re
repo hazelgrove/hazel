@@ -107,12 +107,7 @@ let qcheck_menhir_maketerm_equivalent_test =
           exp_to_segment(~settings=Settings.editable(~inline=true), core_exp)
         );
 
-      let serialized =
-        Haz3lcore.Printer.of_segment(
-          ~holes="?",
-          ~projector_to_segment=Haz3lcore.Printer.default_projector_to_segment,
-          segment,
-        );
+      let serialized = Haz3lcore.Printer.of_segment(~holes="?", segment);
       let make_term_parsed = make_term_parse(serialized);
       let menhir_parsed = Interface.parse_program(serialized);
       let menhir_parsed_converted =
@@ -170,12 +165,7 @@ let qcheck_menhir_serialized_equivalent_test =
           },
           core_exp,
         );
-      let serialized =
-        Haz3lcore.Printer.of_segment(
-          ~holes="?",
-          ~projector_to_segment=Haz3lcore.Printer.default_projector_to_segment,
-          segment,
-        );
+      let serialized = Haz3lcore.Printer.of_segment(~holes="?", segment);
       let menhir_parsed = Interface.parse_program(serialized);
       AST.equal_exp(menhir_parsed, exp);
     },

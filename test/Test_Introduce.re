@@ -68,11 +68,7 @@ let introduction_test = (before: string, expected: string) => {
         exp,
       );
     let+ zip = Introduce.introduce(statics, zip);
-    Printer.of_zipper(
-      ~holes="?",
-      ~projector_to_segment=Printer.default_projector_to_segment,
-      zip,
-    );
+    Printer.of_zipper(~holes="?", zip);
   };
 
   check(option(string), "Introduce", Some(expected), serialized);
