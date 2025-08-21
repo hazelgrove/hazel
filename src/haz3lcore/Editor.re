@@ -5,7 +5,6 @@ module CachedSyntax = {
     old: bool,
     segment: Segment.t,
     measured: Measured.t,
-    tiles: TileMap.t,
     selection_ids: list(Id.t),
     /* The term-derived data structured below, may differ
      * from the term used for semantics. These terms are identical when
@@ -20,7 +19,7 @@ module CachedSyntax = {
      * some other comments at some of the weakest joints; the biggest
      * issue is that dropping the backpack can add/remove grout, causing
      * certain ids to be present/non-present unexpectedly. */
-    term_ranges: TermRanges.t,
+    term_data: TermData.t,
     terms: TermMap.t,
     /* Since the introduction of shape_map below, caching projectors
      * here is almost vesigial (currently used only for error deco) */
@@ -40,14 +39,14 @@ module CachedSyntax = {
 
   let init = (~info_map, ~dyn_map, z): t => {
     let segment = Zipper.unselect_and_zip(z);
-    let MakeTerm.{term: _, terms, projectors} = MakeTerm.go(segment);
+    let MakeTerm.{term: _, terms, projectors, term_data} =
+      MakeTerm.go(segment);
     let projector_shapes =
       ProjectorInfo.ShapeMapSemantics.mk(projectors, info_map, dyn_map);
     {
       old: false,
       segment,
-      term_ranges: TermRanges.mk(segment),
-      tiles: TileMap.mk(segment),
+      term_data,
       measured: Measured.of_segment(segment, projector_shapes),
       selection_ids: Selection.selection_ids(z.selection),
       terms,
@@ -110,7 +109,7 @@ module Model = {
   let to_move_s = (model: t): (module Move.S) => {
     module M: Move.S = {
       let measured = model.syntax.measured;
-      let term_ranges = model.syntax.term_ranges;
+      let term_data = model.syntax.term_data;
       let col_target = model.state.col_target |> Option.value(~default=0);
     };
     (module M);
@@ -213,7 +212,7 @@ module Update = {
       | Select(Resize(Local(Up | Down))) =>
         switch (state.col_target) {
         | Some(col) => Some(col)
-        | None => Some(Zipper.caret_point(syntax.measured, state.zipper).col)
+        | None => Some(Zipper.Caret.point(syntax.measured, state.zipper).col)
         }
       | _ => None
       };
