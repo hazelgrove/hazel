@@ -6,7 +6,7 @@ and piece('p) =
   | Tile(tile('p))
   | Grout(Grout.t)
   | Secondary(Secondary.t)
-  | Projector(projector('p))
+  | Projector(Projector.t)
 and tile('p) = {
   // invariants:
   // - length(mold.in_) + 1 == length(label)
@@ -19,12 +19,10 @@ and tile('p) = {
   mold: Mold.t,
   shards: list(int),
   children: list(segment('p)),
-}
-and projector('p) = {
-  id: Id.t,
-  mold: Mold.t,
-  model: 'p,
 };
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type projector('p) = Projector.t;
 
 // This is for comment insertion
 let mk_secondary = (id, content) => [
@@ -34,11 +32,12 @@ let mk_secondary = (id, content) => [
   }),
 ];
 
-let mk_projector = (~sort: Sort.t, ~model) => {
-  id: Id.mk(),
-  mold: Mold.mk_op(sort, []), /* Projectors currently are all convex */
-  model,
-};
+let mk_projector = (~sort: Sort.t, ~model) =>
+  Projector.{
+    id: Id.mk(),
+    mold: Mold.mk_op(sort, []), /* Projectors currently are all convex */
+    model,
+  };
 
 /* If the piece is parentheses, return the child. Otherwise,
  * return a singleton segment consisting of the piece */

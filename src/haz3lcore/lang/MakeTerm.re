@@ -778,7 +778,7 @@ module Go = (P: {
 
   and unsorted =
       (
-        ~of_projector: (~sort: Sort.t, ~id: Id.t, p) => Any.t,
+        ~of_projector,
         ~log_projector: Piece.projector(p) => unit,
         sort: Sort.t,
         skel: Skel.t,

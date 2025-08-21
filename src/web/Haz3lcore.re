@@ -4,7 +4,7 @@ open Util;
 module rec Projector: {
   module Model: {
     [@deriving (show({with_path: false}), sexp, yojson)]
-    type t;
+    type t = Haz3lcorep.Projector.model;
 
     let mk:
       (ProjectorKind.t, Language.Any.t, unit => option(Editor.Model.t)) =>
@@ -74,12 +74,10 @@ module rec Projector: {
     type t = Haz3lcorep.Projector.model;
     let pp = Haz3lcorep.Projector.pp_model;
     let show = Format.asprintf("%a", pp);
-    let t_of_sexp =
-      Haz3lcorep.Projector.model_of_sexp(~editor_module=(module Editor));
+    let t_of_sexp = Haz3lcorep.Projector.model_of_sexp;
     let sexp_of_t = Haz3lcorep.Projector.sexp_of_model;
     let yojson_of_t = Haz3lcorep.Projector.yojson_of_model;
-    let t_of_yojson =
-      Haz3lcorep.Projector.model_of_yojson(~editor_module=(module Editor));
+    let t_of_yojson = Haz3lcorep.Projector.model_of_yojson;
 
     let get_kind = Haz3lcorep.Projector.kind_of_model;
 
@@ -483,3 +481,23 @@ module Indicated = {
 
 module EditorManager = EditorManager.M(Editor);
 module OutputEditorManager = OutputEditorManager.M(Editor);
+
+Haz3lcorep.Projector.dispatch' :=
+  (
+    (kind: ProjectorKind.t, f: (module ProjectorInterface.PROJECTOR) => 'a) => (
+      {
+        switch (kind) {
+        | Fold => f((module FoldProj.M(Editor)))
+        | Slider => f((module SliderProj.M(Editor)))
+        | SliderF => f((module SliderFProj.M(Editor)))
+        | Pair => f((module PairProj.M(Editor)))
+        | Checkbox => f((module CheckboxProj.M(Editor)))
+        | Type => f((module TypeProj.M(Editor)))
+        | Probe => f((module ProbeProj.M(Editor)))
+        | Card => f((module CardProj.M(Editor)))
+        | Livelit => f((module LivelitProj.M(Editor)))
+        | TextArea => f((module TextAreaProj.M(Editor)))
+        };
+      }: 'a
+    )
+  );

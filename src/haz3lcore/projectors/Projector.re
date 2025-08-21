@@ -32,6 +32,10 @@ type package =
     )
     : package;
 
+let dispatch':
+  ref((Kind.t, (module ProjectorInterface.PROJECTOR) => 'a) => 'a) =
+  ref((_, _) => failwith(""));
+
 let dispatch =
     (
       type ed,
@@ -91,19 +95,11 @@ module PPXMethods = {
     );
   };
 
-  let package_of_sexp =
-      (
-        type ed_m,
-        ~editor_module: (module EditorInterface.EDITOR with type model = ed_m),
-        sexp: Sexplib.Sexp.t,
-      )
-      : package =>
+  let package_of_sexp = (sexp: Sexplib.Sexp.t): package =>
     switch (sexp) {
     | List([Atom(kind_string), m]) =>
-      dispatch(
-        ~editor_module,
-        ~kind=Kind.of_name(kind_string),
-        (module P: ProjectorInterface.PROJECTOR with type editor_model = ed_m) =>
+      dispatch'^(
+        Kind.of_name(kind_string), (module P: ProjectorInterface.PROJECTOR) =>
         Pack((module P), P.model'_of_sexp(m))
       )
     | _ => failwith("Projector desearialization failed")
@@ -115,14 +111,12 @@ module PPXMethods = {
       List([Atom(Kind.name(P.kind)), P.sexp_of_model'(m)])
     };
 
-  let package_of_yojson =
-      (type ed_m, ~editor_module, yojson: Yojson.Safe.t): package =>
+  let package_of_yojson = (yojson: Yojson.Safe.t): package =>
     switch (yojson) {
     | `List([`String(kind_string), m]) =>
-      dispatch(
-        ~editor_module,
-        ~kind=Kind.of_name(kind_string),
-        (module P: ProjectorInterface.PROJECTOR with type editor_model = ed_m) =>
+      // please ignore the caret - Matt
+      dispatch'^(
+        Kind.of_name(kind_string), (module P: ProjectorInterface.PROJECTOR) =>
         Pack((module P), P.model'_of_yojson(m))
       )
     | _ => failwith("Projector desearialization failed")
@@ -134,28 +128,13 @@ module PPXMethods = {
       `List([`String(Kind.name(P.kind)), P.yojson_of_model'(m)])
     };
 
-  let model_of_sexp =
-      (
-        type ed_m,
-        ~editor_module: (module EditorInterface.EDITOR with type model = ed_m),
-        sexp: Sexplib.Sexp.t,
-      )
-      : model => {
+  let model_of_sexp = (sexp: Sexplib.Sexp.t): model => {
     exp_cache: Calc.Pending,
-    package: package_of_sexp(~editor_module, sexp),
+    package: package_of_sexp(sexp),
   };
 
-  let model_of_yojson =
-      (
-        type ed_m,
-        ~editor_module: (module EditorInterface.EDITOR with type model = ed_m),
-        yojson: Yojson.Safe.t,
-      )
-      : model =>
-    mk(
-      ~exp_cache=Calc.Pending,
-      ~package=package_of_yojson(~editor_module, yojson),
-    );
+  let model_of_yojson = (yojson: Yojson.Safe.t): model =>
+    mk(~exp_cache=Calc.Pending, ~package=package_of_yojson(yojson));
 
   let sexp_of_model = (model: model): Sexplib.Sexp.t =>
     sexp_of_package(model.package);
@@ -191,6 +170,19 @@ module PPXMethods = {
 };
 
 include PPXMethods;
+
+// ============================================================
+//                Projector Method Dispatch
+// ============================================================
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type t = {
+  id: Id.t,
+  mold: Mold.t,
+  model,
+};
+
+let equal = (==);
 
 // ============================================================
 //                Projector Method Dispatch
@@ -273,8 +265,7 @@ let get_cursor_info =
 let placeholder =
     (
       ~common: Common.t,
-      {model: {package: Pack((module P), p_model), _}, id, _}:
-        Base.projector(model),
+      {model: {package: Pack((module P), p_model), _}, id, _}: t,
     )
     : Util.ProjectorShape.t =>
   P.placeholder(~common, ~id, p_model);

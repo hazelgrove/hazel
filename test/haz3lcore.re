@@ -12,7 +12,7 @@ let make_term_prj = (~sort as _, p) => (
   Calc.OldValue(Language.Grammar.Exp(Fresh.Exp.empty_hole())),
 );
 let shape_of_projector = (~common as _, _) => ProjectorShape.default;
-let calculate_projector = (~common as _, _) => ();
+let calculate_projector = (~common as _, x) => x;
 let of_projector = (~sort as _, ~id as _, _) => Language.Grammar.Any();
 
 module Base = {
@@ -28,12 +28,12 @@ module Base = {
 module Editor = {
   open Editor;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Editor.t(ProjectorKind.t, unit, unit);
+  type t = Editor.t(ProjectorKind.t, Projector.model, unit);
   module Model = {
     open Model;
-    let mk_uncalculated: ZipperBase.t(unit) => t(ProjectorKind.t, unit, unit) =
+    let mk_uncalculated: ZipperBase.t(Projector.model) => t(ProjectorKind.t, Projector.model, unit) =
       Editor.Model.mk_uncalculated(_);
-    let init = (~common, z: ZipperBase.t(unit)) =>
+    let init = (~common, z: ZipperBase.t(Projector.model)) =>
       mk_uncalculated(z)
       |> Editor.Update.make_term(~sort=Exp, ~make_term_prj)
       |> fst
@@ -48,7 +48,7 @@ module Editor = {
            ~calculate_projector,
          );
 
-    let to_move_s: t(ProjectorKind.t, unit, unit) => 'a = to_move_s;
+    let to_move_s: t(ProjectorKind.t, Projector.model, unit) => 'a = to_move_s;
   };
 
   module Update = {

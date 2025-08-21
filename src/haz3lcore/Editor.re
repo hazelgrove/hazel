@@ -235,10 +235,10 @@ module Model = {
 module Update = {
   open Calc.Syntax;
   type t('p_k, 'p, 'p_a) = Action.t('p_k, 'p, 'p_a);
+  type p = Projector.model;
 
   let update =
       (
-        type p,
         type p_a,
         ~common: Common.t,
         ~shape_of_projector,
@@ -386,8 +386,7 @@ module Update = {
     model;
   };
 
-  let make_term =
-      (type p, ~make_term_prj, ~sort, model: Model.t('p_k, p, 'p_a)) => {
+  let make_term = (~make_term_prj, ~sort, model: Model.t('p_k, p, 'p_a)) => {
     let new_sort = Calc.set(sort, model.sort);
 
     let updated_projectors: Hashtbl.t(Id.t, p) = Hashtbl.create(0);
@@ -444,7 +443,6 @@ module Update = {
 
   let calculate =
       (
-        type p,
         ~common: Common.t,
         ~projector_init,
         ~projector_to_term,

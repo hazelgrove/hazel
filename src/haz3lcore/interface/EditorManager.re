@@ -96,7 +96,7 @@ module M = (Editor: EditorInterface.EDITOR) => {
           {editor, cached_settings, statics}: Model.t,
         )
         : Model.t => {
-      let (editor, term) = Editor.Update.make_term(~sort=Sort.Any, editor);
+      let (editor, term) = Editor.Update.make_term(~sort=Sort.Exp, editor);
 
       // Check if settings changed so we can force an update if they did
       // Note: we could make this more granular (only check if statics seting changed)
@@ -117,7 +117,9 @@ module M = (Editor: EditorInterface.EDITOR) => {
             ~ctx?,
             ~settings,
             ~is_dynamic_term,
-            term |> Language.Any.is_exp |> Option.get |> stitch,
+            {
+              term |> Language.Any.is_exp |> Option.get |> stitch;
+            },
           );
         }
         |> Calc.save;

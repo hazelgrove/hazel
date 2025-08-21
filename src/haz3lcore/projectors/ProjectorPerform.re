@@ -108,7 +108,7 @@ let remove_indicated =
     (
       type p,
       ~select_term: Zipper.t(p) => option(Zipper.t(p)),
-      ~seg_of_projector: p => Base.segment(p),
+      ~seg_of_projector,
       z: Zipper.t(p),
     )
     : option(Zipper.t(p)) => {
@@ -123,7 +123,7 @@ let set_indicated =
     (
       type p,
       ~select_term: Zipper.t(p) => option(Zipper.t(p)),
-      ~seg_of_projector: p => Base.segment(p),
+      ~seg_of_projector,
       ~projector_init,
       ~seg_to_ed,
       z: Zipper.t(p),
@@ -151,7 +151,7 @@ let go =
       ~seg_to_ed,
       ~projector_init,
       ~update_projector,
-      ~seg_of_projector: p => Base.segment(p),
+      ~seg_of_projector,
       ~livelit_projectors,
       ~jump_to_side_of_id,
       ~select_term: Zipper.t(p) => option(Zipper.t(p)),

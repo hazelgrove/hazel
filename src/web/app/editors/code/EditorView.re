@@ -174,9 +174,9 @@ module Focus = {
     | _ => None
     };
 
+  type p_m = Haz3lcorep.Projector.model;
   let get_cursor_info =
       (
-        type p_m,
         ~get_cursor_info_pr:
            (
              ~common: Common.t,
