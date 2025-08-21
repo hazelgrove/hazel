@@ -214,12 +214,9 @@ let quick_select_deco =
 module Deco =
        (
          M: {
-           type projector_kind;
-           type projector;
            type projector_action;
            let globals: Common.t;
-           let editor:
-             Editor.Model.t(projector_kind, projector, projector_action);
+           let editor: Editor.Model.t(projector_action);
          },
        ) => {
   let font_metrics = M.globals.font_metrics;

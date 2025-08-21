@@ -11,15 +11,13 @@ module Focus = {
     | Projector(Id.t, 'p_f);
 
   let handle_key_event =
-      //type p_k,
       (
-        type p_m,
         type p_a,
-        ~inject: Action.t(ProjectorKind.t, p_m, p_a) => Ui_effect.t(unit),
+        ~inject: Action.t(p_a) => Ui_effect.t(unit),
         ~key: Key.t,
         ~enter_prj: (Id.t, Direction.t) => Ui_effect.t(unit),
         ~escape: Direction.t => Ui_effect.t(unit),
-        model: Editor.Model.t(ProjectorKind.t, p_m, p_a),
+        model: Editor.Model.t(p_a),
       )
       : Ui_effect.t(unit) => {
     let z = model |> Editor.Model.get_z;
@@ -174,7 +172,6 @@ module Focus = {
     | _ => None
     };
 
-  type p_m = Haz3lcorep.Projector.model;
   let get_cursor_info =
       (
         ~get_cursor_info_pr:
@@ -182,24 +179,23 @@ module Focus = {
              ~common: Common.t,
              ~inject: 'p_a => Ui_effect.t(unit),
              ~read_only: bool,
-             p_m,
+             Haz3lcorep.Projector.model,
              'p_f
            ) =>
            Cursor.t,
         ~common: Common.t,
-        ~inject:
-           Editor.Update.t(ProjectorKind.t, p_m, 'p_a) => Ui_effect.t(unit),
+        ~inject: Editor.Update.t('p_a) => Ui_effect.t(unit),
         ~read_only: bool,
         ~mk_projector:
            (
              ProjectorKind.t,
              Language.Any.t,
-             unit => option(Editor.Model.t(_, _, _))
+             unit => option(Editor.Model.t(_))
            ) =>
-           option(p_m),
+           option(Haz3lcorep.Projector.model),
         ~make_term_prj as _, //TODO(andrew): rm?
         ~get_kind,
-        m: Editor.Model.t(ProjectorKind.t, p_m, 'p_a),
+        m: Editor.Model.t('p_a),
         focus: t('p_f),
       ) => {
     let sys = Os.is_mac^ ? Key.Mac : Key.PC;
@@ -308,8 +304,7 @@ module Focus = {
     };
   };
 
-  let focus_here =
-      (~focus_parent, m: Editor.Model.t('a, 'b, 'c)): Ui_effect.t(unit) => {
+  let focus_here = (~focus_parent, m: Editor.Model.t('a)): Ui_effect.t(unit) => {
     Ui_effect.Many([
       Ui_effect.of_sync_fun(
         () => {
@@ -328,11 +323,10 @@ module Focus = {
 
   let enter =
       (
-        ~inject:
-           Editor.Update.t(ProjectorKind.t, 'd, 'e) => Ui_effect.t(unit),
+        ~inject: Editor.Update.t('a) => Ui_effect.t(unit),
         ~focus: t('f) => Ui_effect.t(unit),
         dir: Direction.t,
-        m: Editor.Model.t('a, 'b, 'c),
+        m: Editor.Model.t('a),
       ) =>
     Ui_effect.Many([
       focus_here(~focus_parent=focus, m),
@@ -390,7 +384,6 @@ module MouseState = Pointer.MkState();
 
 let view_code_statics =
     (
-      type p_m,
       type p_a,
       ~common: Common.t,
       ~overlays: list(Node.t)=[],
@@ -409,8 +402,6 @@ let view_code_statics =
   let statics_decos = {
     module Deco =
       Deco.Deco({
-        type projector_kind = ProjectorKind.t;
-        type projector = p_m;
         type projector_action = p_a;
         let globals = common;
         let editor = editor;
@@ -425,7 +416,6 @@ let view_code_statics =
 
 let view_code_editable =
     (
-      type p_m,
       type p_a,
       type p_f,
       ~common: Common.t,
@@ -434,20 +424,18 @@ let view_code_editable =
       ~mk_status,
       // ~put_clipboard_cache: (string, Segment.t(p_m)) => unit,
       // ~get_clipboard_cache: string => option(Segment.t(p_m)),
-      ~inject: Action.t(ProjectorKind.t, p_m, p_a) => Ui_effect.t(unit),
+      ~inject: Action.t(p_a) => Ui_effect.t(unit),
       ~focus: Focus.t(p_f) => Ui_effect.t(unit),
       ~focussed: option(Focus.t(p_f)),
       ~escape: Direction.t => Ui_effect.t(unit),
       ~overlays: list(Node.t)=[],
       ~sort,
       ~background=?,
-      model: Editor.Model.t(ProjectorKind.t, p_m, p_a),
+      model: Editor.Model.t(p_a),
     ) => {
   let edit_decos = {
     module Deco =
       Deco.Deco({
-        type projector = p_m;
-        type projector_kind = ProjectorKind.t;
         type projector_action = p_a;
         let editor = model;
         let globals = common;

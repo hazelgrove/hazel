@@ -11,8 +11,8 @@ let meta = (sys: Key.sys): string => {
   };
 };
 
-let handle_key_event = (k: Key.t): option(Action.t('p_k, 'p, 'p_a)) => {
-  let now = (a: Action.t('p_k, 'p, 'p_a)) => Some(a);
+let handle_key_event = (k: Key.t): option(Action.t('p_a)) => {
+  let now = (a: Action.t('p_a)) => Some(a);
   switch (k) {
   | {key: U(key), _} =>
     /* Keu-UPpEvents:

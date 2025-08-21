@@ -83,8 +83,8 @@ let go_z =
       ~livelit_projectors,
       ~get_kind,
       statics: CachedStatics.t,
-      a: Action.t('p_kind, p', p_a),
-      module M: Move.S with type p = p',
+      a: Action.t(p_a),
+      module M: Move.S,
       z: Zipper.t,
     )
     : Action.Result.t(Zipper.t) => {
@@ -123,7 +123,7 @@ let go_z =
       }
     };
 
-  let smart_select = (type p, n, z: t): option(t) => {
+  let smart_select = (n, z: t): option(t) => {
     switch (n) {
     | 2 => Select.indicated_token(z)
     | 3 =>

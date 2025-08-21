@@ -151,14 +151,8 @@ module rec Projector: {
 and Editor: {
   include
     EditorInterface.EDITOR with
-      type model =
-        Haz3lcorep.Editor.t(
-          ProjectorKind.t,
-          Projector.Model.t,
-          Projector.Update.t,
-        ) and
-      type action =
-        Action.t(ProjectorKind.t, Projector.Model.t, Projector.Update.t);
+      type model = Haz3lcorep.Editor.t(Projector.Update.t) and
+      type action = Action.t(Projector.Update.t);
   // model and action have transparent definitions for handing editor to projectorinit
 
   // TODO: refactor these helper functions away
@@ -171,15 +165,9 @@ and Editor: {
   let to_string: Model.t => string;
 } = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type model =
-    Haz3lcorep.Editor.t(
-      ProjectorKind.t,
-      Projector.Model.t,
-      Projector.Update.t,
-    );
+  type model = Haz3lcorep.Editor.t(Projector.Update.t);
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type action =
-    Action.t(ProjectorKind.t, Projector.Model.t, Projector.Update.t);
+  type action = Action.t(Projector.Update.t);
   [@deriving (show({with_path: false}), sexp, yojson)]
   type focus = EditorView.Focus.t(Projector.Focus.t);
 
@@ -428,55 +416,17 @@ module PersistentZipper = {
 module Action = {
   include Action;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Action.t(ProjectorKind.t, Projector.Model.t, Projector.Update.t);
+  type t = Action.t(Projector.Update.t);
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type project =
-    Action.project(ProjectorKind.t, Projector.Model.t, Projector.Update.t);
+  type project = Action.project(Projector.Update.t);
 };
 
-module Ancestor = {
-  include Ancestor;
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Ancestor.t;
-};
-
-module Ancestors = {
-  include Ancestors;
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Ancestors.t;
-};
-
-module Piece = {
-  include Piece;
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Piece.t;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type tile = Piece.tile;
-
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type projector = Piece.projector;
-};
-
-module Segment = {
-  include Segment;
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Segment.t;
-};
-
-module Zipper = {
-  include Zipper;
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = Zipper.t;
-};
-
-module Indicated = {
-  include Indicated;
-
-  type piece = Indicated.piece;
-  let ci_of:
-    (Zipper.t, Language.Statics.Map.t) => option(Language.Statics.Info.t) = Indicated.ci_of;
-};
+module Ancestor = Ancestor;
+module Ancestors = Ancestors;
+module Piece = Piece;
+module Segment = Segment;
+module Zipper = Zipper;
+module Indicated = Indicated;
 
 module EditorManager = EditorManager.M(Editor);
 module OutputEditorManager = OutputEditorManager.M(Editor);

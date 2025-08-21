@@ -30,12 +30,7 @@ let printer = (z: Zipper.t): string => {
   );
 };
 
-let perform =
-    (
-      zip: Zipper.t,
-      actions: list(Action.t(ProjectorKind.t, Projector.model, unit)),
-    )
-    : Zipper.t => {
+let perform = (zip: Zipper.t, actions: list(Action.t(unit))): Zipper.t => {
   /* This is a simplified testing harness for zipper actions.
    * It does not apply any semantics-based behaviors. */
   //TODO(andrew): get matt to check if setting this up correctly

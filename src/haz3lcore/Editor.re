@@ -77,7 +77,7 @@ module CachedSyntax = {
 [@warning "-20"]
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t('p_k, 'p, 'p_a) = {
+  type t('p_a) = {
     // Constant
     id: Id.t,
     // Updated
@@ -119,7 +119,7 @@ module Model = {
 
   let get_z = model => model.zipper |> Calc.get_value;
 
-  let indicated_term = (model: t('p_k, 'p, 'p_a)): option(Language.Any.t) => {
+  let indicated_term = (model: t('p_a)): option(Language.Any.t) => {
     let zipper = get_z(model);
     open OptUtil.Syntax;
     let* indicated_index = Indicated.index(zipper);
@@ -133,24 +133,21 @@ module Model = {
 
   type persistent = PersistentZipper.t;
   //TODO(andrew): extra args in 4 below fns
-  let persist = (~projector_to_segment, _f, model: t('p_k, 'p, 'p_a)) =>
+  let persist = (~projector_to_segment, model: t('p_a)) =>
     model |> get_z |> PersistentZipper.persist(~projector_to_segment);
-  let unpersist = (~projector_init, _f, p) =>
+  let unpersist = (~projector_init, p) =>
     p |> PersistentZipper.unpersist(~projector_init) |> mk_uncalculated;
 
-  let sexp_of_t = (_, _f, _, model: t('p_k, 'p, 'p_a)) =>
-    model |> get_z |> Zipper.sexp_of_t;
-  let t_of_sexp = (_, _f, _, s) => s |> Zipper.t_of_sexp |> mk_uncalculated;
+  let sexp_of_t = (_, model: t('p_a)) => model |> get_z |> Zipper.sexp_of_t;
+  let t_of_sexp = (_, s) => s |> Zipper.t_of_sexp |> mk_uncalculated;
 
-  let to_move_s =
-      (type p', model: t('p_k, p', 'p_a)): (module Move.S with type p = p') => {
+  let to_move_s = (model: t('p_a)): (module Move.S) => {
     let syntax =
       Calc.get_saved_exc(
         ~print="to_move_s called before calculate",
         model.syntax,
       );
-    module M: Move.S with type p = p' = {
-      type p = p';
+    module M: Move.S = {
       let measured = syntax.measured;
       let term_ranges = syntax.term_ranges;
       let col_target = model.col_target |> Option.value(~default=0);
@@ -158,8 +155,7 @@ module Model = {
     (module M);
   };
 
-  let trailing_hole_ctx =
-      (ed: t('p_k, 'p, 'p_a), info_map: Language.Statics.Map.t) => {
+  let trailing_hole_ctx = (ed: t('p_a), info_map: Language.Statics.Map.t) => {
     let segment = Zipper.unselect_and_zip(ed |> get_z);
     let convex_grout = Segment.convex_grout(segment);
     // print_endline(String.concat("; ", List.map(Grout.show, convex_grout)));
@@ -176,8 +172,9 @@ module Model = {
     };
   };
 
-  let get_projector_model = (id: Id.t, m: t('p_k, 'p, 'p_a)): 'p => {
+  let get_projector_model = (id: Id.t, m: t('p_a)): 'p => {
     //WARNING!! This is linear in the size of the program!
+    //TODO(andrew):....
     let zipper = m |> get_z;
     let piece =
       Zipper.FindPiece.in_zipper(
@@ -200,11 +197,11 @@ module Model = {
       editor.term,
     );
 
-  let get_web_id = (type p_k, type p, type p_a, model: t(p_k, p, p_a)) => {
+  let get_web_id = (model: t('p_a)) => {
     "editor_" ++ Id.str8(model.id);
   };
 
-  let get_dimensions = (ed: t('p_k, 'p, 'p_a)) => {
+  let get_dimensions = (ed: t('p_a)) => {
     let measured =
       Calc.get_saved_exc(
         ~print="get_dimensions called before calculate",
@@ -223,9 +220,7 @@ module Model = {
     };
   };
 
-  let split =
-      (type p_k, type p, type p_a, ed: t(p_k, p, p_a), ids: list(Id.t))
-      : Id.Map.t(t(p_k, p, p_a)) => {
+  let split = (ed: t('p_a), ids: list(Id.t)): Id.Map.t(t('p_a)) => {
     let segment = Zipper.unselect_and_zip(ed |> get_z);
     let seg_map = TermRanges.split(ids, segment);
     Id.Map.map(seg => seg |> Zipper.unzip |> mk_uncalculated, seg_map);
@@ -234,8 +229,7 @@ module Model = {
 
 module Update = {
   open Calc.Syntax;
-  type t('p_k, 'p, 'p_a) = Action.t('p_k, 'p, 'p_a);
-  type p = Projector.model;
+  type t('p_a) = Action.t('p_a);
 
   let update =
       (
@@ -249,11 +243,11 @@ module Update = {
         ~update_projector,
         ~livelit_projectors,
         ~get_kind,
-        a: Action.t('p_k, p, p_a),
+        a: Action.t('p_a),
         old_statics,
-        model: Model.t('p_k, p, p_a),
+        model: Model.t('p_a),
       )
-      : Action.Result.t(Model.t('p_k, p, p_a)) => {
+      : Action.Result.t(Model.t('p_a)) => {
     let seg_to_ed = seg =>
       Zipper.unzip(seg) |> Model.mk_uncalculated |> Option.some;
     open Result.Syntax;
@@ -386,11 +380,12 @@ module Update = {
     model;
   };
 
-  let make_term = (~make_term_prj, ~sort, model: Model.t('p_k, p, 'p_a)) => {
+  let make_term = (~make_term_prj, ~sort, model: Model.t('p_a)) => {
     let new_sort = Calc.set(sort, model.sort);
 
-    let updated_projectors: Hashtbl.t(Id.t, p) = Hashtbl.create(0);
-    let of_projector = (~sort: Sort.t, ~id: Id.t, model: p) => {
+    let updated_projectors: Hashtbl.t(Id.t, Projector.model) =
+      Hashtbl.create(0);
+    let of_projector = (~sort: Sort.t, ~id: Id.t, model: Projector.model) => {
       let (model', term) = make_term_prj(~sort, model);
       Hashtbl.add(updated_projectors, id, model');
       term |> Calc.get_value;
@@ -452,7 +447,7 @@ module Update = {
         ~update_projector,
         ~calculate_projector,
         ~get_kind,
-        model: Model.t('p_k, p, 'p_a),
+        model: Model.t('p_a),
       ) => {
     let seg_to_ed = seg =>
       Zipper.unzip(seg) |> Model.mk_uncalculated |> Option.some;
@@ -579,4 +574,4 @@ module Update = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type t('p_k, 'p, 'p_a) = Model.t('p_k, 'p, 'p_a);
+type t('p_a) = Model.t('p_a);

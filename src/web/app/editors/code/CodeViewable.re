@@ -53,7 +53,7 @@ let view_editor =
       type p,
       ~sort: Language.Sort.t,
       ~background=false,
-      editor: Haz3lcorep.Editor.t('p_k, p, 'p_a),
+      editor: Haz3lcorep.Editor.t('p_a),
     ) => {
   let syntax = Calc.get_saved_exc(editor.syntax);
   let measured = syntax.measured;

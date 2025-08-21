@@ -86,7 +86,6 @@ let primary = (chunkiness: chunkiness, d: Direction.t, z: t): option(t) => {
 };
 
 module type S = {
-  type p;
   let measured: Measured.t;
   let term_ranges: TermRanges.t;
   let col_target: int;

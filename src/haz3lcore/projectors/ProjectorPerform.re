@@ -130,7 +130,6 @@ let set_indicated =
 
 let go =
     (
-      type p,
       ~seg_to_ed,
       ~projector_init,
       ~update_projector,
@@ -138,7 +137,7 @@ let go =
       ~livelit_projectors,
       ~jump_to_side_of_id,
       ~select_term: Zipper.t => option(Zipper.t),
-      a: Action.project('p_kind, p, 'p_a),
+      a: Action.project(_),
       z: Zipper.t,
     )
     : result(Zipper.t, Action.Failure.t) => {

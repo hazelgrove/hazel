@@ -65,7 +65,9 @@ type model = {
   package,
 };
 
+[@deriving eq]
 type action = Yojson.Safe.t;
+[@deriving eq]
 type focus = Yojson.Safe.t;
 
 let mk = (~exp_cache: Calc.saved(Language.Any.t), ~package: package): model => {

@@ -90,8 +90,6 @@ module View = {
     let overlays = {
       module Deco =
         Deco.Deco({
-          type projector = Projector.Model.t;
-          type projector_kind = ProjectorKind.t;
           type projector_action = Projector.Update.t;
           let editor = model.editor.editor;
           let globals =
