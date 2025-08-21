@@ -285,6 +285,17 @@ let rec take_while = (p: 'x => bool, xs: list('x)): (list('x), list('x)) =>
     }
   };
 
+let rec drop_while = (pred: 'a => bool, xs: list('a)): list('a) =>
+  switch (xs) {
+  | [] => []
+  | [x, ...xs] =>
+    if (pred(x)) {
+      drop_while(pred, xs);
+    } else {
+      [x, ...xs];
+    }
+  };
+
 let product = (xs, ys) =>
   xs |> List.map(x => ys |> List.map(y => (x, y))) |> List.flatten;
 

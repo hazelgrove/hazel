@@ -81,6 +81,23 @@ module Update = {
           },
         }
       }
+    | Globals(HistoryJump(id)) =>
+      let rest =
+        ListUtil.drop_while(
+          (update: Updated.t(EditHistory.state)) => update.model.id != id,
+          model.history_log,
+        );
+      switch (rest) {
+      | [] => model |> return
+      | [x, ...xs] =>
+        let x: Model.t = {
+          current: x.model.page,
+          undo_stack: [],
+          redo_stack: [],
+          history_log: [x, ...xs],
+        };
+        x |> return;
+      };
     | action =>
       let current =
         Page.Update.update(
@@ -107,8 +124,9 @@ module Update = {
               {
                 ...current,
                 model: {
+                  id: Id.mk(),
                   action,
-                  page: model.current,
+                  page: current.model,
                 },
               },
               ...model.history_log,

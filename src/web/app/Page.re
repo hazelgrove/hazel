@@ -200,6 +200,8 @@ module Update = {
       };
     | Undo
     | Redo => failwith("Undo/Redo are handled in the history module")
+    | HistoryJump(_) =>
+      failwith("HistoryJump is handled in the history module")
     };
   };
 
@@ -591,6 +593,7 @@ module View = {
         ~globals,
         ~explain_this_inject=action => inject(ExplainThis(action)),
         ~assistant_inject=action => inject(Assistant(action)),
+        ~history_inject=action => inject(Globals(action)),
         ~signal=
           fun
           | MakeActive(s) => inject(MakeActive(Scratch(s))),

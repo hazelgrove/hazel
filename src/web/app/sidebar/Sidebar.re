@@ -196,6 +196,7 @@ let view =
       ~explain_this_inject,
       ~assistant_inject,
       ~signal,
+      ~history_inject,
       ~explainThisModel: ExplainThisModel.t,
       ~assistantModel: AssistantModel.t,
       ~editor,
@@ -224,7 +225,11 @@ let view =
                 ~model=assistantModel,
                 ~editor,
               )
-            | EditHistory => EditHistory.View.history_view(historyModel)
+            | EditHistory =>
+              EditHistory.View.history_view(
+                ~inject=history_inject,
+                historyModel,
+              )
             },
           ],
         )

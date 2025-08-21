@@ -17,7 +17,8 @@ module Action = {
     | ExportForInit
     | ActiveEditor(Haz3lcore.Action.t)
     | Undo // These two currently happen at the editor level, and are just
-    | Redo; // global actions so they can be accessed by the command palette
+    | Redo
+    | HistoryJump(Haz3lcore.Id.t); // global actions so they can be accessed by the command palette
 };
 
 module Model = {
@@ -102,6 +103,7 @@ module Update = {
     | ActiveEditor(_) => false
     | Undo => false
     | Redo => false
+    | HistoryJump(_) => false
     };
   };
 };

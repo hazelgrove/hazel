@@ -1,5 +1,8 @@
 open Virtual_dom.Vdom;
 open Node;
+open Util.WebUtil;
+open Util;
+
 module Update = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t =
@@ -26,22 +29,24 @@ module Model = {
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type state = {
+  id: Id.t,
   action: Update.t,
   page: Model.t,
 };
 
 module View = {
-  let history_view = history_log => {
-    let grouped: list(list(Update.t)) =
+  let history_view =
+      (~inject: Globals.Update.t => Ui_effect.t(unit), history_log) => {
+    let grouped: list(list((Id.t, Update.t))) =
       List.fold_left(
         // Lists are in reverse order during accumulation
-        (acc: list(list(Update.t)), s: Updated.t(state)) =>
+        (acc: list(list((Id.t, Update.t))), s: Updated.t(state)) =>
           switch (acc) {
-          | [] => [[s.model.action]]
+          | [] => [[(s.model.id, s.model.action)]]
           | [current_group, ...rest_group] =>
             switch (current_group) {
             | [] => [[]] // This shouldn't be able to happen
-            | [entry, ...rest] =>
+            | [(id, entry), ...rest] =>
               switch (entry, s.model.action) {
               | (
                   Editors(
@@ -59,10 +64,10 @@ module View = {
                     Scratch(CellAction(MainEditor(Perform(Destruct(_))))),
                   ),
                 ) => [
-                  [s.model.action, ...current_group],
+                  [(s.model.id, s.model.action), ...current_group],
                   ...rest_group,
                 ]
-              | _ => [[s.model.action], ...acc]
+              | _ => [[(s.model.id, s.model.action)], ...acc]
               }
             }
           },
@@ -77,16 +82,19 @@ module View = {
       | _ => Update.sexp_of_t(item) |> Sexplib.Sexp.to_string
       };
     };
-    let group_view = (group: list(Update.t)) => {
+    let group_view = (group: list((Id.t, Update.t))) => {
       switch (group) {
       | [] => div([]) // Shouldn't happen
       | [
-          Editors(Scratch(CellAction(MainEditor(Perform(Insert(_)))))),
+          (
+            _,
+            Editors(Scratch(CellAction(MainEditor(Perform(Insert(_)))))),
+          ),
           ...rest,
         ] =>
         let str =
           List.fold_left(
-            (acc, action: Update.t) =>
+            (acc, (_, action: Update.t)) =>
               switch (action) {
               | Editors(
                   Scratch(CellAction(MainEditor(Perform(Insert(s))))),
@@ -98,20 +106,33 @@ module View = {
             group,
           );
         div([text(str)]);
-      | [first, ...rest] => div([text(action_string(first))])
+      | [(_, first), ...rest] => div([text(action_string(first))])
       };
     };
     div(
       ~attrs=[Attr.id("edit-history")],
       List.mapi(
         (i, group) =>
-          div(
-            [text("Group " ++ string_of_int(i)), group_view(group)]
-            @ List.map(
-                (item: Update.t) => div([text(action_string(item))]),
+          div([
+            text("Group " ++ string_of_int(i)),
+            group_view(group),
+            div(
+              ~attrs=[clss(["collapse-group"])],
+              List.map(
+                ((id: Id.t, item: Update.t)) =>
+                  div(
+                    ~attrs=[
+                      Attr.on_click(_ => {
+                        print_endline("Click!");
+                        inject(HistoryJump(id));
+                      }),
+                    ],
+                    [text(action_string(item))],
+                  ),
                 group,
               ),
-          ),
+            ),
+          ]),
         grouped',
       ),
     );
