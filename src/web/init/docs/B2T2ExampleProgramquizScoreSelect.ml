@@ -533,7 +533,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \")))))((Secondary((id \
          559f061c-d6e4-43fb-8564-504f71ab49ca)(content(Whitespace\" \
          \"))))(Tile((id \
-         e67402d7-3305-47e7-9bf1-a5816d6175a2)(label(melt))(mold((out \
+         e67402d7-3305-47e7-9bf1-a5816d6175a2)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          aa8cbad0-4818-46b9-9cd6-a0cb335d9499)(label(\"(\"\")\"))(mold((out \
@@ -716,7 +716,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          map(\n\
          gradebook,\n\
          fun gb -> \n\
-         let scores = melt(gb)\n\
+         let scores = to_lvs(gb)\n\
          |> filter(_, fun e -> mem(quiz_col_names,e.label)) \n\
          |> map(_, fun e -> e.value) in \n\n\
          gb ... (average_score=float_of_int(sum(scores)) /. \

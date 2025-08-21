@@ -878,7 +878,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          66b894b5-ef19-4d13-acdf-7ccacf39f27f)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         d6f5963c-ea28-4b1f-8a04-a9ee999ef513)(label(melt))(mold((out \
+         d6f5963c-ea28-4b1f-8a04-a9ee999ef513)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          81aabeaf-c4eb-4bf4-a9d8-089f42f261ef)(label(\"(\"\")\"))(mold((out \
@@ -1487,7 +1487,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          cccdd48b-22b8-45e4-a436-983d226d6b07)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         dedca2a3-a894-4cd2-ba31-a23c40d263ba)(label(melt))(mold((out \
+         dedca2a3-a894-4cd2-ba31-a23c40d263ba)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          a29dd3a3-4503-4cb2-9336-a4f8c19e0e44)(label(\"(\"\")\"))(mold((out \
@@ -3463,7 +3463,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Pat))))))(shards(0))(children()))))))))(Secondary((id \
          28c5e051-0744-4455-858e-e56549b96a9c)(content(Whitespace\" \
          \")))))))))(Tile((id \
-         7c2b6a7a-a750-475b-aebb-14f9f2643fb2)(label(melt))(mold((out \
+         7c2b6a7a-a750-475b-aebb-14f9f2643fb2)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          6ce06973-85bf-4e6b-82ff-a43b15db4460)(label(\"(\"\")\"))(mold((out \
@@ -3568,7 +3568,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Pat))))))(shards(0))(children()))))))))(Secondary((id \
          c1d19e67-c7e7-4c2f-a760-cf211ae23213)(content(Whitespace\" \
          \")))))))))(Tile((id \
-         6777088b-135a-4f15-aad5-c7121a194aee)(label(melt))(mold((out \
+         6777088b-135a-4f15-aad5-c7121a194aee)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          10bf48f0-5112-415e-9873-14cb8036f725)(label(\"(\"\")\"))(mold((out \
@@ -3670,7 +3670,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Pat))))))(shards(0))(children()))))))))(Secondary((id \
          c063aada-2eff-4d4b-9b5e-b99af6948312)(content(Whitespace\" \
          \")))))))))(Tile((id \
-         a5597610-d0ac-4aa6-8b2c-2cbfb053c744)(label(melt))(mold((out \
+         a5597610-d0ac-4aa6-8b2c-2cbfb053c744)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          39a1c4c6-3842-4af4-9583-e22b0190d5b5)(label(\"(\"\")\"))(mold((out \
@@ -3906,7 +3906,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Pat))))))(shards(0))(children()))))))))(Secondary((id \
          f9ed836c-eedf-4e24-aa1a-06cf79af1b0c)(content(Whitespace\" \
          \")))))))))(Tile((id \
-         92c294c1-384c-456b-ae58-be0b4367602a)(label(melt))(mold((out \
+         92c294c1-384c-456b-ae58-be0b4367602a)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          5ac4d4bc-57d9-447b-9404-786a1974751e)(label(\"(\"\")\"))(mold((out \
@@ -4347,7 +4347,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          ],\n\
          operation= fun (t : [?], c : String, vs: [?]) ->\n\
          zip(t, vs)\n\
-         |> map(_, fun (r, v) -> from_entries(melt(r) @ [(c, v)])),\n\
+         |> map(_, fun (r, v) -> from_entries(to_lvs(r) @ [(c, v)])),\n\
          notes=[\n\
          ^^text(\"Polymorphic type limitation stops most ensured constraints\"),\n\
          ^^text(\"Lack of first class labels requires writing this with \
@@ -4372,7 +4372,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          (enforced=^^check(false), \"nrows(t2) is equal to nrows(t1)\")\n\
          ],\n\
          operation=fun (t :[?], c :String, f : ? -> ?) ->\n\
-         map(t,fun (r) ->from_entries(melt(r) @[(c,f(r))])),\n\
+         map(t,fun (r) ->from_entries(to_lvs(r) @[(c,f(r))])),\n\
          notes=[\n\
          \"Polymorphic type limitation stops most ensured constraints\",\n\
          ^^text(\"Lack of first class labels requires writing this with \
@@ -4482,16 +4482,16 @@ let out : string * Haz3lcore.PersistentZipper.t =
          distinct(selectColumns(t2, cs)) is equal to selectColumns(t2, cs), \
          otherwise each row of t1 may have several matches\")\n\
          ],\n\
-         operation=let project_labels_str = fun (v,cs) ->melt(v) |> filter(_, \
-         fun e ->mem(cs,e.label)) |> from_entries in\n\
-         let omit_labels_str = fun (v,cs) ->melt(v) |> filter(_, fun e \
+         operation=let project_labels_str = fun (v,cs) ->to_lvs(v) |> \
+         filter(_, fun e ->mem(cs,e.label)) |> from_entries in\n\
+         let omit_labels_str = fun (v,cs) ->to_lvs(v) |> filter(_, fun e \
          ->!mem(cs,e.label)) |> from_entries in\n\
-         let make_optional = fun (v) ->melt(v) |> map(_, fun e ->e \
+         let make_optional = fun (v) ->to_lvs(v) |> map(_, fun e ->e \
          ...(value=Some(e.value))) |> from_entries in               \n\
          let left_join = fun (t1:[?], t2:[?], cs:[String]) ->\n\
          let right_columns =case hd_opt(t2) \n\
          |None =>[]\n\
-         |Some(v) =>melt(v) |>map(_,fun e ->e.label) \n\
+         |Some(v) =>to_lvs(v) |>map(_,fun e ->e.label) \n\
          end in  \n\
          flat_map(t1,fun r1 ->\n\
          let matched = filter(t2,fun r2 ->project_labels_str(r2,cs) == \

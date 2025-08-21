@@ -416,7 +416,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \")))))))))(Secondary((id \
          fd842bf3-c6b1-4687-a3ce-09919b6c6ab6)(content(Whitespace\" \
          \"))))(Tile((id \
-         e609c1f7-0987-4ac8-b10d-2e473259b40f)(label(melt))(mold((out \
+         e609c1f7-0987-4ac8-b10d-2e473259b40f)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          05ef88b7-7073-4d79-b8ee-fb1946ac4129)(label(\"(\"\")\"))(mold((out \
@@ -598,7 +598,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \")))))))))(Secondary((id \
          80f809c4-3bbe-4e26-9719-4a28abcc2f80)(content(Whitespace\" \
          \"))))(Tile((id \
-         d4348757-7092-4f04-95aa-06756106caf7)(label(melt))(mold((out \
+         d4348757-7092-4f04-95aa-06756106caf7)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          373d0213-4e5d-4b6d-a0db-98df14c890a5)(label(\"(\"\")\"))(mold((out \
@@ -713,7 +713,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          (enforced=false, \"n is equal to ncols(t)\")\n\
          ],\n\
          operation=fun (t: [?]) -> case t \n\
-         | (x::xs) => melt(x) |> length\n\
+         | (x::xs) => to_lvs(x) |> length\n\
          | _ => 0\n\
          end,\n\
          notes=[\n\
@@ -725,7 +725,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          requires=[],\n\
          ensures=[(enforced=false, \"cs is equal to header(t) \")],\n\
          operation=fun (t:[?]) ->case t \n\
-         | (x::xs) => melt(x) |> map(_, fun x -> x.label)\n\
+         | (x::xs) => to_lvs(x) |> map(_, fun x -> x.label)\n\
          | _ => []\n\
          end,\n\
          notes=[\n\

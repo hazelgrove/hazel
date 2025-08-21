@@ -503,7 +503,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Pat))))))(shards(0))(children())))(Secondary((id \
          393742b8-ecdc-4434-9de9-e29b407f57c2)(content(Whitespace\" \
          \")))))((Tile((id \
-         ed475e62-0f15-4706-a659-0b217926a644)(label(melt))(mold((out \
+         ed475e62-0f15-4706-a659-0b217926a644)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          6f38ddd6-3e89-4638-90ab-9518ad446d04)(label(\"(\"\")\"))(mold((out \
@@ -1149,7 +1149,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          1636c22e-0cc7-4a79-8765-3d4d529c21cf)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         8b67f019-eb7e-4f52-933c-3e5a538c94dc)(label(melt))(mold((out \
+         8b67f019-eb7e-4f52-933c-3e5a538c94dc)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          4e25876d-20ea-4d38-b0d7-4ba8cf8ba808)(label(\"(\"\")\"))(mold((out \
@@ -1700,7 +1700,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Pat))))))(shards(0))(children())))(Secondary((id \
          5df8d67f-4f31-431b-ad89-da10a7369adb)(content(Whitespace\" \
          \")))))((Tile((id \
-         596db7ee-d551-4e41-bdb2-b940181d54cc)(label(melt))(mold((out \
+         596db7ee-d551-4e41-bdb2-b940181d54cc)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          81594694-ff0d-4f9d-ae00-446c46a5ba7c)(label(\"(\"\")\"))(mold((out \
@@ -1850,7 +1850,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Pat))))))(shards(0))(children())))(Secondary((id \
          c7fb9ea2-3f63-44fd-a0e8-9bc0b8dbf495)(content(Whitespace\" \
          \")))))((Tile((id \
-         39c29b8a-6a79-44dc-9c7e-8ade74550144)(label(melt))(mold((out \
+         39c29b8a-6a79-44dc-9c7e-8ade74550144)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          7baa0696-57d3-46ab-9d1d-53342d4c3444)(label(\"(\"\")\"))(mold((out \
@@ -2110,7 +2110,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \")))))((Secondary((id \
          a6df8274-b6e7-4bb9-b065-d38d543ca831)(content(Whitespace\" \
          \"))))(Tile((id \
-         b3d77ed9-757b-43cc-9979-c7ab9da20c6d)(label(melt))(mold((out \
+         b3d77ed9-757b-43cc-9979-c7ab9da20c6d)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          96105061-7acf-4cf0-bb0e-8d7879d895f7)(label(\"(\"\")\"))(mold((out \
@@ -2499,7 +2499,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          let pivot_longer =\n\
          fun (t1,cs,c1,c2) ->\n\
          flat_map(t1,fun row ->\n\
-         let entries =melt(row) in\n\
+         let entries =to_lvs(row) in\n\
          let pivot_entries,other_entries =\n\
          partition(entries,fun (label=l,value=v) \
          ->contains(cs,string_eq(l,_))) in\n\n\
@@ -2517,7 +2517,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          (\"Eve\",   13, 7, 9, 84, 8, 8, 77)\n\
          ] in\n\n\
          flat_map(gradebook, fun entry -> \n\
-         map(melt(select_labels(entry, `midterm`, `final`)),\n\
+         map(to_lvs(select_labels(entry, `midterm`, `final`)),\n\
          fun e -> omit_labels(entry, `midterm`, `final`) ... \
          (exam=e.label,score=e.value)));\n\
          ]\n\
@@ -2545,12 +2545,12 @@ let out : string * Haz3lcore.PersistentZipper.t =
          [elem],[]) in   \n\
          let pivot_wider = fun (t1,c1,c2) ->\n\
          let kept_columns =map(t1,fun row ->\n\
-         let entries =melt(row) in\n\
+         let entries =to_lvs(row) in\n\
          filter(entries,fun (label=l,value=v) ->!mem([c1,c2],l)) |> \
          from_entries)\n\
          |>distinct in\n\n\
          let new_columns  = flat_map(t1,fun row ->\n\
-         let entries =melt(row) in\n\
+         let entries =to_lvs(row) in\n\
          find_map(entries, fun (label=l,value=v) -> if l == c1 then Some(v) \
          else None) |> option_to_list)\n\
          |> distinct in  \n\
@@ -2561,7 +2561,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          fun c -> \n\
          (label=c, value=find_map(t1, \n\
          fun r -> \n\
-         let entries = melt(r) in\n\
+         let entries = to_lvs(r) in\n\
          if \n\
          (filter(entries, fun (label=l,value=v) ->!mem([c1,c2], l)) |> \
          from_entries)\n\

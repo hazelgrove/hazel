@@ -620,7 +620,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          0544fe24-4ff8-40a9-b482-483ea7124abf)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         84635d52-249e-48e2-949d-aaf630f0dc34)(label(melt))(mold((out \
+         84635d52-249e-48e2-949d-aaf630f0dc34)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          b9280ef4-1ddd-4bae-8ec7-f064c8c7e61b)(label(\"(\"\")\"))(mold((out \
@@ -915,7 +915,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          22ca4368-3928-45ba-b5c5-2e180b2d9812)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 47))(sort Exp))((shape(Concave \
          47))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         3c6ccb39-3933-455e-95ff-923964a4ec15)(label(melt))(mold((out \
+         3c6ccb39-3933-455e-95ff-923964a4ec15)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Secondary((id \
          5b706d4b-34dd-40a4-9dd3-c31695cdec77)(content(Whitespace\" \
@@ -1344,7 +1344,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          requires=[],\n\
          ensures=[(enforced=true, \"schema(t2) is equal to schema(t1)\")],\n\
          operation=let dropna =\n\
-         typfun R ->fun t1:[R] ->filter(t1,fun row ->!any(melt(row),fun e -> \
+         typfun R ->fun t1:[R] ->filter(t1,fun row ->!any(to_lvs(row),fun e -> \
          e.value == None)) \n\
          in,\n\
          notes=[\n\
@@ -1367,7 +1367,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          (enforced=false, \"nrows(t2) is equal to nrows(t1)\")\n\
          ],\n\
          operation=let fillna =fun t1,c:String,v ->\n\
-         let rows = map(t1,melt) in\n\
+         let rows = map(t1,to_lvs) in\n\
          let mapped = map(rows,fun entries ->\n\
          from_entries(filter(entries,fun e ->!string_eq(e.label,c))\n\
          @[\n\

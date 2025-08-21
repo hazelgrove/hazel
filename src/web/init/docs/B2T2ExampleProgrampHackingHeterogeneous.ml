@@ -1002,7 +1002,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \")))))((Secondary((id \
          c81b838a-5809-4507-b7e2-85cd31bdd45a)(content(Whitespace\" \
          \"))))(Tile((id \
-         89e0a394-6af4-4479-b863-87d489158b2d)(label(melt))(mold((out \
+         89e0a394-6af4-4479-b863-87d489158b2d)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          77626e96-7a20-40aa-9656-db43a630254f)(label(\"(\"\")\"))(mold((out \
@@ -1142,7 +1142,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          e60d180f-b8a3-4bec-9170-4986ed6bac80)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Tile((id \
-         144ee865-f8af-417b-9e74-bf83a55f7ce6)(label(melt))(mold((out \
+         144ee865-f8af-417b-9e74-bf83a55f7ce6)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          30aa22fe-01df-4eb1-86a4-d06386d632d9)(label(\"(\"\")\"))(mold((out \
@@ -2957,9 +2957,9 @@ let out : string * Haz3lcore.PersistentZipper.t =
          let pHacking = fun t ->\n\
          let jelly_anon = map(t, fun r -> omit_labels(r, `get_acne`)) in\n\
          let get_acne = t.get_acne in\n\
-         let header = melt(hd(jelly_anon)) |> map(_, fun e -> e.label) in\n\
+         let header = to_lvs(hd(jelly_anon)) |> map(_, fun e -> e.label) in\n\
          map(header, fun c -> (c, fisherTest(get_acne, map(t, fun r -> \
-         (melt(r) |> find(_, fun e -> e.label == c)).value))))\n\
+         (to_lvs(r) |> find(_, fun e -> e.label == c)).value))))\n\
          |> filter(_, fun (c, p) -> p <. 0.05)\n\
          |> map(_, fun (c,p) -> \"We found a link between \" ++\n\
          c ++ \" jelly beans and acne (p < 0.05).\") \n\

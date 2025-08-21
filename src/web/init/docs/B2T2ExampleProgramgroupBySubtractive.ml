@@ -53,7 +53,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          10e00c6b-f1ed-405e-ae87-e4e675a493a8)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         c725191d-3299-4031-abe1-288aff4b7ee1)(label(melt))(mold((out \
+         c725191d-3299-4031-abe1-288aff4b7ee1)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          611f31e2-c0f8-4d5f-bcfb-7503487c472f)(label(\"(\"\")\"))(mold((out \
@@ -329,7 +329,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          cc1ab7b0-d167-408e-87e3-2d377bb1e8ae)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         30c1b3a7-6a65-47b5-96f6-63c9b19edc9d)(label(melt))(mold((out \
+         30c1b3a7-6a65-47b5-96f6-63c9b19edc9d)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          a3b6d34a-f090-4b35-a7f0-219372e5276a)(label(\"(\"\")\"))(mold((out \
@@ -564,7 +564,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \")))))))))(Secondary((id \
          28526156-d205-48d3-a47b-5bd6ed84d738)(content(Whitespace\" \
          \"))))(Tile((id \
-         08cba517-cb89-4f8e-a587-a5cde16b0aad)(label(melt))(mold((out \
+         08cba517-cb89-4f8e-a587-a5cde16b0aad)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          2b0b85ca-d2c3-43e0-96ee-c2bf7b8f9a22)(label(\"(\"\")\"))(mold((out \
@@ -769,7 +769,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          650fbc9e-db69-42cf-acad-727cf9c3582e)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         686a4e3f-dbad-4ac8-81c0-1afb1a23ff72)(label(melt))(mold((out \
+         686a4e3f-dbad-4ac8-81c0-1afb1a23ff72)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          9d0f276c-2d2a-48d6-a3e9-0a17ddafcb87)(label(\"(\"\")\"))(mold((out \
@@ -1025,7 +1025,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \")))))))))(Secondary((id \
          4e9cf655-0e16-471f-8c1b-05bc179600aa)(content(Whitespace\" \
          \"))))(Tile((id \
-         eae00f93-46fc-4957-99f7-5b0f32adf9d9)(label(melt))(mold((out \
+         eae00f93-46fc-4957-99f7-5b0f32adf9d9)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          cc0e6680-5dd0-4ed9-acb3-4ebef73ba41d)(label(\"(\"\")\"))(mold((out \
@@ -1755,12 +1755,12 @@ let out : string * Haz3lcore.PersistentZipper.t =
       backup_text =
         "let get_value =\n\
          fun (r:?,label:String) ->\n\
-         find(melt(r),fun e ->e.label ==label).value\n\
+         find(to_lvs(r),fun e ->e.label ==label).value\n\
          in\n\
          let add_rows = typfun row ->  fun (r :row, rs : [row]) -> rs @ [r]  in\n\
          let add_col = fun (t : [?], c : String, vs: [?]) ->\n\
          zip(t, vs)\n\
-         |> map(_, fun (r, v) -> from_entries(melt(r) @ [(c, v)])) in\n\
+         |> map(_, fun (r, v) -> from_entries(to_lvs(r) @ [(c, v)])) in\n\
          let remove_duplicates =\n\
          fun (xs:[?]) ->\n\
          fold_left(xs,\n\
@@ -1769,15 +1769,15 @@ let out : string * Haz3lcore.PersistentZipper.t =
          []) \n\
          in\n\
          let drop_columns = fun (t:[?], c:[String]) ->\n\
-         map(t,fun row -> melt(row) |> filter(_, fun entry ->!any(c, \
+         map(t,fun row -> to_lvs(row) |> filter(_, fun entry ->!any(c, \
          string_eq(entry.label, _))) |> from_entries) in\n\
          let build_col = fun (t :[?], c :String, f : ? -> ?) ->\n\
-         map(t,fun (r) ->from_entries(melt(r) @[(c,f(r))])) in\n\
+         map(t,fun (r) ->from_entries(to_lvs(r) @[(c,f(r))])) in\n\
          let empty_table : [()]= [] in\n\
          let table_of_column = fun c,vs ->\n\
          let t1 = add_rows@<?>(empty_table, map(vs, fun _ -> ())) in\n\
          add_col(t1,c,vs) in\n\
-         let get_col =   fun (t, c: String) -> map(t, fun r -> melt(r) |> \
+         let get_col =   fun (t, c: String) -> map(t, fun r -> to_lvs(r) |> \
          find(_,fun label=l, value=v -> string_eq(l,c))).value in\n\
          let group_by_subtractive = fun t,c ->\n\
          let keys = get_col(t,c) |> remove_duplicates |> \

@@ -470,7 +470,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          7482ce41-86a1-4741-8d63-cac4e96a627a)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         1d9eb03d-85b9-4d6c-9d1b-3c2e99cc0524)(label(melt))(mold((out \
+         1d9eb03d-85b9-4d6c-9d1b-3c2e99cc0524)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          6d4cdf90-50bb-469c-8998-78604aa96b78)(label(\"(\"\")\"))(mold((out \
@@ -1127,7 +1127,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          (\"Alice\", 17, 6, 8, 88, 8, 7, 85),\n\
          (\"Eve\",   13, 7, 9, 84, 8, 8, 77)\n\
          ] in                                   \n\
-         let get_value = fun r, c -> find(melt(r), fun e -> e.label == \
+         let get_value = fun r, c -> find(to_lvs(r), fun e -> e.label == \
          c).value in  \n\n\n\
          # Version with String Columns matching API #\n\
          let dot_product =\n\

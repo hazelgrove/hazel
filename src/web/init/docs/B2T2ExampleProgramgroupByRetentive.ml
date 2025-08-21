@@ -53,7 +53,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          c9894bf6-fcd0-47d7-8e3c-79b6e0cf0512)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         e8223658-2864-469a-839c-634887978e30)(label(melt))(mold((out \
+         e8223658-2864-469a-839c-634887978e30)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          6d8fd25e-e642-46ac-99bf-85e615664b7a)(label(\"(\"\")\"))(mold((out \
@@ -329,7 +329,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          c198120b-435e-4dd8-b00f-c0815f1a6ef8)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         1cf4c3b0-17d3-440d-a943-ca57f0abdd59)(label(melt))(mold((out \
+         1cf4c3b0-17d3-440d-a943-ca57f0abdd59)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          682f5337-e775-4f6c-9f7c-917f4735c05b)(label(\"(\"\")\"))(mold((out \
@@ -600,7 +600,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          d7ebeb11-1958-42f3-bb60-65ec266460d9)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape(Concave 23))(sort Exp))((shape \
          Convex)(sort Exp))))))(shards(0 1))(children(((Tile((id \
-         547e839f-cd4e-4f55-a94f-c04a78f82709)(label(melt))(mold((out \
+         547e839f-cd4e-4f55-a94f-c04a78f82709)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          96289351-4df6-4083-9ab3-e6a2f36fcf95)(label(\"(\"\")\"))(mold((out \
@@ -856,7 +856,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \")))))))))(Secondary((id \
          d7dcf520-016b-4fc4-a6c3-3dde0c3c06ea)(content(Whitespace\" \
          \"))))(Tile((id \
-         ad51bf1a-0d04-440b-a9a3-aa7c3ec4be0f)(label(melt))(mold((out \
+         ad51bf1a-0d04-440b-a9a3-aa7c3ec4be0f)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          563457ad-7d45-4ed6-8cd8-d497dfdcf99e)(label(\"(\"\")\"))(mold((out \
@@ -1549,12 +1549,12 @@ let out : string * Haz3lcore.PersistentZipper.t =
       backup_text =
         "let get_value =\n\
          fun (r:?,label:String) ->\n\
-         find(melt(r),fun e ->e.label ==label).value\n\
+         find(to_lvs(r),fun e ->e.label ==label).value\n\
          in\n\
          let add_rows = typfun row ->  fun (r :row, rs : [row]) -> rs @ [r]  in\n\
          let add_col = fun (t : [?], c : String, vs: [?]) ->\n\
          zip(t, vs)\n\
-         |> map(_, fun (r, v) -> from_entries(melt(r) @ [(c, v)])) in\n\
+         |> map(_, fun (r, v) -> from_entries(to_lvs(r) @ [(c, v)])) in\n\
          let remove_duplicates =\n\
          fun (xs:[?]) ->\n\
          fold_left(xs,\n\
@@ -1563,12 +1563,12 @@ let out : string * Haz3lcore.PersistentZipper.t =
          []) \n\
          in\n\
          let build_col = fun (t :[?], c :String, f : ? -> ?) ->\n\
-         map(t,fun (r) ->from_entries(melt(r) @[(c,f(r))])) in\n\
+         map(t,fun (r) ->from_entries(to_lvs(r) @[(c,f(r))])) in\n\
          let empty_table : [()]= [] in\n\
          let table_of_column = fun c,vs ->\n\
          let t1 = add_rows@<?>(empty_table, map(vs, fun _ -> ())) in\n\
          add_col(t1,c,vs) in\n\
-         let get_col =   fun (t, c: String) -> map(t, fun r -> melt(r) |> \
+         let get_col =   fun (t, c: String) -> map(t, fun r -> to_lvs(r) |> \
          find(_,fun label=l, value=v -> string_eq(l,c))).value in\n\
          let group_by_retentive = fun t,c ->\n\
          let keys = get_col(t,c) |> remove_duplicates |> \

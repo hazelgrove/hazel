@@ -925,7 +925,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Pat))))))(shards(0))(children())))(Secondary((id \
          b9453e03-0d5a-4a6a-a17f-d6bf99efea7a)(content(Whitespace\" \
          \")))))))))(Tile((id \
-         7fbb4f33-1683-4922-9358-a4db2fbc0ed1)(label(melt))(mold((out \
+         7fbb4f33-1683-4922-9358-a4db2fbc0ed1)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          b704d9ae-fab7-40b8-83a4-86a42b0bfefe)(label(\"(\"\")\"))(mold((out \
@@ -1303,7 +1303,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Pat))))))(shards(0))(children())))(Secondary((id \
          350d3d54-a068-4d03-95d1-81d27e92b37e)(content(Whitespace\" \
          \")))))))))(Tile((id \
-         9506200a-204a-45ca-b1f3-ca58979a2ecc)(label(melt))(mold((out \
+         9506200a-204a-45ca-b1f3-ca58979a2ecc)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          cc4a40c0-1715-453d-8ced-9e1acaaec63c)(label(\"(\"\")\"))(mold((out \
@@ -1651,7 +1651,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Pat))))))(shards(0))(children())))(Secondary((id \
          8a2de976-618e-4586-8322-7d0abe48ebdd)(content(Whitespace\" \
          \")))))))))(Tile((id \
-         1278bf9e-0316-4932-9061-e4db3b786958)(label(melt))(mold((out \
+         1278bf9e-0316-4932-9061-e4db3b786958)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          6d43ee88-489e-41f6-8ee8-1c72f7460341)(label(\"(\"\")\"))(mold((out \
@@ -2123,7 +2123,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          (enforced=false, \"nrows(t2) is equal to nrows(t1)\")\n\
          ],\n\
          operation=fun (t1:[?],bs:[Bool]) ->\n\
-         map(t1,fun r ->melt(r) |> zip(_,bs) |>filter_map(_,fun (e,b) ->if b \
+         map(t1,fun r ->to_lvs(r) |> zip(_,bs) |>filter_map(_,fun (e,b) ->if b \
          then Some(e) else None) |> from_entries),\n\
          notes=[]\n\
          ),\n\
@@ -2142,7 +2142,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          (enforced=false, \"nrows(t2) is equal to nrows(t1)\")\n\
          ],\n\
          operation=fun (t1:[?], ns:[Int]) ->\n\
-         map(t1,fun r ->melt(r) |>(fun entries ->map(ns,nth_opt(entries,_))) \
+         map(t1,fun r ->to_lvs(r) |>(fun entries ->map(ns,nth_opt(entries,_))) \
          |> filter_map(_,fun (e) ->e) |> from_entries),\n\
          notes=[]\n\
          ),\n\
@@ -2159,7 +2159,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          (enforced=false, \"nrows(t2) is equal to nrows(t1)\")\n\n\
          ],\n\
          operation=fun (t1:[?], cs:[String]) ->\n\
-         map(t1,fun r ->melt(r) |>(fun entries ->filter_map(cs,fun c -> \
+         map(t1,fun r ->to_lvs(r) |>(fun entries ->filter_map(cs,fun c -> \
          find_opt(entries, fun e ->e.label == c))) |> from_entries),\n\
          notes=[]\n\
          ),\n\

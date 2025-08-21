@@ -351,7 +351,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          2130c759-e771-4188-9302-604868171aa1)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Tile((id \
-         d4020ab2-0d56-4292-bac6-142951882258)(label(melt))(mold((out \
+         d4020ab2-0d56-4292-bac6-142951882258)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          36890770-ffc5-4ed5-aa65-5b5d7b0af4cd)(label(\"(\"\")\"))(mold((out \
@@ -1310,7 +1310,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \")))))((Secondary((id \
          df31bad8-f804-4fb8-bdfe-1573aa1008e0)(content(Whitespace\" \
          \"))))(Tile((id \
-         0d46588a-1836-4c1e-9915-d73eb5a02b9a)(label(melt))(mold((out \
+         0d46588a-1836-4c1e-9915-d73eb5a02b9a)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          4914e67e-b98f-41a7-9dbc-91d195674ae0)(label(\"(\"\")\"))(mold((out \
@@ -1954,8 +1954,8 @@ let out : string * Haz3lcore.PersistentZipper.t =
          (enforced=true, \"schema(t2) is equal to schema(t1)\")\n\
          ],\n\
          operation=\n\
-         let get_value = fun (r,c : String) -> (melt(r) |> find(_,fun label=l, \
-         value=v -> l == c)).value in\n\
+         let get_value = fun (r,c : String) -> (to_lvs(r) |> find(_,fun \
+         label=l, value=v -> l == c)).value in\n\
          fun (t: [?], c: String, b: Bool) -> \n\
          sort(fun (first, second) ->\n\
          if get_value(first,c) < get_value(second,c) then Lt else Gt,\n\
@@ -1996,7 +1996,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          let int_compare =fun (first,second) ->\n\
          if first < second then Lt else if first > second then Gt else Eq in\n\n\
          let sortByColumns =\n\
-         let get_values = fun (r,c :[String]) ->(let entries = melt(r) in \
+         let get_values = fun (r,c :[String]) ->(let entries = to_lvs(r) in \
          filter_map(c,fun c ->find_opt(entries,fun (label=l,value=v) \
          ->string_eq(c,l)))).value in\n\
          fun (t:[?],c:[String]) -> sort(fun (f,g) -> let res = \

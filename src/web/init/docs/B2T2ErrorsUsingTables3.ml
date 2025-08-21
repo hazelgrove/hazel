@@ -1478,7 +1478,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          9c3c6d6f-15a7-4239-874e-32b61b61b898)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Tile((id \
-         3bfc2a51-f1b4-451b-a7df-f0a6946e0cd7)(label(melt))(mold((out \
+         3bfc2a51-f1b4-451b-a7df-f0a6946e0cd7)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          132647a0-524c-495a-986b-09c3a63de35a)(label(\"(\"\")\"))(mold((out \
@@ -4185,7 +4185,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          # Version that uses string params for the column names gives no \
          static errors #\n\
          let v1 =\n\
-         let get_value = fun (r,c :String) ->(melt(r) |>find_opt(_,fun \
+         let get_value = fun (r,c :String) ->(to_lvs(r) |>find_opt(_,fun \
          label=l, value=v ->l == c)) |> option_map(_, fun e ->e.value) in\n\
          let nrows = length in let tfilter = filter in \n\
          let option_get=fun o -> case o\n\

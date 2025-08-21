@@ -375,7 +375,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          933c72c1-91ba-4ad1-b49b-7ab2f9db830b)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Tile((id \
-         e2656570-813a-433a-abfd-ebc4e765ea7f)(label(melt))(mold((out \
+         e2656570-813a-433a-abfd-ebc4e765ea7f)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          19f9af45-0c4e-4eae-b133-a4cc1b85752e)(label(\"(\"\")\"))(mold((out \
@@ -723,7 +723,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \")))))))))(Secondary((id \
          35b91a67-634c-4e97-a965-ab84f6143b9d)(content(Whitespace\" \
          \"))))(Tile((id \
-         4316880e-634e-49c5-b351-2fae140830e6)(label(melt))(mold((out \
+         4316880e-634e-49c5-b351-2fae140830e6)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          f560e6f5-a008-4026-bac8-f86f85f426a2)(label(\"(\"\")\"))(mold((out \
@@ -955,7 +955,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \")))))))))(Secondary((id \
          e3d13504-f023-481b-bc2d-68e7ea9491d7)(content(Whitespace\" \
          \"))))(Tile((id \
-         459f4f8b-16f0-44d5-9f5b-19ac45eecebc)(label(melt))(mold((out \
+         459f4f8b-16f0-44d5-9f5b-19ac45eecebc)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          c3a81605-add2-41ac-bfc0-39f561f55d98)(label(\"(\"\")\"))(mold((out \
@@ -1122,7 +1122,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          name=\"getValue\",\n\
          requires=[(enforced=false, \"c is in header(r)\")],\n\
          ensures=[(enforced=false, \"v is of sort schema(r)[c]\")],\n\
-         operation=fun (r,c :String) ->(melt(r) |>find_opt(_,fun label=l, \
+         operation=fun (r,c :String) ->(to_lvs(r) |>find_opt(_,fun label=l, \
          value=v ->l == c)) |> option_map(_, fun e ->e.value),\n\
          notes=[\n\
          \"This is just the projection operator `.` If you use it directly you \
@@ -1136,7 +1136,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          ensures=[(enforced=false, \"length(vs) is equal to nrows(t)\"),\n\
          (enforced=false, \"for all v in vs, v is of sort \
          schema(t)[header(t)[n]]\")],\n\
-         operation=fun (t, n: Int) -> map(t, fun r -> melt(r) |> \
+         operation=fun (t, n: Int) -> map(t, fun r -> to_lvs(r) |> \
          nth(_,n)).value,\n\
          notes=[\n\
          \"We don't currently have positional projection on tuples as a \
@@ -1149,8 +1149,8 @@ let out : string * Haz3lcore.PersistentZipper.t =
          ensures=[(enforced=false, \"for all v in vs, v is of sort \
          schema(t)[c]\"),\n\
          (enforced=false, \"length(vs) is equal to nrows(t)\")],\n\
-         operation=fun (t, c: String) -> map(t, fun r -> melt(r) |> find(_,fun \
-         label=l, value=v -> string_eq(l,c))).value,\n\
+         operation=fun (t, c: String) -> map(t, fun r -> to_lvs(r) |> \
+         find(_,fun label=l, value=v -> string_eq(l,c))).value,\n\
          notes=[\n\
          \"This is just the projection operator `.` If you use it directly you \
          get the non-length requires/ensures constraints\";\n\

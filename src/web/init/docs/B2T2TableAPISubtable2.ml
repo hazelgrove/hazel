@@ -577,7 +577,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \")))))))))(Secondary((id \
          0b77ddf9-12de-4d04-8297-c4a4b522bce0)(content(Whitespace\" \
          \"))))(Tile((id \
-         67a13656-ff37-4774-a522-ba1fd592415a)(label(melt))(mold((out \
+         67a13656-ff37-4774-a522-ba1fd592415a)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          ad947d6d-2b28-4be2-8ee1-09de95390380)(label(\"(\"\")\"))(mold((out \
@@ -898,7 +898,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \")))))))))(Secondary((id \
          b5e34fa5-87ab-49a3-90c0-6deab7d17b51)(content(Whitespace\" \
          \"))))(Tile((id \
-         082457e2-7ffd-47c9-8575-a9246ccdf3b1)(label(melt))(mold((out \
+         082457e2-7ffd-47c9-8575-a9246ccdf3b1)(label(to_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          5b4310f6-26ec-4204-99b4-2861905e8a47)(label(\"(\"\")\"))(mold((out \
@@ -1152,8 +1152,8 @@ let out : string * Haz3lcore.PersistentZipper.t =
          (enforced=false, \"schema(t2) is a subsequence of schema(t1)\")\n\
          ],\n\
          operation=fun (t:[?], c:String) ->\n\
-         map(t, fun row -> melt(row) |> filter(_, fun entry -> entry.label != \
-         c) |> from_entries),\n\
+         map(t, fun row -> to_lvs(row) |> filter(_, fun entry -> entry.label \
+         != c) |> from_entries),\n\
          notes=[]\n\
          ),\n\
          (\n\
@@ -1168,7 +1168,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          (enforced=false, \"schema(t2) is a subsequence of schema(t1)\")\n\
          ],\n\
          operation=fun (t:[?], c:[String]) ->\n\
-         map(t,fun row -> melt(row) |> filter(_, fun entry ->!any(c, \
+         map(t,fun row -> to_lvs(row) |> filter(_, fun entry ->!any(c, \
          string_eq(entry.label, _))) |> from_entries),\n\
          notes=[]\n\
          ),\n\
