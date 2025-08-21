@@ -107,7 +107,7 @@ let rec remold = (~shape=Nib.Shape.concave(), seg: t, s: Sort.t) =>
 and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
   open OptUtil.Syntax;
   let+ remolded =
-    Molds.get(t.label)
+    Form.Molds.get(t.label)
     |> List.filter((m: Mold.t) => m.out == s)
     |> List.map(mold =>
          {
@@ -567,6 +567,9 @@ let split_by_matching = (id: Id.t): (t => Aba.t(t, Tile.t)) =>
     | p => L(p),
   );
 
+let inner_regrout = (children: list(t)): list(t) =>
+  List.map(regrout((Nib.Shape.concave(), Nib.Shape.concave())), children);
+
 let rec reassemble = (seg: t): t =>
   switch (incomplete_tiles(seg)) {
   | [] => seg
@@ -576,6 +579,7 @@ let rec reassemble = (seg: t): t =>
     | Some((seg_l, match, seg_r)) =>
       let t = Tile.reassemble(match);
       let children = List.map(reassemble, t.children);
+      let children = inner_regrout(children);
       let p =
         Tile.to_piece({
           ...t,
