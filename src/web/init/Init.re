@@ -27,10 +27,18 @@ let startup: PersistentData.t = {
       Livelits.out,
       B2t2.Datasheet.slide,
       B2T2ExampleTables.out,
-      B2T2TableAPIConstructors.out,
+      B2T2TableAPIConstructorsemptyTable.out,
+      B2T2TableAPIConstructorsaddRows.out,
+      B2T2TableAPIConstructorsaddColumn.out,
+      B2T2TableAPIConstructorsbuildColumn.out,
+      B2T2TableAPIConstructorsvcat.out,
+      B2T2TableAPIConstructorshcat.out,
+      B2T2TableAPIConstructorsvalues.out,
+      B2T2TableAPIConstructorscrossJoin.out,
+      B2T2TableAPIConstructorsleftJoin.out,
       B2T2TableAPIProperties.out,
       B2T2TableAPIAccessSubcomponents.out,
-      B2T2TableAPISubtable.out,
+      B2T2TableAPISubtablePart1.out,
       B2T2TableAPISubtablePart2.out,
       B2T2TableAPIOrdering.out,
       B2T2TableAPIAggregate.out,
@@ -62,12 +70,14 @@ let startup: PersistentData.t = {
       TESTSTypesandStaticErrors.out,
     ]
     |> List.map(((name, content)) =>
-         (
-           name,
-           {
-             editor: content,
-             result: EvalResult.Model.init |> EvalResult.Model.persist,
-           }: CellEditor.Model.persistent,
+         Util.TimeUtil.measure_time(name ++ " startup", false, () =>
+           (
+             name,
+             {
+               editor: content,
+               result: EvalResult.Model.init |> EvalResult.Model.persist,
+             }: CellEditor.Model.persistent,
+           )
          )
        ),
   ),
