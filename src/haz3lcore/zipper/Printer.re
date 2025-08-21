@@ -2,7 +2,7 @@ open Util;
 
 let remove_projector: Piece.t => Segment.t =
   fun
-  | Projector(pr) => Insert.projector_to_invoke(pr)
+  | Projector(pr) => Triggers.projector_to_invoke(pr)
   | x => [x];
 
 let measured_no_projectors = (segment: Segment.t) =>
@@ -78,7 +78,7 @@ let of_segment =
   |> Segment.to_string(
        ~holes,
        ~concave_holes,
-       ~projector_to_segment=Insert.projector_to_invoke,
+       ~projector_to_segment=Triggers.projector_to_invoke,
      )
   |> String.split_on_char('\n')
   |> add_indents(segment, measured, indent)
@@ -101,7 +101,7 @@ let of_zipper =
    * we must recalculate the measured after removing projectors */
   let measured = measured_no_projectors(segment);
   let caret =
-    Option.map(char => (char, Zipper.caret_point(measured, z)), caret);
+    Option.map(char => (char, Zipper.Caret.point(measured, z)), caret);
   let selection_anchor =
     Option.bind(selection_anchor, char =>
       Zipper.selection_anchor_point(measured, z)

@@ -22,14 +22,6 @@ and tile = {
 }
 and projector = ProjectorCore.t(piece);
 
-// This is for comment insertion
-let mk_secondary = (id, content) => [
-  Secondary({
-    id,
-    content,
-  }),
-];
-
 /* If the piece is parentheses, return the child. Otherwise,
  * return a singleton segment consisting of the piece */
 let unparenthesize = (piece: piece): segment =>
