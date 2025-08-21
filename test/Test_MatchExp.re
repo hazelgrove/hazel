@@ -26,7 +26,13 @@ let match_check = (~alphas=[], ~ctx_in=[], exp_r, exp, expected, ()) => {
     ),
     exp_r ++ " against " ++ exp,
     expected,
-    Language.MatchExp.match_exp'(alphas, ctx_in, exp_r', exp'),
+    Language.MatchExp.match_exp(
+      ~alphas,
+      ~exp_env=Language.ClosureEnvironment.empty,
+      ~exp_r_ctx=ctx_in,
+      exp_r',
+      exp',
+    ),
   );
 };
 

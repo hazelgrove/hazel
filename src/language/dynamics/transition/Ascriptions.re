@@ -160,6 +160,7 @@ let rec transition = (~recursive=false, d: DHExp.t): option(DHExp.t) => {
     | (Deferral(_), _)
     | (LivelitName(_), _)
     | (Probe(_, _), _)
+    | (TupleExtension(_, _), _)
     // We _could_ do this, but it would be a bit weird
     | (Let(_), _)
     | (Theorem(_), _)

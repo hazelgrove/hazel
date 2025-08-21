@@ -1,6 +1,15 @@
 open Util;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type custom_statics =
+  | ToLvs
+  | ProjectLabels
+  | OmitLabels
+  | OmitAllLabels
+  | GroupByLabel
+  | SelectLabels;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type kind =
   | Singleton(TermBase.typ_t)
   | Abstract;
@@ -10,6 +19,7 @@ type var_entry = {
   name: Var.t,
   id: Id.t,
   typ: TermBase.typ_t,
+  custom_statics: option(custom_statics),
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -163,6 +173,7 @@ let add_ctrs = (ctx: t, name: string, id: Id.t, ctrs: TermBase.Typ.sum_map): t =
                 )
                 |> IdTagged.fresh
               },
+            custom_statics: None,
           }),
         )
       | ConstructorMap.BadEntry(_) => None,
@@ -214,8 +225,8 @@ let added_bindings = (ctx_after: t, ctx_before: t): t => {
 
 module VarSet = Set.Make(Var);
 
-// Note: filter out duplicates when rendering
-let filter_duplicates = (ctx: t): t => {
+/* Removes shadowed variables from the context */
+let filter_shadowed = (ctx: t): t => {
   ...ctx,
   entries:
     ctx.entries

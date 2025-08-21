@@ -24,9 +24,16 @@ module EvalObj = {
 
   [@deriving (show({with_path: false}), sexp, yojson)]
   type persistent = {
-    old_id: Id.t, // The id of the term about to be stepped
-    new_id: Id.t, // The id of the term after it is stepped
-    knd: step_kind,
+    exp_idx: int, // The index of the expression being stepped
+    at_exp: Exp.t // The expression being stepped
+  };
+
+  let persist = (obj: t): persistent => {
+    let full_exp = EvalCtx.compose(obj.ctx, obj.d_loc);
+    {
+      exp_idx: ProofHacks.exp_idx(obj.d_loc, full_exp),
+      at_exp: obj.d_loc,
+    };
   };
 };
 
@@ -132,6 +139,12 @@ let rec matches =
       | BinOp2(op, d1, ctx) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         BinOp2(op, d1, ctx) |> rewrap;
+      | TupleExtension1(ctx, d2) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        TupleExtension1(ctx, d2) |> rewrap;
+      | TupleExtension2(d1, ctx) =>
+        let+ ctx = matches(env, flt, ctx, exp, act, idx);
+        TupleExtension2(d1, ctx) |> rewrap;
       | Tuple(ctx, ds) =>
         let+ ctx = matches(env, flt, ctx, exp, act, idx);
         Tuple(ctx, ds) |> rewrap;
@@ -402,6 +415,11 @@ open OptUtil.Syntax;
 type step = EvalObj.t;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type persistent = EvalObj.persistent;
+
+let persist = EvalObj.persist;
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type status =
   | AutoStep(step)
   | AvailableSteps(list(step));
@@ -441,16 +459,27 @@ let refresh_step =
       exp: Exp.t,
       env: ClosureEnvironment.t,
       state: EvaluatorState.t,
-      step: step,
+      step: persistent,
     ) => {
   let eos =
     decompose(exp, env, state)
     |> List.map(should_hide_eval_obj(~settings=settings.evaluation)); // NOTE: should_hide_eval_obj actually changes the eval obj to do filter bookkeeping!!!
+  print_endline("In exp" ++ (exp |> DHExp.show));
+  print_endline(
+    "Refreshing step: "
+    ++ (step.at_exp |> DHExp.show)
+    ++ " at idx: "
+    ++ string_of_int(step.exp_idx),
+  );
+  let* desired_id =
+    ProofHacks.nth_exp(step.at_exp, step.exp_idx, exp)
+    |> Option.map(IdTagged.ids);
+  print_endline("Desired ID: " ++ (desired_id |> List.hd |> Id.show));
   let* (h, x) =
     List.find_opt(
-      ((_, step': step)) =>
-        IdTagged.ids(step'.d_loc) == IdTagged.ids(step.d_loc),
+      ((_, step': step)) => IdTagged.ids(step'.d_loc) == desired_id,
       eos,
     );
+  print_endline("Found step: " ++ (x.d_loc |> DHExp.show));
   Some((h, x));
 };

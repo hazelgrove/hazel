@@ -173,7 +173,8 @@ and exp =
   | DynamicErrorHole(exp, string)
   | TyAlias(tpat, typ, exp)
   | Use(typ, exp)
-  | IndicationExp(exp);
+  | IndicationExp(exp)
+  | TupleExtension(exp, exp);
 
 /**
  * Generates a random CONSTRUCTOR_IDENT string. Used for CONSTRUCTOR_IDENT in the lexer.
@@ -371,6 +372,11 @@ let rec gen_exp_sized = (~minimal_idents: bool, n: int): QCheck.Gen.t(exp) => {
             let* e1 = self((n - 1) / 2);
             let+ e2 = self((n - 1) / 2);
             BinExp(e1, op, e2);
+          },
+          {
+            let* e1 = self((n - 1) / 2);
+            let+ e2 = self((n - 1) / 2);
+            TupleExtension(e1, e2);
           },
           {
             let* op = gen_op_un;
@@ -921,6 +927,18 @@ let rec shrink_exp: QCheck.Shrink.t(exp) =
           <+> {
             let* shrunk = shrink_exp(e2);
             return(Cons(e1, shrunk));
+          }
+        | TupleExtension(e1, e2) =>
+          {
+            of_list([e1, e2]);
+          }
+          <+> {
+            let* shrunk = shrink_exp(e1);
+            return(TupleExtension(shrunk, e2));
+          }
+          <+> {
+            let* shrunk = shrink_exp(e2);
+            return(TupleExtension(e1, shrunk));
           }
         | ListConcat(e1, e2) =>
           {

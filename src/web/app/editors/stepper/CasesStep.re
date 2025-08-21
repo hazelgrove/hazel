@@ -11,6 +11,9 @@ open Calc.Syntax;
 type model'('stepper) = InductionStep.model'('stepper);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type persistent'('step) = InductionStep.persistent'('step);
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type action'('step) = InductionStep.action'('step);
 
 [@deriving (show({with_path: false}), sexp, yojson)]
@@ -29,6 +32,7 @@ module F =
          : (
            STEP with
              type model = model'(Stepper.model) and
+             type persistent = persistent'(Stepper.persistent) and
              type action = action'(Stepper.action) and
              type focus = focus'(Stepper.focus)
        ) => {

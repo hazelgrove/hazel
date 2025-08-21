@@ -5,9 +5,15 @@ module type STEP = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model;
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type persistent;
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type action;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type focus;
+
+  let persist: model => persistent;
+
+  let unpersist: persistent => model;
 
   let update: (~settings: Settings.t, action, model) => Updated.t(model);
 
@@ -70,11 +76,17 @@ module type STEPPER = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model;
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type persistent;
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type action;
   [@deriving (show({with_path: false}), sexp, yojson)]
   type focus;
 
   let init: model;
+
+  let persist: model => persistent;
+
+  let unpersist: persistent => model;
 
   let update: (~settings: Settings.t, action, model) => Updated.t(model);
 

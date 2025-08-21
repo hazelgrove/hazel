@@ -308,6 +308,7 @@ module Exp = {
     | TypFun
     | Label
     | TupLabel
+    | TupleExtension
     | Tuple
     | Dot
     | Var
@@ -374,6 +375,7 @@ module Exp = {
     | Fun(_) => Fun
     | TypFun(_) => TypFun
     | Tuple(_) => Tuple
+    | TupleExtension(_) => TupleExtension
     | Label(_) => Label
     | TupLabel(_, _) => TupLabel
     | Dot(_) => Dot
@@ -430,6 +432,7 @@ module Exp = {
     | Tuple => "Tuple literal"
     | Label => "Label"
     | TupLabel => "Labeled Tuple Item"
+    | TupleExtension => "Tuple Extension"
     | Dot => "Dot operator"
     | Var => "Variable reference"
     | Let => "Let expression"
@@ -516,6 +519,7 @@ module Exp = {
     | Label(_)
     | ListLit(_)
     | Tuple(_)
+    | TupleExtension(_)
     | Var(_)
     | Let(_)
     | Theorem(_)
@@ -578,6 +582,7 @@ module Exp = {
       | Atom(_)
       | Label(_)
       | ListLit(_)
+      | TupleExtension(_)
       | Fun(_)
       | TypFun(_)
       | Closure(_)
@@ -644,6 +649,7 @@ module Exp = {
       | Atom(_)
       | Label(_)
       | ListLit(_)
+      | TupleExtension(_)
       | Fun(_)
       | TypFun(_)
       | Var(_)
@@ -823,6 +829,7 @@ module Exp = {
           | TypFun(_)
           | Tuple(_)
           | TupLabel(_)
+          | TupleExtension(_)
           | Label(_)
           | Dot(_)
           | TyAlias(_)

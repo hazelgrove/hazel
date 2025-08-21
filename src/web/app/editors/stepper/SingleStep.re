@@ -9,10 +9,16 @@ open Calc.Syntax;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type model'('stepper) = {
-  evalobj: EvaluatorStep.step,
+  // Constant
+  persistent_evalobj: EvaluatorStep.persistent,
+  // Calculated
+  evalobj: Calc.saved(EvaluatorStep.step),
   next_exp: Calc.saved(Exp.t),
   next_state: Calc.saved(EvaluatorState.t),
 };
+
+[@deriving (show({with_path: false}), sexp, yojson)]
+type persistent'('stepper) = EvaluatorStep.persistent;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type action'('step) =
@@ -33,15 +39,31 @@ module F =
          : (
            STEP with
              type model = model'(Stepper.model) and
+             type persistent = persistent'(Stepper.persistent) and
              type action = action'(Stepper.action) and
              type focus = focus'(Stepper.focus)
        ) => {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = model'(Stepper.model);
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type persistent = persistent'(Stepper.persistent);
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type action = action'(Stepper.action);
   [@deriving (show({with_path: false}), sexp, yojson)]
   type focus = focus'(Stepper.focus);
+
+  let persist = (model: model) => {
+    model.persistent_evalobj;
+  };
+
+  let unpersist = (p: persistent) => {
+    {
+      persistent_evalobj: p,
+      evalobj: Calc.Pending,
+      next_exp: Calc.Pending,
+      next_state: Calc.Pending,
+    };
+  };
 
   let update = (~settings as _: Settings.t, action: action, _model: model) =>
     switch (action) {
@@ -62,9 +84,9 @@ module F =
         ~ana as _,
         model: model,
       ) => {
-    let {evalobj, next_exp, next_state} = model;
+    let {persistent_evalobj, evalobj, next_exp, next_state} = model;
     let* hidden_and_eo =
-      Calc.pair_saved(hidden, Calculated(evalobj))
+      Calc.pair_saved(hidden, evalobj)
       |> Calc.map_saved(Option.some)
       |> {
         let.calc settings = settings
@@ -72,7 +94,13 @@ module F =
         and.calc env = env
         and.calc state = state;
         let+ (filter_action, eo) =
-          EvaluatorStep.refresh_step(~settings, exp, env, state, evalobj);
+          EvaluatorStep.refresh_step(
+            ~settings,
+            exp,
+            env,
+            state,
+            persistent_evalobj,
+          );
         let hidden =
           switch (filter_action) {
           | FilterAction.Step => false
@@ -93,7 +121,8 @@ module F =
     let (next_exp, next_state) = Calc.to_pair(next_exp_and_state);
     (
       {
-        evalobj: evalobj |> Calc.get_value,
+        persistent_evalobj,
+        evalobj: evalobj |> Calc.save,
         next_exp: next_exp |> Calc.save,
         next_state: next_state |> Calc.save,
       },
@@ -126,6 +155,7 @@ module F =
       ) =>
     WebUtil.Node.text(
       m.evalobj
+      |> Calc.get_saved_exc(~print="EvaluatorStep not calculated")
       |> EvaluatorStep.get_step_kind
       |> Transition.stepper_justification,
     );

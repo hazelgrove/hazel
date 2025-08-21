@@ -24,6 +24,12 @@ type model'('stepper) = {
 };
 
 [@deriving (show({with_path: false}), sexp, yojson)]
+type persistent'('stepper) = {
+  scrut: CodeEditable.Model.persistent,
+  cases: list(InductionCase.persistent'('stepper)),
+};
+
+[@deriving (show({with_path: false}), sexp, yojson)]
 type action'('step) =
   | ScrutUpdate(CodeEditable.Update.t)
   | CaseUpdate(int, InductionCase.action'('step))
@@ -76,6 +82,7 @@ module F =
          : (
            STEP with
              type model = model'(Stepper.model) and
+             type persistent = persistent'(Stepper.persistent) and
              type action = action'(Stepper.action) and
              type focus = focus'(Stepper.focus)
        ) => {
@@ -84,9 +91,33 @@ module F =
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = model'(Stepper.model);
   [@deriving (show({with_path: false}), sexp, yojson)]
+  type persistent = persistent'(Stepper.persistent);
+  [@deriving (show({with_path: false}), sexp, yojson)]
   type action = action'(Stepper.action);
   [@deriving (show({with_path: false}), sexp, yojson)]
   type focus = focus'(Stepper.focus);
+
+  let persist = (model: model) => {
+    {
+      scrut: CodeEditable.Model.persist(model.scrut),
+      cases: List.map(InductionCase.persist, model.cases),
+    };
+  };
+
+  let unpersist = (p: persistent) => {
+    {
+      scrut: CodeEditable.Model.unpersist(p.scrut),
+      cases: List.map(InductionCase.unpersist, p.cases),
+      elab_scrut: Calc.Pending,
+      scrut_ty: Calc.Pending,
+      scrut_co_ctx: Calc.Pending,
+      result: Calc.Pending,
+      result_state: Calc.Pending,
+      join_exp: Calc.Pending,
+      is_exhaustive: Calc.Pending,
+      validity: Calc.Pending,
+    };
+  };
 
   let update = (~settings: Settings.t, action: action, model: model) => {
     Updated.(

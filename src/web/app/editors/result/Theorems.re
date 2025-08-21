@@ -12,6 +12,9 @@ module Model = {
     stepper_view: StepperView.Model.t,
   };
 
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type persistent_theorem = {stepper_view: StepperView.Model.persistent};
+
   let theorem_init = name => {
     name,
     ctx: Calc.Pending,
@@ -26,8 +29,36 @@ module Model = {
     thms: Calc.saved(list(Id.t)),
   };
 
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type persistent = {thm_map: Id.Map.t(persistent_theorem)};
+
   let init = {
     thm_map: Id.Map.empty,
+    thms: Calc.Pending,
+  };
+
+  let persist = (model: t): persistent => {
+    thm_map:
+      Id.Map.map(
+        (thm: theorem) =>
+          {stepper_view: StepperView.Model.persist(thm.stepper_view)},
+        model.thm_map,
+      ),
+  };
+
+  let unpersist = (p: persistent): t => {
+    thm_map:
+      Id.Map.map(
+        (p_thm: persistent_theorem): theorem =>
+          {
+            name: "?",
+            ctx: Calc.Pending,
+            env: Calc.Pending,
+            goal_exp: Calc.Pending,
+            stepper_view: StepperView.Model.unpersist(p_thm.stepper_view),
+          },
+        p.thm_map,
+      ),
     thms: Calc.Pending,
   };
 };
@@ -143,7 +174,7 @@ module Update = {
              Id.Map.update(
                id,
                (opt: option(Model.theorem)) => {
-                 let Model.{name, ctx, env, goal_exp, stepper_view} =
+                 let Model.{name: _, ctx, env, goal_exp, stepper_view} =
                    Option.value(~default=Model.theorem_init("?"), opt);
 
                  let goal_exp =

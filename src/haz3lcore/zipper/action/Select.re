@@ -9,11 +9,11 @@ module Make = (M: Move.S) => {
       Zipper.select(d, z);
     } else if (d == Left) {
       z
-      |> Zipper.set_caret(Outer)
+      |> Zipper.Caret.set(Outer)
       |> Zipper.move(Right)
       |> OptUtil.and_then(Zipper.select(d));
     } else {
-      z |> Zipper.set_caret(Outer) |> Zipper.select(d);
+      z |> Zipper.Caret.set(Outer) |> Zipper.select(d);
     };
 
   let vertical = (d: Direction.t, ed: Zipper.t): option(Zipper.t) =>
@@ -23,7 +23,7 @@ module Make = (M: Move.S) => {
     switch (d) {
     | Goal(Piece(_)) => failwith("Select.go not implemented for Piece Goal")
     | Goal(Point(goal)) =>
-      let anchor = z |> Zipper.toggle_focus |> Zipper.caret_point(M.measured);
+      let anchor = z |> Zipper.toggle_focus |> Zipper.Caret.point(M.measured);
       Move.do_towards(~anchor, primary, goal, z);
     | Extreme(d) => Move.do_extreme(primary, d, z)
     | Local(d) =>
@@ -54,7 +54,7 @@ module Make = (M: Move.S) => {
   };
 
   let term = (id: Id.t, z: Zipper.t): option(Zipper.t) => {
-    let* (l, r) = TermRanges.find_opt(id, M.term_ranges);
+    let (l, r) = TermData.extremes(id, M.term_data);
     range(Piece.id(l), Piece.id(r), z);
   };
 
@@ -130,7 +130,7 @@ module Make = (M: Move.S) => {
         /* Due to implementation details of Move.do_until (specifically its
          * use of Indicated), this behaves poorly if we're one token away
          * from the beginning of the syntax. We handle that case here */
-        let z = Zipper.set_caret(Outer, z);
+        let z = Zipper.Caret.set(Outer, z);
         switch (Zipper.move(Left, z)) {
         | Some(z) => z
         | None => z

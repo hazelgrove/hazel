@@ -17,6 +17,20 @@ module Model = {
 
   let get_state = (m: t) => StepperBase.Stepper.get_state(m.root);
 
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type persistent = {root: StepperBase.persistent_step};
+
+  let persist = (model: t): persistent => {
+    root: StepperBase.Stepper.persist(model.root),
+  };
+
+  let unpersist = (p: persistent): t => {
+    {
+      cached_elab_subst: Calc.Pending,
+      root: StepperBase.Stepper.unpersist(p.root),
+    };
+  };
+
   let get_validity = (m: t) => StepperBase.Stepper.get_validity(m.root);
 };
 

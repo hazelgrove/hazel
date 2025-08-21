@@ -116,6 +116,10 @@ let rec match_exp =
       List.combine(xs, ys),
     )
   | (Tuple(_), _) => None
+  | (TupleExtension(xs1, ys1), TupleExtension(xs2, ys2)) =>
+    let* ctx = match_exp(alphas, ctx, xs1, xs2);
+    match_exp(alphas, ctx, ys1, ys2);
+  | (TupleExtension(_, _), _) => None
   | (Let(p1, d1, e1), Let(p2, d2, e2)) =>
     let* alphas' = match_pat(p1, p2);
     let* ctx = match_exp(alphas, ctx, d1, d2);
@@ -338,11 +342,12 @@ let match_exp' = match_exp;
    if we know it doesn't match */
 let match_exp =
     (
+      ~alphas=[],
       ~exp_env: ClosureEnvironment.t,
       ~exp_r_ctx: match_ctx,
       exp_r: Exp.t,
       exp: Exp.t,
     ) => {
   let exp = Exp.substitute_closures(ClosureEnvironment.map_of(exp_env), exp);
-  match_exp([], exp_r_ctx, exp_r, exp);
+  match_exp(alphas, exp_r_ctx, exp_r, exp);
 };
