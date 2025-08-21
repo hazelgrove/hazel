@@ -163,7 +163,9 @@ let reassemble_parent = (rs: t): t =>
           shards: a.shards |> PairUtil.map_fst(ss => ss @ shards_l),
           children:
             a.children
-            |> PairUtil.map_fst(kids => kids @ [outer_l, ...kids_l]),
+            |> PairUtil.map_fst(kids =>
+                 Segment.inner_regrout(kids @ [outer_l, ...kids_l])
+               ),
         };
         (a, inner_l);
       };
@@ -177,7 +179,9 @@ let reassemble_parent = (rs: t): t =>
           shards: a.shards |> PairUtil.map_snd(ss => shards_r @ ss),
           children:
             a.children
-            |> PairUtil.map_snd(kids => [outer_r, ...kids_r] @ kids),
+            |> PairUtil.map_snd(kids =>
+                 Segment.inner_regrout([outer_r, ...kids_r] @ kids)
+               ),
         };
         (a, inner_r);
       };
