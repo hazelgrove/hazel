@@ -19,6 +19,6 @@
     "@types/node": "^22.14.0",
     "esbuild": "^0.25.1",
     "vite": "^6.3.4",
-    "vite-plugin-static-copy": "^2.3.0"
+    "vite-plugin-static-copy": "^2.3.2"
   }
 }
