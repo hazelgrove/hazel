@@ -956,7 +956,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          f362f3c3-4f76-4a53-9ff6-116a8b523713)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          07bada7e-cd76-4f71-93b5-9c23208b9c55)(content(Whitespace\"\\n\"))))(Tile((id \
-         02671ea0-40d5-42d7-a3ef-822b55ec126f)(label(from_entries))(mold((out \
+         02671ea0-40d5-42d7-a3ef-822b55ec126f)(label(from_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          7bcd4a17-679f-4701-86c8-39d7277838eb)(label(\"(\"\")\"))(mold((out \
@@ -1369,7 +1369,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          operation=let fillna =fun t1,c:String,v ->\n\
          let rows = map(t1,to_lvs) in\n\
          let mapped = map(rows,fun entries ->\n\
-         from_entries(filter(entries,fun e ->!string_eq(e.label,c))\n\
+         from_lvs(filter(entries,fun e ->!string_eq(e.label,c))\n\
          @[\n\
          case option_bind(find_opt(entries,fun e ->string_eq(e.label,c)),fun x \
          ->x.value)\n\

@@ -1027,7 +1027,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          31))(sort Exp))))))(shards(0))(children())))(Secondary((id \
          ebca3a21-8de4-414b-b8da-5a5ac0caa5fd)(content(Whitespace\" \
          \"))))(Tile((id \
-         20a74673-5b85-4962-bd78-4b9c5623b97a)(label(from_entries))(mold((out \
+         20a74673-5b85-4962-bd78-4b9c5623b97a)(label(from_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Tile((id \
          32678625-906e-48de-ab74-4ca048bb6a84)(label(,))(mold((out \
@@ -1399,7 +1399,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          31))(sort Exp))))))(shards(0))(children())))(Secondary((id \
          fcb810af-8652-4392-8929-20bd5fc6d6d0)(content(Whitespace\" \
          \"))))(Tile((id \
-         ef25dab6-4bdc-4907-9901-4aa79037cd59)(label(from_entries))(mold((out \
+         ef25dab6-4bdc-4907-9901-4aa79037cd59)(label(from_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Tile((id \
          dab068cc-f8fa-4da3-a440-bfdfd25c038a)(label(,))(mold((out \
@@ -1752,7 +1752,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          31))(sort Exp))))))(shards(0))(children())))(Secondary((id \
          dcf1735e-e1f2-4931-8cdc-3912c6786763)(content(Whitespace\" \
          \"))))(Tile((id \
-         1ddef0fb-a7ba-4bd3-adee-6047c514f4b3)(label(from_entries))(mold((out \
+         1ddef0fb-a7ba-4bd3-adee-6047c514f4b3)(label(from_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Tile((id \
          e856e0c3-7621-4ad4-9c33-ea08c224210d)(label(,))(mold((out \
@@ -2124,7 +2124,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          ],\n\
          operation=fun (t1:[?],bs:[Bool]) ->\n\
          map(t1,fun r ->to_lvs(r) |> zip(_,bs) |>filter_map(_,fun (e,b) ->if b \
-         then Some(e) else None) |> from_entries),\n\
+         then Some(e) else None) |> from_lvs),\n\
          notes=[]\n\
          ),\n\
          (\n\
@@ -2143,7 +2143,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          ],\n\
          operation=fun (t1:[?], ns:[Int]) ->\n\
          map(t1,fun r ->to_lvs(r) |>(fun entries ->map(ns,nth_opt(entries,_))) \
-         |> filter_map(_,fun (e) ->e) |> from_entries),\n\
+         |> filter_map(_,fun (e) ->e) |> from_lvs),\n\
          notes=[]\n\
          ),\n\
          (\n\
@@ -2160,7 +2160,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          ],\n\
          operation=fun (t1:[?], cs:[String]) ->\n\
          map(t1,fun r ->to_lvs(r) |>(fun entries ->filter_map(cs,fun c -> \
-         find_opt(entries, fun e ->e.label == c))) |> from_entries),\n\
+         find_opt(entries, fun e ->e.label == c))) |> from_lvs),\n\
          notes=[]\n\
          ),\n\
          (\n\

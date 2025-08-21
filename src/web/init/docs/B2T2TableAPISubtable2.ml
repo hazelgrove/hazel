@@ -645,7 +645,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          31))(sort Exp))))))(shards(0))(children())))(Secondary((id \
          cd2792e9-f730-4441-82b0-ad5e725920b3)(content(Whitespace\" \
          \"))))(Tile((id \
-         9a7272f3-58a3-4412-bc95-dd683ca2e550)(label(from_entries))(mold((out \
+         9a7272f3-58a3-4412-bc95-dd683ca2e550)(label(from_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Tile((id \
          15c75a1b-aadb-4b80-8aac-8e89f93b2254)(label(,))(mold((out \
@@ -985,7 +985,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          31))(sort Exp))))))(shards(0))(children())))(Secondary((id \
          637ec05a-275b-4cb9-9f6a-cdac8376d2e4)(content(Whitespace\" \
          \"))))(Tile((id \
-         0ace6dc1-971e-4d27-b662-ff1d9b2e2781)(label(from_entries))(mold((out \
+         0ace6dc1-971e-4d27-b662-ff1d9b2e2781)(label(from_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Tile((id \
          89b4bd4c-3701-4147-998d-dfdf380925bf)(label(,))(mold((out \
@@ -1153,7 +1153,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          ],\n\
          operation=fun (t:[?], c:String) ->\n\
          map(t, fun row -> to_lvs(row) |> filter(_, fun entry -> entry.label \
-         != c) |> from_entries),\n\
+         != c) |> from_lvs),\n\
          notes=[]\n\
          ),\n\
          (\n\
@@ -1169,7 +1169,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          ],\n\
          operation=fun (t:[?], c:[String]) ->\n\
          map(t,fun row -> to_lvs(row) |> filter(_, fun entry ->!any(c, \
-         string_eq(entry.label, _))) |> from_entries),\n\
+         string_eq(entry.label, _))) |> from_lvs),\n\
          notes=[]\n\
          ),\n\
          (\n\

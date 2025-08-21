@@ -323,7 +323,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \")))))))))(Secondary((id \
          b8d5a89d-e002-4ab0-abcd-33fc9da91efa)(content(Whitespace\" \
          \"))))(Tile((id \
-         f685c840-a6c4-495e-acfb-d736106b6336)(label(from_entries))(mold((out \
+         f685c840-a6c4-495e-acfb-d736106b6336)(label(from_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          c198120b-435e-4dd8-b00f-c0815f1a6ef8)(label(\"(\"\")\"))(mold((out \
@@ -594,7 +594,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Pat))))))(shards(0))(children()))))))))(Secondary((id \
          fbf81e98-f860-4d28-819d-889b92d3af8a)(content(Whitespace\" \
          \")))))))))(Tile((id \
-         ba06e408-b418-43f8-86fd-f882ed77c4b0)(label(from_entries))(mold((out \
+         ba06e408-b418-43f8-86fd-f882ed77c4b0)(label(from_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          d7ebeb11-1958-42f3-bb60-65ec266460d9)(label(\"(\"\")\"))(mold((out \
@@ -1554,7 +1554,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          let add_rows = typfun row ->  fun (r :row, rs : [row]) -> rs @ [r]  in\n\
          let add_col = fun (t : [?], c : String, vs: [?]) ->\n\
          zip(t, vs)\n\
-         |> map(_, fun (r, v) -> from_entries(to_lvs(r) @ [(c, v)])) in\n\
+         |> map(_, fun (r, v) -> from_lvs(to_lvs(r) @ [(c, v)])) in\n\
          let remove_duplicates =\n\
          fun (xs:[?]) ->\n\
          fold_left(xs,\n\
@@ -1563,7 +1563,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          []) \n\
          in\n\
          let build_col = fun (t :[?], c :String, f : ? -> ?) ->\n\
-         map(t,fun (r) ->from_entries(to_lvs(r) @[(c,f(r))])) in\n\
+         map(t,fun (r) ->from_lvs(to_lvs(r) @[(c,f(r))])) in\n\
          let empty_table : [()]= [] in\n\
          let table_of_column = fun c,vs ->\n\
          let t1 = add_rows@<?>(empty_table, map(vs, fun _ -> ())) in\n\

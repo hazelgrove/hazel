@@ -872,7 +872,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \")))))))))(Secondary((id \
          75ff2cb0-3397-472f-8f6f-fce5625564f0)(content(Whitespace\" \
          \"))))(Tile((id \
-         fcfb7fe3-c11c-49f9-a26a-3040e228575c)(label(from_entries))(mold((out \
+         fcfb7fe3-c11c-49f9-a26a-3040e228575c)(label(from_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          66b894b5-ef19-4d13-acdf-7ccacf39f27f)(label(\"(\"\")\"))(mold((out \
@@ -941,8 +941,8 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Tile((id \
          23ab9035-00ab-4e25-9644-8e74c2b43bd6)(label(\"\\\"Lack of first class \
-         labels requires writing this with from_entries.\\\\nIf doing this \
-         with concrete data you can do the following (which if we had implicit \
+         labels requires writing this with from_lvs.\\\\nIf doing this with \
+         concrete data you can do the following (which if we had implicit \
          polymophism would give full typing):\\\"\"))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))))))))(model\"()\")))(Tile((id \
@@ -1481,7 +1481,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Pat))))))(shards(0))(children()))))))))(Secondary((id \
          43db6cc1-cff4-47c0-a801-0315f2151e39)(content(Whitespace\" \
          \")))))))))(Tile((id \
-         6d6ca1dc-eea4-4368-b402-10649bf04e9f)(label(from_entries))(mold((out \
+         6d6ca1dc-eea4-4368-b402-10649bf04e9f)(label(from_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          cccdd48b-22b8-45e4-a436-983d226d6b07)(label(\"(\"\")\"))(mold((out \
@@ -1549,8 +1549,8 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Tile((id \
          62378fb6-526a-4516-a5dc-925d76095935)(label(\"\\\"Lack of first class \
-         labels requires writing this with from_entries.\\\\nIf doing this \
-         with concrete data you can do the following:\\\"\"))(mold((out \
+         labels requires writing this with from_lvs.\\\\nIf doing this with \
+         concrete data you can do the following:\\\"\"))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))))))))(model\"()\")))(Tile((id \
          b6b59730-3568-4988-adb8-c2e35ffe3843)(label(\";\"))(mold((out \
@@ -3531,7 +3531,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          31))(sort Exp))))))(shards(0))(children())))(Secondary((id \
          e5a49025-e24a-427a-abed-5fcfd438b26b)(content(Whitespace\" \
          \"))))(Tile((id \
-         08e965f7-dd58-4c2c-9c30-6ec2256faeb3)(label(from_entries))(mold((out \
+         08e965f7-dd58-4c2c-9c30-6ec2256faeb3)(label(from_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
          d8af7553-2c45-4bc4-ac4f-6c4f22184dec)(content(Whitespace\" \
@@ -3639,7 +3639,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          31))(sort Exp))))))(shards(0))(children())))(Secondary((id \
          1a9a96a8-57c1-4d22-a2eb-e7fc7bc2fc6a)(content(Whitespace\" \
          \"))))(Tile((id \
-         e96e4162-1f5a-40d0-8918-9e6b69e85b3b)(label(from_entries))(mold((out \
+         e96e4162-1f5a-40d0-8918-9e6b69e85b3b)(label(from_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
          f43429ea-4076-4d7e-9f94-31d4ec1089ea)(content(Whitespace\" \
@@ -3749,7 +3749,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          31))(sort Exp))))))(shards(0))(children())))(Secondary((id \
          1415bfec-ce97-4162-ba80-ae07b55d1242)(content(Whitespace\" \
          \"))))(Tile((id \
-         6d0aeca2-bc98-4c2c-81b4-c4a09e03948b)(label(from_entries))(mold((out \
+         6d0aeca2-bc98-4c2c-81b4-c4a09e03948b)(label(from_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
          4097fabf-c4b4-4633-bd05-782f5122f834)(content(Whitespace\" \
@@ -4090,7 +4090,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          231d92eb-ead9-4367-b9d2-563d304e6ab1)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Tile((id \
-         7bac88ed-c8eb-44a5-9057-a032ed764d18)(label(from_entries))(mold((out \
+         7bac88ed-c8eb-44a5-9057-a032ed764d18)(label(from_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          5aebec97-73a3-4691-8c09-33c988f73dca)(label(\"(\"\")\"))(mold((out \
@@ -4347,13 +4347,12 @@ let out : string * Haz3lcore.PersistentZipper.t =
          ],\n\
          operation= fun (t : [?], c : String, vs: [?]) ->\n\
          zip(t, vs)\n\
-         |> map(_, fun (r, v) -> from_entries(to_lvs(r) @ [(c, v)])),\n\
+         |> map(_, fun (r, v) -> from_lvs(to_lvs(r) @ [(c, v)])),\n\
          notes=[\n\
          ^^text(\"Polymorphic type limitation stops most ensured constraints\"),\n\
          ^^text(\"Lack of first class labels requires writing this with \
-         from_entries.\\nIf doing this with concrete data you can do the \
-         following (which if we had implicit polymophism would give full \
-         typing):\");\n\
+         from_lvs.\\nIf doing this with concrete data you can do the following \
+         (which if we had implicit polymophism would give full typing):\");\n\
          let t = [(a=1,b=\"hello\"),(a=2,b=\"world\"),(a=3,b=\"!\")] in let vs \
          = [1,2,3] in zip(t,vs) |> map(_, fun (t,v) -> t ... (c=v))\n\
          ;\n\
@@ -4372,11 +4371,11 @@ let out : string * Haz3lcore.PersistentZipper.t =
          (enforced=^^check(false), \"nrows(t2) is equal to nrows(t1)\")\n\
          ],\n\
          operation=fun (t :[?], c :String, f : ? -> ?) ->\n\
-         map(t,fun (r) ->from_entries(to_lvs(r) @[(c,f(r))])),\n\
+         map(t,fun (r) ->from_lvs(to_lvs(r) @[(c,f(r))])),\n\
          notes=[\n\
          \"Polymorphic type limitation stops most ensured constraints\",\n\
          ^^text(\"Lack of first class labels requires writing this with \
-         from_entries.\\nIf doing this with concrete data you can do the \
+         from_lvs.\\nIf doing this with concrete data you can do the \
          following:\");\n\
          let t = [(a=1,b=\"hello\"),(a=2,b=\"world\"),(a=3,b=\"!\")] in map(t, \
          fun (t) -> t ... (c=t.a + 2))\n\
@@ -4483,11 +4482,11 @@ let out : string * Haz3lcore.PersistentZipper.t =
          otherwise each row of t1 may have several matches\")\n\
          ],\n\
          operation=let project_labels_str = fun (v,cs) ->to_lvs(v) |> \
-         filter(_, fun e ->mem(cs,e.label)) |> from_entries in\n\
+         filter(_, fun e ->mem(cs,e.label)) |> from_lvs in\n\
          let omit_labels_str = fun (v,cs) ->to_lvs(v) |> filter(_, fun e \
-         ->!mem(cs,e.label)) |> from_entries in\n\
+         ->!mem(cs,e.label)) |> from_lvs in\n\
          let make_optional = fun (v) ->to_lvs(v) |> map(_, fun e ->e \
-         ...(value=Some(e.value))) |> from_entries in               \n\
+         ...(value=Some(e.value))) |> from_lvs in               \n\
          let left_join = fun (t1:[?], t2:[?], cs:[String]) ->\n\
          let right_columns =case hd_opt(t2) \n\
          |None =>[]\n\
@@ -4497,7 +4496,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          let matched = filter(t2,fun r2 ->project_labels_str(r2,cs) == \
          project_labels_str(r1,cs)) in\n\
          case matched\n\
-         | [] =>[r1 ...(from_entries(map(filter(right_columns,fun e \
+         | [] =>[r1 ...(from_lvs(map(filter(right_columns,fun e \
          ->!mem(cs,e)),fun lc ->(label=lc,value=None))))]\n\
          | _ =>map(matched,fun r2 ->r1 \
          ...(make_optional(omit_labels_str(r2,cs)))) \n\

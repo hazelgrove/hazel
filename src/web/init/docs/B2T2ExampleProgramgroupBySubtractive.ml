@@ -323,7 +323,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \")))))))))(Secondary((id \
          d00fab6f-bf3d-4530-9c1d-9dced2da8aeb)(content(Whitespace\" \
          \"))))(Tile((id \
-         dfc6c04d-fd34-4b8f-aba9-7c0191cd46e9)(label(from_entries))(mold((out \
+         dfc6c04d-fd34-4b8f-aba9-7c0191cd46e9)(label(from_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          cc1ab7b0-d167-408e-87e3-2d377bb1e8ae)(label(\"(\"\")\"))(mold((out \
@@ -651,7 +651,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          31))(sort Exp))))))(shards(0))(children())))(Secondary((id \
          bc44afc5-abbe-4c21-87ab-abdda9c0537a)(content(Whitespace\" \
          \"))))(Tile((id \
-         4e5029ab-b9e8-4efb-b12e-8d1cb62a5fc6)(label(from_entries))(mold((out \
+         4e5029ab-b9e8-4efb-b12e-8d1cb62a5fc6)(label(from_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Secondary((id \
          df68beae-6128-467d-9824-3051d1762a34)(content(Whitespace\" \
@@ -763,7 +763,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Pat))))))(shards(0))(children()))))))))(Secondary((id \
          01e02d04-93c8-4eee-b2f2-1fb502090037)(content(Whitespace\" \
          \")))))))))(Tile((id \
-         5d95af97-94e0-4f04-b3eb-a4e20e8eb5c1)(label(from_entries))(mold((out \
+         5d95af97-94e0-4f04-b3eb-a4e20e8eb5c1)(label(from_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          650fbc9e-db69-42cf-acad-727cf9c3582e)(label(\"(\"\")\"))(mold((out \
@@ -1760,7 +1760,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          let add_rows = typfun row ->  fun (r :row, rs : [row]) -> rs @ [r]  in\n\
          let add_col = fun (t : [?], c : String, vs: [?]) ->\n\
          zip(t, vs)\n\
-         |> map(_, fun (r, v) -> from_entries(to_lvs(r) @ [(c, v)])) in\n\
+         |> map(_, fun (r, v) -> from_lvs(to_lvs(r) @ [(c, v)])) in\n\
          let remove_duplicates =\n\
          fun (xs:[?]) ->\n\
          fold_left(xs,\n\
@@ -1770,9 +1770,9 @@ let out : string * Haz3lcore.PersistentZipper.t =
          in\n\
          let drop_columns = fun (t:[?], c:[String]) ->\n\
          map(t,fun row -> to_lvs(row) |> filter(_, fun entry ->!any(c, \
-         string_eq(entry.label, _))) |> from_entries) in\n\
+         string_eq(entry.label, _))) |> from_lvs) in\n\
          let build_col = fun (t :[?], c :String, f : ? -> ?) ->\n\
-         map(t,fun (r) ->from_entries(to_lvs(r) @[(c,f(r))])) in\n\
+         map(t,fun (r) ->from_lvs(to_lvs(r) @[(c,f(r))])) in\n\
          let empty_table : [()]= [] in\n\
          let table_of_column = fun c,vs ->\n\
          let t1 = add_rows@<?>(empty_table, map(vs, fun _ -> ())) in\n\

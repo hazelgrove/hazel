@@ -2084,7 +2084,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          37429f82-4e85-47dd-a2c9-df96da799fbc)(label(|>))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 31))(sort Exp))((shape(Concave \
          31))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         925b84e0-5d2e-458c-89df-918a1348d054)(label(from_entries))(mold((out \
+         925b84e0-5d2e-458c-89df-918a1348d054)(label(from_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
          c1960267-3c44-4bcf-aa18-99bd23494344)(content(Whitespace\" \
@@ -2100,7 +2100,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Pat))))))(shards(0))(children())))(Secondary((id \
          bfa8d629-274a-425c-9f73-5c23655a25cf)(content(Whitespace\" \
          \")))))((Tile((id \
-         e70f3c03-12ff-406c-85ad-0a7d35f2c03e)(label(from_entries))(mold((out \
+         e70f3c03-12ff-406c-85ad-0a7d35f2c03e)(label(from_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          4796957c-3758-4c62-9528-96b545bd68ab)(label(\"(\"\")\"))(mold((out \
@@ -2556,7 +2556,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          31))(sort Exp))))))(shards(0))(children())))(Secondary((id \
          6927cc22-e3c5-48b7-a0bf-a622fcc30f16)(content(Whitespace\" \
          \"))))(Tile((id \
-         bd8dcd16-3fbf-453e-8fa2-2055bc96fee2)(label(from_entries))(mold((out \
+         bd8dcd16-3fbf-453e-8fa2-2055bc96fee2)(label(from_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Secondary((id \
          bd159b9a-c772-4230-8b1b-7d9ec64d226f)(content(Whitespace\"\\n\")))))))))(Secondary((id \
@@ -3373,8 +3373,8 @@ let out : string * Haz3lcore.PersistentZipper.t =
          operation=let pivot_table =\n\
          fun (t1 :[?], cs:[String], aggs :[(String, String, ? ->?)]) ->\n\
          let groups=fold_left(t1,fun (groups,row) ->\n\
-         let k  =filter(to_lvs(row),fun e ->mem(cs,e.label)) |>from_entries in\n\
-         let group_tup =from_entries(k) in       \n\
+         let k  =filter(to_lvs(row),fun e ->mem(cs,e.label)) |>from_lvs in\n\
+         let group_tup =from_lvs(k) in       \n\
          case find_opt(groups,fun (gk,_) ->k==gk)\n\
          |None =>(k,[row]) ::groups\n\
          |Some((key,rows)) =>(k,row::rows) ::filter(groups,fun (gk,_) ->k!=gk) \n\
@@ -3389,7 +3389,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          let reduced =reduction(vals) in\n\
          (label=dest_col,value=reduced)\n\
          )\n\
-         |> from_entries)\n\
+         |> from_lvs)\n\
          ) \n\
          in pivot_table,\n\
          notes=[\n\

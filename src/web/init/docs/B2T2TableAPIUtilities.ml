@@ -569,7 +569,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          e07fb8b9-8256-4e4f-b3f4-cb52b18cbd3d)(label(|>))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 31))(sort Exp))((shape(Concave \
          31))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         afb9f480-f996-456d-b8d1-66dbb9bd0d1e)(label(from_entries))(mold((out \
+         afb9f480-f996-456d-b8d1-66dbb9bd0d1e)(label(from_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Secondary((id \
          3c26a8a0-dddd-46e4-89fa-3d63ba65df37)(content(Whitespace\" \
@@ -987,7 +987,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          5b871d14-e0a6-4694-b043-1aeefc4e6fc3)(label(,))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 47))(sort Exp))((shape(Concave \
          47))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         0ee8c2f0-2d79-47fe-a3f1-43399fdc2bbc)(label(from_entries))(mold((out \
+         0ee8c2f0-2d79-47fe-a3f1-43399fdc2bbc)(label(from_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Secondary((id \
          8e25fd8b-411a-4513-8ccd-bf0e3f03deb8)(content(Whitespace\" \
@@ -1477,7 +1477,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          31))(sort Exp))))))(shards(0))(children())))(Secondary((id \
          e4f58eed-78e7-454b-b4e8-e8ec26f6d188)(content(Whitespace\" \
          \"))))(Tile((id \
-         c3b66581-8796-4345-951b-f53d80980b4f)(label(from_entries))(mold((out \
+         c3b66581-8796-4345-951b-f53d80980b4f)(label(from_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Secondary((id \
          25fb939c-b4c2-43f6-82e2-acb3b50f1b0b)(content(Whitespace\" \
@@ -2054,7 +2054,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          31))(sort Exp))))))(shards(0))(children())))(Secondary((id \
          d04be7fe-2a3a-47e1-839b-2107390e9c56)(content(Whitespace\" \
          \"))))(Tile((id \
-         15c1beb6-2aba-48b5-9078-98fe59703dd6)(label(from_entries))(mold((out \
+         15c1beb6-2aba-48b5-9078-98fe59703dd6)(label(from_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Secondary((id \
          cd81728e-ce41-4357-8279-8d2ce265d190)(content(Whitespace\" \
@@ -4301,7 +4301,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          8156cfd5-961a-4d9e-8e6e-51eda76eecf5)(label(|>))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 31))(sort Exp))((shape(Concave \
          31))(sort Exp))))))(shards(0))(children())))(Tile((id \
-         e014588e-5cd4-4671-aff8-cea6b4fd2aa0)(label(from_entries))(mold((out \
+         e014588e-5cd4-4671-aff8-cea6b4fd2aa0)(label(from_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))(Secondary((id \
          1742636d-bfd6-4c41-bc5f-202770abb175)(content(Whitespace\" \
@@ -4855,7 +4855,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \"))))(Secondary((id \
          002bdc13-3e1f-48ba-811a-c954563e2dcb)(content(Whitespace\"\\n\")))))))))(Secondary((id \
          8781618b-ee88-41c1-8a88-3ccc9f93033d)(content(Whitespace\"\\n\"))))(Tile((id \
-         5ede8d88-c879-4622-809a-3d9866263892)(label(from_entries))(mold((out \
+         5ede8d88-c879-4622-809a-3d9866263892)(label(from_lvs))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))(Tile((id \
          549e198a-99fc-4249-9aa6-4492ef51f802)(label(\"(\"\")\"))(mold((out \
@@ -4917,7 +4917,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          operation=let flatten =fun (t1 :[?],cs:[String]) ->\n\
          let select_cols =fun (r:?,cs:[String]) ->\n\
          to_lvs(r) |>(fun entries ->filter_map(cs,fun c ->find_opt(entries,fun \
-         e ->e.label ==c))) |>from_entries \n\
+         e ->e.label ==c))) |>from_lvs \n\
          in                          \n\
          flat_map(t1,fun r ->\n\
          let (non_seq_entries,seq_entries)=\n\
@@ -4928,7 +4928,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          |(col1 ::cols) =>\n\
          fold_left(cols,\n\
          fun (acc,a) ->zip(acc,a) |>map(_,fun (a,b) ->a @b),\n\
-         col1) |>map(_,from_entries) \n\
+         col1) |>map(_,from_lvs) \n\
          end |>map(_,fun rest ->r ...rest)\n\
          ) \n\
          in,\n\
@@ -4951,7 +4951,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          operation=let transform_column =\n\
          fun (t:[?],c:String,f :(? ->?)) ->\n\
          map(t,fun r ->map(to_lvs(r),fun e ->if e.label ==c then \
-         (label=e.label,value=f(e.value)) else e) |> from_entries) \n\
+         (label=e.label,value=f(e.value)) else e) |> from_lvs) \n\
          in,\n\
          notes=[\"The idiomatic way would be to do a map and use tuple \
          extension to transform the column\"]\n\
@@ -4982,7 +4982,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          | Some((_, to)) => (label=to, value=v)\n\
          | None => (label=l, value=v) \n\
          end)\n\
-         |> from_entries) \n\
+         |> from_lvs) \n\
          in rename_columns,\n\
          notes=[]\n\
          ),\n\
@@ -5110,7 +5110,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          |>map(_,fun r ->\n\
          to_lvs(r)\n\
          |>filter(_,fun e ->e.label!=c)\n\
-         |>from_entries) \n\
+         |>from_lvs) \n\
          in\n\
          (key=k) ...(groups=rows)) \n\
          in ?,\n\
@@ -5142,7 +5142,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          | None => e \n\
          end) \n\
          in\n\
-         from_entries(updated)) \n\
+         from_lvs(updated)) \n\
          in,\n\
          notes=[\"The idiomatic way to do this would be with map and ordinary \
          tuple extension\"]\n\
