@@ -38,13 +38,13 @@ module View = {
             // TODO[Matt]: tooltip
             Node.text("<=="),
             l |> Option.value(~default=Ui_effect.Ignore),
-            ~disabled=Option.is_none(l),
+            ~disabled=model.ctx_entry.is_captured || Option.is_none(l),
           ),
           Widgets.button_d(
             // TODO[Matt]: tooltip
             Node.text("==>"),
             r |> Option.value(~default=Ui_effect.Ignore),
-            ~disabled=Option.is_none(r),
+            ~disabled=model.ctx_entry.is_captured || Option.is_none(r),
           ),
         ];
       | _ => []

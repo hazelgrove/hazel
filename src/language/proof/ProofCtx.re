@@ -54,7 +54,7 @@ let add_exp = (name: string, exp: Exp.t, ctx: t) => {
   ];
 };
 
-let of_ctx = (ctx: Ctx.t): t => {
+let of_ctx = (~builtins, ctx: Ctx.t): t => {
   let (_, rules) =
     List.fold_left(
       ((seen_vars, rules), entry) =>
@@ -78,7 +78,7 @@ let of_ctx = (ctx: Ctx.t): t => {
         | Ctx.TVarEntry(_)
         | Ctx.LivelitEntry(_) => (seen_vars, rules)
         },
-      ([], []),
+      ([], builtins),
       ctx.entries,
     );
   rules;

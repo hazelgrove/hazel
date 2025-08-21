@@ -46,7 +46,7 @@ module Update = {
       model.all_rules
       |> {
         let.calc ctx = ctx;
-        ProofCtx.of_ctx(ctx);
+        ProofCtx.of_ctx(~builtins=Axioms.v, ctx);
       };
 
     let filtered_rewrites =
