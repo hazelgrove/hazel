@@ -76,18 +76,14 @@ let regrout = ((pre, suf): t) => {
   ((pre, s_l, trim_l), suf);
 };
 
-let left_neighbor: t => option(Piece.t) = ((l, _)) => ListUtil.last_opt(l);
-
-let right_neighbor: t => option(Piece.t) = ((_, r)) => ListUtil.hd_opt(r);
-
 let neighbor = (d: Direction.t, (l, r): t): option(Piece.t) =>
   switch (d) {
-  | Left => left_neighbor((l, r))
-  | Right => right_neighbor((l, r))
+  | Left => ListUtil.last_opt(l)
+  | Right => ListUtil.hd_opt(r)
   };
 
 let neighbors: t => (option(Piece.t), option(Piece.t)) =
-  n => (left_neighbor(n), right_neighbor(n));
+  n => (neighbor(Left, n), neighbor(Right, n));
 
 let trim_secondary = ((l_sibs, r_sibs): t) => (
   Segment.trim_secondary(Right, l_sibs),
