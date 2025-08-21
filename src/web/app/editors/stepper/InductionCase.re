@@ -379,7 +379,8 @@ module F = (Stepper: STEPPER) => {
                            name,
                            typ,
                            rule,
-                         },
+                           is_captured: false,
+                         } // TODO
                        },
                      )
                    );

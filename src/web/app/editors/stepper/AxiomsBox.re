@@ -7,11 +7,13 @@ module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     filter: Calc.t(string),
+    all_rules: Calc.saved(ProofCtx.t),
     filtered_rewrites: Calc.saved(list(AssumptionBox.Model.t)),
   };
 
   let init = {
     filter: Calc.NewValue(""),
+    all_rules: Calc.Pending,
     filtered_rewrites: Calc.Pending,
   };
 };
@@ -40,23 +42,23 @@ module Update = {
         model: Model.t,
       )
       : Model.t => {
+    let all_rules =
+      model.all_rules
+      |> {
+        let.calc ctx = ctx;
+        ProofCtx.of_ctx(ctx);
+      };
+
     let filtered_rewrites =
       model.filtered_rewrites
       |> {
-        let.calc ctx = ctx
+        let.calc all_rules = all_rules
         and.calc env = env
         and.calc filter = model.filter
         and.calc selected_exp = selected_exp;
 
         let all_assumption_boxes =
-          ctx
-          |> Ctx.get_var_entries
-          |> List.fold_left(
-               (acc, {name, id: _, typ}: Ctx.var_entry) =>
-                 ProofCtx.add_typ(name, typ, acc)
-                 |> Option.value(~default=acc),
-               Axioms.v,
-             )
+          all_rules
           |> (
             filter == ""
               ? x => x
@@ -84,6 +86,7 @@ module Update = {
       };
     {
       filter: model.filter |> Calc.make_old,
+      all_rules: all_rules |> Calc.save,
       filtered_rewrites: filtered_rewrites |> Calc.save,
     };
   };

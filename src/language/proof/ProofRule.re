@@ -8,7 +8,7 @@ type conclusion =
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
   bindings: list(Ctx.entry),
-  assumptions: list(Exp.t),
+  // assumptions: list(Exp.t),
   conclusion,
 };
 
@@ -19,28 +19,28 @@ let rec exp_to_rule = (exp: Exp.t): t =>
       ProofHacks.dhpat_extend_ctx(p, Typ.temp(Unknown(Internal)), Ctx.empty)
       |> Option.map((x: Ctx.t) => x.entries)
       |> OptUtil.get(() => []);
-    let {bindings, assumptions, conclusion} = exp_to_rule(e);
+    let {bindings, /* assumptions, */ conclusion} = exp_to_rule(e);
     {
       bindings: bindings' @ bindings,
-      assumptions,
+      // assumptions,
       conclusion,
     };
-  | BinOp(Bool(Or), {term: UnOp(Bool(Not), e1), _}, e2) =>
-    // TODO: Negate more generally and implication
-    let {bindings, assumptions, conclusion} = exp_to_rule(e2);
-    {
-      bindings,
-      assumptions: [e1] @ assumptions,
-      conclusion,
-    };
+  // | BinOp(Bool(Or), {term: UnOp(Bool(Not), e1), _}, e2) =>
+  //   // TODO: Negate more generally and implication
+  //   let {bindings, assumptions, conclusion} = exp_to_rule(e2);
+  //   {
+  //     bindings,
+  //     assumptions: [e1] @ assumptions,
+  //     conclusion,
+  //   };
   | BinOp(Poly(Equals), e1, e2) => {
       bindings: [],
-      assumptions: [],
+      // assumptions: [],
       conclusion: Equality(e1, e2),
     }
   | _ => {
       bindings: [],
-      assumptions: [],
+      // assumptions: [],
       conclusion: Other(exp),
     }
   };
@@ -52,11 +52,11 @@ let typ_to_rule = (typ: Typ.t): option(t) =>
   };
 
 let rule_to_exp = (rule: t): Exp.t => {
-  let rec wrap_assumptions = (assumptions: list(Exp.t), body: Exp.t): Exp.t =>
+  let rec _wrap_assumptions = (assumptions: list(Exp.t), body: Exp.t): Exp.t =>
     switch (assumptions) {
     | [] => body
     | [a, ...rs] =>
-      wrap_assumptions(
+      _wrap_assumptions(
         rs,
         Exp.fresh(BinOp(Bool(Or), Exp.fresh(UnOp(Bool(Not), a)), body)),
       )
@@ -79,7 +79,10 @@ let rule_to_exp = (rule: t): Exp.t => {
     | Equality(e1, e2) => Exp.fresh(BinOp(Poly(Equals), e1, e2))
     | Other(e) => e
     };
-  wrap_foralls(rule.bindings, wrap_assumptions(rule.assumptions, body));
+  wrap_foralls(
+    rule.bindings,
+    /*wrap_assumptions(rule.assumptions,*/ body /*)*/,
+  );
 };
 
 let rule_to_typ = (rule: t): Typ.t => {
@@ -122,3 +125,20 @@ let is_active = (~env, rule: t, exp: Exp.t): bool =>
   | (_, Some(_)) => true
   | _ => false
   };
+
+let get_coctx = (ctx: Ctx.t, ana: Typ.t, rule: t): CoCtx.t => {
+  let full_ctx = List.fold_left(Ctx.extend, ctx, rule.bindings);
+  let c_exp = conclusion_exp(rule);
+  /* TODO[Matt]: using full statics here feels a little overblown
+     especially given we need to fake some settings to it, perhaps
+     discuss with Andrew */
+  let statics = Statics.mk(~ana, CoreSettings.on, full_ctx, c_exp);
+  let root_id = Exp.rep_id(c_exp);
+  let info = Statics.Map.lookup(root_id, statics);
+  let inner_coctx =
+    switch (info) {
+    | Some(Info.InfoExp(exp)) => Info.exp_co_ctx(exp)
+    | _ => []
+    };
+  CoCtx.mk(ctx, full_ctx, inner_coctx);
+};
