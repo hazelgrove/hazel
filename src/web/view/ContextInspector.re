@@ -69,7 +69,7 @@ let ctx_view = (~globals, ctx: Language.Ctx.t): Node.t =>
     List.map(
       context_entry_view(~globals),
       ctx
-      |> Language.Ctx.filter_duplicates
+      |> Language.Ctx.filter_shadowed
       |> Language.Ctx.filter_stepper_filter_variables
       |> (x => x.entries)
       |> List.rev,
@@ -78,7 +78,7 @@ let ctx_view = (~globals, ctx: Language.Ctx.t): Node.t =>
 
 let ctx_sorts_view = (~globals, ci: Language.Statics.Info.t) =>
   Language.Info.ctx_of(ci)
-  |> Language.Ctx.filter_duplicates
+  |> Language.Ctx.filter_shadowed
   |> Language.Ctx.filter_stepper_filter_variables
   |> (x => x.entries)
   |> List.rev

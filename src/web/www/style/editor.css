@@ -202,23 +202,24 @@ svg.shard.selected {
 svg.shard.indicated {
   z-index: var(--tile-z);
 }
-svg.shard.error {
-  z-index: var(--err-hole-z);
-}
-
 svg.shard.selected > path {
   fill: var(--shard-selected);
   stroke-width: 0.5px;
   stroke: var(--shard-selected);
 }
-svg.shard.error > path,
+
+.errors .errors-piece svg.shard {
+  z-index: var(--err-hole-z);
+  filter: none;
+}
+.errors .errors-piece svg.shard > path,
 .errors .errors-piece svg .child-line {
   stroke: var(--error-hole-stroke);
   stroke-width: 0.75px;
   stroke-dasharray: 1, 1;
   stroke-linecap: butt;
 }
-svg.shard.error > path {
+.errors .errors-piece svg.shard > path {
   fill: var(--error-hole-fill);
 }
 
@@ -242,9 +243,6 @@ svg.shard.selected.buffer-parsed > path {
 }
 
 /* EMPTY HOLE DECO */
-
-.empty-hole {
-}
 
 .empty-hole > path {
   fill: var(--empty-hole-fill);
@@ -276,6 +274,11 @@ svg.shard.selected.buffer-parsed > path {
   stroke-linecap: round;
   fill: none;
   vector-effect: non-scaling-stroke;
+}
+
+.indication .child-line {
+  /* To make it align to shard shadows */
+  translate: 0 0.02px;
 }
 
 svg:has(.child-line) {

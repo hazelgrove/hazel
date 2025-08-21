@@ -17,7 +17,7 @@ let code = (code: string): Node.t =>
 let label_view = (label: string): Node.t =>
   div(
     ~attrs=[clss(["code"])],
-    [text(Haz3lcore.Form.quote_label_when_necessary(label))],
+    [text(Haz3lcore.Token.quote_label_when_necessary(label))],
   );
 
 let cls_view = (ci: Info.t): Node.t => {
@@ -114,7 +114,7 @@ let common_err_view =
   (
     switch (err) {
     | NoType(BadToken(token)) =>
-      switch (Haz3lcore.Form.bad_token_cls(token)) {
+      switch (Haz3lcore.Token.bad_token_cls(token)) {
       | BadInt => [text("Integer is too large or too small")]
       | Other => [text(Printf.sprintf("\"%s\" isn't a valid token", token))]
       }
