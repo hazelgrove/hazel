@@ -49,7 +49,7 @@
   display: block;
   left: 10px;
   top: 0px;
-  filter: drop-shadow(-10px 0px 0px var(--fold-accent))
+  filter: drop-shadow(-5px 0px 0px var(--fold-accent))
     drop-shadow(5px 5px 5px #2105);
   transform-origin: top left;
 }
@@ -58,10 +58,54 @@
   animation: shadowSlideIn 0.15s ease-in;
 }
 
-.projector.fold div:hover .hover-view {
-  left: 8px;
-  filter: drop-shadow(-8px 0px 0px var(--fold-accent))
+.projector.fold .hover-view.collapsed {
+  display: none;
+}
+
+/* Always render mode: CSS-only toggle using checkbox hack */
+.projector.fold .fold-always-render {
+  cursor: pointer;
+  font-family: var(--code-font);
+}
+
+.projector.fold .fold-toggle-checkbox {
+  display: none !important;
+}
+
+/* Hide hover-view by default in always-render mode */
+.projector.fold .fold-always-render .hover-view.always-render {
+  display: none;
+}
+
+/* Show hover-view when checkbox is checked */
+.projector.fold .fold-toggle-checkbox:checked ~ .hover-view.always-render {
+  display: block;
+}
+
+/* Ensure animations work in always-render mode */
+.projector.fold .fold-always-render .hover-view.always-render {
+  transition: all 0.1s ease-out;
+  position: absolute;
+  left: 10px;
+  top: 0px;
+  filter: drop-shadow(-5px 0px 0px var(--fold-accent))
     drop-shadow(5px 5px 5px #2105);
+  transform-origin: top left;
+  animation: shadowSlideIn 0.15s ease-in;
+}
+
+/* Hover effects for always-render mode */
+.projector.fold .fold-always-render:hover .hover-view.always-render,
+.projector.fold div:hover .hover-view {
+  left: 9px;
+  filter: drop-shadow(-4px 0px 0px var(--fold-accent))
+    drop-shadow(5px 5px 5px #2105);
+}
+
+/* Maintain label styling consistency with div */
+.projector.fold .fold-always-render:hover,
+.projector.fold .fold-always-render:has(.hover-view.always-render) {
+  color: var(--SAND);
 }
 
 @keyframes shadowSlideIn {
@@ -73,10 +117,15 @@
   }
   to {
     left: 10px;
-    filter: drop-shadow(-10px 0px 0px var(--fold-accent))
+    filter: drop-shadow(-5px 0px 0px var(--fold-accent))
       drop-shadow(5px 5px 5px #2105);
     transform: scale(1);
   }
+}
+
+.projector.fold .hover-view .code .quick-select-deco {
+  filter: drop-shadow(10px 0px 0px var(--fold-bkg))
+    drop-shadow(5px 5px 5px #2105);
 }
 
 .projector.fold .hover-view .code-text {
@@ -103,8 +152,8 @@
 
 .projector.fold .hover-view svg {
   transition: all 0.1s ease-out;
-  --shadow: var(--BR3);
-  filter: drop-shadow(0.7px 0.7px 0px var(--shadow));
+  /* --shadow: var(--BR3);
+  filter: drop-shadow(0.7px 0.7px 0px var(--shadow)); */
 }
 
 .projector.fold .hover-view svg path {

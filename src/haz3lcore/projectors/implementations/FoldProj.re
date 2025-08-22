@@ -8,11 +8,13 @@ type t = {
   [@default "⋱"]
   text: string,
   expanded: bool,
+  always_render: bool,
 };
 
 let default: t = {
   text: "⋱",
   expanded: false,
+  always_render: false,
 };
 
 let t_of_sexp = (sexp: Sexplib.Sexp.t): t =>
@@ -40,11 +42,27 @@ module M: Projector = {
     expanded: !m.expanded,
   };
 
-  let hover_view = (view_seg: View.seg, info: info) => {
+  let hover_view = (view_seg: View.seg, m, info: info) => {
     let seg = Segment.unparenthesize(info.syntax);
     let sort = Segment.sort_of(Segment.skel(seg), seg);
     div(
-      ~attrs=[Attr.class_("hover-view")],
+      ~attrs=[
+        Attr.classes(
+          ["hover-view"]
+          @ (
+            if (m.always_render) {
+              [
+                /* In always_render mode, let CSS handle visibility */
+                "always-render",
+              ];
+            } else {
+              /* In normal mode, use expanded field */
+              m.expanded
+                ? [] : ["collapsed"];
+            }
+          ),
+        ),
+      ],
       [
         view_seg(~background=true, sort, Segment.unparenthesize(info.syntax)),
       ],
@@ -53,12 +71,38 @@ module M: Projector = {
 
   let view = (m: model, info, ~local, ~parent as _, ~view_seg) =>
     ProjectorBase.View.mk(
-      div(
-        ~attrs=[
-          Attr.on_click(_ => local(Toggle)),
-          //Attr.on_double_click(_ => parent(Remove)),
-        ],
-        [text(m.text)] @ (m.expanded ? [hover_view(view_seg, info)] : []),
-      ),
+      if (m.always_render) {
+        /* Always render mode: use checkbox hack for CSS-only toggle */
+        let checkbox_id = "fold-toggle-" ++ Id.to_string(info.id);
+        label(
+          ~attrs=[
+            Attr.create("for", checkbox_id),
+            Attr.classes(["fold-always-render"]),
+          ],
+          [
+            input(
+              ~attrs=[
+                Attr.create("type", "checkbox"),
+                Attr.id(checkbox_id),
+                Attr.classes(["fold-toggle-checkbox"]),
+                Attr.create("style", "display: none;") /* Hide the checkbox */
+              ],
+              (),
+            ),
+            text(m.text),
+            hover_view(view_seg, m, info),
+          ],
+        );
+      } else {
+        /* Normal mode: use existing expanded field logic */
+        div(
+          ~attrs=[
+            Attr.on_click(_ => local(Toggle)),
+            //Attr.on_double_click(_ => parent(Remove)),
+          ],
+          [text(m.text)]
+          @ (m.expanded ? [hover_view(view_seg, m, info)] : []),
+        );
+      },
     );
 };

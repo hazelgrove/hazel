@@ -709,6 +709,7 @@ let fold_fun_if = (condition, f_name: string, pieces) =>
       FoldProj.sexp_of_t({
         text: f_name,
         expanded: false,
+        always_render: true,
       })
       |> Sexplib.Sexp.to_string;
     switch (MakeTerm.for_projection([syntax])) {
