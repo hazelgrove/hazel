@@ -254,5 +254,6 @@ let go_z =
       }
     )
     |> Result.of_option(~error=Action.Failure.Cant_put_down)
+  | Dump => Ok(Zipper.try_to_dump_backpack(z))
   };
 };
