@@ -53,6 +53,7 @@ module Update = {
         Buffer(_) |
         Project(_) |
         Refractor(_) |
+        Dump |
         Introduce,
       )
     | DebugConsole(_)

@@ -99,7 +99,8 @@ type t =
   | Insert(string)
   | Put_down
   | Introduce
-  | Refractor(refractor);
+  | Refractor(refractor)
+  | Dump;
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -134,7 +135,8 @@ let is_edit: t => bool =
   | Destruct(_)
   | Put_down
   | Introduce
-  | Buffer(Accept | Clear | Set(_)) => true
+  | Buffer(Accept | Clear | Set(_))
+  | Dump => true
   | Copy
   | Move(_)
   | Jump(_)
@@ -166,7 +168,8 @@ let is_historic: t => bool =
   | Insert(_)
   | Destruct(_)
   | Put_down
-  | Introduce => true
+  | Introduce
+  | Dump => true
   | Project(p) =>
     switch (p) {
     | SetSyntax(_)
@@ -192,7 +195,8 @@ let prevent_in_read_only_editor = (a: t) =>
   | Destruct(_)
   | Insert(_)
   | Put_down
-  | Introduce => true
+  | Introduce
+  | Dump => true
   | Project(p) =>
     switch (p) {
     | SetSyntax(_) => true
@@ -234,4 +238,5 @@ let should_animate: t => bool =
   | Move(_)
   | Jump(_)
   | Project(_)
-  | Refractor(_) => true;
+  | Refractor(_)
+  | Dump => true;

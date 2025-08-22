@@ -65,7 +65,8 @@ module Update = {
              | Cut
              | Reparse
              | Introduce
-             | Refractor(_) => true
+             | Refractor(_)
+             | Dump => true
              | Project(_)
              | Unselect(_)
              | Select(All) => false

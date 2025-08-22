@@ -119,6 +119,8 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
   | {key: D("∫"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     /* † is what holding option turns t into on Mac */
     Some(Refractor(SetRefProbe))
+  | {key: D("µ"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
+    Some(Dump)
   | {key: D(key), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     switch (key) {
     | "ArrowLeft" => now(Move(Local(Left(ByToken))))
