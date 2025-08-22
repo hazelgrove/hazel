@@ -39,7 +39,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          the caret.                            #\"))))(Secondary((id \
          dc5b7867-ead2-438d-8795-00584aa033b4)(content(Whitespace\"\\n\"))))(Secondary((id \
          9a9e77c0-09d3-4fc9-9ece-3751debc694c)(content(Whitespace\"\\n\"))))(Secondary((id \
-         7cd52093-1aa0-487b-a406-e38eb16bcae3)(content(Comment\"# 1. A fold \
+         aabfa1a2-e5cb-4f0d-8100-f4f3fdbd0023)(content(Comment\"# A. A fold \
          projector collapse a term, replacing     #\"))))(Secondary((id \
          607ecf1d-a2b9-4fa7-9a05-6814c05feaf2)(content(Whitespace\"\\n\"))))(Secondary((id \
          c6397f61-700d-4e9f-aab1-5b3e68191a4c)(content(Comment\"#    it with \
@@ -48,8 +48,8 @@ let out : string * Haz3lcore.PersistentZipper.t =
          9e05e6c5-866a-417e-9f4c-24101e6087e7)(content(Comment\"#    Terms can \
          be projected using alt/option-f.      #\"))))(Secondary((id \
          cd865393-3ac6-4c91-8979-a918c345f8bd)(content(Whitespace\"\\n\"))))(Secondary((id \
-         fd817142-e217-4a0a-9fe6-3e6f360d2fb5)(content(Comment\"#    Hovering \
-         over a folded term shows the term.     #\"))))(Secondary((id \
+         ca0332ba-6ad6-461e-be53-cf92194cb435)(content(Comment\"#    Clicking \
+         a fold toggles a hover term display.   #\"))))(Secondary((id \
          4fe90ec2-3df4-40d2-bc2b-8821205ab11a)(content(Whitespace\"\\n\"))))(Secondary((id \
          9a23c7df-bb21-48e2-8c19-22e935a0b1e6)(content(Whitespace\"\\n\"))))(Tile((id \
          43bd468d-b872-4ec8-91f6-4daac5b83be7)(label(let = in))(mold((out \
@@ -63,53 +63,62 @@ let out : string * Haz3lcore.PersistentZipper.t =
          a418dae1-f424-4c40-ae1f-13e6cb1fa5e3)(content(Whitespace\" \
          \")))))((Secondary((id \
          560a6e34-dc1b-4fa4-8df4-f62acc3db2d3)(content(Whitespace\" \
-         \"))))(Projector((id f670d1bd-b92f-4802-91a3-36d797c659ec)(kind \
+         \"))))(Projector((id 5dce8608-df48-45c0-acfb-fee72f9dd21b)(kind \
          Fold)(syntax(Tile((id \
-         8dcfcbe9-216a-4d41-9e4e-d9874a14d16c)(label(\"(\"\")\"))(mold((out \
+         627fa17d-9125-4ce0-ac8b-c47b09a6784b)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Tile((id \
          3a7af7ff-72dc-4faf-acf3-57fbab163c72)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
+         Exp))))))(shards(0 1))(children(((Secondary((id \
+         6afe0c9c-1f89-4196-a9ba-9fe72d6e6571)(content(Whitespace\"\\n\"))))(Tile((id \
          3f80085d-bbd1-47db-8931-ec4f09a04c77)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Tile((id \
+         84af215d-2282-4f61-8902-a07ff7a15ffc)(label(\"\\\"Well\\\"\"))(mold((out \
+         Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
+         Exp))))))(shards(0))(children())))(Tile((id \
+         fe6969f7-f3ed-4f4e-85c5-ccfcc5b6b1b3)(label(,))(mold((out \
+         Exp)(in_())(nibs(((shape(Concave 47))(sort Exp))((shape(Concave \
+         47))(sort Exp))))))(shards(0))(children())))(Secondary((id \
+         1c0bd7f1-43ee-4d0f-9522-7ed5e6140ee6)(content(Whitespace\"\\n\"))))(Tile((id \
          74e6b638-345d-4ff6-9c6b-25a10e3eca2f)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Tile((id \
+         7b063d63-7540-4063-9a0a-5172338b26b7)(label(\"\\\"hello\\\"\"))(mold((out \
+         Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
+         Exp))))))(shards(0))(children())))(Tile((id \
+         c12eb186-c263-4301-93a0-2f5dcc87d3ef)(label(,))(mold((out \
+         Exp)(in_())(nibs(((shape(Concave 47))(sort Exp))((shape(Concave \
+         47))(sort Exp))))))(shards(0))(children())))(Secondary((id \
+         e7895fe2-a593-4992-9659-43f126d578fd)(content(Whitespace\"\\n\"))))(Tile((id \
          515dd1ce-9b1f-40dd-8456-29a36f63ecb1)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Tile((id \
-         dfa1b40b-a47e-47d9-b932-064e91cc5d51)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
-         587ee888-dcb8-4804-b4f8-5817daeac70f)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
-         373bac7c-c19e-468a-a94f-8ff63de60f91)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
-         6bdf676e-1f47-4356-8d76-5e6363c45655)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
-         2b45c174-d94a-4309-ab9d-964294be1b02)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
-         fade18cf-9eeb-4a76-b7ba-d7078c29436b)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
-         beed1c4b-7a31-49a5-9037-b23b071e29be)(label(\"(\"\")\"))(mold((out \
-         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0 1))(children(((Tile((id \
-         86738ef2-189a-48c9-9941-2005ab2b5077)(label(\"()\"))(mold((out \
+         bd07d72c-34c5-4b51-af2c-2bd0131f2026)(label(\"\\\"there!\\\"\"))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children()))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\")(expanded \
-         false))\")))(Secondary((id \
+         Exp))))))(shards(0))(children())))(Tile((id \
+         bfc3b668-1661-4d8d-9609-3dd2a57b5a37)(label(,))(mold((out \
+         Exp)(in_())(nibs(((shape(Concave 47))(sort Exp))((shape(Concave \
+         47))(sort Exp))))))(shards(0))(children())))(Secondary((id \
+         de1afe91-a48d-41a4-b167-642ae20f80ed)(content(Whitespace\"\\n\"))))(Tile((id \
+         43dcfe53-6d05-48f9-8521-8f55fe4cff52)(label([ ]))(mold((out \
+         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
+         Exp))))))(shards(0 1))(children(((Tile((id \
+         d5933d48-fe99-4389-9e24-2de36a52e724)(label(\"\\\"Please close me \
+         when you're done\\\"\"))(mold((out Exp)(in_())(nibs(((shape \
+         Convex)(sort Exp))((shape Convex)(sort \
+         Exp))))))(shards(0))(children()))))))))(Secondary((id \
+         77bedee1-8f89-4408-b97e-e4edaefc91fb)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         8cf98643-aaec-496a-9dc9-9308976f8b5e)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         6d158a7a-b936-40fc-b584-3b7c23d05c4c)(content(Whitespace\"\\n\")))))))))(Secondary((id \
+         94cd8ff2-5373-42f3-ade2-786aecc30385)(content(Whitespace\"\\n\")))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\")(expanded \
+         false)(always_render false))\")))(Secondary((id \
          498c6765-997d-4723-9b61-0ff92768b5d5)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          c01b67f5-d0f2-488c-8684-ef32aab68b7a)(content(Whitespace\"\\n\"))))(Secondary((id \
          fb9576e4-d9e2-4216-a613-10dce2db14b6)(content(Whitespace\"\\n\"))))(Secondary((id \
-         f8753587-387a-4e7b-9f05-c483c1bfc378)(content(Comment\"# 2. A type \
+         c3c0f77d-156e-4dc1-a55a-70f9c6d9b751)(content(Comment\"# B. A type \
          probe shows a term's type to the side.   #\"))))(Secondary((id \
          cb0e94e2-fa8d-4954-9054-1ded01e65328)(content(Whitespace\"\\n\"))))(Secondary((id \
          622cbec3-2bee-4788-8125-d851f29a5202)(content(Comment\"#    Type \
@@ -166,7 +175,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \")))))))))(Secondary((id \
          f24c7223-9cb8-41c5-8339-f339c19e4721)(content(Whitespace\"\\n\"))))(Secondary((id \
          cbd65466-b752-4d88-a291-67d6e7849249)(content(Whitespace\"\\n\"))))(Secondary((id \
-         d1a147dc-328b-46b7-9913-c93a04ec8f51)(content(Comment\"# 3. A live \
+         dfbab3d5-4124-4004-ada6-1b5b8f31aaeb)(content(Comment\"# C. A live \
          probe shows a term's value(s).           #\"))))(Secondary((id \
          bbf8920c-28c2-4472-9f62-903941c87fc7)(content(Whitespace\"\\n\"))))(Secondary((id \
          ffd5543b-77fc-4171-8363-f823783f3fee)(content(Comment\"#    See the \
@@ -223,8 +232,8 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \")))))))))(Secondary((id \
          da602eea-1cc3-43e9-9b32-7a7b60f409ca)(content(Whitespace\"\\n\"))))(Secondary((id \
          e8bbf9ad-b484-490a-aca0-47ffd42a83da)(content(Whitespace\"\\n\"))))(Secondary((id \
-         342397da-bdd4-44d7-a156-6aca9259418a)(content(Comment\"# 4. \
-         Projectors on literal data are called livelits. #\"))))(Secondary((id \
+         f8847fe2-f569-46c7-a6af-d22aaf5e2e1a)(content(Comment\"# D. \
+         Projectors applying to specific data literals.  #\"))))(Secondary((id \
          25984b0b-e9ef-4cb9-9d81-9f8af96eeab7)(content(Whitespace\"\\n\"))))(Secondary((id \
          0e8ff747-78ed-4699-93d6-f98cd1807578)(content(Comment\"#    These can \
          be applied using alt/option-l.        #\"))))(Secondary((id \
@@ -322,10 +331,76 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Exp))))))(shards(0))(children())))))))))(model\"()\")))(Secondary((id \
          66a9105c-87db-495e-a290-e084918633d0)(content(Whitespace\" \
          \")))))))))(Secondary((id \
+         58713e7b-8721-4b86-8c56-7aae46261872)(content(Whitespace\"\\n\"))))(Secondary((id \
+         1c820ce1-71a1-46d9-ae15-860fc785f729)(content(Whitespace\"\\n\"))))(Secondary((id \
+         96a797a0-448b-4a7e-be1b-374eed298c8e)(content(Comment\"#    One ADT \
+         uses a tab-style two-line view.         #\"))))(Secondary((id \
+         27720668-b835-448b-924f-53e90877f27f)(content(Whitespace\"\\n\"))))(Secondary((id \
+         6612871b-3df3-4080-98a4-42471b9d77c8)(content(Comment\"#    See the \
+         `Cards` slide for more information.     #\"))))(Secondary((id \
+         ca6ae48c-2a54-4a17-88b6-5f6350fd79e3)(content(Whitespace\"\\n\"))))(Tile((id \
+         2802bf94-43e1-4930-b382-c268868dbcfb)(label(let = in))(mold((out \
+         Exp)(in_(Pat Exp))(nibs(((shape Convex)(sort Exp))((shape(Concave \
+         40))(sort Exp))))))(shards(0 1 2))(children(((Secondary((id \
+         40c20716-7593-42f5-9991-1925e58bc829)(content(Whitespace\" \
+         \"))))(Tile((id \
+         8884010e-b4e1-473a-b205-ec407897ca44)(label(card))(mold((out \
+         Pat)(in_())(nibs(((shape Convex)(sort Pat))((shape Convex)(sort \
+         Pat))))))(shards(0))(children())))(Tile((id \
+         9dd17f46-8a56-47f6-83c2-c94550955243)(label(:))(mold((out \
+         Pat)(in_())(nibs(((shape(Concave 24))(sort Pat))((shape(Concave \
+         24))(sort Typ))))))(shards(0))(children())))(Secondary((id \
+         43da4ea0-7b33-4bd3-b670-b02b48836e6d)(content(Whitespace\" \
+         \"))))(Tile((id \
+         311cb356-5a7c-49c5-813d-a9fd2a666d8a)(label(\"(\"\")\"))(mold((out \
+         Typ)(in_(Typ))(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
+         Typ))))))(shards(0 1))(children(((Tile((id \
+         ef287db1-9eeb-4a5d-93a3-c67f8258f4e9)(label(+))(mold((out \
+         Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape(Concave 33))(sort \
+         Typ))))))(shards(0))(children())))(Tile((id \
+         534f68c6-6c38-4eb8-8a32-582858c6a3f2)(label(Spades))(mold((out \
+         Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
+         Typ))))))(shards(0))(children())))(Tile((id \
+         7785ec82-0ead-4b6f-8696-0efefe097cd5)(label(,))(mold((out \
+         Typ)(in_())(nibs(((shape(Concave 47))(sort Typ))((shape(Concave \
+         47))(sort Typ))))))(shards(0))(children())))(Secondary((id \
+         9393149e-a3f2-41d0-9c97-859a4a6c98bd)(content(Whitespace\" \
+         \"))))(Tile((id \
+         b5f00d74-592d-4774-a639-02babcb45546)(label(+))(mold((out \
+         Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape(Concave 33))(sort \
+         Typ))))))(shards(0))(children())))(Tile((id \
+         392e5e2e-d376-4262-a958-6140b5fa1ef4)(label(Jack))(mold((out \
+         Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
+         Typ))))))(shards(0))(children()))))))))(Secondary((id \
+         076194f5-5de2-4e12-9f61-0a49bfe830d1)(content(Whitespace\" \
+         \")))))((Secondary((id \
+         0a24e18e-e9ad-4eae-8ad2-154c6292917b)(content(Whitespace\" \
+         \"))))(Projector((id 9d16ddf2-7528-4d29-bbe7-ae1058b5469a)(kind \
+         Card)(syntax(Tile((id \
+         1be81bc3-e8da-4573-8568-b06ef0615270)(label(\"(\"\")\"))(mold((out \
+         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
+         Exp))))))(shards(0 1))(children(((Tile((id \
+         553a6eb6-7826-4399-951b-ee9284fe8b38)(label(\"(\"\")\"))(mold((out \
+         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
+         Exp))))))(shards(0 1))(children(((Tile((id \
+         0bc36f0f-83cd-481a-86be-cee87353f9a1)(label(Spades))(mold((out \
+         Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
+         Exp))))))(shards(0))(children())))(Tile((id \
+         1be3dfca-2534-45ee-ac33-dd34b6296ec0)(label(,))(mold((out \
+         Exp)(in_())(nibs(((shape(Concave 47))(sort Exp))((shape(Concave \
+         47))(sort Exp))))))(shards(0))(children())))(Secondary((id \
+         8d714140-517a-46b4-bfbc-2cdda4ca3f96)(content(Whitespace\" \
+         \"))))(Tile((id \
+         ba095ada-35a7-4f68-9228-cef6f7250e91)(label(Jack))(mold((out \
+         Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
+         Exp))))))(shards(0))(children()))))))))))))))(model\"((mode \
+         Show))\")))(Secondary((id \
+         dc1cfb43-7642-4531-8f96-6bb7e57b0c8d)(content(Whitespace\" \
+         \")))))))))(Secondary((id \
          d4bd3434-10a2-428e-bb09-d8670bad6a2f)(content(Whitespace\"\\n\"))))(Secondary((id \
          37ec9ae5-2f50-46a1-a1fd-32df633fc71a)(content(Whitespace\"\\n\"))))(Secondary((id \
-         343acbee-cd62-4d3d-847f-50f31a6ae08e)(content(Comment\"# Inline error \
-         decorations (same as for tokens) #\"))))(Secondary((id \
+         55a845bc-4ce5-491a-b2c7-d0154c31a887)(content(Comment\"# Inline error \
+         decorations (same as for tokens)      #\"))))(Secondary((id \
          bd0de61b-7f0f-4c1a-9779-2980ee9c7e8e)(content(Whitespace\"\\n\"))))(Secondary((id \
          d89c3a2d-b7ac-4737-8baf-a7139f4da230)(content(Whitespace\"\\n\"))))(Tile((id \
          d31965f1-aad8-41ab-983d-c13df6482ca4)(label(let = in))(mold((out \
@@ -358,7 +433,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          24))(sort Typ))))))(shards(0))(children())))(Secondary((id \
          14a1deb3-5397-468f-821e-2a2198c493b5)(content(Whitespace\" \
          \"))))(Tile((id \
-         ae739a27-cacb-4da4-a669-867e8ffcaac8)(label(Float))(mold((out \
+         3115cfe0-2aa4-4eb1-81c6-2eff75663926)(label(Bool))(mold((out \
          Typ)(in_())(nibs(((shape Convex)(sort Typ))((shape Convex)(sort \
          Typ))))))(shards(0))(children()))))))))(Secondary((id \
          fa83fbf8-42d1-4089-8e25-ae611512dced)(content(Whitespace\" \
@@ -388,8 +463,8 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \")))))))))(Secondary((id \
          87500773-9d7f-41c2-b809-f71cdecde1bb)(content(Whitespace\"\\n\"))))(Secondary((id \
          3d195e46-7156-485a-a697-67be07259e94)(content(Whitespace\"\\n\"))))(Secondary((id \
-         b94721a4-ae93-43b2-aa1a-6d3564636ddb)(content(Comment\"# The String \
-         base type get a multiline view: #\"))))(Secondary((id \
+         d7c05055-f8d7-4988-871c-ae8030001baa)(content(Comment\"# The String \
+         base type get a multiline view:         #\"))))(Secondary((id \
          ae93d5d3-7671-44d5-b4f0-d15cfa0ad56c)(content(Whitespace\"\\n\"))))(Secondary((id \
          a1974424-19f9-4f37-b8d8-921e2e6badf7)(content(Whitespace\"\\n\"))))(Tile((id \
          fb9c2b32-275d-43fa-820d-ab1b8726ca1b)(label(let = in))(mold((out \
@@ -552,23 +627,29 @@ let out : string * Haz3lcore.PersistentZipper.t =
          857a436d-6677-468a-bb06-dd96a7ba0c43)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          1e41f901-f4ea-4d26-b3fa-6ca02aa9a8d6)(content(Whitespace\"\\n\"))))(Secondary((id \
-         5db28173-1a02-45c2-bca7-32edbfd2f887)(content(Whitespace\"\\n\"))))(Secondary((id \
-         d803937f-f619-4d55-a95a-509daddbef34)(content(Comment\"# \
-         ERRATA:                                            \
-         #\"))))(Secondary((id \
          afdaf78f-2f83-4d5b-a2c9-5dc573ab1ec4)(content(Whitespace\"\\n\"))))(Secondary((id \
-         05842dfa-db11-4089-94bc-7c44225be98e)(content(Comment\"# The bottom \
-         toggle can also be used to remove       #\"))))(Secondary((id \
+         42e0c678-6ab4-45bf-8b39-f517b5222390)(content(Comment\"# The bottom \
+         toggle or backspace removes projectors. #\"))))(Secondary((id \
          6c9e91bc-4096-45da-87e6-e0121001c23e)(content(Whitespace\"\\n\"))))(Secondary((id \
-         56d82127-eaa8-4a7a-a219-74c63ef84175)(content(Comment\"# projectors. \
-         Projectors are preserved on in-editor  #\"))))(Secondary((id \
+         a9430c4b-fd0f-4467-bc61-f98310da90a9)(content(Comment\"# Projectors \
+         are preserved on in-editor copy/paste   #\"))))(Secondary((id \
          e1aac651-60d7-4e06-a361-225636be638a)(content(Whitespace\"\\n\"))))(Secondary((id \
-         eda225a3-ce91-49a3-82ea-2addbe5bf23f)(content(Comment\"# copy/paste, \
-         but not outside the editor.            #\"))))(Secondary((id \
-         f23907c7-6a6e-4d02-ae59-fb9021d0dfd0)(content(Whitespace\"\\n\"))))(Tile((id \
-         eb14dc68-3f2a-44bf-93bc-51b72030cc67)(label(?))(mold((out \
-         Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children()))))))(ancestors())))(caret Outer))";
+         26895eb9-f28e-4fe4-93d6-91837618938e)(content(Comment\"# and are \
+         persisted as ^^projector_name(data) when   #\"))))(Secondary((id \
+         16a43609-6c45-46d9-b4ec-4d41e4547958)(content(Whitespace\"\\n\"))))(Secondary((id \
+         d972f3ab-23b5-43f7-9c8c-3bfaf38f705f)(content(Comment\"# pasted \
+         externally; pasting this here projects it.  #\"))))(Secondary((id \
+         ce4aef98-b0c0-4695-8415-d9535a3c1a38)(content(Whitespace\"\\n\"))))(Secondary((id \
+         f23907c7-6a6e-4d02-ae59-fb9021d0dfd0)(content(Whitespace\"\\n\"))))(Projector((id \
+         fb3069d6-05cb-4ab6-8e77-e58c9b2b43d3)(kind Fold)(syntax(Tile((id \
+         a088d3af-e930-48d7-9e7f-cd4b671b0eae)(label(\"(\"\")\"))(mold((out \
+         Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
+         Exp))))))(shards(0 1))(children(((Tile((id \
+         ca15f8d9-6764-4a3f-b166-a41d6f7b87d3)(label(\"\\\"Put it \
+         back\\\"\"))(mold((out Exp)(in_())(nibs(((shape Convex)(sort \
+         Exp))((shape Convex)(sort \
+         Exp))))))(shards(0))(children())))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\")(expanded \
+         false)(always_render false))\"))))))(ancestors())))(caret Outer))";
       backup_text =
         "# _____  _____    _____      _  _____  _____  ______ #\n\
          #|     ||   _ |  |     |    | ||     ||     ||      |#\n\
@@ -581,27 +662,38 @@ let out : string * Haz3lcore.PersistentZipper.t =
          # The menu at the bottom left shows which GUIs       #\n\
          # (if any) are applicable to the current term        #\n\
          # indicated by the caret.                            #\n\n\
-         # 1. A fold projector collapse a term, replacing     #\n\
+         # A. A fold projector collapse a term, replacing     #\n\
          #    it with `...` until it is expanded again.       #\n\
          #    Terms can be projected using alt/option-f.      #\n\
-         #    Hovering over a folded term shows the term.     #\n\n\
-         let fold = ^^fold((((((((((((())))))))))))) in\n\n\
-         # 2. A type probe shows a term's type to the side.   #\n\
+         #    Clicking a fold toggles a hover term display.   #\n\n\
+         let fold = ^^fold((\n\
+         (\"Well\",\n\
+         (\"hello\",\n\
+         (\"there!\",\n\
+         [\"Please close me when you're done\"]\n\
+         )\n\
+         )\n\
+         )\n\
+         )) in\n\n\
+         # B. A type probe shows a term's type to the side.   #\n\
          #    Type probes can be applied using alt/option-t.  #\n\
          #    Doubleclick toggles inferred/synthesized types. #\n\n\
          let typ: (Int -> Bool) = ^^type()   in\n\n\
-         # 3. A live probe shows a term's value(s).           #\n\
+         # C. A live probe shows a term's value(s).           #\n\
          #    See the Probes slide for more information.      #\n\n\
          let val: Int =  ^^probe((1 + 1))   in\n\n\
-         # 4. Projectors on literal data are called livelits. #\n\
+         # D. Projectors applying to specific data literals.  #\n\
          #    These can be applied using alt/option-l.        #\n\
          #    Three base types literals use inline views:     #\n\n\
          let guard: Bool = ^^check(true) in\n\
          let phase: Int = ^^slider(44) in\n\
          let float: Float = ^^sliderf(79.00) in\n\n\
-         # Inline error decorations (same as for tokens) #\n\n\
-         let (a:Int, f: Float) = ^^check(true), ^^slider(28) in\n\n\
-         # The String base type get a multiline view: #\n\n\
+         #    One ADT uses a tab-style two-line view.         #\n\
+         #    See the `Cards` slide for more information.     #\n\
+         let card: (+Spades, +Jack) = ^^card((Spades, Jack)) in\n\n\
+         # Inline error decorations (same as for tokens)      #\n\n\
+         let (a:Int, f: Bool) = ^^check(true), ^^slider(28) in\n\n\
+         # The String base type get a multiline view:         #\n\n\
          let _ = ^^text(\"\") in\n\
          let __ = ^^text(\"\\n\") in\n\
          let ___ = ^^text(\"a\") in\n\
@@ -610,9 +702,9 @@ let out : string * Haz3lcore.PersistentZipper.t =
          let ______ = ^^text(\"a\\n shift\\n   malicious\")in\n\n\
          # Multiline error decorations #\n\n\
          let box: Int = ^^text(\"\\nmalicious\") in\n\n\
-         # ERRATA:                                            #\n\
-         # The bottom toggle can also be used to remove       #\n\
-         # projectors. Projectors are preserved on in-editor  #\n\
-         # copy/paste, but not outside the editor.            #\n\
-         ?";
+         # The bottom toggle or backspace removes projectors. #\n\
+         # Projectors are preserved on in-editor copy/paste   #\n\
+         # and are persisted as ^^projector_name(data) when   #\n\
+         # pasted externally; pasting this here projects it.  #\n\n\
+         ^^fold(\"Put it back\")";
     } )

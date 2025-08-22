@@ -1735,8 +1735,8 @@ let out : string * Haz3lcore.PersistentZipper.t =
          duplicate labels in from_lvs (projection is stuck) \
          #\"))))(Secondary((id \
          dc5d876e-0575-4a57-8863-98b63d337fff)(content(Whitespace\"\\n\"))))(Projector((id \
-         808ce792-4966-4fae-a62b-876bc07dfd4b)(kind Fold)(syntax(Tile((id \
-         ac40d1bb-c8f1-4e2a-93c0-10f04c16f067)(label(\"(\"\")\"))(mold((out \
+         c4e3355a-df7d-4942-9c9a-8e244da1ce89)(kind Fold)(syntax(Tile((id \
+         2b5dc58d-1b74-42c1-9292-3a3a0eb2b730)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Tile((id \
          9238d57b-a8a0-4dc7-a487-b33315cc219c)(label(\"(\"\")\"))(mold((out \
@@ -1870,7 +1870,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))))))))(model\"()\")))(Secondary((id \
          24c0c6e2-0f15-440b-9c0e-1353d8c673d4)(content(Whitespace\"\\n\")))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\")(expanded \
-         false))\")))(Tile((id \
+         false)(always_render false))\")))(Tile((id \
          c23efa12-3ca9-420b-b27b-e56eb0e2a742)(label(\";\"))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 38))(sort Exp))((shape(Concave \
          38))(sort Exp))))))(shards(0))(children())))(Secondary((id \
@@ -2256,8 +2256,8 @@ let out : string * Haz3lcore.PersistentZipper.t =
          project_labels, omit_labels resulting in singleton tuple collapses to \
          single value #\"))))(Secondary((id \
          c2241238-72db-43d8-97ab-e74887233670)(content(Whitespace\"\\n\"))))(Projector((id \
-         419e84f2-80dd-4821-9145-0165f6273741)(kind Fold)(syntax(Tile((id \
-         3c9a7989-4e8a-4b0a-b974-1f8875f7bc7e)(label(\"(\"\")\"))(mold((out \
+         f12c7669-89c9-4e2e-96f0-3611b9b4d748)(kind Fold)(syntax(Tile((id \
+         b2eca4fc-7e60-4490-8038-66bd06aaf472)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Tile((id \
          7eb5ea7c-93a2-406b-8ed9-ee719819e3bb)(label(\"(\"\")\"))(mold((out \
@@ -2390,7 +2390,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))))))))(model\"()\")))(Secondary((id \
          7c9960ef-d78e-46f1-ab1c-9fc85cd9c552)(content(Whitespace\"\\n\")))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\")(expanded \
-         false))\")))(Tile((id \
+         false)(always_render false))\")))(Tile((id \
          cdb61484-3c15-4f3f-b0e1-28d1a583f21c)(label(\";\"))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 38))(sort Exp))((shape(Concave \
          38))(sort Exp))))))(shards(0))(children())))(Secondary((id \
@@ -2542,8 +2542,8 @@ let out : string * Haz3lcore.PersistentZipper.t =
          d8e1faa6-fcc9-4092-b1cb-2f5adec4fa39)(content(Comment\"# Static \
          Errors #\"))))(Secondary((id \
          93346907-a845-48dc-941b-686bfd590629)(content(Whitespace\"\\n\"))))(Projector((id \
-         b8e6b961-634d-43f2-9978-808f39c65d0d)(kind Fold)(syntax(Tile((id \
-         d4bbf660-4b75-4a70-8018-df79a67678f1)(label(\"(\"\")\"))(mold((out \
+         a464566e-e6bf-4ae6-a3ca-4355a6501b12)(kind Fold)(syntax(Tile((id \
+         4e53ecb6-35b5-4a79-a997-a972a351ea7d)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Tile((id \
          8d9c7c54-b4e5-43dc-90e2-4e374ffadbd0)(label(\"(\"\")\"))(mold((out \
@@ -3083,7 +3083,7 @@ let out : string * Haz3lcore.PersistentZipper.t =
          b5294b5d-ef86-4dab-9cbc-7b7385ff92ca)(content(Whitespace\" \
          \"))))(Secondary((id \
          6de0262b-eb04-41e1-bbe9-46760bc82866)(content(Whitespace\"\\n\")))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\")(expanded \
-         false))\"))))))(ancestors())))(caret Outer))";
+         false)(always_render false))\"))))))(ancestors())))(caret Outer))";
       backup_text =
         "# Tuples can have labels, including ones with special characters or \
          spaces using backticks ` #\n\

@@ -23,6 +23,8 @@ let get = (pasted: string): Action.t => {
   switch (cache^) {
   | None => Paste(String(trimmed_pasted))
   | Some((cached, segment)) =>
+    /* Note that we must replace unique ids here if we want to
+     * support copying and/or multiples pastes for a copy */
     trim(cached) == trimmed_pasted
       ? Paste(Segment(Segment.IDs.replace(segment)))
       : Paste(String(trimmed_pasted))
