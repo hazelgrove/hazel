@@ -686,7 +686,7 @@ let syntax_str = (utility: utility) =>
     let max_len = 30;
     let seg = Segment.unparenthesize(seg);
     let str = utility.seg_to_string(seg);
-    let str = Re.Str.global_replace(Re.Str.regexp("\n"), " ", str);
+    let str = StringUtil.replace(StringUtil.regexp({|\n|}), str, " ");
     String.length(str) > max_len
       ? String.sub(str, 0, max_len) ++ "..." : str;
   });

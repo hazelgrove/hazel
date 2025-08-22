@@ -48,7 +48,7 @@ let paste_segment = (z: Zipper.t, segment: Segment.t): Zipper.t => {
     |> Zipper.unselect
     |> Zipper.remold_regrout(Util.Direction.Right)
     |> Zipper.remold_regrout(Util.Direction.Left);
-  replace_selection(z, z.selection.focus, segment);
+  replace_selection(z, Right, segment);
 };
 
 let go_z =
