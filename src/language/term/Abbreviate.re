@@ -409,49 +409,67 @@ let rec abbreviate_exp = (exp: Exp.t): Exp.t => {
         };
       }
 
-    | Theorem(p, e) =>
-      if (available^ < 7) {
+    | Theorem(p, e1, e2) =>
+      if (available^ < 3) {
         indet_term;
       } else if (available^ <= 7) {
-        Invalid("theorem");
-      } else if (available^ <= 8) {
+        Invalid("thm");
+      } else if (available^ <= 9) {
         Invalid("theorem…");
       } else if (available^ <= 10) {
         Invalid("theorem…in");
-      } else if (available^ <= 11) {
+      } else if (available^ <= 14) {
         Invalid("theorem…in…");
       } else {
-        available := available^ - 11;
+        available := available^ - 12;
         let p' = abbreviate_pat(p);
-        if (available^ > 4) {
-          // " in "
-          available := available^ - 4;
-          let e' = abbreviate_exp(e);
-          Theorem(p', e');
+        if (available^ > 3) {
+          // " = "
+          available := available^ - 3;
+          let e1' = abbreviate_exp(e1);
+          if (available^ > 4) {
+            // " in "
+            available := available^ - 4;
+            let e2' = abbreviate_exp(e2);
+            Let(p', e1', e2');
+          } else {
+            Let(
+              p',
+              e1',
+              {
+                ...e2,
+                term: indet_term,
+              },
+            );
+          };
         } else {
           Theorem(
             p',
             {
-              ...e,
+              ...e1,
+              term: indet_term,
+            },
+            {
+              ...e2,
               term: indet_term,
             },
           );
         };
       }
 
-    | ProofOf(t) =>
+    | ProofObject(t) =>
       if (available^ < 8) {
         indet_term;
-      } else if (available^ <= 8) {
-        Invalid("proof_of");
-      } else if (available^ <= 9) {
-        Invalid("proof_of…");
-      } else if (available^ <= 14) {
-        Invalid("proof_of…end");
+      } else if (available^ <= 12) {
+        Invalid("proof_object");
+      } else if (available^ <= 13) {
+        Invalid("proof_object…");
+      } else if (available^ <= 18) {
+        Invalid("proof_object…end");
       } else {
-        available := available^ - 12;
-        let t' = abbreviate_typ(t);
-        ProofOf(t');
+        available := available^ - 16;
+        let t' = abbreviate_exp(t);
+        ProofObject(t');
       }
 
     | Use(t1, e1) =>
@@ -1028,10 +1046,10 @@ and abbreviate_typ = (typ: Typ.t): Typ.t => {
           );
         };
       }
-    | Yes(e) =>
+    | ProofOf(e) =>
       handle_unary(
-        ~cost=11, // "yes " + " indeed"
-        ~make_term=e' => Yes(e'),
+        ~cost=13, // "proof_of " + " end"
+        ~make_term=e' => ProofOf(e'),
         e,
       )
     };

@@ -125,14 +125,13 @@ let rec match_exp =
     let* ctx = match_exp(alphas, ctx, d1, d2);
     match_exp(alphas' @ alphas, ctx, e1, e2);
   | (Let(_, _, _), _) => None
-  | (Theorem(p1, e1), Theorem(p2, e2)) =>
-    let* _alphas' = match_pat(p1, p2);
-    match_exp(alphas, ctx, e1, e2);
-  | (Theorem(_, _), _) => None
-  | (ProofOf(t1), ProofOf(t2)) =>
-    let* () = match_typ(t1, t2);
-    Some(ctx);
-  | (ProofOf(_), _) => None
+  | (Theorem(p1, e3, e1), Theorem(p2, e4, e2)) =>
+    let* alphas' = match_pat(p1, p2);
+    let* ctx = match_exp(alphas, ctx, e3, e4);
+    match_exp(alphas' @ alphas, ctx, e1, e2);
+  | (Theorem(_), _) => None
+  | (ProofObject(e1), ProofObject(e2)) => match_exp(alphas, ctx, e1, e2)
+  | (ProofObject(_), _) => None
   | (FixF(p1, e1, _), FixF(p2, e2, _)) =>
     let* alphas' = match_pat(p1, p2);
     match_exp(alphas' @ alphas, ctx, e1, e2);

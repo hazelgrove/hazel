@@ -128,7 +128,7 @@ module type EV_MODE = {
   let update_probe: (state, Dynamics.Probe.Closure.t) => unit;
 
   let record_theorem:
-    (state, Id.t, string, ClosureEnvironment.t, Typ.t) => unit;
+    (state, Id.t, string, ClosureEnvironment.t, Exp.t) => unit;
 };
 
 module Transition = (EV: EV_MODE) => {
@@ -276,23 +276,23 @@ module Transition = (EV: EV_MODE) => {
         kind: LetBind(matches_str),
         is_value: false,
       });
-    | Theorem({term: Asc({term: Var(n), _}, t), _}, d1) =>
+    | Theorem({term: Var(n), _}, e, d1) =>
       let. _ = otherwise(env, d);
       let env' =
-        [(n, ProofOf(t) |> Exp.fresh)]
+        [(n, ProofObject(e) |> Exp.fresh)]
         |> Environment.of_list
         |> evaluate_extend_env(~call_stack=env.call_stack, _, env);
       Step({
         expr: subst_env(env', d1),
         state_update: () =>
-          record_theorem(state, DHExp.rep_id(d), n, env, t),
+          record_theorem(state, DHExp.rep_id(d), n, env, e),
         kind: TheoremBind,
         is_value: false,
       });
     | Theorem(_) =>
       let. _ = otherwise(env, d);
       Indet;
-    | ProofOf(t) =>
+    | ProofObject(e) =>
       let. _ = otherwise(env, d);
       switch (mode) {
       | `Substitution => Value
@@ -300,7 +300,7 @@ module Transition = (EV: EV_MODE) => {
         Step({
           expr: d,
           state_update: () =>
-            record_theorem(state, DHExp.rep_id(d), "<anon theorem>", env, t),
+            record_theorem(state, DHExp.rep_id(d), "<anon theorem>", env, e),
           kind: RecordTheorem,
           is_value: true,
         })

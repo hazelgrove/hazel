@@ -172,7 +172,8 @@ type compound_form =
   | ApExpTyp
   | Case
   | Test
-  | Yes
+  | ProofOf
+  | ProofObject
   | HintedTest
   | Fun
   | Fix
@@ -187,11 +188,10 @@ type compound_form =
   | FilterEval
   | FilterPause
   | FilterDebug
-  | Theorem
-  | ProofOf
   | Use
   // TRIPLE DELIMITERS
   | Let
+  | Theorem
   | TypeAlias
   | If;
 
@@ -268,7 +268,7 @@ let get: compound_form => t =
   | TypFun => mk_pre_c(L, ["typfun", "->"], P.fun_, Exp, [TPat])
   | Poly => mk_pre_c(L, ["poly", "->"], P.fun_, Typ, [TPat])
   | Forall => mk_pre_c(L, ["forall", "->"], P.fun_, Exp, [Pat])
-  | Yes => mk_op_c(L, ["yes", "indeed"], Exp, [Exp])
+  | ProofObject => mk_op_c(L, ["proof_object", "indeed"], Exp, [Exp])
   | Rec => mk_pre_c(L, ["rec", "->"], P.fun_, Typ, [TPat])
   | Rule =>
     mk(L, ["|", "=>"], Mold.mk_bin'(P.rule_sep, Rul, Exp, [Pat], Exp))
@@ -279,8 +279,8 @@ let get: compound_form => t =
   | FilterPause => mk_pre_c(L, ["pause", "in"], P.let_, Exp, [Exp])
   | FilterDebug => mk_pre_c(L, ["debug", "in"], P.let_, Exp, [Exp])
   | Use => mk_pre_c(L, ["use", "in"], P.let_, Exp, [Typ])
-  | Theorem => mk_pre_c(L, ["theorem", "in"], P.let_, Exp, [Pat])
-  | ProofOf => mk_op_c(L, ["proof_of", "end"], Exp, [Typ])
+  | Theorem => mk_pre_c(L, ["theorem", "=", "in"], P.let_, Exp, [Pat, Exp])
+  | ProofOf => mk_op_c(L, ["proof_of", "end"], Typ, [Exp])
   // TRIPLE DELIMITERS
   | Let => mk_pre_c(L, ["let", "=", "in"], P.let_, Exp, [Pat, Exp])
   | TypeAlias => mk_pre_c(L, ["type", "=", "in"], P.let_, Exp, [TPat, Typ])

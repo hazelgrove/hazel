@@ -9,7 +9,7 @@ let proof_of_exp_coloring_ids = (~typ_id: Id.t): list((Id.t, Id.t)) => [
 let proof_of_exp: form = {
   let explanation = "A placeholder for a proof of [*goal*](%s).";
   {
-    id: ProofOfExp,
+    id: ProofObjectExp,
     syntactic_form: [mk_proof_of([[space(), _typ, space()]])],
     expandable_id: None,
     explanation,
@@ -18,6 +18,6 @@ let proof_of_exp: form = {
 };
 
 let proof_of_exps: group = {
-  id: ProofOfExp,
+  id: ProofObjectExp,
   forms: [proof_of_exp],
 };

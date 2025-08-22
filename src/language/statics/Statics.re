@@ -1133,33 +1133,40 @@ and uexp_to_info_map =
           CoCtx.union([def.co_ctx, CoCtx.mk(ctx, p_ana.ctx, body.co_ctx)]),
         m,
       );
-    | Theorem({term: Asc({term: Var(_), _}, _), _} as p, e) =>
+    | Theorem({term: Var(_), _} as p, e1, e2) =>
+      let (e1, m) = go'(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
       let (p', _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
-      let (e, m) = go'(~ctx=p'.ctx, ~ana, e, m);
+      let (e2, m) = go'(~ctx=p'.ctx, ~ana, e2, m);
       /* add co_ctx to pattern */
       let (p, m) =
-        go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~ana=syn, p, m);
+        go_pat(~is_synswitch=false, ~co_ctx=e2.co_ctx, ~ana=syn, p, m);
       add(
-        ~self=Just(e.ty),
-        ~co_ctx=CoCtx.union([p'.co_ctx, CoCtx.mk(ctx, p.ctx, e.co_ctx)]),
+        ~self=Just(e2.ty),
+        ~co_ctx=
+          CoCtx.union([
+            p'.co_ctx,
+            e1.co_ctx,
+            CoCtx.mk(ctx, p.ctx, e2.co_ctx),
+          ]),
         m,
       );
-    | Theorem(p, e) =>
+    | Theorem(p, e1, e2) =>
+      let (e1, m) = go'(~ctx, ~ana=Atom(Bool) |> Typ.temp, e1, m);
       let (p', _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana=syn, p, m);
-      let (e, m) = go'(~ctx=p'.ctx, ~ana, e, m);
+      let (e2, m) = go'(~ctx=p'.ctx, ~ana, e2, m);
       /* add co_ctx to pattern */
       let (p, m) =
-        go_pat(~is_synswitch=false, ~co_ctx=e.co_ctx, ~ana=syn, p, m);
+        go_pat(~is_synswitch=false, ~co_ctx=e2.co_ctx, ~ana=syn, p, m);
       add'(
-        ~self=BadTheorem(e.ty),
-        ~co_ctx=CoCtx.union([p'.co_ctx, CoCtx.mk(ctx, p.ctx, e.co_ctx)]),
+        ~self=BadTheorem(e2.ty),
+        ~co_ctx=CoCtx.union([p'.co_ctx, CoCtx.mk(ctx, p.ctx, e2.co_ctx)]),
         m,
       );
-    | ProofOf(t) =>
-      let (t, m) = go_typ(t, ~expects=Info.TypeExpected, m);
-      add(~self=Just(t.term), ~co_ctx=CoCtx.empty, m); // TODO[Matt]: do types need coctxs now?
+    | ProofObject(e) =>
+      let (_, m) = go'(~ctx, ~ana=Atom(Bool) |> Typ.temp, e, m);
+      add(~self=Just(Typ.temp(ProofOf(e))), ~co_ctx=CoCtx.empty, m); // TODO[Matt]: do types need coctxs now?
     | FixF(p, e, _) =>
       let (p', _) =
         go_pat(~is_synswitch=false, ~co_ctx=CoCtx.empty, ~ana, p, m);
@@ -1986,7 +1993,7 @@ and utyp_to_info_map =
       |> snd;
     let m = utpat_to_info_map(~ctx, ~ancestors, utpat, m) |> snd;
     add(m); // TODO: check with andrew
-  | Yes(e) =>
+  | ProofOf(e) =>
     let (_, m) =
       uexp_to_info_map(
         ~ctx,

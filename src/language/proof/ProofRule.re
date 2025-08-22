@@ -47,7 +47,7 @@ let rec exp_to_rule = (exp: Exp.t): t =>
 
 let typ_to_rule = (typ: Typ.t): option(t) =>
   switch (typ |> Typ.term_of) {
-  | Yes(e) => Some(exp_to_rule(e))
+  | ProofOf(e) => Some(exp_to_rule(e))
   | _ => None
   };
 
@@ -86,7 +86,7 @@ let rule_to_exp = (rule: t): Exp.t => {
 };
 
 let rule_to_typ = (rule: t): Typ.t => {
-  rule |> rule_to_exp |> (x => Typ.fresh(Yes(x)));
+  rule |> rule_to_exp |> (x => Typ.fresh(ProofOf(x)));
 };
 
 let conclusion_exp = (rule: t): Exp.t =>

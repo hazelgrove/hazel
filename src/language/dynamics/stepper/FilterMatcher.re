@@ -250,15 +250,16 @@ let rec matches_exp =
       }
     | (Let(_), _) => false
 
-    | (Theorem(dp, d1), Theorem(fp, f1)) =>
+    | (Theorem(dp, d0, d1), Theorem(fp, f0, f1)) =>
       switch (tangle(dp, denv, fp, fenv)) {
       | None => false
-      | Some((denv, fenv)) => matches_exp(~denv, d1, ~fenv, f1)
+      | Some((denv, fenv)) =>
+        matches_exp(d0, f0) && matches_exp(~denv, d1, ~fenv, f1)
       }
     | (Theorem(_), _) => false
 
-    | (ProofOf(t1), ProofOf(t2)) => Typ.fast_equal(t1, t2)
-    | (ProofOf(_), _) => false
+    | (ProofObject(d1), ProofObject(d2)) => matches_exp(d1, d2)
+    | (ProofObject(_), _) => false
 
     | (Forall(dp, d1), Forall(fp, f1)) =>
       switch (tangle(dp, denv, fp, fenv)) {

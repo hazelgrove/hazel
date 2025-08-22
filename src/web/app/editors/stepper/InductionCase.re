@@ -187,7 +187,7 @@ module F = (Stepper: STEPPER) => {
             id: Id.mk(),
             typ:
               Typ.fresh(
-                Yes(
+                ProofOf(
                   Exp.fresh(
                     BinOp(
                       Poly(Equals),
@@ -214,7 +214,7 @@ module F = (Stepper: STEPPER) => {
              )
           |> List.map(e =>
                Typ.fresh(
-                 Yes(
+                 ProofOf(
                    e
                    |> Exp.substitute_closures(ClosureEnvironment.map_of(env)),
                  ),

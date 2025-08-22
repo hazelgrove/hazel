@@ -52,15 +52,15 @@ let rec subst_var = (d1: DHExp.t, x: Var.t, d2: DHExp.t): DHExp.t => {
         subst_var(d1, x, d4);
       };
     Let(dp, d3, d4) |> rewrap;
-  | Theorem(dp, d3) =>
-    let d3 =
+  | Theorem(dp, d3, d4) =>
+    let d4 =
       if (binds_var(x, dp)) {
-        d3;
+        d4;
       } else {
-        subst_var(d1, x, d3);
+        subst_var(d1, x, d4);
       };
-    Theorem(dp, d3) |> rewrap;
-  | ProofOf(typ) => ProofOf(typ) |> rewrap // TODO[Matt]: we should probably substitute into types now
+    Theorem(dp, subst_var(d1, x, d3), d4) |> rewrap;
+  | ProofObject(typ) => ProofObject(typ) |> rewrap // TODO[Matt]: we should probably substitute into types now
   | Forall(dp, d3) =>
     let d3 =
       if (binds_var(x, dp)) {

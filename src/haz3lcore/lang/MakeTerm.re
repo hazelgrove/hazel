@@ -267,7 +267,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | term => ret(ListLit([term]))
         }
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
-      | (["proof_of", "end"], [Typ(proof)]) => ret(ProofOf(proof))
+      | (["proof_object", "end"], [Exp(proof)]) =>
+        ret(ProofObject(proof))
       | (["hint", "test", "end"], [Exp(hint), Exp(test)]) =>
         ret(HintedTest(test, hint))
       | (["case", "end"], [Rul({term, annotation: {ids, _}})]) =>
@@ -297,7 +298,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
         | (["fix", "->"], [Pat(pat)]) => FixF(pat, r, None)
         | (["typfun", "->"], [TPat(tpat)]) => TypFun(tpat, r, None)
         | (["let", "=", "in"], [Pat(pat), Exp(def)]) => Let(pat, def, r)
-        | (["theorem", "in"], [Pat(pat)]) => Theorem(pat, r)
+        | (["theorem", "=", "in"], [Pat(pat), Exp(thm)]) =>
+          Theorem(pat, thm, r)
         | (["hide", "in"], [Exp(filter)]) =>
           Filter(
             Filter({
@@ -648,7 +650,7 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
         | (["Float"], []) => Atom(Float)
         | (["String"], []) => Atom(String)
         | (["Nat"], []) => Atom(Nat)
-        | (["yes", "indeed"], [Exp(exp)]) => Yes(exp)
+        | (["proof_of", "end"], [Exp(exp)]) => ProofOf(exp)
         | ([t], []) when Token.is_typ_var(t) => Var(t)
         | ([t], []) when Token.is_quoted_label(t) =>
           Label(Token.sub(t, 1, Token.length(t) - 2))

@@ -337,9 +337,9 @@ let rec replace_exp = (replace, replace_coctx, with_exp, with_coctx, in_exp) => 
             ),
           )
           |> rewrap
-        | Theorem(p, _) =>
+        | Theorem(p, e1, e2) =>
           if (is_bound(p)) {
-            exp;
+            Theorem(p, replace_exp(e1), e2) |> rewrap;
           } else {
             continue(exp);
           }
@@ -385,7 +385,7 @@ let rec replace_exp = (replace, replace_coctx, with_exp, with_coctx, in_exp) => 
         | UnOp(_, _)
         | BinOp(_, _, _)
         | BuiltinFun(_)
-        | ProofOf(_)
+        | ProofObject(_)
         | Asc(_, _) => continue(exp)
         };
       },
@@ -416,7 +416,7 @@ let find_refls = (~env, e) => {
 
 let goal_of_typ = (ty: Typ.t): Exp.t => {
   switch (ty.term) {
-  | Yes(e) => e
+  | ProofOf(e) => e
   | _ => Exp.fresh(Invalid("Bad_Goal"))
   };
 };

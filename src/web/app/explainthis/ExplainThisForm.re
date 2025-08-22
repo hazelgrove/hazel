@@ -209,7 +209,7 @@ type form_id =
   | LetExp(pat_sub_form_id)
   | FixExp(pat_sub_form_id)
   | TheoremExp
-  | ProofOfExp
+  | ProofObjectExp
   | TypFunApExp
   | FunApExp
   | ConApExp
@@ -267,7 +267,7 @@ type form_id =
   | DotTyp
   | Label
   | ForallExp
-  | YesTyp
+  | ProofOfTyp
   | LabelledSumTyp
   | SumTypUnaryConstructorDef
   | SumTypNullaryConstructorDef
@@ -322,7 +322,7 @@ type group_id =
   | Tuple3Exp
   | LetExp(pat_sub_form_id)
   | TheoremExp
-  | ProofOfExp
+  | ProofObjectExp
   | TypFunApExp
   | FixExp(pat_sub_form_id)
   | FunApExp
@@ -374,7 +374,7 @@ type group_id =
   | PolyTyp
   | RecTyp
   | ForallExp
-  | YesTyp
+  | ProofOfTyp
   | ArrowTyp
   | Arrow3Typ
   | LabeledTyp

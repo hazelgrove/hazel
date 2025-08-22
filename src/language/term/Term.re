@@ -314,7 +314,7 @@ module Exp = {
     | Var
     | Let
     | Theorem
-    | ProofOf
+    | ProofObject
     | Forall
     | FixF
     | TyAlias
@@ -382,7 +382,7 @@ module Exp = {
     | Var(_) => Var
     | Let(_) => Let
     | Theorem(_) => Theorem
-    | ProofOf(_) => ProofOf
+    | ProofObject(_) => ProofObject
     | Forall(_) => Forall
     | FixF(_) => FixF
     | TyAlias(_) => TyAlias
@@ -437,7 +437,7 @@ module Exp = {
     | Var => "Variable reference"
     | Let => "Let expression"
     | Theorem => "Theorem expression"
-    | ProofOf => "Proof placeholder"
+    | ProofObject => "Proof placeholder"
     | Forall => "Forall expression"
     | FixF => "Fixpoint operator"
     | TyAlias => "Type Alias definition"
@@ -523,7 +523,7 @@ module Exp = {
     | Var(_)
     | Let(_)
     | Theorem(_)
-    | ProofOf(_)
+    | ProofObject(_)
     | Forall(_)
     | FixF(_)
     | TyAlias(_)
@@ -590,7 +590,7 @@ module Exp = {
       | Var(_)
       | Let(_)
       | Theorem(_)
-      | ProofOf(_)
+      | ProofObject(_)
       | Forall(_)
       | FixF(_)
       | TyAlias(_)
@@ -655,7 +655,7 @@ module Exp = {
       | Var(_)
       | Let(_)
       | Theorem(_)
-      | ProofOf(_)
+      | ProofObject(_)
       | Forall(_)
       | Filter(_)
       | TyAlias(_)
@@ -817,7 +817,7 @@ module Exp = {
             |> rewrap;
           // Other cases: recurse
           | Theorem(_)
-          | ProofOf(_)
+          | ProofObject(_)
           | Invalid(_)
           | EmptyHole
           | MultiHole(_)

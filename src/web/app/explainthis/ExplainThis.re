@@ -1744,11 +1744,13 @@ let get_doc =
         | Probe(_) => default // Shouldn't get hit?
         | Asc(_) => default // Shouldn't get hit?
         };
-      | Theorem(pat, body) =>
+      | Theorem(pat, thm, body) =>
         let pat_id = List.nth(IdTagged.ids(pat), 0);
+        let thm_id = List.nth(IdTagged.ids(thm), 0);
         let body_id = List.nth(IdTagged.ids(body), 0);
         get_message(
-          ~colorings=TheoremExp.test_exp_coloring_ids(~body_id, ~pat_id),
+          ~colorings=
+            TheoremExp.test_exp_coloring_ids(~body_id, ~pat_id, ~thm_id),
           ~format=
             Some(
               msg =>
@@ -1759,10 +1761,10 @@ let get_doc =
             ),
           TheoremExp.tests,
         );
-      | ProofOf(typ) =>
-        let typ_id = List.nth(IdTagged.ids(typ), 0);
+      | ProofObject(exp) =>
+        let typ_id = List.nth(IdTagged.ids(exp), 0);
         get_message(
-          ~colorings=ProofOfExp.proof_of_exp_coloring_ids(~typ_id),
+          ~colorings=ProofObjectExp.proof_of_exp_coloring_ids(~typ_id),
           ~format=
             Some(
               msg =>
@@ -1771,7 +1773,7 @@ let get_doc =
                   Id.to_string(typ_id),
                 ),
             ),
-          ProofOfExp.proof_of_exps,
+          ProofObjectExp.proof_of_exps,
         );
       | Forall(pat, typ) =>
         let pat_id = List.nth(IdTagged.ids(pat), 0);
@@ -2515,10 +2517,10 @@ let get_doc =
           ),
         RecTyp.rec_,
       );
-    | Yes(exp) =>
+    | ProofOf(exp) =>
       let body_id = List.nth(IdTagged.ids(exp), 0);
       get_message(
-        ~colorings=YesTyp.yes_typ_coloring_ids(~body_id),
+        ~colorings=ProofOfTyp.proof_of_typ_coloring_ids(~body_id),
         ~format=
           Some(
             msg =>
@@ -2527,7 +2529,7 @@ let get_doc =
                 Id.to_string(body_id),
               ),
           ),
-        YesTyp.yes,
+        ProofOfTyp.proof_of,
       );
     | Arrow(arg, result) =>
       let arg_id = List.nth(IdTagged.ids(arg), 0);

@@ -707,7 +707,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | BinOp(_)
   | BuiltinFun(_)
   | Asc(_)
-  | ProofOf(_)
+  | ProofObject(_)
   | Match(_) => {
       term: Seq(e1, e2),
       annotation: {
@@ -738,10 +738,10 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
         ids: Language.IdTagged.ids(e1),
       },
     };
-  | Theorem(p, ebody) =>
+  | Theorem(p, thm, ebody) =>
     let ebody' = append_exp(ebody, e2);
     {
-      term: Theorem(p, ebody'),
+      term: Theorem(p, thm, ebody'),
       annotation: {
         ids: Language.IdTagged.ids(e1),
       },

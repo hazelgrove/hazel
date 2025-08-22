@@ -143,11 +143,10 @@ module Update = {
           | Some(d) => d.theorems
           };
         let theorems =
-          List.filter_map(
+          List.map(
             ((a, b, c, d)) => {
-              open OptUtil.Syntax;
-              let* d' = ProofRule.typ_to_rule(d);
-              Some((a, b, c, d'));
+              let d' = ProofRule.exp_to_rule(d);
+              (a, b, c, d');
             },
             theorems,
           );
@@ -164,10 +163,9 @@ module Update = {
         | None => []
         | Some(x) => x.theorems
       )
-      |> List.filter_map(((a, b, c, d)) => {
-           open OptUtil.Syntax;
-           let* d' = ProofRule.typ_to_rule(d);
-           Some((a, b, c, d'));
+      |> List.map(((a, b, c, d)) => {
+           let d' = ProofRule.exp_to_rule(d);
+           (a, b, c, d');
          })
       |> List.fold_left(
            (acc, (id, name, env', rule: ProofRule.t)) =>

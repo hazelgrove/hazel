@@ -233,8 +233,9 @@ module rec Exp: {
     | Dot(e1, e2) => dot(of_menhir_ast(e1), of_menhir_ast(e2))
     | Let(p, e1, e2) =>
       let_(Pat.of_menhir_ast(p), of_menhir_ast(e1), of_menhir_ast(e2))
-    | Theorem(p, e) => theorem(Pat.of_menhir_ast(p), of_menhir_ast(e))
-    | ProofOf(t) => proof_of(Typ.of_menhir_ast(t))
+    | Theorem(p, e1, e2) =>
+      theorem(Pat.of_menhir_ast(p), of_menhir_ast(e1), of_menhir_ast(e2))
+    | ProofObject(t) => proof_object(Exp.of_menhir_ast(t))
     | ForallExp(p, e) => forall(Pat.of_menhir_ast(p), of_menhir_ast(e))
     | FixF(p, e) => fix_f(Pat.of_menhir_ast(p), of_menhir_ast(e), None)
     | TypFun(t, e) =>
@@ -338,8 +339,9 @@ module rec Exp: {
     | Tuple(l) => TupleExp(List.map(of_core, l))
     | TupleExtension(e1, e2) => TupleExp([of_core(e1), of_core(e2)])
     | Let(p, e1, e2) => Let(Pat.of_core(p), of_core(e1), of_core(e2))
-    | Theorem(p, e) => Theorem(Pat.of_core(p), of_core(e))
-    | ProofOf(t) => ProofOf(Typ.of_core(t))
+    | Theorem(p, e1, e2) =>
+      Theorem(Pat.of_core(p), of_core(e1), of_core(e2))
+    | ProofObject(t) => ProofObject(Exp.of_core(t))
     | Forall(p, e) => ForallExp(Pat.of_core(p), Exp.of_core(e))
     | FixF(p, e, _) => FixF(Pat.of_core(p), of_core(e))
     | TypFun(tp, e, _) => TypFun(TPat.of_core(tp), of_core(e))
@@ -455,7 +457,7 @@ and Typ: {
       parens(poly(TPat.of_menhir_ast(tp), of_menhir_ast(t)))
     | RecType(tp, t) =>
       parens(rec_(TPat.of_menhir_ast(tp), of_menhir_ast(t)))
-    | YesType(e) => yes(Exp.of_menhir_ast(e))
+    | ProofOfType(e) => proof_of(Exp.of_menhir_ast(e))
     | IndicationTyp(t) => {
         annotation: true,
         term: of_menhir_ast(t).term,
@@ -487,7 +489,7 @@ and Typ: {
     | Unknown(p) => UnknownType(of_core_type_provenance(p))
     | Poly(tp, t) => PolyType(TPat.of_core(tp), of_core(t))
     | Rec(tp, t) => RecType(TPat.of_core(tp), of_core(t))
-    | Yes(e) => YesType(Exp.of_core(e))
+    | ProofOf(e) => ProofOfType(Exp.of_core(e))
     | Parens(t) => of_core(t)
     | Label(s) => LabelType(s)
     | TupLabel(t1, t2) => TupLabelType(of_core(t1), of_core(t2))

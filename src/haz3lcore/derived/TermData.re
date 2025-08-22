@@ -30,7 +30,7 @@ let root_tile = (id: Id.t, data: t): Tile.t =>
   };
 
 let root_tile_opt = (id: Id.t, data: t): option(Tile.t) =>
-  switch (Id.Map.find(id, data)) {
-  | {root_piece: Tile(t), _} => Some(t)
+  switch (Id.Map.find_opt(id, data)) {
+  | Some({root_piece: Tile(t), _}) => Some(t)
   | _ => None
   };

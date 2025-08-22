@@ -324,13 +324,14 @@ let rec elaborate = (m: Statics.Map.t, uexp: Exp.t): (DHExp.t, Typ.t) => {
           |> IdTagged.fresh_deterministic(DHExp.rep_id(uexp));
         Let(p, fixf, body) |> rewrap;
       };
-    | Theorem(p, e) =>
+    | Theorem(p, e1, e2) =>
       let (p', _) = elaborate_pattern(m, p, false);
+      let (e1', _) = elaborate(m, e1);
+      let (e2', _) = elaborate(m, e2);
+      Theorem(p', e1', e2') |> rewrap;
+    | ProofObject(e) =>
       let (e', _) = elaborate(m, e);
-      Theorem(p', e') |> rewrap;
-    | ProofOf(t) =>
-      let t = Typ.normalize(ctx, t);
-      ProofOf(t) |> rewrap;
+      ProofObject(e') |> rewrap;
     | FixF(p, e, env) =>
       let (p', pty) = elaborate_pattern(m, p, false);
       let (e', _) = elaborate(m, e);

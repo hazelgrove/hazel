@@ -82,9 +82,9 @@ let mk_pause = mk_tile(Form.get(FilterPause));
 let mk_debug = mk_tile(Form.get(FilterDebug));
 let mk_unquote = mk_tile(Form.get(Unquote));
 let mk_theorem = mk_tile(Form.get(Theorem));
-let mk_proof_of = mk_tile(Form.get(ProofOf));
+let mk_proof_of = mk_tile(Form.get(ProofObject));
 let mk_forall = mk_tile(Form.get(Forall));
-let mk_yes = mk_tile(Form.get(Yes));
+let mk_proof_of = mk_tile(Form.get(ProofOf));
 let linebreak = () => Piece.Secondary(Secondary.mk_newline(Id.mk()));
 let space = () => Piece.Secondary(Secondary.mk_space(Id.mk()));
 
