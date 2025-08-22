@@ -321,7 +321,6 @@ module Selection = {
 module View = {
   open OptUtil.Syntax;
   type event =
-    | AddCases(option(Exp.t))
     | AddInduction(option(Exp.t))
     | AddForall
     | HideStepper
@@ -435,26 +434,13 @@ module View = {
                 Ui_effect.Many([
                   globals.inject_global(Set(Evaluation(ForceShowRecord))),
                   signal(
-                    AddCases(
-                      model.selected_exp
-                      |> Calc.get_saved_exc(~print="Selected Exp"),
-                    ),
-                  ),
-                ]),
-              "Cases",
-            ),
-            proof_button(
-              ~callback=
-                Ui_effect.Many([
-                  globals.inject_global(Set(Evaluation(ForceShowRecord))),
-                  signal(
                     AddInduction(
                       model.selected_exp
                       |> Calc.get_saved_exc(~print="Selected Exp"),
                     ),
                   ),
                 ]),
-              "Induction",
+              "Cases/Induction",
             ),
           ],
         );
