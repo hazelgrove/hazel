@@ -267,15 +267,17 @@ let term =
     )
     : list(Node.t) => {
   let msg = "IndicationDec.term";
-  let id = tile.id; //Language.Any.rep_id(Id.Map.find(tile.id, terms));
-  let (p_l, p_r) = TermData.extremes(id, term_data);
-  let l = Measured.find_p(~msg, p_l, measured).origin;
-  let r = Measured.find_p(~msg, p_r, measured).last;
-  let of_tile = (id: Id.t) => {
-    let tile: Tile.t = TermData.root_tile(id, term_data);
-    (id, tile.mold, Measured.find_shards(~msg, tile, measured));
+  let id = Language.Any.rep_id(Id.Map.find(tile.id, terms));
+  switch (TermData.extreme_measures(id, term_data, measured)) {
+  | Some((l, r)) =>
+    let of_tile = (id: Id.t) => {
+      open OptUtil.Syntax;
+      let+ tile = TermData.root_tile_opt(id, term_data);
+      (id, tile.mold, Measured.find_shards(~msg, tile, measured));
+    };
+    let tiles =
+      Id.Map.find(id, terms) |> Language.Any.ids |> List.filter_map(of_tile);
+    term(~font_metrics, ~rows=measured.rows, ~tiles, (l, r), ~attr?);
+  | _ => []
   };
-  let tiles =
-    Id.Map.find(id, terms) |> Language.Any.ids |> List.map(of_tile);
-  term(~font_metrics, ~rows=measured.rows, ~tiles, (l, r), ~attr?);
 };
