@@ -7,22 +7,38 @@ open Node;
 type t = {
   [@default "⋱"]
   text: string,
+  expanded: bool,
 };
+
+let default: t = {
+  text: "⋱",
+  expanded: false,
+};
+
+let t_of_sexp = (sexp: Sexplib.Sexp.t): t =>
+  switch (t_of_sexp(sexp)) {
+  | exception _ => default
+  | t => t
+  };
 
 module M: Projector = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type model = t;
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type action = unit;
+  type action =
+    | Toggle;
 
-  let init = _ => Some({text: "⋱"});
+  let init = _ => Some(default);
 
   let focusable = Focusable.non;
   let dynamics = false;
 
   let placeholder = (m, _) =>
     ProjectorCore.Shape.inline(m.text == "⋱" ? 2 : m.text |> String.length);
-  let update = (m, _, _) => m;
+  let update = (m, _, _) => {
+    ...m,
+    expanded: !m.expanded,
+  };
 
   let hover_view = (view_seg: View.seg, info: info) => {
     let seg = Segment.unparenthesize(info.syntax);
@@ -35,11 +51,14 @@ module M: Projector = {
     );
   };
 
-  let view = (m: model, info, ~local as _, ~parent, ~view_seg) =>
+  let view = (m: model, info, ~local, ~parent, ~view_seg) =>
     ProjectorBase.View.mk(
       div(
-        ~attrs=[Attr.on_double_click(_ => parent(Remove))],
-        [text(m.text), hover_view(view_seg, info)],
+        ~attrs=[
+          Attr.on_click(_ => local(Toggle)),
+          Attr.on_double_click(_ => parent(Remove)),
+        ],
+        [text(m.text)] @ (m.expanded ? [hover_view(view_seg, info)] : []),
       ),
     );
 };

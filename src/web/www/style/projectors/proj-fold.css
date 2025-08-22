@@ -39,11 +39,7 @@
 }
 
 .projector.fold .hover-view {
-  display: none;
   position: absolute;
-}
-.projector.fold:hover .hover-view,
-.projector.fold .hover-view path:hover {
   display: block;
   left: 0;
   top: 0;
