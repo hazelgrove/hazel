@@ -367,8 +367,9 @@ module F = (Stepper: STEPPER) => {
       );
     let pattern_editor =
       WebUtil.div_c("inline-editor-wrapper", [pattern_editor]);
+    module StepperTargetBox = StepperTargetBox.F(Stepper);
     let stepper_view =
-      Stepper.view(
+      StepperTargetBox.target_box(
         ~globals,
         ~take_focus=s => take_focus(Stepper(s)),
         ~hide_stepper,
@@ -380,6 +381,8 @@ module F = (Stepper: STEPPER) => {
           },
         ~is_toplevel=false,
         model.step,
+        Exp.fresh(Atom(Bool(true))),
+        model.last_exp |> Calc.get_saved_exc(~print="last_exp not calculated"),
       );
     WebUtil.div_c(
       "induction-case",

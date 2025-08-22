@@ -329,3 +329,7 @@
   align-items: center;
   margin-left: 2em;
 }
+
+.step-placeholder {
+  background-color: var(--error-hole-fill)
+}
