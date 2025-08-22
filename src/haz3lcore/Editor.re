@@ -140,21 +140,21 @@ module Model = {
   };
 };
 
-let ids_of_refractors = (refractors: Id.Map.t(Base.projector)): list(Id.t) =>
-  refractors |> Id.Map.to_list |> List.map(((id, _p)) => id);
+let ids_of_refractors =
+    (refractors: Id.Map.t(Base.projector)): list((Id.t, Id.t)) =>
+  refractors
+  |> Id.Map.to_list
+  |> List.map(((id, p: Base.projector)) => (id, p.id));
 
-let mk_refractor_probe = (id: Id.t): option(Base.projector) => {
+let mk_refractor_probe = (): option(Base.projector) => {
   open OptUtil.Syntax;
   let kind = ProjectorCore.Kind.Probe;
   let (module P) = ProjectorInit.to_module(kind);
-  let seg: Segment.t = [Piece.mk_grout(Convex)];
+  let seg: Segment.t = [Piece.mk_grout(~id=Id.invalid, Convex)];
   let piece: Base.piece = Segment.parenthesize(seg);
   let* any = MakeTerm.for_projection(seg);
   let+ model = P.init(any);
-  {
-    ...ProjectorCore.mk(kind, piece, model),
-    id //TODO(andrew): maybe shouldn't share id? dunno
-  };
+  ProjectorCore.mk(kind, piece, model);
 };
 
 module Update = {
@@ -260,7 +260,7 @@ module Update = {
               refractors: Id.Map.remove(id, state.refractors),
             };
           | None =>
-            switch (mk_refractor_probe(id)) {
+            switch (mk_refractor_probe()) {
             | None => state
             | Some(p) =>
               print_endline("set refractor probe, id: " ++ Id.str8(id));

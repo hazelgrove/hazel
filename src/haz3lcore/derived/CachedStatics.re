@@ -78,7 +78,7 @@ let init =
       ~is_dynamic_term,
       ~stitch,
       ~ctx=?,
-      ~extra_probes: list(Id.t)=[],
+      ~extra_probes=[],
       z: Zipper.t,
     ) =>
   settings.statics

@@ -59,6 +59,15 @@
 .refractors .projector.probe.indicated.Pat > svg {
   fill: var(--pat-base);
 }
+.refractors .base .projector.probe > svg {
+  display: none;
+}
+.code-deco .refractors svg path.child-line {
+  stroke: var(--G0) !important;
+}
+.code-deco .refractors svg.shard path {
+  fill: var(--exp-base) !important;
+}
 
 /* INLINE VIEW */
 
@@ -352,7 +361,7 @@
     .value.cursor-unrelated:not(.below):not(.above):not(:hover)
   ),
 .projector.probe .live-offside:has(.value.cursor-callee.indirect) {
-  filter: contrast(0.32) brightness(1.51) blur(2px);
+  filter: contrast(0.32) brightness(1.51) /*blur(2px)*/;
 }
 
 .projector.probe .closure:has(.value.cursor-unrelated.level0) {

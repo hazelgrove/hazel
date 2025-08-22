@@ -133,7 +133,7 @@ let record_term_data = (seg: Segment.t, skel: Skel.t): unit =>
 /* Map to collect projector ids */
 let projectors: ref(Id.Map.t(Piece.projector)) = ref(Id.Map.empty);
 
-let extra_probe_ids: ref(list(Id.t)) = ref([]);
+let extra_probe_ids: ref(list((Id.t, Id.t))) = ref([]);
 
 /* Strip a projector from a segment and log it in the map */
 let log_projector = (pr: Base.projector): unit => {
@@ -197,21 +197,24 @@ and exp = unsorted => {
   let (term, inner_ids) = exp_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
   //TODO(andrew): exn reporting, id duplication?
-  let term: TermBase.exp_term =
-    List.mem(List.hd(ids), extra_probe_ids^)
-      ? {
-        print_endline("adding probe to id: " ++ Id.str8(List.hd(ids)));
+  let (term, ids) =
+    switch (List.assoc_opt(List.hd(ids), extra_probe_ids^)) {
+    | Some(guy) =>
+      print_endline("adding probe to id: " ++ Id.str8(List.hd(ids)));
+      (
         Probe(
           {
             annotation: {
-              ids: [Id.invalid],
-            }, //TODO(andrew): fix this
+              ids: ids,
+            },
             term,
           },
           Probe.empty,
-        );
-      }
-      : term;
+        ): TermBase.exp_term,
+        [guy],
+      );
+    | None => (term, ids)
+    };
   let e: TermBase.exp_t =
     return(
       e => Exp(e),
@@ -512,21 +515,24 @@ and pat = unsorted => {
   let (term, inner_ids) = pat_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
   //TODO(andrew): exn reporting, id duplication?
-  let term: TermBase.pat_term =
-    List.mem(List.hd(ids), extra_probe_ids^)
-      ? {
-        print_endline("adding probe to id: " ++ Id.str8(List.hd(ids)));
+  let (term, ids) =
+    switch (List.assoc_opt(List.hd(ids), extra_probe_ids^)) {
+    | Some(guy) =>
+      print_endline("adding probe to id: " ++ Id.str8(List.hd(ids)));
+      (
         Probe(
           {
             annotation: {
-              ids: [Id.invalid],
-            }, //TODO(andrew): fix this
+              ids: ids,
+            },
             term,
           },
           Probe.empty,
-        );
-      }
-      : term;
+        ): TermBase.pat_term,
+        [guy],
+      );
+    | None => (term, ids)
+    };
   let p =
     return(
       p => Pat(p),

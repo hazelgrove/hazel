@@ -274,12 +274,11 @@ module Deco =
       ["selected", Selection.buffer_cls(z.selection)],
     );
 
-  let indicated_piece_deco = (z: Zipper.t): list(Node.t) => {
-    switch (Indicated.piece(z)) {
-    | _ when z.selection.content != [] => []
-    | None => []
-    | Some((Grout(_) | Secondary(_), _, _)) => []
-    | Some((Projector(p), _, _)) =>
+  let indicated_piece_deco_internal = (p: Piece.t): list(Node.t) => {
+    switch (p) {
+    | Grout(_)
+    | Secondary(_) => []
+    | Projector(p) =>
       switch (Measured.find_pr_opt(p, M.editor.syntax.measured)) {
       | Some(measurement) => [
           ShardDec.simple(
@@ -297,7 +296,7 @@ module Deco =
         ]
       | None => []
       }
-    | Some((Tile(t) as p, _, _)) =>
+    | Tile(t) as p =>
       if (Piece.is_infix_delimiter_op_prefix(p)) {
         [];
       } else {
@@ -305,6 +304,25 @@ module Deco =
       }
     };
   };
+
+  let indicated_piece_deco = (z: Zipper.t): list(Node.t) =>
+    switch (Indicated.piece(z)) {
+    | _ when z.selection.content != [] => []
+    | Some((p, _, _)) => indicated_piece_deco_internal(p)
+    | _ => []
+    };
+
+  let refractor_decos = (_: Zipper.t): list(Node.t) =>
+    M.editor.state.refractors
+    |> Id.Map.to_list
+    |> List.filter_map(((id, _p)) =>
+         switch (Id.Map.find_opt(id, term_data)) {
+         | Some(t) => Some(t.root_piece)
+         | None => None
+         }
+       )
+    |> List.map(indicated_piece_deco_internal)
+    |> List.flatten;
 
   let backpack = (z: Zipper.t): Node.t => {
     /* If there is a selection, any tiles bisected by the selection
@@ -442,6 +460,8 @@ module Deco =
 
   let selection = (z: Zipper.t) => div_c("selects", segment_selected(z));
 
+  let refractors = (z: Zipper.t) => div_c("refractors", refractor_decos(z));
+
   let always = () => [errors()];
 
   let next_steps = (next_steps, ~inject) =>
@@ -482,6 +502,7 @@ module Deco =
       ? [
         caret(z),
         indication(z),
+        refractors(z),
         selection(z),
         backpack(z),
         color_highlights(),

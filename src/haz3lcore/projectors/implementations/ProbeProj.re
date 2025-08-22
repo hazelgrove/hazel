@@ -914,8 +914,18 @@ module M: Projector = {
   let view = (_model, info, ~local, ~parent, ~view_seg) => {
     DynCursor.s.call_cursor == [] ? DynCursor.probe_default(info) : (); /*TODO(andrew): document */
     View.{
-      inline: view(local, parent, info),
-      overlay: Some(overlay_view(info)),
+      inline:
+        switch (info.syntax) {
+        | [Grout({id, _})] when id == Id.invalid => Node.div([])
+        | _ => view(local, parent, info)
+        },
+
+      overlay:
+        switch (info.syntax) {
+        | [Grout({id, _})] when id == Id.invalid =>
+          Some(overlay_view(info))
+        | _ => Some(overlay_view(info))
+        },
       offside:
         Some(offside_view(info, local, parent, view_seg, info.utility)),
     };
