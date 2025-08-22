@@ -51,7 +51,11 @@
   top: 0px;
   filter: drop-shadow(-10px 0px 0px var(--fold-accent))
     drop-shadow(5px 5px 5px #2105);
-  animation: shadowSlideIn 0.05s ease-in;
+  transform-origin: top left;
+}
+
+.projector.fold .hover-view {
+  animation: shadowSlideIn 0.15s ease-in;
 }
 
 .projector.fold div:hover .hover-view {
@@ -65,11 +69,13 @@
     left: 0;
     filter: drop-shadow(0px 0px 0px var(--fold-accent))
       drop-shadow(5px 5px 5px #2105);
+    transform: scale(0);
   }
   to {
     left: 10px;
     filter: drop-shadow(-10px 0px 0px var(--fold-accent))
       drop-shadow(5px 5px 5px #2105);
+    transform: scale(1);
   }
 }
 
