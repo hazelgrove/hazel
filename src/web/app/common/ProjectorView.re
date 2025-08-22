@@ -187,7 +187,7 @@ let simple_code = (~background=false, font_metrics, sort, segment): Node.t => {
     });
   let backing =
     if (background) {
-      switch (Deco.quick_select_deco(segment)) {
+      switch (Deco.quick_select_deco(~font_metrics, segment)) {
       | exception _ => []
       | view => [view]
       };

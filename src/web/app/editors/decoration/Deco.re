@@ -197,20 +197,16 @@ module HighlightSegment =
        );
 };
 
-let quick_select_deco = (segment: Segment.t): Node.t => {
+let quick_select_deco = (~font_metrics, segment: Segment.t): Node.t => {
   let shape_map = ProjectorCore.Shape.Map.empty; // assume no projectors
   module Highlight =
     HighlightSegment({
       let measured = Measured.of_segment(segment, shape_map);
       let shape_map = shape_map;
-      let font_metrics =
-        FontMetrics.{
-          row_height: 25.125,
-          col_width: 10.390625,
-        };
+      let font_metrics = font_metrics;
     });
   switch (Highlight.go(segment, Some(Convex), [])) {
-  | exception _exn => Node.div([])
+  | exception _ => Node.div([])
   | ya => div_c("quick-select-deco", ya)
   };
 };
