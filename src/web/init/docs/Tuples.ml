@@ -1735,8 +1735,8 @@ let out : string * Haz3lcore.PersistentZipper.t =
          duplicate labels in from_lvs (projection is stuck) \
          #\"))))(Secondary((id \
          dc5d876e-0575-4a57-8863-98b63d337fff)(content(Whitespace\"\\n\"))))(Projector((id \
-         9430307f-be2b-4bf4-819f-9966ee9119ba)(kind Fold)(syntax(Tile((id \
-         355970b1-a8f1-4212-bbfb-6a9411c98ce1)(label(\"(\"\")\"))(mold((out \
+         808ce792-4966-4fae-a62b-876bc07dfd4b)(kind Fold)(syntax(Tile((id \
+         ac40d1bb-c8f1-4e2a-93c0-10f04c16f067)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Tile((id \
          9238d57b-a8a0-4dc7-a487-b33315cc219c)(label(\"(\"\")\"))(mold((out \
@@ -1869,7 +1869,8 @@ let out : string * Haz3lcore.PersistentZipper.t =
          775b1e77-27ed-4a6f-9ef5-dab6101ad439)(label(x))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children())))))))))(model\"()\")))(Secondary((id \
-         24c0c6e2-0f15-440b-9c0e-1353d8c673d4)(content(Whitespace\"\\n\")))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\"))\")))(Tile((id \
+         24c0c6e2-0f15-440b-9c0e-1353d8c673d4)(content(Whitespace\"\\n\")))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\")(expanded \
+         false))\")))(Tile((id \
          c23efa12-3ca9-420b-b27b-e56eb0e2a742)(label(\";\"))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 38))(sort Exp))((shape(Concave \
          38))(sort Exp))))))(shards(0))(children())))(Secondary((id \
@@ -2255,8 +2256,8 @@ let out : string * Haz3lcore.PersistentZipper.t =
          project_labels, omit_labels resulting in singleton tuple collapses to \
          single value #\"))))(Secondary((id \
          c2241238-72db-43d8-97ab-e74887233670)(content(Whitespace\"\\n\"))))(Projector((id \
-         e4398076-ca5f-40a3-9e98-a740cfbc810b)(kind Fold)(syntax(Tile((id \
-         201d690d-35d1-44c4-8f33-b9f4e75e3b4c)(label(\"(\"\")\"))(mold((out \
+         419e84f2-80dd-4821-9145-0165f6273741)(kind Fold)(syntax(Tile((id \
+         3c9a7989-4e8a-4b0a-b974-1f8875f7bc7e)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Tile((id \
          7eb5ea7c-93a2-406b-8ed9-ee719819e3bb)(label(\"(\"\")\"))(mold((out \
@@ -2388,7 +2389,8 @@ let out : string * Haz3lcore.PersistentZipper.t =
          738ef011-28d2-4605-ba6f-59ff7f2041bf)(label(`c`))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0))(children()))))))))))))))(model\"()\")))(Secondary((id \
-         7c9960ef-d78e-46f1-ab1c-9fc85cd9c552)(content(Whitespace\"\\n\")))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\"))\")))(Tile((id \
+         7c9960ef-d78e-46f1-ab1c-9fc85cd9c552)(content(Whitespace\"\\n\")))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\")(expanded \
+         false))\")))(Tile((id \
          cdb61484-3c15-4f3f-b0e1-28d1a583f21c)(label(\";\"))(mold((out \
          Exp)(in_())(nibs(((shape(Concave 38))(sort Exp))((shape(Concave \
          38))(sort Exp))))))(shards(0))(children())))(Secondary((id \
@@ -2540,8 +2542,8 @@ let out : string * Haz3lcore.PersistentZipper.t =
          d8e1faa6-fcc9-4092-b1cb-2f5adec4fa39)(content(Comment\"# Static \
          Errors #\"))))(Secondary((id \
          93346907-a845-48dc-941b-686bfd590629)(content(Whitespace\"\\n\"))))(Projector((id \
-         93a2820a-e80f-467f-a04b-62bf5213c25f)(kind Fold)(syntax(Tile((id \
-         1185ca9e-2357-4199-9760-2f6c936aabb3)(label(\"(\"\")\"))(mold((out \
+         b8e6b961-634d-43f2-9978-808f39c65d0d)(kind Fold)(syntax(Tile((id \
+         d4bbf660-4b75-4a70-8018-df79a67678f1)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Tile((id \
          8d9c7c54-b4e5-43dc-90e2-4e374ffadbd0)(label(\"(\"\")\"))(mold((out \
@@ -3080,8 +3082,8 @@ let out : string * Haz3lcore.PersistentZipper.t =
          \"))))(Secondary((id \
          b5294b5d-ef86-4dab-9cbc-7b7385ff92ca)(content(Whitespace\" \
          \"))))(Secondary((id \
-         6de0262b-eb04-41e1-bbe9-46760bc82866)(content(Whitespace\"\\n\")))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\"))\"))))))(ancestors())))(caret \
-         Outer))";
+         6de0262b-eb04-41e1-bbe9-46760bc82866)(content(Whitespace\"\\n\")))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\")(expanded \
+         false))\"))))))(ancestors())))(caret Outer))";
       backup_text =
         "# Tuples can have labels, including ones with special characters or \
          spaces using backticks ` #\n\

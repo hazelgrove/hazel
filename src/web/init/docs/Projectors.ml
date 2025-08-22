@@ -63,9 +63,9 @@ let out : string * Haz3lcore.PersistentZipper.t =
          a418dae1-f424-4c40-ae1f-13e6cb1fa5e3)(content(Whitespace\" \
          \")))))((Secondary((id \
          560a6e34-dc1b-4fa4-8df4-f62acc3db2d3)(content(Whitespace\" \
-         \"))))(Projector((id 9f84d557-76d3-4074-8ae2-d93f8280fc4f)(kind \
+         \"))))(Projector((id f670d1bd-b92f-4802-91a3-36d797c659ec)(kind \
          Fold)(syntax(Tile((id \
-         da561b8c-95d0-4369-95b9-983fcbc852dc)(label(\"(\"\")\"))(mold((out \
+         8dcfcbe9-216a-4d41-9e4e-d9874a14d16c)(label(\"(\"\")\"))(mold((out \
          Exp)(in_(Exp))(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
          Exp))))))(shards(0 1))(children(((Tile((id \
          3a7af7ff-72dc-4faf-acf3-57fbab163c72)(label(\"(\"\")\"))(mold((out \
@@ -103,7 +103,8 @@ let out : string * Haz3lcore.PersistentZipper.t =
          Exp))))))(shards(0 1))(children(((Tile((id \
          86738ef2-189a-48c9-9941-2005ab2b5077)(label(\"()\"))(mold((out \
          Exp)(in_())(nibs(((shape Convex)(sort Exp))((shape Convex)(sort \
-         Exp))))))(shards(0))(children()))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\"))\")))(Secondary((id \
+         Exp))))))(shards(0))(children()))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))))(model\"((text\\\"\\\\226\\\\139\\\\177\\\")(expanded \
+         false))\")))(Secondary((id \
          498c6765-997d-4723-9b61-0ff92768b5d5)(content(Whitespace\" \
          \")))))))))(Secondary((id \
          c01b67f5-d0f2-488c-8684-ef32aab68b7a)(content(Whitespace\"\\n\"))))(Secondary((id \
