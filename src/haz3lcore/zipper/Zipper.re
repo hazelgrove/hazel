@@ -461,7 +461,7 @@ let try_to_dump_backpack = (z: t) =>
   if (!Selection.is_empty(z.selection)) {
     z;
   } else {
-    let zipper = {
+    let z = {
       ...z,
       caret: Outer,
     };
@@ -494,17 +494,6 @@ let try_to_dump_backpack = (z: t) =>
       | Some(z) => put_down_as_much_as_possible(z)
       };
     };
-    let rec move_left_until_incomplete_tile = (z: t): t => {
-      switch (Siblings.neighbor(Left, z.relatives.siblings)) {
-      | Some(Tile(t)) when !Tile.is_complete(t) => z
-      | Some(_)
-      | None =>
-        switch (move(Left, z)) {
-        | None => z
-        | Some(z) => move_left_until_incomplete_tile(z)
-        }
-      };
-    };
     let rec go = (z: t): t => {
       let z_can = can_put_down(z) ? z : move_until_can_put_down(z);
       let z_cant = move_until_cant_put_down(z_can, z_can);
@@ -515,10 +504,7 @@ let try_to_dump_backpack = (z: t) =>
         go(z);
       };
     };
-    let z = move_left_until_incomplete_tile(zipper);
-    let z = go(z);
-    print_endline("try_to_dump_backpack: " ++ show(z));
-    z;
+    go(z);
   };
 
 let smart_seg = (~dump_backpack: bool, ~erase_buffer: bool, z: t) => {
