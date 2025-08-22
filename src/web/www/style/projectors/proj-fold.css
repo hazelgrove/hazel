@@ -102,12 +102,6 @@
     drop-shadow(5px 5px 5px #2105);
 }
 
-/* Maintain label styling consistency with div */
-.projector.fold .fold-always-render:hover,
-.projector.fold .fold-always-render:has(.hover-view.always-render) {
-  color: var(--SAND);
-}
-
 @keyframes shadowSlideIn {
   from {
     left: 0;
@@ -124,13 +118,13 @@
 }
 
 .projector.fold .hover-view .code .quick-select-deco {
-  filter: drop-shadow(10px 0px 0px var(--fold-bkg))
+  filter: drop-shadow(8px 0px 0px var(--fold-bkg))
     drop-shadow(5px 5px 5px #2105);
 }
 
 .projector.fold .hover-view .code-text {
   position: absolute;
-  left: 5px;
+  left: 4px;
 }
 
 .projector.fold .hover-view .code-text .token.Exp,
@@ -152,8 +146,6 @@
 
 .projector.fold .hover-view svg {
   transition: all 0.1s ease-out;
-  /* --shadow: var(--BR3);
-  filter: drop-shadow(0.7px 0.7px 0px var(--shadow)); */
 }
 
 .projector.fold .hover-view svg path {
@@ -168,7 +160,7 @@
 
 .projector.fold div:hover + svg,
 .projector.fold div:has(.hover-view) + svg {
-  fill: var(--fold-accent);
+  fill: var(--fold-accent) !important;
   stroke-width: 1px;
   stroke: var(--fold-accent);
 }

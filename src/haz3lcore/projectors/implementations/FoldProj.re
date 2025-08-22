@@ -50,16 +50,8 @@ module M: Projector = {
         Attr.classes(
           ["hover-view"]
           @ (
-            if (m.always_render) {
-              [
-                /* In always_render mode, let CSS handle visibility */
-                "always-render",
-              ];
-            } else {
-              /* In normal mode, use expanded field */
-              m.expanded
-                ? [] : ["collapsed"];
-            }
+            m.always_render
+              ? ["always-render"] : m.expanded ? [] : ["collapsed"]
           ),
         ),
       ],
@@ -72,7 +64,7 @@ module M: Projector = {
   let view = (m: model, info, ~local, ~parent as _, ~view_seg) =>
     ProjectorBase.View.mk(
       if (m.always_render) {
-        /* Always render mode: use checkbox hack for CSS-only toggle */
+        /* Always render mode: Use checkbox hack for CSS-only toggle */
         let checkbox_id = "fold-toggle-" ++ Id.to_string(info.id);
         label(
           ~attrs=[
@@ -85,7 +77,7 @@ module M: Projector = {
                 Attr.create("type", "checkbox"),
                 Attr.id(checkbox_id),
                 Attr.classes(["fold-toggle-checkbox"]),
-                Attr.create("style", "display: none;") /* Hide the checkbox */
+                Attr.create("style", "display: none;"),
               ],
               (),
             ),
@@ -94,12 +86,8 @@ module M: Projector = {
           ],
         );
       } else {
-        /* Normal mode: use existing expanded field logic */
         div(
-          ~attrs=[
-            Attr.on_click(_ => local(Toggle)),
-            //Attr.on_double_click(_ => parent(Remove)),
-          ],
+          ~attrs=[Attr.on_click(_ => local(Toggle))],
           [text(m.text)]
           @ (m.expanded ? [hover_view(view_seg, m, info)] : []),
         );
