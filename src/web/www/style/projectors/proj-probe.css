@@ -53,12 +53,22 @@
 .projector.probe:has(.ap.pinned) > svg {
   /* fill: var(--exp-ap-indicated); */
 }
+
+/* REFRACTORS */
+
 .refractors .projector.probe.indicated.Exp > svg {
   fill: var(--exp-base);
 }
 .refractors .projector.probe.indicated.Pat > svg {
   fill: var(--pat-base);
 }
+.refractors .base .projector.probe {
+  pointer-events: none;
+}
+.refractors .base .projector.probe .live-offside {
+  pointer-events: all;
+}
+
 .refractors .base .projector.probe > svg {
   display: none;
 }
@@ -67,6 +77,9 @@
 }
 .code-deco .refractors svg.shard path {
   fill: var(--exp-base) !important;
+}
+.code-deco .refractors svg.shard.indicated {
+  filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--G0));
 }
 
 /* INLINE VIEW */

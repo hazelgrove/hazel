@@ -199,6 +199,7 @@ module View = {
       ProjectorView.Model.mk(
         model.editor.state.refractors,
         model.editor.syntax.measured,
+        model.editor.syntax.term_data,
         model.editor.syntax.selection_ids,
         Indicated.piece(model.editor.state.zipper),
         model.statics.info_map,
@@ -223,6 +224,7 @@ module View = {
         ProjectorView.Model.mk(
           model.editor.syntax.projectors,
           model.editor.syntax.measured,
+          model.editor.syntax.term_data,
           model.editor.syntax.selection_ids,
           Indicated.piece(model.editor.state.zipper),
           model.statics.info_map,

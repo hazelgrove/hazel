@@ -67,6 +67,7 @@ module Model = {
       (
         projectors: Id.Map.t(Base.projector),
         measured: Measured.t,
+        term_data: TermData.t,
         selection_ids: list(Id.t),
         indicated: option(Indicated.piece),
         statics: Language.Statics.Map.t,
@@ -83,7 +84,29 @@ module Model = {
           switch (Measured.find_pr_opt(p, measured)) {
           | None =>
             //TODO(andrew): document
-            Measured.find_by_id(id, measured)
+            //   switch (Measured.find_by_id(id, measured)) {
+            //   | None => None
+            //   | Some(m) =>
+            //     Some(
+            //       Measured.{
+            //         origin: m.last,
+            //         last: m.last,
+            //       },
+            //     )
+            //   }
+            // | Some(m) => Some(m)
+            // };
+            // HACK HACK HACK HACK HACK HACKHACK HACK HACKHACK HACK HACK
+            switch (TermData.extreme_measures(id, term_data, measured)) {
+            | None => None
+            | Some((_l, r)) =>
+              Some(
+                Measured.{
+                  origin: r,
+                  last: r,
+                },
+              )
+            }
           | Some(m) => Some(m)
           };
         // print_endline("measurement found");
