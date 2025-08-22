@@ -16,27 +16,47 @@ let mk = (p: Piece.t, skel: Skel.t, seg: Segment.t): data => {
   root_piece: p,
 };
 
-let extremes = (id: Id.t, data: t) => {
-  let {range: (l, r), base_seg, _} = Id.Map.find(id, data);
-  try((List.nth(base_seg, l), List.nth(base_seg, r))) {
-  | Not_found => failwith("TermData: Invalid range")
+let extremes_opt = (id: Id.t, data: t) =>
+  /* This currently fails for singleton labelled tuples due
+     to their maketerm hack, otherwise the extreme functions
+     could be failwiths instead of options */
+  switch (Id.Map.find_opt(id, data)) {
+  | Some({range: (l, r), base_seg, _}) =>
+    switch (List.nth(base_seg, l), List.nth(base_seg, r)) {
+    | exception _ => None
+    | (l, r) => Some((l, r))
+    }
+  | None => None
   };
-};
 
-let root_tile = (id: Id.t, data: t): Tile.t =>
-  switch (Id.Map.find(id, data)) {
-  | {root_piece: Tile(t), _} => t
-  | _ => failwith("TermData: root_tile: invalid data")
+let extreme_ids = (id: Id.t, data: t): option((Id.t, Id.t)) =>
+  switch (extremes_opt(id, data)) {
+  | Some((l, r)) => Some((Piece.id(l), Piece.id(r)))
+  | None => None
+  };
+
+let extreme_measures = (id: Id.t, data: t, measured: Measured.t) =>
+  switch (extremes_opt(id, data)) {
+  | Some((l, r)) =>
+    switch (
+      Measured.find_p(l, measured).origin,
+      Measured.find_p(r, measured).last,
+    ) {
+    | exception _ => None
+    | (l, r) => Some((l, r))
+    }
+  | None => None
   };
 
 let root_tile_opt = (id: Id.t, data: t): option(Tile.t) =>
-  switch (Id.Map.find(id, data)) {
-  | {root_piece: Tile(t), _} => Some(t)
+  switch (Id.Map.find_opt(id, data)) {
+  | Some({root_piece: Tile(t), _}) => Some(t)
   | _ => None
   };
 
+/* The segment corresponding to the `id` term */
 let segment = (id: Id.t, data: t): option(Segment.t) => {
   open OptUtil.Syntax;
-  let+ {base_seg, range, _} = Id.Map.find_opt(id, data);
-  ListUtil.sublist(range, base_seg);
+  let+ {base_seg, range: (l, r), _} = Id.Map.find_opt(id, data);
+  ListUtil.sublist((l, r + 1), base_seg);
 };
