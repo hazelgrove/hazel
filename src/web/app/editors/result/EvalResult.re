@@ -110,13 +110,8 @@ module Update = {
         display: Stepper(StepperView.Model.init),
       }
       |> Updated.return
-<<<<<<< HEAD
-    | (StepperAction(a), {result: Stepper(s), _}) =>
-      let* stepper = StepperView.Update.update(~globals, a, s);
-=======
     | (StepperAction(a), {display: Stepper(stepper), _}) =>
       let* stepper = StepperView.Update.update(~settings, a, stepper);
->>>>>>> defc38690ed8035ae8950d148523ee0b25c22021
       {
         ...model,
         display: Stepper(stepper),
@@ -172,36 +167,6 @@ module Update = {
         // Using the webworker:
         | Some(queue_worker) =>
           queue_worker(elab);
-<<<<<<< HEAD
-          {
-            ...model,
-            result:
-              Evaluation({
-                elab,
-                result: NewValue(ProgramResult.ResultPending),
-                cached_settings: Pending,
-                editor: Pending,
-              }),
-          };
-        }
-      | (Evaluation, _) => {
-          ...model,
-          result: NoElab,
-        }
-      | (Stepper, Stepper(s)) =>
-        let s' = StepperView.Update.calculate(~globals, elab, s);
-        {
-          ...model,
-          result: Stepper(s'),
-        };
-      | (Stepper, _) =>
-        let s =
-          StepperView.Model.init
-          |> StepperView.Update.calculate(~globals, elab);
-        {
-          ...model,
-          result: Stepper(s),
-=======
           ProgramResult.ResultPending;
         // Using the main thread:
         | None =>
@@ -215,7 +180,6 @@ module Update = {
             )
           | Error(e) => ProgramResult.ResultFail(e)
           }
->>>>>>> defc38690ed8035ae8950d148523ee0b25c22021
         };
       };
 
@@ -244,32 +208,6 @@ module Update = {
       | Evaluation(ev_display) =>
         ev_display
         |> {
-<<<<<<< HEAD
-          let.calc _ = cached_settings
-          and.calc result = result;
-          switch (result) {
-          | ResultOk((exp, _state)) =>
-            Exp(exp)
-            |> CodeSelectable.Model.mk_uncalculated(~inline=false)
-            |> (x => Calc.Calculated((exp, x)))
-          | ResultFail(_) => Pending
-          | ResultPending => Pending
-          | Off(_) => Pending
-          };
-        };
-      let editor =
-        editor
-        |> Calc.get_value
-        |> Calc.map_saved(((exp, editor)) =>
-             CodeSelectable.Update.calculate(
-               ~common=Globals.to_common_global(globals),
-               ~is_dynamic_term=true,
-               ~stitch=_ => exp,
-               ~dynamics=Model.dynamics(model),
-               editor,
-             )
-             |> (x => (exp, x))
-=======
           let.calc settings = settings
           and.calc result = result;
           switch (result) {
@@ -294,7 +232,6 @@ module Update = {
                  ),
                )
              ),
->>>>>>> defc38690ed8035ae8950d148523ee0b25c22021
            )
         |> Calc.save
         |> (x => Model.Evaluation(x))
@@ -320,29 +257,6 @@ module Selection = {
     | Evaluation(CodeSelectable.Selection.t)
     | Stepper(StepperView.Focus.t);
 
-<<<<<<< HEAD
-  let get_cursor_info =
-      (~globals, ~inject, ~selection: t, mr: Model.t): Haz3lcore.Cursor.t =>
-    switch (selection, mr.result) {
-    | (_, NoElab) => Haz3lcore.Cursor.empty
-    | (Evaluation(selection), Evaluation({editor: Calculated(editor), _})) =>
-      CodeSelectable.Selection.get_cursor_info(
-        ~common=Globals.to_common_global(globals),
-        ~inject=x => inject(Update.EvalEditorAction(x)),
-        ~dynamics=Dynamics.Map.empty,
-        editor |> snd,
-        selection,
-      )
-    | (Stepper(selection), Stepper(s)) =>
-      StepperView.Selection.get_cursor_info(
-        ~globals,
-        ~inject=x => inject(Update.StepperAction(x)),
-        ~selection,
-        s,
-      )
-    | (_, Evaluation(_)) => Haz3lcore.Cursor.empty
-    | (_, Stepper(_)) => Haz3lcore.Cursor.empty
-=======
   let get_cursor_info = (~selection: t, mr: Model.t): cursor(Update.t) =>
     switch (selection, mr.display) {
     | (Evaluation(selection), Evaluation(Calculated(Some((_, editor))))) =>
@@ -366,7 +280,6 @@ module Selection = {
       |> Option.map(x => Update.StepperAction(x))
     | (_, Evaluation(_)) => None
     | (_, Stepper(_)) => None
->>>>>>> defc38690ed8035ae8950d148523ee0b25c22021
     };
 };
 
@@ -401,37 +314,6 @@ module View = {
         result: ProgramResult.t(ProgramResult.inner),
         editor: option(('a, CodeSelectable.Model.t)),
       ) => {
-<<<<<<< HEAD
-    let editor =
-      switch (editor) {
-      | Calculated(editor) => editor |> snd
-      | _ =>
-        Exp(elab)
-        |> CodeSelectable.Model.mk_uncalculated(~inline=false)
-        |> CodeSelectable.Update.calculate(
-             ~common=Globals.to_common_global(globals),
-             ~is_dynamic_term=true,
-             ~stitch=_ => elab,
-             ~dynamics=Dynamics.Map.empty,
-           )
-      };
-    let code_view =
-      CodeSelectable.View.view(
-        ~take_focus=f => signal(MakeActive(Evaluation(f))),
-        ~inject=a => inject(EvalEditorAction(a)),
-        ~escape=_ => Ui_effect.Ignore,
-        ~common={
-          settings: globals.settings.core,
-          font_metrics: globals.font_metrics,
-          secondary_icons: globals.settings.secondary_icons,
-          color_highlights: globals.color_highlights,
-          statics: editor |> Haz3lcore.EditorManager.Model.get_statics,
-          dynamics: Dynamics.Map.empty,
-        },
-        ~focus=selected,
-        ~sort=Haz3lcore.Sort.root,
-        editor.editor,
-=======
     let editor = Option.map(snd, editor);
     let code_view =
       Option.map(
@@ -445,7 +327,6 @@ module View = {
           ~sort=Sort.root,
         ),
         editor,
->>>>>>> defc38690ed8035ae8950d148523ee0b25c22021
       );
     let exn_view =
       switch (result) {
@@ -580,13 +461,8 @@ module View = {
     // Normal case:
     | `EvalResults when globals.settings.core.dynamics =>
       let result =
-<<<<<<< HEAD
-        footer(~globals, ~signal, ~inject, ~result=model, ~selected, ~locked);
-      let test_overlay = (editor: Haz3lcore.Editor.Model.t) =>
-=======
         footer(~globals, ~signal, ~inject, ~selected, ~locked, model);
       let test_overlay = (editor: Haz3lcore.Editor.t) =>
->>>>>>> defc38690ed8035ae8950d148523ee0b25c22021
         switch (Model.test_results(model)) {
         | Some(result) => [
             test_result_layer(

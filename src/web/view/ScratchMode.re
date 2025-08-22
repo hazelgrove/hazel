@@ -257,13 +257,7 @@ module Update = {
         };
       let* data =
         source
-<<<<<<< HEAD
-        |> PersistentZipper.unpersist
-        |> Editor.of_zipper
-        |> CellEditor.Model.mk
-=======
         |> CellEditor.Model.unpersist(~settings=settings.core)
->>>>>>> defc38690ed8035ae8950d148523ee0b25c22021
         |> Updated.return;
       {
         ...model,
@@ -375,18 +369,6 @@ module Selection = {
     switch (selection) {
     | Cell(_selection) =>
       switch (event) {
-<<<<<<< HEAD
-      | {key: D(key), sys: Mac | PC, shift: Up, meta: Down, ctrl: Up, alt: Up}
-          when Keyboard.is_digit(key) =>
-        inject(Update.SwitchSlide(int_of_string(key)))
-      // CellEditor.Selection.handle_key_event(
-      //   ~selection,
-      //   ~event,
-      //   List.nth(model.scratchpads, model.current) |> snd,
-      // )
-      // |> Option.map(x => Update.CellAction(x))
-      | _ => Ui_effect.Ignore
-=======
       | _ =>
         CellEditor.Selection.handle_key_event(
           ~selection,
@@ -394,7 +376,6 @@ module Selection = {
           List.nth(model.scratchpads, model.current) |> snd,
         )
         |> Option.map(x => Update.CellAction(x))
->>>>>>> defc38690ed8035ae8950d148523ee0b25c22021
       }
     | TextBox => Ui_effect.Ignore
     };
