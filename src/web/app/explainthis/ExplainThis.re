@@ -1755,8 +1755,9 @@ let get_doc =
             Some(
               msg =>
                 Printf.sprintf(
-                  Scanf.format_from_string(msg, "%s"),
-                  Id.to_string(body_id),
+                  Scanf.format_from_string(msg, "%s%s"),
+                  Id.to_string(pat_id),
+                  Id.to_string(thm_id),
                 ),
             ),
           TheoremExp.tests,
