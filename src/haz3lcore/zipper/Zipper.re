@@ -249,14 +249,14 @@ let can_put_down = z =>
 
 let put_down_regrout_target = (d: Direction.t, target: Tile.t, z: t): t => {
   let z = put_down_core([Tile(target)], z);
-  let z = z |> regrout(Left) |> remold;
+  let z = z |> remold |> regrout(Left);
   adj_pos(d, z);
 };
 
 let backpack_hd = (z: t): option(Tile.t) =>
   z |> local_backpack |> ListUtil.hd_opt;
 
-let put_down_regrout_remold = (d: Direction.t, z: t): option(t) => {
+let put_down_remold_regrout = (d: Direction.t, z: t): option(t) => {
   let+ target = backpack_hd(z);
   put_down_regrout_target(d, target, z);
 };
@@ -489,7 +489,7 @@ let try_to_dump_backpack = (z: t) =>
         z;
       };
     let rec put_down_as_much_as_possible = (z: t): t => {
-      switch (put_down_regrout_remold(Left, z)) {
+      switch (put_down_remold_regrout(Left, z)) {
       | None => z
       | Some(z) => put_down_as_much_as_possible(z)
       };
@@ -516,7 +516,9 @@ let try_to_dump_backpack = (z: t) =>
       };
     };
     let z = move_left_until_incomplete_tile(zipper);
-    go(z);
+    let z = go(z);
+    print_endline("try_to_dump_backpack: " ++ show(z));
+    z;
   };
 
 let smart_seg = (~dump_backpack: bool, ~erase_buffer: bool, z: t) => {
