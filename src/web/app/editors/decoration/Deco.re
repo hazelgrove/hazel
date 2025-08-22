@@ -97,13 +97,17 @@ module HighlightSegment =
     (next_start_shape, shard_data);
   }
   and of_tile = (~start_shape, t: Tile.t): list(option(_)) => {
+    let shards = Measured.find_shards(~msg="sel_of_tile", t, M.measured);
     let tile_shards =
-      Measured.find_shards(~msg="sel_of_tile", t, M.measured)
-      |> List.filter(((i, _)) => List.mem(i, t.shards))
+      shards
+      |> List.filter_map(((i, m)) =>
+           List.mem(i, t.shards) ? Some((i, m)) : None
+         )
       |> List.map(((index, m)) => {
            let token = List.nth(t.label, index);
+           let shard = Tile.shard(t, index);
            switch (StringUtil.num_linebreaks(token)) {
-           | 0 => [Some(sel_shard_svg(~start_shape, m, Tile(t)))]
+           | 0 => [Some(sel_shard_svg(~start_shape, m, Tile(shard)))]
            | num_lb =>
              multiline_shard(num_lb, m, (Some(Convex), Some(Convex)))
            };

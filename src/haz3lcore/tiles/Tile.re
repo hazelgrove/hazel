@@ -62,6 +62,12 @@ let contained_children = (t: t): list((t, Base.segment, t)) =>
        (l, child, r);
      });
 
+let shard = (t: t, i: int): t => {
+  ...t,
+  shards: [i],
+  children: [],
+};
+
 let split_shards = (id, label, mold, shards) =>
   shards
   |> List.map(i =>
