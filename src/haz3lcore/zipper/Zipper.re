@@ -457,12 +457,12 @@ let is_linebreak_to_right_of_caret =
  * for the put_down logic not working right with string lits. To test,
  * try to look at live evaluation while typing inside a string lit with
  * stuff left to drop in backpack with below set: Outer disabled. */
-let try_to_dump_backpack = (zipper: t) => {
-  switch (local_backpack(zipper)) {
-  | [] => zipper
-  | _ =>
+let try_to_dump_backpack = (z: t) =>
+  if (!Selection.is_empty(z.selection)) {
+    z;
+  } else {
     let zipper = {
-      ...zipper,
+      ...z,
       caret: Outer,
     };
     let rec move_until_cant_put_down = (z_last, z: t) =>
@@ -470,6 +470,11 @@ let try_to_dump_backpack = (zipper: t) => {
         switch (move(Right, z)) {
         | None => z
         | Some(z_new) => move_until_cant_put_down(z, z_new)
+        };
+      } else if (is_linebreak_to_right_of_caret(z)) {
+        switch (move(Right, z)) {
+        | None => z
+        | Some(z_new) => z_new
         };
       } else {
         z_last;
@@ -483,17 +488,36 @@ let try_to_dump_backpack = (zipper: t) => {
       } else {
         z;
       };
+    let rec put_down_as_much_as_possible = (z: t): t => {
+      switch (put_down_regrout_remold(Left, z)) {
+      | None => z
+      | Some(z) => put_down_as_much_as_possible(z)
+      };
+    };
+    let rec move_left_until_incomplete_tile = (z: t): t => {
+      switch (Siblings.neighbor(Left, z.relatives.siblings)) {
+      | Some(Tile(t)) when !Tile.is_complete(t) => z
+      | Some(_)
+      | None =>
+        switch (move(Left, z)) {
+        | None => z
+        | Some(z) => move_left_until_incomplete_tile(z)
+        }
+      };
+    };
     let rec go = (z: t): t => {
       let z_can = can_put_down(z) ? z : move_until_can_put_down(z);
       let z_cant = move_until_cant_put_down(z_can, z_can);
-      switch (put_down_regrout_remold(Right, z_cant)) {
-      | None => z_cant
-      | Some(z) => go(z)
+      let z = put_down_as_much_as_possible(z_cant);
+      if (local_backpack(z) == []) {
+        z;
+      } else {
+        go(z);
       };
     };
-    go(zipper);
+    let z = move_left_until_incomplete_tile(zipper);
+    go(z);
   };
-};
 
 let smart_seg = (~dump_backpack: bool, ~erase_buffer: bool, z: t) => {
   let z = erase_buffer ? clear_unparsed_buffer(z) : z;
