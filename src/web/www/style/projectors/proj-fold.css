@@ -1,5 +1,10 @@
 /* PROJECTOR: FOLD */
 
+:root {
+  --fold-accent: var(--G0);
+  --fold-bkg: #293445;
+}
+
 .projector.fold:hover,
 .projector.indicated.fold {
   color: --var(BLACK);
@@ -39,20 +44,85 @@
 }
 
 .projector.fold .hover-view {
+  transition: all 0.1s ease-out;
   position: absolute;
   display: block;
-  left: 0;
-  top: 0;
+  left: 10px;
+  top: 0px;
+  filter: drop-shadow(-10px 0px 0px var(--fold-accent))
+    drop-shadow(5px 5px 5px #2105);
+  animation: shadowSlideIn 0.05s ease-in;
 }
 
-.projector.fold .hover-view {
-  filter: drop-shadow(3px 3px 2px #00000010);
+.projector.fold div:hover .hover-view {
+  left: 8px;
+  filter: drop-shadow(-8px 0px 0px var(--fold-accent))
+    drop-shadow(5px 5px 5px #2105);
+}
+
+@keyframes shadowSlideIn {
+  from {
+    left: 0;
+    filter: drop-shadow(0px 0px 0px var(--fold-accent))
+      drop-shadow(5px 5px 5px #2105);
+  }
+  to {
+    left: 10px;
+    filter: drop-shadow(-10px 0px 0px var(--fold-accent))
+      drop-shadow(5px 5px 5px #2105);
+  }
+}
+
+.projector.fold .hover-view .code-text {
+  position: absolute;
+  left: 5px;
+}
+
+.projector.fold .hover-view .code-text .token.Exp,
+.projector.fold .hover-view .code-text .token.Rul {
+  color: var(--SAND);
+}
+
+.projector.fold .hover-view .code .quick-select-deco + .quick-select-deco {
+  translate: 10px;
+}
+.projector.fold
+  .hover-view
+  .code
+  .quick-select-deco
+  + .quick-select-deco
+  svg.shard {
+  filter: none;
 }
 
 .projector.fold .hover-view svg {
+  transition: all 0.1s ease-out;
   --shadow: var(--BR3);
   filter: drop-shadow(0.7px 0.7px 0px var(--shadow));
 }
+
+.projector.fold .hover-view svg path {
+  --fill: var(--fold-bkg);
+  fill: var(--fill);
+  stroke: var(--fill);
+}
+
+.projector.fold .hover-view:hover .code .quick-select-deco svg.shard {
+  filter: brightness(1.2);
+}
+
+.projector.fold div:hover + svg,
+.projector.fold div:has(.hover-view) + svg {
+  fill: var(--fold-accent);
+  stroke-width: 1px;
+  stroke: var(--fold-accent);
+}
+
+.projector.fold div:hover,
+.projector.fold div:has(.hover-view) {
+  color: var(--SAND);
+}
+
 .projector.fold.Pat .hover-view svg {
   --shadow: var(--token-pat);
 }

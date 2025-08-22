@@ -51,12 +51,12 @@ module M: Projector = {
     );
   };
 
-  let view = (m: model, info, ~local, ~parent, ~view_seg) =>
+  let view = (m: model, info, ~local, ~parent as _, ~view_seg) =>
     ProjectorBase.View.mk(
       div(
         ~attrs=[
           Attr.on_click(_ => local(Toggle)),
-          Attr.on_double_click(_ => parent(Remove)),
+          //Attr.on_double_click(_ => parent(Remove)),
         ],
         [text(m.text)] @ (m.expanded ? [hover_view(view_seg, info)] : []),
       ),

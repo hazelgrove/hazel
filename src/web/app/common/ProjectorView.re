@@ -197,6 +197,7 @@ let simple_code = (~background=false, font_metrics, sort, segment): Node.t => {
   div(
     ~attrs=[Attr.class_("code")],
     [span_c("code-text", Text.of_segment([], false, sort, segment))]
+    @ backing
     @ backing,
   );
 };
