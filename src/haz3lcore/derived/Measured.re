@@ -200,6 +200,22 @@ let find_by_id = (id: Id.t, map: t): option(measurement) => {
 
 type acc = (int, Point.t, t);
 
+module MkDeferredLinebreaks = () => {
+  /* Tab projectors add linebreaks after the end of the line
+     the begin on. This keeps track of these deffered linebreaks
+     until the next (real) linebreak is reached */
+
+  let lbs: ref(int) = ref(0);
+
+  let consume = (): int => {
+    let ret = lbs^;
+    lbs := 0;
+    ret;
+  };
+
+  let update = (num_lb: int): unit => lbs := max(num_lb, lbs^);
+};
+
 let of_segment =
     (
       ~indent_level=Id.Map.empty,
@@ -214,14 +230,7 @@ let of_segment =
   let indent_of_linebreak = (w: Secondary.t): option(int) =>
     Secondary.is_linebreak(w) ? Id.Map.find_opt(w.id, indent_level) : None;
 
-  /* Tab projectors add linebreaks after the end of their line */
-  let deferred_linebreaks: ref(int) = ref(0);
-
-  let consume_deferred_linebreaks = (): int => {
-    let ret = deferred_linebreaks^;
-    deferred_linebreaks := 0;
-    ret;
-  };
+  module DeferredLinebreaks = MkDeferredLinebreaks();
 
   let projector_size =
       (p: Base.projector, shape_map: Id.Map.t(ProjectorCore.Shape.t))
@@ -232,9 +241,9 @@ let of_segment =
       | Inline
       | Block(0) => 0
       | Tab(num_lb) =>
-        deferred_linebreaks := max(num_lb, deferred_linebreaks^);
+        DeferredLinebreaks.update(num_lb);
         0;
-      | Block(num_lb) => max(num_lb, consume_deferred_linebreaks())
+      | Block(num_lb) => max(num_lb, DeferredLinebreaks.consume())
       };
     {
       col: shape.horizontal,
@@ -266,28 +275,28 @@ let of_segment =
     (indent, measure.last, add_pr(pr, measure, map));
   };
 
-  let add_secondary = ((indent, origin, map): acc, w: Secondary.t) => {
-    let (indent, size) =
+  let add_secondary = ((prev_indent, origin, map): acc, w: Secondary.t) => {
+    let (new_indent, size) =
       switch (indent_of_linebreak(w)) {
       | Some(new_indent) =>
         let size =
           Point.mk(
-            ~row=1 + consume_deferred_linebreaks(),
+            ~row=1 + DeferredLinebreaks.consume(),
             ~col=new_indent - origin.col,
           );
         (new_indent, size);
       | None =>
         let size = Point.mk(~row=0, ~col=Secondary.length(w));
-        (indent, size);
+        (prev_indent, size);
       };
-    let (measure, map) = calc(indent, origin, map, size);
-    (indent, measure.last, add_w(w, measure, map));
+    let (measure, map) = calc(prev_indent, origin, map, size);
+    (new_indent, measure.last, add_w(w, measure, map));
   };
 
   let add_top_level = ((indent, origin, map): acc, ~top_level: bool) => {
     let map =
       top_level
-        ? add_n_rows(origin, indent, 1 + consume_deferred_linebreaks(), map)
+        ? add_n_rows(origin, indent, 1 + DeferredLinebreaks.consume(), map)
         : map;
     (indent, origin, map);
   };

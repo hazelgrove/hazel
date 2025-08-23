@@ -76,14 +76,7 @@ module Text =
            let font_metrics: FontMetrics.t;
          },
        ) => {
-  /* Tab projectors add linebreaks after the end of their line */
-  let deferred_linebreaks: ref(int) = ref(0);
-
-  let consume_deferred_linebreaks = (): int => {
-    let ret = deferred_linebreaks^;
-    deferred_linebreaks := 0;
-    ret;
-  };
+  module DeferredLinebreaks = Measured.MkDeferredLinebreaks();
 
   let projector_size =
       (p: Base.projector, shape_map: Id.Map.t(ProjectorCore.Shape.t))
@@ -94,9 +87,9 @@ module Text =
       | Inline
       | Block(0) => 0
       | Tab(num_lb) =>
-        deferred_linebreaks := max(num_lb, deferred_linebreaks^);
+        DeferredLinebreaks.update(num_lb);
         0;
-      | Block(num_lb) => max(num_lb, consume_deferred_linebreaks())
+      | Block(num_lb) => max(num_lb, DeferredLinebreaks.consume())
       };
     {
       col: shape.horizontal,
@@ -116,7 +109,7 @@ module Text =
     switch (content) {
     | Whitespace(str) when str == Token.linebreak =>
       [secondary_text("linebreak", secondary_icons ? ">" : "")]
-      @ List.init(1 + consume_deferred_linebreaks(), _ => Node.text("\n"))
+      @ List.init(1 + DeferredLinebreaks.consume(), _ => Node.text("\n"))
       @ [Node.text(StringUtil.repeat(indent, Token.space))]
     | Whitespace(str) when str == Token.space => [
         secondary_text("whitespace", secondary_icons ? "·" : Token.space),
