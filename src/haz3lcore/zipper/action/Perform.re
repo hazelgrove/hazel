@@ -254,7 +254,21 @@ let go_z =
       }
     )
     |> Result.of_option(~error=Action.Failure.Cant_put_down)
-  | Refractor(SetRefProbe) => Ok(Refractors.add(z))
+  | Refractor(SetRefProbe) =>
+    switch (z.selection.content) {
+    | [] => Ok(Refractors.add(z))
+    | _ =>
+      let selection_ids = Selection.selection_ids(z.selection);
+      let refractors =
+        Id.Map.filter(
+          (id, _) => !List.mem(id, selection_ids),
+          z.refractors,
+        );
+      Ok({
+        ...z,
+        refractors,
+      });
+    }
   | Dump => Ok(Zipper.try_to_dump_backpack(z))
   };
 };
