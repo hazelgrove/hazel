@@ -484,14 +484,6 @@ module Trim = {
     };
   };
 
-  let rec rm_up_to_one_space =
-          (wss: list(list(Secondary.t))): list(list(Secondary.t)) =>
-    switch (wss) {
-    | [] => []
-    | [[w, ...ws], ...wss] when Secondary.is_space(w) => List.cons(ws, wss)
-    | [ws, ...wss] => List.cons(ws, rm_up_to_one_space(wss))
-    };
-
   let add_grout = (shape: Nib.Shape.t, (wss, gs): t): t =>
     cons_g(Grout.mk_fits_shape(shape), (wss, gs));
 
@@ -527,7 +519,6 @@ and regrout_affix =
         | Secondary(w) => (Trim.cons_w(w, trim), r, tl)
         | Grout(g) => (Trim.(merge(cons_g(g, trim))), r, tl)
         | Projector(pr) =>
-          let p = Piece.Projector(pr);
           let (l', r') =
             ProjectorCore.shapes(pr) |> (d == Left ? TupleUtil.swap : Fun.id);
           let trim = Trim.regrout((r', r), trim);

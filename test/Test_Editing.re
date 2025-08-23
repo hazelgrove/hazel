@@ -436,11 +436,21 @@ let destruct_tests = [
   /* DESTRUCTION: BASIC */
   test(
     ~name="Delete comment",
-    ~acts=mk({|#¦#|}) @ [Destruct(Left)],
+    ~acts=mk({|##¦|}) @ [Destruct(Left)],
     ~goal={|¦?|},
   ),
   test(
     ~name="Delete string",
+    ~acts=mk({|""¦|}) @ [Destruct(Left)],
+    ~goal={|¦?|},
+  ),
+  test(
+    ~name="Deleting comment delimiter deletes comment",
+    ~acts=mk({|#¦#|}) @ [Destruct(Left)],
+    ~goal={|¦?|},
+  ),
+  test(
+    ~name="Deleting string delimiter deletes string",
     ~acts=mk({|"¦"|}) @ [Destruct(Left)],
     ~goal={|¦?|},
   ),
@@ -448,11 +458,6 @@ let destruct_tests = [
     ~name="Delete char from token by backspacing",
     ~acts=mk({|f¦oo|}) @ [Destruct(Left)],
     ~goal={|¦oo|},
-  ),
-  test(
-    ~name="Deleting string delimiter deletes string",
-    ~acts=mk({|"¦"|}) @ [Destruct(Left)],
-    ~goal={|¦?|},
   ),
   test(
     ~name="Merge to empty list by backspacing",

@@ -143,6 +143,12 @@ let of_secondary = (l: Nib.t) => {
   in_: [],
 };
 
+let is_operand = (mold: t): bool =>
+  switch (mold.nibs, mold.in_) {
+  | (({shape: Convex, _}, {shape: Convex, _}), []) => true
+  | _ => false
+  };
+
 let is_infix_op = (mold: t): bool =>
   switch (mold.nibs, mold.in_) {
   | (({shape: Concave(_), _}, {shape: Concave(_), _}), []) => true
