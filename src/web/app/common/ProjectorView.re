@@ -194,16 +194,18 @@ let offside_wrapper =
     [v],
   );
 
-let simple_code = (~background=false, font_metrics, sort, segment): Node.t => {
+let simple_code = (~background=false, font_metrics, _sort, segment): Node.t => {
   let shape_map = ProjectorCore.Shape.Map.empty; /* Assume this doesn't contain projectors */
-  let map = Measured.of_segment(segment, shape_map);
-  module Text =
-    Code.Text({
-      let map = map;
-      let settings = Settings.Model.init;
-      let shape_map = shape_map;
-      let font_metrics = font_metrics;
-    });
+  let code =
+    Code.view(
+      ~measured=Measured.of_segment(segment, shape_map),
+      ~settings=Settings.Model.init,
+      ~shape_map,
+      ~font_metrics,
+      ~term_data=Id.Map.empty,
+      ~buffer_ids=[],
+      segment,
+    );
   let backing =
     if (background) {
       switch (Deco.quick_select_deco(segment)) {
@@ -215,7 +217,7 @@ let simple_code = (~background=false, font_metrics, sort, segment): Node.t => {
     };
   div(
     ~attrs=[Attr.class_("code")],
-    [span_c("code-text", Text.of_segment([], sort, segment))] @ backing,
+    [span_c("code-text", code)] @ backing,
   );
 };
 

@@ -121,12 +121,12 @@ let return = (wrap, ids, tm) => {
 };
 
 let term_data: ref(TermData.t) = ref(Id.Map.empty);
-let record_term_data = (seg: Segment.t, skel: Skel.t): unit =>
+let record_term_data = (sort: Sort.t, seg: Segment.t, skel: Skel.t): unit =>
   term_data :=
     Aba.get_as(Aba.map_a(List.nth(seg), Skel.root(skel)))
     |> List.fold_left(
          (map, p) =>
-           Id.Map.add(Piece.id(p), TermData.mk(p, skel, seg), map),
+           Id.Map.add(Piece.id(p), TermData.mk(p, sort, skel, seg), map),
          term_data^,
        );
 
@@ -179,15 +179,15 @@ let is_hole_label = (t: string) =>
 
 let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
   switch (s) {
-  | Pat => Pat(pat(unsorted(skel, seg)))
-  | TPat => TPat(tpat(unsorted(skel, seg)))
-  | Typ => Typ(typ(unsorted(skel, seg)))
-  | Exp => Exp(exp(unsorted(skel, seg)))
-  | Rul => Rul(rul(unsorted(skel, seg)))
+  | Pat => Pat(pat(unsorted(Pat, skel, seg)))
+  | TPat => TPat(tpat(unsorted(TPat, skel, seg)))
+  | Typ => Typ(typ(unsorted(Typ, skel, seg)))
+  | Exp => Exp(exp(unsorted(Exp, skel, seg)))
+  | Rul => Rul(rul(unsorted(Rul, skel, seg)))
   | Any =>
     let sort = Segment.sort_of(skel, seg);
     if (sort == Any) {
-      Exp(exp(unsorted(skel, seg)));
+      Exp(exp(unsorted(Exp, skel, seg)));
     } else {
       go_s(sort, skel, seg);
     };
@@ -833,7 +833,7 @@ and rul = (unsorted): Rul.t => {
   };
 }
 
-and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
+and unsorted = (sort: Sort.t, skel: Skel.t, seg: Segment.t): unsorted => {
   /* Remove projectors. We do this here as opposed to removing
    * them in an external call to save a whole-syntax pass. */
   let tile_kids = (p: Piece.t): list(Term.Any.t) =>
@@ -854,7 +854,7 @@ and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
     };
 
   /* Capture term ranges */
-  record_term_data(seg, skel);
+  record_term_data(sort, seg, skel);
 
   let root: Aba.t(Piece.t, Skel.t) =
     Skel.root(skel) |> Aba.map_a(List.nth(seg));
@@ -898,7 +898,7 @@ let go =
       term_data := Id.Map.empty;
       projectors := Id.Map.empty;
       rf_map := refractor_mapping;
-      let term = exp(unsorted(Segment.skel(seg), seg));
+      let term = exp(unsorted(Exp, Segment.skel(seg), seg));
       {
         term,
         term_data: term_data^,
@@ -924,10 +924,8 @@ let for_projection =
       switch (Segment.skel(seg)) {
       | exception _ => None /* Returns None if any subsegment is non-convex */
       | skel =>
-        let (unsorted, sort) = (
-          unsorted(skel, seg),
-          Segment.sort_of(skel, seg),
-        );
+        let sort = Segment.sort_of(skel, seg);
+        let (unsorted, sort) = (unsorted(sort, skel, seg), sort);
         switch (sort) {
         | Exp =>
           switch (exp(unsorted)) {

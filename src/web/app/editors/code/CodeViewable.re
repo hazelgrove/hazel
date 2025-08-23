@@ -7,35 +7,43 @@ open Haz3lcore;
 let view =
     (
       ~globals: Globals.t,
-      ~sort: Sort.t,
       ~measured,
+      ~term_data,
       ~buffer_ids,
       ~segment,
       ~shape_map,
+      ~sort as _,
     )
     : Node.t => {
-  module Text =
-    Code.Text({
-      let map = measured;
-      let settings = globals.settings;
-      let shape_map = shape_map;
-      let font_metrics = globals.font_metrics;
-    });
-  let code = Text.of_segment(buffer_ids, sort, segment);
+  let code =
+    Code.view(
+      ~measured,
+      ~settings=globals.settings,
+      ~shape_map,
+      ~font_metrics=globals.font_metrics,
+      ~term_data,
+      ~buffer_ids,
+      segment,
+    );
   div_c("code", [span_c("code-text", code)]);
 };
 
 let view_segment =
     (
       ~globals: Globals.t,
-      ~sort: Sort.t,
       ~shape_map: ProjectorCore.Shape.Map.t,
+      ~sort: Sort.t,
       segment: Segment.t,
-    ) => {
-  let measured = Measured.of_segment(segment, shape_map);
-  let buffer_ids = [];
-  view(~globals, ~sort, ~measured, ~buffer_ids, ~segment, ~shape_map);
-};
+    ) =>
+  view(
+    ~globals,
+    ~measured=Measured.of_segment(segment, shape_map),
+    ~term_data=Id.Map.empty, //TODO,
+    ~buffer_ids=[],
+    ~segment,
+    ~sort,
+    ~shape_map,
+  );
 
 let view_typ = (~globals: Globals.t, ~settings, typ: Language.Typ.t) => {
   let shape_map = ProjectorCore.Shape.Map.empty; // assume no projectors

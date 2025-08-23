@@ -3,6 +3,7 @@ open Util;
 [@deriving (show({with_path: false}), sexp, yojson)]
 type data = {
   range: (int, int),
+  sort: Sort.t,
   base_seg: Segment.t,
   root_piece: Piece.t,
 };
@@ -10,8 +11,9 @@ type data = {
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = Id.Map.t(data);
 
-let mk = (p: Piece.t, skel: Skel.t, seg: Segment.t): data => {
+let mk = (p: Piece.t, sort: Sort.t, skel: Skel.t, seg: Segment.t): data => {
   range: Skel.range(skel),
+  sort,
   base_seg: seg,
   root_piece: p,
 };
