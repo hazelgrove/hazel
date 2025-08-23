@@ -1,13 +1,12 @@
 open Haz3lcore;
 open Virtual_dom.Vdom;
-// open Node;
+open Node;
 open ProjectorBase;
 open Util;
 open Util.OptUtil.Syntax;
 open Util.WebUtil;
 
 module Model = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
   type status = {
     kind: ProjectorCore.Kind.t,
     sort: Sort.t,
@@ -16,7 +15,6 @@ module Model = {
     error: bool,
   };
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
   type projector_data = {
     p: Piece.projector,
     info: ProjectorBase.info,
@@ -25,7 +23,6 @@ module Model = {
     status,
   };
 
-  [@deriving (show({with_path: false}), sexp, yojson)]
   type t = list(projector_data);
 
   /* Is projector indicated and if so what side is the caret on? */
@@ -76,27 +73,13 @@ module Model = {
       ) => {
     List.filter_map(
       ((id, _)) => {
-        //TODO(andrew): cleanup
-        // print_endline("id: " ++ Id.str8(id));
+        //TODO(andrew): cleanup, document hax
         let* p = Id.Map.find_opt(id, projectors);
-        // print_endline("p: " ++ ProjectorCore.Kind.name(p.kind));
         let+ measurement =
           switch (Measured.find_pr_opt(p, measured)) {
           | None =>
+            /* Refractors case */
             //TODO(andrew): document
-            //   switch (Measured.find_by_id(id, measured)) {
-            //   | None => None
-            //   | Some(m) =>
-            //     Some(
-            //       Measured.{
-            //         origin: m.last,
-            //         last: m.last,
-            //       },
-            //     )
-            //   }
-            // | Some(m) => Some(m)
-            // };
-            // HACK HACK HACK HACK HACK HACKHACK HACK HACKHACK HACK HACK
             switch (TermData.extreme_measures(id, term_data, measured)) {
             | None => None
             | Some((_l, r)) =>
@@ -107,9 +90,9 @@ module Model = {
                 },
               )
             }
+
           | Some(m) => Some(m)
           };
-        // print_endline("measurement found");
         let info = ProjectorInfo.mk_info(p, ~statics, ~dynamics);
         {
           p,
@@ -131,8 +114,6 @@ module Model = {
     );
   };
 };
-
-open Node;
 
 /* Projectors get a default backing decoration similar
  * to token decorations. This can be made transparent

@@ -35,19 +35,6 @@ let print =
       };
     | None => print("DEBUG: No indicated index")
     };
-  // | "F8" =>
-  //   let seg = zipper |> Zipper.unselect_and_zip;
-  //   let term_ranges = TermRanges.term_segs(seg);
-  //   Id.Map.iter(
-  //     (id, range) =>
-  //       print(
-  //         "term "
-  //         ++ Id.str8(id)
-  //         ++ " = "
-  //         ++ Segment.to_string(~projector_to_segment=_ => [], range),
-  //       ),
-  //     term_ranges,
-  //   );
   | _ => print("DEBUG: No action for key: " ++ key)
   };
 };

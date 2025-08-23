@@ -331,11 +331,6 @@ module View = {
             [text(error_msg(err))],
           ),
         ]
-      | ResultOk(_) =>
-        //TODO(andrew): rm this debugging case
-        // let blah = EvaluatorState.get_probes(state);
-        // print_endline("blah: " ++ Dynamics.Probe.Map.show(blah));
-        []
       | _ => []
       };
     Node.(

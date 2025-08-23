@@ -133,7 +133,7 @@ let record_term_data = (seg: Segment.t, skel: Skel.t): unit =>
 /* Map to collect projector ids */
 let projectors: ref(Id.Map.t(Piece.projector)) = ref(Id.Map.empty);
 
-let extra_probe_ids: ref(list((Id.t, Id.t))) = ref([]);
+let rf_map: ref(list((Id.t, Id.t))) = ref([]);
 
 /* Strip a projector from a segment and log it in the map */
 let log_projector = (pr: Base.projector): unit => {
@@ -198,7 +198,7 @@ and exp = unsorted => {
   let ids = ids(unsorted) @ inner_ids;
   //TODO(andrew): exn reporting, id duplication?
   let (term, ids) =
-    switch (List.assoc_opt(List.hd(ids), extra_probe_ids^)) {
+    switch (List.assoc_opt(List.hd(ids), rf_map^)) {
     | Some(guy) =>
       print_endline("adding probe to id: " ++ Id.str8(List.hd(ids)));
       (
@@ -516,7 +516,7 @@ and pat = unsorted => {
   let ids = ids(unsorted) @ inner_ids;
   //TODO(andrew): exn reporting, id duplication?
   let (term, ids) =
-    switch (List.assoc_opt(List.hd(ids), extra_probe_ids^)) {
+    switch (List.assoc_opt(List.hd(ids), rf_map^)) {
     | Some(guy) =>
       print_endline("adding probe to id: " ++ Id.str8(List.hd(ids)));
       (
@@ -893,11 +893,11 @@ and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
 let go =
   Core.Memo.general(
     ~cache_size_bound=1000,
-    (extra_probes, seg) => {
+    (refractor_mapping, seg) => {
       map := TermMap.empty;
       term_data := Id.Map.empty;
       projectors := Id.Map.empty;
-      extra_probe_ids := extra_probes;
+      rf_map := refractor_mapping;
       let term = exp(unsorted(Segment.skel(seg), seg));
       {
         term,
