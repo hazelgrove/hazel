@@ -670,7 +670,7 @@ let wrap = (term, editor: Editor.t): TermItem.t => {
 let term_of = (editor: Editor.t): Language.Exp.t =>
   MakeTerm.from_zip_for_sem(
     editor.state.zipper,
-    Editor.ids_of_refractors(editor.state.refractors),
+    Editor.ids_of_refractors(editor),
   ).
     term;
 

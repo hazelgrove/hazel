@@ -191,13 +191,9 @@ module View = {
         });
       Deco.editor(model.editor.state.zipper, selected);
     };
-    // print_endline(
-    //   "num refractors: "
-    //   ++ string_of_int(Id.Map.cardinal(model.editor.state.refractors)),
-    // );
     let refractor_data =
       ProjectorView.Model.mk(
-        model.editor.state.refractors,
+        model.editor.state.zipper.refractors,
         model.editor.syntax.measured,
         model.editor.syntax.term_data,
         model.editor.syntax.selection_ids,
@@ -206,9 +202,6 @@ module View = {
         model.dynamics,
         selected,
       );
-    // print_endline(
-    //   "refractor_data: " ++ ProjectorView.Model.show(refractor_data),
-    // );
     let refractors_model =
       ProjectorView.all_refractors(
         x => inject(Perform(x)),

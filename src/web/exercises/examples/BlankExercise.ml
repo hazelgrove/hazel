@@ -27,6 +27,7 @@ let exercise : Exercise.spec =
             ancestors = [];
           };
         caret = Outer;
+        refractors = Haz3lcore.Id.Map.empty;
       };
     correct_impl =
       {
@@ -48,6 +49,7 @@ let exercise : Exercise.spec =
             ancestors = [];
           };
         caret = Outer;
+        refractors = Haz3lcore.Id.Map.empty;
       };
     your_tests =
       {
@@ -71,6 +73,7 @@ let exercise : Exercise.spec =
                 ancestors = [];
               };
             caret = Outer;
+            refractors = Haz3lcore.Id.Map.empty;
           };
         required = 0;
         provided = 0;
@@ -95,6 +98,7 @@ let exercise : Exercise.spec =
             ancestors = [];
           };
         caret = Outer;
+        refractors = Haz3lcore.Id.Map.empty;
       };
     hidden_bugs = [];
     hidden_tests =
@@ -119,6 +123,7 @@ let exercise : Exercise.spec =
                 ancestors = [];
               };
             caret = Outer;
+            refractors = Haz3lcore.Id.Map.empty;
           };
         hints = [];
       };

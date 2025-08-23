@@ -78,14 +78,11 @@ module State = {
   type t = {
     zipper: Zipper.t,
     col_target: option(int),
-    /* Like projectors but not replacing syntax */
-    refractors: Id.Map.t(Base.projector),
   };
 
   let mk = zipper => {
     zipper,
     col_target: None,
-    refractors: Id.Map.empty,
   };
 };
 
@@ -140,9 +137,8 @@ module Model = {
   };
 };
 
-let ids_of_refractors =
-    (refractors: Id.Map.t(Base.projector)): list((Id.t, Id.t)) =>
-  refractors
+let ids_of_refractors = (model: Model.t): list((Id.t, Id.t)) =>
+  model.state.zipper.refractors
   |> Id.Map.to_list
   |> List.map(((id, p: Base.projector)) => (id, p.id));
 
@@ -252,12 +248,15 @@ module Update = {
         switch (Indicated.index(state.zipper)) {
         | None => state
         | Some(id) =>
-          switch (Id.Map.find_opt(id, state.refractors)) {
+          switch (Id.Map.find_opt(id, state.zipper.refractors)) {
           | Some(_) =>
             print_endline("removing refractor probe, id: " ++ Id.str8(id));
             {
               ...state,
-              refractors: Id.Map.remove(id, state.refractors),
+              zipper: {
+                ...state.zipper,
+                refractors: Id.Map.remove(id, state.zipper.refractors),
+              },
             };
           | None =>
             switch (mk_refractor_probe()) {
@@ -266,7 +265,10 @@ module Update = {
               print_endline("set refractor probe, id: " ++ Id.str8(id));
               {
                 ...state,
-                refractors: Id.Map.add(id, p, state.refractors),
+                zipper: {
+                  ...state.zipper,
+                  refractors: Id.Map.add(id, p, state.zipper.refractors),
+                },
               };
             }
           }
@@ -292,7 +294,6 @@ module Update = {
       state: {
         zipper,
         col_target,
-        refractors: state.refractors,
       },
       syntax,
     };

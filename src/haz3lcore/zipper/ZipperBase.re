@@ -11,6 +11,8 @@ type t = {
   selection: Selection.t,
   relatives: Relatives.t,
   caret,
+  /* Like projectors but not replacing syntax */
+  refractors: Id.Map.t(Base.projector),
 };
 
 let update_relatives = (f: Relatives.t => Relatives.t, z: t): t => {

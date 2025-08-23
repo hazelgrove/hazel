@@ -708,7 +708,7 @@ module SyntaxReport = {
     let user_impl_term =
       Haz3lcore.MakeTerm.from_zip_for_sem(
         your_impl.state.zipper,
-        Haz3lcore.Editor.ids_of_refractors(your_impl.state.refractors),
+        Haz3lcore.Editor.ids_of_refractors(your_impl),
       ).
         term;
     let predicates =
