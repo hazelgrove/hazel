@@ -66,19 +66,15 @@ let view =
   let g_convex = EmptyHoleDec.view(font_metrics, Convex);
   let g_concave = EmptyHoleDec.view(font_metrics, Concave);
 
-  let of_grout = (g: Grout.t): list(Node.t) => {
+  let of_grout = (g: Grout.t): t => {
     switch (g.shape) {
-    | Convex => [g_convex]
-    | Concave => [g_concave]
+    | Convex => g_convex
+    | Concave => g_concave
     };
   };
 
-  let lb_icon =
-    settings.secondary_icons ? [secondary_text("linebreak", ">")] : [];
-  let ws_icon = [
-    settings.secondary_icons
-      ? secondary_text("whitespace", "·") : Node.text(" "),
-  ];
+  let lb_icon = settings.secondary_icons ? "⏎" : "";
+  let ws_icon = settings.secondary_icons ? "·" : " ";
 
   let is_consistent = (t: Tile.t) =>
     switch (Id.Map.find_opt(t.id, term_data)) {
@@ -112,13 +108,12 @@ let view =
     | Whitespace(str) when str == Token.linebreak =>
       let indent = measure_of(Secondary(secondary)).last.col;
       let token = whitespace_token(DeferredLinebreaks.of_secondary(), indent);
-      lb_icon @ [Node.text(token)];
-    | Whitespace(str) when str == Token.space => ws_icon
+      Node.text(lb_icon ++ token);
+    | Whitespace(str) when str == Token.space => Node.text(ws_icon)
     | Whitespace(_) => failwith("Code: Unrecognized Secondary")
-    | Comment(str) when List.mem(secondary.id, buffer_ids) => [
-        secondary_text("in-unparsed-buffer", str),
-      ]
-    | Comment(str) => [secondary_text("comment", str)]
+    | Comment(str) when List.mem(secondary.id, buffer_ids) =>
+      secondary_text("in-unparsed-buffer", str)
+    | Comment(str) => secondary_text("comment", str)
     };
 
   let of_projector = (pr: Base.projector) => {
@@ -126,7 +121,7 @@ let view =
     let size = DeferredLinebreaks.of_projector(pr, shape_map);
     let token =
       whitespace_token(size.row, size.col + (size.row == 0 ? 0 : indent));
-    [Node.text(token)];
+    Node.text(token);
   };
 
   let rec of_segment = (seg: Segment.t): list(Node.t) =>
@@ -136,9 +131,9 @@ let view =
         Aba.mk(t.shards, t.children)
         |> Aba.join(of_delim(t), of_segment)
         |> List.concat
-      | Grout(g) => of_grout(g)
-      | Secondary(s) => of_secondary(s)
-      | Projector(pr) => of_projector(pr),
+      | Grout(g) => [of_grout(g)]
+      | Secondary(s) => [of_secondary(s)]
+      | Projector(pr) => [of_projector(pr)],
       seg,
     );
 
