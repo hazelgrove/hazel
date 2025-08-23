@@ -10,16 +10,14 @@ let of_delim' =
   Core.Memo.general(
     ~cache_size_bound=10000,
     (
-      (
-        token: string,
-        plurality: int,
-        sort: Sort.t,
-        is_consistent: bool,
-        is_in_buffer: bool,
-        is_complete: bool,
-        is_infix_var: bool,
-      ),
-    ) => {
+      token: string,
+      plurality: int,
+      sort: Sort.t,
+      is_consistent: bool,
+      is_in_buffer: bool,
+      is_complete: bool,
+      is_infix_var: bool,
+    ): t => {
       let base_cls =
         switch (token) {
         | _ when !is_consistent => "sort-inconsistent"
@@ -32,12 +30,10 @@ let of_delim' =
         };
       let plurality = plurality == 1 ? "mono" : "poly";
       let in_buffer = is_in_buffer ? ["in-parsed-buffer"] : [];
-      [
-        span(
-          ~attrs=[Attr.classes(["token", base_cls, plurality] @ in_buffer)],
-          [Node.text(token)],
-        ),
-      ];
+      span(
+        ~attrs=[Attr.classes(["token", base_cls, plurality] @ in_buffer)],
+        [Node.text(token)],
+      );
     },
   );
 
@@ -89,8 +85,8 @@ let view =
       }
     };
 
-  let of_delim = (t: Piece.tile, i: int): list(Node.t) =>
-    of_delim'((
+  let of_delim = (t: Piece.tile, i: int): t =>
+    of_delim'(
       List.nth(t.label, i),
       List.length(t.label),
       t.mold.out,
@@ -99,7 +95,7 @@ let view =
       Tile.is_complete(t),
       Mold.is_infix_op(t.mold)
       && Form.is_infix_delimiter_op_prefix(List.nth(t.label, i)),
-    ));
+    );
 
   let measure_of = p => Measured.find_p(~msg="Text", p, measured);
 
@@ -129,7 +125,7 @@ let view =
       fun
       | Piece.Tile(t) =>
         Aba.mk(t.shards, t.children)
-        |> Aba.join(of_delim(t), of_segment)
+        |> Aba.join(i => [of_delim(t, i)], of_segment)
         |> List.concat
       | Grout(g) => [of_grout(g)]
       | Secondary(s) => [of_secondary(s)]
