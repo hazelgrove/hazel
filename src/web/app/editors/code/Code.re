@@ -6,15 +6,6 @@ open Util.WebUtil;
 
 /* Helpers for rendering code text with holes and syntax highlighting */
 
-/* Tab projectors add linebreaks after the end of their line */
-let deferred_linebreaks: ref(int) = ref(0);
-
-let consume_deferred_linebreaks = (): int => {
-  let ret = deferred_linebreaks^;
-  deferred_linebreaks := 0;
-  ret;
-};
-
 let of_delim' =
   Core.Memo.general(
     ~cache_size_bound=10000,
@@ -71,52 +62,10 @@ let of_delim =
     i,
   ));
 
-let space = " "; //Unicode.nbsp;
-
 let secondary_text =
   Core.Memo.general(~cache_size_bound=10000, (cls, str) =>
     span_c(cls, [text(str)])
   );
-
-let of_secondary =
-    (
-      (
-        content: Secondary.secondary_content,
-        secondary_icons: bool,
-        indent: int,
-        is_in_buffer: bool,
-      ),
-    ) =>
-  switch (content) {
-  | Whitespace(str) when str == Token.linebreak =>
-    [secondary_text("linebreak", secondary_icons ? ">" : "")]
-    @ List.init(1 + consume_deferred_linebreaks(), _ => Node.text("\n"))
-    @ [Node.text(StringUtil.repeat(indent, space))]
-  | Whitespace(str) when str == Token.space => [
-      secondary_text("whitespace", secondary_icons ? "·" : space),
-    ]
-  | Whitespace(_) => failwith("Code: Unrecognized Secondary")
-  | Comment(str) when is_in_buffer => [
-      secondary_text("in-unparsed-buffer", str),
-    ]
-  | Comment(str) => [secondary_text("comment", str)]
-  };
-
-let of_projector = (expected_sort, indent, shape: ProjectorCore.Shape.t) => {
-  let token =
-    switch (shape.vertical) {
-    | Inline
-    | Tab(0)
-    | Block(0) => ProjectorCore.Shape.token(shape)
-    | Tab(num_lb) =>
-      deferred_linebreaks := max(num_lb, deferred_linebreaks^);
-      ProjectorCore.Shape.token(shape);
-    | Block(_) =>
-      String.make(consume_deferred_linebreaks(), '\n')
-      ++ ProjectorCore.Shape.token(shape)
-    };
-  of_delim'(([token], expected_sort, true, false, true, false, indent, 0));
-};
 
 module Text =
        (
@@ -127,7 +76,69 @@ module Text =
            let font_metrics: FontMetrics.t;
          },
        ) => {
-  deferred_linebreaks := 0;
+  /* Tab projectors add linebreaks after the end of their line */
+  let deferred_linebreaks: ref(int) = ref(0);
+
+  let consume_deferred_linebreaks = (): int => {
+    let ret = deferred_linebreaks^;
+    deferred_linebreaks := 0;
+    ret;
+  };
+
+  let projector_size =
+      (p: Base.projector, shape_map: Id.Map.t(ProjectorCore.Shape.t))
+      : Point.t => {
+    let shape = ProjectorCore.Shape.Map.lookup(p.id, shape_map);
+    let row =
+      switch (shape.vertical) {
+      | Inline
+      | Block(0) => 0
+      | Tab(num_lb) =>
+        deferred_linebreaks := max(num_lb, deferred_linebreaks^);
+        0;
+      | Block(num_lb) => max(num_lb, consume_deferred_linebreaks())
+      };
+    {
+      col: shape.horizontal,
+      row,
+    };
+  };
+
+  let of_secondary =
+      (
+        (
+          content: Secondary.secondary_content,
+          secondary_icons: bool,
+          indent: int,
+          is_in_buffer: bool,
+        ),
+      ) =>
+    switch (content) {
+    | Whitespace(str) when str == Token.linebreak =>
+      [secondary_text("linebreak", secondary_icons ? ">" : "")]
+      @ List.init(1 + consume_deferred_linebreaks(), _ => Node.text("\n"))
+      @ [Node.text(StringUtil.repeat(indent, Token.space))]
+    | Whitespace(str) when str == Token.space => [
+        secondary_text("whitespace", secondary_icons ? "·" : Token.space),
+      ]
+    | Whitespace(_) => failwith("Code: Unrecognized Secondary")
+    | Comment(str) when is_in_buffer => [
+        secondary_text("in-unparsed-buffer", str),
+      ]
+    | Comment(str) => [secondary_text("comment", str)]
+    };
+
+  let of_projector =
+      (
+        expected_sort,
+        indent,
+        p: Base.projector,
+        shape_map: Id.Map.t(ProjectorCore.Shape.t),
+      ) => {
+    let size = projector_size(p, shape_map);
+    let token = String.make(size.row, '\n') ++ String.make(size.col, ' ');
+    of_delim'(([token], expected_sort, true, false, true, false, indent, 0));
+  };
 
   let m = p => Measured.find_p(~msg="Text", p, M.map);
   let rec of_segment = (buffer_ids, sort, seg: Segment.t): list(Node.t) => {
@@ -157,12 +168,9 @@ module Text =
         indent,
         is_in_buffer,
       ));
-    | Projector(p) =>
-      of_projector(
-        expected_sort,
-        m(Projector(p)).origin.col,
-        ProjectorCore.Shape.Map.lookup(p.id, M.shape_map),
-      )
+    | Projector(pr) =>
+      let indent = m(p).origin.col;
+      of_projector(expected_sort, indent, pr, M.shape_map);
     };
   }
   and of_tile = (buffer_ids, expected_sort: Sort.t, t: Tile.t): list(Node.t) => {
