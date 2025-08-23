@@ -958,17 +958,12 @@ let for_projection =
   );
 
 let from_zip_for_sem' =
-    (~dump_backpack: bool, ~erase_buffer: bool, extra_probes, z: Zipper.t) => {
+    (~dump_backpack: bool, ~erase_buffer: bool, z: Zipper.t) => {
   let seg = Zipper.smart_seg(~dump_backpack, ~erase_buffer, z);
-  go(extra_probes, seg);
+  go(ZipperBase.Refractor.mapping(z.refractors), seg);
 };
 
 let from_zip_for_sem =
-  Core.Memo.general(~cache_size_bound=1000, (z, extra_probes) =>
-    from_zip_for_sem'(
-      extra_probes,
-      ~dump_backpack=true,
-      ~erase_buffer=true,
-      z,
-    )
+  Core.Memo.general(~cache_size_bound=1000, z =>
+    from_zip_for_sem'(~dump_backpack=true, ~erase_buffer=true, z)
   );

@@ -410,7 +410,7 @@ module ErrorRound = {
     Statics.uexp_to_info_map(
       ~ctx=init_ctx,
       ~ancestors=[],
-      MakeTerm.from_zip_for_sem(z, []).term,
+      MakeTerm.from_zip_for_sem(z).term,
       Id.Map.empty,
       ~duplicates=[],
       ~expected_labels=None,

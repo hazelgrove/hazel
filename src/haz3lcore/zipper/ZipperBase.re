@@ -5,6 +5,19 @@ type caret =
   | Outer
   | Inner(int);
 
+module Refractor = {
+  module Map = {
+    [@deriving (show({with_path: false}), sexp, yojson, eq)]
+    type t = Id.Map.t(Base.projector);
+  };
+  type mapping = list((Id.t, Id.t));
+
+  let mapping = (refractors: Map.t): mapping =>
+    refractors
+    |> Id.Map.to_list
+    |> List.map(((id, p: Base.projector)) => (id, p.id));
+};
+
 // assuming single backpack, shards may appear in selection, backpack, or siblings
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = {
@@ -12,7 +25,7 @@ type t = {
   relatives: Relatives.t,
   caret,
   /* Like projectors but not replacing syntax */
-  refractors: Id.Map.t(Base.projector),
+  refractors: Refractor.Map.t,
 };
 
 let update_relatives = (f: Relatives.t => Relatives.t, z: t): t => {

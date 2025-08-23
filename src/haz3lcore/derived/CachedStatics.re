@@ -64,11 +64,10 @@ let init =
       ~is_dynamic_term,
       ~stitch,
       ~ctx=?,
-      ~extra_probes,
       z: Zipper.t,
     )
     : t => {
-  let term = MakeTerm.from_zip_for_sem(z, extra_probes).term |> stitch;
+  let term = MakeTerm.from_zip_for_sem(z).term |> stitch;
   init_from_term(~settings, ~ctx?, ~is_dynamic_term, term);
 };
 
@@ -78,9 +77,7 @@ let init =
       ~is_dynamic_term,
       ~stitch,
       ~ctx=?,
-      ~extra_probes=[],
       z: Zipper.t,
     ) =>
   settings.statics
-    ? init(~settings, ~stitch, ~ctx?, ~extra_probes, ~is_dynamic_term, z)
-    : empty;
+    ? init(~settings, ~stitch, ~ctx?, ~is_dynamic_term, z) : empty;

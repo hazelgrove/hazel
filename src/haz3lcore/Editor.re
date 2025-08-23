@@ -39,10 +39,8 @@ module CachedSyntax = {
 
   let init = (~info_map, ~dyn_map, z): t => {
     let segment = Zipper.unselect_and_zip(z);
-    //TODO(andrew): maybe need extra_probes here for real?
-    let extra_probes = [];
     let MakeTerm.{term: _, terms, projectors, term_data} =
-      MakeTerm.go(extra_probes, segment);
+      MakeTerm.go(Zipper.Refractor.mapping(z.refractors), segment);
     let projector_shapes =
       ProjectorInfo.ShapeMapSemantics.mk(projectors, info_map, dyn_map);
     {
@@ -136,9 +134,6 @@ module Model = {
     };
   };
 };
-
-let ids_of_refractors = (model: Model.t): list((Id.t, Id.t)) =>
-  Refractor.mapping(model.state.zipper);
 
 module Update = {
   type t = Action.t;

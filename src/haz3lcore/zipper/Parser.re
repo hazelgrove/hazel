@@ -20,5 +20,5 @@ let to_segment = (s: string): option(Segment.t) => {
 
 let to_term = (s: string): option(Language.Term.Exp.t) => {
   let+ z = to_zipper(s);
-  MakeTerm.from_zip_for_sem(z, []).term;
+  MakeTerm.from_zip_for_sem(z).term;
 };

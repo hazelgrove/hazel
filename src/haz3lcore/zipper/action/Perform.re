@@ -254,7 +254,7 @@ let go_z =
       }
     )
     |> Result.of_option(~error=Action.Failure.Cant_put_down)
-  | Refractor(SetRefProbe) => Ok(Refractor.add(z))
+  | Refractor(SetRefProbe) => Ok(Refractors.add(z))
   | Dump => Ok(Zipper.try_to_dump_backpack(z))
   };
 };
