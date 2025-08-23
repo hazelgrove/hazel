@@ -805,6 +805,7 @@ let offside_view =
     ) =>
   Node.div(
     ~attrs=[
+      Attr.id(Id.cls(info.id)),
       Attr.tabindex(0),
       Attr.on_keydown(key_handler(local, info, parent)),
       Attr.classes(["live-offside", Window.get_mode() |> Window.show_mode]),

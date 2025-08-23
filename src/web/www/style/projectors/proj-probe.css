@@ -75,9 +75,11 @@
 .code-deco .refractors svg path.child-line {
   stroke: var(--G0) !important;
 }
+
 .code-deco .refractors svg.shard path {
   fill: var(--exp-base) !important;
 }
+
 .code-deco .refractors svg.shard.indicated {
   filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--G0));
 }

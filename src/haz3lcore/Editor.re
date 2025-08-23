@@ -39,8 +39,9 @@ module CachedSyntax = {
 
   let init = (~info_map, ~dyn_map, z): t => {
     let segment = Zipper.unselect_and_zip(z);
+    let refractor_mapping = []; //Zipper.Refractor.mapping(z.refractors);
     let MakeTerm.{term: _, terms, projectors, term_data} =
-      MakeTerm.go(Zipper.Refractor.mapping(z.refractors), segment);
+      MakeTerm.go(refractor_mapping, segment);
     let projector_shapes =
       ProjectorInfo.ShapeMapSemantics.mk(projectors, info_map, dyn_map);
     {

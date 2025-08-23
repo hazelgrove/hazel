@@ -22,23 +22,15 @@ let shapes = g =>
 let grout_cache: ref(option(Id.t)) = ref(None);
 
 let cache_id = (id: option(Id.t)) => {
-  ignore(
-    switch (id) {
-    | Some(id) => print_endline("setting grout cache to " ++ Id.str3(id))
-    | None => print_endline("setting grout cache to none")
-    },
-  );
   grout_cache := id;
 };
 
 let get_cached_id = () =>
   switch (grout_cache.contents) {
   | Some(id) =>
-    print_endline("using grout cache: " ++ Id.str3(id));
     grout_cache := None;
     id;
   | None =>
-    print_endline("no grout cache");
     grout_cache := None;
     Id.mk();
   };

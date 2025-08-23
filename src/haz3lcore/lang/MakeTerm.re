@@ -196,11 +196,11 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
 and exp = unsorted => {
   let (term, inner_ids) = exp_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  //TODO(andrew): exn reporting, id duplication?
+  //TODO(andrew): cleanup, document
   let (term, ids) =
     switch (List.assoc_opt(List.hd(ids), rf_map^)) {
     | Some(guy) =>
-      print_endline("adding probe to id: " ++ Id.str8(List.hd(ids)));
+      //print_endline("adding probe to id: " ++ Id.str8(List.hd(ids)));
       (
         Probe(
           {
@@ -212,7 +212,7 @@ and exp = unsorted => {
           Probe.empty,
         ): TermBase.exp_term,
         [guy],
-      );
+      )
     | None => (term, ids)
     };
   let e: TermBase.exp_t =
@@ -514,11 +514,11 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
 and pat = unsorted => {
   let (term, inner_ids) = pat_term(unsorted);
   let ids = ids(unsorted) @ inner_ids;
-  //TODO(andrew): exn reporting, id duplication?
+  //TODO(andrew): cleanup, document
   let (term, ids) =
     switch (List.assoc_opt(List.hd(ids), rf_map^)) {
     | Some(guy) =>
-      print_endline("adding probe to id: " ++ Id.str8(List.hd(ids)));
+      //print_endline("adding probe to id: " ++ Id.str8(List.hd(ids)));
       (
         Probe(
           {
@@ -530,7 +530,7 @@ and pat = unsorted => {
           Probe.empty,
         ): TermBase.pat_term,
         [guy],
-      );
+      )
     | None => (term, ids)
     };
   let p =
