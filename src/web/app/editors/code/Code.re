@@ -46,8 +46,10 @@ let secondary_text =
     span_c(cls, [text(str)])
   );
 
-let whitespace_token = (~row: int, ~col: int): string =>
-  String.make(row, '\n') ++ String.make(col, ' ');
+let whitespace_token =
+  Core.Memo.general(~cache_size_bound=10000, (row, col) =>
+    String.make(row, '\n') ++ String.make(col, ' ')
+  );
 
 let view =
     (
@@ -109,8 +111,7 @@ let view =
     switch (secondary.content) {
     | Whitespace(str) when str == Token.linebreak =>
       let indent = measure_of(Secondary(secondary)).last.col;
-      let token =
-        whitespace_token(~row=DeferredLinebreaks.of_secondary(), ~col=indent);
+      let token = whitespace_token(DeferredLinebreaks.of_secondary(), indent);
       lb_icon @ [Node.text(token)];
     | Whitespace(str) when str == Token.space => ws_icon
     | Whitespace(_) => failwith("Code: Unrecognized Secondary")
@@ -124,10 +125,7 @@ let view =
     let indent = measure_of(Projector(pr)).origin.col;
     let size = DeferredLinebreaks.of_projector(pr, shape_map);
     let token =
-      whitespace_token(
-        ~row=size.row,
-        ~col=size.col + (size.row == 0 ? 0 : indent),
-      );
+      whitespace_token(size.row, size.col + (size.row == 0 ? 0 : indent));
     [Node.text(token)];
   };
 
