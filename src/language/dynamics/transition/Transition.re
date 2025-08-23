@@ -965,7 +965,7 @@ let stepper_justification: step_kind => string =
   fun
   | LetBind(vars) =>
     List.length(vars) == 1
-      ? "substitution for " ++ List.hd(vars) : "substitution"
+      ? "substitution for " ++ List.hd(vars) : "substitution for ..."
   | Seq => "sequence"
   | FixUnwrap => "unroll fixpoint"
   | UpdateTest => "update test"
