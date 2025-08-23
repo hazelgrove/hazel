@@ -99,5 +99,5 @@ let self =
   instructions
   @ toolkit
   @ hazel_syntax_notes
-  @ hazel_documentation(~summarized=false)
-  @ few_shot_comp_examples;
+  @ hazel_documentation(~summarized=false);
+//@ few_shot_comp_examples;

@@ -14,6 +14,8 @@ module Model = {
   type case = {
     scenario: SketchPrompt.t,
     tool_kit: CompositionTools.t,
+    // llm: LLM.t,
+    // ...
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
