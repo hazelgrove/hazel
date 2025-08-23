@@ -10,16 +10,7 @@ let of_delim' =
   Core.Memo.general(
     ~cache_size_bound=10000,
     (
-      (
-        label,
-        sort,
-        is_consistent,
-        is_in_buffer,
-        is_complete,
-        is_infix_var,
-        indent,
-        i,
-      ),
+      (label, sort, is_consistent, is_in_buffer, is_complete, is_infix_var, i),
     ) => {
       let cls =
         switch (label) {
@@ -33,11 +24,6 @@ let of_delim' =
         };
       let plurality = List.length(label) == 1 ? "mono" : "poly";
       let token = List.nth(label, i);
-      /* Add indent to multiline tokens: */
-      let num_lb = Token.num_linebreaks(token);
-      let token =
-        num_lb == 0
-          ? token : token ++ StringUtil.repeat(indent, Unicode.nbsp);
       let in_buffer = is_in_buffer ? ["in-parsed-buffer"] : [];
       [
         span(
@@ -48,8 +34,7 @@ let of_delim' =
     },
   );
 let of_delim =
-    (is_consistent, is_in_buffer, indent, t: Piece.tile, i: int)
-    : list(Node.t) =>
+    (is_consistent, is_in_buffer, t: Piece.tile, i: int): list(Node.t) =>
   of_delim'((
     t.label,
     t.mold.out,
@@ -58,7 +43,6 @@ let of_delim =
     Tile.is_complete(t),
     Mold.is_infix_op(t.mold)
     && Form.is_infix_delimiter_op_prefix(List.nth(t.label, i)),
-    indent,
     i,
   ));
 
@@ -66,6 +50,9 @@ let secondary_text =
   Core.Memo.general(~cache_size_bound=10000, (cls, str) =>
     span_c(cls, [text(str)])
   );
+
+let whitespace_token = (~row: int, ~col: int): string =>
+  String.make(row, '\n') ++ String.make(col, ' ');
 
 module Text =
        (
@@ -78,42 +65,37 @@ module Text =
        ) => {
   module DeferredLinebreaks = Measured.MkDeferredLinebreaks();
 
-  let projector_size =
-      (p: Base.projector, shape_map: Id.Map.t(ProjectorCore.Shape.t))
-      : Point.t => {
-    let shape = ProjectorCore.Shape.Map.lookup(p.id, shape_map);
-    let row =
-      switch (shape.vertical) {
-      | Inline
-      | Block(0) => 0
-      | Tab(num_lb) =>
-        DeferredLinebreaks.update(num_lb);
-        0;
-      | Block(num_lb) => max(num_lb, DeferredLinebreaks.consume())
-      };
-    {
-      col: shape.horizontal,
-      row,
+  let g_convex = EmptyHoleDec.view(M.font_metrics, Convex);
+  let g_concave = EmptyHoleDec.view(M.font_metrics, Concave);
+
+  let of_grout = (g: Grout.t): list(Node.t) => {
+    switch (g.shape) {
+    | Convex => [g_convex]
+    | Concave => [g_concave]
     };
   };
+
+  let lb_icon =
+    M.settings.secondary_icons ? [secondary_text("linebreak", ">")] : [];
+  let ws_icon = [
+    M.settings.secondary_icons
+      ? secondary_text("whitespace", "·") : Node.text(" "),
+  ];
 
   let of_secondary =
       (
         (
           content: Secondary.secondary_content,
-          secondary_icons: bool,
           indent: int,
           is_in_buffer: bool,
         ),
       ) =>
     switch (content) {
     | Whitespace(str) when str == Token.linebreak =>
-      [secondary_text("linebreak", secondary_icons ? ">" : "")]
-      @ List.init(1 + DeferredLinebreaks.consume(), _ => Node.text("\n"))
-      @ [Node.text(StringUtil.repeat(indent, Token.space))]
-    | Whitespace(str) when str == Token.space => [
-        secondary_text("whitespace", secondary_icons ? "·" : Token.space),
-      ]
+      let token =
+        whitespace_token(~row=DeferredLinebreaks.of_secondary(), ~col=indent);
+      lb_icon @ [Node.text(token)];
+    | Whitespace(str) when str == Token.space => ws_icon
     | Whitespace(_) => failwith("Code: Unrecognized Secondary")
     | Comment(str) when is_in_buffer => [
         secondary_text("in-unparsed-buffer", str),
@@ -122,15 +104,14 @@ module Text =
     };
 
   let of_projector =
-      (
-        expected_sort,
-        indent,
-        p: Base.projector,
-        shape_map: Id.Map.t(ProjectorCore.Shape.t),
-      ) => {
-    let size = projector_size(p, shape_map);
-    let token = String.make(size.row, '\n') ++ String.make(size.col, ' ');
-    of_delim'(([token], expected_sort, true, false, true, false, indent, 0));
+      (indent, p: Base.projector, shape_map: Id.Map.t(ProjectorCore.Shape.t)) => {
+    let size = DeferredLinebreaks.of_projector(p, shape_map);
+    let token =
+      whitespace_token(
+        ~row=size.row,
+        ~col=size.col + (size.row == 0 ? 0 : indent),
+      );
+    [Node.text(token)];
   };
 
   let m = p => Measured.find_p(~msg="Text", p, M.map);
@@ -151,19 +132,14 @@ module Text =
       (buffer_ids, expected_sort: Sort.t, p: Piece.t): list(Node.t) => {
     switch (p) {
     | Tile(t) => of_tile(buffer_ids, expected_sort, t)
-    | Grout(g) => [EmptyHoleDec.view(M.font_metrics, g.shape)]
+    | Grout(g) => of_grout(g)
     | Secondary({content, id}) =>
       let indent = m(p).last.col;
       let is_in_buffer = List.mem(id, buffer_ids);
-      of_secondary((
-        content,
-        M.settings.secondary_icons,
-        indent,
-        is_in_buffer,
-      ));
+      of_secondary((content, indent, is_in_buffer));
     | Projector(pr) =>
       let indent = m(p).origin.col;
-      of_projector(expected_sort, indent, pr, M.shape_map);
+      of_projector(indent, pr, M.shape_map);
     };
   }
   and of_tile = (buffer_ids, expected_sort: Sort.t, t: Tile.t): list(Node.t) => {
@@ -184,12 +160,7 @@ module Text =
     let is_consistent = consistent(t.mold.out, expected_sort);
     Aba.mk(t.shards, children_and_sorts)
     |> Aba.join(
-         of_delim(
-           is_consistent,
-           List.mem(t.id, buffer_ids),
-           m(Tile(t)).origin.col,
-           t,
-         ),
+         of_delim(is_consistent, List.mem(t.id, buffer_ids), t),
          ((seg, sort)) =>
          of_segment(buffer_ids, sort, seg)
        )
