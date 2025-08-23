@@ -49,11 +49,11 @@ module CachedSyntax = {
       old: false,
       segment,
       term_data,
+      measured: Measured.of_segment(segment, projector_shapes),
+      selection_ids: Selection.selection_ids(z.selection),
       terms,
       projectors,
       shape_map: projector_shapes,
-      measured: Measured.of_segment(segment, projector_shapes),
-      selection_ids: Selection.selection_ids(z.selection),
       cached_backpack: Segment.global_missing_shards(segment),
     };
   };
@@ -138,20 +138,7 @@ module Model = {
 };
 
 let ids_of_refractors = (model: Model.t): list((Id.t, Id.t)) =>
-  model.state.zipper.refractors
-  |> Id.Map.to_list
-  |> List.map(((id, p: Base.projector)) => (id, p.id));
-
-let mk_refractor_probe = (): option(Base.projector) => {
-  open OptUtil.Syntax;
-  let kind = ProjectorCore.Kind.Probe;
-  let (module P) = ProjectorInit.to_module(kind);
-  let seg: Segment.t = [Piece.mk_grout(~id=Id.invalid, Convex)];
-  let piece: Base.piece = Segment.parenthesize(seg);
-  let* any = MakeTerm.for_projection(seg);
-  let+ model = P.init(any);
-  ProjectorCore.mk(kind, piece, model);
-};
+  Refractor.mapping(model.state.zipper);
 
 module Update = {
   type t = Action.t;
@@ -240,41 +227,6 @@ module Update = {
       ...state,
       col_target,
     };
-
-    //3.5 apply refractor
-    let state =
-      switch (a) {
-      | Refractor(SetRefProbe) =>
-        switch (Indicated.index(state.zipper)) {
-        | None => state
-        | Some(id) =>
-          switch (Id.Map.find_opt(id, state.zipper.refractors)) {
-          | Some(_) =>
-            print_endline("removing refractor probe, id: " ++ Id.str8(id));
-            {
-              ...state,
-              zipper: {
-                ...state.zipper,
-                refractors: Id.Map.remove(id, state.zipper.refractors),
-              },
-            };
-          | None =>
-            switch (mk_refractor_probe()) {
-            | None => state
-            | Some(p) =>
-              print_endline("set refractor probe, id: " ++ Id.str8(id));
-              {
-                ...state,
-                zipper: {
-                  ...state.zipper,
-                  refractors: Id.Map.add(id, p, state.zipper.refractors),
-                },
-              };
-            }
-          }
-        }
-      | _ => state
-      };
 
     // 4. Update the zipper
     let+ zipper =
