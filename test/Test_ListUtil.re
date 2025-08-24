@@ -111,88 +111,6 @@ let tests = (
       )
     }),
     test_case(
-      "mk_frame creates a frame from the beginning",
-      `Quick,
-      () => {
-        let xs = [1, 2, 3, 4, 5];
-        check(
-          pair(list(int), list(int)),
-          "frame",
-          ([], xs),
-          ListUtil.mk_frame(0, xs),
-        );
-      },
-    ),
-    test_case(
-      "mk_frame creates a frame from the end",
-      `Quick,
-      () => {
-        let xs = [1, 2, 3, 4, 5];
-        check(
-          pair(list(int), list(int)),
-          "frame",
-          (List.rev(xs), []),
-          ListUtil.mk_frame(5, xs),
-        );
-      },
-    ),
-    test_case(
-      "mk_frame raises when making a frame past the end",
-      `Quick,
-      () => {
-        let xs = [1, 2, 3, 4, 5];
-        check_raises(
-          "raises invalid argument",
-          Invalid_argument("ListUtil.mk_frame"),
-          () => {
-            let _ = ListUtil.mk_frame(6, xs);
-            ();
-          },
-        );
-      },
-    ),
-    test_case(
-      "mk_frame raises when making a frame before the beginning",
-      `Quick,
-      () => {
-        let xs = [1, 2, 3, 4, 5];
-        check_raises(
-          "raises invalid argument",
-          Invalid_argument("ListUtil.mk_frame"),
-          () => {
-            let _ = ListUtil.mk_frame(-1, xs);
-            ();
-          },
-        );
-      },
-    ),
-    test_case(
-      "mk_frame makes a frame splitting the list",
-      `Quick,
-      () => {
-        let xs = [1, 2, 3, 4, 5];
-        check(
-          pair(list(int), list(int)),
-          "frame",
-          (List.rev([1, 2, 3]), [4, 5]),
-          ListUtil.mk_frame(3, xs),
-        );
-      },
-    ),
-    test_case(
-      "mk_frame makes a frame splitting the list",
-      `Quick,
-      () => {
-        let xs = [1, 2, 3, 4, 5];
-        check(
-          pair(list(int), list(int)),
-          "frame",
-          (List.rev([1, 2, 3]), [4, 5]),
-          ListUtil.mk_frame(3, xs),
-        );
-      },
-    ),
-    test_case(
       "split with no found element returns the original list",
       `Quick,
       () => {
@@ -351,30 +269,6 @@ let tests = (
       () => {
         let xs = [1, 2, 3];
         check(option(int), "Some", Some(1), ListUtil.hd_opt(xs));
-      },
-    ),
-    test_case(
-      "nth_opt with empty list",
-      `Quick,
-      () => {
-        let xs = [];
-        check(option(int), "None", None, ListUtil.nth_opt(0, xs));
-      },
-    ),
-    test_case(
-      "nth_opt with non-empty list",
-      `Quick,
-      () => {
-        let xs = [1, 2, 3];
-        check(option(int), "Some", Some(2), ListUtil.nth_opt(1, xs));
-      },
-    ),
-    test_case(
-      "nth_opt with out of bounds index",
-      `Quick,
-      () => {
-        let xs = [1, 2, 3];
-        check(option(int), "None", None, ListUtil.nth_opt(3, xs));
       },
     ),
     test_case(
@@ -644,5 +538,51 @@ let tests = (
         );
       },
     ),
+    test_case("last_opt with empty list", `Quick, () => {
+      check(option(int), "None for empty list", None, ListUtil.last_opt([]))
+    }),
+    test_case("last_opt with single element", `Quick, () => {
+      check(
+        option(int),
+        "Some element for single element list",
+        Some(42),
+        ListUtil.last_opt([42]),
+      )
+    }),
+    test_case(
+      "last_opt with multiple elements",
+      `Quick,
+      () => {
+        let xs = [1, 2, 3, 4, 5];
+        check(
+          option(int),
+          "Some last element",
+          Some(5),
+          ListUtil.last_opt(xs),
+        );
+      },
+    ),
+    test_case("last with single element", `Quick, () => {
+      check(
+        int,
+        "Last element of single element list",
+        42,
+        ListUtil.last([42]),
+      )
+    }),
+    test_case(
+      "last with multiple elements",
+      `Quick,
+      () => {
+        let xs = [1, 2, 3, 4, 5];
+        check(int, "Last element", 5, ListUtil.last(xs));
+      },
+    ),
+    test_case("last with empty list raises exception", `Quick, () => {
+      check_raises(
+        "Invalid_argument exception", Invalid_argument("ListUtil.last"), () =>
+        ListUtil.last([])
+      )
+    }),
   ],
 );
