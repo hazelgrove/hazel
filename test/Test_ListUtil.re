@@ -584,5 +584,68 @@ let tests = (
         ListUtil.last([])
       )
     }),
+    test_case(
+      "map_alt with single x element",
+      `Quick,
+      () => {
+        let xs = [1];
+        let ys = [];
+        let result = ListUtil.map_alt(x => x * 2, y => y + 10, xs, ys);
+        check(list(int), "Single element mapped", [2], result);
+      },
+    ),
+    test_case(
+      "map_alt alternates functions correctly",
+      `Quick,
+      () => {
+        let xs = [1, 3, 5];
+        let ys = [2, 4];
+        let result = ListUtil.map_alt(x => x * 10, y => y + 100, xs, ys);
+        check(
+          list(int),
+          "Alternated mapping",
+          [10, 102, 30, 104, 50],
+          result,
+        );
+      },
+    ),
+    test_case("map_alt with equal length lists raises exception", `Quick, () => {
+      check_raises(
+        "Invalid_argument exception", Invalid_argument("ListUtil.map_alt"), () => {
+        ignore(ListUtil.map_alt(x => x, y => y, [1, 2], [3, 4]))
+      })
+    }),
+    test_case("map_alt with xs shorter than ys raises exception", `Quick, () => {
+      check_raises(
+        "Invalid_argument exception", Invalid_argument("ListUtil.map_alt"), () => {
+        ignore(ListUtil.map_alt(x => x, y => y, [1], [2, 3]))
+      })
+    }),
+    test_case(
+      "interleave with single x element",
+      `Quick,
+      () => {
+        let xs = [1];
+        let ys = [];
+        let result = ListUtil.interleave(xs, ys);
+        check(list(int), "Single element interleaved", [1], result);
+      },
+    ),
+    test_case(
+      "interleave basic case",
+      `Quick,
+      () => {
+        let xs = [1, 3, 5];
+        let ys = [2, 4];
+        let result = ListUtil.interleave(xs, ys);
+        check(list(int), "Basic interleaving", [1, 2, 3, 4, 5], result);
+      },
+    ),
+    test_case("interleave inherits map_alt length constraint", `Quick, () => {
+      check_raises(
+        "Invalid_argument exception", Invalid_argument("ListUtil.map_alt"), () => {
+        ignore(ListUtil.interleave([1, 2], [3, 4]))
+      })
+    }),
   ],
 );
