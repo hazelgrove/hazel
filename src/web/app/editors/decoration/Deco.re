@@ -446,7 +446,7 @@ module Deco =
           []
         }
       | None =>
-        switch (TermData.root_tile_opt(id, term_data)) {
+        switch (TermData.root_tile(id, term_data)) {
         | Some(t) => tile_term_deco(t)
         | None => []
         }
@@ -466,7 +466,7 @@ module Deco =
 
   let next_steps = (next_steps, ~inject) =>
     next_steps
-    |> List.filter_map(TermData.root_tile_opt(_, term_data))
+    |> List.filter_map(TermData.root_tile(_, term_data))
     |> List.mapi((i, t: Tile.t) =>
          div_c(
            "step-next",
@@ -479,12 +479,12 @@ module Deco =
 
   let taken_steps = taken_steps =>
     taken_steps
-    |> List.filter_map(TermData.root_tile_opt(_, term_data))
+    |> List.filter_map(TermData.root_tile(_, term_data))
     |> List.map(t => div_c("step-taken", tile_term_deco(t)));
 
   let refl_steps = (refl_steps, ~inject) =>
     refl_steps
-    |> List.filter_map(TermData.root_tile_opt(_, term_data))
+    |> List.filter_map(TermData.root_tile(_, term_data))
     |> List.mapi((i, t: Tile.t) =>
          div_c(
            "step-refl",

@@ -136,7 +136,7 @@ module Selection = {
   };
 
   let jump_to_tile = (id: Id.t, model: Model.t) => {
-    switch (TermData.root_tile_opt(id, model.editor.syntax.term_data)) {
+    switch (TermData.root_tile(id, model.editor.syntax.term_data)) {
     | Some(_) => Some(Update.Perform(Jump(TileId(id))))
     | None => None
     };

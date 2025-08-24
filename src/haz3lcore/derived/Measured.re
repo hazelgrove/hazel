@@ -302,10 +302,10 @@ let of_segment =
     (indent, origin, map);
   };
 
-  let rec of_segment = (~top_level: bool, acc: acc, seg: Segment.t): acc =>
+  let rec go = (~top_level: bool, acc: acc, seg: Segment.t): acc =>
     switch (seg) {
     | [] => add_top_level(~top_level, acc)
-    | [hd, ...tl] => of_segment(~top_level, of_piece(acc, hd), tl)
+    | [hd, ...tl] => go(~top_level, of_piece(acc, hd), tl)
     }
   and of_piece = (acc: acc, p: Piece.t): acc =>
     switch (p) {
@@ -315,12 +315,11 @@ let of_segment =
     | Tile(t) =>
       Aba.fold_left(
         add_shard(acc, t),
-        (acc, seg) => add_shard(of_segment(~top_level=false, acc, seg), t),
+        (acc, seg) => add_shard(go(~top_level=false, acc, seg), t),
         Aba.mk(t.shards, t.children),
       )
     };
-  let (_, _, map) =
-    of_segment(~top_level=true, (0, Point.zero, empty), seg);
+  let (_, _, map) = go(~top_level=true, (0, Point.zero, empty), seg);
   map;
 };
 

@@ -925,7 +925,7 @@ let for_projection =
       | exception _ => None /* Returns None if any subsegment is non-convex */
       | skel =>
         let sort = Segment.sort_of(skel, seg);
-        let (unsorted, sort) = (unsorted(sort, skel, seg), sort);
+        let unsorted = unsorted(sort, skel, seg);
         switch (sort) {
         | Exp =>
           switch (exp(unsorted)) {
