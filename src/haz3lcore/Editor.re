@@ -44,11 +44,12 @@ module CachedSyntax = {
       MakeTerm.go(refractor_mapping, segment);
     let projector_shapes =
       ProjectorInfo.ShapeMapSemantics.mk(projectors, info_map, dyn_map);
+    let measured = Measured.of_segment(segment, projector_shapes);
     {
       old: false,
       segment,
       term_data,
-      measured: Measured.of_segment(segment, projector_shapes),
+      measured,
       selection_ids: Selection.selection_ids(z.selection),
       terms,
       projectors,

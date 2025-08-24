@@ -161,10 +161,7 @@ module HighlightSegment =
     }
   and of_segment =
       (start_shape: ShardDec.tip, seg: Segment.t): list(option(_)) => {
-    seg
-    |> ListUtil.fold_left_map(of_piece, start_shape)
-    |> snd
-    |> List.flatten;
+    seg |> List.fold_left_map(of_piece, start_shape) |> snd |> List.flatten;
   }
   and go =
       (segment: Segment.t, shape_init: ShardDec.tip, classes): list(Node.t) =>

@@ -67,12 +67,7 @@ let combine_opt = (xs, ys) =>
   | xys => Some(xys)
   };
 
-let is_empty =
-  fun
-  | [] => true
-  | _ => false;
-
-let flat_map = (f, l) => List.flatten(List.map(f, l));
+let flat_map = List.concat_map;
 
 let rec join = (sep: 'x, xs: list('x)): list('x) =>
   switch (xs) {
@@ -107,7 +102,6 @@ let split_n_opt = (n: int, xs: list('x)): option((list('x), list('x))) => {
   go(n, xs);
 };
 
-// TODO unify with ListFrame
 let split_n = (n: int, xs: list('x)): (list('x), list('x)) =>
   switch (split_n_opt(n, xs)) {
   | None =>
@@ -220,17 +214,6 @@ let split_first_opt = (xs: list('x)): option(('x, list('x))) =>
 let split_first = xs =>
   split_first_opt(xs)
   |> OptUtil.get_or_raise(Invalid_argument("ListUtil.split_first"));
-
-let rec fold_left_map =
-        (f: ('acc, 'x) => ('acc, 'y), start: 'acc, xs: list('x))
-        : ('acc, list('y)) =>
-  switch (xs) {
-  | [] => (start, [])
-  | [x, ...xs] =>
-    let (new_acc, y) = f(start, x);
-    let (final, ys) = fold_left_map(f, new_acc, xs);
-    (final, [y, ...ys]);
-  };
 
 let rec neighbors = (xs: list('x)): list(('x, 'x)) =>
   switch (xs) {
@@ -363,15 +346,6 @@ let rec rev_concat: (list('a), list('a)) => list('a) =
     | [hd, ...tl] => rev_concat(tl, [hd, ...rs])
     };
   };
-
-let rec unzip = (lst: list(('a, 'b))): (list('a), list('b)) => {
-  switch (lst) {
-  | [] => ([], [])
-  | [(a, b), ...tail] =>
-    let (_as, bs) = unzip(tail);
-    ([a, ..._as], [b, ...bs]);
-  };
-};
 
 let cross = (xs, ys) =>
   List.concat(List.map(x => List.map(y => (x, y), ys), xs));
