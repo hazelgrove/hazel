@@ -48,10 +48,9 @@ module Model = {
         ~selection_ids: list(Id.t),
         ~info: ProjectorBase.info,
         ~id: Id.t,
+        ~sort: Sort.t,
       ) => {
-    sort:
-      Option.map(Language.Info.sort_of, info.statics)
-      |> Option.value(~default=Sort.Exp),
+    sort,
     error:
       Option.map(Language.Info.is_error, info.statics)
       |> Option.value(~default=false),
@@ -102,6 +101,7 @@ module Model = {
           status:
             mk_status(
               p,
+              ~sort=TermData.sort(id, term_data),
               ~editor_active,
               ~indicated,
               ~selection_ids,

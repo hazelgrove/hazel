@@ -302,25 +302,25 @@ let of_segment =
     (indent, origin, map);
   };
 
-  let rec go = (acc: acc, ~top_level: bool, seg: Segment.t): acc =>
+  let rec of_segment = (~top_level: bool, acc: acc, seg: Segment.t): acc =>
     switch (seg) {
-    | [] => add_top_level(acc, ~top_level)
-    | [hd, ...tl] =>
-      let acc =
-        switch (hd) {
-        | Secondary(w) => add_secondary(acc, w)
-        | Grout(g) => add_grout(acc, g)
-        | Projector(p) => add_projector(acc, p)
-        | Tile(t) =>
-          Aba.fold_left(
-            add_shard(acc, t),
-            (acc, seg) => add_shard(go(~top_level=false, acc, seg), t),
-            Aba.mk(t.shards, t.children),
-          )
-        };
-      go(acc, ~top_level, tl);
+    | [] => add_top_level(~top_level, acc)
+    | [hd, ...tl] => of_segment(~top_level, of_piece(acc, hd), tl)
+    }
+  and of_piece = (acc: acc, p: Piece.t): acc =>
+    switch (p) {
+    | Secondary(w) => add_secondary(acc, w)
+    | Grout(g) => add_grout(acc, g)
+    | Projector(p) => add_projector(acc, p)
+    | Tile(t) =>
+      Aba.fold_left(
+        add_shard(acc, t),
+        (acc, seg) => add_shard(of_segment(~top_level=false, acc, seg), t),
+        Aba.mk(t.shards, t.children),
+      )
     };
-  let (_, _, map) = go((0, Point.zero, empty), ~top_level=true, seg);
+  let (_, _, map) =
+    of_segment(~top_level=true, (0, Point.zero, empty), seg);
   map;
 };
 

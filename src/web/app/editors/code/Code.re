@@ -113,10 +113,9 @@ let view =
     };
 
   let of_projector = (pr: Base.projector) => {
-    let indent = measure_of(Projector(pr)).origin.col;
+    let indent = measure_of(Projector(pr)).last.col;
     let size = DeferredLinebreaks.of_projector(pr, shape_map);
-    let token =
-      whitespace_token(size.row, size.col + (size.row == 0 ? 0 : indent));
+    let token = whitespace_token(size.row, size.row == 0 ? size.col : indent);
     Node.text(token);
   };
 

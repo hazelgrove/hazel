@@ -56,6 +56,12 @@ let root_tile_opt = (id: Id.t, data: t): option(Tile.t) =>
   | _ => None
   };
 
+let sort = (id: Id.t, data: t): Sort.t =>
+  switch (Id.Map.find_opt(id, data)) {
+  | Some({sort, _}) => sort
+  | None => Any
+  };
+
 /* The segment corresponding to the `id` term */
 let segment = (id: Id.t, data: t): option(Segment.t) => {
   open OptUtil.Syntax;
