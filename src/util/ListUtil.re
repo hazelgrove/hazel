@@ -230,12 +230,16 @@ let rec map_nth = (n: int, f: 'a => 'a, xs: list('a)): list('a) =>
 let rec split_last_opt = (xs: list('x)): option((list('x), 'x)) =>
   switch (xs) {
   | [] => None
+  /* This is very hot due to shard acceseses; without
+   * these cases this function appears in the top
+   * self time list for view gen with semantics off */
   | [x] => Some(([], x))
+  | [x, y] => Some(([x], y))
+  | [x, y, z] => Some(([x, y], z))
   | [x, ...xs] =>
     split_last_opt(xs)
     |> Option.map(((leading, last)) => ([x, ...leading], last))
   };
-// let last_opt = xs => xs |> split_last_opt |> Option.map(snd);
 
 let split_last = (xs: list('x)): (list('x), 'x) =>
   switch (split_last_opt(xs)) {
