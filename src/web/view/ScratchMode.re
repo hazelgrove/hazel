@@ -20,16 +20,11 @@ module Model = {
     model.current,
     List.map(
       ((s, m): (string, CellEditor.Model.t)) => {
-        let persisted: CellEditor.Model.persistent =
+        let current: CellEditor.Model.persistent =
           CellEditor.Model.persist(m);
-        let init_version: option(CellEditor.Model.persistent) =
-          Init.startup.documentation
-          |> snd
-          |> List.find_opt(((name, _)) => name == s)
-          |> Option.map(snd);
 
         // Consider ignoring ids and/or caret position
-        if (Some(persisted) == init_version) {
+        if (Some(current) == Init.find_documentation_slide(s)) {
           print_endline(
             "Not persisting scratchpad "
             ++ s
@@ -38,7 +33,7 @@ module Model = {
           (s, None);
         } else {
           print_endline("Persisting scratchpad " ++ s ++ ".");
-          (s, Some(persisted));
+          (s, Some(current));
         };
       },
       model.scratchpads,
@@ -56,11 +51,15 @@ module Model = {
               switch (Option.map(CellEditor.Model.unpersist(~settings), m)) {
               | Some(x) => x
               | None =>
-                Init.startup.documentation
-                |> snd
-                |> List.find(((name, _)) => name == s)
-                |> snd
-                |> CellEditor.Model.unpersist(~settings)
+                let default = Init.find_documentation_slide(s);
+
+                CellEditor.Model.unpersist(
+                  ~settings,
+                  switch (default) {
+                  | Some(x) => x
+                  | None => Init.empty_cell_editor_persistent()
+                  },
+                );
               };
             },
           ),
