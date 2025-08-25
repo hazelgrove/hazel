@@ -19,21 +19,24 @@ module Model = {
   let persist = (model: t): persistent => (
     model.current,
     List.map(
-      ((s, m): (string, CellEditor.Model.t)) => {
-        let current: CellEditor.Model.persistent =
-          CellEditor.Model.persist(m);
+      ((s: string, m: CellEditor.Model.t)) => {
+        let current_segment = Zipper.zip(m.editor.editor.state.zipper);
+        let original = Init.find_documentation_slide(s);
+        let original_segment =
+          original
+          |> Option.map((pce: CellEditor.Model.persistent) =>
+               PersistentZipper.unpersist(pce.editor)
+             )
+          |> Option.map(Zipper.zip);
 
-        // Consider ignoring ids and/or caret position
-        if (Some(current) == Init.find_documentation_slide(s)) {
-          print_endline(
-            "Not persisting scratchpad "
-            ++ s
-            ++ " because it matches the initial version.",
-          );
+        if (Option.equal(
+              Base.equal_segment,
+              original_segment,
+              Some(current_segment),
+            )) {
           (s, None);
         } else {
-          print_endline("Persisting scratchpad " ++ s ++ ".");
-          (s, Some(current));
+          (s, Some(CellEditor.Model.persist(m)));
         };
       },
       model.scratchpads,
