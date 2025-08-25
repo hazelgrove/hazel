@@ -126,7 +126,10 @@ let print =
     print(
       context(
         get_node(
-          build_sub_AST(editor.editor.state.zipper, editor.statics.info_map),
+          build_curr_node_info(
+            editor.editor.state.zipper,
+            editor.statics.info_map,
+          ),
         ),
       ),
     );

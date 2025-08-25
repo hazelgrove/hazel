@@ -190,7 +190,7 @@ let get_path_to_node =
 //     and m is the number of child terms of the parent node.
 // Compare this to the O(p) complexity of the full AST, where p is the number of
 // terms in the entire program.
-let build_sub_AST =
+let build_curr_node_info =
     (zipper: Zipper.t, info_map: Id.Map.t(Info.t)): option(node) =>
   // 1. Bubble up from the current term to the lowest enclosing
   //    let binding. This is the current node.
@@ -446,7 +446,7 @@ let safe_move =
   print_endline("here #8.0 safe_move");
 
   // If we are moving, then it should be the case that we are at an existing node.
-  let curr_node_info = get_node(build_sub_AST(z, info_map));
+  let curr_node_info = get_node(build_curr_node_info(z, info_map));
 
   print_endline("here #8.1 safe_move (after building sub AST)");
 

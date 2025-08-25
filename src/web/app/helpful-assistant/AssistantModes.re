@@ -188,7 +188,7 @@ module Composition = {
       "here #a before building sub AST in mk_local_code_map_prompt",
     );
     let curr_node_info =
-      AssistantTreeHelper.build_sub_AST(
+      AssistantTreeHelper.build_curr_node_info(
         editor.editor.state.zipper,
         editor.statics.info_map,
       );
@@ -413,7 +413,7 @@ module Composition = {
       (editor: CodeWithStatics.Model.t, action: CompositionTools.action)
       : (string, list(Action.t)) => {
     let curr_node_info =
-      AssistantTreeHelper.build_sub_AST(
+      AssistantTreeHelper.build_curr_node_info(
         editor.editor.state.zipper,
         editor.statics.info_map,
       );

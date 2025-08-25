@@ -56,7 +56,7 @@ let intermediate_select_curr_node =
     (~editor: CodeModel.t, ~schedule_editor_action: Editors.Update.t => unit)
     : unit => {
   let curr_node_info =
-    AssistantTreeHelper.build_sub_AST(
+    AssistantTreeHelper.build_curr_node_info(
       editor.editor.state.zipper,
       editor.statics.info_map,
     );
