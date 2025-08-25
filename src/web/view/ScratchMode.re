@@ -288,10 +288,10 @@ module Update = {
           CellEditor.Model.mk(Editor.Model.mk(Zipper.init()))
           |> CellEditor.Model.persist
         | true =>
-          Init.startup.documentation
-          |> snd
-          |> List.map(snd)
-          |> List.nth(_, model.current)
+          switch (Init.find_documentation_slide(key)) {
+          | Some(x) => x
+          | None => Init.empty_cell_editor_persistent()
+          }
         };
       let* data =
         source
