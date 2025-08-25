@@ -1,0 +1,6 @@
+initialProgram: |
+  let x = 5 in x
+prompt: |
+  Create a varable called y and add it to x
+tests: |
+  test y == 5 end;

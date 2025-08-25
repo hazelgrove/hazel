@@ -31,7 +31,11 @@ let resume_chat_button =
       Virtual_dom.Vdom.Effect.Stop_propagation,
     ]);
   div(
-    ~attrs=[clss(["chat-button"]), Attr.on_click(resume_chat)],
+    ~attrs=[
+      clss(["chat-button"]),
+      Attr.create("data-testid", "confirm-and-chat-btn"),
+      Attr.on_click(resume_chat),
+    ],
     [Widgets.button_named(~tooltip, None, resume_chat)],
   );
 };
@@ -233,7 +237,11 @@ let api_input =
         ],
       ),
       div(
-        ~attrs=[clss(["chat-button"]), Attr.on_click(submit_key)],
+        ~attrs=[
+          clss(["chat-button"]),
+          Attr.create("data-testid", "update-api-key-btn"),
+          Attr.on_click(submit_key),
+        ],
         [Widgets.button_named(~tooltip="Update API Key", None, submit_key)],
       ),
       div(
@@ -388,7 +396,11 @@ let llm_model_id_input =
         ],
       ),
       div(
-        ~attrs=[clss(["chat-button"]), Attr.on_click(submit_key)],
+        ~attrs=[
+          clss(["chat-button"]),
+          Attr.create("data-testid", "update-model-btn"),
+          Attr.on_click(submit_key),
+        ],
         [Widgets.button_named(~tooltip="Update Model", None, submit_key)],
       ),
       div(
