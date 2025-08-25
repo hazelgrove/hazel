@@ -39,10 +39,16 @@ let test =
 
 let tests_edit_tools = [
   test(
-    ~name="Update expression",
+    ~name="Update Definition (Simple - V1)",
     ~init={|let x = ¦4 in x|},
     ~acts=[Edit(UpdateDefinition("foo"))],
     ~goal={|let x = foo¦ in x|},
+  ),
+  test(
+    ~name="Update Definition (Simple - V2)",
+    ~init={|let x = (1, 2)¦ in x|},
+    ~acts=[Edit(UpdateDefinition("(foo, 2, bar)"))],
+    ~goal={|let x = (foo, 2, bar)¦ in x|},
   ),
 ];
 
