@@ -62,4 +62,3 @@ let import_all = (~import_log: string => unit, data, ~specs) => {
   ExercisesMode.Store.import(all.exercise, ~specs, ~instructor_mode);
   import_log(all.log);
 };
-
