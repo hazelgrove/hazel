@@ -570,14 +570,6 @@ let update =
         )
         |> Updated.return;
       | (Some(tool_call), _) =>
-        print_endline("here #a composition loop round");
-        let curr_node_info =
-          AssistantTreeHelper.build_sub_AST(
-            editor.editor.state.zipper,
-            editor.statics.info_map,
-          );
-        print_endline("here #b after building sub AST");
-
         let updated_chat = {
           let structure_edit_message: Model.message = {
             content: None,
@@ -619,7 +611,6 @@ let update =
           AssistantModes.Composition.apply_action(
             ~schedule_action=schedule_editor_action,
             ~editor,
-            ~curr_node_info,
           );
         apply_structure_action(
           ~tool_call,

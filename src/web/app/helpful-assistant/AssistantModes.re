@@ -409,30 +409,21 @@ module Composition = {
     };
   };
 
-  // AddToolLabel_2.0: handle the effects of the action on the editor itself
-  let apply_action =
-      (
-        ~editor: CodeWithStatics.Model.t,
-        ~action: CompositionTools.action,
-        ~schedule_action: Editors.Update.t => unit,
-        ~curr_node_info: option(AssistantTreeHelper.node),
-      )
-      : result => {
-    let schedule_actions = (actions: list(Action.t)) =>
-      schedule_actions(~actions, ~schedule_action);
-    let _ = editor.statics.info_map;
-
-    print_endline("here #1 applying action");
-
+  let derive_actions =
+      (editor: CodeWithStatics.Model.t, action: CompositionTools.action)
+      : (string, list(Action.t)) => {
+    let curr_node_info =
+      AssistantTreeHelper.build_sub_AST(
+        editor.editor.state.zipper,
+        editor.statics.info_map,
+      );
     switch (curr_node_info) {
     | None =>
       switch (action) {
-      | Edit(UpdateExpression(code)) =>
-        schedule_actions([
-          Action.Select(All),
-          Action.Paste(Assistant(code)),
-        ]);
-        "Your edits have been applied to the sketch.";
+      | Edit(UpdateExpression(code)) => (
+          "Your edits have been applied to the sketch.",
+          [Action.Select(All), Action.Paste(Assistant(code))],
+        )
       | _ =>
         raise(
           Failure(
@@ -448,18 +439,18 @@ module Composition = {
         | GoToParent =>
           switch (curr_node_info.parent) {
           | None => raise(Failure("This node does not have a parent"))
-          | Some(parent) =>
-            let actions = [
-              Action.Select(
-                Tile(Id(Info.id_of(parent.info), Direction.Right)),
-              ),
-            ];
-            schedule_actions(actions);
-            "Cursor moved from \""
-            ++ curr_node_info.name
-            ++ "\" to its parent \""
-            ++ parent.name
-            ++ "\"";
+          | Some(parent) => (
+              "Cursor moved from \""
+              ++ curr_node_info.name
+              ++ "\" to its parent \""
+              ++ parent.name
+              ++ "\"",
+              [
+                Action.Select(
+                  Tile(Id(Info.id_of(parent.info), Direction.Right)),
+                ),
+              ],
+            )
           }
         | GoToChild(who, where) =>
           // todo/idea: move candidates out here, maybe change indexing method?
@@ -508,16 +499,18 @@ module Composition = {
               | Some(child) => child
               }
             };
-          schedule_actions([
-            Action.Select(
-              Tile(Id(Info.id_of(child.info), Direction.Right)),
-            ),
-          ]);
-          "Cursor moved from \""
-          ++ curr_node_info.name
-          ++ "\" to its child \""
-          ++ child.name
-          ++ "\"";
+          (
+            "Cursor moved from \""
+            ++ curr_node_info.name
+            ++ "\" to its child \""
+            ++ child.name
+            ++ "\"",
+            [
+              Action.Select(
+                Tile(Id(Info.id_of(child.info), Direction.Right)),
+              ),
+            ],
+          );
         | GoToSibling(who, where) =>
           let sibling =
             switch (where) {
@@ -554,87 +547,125 @@ module Composition = {
               | Some(sibling) => sibling
               }
             };
-          schedule_actions([
-            Action.Select(
-              Tile(Id(Info.id_of(sibling.info), Direction.Right)),
-            ),
-          ]);
-          "Cursor moved from \""
-          ++ curr_node_info.name
-          ++ "\" to its sibling \""
-          ++ sibling.name
-          ++ "\"";
+          (
+            "Cursor moved from \""
+            ++ curr_node_info.name
+            ++ "\" to its sibling \""
+            ++ sibling.name
+            ++ "\"",
+            [
+              Action.Select(
+                Tile(Id(Info.id_of(sibling.info), Direction.Right)),
+              ),
+            ],
+          );
         }
       | Read(read_action) =>
         switch (read_action) {
-        | ViewDefinition =>
-          "Definition of \""
-          ++ curr_node_info.name
-          ++ "\":\n```"
-          ++ Printer.of_segment(
-               ~holes="?",
-               ~special_folds=true,
-               ChatLSP.View.definition(
-                 editor.editor.state.zipper,
-                 curr_node_info,
-               ),
-             )
-          ++ "```"
+        | ViewDefinition => (
+            "Definition of \""
+            ++ curr_node_info.name
+            ++ "\":\n```"
+            ++ Printer.of_segment(
+                 ~holes="?",
+                 ~special_folds=true,
+                 ChatLSP.View.definition(
+                   editor.editor.state.zipper,
+                   curr_node_info,
+                 ),
+               )
+            ++ "```",
+            [],
+          )
         }
       | Edit(action) =>
         switch (action) {
         | UpdateDefinition(code) =>
           let target_id = get_inner_term_id(curr_node_info, Def);
-          schedule_actions([
-            Action.Select(Tile(Id(target_id, Direction.Right))),
-            Action.Paste(Assistant(code)),
-          ]);
+          (
+            "Your edits have been applied to the sketch.",
+            [
+              Action.Select(Tile(Id(target_id, Direction.Right))),
+              Action.Paste(Assistant(code)),
+            ],
+          );
         | UpdateBody(code) =>
           let target_id = get_inner_term_id(curr_node_info, Body);
-          schedule_actions([
-            Action.Select(Tile(Id(target_id, Direction.Right))),
-            Action.Paste(Assistant(code)),
-          ]);
+          (
+            "Your edits have been applied to the sketch.",
+            [
+              Action.Select(Tile(Id(target_id, Direction.Right))),
+              Action.Paste(Assistant(code)),
+            ],
+          );
         | UpdatePattern(code) =>
           let target_id = get_inner_term_id(curr_node_info, Pat);
-          schedule_actions([
-            Action.Select(Tile(Id(target_id, Direction.Right))),
-            Action.Paste(Assistant(code)),
-          ]);
-        | UpdateExpression(code) =>
-          schedule_actions([
-            Action.Select(
-              Tile(Id(Info.id_of(curr_node_info.info), Direction.Right)),
-            ),
-            Action.Paste(Assistant(code)),
-          ])
-        | DeleteExpression =>
-          schedule_actions([
-            Action.Select(
-              Tile(Id(Info.id_of(curr_node_info.info), Direction.Right)),
-            ),
-            Action.Destruct(Left),
-          ])
+          (
+            "Your edits have been applied to the sketch.",
+            [
+              Action.Select(Tile(Id(target_id, Direction.Right))),
+              Action.Paste(Assistant(code)),
+            ],
+          );
+        | UpdateExpression(code) => (
+            "Your edits have been applied to the sketch.",
+            [
+              Action.Select(
+                Tile(Id(Info.id_of(curr_node_info.info), Direction.Right)),
+              ),
+              Action.Paste(Assistant(code)),
+            ],
+          )
+        | DeleteExpression => (
+            "Your edits have been applied to the sketch.",
+            [
+              Action.Select(
+                Tile(Id(Info.id_of(curr_node_info.info), Direction.Right)),
+              ),
+              Action.Destruct(Left),
+            ],
+          )
         | DeleteBody =>
           let target_id = get_inner_term_id(curr_node_info, Body);
-          schedule_actions([
-            Action.Select(Tile(Id(target_id, Direction.Right))),
-            Action.Destruct(Left),
-          ]);
-        | InsertBefore(code) =>
-          schedule_actions([
-            Action.Move(Extreme(Left(ByToken))),
-            Action.Paste(Assistant(code)),
-          ])
-        | InsertAfter(code) =>
-          schedule_actions([
-            Action.Move(Extreme(Right(ByToken))),
-            Action.Paste(Assistant(code)),
-          ])
-        };
-        "Your edits have been applied to the sketch.";
+          (
+            "Your edits have been applied to the sketch.",
+            [
+              Action.Select(Tile(Id(target_id, Direction.Right))),
+              Action.Destruct(Left),
+            ],
+          );
+        | InsertBefore(code) => (
+            "Your edits have been applied to the sketch.",
+            [
+              Action.Move(Extreme(Left(ByToken))),
+              Action.Paste(Assistant(code)),
+            ],
+          )
+        | InsertAfter(code) => (
+            "Your edits have been applied to the sketch.",
+            [
+              Action.Move(Extreme(Right(ByToken))),
+              Action.Paste(Assistant(code)),
+            ],
+          )
+        }
       }
     };
+  };
+
+  // AddToolLabel_2.0: handle the effects of the action on the editor itself
+  let apply_action =
+      (
+        ~editor: CodeWithStatics.Model.t,
+        ~action: CompositionTools.action,
+        ~schedule_action: Editors.Update.t => unit,
+      )
+      : result => {
+    let (result, actions) = derive_actions(editor, action);
+    // Apply actions to the editor
+    schedule_actions(~actions, ~schedule_action);
+    // Return the result (tool call response)
+    result;
   };
 };
 
