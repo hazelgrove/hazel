@@ -410,13 +410,10 @@ module Composition = {
   };
 
   let derive_actions =
-      (editor: CodeWithStatics.Model.t, action: CompositionTools.action)
+      (z: Zipper.t, info_map: Statics.Map.t, action: CompositionTools.action)
       : (string, list(Action.t)) => {
     let curr_node_info =
-      AssistantTreeHelper.build_curr_node_info(
-        editor.editor.state.zipper,
-        editor.statics.info_map,
-      );
+      AssistantTreeHelper.build_curr_node_info(z, info_map);
     switch (curr_node_info) {
     | None =>
       switch (action) {
@@ -569,10 +566,7 @@ module Composition = {
             ++ Printer.of_segment(
                  ~holes="?",
                  ~special_folds=true,
-                 ChatLSP.View.definition(
-                   editor.editor.state.zipper,
-                   curr_node_info,
-                 ),
+                 ChatLSP.View.definition(z, curr_node_info),
                )
             ++ "```",
             [],
@@ -661,7 +655,12 @@ module Composition = {
         ~schedule_action: Editors.Update.t => unit,
       )
       : result => {
-    let (result, actions) = derive_actions(editor, action);
+    let (result, actions) =
+      derive_actions(
+        editor.editor.state.zipper,
+        editor.statics.info_map,
+        action,
+      );
     // Apply actions to the editor
     schedule_actions(~actions, ~schedule_action);
     // Return the result (tool call response)
