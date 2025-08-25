@@ -260,13 +260,9 @@ let get_inner_term_id =
 };
 
 let derive_actions =
-    (editor: Editor.t, statics: CachedStatics.t, action: action)
+    (z: Zipper.t, info_map: Statics.Map.t, action: action)
     : (string, list(Action.t)) => {
-  let curr_node_info =
-    AssistantTreeHelper.build_curr_node_info(
-      editor.state.zipper,
-      statics.info_map,
-    );
+  let curr_node_info = AssistantTreeHelper.build_curr_node_info(z, info_map);
   switch (curr_node_info) {
   | None =>
     switch (action) {
@@ -419,10 +415,7 @@ let derive_actions =
           ++ Printer.of_segment(
                ~holes="?",
                ~special_folds=true,
-               CompositionUtil.View.definition(
-                 editor.state.zipper,
-                 curr_node_info,
-               ),
+               CompositionUtil.View.definition(z, curr_node_info),
              )
           ++ "```",
           [],

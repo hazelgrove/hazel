@@ -386,7 +386,11 @@ module Composition = {
       )
       : result => {
     let (result, actions) =
-      CompositionTools.derive_actions(editor.editor, editor.statics, action);
+      CompositionTools.derive_actions(
+        editor.editor.state.zipper,
+        editor.statics.info_map,
+        action,
+      );
     // Apply actions to the editor
     schedule_actions(~actions, ~schedule_action);
     // Return the result (tool call response)

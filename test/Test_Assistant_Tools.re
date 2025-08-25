@@ -1,4 +1,3 @@
-open Util;
 open Alcotest;
 open Haz3lcore;
 open Test_Editing;
@@ -19,7 +18,7 @@ let apply_tool_actions =
     (z, action) =>
       z
       |> mk_statics
-      |> Web.AssistantModes.Composition.derive_actions(z, _, action)
+      |> CompositionTools.derive_actions(z, _, action)
       |> snd
       |> perform(z),
     perform(Zipper.init(), mk(init)),
