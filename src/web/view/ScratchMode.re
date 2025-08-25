@@ -11,21 +11,59 @@ module Model = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = (int, list((string, CellEditor.Model.persistent)));
+  type persistent = (
+    int,
+    list((string, option(CellEditor.Model.persistent))),
+  );
 
-  let persist = model => (
+  let persist = (model: t): persistent => (
     model.current,
     List.map(
-      ((s, m)) => (s, CellEditor.Model.persist(m)),
+      ((s, m): (string, CellEditor.Model.t)) => {
+        let persisted: CellEditor.Model.persistent =
+          CellEditor.Model.persist(m);
+        let init_version: option(CellEditor.Model.persistent) =
+          Init.startup.documentation
+          |> snd
+          |> List.find_opt(((name, _)) => name == s)
+          |> Option.map(snd);
+
+        // Consider ignoring ids and/or caret position
+        if (Some(persisted) == init_version) {
+          print_endline(
+            "Not persisting scratchpad "
+            ++ s
+            ++ " because it matches the initial version.",
+          );
+          (s, None);
+        } else {
+          print_endline("Persisting scratchpad " ++ s ++ ".");
+          (s, Some(persisted));
+        };
+      },
       model.scratchpads,
     ),
   );
 
-  let unpersist = (~settings, (current, slides)) => {
+  let unpersist = (~settings, (current, slides): persistent): t => {
     current,
     scratchpads:
       List.map(
-        ((s, m)) => (s, CellEditor.Model.unpersist(~settings, m)),
+        ((s: string, m: option(CellEditor.Model.persistent))) =>
+          (
+            s,
+            {
+              switch (Option.map(CellEditor.Model.unpersist(~settings), m)) {
+              | Some(x) => x
+              | None =>
+                Init.startup.documentation
+                |> snd
+                |> List.find(((name, _)) => name == s)
+                |> snd
+                |> CellEditor.Model.unpersist(~settings)
+              };
+            },
+          ),
         slides,
       ),
   };
@@ -36,7 +74,9 @@ module StoreDocumentation =
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = Model.persistent;
     let key = Store.Documentation;
-    let default = () => Init.startup.documentation;
+    let default = (): t =>
+      Init.startup.documentation
+      |> PairUtil.map_snd(List.map(PairUtil.map_snd(_ => None)));
   });
 
 module Store = {
@@ -44,7 +84,9 @@ module Store = {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = Model.persistent;
     let key = Store.Scratch;
-    let default = () => Init.startup.scratch;
+    let default = () =>
+      Init.startup.documentation
+      |> PairUtil.map_snd(List.map(PairUtil.map_snd(x => Some(x))));
   });
 
   let integrate_share = (model: t): t => {
@@ -66,7 +108,10 @@ module Store = {
         result: EvalResult.Model.init |> EvalResult.Model.persist,
       };
 
-      (List.length(scratchpads), scratchpads @ [(share_name, shared)]);
+      (
+        List.length(scratchpads),
+        scratchpads @ [(share_name, Some(shared))],
+      );
     };
   };
 };
