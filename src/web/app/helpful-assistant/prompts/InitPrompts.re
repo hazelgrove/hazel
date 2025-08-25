@@ -5,17 +5,23 @@ let get_documentation_as_text = () => {
   let documentation =
     slides
     |> List.map(
-         ((s, optional_persisent)): (string, CellEditor.Model.persistent) => {
-         let p =
+         (
+           (
+             s: string,
+             optional_persisent: option(CellEditor.Model.persistent),
+           ),
+         ) => {
+         (
+           s,
            switch (optional_persisent) {
            | Some(persistent) => persistent
            | None =>
-             Init.startup.documentation
-             |> snd
-             |> List.find(((name, _)) => name == s)
-             |> snd
-           };
-         (s, p);
+             switch (Init.find_documentation_slide(s)) {
+             | Some(x) => x
+             | None => Init.empty_cell_editor_persistent()
+             }
+           },
+         )
        })
     |> List.map(((name, persistent)) => {
          let cell_model =
