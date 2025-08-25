@@ -171,7 +171,6 @@ module Completion = {
 // LLM-based agentic code sysnthesis. Differs from code completion in that it can
 // navigate the program structure, and perform more complex, multi-step edits.
 module Composition = {
-  open Util.CompositionTools;
   let max_tool_calls = 10;
 
   // Prompt with appropriate AST context for each message.
@@ -277,7 +276,10 @@ module Composition = {
         ++ "]";
 
       let sketch_seg =
-        ChatLSP.View.definition(editor.editor.state.zipper, curr_node_info);
+        CompositionUtil.View.definition(
+          editor.editor.state.zipper,
+          curr_node_info,
+        );
 
       let sketch_seg_hd_str =
         "Definition of \""
@@ -375,284 +377,6 @@ module Composition = {
     );
   };
 
-  type inner_term =
-    | Pat
-    | Def
-    | Body;
-
-  let get_inner_term_id =
-      (curr_node_info: AssistantTreeHelper.node, inner_term: inner_term): Id.t => {
-    switch (curr_node_info.info) {
-    | InfoExp({term, _}) =>
-      switch (Exp.term_of(term)) {
-      | Let(pat, def, body) =>
-        switch (inner_term) {
-        | Pat => Pat.rep_id(pat)
-        | Def => Exp.rep_id(def)
-        | Body => Exp.rep_id(body)
-        }
-      | TyAlias(tpat, tdef, body) =>
-        switch (inner_term) {
-        | Pat => TPat.rep_id(tpat)
-        | Def => Typ.rep_id(tdef)
-        | Body => Exp.rep_id(body)
-        }
-      | _ =>
-        raise(Failure("Current node is not a let or type alias expression"))
-      }
-    | _ =>
-      raise(
-        Failure(
-          "Current node is not a let or type alias expression, so no pattern to update",
-        ),
-      )
-    };
-  };
-
-  let derive_actions =
-      (editor: CodeWithStatics.Model.t, action: CompositionTools.action)
-      : (string, list(Action.t)) => {
-    let curr_node_info =
-      AssistantTreeHelper.build_curr_node_info(
-        editor.editor.state.zipper,
-        editor.statics.info_map,
-      );
-    switch (curr_node_info) {
-    | None =>
-      switch (action) {
-      | Edit(UpdateExpression(code)) => (
-          "Your edits have been applied to the sketch.",
-          [Action.Select(All), Action.Paste(Assistant(code))],
-        )
-      | _ =>
-        raise(
-          Failure(
-            "No let or type alias expressions found in the program, unable to derive any meaningful AST information. Please call update_expression to initialize the program or convert it to a meaningful state. Unable to apply any other actions.",
-          ),
-        )
-      }
-    | Some(curr_node_info) =>
-      switch (action) {
-      // Navigate to the parent node of the current node
-      | Nav(nav_action) =>
-        switch (nav_action) {
-        | GoToParent =>
-          switch (curr_node_info.parent) {
-          | None => raise(Failure("This node does not have a parent"))
-          | Some(parent) => (
-              "Cursor moved from \""
-              ++ curr_node_info.name
-              ++ "\" to its parent \""
-              ++ parent.name
-              ++ "\"",
-              [
-                Action.Select(
-                  Tile(Id(Info.id_of(parent.info), Direction.Right)),
-                ),
-              ],
-            )
-          }
-        | GoToChild(who, where) =>
-          // todo/idea: move candidates out here, maybe change indexing method?
-          // to assert referencing by both name and index...
-          // note: llms tend to be poor at logical/mathematical reasoning, and working with
-          //       numbers in general. Unfortunately, the very nature of the indexing fallback
-          //       method requires each variable to be unique, thus, I'd surmise that this pitfall
-          //       is unavoidable, nevertheless mitigatable via making the fallback method optional
-          // * applies to GoToSibling as well
-          let child =
-            switch (where) {
-            | None =>
-              // the llm provided no index, thus, use the name
-              let candidates =
-                List.filter(
-                  (child: AssistantTreeHelper.node) => child.name == who,
-                  curr_node_info.children,
-                );
-              if (List.length(candidates) > 1) {
-                raise(
-                  Failure(
-                    "Multiple children found, not sure how to resolve ambiguity. Please specify which child to reference via using the index associated with that child.",
-                  ),
-                );
-              };
-              switch (ListUtil.hd_opt(candidates)) {
-              | None =>
-                raise(
-                  Failure(
-                    "Child not found. Make sure the current node has children, and that the child you're referencing exists.",
-                  ),
-                )
-              | Some(child) => child
-              };
-            | Some(here) =>
-              // this means the llm provided an index to move to, in which case
-              // we default on using that as opposed to the name
-
-              switch (List.nth_opt(curr_node_info.children, here)) {
-              | None =>
-                raise(
-                  Failure(
-                    "Child index out of bounds. Make sure the current node has children, and that your given index is within bounds.",
-                  ),
-                )
-              | Some(child) => child
-              }
-            };
-          (
-            "Cursor moved from \""
-            ++ curr_node_info.name
-            ++ "\" to its child \""
-            ++ child.name
-            ++ "\"",
-            [
-              Action.Select(
-                Tile(Id(Info.id_of(child.info), Direction.Right)),
-              ),
-            ],
-          );
-        | GoToSibling(who, where) =>
-          let sibling =
-            switch (where) {
-            | None =>
-              let candidates =
-                List.filter(
-                  (sibling: AssistantTreeHelper.node) => sibling.name == who,
-                  curr_node_info.siblings,
-                );
-              if (List.length(candidates) > 1) {
-                raise(
-                  Failure(
-                    "Multiple siblings found, not sure how to resolve ambiguity. Please specify which sibling to reference via using the index associated with that sibling.",
-                  ),
-                );
-              };
-              switch (ListUtil.hd_opt(candidates)) {
-              | None =>
-                raise(
-                  Failure(
-                    "Sibling not found. Make sure the current node has siblings, and that the sibling you're referencing exists.",
-                  ),
-                )
-              | Some(sibling) => sibling
-              };
-            | Some(here) =>
-              switch (List.nth_opt(curr_node_info.siblings, here)) {
-              | None =>
-                raise(
-                  Failure(
-                    "Sibling index out of bounds. Make sure the current node has siblings, and that your given index is within bounds.",
-                  ),
-                )
-              | Some(sibling) => sibling
-              }
-            };
-          (
-            "Cursor moved from \""
-            ++ curr_node_info.name
-            ++ "\" to its sibling \""
-            ++ sibling.name
-            ++ "\"",
-            [
-              Action.Select(
-                Tile(Id(Info.id_of(sibling.info), Direction.Right)),
-              ),
-            ],
-          );
-        }
-      | Read(read_action) =>
-        switch (read_action) {
-        | ViewDefinition => (
-            "Definition of \""
-            ++ curr_node_info.name
-            ++ "\":\n```"
-            ++ Printer.of_segment(
-                 ~holes="?",
-                 ~special_folds=true,
-                 ChatLSP.View.definition(
-                   editor.editor.state.zipper,
-                   curr_node_info,
-                 ),
-               )
-            ++ "```",
-            [],
-          )
-        }
-      | Edit(action) =>
-        switch (action) {
-        | UpdateDefinition(code) =>
-          let target_id = get_inner_term_id(curr_node_info, Def);
-          (
-            "Your edits have been applied to the sketch.",
-            [
-              Action.Select(Tile(Id(target_id, Direction.Right))),
-              Action.Paste(Assistant(code)),
-            ],
-          );
-        | UpdateBody(code) =>
-          let target_id = get_inner_term_id(curr_node_info, Body);
-          (
-            "Your edits have been applied to the sketch.",
-            [
-              Action.Select(Tile(Id(target_id, Direction.Right))),
-              Action.Paste(Assistant(code)),
-            ],
-          );
-        | UpdatePattern(code) =>
-          let target_id = get_inner_term_id(curr_node_info, Pat);
-          (
-            "Your edits have been applied to the sketch.",
-            [
-              Action.Select(Tile(Id(target_id, Direction.Right))),
-              Action.Paste(Assistant(code)),
-            ],
-          );
-        | UpdateExpression(code) => (
-            "Your edits have been applied to the sketch.",
-            [
-              Action.Select(
-                Tile(Id(Info.id_of(curr_node_info.info), Direction.Right)),
-              ),
-              Action.Paste(Assistant(code)),
-            ],
-          )
-        | DeleteExpression => (
-            "Your edits have been applied to the sketch.",
-            [
-              Action.Select(
-                Tile(Id(Info.id_of(curr_node_info.info), Direction.Right)),
-              ),
-              Action.Destruct(Left),
-            ],
-          )
-        | DeleteBody =>
-          let target_id = get_inner_term_id(curr_node_info, Body);
-          (
-            "Your edits have been applied to the sketch.",
-            [
-              Action.Select(Tile(Id(target_id, Direction.Right))),
-              Action.Destruct(Left),
-            ],
-          );
-        | InsertBefore(code) => (
-            "Your edits have been applied to the sketch.",
-            [
-              Action.Move(Extreme(Left(ByToken))),
-              Action.Paste(Assistant(code)),
-            ],
-          )
-        | InsertAfter(code) => (
-            "Your edits have been applied to the sketch.",
-            [
-              Action.Move(Extreme(Right(ByToken))),
-              Action.Paste(Assistant(code)),
-            ],
-          )
-        }
-      }
-    };
-  };
-
   // AddToolLabel_2.0: handle the effects of the action on the editor itself
   let apply_action =
       (
@@ -661,7 +385,8 @@ module Composition = {
         ~schedule_action: Editors.Update.t => unit,
       )
       : result => {
-    let (result, actions) = derive_actions(editor, action);
+    let (result, actions) =
+      CompositionTools.derive_actions(editor.editor, editor.statics, action);
     // Apply actions to the editor
     schedule_actions(~actions, ~schedule_action);
     // Return the result (tool call response)

@@ -1,3 +1,5 @@
+open Util;
+
 let go_to_parent: API.Json.t =
   `Assoc([
     ("type", `String("function")),

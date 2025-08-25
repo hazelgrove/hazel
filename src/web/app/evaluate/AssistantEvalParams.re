@@ -51,10 +51,9 @@ module SketchPrompt = {
 };
 
 module ToolKit = {
-  [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = CompositionTools.t; // the tools available to the agent
+  open Haz3lcore.CompositionTools;
 
-  let all_tools = CompositionTools.tools;
+  let all_tools = tools;
 
   // Create tool set abalations.
   // Each set of tools within this list will be removed from a tool kit for a given run.

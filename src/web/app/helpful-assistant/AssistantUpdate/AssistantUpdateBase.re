@@ -1,5 +1,6 @@
 open Util;
 open Util.Maps;
+open Haz3lcore;
 
 module CodeModel = CodeEditable.Model;
 module Model = AssistantModel;

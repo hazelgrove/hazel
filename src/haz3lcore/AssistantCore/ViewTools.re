@@ -1,3 +1,5 @@
+open Util;
+
 let view_definition: API.Json.t =
   `Assoc([
     ("type", `String("function")),

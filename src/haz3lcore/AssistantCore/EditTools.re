@@ -1,3 +1,5 @@
+open Util;
+
 let update_definition_description = {|
 Description:
 Updates the definition of the current node
