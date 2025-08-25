@@ -20,7 +20,7 @@ let conapp_pat: form = {
   };
 };
 
-let _pat_fun = pat("p_fun");
+let _pat_fun = pat("fun");
 let _pat_arg = pat("p_arg");
 let funapp_pat_coloring_ids =
     (~x_id: Id.t, ~arg_id: Id.t): list((Id.t, Id.t)) => [
@@ -28,7 +28,7 @@ let funapp_pat_coloring_ids =
   (Piece.id(_pat_arg), arg_id),
 ];
 let funapp_pat: form = {
-  let explanation = "Defines a function [*function*](%s) with [*arguments*](%s) through this *function application pattern*.";
+  let explanation = "Defines a function [*function*](%s) with [*arguments*](%s).";
   {
     id: ApConsPat,
     syntactic_form: [_pat_fun, mk_ap_pat([[_pat_arg]])],
