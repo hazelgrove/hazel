@@ -52,7 +52,8 @@ module Update = {
         Destruct(_) | Insert(_) | Put_down | Paste(_) | Reparse | Cut |
         Buffer(_) |
         Project(_) |
-        Introduce,
+        Introduce |
+        Dump,
       )
     | DebugConsole(_)
     | TAB => None;
