@@ -54,15 +54,10 @@ module Model = {
               switch (Option.map(CellEditor.Model.unpersist(~settings), m)) {
               | Some(x) => x
               | None =>
-                let default = Init.find_documentation_slide(s);
-
                 CellEditor.Model.unpersist(
                   ~settings,
-                  switch (default) {
-                  | Some(x) => x
-                  | None => Init.empty_cell_editor_persistent()
-                  },
-                );
+                  Init.default_documentation_slide_name(s),
+                )
               };
             },
           ),
@@ -290,11 +285,7 @@ module Update = {
         | false =>
           CellEditor.Model.mk(Editor.Model.mk(Zipper.init()))
           |> CellEditor.Model.persist
-        | true =>
-          switch (Init.find_documentation_slide(key)) {
-          | Some(x) => x
-          | None => Init.empty_cell_editor_persistent()
-          }
+        | true => Init.default_documentation_slide_name(key)
         };
       let* data =
         source
