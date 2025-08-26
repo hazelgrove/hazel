@@ -50,16 +50,8 @@ module Model = {
         ((s: string, m: option(CellEditor.Model.persistent))) =>
           (
             s,
-            {
-              switch (Option.map(CellEditor.Model.unpersist(~settings), m)) {
-              | Some(x) => x
-              | None =>
-                CellEditor.Model.unpersist(
-                  ~settings,
-                  Init.default_documentation_slide_name(s),
-                )
-              };
-            },
+            OptUtil.get(() => Init.default_documentation_slide_name(s), m)
+            |> CellEditor.Model.unpersist(~settings),
           ),
         slides,
       ),
