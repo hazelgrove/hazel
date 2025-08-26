@@ -9,7 +9,7 @@ let buffer_clear = (z: t): t =>
       selection: Selection.mk([]),
     }
 
-  | Buffer(Parsed) => z |> Zipper.destruct |> Zipper.regrout(Left)
+  | Buffer(Parsed) => z |> Zipper.destroy_selection |> Zipper.regrout(Left)
   | Normal => z
   };
 
@@ -73,7 +73,7 @@ let go_z =
       switch (TyDi.get_unparsed_buffer(z)) {
       | None => None
       | Some(completion)
-          when StringUtil.match(StringUtil.regexp(".*\\)::$"), completion) =>
+          when Token.match(Token.regexp(".*\\)::$"), completion) =>
         /* Slightly hacky. There's currently only one genre of completion
          * that creates more than one hole on intial expansion: when on eg
          * 1 :: a|, we suggest "abs( )::" via lookahead. In such a case we
@@ -247,12 +247,13 @@ let go_z =
       switch (z.caret) {
       | Inner(_) => None
       | Outer =>
-        switch (Zipper.match_prev(z)) {
+        switch (Zipper.glom_prev(z)) {
         | Some(z) => Some(z)
         | None => Zipper.put_down_regrout_remold(Left, z)
         }
       }
     )
     |> Result.of_option(~error=Action.Failure.Cant_put_down)
+  | Dump => Ok(Zipper.try_to_dump_backpack(z))
   };
 };

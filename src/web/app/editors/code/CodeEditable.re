@@ -64,7 +64,8 @@ module Update = {
              | Copy
              | Cut
              | Reparse
-             | Introduce => true
+             | Introduce
+             | Dump => true
              | Project(_)
              | Unselect(_)
              | Select(All) => false
@@ -133,9 +134,9 @@ module Selection = {
     };
   };
 
-  let jump_to_tile = (tile, model: Model.t) => {
-    switch (TileMap.find_opt(tile, model.editor.syntax.tiles)) {
-    | Some(_) => Some(Update.Perform(Jump(TileId(tile))))
+  let jump_to_tile = (id: Id.t, model: Model.t) => {
+    switch (TermData.root_tile_opt(id, model.editor.syntax.term_data)) {
+    | Some(_) => Some(Update.Perform(Jump(TileId(id))))
     | None => None
     };
   };

@@ -33,7 +33,7 @@ let tests = (
     ),
     test_case("flat_map duplicate elements", `Quick, () =>
       parse_and_evaluate_test(
-        {|[2, 2, 1, 1]|},
+        {|[1, 1, 2, 2]|},
         {|flat_map([1, 2], fun x -> [x, x])|},
       )
     ),

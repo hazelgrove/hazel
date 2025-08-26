@@ -1,0 +1,158 @@
+module Info = Info;
+
+module Map = {
+  [@deriving (show({with_path: false}), sexp, yojson)]
+  type t = Id.Map.t(Info.t);
+
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type errors = Id.Map.t(Info.error);
+
+  let empty = Id.Map.empty;
+  let lookup = Id.Map.find_opt;
+
+  let error_ids = (info_map: t): list(Id.t) =>
+    Id.Map.fold(
+      (id, info, acc) =>
+        /* Second clause is to eliminate non-representative ids,
+         * which will not be found in the measurements map */
+        Info.is_error(info) && id == Info.id_of(info) ? [id, ...acc] : acc,
+      info_map,
+      [],
+    );
+
+  let errors = (map: t): list((Id.t, Info.error)) =>
+    Id.Map.fold(
+      (id, info: Info.t, acc) =>
+        Option.to_list(Info.error_of(info) |> Option.map(x => (id, x)))
+        @ acc,
+      map,
+      [],
+    );
+
+  let collect_errors = (map: t): errors =>
+    Id.Map.filter_map(
+      (_: Uuidm.t, info: Info.t) => {Info.error_of(info)},
+      map,
+    );
+
+  /* The ids of binding sites for for all references in term with `id` */
+  let refs_in = (m: t, id: Id.t): Binding.s =>
+    switch (lookup(id, m)) {
+    | Some(InfoExp({co_ctx, ctx, _})) =>
+      co_ctx
+      |> Util.VarMap.to_list
+      |> List.map(((n, _)) => Ctx.binding_of(ctx, n))
+    | _ => []
+    };
+
+  let bound_in = (m: t, id: Id.t): Binding.s =>
+    switch (lookup(id, m)) {
+    | Some(InfoPat({term, _})) => Term.Pat.bindings(term)
+    | _ => []
+    };
+};
+
+let map_m = (f, xs, m: Map.t) =>
+  List.fold_left(
+    ((xs, m), x) => f(x, m) |> (((x, m)) => (xs @ [x], m)),
+    ([], m),
+    xs,
+  );
+
+let add_info = (ids: list(Id.t), info: Info.t, m: Map.t): Map.t =>
+  ids |> List.fold_left((m, id) => Id.Map.add(id, info, m), m);
+
+let rec is_arrow_like = (t: Typ.t) => {
+  switch (t |> Typ.term_of) {
+  | Unknown(_) => true
+  | Arrow(_) => true
+  | Forall(_, t) => is_arrow_like(t)
+  | _ => false
+  };
+};
+
+let is_recursive = (ctx, p, def, syn: Typ.t) => {
+  switch (Pat.get_num_of_vars(p), Exp.get_num_of_functions(def)) {
+  | (Some(num_vars), Some(num_fns))
+      when num_vars != 0 && num_vars == num_fns =>
+    let norm = Typ.normalize(ctx, syn);
+    switch (norm |> Typ.term_of) {
+    | Prod(syns) when List.length(syns) == num_vars =>
+      syns |> List.for_all(is_arrow_like)
+    | _ when is_arrow_like(norm) => num_vars == 1
+    | _ => false
+    };
+  | _ => false
+  };
+};
+
+let syn = Unknown(SynSwitch) |> Typ.temp;
+
+module type ExpressionStatics = {
+  let uexp_to_info_map:
+    (
+      ~ctx: Ctx.t,
+      ~ana: Typ.t=?,
+      ~is_in_filter: bool=?,
+      ~ancestors: Info.ancestors=?,
+      ~duplicates: list(string)=?,
+      ~expected_labels: list(string)=?,
+      ~inferred_label: string=?,
+      ~override_self: Self.exp=?,
+      ~label_sort: bool=?,
+      Exp.t,
+      Map.t
+    ) =>
+    (Info.exp, Map.t);
+  let add':
+    (
+      ~label_inference: Info.label_inference(Info.exp)=?,
+      ~self: Self.exp,
+      ~co_ctx: CoCtx.t,
+      ~rewrite_id: option(Uuidm.t),
+      Map.t
+    ) =>
+    (Info.exp, Map.t);
+  let label_to_info_map:
+    (option(list(string)), Typ.t, Exp.t, Map.t) =>
+    (option(string), Info.exp, Map.t);
+};
+
+let check_annotated_function_helper = (pat: Pat.t): option((Pat.t, Pat.t)) => {
+  let (pat_term, _) = IdTagged.unwrap(pat);
+  switch (pat_term) {
+  | Ap(func_name, args) =>
+    switch (IdTagged.term_of(func_name)) {
+    | Var(_) =>
+      // let (new_arg, in_type, _) = caf_input_type(args);
+      //print_endline("STA CAF new_type = " ++ UTyp.show(in_type));
+      // let func_type = UTyp.Arrow(in_type, ret_type) |> pat_rule;
+      let args =
+        switch (args.term) {
+        | Tuple([]) => Tuple([]) |> Pat.fresh
+        | _ => args
+        };
+      Some((func_name, args));
+    | _ => None
+    }
+  | _ => None
+  };
+};
+
+/*
+ * Check whether a particular let binding is an annotated function under the new syntax.
+ * It is parsed as a constructor syntax.
+ * I am not sure what is the top-level pattern; the only thing similar seems to be UPat.Ap.
+ * UPDATE 0604: The third argument is revised to be return type as opposed to function type.
+ */
+let check_annotated_function =
+    (pat: Pat.t): option((Pat.t, Pat.t, option(Typ.t))) => {
+  let (pat_term, _) = IdTagged.unwrap(pat);
+  let (inner_pat, ret_type) =
+    switch (pat_term) {
+    | Asc(inner_pat, ret_type) => (inner_pat, Some(ret_type))
+    | _ => (pat, None) // (pat, UTyp.Unknown(Hole(EmptyHole)) |> pat_rule)
+    };
+  check_annotated_function_helper(inner_pat)
+  |> Option.map(((name, arg)) => (name, arg, ret_type));
+};

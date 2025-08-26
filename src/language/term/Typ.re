@@ -227,14 +227,17 @@ let join_type_provenance =
   | (SynSwitch, SynSwitch) => SynSwitch
   };
 
-let rec match_tup_label = ty =>
+let rec match_tup_optional_label = (ty: t) =>
   switch (term_of(ty)) {
-  | Parens(ty) => match_tup_label(ty)
-  | TupLabel(label, t') =>
-    switch (term_of(label)) {
-    | Label(name) => Some((name, t'))
-    | _ => None
-    }
+  | Parens(ty) => match_tup_optional_label(ty)
+  | TupLabel({term: Label(name), _}, t') => Some((Some(name), t'))
+  | TupLabel({term: Unknown(_), _}, t') => Some((None, t'))
+  | Unknown(_) => Some((None, ty))
+  | _ => None
+  };
+let match_tup_label = ty =>
+  switch (match_tup_optional_label(ty)) {
+  | Some((Some(name), t')) => Some((name, t'))
   | _ => None
   };
 
@@ -950,3 +953,21 @@ let remove_duplicate_labels =
     ),
   );
 };
+
+/**
+ * Converts a list of types (`tys`) into a product type.
+ *
+ * If the list contains a single type, it is returned as-is since singleton
+ * products are not supported.
+ *
+ * @param tys - A list of types to be combined into a product type.
+ * @return A product type representing the combination of the input types,
+ *         or the single type if the list contains only one element.
+ */
+let to_product = (tys: list(t)): t =>
+  switch (tys) {
+  | []
+  | [{term: TupLabel(_), _}] => Prod(tys) |> temp
+  | [ty] => ty
+  | _ => Prod(tys) |> temp
+  };

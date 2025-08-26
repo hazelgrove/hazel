@@ -41,7 +41,7 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | (Down, "ArrowDown") => now(Select(Resize(Local(Down))))
     | (Down, "Home") => now(Select(Resize(Extreme(Left(ByToken)))))
     | (Down, "End") => now(Select(Resize(Extreme(Right(ByToken)))))
-    | (_, "Enter") => now(Insert(Form.linebreak))
+    | (_, "Enter") => now(Insert(Token.linebreak))
     | _ when String.length(key) == 1 =>
       /* Note: length==1 prevent specials like
        * SHIFT from being captured here */
@@ -114,6 +114,9 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
   | {key: D("¬"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     /* † is what holding option turns t into on Mac */
     Some(Project(SetIndicated(ChooseLivelit)))
+  | {key: D("µ"), sys: Mac, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
+    print_endline("˜dump");
+    Some(Dump);
   | {key: D(key), sys: _, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
     switch (key) {
     | "ArrowLeft" => now(Move(Local(Left(ByToken))))
