@@ -263,6 +263,7 @@ let derive_actions =
   let curr_node_info = AssistantTreeHelper.build_curr_node_info(z, info_map);
   switch (curr_node_info) {
   | None =>
+    // Special case: if the program is empty/no let/type alias exprs exist, we can only update the entire program.
     switch (action) {
     | Edit(UpdateExpression(code)) => (
         "Your edits have been applied to the sketch.",
@@ -271,7 +272,7 @@ let derive_actions =
     | _ =>
       raise(
         Failure(
-          "No let or type alias expressions found in the program, unable to derive any meaningful AST information. Please call update_expression to initialize the program or convert it to a meaningful state. Unable to apply any other actions.",
+          "No let or type alias expressions found in the program, unable to derive any meaningful AST information. Please call update_expression to initialize/update the entire program. Unable to apply any other actions.",
         ),
       )
     }
@@ -300,8 +301,8 @@ let derive_actions =
         // todo/idea: move candidates out here, maybe change indexing method?
         // to assert referencing by both name and index...
         // note: llms tend to be poor at logical/mathematical reasoning, and working with
-        //       numbers in general. Unfortunately, the very nature of the indexing fallback
-        //       method requires each variable to be unique, thus, I'd surmise that this pitfall
+        //       numbers in general. Unfortunately, the nature of the indexing fallback
+        //       requires each variable to be unique, thus, I'd surmise that this pitfall
         //       is unavoidable, nevertheless mitigatable via making the fallback method optional
         // * applies to GoToSibling as well
         let child =

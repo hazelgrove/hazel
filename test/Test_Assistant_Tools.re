@@ -73,6 +73,13 @@ let tests_nav_tools = [
     ~goal={|let x = §let y = let z = 7 in z in¦ y in x|},
   ),
   test(
+    ~name="Goto Parent (Double go to, Simple - V2)",
+    ~init={|let x = let y = let z = 7¦ in z in y in x|},
+    ~acts=[Nav(GoToParent), Nav(GoToParent)],
+    // Goes from 'z' to its parent, 'y', and then to its parent, 'x'
+    ~goal={|§let x = let y = let z = 7 in z in y in¦ x|},
+  ),
+  test(
     ~name="Goto Child (Name-Identified - Simple - V1)",
     ~init={|let x = let a = 3 in let b = 4 in a + b in¦ x|},
     ~acts=[Nav(GoToChild("b", None))],
@@ -83,19 +90,62 @@ let tests_nav_tools = [
     ~name="Goto Child (Index-Identified - Shadowed-Case - V1)",
     ~init={|let x = let b = 3 in let b = 4 in b in¦ x|},
     ~acts=[Nav(GoToChild("b", Some(0)))],
-    // Goes from 'x' to its child, 'b'
+    // Goes from 'x' to its first child, 'b'
     ~goal={|let x = §let b = 3 in¦ let b = 4 in b in x|},
   ),
   test(
     ~name="Goto Child (Index-Identified - Shadowed-Case - V2)",
     ~init={|let x = let b = 3 in let b = 4 in b in¦ x|},
     ~acts=[Nav(GoToChild("b", Some(1)))],
-    // Goes from 'x' to its child, 'b'
+    // Goes from 'x' to its second child, 'b'
     ~goal={|let x = let b = 3 in §let b = 4 in¦ b in x|},
+  ),
+  test(
+    ~name="Goto Child (Index-Identified - Shadowed-Case - V3)",
+    ~init=
+      {|
+    let x = let b = 3 in let h = 10 in let b = 4 in b + h in¦ x
+    |},
+    ~acts=[Nav(GoToChild("b", Some(2)))],
+    // Goes from 'x' to its third child, 'b' (the second 'b' in this case)
+    ~goal=
+      {|
+    let x = let b = 3 in let h = 10 in §let b = 4 in¦ b + h in x
+    |},
+  ),
+];
+
+// For testing that we display the proper contents for the assistant
+// (Note: This is not a tool call. This is a function that we use to display the relevant sketch content for the assistant
+//        on each iteration.)
+let test_view_definition = (~name, ~init: string, ~goal): test_case(_) => {
+  let z = perform(Zipper.init(), mk(init));
+  let info_map = mk_statics(z);
+  let curr_node_info =
+    Option.get(AssistantTreeHelper.build_curr_node_info(z, info_map));
+  let sketch_seg_str =
+    CompositionUtil.View.definition(z, curr_node_info)
+    |> Printer.of_segment(~holes="?", ~special_folds=true);
+  test_case(name, `Quick, () =>
+    check(testable(Fmt.string, String.equal), goal, goal, sketch_seg_str)
+  );
+};
+
+let tests_view_definition = [
+  test_view_definition(
+    ~name="View Definition (Simple - V1)",
+    ~init={|let x = 4¦ in x|},
+    ~goal={|let x = 4 in x|},
+  ),
+  test_view_definition(
+    ~name="View Definition (Simple - V1)",
+    ~init={|let x = 4¦ in let y = 5 in x + y|},
+    ~goal={|let x = 4 in let y = ⋱ in x + y|},
   ),
 ];
 
 let tests = [
   ("Edit tools", tests_edit_tools),
   ("Nav tools", tests_nav_tools),
+  ("View definition", tests_view_definition),
 ];

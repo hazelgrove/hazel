@@ -242,6 +242,7 @@ module Composition = {
       );
     | Some(curr_node_info) =>
       let curr_node_str = "Current node: " ++ curr_node_info.name;
+      // This shows the path to the current node now, rather than just the parent node
       let parent_node_str =
         switch (curr_node_info.parent) {
         | Some(parent) =>
