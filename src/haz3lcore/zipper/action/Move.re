@@ -234,6 +234,7 @@ module Make = (M: S) => {
    * where the caret (|) is at the leftmost edge of
    * `flag`, but the not operator ("!") is indicated */
   let jump_to_side_of_id = (d: Direction.t, z, id): option(t) => {
+    print_endline("jump_to_side_of_id");
     let jump_to_left_of_id = (z: t, id: Id.t): option(t) => {
       let* {origin, _} = Measured.find_by_id(id, M.measured);
       let z =
@@ -262,6 +263,7 @@ module Make = (M: S) => {
    * to the right. I believe but have not proved this
    * always results in the token being indicated  */
   let jump_to_id_indicated = (z: t, id: Id.t): option(t) => {
+    print_endline("jump_to_id_indicated");
     let* {origin, _} = Measured.find_by_id(id, M.measured);
     let z =
       switch (to_start(z)) {

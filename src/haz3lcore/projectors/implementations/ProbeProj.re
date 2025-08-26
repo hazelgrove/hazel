@@ -920,7 +920,6 @@ module M: Projector = {
         | [Grout({id, _})] when id == Id.invalid => Node.div([])
         | _ => view(local, parent, info)
         },
-
       overlay:
         switch (info.syntax) {
         | [Grout({id, _})] when id == Id.invalid =>

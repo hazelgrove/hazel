@@ -193,7 +193,7 @@ module View = {
     };
     let refractor_data =
       ProjectorView.Model.mk(
-        model.editor.state.zipper.refractors,
+        model.editor.state.zipper.refractors.map,
         model.editor.syntax.measured,
         model.editor.syntax.term_data,
         model.editor.syntax.selection_ids,

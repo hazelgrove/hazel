@@ -251,7 +251,7 @@ let exercise : Exercise.spec =
               ];
           };
         caret = Outer;
-        refractors = Haz3lcore.Id.Map.empty;
+        refractors = Haz3lcore.ZipperBase.Refractor.init;
       };
     correct_impl =
       {
@@ -779,7 +779,7 @@ let exercise : Exercise.spec =
               ];
           };
         caret = Outer;
-        refractors = Haz3lcore.Id.Map.empty;
+        refractors = Haz3lcore.ZipperBase.Refractor.init;
       };
     your_tests =
       {
@@ -1030,7 +1030,7 @@ let exercise : Exercise.spec =
                 ancestors = [];
               };
             caret = Outer;
-            refractors = Haz3lcore.Id.Map.empty;
+            refractors = Haz3lcore.ZipperBase.Refractor.init;
           };
         required = 6;
         provided = 2;
@@ -1208,7 +1208,7 @@ let exercise : Exercise.spec =
             ancestors = [];
           };
         caret = Outer;
-        refractors = Haz3lcore.Id.Map.empty;
+        refractors = Haz3lcore.ZipperBase.Refractor.init;
       };
     hidden_bugs =
       [
@@ -1408,7 +1408,7 @@ let exercise : Exercise.spec =
                   ancestors = [];
                 };
               caret = Outer;
-              refractors = Haz3lcore.Id.Map.empty;
+              refractors = Haz3lcore.ZipperBase.Refractor.init;
             };
           hint = "always returns false";
         };
@@ -1608,7 +1608,7 @@ let exercise : Exercise.spec =
                   ancestors = [];
                 };
               caret = Outer;
-              refractors = Haz3lcore.Id.Map.empty;
+              refractors = Haz3lcore.ZipperBase.Refractor.init;
             };
           hint = "always returns true";
         };
@@ -2398,7 +2398,7 @@ let exercise : Exercise.spec =
                   ancestors = [];
                 };
               caret = Outer;
-              refractors = Haz3lcore.Id.Map.empty;
+              refractors = Haz3lcore.ZipperBase.Refractor.init;
             };
           hint = "incorrect base case";
         };
@@ -3104,7 +3104,7 @@ let exercise : Exercise.spec =
                 ancestors = [];
               };
             caret = Outer;
-            refractors = Haz3lcore.Id.Map.empty;
+            refractors = Haz3lcore.ZipperBase.Refractor.init;
           };
         hints = [ "zero" ];
       };

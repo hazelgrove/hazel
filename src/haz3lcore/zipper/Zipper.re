@@ -18,7 +18,7 @@ let init: unit => t =
       ancestors: [],
     },
     caret: Outer,
-    refractors: Id.Map.empty,
+    refractors: Refractor.init,
   };
 
 let next_blank = _ => Id.mk();
@@ -57,7 +57,7 @@ let unzip = (seg: Segment.t): t => {
     ancestors: [],
   },
   caret: Outer,
-  refractors: Id.Map.empty,
+  refractors: Refractor.init,
 };
 
 let regrout = (d: Direction.t, z: t): t => {

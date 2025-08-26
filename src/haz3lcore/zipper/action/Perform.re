@@ -263,17 +263,23 @@ let go_z =
       let refractors =
         Id.Map.filter(
           (id, _) => !List.mem(id, selection_ids),
-          z.refractors,
+          z.refractors.map,
         );
       Ok({
         ...z,
-        refractors,
+        refractors: {
+          ...z.refractors,
+          map: refractors,
+        },
       });
     }
   | Refractor(InstrumentTerm) =>
     let selection_ids = Selection.selection_ids(z.selection);
     let _selection_ids_with_refractors_on_them =
-      Id.Map.filter((id, _) => List.mem(id, selection_ids), z.refractors)
+      Id.Map.filter(
+        (id, _) => List.mem(id, selection_ids),
+        z.refractors.map,
+      )
       |> Id.Map.bindings
       |> List.map(((id, _)) => id);
     switch (Indicated.index(z)) {

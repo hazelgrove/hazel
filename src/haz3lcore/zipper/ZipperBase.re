@@ -10,12 +10,29 @@ module Refractor = {
     [@deriving (show({with_path: false}), sexp, yojson, eq)]
     type t = Id.Map.t(Base.projector);
   };
+
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type t = {
+    map: Map.t,
+    pinned_term_ids: list(Id.t),
+  };
+
   type mapping = list((Id.t, Id.t));
 
   let mapping = (refractors: Map.t): mapping =>
     refractors
     |> Id.Map.to_list
     |> List.map(((id, p: Base.projector)) => (id, p.id));
+
+  let reverse_mapping = (refractors: Map.t): mapping =>
+    refractors
+    |> Id.Map.to_list
+    |> List.map(((id, p: Base.projector)) => (p.id, id));
+
+  let init = {
+    map: Id.Map.empty,
+    pinned_term_ids: [],
+  };
 };
 
 // assuming single backpack, shards may appear in selection, backpack, or siblings
@@ -25,7 +42,7 @@ type t = {
   relatives: Relatives.t,
   caret,
   /* Like projectors but not replacing syntax */
-  refractors: Refractor.Map.t,
+  refractors: Refractor.t,
 };
 
 let update_relatives = (f: Relatives.t => Relatives.t, z: t): t => {

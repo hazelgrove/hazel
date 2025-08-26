@@ -27,7 +27,7 @@ let exercise : Exercise.spec =
             ancestors = [];
           };
         caret = Outer;
-        refractors = Haz3lcore.Id.Map.empty;
+        refractors = Haz3lcore.ZipperBase.Refractor.init;
       };
     correct_impl =
       {
@@ -49,7 +49,7 @@ let exercise : Exercise.spec =
             ancestors = [];
           };
         caret = Outer;
-        refractors = Haz3lcore.Id.Map.empty;
+        refractors = Haz3lcore.ZipperBase.Refractor.init;
       };
     your_tests =
       {
@@ -73,7 +73,7 @@ let exercise : Exercise.spec =
                 ancestors = [];
               };
             caret = Outer;
-            refractors = Haz3lcore.Id.Map.empty;
+            refractors = Haz3lcore.ZipperBase.Refractor.init;
           };
         required = 0;
         provided = 0;
@@ -98,7 +98,7 @@ let exercise : Exercise.spec =
             ancestors = [];
           };
         caret = Outer;
-        refractors = Haz3lcore.Id.Map.empty;
+        refractors = Haz3lcore.ZipperBase.Refractor.init;
       };
     hidden_bugs = [];
     hidden_tests =
@@ -123,7 +123,7 @@ let exercise : Exercise.spec =
                 ancestors = [];
               };
             caret = Outer;
-            refractors = Haz3lcore.Id.Map.empty;
+            refractors = Haz3lcore.ZipperBase.Refractor.init;
           };
         hints = [];
       };

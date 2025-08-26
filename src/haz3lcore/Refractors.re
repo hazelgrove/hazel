@@ -13,11 +13,14 @@ let mk_probe = (): option(Base.projector) => {
 
 let update_refractors = (f, z: Zipper.t): Zipper.t => {
   ...z,
-  refractors: f(z.refractors),
+  refractors: {
+    ...z.refractors,
+    map: f(z.refractors.map),
+  },
 };
 
 let add' = (id: Id.t, z: Zipper.t): Zipper.t => {
-  switch (Id.Map.find_opt(id, z.refractors)) {
+  switch (Id.Map.find_opt(id, z.refractors.map)) {
   | Some(_) => update_refractors(Id.Map.remove(id), z)
   | None =>
     switch (mk_probe()) {

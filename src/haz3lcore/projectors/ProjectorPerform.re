@@ -154,6 +154,16 @@ let go =
       | Some(focus) => focus(id)
       | None => ()
       };
+      //if in refractors, look up id using reverse_mapping
+      /* TODO: perf */
+      let rmap = ZipperBase.Refractor.reverse_mapping(z.refractors.map);
+      let id =
+        switch (List.assoc_opt(id, rmap)) {
+        | Some(pid) =>
+          print_endline("found in rmap refractors. looking up id");
+          pid;
+        | None => id
+        };
       Ok(Option.value(~default=z, jump_to_id_indicated(z, id)));
     | Some(Right) =>
       /* Focus by arrow key hand-off */
