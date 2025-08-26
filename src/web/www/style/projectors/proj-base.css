@@ -23,7 +23,7 @@
 
 .refractors .projector {
   /* TODO(andrew) */
-  z-index: 1;
+  /* z-index: 1; */
 }
 
 .projector > svg {
