@@ -1,4 +1,5 @@
 open Haz3lcore;
+open Util;
 
 let empty_cell_editor_persistent: unit => CellEditor.Model.persistent =
   () => {
@@ -53,8 +54,8 @@ let find_documentation_slide = (name: string) => {
 
 let default_documentation_slide_name =
     (name: string): CellEditor.Model.persistent => {
-  switch (find_documentation_slide(name)) {
-  | Some(x) => x
-  | None => empty_cell_editor_persistent()
-  };
+  OptUtil.get(
+    () => empty_cell_editor_persistent(),
+    find_documentation_slide(name),
+  );
 };
