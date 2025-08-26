@@ -87,7 +87,7 @@ module Store = {
     type t = Model.persistent;
     let key = Store.Scratch;
     let default = () =>
-      Init.startup.documentation
+      Init.startup.scratch
       |> PairUtil.map_snd(List.map(PairUtil.map_snd(x => Some(x))));
   });
 
