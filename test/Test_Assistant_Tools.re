@@ -52,4 +52,22 @@ let tests_edit_tools = [
   ),
 ];
 
-let tests = [("Edit tools", tests_edit_tools)];
+let tests_nav_tools = [
+  test(
+    ~name="Goto (Simple - V1)",
+    ~init={|let x = 4 in let y = 5¦ in x + y|},
+    ~acts=[Nav(GoToSibling("x", None))],
+    ~goal={|§let x = 4 in¦ let y = 5 in x + y|},
+  ),
+  test(
+    ~name="Goto (Simple - V1)",
+    ~init={|let x = 4 in 3; 5 in let y = 6 in let z = 7¦ in x + y + z|},
+    ~acts=[Nav(GoToSibling("x", None))],
+    ~goal={|§let x = 4 in 3; 5¦|},
+  ),
+];
+
+let tests = [
+  ("Edit tools", tests_edit_tools),
+  ("Nav tools", tests_nav_tools),
+];

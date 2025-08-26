@@ -33,7 +33,6 @@ let is_on_whitespace = (z: Zipper.t): bool => {
 let rec move_to_non_whitespace = (z: Zipper.t): Zipper.t => {
   is_on_whitespace(z)
     ? {
-      print_endline("here here 0.0 move_to_non_whitespace");
       switch (Move.primary(ByChar, Left, z)) {
       | Some(z') => move_to_non_whitespace(z')
       | None => raise(Failure("Couldn't move to non-whitespace"))
