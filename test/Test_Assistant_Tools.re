@@ -50,6 +50,12 @@ let tests_edit_tools = [
     ~acts=[Edit(UpdateDefinition("(foo, 2, bar)"))],
     ~goal={|let x = (foo, 2, bar)¦ in x|},
   ),
+  // test(
+  //   ~name="Update Pattern (Replication V1)",
+  //   ~init="type t = + T in let u : old_t -> ? = ? in¦ ?",
+  //   ~acts=[Edit(UpdatePattern("u : t -> ?"))],
+  //   ~goal="type t = + T in let u : t -> ?¦ = ? in ?",
+  // ),
 ];
 
 let tests_nav_tools = [
@@ -113,6 +119,23 @@ let tests_nav_tools = [
     let x = let b = 3 in let h = 10 in §let b = 4 in¦ b + h in x
     |},
   ),
+  test(
+    ~name="Goto Sibling (Replication V1)",
+    ~init=
+      "type MyOption = + Some(?) + None in let unwrap : Option -> ? = fun x -> case x | Some(v) => v | None => ? end in¦ ?",
+    ~acts=[Nav(GoToSibling("let", Some(0)))],
+    ~goal=
+      "§type MyOption = + Some(?) + None in¦ let unwrap : Option -> ? = fun x -> case x | Some(v) => v | None => ? end in ?",
+  ),
+  // test(
+  //   ~name="Goto Sibling (Replication V2)",
+  //   ~init="type t = + T in let u : old_t -> ? = ? in¦ ?",
+  //   ~acts=[
+  //     Edit(UpdateExpression("let u : t -> ? = ? in")),
+  //     Nav(GoToSibling("t", Some(0))),
+  //   ],
+  //   ~goal="§type t = + T in¦ let u : t -> ? = ? in ?",
+  // ),
 ];
 
 // For testing that we display the proper contents for the assistant
