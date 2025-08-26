@@ -268,10 +268,7 @@ let of_segment =
         switch (hd) {
         | Secondary(w) when Secondary.is_linebreak(w) =>
           let indent =
-            switch (Id.Map.find_opt(w.id, indent_level)) {
-            | Some(indent) => indent
-            | None => 0
-            };
+            Option.value(~default=0, Id.Map.find_opt(w.id, indent_level));
           let num_extra_rows = 1 + consume_deferred_linebreaks();
           let last =
             Point.{
@@ -322,10 +319,7 @@ let of_segment =
           (prev_indent, last, map);
         | Projector(p) =>
           let indent =
-            switch (Id.Map.find_opt(p.id, indent_level)) {
-            | Some(indent) => indent
-            | None => 0
-            };
+            Option.value(~default=0, Id.Map.find_opt(p.id, indent_level));
           let shape = ProjectorCore.Shape.Map.lookup(p.id, shape_map);
           let num_extra_rows =
             switch (shape.vertical) {

@@ -439,10 +439,7 @@ module Expansion = {
     |> List.sort_uniq(compare);
 
   let get = (t: Token.t): (Label.t, Direction.t) =>
-    switch (List.assoc_opt(t, expansions)) {
-    | Some(expansion) => expansion
-    | None => ([t], Right)
-    };
+    Option.value(~default=([t], Right), List.assoc_opt(t, expansions));
 
   let will = kw => List.length(get(kw) |> fst) > 1;
 };

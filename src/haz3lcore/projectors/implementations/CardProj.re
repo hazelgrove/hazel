@@ -249,14 +249,12 @@ module SyntaxTerm = {
     };
 
   let get = (info: info): state =>
-    switch (info.syntax |> info.utility.seg_to_term) {
-    | Some(syntax) =>
-      switch (get_opt(syntax)) {
-      | Some(syntax) => syntax
-      | None => failwith("Cards: Get: not cards")
-      }
-    | None => failwith("Cards: Get: seg_to_term ")
-    };
+    OptUtil.get(
+      () => failwith("Cards: Get: seg_to_term "),
+      info.syntax |> info.utility.seg_to_term,
+    )
+    |> get_opt
+    |> OptUtil.get(() => failwith("Cards: Get: not cards"));
 
   let width_of_syntax = (syntax: state): int =>
     switch (syntax) {

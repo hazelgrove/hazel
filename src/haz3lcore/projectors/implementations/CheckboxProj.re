@@ -21,15 +21,14 @@ module M: Projector = {
     };
 
   let get = (info: info): bool =>
-    switch (
-      info.syntax |> info.utility.seg_to_term |> OptUtil.and_then(bool_of)
-    ) {
-    | Some(b) => b
-    | None => failwith("Checkbox: Get: not boolean literal")
-    };
+    OptUtil.get_or_fail(
+      "Checkbox: Get: not boolean literal",
+      info.syntax |> info.utility.seg_to_term |> OptUtil.and_then(bool_of),
+    );
 
   let toggle = (info): Base.segment =>
-    switch (
+    OptUtil.get_or_fail(
+      "Checkbox: Toggle: lift failed",
       info.utility.lift_syntax(
         fun
         | Exp({term: Atom(Bool(b)), _} as t) =>
@@ -39,11 +38,8 @@ module M: Projector = {
           })
         | _ => failwith("Checkbox: Toggle: not boolean literal"),
         info.syntax,
-      )
-    ) {
-    | Some(s) => s
-    | None => failwith("Checkbox: Toggle: lift failed")
-    };
+      ),
+    );
 
   let focusable = Focusable.non;
   let dynamics = false;
