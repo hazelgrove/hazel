@@ -32,8 +32,8 @@ let printer = (z: Zipper.t): string => {
 let perform = (zip: Zipper.t, actions: list(Action.t)): Zipper.t => {
   /* This is a simplified testing harness for zipper actions.
    * It does not apply any semantics-based behaviors. */
-  let mk_syntax: Zipper.t => Editor.CachedSyntax.t =
-    Editor.CachedSyntax.init(
+  let mk_syntax: Zipper.t => CachedSyntax.t =
+    CachedSyntax.init(
       ~info_map=Language.Statics.Map.empty,
       ~dyn_map=Language.Dynamics.Map.empty,
     );
@@ -46,6 +46,11 @@ let perform = (zip: Zipper.t, actions: list(Action.t)): Zipper.t => {
     Perform.go_z(
       ~settings=Language.CoreSettings.off,
       CachedStatics.empty,
+      CachedSyntax.init(
+        ~info_map=Language.Statics.Map.empty,
+        ~dyn_map=Language.Dynamics.Map.empty,
+        z,
+      ),
       a,
       mk_move(z),
       z,

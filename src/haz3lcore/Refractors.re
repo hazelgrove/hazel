@@ -16,16 +16,19 @@ let update_refractors = (f, z: Zipper.t): Zipper.t => {
   refractors: f(z.refractors),
 };
 
+let add' = (id: Id.t, z: Zipper.t): Zipper.t => {
+  switch (Id.Map.find_opt(id, z.refractors)) {
+  | Some(_) => update_refractors(Id.Map.remove(id), z)
+  | None =>
+    switch (mk_probe()) {
+    | None => z
+    | Some(p) => update_refractors(Id.Map.add(id, p), z)
+    }
+  };
+};
+
 let add = (z: Zipper.t): Zipper.t =>
   switch (Indicated.index(z)) {
   | None => z
-  | Some(id) =>
-    switch (Id.Map.find_opt(id, z.refractors)) {
-    | Some(_) => update_refractors(Id.Map.remove(id), z)
-    | None =>
-      switch (mk_probe()) {
-      | None => z
-      | Some(p) => update_refractors(Id.Map.add(id, p), z)
-      }
-    }
+  | Some(id) => add'(id, z)
   };

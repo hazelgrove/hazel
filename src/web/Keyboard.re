@@ -54,6 +54,7 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "ArrowRight" => now(Select(Resize(Extreme(Right(ByToken)))))
     | "ArrowUp" => now(Select(Resize(Extreme(Up))))
     | "ArrowDown" => now(Select(Resize(Extreme(Down))))
+    | "e" => now(Refractor(InstrumentTerm))
     | _ => None
     }
   | {key: D(key), sys: PC, shift: Down, meta: Up, ctrl: Down, alt: Up} =>
@@ -78,6 +79,7 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "ArrowDown" => now(Move(Extreme(Down)))
     | _ => None
     }
+
   | {key: D(key), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
     switch (key) {
     | "d" => now(Select(Term(Current)))

@@ -55,6 +55,7 @@ let go_z =
     (
       ~settings as _: Language.CoreSettings.t,
       statics: CachedStatics.t,
+      syntax: CachedSyntax.t,
       a: Action.t,
       module M: Move.S,
       z: Zipper.t,
@@ -269,6 +270,27 @@ let go_z =
         refractors,
       });
     }
+  | Refractor(InstrumentTerm) =>
+    let selection_ids = Selection.selection_ids(z.selection);
+    let _selection_ids_with_refractors_on_them =
+      Id.Map.filter((id, _) => List.mem(id, selection_ids), z.refractors)
+      |> Id.Map.bindings
+      |> List.map(((id, _)) => id);
+    switch (Indicated.index(z)) {
+    | Some(id) =>
+      let ids =
+        TermData.get_largest_terminal_term_ids(
+          id,
+          syntax.term_data,
+          syntax.measured,
+        )
+        |> Option.to_list
+        |> List.flatten
+        |> List.filter_map(Fun.id);
+      Ok(List.fold_left((z, id) => Refractors.add'(id, z), z, ids));
+    | None => Ok(z)
+    };
+
   | Dump => Ok(Zipper.try_to_dump_backpack(z))
   };
 };

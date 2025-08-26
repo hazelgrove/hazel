@@ -81,7 +81,8 @@ type paste =
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type refractor =
-  | SetRefProbe;
+  | SetRefProbe
+  | InstrumentTerm;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =
@@ -151,7 +152,7 @@ let is_edit: t => bool =
     | Focus(_)
     | Escape(_) => false
     }
-  | Refractor(SetRefProbe) => true;
+  | Refractor(_) => true;
 
 /* Determines whether undo/redo skips action */
 let is_historic: t => bool =
@@ -179,7 +180,7 @@ let is_historic: t => bool =
     | Focus(_)
     | Escape(_) => false
     }
-  | Refractor(SetRefProbe) => true;
+  | Refractor(_) => true;
 
 let prevent_in_read_only_editor = (a: t) =>
   switch (a) {
@@ -206,7 +207,7 @@ let prevent_in_read_only_editor = (a: t) =>
     | Focus(_)
     | Escape(_) => false
     }
-  | Refractor(SetRefProbe) => false
+  | Refractor(_) => false
   };
 
 /* Currently animations are disabled during drag selection
