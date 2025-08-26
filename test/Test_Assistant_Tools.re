@@ -54,16 +54,44 @@ let tests_edit_tools = [
 
 let tests_nav_tools = [
   test(
-    ~name="Goto (Simple - V1)",
+    ~name="Goto Sibling (Simple - V1)",
     ~init={|let x = 4 in let y = 5¦ in x + y|},
     ~acts=[Nav(GoToSibling("x", None))],
     ~goal={|§let x = 4 in¦ let y = 5 in x + y|},
   ),
   test(
-    ~name="Goto (Simple - V1)",
-    ~init={|let x = 4 in 3; 5 in let y = 6 in let z = 7¦ in x + y + z|},
+    ~name="Goto Sibling (Simple - V2)",
+    ~init={|let x = 4 in let y = 6 in let z = 7¦ in x + y + z|},
     ~acts=[Nav(GoToSibling("x", None))],
-    ~goal={|§let x = 4 in 3; 5¦|},
+    ~goal={|§let x = 4 in¦ let y = 6 in let z = 7 in x + y + z|},
+  ),
+  test(
+    ~name="Goto Parent (Simple - V1)",
+    ~init={|let x = let y = let z = 7¦ in z in y in x|},
+    ~acts=[Nav(GoToParent)],
+    // Goes from 'z' to its parent, 'y'
+    ~goal={|let x = §let y = let z = 7 in z in¦ y in x|},
+  ),
+  test(
+    ~name="Goto Child (Name-Identified - Simple - V1)",
+    ~init={|let x = let a = 3 in let b = 4 in a + b in¦ x|},
+    ~acts=[Nav(GoToChild("b", None))],
+    // Goes from 'x' to its child, 'b'
+    ~goal={|let x = let a = 3 in §let b = 4 in¦ a + b in x|},
+  ),
+  test(
+    ~name="Goto Child (Index-Identified - Shadowed-Case - V1)",
+    ~init={|let x = let b = 3 in let b = 4 in b in¦ x|},
+    ~acts=[Nav(GoToChild("b", Some(0)))],
+    // Goes from 'x' to its child, 'b'
+    ~goal={|let x = §let b = 3 in¦ let b = 4 in b in x|},
+  ),
+  test(
+    ~name="Goto Child (Index-Identified - Shadowed-Case - V2)",
+    ~init={|let x = let b = 3 in let b = 4 in b in¦ x|},
+    ~acts=[Nav(GoToChild("b", Some(1)))],
+    // Goes from 'x' to its child, 'b'
+    ~goal={|let x = let b = 3 in §let b = 4 in¦ b in x|},
   ),
 ];
 
