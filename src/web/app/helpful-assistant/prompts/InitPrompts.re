@@ -8,12 +8,12 @@ let get_documentation_as_text = () => {
          (
            (
              s: string,
-             optional_persisent: option(CellEditor.Model.persistent),
+             optional_persistent: option(CellEditor.Model.persistent),
            ),
          ) => {
          (
            s,
-           switch (optional_persisent) {
+           switch (optional_persistent) {
            | Some(persistent) => persistent
            | None =>
              switch (Init.find_documentation_slide(s)) {
