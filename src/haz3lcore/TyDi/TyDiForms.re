@@ -129,10 +129,7 @@ module Delims = {
          List.filter_map(
            (m: Mold.t) =>
              m.out == sort && Mold.is_infix_op(m) ? Some(token) : None,
-           switch (Form.Molds.compound([token])) {
-           | Some(molds) => molds
-           | None => []
-           },
+           Form.Molds.compound([token]) |> Option.value(~default=[]),
          )
        })
     |> List.flatten

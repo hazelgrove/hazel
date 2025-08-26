@@ -236,15 +236,10 @@ module Make = (M: S) => {
   let jump_to_side_of_id = (d: Direction.t, z, id): option(t) => {
     let jump_to_left_of_id = (z: t, id: Id.t): option(t) => {
       let* {origin, _} = Measured.find_by_id(id, M.measured);
-      let z =
-        switch (to_start(z)) {
-        | None => z
-        | Some(z) => z
-        };
-      switch (do_towards(primary(ByChar), origin, z)) {
-      | None => Some(z)
-      | Some(z) => Some(z)
-      };
+      let z = Option.value(~default=z, to_start(z));
+      do_towards(primary(ByChar), origin, z)
+      |> Option.value(~default=z)
+      |> Option.some;
     };
     let+ z = jump_to_left_of_id(z, id);
     switch (d) {
@@ -263,21 +258,15 @@ module Make = (M: S) => {
    * always results in the token being indicated  */
   let jump_to_id_indicated = (z: t, id: Id.t): option(t) => {
     let* {origin, _} = Measured.find_by_id(id, M.measured);
+    let z = Option.value(~default=z, to_start(z));
     let z =
-      switch (to_start(z)) {
-      | None => z
-      | Some(z) => z
-      };
-    switch (do_towards(primary(ByChar), origin, z)) {
-    | None => Some(z)
-    | Some(z) =>
-      switch (Indicated.index(z)) {
-      | Some(indicated_id) when id == indicated_id => Some(z)
-      | _ =>
-        switch (primary(ByToken, Right, z)) {
-        | Some(z) => Some(z)
-        | None => Some(z)
-        }
+      do_towards(primary(ByChar), origin, z) |> Option.value(~default=z);
+    switch (Indicated.index(z)) {
+    | Some(indicated_id) when id == indicated_id => Some(z)
+    | _ =>
+      switch (primary(ByToken, Right, z)) {
+      | Some(z) => Some(z)
+      | None => Some(z)
       }
     };
   };

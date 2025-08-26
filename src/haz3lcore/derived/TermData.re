@@ -30,10 +30,8 @@ let extremes_opt = (id: Id.t, data: t) =>
   };
 
 let extreme_ids = (id: Id.t, data: t): option((Id.t, Id.t)) =>
-  switch (extremes_opt(id, data)) {
-  | Some((l, r)) => Some((Piece.id(l), Piece.id(r)))
-  | None => None
-  };
+  extremes_opt(id, data)
+  |> Option.map(((l, r)) => (Piece.id(l), Piece.id(r)));
 
 let extreme_measures = (id: Id.t, data: t, measured: Measured.t) =>
   switch (extremes_opt(id, data)) {

@@ -2,6 +2,7 @@
 
 (library
  (name pretty)
+ (libraries util)
  (instrumentation
   (backend bisect_ppx)))
 

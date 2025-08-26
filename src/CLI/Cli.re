@@ -1,4 +1,5 @@
 open Cmdliner;
+open Util;
 
 /* Read from stdin or file depending on argument */
 let read_input = path => {
@@ -11,10 +12,8 @@ let read_input = path => {
 };
 
 let parse_program = (s: string) =>
-  switch (Haz3lcore.Parser.to_term(s)) {
-  | Some(e) => e
-  | None => failwith("Failed to parse expression: " ++ s)
-  };
+  Haz3lcore.Parser.to_term(s)
+  |> OptUtil.get(() => failwith("Failed to parse expression: " ++ s));
 
 let run_hazel = path => {
   let program = read_input(path);

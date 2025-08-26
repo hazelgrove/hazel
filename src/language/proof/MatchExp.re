@@ -315,10 +315,7 @@ let substitute_exp = (sub: match_ctx, exp: Exp.t): Exp.t =>
         switch (exp |> Exp.term_of) {
         // TODO[Matt]: flesh out with capture avoidance etc...
         | Var(x) when match_ctx_has(sub, x) =>
-          switch (List.assoc(x, sub)) {
-          | None => exp
-          | Some(e) => e
-          }
+          Option.value(~default=exp, List.assoc(x, sub))
         | _ => cont(exp)
         },
     exp,

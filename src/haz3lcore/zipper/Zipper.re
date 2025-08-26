@@ -225,11 +225,7 @@ let neighbor_shards = (z: t): (option(Token.t), option(Token.t)) => (
 let adj_pos = (d: Direction.t, z: t): t =>
   switch (d) {
   | Left => z
-  | Right =>
-    switch (move(Left, z)) {
-    | None => z
-    | Some(z) => z
-    }
+  | Right => Option.value(~default=z, move(Left, z))
   };
 
 let put_down_core = (seg: Segment.t, z: t): t =>
@@ -472,10 +468,7 @@ let try_to_dump_backpack = (z: t) =>
         | Some(z_new) => move_until_cant_put_down(z, z_new)
         };
       } else if (is_linebreak_to_right_of_caret(z)) {
-        switch (move(Right, z)) {
-        | None => z
-        | Some(z_new) => z_new
-        };
+        Option.value(~default=z, move(Right, z));
       } else {
         z_last;
       };

@@ -39,10 +39,8 @@ let sequence = (l: list(option('a))): option(list('a)) =>
 let and_then = (f, o) => Option.bind(o, f);
 
 let replace = (f: 'a => option('a), o: 'a): 'a =>
-  switch (f(o)) {
-  | Some(a) => a
-  | None => o
-  };
+  f(o) |> Option.value(~default=o);
+
 let fold_left_opt:
   type a acc. ((acc, a) => option(acc), list(a), acc) => option(acc) =
   (f, list, init) => {

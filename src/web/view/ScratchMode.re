@@ -49,10 +49,10 @@ module Store = {
 
   let integrate_share = (model: t): t => {
     let share_name =
-      switch (JsUtil.QueryParams.get_param("name")) {
-      | None => "Unknown Share"
-      | Some(name) => name
-      };
+      Option.value(
+        ~default="Unknown Share",
+        JsUtil.QueryParams.get_param("name"),
+      );
     switch (JsUtil.QueryParams.get_param("share"), model) {
     | (None, _) => model
     | (Some(data), (_current, scratchpads)) =>

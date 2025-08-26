@@ -27,11 +27,7 @@ let group_by = (key: 'x => 'k, xs: list('x)): list(('k, list('x))) =>
   List.fold_left(
     (grouped, x) => {
       let k = key(x);
-      let k_group =
-        switch (List.assoc_opt(k, grouped)) {
-        | None => []
-        | Some(xs) => xs
-        };
+      let k_group = List.assoc_opt(k, grouped) |> Option.value(~default=[]);
       [(k, [x, ...k_group]), ...List.remove_assoc(k, grouped)];
     },
     [],
@@ -150,11 +146,10 @@ let split_n_opt = (n: int, xs: list('x)): option((list('x), list('x))) => {
 
 // TODO unify with ListFrame
 let split_n = (n: int, xs: list('x)): (list('x), list('x)) =>
-  switch (split_n_opt(n, xs)) {
-  | None =>
-    raise(Invalid_argument("ListUtil.split_n: " ++ string_of_int(n)))
-  | Some(r) => r
-  };
+  split_n_opt(n, xs)
+  |> OptUtil.get(() =>
+       raise(Invalid_argument("ListUtil.split_n: " ++ string_of_int(n)))
+     );
 
 /**
  * Returns sublist from index i (inclusive)
@@ -176,18 +171,17 @@ let split_sublist_opt =
 };
 let split_sublist =
     (i: int, j: int, xs: list('x)): (list('x), list('x), list('x)) =>
-  switch (split_sublist_opt(i, j, xs)) {
-  | None =>
-    raise(
-      Invalid_argument(
-        "ListUtil.split_sublist: "
-        ++ string_of_int(i)
-        ++ ", "
-        ++ string_of_int(j),
-      ),
-    )
-  | Some(r) => r
-  };
+  split_sublist_opt(i, j, xs)
+  |> OptUtil.get(() =>
+       raise(
+         Invalid_argument(
+           "ListUtil.split_sublist: "
+           ++ string_of_int(i)
+           ++ ", "
+           ++ string_of_int(j),
+         ),
+       )
+     );
 let sublist = ((i, j), xs: list('x)): list('x) => {
   let (_, sublist, _) = split_sublist(i, j, xs);
   sublist;
@@ -205,11 +199,10 @@ let rec split_nth_opt = (n, xs) =>
        )
   };
 let split_nth = (n, xs) =>
-  switch (split_nth_opt(n, xs)) {
-  | None =>
-    raise(Invalid_argument("ListUtil.split_nth: " ++ string_of_int(n)))
-  | Some(r) => r
-  };
+  split_nth_opt(n, xs)
+  |> OptUtil.get(() =>
+       raise(Invalid_argument("ListUtil.split_nth: " ++ string_of_int(n)))
+     );
 
 let rec put_nth = (n: int, x: 'x, xs: list('x)): list('x) =>
   switch (n, xs) {
@@ -238,10 +231,8 @@ let rec split_last_opt = (xs: list('x)): option((list('x), 'x)) =>
 // let last_opt = xs => xs |> split_last_opt |> Option.map(snd);
 
 let split_last = (xs: list('x)): (list('x), 'x) =>
-  switch (split_last_opt(xs)) {
-  | None => raise(Invalid_argument("ListUtil.split_last"))
-  | Some(r) => r
-  };
+  split_last_opt(xs)
+  |> OptUtil.get(() => raise(Invalid_argument("ListUtil.split_last")));
 let leading = xs => fst(split_last(xs));
 let last = xs => snd(split_last(xs));
 let last_opt = xs => {
@@ -482,10 +473,7 @@ let init_fold: (int, 'b, (int, 'b) => ('b, 'a)) => ('b, list('a)) =
   };
 
 let assoc_err = (x, xs, err: string) =>
-  switch (List.assoc_opt(x, xs)) {
-  | None => failwith(err)
-  | Some(y) => y
-  };
+  List.assoc_opt(x, xs) |> OptUtil.get(() => failwith(err));
 
 let update_assoc = ((k, v)) =>
   List.map(((k', v')) => k == k' ? (k, v) : (k', v'));
@@ -684,10 +672,7 @@ let take = (n, xs) => {
 };
 
 let take_up_to_n = (n: int, xs: list('a)): list('a) =>
-  switch (split_n_opt(n, xs)) {
-  | Some((xs, _)) => xs
-  | None => xs
-  };
+  split_n_opt(n, xs) |> Option.map(fst) |> Option.value(~default=xs);
 
 /* Move the first element equal to x to the front of the list */
 let lift = (x: 'a, xs: list('a)): list('a) =>

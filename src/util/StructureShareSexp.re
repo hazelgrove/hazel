@@ -32,10 +32,10 @@ let structure_share_here =
     | Some(m) =>
       let id = Id.t_of_sexp(sexp);
       let thing_s =
-        switch (Id.Map.find_opt(id, m)) {
-        | Some(t) => t
-        | None => failwith("structure-sharing deserialization failed")
-        };
+        Id.Map.find_opt(id, m)
+        |> OptUtil.get(_ =>
+             failwith("structure-sharing deserialization failed")
+           );
       t_of_sexp(thing_s);
     | None => t_of_sexp(sexp)
     };

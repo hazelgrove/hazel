@@ -48,8 +48,5 @@ module Map = {
   let empty: t = Id.Map.empty;
 
   let lookup = (id: Id.t, shape_map: t): shape =>
-    switch (Id.Map.find_opt(id, shape_map)) {
-    | None => inline(0) //TODO: error reporting
-    | Some(shape) => shape
-    };
+    Id.Map.find_opt(id, shape_map) |> Option.value(~default=inline(0)); // TODO error reporting
 };

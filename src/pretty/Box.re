@@ -1,3 +1,5 @@
+open Util;
+
 [@deriving sexp]
 type t('annot) =
   | Text(string)
@@ -8,19 +10,18 @@ type t('annot) =
 module Make = (MemoTbl: MemoTbl.S) => {
   let height_tbl: MemoTbl.t(t(unit), int) = MemoTbl.mk();
   let rec height = (box: t('annot)) =>
-    switch (MemoTbl.get(height_tbl, Obj.magic(box))) {
-    | Some(h) => h
-    | None =>
-      let h =
-        switch (box) {
-        | Text(_) => 1
-        | Annot(_, b) => height(b)
-        | HBox(bs) => bs |> List.map(height) |> List.fold_left(max, 1) // Note: 1 is HBox([]) height
-        | VBox(bs) => bs |> List.map(height) |> List.fold_left((+), 0)
-        };
-      MemoTbl.set(height_tbl, Obj.magic(box), h);
-      h;
-    };
+    MemoTbl.get(height_tbl, Obj.magic(box))
+    |> OptUtil.get(() => {
+         let h =
+           switch (box) {
+           | Text(_) => 1
+           | Annot(_, b) => height(b)
+           | HBox(bs) => bs |> List.map(height) |> List.fold_left(max, 1) // Note: 1 is HBox([]) height
+           | VBox(bs) => bs |> List.map(height) |> List.fold_left((+), 0)
+           };
+         MemoTbl.set(height_tbl, Obj.magic(box), h);
+         h;
+       });
 
   // Note: annots are inside-out (i.e. List.hd(annots) is the inner-most annot)
   let rec annot = (annots: list('annot), box: t('annot)): t('annot) => {
