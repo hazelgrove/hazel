@@ -480,7 +480,12 @@ module View = {
                    Settings.of_core(~inline=false, globals.settings.core),
                )
              )
-          |> CodeViewable.view_segment(~globals, ~sort=Exp, ~shape_map);
+          |> CodeViewable.view_segment(
+               ~globals,
+               ~sort=Exp,
+               ~shape_map,
+               ~refractor_shape_map=Id.Map.empty,
+             );
         | None => text("No elaboration found")
         },
       ];

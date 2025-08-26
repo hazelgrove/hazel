@@ -12,6 +12,7 @@ let view =
       ~buffer_ids,
       ~segment,
       ~shape_map,
+      ~refractor_shape_map,
       ~sort as _,
     )
     : Node.t => {
@@ -20,6 +21,7 @@ let view =
       ~measured,
       ~settings=globals.settings,
       ~shape_map,
+      ~refractor_shape_map,
       ~font_metrics=globals.font_metrics,
       ~term_data,
       ~buffer_ids,
@@ -32,24 +34,27 @@ let view_segment =
     (
       ~globals: Globals.t,
       ~shape_map: ProjectorCore.Shape.Map.t,
+      ~refractor_shape_map: Id.Map.t(int),
       ~sort: Sort.t,
       segment: Segment.t,
     ) =>
   view(
     ~globals,
-    ~measured=Measured.of_segment(segment, shape_map),
+    ~measured=Measured.of_segment(segment, shape_map, refractor_shape_map),
     ~term_data=Id.Map.empty, //TODO,
     ~buffer_ids=[],
     ~segment,
     ~sort,
     ~shape_map,
+    ~refractor_shape_map,
   );
 
 let view_typ = (~globals: Globals.t, ~settings, typ: Language.Typ.t) => {
   let shape_map = ProjectorCore.Shape.Map.empty; // assume no projectors
+  let refractor_shape_map = Id.Map.empty;
   typ
   |> ExpToSegment.typ_to_segment(~settings)
-  |> view_segment(~shape_map, ~globals, ~sort=Typ);
+  |> view_segment(~shape_map, ~globals, ~sort=Typ, ~refractor_shape_map);
 };
 
 let view_any = (~globals: Globals.t, ~settings, any: Language.Any.t) => {

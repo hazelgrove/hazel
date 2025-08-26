@@ -53,6 +53,7 @@ let print =
           Measured.of_segment(
             editor.editor.syntax.segment,
             editor.editor.syntax.shape_map,
+            Id.Map.empty,
           )
           |> ignore;
         }
@@ -84,6 +85,7 @@ let print =
             ~font_metrics=FontMetrics.init,
             ~term_data=Id.Map.empty,
             ~buffer_ids=[],
+            ~refractor_shape_map=Id.Map.empty,
             editor.editor.syntax.segment,
           )
           |> ignore;

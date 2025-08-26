@@ -198,9 +198,10 @@ let simple_code = (~background=false, font_metrics, _sort, segment): Node.t => {
   let shape_map = ProjectorCore.Shape.Map.empty; /* Assume this doesn't contain projectors */
   let code =
     Code.view(
-      ~measured=Measured.of_segment(segment, shape_map),
+      ~measured=Measured.of_segment(segment, shape_map, Id.Map.empty),
       ~settings=Settings.Model.init,
       ~shape_map,
+      ~refractor_shape_map=Id.Map.empty,
       ~font_metrics,
       ~term_data=Id.Map.empty,
       ~buffer_ids=[],

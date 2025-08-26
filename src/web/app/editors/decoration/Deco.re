@@ -196,9 +196,11 @@ module HighlightSegment =
 
 let quick_select_deco = (segment: Segment.t): Node.t => {
   let shape_map = ProjectorCore.Shape.Map.empty; // assume no projectors
+  let refractor_shape_map = Id.Map.empty;
   module Highlight =
     HighlightSegment({
-      let measured = Measured.of_segment(segment, shape_map);
+      let measured =
+        Measured.of_segment(segment, shape_map, refractor_shape_map);
       let shape_map = shape_map;
       let font_metrics =
         FontMetrics.{

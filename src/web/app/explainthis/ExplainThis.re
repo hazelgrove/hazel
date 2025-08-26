@@ -280,6 +280,7 @@ let expander_deco =
                     ~globals,
                     ~sort=Exp,
                     ~shape_map=ProjectorCore.Shape.Map.empty, // Assume no projectors
+                    ~refractor_shape_map=Id.Map.empty,
                     segment,
                   );
                 let classes =

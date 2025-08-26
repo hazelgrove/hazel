@@ -90,7 +90,8 @@ let view_any = (~globals, any: Term.Any.t) =>
   |> CodeViewable.view_any(
        ~globals,
        ~settings=code_view_settings,
-       ~shape_map=Haz3lcore.ProjectorCore.Shape.Map.empty // assume no projectors
+       ~shape_map=Haz3lcore.ProjectorCore.Shape.Map.empty, // assume no projectors
+       ~refractor_shape_map=Haz3lcore.Id.Map.empty,
      )
   |> code_box_container;
 

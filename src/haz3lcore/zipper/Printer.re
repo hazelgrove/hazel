@@ -8,7 +8,7 @@ let remove_projector: Piece.t => Segment.t =
 let measured_no_projectors = (segment: Segment.t) =>
   segment
   |> ZipperBase.MapPiece.of_segment(remove_projector)
-  |> Measured.of_segment(_, ProjectorCore.Shape.Map.empty);
+  |> Measured.of_segment(_, ProjectorCore.Shape.Map.empty, Id.Map.empty);
 
 let insert_string = (s: string, point: Point.t, rows: list(string)) => {
   switch (ListUtil.split_nth_opt(point.row, rows)) {

@@ -256,6 +256,7 @@ let of_segment =
       ~indent_level=Id.Map.empty,
       seg: Segment.t,
       shape_map: Id.Map.t(ProjectorCore.Shape.t),
+      refractor_shape_map: Id.Map.t(int),
     )
     : t => {
   module DeferredLinebreaks = MkDeferredLinebreaks();
@@ -362,11 +363,17 @@ let of_segment =
     | Grout(g) => add_grout(acc, g)
     | Projector(p) => add_projector(acc, p)
     | Tile(t) =>
+      switch (Id.Map.find_opt(t.id, refractor_shape_map)) {
+      | Some(_) =>
+        DeferredLinebreaks.update(2) |> ignore;
+        ();
+      | None => ()
+      };
       Aba.fold_left(
         add_shard(acc, t),
         (acc, seg) => add_shard(go(~top_level=false, acc, seg), t),
         Aba.mk(t.shards, t.children),
-      )
+      );
     };
   let (_, _, _, map) = go(~top_level=true, ([], 0, Point.zero, empty), seg);
   map;
