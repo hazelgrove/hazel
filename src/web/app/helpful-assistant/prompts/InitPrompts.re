@@ -15,11 +15,7 @@ let get_documentation_as_text = () => {
            s,
            switch (optional_persistent) {
            | Some(persistent) => persistent
-           | None =>
-             switch (Init.find_documentation_slide(s)) {
-             | Some(x) => x
-             | None => Init.empty_cell_editor_persistent()
-             }
+           | None => Init.default_documentation_slide_name(s)
            },
          )
        })

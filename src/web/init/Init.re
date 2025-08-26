@@ -50,3 +50,11 @@ let find_documentation_slide = (name: string) => {
   |> List.find_opt(((n, _)) => n == name)
   |> Option.map(snd);
 };
+
+let default_documentation_slide_name =
+    (name: string): CellEditor.Model.persistent => {
+  switch (find_documentation_slide(name)) {
+  | Some(x) => x
+  | None => empty_cell_editor_persistent()
+  };
+};
