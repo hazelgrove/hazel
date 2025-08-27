@@ -223,13 +223,13 @@ module View = {
       | {shift: Down, _} =>
         Effect.Many([
           signal(MakeActive),
-          inject(Perform(Select(Resize(Goal(Point(loc(mouse))))))),
+          inject(Perform(Select(Resize(Spatial(Point(loc(mouse))))))),
         ])
       | {sys: PC, ctrl: Down, _}
       | {sys: Mac, meta: Down, _} =>
         Effect.Many([
           signal(MakeActive),
-          inject(Perform(Move(Goal(Point(loc(mouse)))))),
+          inject(Perform(Move(Spatial(Point(loc(mouse)))))),
           inject(Perform(Jump(BindingSiteOfIndicatedVar))),
         ])
       | {button: Left, _} =>
@@ -243,7 +243,7 @@ module View = {
           PointerCapture.set(mouse.current_target, pointer_id);
           Effect.Many([
             signal(MakeActive),
-            inject(Perform(Move(Goal(Point(loc(mouse)))))),
+            inject(Perform(Move(Spatial(Point(loc(mouse)))))),
           ]);
         | 2 => inject(Perform(Select(Smart(2))))
         | 3 => inject(Perform(Select(Smart(3))))
@@ -261,7 +261,7 @@ module View = {
     let drag_select = (pointer: Pointer.Event.t) =>
       switch (pointer) {
       | {button: Left, _} when MouseState.is_button_down() =>
-        inject(Perform(Select(Resize(Goal(Point(loc(pointer)))))))
+        inject(Perform(Select(Resize(Spatial(Point(loc(pointer)))))))
       | _ => Effect.Ignore
       };
 

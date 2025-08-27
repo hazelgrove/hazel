@@ -2,6 +2,14 @@ open Util;
 open Zipper;
 open Language;
 
+module State = {
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type t = {
+    zipper: Zipper.t,
+    col_target: option(int),
+  };
+};
+
 let buffer_clear = (z: t): t =>
   switch (z.selection.mode) {
   | Buffer(Unparsed) => {
@@ -54,15 +62,12 @@ let paste_segment = (z: Zipper.t, segment: Segment.t): Zipper.t => {
 let go_z =
     (
       ~settings as _: Language.CoreSettings.t,
-      statics: CachedStatics.t,
+      ~statics: CachedStatics.t,
+      ~syntax: CachedSyntax.t,
       a: Action.t,
-      module M: Move.S,
-      z: Zipper.t,
+      {zipper: z, col_target}: State.t,
     )
     : Action.Result.t(Zipper.t) => {
-  module MoveM = Move.Make(M);
-  module SelectM = Select.Make(M);
-
   let buffer_accept = (z): option(Zipper.t) =>
     switch (z.selection.mode) {
     | Normal => None
@@ -91,21 +96,6 @@ let go_z =
       }
     };
 
-  let smart_select = (n, z: t): option(Zipper.t) => {
-    switch (n) {
-    | 2 => Select.indicated_token(z)
-    | 3 =>
-      open OptUtil.Syntax;
-      /* For things where triple-clicking would otherwise have
-       * no additional effect, select the parent term instead */
-      let* (p, _, _) = Indicated.piece''(z);
-      Piece.is_term(p)
-        ? SelectM.parent_of_indicated(z, statics.info_map)
-        : SelectM.current_term(~defs_exclude_bodies=true, ~case_rules=true, z);
-    | _ => None
-    };
-  };
-
   switch (a) {
   | Paste(String(clipboard)) =>
     switch (paste(z, clipboard)) {
@@ -113,7 +103,12 @@ let go_z =
     | Some(z) => Ok(z)
     }
   | Introduce =>
-    SelectM.current_term(~defs_exclude_bodies=false, ~case_rules=false, z)
+    Select.current_term(
+      syntax.term_data,
+      ~defs_exclude_bodies=false,
+      ~case_rules=false,
+      z,
+    )
     |> Option.bind(_, Introduce.introduce(statics.info_map, _))
     |> Result.of_option(~error=Action.Failure.CantIntroduce)
   | Paste(Segment(segment)) => Ok(paste_segment(z, segment))
@@ -152,12 +147,22 @@ let go_z =
     ProjectorPerform.go(
       Move.jump_to_id_indicated,
       Move.jump_to_side_of_id,
-      SelectM.current_term(~defs_exclude_bodies=false, ~case_rules=false),
+      Select.current_term(
+        syntax.term_data,
+        ~defs_exclude_bodies=false,
+        ~case_rules=false,
+      ),
       a,
       z,
     )
   | Move(d) =>
-    MoveM.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_move)
+    Move.go(
+      ~col_target=col_target |> Option.value(~default=0),
+      ~measured=syntax.measured,
+      d,
+      z,
+    )
+    |> Result.of_option(~error=Action.Failure.Cant_move)
   | Jump(jump_target) =>
     (
       switch (jump_target) {
@@ -173,57 +178,56 @@ let go_z =
     |> Result.of_option(~error=Action.Failure.Cant_move)
   | Unselect(Some(d)) => Ok(Zipper.directional_unselect(d, z))
   | Unselect(None) => Ok(Zipper.unselect(z))
-  | Select(All) =>
-    let z =
-      switch (
-        MoveM.do_towards_goal(
-          Move.primary(ByToken),
-          MoveM.extreme_goal(Up, z),
-          z,
-        )
-      ) {
-      | Some(z) => z
-      | None => z
-      };
-    switch (SelectM.go(Extreme(Down), z)) {
+  | Select(Resize(d)) =>
+    switch (
+      Select.resize(
+        ~col_target=col_target |> Option.value(~default=0),
+        ~measured=syntax.measured,
+        d,
+        z,
+      )
+    ) {
+    | None => Ok(z)
     | Some(z) => Ok(z)
-    | None => Error(Action.Failure.Cant_select)
-    };
+    }
+  | Select(All) =>
+    let z = Move.do_to_extreme(Move.primary(ByToken, Left), z);
+    Ok(Move.do_to_extreme(Select.primary(Right), z));
   | Select(Term(Current)) =>
     switch (
-      SelectM.current_term(~defs_exclude_bodies=true, ~case_rules=true, z)
+      Select.current_term(
+        syntax.term_data,
+        ~defs_exclude_bodies=true,
+        ~case_rules=true,
+        z,
+      )
     ) {
     | None => Error(Cant_select)
     | Some(z) => Ok(z)
     }
   | Select(Smart(n)) =>
-    switch (smart_select(n, z)) {
+    switch (Select.smart(syntax.term_data, statics.info_map, n, z)) {
     | None => Error(Cant_select)
     | Some(z) => Ok(z)
     }
   | Select(Term(Id(id, d))) =>
-    switch (SelectM.term(id, z)) {
+    switch (Select.term(syntax.term_data, id, z)) {
     | Some(z) =>
       let z = d == Right ? z : Zipper.toggle_focus(z);
       Ok(z);
     | None => Error(Action.Failure.Cant_select)
     }
   | Select(Tile(Current)) =>
-    switch (SelectM.current_tile(z)) {
+    switch (Select.current_tile(syntax.term_data, z)) {
     | None => Error(Cant_select)
     | Some(z) => Ok(z)
     }
   | Select(Tile(Id(id, d))) =>
-    switch (SelectM.tile(id, z)) {
+    switch (Select.tile(syntax.term_data, id, z)) {
     | Some(z) =>
       let z = d == Right ? z : Zipper.toggle_focus(z);
       Ok(z);
     | None => Error(Action.Failure.Cant_select)
-    }
-  | Select(Resize(d)) =>
-    switch (SelectM.go(d, z)) {
-    | None => Ok(z)
-    | Some(z) => Ok(z)
     }
   | Select(ToggleFocus) => Ok(Zipper.toggle_focus(z))
   | Select(SetFocus(d)) => Ok(Zipper.set_focus(z, d))

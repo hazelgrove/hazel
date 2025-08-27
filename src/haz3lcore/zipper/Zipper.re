@@ -22,25 +22,6 @@ let init: unit => t =
 
 let next_blank = _ => Id.mk();
 
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
-type chunkiness =
-  | ByChar
-  | ByToken;
-
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
-type planar =
-  | Up
-  | Down
-  | Left(chunkiness)
-  | Right(chunkiness);
-
-let from_plane: planar => Direction.t =
-  fun
-  | Left(_) => Left
-  | Right(_) => Right
-  | Up => Left
-  | Down => Right;
-
 let delete_parent = (z: t): t => {
   ...z,
   relatives: Relatives.delete_parent(z.relatives),

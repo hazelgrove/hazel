@@ -169,91 +169,131 @@ let parent_id = (z: Zipper.t, info_map) => {
   };
 };
 
-module Make = (M: Move.S) => {
-  module MoveM = Move.Make(M);
-
-  let vertical = (d: Direction.t, ed: Zipper.t): option(Zipper.t) =>
-    MoveM.do_vertical(primary, d, ed);
-
-  let go = (d: Action.move, z: Zipper.t) =>
-    switch (d) {
-    | Goal(Hole(_)) => failwith("Select.go not implemented for hole goal")
-    | Goal(Point(goal)) =>
-      let anchor = z |> Zipper.toggle_focus |> Zipper.Caret.point(M.measured);
-      MoveM.do_towards_goal(~anchor, primary, goal, z);
-    | Extreme(d) =>
-      MoveM.do_towards_goal(primary, MoveM.extreme_goal(d, z), z)
-    | Local(d) =>
-      /* Note: Don't update target on vertical selection */
-      switch (d) {
-      | Left(_) => primary(Left, z)
-      | Right(_) => primary(Right, z)
-      | Up => vertical(Left, z)
-      | Down => vertical(Right, z)
-      }
+let shard_range = (l: Piece.t, r: Piece.t, z: Zipper.t): option(Zipper.t) => {
+  let pl = neighbors =>
+    switch (neighbors) {
+    | (_, Some(piece)) => piece == l
+    | _ => false
     };
-
-  let range = (l: Id.t, r: Id.t, z: Zipper.t): option(Zipper.t) => {
-    let* z = Move.jump_to_side_of_id(Left, z, l);
-    let* Measured.{last, _} = Measured.find_by_id(r, M.measured);
-    MoveM.do_towards_goal(Zipper.select, last, z);
-  };
-
-  let tile = (id: Id.t, z: Zipper.t): option(Zipper.t) => {
-    let* z = Move.jump_to_side_of_id(Left, z, id);
-    let* Measured.{last, _} = Measured.find_by_id(id, M.measured);
-    MoveM.do_towards_goal(primary, last, z);
-  };
-
-  let current_tile = z => {
-    let* id = Indicated.index(z);
-    tile(id, z);
-  };
-
-  let term = (id: Id.t, z: Zipper.t): option(Zipper.t) => {
-    let* (l, r) = TermData.extreme_ids(id, M.term_data);
-    range(l, r, z);
-  };
-
-  let containing_rule = z => {
-    let* z = current_tile(z);
-    let* z = grow_right_until_case_or_rule(z);
-    // shrink_left_until_not_case_or_rule_or_space(z);
-    Some(z);
-  };
-
-  /* Select the currently indicated term. Optionally, we can consider
-   * definitions to not include their bodies, and we can consider case
-   * rules as separate pseudo-terms. */
-  let current_term =
-      (~defs_exclude_bodies: bool, ~case_rules: bool, z: Zipper.t) => {
-    let* (p, _, _) = Indicated.piece''(z);
-    switch (p) {
-    | Tile({label: ["let" | "type", ..._], _}) when defs_exclude_bodies =>
-      current_tile(z)
-    | Tile({label: ["|", "=>"], _}) when case_rules => containing_rule(z)
-    | _ =>
-      let* id = current_term_id(z);
-      term(id, z);
+  let pr = neighbors =>
+    switch (neighbors) {
+    | (Some(piece), _) => piece == r
+    | _ => false
     };
-  };
+  let* z =
+    pl(Zipper.generalized_neighbors(z))
+      ? Some(z) : Move.do_until(Move.primary(ByToken, Left), pl, z);
+  Move.do_until(primary(Right), pr, z);
+};
 
-  let parent_of_indicated = (z: Zipper.t, info_map) => {
-    let* id = parent_id(z, info_map);
-    let* z' = Move.jump_to_id_indicated(z, id);
-    /* Annoying special case here: In general when selecting the parent term
-     * we can just use the current term logic, for which we're using the option
-     * that definitions count as 'pseudo-terms', meaning their bodies won't be
-     * selected. But if the indicated term is the body of a definition, this
-     * would result in the parent selection excluding that body, which feels
-     * very weird. Take care in refactoring this, as it's very easy to miss
-     * this case, or to overgeneralize this case (note in particular that
-     * the name and def terms of a def should not exhibit this behavior,
-     * only the body. */
-    switch (def_body_indicated(z, info_map)) {
-    | Some(_) =>
-      current_term(~defs_exclude_bodies=false, ~case_rules=true, z')
-    | None => current_term(~defs_exclude_bodies=true, ~case_rules=true, z')
-    };
+let term = (term_data: TermData.t, id: Id.t, z: Zipper.t): option(Zipper.t) => {
+  let* (l, r) = TermData.extremes_shards(id, term_data);
+  shard_range(l, r, z);
+};
+
+let tile = (term_data: TermData.t, id: Id.t, z: Zipper.t): option(Zipper.t) => {
+  let* (l, r) = TermData.root_shards(id, term_data);
+  shard_range(l, r, z);
+};
+
+let current_tile = (term_data: TermData.t, z: Zipper.t): option(Zipper.t) => {
+  let* id = Indicated.index(z);
+  tile(term_data, id, z);
+};
+
+let containing_rule = (term_data: TermData.t, z: Zipper.t): option(Zipper.t) => {
+  let* z = current_tile(term_data, z);
+  let* z = grow_right_until_case_or_rule(z);
+  //TODO(andrew): this busted
+  // shrink_left_until_not_case_or_rule_or_space(z);
+  Some(z);
+};
+
+/* Select the currently indicated term. Optionally, we can consider
+ * definitions to not include their bodies, and we can consider case
+ * rules as separate pseudo-terms. */
+let current_term =
+    (
+      term_data: TermData.t,
+      ~defs_exclude_bodies: bool,
+      ~case_rules: bool,
+      z: Zipper.t,
+    ) => {
+  let* (p, _, _) = Indicated.piece''(z);
+  switch (p) {
+  | Tile({label: ["let" | "type", ..._], _}) when defs_exclude_bodies =>
+    current_tile(term_data, z)
+  | Tile({label: ["|", "=>"], _}) when case_rules =>
+    containing_rule(term_data, z)
+  | _ =>
+    let* id = current_term_id(z);
+    term(term_data, id, z);
   };
 };
+
+let parent_of_indicated = (z: Zipper.t, term_data, info_map) => {
+  let* id = parent_id(z, info_map);
+  let* z' = Move.jump_to_id_indicated(z, id);
+  /* Annoying special case here: In general when selecting the parent term
+   * we can just use the current term logic, for which we're using the option
+   * that definitions count as 'pseudo-terms', meaning their bodies won't be
+   * selected. But if the indicated term is the body of a definition, this
+   * would result in the parent selection excluding that body, which feels
+   * very weird. Take care in refactoring this, as it's very easy to miss
+   * this case, or to overgeneralize this case (note in particular that
+   * the name and def terms of a def should not exhibit this behavior,
+   * only the body. */
+  switch (def_body_indicated(z, info_map)) {
+  | Some(_) =>
+    current_term(term_data, ~defs_exclude_bodies=false, ~case_rules=true, z')
+  | None =>
+    current_term(term_data, ~defs_exclude_bodies=true, ~case_rules=true, z')
+  };
+};
+
+let smart = (term_data, info_map, n, z: Zipper.t): option(Zipper.t) => {
+  switch (n) {
+  | 2 => indicated_token(z)
+  | 3 =>
+    open OptUtil.Syntax;
+    /* For things where triple-clicking would otherwise have
+     * no additional effect, select the parent term instead */
+    let* (p, _, _) = Indicated.piece''(z);
+    Piece.is_term(p)
+      ? parent_of_indicated(z, term_data, info_map)
+      : current_term(
+          term_data,
+          ~defs_exclude_bodies=true,
+          ~case_rules=true,
+          z,
+        );
+  | _ => None
+  };
+};
+
+let vertical =
+    (~col_target: int, ~measured: Measured.t, d: Direction.t, z: Zipper.t)
+    : option(Zipper.t) => {
+  let goal =
+    Point.{
+      col: col_target,
+      row: Zipper.Caret.point(measured, z).row + (d == Right ? 1 : (-1)),
+    };
+  Move.do_towards_goal(~measured, ~force_progress=true, primary, goal, z);
+};
+
+let resize =
+    (~col_target: int, ~measured: Measured.t, d: Action.move, z: Zipper.t) =>
+  switch (d) {
+  | Goal(Hole(_)) => failwith("Select.go not implemented for hole goal")
+  | Spatial(Point(goal)) =>
+    let anchor = z |> Zipper.toggle_focus |> Zipper.Caret.point(measured);
+    Move.do_towards_goal(~measured, ~anchor, primary, goal, z);
+  | Spatial(Up) => vertical(~col_target, ~measured, Left, z)
+  | Spatial(Down) => vertical(~col_target, ~measured, Right, z)
+  | Extreme(Up) => Some(Move.do_to_extreme(primary(Left), z))
+  | Extreme(Down) => Some(Move.do_to_extreme(primary(Right), z))
+  | Extreme(Left) => Move.do_until_linebreak(primary(Left), Left, z)
+  | Extreme(Right) => Move.do_until_linebreak(primary(Right), Right, z)
+  | Local(d, _) => primary(d, z)
+  };
