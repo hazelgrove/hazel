@@ -73,14 +73,12 @@ let startup: PersistentData.t = {
       TESTSTypesandStaticErrors.out,
     ]
     |> List.map(((name, content)) =>
-         Util.TimeUtil.measure_time(name ++ " startup", false, () =>
-           (
-             name,
-             {
-               editor: content,
-               result: EvalResult.Model.init |> EvalResult.Model.persist,
-             }: CellEditor.Model.persistent,
-           )
+         (
+           name,
+           {
+             editor: content,
+             result: EvalResult.Model.init |> EvalResult.Model.persist,
+           }: CellEditor.Model.persistent,
          )
        ),
   ),
