@@ -34,7 +34,6 @@ let perform = (zip: Zipper.t, actions: list(Action.t)): Zipper.t => {
    * It does not apply any semantics-based behaviors. */
   let perform = (a: Action.t, z: Zipper.t) =>
     Editor.perform(
-      ~settings=Language.CoreSettings.off,
       ~statics=CachedStatics.empty,
       ~syntax=
         CachedSyntax.init(

@@ -301,39 +301,42 @@ let move_dispatch =
     jump_to_id_indicated(z, binding_id);
   };
 
+let pre_unselect = (a: Action.move, z: Zipper.t): Zipper.t => {
+  let d =
+    switch (a) {
+    | Local(d, _) => d
+    | Vertical(Up) => Left
+    | Vertical(Down) => Right
+    | Start
+    | End
+    | Line(_)
+    | Point(_)
+    | Goal(_) => z.selection.focus
+    };
+  Zipper.directional_unselect(d, z);
+};
 let go =
     (
       ~info_map: Language.Statics.Map.t,
       ~col_target: int,
       ~measured: Measured.t,
-      d: Action.move,
+      a: Action.move,
       z: Zipper.t,
     )
     : option(Zipper.t) =>
   if (Selection.is_empty(z.selection)) {
-    move_dispatch(~info_map, ~col_target, ~measured, d, z);
+    move_dispatch(~info_map, ~col_target, ~measured, a, z);
   } else {
-    /* Always empty selection on move action,
-     * even if we don't actually move */
-    let unselect_d =
-      switch (d) {
-      | Local(d, _) => d
-      | Vertical(Up) => Left
-      | Vertical(Down) => Right
-      | Start => Left
-      | End => Right
-      | Line(_)
-      | Point(_)
-      | Goal(_) => z.selection.focus
-      };
-    let z = Zipper.directional_unselect(unselect_d, z);
-    switch (d) {
+    let z = pre_unselect(a, z);
+    switch (a) {
     // By char just unselects
     | Local(Left, ByChar)
     | Local(Right, ByChar) => Some(z)
     | _ =>
-      switch (move_dispatch(~info_map, ~col_target, ~measured, d, z)) {
+      switch (move_dispatch(~info_map, ~col_target, ~measured, a, z)) {
       | Some(z) => Some(z)
+      /* Always empty selection on move action,
+       * even if we don't actually move */
       | None => Some(z)
       }
     };

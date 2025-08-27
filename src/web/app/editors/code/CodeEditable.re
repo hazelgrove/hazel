@@ -33,6 +33,7 @@ module Update = {
         ~settings=settings.core,
         action,
         model.statics,
+        model.dynamics,
         model.editor,
       )
       |> (
