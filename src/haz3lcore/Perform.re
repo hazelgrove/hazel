@@ -62,7 +62,7 @@ let go =
   | Unselect(Some(d)) => Ok(Zipper.directional_unselect(d, z))
   | Unselect(None) => Ok(Zipper.unselect(z))
   | Select(Resize(Local(d, _))) =>
-    Select.primary(d, z) |> return(Cant_select)
+    Select.local(d, z) |> return(Cant_select)
   | Select(Resize(Vertical(d))) =>
     Select.vertical(
       ~col_target=Option.value(col_target, ~default=0),

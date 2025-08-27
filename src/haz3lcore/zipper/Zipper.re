@@ -214,6 +214,16 @@ let neighbor_tokens = (z: t): (option(Token.t), option(Token.t)) => (
   neighbor_token(Right, z),
 );
 
+let rec do_until_piece =
+        (action: t => option(t), p_n: neighbors => bool, z: t): option(t) => {
+  let* z = action(z);
+  if (p_n(Siblings.neighbors(z.relatives.siblings))) {
+    Some(z);
+  } else {
+    do_until_piece(action, p_n, z);
+  };
+};
+
 /* Do `action` until the predicate on the generalized neigbors of the
    caret becomes true. A generalized neighbor is the neighboring piece, unless
    the neighbor is a polytile, in which case it's the relevant shard, or
