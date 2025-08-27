@@ -1,7 +1,8 @@
 open Util;
 open OptUtil.Syntax;
+open Zipper;
 
-let primary = (d: Direction.t, z: Zipper.t): option(Zipper.t) =>
+let primary = (d: Direction.t, z: t): option(t) =>
   if (z.caret == Outer) {
     Zipper.select(d, z);
   } else if (d == Left) {
@@ -14,7 +15,7 @@ let primary = (d: Direction.t, z: Zipper.t): option(Zipper.t) =>
   };
 
 let grow_right_until_case_or_rule =
-  Move.do_until(primary(Right), neighbors =>
+  Zipper.do_until(primary(Right), neighbors =>
     switch (neighbors) {
     | (_, Some(piece)) => Piece.is_case_or_rule(piece)
     | _ => false
@@ -22,7 +23,7 @@ let grow_right_until_case_or_rule =
   );
 
 let shrink_left_until_not_case_or_rule_or_space =
-  Move.do_until(primary(Left), neighbors =>
+  Zipper.do_until(primary(Left), neighbors =>
     switch (neighbors) {
     | (_, Some(piece)) => Piece.is_not_case_or_rule_or_space(piece)
     | _ => false
@@ -30,7 +31,7 @@ let shrink_left_until_not_case_or_rule_or_space =
   );
 
 let grow_right_until_not_comment_or_space =
-  Move.do_until(primary(Right), neighbors =>
+  Zipper.do_until(primary(Right), neighbors =>
     switch (neighbors) {
     | (_, Some(piece)) => Piece.not_comment_or_space(piece)
     | (_, None) => true
@@ -46,13 +47,13 @@ let not_comment_or_space_to_left = neighbors =>
 let move_left_until_not_comment_or_space = z =>
   not_comment_or_space_to_left(Zipper.generalized_neighbors(z))
     ? Some(z)
-    : Move.do_until(
-        Move.primary(ByToken, Left),
+    : Zipper.do_until(
+        Move.local(ByToken, Left),
         not_comment_or_space_to_left,
         z,
       );
 
-let containing_secondary_run = z => {
+let containing_secondary_run = (z: t): option(t) => {
   let z =
     switch (move_left_until_not_comment_or_space(z)) {
     | None => z
@@ -61,7 +62,7 @@ let containing_secondary_run = z => {
   grow_right_until_not_comment_or_space(z);
 };
 
-let current_term_id = (z: Zipper.t): option(Id.t) => {
+let current_term_id = (z: t): option(Id.t) => {
   let* (p, _, rel) = Indicated.piece''(z);
   switch (p) {
   | Secondary(_) => None
@@ -92,7 +93,7 @@ let current_term_id = (z: Zipper.t): option(Id.t) => {
   };
 };
 
-let indicated_token = (z: Zipper.t) =>
+let indicated_token = (z: t) =>
   switch (Indicated.piece'(~no_ws=false, ~ign=Piece.is_secondary, z)) {
   | Some((Secondary(_), _, _)) =>
     /* If there is secondary on both sides, select the
@@ -101,21 +102,21 @@ let indicated_token = (z: Zipper.t) =>
   | Some((_, Left, _)) when z.caret == Outer =>
     /* If we're on the far right side of a non-secondary piece, we
      * still prefer to select it over secondary to the right */
-    let* z = Move.primary(ByToken, Left, z);
+    let* z = Move.local(ByToken, Left, z);
     primary(Right, z);
   | Some(_) => primary(Right, z)
   | _ => None
   };
 
 let move_left_until_case_or_rule =
-  Move.do_until(Move.primary(ByToken, Left), neighbors =>
+  Zipper.do_until(Move.local(ByToken, Left), neighbors =>
     switch (neighbors) {
     | (Some(piece), _) => Piece.is_case_or_rule(piece)
     | _ => false
     }
   );
 
-let is_inside_rule = (z: Zipper.t) => {
+let is_inside_rule = (z: t) => {
   let* z = move_left_until_case_or_rule(z);
   let* (p, _, _) = Indicated.piece''(z);
   switch (p) {
@@ -124,7 +125,7 @@ let is_inside_rule = (z: Zipper.t) => {
   };
 };
 
-let parent_cls = (z: Zipper.t, info_map) => {
+let parent_cls = (z: t, info_map) => {
   let* id = Indicated.index(z);
   let* statics = Language.Statics.Map.lookup(id, info_map);
   let* parent_id =
@@ -133,7 +134,7 @@ let parent_cls = (z: Zipper.t, info_map) => {
   Language.Statics.Info.cls_of(parent_statics);
 };
 
-let parent_is_rule = (z: Zipper.t, info_map): option(Id.t) => {
+let parent_is_rule = (z: t, info_map): option(Id.t) => {
   switch (is_inside_rule(z)) {
   | Some(id) when parent_cls(z, info_map) == Some(Exp(Match)) => Some(id)
   | _ => None
@@ -143,7 +144,7 @@ let parent_is_rule = (z: Zipper.t, info_map): option(Id.t) => {
 /* If the indicated term is the body of a definition
  * (let or type), return the id of the body, otherwise None */
 let def_body_indicated =
-    (z: Zipper.t, info_map: Language.Statics.Map.t): option(Id.t) => {
+    (z: t, info_map: Language.Statics.Map.t): option(Id.t) => {
   let* id = Indicated.index(z);
   let* statics = Language.Statics.Map.lookup(id, info_map);
   let* parent_id =
@@ -157,7 +158,7 @@ let def_body_indicated =
   };
 };
 
-let parent_id = (z: Zipper.t, info_map) => {
+let parent_id = (z: t, info_map) => {
   let* base_id = Indicated.index(z);
   /* Rules aren't counted as terms in the base syntax,
    * but we do want to treat them as possible parents */
@@ -169,7 +170,7 @@ let parent_id = (z: Zipper.t, info_map) => {
   };
 };
 
-let shard_range = (l: Piece.t, r: Piece.t, z: Zipper.t): option(Zipper.t) => {
+let shard_range = (l: Piece.t, r: Piece.t, z: t): option(t) => {
   let pl = neighbors =>
     switch (neighbors) {
     | (_, Some(piece)) => piece == l
@@ -182,16 +183,11 @@ let shard_range = (l: Piece.t, r: Piece.t, z: Zipper.t): option(Zipper.t) => {
     };
   let* z =
     pl(Zipper.generalized_neighbors(z))
-      ? Some(z) : Move.do_until(Move.primary(ByToken, Left), pl, z);
-  Move.do_until(primary(Right), pr, z);
+      ? Some(z) : Zipper.do_until(Move.local(ByToken, Left), pl, z);
+  Zipper.do_until(primary(Right), pr, z);
 };
 
-let term = (term_data: TermData.t, id: Id.t, z: Zipper.t): option(Zipper.t) => {
-  let* (l, r) = TermData.extremes_shards(id, term_data);
-  shard_range(l, r, z);
-};
-
-let tile = (id: Id.t, z: Zipper.t): option(Zipper.t) => {
+let tile = (id: Id.t, z: t): option(t) => {
   let* z = Move.jump_to_side_of_id(Left, z, id);
   switch (z.relatives.siblings) {
   | (_, []) => None
@@ -202,12 +198,12 @@ let tile = (id: Id.t, z: Zipper.t): option(Zipper.t) => {
   };
 };
 
-let current_tile = (z: Zipper.t): option(Zipper.t) => {
+let current_tile = (z: t): option(t) => {
   let* id = Indicated.index(z);
   tile(id, z);
 };
 
-let containing_rule = (z: Zipper.t): option(Zipper.t) => {
+let containing_rule = (z: t): option(t) => {
   let* z = current_tile(z);
   let* z = grow_right_until_case_or_rule(z);
   //TODO(andrew): this busted
@@ -223,7 +219,7 @@ let current_term =
       term_data: TermData.t,
       ~defs_exclude_bodies: bool,
       ~case_rules: bool,
-      z: Zipper.t,
+      z: t,
     ) => {
   let* (p, _, _) = Indicated.piece''(z);
   switch (p) {
@@ -232,11 +228,25 @@ let current_term =
   | Tile({label: ["|", "=>"], _}) when case_rules => containing_rule(z)
   | _ =>
     let* id = current_term_id(z);
-    term(term_data, id, z);
+    let* (l, r) = TermData.extremes_shards(id, term_data);
+    shard_range(l, r, z);
   };
 };
 
-let parent_of_indicated = (z: Zipper.t, term_data, info_map) => {
+let term =
+    (
+      ~defs_exclude_bodies: bool,
+      ~case_rules: bool,
+      term_data: TermData.t,
+      id: Id.t,
+      z: t,
+    )
+    : option(t) => {
+  let* z = Move.jump_to_id_indicated(z, id);
+  current_term(term_data, ~defs_exclude_bodies, ~case_rules, z);
+};
+
+let parent_of_indicated = (z: t, term_data, info_map) => {
   let* id = parent_id(z, info_map);
   let* z' = Move.jump_to_id_indicated(z, id);
   /* Annoying special case here: In general when selecting the parent term
@@ -256,7 +266,7 @@ let parent_of_indicated = (z: Zipper.t, term_data, info_map) => {
   };
 };
 
-let smart = (term_data, info_map, n, z: Zipper.t): option(Zipper.t) => {
+let smart = (term_data, info_map, n, z: t): option(t) => {
   switch (n) {
   | 2 => indicated_token(z)
   | 3 =>
@@ -276,34 +286,30 @@ let smart = (term_data, info_map, n, z: Zipper.t): option(Zipper.t) => {
   };
 };
 
-let all = (z: Zipper.t) =>
-  z
-  |> Move.do_to_extreme(Move.primary(ByToken, Left))
-  |> Move.do_to_extreme(primary(Right));
-
 let vertical =
-    (d: Action.vertical, ~col_target: int, ~measured: Measured.t, z: Zipper.t)
-    : option(Zipper.t) => {
+    (d: Action.vertical, ~col_target: int, ~measured: Measured.t, z: t)
+    : option(t) => {
   let goal =
     Point.{
       col: col_target,
       row: Zipper.Caret.point(measured, z).row + (d == Down ? 1 : (-1)),
     };
-  Move.do_towards_goal(~measured, ~force_progress=true, primary, goal, z);
+  Zipper.do_towards_point(~measured, ~force_progress=true, primary, goal, z);
 };
 
-let to_point =
-    (~measured: Measured.t, ~goal: Point.t, z: Zipper.t): option(Zipper.t) => {
-  let anchor = z |> Zipper.toggle_focus |> Zipper.Caret.point(measured);
-  switch (Move.do_towards_goal(~measured, ~anchor, primary, goal, z)) {
+let to_point = (~measured: Measured.t, ~goal: Point.t, z: t): option(t) => {
+  let anchor = z |> toggle_focus |> Zipper.Caret.point(measured);
+  switch (Zipper.do_towards_point(~measured, ~anchor, primary, goal, z)) {
   | None => Some(z)
   | Some(z) => Some(z)
   };
 };
 
-let to_start: Zipper.t => Zipper.t = Move.do_to_extreme(primary(Left));
+let to_start: t => t = Zipper.do_to_extreme(primary(Left));
 
-let to_end: Zipper.t => Zipper.t = Move.do_to_extreme(primary(Right));
+let to_end: t => t = Zipper.do_to_extreme(primary(Right));
 
-let to_linebreak: (Direction.t, Zipper.t) => option(Zipper.t) =
-  d => Move.do_until_linebreak(primary(d), d);
+let all = (z: t): t => z |> Move.to_start |> to_end;
+
+let to_linebreak = (d: Direction.t, z: t): option(t) =>
+  Zipper.do_until_linebreak(primary(d), d, z);

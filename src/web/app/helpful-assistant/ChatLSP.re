@@ -396,7 +396,7 @@ module ErrorRound = {
           {
             let* sketch_z = Destruct.go(Left, sketch_z);
             let+ sketch_z = Destruct.go(Left, sketch_z);
-            Editor.paste_segment(sketch_z, segment);
+            Zipper.insert_segment(sketch_z, segment);
           }
         ) {
         | None => Error("Undocumented parse error, no feedback available")

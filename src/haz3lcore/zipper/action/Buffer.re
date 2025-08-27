@@ -45,7 +45,7 @@ let buffer_accept = (z: Zipper.t): option(Zipper.t) =>
         open OptUtil.Syntax;
         let* z = Parser.to_zipper(~zipper_init=z, completion);
         let* z = Move.to_next_grout(Left, z);
-        Move.primary(ByToken, Left, z);
+        Move.local(ByToken, Left, z);
       };
       z;
     | Some(completion) => Parser.to_zipper(~zipper_init=z, completion)
