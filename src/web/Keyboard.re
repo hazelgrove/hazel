@@ -94,6 +94,9 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     switch (key) {
     | "a" => now(Move(Extreme(Left(ByToken))))
     | "e" => now(Move(Extreme(Right(ByToken))))
+    | "c" => now(AssistantComposition(Nav(GoToChild("", Some(0)))))
+    | "s" => now(AssistantComposition(Nav(GoToSibling("", Some(0)))))
+    | "p" => now(AssistantComposition(Nav(GoToParent)))
     | _ => None
     }
   | {key: D("f"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
