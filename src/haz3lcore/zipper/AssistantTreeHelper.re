@@ -380,22 +380,22 @@ let build_curr_node_info =
           curr_node.info,
           info_map,
         ),
+      children: child_nodes_of(Some(curr_node), None),
       siblings:
         List.filter(
           (n: node) => Info.id_of(n.info) != Info.id_of(curr_node.info),
           get_siblings_of(curr_node),
         ),
       sibling_idx:
-        List.find_index(
-          (n: node) => Info.id_of(n.info) == Info.id_of(curr_node.info),
-          get_siblings_of(curr_node),
-        )
-        |> Option.get,
-    };
-    let curr_node = {
-      ...curr_node,
-      children: child_nodes_of(Some(curr_node), None),
-      siblings: get_siblings_of(curr_node),
+        switch (
+          List.find_index(
+            (n: node) => Info.id_of(n.info) == Info.id_of(curr_node.info),
+            get_siblings_of(curr_node),
+          )
+        ) {
+        | Some(idx) => idx
+        | None => (-1)
+        },
     };
     // print the current node, parent, children, siblings, and their naems
     print_endline("curr node: " ++ curr_node.name);

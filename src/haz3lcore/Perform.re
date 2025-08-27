@@ -263,8 +263,8 @@ let go =
                   info
                 |> Info.id_of
               | Right =>
-                List.nth(node.siblings, (node.sibling_idx + 1 + len) mod len).
-                  info
+                // Don't add 1 here because we filtered out the current node
+                List.nth(node.siblings, (node.sibling_idx + len) mod len).info
                 |> Info.id_of
               };
             switch (Select.tile(target_id, z)) {
