@@ -65,7 +65,7 @@ type appendability = option((Direction.t, Token.t));
 /* Decide which if any sibling we can append `char` to.
  * We bias towards the left sibling */
 let sibling_appendability = (char: string, z: t): appendability =>
-  switch (neighbor_shards(z)) {
+  switch (neighbor_tokens(z)) {
   | (Some(t), _) when Token.is_potential_token(Token.append(t, char)) =>
     Some((Left, Token.append(t, char)))
   | (_, Some(t)) when Token.is_potential_token(Token.append(char, t)) =>
@@ -126,7 +126,7 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
 /* If the caret is precisely between two tokens, which
  * can become a valid token if merged, merge those tokens */
 let merge_or_noop = (z: t): t =>
-  switch (Zipper.neighbor_shards(z)) {
+  switch (Zipper.neighbor_tokens(z)) {
   | (Some(l), Some(r))
       when Token.is_potential_token(Token.append(l, r)) && z.caret == Outer =>
     /* We remove the left manually, and then replace the right */
@@ -157,7 +157,7 @@ let adjust_caret_pos = (~z_final: t, ~z_init: t): t => {
 let go = (char: string, z: t): option(t) => {
   /* If there's a selection, delete it before proceeding */
   let z = z.selection.content != [] ? Zipper.destroy_selection(z) : z;
-  switch (z.caret, neighbor_shards(z)) {
+  switch (z.caret, neighbor_tokens(z)) {
   /* If we try to insert a quote inside an existing string, or a #
    * in a comment, we are instead moved to the righthand side of
    * the operand. Note that this behavior is load-bearing for the

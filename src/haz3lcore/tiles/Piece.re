@@ -223,3 +223,15 @@ let is_infix_delimiter_op_prefix = (p: t) =>
     Mold.is_infix_op(mold) && Form.is_infix_delimiter_op_prefix(t)
   | _ => false
   };
+
+let token_of = (p: t): option(Token.t) =>
+  switch (p) {
+  | Tile(t) =>
+    switch (Tile.effective_label(t)) {
+    | [tok] => Some(tok)
+    | _ => None
+    }
+  | Secondary(w) => Some(Secondary.get_string(w.content))
+  | Grout(_) => None
+  | Projector(_) => None
+  };
