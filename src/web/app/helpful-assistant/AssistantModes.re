@@ -381,7 +381,6 @@ module Composition = {
   // AddToolLabel_2.0: handle the effects of the action on the editor itself
   let apply_action =
       (
-        ~editor: CodeWithStatics.Model.t,
         ~action: CompositionTools.action,
         ~schedule_action: Editors.Update.t => unit,
       )

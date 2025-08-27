@@ -610,7 +610,6 @@ let update =
         let apply_action =
           AssistantModes.Composition.apply_action(
             ~schedule_action=schedule_editor_action,
-            ~editor,
           );
         apply_structure_action(
           ~tool_call,

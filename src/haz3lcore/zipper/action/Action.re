@@ -168,7 +168,8 @@ module Failure = {
     | CantAccept
     | Cant_undo
     | Cant_redo
-    | CantIntroduce;
+    | CantIntroduce
+    | Cant_derive_local_AST_information;
 
   exception Exception(t);
 };

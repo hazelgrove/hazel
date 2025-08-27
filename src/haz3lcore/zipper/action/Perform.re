@@ -7,6 +7,15 @@ type inner_term =
   | Def
   | Body;
 
+let mk_statics = (z: Zipper.t) =>
+  Language.(
+    Statics.mk(
+      CoreSettings.on,
+      Builtins.ctx_init(Some(Operators.default_mode)),
+      MakeTerm.from_zip_for_sem(z).term,
+    )
+  );
+
 let buffer_clear = (z: t): t =>
   switch (z.selection.mode) {
   | Buffer(Unparsed) => {
@@ -401,28 +410,39 @@ let go_z =
         }
       | Read(_r) => Ok(z) // todo
       | Edit(e) =>
+        // let select_curr_node = z => {
+        //   // Recalculate info map with new statics and measurements to assert fresh, non-stale state
+        //   let curr_node_info =
+        //     AssistantTreeHelper.build_curr_node_info(z, mk_statics(z));
+        //   switch (curr_node_info) {
+        //   | Some(node) =>
+        //     switch (Select.tile(Info.id_of(node.info), z)) {
+        //     | Some(z) => Ok(z)
+        //     | None => Error(Action.Failure.Cant_select)
+        //     }
+        //   | None => Error(Action.Failure.Cant_derive_local_AST_information)
+        //   };
+        // };
         let overwrite_tile = (z, target_id, code) => {
-          let z' =
-            // Select the respective tile (in this case the definition tile)
-            switch (Select.tile(target_id, z)) {
-            | Some(z') => z'
-            | None => z
-            };
-          // Paste the code over the selected tile
-          switch (paste(z', code)) {
-          | Some(z'') => Ok(z'')
-          | None => Error(Action.Failure.CantPaste)
+          // Select the respective tile (in this case the definition tile)
+          switch (Select.tile(target_id, z)) {
+          | Some(z') =>
+            // Paste the code over the selected tile
+            switch (paste(z', code)) {
+            | Some(z'') => Ok(z'')
+            | None => Error(Action.Failure.CantPaste)
+            }
+          | None => Error(Action.Failure.Cant_select)
           };
         };
         let destruct_tile = (z, target_id) => {
-          let z' =
-            switch (Select.tile(target_id, z)) {
-            | Some(z') => z'
-            | None => z
-            };
-          switch (Destruct.go(Left, z')) {
+          switch (Select.tile(target_id, z)) {
+          | Some(z') =>
+            switch (Destruct.go(Left, z')) {
+            | None => Error(Action.Failure.Cant_destruct)
+            | Some(z'') => Ok(z'')
+            }
           | None => Error(Action.Failure.Cant_destruct)
-          | Some(z'') => Ok(z'')
           };
         };
         switch (e) {
@@ -443,33 +463,31 @@ let go_z =
           let target_id = get_inner_term_id(node, Body);
           destruct_tile(z, target_id);
         | InsertBefore(code) =>
-          let z' =
-            switch (Move.go(Extreme(Left(ByToken)), z)) {
-            | Some(z') => z'
-            | None => z
-            };
-          switch (paste(z', code)) {
-          | Some(z'') => Ok(z'')
-          | None => Error(Action.Failure.CantPaste)
-          };
+          switch (Move.go(Extreme(Left(ByToken)), z)) {
+          | Some(z') =>
+            switch (paste(z', code)) {
+            | Some(z'') => Ok(z'')
+            | None => Error(Action.Failure.CantPaste)
+            }
+          | None => Error(Action.Failure.Cant_move)
+          }
         | InsertAfter(code) =>
-          let z' =
-            switch (Move.go(Extreme(Right(ByToken)), z)) {
-            | Some(z') => z'
-            | None => z
-            };
-          switch (paste(z', code)) {
-          | Some(z'') => Ok(z'')
-          | None => Error(Action.Failure.CantPaste)
-          };
+          switch (Move.go(Extreme(Right(ByToken)), z)) {
+          | Some(z') =>
+            switch (paste(z', code)) {
+            | Some(z'') => Ok(z'')
+            | None => Error(Action.Failure.CantPaste)
+            }
+          | None => Error(Action.Failure.Cant_move)
+          }
         };
       };
     };
     let curr_node_info =
-      AssistantTreeHelper.build_curr_node_info(z, statics.info_map);
+      AssistantTreeHelper.build_curr_node_info(z, mk_statics(z));
     switch (curr_node_info) {
     | Some(node) => handle_composition_action(node)
-    | None => Error(Action.Failure.Cant_move) //todo, add failure case
+    | None => Error(Action.Failure.Cant_derive_local_AST_information) //todo, add failure case
     };
   };
 };
