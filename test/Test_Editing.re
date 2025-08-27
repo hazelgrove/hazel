@@ -33,14 +33,9 @@ let perform = (zip: Zipper.t, actions: list(Action.t)): Zipper.t => {
   /* This is a simplified testing harness for zipper actions.
    * It does not apply any semantics-based behaviors. */
   let perform = (a: Action.t, z: Zipper.t) =>
-    Editor.perform(
+    Perform.go(
       ~statics=CachedStatics.empty,
-      ~syntax=
-        CachedSyntax.init(
-          ~info_map=Language.Statics.Map.empty,
-          ~dyn_map=Language.Dynamics.Map.empty,
-          z,
-        ),
+      ~syntax=CachedSyntax.init(z),
       a,
       {
         zipper: z,

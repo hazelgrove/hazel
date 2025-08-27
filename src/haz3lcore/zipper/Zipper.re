@@ -180,6 +180,15 @@ let move = (d: Direction.t, z: t): option(t) =>
 let select = (d: Direction.t, z: t): option(t) =>
   d == z.selection.focus ? grow_selection(z) : shrink_selection(z);
 
+/* As opposed to the Siblings.neighbor functions, which simply returns
+ * the adjacent piece (if any) in the focal segment, this function is a
+ * more general notion of 'the token to the left/right' of the cursor'.
+ * It agrees with Sibling.neighbor whenever you are in the middle of
+ * the focal segment; it returns None only if you are at the start/end
+ * of the entire program, and if you are at an extreme of the focal
+ * segment it returns the ADJACENT SHARD of the containing parent.
+ * Note that this last case necessarily returns an incomplete tile and
+ * thus does not retain knowledge of the tile's in-situ completeness */
 let generalized_neighbor = (d: Direction.t, z: t): option(Piece.t) => {
   let* z = select(d, unselect(z));
   switch (z.selection.content) {
@@ -205,7 +214,8 @@ let singleton_shard_selection = (seg: Segment.t): option(Token.t) =>
 
 let neighbor_shard = (d: Direction.t, z: t): option(Token.t) =>
   switch (Siblings.neighbor(d, z.relatives.siblings)) {
-  | Some(p) when Piece.monotile(p) != None => Piece.monotile(p)
+  | Some(Secondary(w)) when Secondary.is_comment(w) =>
+    Some(Secondary.get_string(w.content))
   | _ =>
     let* z = select(d, z);
     singleton_shard_selection(z.selection.content);
@@ -216,6 +226,58 @@ let neighbor_shards = (z: t): (option(Token.t), option(Token.t)) => (
   neighbor_shard(Right, z),
 );
 
+/* Do `action` until the predicate on the generalized neigbors of the
+   caret becomes true. A generalized neighbor is the neighboring piece, unless
+   the neighbor is a polytile, in which case it's the relevant shard, or
+   we are at the edge of a segment, in which case it's the relevant shard
+   of the parent. The None case strictly means the beginning/end of the program.
+   If no such piece is found, don't move. Does not check predicate before
+   moving; caller should handle that case if necessary */
+let rec do_until =
+        (
+          action: t => option(t),
+          piece_p: ((option(Piece.t), option(Piece.t))) => bool,
+          z: t,
+        )
+        : option(t) => {
+  let* z = action(z);
+  if (piece_p(generalized_neighbors(z))) {
+    Some(z);
+  } else {
+    do_until(action, piece_p, z);
+  };
+};
+
+let do_to_extreme = (f, z: t): t =>
+  do_until(
+    f,
+    neighbors =>
+      switch (neighbors) {
+      | (None, _) => true
+      | (_, None) => true
+      | _ => false
+      },
+    z,
+  )
+  |> Option.value(~default=z);
+
+let linebreak_on =
+    (d: Direction.t, neighbors: (option(Piece.t), option(Piece.t))): bool =>
+  switch (neighbors) {
+  | (_, Some(Secondary(s))) when d == Right && Secondary.is_linebreak(s) =>
+    true
+  | (_, None) when d == Right => true
+  | (Some(Secondary(s)), _) when d == Left && Secondary.is_linebreak(s) =>
+    true
+  | (None, _) when d == Left => true
+  | _ => false
+  };
+
+let do_until_linebreak =
+    (f: t => option(t), d: Direction.t, z: t): option(t) =>
+  linebreak_on(d, generalized_neighbors(z))
+    ? Some(z) : do_until(f, linebreak_on(d), z);
+
 let adj_pos = (d: Direction.t, z: t): t =>
   switch (d) {
   | Left => z
@@ -225,6 +287,11 @@ let adj_pos = (d: Direction.t, z: t): t =>
     | Some(z) => z
     }
   };
+
+let insert_segment = (z: t, segment: Segment.t): t =>
+  replace_selection(z.selection.focus, segment, z)
+  |> unselect
+  |> remold_regrout(Right);
 
 let put_down_core = (seg: Segment.t, z: t): t =>
   z |> replace_selection(Right, seg) |> unselect;
@@ -401,6 +468,100 @@ module Caret = {
   };
 
   type t = ZipperBase.caret;
+};
+
+let do_towards_point =
+    (
+      ~anchor: option(Measured.Point.t)=?,
+      ~measured: Measured.t,
+      ~force_progress: bool=false,
+      f: (Direction.t, t) => option(t),
+      goal: Measured.Point.t,
+      z: t,
+    )
+    : option(t) => {
+  let caret_point = Caret.point(measured);
+
+  let is_at_side_of_row = (d: Direction.t, z: t) => {
+    let Point.{row, col} = caret_point(z);
+    switch (move(d, z)) {
+    | None => true
+    | Some(z) =>
+      let Point.{row: rowp, col: colp} = caret_point(z);
+      row != rowp || col == colp;
+    };
+  };
+
+  let direction_to_from = (p1: Point.t, p2: Point.t): Direction.t => {
+    let before_row = p1.row < p2.row;
+    let at_row = p1.row == p2.row;
+    let before_col = p1.col < p2.col;
+    before_row || at_row && before_col ? Left : Right;
+  };
+
+  let closer_to_prev = (curr, prev, goal: Point.t) =>
+    /* Default to true if equal */
+    abs(caret_point(prev).col - goal.col)
+    < abs(caret_point(curr).col - goal.col);
+
+  let init = caret_point(z);
+  let d_to_goal = direction_to_from(goal, init);
+  let rec go = (prev: t, curr: t) => {
+    let curr_p = caret_point(curr);
+    let x_progress = Point.dcomp(d_to_goal, curr_p.col, goal.col);
+    let y_progress = Point.dcomp(d_to_goal, curr_p.row, goal.row);
+    switch (y_progress, x_progress) {
+    /* If we're not there yet, keep going */
+    | (Under, Over | Exact | Under)
+    | (Exact, Under) =>
+      switch (f(d_to_goal, curr)) {
+      | Some(next) => go(curr, next)
+      | None => curr /* Should only occur at start/end of program */
+      }
+    /* If we're there, stop */
+    | (Exact, Exact) => curr
+    /* If we've overshot, meaning the exact goal is inaccessible,
+     * we choose between current and previous (undershot) positions */
+    | (Over, Over | Exact | Under) =>
+      switch (force_progress) {
+      /* Ideally we would use the same logic as from the below
+       * anchor case here; however that results in strange
+       * behavior when accidentally starting a drag at the end
+       * of a line, which triggers the (invisible) selection of
+       * a linebreak, making it appear that the caret has jumped
+       * to the next line. The downside of leaving this as-is is
+       * that multiline tokens (projectors) do not become part of
+       * the selection when dragging until you're all the way
+       * over them, which is slightly visually jarring */
+      | false => prev
+      /* Up/down kb movement works by setting a goal one row
+       * below the current. When adjacent to a multiline token,
+       * the nearest next caret position may be multiple lines down.
+       * We must allow this overshoot in order to make progress. */
+      | true => caret_point(prev) == init ? curr : prev
+      }
+    | (Exact, Over) =>
+      switch (anchor) {
+      | None =>
+        /* If you're trying to (eg) move down at the end of a row
+         * but the first position of the next row is further right
+         * than the currentrow's end, we want to make progress
+         * regardless of whether the new position would be closer
+         * or further from the goal.  Otherwise, we try to just
+         * get as close as we can  */
+        is_at_side_of_row(Direction.toggle(d_to_goal), curr)
+          ? curr : closer_to_prev(curr, prev, goal) ? prev : curr
+      | Some(anchor) =>
+        /* If we're dragging to make a selection, decide whether or
+         * not to force progress based on the relative position of the
+         * anchor (the position where the drag was started) */
+        direction_to_from(goal, anchor) == d_to_goal ? curr : prev
+      }
+    };
+  };
+  let res = go(z, z);
+  Measured.Point.equals(caret_point(res), caret_point(z))
+    ? None : Some(res);
 };
 
 let selection_anchor_point = (measured, z: t): option(Point.t) => {
