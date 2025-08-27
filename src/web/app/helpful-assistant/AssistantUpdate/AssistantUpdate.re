@@ -275,7 +275,10 @@ let update =
           switch (
             {
               let* sketch_z_with_tag =
-                Perform.paste(editor.editor.state.zipper, tag);
+                Parser.to_zipper(
+                  ~zipper_init=editor.editor.state.zipper,
+                  tag,
+                );
               let sketch_seg =
                 Zipper.smart_seg(
                   ~dump_backpack=true,
@@ -961,17 +964,17 @@ let update =
       // Lop off the messages after the index
       let mode = settings.assistant.mode;
       let (_, curr_chat) = get_mode_info(mode, model);
-      let sketch_snapshot =
+      let _sketch_snapshot =
         List.nth(curr_chat.messages, index).sketch_snapshot;
-      switch (sketch_snapshot) {
-      | Some(sketch) =>
-        let perform_action =
-          CodeEditable.Update.Perform(Restore(sketch.editor.state.zipper));
-        let cell_action = CellEditor.Update.MainEditor(perform_action);
-        let scratch_action = Editors.Update.Scratch(CellAction(cell_action));
-        schedule_editor_action(scratch_action);
-      | None => ()
-      };
+      // switch (sketch_snapshot) {
+      // | Some(sketch) =>
+      //   let perform_action =
+      //     CodeEditable.Update.Perform(Restore(sketch.editor.state.zipper));
+      //   let cell_action = CellEditor.Update.MainEditor(perform_action);
+      //   let scratch_action = Editors.Update.Scratch(CellAction(cell_action));
+      //   schedule_editor_action(scratch_action);
+      // | None => ()
+      // };
       let updated_messages =
         curr_chat.messages |> ListUtil.take_up_to_n(index);
       let updated_chat = {

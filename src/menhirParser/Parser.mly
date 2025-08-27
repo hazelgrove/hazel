@@ -13,7 +13,7 @@ open AST
 %token FORALL
 %token REC
 %token UNDEF
-%token <string> SEXP_STRING
+%token <string> PROJECTOR_INVOKE
 %token DOLLAR_SIGN
 %token TYP
 %token TYP_FUN
@@ -31,6 +31,7 @@ open AST
 %token <string> IDENT
 %token <string> CONSTRUCTOR_IDENT
 %token <string> STRING
+%token <string> QUOTED_LABEL
 %token TRUE 
 %token FALSE
 %token <int> INT
@@ -48,6 +49,7 @@ open AST
 %token EQUAL_ARROW
 %token SINGLE_EQUAL
 %token TURNSTILE
+%token TUPLE_EXTENSION
 
 (* Poly ops *)
 %token DOUBLE_EQUAL
@@ -128,7 +130,7 @@ open AST
 %right STRING_CONCAT AT_SYMBOL
 %right  CONS
 
-%left  PLUS MINUS PLUS_FLOAT MINUS_FLOAT
+%left PLUS MINUS PLUS_FLOAT MINUS_FLOAT TUPLE_EXTENSION
 %left DIVIDE TIMES TIMES_FLOAT DIVIDE_FLOAT L_NOT
 
 %right POWER POWER_FLOAT
@@ -205,9 +207,13 @@ program:
 binExp:
     | e1 = exp; b = binOp; e2 = exp { BinExp (e1, b, e2) }
 
+label:
+    | l = IDENT { l }
+    | l = QUOTED_LABEL { l }
+
 tupTypeEntry:
     | t = typ {t}
-    | label = IDENT; SINGLE_EQUAL; t = typ { TupLabelType(LabelType(label), t) }
+    | l = label; SINGLE_EQUAL; t = typ { TupLabelType(LabelType(l), t) }
 
 %inline tupleType:
     | OPEN_PAREN; hd = tupTypeEntry; COMMA; types = separated_list(COMMA, tupTypeEntry); CLOSE_PAREN { TupleType(hd :: types) }
@@ -229,6 +235,7 @@ typ:
     | c = CONSTRUCTOR_IDENT { TypVar(c) }
     | c = IDENT { TypVar(c) }
     | T_TYP; s = STRING { InvalidTyp(s) }
+    | PROJECTOR_INVOKE; OPEN_PAREN; t = typ; CLOSE_PAREN; { t }
     | INT_TYPE { IntType }
     | FLOAT_TYPE { FloatType }
     | BOOL_TYPE { BoolType }
@@ -248,12 +255,12 @@ typ:
 
 tupPatEntry:
     | p = pat {p}
-    | label = IDENT; SINGLE_EQUAL; p = pat { TupLabelPat(LabelPat(label), p) }
+    | l = label; SINGLE_EQUAL; p = pat { TupLabelPat(LabelPat(l), p) }
 
 nonAscriptingPat:
     | OPEN_TRIPLE_CURLY; p = pat; CLOSE_TRIPLE_CURLY { IndicationPat(p) }
     | OPEN_PAREN; p = pat; CLOSE_PAREN { p }
-    | OPEN_PAREN; label = IDENT; SINGLE_EQUAL; p = pat; CLOSE_PAREN { TuplePat([TupLabelPat(LabelPat(label), p)]) }
+    | OPEN_PAREN; l = label; SINGLE_EQUAL; p = pat; CLOSE_PAREN { TuplePat([TupLabelPat(LabelPat(l), p)]) }
     | OPEN_PAREN; p = tupPatEntry; COMMA; pats = separated_list(COMMA, tupPatEntry); CLOSE_PAREN { TuplePat(p :: pats) }
     |  P_PAT; s = STRING { InvalidPat(s) }
     | WILD { WildPat }
@@ -279,6 +286,7 @@ pat:
     | p1 = pat; CONS; p2 = pat { ConsPat(p1, p2) } 
     | UNIT { TuplePat([]) }
     | p = nonAscriptingPat; { p }
+    | PROJECTOR_INVOKE; OPEN_PAREN; p = pat; CLOSE_PAREN; { p }
 
 
 rul:
@@ -303,6 +311,7 @@ filterAction:
 
 tpat:
     | TP_TPAT; s = STRING {InvalidTPat(s)}
+    | p = PROJECTOR_INVOKE {InvalidTPat(p)}
     | QUESTION {EmptyHoleTPat}
     | v = IDENT {VarTPat v}
     | v = CONSTRUCTOR_IDENT {VarTPat v}
@@ -314,7 +323,7 @@ unExp:
 
 tupExpEntry:
     | e = exp {e}
-    | label = IDENT; SINGLE_EQUAL; e = exp {TupLabel(Label(label), e)}
+    | l = label; SINGLE_EQUAL; e = exp {TupLabel(Label(l), e)}
 
 exp:
     | b = binExp { b }
@@ -325,11 +334,12 @@ exp:
     | c = CONSTRUCTOR_IDENT; SLASH_TILDE; { Constructor(c, Some(None)) } 
     | c = CONSTRUCTOR_IDENT; TILDE; t = typ;  { Constructor(c, Some(Some(t))) }
     | e = exp; COLON; t = typ { Asc(e, t) }
+    | PROJECTOR_INVOKE; OPEN_PAREN; e = exp; CLOSE_PAREN; { e }
     | s = STRING { Atom (String s)}
     | OPEN_TRIPLE_CURLY; e = exp; CLOSE_TRIPLE_CURLY { IndicationExp(e) }
     | OPEN_PAREN; e = exp; CLOSE_PAREN { e } 
     | OPEN_PAREN; e = tupExpEntry; COMMA; l = separated_list(COMMA, tupExpEntry); CLOSE_PAREN { TupleExp(e :: l) }
-    | OPEN_PAREN; label = IDENT; SINGLE_EQUAL; e = exp; CLOSE_PAREN { TupleExp([TupLabel(Label(label), e)]) }
+    | OPEN_PAREN; l = label; SINGLE_EQUAL; e = exp; CLOSE_PAREN { TupleExp([TupLabel(Label(l), e)]) }
     | UNIT { TupleExp([]) }
     | c = case { c }
     | OPEN_SQUARE_BRACKET; e = separated_list(COMMA, exp); CLOSE_SQUARE_BRACKET { ListExp(e) }
@@ -352,6 +362,7 @@ exp:
     |  WILD {Deferral}
     | e = exp; TYP_AP_SYMBOL; ty = typ; GREATER_THAN; {TypAp(e, ty)}
     | TYP; tp = tpat; SINGLE_EQUAL; ty = typ; IN; e = exp {TyAlias(tp, ty, e)} %prec LET_EXP
-    | LESS_THAN; LESS_THAN; e = exp; QUESTION; s = SEXP_STRING; GREATER_THAN; GREATER_THAN {DynamicErrorHole(e, s)}
+    | LESS_THAN; LESS_THAN; e = exp; QUESTION; s = QUOTED_LABEL; GREATER_THAN; GREATER_THAN {DynamicErrorHole(e, s)}
     | UNDEF; {Undefined}
     | u = unExp { u }
+    | e1 = exp; TUPLE_EXTENSION; e2 = exp { TupleExtension(e1, e2) }

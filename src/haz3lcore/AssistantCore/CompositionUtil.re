@@ -9,28 +9,15 @@ module View = {
   // covering up inner child definitions with folds,
   // and any other modifications we might want to make to the editor
   // before displaying to the LLM.
-  let mk_syntax: Zipper.t => Editor.CachedSyntax.t =
-    Editor.CachedSyntax.init(
-      ~info_map=Language.Statics.Map.empty,
-      ~dyn_map=Language.Dynamics.Map.empty,
-    );
-  let mk_state: Zipper.t => Editor.State.t =
-    z => {
-      zipper: z,
-      col_target: None,
-    };
-  let mk_move = (z: Zipper.t): (module Move.S) =>
-    Editor.Model.to_move_s({
-      state: mk_state(z),
-      syntax: mk_syntax(z),
-    });
   let perform = (a: Action.t, z: Zipper.t) =>
-    Perform.go_z(
-      ~settings=Language.CoreSettings.off,
-      CachedStatics.empty,
+    Perform.go(
+      ~statics=CachedStatics.empty,
+      ~syntax=CachedSyntax.init(z),
       a,
-      mk_move(z),
-      z,
+      {
+        zipper: z,
+        col_target: None,
+      },
     );
 
   let definition = (z: Zipper.t, curr_node: AssistantTreeHelper.node) => {

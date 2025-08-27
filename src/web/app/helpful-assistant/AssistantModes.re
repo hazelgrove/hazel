@@ -77,14 +77,15 @@ module Completion = {
         (sketch_z: Zipper.t, completion: string): Result.t(Zipper.t, string) =>
       //NOTE: This function is pretty basic; reporting approach could be improved
       /* For now we required that the completion be complete in-itself: */
-      switch (Perform.paste(Zipper.init(), completion)) {
+      switch (Parser.to_zipper(~zipper_init=Zipper.init(), completion)) {
       | None => Error("Undocumented parse error, no feedback available")
       | Some(completion_z) =>
-        switch (completion_z.backpack) {
+        switch (Zipper.local_backpack(completion_z)) {
         | [_, ..._] as orphans =>
           let orphans =
             List.map(
-              (s: Selection.t) => Printer.of_segment(~holes="", s.content),
+              (tile: Tile.t) =>
+                String.concat("", Tile.effective_label(tile)),
               orphans,
             );
           Error(
@@ -97,7 +98,7 @@ module Completion = {
             {
               let* sketch_z = Destruct.go(Left, sketch_z);
               let+ sketch_z = Destruct.go(Left, sketch_z);
-              Perform.paste_segment(sketch_z, segment);
+              Zipper.insert_segment(sketch_z, segment);
             }
           ) {
           | None => Error("Undocumented parse error, no feedback available")

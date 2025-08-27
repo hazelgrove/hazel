@@ -98,6 +98,7 @@ let ty_subst = (s: Typ.t, tpat: TPat.t, exp: t): t => {
           | ListConcat(_)
           | Tuple(_)
           | TupLabel(_)
+          | TupleExtension(_)
           | Label(_)
           | Dot(_)
           | Match(_)
@@ -155,7 +156,8 @@ let rec ty_comparable = (d1, d2) => {
   | (LivelitName(_), _)
   | (Fun(_), _)
   | (BuiltinFun(_), _)
-  | (TypFun(_), _) => false
+  | (TypFun(_), _)
+  | (TupleExtension(_), _) => false
   | (Probe(d1, _), _) => ty_comparable(d1, d2)
   | (_, Probe(d2, _)) => ty_comparable(d1, d2)
   | (Parens(d1), _) => ty_comparable(d1, d2)
@@ -240,6 +242,7 @@ let rec poly_equal = (d1, d2): bool => {
   | (ListConcat(_), _)
   | (UnOp(_), _)
   | (BinOp(_), _)
+  | (TupleExtension(_), _)
   | (Match(_), _)
   | (Dot(_), _)
   | (LivelitName(_), _)
@@ -292,17 +295,4 @@ let rec poly_equal = (d1, d2): bool => {
     c1 == c2 && poly_equal(d1, d2)
   | (Ap(_), _) => false
   };
-};
-
-let replace_exp = (replace, with_exp, in_exp) => {
-  map_term(
-    ~f_exp=
-      (continue, exp) =>
-        if (fast_equal(exp, replace)) {
-          with_exp;
-        } else {
-          continue(exp);
-        },
-    in_exp,
-  );
 };

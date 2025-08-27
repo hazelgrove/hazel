@@ -33,7 +33,7 @@ let is_on_whitespace = (z: Zipper.t): bool => {
 let rec move_to_non_whitespace = (z: Zipper.t): Zipper.t => {
   is_on_whitespace(z)
     ? {
-      switch (Move.primary(ByChar, Left, z)) {
+      switch (Move.by_char_left(z)) {
       | Some(z') => move_to_non_whitespace(z')
       | None => raise(Failure("Couldn't move to non-whitespace"))
       };
@@ -81,7 +81,7 @@ let mk_name_from_tpat = (tpat: TermBase.tpat_t) => {
 };
 
 // Finds the least upper binding node of the current term
-let is_node = (candidate: option(Info.t)): option(node) => {
+let least_upper_binding_node = (candidate: option(Info.t)): option(node) => {
   switch (candidate) {
   | Some(candidate) =>
     switch (candidate) {
@@ -93,7 +93,7 @@ let is_node = (candidate: option(Info.t)): option(node) => {
           parent: None,
           siblings: [],
           children: [],
-          sibling_idx: 0,
+          sibling_idx: (-1),
           name: mk_name_from_pat(pat),
         })
       | TyAlias(tpat, _, _) =>
@@ -102,7 +102,7 @@ let is_node = (candidate: option(Info.t)): option(node) => {
           parent: None,
           siblings: [],
           children: [],
-          sibling_idx: 0,
+          sibling_idx: (-1),
           name: mk_name_from_tpat(tpat),
         })
       | _ => None
@@ -135,7 +135,7 @@ let rec parent_node_of =
             parent: None,
             siblings: [],
             children: [],
-            sibling_idx: 0,
+            sibling_idx: (-1),
             name: mk_name_from_pat(pat),
           });
         } else {
@@ -167,7 +167,8 @@ let get_path_to_node =
   switch (
     {
       List.find_map(
-        ancestor => is_node(Id.Map.find_opt(ancestor, info_map)),
+        ancestor =>
+          least_upper_binding_node(Id.Map.find_opt(ancestor, info_map)),
         [Info.id_of(curr_term), ...Info.ancestors_of(curr_term)],
       );
     }
@@ -212,7 +213,8 @@ let build_curr_node_info =
         {
           let* term = curr_term;
           List.find_map(
-            ancestor => is_node(Id.Map.find_opt(ancestor, info_map)),
+            ancestor =>
+              least_upper_binding_node(Id.Map.find_opt(ancestor, info_map)),
             [Info.id_of(term), ...Info.ancestors_of(term)],
           );
         }
@@ -277,6 +279,7 @@ let build_curr_node_info =
             find_children(exp_to_info(e), children, count)
           | Ap(_, e1, e2)
           | Dot(e1, e2)
+          | TupleExtension(e1, e2)
           | TupLabel(e1, e2)
           | Cons(e1, e2)
           | ListConcat(e1, e2)
@@ -352,10 +355,6 @@ let build_curr_node_info =
       switch (node.parent) {
       | Some(parent) =>
         // don't include the current node in the siblings
-        // List.filter(
-        //   n => n.name !== node.name,
-        //   child_nodes_of(Some(parent), None),
-        // )
         child_nodes_of(Some(parent), None)
       | None =>
         // This is a special case.
@@ -371,10 +370,6 @@ let build_curr_node_info =
           | None => node.info
           };
         child_nodes_of(None, Some(oldest_ancestor));
-      // List.filter(
-      //   n => n.name !== node.name,
-      //   child_nodes_of(None, Some(oldest_ancestor)),
-      // );
       };
 
     let curr_node = {
@@ -385,6 +380,17 @@ let build_curr_node_info =
           curr_node.info,
           info_map,
         ),
+      siblings:
+        List.filter(
+          (n: node) => Info.id_of(n.info) != Info.id_of(curr_node.info),
+          get_siblings_of(curr_node),
+        ),
+      sibling_idx:
+        List.find_index(
+          (n: node) => Info.id_of(n.info) == Info.id_of(curr_node.info),
+          get_siblings_of(curr_node),
+        )
+        |> Option.get,
     };
     let curr_node = {
       ...curr_node,
@@ -433,16 +439,11 @@ let get_node = (curr_node_info: option(node)) => {
 // TODO: safe_move should work in most edit cases, EXCEPT for insert
 //       before/after, because the zipper/info map are outdated
 //       and I cannot figure out how to update them to successfully do this.
-let safe_move =
-    (z: Zipper.t, info_map: Statics.Map.t, module M: Move.S)
-    : option(Zipper.t) => {
+let safe_move = (z: Zipper.t, info_map: Statics.Map.t): option(Zipper.t) => {
   // Try moving to the first parent first, otherwise, move to the first sibling
   // otherwise, move to the top level of the program
   // TODO: make this even safer. also make more clear to llm how we moved after a deletion.
   // also handle the case of an empty program.
-
-  module Select = Select.Make(M);
-  module Move = Move.Make(M);
 
   print_endline("here #8.0 safe_move");
 
@@ -499,14 +500,9 @@ let safe_move =
           "here #8.5 safe_move (after selecting preceding sibling)",
         );
         print_endline("no siblings still exist in info map");
-        // TODO: this is a bad case. it means the program is empty :(
-        // or has no let/type expressions. or something else very bad.
-        let z' =
-          switch (Move.do_extreme(Move.primary(ByToken), Up, z)) {
-          | Some(z') => z'
-          | None => z
-          };
-        Select.go(Extreme(Down), z');
+        // TODO: this likely means the program is empty and/or
+        // has no let/type expressions. or something else very bad.
+        Some(Select.all(z));
       };
     };
   };

@@ -3,19 +3,25 @@ let get_documentation_as_text = () => {
   let documentation =
     slides
     |> List.map(((name, persistent)) => {
-         let cell_model =
-           CellEditor.Model.unpersist(
-             ~settings=Language.CoreSettings.off,
-             persistent,
-           );
-         let text =
-           Haz3lcore.Printer.of_zipper(cell_model.editor.editor.state.zipper);
-         "<slide_name>"
-         ++ name
-         ++ "</slide_name>\n"
-         ++ "<slide_text>"
-         ++ text
-         ++ "</slide_text>";
+         switch (persistent) {
+         | Some(persistent) =>
+           let cell_model =
+             CellEditor.Model.unpersist(
+               ~settings=Language.CoreSettings.off,
+               persistent,
+             );
+           let text =
+             Haz3lcore.Printer.of_zipper(
+               cell_model.editor.editor.state.zipper,
+             );
+           "<slide_name>"
+           ++ name
+           ++ "</slide_name>\n"
+           ++ "<slide_text>"
+           ++ text
+           ++ "</slide_text>";
+         | None => ""
+         }
        })
     |> String.concat("\n\n");
   ["<hazelDocumentation>" ++ documentation ++ "</hazelDocumentation>"];
