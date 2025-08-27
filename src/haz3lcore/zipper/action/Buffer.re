@@ -8,9 +8,8 @@ let buffer_clear = (z: Zipper.t): Zipper.t =>
   | Normal => z
   };
 
-let set_tydi_buffer =
-    (info_map: Language.Statics.Map.t, z: Zipper.t): Zipper.t =>
-  switch (TyDi.set_buffer(~info_map, z)) {
+let set_tydi_buffer = (ci: option(Language.Info.t), z: Zipper.t): Zipper.t =>
+  switch (TyDi.set_buffer(~ci, z)) {
   | None => z
   | Some(z) => z
   };
@@ -54,10 +53,10 @@ let buffer_accept = (z: Zipper.t): option(Zipper.t) =>
   };
 
 let go =
-    (~info_map: Language.Statics.Map.t, a: Action.buffer, z: Zipper.t)
+    (~ci: option(Language.Info.t), a: Action.buffer, z: Zipper.t)
     : Result.t(Zipper.t, Action.Failure.t) =>
   switch (a) {
-  | Set(TyDi) => Ok(set_tydi_buffer(info_map, z))
+  | Set(TyDi) => Ok(set_tydi_buffer(ci, z))
   | Set(LLM(response)) => Ok(set_llm_buffer(z, response))
   | Accept =>
     buffer_accept(z) |> Result.of_option(~error=Action.Failure.CantAccept)

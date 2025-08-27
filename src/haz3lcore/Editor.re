@@ -78,7 +78,9 @@ let perform =
       ~case_rules=false,
       z,
     )
-    |> Option.bind(_, Introduce.introduce(statics.info_map, _))
+    |> OptUtil.and_then(
+         Introduce.introduce(Indicated.ci_of(z, statics.info_map)),
+       )
     |> return(CantIntroduce)
   | Paste(String(clipboard)) =>
     Parser.to_zipper(~zipper_init=z, clipboard) |> return(CantPaste)
@@ -99,11 +101,11 @@ let perform =
       Printer.of_zipper(~holes="", ~indent="", z),
     )
     |> return(CantReparse)
-  | Buffer(a) => Buffer.go(~info_map=statics.info_map, a, z)
+  | Buffer(a) => Buffer.go(~ci=Indicated.ci_of(z, statics.info_map), a, z)
   | Project(a) => ProjectorPerform.go(syntax.term_data, a, z)
   | Move(d) =>
     Move.go(
-      ~info_map=statics.info_map,
+      ~ci=Indicated.ci_of(z, statics.info_map),
       ~col_target=Option.value(col_target, ~default=0),
       ~measured=syntax.measured,
       d,
@@ -292,7 +294,10 @@ module Update = {
     /* 1. Recalculate the autocomplete buffer if necessary */
     let zipper =
       if (settings.assist && settings.statics && is_edited) {
-        Buffer.set_tydi_buffer(new_statics.info_map, state.zipper);
+        Buffer.set_tydi_buffer(
+          Indicated.ci_of(state.zipper, new_statics.info_map),
+          state.zipper,
+        );
       } else {
         state.zipper;
       };

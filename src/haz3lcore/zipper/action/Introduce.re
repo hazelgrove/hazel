@@ -237,8 +237,8 @@ module Make =
   };
 };
 
-let introduce = (statics: Statics.Map.t, z: Zipper.t) => {
-  switch (Indicated.ci_of(z, statics)) {
+let introduce = (ci: option(Info.t), z: Zipper.t) => {
+  switch (ci) {
   | None => None
   | Some(
       InfoExp({
