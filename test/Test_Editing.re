@@ -32,28 +32,15 @@ let printer = (z: Zipper.t): string => {
 let perform = (zip: Zipper.t, actions: list(Action.t)): Zipper.t => {
   /* This is a simplified testing harness for zipper actions.
    * It does not apply any semantics-based behaviors. */
-  let mk_syntax: Zipper.t => Editor.CachedSyntax.t =
-    Editor.CachedSyntax.init(
-      ~info_map=Language.Statics.Map.empty,
-      ~dyn_map=Language.Dynamics.Map.empty,
-    );
-  let mk_state: Zipper.t => Editor.State.t =
-    z => {
-      zipper: z,
-      col_target: None,
-    };
-  let mk_move = (z: Zipper.t): (module Move.S) =>
-    Editor.Model.to_move_s({
-      state: mk_state(z),
-      syntax: mk_syntax(z),
-    });
   let perform = (a: Action.t, z: Zipper.t) =>
-    Perform.go_z(
-      ~settings=Language.CoreSettings.off,
-      CachedStatics.empty,
+    Perform.go(
+      ~statics=CachedStatics.empty,
+      ~syntax=CachedSyntax.init(z),
       a,
-      mk_move(z),
-      z,
+      {
+        zipper: z,
+        col_target: None,
+      },
     );
   List.fold_left(
     (z: Zipper.t, a: Action.t) =>
@@ -72,16 +59,16 @@ let string_to_ltr_actions = (s: string): list(Action.t) =>
   s |> Util.StringUtil.to_list |> List.map(c => Action.Insert(c));
 
 let mv_l = (n: int): list(Action.t) =>
-  List.init(n, _ => Action.Move(Local(Left(ByChar))));
+  List.init(n, _ => Action.Move(Local(Left, ByChar)));
 
 let mv_r = (n: int): list(Action.t) =>
-  List.init(n, _ => Action.Move(Local(Right(ByChar))));
+  List.init(n, _ => Action.Move(Local(Right, ByChar)));
 
 let mv_l_token = (n: int): list(Action.t) =>
-  List.init(n, _ => Action.Move(Local(Left(ByToken))));
+  List.init(n, _ => Action.Move(Local(Left, ByToken)));
 
 let mv_r_token = (n: int): list(Action.t) =>
-  List.init(n, _ => Action.Move(Local(Right(ByToken))));
+  List.init(n, _ => Action.Move(Local(Right, ByToken)));
 
 let mk = (init: string): list(Action.t) => {
   /* This harness uses a  to represent caret position.
@@ -361,7 +348,7 @@ let insertion_tests = [
         Insert(" "),
         Insert("="),
         Insert(" "),
-        Move(Local(Right(ByChar))),
+        Move(Local(Right, ByChar)),
       ],
     ~goal={|let x = -¦1|},
   ),
@@ -788,6 +775,11 @@ let selection_tests = [
     ~goal={|§(1,2,3,4,5)¦|},
   ),
   test(
+    ~name="Select term from right",
+    ~acts=mk({|(1,2,3,4,5)¦|}) @ [Select(Term(Current))],
+    ~goal={|§(1,2,3,4,5)¦|},
+  ),
+  test(
     ~name="Select subterm with selection",
     ~acts=mk({|(1 + (2 ¦+ 3)|}) @ [Action.Select(Term(Current))],
     ~goal={|(1 + (§2 + 3¦)|},
@@ -828,7 +820,7 @@ let selection_tests = [
     ~goal={|(1,2,3,4,5)¦|},
   ),
   test(
-    ~name="Move right by token from selection",
+    ~name="ht by token from selection",
     ~acts=
       mk({|(1, ¦(2, 3), 4, 5)|})
       @ [Action.Select(Term(Current))]
@@ -862,7 +854,7 @@ let selection_tests = [
 45678,
 56789)|})
       @ [Action.Select(All)]
-      @ [Action.Move(Extreme(Left(ByToken)))],
+      @ [Action.Move(Line(Left))],
     ~goal={|(12345,
   23456789,
   345678,
@@ -873,7 +865,7 @@ let selection_tests = [
     ~name="Extend selection left by token",
     ~acts=
       mk({|let x = 1 in (x, 12345¦, ?)|})
-      @ [Action.Select(Resize(Local(Left(ByToken))))],
+      @ [Action.Select(Resize(Local(Left, ByToken)))],
     ~goal={|let x = 1 in (x, ¦12345§, ?)|},
   ),
 ];

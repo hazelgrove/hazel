@@ -80,7 +80,7 @@ type appendability = option((Direction.t, Token.t));
 let parens_edge_case = (char: string, z: t): bool =>
   switch (
     char,
-    Zipper.neighbor_shard(Right, z),
+    Zipper.neighbor_token(Right, z),
     Siblings.neighbor(Right, z.relatives.siblings),
   ) {
   | ("[", Some("]"), None)
@@ -91,7 +91,7 @@ let parens_edge_case = (char: string, z: t): bool =>
 /* Decide which if any sibling we can append `char` to.
  * We bias towards the left sibling */
 let sibling_appendability = (char: string, z: t): appendability =>
-  switch (neighbor_shards(z)) {
+  switch (neighbor_tokens(z)) {
   | (Some(t), _)
       when
         Token.is_potential_token(Token.append(t, char))
@@ -158,7 +158,7 @@ let split = (z: t, char: string, idx: int, t: Token.t): option(t) => {
 /* If the caret is precisely between two tokens, which
  * can become a valid token if merged, merge those tokens */
 let merge_or_noop = (z: t): t =>
-  switch (Zipper.neighbor_shards(z)) {
+  switch (Zipper.neighbor_tokens(z)) {
   | (Some(l), Some(r))
       when Token.is_potential_token(Token.append(l, r)) && z.caret == Outer =>
     /* We remove the left manually, and then replace the right */
@@ -189,7 +189,7 @@ let adjust_caret_pos = (~z_final: t, ~z_init: t): t => {
 let go = (char: string, z: t): option(t) => {
   /* If there's a selection, delete it before proceeding */
   let z = z.selection.content != [] ? Zipper.destroy_selection(z) : z;
-  switch (z.caret, neighbor_shards(z)) {
+  switch (z.caret, neighbor_tokens(z)) {
   /* If we try to insert a quote inside an existing string, or a #
    * in a comment, we are instead moved to the righthand side of
    * the operand. Note that this behavior is load-bearing for the
@@ -237,8 +237,7 @@ let go = (char: string, z: t): option(t) => {
 
 /* This is a wrapper intended to effectuate after-insertion conditional
  * operations. See Triggers.re for more details */
-let go =
-    (~ctx: Language.Ctx.t=Language.Ctx.empty, char: string, z: t): option(t) => {
+let go = (~ci: option(Language.Info.t)=None, char: string, z: t): option(t) => {
   let+ z = go(char, z);
-  Triggers.insert(~ctx, z);
+  Triggers.insert(~ci, z);
 };
