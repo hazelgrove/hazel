@@ -1,16 +1,32 @@
 open Util;
 
-open Zipper;
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type chunkiness =
+  | ByChar
+  | ByToken;
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type planar =
+  | Up
+  | Down
+  | Left
+  | Right;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type goal =
-  | Point(Point.t)
   | Hole(Direction.t);
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type spatial =
+  | Up
+  | Down
+  | Point(Point.t);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type move =
   | Extreme(planar)
-  | Local(planar)
+  | Local(Direction.t, chunkiness)
+  | Spatial(spatial)
   | Goal(goal);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]

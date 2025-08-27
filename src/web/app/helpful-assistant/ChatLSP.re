@@ -289,7 +289,7 @@ module Composition = {
           // off of a variable name (term), and triple/quad click on let binding
           // itself (this properly highlights full variable name and
           // definition when type annotation exists)
-          Action.Move(Local(Left(ByToken))),
+          Action.Move(Local(Left, ByToken)),
           switch (loc) {
           // TODO: Implement structure-based navigation actions
           | Definition =>
