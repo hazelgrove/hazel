@@ -783,6 +783,11 @@ let selection_tests = [
     ~goal={|§(1,2,3,4,5)¦|},
   ),
   test(
+    ~name="Select term from right",
+    ~acts=mk({|(1,2,3,4,5)¦|}) @ [Select(Term(Current))],
+    ~goal={|§(1,2,3,4,5)¦|},
+  ),
+  test(
     ~name="Select subterm with selection",
     ~acts=mk({|(1 + (2 ¦+ 3)|}) @ [Action.Select(Term(Current))],
     ~goal={|(1 + (§2 + 3¦)|},
@@ -823,7 +828,7 @@ let selection_tests = [
     ~goal={|(1,2,3,4,5)¦|},
   ),
   test(
-    ~name="Move right by token from selection",
+    ~name="ht by token from selection",
     ~acts=
       mk({|(1, ¦(2, 3), 4, 5)|})
       @ [Action.Select(Term(Current))]

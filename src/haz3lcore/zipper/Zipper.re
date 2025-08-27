@@ -199,6 +199,19 @@ let move = (d: Direction.t, z: t): option(t) =>
 let select = (d: Direction.t, z: t): option(t) =>
   d == z.selection.focus ? grow_selection(z) : shrink_selection(z);
 
+let generalized_neighbor = (d: Direction.t, z: t): option(Piece.t) => {
+  let* z = select(d, unselect(z));
+  switch (z.selection.content) {
+  | [p] => Some(p)
+  | _ => None
+  };
+};
+
+let generalized_neighbors = (z: t): (option(Piece.t), option(Piece.t)) => (
+  generalized_neighbor(Left, z),
+  generalized_neighbor(Right, z),
+);
+
 let singleton_shard_selection = (seg: Segment.t): option(Token.t) =>
   switch (seg) {
   | [Tile(t)] =>

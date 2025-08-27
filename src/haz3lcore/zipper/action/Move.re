@@ -47,6 +47,140 @@ let primary = (chunkiness: chunkiness, d: Direction.t, z: t): option(t) => {
   };
 };
 
+/* Do move_action until the predicate on the generalized neigbors of the
+   caret becomes true. A generalized neighbor is the neighboring piece, unless
+   the neighbor is a polytile, in which case it's the relevant shard, or
+   we are at the edge of a segment, in which case it's the relevant shard
+   of the parent. The None case strictly means the beginning/end of the program.
+   If no such piece is found, don't move. Does not check predicate before
+   moving; caller should handle that case if necessary */
+let rec do_until =
+        (
+          move_action: t => option(t),
+          piece_p: ((option(Piece.t), option(Piece.t))) => bool,
+          z: t,
+        )
+        : option(t) => {
+  let* z = move_action(z);
+  if (piece_p(Zipper.generalized_neighbors(z))) {
+    Some(z);
+  } else {
+    do_until(move_action, piece_p, z);
+  };
+};
+
+let to_extreme = (d: Direction.t, z: t): t =>
+  switch (
+    do_until(
+      primary(ByToken, d),
+      neighbors =>
+        switch (neighbors) {
+        | (None, _) => true
+        | (_, None) => true
+        | _ => false
+        },
+      z,
+    )
+  ) {
+  | None => z
+  | Some(z) => z
+  };
+
+/* Do move_action until the indicated piece is such that piece_p is true,
+   restarting from the beginning/end if not found in forward direction.
+   If no such piece is found, don't move. */
+let do_until_wrap = (p, d, z) =>
+  switch (do_until(primary(ByToken, d), p, z)) {
+  | None =>
+    let z = to_extreme(Direction.toggle(d), z);
+    do_until(primary(ByToken, d), p, z);
+  | Some(z) => Some(z)
+  };
+
+/* This moves the caret to the directionmost edge of
+ * the piece with the target id. Note that this may not
+ * mean that the piece at that id will be considered
+ * indicated from the point of view of the code deco
+ * and cursor info display. This is true even when the
+ * direction is set to the Left, though in relatively
+ * few cases including for example `true && !|flag`,
+ * where the caret (|) is at the leftmost edge of
+ * `flag`, but the not operator ("!") is indicated */
+let jump_to_side_of_id = (d: Direction.t, z, id): option(t) => {
+  let z = to_extreme(d, z);
+  let pred = neighbors =>
+    switch (d, neighbors) {
+    | (Left, (_, Some(piece))) => Piece.id(piece) == id
+    | (Right, (Some(piece), _)) => Piece.id(piece) == id
+    | _ => false
+    };
+  pred(Zipper.generalized_neighbors(z))
+    ? Some(z)
+    : (
+      switch (do_until(primary(ByToken, Direction.toggle(d)), pred, z)) {
+      | None => Some(z)
+      | Some(z) => Some(z)
+      }
+    );
+  // switch (d) {
+  // | Left => z
+  // | Right =>
+  //   switch (primary(ByToken, Right, z)) {
+  //   | Some(z) => z
+  //   | None => z
+  //   }
+  // };
+  // do_until(
+  //   primary(ByToken, d),
+  //   neighbors =>
+  //     switch (d, neighbors) {
+  //     | (Left, (_, Some(piece))) => Piece.id(piece) == id
+  //     | (Right, (Some(piece), _)) => Piece.id(piece) == id
+  //     | _ => false
+  //     },
+  //   z,
+  // );
+};
+
+/* Moves to the left side of the token with the given id,
+ * then checks if it's indicated. If not, move one token
+ * to the right. I believe but have not proved this
+ * always results in the token being indicated  */
+let jump_to_id_indicated = (z: t, id: Id.t): option(t) => {
+  let* z_l = jump_to_side_of_id(Left, z, id);
+  let* indicated_id = Indicated.index(z_l);
+  if (id == indicated_id) {
+    Some(z_l);
+  } else {
+    let* z_r = jump_to_side_of_id(Right, z, id);
+    let* indicated_id = Indicated.index(z_r);
+    if (id == indicated_id) {
+      Some(z_r);
+    } else {
+      None;
+    };
+  };
+};
+
+let to_next_grout = (d: Direction.t, z: t): option(t) =>
+  do_until_wrap(
+    neighbors =>
+      switch (neighbors) {
+      | (Some(piece), _) => Action.of_piece_goal(Grout, piece)
+      | _ => false
+      },
+    d,
+    z,
+  );
+
+let left_until_case_or_rule =
+  do_until(primary(ByToken, Left), neighbors =>
+    switch (neighbors) {
+    | (Some(piece), _) => Piece.is_case_or_rule(piece)
+    | _ => false
+    }
+  );
+
 module type S = {
   let measured: Measured.t;
   let term_data: TermData.t;
@@ -55,7 +189,7 @@ module type S = {
 
 module Make = (M: S) => {
   let caret_point = Zipper.Caret.point(M.measured);
-  let primary = primary;
+
   let is_at_side_of_row = (d: Direction.t, z: Zipper.t) => {
     let Point.{row, col} = caret_point(z);
     switch (Zipper.move(d, z)) {
@@ -78,7 +212,7 @@ module Make = (M: S) => {
     abs(caret_point(prev).col - goal.col)
     < abs(caret_point(curr).col - goal.col);
 
-  let do_towards =
+  let do_towards_goal =
       (
         ~anchor: option(Measured.Point.t)=?,
         ~force_progress: bool=false,
@@ -157,155 +291,42 @@ module Make = (M: S) => {
         col: M.col_target,
         row: cur_p.row + (d == Right ? 1 : (-1)),
       };
-    do_towards(~force_progress=true, f, goal, z);
+    do_towards_goal(~force_progress=true, f, goal, z);
   };
 
-  let do_extreme =
-      (f: (Direction.t, t) => option(t), d: planar, z: t): option(t) => {
-    let cur_p = caret_point(z);
-    let goal: Point.t =
-      switch (d) {
-      | Right(_) => {
-          col: Int.max_int,
-          row: cur_p.row,
-        }
-      | Left(_) => {
-          col: 0,
-          row: cur_p.row,
-        }
-      | Up => {
-          col: 0,
-          row: 0,
-        }
-      | Down => {
-          col: Int.max_int,
-          row: Int.max_int,
-        }
-      };
-    do_towards(f, goal, z);
-  };
-
-  let to_start = do_extreme(primary(ByToken), Up);
-  let to_end = do_extreme(primary(ByToken), Down);
-
-  let to_edge: (Direction.t, t) => option(t) =
-    fun
-    | Left => to_start
-    | Right => to_end;
-
-  /* Do move_action until the indicated piece is such that piece_p is true.
-     If no such piece is found, don't move. */
-  let rec do_until =
-          (
-            ~move_first=true,
-            move_action: t => option(t),
-            piece_p: Piece.t => bool,
-            z: t,
-          )
-          : option(t) => {
-    let* z = move_first ? move_action(z) : Some(z);
-    let* (piece, _, _) = Indicated.piece'(~no_ws=false, ~ign=_ => false, z);
-    if (piece_p(piece)) {
-      Some(z);
-    } else {
-      let* z = move_first ? Some(z) : move_action(z);
-      do_until(~move_first, move_action, piece_p, z);
-    };
-  };
-
-  /* Do move_action until the indicated piece is such that piece_p is true,
-     restarting from the beginning/end if not found in forward direction.
-     If no such piece is found, don't move. */
-  let do_until_wrap = (p, d, z) =>
-    switch (do_until(primary(ByToken, d), p, z)) {
-    | None =>
-      let* z = to_edge(Direction.toggle(d), z);
-      do_until(primary(ByToken, d), p, z);
-    | Some(z) => Some(z)
-    };
-
-  /* This moves the caret to the directionmost edge of
-   * the piece with the target id. Note that this may not
-   * mean that the piece at that id will be considered
-   * indicated from the point of view of the code deco
-   * and cursor info display. This is true even when the
-   * direction is set to the Left, though in relatively
-   * few cases including for example `true && !|flag`,
-   * where the caret (|) is at the leftmost edge of
-   * `flag`, but the not operator ("!") is indicated */
-  let jump_to_side_of_id = (d: Direction.t, z, id): option(t) => {
-    let jump_to_left_of_id = (z: t, id: Id.t): option(t) => {
-      let* {origin, _} = Measured.find_by_id(id, M.measured);
-      let z =
-        switch (to_start(z)) {
-        | None => z
-        | Some(z) => z
-        };
-      switch (do_towards(primary(ByChar), origin, z)) {
-      | None => Some(z)
-      | Some(z) => Some(z)
-      };
-    };
-    let+ z = jump_to_left_of_id(z, id);
+  let extreme_goal = (d: planar, z: t): Point.t =>
     switch (d) {
-    | Left => z
-    | Right =>
-      switch (primary(ByToken, Right, z)) {
-      | Some(z) => z
-      | None => z
+    | Right(_) => {
+        col: Int.max_int,
+        row: caret_point(z).row,
+      }
+    | Left(_) => {
+        col: 0,
+        row: caret_point(z).row,
+      }
+    | Up => {
+        col: 0,
+        row: 0,
+      }
+    | Down => {
+        col: Int.max_int,
+        row: Int.max_int,
       }
     };
-  };
-
-  /* Moves to the left side of the token with the given id,
-   * then checks if it's indicated. If not, move one token
-   * to the right. I believe but have not proved this
-   * always results in the token being indicated  */
-  let jump_to_id_indicated = (z: t, id: Id.t): option(t) => {
-    let* {origin, _} = Measured.find_by_id(id, M.measured);
-    let z =
-      switch (to_start(z)) {
-      | None => z
-      | Some(z) => z
-      };
-    switch (do_towards(primary(ByChar), origin, z)) {
-    | None => Some(z)
-    | Some(z) =>
-      switch (Indicated.index(z)) {
-      | Some(indicated_id) when id == indicated_id => Some(z)
-      | _ =>
-        switch (primary(ByToken, Right, z)) {
-        | Some(z) => Some(z)
-        | None => Some(z)
-        }
-      }
-    };
-  };
-
-  let vertical = (d: Direction.t, z: t): option(t) =>
-    z.selection.content == []
-      ? do_vertical(primary(ByChar), d, z)
-      : Some(Zipper.directional_unselect(d, z));
 
   let move_dispatch = (d: Action.move, z: Zipper.t): option(Zipper.t) =>
     switch (d) {
-    | Goal(Piece(p, d)) => do_until_wrap(Action.of_piece_goal(p), d, z)
+    | Goal(Piece(Grout, d)) => to_next_grout(d, z)
     | Goal(Point(goal)) =>
-      switch (do_towards(primary(ByChar), goal, z)) {
+      switch (do_towards_goal(primary(ByChar), goal, z)) {
       | None => Some(z)
       | Some(z) => Some(z)
       }
-    | Extreme(d) => do_extreme(primary(ByToken), d, z)
-    | Local(d) =>
-      z
-      |> (
-        switch (d) {
-        | Left(chunk) => primary(chunk, Left)
-        | Right(chunk) => primary(chunk, Right)
-        | Up => vertical(Left)
-        | Down => vertical(Right)
-        }
-      )
+    | Extreme(d) => do_towards_goal(primary(ByToken), extreme_goal(d, z), z)
+    | Local(Left(chunk)) => primary(chunk, Left, z)
+    | Local(Right(chunk)) => primary(chunk, Right, z)
+    | Local(Up) => do_vertical(primary(ByChar), Left, z)
+    | Local(Down) => do_vertical(primary(ByChar), Right, z)
     };
 
   let go = (d: Action.move, z: Zipper.t): option(Zipper.t) =>
@@ -322,7 +343,6 @@ module Make = (M: S) => {
         | Extreme(Left(_) | Right(_))
         | Goal(_) => Zipper.directional_unselect(z.selection.focus, z)
         };
-
       switch (d) {
       // By char just unselects
       | Local(Left(ByChar))
@@ -334,14 +354,4 @@ module Make = (M: S) => {
         }
       };
     };
-
-  let left_until_case_or_rule =
-    do_until(go(Local(Left(ByToken))), Piece.is_case_or_rule);
-
-  let left_until_not_comment_or_space = (~move_first) =>
-    do_until(
-      ~move_first,
-      go(Local(Left(ByToken))),
-      Piece.not_comment_or_space,
-    );
 };
