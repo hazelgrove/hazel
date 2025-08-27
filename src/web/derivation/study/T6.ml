@@ -6,8 +6,8 @@ let exercise : DerivationTree.spec =
     prompt = "Derive the following judgment.";
     prelude =
       {
+        root = Drv Exp;
         selection = { focus = Left; content = []; mode = Normal };
-        backpack = [];
         relatives =
           {
             siblings =
@@ -268,12 +268,12 @@ let exercise : DerivationTree.spec =
                     ] ) );
               ];
           };
-        caret = Inner (0, 0);
+        caret = Inner 0;
       };
     setup =
       {
+        root = Drv Exp;
         selection = { focus = Left; content = []; mode = Normal };
-        backpack = [];
         relatives =
           {
             siblings =
@@ -300,8 +300,8 @@ let exercise : DerivationTree.spec =
               {
                 jdmt =
                   {
+                    root = Drv Exp;
                     selection = { focus = Left; content = []; mode = Normal };
-                    backpack = [];
                     relatives =
                       {
                         siblings =

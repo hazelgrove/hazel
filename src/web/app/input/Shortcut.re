@@ -83,17 +83,31 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       Globals(ActiveEditor(Select(Term(Current)))),
     ),
     mk_shortcut(
-      ~hotkey=Keyboard.meta(sys) ++ "+p",
-      ~mdIcon="backpack",
-      "Pick up selected term",
-      Globals(ActiveEditor(Pick_up)),
-    ),
-    mk_shortcut(
       ~mdIcon="select_all",
       ~hotkey=Keyboard.meta(sys) ++ "+a",
       ~section="Selection",
       "Select All",
       Globals(ActiveEditor(Select(All))),
+    ),
+    mk_shortcut(
+      ~mdIcon="flip_horizontal",
+      ~section="Selection",
+      "Toggle Selection Focus",
+      Globals(ActiveEditor(Select(ToggleFocus))),
+    ),
+    mk_shortcut(
+      ~mdIcon="border_left",
+      ~section="Selection",
+      ~hotkey=Keyboard.meta(sys) ++ "+alt+shift+left",
+      "Set Selection Focus Left",
+      Globals(ActiveEditor(Select(SetFocus(Left)))),
+    ),
+    mk_shortcut(
+      ~mdIcon="border_right",
+      ~section="Selection",
+      ~hotkey=Keyboard.meta(sys) ++ "+alt+shift+right",
+      "Set Selection Focus Right",
+      Globals(ActiveEditor(Select(SetFocus(Right)))),
     ),
     mk_shortcut(
       ~hotkey="alt+f",
@@ -204,8 +218,8 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
     mk_shortcut(
       ~section="Settings",
       ~mdIcon="tune",
-      "Toggle Show Docs Sidebar",
-      Globals(Set(ExplainThis(ToggleShow))),
+      "Toggle Show Sidebar",
+      Globals(Set(Sidebar(ToggleShow))),
     ),
     mk_shortcut(
       ~section="Settings",

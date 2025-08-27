@@ -80,14 +80,13 @@ type pos =
 // UI functionality
 
 let zipper_of_code = (code, ~root) => {
-  switch (Printer.zipper_of_string(code, ~root)) {
+  switch (Parser.to_zipper(code, ~root)) {
   | None => failwith("Transition failed.")
   | Some(zipper) => zipper
   };
 };
 
-let init = (~root: Sort.t) =>
-  "" |> zipper_of_code(~root) |> Editor.Model.mk(~root);
+let init = (~root: Sort.t) => "" |> zipper_of_code(~root) |> Editor.Model.mk;
 
 let get_trees_pos =
   fun
@@ -412,7 +411,7 @@ let transition: transitionary_spec => spec =
   mapi(_, pos => zipper_of_code(_, ~root=root_of_pos(pos)));
 
 let eds_of_spec = (eds, ~settings as _: Language.CoreSettings.t) =>
-  mapi(eds, pos => Editor.Model.mk(_, ~root=root_of_pos(pos)));
+  map(eds, Editor.Model.mk);
 
 //
 // Old version of above that did string-based parsing, may be useful
@@ -583,7 +582,7 @@ let export_module = ({eds, _}: state) => {
 
 let transitionary_editor_pp = (fmt, editor: Editor.t) => {
   let zipper = editor.state.zipper;
-  let code = Printer.to_string_basic(zipper);
+  let code = PersistentZipper.to_string(zipper);
   Format.pp_print_string(fmt, "\"" ++ String.escaped(code) ++ "\"");
 };
 

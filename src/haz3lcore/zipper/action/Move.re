@@ -2,100 +2,59 @@ open Zipper;
 open Util;
 open OptUtil.Syntax;
 
-[@deriving (show({with_path: false}), sexp, yojson)]
-type movability =
-  | CanEnter(int, int)
-  | CanPass
-  | CantEven;
-
-let movability = (chunkiness: chunkiness, label, delim_idx): movability => {
-  assert(delim_idx < List.length(label));
-  switch (chunkiness, label, delim_idx) {
-  | (ByChar, _, _)
-  | (MonoByChar, [_], 0) =>
-    let char_max = Token.length(List.nth(label, delim_idx)) - 2;
-    char_max < 0 ? CanPass : CanEnter(delim_idx, char_max);
-  | (ByToken, _, _)
-  | (MonoByChar, _, _) => CanPass
+let move_by_char_left = (z: t): option(t) =>
+  switch (z.caret, Caret.nhbr_max_idx(Left, z)) {
+  | (Outer, None) => move(Left, z)
+  | (Outer, Some(max_idx)) => z |> Caret.set(Inner(max_idx)) |> move(Left)
+  | (Inner(char), None | Some(_)) when char == 0 =>
+    z |> Caret.set(Outer) |> Option.some
+  | (Inner(char), None | Some(_)) =>
+    z |> Caret.set(Inner(char - 1)) |> Option.some
   };
-};
 
-let neighbor_movability =
-    (chunkiness: chunkiness, {relatives: {siblings, ancestors}, _}: t)
-    : (movability, movability) => {
-  let movability = movability(chunkiness);
-  let (supernhbr_l, supernhbr_r) =
-    switch (ancestors) {
-    | [] => (CantEven, CantEven)
-    | [({children: (l_kids, _), label, _}, _), ..._] => (
-        movability(label, List.length(l_kids)),
-        movability(label, List.length(l_kids) + 1),
-      )
-    };
-  let (l_nhbr, r_nhbr) = Siblings.neighbors(siblings);
-  let l =
-    switch (l_nhbr) {
-    | Some(Tile({label, _})) => movability(label, List.length(label) - 1)
-    | Some(Secondary(w)) when Secondary.is_comment(w) =>
-      // Comments are always length >= 2
-      let content_string = Secondary.get_string(w.content);
-      CanEnter(
-        Unicode.length(content_string) - 1,
-        Unicode.length(content_string) - 2,
-      );
-    | Some(Secondary(_) | Grout(_) | Projector(_)) => CanPass
-    | None => supernhbr_l
-    };
-  let r =
-    switch (r_nhbr) {
-    | Some(Tile({label, _})) => movability(label, 0)
-    | Some(Secondary(w)) when Secondary.is_comment(w) =>
-      // Comments are always length >= 2
-      let content_string = Secondary.get_string(w.content);
-      CanEnter(0, Unicode.length(content_string) - 2);
-    | Some(Secondary(_) | Grout(_) | Projector(_)) => CanPass
-    | None => supernhbr_r
-    };
-  (l, r);
-};
+let move_by_char_right = (z: t): option(t) =>
+  switch (z.caret, Caret.nhbr_max_idx(Right, z)) {
+  | (Outer, None) => move(Right, z)
+  | (Outer, Some(_)) => z |> Caret.set(Inner(0)) |> Option.some
+  | (Inner(char), Some(max_idx)) when char == max_idx =>
+    z |> Caret.set(Outer) |> move(Right)
+  | (Inner(char), None | Some(_)) =>
+    z |> Caret.set(Inner(char + 1)) |> Option.some
+  };
 
-let pop_out = z => Some(z |> Zipper.set_caret(Outer));
-let pop_move = (d, z) => z |> Zipper.set_caret(Outer) |> Zipper.move(d);
-let inner_incr = (delim, c, z) =>
-  Some(Zipper.set_caret(Inner(delim, c + 1), z));
-let inner_decr = z => Some(Zipper.update_caret(Zipper.Caret.decrement, z));
-let inner_start = (d_init, z) =>
-  Some(Zipper.set_caret(Inner(d_init, 0), z));
-let inner_end = (d, d_init, c_max, z) =>
-  z |> Zipper.set_caret(Inner(d_init, c_max)) |> Zipper.move(d);
+let move_by_char = (d: Direction.t, z: t): option(t) =>
+  switch (d) {
+  | Left => move_by_char_left(z)
+  | Right => move_by_char_right(z)
+  };
+
+let move_by_token = (d: Direction.t, z: t): option(t) =>
+  switch (z.caret) {
+  | Outer => move(d, z)
+  | Inner(_) =>
+    let z = Caret.set(Outer, z);
+    switch (d) {
+    | Left => Some(z)
+    | Right => move(Right, z)
+    };
+  };
 
 let primary = (chunkiness: chunkiness, d: Direction.t, z: t): option(t) => {
-  switch (d, z.caret, neighbor_movability(chunkiness, z)) {
-  /* this case maybe shouldn't be necessary but currently covers an edge
-     (select an open parens to left of a multichar token and press left) */
-  | _ when z.selection.content != [] => pop_move(d, z)
-  | (Left, Outer, (CanEnter(dlm, c_max), _)) => inner_end(d, dlm, c_max, z)
-  | (Left, Outer, _) => Zipper.move(d, z)
-  | (Left, Inner(_), _) when chunkiness == ByToken => pop_out(z)
-  | (Left, Inner(_), _) =>
-    Some(Zipper.update_caret(Zipper.Caret.decrement, z))
-  | (Right, Outer, (_, CanEnter(d_init, _))) => inner_start(d_init, z)
-  | (Right, Outer, _) => Zipper.move(d, z)
-  | (Right, Inner(_, c), (_, CanEnter(_, c_max))) when c == c_max =>
-    pop_move(d, z)
-  | (Right, Inner(_), _) when chunkiness == ByToken => pop_move(d, z)
-  | (Right, Inner(delim, c), _) => inner_incr(delim, c, z)
+  let z = unselect(z);
+  switch (chunkiness) {
+  | ByToken => move_by_token(d, z)
+  | ByChar => move_by_char(d, z)
   };
 };
 
 module type S = {
   let measured: Measured.t;
-  let term_ranges: TermRanges.t;
+  let term_data: TermData.t;
   let col_target: int;
 };
 
 module Make = (M: S) => {
-  let caret_point = Zipper.caret_point(M.measured);
+  let caret_point = Zipper.Caret.point(M.measured);
   let primary = primary;
   let is_at_side_of_row = (d: Direction.t, z: Zipper.t) => {
     let Point.{row, col} = caret_point(z);
@@ -265,33 +224,29 @@ module Make = (M: S) => {
     | Some(z) => Some(z)
     };
 
-  /* Jump to id moves the caret to the leftmost edge of
+  /* This moves the caret to the directionmost edge of
    * the piece with the target id. Note that this may not
    * mean that the piece at that id will be considered
-   * indicate from the point of view of the code decorations
-   * and cursor info display, since for example in the
-   * expression with (caret "|") "true && !|flag", the
-   * caret is at the leftmost edge of flag, but the not
-   * operator ("!") is indicated */
-  let jump_to_id = (z: t, id: Id.t): option(t) => {
-    let* {origin, _} = Measured.find_by_id(id, M.measured);
-    let z =
-      switch (to_start(z)) {
-      | None => z
-      | Some(z) => z
+   * indicated from the point of view of the code deco
+   * and cursor info display. This is true even when the
+   * direction is set to the Left, though in relatively
+   * few cases including for example `true && !|flag`,
+   * where the caret (|) is at the leftmost edge of
+   * `flag`, but the not operator ("!") is indicated */
+  let jump_to_side_of_id = (d: Direction.t, z, id): option(t) => {
+    let jump_to_left_of_id = (z: t, id: Id.t): option(t) => {
+      let* {origin, _} = Measured.find_by_id(id, M.measured);
+      let z =
+        switch (to_start(z)) {
+        | None => z
+        | Some(z) => z
+        };
+      switch (do_towards(primary(ByChar), origin, z)) {
+      | None => Some(z)
+      | Some(z) => Some(z)
       };
-    switch (do_towards(primary(ByChar), origin, z)) {
-    | None => Some(z)
-    | Some(z) => Some(z)
     };
-  };
-
-  let jump_to_side_of_id = (d: Direction.t, z, id) => {
-    let z =
-      switch (jump_to_id(z, id)) {
-      | Some(z) => z /* Move to left of id */
-      | None => z
-      };
+    let+ z = jump_to_left_of_id(z, id);
     switch (d) {
     | Left => z
     | Right =>
@@ -302,10 +257,10 @@ module Make = (M: S) => {
     };
   };
 
-  /* Same as jump to id, but if the end position doesn't
-   * indicate the target id, move one token to the right.
-   * This is an approximate solution (that I believe works
-   * for all current cases) */
+  /* Moves to the left side of the token with the given id,
+   * then checks if it's indicated. If not, move one token
+   * to the right. I believe but have not proved this
+   * always results in the token being indicated  */
   let jump_to_id_indicated = (z: t, id: Id.t): option(t) => {
     let* {origin, _} = Measured.find_by_id(id, M.measured);
     let z =
@@ -331,77 +286,6 @@ module Make = (M: S) => {
     z.selection.content == []
       ? do_vertical(primary(ByChar), d, z)
       : Some(Zipper.directional_unselect(d, z));
-
-  let targets_within_row = (z: t): list(t) => {
-    let init = caret_point(z);
-    let rec go = (d: Direction.t, z: t) => {
-      switch (primary(ByChar, d, z)) {
-      | None => []
-      | Some(z) =>
-        if (caret_point(z).row != init.row) {
-          [];
-        } else {
-          switch (pop_backpack(z)) {
-          | None => go(d, z)
-          | Some(_) => [z, ...go(d, z)]
-          };
-        }
-      };
-    };
-    let curr =
-      switch (pop_backpack(z)) {
-      | None => []
-      | Some(_) => [z]
-      };
-    List.rev(go(Left, z)) @ curr @ go(Right, z);
-  };
-
-  // TODO(d): unify this logic with rest of movement logic
-  let rec to_backpack_target = (d: planar, z: t): option(t) => {
-    let done_or_try_again = (d, z) =>
-      switch (pop_backpack(z)) {
-      | None => to_backpack_target(d, z)
-      | Some(_) => Some(z)
-      };
-    switch (d) {
-    | Left(chunk) =>
-      let* z = primary(chunk, Left, z);
-      done_or_try_again(d, z);
-    | Right(chunk) =>
-      let* z = primary(chunk, Right, z);
-      done_or_try_again(d, z);
-    | Up =>
-      let* z = vertical(Left, z);
-      let zs =
-        targets_within_row(z)
-        |> List.sort((z1, z2) => {
-             let dist1 = caret_point(z1).col - M.col_target;
-             let dist2 = caret_point(z2).col - M.col_target;
-             let c = Int.compare(abs(dist1), abs(dist2));
-             // favor left
-             c != 0 ? c : Int.compare(dist1, dist2);
-           });
-      switch (zs) {
-      | [] => to_backpack_target(d, z)
-      | [z, ..._] => Some(z)
-      };
-    | Down =>
-      let* z = vertical(Right, z);
-      let zs =
-        targets_within_row(z)
-        |> List.sort((z1, z2) => {
-             let dist1 = caret_point(z1).col - M.col_target;
-             let dist2 = caret_point(z2).col - M.col_target;
-             let c = Int.compare(abs(dist1), abs(dist2));
-             // favor right
-             c != 0 ? c : - Int.compare(dist1, dist2);
-           });
-      switch (zs) {
-      | [] => to_backpack_target(d, z)
-      | [z, ..._] => Some(z)
-      };
-    };
-  };
 
   let move_dispatch = (d: Action.move, z: Zipper.t): option(Zipper.t) =>
     switch (d) {
@@ -430,10 +314,24 @@ module Make = (M: S) => {
     } else {
       /* Always empty selection on move action,
        * even if we don't actually move */
-      let z = Zipper.directional_unselect(z.selection.focus, z);
-      switch (move_dispatch(d, z)) {
-      | Some(z) => Some(z)
-      | None => Some(z)
+      let z =
+        switch (d) {
+        | Local(planar)
+        | Extreme((Up | Down) as planar) =>
+          Zipper.directional_unselect(Zipper.from_plane(planar), z)
+        | Extreme(Left(_) | Right(_))
+        | Goal(_) => Zipper.directional_unselect(z.selection.focus, z)
+        };
+
+      switch (d) {
+      // By char just unselects
+      | Local(Left(ByChar))
+      | Local(Right(ByChar)) => Some(z)
+      | _ =>
+        switch (move_dispatch(d, z)) {
+        | Some(z) => Some(z)
+        | None => Some(z)
+        }
       };
     };
 

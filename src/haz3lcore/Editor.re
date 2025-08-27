@@ -5,7 +5,6 @@ module CachedSyntax = {
     old: bool,
     segment: Segment.t,
     measured: Measured.t,
-    tiles: TileMap.t,
     selection_ids: list(Id.t),
     /* The term-derived data structured below, may differ
      * from the term used for semantics. These terms are identical when
@@ -20,7 +19,7 @@ module CachedSyntax = {
      * some other comments at some of the weakest joints; the biggest
      * issue is that dropping the backpack can add/remove grout, causing
      * certain ids to be present/non-present unexpectedly. */
-    term_ranges: TermRanges.t,
+    term_data: TermData.t,
     terms: TermMap.t,
     /* Since the introduction of shape_map below, caching projectors
      * here is almost vesigial (currently used only for error deco) */
@@ -29,6 +28,7 @@ module CachedSyntax = {
      * underlying editor. In principle calculating this can involve
      * both static and dynamic information, so we cache this for perf */
     shape_map: ProjectorCore.Shape.Map.t,
+    cached_backpack: list(Tile.t),
   };
 
   // should not be serializing
@@ -39,19 +39,20 @@ module CachedSyntax = {
 
   let init = (~info_map, ~dyn_map, z): t => {
     let segment = Zipper.unselect_and_zip(z);
-    let MakeTerm.{term: _, terms, projectors} = MakeTerm.go(segment);
+    let MakeTerm.{term: _, terms, projectors, term_data} =
+      MakeTerm.go(segment);
     let projector_shapes =
       ProjectorInfo.ShapeMapSemantics.mk(projectors, info_map, dyn_map);
     {
       old: false,
       segment,
-      term_ranges: TermRanges.mk(segment),
-      tiles: TileMap.mk(segment),
+      term_data,
       measured: Measured.of_segment(segment, projector_shapes),
       selection_ids: Selection.selection_ids(z.selection),
       terms,
       projectors,
       shape_map: projector_shapes,
+      cached_backpack: Segment.global_missing_shards(segment),
     };
   };
 
@@ -89,7 +90,6 @@ module State = {
 module Model = {
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
-    root: Sort.t,
     // Updated
     state: State.t,
     // Calculated
@@ -97,8 +97,7 @@ module Model = {
     syntax: CachedSyntax.t,
   };
 
-  let mk = (zipper, ~root: Sort.t) => {
-    root,
+  let mk = zipper => {
     state: {
       zipper,
       col_target: None,
@@ -114,12 +113,12 @@ module Model = {
   type persistent = PersistentZipper.t;
   let persist = (model: t) => model.state.zipper |> PersistentZipper.persist;
   let unpersist = (p, ~root: Sort.t) =>
-    p |> PersistentZipper.unpersist(~root) |> mk(~root);
+    p |> PersistentZipper.unpersist(~root) |> mk;
 
   let to_move_s = (model: t): (module Move.S) => {
     module M: Move.S = {
       let measured = model.syntax.measured;
-      let term_ranges = model.syntax.term_ranges;
+      let term_data = model.syntax.term_data;
       let col_target = model.state.col_target |> Option.value(~default=0);
     };
     (module M);
@@ -151,13 +150,29 @@ module Update = {
         ~settings: Language.CoreSettings.t,
         a: Action.t,
         old_statics,
-        {root, state, syntax}: Model.t,
+        {state, syntax}: Model.t,
       )
       : Action.Result.t(Model.t) => {
     open Result.Syntax;
-    // 1. Clear the autocomplete buffer if relevant
+    let old_zipper = state.zipper;
+    /* 1. Clear the autocomplete buffer if relevant. We clear the TyDi
+     * (unparsed) buffer on every action except accept; for the LLM
+     * (parsed) buffer, we accept resize actions to permit incremental
+     * accepteance token-by-token or line-by-line */
+    let clear_condition =
+      (settings.assist && settings.statics && a != Buffer(Accept))
+      && !(
+           Selection.non_empty_parsed_buffer(state.zipper.selection)
+           && (
+             switch (a) {
+             | Select(Resize(Local(_))) => true
+             | _ => false
+             }
+           )
+         );
+
     let state =
-      settings.assist && settings.statics && a != Buffer(Accept)
+      clear_condition
         ? {
           ...state,
           zipper:
@@ -166,21 +181,35 @@ module Update = {
               old_statics,
               Buffer(Clear),
               Model.to_move_s({
-                root,
                 state,
-
                 syntax,
               }),
               state.zipper,
-              ~root,
             )
             |> Action.Result.ok
             |> Option.value(~default=state.zipper),
         }
         : state;
     let syntax =
-      if (settings.assist && settings.statics && a != Buffer(Accept)) {
+      if (clear_condition) {
         CachedSyntax.mark_old(syntax);
+      } else {
+        syntax;
+      };
+    /* TODO(andrew): Apologize to matt for below.
+       If a buffer clear happens above then we must recalculate the
+       syntax cache as otherwise the measured, in particular caret_point,
+       will be looking for tiles inside the buffer, for example if we try
+       to click or move down to dismiss a completion.*/
+    let syntax =
+      if (clear_condition
+          && Selection.non_empty_parsed_buffer(old_zipper.selection)) {
+        CachedSyntax.calculate(
+          state.zipper,
+          old_statics.info_map,
+          Id.Map.empty, //TODO
+          syntax,
+        );
       } else {
         syntax;
       };
@@ -192,7 +221,7 @@ module Update = {
       | Select(Resize(Local(Up | Down))) =>
         switch (state.col_target) {
         | Some(col) => Some(col)
-        | None => Some(Zipper.caret_point(syntax.measured, state.zipper).col)
+        | None => Some(Zipper.Caret.point(syntax.measured, state.zipper).col)
         }
       | _ => None
       };
@@ -208,18 +237,14 @@ module Update = {
         old_statics,
         a,
         Model.to_move_s({
-          root,
           state,
-
           syntax,
         }),
         state.zipper,
-        ~root,
       );
 
     // Recombine
     Model.{
-      root,
       state: {
         zipper,
         col_target,
@@ -234,7 +259,7 @@ module Update = {
         ~is_edited,
         new_statics,
         dyn_map,
-        {root, syntax, state}: Model.t,
+        {syntax, state}: Model.t,
       ) => {
     // 1. Recalculate the autocomplete buffer if necessary
     let zipper =
@@ -245,12 +270,10 @@ module Update = {
             new_statics,
             Buffer(Set(TyDi)),
             Model.to_move_s({
-              root,
               syntax,
               state,
             }),
             state.zipper,
-            ~root,
           )
         ) {
         | Ok(z) => z
@@ -267,7 +290,6 @@ module Update = {
 
     // Recombine
     Model.{
-      root,
       state: {
         ...state,
         zipper,

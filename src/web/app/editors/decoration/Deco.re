@@ -6,7 +6,6 @@ type shard_data = (Measured.measurement, Nibs.shapes);
 
 let sel_shard_svg =
     (
-      ~index=?,
       ~start_shape: ShardDec.tip,
       measurement: Measured.measurement,
       p: Piece.t,
@@ -14,9 +13,8 @@ let sel_shard_svg =
     : (Measured.measurement, (ShardDec.tip, ShardDec.tip)) => (
   measurement,
   switch (p) {
-  | Tile(t) => Mold.nib_shapes(~index?, t.mold) |> ShardDec.tips_of_shapes
-  | Grout(g) =>
-    Mold.nib_shapes(Mold.of_grout(g, Any)) |> ShardDec.tips_of_shapes
+  | Tile(t) => t |> Tile.shapes |> ShardDec.tips_of_shapes
+  | Grout(g) => g |> Grout.shapes |> ShardDec.tips_of_shapes
   | Secondary(_) => (
       Option.map(
         (s: Nib.Shape.t) =>
@@ -91,12 +89,12 @@ module HighlightSegment =
           )),
         ]
       };
-    let start_shape =
+    let next_start_shape =
       switch (Piece.nibs(p)) {
       | None => start_shape
       | Some((_, {shape, _})) => Some(shape)
       };
-    (start_shape, shard_data);
+    (next_start_shape, shard_data);
   }
   and of_tile = (~start_shape, t: Tile.t): list(option(_)) => {
     let tile_shards =
@@ -105,7 +103,7 @@ module HighlightSegment =
       |> List.map(((index, m)) => {
            let token = List.nth(t.label, index);
            switch (StringUtil.num_linebreaks(token)) {
-           | 0 => [Some(sel_shard_svg(~start_shape, ~index, m, Tile(t)))]
+           | 0 => [Some(sel_shard_svg(~start_shape, m, Tile(t)))]
            | num_lb =>
              multiline_shard(num_lb, m, (Some(Convex), Some(Convex)))
            };
@@ -226,17 +224,11 @@ module Deco =
          },
        ) => {
   let font_metrics = M.globals.font_metrics;
-  let map = M.editor.syntax.measured;
-  let show_backpack_targets = M.globals.show_backpack_targets;
-  let terms = M.editor.syntax.terms;
-  let term_ranges = M.editor.syntax.term_ranges;
-  let tiles = M.editor.syntax.tiles;
+  let term_data = M.editor.syntax.term_data;
   let measured = M.editor.syntax.measured;
-  let rows = measured.rows;
   let projectors = M.editor.syntax.projectors;
   let error_ids = M.statics.error_ids;
   let color_highlights = M.globals.color_highlights;
-  let segment = M.editor.syntax.segment;
   let of_sort = (id: Uuidm.t, mold: Mold.t): Sort.t =>
     switch (mold.out) {
     | Sort.Drv(Exp) =>
@@ -247,11 +239,17 @@ module Deco =
     | _ as sort => sort
     };
 
-  let tile = id => Id.Map.find(id, tiles);
+  let tile_term_deco =
+    IndicationDec.term(
+      ~term_data,
+      ~terms=M.editor.syntax.terms,
+      ~measured,
+      ~font_metrics,
+    );
 
   let caret = (z: Zipper.t): Node.t => {
-    let origin = Zipper.caret_point(map, z);
-    let shape = Zipper.caret_direction(z);
+    let origin = Zipper.Caret.point(measured, z);
+    let shape = Zipper.Caret.direction(z);
     let side =
       switch (Indicated.piece(z)) {
       | _
@@ -282,34 +280,14 @@ module Deco =
     Highlight.go(
       z.selection.content,
       Some(fst(Siblings.shapes(z.relatives.siblings))),
-      ["selected"] @ (Selection.is_buffer(z.selection) ? ["buffer"] : []),
+      ["selected", Selection.buffer_cls(z.selection)],
     );
-
-  let term_range = (p): option((Point.t, Point.t)) => {
-    let id = Language.Any.rep_id(Id.Map.find(Piece.id(p), terms));
-    switch (TermRanges.find_opt(id, term_ranges)) {
-    | None => None
-    | Some((p_l, p_r)) =>
-      let l = Measured.find_p(~msg="Dec.range", p_l, measured).origin;
-      let r = Measured.find_p(~msg="Dec.range", p_r, measured).last;
-      Some((l, r));
-    };
-  };
-
-  let all_tiles = (p: Piece.t): list((Uuidm.t, Mold.t, Measured.Shards.t)) =>
-    Id.Map.find(Piece.id(p), terms)
-    |> Language.Any.ids
-    |> List.map(id => {
-         let t = tile(id);
-         let shards = Measured.find_shards(~msg="all_tiles", t, measured);
-         (id, t.mold, shards);
-       });
 
   let indicated_piece_deco = (z: Zipper.t): list(Node.t) => {
     switch (Indicated.piece(z)) {
     | _ when z.selection.content != [] => []
     | None => []
-    | Some((Grout(_), _, _)) => []
+    | Some((Grout(_) | Secondary(_), _, _)) => []
     | Some((Projector(p), _, _)) =>
       switch (Measured.find_pr_opt(p, M.editor.syntax.measured)) {
       | Some(measurement) => [
@@ -328,116 +306,50 @@ module Deco =
         ]
       | None => []
       }
-    | Some((p, side, _)) =>
-      // root_profile calculation assumes p is tile
-      // TODO encode in types
-      let _nib_shape =
-        switch (Zipper.caret_direction(z)) {
-        | None => Nib.Shape.Convex
-        | Some(nib) => Nib.Shape.relative(nib, side)
-        };
-      let range = term_range(p);
-      let index =
-        switch (Indicated.shard_index(z)) {
-        | None => (-1)
-        | Some(i) => i
-        };
-      switch (range) {
-      | None => []
-      | Some(range) =>
-        let tiles = all_tiles(p);
-        IndicationDec.term(
-          ~line_clss=[],
-          ~font_metrics,
-          ~rows,
-          ~caret=(Piece.id(p), index),
-          ~tiles,
-          ~sort=
-            of_sort(Piece.id(p), List.hd(tiles) |> (((_, m, _)) => m)),
-          range,
-        );
-      };
+    | Some((Tile(t) as p, _, _)) =>
+      if (Piece.is_infix_delimiter_op_prefix(p)) {
+        [];
+      } else {
+        tile_term_deco(t);
+      }
     };
   };
 
-  let rec targets = (~container_shards=?, bp: Backpack.t, seg: Segment.t) => {
-    let with_container_shards = ((pre, suf) as sibs) =>
-      switch (container_shards) {
-      | None => sibs
-      | Some((l, r)) => ([l, ...pre], suf @ [r])
-      };
-    let root_targets =
-      ListUtil.splits(seg)
-      |> List.concat_map(((l, r)) => {
-           let sibs =
-             Segment.(incomplete_tiles(l), incomplete_tiles(r))
-             |> with_container_shards;
-           switch (Backpack.pop(sibs, bp)) {
-           | None
-           | Some((true, _, _)) => []
-           | Some(_) =>
-             let measurement =
-               switch (Siblings.neighbors((l, r))) {
-               | (None, None) => failwith("impossible")
-               | (_, Some(p)) =>
-                 let m = Measured.find_p(~msg="Deco.targets", p, measured);
-                 Measured.{
-                   origin: m.origin,
-                   last: m.origin,
-                 };
-               | (Some(p), _) =>
-                 let m = Measured.find_p(~msg="Deco.targets", p, measured);
-                 Measured.{
-                   origin: m.last,
-                   last: m.last,
-                 };
-               };
-             let profile =
-               CaretPosDec.Profile.{
-                 style: `Sibling,
-                 measurement,
-               };
-             [CaretPosDec.view(~font_metrics, profile)];
-           };
-         });
-    switch (root_targets) {
-    | [_, ..._] => root_targets
-    | [] =>
-      seg
-      |> List.filter_map(
-           fun
-           | Piece.Tile(t) => Some(t)
-           | _ => None,
-         )
-      |> List.concat_map((t: Tile.t) => {
-           // TODO(d): unify with Relatives.local_incomplete_tiles
-           Tile.contained_children(t)
-           |> List.concat_map(((l, seg, r)) =>
-                targets(~container_shards=(l, r), bp, seg)
-              )
-         })
-    };
+  let backpack = (z: Zipper.t): Node.t => {
+    /* If there is a selection, any tiles bisected by the selection
+     * will show as incomplete. While a more intelligent approach is
+     * possible here, I've opted for the simpler option of supressing
+     * backpack display during selection */
+    Selection.is_empty(z.selection) || Selection.is_buffer(z.selection)
+      ? {
+        let contents =
+          Zipper.local_backpack(z)
+          @ M.editor.syntax.cached_backpack
+          |> ListUtil.dedup
+          |> List.map(Tile.effective_label)
+          |> List.map(List.hd);
+        contents == []
+          ? Node.div([])
+          : Backpack.view(
+              ~font_metrics,
+              ~can_put_down=Zipper.can_put_down(z),
+              ~caret_d=Zipper.Caret.direction(z),
+              ~ind_d=
+                switch (Indicated.piece(z)) {
+                | Some((_, d, _)) => Some(d)
+                | None => None
+                },
+              ~origin=Zipper.Caret.point(measured, z),
+              contents,
+            );
+      }
+      : Node.div([]);
   };
-
-  let backpack = (z: Zipper.t): Node.t =>
-    BackpackView.view(
-      ~font_metrics,
-      ~origin=Zipper.caret_point(measured, z),
-      z,
-    );
-
-  let backpack_targets = (backpack, seg) =>
-    div_c(
-      "backpack-targets",
-      show_backpack_targets && Backpack.restricted(backpack)
-        ? targets(backpack, seg) : [],
-    );
 
   let term_decoration =
       (~id: Id.t, deco: ((Point.t, Point.t, SvgUtil.Path.t)) => Node.t) => {
-    let (p_l, p_r) = TermRanges.find(id, term_ranges);
-    let l = Measured.find_p(~msg="Deco.term", p_l, measured).origin;
-    let r = Measured.find_p(~msg="Deco.term", p_r, measured).last;
+    let (l, r) =
+      TermData.extreme_measures(id, term_data, measured) |> Option.get;
     open SvgUtil.Path;
     let r_edge =
       ListUtil.range(~lo=l.row, r.row + 1)
@@ -501,52 +413,36 @@ module Deco =
     );
 
   let error_view = (id: Id.t) =>
-    try(
+    div_c(
+      "errors-piece",
       switch (Id.Map.find_opt(id, projectors)) {
       | Some(p) =>
         /* Special case for projectors as they are not in tile map */
-        let shapes = ProjectorCore.shapes(p);
-        let measurement = Id.Map.find(id, measured.projectors);
-        div_c(
-          "errors-piece",
-          [
+        switch (Id.Map.find_opt(id, measured.projectors)) {
+        | Some(measurement) => [
             ShardDec.simple(
               {
                 font_metrics,
-                tips: ShardDec.tips_of_shapes(shapes),
+                tips: p |> ProjectorCore.shapes |> ShardDec.tips_of_shapes,
                 measurement,
               },
               ["error"],
             ),
-          ],
-        );
+          ]
+        | None =>
+          /* This is caused by the statics overloading for exercise mode. The overriding
+           * Exercise mode statics maps are calculated based on splicing together multiple
+           * editors, but error_ids are extracted generically from the statics map, so
+           * there may be error holes that don't occur in the editor being rendered */
+          []
+        }
       | None =>
-        let p = Piece.Tile(tile(id));
-        switch (term_range(p)) {
-        | Some(range) =>
-          let tiles = all_tiles(p);
-          let sort = of_sort(id, List.hd(tiles) |> (((_, m, _)) => m));
-          div_c(
-            "errors-piece",
-            IndicationDec.error_term(
-              ~font_metrics,
-              ~rows,
-              range,
-              tiles,
-              ~sort,
-            ),
-          );
-        | None => div_c("errors-piece", [])
-        };
-      }
-    ) {
-    | Not_found =>
-      /* This is caused by the statics overloading for exercise mode. The overriding
-       * Exercise mode statics maps are calculated based on splicing together multiple
-       * editors, but error_ids are extracted generically from the statics map, so
-       * there may be error holes that don't occur in the editor being rendered */
-      Node.div([])
-    };
+        switch (TermData.root_tile_opt(id, term_data)) {
+        | Some(t) => tile_term_deco(t)
+        | None => []
+        }
+      },
+    );
 
   let errors = () => div_c("errors", List.map(error_view, error_ids));
 
@@ -557,92 +453,36 @@ module Deco =
 
   let always = () => [errors()];
 
-  let next_steps = (next_steps, ~inject) => {
-    let tiles = List.filter_map(TileMap.find_opt(_, tiles), next_steps);
-    List.mapi(
-      (i, t: Tile.t) => {
-        let id = Tile.id(t);
-        let mold = t.mold;
-        let shards = Measured.find_shards(t, map);
-        let range: option((Measured.Point.t, Measured.Point.t)) = {
-          // if (Piece.has_ends(p)) {
-          let id = Id.Map.find(id, terms) |> Language.Any.rep_id;
-          switch (TermRanges.find_opt(id, term_ranges)) {
-          | None => None
-          | Some((p_l, p_r)) =>
-            let l = Measured.find_p(p_l, map).origin;
-            let r = Measured.find_p(p_r, map).last;
-            Some((l, r));
-          };
-        };
-        Option.map(
-          x => {
-            IndicationDec.term(
-              ~base_clss="tile-next-step",
-              ~attr=[Virtual_dom.Vdom.Attr.on_mousedown(_ => {inject(i)})],
-              ~line_clss=["next-step-line"],
-              ~font_metrics,
-              ~caret=(Id.invalid, 0),
-              ~rows=measured.rows,
-              ~tiles=[(id, mold, shards)],
-              ~sort=of_sort(id, mold),
-              x,
-            )
-            @ IndicationDec.term(
-                ~base_clss="tile-next-step-top",
-                ~attr=[Virtual_dom.Vdom.Attr.on_mousedown(_ => {inject(i)})],
-                ~line_clss=["next-step-line"],
-                ~font_metrics,
-                ~caret=(Id.invalid, 0),
-                ~rows=measured.rows,
-                ~tiles=[(id, mold, shards)],
-                ~sort=of_sort(id, mold),
-                x,
-              )
-          },
-          range,
-        );
-      },
-      tiles,
-    )
-    |> List.filter_map(x => x)
-    |> List.flatten;
-  };
+  let next_steps = (next_steps, ~inject) =>
+    next_steps
+    |> List.filter_map(TermData.root_tile_opt(_, term_data))
+    |> List.mapi((i, t: Tile.t) =>
+         div_c(
+           "step-next",
+           tile_term_deco(
+             ~attr=[Virtual_dom.Vdom.Attr.on_mousedown(_ => inject(i))],
+             t,
+           ),
+         )
+       );
 
-  let taken_steps = taken_steps => {
-    let tiles = List.filter_map(TileMap.find_opt(_, tiles), taken_steps);
-    List.mapi(
-      (_, t: Tile.t) => {
-        let id = Tile.id(t);
-        let mold = t.mold;
-        let shards = Measured.find_shards(t, map);
-        let range: option((Measured.Point.t, Measured.Point.t)) = {
-          // if (Piece.has_ends(p)) {
-          let id = Id.Map.find(id, terms) |> Language.Any.rep_id;
-          switch (TermRanges.find_opt(id, term_ranges)) {
-          | None => None
-          | Some((p_l, p_r)) =>
-            let l = Measured.find_p(p_l, map).origin;
-            let r = Measured.find_p(p_r, map).last;
-            Some((l, r));
-          };
-        };
-        IndicationDec.term(
-          ~base_clss="tile-taken-step",
-          ~line_clss=["taken-step-line"],
-          ~font_metrics,
-          ~caret=(Id.invalid, 0),
-          ~rows=measured.rows,
-          ~tiles=[(id, mold, shards)],
-          ~sort=of_sort(id, mold),
-        )
-        |> Option.map(_, range);
-      },
-      tiles,
-    )
-    |> List.filter_map(x => x)
-    |> List.flatten;
-  };
+  let taken_steps = taken_steps =>
+    taken_steps
+    |> List.filter_map(TermData.root_tile_opt(_, term_data))
+    |> List.map(t => div_c("step-taken", tile_term_deco(t)));
+
+  let refl_steps = (refl_steps, ~inject) =>
+    refl_steps
+    |> List.filter_map(TermData.root_tile_opt(_, term_data))
+    |> List.mapi((i, t: Tile.t) =>
+         div_c(
+           "step-refl",
+           tile_term_deco(
+             ~attr=[Virtual_dom.Vdom.Attr.on_mousedown(_ => inject(i))],
+             t,
+           ),
+         )
+       );
 
   let statics = () => [errors()];
 
@@ -653,7 +493,6 @@ module Deco =
         indication(z),
         selection(z),
         backpack(z),
-        backpack_targets(z.backpack, segment),
         color_highlights(),
       ]
       // TODO(zhiyao): this is changed to satisfy derivation deco

@@ -21,12 +21,26 @@ module Model = {
     result: EvalResult.Model.init,
   };
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = CodeEditable.Model.persistent;
+  type persistent = {
+    editor: CodeEditable.Model.persistent,
+    result: EvalResult.Model.persistent,
+  };
 
-  let persist = model => model.editor |> CodeEditable.Model.persist;
-  let to_string = model => model.editor |> CodeEditable.Model.to_string;
-  let unpersist = (~settings as _, pz, ~root) =>
-    pz |> PersistentZipper.unpersist(~root) |> Editor.Model.mk(~root) |> mk;
+  let persist = (model: t): persistent => {
+    editor: model.editor |> CodeEditable.Model.persist,
+    result: model.result |> EvalResult.Model.persist,
+  };
+
+  let unpersist = (~settings as _, {editor, result}: persistent, ~root): t => {
+    editor: {
+      editor: editor |> PersistentZipper.unpersist(~root) |> Editor.Model.mk,
+      statics: CachedStatics.empty,
+      dynamics: Language.Dynamics.Map.empty,
+    },
+    result: EvalResult.Model.unpersist(result),
+  };
+
+  let to_string = (model: t) => model.editor |> CodeEditable.Model.to_string;
 };
 
 module Update = {
@@ -99,7 +113,6 @@ module Update = {
         },
         ~queue_worker,
         ~is_edited,
-        ~root=editor.editor.root,
         editor |> CodeEditable.Model.get_statics,
         result,
       );
@@ -197,7 +210,7 @@ module View = {
         },
         ~result_kind?,
         ~locked,
-        ~root=model.editor.editor.root,
+        ~root=model.editor.editor.state.zipper.root,
         model.result,
       );
     div(

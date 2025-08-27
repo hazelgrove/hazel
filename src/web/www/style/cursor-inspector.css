@@ -31,44 +31,64 @@
 #cursor-inspector .gamma {
   cursor: pointer;
   display: flex;
-  align-items: center;
   font-family: math;
   font-weight: normal;
   background-color: var(--ci-icon-bkg);
   border-radius: 0 1.1em 0 0;
-  padding-left: 0.5em;
-  padding-right: 0.7em;
   color: var(--light-page-color);
+  width: 2em;
   height: 100%;
   transition: border-radius 0.2s ease-in;
+  align-items: center;
 }
+
+#cursor-inspector .gamma svg {
+  pointer-events: auto;
+  fill: var(--cell-active);
+  scale: 0.66;
+  padding-left: 0.3em;
+  transition: scale 0.1s ease-in;
+}
+
+#cursor-inspector .gamma:hover svg {
+  scale: 0.9;
+  animation: jello 0.6s ease 0s 1 normal forwards;
+}
+
 #cursor-inspector .Exp .gamma {
   background-color: var(--ci-icon-bkg);
 }
+
 #cursor-inspector .Pat .gamma {
   background-color: var(--token-pat);
 }
+
 #cursor-inspector .Typ .gamma {
   background-color: var(--token-typ);
 }
+
 #cursor-inspector .Drv .gamma {
   background-color: var(--token-drv);
 }
+
 #cursor-inspector .TPat .gamma {
   background-color: var(--token-tpat);
 }
+
 #cursor-inspector .Label .gamma {
   background-color: var(--token-label);
 }
 
-#cursor-inspector .ci-header .gamma:hover,
-#cursor-inspector .ci-header.error .gamma:hover,
 #cursor-inspector .ci-header .gamma.visible,
 #cursor-inspector .ci-header.error .gamma.visible,
 #bottom-bar:has(~ .context-inspector:hover) .gamma {
   background-color: #dfcc99;
   outline: 0.3px solid var(--BR3);
   color: var(--BR4);
+}
+
+#cursor-inspector .ci-header .gamma.visible svg {
+  fill: var(--BR4);
 }
 
 #cursor-inspector .gamma.visible,
@@ -90,12 +110,15 @@
   background-color: var(--ci-status-error-bkg);
   color: var(--ci-status-error-text);
 }
+
 #cursor-inspector .ci-header.error .gamma {
   background-color: var(--R2);
 }
+
 #cursor-inspector .ci-header.error .toggle-switch {
   background-color: var(--R2);
 }
+
 #cursor-inspector .ci-header.error .toggle-switch .toggle-knob {
   color: var(--R2);
 }
@@ -103,75 +126,85 @@
 #cursor-inspector .ci-header.ok .toggle-switch .toggle-knob {
   background-color: var(--SAND);
 }
+
 #cursor-inspector .ci-header.ok.Exp .toggle-switch.active {
   background-color: var(--BR3);
 }
+
 #cursor-inspector .ci-header.ok.Pat .toggle-switch.active {
   background-color: var(--token-pat);
 }
+
 #cursor-inspector .ci-header.ok.Typ .toggle-switch.active {
   background-color: var(--token-typ);
 }
-#cursor-inspector .ci-header.ok.Drv .toggle-switch.active  {
+
+#cursor-inspector .ci-header.ok.Drv .toggle-switch.active {
   background-color: var(--token-drv);
 }
+
 #cursor-inspector .ci-header.ok.TPat .toggle-switch.active {
   background-color: var(--token-tpat);
 }
+
 #cursor-inspector .ci-header.ok.Label .toggle-switch.active {
   background-color: var(--token-label);
 }
+
 #cursor-inspector .ci-header.ok.Exp .toggle-switch .toggle-knob {
   color: var(--BR3);
 }
+
 #cursor-inspector .ci-header.ok.Pat .toggle-switch .toggle-knob {
   color: var(--token-pat);
 }
+
 #cursor-inspector .ci-header.ok.Typ .toggle-switch .toggle-knob {
   color: var(--token-typ);
 }
+
 #cursor-inspector .ci-header.ok.Drv .toggle-switch .toggle-knob {
   color: var(--token-drv);
 }
+
 #cursor-inspector .ci-header.ok.TPat .toggle-switch .toggle-knob {
   color: var(--token-tpat);
 }
+
 #cursor-inspector .ci-header.ok.Label .toggle-switch .toggle-knob {
   color: var(--token-label);
 }
 
-#cursor-inspector .ci-header.ok.Nul {
-  background-color: var(--shard-nul);
-  color: var(--shadow-nul);
-}
 #cursor-inspector .ci-header.ok.Any {
   background-color: var(--shard-any);
   color: var(--shadow-any);
 }
+
 #cursor-inspector .ci-header.ok.Exp {
   background-color: var(--shard-exp);
   color: var(--BR3);
 }
+
 #cursor-inspector .ci-header.ok.Pat {
   background-color: var(--shard-pat);
   color: var(--token-pat);
 }
+
 #cursor-inspector .ci-header.ok.Typ {
   background-color: var(--shard-typ);
   color: var(--token-typ);
 }
+
 #cursor-inspector .ci-header.ok.Drv {
   background-color: var(--shard-drv);
   color: var(--token-drv);
 }
-#cursor-inspector .ci-header.ok.Rul {
-  background-color: var(--shard-rul);
-  color: var(--shard-lines-rul);
-}
+
 #cursor-inspector .ci-header.ok.TPat {
   background-color: var(--shard-tpat);
   color: var(--token-tpat);
 }
+
 #cursor-inspector .ci-header.ok.Label {
   background-color: var(--shard-label);
   color: var(--token-label);
@@ -180,6 +213,26 @@
 #cursor-inspector .term-tag {
   font-weight: bolder;
   text-transform: uppercase;
+}
+
+#cursor-inspector .divider {
+  color: var(--BR2);
+}
+
+#cursor-inspector.error .divider {
+  color: var(--R2);
+}
+
+#cursor-inspector .Pat .divider {
+  color: var(--token-pat);
+}
+
+#cursor-inspector .Typ .divider {
+  color: var(--token-typ);
+}
+
+#cursor-inspector .TPat .divider {
+  color: var(--token-tpat);
 }
 
 #cursor-inspector .status.error .code {
@@ -205,7 +258,7 @@
   position: relative;
 }
 
-#page > .context-inspector {
+#page>.context-inspector {
   position: absolute;
   z-index: var(--context-inspector-z);
   bottom: 2em;
@@ -226,6 +279,7 @@
   /* scroll-snap-type: y mandatory; */
   direction: rtl;
 }
+
 @supports (-moz-appearance: none) {
   .context-inspector {
     scroll-snap-type: y mandatory;

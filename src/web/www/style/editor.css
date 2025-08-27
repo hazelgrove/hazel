@@ -34,9 +34,6 @@
 
 /* TOKEN COLORS */
 
-.code .token.Nul {
-  color: var(--token-nul);
-}
 .code .token.Any {
   color: var(--token-any);
 }
@@ -68,8 +65,12 @@
 }
 
 /* code completion tokens */
-.code .in-buffer {
+.code .in-unparsed-buffer {
   color: var(--token-buffer);
+}
+
+.code .in-parsed-buffer {
+  opacity: 0.5;
 }
 
 .code .token.sort-inconsistent {
@@ -83,6 +84,7 @@
 .code .token.explicit-hole {
   color: var(--token-explicit-hole);
   text-shadow: 1px 1px 0px var(--token-explicit-hole-shadow);
+  font-weight: bold;
 }
 
 .code .comment {
@@ -100,21 +102,47 @@
   font-size: 0.59em;
 }
 
+.code .token.llm-waiting {
+  animation: rainbow 4s linear infinite;
+  font-weight: bold;
+}
+
+@keyframes rainbow {
+  0% {
+    color: #4477ff;
+  } /* Start with muted blue */
+  17% {
+    color: #9944ff;
+  } /* Muted purple */
+  33% {
+    color: #ff4488;
+  } /* Muted pink */
+  50% {
+    color: #ff7744;
+  } /* Muted orange */
+  67% {
+    color: #88aa44;
+  } /* Muted green */
+  83% {
+    color: #44aaff;
+  } /* Muted cyan */
+  100% {
+    color: #4477ff;
+  } /* Back to muted blue */
+}
+
 /* TOKEN BACKING DECOS */
 
 svg.shard > path {
   vector-effect: non-scaling-stroke;
 }
 
-svg.shard.indicated {
+svg.shard {
   --off-x: 0.85px;
   --off-y: 1px;
   --blur: 0;
 }
 
-svg.shard.indicated.Nul {
-  filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--shadow-nul));
-}
 svg.shard.indicated.Any {
   filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--shadow-any));
 }
@@ -138,9 +166,6 @@ svg.shard.indicated.TPat {
   filter: drop-shadow(var(--off-x) var(--off-y) var(--blur) var(--token-tpat));
 }
 
-svg.shard.indicated.Nul > path {
-  fill: var(--shard-nul);
-}
 svg.shard.indicated.Any > path {
   fill: var(--shard-any);
 }
@@ -178,45 +203,52 @@ svg.shard.indicated.caret.Typ > path {
 
 svg.shard.selected {
   z-index: var(--select-z);
-  filter: drop-shadow(1px 1px 0 var(--shadow-nul));
+  filter: drop-shadow(1px 1px 0 var(--shadow-selected));
 }
 svg.shard.indicated {
   z-index: var(--tile-z);
 }
-svg.shard.error {
-  z-index: var(--err-hole-z);
-}
-
 svg.shard.selected > path {
   fill: var(--shard-selected);
   stroke-width: 0.5px;
   stroke: var(--shard-selected);
 }
-svg.shard.error > path,
+
+.errors .errors-piece svg.shard {
+  z-index: var(--err-hole-z);
+  filter: none;
+}
+.errors .errors-piece svg.shard > path,
 .errors .errors-piece svg .child-line {
   stroke: var(--error-hole-stroke);
   stroke-width: 0.75px;
   stroke-dasharray: 1, 1;
   stroke-linecap: butt;
 }
-svg.shard.error > path {
+.errors .errors-piece svg.shard > path {
   fill: var(--error-hole-fill);
 }
 
 /* Code completion decoration */
 
-svg.shard.selected.buffer {
+svg.shard.selected.buffer-unparsed {
   filter: none;
 }
-svg.shard.selected.buffer > path {
+svg.shard.selected.buffer-unparsed > path {
   fill: #0000;
   stroke-width: 0;
 }
+svg.shard.selected.buffer-parsed {
+  filter: drop-shadow(
+    var(--off-x) var(--off-y) var(--blur) var(--shard-lines-exp)
+  );
+}
+svg.shard.selected.buffer-parsed > path {
+  fill: var(--T1);
+  stroke: var(--T1);
+}
 
 /* EMPTY HOLE DECO */
-
-.empty-hole {
-}
 
 .empty-hole > path {
   fill: var(--empty-hole-fill);
@@ -250,13 +282,15 @@ svg.shard.selected.buffer > path {
   vector-effect: non-scaling-stroke;
 }
 
+.indication .child-line {
+  /* To make it align to shard shadows */
+  translate: 0 0.02px;
+}
+
 svg:has(.child-line) {
   z-index: var(--err-hole-arms-z);
 }
 
-.child-line.Nul {
-  stroke: var(--shadow-nul);
-}
 .child-line.Any {
   stroke: var(--shadow-any);
 }
@@ -281,16 +315,18 @@ svg:has(.child-line) {
 
 /* BACKPACK DECO */
 
-.backpack .code-text {
-  position: relative;
+.backpack {
+  z-index: var(--backpack-z);
 }
 
-.backpack.cant-put-down {
+.backpack.cant-put-down > * {
   opacity: 40%;
 }
 
 .backpack-joiner {
-  opacity: 40%;
+  z-index: var(--backpack-z);
+  width: 2px;
+  background-color: var(--backpack-joiner);
 }
 
 .backpack-selection {
@@ -301,12 +337,8 @@ svg:has(.child-line) {
   width: fit-content;
   background-color: var(--backpack-selection);
   outline: 1px solid var(--backpack-selection-outline);
-}
-
-.backpack-joiner {
-  border-radius: 2px;
-  width: 2px;
-  background-color: var(--backpack-joiner);
+  font-weight: bold;
+  color: var(--token-incomplete) !important;
 }
 
 .backpack-genie {
@@ -315,12 +347,6 @@ svg:has(.child-line) {
   vector-effect: non-scaling-stroke;
 }
 
-/* BACKPACK TARGETS DECO */
-
-.backpack-target {
-  z-index: var(--backpack-targets-z);
-}
-
-.caret-position-path {
-  fill: var(--backback-targets);
+.restructuring-genie {
+  z-index: var(--backpack-z);
 }

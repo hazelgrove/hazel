@@ -8,8 +8,8 @@ let exercise : DerivationTree.spec =
        green).";
     prelude =
       {
+        root = Drv Exp;
         selection = { focus = Left; content = []; mode = Normal };
-        backpack = [];
         relatives =
           {
             siblings =
@@ -432,8 +432,8 @@ let exercise : DerivationTree.spec =
       };
     setup =
       {
+        root = Drv Exp;
         selection = { focus = Left; content = []; mode = Normal };
-        backpack = [];
         relatives =
           {
             siblings =
@@ -460,8 +460,8 @@ let exercise : DerivationTree.spec =
               {
                 jdmt =
                   {
+                    root = Drv Exp;
                     selection = { focus = Left; content = []; mode = Normal };
-                    backpack = [];
                     relatives =
                       {
                         siblings =
@@ -569,7 +569,7 @@ let exercise : DerivationTree.spec =
                             ] );
                         ancestors = [];
                       };
-                    caret = Inner (0, 0);
+                    caret = Inner 0;
                   };
                 rule = Some T_Num;
               },
@@ -579,8 +579,8 @@ let exercise : DerivationTree.spec =
               {
                 jdmt =
                   {
+                    root = Drv Exp;
                     selection = { focus = Left; content = []; mode = Normal };
-                    backpack = [];
                     relatives =
                       {
                         siblings =
@@ -1015,7 +1015,7 @@ let exercise : DerivationTree.spec =
                                 ] ) );
                           ];
                       };
-                    caret = Inner (0, 1);
+                    caret = Inner 0;
                   };
                 rule = Some T_Pair;
               },
@@ -1025,9 +1025,9 @@ let exercise : DerivationTree.spec =
                     {
                       jdmt =
                         {
+                          root = Drv Exp;
                           selection =
                             { focus = Left; content = []; mode = Normal };
-                          backpack = [];
                           relatives =
                             {
                               siblings =
@@ -1241,7 +1241,7 @@ let exercise : DerivationTree.spec =
                                   ] );
                               ancestors = [];
                             };
-                          caret = Inner (0, 0);
+                          caret = Inner 0;
                         };
                       rule = Some T_False;
                     },
@@ -1253,8 +1253,8 @@ let exercise : DerivationTree.spec =
               {
                 jdmt =
                   {
+                    root = Drv Exp;
                     selection = { focus = Left; content = []; mode = Normal };
-                    backpack = [];
                     relatives =
                       {
                         siblings =
@@ -1834,9 +1834,9 @@ let exercise : DerivationTree.spec =
                     {
                       jdmt =
                         {
+                          root = Drv Exp;
                           selection =
                             { focus = Left; content = []; mode = Normal };
-                          backpack = [];
                           relatives =
                             {
                               siblings =
@@ -2144,9 +2144,9 @@ let exercise : DerivationTree.spec =
                           {
                             jdmt =
                               {
+                                root = Drv Exp;
                                 selection =
                                   { focus = Left; content = []; mode = Normal };
-                                backpack = [];
                                 relatives =
                                   {
                                     siblings =
@@ -2380,7 +2380,7 @@ let exercise : DerivationTree.spec =
                                         ] );
                                     ancestors = [];
                                   };
-                                caret = Inner (0, 1);
+                                caret = Inner 0;
                               };
                             rule = Some T_PrjR;
                           },
@@ -2390,13 +2390,13 @@ let exercise : DerivationTree.spec =
                                 {
                                   jdmt =
                                     {
+                                      root = Drv Exp;
                                       selection =
                                         {
                                           focus = Left;
                                           content = [];
                                           mode = Normal;
                                         };
-                                      backpack = [];
                                       relatives =
                                         {
                                           siblings =
@@ -2646,7 +2646,7 @@ let exercise : DerivationTree.spec =
                                               ] );
                                           ancestors = [];
                                         };
-                                      caret = Inner (0, 0);
+                                      caret = Inner 0;
                                     };
                                   rule = Some T_Var;
                                 },
@@ -2657,9 +2657,9 @@ let exercise : DerivationTree.spec =
                           {
                             jdmt =
                               {
+                                root = Drv Exp;
                                 selection =
                                   { focus = Left; content = []; mode = Normal };
-                                backpack = [];
                                 relatives =
                                   {
                                     siblings =

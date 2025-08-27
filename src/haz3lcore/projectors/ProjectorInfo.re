@@ -20,7 +20,7 @@ let utility: ProjectorBase.utility = {
     | None => None
     | Some(s) => Some(s |> fn |> term_to_seg)
     };
-  let seg_to_string = Printer.of_segment(~holes=Some("?"));
+  let seg_to_string = Printer.of_segment(~holes="?");
   {
     term_to_seg,
     seg_to_term,

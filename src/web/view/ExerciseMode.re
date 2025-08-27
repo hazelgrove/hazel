@@ -42,12 +42,7 @@ module Model = {
   };
 
   let of_spec = (~settings as _, ~instructor_mode as _: bool, spec) => {
-    let editors =
-      Exercise.map(
-        spec,
-        Editor.Model.mk(~root=Exp),
-        Editor.Model.mk(~root=Exp),
-      );
+    let editors = Exercise.map(spec, Editor.Model.mk, Editor.Model.mk);
     let term_item_to_cell = (item: Exercise.TermItem.t): CellEditor.Model.t => {
       CellEditor.Model.mk(item.editor);
     };
@@ -192,7 +187,7 @@ module Update = {
           hidden_bugs:
             model.cells.hidden_bugs
             @ [
-              CellEditor.Model.mk(Editor.Model.mk(Zipper.init(), ~root=Exp)),
+              CellEditor.Model.mk(Editor.Model.mk(Zipper.init(~root=Exp))),
             ],
         },
       })
@@ -336,7 +331,7 @@ module Update = {
     | Editor(_, ResultAction(_)) => Updated.return_quiet(model) // TODO: I think this case should never happen
     | ResetEditor(pos) =>
       let spec = Exercise.main_editor_of_state(~selection=pos, model.spec);
-      let new_editor = Editor.Model.mk(spec, ~root=Exp);
+      let new_editor = Editor.Model.mk(spec);
       {
         ...model,
         editors:
@@ -345,11 +340,7 @@ module Update = {
       |> Updated.return;
     | ResetExercise =>
       let new_editors =
-        Exercise.map(
-          model.spec,
-          Editor.Model.mk(~root=Exp),
-          Editor.Model.mk(~root=Exp),
-        );
+        Exercise.map(model.spec, Editor.Model.mk, Editor.Model.mk);
       {
         ...model,
         editors: new_editors,
@@ -388,6 +379,7 @@ module Update = {
         stitched_elabs,
         model.cells,
       );
+
     WorkerClient.request(
       worker_request^,
       ~handler=
@@ -421,6 +413,7 @@ module Update = {
         ();
       },
     );
+
     /* The following section pulls statics back from cells into the editors
        There are many ad-hoc things about this code, including the fact that
        one of the editors is shown in two cells, so we arbitrarily choose which
@@ -540,15 +533,16 @@ module Selection = {
   };
 
   let jump_to_tile =
-      (~settings: Settings.t, tile, model: Model.t): option((Update.t, t)) => {
+      (~settings: Settings.t, id: Id.t, model: Model.t)
+      : option((Update.t, t)) => {
     Exercise.positioned_editors(model.editors)
     |> List.find_opt(((p, e: Editor.t)) =>
-         TileMap.find_opt(tile, e.syntax.tiles) != None
+         TermData.root_tile_opt(id, e.syntax.term_data) != None
          && Exercise.visible_in(p, ~instructor_mode=settings.instructor_mode)
        )
     |> Option.map(((pos, _)) =>
          (
-           Update.Editor(pos, MainEditor(Perform(Jump(TileId(tile))))),
+           Update.Editor(pos, MainEditor(Perform(Jump(TileId(id))))),
            Cell(pos, CellEditor.Selection.MainEditor),
          )
        );
@@ -605,7 +599,7 @@ module View = {
     let stitched_tests =
       Exercise.map_stitched(
         (_, cell_editor: CellEditor.Model.t) =>
-          cell_editor.result |> EvalResult.Model.make_test_report,
+          cell_editor.result |> EvalResult.Model.test_results,
         model.cells,
       );
 
@@ -617,7 +611,7 @@ module View = {
         (
           ~caption: string,
           ~subcaption: option(string)=?,
-          ~result_kind=EvalResult.View.NoResults,
+          ~result_kind=`NoResults,
           this_pos: Exercise.pos,
           cell: CellEditor.Model.t,
         ) => {
@@ -973,7 +967,7 @@ module View = {
           ~caption="Test Validation",
           ~subcaption,
           ~result_kind=
-            Custom(
+            `Custom(
               Grading.TestValidationReport.view(
                 ~globals,
                 ~signal_jump=
@@ -1065,7 +1059,7 @@ module View = {
         globals.settings.instructor_mode
           ? "Student's Implementation" : "Your Implementation";
       Always(
-        editor_view(YourImpl, user_impl, ~caption, ~result_kind=EvalResults),
+        editor_view(YourImpl, user_impl, ~caption, ~result_kind=`EvalResults),
       );
     };
 
@@ -1094,7 +1088,7 @@ module View = {
           user_tests,
           ~caption="Implementation Validation",
           ~subcaption,
-          ~result_kind=TestResults,
+          ~result_kind=`TestResults,
         ),
       );
     };

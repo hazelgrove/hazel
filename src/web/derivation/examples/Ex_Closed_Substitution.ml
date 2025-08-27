@@ -7,8 +7,8 @@ let exercise : DerivationTree.spec =
     corpus = Language.RuleImage.ALF;
     prelude =
       {
+        root = Drv Exp;
         selection = { focus = Left; content = []; mode = Normal };
-        backpack = [];
         relatives =
           {
             siblings =
@@ -29,8 +29,8 @@ let exercise : DerivationTree.spec =
       };
     setup =
       {
+        root = Drv Exp;
         selection = { focus = Left; content = []; mode = Normal };
-        backpack = [];
         relatives =
           {
             siblings =
@@ -56,8 +56,8 @@ let exercise : DerivationTree.spec =
               {
                 jdmt =
                   {
+                    root = Drv Exp;
                     selection = { focus = Left; content = []; mode = Normal };
-                    backpack = [];
                     relatives =
                       {
                         siblings =
@@ -440,7 +440,7 @@ let exercise : DerivationTree.spec =
                             ] );
                         ancestors = [];
                       };
-                    caret = Inner (0, 0);
+                    caret = Inner 0;
                   };
                 rule = None;
               },

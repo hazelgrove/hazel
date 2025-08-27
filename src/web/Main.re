@@ -56,13 +56,8 @@ let apply =
     };
   // ---------- CALCULATE PHASE ----------
   let model' =
-    updated.recalculate
-      ? updated.model
-        |> History.Update.calculate(
-             ~schedule_action,
-             ~is_edited=updated.is_edit,
-           )
-      : updated.model;
+    updated.model
+    |> History.Update.calculate(~schedule_action, ~is_edited=updated.is_edit);
 
   if (updated.is_edit) {
     schedule_autosave(
@@ -100,7 +95,9 @@ let start = {
             };
           apply(~schedule_action, ~schedule_autosave);
         },
-      ~default_model=History.Model.init(),
+      ~default_model=
+        History.Model.init()
+        |> History.Update.calculate(~schedule_action=_ => (), ~is_edited=true),
       save_scheduler,
     );
 
@@ -153,6 +150,9 @@ let start = {
           Editors(Derivations(DerivationTree(update))) |> schedule_action
       );
     JsUtil.focus_clipboard_shim();
+    schedule_action(
+      Assistant(AssistantUpdate.ChatAction(FilterLoadingMessages)),
+    );
   };
   let%sub () =
     BonsaiUtil.OnStartup.on_startup(

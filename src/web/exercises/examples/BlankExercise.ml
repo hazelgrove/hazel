@@ -9,8 +9,8 @@ let exercise : Exercise.spec =
       { test_validation = 0; mutation_testing = 0; impl_grading = 0 };
     prelude =
       {
+        root = Exp;
         selection = { focus = Left; content = []; mode = Normal };
-        backpack = [];
         relatives =
           {
             siblings =
@@ -31,8 +31,8 @@ let exercise : Exercise.spec =
       };
     correct_impl =
       {
+        root = Exp;
         selection = { focus = Left; content = []; mode = Normal };
-        backpack = [];
         relatives =
           {
             siblings =
@@ -55,8 +55,8 @@ let exercise : Exercise.spec =
       {
         tests =
           {
+            root = Exp;
             selection = { focus = Left; content = []; mode = Normal };
-            backpack = [];
             relatives =
               {
                 siblings =
@@ -80,8 +80,8 @@ let exercise : Exercise.spec =
       };
     your_impl =
       {
+        root = Exp;
         selection = { focus = Left; content = []; mode = Normal };
-        backpack = [];
         relatives =
           {
             siblings =
@@ -105,8 +105,8 @@ let exercise : Exercise.spec =
       {
         tests =
           {
+            root = Exp;
             selection = { focus = Left; content = []; mode = Normal };
-            backpack = [];
             relatives =
               {
                 siblings =

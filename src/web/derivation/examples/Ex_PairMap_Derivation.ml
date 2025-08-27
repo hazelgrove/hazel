@@ -11,8 +11,8 @@ let exercise : DerivationTree.spec =
        annotate the function argument.";
     prelude =
       {
+        root = Drv Exp;
         selection = { focus = Left; content = []; mode = Normal };
-        backpack = [];
         relatives =
           {
             siblings =
@@ -1235,12 +1235,12 @@ let exercise : DerivationTree.spec =
                     ] ) );
               ];
           };
-        caret = Inner (0, 1);
+        caret = Inner 0;
       };
     setup =
       {
+        root = Drv Exp;
         selection = { focus = Left; content = []; mode = Normal };
-        backpack = [];
         relatives =
           {
             siblings =
@@ -1275,8 +1275,8 @@ let exercise : DerivationTree.spec =
               {
                 jdmt =
                   {
+                    root = Drv Exp;
                     selection = { focus = Left; content = []; mode = Normal };
-                    backpack = [];
                     relatives =
                       {
                         siblings =
@@ -1752,9 +1752,9 @@ let exercise : DerivationTree.spec =
                     {
                       jdmt =
                         {
+                          root = Drv Exp;
                           selection =
                             { focus = Left; content = []; mode = Normal };
-                          backpack = [];
                           relatives =
                             {
                               siblings =
@@ -2115,6 +2115,7 @@ let exercise : DerivationTree.spec =
                           {
                             jdmt =
                               {
+                                root = Drv Exp;
                                 selection =
                                   {
                                     focus = Left;
@@ -2171,7 +2172,6 @@ let exercise : DerivationTree.spec =
                                       ];
                                     mode = Normal;
                                   };
-                                backpack = [];
                                 relatives =
                                   {
                                     siblings =
@@ -2318,13 +2318,13 @@ let exercise : DerivationTree.spec =
                                 {
                                   jdmt =
                                     {
+                                      root = Drv Exp;
                                       selection =
                                         {
                                           focus = Left;
                                           content = [];
                                           mode = Normal;
                                         };
-                                      backpack = [];
                                       relatives =
                                         {
                                           siblings =
@@ -2520,9 +2520,9 @@ let exercise : DerivationTree.spec =
                           {
                             jdmt =
                               {
+                                root = Drv Exp;
                                 selection =
                                   { focus = Left; content = []; mode = Normal };
-                                backpack = [];
                                 relatives =
                                   {
                                     siblings =
@@ -2718,13 +2718,13 @@ let exercise : DerivationTree.spec =
                                 {
                                   jdmt =
                                     {
+                                      root = Drv Exp;
                                       selection =
                                         {
                                           focus = Left;
                                           content = [];
                                           mode = Normal;
                                         };
-                                      backpack = [];
                                       relatives =
                                         {
                                           siblings =
@@ -2921,9 +2921,9 @@ let exercise : DerivationTree.spec =
                           {
                             jdmt =
                               {
+                                root = Drv Exp;
                                 selection =
                                   { focus = Left; content = []; mode = Normal };
-                                backpack = [];
                                 relatives =
                                   {
                                     siblings =
@@ -3119,13 +3119,13 @@ let exercise : DerivationTree.spec =
                                 {
                                   jdmt =
                                     {
+                                      root = Drv Exp;
                                       selection =
                                         {
                                           focus = Left;
                                           content = [];
                                           mode = Normal;
                                         };
-                                      backpack = [];
                                       relatives =
                                         {
                                           siblings =
@@ -3324,8 +3324,8 @@ let exercise : DerivationTree.spec =
               {
                 jdmt =
                   {
+                    root = Drv Exp;
                     selection = { focus = Left; content = []; mode = Normal };
-                    backpack = [];
                     relatives =
                       {
                         siblings =
@@ -3978,9 +3978,9 @@ let exercise : DerivationTree.spec =
                     {
                       jdmt =
                         {
+                          root = Drv Exp;
                           selection =
                             { focus = Left; content = []; mode = Normal };
-                          backpack = [];
                           relatives =
                             {
                               siblings =

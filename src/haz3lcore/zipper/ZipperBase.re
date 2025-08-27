@@ -1,30 +1,17 @@
 open Util;
 
-module Caret = {
-  [@deriving (show({with_path: false}), sexp, yojson, eq)]
-  type t =
-    | Outer
-    | Inner(int, int);
-
-  let decrement: t => t =
-    fun
-    | Outer
-    | Inner(_, 0) => Outer
-    | Inner(d, c) => Inner(d, c - 1);
-
-  let offset: t => int =
-    fun
-    | Outer => 0
-    | Inner(_, c) => c + 1;
-};
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type caret =
+  | Outer
+  | Inner(int);
 
 // assuming single backpack, shards may appear in selection, backpack, or siblings
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t = {
+  root: Sort.t,
   selection: Selection.t,
-  backpack: Backpack.t,
   relatives: Relatives.t,
-  caret: Caret.t,
+  caret,
 };
 
 let update_relatives = (f: Relatives.t => Relatives.t, z: t): t => {
@@ -138,9 +125,9 @@ module MapPiece = {
     };
   };
 
-  let left_sib_has_id = sib_has_id(Siblings.left_neighbor);
+  let left_sib_has_id = sib_has_id(Siblings.neighbor(Left));
 
-  let right_sib_has_id = sib_has_id(Siblings.right_neighbor);
+  let right_sib_has_id = sib_has_id(Siblings.neighbor(Right));
 
   let update_left_sib = (f: Piece.t => Segment.t, z: t) => {
     let (l, r) = z.relatives.siblings;
@@ -175,11 +162,3 @@ module MapPiece = {
   let fast_local = (f: Piece.t => Piece.t, id: Id.t, z: t): t =>
     fast_local_seg(p => [f(p)], id, z);
 };
-
-let remove_all_projectors = (z: t): t =>
-  MapPiece.go(
-    fun
-    | Projector(pr) => Piece.unparenthesize(pr.syntax)
-    | x => [x],
-    z,
-  );

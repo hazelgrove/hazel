@@ -9,8 +9,8 @@ let exercise : DerivationTree.spec =
        \226\134\146 Num \226\134\146 Num";
     prelude =
       {
+        root = Drv Exp;
         selection = { focus = Left; content = []; mode = Normal };
-        backpack = [];
         relatives =
           {
             siblings =
@@ -650,8 +650,8 @@ let exercise : DerivationTree.spec =
       };
     setup =
       {
+        root = Drv Exp;
         selection = { focus = Left; content = []; mode = Normal };
-        backpack = [];
         relatives =
           {
             siblings =
@@ -678,8 +678,8 @@ let exercise : DerivationTree.spec =
               {
                 jdmt =
                   {
+                    root = Drv Exp;
                     selection = { focus = Left; content = []; mode = Normal };
-                    backpack = [];
                     relatives =
                       {
                         siblings =
@@ -842,8 +842,8 @@ let exercise : DerivationTree.spec =
               {
                 jdmt =
                   {
+                    root = Drv Exp;
                     selection = { focus = Left; content = []; mode = Normal };
-                    backpack = [];
                     relatives =
                       {
                         siblings =
@@ -1006,8 +1006,8 @@ let exercise : DerivationTree.spec =
               {
                 jdmt =
                   {
+                    root = Drv Exp;
                     selection = { focus = Left; content = []; mode = Normal };
-                    backpack = [];
                     relatives =
                       {
                         siblings =
@@ -1750,9 +1750,9 @@ let exercise : DerivationTree.spec =
                     {
                       jdmt =
                         {
+                          root = Drv Exp;
                           selection =
                             { focus = Left; content = []; mode = Normal };
-                          backpack = [];
                           relatives =
                             {
                               siblings =
@@ -2355,7 +2355,7 @@ let exercise : DerivationTree.spec =
                                       ] ) );
                                 ];
                             };
-                          caret = Inner (2, 1);
+                          caret = Inner 1;
                         };
                       rule = Some T_FunAnn;
                     },
@@ -2365,9 +2365,9 @@ let exercise : DerivationTree.spec =
                           {
                             jdmt =
                               {
+                                root = Drv Exp;
                                 selection =
                                   { focus = Left; content = []; mode = Normal };
-                                backpack = [];
                                 relatives =
                                   {
                                     siblings =
@@ -2778,13 +2778,13 @@ let exercise : DerivationTree.spec =
                                 {
                                   jdmt =
                                     {
+                                      root = Drv Exp;
                                       selection =
                                         {
                                           focus = Left;
                                           content = [];
                                           mode = Normal;
                                         };
-                                      backpack = [];
                                       relatives =
                                         {
                                           siblings =

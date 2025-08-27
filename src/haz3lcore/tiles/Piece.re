@@ -173,6 +173,14 @@ let replace_id = (id: Id.t, p: t): t =>
     })
   };
 
+let mk_secondary = (id, content) => Secondary(Secondary.mk(id, content));
+
+let mk_grout = (~id=Id.mk(), shape: Grout.shape): t =>
+  grout({
+    id,
+    shape,
+  });
+
 let mk_tile: (Form.t, list(list(t))) => t =
   (form, children) =>
     Tile({
@@ -184,7 +192,7 @@ let mk_tile: (Form.t, list(list(t))) => t =
     });
 
 let mk_mono = (sort: Sort.t, string: string): t =>
-  string |> Form.mk_atomic(sort) |> mk_tile(_, []);
+  string |> Form.mk_atom_op(sort) |> mk_tile(_, []);
 
 let of_mono = (syntax: t): option(string) =>
   switch (syntax) {
@@ -225,15 +233,9 @@ let is_term = (p: t) =>
   | _ => false
   };
 
-/* If the piece is parentheses, return the child. Otherwise,
- * return a singleton segment consisting of the piece */
-let unparenthesize = (piece: t): list(t) =>
-  switch (piece) {
-  | Tile({
-      label: ["(", ")"],
-      mold: {nibs: ({shape: Convex, _}, {shape: Convex, _}), _},
-      children: [seg],
-      _,
-    }) => seg
-  | _ => [piece]
+let is_infix_delimiter_op_prefix = (p: t) =>
+  switch (p) {
+  | Tile({label: [t], mold, _}) =>
+    Mold.is_infix_op(mold) && Form.is_infix_delimiter_op_prefix(t)
+  | _ => false
   };

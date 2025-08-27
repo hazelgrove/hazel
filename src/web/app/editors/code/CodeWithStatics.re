@@ -26,7 +26,6 @@ module Model = {
       (
         ~settings: Language.CoreSettings.t,
         ~inline=false,
-        ~root: Sort.t,
         term: Language.Exp.t,
       ) => {
     ExpToSegment.exp_to_segment(
@@ -34,7 +33,7 @@ module Model = {
       ~settings=ExpToSegment.Settings.of_core(~inline, settings),
     )
     |> Zipper.unzip
-    |> Editor.Model.mk(~root)
+    |> Editor.Model.mk
     |> mk;
   };
 
@@ -48,7 +47,9 @@ module Model = {
       Indicated.piece''(model.editor.state.zipper)
       |> Option.map(((p, _, _)) => p),
     selected_text:
-      Some(() => Printer.to_string_selection(model.editor.state.zipper)),
+      Some(
+        () => Printer.of_segment(model.editor.state.zipper.selection.content),
+      ),
     selection: Some(model.editor.state.zipper.selection.content),
     editor: Some(model.editor),
     editor_read_only: true,
@@ -64,7 +65,7 @@ module Model = {
   let to_string = (model: t) =>
     model.editor.state.zipper |> PersistentZipper.to_string;
   let unpersist = (p, ~root) =>
-    p |> PersistentZipper.unpersist(~root) |> Editor.Model.mk(~root) |> mk;
+    p |> PersistentZipper.unpersist(~root) |> Editor.Model.mk |> mk;
 };
 
 module Update = {

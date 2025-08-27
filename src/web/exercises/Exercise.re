@@ -265,7 +265,7 @@ let pos_of_idx = (p: p('code), idx: int) =>
   };
 
 let zipper_of_code = (code, ~root) => {
-  switch (Printer.zipper_of_string(code, ~root)) {
+  switch (Parser.to_zipper(code, ~root)) {
   | None => failwith("Transition failed.")
   | Some(zipper) => zipper
   };
@@ -358,7 +358,7 @@ let eds_of_spec =
       },
       ~settings as _: Language.CoreSettings.t,
     ) => {
-  let editor_of_serialization = Editor.Model.mk(~root=Exp);
+  let editor_of_serialization = Editor.Model.mk;
   let prelude = editor_of_serialization(prelude);
   let correct_impl = editor_of_serialization(correct_impl);
   let your_tests = {
@@ -424,7 +424,7 @@ let update_exercise_title = ({eds, _}: state, new_title: string) => {
 
 let add_buggy_impl = (state: state) => {
   let new_buggy_impl = {
-    impl: Editor.Model.mk(Zipper.init(), ~root=Exp),
+    impl: Editor.Model.mk(Zipper.init(~root=Exp)),
     hint: "No Hint Available",
   };
   {
@@ -683,6 +683,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | Atom(_)
   | DrvExp(_)
   | ListLit(_)
+  | TupleExtension(_)
   | Constructor(_)
   | Closure(_)
   | Fun(_)
@@ -698,6 +699,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | DeferredAp(_)
   | If(_)
   | Test(_)
+  | HintedTest(_)
   | Parens(_)
   | Probe(_)
   | Cons(_)
@@ -854,7 +856,7 @@ let export_module = ({eds, _}: state) => {
 
 let transitionary_editor_pp = (fmt, editor: Editor.t) => {
   let zipper = editor.state.zipper;
-  let code = Printer.to_string_basic(zipper);
+  let code = PersistentZipper.to_string(zipper);
   Format.pp_print_string(fmt, "\"" ++ String.escaped(code) ++ "\"");
 };
 
@@ -981,7 +983,6 @@ let unpersist =
     } else {
       Editor.Model.mk(default);
     };
-  let lookup = lookup(~root=Exp);
   let prelude = lookup(Prelude, spec.prelude);
   let correct_impl = lookup(CorrectImpl, spec.correct_impl);
   let your_tests_tests = lookup(YourTestsValidation, spec.your_tests.tests);
@@ -990,10 +991,7 @@ let unpersist =
     hidden_bugs
     |> List.map(({impl, hint}) => {
          let impl =
-           Editor.Model.mk(
-             PersistentZipper.unpersist(impl, ~root=Exp),
-             ~root=Exp,
-           );
+           Editor.Model.mk(PersistentZipper.unpersist(impl, ~root=Exp));
          {
            impl,
            hint,

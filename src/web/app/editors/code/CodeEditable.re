@@ -28,7 +28,7 @@ module Update = {
 
   let update =
       (~settings: Settings.t, action: t, model: Model.t): Updated.t(Model.t) => {
-    let perform = (action, model: Model.t) =>
+    let perform = (action: Action.t, model: Model.t) =>
       Editor.Update.update(
         ~settings=settings.core,
         action,
@@ -52,19 +52,20 @@ module Update = {
              switch (action) {
              | Move(_)
              | Jump(_)
-             | Select(Resize(_) | Term(_) | Smart(_) | Tile(_))
+             | Select(
+                 Resize(_) | Term(_) | Smart(_) | Tile(_) | ToggleFocus |
+                 SetFocus(_),
+               )
              | Destruct(_)
              | Insert(_)
-             | Pick_up
              | Put_down
-             | RotateBackpack
-             | MoveToBackpackTarget(_)
              | Buffer(Set(_) | Accept | Clear)
              | Paste(_)
              | Copy
              | Cut
              | Reparse
-             | Introduce => true
+             | Introduce
+             | Dump => true
              | Project(_)
              | Unselect(_)
              | Select(All) => false
@@ -133,9 +134,9 @@ module Selection = {
     };
   };
 
-  let jump_to_tile = (tile, model: Model.t) => {
-    switch (TileMap.find_opt(tile, model.editor.syntax.tiles)) {
-    | Some(_) => Some(Update.Perform(Jump(TileId(tile))))
+  let jump_to_tile = (id: Id.t, model: Model.t) => {
+    switch (TermData.root_tile_opt(id, model.editor.syntax.term_data)) {
+    | Some(_) => Some(Update.Perform(Jump(TileId(id))))
     | None => None
     };
   };

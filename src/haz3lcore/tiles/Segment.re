@@ -19,6 +19,24 @@ let incomplete_tiles =
     | Piece.Tile(t) when !Tile.is_complete(t) => Some(t)
     | _ => None,
   );
+
+let rec incomplete_tiles_deep = (seg: t) =>
+  List.map(
+    fun
+    | Piece.Tile(t) =>
+      (!Tile.is_complete(t) ? [t] : [])
+      @ List.concat_map(incomplete_tiles_deep, t.children)
+    | _ => [],
+    seg,
+  )
+  |> List.concat;
+
+let incomplete_tiles_to_missing_shards = seg =>
+  seg |> List.map(Tile.missing_shards) |> List.concat;
+
+let global_missing_shards = (seg: t) =>
+  seg |> incomplete_tiles_deep |> incomplete_tiles_to_missing_shards;
+
 let tiles =
   List.filter_map(
     fun
@@ -58,19 +76,20 @@ let shape_affix =
     | [] => (empty_wgw, r, [])
     | [p, ...tl] =>
       let (wgw, s, tl) = go(tl, r);
+      let shape =
+        switch (Piece.shapes(p)) {
+        | Some(shapes) =>
+          shapes |> (d == Left ? TupleUtil.swap : Fun.id) |> fst
+        | None => s
+        };
       switch (p) {
       | Secondary(w) =>
         let (wss, gs) = wgw;
         let (ws, wss) = ListUtil.split_first(wss);
-        (([[w, ...ws], ...wss], gs), s, tl);
-      | Grout(g) => (Aba.cons([], g, wgw), s, tl)
-      | Projector(p) =>
-        let (l, _) =
-          ProjectorCore.shapes(p) |> (d == Left ? TupleUtil.swap : Fun.id);
-        (empty_wgw, l, tl);
-      | Tile(t) =>
-        let (l, _) = Tile.shapes(t) |> (d == Left ? TupleUtil.swap : Fun.id);
-        (empty_wgw, l, tl);
+        (([[w, ...ws], ...wss], gs), shape, tl);
+      | Grout(g) => (Aba.cons([], g, wgw), shape, tl)
+      | Projector(_) => (empty_wgw, shape, tl)
+      | Tile(_) => (empty_wgw, shape, tl)
       };
     };
   go((d == Left ? List.rev : Fun.id)(affix), r);
@@ -89,7 +108,7 @@ let rec remold = (~shape=Nib.Shape.concave(), seg: t, s: Sort.t) =>
 and remold_tile = (s: Sort.t, shape, t: Tile.t): option(Tile.t) => {
   open OptUtil.Syntax;
   let+ remolded =
-    Molds.get(t.label)
+    Form.Molds.get(t.label)
     |> List.filter((m: Mold.t) => m.out == s)
     |> List.map(mold =>
          {
@@ -510,12 +529,12 @@ and remold_exp = (shape, seg: t): t =>
   };
 
 let skel =
-  Core.Memo.general(~cache_size_bound=10000, seg =>
+  Core.Memo.general(~cache_size_bound=10000, seg => {
     seg
     |> List.mapi((i, p) => (i, p))
     |> List.filter(((_, p)) => !Piece.is_secondary(p))
     |> Skel.mk
-  );
+  });
 
 let sorted_children = List.concat_map(Piece.sorted_children);
 let children = seg => List.map(snd, sorted_children(seg));
@@ -556,71 +575,17 @@ module Trim = {
     | [ws, ...wss] => List.cons(ws, rm_up_to_one_space(wss))
     };
 
-  let add_grout = (~d: Direction.t, shape: Nib.Shape.t, (wss, gs): t): t => {
-    let g = Grout.mk_fits_shape(shape);
-    /* When adding a grout to the left, consume a space. Note
-       changes made to the logic here should also take into
-       account the other direction in 'regrout' below */
-    let wss' =
-      switch (d) {
-      /* Right Convex e.g. Backspace `1| + 2` => `|<> + 2` (Don't consume) */
-      /* Right Concave e.g. Backspace `1 +| 1` => `1 |>< 1` (Don't consume) */
-      | Right => wss
-      /* Left Convex e.g. Insert Space `[|]` => `[ |]` => `[<>|]` (Consume) */
-      /* Left Concave e.g. Insert "i" `let a = 1 i|` => `let a = 1><i|` (Consume) */
-      | Left => rm_up_to_one_space(wss)
-      };
-    cons_g(g, (wss', gs));
-  };
+  let add_grout = (shape: Nib.Shape.t, (wss, gs): t): t =>
+    cons_g(Grout.mk_fits_shape(shape), (wss, gs));
 
   // assumes grout in trim fit r but may not fit l
-  let regrout = (d: Direction.t, (l, r): Nibs.shapes, trim: t): t =>
+  let regrout = ((l, r): Nibs.shapes, trim: t): t =>
     if (Nib.Shape.fits(l, r)) {
-      let (wss, gs) = trim;
-      /* When removing a grout to the Left, add a space. Note
-         changes made to the logic here should also take into
-         account the other direction in 'add_grout' above */
-      let new_spaces =
-        List.filter_map(
-          (g: Grout.t) => {
-            switch (g.shape, d) {
-            /* Left Concave e.g. `let a = 1><in|` => `let a = 1 in |` (Add) */
-            /* NOTE(andrew): Not sure why d here seems reversed. Also not sure why
-             * restriction to concave is necessary but seems to prevent addition
-             * of needless whitespace in some situation such as when inserting
-             * on `(|)`, which seems to add whitespace after the right parens
-             * without this shape restirction */
-            | (Concave, Right) => Some(Secondary.mk_space(g.id))
-            | _ => None
-            }
-          },
-          gs,
-        );
-      /* Note below that it is important that we add the new spaces
-         before the existing wss, as doing otherwise may result
-         in the new spaces ending up leading a line. This approach is
-         somewhat hacky; we may just want to remove all the spaces
-         whenever there is a linebreak; not making this chance now
-         as I'm worried about it introducing subtle jank */
-
-      /* David PR comment:
-         All these changes assume the trim is ordered left-to-right,
-         but this may not be true when Trim.regrout is called by
-         regrout_affix(Left, ...) below, which reverses the affix before
-         processing. (This didn't pose an issue before with trim because
-         the secondary and grout are symmetric and the existing code
-         didn't affect order.)
-         Proper fix would require threading through directional parameter
-         from regrout_affix into Trim.regrout and appending to correct side.
-         Similar threading for add_grout. That said, I couldn't trigger any
-         undesirable behavior with these changes and am fine with going ahead
-         with this for now. */
-      let wss = [new_spaces @ List.concat(wss)];
-      Aba.mk(wss, []);
+      Aba.mk([List.concat(trim |> fst)], []);
     } else {
       let (_, gs) as merged = merge(trim);
       switch (gs) {
-      | [] => add_grout(~d, l, merged)
+      | [] => add_grout(l, merged)
       | [_, ..._] => merged
       };
     };
@@ -633,7 +598,7 @@ module Trim = {
 
 let rec regrout = ((l, r), seg) => {
   let (trim, r, tl) = regrout_affix(Direction.Right, seg, r);
-  let trim = Trim.regrout(Direction.Right, (l, r), trim);
+  let trim = Trim.regrout((l, r), trim);
   Trim.to_seg(trim) @ tl;
 }
 and regrout_affix =
@@ -648,7 +613,7 @@ and regrout_affix =
           let p = Piece.Projector(pr);
           let (l', r') =
             ProjectorCore.shapes(pr) |> (d == Left ? TupleUtil.swap : Fun.id);
-          let trim = Trim.regrout(d, (r', r), trim);
+          let trim = Trim.regrout((r', r), trim);
           (Trim.empty, l', [p, ...Trim.to_seg(trim)] @ tl);
         | Tile(t) =>
           let children =
@@ -668,7 +633,7 @@ and regrout_affix =
             });
           let (l', r') =
             Tile.shapes(t) |> (d == Left ? TupleUtil.swap : Fun.id);
-          let trim = Trim.regrout(d, (r', r), trim);
+          let trim = Trim.regrout((r', r), trim);
           (Trim.empty, l', [p, ...Trim.to_seg(trim)] @ tl);
         }
       },
@@ -685,6 +650,9 @@ let split_by_matching = (id: Id.t): (t => Aba.t(t, Tile.t)) =>
     | p => L(p),
   );
 
+let inner_regrout = (children: list(t)): list(t) =>
+  List.map(regrout((Nib.Shape.concave(), Nib.Shape.concave())), children);
+
 let rec reassemble = (seg: t): t =>
   switch (incomplete_tiles(seg)) {
   | [] => seg
@@ -694,6 +662,7 @@ let rec reassemble = (seg: t): t =>
     | Some((seg_l, match, seg_r)) =>
       let t = Tile.reassemble(match);
       let children = List.map(reassemble, t.children);
+      let children = inner_regrout(children);
       let p =
         Tile.to_piece({
           ...t,
@@ -938,20 +907,4 @@ module IDs = {
   };
 };
 
-let rec to_string = (~holes, seg: t): string =>
-  seg |> List.map(str_from_piece(~holes)) |> String.concat("")
-and str_from_piece = (~holes, p: Piece.t): string =>
-  switch (p) {
-  | Tile(t) => str_from_tile(~holes, t)
-  | Grout({shape: Concave, _}) => " "
-  | Grout({shape: Convex, _}) when holes != None => Option.get(holes)
-  | Grout({shape: Convex, _}) => " "
-  | Secondary(w) =>
-    Secondary.is_linebreak(w) ? "\n" : Secondary.get_string(w.content)
-  | Projector(p) => to_string(~holes, Piece.unparenthesize(p.syntax))
-  }
-and str_from_tile = (~holes, t: Tile.t): string =>
-  Aba.mk(t.shards, t.children)
-  |> Aba.join(str_from_delim(t), to_string(~holes))
-  |> String.concat("")
-and str_from_delim = (t: Piece.tile, i: int): string => List.nth(t.label, i);
+let to_string = Base.segment_to_string;

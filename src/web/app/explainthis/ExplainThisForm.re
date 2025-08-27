@@ -77,9 +77,7 @@ type numeric_bin_op_examples =
   | GreaterThanFalse
   | GreaterThanEqualGreater
   | GreaterThanEqualEqual
-  | GreaterThanEqualFalse
-  | EqualFalse
-  | EqualTrue;
+  | GreaterThanEqualFalse;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type example_id =
@@ -91,6 +89,7 @@ type example_id =
   | Label1
   | Label2
   | Dot1
+  | Dot2
   | DotTyp
   | Fix1
   | Fix2
@@ -99,6 +98,9 @@ type example_id =
   | TupleLabeled1
   | TupleLabeled2
   | TupleLabeled3
+  | TupleExtension1
+  | TupleExtension2
+  | TupleExtension3
   | Let(let_examples)
   | UseExp1
   | TypFunAp
@@ -112,9 +114,17 @@ type example_id =
   | SeqTest
   | TestTrue
   | TestFalse
+  | HintedTestTrue
+  | HintedTestFalse
   | IntUnaryMinus
   | Int(numeric_bin_op_examples)
   | Float(numeric_bin_op_examples)
+  | FloatEqualFalse
+  | FloatEqualTrue
+  | PolyEqualFalse
+  | PolyEqualTrue
+  | PolyNotEqualTrue
+  | PolyNotEqualFalse
   | AndFalse
   | AndTrue
   | OrFalse
@@ -205,6 +215,7 @@ type form_id =
   | SeqExp
   | UseExp
   | TestExp
+  | HintedTestExp
   | UnOpExp(Language.Operators.op_un)
   | BinOpExp(Language.Operators.op_bin)
   | CaseExp
@@ -262,7 +273,8 @@ type form_id =
   | FilterDebug
   | FilterHide
   | FilterSelector
-  | AscExp;
+  | AscExp
+  | TupleExtensionExp;
 
 [@deriving (show({with_path: false}), sexp, yojson)]
 type form = {
@@ -313,11 +325,13 @@ type group_id =
   | IfExp
   | SeqExp
   | TestExp
+  | HintedTestExp
   | UnOpExp(Language.Operators.op_un)
   | BinOpExp(Language.Operators.op_bin)
   | CaseExp
   | TyAliasExp
   | PipelineExp
+  | TupleExtensionExp
   | UseExp
   | EmptyHolePat
   | MultiHolePat

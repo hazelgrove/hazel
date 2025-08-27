@@ -284,9 +284,16 @@ let rec matches_exp =
     | (Test(d2), Test(f2)) => matches_exp(d2, f2)
     | (Test(_), _) => false
 
+    | (HintedTest(d2, _hint1), HintedTest(f2, _hint2)) =>
+      matches_exp(d2, f2)
+    | (HintedTest(_), _) => false
+
     | (Cons(d1, d2), Cons(f1, f2)) =>
       matches_exp(d1, f1) && matches_exp(d2, f2)
     | (Cons(_), _) => false
+    | (TupleExtension(d1, d2), TupleExtension(f1, f2)) =>
+      matches_exp(d1, f1) && matches_exp(d2, f2)
+    | (TupleExtension(_), _) => false
 
     | (ListLit(dv), ListLit(fv)) when List.length(dv) == List.length(fv) =>
       List.fold_left2((acc, d, f) => acc && matches_exp(d, f), true, dv, fv)

@@ -49,15 +49,11 @@ module Update = {
 
     // These actions are not allowed in a CodeSelectable
     | Perform(
-        Destruct(_) | Insert(_) | RotateBackpack | MoveToBackpackTarget(_) |
-        Pick_up |
-        Put_down |
-        Paste(_) |
-        Reparse |
-        Cut |
+        Destruct(_) | Insert(_) | Put_down | Paste(_) | Reparse | Cut |
         Buffer(_) |
         Project(_) |
-        Introduce,
+        Introduce |
+        Dump,
       )
     | DebugConsole(_)
     | TAB => None;

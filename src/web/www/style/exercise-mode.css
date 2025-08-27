@@ -4,15 +4,13 @@
 
 #main.Exercises {
   padding: 1em;
+  padding-top: 3em;
   display: flex;
   flex-direction: column;
   /* Note(zhiyao): cannot do that because derivation exercise might be shorter than a page */
   /* justify-content: space-between; */
   gap: 1.2em;
   background-color: var(--ui-bkg);
-}
-
-#main.Exercises {
   scrollbar-color: var(--main-scroll-thumb) var(--NONE);
 }
 

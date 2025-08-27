@@ -1,52 +1,43 @@
 open Util;
-open StringUtil;
-open Mold;
+open Sort;
 module P = Precedence;
 
-/* FORM
-   This module determines the syntactic extent of the language; the
-   entire Syntax module is driven by the below definitions. Adding
-   a new syntactic form is simply a matter of adding a new line to either
-   the 'convex_monos' table, for single-token forms, or the 'forms'
-   table, for compound forms.
-   The wrapping functions seen in both of those tables determine the
-   shape, precedence, and expansion behavior of the form.
-   */
+/* This module determines the syntactic extent of the language; the
+ * entire Syntax module is driven by the below definitions. To add
+ * a new syntactic form add a case to either the atomic_form or
+ * compound_form types and follow the errors. The cases in their
+ * corresponding `get` functions determine the shape, precedence,
+ * and expansion behavior of the form.*/
 
-/* A label is the textual expression of a form's delimiters */
+/* When you complete a token corresponding to a delimiter of a
+ * compound form, that token might be 'expanded', which is to say,
+ * converted from a monotile to a incomplete polytile aka shard
+ * representing a part of specific form. All leading delimiters
+ * of all forms trigger expansion, but not all trailing
+ * delimiters, for example ambiguous trailing delimiters like
+ * `in` or `>`. Thus we designate certain delimiters as expanding
+ * on a per-form basis. Expanding delimiters should be globally
+ * unique, and indeed it would probably be better if we dispensed
+ * with this explicit classification and instead derived this
+ * information from the grammar. Currently all forms fall into two
+ * classes: Either only the leading delimiter triggers expansion,
+ * or the leading and trailing delimiters trigger expansion */
 [@deriving (show({with_path: false}), sexp, yojson)]
-type label = list(Token.t);
-
-/* The construction of a compound forms can be triggered by inserting
-   one of its delimiters through a process called expansion. Expansion
-   can either occur (Instant)ly upon delimiter creation, or be (Delayed)
-   until after a token boundary event is triggered (say by pressing
-   space after entering 'let'). The (Static) case is used for monos
-   aka single-token forms. */
+type expansion =
+  | Non /* Non-expandind: Placeholder for atomic forms */
+  | L /* Leading-only: All keyword forms and some special cases */
+  | LT; /* Leading and trailing: Used for parethesis-like things */
 
 [@deriving (show({with_path: false}), sexp, yojson)]
-type expansion_time =
-  | Static
-  | Instant
-  | Delayed;
-
-/* Expansion can be triggered by either/both the first or last token
-   of a form, represented here by the first/last elements of this pair. */
-[@deriving (show({with_path: false}), sexp, yojson)]
-type expansion = (expansion_time, expansion_time);
+type expansions = list((Token.t, (Label.t, Direction.t)));
 
 /* A label, a mold, and expansion behavior together determine a form. */
 [@deriving (show({with_path: false}), sexp, yojson)]
 type t = {
-  label,
-  expansion,
+  label: Label.t,
   mold: Mold.t,
+  expansion,
 };
-
-[@deriving (show({with_path: false}), sexp, yojson)]
-type bad_token_cls =
-  | Other
-  | BadInt;
 
 let mk = (expansion, label, mold) => {
   label,
@@ -54,185 +45,31 @@ let mk = (expansion, label, mold) => {
   expansion,
 };
 
-/* Abbreviations for expansion behaviors */
-let ss: expansion = (Static, Static);
-let ii: expansion = (Instant, Instant);
-let is: expansion = (Instant, Static);
-let ds: expansion = (Delayed, Static);
+let op = Mold.mk_op(_, []);
 
-let mk_infix = (t: Token.t, sort: Sort.t, prec) =>
-  mk(ss, [t], mk_bin(prec, sort, []));
+let mk_atom = (t: Token.t, mold_of) => mk(Non, [t], mold_of([]));
 
-let mk_nul_infix = (t: Token.t, prec) =>
-  mk(ss, [t], mk_bin(~l=Any, ~r=Any, prec, Any, []));
+let mk_atom_op = (sort: Sort.t, t: Token.t) => mk_atom(t, Mold.mk_op(sort));
 
-/* Token Recognition Predicates */
+let mk_infix = (t: Token.t, sort: Sort.t, ~l=?, ~r=?, prec) =>
+  mk_atom(t, Mold.mk_bin(prec, sort, ~l?, ~r?));
 
-/* A. Secondary Notation (Comments, Whitespace, etc.)  */
-let space = " ";
-let linebreak = "\n";
-let comment_regexp = regexp("^#[^#\n]*#$"); /* Multiline comments not supported */
-let is_comment = t => match(comment_regexp, t) || t == "#";
-let is_comment_delim = t => t == "#";
-let is_secondary = t =>
-  List.mem(t, [space, linebreak]) || match(comment_regexp, t);
+let mk_prefix = (t: Token.t, sort: Sort.t, prec) =>
+  mk_atom(t, Mold.mk_pre(prec, sort));
 
-/* STRINGS: special-case syntax */
+let mk_pre_c =
+    (exp, label: Label.t, prec, sort: Sort.t, inner_sorts: list(Sort.t)) =>
+  mk(exp, label, Mold.mk_pre(prec, sort, inner_sorts));
 
-/* is_string: last clause is a somewhat hacky way of making sure
-   there are at most two quotes, in order to prevent merges */
-let string_regexp = regexp("^\"[^\n]*\"$"); /* Multiline strings not supported */
-let is_string = t =>
-  match(string_regexp, t) && List.length(String.split_on_char('"', t)) < 4;
-let string_delim = "\"";
-let empty_string = string_delim ++ string_delim;
-let is_string_delim = (==)(string_delim);
-let strip_quotes = s =>
-  if (String.length(s) < 2) {
-    s;
-  } else if (String.sub(s, 0, 1) != "\""
-             || String.sub(s, String.length(s) - 1, 1) != "\"") {
-    s;
-  } else {
-    String.sub(s, 1, String.length(s) - 2);
-  };
+let mk_op_c = (exp, label: Label.t, sort: Sort.t, inner_sorts: list(Sort.t)) =>
+  mk(exp, label, Mold.mk_op(sort, inner_sorts));
 
-let string_quote = s => "\"" ++ s ++ "\"";
+let mk_post_c =
+    (exp, label: Label.t, prec, sort: Sort.t, child_sorts: list(Sort.t)) =>
+  mk(exp, label, Mold.mk_post(prec, sort, child_sorts));
 
-let keywords = [
-  "fun",
-  "let",
-  "in",
-  "type",
-  "case",
-  "test",
-  "if",
-  "then",
-  "else",
-];
-let reserved_keywords = ["of", "when", "with", "switch", "match"];
-let keyword_regexp = regexp("^(" ++ String.concat("|", keywords) ++ ")$");
-let is_keyword = match(keyword_regexp);
-
-/* Potential tokens: These are fallthrough classes which determine
- * the behavior when inserting a character in contact with a token */
-let is_potential_operand =
-  match(regexp("^([a-zA-Z0-9_'?\\^]+)$|^([0-9_]+\\.[a-zA-Z0-9_'\\.?]*)$"));
-/* Anything else is considered a potential operator, as long
- *  as it does not contain any whitespace, linebreaks, comment
- *  delimiters, string delimiters, or the instant expanding paired
- *  delimiters: ()[]| */
-let potential_operator_regexp =
-  regexp("^[^a-zA-Z0-9_'?\"#\n\\s\\[\\]\\(\\)]+$"); /* Multiline operators not supported */
-let is_potential_operator = match(potential_operator_regexp);
-let begins_with_potential_operator =
-  match(regexp("^[^a-zA-Z0-9_'?\"#\n\\s\\[\\]\\(\\)]+"));
-let is_potential_token = t =>
-  is_potential_operand(t)
-  || is_potential_operator(t)
-  || is_string(t)
-  || is_comment(t);
-
-let int_regexp = regexp("^-?\\d+[0-9_]*$");
-let is_float = match(regexp("^-?[0-9]*\\.?[0-9]*((e|E)-?[0-9]*)?$"));
-let is_arbitary_float = x => x != "." && x != "-" && is_float(x);
-let is_int = str =>
-  match(int_regexp, str) && Bigint.of_string_opt(str) != None;
-/* NOTE: The is_arbitary_int check is necessary to prevent
-   minuses from being parsed as part of the int token. */
-
-let is_bad_int = str => match(int_regexp, str) && !is_int(str);
-
-/* NOTE: As well as making is_float  disjoint from is_int,
-   the is_arbitary_int  also prevents ints over int_max from being
-   cast as floats. The is_arbitary_float check is necessary to prevent
-   minuses from being parsed as part of the float token. */
-let is_float = str =>
-  !match(int_regexp, str)
-  && is_arbitary_float(str)
-  && float_of_string_opt(str) != None;
-let is_bad_float = str => is_arbitary_float(str) && !is_float(str);
-let bools = ["true", "false"];
-let is_bool = match(regexp("^(" ++ String.concat("|", bools) ++ ")$"));
-let undefined = "undefined";
-let is_undefined = match(regexp("^" ++ undefined ++ "$"));
-
-let is_livelit = str => {
-  let re = regexp("^(\\^)([a-z][A-Za-z0-9_]*)$");
-  let result = match(re, str);
-  result;
-};
-let parse_livelit = (str): string =>
-  if (String.length(str) > 1 && String.sub(str, 0, 1) == "^") {
-    String.sub(str, 1, String.length(str) - 1);
-  } else {
-    "invalid form";
-  };
-
-let var_regexp =
-  regexp(
-    {|(^[a-z_][A-Za-z0-9_']*$)|(^[A-Z][A-Za-z0-9_']*\.[a-z][A-Za-z0-9_']*$)|},
-  );
-let is_var = str =>
-  !is_bool(str)
-  && !is_undefined(str)
-  && !is_livelit(str)
-  && str != "_"
-  && match(var_regexp, str);
-let capitalized_name_regexp = regexp("^[A-Z][A-Za-z0-9_]*$");
-let is_ctr = match(capitalized_name_regexp);
-let base_typs = ["String", "Int", "Float", "Bool"];
-let is_base_typ =
-  match(regexp("^(" ++ String.concat("|", base_typs) ++ ")$"));
-let is_typ_var = str => is_var(str) || match(capitalized_name_regexp, str);
-let wild = "_";
-let is_wild = match(regexp("^" ++ wild ++ "$"));
-
-/* List literals */
-let list_start = "[";
-let list_end = "]";
-let listlit_lbl = [list_start, list_end];
-let empty_list = list_start ++ list_end;
-let is_empty_list = (==)(empty_list);
-
-/* Tuples */
-let tuple_start = "(";
-let tuple_end = ")";
-let tuple_lbl = [tuple_start, tuple_end];
-let empty_tuple = tuple_start ++ tuple_end;
-let is_empty_tuple = (==)(empty_tuple);
-
-/* These functions determine which forms can switch back and forth between
-   mono and duotile forms, like list literals and tuples switching to/from
-   the empty list and empty tuple. Technically this should be derivable from
-   the language data; leaving that for a future refactor. */
-let duosplits = (t: Token.t): Label.t =>
-  switch () {
-  | _ when is_empty_list(t) => listlit_lbl
-  | _ when is_empty_tuple(t) => tuple_lbl
-  | _ => []
-  };
-
-let duomerges = (lbl: Label.t): option(Label.t) =>
-  switch () {
-  | _ when lbl == listlit_lbl => Some([empty_list])
-  | _ when lbl == tuple_lbl => Some([empty_tuple])
-  | _ => None
-  };
-
-let const_mono_delims =
-  base_typs @ bools @ [undefined, wild, empty_list, empty_tuple, empty_string];
-
-let explicit_hole = "?";
-let is_explicit_hole = t => t == explicit_hole;
-let bad_token_cls: string => bad_token_cls =
-  t =>
-    switch () {
-    | _ when is_bad_int(t) => BadInt
-    | _ => Other
-    };
-
-let mk_parens = (sort: Sort.t) => mk(ii, tuple_lbl, mk_op(sort, [sort]));
+let mk_parens = (sort: Sort.t) =>
+  mk_op_c(LT, Token.tuple_lbl, sort, [sort]);
 
 /* B. Operands:
    Order in this type determines relative remolding
@@ -243,12 +80,15 @@ type atomic_form =
   | Var
   | DrvVar
   | ExplicitHole
+  | LLMHole
   | Wild
   | String
+  | QuotedLabel
   | IntLit
   | FloatLit
   | BoolLit
   | LivelitName
+  | ProjectorInvoke
   | UndefinedLit
   | EmptyList
   | EmptyTuple
@@ -256,67 +96,8 @@ type atomic_form =
   | TyVar
   | TyVarP
   | Ctr
-  | Type;
-
-let get_atomic_form: atomic_form => (string => bool, list(Mold.t)) =
-  fun
-  | Var => (is_var, [mk_op(Exp, []), mk_op(Pat, [])])
-  | ExplicitHole => (
-      is_explicit_hole,
-      [
-        mk_op(Exp, []),
-        mk_op(Pat, []),
-        mk_op(Typ, []),
-        mk_op(TPat, []),
-        mk_op(Drv(Typ), []),
-      ],
-    )
-  | Wild => (is_wild, [mk_op(Pat, []), mk_op(Drv(Exp), [])])
-  | String => (is_string, [mk_op(Exp, []), mk_op(Pat, [])])
-  | IntLit => (
-      is_int,
-      [
-        mk_op(Exp, []),
-        mk_op(Pat, []),
-        mk_op(Drv(Exp), []),
-        mk_op(Drv(Typ), []),
-      ],
-    )
-  | FloatLit => (is_float, [mk_op(Exp, []), mk_op(Pat, [])])
-  | LivelitName => (is_livelit, [mk_op(Exp, []), mk_op(Pat, [])])
-  | BoolLit => (is_bool, [mk_op(Exp, []), mk_op(Pat, [])])
-  | UndefinedLit => (is_undefined, [mk_op(Exp, []), mk_op(Pat, [])])
-  | EmptyList => (
-      is_empty_list,
-      [mk_op(Exp, []), mk_op(Pat, []), mk_op(Drv(Exp), [])],
-    )
-  | EmptyTuple => (
-      is_empty_tuple,
-      [
-        mk_op(Exp, []),
-        mk_op(Pat, []),
-        mk_op(Typ, []),
-        mk_op(Drv(Exp), []),
-      ],
-    )
-  | Deferral => (is_wild, [mk_op(Exp, [])])
-  | TyVar => (is_typ_var, [mk_op(Typ, [])])
-  | TyVarP => (is_typ_var, [mk_op(TPat, [])])
-  | Ctr => (is_ctr, [mk_op(Exp, []), mk_op(Pat, [])])
-  | Type => (is_base_typ, [mk_op(Typ, [])])
-  // Note(zhiyao): For derivation variable, we use is_typ_var (a bit looser than Hazel var)
-  | DrvVar => (
-      is_typ_var,
-      [
-        mk_op(Drv(Exp), []),
-        mk_op(Drv(Pat), []),
-        mk_op(Drv(Typ), []),
-        mk_op(Drv(TPat), []),
-      ],
-    );
-
-let atomic_forms: list((atomic_form, (string => bool, list(Mold.t)))) =
-  List.map(f => (f, get_atomic_form(f)), all_of_atomic_form);
+  | Type
+  | InfixDelimiterPrefix;
 
 /* C. Compound Forms:
    Order in this type determines relative remolding
@@ -402,85 +183,83 @@ type drv_compound_form =
 
 let drv_get: drv_compound_form => t =
   fun
-  | OfJdmt => mk(ds, ["of_jdmt", "end"], mk_op(Exp, [Drv(Exp)]))
-  | OfCtx => mk(ds, ["of_ctx", "end"], mk_op(Exp, [Drv(Exp)]))
-  | OfProp => mk(ds, ["of_prop", "end"], mk_op(Exp, [Drv(Exp)]))
-  | OfAlfaExp => mk(ds, ["of_alfa_exp", "end"], mk_op(Exp, [Drv(Exp)]))
-  | OfAlfaTyp => mk(ds, ["of_alfa_typ", "end"], mk_op(Exp, [Drv(Typ)]))
-  | OfAlfaPat => mk(ds, ["of_alfa_pat", "end"], mk_op(Exp, [Drv(Pat)]))
-  | OfAlfaTPat => mk(ds, ["of_alfa_tpat", "end"], mk_op(Exp, [Drv(TPat)]))
+  | OfJdmt => mk_op_c(L, ["of_jdmt", "end"], Exp, [Drv(Exp)])
+  | OfCtx => mk_op_c(L, ["of_ctx", "end"], Exp, [Drv(Exp)])
+  | OfProp => mk_op_c(L, ["of_prop", "end"], Exp, [Drv(Exp)])
+  | OfAlfaExp => mk_op_c(L, ["of_alfa_exp", "end"], Exp, [Drv(Exp)])
+  | OfAlfaTyp => mk_op_c(L, ["of_alfa_typ", "end"], Exp, [Drv(Typ)])
+  | OfAlfaPat => mk_op_c(L, ["of_alfa_pat", "end"], Exp, [Drv(Pat)])
+  | OfAlfaTPat => mk_op_c(L, ["of_alfa_tpat", "end"], Exp, [Drv(TPat)])
   | Subst =>
-    mk(
-      ds,
-      ["[", "/", "]"],
-      mk_pre(P.fun_, Drv(Exp), [Drv(Exp), Drv(Pat)]),
-    )
+    mk_pre_c(LT, ["[", "/", "]"], P.fun_, Drv(Exp), [Drv(Exp), Drv(Pat)])
   | SubstTy =>
-    mk(
-      ds,
+    mk_pre_c(
+      LT,
       ["[", "/", "]"],
-      mk_pre(P.fun_, Drv(Typ), [Drv(Typ), Drv(TPat)]),
+      P.fun_,
+      Drv(Typ),
+      [Drv(Typ), Drv(TPat)],
     )
-  | Glb =>
-    mk(ds, ["glb(", ",", ")"], mk_op(Drv(Typ), [Drv(Typ), Drv(Typ)]))
-  | Val => mk(ds, ["val", "end"], mk_op(Drv(Exp), [Drv(Exp)]))
-  | Eval =>
-    mk(ss, ["\\=/"], mk_bin'(P.min, Drv(Exp), Drv(Exp), [], Drv(Exp)))
-  | Entail =>
-    mk(ss, ["|-"], mk_bin'(P.min, Drv(Exp), Drv(Exp), [], Drv(Exp)))
-  | UnaryEntail =>
-    mk(ss, ["|-"], mk_pre'(P.min, Drv(Exp), Drv(Exp), [], Drv(Exp)))
+  | Glb => mk_op_c(L, ["glb(", ",", ")"], Drv(Typ), [Drv(Typ), Drv(Typ)])
+  | Val => mk_op_c(L, ["val", "end"], Drv(Exp), [Drv(Exp)])
+  | Eval => mk_infix("\\=/", Drv(Exp), P.min)
+  | Entail => mk_infix("|-", Drv(Exp), P.min)
+  | UnaryEntail => mk_pre_c(LT, ["|-"], P.min, Drv(Exp), [Drv(Exp)])
   // Note(zhiyao):
   // Auto complete is only available for sort Exp, that's why
   // we need a fake_consistent to make it work for Drv(Exp)
   | ConsistentFake =>
-    mk(ds, ["consistent", "~"], mk_pre(P.fun_, Exp, [Drv(Typ)]))
+    mk_pre_c(L, ["consistent", "~"], P.fun_, Exp, [Drv(Typ)])
   | Consistent =>
     mk(
-      ds,
+      LT,
       ["consistent", "~"],
-      mk_pre'(P.fun_, Drv(Exp), Drv(Exp), [Drv(Typ)], Drv(Typ)),
+      Mold.mk_pre'(P.fun_, Drv(Exp), Drv(Exp), [Drv(Typ)], Drv(Typ)),
     )
   | MatchedArrowFake =>
-    mk(ds, ["matched_arrow", "with"], mk_pre(P.fun_, Exp, [Drv(Typ)]))
+    mk_pre_c(L, ["matched_arrow", "with"], P.fun_, Exp, [Drv(Typ)])
   | MatchedArrow =>
     mk(
-      ds,
+      LT,
       ["matched_arrow", "with"],
-      mk_pre'(P.fun_, Drv(Exp), Drv(Exp), [Drv(Typ)], Drv(Typ)),
+      Mold.mk_pre'(P.fun_, Drv(Exp), Drv(Exp), [Drv(Typ)], Drv(Typ)),
     )
   | MatchedProdFake =>
-    mk(ds, ["matched_prod", "with"], mk_pre(P.fun_, Exp, [Drv(Typ)]))
+    mk_pre_c(L, ["matched_prod", "with"], P.fun_, Exp, [Drv(Typ)])
   | MatchedProd =>
     mk(
-      ds,
+      L,
       ["matched_prod", "with"],
-      mk_pre'(P.fun_, Drv(Exp), Drv(Exp), [Drv(Typ)], Drv(Typ)),
+      Mold.mk_pre'(P.fun_, Drv(Exp), Drv(Exp), [Drv(Typ)], Drv(Typ)),
     )
   | MatchedSumFake =>
-    mk(ds, ["matched_sum", "with"], mk_pre(P.fun_, Exp, [Drv(Typ)]))
+    mk_pre_c(L, ["matched_sum", "with"], P.fun_, Exp, [Drv(Typ)])
   | MatchedSum =>
     mk(
-      ds,
+      L,
       ["matched_sum", "with"],
-      mk_pre'(P.fun_, Drv(Exp), Drv(Exp), [Drv(Typ)], Drv(Typ)),
+      Mold.mk_pre'(P.fun_, Drv(Exp), Drv(Exp), [Drv(Typ)], Drv(Typ)),
     )
-  | Valid => mk(ds, ["valid", "end"], mk_op(Drv(Exp), [Drv(Typ)]))
+  | Valid => mk_op_c(L, ["valid", "end"], Drv(Exp), [Drv(Typ)])
   | HasType =>
-    mk(ss, [":"], mk_bin'(P.ann, Drv(Exp), Drv(Exp), [], Drv(Typ)))
+    mk(LT, [":"], Mold.mk_bin'(P.ann, Drv(Exp), Drv(Exp), [], Drv(Typ)))
   | Syn =>
-    mk(ss, ["=>"], mk_bin'(P.ann, Drv(Exp), Drv(Exp), [], Drv(Typ)))
+    mk(LT, ["=>"], Mold.mk_bin'(P.ann, Drv(Exp), Drv(Exp), [], Drv(Typ)))
   | Ana =>
-    mk(ss, ["<="], mk_bin'(P.ann, Drv(Exp), Drv(Exp), [], Drv(Typ)))
+    mk(LT, ["<="], Mold.mk_bin'(P.ann, Drv(Exp), Drv(Exp), [], Drv(Typ)))
   | And => mk_infix("/\\", Drv(Exp), P.and_)
   | Or => mk_infix("\\/", Drv(Exp), P.or_)
   | Impl => mk_infix("==>", Drv(Exp), P.impl)
-  | Not => mk(ds, ["!"], mk_pre(P.neg, Drv(Exp), []))
+  | Not => mk_pre_c(L, ["!"], P.neg, Drv(Exp), [])
   | Cons =>
-    mk(ss, ["::"], mk_bin'(P.cons, Drv(Exp), Drv(Exp), [], Drv(Exp)))
+    mk(
+      LT,
+      ["::"],
+      Mold.mk_bin'(P.cons, Drv(Exp), Drv(Exp), [], Drv(Exp)),
+    )
   | Concat => mk_infix("@", Drv(Exp), P.plus)
-  | List => mk(ii, ["[", "]"], mk_op(Drv(Exp), [Drv(Exp)]))
-  | Neg => mk(ds, ["-"], mk_pre(P.neg, Drv(Exp), []))
+  | List => mk_op_c(LT, ["[", "]"], Drv(Exp), [Drv(Exp)])
+  | Neg => mk_pre_c(L, ["-"], P.neg, Drv(Exp), [])
   | Plus => mk_infix("+", Drv(Exp), P.plus)
   | Minus => mk_infix("-", Drv(Exp), P.plus)
   | Times => mk_infix("*", Drv(Exp), P.mult)
@@ -488,45 +267,49 @@ let drv_get: drv_compound_form => t =
   | Lt => mk_infix("<", Drv(Exp), P.eqs)
   | Gt => mk_infix(">", Drv(Exp), P.eqs)
   | If =>
-    mk(
-      ds,
+    mk_pre_c(
+      L,
       ["if", "then", "else"],
-      mk_pre(P.if_, Drv(Exp), [Drv(Exp), Drv(Exp)]),
+      P.if_,
+      Drv(Exp),
+      [Drv(Exp), Drv(Exp)],
     )
   | Let =>
-    mk(
-      ds,
+    mk_pre_c(
+      L,
       ["let", "=", "in"],
-      mk_pre(P.let_, Drv(Exp), [Drv(Pat), Drv(Exp)]),
+      P.let_,
+      Drv(Exp),
+      [Drv(Pat), Drv(Exp)],
     )
-  | Fix => mk(ds, ["fix", "->"], mk_pre(P.fun_, Drv(Exp), [Drv(Pat)]))
-  | Fun => mk(ds, ["fun", "->"], mk_pre(P.fun_, Drv(Exp), [Drv(Pat)]))
+  | Fix => mk_pre_c(L, ["fix", "->"], P.fun_, Drv(Exp), [Drv(Pat)])
+  | Fun => mk_pre_c(L, ["fun", "->"], P.fun_, Drv(Exp), [Drv(Pat)])
   | Dot => mk_infix(".", Drv(Exp), P.dot)
-  | Case => mk(ds, ["case", "end"], mk_op(Drv(Exp), [Drv(Exp)]))
+  | Case => mk_op_c(L, ["case", "end"], Drv(Exp), [Drv(Exp)])
   | Rule =>
     mk(
-      ds,
+      L,
       ["|", "=>"],
-      mk_bin'(P.rule_sep, Drv(Exp), Drv(Exp), [Drv(Pat)], Drv(Exp)),
+      Mold.mk_bin'(P.rule_sep, Drv(Exp), Drv(Exp), [Drv(Pat)], Drv(Exp)),
     )
   | Cast =>
-    mk(ss, [":"], mk_bin'(P.asc, Drv(Pat), Drv(Pat), [], Drv(Typ)))
+    mk(LT, [":"], Mold.mk_bin'(P.asc, Drv(Pat), Drv(Pat), [], Drv(Typ)))
   | Arrow => mk_infix("->", Drv(Typ), P.type_arrow)
   | Prod => mk_infix("*", Drv(Typ), P.type_prod)
   | Sum => mk_infix("+", Drv(Typ), P.type_plus)
-  | Rec => mk(ds, ["rec", "->"], mk_pre(P.fun_, Drv(Typ), [Drv(TPat)]))
-  | ApExp => mk(ii, ["(", ")"], mk_post(P.ap, Drv(Exp), [Drv(Exp)]))
-  | ApPat => mk(ii, ["(", ")"], mk_post(P.ap, Drv(Pat), [Drv(Pat)]))
+  | Rec => mk_pre_c(L, ["rec", "->"], P.fun_, Drv(Typ), [Drv(TPat)])
+  | ApExp => mk_post_c(LT, ["(", ")"], P.ap, Drv(Exp), [Drv(Exp)])
+  | ApPat => mk_post_c(LT, ["(", ")"], P.ap, Drv(Pat), [Drv(Pat)])
   | CommaExp => mk_infix(",", Drv(Exp), P.comma)
   | CommaPat => mk_infix(",", Drv(Pat), P.comma)
-  | ParenProp => mk(ii, ["(", ")"], mk_op(Drv(Prop), [Drv(Prop)]))
-  | ParenExp => mk(ii, ["(", ")"], mk_op(Drv(Exp), [Drv(Exp)]))
-  | ParenPat => mk(ii, ["(", ")"], mk_op(Drv(Pat), [Drv(Pat)]))
-  | ParenTyp => mk(ii, ["(", ")"], mk_op(Drv(Typ), [Drv(Typ)]))
-  | QuoteExp => mk(ii, ["$"], mk_pre(P.unquote, Drv(Exp), []))
-  | QuotePat => mk(ii, ["$"], mk_pre(P.unquote, Drv(Pat), []))
-  | QuoteTyp => mk(ii, ["$"], mk_pre(P.max, Drv(Typ), []))
-  | QuoteTPat => mk(ii, ["$"], mk_pre(P.unquote, Drv(TPat), []));
+  | ParenProp => mk_op_c(LT, ["(", ")"], Drv(Prop), [Drv(Prop)])
+  | ParenExp => mk_op_c(LT, ["(", ")"], Drv(Exp), [Drv(Exp)])
+  | ParenPat => mk_op_c(LT, ["(", ")"], Drv(Pat), [Drv(Pat)])
+  | ParenTyp => mk_op_c(LT, ["(", ")"], Drv(Typ), [Drv(Typ)])
+  | QuoteExp => mk_pre_c(LT, ["$"], P.unquote, Drv(Exp), [])
+  | QuotePat => mk_pre_c(LT, ["$"], P.unquote, Drv(Pat), [])
+  | QuoteTyp => mk_pre_c(LT, ["$"], P.max, Drv(Typ), [])
+  | QuoteTPat => mk_pre_c(LT, ["$"], P.unquote, Drv(TPat), []);
 
 [@deriving enumerate]
 type compound_form =
@@ -568,6 +351,7 @@ type compound_form =
   | TupleLabeledPat
   | TupleLabeledTyp
   | DotExp
+  | TupleExtension
   | DotTyp
   | TypeAsc
   | TypPlus
@@ -593,9 +377,9 @@ type compound_form =
   | ApPat
   | ApTyp
   | ApExpTyp
-  | AtSign
   | Case
   | Test
+  | HintedTest
   | Fun
   | Fix
   | TypFun
@@ -652,90 +436,233 @@ let get: compound_form => t =
   | ListConcat => mk_infix("@", Exp, P.concat)
   | ConsExp => mk_infix("::", Exp, P.cons)
   | ConsPat => mk_infix("::", Pat, P.cons)
-  | Typeann => mk(ss, [":"], mk_bin'(P.asc, Pat, Pat, [], Typ))
+  | Typeann => mk_infix(":", Pat, ~l=Pat, ~r=Typ, P.asc)
   | TupleLabeledExp => mk_infix("=", Exp, P.lab)
   | TupleLabeledPat => mk_infix("=", Pat, P.lab)
   | TupleLabeledTyp => mk_infix("=", Typ, P.lab)
   | DotExp => mk_infix(".", Exp, P.dot)
   | DotTyp => mk_infix(".", Typ, P.dot)
-  | TypeAsc => mk(ss, [":"], mk_bin'(P.asc, Exp, Exp, [], Typ))
+  | TypeAsc => mk_infix(":", Exp, ~l=Exp, ~r=Typ, P.asc)
+  | TupleExtension => mk_infix("...", Exp, P.plus)
   | TypPlus => mk_infix("+", Typ, P.type_plus)
   // UNARY PREFIX OPERATORS
-  | Not => mk(ii, ["!"], mk_pre(P.not_, Exp, []))
-  | TypSumSingle => mk(ss, ["+"], mk_pre(P.or_, Typ, []))
-  | UnaryMinus => mk(ss, ["-"], mk_pre(P.neg, Exp, []))
-  | Unquote => mk(ss, ["$"], mk_pre(P.unquote, Exp, []))
+  | Not => mk_prefix("!", Exp, P.not_)
+  | TypSumSingle => mk_prefix("+", Typ, P.or_)
+  | UnaryMinus => mk_prefix("-", Exp, P.neg)
+  | Unquote => mk_prefix("$", Exp, P.unquote)
   // N-ARY OPS (on the semantics level)
   | CommaExp => mk_infix(",", Exp, P.comma)
   | CommaPat => mk_infix(",", Pat, P.comma)
   | CommaTyp => mk_infix(",", Typ, P.comma)
   // PAIRED DELIMITERS:
-  | ListLitExp => mk(ii, ["[", "]"], mk_op(Exp, [Exp]))
-  | ListLitPat => mk(ii, ["[", "]"], mk_op(Pat, [Pat]))
-  | ListTyp => mk(ii, ["[", "]"], mk_op(Typ, [Typ]))
+  | ListLitExp => mk_op_c(LT, ["[", "]"], Exp, [Exp])
+  | ListLitPat => mk_op_c(LT, ["[", "]"], Pat, [Pat])
+  | ListTyp => mk_op_c(LT, ["[", "]"], Typ, [Typ])
   //NOTE(andrew): parens being below aps is load-bearing, unfortunately
   | ParensExp => mk_parens(Exp)
   | ParensPat => mk_parens(Pat)
   | ParensTyp => mk_parens(Typ)
-  | ApExpEmpty => mk(ii, ["()"], mk_post(P.ap, Exp, []))
-  | ApExp => mk(ii, ["(", ")"], mk_post(P.ap, Exp, [Exp]))
-  | ApPat => mk(ii, ["(", ")"], mk_post(P.ap, Pat, [Pat]))
-  | ApTyp => mk(ii, ["(", ")"], mk_post(P.type_sum_ap, Typ, [Typ]))
-  | ApExpTyp =>
-    mk((Instant, Static), ["@<", ">"], mk_post(P.ap, Exp, [Typ]))
-  | AtSign => mk_nul_infix("@", P.eqs) // HACK: SUBSTRING REQ
-  | Case => mk(ds, ["case", "end"], mk_op(Exp, [Rul]))
-  | Test => mk(ds, ["test", "end"], mk_op(Exp, [Exp]))
-  | Fun => mk(ds, ["fun", "->"], mk_pre(P.fun_, Exp, [Pat]))
-  | Fix => mk(ds, ["fix", "->"], mk_pre(P.fun_, Exp, [Pat]))
-  | TypFun => mk(ds, ["typfun", "->"], mk_pre(P.fun_, Exp, [TPat]))
-  | Forall => mk(ds, ["forall", "->"], mk_pre(P.fun_, Typ, [TPat]))
-  | Rec => mk(ds, ["rec", "->"], mk_pre(P.fun_, Typ, [TPat]))
-  | Rule => mk(ds, ["|", "=>"], mk_bin'(P.rule_sep, Rul, Exp, [Pat], Exp))
+  | ApExpEmpty => mk_post_c(LT, ["()"], P.ap, Exp, [])
+  | ApExp => mk_post_c(LT, ["(", ")"], P.ap, Exp, [Exp])
+  | ApPat => mk_post_c(LT, ["(", ")"], P.ap, Pat, [Pat])
+  | ApTyp => mk_post_c(LT, ["(", ")"], P.type_sum_ap, Typ, [Typ])
+  | ApExpTyp => mk_post_c(L, ["@<", ">"], P.ap, Exp, [Typ])
+  | Case => mk_op_c(L, ["case", "end"], Exp, [Rul])
+  | Test => mk_op_c(L, ["test", "end"], Exp, [Exp])
+  | Fun => mk_pre_c(L, ["fun", "->"], P.fun_, Exp, [Pat])
+  | Fix => mk_pre_c(L, ["fix", "->"], P.fun_, Exp, [Pat])
+  | TypFun => mk_pre_c(L, ["typfun", "->"], P.fun_, Exp, [TPat])
+  | Forall => mk_pre_c(L, ["forall", "->"], P.fun_, Typ, [TPat])
+  | Rec => mk_pre_c(L, ["rec", "->"], P.fun_, Typ, [TPat])
+  | Rule =>
+    mk(L, ["|", "=>"], Mold.mk_bin'(P.rule_sep, Rul, Exp, [Pat], Exp))
   | Pipeline => mk_infix("|>", Exp, P.eqs) // in OCaml, pipeline precedence is in same class as '=', '<', etc.
   // DOUBLE DELIMITERS
-  | FilterHide => mk(ds, ["hide", "in"], mk_pre(P.let_, Exp, [Exp]))
-  | FilterEval => mk(ds, ["eval", "in"], mk_pre(P.let_, Exp, [Exp]))
-  | FilterPause => mk(ds, ["pause", "in"], mk_pre(P.let_, Exp, [Exp]))
-  | FilterDebug => mk(ds, ["debug", "in"], mk_pre(P.let_, Exp, [Exp]))
-  | Use => mk(ds, ["use", "in"], mk_pre(P.let_, Exp, [Typ]))
+  | FilterHide => mk_pre_c(L, ["hide", "in"], P.let_, Exp, [Exp])
+  | FilterEval => mk_pre_c(L, ["eval", "in"], P.let_, Exp, [Exp])
+  | FilterPause => mk_pre_c(L, ["pause", "in"], P.let_, Exp, [Exp])
+  | FilterDebug => mk_pre_c(L, ["debug", "in"], P.let_, Exp, [Exp])
+  | Use => mk_pre_c(L, ["use", "in"], P.let_, Exp, [Typ])
   // Drv
   | Drv(drv_compound_form) => drv_get(drv_compound_form)
-  | DrvQuotePat => mk(ii, ["$"], mk_pre(P.unquote, Pat, []))
+  | DrvQuotePat => mk_pre_c(L, ["$"], P.unquote, Pat, [])
   // TRIPLE DELIMITERS
-  | Let => mk(ds, ["let", "=", "in"], mk_pre(P.let_, Exp, [Pat, Exp]))
-  | TypeAlias =>
-    mk(ds, ["type", "=", "in"], mk_pre(P.let_, Exp, [TPat, Typ]))
-  | If => mk(ds, ["if", "then", "else"], mk_pre(P.if_, Exp, [Exp, Exp]));
+  | Let => mk_pre_c(L, ["let", "=", "in"], P.let_, Exp, [Pat, Exp])
+  | TypeAlias => mk_pre_c(L, ["type", "=", "in"], P.let_, Exp, [TPat, Typ])
+  | If => mk_pre_c(L, ["if", "then", "else"], P.if_, Exp, [Exp, Exp])
+  | HintedTest => mk_op_c(L, ["hint", "test", "end"], Exp, [Exp, Exp]);
 
 let forms: list((compound_form, t)) =
   List.map(f => (f, get(f)), all_of_compound_form);
 
 let delims: list(Token.t) =
+  forms |> List.concat_map(((_, t)) => t.label) |> List.sort_uniq(compare);
+
+/* These are tokens that have proven annoying as TyDi suggestions.
+ * This category is doubly nominative in that it has proven hard
+ * to derive automatically; typically these are annoying bacause
+ * they have a prefix that occurs more commonly */
+let annoying_delims = ["|>", "||", "::", "!=", "!=.", "**."];
+let is_annoying_delim = List.mem(_, annoying_delims);
+
+/* Returns a list of all strings which are proper prefixes of
+ * a non-leading alphanumeric concave delimiter of a compount form.
+ * These are assigned a special backup infix-op mode, so that
+ * when you're entering e.g. the `in` in a let, you don't get
+ * disruptive switching between a convex variable and concaved
+ * delimiter */
+let infix_delimiter_ops_prefixes: list(Token.t) =
   forms
-  |> List.fold_left((acc, (_, {label, _}: t)) => {label @ acc}, [])
-  |> List.sort_uniq(compare);
+  |> List.filter_map(((form: compound_form, _)) => {
+       let form = get(form);
+       switch ((form.mold.nibs |> snd).shape) {
+       /* Could be pickier here, e.g. just trailing delimiters */
+       | _ when List.length(form.label) >= 2 => Some(form.label)
+       | _ => None
+       };
+     })
+  |> List.concat
+  |> List.filter(Token.is_potential_operand)
+  |> List.sort_uniq(compare)
+  |> List.map(Token.prefixes)
+  |> List.concat;
 
-let atomic_molds: Token.t => list(Mold.t) =
-  s => {
-    List.fold_left(
-      (acc, (_, (test, molds))) => test(s) ? molds @ acc : acc,
-      [],
-      atomic_forms,
-    );
+let is_infix_delimiter_op_prefix = List.mem(_, infix_delimiter_ops_prefixes);
+
+/* Tokens that appear both as single-token labels and in other forms labels.
+ * These have special put-down behavior to make sure we can actually enter
+ * the single-delimiter variant during left-to-right entry */
+let amiguous_polymorphs: list(Token.t) = {
+  let single_token_labels =
+    forms
+    |> List.filter_map(((_, {label, _})) =>
+         switch (label) {
+         | [token] => Some(token)
+         | _ => None
+         }
+       )
+    |> Token.sort_uniq;
+  let appears_in_other_forms = (target_token: Token.t): bool => {
+    forms
+    |> List.exists(((_, {label, _})) =>
+         switch (label) {
+         | [token] when token == target_token => false
+         | label => List.mem(target_token, label)
+         }
+       );
   };
-
-let is_atomic = t => {
-  atomic_molds(t) != [];
+  single_token_labels |> List.filter(appears_in_other_forms);
 };
 
-let is_delim = t => List.mem(t, delims);
+let is_ambiguous_polymorph = List.mem(_, amiguous_polymorphs);
 
-let is_valid_token = t => {
-  is_atomic(t) || is_secondary(t) || is_delim(t);
+let get_atomic_form: atomic_form => (Token.t => bool, list(Mold.t)) =
+  fun
+  | Var => (Token.is_var, [op(Exp), op(Pat)])
+  | InfixDelimiterPrefix => (
+      is_infix_delimiter_op_prefix,
+      [
+        Mold.mk_bin(Precedence.max, Exp, []),
+        Mold.mk_bin(Precedence.max, Pat, []),
+        Mold.mk_bin(Precedence.max, Typ, []),
+        Mold.mk_bin(Precedence.max, TPat, []),
+      ],
+    )
+  | ExplicitHole => (
+      Token.is_explicit_hole,
+      [op(Exp), op(Pat), op(Typ), op(TPat), op(Drv(Typ))],
+    )
+  | LLMHole => (Token.is_llm_hole, [op(Exp), op(Pat), op(Typ), op(TPat)])
+  | Wild => (Token.is_wild, [op(Pat), op(Drv(Exp))])
+  | String => (Token.is_string, [op(Exp), op(Pat)])
+  | QuotedLabel => (Token.is_quoted_label, [op(Exp), op(Pat), op(Typ)])
+  | IntLit => (Token.is_int, [op(Exp), op(Pat)])
+  | FloatLit => (Token.is_float, [op(Exp), op(Pat)])
+  | LivelitName => (Token.is_livelit, [op(Exp), op(Pat)])
+  | ProjectorInvoke => (
+      Token.is_projector_invoke,
+      [op(Exp), op(Pat), op(Typ), op(TPat)],
+    )
+  | BoolLit => (Token.is_bool, [op(Exp), op(Pat)])
+  | UndefinedLit => (Token.is_undefined, [op(Exp), op(Pat)])
+  | EmptyList => (Token.is_empty_list, [op(Exp), op(Pat), op(Drv(Exp))])
+  | EmptyTuple => (
+      Token.is_empty_tuple,
+      [op(Exp), op(Pat), op(Typ), op(Drv(Exp))],
+    )
+  | Deferral => (Token.is_wild, [op(Exp)])
+  | TyVar => (Token.is_typ_var, [op(Typ)])
+  | TyVarP => (Token.is_typ_var, [op(TPat)])
+  | Ctr => (Token.is_ctr, [op(Exp), op(Pat)])
+  | Type => (Token.is_base_typ, [op(Typ)])
+  | DrvVar => (
+      Token.is_typ_var,
+      [op(Drv(Exp)), op(Drv(Pat)), op(Drv(Typ)), op(Drv(TPat))],
+    );
+
+module Molds = {
+  let atomics: list((Token.t => bool, list(Mold.t))) =
+    List.map(get_atomic_form, all_of_atomic_form);
+
+  let compounds: list((Label.t, list(Mold.t))) =
+    forms
+    |> List.fold_left(
+         (acc, (_, {label, mold, _}: t)) => {
+           let molds =
+             switch (List.assoc_opt(label, acc)) {
+             | Some(old_molds) => old_molds @ [mold]
+             | None => [mold]
+             };
+           List.cons((label, molds), List.remove_assoc(label, acc));
+         },
+         [],
+       );
+
+  let atomic: Token.t => list(Mold.t) =
+    (t: Token.t) =>
+      List.concat_map(((p, molds)) => p(t) ? molds : [], atomics);
+
+  let compound = (label: Label.t): option(list(Mold.t)) =>
+    List.assoc_opt(label, compounds);
+
+  let get = (label: Label.t): list(Mold.t) =>
+    switch (label, compound(label)) {
+    | ([t], Some(molds)) when atomic(t) != [] => atomic(t) @ molds
+    | ([t], None) when atomic(t) != [] => atomic(t)
+    | (_, Some(molds)) => molds
+    /* For tokens which are not assigned molds by the language definition,
+       we assign a default 'Any' mold, which is either convex or concave.
+       This is half-ass at the moment as we don't have a rigorous lexing
+       policy, but is somewhat load-bearing in that remolding as one is
+       typing in a multi-character operator can cause jank, which is
+       alleviated if we correctly guess that it will become an operator. */
+    | ([t], None)
+        when Token.is_potential_operator(t) && !Token.is_potential_operand(t) => [
+        Mold.mk_bin(Precedence.max, Any, []),
+      ]
+    | (_, None) => [Mold.mk_op(Any, [])]
+    };
 };
 
-let mk_atomic = (sort: Sort.t, t: Token.t) => {
-  assert(is_atomic(t));
-  mk(ss, [t], Mold.(mk_op(sort, [])));
+module Expansion = {
+  let expanding_of = ({expansion, label, _}: t): option(expansions) =>
+    switch (expansion, label) {
+    | (L, [hd, ..._]) => Some([(hd, (label, Direction.Left))])
+    | (LT, [hd, ..._]) =>
+      Some([(hd, (label, Left)), (ListUtil.last(label), (label, Right))])
+    | _ => None
+    };
+
+  let expansions: expansions =
+    List.filter_map(((_, form: t)) => expanding_of(form), forms)
+    |> List.flatten
+    |> List.sort_uniq(compare);
+
+  let get = (t: Token.t): (Label.t, Direction.t) =>
+    switch (List.assoc_opt(t, expansions)) {
+    | Some(expansion) => expansion
+    | None => ([t], Right)
+    };
+
+  let will = kw => List.length(get(kw) |> fst) > 1;
 };

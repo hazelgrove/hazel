@@ -53,6 +53,7 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | Label => label("label")
       | TupLabel => tup_label(label("label"), empty_hole())
       | Tuple => tuple([])
+      | TupleExtension => tuple_extension(empty_hole(), empty_hole())
       | Dot => dot(empty_hole(), empty_hole())
       | LivelitName => livelit_name("^slider")
       | LivelitAp => livelit_ap(Forward, livelit_name("^slider"), int(1))
@@ -72,6 +73,7 @@ let sample_expression = (cls_exp: Exp.cls): Grammar.UnitGrammar.exp => {
       | If => if_(empty_hole(), empty_hole(), empty_hole())
       | Seq => seq(empty_hole(), empty_hole())
       | Test => test(empty_hole())
+      | HintedTest => hinted_test(empty_hole(), empty_hole())
       | Filter =>
         filter(StepperFilter.residue(0, (Step, One)), empty_hole())
       | Closure =>

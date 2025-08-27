@@ -45,7 +45,7 @@ let type_binder = 15;
 
 let unquote = 21;
 // $_____
-let dot = 22;
+let dot = 22 |> left_associative;
 let ap = 23;
 // _____(x)
 // 5 : _____
@@ -136,8 +136,6 @@ let of_bin_op: Language.Operators.op_bin => t =
     | LessThanOrEqual => eqs
     | GreaterThan => eqs
     | GreaterThanOrEqual => eqs
-    | Equals => eqs
-    | NotEquals => eqs
     }
   | Float(op) =>
     switch (op) {
@@ -162,4 +160,9 @@ let of_bin_op: Language.Operators.op_bin => t =
     switch (op) {
     | Concat => concat
     | Equals => eqs
+    }
+  | Poly(op) =>
+    switch (op) {
+    | Equals => eqs
+    | NotEquals => eqs
     };

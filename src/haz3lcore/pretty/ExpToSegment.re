@@ -65,6 +65,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | Probe(_)
   | ListLit(_)
   | Test(_)
+  | HintedTest(_)
   | Match(_) => Precedence.max
 
   // Other forms
@@ -85,6 +86,7 @@ let rec external_precedence = (exp: Exp.t): Precedence.t => {
   | FixF(_) => Precedence.fun_
   | Tuple(_) => Precedence.prod
   | Seq(_) => Precedence.semi
+  | TupleExtension(_, _) => Precedence.plus
   | Dot(_) => Precedence.dot
 
   // Top-level things
@@ -245,6 +247,12 @@ let rec parenthesize =
     TupLabel(l, parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
   | Dot(e, l) =>
     Dot(parenthesize(e) |> paren_at(Precedence.min), l) |> rewrap
+  | TupleExtension(l, r) =>
+    TupleExtension(
+      parenthesize(l) |> paren_at(Precedence.dot),
+      parenthesize(r) |> paren_assoc_at(Precedence.dot),
+    )
+    |> rewrap
   | ListLit(es) =>
     ListLit(
       es |> List.map(parenthesize) |> List.map(paren_at(Precedence.prod)),
@@ -323,6 +331,8 @@ let rec parenthesize =
     )
     |> rewrap
   | Test(e) => Test(parenthesize(e) |> paren_at(Precedence.min)) |> rewrap
+  | HintedTest(e, hint) =>
+    HintedTest(parenthesize(e) |> paren_at(Precedence.min), hint) |> rewrap
   | Parens(e) =>
     Parens(parenthesize(~already_paren=true, e) |> paren_at(Precedence.min))
     |> rewrap
@@ -572,8 +582,8 @@ and parenthesize_rul = (~show_filters: bool, rul: Rul.t): Rul.t => {
       ),
     )
     |> rewrap
-  | Hole(xs) =>
-    Hole(List.map(parenthesize_any(~show_filters), xs)) |> rewrap
+  | MultiHole(xs) =>
+    MultiHole(List.map(parenthesize_any(~show_filters), xs)) |> rewrap
   };
 }
 
@@ -614,8 +624,8 @@ let should_add_space = (s1, s2) =>
     false
   | _
       when
-        Form.is_potential_operand(s1)
-        && !Form.is_keyword(s1)
+        Token.is_potential_operand(s1)
+        && !Token.is_keyword(s1)
         && String.starts_with(s2, ~prefix="(") =>
     false
   | _ when String.ends_with(s1, ~suffix="…") =>
@@ -924,7 +934,7 @@ let rec drv_exp_to_pretty =
     let e = go(e, ~sort=Exp);
     text_to_pretty(id, Sort.Drv(Exp), "unroll")
     @ [mk_form(Drv(ApExp), id, [e])];
-  | ExpHole => text_to_pretty(id, Sort.Drv(Exp), Form.wild)
+  | ExpHole => text_to_pretty(id, Sort.Drv(Exp), Token.wild)
   };
 }
 and drv_pat_to_pretty = (~settings: Settings.t, syntax: Drv.Pat.t): pretty => {
@@ -1002,7 +1012,7 @@ and drv_typ_to_pretty = (~settings: Settings.t, syntax: Drv.Typ.t): pretty => {
     let+ l = drv_tpat_to_pretty(~settings, l)
     and+ r = go(r);
     [mk_form(Drv(Rec), id, [l])] @ r;
-  | TypHole => text_to_pretty(id, Sort.Drv(Typ), Form.explicit_hole)
+  | TypHole => text_to_pretty(id, Sort.Drv(Typ), Token.explicit_hole)
   };
 }
 and drv_tpat_to_pretty = (~settings: Settings.t, syntax: Drv.TPat.t): pretty => {
@@ -1024,7 +1034,7 @@ and drv_type_hole_to_pretty =
   | AbbrNotDrvTerm =>
     text_to_pretty(id, Sort.Drv(Typ), "Error: Abbreviation not a drv term")
   | Invalid(s) => text_to_pretty(id, Sort.Drv(Typ), "Error: " ++ s)
-  | EmptyHole => text_to_pretty(id, Sort.Drv(Typ), Form.space)
+  | EmptyHole => text_to_pretty(id, Sort.Drv(Typ), Token.space)
   | MultiHole(tm) =>
     let+ tm =
       tm |> List.map(drv_to_pretty(~settings, ~sort=DrvSort.Exp)) |> all;
@@ -1271,6 +1281,22 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
       }),
     ]
     @ r;
+  | TupleExtension(l, r) =>
+    // TODO: Add optional newlines
+    let id = exp |> Exp.rep_id;
+    let+ l = go(l)
+    and+ r = go(r);
+    l
+    @ [
+      Tile({
+        id,
+        label: ["..."],
+        mold: Mold.mk_bin(Precedence.dot, Sort.Exp, []),
+        shards: [0],
+        children: [],
+      }),
+    ]
+    @ r;
   | MultiHole(es) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
@@ -1347,9 +1373,25 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     @ List.flatten(
         List.map2((id, x) => [mk_form(CommaExp, id, [])] @ x, ids, xs),
       );
-  | Label(l) => text_to_pretty(exp |> Exp.rep_id, Sort.Exp, l)
+  | Label(l) =>
+    label_to_pretty(
+      ~label_only_position=false,
+      Sort.Exp,
+      Token.label_quote(l),
+      exp |> Exp.rep_id,
+    )
   | TupLabel(l, e) =>
-    let* l = go(l)
+    let* l =
+      switch (l.term) {
+      | Label(l') =>
+        label_to_pretty(
+          ~label_only_position=true,
+          Sort.Exp,
+          l',
+          l |> Exp.rep_id,
+        )
+      | _ => go(l)
+      }
     and* e = go(e);
 
     List.flatten([
@@ -1363,7 +1405,7 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
           children: [],
         }),
       ],
-      if (Form.begins_with_potential_operator(Segment.first_string(e))) {
+      if (Token.begins_with_potential_operator(Segment.first_string(e))) {
         [Secondary(mk_space(Id.mk()))] @ e;
       } else {
         e;
@@ -1371,7 +1413,17 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     ]);
   | Dot(e, l) =>
     let* e = go(e)
-    and* l = go(l);
+    and* l =
+      switch (l.term) {
+      | Label(l') =>
+        label_to_pretty(
+          ~label_only_position=true,
+          Sort.Exp,
+          l',
+          l |> Exp.rep_id,
+        )
+      | _ => go(l)
+      };
     List.flatten([e, [mk_form(DotExp, exp |> Exp.rep_id, [])], l]);
   | Let(p, e1, e2) =>
     // TODO: Add optional newlines
@@ -1483,6 +1535,11 @@ let rec exp_to_pretty = (~settings: Settings.t, exp: Exp.t): pretty => {
     let id = exp |> Exp.rep_id;
     let+ e = go(e);
     [mk_form(Test, id, [e])];
+  | HintedTest(e, hint) =>
+    let id = exp |> Exp.rep_id;
+    let* hint = go(hint)
+    and* e = go(e);
+    [mk_form(HintedTest, id, [hint, e])];
   | Parens(e) =>
     // TODO: Add optional newlines
     let id = exp |> Exp.rep_id;
@@ -1618,7 +1675,17 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
         List.map2((id, x) => [mk_form(CommaPat, id, [])] @ x, ids, xs),
       );
   | TupLabel(l, p) =>
-    let* l = go(l)
+    let* l =
+      switch (l.term) {
+      | Label(l') =>
+        label_to_pretty(
+          ~label_only_position=true,
+          Sort.Pat,
+          l',
+          l |> Pat.rep_id,
+        )
+      | _ => go(l)
+      }
     and* p = go(p);
     List.flatten([
       l,
@@ -1631,13 +1698,14 @@ and pat_to_pretty = (~settings: Settings.t, pat: Pat.t): pretty => {
           children: [],
         }),
       ],
-      if (Form.begins_with_potential_operator(Segment.first_string(p))) {
+      if (Token.begins_with_potential_operator(Segment.first_string(p))) {
         [Secondary(mk_space(Id.mk()))] @ p;
       } else {
         p;
       },
     ]);
-  | Label(l) => text_to_pretty(pat |> Pat.rep_id, Sort.Pat, l)
+  | Label(l) =>
+    text_to_pretty(pat |> Pat.rep_id, Sort.Pat, Token.label_quote(l))
   | Parens(p) =>
     let id = pat |> Pat.rep_id;
     let+ p = go(p);
@@ -1747,9 +1815,20 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
           ts,
         ),
       );
-  | Label(l) => text_to_pretty(typ |> Typ.rep_id, Sort.Typ, l)
+  | Label(l) =>
+    text_to_pretty(typ |> Typ.rep_id, Sort.Typ, Token.label_quote(l))
   | TupLabel(l, t) =>
-    let+ l = go(l)
+    let+ l =
+      switch (l.term) {
+      | Label(l') =>
+        label_to_pretty(
+          ~label_only_position=true,
+          Sort.Typ,
+          l',
+          l |> Typ.rep_id,
+        )
+      | _ => go(l)
+      }
     and+ t = go(t);
 
     List.flatten([
@@ -1763,7 +1842,7 @@ and typ_to_pretty = (~settings: Settings.t, typ: Typ.t): pretty => {
           children: [],
         }),
       ],
-      if (Form.begins_with_potential_operator(Segment.first_string(t))) {
+      if (Token.begins_with_potential_operator(Segment.first_string(t))) {
         [Secondary(mk_space(Id.mk()))] @ t;
       } else {
         t;
@@ -1853,6 +1932,18 @@ and any_to_pretty = (~settings: Settings.t, any: Any.t): pretty => {
       }),
     ]);
   };
+}
+and label_to_pretty =
+    (~label_only_position, sort: Sort.t, label: string, id: Uuidm.t): pretty => {
+  text_to_pretty(
+    id,
+    sort,
+    if (label_only_position) {
+      Token.quote_label_when_necessary(label);
+    } else {
+      label;
+    },
+  );
 };
 
 let exp_to_segment =

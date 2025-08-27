@@ -8,6 +8,8 @@
 @import "style/cursor-inspector.css";
 @import "style/type-display.css";
 @import "style/explainthis.css";
+@import "style/assistant.css";
+@import "style/sidebar.css";
 @import "style/exercise-mode.css";
 @import "style/cell.css";
 @import "style/dynamics.css";
@@ -33,12 +35,6 @@ select {
   font-family: inherit;
   font-size: inherit;
   color: var(--select-text);
-  /* text-transform: capitalize; */
-}
-
-select:hover {
-  border-radius: 1em;
-  background-color: var(--SAND);
 }
 
 :root {
@@ -89,22 +85,32 @@ select:hover {
 }
 
 #main {
-  grid-row: 2;
+  grid-row: 1 / span 2;
   grid-column: 1 / span 1;
   overflow: auto;
   padding: 0;
+  padding-top: 2em;
   background-color: var(--main-bkg);
+  display: flex;
+  flex-direction: column;
 }
 
 #side-bar {
-  grid-row: 2 / span 1;
-  grid-column: 2 / span 1;
+  display: flex;
+  flex-direction: column;
   border-left: 0.6px solid var(--BR2);
-  overflow-y: scroll;
-  overflow-x: hidden;
-  width: max-content;
-  background-color: var(--ui-bkg);
+  background-color: var(--T1);
+  position: relative;
+  min-width: 300px;
+  width: 400px;
   scrollbar-color: var(--main-scroll-thumb) var(--NONE);
+  scrollbar-width: thin;
+}
+
+#sidebars {
+  display: flex;
+  justify-content: space-between;
+  width: 100%;
 }
 
 #top-bar {
@@ -115,6 +121,10 @@ select:hover {
   align-items: center;
   background-color: var(--ui-bkg);
   outline: 0.6px solid var(--BR2);
+}
+
+#top-bar:hover {
+  z-index: var(--top-bar-hover-z);
 }
 
 #bottom-bar {

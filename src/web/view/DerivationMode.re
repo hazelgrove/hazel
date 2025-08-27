@@ -5,13 +5,9 @@ open Language;
 open Node;
 
 let stitched_results =
+  // TODO(zhiyao): check this
   DerivationTree.map_stitched((_, cell_editor: CellEditor.Model.t) =>
-    switch (cell_editor.result.result) {
-    | Evaluation({result: OldValue(ResultOk((exp, _))), _})
-    | Evaluation({result: NewValue(ResultOk((exp, _))), _}) => Some(exp)
-    | Stepper(s) => StepperView.Model.get_elaboration(s)
-    | _ => None // Note(zhiyao): other cases are not relevant
-    }
+    cell_editor.result.elab |> Calc.get_saved_opt
   );
 
 let verified_tree =
@@ -35,10 +31,7 @@ module Model = {
   };
 
   let of_spec = (~settings as _, ~instructor_mode as _: bool, spec) => {
-    let editors =
-      DerivationTree.mapi(spec, pos =>
-        Editor.Model.mk(~root=DerivationTree.root_of_pos(pos))
-      );
+    let editors = DerivationTree.map(spec, Editor.Model.mk);
     let term_item_to_cell =
         (item: DerivationTree.TermItem.t): CellEditor.Model.t => {
       CellEditor.Model.mk(item.editor);
@@ -205,10 +198,7 @@ module Update = {
       |> Updated.return;
     | Refresh => Updated.return(model)
     | ResetExercise =>
-      let new_editors =
-        DerivationTree.mapi(model.spec, pos =>
-          Editor.Model.mk(~root=DerivationTree.root_of_pos(pos))
-        );
+      let new_editors = DerivationTree.map(model.spec, Editor.Model.mk);
       {
         ...model,
         editors: new_editors,
@@ -243,7 +233,7 @@ module Update = {
             | Not_found =>
               ""
               |> DerivationTree.zipper_of_code(~root=Drv(Exp))
-              |> Editor.Model.mk(~root=Drv(Exp))
+              |> Editor.Model.mk
               |> CellEditor.Model.mk
             }
           )
@@ -369,15 +359,15 @@ module Selection = {
   };
 
   let jump_to_tile =
-      (~settings as _: Settings.t, tile, model: Model.t)
+      (~settings as _: Settings.t, id: Id.t, model: Model.t)
       : option((Update.t, t)) => {
     DerivationTree.positioned_editors(model.editors)
     |> List.find_opt(((_, e: Editor.t)) =>
-         TileMap.find_opt(tile, e.syntax.tiles) != None
+         TermData.root_tile_opt(id, e.syntax.term_data) != None
        )
     |> Option.map(((pos, _)) =>
          (
-           Update.Editor(pos, MainEditor(Perform(Jump(TileId(tile))))),
+           Update.Editor(pos, MainEditor(Perform(Jump(TileId(id))))),
            CellEditor.Selection.MainEditor,
          )
        );
@@ -790,7 +780,7 @@ module View = {
         (
           ~caption: option(string)=?,
           ~subcaption: option(string)=?,
-          ~result_kind=EvalResult.View.NoResults,
+          ~result_kind=`NoResults,
           ~sort: Sort.t,
           this_pos: DerivationTree.pos,
           cell: CellEditor.Model.t,

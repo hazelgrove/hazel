@@ -41,7 +41,9 @@ type select =
   | Resize(move)
   | Smart(int)
   | Tile(rel)
-  | Term(rel);
+  | Term(rel)
+  | ToggleFocus
+  | SetFocus(Direction.t);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type chooser =
@@ -63,7 +65,8 @@ type project =
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type agent =
-  | TyDi;
+  | TyDi
+  | LLM(string);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type buffer =
@@ -90,11 +93,9 @@ type t =
   | Unselect(option(Direction.t))
   | Destruct(Direction.t)
   | Insert(string)
-  | RotateBackpack
-  | MoveToBackpackTarget(planar)
-  | Pick_up
   | Put_down
-  | Introduce;
+  | Introduce
+  | Dump;
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -127,17 +128,15 @@ let is_edit: t => bool =
   | Reparse
   | Insert(_)
   | Destruct(_)
-  | Pick_up
   | Put_down
   | Introduce
-  | Buffer(Accept | Clear | Set(_)) => true
+  | Buffer(Accept | Clear | Set(_))
+  | Dump => true
   | Copy
   | Move(_)
   | Jump(_)
   | Select(_)
-  | Unselect(_)
-  | RotateBackpack
-  | MoveToBackpackTarget(_) => false
+  | Unselect(_) => false
   | Project(p) =>
     switch (p) {
     | SetSyntax(_)
@@ -151,23 +150,20 @@ let is_edit: t => bool =
 /* Determines whether undo/redo skips action */
 let is_historic: t => bool =
   fun
-  | Buffer(Set(_) | Clear)
   | Copy
   | Move(_)
   | Jump(_)
   | Select(_)
-  | Unselect(_)
-  | RotateBackpack
-  | MoveToBackpackTarget(_) => false
+  | Unselect(_) => false
   | Cut
-  | Buffer(Accept)
+  | Buffer(Accept | Clear | Set(_))
   | Paste(_)
   | Reparse
   | Insert(_)
   | Destruct(_)
-  | Pick_up
   | Put_down
-  | Introduce => true
+  | Introduce
+  | Dump => true
   | Project(p) =>
     switch (p) {
     | SetSyntax(_)
@@ -191,11 +187,9 @@ let prevent_in_read_only_editor = (a: t) => {
   | Reparse
   | Destruct(_)
   | Insert(_)
-  | Pick_up
   | Put_down
-  | RotateBackpack
-  | MoveToBackpackTarget(_)
-  | Introduce => true
+  | Introduce
+  | Dump => true
   | Project(p) =>
     switch (p) {
     | SetSyntax(_) => true
@@ -220,7 +214,9 @@ let should_animate: t => bool =
     | All
     | Smart(_)
     | Tile(_)
-    | Term(_) => true
+    | Term(_)
+    | ToggleFocus
+    | SetFocus(_) => true
     }
   | Unselect(_)
   | Paste(_)
@@ -229,12 +225,10 @@ let should_animate: t => bool =
   | Insert(_)
   | Introduce
   | Destruct(_)
-  | Pick_up
   | Put_down
   | Buffer(Accept | Clear | Set(_))
   | Copy
   | Move(_)
   | Jump(_)
-  | RotateBackpack
-  | MoveToBackpackTarget(_)
-  | Project(_) => true;
+  | Project(_)
+  | Dump => true;

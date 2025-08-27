@@ -7,11 +7,6 @@ type t = {
   nibs: Nibs.t,
 };
 
-let flip_nibs = m => {
-  ...m,
-  nibs: Nibs.flip(m.nibs),
-};
-
 let mk_op = (out, in_) => {
   let n =
     Nib.{
@@ -34,6 +29,24 @@ let mk_pre = (p, out, in_) => {
     Nib.{
       shape: Concave(p),
       sort: out,
+    };
+  {
+    out,
+    in_,
+    nibs: (l, r),
+  };
+};
+// forms where tips can be different than out sort
+let mk_pre' = (p, out, sort_l, in_, sort_r) => {
+  let l =
+    Nib.{
+      shape: Convex,
+      sort: sort_l,
+    };
+  let r =
+    Nib.{
+      shape: Concave(p),
+      sort: sort_r,
     };
   {
     out,
@@ -74,40 +87,7 @@ let mk_bin = (~l=?, ~r=?, p, out, in_) => {
 };
 
 // forms where tips can be different than out sort
-let mk_pre' = (p, out, sort_l, in_, sort_r) => {
-  let l =
-    Nib.{
-      shape: Convex,
-      sort: sort_l,
-    };
-  let r =
-    Nib.{
-      shape: Concave(p),
-      sort: sort_r,
-    };
-  {
-    out,
-    in_,
-    nibs: (l, r),
-  };
-};
-let mk_post' = (p, out, sort_l, in_, sort_r) => {
-  let l =
-    Nib.{
-      shape: Concave(p),
-      sort: sort_l,
-    };
-  let r =
-    Nib.{
-      shape: Convex,
-      sort: sort_r,
-    };
-  {
-    out,
-    in_,
-    nibs: (l, r),
-  };
-};
+
 let mk_bin' = (p, out, sort_l, in_, sort_r) => {
   let l =
     Nib.{
@@ -126,31 +106,28 @@ let mk_bin' = (p, out, sort_l, in_, sort_r) => {
   };
 };
 
-let nibs = (~index=?, mold: t): Nibs.t =>
-  switch (index) {
-  | None => mold.nibs
-  | Some(i) =>
-    let (l, r) = mold.nibs;
-    let in_ = mold.in_;
-    let l =
-      i == 0
-        ? l
-        : Nib.{
-            shape: Shape.concave(),
-            sort: List.nth(in_, i - 1),
-          };
-    let r =
-      i == List.length(in_)
-        ? r
-        : Nib.{
-            shape: Shape.concave(),
-            sort: List.nth(in_, i),
-          };
-    (l, r);
-  };
+let nibs = (~index, mold: t): Nibs.t => {
+  let (l, r) = mold.nibs;
+  let in_ = mold.in_;
+  let l =
+    index == 0
+      ? l
+      : Nib.{
+          shape: Shape.concave(),
+          sort: List.nth(in_, index - 1),
+        };
+  let r =
+    index == List.length(in_)
+      ? r
+      : Nib.{
+          shape: Shape.concave(),
+          sort: List.nth(in_, index),
+        };
+  (l, r);
+};
 
-let nib_shapes = (~index=?, mold: t): Nibs.shapes => {
-  let (nib_l, nib_r) = nibs(~index?, mold);
+let nib_shapes = (~index, mold: t): Nibs.shapes => {
+  let (nib_l, nib_r) = nibs(~index, mold);
   (nib_l.shape, nib_r.shape);
 };
 
@@ -187,6 +164,12 @@ let of_secondary = (l: Nib.t) => {
 let is_infix_op = (mold: t): bool =>
   switch (mold.nibs, mold.in_) {
   | (({shape: Concave(_), _}, {shape: Concave(_), _}), []) => true
+  | _ => false
+  };
+
+let is_prefix_op = (mold: t): bool =>
+  switch (mold.nibs, mold.in_) {
+  | (({shape: Convex, _}, {shape: Concave(_), _}), []) => true
   | _ => false
   };
 

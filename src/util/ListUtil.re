@@ -1,10 +1,10 @@
 let rev_if = (b: bool) => b ? List.rev : Fun.id;
 
 let dedup_f = (f, xs) =>
-  List.fold_right(
-    (x, deduped) => List.exists(f(x), deduped) ? deduped : [x, ...deduped],
-    xs,
+  List.fold_left(
+    (deduped, x) => List.exists(f(x), deduped) ? deduped : deduped @ [x],
     [],
+    xs,
   );
 
 let dedup = xs => dedup_f((==), xs);
@@ -451,6 +451,21 @@ let findi_opt: ('x => bool, list('x)) => option((int, 'x)) =
        );
   };
 
+let find_with_rest:
+  type a b. (a => option(b), list(a)) => option((b, list(a))) =
+  (f, xs) => {
+    let rec go = (xs, acc) =>
+      switch (xs) {
+      | [] => None
+      | [x, ...xs] =>
+        switch (f(x)) {
+        | None => go(xs, [x, ...acc])
+        | Some(y) => Some((y, List.rev_append(acc, xs)))
+        }
+      };
+    go(xs, []);
+  };
+
 let init_fold: (int, 'b, (int, 'b) => ('b, 'a)) => ('b, list('a)) =
   (n, b, f) => {
     let range = List.init(n, n => n);
@@ -667,6 +682,12 @@ let take = (n, xs) => {
     };
   loop(n, xs, []);
 };
+
+let take_up_to_n = (n: int, xs: list('a)): list('a) =>
+  switch (split_n_opt(n, xs)) {
+  | Some((xs, _)) => xs
+  | None => xs
+  };
 
 /* Move the first element equal to x to the front of the list */
 let lift = (x: 'a, xs: list('a)): list('a) =>
