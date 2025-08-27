@@ -19,21 +19,24 @@ module Model = {
   let persist = (model: t): persistent => (
     model.current,
     List.map(
-      ((s, m): (string, CellEditor.Model.t)) => {
-        let current: CellEditor.Model.persistent =
-          CellEditor.Model.persist(m);
+      ((s: string, m: CellEditor.Model.t)) => {
+        let current_segment = Zipper.zip(m.editor.editor.state.zipper);
+        let original = Init.find_documentation_slide(s);
+        let original_segment =
+          original
+          |> Option.map((pce: CellEditor.Model.persistent) =>
+               PersistentZipper.unpersist(pce.editor)
+             )
+          |> Option.map(Zipper.zip);
 
-        // Consider ignoring ids and/or caret position
-        if (Some(current) == Init.find_documentation_slide(s)) {
-          print_endline(
-            "Not persisting scratchpad "
-            ++ s
-            ++ " because it matches the initial version.",
-          );
+        if (Option.equal(
+              Base.equal_segment,
+              original_segment,
+              Some(current_segment),
+            )) {
           (s, None);
         } else {
-          print_endline("Persisting scratchpad " ++ s ++ ".");
-          (s, Some(current));
+          (s, Some(CellEditor.Model.persist(m)));
         };
       },
       model.scratchpads,
@@ -47,21 +50,8 @@ module Model = {
         ((s: string, m: option(CellEditor.Model.persistent))) =>
           (
             s,
-            {
-              switch (Option.map(CellEditor.Model.unpersist(~settings), m)) {
-              | Some(x) => x
-              | None =>
-                let default = Init.find_documentation_slide(s);
-
-                CellEditor.Model.unpersist(
-                  ~settings,
-                  switch (default) {
-                  | Some(x) => x
-                  | None => Init.empty_cell_editor_persistent()
-                  },
-                );
-              };
-            },
+            OptUtil.get(() => Init.default_documentation_slide_name(s), m)
+            |> CellEditor.Model.unpersist(~settings),
           ),
         slides,
       ),
@@ -84,7 +74,7 @@ module Store = {
     type t = Model.persistent;
     let key = Store.Scratch;
     let default = () =>
-      Init.startup.documentation
+      Init.startup.scratch
       |> PairUtil.map_snd(List.map(PairUtil.map_snd(x => Some(x))));
   });
 
@@ -296,11 +286,7 @@ module Update = {
         | false =>
           CellEditor.Model.mk(Editor.Model.mk(Zipper.init()))
           |> CellEditor.Model.persist
-        | true =>
-          Init.startup.documentation
-          |> snd
-          |> List.map(snd)
-          |> List.nth(_, model.current)
+        | true => Init.default_documentation_slide_name(key)
         };
       let* data =
         source
