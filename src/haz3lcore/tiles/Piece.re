@@ -184,25 +184,6 @@ let mk_tile: (Form.t, list(list(t))) => t =
       children,
     });
 
-let is_case_or_rule = (p: t) =>
-  switch (p) {
-  | Tile({label: ["case", "end"], _}) => true
-  | Tile({label: ["|", "=>"], _}) => true
-  | _ => false
-  };
-let is_not_case_or_rule_or_space = (p: t) =>
-  switch (p) {
-  | Tile({label: ["case", "end"], _}) => false
-  | Tile({label: ["|", "=>"], _}) => false
-  | Secondary(_) => false
-  | _ => true
-  };
-let not_comment_or_space = (p: t) =>
-  switch (p) {
-  | Secondary(s) => Secondary.is_linebreak(s)
-  | _ => true
-  };
-
 let is_term = (p: t) =>
   switch (p) {
   | Grout(_)

@@ -2,7 +2,7 @@ open Util;
 open OptUtil.Syntax;
 open Zipper;
 
-let move_by_char_left = (z: t): option(t) =>
+let by_char_left = (z: t): option(t) =>
   switch (z.caret, Caret.nhbr_max_idx(Left, z)) {
   | (Outer, None) => move(Left, z)
   | (Outer, Some(max_idx)) => z |> Caret.set(Inner(max_idx)) |> move(Left)
@@ -12,7 +12,7 @@ let move_by_char_left = (z: t): option(t) =>
     z |> Caret.set(Inner(char - 1)) |> Option.some
   };
 
-let move_by_char_right = (z: t): option(t) =>
+let by_char_right = (z: t): option(t) =>
   switch (z.caret, Caret.nhbr_max_idx(Right, z)) {
   | (Outer, None) => move(Right, z)
   | (Outer, Some(_)) => z |> Caret.set(Inner(0)) |> Option.some
@@ -22,13 +22,13 @@ let move_by_char_right = (z: t): option(t) =>
     z |> Caret.set(Inner(char + 1)) |> Option.some
   };
 
-let move_by_char = (d: Direction.t, z: t): option(t) =>
+let by_char = (d: Direction.t, z: t): option(t) =>
   switch (d) {
-  | Left => move_by_char_left(z)
-  | Right => move_by_char_right(z)
+  | Left => by_char_left(z)
+  | Right => by_char_right(z)
   };
 
-let move_by_token = (d: Direction.t, z: t): option(t) =>
+let by_token = (d: Direction.t, z: t): option(t) =>
   switch (z.caret) {
   | Outer => move(d, z)
   | Inner(_) =>
@@ -42,8 +42,8 @@ let move_by_token = (d: Direction.t, z: t): option(t) =>
 let local = (chunkiness: Action.chunkiness, d: Direction.t, z: t): option(t) => {
   let z = unselect(z);
   switch (chunkiness) {
-  | ByToken => move_by_token(d, z)
-  | ByChar => move_by_char(d, z)
+  | ByToken => by_token(d, z)
+  | ByChar => by_char(d, z)
   };
 };
 
