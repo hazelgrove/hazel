@@ -197,33 +197,21 @@ let generalized_neighbor = (d: Direction.t, z: t): option(Piece.t) => {
   };
 };
 
-let generalized_neighbors = (z: t): (option(Piece.t), option(Piece.t)) => (
+type neighbors = (option(Piece.t), option(Piece.t));
+
+let generalized_neighbors = (z: t): neighbors => (
   generalized_neighbor(Left, z),
   generalized_neighbor(Right, z),
 );
 
-let singleton_shard_selection = (seg: Segment.t): option(Token.t) =>
-  switch (seg) {
-  | [Tile(t)] =>
-    switch (Tile.effective_label(t)) {
-    | [tok] => Some(tok)
-    | _ => None
-    }
-  | _ => None
-  };
+let neighbor_token = (d: Direction.t, z: t): option(Token.t) => {
+  let* p = generalized_neighbor(d, z);
+  Piece.token_of(p);
+};
 
-let neighbor_shard = (d: Direction.t, z: t): option(Token.t) =>
-  switch (Siblings.neighbor(d, z.relatives.siblings)) {
-  | Some(Secondary(w)) when Secondary.is_comment(w) =>
-    Some(Secondary.get_string(w.content))
-  | _ =>
-    let* z = select(d, z);
-    singleton_shard_selection(z.selection.content);
-  };
-
-let neighbor_shards = (z: t): (option(Token.t), option(Token.t)) => (
-  neighbor_shard(Left, z),
-  neighbor_shard(Right, z),
+let neighbor_tokens = (z: t): (option(Token.t), option(Token.t)) => (
+  neighbor_token(Left, z),
+  neighbor_token(Right, z),
 );
 
 /* Do `action` until the predicate on the generalized neigbors of the
@@ -234,24 +222,19 @@ let neighbor_shards = (z: t): (option(Token.t), option(Token.t)) => (
    If no such piece is found, don't move. Does not check predicate before
    moving; caller should handle that case if necessary */
 let rec do_until =
-        (
-          action: t => option(t),
-          piece_p: ((option(Piece.t), option(Piece.t))) => bool,
-          z: t,
-        )
-        : option(t) => {
+        (action: t => option(t), p_n: neighbors => bool, z: t): option(t) => {
   let* z = action(z);
-  if (piece_p(generalized_neighbors(z))) {
+  if (p_n(generalized_neighbors(z))) {
     Some(z);
   } else {
-    do_until(action, piece_p, z);
+    do_until(action, p_n, z);
   };
 };
 
-let do_to_extreme = (f, z: t): t =>
+let do_to_extreme = (action: t => option(t), z: t): t =>
   do_until(
-    f,
-    neighbors =>
+    action,
+    (neighbors: neighbors) =>
       switch (neighbors) {
       | (None, _) => true
       | (_, None) => true
@@ -261,8 +244,7 @@ let do_to_extreme = (f, z: t): t =>
   )
   |> Option.value(~default=z);
 
-let linebreak_on =
-    (d: Direction.t, neighbors: (option(Piece.t), option(Piece.t))): bool =>
+let linebreak_on = (d: Direction.t, neighbors: neighbors): bool =>
   switch (neighbors) {
   | (_, Some(Secondary(s))) when d == Right && Secondary.is_linebreak(s) =>
     true
@@ -349,7 +331,7 @@ let delete = (d: Direction.t, z: t): option(t) =>
   z |> select(d) |> Option.map(destroy_selection);
 
 let glom_prev = (z: t) =>
-  switch (neighbor_shard(Left, z)) {
+  switch (neighbor_token(Left, z)) {
   | Some(t) when will_glom(t, z) =>
     switch (delete(Left, z)) {
     | Some(z) => glom(Left, t, z)
@@ -425,7 +407,7 @@ module Caret = {
   /* Max internal index of the shard the caret is adjacent to */
   let nhbr_max_idx = (d: Direction.t, z: t): option(int) => {
     let* t =
-      switch (d, neighbor_shards(z)) {
+      switch (d, neighbor_tokens(z)) {
       | (Left, (Some(t), _)) => Some(t)
       | (Right, (_, Some(t))) => Some(t)
       | _ => None
