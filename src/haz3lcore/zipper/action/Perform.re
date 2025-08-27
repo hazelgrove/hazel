@@ -61,7 +61,7 @@ let go_z =
     )
     : Action.Result.t(Zipper.t) => {
   module MoveM = Move.Make(M);
-  module Select = Select.Make(M);
+  module SelectM = Select.Make(M);
 
   let buffer_accept = (z): option(Zipper.t) =>
     switch (z.selection.mode) {
@@ -100,8 +100,8 @@ let go_z =
        * no additional effect, select the parent term instead */
       let* (p, _, _) = Indicated.piece''(z);
       Piece.is_term(p)
-        ? Select.parent_of_indicated(z, statics.info_map)
-        : Select.current_term(~defs_exclude_bodies=true, ~case_rules=true, z);
+        ? SelectM.parent_of_indicated(z, statics.info_map)
+        : SelectM.current_term(~defs_exclude_bodies=true, ~case_rules=true, z);
     | _ => None
     };
   };
@@ -113,7 +113,7 @@ let go_z =
     | Some(z) => Ok(z)
     }
   | Introduce =>
-    Select.current_term(~defs_exclude_bodies=false, ~case_rules=false, z)
+    SelectM.current_term(~defs_exclude_bodies=false, ~case_rules=false, z)
     |> Option.bind(_, Introduce.introduce(statics.info_map, _))
     |> Result.of_option(~error=Action.Failure.CantIntroduce)
   | Paste(Segment(segment)) => Ok(paste_segment(z, segment))
@@ -152,7 +152,7 @@ let go_z =
     ProjectorPerform.go(
       Move.jump_to_id_indicated,
       Move.jump_to_side_of_id,
-      Select.current_term(~defs_exclude_bodies=false, ~case_rules=false),
+      SelectM.current_term(~defs_exclude_bodies=false, ~case_rules=false),
       a,
       z,
     )
@@ -185,13 +185,13 @@ let go_z =
       | Some(z) => z
       | None => z
       };
-    switch (Select.go(Extreme(Down), z)) {
+    switch (SelectM.go(Extreme(Down), z)) {
     | Some(z) => Ok(z)
     | None => Error(Action.Failure.Cant_select)
     };
   | Select(Term(Current)) =>
     switch (
-      Select.current_term(~defs_exclude_bodies=true, ~case_rules=true, z)
+      SelectM.current_term(~defs_exclude_bodies=true, ~case_rules=true, z)
     ) {
     | None => Error(Cant_select)
     | Some(z) => Ok(z)
@@ -202,26 +202,26 @@ let go_z =
     | Some(z) => Ok(z)
     }
   | Select(Term(Id(id, d))) =>
-    switch (Select.term(id, z)) {
+    switch (SelectM.term(id, z)) {
     | Some(z) =>
       let z = d == Right ? z : Zipper.toggle_focus(z);
       Ok(z);
     | None => Error(Action.Failure.Cant_select)
     }
   | Select(Tile(Current)) =>
-    switch (Select.current_tile(z)) {
+    switch (SelectM.current_tile(z)) {
     | None => Error(Cant_select)
     | Some(z) => Ok(z)
     }
   | Select(Tile(Id(id, d))) =>
-    switch (Select.tile(id, z)) {
+    switch (SelectM.tile(id, z)) {
     | Some(z) =>
       let z = d == Right ? z : Zipper.toggle_focus(z);
       Ok(z);
     | None => Error(Action.Failure.Cant_select)
     }
   | Select(Resize(d)) =>
-    switch (Select.go(d, z)) {
+    switch (SelectM.go(d, z)) {
     | None => Ok(z)
     | Some(z) => Ok(z)
     }

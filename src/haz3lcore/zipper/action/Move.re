@@ -107,39 +107,15 @@ let do_until_wrap = (p, d, z) =>
  * where the caret (|) is at the leftmost edge of
  * `flag`, but the not operator ("!") is indicated */
 let jump_to_side_of_id = (d: Direction.t, z, id): option(t) => {
+  let at_piece =
+    fun
+    | (_, Some(piece)) when d == Left => Piece.id(piece) == id
+    | (Some(piece), _) when d == Right => Piece.id(piece) == id
+    | _ => false;
   let z = to_extreme(d, z);
-  let pred = neighbors =>
-    switch (d, neighbors) {
-    | (Left, (_, Some(piece))) => Piece.id(piece) == id
-    | (Right, (Some(piece), _)) => Piece.id(piece) == id
-    | _ => false
-    };
-  pred(Zipper.generalized_neighbors(z))
+  at_piece(Zipper.generalized_neighbors(z))
     ? Some(z)
-    : (
-      switch (do_until(primary(ByToken, Direction.toggle(d)), pred, z)) {
-      | None => Some(z)
-      | Some(z) => Some(z)
-      }
-    );
-  // switch (d) {
-  // | Left => z
-  // | Right =>
-  //   switch (primary(ByToken, Right, z)) {
-  //   | Some(z) => z
-  //   | None => z
-  //   }
-  // };
-  // do_until(
-  //   primary(ByToken, d),
-  //   neighbors =>
-  //     switch (d, neighbors) {
-  //     | (Left, (_, Some(piece))) => Piece.id(piece) == id
-  //     | (Right, (Some(piece), _)) => Piece.id(piece) == id
-  //     | _ => false
-  //     },
-  //   z,
-  // );
+    : do_until(primary(ByToken, Direction.toggle(d)), at_piece, z);
 };
 
 /* Moves to the left side of the token with the given id,
@@ -154,29 +130,14 @@ let jump_to_id_indicated = (z: t, id: Id.t): option(t) => {
   } else {
     let* z_r = jump_to_side_of_id(Right, z, id);
     let* indicated_id = Indicated.index(z_r);
-    if (id == indicated_id) {
-      Some(z_r);
-    } else {
-      None;
-    };
+    id == indicated_id ? Some(z_r) : None;
   };
 };
 
-let to_next_grout = (d: Direction.t, z: t): option(t) =>
-  do_until_wrap(
-    neighbors =>
-      switch (neighbors) {
-      | (Some(piece), _) => Action.of_piece_goal(Grout, piece)
-      | _ => false
-      },
-    d,
-    z,
-  );
-
-let left_until_case_or_rule =
-  do_until(primary(ByToken, Left), neighbors =>
+let to_next_grout: (Direction.t, t) => option(t) =
+  do_until_wrap(neighbors =>
     switch (neighbors) {
-    | (Some(piece), _) => Piece.is_case_or_rule(piece)
+    | (Some(Grout(_)), _) => true
     | _ => false
     }
   );
@@ -316,7 +277,7 @@ module Make = (M: S) => {
 
   let move_dispatch = (d: Action.move, z: Zipper.t): option(Zipper.t) =>
     switch (d) {
-    | Goal(Piece(Grout, d)) => to_next_grout(d, z)
+    | Goal(Hole(d)) => to_next_grout(d, z)
     | Goal(Point(goal)) =>
       switch (do_towards_goal(primary(ByChar), goal, z)) {
       | None => Some(z)
@@ -335,14 +296,14 @@ module Make = (M: S) => {
     } else {
       /* Always empty selection on move action,
        * even if we don't actually move */
-      let z =
+      let unselect_d =
         switch (d) {
         | Local(planar)
-        | Extreme((Up | Down) as planar) =>
-          Zipper.directional_unselect(Zipper.from_plane(planar), z)
+        | Extreme((Up | Down) as planar) => Zipper.from_plane(planar)
         | Extreme(Left(_) | Right(_))
-        | Goal(_) => Zipper.directional_unselect(z.selection.focus, z)
+        | Goal(_) => z.selection.focus
         };
+      let z = Zipper.directional_unselect(unselect_d, z);
       switch (d) {
       // By char just unselects
       | Local(Left(ByChar))
