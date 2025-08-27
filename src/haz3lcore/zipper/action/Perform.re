@@ -2,6 +2,11 @@ open Util;
 open Zipper;
 open Language;
 
+type inner_term =
+  | Pat
+  | Def
+  | Body;
+
 let buffer_clear = (z: t): t =>
   switch (z.selection.mode) {
   | Buffer(Unparsed) => {
@@ -281,5 +286,190 @@ let go_z =
   | MoveToBackpackTarget((Up | Down) as d) =>
     Move.to_backpack_target(d, z)
     |> Result.of_option(~error=Action.Failure.Cant_move)
+  | AssistantComposition(a) =>
+    let get_inner_term_id =
+        (curr_node_info: AssistantTreeHelper.node, inner_term: inner_term)
+        : Id.t => {
+      switch (curr_node_info.info) {
+      | InfoExp({term, _}) =>
+        switch (Exp.term_of(term)) {
+        | Let(pat, def, body) =>
+          switch (inner_term) {
+          | Pat => Pat.rep_id(pat)
+          | Def => Exp.rep_id(def)
+          | Body => Exp.rep_id(body)
+          }
+        | TyAlias(tpat, tdef, body) =>
+          switch (inner_term) {
+          | Pat => TPat.rep_id(tpat)
+          | Def => Typ.rep_id(tdef)
+          | Body => Exp.rep_id(body)
+          }
+        | _ =>
+          raise(
+            Failure("Current node is not a let or type alias expression"),
+          )
+        }
+      | _ =>
+        raise(
+          Failure(
+            "Current node is not a let or type alias expression, so no pattern to update",
+          ),
+        )
+      };
+    };
+    // Tempory wrapper that helps me localize myself while implementing (remove)
+    let handle_composition_action = (node: AssistantTreeHelper.node) => {
+      switch (a) {
+      | Nav(n) =>
+        switch (n) {
+        | GoToParent =>
+          switch (node.parent) {
+          | None => Error(Action.Failure.Cant_move)
+          | Some(parent) =>
+            switch (Select.tile(Info.id_of(parent.info), z)) {
+            | Some(z) => Ok(z)
+            | None => Error(Action.Failure.Cant_select)
+            }
+          }
+        | GoToChild(who, which) =>
+          switch (which) {
+          | None =>
+            // the llm provided no index, thus, use the name
+            let cands =
+              List.filter(
+                (child: AssistantTreeHelper.node) => child.name == who,
+                node.children,
+              );
+            if (List.length(cands) > 1) {
+              Error(Action.Failure.Cant_move);
+            } else {
+              switch (ListUtil.hd_opt(cands)) {
+              | None => Error(Action.Failure.Cant_move)
+              | Some(child) =>
+                switch (Select.tile(Info.id_of(child.info), z)) {
+                | Some(z) => Ok(z)
+                | None => Error(Action.Failure.Cant_select)
+                }
+              };
+            };
+          | Some(nth) =>
+            // this means the llm provided an index to move to, in which case
+            // we default on using that as opposed to the name
+            switch (List.nth_opt(node.children, nth)) {
+            | None => Error(Action.Failure.Cant_move)
+            | Some(child) =>
+              switch (Select.tile(Info.id_of(child.info), z)) {
+              | Some(z) => Ok(z)
+              | None => Error(Action.Failure.Cant_select)
+              }
+            }
+          }
+        | GoToSibling(who, which) =>
+          switch (which) {
+          | None =>
+            // the llm provided no index, thus, use the name
+            let cands =
+              List.filter(
+                (sibling: AssistantTreeHelper.node) => sibling.name == who,
+                node.siblings,
+              );
+            if (List.length(cands) > 1) {
+              Error(Action.Failure.Cant_move);
+            } else {
+              switch (ListUtil.hd_opt(cands)) {
+              | None => Error(Action.Failure.Cant_move)
+              | Some(sibling) =>
+                switch (Select.tile(Info.id_of(sibling.info), z)) {
+                | Some(z) => Ok(z)
+                | None => Error(Action.Failure.Cant_select)
+                }
+              };
+            };
+          | Some(nth) =>
+            // this means the llm provided an index to move to, in which case
+            // we default on using that as opposed to the name
+            switch (List.nth_opt(node.siblings, nth)) {
+            | None => Error(Action.Failure.Cant_move)
+            | Some(sibling) =>
+              switch (Select.tile(Info.id_of(sibling.info), z)) {
+              | Some(z) => Ok(z)
+              | None => Error(Action.Failure.Cant_select)
+              }
+            }
+          }
+        }
+      | Read(_r) => Ok(z) // todo
+      | Edit(e) =>
+        let overwrite_tile = (z, target_id, code) => {
+          let z' =
+            // Select the respective tile (in this case the definition tile)
+            switch (Select.tile(target_id, z)) {
+            | Some(z') => z'
+            | None => z
+            };
+          // Paste the code over the selected tile
+          switch (paste(z', code)) {
+          | Some(z'') => Ok(z'')
+          | None => Error(Action.Failure.CantPaste)
+          };
+        };
+        let destruct_tile = (z, target_id) => {
+          let z' =
+            switch (Select.tile(target_id, z)) {
+            | Some(z') => z'
+            | None => z
+            };
+          switch (Destruct.go(Left, z')) {
+          | None => Error(Action.Failure.Cant_destruct)
+          | Some(z'') => Ok(z'')
+          };
+        };
+        switch (e) {
+        | UpdateDefinition(code) =>
+          let target_id = get_inner_term_id(node, Def);
+          overwrite_tile(z, target_id, code);
+        | UpdateBody(code) =>
+          let target_id = get_inner_term_id(node, Body);
+          overwrite_tile(z, target_id, code);
+        | UpdatePattern(code) =>
+          let target_id = get_inner_term_id(node, Pat);
+          overwrite_tile(z, target_id, code);
+        | UpdateExpression(code) =>
+          let target_id = Info.id_of(node.info);
+          overwrite_tile(z, target_id, code);
+        | DeleteExpression => destruct_tile(z, Info.id_of(node.info))
+        | DeleteBody =>
+          let target_id = get_inner_term_id(node, Body);
+          destruct_tile(z, target_id);
+        | InsertBefore(code) =>
+          let z' =
+            switch (Move.go(Extreme(Left(ByToken)), z)) {
+            | Some(z') => z'
+            | None => z
+            };
+          switch (paste(z', code)) {
+          | Some(z'') => Ok(z'')
+          | None => Error(Action.Failure.CantPaste)
+          };
+        | InsertAfter(code) =>
+          let z' =
+            switch (Move.go(Extreme(Right(ByToken)), z)) {
+            | Some(z') => z'
+            | None => z
+            };
+          switch (paste(z', code)) {
+          | Some(z'') => Ok(z'')
+          | None => Error(Action.Failure.CantPaste)
+          };
+        };
+      };
+    };
+    let curr_node_info =
+      AssistantTreeHelper.build_curr_node_info(z, statics.info_map);
+    switch (curr_node_info) {
+    | Some(node) => handle_composition_action(node)
+    | None => Error(Action.Failure.Cant_move) //todo, add failure case
+    };
   };
 };

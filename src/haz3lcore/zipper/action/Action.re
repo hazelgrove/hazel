@@ -82,6 +82,56 @@ type paste =
   | Segment(Segment.t)
   | Assistant(string);
 
+/*
+ * ------------------------------
+ *  Structure-Based Action Language
+ * ------------------------------
+ */
+
+// --- Navigation Actions ---
+// These actions are used to navigate the AST, and do not modify the program
+// or provide additional information to the LLM. They strictly move the cursor
+// through the AST.
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type nav_action =
+  // Goes to the parent node of the current node in the AST
+  | GoToParent
+  // Goes to the child node of the current node in the AST
+  | GoToChild(string, option(int))
+  // Jumps to the root node of the AST
+  | GoToSibling(string, option(int));
+
+// --- File-Read Actions ---
+// These actions are used purely to read information from the program,
+// and do not modify the program or the cursor location in the AST.
+
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type read_action =
+  // Displays the definition of the current node in the AST
+  | ViewDefinition;
+
+// --- Edit Actions ---
+// These actions are used to modify the program. They do provide additional
+// information to the LLM (via reading), but may move the cursor (eg. removing
+// a node will require the cursor to be moved elsewhere).
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type edit_action =
+  | UpdateDefinition(string)
+  | UpdateBody(string)
+  | UpdatePattern(string)
+  | UpdateExpression(string)
+  | DeleteExpression
+  | DeleteBody
+  | InsertAfter(string)
+  | InsertBefore(string);
+
+// AddToolLabel_1.0: Make the action types (above) and add their cases to the funs (below)
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type action =
+  | Nav(nav_action)
+  | Read(read_action)
+  | Edit(edit_action);
+
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type t =
   | Reparse
@@ -101,7 +151,8 @@ type t =
   | Pick_up
   | Put_down
   | Introduce
-  | Restore(Zipper.t);
+  | Restore(Zipper.t)
+  | AssistantComposition(action);
 
 module Failure = {
   [@deriving (show({with_path: false}), sexp, yojson, eq)]
@@ -146,6 +197,7 @@ let is_edit: t => bool =
   | RotateBackpack
   | Restore(_)
   | MoveToBackpackTarget(_) => false
+  | AssistantComposition(_) => false
   | Project(p) =>
     switch (p) {
     | SetSyntax(_)
@@ -176,6 +228,7 @@ let is_historic: t => bool =
   | Pick_up
   | Put_down
   | Introduce => true
+  | AssistantComposition(_) => false
   | Project(p) =>
     switch (p) {
     | SetSyntax(_)
@@ -205,6 +258,7 @@ let prevent_in_read_only_editor = (a: t) => {
   | Restore(_)
   | MoveToBackpackTarget(_)
   | Introduce => true
+  | AssistantComposition(_) => true
   | Project(p) =>
     switch (p) {
     | SetSyntax(_) => true
@@ -247,4 +301,5 @@ let should_animate: t => bool =
   | RotateBackpack
   | Restore(_)
   | MoveToBackpackTarget(_)
+  | AssistantComposition(_)
   | Project(_) => true;

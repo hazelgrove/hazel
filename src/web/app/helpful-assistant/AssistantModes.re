@@ -386,12 +386,10 @@ module Composition = {
         ~schedule_action: Editors.Update.t => unit,
       )
       : result => {
-    let (result, actions) =
-      CompositionTools.derive_actions(
-        editor.editor.state.zipper,
-        editor.statics.info_map,
-        action,
-      );
+    let (result, actions) = (
+      "todo. no result feedback yet, see newly generated local code map/sketch context.",
+      [Action.AssistantComposition(action)],
+    );
     // Apply actions to the editor
     schedule_actions(~actions, ~schedule_action);
     // Return the result (tool call response)

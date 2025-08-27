@@ -68,6 +68,7 @@ module Update = {
              | Project(_)
              | Unselect(_)
              | Restore(_)
+             | AssistantComposition(_)
              | Select(All) => false
              };
            },

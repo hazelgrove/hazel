@@ -12,30 +12,22 @@ let mk_statics = (z: Zipper.t) =>
     )
   );
 
-let apply_tool_actions =
-    (init: string, actions: list(CompositionTools.action)): Zipper.t =>
-  List.fold_left(
-    (z, action) =>
-      z
-      |> mk_statics
-      |> CompositionTools.derive_actions(z, _, action)
-      |> snd
-      |> perform(z),
-    perform(Zipper.init(), mk(init)),
-    actions,
-  );
+let apply_actions = (init: string, actions: list(Action.t)): Zipper.t =>
+  perform(perform(Zipper.init(), mk(init)), actions);
 
 let test =
     (~name, ~init: string, ~acts: list(CompositionTools.action), ~goal)
-    : test_case(_) =>
+    : test_case(_) => {
+  let acts = List.map(a => Action.AssistantComposition(a), acts);
   test_case(name, `Quick, () =>
     check(
       testable(Fmt.string, String.equal),
       goal,
       goal,
-      acts |> apply_tool_actions(init) |> printer,
+      acts |> apply_actions(init) |> printer,
     )
   );
+};
 
 let tests_edit_tools = [
   test(
