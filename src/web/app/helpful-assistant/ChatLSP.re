@@ -284,7 +284,7 @@ module Composition = {
     let actions =
       switch (matching_id) {
       | Some(id) => [
-          Action.Jump(TileId(id)),
+          Action.Move(Goal(TileId(id))),
           // Moving left by token is essentially a hacky method to get
           // off of a variable name (term), and triple/quad click on let binding
           // itself (this properly highlights full variable name and
@@ -396,7 +396,7 @@ module ErrorRound = {
           {
             let* sketch_z = Destruct.go(Left, sketch_z);
             let+ sketch_z = Destruct.go(Left, sketch_z);
-            Perform.paste_segment(sketch_z, segment);
+            Editor.paste_segment(sketch_z, segment);
           }
         ) {
         | None => Error("Undocumented parse error, no feedback available")

@@ -59,7 +59,7 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       ~mdIcon="arrow_forward",
       ~section="Navigation",
       "Go to Definition",
-      Globals(ActiveEditor(Jump(BindingSiteOfIndicatedVar))),
+      Globals(ActiveEditor(Move(Goal(BindingSiteOfIndicatedVar)))),
     ),
     mk_shortcut(
       ~hotkey="shift+tab",

@@ -1,10 +1,17 @@
 open Util;
+open Language;
 
 module Model = {
+  [@deriving (show({with_path: false}), sexp, yojson, eq)]
+  type state = {
+    zipper: Zipper.t,
+    col_target: option(int),
+  };
+
   [@deriving (show({with_path: false}), sexp, yojson)]
   type t = {
     // Updated
-    state: Perform.State.t,
+    state,
     // Calculated
     [@opaque]
     syntax: CachedSyntax.t,
@@ -45,6 +52,123 @@ module Model = {
   };
 };
 
+let paste_segment = (z: Zipper.t, segment: Segment.t): Zipper.t => {
+  let replace_selection = (z, focus, segment): Zipper.t =>
+    {
+      ...z,
+      selection: Selection.mk(~focus, segment),
+    }
+    |> Zipper.unselect
+    |> Zipper.remold_regrout(Right);
+  replace_selection(z, z.selection.focus, segment);
+};
+
+let return = (error: Action.Failure.t, z: option(Zipper.t)) =>
+  Result.of_option(~error, z);
+
+let perform =
+    (
+      ~settings as _: Language.CoreSettings.t,
+      ~statics: CachedStatics.t,
+      ~syntax: CachedSyntax.t,
+      a: Action.t,
+      {zipper: z, col_target}: Model.state,
+    )
+    : Action.Result.t(Zipper.t) =>
+  switch (a) {
+  | Introduce =>
+    Select.current_term(
+      syntax.term_data,
+      ~defs_exclude_bodies=false,
+      ~case_rules=false,
+      z,
+    )
+    |> Option.bind(_, Introduce.introduce(statics.info_map, _))
+    |> return(CantIntroduce)
+  | Paste(String(clipboard)) =>
+    Parser.to_zipper(~zipper_init=z, clipboard) |> return(CantPaste)
+  | Paste(Segment(segment)) => Ok(paste_segment(z, segment))
+  | Cut =>
+    /* System clipboard handling is done in Page.view handlers */
+    Destruct.go(Left, z) |> return(Cant_destruct)
+  | Copy =>
+    /* System clipboard handling itself is done in Page.view handlers.
+     * This doesn't change state but is included here for logging purposes */
+    Ok(z)
+  | Reparse =>
+    /* This serializes the current editor to text, resets the current
+       editor, and then deserializes. It is intended as a (tactical)
+       nuclear option for weird backpack states */
+    Parser.to_zipper(
+      ~zipper_init=Zipper.init(),
+      Printer.of_zipper(~holes="", ~indent="", z),
+    )
+    |> return(CantReparse)
+  | Buffer(a) => Buffer.go(~info_map=statics.info_map, a, z)
+  | Project(a) => ProjectorPerform.go(syntax.term_data, a, z)
+  | Move(d) =>
+    Move.go(
+      ~info_map=statics.info_map,
+      ~col_target=Option.value(col_target, ~default=0),
+      ~measured=syntax.measured,
+      d,
+      z,
+    )
+    |> return(Cant_move)
+  | Unselect(Some(d)) => Ok(Zipper.directional_unselect(d, z))
+  | Unselect(None) => Ok(Zipper.unselect(z))
+  | Select(Resize(Local(d, _))) =>
+    Select.primary(d, z) |> return(Cant_select)
+  | Select(Resize(Vertical(d))) =>
+    Select.vertical(
+      ~col_target=Option.value(col_target, ~default=0),
+      ~measured=syntax.measured,
+      d,
+      z,
+    )
+    |> return(Cant_select)
+  | Select(Resize(Start)) => Ok(Select.to_start(z))
+  | Select(Resize(End)) => Ok(Select.to_end(z))
+  | Select(Resize(Line(d))) =>
+    Select.to_linebreak(d, z) |> return(Cant_select)
+  | Select(Resize(Point(goal))) =>
+    Select.to_point(~measured=syntax.measured, ~goal, z)
+    |> return(Cant_select)
+  | Select(Resize(Goal(_))) => failwith("Select not implemented for goals")
+  | Select(All) => Ok(Select.all(z))
+  | Select(Term(Current)) =>
+    Select.current_term(
+      syntax.term_data,
+      ~defs_exclude_bodies=true,
+      ~case_rules=true,
+      z,
+    )
+    |> return(Cant_select)
+  | Select(Smart(n)) =>
+    Select.smart(syntax.term_data, statics.info_map, n, z)
+    |> return(Cant_select)
+  | Select(Term(Id(id, d))) =>
+    switch (Select.term(syntax.term_data, id, z)) {
+    | Some(z) => Ok(d == Right ? z : Zipper.toggle_focus(z))
+    | None => Error(Cant_select)
+    }
+  | Select(Tile(Current)) => Select.current_tile(z) |> return(Cant_select)
+  | Select(Tile(Id(id, d))) =>
+    switch (Select.tile(id, z)) {
+    | Some(z) => Ok(d == Right ? z : Zipper.toggle_focus(z))
+    | None => Error(Cant_select)
+    }
+  | Select(ToggleFocus) => Ok(Zipper.toggle_focus(z))
+  | Select(SetFocus(d)) => Ok(Zipper.set_focus(z, d))
+  | Destruct(d) => Destruct.go(d, z) |> return(Cant_destruct)
+  | Insert(char) =>
+    z
+    |> Insert.go(char, ~ci=Indicated.ci_of(z, statics.info_map))
+    |> return(Cant_insert)
+  | Put_down => Zipper.put_down_glom(z) |> return(Cant_put_down)
+  | Dump => Ok(Zipper.try_to_dump_backpack(z))
+  };
+
 module Update = {
   type t = Action.t;
 
@@ -52,7 +176,7 @@ module Update = {
       (
         ~settings: Language.CoreSettings.t,
         a: Action.t,
-        old_statics,
+        old_statics: CachedStatics.t,
         {state, syntax}: Model.t,
       )
       : Action.Result.t(Model.t) => {
@@ -78,16 +202,7 @@ module Update = {
       clear_condition
         ? {
           ...state,
-          zipper:
-            Perform.go_z(
-              ~settings,
-              ~syntax,
-              ~statics=old_statics,
-              Buffer(Clear),
-              state,
-            )
-            |> Action.Result.ok
-            |> Option.value(~default=state.zipper),
+          zipper: Buffer.buffer_clear(state.zipper),
         }
         : state;
     let syntax =
@@ -117,8 +232,8 @@ module Update = {
     // 3. Record target column if moving up/down
     let col_target =
       switch (a) {
-      | Move(Spatial(Up | Down))
-      | Select(Resize(Spatial(Up | Down))) =>
+      | Move(Vertical(Up | Down))
+      | Select(Resize(Vertical(Up | Down))) =>
         switch (state.col_target) {
         | Some(col) => Some(col)
         | None => Some(Zipper.Caret.point(syntax.measured, state.zipper).col)
@@ -131,8 +246,7 @@ module Update = {
     };
 
     // 4. Update the zipper
-    let+ zipper =
-      Perform.go_z(~settings, ~statics=old_statics, ~syntax, a, state);
+    let+ zipper = perform(~settings, ~statics=old_statics, ~syntax, a, state);
 
     // Recombine
     Model.{
@@ -148,25 +262,14 @@ module Update = {
       (
         ~settings: Language.CoreSettings.t,
         ~is_edited,
-        new_statics,
+        new_statics: CachedStatics.t,
         dyn_map,
         {syntax, state}: Model.t,
       ) => {
     // 1. Recalculate the autocomplete buffer if necessary
     let zipper =
       if (settings.assist && settings.statics && is_edited) {
-        switch (
-          Perform.go_z(
-            ~settings,
-            ~statics=new_statics,
-            ~syntax,
-            Buffer(Set(TyDi)),
-            state,
-          )
-        ) {
-        | Ok(z) => z
-        | Error(_) => state.zipper
-        };
+        Buffer.set_tydi_buffer(new_statics.info_map, state.zipper);
       } else {
         state.zipper;
       };

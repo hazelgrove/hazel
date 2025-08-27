@@ -291,6 +291,16 @@ let glom_prev = (z: t) =>
   | _ => None
   };
 
+let put_down_glom = (z: t): option(t) =>
+  switch (z.caret) {
+  | Inner(_) => None
+  | Outer =>
+    switch (glom_prev(z)) {
+    | Some(z) => Some(z)
+    | None => put_down_regrout_remold(Left, z)
+    }
+  };
+
 let adjacent_monotile_id = (d: Direction.t, z: t): option(Id.t) =>
   switch (Siblings.neighbors(z.relatives.siblings)) {
   | (Some(Tile({id, label: [_], _})), _) when d == Left => Some(id)

@@ -205,8 +205,7 @@ let go = (char: string, z: t): option(t) => {
 
 /* This is a wrapper intended to effectuate after-insertion conditional
  * operations. See Triggers.re for more details */
-let go =
-    (~ctx: Language.Ctx.t=Language.Ctx.empty, char: string, z: t): option(t) => {
+let go = (~ci: option(Language.Info.t)=None, char: string, z: t): option(t) => {
   let+ z = go(char, z);
-  Triggers.insert(~ctx, z);
+  Triggers.insert(~ci, z);
 };

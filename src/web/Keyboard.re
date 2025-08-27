@@ -26,21 +26,21 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     switch (shift, key) {
     | (Up, "ArrowLeft") => now(Move(Local(Left, ByChar)))
     | (Up, "ArrowRight") => now(Move(Local(Right, ByChar)))
-    | (Up, "ArrowUp") => now(Move(Spatial(Up)))
-    | (Up, "ArrowDown") => now(Move(Spatial(Down)))
-    | (Up, "Home") => now(Move(Extreme(Left)))
-    | (Up, "End") => now(Move(Extreme(Right)))
+    | (Up, "ArrowUp") => now(Move(Vertical(Up)))
+    | (Up, "ArrowDown") => now(Move(Vertical(Down)))
+    | (Up, "Home") => now(Move(Start))
+    | (Up, "End") => now(Move(End))
     | (Up, "Backspace") => now(Destruct(Left))
     | (Up, "Delete") => now(Destruct(Right))
     | (Up, "Escape") => now(Unselect(None))
-    | (Up, "F12") => now(Jump(BindingSiteOfIndicatedVar))
+    | (Up, "F12") => now(Move(Goal(BindingSiteOfIndicatedVar)))
     | (Down, "Tab") => now(Move(Goal(Hole(Left))))
     | (Down, "ArrowLeft") => now(Select(Resize(Local(Left, ByToken))))
     | (Down, "ArrowRight") => now(Select(Resize(Local(Right, ByToken))))
-    | (Down, "ArrowUp") => now(Select(Resize(Spatial(Up))))
-    | (Down, "ArrowDown") => now(Select(Resize(Spatial(Down))))
-    | (Down, "Home") => now(Select(Resize(Extreme(Left))))
-    | (Down, "End") => now(Select(Resize(Extreme(Right))))
+    | (Down, "ArrowUp") => now(Select(Resize(Vertical(Up))))
+    | (Down, "ArrowDown") => now(Select(Resize(Vertical(Down))))
+    | (Down, "Home") => now(Select(Resize(Start)))
+    | (Down, "End") => now(Select(Resize(End)))
     | (_, "Enter") => now(Insert(Token.linebreak))
     | _ when String.length(key) == 1 =>
       /* Note: length==1 prevent specials like
@@ -50,20 +50,20 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     }
   | {key: D(key), sys: Mac, shift: Down, meta: Down, ctrl: Up, alt: Up} =>
     switch (key) {
-    | "ArrowLeft" => now(Select(Resize(Extreme(Left))))
-    | "ArrowRight" => now(Select(Resize(Extreme(Right))))
-    | "ArrowUp" => now(Select(Resize(Extreme(Up))))
-    | "ArrowDown" => now(Select(Resize(Extreme(Down))))
+    | "ArrowLeft" => now(Select(Resize(Line(Left))))
+    | "ArrowRight" => now(Select(Resize(Line(Right))))
+    | "ArrowUp" => now(Select(Resize(Start)))
+    | "ArrowDown" => now(Select(Resize(End)))
     | _ => None
     }
   | {key: D(key), sys: PC, shift: Down, meta: Up, ctrl: Down, alt: Up} =>
     switch (key) {
     | "ArrowLeft" => now(Select(Resize(Local(Left, ByToken))))
     | "ArrowRight" => now(Select(Resize(Local(Right, ByToken))))
-    | "ArrowUp" => now(Select(Resize(Spatial(Up))))
-    | "ArrowDown" => now(Select(Resize(Spatial(Down))))
-    | "Home" => now(Select(Resize(Extreme(Up))))
-    | "End" => now(Select(Resize(Extreme(Down))))
+    | "ArrowUp" => now(Select(Resize(Vertical(Up))))
+    | "ArrowDown" => now(Select(Resize(Vertical(Down))))
+    | "Home" => now(Select(Resize(Start)))
+    | "End" => now(Select(Resize(End)))
     | _ => None
     }
   | {key: D(key), sys: Mac, shift: Up, meta: Down, ctrl: Up, alt: Up} =>
@@ -71,10 +71,10 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "d" => now(Select(Term(Current)))
     | "a" => now(Select(All))
     | "/" => Some(Buffer(Set(TyDi)))
-    | "ArrowLeft" => now(Move(Extreme(Left)))
-    | "ArrowRight" => now(Move(Extreme(Right)))
-    | "ArrowUp" => now(Move(Extreme(Up)))
-    | "ArrowDown" => now(Move(Extreme(Down)))
+    | "ArrowLeft" => now(Move(Line(Left)))
+    | "ArrowRight" => now(Move(Line(Right)))
+    | "ArrowUp" => now(Move(Start))
+    | "ArrowDown" => now(Move(End))
     | _ => None
     }
   | {key: D(key), sys: PC, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
@@ -84,14 +84,14 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "/" => Some(Buffer(Set(TyDi)))
     | "ArrowLeft" => now(Move(Local(Left, ByToken)))
     | "ArrowRight" => now(Move(Local(Right, ByToken)))
-    | "Home" => now(Move(Extreme(Up)))
-    | "End" => now(Move(Extreme(Down)))
+    | "Home" => now(Move(Start))
+    | "End" => now(Move(End))
     | _ => None
     }
   | {key: D(key), sys: Mac, shift: Up, meta: Up, ctrl: Down, alt: Up} =>
     switch (key) {
-    | "a" => now(Move(Extreme(Left)))
-    | "e" => now(Move(Extreme(Right)))
+    | "a" => now(Move(Line(Left)))
+    | "e" => now(Move(Line(Right)))
     | _ => None
     }
   | {key: D("f"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
