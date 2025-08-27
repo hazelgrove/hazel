@@ -60,7 +60,7 @@ let go_z =
       z: Zipper.t,
     )
     : Action.Result.t(Zipper.t) => {
-  module Move = Move.Make(M);
+  module MoveM = Move.Make(M);
   module Select = Select.Make(M);
 
   let buffer_accept = (z): option(Zipper.t) =>
@@ -83,8 +83,8 @@ let go_z =
         let z = {
           open OptUtil.Syntax;
           let* z = paste(z, completion);
-          let* z = Move.go(Goal(Piece(Grout, Left)), z);
-          Move.go(Local(Left(ByToken)), z);
+          let* z = Move.to_next_grout(Left, z);
+          Move.primary(ByToken, Left, z);
         };
         z;
       | Some(completion) => paste(z, completion)
@@ -157,7 +157,7 @@ let go_z =
       z,
     )
   | Move(d) =>
-    Move.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_move)
+    MoveM.go(d, z) |> Result.of_option(~error=Action.Failure.Cant_move)
   | Jump(jump_target) =>
     (
       switch (jump_target) {
@@ -175,7 +175,13 @@ let go_z =
   | Unselect(None) => Ok(Zipper.unselect(z))
   | Select(All) =>
     let z =
-      switch (Move.do_extreme(Move.primary(ByToken), Up, z)) {
+      switch (
+        MoveM.do_towards_goal(
+          Move.primary(ByToken),
+          MoveM.extreme_goal(Up, z),
+          z,
+        )
+      ) {
       | Some(z) => z
       | None => z
       };

@@ -2,7 +2,7 @@ open Util;
 open OptUtil.Syntax;
 
 module Make = (M: Move.S) => {
-  module Move = Move.Make(M);
+  module MoveM = Move.Make(M);
 
   let primary = (d: Direction.t, z: Zipper.t): option(Zipper.t) =>
     if (z.caret == Outer) {
@@ -17,15 +17,16 @@ module Make = (M: Move.S) => {
     };
 
   let vertical = (d: Direction.t, ed: Zipper.t): option(Zipper.t) =>
-    Move.do_vertical(primary, d, ed);
+    MoveM.do_vertical(primary, d, ed);
 
   let go = (d: Action.move, z: Zipper.t) =>
     switch (d) {
     | Goal(Piece(_)) => failwith("Select.go not implemented for Piece Goal")
     | Goal(Point(goal)) =>
       let anchor = z |> Zipper.toggle_focus |> Zipper.Caret.point(M.measured);
-      Move.do_towards(~anchor, primary, goal, z);
-    | Extreme(d) => Move.do_extreme(primary, d, z)
+      MoveM.do_towards_goal(~anchor, primary, goal, z);
+    | Extreme(d) =>
+      MoveM.do_towards_goal(primary, MoveM.extreme_goal(d, z), z)
     | Local(d) =>
       /* Note: Don't update target on vertical selection */
       switch (d) {
@@ -39,13 +40,13 @@ module Make = (M: Move.S) => {
   let range = (l: Id.t, r: Id.t, z: Zipper.t): option(Zipper.t) => {
     let* z = Move.jump_to_side_of_id(Left, z, l);
     let* Measured.{last, _} = Measured.find_by_id(r, M.measured);
-    Move.do_towards(Zipper.select, last, z);
+    MoveM.do_towards_goal(Zipper.select, last, z);
   };
 
   let tile = (id: Id.t, z: Zipper.t): option(Zipper.t) => {
     let* z = Move.jump_to_side_of_id(Left, z, id);
     let* Measured.{last, _} = Measured.find_by_id(id, M.measured);
-    Move.do_towards(primary, last, z);
+    MoveM.do_towards_goal(primary, last, z);
   };
 
   let current_tile = z => {
@@ -90,12 +91,19 @@ module Make = (M: Move.S) => {
   };
 
   let grow_right_until_case_or_rule =
-    Move.do_until(go(Local(Right(ByToken))), Piece.is_case_or_rule);
+    Move.do_until(go(Local(Right(ByToken))), neighbors =>
+      switch (neighbors) {
+      | (_, Some(piece)) => Piece.is_case_or_rule(piece)
+      | _ => false
+      }
+    );
 
   let shrink_left_until_not_case_or_rule_or_space =
-    Move.do_until(
-      go(Local(Left(ByToken))),
-      Piece.is_not_case_or_rule_or_space,
+    Move.do_until(go(Local(Left(ByToken))), neighbors =>
+      switch (neighbors) {
+      | (_, Some(piece)) => Piece.is_not_case_or_rule_or_space(piece)
+      | _ => false
+      }
     );
 
   let containing_rule = z => {
@@ -121,24 +129,28 @@ module Make = (M: Move.S) => {
   };
 
   let grow_right_until_not_comment_or_space =
-    Move.do_until(go(Local(Right(ByToken))), Piece.not_comment_or_space);
+    Move.do_until(go(Local(Right(ByToken))), neighbors =>
+      switch (neighbors) {
+      | (_, Some(piece)) => Piece.not_comment_or_space(piece)
+      | (_, None) => true
+      }
+    );
+
+  let move_left_until_not_comment_or_space =
+    Move.do_until(Move.primary(ByToken, Left), neighbors =>
+      switch (neighbors) {
+      | (Some(piece), _) => Piece.not_comment_or_space(piece)
+      | (None, _) => true
+      }
+    );
 
   let containing_secondary_run = z => {
     let z =
-      switch (Move.left_until_not_comment_or_space(~move_first=false, z)) {
-      | None =>
-        /* Due to implementation details of Move.do_until (specifically its
-         * use of Indicated), this behaves poorly if we're one token away
-         * from the beginning of the syntax. We handle that case here */
-        let z = Zipper.Caret.set(Outer, z);
-        switch (Zipper.move(Left, z)) {
-        | Some(z) => z
-        | None => z
-        };
+      switch (move_left_until_not_comment_or_space(z)) {
+      | None => z
       | Some(z) => z
       };
-    let* z = grow_right_until_not_comment_or_space(z);
-    go(Local(Left(ByToken)), z); /* above overshoots */
+    grow_right_until_not_comment_or_space(z);
   };
 
   let indicated_token = (z: Zipper.t) =>
@@ -150,7 +162,7 @@ module Make = (M: Move.S) => {
     | Some((_, Left, _)) when z.caret == Outer =>
       /* If we're on the far right side of a non-secondary piece, we
        * still prefer to select it over secondary to the right */
-      let* z = Move.go(Local(Left(ByToken)), z);
+      let* z = Move.primary(ByToken, Left, z);
       go(Local(Right(ByToken)), z);
     | Some(_) => go(Local(Right(ByToken)), z)
     | _ => None
