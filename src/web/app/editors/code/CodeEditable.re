@@ -64,11 +64,11 @@ module Update = {
              | Copy
              | Cut
              | Reparse
+             | AssistantComposition(_)
              | Introduce => true
              | Project(_)
              | Unselect(_)
              | Restore(_)
-             | AssistantComposition(_)
              | Select(All) => false
              };
            },
