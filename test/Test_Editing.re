@@ -435,6 +435,11 @@ let insertion_tests = [
     ~acts=mk({|if 1 then 2 e¦lse 3|}) @ [Destruct(Left), Insert("e")],
     ~goal={|if 1 then 2 e¦lse 3|},
   ),
+  test(
+    ~name="Nested parens edge case (See Insert.parens_edge_case)",
+    ~acts=mk({|f(g¦)|}) @ [Insert("("), Insert(")")],
+    ~goal={|f(g()¦)|},
+  ),
 ];
 
 let destruct_tests = [
