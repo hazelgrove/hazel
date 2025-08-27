@@ -22,14 +22,6 @@ and tile = {
 }
 and projector = ProjectorCore.t(piece);
 
-// This is for comment insertion
-let mk_secondary = (id, content) => [
-  Secondary({
-    id,
-    content,
-  }),
-];
-
 /* If the piece is parentheses, return the child. Otherwise,
  * return a singleton segment consisting of the piece */
 let unparenthesize = (piece: piece): segment =>
@@ -44,21 +36,36 @@ let unparenthesize = (piece: piece): segment =>
   };
 
 let rec segment_to_string =
-        (~holes=" ", ~concave_holes=" ", seg: segment): string =>
+        (~holes=" ", ~concave_holes=" ", ~projector_to_segment, seg: segment)
+        : string =>
   seg
-  |> List.map(piece_to_string(~holes, ~concave_holes))
+  |> List.map(
+       piece_to_string(~holes, ~concave_holes, ~projector_to_segment),
+     )
   |> String.concat("")
 and piece_to_string =
-    (~holes: string, ~concave_holes: string, p: piece): string =>
+    (~holes: string, ~concave_holes: string, ~projector_to_segment, p: piece)
+    : string =>
   switch (p) {
-  | Tile(t) => tile_to_string(~holes, ~concave_holes, t)
+  | Tile(t) =>
+    tile_to_string(~holes, ~concave_holes, ~projector_to_segment, t)
   | Grout({shape: Concave, _}) => concave_holes
   | Grout({shape: Convex, _}) => holes
   | Secondary(w) => Secondary.get_string(w.content)
   | Projector(p) =>
-    segment_to_string(~holes, ~concave_holes, unparenthesize(p.syntax))
+    segment_to_string(
+      ~holes,
+      ~concave_holes,
+      ~projector_to_segment,
+      projector_to_segment(p),
+    )
   }
-and tile_to_string = (~holes: string, ~concave_holes: string, t: tile): string =>
+and tile_to_string =
+    (~holes: string, ~concave_holes: string, ~projector_to_segment, t: tile)
+    : string =>
   Aba.mk(t.shards, t.children)
-  |> Aba.join(List.nth(t.label), segment_to_string(~holes, ~concave_holes))
+  |> Aba.join(
+       List.nth(t.label),
+       segment_to_string(~holes, ~concave_holes, ~projector_to_segment),
+     )
   |> String.concat("");

@@ -9,7 +9,8 @@ let to_zipper = (~zipper_init=Zipper.init(), str: string): option(Zipper.t) => {
       None;
     };
   };
-  str |> Util.StringUtil.to_list |> List.fold_left(insert, Some(zipper_init));
+  let+ z = str |> Token.to_list |> List.fold_left(insert, Some(zipper_init));
+  Zipper.remold_regrout(Left, z);
 };
 
 let to_segment = (s: string): option(Segment.t) => {
