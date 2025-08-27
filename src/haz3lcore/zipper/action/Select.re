@@ -191,18 +191,24 @@ let term = (term_data: TermData.t, id: Id.t, z: Zipper.t): option(Zipper.t) => {
   shard_range(l, r, z);
 };
 
-let tile = (term_data: TermData.t, id: Id.t, z: Zipper.t): option(Zipper.t) => {
-  let* (l, r) = TermData.root_shards(id, term_data);
-  shard_range(l, r, z);
+let tile = (id: Id.t, z: Zipper.t): option(Zipper.t) => {
+  let* z = Move.jump_to_side_of_id(Left, z, id);
+  switch (z.relatives.siblings) {
+  | (_, []) => None
+  | (l, [r, ...rs]) =>
+    let z = Zipper.update_siblings(_ => (l, rs), z);
+    let z = Zipper.replace_selection(Right, [r], z);
+    Some(z);
+  };
 };
 
-let current_tile = (term_data: TermData.t, z: Zipper.t): option(Zipper.t) => {
+let current_tile = (z: Zipper.t): option(Zipper.t) => {
   let* id = Indicated.index(z);
-  tile(term_data, id, z);
+  tile(id, z);
 };
 
-let containing_rule = (term_data: TermData.t, z: Zipper.t): option(Zipper.t) => {
-  let* z = current_tile(term_data, z);
+let containing_rule = (z: Zipper.t): option(Zipper.t) => {
+  let* z = current_tile(z);
   let* z = grow_right_until_case_or_rule(z);
   //TODO(andrew): this busted
   // shrink_left_until_not_case_or_rule_or_space(z);
@@ -222,9 +228,8 @@ let current_term =
   let* (p, _, _) = Indicated.piece''(z);
   switch (p) {
   | Tile({label: ["let" | "type", ..._], _}) when defs_exclude_bodies =>
-    current_tile(term_data, z)
-  | Tile({label: ["|", "=>"], _}) when case_rules =>
-    containing_rule(term_data, z)
+    current_tile(z)
+  | Tile({label: ["|", "=>"], _}) when case_rules => containing_rule(z)
   | _ =>
     let* id = current_term_id(z);
     term(term_data, id, z);

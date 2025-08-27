@@ -613,7 +613,10 @@ let update =
           switch (
             {
               let* sketch_z_with_tag =
-                Perform.paste(editor.editor.state.zipper, tag);
+                Parser.to_zipper(
+                  ~zipper_init=editor.editor.state.zipper,
+                  tag,
+                );
               let sketch_seg =
                 Zipper.smart_seg(
                   ~dump_backpack=true,
