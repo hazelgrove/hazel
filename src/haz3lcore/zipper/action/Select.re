@@ -1,27 +1,183 @@
 open Util;
 open OptUtil.Syntax;
 
+let primary = (d: Direction.t, z: Zipper.t): option(Zipper.t) =>
+  if (z.caret == Outer) {
+    Zipper.select(d, z);
+  } else if (d == Left) {
+    z
+    |> Zipper.Caret.set(Outer)
+    |> Zipper.move(Right)
+    |> OptUtil.and_then(Zipper.select(d));
+  } else {
+    z |> Zipper.Caret.set(Outer) |> Zipper.select(d);
+  };
+
+let grow_right_until_case_or_rule =
+  Move.do_until(primary(Right), neighbors =>
+    switch (neighbors) {
+    | (_, Some(piece)) => Piece.is_case_or_rule(piece)
+    | _ => false
+    }
+  );
+
+let shrink_left_until_not_case_or_rule_or_space =
+  Move.do_until(primary(Left), neighbors =>
+    switch (neighbors) {
+    | (_, Some(piece)) => Piece.is_not_case_or_rule_or_space(piece)
+    | _ => false
+    }
+  );
+
+let grow_right_until_not_comment_or_space =
+  Move.do_until(primary(Right), neighbors =>
+    switch (neighbors) {
+    | (_, Some(piece)) => Piece.not_comment_or_space(piece)
+    | (_, None) => true
+    }
+  );
+
+let not_comment_or_space_to_left = neighbors =>
+  switch (neighbors) {
+  | (Some(piece), _) => Piece.not_comment_or_space(piece)
+  | (None, _) => true
+  };
+
+let move_left_until_not_comment_or_space = z =>
+  not_comment_or_space_to_left(Zipper.generalized_neighbors(z))
+    ? Some(z)
+    : Move.do_until(
+        Move.primary(ByToken, Left),
+        not_comment_or_space_to_left,
+        z,
+      );
+
+let containing_secondary_run = z => {
+  let z =
+    switch (move_left_until_not_comment_or_space(z)) {
+    | None => z
+    | Some(z) => z
+    };
+  grow_right_until_not_comment_or_space(z);
+};
+
+let current_term_id = (z: Zipper.t): option(Id.t) => {
+  let* (p, _, rel) = Indicated.piece''(z);
+  switch (p) {
+  | Secondary(_) => None
+  | Grout(_)
+  | Projector(_) => Some(Piece.id(p))
+  | Tile(t) =>
+    /* Basic term selection uses termranges, which is out of data
+     * with the parsing logic which makes list listerals. We also
+     * treat tuples as including the parens (if any), though this
+     * is a free choice. We also handle case rules, whose parent
+     * term in tylr is considered to be the combination of the
+     * rules and the scrutinee, but we want to consider it to be
+     * the whole case expression. */
+    switch (t.label, Zipper.parent(z)) {
+    | ([","], Some(Tile({label: ["[", "]"] | ["(", ")"], id, _}))) =>
+      Some(id)
+    | (["|", "=>"], Some(Tile({label: ["case", "end"], id, _})))
+        when rel == Sibling =>
+      Some(id)
+    | (["|", "=>"], Some(Tile({label: ["|", "=>"], _})))
+        when rel == Parent =>
+      switch (z.relatives.ancestors) {
+      | [_, (gp, _), ..._] => Some(gp.id)
+      | _ => None
+      }
+    | _ => Some(Piece.id(p))
+    }
+  };
+};
+
+let indicated_token = (z: Zipper.t) =>
+  switch (Indicated.piece'(~no_ws=false, ~ign=Piece.is_secondary, z)) {
+  | Some((Secondary(_), _, _)) =>
+    /* If there is secondary on both sides, select the
+     * largest contiguous run of non-linebreak secondary */
+    containing_secondary_run(z)
+  | Some((_, Left, _)) when z.caret == Outer =>
+    /* If we're on the far right side of a non-secondary piece, we
+     * still prefer to select it over secondary to the right */
+    let* z = Move.primary(ByToken, Left, z);
+    primary(Right, z);
+  | Some(_) => primary(Right, z)
+  | _ => None
+  };
+
+let move_left_until_case_or_rule =
+  Move.do_until(Move.primary(ByToken, Left), neighbors =>
+    switch (neighbors) {
+    | (Some(piece), _) => Piece.is_case_or_rule(piece)
+    | _ => false
+    }
+  );
+
+let is_inside_rule = (z: Zipper.t) => {
+  let* z = move_left_until_case_or_rule(z);
+  let* (p, _, _) = Indicated.piece''(z);
+  switch (p) {
+  | Tile({label: ["|", "=>"], id, _}) => Some(id)
+  | _ => None
+  };
+};
+
+let parent_cls = (z: Zipper.t, info_map) => {
+  let* id = Indicated.index(z);
+  let* statics = Language.Statics.Map.lookup(id, info_map);
+  let* parent_id =
+    statics |> Language.Statics.Info.ancestors_of |> ListUtil.hd_opt;
+  let+ parent_statics = Language.Statics.Map.lookup(parent_id, info_map);
+  Language.Statics.Info.cls_of(parent_statics);
+};
+
+let parent_is_rule = (z: Zipper.t, info_map): option(Id.t) => {
+  switch (is_inside_rule(z)) {
+  | Some(id) when parent_cls(z, info_map) == Some(Exp(Match)) => Some(id)
+  | _ => None
+  };
+};
+
+/* If the indicated term is the body of a definition
+ * (let or type), return the id of the body, otherwise None */
+let def_body_indicated =
+    (z: Zipper.t, info_map: Language.Statics.Map.t): option(Id.t) => {
+  let* id = Indicated.index(z);
+  let* statics = Language.Statics.Map.lookup(id, info_map);
+  let* parent_id =
+    statics |> Language.Statics.Info.ancestors_of |> ListUtil.hd_opt;
+  let* ci_parent = Language.Statics.Map.lookup(parent_id, info_map);
+  switch (ci_parent) {
+  | InfoExp({term: {term: Let(_, _, body) | TyAlias(_, _, body), _}, _}) =>
+    let body_id = Language.IdTagged.rep_id(body);
+    id == body_id ? Some(body_id) : None;
+  | _ => None
+  };
+};
+
+let parent_id = (z: Zipper.t, info_map) => {
+  let* base_id = Indicated.index(z);
+  /* Rules aren't counted as terms in the base syntax,
+   * but we do want to treat them as possible parents */
+  switch (parent_is_rule(z, info_map)) {
+  | Some(id) => Some(id)
+  | _ =>
+    let* statics = Id.Map.find_opt(base_id, info_map);
+    statics |> Language.Info.ancestors_of |> ListUtil.hd_opt;
+  };
+};
+
 module Make = (M: Move.S) => {
   module MoveM = Move.Make(M);
-
-  let primary = (d: Direction.t, z: Zipper.t): option(Zipper.t) =>
-    if (z.caret == Outer) {
-      Zipper.select(d, z);
-    } else if (d == Left) {
-      z
-      |> Zipper.Caret.set(Outer)
-      |> Zipper.move(Right)
-      |> OptUtil.and_then(Zipper.select(d));
-    } else {
-      z |> Zipper.Caret.set(Outer) |> Zipper.select(d);
-    };
 
   let vertical = (d: Direction.t, ed: Zipper.t): option(Zipper.t) =>
     MoveM.do_vertical(primary, d, ed);
 
   let go = (d: Action.move, z: Zipper.t) =>
     switch (d) {
-    | Goal(Piece(_)) => failwith("Select.go not implemented for Piece Goal")
+    | Goal(Hole(_)) => failwith("Select.go not implemented for hole goal")
     | Goal(Point(goal)) =>
       let anchor = z |> Zipper.toggle_focus |> Zipper.Caret.point(M.measured);
       MoveM.do_towards_goal(~anchor, primary, goal, z);
@@ -59,57 +215,11 @@ module Make = (M: Move.S) => {
     range(l, r, z);
   };
 
-  let current_term_id = (z: Zipper.t): option(Id.t) => {
-    let* (p, _, rel) = Indicated.piece''(z);
-    switch (p) {
-    | Secondary(_) => None
-    | Grout(_)
-    | Projector(_) => Some(Piece.id(p))
-    | Tile(t) =>
-      /* Basic term selection uses termranges, which is out of data
-       * with the parsing logic which makes list listerals. We also
-       * treat tuples as including the parens (if any), though this
-       * is a free choice. We also handle case rules, whose parent
-       * term in tylr is considered to be the combination of the
-       * rules and the scrutinee, but we want to consider it to be
-       * the whole case expression. */
-      switch (t.label, Zipper.parent(z)) {
-      | ([","], Some(Tile({label: ["[", "]"] | ["(", ")"], id, _}))) =>
-        Some(id)
-      | (["|", "=>"], Some(Tile({label: ["case", "end"], id, _})))
-          when rel == Sibling =>
-        Some(id)
-      | (["|", "=>"], Some(Tile({label: ["|", "=>"], _})))
-          when rel == Parent =>
-        switch (z.relatives.ancestors) {
-        | [_, (gp, _), ..._] => Some(gp.id)
-        | _ => None
-        }
-      | _ => Some(Piece.id(p))
-      }
-    };
-  };
-
-  let grow_right_until_case_or_rule =
-    Move.do_until(go(Local(Right(ByToken))), neighbors =>
-      switch (neighbors) {
-      | (_, Some(piece)) => Piece.is_case_or_rule(piece)
-      | _ => false
-      }
-    );
-
-  let shrink_left_until_not_case_or_rule_or_space =
-    Move.do_until(go(Local(Left(ByToken))), neighbors =>
-      switch (neighbors) {
-      | (_, Some(piece)) => Piece.is_not_case_or_rule_or_space(piece)
-      | _ => false
-      }
-    );
-
   let containing_rule = z => {
     let* z = current_tile(z);
     let* z = grow_right_until_case_or_rule(z);
-    shrink_left_until_not_case_or_rule_or_space(z);
+    // shrink_left_until_not_case_or_rule_or_space(z);
+    Some(z);
   };
 
   /* Select the currently indicated term. Optionally, we can consider
@@ -125,100 +235,6 @@ module Make = (M: Move.S) => {
     | _ =>
       let* id = current_term_id(z);
       term(id, z);
-    };
-  };
-
-  let grow_right_until_not_comment_or_space =
-    Move.do_until(go(Local(Right(ByToken))), neighbors =>
-      switch (neighbors) {
-      | (_, Some(piece)) => Piece.not_comment_or_space(piece)
-      | (_, None) => true
-      }
-    );
-
-  let move_left_until_not_comment_or_space =
-    Move.do_until(Move.primary(ByToken, Left), neighbors =>
-      switch (neighbors) {
-      | (Some(piece), _) => Piece.not_comment_or_space(piece)
-      | (None, _) => true
-      }
-    );
-
-  let containing_secondary_run = z => {
-    let z =
-      switch (move_left_until_not_comment_or_space(z)) {
-      | None => z
-      | Some(z) => z
-      };
-    grow_right_until_not_comment_or_space(z);
-  };
-
-  let indicated_token = (z: Zipper.t) =>
-    switch (Indicated.piece'(~no_ws=false, ~ign=Piece.is_secondary, z)) {
-    | Some((Secondary(_), _, _)) =>
-      /* If there is secondary on both sides, select the
-       * largest contiguous run of non-linebreak secondary */
-      containing_secondary_run(z)
-    | Some((_, Left, _)) when z.caret == Outer =>
-      /* If we're on the far right side of a non-secondary piece, we
-       * still prefer to select it over secondary to the right */
-      let* z = Move.primary(ByToken, Left, z);
-      go(Local(Right(ByToken)), z);
-    | Some(_) => go(Local(Right(ByToken)), z)
-    | _ => None
-    };
-
-  let is_inside_rule = (z: Zipper.t) => {
-    let* z = Move.left_until_case_or_rule(z);
-    let* (p, _, _) = Indicated.piece''(z);
-    switch (p) {
-    | Tile({label: ["|", "=>"], id, _}) => Some(id)
-    | _ => None
-    };
-  };
-
-  let parent_cls = (z: Zipper.t, info_map) => {
-    let* id = Indicated.index(z);
-    let* statics = Language.Statics.Map.lookup(id, info_map);
-    let* parent_id =
-      statics |> Language.Statics.Info.ancestors_of |> ListUtil.hd_opt;
-    let+ parent_statics = Language.Statics.Map.lookup(parent_id, info_map);
-    Language.Statics.Info.cls_of(parent_statics);
-  };
-
-  let parent_is_rule = (z: Zipper.t, info_map): option(Id.t) => {
-    switch (is_inside_rule(z)) {
-    | Some(id) when parent_cls(z, info_map) == Some(Exp(Match)) => Some(id)
-    | _ => None
-    };
-  };
-
-  /* If the indicated term is the body of a definition
-   * (let or type), return the id of the body, otherwise None */
-  let def_body_indicated =
-      (z: Zipper.t, info_map: Language.Statics.Map.t): option(Id.t) => {
-    let* id = Indicated.index(z);
-    let* statics = Language.Statics.Map.lookup(id, info_map);
-    let* parent_id =
-      statics |> Language.Statics.Info.ancestors_of |> ListUtil.hd_opt;
-    let* ci_parent = Language.Statics.Map.lookup(parent_id, info_map);
-    switch (ci_parent) {
-    | InfoExp({term: {term: Let(_, _, body) | TyAlias(_, _, body), _}, _}) =>
-      let body_id = Language.IdTagged.rep_id(body);
-      id == body_id ? Some(body_id) : None;
-    | _ => None
-    };
-  };
-
-  let parent_id = (z: Zipper.t, info_map) => {
-    let* base_id = Indicated.index(z);
-    /* Rules aren't counted as terms in the base syntax,
-     * but we do want to treat them as possible parents */
-    switch (parent_is_rule(z, info_map)) {
-    | Some(id) => Some(id)
-    | _ =>
-      let* statics = Id.Map.find_opt(base_id, info_map);
-      statics |> Language.Info.ancestors_of |> ListUtil.hd_opt;
     };
   };
 

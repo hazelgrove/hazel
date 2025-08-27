@@ -3,21 +3,9 @@ open Util;
 open Zipper;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type piece_goal =
-  | Grout;
-
-let of_piece_goal =
-  fun
-  | Grout => (
-      fun
-      | Piece.Grout(_) => true
-      | _ => false
-    );
-
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type goal =
   | Point(Point.t)
-  | Piece(piece_goal, Direction.t);
+  | Hole(Direction.t);
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type move =
