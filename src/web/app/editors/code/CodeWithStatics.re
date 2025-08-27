@@ -134,7 +134,7 @@ module View = {
         ~buffer_ids=Selection.is_buffer(z.selection) ? selection_ids : [],
         ~segment,
         ~shape_map,
-        ~refractor_shape_map=Id.Map.map(_ => 2, z.refractors.map),
+        ~refractor_shape_map=Id.Map.empty //Id.Map.map(_ => 2, z.refractors.map),
       );
     let statics_decos = {
       module Deco =

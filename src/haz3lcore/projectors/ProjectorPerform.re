@@ -156,7 +156,14 @@ let go =
       };
       //if in refractors, look up id using reverse_mapping
       /* TODO: perf */
-      let rmap = ZipperBase.Refractor.reverse_mapping(z.refractors.map);
+      let rmap =
+        ZipperBase.Refractor.reverse_mapping(
+          Id.Map.union(
+            (_, _, b) => Some(b),
+            z.refractors.map,
+            z.refractors.ephemerals,
+          ),
+        );
       let id =
         switch (List.assoc_opt(id, rmap)) {
         | Some(pid) =>

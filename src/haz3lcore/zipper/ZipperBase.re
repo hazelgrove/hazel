@@ -15,6 +15,7 @@ module Refractor = {
   type t = {
     map: Map.t,
     pinned_term_ids: list(Id.t),
+    ephemerals: Map.t,
   };
 
   type mapping = list((Id.t, Id.t));
@@ -32,6 +33,7 @@ module Refractor = {
   let init = {
     map: Id.Map.empty,
     pinned_term_ids: [],
+    ephemerals: Id.Map.empty,
   };
 };
 

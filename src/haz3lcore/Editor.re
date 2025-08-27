@@ -167,6 +167,14 @@ module Update = {
         state.zipper,
       );
 
+    //TODO(andrew): relocate
+    let zipper =
+      Refractors.add_ids_from_pinned_term(
+        ~term_data=syntax.term_data,
+        ~measured=syntax.measured,
+        zipper,
+      );
+
     // Recombine
     Model.{
       state: {

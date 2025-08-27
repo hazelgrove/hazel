@@ -191,9 +191,16 @@ module View = {
         });
       Deco.editor(model.editor.state.zipper, selected);
     };
+    print_endline(
+      "model.dynamics: " ++ Language.Dynamics.Map.show(model.dynamics),
+    );
     let refractor_data =
       ProjectorView.Model.mk(
-        model.editor.state.zipper.refractors.map,
+        Id.Map.union(
+          (_, _, b) => Some(b),
+          model.editor.state.zipper.refractors.map,
+          model.editor.state.zipper.refractors.ephemerals,
+        ),
         model.editor.syntax.measured,
         model.editor.syntax.term_data,
         model.editor.syntax.selection_ids,

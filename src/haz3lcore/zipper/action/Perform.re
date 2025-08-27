@@ -285,13 +285,19 @@ let go_z =
         } else {
           [id, ...z.refractors.pinned_term_ids];
         };
-      Ok({
-        ...z,
-        refractors: {
-          ...z.refractors,
-          pinned_term_ids,
-        },
-      });
+      Ok(
+        {
+          ...z,
+          refractors: {
+            ...z.refractors,
+            pinned_term_ids,
+          },
+        }
+        |> Refractors.add_ids_from_pinned_term(
+             ~term_data=_syntax.term_data,
+             ~measured=_syntax.measured,
+           ),
+      );
     | None => Ok(z)
     };
 

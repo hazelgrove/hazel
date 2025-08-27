@@ -958,7 +958,15 @@ let for_projection =
 let from_zip_for_sem' =
     (~dump_backpack: bool, ~erase_buffer: bool, z: Zipper.t) => {
   let seg = Zipper.smart_seg(~dump_backpack, ~erase_buffer, z);
-  go(ZipperBase.Refractor.mapping(z.refractors.map), seg);
+  let refractor_mapping =
+    ZipperBase.Refractor.mapping(
+      Id.Map.union(
+        (_, _, b) => Some(b),
+        z.refractors.map,
+        z.refractors.ephemerals,
+      ),
+    );
+  go(refractor_mapping, seg);
 };
 
 let from_zip_for_sem =

@@ -312,7 +312,11 @@ module Deco =
     };
 
   let refractor_decos = (_: Zipper.t): list(Node.t) =>
-    M.editor.state.zipper.refractors.map
+    Id.Map.union(
+      (_, _, b) => Some(b),
+      M.editor.state.zipper.refractors.map,
+      M.editor.state.zipper.refractors.ephemerals,
+    )
     |> Id.Map.to_list
     |> List.filter_map(((id, _p)) =>
          switch (Id.Map.find_opt(id, term_data)) {
