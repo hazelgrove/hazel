@@ -339,9 +339,8 @@ module Deco =
 
   let term_decoration =
       (~id: Id.t, deco: ((Point.t, Point.t, SvgUtil.Path.t)) => Node.t) => {
-    let (p_l, p_r) = TermData.extremes(id, term_data);
-    let l = Measured.find_p(~msg="Deco.term", p_l, measured).origin;
-    let r = Measured.find_p(~msg="Deco.term", p_r, measured).last;
+    let (l, r) =
+      TermData.extreme_measures(id, term_data, measured) |> Option.get;
     open SvgUtil.Path;
     let r_edge =
       ListUtil.range(~lo=l.row, r.row + 1)
