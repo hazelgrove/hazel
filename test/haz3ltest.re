@@ -23,21 +23,9 @@ let (suite, _) =
       Test_Menhir.tests,
       Test_StringUtil.tests,
       Test_Typ.tests,
-      (
-        "Statics",
-        Test_Statics_Functions.tests
-        @ Test_Statics_Tuples.tests
-        @ Test_Statics_Lists.tests
-        @ Test_Statics_Polymorphism.tests
-        @ Test_Statics_Sums.tests
-        @ Test_Statics_Lists.tests
-        @ Test_Statics_Types.tests
-        @ Test_Statics_BuiltinsTupleOperations.tests
-        @ Test_Statics_Fixpoint.tests
-        @ Test_Statics_Property_DoesNotCrash.tests,
-      ),
       Test_PatternMatch.tests,
     ]
+    @ Test_Statics.tests
     @ Test_Elaboration.tests
     @ Test_Evaluator.tests
     @ Test_Editing.tests
