@@ -50,7 +50,7 @@ let introduction_test = (before: string, expected: string) => {
         Builtins.ctx_init(Some(Operators.default_mode)),
         exp,
       );
-    let+ zip = Introduce.introduce(statics, zip);
+    let+ zip = Introduce.introduce(Indicated.ci_of(zip, statics), zip);
     Printer.of_zipper(~holes="?", zip);
   };
 

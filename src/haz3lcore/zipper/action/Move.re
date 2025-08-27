@@ -279,7 +279,7 @@ let to_linebreak: (Direction.t, Zipper.t) => option(Zipper.t) =
 
 let move_dispatch =
     (
-      ~info_map: Language.Statics.Map.t,
+      ~ci: option(Language.Info.t),
       ~col_target: int,
       ~measured: Measured.t,
       d: Action.move,
@@ -296,7 +296,7 @@ let move_dispatch =
   | Goal(Hole(d)) => to_next_grout(d, z)
   | Goal(TileId(id)) => jump_to_id_indicated(z, id)
   | Goal(BindingSiteOfIndicatedVar) =>
-    let* ci = Indicated.ci_of(z, info_map);
+    let* ci = ci;
     let* binding_id = Language.Info.get_binding_site(ci);
     jump_to_id_indicated(z, binding_id);
   };
@@ -317,7 +317,7 @@ let pre_unselect = (a: Action.move, z: Zipper.t): Zipper.t => {
 };
 let go =
     (
-      ~info_map: Language.Statics.Map.t,
+      ~ci: option(Language.Info.t),
       ~col_target: int,
       ~measured: Measured.t,
       a: Action.move,
@@ -325,7 +325,7 @@ let go =
     )
     : option(Zipper.t) =>
   if (Selection.is_empty(z.selection)) {
-    move_dispatch(~info_map, ~col_target, ~measured, a, z);
+    move_dispatch(~ci, ~col_target, ~measured, a, z);
   } else {
     let z = pre_unselect(a, z);
     switch (a) {
@@ -333,7 +333,7 @@ let go =
     | Local(Left, ByChar)
     | Local(Right, ByChar) => Some(z)
     | _ =>
-      switch (move_dispatch(~info_map, ~col_target, ~measured, a, z)) {
+      switch (move_dispatch(~ci, ~col_target, ~measured, a, z)) {
       | Some(z) => Some(z)
       /* Always empty selection on move action,
        * even if we don't actually move */
