@@ -249,7 +249,7 @@ let go_z =
       | Outer =>
         switch (Zipper.glom_prev(z)) {
         | Some(z) => Some(z)
-        | None => Zipper.put_down_regrout_remold(Left, z)
+        | None => Zipper.put_down_remold_regrout(Left, z)
         }
       }
     )
