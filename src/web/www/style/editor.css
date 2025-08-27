@@ -202,23 +202,24 @@ svg.shard.selected {
 svg.shard.indicated {
   z-index: var(--tile-z);
 }
-svg.shard.error {
-  z-index: var(--err-hole-z);
-}
-
 svg.shard.selected > path {
   fill: var(--shard-selected);
   stroke-width: 0.5px;
   stroke: var(--shard-selected);
 }
-svg.shard.error > path,
+
+.errors .errors-piece svg.shard {
+  z-index: var(--err-hole-z);
+  filter: none;
+}
+.errors .errors-piece svg.shard > path,
 .errors .errors-piece svg .child-line {
   stroke: var(--error-hole-stroke);
   stroke-width: 0.75px;
   stroke-dasharray: 1, 1;
   stroke-linecap: butt;
 }
-svg.shard.error > path {
+.errors .errors-piece svg.shard > path {
   fill: var(--error-hole-fill);
 }
 
@@ -242,9 +243,6 @@ svg.shard.selected.buffer-parsed > path {
 }
 
 /* EMPTY HOLE DECO */
-
-.empty-hole {
-}
 
 .empty-hole > path {
   fill: var(--empty-hole-fill);
@@ -278,6 +276,11 @@ svg.shard.selected.buffer-parsed > path {
   vector-effect: non-scaling-stroke;
 }
 
+.indication .child-line {
+  /* To make it align to shard shadows */
+  translate: 0 0.02px;
+}
+
 svg:has(.child-line) {
   z-index: var(--err-hole-arms-z);
 }
@@ -303,16 +306,18 @@ svg:has(.child-line) {
 
 /* BACKPACK DECO */
 
-.backpack .code-text {
-  position: relative;
+.backpack {
+  z-index: var(--backpack-z);
 }
 
-.backpack.cant-put-down {
+.backpack.cant-put-down > * {
   opacity: 40%;
 }
 
 .backpack-joiner {
-  opacity: 40%;
+  z-index: var(--backpack-z);
+  width: 2px;
+  background-color: var(--backpack-joiner);
 }
 
 .backpack-selection {
@@ -323,12 +328,8 @@ svg:has(.child-line) {
   width: fit-content;
   background-color: var(--backpack-selection);
   outline: 1px solid var(--backpack-selection-outline);
-}
-
-.backpack-joiner {
-  border-radius: 2px;
-  width: 2px;
-  background-color: var(--backpack-joiner);
+  font-weight: bold;
+  color: var(--token-incomplete) !important;
 }
 
 .backpack-genie {
@@ -337,12 +338,6 @@ svg:has(.child-line) {
   vector-effect: non-scaling-stroke;
 }
 
-/* BACKPACK TARGETS DECO */
-
-.backpack-target {
-  z-index: var(--backpack-targets-z);
-}
-
-.caret-position-path {
-  fill: var(--backback-targets);
+.restructuring-genie {
+  z-index: var(--backpack-z);
 }

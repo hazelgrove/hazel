@@ -30,7 +30,7 @@ let rec exp_to_rule = (exp: Exp.t): t =>
       assumptions: [e1] @ assumptions,
       conclusion,
     };
-  | BinOp(Int(Equals), e1, e2) => {
+  | BinOp(Poly(Equals), e1, e2) => {
       bindings: [],
       assumptions: [],
       conclusion: Equality(e1, e2),
