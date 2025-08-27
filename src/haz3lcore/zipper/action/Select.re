@@ -276,29 +276,34 @@ let smart = (term_data, info_map, n, z: Zipper.t): option(Zipper.t) => {
   };
 };
 
+let all = (z: Zipper.t) =>
+  z
+  |> Move.do_to_extreme(Move.primary(ByToken, Left))
+  |> Move.do_to_extreme(primary(Right));
+
 let vertical =
-    (~col_target: int, ~measured: Measured.t, d: Direction.t, z: Zipper.t)
+    (d: Action.vertical, ~col_target: int, ~measured: Measured.t, z: Zipper.t)
     : option(Zipper.t) => {
   let goal =
     Point.{
       col: col_target,
-      row: Zipper.Caret.point(measured, z).row + (d == Right ? 1 : (-1)),
+      row: Zipper.Caret.point(measured, z).row + (d == Down ? 1 : (-1)),
     };
   Move.do_towards_goal(~measured, ~force_progress=true, primary, goal, z);
 };
 
-let resize =
-    (~col_target: int, ~measured: Measured.t, d: Action.move, z: Zipper.t) =>
-  switch (d) {
-  | Goal(Hole(_)) => failwith("Select.go not implemented for hole goal")
-  | Spatial(Point(goal)) =>
-    let anchor = z |> Zipper.toggle_focus |> Zipper.Caret.point(measured);
-    Move.do_towards_goal(~measured, ~anchor, primary, goal, z);
-  | Spatial(Up) => vertical(~col_target, ~measured, Left, z)
-  | Spatial(Down) => vertical(~col_target, ~measured, Right, z)
-  | Extreme(Up) => Some(Move.do_to_extreme(primary(Left), z))
-  | Extreme(Down) => Some(Move.do_to_extreme(primary(Right), z))
-  | Extreme(Left) => Move.do_until_linebreak(primary(Left), Left, z)
-  | Extreme(Right) => Move.do_until_linebreak(primary(Right), Right, z)
-  | Local(d, _) => primary(d, z)
+let to_point =
+    (~measured: Measured.t, ~goal: Point.t, z: Zipper.t): option(Zipper.t) => {
+  let anchor = z |> Zipper.toggle_focus |> Zipper.Caret.point(measured);
+  switch (Move.do_towards_goal(~measured, ~anchor, primary, goal, z)) {
+  | None => Some(z)
+  | Some(z) => Some(z)
   };
+};
+
+let to_start: Zipper.t => Zipper.t = Move.do_to_extreme(primary(Left));
+
+let to_end: Zipper.t => Zipper.t = Move.do_to_extreme(primary(Right));
+
+let to_linebreak: (Direction.t, Zipper.t) => option(Zipper.t) =
+  d => Move.do_until_linebreak(primary(d), d);

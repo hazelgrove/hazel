@@ -33,7 +33,7 @@ let perform = (zip: Zipper.t, actions: list(Action.t)): Zipper.t => {
   /* This is a simplified testing harness for zipper actions.
    * It does not apply any semantics-based behaviors. */
   let perform = (a: Action.t, z: Zipper.t) =>
-    Perform.go_z(
+    Editor.perform(
       ~settings=Language.CoreSettings.off,
       ~statics=CachedStatics.empty,
       ~syntax=
@@ -855,7 +855,7 @@ let selection_tests = [
 45678,
 56789)|})
       @ [Action.Select(All)]
-      @ [Action.Move(Extreme(Left))],
+      @ [Action.Move(Line(Left))],
     ~goal={|(12345,
   23456789,
   345678,

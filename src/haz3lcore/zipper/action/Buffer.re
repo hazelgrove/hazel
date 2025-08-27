@@ -1,12 +1,9 @@
 open Util;
+open OptUtil.Syntax;
 
 let buffer_clear = (z: Zipper.t): Zipper.t =>
   switch (z.selection.mode) {
-  | Buffer(Unparsed) => {
-      ...z,
-      selection: Selection.mk([]),
-    }
-
+  | Buffer(Unparsed) => Zipper.clear_unparsed_buffer(z)
   | Buffer(Parsed) => z |> Zipper.destroy_selection |> Zipper.regrout(Left)
   | Normal => z
   };
@@ -21,26 +18,19 @@ let set_tydi_buffer =
 let set_llm_buffer = (z: Zipper.t, response: string): Zipper.t =>
   switch (
     {
-      open OptUtil.Syntax;
-      //TODO: Error feedback on below
-      let* rz = Parser.to_zipper(response);
-      switch (Zipper.local_backpack(rz)) {
-      | [] =>
-        Some(Zipper.set_buffer(z, ~content=Zipper.zip(rz), ~mode=Parsed))
-      | _ => None
-      };
+      //TODO: Check for incomplete syntax, report errors
+      let+ res = Parser.to_zipper(response);
+      Zipper.zip(res);
     }
   ) {
   | None => z
-  | Some(z) => z
+  | Some(content) => Zipper.set_buffer(z, ~content, ~mode=Parsed)
   };
 
 let buffer_accept = (z: Zipper.t): option(Zipper.t) =>
   switch (z.selection.mode) {
   | Normal => None
-  | Buffer(Parsed) =>
-    let z = Zipper.directional_unselect(Right, z);
-    Some(z);
+  | Buffer(Parsed) => Some(Zipper.directional_unselect(Right, z))
   | Buffer(Unparsed) =>
     switch (TyDi.get_unparsed_buffer(z)) {
     | None => None
@@ -70,9 +60,6 @@ let go =
   | Set(TyDi) => Ok(set_tydi_buffer(info_map, z))
   | Set(LLM(response)) => Ok(set_llm_buffer(z, response))
   | Accept =>
-    switch (buffer_accept(z)) {
-    | None => Error(CantAccept)
-    | Some(z) => Ok(z)
-    }
+    buffer_accept(z) |> Result.of_option(~error=Action.Failure.CantAccept)
   | Clear => Ok(buffer_clear(z))
   };

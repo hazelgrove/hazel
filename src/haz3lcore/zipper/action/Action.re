@@ -6,33 +6,25 @@ type chunkiness =
   | ByToken;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type planar =
-  | Up
-  | Down
-  | Left
-  | Right;
-
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
 type goal =
-  | Hole(Direction.t);
+  | Hole(Direction.t)
+  | TileId([@equal (_, _) => true] Id.t)
+  | BindingSiteOfIndicatedVar;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type spatial =
+type vertical =
   | Up
-  | Down
-  | Point(Point.t);
+  | Down;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type move =
-  | Extreme(planar)
+  | Start
+  | End
+  | Line(Direction.t)
   | Local(Direction.t, chunkiness)
-  | Spatial(spatial)
+  | Vertical(vertical)
+  | Point(Point.t)
   | Goal(goal);
-
-[@deriving (show({with_path: false}), sexp, yojson, eq)]
-type jump_target =
-  | TileId([@equal (_, _) => true] Id.t)
-  | BindingSiteOfIndicatedVar;
 
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type rel =
@@ -92,7 +84,6 @@ type t =
   | Cut
   | Project(project)
   | Move(move)
-  | Jump(jump_target)
   | Select(select)
   | Unselect(option(Direction.t))
   | Destruct(Direction.t)
@@ -138,7 +129,6 @@ let is_edit: t => bool =
   | Dump => true
   | Copy
   | Move(_)
-  | Jump(_)
   | Select(_)
   | Unselect(_) => false
   | Project(p) =>
@@ -156,7 +146,6 @@ let is_historic: t => bool =
   fun
   | Copy
   | Move(_)
-  | Jump(_)
   | Select(_)
   | Unselect(_) => false
   | Cut
@@ -183,7 +172,6 @@ let prevent_in_read_only_editor = (a: t) => {
   | Copy
   | Move(_)
   | Unselect(_)
-  | Jump(_)
   | Select(_) => false
   | Buffer(Set(_) | Accept | Clear)
   | Cut
@@ -233,6 +221,5 @@ let should_animate: t => bool =
   | Buffer(Accept | Clear | Set(_))
   | Copy
   | Move(_)
-  | Jump(_)
   | Project(_)
   | Dump => true;

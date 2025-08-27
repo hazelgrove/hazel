@@ -250,7 +250,7 @@ let do_towards_goal =
 };
 
 let vertical =
-    (~col_target: int, ~measured: Measured.t, d: Direction.t, z: t)
+    (~col_target: int, ~measured: Measured.t, d: Action.vertical, z: t)
     : option(t) => {
   /* Here f should be a function which results in strict d-wards
      movement of the caret. Iterate f until we get to the closet
@@ -259,7 +259,7 @@ let vertical =
   let goal =
     Point.{
       col: col_target,
-      row: caret_point(z).row + (d == Right ? 1 : (-1)),
+      row: caret_point(z).row + (d == Down ? 1 : (-1)),
     };
   do_towards_goal(~force_progress=true, ~measured, primary(ByChar), goal, z);
 };
@@ -270,39 +270,60 @@ let to_point = (~measured: Measured.t, ~goal: Point.t, z: t): option(t) =>
   | Some(z) => Some(z)
   };
 
+let to_start: Zipper.t => Zipper.t = do_to_extreme(primary(ByToken, Left));
+
+let to_end: Zipper.t => Zipper.t = do_to_extreme(primary(ByToken, Right));
+
+let to_linebreak: (Direction.t, Zipper.t) => option(Zipper.t) =
+  d => do_until_linebreak(primary(ByToken, d), d);
+
 let move_dispatch =
-    (~col_target: int, ~measured: Measured.t, d: Action.move, z: Zipper.t)
+    (
+      ~info_map: Language.Statics.Map.t,
+      ~col_target: int,
+      ~measured: Measured.t,
+      d: Action.move,
+      z: Zipper.t,
+    )
     : option(Zipper.t) =>
   switch (d) {
+  | Local(d, chunk) => primary(chunk, d, z)
+  | Start => Some(to_start(z))
+  | End => Some(to_end(z))
+  | Line(d) => to_linebreak(d, z)
+  | Vertical(d) => vertical(~measured, ~col_target, d, z)
+  | Point(goal) => to_point(~measured, ~goal, z)
   | Goal(Hole(d)) => to_next_grout(d, z)
-  | Extreme(Up) => Some(do_to_extreme(primary(ByToken, Left), z))
-  | Extreme(Down) => Some(do_to_extreme(primary(ByToken, Right), z))
-  | Extreme(Left) => do_until_linebreak(primary(ByToken, Left), Left, z)
-  | Extreme(Right) => do_until_linebreak(primary(ByToken, Right), Right, z)
-  | Local(Left, chunk) => primary(chunk, Left, z)
-  | Local(Right, chunk) => primary(chunk, Right, z)
-  | Spatial(Up) => vertical(~col_target, ~measured, Left, z)
-  | Spatial(Down) => vertical(~col_target, ~measured, Right, z)
-  | Spatial(Point(goal)) => to_point(~measured, ~goal, z)
+  | Goal(TileId(id)) => jump_to_id_indicated(z, id)
+  | Goal(BindingSiteOfIndicatedVar) =>
+    let* ci = Indicated.ci_of(z, info_map);
+    let* binding_id = Language.Info.get_binding_site(ci);
+    jump_to_id_indicated(z, binding_id);
   };
 
 let go =
-    (~col_target: int, ~measured: Measured.t, d: Action.move, z: Zipper.t)
+    (
+      ~info_map: Language.Statics.Map.t,
+      ~col_target: int,
+      ~measured: Measured.t,
+      d: Action.move,
+      z: Zipper.t,
+    )
     : option(Zipper.t) =>
   if (Selection.is_empty(z.selection)) {
-    move_dispatch(~col_target, ~measured, d, z);
+    move_dispatch(~info_map, ~col_target, ~measured, d, z);
   } else {
     /* Always empty selection on move action,
      * even if we don't actually move */
     let unselect_d =
       switch (d) {
       | Local(d, _) => d
-      | Spatial(Up) => Left
-      | Spatial(Down) => Right
-      | Extreme(Up) => Left
-      | Extreme(Down) => Right
-      | Extreme(Left | Right)
-      | Spatial(Point(_))
+      | Vertical(Up) => Left
+      | Vertical(Down) => Right
+      | Start => Left
+      | End => Right
+      | Line(_)
+      | Point(_)
       | Goal(_) => z.selection.focus
       };
     let z = Zipper.directional_unselect(unselect_d, z);
@@ -311,7 +332,7 @@ let go =
     | Local(Left, ByChar)
     | Local(Right, ByChar) => Some(z)
     | _ =>
-      switch (move_dispatch(~col_target, ~measured, d, z)) {
+      switch (move_dispatch(~info_map, ~col_target, ~measured, d, z)) {
       | Some(z) => Some(z)
       | None => Some(z)
       }
