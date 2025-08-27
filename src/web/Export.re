@@ -62,18 +62,3 @@ let import_all = (~import_log: string => unit, data, ~specs) => {
   ExercisesMode.Store.import(all.exercise, ~specs, ~instructor_mode);
   import_log(all.log);
 };
-
-let export_persistent = () => {
-  let data: PersistentData.t = {
-    documentation: ScratchMode.StoreDocumentation.load(),
-    scratch: ScratchMode.Store.load(),
-  };
-  let contents =
-    "let startup : PersistentData.t = " ++ PersistentData.show(data);
-  JsUtil.download_string_file(
-    ~filename="Init.ml",
-    ~content_type="text/plain",
-    ~contents,
-  );
-  print_endline("INFO: Persistent data exported to Init.ml");
-};
