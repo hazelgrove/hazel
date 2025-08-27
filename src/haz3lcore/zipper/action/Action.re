@@ -88,6 +88,11 @@ type paste =
  * ------------------------------
  */
 
+[@deriving (show({with_path: false}), sexp, yojson, eq)]
+type via =
+  | NameAndIdx(string, option(int))
+  | Stepwise(Direction.t);
+
 // --- Navigation Actions ---
 // These actions are used to navigate the AST, and do not modify the program
 // or provide additional information to the LLM. They strictly move the cursor
@@ -99,7 +104,7 @@ type nav_action =
   // Goes to the child node of the current node in the AST
   | GoToChild(string, option(int))
   // Jumps to the root node of the AST
-  | GoToSibling(string, option(int));
+  | GoToSibling(via);
 
 // --- File-Read Actions ---
 // These actions are used purely to read information from the program,

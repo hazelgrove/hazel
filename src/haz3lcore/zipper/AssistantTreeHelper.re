@@ -352,16 +352,17 @@ let build_curr_node_info =
       switch (node.parent) {
       | Some(parent) =>
         // don't include the current node in the siblings
-        List.filter(
-          n => n.name !== node.name,
-          child_nodes_of(Some(parent), None),
-        )
+        // List.filter(
+        //   n => n.name !== node.name,
+        //   child_nodes_of(Some(parent), None),
+        // )
+        child_nodes_of(Some(parent), None)
       | None =>
         // This is a special case.
         // Type/let expression at the top level of the program don't have an explicit "parent",
-        // however, they can still be thought of as all being siblings of each other.
-        // This becomes more clear if we wrap them all in a singular "root"/"global" program binding.info
-        // Nevertheless, we handle the special case here.
+        // however, they can still be thought of as being siblings of each other.
+        // This becomes more clear if we wrap them all in a singular "root"/"global" program binding.
+        // We handle this special case here.
         let oldest_ancestor_id =
           ListUtil.hd_opt(List.rev(Info.ancestors_of(node.info)));
         let oldest_ancestor =
@@ -369,10 +370,11 @@ let build_curr_node_info =
           | Some(id) => Id.Map.find(id, info_map)
           | None => node.info
           };
-        List.filter(
-          n => n.name !== node.name,
-          child_nodes_of(None, Some(oldest_ancestor)),
-        );
+        child_nodes_of(None, Some(oldest_ancestor));
+      // List.filter(
+      //   n => n.name !== node.name,
+      //   child_nodes_of(None, Some(oldest_ancestor)),
+      // );
       };
 
     let curr_node = {

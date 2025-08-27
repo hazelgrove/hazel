@@ -54,13 +54,13 @@ let tests_nav_tools = [
   test(
     ~name="Goto Sibling (Simple - V1)",
     ~init={|let x = 4 in let y = 5¦ in x + y|},
-    ~acts=[Nav(GoToSibling("x", None))],
+    ~acts=[Nav(GoToSibling(NameAndIdx("x", None)))],
     ~goal={|§let x = 4 in¦ let y = 5 in x + y|},
   ),
   test(
     ~name="Goto Sibling (Simple - V2)",
     ~init={|let x = 4 in let y = 6 in let z = 7¦ in x + y + z|},
-    ~acts=[Nav(GoToSibling("x", None))],
+    ~acts=[Nav(GoToSibling(NameAndIdx("x", None)))],
     ~goal={|§let x = 4 in¦ let y = 6 in let z = 7 in x + y + z|},
   ),
   test(
@@ -115,7 +115,7 @@ let tests_nav_tools = [
     ~name="Goto Sibling (Replication V1)",
     ~init=
       "type MyOption = + Some(?) + None in let unwrap : Option -> ? = fun x -> case x | Some(v) => v | None => ? end in¦ ?",
-    ~acts=[Nav(GoToSibling("let", Some(0)))],
+    ~acts=[Nav(GoToSibling(NameAndIdx("let", Some(0))))],
     ~goal=
       "§type MyOption = + Some(?) + None in¦ let unwrap : Option -> ? = fun x -> case x | Some(v) => v | None => ? end in ?",
   ),

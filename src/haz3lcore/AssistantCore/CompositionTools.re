@@ -54,7 +54,7 @@ let action_of = (~tool_name: string, ~args: Maps.StringMap.t(string)): action =>
           ),
         )
       };
-    Nav(GoToSibling(name, index));
+    Nav(GoToSibling(NameAndIdx(name, index)));
   | "view_definition" => Read(ViewDefinition)
   | "update_definition" =>
     let code =
@@ -146,7 +146,7 @@ let string_of = (action: action) => {
       }
     )
     ++ ")"
-  | Nav(GoToSibling(name, index)) =>
+  | Nav(GoToSibling(NameAndIdx(name, index))) =>
     "go_to_sibling(\""
     ++ name
     ++ "\""
@@ -154,6 +154,15 @@ let string_of = (action: action) => {
       switch (index) {
       | Some(index) => ", " ++ string_of_int(index)
       | None => ""
+      }
+    )
+    ++ ")"
+  | Nav(GoToSibling(Stepwise(d))) =>
+    "go_to_sibling("
+    ++ (
+      switch (d) {
+      | Left => "Prev"
+      | Right => "Next"
       }
     )
     ++ ")"

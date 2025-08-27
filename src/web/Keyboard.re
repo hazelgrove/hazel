@@ -95,7 +95,8 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "a" => now(Move(Extreme(Left(ByToken))))
     | "e" => now(Move(Extreme(Right(ByToken))))
     | "c" => now(AssistantComposition(Nav(GoToChild("", Some(0)))))
-    | "s" => now(AssistantComposition(Nav(GoToSibling("", Some(0)))))
+    | "n" => now(AssistantComposition(Nav(GoToSibling(Stepwise(Left)))))
+    | "m" => now(AssistantComposition(Nav(GoToSibling(Stepwise(Right)))))
     | "p" => now(AssistantComposition(Nav(GoToParent)))
     | _ => None
     }

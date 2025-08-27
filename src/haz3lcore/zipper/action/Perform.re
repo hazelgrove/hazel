@@ -374,38 +374,66 @@ let go_z =
               }
             }
           }
-        | GoToSibling(who, which) =>
-          switch (which) {
-          | None =>
-            // the llm provided no index, thus, use the name
-            let cands =
-              List.filter(
-                (sibling: AssistantTreeHelper.node) => sibling.name == who,
-                node.siblings,
-              );
-            if (List.length(cands) > 1) {
-              Error(Action.Failure.Cant_move);
-            } else {
-              switch (ListUtil.hd_opt(cands)) {
+        | GoToSibling(via) =>
+          switch (via) {
+          | NameAndIdx(who, which) =>
+            switch (which) {
+            | None =>
+              // the llm provided no index, thus, use the name
+              let cands =
+                List.filter(
+                  (sibling: AssistantTreeHelper.node) => sibling.name == who,
+                  node.siblings,
+                );
+              if (List.length(cands) > 1) {
+                Error(Action.Failure.Cant_move);
+              } else {
+                switch (ListUtil.hd_opt(cands)) {
+                | None => Error(Action.Failure.Cant_move)
+                | Some(sibling) =>
+                  switch (Select.tile(Info.id_of(sibling.info), z)) {
+                  | Some(z) => Ok(z)
+                  | None => Error(Action.Failure.Cant_select)
+                  }
+                };
+              };
+            | Some(nth) =>
+              // this means the llm provided an index to move to, in which case
+              // we default on using that as opposed to the name
+              switch (List.nth_opt(node.siblings, nth)) {
               | None => Error(Action.Failure.Cant_move)
               | Some(sibling) =>
                 switch (Select.tile(Info.id_of(sibling.info), z)) {
                 | Some(z) => Ok(z)
                 | None => Error(Action.Failure.Cant_select)
                 }
-              };
-            };
-          | Some(nth) =>
-            // this means the llm provided an index to move to, in which case
-            // we default on using that as opposed to the name
-            switch (List.nth_opt(node.siblings, nth)) {
-            | None => Error(Action.Failure.Cant_move)
-            | Some(sibling) =>
-              switch (Select.tile(Info.id_of(sibling.info), z)) {
-              | Some(z) => Ok(z)
-              | None => Error(Action.Failure.Cant_select)
               }
             }
+          | Stepwise(d) =>
+            let len = List.length(node.siblings);
+            let self_idx =
+              List.find_index(
+                (sibling: AssistantTreeHelper.node) =>
+                  Info.id_of(sibling.info) == Info.id_of(node.info),
+                node.siblings,
+              );
+            let target_id =
+              switch (self_idx) {
+              | None => Id.invalid
+              | Some(idx) =>
+                switch (d) {
+                | Left =>
+                  List.nth(node.siblings, (idx - 1 + len) mod len).info
+                  |> Info.id_of
+                | Right =>
+                  List.nth(node.siblings, (idx + 1 + len) mod len).info
+                  |> Info.id_of
+                }
+              };
+            switch (Select.tile(target_id, z)) {
+            | Some(z) => Ok(z)
+            | None => Error(Action.Failure.Cant_select)
+            };
           }
         }
       | Read(_r) => Ok(z) // todo
