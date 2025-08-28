@@ -691,7 +691,7 @@ and uexp_to_info_map =
     | Label(name) when label_sort =>
       let self = Self.Just(Label(name) |> Typ.temp);
       List.exists(l => name == l, duplicates)
-        ? atomic(Duplicate(name, self)) : atomic(self);
+        ? atomic(DuplicateLabel(name, self)) : atomic(self);
     | Label(name) =>
       let self = Self.UnexpectedLabelSort(name);
       atomic(self);

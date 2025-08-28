@@ -336,43 +336,34 @@ end
       {|
     let _ : +Yo = Yo("lol") in ?
     |} |> parse_exp,
-<<<<<<< HEAD
-  ),
-  inconsistent_typecheck(
-    "duplicate variables in patterns",
-    // #err: type incons#
-    {|
+    ),
+    inconsistent_typecheck(
+      "duplicate variables in patterns",
+      // #err: type incons#
+      {|
     case (1,2,3) | (x, y, x) => 0 end
     |} |> parse_exp,
-  ),
-  inconsistent_typecheck(
-    "duplicate variables in patterns with nested tuples",
-    // #err: type incons#
-    {|
+    ),
+    inconsistent_typecheck(
+      "duplicate variables in patterns with nested tuples",
+      // #err: type incons#
+      {|
     case (1,(2,3),4) | (x, (x,y), z) => 0 end
     |} |> parse_exp,
-  ),
-  inconsistent_typecheck(
-    "duplicate variables in patterns with labels",
-    // #err: type incons#
-    {|
+    ),
+    inconsistent_typecheck(
+      "duplicate variables in patterns with labels",
+      // #err: type incons#
+      {|
     case (1,(2,3),4) | (x=1, (x,y), z) => 0 end
     |} |> parse_exp,
-  ),
-  inconsistent_typecheck(
-    "duplicate variables in patterns with let expressions",
-    // #err: type incons#
-    {|
+    ),
+    inconsistent_typecheck(
+      "duplicate variables in patterns with let expressions",
+      // #err: type incons#
+      {|
     let (x,x) = 1,2 in ?
     |} |> parse_exp,
-  ),
-  // ======================== KNOWN BUGS ==============================
-  skip_known_bug(
-    // inconsistent_typecheck(
-    "bad type name",
-    // #err: invalid type name#
-    {|
-=======
     ),
     // ======================== KNOWN BUGS ==============================
     skip_known_bug(
@@ -380,7 +371,6 @@ end
       "bad type name",
       // #err: invalid type name#
       {|
->>>>>>> dev
     type badTypeName = ? in ?
     |},
       // |> parse_exp,

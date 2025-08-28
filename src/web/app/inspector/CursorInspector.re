@@ -165,10 +165,7 @@ let common_err_view =
           ? []
           : [text("Invalid labels: "), ...List.map(code, invalid_labels)]
       )
-<<<<<<< HEAD
-    | DuplicateLabel(name, _) => [text("Duplicate Label:"), code(name)]
     | DuplicateVar(name, _) => [text("Duplicate Variable:"), code(name)]
-=======
     | DuplicateLabel(name, _) => [
         text("Duplicate Label:"),
         label_view(name),
@@ -177,7 +174,6 @@ let common_err_view =
         text("values cannot be compared:"),
         view_type(ty),
       ]
->>>>>>> dev
     | Inconsistent(WithArrow(typ)) => [
         text(":"),
         view_type(typ) |> code_box_container,
