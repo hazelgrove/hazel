@@ -22,7 +22,6 @@ let exercise : Tutorial.spec =
     your_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };
-        backpack = [];
         relatives =
           {
             siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
@@ -35,7 +34,6 @@ let exercise : Tutorial.spec =
         tests =
           {
             selection = { focus = Left; content = []; mode = Normal };
-            backpack = [];
             relatives =
               {
                 siblings =
@@ -160,7 +158,6 @@ let scope_exercise : Tutorial.spec =
     your_impl =
       {
         selection = { focus = Left; content = []; mode = Normal };
-        backpack = [];
         relatives =
           {
             siblings = ([ Grout { id = Id.mk (); shape = Convex } ], []);
@@ -173,7 +170,6 @@ let scope_exercise : Tutorial.spec =
         tests =
           {
             selection = { focus = Left; content = []; mode = Normal };
-            backpack = [];
             relatives =
               {
                 siblings =

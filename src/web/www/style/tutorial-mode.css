@@ -1,362 +1,108 @@
-/* Exercise mode styles. This may also contain
- * some styling around test decorations which
- * could be factored out */
+#main.Tutorial .checkmark {
+  width: 40px;
+  position: relative;
+  height: 40px;
+  background-color: var(--G1);
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 25px;
+  font-weight: bold;
+  color: white;
+  cursor: pointer;
+  border: 1px solid var(--BR2);
+}
 
- #main.Tutorial {
-    padding: 0.75em;
-    display: flex;
-    flex-direction: column;
-    justify-content: space-between;
-    position: relative;
-    /* gap: 1.2em; */
-    /* gap: 2em; */
-    background-color: var(--ui-bkg) !important;
-    /* padding-bottom: 6em; */
-  }
-  
-  #main.Tutorial {
-    scrollbar-color: var(--main-scroll-thumb) var(--NONE);
-  }
-  
-  #main.Tutorial .cell {
-    width: auto;
-    min-width: auto;
-    gap: 2em;
-  }
-  
-  #main.Tutorial .cell-caption {
-    color: var(--ui-header-text);
-    font-size: 0.8em;
-  }
-  
-  #main.Tutorial .cell-caption strong {
-    text-transform: uppercase;
-  }
-  
-  #main.Tutorial .cell.unlocked {
-    border-left: 1px solid var(--cell-tutorial-border);
-  }
-  
-  #main.Tutorial .cell.unlocked:has(.code-editor.selected) {
-    border-left: 1px solid var(--cell-selected-accent);
-    background-color: var(--cell-active);
-  }
-  
-  #main.Tutorial .cell-report {
-    padding: 1.2em;
-    background-color: var(--test-panel-bkg);
-    border-left: 1px solid #0000;
-  }
-  
-  #main.Tutorial .cell .cell-item:first-child {
-    border-top-left-radius: 0.4em;
-    border-top-right-radius: 0.4em;
-  }
-  
-  #main.Tutorial .cell .cell-item:last-child {
-    border-bottom-left-radius: 0.4em;
-    border-bottom-right-radius: 0.4em;
-  }
-  
-  #main.Tutorial .test-panel {
-    position: relative;
-    display: flex;
-    flex-direction: column;
-    gap: 1em;
-    padding: 1em;
-    background-color: var(--test-panel-bkg);
-    border-bottom: 0.5px solid var(--BR2);
-  }
-  
-  #main.Tutorial .test-reports {
-    position: relative;
-  }
-  
-  #main.Tutorial .test-report {
-    margin-right: 1em;
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    gap: 1em;
-    padding: 0.3em;
-    cursor: pointer;
-  }
-  
-  #main.Tutorial .test-report+.test-report {
-    border-top: 1px dotted var(--BR2);
-  }
-  
-  #main.Tutorial .test-report:hover {
-    background-color: var(--SAND);
-  }
-  
-  .test-id.Pass {
-    color: var(--test-pass);
-  }
-  
-  .test-id.Fail {
-    color: var(--test-fail);
-  }
-  
-  .test-result:after {
-    position: relative;
-    bottom: 0.15em;
-    margin-left: 0.17em;
-    font-size: 64%;
-    vertical-align: super;
-    z-index: var(--test-result-z);
-  }
-  
-  .test-instance.Pass:before,
-  .test-result.Pass:after {
-    content: "✔";
-    color: var(--test-pass);
-  }
-  
-  .test-instance.Fail:before,
-  .test-result.Fail:after {
-    content: "✘";
-    color: var(--test-fail);
-  }
-  
-  .test-instance.Indet:before,
-  .test-result.Indet:after {
-    content: "?";
-    color: var(--test-indet);
-  }
-  
-  .test-instance:before {
-    position: relative;
-    margin-top: 0.2em;
-    margin-right: 1em;
-    font-size: 64%;
-    display: flex;
-    align-items: center;
-  }
-  
-  #main.Tutorial .test-instances {
-    display: flex;
-    flex-direction: row;
-    gap: 0.2em;
-    flex-grow: 1;
-  }
-  
-  #main.Tutorial .test-instance {
-    display: flex;
-    flex-grow: 1;
-    flex-direction: row;
-  }
-  
-  #main.Tutorial .test-summary {
-    display: flex;
-    flex-direction: row;
-    gap: 1em;
-    justify-content: space-between;
-  }
-  
-  #main.Tutorial .test-bar {
-    width: 16em;
-    display: flex;
-    align-items: center;
-    gap: 1px;
-  }
-  
-  #main.Tutorial .test-text {
-    display: flex;
-    gap: 0.5em;
-    white-space: nowrap;
-  }
-  
-  #main.Tutorial .test-percent {
-    height: 1.7em;
-    display: flex;
-    padding: 0 1em 0 1em;
-    font-size: 0.7em;
-    border-radius: 1.08em;
-    background-color: var(--BR2);
-    align-items: center;
-  }
-  
-  #main.Tutorial>.test-percent {
-    position: absolute;
-    top: 0;
-    right: 0;
-    margin: 0.5em;
-    z-index: 1000;
-  }
-  
-  #main.Tutorial .test-percent.all-pass {
-    background-color: var(--test-pass);
-    color: var(--test-percent-text);
-    animation: jello 1s ease 0s 1 normal none;
-  }
-  
-  #main.Tutorial .test-percent.some-fail {
-    color: var(--light-page-color);
-  }
-  
-  #main.Tutorial .test-bar .segment:first-child {
-    border-radius: 0.3em 0 0 0.3em;
-  }
-  
-  #main.Tutorial .test-bar .segment:last-child {
-    border-radius: 0 0.3em 0.3em 0;
-  }
-  
-  #main.Tutorial .test-bar .segment:only-child {
-    border-radius: 0.3em 0.3em 0.3em 0.3em;
-  }
-  
-  #main.Tutorial .test-bar .segment {
-    flex-grow: 1;
-    height: 0.5em;
-    cursor: pointer;
-  }
-  
-  #main.Tutorial .test-bar .segment.Pass {
-    background-color: var(--test-pass);
-  }
-  
-  #main.Tutorial .test-bar .segment.Pass:hover {
-    background-color: var(--test-pass-active);
-  }
-  
-  #main.Tutorial .test-bar .segment.Fail {
-    background-color: var(--test-fail);
-  }
-  
-  #main.Tutorial .test-bar .segment.Fail:hover {
-    background-color: var(--test-fail-active);
-  }
-  
-  #main.Tutorial .test-bar .segment.Indet {
-    background-color: var(--test-indet);
-  }
-  
-  #main.Tutorial .test-bar .segment.Indet:hover {
-    background-color: var(--test-indet-active);
-  }
-  
-  #main.Tutorial .context-entry {
-    max-width: fit-content;
-    /* Correct implementation type sigs */
-  
-  }
-    
-  .checkmark {
-    width: 40px;
-    position: relative;
-    height: 40px;
-    background-color: #60f382;
-    border-radius: 50%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-size: 25px;
-    font-weight: bold;
-    color: white;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-    border: 4px solid #218838;
-    cursor: pointer;
-    /* animation: popIn 0.3s ease-out; */
-  }
+#main.Tutorial .checkmark-container {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
 
-  .checkmark-container {
-    position: relative;
-    display: flex;
-    flex-direction: column;     
-    /* align-items: flex-end;     */
-    /* display: inline-block;  */
-    /* padding-right: 1em; */
-  }
+#main.Tutorial .checkmark-grey {
+  width: 40px;
+  position: relative;
+  height: 40px;
+  background-color: var(--SAND);
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 25px;
+  font-weight: bold;
+  color: white;
+  cursor: pointer;
+  border: 1px solid var(--BR2);
+}
 
-  .checkmark-grey {
-    width: 40px;
-    position: relative;
-    height: 40px;
-    background-color: #7a7a7a;
-    border-radius: 50%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-size: 25px;
-    font-weight: bold;
-    color: white;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-    border: 4px solid #262626;
-    cursor: pointer;
-    /* animation: popIn 0.3s ease-out; */
-  }
+#main.Tutorial .checkmark-grey:hover {
+  opacity: 0.85;
+  transform: scale(1);
+}
 
-  .checkmark-grey:hover {
-    opacity: 0.85;             /* Slight fade */
-    transform: scale(1);    /* Optional: subtle enlarge */
-  }
-  
-  
-  .checkmark-grey::after {
-    content: "Implementation is incomplete or incorrect.";
-    font-weight: normal;
-    position: absolute;
-    bottom: 120%;
-    right: 0;
-    background: #fffdf4;
-    color: #333;
-    padding: 6px 10px;
-    font-size: 13px;
-    border-radius: 5px;
-    white-space: nowrap;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.2s ease;
-  }
+#main.Tutorial .checkmark-grey::after {
+  content: "Implementation is incomplete or incorrect.";
+  font-weight: normal;
+  position: absolute;
+  bottom: 120%;
+  right: 0;
+  background: #fffdf4;
+  color: #333;
+  padding: 6px 10px;
+  font-size: 13px;
+  border-radius: 5px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
 
-  .checkmark-grey:hover::after {
-    opacity: 1;
-  }
+#main.Tutorial .checkmark-grey:hover::after {
+  opacity: 1;
+}
 
-  .hint-cell {
-    background-color: 1px solid var(--cell-selected-accent);
-    border-left: 5px solid #ffc107;
-    padding: 13px;
-    margin: 20px 0;
-    border-radius: 8px;
-    box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
-    font-size: 16px;
-    color: #454545;
-    width: calc(100% - 2em);
-    gap: 2em;
-  }
-  
-  .hint-title {
-    font-weight: bold;
-    color: #d39e00;
-    font-size: 15px;
-    margin-bottom: 2px;
-  }
-  
-  .hint-content {
-    font-size: 15px;
-    color: #555;
-  }
+#main.Tutorial .hint-cell {
+  background-color: 1px solid var(--cell-selected-accent);
+  border-left: 5px solid #ffc107;
+  padding: 13px;
+  margin: 20px 0;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  font-size: 16px;
+  color: #454545;
+  width: calc(100% - 2em);
+  gap: 2em;
+}
 
-  .report-icon {
-    margin-left: 0.5em;
-    position: absolute;
-    cursor: pointer;
-    top: -23px;
-    right: -3px;
-    color: var(--BR4);
-    display: inline;
-    vertical-align: top;
-  }
-  
+#main.Tutorial .hint-title {
+  font-weight: bold;
+  color: #d39e00;
+  font-size: 15px;
+  margin-bottom: 2px;
+}
 
-.report-icon:hover {
+#main.Tutorial .hint-content {
+  font-size: 15px;
+  color: #555;
+}
+
+#main.Tutorial .report-icon {
+  position: absolute;
+  cursor: pointer;
+  top: -27px;
+  font-size: 1.2em;
+  right: 0px;
+  color: var(--BR2);
+  display: inline;
+  vertical-align: top;
+}
+
+#main.Tutorial .report-icon:hover {
   transform: scale(1.2);
 }
 
-.report-icon::after {
+#main.Tutorial .report-icon::after {
   content: "View Report";
   position: absolute;
   bottom: 120%;
@@ -372,206 +118,161 @@
   transition: opacity 0.2s ease;
 }
 
-.report-icon:hover::after {
+#main.Tutorial .report-icon:hover::after {
   opacity: 1;
 }
 
-  
-
-.done-checkmark {
+#main.Tutorial .done-checkmark {
   margin-left: 0.5rem;
 }
 
-  
-  #main.Tutorial .title-cell {
-    display: flex;
-    align-items: flex-start;
-    /* Align to the left */
-    justify-content: flex-start;
-    width: 100%;
-    padding: 0 !important;
-    margin: 0 !important;
-  }
-  
-  #main.Tutorial .title-cell .title-text {
-    font-size: 2rem;
-    font-weight: bold;
-    color: var(--BR4);
-    padding-left: 0 !important;
-    margin-left: 0 !important;
-  }
-  
-  
-  #main.Tutorial .cell {
-    width: 100%;
-    text-align: left;
-    padding: 0 !important;
-    margin: 0 !important;
-  }
-  
-  
-  #main.Tutorial .title-cell {
-    margin-bottom: 10px !important;
-    padding-bottom: 0 !important;
-  }
-  
-  #main.Tutorial .description {
-    margin-top: 0 !important;
-    margin-bottom: 2em !important;
-    padding: 0 !important;
-  }
-  
-  #main.Tutorial .tutorial-content {
-    display: flex;
-    flex-direction: column;
-    gap: 2em;
-  }
-  
-  
-  .cross {
-    width: 40px;
-    height: 40px;
-    color: black;
-    background-color: #838282;
-    ;
-    border-radius: 50%;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    font-size: 25px;
-    /* font-weight: bold; */
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-    border: 4px solid #000000;
-    /* animation: popIn 0.3s ease-out; */
-  }
-  
-  .cross::after {
-    content: "Your implementation is either incomplete or failing some tests!";
-    position: absolute;
-    bottom: 120%;
-    right: 0;
-    background: #fffdf4;
-    color: #333;
-    padding: 6px 10px;
-    font-size: 12px;
-    border-radius: 2.5px;
-    white-space: nowrap;
-    opacity: 0;
-    pointer-events: none;
-    transition: opacity 0.2s ease;
-  }
-  
-  /* Reduce spacing between title and description */
-  #main.Tutorial .tutorial-header {
-    margin-bottom: 5em !important;
-    padding-bottom: 5em !important;
-    max-width: 100%;
-    margin-bottom: 0.2em !important;
-    gap: 2em;
-  }
-  
-  .cross:hover::after {
-    opacity: 1;
-    /* Show on hover */
-  }
-  
-  .cross {
-    position: relative;
-  }
-  
- 
-  
-  .hint-with-icon {
-    display: flex;
-    align-items: center;
-    gap: 0.4em;
-    /* space between text and icon */
-    font-size: 0.9em;
-    color: #333;
-    align-content: right;
-    /* margin-top: 0.5em; */
-  }
-  
-  .highlight-icon svg {
-    fill: var(--ci-icon-bkg) !important;
-  }
-  
-  .hint-content code {
-    font-size: 0.75em;
-    /* Smaller font for code blocks */
-    font-family: monospace;
-    background-color: #f5f5f5;
-    padding: 1px 1px;
-    /* border-radius: 3px; */
-    line-height: 0;
-  }
+#main.Tutorial .title-cell {
+  display: flex;
+  align-items: flex-start;
+  justify-content: flex-start;
+  width: 100%;
+  padding: 0 !important;
+  margin: 0 !important;
+}
 
-  .prev-button {
-    transform: scaleX(-1);
-    font-size: 45px;
-    color: var(--BR4);
-    cursor: pointer;
-    z-index: 1000;
-  }
-  
+#main.Tutorial .title-cell {
+  margin-bottom: 10px !important;
+  padding-bottom: 0 !important;
+}
 
-  .next-button {
-    font-size: 45px;
-    color: var(--BR4);
-    cursor: pointer;
-    z-index: 1000;
-  }
+#main.Tutorial .description {
+  margin-top: 0 !important;
+  margin-bottom: 2em !important;
+  padding: 0 !important;
+}
 
-  .next-button:hover {
-    transform: translateX(6px) scale(1.1); 
-    color:  #d39e00; 
-    transition: transform 0.2s ease, color 0.2s ease;
-  } 
-  
+#main.Tutorial .tutorial-content {
+  display: flex;
+  flex-direction: column;
+  gap: 2em;
+}
 
-  .prev-button:hover {
-    transform: scaleX(-1) translateX(6px) scale(1.1); 
-    color:  #d39e00; 
-    transition: transform 0.2s ease, color 0.2s ease;
-  }
+#main.Tutorial .cross {
+  width: 40px;
+  height: 40px;
+  color: black;
+  background-color: #838282;
+  border-radius: 50%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  font-size: 25px;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+  border: 4px solid #000000;
+}
 
-  .prompt-content > * {
-    margin-top: 0.3em;
-    margin-bottom: 0.3em;
-  }
+#main.Tutorial .cross::after {
+  content: "Your implementation is either incomplete or failing some tests!";
+  position: absolute;
+  bottom: 120%;
+  right: 0;
+  background: #fffdf4;
+  color: #333;
+  padding: 6px 10px;
+  font-size: 12px;
+  border-radius: 2.5px;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
 
-  .prompt-content {
-    margin-bottom: 1.5em; 
-  }
+#main.Tutorial .cross:hover::after {
+  opacity: 1;
+}
 
-  #main.Tutorial .prev-button {
-    margin-top: 0;
-  }
+#main.Tutorial .cross {
+  position: relative;
+}
 
+#main.Tutorial .hint-with-icon {
+  display: flex;
+  align-items: center;
+  gap: 0.4em;
+  font-size: 0.9em;
+  color: #333;
+  align-content: right;
+}
 
-  .done-message {
-    font-size: 1.2rem;
-    font-weight: bold;
-    color: var(--BR4); 
-    text-align: right;
-    margin-top: 1em;
-    /* margin-right: 1em; */
-    margin-bottom: 1em;
-    /* animation: dance 0.8s infinite ease-in-out; */
-  }
+#main.Tutorial .highlight-icon svg {
+  fill: var(--ci-icon-bkg) !important;
+}
 
-  .nav-buttons-row {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    width: 100%;
-    margin-top: 1em;
+#main.Tutorial .hint-content code {
+  font-size: 0.75em;
+  font-family: monospace;
+  background-color: #f5f5f5;
+  padding: 1px 1px;
+  line-height: 0;
+}
+
+#main.Tutorial .prev-button {
+  transform: scaleX(-1);
+  font-size: 30px;
+  color: var(--BR2);
+  cursor: pointer;
+  z-index: 1000;
+}
+
+#main.Tutorial .next-button {
+  font-size: 30px;
+  color: var(--BR2);
+  cursor: pointer;
+  z-index: 1000;
+}
+
+#main.Tutorial .next-button:hover {
+  transform: scale(1.2);
+  color: #ffc107;
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+#main.Tutorial .prev-button:hover {
+  transform: scaleX(-1) scale(1.2);
+  color: #ffc107;
+  transition: transform 0.2s ease, color 0.2s ease;
+}
+
+#main.Tutorial .prev-button {
+  margin-top: 0;
+}
+
+#main.Tutorial .done-message {
+  font-size: 1.2rem;
+  font-weight: bold;
+  color: var(--BR4);
+  text-align: right;
+  margin-top: 1em;
+  margin-bottom: 1em;
+}
+
+#main.Tutorial .nav-buttons-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+  padding-bottom: 1.2em;
+}
+
+#main.Tutorial .right-nav-cluster {
+  display: flex;
+  align-items: center;
+  gap: 1em;
+}
+
+#main.Tutorial .pending-tutorial {
+  display: inline-block; /* allow transform */
+  animation: spin 1s linear infinite;
+  will-change: transform; /* smoother on many GPUs */
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
   }
-  
-  .right-nav-cluster {
-    display: flex;
-    align-items: center;
-    gap: 1em; 
-  }
-  
-  
+}

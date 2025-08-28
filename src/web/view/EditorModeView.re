@@ -17,7 +17,12 @@ type event =
   | Delete;
 
 let view =
-    (~edit_buttons: bool, ~signal: event => 'a, ~indicator: list(Node.t)) => {
+    (
+      ~nav_buttons: bool,
+      ~edit_buttons: bool,
+      ~signal: event => 'a,
+      ~indicator: list(Node.t),
+    ) => {
   let edit_buttons_list = [
     button(~tooltip="Rename Current Slide", Icons.rename, _ =>
       signal(Rename)
@@ -29,9 +34,9 @@ let view =
   [
     div(
       ~attrs=[Attr.id("slide-navigation")],
-      [button(Icons.back, _ => signal(Previous))]
+      (nav_buttons ? [button(Icons.back, _ => signal(Previous))] : [])
       @ indicator
-      @ [button(Icons.forward, _ => signal(Next))]
+      @ (nav_buttons ? [button(Icons.forward, _ => signal(Next))] : [])
       @ (
         edit_buttons
           ? [div(~attrs=[Attr.id("edit-buttons")], edit_buttons_list)] : []

@@ -52,7 +52,7 @@ module Model = {
     let test_results =
       Tutorial.map_stitched(
         (_, cell_editor: CellEditor.Model.t) =>
-          cell_editor.result |> EvalResult.Model.make_test_report,
+          cell_editor.result |> EvalResult.Model.test_results,
         exercise.cells,
       );
 
@@ -66,7 +66,7 @@ module Model = {
     let test_results =
       Tutorial.map_stitched(
         (_, cell_editor: CellEditor.Model.t) =>
-          cell_editor.result |> EvalResult.Model.make_test_report,
+          cell_editor.result |> EvalResult.Model.test_results,
         exercise.cells,
       );
 
@@ -356,12 +356,15 @@ module Selection = {
       (~settings: Settings.t, tile, model: Model.t): option((Update.t, t)) => {
     Tutorial.positioned_editors(model.editors)
     |> List.find_opt(((p, e: Editor.t)) =>
-         TileMap.find_opt(tile, e.syntax.tiles) != None
+         TermData.root_tile_opt(tile, e.syntax.term_data) != None
          && Tutorial.visible_in(p, ~instructor_mode=settings.instructor_mode)
        )
     |> Option.map(((pos, _)) =>
          (
-           Update.Editor(pos, MainEditor(Perform(Jump(TileId(tile))))),
+           Update.Editor(
+             pos,
+             MainEditor(Perform(Move(Goal(TileId(tile))))),
+           ),
            Cell(pos, CellEditor.Selection.MainEditor),
          )
        );
@@ -395,13 +398,13 @@ module View = {
         model: Model.t,
       ) => {
     let eds = model.editors;
-    let has_checkmark = Model.all_tests_passed(model);
+    //let has_checkmark = Model.all_tests_passed(model);
     let {user_impl, hidden_tests}: Tutorial.stitched('a) = model.cells;
 
     let stitched_tests =
       Tutorial.map_stitched(
         (_, cell_editor: CellEditor.Model.t) =>
-          cell_editor.result |> EvalResult.Model.make_test_report,
+          cell_editor.result |> EvalResult.Model.test_results,
         model.cells,
       );
     let test_count =
@@ -416,7 +419,7 @@ module View = {
         (
           ~caption: string,
           ~subcaption: option(string)=?,
-          ~result_kind=EvalResult.View.NoResults,
+          ~result_kind=`NoResults,
           this_pos: Tutorial.pos,
           cell: CellEditor.Model.t,
         ) => {
@@ -450,7 +453,10 @@ module View = {
           ~inject=inject_explainthis,
           prompt_placeholder,
         );
-      div(~attrs=[Attr.class_("prompt-content")], msg);
+      div(
+        ~attrs=[Attr.class_("cell-prompt")],
+        [div(~attrs=[Attr.class_("prompt-content")], msg)],
+      );
     };
 
     let prev_button_view =
@@ -472,7 +478,7 @@ module View = {
               YourImpl,
               user_impl,
               ~caption="Your Implementation",
-              ~result_kind=EvalResults,
+              ~result_kind=`EvalResults,
             ),
           ],
         ),
@@ -486,29 +492,17 @@ module View = {
     let hint_view = {
       let hint_placeholder =
         eds.display_hint == "" ? "No hints available." : eds.display_hint;
-
-      //   let wrappedInject = u => inject(ExplainThisUpdate(u));
       let (msg, _) =
         ExplainThis.mk_translation(
           ~globals,
           ~inject=_ => (),
           hint_placeholder,
         );
-      //   let (msg, _) = ExplainThis.mk_translation(~globals, hint_placeholder);
-
       div(
         ~attrs=[Attr.class_("hint-cell")],
         [
           div(~attrs=[Attr.class_("hint-title")], [text("💡 Hint")]),
           div(~attrs=[Attr.class_("hint-content")], msg),
-          // div(
-          //   ~attrs=[Attr.class_("hint-with-icon")],
-          //   [
-          //     text("Pro tip: Click the "),
-          //     span(~attrs=[Attr.class_("highlight-icon")], [Icons.info]),
-          //     text(" button below for more details."),
-          //   ],
-          // ),
         ],
       );
     };
@@ -533,15 +527,19 @@ module View = {
         : div(~attrs=[Attr.class_("done-message")], [text("Done! 🎉")]);
 
     let impl_grading_view =
-      // Always(
       if (test_count > 0) {
         let checkmark_view =
           switch (Tutorial.get_stitched(HiddenTests, stitched_tests)) {
           | Some(test_results) =>
             let inner_result = hidden_tests.result.result;
-            switch (inner_result) {
-            | Evaluation({result: OldValue(ResultPending), _}) => div([])
-            | Evaluation({result: OldValue(ResultFail(Timeout)), _}) =>
+            let result = inner_result |> Util.Calc.get_value;
+            switch (result) {
+            | ResultPending =>
+              div(
+                ~attrs=[Attr.classes(["checkmark-grey", "pending"])],
+                [text("🤔")],
+              )
+            | ResultFail(Timeout) =>
               div(
                 ~attrs=[Attr.class_("checkmark-container")],
                 [
@@ -556,28 +554,22 @@ module View = {
                   ),
                 ],
               )
-
-            | Evaluation({result: OldValue(ResultOk(_)), _}) =>
+            | ResultOk(_) =>
               if (test_results.total == test_results.passing) {
                 div(
                   ~attrs=[Attr.class_("checkmark-container")],
                   [
-                    div(
-                      ~attrs=[Attr.class_("checkmark")],
-                      [text("✔️")],
-                    ),
+                    div(~attrs=[Attr.class_("checkmark")], [text("🤩")]),
                   ],
                 );
               } else {
                 div(
                   ~attrs=[Attr.class_("checkmark-grey")],
-                  [text("✔️")],
+                  [text("🤔")],
                 );
               }
-
             | _ => div([])
             };
-
           | None => div([]) // No test results available yet
           };
 
@@ -589,7 +581,7 @@ module View = {
               inject(
                 Editor(
                   HiddenTests,
-                  MainEditor(Perform(Jump(TileId(id)))),
+                  MainEditor(Perform(Move(Goal(TileId(id))))),
                 ),
               ),
           ~report=grading_report.impl_grading_report,
@@ -600,63 +592,45 @@ module View = {
           [] // Ensure nothing appears if test_count is 0
         );
       };
-    // );
-    let tutorial_header =
-      div(
-        ~attrs=[Attr.class_("tutorial-header")],
-        [title_view, prompt_view]
-        @ (eds.display_hint == "" ? [] : [hint_view])
-        @ render_cells(
-            globals.settings,
-            [
-              your_impl_view,
-              hidden_tests_view,
-              Always(
+    [title_view, prompt_view]
+    @ (eds.display_hint == "" ? [] : [hint_view])
+    @ render_cells(
+        globals.settings,
+        [
+          your_impl_view,
+          hidden_tests_view,
+          Always(
+            div(
+              ~attrs=[],
+              [
                 div(
-                  ~attrs=[],
+                  ~attrs=[Attr.class_("nav-buttons-row")],
                   [
+                    prev_button_view,
                     div(
-                      ~attrs=[Attr.class_("nav-buttons-row")],
-                      [
-                        prev_button_view,
-                        div(
-                          ~attrs=[Attr.class_("right-nav-cluster")],
-                          [
-                            impl_grading_view,
-                            report_icon_view,
-                            next_button_view,
-                          ],
-                        ),
-                      ],
+                      ~attrs=[Attr.class_("right-nav-cluster")],
+                      [impl_grading_view, report_icon_view, next_button_view],
                     ),
-                    eds.show_report
-                      ? TutorialGrading.ImplGradingReport.view(
-                          ~signal_jump=
-                            id =>
-                              inject(
-                                Editor(
-                                  HiddenTests,
-                                  MainEditor(Perform(Jump(TileId(id)))),
-                                ),
-                              ),
-                          ~report=grading_report.impl_grading_report,
-                          ~max_points=1,
-                        )
-                      : div([]),
                   ],
                 ),
-              ),
-            ],
+                eds.show_report
+                  ? TutorialGrading.ImplGradingReport.view(
+                      ~signal_jump=
+                        id =>
+                          inject(
+                            Editor(
+                              HiddenTests,
+                              MainEditor(Perform(Move(Goal(TileId(id))))),
+                            ),
+                          ),
+                      ~report=grading_report.impl_grading_report,
+                      ~max_points=1,
+                    )
+                  : div([]),
+              ],
+            ),
           ),
-      );
-    [
-      div(
-        ~attrs=[
-          Attr.id("main"),
-          Attr.class_(has_checkmark ? "Tutorial has-checkmark" : "Tutorial"),
         ],
-        [tutorial_header],
-      ),
-    ];
+      );
   };
 };

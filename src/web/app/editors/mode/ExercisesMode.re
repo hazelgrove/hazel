@@ -483,6 +483,7 @@ module View = {
     )
     @ EditorModeView.view(
         ~edit_buttons=false,
+        ~nav_buttons=true,
         ~signal=
           fun
           | Previous =>

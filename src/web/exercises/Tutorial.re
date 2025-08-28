@@ -302,6 +302,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | FixF(_)
   | Tuple(_)
   | TupLabel(_)
+  | TupleExtension(_)
   | Label(_)
   | Dot(_)
   | Var(_)
@@ -373,7 +374,7 @@ let stitch3 = (ed1: Editor.t, ed2: Editor.t, ed3: Editor.t) =>
   append_exp(append_exp(term_of(ed1), term_of(ed2)), term_of(ed3));
 
 let stitch_term = (eds: p('a)): stitched(TermItem.t) => {
-  Printf.printf("Wrapper: %b\n", eds.wrapper);
+  ();
 
   let user_impl_term = {
     eds.your_impl |> term_of;

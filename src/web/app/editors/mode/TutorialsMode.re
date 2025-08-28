@@ -1,6 +1,4 @@
 open Util;
-// open Virtual_dom.Vdom;
-// open Node;
 /* This file handles the pagenation of Tutorial Mode, and switching between
    exercises. TutorialMode.re handles the actual exercise. */
 /* This file follows conventions in [docs/ui-architecture.md] */
@@ -92,22 +90,16 @@ module Store = {
           spec
           |> TutorialMode.Model.of_spec(~settings, ~instructor_mode)
           |> TutorialMode.Model.persist(~instructor_mode);
-        // let key = spec.id;
         let key = Store.Tutorial(key);
       });
     S.load();
   };
   let save = (model: Model.t, ~instructor_mode) => {
     let exercise = List.nth(model.exercises, model.current);
-    // let key = Tutorial.id_of(exercise.editors);
-    // let key = spec.id;
     save_exercise(exercise, ~instructor_mode);
     let key =
       List.nth(TutorialSettings.lessons, model.current) |> Tutorial.id_of;
     StoreTutorialKey.save(key);
-    print_endline(
-      "Saving current tutorial key: " ++ Haz3lcore.Id.to_string(key),
-    );
   };
   [@deriving (show({with_path: false}), sexp, yojson)]
   type exercise_export = Model.persistent;
@@ -403,12 +395,6 @@ module View = {
         },
         ~tooltip="Import Submission",
       );
-    // let export_persistent_data =
-    //   button_named(
-    //     Icons.export,
-    //     _ => globals.inject_global(ExportPersistentData),
-    //     ~tooltip="Export All Persistent Data",
-    //   );
     let reset_hazel =
       button_named(
         Icons.bomb,
@@ -448,7 +434,6 @@ module View = {
         ~inject,
         "Developer Export",
         [
-          // export_persistent_data,
           instructor_export,
           instructor_transitionary_export,
           instructor_grading_export,
@@ -486,6 +471,7 @@ module View = {
     )
     @ EditorModeView.view(
         ~edit_buttons=false,
+        ~nav_buttons=true,
         ~signal=
           fun
           | Previous =>
