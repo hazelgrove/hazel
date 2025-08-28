@@ -72,7 +72,8 @@ module TupleExtension = {
     ),
   ];
 };
-let tests =
+let tests = (
+  "Statics.Tuples",
   [
     test_case(
       "Typechecking fails for unlabeled variable being assigned to labeled tuple",
@@ -846,4 +847,5 @@ let tests =
       Some(list(unknown(Internal))),
     ),
   ]
-  @ TupleExtension.tests;
+  @ TupleExtension.tests,
+);

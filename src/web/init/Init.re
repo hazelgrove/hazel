@@ -1,18 +1,14 @@
 open Haz3lcore;
+open Util;
+
+let empty_cell_editor_persistent: unit => CellEditor.Model.persistent =
+  () => {
+    editor: Zipper.init() |> PersistentZipper.persist,
+    result: EvalResult.Model.init |> EvalResult.Model.persist,
+  };
 
 let startup: PersistentData.t = {
-  scratch: (
-    0,
-    [
-      (
-        "Scratchpad 1",
-        {
-          editor: Zipper.init() |> PersistentZipper.persist,
-          result: EvalResult.Model.init |> EvalResult.Model.persist,
-        },
-      ),
-    ],
-  ),
+  scratch: (0, [("Scratchpad 1", empty_cell_editor_persistent())]),
   documentation: (
     0,
     [
@@ -47,4 +43,19 @@ let startup: PersistentData.t = {
          )
        ),
   ),
+};
+
+let find_documentation_slide = (name: string) => {
+  startup.documentation
+  |> snd
+  |> List.find_opt(((n, _)) => n == name)
+  |> Option.map(snd);
+};
+
+let default_documentation_slide_name =
+    (name: string): CellEditor.Model.persistent => {
+  OptUtil.get(
+    () => empty_cell_editor_persistent(),
+    find_documentation_slide(name),
+  );
 };
