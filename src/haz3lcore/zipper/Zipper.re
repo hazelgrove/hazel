@@ -302,14 +302,14 @@ let can_put_down = z =>
 
 let put_down_regrout_target = (d: Direction.t, target: Tile.t, z: t): t => {
   let z = put_down_core([Tile(target)], z);
-  let z = z |> regrout(Left) |> remold;
+  let z = z |> remold |> regrout(Left);
   adj_pos(d, z);
 };
 
 let backpack_hd = (z: t): option(Tile.t) =>
   z |> local_backpack |> ListUtil.hd_opt;
 
-let put_down_regrout_remold = (d: Direction.t, z: t): option(t) => {
+let put_down_remold_regrout = (d: Direction.t, z: t): option(t) => {
   let+ target = backpack_hd(z);
   put_down_regrout_target(d, target, z);
 };
@@ -356,7 +356,7 @@ let put_down_glom = (z: t): option(t) =>
   | Outer =>
     switch (glom_prev(z)) {
     | Some(z) => Some(z)
-    | None => put_down_regrout_remold(Left, z)
+    | None => put_down_remold_regrout(Left, z)
     }
   };
 
@@ -618,7 +618,7 @@ let try_to_dump_backpack = (z: t) =>
   if (!Selection.is_empty(z.selection)) {
     z;
   } else {
-    let zipper = {
+    let z = {
       ...z,
       caret: Outer,
     };
@@ -646,20 +646,9 @@ let try_to_dump_backpack = (z: t) =>
         z;
       };
     let rec put_down_as_much_as_possible = (z: t): t => {
-      switch (put_down_regrout_remold(Left, z)) {
+      switch (put_down_remold_regrout(Left, z)) {
       | None => z
       | Some(z) => put_down_as_much_as_possible(z)
-      };
-    };
-    let rec move_left_until_incomplete_tile = (z: t): t => {
-      switch (Siblings.neighbor(Left, z.relatives.siblings)) {
-      | Some(Tile(t)) when !Tile.is_complete(t) => z
-      | Some(_)
-      | None =>
-        switch (move(Left, z)) {
-        | None => z
-        | Some(z) => move_left_until_incomplete_tile(z)
-        }
       };
     };
     let rec go = (z: t): t => {
@@ -672,7 +661,6 @@ let try_to_dump_backpack = (z: t) =>
         go(z);
       };
     };
-    let z = move_left_until_incomplete_tile(zipper);
     go(z);
   };
 
