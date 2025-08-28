@@ -425,6 +425,7 @@ module View = {
         ~globals,
         ~signal: event => 'a,
         ~inject: Update.t => 'a,
+        ~schedule_global: Update.t => unit,
         ~selected: option(Selection.t),
         model: Model.t,
       ) => {
@@ -441,6 +442,7 @@ module View = {
           fun
           | MakeActive(selection) => signal(MakeActive(Cell(selection))),
         ~inject=a => inject(CellAction(a)),
+        ~schedule_global=a => schedule_global(CellAction(a)),
         ~selected=
           switch (selected) {
           | Some(Selection.Cell(s)) => Some(s)

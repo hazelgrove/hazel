@@ -633,6 +633,7 @@ module M: Projector = {
         info,
         ~local,
         ~parent: external_action => Ui_effect.t(unit),
+        ~parent_global as _,
         ~view_seg as _,
       )
       : View.t => {

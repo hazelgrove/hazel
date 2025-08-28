@@ -84,6 +84,7 @@ module M: Projector = {
         info,
         ~local as _,
         ~parent: ProjectorBase.external_action => Ui_effect.t(unit),
+        ~parent_global as _,
         ~view_seg as _,
       ) => {
     let ctx =

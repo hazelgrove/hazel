@@ -74,6 +74,7 @@ module Update = {
          );
     switch (action) {
     | Perform(action) =>
+      print_endline("CodeEditable.update: action= " ++ Action.show(action));
       settings.core.flip_animations && Action.should_animate(action)
         ? Animation.request([Animation.Actions.move("caret")]) : ();
       perform(action, model);
@@ -177,6 +178,7 @@ module View = {
         ~inject: Update.t => Ui_effect.t(unit),
         ~selected: bool,
         ~overlays: list(Node.t)=[],
+        ~schedule_global: Update.t => unit,
         ~sort=?,
         model: Model.t,
       ) => {
@@ -191,7 +193,11 @@ module View = {
     };
     let projectors =
       ProjectorView.all(
-        x => inject(Perform(x)),
+        x => {
+          print_endline("CodeEditable.view: x= " ++ Action.show(x));
+          inject(Perform(x));
+        },
+        ~schedule_global=a => schedule_global(Perform(a)),
         signal(MakeActive),
         globals.font_metrics,
         ProjectorView.Model.mk(

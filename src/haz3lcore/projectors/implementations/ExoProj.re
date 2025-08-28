@@ -72,10 +72,11 @@ module M: Projector = {
         info,
         ~local,
         ~parent: external_action => Ui_effect.t(unit),
+        ~parent_global: external_action => unit,
         ~view_seg as _,
       ) => {
     /* Register this projector with the external bridge */
-    ExternalProjectorBridge.register_projector(info.id, parent);
+    ExternalProjectorBridge.register_projector(info.id, parent_global, info);
 
     let current_value = get_value(info);
     let (min_val, max_val, step_val) = get_range(info);
@@ -88,7 +89,7 @@ module M: Projector = {
         max_val,
         step_val,
         current_value,
-        Id.cls(info.id),
+        Id.to_string(info.id),
         "http://localhost:8000" /* Hazel dev server origin */
       );
 

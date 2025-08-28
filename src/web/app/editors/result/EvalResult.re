@@ -317,6 +317,7 @@ module View = {
             fun
             | MakeActive => signal(MakeActive(Evaluation())),
           ~inject=a => inject(EvalEditorAction(a)),
+          ~schedule_global=_ => (), //TODO(andrew)
           ~globals,
           ~selected,
           ~sort=Sort.root,

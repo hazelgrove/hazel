@@ -123,6 +123,9 @@ let go =
     | None => Error(Cant_project)
     }
   | SetSyntax(id, seg) =>
+    print_endline(
+      "ProjectorPerform.go: SetSyntax. id: " ++ Id.to_string(id),
+    );
     Ok(
       update(
         p =>
@@ -133,7 +136,7 @@ let go =
         id,
         z,
       ),
-    )
+    );
   | SetModel(id, model) =>
     Ok(
       update(

@@ -282,6 +282,7 @@ module View = {
         ~selection: option(Selection.t),
         ~signal,
         ~inject,
+        ~schedule_global,
         ~inject_explainthis: ExplainThisUpdate.update => 'b,
         editors: Model.t,
       ) =>
@@ -292,6 +293,7 @@ module View = {
           fun
           | MakeActive(s) => signal(MakeActive(Scratch(s))),
         ~globals,
+        ~schedule_global=a => Update.Scratch(a) |> schedule_global,
         ~selected=
           switch (selection) {
           | Some(Scratch(s)) => Some(s)
@@ -306,6 +308,7 @@ module View = {
           fun
           | MakeActive(s) => signal(MakeActive(Scratch(s))),
         ~globals,
+        ~schedule_global=a => Update.Scratch(a) |> schedule_global,
         ~selected=
           switch (selection) {
           | Some(Scratch(s)) => Some(s)
