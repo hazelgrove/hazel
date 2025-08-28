@@ -1,0 +1,24 @@
+#root {
+  margin: 0;
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+.app {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
+    sans-serif;
+}
+
+/* Responsive design */
+@media (max-width: 640px) {
+  #root {
+    padding: 8px;
+  }
+}
