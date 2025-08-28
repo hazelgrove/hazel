@@ -723,57 +723,72 @@ let fixed_typ_ok: ok_pat => Typ.t =
   | Ana(Consistent({join, _})) => join
   | Ana(InternallyInconsistent({ana, _})) => ana;
 
-let fixed_typ_err_common: error_common => Typ.t =
-  fun
-  | NoType(FreeConstructor(c)) =>
-    Sum([
-      ConstructorMap.Variant(c, [Id.invalid], None),
-      ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
-    ])
-    |> Typ.temp
-  | NoType(BadToken(_))
-  | NoType(BadLabel(_))
-  | NoType(InvalidLabel(_))
-  | NoType(UnexpectedLabelSort(_)) => Unknown(Internal) |> Typ.temp
-  | TupleLabelError({typ, _})
-  | DuplicateLabel(_, typ) => typ
-  | Inconsistent(Expectation({ana, _})) => ana
-  | Inconsistent(Internal(_)) => Unknown(Internal) |> Typ.temp // Should this be some sort of meet?
-  | Inconsistent(CompareFun(_)) => Atom(Bool) |> Typ.temp
-  | Inconsistent(WithArrow(_)) =>
-    Arrow(Unknown(Internal) |> Typ.temp, Unknown(Internal) |> Typ.temp)
-    |> Typ.temp;
+let fixed_typ_err_common: (error_common, Typ.t) => Typ.t =
+  (err, ana) =>
+    switch (err) {
+    | NoType(FreeConstructor(c)) =>
+      if (Typ.is_syn_plus(ana)) {
+        Sum([
+          ConstructorMap.Variant(c, [Id.invalid], None),
+          ConstructorMap.BadEntry(Unknown(Internal) |> Typ.temp),
+        ])
+        |> Typ.temp;
+      } else {
+        ana;
+      }
+    | NoType(BadToken(_))
+    | NoType(BadLabel(_))
+    | NoType(InvalidLabel(_))
+    | NoType(UnexpectedLabelSort(_)) => Unknown(Internal) |> Typ.temp
+    | TupleLabelError({typ, _})
+    | DuplicateLabel(_, typ) => typ
+    | Inconsistent(Expectation({ana, _})) => ana
+    | Inconsistent(Internal(_)) => Unknown(Internal) |> Typ.temp // Should this be some sort of meet?
+    | Inconsistent(CompareFun(_)) => Atom(Bool) |> Typ.temp
+    | Inconsistent(WithArrow(_)) =>
+      Arrow(Unknown(Internal) |> Typ.temp, Unknown(Internal) |> Typ.temp)
+      |> Typ.temp
+    };
 
-let fixed_typ_err: error_exp => Typ.t =
-  fun
-  | UnboundLivelit(_)
-  | FreeVariable(_)
-  | UnusedDeferral
-  | BadPartialAp(_)
-  | InexhaustiveMatch(_)
-  | DotOperatorRequiresTuple
-  | BadOperator(_)
-  | LabelNotFound(_, _)
-  | TupleExtensionRequiresTuples
-  | BuiltinError(
-      ProjectLabelsMissingLabels(_) | MissingLabels(_) |
-      PivotLabelIsNotString(_),
-    )
-  | BuiltinError(
-      ArgumentMustBeTuple | ArgumentMustBeListOfTuples | AtLeast2Arguments |
-      Exactly2Arguments,
-    )
-  | BadTrivAp(_) => Unknown(Internal) |> Typ.temp
-  | BuiltinError(ToLvsMissingLabelsOnTuple(ty)) => ty
-  | Common(err) => fixed_typ_err_common(err)
-  | InvalidUseMode({inner_typ, _}) => inner_typ
-  | BadLivelitModel(ana) => ana;
+let fixed_typ_err: (error_exp, Typ.t) => Typ.t =
+  (err, ana) =>
+    switch (err) {
+    | UnboundLivelit(_)
+    | FreeVariable(_)
+    | UnusedDeferral
+    | BadPartialAp(_)
+    | InexhaustiveMatch(_)
+    | DotOperatorRequiresTuple
+    | BadOperator(_)
+    | LabelNotFound(_, _)
+    | TupleExtensionRequiresTuples
+    | BuiltinError(
+        ProjectLabelsMissingLabels(_) | MissingLabels(_) |
+        PivotLabelIsNotString(_),
+      )
+    | BuiltinError(
+        ArgumentMustBeTuple | ArgumentMustBeListOfTuples | AtLeast2Arguments |
+        Exactly2Arguments,
+      )
+    | BadTrivAp(_) =>
+      if (Typ.is_syn_plus(ana)) {
+        Unknown(Internal) |> Typ.temp;
+      } else {
+        ana;
+      }
+    | BuiltinError(ToLvsMissingLabelsOnTuple(ty)) => ty
+    | Common(err) => fixed_typ_err_common(err, ana)
+    | InvalidUseMode({inner_typ, _}) => inner_typ
+    | BadLivelitModel(ana) => ana
+    };
 
-let fixed_typ_err_pat: error_pat => Typ.t =
-  fun
-  | ExpectedConstructor
-  | Redundant(_) => Unknown(Internal) |> Typ.temp
-  | Common(err) => fixed_typ_err_common(err);
+let fixed_typ_err_pat: (error_pat, Typ.t) => Typ.t =
+  (err, ana) =>
+    switch (err) {
+    | ExpectedConstructor
+    | Redundant(_) => Unknown(Internal) |> Typ.temp
+    | Common(err) => fixed_typ_err_common(err, ana)
+    };
 
 let fixed_typ_pat = (ctx, ty_ana: Typ.t, self: Self.pat): Typ.t => {
   // TODO: get rid of unwrapping (probably by changing the implementation of error_exp.Redundant)
@@ -783,14 +798,14 @@ let fixed_typ_pat = (ctx, ty_ana: Typ.t, self: Self.pat): Typ.t => {
     | _ => self
     };
   switch (status_pat(ctx, ty_ana, self)) {
-  | InHole(err) => fixed_typ_err_pat(err)
+  | InHole(err) => fixed_typ_err_pat(err, ty_ana)
   | NotInHole(ok) => fixed_typ_ok(ok)
   };
 };
 
 let fixed_typ_exp = (ctx, ty_ana: Typ.t, self: Self.exp): Typ.t =>
   switch (status_exp(ctx, ty_ana, self)) {
-  | InHole(err) => fixed_typ_err(err)
+  | InHole(err) => fixed_typ_err(err, ty_ana)
   | NotInHole(AnaDeferralConsistent(ana)) => ana
   | NotInHole(Common(ok)) => fixed_typ_ok(ok)
   };
