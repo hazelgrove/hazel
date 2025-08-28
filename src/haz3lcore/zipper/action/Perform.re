@@ -49,9 +49,7 @@ let go =
     )
     |> return(CantReparse)
   | Buffer(a) => Buffer.go(~ci=Indicated.ci_of(z, statics.info_map), a, z)
-  | Project(a) =>
-    print_endline("ProjectorPerform.go: Project action called");
-    ProjectorPerform.go(syntax.term_data, a, z);
+  | Project(a) => ProjectorPerform.go(syntax.term_data, a, z)
   | Move(d) =>
     Move.go(
       ~ci=Indicated.ci_of(z, statics.info_map),

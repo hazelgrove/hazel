@@ -74,7 +74,6 @@ module Update = {
          );
     switch (action) {
     | Perform(action) =>
-      print_endline("CodeEditable.update: action= " ++ Action.show(action));
       settings.core.flip_animations && Action.should_animate(action)
         ? Animation.request([Animation.Actions.move("caret")]) : ();
       perform(action, model);

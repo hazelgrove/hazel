@@ -42,20 +42,14 @@ export function useHazelIntegration(config: HazelIntegrationConfig) {
 
   // Send message to parent (Hazel)
   const sendToHazel = useCallback((message: ToHazelMessage) => {
-    console.log('📤 [DEBUG] sendToHazel called with message:', message, 'targetOrigin:', targetOrigin);
     if (window.parent && window.parent !== window) {
-      console.log('📤 [DEBUG] Sending postMessage to parent window');
       window.parent.postMessage(message, targetOrigin);
-      console.log('📤 [DEBUG] postMessage sent successfully');
-    } else {
-      console.log('❌ [DEBUG] No parent window or parent === window');
     }
   }, [targetOrigin]);
 
   // Send setSyntax message with current value (throttled to reduce message rate)
   const setSyntax = useCallback(
     throttle((value: any) => {
-      console.log('🎵 [DEBUG] setSyntax called with value:', value, 'id:', id, 'codec:', codec);
       sendToHazel({ type: 'setSyntax', id, codec, value });
     }, 50),
     [sendToHazel, id, codec]

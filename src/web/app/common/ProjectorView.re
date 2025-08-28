@@ -157,11 +157,7 @@ let handle = (id, action: external_action): Action.project =>
   switch (action) {
   | Remove => RemoveIndicated
   | Escape(d) => Escape(id, d)
-  | SetSyntax(f) =>
-    print_endline(
-      "ProjectorView.handle: SetSyntax. id: " ++ Id.to_string(id),
-    );
-    SetSyntax(id, f);
+  | SetSyntax(f) => SetSyntax(id, f)
   };
 
 let offside_wrapper =
@@ -216,21 +212,9 @@ let mk_view =
     : View.t => {
   let (module P) = ProjectorInit.to_module(p.kind);
   let parent = a => {
-    print_endline("ProjectorView.mk_view: parent SetSyntax callback called");
-    print_endline("ProjectorView.mk_view: id= " ++ Id.to_string(p.id));
-    print_endline(
-      "ProjectorView.mk_view: action= "
-      ++ ProjectorBase.show_external_action(a),
-    );
     inject(Project(handle(p.id, a)));
   };
   let parent_global = a => {
-    print_endline("ProjectorView.mk_view: parent SetSyntax callback called");
-    print_endline("ProjectorView.mk_view: id= " ++ Id.to_string(p.id));
-    print_endline(
-      "ProjectorView.mk_view: action= "
-      ++ ProjectorBase.show_external_action(a),
-    );
     schedule_global(Project(handle(p.id, a)));
   };
   let local = a =>
