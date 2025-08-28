@@ -74,6 +74,9 @@ module M: Projector = {
         ~parent: external_action => Ui_effect.t(unit),
         ~view_seg as _,
       ) => {
+    /* Register this projector with the external bridge */
+    ExternalProjectorBridge.register_projector(info.id, parent);
+
     let current_value = get_value(info);
     let (min_val, max_val, step_val) = get_range(info);
 
