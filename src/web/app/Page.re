@@ -104,6 +104,14 @@ module Update = {
       ) => {
     switch (action) {
     | SetFontMetrics(fm) =>
+      print_endline(
+        "SetFontMetrics: "
+        ++ string_of_float(fm.row_height)
+        ++ " "
+        ++ string_of_float(fm.col_width)
+        ++ " "
+        ++ string_of_float(fm.row_height *. fm.col_width),
+      );
       {
         ...model,
         globals: {
@@ -111,7 +119,7 @@ module Update = {
           font_metrics: fm,
         },
       }
-      |> Updated.return_quiet(~scroll_active=true)
+      |> Updated.return_quiet(~scroll_active=true);
     | Set(action) =>
       let* settings =
         Settings.Update.update(~action, ~settings=model.globals.settings);

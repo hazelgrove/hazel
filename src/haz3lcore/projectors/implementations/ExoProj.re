@@ -31,7 +31,7 @@ module M: Projector = {
       Some({
         exo_kind: ProjectorCore.Kind.Slider,
         width: 400,
-        height: 80,
+        height: 160,
       })
     | None => None
     };
@@ -51,11 +51,25 @@ module M: Projector = {
   let focusable = Focusable.non;
   let dynamics = false;
 
-  let placeholder = (model, _info) =>
-    ProjectorCore.Shape.{
-      horizontal: model.width / 10, /* Convert pixels to char units approximation */
-      vertical: Block(model.height / 10) // TODO: update with actual height
+  let placeholder = (model: exo_model, _info: info): ProjectorCore.Shape.t => {
+    //TODO(andrew): route font metrics
+    /* Instead of dividing, round up to the nearest multiple of the divisor */
+    let char_width = 10.4375;
+    let char_height = 25.125;
+
+    let round_up_to_multiple = (value: float, multiple: float): int => {
+      int_of_float(ceil(value /. multiple) *. multiple /. multiple);
     };
+
+    ProjectorCore.Shape.{
+      horizontal:
+        round_up_to_multiple(float_of_int(model.width), char_width) + 1,
+      vertical:
+        Block(
+          round_up_to_multiple(float_of_int(model.height), char_height) - 1,
+        ),
+    };
+  };
 
   let update = (model, _info, action) =>
     switch (action) {

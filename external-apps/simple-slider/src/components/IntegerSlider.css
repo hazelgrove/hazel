@@ -1,12 +1,12 @@
 .integer-slider {
+  height: -webkit-fill-available;
+  width: 100%;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto",
     sans-serif;
   background: #fff;
   border: 1px solid #e1e5e9;
-  border-radius: 8px;
-  padding: 16px;
-  min-width: 280px;
-  max-width: 400px;
+  /* border-radius: 8px; */
+  padding: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
 }
 
@@ -14,7 +14,6 @@
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 12px;
 }
 
 .slider-label {
@@ -119,6 +118,8 @@
   color: #9ca3af;
   font-size: 11px;
   font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
+  display: flex;
+  justify-content: center;
 }
 
 /* Focus styles for accessibility */
