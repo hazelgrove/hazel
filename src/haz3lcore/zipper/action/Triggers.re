@@ -79,7 +79,11 @@ let expand_livelit = (~ctx, z: t): option(t) =>
  * functions which conditionally perform a syntax operation which may
  * (or may not) take caret position into account. Morally these should
  * be mutually exclusive; otherwise the order below is load-bearing. */
-let insert = (~ctx: Language.Ctx.t=Language.Ctx.empty, z: t): t => {
+let insert = (~ci: option(Language.Info.t), z: t): t => {
+  let ctx =
+    ci
+    |> Option.map(Language.Info.ctx_of)
+    |> Option.value(~default=Language.Ctx.empty);
   let triggers = [expand_projector, expand_livelit(~ctx)];
   List.fold_left((z, f) => Option.value(f(z), ~default=z), z, triggers);
 };

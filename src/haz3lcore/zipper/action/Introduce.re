@@ -203,9 +203,7 @@ module Make =
     |> Zipper.replace_selection(Left, seg, _)
     |> Zipper.directional_unselect(Left, _)
     |> move_right_until_id(id, _)
-    |> (
-      move_left ? Util.OptUtil.replace(Move.primary(ByChar, Left)) : Fun.id
-    );
+    |> (move_left ? Util.OptUtil.replace(Move.local(ByChar, Left)) : Fun.id);
   };
 
   let introduce = (z: Zipper.t, ty: Typ.t, ctx: Ctx.t) => {
@@ -238,8 +236,8 @@ module Make =
   };
 };
 
-let introduce = (statics: Statics.Map.t, z: Zipper.t) => {
-  switch (Indicated.ci_of(z, statics)) {
+let introduce = (ci: option(Info.t), z: Zipper.t) => {
+  switch (ci) {
   | None => None
   | Some(
       InfoExp({

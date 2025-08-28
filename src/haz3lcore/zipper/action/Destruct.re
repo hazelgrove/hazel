@@ -3,7 +3,7 @@ open Util;
 open OptUtil.Syntax;
 
 let outer = (d: Direction.t, z: t): option(t) =>
-  switch (Zipper.neighbor_shard(d, z)) {
+  switch (Zipper.neighbor_token(d, z)) {
   | Some(t) when Token.length(t) > 1 && !Token.is_string_or_comment(t) =>
     Insert.replace_shard(d, Token.rm_edge(d, t), z)
   | _ => Zipper.delete(d, z)
@@ -13,7 +13,7 @@ let rm_nth_right = (idx, t, z) =>
   Insert.replace_shard(Right, Token.rm_nth(idx, t), z);
 
 let inner_left = (idx: int, z: t): option(t) =>
-  switch (Zipper.neighbor_shard(Right, z)) {
+  switch (Zipper.neighbor_token(Right, z)) {
   | Some(t) when Token.is_string_or_comment(t) && idx == 0 =>
     z |> Caret.set(Outer) |> Zipper.delete(Right)
   | Some(t) =>
@@ -27,7 +27,7 @@ let inner_left = (idx: int, z: t): option(t) =>
 let is_last_inner_pos = (t, idx) => Token.length(t) - 2 == idx;
 
 let inner_right = (idx: int, z: t): option(t) =>
-  switch (Zipper.neighbor_shard(Right, z)) {
+  switch (Zipper.neighbor_token(Right, z)) {
   | Some(t) when Token.is_string_or_comment(t) && is_last_inner_pos(t, idx) =>
     z |> Caret.set(Outer) |> Zipper.delete(Right)
   | Some(t) =>

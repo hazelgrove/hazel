@@ -59,20 +59,20 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       ~mdIcon="arrow_forward",
       ~section="Navigation",
       "Go to Definition",
-      Globals(ActiveEditor(Jump(BindingSiteOfIndicatedVar))),
+      Globals(ActiveEditor(Move(Goal(BindingSiteOfIndicatedVar)))),
     ),
     mk_shortcut(
       ~hotkey="shift+tab",
       ~mdIcon="swipe_left_alt",
       ~section="Navigation",
       "Go to Previous Hole",
-      Globals(ActiveEditor(Move(Goal(Piece(Grout, Left))))),
+      Globals(ActiveEditor(Move(Goal(Hole(Left))))),
     ),
     mk_shortcut(
       ~mdIcon="swipe_right_alt",
       ~section="Navigation",
       "Go To Next Hole",
-      Globals(ActiveEditor(Move(Goal(Piece(Grout, Right))))),
+      Globals(ActiveEditor(Move(Goal(Hole(Right))))),
       // Tab is overloaded so not setting it here
     ),
     mk_shortcut(
