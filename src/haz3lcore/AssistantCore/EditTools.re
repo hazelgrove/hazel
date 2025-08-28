@@ -186,10 +186,10 @@ let update_pattern: API.Json.t =
     ),
   ]);
 
-let update_expression_description = {|
+let update_binding_clause_description = {|
 Description:
 Updates the pattern, definition, and enclosing delimiters of the current node (everything exclusive of the body).
-eg. calling update_expression at a current node of let x = 3 in x will overwrite "let x = 3 in"
+eg. calling update_binding_clause at a current node of let x = 3 in x will overwrite "let x = 3 in"
 
 Parameters:
 code: string — new expression (which may contain multiple expressions; see example below for more information)
@@ -202,7 +202,7 @@ let b = "hello, world!" in
 let c : Int = ⋱ in
 ?
 ```
-Calling update_expression(variable_name = "b", new_binding = "let b : (Int, Int) = (0, ?) in let d : Int = b + 1 in") would result in the program
+Calling update_binding_clause(variable_name = "b", new_binding = "let b : (Int, Int) = (0, ?) in let d : Int = b + 1 in") would result in the program
 ```
 let a = ⋱ in
 let b : (Int, Int) = ⋱ in
@@ -214,14 +214,14 @@ let c : Int = ⋱ in
 (Note that this is the only tool that can be called in the special case where there are no let or type alias expressions in the program, in which case, calling this tool will overwrite the entire program with the argument passed into 'code'.)
 |};
 
-let update_expression: API.Json.t =
+let update_binding_clause: API.Json.t =
   `Assoc([
     ("type", `String("function")),
     (
       "function",
       `Assoc([
-        ("name", `String("update_expression")),
-        ("description", `String(update_expression_description)),
+        ("name", `String("update_binding_clause")),
+        ("description", `String(update_binding_clause_description)),
         (
           "parameters",
           `Assoc([
@@ -248,7 +248,7 @@ let update_expression: API.Json.t =
     ),
   ]);
 
-let delete_expression_description = {|
+let delete_binding_clause_description = {|
 Description:
 Removes the entire type/value-binding of the current node
 
@@ -263,7 +263,7 @@ let b = "hello, world!" in
 let c : Int = ⋱ in
 ?
 ```
-Calling delete_expression() would result in the program
+Calling delete_binding_clause() would result in the program
 ```
 let a = 3 in
 let c : Int = ⋱ in
@@ -272,14 +272,14 @@ let c : Int = ⋱ in
 (Note that the cursor has been placed at the succeeding sibling. If no succeeding sibling exists, the cursor is placed at the preceding sibling. If no preceding sibling exists, the cursor is placed at the parent. If no parent exists, then the program is empty.)
 |};
 
-let delete_expression: API.Json.t =
+let delete_binding_clause: API.Json.t =
   `Assoc([
     ("type", `String("function")),
     (
       "function",
       `Assoc([
-        ("name", `String("delete_expression")),
-        ("description", `String(delete_expression_description)),
+        ("name", `String("delete_binding_clause")),
+        ("description", `String(delete_binding_clause_description)),
         (
           "parameters",
           `Assoc([

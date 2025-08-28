@@ -121,8 +121,8 @@ type edit_action =
   | UpdateDefinition(string)
   | UpdateBody(string)
   | UpdatePattern(string)
-  | UpdateExpression(string)
-  | DeleteExpression
+  | UpdateBindingClause(string)
+  | DeleteBindingClause
   | DeleteBody
   | InsertAfter(string)
   | InsertBefore(string);

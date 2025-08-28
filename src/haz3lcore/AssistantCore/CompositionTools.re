@@ -10,8 +10,8 @@ let tools = [
   EditTools.update_definition,
   EditTools.update_body,
   EditTools.update_pattern,
-  EditTools.update_expression,
-  EditTools.delete_expression,
+  EditTools.update_binding_clause,
+  EditTools.delete_binding_clause,
   EditTools.delete_body,
   EditTools.insert_after,
   EditTools.insert_before,
@@ -90,7 +90,7 @@ let action_of = (~tool_name: string, ~args: Maps.StringMap.t(string)): action =>
         )
       };
     Edit(UpdatePattern(code));
-  | "update_expression" =>
+  | "update_binding_clause" =>
     let code =
       switch (code) {
       | Some(code) => code
@@ -101,7 +101,7 @@ let action_of = (~tool_name: string, ~args: Maps.StringMap.t(string)): action =>
           ),
         )
       };
-    Edit(UpdateExpression(code));
+    Edit(UpdateBindingClause(code));
   | "insert_after" =>
     let code =
       switch (code) {
@@ -126,7 +126,7 @@ let action_of = (~tool_name: string, ~args: Maps.StringMap.t(string)): action =>
         )
       };
     Edit(InsertBefore(code));
-  | "delete_expression" => Edit(DeleteExpression)
+  | "delete_binding_clause" => Edit(DeleteBindingClause)
   | "delete_body" => Edit(DeleteBody)
   | _ => Nav(GoToParent) // default fallback
   };
@@ -170,8 +170,9 @@ let string_of = (action: action) => {
   | Edit(UpdateDefinition(code)) => "update_definition(\"" ++ code ++ "\")"
   | Edit(UpdateBody(code)) => "update_body(\"" ++ code ++ "\")"
   | Edit(UpdatePattern(code)) => "update_pattern(\"" ++ code ++ "\")"
-  | Edit(UpdateExpression(code)) => "update_expression(\"" ++ code ++ "\")"
-  | Edit(DeleteExpression) => "delete_expression"
+  | Edit(UpdateBindingClause(code)) =>
+    "update_binding_clause(\"" ++ code ++ "\")"
+  | Edit(DeleteBindingClause) => "delete_binding_clause"
   | Edit(DeleteBody) => "delete_body"
   | Edit(InsertAfter(code)) => "insert_after(\"" ++ code ++ "\")"
   | Edit(InsertBefore(code)) => "insert_before(\"" ++ code ++ "\")"
@@ -186,7 +187,7 @@ let string_of = (action: action) => {
 //   | None =>
 //     // Special case: if the program is empty/no let/type alias exprs exist, we can only update the entire program.
 //     switch (action) {
-//     | Edit(UpdateExpression(code)) => (
+//     | Edit(UpdateBindingClause(code)) => (
 //         "Your edits have been applied to the sketch.",
 //         [Action.Select(All), Action.Paste(Assistant(code))],
 //       )
@@ -370,7 +371,7 @@ let string_of = (action: action) => {
 //             Action.Paste(Assistant(code)),
 //           ],
 //         );
-//       | UpdateExpression(code) => (
+//       | UpdateBindingClause(code) => (
 //           "Your edits have been applied to the sketch.",
 //           [
 //             Action.Select(
@@ -379,7 +380,7 @@ let string_of = (action: action) => {
 //             Action.Paste(Assistant(code)),
 //           ],
 //         )
-//       | DeleteExpression => (
+//       | DeleteBindingClause => (
 //           "Your edits have been applied to the sketch.",
 //           [
 //             Action.Select(

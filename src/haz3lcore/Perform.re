@@ -288,54 +288,87 @@ let go =
         //   | None => Error(Action.Failure.Cant_derive_local_AST_information)
         //   };
         // };
-        let overwrite_tile = (z, target_id, code) => {
+        let overwrite_term = (z, target_id, code) => {
           // Select the respective tile (in this case the definition tile)
-          switch (Select.tile(target_id, z)) {
+          switch (
+            Select.term(
+              ~defs_exclude_bodies=true,
+              ~case_rules=false,
+              syntax.term_data, // todo: not sure about this arg
+              target_id,
+              z,
+            )
+          ) {
           | Some(z') =>
             // Paste the code over the selected tile
             Parser.to_zipper(~zipper_init=z', code) |> return(CantPaste)
           | None => Error(Action.Failure.Cant_select)
           };
         };
-        let destruct_tile = (z, target_id) => {
-          switch (Select.tile(target_id, z)) {
+        let insert_term = (z, target_id, code, direction) => {
+          switch (
+            Select.term(
+              ~defs_exclude_bodies=true,
+              ~case_rules=false,
+              syntax.term_data, // todo: not sure about this arg
+              target_id,
+              z,
+            )
+          ) {
+          | Some(z') =>
+            switch (Move.by_token(direction, z')) {
+            | Some(z'') =>
+              Parser.to_zipper(~zipper_init=z'', code) |> return(CantPaste)
+            | None => Error(Action.Failure.Cant_move)
+            }
+          | None => Error(Action.Failure.Cant_select)
+          };
+        };
+        let rec destruct_term = (~defs_exclude_bodies, z, target_id) => {
+          switch (
+            Select.term(
+              ~defs_exclude_bodies,
+              ~case_rules=false,
+              syntax.term_data,
+              target_id,
+              z,
+            )
+          ) {
           | Some(z') =>
             switch (Destruct.go(Left, z')) {
             | None => Error(Action.Failure.Cant_destruct)
             | Some(z'') => Ok(z'')
             }
-          | None => Error(Action.Failure.Cant_destruct)
+          | None => Error(Action.Failure.Cant_select)
           };
         };
         switch (e) {
         | UpdateDefinition(code) =>
           let target_id = get_inner_term_id(node, Def);
-          overwrite_tile(z, target_id, code);
+          overwrite_term(z, target_id, code);
         | UpdateBody(code) =>
           let target_id = get_inner_term_id(node, Body);
-          overwrite_tile(z, target_id, code);
+          overwrite_term(z, target_id, code);
         | UpdatePattern(code) =>
           let target_id = get_inner_term_id(node, Pat);
-          overwrite_tile(z, target_id, code);
-        | UpdateExpression(code) =>
+          overwrite_term(z, target_id, code);
+        | UpdateBindingClause(code) =>
           let target_id = Info.id_of(node.info);
-          overwrite_tile(z, target_id, code);
-        | DeleteExpression => destruct_tile(z, Info.id_of(node.info))
+          overwrite_term(z, target_id, code);
+        | DeleteBindingClause =>
+          destruct_term(~defs_exclude_bodies=true, z, Info.id_of(node.info))
         | DeleteBody =>
           let target_id = get_inner_term_id(node, Body);
-          destruct_tile(z, target_id);
+          destruct_term(~defs_exclude_bodies=false, z, target_id);
         | InsertBefore(code) =>
-          switch (Move.by_token(Direction.Left, z)) {
-          | Some(z') =>
-            Parser.to_zipper(~zipper_init=z', code) |> return(CantPaste)
-          | None => Error(Action.Failure.Cant_move)
-          }
+          insert_term(z, Info.id_of(node.info), code ++ "\n", Direction.Left)
         | InsertAfter(code) =>
-          switch (Move.by_token(Direction.Right, z)) {
-          | Some(z') =>
-            Parser.to_zipper(~zipper_init=z', code) |> return(CantPaste)
-          | None => Error(Action.Failure.Cant_move)
-          }
+          insert_term(
+            z,
+            Info.id_of(node.info),
+            "\n" ++ code,
+            Direction.Right,
+          )
         };
       };
     };

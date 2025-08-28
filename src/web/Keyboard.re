@@ -96,6 +96,20 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "," => now(AssistantComposition(Nav(GoToSibling(Stepwise(Left)))))
     | "." => now(AssistantComposition(Nav(GoToSibling(Stepwise(Right)))))
     | "p" => now(AssistantComposition(Nav(GoToParent)))
+    // vvv Debug shortcuts vvv
+    | "q" => now(AssistantComposition(Edit(UpdatePattern("x : ? -> ?"))))
+    | "w" => now(AssistantComposition(Edit(UpdateDefinition("100"))))
+    | "r" => now(AssistantComposition(Edit(UpdateBody("x * 2"))))
+    | "t" => now(AssistantComposition(Edit(DeleteBody)))
+    | "y" => now(AssistantComposition(Edit(DeleteBindingClause)))
+    | "u" => now(AssistantComposition(Edit(InsertBefore("let s = ? in "))))
+    | "i" => now(AssistantComposition(Edit(InsertAfter("let r = ? in "))))
+    | "o" =>
+      now(
+        AssistantComposition(
+          Edit(UpdateBindingClause("let hmph = 900 in")),
+        ),
+      )
     | _ => None
     }
   | {key: D("f"), sys: PC, shift: Up, meta: Up, ctrl: Up, alt: Down} =>
