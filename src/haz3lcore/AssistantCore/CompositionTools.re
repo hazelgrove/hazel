@@ -18,7 +18,7 @@ let tools = [
   //ViewTools.view_definition,
 ];
 
-type action = Action.action;
+type action = Action.composition_action;
 
 let action_of = (~tool_name: string, ~args: Maps.StringMap.t(string)): action => {
   /* Possible arguments */
@@ -179,240 +179,271 @@ let string_of = (action: action) => {
   };
 };
 
-// let derive_actions =
-//     (z: Zipper.t, info_map: Statics.Map.t, action: action)
-//     : (string, list(Action.t)) => {
-//   let curr_node_info = AssistantTreeHelper.build_curr_node_info(z, info_map);
-//   switch (curr_node_info) {
-//   | None =>
-//     // Special case: if the program is empty/no let/type alias exprs exist, we can only update the entire program.
-//     switch (action) {
-//     | Edit(UpdateBindingClause(code)) => (
-//         "Your edits have been applied to the sketch.",
-//         [Action.Select(All), Action.Paste(Assistant(code))],
-//       )
-//     | _ =>
-//       raise(
-//         Failure(
-//           "No let or type alias expressions found in the program, unable to derive any meaningful AST information. Please call update_expression to initialize/update the entire program. Unable to apply any other actions.",
-//         ),
-//       )
-//     }
-//   | Some(curr_node_info) =>
-//     switch (action) {
-//     // Navigate to the parent node of the current node
-//     | Nav(nav_action) =>
-//       switch (nav_action) {
-//       | GoToParent =>
-//         switch (curr_node_info.parent) {
-//         | None => raise(Failure("This node does not have a parent"))
-//         | Some(parent) => (
-//             "Cursor moved from \""
-//             ++ curr_node_info.name
-//             ++ "\" to its parent \""
-//             ++ parent.name
-//             ++ "\"",
-//             [
-//               Action.Select(
-//                 Tile(Id(Info.id_of(parent.info), Direction.Right)),
-//               ),
-//             ],
-//           )
-//         }
-//       | GoToChild(who, where) =>
-//         // todo/idea: move candidates out here, maybe change indexing method?
-//         // to assert referencing by both name and index...
-//         // note: llms tend to be poor at logical/mathematical reasoning, and working with
-//         //       numbers in general. Unfortunately, the nature of the indexing fallback
-//         //       requires each variable to be unique, thus, I'd surmise that this pitfall
-//         //       is unavoidable, nevertheless mitigatable via making the fallback method optional
-//         // * applies to GoToSibling as well
-//         let child =
-//           switch (where) {
-//           | None =>
-//             // the llm provided no index, thus, use the name
-//             let candidates =
-//               List.filter(
-//                 (child: AssistantTreeHelper.node) => child.name == who,
-//                 curr_node_info.children,
-//               );
-//             if (List.length(candidates) > 1) {
-//               raise(
-//                 Failure(
-//                   "Multiple children found, not sure how to resolve ambiguity. Please specify which child to reference via using the index associated with that child.",
-//                 ),
-//               );
-//             };
-//             switch (ListUtil.hd_opt(candidates)) {
-//             | None =>
-//               raise(
-//                 Failure(
-//                   "Child not found. Make sure the current node has children, and that the child you're referencing exists.",
-//                 ),
-//               )
-//             | Some(child) => child
-//             };
-//           | Some(here) =>
-//             // this means the llm provided an index to move to, in which case
-//             // we default on using that as opposed to the name
+module Perform = {
+  open Util;
+  open Language;
 
-//             switch (List.nth_opt(curr_node_info.children, here)) {
-//             | None =>
-//               raise(
-//                 Failure(
-//                   "Child index out of bounds. Make sure the current node has children, and that your given index is within bounds.",
-//                 ),
-//               )
-//             | Some(child) => child
-//             }
-//           };
-//         (
-//           "Cursor moved from \""
-//           ++ curr_node_info.name
-//           ++ "\" to its child \""
-//           ++ child.name
-//           ++ "\"",
-//           [
-//             Action.Select(
-//               Tile(Id(Info.id_of(child.info), Direction.Right)),
-//             ),
-//           ],
-//         );
-//       | GoToSibling(who, where) =>
-//         let sibling =
-//           switch (where) {
-//           | None =>
-//             let candidates =
-//               List.filter(
-//                 (sibling: AssistantTreeHelper.node) => sibling.name == who,
-//                 curr_node_info.siblings,
-//               );
-//             if (List.length(candidates) > 1) {
-//               raise(
-//                 Failure(
-//                   "Multiple siblings found, not sure how to resolve ambiguity. Please specify which sibling to reference via using the index associated with that sibling.",
-//                 ),
-//               );
-//             };
-//             switch (ListUtil.hd_opt(candidates)) {
-//             | None =>
-//               raise(
-//                 Failure(
-//                   "Sibling not found. Make sure the current node has siblings, and that the sibling you're referencing exists.",
-//                 ),
-//               )
-//             | Some(sibling) => sibling
-//             };
-//           | Some(here) =>
-//             switch (List.nth_opt(curr_node_info.siblings, here)) {
-//             | None =>
-//               raise(
-//                 Failure(
-//                   "Sibling index out of bounds. Make sure the current node has siblings, and that your given index is within bounds.",
-//                 ),
-//               )
-//             | Some(sibling) => sibling
-//             }
-//           };
-//         (
-//           "Cursor moved from \""
-//           ++ curr_node_info.name
-//           ++ "\" to its sibling \""
-//           ++ sibling.name
-//           ++ "\"",
-//           [
-//             Action.Select(
-//               Tile(Id(Info.id_of(sibling.info), Direction.Right)),
-//             ),
-//           ],
-//         );
-//       }
-//     | Read(read_action) =>
-//       switch (read_action) {
-//       | ViewDefinition => (
-//           "Definition of \""
-//           ++ curr_node_info.name
-//           ++ "\":\n```"
-//           ++ Printer.of_segment(
-//                ~holes="?",
-//                ~special_folds=true,
-//                CompositionUtil.View.definition(z, curr_node_info),
-//              )
-//           ++ "```",
-//           [],
-//         )
-//       }
-//     | Edit(action) =>
-//       switch (action) {
-//       | UpdateDefinition(code) =>
-//         let target_id = get_inner_term_id(curr_node_info, Def);
-//         (
-//           "Your edits have been applied to the sketch.",
-//           [
-//             Action.Select(Tile(Id(target_id, Direction.Right))),
-//             Action.Paste(Assistant(code)),
-//           ],
-//         );
-//       | UpdateBody(code) =>
-//         let target_id = get_inner_term_id(curr_node_info, Body);
-//         (
-//           "Your edits have been applied to the sketch.",
-//           [
-//             Action.Select(Tile(Id(target_id, Direction.Right))),
-//             Action.Paste(Assistant(code)),
-//           ],
-//         );
-//       | UpdatePattern(code) =>
-//         let target_id = get_inner_term_id(curr_node_info, Pat);
-//         (
-//           "Your edits have been applied to the sketch.",
-//           [
-//             Action.Select(Tile(Id(target_id, Direction.Right))),
-//             Action.Paste(Assistant(code)),
-//           ],
-//         );
-//       | UpdateBindingClause(code) => (
-//           "Your edits have been applied to the sketch.",
-//           [
-//             Action.Select(
-//               Tile(Id(Info.id_of(curr_node_info.info), Direction.Right)),
-//             ),
-//             Action.Paste(Assistant(code)),
-//           ],
-//         )
-//       | DeleteBindingClause => (
-//           "Your edits have been applied to the sketch.",
-//           [
-//             Action.Select(
-//               Tile(Id(Info.id_of(curr_node_info.info), Direction.Right)),
-//             ),
-//             Action.Destruct(Left),
-//           ],
-//         )
-//       | DeleteBody =>
-//         let target_id = get_inner_term_id(curr_node_info, Body);
-//         (
-//           "Your edits have been applied to the sketch.",
-//           [
-//             Action.Select(Tile(Id(target_id, Direction.Right))),
-//             Action.Destruct(Left),
-//           ],
-//         );
-//       | InsertBefore(code) => (
-//           "Your edits have been applied to the sketch.",
-//           [
-//             Action.Move(Extreme(Left(ByToken))),
-//             Action.Paste(Assistant(code)),
-//           ],
-//         )
-//       | InsertAfter(code) => (
-//           "Your edits have been applied to the sketch.",
-//           [
-//             Action.Move(Extreme(Right(ByToken))),
-//             Action.Paste(Assistant(code)),
-//           ],
-//         )
-//       }
-//     }
-//   };
-// };
+  type inner_term =
+    | Pat
+    | Def
+    | Body;
+
+  let get_inner_term_id =
+      (curr_node_info: AssistantTreeHelper.node, inner_term: inner_term): Id.t => {
+    switch (curr_node_info.info) {
+    | InfoExp({term, _}) =>
+      switch (Exp.term_of(term)) {
+      | Let(pat, def, body) =>
+        switch (inner_term) {
+        | Pat => Pat.rep_id(pat)
+        | Def => Exp.rep_id(def)
+        | Body => Exp.rep_id(body)
+        }
+      | TyAlias(tpat, tdef, body) =>
+        switch (inner_term) {
+        | Pat => TPat.rep_id(tpat)
+        | Def => Typ.rep_id(tdef)
+        | Body => Exp.rep_id(body)
+        }
+      | _ =>
+        raise(Failure("Current node is not a let or type alias expression"))
+      }
+    | _ =>
+      raise(
+        Failure(
+          "Current node is not a let or type alias expression, so no pattern to update",
+        ),
+      )
+    };
+  };
+  // Tempory wrapper that helps me localize myself while implementing (remove)
+  let go =
+      (
+        a: Action.composition_action,
+        syntax: CachedSyntax.t,
+        z: Zipper.t,
+        mk_statics: Zipper.t => StaticsBase.Map.t,
+        return:
+          (Action.Failure.t, option(Zipper.t)) =>
+          result(Zipper.t, Action.Failure.t),
+      ) => {
+    let curr_node_info =
+      AssistantTreeHelper.build_curr_node_info(z, mk_statics(z));
+    switch (curr_node_info) {
+    | None => Error(Action.Failure.Cant_derive_local_AST_information) //todo, add failure case
+    | Some(node) =>
+      switch (a) {
+      | Nav(n) =>
+        switch (n) {
+        | GoToParent =>
+          switch (node.parent) {
+          | None => Error(Action.Failure.Cant_move)
+          | Some(parent) =>
+            switch (Select.tile(Info.id_of(parent.info), z)) {
+            | Some(z) => Ok(z)
+            | None => Error(Action.Failure.Cant_select)
+            }
+          }
+        | GoToChild(who, which) =>
+          switch (which) {
+          | None =>
+            // the llm provided no index, thus, use the name
+            let cands =
+              List.filter(
+                (child: AssistantTreeHelper.node) => child.name == who,
+                node.children,
+              );
+            if (List.length(cands) > 1) {
+              Error(Action.Failure.Cant_move);
+            } else {
+              switch (ListUtil.hd_opt(cands)) {
+              | None => Error(Action.Failure.Cant_move)
+              | Some(child) =>
+                switch (Select.tile(Info.id_of(child.info), z)) {
+                | Some(z) => Ok(z)
+                | None => Error(Action.Failure.Cant_select)
+                }
+              };
+            };
+          | Some(nth) =>
+            // this means the llm provided an index to move to, in which case
+            // we default on using that as opposed to the name
+            switch (List.nth_opt(node.children, nth)) {
+            | None => Error(Action.Failure.Cant_move)
+            | Some(child) =>
+              switch (Select.tile(Info.id_of(child.info), z)) {
+              | Some(z) => Ok(z)
+              | None => Error(Action.Failure.Cant_select)
+              }
+            }
+          }
+        | GoToSibling(via) =>
+          switch (via) {
+          | NameAndIdx(who, which) =>
+            switch (which) {
+            | None =>
+              // the llm provided no index, thus, use the name
+              let cands =
+                List.filter(
+                  (sibling: AssistantTreeHelper.node) => sibling.name == who,
+                  node.siblings,
+                );
+              if (List.length(cands) > 1) {
+                Error(Action.Failure.Cant_move);
+              } else {
+                switch (ListUtil.hd_opt(cands)) {
+                | None => Error(Action.Failure.Cant_move)
+                | Some(sibling) =>
+                  switch (Select.tile(Info.id_of(sibling.info), z)) {
+                  | Some(z) => Ok(z)
+                  | None => Error(Action.Failure.Cant_select)
+                  }
+                };
+              };
+            | Some(nth) =>
+              // this means the llm provided an index to move to, in which case
+              // we default on using that as opposed to the name
+              switch (List.nth_opt(node.siblings, nth)) {
+              | None => Error(Action.Failure.Cant_move)
+              | Some(sibling) =>
+                switch (Select.tile(Info.id_of(sibling.info), z)) {
+                | Some(z) => Ok(z)
+                | None => Error(Action.Failure.Cant_select)
+                }
+              }
+            }
+          | Stepwise(d) =>
+            let len = List.length(node.siblings);
+            print_endline(
+              "node.sibling_idx: "
+              ++ string_of_int(node.sibling_idx)
+              ++ " len: "
+              ++ string_of_int(len),
+            );
+            let target_id =
+              switch (d) {
+              | Left =>
+                List.nth(node.siblings, (node.sibling_idx - 1 + len) mod len).
+                  info
+                |> Info.id_of
+              | Right =>
+                // Don't add 1 here because we filtered out the current node
+                List.nth(node.siblings, (node.sibling_idx + len) mod len).info
+                |> Info.id_of
+              };
+            switch (Select.tile(target_id, z)) {
+            | Some(z) => Ok(z)
+            | None => Error(Action.Failure.Cant_select)
+            };
+          }
+        }
+      | Read(_r) => Ok(z) // todo
+      | Edit(e) =>
+        // let select_curr_node = z => {
+        //   // Recalculate info map with new statics and measurements to assert fresh, non-stale state
+        //   let curr_node_info =
+        //     AssistantTreeHelper.build_curr_node_info(z, mk_statics(z));
+        //   switch (curr_node_info) {
+        //   | Some(node) =>
+        //     switch (Select.tile(Info.id_of(node.info), z)) {
+        //     | Some(z) => Ok(z)
+        //     | None => Error(Action.Failure.Cant_select)
+        //     }
+        //   | None => Error(Action.Failure.Cant_derive_local_AST_information)
+        //   };
+        // };
+        let introduce = (z, code) => {
+          // Just a helper function for trying to paste code into the zipper
+          // Note that we paste a segment; so, we convert the string to a segment
+          // first, and then insert the segment into the zipper. This helps to
+          // avoid potential current buggy parsing issues.
+          Parser.to_segment(code)
+          |> OptUtil.and_then((segment: Segment.t) =>
+               Some(Zipper.insert_segment(z, segment))
+             )
+          |> return(CantPaste);
+        };
+        let overwrite_term = (z, target_id, code) => {
+          // Select the respective tile (in this case the definition tile)
+          switch (
+            Select.term(
+              ~defs_exclude_bodies=true,
+              ~case_rules=false,
+              syntax.term_data, // todo: not sure about this arg
+              target_id,
+              z,
+            )
+          ) {
+          | Some(z') =>
+            // Paste the code over the selected tile
+            introduce(z', code)
+          | None => Error(Action.Failure.Cant_select)
+          };
+        };
+        let insert_term = (z, target_id, code, direction) => {
+          switch (
+            Select.term(
+              ~defs_exclude_bodies=true,
+              ~case_rules=false,
+              syntax.term_data, // todo: not sure about this arg
+              target_id,
+              z,
+            )
+          ) {
+          | Some(z') =>
+            switch (Move.by_token(direction, z')) {
+            | Some(z'') => introduce(z'', code)
+            | None => Error(Action.Failure.Cant_move)
+            }
+          | None => Error(Action.Failure.Cant_select)
+          };
+        };
+        let destruct_term = (~defs_exclude_bodies, z, target_id) => {
+          switch (
+            Select.term(
+              ~defs_exclude_bodies,
+              ~case_rules=false,
+              syntax.term_data,
+              target_id,
+              z,
+            )
+          ) {
+          | Some(z') =>
+            switch (Destruct.go(Left, z')) {
+            | None => Error(Action.Failure.Cant_destruct)
+            | Some(z'') => Ok(z'')
+            }
+          | None => Error(Action.Failure.Cant_select)
+          };
+        };
+        switch (e) {
+        | UpdateDefinition(code) =>
+          let target_id = get_inner_term_id(node, Def);
+          overwrite_term(z, target_id, code);
+        | UpdateBody(code) =>
+          let target_id = get_inner_term_id(node, Body);
+          overwrite_term(z, target_id, code);
+        | UpdatePattern(code) =>
+          let target_id = get_inner_term_id(node, Pat);
+          overwrite_term(z, target_id, code);
+        | UpdateBindingClause(code) =>
+          let target_id = Info.id_of(node.info);
+          overwrite_term(z, target_id, code);
+        | DeleteBindingClause =>
+          destruct_term(~defs_exclude_bodies=true, z, Info.id_of(node.info))
+        | DeleteBody =>
+          let target_id = get_inner_term_id(node, Body);
+          destruct_term(~defs_exclude_bodies=false, z, target_id);
+        | InsertBefore(code) =>
+          insert_term(z, Info.id_of(node.info), code ++ " ", Direction.Left)
+        | InsertAfter(code) =>
+          // todo: figure out a better method than magic space
+          insert_term(z, Info.id_of(node.info), " " ++ code, Direction.Right)
+        };
+      }
+    };
+    // todo
+    // todo: not sure about this arg
+    // todo: not sure about this arg
+  };
+};

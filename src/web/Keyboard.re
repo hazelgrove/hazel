@@ -102,8 +102,8 @@ let handle_key_event = (k: Key.t): option(Action.t) => {
     | "r" => now(AssistantComposition(Edit(UpdateBody("x * 2"))))
     | "t" => now(AssistantComposition(Edit(DeleteBody)))
     | "y" => now(AssistantComposition(Edit(DeleteBindingClause)))
-    | "u" => now(AssistantComposition(Edit(InsertBefore("let s = ? in "))))
-    | "i" => now(AssistantComposition(Edit(InsertAfter("let r = ? in "))))
+    | "u" => now(AssistantComposition(Edit(InsertBefore("let s = ? in"))))
+    | "i" => now(AssistantComposition(Edit(InsertAfter("let r = ? in"))))
     | "o" =>
       now(
         AssistantComposition(

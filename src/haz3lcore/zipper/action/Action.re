@@ -129,7 +129,7 @@ type edit_action =
 
 // AddToolLabel_1.0: Make the action types (above) and add their cases to the funs (below)
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
-type action =
+type composition_action =
   | Nav(nav_action)
   | Read(read_action)
   | Edit(edit_action);
@@ -149,7 +149,7 @@ type t =
   | Insert(string)
   | Put_down
   | Introduce
-  | AssistantComposition(action)
+  | AssistantComposition(composition_action)
   | Dump;
 
 module Failure = {

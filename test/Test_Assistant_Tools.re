@@ -243,11 +243,13 @@ let delete_body_tests = {
       ~acts=[Edit(DeleteBody)],
       ~goal="let a = 1 in ¦?",
     ),
+    // ================================
+    // Special Cases: Final Body and Empty Hole(s)
     test(
       ~name="Delete Body (Two Bindings (Final Body Empty Hole)))",
       ~init="let a = 0¦ in let b = 1 in ",
       ~acts=[Edit(DeleteBody)],
-      ~goal="let a = 0 in ¦ ?",
+      ~goal="let a = 0 in ¦?",
     ),
     test(
       ~name="Delete Body (Two Bindings (Final Body Non-Empty)))",
@@ -257,23 +259,36 @@ let delete_body_tests = {
     ),
     test(
       ~name=
-        "Delete Body (Multiple Bindings (Final Body Partially Empty Hole)))",
-      ~init="let a = 0¦ in let b = 1 in let c = 2 in a + ",
+        "Delete Body (Multiple Bindings (Final Body's Expression Contains an Empty Hole)))",
+      ~init="let a = -1¦ in let b = 0 in let c = 1 in a + ",
       ~acts=[Edit(DeleteBody)],
-      ~goal="let a = 0 in ¦ ?",
+      ~goal="let a = -1 in ¦?",
+    ),
+    // Below is failing as select with defs_exclude_bodies=false is not working when
+    // final body token is an implicit hole.
+    test(
+      ~name=
+        "Delete Body (Multiple Bindings (Final Body Expression is an Explicit Hole)))",
+      ~init="let a = 10¦ in let b = 11 in let c = 12 in ?",
+      ~acts=[Edit(DeleteBody)],
+      ~goal="let a = 10 in ¦?",
     ),
     test(
-      ~name="Delete Body (Multiple Bindings (Final Body Empty Hole)))",
+      ~name=
+        "Delete Body (Multiple Bindings (Final Body Expression is an Implicit Empty Hole)))",
       ~init="let a = 0¦ in let b = 1 in let c = 2 in ",
       ~acts=[Edit(DeleteBody)],
-      ~goal="let a = 0 in ¦ ?",
+      ~goal="let a = 0 in ¦?",
     ),
     test(
-      ~name="Delete Body (Multiple Bindings (Final Body Non-Empty)))",
+      ~name=
+        "Delete Body (Multiple Bindings (Final Body Completely Non-Empty)))",
       ~init="let a = 1¦ in let b = 2 in let c = 3 in a + b + c",
       ~acts=[Edit(DeleteBody)],
       ~goal="let a = 1 in ¦?",
     ),
+    // End Special Cases: Final Body and Empty Hole(s)
+    // ================================
   ];
 };
 
@@ -295,7 +310,13 @@ let insert_after_tests = {
       ~name="Insert After (\"Simplest\" Case)",
       ~init="let a = 1¦ in a * b",
       ~acts=[Edit(InsertAfter("let b = 2 in"))],
-      ~goal="let a = 1 in let b = 2¦ in a * b",
+      ~goal="let a = 1 in let b = 2 in¦ a * b",
+    ),
+    test(
+      ~name="Insert After (Between Two Bindings)",
+      ~init="let a = 10¦ in let c = 30 in a + b + c",
+      ~acts=[Edit(InsertAfter("let b = 20 in"))],
+      ~goal="let a = 10 in let b = 20 in¦ let c = 30 in a + b + c",
     ),
   ];
 };
