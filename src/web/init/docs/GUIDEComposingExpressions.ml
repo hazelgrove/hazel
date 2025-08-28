@@ -3,8 +3,8 @@ let out : string * Haz3lcore.PersistentZipper.t =
     {
       zipper =
         "((selection((focus Left)(content())(mode \
-         Normal)))(backpack())(relatives((siblings(()((Grout((id \
-         3767c92f-8a0e-4b82-8407-7e33c55a07be)(shape \
+         Normal)))(relatives((siblings(()((Grout((id \
+         00a6acf4-83d4-4c67-a431-5d68c166dee6)(shape \
          Convex))))))(ancestors())))(caret Outer))";
-      backup_text = " ";
+      backup_text = "";
     } )

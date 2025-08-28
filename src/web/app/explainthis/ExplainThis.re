@@ -1945,6 +1945,23 @@ let get_doc =
         );
       | Parens(term)
       | Probe(term, _) => get_message_exp(term.term) // No Special message?
+      | HintedTest(body, hint) =>
+        let hint_id = List.nth(IdTagged.ids(hint), 0);
+        let body_id = List.nth(IdTagged.ids(body), 0);
+        get_message(
+          ~colorings=
+            HintedTestExp.hinted_test_exp_coloring_ids(~body_id, ~hint_id),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s%s"),
+                  Id.to_string(hint_id),
+                  Id.to_string(body_id),
+                ),
+            ),
+          HintedTestExp.tests,
+        );
       | Cons(hd, tl) =>
         let hd_id = List.nth(IdTagged.ids(hd), 0);
         let tl_id = List.nth(IdTagged.ids(tl), 0);
@@ -1960,6 +1977,22 @@ let get_doc =
                 ),
             ),
           ListExp.listcons,
+        );
+      | TupleExtension(x, y) =>
+        let x_id = List.nth(IdTagged.ids(x), 0);
+        let y_id = List.nth(IdTagged.ids(y), 0);
+        get_message(
+          ~colorings=TupleExp.tuple_extension_exp_coloring_ids(~x_id, ~y_id),
+          ~format=
+            Some(
+              msg =>
+                Printf.sprintf(
+                  Scanf.format_from_string(msg, "%s%s"),
+                  Id.to_string(x_id),
+                  Id.to_string(y_id),
+                ),
+            ),
+          TupleExp.tuple_extensions,
         );
       | ListConcat(xs, ys) =>
         let xs_id = List.nth(IdTagged.ids(xs), 0);
@@ -2050,12 +2083,6 @@ let get_doc =
               int_greater_than_equal,
               int_gte_exp_coloring_ids,
             )
-          | Nat(Equals)
-          | SInt(Equals)
-          | Int(Equals) => (int_equal, int_eq_exp_coloring_ids)
-          | Nat(NotEquals)
-          | SInt(NotEquals)
-          | Int(NotEquals) => (int_not_equal, int_neq_exp_coloring_ids)
           | Float(Plus) => (float_plus, float_plus_exp_coloring_ids)
           | Float(Minus) => (float_minus, float_minus_exp_coloring_ids)
           | Float(Times) => (float_times, float_times_exp_coloring_ids)
@@ -2080,6 +2107,8 @@ let get_doc =
           | Bool(Or) => (bool_or, bool_or_exp_coloring_ids)
           | String(Equals) => (string_equal, str_eq_exp_coloring_ids)
           | String(Concat) => (string_concat, str_concat_exp_coloring_ids)
+          | Poly(Equals) => (poly_equal, poly_eq_exp_coloring_ids)
+          | Poly(NotEquals) => (poly_not_equal, poly_neq_exp_coloring_ids)
           };
         let left_id = List.nth(IdTagged.ids(left), 0);
         let right_id = List.nth(IdTagged.ids(right), 0);
@@ -2637,11 +2666,11 @@ let section = (~section_clss: string, ~title: string, contents: list(Node.t)) =>
 let get_color_map =
     (~globals: Globals.t, ~explainThisModel: ExplainThisModel.t, info) =>
   switch (globals.settings.explainThis.highlight) {
-  | All when globals.settings.explainThis.show =>
+  | All when globals.settings.sidebar.show =>
     let (_, (_, (color_map, _)), _) =
       get_doc(~globals, ~docs=explainThisModel, info, Colorings);
     Some(color_map);
-  | One(id) when globals.settings.explainThis.show =>
+  | One(id) when globals.settings.sidebar.show =>
     let (_, (_, (color_map, _)), _) =
       get_doc(~globals, ~docs=explainThisModel, info, Colorings);
     Some(Id.Map.filter((id', _) => id == id', color_map));
@@ -2665,52 +2694,36 @@ let view =
       MessageContent(inject, globals),
     );
   div(
-    ~attrs=[Attr.id("side-bar")],
+    ~attrs=[Attr.id("explain-this")],
     [
       div(
-        ~attrs=[Attr.id("explain-this")],
+        ~attrs=[clss(["header"])],
         [
-          div(
-            ~attrs=[clss(["header"])],
-            [
-              Widgets.toggle(
-                ~tooltip="Toggle highlighting",
-                "🔆",
-                globals.settings.explainThis.highlight == All,
-                _ =>
-                globals.inject_global(
-                  Set(ExplainThis(SetHighlight(Toggle))),
-                )
-              ),
-              div(
-                ~attrs=[
-                  clss(["close"]),
-                  Attr.on_click(_ =>
-                    globals.inject_global(Set(ExplainThis(ToggleShow)))
-                  ),
-                ],
-                [Icons.thin_x],
-              ),
-            ],
+          Widgets.toggle(
+            ~tooltip="Toggle highlighting",
+            "🔆",
+            globals.settings.explainThis.highlight == All,
+            _ =>
+            globals.inject_global(Set(ExplainThis(SetHighlight(Toggle))))
           ),
-        ]
-        @ [
-          section(
-            ~section_clss="syntactic-form",
-            ~title=
-              switch (info) {
-              | None => "Whitespace or Comment"
-              | Some(info) => Info.cls_of(info) |> Cls.show
-              },
-            syn_form @ explanation,
-          ),
-        ]
-        @ (
-          example == []
-            ? []
-            : [section(~section_clss="examples", ~title="Examples", example)]
-        ),
+        ],
       ),
-    ],
+    ]
+    @ [
+      section(
+        ~section_clss="syntactic-form",
+        ~title=
+          switch (info) {
+          | None => "Whitespace or Comment"
+          | Some(info) => Info.cls_of(info) |> Cls.show
+          },
+        syn_form @ explanation,
+      ),
+    ]
+    @ (
+      example == []
+        ? []
+        : [section(~section_clss="examples", ~title="Examples", example)]
+    ),
   );
 };

@@ -265,7 +265,7 @@ let pos_of_idx = (p: p('code), idx: int) =>
   };
 
 let zipper_of_code = code => {
-  switch (Printer.zipper_of_string(code)) {
+  switch (Parser.to_zipper(code)) {
   | None => failwith("Transition failed.")
   | Some(zipper) => zipper
   };
@@ -680,6 +680,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | Deferral(_)
   | Atom(_)
   | ListLit(_)
+  | TupleExtension(_)
   | Constructor(_)
   | Closure(_)
   | Fun(_)
@@ -695,6 +696,7 @@ let rec append_exp = (e1: Language.Exp.t, e2: Language.Exp.t): Language.Exp.t =>
   | DeferredAp(_)
   | If(_)
   | Test(_)
+  | HintedTest(_)
   | Parens(_)
   | Probe(_)
   | Cons(_)
@@ -848,7 +850,7 @@ let export_module = ({eds, _}: state) => {
 
 let transitionary_editor_pp = (fmt, editor: Editor.t) => {
   let zipper = editor.state.zipper;
-  let code = Printer.to_string_basic(zipper);
+  let code = PersistentZipper.to_string(zipper);
   Format.pp_print_string(fmt, "\"" ++ String.escaped(code) ++ "\"");
 };
 

@@ -101,51 +101,6 @@ module Pat = {
     };
   };
 
-  let rec is_fun_var = (pat: t) => {
-    switch (pat.term) {
-    | Parens(pat)
-    | Probe(pat, _)
-    | TupLabel(_, pat) => is_fun_var(pat)
-    | Asc(pat, typ) =>
-      is_var(pat) && (Typ.is_arrow(typ) || Typ.is_forall(typ))
-    | Invalid(_)
-    | EmptyHole
-    | MultiHole(_)
-    | Wild
-    | Atom(_)
-    | ListLit(_)
-    | Cons(_, _)
-    | Var(_)
-    | Label(_)
-    | Tuple(_)
-    | Constructor(_)
-    | Ap(_) => false
-    };
-  };
-
-  let rec is_tuple_of_arrows = (pat: t) =>
-    is_fun_var(pat)
-    || (
-      switch (pat.term) {
-      | Parens(pat)
-      | Probe(pat, _)
-      | TupLabel(_, pat) => is_tuple_of_arrows(pat)
-      | Tuple(pats) => pats |> List.for_all(is_fun_var)
-      | Label(_)
-      | Invalid(_)
-      | EmptyHole
-      | MultiHole(_)
-      | Wild
-      | Atom(_)
-      | ListLit(_)
-      | Cons(_, _)
-      | Var(_)
-      | Asc(_)
-      | Constructor(_)
-      | Ap(_) => false
-      }
-    );
-
   let rec is_tuple_of_vars = (pat: t) =>
     is_var(pat)
     || (
@@ -330,6 +285,7 @@ module Exp = {
     | TypFun
     | Label
     | TupLabel
+    | TupleExtension
     | Tuple
     | Dot
     | Var
@@ -343,6 +299,7 @@ module Exp = {
     | If
     | Seq
     | Test
+    | HintedTest
     | Filter
     | Closure
     | Parens
@@ -392,6 +349,7 @@ module Exp = {
     | Fun(_) => Fun
     | TypFun(_) => TypFun
     | Tuple(_) => Tuple
+    | TupleExtension(_) => TupleExtension
     | Label(_) => Label
     | TupLabel(_, _) => TupLabel
     | Dot(_) => Dot
@@ -410,6 +368,7 @@ module Exp = {
     | If(_) => If
     | Seq(_) => Seq
     | Test(_) => Test
+    | HintedTest(_) => HintedTest
     | Filter(_) => Filter
     | Closure(_) => Closure
     | Parens(_) => Parens
@@ -427,7 +386,7 @@ module Exp = {
     fun
     | Invalid => "Invalid expression"
     | MultiHole => "Broken expression"
-    | EmptyHole => "Empty expression hole"
+    | EmptyHole => "Expression hole"
     | DynamicErrorHole => "Dynamic error hole"
     | Deferral => "Deferral"
     | Undefined => "Undefined expression"
@@ -444,6 +403,7 @@ module Exp = {
     | Tuple => "Tuple literal"
     | Label => "Label"
     | TupLabel => "Labeled Tuple Item"
+    | TupleExtension => "Tuple Extension"
     | Dot => "Dot operator"
     | Var => "Variable reference"
     | Let => "Let expression"
@@ -456,6 +416,7 @@ module Exp = {
     | If => "If expression"
     | Seq => "Sequence expression"
     | Test => "Test"
+    | HintedTest => "Hinted Test"
     | Filter => "Filter"
     | Closure => "Closure"
     | Parens => "Parenthesized expression"
@@ -526,6 +487,7 @@ module Exp = {
     | Label(_)
     | ListLit(_)
     | Tuple(_)
+    | TupleExtension(_)
     | Var(_)
     | Let(_)
     | FixF(_)
@@ -537,6 +499,7 @@ module Exp = {
     | If(_)
     | Seq(_)
     | Test(_)
+    | HintedTest(_)
     | Filter(_)
     | Cons(_)
     | ListConcat(_)
@@ -584,6 +547,7 @@ module Exp = {
       | Atom(_)
       | Label(_)
       | ListLit(_)
+      | TupleExtension(_)
       | Fun(_)
       | TypFun(_)
       | Closure(_)
@@ -599,6 +563,7 @@ module Exp = {
       | If(_)
       | Seq(_)
       | Test(_)
+      | HintedTest(_)
       | Filter(_)
       | Cons(_)
       | ListConcat(_)
@@ -646,6 +611,7 @@ module Exp = {
       | Atom(_)
       | Label(_)
       | ListLit(_)
+      | TupleExtension(_)
       | Fun(_)
       | TypFun(_)
       | Var(_)
@@ -659,6 +625,7 @@ module Exp = {
       | If(_)
       | Seq(_)
       | Test(_)
+      | HintedTest(_)
       | Cons(_)
       | ListConcat(_)
       | UnOp(_)
@@ -807,6 +774,7 @@ module Exp = {
           | TypFun(_)
           | Tuple(_)
           | TupLabel(_)
+          | TupleExtension(_)
           | Label(_)
           | Dot(_)
           | TyAlias(_)
@@ -817,6 +785,7 @@ module Exp = {
           | If(_)
           | Seq(_)
           | Test(_)
+          | HintedTest(_)
           | Filter(_)
           | Parens(_)
           | Probe(_)
@@ -873,7 +842,7 @@ module Rul = {
     | [_, ..._] => ids
     | [] =>
       switch (term) {
-      | Hole([tm, ..._]) => any_ids(tm)
+      | MultiHole([tm, ..._]) => any_ids(tm)
       | Rules(scrut, []) => IdTagged.ids(scrut)
       | _ => []
       }
@@ -884,6 +853,8 @@ module Rul = {
     | [] => raise(Invalid_argument("Exp.rep_id"))
     | [id, ..._] => id
     };
+
+  let unwrap: t => (term, term => t) = IdTagged.unwrap;
 };
 
 module Any = {

@@ -48,6 +48,7 @@ type unsorted =
 type t = {
   term: Exp.t,
   terms: TermMap.t,
+  term_data: TermData.t,
   projectors: Id.Map.t(Piece.projector),
 };
 
@@ -119,6 +120,16 @@ let return = (wrap, ids, tm) => {
   tm;
 };
 
+let term_data: ref(TermData.t) = ref(Id.Map.empty);
+let record_term_data = (seg: Segment.t, skel: Skel.t): unit =>
+  term_data :=
+    Aba.get_as(Aba.map_a(List.nth(seg), Skel.root(skel)))
+    |> List.fold_left(
+         (map, p) =>
+           Id.Map.add(Piece.id(p), TermData.mk(p, skel, seg), map),
+         term_data^,
+       );
+
 /* Map to collect projector ids */
 let projectors: ref(Id.Map.t(Piece.projector)) = ref(Id.Map.empty);
 
@@ -161,6 +172,9 @@ let mk_bad = (ctr, ids, value) => {
   };
 };
 
+let is_hole_label = (t: string) =>
+  t == " " || Token.is_explicit_hole(t) || Token.is_llm_hole(t);
+
 let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
   switch (s) {
   | Pat => Pat(pat(unsorted(skel, seg)))
@@ -169,20 +183,11 @@ let rec go_s = (s: Sort.t, skel: Skel.t, seg: Segment.t): Term.Any.t =>
   | Exp => Exp(exp(unsorted(skel, seg)))
   | Rul => Rul(rul(unsorted(skel, seg)))
   | Any =>
-    let tm = unsorted(skel, seg);
-    let ids = ids(tm);
-    switch (ListUtil.hd_opt(ids)) {
-    | None => Exp(exp(unsorted(skel, seg)))
-    | Some(id) =>
-      switch (TileMap.find_opt(id, TileMap.mk(seg))) {
-      | None => Exp(exp(unsorted(skel, seg)))
-      | Some(t) =>
-        if (t.mold.out == Any) {
-          Exp(exp(unsorted(skel, seg)));
-        } else {
-          go_s(t.mold.out, skel, seg);
-        }
-      }
+    let sort = Segment.sort_of(skel, seg);
+    if (sort == Any) {
+      Exp(exp(unsorted(skel, seg)));
+    } else {
+      go_s(sort, skel, seg);
     };
   }
 
@@ -217,40 +222,62 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
     // single-tile case
     | ([(id, t)], []) =>
       switch (t) {
-      | ([t], []) when Form.is_empty_tuple(t) => ret(Tuple([]))
-      | ([t], []) when Form.is_wild(t) => ret(Deferral(OutsideAp))
-      | ([t], []) when Form.is_empty_list(t) => ret(ListLit([]))
-      | ([t], []) when Form.is_bool(t) =>
+      | ([t], []) when Token.is_empty_tuple(t) => ret(Tuple([]))
+      | ([t], []) when Token.is_wild(t) => ret(Deferral(OutsideAp))
+      | ([t], []) when Token.is_empty_list(t) => ret(ListLit([]))
+      | ([t], []) when Token.is_bool(t) =>
         ret(Atom(Bool(bool_of_string(t))))
-      | ([t], []) when Form.is_undefined(t) => ret(Undefined)
-      | ([t], []) when Form.is_int(t) =>
+      | ([t], []) when Token.is_undefined(t) => ret(Undefined)
+      | ([t], []) when Token.is_int(t) =>
         ret(Atom(Int(Bigint.of_string(t))))
-      | ([t], []) when Form.is_string(t) =>
-        ret(Atom(String(Form.strip_quotes(t))))
-      | ([t], []) when Form.is_float(t) =>
+      | ([t], []) when Token.is_string(t) =>
+        ret(Atom(String(Token.strip_quotes(t))))
+      | ([t], []) when Token.is_quoted_label(t) =>
+        ret(Label(Token.strip_quotes(~quote=Token.label_delim, t)))
+      | ([t], []) when Token.is_float(t) =>
         ret(Atom(Float(float_of_string(t))))
-      | ([t], []) when Form.is_livelit(t) =>
-        ret(LivelitName(Form.parse_livelit(t)))
-      | ([t], []) when Form.is_var(t) => ret(Var(t))
-      | ([t], []) when Form.is_ctr(t) => ret(Constructor(t, None))
+      | ([t], []) when Token.is_livelit(t) =>
+        ret(LivelitName(Token.parse_livelit(t)))
+      | ([t], []) when Token.is_var(t) => ret(Var(t))
+      | ([t], []) when Token.is_ctr(t) => ret(Constructor(t, None))
       | (["(", ")"], [Exp(body)]) => ret(Parens(body))
       | (label, [Exp(body)]) when is_probe_wrap(label) =>
         // Temporary wrapping form to persist projector probes
         ret(should_instrument(id) ? Probe(body, Probe.empty) : body.term)
       | (["[", "]"], [Exp(body)]) =>
         switch (body) {
-        | {annotation: {ids}, term: Tuple(es)} => (ListLit(es), ids)
+        | {annotation: {ids}, term: Tuple(es)} =>
+          // Addresses tup_labels in lists like: [l=32, 1]
+          (
+            ListLit(
+              List.map(
+                (list_item: Grammar.exp_t(IdTagged.IdTag.t)) => {
+                  let (e, rewrap) = IdTagged.unwrap(list_item);
+                  switch (e) {
+                  | TupLabel(_) =>
+                    rewrap(Tuple([e |> Exp.fresh]): TermBase.exp_term)
+                  | _ => list_item
+                  };
+                },
+                es,
+              ),
+            ),
+            ids,
+          )
         | term => ret(ListLit([term]))
         }
       | (["test", "end"], [Exp(test)]) => ret(Test(test))
-      | (
-          ["case", "end"],
-          [Rul({term: Rules(scrut, rules), annotation: {ids, _}})],
-        ) => (
-          Match(scrut, rules),
-          ids,
-        )
-      | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
+      | (["hint", "test", "end"], [Exp(hint), Exp(test)]) =>
+        ret(HintedTest(test, hint))
+      | (["case", "end"], [Rul({term, annotation: {ids, _}})]) =>
+        switch (term) {
+        | Rules(scrut, rules) => (Match(scrut, rules), ids)
+        // If the rule parser is correct, below should be impossible
+        | MultiHole(anys) => (MultiHole(anys), ids)
+        | Invalid(string) => (Invalid(string), ids)
+        }
+      | ([t], []) when is_hole_label(t) => ret(hole(tm))
+      | ([t], []) when t != " " && !Token.is_explicit_hole(t) =>
         ret(Invalid(t))
       | _ => ret(hole(tm))
       }
@@ -335,8 +362,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           term: Deferral(InAp),
         };
         switch (arg.term) {
-        | Var(l) when Form.is_livelit(l) =>
-          ret(LivelitName(Form.parse_livelit(l)))
+        | Var(l) when Token.is_livelit(l) =>
+          ret(LivelitName(Token.parse_livelit(l)))
         | _ when Exp.is_deferral(arg) =>
           ret(DeferredAp(l, [use_deferral(arg)]))
         | Tuple(es) when List.exists(Exp.is_deferral, es) => (
@@ -393,8 +420,8 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           | ([">"], []) => BinOp(Int(GreaterThan), l, r)
           | (["<="], []) => BinOp(Int(LessThanOrEqual), l, r)
           | ([">="], []) => BinOp(Int(GreaterThanOrEqual), l, r)
-          | (["=="], []) => BinOp(Int(Equals), l, r)
-          | (["!="], []) => BinOp(Int(NotEquals), l, r)
+          | (["=="], []) => BinOp(Poly(Equals), l, r)
+          | (["!="], []) => BinOp(Poly(NotEquals), l, r)
           | (["+."], []) => BinOp(Float(Plus), l, r)
           | (["-."], []) => BinOp(Float(Minus), l, r)
           | (["*."], []) => BinOp(Float(Times), l, r)
@@ -412,6 +439,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
           | ([";"], []) => Seq(l, r)
           | (["++"], []) => BinOp(String(Concat), l, r)
           | (["$=="], []) => BinOp(String(Equals), l, r)
+          | (["..."], []) => TupleExtension(l, r)
           | (["="], []) =>
             switch (l.term) {
             | Var(name) =>
@@ -422,6 +450,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
                 },
                 r,
               )
+            | Label(_) => TupLabel(l, r)
             | EmptyHole => TupLabel(l, r)
             | _ =>
               let (e_term, rewrap) = IdTagged.unwrap(l);
@@ -441,6 +470,7 @@ and exp_term: unsorted => (Exp.term, list(Id.t)) = {
                   term: Label(name),
                 },
               )
+            | Label(_) => Dot(l, r)
             | EmptyHole => Dot(l, r)
             | _ =>
               let (e_term, rewrap) = IdTagged.unwrap(r);
@@ -488,19 +518,21 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
     | ([(id, tile)], []) =>
       ret(
         switch (tile) {
-        | ([t], []) when Form.is_empty_tuple(t) => Tuple([])
-        | ([t], []) when Form.is_empty_list(t) => ListLit([])
-        | ([t], []) when Form.is_bool(t) => Atom(Bool(bool_of_string(t)))
-        | ([t], []) when Form.is_float(t) =>
+        | ([t], []) when Token.is_empty_tuple(t) => Tuple([])
+        | ([t], []) when Token.is_empty_list(t) => ListLit([])
+        | ([t], []) when Token.is_bool(t) =>
+          Atom(Bool(bool_of_string(t)))
+        | ([t], []) when Token.is_float(t) =>
           Atom(Float(float_of_string(t)))
-        | ([t], []) when Form.is_int(t) => Atom(Int(Bigint.of_string(t)))
-        | ([t], []) when Form.is_string(t) =>
-          Atom(String(Form.strip_quotes(t)))
-        | ([t], []) when Form.is_var(t) => Var(t)
-        | ([t], []) when Form.is_wild(t) => Wild
-        | ([t], []) when Form.is_ctr(t) => Constructor(t, None)
-        | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
-          Invalid(t)
+        | ([t], []) when Token.is_int(t) =>
+          Atom(Int(Bigint.of_string(t)))
+        | ([t], []) when Token.is_string(t) =>
+          Atom(String(Token.strip_quotes(t)))
+        | ([t], []) when Token.is_quoted_label(t) =>
+          Label(Token.strip_quotes(~quote=Token.label_delim, t))
+        | ([t], []) when Token.is_var(t) => Var(t)
+        | ([t], []) when Token.is_wild(t) => Wild
+        | ([t], []) when Token.is_ctr(t) => Constructor(t, None)
         | (["(", ")"], [Pat(body)]) => Parens(body)
         | (label, [Pat(body)]) when is_probe_wrap(label) =>
           should_instrument(id) ? Probe(body, Probe.empty) : body.term
@@ -509,6 +541,8 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
           | {term: Tuple(ps), _} => ListLit(ps)
           | term => ListLit([term])
           }
+        | ([t], []) when is_hole_label(t) => hole(tm)
+        | ([t], []) => Invalid(t)
         | _ => hole(tm)
         },
       )
@@ -559,6 +593,7 @@ and pat_term: unsorted => (Pat.term, list(Id.t)) = {
               r,
             ),
           )
+        | Label(_) => ret(TupLabel(l, r))
         | EmptyHole => ret(TupLabel(l, r))
         | _ =>
           let (e_term, rewrap) = IdTagged.unwrap(l);
@@ -603,19 +638,21 @@ and typ_term: unsorted => (Typ.term, list(Id.t)) = {
     | ([(_id, tile)], []) =>
       ret(
         switch (tile) {
-        | ([t], []) when Form.is_empty_tuple(t) => Prod([])
+        | ([t], []) when Token.is_empty_tuple(t) => Prod([])
         | (["Bool"], []) => Atom(Bool)
         | (["Int"], []) => Atom(Int)
         | (["SInt"], []) => Atom(SInt)
         | (["Float"], []) => Atom(Float)
         | (["String"], []) => Atom(String)
         | (["Nat"], []) => Atom(Nat)
-        | ([t], []) when Form.is_typ_var(t) => Var(t)
+        | ([t], []) when Token.is_typ_var(t) => Var(t)
+        | ([t], []) when Token.is_quoted_label(t) =>
+          Label(Token.sub(t, 1, Token.length(t) - 2))
         | (["(", ")"], [Typ(body)]) => Parens(body)
         | (label, [Typ(body)]) when is_probe_wrap(label) => body.term
         | (["[", "]"], [Typ(body)]) => List(body)
-        | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
-          Unknown(Hole(Invalid(t)))
+        | ([t], []) when is_hole_label(t) => hole(tm)
+        | ([t], []) => Unknown(Hole(Invalid(t)))
         | _ => hole(tm)
         },
       )
@@ -716,9 +753,9 @@ and tpat_term: unsorted => TPat.term = {
     | ([(_id, tile)], []) =>
       ret(
         switch (tile) {
-        | ([t], []) when Form.is_typ_var(t) => Var(t)
-        | ([t], []) when t != " " && !Form.is_explicit_hole(t) =>
-          Invalid(t)
+        | ([t], []) when Token.is_typ_var(t) => Var(t)
+        | ([t], []) when is_hole_label(t) => hole(tm)
+        | ([t], []) => Invalid(t)
         | (label, [TPat(body)]) when is_probe_wrap(label) => body.term
         | _ => hole(tm)
         },
@@ -729,45 +766,30 @@ and tpat_term: unsorted => TPat.term = {
   | tm => ret(hole(tm));
 }
 
-// and rul = unsorted => {
-//   let term = rul_term(unsorted);
-//   let ids = ids(unsorted);
-//   return(r => Rul(r), ids, {ids, term});
-// }
 and rul = (unsorted): Rul.t => {
-  let hole: Rul.term = Hole(kids_of_unsorted(unsorted));
-  switch (exp(unsorted)) {
+  let e = exp(unsorted);
+  let mk_rules = (scrut: Exp.t, rules, ids): Rul.t => {
+    term: Rules(scrut, rules),
+    annotation: {
+      ids: ids,
+    },
+  };
+  switch (e) {
   | {term: MultiHole(_), _} =>
     switch (unsorted) {
     | Bin(Exp(scrut), tiles, Exp(last_clause)) =>
       switch (is_rules(tiles)) {
-      | Some((ps, leading_clauses)) => {
-          annotation: {
-            ids: ids(unsorted),
-          },
-          term:
-            Rules(scrut, List.combine(ps, leading_clauses @ [last_clause])),
-        }
-      | None => {
-          term: hole,
-          annotation: {
-            ids: ids(unsorted),
-          },
-        }
+      | Some((ps, leading_clauses)) =>
+        mk_rules(
+          scrut,
+          List.combine(ps, leading_clauses @ [last_clause]),
+          ids(unsorted),
+        )
+      | None => mk_rules(e, [], [])
       }
-    | _ => {
-        term: hole,
-        annotation: {
-          ids: ids(unsorted),
-        },
-      }
+    | _ => mk_rules(e, [], [])
     }
-  | e => {
-      term: Rules(e, []),
-      annotation: {
-        ids: [],
-      },
-    }
+  | _ => mk_rules(e, [], [])
   };
 }
 
@@ -790,6 +812,9 @@ and unsorted = (skel: Skel.t, seg: Segment.t): unsorted => {
            go_s(s, Segment.skel(kid), kid);
          })
     };
+
+  /* Capture term ranges */
+  record_term_data(seg, skel);
 
   let root: Aba.t(Piece.t, Skel.t) =
     Skel.root(skel) |> Aba.map_a(List.nth(seg));
@@ -830,10 +855,12 @@ let go =
     ~cache_size_bound=1000,
     seg => {
       map := TermMap.empty;
+      term_data := Id.Map.empty;
       projectors := Id.Map.empty;
       let term = exp(unsorted(Segment.skel(seg), seg));
       {
         term,
+        term_data: term_data^,
         terms: map^,
         projectors: projectors^,
       };

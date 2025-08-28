@@ -80,6 +80,7 @@ and exp_term('a) =
   | If(exp_t('a), exp_t('a), exp_t('a))
   | Seq(exp_t('a), exp_t('a))
   | Test(exp_t('a))
+  | HintedTest(exp_t('a), exp_t('a))
   | Filter(stepper_filter_kind_t('a), exp_t('a))
   | Closure([@show.opaque] closure_environment_t('a), exp_t('a))
   | Parens(exp_t('a)) // (
@@ -90,6 +91,7 @@ and exp_term('a) =
   | BinOp(Operators.op_bin, exp_t('a), exp_t('a))
   | BuiltinFun(string)
   | Match(exp_t('a), list((pat_t('a), exp_t('a))))
+  | TupleExtension(exp_t('a), exp_t('a))
   | Asc(exp_t('a), typ_t('a))
 and exp_t('a) = Annotated.t(exp_term('a), 'a)
 and pat_term('a) =
@@ -133,7 +135,7 @@ and tpat_term('a) =
 and tpat_t('a) = Annotated.t(tpat_term('a), 'a)
 and rul_term('a) =
   | Invalid(string)
-  | Hole(list(any_t('a)))
+  | MultiHole(list(any_t('a)))
   | Rules(exp_t('a), list((pat_t('a), exp_t('a))))
 and rul_t('a) = Annotated.t(rul_term('a), 'a)
 and environment_t('a) = VarBstMap.Ordered.t_(exp_t('a))
@@ -229,6 +231,8 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
         | Seq(e1, e2) =>
           Seq(map_exp_annotation(f, e1), map_exp_annotation(f, e2))
         | Test(e) => Test(map_exp_annotation(f, e))
+        | HintedTest(e1, h) =>
+          HintedTest(map_exp_annotation(f, e1), map_exp_annotation(f, h))
         | Filter(k, e) =>
           Filter(
             map_stepper_filter_kind_annotation(f, k),
@@ -257,6 +261,11 @@ let rec map_exp_annotation: type a b. (a => b, exp_t(a)) => exp_t(b) =
                 (map_pat_annotation(f, p), map_exp_annotation(f, e)),
               l,
             ),
+          )
+        | TupleExtension(e1, e2) =>
+          TupleExtension(
+            map_exp_annotation(f, e1),
+            map_exp_annotation(f, e2),
           )
         | Asc(e, t) =>
           Asc(map_exp_annotation(f, e), map_typ_annotation(f, t))
@@ -367,7 +376,8 @@ and map_rul_annotation: 'a 'b. ('a => 'b, rul_t('a)) => rul_t('b) =
       term:
         switch (term) {
         | Invalid(s) => Invalid(s)
-        | Hole(l) => Hole(List.map(x => map_any_annotation(f, x), l))
+        | MultiHole(l) =>
+          MultiHole(List.map(x => map_any_annotation(f, x), l))
         | Rules(e, l) =>
           Rules(
             map_exp_annotation(f, e),
@@ -528,6 +538,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       term: Dot(e1, e2),
       annotation: default_annotation(ann),
     };
+    let tuple_extension = (~ann=?, e1, e2): exp_t(DefaultAnnotation.t) => {
+      term: TupleExtension(e1, e2),
+      annotation: default_annotation(ann),
+    };
     let var = (~ann=?, v): exp_t(DefaultAnnotation.t) => {
       term: Var(v),
       annotation: default_annotation(ann),
@@ -578,6 +592,10 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
     };
     let test = (~ann=?, e): exp_t(DefaultAnnotation.t) => {
       term: Test(e),
+      annotation: default_annotation(ann),
+    };
+    let hinted_test = (~ann=?, e, h): exp_t(DefaultAnnotation.t) => {
+      term: HintedTest(e, h),
       annotation: default_annotation(ann),
     };
     let filter = (~ann=?, k, e): exp_t(DefaultAnnotation.t) => {
@@ -823,7 +841,7 @@ module Factory = (DefaultAnnotation: DefaultAnnotation) => {
       annotation: default_annotation(ann),
     };
     let rul_hole = (~ann=?, l): rul_t(DefaultAnnotation.t) => {
-      term: Hole(l),
+      term: MultiHole(l),
       annotation: default_annotation(ann),
     };
     let rul_rules = (~ann=?, e, l): rul_t(DefaultAnnotation.t) => {

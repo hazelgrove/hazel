@@ -98,7 +98,7 @@ let show_cls: cls => string =
   fun
   | Invalid => "Invalid type"
   | MultiHole => "Broken type"
-  | EmptyHole => "Empty type hole"
+  | EmptyHole => "Type hole"
   | SynSwitch => "Synthetic type"
   | Internal => "Internal type"
   | Atom(_) => "Base type"
@@ -132,6 +132,46 @@ let rec is_arrow = (typ: t) => {
   | Rec(_) => false
   };
 };
+
+let is_atom = (ty: t): bool =>
+  switch (ty.term) {
+  | Atom(_) => true
+  | Parens(_)
+  | TupLabel(_)
+  | Arrow(_)
+  | Unknown(_)
+  | List(_)
+  | Label(_)
+  | Prod(_)
+  | Var(_)
+  | Ap(_)
+  | Sum(_)
+  | Forall(_)
+  | Rec(_) => false
+  };
+
+let rec has_fun = (typ: t) =>
+  switch (typ.term) {
+  | Parens(typ) => has_fun(typ)
+  | TupLabel(_, typ) => has_fun(typ)
+  | Arrow(_)
+  | Forall(_) => true
+  | Unknown(_)
+  | Atom(_)
+  | Label(_)
+  | Var(_) => false
+  | List(t) => has_fun(t)
+  | Rec(_, t) => has_fun(t)
+  | Sum(sm) =>
+    List.exists(
+      fun
+      | ConstructorMap.Variant(_, _, Some(t)) => has_fun(t)
+      | _ => false,
+      sm,
+    )
+  | Ap(t1, t2) => has_fun(t1) || has_fun(t2)
+  | Prod(tys) => List.exists(has_fun, tys)
+  };
 
 let rec is_forall = (typ: t) => {
   switch (typ.term) {
@@ -187,14 +227,17 @@ let join_type_provenance =
   | (SynSwitch, SynSwitch) => SynSwitch
   };
 
-let rec match_tup_label = ty =>
+let rec match_tup_optional_label = (ty: t) =>
   switch (term_of(ty)) {
-  | Parens(ty) => match_tup_label(ty)
-  | TupLabel(label, t') =>
-    switch (term_of(label)) {
-    | Label(name) => Some((name, t'))
-    | _ => None
-    }
+  | Parens(ty) => match_tup_optional_label(ty)
+  | TupLabel({term: Label(name), _}, t') => Some((Some(name), t'))
+  | TupLabel({term: Unknown(_), _}, t') => Some((None, t'))
+  | Unknown(_) => Some((None, ty))
+  | _ => None
+  };
+let match_tup_label = ty =>
+  switch (match_tup_optional_label(ty)) {
+  | Some((Some(name), t')) => Some((name, t'))
   | _ => None
   };
 
@@ -216,12 +259,164 @@ let rec free_vars = (~bound=[], ty: t): list(Var.t) =>
     free_vars(~bound=(x |> TPat.tyvar_of_utpat |> Option.to_list) @ bound, ty)
   };
 
+let rec vars = (ty: t): list(Var.t) =>
+  switch (ty.term) {
+  | Atom(_)
+  | Unknown(_) => []
+  | Var(x) => [x]
+  | Arrow(ty1, ty2) => vars(ty1) @ vars(ty2)
+  | Prod(tys) => ListUtil.flat_map(vars, tys)
+  | Sum(sm) =>
+    List.concat_map(
+      fun
+      | ConstructorMap.BadEntry(_) => []
+      | Variant(_, _, None) => []
+      | Variant(_, _, Some(typ)) => vars(typ),
+      sm,
+    )
+  | Rec({term: Var(x), _}, ty) =>
+    /* Remove recursive type references */
+    vars(ty) |> List.filter((x': string) => x' != x)
+  | Rec(_, ty) => vars(ty)
+  | List(ty) => vars(ty)
+  | Parens(ty) => vars(ty)
+  | Forall({term: Var(x), _}, ty) =>
+    vars(ty) |> List.filter((x': string) => x' != x)
+  | Forall(_, ty) => vars(ty)
+  | Ap(ty1, ty2) => vars(ty1) @ vars(ty2)
+  | Label(_) => []
+  | TupLabel(_, ty) => vars(ty)
+  };
+
+let rec aliases_deep = (ctx: Ctx.t, ty: t): list((string, t)) => {
+  let defs =
+    ListUtil.flat_map(
+      var =>
+        switch (Ctx.lookup_alias(ctx, var)) {
+        | Some(ty) => [(var, ty)]
+        | None => [(var, fresh(Unknown(Internal)))]
+        },
+      vars(ty),
+    )
+    |> List.sort_uniq(((x, _), (y, _)) => compare(x, y));
+  let rec_calls =
+    ListUtil.flat_map(((_, ty')) => aliases_deep(ctx, ty'), defs);
+  rec_calls @ defs;
+};
+
+let rec vars = (ty: t): list(Var.t) =>
+  switch (ty.term) {
+  | Atom(_)
+  | Unknown(_) => []
+  | Var(x) => [x]
+  | Arrow(ty1, ty2) => vars(ty1) @ vars(ty2)
+  | Prod(tys) => ListUtil.flat_map(vars, tys)
+  | Sum(sm) =>
+    List.concat_map(
+      fun
+      | ConstructorMap.BadEntry(_) => []
+      | Variant(_, _, None) => []
+      | Variant(_, _, Some(typ)) => vars(typ),
+      sm,
+    )
+  | Rec({term: Var(x), _}, ty) =>
+    /* Remove recursive type references */
+    vars(ty) |> List.filter((x': string) => x' != x)
+  | Rec(_, ty) => vars(ty)
+  | List(ty) => vars(ty)
+  | Parens(ty) => vars(ty)
+  | Forall({term: Var(x), _}, ty) =>
+    vars(ty) |> List.filter((x': string) => x' != x)
+  | Forall(_, ty) => vars(ty)
+  | Ap(ty1, ty2) => vars(ty1) @ vars(ty2)
+  | Label(_) => []
+  | TupLabel(_, ty) => vars(ty)
+  };
+
 let var_count = ref(0);
 let fresh_var = (var_name: string) => {
   let x = var_count^;
   var_count := x + 1;
   var_name ++ "_α" ++ string_of_int(x);
 };
+
+/* Calculates the total number of nodes (compound
+   and leaf) in the type AST. */
+let rec num_nodes = (ty: t): int => {
+  switch (ty.term) {
+  | Atom(_)
+  | Unknown(_) => 1
+  | Var(_) => 1
+  | Arrow(t1, t2) => 1 + num_nodes(t1) + num_nodes(t2)
+  | Prod(tys) =>
+    1 + List.fold_left((acc, ty) => acc + num_nodes(ty), 0, tys)
+  | Sum(sm) =>
+    1
+    + List.fold_left(
+        (acc, variant) =>
+          switch (variant) {
+          | ConstructorMap.BadEntry(_) => acc
+          | Variant(_, _, ty) =>
+            acc + Util.OptUtil.get(() => 0, Option.map(num_nodes, ty))
+          },
+        0,
+        sm,
+      )
+  | Rec(_, ty) => 1 + num_nodes(ty)
+  | List(ty) => 1 + num_nodes(ty)
+  | Parens(ty) => 1 + num_nodes(ty)
+  | Forall(_, ty) => 1 + num_nodes(ty)
+  | Ap(ty1, ty2) => 1 + num_nodes(ty1) + num_nodes(ty2)
+  | Label(_) => 1
+  | TupLabel(_, ty) => 1 + num_nodes(ty)
+  };
+};
+
+/* Number of Unknown constructors in type AST */
+let rec count_unknowns = (ty: t): int =>
+  switch (ty.term) {
+  | Unknown(_) => 1
+  | Atom(_)
+  | Var(_) => 0
+  | Arrow(t1, t2) => count_unknowns(t1) + count_unknowns(t2)
+  | Prod(tys) =>
+    List.fold_left((acc, ty) => acc + count_unknowns(ty), 0, tys)
+  | Sum(sm) =>
+    List.fold_left(
+      (acc, variant) =>
+        switch (variant) {
+        | ConstructorMap.BadEntry(_) => acc
+        | Variant(_, _, ty) =>
+          acc + Util.OptUtil.get(() => 0, Option.map(count_unknowns, ty))
+        },
+      0,
+      sm,
+    )
+  | Rec(_, ty) => count_unknowns(ty)
+  | List(ty) => count_unknowns(ty)
+  | Parens(ty) => count_unknowns(ty)
+  | Forall(_, ty) => count_unknowns(ty)
+  | Ap(ty1, ty2) => count_unknowns(ty1) + count_unknowns(ty2)
+  | Label(_) => 0
+  | TupLabel(_, ty) => count_unknowns(ty)
+  };
+
+let rec contains_sum_or_var = (ty: t): bool =>
+  switch (ty.term) {
+  | Atom(_)
+  | Unknown(_) => false
+  | Var(_)
+  | Sum(_) => true
+  | Arrow(t1, t2) => contains_sum_or_var(t1) || contains_sum_or_var(t2)
+  | Prod(tys) => List.exists(contains_sum_or_var, tys)
+  | Rec(_, ty) => contains_sum_or_var(ty)
+  | List(ty) => contains_sum_or_var(ty)
+  | Parens(ty) => contains_sum_or_var(ty)
+  | Forall(_, ty) => contains_sum_or_var(ty)
+  | Ap(ty1, ty2) => contains_sum_or_var(ty1) || contains_sum_or_var(ty2)
+  | Label(_) => false
+  | TupLabel(_, ty) => contains_sum_or_var(ty)
+  };
 
 let unroll = (ty: t): t =>
   switch (term_of(ty)) {
@@ -539,17 +734,10 @@ let rec matched_args_strict = (ctx, ty, arity): Either.t('a, int) => {
   | Prod(tys) when List.length(tys) == arity => L(tys)
   | Prod(tys) => R(List.length(tys))
   | _ when arity == 1 => L([ty])
-  | Unknown((SynSwitch | Internal) as p) =>
-    L(List.init(arity, _ => Unknown(p) |> temp))
+  | Unknown(_) => L(List.init(arity, _ => Unknown(Internal) |> temp))
   | _ => R(1)
   };
 };
-
-let matched_args = (ctx, ty, arity) =>
-  switch (matched_args_strict(ctx, ty, arity)) {
-  | L(tys) => tys
-  | R(_) => List.init(arity, _ => Unknown(Internal) |> temp)
-  };
 
 let matched_label = (ctx, ty): option((t, t)) =>
   switch (term_of(weak_head_normalize(ctx, ty))) {
@@ -592,14 +780,6 @@ let rec get_sum_constructors = (ctx: Ctx.t, ty: t): option(sum_map) => {
   };
 };
 
-let rec is_unknown = (ty: t): bool =>
-  switch (ty |> term_of) {
-  | TupLabel(_, x)
-  | Parens(x) => is_unknown(x)
-  | Unknown(_) => true
-  | _ => false
-  };
-
 let rec is_syn = (ty: t): bool =>
   switch (ty |> term_of) {
   | TupLabel(_, x)
@@ -633,23 +813,6 @@ let rec is_ana_atom = (ty: t) =>
   | Arrow(_)
   | Prod(_)
   | Sum(_) => None
-  };
-
-let rec is_syn_fun = (ty: t): bool =>
-  switch (ty |> term_of) {
-  | TupLabel(_, x)
-  | Parens(x) => is_syn_fun(x)
-  | Arrow(t1, t2) => is_syn(t1) && is_syn_fun(t2)
-  | Unknown(_)
-  | Atom(_)
-  | Label(_)
-  | Var(_)
-  | Ap(_)
-  | Rec(_)
-  | Forall(_)
-  | List(_)
-  | Prod(_)
-  | Sum(_) => false
   };
 
 let rec is_syn_plus = (ty: t): bool =>
@@ -790,3 +953,21 @@ let remove_duplicate_labels =
     ),
   );
 };
+
+/**
+ * Converts a list of types (`tys`) into a product type.
+ *
+ * If the list contains a single type, it is returned as-is since singleton
+ * products are not supported.
+ *
+ * @param tys - A list of types to be combined into a product type.
+ * @return A product type representing the combination of the input types,
+ *         or the single type if the list contains only one element.
+ */
+let to_product = (tys: list(t)): t =>
+  switch (tys) {
+  | []
+  | [{term: TupLabel(_), _}] => Prod(tys) |> temp
+  | [ty] => ty
+  | _ => Prod(tys) |> temp
+  };

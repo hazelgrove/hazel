@@ -11,21 +11,48 @@ module Model = {
   };
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type persistent = (int, list((string, CellEditor.Model.persistent)));
+  type persistent = (
+    int,
+    list((string, option(CellEditor.Model.persistent))),
+  );
 
-  let persist = model => (
+  let persist = (model: t): persistent => (
     model.current,
     List.map(
-      ((s, m)) => (s, CellEditor.Model.persist(m)),
+      ((s: string, m: CellEditor.Model.t)) => {
+        let current_segment = Zipper.zip(m.editor.editor.state.zipper);
+        let original = Init.find_documentation_slide(s);
+        let original_segment =
+          original
+          |> Option.map((pce: CellEditor.Model.persistent) =>
+               PersistentZipper.unpersist(pce.editor)
+             )
+          |> Option.map(Zipper.zip);
+
+        if (Option.equal(
+              Base.equal_segment,
+              original_segment,
+              Some(current_segment),
+            )) {
+          (s, None);
+        } else {
+          (s, Some(CellEditor.Model.persist(m)));
+        };
+      },
       model.scratchpads,
     ),
   );
 
-  let unpersist = (~settings, (current, slides)) => {
+  let unpersist = (~settings, (current, slides): persistent): t => {
     current,
     scratchpads:
       List.map(
-        ((s, m)) => (s, CellEditor.Model.unpersist(~settings, m)),
+        ((s: string, m: option(CellEditor.Model.persistent))) =>
+          (
+            s,
+            OptUtil.get(() => Init.default_documentation_slide_name(s), m)
+            |> CellEditor.Model.unpersist(~settings),
+          ),
         slides,
       ),
   };
@@ -36,7 +63,9 @@ module StoreDocumentation =
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = Model.persistent;
     let key = Store.Documentation;
-    let default = () => Init.startup.documentation;
+    let default = (): t =>
+      Init.startup.documentation
+      |> PairUtil.map_snd(List.map(PairUtil.map_snd(_ => None)));
   });
 
 module Store = {
@@ -44,7 +73,9 @@ module Store = {
     [@deriving (show({with_path: false}), sexp, yojson)]
     type t = Model.persistent;
     let key = Store.Scratch;
-    let default = () => Init.startup.scratch;
+    let default = () =>
+      Init.startup.scratch
+      |> PairUtil.map_snd(List.map(PairUtil.map_snd(x => Some(x))));
   });
 
   let integrate_share = (model: t): t => {
@@ -57,12 +88,19 @@ module Store = {
     | (None, _) => model
     | (Some(data), (_current, scratchpads)) =>
       let shared_text = data |> StringUtil.decompress;
-      let shared: PersistentZipper.t = {
+      let shared: Haz3lcore.PersistentZipper.t = {
         zipper: "invalid",
         backup_text: shared_text,
       };
+      let shared: CellEditor.Model.persistent = {
+        editor: shared,
+        result: EvalResult.Model.init |> EvalResult.Model.persist,
+      };
 
-      (List.length(scratchpads), scratchpads @ [(share_name, shared)]);
+      (
+        List.length(scratchpads),
+        scratchpads @ [(share_name, Some(shared))],
+      );
     };
   };
 };
@@ -116,9 +154,40 @@ module Update = {
     JsUtil.QueryParams.set_param("name", name);
   };
 
+  let mk_new_scratchpad =
+      (model: Model.t, is_documentation: bool)
+      : list((string, CellEditor.Model.t)) => {
+    let new_key =
+      switch (is_documentation) {
+      | false =>
+        let used_scratchpads =
+          model.scratchpads
+          |> List.filter_map(scratchpad => {
+               switch (String.split_on_char(' ', fst(scratchpad))) {
+               | ["Scratchpad", num] => int_of_string_opt(num)
+               | _ => None
+               }
+             });
+        let unused_ids =
+          Seq.filter(i => !List.mem(i, used_scratchpads), Seq.ints(1));
+        let new_number =
+          Seq.uncons(unused_ids)
+          |> Option.get  // This is safe because unused_ids is infinite
+          |> fst;
+
+        "Scratchpad " ++ string_of_int(new_number);
+      | true =>
+        JsUtil.prompt("Enter new buffer name:", "New Buffer Name")
+        |> Option.get
+      };
+    model.scratchpads
+    @ [(new_key, CellEditor.Model.mk(Editor.Model.mk(Zipper.init())))];
+  };
+
   let update =
       (
         ~schedule_action,
+        ~send_assistant_insertion_info: CodeEditable.Model.t => unit,
         ~settings: Settings.t,
         ~is_documentation: bool,
         action,
@@ -130,10 +199,17 @@ module Update = {
       let* new_ed = CellEditor.Update.update(~settings, a, ed);
       let new_sp =
         ListUtil.put_nth(model.current, (key, new_ed), model.scratchpads);
-      {
+      let new_model = {
         ...model,
         scratchpads: new_sp,
       };
+      switch (a) {
+      // Check for assistant hole completion triggers
+      | MainEditor(Perform(Insert(_))) =>
+        send_assistant_insertion_info(new_ed.editor)
+      | _ => ()
+      };
+      new_model;
     | SwitchSlide(i) =>
       let* current = i |> Updated.return;
       {
@@ -141,32 +217,7 @@ module Update = {
         current,
       };
     | AddSlide =>
-      let new_key =
-        switch (is_documentation) {
-        | false =>
-          let used_scratchpads =
-            model.scratchpads
-            |> List.filter_map(scratchpad => {
-                 switch (String.split_on_char(' ', fst(scratchpad))) {
-                 | ["Scratchpad", num] => int_of_string_opt(num)
-                 | _ => None
-                 }
-               });
-          let unused_ids =
-            Seq.filter(i => !List.mem(i, used_scratchpads), Seq.ints(1));
-          let new_number =
-            Seq.uncons(unused_ids)
-            |> Option.get  // This is safe because unused_ids is infinite
-            |> fst;
-
-          "Scratchpad " ++ string_of_int(new_number);
-        | true =>
-          JsUtil.prompt("Enter new buffer name:", "New Buffer Name")
-          |> Option.get
-        };
-      let new_sp: list((string, CellEditor.Model.t)) =
-        model.scratchpads
-        @ [(new_key, CellEditor.Model.mk(Editor.Model.mk(Zipper.init())))];
+      let new_sp = mk_new_scratchpad(model, is_documentation);
       Updated.return(
         {
           current: List.length(new_sp) - 1,
@@ -199,11 +250,20 @@ module Update = {
         let new_sp =
           ListUtil.remove_nth(model.current, model.scratchpads)
           |> Option.value(~default=model.scratchpads);
-
+        let safe_sp =
+          new_sp |> List.length == 0
+            ? mk_new_scratchpad(
+                {
+                  ...model,
+                  scratchpads: new_sp,
+                },
+                is_documentation,
+              )
+            : new_sp;
         Updated.return(
           {
             current: max(model.current - 1, 0),
-            scratchpads: new_sp,
+            scratchpads: safe_sp,
           }: Model.t,
         );
       } else {
@@ -214,18 +274,14 @@ module Update = {
       let (key, _) = List.nth(model.scratchpads, model.current);
       let source =
         switch (is_documentation) {
-        | false => Zipper.init() |> PersistentZipper.persist
-        | true =>
-          Init.startup.documentation
-          |> snd
-          |> List.map(snd)
-          |> List.nth(_, model.current)
+        | false =>
+          CellEditor.Model.mk(Editor.Model.mk(Zipper.init()))
+          |> CellEditor.Model.persist
+        | true => Init.default_documentation_slide_name(key)
         };
       let* data =
         source
-        |> PersistentZipper.unpersist
-        |> Editor.Model.mk
-        |> CellEditor.Model.mk
+        |> CellEditor.Model.unpersist(~settings=settings.core)
         |> Updated.return;
       {
         ...model,
@@ -319,30 +375,37 @@ module Selection = {
   open Cursor;
 
   [@deriving (show({with_path: false}), sexp, yojson)]
-  type t = CellEditor.Selection.t;
+  type t =
+    | Cell(CellEditor.Selection.t)
+    | TextBox;
 
   let get_cursor_info = (~selection, model: Model.t): cursor(Update.t) => {
-    let+ ci =
-      CellEditor.Selection.get_cursor_info(
-        ~selection,
-        List.nth(model.scratchpads, model.current) |> snd,
-      );
-    Update.CellAction(ci);
+    switch (selection) {
+    | Cell(selection) =>
+      let+ a =
+        CellEditor.Selection.get_cursor_info(
+          ~selection,
+          List.nth(model.scratchpads, model.current) |> snd,
+        );
+      Update.CellAction(a);
+    | TextBox => empty
+    };
   };
 
   let handle_key_event =
       (~selection, ~event: Key.t, model: Model.t): option(Update.t) =>
-    switch (event) {
-    | {key: D(key), sys: Mac | PC, shift: Up, meta: Down, ctrl: Up, alt: Up}
-        when Keyboard.is_digit(key) =>
-      Some(Update.SwitchSlide(int_of_string(key)))
-    | _ =>
-      CellEditor.Selection.handle_key_event(
-        ~selection,
-        ~event,
-        List.nth(model.scratchpads, model.current) |> snd,
-      )
-      |> Option.map(x => Update.CellAction(x))
+    switch (selection) {
+    | Cell(selection) =>
+      switch (event) {
+      | _ =>
+        CellEditor.Selection.handle_key_event(
+          ~selection,
+          ~event,
+          List.nth(model.scratchpads, model.current) |> snd,
+        )
+        |> Option.map(x => Update.CellAction(x))
+      }
+    | TextBox => None
     };
 
   let jump_to_tile = (tile, model: Model.t): option((Update.t, t)) =>
@@ -350,12 +413,12 @@ module Selection = {
       tile,
       List.nth(model.scratchpads, model.current) |> snd,
     )
-    |> Option.map(((x, y)) => (Update.CellAction(x), y));
+    |> Option.map(((x, y)) => (Update.CellAction(x), Cell(y)));
 };
 
 module View = {
   type event =
-    | MakeActive(CellEditor.Selection.t);
+    | MakeActive(Selection.t);
 
   let view =
       (
@@ -376,9 +439,13 @@ module View = {
         ~globals,
         ~signal=
           fun
-          | MakeActive(selection) => signal(MakeActive(selection)),
+          | MakeActive(selection) => signal(MakeActive(Cell(selection))),
         ~inject=a => inject(CellAction(a)),
-        ~selected,
+        ~selected=
+          switch (selected) {
+          | Some(Selection.Cell(s)) => Some(s)
+          | _ => None
+          },
         ~locked=false,
         List.nth(model.scratchpads, model.current) |> snd,
       ),
