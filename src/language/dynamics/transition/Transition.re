@@ -252,7 +252,7 @@ module Transition = (EV: EV_MODE) => {
       and. d1' =
         req_final(req(state, env), d1 => Let1(dp, d1, d2) |> wrap_ctx, d1);
       let.wrap_closure _ = env;
-      let {matches, closures} = matches(dp, d1');
+      let {matches, closures} = matches(~force_partial_match=true, dp, d1');
       let matches_str = {
         switch (matches) {
         | IndetMatch

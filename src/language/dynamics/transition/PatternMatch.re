@@ -12,9 +12,25 @@ let combine_result = (r1: match_result, r2: match_result): match_result =>
     Matches(Environment.union(env1, env2))
   };
 
-let rec matches = (capture, dp: Pat.t, d: DHExp.t): match_result => {
-  let matches = matches(capture);
+let combine_partial_result =
+    (r1: match_result, r2: match_result): match_result =>
+  switch (r1, r2) {
+  | (DoesNotMatch, DoesNotMatch)
+  | (IndetMatch, DoesNotMatch)
+  | (DoesNotMatch, IndetMatch) => DoesNotMatch
+  | (IndetMatch, IndetMatch) => IndetMatch
+  | (Matches(env1), Matches(env2)) =>
+    Matches(Environment.union(env1, env2))
+  | (Matches(env), _) => Matches(env)
+  | (_, Matches(env)) => Matches(env)
+  };
+let rec matches =
+        (~force_partial_match=?, capture, dp: Pat.t, d: DHExp.t): match_result => {
+  let matches = matches(capture, ~force_partial_match?);
   let d = Ascriptions.transition_multiple(d);
+  let combine_result =
+    Option.is_none(force_partial_match)
+      ? combine_result : combine_partial_result;
   switch (DHPat.term_of(dp)) {
   | Invalid(_)
   | EmptyHole
@@ -70,7 +86,8 @@ type matches_and_closures = {
   closures: closure_closures,
 };
 
-let matches = (dp: Pat.t, d: DHExp.t): matches_and_closures => {
+let matches =
+    (~force_partial_match=?, dp: Pat.t, d: DHExp.t): matches_and_closures => {
   /* Closure capture for Probe instrumentation */
   let closure_closures: ref(closure_closures) = ref([]);
   let capture =
@@ -86,7 +103,8 @@ let matches = (dp: Pat.t, d: DHExp.t): matches_and_closures => {
           closure_closures^,
         )
     };
-  let res = matches(capture, dp, d);
+  let res = matches(capture, dp, d, ~force_partial_match?);
+  print_endline("MATCH RESULT: " ++ show_match_result(res));
   {
     matches: res,
     closures: closure_closures^,
