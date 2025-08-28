@@ -138,6 +138,15 @@ let shortcuts = (sys: Util.Key.sys): list(t) =>
       Globals(ActiveEditor(Project(SetIndicated(ChooseLivelit)))),
     ),
     mk_shortcut(
+      ~hotkey="alt+e",
+      ~mdIcon="web",
+      ~section="Projection",
+      "External Slider",
+      Globals(
+        ActiveEditor(Project(SetIndicated(Specific(Exo(Slider))))),
+      ),
+    ),
+    mk_shortcut(
       ~section="Settings",
       ~mdIcon="tune",
       "Toggle Statics",

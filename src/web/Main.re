@@ -145,6 +145,7 @@ let start = {
       >= 0;
     NinjaKeys.initialize(Shortcut.options(schedule_action));
     JsUtil.focus_clipboard_shim();
+    ExternalProjectorBridge.init(schedule_action);
     schedule_action(
       Assistant(AssistantUpdate.ChatAction(FilterLoadingMessages)),
     );

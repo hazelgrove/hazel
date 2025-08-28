@@ -17,6 +17,10 @@ module Kind = {
    * types need to be registered here in order to be
    * able to create and update their instances */
   [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
+  type exo_kind =
+    | Slider;
+
+  [@deriving (show({with_path: false}), sexp, yojson, eq, enumerate)]
   type t =
     | Fold
     | Info
@@ -26,7 +30,8 @@ module Kind = {
     | SliderF
     | Card
     | Livelit
-    | TextArea;
+    | TextArea
+    | Exo(exo_kind);
 
   let livelit_projectors: list(t) = [
     Checkbox,
@@ -35,6 +40,7 @@ module Kind = {
     TextArea,
     Card,
     Livelit,
+    Exo(Slider),
   ];
 
   let projectors: list(t) = livelit_projectors @ [Fold, Info, Probe];
@@ -42,6 +48,11 @@ module Kind = {
   /* A friendly name for each projector. This is used
    * both for identifying a projector in the CSS and for
    * selecting projectors in the projector panel menu */
+  let exo_name = (ek: exo_kind): string =>
+    switch (ek) {
+    | Slider => "slider"
+    };
+
   let name = (p: t): string =>
     switch (p) {
     | Fold => "fold"
@@ -53,11 +64,18 @@ module Kind = {
     | Card => "card"
     | Livelit => "livelit"
     | TextArea => "text"
+    | Exo(ek) => "exo-" ++ exo_name(ek)
     };
 
   /* This must be updated and kept 1-to-1 with the above
    * name function in order to be able to select the
    * projector in the projector panel menu */
+  let exo_of_name = (name: string): exo_kind =>
+    switch (name) {
+    | "slider" => Slider
+    | _ => failwith("Unknown external projector kind")
+    };
+
   let of_name = (p: string): t =>
     switch (p) {
     | "fold" => Fold
@@ -69,6 +87,10 @@ module Kind = {
     | "text" => TextArea
     | "livelit" => Livelit
     | "card" => Card
+    | "exo-slider" => Exo(Slider)
+    | _ when String.starts_with(~prefix="exo-", p) =>
+      let exo_name = String.sub(p, 4, String.length(p) - 4);
+      Exo(exo_of_name(exo_name));
     | _ => failwith("Unknown projector kind")
     };
 
