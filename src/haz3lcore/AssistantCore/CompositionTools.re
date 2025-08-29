@@ -253,10 +253,8 @@ module Perform = {
               switch (ListUtil.hd_opt(cands)) {
               | None => Error(Action.Failure.Cant_move)
               | Some(child) =>
-                switch (Select.tile(Info.id_of(child.info), z)) {
-                | Some(z) => Ok(z)
-                | None => Error(Action.Failure.Cant_select)
-                }
+                Select.tile(Info.id_of(child.info), z)
+                |> return(Action.Failure.Cant_select)
               };
             };
           | Some(nth) =>
@@ -265,10 +263,8 @@ module Perform = {
             switch (List.nth_opt(node.children, nth)) {
             | None => Error(Action.Failure.Cant_move)
             | Some(child) =>
-              switch (Select.tile(Info.id_of(child.info), z)) {
-              | Some(z) => Ok(z)
-              | None => Error(Action.Failure.Cant_select)
-              }
+              Select.tile(Info.id_of(child.info), z)
+              |> return(Action.Failure.Cant_select)
             }
           }
         | GoToSibling(via) =>
@@ -288,10 +284,8 @@ module Perform = {
                 switch (ListUtil.hd_opt(cands)) {
                 | None => Error(Action.Failure.Cant_move)
                 | Some(sibling) =>
-                  switch (Select.tile(Info.id_of(sibling.info), z)) {
-                  | Some(z) => Ok(z)
-                  | None => Error(Action.Failure.Cant_select)
-                  }
+                  Select.tile(Info.id_of(sibling.info), z)
+                  |> return(Action.Failure.Cant_select)
                 };
               };
             | Some(nth) =>
@@ -300,10 +294,8 @@ module Perform = {
               switch (List.nth_opt(node.siblings, nth)) {
               | None => Error(Action.Failure.Cant_move)
               | Some(sibling) =>
-                switch (Select.tile(Info.id_of(sibling.info), z)) {
-                | Some(z) => Ok(z)
-                | None => Error(Action.Failure.Cant_select)
-                }
+                Select.tile(Info.id_of(sibling.info), z)
+                |> return(Action.Failure.Cant_select)
               }
             }
           | Stepwise(d) =>
@@ -325,10 +317,7 @@ module Perform = {
                 List.nth(node.siblings, (node.sibling_idx + len) mod len).info
                 |> Info.id_of
               };
-            switch (Select.tile(target_id, z)) {
-            | Some(z) => Ok(z)
-            | None => Error(Action.Failure.Cant_select)
-            };
+            Select.tile(target_id, z) |> return(Action.Failure.Cant_select);
           }
         }
       | Read(_r) => Ok(z) // todo
