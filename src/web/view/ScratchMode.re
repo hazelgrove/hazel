@@ -201,7 +201,10 @@ module Update = {
               },
             model.scratchpads,
           )
-            ? model.scratchpads
+            ? {
+              JsUtil.alert("There is already a scratchpad with this name!");
+              model.scratchpads;
+            }
             : ListUtil.put_nth(
                 model.current,
                 (new_name, snd(current)),

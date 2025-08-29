@@ -106,6 +106,10 @@ let confirm = message => {
   Js.to_bool(Dom_html.window##confirm(Js.string(message)));
 };
 
+let alert = message => {
+  Dom_html.window##alert(Js.string(message));
+};
+
 let log = data => {
   Firebug.console##log(data);
 };
