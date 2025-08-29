@@ -118,3 +118,67 @@ let from_hazel_to_js = (msg: from_hazel_message): Js.t(_) => {
   };
   js_obj;
 };
+
+/* JSON Codec for converting between Hazel expressions and Yojson */
+module JsonCodec = {
+  /* Stage 1: Support only integers; stub out other types with clear errors */
+
+  let exp_to_yojson =
+      (exp: Language.Term.Exp.t): result(Yojson.Safe.t, string) => {
+    switch (exp.term) {
+    | Atom(Int(i)) =>
+      switch (Bigint.to_int(i)) {
+      | Some(int_val) => Ok(`Int(int_val))
+      | None => Error("Integer too large to convert to JSON")
+      }
+    | Atom(Float(_)) => Error("Float values not yet supported in JsonCodec")
+    | Atom(String(_)) =>
+      Error("String values not yet supported in JsonCodec")
+    | Atom(Bool(_)) => Error("Bool values not yet supported in JsonCodec")
+    | ListLit(_) => Error("List values not yet supported in JsonCodec")
+    | Tuple(_) => Error("Tuple values not yet supported in JsonCodec")
+    | Parens(_) => Error("Parens values not yet supported in JsonCodec")
+    | Constructor(_) =>
+      Error("Constructor values not yet supported in JsonCodec")
+    | _ => Error("Unsupported expression type for JsonCodec")
+    };
+  };
+
+  let any_to_yojson =
+      (any: Language.Term.Any.t): result(Yojson.Safe.t, string) => {
+    switch (any) {
+    | Exp(exp) => exp_to_yojson(exp)
+    | _ => Error("Only Exp terms are supported in JsonCodec")
+    };
+  };
+
+  let yojson_to_exp =
+      (json: Yojson.Safe.t): result(Language.Term.Exp.t, string) => {
+    switch (json) {
+    | `Int(i) =>
+      try({
+        let _big_int = Bigint.of_int(i);
+        Ok(Language.IdTagged.FreshGrammar.Exp.big_int(Bigint.of_int(i)));
+      }) {
+      | _ => Error("Failed to convert int to Bigint")
+      }
+    | `Float(_) => Error("Float values not yet supported in JsonCodec")
+    | `String(_) => Error("String values not yet supported in JsonCodec")
+    | `Bool(_) => Error("Bool values not yet supported in JsonCodec")
+    | `List(_) => Error("List values not yet supported in JsonCodec")
+    | `Assoc(_) => Error("Object values not yet supported in JsonCodec")
+    | `Null => Error("Null values not supported in JsonCodec")
+    | `Tuple(_) => Error("Tuple values not yet supported in JsonCodec")
+    | `Intlit(_) => Error("Intlit values not yet supported in JsonCodec")
+    | `Variant(_) => Error("Variant values not yet supported in JsonCodec")
+    };
+  };
+
+  let yojson_to_any =
+      (json: Yojson.Safe.t): result(Language.Term.Any.t, string) => {
+    switch (yojson_to_exp(json)) {
+    | Ok(exp) => Ok(Exp(exp))
+    | Error(msg) => Error(msg)
+    };
+  };
+};
