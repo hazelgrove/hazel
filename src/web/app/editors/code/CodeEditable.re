@@ -33,6 +33,7 @@ module Update = {
         ~settings=settings.core,
         action,
         model.statics,
+        model.dynamics,
         model.editor,
       )
       |> (
@@ -51,7 +52,6 @@ module Update = {
            ~scroll_active={
              switch (action) {
              | Move(_)
-             | Jump(_)
              | Select(
                  Resize(_) | Term(_) | Smart(_) | Tile(_) | ToggleFocus |
                  SetFocus(_),
@@ -91,8 +91,7 @@ module Update = {
       let action: Action.t =
         Selection.is_buffer(z.selection)
           ? Buffer(Accept)
-          : Zipper.can_put_down(z)
-              ? Put_down : Move(Goal(Piece(Grout, Right)));
+          : Zipper.can_put_down(z) ? Put_down : Move(Goal(Hole(Right)));
       perform(action, model);
     };
   };
@@ -134,9 +133,9 @@ module Selection = {
     };
   };
 
-  let jump_to_tile = (id: Id.t, model: Model.t) => {
+  let jump_to_tile = (id: Id.t, model: Model.t): option(Update.t) => {
     switch (TermData.root_tile_opt(id, model.editor.syntax.term_data)) {
-    | Some(_) => Some(Update.Perform(Jump(TileId(id))))
+    | Some(_) => Some(Perform(Move(Goal(TileId(id)))))
     | None => None
     };
   };
@@ -224,14 +223,14 @@ module View = {
       | {shift: Down, _} =>
         Effect.Many([
           signal(MakeActive),
-          inject(Perform(Select(Resize(Goal(Point(loc(mouse))))))),
+          inject(Perform(Select(Resize(Point(loc(mouse)))))),
         ])
       | {sys: PC, ctrl: Down, _}
       | {sys: Mac, meta: Down, _} =>
         Effect.Many([
           signal(MakeActive),
-          inject(Perform(Move(Goal(Point(loc(mouse)))))),
-          inject(Perform(Jump(BindingSiteOfIndicatedVar))),
+          inject(Perform(Move(Point(loc(mouse))))),
+          inject(Perform(Move(Goal(BindingSiteOfIndicatedVar)))),
         ])
       | {button: Left, _} =>
         MouseState.pointerdown(loc(mouse));
@@ -244,7 +243,7 @@ module View = {
           PointerCapture.set(mouse.current_target, pointer_id);
           Effect.Many([
             signal(MakeActive),
-            inject(Perform(Move(Goal(Point(loc(mouse)))))),
+            inject(Perform(Move(Point(loc(mouse))))),
           ]);
         | 2 => inject(Perform(Select(Smart(2))))
         | 3 => inject(Perform(Select(Smart(3))))
@@ -262,7 +261,7 @@ module View = {
     let drag_select = (pointer: Pointer.Event.t) =>
       switch (pointer) {
       | {button: Left, _} when MouseState.is_button_down() =>
-        inject(Perform(Select(Resize(Goal(Point(loc(pointer)))))))
+        inject(Perform(Select(Resize(Point(loc(pointer))))))
       | _ => Effect.Ignore
       };
 

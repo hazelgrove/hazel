@@ -199,7 +199,7 @@ module View = {
           | JumpTo(id) =>
             Effect.Many([
               signal(MakeActive(MainEditor)),
-              inject(MainEditor(Perform(Jump(TileId(id))))),
+              inject(MainEditor(Perform(Move(Goal(TileId(id)))))),
             ]),
         ~inject=a => inject(ResultAction(a)),
         ~selected={
