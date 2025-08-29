@@ -122,7 +122,7 @@ let from_hazel_to_js = (msg: from_hazel_message): Js.t(_) => {
 
 /* JSON Codec for converting between Hazel expressions and Yojson */
 module JsonCodec = {
-  /* Stage 4: Support base types (int, float, string, bool), lists, and tuples (plain and labeled); stub out other types with clear errors */
+  /* Stage 5: Support base types (int, float, string, bool), lists, tuples (plain and labeled), and ADTs; stub out other types with clear errors */
 
   let rec exp_to_yojson =
           (exp: Language.Term.Exp.t): result(Yojson.Safe.t, string) => {
@@ -254,8 +254,9 @@ module JsonCodec = {
         /* Non-tuple parens: just process the inner expression */
         exp_to_yojson(inner)
       }
-    | Constructor(_) =>
-      Error("Constructor values not yet supported in JsonCodec")
+    | Constructor(name, _) =>
+      /* ADT Constructor: nullary constructor -> {"t": "Name"} */
+      Ok(`Assoc([("t", `String(name))]))
     | UnOp(Float(Minus), {term: Atom(Float(f)), _}) => Ok(`Float(-. f))
     | UnOp(Int(Minus), {term: Atom(Int(i)), _}) =>
       switch (Bigint.to_int(i)) {
@@ -263,6 +264,13 @@ module JsonCodec = {
       | None => Error("Integer too large to convert to JSON")
       }
     | UnOp(_, _) => Error("Unary operations not yet supported in JsonCodec")
+    | Ap(_, {term: Constructor(name, _), _}, value) =>
+      /* ADT Constructor application: Constructor(value) -> {"t": "Constructor", "v": value} */
+      switch (exp_to_yojson(value)) {
+      | Ok(json_value) =>
+        Ok(`Assoc([("t", `String(name)), ("v", json_value)]))
+      | Error(msg) => Error(msg)
+      }
     | _ => Error("Unsupported expression type for JsonCodec")
     };
   };
@@ -323,92 +331,143 @@ module JsonCodec = {
       | Error(msg) => Error(msg)
       };
     | `Assoc(pairs) =>
-      /* JSON object: convert to tuple */
-      if (List.length(pairs) == 0) {
-        /* Empty tuple */
-        Ok(Language.IdTagged.FreshGrammar.Exp.tuple([]));
-      } else {
-        let all_numeric =
-          List.for_all(
-            ((key, _value)) =>
-              /* Check if all keys are numeric strings (0, 1, 2, ...) */
-              try({
-                let index = int_of_string(key);
-                index >= 0;
-              }) {
-              | _ => false
-              },
-            pairs,
-          );
-
-        let any_numeric =
-          List.exists(
-            ((key, _value)) =>
-              try({
-                let _ = int_of_string(key);
-                true;
-              }) {
-              | _ => false
-              },
-            pairs,
-          );
-
-        /* Reject mixed numeric/non-numeric keys */
-        if (any_numeric && !all_numeric) {
-          Error("Mixed labeled/unlabeled tuples not supported");
-        } else if (all_numeric) {
-          /* Plain tuple: sort by numeric key and create Parens(Tuple(...)) */
-          let sorted_pairs =
-            List.sort(
-              ((k1, _), (k2, _)) => {
-                let i1 = int_of_string(k1);
-                let i2 = int_of_string(k2);
-                compare(i1, i2);
-              },
+      /* JSON object: could be ADT constructor or tuple */
+      /* First check if it's an ADT constructor */
+      switch (List.assoc_opt("t", pairs)) {
+      | Some(`String(constructor_name)) =>
+        /* ADT Constructor */
+        switch (List.assoc_opt("v", pairs)) {
+        | Some(json_value) =>
+          /* Constructor with argument: {"t": "Some", "v": 42} */
+          switch (yojson_to_exp(json_value)) {
+          | Ok(value_exp) =>
+            /* Unwrap unnecessary parens around tuples when used as constructor arguments */
+            let unwrapped_exp =
+              switch (Term.Exp.term_of(value_exp)) {
+              | Parens({term: Tuple(_), _} as inner_tuple) => inner_tuple
+              | _ => value_exp
+              };
+            Ok(
+              Language.IdTagged.FreshGrammar.Exp.ap(
+                Forward,
+                Language.IdTagged.FreshGrammar.Exp.constructor(
+                  constructor_name,
+                  None,
+                ),
+                unwrapped_exp,
+              ),
+            );
+          | Error(msg) => Error(msg)
+          }
+        | None =>
+          /* Nullary constructor: {"t": "None"} */
+          if (List.length(pairs) == 1) {
+            Ok(
+              Language.IdTagged.FreshGrammar.Exp.constructor(
+                constructor_name,
+                None,
+              ),
+            );
+          } else {
+            Error(
+              "Invalid ADT constructor: extra fields besides 't' for nullary constructor",
+            );
+          }
+        }
+      | Some(_) =>
+        Error("Invalid ADT constructor: 't' field must be a string")
+      | None =>
+        /* Not an ADT constructor, treat as tuple */
+        if (List.length(pairs) == 0) {
+          /* Empty tuple */
+          Ok(Language.IdTagged.FreshGrammar.Exp.tuple([]));
+        } else {
+          let all_numeric =
+            List.for_all(
+              ((key, _value)) =>
+                /* Check if all keys are numeric strings (0, 1, 2, ...) */
+                try({
+                  let index = int_of_string(key);
+                  index >= 0;
+                }) {
+                | _ => false
+                },
               pairs,
             );
-          let rec convert_plain_elements = (acc, remaining) =>
-            switch (remaining) {
-            | [] => Ok(List.rev(acc))
-            | [(_key, value), ...tl] =>
-              switch (yojson_to_exp(value)) {
-              | Ok(exp_elem) =>
-                convert_plain_elements([exp_elem, ...acc], tl)
-              | Error(msg) => Error(msg)
-              }
+
+          let any_numeric =
+            List.exists(
+              ((key, _value)) =>
+                try({
+                  let _ = int_of_string(key);
+                  true;
+                }) {
+                | _ => false
+                },
+              pairs,
+            );
+
+          /* Reject mixed numeric/non-numeric keys */
+          if (any_numeric && !all_numeric) {
+            Error("Mixed labeled/unlabeled tuples not supported");
+          } else if (all_numeric) {
+            /* Plain tuple: sort by numeric key and create Parens(Tuple(...)) */
+            let sorted_pairs =
+              List.sort(
+                ((k1, _), (k2, _)) => {
+                  let i1 = int_of_string(k1);
+                  let i2 = int_of_string(k2);
+                  compare(i1, i2);
+                },
+                pairs,
+              );
+            let rec convert_plain_elements = (acc, remaining) =>
+              switch (remaining) {
+              | [] => Ok(List.rev(acc))
+              | [(_key, value), ...tl] =>
+                switch (yojson_to_exp(value)) {
+                | Ok(exp_elem) =>
+                  convert_plain_elements([exp_elem, ...acc], tl)
+                | Error(msg) => Error(msg)
+                }
+              };
+            switch (convert_plain_elements([], sorted_pairs)) {
+            | Ok(elements) =>
+              Ok(
+                Language.IdTagged.FreshGrammar.Exp.parens(
+                  Language.IdTagged.FreshGrammar.Exp.tuple(elements),
+                ),
+              )
+            | Error(msg) => Error(msg)
             };
-          switch (convert_plain_elements([], sorted_pairs)) {
-          | Ok(elements) =>
-            Ok(
-              Language.IdTagged.FreshGrammar.Exp.parens(
-                Language.IdTagged.FreshGrammar.Exp.tuple(elements),
-              ),
-            )
-          | Error(msg) => Error(msg)
-          };
-        } else {
-          /* Labeled tuple: create tuple with TupLabel elements */
-          let rec convert_labeled_elements = (acc, remaining) =>
-            switch (remaining) {
-            | [] => Ok(List.rev(acc))
-            | [(key, value), ...tl] =>
-              switch (yojson_to_exp(value)) {
-              | Ok(exp_elem) =>
-                let labeled_elem =
-                  Language.IdTagged.FreshGrammar.Exp.tup_label(
-                    Language.IdTagged.FreshGrammar.Exp.label(key),
-                    exp_elem,
-                  );
-                convert_labeled_elements([labeled_elem, ...acc], tl);
-              | Error(msg) => Error(msg)
-              }
+          } else {
+            /* Labeled tuple: create tuple with TupLabel elements */
+            let rec convert_labeled_elements = (acc, remaining) =>
+              switch (remaining) {
+              | [] => Ok(List.rev(acc))
+              | [(key, value), ...tl] =>
+                switch (yojson_to_exp(value)) {
+                | Ok(exp_elem) =>
+                  let labeled_elem =
+                    Language.IdTagged.FreshGrammar.Exp.tup_label(
+                      Language.IdTagged.FreshGrammar.Exp.label(key),
+                      exp_elem,
+                    );
+                  convert_labeled_elements([labeled_elem, ...acc], tl);
+                | Error(msg) => Error(msg)
+                }
+              };
+            switch (convert_labeled_elements([], pairs)) {
+            | Ok(elements) =>
+              Ok(
+                Language.IdTagged.FreshGrammar.Exp.parens(
+                  Language.IdTagged.FreshGrammar.Exp.tuple(elements),
+                ),
+              )
+            | Error(msg) => Error(msg)
             };
-          switch (convert_labeled_elements([], pairs)) {
-          | Ok(elements) =>
-            Ok(Language.IdTagged.FreshGrammar.Exp.tuple(elements))
-          | Error(msg) => Error(msg)
           };
-        };
+        }
       }
     | `Null => Error("Null values not supported in JsonCodec")
     | `Tuple(_) => Error("Tuple values not yet supported in JsonCodec")
