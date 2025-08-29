@@ -109,7 +109,7 @@ module type ExpressionStatics = {
       ~label_inference: Info.label_inference(Info.exp)=?,
       ~self: Self.exp,
       ~co_ctx: CoCtx.t,
-      ~rewrite_id: option(Uuidm.t),
+      ~rewrite_id: option(Uuidm.t)=?,
       Map.t
     ) =>
     (Info.exp, Map.t);
