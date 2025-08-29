@@ -56,6 +56,39 @@ module IntCodec = {
     }) {
     | _ => None
     };
+
+  let syntax_to_string = (info: ProjectorBase.info): option(string) =>
+    try(
+      switch (info.utility.seg_to_term(info.syntax)) {
+      | Some(Exp({term: Atom(Int(i)), _})) => Some(Bigint.to_string(i))
+      | _ => None
+      }
+    ) {
+    | _ => None
+    };
+};
+
+/* Helper to send postMessage to iframe contentWindow */
+let post_to_iframe = (id: Id.t, message_obj: Js_of_ocaml.Js.t('a)): unit => {
+  let iframe_id = Id.cls(id) ++ "-exo-iframe";
+  let doc = Js_of_ocaml.Dom_html.document;
+  switch (
+    Js_of_ocaml.Js.Opt.to_option(
+      doc##getElementById(Js_of_ocaml.Js.string(iframe_id)),
+    )
+  ) {
+  | Some(iframe_element) =>
+    let iframe = Js_of_ocaml.Js.Unsafe.coerce(iframe_element);
+    switch (Js_of_ocaml.Js.Opt.to_option(iframe##.contentWindow)) {
+    | Some(content_window) =>
+      content_window##postMessage(
+        message_obj,
+        Js_of_ocaml.Js.string("http://localhost:5173"),
+      )
+    | None => () /* contentWindow not available */
+    };
+  | None => () /* iframe not found */
+  };
 };
 
 /* Full postMessage handler with codec support */

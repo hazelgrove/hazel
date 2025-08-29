@@ -36,14 +36,6 @@ module M: Projector = {
     | None => None
     };
 
-  let get_value = (info: info): string =>
-    switch (
-      info.syntax |> info.utility.seg_to_term |> OptUtil.and_then(int_of)
-    ) {
-    | Some(i) => Bigint.to_string(i)
-    | None => "0"
-    };
-
   let focusable = Focusable.non;
   let dynamics = false;
 
@@ -71,24 +63,22 @@ module M: Projector = {
       }
     };
 
-  let iframe_url = (~min_val, ~max_val, ~step_val, ~current_value, ~id) =>
+  let iframe_url = (~min_val, ~max_val, ~step_val, ~id) =>
     Printf.sprintf(
-      "http://localhost:5173/?min=%d&max=%d&step=%d&initial=%s&id=%s&parentOrigin=%s",
+      "http://localhost:5173/?min=%d&max=%d&step=%d&id=%s&parentOrigin=%s",
       min_val,
       max_val,
       step_val,
-      current_value,
       Id.to_string(id),
       "http://localhost:8000" /* Hazel dev server origin */
     );
 
-  let iframe_view = (id: Id.t, model: exo_model, current_value: string) => {
-    let iframe_url =
-      iframe_url(~min_val=0, ~max_val=100, ~step_val=1, ~current_value, ~id);
+  let iframe_view = (id: Id.t, model: exo_model) => {
+    let url = iframe_url(~min_val=0, ~max_val=100, ~step_val=1, ~id);
     Node.create(
       "iframe",
       ~attrs=[
-        Attr.create("src", iframe_url),
+        Attr.create("src", url),
         Attr.create("sandbox", "allow-scripts allow-same-origin"),
         Attr.create("allow", ""),
         Attr.create(
@@ -119,6 +109,6 @@ module M: Projector = {
         ~view_seg as _,
       ) => {
     ExternalProjectorBridge.register_projector(parent, info);
-    View.mk(iframe_view(info.id, model, get_value(info)));
+    View.mk(iframe_view(info.id, model));
   };
 };
