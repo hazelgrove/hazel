@@ -352,13 +352,18 @@ let build_curr_node_info =
 
     // Requires: The curr node must have already had its parent attempted to be found.
     let get_siblings_of = (node: node): list(node) =>
-      switch (node.parent) {
+      switch (
+        parent_node_of(
+          Info.ancestors_of(curr_node.info),
+          curr_node.info,
+          info_map,
+        )
+      ) {
       | Some(parent) =>
         // don't include the current node in the siblings
         child_nodes_of(Some(parent), None)
       | None =>
-        // This is a special case.
-        // Type/let expression at the top level of the program don't have an explicit "parent",
+        // Type/let expressions at the top level of the program don't have an explicit "parent",
         // however, they can still be thought of as being siblings of each other.
         // This becomes more clear if we wrap them all in a singular "root"/"global" program binding.
         // We handle this special case here.

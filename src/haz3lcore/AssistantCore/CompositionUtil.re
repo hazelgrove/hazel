@@ -8,7 +8,7 @@ module View = {
   // This allows use to modify the term-base of the editor itself,
   // covering up inner child definitions with folds,
   // and any other modifications we might want to make to the editor
-  // before displaying to the LLM.
+  // before displaying a snippet of it in string form to the LLM.
   let perform = (a: Action.t, z: Zipper.t) =>
     Perform.go(
       ~statics=CachedStatics.empty,
@@ -20,7 +20,24 @@ module View = {
       },
     );
 
-  let definition = (z: Zipper.t, curr_node: AssistantTreeHelper.node) => {
+  let caret_char = "¦"; /* Note this is two bytes */
+  let convex_char = "?";
+  let concave_char = "~";
+  let selection_char = "§"; /* Note this is two bytes */
+  let caret_regexp = StringUtil.regexp(caret_char);
+
+  let printer = (z: Zipper.t): string => {
+    Printer.of_zipper(
+      ~holes=convex_char,
+      ~concave_holes=concave_char,
+      ~special_folds=true,
+      ~caret=caret_char,
+      ~selection_anchor=selection_char,
+      z,
+    );
+  };
+
+  let prepare_definition = (z: Zipper.t, curr_node: AssistantTreeHelper.node) => {
     let rec fold_terms = (z: Zipper.t, ids: list(Id.t)) => {
       switch (ids) {
       | [] => z
@@ -69,6 +86,29 @@ module View = {
       | _ => Id.invalid
       };
     };
+    print_endline(
+      "curr_node.id: " ++ Uuidm.to_string(Info.id_of(curr_node.info)),
+    );
+    print_endline(
+      "curr_node.children: "
+      ++ String.concat(
+           ", ",
+           List.map(
+             Uuidm.to_string,
+             List.map(AssistantTreeHelper.id_of, curr_node.children),
+           ),
+         ),
+    );
+    print_endline(
+      "curr_node.siblings: "
+      ++ String.concat(
+           ", ",
+           List.map(
+             Uuidm.to_string,
+             List.map(AssistantTreeHelper.id_of, curr_node.siblings),
+           ),
+         ),
+    );
     let children_def_ids =
       List.map(
         (c: AssistantTreeHelper.node) => get_def_id_of_let(c.info),
@@ -89,24 +129,19 @@ module View = {
         // this switch is a temporary workaround for below mentioned bug
         switch (remove_body(z', parent.info)) {
         | Ok(z'') =>
+          let syntax = CachedSyntax.init(z'');
           switch (
-            perform(
-              // Select the *tile* of the parent
-              // TODO: throws failure when trying to select tile
-              // note: this bug only started happening after passing the segment
-              // directly for view
-              // I suspect this is because the body expression is missing when selecting term
-              Action.Select(
-                Term(
-                  Id(AssistantTreeHelper.id_of(parent), Direction.Right),
-                ),
-              ),
+            Select.term(
+              ~defs_exclude_bodies=true,
+              ~case_rules=false,
+              syntax.term_data,
+              AssistantTreeHelper.id_of(parent),
               z'',
             )
           ) {
-          | Ok(z''') => z'''
-          | _ => z''
-          }
+          | Some(z''') => z'''
+          | None => z''
+          };
         | _ => z
         }
       | None =>
@@ -116,8 +151,30 @@ module View = {
         }
       };
 
+    // Todo @andrew: Not sure of the perf effects of the below
+    // What this does is effectively display the local code map from the parent of the current node,
+    // down, along with the current selection (the current node the cursor is at, using the same
+    // characters test_editing uses).
+    // This effectively Cuts out the def of the parent, pastes it as it's own thing, and then
+    // selects the def of the current node.
     let seg = z''.selection.content;
-    seg;
+    let z = Zipper.init();
+    let z' = Zipper.insert_segment(z, seg);
+    let z'' =
+      switch (
+        Select.term(
+          ~defs_exclude_bodies=true,
+          ~case_rules=false,
+          CachedSyntax.init(z').term_data,
+          AssistantTreeHelper.id_of(curr_node),
+          z',
+        )
+      ) {
+      | Some(z'') => z''
+      | None => raise(Failure("Failed to select term"))
+      };
+    print_endline(printer(z''));
+    z'';
   };
 
   let context = (local_information: AssistantTreeHelper.node): string => {

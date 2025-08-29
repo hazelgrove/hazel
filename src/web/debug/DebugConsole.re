@@ -135,16 +135,12 @@ let print =
     );
   | "F11" =>
     //simple curr node id print
-    let info_map = editor.statics.info_map;
-    let zipper = move_to_non_whitespace(editor.editor.state.zipper);
-    let cursor = Indicated.ci_of(zipper, info_map);
-    let curr_term =
-      switch (cursor) {
-      | Some(ci) => ci
-      | None => raise(Failure("No cursor found"))
-      };
-    print_endline("Printing path to node");
-    print_endline(get_path_to_node(curr_term, editor.statics.info_map));
+    let _ =
+      CompositionUtil.View.prepare_definition(
+        zipper,
+        get_node(build_curr_node_info(zipper, map)),
+      );
+    ();
 
   | _ => print("DEBUG: No action for key: " ++ key)
   };

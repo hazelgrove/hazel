@@ -92,6 +92,7 @@ let of_zipper =
     (
       ~holes=?,
       ~concave_holes=?,
+      ~special_folds=?,
       ~indent=?,
       ~caret=?,
       ~selection_anchor=?,
@@ -113,6 +114,7 @@ let of_zipper =
   of_segment(
     ~holes?,
     ~concave_holes?,
+    ~special_folds?,
     ~indent?,
     ~caret,
     ~selection_anchor,

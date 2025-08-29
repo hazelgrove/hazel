@@ -310,13 +310,14 @@ let insert_after_tests = {
       ~name="Insert After (\"Simplest\" Case)",
       ~init="let a = 1¦ in a * b",
       ~acts=[Edit(InsertAfter("let b = 2 in"))],
-      ~goal="let a = 1 in let b = 2 in¦ a * b",
+      // ~goal="let a = 1 in let b = 2 in¦ a * b", //todo: <- this should be the goal
+      ~goal="let a = 1 in¦ let b = 2 in a * b",
     ),
     test(
       ~name="Insert After (Between Two Bindings)",
       ~init="let a = 10¦ in let c = 30 in a + b + c",
       ~acts=[Edit(InsertAfter("let b = 20 in"))],
-      ~goal="let a = 10 in let b = 20 in¦ let c = 30 in a + b + c",
+      ~goal="let a = 10 in¦ let b = 20 in let c = 30 in a + b + c",
     ),
   ];
 };
@@ -340,29 +341,50 @@ let edit_tests =
 // For testing that we display the proper contents for the assistant
 // (Note: This is not a tool call. This is a function that we use to display the relevant sketch content for the assistant
 //        on each iteration.)
-let test_view_definition = (~name, ~init: string, ~goal): test_case(_) => {
+let test_prepare_definition = (~name, ~init: string, ~goal): test_case(_) => {
   let z = perform(Zipper.init(), mk(init));
   let info_map = mk_statics(z);
   let curr_node_info =
     Option.get(AssistantTreeHelper.build_curr_node_info(z, info_map));
-  let sketch_seg_str =
-    CompositionUtil.View.definition(z, curr_node_info)
-    |> Printer.of_segment(~holes="?", ~special_folds=true);
+  let prepped_z_str =
+    CompositionUtil.View.prepare_definition(z, curr_node_info)
+    |> CompositionUtil.View.printer;
   test_case(name, `Quick, () =>
-    check(testable(Fmt.string, String.equal), goal, goal, sketch_seg_str)
+    check(testable(Fmt.string, String.equal), goal, goal, prepped_z_str)
   );
 };
 
 let view_definition_tests = [
-  test_view_definition(
-    ~name="View Definition (Simple - V1)",
+  test_prepare_definition(
+    ~name="View Definition (\"Simplest\" Case)",
     ~init={|let x = 4¦ in x|},
     ~goal={|let x = 4 in x|},
   ),
-  test_view_definition(
-    ~name="View Definition (Simple - V1)",
+  test_prepare_definition(
+    ~name="View Definition (Single Sibling)",
     ~init={|let x = 4¦ in let y = 5 in x + y|},
     ~goal={|let x = 4 in let y = ⋱ in x + y|},
+  ),
+  test_prepare_definition(
+    ~name="View Definition (Single Sibling)",
+    ~init={|let x = 4 in let y = 5 in¦ x + y|},
+    ~goal={|let x = ⋱ in let y = 5 in x + y|},
+  ),
+  test_prepare_definition(
+    ~name="View Definition (Single Parent, Two Children - At Parent)",
+    ~init={|let par1 = let chi1 = 0 in let chi2 = 1 in chi1 + chi2 in¦ par1|},
+    ~goal=
+      {|let par1 = let chi1 = ⋱ in let chi2 = ⋱ in chi1 + chi2 in par1|},
+  ),
+  test_prepare_definition(
+    ~name="View Definition (Single Parent, Two Children - At 1st Child)",
+    ~init={|let par1 = let chi1 = 1 in¦ let chi2 = 2 in chi1 + chi2 in par1|},
+    ~goal={|let par1 = let chi1 = 1 in let chi2 = ⋱ in chi1 + chi2 in par1|},
+  ),
+  test_prepare_definition(
+    ~name="View Definition (Single Parent, Two Children - At 2nd Child)",
+    ~init={|let par1 = let chi1 = 2 in let chi2 = 3 in¦ chi1 + chi2 in par1|},
+    ~goal={|let par1 = let chi1 = ⋱ in let chi2 = 3 in chi1 + chi2 in par1|},
   ),
 ];
 

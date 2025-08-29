@@ -277,13 +277,13 @@ module Composition = {
            )
         ++ "]";
 
-      let sketch_seg =
-        CompositionUtil.View.definition(
+      let prepped_z =
+        CompositionUtil.View.prepare_definition(
           editor.editor.state.zipper,
           curr_node_info,
         );
 
-      let sketch_seg_hd_str =
+      let prepped_z_hd_str =
         "Definition of \""
         ++ curr_node_info.name
         ++ "\"'s parent "
@@ -294,13 +294,12 @@ module Composition = {
           }
         )
         ++ "\":\n```";
-      let sketch_seg_str =
-        Printer.of_segment(~holes="?", ~special_folds=true, sketch_seg);
-      let sketch_seg_tl_str = "```";
+      let prepped_z_str = CompositionUtil.View.printer(prepped_z);
+      let prepped_z_tl_str = "```";
       let def_str =
         String.concat(
           "\n",
-          [sketch_seg_hd_str, sketch_seg_str, sketch_seg_tl_str],
+          [prepped_z_hd_str, prepped_z_str, prepped_z_tl_str],
         );
 
       let static_errors = ErrorPrint.all(editor.statics.info_map);
@@ -341,9 +340,9 @@ module Composition = {
         OpenRouter.mk_user_msg(local_code_map_str),
         {
           displayable_content: [
-            Text(ast_info_str ++ sketch_seg_hd_str),
+            Text(ast_info_str ++ prepped_z_hd_str),
             //Code(sketch_seg), //todo: avoid skel failures
-            Text(sketch_seg_tl_str ++ static_errors_str),
+            Text(prepped_z_tl_str ++ static_errors_str),
           ],
           raw_content: local_code_map_str,
           collapsed: true,
