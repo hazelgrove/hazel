@@ -118,6 +118,7 @@ type read_action =
 // a node will require the cursor to be moved elsewhere).
 [@deriving (show({with_path: false}), sexp, yojson, eq)]
 type edit_action =
+  | UpdateAll(string)
   | UpdateDefinition(string)
   | UpdateBody(string)
   | UpdatePattern(string)

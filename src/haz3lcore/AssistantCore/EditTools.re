@@ -1,5 +1,57 @@
 open Util;
 
+let update_all_description = {|
+Description:
+Overwrites the entire program with the given code.
+
+Parameters:
+code: string — new code to replace the entire program with
+
+Example(s):
+The current program is:
+```
+?
+```
+Calling update_all(code="let a = 3 in a * 2") would result in the program
+```
+let a = 3 in a * 2
+```
+|};
+
+let update_all: API.Json.t =
+  `Assoc([
+    ("type", `String("function")),
+    (
+      "function",
+      `Assoc([
+        ("name", `String("update_all")),
+        ("description", `String(update_all_description)),
+        (
+          "parameters",
+          `Assoc([
+            ("type", `String("object")),
+            (
+              "properties",
+              `Assoc([
+                (
+                  "code",
+                  `Assoc([
+                    ("type", `String("string")),
+                    (
+                      "description",
+                      `String("The new code to replace the definition with."),
+                    ),
+                  ]),
+                ),
+              ]),
+            ),
+            ("required", `List([`String("code")])),
+          ]),
+        ),
+      ]),
+    ),
+  ]);
+
 let update_definition_description = {|
 Description:
 Updates the definition of the current node

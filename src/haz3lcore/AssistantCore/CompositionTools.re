@@ -7,6 +7,7 @@ let tools = [
   NavTools.go_to_parent,
   NavTools.go_to_child,
   NavTools.go_to_sibling,
+  EditTools.update_all,
   EditTools.update_definition,
   EditTools.update_body,
   EditTools.update_pattern,
@@ -19,6 +20,13 @@ let tools = [
 ];
 
 type action = Action.composition_action;
+
+let get_string_arg = (~arg: option(string), ~fail_with: string) => {
+  switch (arg) {
+  | Some(arg) => arg
+  | None => raise(Failure(fail_with))
+  };
+};
 
 let action_of = (~tool_name: string, ~args: Maps.StringMap.t(string)): action => {
   /* Possible arguments */
@@ -33,102 +41,71 @@ let action_of = (~tool_name: string, ~args: Maps.StringMap.t(string)): action =>
   | "go_to_parent" => Nav(GoToParent)
   | "go_to_child" =>
     let name =
-      switch (name) {
-      | Some(name) => name
-      | None =>
-        raise(
-          Failure(
-            "You must specify a name for the child you wish to navigate to",
-          ),
-        )
-      };
+      OptUtil.get_or_fail(
+        "You must specify a name for the child you wish to navigate to",
+        name,
+      );
     Nav(GoToChild(name, index));
   | "go_to_sibling" =>
     let name =
-      switch (name) {
-      | Some(name) => name
-      | None =>
-        raise(
-          Failure(
-            "You must specify a name for the sibling you wish to navigate to",
-          ),
-        )
-      };
+      OptUtil.get_or_fail(
+        "You must specify a name for the sibling you wish to navigate to",
+        name,
+      );
     Nav(GoToSibling(NameAndIdx(name, index)));
   | "view_definition" => Read(ViewDefinition)
+  | "update_all" =>
+    let code =
+      OptUtil.get_or_fail(
+        "You must specify a code for the program you wish to update",
+        code,
+      );
+    Edit(UpdateAll(code));
   | "update_definition" =>
     let code =
-      switch (code) {
-      | Some(code) => code
-      | None =>
-        raise(
-          Failure(
-            "You must specify a code for the definition you wish to update",
-          ),
-        )
-      };
+      OptUtil.get_or_fail(
+        "You must specify a code for the definition you wish to update",
+        code,
+      );
     Edit(UpdateDefinition(code));
   | "update_body" =>
     let code =
-      switch (code) {
-      | Some(code) => code
-      | None =>
-        raise(
-          Failure("You must specify a code for the body you wish to update"),
-        )
-      };
+      OptUtil.get_or_fail(
+        "You must specify a code for the body you wish to update",
+        code,
+      );
     Edit(UpdateBody(code));
   | "update_pattern" =>
     let code =
-      switch (code) {
-      | Some(code) => code
-      | None =>
-        raise(
-          Failure(
-            "You must specify a code for the pattern you wish to update",
-          ),
-        )
-      };
+      OptUtil.get_or_fail(
+        "You must specify a code for the pattern you wish to update",
+        code,
+      );
     Edit(UpdatePattern(code));
   | "update_binding_clause" =>
     let code =
-      switch (code) {
-      | Some(code) => code
-      | None =>
-        raise(
-          Failure(
-            "You must specify a code for the expression you wish to update",
-          ),
-        )
-      };
+      OptUtil.get_or_fail(
+        "You must specify a code for the expression you wish to update",
+        code,
+      );
     Edit(UpdateBindingClause(code));
   | "insert_after" =>
     let code =
-      switch (code) {
-      | Some(code) => code
-      | None =>
-        raise(
-          Failure(
-            "You must specify a code for the expression you wish to insert after",
-          ),
-        )
-      };
+      OptUtil.get_or_fail(
+        "You must specify a code for the expression you wish to insert after",
+        code,
+      );
     Edit(InsertAfter(code));
   | "insert_before" =>
     let code =
-      switch (code) {
-      | Some(code) => code
-      | None =>
-        raise(
-          Failure(
-            "You must specify a code for the expression you wish to insert before",
-          ),
-        )
-      };
+      OptUtil.get_or_fail(
+        "You must specify a code for the expression you wish to insert before",
+        code,
+      );
     Edit(InsertBefore(code));
   | "delete_binding_clause" => Edit(DeleteBindingClause)
   | "delete_body" => Edit(DeleteBody)
-  | _ => Nav(GoToParent) // default fallback
+  | _ => raise(Failure("The tool called does not exist."))
   };
 };
 
@@ -167,6 +144,7 @@ let string_of = (action: action) => {
     )
     ++ ")"
   | Read(ViewDefinition) => "view_definition"
+  | Edit(UpdateAll(code)) => "update_all(\"" ++ code ++ "\")"
   | Edit(UpdateDefinition(code)) => "update_definition(\"" ++ code ++ "\")"
   | Edit(UpdateBody(code)) => "update_body(\"" ++ code ++ "\")"
   | Edit(UpdatePattern(code)) => "update_pattern(\"" ++ code ++ "\")"
@@ -216,6 +194,7 @@ module Perform = {
       )
     };
   };
+
   // Tempory wrapper that helps me localize myself while implementing (remove)
   let go =
       (
@@ -227,10 +206,25 @@ module Perform = {
           (Action.Failure.t, option(Zipper.t)) =>
           result(Zipper.t, Action.Failure.t),
       ) => {
+    let introduce = (z, code) => {
+      // Just a helper function for trying to paste code into the zipper
+      // Note that we paste a segment; so, we convert the string to a segment
+      // first, and then insert the segment into the zipper. This helps to
+      // avoid potential current buggy parsing issues.
+      Parser.to_segment(code)
+      |> OptUtil.and_then((segment: Segment.t) =>
+           Some(Zipper.insert_segment(z, segment))
+         )
+      |> return(CantPaste);
+    };
     let curr_node_info =
       AssistantTreeHelper.build_curr_node_info(z, mk_statics(z));
     switch (curr_node_info) {
-    | None => Error(Action.Failure.Cant_derive_local_AST_information) //todo, add failure case
+    | None =>
+      switch (a) {
+      | Edit(UpdateAll(code)) => introduce(Select.all(z), code)
+      | _ => Error(Action.Failure.Cant_derive_local_AST_information)
+      }
     | Some(node) =>
       switch (a) {
       | Nav(n) =>
@@ -352,17 +346,7 @@ module Perform = {
         //   | None => Error(Action.Failure.Cant_derive_local_AST_information)
         //   };
         // };
-        let introduce = (z, code) => {
-          // Just a helper function for trying to paste code into the zipper
-          // Note that we paste a segment; so, we convert the string to a segment
-          // first, and then insert the segment into the zipper. This helps to
-          // avoid potential current buggy parsing issues.
-          Parser.to_segment(code)
-          |> OptUtil.and_then((segment: Segment.t) =>
-               Some(Zipper.insert_segment(z, segment))
-             )
-          |> return(CantPaste);
-        };
+
         let overwrite_term = (z, target_id, code) => {
           // Select the respective tile (in this case the definition tile)
           switch (
@@ -439,6 +423,7 @@ module Perform = {
         | InsertAfter(code) =>
           // todo: figure out a better method than magic space
           insert_term(z, Info.id_of(node.info), " " ++ code, Direction.Right)
+        | UpdateAll(code) => introduce(Select.all(z), code)
         };
       }
     };

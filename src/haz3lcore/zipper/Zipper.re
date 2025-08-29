@@ -40,7 +40,7 @@ let unzip = (seg: Segment.t): t => {
 };
 
 let regrout = (d: Direction.t, z: t): t => {
-  assert(Selection.is_empty(z.selection));
+  //assert(Selection.is_empty(z.selection));
   let relatives = Relatives.regrout(d, z.relatives);
   {
     ...z,
@@ -49,8 +49,9 @@ let regrout = (d: Direction.t, z: t): t => {
 };
 
 let remold = (z: t): t => {
-  assert(Selection.is_empty(z.selection));
   {
+    //assert(Selection.is_empty(z.selection));
+
     ...z,
     relatives: Relatives.remold(z.relatives),
   };
@@ -302,7 +303,7 @@ let can_put_down = z =>
 
 let put_down_regrout_target = (d: Direction.t, target: Tile.t, z: t): t => {
   let z = put_down_core([Tile(target)], z);
-  let z = z |> remold |> regrout(Left);
+  let z = z |> remold_regrout(Left);
   adj_pos(d, z);
 };
 
